@@ -1,0 +1,494 @@
+<!DOCTYPE html>
+<html lang="en">
+<meta name="robots" content="noindex,nofollow,noarchive">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Wilson AC & Appliance - Payments Dashboard</title>
+  <style>
+    :root {
+      --bg: #f7f8fc;
+      --card: #ffffff;
+      --text: #1f2937;
+      --muted: #6b7280;
+      --border: #dbe1ea;
+      --primary: #635bff;
+      --primary-hover: #564ef0;
+      --success-bg: #ecfdf5;
+      --success-text: #065f46;
+      --shadow: 0 10px 35px rgba(0, 0, 0, 0.08);
+      --radius: 18px;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: linear-gradient(180deg, #eef2ff 0%, var(--bg) 100%);
+      color: var(--text);
+      min-height: 100vh;
+      padding: 32px 16px;
+    }
+
+    .wrap {
+      max-width: 1180px;
+      margin: 0 auto;
+    }
+
+    .hero {
+      margin-bottom: 22px;
+    }
+
+    .eyebrow {
+      display: inline-block;
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--primary);
+      background: rgba(99, 91, 255, 0.1);
+      padding: 8px 10px;
+      border-radius: 999px;
+      margin-bottom: 14px;
+    }
+
+    h1 {
+      margin: 0 0 10px;
+      font-size: clamp(30px, 4vw, 44px);
+      line-height: 1.05;
+    }
+
+    .sub {
+      margin: 0;
+      color: var(--muted);
+      font-size: 16px;
+      line-height: 1.6;
+      max-width: 820px;
+    }
+
+    .nav-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 18px;
+      margin: 26px 0 24px;
+    }
+
+    .nav-card {
+      display: block;
+      text-decoration: none;
+      background: var(--card);
+      border: 1px solid rgba(99, 91, 255, 0.12);
+      box-shadow: var(--shadow);
+      border-radius: 22px;
+      padding: 24px;
+      transition: transform 0.12s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+      color: inherit;
+    }
+
+    .nav-card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 14px 40px rgba(0, 0, 0, 0.1);
+      border-color: rgba(99, 91, 255, 0.35);
+    }
+
+    .nav-card-title {
+      font-size: 24px;
+      font-weight: 800;
+      margin: 0 0 8px;
+    }
+
+    .nav-card-text {
+      margin: 0;
+      color: var(--muted);
+      line-height: 1.6;
+      font-size: 15px;
+    }
+
+    .section-grid {
+      display: grid;
+      grid-template-columns: 2fr 1fr;
+      gap: 20px;
+      align-items: start;
+    }
+
+    .card {
+      background: var(--card);
+      border: 1px solid rgba(99, 91, 255, 0.12);
+      box-shadow: var(--shadow);
+      border-radius: var(--radius);
+      padding: 22px;
+    }
+
+    .card h2 {
+      margin: 0 0 18px;
+      font-size: 28px;
+      line-height: 1.1;
+    }
+
+    .summary-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 14px;
+      margin-bottom: 18px;
+    }
+
+    .metric {
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 16px;
+      background: #fafbff;
+    }
+
+    .metric-label {
+      font-size: 12px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--muted);
+      font-weight: 700;
+      margin-bottom: 6px;
+    }
+
+    .metric-value {
+      font-size: clamp(24px, 3vw, 38px);
+      font-weight: 800;
+      line-height: 1;
+    }
+
+    .metric-sub {
+      margin-top: 8px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .toolbar {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-bottom: 18px;
+    }
+
+    input, select {
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 12px 14px;
+      font-size: 14px;
+      background: #fff;
+      color: var(--text);
+      outline: none;
+    }
+
+    input:focus, select:focus {
+      border-color: rgba(99, 91, 255, 0.75);
+      box-shadow: 0 0 0 4px rgba(99, 91, 255, 0.12);
+    }
+
+    .toolbar input[type="date"] {
+      min-width: 180px;
+    }
+
+    .toolbar input[type="search"] {
+      flex: 1;
+      min-width: 220px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    th, td {
+      text-align: left;
+      padding: 14px 10px;
+      border-bottom: 1px solid #edf1f7;
+      vertical-align: middle;
+      font-size: 14px;
+    }
+
+    th {
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--muted);
+    }
+
+    .amount {
+      font-weight: 800;
+      white-space: nowrap;
+    }
+
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      border-radius: 999px;
+      padding: 6px 10px;
+      font-size: 12px;
+      font-weight: 700;
+      background: #eef2ff;
+      color: #4338ca;
+    }
+
+    .status-paid {
+      background: var(--success-bg);
+      color: var(--success-text);
+    }
+
+    .side-list {
+      display: grid;
+      gap: 12px;
+    }
+
+    .side-item {
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 14px;
+      background: #fafbff;
+    }
+
+    .side-item-title {
+      font-size: 14px;
+      font-weight: 700;
+      margin-bottom: 6px;
+    }
+
+    .side-item-text {
+      font-size: 13px;
+      color: var(--muted);
+      line-height: 1.5;
+    }
+
+    .small-link {
+      color: var(--primary);
+      text-decoration: none;
+      font-weight: 700;
+    }
+
+    @media (max-width: 900px) {
+      .section-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .nav-grid,
+      .summary-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="hero">
+      <div class="eyebrow">Wilson AC & Appliance - Payments Dashboard</div>
+      <h1>Payments landing page</h1>
+      <p class="sub">
+        Use this page as the main hub for daily payment activity. Jump into remote payment links or in-person reader charges, then track paid dollars and link performance below.
+      </p>
+    </div>
+
+    <div class="nav-grid">
+      <a class="nav-card" href="index.html">
+        <div class="nav-card-title">Send payment link</div>
+        <p class="nav-card-text">
+          Create a Stripe payment link for remote customer payment and text or email it out.
+        </p>
+      </a>
+
+      <a class="nav-card" href="terminal.html">
+        <div class="nav-card-title">Send to card reader</div>
+        <p class="nav-card-text">
+          Start an in-person card payment on the selected Stripe reader and copy confirmation into ePASS.
+        </p>
+      </a>
+    </div>
+
+    <div class="section-grid">
+      <div class="card">
+        <h2>Daily payment status</h2>
+
+        <div class="summary-grid">
+          <div class="metric">
+            <div class="metric-label">Paid total</div>
+            <div class="metric-value" id="paidTotal">$0.00</div>
+            <div class="metric-sub" id="paidCount">0 paid links today</div>
+          </div>
+
+          <div class="metric">
+            <div class="metric-label">Average ticket</div>
+            <div class="metric-value" id="avgTicket">$0.00</div>
+            <div class="metric-sub" id="openCount">0 open requests</div>
+          </div>
+        </div>
+
+        <div class="toolbar">
+          <input type="date" id="dateFilter" />
+          <input type="search" id="searchFilter" placeholder="Search customer, invoice, or payment intent" />
+          <select id="statusFilter">
+            <option value="all">All statuses</option>
+            <option value="paid">Paid only</option>
+            <option value="sent">Sent only</option>
+          </select>
+        </div>
+
+        <table>
+          <thead>
+            <tr>
+              <th>Customer</th>
+              <th>Reference</th>
+              <th>Status</th>
+              <th>Paid Amount</th>
+              <th>Paid Date</th>
+              <th>Payment Intent</th>
+            </tr>
+          </thead>
+          <tbody id="statusTableBody">
+            <tr>
+              <td colspan="6">No status records yet.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="card">
+        <h2>Quick notes</h2>
+        <div class="side-list">
+          <div class="side-item">
+            <div class="side-item-title">How to use this page</div>
+            <div class="side-item-text">
+              Keep this as the bookmark for sales and client care. The two large buttons above are the fast entry points for the payment tools.
+            </div>
+          </div>
+
+          <div class="side-item">
+            <div class="side-item-title">What should show here later</div>
+            <div class="side-item-text">
+              Today paid total, count of paid links, average ticket, and a running table of sent versus paid requests.
+            </div>
+          </div>
+
+          <div class="side-item">
+            <div class="side-item-title">More Tools Coming</div>
+            <div class="side-item-text">
+              Please let Andrew know what tool enhancements are needed to add functionality.
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+  const statusTableBody = document.getElementById("statusTableBody");
+  const paidTotalEl = document.getElementById("paidTotal");
+  const paidCountEl = document.getElementById("paidCount");
+  const avgTicketEl = document.getElementById("avgTicket");
+  const openCountEl = document.getElementById("openCount");
+  const searchFilterEl = document.getElementById("searchFilter");
+  const statusFilterEl = document.getElementById("statusFilter");
+  const dateFilterEl = document.getElementById("dateFilter");
+
+  let allRows = [];
+
+  const today = new Date();
+  dateFilterEl.value = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+
+  function formatMoney(value) {
+    return new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: "USD"
+    }).format(value || 0);
+  }
+
+  function formatDate(isoValue) {
+    if (!isoValue) return "-";
+    const date = new Date(isoValue);
+    return date.toLocaleString("en-US", {
+      month: "2-digit",
+      day: "2-digit",
+      year: "2-digit",
+      hour: "numeric",
+      minute: "2-digit"
+    });
+  }
+
+  async function loadStatusData() {
+    const res = await fetch("/api/payment-link-status");
+    const data = await res.json();
+
+    if (!res.ok) {
+      throw new Error(data.error || "Unable to load payment link status.");
+    }
+
+    allRows = data.rows || [];
+    renderDashboard();
+  }
+
+  function renderDashboard() {
+    const search = searchFilterEl.value.trim().toLowerCase();
+    const statusFilter = statusFilterEl.value;
+    const selectedDate = dateFilterEl.value;
+
+    const filtered = allRows.filter((row) => {
+       const matchesSearch =
+       !search ||
+       (row.customerName || "").toLowerCase().includes(search) ||
+       (row.reference || row.description || "").toLowerCase().includes(search) ||
+       (row.paymentIntentId || "").toLowerCase().includes(search);
+
+      const matchesStatus =
+        statusFilter === "all" || row.status === statusFilter;
+
+      const paidDateOnly = row.paidDate ? row.paidDate.slice(0, 10) : "";
+      const createdDateOnly = row.createdAt ? row.createdAt.slice(0, 10) : "";
+      const matchesDate =
+        !selectedDate ||
+        paidDateOnly === selectedDate ||
+        createdDateOnly === selectedDate;
+
+      return matchesSearch && matchesStatus && matchesDate;
+    });
+
+    statusTableBody.innerHTML = "";
+
+    if (filtered.length === 0) {
+      statusTableBody.innerHTML = `<tr><td colspan="6">No matching records found.</td></tr>`;
+    } else {
+      for (const row of filtered) {
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+          <td>${row.customerName || "-"}</td>
+          <td>${row.reference || row.description || "-"}</td>
+          <td>
+            <span class="status-badge ${row.status === "paid" ? "status-paid" : ""}">
+              ${row.status === "paid" ? "Paid" : "Sent"}
+            </span>
+          </td>
+          <td class="amount">${row.status === "paid" ? formatMoney(row.paidAmount) : "-"}</td>
+          <td>${formatDate(row.paidDate)}</td>
+          <td>${row.paymentIntentId || "-"}</td>
+        `;
+        statusTableBody.appendChild(tr);
+      }
+    }
+
+    const paidRows = filtered.filter((row) => row.status === "paid");
+    const openRows = filtered.filter((row) => row.status !== "paid");
+    const paidTotal = paidRows.reduce((sum, row) => sum + (row.paidAmount || 0), 0);
+    const avgTicket = paidRows.length ? paidTotal / paidRows.length : 0;
+
+    paidTotalEl.textContent = formatMoney(paidTotal);
+    paidCountEl.textContent = `${paidRows.length} paid links in view`;
+    avgTicketEl.textContent = formatMoney(avgTicket);
+    openCountEl.textContent = `${openRows.length} open requests`;
+  }
+
+  searchFilterEl.addEventListener("input", renderDashboard);
+  statusFilterEl.addEventListener("change", renderDashboard);
+  dateFilterEl.addEventListener("change", renderDashboard);
+
+  loadStatusData().catch((err) => {
+    statusTableBody.innerHTML = `<tr><td colspan="6">Error loading dashboard: ${err.message}</td></tr>`;
+  });
+</script>
+</body>
+</html>

@@ -1,3 +1,30 @@
+import "dotenv/config";
+import express from "express";
+import Stripe from "stripe";
+import cors from "cors";
+import fs from "fs/promises";
+import path from "path";
+import { fileURLToPath } from "url";
+
+const app = express();
+app.use(cors());
+app.use(express.json());
+
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+const linksFile = path.join(__dirname, "links.json");
+const terminalPaymentsFile = path.join(__dirname, "terminal-payments.json");
+
+import fsSync from "fs";
+app.use(express.static(__dirname));
+
+app.get("/", (req, res) => {
+  res.sendFile(path.join(__dirname, "dashboard.html"));
+});
+
 app.use((req, res, next) => {
   res.setHeader("X-Robots-Tag", "noindex, nofollow, noarchive");
   next();
@@ -29,33 +56,6 @@ app.use((req, res, next) => {
   }
 
   next();
-});
-
-import "dotenv/config";
-import express from "express";
-import Stripe from "stripe";
-import cors from "cors";
-import fs from "fs/promises";
-import path from "path";
-import { fileURLToPath } from "url";
-
-const app = express();
-app.use(cors());
-app.use(express.json());
-
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
-const linksFile = path.join(__dirname, "links.json");
-const terminalPaymentsFile = path.join(__dirname, "terminal-payments.json");
-
-import fsSync from "fs";
-app.use(express.static(__dirname));
-
-app.get("/", (req, res) => {
-  res.sendFile(path.join(__dirname, "dashboard.html"));
 });
 
 // -------------------------
@@ -365,6 +365,7 @@ async function writeTerminalPayments(data) {
   await fs.writeFile(terminalPaymentsFile, JSON.stringify(data, null, 2), "utf8");
 }
 
-app.listen(3000, () => {
-  console.log("Running on http://localhost:3000");
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+  console.log(`Running on port ${PORT}`);
 });

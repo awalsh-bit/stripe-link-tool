@@ -20,14 +20,9 @@ const terminalPaymentsFile = path.join(__dirname, "terminal-payments.json");
 
 const serviceCardsFile = path.join(__dirname, "service-cards.json");
 
-app.get("/", (req, res) => {
-  res.sendFile(path.join(__dirname, "dashboard.html"));
-});
+
 
 app.use(express.static(__dirname, { index: false }));
-
-import fsSync from "fs";
-app.use(express.static(__dirname));
 
 app.get("/", (req, res) => {
   res.sendFile(path.join(__dirname, "dashboard.html"));
@@ -325,7 +320,10 @@ app.post("/api/service/setup-intent", async (req, res) => {
             line1: serviceAddress.line1 || undefined,
             line2: serviceAddress.line2 || undefined,
             city: serviceAddress.city || undefined,
-            state: serviceAddress.state || undefined,
+            state:
+  serviceAddress.state === "Texas"
+    ? "TX"
+    : (serviceAddress.state || undefined),
             postal_code: serviceAddress.zip || undefined,
             country: "US"
           }
@@ -411,31 +409,93 @@ app.get("/api/service/setup-intent-result/:setupIntentId", async (req, res) => {
     const last4 = paymentMethod?.card?.last4 || "";
 
     const serviceCards = await readServiceCards();
-    const exists = serviceCards.some((row) => row.setupIntentId === setupIntent.id);
+    const existingIndex = serviceCards.findIndex(
+      (row) => row.setupIntentId === setupIntent.id
+    );
 
-    if (!exists) {
+    const stripeFields = {
+      customerId: customer?.id || "",
+      paymentMethodId: paymentMethod?.id || "",
+      cardBrand: brand,
+      last4,
+      setupIntentStatus: setupIntent.status,
+      updatedAt: new Date().toISOString()
+    };
+
+    if (existingIndex >= 0) {
+      serviceCards[existingIndex] = {
+        ...serviceCards[existingIndex],
+        ...stripeFields
+      };
+    } else {
       serviceCards.unshift({
         id: `svc_${Date.now()}`,
         createdAt: new Date(setupIntent.created * 1000).toISOString(),
+        updatedAt: new Date().toISOString(),
+        queueStatus: "Call Status Pending",
+        queueStatusNotes: "",
+        erpOrderNumber: "",
         setupIntentId: setupIntent.id,
+        setupIntentStatus: setupIntent.status,
         customerId: customer?.id || "",
         paymentMethodId: paymentMethod?.id || "",
         customerName: customer?.name || setupIntent.metadata?.customer_name || "",
         customerEmail: customer?.email || setupIntent.metadata?.customer_email || "",
         customerPhone: customer?.phone || setupIntent.metadata?.customer_phone || "",
-        salesOrder: setupIntent.metadata?.sales_order || "",
-        serviceAddress: setupIntent.metadata?.service_address || "",
-        brand: setupIntent.metadata?.brand || "",
-        model: setupIntent.metadata?.model || "",
-        serial: setupIntent.metadata?.serial || "",
+        serviceAddress: {
+          line1: setupIntent.metadata?.service_address_line1 || "",
+          line2: setupIntent.metadata?.service_address_line2 || "",
+          city: setupIntent.metadata?.service_address_city || "",
+          state: setupIntent.metadata?.service_address_state || "",
+          zip: setupIntent.metadata?.service_address_zip || ""
+        },
         purchaseDate: setupIntent.metadata?.purchase_date || "",
+        purchasedWithin12Months: setupIntent.metadata?.purchased_within_12_months || "",
+        gateCode: setupIntent.metadata?.gate_code || "",
+        contactMethod: setupIntent.metadata?.contact_method || "",
+
+
+units: [
+  {
+    applianceType: setupIntent.metadata?.appliance_type_1 || "",
+    brand: setupIntent.metadata?.brand_1 || "",
+    model: setupIntent.metadata?.model_1 || "",
+    serial: setupIntent.metadata?.serial_1 || "",
+    purchasedFromUs: setupIntent.metadata?.purchased_from_us_1 || "",
+    stacked: setupIntent.metadata?.stacked_1 || "",
+    problemDescription: setupIntent.metadata?.problem_description_1 || ""
+  },
+  ...(setupIntent.metadata?.appliance_type_2 ||
+      setupIntent.metadata?.brand_2 ||
+      setupIntent.metadata?.model_2 ||
+      setupIntent.metadata?.serial_2 ||
+      setupIntent.metadata?.problem_description_2
+    ? [{
+        applianceType: setupIntent.metadata?.appliance_type_2 || "",
+        brand: setupIntent.metadata?.brand_2 || "",
+        model: setupIntent.metadata?.model_2 || "",
+        serial: setupIntent.metadata?.serial_2 || "",
+        problemDescription: setupIntent.metadata?.problem_description_2 || ""
+      }]
+    : [])
+],
         problemDescription: setupIntent.metadata?.problem_description || "",
+        cardRequired: true,
         cardBrand: brand,
         last4
       });
-
-      await writeServiceCards(serviceCards);
     }
+
+unitCount:
+  (setupIntent.metadata?.appliance_type_2 ||
+   setupIntent.metadata?.brand_2 ||
+   setupIntent.metadata?.model_2 ||
+   setupIntent.metadata?.serial_2 ||
+   setupIntent.metadata?.problem_description_2)
+    ? "Multiple"
+    : "One",
+
+    await writeServiceCards(serviceCards);
 
     res.json({
       setupIntentId: setupIntent.id,
@@ -444,11 +504,116 @@ app.get("/api/service/setup-intent-result/:setupIntentId", async (req, res) => {
       customerName: customer?.name || "",
       customerEmail: customer?.email || "",
       cardBrand: brand,
-      last4
+      last4,
+      setupIntentStatus: setupIntent.status
     });
   } catch (err) {
     res.status(400).json({
       error: err.message || "Unable to retrieve setup intent result."
+    });
+  }
+});
+
+
+app.post("/api/service/submit-request", async (req, res) => {
+  try {
+    const { serviceRequest, setupIntentId } = req.body;
+
+    if (!serviceRequest || !serviceRequest.customerName) {
+      return res.status(400).json({
+        error: "Missing service request data."
+      });
+    }
+
+    const serviceCards = await readServiceCards();
+
+if (setupIntentId) {
+  const existingIndex = serviceCards.findIndex(
+    (row) => row.setupIntentId === setupIntentId
+  );
+
+  if (existingIndex >= 0) {
+    serviceCards[existingIndex] = {
+      ...serviceCards[existingIndex],
+      updatedAt: new Date().toISOString(),
+      customerName: serviceRequest.customerName || "",
+      firstName: serviceRequest.firstName || "",
+      lastName: serviceRequest.lastName || "",
+      customerEmail: serviceRequest.customerEmail || "",
+      customerPhone: serviceRequest.customerPhone || "",
+      purchasedWithin12Months: serviceRequest.purchasedWithin12Months || "",
+      cardRequired: serviceRequest.purchasedWithin12Months !== "Yes",
+      gateCode: serviceRequest.gateCode || "",
+      contactMethod: serviceRequest.contactMethod || "",
+      purchaseDate: serviceRequest.purchaseDate || "",
+      serviceAddress: serviceRequest.serviceAddress || {},
+      billingAddress: serviceRequest.billingAddress || {},
+      billingSameAsService: serviceRequest.billingSameAsService,
+      unitCount: serviceRequest.unitCount || "One",
+      units: serviceRequest.units || [],
+      problemDescription: serviceRequest.problemDescription || "",
+      consent: !!serviceRequest.consent
+    };
+
+    await writeServiceCards(serviceCards);
+
+    return res.json({
+      success: true,
+      updatedExisting: true
+    });
+  }
+}
+
+    serviceCards.unshift({
+      id: `svc_${Date.now()}`,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+
+      queueStatus: "Call Status Pending",
+      queueStatusNotes: "",
+      erpOrderNumber: "",
+
+      setupIntentId: setupIntentId || "",
+      setupIntentStatus: setupIntentId ? "submitted_not_completed" : "not_required",
+
+      customerId: "",
+      paymentMethodId: "",
+
+      customerName: serviceRequest.customerName || "",
+      firstName: serviceRequest.firstName || "",
+      lastName: serviceRequest.lastName || "",
+      customerEmail: serviceRequest.customerEmail || "",
+      customerPhone: serviceRequest.customerPhone || "",
+
+      purchasedWithin12Months: serviceRequest.purchasedWithin12Months || "",
+      cardRequired: serviceRequest.purchasedWithin12Months !== "Yes",
+
+      gateCode: serviceRequest.gateCode || "",
+      contactMethod: serviceRequest.contactMethod || "",
+      purchaseDate: serviceRequest.purchaseDate || "",
+
+      serviceAddress: serviceRequest.serviceAddress || {},
+      billingAddress: serviceRequest.billingAddress || {},
+      billingSameAsService: serviceRequest.billingSameAsService,
+
+      unitCount: serviceRequest.unitCount || "One",
+      units: serviceRequest.units || [],
+      problemDescription: serviceRequest.problemDescription || "",
+
+      consent: !!serviceRequest.consent,
+
+      cardBrand: "",
+      last4: ""
+    });
+
+    await writeServiceCards(serviceCards);
+
+    res.json({
+      success: true
+    });
+  } catch (err) {
+    res.status(400).json({
+      error: err.message || "Unable to submit service request."
     });
   }
 });
@@ -484,6 +649,68 @@ app.post("/api/card-on-file/charge", async (req, res) => {
   } catch (err) {
     res.status(400).json({
       error: err.message || "Unable to charge saved card"
+    });
+  }
+});
+
+app.get("/api/service-cards", async (req, res) => {
+  try {
+    const serviceCards = await readServiceCards();
+    res.json({ rows: serviceCards });
+  } catch (err) {
+    res.status(400).json({
+      error: err.message || "Unable to load service cards."
+    });
+  }
+});
+
+app.post("/api/service-cards/:id/status", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const {
+      queueStatus = "Call Status Pending",
+      queueStatusNotes = "",
+      erpOrderNumber = ""
+    } = req.body || {};
+
+    const allowedStatuses = [
+      "Call Status Pending",
+      "Call Scheduled",
+      "Call Cancelled"
+    ];
+
+    if (!allowedStatuses.includes(queueStatus)) {
+      return res.status(400).json({
+        error: "Invalid queue status."
+      });
+    }
+
+    const serviceCards = await readServiceCards();
+    const index = serviceCards.findIndex((row) => row.id === id);
+
+    if (index === -1) {
+      return res.status(404).json({
+        error: "Service request not found."
+      });
+    }
+
+    serviceCards[index] = {
+      ...serviceCards[index],
+      queueStatus,
+      queueStatusNotes,
+      erpOrderNumber,
+      updatedAt: new Date().toISOString()
+    };
+
+    await writeServiceCards(serviceCards);
+
+    res.json({
+      success: true,
+      row: serviceCards[index]
+    });
+  } catch (err) {
+    res.status(400).json({
+      error: err.message || "Unable to update service call status."
     });
   }
 });

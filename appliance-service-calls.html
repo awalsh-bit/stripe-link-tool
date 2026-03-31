@@ -1,0 +1,662 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="robots" content="noindex,nofollow,noarchive" />
+  <title>Wilson AC & Appliance - Appliance Service Calls</title>
+  <style>
+    :root {
+      --bg: #f7f8fc;
+      --card: #ffffff;
+      --text: #1f2937;
+      --muted: #6b7280;
+      --border: #dbe1ea;
+      --primary: #635bff;
+      --shadow: 0 10px 35px rgba(0, 0, 0, 0.08);
+      --radius: 18px;
+
+      --pending-bg: #fff7ed;
+      --pending-text: #9a3412;
+
+      --scheduled-bg: #ecfdf5;
+      --scheduled-text: #065f46;
+
+      --cancelled-bg: #fef2f2;
+      --cancelled-text: #991b1b;
+
+      --new-row-bg: #f8faff;
+      --new-row-border: #635bff;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: linear-gradient(180deg, #eef2ff 0%, var(--bg) 100%);
+      color: var(--text);
+      min-height: 100vh;
+      padding: 32px 16px;
+    }
+
+    .wrap {
+      max-width: 1500px;
+      margin: 0 auto;
+    }
+
+    .hero { margin-bottom: 22px; }
+
+    .eyebrow {
+      display: inline-block;
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--primary);
+      background: rgba(99, 91, 255, 0.1);
+      padding: 8px 10px;
+      border-radius: 999px;
+      margin-bottom: 14px;
+    }
+
+    h1 {
+      margin: 0 0 10px;
+      font-size: clamp(28px, 4vw, 42px);
+      line-height: 1.05;
+    }
+
+    .sub {
+      margin: 0;
+      color: var(--muted);
+      font-size: 16px;
+      line-height: 1.6;
+      max-width: 980px;
+    }
+
+    .card {
+      background: var(--card);
+      border: 1px solid rgba(99, 91, 255, 0.12);
+      box-shadow: var(--shadow);
+      border-radius: var(--radius);
+      padding: 24px;
+    }
+
+    .toolbar {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-bottom: 18px;
+    }
+
+    input, select, textarea, button {
+      font: inherit;
+    }
+
+    input, select, textarea {
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 12px 14px;
+      background: #fff;
+      color: var(--text);
+      outline: none;
+      width: 100%;
+    }
+
+    input[type="search"] {
+      flex: 1;
+      min-width: 260px;
+    }
+
+    .filter-select {
+      width: 220px;
+    }
+
+    .table-wrap {
+      overflow-x: auto;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      min-width: 1350px;
+    }
+
+    th, td {
+      text-align: left;
+      padding: 14px 10px;
+      border-bottom: 1px solid #edf1f7;
+      vertical-align: top;
+      font-size: 14px;
+    }
+
+    th {
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--muted);
+      white-space: nowrap;
+    }
+
+    tr.row-new {
+      background: var(--new-row-bg);
+      box-shadow: inset 4px 0 0 var(--new-row-border);
+    }
+
+    .strong {
+      font-weight: 700;
+    }
+
+    .muted {
+      color: var(--muted);
+    }
+
+    .small {
+      font-size: 12px;
+      line-height: 1.45;
+    }
+
+    .mono {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 12px;
+      word-break: break-all;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      border-radius: 999px;
+      padding: 6px 10px;
+      font-size: 12px;
+      font-weight: 700;
+      line-height: 1;
+      white-space: nowrap;
+    }
+
+    .badge-pending {
+      background: var(--pending-bg);
+      color: var(--pending-text);
+    }
+
+    .badge-scheduled {
+      background: var(--scheduled-bg);
+      color: var(--scheduled-text);
+    }
+
+    .badge-cancelled {
+      background: var(--cancelled-bg);
+      color: var(--cancelled-text);
+    }
+
+    .badge-neutral {
+      background: #eef2ff;
+      color: #4338ca;
+    }
+
+    .request-block,
+    .customer-block,
+    .address-block,
+    .stripe-block {
+      line-height: 1.5;
+    }
+
+    .request-unit {
+      margin-bottom: 10px;
+      padding-bottom: 10px;
+      border-bottom: 1px dashed #e5e7eb;
+    }
+
+    .request-unit:last-child {
+      margin-bottom: 0;
+      padding-bottom: 0;
+      border-bottom: none;
+    }
+
+    .status-cell {
+      min-width: 250px;
+    }
+
+    .status-stack {
+      display: grid;
+      gap: 10px;
+    }
+
+    .status-select,
+    .note-input,
+    .erp-input {
+      width: 100%;
+    }
+
+    .save-btn {
+      appearance: none;
+      border: none;
+      background: var(--primary);
+      color: white;
+      padding: 10px 14px;
+      border-radius: 10px;
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    .save-btn:hover {
+      opacity: 0.96;
+    }
+
+    .save-btn:disabled {
+      opacity: 0.6;
+      cursor: wait;
+    }
+
+    .save-msg {
+      font-size: 12px;
+      color: var(--muted);
+      min-height: 16px;
+    }
+
+    .empty {
+      padding: 18px 0 6px;
+      color: var(--muted);
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="hero">
+      <div class="eyebrow">Wilson AC & Appliance - Client Care</div>
+      <h1>Appliance service calls queue</h1>
+      <p class="sub">
+        Review submitted service requests, update queue status, add short notes, and track which calls should convert into ERP service orders.
+      </p>
+    </div>
+
+    <div class="card">
+      <div class="toolbar">
+        <input
+          type="search"
+          id="searchFilter"
+          placeholder="Search customer, phone, email, address, model, serial, issue, or notes"
+        />
+
+        <select id="statusFilter" class="filter-select">
+          <option value="all">All queue statuses</option>
+          <option value="Call Status Pending">Call Status Pending</option>
+          <option value="Call Scheduled">Call Scheduled</option>
+          <option value="Call Cancelled">Call Cancelled</option>
+        </select>
+
+        <select id="cardFilter" class="filter-select">
+          <option value="all">All card states</option>
+          <option value="saved">Card saved</option>
+          <option value="pending">Pending / not saved</option>
+          <option value="not_required">No card required</option>
+        </select>
+      </div>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Submitted</th>
+              <th>Status</th>
+              <th>Customer</th>
+              <th>Address / Contact</th>
+              <th>Request Details</th>
+              <th>Card Status</th>
+              <th>Stripe Refs</th>
+            </tr>
+          </thead>
+          <tbody id="tableBody">
+            <tr><td colspan="7" class="empty">Loading service requests...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const tableBody = document.getElementById("tableBody");
+    const searchFilter = document.getElementById("searchFilter");
+    const statusFilter = document.getElementById("statusFilter");
+    const cardFilter = document.getElementById("cardFilter");
+
+    let allRows = [];
+
+    function formatDate(value) {
+      if (!value) return "-";
+      return new Date(value).toLocaleString("en-US", {
+        month: "2-digit",
+        day: "2-digit",
+        year: "2-digit",
+        hour: "numeric",
+        minute: "2-digit"
+      });
+    }
+
+    function escapeHtml(value) {
+      return String(value || "")
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#039;");
+    }
+
+    function formatAddress(address) {
+      if (!address) return "-";
+      return [
+        address.line1,
+        address.line2,
+        address.city,
+        address.state,
+        address.zip
+      ].filter(Boolean).join(", ");
+    }
+
+    function hasSavedCard(row) {
+      return !!(row.customerId && row.paymentMethodId);
+    }
+
+    function cardState(row) {
+      if (row.cardRequired === false || row.purchasedWithin12Months === "Yes") {
+        return "not_required";
+      }
+      if (hasSavedCard(row)) {
+        return "saved";
+      }
+      return "pending";
+    }
+
+    function cardLabel(row) {
+      const state = cardState(row);
+
+      if (state === "not_required") {
+        return {
+          text: "No card required",
+          className: "badge badge-neutral"
+        };
+      }
+
+      if (state === "saved") {
+        const brand = (row.cardBrand || "").toUpperCase();
+        const last4 = row.last4 ? ` •••• ${row.last4}` : "";
+        return {
+          text: `Card saved${brand || last4 ? ` - ${brand}${last4}` : ""}`,
+          className: "badge badge-scheduled"
+        };
+      }
+
+      return {
+        text: "Pending card",
+        className: "badge badge-pending"
+      };
+    }
+
+    function queueBadge(status) {
+      if (status === "Call Scheduled") {
+        return `<span class="badge badge-scheduled">Call Scheduled</span>`;
+      }
+      if (status === "Call Cancelled") {
+        return `<span class="badge badge-cancelled">Call Cancelled</span>`;
+      }
+      return `<span class="badge badge-pending">Call Status Pending</span>`;
+    }
+
+    function isNewRow(row) {
+      return row.queueStatus === "Call Status Pending"
+        && !row.queueStatusNotes
+        && !row.erpOrderNumber;
+    }
+
+    function formatUnits(units = []) {
+      if (!units.length) {
+        return `<div class="request-unit">No unit details submitted.</div>`;
+      }
+
+      return units.map((unit, index) => `
+        <div class="request-unit">
+          <div><span class="strong">Unit ${index + 1}</span></div>
+          <div>${escapeHtml(unit.applianceType || "-")}</div>
+          <div>${escapeHtml(unit.brand || "-")}</div>
+          <div class="small">
+            Model: ${escapeHtml(unit.model || "-")}<br>
+            Serial: ${escapeHtml(unit.serial || "-")}<br>
+            Purchased from us: ${escapeHtml(unit.purchasedFromUs || "-")}<br>
+            Stacked: ${escapeHtml(unit.stacked || "-")}
+          </div>
+          <div class="small"><span class="strong">Problem:</span> ${escapeHtml(unit.problemDescription || "-")}</div>
+        </div>
+      `).join("");
+    }
+
+    function buildSearchHaystack(row) {
+      const unitText = (row.units || []).map((u) =>
+        [
+          u.applianceType,
+          u.brand,
+          u.model,
+          u.serial,
+          u.problemDescription,
+          u.purchasedFromUs,
+          u.stacked
+        ].filter(Boolean).join(" ")
+      ).join(" ");
+
+      return [
+        row.customerName,
+        row.customerEmail,
+        row.customerPhone,
+        row.gateCode,
+        row.contactMethod,
+        row.purchaseDate,
+        row.problemDescription,
+        row.queueStatus,
+        row.queueStatusNotes,
+        row.erpOrderNumber,
+        formatAddress(row.serviceAddress),
+        unitText
+      ].join(" ").toLowerCase();
+    }
+
+    async function saveStatus(id, queueStatus, queueStatusNotes, erpOrderNumber, saveMsgEl, buttonEl) {
+      buttonEl.disabled = true;
+      saveMsgEl.textContent = "Saving...";
+
+      try {
+        const res = await fetch(`/api/service-cards/${encodeURIComponent(id)}/status`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            queueStatus,
+            queueStatusNotes,
+            erpOrderNumber
+          })
+        });
+
+        const data = await res.json();
+
+        if (!res.ok) {
+          throw new Error(data.error || "Unable to update queue status.");
+        }
+
+        const rowIndex = allRows.findIndex((row) => row.id === id);
+        if (rowIndex >= 0) {
+          allRows[rowIndex] = {
+            ...allRows[rowIndex],
+            queueStatus: data.row.queueStatus,
+            queueStatusNotes: data.row.queueStatusNotes,
+            erpOrderNumber: data.row.erpOrderNumber,
+            updatedAt: data.row.updatedAt
+          };
+        }
+
+        saveMsgEl.textContent = "Saved.";
+        render();
+      } catch (err) {
+        saveMsgEl.textContent = err.message;
+      } finally {
+        buttonEl.disabled = false;
+      }
+    }
+
+    function attachRowActions() {
+      document.querySelectorAll("[data-save-id]").forEach((btn) => {
+        btn.addEventListener("click", async () => {
+          const id = btn.getAttribute("data-save-id");
+          const statusEl = document.querySelector(`[data-status-id="${id}"]`);
+          const notesEl = document.querySelector(`[data-notes-id="${id}"]`);
+          const erpEl = document.querySelector(`[data-erp-id="${id}"]`);
+          const msgEl = document.querySelector(`[data-msg-id="${id}"]`);
+
+          await saveStatus(
+            id,
+            statusEl.value,
+            notesEl.value.trim(),
+            erpEl.value.trim(),
+            msgEl,
+            btn
+          );
+        });
+      });
+    }
+
+    function render() {
+      const search = searchFilter.value.trim().toLowerCase();
+      const statusMode = statusFilter.value;
+      const cardMode = cardFilter.value;
+
+      const filtered = allRows.filter((row) => {
+        const haystack = buildSearchHaystack(row);
+        const matchesSearch = !search || haystack.includes(search);
+        const matchesStatus = statusMode === "all" || (row.queueStatus || "Call Status Pending") === statusMode;
+        const matchesCard = cardMode === "all" || cardState(row) === cardMode;
+        return matchesSearch && matchesStatus && matchesCard;
+      });
+
+      tableBody.innerHTML = "";
+
+      if (!filtered.length) {
+        tableBody.innerHTML = `<tr><td colspan="7" class="empty">No matching service requests found.</td></tr>`;
+        return;
+      }
+
+      for (const row of filtered) {
+        const card = cardLabel(row);
+        const queueStatus = row.queueStatus || "Call Status Pending";
+        const rowClass = isNewRow(row) ? "row-new" : "";
+
+        const tr = document.createElement("tr");
+        tr.className = rowClass;
+        tr.innerHTML = `
+          <td>
+            <div class="strong">${formatDate(row.createdAt)}</div>
+            <div class="small muted">Updated: ${formatDate(row.updatedAt)}</div>
+          </td>
+
+          <td class="status-cell">
+            <div class="status-stack">
+              <div>${queueBadge(queueStatus)}</div>
+
+              <select class="status-select" data-status-id="${escapeHtml(row.id)}">
+                <option value="Call Status Pending" ${queueStatus === "Call Status Pending" ? "selected" : ""}>Call Status Pending</option>
+                <option value="Call Scheduled" ${queueStatus === "Call Scheduled" ? "selected" : ""}>Call Scheduled</option>
+                <option value="Call Cancelled" ${queueStatus === "Call Cancelled" ? "selected" : ""}>Call Cancelled</option>
+              </select>
+
+              <input
+                class="erp-input"
+                data-erp-id="${escapeHtml(row.id)}"
+                placeholder="ERP order number"
+                value="${escapeHtml(row.erpOrderNumber || "")}"
+              />
+
+              <textarea
+                class="note-input"
+                data-notes-id="${escapeHtml(row.id)}"
+                rows="3"
+                placeholder="Short status note"
+              >${escapeHtml(row.queueStatusNotes || "")}</textarea>
+
+              <button class="save-btn" type="button" data-save-id="${escapeHtml(row.id)}">Save</button>
+              <div class="save-msg" data-msg-id="${escapeHtml(row.id)}"></div>
+            </div>
+          </td>
+
+          <td>
+            <div class="customer-block">
+              <div class="strong">${escapeHtml(row.customerName || "-")}</div>
+              <div>${escapeHtml(row.customerEmail || "-")}</div>
+              <div>${escapeHtml(row.customerPhone || "-")}</div>
+            </div>
+          </td>
+
+          <td>
+            <div class="address-block">
+              <div class="strong">${escapeHtml(formatAddress(row.serviceAddress))}</div>
+              <div class="small">
+                Gate code: ${escapeHtml(row.gateCode || "-")}<br>
+                Contact method: ${escapeHtml(row.contactMethod || "-")}<br>
+                Purchase date: ${escapeHtml(row.purchaseDate || "-")}<br>
+                Purchased within 12 months: ${escapeHtml(row.purchasedWithin12Months || "-")}
+              </div>
+            </div>
+          </td>
+
+          <td>
+            <div class="request-block">
+              <div class="small">
+                <span class="strong">Overall issue:</span> ${escapeHtml(row.problemDescription || "-")}<br>
+                <span class="strong">Unit count:</span> ${escapeHtml(row.unitCount || (row.units?.length > 1 ? "Multiple" : "One"))}
+              </div>
+              <div style="margin-top:10px;">
+                ${formatUnits(row.units || [])}
+              </div>
+            </div>
+          </td>
+
+          <td>
+            <div><span class="${card.className}">${escapeHtml(card.text)}</span></div>
+            <div class="small muted" style="margin-top:8px;">
+              Setup status: ${escapeHtml(row.setupIntentStatus || "-")}
+            </div>
+          </td>
+
+          <td class="mono">
+            Customer: ${escapeHtml(row.customerId || "-")}<br>
+            Payment Method: ${escapeHtml(row.paymentMethodId || "-")}<br>
+            SetupIntent: ${escapeHtml(row.setupIntentId || "-")}
+          </td>
+        `;
+
+        tableBody.appendChild(tr);
+      }
+
+      attachRowActions();
+    }
+
+    async function loadRows() {
+      try {
+        const res = await fetch("/api/service-cards");
+        const data = await res.json();
+
+        if (!res.ok) {
+          throw new Error(data.error || "Unable to load service requests.");
+        }
+
+        allRows = Array.isArray(data.rows) ? data.rows : [];
+        render();
+      } catch (err) {
+        tableBody.innerHTML = `<tr><td colspan="7" class="empty">Error loading service requests: ${err.message}</td></tr>`;
+      }
+    }
+
+    searchFilter.addEventListener("input", render);
+    statusFilter.addEventListener("change", render);
+    cardFilter.addEventListener("change", render);
+
+    loadRows();
+  </script>
+</body>
+</html>

@@ -286,7 +286,7 @@
   <div class="wrap">
     <div class="hero">
       <div class="eyebrow">Wilson AC & Appliance - Appliance Service</div>
-      <h1>Schedule service and save a card on file</h1>
+      <h1>Request a Service Call</h1>
       <p class="sub">
         Complete the service request details below, then securely save a card on file for approved service work, annual maintenance, and future charges related to this request.
       </p>
@@ -448,17 +448,11 @@
           </div>
 
           <div class="field full">
-            <label for="attachments">Photos or Videos</label>
-            <input id="attachments" type="file" accept="image/*,video/*" multiple />
-            <div class="hint">Upload photos or videos that help explain the issue.</div>
-          </div>
-
-          <div class="field full">
             <label>Customer Authorization</label>
             <div class="checkbox-row">
               <input id="consent" type="checkbox" />
               <div>
-                I authorize Wilson AC & Appliance to save my card on file and use it later for approved service charges, annual maintenance, shipped filters, and related charges connected to this service relationship.
+                I authorize Wilson AC & Appliance to save my card on file and use it later for approved service charges, annual maintenance, shipped filters, and related charges connected to this service relationship. The minimum charge for declined estimates after a technician visit is $169.95. For a full version of our terms of repair service visit <a href="terms.html">this page</a>.
               </div>
             </div>
           </div>
@@ -609,14 +603,23 @@
       billingAddressBlock.classList.toggle("hidden", same);
     }
 
-    function syncPaymentRequirement() {
-      const purchasedRecently = getRadioValue("purchasedWithin12Months") === "Yes";
-      beginBtn.classList.toggle("hidden", purchasedRecently);
-      paymentShell.classList.toggle("hidden", purchasedRecently);
-      if (purchasedRecently) {
-        paymentShell.classList.remove("show");
-      }
-    }
+function syncPaymentRequirement() {
+  const purchasedRecently = getRadioValue("purchasedWithin12Months") === "Yes";
+
+  const consentField = document.getElementById("consent")?.closest(".field.full");
+  if (consentField) {
+    consentField.classList.toggle("hidden", purchasedRecently);
+  }
+
+  paymentShell.classList.toggle("hidden", purchasedRecently);
+
+  if (purchasedRecently) {
+    paymentShell.classList.remove("show");
+    beginBtn.textContent = "Submit service request";
+  } else {
+    beginBtn.textContent = "Continue to secure card entry";
+  }
+}
 
     document.querySelectorAll('input[name="unitCount"]').forEach((el) => el.addEventListener("change", syncSecondUnit));
     document.querySelectorAll('input[name="billingSameAsService"]').forEach((el) => el.addEventListener("change", syncBillingAddress));
@@ -709,9 +712,7 @@
         throw new Error("Please complete the full service address.");
       }
 
-      if (!payload.consent) {
-        throw new Error("Please confirm the customer authorization box.");
-      }
+     
 
       const res = await fetch("/api/service/setup-intent", {
         method: "POST",
@@ -758,134 +759,169 @@
       paymentElement.mount("#payment-element");
     }
 
-    async function submitRequestRecord(payload, files) {
-      const formData = new FormData();
-      formData.append("serviceRequest", JSON.stringify(payload));
-      formData.append("setupIntentId", setupIntentId);
-      for (const file of files) {
-        formData.append("attachments", file);
-      }
+async function submitRequestRecord(payload) {
+  const res = await fetch("/api/service/submit-request", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      serviceRequest: payload,
+      setupIntentId: setupIntentId || ""
+    })
+  });
 
-      const res = await fetch("/api/service/submit-request", {
-        method: "POST",
-        body: formData
-      });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || "Unable to submit service request.");
+  return data;
+}
 
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Unable to submit service request.");
-      return data;
+beginBtn.addEventListener("click", async () => {
+  clearStatus();
+  clearResult();
+
+  const payload = getPayload();
+
+  if (!payload.customerName || !payload.customerEmail) {
+    showStatus("error", "Please complete client name and client email.");
+    return;
+  }
+
+  if (!payload.serviceAddress.line1 || !payload.serviceAddress.city || !payload.serviceAddress.zip) {
+    showStatus("error", "Please complete the full service address.");
+    return;
+  }
+
+  const purchasedRecently = payload.purchasedWithin12Months === "Yes";
+
+
+  // RECENT PURCHASE = DIRECT SUBMIT, NO CARD FLOW
+  if (purchasedRecently) {
+    beginBtn.disabled = true;
+    beginBtn.textContent = "Submitting...";
+
+    try {
+      await submitRequestRecord(payload);
+      resultBox.classList.add("show");
+      showStatus(
+        "success",
+        "Service request submitted successfully. No card is required for appliances purchased within the last 12 months."
+      );
+    } catch (err) {
+      showStatus("error", err.message || "Unable to submit service request.");
+    } finally {
+      beginBtn.disabled = false;
+      beginBtn.textContent = "Submit service request";
     }
 
-    beginBtn.addEventListener("click", async () => {
-      clearStatus();
-      clearResult();
-      beginBtn.disabled = true;
-      beginBtn.textContent = "Preparing secure card entry...";
+    return;
+  }
 
-      try {
-        if (!stripe) {
-          await loadStripe();
-        }
+  // CARD REQUIRED = PREPARE STRIPE FLOW
+  if (!payload.consent) {
+    showStatus("error", "Please confirm the customer authorization box.");
+    return;
+  }
 
-        const data = await createSetupIntent();
-        setupIntentId = data.setupIntentId;
-        await mountPaymentElement(data.clientSecret);
-        paymentShell.classList.add("show");
-        showStatus("success", "Secure card entry is ready below.");
-      } catch (err) {
-        showStatus("error", err.message);
-      } finally {
-        beginBtn.disabled = false;
-        beginBtn.textContent = "Continue to secure card entry";
-      }
-    });
+  beginBtn.disabled = true;
+  beginBtn.textContent = "Preparing secure card entry...";
 
-    form.addEventListener("submit", async (event) => {
-      event.preventDefault();
-      clearStatus();
-      clearResult();
+  try {
+    if (!stripe) {
+      await loadStripe();
+    }
 
-      const payload = getPayload();
+    const data = await createSetupIntent();
+    setupIntentId = data.setupIntentId;
+    await mountPaymentElement(data.clientSecret);
+    paymentShell.classList.add("show");
+    showStatus("success", "Secure card entry is ready below.");
+  } catch (err) {
+    showStatus("error", err.message || "Unable to prepare secure card entry.");
+} finally {
+  beginBtn.disabled = false;
+  syncPaymentRequirement();
+}
+});
 
-      if (!payload.customerName || !payload.customerEmail) {
-        showStatus("error", "Please complete client name and client email.");
-        return;
-      }
 
-      if (!payload.serviceAddress.line1 || !payload.serviceAddress.city || !payload.serviceAddress.zip) {
-        showStatus("error", "Please complete the full service address.");
-        return;
-      }
+form.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  clearStatus();
+  clearResult();
 
-      if (!payload.consent) {
-        showStatus("error", "Please confirm the customer authorization box.");
-        return;
-      }
+  const payload = getPayload();
 
-      const purchasedRecently = payload.purchasedWithin12Months === "Yes";
-      if (purchasedRecently) {
-        try {
-          await submitRequestRecord(payload, document.getElementById("attachments").files);
-          resultBox.classList.add("show");
-          showStatus("success", "Service request submitted successfully. No card is required for appliances purchased within the last 12 months.");
-        } catch (err) {
-          showStatus("error", err.message);
-        }
-        return;
-      }
+  if (!payload.customerName || !payload.customerEmail) {
+    showStatus("error", "Please complete client name and client email.");
+    return;
+  }
 
-      if (!elements || !setupIntentId) {
-        showStatus("error", "Please start the secure card entry step first.");
-        return;
-      }
+  if (!payload.serviceAddress.line1 || !payload.serviceAddress.city || !payload.serviceAddress.zip) {
+    showStatus("error", "Please complete the full service address.");
+    return;
+  }
 
-      saveCardBtn.disabled = true;
-      saveCardBtn.textContent = "Saving...";
 
-      try {
-        const billing = payload.billingAddress;
-        const nameOnCard = payload.nameOnCard || payload.customerName;
 
-        const { error, setupIntent } = await stripe.confirmSetup({
-          elements,
-          confirmParams: {
-            payment_method_data: {
-              billing_details: {
-                name: nameOnCard,
-                email: payload.customerEmail,
-                phone: payload.customerPhone,
-                address: {
-                  line1: billing.line1,
-                  line2: billing.line2,
-                  city: billing.city,
-                  state: billing.state,
-                  postal_code: billing.zip,
-                  country: "US"
-                }
-              }
+  // ✅ CARD REQUIRED PATH → enforce consent HERE
+  if (!payload.consent) {
+    showStatus("error", "Please confirm the customer authorization box.");
+    return;
+  }
+
+  if (!elements || !setupIntentId) {
+    showStatus("error", "Please start the secure card entry step first.");
+    return;
+  }
+
+  saveCardBtn.disabled = true;
+  saveCardBtn.textContent = "Saving...";
+
+  try {
+    const billing = payload.billingAddress;
+    const nameOnCard = payload.nameOnCard || payload.customerName;
+
+    const { error, setupIntent } = await stripe.confirmSetup({
+      elements,
+      confirmParams: {
+        payment_method_data: {
+          billing_details: {
+            name: nameOnCard,
+            email: payload.customerEmail,
+            phone: payload.customerPhone,
+            address: {
+              line1: billing.line1,
+              line2: billing.line2,
+              city: billing.city,
+              state: billing.state,
+              postal_code: billing.zip,
+              country: "US"
             }
-          },
-          redirect: "if_required"
-        });
-
-        if (error) {
-          throw new Error(error.message || "Unable to save card.");
+          }
         }
-
-        if (setupIntent && setupIntent.id) {
-          setupIntentId = setupIntent.id;
-        }
-
-        await submitRequestRecord(payload, document.getElementById("attachments").files);
-        resultBox.classList.add("show");
-        showStatus("success", "Card saved successfully.");
-      } catch (err) {
-        showStatus("error", err.message);
-      } finally {
-        saveCardBtn.disabled = false;
-        saveCardBtn.textContent = "Save card on file";
-      }
+      },
+      redirect: "if_required"
     });
+
+    if (error) {
+      throw new Error(error.message || "Unable to save card.");
+    }
+
+    if (setupIntent && setupIntent.id) {
+      setupIntentId = setupIntent.id;
+    }
+
+    await submitRequestRecord(payload);
+    resultBox.classList.add("show");
+    showStatus("success", "Card saved successfully.");
+  } catch (err) {
+    showStatus("error", err.message);
+  } finally {
+    saveCardBtn.disabled = false;
+    saveCardBtn.textContent = "Save card on file";
+  }
+});
 
     resetBtn.addEventListener("click", () => {
       clearStatus();

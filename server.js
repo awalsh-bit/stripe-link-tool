@@ -294,13 +294,13 @@ app.post("/api/service/setup-intent", async (req, res) => {
       customerName,
       customerEmail,
       customerPhone,
-      salesOrder,
       serviceAddress,
-      brand,
-      model,
-      serial,
+      gateCode,
+      contactMethod,
       purchaseDate,
+      purchasedWithin12Months,
       problemDescription,
+      units,
       consent
     } = req.body;
 
@@ -320,48 +320,61 @@ app.post("/api/service/setup-intent", async (req, res) => {
       name: customerName,
       email: customerEmail,
       phone: customerPhone || undefined,
-      address: serviceAddress ? { line1: serviceAddress } : undefined,
+      address: serviceAddress
+        ? {
+            line1: serviceAddress.line1 || undefined,
+            line2: serviceAddress.line2 || undefined,
+            city: serviceAddress.city || undefined,
+            state: serviceAddress.state || undefined,
+            postal_code: serviceAddress.zip || undefined,
+            country: "US"
+          }
+        : undefined,
       metadata: {
-        sales_order: salesOrder || "",
-        brand: brand || "",
-        model: model || "",
-        serial: serial || "",
+        gate_code: gateCode || "",
+        contact_method: contactMethod || "",
         purchase_date: purchaseDate || "",
-        service_address: serviceAddress || ""
+        purchased_within_12_months: purchasedWithin12Months || "",
+        service_address_line1: serviceAddress?.line1 || "",
+        service_address_line2: serviceAddress?.line2 || "",
+        service_address_city: serviceAddress?.city || "",
+        service_address_state: serviceAddress?.state || "",
+        service_address_zip: serviceAddress?.zip || "",
+        problem_description: problemDescription || ""
       }
     });
 
-const setupIntent = await stripe.setupIntents.create({
-  customer: customer.id,
-  payment_method_types: ["card"],
-  usage: "off_session",
-  metadata: {
-    customer_name: customerName || "",
-    customer_email: customerEmail || "",
-    customer_phone: customerPhone || "",
-    service_address_line1: serviceAddress?.line1 || "",
-    service_address_line2: serviceAddress?.line2 || "",
-    service_address_city: serviceAddress?.city || "",
-    service_address_state: serviceAddress?.state || "",
-    service_address_zip: serviceAddress?.zip || "",
-    gate_code: gateCode || "",
-    contact_method: contactMethod || "",
-    purchase_date: purchaseDate || "",
-    purchased_within_12_months: purchasedWithin12Months || "",
-    appliance_type_1: units?.[0]?.applianceType || "",
-    brand_1: units?.[0]?.brand || "",
-    model_1: units?.[0]?.model || "",
-    serial_1: units?.[0]?.serial || "",
-    purchased_from_us_1: units?.[0]?.purchasedFromUs || "",
-    stacked_1: units?.[0]?.stacked || "",
-    problem_description_1: units?.[0]?.problemDescription || "",
-    appliance_type_2: units?.[1]?.applianceType || "",
-    brand_2: units?.[1]?.brand || "",
-    model_2: units?.[1]?.model || "",
-    serial_2: units?.[1]?.serial || "",
-    problem_description_2: units?.[1]?.problemDescription || ""
-  }
-});
+    const setupIntent = await stripe.setupIntents.create({
+      customer: customer.id,
+      payment_method_types: ["card"],
+      usage: "off_session",
+      metadata: {
+        customer_name: customerName || "",
+        customer_email: customerEmail || "",
+        customer_phone: customerPhone || "",
+        service_address_line1: serviceAddress?.line1 || "",
+        service_address_line2: serviceAddress?.line2 || "",
+        service_address_city: serviceAddress?.city || "",
+        service_address_state: serviceAddress?.state || "",
+        service_address_zip: serviceAddress?.zip || "",
+        gate_code: gateCode || "",
+        contact_method: contactMethod || "",
+        purchase_date: purchaseDate || "",
+        purchased_within_12_months: purchasedWithin12Months || "",
+        appliance_type_1: units?.[0]?.applianceType || "",
+        brand_1: units?.[0]?.brand || "",
+        model_1: units?.[0]?.model || "",
+        serial_1: units?.[0]?.serial || "",
+        purchased_from_us_1: units?.[0]?.purchasedFromUs || "",
+        stacked_1: units?.[0]?.stacked || "",
+        problem_description_1: units?.[0]?.problemDescription || "",
+        appliance_type_2: units?.[1]?.applianceType || "",
+        brand_2: units?.[1]?.brand || "",
+        model_2: units?.[1]?.model || "",
+        serial_2: units?.[1]?.serial || "",
+        problem_description_2: units?.[1]?.problemDescription || ""
+      }
+    });
 
     res.json({
       clientSecret: setupIntent.client_secret,
@@ -374,6 +387,7 @@ const setupIntent = await stripe.setupIntents.create({
     });
   }
 });
+
 
 app.get("/api/service/setup-intent-result/:setupIntentId", async (req, res) => {
   try {

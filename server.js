@@ -18,6 +18,12 @@ const __dirname = path.dirname(__filename);
 const linksFile = path.join(__dirname, "links.json");
 const terminalPaymentsFile = path.join(__dirname, "terminal-payments.json");
 
+app.get("/", (req, res) => {
+  res.sendFile(path.join(__dirname, "dashboard.html"));
+});
+
+app.use(express.static(__dirname, { index: false }));
+
 import fsSync from "fs";
 app.use(express.static(__dirname));
 

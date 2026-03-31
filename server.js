@@ -15,10 +15,10 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const serviceCardsFile = path.join(__dirname, "service-cards.json");
-
 const linksFile = path.join(__dirname, "links.json");
 const terminalPaymentsFile = path.join(__dirname, "terminal-payments.json");
+
+const serviceCardsFile = path.join(__dirname, "service-cards.json");
 
 app.get("/", (req, res) => {
   res.sendFile(path.join(__dirname, "dashboard.html"));
@@ -331,23 +331,37 @@ app.post("/api/service/setup-intent", async (req, res) => {
       }
     });
 
-    const setupIntent = await stripe.setupIntents.create({
-      customer: customer.id,
-      payment_method_types: ["card"],
-      usage: "off_session",
-      metadata: {
-        customer_name: customerName || "",
-        customer_email: customerEmail || "",
-        customer_phone: customerPhone || "",
-        sales_order: salesOrder || "",
-        service_address: serviceAddress || "",
-        brand: brand || "",
-        model: model || "",
-        serial: serial || "",
-        purchase_date: purchaseDate || "",
-        problem_description: problemDescription || ""
-      }
-    });
+const setupIntent = await stripe.setupIntents.create({
+  customer: customer.id,
+  payment_method_types: ["card"],
+  usage: "off_session",
+  metadata: {
+    customer_name: customerName || "",
+    customer_email: customerEmail || "",
+    customer_phone: customerPhone || "",
+    service_address_line1: serviceAddress?.line1 || "",
+    service_address_line2: serviceAddress?.line2 || "",
+    service_address_city: serviceAddress?.city || "",
+    service_address_state: serviceAddress?.state || "",
+    service_address_zip: serviceAddress?.zip || "",
+    gate_code: gateCode || "",
+    contact_method: contactMethod || "",
+    purchase_date: purchaseDate || "",
+    purchased_within_12_months: purchasedWithin12Months || "",
+    appliance_type_1: units?.[0]?.applianceType || "",
+    brand_1: units?.[0]?.brand || "",
+    model_1: units?.[0]?.model || "",
+    serial_1: units?.[0]?.serial || "",
+    purchased_from_us_1: units?.[0]?.purchasedFromUs || "",
+    stacked_1: units?.[0]?.stacked || "",
+    problem_description_1: units?.[0]?.problemDescription || "",
+    appliance_type_2: units?.[1]?.applianceType || "",
+    brand_2: units?.[1]?.brand || "",
+    model_2: units?.[1]?.model || "",
+    serial_2: units?.[1]?.serial || "",
+    problem_description_2: units?.[1]?.problemDescription || ""
+  }
+});
 
     res.json({
       clientSecret: setupIntent.client_secret,

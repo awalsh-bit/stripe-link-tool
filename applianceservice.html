@@ -1,0 +1,628 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="robots" content="noindex,nofollow,noarchive" />
+  <title>Wilson AC & Appliance - Service Card on File</title>
+  <style>
+    :root {
+      --bg: #f7f8fc;
+      --card: #ffffff;
+      --text: #1f2937;
+      --muted: #6b7280;
+      --border: #dbe1ea;
+      --primary: #635bff;
+      --primary-hover: #564ef0;
+      --success-bg: #ecfdf5;
+      --success-text: #065f46;
+      --error-bg: #fef2f2;
+      --error-text: #991b1b;
+      --shadow: 0 10px 35px rgba(0, 0, 0, 0.08);
+      --radius: 18px;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: linear-gradient(180deg, #eef2ff 0%, var(--bg) 100%);
+      color: var(--text);
+      min-height: 100vh;
+      padding: 32px 16px;
+    }
+
+    .wrap {
+      max-width: 980px;
+      margin: 0 auto;
+    }
+
+    .hero { margin-bottom: 22px; }
+
+    .eyebrow {
+      display: inline-block;
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--primary);
+      background: rgba(99, 91, 255, 0.1);
+      padding: 8px 10px;
+      border-radius: 999px;
+      margin-bottom: 14px;
+    }
+
+    h1 {
+      margin: 0 0 10px;
+      font-size: clamp(28px, 4vw, 42px);
+      line-height: 1.05;
+    }
+
+    .sub {
+      margin: 0;
+      color: var(--muted);
+      font-size: 16px;
+      line-height: 1.6;
+      max-width: 780px;
+    }
+
+    .card {
+      background: var(--card);
+      border: 1px solid rgba(99, 91, 255, 0.12);
+      box-shadow: var(--shadow);
+      border-radius: var(--radius);
+      padding: 24px;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 16px;
+    }
+
+    .field {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .field.full { grid-column: 1 / -1; }
+
+    label {
+      font-size: 14px;
+      font-weight: 600;
+    }
+
+    input, textarea, select {
+      width: 100%;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 13px 14px;
+      font-size: 15px;
+      background: #fff;
+      color: var(--text);
+      outline: none;
+      transition: border-color 0.2s ease, box-shadow 0.2s ease;
+    }
+
+    input:focus, textarea:focus, select:focus {
+      border-color: rgba(99, 91, 255, 0.75);
+      box-shadow: 0 0 0 4px rgba(99, 91, 255, 0.12);
+    }
+
+    textarea {
+      min-height: 90px;
+      resize: vertical;
+    }
+
+    .checkbox-row {
+      display: flex;
+      gap: 10px;
+      align-items: flex-start;
+      padding: 12px 14px;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: #fafbff;
+    }
+
+    .checkbox-row input {
+      width: auto;
+      margin-top: 4px;
+    }
+
+    .actions {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-top: 22px;
+      flex-wrap: wrap;
+    }
+
+    button {
+      appearance: none;
+      border: none;
+      background: var(--primary);
+      color: white;
+      padding: 14px 18px;
+      border-radius: 12px;
+      font-size: 15px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: background 0.2s ease, transform 0.04s ease;
+    }
+
+    button:hover { background: var(--primary-hover); }
+    button:active { transform: translateY(1px); }
+    button:disabled { opacity: 0.65; cursor: wait; }
+
+    .secondary {
+      background: #eef2ff;
+      color: #3730a3;
+    }
+
+    .secondary:hover { background: #e0e7ff; }
+
+    .status {
+      margin-top: 18px;
+      padding: 14px 16px;
+      border-radius: 12px;
+      font-size: 14px;
+      display: none;
+      line-height: 1.5;
+      white-space: pre-wrap;
+    }
+
+    .status.success {
+      display: block;
+      background: var(--success-bg);
+      color: var(--success-text);
+    }
+
+    .status.error {
+      display: block;
+      background: var(--error-bg);
+      color: var(--error-text);
+    }
+
+    .payment-shell {
+      margin-top: 24px;
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 18px;
+      background: #fafbff;
+      display: none;
+    }
+
+    .payment-shell.show { display: block; }
+
+    .payment-shell h2 {
+      margin: 0 0 10px;
+      font-size: 20px;
+    }
+
+    .payment-shell p {
+      margin: 0 0 16px;
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.6;
+    }
+
+    #payment-element {
+      margin-bottom: 14px;
+    }
+
+    .result {
+      margin-top: 22px;
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 18px;
+      background: #fafbff;
+      display: none;
+    }
+
+    .result.show { display: block; }
+
+    .result h2 {
+      margin: 0 0 12px;
+      font-size: 18px;
+    }
+
+    .result-row { margin-bottom: 12px; }
+
+    .result-label {
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--muted);
+      margin-bottom: 6px;
+      font-weight: 700;
+    }
+
+    .result-value {
+      font-size: 14px;
+      line-height: 1.6;
+      word-break: break-word;
+    }
+
+    .mono {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+      background: #f3f4f6;
+      border-radius: 10px;
+      padding: 10px 12px;
+      display: inline-block;
+    }
+
+    .footer-note {
+      margin-top: 18px;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.6;
+    }
+
+    @media (max-width: 720px) {
+      .grid { grid-template-columns: 1fr; }
+      .card { padding: 18px; }
+    }
+  </style>
+  <script src="https://js.stripe.com/v3/"></script>
+</head>
+<body>
+  <div class="wrap">
+    <div class="hero">
+      <div class="eyebrow">Wilson AC & Appliance - Appliance Service</div>
+      <h1>Schedule service and save a card on file</h1>
+      <p class="sub">
+        Complete the service request details below, then securely save a card on file for approved service work, annual maintenance, and future charges related to this request.
+      </p>
+    </div>
+
+    <div class="card">
+      <form id="serviceForm">
+        <div class="grid">
+          <div class="field">
+            <label for="customerName">Client Name</label>
+            <input id="customerName" required placeholder="Jane Smith" />
+          </div>
+
+          <div class="field">
+            <label for="customerEmail">Client Email</label>
+            <input id="customerEmail" type="email" required placeholder="jane@example.com" />
+          </div>
+
+          <div class="field">
+            <label for="customerPhone">Phone</label>
+            <input id="customerPhone" placeholder="512-555-1234" />
+          </div>
+
+          <div class="field">
+            <label for="salesOrder">Service Order / Invoice</label>
+            <input id="salesOrder" placeholder="SO-18427" />
+          </div>
+
+          <div class="field full">
+            <label for="serviceAddress">Service Address</label>
+            <input id="serviceAddress" placeholder="123 Main St, Austin, TX 78704" />
+          </div>
+
+          <div class="field">
+            <label for="brand">Brand</label>
+            <input id="brand" placeholder="Sub-Zero" />
+          </div>
+
+          <div class="field">
+            <label for="model">Model</label>
+            <input id="model" placeholder="BI-48S/S/TH" />
+          </div>
+
+          <div class="field">
+            <label for="serial">Serial Number</label>
+            <input id="serial" placeholder="12345678" />
+          </div>
+
+          <div class="field">
+            <label for="purchaseDate">Approximate Purchase Date</label>
+            <input id="purchaseDate" placeholder="2022 or 03/2022" />
+          </div>
+
+          <div class="field full">
+            <label for="problemDescription">Service Request / Problem Description</label>
+            <textarea id="problemDescription" placeholder="Describe the issue, symptoms, and any relevant background"></textarea>
+          </div>
+
+          <div class="field full">
+            <label>Customer Authorization</label>
+            <div class="checkbox-row">
+              <input id="consent" type="checkbox" />
+              <div>
+                I authorize Wilson AC & Appliance to save my card on file and use it later for approved service charges, annual maintenance, shipped filters, and related charges connected to this service relationship.
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="actions">
+          <button id="beginBtn" type="button">Continue to secure card entry</button>
+        </div>
+
+        <div id="status" class="status"></div>
+
+        <div id="paymentShell" class="payment-shell">
+          <h2>Secure card entry</h2>
+          <p>
+            Card details are collected securely through Stripe. No charge is made now. This only saves the card for future approved charges.
+          </p>
+          <div id="payment-element"></div>
+          <div class="actions">
+            <button id="saveCardBtn" type="submit">Save card on file</button>
+            <button id="resetBtn" class="secondary" type="button">Start over</button>
+          </div>
+        </div>
+
+        <div id="result" class="result">
+          <h2>Card saved successfully</h2>
+          <div class="result-row">
+            <div class="result-label">Stripe Customer ID</div>
+            <div id="resultCustomerId" class="result-value"></div>
+          </div>
+          <div class="result-row">
+            <div class="result-label">Saved Payment Method ID</div>
+            <div id="resultPaymentMethodId" class="result-value"></div>
+          </div>
+          <div class="result-row">
+            <div class="result-label">Saved Card</div>
+            <div id="resultCardSummary" class="result-value"></div>
+          </div>
+          <div class="result-row">
+            <div class="result-label">Copy for your internal notes</div>
+            <div id="resultCopyText" class="result-value"></div>
+          </div>
+          <div class="actions">
+            <button id="copyBtn" class="secondary" type="button">Copy confirmation</button>
+          </div>
+        </div>
+      </form>
+
+      <p class="footer-note">
+        Important: this page securely saves a card for later billing. It does not charge the card today.
+      </p>
+    </div>
+  </div>
+
+  <script>
+    const form = document.getElementById("serviceForm");
+    const beginBtn = document.getElementById("beginBtn");
+    const saveCardBtn = document.getElementById("saveCardBtn");
+    const resetBtn = document.getElementById("resetBtn");
+    const copyBtn = document.getElementById("copyBtn");
+    const statusBox = document.getElementById("status");
+    const paymentShell = document.getElementById("paymentShell");
+    const resultBox = document.getElementById("result");
+    const resultCustomerId = document.getElementById("resultCustomerId");
+    const resultPaymentMethodId = document.getElementById("resultPaymentMethodId");
+    const resultCardSummary = document.getElementById("resultCardSummary");
+    const resultCopyText = document.getElementById("resultCopyText");
+
+    let stripe;
+    let elements;
+    let setupIntentId = "";
+    let latestCopyText = "";
+
+    function showStatus(type, message) {
+      statusBox.className = `status ${type}`;
+      statusBox.textContent = message;
+    }
+
+    function clearStatus() {
+      statusBox.className = "status";
+      statusBox.textContent = "";
+    }
+
+    function clearResult() {
+      resultBox.classList.remove("show");
+      resultCustomerId.textContent = "";
+      resultPaymentMethodId.textContent = "";
+      resultCardSummary.textContent = "";
+      resultCopyText.innerHTML = "";
+      latestCopyText = "";
+    }
+
+    function getPayload() {
+      return {
+        customerName: document.getElementById("customerName").value.trim(),
+        customerEmail: document.getElementById("customerEmail").value.trim(),
+        customerPhone: document.getElementById("customerPhone").value.trim(),
+        salesOrder: document.getElementById("salesOrder").value.trim(),
+        serviceAddress: document.getElementById("serviceAddress").value.trim(),
+        brand: document.getElementById("brand").value.trim(),
+        model: document.getElementById("model").value.trim(),
+        serial: document.getElementById("serial").value.trim(),
+        purchaseDate: document.getElementById("purchaseDate").value.trim(),
+        problemDescription: document.getElementById("problemDescription").value.trim(),
+        consent: document.getElementById("consent").checked
+      };
+    }
+
+    async function loadStripe() {
+      const res = await fetch("/api/config");
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Unable to load Stripe configuration.");
+      stripe = Stripe(data.publishableKey);
+    }
+
+    async function createSetupIntent() {
+      const payload = getPayload();
+
+      if (!payload.customerName || !payload.customerEmail) {
+        throw new Error("Please complete client name and client email.");
+      }
+
+      if (!payload.consent) {
+        throw new Error("Please confirm the customer authorization box.");
+      }
+
+      const res = await fetch("/api/service/setup-intent", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify(payload)
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Unable to create secure card entry session.");
+      return data;
+    }
+
+    async function mountPaymentElement(clientSecret) {
+      if (elements) {
+        elements = null;
+        document.getElementById("payment-element").innerHTML = "";
+      }
+
+      elements = stripe.elements({
+        clientSecret,
+        appearance: {
+          theme: "stripe",
+          variables: {
+            colorPrimary: "#635bff",
+            borderRadius: "12px"
+          }
+        }
+      });
+
+      const paymentElement = elements.create("payment", {
+        layout: "accordion",
+        fields: {
+          billingDetails: {
+            name: "auto",
+            email: "auto",
+            phone: "auto",
+            address: "auto"
+          }
+        }
+      });
+
+      paymentElement.mount("#payment-element");
+    }
+
+    async function finalizeResult() {
+      const res = await fetch(`/api/service/setup-intent-result/${setupIntentId}`);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Unable to retrieve saved card details.");
+
+      const brand = data.cardBrand ? data.cardBrand.toUpperCase() : "CARD";
+      const last4 = data.last4 || "????";
+      const copyText = `${brand} **** ${last4} | ${data.customerId} | ${data.paymentMethodId}`;
+      latestCopyText = copyText;
+
+      resultCustomerId.innerHTML = `<span class="mono">${data.customerId}</span>`;
+      resultPaymentMethodId.innerHTML = `<span class="mono">${data.paymentMethodId}</span>`;
+      resultCardSummary.textContent = `${brand} **** ${last4}`;
+      resultCopyText.innerHTML = `<span class="mono">${copyText}</span>`;
+      resultBox.classList.add("show");
+
+      try {
+        await navigator.clipboard.writeText(copyText);
+        showStatus("success", "Card saved successfully. Confirmation copied to clipboard.");
+      } catch {
+        showStatus("success", "Card saved successfully.");
+      }
+    }
+
+    beginBtn.addEventListener("click", async () => {
+      clearStatus();
+      clearResult();
+      beginBtn.disabled = true;
+      beginBtn.textContent = "Preparing secure card entry...";
+
+      try {
+        if (!stripe) {
+          await loadStripe();
+        }
+
+        const data = await createSetupIntent();
+        setupIntentId = data.setupIntentId;
+        await mountPaymentElement(data.clientSecret);
+        paymentShell.classList.add("show");
+        showStatus("success", "Secure card entry is ready below.");
+      } catch (err) {
+        showStatus("error", err.message);
+      } finally {
+        beginBtn.disabled = false;
+        beginBtn.textContent = "Continue to secure card entry";
+      }
+    });
+
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      clearStatus();
+      clearResult();
+
+      if (!elements || !setupIntentId) {
+        showStatus("error", "Please start the secure card entry step first.");
+        return;
+      }
+
+      saveCardBtn.disabled = true;
+      saveCardBtn.textContent = "Saving...";
+
+      try {
+        const payload = getPayload();
+        const { error, setupIntent } = await stripe.confirmSetup({
+          elements,
+          confirmParams: {
+            payment_method_data: {
+              billing_details: {
+                name: payload.customerName,
+                email: payload.customerEmail,
+                phone: payload.customerPhone,
+                address: {
+                  line1: payload.serviceAddress
+                }
+              }
+            }
+          },
+          redirect: "if_required"
+        });
+
+        if (error) {
+          throw new Error(error.message || "Unable to save card.");
+        }
+
+        if (setupIntent && setupIntent.id) {
+          setupIntentId = setupIntent.id;
+        }
+
+        await finalizeResult();
+      } catch (err) {
+        showStatus("error", err.message);
+      } finally {
+        saveCardBtn.disabled = false;
+        saveCardBtn.textContent = "Save card on file";
+      }
+    });
+
+    resetBtn.addEventListener("click", () => {
+      clearStatus();
+      clearResult();
+      paymentShell.classList.remove("show");
+      setupIntentId = "";
+      if (elements) {
+        document.getElementById("payment-element").innerHTML = "";
+        elements = null;
+      }
+    });
+
+    copyBtn.addEventListener("click", async () => {
+      if (!latestCopyText) return;
+      try {
+        await navigator.clipboard.writeText(latestCopyText);
+        showStatus("success", "Confirmation copied to clipboard.");
+      } catch {
+        showStatus("error", "Could not copy confirmation.");
+      }
+    });
+  </script>
+</body>
+</html>

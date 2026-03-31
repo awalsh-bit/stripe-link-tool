@@ -15,6 +15,8 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+const serviceCardsFile = path.join(__dirname, "service-cards.json");
+
 const linksFile = path.join(__dirname, "links.json");
 const terminalPaymentsFile = path.join(__dirname, "terminal-payments.json");
 
@@ -272,6 +274,194 @@ app.get("/api/terminal/payment-status/:paymentIntentId", async (req, res) => {
 });
 
 // -------------------------
+// APPLIANCE SERVICE: SAVE CARD
+// -------------------------
+
+
+app.get("/api/config", (req, res) => {
+  if (!process.env.STRIPE_PUBLISHABLE_KEY) {
+    return res.status(400).json({ error: "Missing STRIPE_PUBLISHABLE_KEY" });
+  }
+
+  res.json({
+    publishableKey: process.env.STRIPE_PUBLISHABLE_KEY
+  });
+});
+
+app.post("/api/service/setup-intent", async (req, res) => {
+  try {
+    const {
+      customerName,
+      customerEmail,
+      customerPhone,
+      salesOrder,
+      serviceAddress,
+      brand,
+      model,
+      serial,
+      purchaseDate,
+      problemDescription,
+      consent
+    } = req.body;
+
+    if (!customerName || !customerEmail) {
+      return res.status(400).json({
+        error: "Client name and client email are required."
+      });
+    }
+
+    if (!consent) {
+      return res.status(400).json({
+        error: "Customer authorization is required."
+      });
+    }
+
+    const customer = await stripe.customers.create({
+      name: customerName,
+      email: customerEmail,
+      phone: customerPhone || undefined,
+      address: serviceAddress ? { line1: serviceAddress } : undefined,
+      metadata: {
+        sales_order: salesOrder || "",
+        brand: brand || "",
+        model: model || "",
+        serial: serial || "",
+        purchase_date: purchaseDate || "",
+        service_address: serviceAddress || ""
+      }
+    });
+
+    const setupIntent = await stripe.setupIntents.create({
+      customer: customer.id,
+      payment_method_types: ["card"],
+      usage: "off_session",
+      metadata: {
+        customer_name: customerName || "",
+        customer_email: customerEmail || "",
+        customer_phone: customerPhone || "",
+        sales_order: salesOrder || "",
+        service_address: serviceAddress || "",
+        brand: brand || "",
+        model: model || "",
+        serial: serial || "",
+        purchase_date: purchaseDate || "",
+        problem_description: problemDescription || ""
+      }
+    });
+
+    res.json({
+      clientSecret: setupIntent.client_secret,
+      setupIntentId: setupIntent.id,
+      customerId: customer.id
+    });
+  } catch (err) {
+    res.status(400).json({
+      error: err.message || "Unable to create setup intent."
+    });
+  }
+});
+
+app.get("/api/service/setup-intent-result/:setupIntentId", async (req, res) => {
+  try {
+    const setupIntent = await stripe.setupIntents.retrieve(
+      req.params.setupIntentId,
+      {
+        expand: ["payment_method", "customer"]
+      }
+    );
+
+    if (setupIntent.status !== "succeeded") {
+      return res.status(400).json({
+        error: `SetupIntent is not complete. Current status: ${setupIntent.status}`
+      });
+    }
+
+    const paymentMethod = setupIntent.payment_method;
+    const customer = setupIntent.customer;
+
+    const brand = paymentMethod?.card?.brand || "";
+    const last4 = paymentMethod?.card?.last4 || "";
+
+    const serviceCards = await readServiceCards();
+    const exists = serviceCards.some((row) => row.setupIntentId === setupIntent.id);
+
+    if (!exists) {
+      serviceCards.unshift({
+        id: `svc_${Date.now()}`,
+        createdAt: new Date(setupIntent.created * 1000).toISOString(),
+        setupIntentId: setupIntent.id,
+        customerId: customer?.id || "",
+        paymentMethodId: paymentMethod?.id || "",
+        customerName: customer?.name || setupIntent.metadata?.customer_name || "",
+        customerEmail: customer?.email || setupIntent.metadata?.customer_email || "",
+        customerPhone: customer?.phone || setupIntent.metadata?.customer_phone || "",
+        salesOrder: setupIntent.metadata?.sales_order || "",
+        serviceAddress: setupIntent.metadata?.service_address || "",
+        brand: setupIntent.metadata?.brand || "",
+        model: setupIntent.metadata?.model || "",
+        serial: setupIntent.metadata?.serial || "",
+        purchaseDate: setupIntent.metadata?.purchase_date || "",
+        problemDescription: setupIntent.metadata?.problem_description || "",
+        cardBrand: brand,
+        last4
+      });
+
+      await writeServiceCards(serviceCards);
+    }
+
+    res.json({
+      setupIntentId: setupIntent.id,
+      customerId: customer?.id || "",
+      paymentMethodId: paymentMethod?.id || "",
+      customerName: customer?.name || "",
+      customerEmail: customer?.email || "",
+      cardBrand: brand,
+      last4
+    });
+  } catch (err) {
+    res.status(400).json({
+      error: err.message || "Unable to retrieve setup intent result."
+    });
+  }
+});
+
+
+app.post("/api/card-on-file/charge", async (req, res) => {
+  try {
+    const { customerId, paymentMethodId, amount, description } = req.body;
+
+    if (!customerId || !paymentMethodId || !amount) {
+      return res.status(400).json({
+        error: "customerId, paymentMethodId, and amount are required"
+      });
+    }
+
+    const amountInCents = Math.round(Number(amount) * 100);
+
+    const paymentIntent = await stripe.paymentIntents.create({
+      amount: amountInCents,
+      currency: "usd",
+      customer: customerId,
+      payment_method: paymentMethodId,
+      confirm: true,
+      off_session: true,
+      description: description || "Service charge"
+    });
+
+    res.json({
+      success: true,
+      paymentIntentId: paymentIntent.id,
+      status: paymentIntent.status
+    });
+  } catch (err) {
+    res.status(400).json({
+      error: err.message || "Unable to charge saved card"
+    });
+  }
+});
+
+
+// -------------------------
 // DASHBOARD: CHECK PAYMENT STATUS
 // -------------------------
 
@@ -351,6 +541,20 @@ async function readLinks() {
     if (err.code === "ENOENT") return [];
     throw err;
   }
+}
+
+async function readServiceCards() {
+  try {
+    const raw = await fs.readFile(serviceCardsFile, "utf8");
+    return JSON.parse(raw || "[]");
+  } catch (err) {
+    if (err.code === "ENOENT") return [];
+    throw err;
+  }
+}
+
+async function writeServiceCards(data) {
+  await fs.writeFile(serviceCardsFile, JSON.stringify(data, null, 2), "utf8");
 }
 
 async function writeLinks(data) {

@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="robots" content="noindex,nofollow,noarchive" />
+  <title>Wilson AC & Appliance - Charge Saved Card</title>
+  <style>
+    :root {
+      --bg: #f7f8fc;
+      --card: #ffffff;
+      --text: #1f2937;
+      --muted: #6b7280;
+      --border: #dbe1ea;
+      --primary: #635bff;
+      --primary-hover: #564ef0;
+      --success-bg: #ecfdf5;
+      --success-text: #065f46;
+      --error-bg: #fef2f2;
+      --error-text: #991b1b;
+      --shadow: 0 10px 35px rgba(0, 0, 0, 0.08);
+      --radius: 18px;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: linear-gradient(180deg, #eef2ff 0%, var(--bg) 100%);
+      color: var(--text);
+      min-height: 100vh;
+      padding: 32px 16px;
+    }
+
+    .wrap {
+      max-width: 860px;
+      margin: 0 auto;
+    }
+
+    .hero { margin-bottom: 22px; }
+
+    .eyebrow {
+      display: inline-block;
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--primary);
+      background: rgba(99, 91, 255, 0.1);
+      padding: 8px 10px;
+      border-radius: 999px;
+      margin-bottom: 14px;
+    }
+
+    h1 {
+      margin: 0 0 10px;
+      font-size: clamp(28px, 4vw, 42px);
+      line-height: 1.05;
+    }
+
+    .sub {
+      margin: 0;
+      color: var(--muted);
+      font-size: 16px;
+      line-height: 1.6;
+      max-width: 760px;
+    }
+
+    .card {
+      background: var(--card);
+      border: 1px solid rgba(99, 91, 255, 0.12);
+      box-shadow: var(--shadow);
+      border-radius: var(--radius);
+      padding: 24px;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 16px;
+    }
+
+    .field {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .field.full { grid-column: 1 / -1; }
+
+    label {
+      font-size: 14px;
+      font-weight: 600;
+    }
+
+    input, textarea, select {
+      width: 100%;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 13px 14px;
+      font-size: 15px;
+      background: #fff;
+      color: var(--text);
+      outline: none;
+      transition: border-color 0.2s ease, box-shadow 0.2s ease;
+    }
+
+    input:focus, textarea:focus, select:focus {
+      border-color: rgba(99, 91, 255, 0.75);
+      box-shadow: 0 0 0 4px rgba(99, 91, 255, 0.12);
+    }
+
+    textarea {
+      min-height: 90px;
+      resize: vertical;
+    }
+
+    .actions {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-top: 22px;
+      flex-wrap: wrap;
+    }
+
+    button {
+      appearance: none;
+      border: none;
+      background: var(--primary);
+      color: white;
+      padding: 14px 18px;
+      border-radius: 12px;
+      font-size: 15px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: background 0.2s ease, transform 0.04s ease;
+    }
+
+    button:hover { background: var(--primary-hover); }
+    button:active { transform: translateY(1px); }
+    button:disabled { opacity: 0.65; cursor: wait; }
+
+    .secondary {
+      background: #eef2ff;
+      color: #3730a3;
+    }
+
+    .secondary:hover { background: #e0e7ff; }
+
+    .status {
+      margin-top: 18px;
+      padding: 14px 16px;
+      border-radius: 12px;
+      font-size: 14px;
+      display: none;
+      line-height: 1.5;
+      white-space: pre-wrap;
+    }
+
+    .status.success {
+      display: block;
+      background: var(--success-bg);
+      color: var(--success-text);
+    }
+
+    .status.error {
+      display: block;
+      background: var(--error-bg);
+      color: var(--error-text);
+    }
+
+    .result {
+      margin-top: 22px;
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 18px;
+      background: #fafbff;
+      display: none;
+    }
+
+    .result.show { display: block; }
+
+    .result h2 {
+      margin: 0 0 12px;
+      font-size: 18px;
+    }
+
+    .result-row { margin-bottom: 12px; }
+
+    .result-label {
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--muted);
+      margin-bottom: 6px;
+      font-weight: 700;
+    }
+
+    .result-value {
+      font-size: 14px;
+      line-height: 1.6;
+      word-break: break-word;
+    }
+
+    .mono {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+      background: #f3f4f6;
+      border-radius: 10px;
+      padding: 10px 12px;
+      display: inline-block;
+    }
+
+    .footer-note {
+      margin-top: 18px;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.6;
+    }
+
+    @media (max-width: 720px) {
+      .grid { grid-template-columns: 1fr; }
+      .card { padding: 18px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="hero">
+      <div class="eyebrow">Wilson AC & Appliance - Charge Saved Card</div>
+      <h1>Charge a saved card on file</h1>
+      <p class="sub">
+        Use this internal page after diagnosis or approval when you know the amount and want to bill a saved customer payment method.
+      </p>
+    </div>
+
+    <div class="card">
+      <form id="chargeForm">
+        <div class="grid">
+          <div class="field">
+            <label for="customerId">Stripe Customer ID</label>
+            <input id="customerId" required placeholder="cus_..." />
+          </div>
+
+          <div class="field">
+            <label for="paymentMethodId">Saved Payment Method ID</label>
+            <input id="paymentMethodId" required placeholder="pm_..." />
+          </div>
+
+          <div class="field">
+            <label for="customerName">Client Name</label>
+            <input id="customerName" placeholder="Jane Smith" />
+          </div>
+
+          <div class="field">
+            <label for="amount">Amount</label>
+            <input id="amount" required type="number" min="0.50" step="0.01" placeholder="125.00" />
+          </div>
+
+          <div class="field full">
+            <label for="description">Description</label>
+            <input id="description" required placeholder="Service repair after diagnosis" />
+          </div>
+
+          <div class="field full">
+            <label for="internalNotes">Internal Notes</label>
+            <textarea id="internalNotes" placeholder="Optional internal notes"></textarea>
+          </div>
+        </div>
+
+        <div class="actions">
+          <button id="chargeBtn" type="submit">Charge saved card</button>
+          <button id="resetBtn" class="secondary" type="button">Clear form</button>
+        </div>
+
+        <div id="status" class="status"></div>
+
+        <div id="result" class="result">
+          <h2>Charge result</h2>
+          <div class="result-row">
+            <div class="result-label">Status</div>
+            <div id="resultStatus" class="result-value"></div>
+          </div>
+          <div class="result-row">
+            <div class="result-label">Payment Intent</div>
+            <div id="resultPaymentIntent" class="result-value"></div>
+          </div>
+          <div class="result-row">
+            <div class="result-label">Copy for internal notes</div>
+            <div id="resultCopyText" class="result-value"></div>
+          </div>
+          <div class="actions">
+            <button id="copyBtn" class="secondary" type="button">Copy confirmation</button>
+          </div>
+        </div>
+      </form>
+
+      <p class="footer-note">
+        Important: this page is internal only. The whole site is already password protected by Render Basic Auth, so this page is protected too.
+      </p>
+    </div>
+  </div>
+
+  <script>
+    const form = document.getElementById("chargeForm");
+    const chargeBtn = document.getElementById("chargeBtn");
+    const resetBtn = document.getElementById("resetBtn");
+    const copyBtn = document.getElementById("copyBtn");
+    const statusBox = document.getElementById("status");
+    const resultBox = document.getElementById("result");
+    const resultStatus = document.getElementById("resultStatus");
+    const resultPaymentIntent = document.getElementById("resultPaymentIntent");
+    const resultCopyText = document.getElementById("resultCopyText");
+
+    let latestCopyText = "";
+
+    function showStatus(type, message) {
+      statusBox.className = `status ${type}`;
+      statusBox.textContent = message;
+    }
+
+    function clearStatus() {
+      statusBox.className = "status";
+      statusBox.textContent = "";
+    }
+
+    function clearResult() {
+      resultBox.classList.remove("show");
+      resultStatus.textContent = "";
+      resultPaymentIntent.textContent = "";
+      resultCopyText.innerHTML = "";
+      latestCopyText = "";
+    }
+
+    function formatDate(date = new Date()) {
+      return date.toLocaleString("en-US", {
+        month: "2-digit",
+        day: "2-digit",
+        year: "2-digit",
+        hour: "numeric",
+        minute: "2-digit"
+      });
+    }
+
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      clearStatus();
+      clearResult();
+
+      const payload = {
+        customerId: document.getElementById("customerId").value.trim(),
+        paymentMethodId: document.getElementById("paymentMethodId").value.trim(),
+        amount: document.getElementById("amount").value,
+        description: document.getElementById("description").value.trim(),
+        customerName: document.getElementById("customerName").value.trim(),
+        internalNotes: document.getElementById("internalNotes").value.trim()
+      };
+
+      if (!payload.customerId || !payload.paymentMethodId || !payload.amount || !payload.description) {
+        showStatus("error", "Please complete customer ID, payment method ID, amount, and description.");
+        return;
+      }
+
+      chargeBtn.disabled = true;
+      chargeBtn.textContent = "Charging...";
+
+      try {
+        const res = await fetch("/api/card-on-file/charge", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify(payload)
+        });
+
+        const data = await res.json();
+        if (!res.ok) {
+          throw new Error(data.error || "Unable to charge saved card.");
+        }
+
+        const copyText = `${payload.customerName || "Client"} | $${Number(payload.amount).toFixed(2)} | ${payload.description} | ${formatDate()} | ${data.paymentIntentId}`;
+        latestCopyText = copyText;
+
+        resultStatus.textContent = data.status || "succeeded";
+        resultPaymentIntent.innerHTML = `<span class="mono">${data.paymentIntentId}</span>`;
+        resultCopyText.innerHTML = `<span class="mono">${copyText}</span>`;
+        resultBox.classList.add("show");
+
+        try {
+          await navigator.clipboard.writeText(copyText);
+          showStatus("success", "Charge succeeded. Confirmation copied to clipboard.");
+        } catch {
+          showStatus("success", "Charge succeeded.");
+        }
+      } catch (err) {
+        showStatus("error", err.message);
+      } finally {
+        chargeBtn.disabled = false;
+        chargeBtn.textContent = "Charge saved card";
+      }
+    });
+
+    resetBtn.addEventListener("click", () => {
+      form.reset();
+      clearStatus();
+      clearResult();
+    });
+
+    copyBtn.addEventListener("click", async () => {
+      if (!latestCopyText) return;
+      try {
+        await navigator.clipboard.writeText(latestCopyText);
+        showStatus("success", "Confirmation copied to clipboard.");
+      } catch {
+        showStatus("error", "Could not copy confirmation.");
+      }
+    });
+  </script>
+</body>
+</html>

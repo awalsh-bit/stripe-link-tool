@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="robots" content="noindex,nofollow,noarchive" />
-  <title>Wilson AC & Appliance - Service Card on File</title>
+  <title>Wilson AC & Appliance - Appliance Service</title>
   <style>
     :root {
       --bg: #f7f8fc;
@@ -75,6 +75,11 @@
       padding: 24px;
     }
 
+    h2 {
+      margin: 28px 0 12px;
+      font-size: 20px;
+    }
+
     .grid {
       display: grid;
       grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -116,6 +121,36 @@
       resize: vertical;
     }
 
+    input[readonly] {
+      background: #f8fafc;
+      color: var(--muted);
+    }
+
+    .choice-row {
+      display: flex;
+      gap: 16px;
+      align-items: center;
+      padding: 12px 14px;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: #fff;
+      flex-wrap: wrap;
+      min-height: 48px;
+    }
+
+    .choice {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      font-weight: 500;
+    }
+
+    .choice input {
+      width: auto;
+      margin: 0;
+      accent-color: var(--primary);
+    }
+
     .checkbox-row {
       display: flex;
       gap: 10px;
@@ -129,6 +164,14 @@
     .checkbox-row input {
       width: auto;
       margin-top: 4px;
+      accent-color: var(--primary);
+    }
+
+    .hint {
+      margin-top: -2px;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.5;
     }
 
     .actions {
@@ -223,42 +266,14 @@
 
     .result.show { display: block; }
 
-    .result h2 {
-      margin: 0 0 12px;
-      font-size: 18px;
-    }
-
-    .result-row { margin-bottom: 12px; }
-
-    .result-label {
-      font-size: 12px;
-      text-transform: uppercase;
-      letter-spacing: 0.08em;
-      color: var(--muted);
-      margin-bottom: 6px;
-      font-weight: 700;
-    }
-
-    .result-value {
-      font-size: 14px;
-      line-height: 1.6;
-      word-break: break-word;
-    }
-
-    .mono {
-      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
-      background: #f3f4f6;
-      border-radius: 10px;
-      padding: 10px 12px;
-      display: inline-block;
-    }
-
     .footer-note {
       margin-top: 18px;
       color: var(--muted);
       font-size: 13px;
       line-height: 1.6;
     }
+
+    .hidden { display: none !important; }
 
     @media (max-width: 720px) {
       .grid { grid-template-columns: 1fr; }
@@ -280,14 +295,47 @@
     <div class="card">
       <form id="serviceForm">
         <div class="grid">
-          <div class="field">
-            <label for="customerName">Client Name</label>
-            <input id="customerName" required placeholder="Jane Smith" />
+          <div class="field full">
+            <label>Was this appliance purchased within the last 12 months?</label>
+            <div class="choice-row">
+              <label class="choice"><input type="radio" name="purchasedWithin12Months" value="Yes"> Yes</label>
+              <label class="choice"><input type="radio" name="purchasedWithin12Months" value="No"> No</label>
+            </div>
           </div>
 
           <div class="field">
-            <label for="customerEmail">Client Email</label>
-            <input id="customerEmail" type="email" required placeholder="jane@example.com" />
+            <label for="firstName">First Name</label>
+            <input id="firstName" required placeholder="Jane" />
+          </div>
+
+          <div class="field">
+            <label for="lastName">Last Name</label>
+            <input id="lastName" required placeholder="Smith" />
+          </div>
+
+          <div class="field full">
+            <label for="serviceAddress1">Street Address</label>
+            <input id="serviceAddress1" required placeholder="123 Main St" />
+          </div>
+
+          <div class="field full">
+            <label for="serviceAddress2">Address Line 2</label>
+            <input id="serviceAddress2" placeholder="Apt, suite, unit, etc." />
+          </div>
+
+          <div class="field">
+            <label for="serviceCity">City</label>
+            <input id="serviceCity" required placeholder="Austin" />
+          </div>
+
+          <div class="field">
+            <label for="serviceState">State</label>
+            <input id="serviceState" value="Texas" readonly />
+          </div>
+
+          <div class="field">
+            <label for="serviceZip">ZIP Code</label>
+            <input id="serviceZip" required maxlength="10" placeholder="78704" />
           </div>
 
           <div class="field">
@@ -296,38 +344,113 @@
           </div>
 
           <div class="field">
-            <label for="salesOrder">Service Order / Invoice</label>
-            <input id="salesOrder" placeholder="SO-18427" />
+            <label for="customerEmail">Client Email</label>
+            <input id="customerEmail" type="email" required placeholder="jane@example.com" />
+          </div>
+
+          <div class="field">
+            <label for="gateCode">Gate Code</label>
+            <input id="gateCode" placeholder="Optional" />
           </div>
 
           <div class="field full">
-            <label for="serviceAddress">Service Address</label>
-            <input id="serviceAddress" placeholder="123 Main St, Austin, TX 78704" />
+            <label>Best way to communicate during your service call</label>
+            <div class="choice-row">
+              <label class="choice"><input type="radio" name="contactMethod" value="Text"> Text</label>
+              <label class="choice"><input type="radio" name="contactMethod" value="Email"> Email</label>
+              <label class="choice"><input type="radio" name="contactMethod" value="Phone Call"> Phone Call</label>
+            </div>
           </div>
 
-          <div class="field">
-            <label for="brand">Brand</label>
-            <input id="brand" placeholder="Sub-Zero" />
+          <div class="field full">
+            <label>How many appliances/HVAC units need service?</label>
+            <div class="choice-row">
+              <label class="choice"><input type="radio" name="unitCount" value="One" checked> One</label>
+              <label class="choice"><input type="radio" name="unitCount" value="Multiple"> Multiple</label>
+            </div>
           </div>
 
-          <div class="field">
-            <label for="model">Model</label>
-            <input id="model" placeholder="BI-48S/S/TH" />
-          </div>
-
-          <div class="field">
-            <label for="serial">Serial Number</label>
-            <input id="serial" placeholder="12345678" />
-          </div>
-
-          <div class="field">
+          <div class="field full">
             <label for="purchaseDate">Approximate Purchase Date</label>
             <input id="purchaseDate" placeholder="2022 or 03/2022" />
           </div>
 
+          <div class="field">
+            <label for="applianceType1">Appliance Type</label>
+            <select id="applianceType1"></select>
+          </div>
+
+          <div class="field">
+            <label for="brand1">Brand</label>
+            <select id="brand1"></select>
+          </div>
+
+          <div class="field">
+            <label for="model1">Model</label>
+            <input id="model1" placeholder="BI-48S/S/TH" />
+          </div>
+
+          <div class="field">
+            <label for="serial1">Serial Number</label>
+            <input id="serial1" placeholder="12345678" />
+          </div>
+
           <div class="field full">
-            <label for="problemDescription">Service Request / Problem Description</label>
-            <textarea id="problemDescription" placeholder="Describe the issue, symptoms, and any relevant background"></textarea>
+            <label>Was this unit purchased from us?</label>
+            <div class="choice-row">
+              <label class="choice"><input type="radio" name="purchasedFromUs1" value="Yes"> Yes</label>
+              <label class="choice"><input type="radio" name="purchasedFromUs1" value="No"> No</label>
+              <label class="choice"><input type="radio" name="purchasedFromUs1" value="Not sure"> Not sure</label>
+            </div>
+          </div>
+
+          <div class="field full">
+            <label>Is this unit stacked with your washer/dryer?</label>
+            <div class="choice-row">
+              <label class="choice"><input type="radio" name="stacked1" value="Yes"> Yes</label>
+              <label class="choice"><input type="radio" name="stacked1" value="No"> No</label>
+            </div>
+          </div>
+
+          <div class="field full">
+            <label for="problem1">Service Request / Problem Description</label>
+            <textarea id="problem1" placeholder="Describe the issue, symptoms, and any relevant background"></textarea>
+          </div>
+
+          <div id="secondUnitSection" class="field full hidden">
+            <h2>Second Unit</h2>
+            <div class="grid">
+              <div class="field">
+                <label for="applianceType2">Appliance Type</label>
+                <select id="applianceType2"></select>
+              </div>
+
+              <div class="field">
+                <label for="brand2">Brand</label>
+                <select id="brand2"></select>
+              </div>
+
+              <div class="field">
+                <label for="model2">Model</label>
+                <input id="model2" placeholder="Optional" />
+              </div>
+
+              <div class="field">
+                <label for="serial2">Serial Number</label>
+                <input id="serial2" placeholder="Optional" />
+              </div>
+
+              <div class="field full">
+                <label for="problem2">Problem Description</label>
+                <textarea id="problem2" placeholder="Describe the second issue"></textarea>
+              </div>
+            </div>
+          </div>
+
+          <div class="field full">
+            <label for="attachments">Photos or Videos</label>
+            <input id="attachments" type="file" accept="image/*,video/*" multiple />
+            <div class="hint">Upload photos or videos that help explain the issue.</div>
           </div>
 
           <div class="field full">
@@ -352,6 +475,51 @@
           <p>
             Card details are collected securely through Stripe. No charge is made now. This only saves the card for future approved charges.
           </p>
+
+          <div class="grid">
+            <div class="field full">
+              <label>Is your billing address the same as your service address?</label>
+              <div class="choice-row">
+                <label class="choice"><input type="radio" name="billingSameAsService" value="Yes" checked> Yes</label>
+                <label class="choice"><input type="radio" name="billingSameAsService" value="No"> No</label>
+              </div>
+            </div>
+
+            <div id="billingAddressBlock" class="field full hidden">
+              <div class="grid">
+                <div class="field full">
+                  <label for="billingAddress1">Billing Address</label>
+                  <input id="billingAddress1" placeholder="123 Main St" />
+                </div>
+
+                <div class="field full">
+                  <label for="billingAddress2">Billing Address Line 2</label>
+                  <input id="billingAddress2" placeholder="Apt, suite, unit, etc." />
+                </div>
+
+                <div class="field">
+                  <label for="billingCity">City</label>
+                  <input id="billingCity" placeholder="Austin" />
+                </div>
+
+                <div class="field">
+                  <label for="billingState">State</label>
+                  <input id="billingState" value="Texas" readonly />
+                </div>
+
+                <div class="field">
+                  <label for="billingZip">ZIP Code</label>
+                  <input id="billingZip" maxlength="10" placeholder="78704" />
+                </div>
+              </div>
+            </div>
+
+            <div class="field full">
+              <label for="nameOnCard">Name on Card</label>
+              <input id="nameOnCard" placeholder="Jane Smith" />
+            </div>
+          </div>
+
           <div id="payment-element"></div>
           <div class="actions">
             <button id="saveCardBtn" type="submit">Save card on file</button>
@@ -360,26 +528,7 @@
         </div>
 
         <div id="result" class="result">
-          <h2>Card saved successfully</h2>
-          <div class="result-row">
-            <div class="result-label">Stripe Customer ID</div>
-            <div id="resultCustomerId" class="result-value"></div>
-          </div>
-          <div class="result-row">
-            <div class="result-label">Saved Payment Method ID</div>
-            <div id="resultPaymentMethodId" class="result-value"></div>
-          </div>
-          <div class="result-row">
-            <div class="result-label">Saved Card</div>
-            <div id="resultCardSummary" class="result-value"></div>
-          </div>
-          <div class="result-row">
-            <div class="result-label">Copy for your internal notes</div>
-            <div id="resultCopyText" class="result-value"></div>
-          </div>
-          <div class="actions">
-            <button id="copyBtn" class="secondary" type="button">Copy confirmation</button>
-          </div>
+          Service request submitted successfully. Our team will follow up with your next available date.
         </div>
       </form>
 
@@ -394,19 +543,43 @@
     const beginBtn = document.getElementById("beginBtn");
     const saveCardBtn = document.getElementById("saveCardBtn");
     const resetBtn = document.getElementById("resetBtn");
-    const copyBtn = document.getElementById("copyBtn");
     const statusBox = document.getElementById("status");
     const paymentShell = document.getElementById("paymentShell");
     const resultBox = document.getElementById("result");
-    const resultCustomerId = document.getElementById("resultCustomerId");
-    const resultPaymentMethodId = document.getElementById("resultPaymentMethodId");
-    const resultCardSummary = document.getElementById("resultCardSummary");
-    const resultCopyText = document.getElementById("resultCopyText");
+    const secondUnitSection = document.getElementById("secondUnitSection");
+    const billingAddressBlock = document.getElementById("billingAddressBlock");
 
     let stripe;
     let elements;
     let setupIntentId = "";
-    let latestCopyText = "";
+
+    const applianceTypes = [
+      "Refrigerator (Free Standing)","Refrigerator (Built-in)","Washer","Dryer","Dishwasher","Range","Microwave","Cooktop","Icemaker","HVAC","Other"
+    ];
+
+    const brands = [
+      "AGA (only if we sold the unit)","ALFRESCO","AMANA","AMERICAN STANDARD","ASKO","BEST","BLUE STAR","BOSCH","BROAN","GE CAFE","CARRIER","COVE","COYOTE","DCS APPLIANCES","FABER","FISHER & PAYKEL","FULGOR MILANO","GAGGENAU","GE","HAIER","JENN-AIR","JANITROL-GOODMAN","KITCHENAID","KENMORE","KALAMAZOO OUTDOOR GOURMET","LA CORNUE","LG","LG STUDIO","LIEBHERR","MARVEL","MONOGRAM","MIELE","MITSUBISHI","MAYTAG","PERLICK","GE PROFILE","RHEEM","RUUD","SCOTSMAN","SIGNATURE KITCHEN SUITE (BY LG)","SPEEDQUEEN","SUNSTONE METAL PRODUCTS","SUBZERO","THERMADOR","TRANE","TRUE MANUFACTURING","ULINE","VIKING","WOLF","WHIRLPOOL","YORK","ZEPHYR","WE DON'T SERVICE SAMSUNG","WE DON'T SERVICE FRIGIDAIRE","WE DON'T SERVICE ELECTROLUX","WE DON'T SERVICE MAGIC CHEF","WE DON'T SERVICE DACOR","WE DON'T SERVICE HOSHIZAKI","WE DON'T SERVICE AMERICAN RANGE"
+    ];
+
+    function fillSelect(id, values, placeholder) {
+      const select = document.getElementById(id);
+      select.innerHTML = "";
+      const first = document.createElement("option");
+      first.value = "";
+      first.textContent = placeholder;
+      select.appendChild(first);
+      values.forEach((value) => {
+        const option = document.createElement("option");
+        option.value = value;
+        option.textContent = value;
+        select.appendChild(option);
+      });
+    }
+
+    fillSelect("applianceType1", applianceTypes, "Select appliance type");
+    fillSelect("applianceType2", applianceTypes, "Select appliance type");
+    fillSelect("brand1", brands, "Select brand");
+    fillSelect("brand2", brands, "Select brand");
 
     function showStatus(type, message) {
       statusBox.className = `status ${type}`;
@@ -420,27 +593,102 @@
 
     function clearResult() {
       resultBox.classList.remove("show");
-      resultCustomerId.textContent = "";
-      resultPaymentMethodId.textContent = "";
-      resultCardSummary.textContent = "";
-      resultCopyText.innerHTML = "";
-      latestCopyText = "";
     }
 
+    function getRadioValue(name) {
+      return document.querySelector(`input[name="${name}"]:checked`)?.value || "";
+    }
+
+    function syncSecondUnit() {
+      const multiple = getRadioValue("unitCount") === "Multiple";
+      secondUnitSection.classList.toggle("hidden", !multiple);
+    }
+
+    function syncBillingAddress() {
+      const same = getRadioValue("billingSameAsService") === "Yes";
+      billingAddressBlock.classList.toggle("hidden", same);
+    }
+
+    function syncPaymentRequirement() {
+      const purchasedRecently = getRadioValue("purchasedWithin12Months") === "Yes";
+      beginBtn.classList.toggle("hidden", purchasedRecently);
+      paymentShell.classList.toggle("hidden", purchasedRecently);
+      if (purchasedRecently) {
+        paymentShell.classList.remove("show");
+      }
+    }
+
+    document.querySelectorAll('input[name="unitCount"]').forEach((el) => el.addEventListener("change", syncSecondUnit));
+    document.querySelectorAll('input[name="billingSameAsService"]').forEach((el) => el.addEventListener("change", syncBillingAddress));
+    document.querySelectorAll('input[name="purchasedWithin12Months"]').forEach((el) => el.addEventListener("change", syncPaymentRequirement));
+    syncSecondUnit();
+    syncBillingAddress();
+    syncPaymentRequirement();
+
     function getPayload() {
-      return {
-        customerName: document.getElementById("customerName").value.trim(),
+      const billingSame = getRadioValue("billingSameAsService") !== "No";
+      const firstName = document.getElementById("firstName").value.trim();
+      const lastName = document.getElementById("lastName").value.trim();
+
+      const payload = {
+        customerName: `${firstName} ${lastName}`.trim(),
+        firstName,
+        lastName,
         customerEmail: document.getElementById("customerEmail").value.trim(),
         customerPhone: document.getElementById("customerPhone").value.trim(),
-        salesOrder: document.getElementById("salesOrder").value.trim(),
-        serviceAddress: document.getElementById("serviceAddress").value.trim(),
-        brand: document.getElementById("brand").value.trim(),
-        model: document.getElementById("model").value.trim(),
-        serial: document.getElementById("serial").value.trim(),
+        purchasedWithin12Months: getRadioValue("purchasedWithin12Months"),
+        serviceAddress: {
+          line1: document.getElementById("serviceAddress1").value.trim(),
+          line2: document.getElementById("serviceAddress2").value.trim(),
+          city: document.getElementById("serviceCity").value.trim(),
+          state: "Texas",
+          zip: document.getElementById("serviceZip").value.trim()
+        },
+        gateCode: document.getElementById("gateCode").value.trim(),
+        contactMethod: getRadioValue("contactMethod"),
         purchaseDate: document.getElementById("purchaseDate").value.trim(),
-        problemDescription: document.getElementById("problemDescription").value.trim(),
-        consent: document.getElementById("consent").checked
+        units: [
+          {
+            applianceType: document.getElementById("applianceType1").value,
+            brand: document.getElementById("brand1").value,
+            model: document.getElementById("model1").value.trim(),
+            serial: document.getElementById("serial1").value.trim(),
+            purchasedFromUs: getRadioValue("purchasedFromUs1"),
+            stacked: getRadioValue("stacked1"),
+            problemDescription: document.getElementById("problem1").value.trim()
+          }
+        ],
+        problemDescription: document.getElementById("problem1").value.trim(),
+        unitCount: getRadioValue("unitCount") || "One",
+        consent: document.getElementById("consent").checked,
+        billingSameAsService: billingSame,
+        billingAddress: billingSame ? {
+          line1: document.getElementById("serviceAddress1").value.trim(),
+          line2: document.getElementById("serviceAddress2").value.trim(),
+          city: document.getElementById("serviceCity").value.trim(),
+          state: "Texas",
+          zip: document.getElementById("serviceZip").value.trim()
+        } : {
+          line1: document.getElementById("billingAddress1").value.trim(),
+          line2: document.getElementById("billingAddress2").value.trim(),
+          city: document.getElementById("billingCity").value.trim(),
+          state: "Texas",
+          zip: document.getElementById("billingZip").value.trim()
+        },
+        nameOnCard: document.getElementById("nameOnCard").value.trim()
       };
+
+      if (payload.unitCount === "Multiple") {
+        payload.units.push({
+          applianceType: document.getElementById("applianceType2").value,
+          brand: document.getElementById("brand2").value,
+          model: document.getElementById("model2").value.trim(),
+          serial: document.getElementById("serial2").value.trim(),
+          problemDescription: document.getElementById("problem2").value.trim()
+        });
+      }
+
+      return payload;
     }
 
     async function loadStripe() {
@@ -455,6 +703,10 @@
 
       if (!payload.customerName || !payload.customerEmail) {
         throw new Error("Please complete client name and client email.");
+      }
+
+      if (!payload.serviceAddress.line1 || !payload.serviceAddress.city || !payload.serviceAddress.zip) {
+        throw new Error("Please complete the full service address.");
       }
 
       if (!payload.consent) {
@@ -495,10 +747,10 @@
         layout: "accordion",
         fields: {
           billingDetails: {
-            name: "auto",
-            email: "auto",
-            phone: "auto",
-            address: "auto"
+            name: "never",
+            email: "never",
+            phone: "never",
+            address: "never"
           }
         }
       });
@@ -506,28 +758,22 @@
       paymentElement.mount("#payment-element");
     }
 
-    async function finalizeResult() {
-      const res = await fetch(`/api/service/setup-intent-result/${setupIntentId}`);
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Unable to retrieve saved card details.");
-
-      const brand = data.cardBrand ? data.cardBrand.toUpperCase() : "CARD";
-      const last4 = data.last4 || "????";
-      const copyText = `${brand} **** ${last4} | ${data.customerId} | ${data.paymentMethodId}`;
-      latestCopyText = copyText;
-
-      resultCustomerId.innerHTML = `<span class="mono">${data.customerId}</span>`;
-      resultPaymentMethodId.innerHTML = `<span class="mono">${data.paymentMethodId}</span>`;
-      resultCardSummary.textContent = `${brand} **** ${last4}`;
-      resultCopyText.innerHTML = `<span class="mono">${copyText}</span>`;
-      resultBox.classList.add("show");
-
-      try {
-        await navigator.clipboard.writeText(copyText);
-        showStatus("success", "Card saved successfully. Confirmation copied to clipboard.");
-      } catch {
-        showStatus("success", "Card saved successfully.");
+    async function submitRequestRecord(payload, files) {
+      const formData = new FormData();
+      formData.append("serviceRequest", JSON.stringify(payload));
+      formData.append("setupIntentId", setupIntentId);
+      for (const file of files) {
+        formData.append("attachments", file);
       }
+
+      const res = await fetch("/api/service/submit-request", {
+        method: "POST",
+        body: formData
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Unable to submit service request.");
+      return data;
     }
 
     beginBtn.addEventListener("click", async () => {
@@ -559,6 +805,35 @@
       clearStatus();
       clearResult();
 
+      const payload = getPayload();
+
+      if (!payload.customerName || !payload.customerEmail) {
+        showStatus("error", "Please complete client name and client email.");
+        return;
+      }
+
+      if (!payload.serviceAddress.line1 || !payload.serviceAddress.city || !payload.serviceAddress.zip) {
+        showStatus("error", "Please complete the full service address.");
+        return;
+      }
+
+      if (!payload.consent) {
+        showStatus("error", "Please confirm the customer authorization box.");
+        return;
+      }
+
+      const purchasedRecently = payload.purchasedWithin12Months === "Yes";
+      if (purchasedRecently) {
+        try {
+          await submitRequestRecord(payload, document.getElementById("attachments").files);
+          resultBox.classList.add("show");
+          showStatus("success", "Service request submitted successfully. No card is required for appliances purchased within the last 12 months.");
+        } catch (err) {
+          showStatus("error", err.message);
+        }
+        return;
+      }
+
       if (!elements || !setupIntentId) {
         showStatus("error", "Please start the secure card entry step first.");
         return;
@@ -568,17 +843,24 @@
       saveCardBtn.textContent = "Saving...";
 
       try {
-        const payload = getPayload();
+        const billing = payload.billingAddress;
+        const nameOnCard = payload.nameOnCard || payload.customerName;
+
         const { error, setupIntent } = await stripe.confirmSetup({
           elements,
           confirmParams: {
             payment_method_data: {
               billing_details: {
-                name: payload.customerName,
+                name: nameOnCard,
                 email: payload.customerEmail,
                 phone: payload.customerPhone,
                 address: {
-                  line1: payload.serviceAddress
+                  line1: billing.line1,
+                  line2: billing.line2,
+                  city: billing.city,
+                  state: billing.state,
+                  postal_code: billing.zip,
+                  country: "US"
                 }
               }
             }
@@ -594,7 +876,9 @@
           setupIntentId = setupIntent.id;
         }
 
-        await finalizeResult();
+        await submitRequestRecord(payload, document.getElementById("attachments").files);
+        resultBox.classList.add("show");
+        showStatus("success", "Card saved successfully.");
       } catch (err) {
         showStatus("error", err.message);
       } finally {
@@ -611,16 +895,6 @@
       if (elements) {
         document.getElementById("payment-element").innerHTML = "";
         elements = null;
-      }
-    });
-
-    copyBtn.addEventListener("click", async () => {
-      if (!latestCopyText) return;
-      try {
-        await navigator.clipboard.writeText(latestCopyText);
-        showStatus("success", "Confirmation copied to clipboard.");
-      } catch {
-        showStatus("error", "Could not copy confirmation.");
       }
     });
   </script>

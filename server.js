@@ -2,9 +2,36 @@ import "dotenv/config";
 import express from "express";
 import Stripe from "stripe";
 import cors from "cors";
-import fs from "fs/promises";
+import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, "data");
+
+function ensureDataDir() {
+  if (!fs.existsSync(DATA_DIR)) {
+    fs.mkdirSync(DATA_DIR, { recursive: true });
+  }
+}
+
+function ensureJsonFile(filename, defaultValue = []) {
+  ensureDataDir();
+  const fullPath = path.join(DATA_DIR, filename);
+
+  if (!fs.existsSync(fullPath)) {
+    fs.writeFileSync(fullPath, JSON.stringify(defaultValue, null, 2), "utf8");
+  }
+
+  return fullPath;
+}
+
+const LINKS_FILE = ensureJsonFile("links.json", []);
+const TERMINAL_PAYMENTS_FILE = ensureJsonFile("terminal-payments.json", []);
+const SERVICE_CARDS_FILE = ensureJsonFile("service-cards.json", []);
+
 
 const app = express();
 app.use(cors());
@@ -57,13 +84,7 @@ app.use(express.json());
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
 
-const linksFile = path.join(__dirname, "links.json");
-const terminalPaymentsFile = path.join(__dirname, "terminal-payments.json");
-
-const serviceCardsFile = path.join(__dirname, "service-cards.json");
 
 
 
@@ -477,47 +498,46 @@ app.get("/api/service/setup-intent-result/:setupIntentId", async (req, res) => {
         purchasedWithin12Months: setupIntent.metadata?.purchased_within_12_months || "",
         gateCode: setupIntent.metadata?.gate_code || "",
         contactMethod: setupIntent.metadata?.contact_method || "",
-
-
-units: [
-  {
-    applianceType: setupIntent.metadata?.appliance_type_1 || "",
-    brand: setupIntent.metadata?.brand_1 || "",
-    model: setupIntent.metadata?.model_1 || "",
-    serial: setupIntent.metadata?.serial_1 || "",
-    purchasedFromUs: setupIntent.metadata?.purchased_from_us_1 || "",
-    stacked: setupIntent.metadata?.stacked_1 || "",
-    problemDescription: setupIntent.metadata?.problem_description_1 || ""
-  },
-  ...(setupIntent.metadata?.appliance_type_2 ||
-      setupIntent.metadata?.brand_2 ||
-      setupIntent.metadata?.model_2 ||
-      setupIntent.metadata?.serial_2 ||
-      setupIntent.metadata?.problem_description_2
-    ? [{
-        applianceType: setupIntent.metadata?.appliance_type_2 || "",
-        brand: setupIntent.metadata?.brand_2 || "",
-        model: setupIntent.metadata?.model_2 || "",
-        serial: setupIntent.metadata?.serial_2 || "",
-        problemDescription: setupIntent.metadata?.problem_description_2 || ""
-      }]
-    : [])
-],
+        unitCount:
+          (setupIntent.metadata?.appliance_type_2 ||
+           setupIntent.metadata?.brand_2 ||
+           setupIntent.metadata?.model_2 ||
+           setupIntent.metadata?.serial_2 ||
+           setupIntent.metadata?.problem_description_2)
+            ? "Multiple"
+            : "One",
+        units: [
+          {
+            applianceType: setupIntent.metadata?.appliance_type_1 || "",
+            brand: setupIntent.metadata?.brand_1 || "",
+            model: setupIntent.metadata?.model_1 || "",
+            serial: setupIntent.metadata?.serial_1 || "",
+            purchasedFromUs: setupIntent.metadata?.purchased_from_us_1 || "",
+            stacked: setupIntent.metadata?.stacked_1 || "",
+            problemDescription: setupIntent.metadata?.problem_description_1 || ""
+          },
+          ...(
+            setupIntent.metadata?.appliance_type_2 ||
+            setupIntent.metadata?.brand_2 ||
+            setupIntent.metadata?.model_2 ||
+            setupIntent.metadata?.serial_2 ||
+            setupIntent.metadata?.problem_description_2
+              ? [{
+                  applianceType: setupIntent.metadata?.appliance_type_2 || "",
+                  brand: setupIntent.metadata?.brand_2 || "",
+                  model: setupIntent.metadata?.model_2 || "",
+                  serial: setupIntent.metadata?.serial_2 || "",
+                  problemDescription: setupIntent.metadata?.problem_description_2 || ""
+                }]
+              : []
+          )
+        ],
         problemDescription: setupIntent.metadata?.problem_description || "",
         cardRequired: true,
         cardBrand: brand,
         last4
       });
     }
-
-unitCount:
-  (setupIntent.metadata?.appliance_type_2 ||
-   setupIntent.metadata?.brand_2 ||
-   setupIntent.metadata?.model_2 ||
-   setupIntent.metadata?.serial_2 ||
-   setupIntent.metadata?.problem_description_2)
-    ? "Multiple"
-    : "One",
 
     await writeServiceCards(serviceCards);
 
@@ -551,81 +571,71 @@ app.post("/api/service/submit-request", async (req, res) => {
 
     const serviceCards = await readServiceCards();
 
-if (setupIntentId) {
-  const existingIndex = serviceCards.findIndex(
-    (row) => row.setupIntentId === setupIntentId
-  );
+    if (setupIntentId) {
+      const existingIndex = serviceCards.findIndex(
+        (row) => row.setupIntentId === setupIntentId
+      );
 
-  if (existingIndex >= 0) {
-    serviceCards[existingIndex] = {
-      ...serviceCards[existingIndex],
-      updatedAt: new Date().toISOString(),
-      customerName: serviceRequest.customerName || "",
-      firstName: serviceRequest.firstName || "",
-      lastName: serviceRequest.lastName || "",
-      customerEmail: serviceRequest.customerEmail || "",
-      customerPhone: serviceRequest.customerPhone || "",
-      purchasedWithin12Months: serviceRequest.purchasedWithin12Months || "",
-      cardRequired: serviceRequest.purchasedWithin12Months !== "Yes",
-      gateCode: serviceRequest.gateCode || "",
-      contactMethod: serviceRequest.contactMethod || "",
-      purchaseDate: serviceRequest.purchaseDate || "",
-      serviceAddress: serviceRequest.serviceAddress || {},
-      billingAddress: serviceRequest.billingAddress || {},
-      billingSameAsService: serviceRequest.billingSameAsService,
-      unitCount: serviceRequest.unitCount || "One",
-      units: serviceRequest.units || [],
-      problemDescription: serviceRequest.problemDescription || "",
-      consent: !!serviceRequest.consent
-    };
+      if (existingIndex >= 0) {
+        serviceCards[existingIndex] = {
+          ...serviceCards[existingIndex],
+          updatedAt: new Date().toISOString(),
+          customerName: serviceRequest.customerName || "",
+          firstName: serviceRequest.firstName || "",
+          lastName: serviceRequest.lastName || "",
+          customerEmail: serviceRequest.customerEmail || "",
+          customerPhone: serviceRequest.customerPhone || "",
+          purchasedWithin12Months: serviceRequest.purchasedWithin12Months || "",
+          cardRequired: serviceRequest.purchasedWithin12Months !== "Yes",
+          gateCode: serviceRequest.gateCode || "",
+          contactMethod: serviceRequest.contactMethod || "",
+          purchaseDate: serviceRequest.purchaseDate || "",
+          serviceAddress: serviceRequest.serviceAddress || {},
+          billingAddress: serviceRequest.billingAddress || {},
+          billingSameAsService: serviceRequest.billingSameAsService,
+          unitCount: serviceRequest.unitCount || "One",
+          units: serviceRequest.units || [],
+          problemDescription: serviceRequest.problemDescription || "",
+          consent: !!serviceRequest.consent
+        };
 
-    await writeServiceCards(serviceCards);
+        await writeServiceCards(serviceCards);
 
-    return res.json({
-      success: true,
-      updatedExisting: true
-    });
-  }
-}
+        return res.json({
+          success: true,
+          updatedExisting: true
+        });
+      }
+    }
 
     serviceCards.unshift({
       id: `svc_${Date.now()}`,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
-
       queueStatus: "Call Status Pending",
       queueStatusNotes: "",
       erpOrderNumber: "",
-
       setupIntentId: setupIntentId || "",
       setupIntentStatus: setupIntentId ? "submitted_not_completed" : "not_required",
-
       customerId: "",
       paymentMethodId: "",
-
       customerName: serviceRequest.customerName || "",
       firstName: serviceRequest.firstName || "",
       lastName: serviceRequest.lastName || "",
       customerEmail: serviceRequest.customerEmail || "",
       customerPhone: serviceRequest.customerPhone || "",
-
       purchasedWithin12Months: serviceRequest.purchasedWithin12Months || "",
       cardRequired: serviceRequest.purchasedWithin12Months !== "Yes",
-
       gateCode: serviceRequest.gateCode || "",
       contactMethod: serviceRequest.contactMethod || "",
       purchaseDate: serviceRequest.purchaseDate || "",
-
       serviceAddress: serviceRequest.serviceAddress || {},
       billingAddress: serviceRequest.billingAddress || {},
       billingSameAsService: serviceRequest.billingSameAsService,
-
       unitCount: serviceRequest.unitCount || "One",
       units: serviceRequest.units || [],
       problemDescription: serviceRequest.problemDescription || "",
-
       consent: !!serviceRequest.consent,
-
       cardBrand: "",
       last4: ""
     });
@@ -811,48 +821,53 @@ app.get("/api/payment-link-status", async (req, res) => {
   }
 });
 
+async function readJson(filePath, fallback = []) {
+  try {
+    const raw = await fs.promises.readFile(filePath, "utf8");
+    return JSON.parse(raw || "[]");
+  } catch (err) {
+    if (err.code === "ENOENT") return fallback;
+    console.error(`Error reading JSON from ${filePath}:`, err);
+    throw err;
+  }
+}
+
+async function writeJson(filePath, data) {
+  try {
+    await fs.promises.writeFile(filePath, JSON.stringify(data, null, 2), "utf8");
+  } catch (err) {
+    console.error(`Error writing JSON to ${filePath}:`, err);
+    throw err;
+  }
+}
 
 async function readLinks() {
-  try {
-    const raw = await fs.readFile(linksFile, "utf8");
-    return JSON.parse(raw || "[]");
-  } catch (err) {
-    if (err.code === "ENOENT") return [];
-    throw err;
-  }
-}
-
-async function readServiceCards() {
-  try {
-    const raw = await fs.readFile(serviceCardsFile, "utf8");
-    return JSON.parse(raw || "[]");
-  } catch (err) {
-    if (err.code === "ENOENT") return [];
-    throw err;
-  }
-}
-
-async function writeServiceCards(data) {
-  await fs.writeFile(serviceCardsFile, JSON.stringify(data, null, 2), "utf8");
+  return readJson(LINKS_FILE, []);
 }
 
 async function writeLinks(data) {
-  await fs.writeFile(linksFile, JSON.stringify(data, null, 2), "utf8");
+  return writeJson(LINKS_FILE, data);
 }
 
 async function readTerminalPayments() {
-  try {
-    const raw = await fs.readFile(terminalPaymentsFile, "utf8");
-    return JSON.parse(raw || "[]");
-  } catch (err) {
-    if (err.code === "ENOENT") return [];
-    throw err;
-  }
+  return readJson(TERMINAL_PAYMENTS_FILE, []);
 }
 
 async function writeTerminalPayments(data) {
-  await fs.writeFile(terminalPaymentsFile, JSON.stringify(data, null, 2), "utf8");
+  return writeJson(TERMINAL_PAYMENTS_FILE, data);
 }
+
+async function readServiceCards() {
+  return readJson(SERVICE_CARDS_FILE, []);
+}
+
+async function writeServiceCards(data) {
+  return writeJson(SERVICE_CARDS_FILE, data);
+}
+
+
+
+
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {

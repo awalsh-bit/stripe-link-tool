@@ -522,7 +522,7 @@
         </div>
 
         <div id="result" class="result">
-          Service request submitted successfully. Our team will follow up with your next available date.
+          Service request submitted successfully. Our team will follow up with your next available appointment.
         </div>
       </form>
 
@@ -615,6 +615,11 @@ function syncPaymentRequirement() {
 
   if (purchasedRecently) {
     paymentShell.classList.remove("show");
+    setupIntentId = "";
+    if (elements) {
+      document.getElementById("payment-element").innerHTML = "";
+      elements = null;
+    }
     beginBtn.textContent = "Submit service request";
   } else {
     beginBtn.textContent = "Continue to secure card entry";
@@ -841,7 +846,6 @@ beginBtn.addEventListener("click", async () => {
 }
 });
 
-
 form.addEventListener("submit", async (event) => {
   event.preventDefault();
   clearStatus();
@@ -859,9 +863,6 @@ form.addEventListener("submit", async (event) => {
     return;
   }
 
-
-
-  // ✅ CARD REQUIRED PATH → enforce consent HERE
   if (!payload.consent) {
     showStatus("error", "Please confirm the customer authorization box.");
     return;
@@ -909,28 +910,36 @@ form.addEventListener("submit", async (event) => {
       setupIntentId = setupIntent.id;
     }
 
-await submitRequestRecord(payload);
+    await submitRequestRecord(payload);
 
-const resultRes = await fetch(`/api/service/setup-intent-result/${encodeURIComponent(setupIntentId)}`);
-const resultData = await resultRes.json();
+    const resultRes = await fetch(`/api/service/setup-intent-result/${encodeURIComponent(setupIntentId)}`);
+    const resultData = await resultRes.json();
 
-if (!resultRes.ok) {
-  throw new Error(resultData.error || "Card was saved, but the saved card details could not be finalized.");
-}
+    if (!resultRes.ok) {
+      throw new Error(resultData.error || "Card was saved, but the saved card details could not be finalized.");
+    }
 
-resultBox.classList.add("show");
-clearStatus();
+    resultBox.classList.add("show");
+    clearStatus();
+  } catch (err) {
+    showStatus("error", err.message || "Unable to save card.");
+  } finally {
+    saveCardBtn.disabled = false;
+    saveCardBtn.textContent = "Save card on file";
+  }
+});
 
-    resetBtn.addEventListener("click", () => {
-      clearStatus();
-      clearResult();
-      paymentShell.classList.remove("show");
-      setupIntentId = "";
-      if (elements) {
-        document.getElementById("payment-element").innerHTML = "";
-        elements = null;
-      }
-    });
+resetBtn.addEventListener("click", () => {
+  clearStatus();
+  clearResult();
+  paymentShell.classList.remove("show");
+  setupIntentId = "";
+  if (elements) {
+    document.getElementById("payment-element").innerHTML = "";
+    elements = null;
+  }
+});
+
   </script>
 </body>
 </html>

@@ -120,6 +120,13 @@
       resize: vertical;
     }
 
+    .hint {
+      margin-top: -2px;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.5;
+    }
+
     .actions {
       display: flex;
       align-items: center;
@@ -222,6 +229,24 @@
       display: inline-block;
     }
 
+    .internal-nav {
+      margin-top: 20px;
+      border-top: 1px solid #e5e7eb;
+      padding-top: 14px;
+    }
+
+    .internal-nav a {
+      font-size: 20px;
+      font-weight: 700;
+      color: #4b5563;
+      text-decoration: none;
+      transition: color 0.2s ease;
+    }
+
+    .internal-nav a:hover {
+      color: #3730a3;
+    }
+
     .footer-note {
       margin-top: 18px;
       color: var(--muted);
@@ -258,7 +283,13 @@
         </div>
 
         <div class="field">
-          <label for="customerEmail">Client Email</label>
+          <label for="customerPhone">Client Phone</label>
+          <input id="customerPhone" required inputmode="tel" maxlength="14" placeholder="512-555-1234" />
+          <div class="hint">Required. This auto-formats as you type.</div>
+        </div>
+
+        <div class="field full">
+          <label for="customerEmail">Client Email (optional)</label>
           <input id="customerEmail" type="email" placeholder="jane@example.com" />
         </div>
 
@@ -277,6 +308,7 @@
         <div class="field full">
           <label for="salesOrder">Sales Order</label>
           <input id="salesOrder" placeholder="Payment to be applied to this ePASS or NetSuite Sales Order Number" />
+          <div class="hint">This is also sent to the backend so it can be saved into Stripe metadata.</div>
         </div>
 
         <div class="field full">
@@ -297,10 +329,14 @@
         <div class="result-row">
           <div class="result-label">Reader confirmation</div>
           <div id="receiptLine" class="result-value"></div>
+        </div>
         <div style="margin-top: 10px;">
-  <button id="copyBtn" class="secondary" type="button">Copy confirmation</button>
-</div>
-</div>
+          <button id="copyBtn" class="secondary" type="button">Copy confirmation</button>
+        </div>
+      </div>
+
+      <div class="internal-nav">
+        <a href="dashboard.html">← Dashboard</a>
       </div>
 
       <p class="footer-note">
@@ -318,6 +354,10 @@
     const statusBox = document.getElementById("status");
     const resultBox = document.getElementById("result");
     const receiptLineEl = document.getElementById("receiptLine");
+    const copyBtn = document.getElementById("copyBtn");
+    const customerPhoneInput = document.getElementById("customerPhone");
+
+    let latestReceiptLine = "";
 
     function showStatus(type, message) {
       statusBox.className = `status ${type}`;
@@ -332,7 +372,24 @@
     function clearResult() {
       resultBox.classList.remove("show");
       receiptLineEl.innerHTML = "";
+      latestReceiptLine = "";
     }
+
+    function formatPhoneNumber(value) {
+      const digits = value.replace(/\D/g, "").slice(0, 10);
+
+      if (digits.length <= 3) return digits;
+      if (digits.length <= 6) return `${digits.slice(0, 3)}-${digits.slice(3)}`;
+      return `${digits.slice(0, 3)}-${digits.slice(3, 6)}-${digits.slice(6)}`;
+    }
+
+    function getDigitsOnlyPhone(value) {
+      return value.replace(/\D/g, "").slice(0, 10);
+    }
+
+    customerPhoneInput.addEventListener("input", (event) => {
+      event.target.value = formatPhoneNumber(event.target.value);
+    });
 
     async function loadReaders() {
       clearStatus();
@@ -380,7 +437,7 @@
       return data;
     }
 
-    async function pollPayment(paymentIntentId) {
+    async function pollPayment(paymentIntentId, salesOrder) {
       for (let i = 0; i < 40; i++) {
         await new Promise((resolve) => setTimeout(resolve, 3000));
         const payment = await checkStatus(paymentIntentId);
@@ -399,12 +456,11 @@
           const brand = payment.cardBrand ? payment.cardBrand.toUpperCase() : "CARD";
           const last4 = payment.last4 || "????";
 
-          const receiptLine =
-            `${brand} **** ${last4} | ` +
-            `${formattedDate} | ` +
-            `${payment.id}`;
-            latestReceiptLine = receiptLine;
+          const receiptLine = salesOrder
+            ? `${salesOrder} | ${brand} **** ${last4} | ${formattedDate} | ${payment.id}`
+            : `${brand} **** ${last4} | ${formattedDate} | ${payment.id}`;
 
+          latestReceiptLine = receiptLine;
           receiptLineEl.innerHTML = `<span class="receipt-line">${receiptLine}</span>`;
           resultBox.classList.add("show");
 
@@ -437,22 +493,49 @@
 
     refreshReadersBtn.addEventListener("click", loadReaders);
 
+    copyBtn.addEventListener("click", async () => {
+      if (!latestReceiptLine) return;
+
+      try {
+        await navigator.clipboard.writeText(latestReceiptLine);
+        showStatus("success", "Confirmation copied to clipboard.");
+      } catch {
+        showStatus("error", "Could not copy confirmation.");
+      }
+    });
+
     chargeBtn.addEventListener("click", async () => {
       clearStatus();
       clearResult();
 
+      const rawPhone = document.getElementById("customerPhone").value.trim();
+      const phoneDigits = getDigitsOnlyPhone(rawPhone);
+
       const payload = {
         readerId: readerSelect.value,
         customerName: document.getElementById("customerName").value.trim(),
+        customerPhone: rawPhone,
+        customerPhoneDigits: phoneDigits,
         customerEmail: document.getElementById("customerEmail").value.trim(),
         amount: document.getElementById("amount").value,
         currency: document.getElementById("currency").value,
+        salesOrder: document.getElementById("salesOrder").value.trim(),
         description: document.getElementById("salesOrder").value.trim() || "In-person payment",
         notes: document.getElementById("notes").value.trim()
       };
 
       if (!payload.readerId || !payload.amount) {
         showStatus("error", "Please select a reader and enter an amount.");
+        return;
+      }
+
+      if (!payload.customerPhone) {
+        showStatus("error", "Please enter the client phone number.");
+        return;
+      }
+
+      if (phoneDigits.length !== 10) {
+        showStatus("error", "Please enter a valid 10-digit phone number.");
         return;
       }
 
@@ -479,7 +562,7 @@
           `Reader is ready. Have the customer tap, insert, or swipe now.\nPaymentIntent: ${data.paymentIntentId}`
         );
 
-        await pollPayment(data.paymentIntentId);
+        await pollPayment(data.paymentIntentId, payload.salesOrder);
       } catch (err) {
         showStatus("error", `Error: ${err.message}`);
       } finally {

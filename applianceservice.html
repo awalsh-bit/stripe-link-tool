@@ -405,7 +405,7 @@
           </div>
 
           <div class="field full">
-            <label>Is this unit stacked with your washer/dryer?</label>
+            <label>Is this appliance merged with another appliance such as stacked washers and dryers or joined refrigeration columns?</label>
             <div class="choice-row">
               <label class="choice"><input type="radio" name="stacked1" value="Yes"> Yes</label>
               <label class="choice"><input type="radio" name="stacked1" value="No"> No</label>
@@ -551,29 +551,113 @@
       "Refrigerator (Free Standing)","Refrigerator (Built-in)","Washer","Dryer","Dishwasher","Range","Microwave","Cooktop","Icemaker","HVAC","Other"
     ];
 
-    const brands = [
-      "AGA (only if we sold the unit)","ALFRESCO","AMANA","AMERICAN STANDARD","ASKO","BEST","BLUE STAR","BOSCH","BROAN","GE CAFE","CARRIER","COVE","COYOTE","DCS APPLIANCES","FABER","FISHER & PAYKEL","FULGOR MILANO","GAGGENAU","GE","HAIER","JENN-AIR","JANITROL-GOODMAN","KITCHENAID","KENMORE","KALAMAZOO OUTDOOR GOURMET","LA CORNUE","LG","LG STUDIO","LIEBHERR","MARVEL","MONOGRAM","MIELE","MITSUBISHI","MAYTAG","PERLICK","GE PROFILE","RHEEM","RUUD","SCOTSMAN","SIGNATURE KITCHEN SUITE (BY LG)","SPEEDQUEEN","SUNSTONE METAL PRODUCTS","SUBZERO","THERMADOR","TRANE","TRUE MANUFACTURING","ULINE","VIKING","WOLF","WHIRLPOOL","YORK","ZEPHYR","WE DON'T SERVICE SAMSUNG","WE DON'T SERVICE FRIGIDAIRE","WE DON'T SERVICE ELECTROLUX","WE DON'T SERVICE MAGIC CHEF","WE DON'T SERVICE DACOR","WE DON'T SERVICE HOSHIZAKI","WE DON'T SERVICE AMERICAN RANGE"
-    ];
+const rawBrands = [
+  "AGA (only if we sold the unit)",
+  "Alfresco",
+  "Amana",
+  "American Standard",
+  "ASKO",
+  "Best",
+  "BlueStar",
+  "Bosch",
+  "Broan",
+  "Café",
+  "Carrier",
+  "Cove",
+  "Coyote",
+  "DCS Appliances",
+  "Faber",
+  "Fisher & Paykel",
+  "Fulgor Milano",
+  "Gaggenau",
+  "GE",
+  "GE Profile",
+  "Haier",
+  "JennAir",
+  "Janitrol / Goodman",
+  "KitchenAid",
+  "Kenmore",
+  "Kalamazoo Outdoor Gourmet",
+  "La Cornue",
+  "LG",
+  "LG Studio",
+  "Liebherr",
+  "Marvel",
+  "Maytag",
+  "Miele",
+  "Mitsubishi",
+  "Monogram",
+  "Perlick",
+  "Rheem",
+  "Ruud",
+  "Scotsman",
+  "Signature Kitchen Suite",
+  "Speed Queen",
+  "Sub-Zero",
+  "Sunstone Metal Products",
+  "Thermador",
+  "Trane",
+  "True Manufacturing",
+  "U-Line",
+  "Viking",
+  "Whirlpool",
+  "Wolf",
+  "York",
+  "Zephyr"
+];
 
-    function fillSelect(id, values, placeholder) {
-      const select = document.getElementById(id);
-      select.innerHTML = "";
-      const first = document.createElement("option");
-      first.value = "";
-      first.textContent = placeholder;
-      select.appendChild(first);
-      values.forEach((value) => {
-        const option = document.createElement("option");
-        option.value = value;
-        option.textContent = value;
-        select.appendChild(option);
-      });
-    }
+const luxuryPriority = [
+  "Sub-Zero",
+  "Wolf",
+  "Miele",
+  "Gaggenau",
+  "La Cornue",
+  "True Manufacturing",
+  "BlueStar",
+  "Fisher & Paykel",
+  "Thermador",
+  "Monogram",
+  "JennAir"
+];
 
-    fillSelect("applianceType1", applianceTypes, "Select appliance type");
-    fillSelect("applianceType2", applianceTypes, "Select appliance type");
-    fillSelect("brand1", brands, "Select brand");
-    fillSelect("brand2", brands, "Select brand");
+// Separate luxury + non-luxury
+const luxuryBrands = rawBrands.filter(b => luxuryPriority.includes(b));
+
+const otherBrands = rawBrands
+  .filter(b => !luxuryPriority.includes(b))
+  .sort((a, b) => a.localeCompare(b));
+
+// Final ordered list
+const brands = [...luxuryBrands, ...otherBrands];
+
+function fillSelect(id, values, placeholder, required = false) {
+  const select = document.getElementById(id);
+  select.innerHTML = "";
+
+  const first = document.createElement("option");
+  first.value = "";
+  first.textContent = placeholder;
+  first.disabled = true;
+  first.selected = true;
+  select.appendChild(first);
+
+  values.forEach((value) => {
+    const option = document.createElement("option");
+    option.value = value;
+    option.textContent = value;
+    select.appendChild(option);
+  });
+
+  if (required) {
+    select.required = true;
+  }
+}
+
+fillSelect("applianceType1", applianceTypes, "Select appliance type", true);
+fillSelect("applianceType2", applianceTypes, "Select appliance type", false);
+
+fillSelect("brand1", brands, "Select brand", true);
+fillSelect("brand2", brands, "Select brand", false);
 
     function showStatus(type, message) {
       statusBox.className = `status ${type}`;

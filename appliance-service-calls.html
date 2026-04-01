@@ -258,13 +258,76 @@
       padding: 18px 0 6px;
       color: var(--muted);
     }
+
+.internal-nav {
+  margin-top: 28px;
+  text-align: center;
+}
+
+.internal-nav a {
+  font-size: 20px;
+  font-weight: 600;
+  color: #6b7280;
+  text-decoration: none;
+  padding: 8px 12px;
+  border-radius: 999px;
+  transition: all 0.2s ease;
+}
+
+.internal-nav a:hover {
+  color: #3730a3;
+  background: #eef2ff;
+}
+
+.copy-ref-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+  flex-wrap: wrap;
+}
+
+.copy-ref-label {
+  min-width: 110px;
+  font-weight: 600;
+}
+
+.copy-ref-value {
+  display: inline-block;
+  background: #f3f4f6;
+  border-radius: 8px;
+  padding: 6px 8px;
+}
+
+.copy-ref-btn {
+  appearance: none;
+  border: 1px solid #dbe1ea;
+  background: #fff;
+  color: #374151;
+  padding: 6px 10px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.copy-ref-btn:hover {
+  background: #eef2ff;
+  color: #3730a3;
+}
+
+.copy-ref-btn:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+
   </style>
 </head>
 <body>
   <div class="wrap">
     <div class="hero">
       <div class="eyebrow">Wilson AC & Appliance - Client Care</div>
-      <h1>Appliance service calls queue</h1>
+      <h1>Appliance Repair Service Queue</h1>
       <p class="sub">
         Review submitted service requests, update queue status, add short notes, and track which calls should convert into ERP service orders.
       </p>
@@ -458,6 +521,28 @@
       ].join(" ").toLowerCase();
     }
 
+function attachCopyActions() {
+  document.querySelectorAll("[data-copy-value]").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      const value = btn.getAttribute("data-copy-value");
+      const originalText = btn.textContent;
+
+      try {
+        await navigator.clipboard.writeText(value);
+        btn.textContent = "Copied";
+        setTimeout(() => {
+          btn.textContent = originalText;
+        }, 1200);
+      } catch {
+        btn.textContent = "Failed";
+        setTimeout(() => {
+          btn.textContent = originalText;
+        }, 1200);
+      }
+    });
+  });
+}
+
     async function saveStatus(id, queueStatus, queueStatusNotes, erpOrderNumber, saveMsgEl, buttonEl) {
       buttonEl.disabled = true;
       saveMsgEl.textContent = "Saving...";
@@ -623,17 +708,35 @@
             </div>
           </td>
 
-          <td class="mono">
-            Customer: ${escapeHtml(row.customerId || "-")}<br>
-            Payment Method: ${escapeHtml(row.paymentMethodId || "-")}<br>
-            SetupIntent: ${escapeHtml(row.setupIntentId || "-")}
-          </td>
+         <td>
+
+  <div class="stripe-block mono">
+    <div class="copy-ref-row">
+      <span class="copy-ref-label">Customer:</span>
+      <span class="copy-ref-value">${escapeHtml(row.customerId || "-")}</span>
+      ${row.customerId ? `<button class="copy-ref-btn" type="button" data-copy-value="${escapeHtml(row.customerId)}">Copy</button>` : ""}
+    </div>
+
+    <div class="copy-ref-row">
+      <span class="copy-ref-label">Payment Method:</span>
+      <span class="copy-ref-value">${escapeHtml(row.paymentMethodId || "-")}</span>
+      ${row.paymentMethodId ? `<button class="copy-ref-btn" type="button" data-copy-value="${escapeHtml(row.paymentMethodId)}">Copy</button>` : ""}
+    </div>
+
+    <div class="copy-ref-row">
+      <span class="copy-ref-label">SetupIntent:</span>
+      <span class="copy-ref-value">${escapeHtml(row.setupIntentId || "-")}</span>
+      ${row.setupIntentId ? `<button class="copy-ref-btn" type="button" data-copy-value="${escapeHtml(row.setupIntentId)}">Copy</button>` : ""}
+    </div>
+  </div>
+</td>
         `;
 
         tableBody.appendChild(tr);
       }
 
-      attachRowActions();
+attachRowActions();
+attachCopyActions();
     }
 
     async function loadRows() {
@@ -658,5 +761,10 @@
 
     loadRows();
   </script>
+
+<div class="internal-nav">
+  <a href="dashboard.html">← Dashboard</a>
+</div>
+
 </body>
 </html>

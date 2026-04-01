@@ -38,7 +38,9 @@
       margin: 0 auto;
     }
 
-    .hero { margin-bottom: 22px; }
+    .hero {
+      margin-bottom: 22px;
+    }
 
     .eyebrow {
       display: inline-block;
@@ -87,7 +89,9 @@
       gap: 8px;
     }
 
-    .field.full { grid-column: 1 / -1; }
+    .field.full {
+      grid-column: 1 / -1;
+    }
 
     label {
       font-size: 14px;
@@ -114,6 +118,19 @@
     textarea {
       min-height: 90px;
       resize: vertical;
+    }
+
+    .inline-actions {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 10px;
+      align-items: center;
+    }
+
+    .helper-text {
+      font-size: 13px;
+      color: var(--muted);
+      line-height: 1.5;
     }
 
     .actions {
@@ -146,7 +163,9 @@
       color: #3730a3;
     }
 
-    .secondary:hover { background: #e0e7ff; }
+    .secondary:hover {
+      background: #e0e7ff;
+    }
 
     .status {
       margin-top: 18px;
@@ -179,14 +198,18 @@
       display: none;
     }
 
-    .result.show { display: block; }
+    .result.show {
+      display: block;
+    }
 
     .result h2 {
       margin: 0 0 12px;
       font-size: 18px;
     }
 
-    .result-row { margin-bottom: 12px; }
+    .result-row {
+      margin-bottom: 12px;
+    }
 
     .result-label {
       font-size: 12px;
@@ -219,9 +242,33 @@
     }
 
     @media (max-width: 720px) {
-      .grid { grid-template-columns: 1fr; }
-      .card { padding: 18px; }
+      .grid {
+        grid-template-columns: 1fr;
+      }
+
+      .inline-actions {
+        grid-template-columns: 1fr;
+      }
+
+      .card {
+        padding: 18px;
+      }
     }
+
+.internal-nav a {
+  font-size: 20px;
+  font-weight: 600;
+  color: #6b7280;
+  text-decoration: none;
+  padding: 8px 12px;
+  border-radius: 999px;
+  transition: all 0.2s ease;
+}
+
+.internal-nav a:hover {
+  color: #3730a3;
+  background: #eef2ff;
+}
   </style>
 </head>
 <body>
@@ -237,34 +284,70 @@
     <div class="card">
       <form id="chargeForm">
         <div class="grid">
-          <div class="field">
-            <label for="customerId">Stripe Customer ID</label>
-            <input id="customerId" required placeholder="cus_..." />
-          </div>
+  <div class="field">
+    <label for="serviceOrderNumber">Service Order #</label>
+    <input id="serviceOrderNumber" required placeholder="SV00123456" />
+  </div>
 
-          <div class="field">
-            <label for="paymentMethodId">Saved Payment Method ID</label>
-            <input id="paymentMethodId" required placeholder="pm_..." />
-          </div>
+  <div class="field">
+    <label for="setupIntentId">SetupIntent ID</label>
+    <div class="inline-actions">
+      <input id="setupIntentId" placeholder="seti_..." />
+      <button id="lookupBtn" class="secondary" type="button">Lookup saved card</button>
+    </div>
+    <div class="helper-text">
+      Paste the SetupIntent ID from the service queue or ePASS to auto-fill the saved card details.
+    </div>
+  </div>
 
-          <div class="field">
-            <label for="customerName">Client Name</label>
-            <input id="customerName" placeholder="Jane Smith" />
-          </div>
+  <div class="field">
+    <label for="customerId">Stripe Customer ID</label>
+    <input id="customerId" required placeholder="cus_..." />
+  </div>
 
-          <div class="field">
-            <label for="amount">Amount</label>
-            <input id="amount" required type="number" min="0.50" step="0.01" placeholder="125.00" />
-          </div>
+  <div class="field">
+    <label for="paymentMethodId">Saved Payment Method ID</label>
+    <input id="paymentMethodId" required placeholder="pm_..." />
+  </div>
 
-          <div class="field full">
-            <label for="description">Description</label>
-            <input id="description" required placeholder="Service repair after diagnosis" />
-          </div>
+  <div class="field">
+    <label for="customerName">Client Name</label>
+    <input id="customerName" placeholder="Jane Smith" />
+  </div>
 
-          <div class="field full">
-            <label for="internalNotes">Internal Notes</label>
-            <textarea id="internalNotes" placeholder="Optional internal notes"></textarea>
+  <div class="field">
+    <label for="amount">Amount</label>
+    <input id="amount" required type="number" min="0.50" step="0.01" placeholder="125.00" />
+  </div>
+
+  <div class="field full">
+    <label for="description">Description</label>
+    <input id="description" required placeholder="Service repair after diagnosis" />
+  </div>
+
+  <div class="field full">
+    <label for="internalNotes">Internal Notes</label>
+    <textarea id="internalNotes" placeholder="Optional internal notes"></textarea>
+  </div>
+</div>
+
+        <div id="lookupResult" class="result">
+          <h2>Saved card lookup</h2>
+          <div class="result-row">
+            <div class="result-label">Client</div>
+            <div id="lookupClient" class="result-value"></div>
+          </div>
+          <div class="result-row">
+            <div class="result-label">Customer ID</div>
+            <div id="lookupCustomerId" class="result-value"></div>
+          </div>
+          <div class="result-row">
+            <div class="result-label">Payment Method ID</div>
+            <div id="lookupPaymentMethodId" class="result-value"></div>
+          </div>
+          <div class="result-row">
+            <div class="result-label">Card</div>
+            <div id="lookupCard" class="result-value"></div>
           </div>
         </div>
 
@@ -299,6 +382,13 @@
         Important: this page is internal only. The whole site is already password protected by Render Basic Auth, so this page is protected too.
       </p>
     </div>
+
+
+<div class="internal-nav">
+  <a href="dashboard.html">← Dashboard</a>
+</div>
+
+
   </div>
 
   <script>
@@ -306,11 +396,19 @@
     const chargeBtn = document.getElementById("chargeBtn");
     const resetBtn = document.getElementById("resetBtn");
     const copyBtn = document.getElementById("copyBtn");
+    const lookupBtn = document.getElementById("lookupBtn");
+
     const statusBox = document.getElementById("status");
     const resultBox = document.getElementById("result");
     const resultStatus = document.getElementById("resultStatus");
     const resultPaymentIntent = document.getElementById("resultPaymentIntent");
     const resultCopyText = document.getElementById("resultCopyText");
+
+    const lookupResultBox = document.getElementById("lookupResult");
+    const lookupClient = document.getElementById("lookupClient");
+    const lookupCustomerId = document.getElementById("lookupCustomerId");
+    const lookupPaymentMethodId = document.getElementById("lookupPaymentMethodId");
+    const lookupCard = document.getElementById("lookupCard");
 
     let latestCopyText = "";
 
@@ -332,6 +430,14 @@
       latestCopyText = "";
     }
 
+    function clearLookupResult() {
+      lookupResultBox.classList.remove("show");
+      lookupClient.textContent = "";
+      lookupCustomerId.textContent = "";
+      lookupPaymentMethodId.textContent = "";
+      lookupCard.textContent = "";
+    }
+
     function formatDate(date = new Date()) {
       return date.toLocaleString("en-US", {
         month: "2-digit",
@@ -341,6 +447,66 @@
         minute: "2-digit"
       });
     }
+
+    function setLookupResult(data) {
+      const cardText =
+        data.cardBrand && data.last4
+          ? `${String(data.cardBrand).toUpperCase()} ending in ${data.last4}`
+          : "Saved card found";
+
+      lookupClient.textContent = data.clientName || data.customerName || "Not provided";
+      lookupCustomerId.innerHTML = data.customerId
+        ? `<span class="mono">${data.customerId}</span>`
+        : "Not found";
+      lookupPaymentMethodId.innerHTML = data.paymentMethodId
+        ? `<span class="mono">${data.paymentMethodId}</span>`
+        : "Not found";
+      lookupCard.textContent = cardText;
+
+      lookupResultBox.classList.add("show");
+    }
+
+    lookupBtn.addEventListener("click", async () => {
+      clearStatus();
+      clearLookupResult();
+      clearResult();
+
+      const setupIntentId = document.getElementById("setupIntentId").value.trim();
+
+      if (!setupIntentId) {
+        showStatus("error", "Please enter a SetupIntent ID.");
+        return;
+      }
+
+      lookupBtn.disabled = true;
+      lookupBtn.textContent = "Looking up...";
+
+      try {
+        const res = await fetch(`/api/service/setup-intent-result/${encodeURIComponent(setupIntentId)}`);
+        const data = await res.json();
+
+        if (!res.ok) {
+          throw new Error(data.error || "Unable to look up saved card.");
+        }
+
+        if (!data.customerId || !data.paymentMethodId) {
+          throw new Error("Saved card details were not found for that SetupIntent.");
+        }
+
+        document.getElementById("customerId").value = data.customerId || "";
+        document.getElementById("paymentMethodId").value = data.paymentMethodId || "";
+        document.getElementById("customerName").value =
+          data.clientName || data.customerName || "";
+
+        setLookupResult(data);
+        showStatus("success", "Saved card found and fields auto-filled.");
+      } catch (err) {
+        showStatus("error", err.message || "Lookup failed.");
+      } finally {
+        lookupBtn.disabled = false;
+        lookupBtn.textContent = "Lookup saved card";
+      }
+    });
 
     form.addEventListener("submit", async (event) => {
       event.preventDefault();
@@ -353,7 +519,8 @@
         amount: document.getElementById("amount").value,
         description: document.getElementById("description").value.trim(),
         customerName: document.getElementById("customerName").value.trim(),
-        internalNotes: document.getElementById("internalNotes").value.trim()
+        internalNotes: document.getElementById("internalNotes").value.trim(),
+        setupIntentId: document.getElementById("setupIntentId").value.trim()
       };
 
       if (!payload.customerId || !payload.paymentMethodId || !payload.amount || !payload.description) {
@@ -374,6 +541,7 @@
         });
 
         const data = await res.json();
+
         if (!res.ok) {
           throw new Error(data.error || "Unable to charge saved card.");
         }
@@ -393,7 +561,7 @@
           showStatus("success", "Charge succeeded.");
         }
       } catch (err) {
-        showStatus("error", err.message);
+        showStatus("error", err.message || "Charge failed.");
       } finally {
         chargeBtn.disabled = false;
         chargeBtn.textContent = "Charge saved card";
@@ -404,10 +572,12 @@
       form.reset();
       clearStatus();
       clearResult();
+      clearLookupResult();
     });
 
     copyBtn.addEventListener("click", async () => {
       if (!latestCopyText) return;
+
       try {
         await navigator.clipboard.writeText(latestCopyText);
         showStatus("success", "Confirmation copied to clipboard.");
@@ -416,5 +586,6 @@
       }
     });
   </script>
+
 </body>
 </html>

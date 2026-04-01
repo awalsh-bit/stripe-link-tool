@@ -176,18 +176,20 @@ app.post("/api/terminal/charge", async (req, res) => {
 
     const amountInCents = Math.round(Number(amount) * 100);
 
-    const paymentIntent = await stripe.paymentIntents.create({
-      amount: amountInCents,
-      currency: currency || "usd",
-      payment_method_types: ["card_present"],
-      capture_method: "automatic",
-      description: description || "In-person payment",
-      metadata: {
-        customer_name: customerName || "",
-        customer_email: customerEmail || "",
-        notes: notes || ""
-      }
-    });
+const paymentIntent = await stripe.paymentIntents.create({
+  amount: amountInCents,
+  currency: currency || "usd",
+  payment_method_types: ["card_present"],
+  capture_method: "automatic",
+  description: description || "In-person payment",
+  metadata: {
+    sales_order: salesOrder || "",
+    customer_name: customerName || "",
+    customer_phone: customerPhoneDigits || customerPhone || "",
+    customer_email: customerEmail || "",
+    notes: notes || ""
+  }
+});
 
     const reader = await stripe.rawRequest(
       "POST",

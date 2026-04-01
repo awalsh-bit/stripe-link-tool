@@ -8,6 +8,51 @@ import { fileURLToPath } from "url";
 
 const app = express();
 app.use(cors());
+
+
+app.use((req, res, next) => {
+  const openExactPaths = [
+    "/favicon.ico",
+    "/applianceservice.html",
+    "/terms.html",
+    "/api/config",
+    "/api/service/setup-intent",
+    "/api/service/submit-request"
+  ];
+
+  const openPrefixPaths = [
+    "/api/service/setup-intent-result/"
+  ];
+
+  if (
+    openExactPaths.includes(req.path) ||
+    openPrefixPaths.some((prefix) => req.path.startsWith(prefix))
+  ) {
+    return next();
+  }
+
+  const auth = req.headers.authorization;
+
+  if (!auth || !auth.startsWith("Basic ")) {
+    res.setHeader("WWW-Authenticate", 'Basic realm="Wilson Payments"');
+    return res.status(401).send("Authentication required.");
+  }
+
+  const base64Credentials = auth.split(" ")[1];
+  const credentials = Buffer.from(base64Credentials, "base64").toString("utf8");
+  const [username, password] = credentials.split(":");
+
+  if (
+    username !== process.env.APP_USERNAME ||
+    password !== process.env.APP_PASSWORD
+  ) {
+    res.setHeader("WWW-Authenticate", 'Basic realm="Wilson Payments"');
+    return res.status(401).send("Invalid credentials.");
+  }
+
+  next();
+});
+
 app.use(express.json());
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
@@ -33,33 +78,7 @@ app.use((req, res, next) => {
   next();
 });
 
-app.use((req, res, next) => {
-  const openPaths = ["/favicon.ico"];
-  if (openPaths.includes(req.path)) {
-    return next();
-  }
 
-  const auth = req.headers.authorization;
-
-  if (!auth || !auth.startsWith("Basic ")) {
-    res.setHeader("WWW-Authenticate", 'Basic realm="Wilson Payments"');
-    return res.status(401).send("Authentication required.");
-  }
-
-  const base64Credentials = auth.split(" ")[1];
-  const credentials = Buffer.from(base64Credentials, "base64").toString("utf8");
-  const [username, password] = credentials.split(":");
-
-  if (
-    username !== process.env.APP_USERNAME ||
-    password !== process.env.APP_PASSWORD
-  ) {
-    res.setHeader("WWW-Authenticate", 'Basic realm="Wilson Payments"');
-    return res.status(401).send("Invalid credentials.");
-  }
-
-  next();
-});
 
 // -------------------------
 // EXISTING PAYMENT LINK ROUTE
@@ -158,15 +177,18 @@ app.get("/api/terminal/readers", async (req, res) => {
 // -------------------------
 app.post("/api/terminal/charge", async (req, res) => {
   try {
-    const {
-      amount,
-      currency,
-      description,
-      customerName,
-      customerEmail,
-      notes,
-      readerId
-    } = req.body;
+const {
+  amount,
+  currency,
+  description,
+  customerName,
+  customerPhone,
+  customerPhoneDigits,
+  customerEmail,
+  salesOrder,
+  notes,
+  readerId
+} = req.body;
 
     if (!amount || !readerId) {
       return res.status(400).json({

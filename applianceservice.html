@@ -803,10 +803,7 @@ beginBtn.addEventListener("click", async () => {
     try {
       await submitRequestRecord(payload);
       resultBox.classList.add("show");
-      showStatus(
-        "success",
-        "Service request submitted successfully. No card is required for appliances purchased within the last 12 months."
-      );
+      clearStatus();
     } catch (err) {
       showStatus("error", err.message || "Unable to submit service request.");
     } finally {
@@ -912,16 +909,17 @@ form.addEventListener("submit", async (event) => {
       setupIntentId = setupIntent.id;
     }
 
-    await submitRequestRecord(payload);
-    resultBox.classList.add("show");
-    showStatus("success", "Card saved successfully.");
-  } catch (err) {
-    showStatus("error", err.message);
-  } finally {
-    saveCardBtn.disabled = false;
-    saveCardBtn.textContent = "Save card on file";
-  }
-});
+await submitRequestRecord(payload);
+
+const resultRes = await fetch(`/api/service/setup-intent-result/${encodeURIComponent(setupIntentId)}`);
+const resultData = await resultRes.json();
+
+if (!resultRes.ok) {
+  throw new Error(resultData.error || "Card was saved, but the saved card details could not be finalized.");
+}
+
+resultBox.classList.add("show");
+clearStatus();
 
     resetBtn.addEventListener("click", () => {
       clearStatus();

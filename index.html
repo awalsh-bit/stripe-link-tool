@@ -277,9 +277,14 @@
             <input id="customerName" name="customerName" placeholder="Jane Smith" required />
           </div>
 
+<div class="field">
+  <label for="customerPhone">Client Phone</label>
+  <input id="customerPhone" name="customerPhone" placeholder="512-555-1234" required />
+</div>
+
           <div class="field">
             <label for="customerEmail">Client Email</label>
-            <input id="customerEmail" name="customerEmail" type="email" placeholder="jane@example.com" required />
+            <input id="customerEmail" name="customerEmail" type="email" placeholder="jane@example.com" />
           </div>
 
           <div class="field">
@@ -299,11 +304,11 @@
             <input id="description" name="description" placeholder="123 Main Street Appliances or Smith Residence HVAC System" required />
           </div>
 
-          <div class="field full">
-            <label for="notes">Sales Order</label>
-            <input id="Sales Order" name="salesorder" placeholder="Payment to be applied to this ePASS or NetSuite Sales Order Number" required />
-          </div>
-        </div>
+<div class="field full">
+  <label for="salesOrder">Sales Order</label>
+  <input id="salesOrder" name="salesOrder" placeholder="ePASS Sales Order Number" required />
+</div>
+</div>
 
         <div class="actions">
           <button id="submitBtn" type="submit">Create payment link</button>
@@ -376,20 +381,26 @@
       copyBtn.disabled = true;
       latestLink = '';
 
-      const formData = new FormData(form);
-      const payload = {
-        customerName: formData.get('customerName')?.toString().trim(),
-        customerEmail: formData.get('customerEmail')?.toString().trim(),
-        amount: Number(formData.get('amount')),
-        currency: formData.get('currency')?.toString().trim(),
-        description: formData.get('description')?.toString().trim(),
-        notes: formData.get('notes')?.toString().trim(),
-      };
+     const formData = new FormData(form);
 
-      if (!payload.customerName || !payload.customerEmail || !payload.description || !payload.amount) {
-        showStatus('error', 'Please complete all required fields.');
-        return;
-      }
+const customerPhone = formData.get('customerPhone')?.toString().trim() || '';
+const customerPhoneDigits = customerPhone.replace(/\D/g, '');
+
+const payload = {
+  customerName: formData.get('customerName')?.toString().trim() || '',
+  customerPhone,
+  customerPhoneDigits,
+  customerEmail: formData.get('customerEmail')?.toString().trim() || '',
+  salesOrder: formData.get('salesOrder')?.toString().trim() || '',
+  amount: Number(formData.get('amount')),
+  currency: formData.get('currency')?.toString().trim() || '',
+  description: formData.get('description')?.toString().trim() || '',
+};
+
+if (!payload.customerName || !payload.customerPhone || !payload.salesOrder || !payload.description || !payload.amount) {
+  showStatus('error', 'Please complete all required fields.');
+  return;
+}
 
       submitBtn.disabled = true;
       submitBtn.textContent = 'Creating...';
@@ -413,7 +424,9 @@
         latestLink = data.url;
         copyBtn.disabled = false;
 
-        resultCustomer.textContent = `${payload.customerName} (${payload.customerEmail})`;
+        resultCustomer.textContent = payload.customerEmail
+  ? `${payload.customerName} (${payload.customerEmail})`
+  : payload.customerName;
         resultAmount.textContent = formatMoney(payload.amount, payload.currency);
         resultLink.innerHTML = `<a href="${data.url}" target="_blank" rel="noopener noreferrer">${data.url}</a>`;
         resultEl.classList.add('show');

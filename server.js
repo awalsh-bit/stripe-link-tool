@@ -106,7 +106,23 @@ app.use((req, res, next) => {
 // -------------------------
 app.post("/api/create-payment-link", async (req, res) => {
   try {
-    const { customerName, customerEmail, amount, currency, description, notes } = req.body;
+    const {
+      customerName,
+      customerPhone,
+      customerPhoneDigits,
+      customerEmail,
+      salesOrder,
+      amount,
+      currency,
+      description,
+      notes
+    } = req.body;
+
+    if (!amount || !salesOrder || !customerPhone) {
+      return res.status(400).json({
+        error: "amount, salesOrder, and customerPhone are required"
+      });
+    }
 
     const unitAmount = Math.round(Number(amount) * 100);
 
@@ -128,9 +144,10 @@ app.post("/api/create-payment-link", async (req, res) => {
         }
       ],
       metadata: {
+        sales_order: salesOrder || "",
         customer_name: customerName || "",
+        customer_phone: customerPhoneDigits || customerPhone || "",
         customer_email: customerEmail || "",
-        description: description || "",
         notes: notes || ""
       }
     });
@@ -141,7 +158,9 @@ app.post("/api/create-payment-link", async (req, res) => {
       id: `req_${Date.now()}`,
       createdAt: new Date().toISOString(),
       customerName: customerName || "",
+      customerPhone: customerPhoneDigits || customerPhone || "",
       customerEmail: customerEmail || "",
+      salesOrder: salesOrder || "",
       description: description || "",
       notes: notes || "",
       requestedAmount: Number(amount) || 0,
@@ -211,11 +230,11 @@ const {
   readerId
 } = req.body;
 
-    if (!amount || !readerId) {
-      return res.status(400).json({
-        error: "amount and readerId are required"
-      });
-    }
+   if (!amount || !readerId || !salesOrder || !customerPhone) {
+  return res.status(400).json({
+    error: "amount, readerId, salesOrder, and customerPhone are required"
+  });
+}
 
     const amountInCents = Math.round(Number(amount) * 100);
 
@@ -655,11 +674,22 @@ app.post("/api/service/submit-request", async (req, res) => {
 
 app.post("/api/card-on-file/charge", async (req, res) => {
   try {
-    const { customerId, paymentMethodId, amount, description } = req.body;
+    const {
+      customerId,
+      paymentMethodId,
+      amount,
+      description,
+      salesOrder,
+      customerName,
+      customerPhone,
+      customerPhoneDigits,
+      customerEmail,
+      notes
+    } = req.body;
 
-    if (!customerId || !paymentMethodId || !amount) {
+    if (!customerId || !paymentMethodId || !amount || !salesOrder || !customerPhone) {
       return res.status(400).json({
-        error: "customerId, paymentMethodId, and amount are required"
+        error: "customerId, paymentMethodId, amount, salesOrder, and customerPhone are required"
       });
     }
 
@@ -672,7 +702,14 @@ app.post("/api/card-on-file/charge", async (req, res) => {
       payment_method: paymentMethodId,
       confirm: true,
       off_session: true,
-      description: description || "Service charge"
+      description: description || "Service charge",
+      metadata: {
+        sales_order: salesOrder || "",
+        customer_name: customerName || "",
+        customer_phone: customerPhoneDigits || customerPhone || "",
+        customer_email: customerEmail || "",
+        notes: notes || ""
+      }
     });
 
     res.json({
@@ -686,6 +723,7 @@ app.post("/api/card-on-file/charge", async (req, res) => {
     });
   }
 });
+
 
 app.get("/api/service-cards", async (req, res) => {
   try {

@@ -584,6 +584,11 @@
     ].join(" ").toLowerCase();
   }
 
+  function formatReference(row) {
+    const parts = [row.salesOrder, row.description || row.reference].filter(Boolean);
+    return parts.length ? parts.join(" | ") : "-";
+  }
+
   function badgeClass(status) {
     if (status === "paid") return "status-paid";
     if (status === "deactivated") return "status-deactivated";
@@ -643,7 +648,7 @@
         tr.innerHTML = `
           <td>${row.customerName || "-"}</td>
           <td>${row.creatorName || "-"}</td>
-          <td>${row.reference || row.description || "-"}</td>
+          <td>${formatReference(row)}</td>
           <td>
             <span class="status-badge ${badgeClass(row.status)}">
               ${row.status === "deactivated" ? "Deactivated" : "Sent"}
@@ -677,7 +682,7 @@
         tr.innerHTML = `
           <td>${row.customerName || "-"}</td>
           <td>${row.creatorName || "-"}</td>
-          <td>${row.reference || row.description || "-"}</td>
+          <td>${formatReference(row)}</td>
           <td>${row.type === "terminal" ? "Terminal" : row.type === "card_on_file" ? "Card on file" : "Link"}</td>
           <td class="amount">${formatMoney(row.paidAmount)}</td>
           <td>${formatDate(row.paidDate)}</td>
@@ -706,7 +711,10 @@
 
   async function updateLinkStatus(id, status) {
     const reason = status === "deactivated"
-      ? window.prompt("Optional reason for deactivating this link:", "Aging follow-up")
+      ? window.prompt(
+          "Optional reason for deactivating this link:",
+          "This link is no longer active. Please call or text Wilson AC & Appliance at 512-894-0907 if you are attempting to make a payment and are seeing this message."
+        )
       : "";
 
     if (status === "deactivated" && reason === null) {

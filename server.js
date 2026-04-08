@@ -83,6 +83,11 @@ app.use((req, res, next) => {
 app.use(express.json());
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
+const RESEND_API_KEY = process.env.RESEND_API_KEY || "";
+const RESEND_FROM_EMAIL =
+  process.env.RESEND_FROM_EMAIL ||
+  process.env.PAYMENT_NOTIFICATION_FROM_EMAIL ||
+  "";
 
 
 
@@ -111,6 +116,9 @@ app.post("/api/create-payment-link", async (req, res) => {
       customerPhone,
       customerPhoneDigits,
       customerEmail,
+      creatorCode,
+      creatorName,
+      creatorEmail,
       salesOrder,
       amount,
       currency,
@@ -148,13 +156,16 @@ const paymentLink = await stripe.paymentLinks.create({
       quantity: 1
     }
   ],
-  payment_intent_data: {
+      payment_intent_data: {
     description: salesOrder || description || "Customer payment",
     metadata: {
       sales_order: salesOrder || "",
       customer_name: customerName || "",
       customer_phone: customerPhoneDigits || customerPhone || "",
       customer_email: customerEmail || "",
+      creator_code: creatorCode || "",
+      creator_name: creatorName || "",
+      creator_email: creatorEmail || "",
       notes: notes || "",
       link_description: description || ""
     }
@@ -164,6 +175,9 @@ const paymentLink = await stripe.paymentLinks.create({
     customer_name: customerName || "",
     customer_phone: customerPhoneDigits || customerPhone || "",
     customer_email: customerEmail || "",
+    creator_code: creatorCode || "",
+    creator_name: creatorName || "",
+    creator_email: creatorEmail || "",
     notes: notes || "",
     link_description: description || ""
   }
@@ -177,6 +191,9 @@ const paymentLink = await stripe.paymentLinks.create({
       customerName: customerName || "",
       customerPhone: customerPhoneDigits || customerPhone || "",
       customerEmail: customerEmail || "",
+      creatorCode: creatorCode || "",
+      creatorName: creatorName || "",
+      creatorEmail: creatorEmail || "",
       salesOrder: salesOrder || "",
       description: description || "",
       notes: notes || "",
@@ -188,6 +205,8 @@ const paymentLink = await stripe.paymentLinks.create({
       active: true,
       deactivatedAt: "",
       deactivationReason: "",
+      paymentNotificationSentAt: "",
+      paymentNotificationError: "",
       paidAmount: 0,
       paidDate: "",
       paymentIntentId: "",
@@ -735,6 +754,31 @@ app.post("/api/card-on-file/charge", async (req, res) => {
       }
     });
 
+    const terminalPayments = await readTerminalPayments();
+    const alreadyExists = terminalPayments.some(
+      (row) => row.paymentIntentId === paymentIntent.id
+    );
+
+    if (!alreadyExists && paymentIntent.status === "succeeded") {
+      terminalPayments.unshift({
+        id: `cof_${Date.now()}`,
+        type: "card_on_file",
+        createdAt: new Date(paymentIntent.created * 1000).toISOString(),
+        customerName: customerName || "",
+        customerEmail: customerEmail || "",
+        reference: salesOrder || description || "Card on file charge",
+        description: description || "Service charge",
+        status: "paid",
+        paidAmount: (paymentIntent.amount || 0) / 100,
+        paidDate: new Date().toISOString(),
+        paymentIntentId: paymentIntent.id,
+        salesOrder: salesOrder || "",
+        notes: internalNotes || ""
+      });
+
+      await writeTerminalPayments(terminalPayments);
+    }
+
     return res.json({
       success: true,
       status: paymentIntent.status,
@@ -842,6 +886,16 @@ app.get("/api/payment-link-status", async (req, res) => {
             : "";
           record.paymentIntentId = paidSession.payment_intent || "";
           record.checkoutSessionId = paidSession.id || "";
+
+          if (!record.paymentNotificationSentAt && record.creatorEmail) {
+            try {
+              await sendPaymentLinkPaidEmail(record);
+              record.paymentNotificationSentAt = new Date().toISOString();
+              record.paymentNotificationError = "";
+            } catch (notificationError) {
+              record.paymentNotificationError = notificationError.message || "Unable to send payment notification.";
+            }
+          }
         }
       }
     }
@@ -989,6 +1043,11 @@ function normalizeLinkRecord(record) {
     : normalized.status !== "deactivated";
   normalized.deactivatedAt = normalized.deactivatedAt || "";
   normalized.deactivationReason = normalized.deactivationReason || "";
+  normalized.creatorCode = normalized.creatorCode || "";
+  normalized.creatorName = normalized.creatorName || "";
+  normalized.creatorEmail = normalized.creatorEmail || "";
+  normalized.paymentNotificationSentAt = normalized.paymentNotificationSentAt || "";
+  normalized.paymentNotificationError = normalized.paymentNotificationError || "";
 
   if (normalized.paidDate || Number(normalized.paidAmount) > 0) {
     normalized.status = "paid";
@@ -1002,6 +1061,89 @@ function normalizeLinkRecord(record) {
   }
 
   return normalized;
+}
+
+async function sendPaymentLinkPaidEmail(record) {
+  if (!RESEND_API_KEY || !RESEND_FROM_EMAIL) {
+    throw new Error("Paid email notification is not configured.");
+  }
+
+  const recipient = record.creatorEmail;
+
+  if (!recipient) {
+    throw new Error("No creator email address is saved for this link.");
+  }
+
+  const paidDate = record.paidDate
+    ? new Date(record.paidDate).toLocaleString("en-US", {
+        month: "2-digit",
+        day: "2-digit",
+        year: "numeric",
+        hour: "numeric",
+        minute: "2-digit"
+      })
+    : "just now";
+
+  const subject = `Payment received: ${record.salesOrder || record.description || "payment link"}`;
+  const text = [
+    `Hi ${record.creatorName || record.creatorCode || "team"},`,
+    "",
+    "A payment link has been paid.",
+    `Customer: ${record.customerName || "-"}`,
+    `Sales order: ${record.salesOrder || "-"}`,
+    `Description: ${record.description || "-"}`,
+    `Amount paid: $${Number(record.paidAmount || 0).toFixed(2)}`,
+    `Paid date: ${paidDate}`,
+    `Payment intent: ${record.paymentIntentId || "-"}`,
+    "",
+    "Wilson AC & Appliance Payments"
+  ].join("\n");
+
+  const html = `
+    <div style="font-family: Arial, sans-serif; color: #111827; line-height: 1.6;">
+      <p>Hi ${escapeHtmlForEmail(record.creatorName || record.creatorCode || "team")},</p>
+      <p>A payment link has been paid.</p>
+      <ul>
+        <li><strong>Customer:</strong> ${escapeHtmlForEmail(record.customerName || "-")}</li>
+        <li><strong>Sales order:</strong> ${escapeHtmlForEmail(record.salesOrder || "-")}</li>
+        <li><strong>Description:</strong> ${escapeHtmlForEmail(record.description || "-")}</li>
+        <li><strong>Amount paid:</strong> $${Number(record.paidAmount || 0).toFixed(2)}</li>
+        <li><strong>Paid date:</strong> ${escapeHtmlForEmail(paidDate)}</li>
+        <li><strong>Payment intent:</strong> ${escapeHtmlForEmail(record.paymentIntentId || "-")}</li>
+      </ul>
+      <p>Wilson AC & Appliance Payments</p>
+    </div>
+  `;
+
+  const response = await fetch("https://api.resend.com/emails", {
+    method: "POST",
+    headers: {
+      "Authorization": `Bearer ${RESEND_API_KEY}`,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      from: RESEND_FROM_EMAIL,
+      to: [recipient],
+      subject,
+      text,
+      html
+    })
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Email API error: ${response.status} ${errorText}`);
+  }
+}
+
+function escapeHtmlForEmail(value) {
+  return String(value || "").replace(/[&<>"']/g, (char) => ({
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    "\"": "&quot;",
+    "'": "&#39;"
+  })[char]);
 }
 
 

@@ -641,6 +641,41 @@ function attachCopyActions() {
   });
 }
 
+function attachPrefillActions() {
+  document.querySelectorAll("[data-prefill-id]").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      const id = btn.getAttribute("data-prefill-id");
+      const originalText = btn.textContent;
+      btn.disabled = true;
+      btn.textContent = "Building...";
+
+      try {
+        const res = await fetch(`/api/service-cards/${encodeURIComponent(id)}/prefill-link`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          }
+        });
+        const data = await res.json();
+
+        if (!res.ok) {
+          throw new Error(data.error || "Unable to build secure card link.");
+        }
+
+        await navigator.clipboard.writeText(data.url);
+        btn.textContent = "Copied";
+      } catch {
+        btn.textContent = "Failed";
+      } finally {
+        setTimeout(() => {
+          btn.disabled = false;
+          btn.textContent = originalText;
+        }, 1400);
+      }
+    });
+  });
+}
+
     async function saveStatus(id, queueStatus, queueStatusNotes, erpOrderNumber, saveMsgEl, buttonEl) {
       buttonEl.disabled = true;
       saveMsgEl.textContent = "Saving...";
@@ -782,6 +817,11 @@ function attachCopyActions() {
             <div class="small muted" style="margin-top:8px;">
               Setup status: ${escapeHtml(row.setupIntentStatus || "-")}
             </div>
+            ${!hasSavedCard(row) ? `
+              <div style="margin-top:10px;">
+                <button class="copy-ref-btn" type="button" data-prefill-id="${escapeHtml(row.id)}">Copy secure card link</button>
+              </div>
+            ` : ""}
           </td>
 
           <td>
@@ -834,6 +874,7 @@ function attachCopyActions() {
 
       attachRowActions();
       attachCopyActions();
+      attachPrefillActions();
     }
 
     async function loadRows() {

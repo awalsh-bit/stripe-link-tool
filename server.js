@@ -5,6 +5,7 @@ import cors from "cors";
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
+import crypto from "crypto";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -34,6 +35,7 @@ const SERVICE_CARDS_FILE = ensureJsonFile("service-cards.json", []);
 
 
 const app = express();
+app.set("trust proxy", true);
 app.use(cors());
 
 
@@ -48,7 +50,8 @@ app.use((req, res, next) => {
   ];
 
   const openPrefixPaths = [
-    "/api/service/setup-intent-result/"
+    "/api/service/setup-intent-result/",
+    "/api/service/prefill/"
   ];
 
   if (
@@ -392,6 +395,7 @@ app.post("/api/service/setup-intent", async (req, res) => {
       customerName,
       customerEmail,
       customerPhone,
+      existingServiceCardId,
       serviceAddress,
       gateCode,
       contactMethod,
@@ -453,6 +457,7 @@ app.post("/api/service/setup-intent", async (req, res) => {
         customer_name: customerName || "",
         customer_email: customerEmail || "",
         customer_phone: customerPhone || "",
+        service_card_id: existingServiceCardId || "",
         service_address_line1: serviceAddress?.line1 || "",
         service_address_line2: serviceAddress?.line2 || "",
         service_address_city: serviceAddress?.city || "",
@@ -512,9 +517,16 @@ app.get("/api/service/setup-intent-result/:setupIntentId", async (req, res) => {
     const last4 = paymentMethod?.card?.last4 || "";
 
     const serviceCards = await readServiceCards();
+    const existingServiceCardId = setupIntent.metadata?.service_card_id || "";
     const existingIndex = serviceCards.findIndex(
       (row) => row.setupIntentId === setupIntent.id
     );
+    const existingCardIdIndex =
+      existingIndex >= 0
+        ? existingIndex
+        : existingServiceCardId
+          ? serviceCards.findIndex((row) => row.id === existingServiceCardId)
+          : -1;
 
     const stripeFields = {
       customerId: customer?.id || "",
@@ -525,9 +537,10 @@ app.get("/api/service/setup-intent-result/:setupIntentId", async (req, res) => {
       updatedAt: new Date().toISOString()
     };
 
-    if (existingIndex >= 0) {
-      serviceCards[existingIndex] = {
-        ...serviceCards[existingIndex],
+    if (existingCardIdIndex >= 0) {
+      serviceCards[existingCardIdIndex] = {
+        ...serviceCards[existingCardIdIndex],
+        setupIntentId: setupIntent.id,
         ...stripeFields
       };
     } else {
@@ -619,7 +632,7 @@ app.get("/api/service/setup-intent-result/:setupIntentId", async (req, res) => {
 
 app.post("/api/service/submit-request", async (req, res) => {
   try {
-    const { serviceRequest, setupIntentId } = req.body;
+    const { serviceRequest, setupIntentId, existingServiceCardId } = req.body;
 
     if (!serviceRequest || !serviceRequest.customerName) {
       return res.status(400).json({
@@ -628,16 +641,64 @@ app.post("/api/service/submit-request", async (req, res) => {
     }
 
     const serviceCards = await readServiceCards();
+    const explicitExistingId =
+      existingServiceCardId || serviceRequest.existingServiceCardId || "";
 
     if (setupIntentId) {
       const existingIndex = serviceCards.findIndex(
         (row) => row.setupIntentId === setupIntentId
       );
+      const existingByIdIndex =
+        existingIndex >= 0
+          ? existingIndex
+          : explicitExistingId
+            ? serviceCards.findIndex((row) => row.id === explicitExistingId)
+            : -1;
 
-      if (existingIndex >= 0) {
-        serviceCards[existingIndex] = {
-          ...serviceCards[existingIndex],
+      if (existingByIdIndex >= 0) {
+        serviceCards[existingByIdIndex] = {
+          ...serviceCards[existingByIdIndex],
           updatedAt: new Date().toISOString(),
+          setupIntentId: setupIntentId || serviceCards[existingByIdIndex].setupIntentId || "",
+          customerName: serviceRequest.customerName || "",
+          firstName: serviceRequest.firstName || "",
+          lastName: serviceRequest.lastName || "",
+          customerEmail: serviceRequest.customerEmail || "",
+          customerPhone: serviceRequest.customerPhone || "",
+          purchasedWithin12Months: serviceRequest.purchasedWithin12Months || "",
+          cardRequired: serviceRequest.purchasedWithin12Months !== "Yes",
+          gateCode: serviceRequest.gateCode || "",
+          contactMethod: serviceRequest.contactMethod || "",
+          purchaseDate: serviceRequest.purchaseDate || "",
+          serviceAddress: serviceRequest.serviceAddress || {},
+          billingAddress: serviceRequest.billingAddress || {},
+          billingSameAsService: serviceRequest.billingSameAsService,
+          unitCount: serviceRequest.unitCount || "One",
+          units: serviceRequest.units || [],
+          problemDescription: serviceRequest.problemDescription || "",
+          consent: !!serviceRequest.consent
+        };
+
+        await writeServiceCards(serviceCards);
+
+        return res.json({
+          success: true,
+          updatedExisting: true
+        });
+      }
+    }
+
+    if (explicitExistingId) {
+      const existingByIdIndex = serviceCards.findIndex((row) => row.id === explicitExistingId);
+
+      if (existingByIdIndex >= 0) {
+        serviceCards[existingByIdIndex] = {
+          ...serviceCards[existingByIdIndex],
+          updatedAt: new Date().toISOString(),
+          setupIntentId: setupIntentId || serviceCards[existingByIdIndex].setupIntentId || "",
+          setupIntentStatus: setupIntentId
+            ? serviceCards[existingByIdIndex].setupIntentStatus || "submitted_not_completed"
+            : serviceCards[existingByIdIndex].setupIntentStatus || "not_required",
           customerName: serviceRequest.customerName || "",
           firstName: serviceRequest.firstName || "",
           lastName: serviceRequest.lastName || "",
@@ -927,6 +988,85 @@ app.get("/api/payment-link-status", async (req, res) => {
   } catch (err) {
     res.status(400).json({
       error: err.message
+    });
+  }
+});
+
+app.post("/api/service-cards/:id/prefill-link", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const serviceCards = await readServiceCards();
+    const index = serviceCards.findIndex((row) => row.id === id);
+
+    if (index === -1) {
+      return res.status(404).json({
+        error: "Service request not found."
+      });
+    }
+
+    const token = crypto.randomBytes(24).toString("hex");
+    serviceCards[index] = {
+      ...serviceCards[index],
+      secureCardPrefillToken: token,
+      secureCardPrefillUpdatedAt: new Date().toISOString()
+    };
+
+    await writeServiceCards(serviceCards);
+
+    const forwardedProto = req.get("x-forwarded-proto");
+    const protocol = forwardedProto || req.protocol || "https";
+    const url = `${protocol}://${req.get("host")}/applianceservice.html?prefill=${encodeURIComponent(token)}`;
+
+    res.json({
+      success: true,
+      url
+    });
+  } catch (err) {
+    res.status(400).json({
+      error: err.message || "Unable to build secure card link."
+    });
+  }
+});
+
+app.get("/api/service/prefill/:token", async (req, res) => {
+  try {
+    const { token } = req.params;
+    const serviceCards = await readServiceCards();
+    const row = serviceCards.find((card) => card.secureCardPrefillToken === token);
+
+    if (!row) {
+      return res.status(404).json({
+        error: "This secure card link is no longer available."
+      });
+    }
+
+    res.json({
+      serviceCardId: row.id,
+      forceCardFlow: true,
+      serviceRequest: {
+        existingServiceCardId: row.id,
+        customerName: row.customerName || "",
+        firstName: row.firstName || "",
+        lastName: row.lastName || "",
+        customerEmail: row.customerEmail || "",
+        customerPhone: row.customerPhone || "",
+        purchasedWithin12Months: "No",
+        serviceAddress: row.serviceAddress || {},
+        billingAddress: row.billingAddress || row.serviceAddress || {},
+        billingSameAsService: row.billingSameAsService !== false,
+        gateCode: row.gateCode || "",
+        contactMethod: row.contactMethod || "",
+        purchaseDate: row.purchaseDate || "",
+        unitCount: row.unitCount || (row.units?.length > 1 ? "Multiple" : "One"),
+        units: row.units || [],
+        problemDescription: row.problemDescription || "",
+        consent: true,
+        nameOnCard: row.customerName || ""
+      }
+    });
+  } catch (err) {
+    res.status(400).json({
+      error: err.message || "Unable to load prefilled service request."
     });
   }
 });

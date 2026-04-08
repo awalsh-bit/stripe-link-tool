@@ -405,6 +405,11 @@
             <select id="applianceType1"></select>
           </div>
 
+          <div id="applianceTypeOther1Field" class="field hidden">
+            <label for="applianceTypeOther1">If Other, please describe</label>
+            <input id="applianceTypeOther1" placeholder="Ice bath chiller, wine dispenser, etc." />
+          </div>
+
           <div class="field">
             <label for="brand1">Brand</label>
             <select id="brand1"></select>
@@ -448,6 +453,11 @@
               <div class="field">
                 <label for="applianceType2">Appliance Type</label>
                 <select id="applianceType2"></select>
+              </div>
+
+              <div id="applianceTypeOther2Field" class="field hidden">
+                <label for="applianceTypeOther2">If Other, please describe</label>
+                <input id="applianceTypeOther2" placeholder="Ice bath chiller, wine dispenser, etc." />
               </div>
 
               <div class="field">
@@ -577,10 +587,15 @@ I have read and agree to the <a href="terms.html" target="_blank" rel="noopener 
     const resultBox = document.getElementById("result");
     const secondUnitSection = document.getElementById("secondUnitSection");
     const billingAddressBlock = document.getElementById("billingAddressBlock");
+    const applianceTypeOther1Field = document.getElementById("applianceTypeOther1Field");
+    const applianceTypeOther2Field = document.getElementById("applianceTypeOther2Field");
+    const applianceTypeOther1 = document.getElementById("applianceTypeOther1");
+    const applianceTypeOther2 = document.getElementById("applianceTypeOther2");
 
     let stripe;
     let elements;
     let setupIntentId = "";
+    let existingServiceCardId = "";
 
     const applianceTypes = [
       "Refrigerator (Free Standing)","Refrigerator (Built-in)","Washer","Dryer","Dishwasher","Range","Microwave","Cooktop","Icemaker","HVAC","Other"
@@ -713,6 +728,7 @@ fillSelect("brand2", brands, "Select brand", false);
       clearStatus();
       paymentShell.classList.remove("show");
       setupIntentId = "";
+      existingServiceCardId = "";
 
       if (elements) {
         document.getElementById("payment-element").innerHTML = "";
@@ -746,6 +762,20 @@ fillSelect("brand2", brands, "Select brand", false);
       billingAddressBlock.classList.toggle("hidden", same);
     }
 
+    function syncOtherApplianceField(selectId, fieldEl, inputEl) {
+      const isOther = document.getElementById(selectId).value === "Other";
+      fieldEl.classList.toggle("hidden", !isOther);
+      inputEl.required = isOther;
+      if (!isOther) {
+        inputEl.value = "";
+      }
+    }
+
+    function syncOtherApplianceFields() {
+      syncOtherApplianceField("applianceType1", applianceTypeOther1Field, applianceTypeOther1);
+      syncOtherApplianceField("applianceType2", applianceTypeOther2Field, applianceTypeOther2);
+    }
+
 function syncPaymentRequirement() {
   const purchasedRecently = getRadioValue("purchasedWithin12Months") === "Yes";
 
@@ -772,9 +802,22 @@ function syncPaymentRequirement() {
     document.querySelectorAll('input[name="unitCount"]').forEach((el) => el.addEventListener("change", syncSecondUnit));
     document.querySelectorAll('input[name="billingSameAsService"]').forEach((el) => el.addEventListener("change", syncBillingAddress));
     document.querySelectorAll('input[name="purchasedWithin12Months"]').forEach((el) => el.addEventListener("change", syncPaymentRequirement));
+    document.getElementById("applianceType1").addEventListener("change", syncOtherApplianceFields);
+    document.getElementById("applianceType2").addEventListener("change", syncOtherApplianceFields);
     syncSecondUnit();
     syncBillingAddress();
     syncPaymentRequirement();
+    syncOtherApplianceFields();
+
+    function getApplianceTypeValue(selectId, otherId) {
+      const type = document.getElementById(selectId).value;
+      if (type !== "Other") {
+        return type;
+      }
+
+      const otherValue = document.getElementById(otherId).value.trim();
+      return otherValue ? `Other - ${otherValue}` : "Other";
+    }
 
     function getPayload() {
       const billingSame = getRadioValue("billingSameAsService") !== "No";
@@ -782,6 +825,7 @@ function syncPaymentRequirement() {
       const lastName = document.getElementById("lastName").value.trim();
 
       const payload = {
+        existingServiceCardId,
         customerName: `${firstName} ${lastName}`.trim(),
         firstName,
         lastName,
@@ -800,13 +844,14 @@ function syncPaymentRequirement() {
         purchaseDate: document.getElementById("purchaseDate").value.trim(),
         units: [
           {
-            applianceType: document.getElementById("applianceType1").value,
+            applianceType: getApplianceTypeValue("applianceType1", "applianceTypeOther1"),
             brand: document.getElementById("brand1").value,
             model: document.getElementById("model1").value.trim(),
             serial: document.getElementById("serial1").value.trim(),
             purchasedFromUs: getRadioValue("purchasedFromUs1"),
             stacked: getRadioValue("stacked1"),
-            problemDescription: document.getElementById("problem1").value.trim()
+            problemDescription: document.getElementById("problem1").value.trim(),
+            applianceTypeOther: document.getElementById("applianceTypeOther1").value.trim()
           }
         ],
         problemDescription: document.getElementById("problem1").value.trim(),
@@ -831,11 +876,12 @@ function syncPaymentRequirement() {
 
       if (payload.unitCount === "Multiple") {
         payload.units.push({
-          applianceType: document.getElementById("applianceType2").value,
+          applianceType: getApplianceTypeValue("applianceType2", "applianceTypeOther2"),
           brand: document.getElementById("brand2").value,
           model: document.getElementById("model2").value.trim(),
           serial: document.getElementById("serial2").value.trim(),
-          problemDescription: document.getElementById("problem2").value.trim()
+          problemDescription: document.getElementById("problem2").value.trim(),
+          applianceTypeOther: document.getElementById("applianceTypeOther2").value.trim()
         });
       }
 
@@ -858,6 +904,10 @@ function syncPaymentRequirement() {
 
       if (!payload.serviceAddress.line1 || !payload.serviceAddress.city || !payload.serviceAddress.zip) {
         throw new Error("Please complete the full service address.");
+      }
+
+      if (!payload.contactMethod) {
+        throw new Error("Please select a contact method preference.");
       }
 
      
@@ -924,6 +974,104 @@ async function submitRequestRecord(payload) {
   return data;
 }
 
+    function setRadioValue(name, value) {
+      document.querySelectorAll(`input[name="${name}"]`).forEach((input) => {
+        input.checked = input.value === value;
+      });
+    }
+
+    function fillRequestForm(data) {
+      existingServiceCardId = data.existingServiceCardId || data.serviceCardId || "";
+      document.getElementById("firstName").value = data.firstName || "";
+      document.getElementById("lastName").value = data.lastName || "";
+      document.getElementById("customerEmail").value = data.customerEmail || "";
+      document.getElementById("customerPhone").value = data.customerPhone || "";
+      document.getElementById("serviceAddress1").value = data.serviceAddress?.line1 || "";
+      document.getElementById("serviceAddress2").value = data.serviceAddress?.line2 || "";
+      document.getElementById("serviceCity").value = data.serviceAddress?.city || "";
+      document.getElementById("serviceZip").value = data.serviceAddress?.zip || "";
+      document.getElementById("gateCode").value = data.gateCode || "";
+      document.getElementById("purchaseDate").value = data.purchaseDate || "";
+      document.getElementById("nameOnCard").value = data.nameOnCard || data.customerName || "";
+      document.getElementById("problem1").value = data.units?.[0]?.problemDescription || data.problemDescription || "";
+      document.getElementById("model1").value = data.units?.[0]?.model || "";
+      document.getElementById("serial1").value = data.units?.[0]?.serial || "";
+      document.getElementById("model2").value = data.units?.[1]?.model || "";
+      document.getElementById("serial2").value = data.units?.[1]?.serial || "";
+      document.getElementById("problem2").value = data.units?.[1]?.problemDescription || "";
+
+      setRadioValue("purchasedWithin12Months", data.purchasedWithin12Months || "No");
+      setRadioValue("contactMethod", data.contactMethod || "");
+      setRadioValue("unitCount", data.unitCount || (data.units?.length > 1 ? "Multiple" : "One"));
+      setRadioValue("billingSameAsService", data.billingSameAsService === false ? "No" : "Yes");
+      setRadioValue("purchasedFromUs1", data.units?.[0]?.purchasedFromUs || "");
+      setRadioValue("stacked1", data.units?.[0]?.stacked || "");
+
+      syncSecondUnit();
+      syncBillingAddress();
+      syncPaymentRequirement();
+
+      if (data.billingSameAsService === false) {
+        document.getElementById("billingAddress1").value = data.billingAddress?.line1 || "";
+        document.getElementById("billingAddress2").value = data.billingAddress?.line2 || "";
+        document.getElementById("billingCity").value = data.billingAddress?.city || "";
+        document.getElementById("billingZip").value = data.billingAddress?.zip || "";
+      }
+
+      if (data.units?.[0]?.applianceType) {
+        if (String(data.units[0].applianceType).startsWith("Other - ")) {
+          document.getElementById("applianceType1").value = "Other";
+          document.getElementById("applianceTypeOther1").value = data.units[0].applianceType.replace(/^Other - /, "");
+        } else {
+          document.getElementById("applianceType1").value = data.units[0].applianceType;
+        }
+      }
+
+      if (data.units?.[0]?.brand) {
+        document.getElementById("brand1").value = data.units[0].brand;
+      }
+
+      if (data.units?.[1]?.applianceType) {
+        if (String(data.units[1].applianceType).startsWith("Other - ")) {
+          document.getElementById("applianceType2").value = "Other";
+          document.getElementById("applianceTypeOther2").value = data.units[1].applianceType.replace(/^Other - /, "");
+        } else {
+          document.getElementById("applianceType2").value = data.units[1].applianceType;
+        }
+      }
+
+      if (data.units?.[1]?.brand) {
+        document.getElementById("brand2").value = data.units[1].brand;
+      }
+
+      syncOtherApplianceFields();
+    }
+
+    async function loadPrefill() {
+      const params = new URLSearchParams(window.location.search);
+      const token = params.get("prefill");
+
+      if (!token) {
+        return;
+      }
+
+      clearStatus();
+
+      try {
+        const res = await fetch(`/api/service/prefill/${encodeURIComponent(token)}`);
+        const data = await res.json();
+
+        if (!res.ok) {
+          throw new Error(data.error || "Unable to load your secure card request.");
+        }
+
+        fillRequestForm(data.serviceRequest || {});
+        showStatus("success", "Your earlier request has been loaded. Please complete secure card entry below to continue.");
+      } catch (err) {
+        showStatus("error", err.message || "Unable to load your secure card request.");
+      }
+    }
+
 beginBtn.addEventListener("click", async () => {
   clearStatus();
   clearResult();
@@ -937,6 +1085,21 @@ beginBtn.addEventListener("click", async () => {
 
   if (!payload.serviceAddress.line1 || !payload.serviceAddress.city || !payload.serviceAddress.zip) {
     showStatus("error", "Please complete the full service address.");
+    return;
+  }
+
+  if (!payload.contactMethod) {
+    showStatus("error", "Please select a contact method preference.");
+    return;
+  }
+
+  if (document.getElementById("applianceType1").value === "Other" && !document.getElementById("applianceTypeOther1").value.trim()) {
+    showStatus("error", "Please describe the appliance type when selecting Other.");
+    return;
+  }
+
+  if (payload.unitCount === "Multiple" && document.getElementById("applianceType2").value === "Other" && !document.getElementById("applianceTypeOther2").value.trim()) {
+    showStatus("error", "Please describe the second appliance type when selecting Other.");
     return;
   }
 
@@ -1008,6 +1171,21 @@ form.addEventListener("submit", async (event) => {
     return;
   }
 
+  if (!payload.contactMethod) {
+    showStatus("error", "Please select a contact method preference.");
+    return;
+  }
+
+  if (document.getElementById("applianceType1").value === "Other" && !document.getElementById("applianceTypeOther1").value.trim()) {
+    showStatus("error", "Please describe the appliance type when selecting Other.");
+    return;
+  }
+
+  if (payload.unitCount === "Multiple" && document.getElementById("applianceType2").value === "Other" && !document.getElementById("applianceTypeOther2").value.trim()) {
+    showStatus("error", "Please describe the second appliance type when selecting Other.");
+    return;
+  }
+
   if (!payload.consent) {
     showStatus("error", "Please confirm the customer authorization box.");
     return;
@@ -1076,10 +1254,12 @@ form.addEventListener("submit", async (event) => {
   }
 });
 
-resetBtn.addEventListener("click", () => {
+    resetBtn.addEventListener("click", () => {
   clearResult();
   resetServiceForm();
 });
+
+    loadPrefill();
 
   </script>
 </body>

@@ -257,14 +257,31 @@
 
     .result {
       margin-top: 22px;
-      border: 1px solid var(--border);
-      border-radius: 14px;
-      padding: 18px;
-      background: #fafbff;
+      border: 1px solid rgba(6, 95, 70, 0.18);
+      border-radius: 18px;
+      padding: 22px;
+      background: linear-gradient(180deg, #f0fdf4 0%, #ecfdf5 100%);
+      box-shadow: 0 14px 34px rgba(6, 95, 70, 0.08);
       display: none;
     }
 
     .result.show { display: block; }
+
+    .result-title {
+      margin: 0 0 10px;
+      font-size: clamp(24px, 3.2vw, 32px);
+      line-height: 1.1;
+      font-weight: 900;
+      color: #064e3b;
+    }
+
+    .result-text {
+      margin: 0;
+      font-size: 16px;
+      line-height: 1.7;
+      color: #065f46;
+      font-weight: 600;
+    }
 
     .footer-note {
       margin-top: 18px;
@@ -525,8 +542,11 @@ I have read and agree to the <a href="terms.html" target="_blank" rel="noopener 
           </div>
         </div>
 
-        <div id="result" class="result">
-          Service request submitted successfully. Our team will follow up with your next available appointment.
+        <div id="result" class="result" role="status" aria-live="polite">
+          <div class="result-title">Service Request Submitted</div>
+          <p class="result-text">
+            Thank you. Your request has been received successfully. This form has been cleared to help avoid duplicate submissions. Our team will follow up with your next available appointment.
+          </p>
         </div>
       </form>
 
@@ -675,6 +695,30 @@ fillSelect("brand2", brands, "Select brand", false);
 
     function clearResult() {
       resultBox.classList.remove("show");
+    }
+
+    function resetServiceForm() {
+      form.reset();
+      clearStatus();
+      paymentShell.classList.remove("show");
+      setupIntentId = "";
+
+      if (elements) {
+        document.getElementById("payment-element").innerHTML = "";
+        elements = null;
+      }
+
+      document.getElementById("serviceState").value = "Texas";
+      document.getElementById("billingState").value = "Texas";
+
+      fillSelect("applianceType1", applianceTypes, "Select appliance type", true);
+      fillSelect("applianceType2", applianceTypes, "Select appliance type", false);
+      fillSelect("brand1", brands, "Select brand", true);
+      fillSelect("brand2", brands, "Select brand", false);
+
+      syncSecondUnit();
+      syncBillingAddress();
+      syncPaymentRequirement();
     }
 
     function getRadioValue(name) {
@@ -895,8 +939,10 @@ beginBtn.addEventListener("click", async () => {
 
     try {
       await submitRequestRecord(payload);
+      resetServiceForm();
       resultBox.classList.add("show");
       clearStatus();
+      resultBox.scrollIntoView({ behavior: "smooth", block: "start" });
     } catch (err) {
       showStatus("error", err.message || "Unable to submit service request.");
     } finally {
@@ -1007,8 +1053,10 @@ form.addEventListener("submit", async (event) => {
       throw new Error(resultData.error || "Card was saved, but the saved card details could not be finalized.");
     }
 
+    resetServiceForm();
     resultBox.classList.add("show");
     clearStatus();
+    resultBox.scrollIntoView({ behavior: "smooth", block: "start" });
   } catch (err) {
     showStatus("error", err.message || "Unable to save card.");
   } finally {
@@ -1018,14 +1066,8 @@ form.addEventListener("submit", async (event) => {
 });
 
 resetBtn.addEventListener("click", () => {
-  clearStatus();
   clearResult();
-  paymentShell.classList.remove("show");
-  setupIntentId = "";
-  if (elements) {
-    document.getElementById("payment-element").innerHTML = "";
-    elements = null;
-  }
+  resetServiceForm();
 });
 
   </script>

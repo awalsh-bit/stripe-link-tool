@@ -185,6 +185,9 @@ const paymentLink = await stripe.paymentLinks.create({
       paymentLinkId: paymentLink.id,
       paymentLinkUrl: paymentLink.url,
       status: "sent",
+      active: true,
+      deactivatedAt: "",
+      deactivationReason: "",
       paidAmount: 0,
       paidDate: "",
       paymentIntentId: "",
@@ -816,64 +819,115 @@ app.get("/api/payment-link-status", async (req, res) => {
     const links = await readLinks();
     const terminalPayments = await readTerminalPayments();
 
-    const today = new Date().toISOString().slice(0, 10);
-
     for (const record of links) {
+      normalizeLinkRecord(record);
       if (!record.paymentLinkId) continue;
 
-      const sessions = await stripe.checkout.sessions.list({
-        payment_link: record.paymentLinkId,
-        limit: 100
-      });
+      if (record.status !== "paid") {
+        const sessions = await stripe.checkout.sessions.list({
+          payment_link: record.paymentLinkId,
+          limit: 100
+        });
 
-      const paidSession = sessions.data.find(
-        (session) => session.payment_status === "paid"
-      );
+        const paidSession = sessions.data.find(
+          (session) => session.payment_status === "paid"
+        );
 
-      if (paidSession) {
-        record.type = "link";
-        record.reference = record.description || "";
-        record.status = "paid";
-        record.paidAmount = (paidSession.amount_total || 0) / 100;
-        record.paidDate = paidSession.created
-          ? new Date(paidSession.created * 1000).toISOString()
-          : "";
-        record.paymentIntentId = paidSession.payment_intent || "";
-        record.checkoutSessionId = paidSession.id || "";
-      } else {
-        record.type = "link";
-        record.reference = record.description || "";
+        if (paidSession) {
+          record.status = "paid";
+          record.active = false;
+          record.paidAmount = (paidSession.amount_total || 0) / 100;
+          record.paidDate = paidSession.created
+            ? new Date(paidSession.created * 1000).toISOString()
+            : "";
+          record.paymentIntentId = paidSession.payment_intent || "";
+          record.checkoutSessionId = paidSession.id || "";
+        }
       }
     }
 
     await writeLinks(links);
 
-    const combinedRows = [...terminalPayments, ...links].sort((a, b) => {
+    const normalizedTerminalPayments = terminalPayments.map((row) => ({
+      ...row,
+      type: row.type || "terminal",
+      reference: row.reference || row.description || row.salesOrder || "",
+      status: row.status || "paid",
+      active: false
+    }));
+
+    const normalizedLinks = links.map((row) => normalizeLinkRecord({ ...row }));
+
+    const combinedRows = [...normalizedTerminalPayments, ...normalizedLinks].sort((a, b) => {
       const aDate = new Date(a.paidDate || a.createdAt || 0).getTime();
       const bDate = new Date(b.paidDate || b.createdAt || 0).getTime();
       return bDate - aDate;
     });
 
-    const paidRows = combinedRows.filter(
-      (row) => row.status === "paid" && (row.paidDate || "").slice(0, 10) === today
-    );
-
-    const paidTotal = paidRows.reduce((sum, row) => sum + (row.paidAmount || 0), 0);
-    const avgTicket = paidRows.length ? paidTotal / paidRows.length : 0;
-    const openCount = combinedRows.filter((row) => row.status !== "paid").length;
-
     res.json({
-      summary: {
-        paidTotal,
-        paidCount: paidRows.length,
-        avgTicket,
-        openCount
-      },
       rows: combinedRows
     });
   } catch (err) {
     res.status(400).json({
       error: err.message
+    });
+  }
+});
+
+app.patch("/api/payment-links/:id/status", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { status, reason } = req.body || {};
+    const links = await readLinks();
+    const record = links.find((row) => row.id === id);
+
+    if (!record) {
+      return res.status(404).json({
+        error: "Payment link record not found."
+      });
+    }
+
+    normalizeLinkRecord(record);
+
+    if (record.status === "paid") {
+      return res.status(400).json({
+        error: "Paid links cannot be updated."
+      });
+    }
+
+    if (!["sent", "deactivated"].includes(status)) {
+      return res.status(400).json({
+        error: "Status must be either sent or deactivated."
+      });
+    }
+
+    if (record.paymentLinkId) {
+      const stripeUpdate = {
+        active: status === "sent"
+      };
+
+      if (status === "deactivated") {
+        stripeUpdate.inactive_message =
+          reason || "This payment link is no longer active. Please contact Wilson AC & Appliance.";
+      }
+
+      await stripe.paymentLinks.update(record.paymentLinkId, stripeUpdate);
+    }
+
+    record.status = status;
+    record.active = status === "sent";
+    record.deactivatedAt = status === "deactivated" ? new Date().toISOString() : "";
+    record.deactivationReason = status === "deactivated" ? (reason || "") : "";
+
+    await writeLinks(links);
+
+    res.json({
+      success: true,
+      record: normalizeLinkRecord({ ...record })
+    });
+  } catch (err) {
+    res.status(400).json({
+      error: err.message || "Unable to update payment link status."
     });
   }
 });
@@ -920,6 +974,34 @@ async function readServiceCards() {
 
 async function writeServiceCards(data) {
   return writeJson(SERVICE_CARDS_FILE, data);
+}
+
+function normalizeLinkRecord(record) {
+  const normalized = record;
+  normalized.type = "link";
+  normalized.reference =
+    normalized.reference ||
+    normalized.description ||
+    normalized.salesOrder ||
+    "";
+  normalized.active = typeof normalized.active === "boolean"
+    ? normalized.active
+    : normalized.status !== "deactivated";
+  normalized.deactivatedAt = normalized.deactivatedAt || "";
+  normalized.deactivationReason = normalized.deactivationReason || "";
+
+  if (normalized.paidDate || Number(normalized.paidAmount) > 0) {
+    normalized.status = "paid";
+    normalized.active = false;
+  } else if (normalized.status === "deactivated" || normalized.active === false) {
+    normalized.status = "deactivated";
+    normalized.active = false;
+  } else {
+    normalized.status = "sent";
+    normalized.active = true;
+  }
+
+  return normalized;
 }
 
 

@@ -513,20 +513,21 @@
       clearStatus();
       clearResult();
 
-      const payload = {
-        customerId: document.getElementById("customerId").value.trim(),
-        paymentMethodId: document.getElementById("paymentMethodId").value.trim(),
-        amount: document.getElementById("amount").value,
-        description: document.getElementById("description").value.trim(),
-        customerName: document.getElementById("customerName").value.trim(),
-        internalNotes: document.getElementById("internalNotes").value.trim(),
-        setupIntentId: document.getElementById("setupIntentId").value.trim()
-      };
+const payload = {
+  customerId: document.getElementById("customerId").value.trim(),
+  paymentMethodId: document.getElementById("paymentMethodId").value.trim(),
+  amount: document.getElementById("amount").value,
+  salesOrder: document.getElementById("serviceOrderNumber").value.trim(),
+  description: document.getElementById("description").value.trim(),
+  customerName: document.getElementById("customerName").value.trim(),
+  internalNotes: document.getElementById("internalNotes").value.trim(),
+  setupIntentId: document.getElementById("setupIntentId").value.trim()
+};
 
-      if (!payload.customerId || !payload.paymentMethodId || !payload.amount || !payload.description) {
-        showStatus("error", "Please complete customer ID, payment method ID, amount, and description.");
-        return;
-      }
+if (!payload.customerId || !payload.paymentMethodId || !payload.amount || !payload.salesOrder || !payload.description) {
+  showStatus("error", "Please complete customer ID, payment method ID, service order, amount, and description.");
+  return;
+}
 
       chargeBtn.disabled = true;
       chargeBtn.textContent = "Charging...";

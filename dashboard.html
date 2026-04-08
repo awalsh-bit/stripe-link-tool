@@ -32,7 +32,7 @@
     }
 
     .wrap {
-      max-width: 1180px;
+      max-width: 1480px;
       margin: 0 auto;
     }
 
@@ -105,13 +105,6 @@
       font-size: 15px;
     }
 
-    .section-grid {
-      display: grid;
-      grid-template-columns: 2fr 1fr;
-      gap: 20px;
-      align-items: start;
-    }
-
     .card {
       background: var(--card);
       border: 1px solid rgba(99, 91, 255, 0.12);
@@ -138,6 +131,7 @@
       border-radius: 16px;
       padding: 16px;
       background: #fafbff;
+      min-width: 0;
     }
 
     .metric-label {
@@ -153,6 +147,7 @@
       font-size: clamp(24px, 3vw, 38px);
       font-weight: 800;
       line-height: 1;
+      overflow-wrap: anywhere;
     }
 
     .metric-sub {
@@ -342,11 +337,13 @@
       font-weight: 700;
     }
 
-    @media (max-width: 900px) {
-      .section-grid {
-        grid-template-columns: 1fr;
+    @media (max-width: 1200px) {
+      .summary-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
       }
+    }
 
+    @media (max-width: 900px) {
       .nav-grid,
       .summary-grid {
         grid-template-columns: 1fr;
@@ -394,7 +391,6 @@
   </a>
 </div>
 
-    <div class="section-grid">
       <div class="card">
         <h2>Payment queue and paid history</h2>
 
@@ -449,6 +445,7 @@
           <thead>
             <tr>
               <th>Customer</th>
+              <th>Employee</th>
               <th>Reference</th>
               <th>Status</th>
               <th>Requested</th>
@@ -459,7 +456,7 @@
           </thead>
           <tbody id="queueTableBody">
             <tr>
-              <td colspan="7">No unpaid links yet.</td>
+              <td colspan="8">No unpaid links yet.</td>
             </tr>
           </tbody>
         </table>
@@ -480,6 +477,7 @@
           <thead>
             <tr>
               <th>Customer</th>
+              <th>Employee</th>
               <th>Reference</th>
               <th>Type</th>
               <th>Paid Amount</th>
@@ -489,38 +487,11 @@
           </thead>
           <tbody id="paidTableBody">
             <tr>
-              <td colspan="6">No paid records yet.</td>
+              <td colspan="7">No paid records yet.</td>
             </tr>
           </tbody>
         </table>
       </div>
-
-      <div class="card">
-        <h2>Quick notes</h2>
-        <div class="side-list">
-          <div class="side-item">
-            <div class="side-item-title">How to use this page</div>
-            <div class="side-item-text">
-              Keep this as the bookmark for sales and client care. The two large buttons above are the fast entry points for the payment tools.
-            </div>
-          </div>
-
-          <div class="side-item">
-            <div class="side-item-title">What should show here later</div>
-            <div class="side-item-text">
-              Queue totals that never hide unpaid links, paid totals by payment date, and fast controls to deactivate aging links.
-            </div>
-          </div>
-
-          <div class="side-item">
-            <div class="side-item-title">More Tools Coming</div>
-            <div class="side-item-text">
-              Please let Andrew know what tool enhancements are needed to add functionality.
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
   </div>
 
   <script>
@@ -660,7 +631,7 @@
     queueTableBody.innerHTML = "";
 
     if (queueRows.length === 0) {
-      queueTableBody.innerHTML = `<tr><td colspan="7">No matching unpaid links found.</td></tr>`;
+      queueTableBody.innerHTML = `<tr><td colspan="8">No matching unpaid links found.</td></tr>`;
     } else {
       for (const row of queueRows) {
         const ageInDays = daysOpen(row);
@@ -671,6 +642,7 @@
         }
         tr.innerHTML = `
           <td>${row.customerName || "-"}</td>
+          <td>${row.creatorName || "-"}</td>
           <td>${row.reference || row.description || "-"}</td>
           <td>
             <span class="status-badge ${badgeClass(row.status)}">
@@ -698,14 +670,15 @@
     paidTableBody.innerHTML = "";
 
     if (paidRows.length === 0) {
-      paidTableBody.innerHTML = `<tr><td colspan="6">No matching paid records found.</td></tr>`;
+      paidTableBody.innerHTML = `<tr><td colspan="7">No matching paid records found.</td></tr>`;
     } else {
       for (const row of paidRows) {
         const tr = document.createElement("tr");
         tr.innerHTML = `
           <td>${row.customerName || "-"}</td>
+          <td>${row.creatorName || "-"}</td>
           <td>${row.reference || row.description || "-"}</td>
-          <td>${row.type === "terminal" ? "Terminal" : "Link"}</td>
+          <td>${row.type === "terminal" ? "Terminal" : row.type === "card_on_file" ? "Card on file" : "Link"}</td>
           <td class="amount">${formatMoney(row.paidAmount)}</td>
           <td>${formatDate(row.paidDate)}</td>
           <td>${row.paymentIntentId || "-"}</td>
@@ -786,8 +759,8 @@
   paidDateFilterEl.addEventListener("change", renderDashboard);
 
   loadStatusData().catch((err) => {
-    queueTableBody.innerHTML = `<tr><td colspan="7">Error loading dashboard: ${err.message}</td></tr>`;
-    paidTableBody.innerHTML = `<tr><td colspan="6">Error loading dashboard: ${err.message}</td></tr>`;
+    queueTableBody.innerHTML = `<tr><td colspan="8">Error loading dashboard: ${err.message}</td></tr>`;
+    paidTableBody.innerHTML = `<tr><td colspan="7">Error loading dashboard: ${err.message}</td></tr>`;
   });
 </script>
 </body>

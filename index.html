@@ -126,6 +126,13 @@
       line-height: 1.5;
     }
 
+    .lookup-row {
+      display: grid;
+      grid-template-columns: minmax(0, 140px) minmax(0, 1fr);
+      gap: 12px;
+      align-items: end;
+    }
+
     .actions {
       display: flex;
       align-items: center;
@@ -243,6 +250,7 @@
     @media (max-width: 720px) {
       .grid { grid-template-columns: 1fr; }
       .card { padding: 18px; }
+      .lookup-row { grid-template-columns: 1fr; }
     }
 
 .internal-nav {
@@ -272,6 +280,24 @@
     <div class="card">
       <form id="paymentForm">
         <div class="grid">
+          <div class="field full">
+            <label for="creatorCode">Employee Code</label>
+            <div class="lookup-row">
+              <input id="creatorCode" name="creatorCode" maxlength="3" placeholder="AMW" required />
+              <div class="hint">Enter the 3-letter code and the employee name/email will fill in automatically for paid notifications.</div>
+            </div>
+          </div>
+
+          <div class="field">
+            <label for="creatorName">Employee Name</label>
+            <input id="creatorName" name="creatorName" placeholder="Andrew Walsh" readonly />
+          </div>
+
+          <div class="field">
+            <label for="creatorEmail">Employee Email</label>
+            <input id="creatorEmail" name="creatorEmail" type="email" placeholder="awalsh@wilsonappliance.com" readonly />
+          </div>
+
           <div class="field">
             <label for="customerName">Client Name</label>
             <input id="customerName" name="customerName" placeholder="Jane Smith" required />
@@ -354,8 +380,28 @@
     const resultCustomer = document.getElementById('resultCustomer');
     const resultAmount = document.getElementById('resultAmount');
     const resultLink = document.getElementById('resultLink');
+    const creatorCodeInput = document.getElementById('creatorCode');
+    const creatorNameInput = document.getElementById('creatorName');
+    const creatorEmailInput = document.getElementById('creatorEmail');
 
     let latestLink = '';
+    const TEAM_DIRECTORY = {
+      EHM: { name: 'Elliott Mullen', email: 'emullen@wilsonappliance.com' },
+      SPR: { name: 'Shaun Ray', email: 'sray@wilsonappliance.com' },
+      AMW: { name: 'Andrew Walsh', email: 'awalsh@wilsonappliance.com' },
+      CDM: { name: 'Cayden Mayfield', email: 'cmayfield@wilsonappliance.com' },
+      CSH: { name: 'Christian Houde', email: 'choude@wilsonappliance.com' },
+      LTC: { name: 'Logan Carter', email: 'lcarter@wilsonappliance.com' },
+      TAB: { name: 'Terra Bourguignon', email: 'tbourguignon@wilsonappliance.com' },
+      JKO: { name: 'Jack Ort', email: 'jort@wilsonappliance.com' },
+      WKE: { name: 'Will Echols', email: 'wechols@wilsonappliance.com' },
+      "27": { name: 'Trey Wilson', email: 'twilson@wilsonappliance.com' },
+      MAM: { name: 'Matt Mocniak', email: 'mmocniak@wilsonappliance.com' },
+      MEP: { name: 'Marrissa Perks', email: 'mperks@wilsonappliance.com' },
+      NFC: { name: 'Noell Polansky', email: 'ncautrell@wilsonappliance.com' },
+      MSD: { name: 'Michael Davidson', email: 'mdavidson@wilsonappliance.com' },
+      SAD: { name: 'Shelly Doublet', email: 'sdoublet@wilsonappliance.com' }
+    };
 
     function showStatus(type, message) {
       statusEl.className = `status ${type}`;
@@ -367,12 +413,44 @@
       statusEl.textContent = '';
     }
 
+    function applyCreatorLookup() {
+      const code = creatorCodeInput.value.trim().toUpperCase();
+      creatorCodeInput.value = code;
+
+      const match = TEAM_DIRECTORY[code];
+
+      if (!code) {
+        creatorNameInput.value = '';
+        creatorEmailInput.value = '';
+        return true;
+      }
+
+      if (!match) {
+        creatorNameInput.value = '';
+        creatorEmailInput.value = '';
+        return false;
+      }
+
+      creatorNameInput.value = match.name;
+      creatorEmailInput.value = match.email;
+      return true;
+    }
+
     function formatMoney(amount, currency) {
       return new Intl.NumberFormat('en-US', {
         style: 'currency',
         currency: currency.toUpperCase(),
       }).format(amount);
     }
+
+    creatorCodeInput.addEventListener('input', () => {
+      const isValid = applyCreatorLookup();
+      if (creatorCodeInput.value.trim() && !isValid) {
+        showStatus('error', 'Employee code not found. Please enter a valid employee code.');
+      } else {
+        clearStatus();
+      }
+    });
 
     form.addEventListener('submit', async (event) => {
       event.preventDefault();
@@ -381,12 +459,17 @@
       copyBtn.disabled = true;
       latestLink = '';
 
+      const creatorLookupValid = applyCreatorLookup();
+
      const formData = new FormData(form);
 
 const customerPhone = formData.get('customerPhone')?.toString().trim() || '';
 const customerPhoneDigits = customerPhone.replace(/\D/g, '');
 
 const payload = {
+  creatorCode: creatorCodeInput.value.trim(),
+  creatorName: creatorNameInput.value.trim(),
+  creatorEmail: creatorEmailInput.value.trim(),
   customerName: formData.get('customerName')?.toString().trim() || '',
   customerPhone,
   customerPhoneDigits,
@@ -396,6 +479,11 @@ const payload = {
   currency: formData.get('currency')?.toString().trim() || '',
   description: formData.get('description')?.toString().trim() || '',
 };
+
+if (!creatorLookupValid || !payload.creatorCode || !payload.creatorName || !payload.creatorEmail) {
+  showStatus('error', 'Please enter a valid employee code before creating the payment link.');
+  return;
+}
 
 if (!payload.customerName || !payload.customerPhone || !payload.salesOrder || !payload.description || !payload.amount) {
   showStatus('error', 'Please complete all required fields.');
@@ -431,7 +519,7 @@ if (!payload.customerName || !payload.customerPhone || !payload.salesOrder || !p
         resultLink.innerHTML = `<a href="${data.url}" target="_blank" rel="noopener noreferrer">${data.url}</a>`;
         resultEl.classList.add('show');
 
-        showStatus('success', data.message || 'Payment link created successfully.');
+        showStatus('success', data.message || `Payment link created successfully. ${payload.creatorName} will be notified by email when it is paid if paid-email notifications are configured.`);
       } catch (error) {
         showStatus(
           'error',

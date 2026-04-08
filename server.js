@@ -962,7 +962,7 @@ app.patch("/api/payment-links/:id/status", async (req, res) => {
 
       if (status === "deactivated") {
         stripeUpdate.inactive_message =
-          reason || "This payment link is no longer active. Please contact Wilson AC & Appliance.";
+          reason || "This link is no longer active. Please call or text Wilson AC & Appliance at 512-894-0907 if you are attempting to make a payment and are seeing this message.";
       }
 
       await stripe.paymentLinks.update(record.paymentLinkId, stripeUpdate);

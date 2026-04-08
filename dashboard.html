@@ -258,6 +258,12 @@
       color: #9a3412;
     }
 
+    .status-viewed {
+      background: #dbeafe;
+      color: #1d4ed8;
+      font-weight: 800;
+    }
+
     .queue-row-aging {
       background: #fffaf0;
     }
@@ -423,7 +429,9 @@
         <div class="toolbar">
           <input type="search" id="queueSearchFilter" placeholder="Search unpaid queue by customer, order, phone, or note" />
           <select id="queueStatusFilter">
-            <option value="sent">Active queue only</option>
+            <option value="active">Active queue only</option>
+            <option value="viewed">Viewed only</option>
+            <option value="sent">Sent only</option>
             <option value="all">Queue and deactivated</option>
             <option value="deactivated">Deactivated only</option>
           </select>
@@ -592,6 +600,7 @@
   function badgeClass(status) {
     if (status === "paid") return "status-paid";
     if (status === "deactivated") return "status-deactivated";
+    if (status === "viewed") return "status-viewed";
     return "status-sent";
   }
 
@@ -618,7 +627,10 @@
       .filter((row) => row.type === "link" && row.status !== "paid")
       .filter((row) => {
         const matchesSearch = !queueSearch || queueSearchText(row).includes(queueSearch);
-        const matchesStatus = queueStatus === "all" || row.status === queueStatus;
+        const matchesStatus =
+          queueStatus === "all" ||
+          (queueStatus === "active" && ["sent", "viewed"].includes(row.status)) ||
+          row.status === queueStatus;
         return matchesSearch && matchesStatus;
       })
       .sort((a, b) => new Date(a.createdAt || 0) - new Date(b.createdAt || 0));
@@ -651,7 +663,7 @@
           <td>${formatReference(row)}</td>
           <td>
             <span class="status-badge ${badgeClass(row.status)}">
-              ${row.status === "deactivated" ? "Deactivated" : "Sent"}
+              ${row.status === "deactivated" ? "Deactivated" : row.status === "viewed" ? "👁 Viewed" : "Sent"}
             </span>
             ${row.deactivationReason ? `<div class="helper-text">${escapeHtml(row.deactivationReason)}</div>` : ""}
           </td>
@@ -660,7 +672,7 @@
           <td>${ageInDays} day${ageInDays === 1 ? "" : "s"}</td>
           <td class="action-cell">
             <div class="button-row">
-              ${row.status === "sent"
+              ${["sent", "viewed"].includes(row.status)
                 ? `<button class="btn-secondary" data-action="deactivate" data-id="${row.id}">Deactivate</button>`
                 : `<button class="btn-primary" data-action="reactivate" data-id="${row.id}">Reactivate</button>`
               }
@@ -692,7 +704,7 @@
       }
     }
 
-    const activeQueueRows = allRows.filter((row) => row.type === "link" && row.status === "sent");
+    const activeQueueRows = allRows.filter((row) => row.type === "link" && ["sent", "viewed"].includes(row.status));
     const deactivatedRows = allRows.filter((row) => row.type === "link" && row.status === "deactivated");
     const agingRows = activeQueueRows.filter((row) => daysOpen(row) >= agingDays);
     const queueTotal = activeQueueRows.reduce((sum, row) => sum + (row.requestedAmount || 0), 0);

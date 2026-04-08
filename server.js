@@ -896,6 +896,9 @@ app.get("/api/payment-link-status", async (req, res) => {
               record.paymentNotificationError = notificationError.message || "Unable to send payment notification.";
             }
           }
+        } else if (record.status !== "deactivated" && sessions.data.length > 0) {
+          record.status = "viewed";
+          record.active = true;
         }
       }
     }
@@ -1055,6 +1058,9 @@ function normalizeLinkRecord(record) {
   } else if (normalized.status === "deactivated" || normalized.active === false) {
     normalized.status = "deactivated";
     normalized.active = false;
+  } else if (normalized.status === "viewed") {
+    normalized.status = "viewed";
+    normalized.active = true;
   } else {
     normalized.status = "sent";
     normalized.active = true;

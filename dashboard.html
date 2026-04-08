@@ -604,6 +604,26 @@
     return "status-sent";
   }
 
+  function attachCopyLinkActions() {
+    document.querySelectorAll("[data-copy-link]").forEach((button) => {
+      button.addEventListener("click", async () => {
+        const link = button.getAttribute("data-copy-link");
+        const originalText = button.textContent;
+
+        try {
+          await navigator.clipboard.writeText(link);
+          button.textContent = "Copied";
+        } catch {
+          button.textContent = "Failed";
+        } finally {
+          setTimeout(() => {
+            button.textContent = originalText;
+          }, 1200);
+        }
+      });
+    });
+  }
+
   async function loadStatusData() {
     const res = await fetch("/api/payment-link-status");
     const data = await res.json();
@@ -676,7 +696,7 @@
                 ? `<button class="btn-secondary" data-action="deactivate" data-id="${row.id}">Deactivate</button>`
                 : `<button class="btn-primary" data-action="reactivate" data-id="${row.id}">Reactivate</button>`
               }
-              ${row.paymentLinkUrl ? `<a class="small-link" href="${row.paymentLinkUrl}" target="_blank" rel="noopener noreferrer">Open link</a>` : ""}
+              ${row.paymentLinkUrl ? `<button class="btn-secondary" type="button" data-copy-link="${escapeHtml(row.paymentLinkUrl)}">Copy link</button>` : ""}
             </div>
           </td>
         `;
@@ -719,6 +739,7 @@
     paidCountEl.textContent = `${paidRows.length} paid record${paidRows.length === 1 ? "" : "s"} on selected date`;
     avgTicketEl.textContent = formatMoney(avgTicket);
     deactivatedCountEl.textContent = `${deactivatedRows.length} deactivated link${deactivatedRows.length === 1 ? "" : "s"}`;
+    attachCopyLinkActions();
   }
 
   async function updateLinkStatus(id, status) {

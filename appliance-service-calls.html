@@ -116,6 +116,22 @@
       overflow-x: auto;
     }
 
+    .archive-toggle {
+      appearance: none;
+      border: 1px solid rgba(99, 91, 255, 0.18);
+      background: #eef2ff;
+      color: #3730a3;
+      padding: 10px 14px;
+      border-radius: 10px;
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    .archive-toggle:hover {
+      background: #e0e7ff;
+    }
+
     table {
       width: 100%;
       border-collapse: collapse;
@@ -259,6 +275,29 @@
       color: var(--muted);
     }
 
+    .archive-panel {
+      margin-top: 24px;
+      padding-top: 22px;
+      border-top: 1px solid #edf1f7;
+      display: none;
+    }
+
+    .archive-panel.show {
+      display: block;
+    }
+
+    .archive-title {
+      margin: 0 0 8px;
+      font-size: 20px;
+    }
+
+    .archive-sub {
+      margin: 0 0 16px;
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.6;
+    }
+
 .internal-nav {
   margin-top: 28px;
   text-align: center;
@@ -321,6 +360,10 @@
   cursor: wait;
 }
 
+.copy-problem-btn {
+  margin-top: 8px;
+}
+
   </style>
 </head>
 <body>
@@ -354,6 +397,8 @@
           <option value="pending">Pending / not saved</option>
           <option value="not_required">No card required</option>
         </select>
+
+        <button id="archiveToggle" class="archive-toggle" type="button">Show archive</button>
       </div>
 
       <div class="table-wrap">
@@ -374,6 +419,31 @@
           </tbody>
         </table>
       </div>
+
+      <div id="archivePanel" class="archive-panel">
+        <h2 class="archive-title">Archived Requests</h2>
+        <p class="archive-sub">
+          Older requests marked Call Scheduled or Call Cancelled are moved here after the current day so the main queue stays focused on active work.
+        </p>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Submitted</th>
+                <th>Status</th>
+                <th>Customer</th>
+                <th>Address / Contact</th>
+                <th>Request Details</th>
+                <th>Card Status</th>
+                <th>Stripe Refs</th>
+              </tr>
+            </thead>
+            <tbody id="archiveTableBody">
+              <tr><td colspan="7" class="empty">No archived requests.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -382,8 +452,12 @@
     const searchFilter = document.getElementById("searchFilter");
     const statusFilter = document.getElementById("statusFilter");
     const cardFilter = document.getElementById("cardFilter");
+    const archiveToggle = document.getElementById("archiveToggle");
+    const archivePanel = document.getElementById("archivePanel");
+    const archiveTableBody = document.getElementById("archiveTableBody");
 
     let allRows = [];
+    let showArchive = false;
 
     function formatDate(value) {
       if (!value) return "-";
@@ -479,17 +553,41 @@
       return units.map((unit, index) => `
         <div class="request-unit">
           <div><span class="strong">Unit ${index + 1}</span></div>
-          <div>${escapeHtml(unit.applianceType || "-")}</div>
-          <div>${escapeHtml(unit.brand || "-")}</div>
+          <div class="strong">${escapeHtml([unit.brand, unit.applianceType].filter(Boolean).join(" ") || "-")}</div>
           <div class="small">
             Model: ${escapeHtml(unit.model || "-")}<br>
             Serial: ${escapeHtml(unit.serial || "-")}<br>
             Purchased from us: ${escapeHtml(unit.purchasedFromUs || "-")}<br>
-            Stacked: ${escapeHtml(unit.stacked || "-")}
+            Merged: ${escapeHtml(unit.stacked || "-")}
           </div>
           <div class="small"><span class="strong">Problem:</span> ${escapeHtml(unit.problemDescription || "-")}</div>
+          <button
+            class="copy-ref-btn copy-problem-btn"
+            type="button"
+            data-copy-value="${escapeHtml(unit.problemDescription || "")}"
+            ${unit.problemDescription ? "" : "disabled"}
+          >Copy problem</button>
         </div>
       `).join("");
+    }
+
+    function isArchivedRow(row) {
+      const status = row.queueStatus || "Call Status Pending";
+      if (status === "Call Status Pending") {
+        return false;
+      }
+
+      const compareValue = row.updatedAt || row.createdAt;
+      if (!compareValue) {
+        return false;
+      }
+
+      const rowDate = new Date(compareValue);
+      const today = new Date();
+      const rowDay = new Date(rowDate.getFullYear(), rowDate.getMonth(), rowDate.getDate());
+      const todayDay = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+
+      return rowDay.getTime() < todayDay.getTime();
     }
 
     function buildSearchHaystack(row) {
@@ -607,34 +705,13 @@ function attachCopyActions() {
       });
     }
 
-    function render() {
-      const search = searchFilter.value.trim().toLowerCase();
-      const statusMode = statusFilter.value;
-      const cardMode = cardFilter.value;
+    function buildRowMarkup(row) {
+      const card = cardLabel(row);
+      const queueStatus = row.queueStatus || "Call Status Pending";
+      const rowClass = isNewRow(row) ? "row-new" : "";
 
-      const filtered = allRows.filter((row) => {
-        const haystack = buildSearchHaystack(row);
-        const matchesSearch = !search || haystack.includes(search);
-        const matchesStatus = statusMode === "all" || (row.queueStatus || "Call Status Pending") === statusMode;
-        const matchesCard = cardMode === "all" || cardState(row) === cardMode;
-        return matchesSearch && matchesStatus && matchesCard;
-      });
-
-      tableBody.innerHTML = "";
-
-      if (!filtered.length) {
-        tableBody.innerHTML = `<tr><td colspan="7" class="empty">No matching service requests found.</td></tr>`;
-        return;
-      }
-
-      for (const row of filtered) {
-        const card = cardLabel(row);
-        const queueStatus = row.queueStatus || "Call Status Pending";
-        const rowClass = isNewRow(row) ? "row-new" : "";
-
-        const tr = document.createElement("tr");
-        tr.className = rowClass;
-        tr.innerHTML = `
+      return `
+        <tr class="${rowClass}">
           <td>
             <div class="strong">${formatDate(row.createdAt)}</div>
             <div class="small muted">Updated: ${formatDate(row.updatedAt)}</div>
@@ -692,7 +769,6 @@ function attachCopyActions() {
           <td>
             <div class="request-block">
               <div class="small">
-                <span class="strong">Overall issue:</span> ${escapeHtml(row.problemDescription || "-")}<br>
                 <span class="strong">Unit count:</span> ${escapeHtml(row.unitCount || (row.units?.length > 1 ? "Multiple" : "One"))}
               </div>
               <div style="margin-top:10px;">
@@ -708,35 +784,56 @@ function attachCopyActions() {
             </div>
           </td>
 
-         <td>
+          <td>
+            <div class="stripe-block mono">
+              <div class="copy-ref-row">
+                <span class="copy-ref-label">SetupIntent:</span>
+                <span class="copy-ref-value">${escapeHtml(row.setupIntentId || "-")}</span>
+                ${row.setupIntentId ? `<button class="copy-ref-btn" type="button" data-copy-value="${escapeHtml(row.setupIntentId)}">Copy</button>` : ""}
+              </div>
+            </div>
+          </td>
+        </tr>
+      `;
+    }
 
-  <div class="stripe-block mono">
-    <div class="copy-ref-row">
-      <span class="copy-ref-label">Customer:</span>
-      <span class="copy-ref-value">${escapeHtml(row.customerId || "-")}</span>
-      ${row.customerId ? `<button class="copy-ref-btn" type="button" data-copy-value="${escapeHtml(row.customerId)}">Copy</button>` : ""}
-    </div>
+    function render() {
+      const search = searchFilter.value.trim().toLowerCase();
+      const statusMode = statusFilter.value;
+      const cardMode = cardFilter.value;
 
-    <div class="copy-ref-row">
-      <span class="copy-ref-label">Payment Method:</span>
-      <span class="copy-ref-value">${escapeHtml(row.paymentMethodId || "-")}</span>
-      ${row.paymentMethodId ? `<button class="copy-ref-btn" type="button" data-copy-value="${escapeHtml(row.paymentMethodId)}">Copy</button>` : ""}
-    </div>
+      const filtered = allRows.filter((row) => {
+        const haystack = buildSearchHaystack(row);
+        const matchesSearch = !search || haystack.includes(search);
+        const matchesStatus = statusMode === "all" || (row.queueStatus || "Call Status Pending") === statusMode;
+        const matchesCard = cardMode === "all" || cardState(row) === cardMode;
+        return matchesSearch && matchesStatus && matchesCard;
+      });
 
-    <div class="copy-ref-row">
-      <span class="copy-ref-label">SetupIntent:</span>
-      <span class="copy-ref-value">${escapeHtml(row.setupIntentId || "-")}</span>
-      ${row.setupIntentId ? `<button class="copy-ref-btn" type="button" data-copy-value="${escapeHtml(row.setupIntentId)}">Copy</button>` : ""}
-    </div>
-  </div>
-</td>
-        `;
+      const activeRows = filtered.filter((row) => !isArchivedRow(row));
+      const archivedRows = filtered.filter((row) => isArchivedRow(row));
+      archiveToggle.textContent = showArchive
+        ? `Hide archive (${archivedRows.length})`
+        : `Show archive (${archivedRows.length})`;
+      archivePanel.classList.toggle("show", showArchive);
 
-        tableBody.appendChild(tr);
+      tableBody.innerHTML = "";
+      archiveTableBody.innerHTML = "";
+
+      if (!activeRows.length) {
+        tableBody.innerHTML = `<tr><td colspan="7" class="empty">No matching service requests found.</td></tr>`;
+      } else {
+        tableBody.innerHTML = activeRows.map(buildRowMarkup).join("");
       }
 
-attachRowActions();
-attachCopyActions();
+      if (!archivedRows.length) {
+        archiveTableBody.innerHTML = `<tr><td colspan="7" class="empty">No archived requests.</td></tr>`;
+      } else {
+        archiveTableBody.innerHTML = archivedRows.map(buildRowMarkup).join("");
+      }
+
+      attachRowActions();
+      attachCopyActions();
     }
 
     async function loadRows() {
@@ -758,6 +855,10 @@ attachCopyActions();
     searchFilter.addEventListener("input", render);
     statusFilter.addEventListener("change", render);
     cardFilter.addEventListener("change", render);
+    archiveToggle.addEventListener("click", () => {
+      showArchive = !showArchive;
+      render();
+    });
 
     loadRows();
   </script>

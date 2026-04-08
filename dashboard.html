@@ -128,7 +128,7 @@
 
     .summary-grid {
       display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
+      grid-template-columns: repeat(4, minmax(0, 1fr));
       gap: 14px;
       margin-bottom: 18px;
     }
@@ -192,6 +192,25 @@
       min-width: 220px;
     }
 
+    .section-label {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin: 22px 0 10px;
+    }
+
+    .section-label h3 {
+      margin: 0;
+      font-size: 18px;
+    }
+
+    .section-label p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
     table {
       width: 100%;
       border-collapse: collapse;
@@ -232,6 +251,65 @@
     .status-paid {
       background: var(--success-bg);
       color: var(--success-text);
+    }
+
+    .status-sent {
+      background: #eef2ff;
+      color: #4338ca;
+    }
+
+    .status-deactivated {
+      background: #fff7ed;
+      color: #9a3412;
+    }
+
+    .queue-row-aging {
+      background: #fffaf0;
+    }
+
+    .action-cell {
+      white-space: nowrap;
+    }
+
+    .button-row {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    button {
+      border: 1px solid transparent;
+      border-radius: 999px;
+      padding: 8px 12px;
+      font-size: 12px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+    }
+
+    .btn-primary {
+      background: var(--primary);
+      color: #fff;
+    }
+
+    .btn-primary:hover {
+      background: var(--primary-hover);
+    }
+
+    .btn-secondary {
+      background: #fff;
+      color: var(--text);
+      border-color: var(--border);
+    }
+
+    .btn-secondary:hover {
+      background: #f9fafb;
+    }
+
+    .helper-text {
+      color: var(--muted);
+      font-size: 12px;
+      margin-top: 4px;
     }
 
     .side-list {
@@ -318,30 +396,53 @@
 
     <div class="section-grid">
       <div class="card">
-        <h2>Daily payment status</h2>
+        <h2>Payment queue and paid history</h2>
 
         <div class="summary-grid">
           <div class="metric">
-            <div class="metric-label">Paid total</div>
-            <div class="metric-value" id="paidTotal">$0.00</div>
-            <div class="metric-sub" id="paidCount">0 paid links today</div>
+            <div class="metric-label">Unpaid queue total</div>
+            <div class="metric-value" id="queueTotal">$0.00</div>
+            <div class="metric-sub" id="queueCount">0 unpaid links</div>
           </div>
 
           <div class="metric">
-            <div class="metric-label">Average ticket</div>
+            <div class="metric-label">Aging links</div>
+            <div class="metric-value" id="agingCount">0</div>
+            <div class="metric-sub" id="agingHint">0 links over age threshold</div>
+          </div>
+
+          <div class="metric">
+            <div class="metric-label">Paid total for date</div>
+            <div class="metric-value" id="paidTotal">$0.00</div>
+            <div class="metric-sub" id="paidCount">0 paid on selected date</div>
+          </div>
+
+          <div class="metric">
+            <div class="metric-label">Average paid ticket</div>
             <div class="metric-value" id="avgTicket">$0.00</div>
-            <div class="metric-sub" id="openCount">0 open requests</div>
+            <div class="metric-sub" id="deactivatedCount">0 deactivated links</div>
           </div>
         </div>
 
         <div class="toolbar">
-          <input type="date" id="dateFilter" />
-          <input type="search" id="searchFilter" placeholder="Search customer, invoice, or payment intent" />
-          <select id="statusFilter">
-            <option value="all">All statuses</option>
-            <option value="paid">Paid only</option>
-            <option value="sent">Sent only</option>
+          <input type="search" id="queueSearchFilter" placeholder="Search unpaid queue by customer, order, phone, or note" />
+          <select id="queueStatusFilter">
+            <option value="all">Queue and deactivated</option>
+            <option value="sent">Active queue only</option>
+            <option value="deactivated">Deactivated only</option>
           </select>
+          <select id="agingDaysFilter">
+            <option value="14">Aging at 14 days</option>
+            <option value="7">Aging at 7 days</option>
+            <option value="30">Aging at 30 days</option>
+          </select>
+        </div>
+
+        <div class="section-label">
+          <div>
+            <h3>Open link queue</h3>
+            <p>Unpaid links stay here until they are paid or manually deactivated.</p>
+          </div>
         </div>
 
         <table>
@@ -350,14 +451,45 @@
               <th>Customer</th>
               <th>Reference</th>
               <th>Status</th>
+              <th>Requested</th>
+              <th>Sent</th>
+              <th>Age</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="queueTableBody">
+            <tr>
+              <td colspan="7">No unpaid links yet.</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <div class="section-label">
+          <div>
+            <h3>Paid history</h3>
+            <p>Paid links and terminal payments are grouped by the date they were actually paid.</p>
+          </div>
+        </div>
+
+        <div class="toolbar">
+          <input type="date" id="paidDateFilter" />
+          <input type="search" id="paidSearchFilter" placeholder="Search paid history by customer, order, or payment intent" />
+        </div>
+
+        <table>
+          <thead>
+            <tr>
+              <th>Customer</th>
+              <th>Reference</th>
+              <th>Type</th>
               <th>Paid Amount</th>
               <th>Paid Date</th>
               <th>Payment Intent</th>
             </tr>
           </thead>
-          <tbody id="statusTableBody">
+          <tbody id="paidTableBody">
             <tr>
-              <td colspan="6">No status records yet.</td>
+              <td colspan="6">No paid records yet.</td>
             </tr>
           </tbody>
         </table>
@@ -376,7 +508,7 @@
           <div class="side-item">
             <div class="side-item-title">What should show here later</div>
             <div class="side-item-text">
-              Today paid total, count of paid links, average ticket, and a running table of sent versus paid requests.
+              Queue totals that never hide unpaid links, paid totals by payment date, and fast controls to deactivate aging links.
             </div>
           </div>
 
@@ -392,19 +524,26 @@
   </div>
 
   <script>
-  const statusTableBody = document.getElementById("statusTableBody");
+  const queueTableBody = document.getElementById("queueTableBody");
+  const paidTableBody = document.getElementById("paidTableBody");
+  const queueTotalEl = document.getElementById("queueTotal");
+  const queueCountEl = document.getElementById("queueCount");
+  const agingCountEl = document.getElementById("agingCount");
+  const agingHintEl = document.getElementById("agingHint");
   const paidTotalEl = document.getElementById("paidTotal");
   const paidCountEl = document.getElementById("paidCount");
   const avgTicketEl = document.getElementById("avgTicket");
-  const openCountEl = document.getElementById("openCount");
-  const searchFilterEl = document.getElementById("searchFilter");
-  const statusFilterEl = document.getElementById("statusFilter");
-  const dateFilterEl = document.getElementById("dateFilter");
+  const deactivatedCountEl = document.getElementById("deactivatedCount");
+  const queueSearchFilterEl = document.getElementById("queueSearchFilter");
+  const queueStatusFilterEl = document.getElementById("queueStatusFilter");
+  const agingDaysFilterEl = document.getElementById("agingDaysFilter");
+  const paidSearchFilterEl = document.getElementById("paidSearchFilter");
+  const paidDateFilterEl = document.getElementById("paidDateFilter");
 
   let allRows = [];
 
   const today = new Date();
-  dateFilterEl.value = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+  paidDateFilterEl.value = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
 
   function formatMoney(value) {
     return new Intl.NumberFormat("en-US", {
@@ -425,6 +564,61 @@
     });
   }
 
+  function formatShortDate(isoValue) {
+    if (!isoValue) return "-";
+    return new Date(isoValue).toLocaleDateString("en-US", {
+      month: "2-digit",
+      day: "2-digit",
+      year: "2-digit"
+    });
+  }
+
+  function escapeHtml(value) {
+    return String(value || "").replace(/[&<>"']/g, (char) => ({
+      "&": "&amp;",
+      "<": "&lt;",
+      ">": "&gt;",
+      "\"": "&quot;",
+      "'": "&#39;"
+    })[char]);
+  }
+
+  function daysOpen(row) {
+    if (!row.createdAt) return 0;
+    const start = new Date(row.createdAt);
+    const now = new Date();
+    const diff = now.getTime() - start.getTime();
+    return Math.max(0, Math.floor(diff / (1000 * 60 * 60 * 24)));
+  }
+
+  function queueSearchText(row) {
+    return [
+      row.customerName,
+      row.customerPhone,
+      row.customerEmail,
+      row.reference,
+      row.description,
+      row.salesOrder,
+      row.notes
+    ].join(" ").toLowerCase();
+  }
+
+  function paidSearchText(row) {
+    return [
+      row.customerName,
+      row.reference,
+      row.description,
+      row.salesOrder,
+      row.paymentIntentId
+    ].join(" ").toLowerCase();
+  }
+
+  function badgeClass(status) {
+    if (status === "paid") return "status-paid";
+    if (status === "deactivated") return "status-deactivated";
+    return "status-sent";
+  }
+
   async function loadStatusData() {
     const res = await fetch("/api/payment-link-status");
     const data = await res.json();
@@ -438,70 +632,162 @@
   }
 
   function renderDashboard() {
-    const search = searchFilterEl.value.trim().toLowerCase();
-    const statusFilter = statusFilterEl.value;
-    const selectedDate = dateFilterEl.value;
+    const queueSearch = queueSearchFilterEl.value.trim().toLowerCase();
+    const queueStatus = queueStatusFilterEl.value;
+    const paidSearch = paidSearchFilterEl.value.trim().toLowerCase();
+    const selectedPaidDate = paidDateFilterEl.value;
+    const agingDays = Number(agingDaysFilterEl.value || 14);
 
-    const filtered = allRows.filter((row) => {
-       const matchesSearch =
-       !search ||
-       (row.customerName || "").toLowerCase().includes(search) ||
-       (row.reference || row.description || "").toLowerCase().includes(search) ||
-       (row.paymentIntentId || "").toLowerCase().includes(search);
+    const queueRows = allRows
+      .filter((row) => row.type === "link" && row.status !== "paid")
+      .filter((row) => {
+        const matchesSearch = !queueSearch || queueSearchText(row).includes(queueSearch);
+        const matchesStatus = queueStatus === "all" || row.status === queueStatus;
+        return matchesSearch && matchesStatus;
+      })
+      .sort((a, b) => new Date(a.createdAt || 0) - new Date(b.createdAt || 0));
 
-      const matchesStatus =
-        statusFilter === "all" || row.status === statusFilter;
+    const paidRows = allRows
+      .filter((row) => row.status === "paid")
+      .filter((row) => {
+        const matchesSearch = !paidSearch || paidSearchText(row).includes(paidSearch);
+        const paidDateOnly = row.paidDate ? row.paidDate.slice(0, 10) : "";
+        const matchesDate = !selectedPaidDate || paidDateOnly === selectedPaidDate;
+        return matchesSearch && matchesDate;
+      })
+      .sort((a, b) => new Date(b.paidDate || b.createdAt || 0) - new Date(a.paidDate || a.createdAt || 0));
 
-      const paidDateOnly = row.paidDate ? row.paidDate.slice(0, 10) : "";
-      const createdDateOnly = row.createdAt ? row.createdAt.slice(0, 10) : "";
-      const matchesDate =
-        !selectedDate ||
-        paidDateOnly === selectedDate ||
-        createdDateOnly === selectedDate;
+    queueTableBody.innerHTML = "";
 
-      return matchesSearch && matchesStatus && matchesDate;
-    });
-
-    statusTableBody.innerHTML = "";
-
-    if (filtered.length === 0) {
-      statusTableBody.innerHTML = `<tr><td colspan="6">No matching records found.</td></tr>`;
+    if (queueRows.length === 0) {
+      queueTableBody.innerHTML = `<tr><td colspan="7">No matching unpaid links found.</td></tr>`;
     } else {
-      for (const row of filtered) {
+      for (const row of queueRows) {
+        const ageInDays = daysOpen(row);
+        const isAging = row.status === "sent" && ageInDays >= agingDays;
         const tr = document.createElement("tr");
+        if (isAging) {
+          tr.classList.add("queue-row-aging");
+        }
         tr.innerHTML = `
           <td>${row.customerName || "-"}</td>
           <td>${row.reference || row.description || "-"}</td>
           <td>
-            <span class="status-badge ${row.status === "paid" ? "status-paid" : ""}">
-              ${row.status === "paid" ? "Paid" : "Sent"}
+            <span class="status-badge ${badgeClass(row.status)}">
+              ${row.status === "deactivated" ? "Deactivated" : "Sent"}
             </span>
+            ${row.deactivationReason ? `<div class="helper-text">${escapeHtml(row.deactivationReason)}</div>` : ""}
           </td>
-          <td class="amount">${row.status === "paid" ? formatMoney(row.paidAmount) : "-"}</td>
-          <td>${formatDate(row.paidDate)}</td>
-          <td>${row.paymentIntentId || "-"}</td>
+          <td class="amount">${formatMoney(row.requestedAmount)}</td>
+          <td>${formatShortDate(row.createdAt)}</td>
+          <td>${ageInDays} day${ageInDays === 1 ? "" : "s"}</td>
+          <td class="action-cell">
+            <div class="button-row">
+              ${row.status === "sent"
+                ? `<button class="btn-secondary" data-action="deactivate" data-id="${row.id}">Deactivate</button>`
+                : `<button class="btn-primary" data-action="reactivate" data-id="${row.id}">Reactivate</button>`
+              }
+              ${row.paymentLinkUrl ? `<a class="small-link" href="${row.paymentLinkUrl}" target="_blank" rel="noopener noreferrer">Open link</a>` : ""}
+            </div>
+          </td>
         `;
-        statusTableBody.appendChild(tr);
+        queueTableBody.appendChild(tr);
       }
     }
 
-    const paidRows = filtered.filter((row) => row.status === "paid");
-    const openRows = filtered.filter((row) => row.status !== "paid");
+    paidTableBody.innerHTML = "";
+
+    if (paidRows.length === 0) {
+      paidTableBody.innerHTML = `<tr><td colspan="6">No matching paid records found.</td></tr>`;
+    } else {
+      for (const row of paidRows) {
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+          <td>${row.customerName || "-"}</td>
+          <td>${row.reference || row.description || "-"}</td>
+          <td>${row.type === "terminal" ? "Terminal" : "Link"}</td>
+          <td class="amount">${formatMoney(row.paidAmount)}</td>
+          <td>${formatDate(row.paidDate)}</td>
+          <td>${row.paymentIntentId || "-"}</td>
+        `;
+        paidTableBody.appendChild(tr);
+      }
+    }
+
+    const activeQueueRows = allRows.filter((row) => row.type === "link" && row.status === "sent");
+    const deactivatedRows = allRows.filter((row) => row.type === "link" && row.status === "deactivated");
+    const agingRows = activeQueueRows.filter((row) => daysOpen(row) >= agingDays);
+    const queueTotal = activeQueueRows.reduce((sum, row) => sum + (row.requestedAmount || 0), 0);
     const paidTotal = paidRows.reduce((sum, row) => sum + (row.paidAmount || 0), 0);
     const avgTicket = paidRows.length ? paidTotal / paidRows.length : 0;
 
+    queueTotalEl.textContent = formatMoney(queueTotal);
+    queueCountEl.textContent = `${activeQueueRows.length} unpaid active links`;
+    agingCountEl.textContent = String(agingRows.length);
+    agingHintEl.textContent = `${agingRows.length} active link${agingRows.length === 1 ? "" : "s"} at least ${agingDays} days old`;
     paidTotalEl.textContent = formatMoney(paidTotal);
-    paidCountEl.textContent = `${paidRows.length} paid links in view`;
+    paidCountEl.textContent = `${paidRows.length} paid record${paidRows.length === 1 ? "" : "s"} on selected date`;
     avgTicketEl.textContent = formatMoney(avgTicket);
-    openCountEl.textContent = `${openRows.length} open requests`;
+    deactivatedCountEl.textContent = `${deactivatedRows.length} deactivated link${deactivatedRows.length === 1 ? "" : "s"}`;
   }
 
-  searchFilterEl.addEventListener("input", renderDashboard);
-  statusFilterEl.addEventListener("change", renderDashboard);
-  dateFilterEl.addEventListener("change", renderDashboard);
+  async function updateLinkStatus(id, status) {
+    const reason = status === "deactivated"
+      ? window.prompt("Optional reason for deactivating this link:", "Aging follow-up")
+      : "";
+
+    if (status === "deactivated" && reason === null) {
+      return;
+    }
+
+    const res = await fetch(`/api/payment-links/${id}/status`, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        status,
+        reason: reason || ""
+      })
+    });
+
+    const data = await res.json();
+
+    if (!res.ok) {
+      throw new Error(data.error || "Unable to update payment link status.");
+    }
+
+    const updated = data.record;
+    allRows = allRows.map((row) => row.id === updated.id ? { ...row, ...updated } : row);
+    renderDashboard();
+  }
+
+  queueTableBody.addEventListener("click", async (event) => {
+    const button = event.target.closest("button[data-action]");
+    if (!button) return;
+
+    button.disabled = true;
+    try {
+      await updateLinkStatus(
+        button.dataset.id,
+        button.dataset.action === "deactivate" ? "deactivated" : "sent"
+      );
+    } catch (err) {
+      window.alert(err.message);
+    } finally {
+      button.disabled = false;
+    }
+  });
+
+  queueSearchFilterEl.addEventListener("input", renderDashboard);
+  queueStatusFilterEl.addEventListener("change", renderDashboard);
+  agingDaysFilterEl.addEventListener("change", renderDashboard);
+  paidSearchFilterEl.addEventListener("input", renderDashboard);
+  paidDateFilterEl.addEventListener("change", renderDashboard);
 
   loadStatusData().catch((err) => {
-    statusTableBody.innerHTML = `<tr><td colspan="6">Error loading dashboard: ${err.message}</td></tr>`;
+    queueTableBody.innerHTML = `<tr><td colspan="7">Error loading dashboard: ${err.message}</td></tr>`;
+    paidTableBody.innerHTML = `<tr><td colspan="6">Error loading dashboard: ${err.message}</td></tr>`;
   });
 </script>
 </body>

@@ -125,10 +125,15 @@ app.post("/api/create-payment-link", async (req, res) => {
     }
 
     const unitAmount = Math.round(Number(amount) * 100);
+if (!Number.isFinite(unitAmount) || unitAmount < 50) {
+  return res.status(400).json({
+    error: "Amount must be at least $0.50"
+  });
+}
 
-    const product = await stripe.products.create({
-      name: description || "Customer payment"
-    });
+const product = await stripe.products.create({
+  name: salesOrder || "Customer payment"
+});
 
     const price = await stripe.prices.create({
       product: product.id,
@@ -136,21 +141,33 @@ app.post("/api/create-payment-link", async (req, res) => {
       currency: currency || "usd"
     });
 
-    const paymentLink = await stripe.paymentLinks.create({
-      line_items: [
-        {
-          price: price.id,
-          quantity: 1
-        }
-      ],
-      metadata: {
-        sales_order: salesOrder || "",
-        customer_name: customerName || "",
-        customer_phone: customerPhoneDigits || customerPhone || "",
-        customer_email: customerEmail || "",
-        notes: notes || ""
-      }
-    });
+const paymentLink = await stripe.paymentLinks.create({
+  line_items: [
+    {
+      price: price.id,
+      quantity: 1
+    }
+  ],
+  payment_intent_data: {
+    description: salesOrder || description || "Customer payment",
+    metadata: {
+      sales_order: salesOrder || "",
+      customer_name: customerName || "",
+      customer_phone: customerPhoneDigits || customerPhone || "",
+      customer_email: customerEmail || "",
+      notes: notes || "",
+      link_description: description || ""
+    }
+  },
+  metadata: {
+    sales_order: salesOrder || "",
+    customer_name: customerName || "",
+    customer_phone: customerPhoneDigits || customerPhone || "",
+    customer_email: customerEmail || "",
+    notes: notes || "",
+    link_description: description || ""
+  }
+});
 
     const links = await readLinks();
 
@@ -678,22 +695,26 @@ app.post("/api/card-on-file/charge", async (req, res) => {
       customerId,
       paymentMethodId,
       amount,
-      description,
       salesOrder,
+      description,
       customerName,
-      customerPhone,
-      customerPhoneDigits,
       customerEmail,
-      notes
+      internalNotes
     } = req.body;
 
-    if (!customerId || !paymentMethodId || !amount || !salesOrder || !customerPhone) {
+    if (!customerId || !paymentMethodId || !amount || !salesOrder) {
       return res.status(400).json({
-        error: "customerId, paymentMethodId, amount, salesOrder, and customerPhone are required"
+        error: "customerId, paymentMethodId, amount, and salesOrder are required"
       });
     }
 
     const amountInCents = Math.round(Number(amount) * 100);
+
+    if (!Number.isFinite(amountInCents) || amountInCents < 50) {
+      return res.status(400).json({
+        error: "Amount must be at least $0.50"
+      });
+    }
 
     const paymentIntent = await stripe.paymentIntents.create({
       amount: amountInCents,
@@ -704,26 +725,24 @@ app.post("/api/card-on-file/charge", async (req, res) => {
       off_session: true,
       description: description || "Service charge",
       metadata: {
-        sales_order: salesOrder || "",
+        sales_order: salesOrder,
         customer_name: customerName || "",
-        customer_phone: customerPhoneDigits || customerPhone || "",
         customer_email: customerEmail || "",
-        notes: notes || ""
+        notes: internalNotes || ""
       }
     });
 
-    res.json({
+    return res.json({
       success: true,
-      paymentIntentId: paymentIntent.id,
-      status: paymentIntent.status
+      status: paymentIntent.status,
+      paymentIntentId: paymentIntent.id
     });
   } catch (err) {
-    res.status(400).json({
-      error: err.message || "Unable to charge saved card"
+    return res.status(500).json({
+      error: err.message || "Unable to charge saved card."
     });
   }
 });
-
 
 app.get("/api/service-cards", async (req, res) => {
   try {

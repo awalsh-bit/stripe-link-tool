@@ -1014,30 +1014,34 @@ app.get("/api/paid-order-detail", async (req, res) => {
       return paidDateOnly && paidDateOnly >= start && paidDateOnly <= end;
     });
 
-    const detailedRows = await Promise.all(
-      paidRows.map(async (row) => {
-        const stripeAmounts = row.paymentIntentId
-          ? await getStripeAmountsForPaymentIntent(row.paymentIntentId)
-          : {
-              grossAmount: Number(row.paidAmount || 0),
-              feeAmount: 0,
-              netAmount: Number(row.paidAmount || 0)
-            };
+    const detailedRows = [];
 
-        return {
-          id: row.id || row.paymentIntentId || "",
-          type: row.type || "link",
-          paidDate: row.paidDate || "",
-          salesOrder: row.salesOrder || "",
-          customerName: row.customerName || "",
-          description: row.description || row.reference || "",
-          paymentIntentId: row.paymentIntentId || "",
-          paidAmount: stripeAmounts.grossAmount,
-          feeAmount: stripeAmounts.feeAmount,
-          netAmount: stripeAmounts.netAmount
-        };
-      })
-    );
+    for (const row of paidRows) {
+      const stripeAmounts = row.paymentIntentId
+        ? await getStripeAmountsForPaymentIntentWithRetry(row.paymentIntentId)
+        : {
+            grossAmount: Number(row.paidAmount || 0),
+            feeAmount: 0,
+            netAmount: Number(row.paidAmount || 0)
+          };
+
+      detailedRows.push({
+        id: row.id || row.paymentIntentId || "",
+        type: row.type || "link",
+        paidDate: row.paidDate || "",
+        salesOrder: row.salesOrder || "",
+        customerName: row.customerName || "",
+        description: row.description || row.reference || "",
+        paymentIntentId: row.paymentIntentId || "",
+        paidAmount: stripeAmounts.grossAmount,
+        feeAmount: stripeAmounts.feeAmount,
+        netAmount: stripeAmounts.netAmount
+      });
+
+      if (row.paymentIntentId) {
+        await sleep(120);
+      }
+    }
 
     const normalizedSearch = String(search || "").trim().toLowerCase();
     const filteredRows = detailedRows.filter((row) => {
@@ -1321,6 +1325,29 @@ async function getStripeAmountsForPaymentIntent(paymentIntentId) {
     feeAmount,
     netAmount
   };
+}
+
+async function getStripeAmountsForPaymentIntentWithRetry(paymentIntentId, attempt = 0) {
+  try {
+    return await getStripeAmountsForPaymentIntent(paymentIntentId);
+  } catch (err) {
+    const shouldRetry =
+      err?.statusCode === 429 ||
+      err?.code === "rate_limit" ||
+      err?.type === "StripeRateLimitError";
+
+    if (!shouldRetry || attempt >= 4) {
+      throw err;
+    }
+
+    const delayMs = 500 * Math.pow(2, attempt);
+    await sleep(delayMs);
+    return getStripeAmountsForPaymentIntentWithRetry(paymentIntentId, attempt + 1);
+  }
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 function toTimeZoneDateKey(isoValue, timeZone) {

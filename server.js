@@ -91,6 +91,7 @@ const RESEND_FROM_EMAIL =
   process.env.RESEND_FROM_EMAIL ||
   process.env.PAYMENT_NOTIFICATION_FROM_EMAIL ||
   "";
+const APP_TIMEZONE = process.env.APP_TIMEZONE || "America/Chicago";
 
 
 
@@ -992,6 +993,88 @@ app.get("/api/payment-link-status", async (req, res) => {
   }
 });
 
+app.get("/api/paid-order-detail", async (req, res) => {
+  try {
+    const { start, end, search = "" } = req.query;
+
+    if (!start || !end) {
+      return res.status(400).json({
+        error: "start and end dates are required."
+      });
+    }
+
+    const links = (await readLinks()).map((row) => normalizeLinkRecord({ ...row }));
+    const terminalPayments = await readTerminalPayments();
+
+    const paidRows = [
+      ...links.filter((row) => row.status === "paid"),
+      ...terminalPayments.filter((row) => row.status === "paid")
+    ].filter((row) => {
+      const paidDateOnly = toTimeZoneDateKey(row.paidDate, APP_TIMEZONE);
+      return paidDateOnly && paidDateOnly >= start && paidDateOnly <= end;
+    });
+
+    const detailedRows = await Promise.all(
+      paidRows.map(async (row) => {
+        const stripeAmounts = row.paymentIntentId
+          ? await getStripeAmountsForPaymentIntent(row.paymentIntentId)
+          : {
+              grossAmount: Number(row.paidAmount || 0),
+              feeAmount: 0,
+              netAmount: Number(row.paidAmount || 0)
+            };
+
+        return {
+          id: row.id || row.paymentIntentId || "",
+          type: row.type || "link",
+          paidDate: row.paidDate || "",
+          salesOrder: row.salesOrder || "",
+          customerName: row.customerName || "",
+          description: row.description || row.reference || "",
+          paymentIntentId: row.paymentIntentId || "",
+          paidAmount: stripeAmounts.grossAmount,
+          feeAmount: stripeAmounts.feeAmount,
+          netAmount: stripeAmounts.netAmount
+        };
+      })
+    );
+
+    const normalizedSearch = String(search || "").trim().toLowerCase();
+    const filteredRows = detailedRows.filter((row) => {
+      if (!normalizedSearch) {
+        return true;
+      }
+
+      return [
+        row.salesOrder,
+        row.customerName,
+        row.description,
+        row.paymentIntentId
+      ].join(" ").toLowerCase().includes(normalizedSearch);
+    });
+
+    const totals = filteredRows.reduce((acc, row) => {
+      acc.paidAmount += Number(row.paidAmount || 0);
+      acc.feeAmount += Number(row.feeAmount || 0);
+      acc.netAmount += Number(row.netAmount || 0);
+      return acc;
+    }, {
+      paidAmount: 0,
+      feeAmount: 0,
+      netAmount: 0
+    });
+
+    res.json({
+      rows: filteredRows.sort((a, b) => new Date(b.paidDate || 0) - new Date(a.paidDate || 0)),
+      totals
+    });
+  } catch (err) {
+    res.status(400).json({
+      error: err.message || "Unable to load paid order detail."
+    });
+  }
+});
+
 app.post("/api/service-cards/:id/prefill-link", async (req, res) => {
   try {
     const { id } = req.params;
@@ -1207,6 +1290,48 @@ function normalizeLinkRecord(record) {
   }
 
   return normalized;
+}
+
+async function getStripeAmountsForPaymentIntent(paymentIntentId) {
+  const paymentIntent = await stripe.paymentIntents.retrieve(paymentIntentId, {
+    expand: ["latest_charge.balance_transaction"]
+  });
+
+  const latestCharge = paymentIntent.latest_charge;
+  const balanceTransaction = latestCharge?.balance_transaction;
+
+  const grossAmount = Number(
+    typeof latestCharge?.amount === "number"
+      ? latestCharge.amount / 100
+      : paymentIntent.amount / 100 || 0
+  );
+  const feeAmount = Number(
+    typeof balanceTransaction?.fee === "number"
+      ? balanceTransaction.fee / 100
+      : 0
+  );
+  const netAmount = Number(
+    typeof balanceTransaction?.net === "number"
+      ? balanceTransaction.net / 100
+      : grossAmount - feeAmount
+  );
+
+  return {
+    grossAmount,
+    feeAmount,
+    netAmount
+  };
+}
+
+function toTimeZoneDateKey(isoValue, timeZone) {
+  if (!isoValue) return "";
+
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit"
+  }).format(new Date(isoValue));
 }
 
 async function sendPaymentLinkPaidEmail(record) {

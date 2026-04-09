@@ -1,0 +1,419 @@
+<!DOCTYPE html>
+<html lang="en">
+<meta name="robots" content="noindex,nofollow,noarchive">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Wilson AC & Appliance - Paid Order Detail</title>
+  <style>
+    :root {
+      --bg: #f7f8fc;
+      --card: #ffffff;
+      --text: #1f2937;
+      --muted: #6b7280;
+      --border: #dbe1ea;
+      --primary: #635bff;
+      --primary-hover: #564ef0;
+      --success-bg: #ecfdf5;
+      --success-text: #065f46;
+      --shadow: 0 10px 35px rgba(0, 0, 0, 0.08);
+      --radius: 18px;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: linear-gradient(180deg, #eef2ff 0%, var(--bg) 100%);
+      color: var(--text);
+      min-height: 100vh;
+      padding: 32px 16px;
+    }
+
+    .wrap {
+      max-width: 1480px;
+      margin: 0 auto;
+    }
+
+    .hero {
+      margin-bottom: 22px;
+    }
+
+    .eyebrow {
+      display: inline-block;
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--primary);
+      background: rgba(99, 91, 255, 0.1);
+      padding: 8px 10px;
+      border-radius: 999px;
+      margin-bottom: 14px;
+    }
+
+    h1 {
+      margin: 0 0 10px;
+      font-size: clamp(30px, 4vw, 44px);
+      line-height: 1.05;
+    }
+
+    .sub {
+      margin: 0;
+      color: var(--muted);
+      font-size: 16px;
+      line-height: 1.6;
+      max-width: 900px;
+    }
+
+    .card {
+      background: var(--card);
+      border: 1px solid rgba(99, 91, 255, 0.12);
+      box-shadow: var(--shadow);
+      border-radius: var(--radius);
+      padding: 22px;
+    }
+
+    .toolbar {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-bottom: 18px;
+      align-items: center;
+    }
+
+    .toolbar-actions {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-bottom: 18px;
+      justify-content: flex-end;
+    }
+
+    input {
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 12px 14px;
+      font-size: 14px;
+      background: #fff;
+      color: var(--text);
+      outline: none;
+    }
+
+    input[type="search"] {
+      flex: 1;
+      min-width: 260px;
+    }
+
+    input:focus {
+      border-color: rgba(99, 91, 255, 0.75);
+      box-shadow: 0 0 0 4px rgba(99, 91, 255, 0.12);
+    }
+
+    button {
+      appearance: none;
+      border: 1px solid rgba(99, 91, 255, 0.18);
+      background: #eef2ff;
+      color: #3730a3;
+      border-radius: 12px;
+      padding: 12px 16px;
+      font-size: 14px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    button:hover {
+      background: #e0e7ff;
+    }
+
+    .summary-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 14px;
+      margin-bottom: 18px;
+    }
+
+    .metric {
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 16px;
+      background: #fafbff;
+    }
+
+    .metric-label {
+      font-size: 12px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--muted);
+      font-weight: 700;
+      margin-bottom: 6px;
+    }
+
+    .metric-value {
+      font-size: clamp(24px, 3vw, 36px);
+      font-weight: 800;
+      line-height: 1;
+    }
+
+    .metric-sub {
+      margin-top: 8px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    th, td {
+      text-align: left;
+      padding: 14px 10px;
+      border-bottom: 1px solid #edf1f7;
+      vertical-align: middle;
+      font-size: 14px;
+    }
+
+    th {
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--muted);
+    }
+
+    .amount {
+      font-weight: 800;
+      white-space: nowrap;
+    }
+
+    .empty {
+      color: var(--muted);
+      padding: 18px 0 6px;
+    }
+
+    .internal-nav {
+      margin-top: 24px;
+    }
+
+    .internal-nav a {
+      color: var(--primary);
+      text-decoration: none;
+      font-weight: 700;
+    }
+
+    @media (max-width: 1100px) {
+      .summary-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+    }
+
+    @media (max-width: 700px) {
+      .summary-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="hero">
+      <div class="eyebrow">Wilson AC & Appliance - Payments</div>
+      <h1>Paid Order Detail</h1>
+      <p class="sub">
+        Use this page to balance a day or month using actual paid amount, Stripe fees, and net deposit amount.
+      </p>
+    </div>
+
+    <div class="card">
+      <div class="toolbar">
+        <input type="date" id="startDate" />
+        <input type="date" id="endDate" />
+        <input type="search" id="searchFilter" placeholder="Search sales order, customer, description, or payment intent" />
+      </div>
+
+      <div class="toolbar-actions">
+        <button id="exportCsvBtn" type="button">Export visible to CSV</button>
+      </div>
+
+      <div class="summary-grid">
+        <div class="metric">
+          <div class="metric-label">Visible Orders</div>
+          <div class="metric-value" id="visibleCount">0</div>
+          <div class="metric-sub">Orders in current date range</div>
+        </div>
+
+        <div class="metric">
+          <div class="metric-label">Paid Amount</div>
+          <div class="metric-value" id="paidTotal">$0.00</div>
+          <div class="metric-sub">Gross customer payments</div>
+        </div>
+
+        <div class="metric">
+          <div class="metric-label">Fees</div>
+          <div class="metric-value" id="feeTotal">$0.00</div>
+          <div class="metric-sub">Stripe processing fees</div>
+        </div>
+
+        <div class="metric">
+          <div class="metric-label">Net</div>
+          <div class="metric-value" id="netTotal">$0.00</div>
+          <div class="metric-sub">Net deposit amount</div>
+        </div>
+      </div>
+
+      <table>
+        <thead>
+          <tr>
+            <th>Sales Order</th>
+            <th>Customer Name</th>
+            <th>Description</th>
+            <th>Paid Amount</th>
+            <th>Fee</th>
+            <th>Net</th>
+          </tr>
+        </thead>
+        <tbody id="tableBody">
+          <tr><td colspan="6" class="empty">Loading paid order details...</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="internal-nav">
+      <a href="dashboard.html">&larr; Back to dashboard</a>
+    </div>
+  </div>
+
+  <script>
+    const startDateEl = document.getElementById("startDate");
+    const endDateEl = document.getElementById("endDate");
+    const searchFilterEl = document.getElementById("searchFilter");
+    const tableBody = document.getElementById("tableBody");
+    const visibleCountEl = document.getElementById("visibleCount");
+    const paidTotalEl = document.getElementById("paidTotal");
+    const feeTotalEl = document.getElementById("feeTotal");
+    const netTotalEl = document.getElementById("netTotal");
+    const exportCsvBtn = document.getElementById("exportCsvBtn");
+    let currentRows = [];
+
+    function todayKey() {
+      const now = new Date();
+      return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+    }
+
+    function formatMoney(value) {
+      return new Intl.NumberFormat("en-US", {
+        style: "currency",
+        currency: "USD"
+      }).format(value || 0);
+    }
+
+    function escapeCsv(value) {
+      const stringValue = String(value ?? "");
+      if (/[",\n]/.test(stringValue)) {
+        return `"${stringValue.replace(/"/g, '""')}"`;
+      }
+      return stringValue;
+    }
+
+    function downloadCsv(rows) {
+      const headers = [
+        "Sales Order Number",
+        "Customer Name",
+        "Description",
+        "Paid Amount",
+        "Fee",
+        "Net"
+      ];
+
+      const lines = [
+        headers.join(","),
+        ...rows.map((row) => ([
+          row.salesOrder || "",
+          row.customerName || "",
+          row.description || "",
+          Number(row.paidAmount || 0).toFixed(2),
+          Number(row.feeAmount || 0).toFixed(2),
+          Number(row.netAmount || 0).toFixed(2)
+        ].map(escapeCsv).join(",")))
+      ];
+
+      const blob = new Blob([lines.join("\r\n")], { type: "text/csv;charset=utf-8;" });
+      const link = document.createElement("a");
+      const dateLabel = `${startDateEl.value || "start"}_to_${endDateEl.value || "end"}`;
+      link.href = URL.createObjectURL(blob);
+      link.download = `paid-order-detail_${dateLabel}.csv`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(link.href);
+    }
+
+    async function loadPaidOrderDetail() {
+      const params = new URLSearchParams({
+        start: startDateEl.value,
+        end: endDateEl.value,
+        search: searchFilterEl.value.trim()
+      });
+
+      const res = await fetch(`/api/paid-order-detail?${params.toString()}`);
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.error || "Unable to load paid order detail.");
+      }
+
+      render(data.rows || [], data.totals || {});
+    }
+
+    function render(rows, totals) {
+      currentRows = rows;
+      visibleCountEl.textContent = String(rows.length);
+      paidTotalEl.textContent = formatMoney(totals.paidAmount || 0);
+      feeTotalEl.textContent = formatMoney(totals.feeAmount || 0);
+      netTotalEl.textContent = formatMoney(totals.netAmount || 0);
+
+      if (!rows.length) {
+        tableBody.innerHTML = `<tr><td colspan="6" class="empty">No paid orders found for the selected range.</td></tr>`;
+        return;
+      }
+
+      tableBody.innerHTML = rows.map((row) => `
+        <tr>
+          <td>${row.salesOrder || "-"}</td>
+          <td>${row.customerName || "-"}</td>
+          <td>${row.description || "-"}</td>
+          <td class="amount">${formatMoney(row.paidAmount)}</td>
+          <td class="amount">${formatMoney(row.feeAmount)}</td>
+          <td class="amount">${formatMoney(row.netAmount)}</td>
+        </tr>
+      `).join("");
+    }
+
+    let searchTimer;
+    function queueReload() {
+      clearTimeout(searchTimer);
+      searchTimer = setTimeout(() => {
+        loadPaidOrderDetail().catch((err) => {
+          tableBody.innerHTML = `<tr><td colspan="6" class="empty">Error loading paid order detail: ${err.message}</td></tr>`;
+        });
+      }, 200);
+    }
+
+    const today = todayKey();
+    startDateEl.value = today;
+    endDateEl.value = today;
+
+    startDateEl.addEventListener("change", queueReload);
+    endDateEl.addEventListener("change", queueReload);
+    searchFilterEl.addEventListener("input", queueReload);
+    exportCsvBtn.addEventListener("click", () => {
+      downloadCsv(currentRows);
+    });
+
+    loadPaidOrderDetail().catch((err) => {
+      tableBody.innerHTML = `<tr><td colspan="6" class="empty">Error loading paid order detail: ${err.message}</td></tr>`;
+    });
+  </script>
+</body>
+</html>

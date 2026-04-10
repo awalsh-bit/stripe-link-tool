@@ -40,17 +40,161 @@
       margin-bottom: 22px;
     }
 
+    .hero-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 18px;
+      margin-bottom: 14px;
+      flex-wrap: wrap;
+    }
+
+    .brand-logo {
+      display: block;
+      width: clamp(180px, 24vw, 280px);
+      height: auto;
+      flex: 0 0 auto;
+    }
+
     .eyebrow {
-      display: inline-block;
-      font-size: 12px;
+      display: inline-flex;
+      align-items: center;
+      font-size: 14px;
       font-weight: 700;
       letter-spacing: 0.08em;
       text-transform: uppercase;
       color: var(--primary);
       background: rgba(99, 91, 255, 0.1);
-      padding: 8px 10px;
+      padding: 10px 14px;
       border-radius: 999px;
-      margin-bottom: 14px;
+      margin-bottom: 0;
+    }
+
+    .eyebrow-icon {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 40px;
+      height: 40px;
+      border-radius: 999px;
+      background: rgba(99, 91, 255, 0.14);
+      color: var(--primary);
+      flex: 0 0 auto;
+    }
+
+    .eyebrow-icon svg {
+      width: 24px;
+      height: 24px;
+    }
+
+    .hero-labels {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .eyebrow-wrap {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .hero-brand {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      flex-wrap: wrap;
+    }
+
+    .menu-wrap {
+      position: relative;
+    }
+
+    .menu-trigger {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 42px;
+      height: 42px;
+      border-radius: 12px;
+      border: 1px solid rgba(99, 91, 255, 0.16);
+      background: rgba(255, 255, 255, 0.92);
+      box-shadow: var(--shadow);
+      cursor: pointer;
+      transition: background 0.2s ease, border-color 0.2s ease, transform 0.12s ease;
+    }
+
+    .menu-trigger:hover {
+      background: #eef2ff;
+      border-color: rgba(99, 91, 255, 0.32);
+      transform: translateY(-1px);
+    }
+
+    .menu-bars {
+      display: grid;
+      gap: 4px;
+    }
+
+    .menu-bars span {
+      display: block;
+      width: 16px;
+      height: 2px;
+      border-radius: 999px;
+      background: #4338ca;
+    }
+
+    .menu-panel {
+      position: absolute;
+      top: calc(100% - 2px);
+      left: 0;
+      min-width: 320px;
+      background: rgba(255, 255, 255, 0.98);
+      border: 1px solid rgba(99, 91, 255, 0.14);
+      box-shadow: 0 16px 40px rgba(0, 0, 0, 0.12);
+      border-radius: 18px;
+      padding: 12px;
+      display: none;
+      z-index: 10;
+    }
+
+    .menu-wrap:hover .menu-panel,
+    .menu-wrap:focus-within .menu-panel {
+      display: block;
+    }
+
+    .menu-panel-title {
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--muted);
+      font-weight: 700;
+      margin: 2px 4px 10px;
+    }
+
+    .menu-link {
+      display: block;
+      padding: 12px 14px;
+      border-radius: 14px;
+      text-decoration: none;
+      color: var(--text);
+      transition: background 0.2s ease;
+    }
+
+    .menu-link:hover {
+      background: #f5f7ff;
+    }
+
+    .menu-link-title {
+      font-size: 15px;
+      font-weight: 800;
+      margin-bottom: 4px;
+    }
+
+    .menu-link-text {
+      font-size: 13px;
+      color: var(--muted);
+      line-height: 1.5;
     }
 
     h1 {
@@ -72,6 +216,71 @@
       grid-template-columns: repeat(2, minmax(0, 1fr));
       gap: 18px;
       margin: 26px 0 24px;
+    }
+
+    .tools-strip {
+      background: rgba(255, 255, 255, 0.92);
+      border: 1px solid rgba(99, 91, 255, 0.1);
+      border-radius: 22px;
+      box-shadow: var(--shadow);
+      overflow: hidden;
+      min-width: 420px;
+    }
+
+    .tools-strip-top {
+      height: 6px;
+      background: linear-gradient(90deg, #4338ca 0%, #635bff 100%);
+    }
+
+    .tools-strip-row {
+      display: flex;
+      align-items: center;
+      gap: 18px;
+      padding: 16px 20px;
+      flex-wrap: nowrap;
+    }
+
+    .tools-strip-label {
+      font-size: 12px;
+      font-weight: 800;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-right: 6px;
+    }
+
+    .tool-logo-link {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 210px;
+      height: 64px;
+      padding: 10px 18px;
+      border-radius: 16px;
+      border: 1px solid #edf1f7;
+      background: #fff;
+      text-decoration: none;
+      transition: transform 0.12s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+      box-shadow: 0 6px 18px rgba(0, 0, 0, 0.04);
+    }
+
+    .tool-logo-link:hover {
+      transform: translateY(-1px);
+      border-color: rgba(99, 91, 255, 0.28);
+      box-shadow: 0 10px 24px rgba(0, 0, 0, 0.08);
+    }
+
+    .tool-logo-image {
+      display: block;
+      width: 150px;
+      height: 32px;
+      object-fit: contain;
+      object-position: center;
+    }
+
+    .tool-logo-image.podium {
+      width: 144px;
+      height: 32px;
     }
 
     .nav-card {
@@ -287,6 +496,14 @@
       background: #fffaf0;
     }
 
+    .queue-row-aging-warning {
+      background: #fffdf5;
+    }
+
+    .queue-row-aging-critical {
+      background: #fff7f7;
+    }
+
     .action-cell {
       white-space: nowrap;
     }
@@ -373,17 +590,79 @@
       .summary-grid {
         grid-template-columns: 1fr;
       }
+
+      .tools-strip-row {
+        align-items: stretch;
+        flex-wrap: wrap;
+      }
+
+      .tools-strip {
+        min-width: 0;
+        width: 100%;
+      }
+
+      .tool-logo-link {
+        width: 100%;
+      }
     }
   </style>
 </head>
 <body>
   <div class="wrap">
     <div class="hero">
-      <div class="eyebrow">Wilson AC & Appliance - Payments Dashboard</div>
-      <h1>Payments landing page</h1>
-      <p class="sub">
-        Use this page as the main hub for daily payment activity. Jump into remote payment links or in-person reader charges, then track paid dollars and link performance below.
-      </p>
+      <div class="hero-top">
+        <div class="hero-brand">
+          <div class="menu-wrap">
+            <button class="menu-trigger" type="button" aria-label="Dashboard menu">
+              <span class="menu-bars">
+                <span></span>
+                <span></span>
+                <span></span>
+              </span>
+            </button>
+            <div class="menu-panel">
+              <div class="menu-panel-title">Dashboards</div>
+            <a class="menu-link" href="dashboard.html">
+              <div class="menu-link-title">Payments</div>
+              <div class="menu-link-text">Payment queue, paid history, and balancing tools.</div>
+            </a>
+            <a class="menu-link" href="salesdashboard.html">
+              <div class="menu-link-title">Sales Tools</div>
+              <div class="menu-link-text">Preview the switch to a future sales tools dashboard.</div>
+            </a>
+            </div>
+          </div>
+          <img class="brand-logo" src="logo-black.png" alt="Wilson AC & Appliance" />
+          <div class="hero-labels">
+            <div class="eyebrow-wrap">
+              <span class="eyebrow-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none">
+                  <rect x="3" y="6" width="18" height="12" rx="3" fill="currentColor" opacity="0.18"></rect>
+                  <rect x="3" y="8" width="18" height="3" rx="1.5" fill="currentColor"></rect>
+                  <rect x="6" y="14" width="5" height="1.8" rx="0.9" fill="currentColor"></rect>
+                  <rect x="13" y="14" width="4" height="1.8" rx="0.9" fill="currentColor" opacity="0.65"></rect>
+                </svg>
+              </span>
+              <div class="eyebrow">
+                <span>Payments Dashboard</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="tools-strip">
+          <div class="tools-strip-top"></div>
+          <div class="tools-strip-row">
+            <div class="tools-strip-label">Internal Tools</div>
+            <a class="tool-logo-link" href="https://app.podium.com/home" target="_blank" rel="noopener noreferrer">
+              <img class="tool-logo-image podium" src="podium-logo.jpg" alt="Podium" />
+            </a>
+            <a class="tool-logo-link" href="https://wilsonappliance.dispatchtrack.com/a18/login" target="_blank" rel="noopener noreferrer">
+              <img class="tool-logo-image" src="dispatchtrack-logo.png" alt="DispatchTrack" />
+            </a>
+          </div>
+        </div>
+      </div>
     </div>
 
 <div class="nav-grid">
@@ -455,8 +734,8 @@
             <option value="deactivated">Deactivated only</option>
           </select>
           <select id="agingDaysFilter">
-            <option value="14">Aging at 14 days</option>
-            <option value="7">Aging at 7 days</option>
+            <option value="3">Aging at 3 days</option>
+            <option value="5">Aging at 5 days</option>
             <option value="30">Aging at 30 days</option>
           </select>
         </div>
@@ -701,10 +980,13 @@
     } else {
       for (const row of queueRows) {
         const ageInDays = daysOpen(row);
-        const isAging = row.status === "sent" && ageInDays >= agingDays;
         const tr = document.createElement("tr");
-        if (isAging) {
-          tr.classList.add("queue-row-aging");
+        if (["sent", "viewed"].includes(row.status)) {
+          if (ageInDays >= 5) {
+            tr.classList.add("queue-row-aging-critical");
+          } else if (ageInDays >= 3) {
+            tr.classList.add("queue-row-aging-warning");
+          }
         }
         tr.innerHTML = `
           <td>${row.customerName || "-"}</td>

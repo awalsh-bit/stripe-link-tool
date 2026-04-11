@@ -1093,6 +1093,7 @@ app.get("/api/paid-order-detail", async (req, res) => {
     const detailedRows = [];
 
     for (const row of paidRows) {
+      const resolvedFields = resolvePaidOrderFields(row);
       const stripeAmounts = row.paymentIntentId
         ? await getStripeAmountsForPaymentIntentWithRetry(row.paymentIntentId)
         : {
@@ -1105,9 +1106,9 @@ app.get("/api/paid-order-detail", async (req, res) => {
         id: row.id || row.paymentIntentId || "",
         type: row.type || "link",
         paidDate: row.paidDate || "",
-        salesOrder: row.salesOrder || "",
+        salesOrder: resolvedFields.salesOrder,
         customerName: row.customerName || "",
-        description: row.description || row.reference || "",
+        description: resolvedFields.description,
         paymentIntentId: row.paymentIntentId || "",
         paidAmount: stripeAmounts.grossAmount,
         feeAmount: stripeAmounts.feeAmount,
@@ -1154,6 +1155,49 @@ app.get("/api/paid-order-detail", async (req, res) => {
     });
   }
 });
+
+function resolvePaidOrderFields(row) {
+  const rawSalesOrder = String(row.salesOrder || "").trim();
+  const rawDescription = String(row.description || "").trim();
+  const rawReference = String(row.reference || "").trim();
+
+  if (rawSalesOrder) {
+    return {
+      salesOrder: rawSalesOrder,
+      description: rawDescription || (rawReference && rawReference !== rawSalesOrder ? rawReference : "")
+    };
+  }
+
+  if (rawReference && rawDescription && rawReference !== rawDescription) {
+    return {
+      salesOrder: rawReference,
+      description: rawDescription
+    };
+  }
+
+  if (looksLikeSalesOrder(rawReference)) {
+    return {
+      salesOrder: rawReference,
+      description: rawDescription && rawDescription !== rawReference ? rawDescription : ""
+    };
+  }
+
+  if (looksLikeSalesOrder(rawDescription)) {
+    return {
+      salesOrder: rawDescription,
+      description: rawReference && rawReference !== rawDescription ? rawReference : ""
+    };
+  }
+
+  return {
+    salesOrder: "",
+    description: rawDescription || rawReference || ""
+  };
+}
+
+function looksLikeSalesOrder(value) {
+  return /^[A-Z]*\d{5,}$/i.test(String(value || "").trim());
+}
 
 app.post("/api/service-cards/:id/prefill-link", async (req, res) => {
   try {

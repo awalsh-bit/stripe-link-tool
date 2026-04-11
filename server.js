@@ -46,7 +46,8 @@ app.use((req, res, next) => {
     "/terms.html",
     "/api/config",
     "/api/service/setup-intent",
-    "/api/service/submit-request"
+    "/api/service/submit-request",
+    "/api/stripe/webhook"
   ];
 
   const openPrefixPaths = [
@@ -83,15 +84,48 @@ app.use((req, res, next) => {
   next();
 });
 
-app.use(express.json());
-
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
+const STRIPE_WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET || "";
 const RESEND_API_KEY = process.env.RESEND_API_KEY || "";
 const RESEND_FROM_EMAIL =
   process.env.RESEND_FROM_EMAIL ||
   process.env.PAYMENT_NOTIFICATION_FROM_EMAIL ||
   "";
 const APP_TIMEZONE = process.env.APP_TIMEZONE || "America/Chicago";
+
+app.post("/api/stripe/webhook", express.raw({ type: "application/json" }), async (req, res) => {
+  try {
+    if (!STRIPE_WEBHOOK_SECRET) {
+      return res.status(500).send("Missing STRIPE_WEBHOOK_SECRET.");
+    }
+
+    const signature = req.headers["stripe-signature"];
+
+    if (!signature) {
+      return res.status(400).send("Missing Stripe signature.");
+    }
+
+    const event = stripe.webhooks.constructEvent(
+      req.body,
+      signature,
+      STRIPE_WEBHOOK_SECRET
+    );
+
+    if (
+      event.type === "checkout.session.completed" ||
+      event.type === "checkout.session.async_payment_succeeded" ||
+      event.type === "checkout.session.async_payment_failed"
+    ) {
+      await processCheckoutSessionWebhookEvent(event);
+    }
+
+    res.json({ received: true });
+  } catch (err) {
+    res.status(400).send(`Webhook error: ${err.message}`);
+  }
+});
+
+app.use(express.json());
 
 
 
@@ -209,6 +243,8 @@ const paymentLink = await stripe.paymentLinks.create({
       active: true,
       deactivatedAt: "",
       deactivationReason: "",
+      paymentMethodType: "",
+      paymentStatusDetail: "",
       paymentNotificationSentAt: "",
       paymentNotificationError: "",
       paidAmount: 0,
@@ -268,6 +304,9 @@ const {
   customerPhone,
   customerPhoneDigits,
   customerEmail,
+  creatorCode,
+  creatorName,
+  creatorEmail,
   salesOrder,
   notes,
   readerId
@@ -289,9 +328,13 @@ const paymentIntent = await stripe.paymentIntents.create({
   description: description || "In-person payment",
   metadata: {
     sales_order: salesOrder || "",
+    description: description || "",
     customer_name: customerName || "",
     customer_phone: customerPhoneDigits || customerPhone || "",
     customer_email: customerEmail || "",
+    creator_code: creatorCode || "",
+    creator_name: creatorName || "",
+    creator_email: creatorEmail || "",
     notes: notes || ""
   }
 });
@@ -346,7 +389,13 @@ app.get("/api/terminal/payment-status/:paymentIntentId", async (req, res) => {
           createdAt: new Date(paymentIntent.created * 1000).toISOString(),
           customerName: paymentIntent.metadata?.customer_name || "",
           customerEmail: paymentIntent.metadata?.customer_email || "",
-          reference: paymentIntent.description || "",
+          creatorCode: paymentIntent.metadata?.creator_code || "",
+          creatorName: paymentIntent.metadata?.creator_name || "",
+          creatorEmail: paymentIntent.metadata?.creator_email || "",
+          reference: paymentIntent.metadata?.sales_order || paymentIntent.description || "",
+          description: paymentIntent.metadata?.description || paymentIntent.description || "",
+          salesOrder: paymentIntent.metadata?.sales_order || "",
+          notes: paymentIntent.metadata?.notes || "",
           status: "paid",
           paidAmount: (paymentIntent.amount || 0) / 100,
           paidDate: new Date().toISOString(),
@@ -783,6 +832,9 @@ app.post("/api/card-on-file/charge", async (req, res) => {
       description,
       customerName,
       customerEmail,
+      creatorCode,
+      creatorName,
+      creatorEmail,
       internalNotes
     } = req.body;
 
@@ -810,8 +862,12 @@ app.post("/api/card-on-file/charge", async (req, res) => {
       description: description || "Service charge",
       metadata: {
         sales_order: salesOrder,
+        description: description || "",
         customer_name: customerName || "",
         customer_email: customerEmail || "",
+        creator_code: creatorCode || "",
+        creator_name: creatorName || "",
+        creator_email: creatorEmail || "",
         notes: internalNotes || ""
       }
     });
@@ -828,6 +884,9 @@ app.post("/api/card-on-file/charge", async (req, res) => {
         createdAt: new Date(paymentIntent.created * 1000).toISOString(),
         customerName: customerName || "",
         customerEmail: customerEmail || "",
+        creatorCode: creatorCode || "",
+        creatorName: creatorName || "",
+        creatorEmail: creatorEmail || "",
         reference: salesOrder || description || "Card on file charge",
         description: description || "Service charge",
         status: "paid",
@@ -938,16 +997,16 @@ app.get("/api/payment-link-status", async (req, res) => {
         const paidSession = sessions.data.find(
           (session) => session.payment_status === "paid"
         );
+        const latestSessionWithIntent = sessions.data.find(
+          (session) => session.payment_intent
+        );
 
         if (paidSession) {
-          record.status = "paid";
-          record.active = false;
-          record.paidAmount = (paidSession.amount_total || 0) / 100;
-          record.paidDate = paidSession.created
-            ? new Date(paidSession.created * 1000).toISOString()
-            : "";
-          record.paymentIntentId = paidSession.payment_intent || "";
-          record.checkoutSessionId = paidSession.id || "";
+          const paymentIntent = paidSession.payment_intent
+            ? await retrievePaymentIntentWithDetails(paidSession.payment_intent)
+            : null;
+
+          applyPaidLinkState(record, paidSession, paymentIntent);
 
           if (!record.paymentNotificationSentAt && record.creatorEmail) {
             try {
@@ -957,6 +1016,23 @@ app.get("/api/payment-link-status", async (req, res) => {
             } catch (notificationError) {
               record.paymentNotificationError = notificationError.message || "Unable to send payment notification.";
             }
+          }
+        } else if (record.status !== "deactivated" && latestSessionWithIntent?.payment_intent) {
+          const paymentIntent = await retrievePaymentIntentWithDetails(latestSessionWithIntent.payment_intent);
+
+          if (isAchProcessingIntent(paymentIntent)) {
+            record.status = "ach_pending";
+            record.type = "ach_link";
+            record.active = true;
+            record.paymentMethodType = "us_bank_account";
+            record.paymentStatusDetail = paymentIntent.status || "processing";
+            record.paymentIntentId = paymentIntent.id || record.paymentIntentId || "";
+            record.checkoutSessionId = latestSessionWithIntent.id || record.checkoutSessionId || "";
+          } else {
+            record.status = "viewed";
+            record.active = true;
+            record.paymentStatusDetail = "";
+            record.checkoutSessionId = latestSessionWithIntent.id || record.checkoutSessionId || "";
           }
         } else if (record.status !== "deactivated" && sessions.data.length > 0) {
           record.status = "viewed";
@@ -1262,7 +1338,7 @@ async function writeServiceCards(data) {
 
 function normalizeLinkRecord(record) {
   const normalized = record;
-  normalized.type = "link";
+  normalized.type = normalized.type || "card_link";
   normalized.reference =
     normalized.reference ||
     normalized.description ||
@@ -1276,21 +1352,34 @@ function normalizeLinkRecord(record) {
   normalized.creatorCode = normalized.creatorCode || "";
   normalized.creatorName = normalized.creatorName || "";
   normalized.creatorEmail = normalized.creatorEmail || "";
+  normalized.paymentMethodType = normalized.paymentMethodType || "";
+  normalized.paymentStatusDetail = normalized.paymentStatusDetail || "";
   normalized.paymentNotificationSentAt = normalized.paymentNotificationSentAt || "";
   normalized.paymentNotificationError = normalized.paymentNotificationError || "";
 
   if (normalized.paidDate || Number(normalized.paidAmount) > 0) {
     normalized.status = "paid";
     normalized.active = false;
+    normalized.type =
+      normalized.paymentMethodType === "us_bank_account" || normalized.type === "ach_link"
+        ? "ach_link"
+        : "card_link";
   } else if (normalized.status === "deactivated" || normalized.active === false) {
     normalized.status = "deactivated";
     normalized.active = false;
+  } else if (normalized.status === "ach_pending") {
+    normalized.status = "ach_pending";
+    normalized.active = true;
+    normalized.type = "ach_link";
+    normalized.paymentMethodType = normalized.paymentMethodType || "us_bank_account";
   } else if (normalized.status === "viewed") {
     normalized.status = "viewed";
     normalized.active = true;
+    normalized.type = "card_link";
   } else {
     normalized.status = "sent";
     normalized.active = true;
+    normalized.type = "card_link";
   }
 
   return normalized;
@@ -1359,6 +1448,116 @@ function toTimeZoneDateKey(isoValue, timeZone) {
     month: "2-digit",
     day: "2-digit"
   }).format(new Date(isoValue));
+}
+
+async function processCheckoutSessionWebhookEvent(event) {
+  const session = event.data?.object;
+
+  if (!session?.payment_link) {
+    return;
+  }
+
+  const links = await readLinks();
+  const record = links.find((row) =>
+    row.paymentLinkId === session.payment_link ||
+    row.checkoutSessionId === session.id ||
+    row.paymentIntentId === session.payment_intent
+  );
+
+  if (!record) {
+    return;
+  }
+
+  normalizeLinkRecord(record);
+
+  const paymentIntent = session.payment_intent
+    ? await retrievePaymentIntentWithDetails(session.payment_intent)
+    : null;
+
+  if (event.type === "checkout.session.completed") {
+    if (paymentIntent?.status === "succeeded") {
+      applyPaidLinkState(record, session, paymentIntent);
+      await maybeSendLinkPaidNotification(record);
+    } else if (isAchProcessingIntent(paymentIntent)) {
+      record.status = "ach_pending";
+      record.type = "ach_link";
+      record.active = true;
+      record.paymentMethodType = "us_bank_account";
+      record.paymentStatusDetail = paymentIntent.status || "processing";
+      record.paymentIntentId = paymentIntent.id || record.paymentIntentId || "";
+      record.checkoutSessionId = session.id || record.checkoutSessionId || "";
+    }
+  }
+
+  if (event.type === "checkout.session.async_payment_succeeded") {
+    applyPaidLinkState(record, session, paymentIntent);
+    await maybeSendLinkPaidNotification(record);
+  }
+
+  if (event.type === "checkout.session.async_payment_failed") {
+    record.status = "viewed";
+    record.type = "ach_link";
+    record.active = true;
+    record.paymentMethodType = "us_bank_account";
+    record.paymentStatusDetail = "failed";
+    record.paymentIntentId = paymentIntent?.id || record.paymentIntentId || "";
+    record.checkoutSessionId = session.id || record.checkoutSessionId || "";
+  }
+
+  await writeLinks(links);
+}
+
+function applyPaidLinkState(record, session, paymentIntent) {
+  const paymentMethodType = inferPaymentMethodType(paymentIntent, session);
+
+  record.status = "paid";
+  record.active = false;
+  record.type = paymentMethodType === "us_bank_account" ? "ach_link" : "card_link";
+  record.paymentMethodType = paymentMethodType;
+  record.paymentStatusDetail = paymentIntent?.status || "succeeded";
+  record.paidAmount = Number(
+    typeof session?.amount_total === "number"
+      ? session.amount_total / 100
+      : typeof paymentIntent?.amount_received === "number"
+        ? paymentIntent.amount_received / 100
+        : record.paidAmount || 0
+  );
+  record.paidDate = new Date().toISOString();
+  record.paymentIntentId = paymentIntent?.id || session?.payment_intent || record.paymentIntentId || "";
+  record.checkoutSessionId = session?.id || record.checkoutSessionId || "";
+}
+
+async function maybeSendLinkPaidNotification(record) {
+  if (!record.paymentNotificationSentAt && record.creatorEmail) {
+    try {
+      await sendPaymentLinkPaidEmail(record);
+      record.paymentNotificationSentAt = new Date().toISOString();
+      record.paymentNotificationError = "";
+    } catch (notificationError) {
+      record.paymentNotificationError = notificationError.message || "Unable to send payment notification.";
+    }
+  }
+}
+
+async function retrievePaymentIntentWithDetails(paymentIntentId) {
+  return stripe.paymentIntents.retrieve(paymentIntentId, {
+    expand: ["latest_charge.balance_transaction"]
+  });
+}
+
+function inferPaymentMethodType(paymentIntent, session) {
+  return (
+    paymentIntent?.payment_method_types?.[0] ||
+    session?.payment_method_types?.[0] ||
+    ""
+  );
+}
+
+function isAchProcessingIntent(paymentIntent) {
+  return (
+    paymentIntent?.status === "processing" &&
+    paymentIntent?.payment_method_types?.includes("us_bank_account")
+  );
 }
 
 async function sendPaymentLinkPaidEmail(record) {

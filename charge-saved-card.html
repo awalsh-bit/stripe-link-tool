@@ -320,6 +320,21 @@
     <input id="amount" required type="number" min="0.50" step="0.01" placeholder="125.00" />
   </div>
 
+  <div class="field">
+    <label for="creatorCode">Employee Code</label>
+    <input id="creatorCode" maxlength="3" />
+  </div>
+
+  <div class="field">
+    <label for="creatorName">Employee Name</label>
+    <input id="creatorName" readonly />
+  </div>
+
+  <div class="field full">
+    <label for="creatorEmail">Employee Email</label>
+    <input id="creatorEmail" type="email" readonly />
+  </div>
+
   <div class="field full">
     <label for="description">Description</label>
     <input id="description" required placeholder="Service repair after diagnosis" />
@@ -391,6 +406,7 @@
 
   </div>
 
+  <script src="/employee-directory.js"></script>
   <script>
     const form = document.getElementById("chargeForm");
     const chargeBtn = document.getElementById("chargeBtn");
@@ -409,8 +425,12 @@
     const lookupCustomerId = document.getElementById("lookupCustomerId");
     const lookupPaymentMethodId = document.getElementById("lookupPaymentMethodId");
     const lookupCard = document.getElementById("lookupCard");
+    const creatorCodeInput = document.getElementById("creatorCode");
+    const creatorNameInput = document.getElementById("creatorName");
+    const creatorEmailInput = document.getElementById("creatorEmail");
 
     let latestCopyText = "";
+    const TEAM_DIRECTORY = window.WILSON_EMPLOYEE_DIRECTORY || {};
 
     function showStatus(type, message) {
       statusBox.className = `status ${type}`;
@@ -447,6 +467,38 @@
         minute: "2-digit"
       });
     }
+
+    function applyCreatorLookup() {
+      const code = creatorCodeInput.value.trim().toUpperCase();
+      creatorCodeInput.value = code;
+
+      const match = TEAM_DIRECTORY[code];
+
+      if (!code) {
+        creatorNameInput.value = "";
+        creatorEmailInput.value = "";
+        return true;
+      }
+
+      if (!match) {
+        creatorNameInput.value = "";
+        creatorEmailInput.value = "";
+        return false;
+      }
+
+      creatorNameInput.value = match.name;
+      creatorEmailInput.value = match.email;
+      return true;
+    }
+
+    creatorCodeInput.addEventListener("input", () => {
+      const isValid = applyCreatorLookup();
+      if (creatorCodeInput.value.trim() && !isValid) {
+        showStatus("error", "Employee code not found. Please enter a valid employee code.");
+      } else {
+        clearStatus();
+      }
+    });
 
     function setLookupResult(data) {
       const cardText =
@@ -520,12 +572,20 @@ const payload = {
   salesOrder: document.getElementById("serviceOrderNumber").value.trim(),
   description: document.getElementById("description").value.trim(),
   customerName: document.getElementById("customerName").value.trim(),
+  creatorCode: creatorCodeInput.value.trim(),
+  creatorName: creatorNameInput.value.trim(),
+  creatorEmail: creatorEmailInput.value.trim(),
   internalNotes: document.getElementById("internalNotes").value.trim(),
   setupIntentId: document.getElementById("setupIntentId").value.trim()
 };
 
 if (!payload.customerId || !payload.paymentMethodId || !payload.amount || !payload.salesOrder || !payload.description) {
   showStatus("error", "Please complete customer ID, payment method ID, service order, amount, and description.");
+  return;
+}
+
+if (!applyCreatorLookup() || !payload.creatorCode || !payload.creatorName || !payload.creatorEmail) {
+  showStatus("error", "Please enter a valid employee code before charging the saved card.");
   return;
 }
 

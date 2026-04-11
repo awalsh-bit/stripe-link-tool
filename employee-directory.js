@@ -1,0 +1,22 @@
+window.WILSON_EMPLOYEE_DIRECTORY = {
+  EHM: { name: "Elliott Mullen", email: "emullen@wilsonappliance.com" },
+  SPR: { name: "Shaun Ray", email: "sray@wilsonappliance.com" },
+  AMW: { name: "Andrew Walsh", email: "awalsh@wilsonappliance.com" },
+  CDM: { name: "Cayden Mayfield", email: "cmayfield@wilsonappliance.com" },
+  CSH: { name: "Christian Houde", email: "choude@wilsonappliance.com" },
+  LTC: { name: "Logan Carter", email: "lcarter@wilsonappliance.com" },
+  TAB: { name: "Terra Bourguignon", email: "tbourguignon@wilsonappliance.com" },
+  JKO: { name: "Jack Ort", email: "jort@wilsonappliance.com" },
+  WKE: { name: "Will Echols", email: "wechols@wilsonappliance.com" },
+  "27": { name: "Trey Wilson", email: "twilson@wilsonappliance.com" },
+  MAM: { name: "Matt Mocniak", email: "mmocniak@wilsonappliance.com" },
+  MEP: { name: "Marrissa Perks", email: "mperks@wilsonappliance.com" },
+  NFC: { name: "Noell Polansky", email: "ncautrell@wilsonappliance.com" },
+  CBS: { name: "Chris Shanahan", email: "cshanahan@wilsonappliance.com" },
+  CAM: { name: "Carol Margos", email: "cmargos@wilsonappliance.com" },
+  PNT: { name: "Paige Thurgood", email: "pthurgood@wilsonappliance.com" },
+  ELB: { name: "Erica Bolt", email: "ebolt@wilsonappliance.com" },
+  RDW: { name: "Ray Wilder", email: "rwilder@wilsonappliance.com" },
+  MSD: { name: "Michael Davidson", email: "mdavidson@wilsonappliance.com" },
+  SAD: { name: "Shelly Doublet", email: "sdoublet@wilsonappliance.com" }
+};

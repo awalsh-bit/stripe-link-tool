@@ -11,6 +11,8 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, "data");
+const DASHBOARD_HOST = (process.env.DASHBOARD_HOST || "dashboards.wilsonappliance.com").toLowerCase();
+const SERVICE_PUBLIC_HOST = (process.env.SERVICE_PUBLIC_HOST || "service.wilsonappliance.com").toLowerCase();
 
 function ensureDataDir() {
   if (!fs.existsSync(DATA_DIR)) {
@@ -38,27 +40,106 @@ const app = express();
 app.set("trust proxy", true);
 app.use(cors());
 
+const SERVICE_PUBLIC_PATHS = new Set([
+  "/",
+  "/applianceservice.html",
+  "/terms.html",
+  "/robots.txt",
+  "/favicon.ico"
+]);
+
+const SERVICE_PUBLIC_API_PREFIXES = [
+  "/api/config",
+  "/api/service/setup-intent",
+  "/api/service/submit-request",
+  "/api/service/setup-intent-result/",
+  "/api/service/prefill/"
+];
+
+const ALWAYS_PUBLIC_PATHS = new Set([
+  "/api/stripe/webhook"
+]);
+
+const INTERNAL_PAGE_PATHS = new Set([
+  "/dashboard.html",
+  "/salesdashboard.html",
+  "/index.html",
+  "/terminal.html",
+  "/charge-saved-card.html",
+  "/paid-order-detail.html",
+  "/appliance-service-calls.html"
+]);
+
+function getRequestHost(req) {
+  return String(req.hostname || req.get("host") || "")
+    .split(":")[0]
+    .toLowerCase();
+}
+
+function isLocalHost(host) {
+  return ["localhost", "127.0.0.1"].includes(host);
+}
+
+function isServicePublicPath(pathname) {
+  return (
+    SERVICE_PUBLIC_PATHS.has(pathname) ||
+    SERVICE_PUBLIC_API_PREFIXES.some((prefix) => pathname === prefix || pathname.startsWith(prefix))
+  );
+}
+
+function isAlwaysPublicPath(pathname) {
+  return ALWAYS_PUBLIC_PATHS.has(pathname);
+}
+
+function buildHostUrl(req, targetHost) {
+  const forwardedProto = String(req.headers["x-forwarded-proto"] || "").split(",")[0].trim();
+  const protocol = forwardedProto || req.protocol || "https";
+  return `${protocol}://${targetHost}${req.originalUrl}`;
+}
+
+function getServiceBaseUrl(req) {
+  const host = getRequestHost(req);
+
+  if (SERVICE_PUBLIC_HOST && !isLocalHost(host)) {
+    const protocol = String(req.headers["x-forwarded-proto"] || "").split(",")[0].trim() || req.protocol || "https";
+    return `${protocol}://${SERVICE_PUBLIC_HOST}`;
+  }
+
+  return `${req.protocol}://${req.get("host")}`;
+}
 
 app.use((req, res, next) => {
-  const openExactPaths = [
-    "/favicon.ico",
-    "/applianceservice.html",
-    "/terms.html",
-    "/api/config",
-    "/api/service/setup-intent",
-    "/api/service/submit-request",
-    "/api/stripe/webhook"
-  ];
+  res.setHeader("X-Robots-Tag", "noindex, nofollow, noarchive");
+  next();
+});
 
-  const openPrefixPaths = [
-    "/api/service/setup-intent-result/",
-    "/api/service/prefill/"
-  ];
+app.use((req, res, next) => {
+  const host = getRequestHost(req);
 
-  if (
-    openExactPaths.includes(req.path) ||
-    openPrefixPaths.some((prefix) => req.path.startsWith(prefix))
-  ) {
+  if (isLocalHost(host) || !host) {
+    return next();
+  }
+
+  if (host === SERVICE_PUBLIC_HOST && INTERNAL_PAGE_PATHS.has(req.path)) {
+    return res.redirect(302, buildHostUrl(req, DASHBOARD_HOST));
+  }
+
+  if (host === DASHBOARD_HOST && SERVICE_PUBLIC_PATHS.has(req.path)) {
+    return res.redirect(302, buildHostUrl(req, SERVICE_PUBLIC_HOST));
+  }
+
+  next();
+});
+
+
+app.use((req, res, next) => {
+  const host = getRequestHost(req);
+  const isWebhookRequest = isAlwaysPublicPath(req.path);
+  const isPublicServiceRequest =
+    (host === SERVICE_PUBLIC_HOST || isLocalHost(host)) &&
+    isServicePublicPath(req.path);
+
+  if (isWebhookRequest || isPublicServiceRequest) {
     return next();
   }
 
@@ -127,19 +208,15 @@ app.post("/api/stripe/webhook", express.raw({ type: "application/json" }), async
 
 app.use(express.json());
 
-
-
-
-
 app.use(express.static(__dirname, { index: false }));
 
 app.get("/", (req, res) => {
-  res.sendFile(path.join(__dirname, "dashboard.html"));
-});
-
-app.use((req, res, next) => {
-  res.setHeader("X-Robots-Tag", "noindex, nofollow, noarchive");
-  next();
+  const host = getRequestHost(req);
+  const landingPage =
+    host === SERVICE_PUBLIC_HOST
+      ? "applianceservice.html"
+      : "dashboard.html";
+  res.sendFile(path.join(__dirname, landingPage));
 });
 
 
@@ -1081,6 +1158,11 @@ app.get("/api/paid-order-detail", async (req, res) => {
 
     const links = (await readLinks()).map((row) => normalizeLinkRecord({ ...row }));
     const terminalPayments = await readTerminalPayments();
+    const paidSourceRowsByPaymentIntentId = new Map(
+      [...links, ...terminalPayments]
+        .filter((row) => row.paymentIntentId)
+        .map((row) => [row.paymentIntentId, row])
+    );
 
     const paidRows = [
       ...links.filter((row) => row.status === "paid"),
@@ -1119,6 +1201,9 @@ app.get("/api/paid-order-detail", async (req, res) => {
         await sleep(120);
       }
     }
+
+    const refundRows = await getRefundRowsForDateRange(start, end, paidSourceRowsByPaymentIntentId);
+    detailedRows.push(...refundRows);
 
     const normalizedSearch = String(search || "").trim().toLowerCase();
     const filteredRows = detailedRows.filter((row) => {
@@ -1199,6 +1284,111 @@ function looksLikeSalesOrder(value) {
   return /^[A-Z]*\d{5,}$/i.test(String(value || "").trim());
 }
 
+async function getRefundRowsForDateRange(start, end, paidSourceRowsByPaymentIntentId) {
+  const refundRows = [];
+  let startingAfter = "";
+  let keepLoading = true;
+
+  while (keepLoading) {
+    const page = await stripe.refunds.list({
+      limit: 100,
+      ...(startingAfter ? { starting_after: startingAfter } : {}),
+      expand: ["data.balance_transaction"]
+    });
+
+    if (!page.data.length) {
+      break;
+    }
+
+    for (const refund of page.data) {
+      if (!refund?.created) {
+        continue;
+      }
+
+      const refundIso = new Date(refund.created * 1000).toISOString();
+      const refundDateKey = toTimeZoneDateKey(refundIso, APP_TIMEZONE);
+
+      if (refundDateKey < start) {
+        keepLoading = false;
+        break;
+      }
+
+      if (refundDateKey > end) {
+        continue;
+      }
+
+      if (["failed", "canceled"].includes(refund.status)) {
+        continue;
+      }
+
+      const sourceRow = paidSourceRowsByPaymentIntentId.get(refund.payment_intent || "") || null;
+      const paymentIntent = refund.payment_intent
+        ? await retrievePaymentIntentWithDetails(refund.payment_intent)
+        : null;
+
+      refundRows.push(buildRefundReportRow(refund, refundIso, sourceRow, paymentIntent));
+
+      if (refund.payment_intent) {
+        await sleep(120);
+      }
+    }
+
+    if (!page.has_more || !keepLoading) {
+      break;
+    }
+
+    startingAfter = page.data[page.data.length - 1]?.id || "";
+    if (!startingAfter) {
+      break;
+    }
+  }
+
+  return refundRows;
+}
+
+function buildRefundReportRow(refund, refundIso, sourceRow, paymentIntent) {
+  const paymentIntentMetadata = paymentIntent?.metadata || {};
+  const refundBalanceTransaction = refund.balance_transaction;
+  const fallbackFields = resolvePaidOrderFields(sourceRow || {});
+  const salesOrder =
+    fallbackFields.salesOrder ||
+    String(paymentIntentMetadata.sales_order || "").trim();
+  const descriptionBase =
+    fallbackFields.description ||
+    String(
+      paymentIntentMetadata.link_description ||
+      paymentIntentMetadata.description ||
+      ""
+    ).trim();
+  const grossAmount = -Number((refund.amount || 0) / 100);
+  const feeAmount = -Number(
+    typeof refundBalanceTransaction?.fee === "number"
+      ? refundBalanceTransaction.fee / 100
+      : 0
+  );
+  const netAmount = Number(
+    typeof refundBalanceTransaction?.net === "number"
+      ? refundBalanceTransaction.net / 100
+      : grossAmount - feeAmount
+  );
+
+  return {
+    id: refund.id,
+    type: "refund",
+    paidDate: refundIso,
+    salesOrder,
+    customerName:
+      sourceRow?.customerName ||
+      String(paymentIntentMetadata.customer_name || "").trim() ||
+      "-",
+    description: descriptionBase ? `Refund - ${descriptionBase}` : "Refund",
+    paymentIntentId: refund.payment_intent || sourceRow?.paymentIntentId || "",
+    paidAmount: grossAmount,
+    feeAmount,
+    netAmount
+  };
+}
+
 app.post("/api/service-cards/:id/prefill-link", async (req, res) => {
   try {
     const { id } = req.params;
@@ -1220,9 +1410,7 @@ app.post("/api/service-cards/:id/prefill-link", async (req, res) => {
 
     await writeServiceCards(serviceCards);
 
-    const forwardedProto = req.get("x-forwarded-proto");
-    const protocol = forwardedProto || req.protocol || "https";
-    const url = `${protocol}://${req.get("host")}/applianceservice.html?prefill=${encodeURIComponent(token)}`;
+    const url = `${getServiceBaseUrl(req)}/applianceservice.html?prefill=${encodeURIComponent(token)}`;
 
     res.json({
       success: true,

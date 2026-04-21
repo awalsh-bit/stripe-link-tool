@@ -1326,6 +1326,10 @@ app.get("/api/intent-lookup/:kind/:id", async (req, res) => {
     }
 
     if (resolvedKind === "payment_intent") {
+      const links = (await readLinks()).map((row) => normalizeLinkRecord({ ...row }));
+      const terminalPayments = await readTerminalPayments();
+      const localRow =
+        [...links, ...terminalPayments].find((row) => row.paymentIntentId === id) || null;
       const paymentIntent = await stripe.paymentIntents.retrieve(id, {
         expand: [
           "customer",
@@ -1336,13 +1340,13 @@ app.get("/api/intent-lookup/:kind/:id", async (req, res) => {
         ]
       });
 
-      return res.json({
-        kind: "payment_intent",
-        id: paymentIntent.id,
-        intent: paymentIntent
-      });
+      return res.json(
+        buildPaymentIntentLookupResponse(id, paymentIntent, localRow)
+      );
     }
 
+    const serviceCards = await readServiceCards();
+    const localRow = serviceCards.find((row) => row.setupIntentId === id) || null;
     const setupIntent = await stripe.setupIntents.retrieve(id, {
       expand: [
         "customer",
@@ -1351,11 +1355,9 @@ app.get("/api/intent-lookup/:kind/:id", async (req, res) => {
       ]
     });
 
-    return res.json({
-      kind: "setup_intent",
-      id: setupIntent.id,
-      intent: setupIntent
-    });
+    return res.json(
+      buildSetupIntentLookupResponse(id, setupIntent, localRow)
+    );
   } catch (err) {
     return res.status(400).json({
       error: err.message || "Unable to look up intent."
@@ -1416,6 +1418,199 @@ function inferIntentKindFromId(id) {
   }
 
   return "";
+}
+
+function buildPaymentIntentLookupResponse(id, paymentIntent, localRow) {
+  const latestCharge = paymentIntent.latest_charge || null;
+  const balanceTransaction = latestCharge?.balance_transaction || null;
+  const refunds = Array.isArray(latestCharge?.refunds?.data) ? latestCharge.refunds.data : [];
+  const metadata = paymentIntent.metadata || {};
+  const resolvedFields = resolvePaidOrderFields(localRow || {});
+  const paymentMethodType =
+    paymentIntent.payment_method_types?.[0] ||
+    paymentIntent.payment_method?.type ||
+    "";
+  const sentAmount =
+    typeof localRow?.requestedAmount === "number"
+      ? localRow.requestedAmount
+      : Number((paymentIntent.amount || 0) / 100);
+  const paidAmount =
+    typeof localRow?.paidAmount === "number" && localRow.paidAmount > 0
+      ? localRow.paidAmount
+      : Number((paymentIntent.amount_received || paymentIntent.amount || 0) / 100);
+
+  const events = [];
+
+  if (localRow?.createdAt) {
+    events.push({
+      date: localRow.createdAt,
+      label: "Sent",
+      amount: sentAmount,
+      reason: resolvedFields.description || paymentIntent.description || "Payment request created"
+    });
+  }
+
+  if (localRow?.deactivatedAt) {
+    events.push({
+      date: localRow.deactivatedAt,
+      label: "Deactivated",
+      amount: 0,
+      reason: localRow.deactivationReason || "Payment link deactivated"
+    });
+  }
+
+  if (localRow?.paidDate || paymentIntent.status === "succeeded") {
+    events.push({
+      date: localRow?.paidDate || new Date(paymentIntent.created * 1000).toISOString(),
+      label: "Paid",
+      amount: paidAmount,
+      reason: describePaymentMethod(paymentMethodType, paymentIntent.payment_method)
+    });
+  }
+
+  for (const refund of refunds) {
+    events.push({
+      date: new Date(refund.created * 1000).toISOString(),
+      label: "Refund",
+      amount: -Number((refund.amount || 0) / 100),
+      reason: formatRefundReason(refund.reason) || "Refund created"
+    });
+  }
+
+  events.sort((a, b) => new Date(a.date || 0) - new Date(b.date || 0));
+
+  return {
+    kind: "payment_intent",
+    id,
+    summary: {
+      employeeName: localRow?.creatorName || metadata.creator_name || "-",
+      customerName: localRow?.customerName || metadata.customer_name || paymentIntent.customer?.name || "-",
+      customerEmail: localRow?.customerEmail || metadata.customer_email || paymentIntent.customer?.email || "-",
+      customerPhone: localRow?.customerPhone || metadata.customer_phone || paymentIntent.customer?.phone || "-",
+      salesOrder: resolvedFields.salesOrder || metadata.sales_order || "-",
+      description: resolvedFields.description || metadata.link_description || metadata.description || paymentIntent.description || "-",
+      intentStatus: paymentIntent.status || "-",
+      type: localRow?.type || (paymentMethodType === "us_bank_account" ? "ach_link" : "card_link"),
+      paymentMethod: describePaymentMethod(paymentMethodType, paymentIntent.payment_method),
+      sentDate: localRow?.createdAt || "",
+      paidDate: localRow?.paidDate || "",
+      requestedAmount: sentAmount,
+      paidAmount,
+      feeAmount: Number((balanceTransaction?.fee || 0) / 100),
+      netAmount: Number(
+        typeof balanceTransaction?.net === "number"
+          ? balanceTransaction.net / 100
+          : paidAmount - Number((balanceTransaction?.fee || 0) / 100)
+      ),
+      notes: localRow?.notes || metadata.notes || "",
+      deactivationReason: localRow?.deactivationReason || "",
+      customerId: paymentIntent.customer?.id || "",
+      paymentMethodId: paymentIntent.payment_method?.id || ""
+    },
+    events
+  };
+}
+
+function buildSetupIntentLookupResponse(id, setupIntent, localRow) {
+  const metadata = setupIntent.metadata || {};
+  const paymentMethod = setupIntent.payment_method || null;
+  const events = [];
+  const createdIso = new Date(setupIntent.created * 1000).toISOString();
+
+  events.push({
+    date: localRow?.createdAt || createdIso,
+    label: "Setup requested",
+    amount: 0,
+    reason: "Customer authorization to save card"
+  });
+
+  if (setupIntent.status === "succeeded") {
+    events.push({
+      date: localRow?.updatedAt || createdIso,
+      label: "Card saved",
+      amount: 0,
+      reason: describePaymentMethod(paymentMethod?.type || "card", paymentMethod)
+    });
+  }
+
+  if (localRow?.queueStatus) {
+    events.push({
+      date: localRow.updatedAt || createdIso,
+      label: localRow.queueStatus,
+      amount: 0,
+      reason: localRow.queueStatusNotes || "Service queue status updated"
+    });
+  }
+
+  events.sort((a, b) => new Date(a.date || 0) - new Date(b.date || 0));
+
+  return {
+    kind: "setup_intent",
+    id,
+    summary: {
+      employeeName: "-",
+      customerName: localRow?.customerName || metadata.customer_name || setupIntent.customer?.name || "-",
+      customerEmail: localRow?.customerEmail || metadata.customer_email || setupIntent.customer?.email || "-",
+      customerPhone: localRow?.customerPhone || metadata.customer_phone || setupIntent.customer?.phone || "-",
+      salesOrder: localRow?.erpOrderNumber || "-",
+      description: localRow?.problemDescription || describeUnits(localRow?.units) || "Saved card on file",
+      intentStatus: setupIntent.status || "-",
+      type: "setup_intent",
+      paymentMethod: describePaymentMethod(paymentMethod?.type || "card", paymentMethod),
+      sentDate: localRow?.createdAt || createdIso,
+      paidDate: "",
+      requestedAmount: 0,
+      paidAmount: 0,
+      feeAmount: 0,
+      netAmount: 0,
+      notes: localRow?.queueStatusNotes || "",
+      deactivationReason: "",
+      customerId: setupIntent.customer?.id || localRow?.customerId || "",
+      paymentMethodId: paymentMethod?.id || localRow?.paymentMethodId || "",
+      queueStatus: localRow?.queueStatus || "-",
+      cardBrand: localRow?.cardBrand || paymentMethod?.card?.brand || "",
+      last4: localRow?.last4 || paymentMethod?.card?.last4 || ""
+    },
+    events
+  };
+}
+
+function describePaymentMethod(type, paymentMethod) {
+  const normalizedType = String(type || paymentMethod?.type || "").toLowerCase();
+
+  if (normalizedType === "us_bank_account") {
+    const last4 = paymentMethod?.us_bank_account?.last4 || "";
+    return last4 ? `ACH bank account ending in ${last4}` : "ACH bank account";
+  }
+
+  if (normalizedType === "card" || normalizedType === "card_present") {
+    const cardSource = paymentMethod?.card || paymentMethod?.card_present || {};
+    const brand = cardSource.brand || "Card";
+    const last4 = cardSource.last4 || "";
+    return last4 ? `${brand} ending in ${last4}` : brand;
+  }
+
+  return normalizedType ? normalizedType.replace(/_/g, " ") : "-";
+}
+
+function formatRefundReason(reason) {
+  if (!reason) return "";
+
+  return String(reason)
+    .split("_")
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+}
+
+function describeUnits(units) {
+  if (!Array.isArray(units) || !units.length) {
+    return "";
+  }
+
+  return units
+    .map((unit) => [unit?.brand, unit?.applianceType].filter(Boolean).join(" "))
+    .filter(Boolean)
+    .join(", ");
 }
 
 async function getRefundRowsForDateRange(start, end, paidSourceRowsByPaymentIntentId) {

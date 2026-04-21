@@ -43,11 +43,17 @@
       padding: 22px;
     }
 
-    .lookup-grid {
+    .toolbar {
       display: grid;
-      grid-template-columns: 180px minmax(0, 1fr) auto auto;
+      grid-template-columns: 180px minmax(0, 1fr) auto;
       gap: 12px;
       align-items: end;
+      margin-bottom: 16px;
+    }
+
+    .toolbar-actions {
+      display: flex;
+      justify-content: flex-end;
       margin-bottom: 16px;
     }
 
@@ -129,60 +135,154 @@
       color: #166534;
     }
 
-    .result-toolbar {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      gap: 12px;
-      margin-bottom: 10px;
-      flex-wrap: wrap;
-    }
-
-    .result-title {
-      font-size: 15px;
-      font-weight: 800;
-    }
-
-    .result-meta {
+    .helper {
       color: var(--muted);
-      font-size: 13px;
+      font-size: 14px;
+      line-height: 1.5;
+      margin-bottom: 18px;
     }
 
-    .result-actions {
-      display: flex;
-      gap: 10px;
-      flex-wrap: wrap;
+    .summary-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 14px;
+      margin-bottom: 20px;
     }
 
-    pre {
-      margin: 0;
-      padding: 18px;
+    .summary-card {
+      border: 1px solid var(--border);
       border-radius: 16px;
-      border: 1px solid #e7ebf4;
-      background: #0f172a;
-      color: #e2e8f0;
-      font-size: 13px;
-      line-height: 1.55;
-      white-space: pre-wrap;
-      word-break: break-word;
-      overflow: auto;
-      max-height: 70vh;
+      padding: 16px;
+      background: #fafbff;
     }
 
-    @media (max-width: 1200px) {
-      .tools-strip {
-        min-width: 0;
-        width: 100%;
-      }
+    .summary-title {
+      font-size: 13px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--muted);
+      font-weight: 700;
+      margin-bottom: 12px;
+    }
 
-      .tools-strip-row {
-        flex-wrap: wrap;
+    .summary-list {
+      display: grid;
+      gap: 10px;
+    }
+
+    .summary-row {
+      display: grid;
+      grid-template-columns: 180px minmax(0, 1fr);
+      gap: 12px;
+      align-items: start;
+    }
+
+    .summary-label {
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--muted);
+      font-weight: 700;
+    }
+
+    .summary-value {
+      font-size: 14px;
+      line-height: 1.5;
+      word-break: break-word;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    th, td {
+      text-align: left;
+      padding: 14px 10px;
+      border-bottom: 1px solid #edf1f7;
+      vertical-align: middle;
+      font-size: 14px;
+    }
+
+    th {
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--muted);
+    }
+
+    .amount {
+      font-weight: 800;
+      white-space: nowrap;
+    }
+
+    .empty {
+      color: var(--muted);
+      padding: 18px 0 6px;
+    }
+
+    @media (max-width: 1100px) {
+      .summary-grid {
+        grid-template-columns: 1fr;
       }
     }
 
     @media (max-width: 900px) {
-      .lookup-grid {
+      .toolbar {
         grid-template-columns: 1fr;
+      }
+    }
+
+    @media (max-width: 700px) {
+      .summary-row {
+        grid-template-columns: 1fr;
+      }
+
+      table,
+      thead,
+      tbody,
+      tr,
+      th,
+      td {
+        display: block;
+        width: 100%;
+      }
+
+      thead {
+        display: none;
+      }
+
+      tbody {
+        display: grid;
+        gap: 12px;
+      }
+
+      tr {
+        border: 1px solid #e5e7eb;
+        border-radius: 16px;
+        padding: 6px 0;
+        background: #fff;
+        box-shadow: 0 6px 18px rgba(15, 23, 42, 0.04);
+      }
+
+      td {
+        border-bottom: 1px solid #edf1f7;
+        padding: 10px 14px;
+      }
+
+      td:last-child {
+        border-bottom: none;
+      }
+
+      td::before {
+        content: attr(data-label);
+        display: block;
+        margin-bottom: 4px;
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--muted);
       }
     }
   </style>
@@ -191,7 +291,7 @@
   <div class="wrap">
     <div id="internal-shell-header"></div>
     <div class="card">
-      <div class="lookup-grid">
+      <div class="toolbar">
         <div>
           <label for="intentKind">Intent Type</label>
           <select id="intentKind">
@@ -207,38 +307,69 @@
         </div>
 
         <button id="lookupBtn" class="btn btn-primary" type="button">Look up</button>
-        <button id="copyBtn" class="btn btn-secondary" type="button">Copy JSON</button>
+      </div>
+
+      <div class="toolbar-actions">
+        <button id="exportCsvBtn" class="btn btn-secondary" type="button">Export visible to CSV</button>
       </div>
 
       <div id="status" class="status"></div>
+      <div id="helperText" class="helper">
+        Enter a PaymentIntent or SetupIntent ID to see the customer, employee, date, amount, and status history in a more readable format.
+      </div>
 
-      <div class="result-toolbar">
-        <div>
-          <div class="result-title">Stripe response</div>
-          <div id="resultMeta" class="result-meta">No intent loaded yet.</div>
+      <div class="summary-grid">
+        <div class="summary-card">
+          <div class="summary-title">Summary</div>
+          <div class="summary-list" id="summaryPrimary">
+            <div class="summary-row">
+              <div class="summary-label">Status</div>
+              <div class="summary-value">No intent loaded yet.</div>
+            </div>
+          </div>
         </div>
-        <div class="result-actions">
-          <button id="exportCsvBtn" class="btn btn-secondary" type="button">Export visible to CSV</button>
+
+        <div class="summary-card">
+          <div class="summary-title">Dates And Amounts</div>
+          <div class="summary-list" id="summaryDates">
+            <div class="summary-row">
+              <div class="summary-label">Sent</div>
+              <div class="summary-value">-</div>
+            </div>
+          </div>
         </div>
       </div>
 
-      <pre id="resultBox">Awaiting lookup...</pre>
+      <table>
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th>Event</th>
+            <th>Amount</th>
+            <th>Reason</th>
+          </tr>
+        </thead>
+        <tbody id="eventsTableBody">
+          <tr><td colspan="4" class="empty">Awaiting lookup...</td></tr>
+        </tbody>
+      </table>
     </div>
     <div id="internal-shell-footer"></div>
   </div>
 
+  <script src="internal-shell.js"></script>
   <script>
     const intentKindEl = document.getElementById("intentKind");
     const intentIdEl = document.getElementById("intentId");
     const lookupBtn = document.getElementById("lookupBtn");
-    const copyBtn = document.getElementById("copyBtn");
     const exportCsvBtn = document.getElementById("exportCsvBtn");
     const statusEl = document.getElementById("status");
-    const resultMetaEl = document.getElementById("resultMeta");
-    const resultBox = document.getElementById("resultBox");
+    const helperTextEl = document.getElementById("helperText");
+    const summaryPrimaryEl = document.getElementById("summaryPrimary");
+    const summaryDatesEl = document.getElementById("summaryDates");
+    const eventsTableBody = document.getElementById("eventsTableBody");
 
-    let latestJson = "";
-    let latestIntentData = null;
+    let latestIntentResponse = null;
 
     function showStatus(type, message) {
       statusEl.className = `status ${type}`;
@@ -250,6 +381,34 @@
       statusEl.textContent = "";
     }
 
+    function formatMoney(value) {
+      return new Intl.NumberFormat("en-US", {
+        style: "currency",
+        currency: "USD"
+      }).format(value || 0);
+    }
+
+    function formatDate(isoValue) {
+      if (!isoValue) return "-";
+
+      return new Date(isoValue).toLocaleString("en-US", {
+        month: "2-digit",
+        day: "2-digit",
+        year: "2-digit",
+        hour: "numeric",
+        minute: "2-digit"
+      });
+    }
+
+    function renderSummaryRows(target, rows) {
+      target.innerHTML = rows.map((row) => `
+        <div class="summary-row">
+          <div class="summary-label">${row.label}</div>
+          <div class="summary-value">${row.value}</div>
+        </div>
+      `).join("");
+    }
+
     function escapeCsv(value) {
       const stringValue = String(value ?? "");
       if (/[",\n]/.test(stringValue)) {
@@ -258,27 +417,24 @@
       return stringValue;
     }
 
-    function flattenForCsv(value, prefix = "") {
-      if (Array.isArray(value)) {
-        return value.flatMap((item, index) => flattenForCsv(item, prefix ? `${prefix}[${index}]` : `[${index}]`));
-      }
-
-      if (value && typeof value === "object") {
-        return Object.entries(value).flatMap(([key, nestedValue]) =>
-          flattenForCsv(nestedValue, prefix ? `${prefix}.${key}` : key)
-        );
-      }
-
-      return [[prefix, value ?? ""]];
-    }
-
     function downloadCsv() {
-      if (!latestIntentData) {
+      if (!latestIntentResponse) {
         showStatus("error", "There is no loaded intent to export yet.");
         return;
       }
 
-      const rows = flattenForCsv(latestIntentData);
+      const rows = [
+        ["Kind", latestIntentResponse.kind],
+        ["Intent ID", latestIntentResponse.id],
+        ...Object.entries(latestIntentResponse.summary || {}).map(([key, value]) => [key, value]),
+        ...((latestIntentResponse.events || []).flatMap((event, index) => ([
+          [`Event ${index + 1} Date`, event.date || ""],
+          [`Event ${index + 1} Label`, event.label || ""],
+          [`Event ${index + 1} Amount`, event.amount || 0],
+          [`Event ${index + 1} Reason`, event.reason || ""]
+        ])))
+      ];
+
       const lines = [
         "Field,Value",
         ...rows.map(([field, value]) => [field, value].map(escapeCsv).join(","))
@@ -286,13 +442,55 @@
 
       const blob = new Blob([lines.join("\r\n")], { type: "text/csv;charset=utf-8;" });
       const link = document.createElement("a");
-      const id = String(latestIntentData.id || "intent").replace(/[^a-z0-9_-]+/gi, "_");
+      const id = String(latestIntentResponse.id || "intent").replace(/[^a-z0-9_-]+/gi, "_");
       link.href = URL.createObjectURL(blob);
       link.download = `intent-lookup_${id}.csv`;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
       URL.revokeObjectURL(link.href);
+    }
+
+    function renderLookup(response) {
+      latestIntentResponse = response;
+      helperTextEl.textContent = `${response.kind === "payment_intent" ? "PaymentIntent" : "SetupIntent"} ${response.id}`;
+
+      renderSummaryRows(summaryPrimaryEl, [
+        { label: "Employee Name", value: response.summary.employeeName || "-" },
+        { label: "Customer Name", value: response.summary.customerName || "-" },
+        { label: "Customer Email", value: response.summary.customerEmail || "-" },
+        { label: "Customer Phone", value: response.summary.customerPhone || "-" },
+        { label: "Sales Order", value: response.summary.salesOrder || "-" },
+        { label: "Description", value: response.summary.description || "-" },
+        { label: "Status", value: response.summary.intentStatus || "-" },
+        { label: "Payment Method", value: response.summary.paymentMethod || "-" }
+      ]);
+
+      renderSummaryRows(summaryDatesEl, [
+        { label: "Sent", value: formatDate(response.summary.sentDate) },
+        { label: "Paid", value: formatDate(response.summary.paidDate) },
+        { label: "Requested Amount", value: formatMoney(response.summary.requestedAmount || 0) },
+        { label: "Paid Amount", value: formatMoney(response.summary.paidAmount || 0) },
+        { label: "Fee Amount", value: formatMoney(response.summary.feeAmount || 0) },
+        { label: "Net Amount", value: formatMoney(response.summary.netAmount || 0) },
+        { label: "Customer ID", value: response.summary.customerId || "-" },
+        { label: "Payment Method ID", value: response.summary.paymentMethodId || "-" }
+      ]);
+
+      const events = response.events || [];
+      if (!events.length) {
+        eventsTableBody.innerHTML = `<tr><td colspan="4" class="empty">No dated events found for this intent.</td></tr>`;
+        return;
+      }
+
+      eventsTableBody.innerHTML = events.map((event) => `
+        <tr>
+          <td data-label="Date">${formatDate(event.date)}</td>
+          <td data-label="Event">${event.label || "-"}</td>
+          <td data-label="Amount" class="amount">${event.amount ? formatMoney(event.amount) : "-"}</td>
+          <td data-label="Reason">${event.reason || "-"}</td>
+        </tr>
+      `).join("");
     }
 
     async function runLookup() {
@@ -316,16 +514,18 @@
           throw new Error(data.error || "Unable to look up intent.");
         }
 
-        latestIntentData = data.intent;
-        latestJson = JSON.stringify(data.intent, null, 2);
-        resultBox.textContent = latestJson;
-        resultMetaEl.textContent = `${data.kind === "payment_intent" ? "PaymentIntent" : "SetupIntent"} • ${data.id}`;
+        renderLookup(data);
         showStatus("success", "Intent loaded successfully.");
       } catch (err) {
-        latestIntentData = null;
-        latestJson = "";
-        resultBox.textContent = "Lookup failed.";
-        resultMetaEl.textContent = "No intent loaded yet.";
+        latestIntentResponse = null;
+        helperTextEl.textContent = "Enter a PaymentIntent or SetupIntent ID to see the customer, employee, date, amount, and status history in a more readable format.";
+        renderSummaryRows(summaryPrimaryEl, [
+          { label: "Status", value: "No intent loaded yet." }
+        ]);
+        renderSummaryRows(summaryDatesEl, [
+          { label: "Sent", value: "-" }
+        ]);
+        eventsTableBody.innerHTML = `<tr><td colspan="4" class="empty">Lookup failed.</td></tr>`;
         showStatus("error", err.message || "Lookup failed.");
       } finally {
         lookupBtn.disabled = false;
@@ -341,24 +541,9 @@
       }
     });
 
-    copyBtn.addEventListener("click", async () => {
-      if (!latestJson) {
-        showStatus("error", "There is no loaded JSON to copy yet.");
-        return;
-      }
-
-      try {
-        await navigator.clipboard.writeText(latestJson);
-        showStatus("success", "Intent JSON copied to clipboard.");
-      } catch {
-        showStatus("error", "Unable to copy JSON.");
-      }
-    });
-
     exportCsvBtn.addEventListener("click", () => {
       downloadCsv();
     });
   </script>
-  <script src="internal-shell.js"></script>
 </body>
 </html>

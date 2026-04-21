@@ -4,7 +4,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Wilson AC & Appliance - Paid Order Detail</title>
+  <title>Wilson AC & Appliance - Bank Balancing</title>
   <link rel="stylesheet" href="internal-shell.css" />
   <style>
     :root {
@@ -15,8 +15,6 @@
       --border: #dbe1ea;
       --primary: #635bff;
       --primary-hover: #564ef0;
-      --success-bg: #ecfdf5;
-      --success-text: #065f46;
       --shadow: 0 10px 35px rgba(0, 0, 0, 0.08);
       --radius: 18px;
     }
@@ -33,7 +31,7 @@
     }
 
     .wrap {
-      max-width: 1480px;
+      max-width: 1520px;
       margin: 0 auto;
     }
 
@@ -49,21 +47,8 @@
       display: flex;
       gap: 12px;
       flex-wrap: wrap;
-      margin-bottom: 18px;
       align-items: center;
-    }
-
-    .toolbar input[type="search"] {
-      flex: 1;
-      min-width: 260px;
-    }
-
-    .toolbar-actions {
-      display: flex;
-      gap: 12px;
-      flex-wrap: wrap;
       margin-bottom: 18px;
-      justify-content: flex-end;
     }
 
     input {
@@ -97,9 +82,16 @@
       background: #e0e7ff;
     }
 
+    .helper-text {
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.5;
+      margin-bottom: 18px;
+    }
+
     .summary-grid {
       display: grid;
-      grid-template-columns: repeat(4, minmax(0, 1fr));
+      grid-template-columns: repeat(5, minmax(0, 1fr));
       gap: 14px;
       margin-bottom: 18px;
     }
@@ -121,7 +113,7 @@
     }
 
     .metric-value {
-      font-size: clamp(24px, 3vw, 36px);
+      font-size: clamp(22px, 2.7vw, 34px);
       font-weight: 800;
       line-height: 1;
     }
@@ -180,6 +172,12 @@
       color: #c2410c;
     }
 
+    .mono {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 12px;
+      word-break: break-all;
+    }
+
     .empty {
       color: var(--muted);
       padding: 18px 0 6px;
@@ -195,7 +193,13 @@
       font-weight: 700;
     }
 
-    @media (max-width: 1100px) {
+    @media (max-width: 1280px) {
+      .summary-grid {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+      }
+    }
+
+    @media (max-width: 840px) {
       .summary-grid {
         grid-template-columns: repeat(2, minmax(0, 1fr));
       }
@@ -275,7 +279,7 @@
     }
   </style>
 </head>
-<body data-shell-label="Paid Order Detail" data-shell-icon="accounting">
+<body data-shell-label="Bank Balancing" data-shell-icon="accounting">
   <div class="wrap">
     <div id="internal-shell-header"></div>
     <div class="card">
@@ -283,36 +287,41 @@
         <input type="date" id="startDate" />
         <input type="date" id="endDate" />
         <button id="runReportBtn" type="button">Run</button>
-        <input type="search" id="searchFilter" placeholder="Search sales order, customer, description, or payment intent" />
       </div>
 
-      <div class="toolbar-actions">
-        <button id="exportCsvBtn" type="button">Export visible to CSV</button>
+      <div class="helper-text" id="payoutHelper">
+        This report uses Stripe payout `arrival_date` and includes payment-intent-backed transactions from paid automatic payouts in the selected range.
       </div>
 
       <div class="summary-grid">
         <div class="metric">
-          <div class="metric-label">Visible Orders</div>
-          <div class="metric-value" id="visibleCount">0</div>
-          <div class="metric-sub">Orders in current date range</div>
+          <div class="metric-label">Payouts in Range</div>
+          <div class="metric-value" id="payoutCount">0</div>
+          <div class="metric-sub">Paid automatic payouts matched</div>
         </div>
 
         <div class="metric">
-          <div class="metric-label">Paid Amount</div>
-          <div class="metric-value" id="paidTotal">$0.00</div>
-          <div class="metric-sub">Gross customer payments</div>
+          <div class="metric-label">Included Intents</div>
+          <div class="metric-value" id="visibleCount">0</div>
+          <div class="metric-sub">Rows tied back to payment intents</div>
+        </div>
+
+        <div class="metric">
+          <div class="metric-label">Gross Amount</div>
+          <div class="metric-value" id="grossTotal">$0.00</div>
+          <div class="metric-sub">Gross customer payment activity</div>
         </div>
 
         <div class="metric">
           <div class="metric-label">Fees</div>
           <div class="metric-value" id="feeTotal">$0.00</div>
-          <div class="metric-sub">Stripe processing fees</div>
+          <div class="metric-sub">Stripe fees tied to those rows</div>
         </div>
 
         <div class="metric">
-          <div class="metric-label">Net</div>
-          <div class="metric-value" id="netTotal">$0.00</div>
-          <div class="metric-sub">Net deposit amount</div>
+          <div class="metric-label">Bank Payouts</div>
+          <div class="metric-value" id="bankPayoutTotal">$0.00</div>
+          <div class="metric-sub">Net amount from visible payout rows</div>
         </div>
       </div>
 
@@ -320,17 +329,20 @@
         <table>
           <thead>
             <tr>
+              <th>Arrival Date</th>
+              <th>Payout ID</th>
               <th>Type</th>
               <th>Sales Order</th>
               <th>Customer Name</th>
               <th>Description</th>
-              <th>Paid Amount</th>
+              <th>Gross Amount</th>
               <th>Fee</th>
-              <th>Net</th>
+              <th>Bank Payout</th>
+              <th>Payment Intent</th>
             </tr>
           </thead>
           <tbody id="tableBody">
-            <tr><td colspan="7" class="empty">Loading paid order details...</td></tr>
+            <tr><td colspan="10" class="empty">Loading bank balancing...</td></tr>
           </tbody>
         </table>
       </div>
@@ -345,15 +357,14 @@
   <script>
     const startDateEl = document.getElementById("startDate");
     const endDateEl = document.getElementById("endDate");
-    const searchFilterEl = document.getElementById("searchFilter");
     const runReportBtn = document.getElementById("runReportBtn");
     const tableBody = document.getElementById("tableBody");
+    const payoutHelperEl = document.getElementById("payoutHelper");
+    const payoutCountEl = document.getElementById("payoutCount");
     const visibleCountEl = document.getElementById("visibleCount");
-    const paidTotalEl = document.getElementById("paidTotal");
+    const grossTotalEl = document.getElementById("grossTotal");
     const feeTotalEl = document.getElementById("feeTotal");
-    const netTotalEl = document.getElementById("netTotal");
-    const exportCsvBtn = document.getElementById("exportCsvBtn");
-    let currentRows = [];
+    const bankPayoutTotalEl = document.getElementById("bankPayoutTotal");
 
     function todayKey() {
       const now = new Date();
@@ -367,96 +378,64 @@
       }).format(value || 0);
     }
 
-    function escapeCsv(value) {
-      const stringValue = String(value ?? "");
-      if (/[",\n]/.test(stringValue)) {
-        return `"${stringValue.replace(/"/g, '""')}"`;
-      }
-      return stringValue;
+    function formatDate(isoValue) {
+      if (!isoValue) return "-";
+      return new Date(isoValue).toLocaleDateString("en-US", {
+        month: "2-digit",
+        day: "2-digit",
+        year: "2-digit"
+      });
     }
 
-    function downloadCsv(rows) {
-      const headers = [
-        "Sales Order Number",
-        "Customer Name",
-        "Description",
-        "Paid Amount",
-        "Fee",
-        "Net"
-      ];
-
-      const lines = [
-        headers.join(","),
-        ...rows.map((row) => ([
-          row.salesOrder || "",
-          row.customerName || "",
-          row.description || "",
-          Number(row.paidAmount || 0).toFixed(2),
-          Number(row.feeAmount || 0).toFixed(2),
-          Number(row.netAmount || 0).toFixed(2)
-        ].map(escapeCsv).join(",")))
-      ];
-
-      const blob = new Blob([lines.join("\r\n")], { type: "text/csv;charset=utf-8;" });
-      const link = document.createElement("a");
-      const dateLabel = `${startDateEl.value || "start"}_to_${endDateEl.value || "end"}`;
-      link.href = URL.createObjectURL(blob);
-      link.download = `paid-order-detail_${dateLabel}.csv`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(link.href);
-    }
-
-    async function loadPaidOrderDetail() {
+    async function loadBankBalancing() {
       const params = new URLSearchParams({
         start: startDateEl.value,
-        end: endDateEl.value,
-        search: searchFilterEl.value.trim()
+        end: endDateEl.value
       });
 
-      const res = await fetch(`/api/paid-order-detail?${params.toString()}`);
+      const res = await fetch(`/api/bank-balancing?${params.toString()}`);
       const data = await res.json();
 
       if (!res.ok) {
-        throw new Error(data.error || "Unable to load paid order detail.");
+        throw new Error(data.error || "Unable to load bank balancing.");
       }
 
       render(data.rows || [], data.totals || {});
     }
 
     function render(rows, totals) {
-      currentRows = rows;
+      payoutCountEl.textContent = String(totals.payoutCount || 0);
       visibleCountEl.textContent = String(rows.length);
-      paidTotalEl.textContent = formatMoney(totals.paidAmount || 0);
+      grossTotalEl.textContent = formatMoney(totals.grossAmount || 0);
       feeTotalEl.textContent = formatMoney(totals.feeAmount || 0);
-      netTotalEl.textContent = formatMoney(totals.netAmount || 0);
+      bankPayoutTotalEl.textContent = formatMoney(totals.bankPayoutAmount || 0);
+      payoutHelperEl.textContent =
+        `This report uses Stripe payout arrival dates. ${totals.payoutCount || 0} paid automatic payout${(totals.payoutCount || 0) === 1 ? "" : "s"} matched the selected range, totaling ${formatMoney(totals.payoutAmountTotal || 0)} at the payout-object level.`;
 
       if (!rows.length) {
-        tableBody.innerHTML = `<tr><td colspan="7" class="empty">No paid orders found for the selected range.</td></tr>`;
+        tableBody.innerHTML = `<tr><td colspan="10" class="empty">No payout-linked payment intent activity was found for the selected range.</td></tr>`;
         return;
       }
 
       tableBody.innerHTML = rows.map((row) => `
         <tr>
+          <td data-label="Arrival Date">${formatDate(row.arrivalDate)}</td>
+          <td data-label="Payout ID" class="mono">${row.payoutId || "-"}</td>
           <td data-label="Type"><span class="type-badge ${row.type === "refund" ? "type-refund" : "type-sale"}">${row.type === "refund" ? "Refund" : "Sale"}</span></td>
           <td data-label="Sales Order">${row.salesOrder || "-"}</td>
           <td data-label="Customer Name">${row.customerName || "-"}</td>
           <td data-label="Description">${row.description || "-"}</td>
-          <td data-label="Paid Amount" class="amount">${formatMoney(row.paidAmount)}</td>
+          <td data-label="Gross Amount" class="amount">${formatMoney(row.grossAmount)}</td>
           <td data-label="Fee" class="amount">${formatMoney(row.feeAmount)}</td>
-          <td data-label="Net" class="amount">${formatMoney(row.netAmount)}</td>
+          <td data-label="Bank Payout" class="amount">${formatMoney(row.bankPayoutAmount)}</td>
+          <td data-label="Payment Intent" class="mono">${row.paymentIntentId || "-"}</td>
         </tr>
       `).join("");
     }
 
     async function runReport() {
-      tableBody.innerHTML = `<tr><td colspan="7" class="empty">Loading paid order details...</td></tr>`;
-      await loadPaidOrderDetail();
-    }
-
-    function handleRunError(err) {
-      tableBody.innerHTML = `<tr><td colspan="7" class="empty">Error loading paid order detail: ${err.message}</td></tr>`;
+      tableBody.innerHTML = `<tr><td colspan="10" class="empty">Loading bank balancing...</td></tr>`;
+      await loadBankBalancing();
     }
 
     const today = todayKey();
@@ -464,19 +443,14 @@
     endDateEl.value = today;
 
     runReportBtn.addEventListener("click", () => {
-      runReport().catch(handleRunError);
-    });
-    searchFilterEl.addEventListener("keydown", (event) => {
-      if (event.key === "Enter") {
-        event.preventDefault();
-        runReport().catch(handleRunError);
-      }
-    });
-    exportCsvBtn.addEventListener("click", () => {
-      downloadCsv(currentRows);
+      runReport().catch((err) => {
+        tableBody.innerHTML = `<tr><td colspan="10" class="empty">Error loading bank balancing: ${err.message}</td></tr>`;
+      });
     });
 
-    tableBody.innerHTML = `<tr><td colspan="7" class="empty">Choose a date range and click Run to load paid order detail.</td></tr>`;
+    runReport().catch((err) => {
+      tableBody.innerHTML = `<tr><td colspan="10" class="empty">Error loading bank balancing: ${err.message}</td></tr>`;
+    });
   </script>
 </body>
 </html>

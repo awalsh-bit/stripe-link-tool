@@ -5,6 +5,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Wilson AC & Appliance - Stripe Terminal</title>
+  <link rel="stylesheet" href="internal-shell.css" />
   <style>
     :root {
       --bg: #f7f8fc;
@@ -34,42 +35,13 @@
     }
 
     .wrap {
-      max-width: 820px;
+      max-width: 1480px;
       margin: 0 auto;
     }
 
-    .hero {
-      margin-bottom: 22px;
-    }
-
-    .eyebrow {
-      display: inline-block;
-      font-size: 12px;
-      font-weight: 700;
-      letter-spacing: 0.08em;
-      text-transform: uppercase;
-      color: var(--primary);
-      background: rgba(99, 91, 255, 0.1);
-      padding: 8px 10px;
-      border-radius: 999px;
-      margin-bottom: 14px;
-    }
-
-    h1 {
-      margin: 0 0 10px;
-      font-size: clamp(28px, 4vw, 42px);
-      line-height: 1.05;
-    }
-
-    .sub {
-      margin: 0;
-      color: var(--muted);
-      font-size: 16px;
-      line-height: 1.6;
-      max-width: 700px;
-    }
-
     .card {
+      max-width: 1020px;
+      margin: 0 auto;
       background: var(--card);
       border: 1px solid rgba(99, 91, 255, 0.12);
       box-shadow: var(--shadow);
@@ -255,26 +227,35 @@
     }
 
     @media (max-width: 720px) {
+      .wrap { max-width: 820px; }
       .grid { grid-template-columns: 1fr; }
       .card { padding: 18px; }
     }
   </style>
 </head>
-<body>
+<body data-shell-label="Terminal Charge" data-shell-icon="terminal">
   <div class="wrap">
-    <div class="hero">
-      <div class="eyebrow">Wilson AC & Appliance - Stripe Terminal</div>
-      <h1>Process an In-Person Card Payment Here</h1>
-      <p class="sub">
-        This page sends a charge to the selected card reader and returns a clean confirmation line to paste into ePASS.
-      </p>
-    </div>
-
+    <div id="internal-shell-header"></div>
     <div class="card">
       <div class="grid">
         <div class="field full">
           <label for="reader">Reader</label>
           <select id="reader"></select>
+        </div>
+
+        <div class="field">
+          <label for="creatorCode">Employee Code</label>
+          <input id="creatorCode" maxlength="3" />
+        </div>
+
+        <div class="field">
+          <label for="creatorName">Employee Name</label>
+          <input id="creatorName" readonly />
+        </div>
+
+        <div class="field full">
+          <label for="creatorEmail">Employee Email</label>
+          <input id="creatorEmail" type="email" readonly />
         </div>
 
         <div class="field">
@@ -291,21 +272,6 @@
         <div class="field full">
           <label for="customerEmail">Client Email (optional)</label>
           <input id="customerEmail" type="email" placeholder="jane@example.com" />
-        </div>
-
-        <div class="field">
-          <label for="creatorCode">Employee Code</label>
-          <input id="creatorCode" maxlength="3" />
-        </div>
-
-        <div class="field">
-          <label for="creatorName">Employee Name</label>
-          <input id="creatorName" readonly />
-        </div>
-
-        <div class="field full">
-          <label for="creatorEmail">Employee Email</label>
-          <input id="creatorEmail" type="email" readonly />
         </div>
 
         <div class="field">
@@ -366,6 +332,7 @@
   </div>
 
   <script src="/employee-directory.js"></script>
+  <script src="internal-shell.js"></script>
   <script>
     const apiBase = "";
 
@@ -382,8 +349,6 @@
     const creatorEmailInput = document.getElementById("creatorEmail");
 
     let latestReceiptLine = "";
-    const TEAM_DIRECTORY = window.WILSON_EMPLOYEE_DIRECTORY || {};
-
     function showStatus(type, message) {
       statusBox.className = `status ${type}`;
       statusBox.textContent = message;
@@ -415,8 +380,9 @@
     function applyCreatorLookup() {
       const code = creatorCodeInput.value.trim().toUpperCase();
       creatorCodeInput.value = code;
+      const teamDirectory = window.WILSON_EMPLOYEE_DIRECTORY || {};
 
-      const match = TEAM_DIRECTORY[code];
+      const match = teamDirectory[code];
 
       if (!code) {
         creatorNameInput.value = "";
@@ -439,14 +405,18 @@
       event.target.value = formatPhoneNumber(event.target.value);
     });
 
-    creatorCodeInput.addEventListener("input", () => {
+    function handleCreatorLookupInput() {
       const isValid = applyCreatorLookup();
       if (creatorCodeInput.value.trim() && !isValid) {
         showStatus("error", "Employee code not found. Please enter a valid employee code.");
       } else {
         clearStatus();
       }
-    });
+    }
+
+    creatorCodeInput.addEventListener("input", handleCreatorLookupInput);
+    creatorCodeInput.addEventListener("change", handleCreatorLookupInput);
+    creatorCodeInput.addEventListener("blur", handleCreatorLookupInput);
 
     async function loadReaders() {
       clearStatus();

@@ -63,10 +63,12 @@ const ALWAYS_PUBLIC_PATHS = new Set([
 const INTERNAL_PAGE_PATHS = new Set([
   "/dashboard.html",
   "/salesdashboard.html",
+  "/intent-lookup.html",
   "/index.html",
   "/terminal.html",
   "/charge-saved-card.html",
   "/paid-order-detail.html",
+  "/bank-balancing.html",
   "/appliance-service-calls.html"
 ]);
 
@@ -124,7 +126,7 @@ app.use((req, res, next) => {
     return res.redirect(302, buildHostUrl(req, DASHBOARD_HOST));
   }
 
-  if (host === DASHBOARD_HOST && SERVICE_PUBLIC_PATHS.has(req.path)) {
+  if (host === DASHBOARD_HOST && req.path !== "/" && SERVICE_PUBLIC_PATHS.has(req.path)) {
     return res.redirect(302, buildHostUrl(req, SERVICE_PUBLIC_HOST));
   }
 
@@ -1241,6 +1243,126 @@ app.get("/api/paid-order-detail", async (req, res) => {
   }
 });
 
+app.get("/api/bank-balancing", async (req, res) => {
+  try {
+    const { start, end } = req.query;
+
+    if (!start || !end) {
+      return res.status(400).json({
+        error: "start and end dates are required."
+      });
+    }
+
+    const links = (await readLinks()).map((row) => normalizeLinkRecord({ ...row }));
+    const terminalPayments = await readTerminalPayments();
+    const sourceRowsByPaymentIntentId = new Map(
+      [...links, ...terminalPayments]
+        .filter((row) => row.paymentIntentId)
+        .map((row) => [row.paymentIntentId, row])
+    );
+
+    const payouts = await listAutomaticPayoutsByArrivalDate(start, end);
+    const payoutRows = [];
+    let payoutAmountTotal = 0;
+
+    for (const payout of payouts) {
+      payoutAmountTotal += Number((payout.amount || 0) / 100);
+      const rows = await getBankBalancingRowsForPayout(payout, sourceRowsByPaymentIntentId);
+      payoutRows.push(...rows);
+      await sleep(120);
+    }
+
+    const totals = payoutRows.reduce((acc, row) => {
+      acc.grossAmount += Number(row.grossAmount || 0);
+      acc.feeAmount += Number(row.feeAmount || 0);
+      acc.bankPayoutAmount += Number(row.bankPayoutAmount || 0);
+      return acc;
+    }, {
+      grossAmount: 0,
+      feeAmount: 0,
+      bankPayoutAmount: 0
+    });
+
+    res.json({
+      rows: payoutRows.sort((a, b) => new Date(b.arrivalDate || 0) - new Date(a.arrivalDate || 0)),
+      totals: {
+        ...totals,
+        payoutAmountTotal,
+        payoutCount: payouts.length
+      }
+    });
+  } catch (err) {
+    res.status(400).json({
+      error: err.message || "Unable to load bank balancing."
+    });
+  }
+});
+
+app.get("/api/intent-lookup/:kind/:id", async (req, res) => {
+  try {
+    const kind = String(req.params.kind || "").toLowerCase();
+    const id = String(req.params.id || "").trim();
+
+    if (!id) {
+      return res.status(400).json({
+        error: "Intent ID is required."
+      });
+    }
+
+    if (!["payment_intent", "setup_intent", "auto"].includes(kind)) {
+      return res.status(400).json({
+        error: "Kind must be payment_intent, setup_intent, or auto."
+      });
+    }
+
+    const resolvedKind = kind === "auto"
+      ? inferIntentKindFromId(id)
+      : kind;
+
+    if (!resolvedKind) {
+      return res.status(400).json({
+        error: "Could not determine whether this is a PaymentIntent or SetupIntent."
+      });
+    }
+
+    if (resolvedKind === "payment_intent") {
+      const paymentIntent = await stripe.paymentIntents.retrieve(id, {
+        expand: [
+          "customer",
+          "payment_method",
+          "latest_charge.balance_transaction",
+          "latest_charge.payment_method_details",
+          "latest_charge.refunds.data.balance_transaction"
+        ]
+      });
+
+      return res.json({
+        kind: "payment_intent",
+        id: paymentIntent.id,
+        intent: paymentIntent
+      });
+    }
+
+    const setupIntent = await stripe.setupIntents.retrieve(id, {
+      expand: [
+        "customer",
+        "payment_method",
+        "latest_attempt"
+      ]
+    });
+
+    return res.json({
+      kind: "setup_intent",
+      id: setupIntent.id,
+      intent: setupIntent
+    });
+  } catch (err) {
+    return res.status(400).json({
+      error: err.message || "Unable to look up intent."
+    });
+  }
+});
+
 function resolvePaidOrderFields(row) {
   const rawSalesOrder = String(row.salesOrder || "").trim();
   const rawDescription = String(row.description || "").trim();
@@ -1282,6 +1404,18 @@ function resolvePaidOrderFields(row) {
 
 function looksLikeSalesOrder(value) {
   return /^[A-Z]*\d{5,}$/i.test(String(value || "").trim());
+}
+
+function inferIntentKindFromId(id) {
+  if (/^pi_/i.test(id)) {
+    return "payment_intent";
+  }
+
+  if (/^seti_/i.test(id)) {
+    return "setup_intent";
+  }
+
+  return "";
 }
 
 async function getRefundRowsForDateRange(start, end, paidSourceRowsByPaymentIntentId) {
@@ -1344,6 +1478,225 @@ async function getRefundRowsForDateRange(start, end, paidSourceRowsByPaymentInte
   }
 
   return refundRows;
+}
+
+async function listAutomaticPayoutsByArrivalDate(start, end) {
+  const payouts = [];
+  let startingAfter = "";
+
+  const startUnix = dateKeyToUnixStart(start);
+  const endUnix = dateKeyToUnixEnd(end);
+
+  while (true) {
+    const page = await listPayoutsWithRetry({
+      limit: 100,
+      status: "paid",
+      arrival_date: {
+        gte: startUnix,
+        lte: endUnix
+      },
+      ...(startingAfter ? { starting_after: startingAfter } : {})
+    });
+
+    if (!page.data.length) {
+      break;
+    }
+
+    payouts.push(
+      ...page.data.filter((payout) => payout.automatic !== false)
+    );
+
+    if (!page.has_more) {
+      break;
+    }
+
+    startingAfter = page.data[page.data.length - 1]?.id || "";
+    if (!startingAfter) {
+      break;
+    }
+
+    await sleep(120);
+  }
+
+  return payouts;
+}
+
+async function getBankBalancingRowsForPayout(payout, sourceRowsByPaymentIntentId) {
+  const rows = [];
+  let startingAfter = "";
+  const chargeCache = new Map();
+  const paymentIntentCache = new Map();
+
+  while (true) {
+    const page = await listBalanceTransactionsForPayoutWithRetry(payout.id, startingAfter);
+
+    if (!page.data.length) {
+      break;
+    }
+
+    for (const transaction of page.data) {
+      const row = await buildBankBalancingRow(
+        payout,
+        transaction,
+        sourceRowsByPaymentIntentId,
+        chargeCache,
+        paymentIntentCache
+      );
+
+      if (row) {
+        rows.push(row);
+      }
+
+      await sleep(120);
+    }
+
+    if (!page.has_more) {
+      break;
+    }
+
+    startingAfter = page.data[page.data.length - 1]?.id || "";
+    if (!startingAfter) {
+      break;
+    }
+  }
+
+  return rows;
+}
+
+async function buildBankBalancingRow(
+  payout,
+  transaction,
+  sourceRowsByPaymentIntentId,
+  chargeCache,
+  paymentIntentCache
+) {
+  const paymentIntentId = await inferPaymentIntentIdFromBalanceTransaction(transaction, chargeCache);
+
+  if (!paymentIntentId) {
+    return null;
+  }
+
+  const sourceRow = sourceRowsByPaymentIntentId.get(paymentIntentId) || null;
+  const resolvedFields = resolvePaidOrderFields(sourceRow || {});
+  const shouldLoadPaymentIntent =
+    !sourceRow ||
+    !resolvedFields.salesOrder ||
+    !resolvedFields.description ||
+    !String(sourceRow.customerName || "").trim();
+  const paymentIntent = shouldLoadPaymentIntent
+    ? await getCachedPaymentIntent(paymentIntentId, paymentIntentCache)
+    : null;
+  const paymentIntentMetadata = paymentIntent?.metadata || {};
+  const sourceObject = transaction.source && typeof transaction.source === "object"
+    ? transaction.source
+    : null;
+  const fallbackCustomerName =
+    String(paymentIntentMetadata.customer_name || "").trim() ||
+    String(sourceObject?.billing_details?.name || "").trim() ||
+    "";
+  const fallbackDescription = String(
+    paymentIntentMetadata.link_description ||
+    paymentIntentMetadata.description ||
+    paymentIntent?.description ||
+    sourceObject?.description ||
+    ""
+  ).trim();
+  const transactionType = inferBankBalancingType(transaction, sourceObject);
+
+  return {
+    id: transaction.id,
+    payoutId: payout.id,
+    arrivalDate: new Date((payout.arrival_date || payout.created) * 1000).toISOString(),
+    payoutAmount: Number((payout.amount || 0) / 100),
+    paymentIntentId,
+    type: transactionType,
+    salesOrder: resolvedFields.salesOrder || String(paymentIntentMetadata.sales_order || "").trim(),
+    customerName: sourceRow?.customerName || fallbackCustomerName || "-",
+    description: resolvedFields.description || fallbackDescription || "-",
+    grossAmount: Number((transaction.amount || 0) / 100),
+    feeAmount: Number((transaction.fee || 0) / 100),
+    bankPayoutAmount: Number((transaction.net || 0) / 100)
+  };
+}
+
+function inferBankBalancingType(transaction, sourceObject) {
+  if (transaction.type === "refund" || transaction.type === "payment_refund" || sourceObject?.object === "refund") {
+    return "refund";
+  }
+
+  return "sale";
+}
+
+async function inferPaymentIntentIdFromBalanceTransaction(transaction, chargeCache) {
+  const sourceObject = transaction.source && typeof transaction.source === "object"
+    ? transaction.source
+    : null;
+
+  if (!sourceObject) {
+    return "";
+  }
+
+  if (sourceObject.object === "payment_intent") {
+    return sourceObject.id || "";
+  }
+
+  if (sourceObject.object === "charge") {
+    if (typeof sourceObject.payment_intent === "string") {
+      return sourceObject.payment_intent;
+    }
+
+    const fullCharge = await getCachedCharge(sourceObject.id || "", chargeCache);
+    return typeof fullCharge?.payment_intent === "string" ? fullCharge.payment_intent : "";
+  }
+
+  if (sourceObject.object === "refund") {
+    if (typeof sourceObject.payment_intent === "string") {
+      return sourceObject.payment_intent;
+    }
+
+    if (typeof sourceObject.charge === "string") {
+      const refundCharge = await getCachedCharge(sourceObject.charge, chargeCache);
+      return typeof refundCharge?.payment_intent === "string" ? refundCharge.payment_intent : "";
+    }
+  }
+
+  return "";
+}
+
+async function getCachedPaymentIntent(paymentIntentId, paymentIntentCache) {
+  if (!paymentIntentId) {
+    return null;
+  }
+
+  if (paymentIntentCache.has(paymentIntentId)) {
+    return paymentIntentCache.get(paymentIntentId);
+  }
+
+  const paymentIntent = await retrievePaymentIntentWithDetailsWithRetry(paymentIntentId);
+  paymentIntentCache.set(paymentIntentId, paymentIntent);
+  return paymentIntent;
+}
+
+async function getCachedCharge(chargeId, chargeCache) {
+  if (!chargeId) {
+    return null;
+  }
+
+  if (chargeCache.has(chargeId)) {
+    return chargeCache.get(chargeId);
+  }
+
+  const charge = await retrieveChargeWithRetry(chargeId);
+  chargeCache.set(chargeId, charge);
+  return charge;
+}
+
+function dateKeyToUnixStart(dateKey) {
+  return Math.floor(Date.parse(`${dateKey}T00:00:00Z`) / 1000);
+}
+
+function dateKeyToUnixEnd(dateKey) {
+  return Math.floor(Date.parse(`${dateKey}T23:59:59Z`) / 1000);
 }
 
 function buildRefundReportRow(refund, refundIso, sourceRow, paymentIntent) {
@@ -1664,6 +2017,87 @@ async function getStripeAmountsForPaymentIntentWithRetry(paymentIntentId, attemp
     const delayMs = 500 * Math.pow(2, attempt);
     await sleep(delayMs);
     return getStripeAmountsForPaymentIntentWithRetry(paymentIntentId, attempt + 1);
+  }
+}
+
+async function listPayoutsWithRetry(params, attempt = 0) {
+  try {
+    return await stripe.payouts.list(params);
+  } catch (err) {
+    const shouldRetry =
+      err?.statusCode === 429 ||
+      err?.code === "rate_limit" ||
+      err?.type === "StripeRateLimitError";
+
+    if (!shouldRetry || attempt >= 4) {
+      throw err;
+    }
+
+    const delayMs = 500 * Math.pow(2, attempt);
+    await sleep(delayMs);
+    return listPayoutsWithRetry(params, attempt + 1);
+  }
+}
+
+async function listBalanceTransactionsForPayoutWithRetry(payoutId, startingAfter = "", attempt = 0) {
+  try {
+    return await stripe.balanceTransactions.list({
+      payout: payoutId,
+      limit: 100,
+      expand: ["data.source"],
+      ...(startingAfter ? { starting_after: startingAfter } : {})
+    });
+  } catch (err) {
+    const shouldRetry =
+      err?.statusCode === 429 ||
+      err?.code === "rate_limit" ||
+      err?.type === "StripeRateLimitError";
+
+    if (!shouldRetry || attempt >= 4) {
+      throw err;
+    }
+
+    const delayMs = 500 * Math.pow(2, attempt);
+    await sleep(delayMs);
+    return listBalanceTransactionsForPayoutWithRetry(payoutId, startingAfter, attempt + 1);
+  }
+}
+
+async function retrievePaymentIntentWithDetailsWithRetry(paymentIntentId, attempt = 0) {
+  try {
+    return await retrievePaymentIntentWithDetails(paymentIntentId);
+  } catch (err) {
+    const shouldRetry =
+      err?.statusCode === 429 ||
+      err?.code === "rate_limit" ||
+      err?.type === "StripeRateLimitError";
+
+    if (!shouldRetry || attempt >= 4) {
+      throw err;
+    }
+
+    const delayMs = 500 * Math.pow(2, attempt);
+    await sleep(delayMs);
+    return retrievePaymentIntentWithDetailsWithRetry(paymentIntentId, attempt + 1);
+  }
+}
+
+async function retrieveChargeWithRetry(chargeId, attempt = 0) {
+  try {
+    return await stripe.charges.retrieve(chargeId);
+  } catch (err) {
+    const shouldRetry =
+      err?.statusCode === 429 ||
+      err?.code === "rate_limit" ||
+      err?.type === "StripeRateLimitError";
+
+    if (!shouldRetry || attempt >= 4) {
+      throw err;
+    }
+
+    const delayMs = 500 * Math.pow(2, attempt);
+    await sleep(delayMs);
+    return retrieveChargeWithRetry(chargeId, attempt + 1);
   }
 }
 

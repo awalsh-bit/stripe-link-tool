@@ -5,6 +5,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Send Stripe Payment Link</title>
+  <link rel="stylesheet" href="internal-shell.css" />
   <style>
     :root {
       --bg: #f7f8fc;
@@ -34,42 +35,13 @@
     }
 
     .wrap {
-      max-width: 820px;
+      max-width: 1480px;
       margin: 0 auto;
     }
 
-    .hero {
-      margin-bottom: 22px;
-    }
-
-    .eyebrow {
-      display: inline-block;
-      font-size: 12px;
-      font-weight: 700;
-      letter-spacing: 0.08em;
-      text-transform: uppercase;
-      color: var(--primary);
-      background: rgba(99, 91, 255, 0.1);
-      padding: 8px 10px;
-      border-radius: 999px;
-      margin-bottom: 14px;
-    }
-
-    h1 {
-      margin: 0 0 10px;
-      font-size: clamp(28px, 4vw, 42px);
-      line-height: 1.05;
-    }
-
-    .sub {
-      margin: 0;
-      color: var(--muted);
-      font-size: 16px;
-      line-height: 1.6;
-      max-width: 700px;
-    }
-
     .card {
+      max-width: 980px;
+      margin: 0 auto;
       background: var(--card);
       border: 1px solid rgba(99, 91, 255, 0.12);
       box-shadow: var(--shadow);
@@ -248,6 +220,7 @@
     }
 
     @media (max-width: 720px) {
+      .wrap { max-width: 820px; }
       .grid { grid-template-columns: 1fr; }
       .card { padding: 18px; }
       .lookup-row { grid-template-columns: 1fr; }
@@ -267,16 +240,9 @@
 
   </style>
 </head>
-<body>
+<body data-shell-label="Send Payment Link" data-shell-icon="link">
   <div class="wrap">
-    <div class="hero">
-      <div class="eyebrow">Wilson AC & Appliance - Stripe Link Generator</div>
-      <h1>Create a Payment Link Here</h1>
-      <p class="sub">
-        This page collects customer details and generates the link to be sent via Podium Text or Email.
-      </p>
-    </div>
-
+    <div id="internal-shell-header"></div>
     <div class="card">
       <form id="paymentForm">
         <div class="grid">
@@ -371,6 +337,7 @@
 
   </div>
 
+  <script src="internal-shell.js"></script>
   <script src="/employee-directory.js"></script>
   <script>
     const form = document.getElementById('paymentForm');

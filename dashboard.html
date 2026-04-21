@@ -5,6 +5,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Wilson AC & Appliance - Payments Dashboard</title>
+  <link rel="stylesheet" href="internal-shell.css" />
   <style>
     :root {
       --bg: #f7f8fc;
@@ -396,10 +397,25 @@
       min-width: 220px;
     }
 
-    .toolbar-link {
+    .toolbar-menu {
+      margin-left: auto;
+      position: relative;
+    }
+
+    .toolbar-menu::after {
+      content: "";
+      position: absolute;
+      left: 0;
+      right: 0;
+      top: 100%;
+      height: 10px;
+    }
+
+    .toolbar-menu-trigger {
       display: inline-flex;
       align-items: center;
       justify-content: center;
+      gap: 8px;
       text-decoration: none;
       border-radius: 12px;
       padding: 12px 16px;
@@ -409,10 +425,54 @@
       background: #eef2ff;
       color: #3730a3;
       border: 1px solid rgba(99, 91, 255, 0.18);
+      cursor: default;
     }
 
-    .toolbar-link:hover {
+    .toolbar-menu-trigger:hover {
       background: #e0e7ff;
+    }
+
+    .toolbar-menu-panel {
+      position: absolute;
+      right: 0;
+      top: calc(100% + 2px);
+      min-width: 220px;
+      background: rgba(255, 255, 255, 0.98);
+      border: 1px solid rgba(99, 91, 255, 0.14);
+      box-shadow: 0 16px 40px rgba(0, 0, 0, 0.12);
+      border-radius: 18px;
+      padding: 8px;
+      display: none;
+      z-index: 10;
+    }
+
+    .toolbar-menu:hover .toolbar-menu-panel,
+    .toolbar-menu:focus-within .toolbar-menu-panel {
+      display: block;
+    }
+
+    .toolbar-menu-link {
+      display: block;
+      padding: 10px 12px;
+      border-radius: 14px;
+      text-decoration: none;
+      color: var(--text);
+      transition: background 0.2s ease;
+    }
+
+    .toolbar-menu-link:hover {
+      background: #f5f7ff;
+    }
+
+    .toolbar-menu-link.is-disabled {
+      color: var(--muted);
+      cursor: default;
+      pointer-events: none;
+    }
+
+    .toolbar-menu-link-title {
+      font-size: 15px;
+      font-weight: 800;
     }
 
     .section-label {
@@ -736,7 +796,7 @@
     }
   </style>
 </head>
-<body>
+<body data-shell-label="Payments Dashboard" data-shell-icon="payments" data-shell-replace-hero="true">
   <div class="wrap">
     <div class="hero">
       <div class="hero-top">
@@ -822,6 +882,7 @@
       Bill a saved card on file for approved service work, maintenance, or related follow-up charges.
     </p>
   </a>
+
 </div>
 
       <div class="card">
@@ -902,7 +963,20 @@
         <div class="toolbar">
           <input type="date" id="paidDateFilter" />
           <input type="search" id="paidSearchFilter" placeholder="Search paid history by customer, order, or payment intent" />
-          <a class="toolbar-link" href="paid-order-detail.html">Paid Order Detail</a>
+          <div class="toolbar-menu">
+            <div class="toolbar-menu-trigger">Accounting Detail Tools</div>
+            <div class="toolbar-menu-panel">
+              <a class="toolbar-menu-link" href="paid-order-detail.html">
+                <div class="toolbar-menu-link-title">Paid Order Detail</div>
+              </a>
+              <a class="toolbar-menu-link" href="intent-lookup.html">
+                <div class="toolbar-menu-link-title">Intent Lookup</div>
+              </a>
+              <a class="toolbar-menu-link" href="bank-balancing.html">
+                <div class="toolbar-menu-link-title">Bank Balancing</div>
+              </a>
+            </div>
+          </div>
         </div>
 
         <div class="table-wrap">
@@ -926,6 +1000,7 @@
           </table>
         </div>
       </div>
+    <div id="internal-shell-footer"></div>
   </div>
 
   <script>
@@ -1268,5 +1343,6 @@
     paidTableBody.innerHTML = `<tr><td colspan="7">Error loading dashboard: ${err.message}</td></tr>`;
   });
 </script>
+  <script src="internal-shell.js"></script>
 </body>
 </html>

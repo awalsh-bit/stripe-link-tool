@@ -5,6 +5,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Wilson AC & Appliance - Sales Tools Dashboard</title>
+  <link rel="stylesheet" href="internal-shell.css" />
   <style>
     :root {
       --bg: #f7f8fc;
@@ -299,7 +300,7 @@
     }
   </style>
 </head>
-<body>
+<body data-shell-label="Sales Tools Dashboard" data-shell-icon="sales" data-shell-replace-hero="true">
   <div class="wrap">
     <div class="hero">
       <div class="hero-top">
@@ -360,6 +361,8 @@
         This page is ready for the sales tools workspace. The header and navigation now match the payments dashboard so we can build out the tool modules from here.
       </p>
     </div>
+    <div id="internal-shell-footer"></div>
   </div>
+  <script src="internal-shell.js"></script>
 </body>
 </html>

@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="robots" content="noindex,nofollow,noarchive" />
   <title>Wilson AC & Appliance - Charge Saved Card</title>
+  <link rel="stylesheet" href="internal-shell.css" />
   <style>
     :root {
       --bg: #f7f8fc;
@@ -34,42 +35,13 @@
     }
 
     .wrap {
-      max-width: 860px;
+      max-width: 1480px;
       margin: 0 auto;
     }
 
-    .hero {
-      margin-bottom: 22px;
-    }
-
-    .eyebrow {
-      display: inline-block;
-      font-size: 12px;
-      font-weight: 700;
-      letter-spacing: 0.08em;
-      text-transform: uppercase;
-      color: var(--primary);
-      background: rgba(99, 91, 255, 0.1);
-      padding: 8px 10px;
-      border-radius: 999px;
-      margin-bottom: 14px;
-    }
-
-    h1 {
-      margin: 0 0 10px;
-      font-size: clamp(28px, 4vw, 42px);
-      line-height: 1.05;
-    }
-
-    .sub {
-      margin: 0;
-      color: var(--muted);
-      font-size: 16px;
-      line-height: 1.6;
-      max-width: 760px;
-    }
-
     .card {
+      max-width: 1040px;
+      margin: 0 auto;
       background: var(--card);
       border: 1px solid rgba(99, 91, 255, 0.12);
       box-shadow: var(--shadow);
@@ -242,6 +214,10 @@
     }
 
     @media (max-width: 720px) {
+      .wrap {
+        max-width: 860px;
+      }
+
       .grid {
         grid-template-columns: 1fr;
       }
@@ -271,16 +247,9 @@
 }
   </style>
 </head>
-<body>
+<body data-shell-label="Charge Saved Card" data-shell-icon="card">
   <div class="wrap">
-    <div class="hero">
-      <div class="eyebrow">Wilson AC & Appliance - Charge Saved Card</div>
-      <h1>Charge a saved card on file</h1>
-      <p class="sub">
-        Use this internal page after diagnosis or approval when you know the amount and want to bill a saved customer payment method.
-      </p>
-    </div>
-
+    <div id="internal-shell-header"></div>
     <div class="card">
       <form id="chargeForm">
         <div class="grid">
@@ -406,6 +375,7 @@
 
   </div>
 
+  <script src="internal-shell.js"></script>
   <script src="/employee-directory.js"></script>
   <script>
     const form = document.getElementById("chargeForm");

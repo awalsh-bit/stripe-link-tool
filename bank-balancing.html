@@ -378,9 +378,9 @@
       }).format(value || 0);
     }
 
-    function formatDate(isoValue) {
-      if (!isoValue) return "-";
-      return new Date(isoValue).toLocaleDateString("en-US", {
+    function formatDate(dateKey) {
+      if (!dateKey) return "-";
+      return new Date(`${dateKey}T12:00:00`).toLocaleDateString("en-US", {
         month: "2-digit",
         day: "2-digit",
         year: "2-digit"
@@ -419,7 +419,7 @@
 
       tableBody.innerHTML = rows.map((row) => `
         <tr>
-          <td data-label="Arrival Date">${formatDate(row.arrivalDate)}</td>
+          <td data-label="Arrival Date">${formatDate(row.arrivalDateKey)}</td>
           <td data-label="Payout ID" class="mono">${row.payoutId || "-"}</td>
           <td data-label="Type"><span class="type-badge ${row.type === "refund" ? "type-refund" : "type-sale"}">${row.type === "refund" ? "Refund" : "Sale"}</span></td>
           <td data-label="Sales Order">${row.salesOrder || "-"}</td>

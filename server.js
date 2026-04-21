@@ -1261,7 +1261,9 @@ app.get("/api/bank-balancing", async (req, res) => {
         .map((row) => [row.paymentIntentId, row])
     );
 
-    const payouts = await listAutomaticPayoutsByArrivalDate(start, end);
+    const payouts = (await listAutomaticPayoutsByArrivalDate(start, end)).filter((payout) =>
+      isDateKeyWithinRange(getPayoutArrivalDateKey(payout), start, end)
+    );
     const payoutRows = [];
     let payoutAmountTotal = 0;
 
@@ -1284,7 +1286,7 @@ app.get("/api/bank-balancing", async (req, res) => {
     });
 
     res.json({
-      rows: payoutRows.sort((a, b) => new Date(b.arrivalDate || 0) - new Date(a.arrivalDate || 0)),
+      rows: payoutRows.sort((a, b) => String(b.arrivalDateKey || "").localeCompare(String(a.arrivalDateKey || ""))),
       totals: {
         ...totals,
         payoutAmountTotal,
@@ -1801,7 +1803,7 @@ async function buildBankBalancingRow(
   return {
     id: transaction.id,
     payoutId: payout.id,
-    arrivalDate: new Date((payout.arrival_date || payout.created) * 1000).toISOString(),
+    arrivalDateKey: getPayoutArrivalDateKey(payout),
     payoutAmount: Number((payout.amount || 0) / 100),
     paymentIntentId,
     type: transactionType,
@@ -1892,6 +1894,24 @@ function dateKeyToUnixStart(dateKey) {
 
 function dateKeyToUnixEnd(dateKey) {
   return Math.floor(Date.parse(`${dateKey}T23:59:59Z`) / 1000);
+}
+
+function unixDateToDateKey(unixValue) {
+  if (!unixValue) return "";
+
+  return new Date(unixValue * 1000).toISOString().slice(0, 10);
+}
+
+function getPayoutArrivalDateKey(payout) {
+  return unixDateToDateKey(payout?.arrival_date || payout?.created);
+}
+
+function isDateKeyWithinRange(dateKey, startKey, endKey) {
+  if (!dateKey || !startKey || !endKey) {
+    return false;
+  }
+
+  return dateKey >= startKey && dateKey <= endKey;
 }
 
 function buildRefundReportRow(refund, refundIso, sourceRow, paymentIntent) {

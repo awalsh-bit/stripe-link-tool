@@ -1068,6 +1068,27 @@ app.get("/api/payment-link-status", async (req, res) => {
       if (!record.paymentLinkId) continue;
 
       if (record.status !== "paid") {
+        if (record.status === "ach_pending" && record.paymentIntentId) {
+          const trackedIntent = await retrievePaymentIntentWithDetails(record.paymentIntentId);
+
+          if (trackedIntent?.status === "succeeded") {
+            applyPaidLinkState(record, null, trackedIntent);
+
+            if (!record.paymentNotificationSentAt && record.creatorEmail) {
+              try {
+                await sendPaymentLinkPaidEmail(record);
+                record.paymentNotificationSentAt = new Date().toISOString();
+                record.paymentNotificationError = "";
+              } catch (notificationError) {
+                record.paymentNotificationError = notificationError.message || "Unable to send payment notification.";
+              }
+            }
+          } else if (isAchPendingIntent(trackedIntent, record)) {
+            applyAchPendingState(record, null, trackedIntent);
+            continue;
+          }
+        }
+
         const sessions = await stripe.checkout.sessions.list({
           payment_link: record.paymentLinkId,
           limit: 100
@@ -1099,14 +1120,8 @@ app.get("/api/payment-link-status", async (req, res) => {
         } else if (record.status !== "deactivated" && latestSessionWithIntent?.payment_intent) {
           const paymentIntent = await retrievePaymentIntentWithDetails(latestSessionWithIntent.payment_intent);
 
-          if (isAchProcessingIntent(paymentIntent)) {
-            record.status = "ach_pending";
-            record.type = "ach_link";
-            record.active = true;
-            record.paymentMethodType = "us_bank_account";
-            record.paymentStatusDetail = paymentIntent.status || "processing";
-            record.paymentIntentId = paymentIntent.id || record.paymentIntentId || "";
-            record.checkoutSessionId = latestSessionWithIntent.id || record.checkoutSessionId || "";
+          if (isAchPendingIntent(paymentIntent, record)) {
+            applyAchPendingState(record, latestSessionWithIntent, paymentIntent);
           } else {
             record.status = "viewed";
             record.active = true;
@@ -2359,14 +2374,8 @@ async function processCheckoutSessionWebhookEvent(event) {
     if (paymentIntent?.status === "succeeded") {
       applyPaidLinkState(record, session, paymentIntent);
       await maybeSendLinkPaidNotification(record);
-    } else if (isAchProcessingIntent(paymentIntent)) {
-      record.status = "ach_pending";
-      record.type = "ach_link";
-      record.active = true;
-      record.paymentMethodType = "us_bank_account";
-      record.paymentStatusDetail = paymentIntent.status || "processing";
-      record.paymentIntentId = paymentIntent.id || record.paymentIntentId || "";
-      record.checkoutSessionId = session.id || record.checkoutSessionId || "";
+    } else if (isAchPendingIntent(paymentIntent, record)) {
+      applyAchPendingState(record, session, paymentIntent);
     }
   }
 
@@ -2408,6 +2417,19 @@ function applyPaidLinkState(record, session, paymentIntent) {
   record.checkoutSessionId = session?.id || record.checkoutSessionId || "";
 }
 
+function applyAchPendingState(record, session, paymentIntent) {
+  record.status = "ach_pending";
+  record.type = "ach_link";
+  record.active = true;
+  record.paymentMethodType =
+    inferPaymentMethodType(paymentIntent, session) ||
+    record.paymentMethodType ||
+    "us_bank_account";
+  record.paymentStatusDetail = paymentIntent?.status || "processing";
+  record.paymentIntentId = paymentIntent?.id || session?.payment_intent || record.paymentIntentId || "";
+  record.checkoutSessionId = session?.id || record.checkoutSessionId || "";
+}
+
 async function maybeSendLinkPaidNotification(record) {
   if (!record.paymentNotificationSentAt && record.creatorEmail) {
     try {
@@ -2434,10 +2456,16 @@ function inferPaymentMethodType(paymentIntent, session) {
   );
 }
 
-function isAchProcessingIntent(paymentIntent) {
+function isAchPendingIntent(paymentIntent, record = null) {
   return (
     paymentIntent?.status === "processing" &&
-    paymentIntent?.payment_method_types?.includes("us_bank_account")
+    (
+      paymentIntent?.payment_method_types?.includes("us_bank_account") ||
+      paymentIntent?.payment_method?.type === "us_bank_account" ||
+      record?.paymentMethodType === "us_bank_account" ||
+      record?.type === "ach_link" ||
+      record?.status === "ach_pending"
+    )
   );
 }
 

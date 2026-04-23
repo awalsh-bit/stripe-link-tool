@@ -1135,14 +1135,17 @@
     return row.type === "ach_link" ? "paid-type-pill paid-type-ach" : "paid-type-pill";
   }
 
-  function attachCopyLinkActions() {
-    document.querySelectorAll("[data-copy-link]").forEach((button) => {
+  function attachCopyActions() {
+    document.querySelectorAll("[data-copy-link], [data-copy-intent]").forEach((button) => {
+      if (button.dataset.copyBound === "true") return;
+      button.dataset.copyBound = "true";
+
       button.addEventListener("click", async () => {
-        const link = button.getAttribute("data-copy-link");
+        const valueToCopy = button.getAttribute("data-copy-link") || button.getAttribute("data-copy-intent") || "";
         const originalText = button.textContent;
 
         try {
-          await navigator.clipboard.writeText(link);
+          await navigator.clipboard.writeText(valueToCopy);
           button.textContent = "Copied";
         } catch {
           button.textContent = "Failed";
@@ -1236,6 +1239,10 @@
                   ? `<button class="btn-primary" data-action="reactivate" data-id="${row.id}">Reactivate</button>`
                   : ""
               }
+              ${row.paymentIntentId && ["sent", "viewed", "ach_pending"].includes(row.status)
+                ? `<button class="btn-secondary" type="button" data-copy-intent="${escapeHtml(row.paymentIntentId)}">Copy intent</button>`
+                : ""
+              }
               ${row.paymentLinkUrl ? `<button class="btn-secondary" type="button" data-copy-link="${escapeHtml(row.paymentLinkUrl)}">Copy link</button>` : ""}
             </div>
           </td>
@@ -1278,7 +1285,7 @@
     agingHintEl.textContent = `${agingRows.length} active link${agingRows.length === 1 ? "" : "s"} at least ${agingDays} days old`;
     paidTotalEl.textContent = formatMoney(paidTotal);
     paidCountEl.textContent = `${paidRows.length} paid record${paidRows.length === 1 ? "" : "s"} on selected date`;
-    attachCopyLinkActions();
+    attachCopyActions();
   }
 
   async function updateLinkStatus(id, status) {

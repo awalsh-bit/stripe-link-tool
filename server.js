@@ -1097,7 +1097,7 @@ app.get("/api/payment-link-status", async (req, res) => {
         const paidSession = sessions.data.find(
           (session) => session.payment_status === "paid"
         );
-        const latestSessionWithIntent = sessions.data.find(
+        const intentSessions = sessions.data.filter(
           (session) => session.payment_intent
         );
 
@@ -1117,16 +1117,31 @@ app.get("/api/payment-link-status", async (req, res) => {
               record.paymentNotificationError = notificationError.message || "Unable to send payment notification.";
             }
           }
-        } else if (record.status !== "deactivated" && latestSessionWithIntent?.payment_intent) {
-          const paymentIntent = await retrievePaymentIntentWithDetails(latestSessionWithIntent.payment_intent);
+        } else if (record.status !== "deactivated" && intentSessions.length > 0) {
+          const prioritizedIntentSessions = [
+            ...intentSessions.filter((session) => session.payment_intent === record.paymentIntentId),
+            ...intentSessions.filter((session) => session.payment_intent !== record.paymentIntentId)
+          ];
 
-          if (isAchPendingIntent(paymentIntent, record)) {
-            applyAchPendingState(record, latestSessionWithIntent, paymentIntent);
+          let achPendingMatch = null;
+
+          for (const session of prioritizedIntentSessions) {
+            const paymentIntent = await retrievePaymentIntentWithDetails(session.payment_intent);
+
+            if (isAchPendingIntent(paymentIntent, record)) {
+              achPendingMatch = { session, paymentIntent };
+              break;
+            }
+          }
+
+          if (achPendingMatch) {
+            applyAchPendingState(record, achPendingMatch.session, achPendingMatch.paymentIntent);
           } else {
+            const fallbackSession = prioritizedIntentSessions[0];
             record.status = "viewed";
             record.active = true;
             record.paymentStatusDetail = "";
-            record.checkoutSessionId = latestSessionWithIntent.id || record.checkoutSessionId || "";
+            record.checkoutSessionId = fallbackSession?.id || record.checkoutSessionId || "";
           }
         } else if (record.status !== "deactivated" && sessions.data.length > 0) {
           record.status = "viewed";

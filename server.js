@@ -1196,43 +1196,7 @@ app.get("/api/paid-order-detail", async (req, res) => {
         .map((row) => [row.paymentIntentId, row])
     );
 
-    const paidRows = [
-      ...links.filter((row) => row.status === "paid"),
-      ...terminalPayments.filter((row) => row.status === "paid")
-    ].filter((row) => {
-      const paidDateOnly = toTimeZoneDateKey(row.paidDate, APP_TIMEZONE);
-      return paidDateOnly && paidDateOnly >= start && paidDateOnly <= end;
-    });
-
-    const detailedRows = [];
-
-    for (const row of paidRows) {
-      const resolvedFields = resolvePaidOrderFields(row);
-      const stripeAmounts = row.paymentIntentId
-        ? await getStripeAmountsForPaymentIntentWithRetry(row.paymentIntentId)
-        : {
-            grossAmount: Number(row.paidAmount || 0),
-            feeAmount: 0,
-            netAmount: Number(row.paidAmount || 0)
-          };
-
-      detailedRows.push({
-        id: row.id || row.paymentIntentId || "",
-        type: row.type || "link",
-        paidDate: row.paidDate || "",
-        salesOrder: resolvedFields.salesOrder,
-        customerName: row.customerName || "",
-        description: resolvedFields.description,
-        paymentIntentId: row.paymentIntentId || "",
-        paidAmount: stripeAmounts.grossAmount,
-        feeAmount: stripeAmounts.feeAmount,
-        netAmount: stripeAmounts.netAmount
-      });
-
-      if (row.paymentIntentId) {
-        await sleep(120);
-      }
-    }
+    const detailedRows = await getSaleRowsForDateRange(start, end, paidSourceRowsByPaymentIntentId);
 
     const refundRows = await getRefundRowsForDateRange(start, end, paidSourceRowsByPaymentIntentId);
     detailedRows.push(...refundRows);
@@ -1645,6 +1609,70 @@ function describeUnits(units) {
     .join(", ");
 }
 
+async function getSaleRowsForDateRange(start, end, paidSourceRowsByPaymentIntentId) {
+  const saleRows = [];
+  const paymentIntentCache = new Map();
+  let startingAfter = "";
+  let keepLoading = true;
+  const startUnix = dateKeyToUnixStart(start);
+  const endUnix = dateKeyToUnixEnd(end);
+
+  while (keepLoading) {
+    const page = await listChargesWithRetry({
+      limit: 100,
+      created: {
+        gte: startUnix,
+        lte: endUnix
+      },
+      ...(startingAfter ? { starting_after: startingAfter } : {}),
+      expand: ["data.balance_transaction"]
+    });
+
+    if (!page.data.length) {
+      break;
+    }
+
+    for (const charge of page.data) {
+      if (!charge?.paid || charge?.status !== "succeeded") {
+        continue;
+      }
+
+      const paidIso = new Date((charge.created || 0) * 1000).toISOString();
+      const paidDateOnly = toTimeZoneDateKey(paidIso, APP_TIMEZONE);
+
+      if (!paidDateOnly || paidDateOnly < start || paidDateOnly > end) {
+        continue;
+      }
+
+      const paymentIntentId =
+        typeof charge.payment_intent === "string"
+          ? charge.payment_intent
+          : charge.payment_intent?.id || "";
+      const sourceRow = paidSourceRowsByPaymentIntentId.get(paymentIntentId) || null;
+      const paymentIntent = paymentIntentId
+        ? await getCachedPaymentIntent(paymentIntentId, paymentIntentCache)
+        : null;
+
+      saleRows.push(buildSaleReportRow(charge, paidIso, sourceRow, paymentIntent));
+
+      if (paymentIntentId) {
+        await sleep(120);
+      }
+    }
+
+    if (!page.has_more) {
+      break;
+    }
+
+    startingAfter = page.data[page.data.length - 1]?.id || "";
+    if (!startingAfter) {
+      break;
+    }
+  }
+
+  return saleRows;
+}
+
 async function getRefundRowsForDateRange(start, end, paidSourceRowsByPaymentIntentId) {
   const refundRows = [];
   let startingAfter = "";
@@ -1942,6 +1970,55 @@ function isDateKeyWithinRange(dateKey, startKey, endKey) {
   }
 
   return dateKey >= startKey && dateKey <= endKey;
+}
+
+function buildSaleReportRow(charge, paidIso, sourceRow, paymentIntent) {
+  const paymentIntentMetadata = paymentIntent?.metadata || {};
+  const chargeBalanceTransaction = charge?.balance_transaction || null;
+  const fallbackFields = resolvePaidOrderFields(sourceRow || {});
+  const salesOrder =
+    fallbackFields.salesOrder ||
+    String(paymentIntentMetadata.sales_order || charge.metadata?.sales_order || "").trim();
+  const description =
+    fallbackFields.description ||
+    String(
+      paymentIntentMetadata.link_description ||
+      paymentIntentMetadata.description ||
+      charge.metadata?.description ||
+      charge.description ||
+      ""
+    ).trim();
+  const customerName =
+    sourceRow?.customerName ||
+    String(paymentIntentMetadata.customer_name || "").trim() ||
+    String(charge.billing_details?.name || "").trim() ||
+    "-";
+
+  return {
+    id: charge.id,
+    type: "sale",
+    paidDate: paidIso,
+    salesOrder,
+    customerName,
+    description,
+    paymentIntentId:
+      (typeof charge.payment_intent === "string"
+        ? charge.payment_intent
+        : charge.payment_intent?.id) ||
+      sourceRow?.paymentIntentId ||
+      "",
+    paidAmount: Number((charge.amount || 0) / 100),
+    feeAmount: Number(
+      typeof chargeBalanceTransaction?.fee === "number"
+        ? chargeBalanceTransaction.fee / 100
+        : 0
+    ),
+    netAmount: Number(
+      typeof chargeBalanceTransaction?.net === "number"
+        ? chargeBalanceTransaction.net / 100
+        : Number((charge.amount || 0) / 100)
+    )
+  };
 }
 
 function buildRefundReportRow(refund, refundIso, sourceRow, paymentIntent) {
@@ -2281,6 +2358,25 @@ async function listPayoutsWithRetry(params, attempt = 0) {
     const delayMs = 500 * Math.pow(2, attempt);
     await sleep(delayMs);
     return listPayoutsWithRetry(params, attempt + 1);
+  }
+}
+
+async function listChargesWithRetry(params, attempt = 0) {
+  try {
+    return await stripe.charges.list(params);
+  } catch (err) {
+    const shouldRetry =
+      err?.statusCode === 429 ||
+      err?.code === "rate_limit" ||
+      err?.type === "StripeRateLimitError";
+
+    if (!shouldRetry || attempt >= 4) {
+      throw err;
+    }
+
+    const delayMs = 500 * Math.pow(2, attempt);
+    await sleep(delayMs);
+    return listChargesWithRetry(params, attempt + 1);
   }
 }
 

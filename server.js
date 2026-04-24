@@ -1637,7 +1637,7 @@ async function getSaleRowsForDateRange(start, end, paidSourceRowsByPaymentIntent
         continue;
       }
 
-      const paidIso = new Date((charge.created || 0) * 1000).toISOString();
+      const paidIso = getSaleReportDateIso(charge, sourceRow);
       const paidDateOnly = toTimeZoneDateKey(paidIso, APP_TIMEZONE);
 
       if (!paidDateOnly || paidDateOnly < start || paidDateOnly > end) {
@@ -2019,6 +2019,14 @@ function buildSaleReportRow(charge, paidIso, sourceRow, paymentIntent) {
         : Number((charge.amount || 0) / 100)
     )
   };
+}
+
+function getSaleReportDateIso(charge, sourceRow) {
+  if (sourceRow?.type === "ach_link" && sourceRow?.paidDate) {
+    return sourceRow.paidDate;
+  }
+
+  return new Date((charge.created || 0) * 1000).toISOString();
 }
 
 function buildRefundReportRow(refund, refundIso, sourceRow, paymentIntent) {

@@ -1197,6 +1197,8 @@ app.get("/api/paid-order-detail", async (req, res) => {
     );
 
     const detailedRows = await getSaleRowsForDateRange(start, end, paidSourceRowsByPaymentIntentId);
+    const localAchRows = await getLocalAchSaleRowsForDateRange(start, end, links, detailedRows);
+    detailedRows.push(...localAchRows);
 
     const refundRows = await getRefundRowsForDateRange(start, end, paidSourceRowsByPaymentIntentId);
     detailedRows.push(...refundRows);
@@ -1671,6 +1673,51 @@ async function getSaleRowsForDateRange(start, end, paidSourceRowsByPaymentIntent
   }
 
   return saleRows;
+}
+
+async function getLocalAchSaleRowsForDateRange(start, end, links, existingRows = []) {
+  const existingPaymentIntentIds = new Set(
+    existingRows
+      .filter((row) => row.type === "sale" && row.paymentIntentId)
+      .map((row) => row.paymentIntentId)
+  );
+
+  const achRows = links.filter((row) => {
+    const paidDateOnly = toTimeZoneDateKey(row.paidDate, APP_TIMEZONE);
+    return (
+      row.status === "paid" &&
+      row.type === "ach_link" &&
+      row.paymentIntentId &&
+      paidDateOnly &&
+      paidDateOnly >= start &&
+      paidDateOnly <= end &&
+      !existingPaymentIntentIds.has(row.paymentIntentId)
+    );
+  });
+
+  const detailedAchRows = [];
+
+  for (const row of achRows) {
+    const resolvedFields = resolvePaidOrderFields(row);
+    const stripeAmounts = await getStripeAmountsForPaymentIntentWithRetry(row.paymentIntentId);
+
+    detailedAchRows.push({
+      id: row.id || row.paymentIntentId || "",
+      type: "sale",
+      paidDate: row.paidDate || "",
+      salesOrder: resolvedFields.salesOrder,
+      customerName: row.customerName || "",
+      description: resolvedFields.description,
+      paymentIntentId: row.paymentIntentId || "",
+      paidAmount: stripeAmounts.grossAmount,
+      feeAmount: stripeAmounts.feeAmount,
+      netAmount: stripeAmounts.netAmount
+    });
+
+    await sleep(120);
+  }
+
+  return detailedAchRows;
 }
 
 async function getRefundRowsForDateRange(start, end, paidSourceRowsByPaymentIntentId) {

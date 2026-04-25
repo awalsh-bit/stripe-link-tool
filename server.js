@@ -1637,6 +1637,11 @@ async function getSaleRowsForDateRange(start, end, paidSourceRowsByPaymentIntent
         continue;
       }
 
+      const paymentIntentId =
+        typeof charge.payment_intent === "string"
+          ? charge.payment_intent
+          : charge.payment_intent?.id || "";
+      const sourceRow = paidSourceRowsByPaymentIntentId.get(paymentIntentId) || null;
       const paidIso = getSaleReportDateIso(charge, sourceRow);
       const paidDateOnly = toTimeZoneDateKey(paidIso, APP_TIMEZONE);
 
@@ -1644,11 +1649,6 @@ async function getSaleRowsForDateRange(start, end, paidSourceRowsByPaymentIntent
         continue;
       }
 
-      const paymentIntentId =
-        typeof charge.payment_intent === "string"
-          ? charge.payment_intent
-          : charge.payment_intent?.id || "";
-      const sourceRow = paidSourceRowsByPaymentIntentId.get(paymentIntentId) || null;
       const paymentIntent = paymentIntentId
         ? await getCachedPaymentIntent(paymentIntentId, paymentIntentCache)
         : null;

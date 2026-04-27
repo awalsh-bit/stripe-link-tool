@@ -96,6 +96,10 @@
                   <div class="internal-shell-menu-link-title">Sales Tools</div>
                   <div class="internal-shell-menu-link-text">Open the sales tools workspace.</div>
                 </a>
+                <a class="internal-shell-menu-link" href="logout.html">
+                  <div class="internal-shell-menu-link-title">Sign Out</div>
+                  <div class="internal-shell-menu-link-text">End the current dashboard session.</div>
+                </a>
               </div>
             </div>
             <img class="internal-shell-logo" src="logo-black.png" alt="Wilson AC & Appliance" />
@@ -130,6 +134,7 @@
         <div class="internal-shell-footer-links">
           <a class="internal-shell-footer-link" href="dashboard.html">Payments Dashboard</a>
           <a class="internal-shell-footer-link" href="salesdashboard.html">Sales Tools</a>
+          <a class="internal-shell-footer-link" href="logout.html">Sign Out</a>
         </div>
       </div>
     `;

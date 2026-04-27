@@ -13,6 +13,11 @@ const __dirname = path.dirname(__filename);
 const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, "data");
 const DASHBOARD_HOST = (process.env.DASHBOARD_HOST || "dashboards.wilsonappliance.com").toLowerCase();
 const SERVICE_PUBLIC_HOST = (process.env.SERVICE_PUBLIC_HOST || "service.wilsonappliance.com").toLowerCase();
+const AUTH_COOKIE_NAME = "wilson_dashboard_session";
+const AUTH_COOKIE_TTL_SECONDS = 60 * 60 * 12;
+const AUTH_COOKIE_SECRET =
+  process.env.SESSION_SECRET ||
+  `${process.env.APP_USERNAME || "wilson"}:${process.env.APP_PASSWORD || "wilson"}`;
 
 function ensureDataDir() {
   if (!fs.existsSync(DATA_DIR)) {
@@ -60,10 +65,17 @@ const ALWAYS_PUBLIC_PATHS = new Set([
   "/api/stripe/webhook"
 ]);
 
+const PUBLIC_AUTH_PATHS = new Set([
+  "/api/login",
+  "/api/logout"
+]);
+
 const INTERNAL_PAGE_PATHS = new Set([
   "/dashboard.html",
   "/salesdashboard.html",
   "/intent-lookup.html",
+  "/login.html",
+  "/logout.html",
   "/index.html",
   "/terminal.html",
   "/charge-saved-card.html",
@@ -71,6 +83,30 @@ const INTERNAL_PAGE_PATHS = new Set([
   "/bank-balancing.html",
   "/appliance-service-calls.html"
 ]);
+
+const UNAUTHENTICATED_INTERNAL_PATHS = new Set([
+  "/login.html",
+  "/logout.html"
+]);
+
+const ACCESS_GROUPS = {
+  super_user: {
+    label: "Super User",
+    pages: ["*"]
+  },
+  accounting: {
+    label: "Accounting",
+    pages: ["/paid-order-detail.html", "/bank-balancing.html", "/intent-lookup.html"]
+  },
+  sales: {
+    label: "Sales",
+    pages: ["/dashboard.html", "/salesdashboard.html", "/index.html", "/terminal.html", "/charge-saved-card.html"]
+  },
+  service: {
+    label: "Service",
+    pages: ["/appliance-service-calls.html", "/intent-lookup.html"]
+  }
+};
 
 function getRequestHost(req) {
   return String(req.hostname || req.get("host") || "")
@@ -93,6 +129,10 @@ function isAlwaysPublicPath(pathname) {
   return ALWAYS_PUBLIC_PATHS.has(pathname);
 }
 
+function isPublicAuthPath(pathname) {
+  return PUBLIC_AUTH_PATHS.has(pathname);
+}
+
 function buildHostUrl(req, targetHost) {
   const forwardedProto = String(req.headers["x-forwarded-proto"] || "").split(",")[0].trim();
   const protocol = forwardedProto || req.protocol || "https";
@@ -108,6 +148,138 @@ function getServiceBaseUrl(req) {
   }
 
   return `${req.protocol}://${req.get("host")}`;
+}
+
+function parseCookies(req) {
+  const header = String(req.headers.cookie || "");
+  return header.split(";").reduce((acc, pair) => {
+    const [rawName, ...rawValueParts] = pair.split("=");
+    const name = rawName?.trim();
+    if (!name) return acc;
+    acc[name] = decodeURIComponent(rawValueParts.join("=").trim());
+    return acc;
+  }, {});
+}
+
+function signAuthPayload(payloadText) {
+  return crypto
+    .createHmac("sha256", AUTH_COOKIE_SECRET)
+    .update(payloadText)
+    .digest("base64url");
+}
+
+function createAuthCookieValue(user) {
+  const payloadText = Buffer.from(JSON.stringify({
+    username: user.username,
+    displayName: user.displayName,
+    role: user.role,
+    accessGroup: user.accessGroup,
+    issuedAt: Date.now(),
+    expiresAt: Date.now() + AUTH_COOKIE_TTL_SECONDS * 1000
+  })).toString("base64url");
+
+  const signature = signAuthPayload(payloadText);
+  return `${payloadText}.${signature}`;
+}
+
+function readAuthenticatedUser(req) {
+  const cookies = parseCookies(req);
+  const rawValue = cookies[AUTH_COOKIE_NAME];
+
+  if (!rawValue || !rawValue.includes(".")) {
+    return null;
+  }
+
+  const [payloadText, signature] = rawValue.split(".");
+  const expectedSignature = signAuthPayload(payloadText);
+
+  if (!signature || signature.length !== expectedSignature.length) {
+    return null;
+  }
+
+  try {
+    if (
+      !crypto.timingSafeEqual(
+        Buffer.from(signature),
+        Buffer.from(expectedSignature)
+      )
+    ) {
+      return null;
+    }
+  } catch {
+    return null;
+  }
+
+  try {
+    const payload = JSON.parse(Buffer.from(payloadText, "base64url").toString("utf8"));
+    if (!payload?.expiresAt || payload.expiresAt < Date.now()) {
+      return null;
+    }
+
+    return payload;
+  } catch {
+    return null;
+  }
+}
+
+function isSecureRequest(req) {
+  const forwardedProto = String(req.headers["x-forwarded-proto"] || "").split(",")[0].trim();
+  return forwardedProto === "https" || req.secure;
+}
+
+function serializeCookie(name, value, options = {}) {
+  const parts = [`${name}=${encodeURIComponent(value)}`];
+
+  if (options.maxAge !== undefined) {
+    parts.push(`Max-Age=${options.maxAge}`);
+  }
+
+  if (options.path) {
+    parts.push(`Path=${options.path}`);
+  }
+
+  if (options.httpOnly) {
+    parts.push("HttpOnly");
+  }
+
+  if (options.sameSite) {
+    parts.push(`SameSite=${options.sameSite}`);
+  }
+
+  if (options.secure) {
+    parts.push("Secure");
+  }
+
+  return parts.join("; ");
+}
+
+function setAuthCookie(req, res, user) {
+  res.setHeader("Set-Cookie", serializeCookie(AUTH_COOKIE_NAME, createAuthCookieValue(user), {
+    maxAge: AUTH_COOKIE_TTL_SECONDS,
+    path: "/",
+    httpOnly: true,
+    sameSite: "Lax",
+    secure: isSecureRequest(req)
+  }));
+}
+
+function clearAuthCookie(req, res) {
+  res.setHeader("Set-Cookie", serializeCookie(AUTH_COOKIE_NAME, "", {
+    maxAge: 0,
+    path: "/",
+    httpOnly: true,
+    sameSite: "Lax",
+    secure: isSecureRequest(req)
+  }));
+}
+
+function buildCurrentSuperUser(username) {
+  return {
+    username,
+    displayName: "Wilson",
+    role: "super_user",
+    accessGroup: "super_user"
+  };
 }
 
 app.use((req, res, next) => {
@@ -140,31 +312,36 @@ app.use((req, res, next) => {
   const isPublicServiceRequest =
     (host === SERVICE_PUBLIC_HOST || isLocalHost(host)) &&
     isServicePublicPath(req.path);
+  const isUnauthenticatedInternalPage =
+    (host === DASHBOARD_HOST || isLocalHost(host)) &&
+    UNAUTHENTICATED_INTERNAL_PATHS.has(req.path);
+  const isPublicAuthRequest =
+    (host === DASHBOARD_HOST || isLocalHost(host)) &&
+    isPublicAuthPath(req.path);
 
-  if (isWebhookRequest || isPublicServiceRequest) {
+  if (isWebhookRequest || isPublicServiceRequest || isUnauthenticatedInternalPage || isPublicAuthRequest) {
     return next();
   }
 
-  const auth = req.headers.authorization;
+  const authUser = readAuthenticatedUser(req);
 
-  if (!auth || !auth.startsWith("Basic ")) {
-    res.setHeader("WWW-Authenticate", 'Basic realm="Wilson Payments"');
-    return res.status(401).send("Authentication required.");
+  if (authUser) {
+    req.authUser = authUser;
+    return next();
   }
 
-  const base64Credentials = auth.split(" ")[1];
-  const credentials = Buffer.from(base64Credentials, "base64").toString("utf8");
-  const [username, password] = credentials.split(":");
+  const wantsHtml =
+    req.method === "GET" &&
+    !req.path.startsWith("/api/") &&
+    (req.accepts("html") || req.path.endsWith(".html") || req.path === "/");
 
-  if (
-    username !== process.env.APP_USERNAME ||
-    password !== process.env.APP_PASSWORD
-  ) {
-    res.setHeader("WWW-Authenticate", 'Basic realm="Wilson Payments"');
-    return res.status(401).send("Invalid credentials.");
+  if ((host === DASHBOARD_HOST || isLocalHost(host)) && wantsHtml) {
+    return res.redirect(302, "/login.html");
   }
 
-  next();
+  return res.status(401).json({
+    error: "Authentication required."
+  });
 });
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
@@ -209,6 +386,39 @@ app.post("/api/stripe/webhook", express.raw({ type: "application/json" }), async
 });
 
 app.use(express.json());
+
+app.post("/api/login", (req, res) => {
+  const { username = "", password = "" } = req.body || {};
+  const normalizedUsername = String(username || "").trim();
+
+  if (
+    normalizedUsername !== String(process.env.APP_USERNAME || "wilson") ||
+    String(password || "") !== String(process.env.APP_PASSWORD || "")
+  ) {
+    return res.status(401).json({
+      error: "Invalid username or password."
+    });
+  }
+
+  const user = buildCurrentSuperUser(normalizedUsername);
+  setAuthCookie(req, res, user);
+
+  return res.json({
+    success: true,
+    user: {
+      username: user.username,
+      displayName: user.displayName,
+      role: user.role,
+      accessGroup: user.accessGroup,
+      availableAccessGroups: ACCESS_GROUPS
+    }
+  });
+});
+
+app.post("/api/logout", (req, res) => {
+  clearAuthCookie(req, res);
+  return res.json({ success: true });
+});
 
 app.use(express.static(__dirname, { index: false }));
 

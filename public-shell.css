@@ -1,0 +1,206 @@
+:root {
+  --public-shell-border: rgba(99, 91, 255, 0.12);
+  --public-shell-shadow: 0 10px 35px rgba(0, 0, 0, 0.08);
+  --public-shell-pill-bg: rgba(99, 91, 255, 0.1);
+  --public-shell-pill-text: #4f46e5;
+  --public-shell-panel-bg: rgba(255, 255, 255, 0.96);
+  --public-shell-text: #1f2937;
+  --public-shell-muted: #6b7280;
+}
+
+.public-shell-header {
+  margin-bottom: 22px;
+}
+
+.public-shell-header-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-start;
+  gap: 24px;
+  margin-bottom: 18px;
+}
+
+.public-shell-brand {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  min-width: 0;
+  flex-wrap: wrap;
+}
+
+.public-shell-menu-wrap {
+  position: relative;
+  flex: 0 0 auto;
+}
+
+.public-shell-menu-trigger {
+  width: 52px;
+  height: 52px;
+  border: 1px solid rgba(99, 91, 255, 0.18);
+  background: rgba(255, 255, 255, 0.88);
+  border-radius: 16px;
+  box-shadow: 0 8px 24px rgba(99, 91, 255, 0.12);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.public-shell-menu-bars {
+  width: 20px;
+  display: inline-flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.public-shell-menu-bars span {
+  display: block;
+  height: 2.5px;
+  border-radius: 999px;
+  background: #4f46e5;
+}
+
+.public-shell-menu-panel {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  min-width: 120px;
+  min-height: 24px;
+  padding: 8px 10px;
+  border-radius: 18px;
+  background: var(--public-shell-panel-bg);
+  border: 1px solid rgba(99, 91, 255, 0.12);
+  box-shadow: 0 16px 36px rgba(15, 23, 42, 0.12);
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity 0.18s ease, transform 0.18s ease;
+  transform: translateY(-4px);
+  z-index: 20;
+}
+
+.public-shell-menu-wrap:hover .public-shell-menu-panel,
+.public-shell-menu-wrap:focus-within .public-shell-menu-panel {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+  transform: translateY(0);
+}
+
+.public-shell-menu-empty {
+  height: 8px;
+}
+
+.public-shell-logo {
+  display: block;
+  width: min(100%, 306px);
+  height: auto;
+}
+
+.public-shell-badge-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  align-self: center;
+}
+
+.public-shell-badge-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 999px;
+  background: rgba(99, 91, 255, 0.12);
+  color: #5b52ff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+}
+
+.public-shell-badge-icon svg {
+  width: 20px;
+  height: 20px;
+}
+
+.public-shell-badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 40px;
+  padding: 0 18px;
+  border-radius: 999px;
+  background: var(--public-shell-pill-bg);
+  color: var(--public-shell-pill-text);
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.public-shell-footer {
+  margin-top: 22px;
+  padding: 16px 18px;
+  border-radius: 18px;
+  border: 1px solid var(--public-shell-border);
+  background: rgba(255, 255, 255, 0.9);
+  box-shadow: var(--public-shell-shadow);
+}
+
+.public-shell-footer-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.public-shell-footer-text {
+  color: var(--public-shell-muted);
+  font-size: 13px;
+}
+
+.public-shell-footer-link {
+  color: #4f46e5;
+  text-decoration: none;
+  font-weight: 700;
+}
+
+.public-shell-footer-link:hover {
+  text-decoration: underline;
+}
+
+@media (max-width: 860px) {
+  .public-shell-header-top {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 14px;
+  }
+
+  .public-shell-logo {
+    width: min(100%, 252px);
+  }
+
+  .public-shell-badge-wrap {
+    align-self: flex-start;
+  }
+}
+
+@media (max-width: 640px) {
+  .public-shell-brand {
+    gap: 12px;
+    align-items: flex-start;
+  }
+
+  .public-shell-menu-trigger {
+    width: 46px;
+    height: 46px;
+    border-radius: 14px;
+  }
+
+  .public-shell-logo {
+    width: min(100%, 207px);
+  }
+
+  .public-shell-badge-wrap {
+    gap: 10px;
+  }
+}

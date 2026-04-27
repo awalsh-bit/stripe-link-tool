@@ -66,6 +66,7 @@ const ALWAYS_PUBLIC_PATHS = new Set([
 ]);
 
 const PUBLIC_AUTH_PATHS = new Set([
+  "/logo-black.png",
   "/api/login",
   "/api/logout"
 ]);

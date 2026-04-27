@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="robots" content="noindex,nofollow,noarchive" />
   <title>Wilson AC & Appliance - Appliance Service</title>
+  <link rel="stylesheet" href="public-shell.css" />
   <style>
     :root {
       --bg: #f7f8fc;
@@ -39,25 +40,6 @@
     }
 
     .hero { margin-bottom: 22px; }
-
-    .eyebrow {
-      display: inline-block;
-      font-size: 12px;
-      font-weight: 700;
-      letter-spacing: 0.08em;
-      text-transform: uppercase;
-      color: var(--primary);
-      background: rgba(99, 91, 255, 0.1);
-      padding: 8px 10px;
-      border-radius: 999px;
-      margin-bottom: 14px;
-    }
-
-    h1 {
-      margin: 0 0 10px;
-      font-size: clamp(28px, 4vw, 42px);
-      line-height: 1.05;
-    }
 
     .sub {
       margin: 0;
@@ -307,13 +289,12 @@
   </style>
   <script src="https://js.stripe.com/v3/"></script>
 </head>
-<body>
+<body data-public-shell-label="Appliance Repair Request Form">
   <div class="wrap">
     <div class="hero">
-      <div class="eyebrow">Wilson AC & Appliance - Appliance Service</div>
-      <h1>Request a Service Call</h1>
+      <div id="public-shell-header"></div>
       <p class="sub">
-        Complete the service request details below, then securely save a card on file for approved service work, annual maintenance, and future charges related to this request.
+        Please complete the form below and our Client Care team will coordinate an in-home visit with one of our professional service technicians. Securely save a card on file that will be used for approved service work, annual maintenance, and any charges related to this request.
       </p>
     </div>
 
@@ -575,6 +556,7 @@ I have read and agree to the <a href="terms.html" target="_blank" rel="noopener 
         Important: this page securely saves a card for later billing. It does not charge the card today.
       </p>
     </div>
+    <div id="public-shell-footer"></div>
   </div>
 
   <script>
@@ -1262,5 +1244,6 @@ form.addEventListener("submit", async (event) => {
     loadPrefill();
 
   </script>
+  <script src="public-shell.js"></script>
 </body>
 </html>

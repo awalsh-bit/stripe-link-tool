@@ -205,6 +205,40 @@
       text-decoration: none;
     }
 
+    .mode-panel {
+      display: none;
+      border: 1px solid rgba(99, 91, 255, 0.16);
+      border-radius: 14px;
+      background: #fafbff;
+      padding: 16px;
+      gap: 12px;
+    }
+
+    .mode-panel.show {
+      display: grid;
+    }
+
+    .mode-panel-title {
+      font-size: 13px;
+      font-weight: 800;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: #4f46e5;
+    }
+
+    .money-preview-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 14px;
+    }
+
+    .agreement-copy {
+      margin: 0;
+      font-size: 14px;
+      line-height: 1.7;
+      color: var(--text);
+    }
+
     .footer-note {
       margin-top: 18px;
       color: var(--muted);
@@ -247,6 +281,14 @@
       <form id="paymentForm">
         <div class="grid">
           <div class="field full">
+            <label for="linkType">Link Type</label>
+            <select id="linkType" name="linkType">
+              <option value="appliance">Appliance Payment Link</option>
+              <option value="hvac_deposit">HVAC Deposit Link</option>
+            </select>
+          </div>
+
+          <div class="field full">
             <label for="creatorCode">Employee Code</label>
             <div class="lookup-row">
               <input id="creatorCode" name="creatorCode" maxlength="3" required />
@@ -262,6 +304,17 @@
           <div class="field">
             <label for="creatorEmail">Employee Email</label>
             <input id="creatorEmail" name="creatorEmail" type="email" readonly />
+          </div>
+
+          <div class="field full">
+            <label for="department">Department</label>
+            <select id="department" name="department" required>
+              <option value="Appliance">Appliance</option>
+              <option value="Repair Service">Repair Service</option>
+              <option value="Kitchen Design">Kitchen Design</option>
+              <option value="HVAC Sales">HVAC Sales</option>
+            </select>
+            <div id="departmentHint" class="hint">Department will auto-fill from employee code. Client Care can choose the department manually when needed.</div>
           </div>
 
           <div class="field">
@@ -280,7 +333,7 @@
           </div>
 
           <div class="field">
-            <label for="amount">Amount</label>
+            <label for="amount" id="amountLabel">Amount</label>
             <input id="amount" name="amount" type="number" min="1" step="0.01" placeholder="125.00" required />
           </div>
 
@@ -300,6 +353,25 @@
   <label for="salesOrder">Sales Order</label>
   <input id="salesOrder" name="salesOrder" placeholder="ePASS Sales Order Number" required />
 </div>
+
+          <div id="hvacPanel" class="mode-panel full">
+            <div class="mode-panel-title">HVAC Deposit Workflow</div>
+            <div class="hint">For HVAC, enter the full sales order total above. This tool will charge a 50% deposit now and save the payment method for the remaining balance on the final day of installation.</div>
+            <div class="money-preview-grid">
+              <div class="field">
+                <label for="depositAmountPreview">Deposit Collected Now</label>
+                <input id="depositAmountPreview" readonly />
+              </div>
+              <div class="field">
+                <label for="remainingBalancePreview">Balance Remaining</label>
+                <input id="remainingBalancePreview" readonly />
+              </div>
+            </div>
+            <div class="field full">
+              <label for="agreementText">Customer Agreement Text</label>
+              <textarea id="agreementText" readonly></textarea>
+            </div>
+          </div>
 </div>
 
         <div class="actions">
@@ -323,6 +395,10 @@
             <div class="result-label">Link</div>
             <div id="resultLink" class="result-value"></div>
           </div>
+          <div id="resultAgreementRow" class="result-row" style="display:none;">
+            <div class="result-label">Customer Agreement</div>
+            <div id="resultAgreement" class="result-value"></div>
+          </div>
         </div>
       </form>
 
@@ -338,7 +414,7 @@
   </div>
 
   <script src="internal-shell.js"></script>
-  <script src="/employee-directory.js"></script>
+  <script src="employee-directory.js"></script>
   <script>
     const form = document.getElementById('paymentForm');
     const submitBtn = document.getElementById('submitBtn');
@@ -351,6 +427,18 @@
     const creatorCodeInput = document.getElementById('creatorCode');
     const creatorNameInput = document.getElementById('creatorName');
     const creatorEmailInput = document.getElementById('creatorEmail');
+    const departmentInput = document.getElementById('department');
+    const departmentHint = document.getElementById('departmentHint');
+    const linkTypeInput = document.getElementById('linkType');
+    const amountInput = document.getElementById('amount');
+    const amountLabel = document.getElementById('amountLabel');
+    const hvacPanel = document.getElementById('hvacPanel');
+    const depositAmountPreview = document.getElementById('depositAmountPreview');
+    const remainingBalancePreview = document.getElementById('remainingBalancePreview');
+    const agreementText = document.getElementById('agreementText');
+    const customerEmailInput = document.getElementById('customerEmail');
+    const resultAgreementRow = document.getElementById('resultAgreementRow');
+    const resultAgreement = document.getElementById('resultAgreement');
 
     let latestLink = '';
     const TEAM_DIRECTORY = window.WILSON_EMPLOYEE_DIRECTORY || {};
@@ -374,17 +462,33 @@
       if (!code) {
         creatorNameInput.value = '';
         creatorEmailInput.value = '';
+        departmentInput.value = '';
+        departmentInput.disabled = false;
+        departmentHint.textContent = 'Department will auto-fill from employee code. Client Care can choose the department manually when needed.';
         return true;
       }
 
       if (!match) {
         creatorNameInput.value = '';
         creatorEmailInput.value = '';
+        departmentInput.value = '';
+        departmentInput.disabled = false;
         return false;
       }
 
       creatorNameInput.value = match.name;
       creatorEmailInput.value = match.email;
+      const matchedDepartment = match.department || '';
+
+      if (matchedDepartment === 'Client Care') {
+        departmentInput.value = '';
+        departmentInput.disabled = false;
+        departmentHint.textContent = 'Client Care can manually choose which department should own this payment link.';
+      } else {
+        departmentInput.value = matchedDepartment;
+        departmentInput.disabled = true;
+        departmentHint.textContent = 'Department was assigned from the employee code.';
+      }
       return true;
     }
 
@@ -393,6 +497,38 @@
         style: 'currency',
         currency: currency.toUpperCase(),
       }).format(amount);
+    }
+
+    function getLinkType() {
+      return linkTypeInput.value === 'hvac_deposit' ? 'hvac_deposit' : 'appliance';
+    }
+
+    function getAgreementCopy(totalAmount, depositAmount, balanceAmount) {
+      return `By completing this payment, you authorize Wilson AC & Appliance to charge a deposit of ${formatMoney(depositAmount, 'usd')} today and the remaining ${formatMoney(balanceAmount, 'usd')} on the final day of installation for your project.`;
+    }
+
+    function updateHvacPreview() {
+      const linkType = getLinkType();
+      const totalAmount = Number(amountInput.value || 0);
+      const depositAmount = totalAmount > 0 ? Number((totalAmount / 2).toFixed(2)) : 0;
+      const balanceAmount = totalAmount > 0 ? Number((totalAmount - depositAmount).toFixed(2)) : 0;
+
+      amountLabel.textContent = linkType === 'hvac_deposit' ? 'Sales Order Total' : 'Amount';
+      amountInput.placeholder = linkType === 'hvac_deposit' ? 'Full HVAC sales order amount' : '125.00';
+      hvacPanel.classList.toggle('show', linkType === 'hvac_deposit');
+      customerEmailInput.required = linkType === 'hvac_deposit';
+
+      if (linkType === 'hvac_deposit') {
+        depositAmountPreview.value = depositAmount ? formatMoney(depositAmount, 'usd') : '';
+        remainingBalancePreview.value = balanceAmount ? formatMoney(balanceAmount, 'usd') : '';
+        agreementText.value = totalAmount
+          ? getAgreementCopy(totalAmount, depositAmount, balanceAmount)
+          : 'Enter the full sales order total above to preview the deposit and remaining balance agreement.';
+      } else {
+        depositAmountPreview.value = '';
+        remainingBalancePreview.value = '';
+        agreementText.value = '';
+      }
     }
 
     creatorCodeInput.addEventListener('input', () => {
@@ -404,10 +540,15 @@
       }
     });
 
+    linkTypeInput.addEventListener('change', updateHvacPreview);
+    amountInput.addEventListener('input', updateHvacPreview);
+
     form.addEventListener('submit', async (event) => {
       event.preventDefault();
       clearStatus();
       resultEl.classList.remove('show');
+      resultAgreementRow.style.display = 'none';
+      resultAgreement.textContent = '';
       copyBtn.disabled = true;
       latestLink = '';
 
@@ -417,19 +558,32 @@
 
 const customerPhone = formData.get('customerPhone')?.toString().trim() || '';
 const customerPhoneDigits = customerPhone.replace(/\D/g, '');
+const linkType = getLinkType();
+const enteredAmount = Number(formData.get('amount'));
+const depositAmount = linkType === 'hvac_deposit' ? Number((enteredAmount / 2).toFixed(2)) : enteredAmount;
+const balanceAmount = linkType === 'hvac_deposit' ? Number((enteredAmount - depositAmount).toFixed(2)) : 0;
+const agreementCopy = linkType === 'hvac_deposit'
+  ? getAgreementCopy(enteredAmount, depositAmount, balanceAmount)
+  : '';
 
 const payload = {
+  linkType,
   creatorCode: creatorCodeInput.value.trim(),
   creatorName: creatorNameInput.value.trim(),
   creatorEmail: creatorEmailInput.value.trim(),
+  department: departmentInput.value.trim(),
   customerName: formData.get('customerName')?.toString().trim() || '',
   customerPhone,
   customerPhoneDigits,
   customerEmail: formData.get('customerEmail')?.toString().trim() || '',
   salesOrder: formData.get('salesOrder')?.toString().trim() || '',
-  amount: Number(formData.get('amount')),
+  amount: depositAmount,
+  requestedTotalAmount: enteredAmount,
+  depositAmount,
+  balanceAmount,
   currency: formData.get('currency')?.toString().trim() || '',
   description: formData.get('description')?.toString().trim() || '',
+  agreementText: agreementCopy,
 };
 
 if (!creatorLookupValid || !payload.creatorCode || !payload.creatorName || !payload.creatorEmail) {
@@ -437,8 +591,18 @@ if (!creatorLookupValid || !payload.creatorCode || !payload.creatorName || !payl
   return;
 }
 
+if (!payload.department) {
+  showStatus('error', 'Please select a department before creating the payment link.');
+  return;
+}
+
 if (!payload.customerName || !payload.customerPhone || !payload.salesOrder || !payload.description || !payload.amount) {
   showStatus('error', 'Please complete all required fields.');
+  return;
+}
+
+if (linkType === 'hvac_deposit' && !payload.customerEmail) {
+  showStatus('error', 'Client email is required for HVAC deposit links so the payment method can be saved for the final balance.');
   return;
 }
 
@@ -469,9 +633,19 @@ if (!payload.customerName || !payload.customerPhone || !payload.salesOrder || !p
   : payload.customerName;
         resultAmount.textContent = formatMoney(payload.amount, payload.currency);
         resultLink.innerHTML = `<a href="${data.url}" target="_blank" rel="noopener noreferrer">${data.url}</a>`;
+        if (linkType === 'hvac_deposit') {
+          resultAgreement.textContent = agreementCopy;
+          resultAgreementRow.style.display = 'block';
+        }
         resultEl.classList.add('show');
 
-        showStatus('success', data.message || `Payment link created successfully. ${payload.creatorName} will be notified by email when it is paid if paid-email notifications are configured.`);
+        showStatus(
+          'success',
+          data.message ||
+            (linkType === 'hvac_deposit'
+              ? `HVAC deposit link created successfully. The link charges ${formatMoney(payload.amount, payload.currency)} now and saves the payment method for the remaining balance.`
+              : `Payment link created successfully. ${payload.creatorName} will be notified by email when it is paid if paid-email notifications are configured.`)
+        );
       } catch (error) {
         showStatus(
           'error',
@@ -493,6 +667,8 @@ if (!payload.customerName || !payload.customerPhone || !payload.salesOrder || !p
         showStatus('error', 'Could not copy the link automatically.');
       }
     });
+
+    updateHvacPreview();
   </script>
 
 

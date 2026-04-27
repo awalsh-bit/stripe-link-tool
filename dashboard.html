@@ -910,6 +910,13 @@
 
         <div class="toolbar">
           <input type="search" id="queueSearchFilter" placeholder="Search unpaid queue by customer, order, phone, or note" />
+          <select id="departmentFilter">
+            <option value="Appliance">Appliance</option>
+            <option value="all">All departments</option>
+            <option value="Repair Service">Repair Service</option>
+            <option value="Kitchen Design">Kitchen Design</option>
+            <option value="HVAC Sales">HVAC Sales</option>
+          </select>
           <select id="queueStatusFilter">
             <option value="active">Active queue only</option>
             <option value="ach_pending">ACH pending only</option>
@@ -1003,6 +1010,7 @@
     <div id="internal-shell-footer"></div>
   </div>
 
+  <script src="employee-directory.js"></script>
   <script>
   const queueTableBody = document.getElementById("queueTableBody");
   const paidTableBody = document.getElementById("paidTableBody");
@@ -1013,12 +1021,14 @@
   const paidTotalEl = document.getElementById("paidTotal");
   const paidCountEl = document.getElementById("paidCount");
   const queueSearchFilterEl = document.getElementById("queueSearchFilter");
+  const departmentFilterEl = document.getElementById("departmentFilter");
   const queueStatusFilterEl = document.getElementById("queueStatusFilter");
   const agingDaysFilterEl = document.getElementById("agingDaysFilter");
   const paidSearchFilterEl = document.getElementById("paidSearchFilter");
   const paidDateFilterEl = document.getElementById("paidDateFilter");
 
   let allRows = [];
+  const TEAM_DIRECTORY = window.WILSON_EMPLOYEE_DIRECTORY || {};
 
   const today = new Date();
   paidDateFilterEl.value = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
@@ -1080,6 +1090,7 @@
 
   function queueSearchText(row) {
     return [
+      resolveDepartment(row),
       row.customerName,
       row.customerPhone,
       row.customerEmail,
@@ -1092,6 +1103,7 @@
 
   function paidSearchText(row) {
     return [
+      resolveDepartment(row),
       row.customerName,
       row.reference,
       row.description,
@@ -1103,6 +1115,12 @@
   function formatReference(row) {
     const parts = [row.salesOrder, row.description || row.reference].filter(Boolean);
     return parts.length ? parts.join(" | ") : "-";
+  }
+
+  function resolveDepartment(row) {
+    if (row.department) return row.department;
+    const code = String(row.creatorCode || "").trim().toUpperCase();
+    return TEAM_DIRECTORY[code]?.department || "";
   }
 
   function isLinkRow(row) {
@@ -1172,6 +1190,7 @@
 
   function renderDashboard() {
     const queueSearch = queueSearchFilterEl.value.trim().toLowerCase();
+    const selectedDepartment = departmentFilterEl.value;
     const queueStatus = queueStatusFilterEl.value;
     const paidSearch = paidSearchFilterEl.value.trim().toLowerCase();
     const selectedPaidDate = paidDateFilterEl.value;
@@ -1181,11 +1200,13 @@
       .filter((row) => isLinkRow(row) && row.status !== "paid")
       .filter((row) => {
         const matchesSearch = !queueSearch || queueSearchText(row).includes(queueSearch);
+        const matchesDepartment =
+          selectedDepartment === "all" || resolveDepartment(row) === selectedDepartment;
         const matchesStatus =
           queueStatus === "all" ||
           (queueStatus === "active" && ["sent", "viewed", "ach_pending"].includes(row.status)) ||
           row.status === queueStatus;
-        return matchesSearch && matchesStatus;
+        return matchesSearch && matchesDepartment && matchesStatus;
       })
       .sort((a, b) => new Date(a.createdAt || 0) - new Date(b.createdAt || 0));
 
@@ -1193,9 +1214,11 @@
       .filter((row) => row.status === "paid")
       .filter((row) => {
         const matchesSearch = !paidSearch || paidSearchText(row).includes(paidSearch);
+        const matchesDepartment =
+          selectedDepartment === "all" || resolveDepartment(row) === selectedDepartment;
         const paidDateOnly = toLocalDateInputValue(row.paidDate);
         const matchesDate = !selectedPaidDate || paidDateOnly === selectedPaidDate;
-        return matchesSearch && matchesDate;
+        return matchesSearch && matchesDepartment && matchesDate;
       })
       .sort((a, b) => new Date(b.paidDate || b.createdAt || 0) - new Date(a.paidDate || a.createdAt || 0));
 
@@ -1340,6 +1363,7 @@
   });
 
   queueSearchFilterEl.addEventListener("input", renderDashboard);
+  departmentFilterEl.addEventListener("change", renderDashboard);
   queueStatusFilterEl.addEventListener("change", renderDashboard);
   agingDaysFilterEl.addEventListener("change", renderDashboard);
   paidSearchFilterEl.addEventListener("input", renderDashboard);

@@ -1610,8 +1610,13 @@ app.get("/api/paid-order-detail", async (req, res) => {
     );
 
     const detailedRows = await getSaleRowsForDateRange(start, end, paidSourceRowsByPaymentIntentId);
-    const localAchRows = await getLocalAchSaleRowsForDateRange(start, end, links, detailedRows);
-    detailedRows.push(...localAchRows);
+    const localFallbackRows = await getLocalFallbackSaleRowsForDateRange(
+      start,
+      end,
+      [...links, ...terminalPayments],
+      detailedRows
+    );
+    detailedRows.push(...localFallbackRows);
 
     const refundRows = await getRefundRowsForDateRange(start, end, paidSourceRowsByPaymentIntentId);
     detailedRows.push(...refundRows);
@@ -2029,8 +2034,8 @@ async function getSaleRowsForDateRange(start, end, paidSourceRowsByPaymentIntent
   const paymentIntentCache = new Map();
   let startingAfter = "";
   let keepLoading = true;
-  const startUnix = dateKeyToUnixStart(start);
-  const endUnix = dateKeyToUnixEnd(end);
+  const startUnix = dateKeyToUnixStart(addDaysToDateKey(start, -1));
+  const endUnix = dateKeyToUnixEnd(addDaysToDateKey(end, 1));
 
   while (keepLoading) {
     const page = await listChargesWithRetry({
@@ -2088,18 +2093,17 @@ async function getSaleRowsForDateRange(start, end, paidSourceRowsByPaymentIntent
   return saleRows;
 }
 
-async function getLocalAchSaleRowsForDateRange(start, end, links, existingRows = []) {
+async function getLocalFallbackSaleRowsForDateRange(start, end, sourceRows, existingRows = []) {
   const existingPaymentIntentIds = new Set(
     existingRows
       .filter((row) => row.type === "sale" && row.paymentIntentId)
       .map((row) => row.paymentIntentId)
   );
 
-  const achRows = links.filter((row) => {
+  const fallbackRows = sourceRows.filter((row) => {
     const paidDateOnly = toTimeZoneDateKey(row.paidDate, APP_TIMEZONE);
     return (
       row.status === "paid" &&
-      row.type === "ach_link" &&
       row.paymentIntentId &&
       paidDateOnly &&
       paidDateOnly >= start &&
@@ -2108,13 +2112,13 @@ async function getLocalAchSaleRowsForDateRange(start, end, links, existingRows =
     );
   });
 
-  const detailedAchRows = [];
+  const detailedFallbackRows = [];
 
-  for (const row of achRows) {
+  for (const row of fallbackRows) {
     const resolvedFields = resolvePaidOrderFields(row);
     const stripeAmounts = await getStripeAmountsForPaymentIntentWithRetry(row.paymentIntentId);
 
-    detailedAchRows.push({
+    detailedFallbackRows.push({
       id: row.id || row.paymentIntentId || "",
       type: "sale",
       paidDate: row.paidDate || "",
@@ -2130,7 +2134,7 @@ async function getLocalAchSaleRowsForDateRange(start, end, links, existingRows =
     await sleep(120);
   }
 
-  return detailedAchRows;
+  return detailedFallbackRows;
 }
 
 async function getRefundRowsForDateRange(start, end, paidSourceRowsByPaymentIntentId) {
@@ -2412,6 +2416,18 @@ function dateKeyToUnixStart(dateKey) {
 
 function dateKeyToUnixEnd(dateKey) {
   return Math.floor(Date.parse(`${dateKey}T23:59:59Z`) / 1000);
+}
+
+function addDaysToDateKey(dateKey, dayDelta) {
+  const [year, month, day] = String(dateKey || "").split("-").map(Number);
+
+  if (!year || !month || !day) {
+    return dateKey;
+  }
+
+  const date = new Date(Date.UTC(year, month - 1, day));
+  date.setUTCDate(date.getUTCDate() + Number(dayDelta || 0));
+  return date.toISOString().slice(0, 10);
 }
 
 function unixDateToDateKey(unixValue) {

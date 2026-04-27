@@ -1,8 +1,8 @@
 window.WILSON_EMPLOYEE_DIRECTORY = {
   EHM: { name: "Elliott Mullen", email: "emullen@wilsonappliance.com", department: "Appliance" },
   SPR: { name: "Shaun Ray", email: "sray@wilsonappliance.com", department: "Appliance" },
-  AMW: { name: "Andrew Walsh", email: "awalsh@wilsonappliance.com", department: "Appliance" },
-  CDM: { name: "Cayden Mayfield", email: "cmayfield@wilsonappliance.com", department: "Appliance" },
+  AMW: { name: "Andrew Walsh", email: "awalsh@wilsonappliance.com", department: "Client Care" },
+  CDM: { name: "Cayden Mayfield", email: "cmayfield@wilsonappliance.com", department: "Client Care" },
   CSH: { name: "Christian Houde", email: "choude@wilsonappliance.com", department: "Appliance" },
   LTC: { name: "Logan Carter", email: "lcarter@wilsonappliance.com", department: "Appliance" },
   TAB: { name: "Terra Bourguignon", email: "tbourguignon@wilsonappliance.com", department: "Appliance" },

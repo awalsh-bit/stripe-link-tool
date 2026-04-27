@@ -337,13 +337,6 @@
             <input id="amount" name="amount" type="number" min="1" step="0.01" placeholder="125.00" required />
           </div>
 
-          <div class="field">
-            <label for="currency">Currency</label>
-            <select id="currency" name="currency">
-              <option value="usd">USD</option>
-            </select>
-          </div>
-
           <div class="field full">
             <label for="description">Description</label>
             <input id="description" name="description" placeholder="123 Main Street Appliances or Smith Residence HVAC System" required />
@@ -581,7 +574,7 @@ const payload = {
   requestedTotalAmount: enteredAmount,
   depositAmount,
   balanceAmount,
-  currency: formData.get('currency')?.toString().trim() || '',
+  currency: 'usd',
   description: formData.get('description')?.toString().trim() || '',
   agreementText: agreementCopy,
 };

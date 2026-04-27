@@ -455,7 +455,6 @@ app.post("/api/create-payment-link", async (req, res) => {
       requestedTotalAmount,
       depositAmount,
       balanceAmount,
-      currency,
       description,
       notes,
       agreementText
@@ -468,6 +467,7 @@ app.post("/api/create-payment-link", async (req, res) => {
     }
 
     const normalizedLinkType = linkType === "hvac_deposit" ? "hvac_deposit" : "appliance";
+    const normalizedCurrency = "usd";
     const chargeNowAmount = Number(amount);
     const fullOrderAmount =
       normalizedLinkType === "hvac_deposit"
@@ -501,7 +501,7 @@ const product = await stripe.products.create({
     const price = await stripe.prices.create({
       product: product.id,
       unit_amount: unitAmount,
-      currency: currency || "usd"
+      currency: normalizedCurrency
     });
 
 const sharedMetadata = {
@@ -567,7 +567,7 @@ const paymentLink = await stripe.paymentLinks.create(paymentLinkConfig);
       depositAmount: normalizedLinkType === "hvac_deposit" ? (Number(depositAmount) || chargeNowAmount || 0) : 0,
       balanceAmount: remainingBalanceAmount || 0,
       agreementText: agreementText || "",
-      currency: currency || "usd",
+      currency: normalizedCurrency,
       paymentLinkId: paymentLink.id,
       paymentLinkUrl: paymentLink.url,
       status: "sent",

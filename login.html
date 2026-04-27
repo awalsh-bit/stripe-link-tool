@@ -10,7 +10,6 @@
       --bg: #f7f8fc;
       --card: #ffffff;
       --text: #1f2937;
-      --muted: #6b7280;
       --border: #dbe1ea;
       --primary: #635bff;
       --primary-hover: #564ef0;
@@ -53,7 +52,8 @@
     }
 
     .logo {
-      width: min(100%, 220px);
+      width: 220px;
+      max-width: 100%;
       height: auto;
       display: block;
       flex: 0 0 auto;
@@ -153,7 +153,7 @@
 <body>
   <div class="card">
     <div class="header-row">
-      <img class="logo" id="loginLogo" src="logo-black.png" alt="Wilson AC & Appliance" />
+      <img class="logo" src="./logo-black.png" alt="Wilson AC & Appliance" />
       <div class="badge">Internal Tools Login</div>
     </div>
 
@@ -177,13 +177,6 @@
     const form = document.getElementById("loginForm");
     const loginBtn = document.getElementById("loginBtn");
     const statusBox = document.getElementById("status");
-    const loginLogo = document.getElementById("loginLogo");
-
-    if (window.location.protocol === "file:") {
-      loginLogo.src = "file:///C:/Users/awalsh.WILSON/OneDrive%20-%20Wilson%20Appliance/stripe-link-tool/logo-black.png";
-    } else {
-      loginLogo.src = "/logo-black.png";
-    }
 
     function showError(message) {
       statusBox.className = "status error show";

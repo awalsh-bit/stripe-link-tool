@@ -74,6 +74,7 @@ const PUBLIC_AUTH_PATHS = new Set([
 const INTERNAL_PAGE_PATHS = new Set([
   "/dashboard.html",
   "/salesdashboard.html",
+  "/hvac-dashboard.html",
   "/intent-lookup.html",
   "/login.html",
   "/logout.html",
@@ -440,6 +441,7 @@ app.get("/", (req, res) => {
 app.post("/api/create-payment-link", async (req, res) => {
   try {
     const {
+      linkType,
       customerName,
       customerPhone,
       customerPhoneDigits,
@@ -447,11 +449,16 @@ app.post("/api/create-payment-link", async (req, res) => {
       creatorCode,
       creatorName,
       creatorEmail,
+      department,
       salesOrder,
       amount,
+      requestedTotalAmount,
+      depositAmount,
+      balanceAmount,
       currency,
       description,
-      notes
+      notes,
+      agreementText
     } = req.body;
 
     if (!amount || !salesOrder || !customerPhone) {
@@ -460,7 +467,24 @@ app.post("/api/create-payment-link", async (req, res) => {
       });
     }
 
-    const unitAmount = Math.round(Number(amount) * 100);
+    const normalizedLinkType = linkType === "hvac_deposit" ? "hvac_deposit" : "appliance";
+    const chargeNowAmount = Number(amount);
+    const fullOrderAmount =
+      normalizedLinkType === "hvac_deposit"
+        ? Number(requestedTotalAmount || amount)
+        : Number(amount);
+    const remainingBalanceAmount =
+      normalizedLinkType === "hvac_deposit"
+        ? Number(balanceAmount || Math.max(fullOrderAmount - chargeNowAmount, 0))
+        : 0;
+
+    if (normalizedLinkType === "hvac_deposit" && !customerEmail) {
+      return res.status(400).json({
+        error: "customerEmail is required for HVAC deposit links"
+      });
+    }
+
+    const unitAmount = Math.round(chargeNowAmount * 100);
 if (!Number.isFinite(unitAmount) || unitAmount < 50) {
   return res.status(400).json({
     error: "Amount must be at least $0.50"
@@ -468,7 +492,10 @@ if (!Number.isFinite(unitAmount) || unitAmount < 50) {
 }
 
 const product = await stripe.products.create({
-  name: salesOrder || "Customer payment"
+  name:
+    normalizedLinkType === "hvac_deposit"
+      ? `${salesOrder || "Customer payment"} HVAC Deposit`
+      : salesOrder || "Customer payment"
 });
 
     const price = await stripe.prices.create({
@@ -477,39 +504,47 @@ const product = await stripe.products.create({
       currency: currency || "usd"
     });
 
-const paymentLink = await stripe.paymentLinks.create({
+const sharedMetadata = {
+  workflow_type: normalizedLinkType,
+  sales_order: salesOrder || "",
+  customer_name: customerName || "",
+  customer_phone: customerPhoneDigits || customerPhone || "",
+  customer_email: customerEmail || "",
+  creator_code: creatorCode || "",
+  creator_name: creatorName || "",
+  creator_email: creatorEmail || "",
+  department: department || "",
+  notes: notes || "",
+  link_description: description || "",
+  requested_total_amount: String(fullOrderAmount || 0),
+  deposit_amount: String(normalizedLinkType === "hvac_deposit" ? (depositAmount || chargeNowAmount) : chargeNowAmount),
+  remaining_balance_amount: String(remainingBalanceAmount || 0),
+  agreement_text: agreementText || ""
+};
+
+const paymentLinkConfig = {
   line_items: [
     {
       price: price.id,
       quantity: 1
     }
   ],
-      payment_intent_data: {
-    description: salesOrder || description || "Customer payment",
-    metadata: {
-      sales_order: salesOrder || "",
-      customer_name: customerName || "",
-      customer_phone: customerPhoneDigits || customerPhone || "",
-      customer_email: customerEmail || "",
-      creator_code: creatorCode || "",
-      creator_name: creatorName || "",
-      creator_email: creatorEmail || "",
-      notes: notes || "",
-      link_description: description || ""
-    }
+  payment_intent_data: {
+    description:
+      normalizedLinkType === "hvac_deposit"
+        ? `${salesOrder || description || "Customer payment"} HVAC deposit`
+        : salesOrder || description || "Customer payment",
+    metadata: sharedMetadata
   },
-  metadata: {
-    sales_order: salesOrder || "",
-    customer_name: customerName || "",
-    customer_phone: customerPhoneDigits || customerPhone || "",
-    customer_email: customerEmail || "",
-    creator_code: creatorCode || "",
-    creator_name: creatorName || "",
-    creator_email: creatorEmail || "",
-    notes: notes || "",
-    link_description: description || ""
-  }
-});
+  metadata: sharedMetadata
+};
+
+if (normalizedLinkType === "hvac_deposit") {
+  paymentLinkConfig.customer_creation = "always";
+  paymentLinkConfig.payment_intent_data.setup_future_usage = "off_session";
+}
+
+const paymentLink = await stripe.paymentLinks.create(paymentLinkConfig);
 
     const links = await readLinks();
 
@@ -522,10 +557,16 @@ const paymentLink = await stripe.paymentLinks.create({
       creatorCode: creatorCode || "",
       creatorName: creatorName || "",
       creatorEmail: creatorEmail || "",
+      department: department || "",
       salesOrder: salesOrder || "",
       description: description || "",
       notes: notes || "",
-      requestedAmount: Number(amount) || 0,
+      workflowType: normalizedLinkType,
+      requestedAmount: chargeNowAmount || 0,
+      requestedTotalAmount: fullOrderAmount || chargeNowAmount || 0,
+      depositAmount: normalizedLinkType === "hvac_deposit" ? (Number(depositAmount) || chargeNowAmount || 0) : 0,
+      balanceAmount: remainingBalanceAmount || 0,
+      agreementText: agreementText || "",
       currency: currency || "usd",
       paymentLinkId: paymentLink.id,
       paymentLinkUrl: paymentLink.url,
@@ -537,17 +578,23 @@ const paymentLink = await stripe.paymentLinks.create({
       paymentStatusDetail: "",
       paymentNotificationSentAt: "",
       paymentNotificationError: "",
+      customerId: "",
+      paymentMethodId: "",
       paidAmount: 0,
       paidDate: "",
       paymentIntentId: "",
-      checkoutSessionId: ""
+      checkoutSessionId: "",
+      balanceChargedAt: "",
+      balancePaymentIntentId: "",
+      balancePaidAmount: 0
     });
 
     await writeLinks(links);
 
     res.json({
       url: paymentLink.url,
-      paymentLinkId: paymentLink.id
+      paymentLinkId: paymentLink.id,
+      workflowType: normalizedLinkType
     });
   } catch (err) {
     res.status(400).json({
@@ -1125,7 +1172,8 @@ app.post("/api/card-on-file/charge", async (req, res) => {
       creatorCode,
       creatorName,
       creatorEmail,
-      internalNotes
+      internalNotes,
+      hvacDepositRecordId
     } = req.body;
 
     if (!customerId || !paymentMethodId || !amount || !salesOrder) {
@@ -1190,6 +1238,20 @@ app.post("/api/card-on-file/charge", async (req, res) => {
       await writeTerminalPayments(terminalPayments);
     }
 
+    if (paymentIntent.status === "succeeded" && hvacDepositRecordId) {
+      const links = await readLinks();
+      const hvacRecord = links.find((row) => row.id === hvacDepositRecordId);
+
+      if (hvacRecord && normalizeLinkRecord(hvacRecord).workflowType === "hvac_deposit") {
+        hvacRecord.balanceChargedAt = new Date().toISOString();
+        hvacRecord.balancePaymentIntentId = paymentIntent.id;
+        hvacRecord.balancePaidAmount = Number((paymentIntent.amount || 0) / 100);
+        hvacRecord.customerId = customerId || hvacRecord.customerId || "";
+        hvacRecord.paymentMethodId = paymentMethodId || hvacRecord.paymentMethodId || "";
+        await writeLinks(links);
+      }
+    }
+
     return res.json({
       success: true,
       status: paymentIntent.status,
@@ -1209,6 +1271,146 @@ app.get("/api/service-cards", async (req, res) => {
   } catch (err) {
     res.status(400).json({
       error: err.message || "Unable to load service cards."
+    });
+  }
+});
+
+app.get("/api/hvac-deposits", async (req, res) => {
+  try {
+    const links = await readLinks();
+    let didUpdate = false;
+    const rows = [];
+
+    for (const rawRow of links) {
+      const row = normalizeLinkRecord(rawRow);
+
+      if (
+        row.workflowType !== "hvac_deposit" ||
+        row.status !== "paid" ||
+        Number(row.balanceAmount || 0) <= 0 ||
+        row.balanceChargedAt
+      ) {
+        continue;
+      }
+
+      if ((!row.customerId || !row.paymentMethodId) && row.paymentIntentId) {
+        try {
+          const paymentIntent = await retrievePaymentIntentWithDetails(row.paymentIntentId);
+          row.customerId =
+            typeof paymentIntent?.customer === "string"
+              ? paymentIntent.customer
+              : paymentIntent?.customer?.id || row.customerId || "";
+          row.paymentMethodId =
+            typeof paymentIntent?.payment_method === "string"
+              ? paymentIntent.payment_method
+              : paymentIntent?.payment_method?.id || row.paymentMethodId || "";
+          didUpdate = true;
+          await sleep(120);
+        } catch {
+          // Leave the record as-is so the dashboard can still render partial data.
+        }
+      }
+
+      rows.push({
+        id: row.id,
+        createdAt: row.createdAt || "",
+        paidDate: row.paidDate || "",
+        customerName: row.customerName || "",
+        customerEmail: row.customerEmail || "",
+        creatorName: row.creatorName || "",
+        creatorCode: row.creatorCode || "",
+        salesOrder: row.salesOrder || "",
+        description: row.description || "",
+        requestedTotalAmount: Number(row.requestedTotalAmount || row.requestedAmount || 0),
+        depositAmount: Number(row.depositAmount || row.requestedAmount || 0),
+        balanceAmount: Number(row.balanceAmount || 0),
+        currency: row.currency || "usd",
+        customerId: row.customerId || "",
+        paymentMethodId: row.paymentMethodId || "",
+        paymentIntentId: row.paymentIntentId || "",
+        agreementText: row.agreementText || "",
+        paymentStatusDetail: row.paymentStatusDetail || ""
+      });
+    }
+
+    if (didUpdate) {
+      await writeLinks(links);
+    }
+
+    rows.sort((a, b) => String(b.paidDate || "").localeCompare(String(a.paidDate || "")));
+
+    const totals = rows.reduce((acc, row) => {
+      acc.totalAmount += Number(row.requestedTotalAmount || 0);
+      acc.depositAmount += Number(row.depositAmount || 0);
+      acc.balanceAmount += Number(row.balanceAmount || 0);
+      return acc;
+    }, {
+      totalAmount: 0,
+      depositAmount: 0,
+      balanceAmount: 0
+    });
+
+    res.json({ rows, totals });
+  } catch (err) {
+    res.status(400).json({
+      error: err.message || "Unable to load HVAC deposits."
+    });
+  }
+});
+
+app.get("/api/hvac-deposits/:id", async (req, res) => {
+  try {
+    const links = await readLinks();
+    const row = links.find((item) => item.id === req.params.id);
+
+    if (!row) {
+      return res.status(404).json({
+        error: "HVAC deposit record not found."
+      });
+    }
+
+    normalizeLinkRecord(row);
+
+    if (row.workflowType !== "hvac_deposit") {
+      return res.status(400).json({
+        error: "Record is not an HVAC deposit."
+      });
+    }
+
+    if ((!row.customerId || !row.paymentMethodId) && row.paymentIntentId) {
+      const paymentIntent = await retrievePaymentIntentWithDetails(row.paymentIntentId);
+      row.customerId =
+        typeof paymentIntent?.customer === "string"
+          ? paymentIntent.customer
+          : paymentIntent?.customer?.id || row.customerId || "";
+      row.paymentMethodId =
+        typeof paymentIntent?.payment_method === "string"
+          ? paymentIntent.payment_method
+          : paymentIntent?.payment_method?.id || row.paymentMethodId || "";
+      await writeLinks(links);
+    }
+
+    return res.json({
+      id: row.id,
+      customerName: row.customerName || "",
+      customerEmail: row.customerEmail || "",
+      creatorCode: row.creatorCode || "",
+      creatorName: row.creatorName || "",
+      creatorEmail: row.creatorEmail || "",
+      salesOrder: row.salesOrder || "",
+      description: row.description || "",
+      customerId: row.customerId || "",
+      paymentMethodId: row.paymentMethodId || "",
+      amount: Number(row.balanceAmount || 0),
+      paymentIntentId: row.paymentIntentId || "",
+      requestedTotalAmount: Number(row.requestedTotalAmount || row.requestedAmount || 0),
+      depositAmount: Number(row.depositAmount || row.requestedAmount || 0),
+      balanceAmount: Number(row.balanceAmount || 0),
+      agreementText: row.agreementText || ""
+    });
+  } catch (err) {
+    res.status(400).json({
+      error: err.message || "Unable to load HVAC deposit record."
     });
   }
 });
@@ -2525,6 +2727,7 @@ function normalizeLinkRecord(record) {
   normalized.creatorCode = normalized.creatorCode || "";
   normalized.creatorName = normalized.creatorName || "";
   normalized.creatorEmail = normalized.creatorEmail || "";
+  normalized.department = normalized.department || "";
   normalized.paymentMethodType = normalized.paymentMethodType || "";
   normalized.paymentStatusDetail = normalized.paymentStatusDetail || "";
   normalized.paymentNotificationSentAt = normalized.paymentNotificationSentAt || "";
@@ -2792,6 +2995,14 @@ function applyPaidLinkState(record, session, paymentIntent) {
   record.paidDate = new Date().toISOString();
   record.paymentIntentId = paymentIntent?.id || session?.payment_intent || record.paymentIntentId || "";
   record.checkoutSessionId = session?.id || record.checkoutSessionId || "";
+  record.customerId =
+    typeof paymentIntent?.customer === "string"
+      ? paymentIntent.customer
+      : paymentIntent?.customer?.id || record.customerId || "";
+  record.paymentMethodId =
+    typeof paymentIntent?.payment_method === "string"
+      ? paymentIntent.payment_method
+      : paymentIntent?.payment_method?.id || record.paymentMethodId || "";
 }
 
 function applyAchPendingState(record, session, paymentIntent) {

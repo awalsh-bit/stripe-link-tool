@@ -254,7 +254,7 @@
       <form id="chargeForm">
         <div class="grid">
   <div class="field">
-    <label for="serviceOrderNumber">Service Order #</label>
+    <label for="serviceOrderNumber">Sales / Service Order #</label>
     <input id="serviceOrderNumber" required placeholder="SV00123456" />
   </div>
 
@@ -265,7 +265,7 @@
       <button id="lookupBtn" class="secondary" type="button">Lookup saved card</button>
     </div>
     <div class="helper-text">
-      Paste the SetupIntent ID from the service queue or ePASS to auto-fill the saved card details.
+      Paste the SetupIntent ID from the service queue or ePASS, or open this page from the HVAC dashboard to prefill the balance charge automatically.
     </div>
   </div>
 
@@ -336,9 +336,9 @@
         </div>
 
         <div class="actions">
-          <button id="chargeBtn" type="submit">Charge saved card</button>
-          <button id="resetBtn" class="secondary" type="button">Clear form</button>
-        </div>
+      <button id="chargeBtn" type="submit">Charge saved card</button>
+      <button id="resetBtn" class="secondary" type="button">Clear form</button>
+    </div>
 
         <div id="status" class="status"></div>
 
@@ -363,7 +363,7 @@
       </form>
 
       <p class="footer-note">
-        Important: this page is internal only. The whole site is already password protected by Render Basic Auth, so this page is protected too.
+        Important: this page is internal only and protected by the Wilson dashboard login.
       </p>
     </div>
 
@@ -376,7 +376,7 @@
   </div>
 
   <script src="internal-shell.js"></script>
-  <script src="/employee-directory.js"></script>
+  <script src="employee-directory.js"></script>
   <script>
     const form = document.getElementById("chargeForm");
     const chargeBtn = document.getElementById("chargeBtn");
@@ -398,8 +398,17 @@
     const creatorCodeInput = document.getElementById("creatorCode");
     const creatorNameInput = document.getElementById("creatorName");
     const creatorEmailInput = document.getElementById("creatorEmail");
+    const setupIntentInput = document.getElementById("setupIntentId");
+    const serviceOrderInput = document.getElementById("serviceOrderNumber");
+    const customerIdInput = document.getElementById("customerId");
+    const paymentMethodIdInput = document.getElementById("paymentMethodId");
+    const customerNameInput = document.getElementById("customerName");
+    const amountInput = document.getElementById("amount");
+    const descriptionInput = document.getElementById("description");
+    const internalNotesInput = document.getElementById("internalNotes");
 
     let latestCopyText = "";
+    let hvacDepositRecordId = "";
     const TEAM_DIRECTORY = window.WILSON_EMPLOYEE_DIRECTORY || {};
 
     function showStatus(type, message) {
@@ -493,7 +502,7 @@
       clearLookupResult();
       clearResult();
 
-      const setupIntentId = document.getElementById("setupIntentId").value.trim();
+      const setupIntentId = setupIntentInput.value.trim();
 
       if (!setupIntentId) {
         showStatus("error", "Please enter a SetupIntent ID.");
@@ -515,9 +524,9 @@
           throw new Error("Saved card details were not found for that SetupIntent.");
         }
 
-        document.getElementById("customerId").value = data.customerId || "";
-        document.getElementById("paymentMethodId").value = data.paymentMethodId || "";
-        document.getElementById("customerName").value =
+        customerIdInput.value = data.customerId || "";
+        paymentMethodIdInput.value = data.paymentMethodId || "";
+        customerNameInput.value =
           data.clientName || data.customerName || "";
 
         setLookupResult(data);
@@ -536,17 +545,18 @@
       clearResult();
 
 const payload = {
-  customerId: document.getElementById("customerId").value.trim(),
-  paymentMethodId: document.getElementById("paymentMethodId").value.trim(),
-  amount: document.getElementById("amount").value,
-  salesOrder: document.getElementById("serviceOrderNumber").value.trim(),
-  description: document.getElementById("description").value.trim(),
-  customerName: document.getElementById("customerName").value.trim(),
+  customerId: customerIdInput.value.trim(),
+  paymentMethodId: paymentMethodIdInput.value.trim(),
+  amount: amountInput.value,
+  salesOrder: serviceOrderInput.value.trim(),
+  description: descriptionInput.value.trim(),
+  customerName: customerNameInput.value.trim(),
   creatorCode: creatorCodeInput.value.trim(),
   creatorName: creatorNameInput.value.trim(),
   creatorEmail: creatorEmailInput.value.trim(),
-  internalNotes: document.getElementById("internalNotes").value.trim(),
-  setupIntentId: document.getElementById("setupIntentId").value.trim()
+  internalNotes: internalNotesInput.value.trim(),
+  setupIntentId: setupIntentInput.value.trim(),
+  hvacDepositRecordId
 };
 
 if (!payload.customerId || !payload.paymentMethodId || !payload.amount || !payload.salesOrder || !payload.description) {
@@ -604,6 +614,7 @@ if (!applyCreatorLookup() || !payload.creatorCode || !payload.creatorName || !pa
       clearStatus();
       clearResult();
       clearLookupResult();
+      hvacDepositRecordId = "";
     });
 
     copyBtn.addEventListener("click", async () => {
@@ -616,6 +627,64 @@ if (!applyCreatorLookup() || !payload.creatorCode || !payload.creatorName || !pa
         showStatus("error", "Could not copy confirmation.");
       }
     });
+
+    async function loadHvacPrefillIfPresent() {
+      const params = new URLSearchParams(window.location.search);
+      const recordId = params.get("hvacRecordId");
+
+      if (!recordId) return;
+
+      clearStatus();
+      clearLookupResult();
+      clearResult();
+      hvacDepositRecordId = recordId;
+      lookupBtn.disabled = true;
+      lookupBtn.textContent = "Loading...";
+
+      try {
+        const res = await fetch(`/api/hvac-deposits/${encodeURIComponent(recordId)}`);
+        const data = await res.json();
+
+        if (!res.ok) {
+          throw new Error(data.error || "Unable to load HVAC deposit.");
+        }
+
+        serviceOrderInput.value = data.salesOrder || "";
+        customerIdInput.value = data.customerId || "";
+        paymentMethodIdInput.value = data.paymentMethodId || "";
+        customerNameInput.value = data.customerName || "";
+        amountInput.value = Number(data.balanceAmount || 0).toFixed(2);
+        descriptionInput.value = data.description
+          ? `${data.description} Remaining Balance`
+          : "HVAC remaining balance";
+        internalNotesInput.value = data.paymentIntentId
+          ? `HVAC deposit payment intent: ${data.paymentIntentId}`
+          : "HVAC remaining balance";
+        setupIntentInput.value = "";
+
+        if (data.creatorCode) {
+          creatorCodeInput.value = data.creatorCode;
+          applyCreatorLookup();
+        }
+
+        setLookupResult({
+          clientName: data.customerName || "",
+          customerId: data.customerId || "",
+          paymentMethodId: data.paymentMethodId || "",
+          cardBrand: "",
+          last4: ""
+        });
+
+        showStatus("success", "HVAC balance charge loaded from dashboard.");
+      } catch (err) {
+        showStatus("error", err.message || "Unable to prefill HVAC charge.");
+      } finally {
+        lookupBtn.disabled = false;
+        lookupBtn.textContent = "Lookup saved card";
+      }
+    }
+
+    loadHvacPrefillIfPresent();
   </script>
 
 </body>

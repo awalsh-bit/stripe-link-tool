@@ -49,6 +49,9 @@ const SERVICE_PUBLIC_PATHS = new Set([
   "/",
   "/applianceservice.html",
   "/terms.html",
+  "/public-shell.css",
+  "/public-shell.js",
+  "/logo-black.png",
   "/robots.txt",
   "/favicon.ico"
 ]);

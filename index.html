@@ -472,10 +472,18 @@
       creatorNameInput.value = match.name;
       creatorEmailInput.value = match.email;
       const matchedDepartment = match.department || '';
+      const validDepartmentOptions = new Set([
+        'Appliance',
+        'Repair Service',
+        'Kitchen Design',
+        'HVAC Sales'
+      ]);
 
       if (matchedDepartment === 'Client Care') {
-        departmentInput.value = '';
         departmentInput.disabled = false;
+        if (!validDepartmentOptions.has(departmentInput.value)) {
+          departmentInput.value = 'Appliance';
+        }
         departmentHint.textContent = 'Client Care can manually choose which department should own this payment link.';
       } else {
         departmentInput.value = matchedDepartment;

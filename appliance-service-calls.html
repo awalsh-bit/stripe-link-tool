@@ -104,6 +104,31 @@
       background: #e0e7ff;
     }
 
+    .archive-link {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 38px;
+      height: 38px;
+      border-radius: 10px;
+      border: 1px solid rgba(99, 91, 255, 0.16);
+      background: #fff;
+      color: #6b7280;
+      text-decoration: none;
+      transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+    }
+
+    .archive-link:hover {
+      background: #f9fafb;
+      color: #4338ca;
+      border-color: rgba(99, 91, 255, 0.24);
+    }
+
+    .archive-link svg {
+      width: 16px;
+      height: 16px;
+    }
+
     table {
       width: 100%;
       border-collapse: collapse;
@@ -363,7 +388,22 @@
           <option value="not_required">No card required</option>
         </select>
 
-        <button id="archiveToggle" class="archive-toggle" type="button">Show archive</button>
+        <button id="archiveToggle" class="archive-toggle" type="button">Show Recently Worked</button>
+        <a
+          class="archive-link"
+          href="archive-service-calls.html"
+          aria-label="Open archived service calls"
+          title="Archived service calls"
+        >
+          <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M5 7.5h14" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path>
+            <path d="M9 7.5V5.5h6v2" stroke="currentColor" stroke-width="2" stroke-linejoin="round"></path>
+            <path d="M8 10v7" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path>
+            <path d="M12 10v7" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path>
+            <path d="M16 10v7" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path>
+            <path d="M6.5 7.5l.8 11a2 2 0 001.99 1.85h5.46a2 2 0 001.99-1.85l.8-11" stroke="currentColor" stroke-width="2" stroke-linejoin="round"></path>
+          </svg>
+        </a>
       </div>
 
       <div class="table-wrap">
@@ -386,9 +426,9 @@
       </div>
 
       <div id="archivePanel" class="archive-panel">
-        <h2 class="archive-title">Archived Requests</h2>
+        <h2 class="archive-title">Recently Worked Requests</h2>
         <p class="archive-sub">
-          Older requests marked Call Scheduled or Call Cancelled are moved here after the current day so the main queue stays focused on active work.
+          Requests marked Call Scheduled or Call Cancelled stay here for days 1-30 so the main queue stays focused on active work. Older archived requests live on the separate archive page.
         </p>
         <div class="table-wrap">
           <table>
@@ -537,7 +577,7 @@
       `).join("");
     }
 
-    function isArchivedRow(row) {
+    function isRecentlyWorkedRow(row) {
       const status = row.queueStatus || "Call Status Pending";
       if (status === "Call Status Pending") {
         return false;
@@ -552,7 +592,8 @@
       const rowDay = new Date(rowDate.getFullYear(), rowDate.getMonth(), rowDate.getDate());
       const todayDay = new Date(today.getFullYear(), today.getMonth(), today.getDate());
 
-      return rowDay.getTime() < todayDay.getTime();
+      const ageDays = Math.floor((todayDay.getTime() - rowDay.getTime()) / 86400000);
+      return ageDays >= 1 && ageDays <= 30;
     }
 
     function buildSearchHaystack(row) {
@@ -815,11 +856,11 @@ function attachPrefillActions() {
         return matchesSearch && matchesStatus && matchesCard;
       });
 
-      const activeRows = filtered.filter((row) => !isArchivedRow(row));
-      const archivedRows = filtered.filter((row) => isArchivedRow(row));
+      const activeRows = filtered.filter((row) => !isRecentlyWorkedRow(row));
+      const archivedRows = filtered.filter((row) => isRecentlyWorkedRow(row));
       archiveToggle.textContent = showArchive
-        ? `Hide archive (${archivedRows.length})`
-        : `Show archive (${archivedRows.length})`;
+        ? `Hide Recently Worked (${archivedRows.length})`
+        : `Show Recently Worked (${archivedRows.length})`;
       archivePanel.classList.toggle("show", showArchive);
 
       tableBody.innerHTML = "";
@@ -832,7 +873,7 @@ function attachPrefillActions() {
       }
 
       if (!archivedRows.length) {
-        archiveTableBody.innerHTML = `<tr><td colspan="7" class="empty">No archived requests.</td></tr>`;
+        archiveTableBody.innerHTML = `<tr><td colspan="7" class="empty">No recently worked requests.</td></tr>`;
       } else {
         archiveTableBody.innerHTML = archivedRows.map(buildRowMarkup).join("");
       }

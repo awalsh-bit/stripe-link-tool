@@ -15,9 +15,13 @@ const DASHBOARD_HOST = (process.env.DASHBOARD_HOST || "dashboards.wilsonapplianc
 const SERVICE_PUBLIC_HOST = (process.env.SERVICE_PUBLIC_HOST || "service.wilsonappliance.com").toLowerCase();
 const AUTH_COOKIE_NAME = "wilson_dashboard_session";
 const AUTH_COOKIE_TTL_SECONDS = 60 * 60 * 12;
+const LEADER_USERNAME = String(process.env.APP_USERNAME || "wilson").trim();
+const LEADER_PASSWORD = String(process.env.APP_PASSWORD || "");
+const EXECUTIVE_USERNAME = String(process.env.EXECUTIVE_USERNAME || "awalsh@wilsonappliance.com").trim();
+const EXECUTIVE_PASSWORD = String(process.env.EXECUTIVE_PASSWORD || "").trim();
 const AUTH_COOKIE_SECRET =
   process.env.SESSION_SECRET ||
-  `${process.env.APP_USERNAME || "wilson"}:${process.env.APP_PASSWORD || "wilson"}`;
+  `${LEADER_USERNAME}:${LEADER_PASSWORD || "wilson"}`;
 
 function ensureDataDir() {
   if (!fs.existsSync(DATA_DIR)) {
@@ -39,6 +43,9 @@ function ensureJsonFile(filename, defaultValue = []) {
 const LINKS_FILE = ensureJsonFile("links.json", []);
 const TERMINAL_PAYMENTS_FILE = ensureJsonFile("terminal-payments.json", []);
 const SERVICE_CARDS_FILE = ensureJsonFile("service-cards.json", []);
+const SERVICE_CARDS_ARCHIVE_FILE = ensureJsonFile("service-cards-archive.json", []);
+const SERVICE_RECENT_WORK_DAYS = 30;
+const SERVICE_ARCHIVE_PURGE_DAYS = 90;
 
 
 const app = express();
@@ -77,6 +84,7 @@ const PUBLIC_AUTH_PATHS = new Set([
 const INTERNAL_PAGE_PATHS = new Set([
   "/dashboard.html",
   "/salesdashboard.html",
+  "/commissions.html",
   "/hvac-dashboard.html",
   "/intent-lookup.html",
   "/login.html",
@@ -86,7 +94,8 @@ const INTERNAL_PAGE_PATHS = new Set([
   "/charge-saved-card.html",
   "/paid-order-detail.html",
   "/bank-balancing.html",
-  "/appliance-service-calls.html"
+  "/appliance-service-calls.html",
+  "/archive-service-calls.html"
 ]);
 
 const UNAUTHENTICATED_INTERNAL_PATHS = new Set([
@@ -95,8 +104,13 @@ const UNAUTHENTICATED_INTERNAL_PATHS = new Set([
 ]);
 
 const ACCESS_GROUPS = {
-  super_user: {
-    label: "Super User",
+  leader: {
+    label: "Leader",
+    pages: ["*"],
+    excludedPages: ["/commissions.html"]
+  },
+  executive: {
+    label: "Executive",
     pages: ["*"]
   },
   accounting: {
@@ -109,9 +123,47 @@ const ACCESS_GROUPS = {
   },
   service: {
     label: "Service",
-    pages: ["/appliance-service-calls.html", "/intent-lookup.html"]
+    pages: ["/appliance-service-calls.html", "/archive-service-calls.html", "/intent-lookup.html"]
   }
 };
+
+function normalizeUsernameValue(username) {
+  return String(username || "").trim().toLowerCase();
+}
+
+function getConfiguredUsers() {
+  const users = [
+    {
+      username: LEADER_USERNAME,
+      normalizedUsername: normalizeUsernameValue(LEADER_USERNAME),
+      password: LEADER_PASSWORD,
+      displayName: "Wilson",
+      role: "leader",
+      accessGroup: "leader"
+    }
+  ];
+
+  if (EXECUTIVE_USERNAME && EXECUTIVE_PASSWORD) {
+    users.push({
+      username: EXECUTIVE_USERNAME,
+      normalizedUsername: normalizeUsernameValue(EXECUTIVE_USERNAME),
+      password: EXECUTIVE_PASSWORD,
+      displayName: "Andrew Walsh",
+      role: "executive",
+      accessGroup: "executive"
+    });
+  }
+
+  return users;
+}
+
+function findConfiguredUser(username, password) {
+  const normalizedUsername = normalizeUsernameValue(username);
+  return getConfiguredUsers().find((user) =>
+    user.normalizedUsername === normalizedUsername &&
+    String(password || "") === user.password
+  ) || null;
+}
 
 function getRequestHost(req) {
   return String(req.hostname || req.get("host") || "")
@@ -278,13 +330,60 @@ function clearAuthCookie(req, res) {
   }));
 }
 
-function buildCurrentSuperUser(username) {
+function buildSessionUser(user) {
   return {
-    username,
-    displayName: "Wilson",
-    role: "super_user",
-    accessGroup: "super_user"
+    username: user.username,
+    displayName: user.displayName,
+    role: user.role,
+    accessGroup: user.accessGroup
   };
+}
+
+function canAccessPathForUser(user, pathname) {
+  if (!user?.accessGroup) {
+    return false;
+  }
+
+  const group = ACCESS_GROUPS[user.accessGroup];
+  if (!group) {
+    return false;
+  }
+
+  if (group.excludedPages?.includes(pathname)) {
+    return false;
+  }
+
+  if (group.pages?.includes("*")) {
+    return true;
+  }
+
+  return group.pages?.includes(pathname);
+}
+
+function sendForbiddenPage(res) {
+  return res.status(403).send(`<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="robots" content="noindex,nofollow,noarchive" />
+  <title>Access restricted</title>
+  <style>
+    body { margin: 0; min-height: 100vh; display: flex; align-items: center; justify-content: center; font-family: Inter, system-ui, sans-serif; background: linear-gradient(180deg, #eef2ff 0%, #f7f8fc 100%); color: #1f2937; padding: 24px; }
+    .card { width: min(100%, 480px); background: #fff; border: 1px solid rgba(99, 91, 255, 0.12); border-radius: 18px; box-shadow: 0 10px 35px rgba(0, 0, 0, 0.08); padding: 28px; text-align: center; }
+    h1 { margin: 0 0 10px; font-size: 32px; }
+    p { margin: 0 0 18px; color: #6b7280; line-height: 1.6; }
+    a { display: inline-flex; align-items: center; justify-content: center; padding: 12px 16px; border-radius: 12px; background: #635bff; color: #fff; text-decoration: none; font-weight: 700; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>Access restricted</h1>
+    <p>This page is only available to executive sessions.</p>
+    <a href="/dashboard.html">Back to dashboard</a>
+  </div>
+</body>
+</html>`);
 }
 
 app.use((req, res, next) => {
@@ -332,6 +431,16 @@ app.use((req, res, next) => {
 
   if (authUser) {
     req.authUser = authUser;
+
+    if (
+      (host === DASHBOARD_HOST || isLocalHost(host)) &&
+      INTERNAL_PAGE_PATHS.has(req.path) &&
+      !UNAUTHENTICATED_INTERNAL_PATHS.has(req.path) &&
+      !canAccessPathForUser(authUser, req.path)
+    ) {
+      return sendForbiddenPage(res);
+    }
+
     return next();
   }
 
@@ -394,18 +503,15 @@ app.use(express.json());
 
 app.post("/api/login", (req, res) => {
   const { username = "", password = "" } = req.body || {};
-  const normalizedUsername = String(username || "").trim();
+  const matchedUser = findConfiguredUser(username, password);
 
-  if (
-    normalizedUsername !== String(process.env.APP_USERNAME || "wilson") ||
-    String(password || "") !== String(process.env.APP_PASSWORD || "")
-  ) {
+  if (!matchedUser) {
     return res.status(401).json({
       error: "Invalid username or password."
     });
   }
 
-  const user = buildCurrentSuperUser(normalizedUsername);
+  const user = buildSessionUser(matchedUser);
   setAuthCookie(req, res, user);
 
   return res.json({
@@ -416,13 +522,27 @@ app.post("/api/login", (req, res) => {
       role: user.role,
       accessGroup: user.accessGroup,
       availableAccessGroups: ACCESS_GROUPS
-    }
+    },
+    executiveLoginEnabled: Boolean(EXECUTIVE_USERNAME && EXECUTIVE_PASSWORD)
   });
 });
 
 app.post("/api/logout", (req, res) => {
   clearAuthCookie(req, res);
   return res.json({ success: true });
+});
+
+app.get("/api/auth/session", (req, res) => {
+  if (!req.authUser) {
+    return res.status(401).json({
+      error: "Authentication required."
+    });
+  }
+
+  return res.json({
+    user: req.authUser,
+    availableAccessGroups: ACCESS_GROUPS
+  });
 });
 
 app.use(express.static(__dirname, { index: false }));
@@ -1274,6 +1394,17 @@ app.get("/api/service-cards", async (req, res) => {
   } catch (err) {
     res.status(400).json({
       error: err.message || "Unable to load service cards."
+    });
+  }
+});
+
+app.get("/api/service-cards/archive", async (req, res) => {
+  try {
+    const archiveRows = await readArchivedServiceCards();
+    res.json({ rows: archiveRows });
+  } catch (err) {
+    res.status(400).json({
+      error: err.message || "Unable to load archived service cards."
     });
   }
 });
@@ -2723,11 +2854,92 @@ async function writeTerminalPayments(data) {
 }
 
 async function readServiceCards() {
-  return readJson(SERVICE_CARDS_FILE, []);
+  const { activeRows } = await maintainServiceCardStorage();
+  return activeRows;
 }
 
 async function writeServiceCards(data) {
   return writeJson(SERVICE_CARDS_FILE, data);
+}
+
+async function readArchivedServiceCards() {
+  const { archiveRows } = await maintainServiceCardStorage();
+  return archiveRows;
+}
+
+function getServiceCardAgeInDays(row, now = new Date()) {
+  if (!row?.createdAt) {
+    return -1;
+  }
+
+  const createdDate = new Date(row.createdAt);
+  if (Number.isNaN(createdDate.getTime())) {
+    return -1;
+  }
+
+  const createdDay = new Date(createdDate.getFullYear(), createdDate.getMonth(), createdDate.getDate());
+  const currentDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  return Math.floor((currentDay.getTime() - createdDay.getTime()) / 86400000);
+}
+
+function isArchivableServiceStatus(status) {
+  return status === "Call Scheduled" || status === "Call Cancelled";
+}
+
+function shouldMoveServiceCardToArchive(row, now = new Date()) {
+  if (!isArchivableServiceStatus(row?.queueStatus || "Call Status Pending")) {
+    return false;
+  }
+
+  const ageDays = getServiceCardAgeInDays(row, now);
+  return ageDays >= SERVICE_RECENT_WORK_DAYS + 1;
+}
+
+function shouldPurgeArchivedServiceCard(row, now = new Date()) {
+  const ageDays = getServiceCardAgeInDays(row, now);
+  return ageDays > SERVICE_ARCHIVE_PURGE_DAYS;
+}
+
+async function maintainServiceCardStorage() {
+  const [activeRows, archiveRows] = await Promise.all([
+    readJson(SERVICE_CARDS_FILE, []),
+    readJson(SERVICE_CARDS_ARCHIVE_FILE, [])
+  ]);
+
+  const now = new Date();
+  const keptActiveRows = [];
+  const archiveMap = new Map(
+    archiveRows
+      .filter((row) => !shouldPurgeArchivedServiceCard(row, now))
+      .map((row) => [row.id, row])
+  );
+  let didChange = archiveMap.size !== archiveRows.length;
+
+  for (const row of activeRows) {
+    if (shouldMoveServiceCardToArchive(row, now)) {
+      archiveMap.set(row.id, row);
+      didChange = true;
+      continue;
+    }
+
+    keptActiveRows.push(row);
+  }
+
+  const nextArchiveRows = Array.from(archiveMap.values()).sort((a, b) =>
+    String(b.createdAt || "").localeCompare(String(a.createdAt || ""))
+  );
+
+  if (didChange) {
+    await Promise.all([
+      writeJson(SERVICE_CARDS_FILE, keptActiveRows),
+      writeJson(SERVICE_CARDS_ARCHIVE_FILE, nextArchiveRows)
+    ]);
+  }
+
+  return {
+    activeRows: keptActiveRows,
+    archiveRows: nextArchiveRows
+  };
 }
 
 function normalizeLinkRecord(record) {

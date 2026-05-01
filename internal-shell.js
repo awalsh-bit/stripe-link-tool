@@ -67,13 +67,71 @@
           <path d="M8.5 11H15.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path>
           <path d="M8.5 15H13" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path>
         </svg>
+      `,
+      commissions: `
+        <svg viewBox="0 0 24 24" fill="none">
+          <path d="M5 18.5h14" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path>
+          <path d="M8 15V10" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path>
+          <path d="M12 15V6" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path>
+          <path d="M16 15v-3" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path>
+        </svg>
       `
     };
 
     return icons[name] || icons.payments;
   }
 
-  function buildHeader() {
+  function buildMenuLinks(user) {
+    const links = [
+      {
+        href: "dashboard.html",
+        title: "Payments",
+        text: "Payment queue, paid history, and balancing tools."
+      },
+      {
+        href: "salesdashboard.html",
+        title: "Sales Tools",
+        text: "Open the sales tools workspace."
+      }
+    ];
+
+    if (user?.accessGroup === "executive") {
+      links.push({
+        href: "commissions.html",
+        title: "Commissions",
+        text: "Executive commissions reporting and review."
+      });
+    }
+
+    links.push({
+      href: "logout.html",
+      title: "Sign Out",
+      text: "End the current dashboard session."
+    });
+
+    return links.map((link) => `
+      <a class="internal-shell-menu-link" href="${link.href}">
+        <div class="internal-shell-menu-link-title">${link.title}</div>
+        <div class="internal-shell-menu-link-text">${link.text}</div>
+      </a>
+    `).join("");
+  }
+
+  function buildFooterLinks(user) {
+    const links = [
+      `<a class="internal-shell-footer-link" href="dashboard.html">Payments Dashboard</a>`,
+      `<a class="internal-shell-footer-link" href="salesdashboard.html">Sales Tools</a>`
+    ];
+
+    if (user?.accessGroup === "executive") {
+      links.push(`<a class="internal-shell-footer-link" href="commissions.html">Commissions</a>`);
+    }
+
+    links.push(`<a class="internal-shell-footer-link" href="logout.html">Sign Out</a>`);
+    return links.join("");
+  }
+
+  function buildHeader(user) {
     return `
       <div class="internal-shell-header">
         <div class="internal-shell-header-top">
@@ -88,18 +146,7 @@
               </button>
               <div class="internal-shell-menu-panel">
                 <div class="internal-shell-menu-title">Dashboards</div>
-                <a class="internal-shell-menu-link" href="dashboard.html">
-                  <div class="internal-shell-menu-link-title">Payments</div>
-                  <div class="internal-shell-menu-link-text">Payment queue, paid history, and balancing tools.</div>
-                </a>
-                <a class="internal-shell-menu-link" href="salesdashboard.html">
-                  <div class="internal-shell-menu-link-title">Sales Tools</div>
-                  <div class="internal-shell-menu-link-text">Open the sales tools workspace.</div>
-                </a>
-                <a class="internal-shell-menu-link" href="logout.html">
-                  <div class="internal-shell-menu-link-title">Sign Out</div>
-                  <div class="internal-shell-menu-link-text">End the current dashboard session.</div>
-                </a>
+                ${buildMenuLinks(user)}
               </div>
             </div>
             <img class="internal-shell-logo" src="logo-black.png" alt="Wilson AC & Appliance" />
@@ -127,40 +174,59 @@
     `;
   }
 
-  function buildFooter() {
+  function buildFooter(user) {
     return `
       <div class="internal-shell-footer-row">
         <div class="internal-shell-footer-text">Wilson AC & Appliance internal tools.</div>
         <div class="internal-shell-footer-links">
-          <a class="internal-shell-footer-link" href="dashboard.html">Payments Dashboard</a>
-          <a class="internal-shell-footer-link" href="salesdashboard.html">Sales Tools</a>
-          <a class="internal-shell-footer-link" href="logout.html">Sign Out</a>
+          ${buildFooterLinks(user)}
         </div>
       </div>
     `;
   }
 
-  if (replaceHero) {
-    const hero = document.querySelector(".hero");
-    if (hero) {
-      hero.innerHTML = buildHeader();
-    }
-  } else {
-    const headerHost = document.getElementById("internal-shell-header");
-    if (headerHost) {
-      headerHost.innerHTML = buildHeader();
+  async function loadSessionUser() {
+    try {
+      const response = await fetch("/api/auth/session", {
+        credentials: "same-origin"
+      });
+
+      if (!response.ok) {
+        return null;
+      }
+
+      const data = await response.json();
+      return data.user || null;
+    } catch {
+      return null;
     }
   }
 
-  const navFooter = document.querySelector(".internal-nav");
-  if (navFooter) {
-    navFooter.classList.add("internal-shell-footer");
-    navFooter.innerHTML = buildFooter();
-  } else {
-    const footerHost = document.getElementById("internal-shell-footer");
-    if (footerHost) {
-      footerHost.classList.add("internal-shell-footer");
-      footerHost.innerHTML = buildFooter();
+  function renderShell(user) {
+    if (replaceHero) {
+      const hero = document.querySelector(".hero");
+      if (hero) {
+        hero.innerHTML = buildHeader(user);
+      }
+    } else {
+      const headerHost = document.getElementById("internal-shell-header");
+      if (headerHost) {
+        headerHost.innerHTML = buildHeader(user);
+      }
+    }
+
+    const navFooter = document.querySelector(".internal-nav");
+    if (navFooter) {
+      navFooter.classList.add("internal-shell-footer");
+      navFooter.innerHTML = buildFooter(user);
+    } else {
+      const footerHost = document.getElementById("internal-shell-footer");
+      if (footerHost) {
+        footerHost.classList.add("internal-shell-footer");
+        footerHost.innerHTML = buildFooter(user);
+      }
     }
   }
+
+  loadSessionUser().then(renderShell);
 })();

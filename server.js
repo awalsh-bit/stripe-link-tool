@@ -59,6 +59,7 @@ const SERVICE_PUBLIC_PATHS = new Set([
   "/public-shell.css",
   "/public-shell.js",
   "/logo-black.png",
+  "/favicon.svg",
   "/robots.txt",
   "/favicon.ico"
 ]);
@@ -77,6 +78,7 @@ const ALWAYS_PUBLIC_PATHS = new Set([
 
 const PUBLIC_AUTH_PATHS = new Set([
   "/logo-black.png",
+  "/favicon.svg",
   "/api/login",
   "/api/logout"
 ]);
@@ -271,6 +273,12 @@ function readAuthenticatedUser(req) {
     const payload = JSON.parse(Buffer.from(payloadText, "base64url").toString("utf8"));
     if (!payload?.expiresAt || payload.expiresAt < Date.now()) {
       return null;
+    }
+
+    if (payload.accessGroup === "super_user" || payload.role === "super_user") {
+      payload.accessGroup = "leader";
+      payload.role = "leader";
+      payload.displayName = payload.displayName || "Wilson";
     }
 
     return payload;

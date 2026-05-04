@@ -54,6 +54,7 @@
 
     .toolbar-actions {
       display: flex;
+      gap: 12px;
       justify-content: flex-end;
       margin-bottom: 16px;
     }
@@ -311,6 +312,7 @@
       </div>
 
       <div class="toolbar-actions">
+        <button id="refundBtn" class="btn btn-secondary" type="button" hidden>Issue refund</button>
         <button id="exportCsvBtn" class="btn btn-secondary" type="button">Export visible to CSV</button>
       </div>
 
@@ -363,6 +365,7 @@
     const intentKindEl = document.getElementById("intentKind");
     const intentIdEl = document.getElementById("intentId");
     const lookupBtn = document.getElementById("lookupBtn");
+    const refundBtn = document.getElementById("refundBtn");
     const exportCsvBtn = document.getElementById("exportCsvBtn");
     const statusEl = document.getElementById("status");
     const helperTextEl = document.getElementById("helperText");
@@ -380,6 +383,15 @@
     function clearStatus() {
       statusEl.className = "status";
       statusEl.textContent = "";
+    }
+
+    function isRefundablePaymentIntent(response) {
+      if (!response || response.kind !== "payment_intent") {
+        return false;
+      }
+
+      const summary = response.summary || {};
+      return summary.intentStatus === "succeeded" && Number(summary.refundableAmount || 0) > 0;
     }
 
     function formatMoney(value) {
@@ -472,11 +484,15 @@
         { label: "Paid", value: formatDate(response.summary.paidDate) },
         { label: "Requested Amount", value: formatMoney(response.summary.requestedAmount || 0) },
         { label: "Paid Amount", value: formatMoney(response.summary.paidAmount || 0) },
+        { label: "Refunded Amount", value: formatMoney(response.summary.refundedAmount || 0) },
+        { label: "Refundable Amount", value: formatMoney(response.summary.refundableAmount || 0) },
         { label: "Fee Amount", value: formatMoney(response.summary.feeAmount || 0) },
         { label: "Net Amount", value: formatMoney(response.summary.netAmount || 0) },
         { label: "Customer ID", value: response.summary.customerId || "-" },
         { label: "Payment Method ID", value: response.summary.paymentMethodId || "-" }
       ]);
+
+      refundBtn.hidden = !isRefundablePaymentIntent(response);
 
       const events = response.events || [];
       if (!events.length) {
@@ -492,6 +508,74 @@
           <td data-label="Reason">${event.reason || "-"}</td>
         </tr>
       `).join("");
+    }
+
+    async function issueRefund() {
+      if (!isRefundablePaymentIntent(latestIntentResponse)) {
+        showStatus("error", "Only succeeded, refundable PaymentIntents can be refunded here.");
+        return;
+      }
+
+      const refundableAmount = Number(latestIntentResponse.summary.refundableAmount || 0);
+      const amountEntry = window.prompt(
+        `Enter refund amount in dollars. Leave blank for the full refundable amount of ${formatMoney(refundableAmount)}.`,
+        refundableAmount.toFixed(2)
+      );
+
+      if (amountEntry === null) {
+        return;
+      }
+
+      const trimmedAmount = String(amountEntry).trim();
+      const refundAmount = trimmedAmount === "" ? refundableAmount : Number(trimmedAmount);
+
+      if (!Number.isFinite(refundAmount) || refundAmount <= 0) {
+        showStatus("error", "Enter a valid refund amount greater than zero.");
+        return;
+      }
+
+      if (refundAmount > refundableAmount) {
+        showStatus("error", `Refund amount cannot exceed ${formatMoney(refundableAmount)}.`);
+        return;
+      }
+
+      const confirmed = window.confirm(
+        `Issue a refund for ${formatMoney(refundAmount)} on ${latestIntentResponse.id}?`
+      );
+
+      if (!confirmed) {
+        return;
+      }
+
+      refundBtn.disabled = true;
+      refundBtn.textContent = "Refunding...";
+      clearStatus();
+
+      try {
+        const res = await fetch(`/api/intent-lookup/payment_intent/${encodeURIComponent(latestIntentResponse.id)}/refund`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            amount: refundAmount,
+            reason: "requested_by_customer"
+          })
+        });
+
+        const data = await res.json();
+        if (!res.ok) {
+          throw new Error(data.error || "Unable to issue refund.");
+        }
+
+        showStatus("success", `Refund issued for ${formatMoney(data.amount || refundAmount)}.`);
+        await runLookup();
+      } catch (err) {
+        showStatus("error", err.message || "Unable to issue refund.");
+      } finally {
+        refundBtn.disabled = false;
+        refundBtn.textContent = "Issue refund";
+      }
     }
 
     async function runLookup() {
@@ -519,6 +603,7 @@
         showStatus("success", "Intent loaded successfully.");
       } catch (err) {
         latestIntentResponse = null;
+        refundBtn.hidden = true;
         helperTextEl.textContent = "Enter a PaymentIntent or SetupIntent ID to see the customer, employee, date, amount, and status history in a more readable format.";
         renderSummaryRows(summaryPrimaryEl, [
           { label: "Status", value: "No intent loaded yet." }
@@ -545,6 +630,8 @@
     exportCsvBtn.addEventListener("click", () => {
       downloadCsv();
     });
+
+    refundBtn.addEventListener("click", issueRefund);
   </script>
 </body>
 </html>

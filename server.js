@@ -1923,6 +1923,83 @@ app.get("/api/intent-lookup/:kind/:id", async (req, res) => {
   }
 });
 
+app.post("/api/intent-lookup/payment_intent/:id/refund", async (req, res) => {
+  try {
+    const id = String(req.params.id || "").trim();
+    const requestedAmount = req.body?.amount;
+    const requestedReason = String(req.body?.reason || "requested_by_customer").trim();
+    const allowedReasons = new Set(["duplicate", "fraudulent", "requested_by_customer"]);
+
+    if (!id) {
+      return res.status(400).json({
+        error: "PaymentIntent ID is required."
+      });
+    }
+
+    const paymentIntent = await stripe.paymentIntents.retrieve(id, {
+      expand: [
+        "latest_charge",
+        "latest_charge.balance_transaction",
+        "latest_charge.refunds.data.balance_transaction"
+      ]
+    });
+
+    if (paymentIntent.status !== "succeeded") {
+      return res.status(400).json({
+        error: "Only succeeded PaymentIntents can be refunded from this page."
+      });
+    }
+
+    const latestCharge = paymentIntent.latest_charge || null;
+    if (!latestCharge?.id) {
+      return res.status(400).json({
+        error: "Stripe did not return a charge for this PaymentIntent."
+      });
+    }
+
+    const remainingRefundableCents = getRemainingRefundableCents(paymentIntent);
+    if (remainingRefundableCents <= 0) {
+      return res.status(400).json({
+        error: "This PaymentIntent has already been fully refunded."
+      });
+    }
+
+    let refundAmountCents = remainingRefundableCents;
+    if (requestedAmount !== undefined && requestedAmount !== null && String(requestedAmount).trim() !== "") {
+      const parsedAmount = Number(requestedAmount);
+      if (!Number.isFinite(parsedAmount) || parsedAmount <= 0) {
+        return res.status(400).json({
+          error: "Refund amount must be greater than zero."
+        });
+      }
+
+      refundAmountCents = Math.round(parsedAmount * 100);
+      if (refundAmountCents <= 0 || refundAmountCents > remainingRefundableCents) {
+        return res.status(400).json({
+          error: `Refund amount cannot exceed ${formatUsdFromCents(remainingRefundableCents)}.`
+        });
+      }
+    }
+
+    const refund = await stripe.refunds.create({
+      payment_intent: id,
+      ...(refundAmountCents === remainingRefundableCents ? {} : { amount: refundAmountCents }),
+      reason: allowedReasons.has(requestedReason) ? requestedReason : "requested_by_customer"
+    });
+
+    return res.json({
+      ok: true,
+      refundId: refund.id,
+      amount: Number((refund.amount || 0) / 100),
+      status: refund.status || "pending"
+    });
+  } catch (err) {
+    return res.status(400).json({
+      error: err.message || "Unable to issue refund."
+    });
+  }
+});
+
 function resolvePaidOrderFields(row) {
   const rawSalesOrder = String(row.salesOrder || "").trim();
   const rawDescription = String(row.description || "").trim();
@@ -1996,6 +2073,10 @@ function buildPaymentIntentLookupResponse(id, paymentIntent, localRow) {
     typeof localRow?.paidAmount === "number" && localRow.paidAmount > 0
       ? localRow.paidAmount
       : Number((paymentIntent.amount_received || paymentIntent.amount || 0) / 100);
+  const refundedAmount = Number(
+    refunds.reduce((sum, refund) => sum + Number(refund?.amount || 0), 0) / 100
+  );
+  const refundableAmount = Number(getRemainingRefundableCents(paymentIntent) / 100);
 
   const events = [];
 
@@ -2054,6 +2135,8 @@ function buildPaymentIntentLookupResponse(id, paymentIntent, localRow) {
       paidDate: localRow?.paidDate || "",
       requestedAmount: sentAmount,
       paidAmount,
+      refundedAmount,
+      refundableAmount,
       feeAmount: Number((balanceTransaction?.fee || 0) / 100),
       netAmount: Number(
         typeof balanceTransaction?.net === "number"
@@ -2158,6 +2241,24 @@ function formatRefundReason(reason) {
     .split("_")
     .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
     .join(" ");
+}
+
+function getRemainingRefundableCents(paymentIntent) {
+  const latestCharge = paymentIntent?.latest_charge || null;
+  if (!latestCharge) {
+    return 0;
+  }
+
+  const grossAmount = Number(latestCharge.amount || paymentIntent?.amount_received || paymentIntent?.amount || 0);
+  const refundedAmount = Number(latestCharge.amount_refunded || 0);
+  return Math.max(0, grossAmount - refundedAmount);
+}
+
+function formatUsdFromCents(cents) {
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD"
+  }).format(Number(cents || 0) / 100);
 }
 
 function describeUnits(units) {

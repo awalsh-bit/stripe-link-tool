@@ -243,6 +243,38 @@
       height: auto;
     }
 
+    .promo-details {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 14px;
+      padding: 18px;
+      border-top: 1px solid var(--border);
+      background: linear-gradient(180deg, #fffdf9 0%, #ffffff 100%);
+    }
+
+    .promo-detail {
+      border: 1px solid rgba(47, 111, 79, 0.12);
+      border-radius: 14px;
+      padding: 16px;
+      background: #fff;
+    }
+
+    .promo-detail-title {
+      margin: 0 0 8px;
+      font-size: 14px;
+      font-weight: 800;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--accent);
+    }
+
+    .promo-detail-copy {
+      margin: 0;
+      font-size: 15px;
+      line-height: 1.65;
+      color: var(--text);
+    }
+
     h2 {
       margin: 0 0 16px;
       font-size: 28px;
@@ -446,6 +478,7 @@
     }
 
     @media (max-width: 720px) {
+      .promo-details,
       .feature-grid,
       .field-row {
         grid-template-columns: 1fr;
@@ -479,6 +512,23 @@
       body .public-shell-badge-icon svg {
         width: 18px;
         height: 18px;
+      }
+
+      .promo-details {
+        padding: 16px;
+      }
+
+      .promo-detail {
+        padding: 14px;
+      }
+
+      .promo-detail-title {
+        font-size: 13px;
+      }
+
+      .promo-detail-copy {
+        font-size: 16px;
+        line-height: 1.6;
       }
     }
   </style>
@@ -540,6 +590,20 @@
     <section class="section-grid">
       <div class="card promo-card" id="learn-more">
         <img class="promo-image" src="fireflavor-what-to-expect.png" alt="Fire & Flavor event graphic featuring participating outdoor cooking brands, live fire demos, chef-prepared tastings, exclusive giveaways, and refreshments." />
+        <div class="promo-details">
+          <div class="promo-detail">
+            <h3 class="promo-detail-title">Exclusive Giveaways</h3>
+            <p class="promo-detail-copy">Giveaways include a portable grill, portable pizza oven, connected temperature probe, and more.</p>
+          </div>
+          <div class="promo-detail">
+            <h3 class="promo-detail-title">Food And Refreshments</h3>
+            <p class="promo-detail-copy">Live grilled food samples and beverage refreshments will be provided throughout the event.</p>
+          </div>
+          <div class="promo-detail">
+            <h3 class="promo-detail-title">Event Pricing</h3>
+            <p class="promo-detail-copy">Exclusive pricing will be available for event attendees on participating outdoor living products.</p>
+          </div>
+        </div>
       </div>
 
       <div class="card" id="rsvp">

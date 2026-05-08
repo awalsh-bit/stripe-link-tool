@@ -62,11 +62,10 @@
 
 .public-shell-menu-panel {
   position: absolute;
-  top: calc(100% + 8px);
+  top: calc(100% + 2px);
   left: 0;
-  min-width: 120px;
-  min-height: 24px;
-  padding: 8px 10px;
+  min-width: 220px;
+  padding: 10px;
   border-radius: 18px;
   background: var(--public-shell-panel-bg);
   border: 1px solid rgba(99, 91, 255, 0.12);
@@ -79,6 +78,15 @@
   z-index: 20;
 }
 
+.public-shell-menu-panel::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: -10px;
+  height: 12px;
+}
+
 .public-shell-menu-wrap:hover .public-shell-menu-panel,
 .public-shell-menu-wrap:focus-within .public-shell-menu-panel {
   opacity: 1;
@@ -87,8 +95,20 @@
   transform: translateY(0);
 }
 
-.public-shell-menu-empty {
-  height: 8px;
+.public-shell-menu-link {
+  display: block;
+  padding: 11px 14px;
+  border-radius: 12px;
+  color: var(--public-shell-text);
+  text-decoration: none;
+  font-size: 14px;
+  font-weight: 700;
+  transition: background 0.18s ease, color 0.18s ease;
+}
+
+.public-shell-menu-link:hover {
+  background: rgba(99, 91, 255, 0.08);
+  color: var(--public-shell-pill-text);
 }
 
 .public-shell-logo {

@@ -285,6 +285,9 @@
             <div class="summary-list" id="stripeOnlySummary"></div>
           </div>
         </div>
+        <div class="summary-actions">
+          <button id="repairRecord" class="btn btn-primary" type="button">Create Wilson Record</button>
+        </div>
       </div>
 
       <div id="result" class="hidden">
@@ -315,12 +318,14 @@
     const resultEl = document.getElementById("result");
     const stripeOnlyEl = document.getElementById("stripeOnly");
     const stripeOnlySummaryEl = document.getElementById("stripeOnlySummary");
+    const repairRecordEl = document.getElementById("repairRecord");
     const linkSummaryEl = document.getElementById("linkSummary");
     const linkTrackingEl = document.getElementById("linkTracking");
     const copyLinkEl = document.getElementById("copyLink");
     const copyIntentEl = document.getElementById("copyIntent");
 
     let currentRecord = null;
+    let currentQuery = "";
 
     function escapeHtml(value) {
       return String(value ?? "")
@@ -434,6 +439,7 @@
 
     async function runLookup() {
       const query = lookupQueryEl.value.trim();
+      currentQuery = query;
       if (!query) {
       statusEl.className = "status error";
       statusEl.textContent = "Paste a payment link URL or ID first.";
@@ -483,6 +489,45 @@
 
     copyLinkEl.addEventListener("click", () => copyText(copyLinkEl, currentRecord?.paymentLinkUrl));
     copyIntentEl.addEventListener("click", () => copyText(copyIntentEl, currentRecord?.paymentIntentId));
+
+    repairRecordEl.addEventListener("click", async () => {
+      if (!currentQuery) {
+        return;
+      }
+
+      const original = repairRecordEl.textContent;
+      repairRecordEl.disabled = true;
+      repairRecordEl.textContent = "Creating...";
+      statusEl.className = "status";
+      statusEl.textContent = "Creating Wilson queue record from Stripe...";
+
+      try {
+        const res = await fetch("/api/link-detail-lookup/repair", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({ query: currentQuery })
+        });
+        const data = await res.json();
+
+        if (!res.ok) {
+          throw new Error(data.error || "Unable to create Wilson record.");
+        }
+
+        renderRecord(data.record);
+        statusEl.className = "status success";
+        statusEl.textContent = data.repaired
+          ? "Wilson queue record created from Stripe."
+          : "Wilson queue record already existed and has been loaded.";
+      } catch (err) {
+        statusEl.className = "status error";
+        statusEl.textContent = err.message || "Unable to create Wilson record.";
+      } finally {
+        repairRecordEl.disabled = false;
+        repairRecordEl.textContent = original;
+      }
+    });
   </script>
 </body>
 </html>

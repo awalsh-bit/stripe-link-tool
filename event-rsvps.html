@@ -1,0 +1,794 @@
+<!DOCTYPE html>
+<html lang="en">
+<meta name="robots" content="noindex,nofollow,noarchive">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Wilson AC & Appliance - Event RSVPs</title>
+  <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+  <link rel="stylesheet" href="internal-shell.css" />
+  <style>
+    :root {
+      --bg: #f7f8fc;
+      --card: #ffffff;
+      --text: #1f2937;
+      --muted: #6b7280;
+      --border: #dbe1ea;
+      --primary: #635bff;
+      --primary-hover: #564ef0;
+      --shadow: 0 10px 35px rgba(0, 0, 0, 0.08);
+      --radius: 18px;
+      --success: #166534;
+      --success-bg: #ecfdf5;
+      --warning: #92400e;
+      --warning-bg: #fff7ed;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: linear-gradient(180deg, #eef2ff 0%, var(--bg) 100%);
+      color: var(--text);
+      min-height: 100vh;
+      padding: 32px 16px;
+    }
+
+    .wrap {
+      max-width: 1480px;
+      margin: 0 auto;
+    }
+
+    .card {
+      background: var(--card);
+      border: 1px solid rgba(99, 91, 255, 0.12);
+      box-shadow: var(--shadow);
+      border-radius: var(--radius);
+      padding: 22px;
+    }
+
+    .controls {
+      display: grid;
+      grid-template-columns: 220px minmax(0, 1fr) auto;
+      gap: 12px;
+      align-items: end;
+      margin-bottom: 18px;
+    }
+
+    label {
+      display: block;
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--muted);
+      font-weight: 700;
+      margin-bottom: 8px;
+    }
+
+    select,
+    button,
+    a {
+      font: inherit;
+    }
+
+    select {
+      width: 100%;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 12px 14px;
+      background: #fff;
+      color: var(--text);
+      outline: none;
+    }
+
+    select:focus {
+      border-color: rgba(99, 91, 255, 0.75);
+      box-shadow: 0 0 0 4px rgba(99, 91, 255, 0.12);
+    }
+
+    .btn {
+      appearance: none;
+      border: 1px solid transparent;
+      border-radius: 12px;
+      padding: 12px 16px;
+      font-size: 14px;
+      font-weight: 700;
+      cursor: pointer;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.2s ease, transform 0.12s ease, border-color 0.2s ease;
+    }
+
+    .btn:hover {
+      transform: translateY(-1px);
+    }
+
+    .btn-primary {
+      background: var(--primary);
+      color: #fff;
+    }
+
+    .btn-primary:hover {
+      background: var(--primary-hover);
+    }
+
+    .btn-secondary {
+      background: #fff;
+      color: var(--text);
+      border-color: var(--border);
+    }
+
+    .btn-secondary:hover {
+      background: #f8faff;
+    }
+
+    .status {
+      min-height: 24px;
+      margin-bottom: 14px;
+      font-size: 14px;
+      color: var(--muted);
+    }
+
+    .status.error {
+      color: #b91c1c;
+    }
+
+    .status.success {
+      color: var(--success);
+    }
+
+    .metrics {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 16px;
+      margin-bottom: 18px;
+    }
+
+    .metric {
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 18px;
+      background: #fafbff;
+    }
+
+    .metric-label {
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--muted);
+      font-weight: 700;
+      margin-bottom: 10px;
+    }
+
+    .metric-value {
+      font-size: clamp(28px, 4vw, 42px);
+      line-height: 1;
+      font-weight: 900;
+      margin-bottom: 8px;
+    }
+
+    .metric-text {
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.6;
+    }
+
+    .layout {
+      display: grid;
+      grid-template-columns: 400px minmax(0, 1fr);
+      gap: 18px;
+    }
+
+    .panel-title {
+      margin: 0 0 14px;
+      font-size: 20px;
+    }
+
+    .events-list {
+      display: grid;
+      gap: 12px;
+    }
+
+    .event-card {
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 16px;
+      background: #fff;
+      transition: border-color 0.2s ease, box-shadow 0.2s ease;
+    }
+
+    .event-card.active-selection {
+      border-color: rgba(99, 91, 255, 0.38);
+      box-shadow: 0 10px 24px rgba(99, 91, 255, 0.1);
+    }
+
+    .event-top {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+
+    .event-name {
+      margin: 0 0 4px;
+      font-size: 18px;
+      font-weight: 800;
+    }
+
+    .event-subtitle {
+      margin: 0;
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.5;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      min-height: 28px;
+      padding: 0 10px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 800;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      white-space: nowrap;
+    }
+
+    .badge.active {
+      background: var(--success-bg);
+      color: var(--success);
+    }
+
+    .badge.archived {
+      background: var(--warning-bg);
+      color: var(--warning);
+    }
+
+    .event-meta {
+      display: grid;
+      gap: 8px;
+      margin-bottom: 12px;
+    }
+
+    .event-meta-row {
+      font-size: 14px;
+      color: var(--text);
+      line-height: 1.5;
+    }
+
+    .event-meta-label {
+      color: var(--muted);
+      font-weight: 700;
+      margin-right: 6px;
+    }
+
+    .event-stats {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+      margin-bottom: 14px;
+    }
+
+    .event-stat {
+      padding: 12px;
+      border-radius: 14px;
+      background: #f8faff;
+      border: 1px solid #edf1f7;
+    }
+
+    .event-stat-value {
+      font-size: 22px;
+      font-weight: 900;
+      line-height: 1;
+      margin-bottom: 6px;
+    }
+
+    .event-stat-label {
+      font-size: 12px;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      font-weight: 700;
+    }
+
+    .event-actions {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .empty {
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.6;
+      padding: 8px 0 2px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    th, td {
+      text-align: left;
+      padding: 14px 10px;
+      border-bottom: 1px solid #edf1f7;
+      vertical-align: middle;
+      font-size: 14px;
+    }
+
+    th {
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--muted);
+    }
+
+    .updates {
+      display: inline-flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+
+    .update-pill {
+      display: inline-flex;
+      align-items: center;
+      min-height: 24px;
+      padding: 0 8px;
+      border-radius: 999px;
+      background: rgba(99, 91, 255, 0.1);
+      color: var(--primary);
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .contact-line {
+      display: block;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.5;
+      margin-top: 4px;
+      word-break: break-word;
+    }
+
+    @media (max-width: 1200px) {
+      .layout {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    @media (max-width: 900px) {
+      .controls,
+      .metrics {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    @media (max-width: 760px) {
+      table,
+      thead,
+      tbody,
+      tr,
+      th,
+      td {
+        display: block;
+        width: 100%;
+      }
+
+      thead {
+        display: none;
+      }
+
+      tbody {
+        display: grid;
+        gap: 12px;
+      }
+
+      tr {
+        border: 1px solid #e5e7eb;
+        border-radius: 16px;
+        padding: 6px 0;
+        background: #fff;
+      }
+
+      td {
+        border-bottom: 1px solid #edf1f7;
+        padding: 10px 14px;
+      }
+
+      td:last-child {
+        border-bottom: none;
+      }
+
+      td::before {
+        content: attr(data-label);
+        display: block;
+        margin-bottom: 4px;
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--muted);
+      }
+    }
+  </style>
+</head>
+<body data-shell-label="Event RSVPs" data-shell-icon="service">
+  <div class="wrap">
+    <div id="internal-shell-header"></div>
+
+    <div class="card">
+      <div class="controls">
+        <div>
+          <label for="statusFilter">Event Status</label>
+          <select id="statusFilter">
+            <option value="active">Active events</option>
+            <option value="archived">Archived events</option>
+            <option value="all">All events</option>
+          </select>
+        </div>
+
+        <div>
+          <label for="eventFilter">Event</label>
+          <select id="eventFilter">
+            <option value="">All visible events</option>
+          </select>
+        </div>
+
+        <button id="refreshBtn" class="btn btn-primary" type="button">Refresh</button>
+      </div>
+
+      <div id="status" class="status"></div>
+
+      <div class="metrics">
+        <div class="metric">
+          <div class="metric-label">Visible Events</div>
+          <div class="metric-value" id="visibleEventsCount">0</div>
+          <div class="metric-text">Events in the current view</div>
+        </div>
+
+        <div class="metric">
+          <div class="metric-label">RSVPs</div>
+          <div class="metric-value" id="visibleRsvpCount">0</div>
+          <div class="metric-text">Total RSVP records shown</div>
+        </div>
+
+        <div class="metric">
+          <div class="metric-label">Attendees</div>
+          <div class="metric-value" id="visibleAttendeeCount">0</div>
+          <div class="metric-text">Combined guest count</div>
+        </div>
+
+        <div class="metric">
+          <div class="metric-label">Opted Into Updates</div>
+          <div class="metric-value" id="visibleUpdateCount">0</div>
+          <div class="metric-text">Email or text updates requested</div>
+        </div>
+      </div>
+
+      <div class="layout">
+        <div class="card">
+          <h2 class="panel-title">Events</h2>
+          <div id="eventsList" class="events-list"></div>
+        </div>
+
+        <div class="card">
+          <h2 class="panel-title">RSVPs</h2>
+          <table>
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Attending</th>
+                <th>Best Description</th>
+                <th>Updates</th>
+                <th>Submitted</th>
+              </tr>
+            </thead>
+            <tbody id="rsvpTableBody">
+              <tr><td colspan="5" class="empty">Loading RSVPs...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div id="internal-shell-footer"></div>
+  </div>
+
+  <script>
+    const statusFilterEl = document.getElementById("statusFilter");
+    const eventFilterEl = document.getElementById("eventFilter");
+    const refreshBtn = document.getElementById("refreshBtn");
+    const statusEl = document.getElementById("status");
+    const eventsListEl = document.getElementById("eventsList");
+    const rsvpTableBodyEl = document.getElementById("rsvpTableBody");
+    const visibleEventsCountEl = document.getElementById("visibleEventsCount");
+    const visibleRsvpCountEl = document.getElementById("visibleRsvpCount");
+    const visibleAttendeeCountEl = document.getElementById("visibleAttendeeCount");
+    const visibleUpdateCountEl = document.getElementById("visibleUpdateCount");
+
+    let currentEvents = [];
+    let currentRsvps = [];
+
+    function showStatus(type, message) {
+      statusEl.className = `status ${type}`;
+      statusEl.textContent = message;
+    }
+
+    function clearStatus() {
+      statusEl.className = "status";
+      statusEl.textContent = "";
+    }
+
+    function formatDateTime(value) {
+      if (!value) return "-";
+      return new Date(value).toLocaleString("en-US", {
+        month: "2-digit",
+        day: "2-digit",
+        year: "2-digit",
+        hour: "numeric",
+        minute: "2-digit"
+      });
+    }
+
+    function formatEventDateRange(event) {
+      if (!event?.startsAt) return "-";
+      const start = new Date(event.startsAt);
+      const end = event.endsAt ? new Date(event.endsAt) : null;
+      const startText = start.toLocaleString("en-US", {
+        month: "2-digit",
+        day: "2-digit",
+        year: "2-digit",
+        hour: "numeric",
+        minute: "2-digit"
+      });
+
+      if (!end) return startText;
+
+      const endText = end.toLocaleString("en-US", {
+        month: "2-digit",
+        day: "2-digit",
+        year: "2-digit",
+        hour: "numeric",
+        minute: "2-digit"
+      });
+
+      return `${startText} - ${endText}`;
+    }
+
+    function escapeHtml(value) {
+      return String(value ?? "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#39;");
+    }
+
+    function setMetrics(events, rsvps) {
+      const updateCount = rsvps.filter((row) => row.wantsEmailUpdates || row.wantsTextUpdates).length;
+      const attendeeCount = rsvps.reduce((sum, row) => sum + Number(row.guestCount || 0), 0);
+      visibleEventsCountEl.textContent = String(events.length);
+      visibleRsvpCountEl.textContent = String(rsvps.length);
+      visibleAttendeeCountEl.textContent = String(attendeeCount);
+      visibleUpdateCountEl.textContent = String(updateCount);
+    }
+
+    function renderEventFilter(events) {
+      const currentValue = eventFilterEl.value;
+      const options = [
+        '<option value="">All visible events</option>',
+        ...events.map((event) => `<option value="${escapeHtml(event.slug)}">${escapeHtml(event.name)}</option>`)
+      ];
+      eventFilterEl.innerHTML = options.join("");
+
+      if (events.some((event) => event.slug === currentValue)) {
+        eventFilterEl.value = currentValue;
+      } else {
+        eventFilterEl.value = "";
+      }
+    }
+
+    function renderEvents(events) {
+      const selectedSlug = eventFilterEl.value;
+
+      if (!events.length) {
+        eventsListEl.innerHTML = '<div class="empty">No events match the current filter.</div>';
+        return;
+      }
+
+      eventsListEl.innerHTML = events.map((event) => {
+        const stats = event.stats || {};
+        const isSelected = selectedSlug && selectedSlug === event.slug;
+        return `
+          <div class="event-card ${isSelected ? "active-selection" : ""}">
+            <div class="event-top">
+              <div>
+                <h3 class="event-name">${escapeHtml(event.name)}</h3>
+                <p class="event-subtitle">${escapeHtml(event.subtitle || "Event campaign")}</p>
+              </div>
+              <span class="badge ${escapeHtml(event.status)}">${escapeHtml(event.status)}</span>
+            </div>
+
+            <div class="event-meta">
+              <div class="event-meta-row"><span class="event-meta-label">When:</span>${escapeHtml(formatEventDateRange(event))}</div>
+              <div class="event-meta-row"><span class="event-meta-label">Where:</span>${escapeHtml(event.location || "-")}</div>
+              <div class="event-meta-row"><span class="event-meta-label">Public page:</span>${event.publicPath ? `<a href="${escapeHtml(event.publicPath)}" target="_blank" rel="noopener noreferrer">${escapeHtml(event.publicPath)}</a>` : "-"}</div>
+            </div>
+
+            <div class="event-stats">
+              <div class="event-stat">
+                <div class="event-stat-value">${Number(stats.rsvpCount || 0)}</div>
+                <div class="event-stat-label">RSVPs</div>
+              </div>
+              <div class="event-stat">
+                <div class="event-stat-value">${Number(stats.totalAttendees || 0)}</div>
+                <div class="event-stat-label">Attendees</div>
+              </div>
+            </div>
+
+            <div class="event-actions">
+              <button class="btn btn-secondary" type="button" data-select-event="${escapeHtml(event.slug)}">View RSVPs</button>
+              <button class="btn btn-secondary" type="button" data-toggle-status="${escapeHtml(event.slug)}" data-next-status="${event.status === "active" ? "archived" : "active"}">
+                ${event.status === "active" ? "Archive event" : "Restore event"}
+              </button>
+            </div>
+          </div>
+        `;
+      }).join("");
+    }
+
+    function renderRsvps(rsvps) {
+      if (!rsvps.length) {
+        rsvpTableBodyEl.innerHTML = '<tr><td colspan="5" class="empty">No RSVPs match the current event view.</td></tr>';
+        return;
+      }
+
+      rsvpTableBodyEl.innerHTML = rsvps.map((row) => {
+        const updates = [];
+        if (row.wantsEmailUpdates) {
+          updates.push(`<span class="update-pill">Email</span>`);
+        }
+        if (row.wantsTextUpdates) {
+          updates.push(`<span class="update-pill">Text</span>`);
+        }
+
+        const contactLines = [
+          row.email ? `<span class="contact-line">${escapeHtml(row.email)}</span>` : "",
+          row.phone ? `<span class="contact-line">${escapeHtml(row.phone)}</span>` : ""
+        ].join("");
+
+        return `
+          <tr>
+            <td data-label="Name">
+              <strong>${escapeHtml(row.fullName || "-")}</strong>
+              <span class="contact-line">${escapeHtml(row.eventName || "-")}</span>
+            </td>
+            <td data-label="Attending">${Number(row.guestCount || 0)}</td>
+            <td data-label="Best Description">${escapeHtml(row.attendeeType || "-")}</td>
+            <td data-label="Updates">
+              <div class="updates">${updates.length ? updates.join("") : '<span class="contact-line">No updates requested</span>'}</div>
+              ${contactLines}
+            </td>
+            <td data-label="Submitted">${escapeHtml(formatDateTime(row.updatedAt || row.createdAt))}</td>
+          </tr>
+        `;
+      }).join("");
+    }
+
+    async function loadCatalog() {
+      const status = statusFilterEl.value;
+      const res = await fetch(`/api/events/catalog?status=${encodeURIComponent(status)}`);
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || "Unable to load event catalog.");
+      }
+      currentEvents = data.events || [];
+      renderEventFilter(currentEvents);
+      renderEvents(currentEvents);
+      return currentEvents;
+    }
+
+    async function loadRsvps() {
+      const status = statusFilterEl.value;
+      const eventSlug = eventFilterEl.value;
+      const query = new URLSearchParams({ status });
+      if (eventSlug) {
+        query.set("eventSlug", eventSlug);
+      }
+
+      const res = await fetch(`/api/events/rsvps?${query.toString()}`);
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || "Unable to load RSVP data.");
+      }
+
+      currentRsvps = data.rows || [];
+      renderRsvps(currentRsvps);
+      setMetrics(currentEvents, currentRsvps);
+    }
+
+    async function loadPage() {
+      clearStatus();
+      refreshBtn.disabled = true;
+      refreshBtn.textContent = "Loading...";
+
+      try {
+        await loadCatalog();
+        await loadRsvps();
+      } catch (err) {
+        showStatus("error", err.message || "Unable to load event RSVPs.");
+      } finally {
+        refreshBtn.disabled = false;
+        refreshBtn.textContent = "Refresh";
+      }
+    }
+
+    async function updateEventStatus(slug, nextStatus) {
+      const verb = nextStatus === "archived" ? "archive" : "restore";
+      const confirmed = window.confirm(`Are you sure you want to ${verb} this event?`);
+      if (!confirmed) {
+        return;
+      }
+
+      clearStatus();
+
+      try {
+        const res = await fetch(`/api/events/${encodeURIComponent(slug)}/status`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({ status: nextStatus })
+        });
+
+        const data = await res.json();
+        if (!res.ok) {
+          throw new Error(data.error || "Unable to update event status.");
+        }
+
+        showStatus("success", `Event ${nextStatus === "archived" ? "archived" : "restored"} successfully.`);
+        await loadPage();
+      } catch (err) {
+        showStatus("error", err.message || "Unable to update event status.");
+      }
+    }
+
+    eventsListEl.addEventListener("click", (event) => {
+      const selectTarget = event.target.closest("[data-select-event]");
+      if (selectTarget) {
+        eventFilterEl.value = selectTarget.getAttribute("data-select-event") || "";
+        renderEvents(currentEvents);
+        loadRsvps().catch((err) => showStatus("error", err.message || "Unable to load RSVP data."));
+        return;
+      }
+
+      const statusTarget = event.target.closest("[data-toggle-status]");
+      if (statusTarget) {
+        const slug = statusTarget.getAttribute("data-toggle-status") || "";
+        const nextStatus = statusTarget.getAttribute("data-next-status") || "";
+        updateEventStatus(slug, nextStatus);
+      }
+    });
+
+    statusFilterEl.addEventListener("change", loadPage);
+    eventFilterEl.addEventListener("change", async () => {
+      clearStatus();
+      renderEvents(currentEvents);
+      try {
+        await loadRsvps();
+      } catch (err) {
+        showStatus("error", err.message || "Unable to load RSVP data.");
+      }
+    });
+    refreshBtn.addEventListener("click", loadPage);
+
+    loadPage();
+  </script>
+</body>
+</html>

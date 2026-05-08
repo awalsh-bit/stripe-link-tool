@@ -44,9 +44,24 @@ const LINKS_FILE = ensureJsonFile("links.json", []);
 const TERMINAL_PAYMENTS_FILE = ensureJsonFile("terminal-payments.json", []);
 const SERVICE_CARDS_FILE = ensureJsonFile("service-cards.json", []);
 const SERVICE_CARDS_ARCHIVE_FILE = ensureJsonFile("service-cards-archive.json", []);
+const EVENTS_FILE = ensureJsonFile("events.json", []);
 const EVENT_RSVPS_FILE = ensureJsonFile("event-rsvps.json", []);
 const SERVICE_RECENT_WORK_DAYS = 30;
 const SERVICE_ARCHIVE_PURGE_DAYS = 90;
+const DEFAULT_EVENT_CATALOG = [
+  {
+    slug: "fire-and-flavor",
+    name: "Fire & Flavor",
+    subtitle: "Wilson Outdoor Living Showcase",
+    publicPath: "fireflavor.html",
+    startsAt: "2026-05-15T13:00:00-05:00",
+    endsAt: "2026-05-15T17:00:00-05:00",
+    location: "Wilson AC & Appliance showroom",
+    status: "active",
+    createdAt: "2026-05-07T00:00:00.000Z",
+    updatedAt: "2026-05-07T00:00:00.000Z"
+  }
+];
 
 
 const app = express();
@@ -61,6 +76,8 @@ const SERVICE_PUBLIC_PATHS = new Set([
   "/public-shell.css",
   "/public-shell.js",
   "/logo-black.png",
+  "/fireflavor-hero.png",
+  "/fireflavor-what-to-expect.png",
   "/favicon.svg",
   "/robots.txt",
   "/favicon.ico"
@@ -89,6 +106,7 @@ const PUBLIC_AUTH_PATHS = new Set([
 const INTERNAL_PAGE_PATHS = new Set([
   "/dashboard.html",
   "/salesdashboard.html",
+  "/event-rsvps.html",
   "/commissions.html",
   "/hvac-dashboard.html",
   "/intent-lookup.html",
@@ -124,7 +142,7 @@ const ACCESS_GROUPS = {
   },
   sales: {
     label: "Sales",
-    pages: ["/dashboard.html", "/salesdashboard.html", "/index.html", "/terminal.html", "/charge-saved-card.html"]
+    pages: ["/dashboard.html", "/salesdashboard.html", "/event-rsvps.html", "/index.html", "/terminal.html", "/charge-saved-card.html"]
   },
   service: {
     label: "Service",
@@ -2007,6 +2025,170 @@ app.post("/api/events/fire-flavor/rsvp", async (req, res) => {
   }
 });
 
+app.get("/api/events/catalog", async (req, res) => {
+  try {
+    const status = String(req.query.status || "all").trim().toLowerCase();
+    const allowedStatuses = new Set(["all", "active", "archived"]);
+
+    if (!allowedStatuses.has(status)) {
+      return res.status(400).json({
+        error: "status must be all, active, or archived."
+      });
+    }
+
+    const [events, rsvps] = await Promise.all([
+      readEventCatalog(),
+      readEventRsvps()
+    ]);
+
+    const filteredEvents = status === "all"
+      ? events
+      : events.filter((event) => event.status === status);
+
+    const countsBySlug = rsvps.reduce((acc, rsvp) => {
+      const slug = String(rsvp.eventSlug || "").trim();
+      if (!slug) {
+        return acc;
+      }
+
+      if (!acc[slug]) {
+        acc[slug] = {
+          rsvpCount: 0,
+          totalAttendees: 0,
+          emailUpdatesCount: 0,
+          textUpdatesCount: 0,
+          latestRsvpAt: ""
+        };
+      }
+
+      acc[slug].rsvpCount += 1;
+      acc[slug].totalAttendees += Number(rsvp.guestCount || 0);
+      acc[slug].emailUpdatesCount += rsvp.wantsEmailUpdates ? 1 : 0;
+      acc[slug].textUpdatesCount += rsvp.wantsTextUpdates ? 1 : 0;
+
+      const updatedAt = String(rsvp.updatedAt || rsvp.createdAt || "");
+      if (updatedAt && updatedAt > acc[slug].latestRsvpAt) {
+        acc[slug].latestRsvpAt = updatedAt;
+      }
+
+      return acc;
+    }, {});
+
+    res.json({
+      events: filteredEvents.map((event) => ({
+        ...event,
+        stats: countsBySlug[event.slug] || {
+          rsvpCount: 0,
+          totalAttendees: 0,
+          emailUpdatesCount: 0,
+          textUpdatesCount: 0,
+          latestRsvpAt: ""
+        }
+      }))
+    });
+  } catch (err) {
+    res.status(400).json({
+      error: err.message || "Unable to load event catalog."
+    });
+  }
+});
+
+app.get("/api/events/rsvps", async (req, res) => {
+  try {
+    const eventSlug = String(req.query.eventSlug || "").trim();
+    const status = String(req.query.status || "all").trim().toLowerCase();
+    const allowedStatuses = new Set(["all", "active", "archived"]);
+
+    if (!allowedStatuses.has(status)) {
+      return res.status(400).json({
+        error: "status must be all, active, or archived."
+      });
+    }
+
+    const [events, rsvps] = await Promise.all([
+      readEventCatalog(),
+      readEventRsvps()
+    ]);
+
+    const eventBySlug = new Map(events.map((event) => [event.slug, event]));
+    const rows = rsvps
+      .filter((rsvp) => {
+        const slug = String(rsvp.eventSlug || "").trim();
+        const event = eventBySlug.get(slug);
+        if (!event) {
+          return false;
+        }
+
+        if (status !== "all" && event.status !== status) {
+          return false;
+        }
+
+        if (eventSlug && slug !== eventSlug) {
+          return false;
+        }
+
+        return true;
+      })
+      .map((rsvp) => ({
+        ...rsvp,
+        eventName: eventBySlug.get(rsvp.eventSlug)?.name || rsvp.eventName || rsvp.eventSlug,
+        eventStatus: eventBySlug.get(rsvp.eventSlug)?.status || "active"
+      }))
+      .sort((a, b) => String(b.updatedAt || b.createdAt || "").localeCompare(String(a.updatedAt || a.createdAt || "")));
+
+    res.json({ rows });
+  } catch (err) {
+    res.status(400).json({
+      error: err.message || "Unable to load event RSVPs."
+    });
+  }
+});
+
+app.post("/api/events/:slug/status", async (req, res) => {
+  try {
+    const slug = String(req.params.slug || "").trim();
+    const nextStatus = String(req.body?.status || "").trim().toLowerCase();
+
+    if (!slug) {
+      return res.status(400).json({
+        error: "Event slug is required."
+      });
+    }
+
+    if (!["active", "archived"].includes(nextStatus)) {
+      return res.status(400).json({
+        error: "status must be active or archived."
+      });
+    }
+
+    const events = await readEventCatalog();
+    const eventIndex = events.findIndex((event) => event.slug === slug);
+
+    if (eventIndex < 0) {
+      return res.status(404).json({
+        error: "Event not found."
+      });
+    }
+
+    events[eventIndex] = {
+      ...events[eventIndex],
+      status: nextStatus,
+      updatedAt: new Date().toISOString()
+    };
+
+    await writeEventCatalog(events);
+
+    res.json({
+      ok: true,
+      event: events[eventIndex]
+    });
+  } catch (err) {
+    res.status(400).json({
+      error: err.message || "Unable to update event status."
+    });
+  }
+});
+
 app.post("/api/intent-lookup/payment_intent/:id/refund", async (req, res) => {
   try {
     const id = String(req.params.id || "").trim();
@@ -3058,6 +3240,52 @@ async function writeServiceCards(data) {
 async function readArchivedServiceCards() {
   const { archiveRows } = await maintainServiceCardStorage();
   return archiveRows;
+}
+
+function normalizeEventRecord(event, nowIso = new Date().toISOString()) {
+  return {
+    slug: String(event?.slug || "").trim(),
+    name: String(event?.name || "").trim() || "Untitled Event",
+    subtitle: String(event?.subtitle || "").trim(),
+    publicPath: String(event?.publicPath || "").trim(),
+    startsAt: String(event?.startsAt || "").trim(),
+    endsAt: String(event?.endsAt || "").trim(),
+    location: String(event?.location || "").trim(),
+    status: String(event?.status || "active").trim().toLowerCase() === "archived" ? "archived" : "active",
+    createdAt: String(event?.createdAt || nowIso),
+    updatedAt: String(event?.updatedAt || event?.createdAt || nowIso)
+  };
+}
+
+async function readEventCatalog() {
+  const existing = await readJson(EVENTS_FILE, []);
+  const nowIso = new Date().toISOString();
+  const normalized = existing.map((event) => normalizeEventRecord(event, nowIso)).filter((event) => event.slug);
+  let didChange = normalized.length !== existing.length;
+
+  for (const defaultEvent of DEFAULT_EVENT_CATALOG) {
+    if (!normalized.find((event) => event.slug === defaultEvent.slug)) {
+      normalized.push(normalizeEventRecord(defaultEvent, nowIso));
+      didChange = true;
+    }
+  }
+
+  normalized.sort((a, b) => String(b.startsAt || "").localeCompare(String(a.startsAt || "")));
+
+  if (didChange) {
+    await writeJson(EVENTS_FILE, normalized);
+  }
+
+  return normalized;
+}
+
+async function writeEventCatalog(data) {
+  const normalized = data
+    .map((event) => normalizeEventRecord(event))
+    .filter((event) => event.slug)
+    .sort((a, b) => String(b.startsAt || "").localeCompare(String(a.startsAt || "")));
+
+  return writeJson(EVENTS_FILE, normalized);
 }
 
 async function readEventRsvps() {

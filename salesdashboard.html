@@ -262,8 +262,14 @@
       height: 32px;
     }
 
-    .placeholder-card {
+    .tools-grid {
       margin-top: 22px;
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 18px;
+    }
+
+    .placeholder-card {
       background: var(--card);
       border: 1px solid rgba(99, 91, 255, 0.12);
       box-shadow: var(--shadow);
@@ -284,6 +290,23 @@
       max-width: 760px;
     }
 
+    .tool-action {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      margin-top: 18px;
+      padding: 12px 16px;
+      border-radius: 12px;
+      text-decoration: none;
+      font-weight: 700;
+      color: #fff;
+      background: var(--primary);
+    }
+
+    .tool-action:hover {
+      background: var(--primary-hover);
+    }
+
     @media (max-width: 900px) {
       .tools-strip-row {
         align-items: stretch;
@@ -297,6 +320,10 @@
 
       .tool-logo-link {
         width: 100%;
+      }
+
+      .tools-grid {
+        grid-template-columns: 1fr;
       }
     }
   </style>
@@ -356,11 +383,21 @@
       </div>
     </div>
 
-    <div class="placeholder-card">
-      <h1 class="placeholder-title">Sales tools coming next</h1>
-      <p class="placeholder-text">
-        This page is ready for the sales tools workspace. The header and navigation now match the payments dashboard so we can build out the tool modules from here.
-      </p>
+    <div class="tools-grid">
+      <div class="placeholder-card">
+        <h1 class="placeholder-title">Event RSVPs</h1>
+        <p class="placeholder-text">
+          Review active event attendance, manage archives, and keep future showroom event campaigns organized in one place.
+        </p>
+        <a class="tool-action" href="event-rsvps.html">Open Event RSVPs</a>
+      </div>
+
+      <div class="placeholder-card">
+        <h1 class="placeholder-title">Sales tools coming next</h1>
+        <p class="placeholder-text">
+          This page is ready for the broader sales tools workspace. We can keep adding modules here as the next operational needs come into focus.
+        </p>
+      </div>
     </div>
     <div id="internal-shell-footer"></div>
   </div>

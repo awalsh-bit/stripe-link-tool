@@ -71,6 +71,16 @@
       position: relative;
     }
 
+    .hero-copy::after {
+      content: "";
+      position: absolute;
+      inset: auto -70px -70px auto;
+      width: 240px;
+      height: 240px;
+      background: radial-gradient(circle, rgba(180, 83, 9, 0.08), transparent 70%);
+      pointer-events: none;
+    }
+
     .hero-image-card {
       padding: 0;
       overflow: hidden;
@@ -85,16 +95,6 @@
       min-height: 420px;
       object-fit: cover;
       object-position: center;
-    }
-
-    .hero-copy::after {
-      content: "";
-      position: absolute;
-      inset: auto -70px -70px auto;
-      width: 240px;
-      height: 240px;
-      background: radial-gradient(circle, rgba(180, 83, 9, 0.08), transparent 70%);
-      pointer-events: none;
     }
 
     h1 {
@@ -139,7 +139,7 @@
     }
 
     .btn,
-    button {
+    .form-submit {
       appearance: none;
       border: 1px solid transparent;
       border-radius: 14px;
@@ -155,18 +155,18 @@
     }
 
     .btn:hover,
-    button:hover {
+    .form-submit:hover {
       transform: translateY(-1px);
     }
 
     .btn-primary,
-    button {
+    .form-submit {
       background: var(--primary);
       color: #fff;
     }
 
     .btn-primary:hover,
-    button:hover {
+    .form-submit:hover {
       background: var(--primary-hover);
     }
 
@@ -177,7 +177,7 @@
     }
 
     .btn-secondary:hover {
-      background: #f8faff;
+      background: #f8faf7;
     }
 
     .btn-tertiary {
@@ -195,25 +195,19 @@
       background: var(--primary);
     }
 
-    body .public-shell-badge-icon {
-      background: rgba(47, 111, 79, 0.12);
-      color: var(--primary);
-    }
-
-    body .public-shell-badge {
-      background: var(--primary-soft);
-      color: var(--primary);
-    }
-
     body .public-shell-badge {
       min-height: 44px;
       padding: 0 22px;
       letter-spacing: 0.12em;
+      background: var(--primary-soft);
+      color: var(--primary);
     }
 
     body .public-shell-badge-icon {
       width: 44px;
       height: 44px;
+      background: rgba(47, 111, 79, 0.12);
+      color: var(--primary);
     }
 
     body .public-shell-badge-icon svg {
@@ -288,64 +282,6 @@
       font-size: 16px;
     }
 
-    .feature-grid {
-      display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 14px;
-    }
-
-    .feature {
-      border: 1px solid var(--border);
-      border-radius: 16px;
-      padding: 18px;
-      background: linear-gradient(180deg, #ffffff 0%, #fbfcff 100%);
-    }
-
-    .feature-title {
-      margin: 0 0 8px;
-      font-size: 16px;
-      font-weight: 800;
-    }
-
-    .feature-copy {
-      margin: 0;
-      color: var(--muted);
-      font-size: 14px;
-      line-height: 1.6;
-    }
-
-    .highlights {
-      display: grid;
-      gap: 12px;
-      margin-top: 18px;
-    }
-
-    .highlight {
-      display: flex;
-      gap: 12px;
-      align-items: flex-start;
-      padding: 14px 16px;
-      border-radius: 14px;
-      background: #f8faff;
-      border: 1px solid var(--border);
-    }
-
-    .highlight-bullet {
-      width: 10px;
-      height: 10px;
-      margin-top: 7px;
-      border-radius: 999px;
-      background: var(--primary);
-      flex: 0 0 auto;
-    }
-
-    .highlight-text {
-      margin: 0;
-      color: var(--text);
-      font-size: 15px;
-      line-height: 1.6;
-    }
-
     .rsvp-form {
       display: grid;
       gap: 16px;
@@ -361,6 +297,20 @@
       display: grid;
       grid-template-columns: repeat(2, minmax(0, 1fr));
       gap: 14px;
+    }
+
+    fieldset {
+      margin: 0;
+      padding: 0;
+      border: none;
+      min-inline-size: 0;
+    }
+
+    legend {
+      padding: 0;
+      margin-bottom: 8px;
+      font-size: 14px;
+      font-weight: 700;
     }
 
     .checkbox-group {
@@ -392,8 +342,7 @@
     }
 
     input,
-    select,
-    textarea {
+    select {
       width: 100%;
       border: 1px solid var(--border);
       border-radius: 12px;
@@ -406,22 +355,9 @@
     }
 
     input:focus,
-    select:focus,
-    textarea:focus {
-      border-color: rgba(99, 91, 255, 0.75);
-      box-shadow: 0 0 0 4px rgba(99, 91, 255, 0.12);
-    }
-
-    textarea {
-      min-height: 92px;
-      resize: vertical;
-    }
-
-    .field-hint {
-      margin: -2px 0 0;
-      color: var(--muted);
-      font-size: 12px;
-      line-height: 1.5;
+    select:focus {
+      border-color: rgba(47, 111, 79, 0.72);
+      box-shadow: 0 0 0 4px rgba(47, 111, 79, 0.14);
     }
 
     .status {
@@ -479,7 +415,6 @@
 
     @media (max-width: 720px) {
       .promo-details,
-      .feature-grid,
       .field-row {
         grid-template-columns: 1fr;
       }
@@ -589,18 +524,18 @@
 
     <section class="section-grid">
       <div class="card promo-card" id="learn-more">
-        <img class="promo-image" src="fireflavor-what-to-expect.png" alt="Fire & Flavor event graphic featuring participating outdoor cooking brands, live fire demos, chef-prepared tastings, exclusive giveaways, and refreshments." />
+        <img class="promo-image" src="fireflavor-what-to-expect.png" alt="Fire & Flavor event brand graphic with participating outdoor cooking brands." />
         <div class="promo-details">
           <div class="promo-detail">
-            <h3 class="promo-detail-title">Exclusive Giveaways</h3>
+            <div class="promo-detail-title">Exclusive Giveaways</div>
             <p class="promo-detail-copy">Giveaways include a portable grill, portable pizza oven, connected temperature probe, and more.</p>
           </div>
           <div class="promo-detail">
-            <h3 class="promo-detail-title">Food And Refreshments</h3>
+            <div class="promo-detail-title">Food And Refreshments</div>
             <p class="promo-detail-copy">Live grilled food samples and beverage refreshments will be provided throughout the event.</p>
           </div>
           <div class="promo-detail">
-            <h3 class="promo-detail-title">Event Pricing</h3>
+            <div class="promo-detail-title">Event Pricing</div>
             <p class="promo-detail-copy">Exclusive pricing will be available for event attendees on participating outdoor living products.</p>
           </div>
         </div>
@@ -615,13 +550,14 @@
         <form id="rsvpForm" class="rsvp-form">
           <div class="field">
             <label for="fullName">Full Name</label>
-            <input id="fullName" name="fullName" required placeholder="Jane Smith" />
+            <input id="fullName" name="fullName" required autocomplete="name" placeholder="Jane Smith" />
           </div>
 
           <div class="field-row">
             <div class="field">
               <label for="guestCount">Number Attending</label>
-              <select id="guestCount" name="guestCount">
+              <select id="guestCount" name="guestCount" required>
+                <option value="" selected disabled>Select...</option>
                 <option value="1">1</option>
                 <option value="2">2</option>
                 <option value="3">3</option>
@@ -644,8 +580,8 @@
             </div>
           </div>
 
-          <div class="field">
-            <label>Would you like updates?</label>
+          <fieldset class="field">
+            <legend>Would you like updates?</legend>
             <div class="checkbox-group">
               <label class="checkbox-option">
                 <input id="wantsEmailUpdates" name="wantsEmailUpdates" type="checkbox" />
@@ -656,19 +592,19 @@
                 Text updates
               </label>
             </div>
-          </div>
+          </fieldset>
 
           <div id="emailField" class="field hidden">
             <label for="email">Email Address</label>
-            <input id="email" name="email" type="email" placeholder="jane@example.com" />
+            <input id="email" name="email" type="email" autocomplete="email" placeholder="jane@example.com" />
           </div>
 
           <div id="phoneField" class="field hidden">
             <label for="phone">Phone Number</label>
-            <input id="phone" name="phone" placeholder="512-555-1234" />
+            <input id="phone" name="phone" autocomplete="tel" placeholder="512-555-1234" />
           </div>
 
-          <button id="submitBtn" type="submit">Submit RSVP</button>
+          <button id="submitBtn" class="form-submit" type="submit">Submit RSVP</button>
           <div id="status" class="status"></div>
           <p class="mini-note">
             Questions before the event?
@@ -681,7 +617,7 @@
 
     <div class="public-shell-footer">
       <div class="public-shell-footer-row">
-        <div class="public-shell-footer-text">Wilson AC &amp; Appliance event pages.</div>
+        <div class="public-shell-footer-text">&copy; 2026 Wilson AC &amp; Appliance</div>
         <a class="public-shell-footer-link" href="https://maps.app.goo.gl/SVcuxygmbiYq8fB16" target="_blank" rel="noopener noreferrer">Visit the Showroom</a>
       </div>
     </div>
@@ -713,6 +649,10 @@
       if (digits.length <= 3) return digits;
       if (digits.length <= 6) return `(${digits.slice(0, 3)}) ${digits.slice(3)}`;
       return `(${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6)}`;
+    }
+
+    function getPhoneDigits(value) {
+      return String(value || "").replace(/\D/g, "");
     }
 
     function syncContactFields() {
@@ -756,6 +696,11 @@
         return;
       }
 
+      if (!payload.guestCount) {
+        showStatus("error", "Please select how many people are attending.");
+        return;
+      }
+
       if (payload.wantsEmailUpdates && !payload.email) {
         showStatus("error", "Please provide an email address for email updates.");
         return;
@@ -763,6 +708,11 @@
 
       if (payload.wantsTextUpdates && !payload.phone) {
         showStatus("error", "Please provide a phone number for text updates.");
+        return;
+      }
+
+      if (payload.wantsTextUpdates && getPhoneDigits(payload.phone).length !== 10) {
+        showStatus("error", "Please enter a 10-digit phone number for text updates.");
         return;
       }
 
@@ -785,6 +735,7 @@
 
         showStatus("success", data.message || "Thanks for your RSVP.");
         rsvpForm.reset();
+        syncContactFields();
       } catch (err) {
         showStatus("error", err.message || "Unable to submit RSVP.");
       } finally {

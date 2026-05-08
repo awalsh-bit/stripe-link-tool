@@ -63,6 +63,25 @@ const DEFAULT_EVENT_CATALOG = [
   }
 ];
 
+function createStripeIdempotencyKey(prefix, ...parts) {
+  const normalized = parts
+    .flat()
+    .map((part) => {
+      if (part === undefined || part === null) return "";
+      if (typeof part === "object") return JSON.stringify(part);
+      return String(part).trim();
+    })
+    .join("|");
+
+  const digest = crypto
+    .createHash("sha256")
+    .update(`${prefix}|${normalized}`)
+    .digest("hex")
+    .slice(0, 32);
+
+  return `${prefix}-${digest}`;
+}
+
 
 const app = express();
 app.set("trust proxy", true);
@@ -110,6 +129,7 @@ const INTERNAL_PAGE_PATHS = new Set([
   "/event-rsvps.html",
   "/commissions.html",
   "/hvac-dashboard.html",
+  "/link-detail-lookup.html",
   "/intent-lookup.html",
   "/login.html",
   "/logout.html",
@@ -139,15 +159,15 @@ const ACCESS_GROUPS = {
   },
   accounting: {
     label: "Accounting",
-    pages: ["/paid-order-detail.html", "/bank-balancing.html", "/intent-lookup.html"]
+    pages: ["/paid-order-detail.html", "/bank-balancing.html", "/intent-lookup.html", "/link-detail-lookup.html"]
   },
   sales: {
     label: "Sales",
-    pages: ["/dashboard.html", "/salesdashboard.html", "/event-rsvps.html", "/index.html", "/terminal.html", "/charge-saved-card.html"]
+    pages: ["/dashboard.html", "/salesdashboard.html", "/event-rsvps.html", "/index.html", "/terminal.html", "/charge-saved-card.html", "/link-detail-lookup.html"]
   },
   service: {
     label: "Service",
-    pages: ["/appliance-service-calls.html", "/archive-service-calls.html", "/intent-lookup.html"]
+    pages: ["/appliance-service-calls.html", "/archive-service-calls.html", "/intent-lookup.html", "/link-detail-lookup.html"]
   }
 };
 
@@ -641,24 +661,40 @@ app.post("/api/create-payment-link", async (req, res) => {
       });
     }
 
-    const unitAmount = Math.round(chargeNowAmount * 100);
+const unitAmount = Math.round(chargeNowAmount * 100);
 if (!Number.isFinite(unitAmount) || unitAmount < 50) {
   return res.status(400).json({
     error: "Amount must be at least $0.50"
   });
 }
 
+const paymentLinkOperationKey = createStripeIdempotencyKey(
+  "payment-link",
+  normalizedLinkType,
+  salesOrder,
+  unitAmount,
+  customerPhoneDigits || customerPhone,
+  customerEmail,
+  creatorCode,
+  department,
+  description
+);
+
 const product = await stripe.products.create({
   name:
     normalizedLinkType === "hvac_deposit"
       ? `${salesOrder || "Customer payment"} HVAC Deposit`
       : salesOrder || "Customer payment"
+}, {
+  idempotencyKey: `${paymentLinkOperationKey}-product`
 });
 
     const price = await stripe.prices.create({
       product: product.id,
       unit_amount: unitAmount,
       currency: normalizedCurrency
+    }, {
+      idempotencyKey: `${paymentLinkOperationKey}-price`
     });
 
 const sharedMetadata = {
@@ -701,7 +737,9 @@ if (normalizedLinkType === "hvac_deposit") {
   paymentLinkConfig.payment_intent_data.setup_future_usage = "off_session";
 }
 
-const paymentLink = await stripe.paymentLinks.create(paymentLinkConfig);
+const paymentLink = await stripe.paymentLinks.create(paymentLinkConfig, {
+  idempotencyKey: `${paymentLinkOperationKey}-link`
+});
 
     const links = await readLinks();
 
@@ -813,6 +851,15 @@ const {
 }
 
     const amountInCents = Math.round(Number(amount) * 100);
+    const terminalChargeKey = createStripeIdempotencyKey(
+      "terminal-charge",
+      readerId,
+      salesOrder,
+      amountInCents,
+      customerPhoneDigits || customerPhone,
+      creatorCode,
+      description
+    );
 
 const paymentIntent = await stripe.paymentIntents.create({
   amount: amountInCents,
@@ -831,6 +878,8 @@ const paymentIntent = await stripe.paymentIntents.create({
     creator_email: creatorEmail || "",
     notes: notes || ""
   }
+}, {
+  idempotencyKey: terminalChargeKey
 });
 
     const reader = await stripe.rawRequest(
@@ -962,6 +1011,24 @@ app.post("/api/service/setup-intent", async (req, res) => {
       });
     }
 
+    const serviceSetupKey = createStripeIdempotencyKey(
+      "service-setup",
+      customerName,
+      customerEmail,
+      customerPhone,
+      existingServiceCardId,
+      serviceAddress?.line1,
+      serviceAddress?.zip,
+      purchaseDate,
+      purchasedWithin12Months,
+      units?.map((unit) => [
+        unit?.applianceType || "",
+        unit?.brand || "",
+        unit?.model || "",
+        unit?.serial || ""
+      ])
+    );
+
     const customer = await stripe.customers.create({
       name: customerName,
       email: customerEmail,
@@ -991,6 +1058,8 @@ app.post("/api/service/setup-intent", async (req, res) => {
         service_address_zip: serviceAddress?.zip || "",
         problem_description: problemDescription || ""
       }
+    }, {
+      idempotencyKey: `${serviceSetupKey}-customer`
     });
 
     const setupIntent = await stripe.setupIntents.create({
@@ -1024,6 +1093,8 @@ app.post("/api/service/setup-intent", async (req, res) => {
         serial_2: units?.[1]?.serial || "",
         problem_description_2: units?.[1]?.problemDescription || ""
       }
+    }, {
+      idempotencyKey: `${serviceSetupKey}-setup-intent`
     });
 
     res.json({
@@ -1347,6 +1418,17 @@ app.post("/api/card-on-file/charge", async (req, res) => {
       });
     }
 
+    const savedCardChargeKey = createStripeIdempotencyKey(
+      "saved-card-charge",
+      customerId,
+      paymentMethodId,
+      salesOrder,
+      amountInCents,
+      creatorCode,
+      hvacDepositRecordId,
+      description
+    );
+
     const paymentIntent = await stripe.paymentIntents.create({
       amount: amountInCents,
       currency: "usd",
@@ -1365,6 +1447,8 @@ app.post("/api/card-on-file/charge", async (req, res) => {
         creator_email: creatorEmail || "",
         notes: internalNotes || ""
       }
+    }, {
+      idempotencyKey: savedCardChargeKey
     });
 
     const terminalPayments = await readTerminalPayments();
@@ -1882,6 +1966,35 @@ app.get("/api/bank-balancing", async (req, res) => {
   }
 });
 
+app.get("/api/link-detail-lookup", async (req, res) => {
+  try {
+    const query = String(req.query?.query || "").trim();
+
+    if (!query) {
+      return res.status(400).json({
+        error: "A payment link URL or ID is required."
+      });
+    }
+
+    const links = (await readLinks()).map((row) => normalizeLinkRecord({ ...row }));
+    const record = links.find((row) => paymentLinkLookupMatches(row, query));
+
+    if (!record) {
+      return res.status(404).json({
+        error: "No saved payment link record matched that URL or ID."
+      });
+    }
+
+    res.json({
+      record
+    });
+  } catch (err) {
+    res.status(400).json({
+      error: err.message || "Unable to look up payment link details."
+    });
+  }
+});
+
 app.get("/api/intent-lookup/:kind/:id", async (req, res) => {
   try {
     const kind = String(req.params.kind || "").toLowerCase();
@@ -1954,7 +2067,11 @@ app.post("/api/events/fire-flavor/rsvp", async (req, res) => {
     const fullName = String(req.body?.fullName || "").trim();
     const email = String(req.body?.email || "").trim().toLowerCase();
     const phone = String(req.body?.phone || "").trim();
-    const guestCount = Math.max(1, Math.min(12, Number.parseInt(req.body?.guestCount, 10) || 1));
+    const phoneDigits = phone.replace(/\D/g, "");
+    const rawGuestCount = Number.parseInt(req.body?.guestCount, 10);
+    const guestCount = Number.isFinite(rawGuestCount)
+      ? Math.max(1, Math.min(12, rawGuestCount))
+      : null;
     const attendeeType = String(req.body?.attendeeType || "").trim();
     const wantsEmailUpdates = Boolean(req.body?.wantsEmailUpdates);
     const wantsTextUpdates = Boolean(req.body?.wantsTextUpdates);
@@ -1975,6 +2092,18 @@ app.post("/api/events/fire-flavor/rsvp", async (req, res) => {
     if (wantsTextUpdates && !phone) {
       return res.status(400).json({
         error: "A phone number is required for text updates."
+      });
+    }
+
+    if (wantsTextUpdates && phoneDigits.length !== 10) {
+      return res.status(400).json({
+        error: "A valid 10-digit phone number is required for text updates."
+      });
+    }
+
+    if (!guestCount) {
+      return res.status(400).json({
+        error: "Please select how many people are attending."
       });
     }
 
@@ -2252,10 +2381,19 @@ app.post("/api/intent-lookup/payment_intent/:id/refund", async (req, res) => {
       }
     }
 
+    const refundKey = createStripeIdempotencyKey(
+      "refund",
+      id,
+      refundAmountCents,
+      allowedReasons.has(requestedReason) ? requestedReason : "requested_by_customer"
+    );
+
     const refund = await stripe.refunds.create({
       payment_intent: id,
       ...(refundAmountCents === remainingRefundableCents ? {} : { amount: refundAmountCents }),
       reason: allowedReasons.has(requestedReason) ? requestedReason : "requested_by_customer"
+    }, {
+      idempotencyKey: refundKey
     });
 
     return res.json({
@@ -3424,6 +3562,87 @@ function normalizeLinkRecord(record) {
   }
 
   return normalized;
+}
+
+function tryParseLinkLookupUrl(value) {
+  const raw = String(value || "").trim();
+  if (!raw) return null;
+
+  const candidates = raw.startsWith("http://") || raw.startsWith("https://")
+    ? [raw]
+    : [`https://${raw}`, raw];
+
+  for (const candidate of candidates) {
+    try {
+      return new URL(candidate);
+    } catch {
+      continue;
+    }
+  }
+
+  return null;
+}
+
+function getPaymentLinkLookupTokens(value) {
+  const raw = String(value || "").trim();
+  if (!raw) return [];
+
+  const tokens = new Set([raw.toLowerCase()]);
+  const parsedUrl = tryParseLinkLookupUrl(raw);
+
+  if (parsedUrl) {
+    const pathname = parsedUrl.pathname.replace(/\/+$/, "");
+    const hostAndPath = `${parsedUrl.hostname}${pathname}`;
+    tokens.add(parsedUrl.href.toLowerCase().replace(/\/+$/, ""));
+    if (pathname) {
+      tokens.add(pathname.toLowerCase());
+      tokens.add(pathname.split("/").pop().toLowerCase());
+    }
+    tokens.add(hostAndPath.toLowerCase());
+  }
+
+  const pathMatch = raw.match(/\/([bcp]\/[A-Za-z0-9]+)(?:[/?#]|$)/i);
+  if (pathMatch?.[1]) {
+    tokens.add(`/${pathMatch[1].toLowerCase()}`);
+    tokens.add(pathMatch[1].split("/").pop().toLowerCase());
+  }
+
+  return [...tokens].filter(Boolean);
+}
+
+function paymentLinkLookupMatches(record, lookupValue) {
+  const tokens = getPaymentLinkLookupTokens(lookupValue);
+  if (!tokens.length) return false;
+
+  const recordTokens = new Set();
+  const paymentLinkId = String(record.paymentLinkId || "").trim().toLowerCase();
+  const paymentLinkUrl = String(record.paymentLinkUrl || "").trim();
+  const checkoutSessionId = String(record.checkoutSessionId || "").trim().toLowerCase();
+
+  if (paymentLinkId) {
+    recordTokens.add(paymentLinkId);
+  }
+
+  if (checkoutSessionId) {
+    recordTokens.add(checkoutSessionId);
+  }
+
+  if (paymentLinkUrl) {
+    const parsedRecordUrl = tryParseLinkLookupUrl(paymentLinkUrl);
+    recordTokens.add(paymentLinkUrl.toLowerCase().replace(/\/+$/, ""));
+
+    if (parsedRecordUrl) {
+      const pathname = parsedRecordUrl.pathname.replace(/\/+$/, "");
+      const hostAndPath = `${parsedRecordUrl.hostname}${pathname}`;
+      if (pathname) {
+        recordTokens.add(pathname.toLowerCase());
+        recordTokens.add(pathname.split("/").pop().toLowerCase());
+      }
+      recordTokens.add(hostAndPath.toLowerCase());
+    }
+  }
+
+  return tokens.some((token) => recordTokens.has(token));
 }
 
 async function getStripeAmountsForPaymentIntent(paymentIntentId) {

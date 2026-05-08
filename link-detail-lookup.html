@@ -1,0 +1,454 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="robots" content="noindex,nofollow,noarchive" />
+  <title>Wilson AC & Appliance - Link Detail Lookup</title>
+  <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+  <link rel="stylesheet" href="internal-shell.css" />
+  <style>
+    :root {
+      --bg: #f7f8fc;
+      --card: #ffffff;
+      --text: #1f2937;
+      --muted: #6b7280;
+      --border: #dbe1ea;
+      --primary: #635bff;
+      --primary-hover: #564ef0;
+      --shadow: 0 10px 35px rgba(0, 0, 0, 0.08);
+      --radius: 18px;
+      --success-bg: #ecfdf5;
+      --success-text: #166534;
+      --warning-bg: #eff6ff;
+      --warning-text: #1d4ed8;
+      --error-bg: #fef2f2;
+      --error-text: #b91c1c;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: linear-gradient(180deg, #eef2ff 0%, var(--bg) 100%);
+      color: var(--text);
+      min-height: 100vh;
+      padding: 32px 16px;
+    }
+
+    .wrap {
+      max-width: 1480px;
+      margin: 0 auto;
+    }
+
+    .card {
+      background: var(--card);
+      border: 1px solid rgba(99, 91, 255, 0.12);
+      box-shadow: var(--shadow);
+      border-radius: var(--radius);
+      padding: 22px;
+    }
+
+    .toolbar {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 12px;
+      align-items: end;
+      margin-bottom: 16px;
+    }
+
+    label {
+      display: block;
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--muted);
+      font-weight: 700;
+      margin-bottom: 8px;
+    }
+
+    input,
+    button {
+      font: inherit;
+    }
+
+    input {
+      width: 100%;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 12px 14px;
+      background: #fff;
+      color: var(--text);
+      outline: none;
+    }
+
+    input:focus {
+      border-color: rgba(99, 91, 255, 0.75);
+      box-shadow: 0 0 0 4px rgba(99, 91, 255, 0.12);
+    }
+
+    .btn {
+      appearance: none;
+      border: 1px solid transparent;
+      border-radius: 12px;
+      padding: 12px 16px;
+      font-size: 14px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: background 0.2s ease, transform 0.12s ease, border-color 0.2s ease;
+    }
+
+    .btn:hover {
+      transform: translateY(-1px);
+    }
+
+    .btn-primary {
+      background: var(--primary);
+      color: #fff;
+    }
+
+    .btn-primary:hover {
+      background: var(--primary-hover);
+    }
+
+    .btn-secondary {
+      background: #fff;
+      color: var(--text);
+      border-color: var(--border);
+    }
+
+    .status {
+      min-height: 24px;
+      margin-bottom: 14px;
+      font-size: 14px;
+      color: var(--muted);
+    }
+
+    .status.error {
+      color: var(--error-text);
+    }
+
+    .status.success {
+      color: var(--success-text);
+    }
+
+    .helper {
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.5;
+      margin-bottom: 18px;
+    }
+
+    .summary-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 14px;
+    }
+
+    .summary-card {
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 16px;
+      background: #fafbff;
+    }
+
+    .summary-title {
+      font-size: 13px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--muted);
+      font-weight: 700;
+      margin-bottom: 12px;
+    }
+
+    .summary-list {
+      display: grid;
+      gap: 10px;
+    }
+
+    .summary-row {
+      display: grid;
+      grid-template-columns: 180px minmax(0, 1fr);
+      gap: 12px;
+      align-items: start;
+    }
+
+    .summary-label {
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--muted);
+      font-weight: 700;
+    }
+
+    .summary-value {
+      font-size: 14px;
+      line-height: 1.5;
+      word-break: break-word;
+    }
+
+    .summary-actions {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-top: 18px;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      border-radius: 999px;
+      padding: 8px 12px;
+      font-size: 13px;
+      font-weight: 800;
+      white-space: nowrap;
+    }
+
+    .badge.sent {
+      background: #eef2ff;
+      color: #4338ca;
+    }
+
+    .badge.viewed {
+      background: var(--warning-bg);
+      color: var(--warning-text);
+    }
+
+    .badge.ach_pending {
+      background: var(--success-bg);
+      color: var(--success-text);
+      box-shadow: inset 3px 0 0 #22c55e;
+    }
+
+    .badge.deactivated {
+      background: #fff7ed;
+      color: #9a3412;
+    }
+
+    .badge.paid {
+      background: var(--success-bg);
+      color: var(--success-text);
+    }
+
+    .hidden {
+      display: none !important;
+    }
+
+    @media (max-width: 900px) {
+      .summary-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    @media (max-width: 720px) {
+      .toolbar {
+        grid-template-columns: 1fr;
+      }
+
+      .summary-row {
+        grid-template-columns: 1fr;
+        gap: 6px;
+      }
+    }
+  </style>
+</head>
+<body data-shell-label="Link Detail Lookup" data-shell-icon="link">
+  <div class="wrap">
+    <div id="internal-shell-header"></div>
+
+    <div class="card">
+      <div class="toolbar">
+        <div>
+          <label for="lookupQuery">Payment Link URL or ID</label>
+          <input
+            id="lookupQuery"
+            type="text"
+            placeholder="Paste pay.wilsonappliance.com/b/... or plink_..."
+            autocomplete="off"
+          />
+        </div>
+        <button id="runLookup" class="btn btn-primary" type="button">Run</button>
+      </div>
+
+      <div class="helper">
+        Paste the full customer-facing payment link, the `plink_...` ID, or the last `/b/...` path and we’ll show the saved Wilson record.
+      </div>
+
+      <div id="status" class="status">Paste a payment link and click Run.</div>
+
+      <div id="result" class="hidden">
+        <div class="summary-grid">
+          <div class="summary-card">
+            <div class="summary-title">Link Summary</div>
+            <div class="summary-list" id="linkSummary"></div>
+          </div>
+          <div class="summary-card">
+            <div class="summary-title">Payment And Tracking</div>
+            <div class="summary-list" id="linkTracking"></div>
+          </div>
+        </div>
+
+        <div class="summary-actions">
+          <button id="copyLink" class="btn btn-secondary hidden" type="button">Copy link</button>
+          <button id="copyIntent" class="btn btn-secondary hidden" type="button">Copy intent</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="internal-shell.js"></script>
+  <script>
+    const lookupQueryEl = document.getElementById("lookupQuery");
+    const runLookupEl = document.getElementById("runLookup");
+    const statusEl = document.getElementById("status");
+    const resultEl = document.getElementById("result");
+    const linkSummaryEl = document.getElementById("linkSummary");
+    const linkTrackingEl = document.getElementById("linkTracking");
+    const copyLinkEl = document.getElementById("copyLink");
+    const copyIntentEl = document.getElementById("copyIntent");
+
+    let currentRecord = null;
+
+    function escapeHtml(value) {
+      return String(value ?? "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/\"/g, "&quot;")
+        .replace(/'/g, "&#39;");
+    }
+
+    function formatMoney(value) {
+      return new Intl.NumberFormat("en-US", {
+        style: "currency",
+        currency: "USD"
+      }).format(Number(value || 0));
+    }
+
+    function formatDate(value) {
+      if (!value) return "—";
+      const date = new Date(value);
+      if (Number.isNaN(date.getTime())) return value;
+      return new Intl.DateTimeFormat("en-US", {
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+        hour: "numeric",
+        minute: "2-digit"
+      }).format(date);
+    }
+
+    function statusLabel(status) {
+      if (status === "ach_pending") return "ACH Pending";
+      if (status === "viewed") return "Viewed";
+      if (status === "deactivated") return "Deactivated";
+      if (status === "paid") return "Paid";
+      return "Sent";
+    }
+
+    function valueOrDash(value) {
+      return value ? escapeHtml(value) : "—";
+    }
+
+    function renderRows(container, rows) {
+      container.innerHTML = rows.map((row) => `
+        <div class="summary-row">
+          <div class="summary-label">${row.label}</div>
+          <div class="summary-value">${row.value}</div>
+        </div>
+      `).join("");
+    }
+
+    function renderRecord(record) {
+      currentRecord = record;
+      resultEl.classList.remove("hidden");
+
+      renderRows(linkSummaryEl, [
+        { label: "Status", value: `<span class="badge ${escapeHtml(record.status)}">${escapeHtml(statusLabel(record.status))}</span>` },
+        { label: "Customer", value: valueOrDash(record.customerName) },
+        { label: "Employee", value: valueOrDash(record.creatorName) },
+        { label: "Department", value: valueOrDash(record.department) },
+        { label: "Sales Order", value: valueOrDash(record.salesOrder) },
+        { label: "Description", value: valueOrDash(record.description) },
+        { label: "Requested Amount", value: formatMoney(record.requestedAmount) },
+        { label: "Workflow", value: valueOrDash(record.workflowType) },
+        { label: "Created", value: formatDate(record.createdAt) }
+      ]);
+
+      renderRows(linkTrackingEl, [
+        { label: "Payment Link ID", value: valueOrDash(record.paymentLinkId) },
+        { label: "Customer Link", value: record.paymentLinkUrl ? `<a href="${escapeHtml(record.paymentLinkUrl)}" target="_blank" rel="noopener noreferrer">${escapeHtml(record.paymentLinkUrl)}</a>` : "—" },
+        { label: "Checkout Session", value: valueOrDash(record.checkoutSessionId) },
+        { label: "Payment Intent", value: valueOrDash(record.paymentIntentId) },
+        { label: "Customer ID", value: valueOrDash(record.customerId) },
+        { label: "Payment Method", value: valueOrDash(record.paymentMethodId) },
+        { label: "Paid Date", value: formatDate(record.paidDate) },
+        { label: "Deactivated", value: formatDate(record.deactivatedAt) },
+        { label: "Status Detail", value: valueOrDash(record.paymentStatusDetail || record.deactivationReason) }
+      ]);
+
+      copyLinkEl.classList.toggle("hidden", !record.paymentLinkUrl);
+      copyIntentEl.classList.toggle("hidden", !record.paymentIntentId);
+    }
+
+    async function copyText(button, text) {
+      if (!text) return;
+      const original = button.textContent;
+      try {
+        await navigator.clipboard.writeText(text);
+        button.textContent = "Copied";
+      } catch {
+        button.textContent = "Failed";
+      }
+      window.setTimeout(() => {
+        button.textContent = original;
+      }, 1200);
+    }
+
+    async function runLookup() {
+      const query = lookupQueryEl.value.trim();
+      if (!query) {
+        statusEl.className = "status error";
+        statusEl.textContent = "Paste a payment link URL or ID first.";
+        resultEl.classList.add("hidden");
+        return;
+      }
+
+      statusEl.className = "status";
+      statusEl.textContent = "Looking up saved link details...";
+      resultEl.classList.add("hidden");
+
+      try {
+        const res = await fetch(`/api/link-detail-lookup?query=${encodeURIComponent(query)}`);
+        const data = await res.json();
+
+        if (!res.ok) {
+          throw new Error(data.error || "Unable to look up payment link details.");
+        }
+
+        renderRecord(data.record);
+        statusEl.className = "status success";
+        statusEl.textContent = "Link record loaded.";
+      } catch (err) {
+        currentRecord = null;
+        resultEl.classList.add("hidden");
+        statusEl.className = "status error";
+        statusEl.textContent = err.message || "Unable to look up payment link details.";
+      }
+    }
+
+    runLookupEl.addEventListener("click", runLookup);
+    lookupQueryEl.addEventListener("keydown", (event) => {
+      if (event.key === "Enter") {
+        event.preventDefault();
+        runLookup();
+      }
+    });
+
+    copyLinkEl.addEventListener("click", () => copyText(copyLinkEl, currentRecord?.paymentLinkUrl));
+    copyIntentEl.addEventListener("click", () => copyText(copyIntentEl, currentRecord?.paymentIntentId));
+  </script>
+</body>
+</html>

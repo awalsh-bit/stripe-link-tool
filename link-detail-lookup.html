@@ -278,6 +278,15 @@
 
       <div id="status" class="status">Paste a payment link and click Run.</div>
 
+      <div id="stripeOnly" class="hidden">
+        <div class="summary-grid" style="margin-bottom:16px;">
+          <div class="summary-card">
+            <div class="summary-title">Stripe Match</div>
+            <div class="summary-list" id="stripeOnlySummary"></div>
+          </div>
+        </div>
+      </div>
+
       <div id="result" class="hidden">
         <div class="summary-grid">
           <div class="summary-card">
@@ -304,6 +313,8 @@
     const runLookupEl = document.getElementById("runLookup");
     const statusEl = document.getElementById("status");
     const resultEl = document.getElementById("result");
+    const stripeOnlyEl = document.getElementById("stripeOnly");
+    const stripeOnlySummaryEl = document.getElementById("stripeOnlySummary");
     const linkSummaryEl = document.getElementById("linkSummary");
     const linkTrackingEl = document.getElementById("linkTracking");
     const copyLinkEl = document.getElementById("copyLink");
@@ -364,6 +375,7 @@
     function renderRecord(record) {
       currentRecord = record;
       resultEl.classList.remove("hidden");
+      stripeOnlyEl.classList.add("hidden");
 
       renderRows(linkSummaryEl, [
         { label: "Status", value: `<span class="badge ${escapeHtml(record.status)}">${escapeHtml(statusLabel(record.status))}</span>` },
@@ -393,6 +405,19 @@
       copyIntentEl.classList.toggle("hidden", !record.paymentIntentId);
     }
 
+    function renderStripeOnly(stripeLink) {
+      currentRecord = null;
+      resultEl.classList.add("hidden");
+      stripeOnlyEl.classList.remove("hidden");
+
+      renderRows(stripeOnlySummaryEl, [
+        { label: "Payment Link ID", value: valueOrDash(stripeLink.id) },
+        { label: "Customer Link", value: stripeLink.url ? `<a href="${escapeHtml(stripeLink.url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(stripeLink.url)}</a>` : "—" },
+        { label: "Stripe Active", value: stripeLink.active ? "Yes" : "No" },
+        { label: "Wilson Record", value: "No saved local queue record matched this Stripe payment link." }
+      ]);
+    }
+
     async function copyText(button, text) {
       if (!text) return;
       const original = button.textContent;
@@ -410,15 +435,17 @@
     async function runLookup() {
       const query = lookupQueryEl.value.trim();
       if (!query) {
-        statusEl.className = "status error";
-        statusEl.textContent = "Paste a payment link URL or ID first.";
-        resultEl.classList.add("hidden");
-        return;
+      statusEl.className = "status error";
+      statusEl.textContent = "Paste a payment link URL or ID first.";
+      resultEl.classList.add("hidden");
+      stripeOnlyEl.classList.add("hidden");
+      return;
       }
 
       statusEl.className = "status";
       statusEl.textContent = "Looking up saved link details...";
       resultEl.classList.add("hidden");
+      stripeOnlyEl.classList.add("hidden");
 
       try {
         const res = await fetch(`/api/link-detail-lookup?query=${encodeURIComponent(query)}`);
@@ -428,12 +455,19 @@
           throw new Error(data.error || "Unable to look up payment link details.");
         }
 
-        renderRecord(data.record);
-        statusEl.className = "status success";
-        statusEl.textContent = "Link record loaded.";
+        if (data.record) {
+          renderRecord(data.record);
+          statusEl.className = "status success";
+          statusEl.textContent = "Link record loaded.";
+        } else if (data.stripeLink) {
+          renderStripeOnly(data.stripeLink);
+          statusEl.className = "status error";
+          statusEl.textContent = "Stripe found this payment link, but Wilson does not have a saved queue record for it.";
+        }
       } catch (err) {
         currentRecord = null;
         resultEl.classList.add("hidden");
+        stripeOnlyEl.classList.add("hidden");
         statusEl.className = "status error";
         statusEl.textContent = err.message || "Unable to look up payment link details.";
       }

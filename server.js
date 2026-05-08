@@ -1977,16 +1977,31 @@ app.get("/api/link-detail-lookup", async (req, res) => {
     }
 
     const links = (await readLinks()).map((row) => normalizeLinkRecord({ ...row }));
-    const record = links.find((row) => paymentLinkLookupMatches(row, query));
+    let record = links.find((row) => paymentLinkLookupMatches(row, query));
 
+    let stripeLink = null;
     if (!record) {
+      stripeLink = await findStripePaymentLinkByLookup(query);
+      if (stripeLink?.id) {
+        record = links.find((row) => String(row.paymentLinkId || "").trim() === stripeLink.id) || null;
+      }
+    }
+
+    if (!record && !stripeLink) {
       return res.status(404).json({
         error: "No saved payment link record matched that URL or ID."
       });
     }
 
     res.json({
-      record
+      record,
+      stripeLink: stripeLink
+        ? {
+            id: stripeLink.id,
+            url: stripeLink.url || "",
+            active: Boolean(stripeLink.active)
+          }
+        : null
     });
   } catch (err) {
     res.status(400).json({
@@ -3643,6 +3658,48 @@ function paymentLinkLookupMatches(record, lookupValue) {
   }
 
   return tokens.some((token) => recordTokens.has(token));
+}
+
+async function findStripePaymentLinkByLookup(lookupValue) {
+  const raw = String(lookupValue || "").trim();
+  if (!raw) return null;
+
+  const directIdMatch = raw.match(/\bplink_[A-Za-z0-9]+\b/);
+  if (directIdMatch?.[0]) {
+    return await stripe.paymentLinks.retrieve(directIdMatch[0]);
+  }
+
+  const lookupTokens = getPaymentLinkLookupTokens(raw);
+  if (!lookupTokens.length) return null;
+
+  let startingAfter;
+
+  for (let page = 0; page < 20; page += 1) {
+    const response = await stripe.paymentLinks.list({
+      active: true,
+      limit: 100,
+      ...(startingAfter ? { starting_after: startingAfter } : {})
+    });
+
+    const match = response.data.find((paymentLink) => {
+      const linkTokens = getPaymentLinkLookupTokens(paymentLink.url || "");
+      linkTokens.push(String(paymentLink.id || "").trim());
+      const normalizedTokens = new Set(linkTokens.map((token) => String(token || "").trim()));
+      return lookupTokens.some((token) => normalizedTokens.has(token));
+    });
+
+    if (match) {
+      return match;
+    }
+
+    if (!response.has_more || response.data.length === 0) {
+      break;
+    }
+
+    startingAfter = response.data[response.data.length - 1].id;
+  }
+
+  return null;
 }
 
 async function getStripeAmountsForPaymentIntent(paymentIntentId) {

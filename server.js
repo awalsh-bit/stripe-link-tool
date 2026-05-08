@@ -70,6 +70,7 @@ app.use(cors());
 
 const SERVICE_PUBLIC_PATHS = new Set([
   "/",
+  "/fireflavor",
   "/applianceservice.html",
   "/fireflavor.html",
   "/terms.html",
@@ -583,6 +584,10 @@ app.get("/", (req, res) => {
       ? "applianceservice.html"
       : "dashboard.html";
   res.sendFile(path.join(__dirname, landingPage));
+});
+
+app.get("/fireflavor", (req, res) => {
+  res.sendFile(path.join(__dirname, "fireflavor.html"));
 });
 
 

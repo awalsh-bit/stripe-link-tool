@@ -2010,6 +2010,58 @@ app.get("/api/link-detail-lookup", async (req, res) => {
   }
 });
 
+app.post("/api/link-detail-lookup/repair", async (req, res) => {
+  try {
+    const query = String(req.body?.query || "").trim();
+
+    if (!query) {
+      return res.status(400).json({
+        error: "A payment link URL or ID is required."
+      });
+    }
+
+    const links = await readLinks();
+    const existingRecord = links.find((row) => paymentLinkLookupMatches(normalizeLinkRecord({ ...row }), query));
+    if (existingRecord) {
+      return res.json({
+        success: true,
+        record: normalizeLinkRecord({ ...existingRecord }),
+        repaired: false
+      });
+    }
+
+    const stripeLink = await findStripePaymentLinkByLookup(query);
+    if (!stripeLink) {
+      return res.status(404).json({
+        error: "Stripe could not find a payment link for that URL or ID."
+      });
+    }
+
+    const duplicateById = links.find((row) => String(row.paymentLinkId || "").trim() === stripeLink.id);
+    if (duplicateById) {
+      return res.json({
+        success: true,
+        record: normalizeLinkRecord({ ...duplicateById }),
+        repaired: false
+      });
+    }
+
+    const recoveredRecord = await buildRecoveredLinkRecordFromStripeLink(stripeLink);
+    links.unshift(recoveredRecord);
+    await writeLinks(links);
+
+    return res.json({
+      success: true,
+      record: normalizeLinkRecord({ ...recoveredRecord }),
+      repaired: true
+    });
+  } catch (err) {
+    return res.status(400).json({
+      error: err.message || "Unable to create Wilson queue record from Stripe."
+    });
+  }
+});
+
 app.get("/api/intent-lookup/:kind/:id", async (req, res) => {
   try {
     const kind = String(req.params.kind || "").toLowerCase();
@@ -3700,6 +3752,63 @@ async function findStripePaymentLinkByLookup(lookupValue) {
   }
 
   return null;
+}
+
+async function buildRecoveredLinkRecordFromStripeLink(stripeLink) {
+  const metadata = {
+    ...(stripeLink.metadata || {}),
+    ...(stripeLink.payment_intent_data?.metadata || {})
+  };
+
+  const lineItems = await stripe.paymentLinks.listLineItems(stripeLink.id, {
+    limit: 1
+  });
+  const firstLineItem = lineItems.data?.[0] || null;
+  const lineAmount = Number(firstLineItem?.amount_total ?? firstLineItem?.amount_subtotal ?? 0) / 100;
+
+  const workflowType = metadata.workflow_type === "hvac_deposit" ? "hvac_deposit" : "appliance";
+  const requestedAmount = Number(metadata.deposit_amount || lineAmount || 0);
+  const requestedTotalAmount = Number(metadata.requested_total_amount || requestedAmount || 0);
+  const balanceAmount = Number(metadata.remaining_balance_amount || Math.max(requestedTotalAmount - requestedAmount, 0) || 0);
+  const createdAt = new Date().toISOString();
+
+  return normalizeLinkRecord({
+    id: `recovered_${Date.now()}`,
+    createdAt,
+    customerName: metadata.customer_name || "",
+    customerPhone: metadata.customer_phone || "",
+    customerEmail: metadata.customer_email || "",
+    creatorCode: metadata.creator_code || "",
+    creatorName: metadata.creator_name || "",
+    creatorEmail: metadata.creator_email || "",
+    department: metadata.department || "",
+    salesOrder: metadata.sales_order || "",
+    description: metadata.link_description || "",
+    notes: metadata.notes || "",
+    workflowType,
+    requestedAmount,
+    requestedTotalAmount,
+    depositAmount: workflowType === "hvac_deposit" ? requestedAmount : 0,
+    balanceAmount,
+    agreementText: metadata.agreement_text || "",
+    currency: stripeLink.currency || "usd",
+    paymentLinkId: stripeLink.id,
+    paymentLinkUrl: stripeLink.url || "",
+    paymentMethodType: "",
+    paymentStatusDetail: "",
+    paymentNotificationSentAt: "",
+    paymentNotificationError: "",
+    customerId: "",
+    paymentMethodId: "",
+    paidAmount: 0,
+    paidDate: "",
+    paymentIntentId: "",
+    checkoutSessionId: "",
+    status: stripeLink.active ? "sent" : "deactivated",
+    active: Boolean(stripeLink.active),
+    deactivatedAt: stripeLink.active ? "" : createdAt,
+    deactivationReason: stripeLink.active ? "" : (stripeLink.inactive_message || "")
+  });
 }
 
 async function getStripeAmountsForPaymentIntent(paymentIntentId) {

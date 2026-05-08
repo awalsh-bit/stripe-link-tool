@@ -44,6 +44,7 @@ const LINKS_FILE = ensureJsonFile("links.json", []);
 const TERMINAL_PAYMENTS_FILE = ensureJsonFile("terminal-payments.json", []);
 const SERVICE_CARDS_FILE = ensureJsonFile("service-cards.json", []);
 const SERVICE_CARDS_ARCHIVE_FILE = ensureJsonFile("service-cards-archive.json", []);
+const EVENT_RSVPS_FILE = ensureJsonFile("event-rsvps.json", []);
 const SERVICE_RECENT_WORK_DAYS = 30;
 const SERVICE_ARCHIVE_PURGE_DAYS = 90;
 
@@ -55,6 +56,7 @@ app.use(cors());
 const SERVICE_PUBLIC_PATHS = new Set([
   "/",
   "/applianceservice.html",
+  "/fireflavor.html",
   "/terms.html",
   "/public-shell.css",
   "/public-shell.js",
@@ -66,6 +68,7 @@ const SERVICE_PUBLIC_PATHS = new Set([
 
 const SERVICE_PUBLIC_API_PREFIXES = [
   "/api/config",
+  "/api/events/fire-flavor/rsvp",
   "/api/service/setup-intent",
   "/api/service/submit-request",
   "/api/service/setup-intent-result/",
@@ -1923,6 +1926,87 @@ app.get("/api/intent-lookup/:kind/:id", async (req, res) => {
   }
 });
 
+app.post("/api/events/fire-flavor/rsvp", async (req, res) => {
+  try {
+    const fullName = String(req.body?.fullName || "").trim();
+    const email = String(req.body?.email || "").trim().toLowerCase();
+    const phone = String(req.body?.phone || "").trim();
+    const guestCount = Math.max(1, Math.min(12, Number.parseInt(req.body?.guestCount, 10) || 1));
+    const attendeeType = String(req.body?.attendeeType || "").trim();
+    const wantsEmailUpdates = Boolean(req.body?.wantsEmailUpdates);
+    const wantsTextUpdates = Boolean(req.body?.wantsTextUpdates);
+    const allowedAttendeeTypes = new Set(["Homeowner", "Builder", "Designer", "Outdoor Cooking Fan", "Other"]);
+
+    if (!fullName) {
+      return res.status(400).json({
+        error: "Full name is required."
+      });
+    }
+
+    if (wantsEmailUpdates && (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))) {
+      return res.status(400).json({
+        error: "A valid email address is required for email updates."
+      });
+    }
+
+    if (wantsTextUpdates && !phone) {
+      return res.status(400).json({
+        error: "A phone number is required for text updates."
+      });
+    }
+
+    if (!allowedAttendeeTypes.has(attendeeType)) {
+      return res.status(400).json({
+        error: "Please choose the attendee type that fits you best."
+      });
+    }
+
+    const rsvps = await readEventRsvps();
+    const nowIso = new Date().toISOString();
+    const existingIndex = rsvps.findIndex((entry) =>
+      entry.eventSlug === "fire-and-flavor" &&
+      (
+        (email && String(entry.email || "").toLowerCase() === email) ||
+        (!email && !String(entry.email || "").trim() && String(entry.fullName || "").trim().toLowerCase() === fullName.toLowerCase())
+      )
+    );
+
+    const nextRecord = {
+      id: existingIndex >= 0 ? rsvps[existingIndex].id : crypto.randomUUID(),
+      eventSlug: "fire-and-flavor",
+      eventName: "Fire & Flavor",
+      fullName,
+      email,
+      phone,
+      guestCount,
+      attendeeType,
+      wantsEmailUpdates,
+      wantsTextUpdates,
+      updatedAt: nowIso,
+      createdAt: existingIndex >= 0 ? rsvps[existingIndex].createdAt : nowIso
+    };
+
+    if (existingIndex >= 0) {
+      rsvps[existingIndex] = nextRecord;
+    } else {
+      rsvps.push(nextRecord);
+    }
+
+    await writeEventRsvps(rsvps);
+
+    res.json({
+      ok: true,
+      message: existingIndex >= 0
+        ? "Your RSVP has been updated. We look forward to seeing you."
+        : "Thanks for your RSVP. We look forward to seeing you at Fire & Flavor."
+    });
+  } catch (err) {
+    res.status(400).json({
+      error: err.message || "Unable to submit RSVP."
+    });
+  }
+});
+
 app.post("/api/intent-lookup/payment_intent/:id/refund", async (req, res) => {
   try {
     const id = String(req.params.id || "").trim();
@@ -2974,6 +3058,14 @@ async function writeServiceCards(data) {
 async function readArchivedServiceCards() {
   const { archiveRows } = await maintainServiceCardStorage();
   return archiveRows;
+}
+
+async function readEventRsvps() {
+  return readJson(EVENT_RSVPS_FILE, []);
+}
+
+async function writeEventRsvps(data) {
+  return writeJson(EVENT_RSVPS_FILE, data);
 }
 
 function getServiceCardAgeInDays(row, now = new Date()) {

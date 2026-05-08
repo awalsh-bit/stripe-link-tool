@@ -1,0 +1,664 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="robots" content="noindex,nofollow,noarchive" />
+  <title>Wilson AC & Appliance - Fire & Flavor</title>
+  <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="public-shell.css" />
+  <style>
+    :root {
+      --bg: #f8f8f1;
+      --card: #ffffff;
+      --text: #1f2a1f;
+      --muted: #5d6a5b;
+      --border: #d9dfcf;
+      --primary: #2f6f4f;
+      --primary-hover: #275d42;
+      --primary-soft: rgba(47, 111, 79, 0.12);
+      --accent: #b45309;
+      --accent-soft: rgba(180, 83, 9, 0.1);
+      --shadow: 0 10px 35px rgba(0, 0, 0, 0.08);
+      --radius: 18px;
+      --success-bg: #ecfdf5;
+      --success-text: #065f46;
+      --error-bg: #fef2f2;
+      --error-text: #991b1b;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background:
+        radial-gradient(circle at top left, rgba(47, 111, 79, 0.12), transparent 34%),
+        linear-gradient(180deg, #f2f8ea 0%, var(--bg) 100%);
+      color: var(--text);
+      min-height: 100vh;
+      padding: 32px 16px;
+    }
+
+    .wrap {
+      max-width: 1160px;
+      margin: 0 auto;
+    }
+
+    .hero {
+      display: grid;
+      grid-template-columns: minmax(0, 1.05fr) minmax(320px, 460px);
+      gap: 24px;
+      align-items: stretch;
+      margin-bottom: 24px;
+    }
+
+    .hero-copy,
+    .hero-image-card,
+    .card {
+      background: var(--card);
+      border: 1px solid rgba(47, 111, 79, 0.12);
+      box-shadow: var(--shadow);
+      border-radius: var(--radius);
+    }
+
+    .hero-copy {
+      padding: 28px;
+      overflow: hidden;
+      position: relative;
+    }
+
+    .hero-image-card {
+      padding: 0;
+      overflow: hidden;
+      min-height: 100%;
+      background: #e9efe3;
+    }
+
+    .hero-image {
+      display: block;
+      width: 100%;
+      height: 100%;
+      min-height: 420px;
+      object-fit: cover;
+      object-position: center;
+    }
+
+    .hero-copy::after {
+      content: "";
+      position: absolute;
+      inset: auto -70px -70px auto;
+      width: 240px;
+      height: 240px;
+      background: radial-gradient(circle, rgba(180, 83, 9, 0.08), transparent 70%);
+      pointer-events: none;
+    }
+
+    h1 {
+      margin: 0 0 10px;
+      font-family: "Bebas Neue", Inter, system-ui, sans-serif;
+      font-size: clamp(56px, 10vw, 104px);
+      line-height: 0.9;
+      letter-spacing: 0.01em;
+      font-weight: 400;
+    }
+
+    .showcase-label {
+      margin: -2px 0 14px;
+      color: var(--accent);
+      font-size: 18px;
+      font-weight: 800;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+
+    .hero-subtitle {
+      margin: 0 0 16px;
+      color: var(--primary);
+      font-size: 18px;
+      font-weight: 700;
+      letter-spacing: 0.01em;
+    }
+
+    .lead {
+      margin: 0;
+      color: var(--muted);
+      font-size: 17px;
+      line-height: 1.7;
+      max-width: 660px;
+    }
+
+    .hero-actions {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-top: 22px;
+    }
+
+    .btn,
+    button {
+      appearance: none;
+      border: 1px solid transparent;
+      border-radius: 14px;
+      padding: 14px 18px;
+      font: inherit;
+      font-weight: 800;
+      cursor: pointer;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.2s ease, transform 0.12s ease, border-color 0.2s ease;
+    }
+
+    .btn:hover,
+    button:hover {
+      transform: translateY(-1px);
+    }
+
+    .btn-primary,
+    button {
+      background: var(--primary);
+      color: #fff;
+    }
+
+    .btn-primary:hover,
+    button:hover {
+      background: var(--primary-hover);
+    }
+
+    .btn-secondary {
+      background: #fff;
+      color: var(--text);
+      border-color: var(--border);
+    }
+
+    .btn-secondary:hover {
+      background: #f8faff;
+    }
+
+    .btn-tertiary {
+      background: var(--accent-soft);
+      color: var(--accent);
+      border-color: rgba(180, 83, 9, 0.18);
+    }
+
+    body .public-shell-menu-trigger {
+      border-color: rgba(47, 111, 79, 0.18);
+      box-shadow: 0 8px 24px rgba(47, 111, 79, 0.12);
+    }
+
+    body .public-shell-menu-bars span {
+      background: var(--primary);
+    }
+
+    body .public-shell-badge-icon {
+      background: rgba(47, 111, 79, 0.12);
+      color: var(--primary);
+    }
+
+    body .public-shell-badge {
+      background: var(--primary-soft);
+      color: var(--primary);
+    }
+
+    .section-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(320px, 420px);
+      gap: 24px;
+      align-items: start;
+    }
+
+    .card {
+      padding: 24px;
+    }
+
+    .promo-card {
+      padding: 0;
+      overflow: hidden;
+    }
+
+    .promo-image {
+      display: block;
+      width: 100%;
+      height: auto;
+    }
+
+    h2 {
+      margin: 0 0 16px;
+      font-size: 28px;
+      letter-spacing: -0.02em;
+    }
+
+    .section-intro {
+      margin: 0 0 18px;
+      color: var(--muted);
+      line-height: 1.7;
+      font-size: 16px;
+    }
+
+    .feature-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 14px;
+    }
+
+    .feature {
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 18px;
+      background: linear-gradient(180deg, #ffffff 0%, #fbfcff 100%);
+    }
+
+    .feature-title {
+      margin: 0 0 8px;
+      font-size: 16px;
+      font-weight: 800;
+    }
+
+    .feature-copy {
+      margin: 0;
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.6;
+    }
+
+    .highlights {
+      display: grid;
+      gap: 12px;
+      margin-top: 18px;
+    }
+
+    .highlight {
+      display: flex;
+      gap: 12px;
+      align-items: flex-start;
+      padding: 14px 16px;
+      border-radius: 14px;
+      background: #f8faff;
+      border: 1px solid var(--border);
+    }
+
+    .highlight-bullet {
+      width: 10px;
+      height: 10px;
+      margin-top: 7px;
+      border-radius: 999px;
+      background: var(--primary);
+      flex: 0 0 auto;
+    }
+
+    .highlight-text {
+      margin: 0;
+      color: var(--text);
+      font-size: 15px;
+      line-height: 1.6;
+    }
+
+    .rsvp-form {
+      display: grid;
+      gap: 16px;
+    }
+
+    .field {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .field-row {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 14px;
+    }
+
+    .checkbox-group {
+      display: grid;
+      gap: 10px;
+      padding: 14px 16px;
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      background: #fbfcf8;
+    }
+
+    .checkbox-option {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 14px;
+      font-weight: 600;
+    }
+
+    .checkbox-option input {
+      width: auto;
+      margin: 0;
+      accent-color: var(--primary);
+    }
+
+    label {
+      font-size: 14px;
+      font-weight: 700;
+    }
+
+    input,
+    select,
+    textarea {
+      width: 100%;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 13px 14px;
+      font: inherit;
+      background: #fff;
+      color: var(--text);
+      outline: none;
+      transition: border-color 0.2s ease, box-shadow 0.2s ease;
+    }
+
+    input:focus,
+    select:focus,
+    textarea:focus {
+      border-color: rgba(99, 91, 255, 0.75);
+      box-shadow: 0 0 0 4px rgba(99, 91, 255, 0.12);
+    }
+
+    textarea {
+      min-height: 92px;
+      resize: vertical;
+    }
+
+    .field-hint {
+      margin: -2px 0 0;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.5;
+    }
+
+    .status {
+      display: none;
+      padding: 14px 16px;
+      border-radius: 12px;
+      font-size: 14px;
+      line-height: 1.6;
+    }
+
+    .status.success {
+      display: block;
+      background: var(--success-bg);
+      color: var(--success-text);
+    }
+
+    .status.error {
+      display: block;
+      background: var(--error-bg);
+      color: var(--error-text);
+    }
+
+    .hidden {
+      display: none !important;
+    }
+
+    .mini-note {
+      margin: 0;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.6;
+    }
+
+    .mini-note a {
+      color: var(--accent);
+      text-decoration-color: rgba(180, 83, 9, 0.4);
+      font-weight: 700;
+    }
+
+    .mini-note a:hover {
+      color: #9a4708;
+      text-decoration-color: rgba(154, 71, 8, 0.55);
+    }
+
+    @media (max-width: 980px) {
+      .hero,
+      .section-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .hero-image {
+        min-height: 320px;
+      }
+    }
+
+    @media (max-width: 720px) {
+      .feature-grid,
+      .field-row {
+        grid-template-columns: 1fr;
+      }
+
+      .hero-copy,
+      .hero-panel,
+      .card {
+        padding: 18px;
+      }
+    }
+  </style>
+</head>
+<body
+  data-public-shell-label="Fire & Flavor"
+  data-public-shell-footer-text="Wilson AC & Appliance event pages."
+  data-public-shell-footer-link-label="Visit the Showroom"
+  data-public-shell-footer-link-href="#event-details"
+>
+  <div class="wrap">
+    <div id="public-shell-header"></div>
+
+    <section class="hero">
+      <div class="hero-copy">
+        <h1>Fire &amp; Flavor</h1>
+        <p class="showcase-label">Outdoor Kitchen Showcase</p>
+        <p class="hero-subtitle">Friday, May 15, 2026 · 1:00 PM – 5:00 PM</p>
+        <p class="lead">
+          Join Wilson AC &amp; Appliance for Fire &amp; Flavor, an outdoor living showcase featuring live cooking demonstrations,
+          premium outdoor cooking brands, chef-prepared samples, supplier-exclusive event packages, giveaways, and refreshments provided.
+        </p>
+
+        <div class="hero-actions">
+          <a class="btn btn-tertiary" href="https://maps.app.goo.gl/SVcuxygmbiYq8fB16" target="_blank" rel="noopener noreferrer">Visit the Showroom</a>
+        </div>
+      </div>
+
+      <div class="hero-image-card">
+        <img class="hero-image" src="fireflavor-hero.png" alt="Premium outdoor kitchen with grill, refrigeration, and evening entertaining setup" />
+      </div>
+    </section>
+
+    <section class="section-grid">
+      <div class="card promo-card" id="learn-more">
+        <img class="promo-image" src="fireflavor-what-to-expect.png" alt="Fire & Flavor event graphic featuring participating outdoor cooking brands, live fire demos, chef-prepared tastings, exclusive giveaways, and refreshments." />
+      </div>
+
+      <div class="card" id="rsvp">
+        <h2>RSVP</h2>
+        <p class="section-intro">
+          Let us know you’re planning to attend and we’ll be ready to welcome you.
+        </p>
+
+        <form id="rsvpForm" class="rsvp-form">
+          <div class="field">
+            <label for="fullName">Full Name</label>
+            <input id="fullName" name="fullName" required placeholder="Jane Smith" />
+          </div>
+
+          <div class="field-row">
+            <div class="field">
+              <label for="guestCount">Number Attending</label>
+              <select id="guestCount" name="guestCount">
+                <option value="1">1</option>
+                <option value="2">2</option>
+                <option value="3">3</option>
+                <option value="4">4</option>
+                <option value="5">5</option>
+                <option value="6">6</option>
+              </select>
+            </div>
+
+            <div class="field">
+              <label for="attendeeType">Best Description</label>
+              <select id="attendeeType" name="attendeeType" required>
+                <option value="">Select one</option>
+                <option value="Homeowner">Homeowner</option>
+                <option value="Builder">Builder</option>
+                <option value="Designer">Designer</option>
+                <option value="Outdoor Cooking Fan">Outdoor Cooking Fan</option>
+                <option value="Other">Other</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="field">
+            <label>Would you like updates?</label>
+            <div class="checkbox-group">
+              <label class="checkbox-option">
+                <input id="wantsEmailUpdates" name="wantsEmailUpdates" type="checkbox" />
+                Email updates
+              </label>
+              <label class="checkbox-option">
+                <input id="wantsTextUpdates" name="wantsTextUpdates" type="checkbox" />
+                Text updates
+              </label>
+            </div>
+          </div>
+
+          <div id="emailField" class="field hidden">
+            <label for="email">Email Address</label>
+            <input id="email" name="email" type="email" placeholder="jane@example.com" />
+          </div>
+
+          <div id="phoneField" class="field hidden">
+            <label for="phone">Phone Number</label>
+            <input id="phone" name="phone" placeholder="512-555-1234" />
+          </div>
+
+          <button id="submitBtn" type="submit">Submit RSVP</button>
+          <div id="status" class="status"></div>
+          <p class="mini-note">
+            Questions before the event?
+            <a href="https://maps.app.goo.gl/SVcuxygmbiYq8fB16" target="_blank" rel="noopener noreferrer">Visit the showroom</a>
+            or call or text us at <a href="tel:5128940907">512-894-0907</a>.
+          </p>
+        </form>
+      </div>
+    </section>
+
+    <div id="public-shell-footer"></div>
+  </div>
+
+  <script>
+    const rsvpForm = document.getElementById("rsvpForm");
+    const submitBtn = document.getElementById("submitBtn");
+    const statusEl = document.getElementById("status");
+    const wantsEmailUpdatesEl = document.getElementById("wantsEmailUpdates");
+    const wantsTextUpdatesEl = document.getElementById("wantsTextUpdates");
+    const emailFieldEl = document.getElementById("emailField");
+    const phoneFieldEl = document.getElementById("phoneField");
+    const emailEl = document.getElementById("email");
+    const phoneEl = document.getElementById("phone");
+
+    function showStatus(type, message) {
+      statusEl.className = `status ${type}`;
+      statusEl.textContent = message;
+    }
+
+    function clearStatus() {
+      statusEl.className = "status";
+      statusEl.textContent = "";
+    }
+
+    function formatPhone(value) {
+      const digits = String(value || "").replace(/\D/g, "").slice(0, 10);
+      if (digits.length <= 3) return digits;
+      if (digits.length <= 6) return `(${digits.slice(0, 3)}) ${digits.slice(3)}`;
+      return `(${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6)}`;
+    }
+
+    function syncContactFields() {
+      emailFieldEl.classList.toggle("hidden", !wantsEmailUpdatesEl.checked);
+      phoneFieldEl.classList.toggle("hidden", !wantsTextUpdatesEl.checked);
+      emailEl.required = wantsEmailUpdatesEl.checked;
+      phoneEl.required = wantsTextUpdatesEl.checked;
+
+      if (!wantsEmailUpdatesEl.checked) {
+        emailEl.value = "";
+      }
+
+      if (!wantsTextUpdatesEl.checked) {
+        phoneEl.value = "";
+      }
+    }
+
+    phoneEl.addEventListener("input", (event) => {
+      event.target.value = formatPhone(event.target.value);
+    });
+    wantsEmailUpdatesEl.addEventListener("change", syncContactFields);
+    wantsTextUpdatesEl.addEventListener("change", syncContactFields);
+    syncContactFields();
+
+    rsvpForm.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      clearStatus();
+
+      const payload = {
+        fullName: document.getElementById("fullName").value.trim(),
+        email: emailEl.value.trim(),
+        phone: phoneEl.value.trim(),
+        guestCount: document.getElementById("guestCount").value,
+        attendeeType: document.getElementById("attendeeType").value,
+        wantsEmailUpdates: wantsEmailUpdatesEl.checked,
+        wantsTextUpdates: wantsTextUpdatesEl.checked
+      };
+
+      if (!payload.fullName || !payload.attendeeType) {
+        showStatus("error", "Please complete your name and attendee type.");
+        return;
+      }
+
+      if (payload.wantsEmailUpdates && !payload.email) {
+        showStatus("error", "Please provide an email address for email updates.");
+        return;
+      }
+
+      if (payload.wantsTextUpdates && !payload.phone) {
+        showStatus("error", "Please provide a phone number for text updates.");
+        return;
+      }
+
+      submitBtn.disabled = true;
+      submitBtn.textContent = "Submitting...";
+
+      try {
+        const res = await fetch("/api/events/fire-flavor/rsvp", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify(payload)
+        });
+
+        const data = await res.json();
+        if (!res.ok) {
+          throw new Error(data.error || "Unable to submit RSVP.");
+        }
+
+        showStatus("success", data.message || "Thanks for your RSVP.");
+        rsvpForm.reset();
+      } catch (err) {
+        showStatus("error", err.message || "Unable to submit RSVP.");
+      } finally {
+        submitBtn.disabled = false;
+        submitBtn.textContent = "Submit RSVP";
+      }
+    });
+  </script>
+  <script src="public-shell.js"></script>
+</body>
+</html>

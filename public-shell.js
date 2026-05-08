@@ -4,6 +4,9 @@
   if (!body) return;
 
   const label = body.dataset.publicShellLabel || "Service Request";
+  const footerText = body.dataset.publicShellFooterText || "Wilson AC & Appliance service request forms.";
+  const footerLinkLabel = body.dataset.publicShellFooterLinkLabel || "Service Terms";
+  const footerLinkHref = body.dataset.publicShellFooterLinkHref || "terms.html";
 
   function iconSvg() {
     return `
@@ -29,7 +32,8 @@
                 </span>
               </button>
               <div class="public-shell-menu-panel">
-                <div class="public-shell-menu-empty" aria-hidden="true"></div>
+                <a class="public-shell-menu-link" href="https://www.wilsonappliance.com" target="_blank" rel="noopener noreferrer">Home</a>
+                <a class="public-shell-menu-link" href="applianceservice.html">Request Repair Service</a>
               </div>
             </div>
             <img class="public-shell-logo" src="logo-black.png" alt="Wilson AC & Appliance" />
@@ -46,8 +50,8 @@
   function buildFooter() {
     return `
       <div class="public-shell-footer-row">
-        <div class="public-shell-footer-text">Wilson AC & Appliance service request forms.</div>
-        <a class="public-shell-footer-link" href="terms.html">Service Terms</a>
+        <div class="public-shell-footer-text">${footerText}</div>
+        <a class="public-shell-footer-link" href="${footerLinkHref}">${footerLinkLabel}</a>
       </div>
     `;
   }

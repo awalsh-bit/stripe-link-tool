@@ -89,9 +89,22 @@
         text: "Payment queue, paid history, and balancing tools."
       },
       {
-        href: "paid-order-detail.html",
         title: "Accounting Detail Tools",
-        text: "Paid order detail, intent lookup, and bank balancing."
+        text: "Paid order detail, intent lookup, and bank balancing.",
+        children: [
+          {
+            href: "paid-order-detail.html",
+            title: "Paid Order Detail"
+          },
+          {
+            href: "intent-lookup.html",
+            title: "Intent Lookup"
+          },
+          {
+            href: "bank-balancing.html",
+            title: "Bank Balancing"
+          }
+        ]
       },
       {
         href: "salesdashboard.html",
@@ -119,12 +132,32 @@
       text: "End the current dashboard session."
     });
 
-    return links.map((link) => `
-      <a class="internal-shell-menu-link" href="${link.href}">
-        <div class="internal-shell-menu-link-title">${link.title}</div>
-        <div class="internal-shell-menu-link-text">${link.text}</div>
-      </a>
-    `).join("");
+    return links.map((link) => {
+      if (Array.isArray(link.children) && link.children.length) {
+        return `
+          <div class="internal-shell-menu-group">
+            <button class="internal-shell-menu-link internal-shell-menu-link-button" type="button">
+              <div class="internal-shell-menu-link-title">${link.title}</div>
+              <div class="internal-shell-menu-link-text">${link.text}</div>
+              <span class="internal-shell-menu-link-caret" aria-hidden="true">›</span>
+            </button>
+            <div class="internal-shell-submenu-panel">
+              <div class="internal-shell-submenu-title">${link.title}</div>
+              ${link.children.map((child) => `
+                <a class="internal-shell-submenu-link" href="${child.href}">${child.title}</a>
+              `).join("")}
+            </div>
+          </div>
+        `;
+      }
+
+      return `
+        <a class="internal-shell-menu-link" href="${link.href}">
+          <div class="internal-shell-menu-link-title">${link.title}</div>
+          <div class="internal-shell-menu-link-text">${link.text}</div>
+        </a>
+      `;
+    }).join("");
   }
 
   function buildFooterLinks(user) {

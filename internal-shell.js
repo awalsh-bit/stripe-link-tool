@@ -84,26 +84,27 @@
   function buildMenuLinks(user) {
     const links = [
       {
-        href: "dashboard.html",
         title: "Payments",
-        text: "Payment queue, paid history, and balancing tools."
+        children: [
+          { href: "dashboard.html", title: "Payments Dashboard" },
+          { href: "index.html", title: "Send Payment Link" },
+          { href: "terminal.html", title: "Send To Card Reader" },
+          { href: "charge-saved-card.html", title: "Charge A Saved Card" },
+          { href: "hvac-dashboard.html", title: "Charge HVAC Balance" }
+        ]
       },
       {
         title: "Accounting Detail Tools",
-        text: "Paid order detail, intent lookup, and bank balancing.",
         children: [
-          {
-            href: "paid-order-detail.html",
-            title: "Paid Order Detail"
-          },
-          {
-            href: "intent-lookup.html",
-            title: "Intent Lookup"
-          },
-          {
-            href: "bank-balancing.html",
-            title: "Bank Balancing"
-          }
+          { href: "paid-order-detail.html", title: "Paid Order Detail" },
+          { href: "intent-lookup.html", title: "Intent Lookup" },
+          { href: "bank-balancing.html", title: "Bank Balancing" }
+        ]
+      },
+      {
+        title: "Client Care",
+        children: [
+          { href: "appliance-service-calls.html", title: "Service Request Queue" }
         ]
       },
       {
@@ -138,11 +139,9 @@
           <div class="internal-shell-menu-group">
             <button class="internal-shell-menu-link internal-shell-menu-link-button" type="button">
               <div class="internal-shell-menu-link-title">${link.title}</div>
-              <div class="internal-shell-menu-link-text">${link.text}</div>
-              <span class="internal-shell-menu-link-caret" aria-hidden="true">›</span>
+              <span class="internal-shell-menu-link-caret" aria-hidden="true">&rsaquo;</span>
             </button>
             <div class="internal-shell-submenu-panel">
-              <div class="internal-shell-submenu-title">${link.title}</div>
               ${link.children.map((child) => `
                 <a class="internal-shell-submenu-link" href="${child.href}">${child.title}</a>
               `).join("")}

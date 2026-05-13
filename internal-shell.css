@@ -159,7 +159,7 @@
 .internal-shell-menu-link-title {
   font-size: 15px;
   font-weight: 800;
-  margin-bottom: 4px;
+  margin-bottom: 0;
 }
 
 .internal-shell-menu-link-text {
@@ -199,15 +199,6 @@
 .internal-shell-menu-group:hover .internal-shell-submenu-panel,
 .internal-shell-menu-group:focus-within .internal-shell-submenu-panel {
   display: block;
-}
-
-.internal-shell-submenu-title {
-  font-size: 12px;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: #6b7280;
-  font-weight: 700;
-  margin: 2px 4px 10px;
 }
 
 .internal-shell-submenu-link {

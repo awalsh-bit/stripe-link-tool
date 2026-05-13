@@ -1503,7 +1503,8 @@ app.get("/api/hvac-deposits", async (req, res) => {
         row.workflowType !== "hvac_deposit" ||
         row.status !== "paid" ||
         Number(row.balanceAmount || 0) <= 0 ||
-        row.balanceChargedAt
+        row.balanceChargedAt ||
+        row.balanceCanceledAt
       ) {
         continue;
       }
@@ -1592,6 +1593,18 @@ app.get("/api/hvac-deposits/:id", async (req, res) => {
       });
     }
 
+    if (row.balanceCanceledAt) {
+      return res.status(400).json({
+        error: "This HVAC deposit has been canceled from the balance-charge queue."
+      });
+    }
+
+    if (row.balanceChargedAt) {
+      return res.status(400).json({
+        error: "This HVAC deposit balance has already been charged."
+      });
+    }
+
     if ((!row.customerId || !row.paymentMethodId) && row.paymentIntentId) {
       const paymentIntent = await retrievePaymentIntentWithDetails(row.paymentIntentId);
       row.customerId =
@@ -1626,6 +1639,80 @@ app.get("/api/hvac-deposits/:id", async (req, res) => {
   } catch (err) {
     res.status(400).json({
       error: err.message || "Unable to load HVAC deposit record."
+    });
+  }
+});
+
+app.post("/api/hvac-deposits/:id/manage", async (req, res) => {
+  try {
+    const { action, balanceAmount } = req.body || {};
+    const links = await readLinks();
+    const row = links.find((item) => item.id === req.params.id);
+
+    if (!row) {
+      return res.status(404).json({
+        error: "HVAC deposit record not found."
+      });
+    }
+
+    normalizeLinkRecord(row);
+
+    if (row.workflowType !== "hvac_deposit") {
+      return res.status(400).json({
+        error: "Record is not an HVAC deposit."
+      });
+    }
+
+    if (row.balanceChargedAt) {
+      return res.status(400).json({
+        error: "This HVAC deposit balance has already been charged."
+      });
+    }
+
+    if (action === "cancel") {
+      row.balanceCanceledAt = new Date().toISOString();
+      row.balanceCancellationReason = "Canceled from HVAC deposits dashboard";
+      await writeLinks(links);
+
+      return res.json({
+        success: true,
+        action: "cancel",
+        message: "HVAC deposit removed from the open balance dashboard."
+      });
+    }
+
+    if (action === "update_balance") {
+      const normalizedBalance = Number(balanceAmount);
+
+      if (!Number.isFinite(normalizedBalance) || normalizedBalance < 0.5) {
+        return res.status(400).json({
+          error: "Balance amount must be at least $0.50. Use cancel if the balance should be removed."
+        });
+      }
+
+      row.balanceOriginalAmount = Number(row.balanceOriginalAmount || row.balanceAmount || 0);
+      row.balanceAmount = normalizedBalance;
+      row.requestedTotalAmount = Number(row.depositAmount || row.requestedAmount || 0) + normalizedBalance;
+      row.balanceUpdatedAt = new Date().toISOString();
+      row.balanceCanceledAt = "";
+      row.balanceCancellationReason = "";
+      await writeLinks(links);
+
+      return res.json({
+        success: true,
+        action: "update_balance",
+        balanceAmount: row.balanceAmount,
+        requestedTotalAmount: row.requestedTotalAmount,
+        message: "HVAC future balance updated."
+      });
+    }
+
+    return res.status(400).json({
+      error: "Unsupported HVAC deposit action."
+    });
+  } catch (err) {
+    return res.status(400).json({
+      error: err.message || "Unable to update HVAC deposit."
     });
   }
 });

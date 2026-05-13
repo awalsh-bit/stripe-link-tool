@@ -165,10 +165,28 @@
       text-decoration: none;
       font-weight: 700;
       white-space: nowrap;
+      border: none;
+      cursor: pointer;
+      font: inherit;
     }
 
     .action-link:hover {
       background: #e0e7ff;
+    }
+
+    .action-link.secondary {
+      background: #fff7ed;
+      color: #9a3412;
+    }
+
+    .action-link.secondary:hover {
+      background: #ffedd5;
+    }
+
+    .action-stack {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
     }
 
     .empty-state {
@@ -308,12 +326,90 @@
           <td>${formatDate(row.paidDate)}</td>
           <td><span class="muted">${row.paymentIntentId || "-"}</span></td>
           <td>
-            <a class="action-link" href="charge-saved-card.html?hvacRecordId=${encodeURIComponent(row.id)}">Charge balance</a>
+            <div class="action-stack">
+              <a class="action-link" href="charge-saved-card.html?hvacRecordId=${encodeURIComponent(row.id)}">Charge balance</a>
+              <button class="action-link secondary" type="button" data-edit-id="${row.id}" data-balance="${Number(row.balanceAmount || 0).toFixed(2)}">Edit</button>
+            </div>
           </td>
         `;
         rowsEl.appendChild(tr);
       }
     }
+
+    async function manageDeposit(recordId, payload) {
+      const res = await fetch(`/api/hvac-deposits/${encodeURIComponent(recordId)}/manage`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify(payload)
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.error || "Unable to update HVAC deposit.");
+      }
+
+      return data;
+    }
+
+    rowsEl.addEventListener("click", async (event) => {
+      const button = event.target.closest("[data-edit-id]");
+      if (!button) return;
+
+      clearStatus();
+
+      const recordId = button.dataset.editId;
+      const currentBalance = button.dataset.balance || "0.00";
+      const nextValue = window.prompt(
+        "Enter a new remaining balance amount to update it, or type CANCEL to remove this order from the HVAC deposits dashboard.",
+        currentBalance
+      );
+
+      if (nextValue === null) {
+        return;
+      }
+
+      const trimmedValue = String(nextValue || "").trim();
+      if (!trimmedValue) {
+        return;
+      }
+
+      button.disabled = true;
+      const originalText = button.textContent;
+      button.textContent = "Saving...";
+
+      try {
+        if (trimmedValue.toUpperCase() === "CANCEL") {
+          if (!window.confirm("Remove this HVAC deposit from the open balance dashboard?")) {
+            return;
+          }
+
+          const result = await manageDeposit(recordId, { action: "cancel" });
+          showStatus("success", result.message || "HVAC deposit removed.");
+        } else {
+          const normalizedAmount = Number(trimmedValue.replace(/[^0-9.]/g, ""));
+
+          if (!Number.isFinite(normalizedAmount) || normalizedAmount < 0.5) {
+            throw new Error("Enter a valid balance amount of at least $0.50, or type CANCEL.");
+          }
+
+          const result = await manageDeposit(recordId, {
+            action: "update_balance",
+            balanceAmount: normalizedAmount
+          });
+          showStatus("success", result.message || "HVAC future balance updated.");
+        }
+
+        await loadDashboard();
+      } catch (err) {
+        showStatus("error", err.message || "Unable to update HVAC deposit.");
+      } finally {
+        button.disabled = false;
+        button.textContent = originalText;
+      }
+    });
 
     async function loadDashboard() {
       clearStatus();

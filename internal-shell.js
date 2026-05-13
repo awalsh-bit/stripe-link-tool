@@ -89,9 +89,19 @@
         text: "Payment queue, paid history, and balancing tools."
       },
       {
+        href: "paid-order-detail.html",
+        title: "Accounting Detail Tools",
+        text: "Paid order detail, intent lookup, and bank balancing."
+      },
+      {
         href: "salesdashboard.html",
         title: "Sales Tools",
         text: "Open the sales tools workspace."
+      },
+      {
+        href: "event-rsvps.html",
+        title: "Event RSVPs",
+        text: "Review active and archived event registrations."
       }
     ];
 
@@ -120,7 +130,9 @@
   function buildFooterLinks(user) {
     const links = [
       `<a class="internal-shell-footer-link" href="dashboard.html">Payments Dashboard</a>`,
-      `<a class="internal-shell-footer-link" href="salesdashboard.html">Sales Tools</a>`
+      `<a class="internal-shell-footer-link" href="paid-order-detail.html">Accounting Detail Tools</a>`,
+      `<a class="internal-shell-footer-link" href="salesdashboard.html">Sales Tools</a>`,
+      `<a class="internal-shell-footer-link" href="event-rsvps.html">Event RSVPs</a>`
     ];
 
     if (user?.accessGroup === "executive") {

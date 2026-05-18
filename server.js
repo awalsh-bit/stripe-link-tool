@@ -32,6 +32,15 @@ import {
   retrieveChargeWithRetry,
   sleep
 } from "./lib/stripe.js";
+import {
+  ensureCommissionTables,
+  finalizeExpiredCommissionRuns,
+  listCommissionRuns,
+  createCommissionRun,
+  getCommissionRunDetail,
+  recalculateCommissionLine,
+  lockCommissionRun
+} from "./lib/commissions-postgres.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -92,6 +101,7 @@ const INTERNAL_PAGE_PATHS = new Set([
   "/salesdashboard.html",
   "/event-rsvps.html",
   "/commissions.html",
+  "/commissions-print.html",
   "/hvac-dashboard.html",
   "/link-detail-lookup.html",
   "/intent-lookup.html",
@@ -115,7 +125,7 @@ const ACCESS_GROUPS = {
   leader: {
     label: "Leader",
     pages: ["*"],
-    excludedPages: ["/commissions.html"]
+    excludedPages: ["/commissions.html", "/commissions-print.html"]
   },
   executive: {
     label: "Executive",
@@ -400,6 +410,16 @@ function sendForbiddenPage(res) {
 </html>`);
 }
 
+function requireExecutiveApi(req, res, next) {
+  if (req.authUser?.accessGroup !== "executive") {
+    return res.status(403).json({
+      error: "Executive access is required."
+    });
+  }
+
+  return next();
+}
+
 app.use((req, res, next) => {
   res.setHeader("X-Robots-Tag", "noindex, nofollow, noarchive");
   next();
@@ -571,6 +591,115 @@ app.get("/", (req, res) => {
 
 app.get("/fireflavor", (req, res) => {
   res.sendFile(path.join(__dirname, "fireflavor.html"));
+});
+
+app.get("/commissions-print", (req, res) => {
+  res.sendFile(path.join(__dirname, "commissions-print.html"));
+});
+
+app.get("/api/commissions/runs", requireExecutiveApi, async (req, res) => {
+  try {
+    const runs = await listCommissionRuns();
+    return res.json({ runs });
+  } catch (error) {
+    return res.status(500).json({
+      error: error.message || "Unable to load commission runs."
+    });
+  }
+});
+
+app.post("/api/commissions/import", requireExecutiveApi, async (req, res) => {
+  try {
+    await ensureCommissionTables();
+
+    const periodLabel = String(req.body?.periodLabel || "").trim();
+    const sourceFileName = String(req.body?.sourceFileName || "").trim();
+    const importedLines = Array.isArray(req.body?.lines) ? req.body.lines : [];
+
+    if (!periodLabel) {
+      return res.status(400).json({ error: "A commission period label is required." });
+    }
+
+    if (!sourceFileName) {
+      return res.status(400).json({ error: "A source file name is required." });
+    }
+
+    if (importedLines.length === 0) {
+      return res.status(400).json({ error: "At least one commission line is required." });
+    }
+
+    const runId = await createCommissionRun({
+      periodLabel,
+      sourceFileName,
+      importedByUsername: req.authUser?.username || "",
+      importedByName: req.authUser?.displayName || "",
+      lines: importedLines
+    });
+
+    const detail = await getCommissionRunDetail(runId);
+
+    return res.json({
+      success: true,
+      run: detail?.run || null
+    });
+  } catch (error) {
+    return res.status(500).json({
+      error: error.message || "Unable to import commission run."
+    });
+  }
+});
+
+app.get("/api/commissions/runs/:runId", requireExecutiveApi, async (req, res) => {
+  try {
+    const detail = await getCommissionRunDetail(req.params.runId);
+    if (!detail) {
+      return res.status(404).json({ error: "Commission run not found." });
+    }
+
+    return res.json(detail);
+  } catch (error) {
+    return res.status(500).json({
+      error: error.message || "Unable to load commission run."
+    });
+  }
+});
+
+app.post("/api/commissions/lines/:lineId/calculate", requireExecutiveApi, async (req, res) => {
+  try {
+    const mode = String(req.body?.mode || "").trim();
+    const value = req.body?.value;
+
+    if (!mode) {
+      return res.status(400).json({ error: "A calculation mode is required." });
+    }
+
+    const line = await recalculateCommissionLine(req.params.lineId, mode, value);
+    if (!line) {
+      return res.status(404).json({ error: "Commission line not found." });
+    }
+
+    return res.json({ success: true, line });
+  } catch (error) {
+    return res.status(400).json({
+      error: error.message || "Unable to recalculate commission line."
+    });
+  }
+});
+
+app.post("/api/commissions/runs/:runId/lock", requireExecutiveApi, async (req, res) => {
+  try {
+    const run = await lockCommissionRun(req.params.runId);
+    if (!run) {
+      return res.status(404).json({ error: "Commission run not found." });
+    }
+
+    await finalizeExpiredCommissionRuns();
+    return res.json({ success: true, run });
+  } catch (error) {
+    return res.status(400).json({
+      error: error.message || "Unable to lock commission run."
+    });
+  }
 });
 
 

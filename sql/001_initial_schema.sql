@@ -221,3 +221,52 @@ CREATE INDEX IF NOT EXISTS idx_event_rsvps_event_slug ON event_rsvps (event_slug
 CREATE INDEX IF NOT EXISTS idx_event_rsvps_updated_at ON event_rsvps (updated_at DESC);
 CREATE INDEX IF NOT EXISTS idx_event_rsvps_email ON event_rsvps (email);
 CREATE INDEX IF NOT EXISTS idx_event_rsvps_phone ON event_rsvps (phone);
+
+CREATE TABLE IF NOT EXISTS commission_runs (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  period_label TEXT NOT NULL,
+  source_file_name TEXT NOT NULL DEFAULT '',
+  imported_by_username TEXT NOT NULL DEFAULT '',
+  imported_by_name TEXT NOT NULL DEFAULT '',
+  status TEXT NOT NULL DEFAULT 'draft',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  locked_at TIMESTAMPTZ,
+  finalized_at TIMESTAMPTZ,
+  notes TEXT NOT NULL DEFAULT '',
+  CONSTRAINT commission_runs_status_check CHECK (
+    status IN ('draft', 'locked', 'final_paid')
+  )
+);
+
+CREATE INDEX IF NOT EXISTS idx_commission_runs_status ON commission_runs (status);
+CREATE INDEX IF NOT EXISTS idx_commission_runs_created_at ON commission_runs (created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_commission_runs_locked_at ON commission_runs (locked_at DESC);
+
+CREATE TABLE IF NOT EXISTS commission_lines (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  run_id UUID NOT NULL REFERENCES commission_runs(id) ON DELETE CASCADE,
+  source_row_number INTEGER NOT NULL DEFAULT 0,
+  display_sort INTEGER NOT NULL DEFAULT 0,
+  salesperson_code TEXT NOT NULL DEFAULT '',
+  salesperson_name TEXT NOT NULL DEFAULT '',
+  salesperson_email TEXT NOT NULL DEFAULT '',
+  salesperson_department TEXT NOT NULL DEFAULT '',
+  sales_order TEXT NOT NULL DEFAULT '',
+  customer_name TEXT NOT NULL DEFAULT '',
+  line_type TEXT NOT NULL DEFAULT '',
+  product_model TEXT NOT NULL DEFAULT '',
+  source_classification TEXT NOT NULL DEFAULT '',
+  quantity NUMERIC(12,2) NOT NULL DEFAULT 0,
+  sell_price NUMERIC(12,2) NOT NULL DEFAULT 0,
+  imported_commission_percent NUMERIC(8,4) NOT NULL DEFAULT 0,
+  imported_commission_amount NUMERIC(12,2) NOT NULL DEFAULT 0,
+  commission_percent NUMERIC(8,4) NOT NULL DEFAULT 0,
+  commission_amount NUMERIC(12,2) NOT NULL DEFAULT 0,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_commission_lines_run_id ON commission_lines (run_id);
+CREATE INDEX IF NOT EXISTS idx_commission_lines_salesperson_code ON commission_lines (salesperson_code);
+CREATE INDEX IF NOT EXISTS idx_commission_lines_sales_order ON commission_lines (sales_order);
+CREATE INDEX IF NOT EXISTS idx_commission_lines_display_sort ON commission_lines (run_id, display_sort);

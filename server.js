@@ -802,6 +802,7 @@ const {
   creatorCode,
   creatorName,
   creatorEmail,
+  department,
   salesOrder,
   notes,
   readerId
@@ -839,6 +840,7 @@ const paymentIntent = await stripe.paymentIntents.create({
     creator_code: creatorCode || "",
     creator_name: creatorName || "",
     creator_email: creatorEmail || "",
+    department: department || "",
     notes: notes || ""
   }
 }, {
@@ -898,6 +900,7 @@ app.get("/api/terminal/payment-status/:paymentIntentId", async (req, res) => {
           creatorCode: paymentIntent.metadata?.creator_code || "",
           creatorName: paymentIntent.metadata?.creator_name || "",
           creatorEmail: paymentIntent.metadata?.creator_email || "",
+          department: paymentIntent.metadata?.department || "",
           reference: paymentIntent.metadata?.sales_order || paymentIntent.description || "",
           description: paymentIntent.metadata?.description || paymentIntent.description || "",
           salesOrder: paymentIntent.metadata?.sales_order || "",

@@ -519,7 +519,7 @@ I have read and agree to the <a href="terms.html" target="_blank" rel="noopener 
 
                 <div class="field">
                   <label for="billingState">State</label>
-                  <input id="billingState" value="Texas" readonly />
+                  <select id="billingState"></select>
                 </div>
 
                 <div class="field">
@@ -574,6 +574,7 @@ I have read and agree to the <a href="terms.html" target="_blank" rel="noopener 
     const applianceTypeOther2Field = document.getElementById("applianceTypeOther2Field");
     const applianceTypeOther1 = document.getElementById("applianceTypeOther1");
     const applianceTypeOther2 = document.getElementById("applianceTypeOther2");
+    const billingStateSelect = document.getElementById("billingState");
 
     let stripe;
     let elements;
@@ -663,6 +664,59 @@ const otherBrands = rawBrands
 // Final ordered list
 const brands = [...luxuryBrands, ...otherBrands];
 
+const usStates = [
+  "Alabama",
+  "Alaska",
+  "Arizona",
+  "Arkansas",
+  "California",
+  "Colorado",
+  "Connecticut",
+  "Delaware",
+  "Florida",
+  "Georgia",
+  "Hawaii",
+  "Idaho",
+  "Illinois",
+  "Indiana",
+  "Iowa",
+  "Kansas",
+  "Kentucky",
+  "Louisiana",
+  "Maine",
+  "Maryland",
+  "Massachusetts",
+  "Michigan",
+  "Minnesota",
+  "Mississippi",
+  "Missouri",
+  "Montana",
+  "Nebraska",
+  "Nevada",
+  "New Hampshire",
+  "New Jersey",
+  "New Mexico",
+  "New York",
+  "North Carolina",
+  "North Dakota",
+  "Ohio",
+  "Oklahoma",
+  "Oregon",
+  "Pennsylvania",
+  "Rhode Island",
+  "South Carolina",
+  "South Dakota",
+  "Tennessee",
+  "Texas",
+  "Utah",
+  "Vermont",
+  "Virginia",
+  "Washington",
+  "West Virginia",
+  "Wisconsin",
+  "Wyoming"
+];
+
 function fillSelect(id, values, placeholder, required = false) {
   const select = document.getElementById(id);
   select.innerHTML = "";
@@ -692,6 +746,22 @@ fillSelect("applianceType2", applianceTypes, "Select appliance type", false);
 fillSelect("brand1", brands, "Select brand", true);
 fillSelect("brand2", brands, "Select brand", false);
 
+function fillBillingStates(selected = "Texas") {
+  billingStateSelect.innerHTML = "";
+
+  usStates.forEach((state) => {
+    const option = document.createElement("option");
+    option.value = state;
+    option.textContent = state;
+    if (state === selected) {
+      option.selected = true;
+    }
+    billingStateSelect.appendChild(option);
+  });
+}
+
+fillBillingStates();
+
     function showStatus(type, message) {
       statusBox.className = `status ${type}`;
       statusBox.textContent = message;
@@ -719,7 +789,7 @@ fillSelect("brand2", brands, "Select brand", false);
       }
 
       document.getElementById("serviceState").value = "Texas";
-      document.getElementById("billingState").value = "Texas";
+      fillBillingStates("Texas");
 
       fillSelect("applianceType1", applianceTypes, "Select appliance type", true);
       fillSelect("applianceType2", applianceTypes, "Select appliance type", false);
@@ -851,7 +921,7 @@ function syncPaymentRequirement() {
           line1: document.getElementById("billingAddress1").value.trim(),
           line2: document.getElementById("billingAddress2").value.trim(),
           city: document.getElementById("billingCity").value.trim(),
-          state: "Texas",
+          state: billingStateSelect.value,
           zip: document.getElementById("billingZip").value.trim()
         },
         nameOnCard: document.getElementById("nameOnCard").value.trim()
@@ -998,7 +1068,10 @@ async function submitRequestRecord(payload) {
         document.getElementById("billingAddress1").value = data.billingAddress?.line1 || "";
         document.getElementById("billingAddress2").value = data.billingAddress?.line2 || "";
         document.getElementById("billingCity").value = data.billingAddress?.city || "";
+        fillBillingStates(data.billingAddress?.state || "Texas");
         document.getElementById("billingZip").value = data.billingAddress?.zip || "";
+      } else {
+        fillBillingStates("Texas");
       }
 
       if (data.units?.[0]?.applianceType) {

@@ -15,6 +15,13 @@
       --muted: #6b7280;
       --border: #dbe1ea;
       --primary: #635bff;
+      --primary-hover: #564ef0;
+      --success-bg: #ecfdf5;
+      --success-text: #065f46;
+      --error-bg: #fef2f2;
+      --error-text: #991b1b;
+      --warning-bg: #fff7ed;
+      --warning-text: #9a3412;
       --shadow: 0 10px 35px rgba(0, 0, 0, 0.08);
       --radius: 18px;
     }
@@ -35,14 +42,25 @@
       margin: 0 auto;
     }
 
+    .stack {
+      display: grid;
+      gap: 20px;
+    }
+
     .card {
-      max-width: 980px;
-      margin: 0 auto;
       background: var(--card);
       border: 1px solid rgba(99, 91, 255, 0.12);
       box-shadow: var(--shadow);
       border-radius: var(--radius);
-      padding: 28px;
+      padding: 24px;
+    }
+
+    .hero {
+      display: flex;
+      justify-content: space-between;
+      gap: 18px;
+      align-items: start;
+      flex-wrap: wrap;
     }
 
     .eyebrow {
@@ -57,34 +75,950 @@
       font-weight: 800;
       letter-spacing: 0.08em;
       text-transform: uppercase;
-      margin-bottom: 14px;
+      margin-bottom: 12px;
+    }
+
+    h1, h2, h3 {
+      margin: 0;
     }
 
     h1 {
-      margin: 0 0 12px;
-      font-size: clamp(32px, 4vw, 52px);
+      font-size: clamp(32px, 4vw, 50px);
       line-height: 1.05;
+      margin-bottom: 10px;
+    }
+
+    h2 {
+      font-size: 24px;
+      margin-bottom: 14px;
+    }
+
+    h3 {
+      font-size: 18px;
+      margin-bottom: 10px;
     }
 
     p {
       margin: 0;
       color: var(--muted);
-      font-size: 16px;
+      line-height: 1.65;
+      font-size: 15px;
+    }
+
+    .hero-actions {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+
+    .form-grid {
+      display: grid;
+      grid-template-columns: 1.3fr 1fr auto;
+      gap: 14px;
+      align-items: end;
+    }
+
+    .field {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    label {
+      font-size: 14px;
+      font-weight: 700;
+    }
+
+    input, select {
+      width: 100%;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 13px 14px;
+      font-size: 15px;
+      background: #fff;
+      color: var(--text);
+      outline: none;
+      transition: border-color 0.2s ease, box-shadow 0.2s ease;
+    }
+
+    input:focus, select:focus {
+      border-color: rgba(99, 91, 255, 0.75);
+      box-shadow: 0 0 0 4px rgba(99, 91, 255, 0.12);
+    }
+
+    .hint {
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.5;
+    }
+
+    .actions {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+
+    button, .button-link {
+      appearance: none;
+      border: none;
+      background: var(--primary);
+      color: white;
+      padding: 14px 18px;
+      border-radius: 12px;
+      font-size: 15px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: background 0.2s ease, transform 0.04s ease;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    button:hover, .button-link:hover { background: var(--primary-hover); }
+    button:active, .button-link:active { transform: translateY(1px); }
+    button:disabled {
+      opacity: 0.65;
+      cursor: wait;
+    }
+
+    .secondary {
+      background: #eef2ff;
+      color: #3730a3;
+    }
+
+    .secondary:hover {
+      background: #e0e7ff;
+    }
+
+    .status {
+      display: none;
+      padding: 14px 16px;
+      border-radius: 12px;
+      font-size: 14px;
+      line-height: 1.5;
+      white-space: pre-wrap;
+    }
+
+    .status.success {
+      display: block;
+      background: var(--success-bg);
+      color: var(--success-text);
+    }
+
+    .status.error {
+      display: block;
+      background: var(--error-bg);
+      color: var(--error-text);
+    }
+
+    .status.warning {
+      display: block;
+      background: var(--warning-bg);
+      color: var(--warning-text);
+    }
+
+    .layout {
+      display: grid;
+      grid-template-columns: 340px minmax(0, 1fr);
+      gap: 20px;
+      align-items: start;
+    }
+
+    .runs-list {
+      display: grid;
+      gap: 12px;
+    }
+
+    .run-card {
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 16px;
+      background: #fafbff;
+      cursor: pointer;
+      transition: border-color 0.2s ease, box-shadow 0.2s ease;
+    }
+
+    .run-card.active {
+      border-color: rgba(99, 91, 255, 0.45);
+      box-shadow: 0 8px 24px rgba(99, 91, 255, 0.12);
+      background: #fff;
+    }
+
+    .run-meta {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 30px;
+      padding: 0 10px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 800;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .badge.draft {
+      background: rgba(99, 91, 255, 0.1);
+      color: var(--primary);
+    }
+
+    .badge.locked {
+      background: rgba(245, 158, 11, 0.12);
+      color: #b45309;
+    }
+
+    .badge.final_paid {
+      background: rgba(16, 185, 129, 0.12);
+      color: #047857;
+    }
+
+    .kpi-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 16px;
+      margin-bottom: 20px;
+    }
+
+    .kpi {
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      background: #fafbff;
+      padding: 16px;
+    }
+
+    .kpi-label {
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      font-weight: 800;
+      color: #64748b;
+      margin-bottom: 8px;
+    }
+
+    .kpi-value {
+      font-size: 34px;
+      font-weight: 900;
+      line-height: 1;
+      margin-bottom: 8px;
+    }
+
+    .kpi-note {
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.5;
+    }
+
+    .run-detail-header {
+      display: flex;
+      justify-content: space-between;
+      gap: 16px;
+      align-items: start;
+      flex-wrap: wrap;
+      margin-bottom: 18px;
+    }
+
+    .salesperson-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 14px;
+      margin-bottom: 20px;
+    }
+
+    .salesperson-card {
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      background: #fafbff;
+      padding: 16px;
+      cursor: pointer;
+      transition: border-color 0.2s ease, box-shadow 0.2s ease;
+    }
+
+    .salesperson-card.active {
+      border-color: rgba(99, 91, 255, 0.45);
+      box-shadow: 0 8px 24px rgba(99, 91, 255, 0.12);
+      background: #fff;
+    }
+
+    .subtle-list {
+      margin-top: 12px;
+      display: grid;
+      gap: 6px;
+    }
+
+    .subtle-list div {
+      font-size: 13px;
+      color: var(--muted);
+      line-height: 1.5;
+    }
+
+    .detail-panel {
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      overflow: hidden;
+      background: #fff;
+    }
+
+    .detail-panel-header {
+      padding: 18px 20px;
+      border-bottom: 1px solid var(--border);
+      background: #fafbff;
+    }
+
+    .table-wrap {
+      overflow: auto;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      min-width: 1120px;
+    }
+
+    th, td {
+      padding: 12px 14px;
+      border-bottom: 1px solid #edf2f7;
+      text-align: left;
+      vertical-align: top;
+      font-size: 14px;
+    }
+
+    th {
+      font-size: 12px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: #64748b;
+      background: #fafbff;
+      position: sticky;
+      top: 0;
+      z-index: 1;
+    }
+
+    .money, .number, .percent {
+      text-align: right;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .inline-input {
+      width: 110px;
+      min-width: 110px;
+      padding: 10px 10px;
+      font-size: 14px;
+      text-align: right;
+    }
+
+    .inline-actions {
+      display: flex;
+      justify-content: flex-end;
+    }
+
+    .inline-actions button {
+      padding: 10px 12px;
+      font-size: 13px;
+      border-radius: 10px;
+    }
+
+    .empty-state {
+      padding: 24px;
+      color: var(--muted);
       line-height: 1.7;
     }
+
+    .hidden {
+      display: none !important;
+    }
+
+    @media (max-width: 1080px) {
+      .layout,
+      .form-grid,
+      .kpi-grid {
+        grid-template-columns: 1fr;
+      }
+    }
   </style>
+  <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
 </head>
 <body data-shell-label="Commissions" data-shell-icon="commissions">
   <div class="wrap">
     <div id="internal-shell-header"></div>
-    <div class="card">
-      <div class="eyebrow">Executive Access</div>
-      <h1>Commissions</h1>
-      <p>This page is reserved for executive sessions. We can build the commissions workflow here next without exposing it to the rest of the shared dashboard login.</p>
+    <div class="stack">
+      <div class="card">
+        <div class="hero">
+          <div>
+            <div class="eyebrow">Executive Access</div>
+            <h1>Commissions</h1>
+            <p>Upload an ePASS commission workbook, review it in draft, adjust percent or dollars at the line level, then lock the run before payroll closes.</p>
+          </div>
+          <div class="hero-actions">
+            <a id="printRunBtn" class="button-link secondary hidden" target="_blank" rel="noopener noreferrer">Print / Save PDF</a>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Import ePASS Report</h2>
+        <div class="form-grid">
+          <div class="field">
+            <label for="commissionFile">Commission Workbook</label>
+            <input id="commissionFile" type="file" accept=".xlsx,.xlsm,.xls" />
+            <div class="hint">Upload the raw commission workbook exactly as exported. The system will create a new draft run.</div>
+          </div>
+          <div class="field">
+            <label for="periodLabel">Payroll Period Label</label>
+            <input id="periodLabel" placeholder="APR 2026" />
+          </div>
+          <div class="field">
+            <button id="importBtn" type="button">Upload draft</button>
+          </div>
+        </div>
+        <div id="status" class="status" style="margin-top:16px;"></div>
+      </div>
+
+      <div class="layout">
+        <div class="card">
+          <h2>Commission Runs</h2>
+          <div id="runsList" class="runs-list"></div>
+        </div>
+
+        <div class="card">
+          <div id="runDetailEmpty" class="empty-state">Select a commission run to review its grouped salesperson view and line-level detail.</div>
+
+          <div id="runDetail" class="hidden">
+            <div class="run-detail-header">
+              <div>
+                <h2 id="runTitle">Commission Run</h2>
+                <p id="runMeta">Draft run</p>
+              </div>
+              <div class="actions">
+                <span id="runStatusBadge" class="badge draft">Draft</span>
+                <button id="lockRunBtn" type="button">Lock run</button>
+              </div>
+            </div>
+
+            <div class="kpi-grid">
+              <div class="kpi">
+                <div class="kpi-label">Salespeople</div>
+                <div id="kpiSalespeople" class="kpi-value">0</div>
+                <div class="kpi-note">Grouped consultant headers in this run</div>
+              </div>
+              <div class="kpi">
+                <div class="kpi-label">Lines</div>
+                <div id="kpiLines" class="kpi-value">0</div>
+                <div class="kpi-note">Order lines imported from the workbook</div>
+              </div>
+              <div class="kpi">
+                <div class="kpi-label">Sell Price</div>
+                <div id="kpiSellPrice" class="kpi-value">$0.00</div>
+                <div class="kpi-note">Visible gross sales tied to this run</div>
+              </div>
+              <div class="kpi">
+                <div class="kpi-label">Commission</div>
+                <div id="kpiCommission" class="kpi-value">$0.00</div>
+                <div class="kpi-note">Current expected payout for this run</div>
+              </div>
+            </div>
+
+            <h3>Sales Consultants</h3>
+            <div id="salespersonGrid" class="salesperson-grid"></div>
+
+            <div class="detail-panel">
+              <div class="detail-panel-header">
+                <h3 id="salespersonTitle">Select a salesperson</h3>
+                <p id="salespersonMeta">Choose a consultant above to review each ticket, model, source classification, sell price, and editable commission values.</p>
+              </div>
+              <div class="table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Sales Order</th>
+                      <th>Customer</th>
+                      <th>Line Type</th>
+                      <th>Model</th>
+                      <th>Serial / Split</th>
+                      <th class="number">Qty</th>
+                      <th class="money">Sell Price</th>
+                      <th class="percent">Commission %</th>
+                      <th class="money">Commission $</th>
+                      <th>Calculate</th>
+                    </tr>
+                  </thead>
+                  <tbody id="lineTableBody">
+                    <tr><td colspan="10" class="empty-state">No salesperson selected yet.</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
     <div id="internal-shell-footer"></div>
   </div>
 
+  <script src="employee-directory.js"></script>
   <script src="internal-shell.js"></script>
+  <script>
+    const TEAM_DIRECTORY = window.WILSON_EMPLOYEE_DIRECTORY || {};
+    const commissionFileInput = document.getElementById("commissionFile");
+    const periodLabelInput = document.getElementById("periodLabel");
+    const importBtn = document.getElementById("importBtn");
+    const statusBox = document.getElementById("status");
+    const runsList = document.getElementById("runsList");
+    const runDetail = document.getElementById("runDetail");
+    const runDetailEmpty = document.getElementById("runDetailEmpty");
+    const runTitle = document.getElementById("runTitle");
+    const runMeta = document.getElementById("runMeta");
+    const runStatusBadge = document.getElementById("runStatusBadge");
+    const lockRunBtn = document.getElementById("lockRunBtn");
+    const printRunBtn = document.getElementById("printRunBtn");
+    const kpiSalespeople = document.getElementById("kpiSalespeople");
+    const kpiLines = document.getElementById("kpiLines");
+    const kpiSellPrice = document.getElementById("kpiSellPrice");
+    const kpiCommission = document.getElementById("kpiCommission");
+    const salespersonGrid = document.getElementById("salespersonGrid");
+    const salespersonTitle = document.getElementById("salespersonTitle");
+    const salespersonMeta = document.getElementById("salespersonMeta");
+    const lineTableBody = document.getElementById("lineTableBody");
+
+    let currentRuns = [];
+    let currentRunDetail = null;
+    let currentRunId = "";
+    let currentSalespersonCode = "";
+
+    function showStatus(type, message) {
+      statusBox.className = `status ${type}`;
+      statusBox.textContent = message;
+    }
+
+    function clearStatus() {
+      statusBox.className = "status";
+      statusBox.textContent = "";
+    }
+
+    function formatMoney(value) {
+      return new Intl.NumberFormat("en-US", {
+        style: "currency",
+        currency: "USD"
+      }).format(Number(value || 0));
+    }
+
+    function formatPercent(value) {
+      return `${Number(value || 0).toFixed(2)}%`;
+    }
+
+    function inferPeriodLabel(fileName) {
+      return String(fileName || "")
+        .replace(/\.[^.]+$/, "")
+        .replace(/[_-]+/g, " ")
+        .trim();
+    }
+
+    function roundTo(value, decimals) {
+      const factor = 10 ** decimals;
+      return Math.round((Number(value || 0) + Number.EPSILON) * factor) / factor;
+    }
+
+    function getStatusLabel(status) {
+      if (status === "locked") return "Locked";
+      if (status === "final_paid") return "Final / Paid";
+      return "Draft";
+    }
+
+    function getSalespersonDisplayKey(group) {
+      return group.salespersonCode || group.salespersonName || "UNKNOWN";
+    }
+
+    function parseWorkbookRows(file) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = (event) => {
+          try {
+            const workbook = XLSX.read(event.target.result, { type: "array" });
+            const firstSheetName = workbook.SheetNames[0];
+            if (!firstSheetName) {
+              throw new Error("No worksheet was found in the uploaded workbook.");
+            }
+
+            const worksheet = workbook.Sheets[firstSheetName];
+            const rows = XLSX.utils.sheet_to_json(worksheet, {
+              header: 1,
+              raw: true,
+              defval: ""
+            });
+
+            const parsedLines = [];
+            let currentSalesperson = null;
+
+            rows.forEach((row, index) => {
+              const columnA = String(row[0] || "").trim();
+
+              if (!columnA) {
+                return;
+              }
+
+              if (columnA === "Invoice #") {
+                return;
+              }
+
+              if (columnA === "Salesperson:") {
+                const code = String(row[1] || "").trim();
+                const fallbackName = String(row[2] || "").trim();
+                const directoryMatch = TEAM_DIRECTORY[code] || null;
+
+                currentSalesperson = {
+                  code,
+                  name: directoryMatch?.name || fallbackName,
+                  email: directoryMatch?.email || "",
+                  department: directoryMatch?.department || ""
+                };
+                return;
+              }
+
+              if (columnA === "Sales / Wty Volume:") {
+                return;
+              }
+
+              if (!currentSalesperson) {
+                return;
+              }
+
+              const quantity = Number(row[4] || 0);
+              const sellPrice = Number(row[5] || 0);
+              const importedCommissionAmount = Number(row[7] || 0);
+              const importedCommissionPercent = sellPrice > 0
+                ? roundTo((importedCommissionAmount / sellPrice) * 100, 4)
+                : 0;
+
+              parsedLines.push({
+                sourceRowNumber: index + 1,
+                displaySort: parsedLines.length + 1,
+                salespersonCode: currentSalesperson.code,
+                salespersonName: currentSalesperson.name,
+                salespersonEmail: currentSalesperson.email,
+                salespersonDepartment: currentSalesperson.department,
+                salesOrder: String(row[0] || "").trim(),
+                customerName: String(row[1] || "").trim(),
+                lineType: String(row[2] || "").trim(),
+                productModel: String(row[3] || "").trim(),
+                sourceClassification: String(row[8] || "").trim(),
+                quantity: roundTo(quantity, 2),
+                sellPrice: roundTo(sellPrice, 2),
+                importedCommissionPercent,
+                importedCommissionAmount: roundTo(importedCommissionAmount, 2),
+                commissionPercent: importedCommissionPercent,
+                commissionAmount: roundTo(importedCommissionAmount, 2)
+              });
+            });
+
+            resolve(parsedLines);
+          } catch (error) {
+            reject(error);
+          }
+        };
+        reader.onerror = () => reject(new Error("Unable to read the workbook."));
+        reader.readAsArrayBuffer(file);
+      });
+    }
+
+    async function loadRuns() {
+      const res = await fetch("/api/commissions/runs");
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.error || "Unable to load commission runs.");
+      }
+
+      currentRuns = data.runs || [];
+      renderRuns();
+    }
+
+    function renderRuns() {
+      runsList.innerHTML = "";
+
+      if (!currentRuns.length) {
+        runsList.innerHTML = '<div class="empty-state">No commission runs yet. Upload an ePASS workbook to create the first draft.</div>';
+        return;
+      }
+
+      currentRuns.forEach((run) => {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = `run-card ${run.id === currentRunId ? "active" : ""}`;
+        button.innerHTML = `
+          <div class="run-meta">
+            <strong>${run.periodLabel}</strong>
+            <span class="badge ${run.status}">${getStatusLabel(run.status)}</span>
+          </div>
+          <div class="subtle-list">
+            <div>${run.sourceFileName}</div>
+            <div>${run.salespersonCount} salespeople | ${run.lineCount} lines</div>
+            <div>${formatMoney(run.totalCommissionAmount)} commission on ${formatMoney(run.totalSellPrice)} sales</div>
+          </div>
+        `;
+        button.addEventListener("click", () => selectRun(run.id));
+        runsList.appendChild(button);
+      });
+    }
+
+    async function selectRun(runId) {
+      clearStatus();
+      const res = await fetch(`/api/commissions/runs/${encodeURIComponent(runId)}`);
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.error || "Unable to load commission run.");
+      }
+
+      currentRunId = runId;
+      currentRunDetail = data;
+      currentSalespersonCode = data.salespeople?.[0] ? getSalespersonDisplayKey(data.salespeople[0]) : "";
+      renderRuns();
+      renderRunDetail();
+    }
+
+    function renderRunDetail() {
+      if (!currentRunDetail) {
+        runDetail.classList.add("hidden");
+        runDetailEmpty.classList.remove("hidden");
+        return;
+      }
+
+      runDetail.classList.remove("hidden");
+      runDetailEmpty.classList.add("hidden");
+
+      const { run, summary, salespeople } = currentRunDetail;
+      runTitle.textContent = run.periodLabel;
+      runMeta.textContent = `${run.sourceFileName} | Imported by ${run.importedByName || run.importedByUsername || "Unknown"} | ${getStatusLabel(run.status)}`;
+      runStatusBadge.className = `badge ${run.status}`;
+      runStatusBadge.textContent = getStatusLabel(run.status);
+      lockRunBtn.classList.toggle("hidden", run.status !== "draft");
+      printRunBtn.classList.remove("hidden");
+      printRunBtn.href = `commissions-print.html?run=${encodeURIComponent(run.id)}`;
+
+      kpiSalespeople.textContent = String(summary.salespersonCount || 0);
+      kpiLines.textContent = String(summary.lineCount || 0);
+      kpiSellPrice.textContent = formatMoney(summary.totalSellPrice || 0);
+      kpiCommission.textContent = formatMoney(summary.totalCommissionAmount || 0);
+
+      salespersonGrid.innerHTML = "";
+      salespeople.forEach((group) => {
+        const key = getSalespersonDisplayKey(group);
+        const card = document.createElement("button");
+        card.type = "button";
+        card.className = `salesperson-card ${key === currentSalespersonCode ? "active" : ""}`;
+        card.innerHTML = `
+          <div class="run-meta">
+            <strong>${group.salespersonName || group.salespersonCode}</strong>
+            <span>${group.salespersonCode || ""}</span>
+          </div>
+          <div class="subtle-list">
+            <div>${group.orderCount} orders | ${group.lineCount} lines</div>
+            <div>${formatMoney(group.totalCommissionAmount)} commission</div>
+            <div>${group.salespersonEmail || "No email saved"}${group.salespersonDepartment ? ` | ${group.salespersonDepartment}` : ""}</div>
+            <div>${group.salesOrders.slice(0, 3).map((order) => order.salesOrder).filter(Boolean).join(", ") || "No sales order detail"}</div>
+          </div>
+        `;
+        card.addEventListener("click", () => {
+          currentSalespersonCode = key;
+          renderRunDetail();
+        });
+        salespersonGrid.appendChild(card);
+      });
+
+      const selectedGroup = salespeople.find((group) => getSalespersonDisplayKey(group) === currentSalespersonCode) || null;
+      renderLineTable(selectedGroup, run.status);
+    }
+
+    function renderLineTable(group, runStatus) {
+      if (!group) {
+        salespersonTitle.textContent = "Select a salesperson";
+        salespersonMeta.textContent = "Choose a consultant above to review each ticket, model, source classification, sell price, and editable commission values.";
+        lineTableBody.innerHTML = '<tr><td colspan="10" class="empty-state">No salesperson selected yet.</td></tr>';
+        return;
+      }
+
+      salespersonTitle.textContent = `${group.salespersonName || group.salespersonCode} | ${group.salespersonCode || ""}`.trim();
+      salespersonMeta.textContent = `${group.orderCount} orders | ${group.lineCount} lines | ${formatMoney(group.totalCommissionAmount)} commission`;
+      lineTableBody.innerHTML = "";
+
+      group.lines.forEach((line) => {
+        const row = document.createElement("tr");
+        const disabled = runStatus !== "draft" ? "disabled" : "";
+        row.innerHTML = `
+          <td>${line.salesOrder || ""}</td>
+          <td>${line.customerName || ""}</td>
+          <td>${line.lineType || ""}</td>
+          <td>${line.productModel || ""}</td>
+          <td>${line.sourceClassification || ""}</td>
+          <td class="number">${Number(line.quantity || 0).toFixed(2).replace(/\.00$/, "")}</td>
+          <td class="money">${formatMoney(line.sellPrice || 0)}</td>
+          <td class="percent"><input class="inline-input" data-line-id="${line.id}" data-mode="percent" type="number" step="0.01" value="${Number(line.commissionPercent || 0).toFixed(2)}" ${disabled} /></td>
+          <td class="money"><input class="inline-input" data-line-id="${line.id}" data-mode="amount" type="number" step="0.01" value="${Number(line.commissionAmount || 0).toFixed(2)}" ${disabled} /></td>
+          <td class="inline-actions">${runStatus === "draft" ? `<button type="button" data-line-id="${line.id}" class="secondary calc-btn">Calculate</button>` : '<span class="hint">Locked</span>'}</td>
+        `;
+        lineTableBody.appendChild(row);
+      });
+
+      lineTableBody.querySelectorAll(".inline-input").forEach((input) => {
+        input.addEventListener("input", () => {
+          const row = input.closest("tr");
+          row.dataset.lastEditedMode = input.getAttribute("data-mode") || "percent";
+        });
+      });
+
+      lineTableBody.querySelectorAll(".calc-btn").forEach((button) => {
+        button.addEventListener("click", async () => {
+          const lineId = button.getAttribute("data-line-id");
+          const row = button.closest("tr");
+          const percentInput = row.querySelector('input[data-mode="percent"]');
+          const amountInput = row.querySelector('input[data-mode="amount"]');
+
+          const mode = row.dataset.lastEditedMode === "amount" ? "amount" : "percent";
+          const value = mode === "amount" ? amountInput.value : percentInput.value;
+
+          button.disabled = true;
+          button.textContent = "Saving...";
+
+          try {
+            const res = await fetch(`/api/commissions/lines/${encodeURIComponent(lineId)}/calculate`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ mode, value })
+            });
+            const data = await res.json();
+            if (!res.ok) {
+              throw new Error(data.error || "Unable to recalculate line.");
+            }
+
+            const updatedLine = data.line;
+            percentInput.value = Number(updatedLine.commissionPercent || 0).toFixed(2);
+            amountInput.value = Number(updatedLine.commissionAmount || 0).toFixed(2);
+
+            if (currentRunDetail) {
+              const salesperson = currentRunDetail.salespeople.find((item) => getSalespersonDisplayKey(item) === currentSalespersonCode);
+              if (salesperson) {
+                const target = salesperson.lines.find((item) => item.id === updatedLine.id);
+                if (target) {
+                  target.commissionPercent = updatedLine.commissionPercent;
+                  target.commissionAmount = updatedLine.commissionAmount;
+                }
+                salesperson.totalCommissionAmount = salesperson.lines.reduce((sum, item) => sum + Number(item.commissionAmount || 0), 0);
+              }
+
+              currentRunDetail.summary.totalCommissionAmount = currentRunDetail.salespeople.reduce((sum, item) => sum + Number(item.totalCommissionAmount || 0), 0);
+              renderRunDetail();
+            }
+
+            showStatus("success", "Commission line recalculated and saved.");
+          } catch (error) {
+            showStatus("error", error.message);
+          } finally {
+            button.disabled = false;
+            button.textContent = "Calculate";
+          }
+        });
+      });
+    }
+
+    importBtn.addEventListener("click", async () => {
+      clearStatus();
+      const file = commissionFileInput.files?.[0];
+
+      if (!file) {
+        showStatus("error", "Please choose a commission workbook first.");
+        return;
+      }
+
+      const periodLabel = periodLabelInput.value.trim() || inferPeriodLabel(file.name);
+      if (!periodLabel) {
+        showStatus("error", "Please enter a payroll period label.");
+        return;
+      }
+
+      importBtn.disabled = true;
+      importBtn.textContent = "Uploading...";
+
+      try {
+        const lines = await parseWorkbookRows(file);
+        if (!lines.length) {
+          throw new Error("No commission lines were found in the uploaded workbook.");
+        }
+
+        const res = await fetch("/api/commissions/import", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            periodLabel,
+            sourceFileName: file.name,
+            lines
+          })
+        });
+
+        const data = await res.json();
+        if (!res.ok) {
+          throw new Error(data.error || "Unable to import the commission workbook.");
+        }
+
+        periodLabelInput.value = periodLabel;
+        commissionFileInput.value = "";
+        await loadRuns();
+        if (data.run?.id) {
+          await selectRun(data.run.id);
+        }
+        showStatus("success", `Draft commission run created from ${file.name}.`);
+      } catch (error) {
+        showStatus("error", error.message);
+      } finally {
+        importBtn.disabled = false;
+        importBtn.textContent = "Upload draft";
+      }
+    });
+
+    lockRunBtn.addEventListener("click", async () => {
+      if (!currentRunId) {
+        return;
+      }
+
+      if (!confirm("Lock this commission run? Employees will have a 48-hour exception window before it automatically moves to final / paid.")) {
+        return;
+      }
+
+      lockRunBtn.disabled = true;
+      lockRunBtn.textContent = "Locking...";
+
+      try {
+        const res = await fetch(`/api/commissions/runs/${encodeURIComponent(currentRunId)}/lock`, {
+          method: "POST"
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          throw new Error(data.error || "Unable to lock commission run.");
+        }
+
+        await loadRuns();
+        await selectRun(currentRunId);
+        showStatus("success", "Commission run locked. It will automatically convert to final / paid after 48 hours.");
+      } catch (error) {
+        showStatus("error", error.message);
+      } finally {
+        lockRunBtn.disabled = false;
+        lockRunBtn.textContent = "Lock run";
+      }
+    });
+
+    loadRuns().catch((error) => {
+      showStatus("error", error.message);
+    });
+  </script>
 </body>
 </html>

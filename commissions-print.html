@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="robots" content="noindex,nofollow,noarchive" />
+  <title>Wilson AC & Appliance - Commission Print View</title>
+  <style>
+    body {
+      margin: 0;
+      font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #f5f7fb;
+      color: #1f2937;
+      padding: 24px;
+    }
+
+    .wrap {
+      max-width: 1180px;
+      margin: 0 auto;
+    }
+
+    .toolbar {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      align-items: center;
+      margin-bottom: 20px;
+      flex-wrap: wrap;
+    }
+
+    .toolbar button, .toolbar a {
+      appearance: none;
+      border: none;
+      background: #635bff;
+      color: #fff;
+      text-decoration: none;
+      padding: 12px 16px;
+      border-radius: 10px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    .toolbar .secondary {
+      background: #e5e7eb;
+      color: #111827;
+    }
+
+    .sheet {
+      background: #fff;
+      border-radius: 16px;
+      padding: 28px;
+      box-shadow: 0 10px 35px rgba(0, 0, 0, 0.08);
+    }
+
+    h1, h2, h3 {
+      margin: 0;
+    }
+
+    h1 {
+      font-size: 34px;
+      margin-bottom: 8px;
+    }
+
+    h2 {
+      font-size: 24px;
+      margin: 24px 0 12px;
+    }
+
+    h3 {
+      font-size: 18px;
+      margin-bottom: 8px;
+    }
+
+    p {
+      margin: 0;
+      color: #6b7280;
+      line-height: 1.6;
+    }
+
+    .summary {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 14px;
+      margin: 20px 0 24px;
+    }
+
+    .summary-card {
+      border: 1px solid #e5e7eb;
+      border-radius: 14px;
+      padding: 14px;
+      background: #fafbff;
+    }
+
+    .summary-label {
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      font-weight: 800;
+      color: #64748b;
+      margin-bottom: 8px;
+    }
+
+    .summary-value {
+      font-size: 28px;
+      font-weight: 900;
+      line-height: 1;
+      margin-bottom: 6px;
+    }
+
+    .group {
+      margin-top: 22px;
+      border-top: 1px solid #e5e7eb;
+      padding-top: 18px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 10px;
+      font-size: 13px;
+    }
+
+    th, td {
+      padding: 10px 8px;
+      border-bottom: 1px solid #edf2f7;
+      text-align: left;
+      vertical-align: top;
+    }
+
+    th {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: #64748b;
+      background: #fafbff;
+    }
+
+    .money, .number, .percent {
+      text-align: right;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .muted {
+      color: #6b7280;
+      font-size: 13px;
+    }
+
+    .empty {
+      padding: 40px 0;
+      color: #6b7280;
+      text-align: center;
+    }
+
+    @media print {
+      body {
+        background: #fff;
+        padding: 0;
+      }
+
+      .toolbar {
+        display: none;
+      }
+
+      .sheet {
+        box-shadow: none;
+        border-radius: 0;
+        padding: 0;
+      }
+    }
+
+    @media (max-width: 900px) {
+      .summary {
+        grid-template-columns: 1fr 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="toolbar">
+      <div class="muted">Use your browser's print dialog to save this report as PDF.</div>
+      <div>
+        <a class="secondary" href="commissions.html">Back to Commissions</a>
+        <button id="printBtn" type="button">Print / Save PDF</button>
+      </div>
+    </div>
+
+    <div class="sheet">
+      <div id="content" class="empty">Loading commission run...</div>
+    </div>
+  </div>
+
+  <script>
+    const content = document.getElementById("content");
+    const printBtn = document.getElementById("printBtn");
+
+    function formatMoney(value) {
+      return new Intl.NumberFormat("en-US", {
+        style: "currency",
+        currency: "USD"
+      }).format(Number(value || 0));
+    }
+
+    function formatPercent(value) {
+      return `${Number(value || 0).toFixed(2)}%`;
+    }
+
+    function getStatusLabel(status) {
+      if (status === "locked") return "Locked";
+      if (status === "final_paid") return "Final / Paid";
+      return "Draft";
+    }
+
+    async function loadRun() {
+      const params = new URLSearchParams(window.location.search);
+      const runId = params.get("run");
+
+      if (!runId) {
+        content.textContent = "No commission run was specified.";
+        return;
+      }
+
+      const res = await fetch(`/api/commissions/runs/${encodeURIComponent(runId)}`);
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.error || "Unable to load commission run.");
+      }
+
+      renderRun(data);
+    }
+
+    function renderRun(data) {
+      const { run, summary, salespeople } = data;
+      content.className = "";
+      content.innerHTML = `
+        <h1>${run.periodLabel}</h1>
+        <p>${run.sourceFileName} | ${getStatusLabel(run.status)} | Imported by ${run.importedByName || run.importedByUsername || "Unknown"}</p>
+        <div class="summary">
+          <div class="summary-card">
+            <div class="summary-label">Salespeople</div>
+            <div class="summary-value">${summary.salespersonCount}</div>
+            <div class="muted">Consultants in this run</div>
+          </div>
+          <div class="summary-card">
+            <div class="summary-label">Lines</div>
+            <div class="summary-value">${summary.lineCount}</div>
+            <div class="muted">Imported detail lines</div>
+          </div>
+          <div class="summary-card">
+            <div class="summary-label">Sell Price</div>
+            <div class="summary-value">${formatMoney(summary.totalSellPrice)}</div>
+            <div class="muted">Total sales in this run</div>
+          </div>
+          <div class="summary-card">
+            <div class="summary-label">Commission</div>
+            <div class="summary-value">${formatMoney(summary.totalCommissionAmount)}</div>
+            <div class="muted">Current expected payout</div>
+          </div>
+        </div>
+        ${salespeople.map((group) => `
+          <div class="group">
+            <h2>${group.salespersonName || group.salespersonCode} ${group.salespersonCode ? `| ${group.salespersonCode}` : ""}</h2>
+            <p>${group.orderCount} orders | ${group.lineCount} lines | ${formatMoney(group.totalCommissionAmount)} commission</p>
+            <table>
+              <thead>
+                <tr>
+                  <th>Sales Order</th>
+                  <th>Customer</th>
+                  <th>Line Type</th>
+                  <th>Model</th>
+                  <th>Serial / Split</th>
+                  <th class="number">Qty</th>
+                  <th class="money">Sell Price</th>
+                  <th class="percent">Commission %</th>
+                  <th class="money">Commission $</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${group.lines.map((line) => `
+                  <tr>
+                    <td>${line.salesOrder || ""}</td>
+                    <td>${line.customerName || ""}</td>
+                    <td>${line.lineType || ""}</td>
+                    <td>${line.productModel || ""}</td>
+                    <td>${line.sourceClassification || ""}</td>
+                    <td class="number">${Number(line.quantity || 0).toFixed(2).replace(/\.00$/, "")}</td>
+                    <td class="money">${formatMoney(line.sellPrice || 0)}</td>
+                    <td class="percent">${formatPercent(line.commissionPercent || 0)}</td>
+                    <td class="money">${formatMoney(line.commissionAmount || 0)}</td>
+                  </tr>
+                `).join("")}
+              </tbody>
+            </table>
+          </div>
+        `).join("")}
+      `;
+    }
+
+    printBtn.addEventListener("click", () => {
+      window.print();
+    });
+
+    loadRun().catch((error) => {
+      content.textContent = error.message;
+    });
+  </script>
+</body>
+</html>

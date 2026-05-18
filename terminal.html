@@ -259,6 +259,17 @@
           <input id="creatorEmail" type="email" readonly />
         </div>
 
+        <div class="field full">
+          <label for="department">Department</label>
+          <select id="department">
+            <option value="Appliance">Appliance</option>
+            <option value="Repair Service">Repair Service</option>
+            <option value="Kitchen Design">Kitchen Design</option>
+            <option value="HVAC Sales">HVAC Sales</option>
+          </select>
+          <div id="departmentHint" class="hint">Department will auto-fill from employee code. Client Care can choose the department manually when needed.</div>
+        </div>
+
         <div class="field">
           <label for="customerName">Client Name</label>
           <input id="customerName" placeholder="Jane Smith" />
@@ -348,6 +359,8 @@
     const creatorCodeInput = document.getElementById("creatorCode");
     const creatorNameInput = document.getElementById("creatorName");
     const creatorEmailInput = document.getElementById("creatorEmail");
+    const departmentInput = document.getElementById("department");
+    const departmentHint = document.getElementById("departmentHint");
 
     let latestReceiptLine = "";
     function showStatus(type, message) {
@@ -388,17 +401,41 @@
       if (!code) {
         creatorNameInput.value = "";
         creatorEmailInput.value = "";
+        departmentInput.value = "Appliance";
+        departmentInput.disabled = false;
+        departmentHint.textContent = "Department will auto-fill from employee code. Client Care can choose the department manually when needed.";
         return true;
       }
 
       if (!match) {
         creatorNameInput.value = "";
         creatorEmailInput.value = "";
+        departmentInput.value = "Appliance";
+        departmentInput.disabled = false;
         return false;
       }
 
       creatorNameInput.value = match.name;
       creatorEmailInput.value = match.email;
+      const matchedDepartment = match.department || "";
+      const validDepartmentOptions = new Set([
+        "Appliance",
+        "Repair Service",
+        "Kitchen Design",
+        "HVAC Sales"
+      ]);
+
+      if (matchedDepartment === "Client Care") {
+        departmentInput.disabled = false;
+        if (!validDepartmentOptions.has(departmentInput.value)) {
+          departmentInput.value = "Appliance";
+        }
+        departmentHint.textContent = "Client Care can manually choose which department should own this terminal charge.";
+      } else {
+        departmentInput.value = matchedDepartment || "Appliance";
+        departmentInput.disabled = true;
+        departmentHint.textContent = "Department was assigned from the employee code.";
+      }
       return true;
     }
 
@@ -548,6 +585,7 @@
         creatorCode: creatorCodeInput.value.trim(),
         creatorName: creatorNameInput.value.trim(),
         creatorEmail: creatorEmailInput.value.trim(),
+        department: departmentInput.value.trim(),
         amount: document.getElementById("amount").value,
         currency: document.getElementById("currency").value,
         salesOrder: document.getElementById("salesOrder").value.trim(),
@@ -572,6 +610,11 @@
 
       if (!applyCreatorLookup() || !payload.creatorCode || !payload.creatorName || !payload.creatorEmail) {
         showStatus("error", "Please enter a valid employee code before starting the terminal charge.");
+        return;
+      }
+
+      if (!payload.department) {
+        showStatus("error", "Please select a department before starting the terminal charge.");
         return;
       }
 

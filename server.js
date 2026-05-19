@@ -532,7 +532,7 @@ app.post("/api/stripe/webhook", express.raw({ type: "application/json" }), async
   }
 });
 
-app.use(express.json());
+app.use(express.json({ limit: "10mb" }));
 
 app.post("/api/login", (req, res) => {
   const { username = "", password = "" } = req.body || {};

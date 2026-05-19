@@ -210,7 +210,7 @@
         return "";
       }
 
-      return `WTY payout ${formatMoney(group.warrantyPayoutAmount || 0)} @ ${formatPercent(group.warrantyPayoutPercent || 0)} (${formatPercent(group.warrantyPenetrationPercent || 0)} penetration)`;
+      return `Protect payout ${formatMoney(group.warrantyPayoutAmount || 0)} @ ${formatPercent(group.warrantyPayoutPercent || 0)} (Protect % ${formatPercent(group.warrantyPenetrationPercent || 0)})`;
     }
 
     function getIncludedLines(group) {

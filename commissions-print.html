@@ -210,11 +210,15 @@
         return "";
       }
 
-      return `Protect payout ${formatMoney(group.warrantyPayoutAmount || 0)} @ ${formatPercent(group.warrantyPayoutPercent || 0)} (Protect % ${formatPercent(group.warrantyPenetrationPercent || 0)})`;
+      return `Protect % ${formatPercent(group.warrantyPenetrationPercent || 0)} @ ${formatPercent(group.warrantyPayoutPercent || 0)}`;
     }
 
     function getIncludedLines(group) {
       return (group.lines || []).filter((line) => String(line.sourceClassification || "").trim().toUpperCase() !== "OMIT");
+    }
+
+    function getDisplayedCommissionAmount(group) {
+      return formatMoney(Number(group.totalPayoutAmount || group.totalCommissionAmount || 0));
     }
 
     function getStatusLabel(status) {
@@ -266,7 +270,7 @@
           </div>
           <div class="summary-card">
             <div class="summary-label">Commission</div>
-            <div class="summary-value">${formatMoney(summary.totalCommissionAmount)}</div>
+            <div class="summary-value">${formatMoney(summary.totalPayoutAmount || summary.totalCommissionAmount)}</div>
             <div class="muted">Current expected payout</div>
           </div>
         </div>
@@ -275,7 +279,7 @@
           return `
           <div class="group">
             <h2>${group.salespersonName || group.salespersonCode} ${group.salespersonCode ? `| ${group.salespersonCode}` : ""}</h2>
-            <p>${group.orderCount} orders | ${group.lineCount} lines | ${formatMoney(group.totalCommissionAmount)} commission${getWarrantySummaryText(group) ? ` | ${getWarrantySummaryText(group)}` : ""}</p>
+            <p>${group.orderCount} orders | ${group.lineCount} lines | ${getDisplayedCommissionAmount(group)} commission${getWarrantySummaryText(group) ? ` | ${getWarrantySummaryText(group)}` : ""}</p>
             <table>
               <thead>
                 <tr>

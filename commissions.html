@@ -697,7 +697,7 @@
 
     function getClassificationOptions(currentValue) {
       const normalizedCurrent = String(currentValue || "").trim().toUpperCase();
-      const options = ["ALL", "SVC", "SPECIAL", "OMIT"];
+      const options = ["ALL", "SVC", "SPECIAL", "OPEN", "OMIT"];
       if (normalizedCurrent && !options.includes(normalizedCurrent)) {
         options.unshift(normalizedCurrent);
       }
@@ -709,7 +709,7 @@
         return "";
       }
 
-      return `WTY payout ${formatMoney(group.warrantyPayoutAmount || 0)} @ ${formatPercent(group.warrantyPayoutPercent || 0)} (${formatPercent(group.warrantyPenetrationPercent || 0)} penetration)`;
+      return `Protect payout ${formatMoney(group.warrantyPayoutAmount || 0)} @ ${formatPercent(group.warrantyPayoutPercent || 0)} (Protect % ${formatPercent(group.warrantyPenetrationPercent || 0)})`;
     }
 
     function inferPeriodLabel(fileName) {

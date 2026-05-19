@@ -213,6 +213,29 @@
       return `Protect % ${formatPercent(group.warrantyPenetrationPercent || 0)} @ ${formatPercent(group.warrantyPayoutPercent || 0)}`;
     }
 
+    function isProtectLine(line) {
+      const type = String(line?.lineType || "").trim().toLowerCase();
+      return type === "wty" || type === "warranty" || type === "protect";
+    }
+
+    function getDisplayLineType(line) {
+      return isProtectLine(line) ? "PROTECT" : (line.lineType || "");
+    }
+
+    function getDisplayCommissionPercent(line, group) {
+      if (isProtectLine(line)) {
+        return Number(group?.warrantyPayoutPercent || 0);
+      }
+      return Number(line?.commissionPercent || 0);
+    }
+
+    function getDisplayCommissionAmount(line, group) {
+      if (isProtectLine(line)) {
+        return Number(line?.sellPrice || 0) * (Number(group?.warrantyPayoutPercent || 0) / 100);
+      }
+      return Number(line?.commissionAmount || 0);
+    }
+
     function getIncludedLines(group) {
       return (group.lines || []).filter((line) => String(line.sourceClassification || "").trim().toUpperCase() !== "OMIT");
     }
@@ -316,13 +339,13 @@
                   <tr>
                     <td>${line.salesOrder || ""}</td>
                     <td>${line.customerName || ""}</td>
-                    <td>${line.lineType || ""}</td>
+                    <td>${getDisplayLineType(line)}</td>
                     <td>${line.productModel || ""}</td>
                     <td>${line.sourceClassification || ""}</td>
                     <td class="number">${Number(line.quantity || 0).toFixed(2).replace(/\.00$/, "")}</td>
                     <td class="money">${formatMoney(line.sellPrice || 0)}</td>
-                    <td class="percent">${formatPercent(line.commissionPercent || 0)}</td>
-                    <td class="money">${formatMoney(line.commissionAmount || 0)}</td>
+                    <td class="percent">${formatPercent(getDisplayCommissionPercent(line, group))}</td>
+                    <td class="money">${formatMoney(getDisplayCommissionAmount(line, group))}</td>
                   </tr>
                 `).join("")}
               </tbody>

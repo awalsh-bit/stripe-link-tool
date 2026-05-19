@@ -1190,6 +1190,16 @@
     renderDashboard();
   }
 
+  async function refreshDashboardData({ silent = false } = {}) {
+    try {
+      await loadStatusData();
+    } catch (err) {
+      if (!silent) {
+        throw err;
+      }
+    }
+  }
+
   function renderDashboard() {
     const queueSearch = queueSearchFilterEl.value.trim().toLowerCase();
     const selectedDepartment = departmentFilterEl.value;
@@ -1358,7 +1368,12 @@
         button.dataset.action === "deactivate" ? "deactivated" : "sent"
       );
     } catch (err) {
-      window.alert(err.message);
+      if (String(err.message || "").includes("Paid links cannot be updated.")) {
+        await refreshDashboardData({ silent: true });
+        window.alert("This link was paid after the dashboard loaded. The queue has been refreshed.");
+      } else {
+        window.alert(err.message);
+      }
     } finally {
       button.disabled = false;
     }
@@ -1375,6 +1390,10 @@
     queueTableBody.innerHTML = `<tr><td colspan="8">Error loading dashboard: ${err.message}</td></tr>`;
     paidTableBody.innerHTML = `<tr><td colspan="7">Error loading dashboard: ${err.message}</td></tr>`;
   });
+
+  setInterval(() => {
+    refreshDashboardData({ silent: true });
+  }, 60000);
 </script>
   <script src="internal-shell.js"></script>
 </body>

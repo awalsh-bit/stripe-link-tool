@@ -233,18 +233,33 @@
     }
 
     .run-card {
+      appearance: none;
+      display: block;
+      width: 100%;
       border: 1px solid var(--border);
       border-radius: 16px;
       padding: 16px;
       background: #fafbff;
+      color: var(--text);
       cursor: pointer;
       transition: border-color 0.2s ease, box-shadow 0.2s ease;
+      text-align: left;
     }
 
     .run-card.active {
       border-color: rgba(99, 91, 255, 0.45);
       box-shadow: 0 8px 24px rgba(99, 91, 255, 0.12);
       background: #fff;
+    }
+
+    .run-card:hover {
+      background: #fff;
+    }
+
+    .run-card strong {
+      color: var(--text);
+      font-size: 18px;
+      line-height: 1.2;
     }
 
     .run-meta {
@@ -397,16 +412,17 @@
     }
 
     .salesperson-right {
-      display: flex;
-      gap: 18px;
-      justify-content: flex-end;
-      flex-wrap: wrap;
+      display: grid;
+      grid-template-columns: 120px 120px 210px minmax(320px, 1fr);
+      gap: 14px;
+      justify-content: start;
       align-items: center;
     }
 
     .summary-chip {
       display: inline-flex;
       align-items: center;
+      justify-content: flex-start;
       min-height: 34px;
       padding: 0 12px;
       border-radius: 999px;
@@ -416,6 +432,7 @@
       color: var(--muted);
       line-height: 1.4;
       white-space: nowrap;
+      width: 100%;
     }
 
     .detail-panel {
@@ -521,7 +538,13 @@
       }
 
       .salesperson-right {
-        justify-content: flex-start;
+        grid-template-columns: 1fr 1fr;
+      }
+    }
+
+    @media (max-width: 560px) {
+      .salesperson-right {
+        grid-template-columns: 1fr;
       }
     }
   </style>

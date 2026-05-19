@@ -41,6 +41,7 @@ import {
   recalculateCommissionLine,
   updateCommissionLineClassification,
   lockCommissionRun,
+  lockCommissionSalesperson,
   deleteCommissionRun
 } from "./lib/commissions-postgres.js";
 
@@ -662,6 +663,26 @@ app.get("/api/commissions/runs/:runId", requireExecutiveApi, async (req, res) =>
   } catch (error) {
     return res.status(500).json({
       error: error.message || "Unable to load commission run."
+    });
+  }
+});
+
+app.post("/api/commissions/runs/:runId/salespeople/:salespersonKey/lock", requireExecutiveApi, async (req, res) => {
+  try {
+    const salespersonStatus = await lockCommissionSalesperson(
+      req.params.runId,
+      decodeURIComponent(req.params.salespersonKey || "")
+    );
+
+    if (!salespersonStatus) {
+      return res.status(404).json({ error: "Salesperson status not found." });
+    }
+
+    await finalizeExpiredCommissionRuns();
+    return res.json({ success: true, salespersonStatus });
+  } catch (error) {
+    return res.status(400).json({
+      error: error.message || "Unable to lock salesperson."
     });
   }
 });

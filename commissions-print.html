@@ -230,6 +230,7 @@
     async function loadRun() {
       const params = new URLSearchParams(window.location.search);
       const runId = params.get("run");
+      const salespersonKey = params.get("salesperson") || "";
 
       if (!runId) {
         content.textContent = "No commission run was specified.";
@@ -243,38 +244,54 @@
         throw new Error(data.error || "Unable to load commission run.");
       }
 
-      renderRun(data);
+      renderRun(data, salespersonKey);
     }
 
-    function renderRun(data) {
+    function renderRun(data, salespersonKey = "") {
       const { run, summary, salespeople } = data;
+      const filteredSalespeople = salespersonKey
+        ? salespeople.filter((group) => (group.salespersonCode || group.salespersonName || "UNKNOWN") === salespersonKey)
+        : salespeople;
+      const filteredSummary = filteredSalespeople.reduce((totals, group) => {
+        totals.salespersonCount += 1;
+        totals.lineCount += Number(group.lineCount || 0);
+        totals.totalSellPrice += Number(group.totalSellPrice || 0);
+        totals.totalPayoutAmount += Number(group.totalPayoutAmount || group.totalCommissionAmount || 0);
+        return totals;
+      }, {
+        salespersonCount: 0,
+        lineCount: 0,
+        totalSellPrice: 0,
+        totalPayoutAmount: 0
+      });
+
       content.className = "";
       content.innerHTML = `
         <h1>${run.periodLabel}</h1>
-        <p>${run.sourceFileName} | ${getStatusLabel(run.status)} | Imported by ${run.importedByName || run.importedByUsername || "Unknown"}</p>
+        <p>${run.sourceFileName} | ${getStatusLabel(run.status)} | Imported by ${run.importedByName || run.importedByUsername || "Unknown"}${salespersonKey && filteredSalespeople[0] ? ` | ${filteredSalespeople[0].salespersonName || filteredSalespeople[0].salespersonCode}` : ""}</p>
         <div class="summary">
           <div class="summary-card">
             <div class="summary-label">Salespeople</div>
-            <div class="summary-value">${summary.salespersonCount}</div>
-            <div class="muted">Consultants in this run</div>
+            <div class="summary-value">${filteredSummary.salespersonCount}</div>
+            <div class="muted">${salespersonKey ? "Consultant in this export" : "Consultants in this run"}</div>
           </div>
           <div class="summary-card">
             <div class="summary-label">Lines</div>
-            <div class="summary-value">${summary.lineCount}</div>
+            <div class="summary-value">${filteredSummary.lineCount}</div>
             <div class="muted">Imported detail lines</div>
           </div>
           <div class="summary-card">
             <div class="summary-label">Sell Price</div>
-            <div class="summary-value">${formatMoney(summary.totalSellPrice)}</div>
+            <div class="summary-value">${formatMoney(filteredSummary.totalSellPrice)}</div>
             <div class="muted">Total sales in this run</div>
           </div>
           <div class="summary-card">
             <div class="summary-label">Commission</div>
-            <div class="summary-value">${formatMoney(summary.totalPayoutAmount || summary.totalCommissionAmount)}</div>
+            <div class="summary-value">${formatMoney(filteredSummary.totalPayoutAmount || 0)}</div>
             <div class="muted">Current expected payout</div>
           </div>
         </div>
-        ${salespeople.map((group) => {
+        ${filteredSalespeople.map((group) => {
           const includedLines = getIncludedLines(group);
           return `
           <div class="group">

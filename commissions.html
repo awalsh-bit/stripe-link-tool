@@ -428,7 +428,7 @@
       display: grid;
       grid-template-columns: minmax(200px, 300px) minmax(0, 1fr);
       gap: 16px;
-      align-items: center;
+      align-items: start;
     }
 
     .salesperson-left {
@@ -452,11 +452,11 @@
 
     .salesperson-right {
       display: grid;
-      grid-template-columns: 120px 120px 220px 260px;
-      gap: 14px;
-      justify-content: start;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 12px;
       align-items: center;
-      max-width: 100%;
+      width: 100%;
+      min-width: 0;
     }
 
     .summary-chip {
@@ -473,6 +473,10 @@
       line-height: 1.4;
       white-space: nowrap;
       width: 100%;
+      max-width: 100%;
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
 
     .detail-panel {
@@ -486,6 +490,41 @@
       padding: 18px 20px;
       border-bottom: 1px solid var(--border);
       background: #fafbff;
+    }
+
+    .detail-panel-header-row {
+      display: flex;
+      justify-content: space-between;
+      gap: 16px;
+      align-items: start;
+      flex-wrap: wrap;
+    }
+
+    .detail-panel-actions {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: flex-end;
+    }
+
+    .status-counts {
+      justify-content: flex-end;
+    }
+
+    .count-badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 34px;
+      padding: 0 12px;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      background: #fafbff;
+      color: #475569;
+      font-size: 13px;
+      font-weight: 700;
+      white-space: nowrap;
     }
 
     .table-wrap {
@@ -582,7 +621,7 @@
       }
     }
 
-    @media (max-width: 560px) {
+    @media (max-width: 620px) {
       .salesperson-right {
         grid-template-columns: 1fr;
       }
@@ -600,9 +639,6 @@
             <div class="eyebrow">Executive Access</div>
             <h1>Commissions</h1>
             <p>Upload an ePASS commission workbook, review it in draft, adjust percent or dollars at the line level, then lock the run before payroll closes.</p>
-          </div>
-          <div class="hero-actions">
-            <a id="printRunBtn" class="button-link secondary hidden" target="_blank" rel="noopener noreferrer">Print / Save PDF</a>
           </div>
         </div>
       </div>
@@ -641,9 +677,10 @@
                 <h2 id="runTitle">Commission Run</h2>
                 <p id="runMeta">Draft run</p>
               </div>
-              <div class="actions">
-                <span id="runStatusBadge" class="badge draft">Draft</span>
-                <button id="lockRunBtn" type="button">Lock run</button>
+              <div class="actions status-counts">
+                <span id="runDraftCountBadge" class="count-badge">Draft 0</span>
+                <span id="runLockedCountBadge" class="count-badge">Locked 0</span>
+                <span id="runFinalCountBadge" class="count-badge">Final / Paid 0</span>
               </div>
             </div>
 
@@ -675,8 +712,17 @@
 
             <div class="detail-panel">
               <div class="detail-panel-header">
-                <h3 id="salespersonTitle">Select a salesperson</h3>
-                <p id="salespersonMeta">Choose a consultant above to review each ticket, model, source classification, sell price, and editable commission values.</p>
+                <div class="detail-panel-header-row">
+                  <div>
+                    <h3 id="salespersonTitle">Select a salesperson</h3>
+                    <p id="salespersonMeta">Choose a consultant above to review each ticket, model, source classification, sell price, and editable commission values.</p>
+                  </div>
+                  <div id="salespersonActions" class="detail-panel-actions hidden">
+                    <span id="salespersonStatusBadge" class="badge draft">Draft</span>
+                    <a id="printSalespersonBtn" class="button-link secondary" target="_blank" rel="noopener noreferrer">Print / Save PDF</a>
+                    <button id="lockSalespersonBtn" type="button">Lock salesperson</button>
+                  </div>
+                </div>
               </div>
               <div class="table-wrap">
                 <table>
@@ -720,9 +766,9 @@
     const runDetailEmpty = document.getElementById("runDetailEmpty");
     const runTitle = document.getElementById("runTitle");
     const runMeta = document.getElementById("runMeta");
-    const runStatusBadge = document.getElementById("runStatusBadge");
-    const lockRunBtn = document.getElementById("lockRunBtn");
-    const printRunBtn = document.getElementById("printRunBtn");
+    const runDraftCountBadge = document.getElementById("runDraftCountBadge");
+    const runLockedCountBadge = document.getElementById("runLockedCountBadge");
+    const runFinalCountBadge = document.getElementById("runFinalCountBadge");
     const kpiSalespeople = document.getElementById("kpiSalespeople");
     const kpiLines = document.getElementById("kpiLines");
     const kpiSellPrice = document.getElementById("kpiSellPrice");
@@ -730,6 +776,10 @@
     const salespersonGrid = document.getElementById("salespersonGrid");
     const salespersonTitle = document.getElementById("salespersonTitle");
     const salespersonMeta = document.getElementById("salespersonMeta");
+    const salespersonActions = document.getElementById("salespersonActions");
+    const salespersonStatusBadge = document.getElementById("salespersonStatusBadge");
+    const printSalespersonBtn = document.getElementById("printSalespersonBtn");
+    const lockSalespersonBtn = document.getElementById("lockSalespersonBtn");
     const lineTableBody = document.getElementById("lineTableBody");
 
     let currentRuns = [];
@@ -795,6 +845,13 @@
       if (status === "locked") return "Locked";
       if (status === "final_paid") return "Final / Paid";
       return "Draft";
+    }
+
+    function buildSalespersonPrintUrl(runId, salespersonKey) {
+      const params = new URLSearchParams();
+      params.set("run", runId);
+      params.set("salesperson", salespersonKey);
+      return `commissions-print.html?${params.toString()}`;
     }
 
     function getSalespersonDisplayKey(group) {
@@ -978,7 +1035,7 @@
       });
     }
 
-    async function selectRun(runId) {
+    async function selectRun(runId, preferredSalespersonKey = currentSalespersonCode) {
       clearStatus();
       const res = await fetch(`/api/commissions/runs/${encodeURIComponent(runId)}`);
       const data = await res.json();
@@ -989,7 +1046,10 @@
 
       currentRunId = runId;
       currentRunDetail = data;
-      currentSalespersonCode = data.salespeople?.[0] ? getSalespersonDisplayKey(data.salespeople[0]) : "";
+      const preferredExists = (data.salespeople || []).some((group) => getSalespersonDisplayKey(group) === preferredSalespersonKey);
+      currentSalespersonCode = preferredExists
+        ? preferredSalespersonKey
+        : (data.salespeople?.[0] ? getSalespersonDisplayKey(data.salespeople[0]) : "");
       renderRuns();
       renderRunDetail();
     }
@@ -1006,12 +1066,10 @@
 
       const { run, summary, salespeople } = currentRunDetail;
       runTitle.textContent = run.periodLabel;
-      runMeta.textContent = `${run.sourceFileName} | Imported by ${run.importedByName || run.importedByUsername || "Unknown"} | ${getStatusLabel(run.status)}`;
-      runStatusBadge.className = `badge ${run.status}`;
-      runStatusBadge.textContent = getStatusLabel(run.status);
-      lockRunBtn.classList.toggle("hidden", run.status !== "draft");
-      printRunBtn.classList.remove("hidden");
-      printRunBtn.href = `commissions-print.html?run=${encodeURIComponent(run.id)}`;
+      runMeta.textContent = `${run.sourceFileName} | Imported by ${run.importedByName || run.importedByUsername || "Unknown"}`;
+      runDraftCountBadge.textContent = `Draft ${summary.draftCount || 0}`;
+      runLockedCountBadge.textContent = `Locked ${summary.lockedCount || 0}`;
+      runFinalCountBadge.textContent = `Final / Paid ${summary.finalPaidCount || 0}`;
 
       kpiSalespeople.textContent = String(summary.salespersonCount || 0);
       kpiLines.textContent = String(summary.lineCount || 0);
@@ -1057,10 +1115,10 @@
                     <div class="salesperson-code">${group.salespersonCode || "No code"}</div>
                   </div>
                   <div class="salesperson-right">
-                    <span class="summary-chip">${group.orderCount} tickets</span>
-                    <span class="summary-chip">${group.lineCount} lines</span>
-                    <span class="summary-chip">${getDisplayedCommissionAmount(group)} commission</span>
-                    ${getWarrantySummaryText(group) ? `<span class="summary-chip">${getWarrantySummaryText(group)}</span>` : ""}
+                    <span class="summary-chip tickets">${group.orderCount} tickets</span>
+                    <span class="summary-chip lines">${group.lineCount} lines</span>
+                    <span class="summary-chip commission">${getDisplayedCommissionAmount(group)} commission</span>
+                    ${getWarrantySummaryText(group) ? `<span class="summary-chip protect">${getWarrantySummaryText(group)}</span>` : ""}
                   </div>
                 </div>
               `;
@@ -1083,9 +1141,16 @@
       if (!group) {
         salespersonTitle.textContent = "Select a salesperson";
         salespersonMeta.textContent = "Choose a consultant above to review each ticket, model, source classification, sell price, and editable commission values.";
+        salespersonActions.classList.add("hidden");
         lineTableBody.innerHTML = '<tr><td colspan="10" class="empty-state">No salesperson selected yet.</td></tr>';
         return;
       }
+
+      salespersonActions.classList.remove("hidden");
+      salespersonStatusBadge.className = `badge ${group.status || "draft"}`;
+      salespersonStatusBadge.textContent = getStatusLabel(group.status);
+      printSalespersonBtn.href = buildSalespersonPrintUrl(currentRunId, getSalespersonDisplayKey(group));
+      lockSalespersonBtn.classList.toggle("hidden", (group.status || "draft") !== "draft");
 
       salespersonTitle.textContent = `${group.salespersonName || group.salespersonCode} | ${group.salespersonCode || ""}`.trim();
       salespersonMeta.textContent = `${group.orderCount} orders | ${group.lineCount} lines | ${getDisplayedCommissionAmount(group)} commission${getWarrantySummaryText(group) ? ` | ${getWarrantySummaryText(group)}` : ""}`;
@@ -1093,7 +1158,7 @@
 
       group.lines.forEach((line) => {
         const row = document.createElement("tr");
-        const disabled = runStatus !== "draft" ? "disabled" : "";
+        const disabled = (group.status || "draft") !== "draft" ? "disabled" : "";
         const isOmitted = String(line.sourceClassification || "").trim().toUpperCase() === "OMIT";
         row.className = isOmitted ? "omitted-row" : "";
         const classificationOptions = getClassificationOptions(line.sourceClassification)
@@ -1111,7 +1176,7 @@
           <td class="money">${formatMoney(line.sellPrice || 0)}</td>
           <td class="percent"><input class="inline-input" data-line-id="${line.id}" data-mode="percent" type="number" step="0.01" value="${Number(line.commissionPercent || 0).toFixed(2)}" ${disabled} /></td>
           <td class="money"><input class="inline-input" data-line-id="${line.id}" data-mode="amount" type="number" step="0.01" value="${Number(line.commissionAmount || 0).toFixed(2)}" ${disabled} /></td>
-          <td class="inline-actions">${runStatus === "draft" ? `<button type="button" data-line-id="${line.id}" class="secondary calc-btn">Calculate</button>` : '<span class="hint">Locked</span>'}</td>
+          <td class="inline-actions">${(group.status || "draft") === "draft" ? `<button type="button" data-line-id="${line.id}" class="secondary calc-btn">Calculate</button>` : '<span class="hint">Locked</span>'}</td>
         `;
         lineTableBody.appendChild(row);
       });
@@ -1140,7 +1205,7 @@
               throw new Error(data.error || "Unable to update line classification.");
             }
 
-            await selectRun(currentRunId);
+            await selectRun(currentRunId, currentSalespersonCode);
             showStatus("success", `Line classification updated to ${nextValue}.`);
           } catch (error) {
             showStatus("error", error.message);
@@ -1174,7 +1239,7 @@
               throw new Error(data.error || "Unable to recalculate line.");
             }
 
-            await selectRun(currentRunId);
+            await selectRun(currentRunId, currentSalespersonCode);
             showStatus("success", "Commission line recalculated and saved.");
           } catch (error) {
             showStatus("error", error.message);
@@ -1240,35 +1305,35 @@
       }
     });
 
-    lockRunBtn.addEventListener("click", async () => {
-      if (!currentRunId) {
+    lockSalespersonBtn.addEventListener("click", async () => {
+      if (!currentRunId || !currentSalespersonCode) {
         return;
       }
 
-      if (!confirm("Lock this commission run? Employees will have a 48-hour exception window before it automatically moves to final / paid.")) {
+      if (!confirm("Lock this salesperson? They will have a 48-hour exception window before it automatically moves to final / paid.")) {
         return;
       }
 
-      lockRunBtn.disabled = true;
-      lockRunBtn.textContent = "Locking...";
+      lockSalespersonBtn.disabled = true;
+      lockSalespersonBtn.textContent = "Locking...";
 
       try {
-        const res = await fetch(`/api/commissions/runs/${encodeURIComponent(currentRunId)}/lock`, {
+        const res = await fetch(`/api/commissions/runs/${encodeURIComponent(currentRunId)}/salespeople/${encodeURIComponent(currentSalespersonCode)}/lock`, {
           method: "POST"
         });
         const data = await res.json();
         if (!res.ok) {
-          throw new Error(data.error || "Unable to lock commission run.");
+          throw new Error(data.error || "Unable to lock salesperson.");
         }
 
         await loadRuns();
-        await selectRun(currentRunId);
-        showStatus("success", "Commission run locked. It will automatically convert to final / paid after 48 hours.");
+        await selectRun(currentRunId, currentSalespersonCode);
+        showStatus("success", "Salesperson locked. It will automatically convert to final / paid after 48 hours.");
       } catch (error) {
         showStatus("error", error.message);
       } finally {
-        lockRunBtn.disabled = false;
-        lockRunBtn.textContent = "Lock run";
+        lockSalespersonBtn.disabled = false;
+        lockSalespersonBtn.textContent = "Lock salesperson";
       }
     });
 

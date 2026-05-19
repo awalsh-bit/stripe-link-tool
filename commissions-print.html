@@ -205,6 +205,18 @@
       return `${Number(value || 0).toFixed(2)}%`;
     }
 
+    function getWarrantySummaryText(group) {
+      if (String(group.salespersonDepartment || "").trim().toLowerCase() !== "appliance") {
+        return "";
+      }
+
+      return `WTY payout ${formatMoney(group.warrantyPayoutAmount || 0)} @ ${formatPercent(group.warrantyPayoutPercent || 0)} (${formatPercent(group.warrantyPenetrationPercent || 0)} penetration)`;
+    }
+
+    function getIncludedLines(group) {
+      return (group.lines || []).filter((line) => String(line.sourceClassification || "").trim().toUpperCase() !== "OMIT");
+    }
+
     function getStatusLabel(status) {
       if (status === "locked") return "Locked";
       if (status === "final_paid") return "Final / Paid";
@@ -258,10 +270,12 @@
             <div class="muted">Current expected payout</div>
           </div>
         </div>
-        ${salespeople.map((group) => `
+        ${salespeople.map((group) => {
+          const includedLines = getIncludedLines(group);
+          return `
           <div class="group">
             <h2>${group.salespersonName || group.salespersonCode} ${group.salespersonCode ? `| ${group.salespersonCode}` : ""}</h2>
-            <p>${group.orderCount} orders | ${group.lineCount} lines | ${formatMoney(group.totalCommissionAmount)} commission</p>
+            <p>${group.orderCount} orders | ${group.lineCount} lines | ${formatMoney(group.totalCommissionAmount)} commission${getWarrantySummaryText(group) ? ` | ${getWarrantySummaryText(group)}` : ""}</p>
             <table>
               <thead>
                 <tr>
@@ -277,7 +291,7 @@
                 </tr>
               </thead>
               <tbody>
-                ${group.lines.map((line) => `
+                ${includedLines.map((line) => `
                   <tr>
                     <td>${line.salesOrder || ""}</td>
                     <td>${line.customerName || ""}</td>
@@ -293,7 +307,8 @@
               </tbody>
             </table>
           </div>
-        `).join("")}
+        `;
+        }).join("")}
       `;
     }
 

@@ -39,6 +39,7 @@ import {
   createCommissionRun,
   getCommissionRunDetail,
   recalculateCommissionLine,
+  updateCommissionLineClassification,
   lockCommissionRun
 } from "./lib/commissions-postgres.js";
 
@@ -682,6 +683,23 @@ app.post("/api/commissions/lines/:lineId/calculate", requireExecutiveApi, async 
   } catch (error) {
     return res.status(400).json({
       error: error.message || "Unable to recalculate commission line."
+    });
+  }
+});
+
+app.post("/api/commissions/lines/:lineId/classification", requireExecutiveApi, async (req, res) => {
+  try {
+    const sourceClassification = String(req.body?.sourceClassification || "").trim();
+
+    const line = await updateCommissionLineClassification(req.params.lineId, sourceClassification);
+    if (!line) {
+      return res.status(404).json({ error: "Commission line not found." });
+    }
+
+    return res.json({ success: true, line });
+  } catch (error) {
+    return res.status(400).json({
+      error: error.message || "Unable to update commission line classification."
     });
   }
 });

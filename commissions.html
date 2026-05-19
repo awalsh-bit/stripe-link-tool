@@ -328,20 +328,40 @@
       margin-bottom: 18px;
     }
 
-    .salesperson-grid {
+    .salesperson-groups {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-      gap: 14px;
+      gap: 18px;
       margin-bottom: 20px;
+    }
+
+    .department-group {
+      display: grid;
+      gap: 10px;
+    }
+
+    .department-label {
+      font-size: 12px;
+      font-weight: 800;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: #64748b;
+      padding-left: 4px;
+    }
+
+    .salesperson-list {
+      display: grid;
+      gap: 10px;
     }
 
     .salesperson-card {
       border: 1px solid var(--border);
       border-radius: 16px;
       background: #fafbff;
-      padding: 16px;
+      padding: 14px 16px;
       cursor: pointer;
       transition: border-color 0.2s ease, box-shadow 0.2s ease;
+      width: 100%;
+      text-align: left;
     }
 
     .salesperson-card.active {
@@ -350,16 +370,52 @@
       background: #fff;
     }
 
-    .subtle-list {
-      margin-top: 12px;
+    .salesperson-card-row {
       display: grid;
-      gap: 6px;
+      grid-template-columns: minmax(200px, 300px) minmax(0, 1fr);
+      gap: 16px;
+      align-items: center;
     }
 
-    .subtle-list div {
+    .salesperson-left {
+      display: grid;
+      gap: 4px;
+    }
+
+    .salesperson-name {
+      font-size: 18px;
+      font-weight: 800;
+      color: var(--text);
+      line-height: 1.2;
+    }
+
+    .salesperson-code {
+      font-size: 13px;
+      color: #64748b;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+
+    .salesperson-right {
+      display: flex;
+      gap: 18px;
+      justify-content: flex-end;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+
+    .summary-chip {
+      display: inline-flex;
+      align-items: center;
+      min-height: 34px;
+      padding: 0 12px;
+      border-radius: 999px;
+      background: #ffffff;
+      border: 1px solid var(--border);
       font-size: 13px;
       color: var(--muted);
-      line-height: 1.5;
+      line-height: 1.4;
+      white-space: nowrap;
     }
 
     .detail-panel {
@@ -428,6 +484,18 @@
       border-radius: 10px;
     }
 
+    .classification-select {
+      min-width: 110px;
+    }
+
+    .omitted-row {
+      background: #fff7ed;
+    }
+
+    .omitted-row td {
+      color: #9a3412;
+    }
+
     .empty-state {
       padding: 24px;
       color: var(--muted);
@@ -443,6 +511,17 @@
       .form-grid,
       .kpi-grid {
         grid-template-columns: 1fr;
+      }
+    }
+
+    @media (max-width: 820px) {
+      .salesperson-card-row {
+        grid-template-columns: 1fr;
+        gap: 12px;
+      }
+
+      .salesperson-right {
+        justify-content: flex-start;
       }
     }
   </style>
@@ -529,7 +608,7 @@
             </div>
 
             <h3>Sales Consultants</h3>
-            <div id="salespersonGrid" class="salesperson-grid"></div>
+            <div id="salespersonGrid" class="salesperson-groups"></div>
 
             <div class="detail-panel">
               <div class="detail-panel-header">
@@ -616,6 +695,23 @@
       return `${Number(value || 0).toFixed(2)}%`;
     }
 
+    function getClassificationOptions(currentValue) {
+      const normalizedCurrent = String(currentValue || "").trim().toUpperCase();
+      const options = ["ALL", "SVC", "SPECIAL", "OMIT"];
+      if (normalizedCurrent && !options.includes(normalizedCurrent)) {
+        options.unshift(normalizedCurrent);
+      }
+      return options;
+    }
+
+    function getWarrantySummaryText(group) {
+      if (String(group.salespersonDepartment || "").trim().toLowerCase() !== "appliance") {
+        return "";
+      }
+
+      return `WTY payout ${formatMoney(group.warrantyPayoutAmount || 0)} @ ${formatPercent(group.warrantyPayoutPercent || 0)} (${formatPercent(group.warrantyPenetrationPercent || 0)} penetration)`;
+    }
+
     function inferPeriodLabel(fileName) {
       return String(fileName || "")
         .replace(/\.[^.]+$/, "")
@@ -636,6 +732,10 @@
 
     function getSalespersonDisplayKey(group) {
       return group.salespersonCode || group.salespersonName || "UNKNOWN";
+    }
+
+    function getDepartmentDisplayKey(group) {
+      return String(group.salespersonDepartment || "Unassigned").trim() || "Unassigned";
     }
 
     function parseWorkbookRows(file) {
@@ -811,29 +911,61 @@
       kpiCommission.textContent = formatMoney(summary.totalCommissionAmount || 0);
 
       salespersonGrid.innerHTML = "";
+
+      const groupsByDepartment = new Map();
       salespeople.forEach((group) => {
-        const key = getSalespersonDisplayKey(group);
-        const card = document.createElement("button");
-        card.type = "button";
-        card.className = `salesperson-card ${key === currentSalespersonCode ? "active" : ""}`;
-        card.innerHTML = `
-          <div class="run-meta">
-            <strong>${group.salespersonName || group.salespersonCode}</strong>
-            <span>${group.salespersonCode || ""}</span>
-          </div>
-          <div class="subtle-list">
-            <div>${group.orderCount} orders | ${group.lineCount} lines</div>
-            <div>${formatMoney(group.totalCommissionAmount)} commission</div>
-            <div>${group.salespersonEmail || "No email saved"}${group.salespersonDepartment ? ` | ${group.salespersonDepartment}` : ""}</div>
-            <div>${group.salesOrders.slice(0, 3).map((order) => order.salesOrder).filter(Boolean).join(", ") || "No sales order detail"}</div>
-          </div>
-        `;
-        card.addEventListener("click", () => {
-          currentSalespersonCode = key;
-          renderRunDetail();
-        });
-        salespersonGrid.appendChild(card);
+        const departmentKey = getDepartmentDisplayKey(group);
+        if (!groupsByDepartment.has(departmentKey)) {
+          groupsByDepartment.set(departmentKey, []);
+        }
+        groupsByDepartment.get(departmentKey).push(group);
       });
+
+      Array.from(groupsByDepartment.entries())
+        .sort((a, b) => a[0].localeCompare(b[0]))
+        .forEach(([department, departmentGroups]) => {
+          const section = document.createElement("section");
+          section.className = "department-group";
+
+          const label = document.createElement("div");
+          label.className = "department-label";
+          label.textContent = department;
+          section.appendChild(label);
+
+          const list = document.createElement("div");
+          list.className = "salesperson-list";
+
+          departmentGroups
+            .sort((a, b) => String(a.salespersonName || a.salespersonCode).localeCompare(String(b.salespersonName || b.salespersonCode)))
+            .forEach((group) => {
+              const key = getSalespersonDisplayKey(group);
+              const card = document.createElement("button");
+              card.type = "button";
+              card.className = `salesperson-card ${key === currentSalespersonCode ? "active" : ""}`;
+              card.innerHTML = `
+                <div class="salesperson-card-row">
+                  <div class="salesperson-left">
+                    <div class="salesperson-name">${group.salespersonName || group.salespersonCode}</div>
+                    <div class="salesperson-code">${group.salespersonCode || "No code"}</div>
+                  </div>
+                  <div class="salesperson-right">
+                    <span class="summary-chip">${group.orderCount} tickets</span>
+                    <span class="summary-chip">${group.lineCount} lines</span>
+                    <span class="summary-chip">${formatMoney(group.totalCommissionAmount)} commission</span>
+                    ${getWarrantySummaryText(group) ? `<span class="summary-chip">${getWarrantySummaryText(group)}</span>` : ""}
+                  </div>
+                </div>
+              `;
+              card.addEventListener("click", () => {
+                currentSalespersonCode = key;
+                renderRunDetail();
+              });
+              list.appendChild(card);
+            });
+
+          section.appendChild(list);
+          salespersonGrid.appendChild(section);
+        });
 
       const selectedGroup = salespeople.find((group) => getSalespersonDisplayKey(group) === currentSalespersonCode) || null;
       renderLineTable(selectedGroup, run.status);
@@ -848,18 +980,25 @@
       }
 
       salespersonTitle.textContent = `${group.salespersonName || group.salespersonCode} | ${group.salespersonCode || ""}`.trim();
-      salespersonMeta.textContent = `${group.orderCount} orders | ${group.lineCount} lines | ${formatMoney(group.totalCommissionAmount)} commission`;
+      salespersonMeta.textContent = `${group.orderCount} orders | ${group.lineCount} lines | ${formatMoney(group.totalCommissionAmount)} commission${getWarrantySummaryText(group) ? ` | ${getWarrantySummaryText(group)}` : ""}`;
       lineTableBody.innerHTML = "";
 
       group.lines.forEach((line) => {
         const row = document.createElement("tr");
         const disabled = runStatus !== "draft" ? "disabled" : "";
+        const isOmitted = String(line.sourceClassification || "").trim().toUpperCase() === "OMIT";
+        row.className = isOmitted ? "omitted-row" : "";
+        const classificationOptions = getClassificationOptions(line.sourceClassification)
+          .map((option) => `<option value="${option}" ${option === String(line.sourceClassification || "").trim().toUpperCase() ? "selected" : ""}>${option}</option>`)
+          .join("");
         row.innerHTML = `
           <td>${line.salesOrder || ""}</td>
           <td>${line.customerName || ""}</td>
           <td>${line.lineType || ""}</td>
           <td>${line.productModel || ""}</td>
-          <td>${line.sourceClassification || ""}</td>
+          <td>${runStatus === "draft"
+            ? `<select class="classification-select" data-line-id="${line.id}" ${disabled}>${classificationOptions}</select>`
+            : (line.sourceClassification || "")}</td>
           <td class="number">${Number(line.quantity || 0).toFixed(2).replace(/\.00$/, "")}</td>
           <td class="money">${formatMoney(line.sellPrice || 0)}</td>
           <td class="percent"><input class="inline-input" data-line-id="${line.id}" data-mode="percent" type="number" step="0.01" value="${Number(line.commissionPercent || 0).toFixed(2)}" ${disabled} /></td>
@@ -873,6 +1012,33 @@
         input.addEventListener("input", () => {
           const row = input.closest("tr");
           row.dataset.lastEditedMode = input.getAttribute("data-mode") || "percent";
+        });
+      });
+
+      lineTableBody.querySelectorAll(".classification-select").forEach((select) => {
+        select.addEventListener("change", async () => {
+          const lineId = select.getAttribute("data-line-id");
+          const nextValue = select.value;
+          select.disabled = true;
+
+          try {
+            const res = await fetch(`/api/commissions/lines/${encodeURIComponent(lineId)}/classification`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ sourceClassification: nextValue })
+            });
+            const data = await res.json();
+            if (!res.ok) {
+              throw new Error(data.error || "Unable to update line classification.");
+            }
+
+            await selectRun(currentRunId);
+            showStatus("success", `Line classification updated to ${nextValue}.`);
+          } catch (error) {
+            showStatus("error", error.message);
+          } finally {
+            select.disabled = false;
+          }
         });
       });
 
@@ -900,25 +1066,7 @@
               throw new Error(data.error || "Unable to recalculate line.");
             }
 
-            const updatedLine = data.line;
-            percentInput.value = Number(updatedLine.commissionPercent || 0).toFixed(2);
-            amountInput.value = Number(updatedLine.commissionAmount || 0).toFixed(2);
-
-            if (currentRunDetail) {
-              const salesperson = currentRunDetail.salespeople.find((item) => getSalespersonDisplayKey(item) === currentSalespersonCode);
-              if (salesperson) {
-                const target = salesperson.lines.find((item) => item.id === updatedLine.id);
-                if (target) {
-                  target.commissionPercent = updatedLine.commissionPercent;
-                  target.commissionAmount = updatedLine.commissionAmount;
-                }
-                salesperson.totalCommissionAmount = salesperson.lines.reduce((sum, item) => sum + Number(item.commissionAmount || 0), 0);
-              }
-
-              currentRunDetail.summary.totalCommissionAmount = currentRunDetail.salespeople.reduce((sum, item) => sum + Number(item.totalCommissionAmount || 0), 0);
-              renderRunDetail();
-            }
-
+            await selectRun(currentRunId);
             showStatus("success", "Commission line recalculated and saved.");
           } catch (error) {
             showStatus("error", error.message);

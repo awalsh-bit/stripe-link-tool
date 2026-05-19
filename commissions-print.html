@@ -57,8 +57,9 @@
     }
 
     h1 {
-      font-size: 34px;
+      font-size: 58px;
       margin-bottom: 8px;
+      line-height: 1;
     }
 
     h2 {
@@ -75,6 +76,15 @@
       margin: 0;
       color: #6b7280;
       line-height: 1.6;
+    }
+
+    .eyebrow {
+      font-size: 14px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      font-weight: 900;
+      color: #111827;
+      margin-bottom: 6px;
     }
 
     .summary {
@@ -105,6 +115,12 @@
       font-weight: 900;
       line-height: 1;
       margin-bottom: 6px;
+    }
+
+    .summary-subvalue {
+      font-size: 13px;
+      color: #475569;
+      line-height: 1.5;
     }
 
     .group {
@@ -244,6 +260,18 @@
       return formatMoney(Number(group.totalPayoutAmount || group.totalCommissionAmount || 0));
     }
 
+    function getProductCommissionAmount(group) {
+      return Number(group?.totalCommissionAmount || 0);
+    }
+
+    function getProtectSummaryLine(group) {
+      if (String(group?.salespersonDepartment || "").trim().toLowerCase() !== "appliance") {
+        return "No Protect payout in this export";
+      }
+
+      return `${formatMoney(group.warrantySellPrice || 0)} Protect sales | ${formatPercent(group.warrantyPenetrationPercent || 0)} Protect % | ${formatMoney(group.warrantyPayoutAmount || 0)} payout`;
+    }
+
     function getStatusLabel(status) {
       if (status === "locked") return "Locked";
       if (status === "final_paid") return "Final / Paid";
@@ -279,34 +307,51 @@
         totals.salespersonCount += 1;
         totals.lineCount += Number(group.lineCount || 0);
         totals.totalSellPrice += Number(group.totalSellPrice || 0);
+        totals.totalProductCommissionAmount += Number(group.totalCommissionAmount || 0);
+        totals.totalProtectSales += Number(group.warrantySellPrice || 0);
+        totals.totalProtectPayoutAmount += Number(group.warrantyPayoutAmount || 0);
+        totals.totalApplianceSalesRevenue += Number(group.applianceSalesRevenue || 0);
         totals.totalPayoutAmount += Number(group.totalPayoutAmount || group.totalCommissionAmount || 0);
         return totals;
       }, {
         salespersonCount: 0,
         lineCount: 0,
         totalSellPrice: 0,
+        totalProductCommissionAmount: 0,
+        totalProtectSales: 0,
+        totalProtectPayoutAmount: 0,
+        totalApplianceSalesRevenue: 0,
         totalPayoutAmount: 0
       });
 
+      const selectedGroup = filteredSalespeople.length === 1 ? filteredSalespeople[0] : null;
+      const aggregatedProtectPercent = filteredSummary.totalApplianceSalesRevenue > 0
+        ? (filteredSummary.totalProtectSales / filteredSummary.totalApplianceSalesRevenue) * 100
+        : 0;
+      const printTitle = selectedGroup?.salespersonName || "Commission Report";
+      const printEyebrow = selectedGroup
+        ? `${selectedGroup.salespersonName || selectedGroup.salespersonCode} - ${run.periodLabel}`
+        : `Commission Report - ${run.periodLabel}`;
+
       content.className = "";
       content.innerHTML = `
+        <div class="eyebrow">${printEyebrow}</div>
         <h1>${run.periodLabel}</h1>
-        <p>${run.sourceFileName} | ${getStatusLabel(run.status)} | Imported by ${run.importedByName || run.importedByUsername || "Unknown"}${salespersonKey && filteredSalespeople[0] ? ` | ${filteredSalespeople[0].salespersonName || filteredSalespeople[0].salespersonCode}` : ""}</p>
         <div class="summary">
           <div class="summary-card">
-            <div class="summary-label">Salespeople</div>
-            <div class="summary-value">${filteredSummary.salespersonCount}</div>
-            <div class="muted">${salespersonKey ? "Consultant in this export" : "Consultants in this run"}</div>
-          </div>
-          <div class="summary-card">
-            <div class="summary-label">Lines</div>
-            <div class="summary-value">${filteredSummary.lineCount}</div>
-            <div class="muted">Imported detail lines</div>
-          </div>
-          <div class="summary-card">
-            <div class="summary-label">Sell Price</div>
+            <div class="summary-label">Total Sales</div>
             <div class="summary-value">${formatMoney(filteredSummary.totalSellPrice)}</div>
-            <div class="muted">Total sales in this run</div>
+            <div class="muted">Visible gross sales in this export</div>
+          </div>
+          <div class="summary-card">
+            <div class="summary-label">Product Commission</div>
+            <div class="summary-value">${formatMoney(selectedGroup ? getProductCommissionAmount(selectedGroup) : filteredSummary.totalProductCommissionAmount)}</div>
+            <div class="muted">${filteredSummary.lineCount} imported detail lines</div>
+          </div>
+          <div class="summary-card">
+            <div class="summary-label">Protect Summary</div>
+            <div class="summary-value">${formatMoney(selectedGroup ? (selectedGroup.warrantyPayoutAmount || 0) : filteredSummary.totalProtectPayoutAmount)}</div>
+            <div class="summary-subvalue">${selectedGroup ? getProtectSummaryLine(selectedGroup) : `${formatMoney(filteredSummary.totalProtectSales)} Protect sales | ${formatPercent(aggregatedProtectPercent)} Protect % | ${formatMoney(filteredSummary.totalProtectPayoutAmount)} payout`}</div>
           </div>
           <div class="summary-card">
             <div class="summary-label">Commission</div>

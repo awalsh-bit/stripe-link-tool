@@ -40,7 +40,8 @@ import {
   getCommissionRunDetail,
   recalculateCommissionLine,
   updateCommissionLineClassification,
-  lockCommissionRun
+  lockCommissionRun,
+  deleteCommissionRun
 } from "./lib/commissions-postgres.js";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -716,6 +717,21 @@ app.post("/api/commissions/runs/:runId/lock", requireExecutiveApi, async (req, r
   } catch (error) {
     return res.status(400).json({
       error: error.message || "Unable to lock commission run."
+    });
+  }
+});
+
+app.delete("/api/commissions/runs/:runId", requireExecutiveApi, async (req, res) => {
+  try {
+    const run = await deleteCommissionRun(req.params.runId);
+    if (!run) {
+      return res.status(404).json({ error: "Commission run not found." });
+    }
+
+    return res.json({ success: true, run });
+  } catch (error) {
+    return res.status(400).json({
+      error: error.message || "Unable to delete commission run."
     });
   }
 });

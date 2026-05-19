@@ -233,8 +233,8 @@
     }
 
     .run-card {
-      appearance: none;
-      display: block;
+      display: grid;
+      gap: 12px;
       width: 100%;
       border: 1px solid var(--border);
       border-radius: 16px;
@@ -260,6 +260,45 @@
       color: var(--text);
       font-size: 18px;
       line-height: 1.2;
+    }
+
+    .run-card-select {
+      appearance: none;
+      display: block;
+      width: 100%;
+      border: none;
+      background: transparent;
+      color: inherit;
+      padding: 0;
+      text-align: left;
+      cursor: pointer;
+    }
+
+    .run-card-select:hover {
+      background: transparent;
+    }
+
+    .run-card-actions {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      align-items: center;
+    }
+
+    .run-card-delete {
+      appearance: none;
+      border: 1px solid #fecaca;
+      background: #fff1f2;
+      color: #b91c1c;
+      padding: 8px 12px;
+      border-radius: 10px;
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    .run-card-delete:hover {
+      background: #ffe4e6;
     }
 
     .run-meta {
@@ -413,10 +452,11 @@
 
     .salesperson-right {
       display: grid;
-      grid-template-columns: 120px 120px 210px minmax(320px, 1fr);
+      grid-template-columns: 120px 120px 220px 260px;
       gap: 14px;
       justify-content: start;
       align-items: center;
+      max-width: 100%;
     }
 
     .summary-chip {
@@ -732,7 +772,11 @@
         return "";
       }
 
-      return `Protect payout ${formatMoney(group.warrantyPayoutAmount || 0)} @ ${formatPercent(group.warrantyPayoutPercent || 0)} (Protect % ${formatPercent(group.warrantyPenetrationPercent || 0)})`;
+      return `Protect % ${formatPercent(group.warrantyPenetrationPercent || 0)} @ ${formatPercent(group.warrantyPayoutPercent || 0)}`;
+    }
+
+    function getDisplayedCommissionAmount(group) {
+      return formatMoney(Number(group.totalPayoutAmount || 0));
     }
 
     function inferPeriodLabel(fileName) {
@@ -874,22 +918,63 @@
       }
 
       currentRuns.forEach((run) => {
-        const button = document.createElement("button");
-        button.type = "button";
-        button.className = `run-card ${run.id === currentRunId ? "active" : ""}`;
-        button.innerHTML = `
-          <div class="run-meta">
+        const card = document.createElement("div");
+        card.className = `run-card ${run.id === currentRunId ? "active" : ""}`;
+        card.innerHTML = `
+          <div class="run-card-actions">
             <strong>${run.periodLabel}</strong>
-            <span class="badge ${run.status}">${getStatusLabel(run.status)}</span>
+            <div class="actions">
+              <span class="badge ${run.status}">${getStatusLabel(run.status)}</span>
+              ${run.status === "draft" ? '<button type="button" class="run-card-delete">Delete</button>' : ""}
+            </div>
           </div>
-          <div class="subtle-list">
-            <div>${run.sourceFileName}</div>
-            <div>${run.salespersonCount} salespeople | ${run.lineCount} lines</div>
-            <div>${formatMoney(run.totalCommissionAmount)} commission on ${formatMoney(run.totalSellPrice)} sales</div>
-          </div>
+          <button type="button" class="run-card-select">
+            <div class="subtle-list">
+              <div>${run.sourceFileName}</div>
+              <div>${run.salespersonCount} salespeople | ${run.lineCount} lines</div>
+              <div>${formatMoney(run.totalPayoutAmount || run.totalCommissionAmount || 0)} commission on ${formatMoney(run.totalSellPrice)} sales</div>
+            </div>
+          </button>
         `;
-        button.addEventListener("click", () => selectRun(run.id));
-        runsList.appendChild(button);
+        card.querySelector(".run-card-select").addEventListener("click", () => selectRun(run.id));
+        const deleteButton = card.querySelector(".run-card-delete");
+        if (deleteButton) {
+          deleteButton.addEventListener("click", async (event) => {
+            event.stopPropagation();
+            if (!confirm(`Delete draft run "${run.periodLabel}"? This cannot be undone.`)) {
+              return;
+            }
+
+            deleteButton.disabled = true;
+            deleteButton.textContent = "Deleting...";
+
+            try {
+              const res = await fetch(`/api/commissions/runs/${encodeURIComponent(run.id)}`, {
+                method: "DELETE"
+              });
+              const data = await res.json();
+              if (!res.ok) {
+                throw new Error(data.error || "Unable to delete commission run.");
+              }
+
+              if (currentRunId === run.id) {
+                currentRunId = "";
+                currentRunDetail = null;
+                currentSalespersonCode = "";
+              }
+
+              await loadRuns();
+              renderRunDetail();
+              showStatus("success", `Deleted draft run ${run.periodLabel}.`);
+            } catch (error) {
+              showStatus("error", error.message);
+            } finally {
+              deleteButton.disabled = false;
+              deleteButton.textContent = "Delete";
+            }
+          });
+        }
+        runsList.appendChild(card);
       });
     }
 
@@ -931,7 +1016,7 @@
       kpiSalespeople.textContent = String(summary.salespersonCount || 0);
       kpiLines.textContent = String(summary.lineCount || 0);
       kpiSellPrice.textContent = formatMoney(summary.totalSellPrice || 0);
-      kpiCommission.textContent = formatMoney(summary.totalCommissionAmount || 0);
+      kpiCommission.textContent = formatMoney(summary.totalPayoutAmount || summary.totalCommissionAmount || 0);
 
       salespersonGrid.innerHTML = "";
 
@@ -974,7 +1059,7 @@
                   <div class="salesperson-right">
                     <span class="summary-chip">${group.orderCount} tickets</span>
                     <span class="summary-chip">${group.lineCount} lines</span>
-                    <span class="summary-chip">${formatMoney(group.totalCommissionAmount)} commission</span>
+                    <span class="summary-chip">${getDisplayedCommissionAmount(group)} commission</span>
                     ${getWarrantySummaryText(group) ? `<span class="summary-chip">${getWarrantySummaryText(group)}</span>` : ""}
                   </div>
                 </div>
@@ -1003,7 +1088,7 @@
       }
 
       salespersonTitle.textContent = `${group.salespersonName || group.salespersonCode} | ${group.salespersonCode || ""}`.trim();
-      salespersonMeta.textContent = `${group.orderCount} orders | ${group.lineCount} lines | ${formatMoney(group.totalCommissionAmount)} commission${getWarrantySummaryText(group) ? ` | ${getWarrantySummaryText(group)}` : ""}`;
+      salespersonMeta.textContent = `${group.orderCount} orders | ${group.lineCount} lines | ${getDisplayedCommissionAmount(group)} commission${getWarrantySummaryText(group) ? ` | ${getWarrantySummaryText(group)}` : ""}`;
       lineTableBody.innerHTML = "";
 
       group.lines.forEach((line) => {

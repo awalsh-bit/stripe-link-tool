@@ -121,9 +121,13 @@
 
     if (user?.accessGroup === "executive") {
       links.push({
-        href: "commissions.html",
         title: "Commissions",
-        text: "Executive commissions reporting and review."
+        children: [
+          { href: "commissions.html?view=appliance", title: "Appliance Sales" },
+          { href: "commissions.html?view=hvac", title: "HVAC Sales" },
+          { href: "commissions.html?view=kitchen", title: "Kitchen Design" },
+          { href: "commissions.html?view=repair", title: "Repair Service" }
+        ]
       });
     }
 
@@ -168,7 +172,7 @@
     ];
 
     if (user?.accessGroup === "executive") {
-      links.push(`<a class="internal-shell-footer-link" href="commissions.html">Commissions</a>`);
+      links.push(`<a class="internal-shell-footer-link" href="commissions.html?view=appliance">Commissions</a>`);
     }
 
     links.push(`<a class="internal-shell-footer-link" href="logout.html">Sign Out</a>`);

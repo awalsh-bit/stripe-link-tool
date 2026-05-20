@@ -711,14 +711,14 @@
         <div class="hero">
           <div>
             <div class="eyebrow">Executive Access</div>
-            <h1>Commissions</h1>
-            <p>Upload an ePASS commission workbook, review it in draft, adjust percent or dollars at the line level, then lock the run before payroll closes.</p>
+            <h1 id="pageHeading">Commissions</h1>
+            <p id="pageDescription">Upload an ePASS commission workbook, review it in draft, adjust percent or dollars at the line level, then lock the run before payroll closes.</p>
           </div>
         </div>
       </div>
 
       <div class="card">
-        <h2>Import ePASS Report</h2>
+        <h2 id="importHeading">Import ePASS Report</h2>
         <div class="form-grid">
           <div class="field">
             <label for="commissionFile">Commission Workbook</label>
@@ -858,13 +858,63 @@
   </div>
 
   <script src="employee-directory.js"></script>
+  <script>
+    (function () {
+      const params = new URLSearchParams(window.location.search);
+      const view = String(params.get("view") || "appliance").trim().toLowerCase();
+      const labels = {
+        appliance: { shellLabel: "Appliance Commissions", title: "Wilson AC & Appliance - Appliance Sales Commissions" },
+        hvac: { shellLabel: "HVAC Commissions", title: "Wilson AC & Appliance - HVAC Sales Commissions" },
+        kitchen: { shellLabel: "Kitchen Design Commissions", title: "Wilson AC & Appliance - Kitchen Design Commissions" },
+        repair: { shellLabel: "Repair Service Commissions", title: "Wilson AC & Appliance - Repair Service Commissions" }
+      };
+      const selected = labels[view] || labels.appliance;
+      document.body.dataset.shellLabel = selected.shellLabel;
+      document.title = selected.title;
+    })();
+  </script>
   <script src="internal-shell.js"></script>
   <script>
     const TEAM_DIRECTORY = window.WILSON_EMPLOYEE_DIRECTORY || {};
+    const COMMISSION_VIEWS = {
+      appliance: {
+        key: "appliance",
+        heading: "Appliance Sales Commissions",
+        description: "Upload an ePASS commission workbook, review appliance-oriented commissions in draft, adjust line-level payouts, and lock the run before payroll closes.",
+        importHeading: "Import ePASS Report",
+        allowedDepartments: ["appliance", "client care", "unassigned", ""]
+      },
+      hvac: {
+        key: "hvac",
+        heading: "HVAC Sales Commissions",
+        description: "Upload an ePASS commission workbook, review HVAC sales-order margin payouts, and lock each salesperson once labor, COGS, and overhead are finalized.",
+        importHeading: "Import ePASS Report",
+        allowedDepartments: ["hvac sales"]
+      },
+      kitchen: {
+        key: "kitchen",
+        heading: "Kitchen Design Commissions",
+        description: "Upload an ePASS commission workbook, review kitchen design commissions in draft, and lock the run before payroll closes.",
+        importHeading: "Import ePASS Report",
+        allowedDepartments: ["kitchen design"]
+      },
+      repair: {
+        key: "repair",
+        heading: "Repair Service Commissions",
+        description: "Upload an ePASS commission workbook, review repair service commissions in draft, and lock the run before payroll closes.",
+        importHeading: "Import ePASS Report",
+        allowedDepartments: ["repair service"]
+      }
+    };
+    const currentViewParam = String(new URLSearchParams(window.location.search).get("view") || "appliance").trim().toLowerCase();
+    const VIEW_CONFIG = COMMISSION_VIEWS[currentViewParam] || COMMISSION_VIEWS.appliance;
     const commissionFileInput = document.getElementById("commissionFile");
     const periodLabelInput = document.getElementById("periodLabel");
     const importBtn = document.getElementById("importBtn");
     const statusBox = document.getElementById("status");
+    const pageHeading = document.getElementById("pageHeading");
+    const pageDescription = document.getElementById("pageDescription");
+    const importHeading = document.getElementById("importHeading");
     const runsList = document.getElementById("runsList");
     const runDetail = document.getElementById("runDetail");
     const runDetailEmpty = document.getElementById("runDetailEmpty");
@@ -895,6 +945,10 @@
     let currentRunDetail = null;
     let currentRunId = "";
     let currentSalespersonCode = "";
+
+    pageHeading.textContent = VIEW_CONFIG.heading;
+    pageDescription.textContent = VIEW_CONFIG.description;
+    importHeading.textContent = VIEW_CONFIG.importHeading;
 
     function showStatus(type, message) {
       statusBox.className = `status ${type}`;
@@ -1267,6 +1321,7 @@
       const params = new URLSearchParams();
       params.set("run", runId);
       params.set("salesperson", salespersonKey);
+      params.set("view", VIEW_CONFIG.key);
       return `commissions-print.html?${params.toString()}`;
     }
 
@@ -1276,6 +1331,40 @@
 
     function getDepartmentDisplayKey(group) {
       return String(group.salespersonDepartment || "Unassigned").trim() || "Unassigned";
+    }
+
+    function normalizeDepartmentValue(value) {
+      return String(value || "").trim().toLowerCase();
+    }
+
+    function matchesCurrentDepartmentView(group) {
+      const normalizedDepartment = normalizeDepartmentValue(group?.salespersonDepartment);
+      if (!normalizedDepartment) {
+        return VIEW_CONFIG.allowedDepartments.includes("");
+      }
+      if (normalizedDepartment === "unassigned") {
+        return VIEW_CONFIG.allowedDepartments.includes("unassigned");
+      }
+      return VIEW_CONFIG.allowedDepartments.includes(normalizedDepartment);
+    }
+
+    function getVisibleSalespeople(detail) {
+      return (detail?.salespeople || []).filter((group) => matchesCurrentDepartmentView(group));
+    }
+
+    function buildVisibleSummary(salespeople) {
+      return {
+        salespersonCount: salespeople.length,
+        draftCount: salespeople.filter((group) => (group.status || "draft") === "draft").length,
+        lockedCount: salespeople.filter((group) => group.status === "locked").length,
+        finalPaidCount: salespeople.filter((group) => group.status === "final_paid").length,
+        lineCount: salespeople.reduce((sum, group) => sum + Number(group.lineCount || 0), 0),
+        totalSellPrice: roundTo(salespeople.reduce((sum, group) => sum + Number(group.totalSellPrice || 0), 0), 2),
+        totalCommissionAmount: roundTo(salespeople.reduce((sum, group) => sum + Number(group.totalCommissionAmount || 0), 0), 2),
+        totalProtectPayoutAmount: roundTo(salespeople.reduce((sum, group) => sum + Number(group.warrantyPayoutAmount || 0), 0), 2),
+        totalAdjustmentNetAmount: roundTo(salespeople.reduce((sum, group) => sum + Number(group.adjustmentNetAmount || 0), 0), 2),
+        totalPayoutAmount: roundTo(salespeople.reduce((sum, group) => sum + Number(group.totalPayoutAmount || 0), 0), 2)
+      };
     }
 
     function parseWorkbookRows(file) {
@@ -1462,10 +1551,11 @@
 
       currentRunId = runId;
       currentRunDetail = hydrateRunDetailFromSnapshot(runId, data);
-      const preferredExists = (data.salespeople || []).some((group) => getSalespersonDisplayKey(group) === preferredSalespersonKey);
+      const visibleSalespeople = getVisibleSalespeople(currentRunDetail);
+      const preferredExists = visibleSalespeople.some((group) => getSalespersonDisplayKey(group) === preferredSalespersonKey);
       currentSalespersonCode = preferredExists
         ? preferredSalespersonKey
-        : (currentRunDetail.salespeople?.[0] ? getSalespersonDisplayKey(currentRunDetail.salespeople[0]) : "");
+        : (visibleSalespeople[0] ? getSalespersonDisplayKey(visibleSalespeople[0]) : "");
       renderRuns();
       renderRunDetail();
     }
@@ -1480,7 +1570,9 @@
       runDetail.classList.remove("hidden");
       runDetailEmpty.classList.add("hidden");
 
-      const { run, summary, salespeople } = currentRunDetail;
+      const { run, salespeople } = currentRunDetail;
+      const visibleSalespeople = getVisibleSalespeople(currentRunDetail);
+      const summary = buildVisibleSummary(visibleSalespeople);
       runTitle.textContent = run.periodLabel;
       runMeta.textContent = `${run.sourceFileName} | Imported by ${run.importedByName || run.importedByUsername || "Unknown"}`;
       runDraftCountBadge.textContent = `Draft ${summary.draftCount || 0}`;
@@ -1495,7 +1587,7 @@
       salespersonGrid.innerHTML = "";
 
       const groupsByDepartment = new Map();
-      salespeople.forEach((group) => {
+      visibleSalespeople.forEach((group) => {
         const departmentKey = getDepartmentDisplayKey(group);
         if (!groupsByDepartment.has(departmentKey)) {
           groupsByDepartment.set(departmentKey, []);
@@ -1549,7 +1641,11 @@
           salespersonGrid.appendChild(section);
         });
 
-      const selectedGroup = salespeople.find((group) => getSalespersonDisplayKey(group) === currentSalespersonCode) || null;
+      if (!visibleSalespeople.length) {
+        salespersonGrid.innerHTML = `<div class="empty-state">No ${VIEW_CONFIG.heading.toLowerCase()} records were found in this run.</div>`;
+      }
+
+      const selectedGroup = visibleSalespeople.find((group) => getSalespersonDisplayKey(group) === currentSalespersonCode) || null;
       renderLineTable(selectedGroup, run.status);
     }
 
@@ -1606,8 +1702,8 @@
               throw new Error(data.error || "Unable to update HVAC order.");
             }
 
-            currentRunDetail = data.detail || currentRunDetail;
-            currentRunDetail = mergeSavedHvacOrderIntoDetail(currentRunDetail, currentSalespersonCode, data.order);
+            const nextDetailBase = currentRunDetail || data.detail;
+            currentRunDetail = mergeSavedHvacOrderIntoDetail(nextDetailBase, currentSalespersonCode, data.order);
             persistWorkingRunSnapshot();
             renderRuns();
             renderRunDetail();

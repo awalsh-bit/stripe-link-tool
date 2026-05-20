@@ -196,7 +196,7 @@
     <div class="toolbar">
       <div class="muted">Use your browser's print dialog to save this report as PDF.</div>
       <div>
-        <a class="secondary" href="commissions.html">Back to Commissions</a>
+        <a id="backToCommissionsLink" class="secondary" href="commissions.html?view=appliance">Back to Commissions</a>
         <button id="printBtn" type="button">Print / Save PDF</button>
       </div>
     </div>
@@ -209,6 +209,7 @@
   <script>
     const content = document.getElementById("content");
     const printBtn = document.getElementById("printBtn");
+    const backToCommissionsLink = document.getElementById("backToCommissionsLink");
 
     function formatMoney(value) {
       return new Intl.NumberFormat("en-US", {
@@ -313,6 +314,8 @@
       const params = new URLSearchParams(window.location.search);
       const runId = params.get("run");
       const salespersonKey = params.get("salesperson") || "";
+      const view = String(params.get("view") || "appliance").trim().toLowerCase();
+      backToCommissionsLink.href = `commissions.html?view=${encodeURIComponent(view)}`;
 
       if (!runId) {
         content.textContent = "No commission run was specified.";

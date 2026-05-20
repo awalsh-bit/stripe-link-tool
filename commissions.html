@@ -531,6 +531,48 @@
       overflow: auto;
     }
 
+    .adjustments-panel {
+      border-top: 1px solid var(--border);
+      padding: 18px 20px 20px;
+      background: #fff;
+    }
+
+    .adjustments-grid {
+      display: grid;
+      gap: 12px;
+      margin-top: 14px;
+    }
+
+    .adjustment-row {
+      display: grid;
+      grid-template-columns: 120px 140px minmax(220px, 1fr) auto;
+      gap: 12px;
+      align-items: center;
+    }
+
+    .adjustment-label {
+      font-size: 13px;
+      font-weight: 800;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: #475569;
+    }
+
+    .adjustment-comment {
+      text-align: left;
+    }
+
+    .unpaid-note {
+      margin-top: 12px;
+      padding: 12px 14px;
+      border: 1px solid #fde68a;
+      border-radius: 12px;
+      background: #fffbeb;
+      color: #92400e;
+      font-size: 13px;
+      line-height: 1.55;
+    }
+
     table {
       width: 100%;
       border-collapse: collapse;
@@ -632,6 +674,10 @@
 
     @media (max-width: 620px) {
       .salesperson-right {
+        grid-template-columns: 1fr;
+      }
+
+      .adjustment-row {
         grid-template-columns: 1fr;
       }
     }
@@ -741,7 +787,7 @@
                       <th>Customer</th>
                       <th>Line Type</th>
                       <th>Model</th>
-                      <th>Serial / Split</th>
+                      <th>Serial</th>
                       <th class="number">Qty</th>
                       <th class="money">Sell Price</th>
                       <th class="percent">Commission %</th>
@@ -753,6 +799,12 @@
                     <tr><td colspan="10" class="empty-state">No salesperson selected yet.</td></tr>
                   </tbody>
                 </table>
+              </div>
+              <div class="adjustments-panel">
+                <h3>Manual Adjustments</h3>
+                <p class="hint">Use these for bonus, deduct, advance, and misc commission edge cases. Deduct and advance values reduce payout.</p>
+                <div id="adjustmentsGrid" class="adjustments-grid"></div>
+                <div id="unpaidNote" class="unpaid-note hidden"></div>
               </div>
             </div>
           </div>
@@ -790,6 +842,8 @@
     const printSalespersonBtn = document.getElementById("printSalespersonBtn");
     const lockSalespersonBtn = document.getElementById("lockSalespersonBtn");
     const lineTableBody = document.getElementById("lineTableBody");
+    const adjustmentsGrid = document.getElementById("adjustmentsGrid");
+    const unpaidNote = document.getElementById("unpaidNote");
 
     let currentRuns = [];
     let currentRunDetail = null;
@@ -819,7 +873,7 @@
 
     function getClassificationOptions(currentValue) {
       const normalizedCurrent = String(currentValue || "").trim().toUpperCase();
-      const options = ["ALL", "SVC", "SPECIAL", "OPEN", "OMIT"];
+      const options = ["ALL", "SVC", "SPECIAL", "OPEN", "UNPAID", "OMIT"];
       if (normalizedCurrent && !options.includes(normalizedCurrent)) {
         options.unshift(normalizedCurrent);
       }
@@ -839,11 +893,18 @@
       return type === "wty" || type === "warranty" || type === "protect";
     }
 
+    function isUnpaidLine(line) {
+      return String(line?.sourceClassification || "").trim().toUpperCase() === "UNPAID";
+    }
+
     function getDisplayLineType(line) {
-      return isProtectLine(line) ? "PROTECT" : (line.lineType || "");
+      return isProtectLine(line) ? "Protect" : (line.lineType || "");
     }
 
     function getDisplayCommissionPercent(line, group) {
+      if (isUnpaidLine(line)) {
+        return 0;
+      }
       if (isProtectLine(line)) {
         return Number(group?.warrantyPayoutPercent || 0);
       }
@@ -851,10 +912,87 @@
     }
 
     function getDisplayCommissionAmount(line, group) {
+      if (isUnpaidLine(line)) {
+        return 0;
+      }
       if (isProtectLine(line)) {
         return roundTo(Number(line?.sellPrice || 0) * (Number(group?.warrantyPayoutPercent || 0) / 100), 2);
       }
       return Number(line?.commissionAmount || 0);
+    }
+
+    function getAdjustmentSignedAmount(adjustment) {
+      const amount = Number(adjustment?.amount || 0);
+      const type = String(adjustment?.adjustmentType || "").trim().toUpperCase();
+      return ["DEDUCT", "ADVANCE"].includes(type) ? -Math.abs(amount) : Math.abs(amount);
+    }
+
+    function renderAdjustments(group) {
+      const adjustments = Array.isArray(group?.adjustments) ? group.adjustments : [];
+      const disabled = (group?.status || "draft") !== "draft" ? "disabled" : "";
+
+      adjustmentsGrid.innerHTML = adjustments.map((adjustment) => `
+        <div class="adjustment-row">
+          <div class="adjustment-label">${adjustment.adjustmentType}</div>
+          <input
+            class="inline-input"
+            type="number"
+            step="0.01"
+            data-adjustment-type="${adjustment.adjustmentType}"
+            data-field="amount"
+            value="${Number(adjustment.amount || 0).toFixed(2)}"
+            ${disabled}
+          />
+          <input
+            class="adjustment-comment"
+            type="text"
+            maxlength="160"
+            data-adjustment-type="${adjustment.adjustmentType}"
+            data-field="comment"
+            value="${String(adjustment.comment || "").replace(/"/g, "&quot;")}"
+            placeholder="Short comment"
+            ${disabled}
+          />
+          ${disabled
+            ? `<span class="hint">Locked</span>`
+            : `<button type="button" class="secondary save-adjustment-btn" data-adjustment-type="${adjustment.adjustmentType}">Save</button>`}
+        </div>
+      `).join("");
+
+      adjustmentsGrid.querySelectorAll(".save-adjustment-btn").forEach((button) => {
+        button.addEventListener("click", async () => {
+          const adjustmentType = button.getAttribute("data-adjustment-type");
+          const amountInput = adjustmentsGrid.querySelector(`input[data-adjustment-type="${adjustmentType}"][data-field="amount"]`);
+          const commentInput = adjustmentsGrid.querySelector(`input[data-adjustment-type="${adjustmentType}"][data-field="comment"]`);
+
+          button.disabled = true;
+          button.textContent = "Saving...";
+
+          try {
+            const res = await fetch(`/api/commissions/runs/${encodeURIComponent(currentRunId)}/salespeople/${encodeURIComponent(currentSalespersonCode)}/adjustments`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                adjustmentType,
+                amount: amountInput?.value || 0,
+                comment: commentInput?.value || ""
+              })
+            });
+            const data = await res.json();
+            if (!res.ok) {
+              throw new Error(data.error || "Unable to save adjustment.");
+            }
+
+            await selectRun(currentRunId, currentSalespersonCode);
+            showStatus("success", `${adjustmentType} adjustment saved.`);
+          } catch (error) {
+            showStatus("error", error.message);
+          } finally {
+            button.disabled = false;
+            button.textContent = "Save";
+          }
+        });
+      });
     }
 
     function getDisplayedCommissionAmount(group) {
@@ -1175,6 +1313,9 @@
         salespersonMeta.textContent = "Choose a consultant above to review each ticket, model, source classification, sell price, and editable commission values.";
         salespersonActions.classList.add("hidden");
         lineTableBody.innerHTML = '<tr><td colspan="10" class="empty-state">No salesperson selected yet.</td></tr>';
+        adjustmentsGrid.innerHTML = '<div class="empty-state">No salesperson selected yet.</div>';
+        unpaidNote.classList.add("hidden");
+        unpaidNote.textContent = "";
         return;
       }
 
@@ -1201,7 +1342,7 @@
           <td>${line.customerName || ""}</td>
           <td>${getDisplayLineType(line)}</td>
           <td>${line.productModel || ""}</td>
-          <td>${runStatus === "draft"
+          <td>${(group.status || "draft") === "draft"
             ? `<select class="classification-select" data-line-id="${line.id}" ${disabled}>${classificationOptions}</select>`
             : (line.sourceClassification || "")}</td>
           <td class="number">${Number(line.quantity || 0).toFixed(2).replace(/\.00$/, "")}</td>
@@ -1281,6 +1422,15 @@
           }
         });
       });
+
+      renderAdjustments(group);
+      if (Number(group.unpaidLineCount || 0) > 0) {
+        unpaidNote.classList.remove("hidden");
+        unpaidNote.textContent = `${group.unpaidLineCount} unpaid line${Number(group.unpaidLineCount || 0) === 1 ? "" : "s"} totaling ${formatMoney(group.excludedCommissionAmount || 0)} are excluded from this payout and will be paid when the balance is collected.`;
+      } else {
+        unpaidNote.classList.add("hidden");
+        unpaidNote.textContent = "";
+      }
     }
 
     importBtn.addEventListener("click", async () => {

@@ -42,6 +42,7 @@ import {
   updateCommissionLineClassification,
   lockCommissionRun,
   lockCommissionSalesperson,
+  updateCommissionSalespersonAdjustment,
   deleteCommissionRun
 } from "./lib/commissions-postgres.js";
 
@@ -722,6 +723,28 @@ app.post("/api/commissions/lines/:lineId/classification", requireExecutiveApi, a
   } catch (error) {
     return res.status(400).json({
       error: error.message || "Unable to update commission line classification."
+    });
+  }
+});
+
+app.post("/api/commissions/runs/:runId/salespeople/:salespersonKey/adjustments", requireExecutiveApi, async (req, res) => {
+  try {
+    const adjustment = await updateCommissionSalespersonAdjustment(
+      req.params.runId,
+      decodeURIComponent(req.params.salespersonKey || ""),
+      String(req.body?.adjustmentType || "").trim(),
+      req.body?.amount,
+      String(req.body?.comment || "").trim()
+    );
+
+    if (!adjustment) {
+      return res.status(404).json({ error: "Salesperson adjustment target not found." });
+    }
+
+    return res.json({ success: true, adjustment });
+  } catch (error) {
+    return res.status(400).json({
+      error: error.message || "Unable to update salesperson adjustment."
     });
   }
 });

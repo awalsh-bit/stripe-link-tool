@@ -235,10 +235,17 @@
     }
 
     function getDisplayLineType(line) {
-      return isProtectLine(line) ? "PROTECT" : (line.lineType || "");
+      return isProtectLine(line) ? "Protect" : (line.lineType || "");
+    }
+
+    function isUnpaidLine(line) {
+      return String(line?.sourceClassification || "").trim().toUpperCase() === "UNPAID";
     }
 
     function getDisplayCommissionPercent(line, group) {
+      if (isUnpaidLine(line)) {
+        return 0;
+      }
       if (isProtectLine(line)) {
         return Number(group?.warrantyPayoutPercent || 0);
       }
@@ -246,6 +253,9 @@
     }
 
     function getDisplayCommissionAmount(line, group) {
+      if (isUnpaidLine(line)) {
+        return 0;
+      }
       if (isProtectLine(line)) {
         return Number(line?.sellPrice || 0) * (Number(group?.warrantyPayoutPercent || 0) / 100);
       }
@@ -270,6 +280,23 @@
       }
 
       return `${formatMoney(group.warrantySellPrice || 0)} Protect sales | ${formatPercent(group.warrantyPenetrationPercent || 0)} Protect % | ${formatMoney(group.warrantyPayoutAmount || 0)} payout`;
+    }
+
+    function getAdjustmentSummaryLine(group) {
+      const adjustments = (group.adjustments || []).filter((adjustment) => Number(adjustment.amount || 0) !== 0 || String(adjustment.comment || "").trim());
+      if (!adjustments.length) {
+        return "";
+      }
+
+      return adjustments.map((adjustment) => {
+        const signedAmount = ["DEDUCT", "ADVANCE"].includes(String(adjustment.adjustmentType || "").toUpperCase())
+          ? -Math.abs(Number(adjustment.amount || 0))
+          : Math.abs(Number(adjustment.amount || 0));
+        const signPrefix = signedAmount < 0 ? "-" : "+";
+        const amountText = formatMoney(Math.abs(signedAmount));
+        const commentText = String(adjustment.comment || "").trim();
+        return `${adjustment.adjustmentType} ${signPrefix}${amountText}${commentText ? ` — ${commentText}` : ""}`;
+      }).join(" | ");
     }
 
     function getStatusLabel(status) {
@@ -372,7 +399,7 @@
                   <th>Customer</th>
                   <th>Line Type</th>
                   <th>Model</th>
-                  <th>Serial / Split</th>
+                  <th>Serial</th>
                   <th class="number">Qty</th>
                   <th class="money">Sell Price</th>
                   <th class="percent">Commission %</th>
@@ -395,6 +422,8 @@
                 `).join("")}
               </tbody>
             </table>
+            ${getAdjustmentSummaryLine(group) ? `<p class="muted" style="margin-top:12px;"><strong>Adjustments:</strong> ${getAdjustmentSummaryLine(group)}</p>` : ""}
+            ${Number(group.unpaidLineCount || 0) > 0 ? `<p class="muted" style="margin-top:10px;"><strong>UNPAID:</strong> ${group.unpaidLineCount} line${Number(group.unpaidLineCount || 0) === 1 ? "" : "s"} totaling ${formatMoney(group.excludedCommissionAmount || 0)} are excluded from this payout and will be paid when the balance is collected.</p>` : ""}
           </div>
         `;
         }).join("")}

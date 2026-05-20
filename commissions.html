@@ -1419,36 +1419,39 @@
 
       (group.salesOrders || []).forEach((order) => {
         const disabled = (group.status || "draft") !== "draft" ? "disabled" : "";
+        const orderKey = String(order.orderKey || order.salesOrder || "");
+        const displaySalesOrder = order.displaySalesOrder || order.salesOrder || orderKey;
         const row = document.createElement("tr");
         row.innerHTML = `
-          <td>${order.salesOrder || ""}</td>
+          <td>${displaySalesOrder}</td>
           <td>${order.customerName || ""}</td>
           <td class="money">${formatMoney(order.productRevenue || 0)}</td>
           <td class="money">${formatMoney(order.protectRevenue || 0)}</td>
-          <td class="money"><input class="hvac-input" data-sales-order="${order.salesOrder || ""}" data-field="laborAmount" type="number" step="0.01" value="${Number(order.laborAmount || 0).toFixed(2)}" ${disabled} /></td>
-          <td class="money"><input class="hvac-input" data-sales-order="${order.salesOrder || ""}" data-field="cogsAmount" type="number" step="0.01" value="${Number(order.cogsAmount || 0).toFixed(2)}" ${disabled} /></td>
-          <td class="percent"><input class="hvac-input" data-sales-order="${order.salesOrder || ""}" data-field="overheadPercent" type="number" step="0.01" value="${Number(order.overheadPercent || 0).toFixed(2)}" ${disabled} /></td>
+          <td class="money"><input class="hvac-input" data-order-key="${orderKey}" data-field="laborAmount" type="number" step="0.01" value="${Number(order.laborAmount || 0).toFixed(2)}" ${disabled} /></td>
+          <td class="money"><input class="hvac-input" data-order-key="${orderKey}" data-field="cogsAmount" type="number" step="0.01" value="${Number(order.cogsAmount || 0).toFixed(2)}" ${disabled} /></td>
+          <td class="percent"><input class="hvac-input" data-order-key="${orderKey}" data-field="overheadPercent" type="number" step="0.01" value="${Number(order.overheadPercent || 0).toFixed(2)}" ${disabled} /></td>
           <td class="percent">${formatPercent(order.grossMarginPercent || 0)}</td>
           <td class="percent">${formatPercent(order.netMarginPercent || 0)}</td>
           <td class="percent">${formatPercent(order.payoutRate || 0)}</td>
           <td class="money">${formatMoney(order.payoutAmount || 0)}</td>
-          <td class="inline-actions">${(group.status || "draft") === "draft" ? `<button type="button" class="secondary hvac-calc-btn" data-sales-order="${order.salesOrder || ""}">Calculate</button>` : '<span class="hint">Locked</span>'}</td>
+          <td class="inline-actions">${(group.status || "draft") === "draft" ? `<button type="button" class="secondary hvac-calc-btn" data-order-key="${orderKey}" data-display-sales-order="${displaySalesOrder}">Calculate</button>` : '<span class="hint">Locked</span>'}</td>
         `;
         hvacOrderTableBody.appendChild(row);
       });
 
       hvacOrderTableBody.querySelectorAll(".hvac-calc-btn").forEach((button) => {
         button.addEventListener("click", async () => {
-          const salesOrder = button.getAttribute("data-sales-order") || "";
-          const laborInput = hvacOrderTableBody.querySelector(`input[data-sales-order="${salesOrder}"][data-field="laborAmount"]`);
-          const cogsInput = hvacOrderTableBody.querySelector(`input[data-sales-order="${salesOrder}"][data-field="cogsAmount"]`);
-          const overheadInput = hvacOrderTableBody.querySelector(`input[data-sales-order="${salesOrder}"][data-field="overheadPercent"]`);
+          const orderKey = button.getAttribute("data-order-key") || "";
+          const displaySalesOrder = button.getAttribute("data-display-sales-order") || orderKey;
+          const laborInput = hvacOrderTableBody.querySelector(`input[data-order-key="${orderKey}"][data-field="laborAmount"]`);
+          const cogsInput = hvacOrderTableBody.querySelector(`input[data-order-key="${orderKey}"][data-field="cogsAmount"]`);
+          const overheadInput = hvacOrderTableBody.querySelector(`input[data-order-key="${orderKey}"][data-field="overheadPercent"]`);
 
           button.disabled = true;
           button.textContent = "Saving...";
 
           try {
-            const res = await fetch(`/api/commissions/runs/${encodeURIComponent(currentRunId)}/salespeople/${encodeURIComponent(currentSalespersonCode)}/orders/${encodeURIComponent(salesOrder)}/hvac`, {
+            const res = await fetch(`/api/commissions/runs/${encodeURIComponent(currentRunId)}/salespeople/${encodeURIComponent(currentSalespersonCode)}/orders/${encodeURIComponent(orderKey)}/hvac`, {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({
@@ -1465,7 +1468,7 @@
             currentRunDetail = data.detail || currentRunDetail;
             renderRuns();
             renderRunDetail();
-            showStatus("success", `HVAC order ${salesOrder} recalculated.`);
+            showStatus("success", `HVAC order ${displaySalesOrder} recalculated.`);
           } catch (error) {
             showStatus("error", error.message);
           } finally {

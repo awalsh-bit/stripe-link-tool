@@ -234,6 +234,10 @@
       return type === "wty" || type === "warranty" || type === "protect";
     }
 
+    function isHvacSalesGroup(group) {
+      return String(group?.salespersonDepartment || "").trim().toLowerCase() === "hvac sales";
+    }
+
     function getDisplayLineType(line) {
       return isProtectLine(line) ? "Protect" : (line.lineType || "");
     }
@@ -315,7 +319,7 @@
         return;
       }
 
-      const res = await fetch(`/api/commissions/runs/${encodeURIComponent(runId)}`);
+      const res = await fetch(`/api/commissions/runs/${encodeURIComponent(runId)}`, { cache: "no-store" });
       const data = await res.json();
 
       if (!res.ok) {
@@ -388,6 +392,7 @@
         </div>
         ${filteredSalespeople.map((group) => {
           const includedLines = getIncludedLines(group);
+          const isHvac = isHvacSalesGroup(group);
           return `
           <div class="group">
             <h2>${group.salespersonName || group.salespersonCode} ${group.salespersonCode ? `| ${group.salespersonCode}` : ""}</h2>
@@ -395,31 +400,61 @@
             <table>
               <thead>
                 <tr>
-                  <th>Sales Order</th>
-                  <th>Customer</th>
-                  <th>Line Type</th>
-                  <th>Model</th>
-                  <th>Serial</th>
-                  <th class="number">Qty</th>
-                  <th class="money">Sell Price</th>
-                  <th class="percent">Commission %</th>
-                  <th class="money">Commission $</th>
+                  ${isHvac ? `
+                    <th>Sales Order</th>
+                    <th>Customer</th>
+                    <th class="money">Product $</th>
+                    <th class="money">Protect $</th>
+                    <th class="money">Labor $</th>
+                    <th class="money">COGS $</th>
+                    <th class="percent">Overhead %</th>
+                    <th class="percent">Gross Margin %</th>
+                    <th class="percent">Net Margin %</th>
+                    <th class="percent">Payout Rate</th>
+                    <th class="money">Commission $</th>
+                  ` : `
+                    <th>Sales Order</th>
+                    <th>Customer</th>
+                    <th>Line Type</th>
+                    <th>Model</th>
+                    <th>Serial</th>
+                    <th class="number">Qty</th>
+                    <th class="money">Sell Price</th>
+                    <th class="percent">Commission %</th>
+                    <th class="money">Commission $</th>
+                  `}
                 </tr>
               </thead>
               <tbody>
-                ${includedLines.map((line) => `
-                  <tr>
-                    <td>${line.salesOrder || ""}</td>
-                    <td>${line.customerName || ""}</td>
-                    <td>${getDisplayLineType(line)}</td>
-                    <td>${line.productModel || ""}</td>
-                    <td>${line.sourceClassification || ""}</td>
-                    <td class="number">${Number(line.quantity || 0).toFixed(2).replace(/\.00$/, "")}</td>
-                    <td class="money">${formatMoney(line.sellPrice || 0)}</td>
-                    <td class="percent">${formatPercent(getDisplayCommissionPercent(line, group))}</td>
-                    <td class="money">${formatMoney(getDisplayCommissionAmount(line, group))}</td>
-                  </tr>
-                `).join("")}
+                ${isHvac
+                  ? (group.salesOrders || []).map((order) => `
+                      <tr>
+                        <td>${order.salesOrder || ""}</td>
+                        <td>${order.customerName || ""}</td>
+                        <td class="money">${formatMoney(order.productRevenue || 0)}</td>
+                        <td class="money">${formatMoney(order.protectRevenue || 0)}</td>
+                        <td class="money">${formatMoney(order.laborAmount || 0)}</td>
+                        <td class="money">${formatMoney(order.cogsAmount || 0)}</td>
+                        <td class="percent">${formatPercent(order.overheadPercent || 0)}</td>
+                        <td class="percent">${formatPercent(order.grossMarginPercent || 0)}</td>
+                        <td class="percent">${formatPercent(order.netMarginPercent || 0)}</td>
+                        <td class="percent">${formatPercent(order.payoutRate || 0)}</td>
+                        <td class="money">${formatMoney(order.payoutAmount || 0)}</td>
+                      </tr>
+                    `).join("")
+                  : includedLines.map((line) => `
+                      <tr>
+                        <td>${line.salesOrder || ""}</td>
+                        <td>${line.customerName || ""}</td>
+                        <td>${getDisplayLineType(line)}</td>
+                        <td>${line.productModel || ""}</td>
+                        <td>${line.sourceClassification || ""}</td>
+                        <td class="number">${Number(line.quantity || 0).toFixed(2).replace(/\.00$/, "")}</td>
+                        <td class="money">${formatMoney(line.sellPrice || 0)}</td>
+                        <td class="percent">${formatPercent(getDisplayCommissionPercent(line, group))}</td>
+                        <td class="money">${formatMoney(getDisplayCommissionAmount(line, group))}</td>
+                      </tr>
+                    `).join("")}
               </tbody>
             </table>
             ${getAdjustmentSummaryLine(group) ? `<p class="muted" style="margin-top:12px;"><strong>Adjustments:</strong> ${getAdjustmentSummaryLine(group)}</p>` : ""}

@@ -43,6 +43,7 @@ import {
   lockCommissionRun,
   lockCommissionSalesperson,
   updateCommissionSalespersonAdjustment,
+  updateCommissionHvacOrderSettings,
   deleteCommissionRun
 } from "./lib/commissions-postgres.js";
 
@@ -747,6 +748,31 @@ app.post("/api/commissions/runs/:runId/salespeople/:salespersonKey/adjustments",
   } catch (error) {
     return res.status(400).json({
       error: error.message || "Unable to update salesperson adjustment."
+    });
+  }
+});
+
+app.post("/api/commissions/runs/:runId/salespeople/:salespersonKey/orders/:salesOrder/hvac", requireExecutiveApi, async (req, res) => {
+  try {
+    const runId = req.params.runId;
+    const order = await updateCommissionHvacOrderSettings(
+      runId,
+      decodeURIComponent(req.params.salespersonKey || ""),
+      decodeURIComponent(req.params.salesOrder || ""),
+      req.body?.laborAmount,
+      req.body?.cogsAmount,
+      req.body?.overheadPercent
+    );
+
+    if (!order) {
+      return res.status(404).json({ error: "HVAC order target not found." });
+    }
+
+    const detail = await getCommissionRunDetail(runId);
+    return res.json({ success: true, order, detail });
+  } catch (error) {
+    return res.status(400).json({
+      error: error.message || "Unable to update HVAC order settings."
     });
   }
 });

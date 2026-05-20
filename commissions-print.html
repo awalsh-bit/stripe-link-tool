@@ -429,7 +429,7 @@
                 ${isHvac
                   ? (group.salesOrders || []).map((order) => `
                       <tr>
-                        <td>${order.salesOrder || ""}</td>
+                        <td>${order.displaySalesOrder || order.salesOrder || order.orderKey || ""}</td>
                         <td>${order.customerName || ""}</td>
                         <td class="money">${formatMoney(order.productRevenue || 0)}</td>
                         <td class="money">${formatMoney(order.protectRevenue || 0)}</td>

@@ -626,6 +626,25 @@
       min-width: 96px;
     }
 
+    .hvac-input {
+      width: 110px;
+      min-width: 110px;
+      padding: 10px 8px;
+      font-size: 14px;
+      text-align: right;
+    }
+
+    .hvac-note {
+      margin-top: 12px;
+      padding: 12px 14px;
+      border: 1px solid #dbeafe;
+      border-radius: 12px;
+      background: #eff6ff;
+      color: #1d4ed8;
+      font-size: 13px;
+      line-height: 1.55;
+    }
+
     .omitted-row {
       background: #fff7ed;
     }
@@ -780,7 +799,7 @@
                 </div>
               </div>
               <div class="table-wrap">
-                <table>
+                <table id="lineEditorTable">
                   <thead>
                     <tr>
                       <th>Sales Order</th>
@@ -799,6 +818,30 @@
                     <tr><td colspan="10" class="empty-state">No salesperson selected yet.</td></tr>
                   </tbody>
                 </table>
+              </div>
+              <div id="hvacOrderSection" class="table-wrap hidden">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Sales Order</th>
+                      <th>Customer</th>
+                      <th class="money">Product $</th>
+                      <th class="money">Protect $</th>
+                      <th class="money">Labor $</th>
+                      <th class="money">COGS $</th>
+                      <th class="percent">Overhead %</th>
+                      <th class="percent">Gross Margin %</th>
+                      <th class="percent">Net Margin %</th>
+                      <th class="percent">Payout Rate</th>
+                      <th class="money">Commission $</th>
+                      <th>Calculate</th>
+                    </tr>
+                  </thead>
+                  <tbody id="hvacOrderTableBody">
+                    <tr><td colspan="12" class="empty-state">No HVAC salesperson selected yet.</td></tr>
+                  </tbody>
+                </table>
+                <div class="hvac-note">HVAC Sales is calculated per sales order. Product, labor, and Protect revenue are combined, COGS is subtracted, overhead is applied, and the payout rate is based on net margin %.</div>
               </div>
               <div class="adjustments-panel">
                 <h3>Manual Adjustments</h3>
@@ -841,7 +884,10 @@
     const salespersonStatusBadge = document.getElementById("salespersonStatusBadge");
     const printSalespersonBtn = document.getElementById("printSalespersonBtn");
     const lockSalespersonBtn = document.getElementById("lockSalespersonBtn");
+    const lineEditorTable = document.getElementById("lineEditorTable");
     const lineTableBody = document.getElementById("lineTableBody");
+    const hvacOrderSection = document.getElementById("hvacOrderSection");
+    const hvacOrderTableBody = document.getElementById("hvacOrderTableBody");
     const adjustmentsGrid = document.getElementById("adjustmentsGrid");
     const unpaidNote = document.getElementById("unpaidNote");
 
@@ -886,6 +932,10 @@
       }
 
       return `Protect % ${formatPercent(group.warrantyPenetrationPercent || 0)} @ ${formatPercent(group.warrantyPayoutPercent || 0)}`;
+    }
+
+    function isHvacSalesGroup(group) {
+      return String(group?.salespersonDepartment || "").trim().toLowerCase() === "hvac sales";
     }
 
     function isProtectLine(line) {
@@ -1362,12 +1412,79 @@
       renderLineTable(selectedGroup, run.status);
     }
 
+    function renderHvacOrderTable(group) {
+      lineEditorTable.parentElement.classList.add("hidden");
+      hvacOrderSection.classList.remove("hidden");
+      hvacOrderTableBody.innerHTML = "";
+
+      (group.salesOrders || []).forEach((order) => {
+        const disabled = (group.status || "draft") !== "draft" ? "disabled" : "";
+        const row = document.createElement("tr");
+        row.innerHTML = `
+          <td>${order.salesOrder || ""}</td>
+          <td>${order.customerName || ""}</td>
+          <td class="money">${formatMoney(order.productRevenue || 0)}</td>
+          <td class="money">${formatMoney(order.protectRevenue || 0)}</td>
+          <td class="money"><input class="hvac-input" data-sales-order="${order.salesOrder || ""}" data-field="laborAmount" type="number" step="0.01" value="${Number(order.laborAmount || 0).toFixed(2)}" ${disabled} /></td>
+          <td class="money"><input class="hvac-input" data-sales-order="${order.salesOrder || ""}" data-field="cogsAmount" type="number" step="0.01" value="${Number(order.cogsAmount || 0).toFixed(2)}" ${disabled} /></td>
+          <td class="percent"><input class="hvac-input" data-sales-order="${order.salesOrder || ""}" data-field="overheadPercent" type="number" step="0.01" value="${Number(order.overheadPercent || 0).toFixed(2)}" ${disabled} /></td>
+          <td class="percent">${formatPercent(order.grossMarginPercent || 0)}</td>
+          <td class="percent">${formatPercent(order.netMarginPercent || 0)}</td>
+          <td class="percent">${formatPercent(order.payoutRate || 0)}</td>
+          <td class="money">${formatMoney(order.payoutAmount || 0)}</td>
+          <td class="inline-actions">${(group.status || "draft") === "draft" ? `<button type="button" class="secondary hvac-calc-btn" data-sales-order="${order.salesOrder || ""}">Calculate</button>` : '<span class="hint">Locked</span>'}</td>
+        `;
+        hvacOrderTableBody.appendChild(row);
+      });
+
+      hvacOrderTableBody.querySelectorAll(".hvac-calc-btn").forEach((button) => {
+        button.addEventListener("click", async () => {
+          const salesOrder = button.getAttribute("data-sales-order") || "";
+          const laborInput = hvacOrderTableBody.querySelector(`input[data-sales-order="${salesOrder}"][data-field="laborAmount"]`);
+          const cogsInput = hvacOrderTableBody.querySelector(`input[data-sales-order="${salesOrder}"][data-field="cogsAmount"]`);
+          const overheadInput = hvacOrderTableBody.querySelector(`input[data-sales-order="${salesOrder}"][data-field="overheadPercent"]`);
+
+          button.disabled = true;
+          button.textContent = "Saving...";
+
+          try {
+            const res = await fetch(`/api/commissions/runs/${encodeURIComponent(currentRunId)}/salespeople/${encodeURIComponent(currentSalespersonCode)}/orders/${encodeURIComponent(salesOrder)}/hvac`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                laborAmount: laborInput?.value || 0,
+                cogsAmount: cogsInput?.value || 0,
+                overheadPercent: overheadInput?.value || 0
+              })
+            });
+            const data = await res.json();
+            if (!res.ok) {
+              throw new Error(data.error || "Unable to update HVAC order.");
+            }
+
+            currentRunDetail = data.detail || currentRunDetail;
+            renderRuns();
+            renderRunDetail();
+            showStatus("success", `HVAC order ${salesOrder} recalculated.`);
+          } catch (error) {
+            showStatus("error", error.message);
+          } finally {
+            button.disabled = false;
+            button.textContent = "Calculate";
+          }
+        });
+      });
+    }
+
     function renderLineTable(group, runStatus) {
       if (!group) {
         salespersonTitle.textContent = "Select a salesperson";
         salespersonMeta.textContent = "Choose a consultant above to review each ticket, model, source classification, sell price, and editable commission values.";
         salespersonActions.classList.add("hidden");
         lineTableBody.innerHTML = '<tr><td colspan="10" class="empty-state">No salesperson selected yet.</td></tr>';
+        hvacOrderTableBody.innerHTML = '<tr><td colspan="12" class="empty-state">No HVAC salesperson selected yet.</td></tr>';
+        lineEditorTable.parentElement.classList.remove("hidden");
+        hvacOrderSection.classList.add("hidden");
         adjustmentsGrid.innerHTML = '<div class="empty-state">No salesperson selected yet.</div>';
         unpaidNote.classList.add("hidden");
         unpaidNote.textContent = "";
@@ -1382,6 +1499,16 @@
 
       salespersonTitle.textContent = `${group.salespersonName || group.salespersonCode} | ${group.salespersonCode || ""}`.trim();
       salespersonMeta.textContent = `${group.orderCount} orders | ${group.lineCount} lines | ${getDisplayedCommissionAmount(group)} commission${getWarrantySummaryText(group) ? ` | ${getWarrantySummaryText(group)}` : ""}`;
+      if (isHvacSalesGroup(group)) {
+        renderHvacOrderTable(group);
+        renderAdjustments(group);
+        unpaidNote.classList.add("hidden");
+        unpaidNote.textContent = "";
+        return;
+      }
+
+      lineEditorTable.parentElement.classList.remove("hidden");
+      hvacOrderSection.classList.add("hidden");
       lineTableBody.innerHTML = "";
 
       group.lines.forEach((line) => {

@@ -1134,6 +1134,41 @@
       }
     }
 
+    function persistWorkingRunSnapshot() {
+      if (!currentRunId || !currentRunDetail) {
+        return;
+      }
+
+      try {
+        window.localStorage.setItem("commissionWorkingRunSnapshot", JSON.stringify({
+          runId: currentRunId,
+          detail: currentRunDetail,
+          savedAt: new Date().toISOString()
+        }));
+      } catch (error) {
+        console.warn("Unable to persist commission working snapshot.", error);
+      }
+    }
+
+    function hydrateRunDetailFromSnapshot(runId, detail) {
+      try {
+        const snapshotRaw = window.localStorage.getItem("commissionWorkingRunSnapshot");
+        if (!snapshotRaw) {
+          return detail;
+        }
+
+        const snapshot = JSON.parse(snapshotRaw);
+        if (snapshot?.runId !== runId || !snapshot?.detail) {
+          return detail;
+        }
+
+        return snapshot.detail;
+      } catch (error) {
+        console.warn("Unable to hydrate commission working snapshot.", error);
+        return detail;
+      }
+    }
+
     function renderAdjustments(group) {
       const adjustments = Array.isArray(group?.adjustments) ? group.adjustments : [];
       const disabled = (group?.status || "draft") !== "draft" ? "disabled" : "";
@@ -1192,6 +1227,7 @@
 
             currentRunDetail = data.detail || currentRunDetail;
             currentRunDetail = mergeSavedAdjustmentIntoDetail(currentRunDetail, currentSalespersonCode, data.adjustment);
+            persistWorkingRunSnapshot();
             renderRuns();
             renderRunDetail();
             showStatus("success", `${adjustmentType} adjustment saved.`);
@@ -1425,11 +1461,11 @@
       }
 
       currentRunId = runId;
-      currentRunDetail = data;
+      currentRunDetail = hydrateRunDetailFromSnapshot(runId, data);
       const preferredExists = (data.salespeople || []).some((group) => getSalespersonDisplayKey(group) === preferredSalespersonKey);
       currentSalespersonCode = preferredExists
         ? preferredSalespersonKey
-        : (data.salespeople?.[0] ? getSalespersonDisplayKey(data.salespeople[0]) : "");
+        : (currentRunDetail.salespeople?.[0] ? getSalespersonDisplayKey(currentRunDetail.salespeople[0]) : "");
       renderRuns();
       renderRunDetail();
     }
@@ -1572,6 +1608,7 @@
 
             currentRunDetail = data.detail || currentRunDetail;
             currentRunDetail = mergeSavedHvacOrderIntoDetail(currentRunDetail, currentSalespersonCode, data.order);
+            persistWorkingRunSnapshot();
             renderRuns();
             renderRunDetail();
             showStatus("success", `HVAC order ${displaySalesOrder} recalculated.`);

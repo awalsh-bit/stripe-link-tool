@@ -983,7 +983,13 @@
               throw new Error(data.error || "Unable to save adjustment.");
             }
 
-            await selectRun(currentRunId, currentSalespersonCode);
+            if (data.detail) {
+              currentRunDetail = data.detail;
+              renderRuns();
+              renderRunDetail();
+            } else {
+              await selectRun(currentRunId, currentSalespersonCode);
+            }
             showStatus("success", `${adjustmentType} adjustment saved.`);
           } catch (error) {
             showStatus("error", error.message);
@@ -1125,7 +1131,7 @@
     }
 
     async function loadRuns() {
-      const res = await fetch("/api/commissions/runs");
+      const res = await fetch("/api/commissions/runs", { cache: "no-store" });
       const data = await res.json();
 
       if (!res.ok) {
@@ -1207,7 +1213,7 @@
 
     async function selectRun(runId, preferredSalespersonKey = currentSalespersonCode) {
       clearStatus();
-      const res = await fetch(`/api/commissions/runs/${encodeURIComponent(runId)}`);
+      const res = await fetch(`/api/commissions/runs/${encodeURIComponent(runId)}`, { cache: "no-store" });
       const data = await res.json();
 
       if (!res.ok) {

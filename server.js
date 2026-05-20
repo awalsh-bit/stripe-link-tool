@@ -729,8 +729,9 @@ app.post("/api/commissions/lines/:lineId/classification", requireExecutiveApi, a
 
 app.post("/api/commissions/runs/:runId/salespeople/:salespersonKey/adjustments", requireExecutiveApi, async (req, res) => {
   try {
+    const runId = req.params.runId;
     const adjustment = await updateCommissionSalespersonAdjustment(
-      req.params.runId,
+      runId,
       decodeURIComponent(req.params.salespersonKey || ""),
       String(req.body?.adjustmentType || "").trim(),
       req.body?.amount,
@@ -741,7 +742,8 @@ app.post("/api/commissions/runs/:runId/salespeople/:salespersonKey/adjustments",
       return res.status(404).json({ error: "Salesperson adjustment target not found." });
     }
 
-    return res.json({ success: true, adjustment });
+    const detail = await getCommissionRunDetail(runId);
+    return res.json({ success: true, adjustment, detail });
   } catch (error) {
     return res.status(400).json({
       error: error.message || "Unable to update salesperson adjustment."

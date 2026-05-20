@@ -927,6 +927,58 @@
       return ["DEDUCT", "ADVANCE"].includes(type) ? -Math.abs(amount) : Math.abs(amount);
     }
 
+    function mergeSavedAdjustmentIntoDetail(detail, salespersonKey, savedAdjustment) {
+      if (!detail || !Array.isArray(detail.salespeople) || !savedAdjustment) {
+        return detail;
+      }
+
+      const targetGroup = detail.salespeople.find((group) => getSalespersonDisplayKey(group) === salespersonKey);
+      if (!targetGroup) {
+        return detail;
+      }
+
+      const nextAdjustments = Array.isArray(targetGroup.adjustments) ? [...targetGroup.adjustments] : [];
+      const existingIndex = nextAdjustments.findIndex((adjustment) =>
+        String(adjustment.adjustmentType || "").trim().toUpperCase() === String(savedAdjustment.adjustmentType || "").trim().toUpperCase()
+      );
+
+      if (existingIndex >= 0) {
+        nextAdjustments[existingIndex] = {
+          ...nextAdjustments[existingIndex],
+          ...savedAdjustment
+        };
+      } else {
+        nextAdjustments.push(savedAdjustment);
+      }
+
+      targetGroup.adjustments = nextAdjustments;
+      targetGroup.adjustmentNetAmount = roundTo(
+        nextAdjustments.reduce((sum, adjustment) => sum + getAdjustmentSignedAmount(adjustment), 0),
+        2
+      );
+      targetGroup.totalPayoutAmount = roundTo(
+        Number(targetGroup.totalCommissionAmount || 0) +
+        Number(targetGroup.warrantyPayoutAmount || 0) +
+        Number(targetGroup.adjustmentNetAmount || 0),
+        2
+      );
+
+      if (detail.summary) {
+        detail.summary.totalAdjustmentNetAmount = roundTo(
+          detail.salespeople.reduce((sum, group) => sum + Number(group.adjustmentNetAmount || 0), 0),
+          2
+        );
+        detail.summary.totalPayoutAmount = roundTo(
+          Number(detail.summary.totalCommissionAmount || 0) +
+          Number(detail.summary.totalProtectPayoutAmount || 0) +
+          Number(detail.summary.totalAdjustmentNetAmount || 0),
+          2
+        );
+      }
+
+      return detail;
+    }
+
     function renderAdjustments(group) {
       const adjustments = Array.isArray(group?.adjustments) ? group.adjustments : [];
       const disabled = (group?.status || "draft") !== "draft" ? "disabled" : "";
@@ -983,13 +1035,10 @@
               throw new Error(data.error || "Unable to save adjustment.");
             }
 
-            if (data.detail) {
-              currentRunDetail = data.detail;
-              renderRuns();
-              renderRunDetail();
-            } else {
-              await selectRun(currentRunId, currentSalespersonCode);
-            }
+            currentRunDetail = data.detail || currentRunDetail;
+            currentRunDetail = mergeSavedAdjustmentIntoDetail(currentRunDetail, currentSalespersonCode, data.adjustment);
+            renderRuns();
+            renderRunDetail();
             showStatus("success", `${adjustmentType} adjustment saved.`);
           } catch (error) {
             showStatus("error", error.message);

@@ -1029,6 +1029,111 @@
       return detail;
     }
 
+    function mergeSavedHvacOrderIntoDetail(detail, salespersonKey, savedOrder) {
+      if (!detail || !Array.isArray(detail.salespeople) || !savedOrder) {
+        return detail;
+      }
+
+      const targetGroup = detail.salespeople.find((group) => getSalespersonDisplayKey(group) === salespersonKey);
+      if (!targetGroup || !Array.isArray(targetGroup.salesOrders)) {
+        return detail;
+      }
+
+      const targetOrder = targetGroup.salesOrders.find((order) =>
+        String(order.orderKey || order.salesOrder || "") === String(savedOrder.salesOrder || "")
+      );
+
+      if (!targetOrder) {
+        return detail;
+      }
+
+      targetOrder.laborAmount = roundTo(Number(savedOrder.laborAmount || 0), 2);
+      targetOrder.cogsAmount = roundTo(Number(savedOrder.cogsAmount || 0), 2);
+      targetOrder.overheadPercent = roundTo(Number(savedOrder.overheadPercent || 0), 4);
+
+      const totalRevenue = roundTo(
+        Number(targetOrder.productRevenue || 0) +
+        Number(targetOrder.protectRevenue || 0) +
+        Number(targetOrder.laborAmount || 0),
+        2
+      );
+      const grossMarginDollars = roundTo(totalRevenue - Number(targetOrder.cogsAmount || 0), 2);
+      const grossMarginPercent = totalRevenue > 0 ? roundTo((grossMarginDollars / totalRevenue) * 100, 4) : 0;
+      const overheadDollars = roundTo(totalRevenue * (Number(targetOrder.overheadPercent || 0) / 100), 2);
+      const netMarginDollars = roundTo(grossMarginDollars - overheadDollars, 2);
+      const netMarginPercent = totalRevenue > 0 ? roundTo((netMarginDollars / totalRevenue) * 100, 4) : 0;
+
+      let payoutRate = 0;
+      if (netMarginPercent >= 45) payoutRate = 12;
+      else if (netMarginPercent >= 38) payoutRate = 10;
+      else if (netMarginPercent >= 31) payoutRate = 8;
+      else if (netMarginPercent >= 22) payoutRate = 6;
+
+      const payoutAmount = payoutRate > 0 && netMarginDollars > 0
+        ? roundTo(netMarginDollars * (payoutRate / 100), 2)
+        : 0;
+
+      targetOrder.totalRevenue = totalRevenue;
+      targetOrder.grossMarginDollars = grossMarginDollars;
+      targetOrder.grossMarginPercent = grossMarginPercent;
+      targetOrder.overheadDollars = overheadDollars;
+      targetOrder.netMarginDollars = netMarginDollars;
+      targetOrder.netMarginPercent = netMarginPercent;
+      targetOrder.payoutRate = payoutRate;
+      targetOrder.payoutAmount = payoutAmount;
+
+      targetGroup.totalSellPrice = roundTo(
+        targetGroup.salesOrders.reduce((sum, order) => sum + Number(order.totalRevenue || 0), 0),
+        2
+      );
+      targetGroup.totalCommissionAmount = roundTo(
+        targetGroup.salesOrders.reduce((sum, order) => sum + Number(order.payoutAmount || 0), 0),
+        2
+      );
+      targetGroup.totalPayoutAmount = roundTo(
+        Number(targetGroup.totalCommissionAmount || 0) +
+        Number(targetGroup.warrantyPayoutAmount || 0) +
+        Number(targetGroup.adjustmentNetAmount || 0),
+        2
+      );
+
+      if (detail.summary) {
+        detail.summary.totalSellPrice = roundTo(
+          detail.salespeople.reduce((sum, group) => sum + Number(group.totalSellPrice || 0), 0),
+          2
+        );
+        detail.summary.totalCommissionAmount = roundTo(
+          detail.salespeople.reduce((sum, group) => sum + Number(group.totalCommissionAmount || 0), 0),
+          2
+        );
+        detail.summary.totalPayoutAmount = roundTo(
+          Number(detail.summary.totalCommissionAmount || 0) +
+          Number(detail.summary.totalProtectPayoutAmount || 0) +
+          Number(detail.summary.totalAdjustmentNetAmount || 0),
+          2
+        );
+      }
+
+      return detail;
+    }
+
+    function persistPrintSnapshot() {
+      if (!currentRunId || !currentRunDetail) {
+        return;
+      }
+
+      try {
+        window.localStorage.setItem("commissionPrintSnapshot", JSON.stringify({
+          runId: currentRunId,
+          salespersonKey: currentSalespersonCode,
+          detail: currentRunDetail,
+          savedAt: new Date().toISOString()
+        }));
+      } catch (error) {
+        console.warn("Unable to persist commission print snapshot.", error);
+      }
+    }
+
     function renderAdjustments(group) {
       const adjustments = Array.isArray(group?.adjustments) ? group.adjustments : [];
       const disabled = (group?.status || "draft") !== "draft" ? "disabled" : "";
@@ -1466,6 +1571,7 @@
             }
 
             currentRunDetail = data.detail || currentRunDetail;
+            currentRunDetail = mergeSavedHvacOrderIntoDetail(currentRunDetail, currentSalespersonCode, data.order);
             renderRuns();
             renderRunDetail();
             showStatus("success", `HVAC order ${displaySalesOrder} recalculated.`);
@@ -1498,6 +1604,9 @@
       salespersonStatusBadge.className = `badge ${group.status || "draft"}`;
       salespersonStatusBadge.textContent = getStatusLabel(group.status);
       printSalespersonBtn.href = buildSalespersonPrintUrl(currentRunId, getSalespersonDisplayKey(group));
+      printSalespersonBtn.onclick = () => {
+        persistPrintSnapshot();
+      };
       lockSalespersonBtn.classList.toggle("hidden", (group.status || "draft") !== "draft");
 
       salespersonTitle.textContent = `${group.salespersonName || group.salespersonCode} | ${group.salespersonCode || ""}`.trim();

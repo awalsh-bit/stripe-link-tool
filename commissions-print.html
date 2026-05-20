@@ -319,6 +319,23 @@
         return;
       }
 
+      try {
+        const snapshotRaw = window.localStorage.getItem("commissionPrintSnapshot");
+        if (snapshotRaw) {
+          const snapshot = JSON.parse(snapshotRaw);
+          if (snapshot?.runId === runId && snapshot?.detail) {
+            const requestedSalespersonKey = salespersonKey || "";
+            const snapshotSalespersonKey = snapshot.salespersonKey || "";
+            if (!requestedSalespersonKey || requestedSalespersonKey === snapshotSalespersonKey) {
+              renderRun(snapshot.detail, requestedSalespersonKey);
+              return;
+            }
+          }
+        }
+      } catch (error) {
+        console.warn("Unable to load commission print snapshot.", error);
+      }
+
       const res = await fetch(`/api/commissions/runs/${encodeURIComponent(runId)}`, { cache: "no-store" });
       const data = await res.json();
 

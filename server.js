@@ -760,6 +760,7 @@ app.post("/api/commissions/runs/:runId/salespeople/:salespersonKey/orders/:sales
       decodeURIComponent(req.params.salespersonKey || ""),
       decodeURIComponent(req.params.salesOrder || ""),
       req.body?.laborAmount,
+      req.body?.discountsAmount,
       req.body?.cogsAmount,
       req.body?.overheadPercent
     );
@@ -3505,7 +3506,7 @@ function buildSaleReportRow(charge, paidIso, sourceRow, paymentIntent) {
 }
 
 function getSaleReportDateIso(charge, sourceRow) {
-  if (sourceRow?.type === "ach_link" && sourceRow?.paidDate) {
+  if (sourceRow?.paidDate) {
     return sourceRow.paidDate;
   }
 

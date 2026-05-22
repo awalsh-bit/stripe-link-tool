@@ -426,6 +426,7 @@
                     <th class="money">Product $</th>
                     <th class="money">Protect $</th>
                     <th class="money">Labor $</th>
+                    <th class="money">Discounts $</th>
                     <th class="money">COGS $</th>
                     <th class="percent">Overhead %</th>
                     <th class="percent">Gross Margin %</th>
@@ -454,6 +455,7 @@
                         <td class="money">${formatMoney(order.productRevenue || 0)}</td>
                         <td class="money">${formatMoney(order.protectRevenue || 0)}</td>
                         <td class="money">${formatMoney(order.laborAmount || 0)}</td>
+                        <td class="money">${formatMoney(order.discountsAmount || 0)}</td>
                         <td class="money">${formatMoney(order.cogsAmount || 0)}</td>
                         <td class="percent">${formatPercent(order.overheadPercent || 0)}</td>
                         <td class="percent">${formatPercent(order.grossMarginPercent || 0)}</td>

@@ -828,6 +828,7 @@
                       <th class="money">Product $</th>
                       <th class="money">Protect $</th>
                       <th class="money">Labor $</th>
+                      <th class="money">Discounts $</th>
                       <th class="money">COGS $</th>
                       <th class="percent">Overhead %</th>
                       <th class="percent">Gross Margin %</th>
@@ -838,10 +839,10 @@
                     </tr>
                   </thead>
                   <tbody id="hvacOrderTableBody">
-                    <tr><td colspan="12" class="empty-state">No HVAC salesperson selected yet.</td></tr>
+                    <tr><td colspan="13" class="empty-state">No HVAC salesperson selected yet.</td></tr>
                   </tbody>
                 </table>
-                <div class="hvac-note">HVAC Sales is calculated per sales order. Product, labor, and Protect revenue are combined, COGS is subtracted, overhead is applied, and the payout rate is based on net margin %.</div>
+                <div class="hvac-note">HVAC Sales is calculated per sales order. Product, labor, and Protect revenue are combined, discounts are subtracted from total revenue, COGS is subtracted, overhead is applied, and the payout rate is based on net margin %.</div>
               </div>
               <div class="adjustments-panel">
                 <h3>Manual Adjustments</h3>
@@ -1102,13 +1103,15 @@
       }
 
       targetOrder.laborAmount = roundTo(Number(savedOrder.laborAmount || 0), 2);
+      targetOrder.discountsAmount = roundTo(Number(savedOrder.discountsAmount || 0), 2);
       targetOrder.cogsAmount = roundTo(Number(savedOrder.cogsAmount || 0), 2);
       targetOrder.overheadPercent = roundTo(Number(savedOrder.overheadPercent || 0), 4);
 
       const totalRevenue = roundTo(
         Number(targetOrder.productRevenue || 0) +
         Number(targetOrder.protectRevenue || 0) +
-        Number(targetOrder.laborAmount || 0),
+        Number(targetOrder.laborAmount || 0) -
+        Number(targetOrder.discountsAmount || 0),
         2
       );
       const grossMarginDollars = roundTo(totalRevenue - Number(targetOrder.cogsAmount || 0), 2);
@@ -1279,8 +1282,8 @@
               throw new Error(data.error || "Unable to save adjustment.");
             }
 
-            currentRunDetail = data.detail || currentRunDetail;
-            currentRunDetail = mergeSavedAdjustmentIntoDetail(currentRunDetail, currentSalespersonCode, data.adjustment);
+            const nextDetailBase = currentRunDetail || data.detail;
+            currentRunDetail = mergeSavedAdjustmentIntoDetail(nextDetailBase, currentSalespersonCode, data.adjustment);
             persistWorkingRunSnapshot();
             renderRuns();
             renderRunDetail();
@@ -1665,6 +1668,7 @@
           <td class="money">${formatMoney(order.productRevenue || 0)}</td>
           <td class="money">${formatMoney(order.protectRevenue || 0)}</td>
           <td class="money"><input class="hvac-input" data-order-key="${orderKey}" data-field="laborAmount" type="number" step="0.01" value="${Number(order.laborAmount || 0).toFixed(2)}" ${disabled} /></td>
+          <td class="money"><input class="hvac-input" data-order-key="${orderKey}" data-field="discountsAmount" type="number" step="0.01" value="${Number(order.discountsAmount || 0).toFixed(2)}" ${disabled} /></td>
           <td class="money"><input class="hvac-input" data-order-key="${orderKey}" data-field="cogsAmount" type="number" step="0.01" value="${Number(order.cogsAmount || 0).toFixed(2)}" ${disabled} /></td>
           <td class="percent"><input class="hvac-input" data-order-key="${orderKey}" data-field="overheadPercent" type="number" step="0.01" value="${Number(order.overheadPercent || 0).toFixed(2)}" ${disabled} /></td>
           <td class="percent">${formatPercent(order.grossMarginPercent || 0)}</td>
@@ -1681,6 +1685,7 @@
           const orderKey = button.getAttribute("data-order-key") || "";
           const displaySalesOrder = button.getAttribute("data-display-sales-order") || orderKey;
           const laborInput = hvacOrderTableBody.querySelector(`input[data-order-key="${orderKey}"][data-field="laborAmount"]`);
+          const discountsInput = hvacOrderTableBody.querySelector(`input[data-order-key="${orderKey}"][data-field="discountsAmount"]`);
           const cogsInput = hvacOrderTableBody.querySelector(`input[data-order-key="${orderKey}"][data-field="cogsAmount"]`);
           const overheadInput = hvacOrderTableBody.querySelector(`input[data-order-key="${orderKey}"][data-field="overheadPercent"]`);
 
@@ -1693,6 +1698,7 @@
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({
                 laborAmount: laborInput?.value || 0,
+                discountsAmount: discountsInput?.value || 0,
                 cogsAmount: cogsInput?.value || 0,
                 overheadPercent: overheadInput?.value || 0
               })

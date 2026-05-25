@@ -504,6 +504,9 @@ const RESEND_FROM_EMAIL =
   process.env.PAYMENT_NOTIFICATION_FROM_EMAIL ||
   "";
 const APP_TIMEZONE = process.env.APP_TIMEZONE || "America/Chicago";
+const COMPLETED_PAYMENT_LINK_MESSAGE =
+  "This link has completed successfully. Please contact Wilson Appliance for a copy of your invoice.";
+const SINGLE_USE_PAYMENT_LINK_LIMIT = 1;
 
 app.post("/api/stripe/webhook", express.raw({ type: "application/json" }), async (req, res) => {
   try {
@@ -921,6 +924,18 @@ const paymentLinkConfig = {
       quantity: 1
     }
   ],
+  after_completion: {
+    type: "hosted_confirmation",
+    hosted_confirmation: {
+      custom_message: COMPLETED_PAYMENT_LINK_MESSAGE
+    }
+  },
+  inactive_message: COMPLETED_PAYMENT_LINK_MESSAGE,
+  restrictions: {
+    completed_sessions: {
+      limit: SINGLE_USE_PAYMENT_LINK_LIMIT
+    }
+  },
   payment_intent_data: {
     description:
       normalizedLinkType === "hvac_deposit"
@@ -3779,6 +3794,7 @@ async function processCheckoutSessionWebhookEvent(event) {
   if (event.type === "checkout.session.completed") {
     if (paymentIntent?.status === "succeeded") {
       applyPaidLinkState(record, session, paymentIntent);
+      await deactivateCompletedPaymentLink(record);
       await maybeSendLinkPaidNotification(record);
     } else if (isAchPendingIntent(paymentIntent, record)) {
       applyAchPendingState(record, session, paymentIntent);
@@ -3787,6 +3803,7 @@ async function processCheckoutSessionWebhookEvent(event) {
 
   if (event.type === "checkout.session.async_payment_succeeded") {
     applyPaidLinkState(record, session, paymentIntent);
+    await deactivateCompletedPaymentLink(record);
     await maybeSendLinkPaidNotification(record);
   }
 
@@ -3801,6 +3818,17 @@ async function processCheckoutSessionWebhookEvent(event) {
   }
 
   await writeLinks(links);
+}
+
+async function deactivateCompletedPaymentLink(record) {
+  if (!record?.paymentLinkId) {
+    return;
+  }
+
+  await stripe.paymentLinks.update(record.paymentLinkId, {
+    active: false,
+    inactive_message: COMPLETED_PAYMENT_LINK_MESSAGE
+  });
 }
 
 function applyPaidLinkState(record, session, paymentIntent) {
@@ -3829,6 +3857,8 @@ function applyPaidLinkState(record, session, paymentIntent) {
     typeof paymentIntent?.payment_method === "string"
       ? paymentIntent.payment_method
       : paymentIntent?.payment_method?.id || record.paymentMethodId || "";
+  record.deactivatedAt = new Date().toISOString();
+  record.deactivationReason = COMPLETED_PAYMENT_LINK_MESSAGE;
 }
 
 function applyAchPendingState(record, session, paymentIntent) {

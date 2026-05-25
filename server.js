@@ -7,6 +7,7 @@ import crypto from "crypto";
 import {
   readLinks,
   writeLinks,
+  upsertLink,
   readTerminalPayments,
   writeTerminalPayments,
   readServiceCards,
@@ -2032,95 +2033,6 @@ app.get("/api/payment-link-status", async (req, res) => {
     const links = await readLinks();
     const terminalPayments = await readTerminalPayments();
 
-    for (const record of links) {
-      normalizeLinkRecord(record);
-      if (!record.paymentLinkId) continue;
-
-      if (record.status !== "paid") {
-        if (record.status === "ach_pending" && record.paymentIntentId) {
-          const trackedIntent = await retrievePaymentIntentWithDetails(record.paymentIntentId);
-
-          if (trackedIntent?.status === "succeeded") {
-            applyPaidLinkState(record, null, trackedIntent);
-
-            if (!record.paymentNotificationSentAt && record.creatorEmail) {
-              try {
-                await sendPaymentLinkPaidEmail(record);
-                record.paymentNotificationSentAt = new Date().toISOString();
-                record.paymentNotificationError = "";
-              } catch (notificationError) {
-                record.paymentNotificationError = notificationError.message || "Unable to send payment notification.";
-              }
-            }
-          } else if (isAchPendingIntent(trackedIntent, record)) {
-            applyAchPendingState(record, null, trackedIntent);
-            continue;
-          }
-        }
-
-        const sessions = await stripe.checkout.sessions.list({
-          payment_link: record.paymentLinkId,
-          limit: 100
-        });
-
-        const paidSession = sessions.data.find(
-          (session) => session.payment_status === "paid"
-        );
-        const intentSessions = sessions.data.filter(
-          (session) => session.payment_intent
-        );
-
-        if (paidSession) {
-          const paymentIntent = paidSession.payment_intent
-            ? await retrievePaymentIntentWithDetails(paidSession.payment_intent)
-            : null;
-
-          applyPaidLinkState(record, paidSession, paymentIntent);
-
-          if (!record.paymentNotificationSentAt && record.creatorEmail) {
-            try {
-              await sendPaymentLinkPaidEmail(record);
-              record.paymentNotificationSentAt = new Date().toISOString();
-              record.paymentNotificationError = "";
-            } catch (notificationError) {
-              record.paymentNotificationError = notificationError.message || "Unable to send payment notification.";
-            }
-          }
-        } else if (record.status !== "deactivated" && intentSessions.length > 0) {
-          const prioritizedIntentSessions = [
-            ...intentSessions.filter((session) => session.payment_intent === record.paymentIntentId),
-            ...intentSessions.filter((session) => session.payment_intent !== record.paymentIntentId)
-          ];
-
-          let achPendingMatch = null;
-
-          for (const session of prioritizedIntentSessions) {
-            const paymentIntent = await retrievePaymentIntentWithDetails(session.payment_intent);
-
-            if (isAchPendingIntent(paymentIntent, record)) {
-              achPendingMatch = { session, paymentIntent };
-              break;
-            }
-          }
-
-          if (achPendingMatch) {
-            applyAchPendingState(record, achPendingMatch.session, achPendingMatch.paymentIntent);
-          } else {
-            const fallbackSession = prioritizedIntentSessions[0];
-            record.status = "viewed";
-            record.active = true;
-            record.paymentStatusDetail = "";
-            record.checkoutSessionId = fallbackSession?.id || record.checkoutSessionId || "";
-          }
-        } else if (record.status !== "deactivated" && sessions.data.length > 0) {
-          record.status = "viewed";
-          record.active = true;
-        }
-      }
-    }
-
-    await writeLinks(links);
-
     const normalizedTerminalPayments = terminalPayments.map((row) => ({
       ...row,
       type: row.type || "terminal",
@@ -2351,8 +2263,7 @@ app.post("/api/link-detail-lookup/repair", async (req, res) => {
     }
 
     const recoveredRecord = await buildRecoveredLinkRecordFromStripeLink(stripeLink, normalizeLinkRecord);
-    links.unshift(recoveredRecord);
-    await writeLinks(links);
+    await upsertLink(recoveredRecord);
 
     return res.json({
       success: true,

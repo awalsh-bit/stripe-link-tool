@@ -21,6 +21,7 @@ import {
 import {
   stripe,
   createStripeIdempotencyKey,
+  createStripeIdempotencyKeyFromPayload,
   paymentLinkLookupMatches,
   findStripePaymentLinkByLookup,
   buildRecoveredLinkRecordFromStripeLink,
@@ -871,33 +872,24 @@ if (!Number.isFinite(unitAmount) || unitAmount < 50) {
   });
 }
 
-const paymentLinkOperationKey = createStripeIdempotencyKey(
-  "payment-link",
-  normalizedLinkType,
-  salesOrder,
-  unitAmount,
-  customerPhoneDigits || customerPhone,
-  customerEmail,
-  creatorCode,
-  department,
-  description
-);
-
-const product = await stripe.products.create({
+const productConfig = {
   name:
     normalizedLinkType === "hvac_deposit"
       ? `${salesOrder || "Customer payment"} HVAC Deposit`
       : salesOrder || "Customer payment"
-}, {
-  idempotencyKey: `${paymentLinkOperationKey}-product`
+};
+
+const product = await stripe.products.create(productConfig, {
+  idempotencyKey: createStripeIdempotencyKeyFromPayload("payment-link-product", productConfig)
 });
 
-    const price = await stripe.prices.create({
+    const priceConfig = {
       product: product.id,
       unit_amount: unitAmount,
       currency: normalizedCurrency
-    }, {
-      idempotencyKey: `${paymentLinkOperationKey}-price`
+    };
+    const price = await stripe.prices.create(priceConfig, {
+      idempotencyKey: createStripeIdempotencyKeyFromPayload("payment-link-price", priceConfig)
     });
 
 const sharedMetadata = {
@@ -953,7 +945,7 @@ if (normalizedLinkType === "hvac_deposit") {
 }
 
 const paymentLink = await stripe.paymentLinks.create(paymentLinkConfig, {
-  idempotencyKey: `${paymentLinkOperationKey}-link`
+  idempotencyKey: createStripeIdempotencyKeyFromPayload("payment-link-link", paymentLinkConfig)
 });
 
     const links = await readLinks();
@@ -1067,17 +1059,8 @@ const {
 }
 
     const amountInCents = Math.round(Number(amount) * 100);
-    const terminalChargeKey = createStripeIdempotencyKey(
-      "terminal-charge",
-      readerId,
-      salesOrder,
-      amountInCents,
-      customerPhoneDigits || customerPhone,
-      creatorCode,
-      description
-    );
 
-const paymentIntent = await stripe.paymentIntents.create({
+const terminalPaymentIntentConfig = {
   amount: amountInCents,
   currency: currency || "usd",
   payment_method_types: ["card_present"],
@@ -1093,10 +1076,13 @@ const paymentIntent = await stripe.paymentIntents.create({
     creator_name: creatorName || "",
     creator_email: creatorEmail || "",
     department: department || "",
-    notes: notes || ""
+    notes: notes || "",
+    reader_id: readerId || ""
   }
-}, {
-  idempotencyKey: terminalChargeKey
+};
+
+const paymentIntent = await stripe.paymentIntents.create(terminalPaymentIntentConfig, {
+  idempotencyKey: createStripeIdempotencyKeyFromPayload("terminal-charge", terminalPaymentIntentConfig)
 });
 
     const reader = await stripe.rawRequest(
@@ -1229,25 +1215,12 @@ app.post("/api/service/setup-intent", async (req, res) => {
       });
     }
 
-    const serviceSetupKey = createStripeIdempotencyKey(
-      "service-setup",
-      customerName,
-      customerEmail,
-      customerPhone,
-      existingServiceCardId,
-      serviceAddress?.line1,
-      serviceAddress?.zip,
-      purchaseDate,
-      purchasedWithin12Months,
-      units?.map((unit) => [
-        unit?.applianceType || "",
-        unit?.brand || "",
-        unit?.model || "",
-        unit?.serial || ""
-      ])
-    );
+    const normalizedAddressState =
+      serviceAddress?.state === "Texas"
+        ? "TX"
+        : (serviceAddress?.state || undefined);
 
-    const customer = await stripe.customers.create({
+    const serviceCustomerConfig = {
       name: customerName,
       email: customerEmail,
       phone: customerPhone || undefined,
@@ -1256,15 +1229,13 @@ app.post("/api/service/setup-intent", async (req, res) => {
             line1: serviceAddress.line1 || undefined,
             line2: serviceAddress.line2 || undefined,
             city: serviceAddress.city || undefined,
-            state:
-  serviceAddress.state === "Texas"
-    ? "TX"
-    : (serviceAddress.state || undefined),
+            state: normalizedAddressState,
             postal_code: serviceAddress.zip || undefined,
             country: "US"
           }
         : undefined,
       metadata: {
+        existing_service_card_id: existingServiceCardId || "",
         gate_code: gateCode || "",
         contact_method: contactMethod || "",
         purchase_date: purchaseDate || "",
@@ -1276,11 +1247,13 @@ app.post("/api/service/setup-intent", async (req, res) => {
         service_address_zip: serviceAddress?.zip || "",
         problem_description: problemDescription || ""
       }
-    }, {
-      idempotencyKey: `${serviceSetupKey}-customer`
+    };
+
+    const customer = await stripe.customers.create(serviceCustomerConfig, {
+      idempotencyKey: createStripeIdempotencyKeyFromPayload("service-setup-customer", serviceCustomerConfig)
     });
 
-    const setupIntent = await stripe.setupIntents.create({
+    const setupIntentConfig = {
       customer: customer.id,
       payment_method_types: ["card"],
       usage: "off_session",
@@ -1311,8 +1284,10 @@ app.post("/api/service/setup-intent", async (req, res) => {
         serial_2: units?.[1]?.serial || "",
         problem_description_2: units?.[1]?.problemDescription || ""
       }
-    }, {
-      idempotencyKey: `${serviceSetupKey}-setup-intent`
+    };
+
+    const setupIntent = await stripe.setupIntents.create(setupIntentConfig, {
+      idempotencyKey: createStripeIdempotencyKeyFromPayload("service-setup-intent", setupIntentConfig)
     });
 
     res.json({
@@ -1636,18 +1611,7 @@ app.post("/api/card-on-file/charge", async (req, res) => {
       });
     }
 
-    const savedCardChargeKey = createStripeIdempotencyKey(
-      "saved-card-charge",
-      customerId,
-      paymentMethodId,
-      salesOrder,
-      amountInCents,
-      creatorCode,
-      hvacDepositRecordId,
-      description
-    );
-
-    const paymentIntent = await stripe.paymentIntents.create({
+    const savedCardChargeConfig = {
       amount: amountInCents,
       currency: "usd",
       customer: customerId,
@@ -1663,10 +1627,13 @@ app.post("/api/card-on-file/charge", async (req, res) => {
         creator_code: creatorCode || "",
         creator_name: creatorName || "",
         creator_email: creatorEmail || "",
-        notes: internalNotes || ""
+        notes: internalNotes || "",
+        hvac_deposit_record_id: hvacDepositRecordId || ""
       }
-    }, {
-      idempotencyKey: savedCardChargeKey
+    };
+
+    const paymentIntent = await stripe.paymentIntents.create(savedCardChargeConfig, {
+      idempotencyKey: createStripeIdempotencyKeyFromPayload("saved-card-charge", savedCardChargeConfig)
     });
 
     const terminalPayments = await readTerminalPayments();
@@ -2663,19 +2630,14 @@ app.post("/api/intent-lookup/payment_intent/:id/refund", async (req, res) => {
       }
     }
 
-    const refundKey = createStripeIdempotencyKey(
-      "refund",
-      id,
-      refundAmountCents,
-      allowedReasons.has(requestedReason) ? requestedReason : "requested_by_customer"
-    );
-
-    const refund = await stripe.refunds.create({
+    const refundConfig = {
       payment_intent: id,
       ...(refundAmountCents === remainingRefundableCents ? {} : { amount: refundAmountCents }),
       reason: allowedReasons.has(requestedReason) ? requestedReason : "requested_by_customer"
-    }, {
-      idempotencyKey: refundKey
+    };
+
+    const refund = await stripe.refunds.create(refundConfig, {
+      idempotencyKey: createStripeIdempotencyKeyFromPayload("refund", refundConfig)
     });
 
     return res.json({

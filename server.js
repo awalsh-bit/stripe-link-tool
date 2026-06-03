@@ -106,6 +106,7 @@ const PUBLIC_AUTH_PATHS = new Set([
 const INTERNAL_PAGE_PATHS = new Set([
   "/dashboard.html",
   "/salesdashboard.html",
+  "/secret-menu.html",
   "/event-rsvps.html",
   "/commissions.html",
   "/commissions-print.html",
@@ -144,7 +145,7 @@ const ACCESS_GROUPS = {
   },
   sales: {
     label: "Sales",
-    pages: ["/dashboard.html", "/salesdashboard.html", "/event-rsvps.html", "/index.html", "/terminal.html", "/charge-saved-card.html", "/link-detail-lookup.html"]
+    pages: ["/dashboard.html", "/salesdashboard.html", "/secret-menu.html", "/event-rsvps.html", "/index.html", "/terminal.html", "/charge-saved-card.html", "/link-detail-lookup.html"]
   },
   service: {
     label: "Service",
@@ -605,6 +606,31 @@ app.get("/fireflavor", (req, res) => {
 
 app.get("/commissions-print", (req, res) => {
   res.sendFile(path.join(__dirname, "commissions-print.html"));
+});
+
+app.get("/secret-menu", (req, res) => {
+  res.sendFile(path.join(__dirname, "secret-menu.html"));
+});
+
+app.get("/api/secret-menu", async (req, res) => {
+  try {
+    const allowedGroups = new Set(["leader", "executive", "sales"]);
+    if (!allowedGroups.has(req.authUser?.accessGroup)) {
+      return res.status(403).json({ error: "You don't have access to the Secret Menu." });
+    }
+
+    const fs = await import("fs/promises");
+    const secretMenuPath = path.join(__dirname, "data", "secret-menu.json");
+    const raw = await fs.readFile(secretMenuPath, "utf8");
+    const data = JSON.parse(raw);
+    res.setHeader("Cache-Control", "no-store");
+    return res.json(data);
+  } catch (err) {
+    if (err?.code === "ENOENT") {
+      return res.status(500).json({ error: "Secret Menu data file is missing." });
+    }
+    return res.status(500).json({ error: err.message || "Unable to load secret menu." });
+  }
 });
 
 app.get("/api/commissions/runs", requireExecutiveApi, async (req, res) => {

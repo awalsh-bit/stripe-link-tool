@@ -108,9 +108,11 @@
         ]
       },
       {
-        href: "salesdashboard.html",
         title: "Sales Tools",
-        text: "Open the sales tools workspace."
+        children: [
+          { href: "salesdashboard.html", title: "Sales Dashboard" },
+          { href: "secret-menu.html", title: "Secret Menu" }
+        ]
       },
       {
         href: "event-rsvps.html",

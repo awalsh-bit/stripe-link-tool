@@ -637,6 +637,40 @@
       background: #f9fafb;
     }
 
+    .btn-icon {
+      width: 34px;
+      height: 34px;
+      padding: 0;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 999px;
+      background: #fff;
+      color: var(--primary);
+      border: 1px solid var(--border);
+      cursor: pointer;
+      transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease, transform 0.4s ease;
+    }
+
+    .btn-icon:hover {
+      background: #eef2ff;
+      border-color: rgba(99, 91, 255, 0.32);
+    }
+
+    .btn-icon svg {
+      width: 16px;
+      height: 16px;
+    }
+
+    .btn-icon[disabled] svg {
+      animation: btn-icon-spin 0.9s linear infinite;
+    }
+
+    @keyframes btn-icon-spin {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
+    }
+
     .helper-text {
       color: var(--muted);
       font-size: 12px;
@@ -1274,6 +1308,17 @@
                   ? `<button class="btn-primary" data-action="reactivate" data-id="${row.id}">Reactivate</button>`
                   : ""
               }
+              ${row.paymentLinkId
+                ? `<button class="btn-icon" data-action="sync" data-id="${row.id}" type="button" aria-label="Sync from Stripe" title="Sync from Stripe — pulls the latest status from Stripe in case a webhook was missed.">
+                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                       <polyline points="23 4 23 10 17 10"></polyline>
+                       <polyline points="1 20 1 14 7 14"></polyline>
+                       <path d="M3.51 9a9 9 0 0114.85-3.36L23 10"></path>
+                       <path d="M20.49 15a9 9 0 01-14.85 3.36L1 14"></path>
+                     </svg>
+                   </button>`
+                : ""
+              }
               ${row.paymentIntentId && ["sent", "viewed", "ach_pending"].includes(row.status)
                 ? `<button class="btn-secondary" type="button" data-copy-intent="${escapeHtml(row.paymentIntentId)}">Copy intent</button>`
                 : ""
@@ -1357,16 +1402,41 @@
     renderDashboard();
   }
 
+  async function syncLinkFromStripe(id) {
+    const res = await fetch(`/api/payment-links/${id}/sync-from-stripe`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" }
+    });
+
+    const data = await res.json();
+
+    if (!res.ok) {
+      throw new Error(data.error || "Unable to sync from Stripe.");
+    }
+
+    await refreshDashboardData({ silent: true });
+
+    if (Array.isArray(data.changes) && data.changes.length > 0) {
+      window.alert("Synced from Stripe:\n\n  - " + data.changes.join("\n  - "));
+    } else {
+      window.alert("Already in sync with Stripe (no changes).");
+    }
+  }
+
   queueTableBody.addEventListener("click", async (event) => {
     const button = event.target.closest("button[data-action]");
     if (!button) return;
 
     button.disabled = true;
     try {
-      await updateLinkStatus(
-        button.dataset.id,
-        button.dataset.action === "deactivate" ? "deactivated" : "sent"
-      );
+      if (button.dataset.action === "sync") {
+        await syncLinkFromStripe(button.dataset.id);
+      } else {
+        await updateLinkStatus(
+          button.dataset.id,
+          button.dataset.action === "deactivate" ? "deactivated" : "sent"
+        );
+      }
     } catch (err) {
       if (String(err.message || "").includes("Paid links cannot be updated.")) {
         await refreshDashboardData({ silent: true });

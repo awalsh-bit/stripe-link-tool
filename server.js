@@ -532,7 +532,8 @@ app.post("/api/stripe/webhook", express.raw({ type: "application/json" }), async
     if (
       event.type === "checkout.session.completed" ||
       event.type === "checkout.session.async_payment_succeeded" ||
-      event.type === "checkout.session.async_payment_failed"
+      event.type === "checkout.session.async_payment_failed" ||
+      event.type === "checkout.session.expired"
     ) {
       await processCheckoutSessionWebhookEvent(event);
     }
@@ -3605,6 +3606,140 @@ app.patch("/api/payment-links/:id/status", async (req, res) => {
   }
 });
 
+
+// Force-syncs a local payment_links row with the live state in Stripe.
+// Use case: webhook missed / silently dropped, dashboard still shows the
+// link as unpaid even though the customer paid. Pulls the latest sessions
+// for the Stripe Payment Link, finds the paid one if any, and rewrites
+// the local row using the same helpers the webhook handler uses, so the
+// result is identical to "webhook succeeded after all."
+app.post("/api/payment-links/:id/sync-from-stripe", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const links = await readLinks();
+    const record = links.find((row) => row.id === id);
+
+    if (!record) {
+      return res.status(404).json({ error: "Payment link record not found." });
+    }
+
+    normalizeLinkRecord(record);
+
+    if (!record.paymentLinkId) {
+      return res.status(400).json({
+        error: "This record has no Stripe payment_link_id to sync from."
+      });
+    }
+
+    const changes = [];
+    const beforeStatus = record.status;
+    const beforePaidAmount = Number(record.paidAmount || 0);
+
+    const sessions = await stripe.checkout.sessions.list({
+      payment_link: record.paymentLinkId,
+      limit: 10
+    });
+
+    const paidSession = sessions.data.find((s) => s.payment_status === "paid");
+
+    if (paidSession) {
+      const paymentIntentId =
+        typeof paidSession.payment_intent === "string"
+          ? paidSession.payment_intent
+          : paidSession.payment_intent?.id || "";
+      const paymentIntent = paymentIntentId
+        ? await retrievePaymentIntentWithDetails(paymentIntentId)
+        : null;
+
+      applyPaidLinkState(record, paidSession, paymentIntent);
+      if (beforeStatus !== "paid") {
+        changes.push(`status: ${beforeStatus} -> paid`);
+      }
+      if (Number(record.paidAmount || 0) !== beforePaidAmount) {
+        changes.push(`paidAmount set to $${Number(record.paidAmount || 0).toFixed(2)}`);
+      }
+
+      try {
+        await deactivateCompletedPaymentLink(record);
+        changes.push("Stripe link deactivated");
+      } catch (deactivateErr) {
+        console.warn(
+          `[sync-from-stripe] Failed to deactivate Stripe link ${record.paymentLinkId}: ${deactivateErr.message}`
+        );
+      }
+
+      try {
+        await maybeSendLinkPaidNotification(record);
+      } catch {
+        // Notification failures are recorded on the record itself; don't
+        // fail the sync because the email couldn't go out.
+      }
+    } else {
+      // No paid session. Check for an ACH-pending one, then fall back to
+      // "at least one session exists => the customer viewed the link."
+      const achCandidate = sessions.data.find((s) => {
+        const pmTypes = s.payment_method_types || [];
+        return s.payment_status === "unpaid" && pmTypes.includes("us_bank_account");
+      });
+
+      if (achCandidate && record.status === "sent") {
+        const piId =
+          typeof achCandidate.payment_intent === "string"
+            ? achCandidate.payment_intent
+            : achCandidate.payment_intent?.id || "";
+        const paymentIntent = piId
+          ? await retrievePaymentIntentWithDetails(piId)
+          : null;
+        if (paymentIntent && isAchPendingIntent(paymentIntent, record)) {
+          applyAchPendingState(record, achCandidate, paymentIntent);
+          changes.push(`status: ${beforeStatus} -> ach_pending`);
+        }
+      } else if (sessions.data.length > 0 && record.status === "sent") {
+        record.status = "viewed";
+        record.active = true;
+        changes.push(`status: ${beforeStatus} -> viewed`);
+      }
+
+      // Also reconcile against the Stripe Payment Link's active flag so a
+      // link that was deactivated in Stripe (e.g. manually) gets reflected
+      // locally.
+      try {
+        const stripeLink = await stripe.paymentLinks.retrieve(record.paymentLinkId);
+        if (!stripeLink.active && record.active && record.status !== "paid" && record.status !== "ach_pending") {
+          record.status = "deactivated";
+          record.active = false;
+          record.deactivatedAt = record.deactivatedAt || new Date().toISOString();
+          record.deactivationReason =
+            record.deactivationReason ||
+            String(stripeLink.inactive_message || "Deactivated in Stripe");
+          changes.push(`status: ${beforeStatus} -> deactivated (matches Stripe)`);
+        }
+      } catch (linkErr) {
+        console.warn(
+          `[sync-from-stripe] Failed to retrieve Stripe link ${record.paymentLinkId}: ${linkErr.message}`
+        );
+      }
+    }
+
+    record.updatedAt = new Date().toISOString();
+    await writeLinks(links);
+
+    return res.json({
+      success: true,
+      record: normalizeLinkRecord({ ...record }),
+      changes,
+      sessionCount: sessions.data.length,
+      message: changes.length
+        ? "Local record updated from Stripe."
+        : "Already in sync with Stripe."
+    });
+  } catch (err) {
+    return res.status(500).json({
+      error: err.message || "Unable to sync from Stripe."
+    });
+  }
+});
+
 function normalizeLinkRecord(record) {
   const normalized = record;
   normalized.type = normalized.type || "card_link";
@@ -3681,10 +3816,38 @@ async function processCheckoutSessionWebhookEvent(event) {
   );
 
   if (!record) {
+    // Surface webhook misses so we can find them in Render Logs — this is
+    // what made the "paid in Stripe but stuck unpaid in dashboard" bug
+    // invisible. Now it's a single grep away.
+    console.warn(
+      `[webhook miss] event=${event.type} payment_link=${session.payment_link || "-"} ` +
+      `payment_intent=${session.payment_intent || "-"} session=${session.id || "-"} ` +
+      `(no matching local payment_links row; sync from Stripe via the dashboard if expected)`
+    );
     return;
   }
 
   normalizeLinkRecord(record);
+
+  // checkout.session.expired fires when a Checkout Session times out
+  // without being completed (default: 24 hours after creation). Stripe
+  // does NOT publish checkout.session.created as a webhook event, so
+  // expired is our only automatic signal that a session was opened at
+  // all. Use it as a delayed proxy for "the customer clicked the link":
+  // if the local record is still sitting in "sent", promote it to
+  // "viewed". Never downgrade paid / ach_pending / deactivated rows.
+  // For real-time viewed signal, sales should use the manual Sync
+  // button on the dashboard.
+  if (event.type === "checkout.session.expired") {
+    if (record.status === "sent") {
+      record.status = "viewed";
+      record.active = true;
+      record.updatedAt = new Date().toISOString();
+      await writeLinks(links);
+      console.log(`[webhook] marked ${record.id} as viewed via expired session ${session.id}`);
+    }
+    return;
+  }
 
   const paymentIntent = session.payment_intent
     ? await retrievePaymentIntentWithDetails(session.payment_intent)

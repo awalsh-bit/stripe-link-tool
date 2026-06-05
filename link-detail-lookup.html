@@ -303,6 +303,7 @@
         </div>
 
         <div class="summary-actions">
+          <button id="syncFromStripe" class="btn btn-secondary hidden" type="button" title="Force-sync this record with Stripe. Use this if the customer paid but the dashboard still shows the link as unpaid.">Sync from Stripe</button>
           <button id="copyLink" class="btn btn-secondary hidden" type="button">Copy link</button>
           <button id="copyIntent" class="btn btn-secondary hidden" type="button">Copy intent</button>
         </div>
@@ -323,6 +324,7 @@
     const linkTrackingEl = document.getElementById("linkTracking");
     const copyLinkEl = document.getElementById("copyLink");
     const copyIntentEl = document.getElementById("copyIntent");
+    const syncFromStripeEl = document.getElementById("syncFromStripe");
 
     let currentRecord = null;
     let currentQuery = "";
@@ -408,6 +410,7 @@
 
       copyLinkEl.classList.toggle("hidden", !record.paymentLinkUrl);
       copyIntentEl.classList.toggle("hidden", !record.paymentIntentId);
+      syncFromStripeEl.classList.toggle("hidden", !record.id || !record.paymentLinkId);
     }
 
     function renderStripeOnly(stripeLink) {
@@ -489,6 +492,44 @@
 
     copyLinkEl.addEventListener("click", () => copyText(copyLinkEl, currentRecord?.paymentLinkUrl));
     copyIntentEl.addEventListener("click", () => copyText(copyIntentEl, currentRecord?.paymentIntentId));
+
+    syncFromStripeEl.addEventListener("click", async () => {
+      if (!currentRecord?.id) return;
+
+      const original = syncFromStripeEl.textContent;
+      syncFromStripeEl.disabled = true;
+      syncFromStripeEl.textContent = "Syncing...";
+      statusEl.className = "status";
+      statusEl.textContent = "Pulling latest state from Stripe...";
+
+      try {
+        const res = await fetch(`/api/payment-links/${encodeURIComponent(currentRecord.id)}/sync-from-stripe`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" }
+        });
+        const data = await res.json();
+
+        if (!res.ok) {
+          throw new Error(data.error || "Unable to sync from Stripe.");
+        }
+
+        if (data.record) {
+          renderRecord(data.record);
+        }
+
+        statusEl.className = "status success";
+        const changes = Array.isArray(data.changes) ? data.changes : [];
+        statusEl.textContent = changes.length
+          ? `Synced from Stripe. Changes: ${changes.join("; ")}`
+          : "Already in sync with Stripe.";
+      } catch (err) {
+        statusEl.className = "status error";
+        statusEl.textContent = err.message || "Unable to sync from Stripe.";
+      } finally {
+        syncFromStripeEl.disabled = false;
+        syncFromStripeEl.textContent = original;
+      }
+    });
 
     repairRecordEl.addEventListener("click", async () => {
       if (!currentQuery) {

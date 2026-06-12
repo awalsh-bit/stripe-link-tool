@@ -2150,7 +2150,25 @@ app.get("/api/bank-balancing", async (req, res) => {
       await sleep(120);
     }
 
-    const totals = payoutRows.reduce((acc, row) => {
+    // Filter out non-sale, non-refund balance transactions by default so
+    // the report stops double-counting reserve releases, adjustments, and
+    // similar Stripe-internal movements as fresh deposits. Set
+    // ?includeNonSales=true to see everything (useful for accounting
+    // debugging and reconciling against Stripe's full payout export).
+    const includeNonSales = String(req.query.includeNonSales || "").trim().toLowerCase() === "true";
+    const defaultTypes = new Set(["sale", "refund"]);
+    const visibleRows = includeNonSales
+      ? payoutRows
+      : payoutRows.filter((row) => defaultTypes.has(row.type));
+    const hiddenCountByType = payoutRows.reduce((acc, row) => {
+      if (!defaultTypes.has(row.type)) {
+        acc[row.type] = (acc[row.type] || 0) + 1;
+      }
+      return acc;
+    }, {});
+    const hiddenCount = Object.values(hiddenCountByType).reduce((a, b) => a + b, 0);
+
+    const totals = visibleRows.reduce((acc, row) => {
       acc.grossAmount += Number(row.grossAmount || 0);
       acc.feeAmount += Number(row.feeAmount || 0);
       acc.bankPayoutAmount += Number(row.bankPayoutAmount || 0);
@@ -2162,11 +2180,14 @@ app.get("/api/bank-balancing", async (req, res) => {
     });
 
     res.json({
-      rows: payoutRows.sort((a, b) => String(b.arrivalDateKey || "").localeCompare(String(a.arrivalDateKey || ""))),
+      rows: visibleRows.sort((a, b) => String(b.arrivalDateKey || "").localeCompare(String(a.arrivalDateKey || ""))),
       totals: {
         ...totals,
         payoutAmountTotal,
-        payoutCount: payouts.length
+        payoutCount: payouts.length,
+        hiddenCount,
+        hiddenCountByType,
+        includeNonSales
       }
     });
   } catch (err) {
@@ -3252,6 +3273,8 @@ async function buildBankBalancingRow(
     payoutAmount: Number((payout.amount || 0) / 100),
     paymentIntentId,
     type: transactionType,
+    balanceTransactionType: String(transaction?.type || "").toLowerCase(),
+    balanceTransactionDescription: String(transaction?.description || "").trim(),
     salesOrder: resolvedFields.salesOrder || String(paymentIntentMetadata.sales_order || "").trim(),
     customerName: sourceRow?.customerName || fallbackCustomerName || "-",
     description: resolvedFields.description || fallbackDescription || "-",
@@ -3261,12 +3284,53 @@ async function buildBankBalancingRow(
   };
 }
 
+// Maps Stripe's balance transaction `type` to one of our accounting
+// buckets. The previous version returned "sale" for everything except
+// explicit refunds — including reserve releases, adjustments, and Stripe
+// fee corrections — which is why some May invoices appeared as duplicate
+// June "deposits" in the report. See:
+// https://docs.stripe.com/api/balance_transactions/object#balance_transaction_object-type
 function inferBankBalancingType(transaction, sourceObject) {
-  if (transaction.type === "refund" || transaction.type === "payment_refund" || sourceObject?.object === "refund") {
-    return "refund";
-  }
+  const stripeType = String(transaction?.type || "").toLowerCase();
 
-  return "sale";
+  switch (stripeType) {
+    case "charge":
+    case "payment":
+      return "sale";
+    case "refund":
+    case "payment_refund":
+    case "payment_failure_refund":
+      return "refund";
+    case "adjustment":
+      return "adjustment";
+    case "reserve_transaction":
+    case "reserved_funds":
+      return "reserve";
+    case "payout":
+    case "payout_failure":
+    case "payout_cancel":
+      return "payout";
+    case "stripe_fee":
+    case "application_fee":
+    case "application_fee_refund":
+      return "fee";
+    case "transfer":
+    case "transfer_cancel":
+    case "transfer_failure":
+    case "transfer_refund":
+      return "transfer";
+    case "issuing_authorization_hold":
+    case "issuing_authorization_release":
+    case "issuing_transaction":
+    case "issuing_dispute":
+      return "issuing";
+    default:
+      // Fallback only if Stripe's type is missing/unknown. Use source
+      // object shape as a last-resort hint.
+      if (sourceObject?.object === "refund") return "refund";
+      if (sourceObject?.object === "charge") return "sale";
+      return "other";
+  }
 }
 
 async function inferPaymentIntentIdFromBalanceTransaction(transaction, chargeCache) {

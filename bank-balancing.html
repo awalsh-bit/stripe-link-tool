@@ -173,6 +173,82 @@
       color: #c2410c;
     }
 
+    .type-adjustment,
+    .type-fee {
+      background: #fef9c3;
+      color: #854d0e;
+    }
+
+    .type-reserve {
+      background: #ecfeff;
+      color: #155e75;
+    }
+
+    .type-payout,
+    .type-transfer,
+    .type-issuing,
+    .type-other {
+      background: #f3f4f6;
+      color: #4b5563;
+    }
+
+    .non-sale-row {
+      background: #fafbff;
+    }
+
+    .non-sale-row td {
+      color: var(--muted);
+    }
+
+    .changelog-banner {
+      background: #eff6ff;
+      border: 1px solid rgba(59, 130, 246, 0.28);
+      color: #1e40af;
+      border-radius: 14px;
+      padding: 12px 14px;
+      font-size: 13px;
+      line-height: 1.55;
+      margin-bottom: 14px;
+      display: flex;
+      gap: 10px;
+      align-items: flex-start;
+    }
+
+    .changelog-banner button {
+      margin-left: auto;
+      background: transparent;
+      border: none;
+      color: #1e40af;
+      font-size: 18px;
+      font-weight: 700;
+      cursor: pointer;
+      padding: 0 6px;
+      line-height: 1;
+    }
+
+    .toggle-row {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--muted);
+      margin-left: auto;
+    }
+
+    .toggle-row input[type="checkbox"] {
+      width: 16px;
+      height: 16px;
+      accent-color: var(--primary);
+      cursor: pointer;
+    }
+
+    .hidden-summary {
+      color: var(--muted);
+      font-size: 12px;
+      margin-top: 8px;
+    }
+
     .mono {
       font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
       font-size: 12px;
@@ -284,10 +360,22 @@
   <div class="wrap">
     <div id="internal-shell-header"></div>
     <div class="card">
+      <div id="changelogBanner" class="changelog-banner">
+        <div>
+          <strong>Report logic updated June 2026.</strong>
+          Deposit rows are now filtered to true sales and refunds only. Earlier versions of this report counted reserve releases, ACH-delay adjustments, and other Stripe-internal balance movements as fresh deposits, which is why some invoices (notably small <code>SV*</code> service tickets) appeared as duplicate June rows for May payments. Historical totals may shift slightly compared to prior exports; use the "Show non-sale transactions" toggle below to inspect the rows now being excluded.
+        </div>
+        <button type="button" id="dismissBannerBtn" aria-label="Dismiss">&times;</button>
+      </div>
+
       <div class="toolbar">
         <input type="date" id="startDate" />
         <input type="date" id="endDate" />
         <button id="runReportBtn" type="button">Run</button>
+        <label class="toggle-row">
+          <input type="checkbox" id="includeNonSalesToggle" />
+          Show non-sale transactions
+        </label>
       </div>
 
       <div class="helper-text" id="payoutHelper">
@@ -366,6 +454,36 @@
     const grossTotalEl = document.getElementById("grossTotal");
     const feeTotalEl = document.getElementById("feeTotal");
     const bankPayoutTotalEl = document.getElementById("bankPayoutTotal");
+    const includeNonSalesToggle = document.getElementById("includeNonSalesToggle");
+    const changelogBanner = document.getElementById("changelogBanner");
+    const dismissBannerBtn = document.getElementById("dismissBannerBtn");
+
+    const BANNER_STORAGE_KEY = "wilson.bankBalancing.changelogDismissedAt";
+
+    function maybeRestoreBannerState() {
+      try {
+        const dismissedAt = window.localStorage?.getItem(BANNER_STORAGE_KEY);
+        if (dismissedAt) {
+          changelogBanner.style.display = "none";
+        }
+      } catch {
+        // localStorage may be unavailable; leave the banner visible.
+      }
+    }
+
+    function typeLabel(t) {
+      switch (t) {
+        case "sale": return "Sale";
+        case "refund": return "Refund";
+        case "adjustment": return "Adjustment";
+        case "reserve": return "Reserve";
+        case "fee": return "Stripe Fee";
+        case "payout": return "Payout";
+        case "transfer": return "Transfer";
+        case "issuing": return "Issuing";
+        default: return "Other";
+      }
+    }
 
     function todayKey() {
       const now = new Date();
@@ -393,6 +511,9 @@
         start: startDateEl.value,
         end: endDateEl.value
       });
+      if (includeNonSalesToggle.checked) {
+        params.set("includeNonSales", "true");
+      }
 
       const res = await fetch(`/api/bank-balancing?${params.toString()}`);
       const data = await res.json();
@@ -404,34 +525,55 @@
       render(data.rows || [], data.totals || {});
     }
 
+    function describeHidden(byType) {
+      const parts = [];
+      for (const [t, n] of Object.entries(byType || {})) {
+        if (n > 0) parts.push(`${n} ${typeLabel(t).toLowerCase()}`);
+      }
+      return parts.join(", ");
+    }
+
     function render(rows, totals) {
       payoutCountEl.textContent = String(totals.payoutCount || 0);
       visibleCountEl.textContent = String(rows.length);
       grossTotalEl.textContent = formatMoney(totals.grossAmount || 0);
       feeTotalEl.textContent = formatMoney(totals.feeAmount || 0);
       bankPayoutTotalEl.textContent = formatMoney(totals.bankPayoutAmount || 0);
-      payoutHelperEl.textContent =
+
+      const baseHelper =
         `This report uses Stripe payout arrival dates. ${totals.payoutCount || 0} paid automatic payout${(totals.payoutCount || 0) === 1 ? "" : "s"} matched the selected range, totaling ${formatMoney(totals.payoutAmountTotal || 0)} at the payout-object level.`;
+      const hiddenSuffix = totals.includeNonSales || !totals.hiddenCount
+        ? ""
+        : ` ${totals.hiddenCount} non-sale balance transaction${totals.hiddenCount === 1 ? "" : "s"} hidden (${describeHidden(totals.hiddenCountByType)}). Toggle "Show non-sale transactions" to inspect.`;
+      payoutHelperEl.textContent = baseHelper + hiddenSuffix;
 
       if (!rows.length) {
         tableBody.innerHTML = `<tr><td colspan="10" class="empty">No payout-linked payment intent activity was found for the selected range.</td></tr>`;
         return;
       }
 
-      tableBody.innerHTML = rows.map((row) => `
-        <tr>
-          <td data-label="Arrival Date">${formatDate(row.arrivalDateKey)}</td>
-          <td data-label="Payout ID" class="mono">${row.payoutId || "-"}</td>
-          <td data-label="Type"><span class="type-badge ${row.type === "refund" ? "type-refund" : "type-sale"}">${row.type === "refund" ? "Refund" : "Sale"}</span></td>
-          <td data-label="Sales Order">${row.salesOrder || "-"}</td>
-          <td data-label="Customer Name">${row.customerName || "-"}</td>
-          <td data-label="Description">${row.description || "-"}</td>
-          <td data-label="Gross Amount" class="amount">${formatMoney(row.grossAmount)}</td>
-          <td data-label="Fee" class="amount">${formatMoney(row.feeAmount)}</td>
-          <td data-label="Bank Payout" class="amount">${formatMoney(row.bankPayoutAmount)}</td>
-          <td data-label="Payment Intent" class="mono">${row.paymentIntentId || "-"}</td>
-        </tr>
-      `).join("");
+      tableBody.innerHTML = rows.map((row) => {
+        const t = row.type || "other";
+        const isNonSale = t !== "sale" && t !== "refund";
+        const rowClass = isNonSale ? "non-sale-row" : "";
+        const badgeClass = `type-${t}`;
+        return `
+          <tr class="${rowClass}">
+            <td data-label="Arrival Date">${formatDate(row.arrivalDateKey)}</td>
+            <td data-label="Payout ID" class="mono">${row.payoutId || "-"}</td>
+            <td data-label="Type">
+              <span class="type-badge ${badgeClass}">${typeLabel(t)}</span>
+            </td>
+            <td data-label="Sales Order">${row.salesOrder || "-"}</td>
+            <td data-label="Customer Name">${row.customerName || "-"}</td>
+            <td data-label="Description">${row.description || row.balanceTransactionDescription || "-"}</td>
+            <td data-label="Gross Amount" class="amount">${formatMoney(row.grossAmount)}</td>
+            <td data-label="Fee" class="amount">${formatMoney(row.feeAmount)}</td>
+            <td data-label="Bank Payout" class="amount">${formatMoney(row.bankPayoutAmount)}</td>
+            <td data-label="Payment Intent" class="mono">${row.paymentIntentId || "-"}</td>
+          </tr>
+        `;
+      }).join("");
     }
 
     async function runReport() {
@@ -448,6 +590,23 @@
         tableBody.innerHTML = `<tr><td colspan="10" class="empty">Error loading bank balancing: ${err.message}</td></tr>`;
       });
     });
+
+    includeNonSalesToggle.addEventListener("change", () => {
+      runReport().catch((err) => {
+        tableBody.innerHTML = `<tr><td colspan="10" class="empty">Error loading bank balancing: ${err.message}</td></tr>`;
+      });
+    });
+
+    dismissBannerBtn.addEventListener("click", () => {
+      changelogBanner.style.display = "none";
+      try {
+        window.localStorage?.setItem(BANNER_STORAGE_KEY, new Date().toISOString());
+      } catch {
+        // ignore
+      }
+    });
+
+    maybeRestoreBannerState();
 
     runReport().catch((err) => {
       tableBody.innerHTML = `<tr><td colspan="10" class="empty">Error loading bank balancing: ${err.message}</td></tr>`;

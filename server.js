@@ -145,11 +145,11 @@ const ACCESS_GROUPS = {
   },
   sales: {
     label: "Sales",
-    pages: ["/dashboard.html", "/salesdashboard.html", "/secret-menu.html", "/event-rsvps.html", "/index.html", "/terminal.html", "/charge-saved-card.html", "/link-detail-lookup.html"]
+    pages: ["/dashboard.html", "/salesdashboard.html", "/secret-menu.html", "/event-rsvps.html", "/index.html", "/terminal.html", "/charge-saved-card.html", "/link-detail-lookup.html", "/paid-order-detail.html"]
   },
   service: {
     label: "Service",
-    pages: ["/appliance-service-calls.html", "/archive-service-calls.html", "/intent-lookup.html", "/link-detail-lookup.html"]
+    pages: ["/appliance-service-calls.html", "/archive-service-calls.html", "/intent-lookup.html", "/link-detail-lookup.html", "/paid-order-detail.html"]
   }
 };
 
@@ -3044,17 +3044,26 @@ async function getLocalFallbackSaleRowsForDateRange(start, end, sourceRows, exis
       .map((row) => row.paymentIntentId)
   );
 
-  const fallbackRows = sourceRows.filter((row) => {
+  // Dedupe within local sources so a PI in both payment_links and
+  // terminal-payments only produces one fallback row.
+  const seenPaymentIntentIds = new Set();
+  const fallbackRows = [];
+  for (const row of sourceRows) {
     const paidDateOnly = toTimeZoneDateKey(row.paidDate, APP_TIMEZONE);
-    return (
-      row.status === "paid" &&
-      row.paymentIntentId &&
-      paidDateOnly &&
-      paidDateOnly >= start &&
-      paidDateOnly <= end &&
-      !existingPaymentIntentIds.has(row.paymentIntentId)
-    );
-  });
+    if (
+      row.status !== "paid" ||
+      !row.paymentIntentId ||
+      !paidDateOnly ||
+      paidDateOnly < start ||
+      paidDateOnly > end ||
+      existingPaymentIntentIds.has(row.paymentIntentId) ||
+      seenPaymentIntentIds.has(row.paymentIntentId)
+    ) {
+      continue;
+    }
+    seenPaymentIntentIds.add(row.paymentIntentId);
+    fallbackRows.push(row);
+  }
 
   const detailedFallbackRows = [];
 
@@ -3698,6 +3707,7 @@ app.post("/api/payment-links/:id/sync-from-stripe", async (req, res) => {
     const changes = [];
     const beforeStatus = record.status;
     const beforePaidAmount = Number(record.paidAmount || 0);
+    const beforeActive = Boolean(record.active);
 
     const sessions = await stripe.checkout.sessions.list({
       payment_link: record.paymentLinkId,
@@ -3725,7 +3735,9 @@ app.post("/api/payment-links/:id/sync-from-stripe", async (req, res) => {
 
       try {
         await deactivateCompletedPaymentLink(record);
-        changes.push("Stripe link deactivated");
+        if (beforeActive) {
+          changes.push("Stripe link deactivated");
+        }
       } catch (deactivateErr) {
         console.warn(
           `[sync-from-stripe] Failed to deactivate Stripe link ${record.paymentLinkId}: ${deactivateErr.message}`
@@ -3800,6 +3812,242 @@ app.post("/api/payment-links/:id/sync-from-stripe", async (req, res) => {
   } catch (err) {
     return res.status(500).json({
       error: err.message || "Unable to sync from Stripe."
+    });
+  }
+});
+
+
+// =========================================================================
+// PAID-DATE REPAIR (corrective tool used from paid-order-detail.html)
+// =========================================================================
+const REPAIR_ALLOWED_GROUPS = new Set(["leader", "executive", "accounting", "sales", "service"]);
+const REPAIR_DRIFT_THRESHOLD_MS = 24 * 60 * 60 * 1000;
+
+function requireRepairAccess(req, res) {
+  if (!REPAIR_ALLOWED_GROUPS.has(req.authUser?.accessGroup)) {
+    res.status(403).json({ error: "You don't have access to the paid-date repair tool." });
+    return false;
+  }
+  return true;
+}
+
+async function buildPaidDateDriftReport(startKey, endKey) {
+  const links = (await readLinks()).map((row) => normalizeLinkRecord({ ...row }));
+  const terminalPayments = await readTerminalPayments();
+
+  const candidates = [];
+  for (const row of links) {
+    if (row.status === "paid" && row.paymentIntentId && row.paidDate) {
+      candidates.push({ source: "payment_links", row });
+    }
+  }
+  for (const row of terminalPayments) {
+    if (row.status === "paid" && row.paymentIntentId && row.paidDate) {
+      candidates.push({ source: "terminal_payments", row });
+    }
+  }
+
+  const inRange = (row) => {
+    if (!startKey || !endKey) return true;
+    const paidDateOnly = toTimeZoneDateKey(row.paidDate, APP_TIMEZONE);
+    if (!paidDateOnly) return false;
+    return paidDateOnly >= startKey && paidDateOnly <= endKey;
+  };
+
+  const driftItems = [];
+  const skipped = { noStripeData: 0, noLatestCharge: 0, errors: 0 };
+  const seenPaymentIntentIds = new Set();
+
+  for (const candidate of candidates) {
+    if (!inRange(candidate.row)) continue;
+    const pi = candidate.row.paymentIntentId;
+    if (seenPaymentIntentIds.has(pi)) continue;
+    seenPaymentIntentIds.add(pi);
+
+    let paymentIntent;
+    try {
+      paymentIntent = await retrievePaymentIntentWithDetailsWithRetry(pi);
+    } catch (err) {
+      skipped.errors += 1;
+      continue;
+    }
+
+    const latestCharge = paymentIntent?.latest_charge;
+    const chargeCreatedSec =
+      latestCharge && typeof latestCharge === "object" ? latestCharge.created : null;
+
+    if (!chargeCreatedSec) {
+      skipped.noLatestCharge += 1;
+      continue;
+    }
+
+    const stripeIso = new Date(chargeCreatedSec * 1000).toISOString();
+    const localMs = new Date(candidate.row.paidDate).getTime();
+    const stripeMs = chargeCreatedSec * 1000;
+    if (!Number.isFinite(localMs)) {
+      skipped.noStripeData += 1;
+      continue;
+    }
+
+    const diffMs = Math.abs(localMs - stripeMs);
+    if (diffMs <= REPAIR_DRIFT_THRESHOLD_MS) continue;
+
+    const resolved = resolvePaidOrderFields(candidate.row);
+    driftItems.push({
+      source: candidate.source,
+      recordId: candidate.row.id,
+      paymentIntentId: pi,
+      customerName: candidate.row.customerName || "",
+      salesOrder: resolved.salesOrder || "",
+      description: resolved.description || "",
+      currentPaidDate: candidate.row.paidDate,
+      proposedPaidDate: stripeIso,
+      stripeChargeCreated: stripeIso,
+      driftDays: Math.round((diffMs / 86400000) * 10) / 10,
+      direction: localMs > stripeMs ? "forward" : "backward"
+    });
+
+    await sleep(120);
+  }
+
+  driftItems.sort((a, b) => Math.abs(b.driftDays) - Math.abs(a.driftDays));
+
+  return { driftItems, skipped, candidateCount: candidates.length };
+}
+
+app.post("/api/admin/repair-paid-dates/preview", async (req, res) => {
+  try {
+    if (!requireRepairAccess(req, res)) return;
+
+    const startKey = String(req.body?.start || "").trim() || "";
+    const endKey = String(req.body?.end || "").trim() || "";
+
+    const report = await buildPaidDateDriftReport(startKey, endKey);
+
+    return res.json({
+      ok: true,
+      mode: "preview",
+      generatedAt: new Date().toISOString(),
+      startKey,
+      endKey,
+      candidateCount: report.candidateCount,
+      driftCount: report.driftItems.length,
+      skipped: report.skipped,
+      items: report.driftItems
+    });
+  } catch (err) {
+    return res.status(500).json({
+      error: err.message || "Unable to preview paid-date drift."
+    });
+  }
+});
+
+app.post("/api/admin/repair-paid-dates/apply", async (req, res) => {
+  try {
+    if (!requireRepairAccess(req, res)) return;
+
+    const changes = Array.isArray(req.body?.changes) ? req.body.changes : [];
+    if (changes.length === 0) {
+      return res.status(400).json({ error: "No changes were provided." });
+    }
+    if (changes.length > 500) {
+      return res.status(400).json({
+        error: "Too many changes in one request (limit 500). Run preview again for a narrower date range."
+      });
+    }
+
+    const links = await readLinks();
+    const terminalPayments = await readTerminalPayments();
+
+    const linkByPi = new Map();
+    for (const row of links) {
+      if (row.paymentIntentId) linkByPi.set(row.paymentIntentId, row);
+    }
+    const terminalByPi = new Map();
+    for (const row of terminalPayments) {
+      if (row.paymentIntentId) terminalByPi.set(row.paymentIntentId, row);
+    }
+
+    const applied = [];
+    const skipped = [];
+    let linksDirty = false;
+    let terminalDirty = false;
+
+    for (const change of changes) {
+      const pi = String(change?.paymentIntentId || "").trim();
+      const source = String(change?.source || "").trim();
+      const proposed = String(change?.proposedPaidDate || "").trim();
+      if (!pi || !source || !proposed) {
+        skipped.push({ paymentIntentId: pi, reason: "missing fields", change });
+        continue;
+      }
+
+      const row = source === "terminal_payments" ? terminalByPi.get(pi) : linkByPi.get(pi);
+      if (!row) {
+        skipped.push({ paymentIntentId: pi, reason: "record not found", change });
+        continue;
+      }
+
+      let paymentIntent;
+      try {
+        paymentIntent = await retrievePaymentIntentWithDetailsWithRetry(pi);
+      } catch (err) {
+        skipped.push({ paymentIntentId: pi, reason: `stripe error: ${err.message}` });
+        continue;
+      }
+      const chargeCreatedSec =
+        paymentIntent?.latest_charge && typeof paymentIntent.latest_charge === "object"
+          ? paymentIntent.latest_charge.created
+          : null;
+      if (!chargeCreatedSec) {
+        skipped.push({ paymentIntentId: pi, reason: "no latest_charge on PI" });
+        continue;
+      }
+      const verifiedIso = new Date(chargeCreatedSec * 1000).toISOString();
+      if (verifiedIso !== proposed) {
+        skipped.push({
+          paymentIntentId: pi,
+          reason: "Stripe value changed between preview and apply",
+          stripeNow: verifiedIso,
+          previewedProposed: proposed
+        });
+        continue;
+      }
+
+      const before = row.paidDate;
+      row.paidDate = verifiedIso;
+      row.updatedAt = new Date().toISOString();
+      if (source === "terminal_payments") {
+        terminalDirty = true;
+      } else {
+        linksDirty = true;
+      }
+      applied.push({
+        paymentIntentId: pi,
+        source,
+        recordId: row.id,
+        before,
+        after: verifiedIso
+      });
+
+      await sleep(120);
+    }
+
+    if (linksDirty) await writeLinks(links);
+    if (terminalDirty) await writeTerminalPayments(terminalPayments);
+
+    return res.json({
+      ok: true,
+      mode: "apply",
+      appliedAt: new Date().toISOString(),
+      appliedCount: applied.length,
+      skippedCount: skipped.length,
+      applied,
+      skipped
+    });
+  } catch (err) {
+    return res.status(500).json({
+      error: err.message || "Unable to apply paid-date repairs."
     });
   }
 });
@@ -3959,6 +4207,10 @@ async function deactivateCompletedPaymentLink(record) {
 
 function applyPaidLinkState(record, session, paymentIntent) {
   const paymentMethodType = inferPaymentMethodType(paymentIntent, session);
+  // First paid event wins. Webhook re-deliveries and manual Sync clicks
+  // must not bump the accounting date forward.
+  const wasAlreadyPaid = record.status === "paid" && Boolean(record.paidDate);
+  const nowIso = new Date().toISOString();
 
   record.status = "paid";
   record.active = false;
@@ -3972,7 +4224,18 @@ function applyPaidLinkState(record, session, paymentIntent) {
         ? paymentIntent.amount_received / 100
         : record.paidAmount || 0
   );
-  record.paidDate = new Date().toISOString();
+
+  if (!wasAlreadyPaid) {
+    const chargeCreatedSec =
+      paymentIntent?.latest_charge && typeof paymentIntent.latest_charge === "object"
+        ? paymentIntent.latest_charge.created
+        : null;
+    record.paidDate = chargeCreatedSec
+      ? new Date(chargeCreatedSec * 1000).toISOString()
+      : nowIso;
+    record.deactivatedAt = nowIso;
+  }
+
   record.paymentIntentId = paymentIntent?.id || session?.payment_intent || record.paymentIntentId || "";
   record.checkoutSessionId = session?.id || record.checkoutSessionId || "";
   record.customerId =
@@ -3983,7 +4246,6 @@ function applyPaidLinkState(record, session, paymentIntent) {
     typeof paymentIntent?.payment_method === "string"
       ? paymentIntent.payment_method
       : paymentIntent?.payment_method?.id || record.paymentMethodId || "";
-  record.deactivatedAt = new Date().toISOString();
   record.deactivationReason = COMPLETED_PAYMENT_LINK_MESSAGE;
 }
 

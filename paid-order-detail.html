@@ -746,16 +746,22 @@
         return;
       }
 
-      const rows = items.map((it) => `
-        <tr>
-          <td>${escapeHtml(it.salesOrder || "-")}</td>
-          <td>${escapeHtml(it.customerName || "-")}</td>
-          <td class="mono">${escapeHtml(it.paymentIntentId || "-")}</td>
-          <td>${formatDateTime(it.currentPaidDate)}</td>
-          <td>${formatDateTime(it.proposedPaidDate)}</td>
-          <td class="drift-${it.direction}">${it.driftDays} day${Math.abs(it.driftDays) === 1 ? "" : "s"} ${it.direction === "forward" ? "ahead" : "behind"}</td>
-        </tr>
-      `).join("");
+      const rows = items.map((it) => {
+        const hvacBadge = it.isHvacBalance
+          ? ' <span style="display:inline-block;padding:1px 6px;border-radius:999px;background:#fef3c7;color:#92400e;font-size:10px;font-weight:700;letter-spacing:0.04em;text-transform:uppercase;vertical-align:middle;">HVAC balance</span>'
+          : "";
+        const piShown = it.compareAgainstPaymentIntentId || it.paymentIntentId || "-";
+        return `
+          <tr>
+            <td>${escapeHtml(it.salesOrder || "-")}</td>
+            <td>${escapeHtml(it.customerName || "-")}${hvacBadge}</td>
+            <td class="mono">${escapeHtml(piShown)}</td>
+            <td>${formatDateTime(it.currentPaidDate)}</td>
+            <td>${formatDateTime(it.proposedPaidDate)}</td>
+            <td class="drift-${it.direction}">${it.driftDays} day${Math.abs(it.driftDays) === 1 ? "" : "s"} ${it.direction === "forward" ? "ahead" : "behind"}</td>
+          </tr>
+        `;
+      }).join("");
 
       repairResults.style.display = "block";
       repairResults.innerHTML = `
@@ -804,16 +810,22 @@
 
     function openConfirmModal() {
       if (!currentDriftItems.length) return;
-      const rows = currentDriftItems.map((it) => `
-        <tr>
-          <td>${escapeHtml(it.salesOrder || "-")}</td>
-          <td>${escapeHtml(it.customerName || "-")}</td>
-          <td style="font-family: ui-monospace, monospace; font-size: 11px;">${escapeHtml(it.paymentIntentId || "-")}</td>
-          <td><strong>Before:</strong> ${formatDateTime(it.currentPaidDate)}<br/><strong>After:</strong> ${formatDateTime(it.proposedPaidDate)}</td>
-          <td>${it.driftDays} day${Math.abs(it.driftDays) === 1 ? "" : "s"} ${it.direction}</td>
-          <td>${escapeHtml(it.source === "terminal_payments" ? "Terminal/Card-on-file" : "Payment link")}</td>
-        </tr>
-      `).join("");
+      const rows = currentDriftItems.map((it) => {
+        const sourceLabel = it.source === "terminal_payments"
+          ? "Terminal/Card-on-file"
+          : (it.isHvacBalance ? "HVAC balance (payment link)" : "Payment link");
+        const piShown = it.compareAgainstPaymentIntentId || it.paymentIntentId || "-";
+        return `
+          <tr>
+            <td>${escapeHtml(it.salesOrder || "-")}</td>
+            <td>${escapeHtml(it.customerName || "-")}</td>
+            <td style="font-family: ui-monospace, monospace; font-size: 11px;">${escapeHtml(piShown)}</td>
+            <td><strong>Before:</strong> ${formatDateTime(it.currentPaidDate)}<br/><strong>After:</strong> ${formatDateTime(it.proposedPaidDate)}</td>
+            <td>${it.driftDays} day${Math.abs(it.driftDays) === 1 ? "" : "s"} ${it.direction}</td>
+            <td>${escapeHtml(sourceLabel)}</td>
+          </tr>
+        `;
+      }).join("");
       repairModalBody.innerHTML = `
         <p style="margin: 0 0 12px; font-weight: 600;">${currentDriftItems.length} record${currentDriftItems.length === 1 ? "" : "s"} will be updated.</p>
         <table>

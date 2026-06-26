@@ -3861,12 +3861,31 @@ async function buildPaidDateDriftReport(startKey, endKey) {
   for (const candidate of candidates) {
     if (!inRange(candidate.row)) continue;
     const pi = candidate.row.paymentIntentId;
-    if (seenPaymentIntentIds.has(pi)) continue;
-    seenPaymentIntentIds.add(pi);
+
+    // HVAC deposit records have TWO payment intents: the deposit (paid
+    // up front) and the balance (charged later via saved card). For
+    // these, the local paidDate intentionally reflects the BALANCE
+    // charge once it has been run, not the deposit. Comparing against
+    // the deposit PI would flag every fully-paid HVAC record as
+    // "31 days of drift" and try to roll paidDate back to the deposit.
+    // So if a balance PI exists, compare against IT instead.
+    let comparePi = pi;
+    let isHvacBalance = false;
+    if (
+      candidate.source === "payment_links" &&
+      String(candidate.row.workflowType || "").toLowerCase() === "hvac_deposit" &&
+      candidate.row.balancePaymentIntentId
+    ) {
+      comparePi = candidate.row.balancePaymentIntentId;
+      isHvacBalance = true;
+    }
+
+    if (seenPaymentIntentIds.has(comparePi)) continue;
+    seenPaymentIntentIds.add(comparePi);
 
     let paymentIntent;
     try {
-      paymentIntent = await retrievePaymentIntentWithDetailsWithRetry(pi);
+      paymentIntent = await retrievePaymentIntentWithDetailsWithRetry(comparePi);
     } catch (err) {
       skipped.errors += 1;
       continue;
@@ -3897,6 +3916,8 @@ async function buildPaidDateDriftReport(startKey, endKey) {
       source: candidate.source,
       recordId: candidate.row.id,
       paymentIntentId: pi,
+      compareAgainstPaymentIntentId: comparePi,
+      isHvacBalance,
       customerName: candidate.row.customerName || "",
       salesOrder: resolved.salesOrder || "",
       description: resolved.description || "",
@@ -3988,9 +4009,14 @@ app.post("/api/admin/repair-paid-dates/apply", async (req, res) => {
         continue;
       }
 
+      // For HVAC records where the preview compared against the balance
+      // PI, we need to verify against the SAME PI on apply (otherwise
+      // the proposed date won't match Stripe's deposit-PI date and the
+      // change would be skipped).
+      const verifyPi = String(change?.compareAgainstPaymentIntentId || pi).trim();
       let paymentIntent;
       try {
-        paymentIntent = await retrievePaymentIntentWithDetailsWithRetry(pi);
+        paymentIntent = await retrievePaymentIntentWithDetailsWithRetry(verifyPi);
       } catch (err) {
         skipped.push({ paymentIntentId: pi, reason: `stripe error: ${err.message}` });
         continue;

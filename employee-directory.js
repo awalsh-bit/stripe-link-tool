@@ -20,5 +20,6 @@ window.WILSON_EMPLOYEE_DIRECTORY = {
   MSD: { name: "Michael Davidson", email: "mdavidson@wilsonappliance.com", department: "Repair Service" },
   SAD: { name: "Shelly Doublet", email: "sdoublet@wilsonappliance.com", department: "Appliance" },
   MJI: { name: "Mitchell Irlbeck", email: "mirlbeck@wilsonappliance.com", department: "HVAC Sales" },
-  VWJ: { name: "Vince Jones", email: "vjones@wilsonappliance.com", department: "HVAC Sales" }
+  VWJ: { name: "Vince Jones", email: "vjones@wilsonappliance.com", department: "HVAC Sales" },
+  TLS: { name: "Tracy Swan", email: "tswan@wilsonappliance.com", department: "Client Care" }
 };

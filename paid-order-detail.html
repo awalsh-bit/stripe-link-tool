@@ -274,6 +274,200 @@
         content: none;
       }
     }
+
+    .repair-panel {
+      background: #eff6ff;
+      border: 1px solid rgba(59, 130, 246, 0.28);
+      border-radius: 14px;
+      padding: 14px 18px;
+      margin-bottom: 14px;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .repair-panel-text {
+      flex: 1 1 280px;
+      min-width: 0;
+      font-size: 13px;
+      color: #1e3a8a;
+      line-height: 1.55;
+    }
+
+    .repair-panel-text strong {
+      color: #1e40af;
+    }
+
+    .repair-btn {
+      appearance: none;
+      border: 1px solid #1d4ed8;
+      background: #1d4ed8;
+      color: #fff;
+      padding: 10px 16px;
+      border-radius: 12px;
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+
+    .repair-btn:hover { background: #1e40af; }
+
+    .repair-btn[disabled] {
+      opacity: 0.65;
+      cursor: wait;
+    }
+
+    .repair-btn-secondary {
+      background: #fff;
+      color: #1e40af;
+    }
+
+    .repair-btn-secondary:hover {
+      background: #dbeafe;
+    }
+
+    .repair-btn-danger {
+      background: #b91c1c;
+      border-color: #991b1b;
+    }
+
+    .repair-btn-danger:hover { background: #991b1b; }
+
+    .repair-results {
+      margin-top: 12px;
+      width: 100%;
+      max-height: 280px;
+      overflow-y: auto;
+      border: 1px solid #c7d2fe;
+      border-radius: 10px;
+      background: #fff;
+    }
+
+    .repair-results table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12px;
+    }
+
+    .repair-results th {
+      text-align: left;
+      padding: 8px 10px;
+      background: #f5f7ff;
+      border-bottom: 1px solid #e0e7ff;
+      color: #3730a3;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      font-size: 10px;
+    }
+
+    .repair-results td {
+      padding: 8px 10px;
+      border-bottom: 1px solid #f1f5f9;
+      vertical-align: top;
+    }
+
+    .repair-results td.mono {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 11px;
+      color: #475569;
+    }
+
+    .repair-results td.drift-forward { color: #b91c1c; font-weight: 600; }
+    .repair-results td.drift-backward { color: #b45309; font-weight: 600; }
+
+    .repair-status {
+      width: 100%;
+      font-size: 13px;
+      color: #1e40af;
+      margin-top: 4px;
+    }
+
+    .repair-status.error { color: #991b1b; }
+    .repair-status.success { color: #065f46; }
+
+    .modal-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(15, 23, 42, 0.55);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 100;
+      padding: 20px;
+    }
+
+    .modal-backdrop.show { display: flex; }
+
+    .modal-card {
+      background: #fff;
+      border-radius: 18px;
+      box-shadow: 0 20px 60px rgba(15, 23, 42, 0.25);
+      max-width: 1080px;
+      width: 100%;
+      max-height: 90vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .modal-header {
+      padding: 18px 22px;
+      border-bottom: 1px solid #e5e7eb;
+    }
+
+    .modal-header h2 {
+      margin: 0 0 4px;
+      font-size: 18px;
+    }
+
+    .modal-header p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.5;
+    }
+
+    .modal-body {
+      padding: 16px 22px;
+      overflow-y: auto;
+      flex: 1 1 auto;
+    }
+
+    .modal-body table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12px;
+    }
+
+    .modal-body th {
+      text-align: left;
+      padding: 8px 10px;
+      background: #f9fafb;
+      border-bottom: 1px solid #e5e7eb;
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--muted);
+      font-weight: 700;
+    }
+
+    .modal-body td {
+      padding: 8px 10px;
+      border-bottom: 1px solid #f3f4f6;
+      vertical-align: top;
+    }
+
+    .modal-footer {
+      padding: 14px 22px;
+      border-top: 1px solid #e5e7eb;
+      display: flex;
+      gap: 10px;
+      justify-content: flex-end;
+      flex-wrap: wrap;
+    }
   </style>
 </head>
 <body data-shell-label="Paid Order Detail" data-shell-icon="accounting">
@@ -289,6 +483,16 @@
 
       <div class="toolbar-actions">
         <button id="exportCsvBtn" type="button">Export visible to CSV</button>
+      </div>
+
+      <div class="repair-panel" id="repairPanel">
+        <div class="repair-panel-text">
+          <strong>Paid Date Drift Repair.</strong> When a Stripe webhook re-delivers for a payment, the local "paid date" can jump forward to a later day. Use this to compare each paid record's local date to Stripe's authoritative charge timestamp. Preview only — nothing changes until you click Apply Repair and confirm.
+        </div>
+        <button id="previewDriftBtn" class="repair-btn" type="button">Preview Paid Date Drift</button>
+        <button id="applyRepairBtn" class="repair-btn repair-btn-danger" type="button" style="display: none;">Apply Repair</button>
+        <div id="repairStatus" class="repair-status"></div>
+        <div id="repairResults" class="repair-results" style="display: none;"></div>
       </div>
 
       <div class="summary-grid">
@@ -340,6 +544,22 @@
 
     <div class="internal-nav">
       <a href="dashboard.html">&larr; Back to dashboard</a>
+    </div>
+  </div>
+
+  <div class="modal-backdrop" id="repairModal" role="dialog" aria-modal="true" aria-labelledby="repairModalTitle">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h2 id="repairModalTitle">Confirm paid date repair</h2>
+        <p>The records below will have their local paid dates rewritten to match Stripe's authoritative charge timestamp. This is reversible only by editing the underlying JSON; review carefully before confirming.</p>
+      </div>
+      <div class="modal-body" id="repairModalBody">
+        <p style="color: var(--muted);">No drift items loaded yet.</p>
+      </div>
+      <div class="modal-footer">
+        <button class="repair-btn repair-btn-secondary" type="button" id="repairCancelBtn">Cancel</button>
+        <button class="repair-btn repair-btn-danger" type="button" id="repairConfirmBtn">Confirm and apply</button>
+      </div>
     </div>
   </div>
 
@@ -484,6 +704,173 @@
     });
 
     tableBody.innerHTML = `<tr><td colspan="8" class="empty">Choose a date range and click Run to load paid order detail.</td></tr>`;
+
+    // ---- Paid Date Drift Repair ----
+    const previewDriftBtn = document.getElementById("previewDriftBtn");
+    const applyRepairBtn = document.getElementById("applyRepairBtn");
+    const repairStatus = document.getElementById("repairStatus");
+    const repairResults = document.getElementById("repairResults");
+    const repairModal = document.getElementById("repairModal");
+    const repairModalBody = document.getElementById("repairModalBody");
+    const repairCancelBtn = document.getElementById("repairCancelBtn");
+    const repairConfirmBtn = document.getElementById("repairConfirmBtn");
+
+    let currentDriftItems = [];
+
+    function setRepairStatus(text, kind) {
+      repairStatus.textContent = text || "";
+      repairStatus.className = "repair-status" + (kind ? " " + kind : "");
+    }
+
+    function escapeHtml(value) {
+      return String(value == null ? "" : value).replace(/[&<>"\']/g, (c) => ({
+        "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;", "\'": "&#39;"
+      })[c]);
+    }
+
+    function formatDateTime(iso) {
+      if (!iso) return "-";
+      const d = new Date(iso);
+      if (Number.isNaN(d.getTime())) return iso;
+      return d.toLocaleString("en-US", {
+        month: "2-digit", day: "2-digit", year: "2-digit",
+        hour: "numeric", minute: "2-digit"
+      });
+    }
+
+    function renderDriftPreview(items) {
+      if (!items.length) {
+        repairResults.style.display = "block";
+        repairResults.innerHTML = '<div style="padding: 16px; color: #065f46; font-weight: 600;">No drift detected. Every paid record matches Stripe within 24 hours.</div>';
+        applyRepairBtn.style.display = "none";
+        return;
+      }
+
+      const rows = items.map((it) => `
+        <tr>
+          <td>${escapeHtml(it.salesOrder || "-")}</td>
+          <td>${escapeHtml(it.customerName || "-")}</td>
+          <td class="mono">${escapeHtml(it.paymentIntentId || "-")}</td>
+          <td>${formatDateTime(it.currentPaidDate)}</td>
+          <td>${formatDateTime(it.proposedPaidDate)}</td>
+          <td class="drift-${it.direction}">${it.driftDays} day${Math.abs(it.driftDays) === 1 ? "" : "s"} ${it.direction === "forward" ? "ahead" : "behind"}</td>
+        </tr>
+      `).join("");
+
+      repairResults.style.display = "block";
+      repairResults.innerHTML = `
+        <table>
+          <thead>
+            <tr>
+              <th>Sales Order</th>
+              <th>Customer</th>
+              <th>Payment Intent</th>
+              <th>Local Paid Date</th>
+              <th>Stripe Charge Created</th>
+              <th>Drift</th>
+            </tr>
+          </thead>
+          <tbody>${rows}</tbody>
+        </table>
+      `;
+      applyRepairBtn.style.display = "inline-flex";
+    }
+
+    async function runPreview() {
+      previewDriftBtn.disabled = true;
+      applyRepairBtn.style.display = "none";
+      repairResults.style.display = "none";
+      setRepairStatus("Comparing every paid record against Stripe... this can take a minute.");
+      try {
+        const res = await fetch("/api/admin/repair-paid-dates/preview", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            start: startDateEl.value || "",
+            end: endDateEl.value || ""
+          })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Preview failed.");
+        currentDriftItems = Array.isArray(data.items) ? data.items : [];
+        setRepairStatus(`Checked ${data.candidateCount} paid record${data.candidateCount === 1 ? "" : "s"} — ${currentDriftItems.length} with drift over 24 hours.`, currentDriftItems.length ? "" : "success");
+        renderDriftPreview(currentDriftItems);
+      } catch (err) {
+        setRepairStatus(err.message || "Preview failed.", "error");
+      } finally {
+        previewDriftBtn.disabled = false;
+      }
+    }
+
+    function openConfirmModal() {
+      if (!currentDriftItems.length) return;
+      const rows = currentDriftItems.map((it) => `
+        <tr>
+          <td>${escapeHtml(it.salesOrder || "-")}</td>
+          <td>${escapeHtml(it.customerName || "-")}</td>
+          <td style="font-family: ui-monospace, monospace; font-size: 11px;">${escapeHtml(it.paymentIntentId || "-")}</td>
+          <td><strong>Before:</strong> ${formatDateTime(it.currentPaidDate)}<br/><strong>After:</strong> ${formatDateTime(it.proposedPaidDate)}</td>
+          <td>${it.driftDays} day${Math.abs(it.driftDays) === 1 ? "" : "s"} ${it.direction}</td>
+          <td>${escapeHtml(it.source === "terminal_payments" ? "Terminal/Card-on-file" : "Payment link")}</td>
+        </tr>
+      `).join("");
+      repairModalBody.innerHTML = `
+        <p style="margin: 0 0 12px; font-weight: 600;">${currentDriftItems.length} record${currentDriftItems.length === 1 ? "" : "s"} will be updated.</p>
+        <table>
+          <thead>
+            <tr>
+              <th>Sales Order</th>
+              <th>Customer</th>
+              <th>Payment Intent</th>
+              <th>Date change</th>
+              <th>Drift</th>
+              <th>Source</th>
+            </tr>
+          </thead>
+          <tbody>${rows}</tbody>
+        </table>
+      `;
+      repairModal.classList.add("show");
+    }
+
+    function closeConfirmModal() {
+      repairModal.classList.remove("show");
+    }
+
+    async function applyRepair() {
+      repairConfirmBtn.disabled = true;
+      repairCancelBtn.disabled = true;
+      repairConfirmBtn.textContent = "Applying...";
+      try {
+        const res = await fetch("/api/admin/repair-paid-dates/apply", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ changes: currentDriftItems })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Apply failed.");
+        closeConfirmModal();
+        setRepairStatus(`Applied ${data.appliedCount} change${data.appliedCount === 1 ? "" : "s"}. Skipped: ${data.skippedCount}.`, "success");
+        currentDriftItems = [];
+        applyRepairBtn.style.display = "none";
+        repairResults.style.display = "none";
+        runReport().catch(handleRunError);
+      } catch (err) {
+        setRepairStatus(err.message || "Apply failed.", "error");
+      } finally {
+        repairConfirmBtn.disabled = false;
+        repairCancelBtn.disabled = false;
+        repairConfirmBtn.textContent = "Confirm and apply";
+      }
+    }
+
+    previewDriftBtn.addEventListener("click", runPreview);
+    applyRepairBtn.addEventListener("click", openConfirmModal);
+    repairCancelBtn.addEventListener("click", closeConfirmModal);
+    repairConfirmBtn.addEventListener("click", applyRepair);
+    repairModal.addEventListener("click", (e) => {
+      if (e.target === repairModal) closeConfirmModal();
+    });
   </script>
 </body>
 </html>

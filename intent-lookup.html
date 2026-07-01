@@ -223,6 +223,42 @@
       padding: 18px 0 6px;
     }
 
+    .customer-message {
+      display: none;
+      border: 1px solid rgba(99, 91, 255, 0.18);
+      border-radius: 16px;
+      padding: 16px;
+      background: #f8faff;
+      margin-bottom: 20px;
+    }
+
+    .customer-message.show {
+      display: block;
+    }
+
+    .customer-message-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-bottom: 10px;
+    }
+
+    .customer-message-title {
+      font-size: 13px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--muted);
+      font-weight: 700;
+    }
+
+    .customer-message-text {
+      white-space: pre-wrap;
+      line-height: 1.6;
+      font-size: 14px;
+    }
+
     @media (max-width: 1100px) {
       .summary-grid {
         grid-template-columns: 1fr;
@@ -343,6 +379,14 @@
         </div>
       </div>
 
+      <div id="customerMessagePanel" class="customer-message">
+        <div class="customer-message-header">
+          <div class="customer-message-title">Customer Message</div>
+          <button id="copyCustomerMessageBtn" class="btn btn-secondary" type="button">Copy message</button>
+        </div>
+        <div id="customerMessageText" class="customer-message-text"></div>
+      </div>
+
       <table>
         <thead>
           <tr>
@@ -367,11 +411,14 @@
     const lookupBtn = document.getElementById("lookupBtn");
     const refundBtn = document.getElementById("refundBtn");
     const exportCsvBtn = document.getElementById("exportCsvBtn");
+    const copyCustomerMessageBtn = document.getElementById("copyCustomerMessageBtn");
     const statusEl = document.getElementById("status");
     const helperTextEl = document.getElementById("helperText");
     const summaryPrimaryEl = document.getElementById("summaryPrimary");
     const summaryDatesEl = document.getElementById("summaryDates");
     const eventsTableBody = document.getElementById("eventsTableBody");
+    const customerMessagePanel = document.getElementById("customerMessagePanel");
+    const customerMessageText = document.getElementById("customerMessageText");
 
     let latestIntentResponse = null;
 
@@ -440,6 +487,7 @@
         ["Kind", latestIntentResponse.kind],
         ["Intent ID", latestIntentResponse.id],
         ...Object.entries(latestIntentResponse.summary || {}).map(([key, value]) => [key, value]),
+        ...(latestIntentResponse.customerMessage ? [["Customer Message", latestIntentResponse.customerMessage]] : []),
         ...((latestIntentResponse.events || []).flatMap((event, index) => ([
           [`Event ${index + 1} Date`, event.date || ""],
           [`Event ${index + 1} Label`, event.label || ""],
@@ -493,6 +541,9 @@
       ]);
 
       refundBtn.hidden = !isRefundablePaymentIntent(response);
+      const customerMessage = String(response.customerMessage || "").trim();
+      customerMessagePanel.classList.toggle("show", Boolean(customerMessage));
+      customerMessageText.textContent = customerMessage;
 
       const events = response.events || [];
       if (!events.length) {
@@ -611,6 +662,8 @@
         renderSummaryRows(summaryDatesEl, [
           { label: "Sent", value: "-" }
         ]);
+        customerMessagePanel.classList.remove("show");
+        customerMessageText.textContent = "";
         eventsTableBody.innerHTML = `<tr><td colspan="4" class="empty">Lookup failed.</td></tr>`;
         showStatus("error", err.message || "Lookup failed.");
       } finally {
@@ -629,6 +682,21 @@
 
     exportCsvBtn.addEventListener("click", () => {
       downloadCsv();
+    });
+
+    copyCustomerMessageBtn.addEventListener("click", async () => {
+      const message = String(latestIntentResponse?.customerMessage || "").trim();
+      if (!message) {
+        showStatus("error", "No customer message is available for this lookup.");
+        return;
+      }
+
+      try {
+        await navigator.clipboard.writeText(message);
+        showStatus("success", "Customer message copied to clipboard.");
+      } catch {
+        showStatus("error", "Could not copy the customer message.");
+      }
     });
 
     refundBtn.addEventListener("click", issueRefund);

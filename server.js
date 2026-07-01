@@ -543,6 +543,13 @@ app.post("/api/stripe/webhook", express.raw({ type: "application/json" }), async
       await processCheckoutSessionWebhookEvent(event);
     }
 
+    if (
+      event.type === "payment_intent.succeeded" ||
+      event.type === "payment_intent.payment_failed"
+    ) {
+      await processPaymentIntentWebhookEvent(event);
+    }
+
     res.json({ received: true });
   } catch (err) {
     res.status(400).send(`Webhook error: ${err.message}`);
@@ -2475,10 +2482,14 @@ app.get("/api/intent-lookup/:kind/:id", async (req, res) => {
     }
 
     if (resolvedKind === "payment_intent") {
-      const links = (await readLinks()).map((row) => normalizeLinkRecord({ ...row }));
+      const links = await readLinks();
       const terminalPayments = await readTerminalPayments();
+      const localLinkRow = links.find((row) => row.paymentIntentId === id) || null;
       const localRow =
-        [...links, ...terminalPayments].find((row) => row.paymentIntentId === id) || null;
+        [
+          ...links.map((row) => normalizeLinkRecord({ ...row })),
+          ...terminalPayments
+        ].find((row) => row.paymentIntentId === id) || null;
       const paymentIntent = await stripe.paymentIntents.retrieve(id, {
         expand: [
           "customer",
@@ -2489,8 +2500,25 @@ app.get("/api/intent-lookup/:kind/:id", async (req, res) => {
         ]
       });
 
+      if (
+        localLinkRow &&
+        !getSucceededStripeChargeCreatedSec(paymentIntent) &&
+        paymentIntent.latest_charge &&
+        typeof paymentIntent.latest_charge === "object" &&
+        paymentIntent.latest_charge.status === "failed" &&
+        (localLinkRow.status === "paid" || localLinkRow.paidDate || Number(localLinkRow.paidAmount || 0) > 0)
+      ) {
+        applyFailedPaymentIntentState(localLinkRow, paymentIntent);
+        localLinkRow.updatedAt = new Date().toISOString();
+        await writeLinks(links);
+      }
+
       return res.json(
-        buildPaymentIntentLookupResponse(id, paymentIntent, localRow)
+        buildPaymentIntentLookupResponse(
+          id,
+          paymentIntent,
+          localLinkRow ? normalizeLinkRecord({ ...localLinkRow }) : localRow
+        )
       );
     }
 
@@ -2915,10 +2943,13 @@ function buildPaymentIntentLookupResponse(id, paymentIntent, localRow) {
   const latestCharge = paymentIntent.latest_charge || null;
   const balanceTransaction = latestCharge?.balance_transaction || null;
   const refunds = Array.isArray(latestCharge?.refunds?.data) ? latestCharge.refunds.data : [];
+  const succeededChargeCreatedSec = getSucceededStripeChargeCreatedSec(paymentIntent);
+  const isSucceededPayment = Boolean(succeededChargeCreatedSec);
   const metadata = paymentIntent.metadata || {};
   const resolvedFields = resolvePaidOrderFields(localRow || {});
   const paymentMethodType =
     paymentIntent.payment_method_types?.[0] ||
+    latestCharge?.payment_method_details?.type ||
     paymentIntent.payment_method?.type ||
     "";
   const sentAmount =
@@ -2926,9 +2957,9 @@ function buildPaymentIntentLookupResponse(id, paymentIntent, localRow) {
       ? localRow.requestedAmount
       : Number((paymentIntent.amount || 0) / 100);
   const paidAmount =
-    typeof localRow?.paidAmount === "number" && localRow.paidAmount > 0
-      ? localRow.paidAmount
-      : Number((paymentIntent.amount_received || paymentIntent.amount || 0) / 100);
+    isSucceededPayment
+      ? Number((paymentIntent.amount_received || latestCharge?.amount || 0) / 100)
+      : 0;
   const refundedAmount = Number(
     refunds.reduce((sum, refund) => sum + Number(refund?.amount || 0), 0) / 100
   );
@@ -2954,12 +2985,21 @@ function buildPaymentIntentLookupResponse(id, paymentIntent, localRow) {
     });
   }
 
-  if (localRow?.paidDate || paymentIntent.status === "succeeded") {
+  if (isSucceededPayment) {
     events.push({
-      date: localRow?.paidDate || new Date(paymentIntent.created * 1000).toISOString(),
+      date: localRow?.paidDate || new Date(succeededChargeCreatedSec * 1000).toISOString(),
       label: "Paid",
       amount: paidAmount,
-      reason: describePaymentMethod(paymentMethodType, paymentIntent.payment_method)
+      reason: describePaymentMethod(paymentMethodType, paymentIntent.payment_method || latestCharge?.payment_method_details)
+    });
+  }
+
+  if (!isSucceededPayment && latestCharge?.status === "failed") {
+    events.push({
+      date: latestCharge.created ? new Date(latestCharge.created * 1000).toISOString() : new Date(paymentIntent.created * 1000).toISOString(),
+      label: "Failed",
+      amount: 0,
+      reason: latestCharge.failure_message || latestCharge.failure_code || "Stripe payment failed"
     });
   }
 
@@ -2973,6 +3013,17 @@ function buildPaymentIntentLookupResponse(id, paymentIntent, localRow) {
   }
 
   events.sort((a, b) => new Date(a.date || 0) - new Date(b.date || 0));
+  const customerMessage = !isSucceededPayment && latestCharge?.status === "failed"
+    ? buildPaymentFailureCustomerMessage({
+        summary: {
+          customerName: localRow?.customerName || metadata.customer_name || paymentIntent.customer?.name || "",
+          salesOrder: resolvedFields.salesOrder || metadata.sales_order || "",
+          requestedAmount: sentAmount,
+          paymentMethod: describePaymentMethod(paymentMethodType, paymentIntent.payment_method || latestCharge?.payment_method_details)
+        },
+        failureReason: latestCharge.failure_message || latestCharge.failure_code || ""
+      })
+    : "";
 
   return {
     kind: "payment_intent",
@@ -2986,26 +3037,56 @@ function buildPaymentIntentLookupResponse(id, paymentIntent, localRow) {
       description: resolvedFields.description || metadata.link_description || metadata.description || paymentIntent.description || "-",
       intentStatus: paymentIntent.status || "-",
       type: localRow?.type || (paymentMethodType === "us_bank_account" ? "ach_link" : "card_link"),
-      paymentMethod: describePaymentMethod(paymentMethodType, paymentIntent.payment_method),
+      paymentMethod: describePaymentMethod(paymentMethodType, paymentIntent.payment_method || latestCharge?.payment_method_details),
       sentDate: localRow?.createdAt || "",
-      paidDate: localRow?.paidDate || "",
+      paidDate: isSucceededPayment ? (localRow?.paidDate || new Date(succeededChargeCreatedSec * 1000).toISOString()) : "",
       requestedAmount: sentAmount,
       paidAmount,
       refundedAmount,
       refundableAmount,
-      feeAmount: Number((balanceTransaction?.fee || 0) / 100),
-      netAmount: Number(
-        typeof balanceTransaction?.net === "number"
-          ? balanceTransaction.net / 100
-          : paidAmount - Number((balanceTransaction?.fee || 0) / 100)
-      ),
+      feeAmount: isSucceededPayment ? Number((balanceTransaction?.fee || 0) / 100) : 0,
+      netAmount: isSucceededPayment
+        ? Number(
+            typeof balanceTransaction?.net === "number"
+              ? balanceTransaction.net / 100
+              : paidAmount - Number((balanceTransaction?.fee || 0) / 100)
+          )
+        : 0,
       notes: localRow?.notes || metadata.notes || "",
       deactivationReason: localRow?.deactivationReason || "",
       customerId: paymentIntent.customer?.id || "",
       paymentMethodId: paymentIntent.payment_method?.id || ""
     },
-    events
+    events,
+    customerMessage
   };
+}
+
+function buildPaymentFailureCustomerMessage({ summary, failureReason }) {
+  const customerFirstName = String(summary.customerName || "").trim().split(/\s+/)[0] || "there";
+  const orderText = summary.salesOrder ? ` for order ${summary.salesOrder}` : "";
+  const amountText = Number(summary.requestedAmount || 0) > 0
+    ? ` of ${formatUsdFromCents(Math.round(Number(summary.requestedAmount || 0) * 100))}`
+    : "";
+  const normalizedFailure = String(failureReason || "").toLowerCase();
+  const isMicrodepositTimeout =
+    normalizedFailure.includes("microdeposit") ||
+    normalizedFailure.includes("verification") ||
+    normalizedFailure.includes("timed out");
+
+  if (isMicrodepositTimeout) {
+    return [
+      `Hi ${customerFirstName}, this is Wilson AC & Appliance. We received a notice that your ACH bank payment${amountText}${orderText} did not complete because the bank account verification was not finished in time.`,
+      "No funds were collected, and there is no completed payment to refund.",
+      "To move forward, please use a new payment link and either complete the bank verification steps right away or choose a card payment instead. If you already see anything unusual at your bank, send us a screenshot and we will help review it."
+    ].join("\n\n");
+  }
+
+  return [
+    `Hi ${customerFirstName}, this is Wilson AC & Appliance. We received a notice that your payment${amountText}${orderText} did not complete.`,
+    "No funds were collected, and there is no completed payment to refund.",
+    "To move forward, please use a new payment link or contact us so we can help you try another payment method."
+  ].join("\n\n");
 }
 
 function buildSetupIntentLookupResponse(id, setupIntent, localRow) {
@@ -3101,11 +3182,17 @@ function formatRefundReason(reason) {
 
 function getRemainingRefundableCents(paymentIntent) {
   const latestCharge = paymentIntent?.latest_charge || null;
-  if (!latestCharge) {
+  if (
+    paymentIntent?.status !== "succeeded" ||
+    !latestCharge ||
+    typeof latestCharge !== "object" ||
+    latestCharge.status !== "succeeded" ||
+    latestCharge.paid !== true
+  ) {
     return 0;
   }
 
-  const grossAmount = Number(latestCharge.amount || paymentIntent?.amount_received || paymentIntent?.amount || 0);
+  const grossAmount = Number(latestCharge.amount || paymentIntent?.amount_received || 0);
   const refundedAmount = Number(latestCharge.amount_refunded || 0);
   return Math.max(0, grossAmount - refundedAmount);
 }
@@ -3406,6 +3493,11 @@ async function getLocalFallbackSaleRowsForDateRange(start, end, sourceRows, exis
 
   for (const row of fallbackRows) {
     const resolvedFields = resolvePaidOrderFields(row);
+    const paymentIntent = await retrievePaymentIntentWithDetailsWithRetry(row.paymentIntentId);
+    if (!getSucceededStripeChargeCreatedSec(paymentIntent)) {
+      await sleep(120);
+      continue;
+    }
     const stripeAmounts = await getStripeAmountsForPaymentIntentWithRetry(row.paymentIntentId);
 
     detailedFallbackRows.push({
@@ -3425,6 +3517,22 @@ async function getLocalFallbackSaleRowsForDateRange(start, end, sourceRows, exis
   }
 
   return detailedFallbackRows;
+}
+
+function getSucceededStripeChargeCreatedSec(paymentIntent) {
+  const latestCharge = paymentIntent?.latest_charge;
+  if (
+    paymentIntent?.status !== "succeeded" ||
+    !latestCharge ||
+    typeof latestCharge !== "object" ||
+    latestCharge.status !== "succeeded" ||
+    latestCharge.paid !== true ||
+    !latestCharge.created
+  ) {
+    return null;
+  }
+
+  return latestCharge.created;
 }
 
 async function getRefundRowsForDateRange(start, end, paidSourceRowsByPaymentIntentId) {
@@ -4319,7 +4427,7 @@ async function buildPaidDateDriftReport(startKey, endKey) {
   };
 
   const driftItems = [];
-  const skipped = { noStripeData: 0, noLatestCharge: 0, errors: 0, hvacExcluded: 0 };
+  const skipped = { noStripeData: 0, noLatestCharge: 0, notSucceeded: 0, errors: 0, hvacExcluded: 0 };
   const seenPaymentIntentIds = new Set();
 
   for (const candidate of candidates) {
@@ -4355,12 +4463,14 @@ async function buildPaidDateDriftReport(startKey, endKey) {
       continue;
     }
 
-    const latestCharge = paymentIntent?.latest_charge;
-    const chargeCreatedSec =
-      latestCharge && typeof latestCharge === "object" ? latestCharge.created : null;
+    const chargeCreatedSec = getSucceededStripeChargeCreatedSec(paymentIntent);
 
     if (!chargeCreatedSec) {
-      skipped.noLatestCharge += 1;
+      if (paymentIntent?.latest_charge) {
+        skipped.notSucceeded += 1;
+      } else {
+        skipped.noLatestCharge += 1;
+      }
       continue;
     }
 
@@ -4485,12 +4595,14 @@ app.post("/api/admin/repair-paid-dates/apply", async (req, res) => {
         skipped.push({ paymentIntentId: pi, reason: `stripe error: ${err.message}` });
         continue;
       }
-      const chargeCreatedSec =
-        paymentIntent?.latest_charge && typeof paymentIntent.latest_charge === "object"
-          ? paymentIntent.latest_charge.created
-          : null;
+      const chargeCreatedSec = getSucceededStripeChargeCreatedSec(paymentIntent);
       if (!chargeCreatedSec) {
-        skipped.push({ paymentIntentId: pi, reason: "no latest_charge on PI" });
+        skipped.push({
+          paymentIntentId: pi,
+          reason: paymentIntent?.latest_charge
+            ? "Stripe PaymentIntent/latest_charge is not succeeded"
+            : "no latest_charge on PI"
+        });
         continue;
       }
       const verifiedIso = new Date(chargeCreatedSec * 1000).toISOString();
@@ -4674,15 +4786,42 @@ async function processCheckoutSessionWebhookEvent(event) {
   }
 
   if (event.type === "checkout.session.async_payment_failed") {
-    record.status = "viewed";
-    record.type = "ach_link";
-    record.active = true;
-    record.paymentMethodType = "us_bank_account";
-    record.paymentStatusDetail = "failed";
-    record.paymentIntentId = paymentIntent?.id || record.paymentIntentId || "";
+    applyFailedPaymentIntentState(record, paymentIntent);
     record.checkoutSessionId = session.id || record.checkoutSessionId || "";
   }
 
+  await writeLinks(links);
+}
+
+async function processPaymentIntentWebhookEvent(event) {
+  const webhookPaymentIntent = event.data?.object;
+  if (!webhookPaymentIntent?.id) {
+    return;
+  }
+
+  const paymentIntent = await retrievePaymentIntentWithDetailsWithRetry(webhookPaymentIntent.id);
+
+  const links = await readLinks();
+  const record = links.find((row) => row.paymentIntentId === paymentIntent.id);
+
+  if (!record) {
+    console.warn(`[webhook miss] event=${event.type} payment_intent=${paymentIntent.id} (no matching local payment_links row)`);
+    return;
+  }
+
+  normalizeLinkRecord(record);
+
+  if (event.type === "payment_intent.succeeded") {
+    applyPaidLinkState(record, null, paymentIntent);
+    await deactivateCompletedPaymentLink(record);
+    await maybeSendLinkPaidNotification(record);
+  }
+
+  if (event.type === "payment_intent.payment_failed") {
+    applyFailedPaymentIntentState(record, paymentIntent);
+  }
+
+  record.updatedAt = new Date().toISOString();
   await writeLinks(links);
 }
 
@@ -4739,6 +4878,25 @@ function applyPaidLinkState(record, session, paymentIntent) {
       ? paymentIntent.payment_method
       : paymentIntent?.payment_method?.id || record.paymentMethodId || "";
   record.deactivationReason = COMPLETED_PAYMENT_LINK_MESSAGE;
+}
+
+function applyFailedPaymentIntentState(record, paymentIntent) {
+  const latestCharge = paymentIntent?.latest_charge;
+  const failureMessage =
+    latestCharge && typeof latestCharge === "object"
+      ? latestCharge.failure_message || latestCharge.failure_code || ""
+      : "";
+
+  record.status = "viewed";
+  record.active = true;
+  record.type = inferPaymentMethodType(paymentIntent, null) === "us_bank_account" ? "ach_link" : record.type || "card_link";
+  record.paymentMethodType = inferPaymentMethodType(paymentIntent, null) || record.paymentMethodType || "";
+  record.paymentStatusDetail = paymentIntent?.status || "failed";
+  record.paidAmount = 0;
+  record.paidDate = "";
+  record.deactivatedAt = "";
+  record.deactivationReason = failureMessage || "Stripe payment failed";
+  record.paymentIntentId = paymentIntent?.id || record.paymentIntentId || "";
 }
 
 function applyAchPendingState(record, session, paymentIntent) {

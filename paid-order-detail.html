@@ -799,7 +799,11 @@
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || "Preview failed.");
         currentDriftItems = Array.isArray(data.items) ? data.items : [];
-        setRepairStatus(`Checked ${data.candidateCount} paid record${data.candidateCount === 1 ? "" : "s"} — ${currentDriftItems.length} with drift over 24 hours.`, currentDriftItems.length ? "" : "success");
+        const hvacExcluded = Number(data?.skipped?.hvacExcluded || 0);
+        const hvacNote = hvacExcluded > 0
+          ? ` (${hvacExcluded} HVAC deposit record${hvacExcluded === 1 ? "" : "s"} skipped — review HVAC manually)`
+          : "";
+        setRepairStatus(`Checked ${data.candidateCount} paid record${data.candidateCount === 1 ? "" : "s"} — ${currentDriftItems.length} with drift over 24 hours${hvacNote}.`, currentDriftItems.length ? "" : "success");
         renderDriftPreview(currentDriftItems);
       } catch (err) {
         setRepairStatus(err.message || "Preview failed.", "error");

@@ -266,7 +266,7 @@
       <button id="lookupBtn" class="secondary" type="button">Lookup saved card</button>
     </div>
     <div class="helper-text">
-      Paste the SetupIntent ID from the service queue or ePASS, or open this page from the HVAC dashboard to prefill the balance charge automatically.
+      Paste the SetupIntent ID from the service queue or ePASS, or open this page from Deposit Agreements to prefill a balance charge automatically.
     </div>
   </div>
 
@@ -410,6 +410,7 @@
 
     let latestCopyText = "";
     let hvacDepositRecordId = "";
+    let depositAgreementId = "";
     const TEAM_DIRECTORY = window.WILSON_EMPLOYEE_DIRECTORY || {};
 
     function showStatus(type, message) {
@@ -557,7 +558,8 @@ const payload = {
   creatorEmail: creatorEmailInput.value.trim(),
   internalNotes: internalNotesInput.value.trim(),
   setupIntentId: setupIntentInput.value.trim(),
-  hvacDepositRecordId
+  hvacDepositRecordId,
+  depositAgreementId
 };
 
 if (!payload.customerId || !payload.paymentMethodId || !payload.amount || !payload.salesOrder || !payload.description) {
@@ -616,6 +618,7 @@ if (!applyCreatorLookup() || !payload.creatorCode || !payload.creatorName || !pa
       clearResult();
       clearLookupResult();
       hvacDepositRecordId = "";
+      depositAgreementId = "";
     });
 
     copyBtn.addEventListener("click", async () => {
@@ -639,6 +642,7 @@ if (!applyCreatorLookup() || !payload.creatorCode || !payload.creatorName || !pa
       clearLookupResult();
       clearResult();
       hvacDepositRecordId = recordId;
+      depositAgreementId = "";
       lookupBtn.disabled = true;
       lookupBtn.textContent = "Loading...";
 
@@ -647,20 +651,21 @@ if (!applyCreatorLookup() || !payload.creatorCode || !payload.creatorName || !pa
         const data = await res.json();
 
         if (!res.ok) {
-          throw new Error(data.error || "Unable to load HVAC deposit.");
+          throw new Error(data.error || "Unable to load deposit agreement.");
         }
 
         serviceOrderInput.value = data.salesOrder || "";
+        depositAgreementId = data.depositAgreementId || "";
         customerIdInput.value = data.customerId || "";
         paymentMethodIdInput.value = data.paymentMethodId || "";
         customerNameInput.value = data.customerName || "";
         amountInput.value = Number(data.balanceAmount || 0).toFixed(2);
         descriptionInput.value = data.description
           ? `${data.description} Remaining Balance`
-          : "HVAC remaining balance";
+          : "Deposit agreement remaining balance";
         internalNotesInput.value = data.paymentIntentId
-          ? `HVAC deposit payment intent: ${data.paymentIntentId}`
-          : "HVAC remaining balance";
+          ? `Deposit agreement: ${depositAgreementId || "-"}\nDeposit payment intent: ${data.paymentIntentId}`
+          : "Deposit agreement remaining balance";
         setupIntentInput.value = "";
 
         if (data.creatorCode) {
@@ -676,9 +681,9 @@ if (!applyCreatorLookup() || !payload.creatorCode || !payload.creatorName || !pa
           last4: ""
         });
 
-        showStatus("success", "HVAC balance charge loaded from dashboard.");
+        showStatus("success", "Deposit agreement balance charge loaded.");
       } catch (err) {
-        showStatus("error", err.message || "Unable to prefill HVAC charge.");
+        showStatus("error", err.message || "Unable to prefill deposit agreement charge.");
       } finally {
         lookupBtn.disabled = false;
         lookupBtn.textContent = "Lookup saved card";

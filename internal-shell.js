@@ -90,7 +90,7 @@
           { href: "index.html", title: "Send Payment Link" },
           { href: "terminal.html", title: "Send To Card Reader" },
           { href: "charge-saved-card.html", title: "Charge A Saved Card" },
-          { href: "hvac-dashboard.html", title: "Charge HVAC Balance" }
+          { href: "hvac-dashboard.html", title: "Deposit Agreements" }
         ]
       },
       {
@@ -98,6 +98,7 @@
         children: [
           { href: "paid-order-detail.html", title: "Paid Order Detail" },
           { href: "intent-lookup.html", title: "Intent Lookup" },
+          { href: "incoming-payouts.html", title: "Incoming Payouts" },
           { href: "bank-balancing.html", title: "Bank Balancing" }
         ]
       },

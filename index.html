@@ -284,8 +284,8 @@
           <div class="field full">
             <label for="linkType">Link Type</label>
             <select id="linkType" name="linkType">
-              <option value="appliance">Appliance Payment Link</option>
-              <option value="hvac_deposit">HVAC Deposit Link</option>
+              <option value="appliance">One-Time Payment Link</option>
+              <option value="hvac_deposit">Deposit Agreement Link</option>
             </select>
           </div>
 
@@ -349,8 +349,8 @@
 </div>
 
           <div id="hvacPanel" class="mode-panel full">
-            <div class="mode-panel-title">HVAC Deposit Workflow</div>
-            <div class="hint">For HVAC, enter the full sales order total above. This tool will charge a 50% deposit now and save the payment method for the remaining balance on the final day of installation.</div>
+            <div class="mode-panel-title">Deposit Agreement Workflow</div>
+            <div class="hint">Enter the full order total above. This tool will charge a 50% deposit now and save the payment method for the remaining balance later.</div>
             <div class="money-preview-grid">
               <div class="field">
                 <label for="depositAmountPreview">Deposit Collected Now</label>
@@ -515,8 +515,8 @@
       const depositAmount = totalAmount > 0 ? Number((totalAmount / 2).toFixed(2)) : 0;
       const balanceAmount = totalAmount > 0 ? Number((totalAmount - depositAmount).toFixed(2)) : 0;
 
-      amountLabel.textContent = linkType === 'hvac_deposit' ? 'Sales Order Total' : 'Amount';
-      amountInput.placeholder = linkType === 'hvac_deposit' ? 'Full HVAC sales order amount' : '125.00';
+      amountLabel.textContent = linkType === 'hvac_deposit' ? 'Order Total' : 'Amount';
+      amountInput.placeholder = linkType === 'hvac_deposit' ? 'Full order amount' : '125.00';
       hvacPanel.classList.toggle('show', linkType === 'hvac_deposit');
       customerEmailInput.required = linkType === 'hvac_deposit';
 
@@ -544,6 +544,14 @@
 
     linkTypeInput.addEventListener('change', updateHvacPreview);
     amountInput.addEventListener('input', updateHvacPreview);
+
+    function applyInitialLinkTypeFromQuery() {
+      const params = new URLSearchParams(window.location.search);
+      const requestedType = String(params.get('type') || params.get('linkType') || '').trim().toLowerCase();
+      if (requestedType === 'deposit_agreement' || requestedType === 'deposit' || requestedType === 'hvac_deposit') {
+        linkTypeInput.value = 'hvac_deposit';
+      }
+    }
 
     form.addEventListener('submit', async (event) => {
       event.preventDefault();
@@ -604,7 +612,7 @@ if (!payload.customerName || !payload.customerPhone || !payload.salesOrder || !p
 }
 
 if (linkType === 'hvac_deposit' && !payload.customerEmail) {
-  showStatus('error', 'Client email is required for HVAC deposit links so the payment method can be saved for the final balance.');
+  showStatus('error', 'Client email is required for deposit agreement links so the payment method can be saved for the final balance.');
   return;
 }
 
@@ -645,7 +653,7 @@ if (linkType === 'hvac_deposit' && !payload.customerEmail) {
           'success',
           data.message ||
             (linkType === 'hvac_deposit'
-              ? `HVAC deposit link created successfully. The link charges ${formatMoney(payload.amount, payload.currency)} now and saves the payment method for the remaining balance.`
+              ? `Deposit agreement link created successfully. The link charges ${formatMoney(payload.amount, payload.currency)} now and saves the payment method for the remaining balance.`
               : `Payment link created successfully. ${payload.creatorName} will be notified by email when it is paid if paid-email notifications are configured.`)
         );
       } catch (error) {
@@ -670,6 +678,7 @@ if (linkType === 'hvac_deposit' && !payload.customerEmail) {
       }
     });
 
+    applyInitialLinkTypeFromQuery();
     updateHvacPreview();
   </script>
 

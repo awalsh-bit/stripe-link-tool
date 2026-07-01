@@ -10,6 +10,10 @@ import {
   upsertLink,
   readTerminalPayments,
   writeTerminalPayments,
+  readDepositAgreements,
+  writeDepositAgreements,
+  readDepositPaymentEvents,
+  writeDepositPaymentEvents,
   readServiceCards,
   writeServiceCards,
   readArchivedServiceCards,
@@ -120,6 +124,7 @@ const INTERNAL_PAGE_PATHS = new Set([
   "/charge-saved-card.html",
   "/paid-order-detail.html",
   "/bank-balancing.html",
+  "/incoming-payouts.html",
   "/appliance-service-calls.html",
   "/archive-service-calls.html"
 ]);
@@ -141,7 +146,7 @@ const ACCESS_GROUPS = {
   },
   accounting: {
     label: "Accounting",
-    pages: ["/paid-order-detail.html", "/bank-balancing.html", "/intent-lookup.html", "/link-detail-lookup.html"]
+    pages: ["/paid-order-detail.html", "/bank-balancing.html", "/incoming-payouts.html", "/intent-lookup.html", "/link-detail-lookup.html"]
   },
   sales: {
     label: "Sales",
@@ -888,7 +893,7 @@ app.post("/api/create-payment-link", async (req, res) => {
 
     if (normalizedLinkType === "hvac_deposit" && !customerEmail) {
       return res.status(400).json({
-        error: "customerEmail is required for HVAC deposit links"
+        error: "customerEmail is required for deposit agreement links"
       });
     }
 
@@ -902,7 +907,7 @@ if (!Number.isFinite(unitAmount) || unitAmount < 50) {
 const productConfig = {
   name:
     normalizedLinkType === "hvac_deposit"
-      ? `${salesOrder || "Customer payment"} HVAC Deposit`
+      ? `${salesOrder || "Customer payment"} Deposit Agreement`
       : salesOrder || "Customer payment"
 };
 
@@ -959,7 +964,7 @@ const paymentLinkConfig = {
   payment_intent_data: {
     description:
       normalizedLinkType === "hvac_deposit"
-        ? `${salesOrder || description || "Customer payment"} HVAC deposit`
+        ? `${salesOrder || description || "Customer payment"} deposit agreement`
         : salesOrder || description || "Customer payment",
     metadata: sharedMetadata
   },
@@ -976,8 +981,7 @@ const paymentLink = await stripe.paymentLinks.create(paymentLinkConfig, {
 });
 
     const links = await readLinks();
-
-    links.unshift({
+    const linkRecord = {
       id: `req_${Date.now()}`,
       createdAt: new Date().toISOString(),
       customerName: customerName || "",
@@ -1016,14 +1020,25 @@ const paymentLink = await stripe.paymentLinks.create(paymentLinkConfig, {
       balanceChargedAt: "",
       balancePaymentIntentId: "",
       balancePaidAmount: 0
-    });
+    };
+
+    if (normalizedLinkType === "hvac_deposit") {
+      linkRecord.depositAgreementId = getDepositAgreementIdFromLink(linkRecord);
+    }
+
+    links.unshift(linkRecord);
 
     await writeLinks(links);
+
+    if (normalizedLinkType === "hvac_deposit") {
+      await upsertDepositAgreement(buildDepositAgreementFromLink(linkRecord));
+    }
 
     res.json({
       url: paymentLink.url,
       paymentLinkId: paymentLink.id,
-      workflowType: normalizedLinkType
+      workflowType: normalizedLinkType,
+      depositAgreementId: linkRecord.depositAgreementId || ""
     });
   } catch (err) {
     res.status(400).json({
@@ -1172,7 +1187,7 @@ app.get("/api/terminal/payment-status/:paymentIntentId", async (req, res) => {
           notes: paymentIntent.metadata?.notes || "",
           status: "paid",
           paidAmount: (paymentIntent.amount || 0) / 100,
-          paidDate: new Date().toISOString(),
+          paidDate: getPaymentIntentCreatedIso(paymentIntent),
           paymentIntentId: paymentIntent.id,
           cardBrand: cardDetails?.brand || "",
           last4: cardDetails?.last4 || ""
@@ -1621,8 +1636,10 @@ app.post("/api/card-on-file/charge", async (req, res) => {
       creatorName,
       creatorEmail,
       internalNotes,
-      hvacDepositRecordId
+      hvacDepositRecordId,
+      depositAgreementId
     } = req.body;
+    const resolvedDepositAgreementId = String(depositAgreementId || hvacDepositRecordId || "").trim();
 
     if (!customerId || !paymentMethodId || !amount || !salesOrder) {
       return res.status(400).json({
@@ -1655,7 +1672,8 @@ app.post("/api/card-on-file/charge", async (req, res) => {
         creator_name: creatorName || "",
         creator_email: creatorEmail || "",
         notes: internalNotes || "",
-        hvac_deposit_record_id: hvacDepositRecordId || ""
+        hvac_deposit_record_id: hvacDepositRecordId || "",
+        deposit_agreement_id: resolvedDepositAgreementId
       }
     };
 
@@ -1682,8 +1700,9 @@ app.post("/api/card-on-file/charge", async (req, res) => {
         description: description || "Service charge",
         status: "paid",
         paidAmount: (paymentIntent.amount || 0) / 100,
-        paidDate: new Date().toISOString(),
+        paidDate: getPaymentIntentCreatedIso(paymentIntent),
         paymentIntentId: paymentIntent.id,
+        depositAgreementId: resolvedDepositAgreementId,
         salesOrder: salesOrder || "",
         notes: internalNotes || ""
       });
@@ -1691,17 +1710,38 @@ app.post("/api/card-on-file/charge", async (req, res) => {
       await writeTerminalPayments(terminalPayments);
     }
 
-    if (paymentIntent.status === "succeeded" && hvacDepositRecordId) {
+    if (paymentIntent.status === "succeeded" && resolvedDepositAgreementId) {
       const links = await readLinks();
-      const hvacRecord = links.find((row) => row.id === hvacDepositRecordId);
+      const hvacRecord = links.find((row) =>
+        row.id === hvacDepositRecordId ||
+        row.depositAgreementId === resolvedDepositAgreementId ||
+        getDepositAgreementIdFromLink(row) === resolvedDepositAgreementId
+      );
 
       if (hvacRecord && normalizeLinkRecord(hvacRecord).workflowType === "hvac_deposit") {
-        hvacRecord.balanceChargedAt = new Date().toISOString();
+        hvacRecord.depositAgreementId = getDepositAgreementIdFromLink(hvacRecord);
+        hvacRecord.balanceChargedAt = getPaymentIntentCreatedIso(paymentIntent);
         hvacRecord.balancePaymentIntentId = paymentIntent.id;
         hvacRecord.balancePaidAmount = Number((paymentIntent.amount || 0) / 100);
         hvacRecord.customerId = customerId || hvacRecord.customerId || "";
         hvacRecord.paymentMethodId = paymentMethodId || hvacRecord.paymentMethodId || "";
         await writeLinks(links);
+
+        const agreement = buildDepositAgreementFromLink(hvacRecord);
+        await upsertDepositAgreement(agreement);
+        await appendDepositPaymentEvent({
+          depositAgreementId: agreement.id,
+          eventType: "balance_charged",
+          source: "card_on_file",
+          department: agreement.department,
+          salesOrder: agreement.salesOrder,
+          customerName: agreement.customerName,
+          approvedAt: getPaymentIntentCreatedIso(paymentIntent),
+          paymentIntentId: paymentIntent.id,
+          amount: Number((paymentIntent.amount || 0) / 100),
+          currency: agreement.currency,
+          reportType: "sale"
+        });
       }
     }
 
@@ -1778,6 +1818,8 @@ app.get("/api/hvac-deposits", async (req, res) => {
 
       rows.push({
         id: row.id,
+        depositAgreementId: row.depositAgreementId || getDepositAgreementIdFromLink(row),
+        department: normalizeDepositDepartment(row.department || row.workflowType),
         createdAt: row.createdAt || "",
         paidDate: row.paidDate || "",
         customerName: row.customerName || "",
@@ -1802,6 +1844,19 @@ app.get("/api/hvac-deposits", async (req, res) => {
       await writeLinks(links);
     }
 
+    const agreements = await syncDepositAgreementsFromLinks(links);
+    const agreementBySourceRecordId = new Map(
+      agreements.map((agreement) => [agreement.sourceRecordId, agreement])
+    );
+
+    for (const row of rows) {
+      const agreement = agreementBySourceRecordId.get(row.id);
+      if (!agreement) continue;
+      row.depositAgreementId = agreement.id;
+      row.agreementStatus = agreement.status;
+      row.department = agreement.department;
+    }
+
     rows.sort((a, b) => String(b.paidDate || "").localeCompare(String(a.paidDate || "")));
 
     const totals = rows.reduce((acc, row) => {
@@ -1818,7 +1873,43 @@ app.get("/api/hvac-deposits", async (req, res) => {
     res.json({ rows, totals });
   } catch (err) {
     res.status(400).json({
-      error: err.message || "Unable to load HVAC deposits."
+      error: err.message || "Unable to load deposit agreements."
+    });
+  }
+});
+
+app.get("/api/deposit-agreements", async (req, res) => {
+  try {
+    const links = await readLinks();
+    const agreements = await syncDepositAgreementsFromLinks(links);
+    const paymentEvents = await readDepositPaymentEvents();
+    const department = normalizeDepositDepartment(req.query.department || "");
+
+    const filteredAgreements = agreements
+      .filter((agreement) => !req.query.department || agreement.department === department)
+      .sort((a, b) =>
+        String(b.depositPaidAt || b.createdAt || "").localeCompare(String(a.depositPaidAt || a.createdAt || ""))
+      );
+
+    return res.json({
+      rows: filteredAgreements,
+      events: paymentEvents,
+      totals: filteredAgreements.reduce((acc, agreement) => {
+        acc.totalAmount += Number(agreement.totalAmount || 0);
+        acc.depositAmount += Number(agreement.depositAmount || 0);
+        acc.balanceAmount += Number(agreement.balanceAmount || 0);
+        acc.balancePaidAmount += Number(agreement.balancePaidAmount || 0);
+        return acc;
+      }, {
+        totalAmount: 0,
+        depositAmount: 0,
+        balanceAmount: 0,
+        balancePaidAmount: 0
+      })
+    });
+  } catch (err) {
+    return res.status(400).json({
+      error: err.message || "Unable to load deposit agreements."
     });
   }
 });
@@ -1826,11 +1917,16 @@ app.get("/api/hvac-deposits", async (req, res) => {
 app.get("/api/hvac-deposits/:id", async (req, res) => {
   try {
     const links = await readLinks();
-    const row = links.find((item) => item.id === req.params.id);
+    await syncDepositAgreementsFromLinks(links);
+    const row = links.find((item) =>
+      item.id === req.params.id ||
+      item.depositAgreementId === req.params.id ||
+      getDepositAgreementIdFromLink(item) === req.params.id
+    );
 
     if (!row) {
       return res.status(404).json({
-        error: "HVAC deposit record not found."
+        error: "Deposit agreement record not found."
       });
     }
 
@@ -1838,19 +1934,19 @@ app.get("/api/hvac-deposits/:id", async (req, res) => {
 
     if (row.workflowType !== "hvac_deposit") {
       return res.status(400).json({
-        error: "Record is not an HVAC deposit."
+        error: "Record is not a deposit agreement."
       });
     }
 
     if (row.balanceCanceledAt) {
       return res.status(400).json({
-        error: "This HVAC deposit has been canceled from the balance-charge queue."
+        error: "This deposit agreement has been canceled from the balance-charge queue."
       });
     }
 
     if (row.balanceChargedAt) {
       return res.status(400).json({
-        error: "This HVAC deposit balance has already been charged."
+        error: "This deposit agreement balance has already been charged."
       });
     }
 
@@ -1869,6 +1965,7 @@ app.get("/api/hvac-deposits/:id", async (req, res) => {
 
     return res.json({
       id: row.id,
+      depositAgreementId: row.depositAgreementId || getDepositAgreementIdFromLink(row),
       customerName: row.customerName || "",
       customerEmail: row.customerEmail || "",
       creatorCode: row.creatorCode || "",
@@ -1887,7 +1984,7 @@ app.get("/api/hvac-deposits/:id", async (req, res) => {
     });
   } catch (err) {
     res.status(400).json({
-      error: err.message || "Unable to load HVAC deposit record."
+      error: err.message || "Unable to load deposit agreement record."
     });
   }
 });
@@ -1896,11 +1993,16 @@ app.post("/api/hvac-deposits/:id/manage", async (req, res) => {
   try {
     const { action, balanceAmount } = req.body || {};
     const links = await readLinks();
-    const row = links.find((item) => item.id === req.params.id);
+    await syncDepositAgreementsFromLinks(links);
+    const row = links.find((item) =>
+      item.id === req.params.id ||
+      item.depositAgreementId === req.params.id ||
+      getDepositAgreementIdFromLink(item) === req.params.id
+    );
 
     if (!row) {
       return res.status(404).json({
-        error: "HVAC deposit record not found."
+        error: "Deposit agreement record not found."
       });
     }
 
@@ -1908,25 +2010,26 @@ app.post("/api/hvac-deposits/:id/manage", async (req, res) => {
 
     if (row.workflowType !== "hvac_deposit") {
       return res.status(400).json({
-        error: "Record is not an HVAC deposit."
+        error: "Record is not a deposit agreement."
       });
     }
 
     if (row.balanceChargedAt) {
       return res.status(400).json({
-        error: "This HVAC deposit balance has already been charged."
+        error: "This deposit agreement balance has already been charged."
       });
     }
 
     if (action === "cancel") {
       row.balanceCanceledAt = new Date().toISOString();
-      row.balanceCancellationReason = "Canceled from HVAC deposits dashboard";
+      row.balanceCancellationReason = "Canceled from deposit agreements dashboard";
       await writeLinks(links);
+      await upsertDepositAgreement(buildDepositAgreementFromLink(row));
 
       return res.json({
         success: true,
         action: "cancel",
-        message: "HVAC deposit removed from the open balance dashboard."
+        message: "Deposit agreement removed from the open balance dashboard."
       });
     }
 
@@ -1946,22 +2049,23 @@ app.post("/api/hvac-deposits/:id/manage", async (req, res) => {
       row.balanceCanceledAt = "";
       row.balanceCancellationReason = "";
       await writeLinks(links);
+      await upsertDepositAgreement(buildDepositAgreementFromLink(row));
 
       return res.json({
         success: true,
         action: "update_balance",
         balanceAmount: row.balanceAmount,
         requestedTotalAmount: row.requestedTotalAmount,
-        message: "HVAC future balance updated."
+        message: "Future balance updated."
       });
     }
 
     return res.status(400).json({
-      error: "Unsupported HVAC deposit action."
+      error: "Unsupported deposit agreement action."
     });
   } catch (err) {
     return res.status(400).json({
-      error: err.message || "Unable to update HVAC deposit."
+      error: err.message || "Unable to update deposit agreement."
     });
   }
 });
@@ -2193,6 +2297,57 @@ app.get("/api/bank-balancing", async (req, res) => {
   } catch (err) {
     res.status(400).json({
       error: err.message || "Unable to load bank balancing."
+    });
+  }
+});
+
+app.get("/api/incoming-payouts", async (req, res) => {
+  try {
+    const days = Math.min(Math.max(Number(req.query.days || 21), 1), 90);
+    const todayKey = toTimeZoneDateKey(new Date().toISOString(), APP_TIMEZONE);
+    const endKey = addDaysToDateKey(todayKey, days);
+    const startUnix = dateKeyToUnixStart(todayKey);
+    const endUnix = dateKeyToUnixEnd(endKey);
+
+    const [balance, payoutsByArrivalDate, pendingAvailability] = await Promise.all([
+      stripe.balance.retrieve(),
+      listPayoutsByArrivalDate(todayKey, endKey),
+      listPendingBalanceTransactionsByAvailableDate(startUnix, endUnix)
+    ]);
+
+    const payoutRows = payoutsByArrivalDate
+      .filter((payout) => !["canceled", "failed"].includes(String(payout.status || "").toLowerCase()))
+      .map((payout) => buildIncomingPayoutRow(payout))
+      .sort((a, b) => String(a.arrivalDateKey || "").localeCompare(String(b.arrivalDateKey || "")));
+
+    const availabilityBuckets = buildPendingAvailabilityBuckets(pendingAvailability)
+      .filter((bucket) => isDateKeyWithinRange(bucket.availableOnDateKey, todayKey, endKey))
+      .sort((a, b) => String(a.availableOnDateKey || "").localeCompare(String(b.availableOnDateKey || "")));
+
+    const totals = {
+      payoutCount: payoutRows.length,
+      payoutAmount: payoutRows.reduce((sum, row) => sum + Number(row.amount || 0), 0),
+      pendingAvailabilityAmount: availabilityBuckets.reduce((sum, row) => sum + Number(row.netAmount || 0), 0),
+      availableBalanceAmount: sumStripeBalanceEntries(balance.available),
+      pendingBalanceAmount: sumStripeBalanceEntries(balance.pending)
+    };
+
+    return res.json({
+      generatedAt: new Date().toISOString(),
+      start: todayKey,
+      end: endKey,
+      days,
+      payouts: payoutRows,
+      availabilityBuckets,
+      balance: {
+        available: normalizeStripeBalanceEntries(balance.available),
+        pending: normalizeStripeBalanceEntries(balance.pending)
+      },
+      totals
+    });
+  } catch (err) {
+    return res.status(400).json({
+      error: err.message || "Unable to load incoming payouts."
     });
   }
 });
@@ -2973,6 +3128,188 @@ function describeUnits(units) {
     .join(", ");
 }
 
+function normalizeDepositDepartment(value) {
+  const normalized = String(value || "").trim().toLowerCase();
+  if (normalized === "hvac" || normalized === "hvac_deposit") return "hvac";
+  if (normalized === "sales") return "sales";
+  if (normalized === "service") return "service";
+  if (normalized === "appliance") return "appliance";
+  return normalized || "appliance";
+}
+
+function getDepositAgreementIdFromLink(row) {
+  return row.depositAgreementId || `dep_${row.id || row.paymentLinkId || Date.now()}`;
+}
+
+function buildDepositAgreementFromLink(row) {
+  const createdAt = row.createdAt || new Date().toISOString();
+  const department = normalizeDepositDepartment(row.department || row.workflowType);
+  const depositAmount = Number(row.depositAmount || row.requestedAmount || 0);
+  const balanceAmount = Number(row.balanceAmount || 0);
+  const balancePaidAmount = Number(row.balancePaidAmount || 0);
+  const status = row.balanceCanceledAt
+    ? "canceled"
+    : row.balanceChargedAt || balancePaidAmount > 0
+      ? "completed"
+      : row.status === "paid"
+        ? "open_balance"
+        : "pending_deposit";
+
+  return {
+    id: getDepositAgreementIdFromLink(row),
+    source: "payment_link",
+    sourceRecordId: row.id || "",
+    department,
+    createdAt,
+    updatedAt: row.updatedAt || createdAt,
+    customerName: row.customerName || "",
+    customerEmail: row.customerEmail || "",
+    customerPhone: row.customerPhone || "",
+    creatorCode: row.creatorCode || "",
+    creatorName: row.creatorName || "",
+    creatorEmail: row.creatorEmail || "",
+    salesOrder: row.salesOrder || "",
+    description: row.description || "",
+    notes: row.notes || "",
+    currency: row.currency || "usd",
+    totalAmount: Number(row.requestedTotalAmount || row.requestedAmount || depositAmount + balanceAmount || 0),
+    depositAmount,
+    balanceAmount,
+    balancePaidAmount,
+    status,
+    depositPaidAt: row.paidDate || "",
+    depositPaymentIntentId: row.paymentIntentId || "",
+    balanceChargedAt: row.balanceChargedAt || "",
+    balancePaymentIntentId: row.balancePaymentIntentId || "",
+    balanceCanceledAt: row.balanceCanceledAt || "",
+    balanceCancellationReason: row.balanceCancellationReason || "",
+    customerId: row.customerId || "",
+    paymentMethodId: row.paymentMethodId || "",
+    agreementText: row.agreementText || ""
+  };
+}
+
+async function syncDepositAgreementsFromLinks(links = null) {
+  const sourceLinks = links || await readLinks();
+  const agreements = await readDepositAgreements();
+  const agreementById = new Map(agreements.map((agreement) => [agreement.id, agreement]));
+  let didChange = false;
+
+  for (const rawRow of sourceLinks) {
+    const row = normalizeLinkRecord(rawRow);
+    if (row.workflowType !== "hvac_deposit") continue;
+
+    const agreement = buildDepositAgreementFromLink(row);
+    row.depositAgreementId = agreement.id;
+    const existing = agreementById.get(agreement.id);
+    agreementById.set(agreement.id, { ...(existing || {}), ...agreement });
+    if (row.status === "paid" && row.paymentIntentId && row.paidDate) {
+      await appendDepositPaymentEvent({
+        depositAgreementId: agreement.id,
+        eventType: "deposit_collected",
+        source: "payment_link",
+        department: agreement.department,
+        salesOrder: agreement.salesOrder,
+        customerName: agreement.customerName,
+        approvedAt: row.paidDate,
+        paymentIntentId: row.paymentIntentId,
+        amount: Number(row.paidAmount || agreement.depositAmount || 0),
+        currency: agreement.currency,
+        reportType: "sale"
+      });
+    }
+    if (row.balancePaymentIntentId && row.balanceChargedAt) {
+      await appendDepositPaymentEvent({
+        depositAgreementId: agreement.id,
+        eventType: "balance_charged",
+        source: "card_on_file",
+        department: agreement.department,
+        salesOrder: agreement.salesOrder,
+        customerName: agreement.customerName,
+        approvedAt: row.balanceChargedAt,
+        paymentIntentId: row.balancePaymentIntentId,
+        amount: Number(row.balancePaidAmount || agreement.balanceAmount || 0),
+        currency: agreement.currency,
+        reportType: "sale"
+      });
+    }
+    didChange = true;
+  }
+
+  if (didChange) {
+    await writeDepositAgreements(
+      Array.from(agreementById.values()).sort((a, b) =>
+        String(b.depositPaidAt || b.createdAt || "").localeCompare(String(a.depositPaidAt || a.createdAt || ""))
+      )
+    );
+  }
+
+  return Array.from(agreementById.values());
+}
+
+async function upsertDepositAgreement(agreement) {
+  const agreements = await readDepositAgreements();
+  const index = agreements.findIndex((row) => row.id === agreement.id);
+  const nextAgreement = {
+    ...(index >= 0 ? agreements[index] : {}),
+    ...agreement,
+    updatedAt: new Date().toISOString()
+  };
+
+  if (index >= 0) {
+    agreements[index] = nextAgreement;
+  } else {
+    agreements.unshift(nextAgreement);
+  }
+
+  await writeDepositAgreements(agreements);
+  return nextAgreement;
+}
+
+async function appendDepositPaymentEvent(event) {
+  const events = await readDepositPaymentEvents();
+  const paymentIntentId = String(event.paymentIntentId || "").trim();
+  const eventType = String(event.eventType || "").trim();
+  const alreadyExists = paymentIntentId && events.some((row) =>
+    row.paymentIntentId === paymentIntentId && row.eventType === eventType
+  );
+
+  if (alreadyExists) {
+    return events.find((row) => row.paymentIntentId === paymentIntentId && row.eventType === eventType);
+  }
+
+  const nextEvent = {
+    id: `dpe_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+    createdAt: new Date().toISOString(),
+    ...event
+  };
+  events.unshift(nextEvent);
+  await writeDepositPaymentEvents(events);
+  return nextEvent;
+}
+
+async function recordDepositCollectedFromLink(row) {
+  if (normalizeLinkRecord(row).workflowType !== "hvac_deposit" || row.status !== "paid") {
+    return null;
+  }
+
+  const agreement = buildDepositAgreementFromLink(row);
+  await upsertDepositAgreement(agreement);
+  return appendDepositPaymentEvent({
+    depositAgreementId: agreement.id,
+    eventType: "deposit_collected",
+    source: "payment_link",
+    department: agreement.department,
+    salesOrder: agreement.salesOrder,
+    customerName: agreement.customerName,
+    approvedAt: row.paidDate || "",
+    paymentIntentId: row.paymentIntentId || "",
+    amount: Number(row.paidAmount || agreement.depositAmount || 0),
+    currency: agreement.currency,
+    reportType: "sale"
+  });
+}
+
 async function getSaleRowsForDateRange(start, end, paidSourceRowsByPaymentIntentId) {
   const saleRows = [];
   const paymentIntentCache = new Map();
@@ -3436,6 +3773,133 @@ function getPayoutArrivalDateKey(payout) {
   return unixDateToDateKey(payout?.arrival_date || payout?.created);
 }
 
+function buildIncomingPayoutRow(payout) {
+  const balanceTransaction =
+    payout?.balance_transaction && typeof payout.balance_transaction === "object"
+      ? payout.balance_transaction
+      : null;
+
+  return {
+    id: payout.id || "",
+    status: payout.status || "",
+    amount: Number((payout.amount || 0) / 100),
+    currency: payout.currency || "usd",
+    arrivalDateKey: getPayoutArrivalDateKey(payout),
+    arrivalDate: payout.arrival_date ? new Date(payout.arrival_date * 1000).toISOString() : "",
+    createdAt: payout.created ? new Date(payout.created * 1000).toISOString() : "",
+    automatic: Boolean(payout.automatic),
+    method: payout.method || "",
+    type: payout.type || "",
+    sourceType: payout.source_type || "",
+    description: payout.description || "",
+    destination:
+      typeof payout.destination === "string"
+        ? payout.destination
+        : payout.destination?.id || "",
+    balanceTransactionId:
+      typeof payout.balance_transaction === "string"
+        ? payout.balance_transaction
+        : balanceTransaction?.id || "",
+    reconciliationStatus: payout.reconciliation_status || "",
+    traceIdStatus: payout.trace_id?.status || "",
+    traceId: payout.trace_id?.value || ""
+  };
+}
+
+async function listPayoutsByArrivalDate(start, end) {
+  const payouts = [];
+  let startingAfter = "";
+  const startUnix = dateKeyToUnixStart(start);
+  const endUnix = dateKeyToUnixEnd(end);
+
+  while (true) {
+    const page = await listPayoutsWithRetry({
+      limit: 100,
+      arrival_date: {
+        gte: startUnix,
+        lte: endUnix
+      },
+      ...(startingAfter ? { starting_after: startingAfter } : {})
+    });
+
+    payouts.push(...page.data);
+
+    if (!page.has_more) break;
+    startingAfter = page.data[page.data.length - 1]?.id || "";
+    if (!startingAfter) break;
+  }
+
+  return payouts;
+}
+
+async function listPendingBalanceTransactionsByAvailableDate(startUnix, endUnix) {
+  const rows = [];
+  let startingAfter = "";
+
+  while (true) {
+    const page = await stripe.balanceTransactions.list({
+      limit: 100,
+      available_on: {
+        gte: startUnix,
+        lte: endUnix
+      },
+      ...(startingAfter ? { starting_after: startingAfter } : {})
+    });
+
+    rows.push(...page.data.filter((transaction) =>
+      transaction.status === "pending" &&
+      Number(transaction.net || 0) > 0
+    ));
+
+    if (!page.has_more) break;
+    startingAfter = page.data[page.data.length - 1]?.id || "";
+    if (!startingAfter) break;
+  }
+
+  return rows;
+}
+
+function buildPendingAvailabilityBuckets(transactions) {
+  const buckets = new Map();
+
+  for (const transaction of transactions) {
+    const key = unixDateToDateKey(transaction.available_on);
+    if (!key) continue;
+
+    const bucket = buckets.get(key) || {
+      availableOnDateKey: key,
+      transactionCount: 0,
+      grossAmount: 0,
+      feeAmount: 0,
+      netAmount: 0,
+      currency: transaction.currency || "usd",
+      typeCounts: {}
+    };
+
+    bucket.transactionCount += 1;
+    bucket.grossAmount += Number((transaction.amount || 0) / 100);
+    bucket.feeAmount += Number((transaction.fee || 0) / 100);
+    bucket.netAmount += Number((transaction.net || 0) / 100);
+    const type = String(transaction.type || "unknown");
+    bucket.typeCounts[type] = (bucket.typeCounts[type] || 0) + 1;
+    buckets.set(key, bucket);
+  }
+
+  return Array.from(buckets.values());
+}
+
+function normalizeStripeBalanceEntries(entries) {
+  return (Array.isArray(entries) ? entries : []).map((entry) => ({
+    amount: Number((entry.amount || 0) / 100),
+    currency: entry.currency || "usd",
+    sourceTypes: entry.source_types || {}
+  }));
+}
+
+function sumStripeBalanceEntries(entries) {
+  return normalizeStripeBalanceEntries(entries).reduce((sum, entry) => sum + Number(entry.amount || 0), 0);
+}
+
 function isDateKeyWithinRange(dateKey, startKey, endKey) {
   if (!dateKey || !startKey || !endKey) {
     return false;
@@ -3494,11 +3958,11 @@ function buildSaleReportRow(charge, paidIso, sourceRow, paymentIntent) {
 }
 
 function getSaleReportDateIso(charge, sourceRow) {
-  if (sourceRow?.paidDate) {
-    return sourceRow.paidDate;
-  }
-
   return new Date((charge.created || 0) * 1000).toISOString();
+}
+
+function getPaymentIntentCreatedIso(paymentIntent) {
+  return new Date((paymentIntent?.created || Math.floor(Date.now() / 1000)) * 1000).toISOString();
 }
 
 function buildRefundReportRow(refund, refundIso, sourceRow, paymentIntent) {
@@ -3855,30 +4319,30 @@ async function buildPaidDateDriftReport(startKey, endKey) {
   };
 
   const driftItems = [];
-  const skipped = { noStripeData: 0, noLatestCharge: 0, errors: 0 };
+  const skipped = { noStripeData: 0, noLatestCharge: 0, errors: 0, hvacExcluded: 0 };
   const seenPaymentIntentIds = new Set();
 
   for (const candidate of candidates) {
     if (!inRange(candidate.row)) continue;
-    const pi = candidate.row.paymentIntentId;
 
-    // HVAC deposit records have TWO payment intents: the deposit (paid
-    // up front) and the balance (charged later via saved card). For
-    // these, the local paidDate intentionally reflects the BALANCE
-    // charge once it has been run, not the deposit. Comparing against
-    // the deposit PI would flag every fully-paid HVAC record as
-    // "31 days of drift" and try to roll paidDate back to the deposit.
-    // So if a balance PI exists, compare against IT instead.
-    let comparePi = pi;
-    let isHvacBalance = false;
+    // HVAC deposit records have a deposit charge AND a separate balance
+    // charge (run later via saved card). The local paidDate can
+    // legitimately reflect EITHER, and the balance PI isn't reliably
+    // tracked on the link record (depends on whether the operator
+    // selected "HVAC deposit" in the card-on-file form). Auto-repair
+    // can't reconcile this safely, so we skip HVAC records entirely
+    // and surface the count in the UI. Manual review for these.
     if (
       candidate.source === "payment_links" &&
-      String(candidate.row.workflowType || "").toLowerCase() === "hvac_deposit" &&
-      candidate.row.balancePaymentIntentId
+      String(candidate.row.workflowType || "").toLowerCase() === "hvac_deposit"
     ) {
-      comparePi = candidate.row.balancePaymentIntentId;
-      isHvacBalance = true;
+      skipped.hvacExcluded += 1;
+      continue;
     }
+
+    const pi = candidate.row.paymentIntentId;
+    const comparePi = pi;
+    const isHvacBalance = false;
 
     if (seenPaymentIntentIds.has(comparePi)) continue;
     seenPaymentIntentIds.add(comparePi);
@@ -4194,6 +4658,7 @@ async function processCheckoutSessionWebhookEvent(event) {
   if (event.type === "checkout.session.completed") {
     if (paymentIntent?.status === "succeeded") {
       applyPaidLinkState(record, session, paymentIntent);
+      await recordDepositCollectedFromLink(record);
       await deactivateCompletedPaymentLink(record);
       await maybeSendLinkPaidNotification(record);
     } else if (isAchPendingIntent(paymentIntent, record)) {
@@ -4203,6 +4668,7 @@ async function processCheckoutSessionWebhookEvent(event) {
 
   if (event.type === "checkout.session.async_payment_succeeded") {
     applyPaidLinkState(record, session, paymentIntent);
+    await recordDepositCollectedFromLink(record);
     await deactivateCompletedPaymentLink(record);
     await maybeSendLinkPaidNotification(record);
   }

@@ -320,7 +320,9 @@
       categories: [],
       presets: {},
       allowedDomain: "wilsonappliance.com",
-      expanded: new Set()
+      expanded: new Set(),
+      // Staged (unsaved) permission edits per user: userId -> Map(path -> granted)
+      pending: new Map()
     };
 
     function setStatus(id, message, kind) {
@@ -423,9 +425,12 @@
         const actions = el("div", { class: "row-actions" });
 
         if (!user.isExecutive) {
+          const pendingEdits = state.pending.get(user.id)?.size || 0;
           actions.appendChild(el("button", {
             class: "tiny secondary",
-            text: state.expanded.has(user.id) ? "Hide pages" : "Edit pages",
+            text: state.expanded.has(user.id)
+              ? "Hide pages"
+              : (pendingEdits ? `Edit pages (${pendingEdits} unsaved)` : "Edit pages"),
             onclick: () => {
               if (state.expanded.has(user.id)) state.expanded.delete(user.id);
               else state.expanded.add(user.id);
@@ -494,33 +499,65 @@
       return page ? page.label : path;
     }
 
-    async function applyPermissionChanges(user, changes, successMessage) {
-      const data = await api(`/api/admin/users/${user.id}/permissions`, {
-        method: "POST",
-        body: JSON.stringify({ changes })
-      });
-      user.grantedPages = data.grantedPages || [];
-      setStatus("usersStatus", successMessage, "ok");
+    // ---- Staged permission edits (nothing hits the server until Save) ----
+
+    function getStagedMap(user) {
+      if (!state.pending.has(user.id)) state.pending.set(user.id, new Map());
+      return state.pending.get(user.id);
+    }
+
+    function isGrantedSaved(user, path) {
+      return (user.grantedPages || []).includes(path);
+    }
+
+    function isGrantedEffective(user, path) {
+      const staged = state.pending.get(user.id);
+      if (staged && staged.has(path)) return staged.get(path);
+      return isGrantedSaved(user, path);
+    }
+
+    function stagePermission(user, path, granted) {
+      const staged = getStagedMap(user);
+      if (isGrantedSaved(user, path) === granted) {
+        staged.delete(path); // back to saved state — no longer a pending change
+      } else {
+        staged.set(path, granted);
+      }
+    }
+
+    function pendingCount(user) {
+      return state.pending.get(user.id)?.size || 0;
+    }
+
+    async function savePermissions(user, button) {
+      const staged = state.pending.get(user.id);
+      if (!staged || !staged.size) return;
+
+      button.disabled = true;
+      button.textContent = "Saving...";
+
+      try {
+        const changes = [...staged].map(([pagePath, granted]) => ({ pagePath, granted }));
+        const data = await api(`/api/admin/users/${user.id}/permissions`, {
+          method: "POST",
+          body: JSON.stringify({ changes })
+        });
+        user.grantedPages = data.grantedPages || [];
+        state.pending.delete(user.id);
+        setStatus("usersStatus", `Saved ${changes.length} permission change(s) for ${user.email}.`, "ok");
+      } catch (err) {
+        setStatus("usersStatus", err.message, "error");
+      }
+
       renderUsers();
     }
 
     function buildPermCheckbox(user, path) {
-      const granted = new Set(user.grantedPages || []);
       const checkbox = el("input", { type: "checkbox" });
-      checkbox.checked = granted.has(path);
-      checkbox.addEventListener("change", async () => {
-        checkbox.disabled = true;
-        try {
-          await applyPermissionChanges(
-            user,
-            [{ pagePath: path, granted: checkbox.checked }],
-            `Updated ${pageLabelFor(path)} for ${user.email}.`
-          );
-        } catch (err) {
-          checkbox.checked = !checkbox.checked;
-          checkbox.disabled = false;
-          setStatus("usersStatus", err.message, "error");
-        }
+      checkbox.checked = isGrantedEffective(user, path);
+      checkbox.addEventListener("change", () => {
+        stagePermission(user, path, checkbox.checked);
+        renderUsers(); // keeps duplicate checkboxes, counts, and Save in sync
       });
 
       const label = el("label", { class: "perm-item" });
@@ -530,8 +567,6 @@
     }
 
     function renderPermissionRow(user) {
-      const granted = new Set(user.grantedPages || []);
-
       const presetRow = el("div", { class: "preset-row" }, [
         el("span", { class: "hint", text: "Presets (replace current grants):" })
       ]);
@@ -541,8 +576,31 @@
           class: "tiny secondary",
           text: preset.label,
           onclick: (e) => {
-            if (!confirm(`Apply the "${preset.label}" preset to ${user.email}? This replaces their current page grants.`)) return;
+            if (!confirm(`Apply the "${preset.label}" preset to ${user.email}? This replaces their current page grants immediately.`)) return;
+            state.pending.delete(user.id);
             rowAction(e.target, `/api/admin/users/${user.id}/preset`, { preset: key });
+          }
+        }));
+      }
+
+      // Save / discard bar for staged changes.
+      const pending = pendingCount(user);
+      const saveBtn = el("button", {
+        class: "tiny",
+        text: pending ? `Save (${pending})` : "Save",
+        onclick: (e) => savePermissions(user, e.target)
+      });
+      saveBtn.disabled = !pending;
+      presetRow.appendChild(el("span", { style: "flex: 1 1 auto;" }));
+      presetRow.appendChild(saveBtn);
+
+      if (pending) {
+        presetRow.appendChild(el("button", {
+          class: "tiny secondary",
+          text: "Discard",
+          onclick: () => {
+            state.pending.delete(user.id);
+            renderUsers();
           }
         }));
       }
@@ -551,9 +609,9 @@
       container.appendChild(presetRow);
 
       // Categories: a page can appear under several categories; every copy is
-      // the same underlying permission and re-renders in sync after a change.
+      // the same underlying permission and stays in sync while you edit.
       for (const category of state.categories) {
-        const grantedInCategory = category.pages.filter((p) => granted.has(p)).length;
+        const grantedInCategory = category.pages.filter((p) => isGrantedEffective(user, p)).length;
 
         const head = el("div", { class: "perm-category-head" }, [
           el("span", { class: "perm-category-title", text: category.label }),
@@ -561,35 +619,17 @@
           el("button", {
             class: "tiny secondary",
             text: "All",
-            onclick: async (e) => {
-              e.target.disabled = true;
-              try {
-                await applyPermissionChanges(
-                  user,
-                  category.pages.map((pagePath) => ({ pagePath, granted: true })),
-                  `Granted all ${category.label} tools to ${user.email}.`
-                );
-              } catch (err) {
-                e.target.disabled = false;
-                setStatus("usersStatus", err.message, "error");
-              }
+            onclick: () => {
+              category.pages.forEach((path) => stagePermission(user, path, true));
+              renderUsers();
             }
           }),
           el("button", {
             class: "tiny secondary",
             text: "None",
-            onclick: async (e) => {
-              e.target.disabled = true;
-              try {
-                await applyPermissionChanges(
-                  user,
-                  category.pages.map((pagePath) => ({ pagePath, granted: false })),
-                  `Removed all ${category.label} tools from ${user.email}.`
-                );
-              } catch (err) {
-                e.target.disabled = false;
-                setStatus("usersStatus", err.message, "error");
-              }
+            onclick: () => {
+              category.pages.forEach((path) => stagePermission(user, path, false));
+              renderUsers();
             }
           })
         ]);

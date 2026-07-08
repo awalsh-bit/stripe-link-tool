@@ -168,6 +168,27 @@
       padding: 8px 0 4px;
     }
 
+    .perm-category { margin: 12px 0 4px; }
+
+    .perm-category-head {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding-bottom: 4px;
+      border-bottom: 1px solid #eef1f6;
+      margin-bottom: 4px;
+    }
+
+    .perm-category-title {
+      font-size: 13px;
+      font-weight: 800;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: #64748b;
+    }
+
+    .perm-category-count { font-size: 12px; color: var(--muted); }
+
     .perm-item {
       display: flex;
       align-items: center;
@@ -296,6 +317,7 @@
     let state = {
       users: [],
       manageablePages: [],
+      categories: [],
       presets: {},
       allowedDomain: "wilsonappliance.com",
       expanded: new Set()
@@ -362,6 +384,7 @@
         const data = await api("/api/admin/users");
         state.users = data.users || [];
         state.manageablePages = data.manageablePages || [];
+        state.categories = data.categories || [];
         state.presets = data.presets || {};
         state.allowedDomain = data.allowedDomain || state.allowedDomain;
         renderUsers();
@@ -466,6 +489,46 @@
       }
     }
 
+    function pageLabelFor(path) {
+      const page = state.manageablePages.find((p) => p.path === path);
+      return page ? page.label : path;
+    }
+
+    async function applyPermissionChanges(user, changes, successMessage) {
+      const data = await api(`/api/admin/users/${user.id}/permissions`, {
+        method: "POST",
+        body: JSON.stringify({ changes })
+      });
+      user.grantedPages = data.grantedPages || [];
+      setStatus("usersStatus", successMessage, "ok");
+      renderUsers();
+    }
+
+    function buildPermCheckbox(user, path) {
+      const granted = new Set(user.grantedPages || []);
+      const checkbox = el("input", { type: "checkbox" });
+      checkbox.checked = granted.has(path);
+      checkbox.addEventListener("change", async () => {
+        checkbox.disabled = true;
+        try {
+          await applyPermissionChanges(
+            user,
+            [{ pagePath: path, granted: checkbox.checked }],
+            `Updated ${pageLabelFor(path)} for ${user.email}.`
+          );
+        } catch (err) {
+          checkbox.checked = !checkbox.checked;
+          checkbox.disabled = false;
+          setStatus("usersStatus", err.message, "error");
+        }
+      });
+
+      const label = el("label", { class: "perm-item" });
+      label.appendChild(checkbox);
+      label.appendChild(document.createTextNode(" " + pageLabelFor(path)));
+      return label;
+    }
+
     function renderPermissionRow(user) {
       const granted = new Set(user.grantedPages || []);
 
@@ -484,38 +547,62 @@
         }));
       }
 
-      const grid = el("div", { class: "perm-grid" });
+      const container = el("div", {});
+      container.appendChild(presetRow);
 
-      for (const page of state.manageablePages) {
-        const checkbox = el("input", { type: "checkbox" });
-        checkbox.checked = granted.has(page.path);
-        checkbox.addEventListener("change", async () => {
-          checkbox.disabled = true;
-          try {
-            const data = await api(`/api/admin/users/${user.id}/permissions`, {
-              method: "POST",
-              body: JSON.stringify({
-                changes: [{ pagePath: page.path, granted: checkbox.checked }]
-              })
-            });
-            user.grantedPages = data.grantedPages || [];
-            setStatus("usersStatus", `Updated ${page.label} for ${user.email}.`, "ok");
-            renderUsers();
-          } catch (err) {
-            checkbox.checked = !checkbox.checked;
-            setStatus("usersStatus", err.message, "error");
-          } finally {
-            checkbox.disabled = false;
-          }
-        });
+      // Categories: a page can appear under several categories; every copy is
+      // the same underlying permission and re-renders in sync after a change.
+      for (const category of state.categories) {
+        const grantedInCategory = category.pages.filter((p) => granted.has(p)).length;
 
-        const label = el("label", { class: "perm-item" });
-        label.appendChild(checkbox);
-        label.appendChild(document.createTextNode(" " + page.label));
-        grid.appendChild(label);
+        const head = el("div", { class: "perm-category-head" }, [
+          el("span", { class: "perm-category-title", text: category.label }),
+          el("span", { class: "perm-category-count", text: `${grantedInCategory}/${category.pages.length}` }),
+          el("button", {
+            class: "tiny secondary",
+            text: "All",
+            onclick: async (e) => {
+              e.target.disabled = true;
+              try {
+                await applyPermissionChanges(
+                  user,
+                  category.pages.map((pagePath) => ({ pagePath, granted: true })),
+                  `Granted all ${category.label} tools to ${user.email}.`
+                );
+              } catch (err) {
+                e.target.disabled = false;
+                setStatus("usersStatus", err.message, "error");
+              }
+            }
+          }),
+          el("button", {
+            class: "tiny secondary",
+            text: "None",
+            onclick: async (e) => {
+              e.target.disabled = true;
+              try {
+                await applyPermissionChanges(
+                  user,
+                  category.pages.map((pagePath) => ({ pagePath, granted: false })),
+                  `Removed all ${category.label} tools from ${user.email}.`
+                );
+              } catch (err) {
+                e.target.disabled = false;
+                setStatus("usersStatus", err.message, "error");
+              }
+            }
+          })
+        ]);
+
+        const grid = el("div", { class: "perm-grid" });
+        for (const path of category.pages) {
+          grid.appendChild(buildPermCheckbox(user, path));
+        }
+
+        container.appendChild(el("div", { class: "perm-category" }, [head, grid]));
       }
 
-      const cell = el("td", { colspan: "5" }, [presetRow, grid]);
+      const cell = el("td", { colspan: "5" }, [container]);
       return el("tr", { class: "perm-row" }, [cell]);
     }
 

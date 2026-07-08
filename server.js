@@ -268,6 +268,61 @@ const PAGE_LABELS = {
   "/user-admin.html": "User Admin"
 };
 
+// Category groupings for the User Admin permission UI. A page may appear in
+// multiple categories (it is still one underlying permission); any manageable
+// page not listed here lands in an automatic "Other" bucket in the UI.
+const PAGE_CATEGORIES = [
+  {
+    key: "payments",
+    label: "Payments",
+    pages: [
+      "/dashboard.html",
+      "/index.html",
+      "/terminal.html",
+      "/charge-saved-card.html",
+      "/hvac-dashboard.html",
+      "/link-detail-lookup.html"
+    ]
+  },
+  {
+    key: "accounting",
+    label: "Accounting",
+    pages: [
+      "/paid-order-detail.html",
+      "/intent-lookup.html",
+      "/incoming-payouts.html",
+      "/bank-balancing.html",
+      "/link-detail-lookup.html"
+    ]
+  },
+  {
+    key: "client_care",
+    label: "Client Care",
+    pages: [
+      "/appliance-service-calls.html",
+      "/archive-service-calls.html",
+      "/intent-lookup.html",
+      "/link-detail-lookup.html",
+      "/paid-order-detail.html"
+    ]
+  },
+  {
+    key: "sales",
+    label: "Sales",
+    pages: [
+      "/salesdashboard.html",
+      "/secret-menu.html",
+      "/spec-packages.html",
+      "/event-rsvps.html",
+      "/dashboard.html",
+      "/index.html",
+      "/terminal.html",
+      "/charge-saved-card.html",
+      "/paid-order-detail.html"
+    ]
+  }
+];
+
 // Convenience aliases that serve internal pages under different paths, so the
 // page-permission check can't be bypassed by requesting the alias.
 const DASHBOARD_PAGE_ALIASES = {
@@ -1461,6 +1516,22 @@ function buildManageablePagesPayload() {
   }));
 }
 
+function buildCategoriesPayload() {
+  const categorized = new Set();
+  const categories = PAGE_CATEGORIES.map((category) => {
+    const pages = category.pages.filter((p) => MANAGEABLE_PAGE_PATHS.includes(p));
+    pages.forEach((p) => categorized.add(p));
+    return { key: category.key, label: category.label, pages };
+  }).filter((category) => category.pages.length);
+
+  const uncategorized = MANAGEABLE_PAGE_PATHS.filter((p) => !categorized.has(p));
+  if (uncategorized.length) {
+    categories.push({ key: "other", label: "Other", pages: uncategorized });
+  }
+
+  return categories;
+}
+
 function buildPresetsPayload() {
   const presets = {};
 
@@ -1484,6 +1555,7 @@ app.get("/api/admin/users", requireExecutiveApi, async (req, res) => {
     return res.json({
       users,
       manageablePages: buildManageablePagesPayload(),
+      categories: buildCategoriesPayload(),
       presets: buildPresetsPayload(),
       allowedDomain: getAllowedSignupDomain(),
       legacyLoginEnabled: LEGACY_SHARED_LOGIN_ENABLED

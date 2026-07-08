@@ -6271,14 +6271,76 @@ function applyAchPendingState(record, session, paymentIntent) {
 }
 
 async function maybeSendLinkPaidNotification(record) {
-  if (!record.paymentNotificationSentAt && record.creatorEmail) {
-    try {
-      await sendPaymentLinkPaidEmail(record);
+  if (!record.paymentNotificationSentAt) {
+    // Customer "payment received" text via Zapier -> Podium (best-effort;
+    // guarded by the same one-shot flag plus an in-process dedupe set).
+    await maybeSendPaidTextWebhook(record);
+
+    if (record.creatorEmail) {
+      try {
+        await sendPaymentLinkPaidEmail(record);
+        record.paymentNotificationSentAt = new Date().toISOString();
+        record.paymentNotificationError = "";
+      } catch (notificationError) {
+        record.paymentNotificationError = notificationError.message || "Unable to send payment notification.";
+      }
+    } else if (paidTextWebhookSentIds.has(record.id)) {
+      // No creator email to notify, but the customer text went out: mark the
+      // record so webhook retries don't re-trigger notifications.
       record.paymentNotificationSentAt = new Date().toISOString();
       record.paymentNotificationError = "";
-    } catch (notificationError) {
-      record.paymentNotificationError = notificationError.message || "Unable to send payment notification.";
     }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Customer paid-confirmation text: POSTs the paid-link details to a Zapier
+// catch-hook (ZAPIER_PAID_TEXT_HOOK_URL). The Zap forwards it to Podium's
+// "Send Message" action. Skipped when the env var is unset or the record has
+// no customer phone number.
+// ---------------------------------------------------------------------------
+
+const ZAPIER_PAID_TEXT_HOOK_URL = String(process.env.ZAPIER_PAID_TEXT_HOOK_URL || "").trim();
+const paidTextWebhookSentIds = new Set();
+
+async function maybeSendPaidTextWebhook(record) {
+  if (!ZAPIER_PAID_TEXT_HOOK_URL) return;
+  if (!record?.id || paidTextWebhookSentIds.has(record.id)) return;
+
+  const phone = String(record.customerPhone || "").trim();
+  if (!phone) return;
+
+  try {
+    const response = await fetch(ZAPIER_PAID_TEXT_HOOK_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        event: "payment_link_paid",
+        linkId: record.id,
+        customerName: record.customerName || "",
+        customerPhone: phone,
+        customerEmail: record.customerEmail || "",
+        salesOrder: record.salesOrder || "",
+        description: record.description || "",
+        workflowType: record.workflowType || "appliance",
+        amountPaid: Number(record.paidAmount || 0).toFixed(2),
+        paidDate: record.paidDate || new Date().toISOString(),
+        paymentIntentId: record.paymentIntentId || ""
+      })
+    });
+
+    if (!response.ok) {
+      throw new Error(`Zapier hook returned ${response.status}`);
+    }
+
+    paidTextWebhookSentIds.add(record.id);
+
+    // Keep the dedupe set from growing unbounded.
+    if (paidTextWebhookSentIds.size > 5000) {
+      paidTextWebhookSentIds.clear();
+    }
+  } catch (err) {
+    console.error(`Paid-text webhook failed for link ${record.id}:`, err.message);
   }
 }
 

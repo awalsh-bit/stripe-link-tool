@@ -39,6 +39,38 @@ import {
   sleep
 } from "./lib/stripe.js";
 import {
+  isUserStoreConfigured,
+  ensureUserAccessTables,
+  normalizeEmail,
+  isEmailInAllowedDomain,
+  getAllowedSignupDomain,
+  validatePasswordPolicy,
+  hashPassword,
+  verifyPassword,
+  createUser,
+  findUserByEmail,
+  getUserById,
+  markUserVerifiedAndActive,
+  updateUserPassword,
+  setUserStatus,
+  setUserExecutive,
+  updateUserProfile,
+  listUsersWithAccess,
+  createAuthToken,
+  consumeAuthToken,
+  peekAuthToken,
+  createSession,
+  getSessionWithUser,
+  deleteSessionByToken,
+  deleteSessionsForUser,
+  cleanupExpiredAuthRows,
+  getGrantedPagesForUser,
+  setUserPagePermissions,
+  recordAudit,
+  listAuditLog,
+  TOKEN_TTLS_SECONDS
+} from "./lib/users-postgres.js";
+import {
   ensureCommissionTables,
   finalizeExpiredCommissionRuns,
   listCommissionRuns,
@@ -52,6 +84,15 @@ import {
   updateCommissionHvacOrderSettings,
   deleteCommissionRun
 } from "./lib/commissions-postgres.js";
+import {
+  isSteelCodConfigured,
+  SteelCodError,
+  createSpecPackage,
+  searchSpecPackages,
+  retrieveSpecPackage,
+  deleteSpecPackage,
+  retrieveUsers as retrieveSteelCodUsers
+} from "./lib/steelcod.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -67,6 +108,15 @@ const EXECUTIVE_PASSWORD = String(process.env.EXECUTIVE_PASSWORD || "").trim();
 const AUTH_COOKIE_SECRET =
   process.env.SESSION_SECRET ||
   `${LEADER_USERNAME}:${LEADER_PASSWORD || "wilson"}`;
+// Feature flag for the legacy shared "wilson" login. Default true during the
+// migration; set LEGACY_SHARED_LOGIN_ENABLED=false to fully deactivate it.
+const LEGACY_SHARED_LOGIN_ENABLED =
+  String(process.env.LEGACY_SHARED_LOGIN_ENABLED ?? "true").trim().toLowerCase() !== "false";
+// Server-side session lifetime (defaults to the previous cookie TTL of 12h).
+const SESSION_TTL_SECONDS =
+  Number(process.env.SESSION_TTL_SECONDS) > 0
+    ? Number(process.env.SESSION_TTL_SECONDS)
+    : AUTH_COOKIE_TTL_SECONDS;
 const app = express();
 app.set("trust proxy", true);
 app.use(cors());
@@ -104,7 +154,13 @@ const PUBLIC_AUTH_PATHS = new Set([
   "/logo-black.png",
   "/favicon.svg",
   "/api/login",
-  "/api/logout"
+  "/api/logout",
+  "/api/auth/register",
+  "/api/auth/verify-email",
+  "/api/auth/accept-invite",
+  "/api/auth/request-reset",
+  "/api/auth/reset",
+  "/api/auth/token-status"
 ]);
 
 const INTERNAL_PAGE_PATHS = new Set([
@@ -126,19 +182,30 @@ const INTERNAL_PAGE_PATHS = new Set([
   "/bank-balancing.html",
   "/incoming-payouts.html",
   "/appliance-service-calls.html",
-  "/archive-service-calls.html"
+  "/archive-service-calls.html",
+  "/register.html",
+  "/set-password.html",
+  "/user-admin.html",
+  "/spec-packages.html"
 ]);
 
 const UNAUTHENTICATED_INTERNAL_PATHS = new Set([
   "/login.html",
-  "/logout.html"
+  "/logout.html",
+  "/register.html",
+  "/set-password.html"
 ]);
 
+// ACCESS_GROUPS now serve two purposes:
+// 1. Authorization for the LEGACY shared/env logins (unchanged behavior).
+// 2. Quick-assign presets in user-admin.html, which expand into individual
+//    per-user page rows. The per-user rows are the source of truth for
+//    database-backed accounts, never the group.
 const ACCESS_GROUPS = {
   leader: {
     label: "Leader",
     pages: ["*"],
-    excludedPages: ["/commissions.html", "/commissions-print.html"]
+    excludedPages: ["/commissions.html", "/commissions-print.html", "/user-admin.html"]
   },
   executive: {
     label: "Executive",
@@ -157,6 +224,74 @@ const ACCESS_GROUPS = {
     pages: ["/appliance-service-calls.html", "/archive-service-calls.html", "/intent-lookup.html", "/link-detail-lookup.html", "/paid-order-detail.html"]
   }
 };
+
+// Pages that exist for the auth flow itself and are never permission-managed.
+const AUTH_PAGE_PATHS = new Set([
+  "/login.html",
+  "/logout.html",
+  "/register.html",
+  "/set-password.html"
+]);
+
+// Executive-only pages: reachable only with is_executive, never grantable.
+const EXECUTIVE_ONLY_PAGE_PATHS = new Set([
+  "/user-admin.html",
+  "/commissions.html",
+  "/commissions-print.html"
+]);
+
+// Canonical list of pages an executive can grant/deny per user. Derived from
+// INTERNAL_PAGE_PATHS so the admin UI and enforcement share one source.
+const MANAGEABLE_PAGE_PATHS = [...INTERNAL_PAGE_PATHS]
+  .filter((p) => !AUTH_PAGE_PATHS.has(p) && !EXECUTIVE_ONLY_PAGE_PATHS.has(p))
+  .sort();
+
+const PAGE_LABELS = {
+  "/dashboard.html": "Payments Dashboard",
+  "/index.html": "Send Payment Link",
+  "/terminal.html": "Send To Card Reader",
+  "/charge-saved-card.html": "Charge A Saved Card",
+  "/hvac-dashboard.html": "Deposit Agreements",
+  "/paid-order-detail.html": "Paid Order Detail",
+  "/intent-lookup.html": "Intent Lookup",
+  "/incoming-payouts.html": "Incoming Payouts",
+  "/bank-balancing.html": "Bank Balancing",
+  "/link-detail-lookup.html": "Link Detail Lookup",
+  "/appliance-service-calls.html": "Service Request Queue",
+  "/archive-service-calls.html": "Archived Service Calls",
+  "/salesdashboard.html": "Sales Dashboard",
+  "/secret-menu.html": "Secret Menu",
+  "/event-rsvps.html": "Event RSVPs",
+  "/spec-packages.html": "Spec Packages",
+  "/commissions.html": "Commissions",
+  "/commissions-print.html": "Commissions (Print)",
+  "/user-admin.html": "User Admin"
+};
+
+// Convenience aliases that serve internal pages under different paths, so the
+// page-permission check can't be bypassed by requesting the alias.
+const DASHBOARD_PAGE_ALIASES = {
+  "/": "/dashboard.html",
+  "/secret-menu": "/secret-menu.html",
+  "/commissions-print": "/commissions-print.html"
+};
+
+function resolveDashboardPagePath(pathname) {
+  return DASHBOARD_PAGE_ALIASES[pathname] || pathname;
+}
+
+// Expand an ACCESS_GROUPS preset into an explicit page list (per-user rows).
+function expandAccessGroupPages(groupKey) {
+  const group = ACCESS_GROUPS[groupKey];
+  if (!group) return [];
+
+  const excluded = new Set(group.excludedPages || []);
+  const base = group.pages?.includes("*")
+    ? MANAGEABLE_PAGE_PATHS
+    : (group.pages || []).filter((p) => MANAGEABLE_PAGE_PATHS.includes(p));
+
+  return base.filter((p) => !excluded.has(p));
+}
 
 function normalizeUsernameValue(username) {
   return String(username || "").trim().toLowerCase();
@@ -376,8 +511,38 @@ function buildSessionUser(user) {
   };
 }
 
+// req.authUser shape (set by the global auth middleware):
+//   kind: "db" | "legacy"
+//   id (db users), email, username, displayName
+//   isExecutive: can manage users + reach executive-only pages/APIs
+//   accessGroup: legacy group key, or "executive"/"member" for db users
+//   grantedPages: string[] — effective page grants (db users; empty until an
+//                 executive assigns pages)
 function canAccessPathForUser(user, pathname) {
-  if (!user?.accessGroup) {
+  if (!user) {
+    return false;
+  }
+
+  if (AUTH_PAGE_PATHS.has(pathname)) {
+    return true;
+  }
+
+  if (EXECUTIVE_ONLY_PAGE_PATHS.has(pathname)) {
+    if (user.kind === "db") {
+      return user.isExecutive === true;
+    }
+    // Legacy logins fall through to group logic (leader excludes these pages).
+  }
+
+  if (user.kind === "db") {
+    if (user.isExecutive) {
+      return true;
+    }
+    return Array.isArray(user.grantedPages) && user.grantedPages.includes(pathname);
+  }
+
+  // Legacy env-based logins: unchanged ACCESS_GROUPS behavior.
+  if (!user.accessGroup) {
     return false;
   }
 
@@ -395,6 +560,16 @@ function canAccessPathForUser(user, pathname) {
   }
 
   return group.pages?.includes(pathname);
+}
+
+// Effective page list for the front-end nav (and the admin UI).
+function getEffectivePagesForUser(user) {
+  if (!user) return [];
+
+  return [...INTERNAL_PAGE_PATHS]
+    .filter((p) => !AUTH_PAGE_PATHS.has(p))
+    .filter((p) => canAccessPathForUser(user, p))
+    .sort();
 }
 
 function sendForbiddenPage(res) {
@@ -416,15 +591,21 @@ function sendForbiddenPage(res) {
 <body>
   <div class="card">
     <h1>Access restricted</h1>
-    <p>This page is only available to executive sessions.</p>
-    <a href="/dashboard.html">Back to dashboard</a>
+    <p>Your account does not have access to this page. An executive can grant access from the User Admin screen.</p>
+    <a href="/login.html">Back to sign in</a>
   </div>
 </body>
 </html>`);
 }
 
+function isExecutiveUser(user) {
+  if (!user) return false;
+  if (user.kind === "db") return user.isExecutive === true;
+  return user.accessGroup === "executive";
+}
+
 function requireExecutiveApi(req, res, next) {
-  if (req.authUser?.accessGroup !== "executive") {
+  if (!isExecutiveUser(req.authUser)) {
     return res.status(403).json({
       error: "Executive access is required."
     });
@@ -433,8 +614,70 @@ function requireExecutiveApi(req, res, next) {
   return next();
 }
 
+// API-level authorization: the request is allowed when the user holds a page
+// grant for ANY of the listed pages (the pages that legitimately call the
+// endpoint). Executives always pass. Mirrors requireExecutiveApi.
+function requirePagePermission(...pagePaths) {
+  return (req, res, next) => {
+    const user = req.authUser;
+
+    if (!user) {
+      return res.status(401).json({ error: "Authentication required." });
+    }
+
+    if (isExecutiveUser(user) || pagePaths.some((page) => canAccessPathForUser(user, page))) {
+      return next();
+    }
+
+    return res.status(403).json({
+      error: "You do not have access to this tool. Ask an executive to grant access."
+    });
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Simple fixed-window, per-IP rate limiter for auth endpoints.
+// ---------------------------------------------------------------------------
+
+const rateLimitBuckets = new Map();
+
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, entry] of rateLimitBuckets) {
+    if (now > entry.resetAt) {
+      rateLimitBuckets.delete(key);
+    }
+  }
+}, 10 * 60 * 1000).unref();
+
+function rateLimit(name, maxAttempts, windowMs) {
+  return (req, res, next) => {
+    const key = `${name}|${req.ip || "unknown"}`;
+    const now = Date.now();
+    const entry = rateLimitBuckets.get(key);
+
+    if (!entry || now > entry.resetAt) {
+      rateLimitBuckets.set(key, { count: 1, resetAt: now + windowMs });
+      return next();
+    }
+
+    entry.count += 1;
+
+    if (entry.count > maxAttempts) {
+      return res.status(429).json({
+        error: "Too many attempts. Please wait a few minutes and try again."
+      });
+    }
+
+    return next();
+  };
+}
+
 app.use((req, res, next) => {
   res.setHeader("X-Robots-Tag", "noindex, nofollow, noarchive");
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  res.setHeader("X-Frame-Options", "DENY");
+  res.setHeader("Referrer-Policy", "same-origin");
   next();
 });
 
@@ -457,7 +700,77 @@ app.use((req, res, next) => {
 });
 
 
-app.use((req, res, next) => {
+// Resolve the auth cookie to a user.
+// - DB sessions: opaque random token (no "."), looked up server-side, so a
+//   disabled user or deleted session is revoked on the very next request.
+// - Legacy signed cookies: contain a "." (payload.signature). Leader cookies
+//   are honored only while LEGACY_SHARED_LOGIN_ENABLED; the env break-glass
+//   executive cookie is always honored so the DB can never lock you out.
+async function resolveAuthUser(req) {
+  const cookies = parseCookies(req);
+  const rawValue = cookies[AUTH_COOKIE_NAME];
+
+  if (!rawValue) {
+    return null;
+  }
+
+  if (!rawValue.includes(".")) {
+    if (!isUserStoreConfigured()) {
+      return null;
+    }
+
+    try {
+      const resolved = await getSessionWithUser(rawValue);
+      if (!resolved) return null;
+
+      const grantedPages = resolved.user.is_executive
+        ? []
+        : await getGrantedPagesForUser(resolved.user.id);
+
+      return {
+        kind: "db",
+        id: resolved.user.id,
+        sessionId: resolved.sessionId,
+        email: resolved.user.email,
+        username: resolved.user.email,
+        displayName: resolved.user.display_name || resolved.user.email,
+        isExecutive: Boolean(resolved.user.is_executive),
+        accessGroup: resolved.user.is_executive ? "executive" : "member",
+        role: resolved.user.is_executive ? "executive" : "member",
+        grantedPages
+      };
+    } catch (err) {
+      console.error("Session lookup failed:", err.message);
+      return null;
+    }
+  }
+
+  const legacyUser = readAuthenticatedUser(req);
+
+  if (!legacyUser) {
+    return null;
+  }
+
+  const isLegacyExecutive = legacyUser.accessGroup === "executive";
+
+  if (!LEGACY_SHARED_LOGIN_ENABLED && !isLegacyExecutive) {
+    return null;
+  }
+
+  return {
+    kind: "legacy",
+    id: null,
+    email: legacyUser.username || "",
+    username: legacyUser.username || "",
+    displayName: legacyUser.displayName || legacyUser.username || "",
+    isExecutive: isLegacyExecutive,
+    accessGroup: legacyUser.accessGroup,
+    role: legacyUser.role,
+    grantedPages: null
+  };
+}
+
+app.use(async (req, res, next) => {
   const host = getRequestHost(req);
   const isWebhookRequest = isAlwaysPublicPath(req.path);
   const isPublicServiceRequest =
@@ -474,18 +787,30 @@ app.use((req, res, next) => {
     return next();
   }
 
-  const authUser = readAuthenticatedUser(req);
+  let authUser = null;
+  try {
+    authUser = await resolveAuthUser(req);
+  } catch (err) {
+    console.error("Auth resolution failed:", err.message);
+    authUser = null;
+  }
 
   if (authUser) {
     req.authUser = authUser;
 
-    if (
-      (host === DASHBOARD_HOST || isLocalHost(host)) &&
-      INTERNAL_PAGE_PATHS.has(req.path) &&
-      !UNAUTHENTICATED_INTERNAL_PATHS.has(req.path) &&
-      !canAccessPathForUser(authUser, req.path)
-    ) {
-      return sendForbiddenPage(res);
+    if (host === DASHBOARD_HOST || isLocalHost(host)) {
+      const effectivePath =
+        host === DASHBOARD_HOST || req.path !== "/"
+          ? resolveDashboardPagePath(req.path)
+          : req.path;
+
+      if (
+        INTERNAL_PAGE_PATHS.has(effectivePath) &&
+        !UNAUTHENTICATED_INTERNAL_PATHS.has(effectivePath) &&
+        !canAccessPathForUser(authUser, effectivePath)
+      ) {
+        return sendForbiddenPage(res);
+      }
     }
 
     return next();
@@ -558,33 +883,310 @@ app.post("/api/stripe/webhook", express.raw({ type: "application/json" }), async
 
 app.use(express.json({ limit: "10mb" }));
 
-app.post("/api/login", (req, res) => {
-  const { username = "", password = "" } = req.body || {};
-  const matchedUser = findConfiguredUser(username, password);
+// ---------------------------------------------------------------------------
+// Auth email delivery (Resend — same env vars as payment notifications)
+// ---------------------------------------------------------------------------
 
-  if (!matchedUser) {
-    return res.status(401).json({
-      error: "Invalid username or password."
+function buildDashboardBaseUrl(req) {
+  const host = getRequestHost(req);
+
+  if (isLocalHost(host) || !host) {
+    return `${req.protocol}://${req.get("host")}`;
+  }
+
+  const forwardedProto = String(req.headers["x-forwarded-proto"] || "").split(",")[0].trim();
+  const protocol = forwardedProto || req.protocol || "https";
+  return `${protocol}://${DASHBOARD_HOST}`;
+}
+
+async function sendAuthEmail(recipient, subject, text, html) {
+  if (!RESEND_API_KEY || !RESEND_FROM_EMAIL) {
+    throw new Error("Email delivery is not configured (RESEND_API_KEY / RESEND_FROM_EMAIL).");
+  }
+
+  const response = await fetch("https://api.resend.com/emails", {
+    method: "POST",
+    headers: {
+      "Authorization": `Bearer ${RESEND_API_KEY}`,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      from: RESEND_FROM_EMAIL,
+      to: [recipient],
+      subject,
+      text,
+      html
+    })
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Email API error: ${response.status} ${errorText}`);
+  }
+}
+
+function buildAuthEmailHtml(title, bodyLines, buttonLabel, buttonUrl, footerLine) {
+  const paragraphs = bodyLines
+    .map((line) => `<p style="margin: 0 0 12px;">${escapeHtmlForEmail(line)}</p>`)
+    .join("");
+
+  return `
+    <div style="font-family: Arial, sans-serif; color: #111827; line-height: 1.6; max-width: 560px;">
+      <h2 style="margin: 0 0 16px;">${escapeHtmlForEmail(title)}</h2>
+      ${paragraphs}
+      <p style="margin: 20px 0;">
+        <a href="${buttonUrl}" style="display: inline-block; padding: 12px 20px; border-radius: 10px; background: #635bff; color: #ffffff; text-decoration: none; font-weight: 700;">${escapeHtmlForEmail(buttonLabel)}</a>
+      </p>
+      <p style="margin: 0 0 12px; font-size: 13px; color: #6b7280;">If the button does not work, copy this link into your browser:<br>${escapeHtmlForEmail(buttonUrl)}</p>
+      <p style="margin: 0; font-size: 13px; color: #6b7280;">${escapeHtmlForEmail(footerLine)}</p>
+    </div>
+  `;
+}
+
+async function sendVerificationEmail(req, email, rawToken) {
+  const url = `${buildDashboardBaseUrl(req)}/login.html?verifyToken=${encodeURIComponent(rawToken)}`;
+  const hours = Math.round(TOKEN_TTLS_SECONDS.verify / 3600);
+  const lines = [
+    "Thanks for registering for the Wilson AC & Appliance internal tools.",
+    "Confirm your email address to activate your account. After you verify, an executive still needs to grant you access to specific tools before you can use them.",
+    `This link expires in ${hours} hours and can only be used once.`
+  ];
+
+  await sendAuthEmail(
+    email,
+    "Verify your email — Wilson internal tools",
+    [...lines, "", `Verify: ${url}`].join("\n"),
+    buildAuthEmailHtml("Verify your email", lines, "Verify email", url, "If you did not register, you can ignore this email.")
+  );
+}
+
+async function sendInviteEmail(req, email, rawToken) {
+  const url = `${buildDashboardBaseUrl(req)}/set-password.html?kind=invite&token=${encodeURIComponent(rawToken)}`;
+  const hours = Math.round(TOKEN_TTLS_SECONDS.invite / 3600);
+  const lines = [
+    "You have been invited to the Wilson AC & Appliance internal tools.",
+    "Choose a password to finish setting up your account.",
+    `This invitation expires in ${hours} hours and can only be used once.`
+  ];
+
+  await sendAuthEmail(
+    email,
+    "You're invited — Wilson internal tools",
+    [...lines, "", `Set your password: ${url}`].join("\n"),
+    buildAuthEmailHtml("Set up your account", lines, "Set your password", url, "If you were not expecting this invitation, you can ignore this email.")
+  );
+}
+
+async function sendPasswordResetEmail(req, email, rawToken) {
+  const url = `${buildDashboardBaseUrl(req)}/set-password.html?kind=reset&token=${encodeURIComponent(rawToken)}`;
+  const minutes = Math.round(TOKEN_TTLS_SECONDS.reset / 60);
+  const lines = [
+    "A password reset was requested for your Wilson internal tools account.",
+    `This link expires in ${minutes} minutes and can only be used once.`
+  ];
+
+  await sendAuthEmail(
+    email,
+    "Reset your password — Wilson internal tools",
+    [...lines, "", `Reset your password: ${url}`].join("\n"),
+    buildAuthEmailHtml("Reset your password", lines, "Reset password", url, "If you did not request this, you can ignore this email — your password is unchanged.")
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Auth endpoints
+// ---------------------------------------------------------------------------
+
+function timingSafeStringEqual(a, b) {
+  const bufA = Buffer.from(String(a || ""));
+  const bufB = Buffer.from(String(b || ""));
+
+  if (bufA.length !== bufB.length) {
+    // Compare anyway against self to keep timing flat, then fail.
+    crypto.timingSafeEqual(bufA, bufA);
+    return false;
+  }
+
+  return crypto.timingSafeEqual(bufA, bufB);
+}
+
+// Pre-computed dummy hash so login timing is identical for unknown emails.
+const DUMMY_PASSWORD_HASH_PROMISE = hashPassword(crypto.randomBytes(16).toString("hex"));
+
+const GENERIC_LOGIN_ERROR = "Invalid email or password.";
+
+function setDbSessionCookie(req, res, rawToken) {
+  res.setHeader("Set-Cookie", serializeCookie(AUTH_COOKIE_NAME, rawToken, {
+    maxAge: SESSION_TTL_SECONDS,
+    path: "/",
+    httpOnly: true,
+    sameSite: "Lax",
+    secure: isSecureRequest(req)
+  }));
+}
+
+function buildDbUserResponse(userRow, grantedPages) {
+  return {
+    id: userRow.id,
+    email: userRow.email,
+    username: userRow.email,
+    displayName: userRow.display_name || userRow.email,
+    isExecutive: Boolean(userRow.is_executive),
+    accessGroup: userRow.is_executive ? "executive" : "member",
+    role: userRow.is_executive ? "executive" : "member",
+    grantedPages: Array.isArray(grantedPages) ? grantedPages : []
+  };
+}
+
+// Break-glass: the env-configured executive can always sign in, even if the
+// database is unreachable, so you can never be locked out. When the DB is
+// available the login is materialized as a real executive user + DB session.
+async function ensureBreakGlassExecutiveUser() {
+  const normalized = normalizeEmail(EXECUTIVE_USERNAME) || String(EXECUTIVE_USERNAME).trim().toLowerCase();
+  let userRow = await findUserByEmail(normalized);
+
+  if (!userRow) {
+    userRow = await createUser({
+      email: normalized,
+      displayName: "Andrew Walsh",
+      status: "active",
+      isExecutive: true
+    });
+    userRow = await markUserVerifiedAndActive(userRow.id);
+  } else if (!userRow.is_executive || userRow.status !== "active" || !userRow.email_verified_at) {
+    await setUserExecutive(userRow.id, true, userRow.id);
+    userRow = await markUserVerifiedAndActive(userRow.id);
+  }
+
+  return userRow;
+}
+
+function isBreakGlassCredentials(identifier, password) {
+  return Boolean(
+    EXECUTIVE_USERNAME &&
+    EXECUTIVE_PASSWORD &&
+    normalizeUsernameValue(identifier) === normalizeUsernameValue(EXECUTIVE_USERNAME) &&
+    timingSafeStringEqual(password, EXECUTIVE_PASSWORD)
+  );
+}
+
+app.post("/api/login", rateLimit("login", 10, 15 * 60 * 1000), async (req, res) => {
+  const { username = "", email = "", password = "" } = req.body || {};
+  const identifier = String(email || username || "").trim();
+
+  if (!identifier || !password) {
+    return res.status(401).json({ error: GENERIC_LOGIN_ERROR });
+  }
+
+  // 1. Legacy shared leader login — only while the feature flag is on.
+  if (
+    LEGACY_SHARED_LOGIN_ENABLED &&
+    normalizeUsernameValue(identifier) === normalizeUsernameValue(LEADER_USERNAME) &&
+    LEADER_PASSWORD &&
+    timingSafeStringEqual(password, LEADER_PASSWORD)
+  ) {
+    const user = buildSessionUser({
+      username: LEADER_USERNAME,
+      displayName: "Wilson",
+      role: "leader",
+      accessGroup: "leader"
+    });
+    setAuthCookie(req, res, user);
+
+    return res.json({
+      success: true,
+      user: { ...user, isExecutive: false, kind: "legacy" }
     });
   }
 
-  const user = buildSessionUser(matchedUser);
-  setAuthCookie(req, res, user);
+  // 2. Env break-glass executive — always available.
+  if (isBreakGlassCredentials(identifier, password)) {
+    if (isUserStoreConfigured()) {
+      try {
+        const userRow = await ensureBreakGlassExecutiveUser();
+        const token = await createSession(userRow.id, {
+          ip: req.ip,
+          userAgent: req.get("user-agent"),
+          ttlSeconds: SESSION_TTL_SECONDS
+        });
+        setDbSessionCookie(req, res, token);
+        recordAudit({
+          actorUserId: userRow.id,
+          action: "login",
+          targetUserId: userRow.id,
+          detail: { method: "break_glass", ip: req.ip }
+        }).catch(() => {});
 
-  return res.json({
-    success: true,
-    user: {
-      username: user.username,
-      displayName: user.displayName,
-      role: user.role,
-      accessGroup: user.accessGroup,
-      availableAccessGroups: ACCESS_GROUPS
-    },
-    executiveLoginEnabled: Boolean(EXECUTIVE_USERNAME && EXECUTIVE_PASSWORD)
-  });
+        return res.json({ success: true, user: buildDbUserResponse(userRow, []) });
+      } catch (err) {
+        console.error("Break-glass DB login failed; using signed-cookie fallback:", err.message);
+      }
+    }
+
+    // DB unreachable: signed-cookie fallback (honored regardless of the
+    // legacy flag so the break-glass can never be locked out).
+    const user = buildSessionUser({
+      username: EXECUTIVE_USERNAME,
+      displayName: "Andrew Walsh",
+      role: "executive",
+      accessGroup: "executive"
+    });
+    setAuthCookie(req, res, user);
+    return res.json({ success: true, user: { ...user, isExecutive: true, kind: "legacy" } });
+  }
+
+  // 3. Database-backed individual accounts.
+  if (!isUserStoreConfigured()) {
+    return res.status(401).json({ error: GENERIC_LOGIN_ERROR });
+  }
+
+  try {
+    const userRow = await findUserByEmail(identifier);
+    const passwordHash = userRow?.password_hash || (await DUMMY_PASSWORD_HASH_PROMISE);
+    const passwordOk = await verifyPassword(password, passwordHash);
+
+    if (
+      !userRow ||
+      !passwordOk ||
+      userRow.status !== "active" ||
+      !userRow.email_verified_at
+    ) {
+      return res.status(401).json({ error: GENERIC_LOGIN_ERROR });
+    }
+
+    const token = await createSession(userRow.id, {
+      ip: req.ip,
+      userAgent: req.get("user-agent"),
+      ttlSeconds: SESSION_TTL_SECONDS
+    });
+    setDbSessionCookie(req, res, token);
+    recordAudit({
+      actorUserId: userRow.id,
+      action: "login",
+      targetUserId: userRow.id,
+      detail: { method: "password", ip: req.ip }
+    }).catch(() => {});
+
+    const grantedPages = userRow.is_executive ? [] : await getGrantedPagesForUser(userRow.id);
+    return res.json({ success: true, user: buildDbUserResponse(userRow, grantedPages) });
+  } catch (err) {
+    console.error("Login failed:", err.message);
+    return res.status(500).json({ error: "Unable to sign in right now. Please try again." });
+  }
 });
 
-app.post("/api/logout", (req, res) => {
+app.post("/api/logout", async (req, res) => {
+  try {
+    const cookies = parseCookies(req);
+    const rawValue = cookies[AUTH_COOKIE_NAME];
+
+    if (rawValue && !rawValue.includes(".") && isUserStoreConfigured()) {
+      await deleteSessionByToken(rawValue);
+    }
+  } catch (err) {
+    console.error("Logout session cleanup failed:", err.message);
+  }
+
   clearAuthCookie(req, res);
   return res.json({ success: true });
 });
@@ -598,8 +1200,696 @@ app.get("/api/auth/session", (req, res) => {
 
   return res.json({
     user: req.authUser,
+    grantedPages: getEffectivePagesForUser(req.authUser),
+    canManageUsers: isExecutiveUser(req.authUser),
+    legacyLoginEnabled: LEGACY_SHARED_LOGIN_ENABLED,
     availableAccessGroups: ACCESS_GROUPS
   });
+});
+
+app.post("/api/auth/register", rateLimit("register", 5, 15 * 60 * 1000), async (req, res) => {
+  // Always the same response whether or not the email exists — no enumeration.
+  const genericResponse = {
+    success: true,
+    message: "If that address is eligible, we've sent a verification email. Check your inbox."
+  };
+
+  try {
+    if (!isUserStoreConfigured()) {
+      return res.status(503).json({ error: "Registration is not available right now." });
+    }
+
+    const { email = "", password = "", displayName = "" } = req.body || {};
+    const normalized = normalizeEmail(email);
+
+    if (!normalized || !isEmailInAllowedDomain(normalized)) {
+      return res.status(400).json({
+        error: `Registration is limited to @${getAllowedSignupDomain()} email addresses.`
+      });
+    }
+
+    const policyError = validatePasswordPolicy(password, normalized);
+    if (policyError) {
+      return res.status(400).json({ error: policyError });
+    }
+
+    const existing = await findUserByEmail(normalized);
+
+    if (!existing) {
+      const passwordHash = await hashPassword(password);
+      const userRow = await createUser({
+        email: normalized,
+        passwordHash,
+        displayName,
+        status: "pending_verification"
+      });
+      const rawToken = await createAuthToken(userRow.id, "verify");
+      await sendVerificationEmail(req, normalized, rawToken);
+      recordAudit({
+        actorUserId: userRow.id,
+        action: "register",
+        targetUserId: userRow.id,
+        detail: { ip: req.ip }
+      }).catch(() => {});
+    } else if (existing.status === "pending_verification" || existing.status === "invited") {
+      // Not yet verified: whoever controls the mailbox wins. Update the
+      // password and send a fresh single-use verification link.
+      const passwordHash = await hashPassword(password);
+      await updateUserPassword(existing.id, passwordHash);
+      if (String(displayName || "").trim()) {
+        await updateUserProfile(existing.id, { displayName });
+      }
+      const rawToken = await createAuthToken(existing.id, "verify");
+      await sendVerificationEmail(req, normalized, rawToken);
+    }
+    // Active or disabled accounts: do nothing, respond identically.
+
+    return res.json(genericResponse);
+  } catch (err) {
+    console.error("Registration failed:", err.message);
+    return res.status(500).json({ error: "Unable to register right now. Please try again." });
+  }
+});
+
+app.post("/api/auth/verify-email", rateLimit("verify", 10, 15 * 60 * 1000), async (req, res) => {
+  try {
+    if (!isUserStoreConfigured()) {
+      return res.status(503).json({ error: "Verification is not available right now." });
+    }
+
+    const { token = "" } = req.body || {};
+    const userRow = await consumeAuthToken("verify", token);
+
+    if (!userRow || userRow.status === "disabled") {
+      return res.status(400).json({
+        error: "This verification link is invalid or has expired. Register again to receive a new one."
+      });
+    }
+
+    await markUserVerifiedAndActive(userRow.id);
+    recordAudit({
+      actorUserId: userRow.id,
+      action: "email_verified",
+      targetUserId: userRow.id,
+      detail: {}
+    }).catch(() => {});
+
+    return res.json({
+      success: true,
+      message: "Email verified. You can now sign in. An executive still needs to grant you access to tools."
+    });
+  } catch (err) {
+    console.error("Email verification failed:", err.message);
+    return res.status(500).json({ error: "Unable to verify right now. Please try again." });
+  }
+});
+
+app.post("/api/auth/accept-invite", rateLimit("accept-invite", 10, 15 * 60 * 1000), async (req, res) => {
+  try {
+    if (!isUserStoreConfigured()) {
+      return res.status(503).json({ error: "Invitations are not available right now." });
+    }
+
+    const { token = "", password = "", displayName = "" } = req.body || {};
+    const pending = await peekAuthToken("invite", token);
+
+    if (!pending) {
+      return res.status(400).json({
+        error: "This invitation link is invalid or has expired. Ask an executive to resend it."
+      });
+    }
+
+    const policyError = validatePasswordPolicy(password, pending.email);
+    if (policyError) {
+      return res.status(400).json({ error: policyError });
+    }
+
+    const userRow = await consumeAuthToken("invite", token);
+    if (!userRow || userRow.status === "disabled") {
+      return res.status(400).json({
+        error: "This invitation link is invalid or has expired. Ask an executive to resend it."
+      });
+    }
+
+    await updateUserPassword(userRow.id, await hashPassword(password));
+    if (String(displayName || "").trim()) {
+      await updateUserProfile(userRow.id, { displayName });
+    }
+    await markUserVerifiedAndActive(userRow.id);
+    recordAudit({
+      actorUserId: userRow.id,
+      action: "invite_accepted",
+      targetUserId: userRow.id,
+      detail: {}
+    }).catch(() => {});
+
+    return res.json({ success: true, message: "Your account is ready. You can now sign in." });
+  } catch (err) {
+    console.error("Accept-invite failed:", err.message);
+    return res.status(500).json({ error: "Unable to finish setup right now. Please try again." });
+  }
+});
+
+app.post("/api/auth/request-reset", rateLimit("request-reset", 5, 15 * 60 * 1000), async (req, res) => {
+  // Always the same response — no enumeration.
+  const genericResponse = {
+    success: true,
+    message: "If that address has an account, we've sent a password reset email."
+  };
+
+  try {
+    if (!isUserStoreConfigured()) {
+      return res.json(genericResponse);
+    }
+
+    const { email = "" } = req.body || {};
+    const userRow = await findUserByEmail(email);
+
+    if (userRow && userRow.status === "active" && userRow.email_verified_at) {
+      const rawToken = await createAuthToken(userRow.id, "reset");
+      await sendPasswordResetEmail(req, userRow.email, rawToken);
+      recordAudit({
+        actorUserId: userRow.id,
+        action: "reset_requested",
+        targetUserId: userRow.id,
+        detail: { ip: req.ip }
+      }).catch(() => {});
+    }
+
+    return res.json(genericResponse);
+  } catch (err) {
+    console.error("Password reset request failed:", err.message);
+    return res.json(genericResponse);
+  }
+});
+
+app.post("/api/auth/reset", rateLimit("reset", 10, 15 * 60 * 1000), async (req, res) => {
+  try {
+    if (!isUserStoreConfigured()) {
+      return res.status(503).json({ error: "Password reset is not available right now." });
+    }
+
+    const { token = "", password = "" } = req.body || {};
+    const pending = await peekAuthToken("reset", token);
+
+    if (!pending) {
+      return res.status(400).json({
+        error: "This reset link is invalid or has expired. Request a new one from the login page."
+      });
+    }
+
+    const policyError = validatePasswordPolicy(password, pending.email);
+    if (policyError) {
+      return res.status(400).json({ error: policyError });
+    }
+
+    const userRow = await consumeAuthToken("reset", token);
+    if (!userRow || userRow.status === "disabled") {
+      return res.status(400).json({
+        error: "This reset link is invalid or has expired. Request a new one from the login page."
+      });
+    }
+
+    // Updates the hash and revokes every existing session for the user.
+    await updateUserPassword(userRow.id, await hashPassword(password));
+    recordAudit({
+      actorUserId: userRow.id,
+      action: "password_reset",
+      targetUserId: userRow.id,
+      detail: {}
+    }).catch(() => {});
+
+    return res.json({ success: true, message: "Password updated. You can now sign in." });
+  } catch (err) {
+    console.error("Password reset failed:", err.message);
+    return res.status(500).json({ error: "Unable to reset right now. Please try again." });
+  }
+});
+
+// Lets set-password.html validate a link before the user types a password.
+app.get("/api/auth/token-status", rateLimit("token-status", 30, 15 * 60 * 1000), async (req, res) => {
+  try {
+    if (!isUserStoreConfigured()) {
+      return res.json({ valid: false });
+    }
+
+    const kind = String(req.query.kind || "");
+    const token = String(req.query.token || "");
+
+    if (!["invite", "reset"].includes(kind)) {
+      return res.json({ valid: false });
+    }
+
+    const pending = await peekAuthToken(kind, token);
+    return res.json({
+      valid: Boolean(pending && pending.status !== "disabled"),
+      email: pending?.email || ""
+    });
+  } catch {
+    return res.json({ valid: false });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Executive user-management API
+// ---------------------------------------------------------------------------
+
+function buildManageablePagesPayload() {
+  return MANAGEABLE_PAGE_PATHS.map((path) => ({
+    path,
+    label: PAGE_LABELS[path] || path
+  }));
+}
+
+function buildPresetsPayload() {
+  const presets = {};
+
+  for (const [key, group] of Object.entries(ACCESS_GROUPS)) {
+    const pages = expandAccessGroupPages(key);
+    if (pages.length) {
+      presets[key] = { label: group.label, pages };
+    }
+  }
+
+  return presets;
+}
+
+app.get("/api/admin/users", requireExecutiveApi, async (req, res) => {
+  try {
+    if (!isUserStoreConfigured()) {
+      return res.status(503).json({ error: "User management requires DATABASE_URL." });
+    }
+
+    const users = await listUsersWithAccess();
+    return res.json({
+      users,
+      manageablePages: buildManageablePagesPayload(),
+      presets: buildPresetsPayload(),
+      allowedDomain: getAllowedSignupDomain(),
+      legacyLoginEnabled: LEGACY_SHARED_LOGIN_ENABLED
+    });
+  } catch (err) {
+    console.error("List users failed:", err.message);
+    return res.status(500).json({ error: "Unable to load users." });
+  }
+});
+
+app.post("/api/admin/users/invite", requireExecutiveApi, async (req, res) => {
+  try {
+    if (!isUserStoreConfigured()) {
+      return res.status(503).json({ error: "User management requires DATABASE_URL." });
+    }
+
+    const { email = "", displayName = "", isExecutive = false } = req.body || {};
+    const normalized = normalizeEmail(email);
+
+    if (!normalized || !isEmailInAllowedDomain(normalized)) {
+      return res.status(400).json({
+        error: `Invitations are limited to @${getAllowedSignupDomain()} email addresses.`
+      });
+    }
+
+    let userRow = await findUserByEmail(normalized);
+
+    if (userRow && userRow.status === "active") {
+      return res.status(409).json({ error: "That user already has an active account." });
+    }
+
+    if (userRow && userRow.status === "disabled") {
+      return res.status(409).json({ error: "That user is disabled. Re-enable them instead of inviting." });
+    }
+
+    if (!userRow) {
+      userRow = await createUser({
+        email: normalized,
+        displayName,
+        status: "invited",
+        isExecutive: Boolean(isExecutive),
+        createdBy: req.authUser.id || null
+      });
+    }
+
+    const rawToken = await createAuthToken(userRow.id, "invite");
+    await sendInviteEmail(req, normalized, rawToken);
+    recordAudit({
+      actorUserId: req.authUser.id || null,
+      action: "user_invited",
+      targetUserId: userRow.id,
+      detail: { email: normalized, isExecutive: Boolean(isExecutive) }
+    }).catch(() => {});
+
+    return res.json({ success: true });
+  } catch (err) {
+    console.error("Invite failed:", err.message);
+    return res.status(500).json({ error: "Unable to send the invitation." });
+  }
+});
+
+app.post("/api/admin/users/:userId/resend-invite", requireExecutiveApi, async (req, res) => {
+  try {
+    const userRow = await getUserById(req.params.userId);
+
+    if (!userRow || !["invited", "pending_verification"].includes(userRow.status)) {
+      return res.status(400).json({ error: "Only pending accounts can be re-invited." });
+    }
+
+    const kind = userRow.status === "invited" ? "invite" : "verify";
+    const rawToken = await createAuthToken(userRow.id, kind);
+
+    if (kind === "invite") {
+      await sendInviteEmail(req, userRow.email, rawToken);
+    } else {
+      await sendVerificationEmail(req, userRow.email, rawToken);
+    }
+
+    recordAudit({
+      actorUserId: req.authUser.id || null,
+      action: "invite_resent",
+      targetUserId: userRow.id,
+      detail: { kind }
+    }).catch(() => {});
+
+    return res.json({ success: true });
+  } catch (err) {
+    console.error("Resend invite failed:", err.message);
+    return res.status(500).json({ error: "Unable to resend the invitation." });
+  }
+});
+
+app.post("/api/admin/users/:userId/permissions", requireExecutiveApi, async (req, res) => {
+  try {
+    const userRow = await getUserById(req.params.userId);
+    if (!userRow) {
+      return res.status(404).json({ error: "User not found." });
+    }
+
+    const changes = Array.isArray(req.body?.changes) ? req.body.changes : [];
+    const invalid = changes.find((c) => !MANAGEABLE_PAGE_PATHS.includes(String(c?.pagePath)));
+
+    if (!changes.length || invalid) {
+      return res.status(400).json({ error: "Invalid page permission changes." });
+    }
+
+    const grantedPages = await setUserPagePermissions(
+      userRow.id,
+      changes.map((c) => ({ pagePath: String(c.pagePath), granted: Boolean(c.granted) })),
+      req.authUser.id || null
+    );
+
+    return res.json({ success: true, grantedPages });
+  } catch (err) {
+    console.error("Permission update failed:", err.message);
+    return res.status(500).json({ error: "Unable to update permissions." });
+  }
+});
+
+app.post("/api/admin/users/:userId/preset", requireExecutiveApi, async (req, res) => {
+  try {
+    const userRow = await getUserById(req.params.userId);
+    if (!userRow) {
+      return res.status(404).json({ error: "User not found." });
+    }
+
+    const presetKey = String(req.body?.preset || "");
+    const presetPages = expandAccessGroupPages(presetKey);
+
+    if (!presetPages.length) {
+      return res.status(400).json({ error: "Unknown preset." });
+    }
+
+    // Presets expand into individual per-user rows (replace semantics).
+    const changes = MANAGEABLE_PAGE_PATHS.map((pagePath) => ({
+      pagePath,
+      granted: presetPages.includes(pagePath)
+    }));
+
+    const grantedPages = await setUserPagePermissions(userRow.id, changes, req.authUser.id || null);
+    recordAudit({
+      actorUserId: req.authUser.id || null,
+      action: "preset_applied",
+      targetUserId: userRow.id,
+      detail: { preset: presetKey }
+    }).catch(() => {});
+
+    return res.json({ success: true, grantedPages });
+  } catch (err) {
+    console.error("Preset apply failed:", err.message);
+    return res.status(500).json({ error: "Unable to apply the preset." });
+  }
+});
+
+app.post("/api/admin/users/:userId/status", requireExecutiveApi, async (req, res) => {
+  try {
+    const userRow = await getUserById(req.params.userId);
+    if (!userRow) {
+      return res.status(404).json({ error: "User not found." });
+    }
+
+    const status = String(req.body?.status || "");
+
+    if (!["active", "disabled"].includes(status)) {
+      return res.status(400).json({ error: "Status must be 'active' or 'disabled'." });
+    }
+
+    if (req.authUser.id && req.authUser.id === userRow.id && status === "disabled") {
+      return res.status(400).json({ error: "You cannot disable your own account." });
+    }
+
+    // Disabling deletes the user's sessions inside the same transaction, so
+    // their access is revoked on the next request.
+    await setUserStatus(userRow.id, status, req.authUser.id || null);
+    return res.json({ success: true });
+  } catch (err) {
+    console.error("Status change failed:", err.message);
+    return res.status(500).json({ error: "Unable to update the user." });
+  }
+});
+
+app.post("/api/admin/users/:userId/executive", requireExecutiveApi, async (req, res) => {
+  try {
+    const userRow = await getUserById(req.params.userId);
+    if (!userRow) {
+      return res.status(404).json({ error: "User not found." });
+    }
+
+    const isExecutive = Boolean(req.body?.isExecutive);
+
+    if (req.authUser.id && req.authUser.id === userRow.id && !isExecutive) {
+      return res.status(400).json({ error: "You cannot remove your own executive access." });
+    }
+
+    await setUserExecutive(userRow.id, isExecutive, req.authUser.id || null);
+
+    if (!isExecutive) {
+      // Dropping executive re-scopes them to page grants; end open sessions.
+      await deleteSessionsForUser(userRow.id);
+    }
+
+    return res.json({ success: true });
+  } catch (err) {
+    console.error("Executive flag change failed:", err.message);
+    return res.status(500).json({ error: "Unable to update the user." });
+  }
+});
+
+app.post("/api/admin/users/:userId/force-reset", requireExecutiveApi, async (req, res) => {
+  try {
+    const userRow = await getUserById(req.params.userId);
+
+    if (!userRow || userRow.status !== "active") {
+      return res.status(400).json({ error: "Only active users can receive a reset email." });
+    }
+
+    const rawToken = await createAuthToken(userRow.id, "reset");
+    await sendPasswordResetEmail(req, userRow.email, rawToken);
+    recordAudit({
+      actorUserId: req.authUser.id || null,
+      action: "reset_forced",
+      targetUserId: userRow.id,
+      detail: {}
+    }).catch(() => {});
+
+    return res.json({ success: true });
+  } catch (err) {
+    console.error("Force reset failed:", err.message);
+    return res.status(500).json({ error: "Unable to send the reset email." });
+  }
+});
+
+app.get("/api/admin/audit-log", requireExecutiveApi, async (req, res) => {
+  try {
+    if (!isUserStoreConfigured()) {
+      return res.status(503).json({ error: "User management requires DATABASE_URL." });
+    }
+
+    const entries = await listAuditLog(Number(req.query.limit) || 200);
+    return res.json({ entries });
+  } catch (err) {
+    console.error("Audit log read failed:", err.message);
+    return res.status(500).json({ error: "Unable to load the audit log." });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Steel Cod spec packages
+// Steel Cod requires the email of the authenticated user acting on each
+// request (no shared service accounts per their EULA), so these endpoints
+// need an individual (database) login — the legacy shared login is rejected
+// with a clear message.
+// ---------------------------------------------------------------------------
+
+function resolveSteelCodUserEmail(req, res) {
+  if (!isSteelCodConfigured()) {
+    res.status(503).json({
+      error: "Steel Cod is not configured yet (missing STEELCOD_API_KEY)."
+    });
+    return null;
+  }
+
+  const email = req.authUser?.kind === "db" ? req.authUser.email : "";
+
+  if (!email || !email.includes("@")) {
+    res.status(400).json({
+      error: "Steel Cod actions require signing in with your individual account (not the shared login), so Steel Cod knows who is acting."
+    });
+    return null;
+  }
+
+  return email;
+}
+
+function sendSteelCodError(res, err, fallbackMessage) {
+  if (err instanceof SteelCodError) {
+    const status = err.status === 400 ? 400 : err.status === 503 ? 503 : 502;
+    return res.status(status).json({
+      error: err.message,
+      errorCode: err.errorCode || undefined,
+      errorDetails: err.errorDetails || undefined,
+      logID: err.logID || undefined
+    });
+  }
+
+  console.error("Steel Cod request failed:", err.message);
+  return res.status(500).json({ error: fallbackMessage });
+}
+
+app.post("/api/spec-packages", requirePagePermission("/spec-packages.html"), async (req, res) => {
+  const userEmail = resolveSteelCodUserEmail(req, res);
+  if (!userEmail) return;
+
+  try {
+    const {
+      documentID = "",
+      title = "",
+      subtitle = "",
+      documentTypeLabel = "",
+      salespersonEmail = "",
+      emailCopyToSelf = false,
+      customerName = "",
+      customerPhone = "",
+      customerEmail = "",
+      customerNotes = "",
+      modelNumbers = []
+    } = req.body || {};
+
+    const models = (Array.isArray(modelNumbers) ? modelNumbers : String(modelNumbers).split(/[\n,]/))
+      .map((m) => String(m).trim())
+      .filter(Boolean);
+
+    if (!models.length) {
+      return res.status(400).json({ error: "Enter at least one model number." });
+    }
+
+    if (!String(customerName).trim()) {
+      return res.status(400).json({ error: "Customer name is required." });
+    }
+
+    const result = await createSpecPackage({
+      userEmail,
+      salespersonEmail: salespersonEmail || userEmail,
+      documentID,
+      title,
+      subtitle,
+      documentTypeLabel: documentTypeLabel || "Sales Order",
+      emailTo: emailCopyToSelf ? [userEmail] : [],
+      customer: {
+        name: String(customerName).trim(),
+        phone: String(customerPhone || "").trim(),
+        email: String(customerEmail || "").trim(),
+        notes: String(customerNotes || "").trim()
+      },
+      modelNumbers: models
+    });
+
+    return res.json(result);
+  } catch (err) {
+    return sendSteelCodError(res, err, "Unable to create the spec package.");
+  }
+});
+
+app.get("/api/spec-packages", requirePagePermission("/spec-packages.html"), async (req, res) => {
+  const userEmail = resolveSteelCodUserEmail(req, res);
+  if (!userEmail) return;
+
+  try {
+    const result = await searchSpecPackages({
+      userEmail,
+      skip: Number(req.query.skip) || 0,
+      title: String(req.query.title || ""),
+      documentID: String(req.query.documentID || ""),
+      pii: String(req.query.pii || ""),
+      createdByUserEmail: String(req.query.createdByUserEmail || ""),
+      salespersonUserEmail: String(req.query.salespersonUserEmail || "")
+    });
+
+    return res.json(result);
+  } catch (err) {
+    return sendSteelCodError(res, err, "Unable to search spec packages.");
+  }
+});
+
+app.get("/api/spec-packages/:navId", requirePagePermission("/spec-packages.html"), async (req, res) => {
+  const userEmail = resolveSteelCodUserEmail(req, res);
+  if (!userEmail) return;
+
+  try {
+    const result = await retrieveSpecPackage({ userEmail, navId: req.params.navId });
+    return res.json(result);
+  } catch (err) {
+    return sendSteelCodError(res, err, "Unable to load the spec package.");
+  }
+});
+
+// Deleting purges the package (and its PII) permanently — executive only.
+app.delete("/api/spec-packages/:navId", requireExecutiveApi, async (req, res) => {
+  const userEmail = resolveSteelCodUserEmail(req, res);
+  if (!userEmail) return;
+
+  try {
+    const result = await deleteSpecPackage({ userEmail, navId: req.params.navId });
+    recordAudit({
+      actorUserId: req.authUser.id || null,
+      action: "spec_package_deleted",
+      targetUserId: null,
+      detail: { navId: req.params.navId, logID: result.logID || "" }
+    }).catch(() => {});
+    return res.json(result);
+  } catch (err) {
+    return sendSteelCodError(res, err, "Unable to delete the spec package.");
+  }
+});
+
+// Registered Steel Cod users at Wilson (to verify staff accounts line up).
+app.get("/api/steelcod-users", requireExecutiveApi, async (req, res) => {
+  const userEmail = resolveSteelCodUserEmail(req, res);
+  if (!userEmail) return;
+
+  try {
+    const result = await retrieveSteelCodUsers({ userEmail });
+    return res.json(result);
+  } catch (err) {
+    return sendSteelCodError(res, err, "Unable to load Steel Cod users.");
+  }
 });
 
 app.use(express.static(__dirname, { index: false }));
@@ -625,7 +1915,7 @@ app.get("/secret-menu", (req, res) => {
   res.sendFile(path.join(__dirname, "secret-menu.html"));
 });
 
-app.get("/api/secret-menu", async (req, res) => {
+app.get("/api/secret-menu", requirePagePermission("/secret-menu.html"), async (req, res) => {
   try {
     const allowedGroups = new Set(["leader", "executive", "sales"]);
     if (!allowedGroups.has(req.authUser?.accessGroup)) {
@@ -858,7 +2148,7 @@ app.delete("/api/commissions/runs/:runId", requireExecutiveApi, async (req, res)
 // -------------------------
 // EXISTING PAYMENT LINK ROUTE
 // -------------------------
-app.post("/api/create-payment-link", async (req, res) => {
+app.post("/api/create-payment-link", requirePagePermission("/index.html"), async (req, res) => {
   try {
     const {
       linkType,
@@ -1057,7 +2347,7 @@ const paymentLink = await stripe.paymentLinks.create(paymentLinkConfig, {
 // -------------------------
 // TERMINAL: LIST ONLINE READERS
 // -------------------------
-app.get("/api/terminal/readers", async (req, res) => {
+app.get("/api/terminal/readers", requirePagePermission("/terminal.html"), async (req, res) => {
   try {
     const readers = await stripe.terminal.readers.list({
       limit: 20
@@ -1082,7 +2372,7 @@ app.get("/api/terminal/readers", async (req, res) => {
 // -------------------------
 // TERMINAL: CREATE + COLLECT + PROCESS
 // -------------------------
-app.post("/api/terminal/charge", async (req, res) => {
+app.post("/api/terminal/charge", requirePagePermission("/terminal.html"), async (req, res) => {
   try {
 const {
   amount,
@@ -1156,7 +2446,7 @@ const paymentIntent = await stripe.paymentIntents.create(terminalPaymentIntentCo
 });
 
 
-app.get("/api/terminal/payment-status/:paymentIntentId", async (req, res) => {
+app.get("/api/terminal/payment-status/:paymentIntentId", requirePagePermission("/terminal.html"), async (req, res) => {
   try {
     const paymentIntent = await stripe.paymentIntents.retrieve(
       req.params.paymentIntentId
@@ -1629,7 +2919,7 @@ app.post("/api/service/submit-request", async (req, res) => {
 });
 
 
-app.post("/api/card-on-file/charge", async (req, res) => {
+app.post("/api/card-on-file/charge", requirePagePermission("/charge-saved-card.html"), async (req, res) => {
   try {
     const {
       customerId,
@@ -1764,7 +3054,7 @@ app.post("/api/card-on-file/charge", async (req, res) => {
   }
 });
 
-app.get("/api/service-cards", async (req, res) => {
+app.get("/api/service-cards", requirePagePermission("/appliance-service-calls.html", "/archive-service-calls.html"), async (req, res) => {
   try {
     const serviceCards = await readServiceCards();
     res.json({ rows: serviceCards });
@@ -1775,7 +3065,7 @@ app.get("/api/service-cards", async (req, res) => {
   }
 });
 
-app.get("/api/service-cards/archive", async (req, res) => {
+app.get("/api/service-cards/archive", requirePagePermission("/appliance-service-calls.html", "/archive-service-calls.html"), async (req, res) => {
   try {
     const archiveRows = await readArchivedServiceCards();
     res.json({ rows: archiveRows });
@@ -1786,7 +3076,7 @@ app.get("/api/service-cards/archive", async (req, res) => {
   }
 });
 
-app.get("/api/hvac-deposits", async (req, res) => {
+app.get("/api/hvac-deposits", requirePagePermission("/hvac-dashboard.html", "/charge-saved-card.html"), async (req, res) => {
   try {
     const links = await readLinks();
     let didUpdate = false;
@@ -1885,7 +3175,7 @@ app.get("/api/hvac-deposits", async (req, res) => {
   }
 });
 
-app.get("/api/deposit-agreements", async (req, res) => {
+app.get("/api/deposit-agreements", requirePagePermission("/hvac-dashboard.html"), async (req, res) => {
   try {
     const links = await readLinks();
     const agreements = await syncDepositAgreementsFromLinks(links);
@@ -1921,7 +3211,7 @@ app.get("/api/deposit-agreements", async (req, res) => {
   }
 });
 
-app.get("/api/hvac-deposits/:id", async (req, res) => {
+app.get("/api/hvac-deposits/:id", requirePagePermission("/hvac-dashboard.html", "/charge-saved-card.html"), async (req, res) => {
   try {
     const links = await readLinks();
     await syncDepositAgreementsFromLinks(links);
@@ -1996,7 +3286,7 @@ app.get("/api/hvac-deposits/:id", async (req, res) => {
   }
 });
 
-app.post("/api/hvac-deposits/:id/manage", async (req, res) => {
+app.post("/api/hvac-deposits/:id/manage", requirePagePermission("/hvac-dashboard.html"), async (req, res) => {
   try {
     const { action, balanceAmount } = req.body || {};
     const links = await readLinks();
@@ -2077,7 +3367,7 @@ app.post("/api/hvac-deposits/:id/manage", async (req, res) => {
   }
 });
 
-app.post("/api/service-cards/:id/status", async (req, res) => {
+app.post("/api/service-cards/:id/status", requirePagePermission("/appliance-service-calls.html", "/archive-service-calls.html"), async (req, res) => {
   try {
     const { id } = req.params;
     const {
@@ -2133,7 +3423,7 @@ app.post("/api/service-cards/:id/status", async (req, res) => {
 // DASHBOARD: CHECK PAYMENT STATUS
 // -------------------------
 
-app.get("/api/payment-link-status", async (req, res) => {
+app.get("/api/payment-link-status", requirePagePermission("/dashboard.html"), async (req, res) => {
   try {
     const links = await readLinks();
     const terminalPayments = await readTerminalPayments();
@@ -2164,7 +3454,7 @@ app.get("/api/payment-link-status", async (req, res) => {
   }
 });
 
-app.get("/api/paid-order-detail", async (req, res) => {
+app.get("/api/paid-order-detail", requirePagePermission("/paid-order-detail.html"), async (req, res) => {
   try {
     const { start, end, search = "" } = req.query;
 
@@ -2230,7 +3520,7 @@ app.get("/api/paid-order-detail", async (req, res) => {
   }
 });
 
-app.get("/api/bank-balancing", async (req, res) => {
+app.get("/api/bank-balancing", requirePagePermission("/bank-balancing.html"), async (req, res) => {
   try {
     const { start, end } = req.query;
 
@@ -2308,7 +3598,7 @@ app.get("/api/bank-balancing", async (req, res) => {
   }
 });
 
-app.get("/api/incoming-payouts", async (req, res) => {
+app.get("/api/incoming-payouts", requirePagePermission("/incoming-payouts.html"), async (req, res) => {
   try {
     const days = Math.min(Math.max(Number(req.query.days || 21), 1), 90);
     const todayKey = toTimeZoneDateKey(new Date().toISOString(), APP_TIMEZONE);
@@ -2359,7 +3649,7 @@ app.get("/api/incoming-payouts", async (req, res) => {
   }
 });
 
-app.get("/api/link-detail-lookup", async (req, res) => {
+app.get("/api/link-detail-lookup", requirePagePermission("/link-detail-lookup.html"), async (req, res) => {
   try {
     const query = String(req.query?.query || "").trim();
 
@@ -2403,7 +3693,7 @@ app.get("/api/link-detail-lookup", async (req, res) => {
   }
 });
 
-app.post("/api/link-detail-lookup/repair", async (req, res) => {
+app.post("/api/link-detail-lookup/repair", requirePagePermission("/link-detail-lookup.html"), async (req, res) => {
   try {
     const query = String(req.body?.query || "").trim();
 
@@ -2454,7 +3744,7 @@ app.post("/api/link-detail-lookup/repair", async (req, res) => {
   }
 });
 
-app.get("/api/intent-lookup/:kind/:id", async (req, res) => {
+app.get("/api/intent-lookup/:kind/:id", requirePagePermission("/intent-lookup.html"), async (req, res) => {
   try {
     const kind = String(req.params.kind || "").toLowerCase();
     const id = String(req.params.id || "").trim();
@@ -2639,7 +3929,7 @@ app.post("/api/events/fire-flavor/rsvp", async (req, res) => {
   }
 });
 
-app.get("/api/events/catalog", async (req, res) => {
+app.get("/api/events/catalog", requirePagePermission("/event-rsvps.html"), async (req, res) => {
   try {
     const status = String(req.query.status || "all").trim().toLowerCase();
     const allowedStatuses = new Set(["all", "active", "archived"]);
@@ -2707,7 +3997,7 @@ app.get("/api/events/catalog", async (req, res) => {
   }
 });
 
-app.get("/api/events/rsvps", async (req, res) => {
+app.get("/api/events/rsvps", requirePagePermission("/event-rsvps.html"), async (req, res) => {
   try {
     const eventSlug = String(req.query.eventSlug || "").trim();
     const status = String(req.query.status || "all").trim().toLowerCase();
@@ -2758,7 +4048,7 @@ app.get("/api/events/rsvps", async (req, res) => {
   }
 });
 
-app.post("/api/events/:slug/status", async (req, res) => {
+app.post("/api/events/:slug/status", requirePagePermission("/event-rsvps.html"), async (req, res) => {
   try {
     const slug = String(req.params.slug || "").trim();
     const nextStatus = String(req.body?.status || "").trim().toLowerCase();
@@ -2803,7 +4093,7 @@ app.post("/api/events/:slug/status", async (req, res) => {
   }
 });
 
-app.post("/api/intent-lookup/payment_intent/:id/refund", async (req, res) => {
+app.post("/api/intent-lookup/payment_intent/:id/refund", requirePagePermission("/intent-lookup.html"), async (req, res) => {
   try {
     const id = String(req.params.id || "").trim();
     const requestedAmount = req.body?.amount;
@@ -4065,7 +5355,42 @@ function buildSaleReportRow(charge, paidIso, sourceRow, paymentIntent) {
   };
 }
 
+function hasUsBankAccountPayment(sourceRow = null, paymentIntent = null, charge = null, session = null) {
+  const latestCharge =
+    paymentIntent?.latest_charge && typeof paymentIntent.latest_charge === "object"
+      ? paymentIntent.latest_charge
+      : null;
+
+  return Boolean(
+    paymentIntent?.payment_method_types?.includes("us_bank_account") ||
+    paymentIntent?.payment_method?.type === "us_bank_account" ||
+    latestCharge?.payment_method_details?.type === "us_bank_account" ||
+    charge?.payment_method_details?.type === "us_bank_account" ||
+    session?.payment_method_types?.includes("us_bank_account") ||
+    sourceRow?.paymentMethodType === "us_bank_account" ||
+    sourceRow?.type === "ach_link" ||
+    sourceRow?.status === "ach_pending"
+  );
+}
+
+function normalizeDateIso(value) {
+  if (!value) return "";
+  const date = new Date(value);
+  return Number.isFinite(date.getTime()) ? date.toISOString() : "";
+}
+
+function getStripeEventCreatedIso(event) {
+  return event?.created ? new Date(event.created * 1000).toISOString() : "";
+}
+
 function getSaleReportDateIso(charge, sourceRow) {
+  if (hasUsBankAccountPayment(sourceRow, null, charge)) {
+    const localPaidIso = normalizeDateIso(sourceRow?.paidDate);
+    if (localPaidIso) {
+      return localPaidIso;
+    }
+  }
+
   return new Date((charge.created || 0) * 1000).toISOString();
 }
 
@@ -4116,7 +5441,7 @@ function buildRefundReportRow(refund, refundIso, sourceRow, paymentIntent) {
   };
 }
 
-app.post("/api/service-cards/:id/prefill-link", async (req, res) => {
+app.post("/api/service-cards/:id/prefill-link", requirePagePermission("/appliance-service-calls.html", "/archive-service-calls.html"), async (req, res) => {
   try {
     const { id } = req.params;
     const serviceCards = await readServiceCards();
@@ -4193,7 +5518,7 @@ app.get("/api/service/prefill/:token", async (req, res) => {
   }
 });
 
-app.patch("/api/payment-links/:id/status", async (req, res) => {
+app.patch("/api/payment-links/:id/status", requirePagePermission("/dashboard.html", "/link-detail-lookup.html"), async (req, res) => {
   try {
     const { id } = req.params;
     const { status, reason } = req.body || {};
@@ -4258,7 +5583,7 @@ app.patch("/api/payment-links/:id/status", async (req, res) => {
 // for the Stripe Payment Link, finds the paid one if any, and rewrites
 // the local row using the same helpers the webhook handler uses, so the
 // result is identical to "webhook succeeded after all."
-app.post("/api/payment-links/:id/sync-from-stripe", async (req, res) => {
+app.post("/api/payment-links/:id/sync-from-stripe", requirePagePermission("/dashboard.html", "/link-detail-lookup.html"), async (req, res) => {
   try {
     const { id } = req.params;
     const links = await readLinks();
@@ -4427,11 +5752,23 @@ async function buildPaidDateDriftReport(startKey, endKey) {
   };
 
   const driftItems = [];
-  const skipped = { noStripeData: 0, noLatestCharge: 0, notSucceeded: 0, errors: 0, hvacExcluded: 0 };
+  const skipped = {
+    noStripeData: 0,
+    noLatestCharge: 0,
+    notSucceeded: 0,
+    errors: 0,
+    hvacExcluded: 0,
+    achExcluded: 0
+  };
   const seenPaymentIntentIds = new Set();
 
   for (const candidate of candidates) {
     if (!inRange(candidate.row)) continue;
+
+    if (hasUsBankAccountPayment(candidate.row)) {
+      skipped.achExcluded += 1;
+      continue;
+    }
 
     // HVAC deposit records have a deposit charge AND a separate balance
     // charge (run later via saved card). The local paidDate can
@@ -4460,6 +5797,11 @@ async function buildPaidDateDriftReport(startKey, endKey) {
       paymentIntent = await retrievePaymentIntentWithDetailsWithRetry(comparePi);
     } catch (err) {
       skipped.errors += 1;
+      continue;
+    }
+
+    if (hasUsBankAccountPayment(candidate.row, paymentIntent)) {
+      skipped.achExcluded += 1;
       continue;
     }
 
@@ -4510,7 +5852,7 @@ async function buildPaidDateDriftReport(startKey, endKey) {
   return { driftItems, skipped, candidateCount: candidates.length };
 }
 
-app.post("/api/admin/repair-paid-dates/preview", async (req, res) => {
+app.post("/api/admin/repair-paid-dates/preview", requirePagePermission("/paid-order-detail.html"), async (req, res) => {
   try {
     if (!requireRepairAccess(req, res)) return;
 
@@ -4537,7 +5879,7 @@ app.post("/api/admin/repair-paid-dates/preview", async (req, res) => {
   }
 });
 
-app.post("/api/admin/repair-paid-dates/apply", async (req, res) => {
+app.post("/api/admin/repair-paid-dates/apply", requirePagePermission("/paid-order-detail.html"), async (req, res) => {
   try {
     if (!requireRepairAccess(req, res)) return;
 
@@ -4595,6 +5937,15 @@ app.post("/api/admin/repair-paid-dates/apply", async (req, res) => {
         skipped.push({ paymentIntentId: pi, reason: `stripe error: ${err.message}` });
         continue;
       }
+
+      if (hasUsBankAccountPayment(row, paymentIntent)) {
+        skipped.push({
+          paymentIntentId: pi,
+          reason: "ACH payments keep their clearing paid date and are excluded from drift repair"
+        });
+        continue;
+      }
+
       const chargeCreatedSec = getSucceededStripeChargeCreatedSec(paymentIntent);
       if (!chargeCreatedSec) {
         skipped.push({
@@ -4769,7 +6120,9 @@ async function processCheckoutSessionWebhookEvent(event) {
 
   if (event.type === "checkout.session.completed") {
     if (paymentIntent?.status === "succeeded") {
-      applyPaidLinkState(record, session, paymentIntent);
+      applyPaidLinkState(record, session, paymentIntent, {
+        paidDateIso: getStripeEventCreatedIso(event)
+      });
       await recordDepositCollectedFromLink(record);
       await deactivateCompletedPaymentLink(record);
       await maybeSendLinkPaidNotification(record);
@@ -4779,7 +6132,9 @@ async function processCheckoutSessionWebhookEvent(event) {
   }
 
   if (event.type === "checkout.session.async_payment_succeeded") {
-    applyPaidLinkState(record, session, paymentIntent);
+    applyPaidLinkState(record, session, paymentIntent, {
+      paidDateIso: getStripeEventCreatedIso(event)
+    });
     await recordDepositCollectedFromLink(record);
     await deactivateCompletedPaymentLink(record);
     await maybeSendLinkPaidNotification(record);
@@ -4812,7 +6167,9 @@ async function processPaymentIntentWebhookEvent(event) {
   normalizeLinkRecord(record);
 
   if (event.type === "payment_intent.succeeded") {
-    applyPaidLinkState(record, null, paymentIntent);
+    applyPaidLinkState(record, null, paymentIntent, {
+      paidDateIso: getStripeEventCreatedIso(event)
+    });
     await deactivateCompletedPaymentLink(record);
     await maybeSendLinkPaidNotification(record);
   }
@@ -4836,12 +6193,14 @@ async function deactivateCompletedPaymentLink(record) {
   });
 }
 
-function applyPaidLinkState(record, session, paymentIntent) {
+function applyPaidLinkState(record, session, paymentIntent, options = {}) {
   const paymentMethodType = inferPaymentMethodType(paymentIntent, session);
   // First paid event wins. Webhook re-deliveries and manual Sync clicks
   // must not bump the accounting date forward.
   const wasAlreadyPaid = record.status === "paid" && Boolean(record.paidDate);
   const nowIso = new Date().toISOString();
+  const eventPaidDateIso = normalizeDateIso(options.paidDateIso);
+  const isAchPayment = hasUsBankAccountPayment(record, paymentIntent, null, session);
 
   record.status = "paid";
   record.active = false;
@@ -4857,13 +6216,12 @@ function applyPaidLinkState(record, session, paymentIntent) {
   );
 
   if (!wasAlreadyPaid) {
-    const chargeCreatedSec =
-      paymentIntent?.latest_charge && typeof paymentIntent.latest_charge === "object"
-        ? paymentIntent.latest_charge.created
-        : null;
-    record.paidDate = chargeCreatedSec
-      ? new Date(chargeCreatedSec * 1000).toISOString()
-      : nowIso;
+    const chargeCreatedSec = getSucceededStripeChargeCreatedSec(paymentIntent);
+    record.paidDate = isAchPayment
+      ? eventPaidDateIso || nowIso
+      : chargeCreatedSec
+        ? new Date(chargeCreatedSec * 1000).toISOString()
+        : eventPaidDateIso || nowIso;
     record.deactivatedAt = nowIso;
   }
 
@@ -5032,7 +6390,20 @@ function escapeHtmlForEmail(value) {
 
 
 
+if (isUserStoreConfigured()) {
+  ensureUserAccessTables()
+    .then(() => console.log("User access tables ready."))
+    .catch((err) => console.error("Unable to prepare user access tables:", err.message));
+
+  setInterval(() => {
+    cleanupExpiredAuthRows().catch(() => {});
+  }, 6 * 60 * 60 * 1000).unref();
+} else {
+  console.warn("DATABASE_URL is not set: individual user accounts are unavailable; only env logins will work.");
+}
+
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`Running on port ${PORT}`);
 });
+

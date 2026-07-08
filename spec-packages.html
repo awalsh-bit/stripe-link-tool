@@ -1,0 +1,541 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="robots" content="noindex,nofollow,noarchive" />
+  <title>Wilson AC & Appliance - Spec Packages</title>
+  <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+  <link rel="stylesheet" href="internal-shell.css" />
+  <style>
+    :root {
+      --bg: #f7f8fc;
+      --card: #ffffff;
+      --text: #1f2937;
+      --muted: #6b7280;
+      --border: #dbe1ea;
+      --primary: #635bff;
+      --primary-hover: #564ef0;
+      --success-bg: #ecfdf5;
+      --success-text: #065f46;
+      --error-bg: #fef2f2;
+      --error-text: #991b1b;
+      --warn-bg: #fffbeb;
+      --warn-text: #92400e;
+      --shadow: 0 10px 35px rgba(0, 0, 0, 0.08);
+      --radius: 18px;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: linear-gradient(180deg, #eef2ff 0%, var(--bg) 100%);
+      color: var(--text);
+      min-height: 100vh;
+      padding: 32px 16px;
+    }
+
+    .wrap { max-width: 1480px; margin: 0 auto; }
+
+    .surface {
+      background: var(--card);
+      border: 1px solid rgba(99, 91, 255, 0.12);
+      box-shadow: var(--shadow);
+      border-radius: var(--radius);
+      padding: 24px;
+      margin: 0 auto 22px;
+    }
+
+    h2 { margin: 0 0 6px; font-size: 22px; }
+    .section-note { margin: 0 0 16px; color: var(--muted); font-size: 14px; line-height: 1.5; }
+
+    .form-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+      gap: 14px;
+    }
+
+    .field.full { grid-column: 1 / -1; }
+
+    label { display: block; margin-bottom: 6px; font-size: 13px; font-weight: 700; }
+
+    input[type="text"], input[type="email"], textarea {
+      width: 100%;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 10px 12px;
+      font-size: 14px;
+      background: #fff;
+      color: var(--text);
+      outline: none;
+      font-family: inherit;
+    }
+
+    textarea { min-height: 90px; resize: vertical; }
+
+    input:focus, textarea:focus {
+      border-color: rgba(99, 91, 255, 0.75);
+      box-shadow: 0 0 0 4px rgba(99, 91, 255, 0.12);
+    }
+
+    .checkbox-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 14px;
+      margin-top: 6px;
+    }
+
+    button {
+      appearance: none;
+      border: none;
+      background: var(--primary);
+      color: #fff;
+      padding: 11px 18px;
+      border-radius: 10px;
+      font-size: 14px;
+      font-weight: 700;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+
+    button:hover { background: var(--primary-hover); }
+    button:disabled { opacity: 0.6; cursor: wait; }
+    button.secondary { background: #eef2ff; color: var(--primary); }
+    button.secondary:hover { background: #e0e7ff; }
+    button.danger { background: #fee2e2; color: #991b1b; }
+    button.danger:hover { background: #fecaca; }
+    button.tiny { padding: 6px 10px; font-size: 12px; border-radius: 8px; }
+
+    .actions-row { margin-top: 16px; display: flex; gap: 10px; flex-wrap: wrap; }
+
+    .status {
+      display: none;
+      margin: 14px 0 0;
+      border-radius: 12px;
+      padding: 12px 14px;
+      font-size: 14px;
+      line-height: 1.5;
+    }
+
+    .status.show { display: block; }
+    .status.error { background: var(--error-bg); color: var(--error-text); }
+    .status.ok { background: var(--success-bg); color: var(--success-text); }
+    .status.warn { background: var(--warn-bg); color: var(--warn-text); }
+
+    .result-links { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0; }
+
+    .result-links a {
+      display: inline-flex;
+      align-items: center;
+      padding: 8px 14px;
+      border-radius: 10px;
+      background: #eef2ff;
+      color: var(--primary);
+      font-weight: 700;
+      font-size: 13px;
+      text-decoration: none;
+    }
+
+    .result-links a:hover { background: #e0e7ff; }
+
+    .model-lists { display: flex; flex-wrap: wrap; gap: 18px; font-size: 14px; }
+    .model-lists h4 { margin: 0 0 6px; font-size: 13px; text-transform: uppercase; letter-spacing: 0.05em; color: #64748b; }
+    .model-lists ul { margin: 0; padding-left: 18px; }
+
+    table { width: 100%; border-collapse: collapse; font-size: 14px; }
+
+    th, td {
+      text-align: left;
+      padding: 10px 12px;
+      border-bottom: 1px solid #eef1f6;
+      vertical-align: middle;
+    }
+
+    th {
+      font-size: 12px;
+      font-weight: 800;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: #64748b;
+    }
+
+    .muted { color: var(--muted); }
+    .small-text { font-size: 12px; }
+    .table-scroll { overflow-x: auto; }
+    .row-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+
+    @media (max-width: 720px) {
+      body { padding: 18px 8px; }
+      .surface { padding: 16px; }
+    }
+  </style>
+</head>
+<body data-shell-label="Spec Packages" data-shell-icon="sales">
+  <div class="wrap">
+    <div id="internal-shell-header"></div>
+
+    <div class="surface">
+      <h2>Create a spec package</h2>
+      <p class="section-note">
+        Enter the sales order and model numbers; Steel Cod compiles the spec sheets into a
+        shareable package. The package is created under <span id="whoami">your account</span>.
+      </p>
+
+      <form id="createForm">
+        <div class="form-grid">
+          <div class="field">
+            <label for="documentID">Sales order / quote #</label>
+            <input id="documentID" type="text" placeholder="SO-12345" />
+          </div>
+          <div class="field">
+            <label for="title">Title (optional)</label>
+            <input id="title" type="text" placeholder="Defaults to the sales order #" />
+          </div>
+          <div class="field">
+            <label for="customerName">Customer name *</label>
+            <input id="customerName" type="text" />
+          </div>
+          <div class="field">
+            <label for="customerPhone">Customer phone</label>
+            <input id="customerPhone" type="text" />
+          </div>
+          <div class="field">
+            <label for="customerEmail">Customer email</label>
+            <input id="customerEmail" type="email" />
+          </div>
+          <div class="field">
+            <label for="salespersonEmail">Salesperson email (optional)</label>
+            <input id="salespersonEmail" type="email" placeholder="Defaults to you" />
+          </div>
+          <div class="field full">
+            <label for="modelNumbers">Model numbers * (one per line or comma-separated)</label>
+            <textarea id="modelNumbers" placeholder="WRF535SWHZ&#10;WDT730PAHZ"></textarea>
+          </div>
+        </div>
+
+        <div class="checkbox-row">
+          <input id="emailCopy" type="checkbox" />
+          <label for="emailCopy" style="margin: 0; font-weight: 500;">Email me a copy of the compiled spec document</label>
+        </div>
+
+        <div class="actions-row">
+          <button id="createBtn" type="submit">Create spec package</button>
+        </div>
+        <div id="createStatus" class="status"></div>
+        <div id="createResult"></div>
+      </form>
+    </div>
+
+    <div class="surface">
+      <h2>Find spec packages</h2>
+      <p class="section-note">Search by sales order #, title, or customer info. Leave everything blank to list recent packages.</p>
+
+      <div class="form-grid">
+        <div class="field">
+          <label for="searchDocId">Sales order / quote # (exact)</label>
+          <input id="searchDocId" type="text" />
+        </div>
+        <div class="field">
+          <label for="searchTitle">Title (starts with)</label>
+          <input id="searchTitle" type="text" />
+        </div>
+        <div class="field">
+          <label for="searchPii">Customer name / phone / email</label>
+          <input id="searchPii" type="text" />
+        </div>
+      </div>
+
+      <div class="actions-row">
+        <button id="searchBtn" type="button">Search</button>
+        <button id="mineBtn" type="button" class="secondary">My packages</button>
+      </div>
+      <div id="searchStatus" class="status"></div>
+
+      <div class="table-scroll" style="margin-top: 14px;">
+        <table>
+          <thead>
+            <tr>
+              <th>Created</th>
+              <th>Order #</th>
+              <th>Title</th>
+              <th>Salesperson</th>
+              <th>Links</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="searchBody">
+            <tr><td colspan="6" class="muted">Run a search to see packages.</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="actions-row">
+        <button id="moreBtn" type="button" class="secondary" style="display:none;">Load more</button>
+      </div>
+    </div>
+
+    <div id="internal-shell-footer"></div>
+  </div>
+
+  <script src="internal-shell.js"></script>
+  <script>
+    let session = null;
+    let searchState = { params: null, skip: 0, total: 0, loaded: 0 };
+
+    function setStatus(id, message, kind) {
+      const box = document.getElementById(id);
+      if (!message) {
+        box.className = "status";
+        box.textContent = "";
+        return;
+      }
+      box.className = "status " + kind + " show";
+      box.textContent = message;
+    }
+
+    async function api(path, options) {
+      const res = await fetch(path, {
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json" },
+        ...options
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || "Request failed.");
+      return data;
+    }
+
+    function el(tag, attrs, children) {
+      const node = document.createElement(tag);
+      for (const [key, value] of Object.entries(attrs || {})) {
+        if (key === "class") node.className = value;
+        else if (key === "text") node.textContent = value;
+        else if (key.startsWith("on")) node.addEventListener(key.slice(2), value);
+        else node.setAttribute(key, value);
+      }
+      for (const child of children || []) node.appendChild(child);
+      return node;
+    }
+
+    function linkChip(label, href) {
+      return el("a", { href, target: "_blank", rel: "noopener noreferrer", text: label });
+    }
+
+    function formatWhen(value) {
+      if (!value) return "—";
+      const date = new Date(value);
+      if (Number.isNaN(date.getTime())) return "—";
+      return date.toLocaleDateString("en-US", { month: "2-digit", day: "2-digit", year: "2-digit" });
+    }
+
+    // ---- Create ----
+
+    document.getElementById("createForm").addEventListener("submit", async (event) => {
+      event.preventDefault();
+      setStatus("createStatus", "", "");
+      document.getElementById("createResult").textContent = "";
+
+      const btn = document.getElementById("createBtn");
+      btn.disabled = true;
+      btn.textContent = "Creating...";
+
+      try {
+        const result = await api("/api/spec-packages", {
+          method: "POST",
+          body: JSON.stringify({
+            documentID: document.getElementById("documentID").value.trim(),
+            title: document.getElementById("title").value.trim(),
+            customerName: document.getElementById("customerName").value.trim(),
+            customerPhone: document.getElementById("customerPhone").value.trim(),
+            customerEmail: document.getElementById("customerEmail").value.trim(),
+            salespersonEmail: document.getElementById("salespersonEmail").value.trim(),
+            emailCopyToSelf: document.getElementById("emailCopy").checked,
+            modelNumbers: document.getElementById("modelNumbers").value
+          })
+        });
+
+        renderCreateResult(result);
+        setStatus("createStatus", "Spec package created.", "ok");
+      } catch (err) {
+        setStatus("createStatus", err.message, "error");
+      } finally {
+        btn.disabled = false;
+        btn.textContent = "Create spec package";
+      }
+    });
+
+    function renderCreateResult(result) {
+      const host = document.getElementById("createResult");
+      host.textContent = "";
+
+      if (result.urls) {
+        host.appendChild(el("div", { class: "result-links" }, [
+          linkChip("View package", result.urls.open),
+          linkChip("Download PDF", result.urls.download),
+          linkChip("View slim", result.urls.slimOpen),
+          linkChip("Download slim", result.urls.slimDownload),
+          linkChip("Customer Q&A page", result.urls.ask)
+        ]));
+      }
+
+      const details = result.details || {};
+      const lists = el("div", { class: "model-lists" });
+
+      if (Array.isArray(details.found) && details.found.length) {
+        const ul = el("ul");
+        details.found.forEach((m) => ul.appendChild(el("li", { text: m })));
+        lists.appendChild(el("div", {}, [el("h4", { text: `Found (${details.found.length})` }), ul]));
+      }
+
+      if (Array.isArray(details.missing) && details.missing.length) {
+        const ul = el("ul");
+        details.missing.forEach((m) => ul.appendChild(el("li", { text: m })));
+        lists.appendChild(el("div", {}, [el("h4", { text: `Not found (${details.missing.length})` }), ul]));
+      }
+
+      if (Array.isArray(details.excluded) && details.excluded.length) {
+        const ul = el("ul");
+        details.excluded.forEach((m) => ul.appendChild(el("li", {
+          text: `${m.modelNumber} — ${m.exclusionMessage || "excluded"}`
+        })));
+        lists.appendChild(el("div", {}, [el("h4", { text: `Excluded (${details.excluded.length})` }), ul]));
+      }
+
+      if (lists.children.length) host.appendChild(lists);
+
+      const warnings = result.warningCodes && Object.values(result.warningCodes);
+      if (warnings && warnings.length) {
+        setStatus("createStatus", "Created with notes: " + warnings.join("; "), "warn");
+      }
+    }
+
+    // ---- Search ----
+
+    async function runSearch(params, append) {
+      const btn = document.getElementById("searchBtn");
+      btn.disabled = true;
+      setStatus("searchStatus", "", "");
+
+      try {
+        const query = new URLSearchParams();
+        for (const [key, value] of Object.entries(params)) {
+          if (value) query.set(key, value);
+        }
+        if (append && searchState.loaded) query.set("skip", String(searchState.loaded));
+
+        const result = await api("/api/spec-packages?" + query.toString());
+        const packages = result.specPackages || [];
+
+        if (!append) {
+          searchState = { params, skip: 0, total: result.totalRecords || 0, loaded: 0 };
+          document.getElementById("searchBody").textContent = "";
+        }
+
+        searchState.loaded += packages.length;
+        searchState.total = result.totalRecords || searchState.loaded;
+        renderSearchRows(packages, append);
+
+        document.getElementById("moreBtn").style.display =
+          searchState.loaded < searchState.total ? "inline-flex" : "none";
+
+        setStatus("searchStatus", `Showing ${searchState.loaded} of ${searchState.total} package(s).`, "ok");
+      } catch (err) {
+        setStatus("searchStatus", err.message, "error");
+      } finally {
+        btn.disabled = false;
+      }
+    }
+
+    function renderSearchRows(packages, append) {
+      const body = document.getElementById("searchBody");
+      if (!append) body.textContent = "";
+
+      if (!packages.length && !body.children.length) {
+        body.appendChild(el("tr", {}, [
+          el("td", { colspan: "6", class: "muted", text: "No packages matched." })
+        ]));
+        return;
+      }
+
+      for (const pkg of packages) {
+        if (pkg.deleted) continue;
+
+        const links = el("div", { class: "result-links", style: "margin: 0;" });
+        if (pkg.urls) {
+          links.appendChild(linkChip("View", pkg.urls.open));
+          links.appendChild(linkChip("PDF", pkg.urls.download));
+        }
+
+        const actions = el("div", { class: "row-actions" });
+        if (session?.canManageUsers) {
+          actions.appendChild(el("button", {
+            class: "tiny danger",
+            text: "Delete",
+            onclick: async (e) => {
+              if (!confirm(`Permanently delete spec package "${pkg.title || pkg.docId || pkg.navId}"? This purges its data and cannot be undone.`)) return;
+              e.target.disabled = true;
+              try {
+                await api("/api/spec-packages/" + encodeURIComponent(pkg.navId), { method: "DELETE" });
+                setStatus("searchStatus", "Package deleted.", "ok");
+                runSearch(searchState.params || {}, false);
+              } catch (err) {
+                setStatus("searchStatus", err.message, "error");
+                e.target.disabled = false;
+              }
+            }
+          }));
+        }
+
+        body.appendChild(el("tr", {}, [
+          el("td", { text: formatWhen(pkg.createdOn) }),
+          el("td", { text: pkg.docId || "—" }),
+          el("td", {}, [
+            el("div", { text: pkg.title || "—" }),
+            el("div", { class: "muted small-text", text: pkg.createdByFullName ? `by ${pkg.createdByFullName}` : "" })
+          ]),
+          el("td", { text: pkg.salespersonFullName || pkg.salespersonEmail || "—" }),
+          el("td", {}, [links]),
+          el("td", {}, [actions])
+        ]));
+      }
+    }
+
+    document.getElementById("searchBtn").addEventListener("click", () => {
+      runSearch({
+        documentID: document.getElementById("searchDocId").value.trim(),
+        title: document.getElementById("searchTitle").value.trim(),
+        pii: document.getElementById("searchPii").value.trim()
+      }, false);
+    });
+
+    document.getElementById("mineBtn").addEventListener("click", () => {
+      const email = session?.user?.email || "";
+      runSearch({ createdByUserEmail: email }, false);
+    });
+
+    document.getElementById("moreBtn").addEventListener("click", () => {
+      runSearch(searchState.params || {}, true);
+    });
+
+    // ---- Session ----
+
+    (async function init() {
+      try {
+        const res = await fetch("/api/auth/session", { credentials: "same-origin" });
+        if (res.ok) {
+          session = await res.json();
+          const email = session?.user?.email || "";
+          if (email && email.includes("@")) {
+            document.getElementById("whoami").textContent = email;
+          } else {
+            setStatus("createStatus",
+              "You're on the shared login. Steel Cod needs to know who is acting, so sign in with your individual account to use this page.",
+              "warn");
+          }
+        }
+      } catch {}
+    })();
+  </script>
+</body>
+</html>

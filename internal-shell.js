@@ -81,7 +81,36 @@
     return icons[name] || icons.payments;
   }
 
-  function buildMenuLinks(user) {
+  function canSeePage(session, href) {
+    const pages = session?.grantedPages;
+
+    if (!Array.isArray(pages)) {
+      return true; // legacy sessions without page lists keep full nav
+    }
+
+    const path = "/" + String(href || "").split("?")[0].replace(/^\//, "");
+    return pages.includes(path);
+  }
+
+  function filterLinksForSession(links, session) {
+    return links
+      .map((link) => {
+        if (Array.isArray(link.children)) {
+          const children = link.children.filter((child) => canSeePage(session, child.href));
+          return children.length ? { ...link, children } : null;
+        }
+
+        if (link.href && link.href !== "logout.html" && !canSeePage(session, link.href)) {
+          return null;
+        }
+
+        return link;
+      })
+      .filter(Boolean);
+  }
+
+  function buildMenuLinks(session) {
+    const user = session?.user || session;
     const links = [
       {
         title: "Payments",
@@ -112,7 +141,8 @@
         title: "Sales Tools",
         children: [
           { href: "salesdashboard.html", title: "Sales Dashboard" },
-          { href: "secret-menu.html", title: "Secret Menu" }
+          { href: "secret-menu.html", title: "Secret Menu" },
+          { href: "spec-packages.html", title: "Spec Packages" }
         ]
       },
       {
@@ -122,7 +152,7 @@
       }
     ];
 
-    if (user?.accessGroup === "executive") {
+    if (user?.accessGroup === "executive" || user?.isExecutive) {
       links.push({
         title: "Commissions",
         children: [
@@ -134,13 +164,21 @@
       });
     }
 
+    if (session?.canManageUsers) {
+      links.push({
+        href: "user-admin.html",
+        title: "User Admin",
+        text: "Invite users and manage page access."
+      });
+    }
+
     links.push({
       href: "logout.html",
       title: "Sign Out",
       text: "End the current dashboard session."
     });
 
-    return links.map((link) => {
+    return filterLinksForSession(links, session).map((link) => {
       if (Array.isArray(link.children) && link.children.length) {
         return `
           <div class="internal-shell-menu-group">
@@ -166,16 +204,25 @@
     }).join("");
   }
 
-  function buildFooterLinks(user) {
-    const links = [
-      `<a class="internal-shell-footer-link" href="dashboard.html">Payments Dashboard</a>`,
-      `<a class="internal-shell-footer-link" href="paid-order-detail.html">Accounting Detail Tools</a>`,
-      `<a class="internal-shell-footer-link" href="salesdashboard.html">Sales Tools</a>`,
-      `<a class="internal-shell-footer-link" href="event-rsvps.html">Event RSVPs</a>`
+  function buildFooterLinks(session) {
+    const user = session?.user || session;
+    const candidates = [
+      { href: "dashboard.html", title: "Payments Dashboard" },
+      { href: "paid-order-detail.html", title: "Accounting Detail Tools" },
+      { href: "salesdashboard.html", title: "Sales Tools" },
+      { href: "event-rsvps.html", title: "Event RSVPs" }
     ];
 
-    if (user?.accessGroup === "executive") {
+    const links = candidates
+      .filter((link) => canSeePage(session, link.href))
+      .map((link) => `<a class="internal-shell-footer-link" href="${link.href}">${link.title}</a>`);
+
+    if (user?.accessGroup === "executive" || user?.isExecutive) {
       links.push(`<a class="internal-shell-footer-link" href="commissions.html?view=appliance">Commissions</a>`);
+    }
+
+    if (session?.canManageUsers) {
+      links.push(`<a class="internal-shell-footer-link" href="user-admin.html">User Admin</a>`);
     }
 
     links.push(`<a class="internal-shell-footer-link" href="logout.html">Sign Out</a>`);
@@ -247,7 +294,9 @@
       }
 
       const data = await response.json();
-      return data.user || null;
+      if (!data.user) return null;
+      // Return the full session payload: { user, grantedPages, canManageUsers }
+      return { ...data, accessGroup: data.user.accessGroup };
     } catch {
       return null;
     }

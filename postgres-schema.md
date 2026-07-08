@@ -94,6 +94,48 @@ Includes:
 - attendee type
 - text/email update preferences
 
+## User Access Tables (live — created by `sql/003_user_access.sql`)
+
+These back the per-user access system (see `docs/ACCESS-CONTROL.md`). They are
+created idempotently at boot by `ensureUserAccessTables()` in
+`lib/users-postgres.js`, or manually via the migration file.
+
+### `app_users`
+
+Individual accounts.
+- `id` uuid pk, `email` unique (stored normalized: lowercased, `+tag` stripped)
+- `password_hash` (`scrypt$N$r$p$salt$hash`, nullable until set)
+- `display_name`
+- `status`: `pending_verification` | `invited` | `active` | `disabled`
+- `is_executive` bool — full access + user management
+- `email_verified_at`, `created_at`, `updated_at`, `created_by`
+- Login requires `status = 'active'` AND `email_verified_at IS NOT NULL`.
+
+### `user_page_permissions`
+
+Per-user, per-page boolean grants — the source of truth for what a
+non-executive user can reach.
+- pk (`user_id`, `page_path`), `granted`, `updated_at`, `updated_by`
+
+### `sessions`
+
+Server-side sessions; the cookie holds only an opaque random token.
+- `user_id`, `token_hash` (sha256 of the token, unique), `created_at`,
+  `expires_at`, `last_seen_at`, `ip`, `user_agent`
+- Deleted on logout, password change/reset, and user deactivation.
+
+### `auth_tokens`
+
+Single-use emailed tokens, stored hashed.
+- `user_id`, `kind`: `invite` | `verify` | `reset`, `token_hash` (sha256),
+  `expires_at` (invite/verify 72h, reset 1h), `consumed_at`
+
+### `access_audit_log`
+
+Who did what: logins, registrations, permission changes, invites,
+deactivations, password resets.
+- `actor_user_id`, `action`, `target_user_id`, `detail` jsonb, `created_at`
+
 ## Fields That Should Stay `jsonb` First
 
 These are the right places to avoid over-modeling on day one:

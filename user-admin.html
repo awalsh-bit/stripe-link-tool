@@ -1,0 +1,610 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="robots" content="noindex,nofollow,noarchive" />
+  <title>Wilson AC & Appliance - User Admin</title>
+  <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+  <link rel="stylesheet" href="internal-shell.css" />
+  <style>
+    :root {
+      --bg: #f7f8fc;
+      --card: #ffffff;
+      --text: #1f2937;
+      --muted: #6b7280;
+      --border: #dbe1ea;
+      --primary: #635bff;
+      --primary-hover: #564ef0;
+      --success-bg: #ecfdf5;
+      --success-text: #065f46;
+      --error-bg: #fef2f2;
+      --error-text: #991b1b;
+      --warn-bg: #fffbeb;
+      --warn-text: #92400e;
+      --shadow: 0 10px 35px rgba(0, 0, 0, 0.08);
+      --radius: 18px;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: linear-gradient(180deg, #eef2ff 0%, var(--bg) 100%);
+      color: var(--text);
+      min-height: 100vh;
+      padding: 32px 16px;
+    }
+
+    .wrap { max-width: 1480px; margin: 0 auto; }
+
+    .surface {
+      background: var(--card);
+      border: 1px solid rgba(99, 91, 255, 0.12);
+      box-shadow: var(--shadow);
+      border-radius: var(--radius);
+      padding: 24px;
+      margin: 0 auto 22px;
+    }
+
+    h2 { margin: 0 0 6px; font-size: 22px; }
+
+    .section-note { margin: 0 0 16px; color: var(--muted); font-size: 14px; line-height: 1.5; }
+
+    .toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: flex-end;
+      margin-bottom: 4px;
+    }
+
+    .toolbar .field { flex: 1 1 220px; }
+    .toolbar .field.small { flex: 0 1 170px; }
+
+    label { display: block; margin-bottom: 6px; font-size: 13px; font-weight: 700; }
+
+    input[type="text"], input[type="email"], select {
+      width: 100%;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 10px 12px;
+      font-size: 14px;
+      background: #fff;
+      color: var(--text);
+      outline: none;
+    }
+
+    input:focus, select:focus {
+      border-color: rgba(99, 91, 255, 0.75);
+      box-shadow: 0 0 0 4px rgba(99, 91, 255, 0.12);
+    }
+
+    button {
+      appearance: none;
+      border: none;
+      background: var(--primary);
+      color: #fff;
+      padding: 10px 16px;
+      border-radius: 10px;
+      font-size: 14px;
+      font-weight: 700;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+
+    button:hover { background: var(--primary-hover); }
+    button:disabled { opacity: 0.6; cursor: wait; }
+
+    button.secondary {
+      background: #eef2ff;
+      color: var(--primary);
+    }
+
+    button.secondary:hover { background: #e0e7ff; }
+
+    button.danger {
+      background: #fee2e2;
+      color: #991b1b;
+    }
+
+    button.danger:hover { background: #fecaca; }
+
+    button.tiny { padding: 6px 10px; font-size: 12px; border-radius: 8px; }
+
+    .status {
+      display: none;
+      margin: 12px 0 0;
+      border-radius: 12px;
+      padding: 12px 14px;
+      font-size: 14px;
+      line-height: 1.5;
+    }
+
+    .status.show { display: block; }
+    .status.error { background: var(--error-bg); color: var(--error-text); }
+    .status.ok { background: var(--success-bg); color: var(--success-text); }
+
+    table { width: 100%; border-collapse: collapse; font-size: 14px; }
+
+    th, td {
+      text-align: left;
+      padding: 10px 12px;
+      border-bottom: 1px solid #eef1f6;
+      vertical-align: middle;
+    }
+
+    th {
+      font-size: 12px;
+      font-weight: 800;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: #64748b;
+    }
+
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      border-radius: 999px;
+      padding: 3px 10px;
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .pill.active { background: var(--success-bg); color: var(--success-text); }
+    .pill.disabled { background: var(--error-bg); color: var(--error-text); }
+    .pill.pending { background: var(--warn-bg); color: var(--warn-text); }
+    .pill.exec { background: #eef2ff; color: var(--primary); }
+
+    .row-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+
+    .perm-row td { background: #fbfcff; }
+
+    .perm-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+      gap: 8px 18px;
+      padding: 8px 0 4px;
+    }
+
+    .perm-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 14px;
+    }
+
+    .perm-item input { width: auto; }
+
+    .preset-row {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 0 6px;
+      border-bottom: 1px dashed var(--border);
+      margin-bottom: 6px;
+    }
+
+    .preset-row .hint { font-size: 12px; color: var(--muted); }
+
+    .muted { color: var(--muted); }
+    .small-text { font-size: 12px; }
+
+    .audit-detail {
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 12px;
+      color: var(--muted);
+      word-break: break-all;
+    }
+
+    .table-scroll { overflow-x: auto; }
+
+    @media (max-width: 720px) {
+      body { padding: 18px 8px; }
+      .surface { padding: 16px; }
+    }
+  </style>
+</head>
+<body data-shell-label="User Admin" data-shell-icon="accounting">
+  <div class="wrap">
+    <div id="internal-shell-header"></div>
+
+    <div class="surface">
+      <h2>Invite a user</h2>
+      <p class="section-note">
+        Invites send a single-use setup link (valid 72 hours). People can also self-register
+        at <strong>/register.html</strong> with a company email; either way, new accounts have
+        <strong>no access</strong> until you grant pages below.
+      </p>
+      <div class="toolbar">
+        <div class="field">
+          <label for="inviteEmail">Company email</label>
+          <input id="inviteEmail" type="email" placeholder="name@wilsonappliance.com" />
+        </div>
+        <div class="field">
+          <label for="inviteName">Name (optional)</label>
+          <input id="inviteName" type="text" placeholder="First Last" />
+        </div>
+        <div class="field small">
+          <label for="inviteExec">Executive</label>
+          <select id="inviteExec">
+            <option value="false" selected>No</option>
+            <option value="true">Yes — full access + user management</option>
+          </select>
+        </div>
+        <button id="inviteBtn" type="button">Send invite</button>
+      </div>
+      <div id="inviteStatus" class="status"></div>
+    </div>
+
+    <div class="surface">
+      <h2>Users</h2>
+      <p class="section-note">
+        Toggle individual pages per user, or apply a preset to start from a role template.
+        Executives always have every page plus user management. Disabling a user immediately
+        ends their sessions.
+      </p>
+      <div id="usersStatus" class="status"></div>
+      <div class="table-scroll">
+        <table id="usersTable">
+          <thead>
+            <tr>
+              <th>User</th>
+              <th>Status</th>
+              <th>Pages</th>
+              <th>Last seen</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="usersBody">
+            <tr><td colspan="5" class="muted">Loading…</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="surface">
+      <h2>Audit log</h2>
+      <p class="section-note">Logins, permission changes, invites, deactivations, and password resets.</p>
+      <button id="auditRefreshBtn" class="secondary" type="button">Refresh</button>
+      <div id="auditStatus" class="status"></div>
+      <div class="table-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>When</th>
+              <th>Action</th>
+              <th>Actor</th>
+              <th>Target</th>
+              <th>Detail</th>
+            </tr>
+          </thead>
+          <tbody id="auditBody">
+            <tr><td colspan="5" class="muted">Loading…</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div id="internal-shell-footer"></div>
+  </div>
+
+  <script src="internal-shell.js"></script>
+  <script>
+    let state = {
+      users: [],
+      manageablePages: [],
+      presets: {},
+      allowedDomain: "wilsonappliance.com",
+      expanded: new Set()
+    };
+
+    function setStatus(id, message, kind) {
+      const box = document.getElementById(id);
+      if (!message) {
+        box.className = "status";
+        box.textContent = "";
+        return;
+      }
+      box.className = "status " + kind + " show";
+      box.textContent = message;
+    }
+
+    async function api(path, options) {
+      const res = await fetch(path, {
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json" },
+        ...options
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data.error || "Request failed.");
+      }
+      return data;
+    }
+
+    function el(tag, attrs, children) {
+      const node = document.createElement(tag);
+      for (const [key, value] of Object.entries(attrs || {})) {
+        if (key === "class") node.className = value;
+        else if (key === "text") node.textContent = value;
+        else if (key.startsWith("on")) node.addEventListener(key.slice(2), value);
+        else node.setAttribute(key, value);
+      }
+      for (const child of children || []) {
+        node.appendChild(child);
+      }
+      return node;
+    }
+
+    function statusPill(user) {
+      if (user.status === "active") return el("span", { class: "pill active", text: "Active" });
+      if (user.status === "disabled") return el("span", { class: "pill disabled", text: "Disabled" });
+      if (user.status === "invited") return el("span", { class: "pill pending", text: "Invited" });
+      return el("span", { class: "pill pending", text: "Pending verification" });
+    }
+
+    function formatWhen(value) {
+      if (!value) return "—";
+      const date = new Date(value);
+      if (Number.isNaN(date.getTime())) return "—";
+      return date.toLocaleString("en-US", {
+        month: "2-digit", day: "2-digit", year: "2-digit",
+        hour: "numeric", minute: "2-digit"
+      });
+    }
+
+    async function loadUsers() {
+      try {
+        setStatus("usersStatus", "", "");
+        const data = await api("/api/admin/users");
+        state.users = data.users || [];
+        state.manageablePages = data.manageablePages || [];
+        state.presets = data.presets || {};
+        state.allowedDomain = data.allowedDomain || state.allowedDomain;
+        renderUsers();
+      } catch (err) {
+        setStatus("usersStatus", err.message, "error");
+      }
+    }
+
+    function renderUsers() {
+      const body = document.getElementById("usersBody");
+      body.textContent = "";
+
+      if (!state.users.length) {
+        body.appendChild(el("tr", {}, [
+          el("td", { colspan: "5", class: "muted", text: "No users yet. Send an invite above, or have people self-register." })
+        ]));
+        return;
+      }
+
+      for (const user of state.users) {
+        const nameBits = [
+          el("div", { text: user.displayName || user.email }),
+          el("div", { class: "muted small-text", text: user.email })
+        ];
+
+        const statusCell = el("td", {}, [statusPill(user)]);
+        if (user.isExecutive) {
+          statusCell.appendChild(document.createTextNode(" "));
+          statusCell.appendChild(el("span", { class: "pill exec", text: "Executive" }));
+        }
+
+        const pagesSummary = user.isExecutive
+          ? "All pages"
+          : (user.grantedPages.length ? `${user.grantedPages.length} page(s)` : "None");
+
+        const actions = el("div", { class: "row-actions" });
+
+        if (!user.isExecutive) {
+          actions.appendChild(el("button", {
+            class: "tiny secondary",
+            text: state.expanded.has(user.id) ? "Hide pages" : "Edit pages",
+            onclick: () => {
+              if (state.expanded.has(user.id)) state.expanded.delete(user.id);
+              else state.expanded.add(user.id);
+              renderUsers();
+            }
+          }));
+        }
+
+        if (["invited", "pending_verification"].includes(user.status)) {
+          actions.appendChild(el("button", {
+            class: "tiny secondary",
+            text: "Resend invite",
+            onclick: (e) => rowAction(e.target, `/api/admin/users/${user.id}/resend-invite`, {})
+          }));
+        }
+
+        if (user.status === "active") {
+          actions.appendChild(el("button", {
+            class: "tiny secondary",
+            text: "Send reset",
+            onclick: (e) => rowAction(e.target, `/api/admin/users/${user.id}/force-reset`, {})
+          }));
+          actions.appendChild(el("button", {
+            class: "tiny " + (user.isExecutive ? "secondary" : "secondary"),
+            text: user.isExecutive ? "Remove executive" : "Make executive",
+            onclick: (e) => {
+              if (user.isExecutive && !confirm(`Remove executive access from ${user.email}?`)) return;
+              if (!user.isExecutive && !confirm(`Give ${user.email} full executive access, including user management?`)) return;
+              rowAction(e.target, `/api/admin/users/${user.id}/executive`, { isExecutive: !user.isExecutive });
+            }
+          }));
+          actions.appendChild(el("button", {
+            class: "tiny danger",
+            text: "Disable",
+            onclick: (e) => {
+              if (!confirm(`Disable ${user.email}? Their sessions end immediately.`)) return;
+              rowAction(e.target, `/api/admin/users/${user.id}/status`, { status: "disabled" });
+            }
+          }));
+        }
+
+        if (user.status === "disabled") {
+          actions.appendChild(el("button", {
+            class: "tiny secondary",
+            text: "Re-enable",
+            onclick: (e) => rowAction(e.target, `/api/admin/users/${user.id}/status`, { status: "active" })
+          }));
+        }
+
+        body.appendChild(el("tr", {}, [
+          el("td", {}, nameBits),
+          statusCell,
+          el("td", { text: pagesSummary }),
+          el("td", { text: formatWhen(user.lastSeenAt) }),
+          el("td", {}, [actions])
+        ]));
+
+        if (state.expanded.has(user.id) && !user.isExecutive) {
+          body.appendChild(renderPermissionRow(user));
+        }
+      }
+    }
+
+    function renderPermissionRow(user) {
+      const granted = new Set(user.grantedPages || []);
+
+      const presetRow = el("div", { class: "preset-row" }, [
+        el("span", { class: "hint", text: "Presets (replace current grants):" })
+      ]);
+
+      for (const [key, preset] of Object.entries(state.presets)) {
+        presetRow.appendChild(el("button", {
+          class: "tiny secondary",
+          text: preset.label,
+          onclick: (e) => {
+            if (!confirm(`Apply the "${preset.label}" preset to ${user.email}? This replaces their current page grants.`)) return;
+            rowAction(e.target, `/api/admin/users/${user.id}/preset`, { preset: key });
+          }
+        }));
+      }
+
+      const grid = el("div", { class: "perm-grid" });
+
+      for (const page of state.manageablePages) {
+        const checkbox = el("input", { type: "checkbox" });
+        checkbox.checked = granted.has(page.path);
+        checkbox.addEventListener("change", async () => {
+          checkbox.disabled = true;
+          try {
+            const data = await api(`/api/admin/users/${user.id}/permissions`, {
+              method: "POST",
+              body: JSON.stringify({
+                changes: [{ pagePath: page.path, granted: checkbox.checked }]
+              })
+            });
+            user.grantedPages = data.grantedPages || [];
+            setStatus("usersStatus", `Updated ${page.label} for ${user.email}.`, "ok");
+            renderUsers();
+          } catch (err) {
+            checkbox.checked = !checkbox.checked;
+            setStatus("usersStatus", err.message, "error");
+          } finally {
+            checkbox.disabled = false;
+          }
+        });
+
+        const label = el("label", { class: "perm-item" });
+        label.appendChild(checkbox);
+        label.appendChild(document.createTextNode(" " + page.label));
+        grid.appendChild(label);
+      }
+
+      const cell = el("td", { colspan: "5" }, [presetRow, grid]);
+      return el("tr", { class: "perm-row" }, [cell]);
+    }
+
+    async function rowAction(button, path, payload) {
+      const original = button.textContent;
+      button.disabled = true;
+
+      try {
+        await api(path, { method: "POST", body: JSON.stringify(payload) });
+        setStatus("usersStatus", "Done.", "ok");
+        await loadUsers();
+        await loadAudit();
+      } catch (err) {
+        setStatus("usersStatus", err.message, "error");
+        button.disabled = false;
+        button.textContent = original;
+      }
+    }
+
+    document.getElementById("inviteBtn").addEventListener("click", async () => {
+      const button = document.getElementById("inviteBtn");
+      const email = document.getElementById("inviteEmail").value.trim();
+      const displayName = document.getElementById("inviteName").value.trim();
+      const isExecutive = document.getElementById("inviteExec").value === "true";
+
+      setStatus("inviteStatus", "", "");
+
+      if (!email) {
+        setStatus("inviteStatus", "Enter an email address.", "error");
+        return;
+      }
+
+      button.disabled = true;
+      button.textContent = "Sending...";
+
+      try {
+        await api("/api/admin/users/invite", {
+          method: "POST",
+          body: JSON.stringify({ email, displayName, isExecutive })
+        });
+        setStatus("inviteStatus", `Invite sent to ${email}.`, "ok");
+        document.getElementById("inviteEmail").value = "";
+        document.getElementById("inviteName").value = "";
+        document.getElementById("inviteExec").value = "false";
+        await loadUsers();
+        await loadAudit();
+      } catch (err) {
+        setStatus("inviteStatus", err.message, "error");
+      } finally {
+        button.disabled = false;
+        button.textContent = "Send invite";
+      }
+    });
+
+    async function loadAudit() {
+      try {
+        setStatus("auditStatus", "", "");
+        const data = await api("/api/admin/audit-log?limit=200");
+        const body = document.getElementById("auditBody");
+        body.textContent = "";
+
+        const entries = data.entries || [];
+        if (!entries.length) {
+          body.appendChild(el("tr", {}, [
+            el("td", { colspan: "5", class: "muted", text: "No audit entries yet." })
+          ]));
+          return;
+        }
+
+        for (const entry of entries) {
+          body.appendChild(el("tr", {}, [
+            el("td", { text: formatWhen(entry.createdAt) }),
+            el("td", { text: entry.action }),
+            el("td", { text: entry.actorEmail || "—" }),
+            el("td", { text: entry.targetEmail || "—" }),
+            el("td", {}, [
+              el("span", { class: "audit-detail", text: JSON.stringify(entry.detail || {}) })
+            ])
+          ]));
+        }
+      } catch (err) {
+        setStatus("auditStatus", err.message, "error");
+      }
+    }
+
+    document.getElementById("auditRefreshBtn").addEventListener("click", loadAudit);
+
+    loadUsers();
+    loadAudit();
+  </script>
+</body>
+</html>

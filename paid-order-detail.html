@@ -487,7 +487,7 @@
 
       <div class="repair-panel" id="repairPanel">
         <div class="repair-panel-text">
-          <strong>Paid Date Drift Repair.</strong> When a Stripe webhook re-delivers for a payment, the local "paid date" can jump forward to a later day. Use this to compare each paid record's local date to Stripe's authoritative charge timestamp. Preview only — nothing changes until you click Apply Repair and confirm.
+          <strong>Paid Date Drift Repair.</strong> When a Stripe webhook re-delivers for a card payment, the local "paid date" can jump forward to a later day. This compares card records to Stripe's authoritative charge timestamp. ACH records are skipped because their paid date should stay on the ACH clearing date. Preview only — nothing changes until you click Apply Repair and confirm.
         </div>
         <button id="previewDriftBtn" class="repair-btn" type="button">Preview Paid Date Drift</button>
         <button id="applyRepairBtn" class="repair-btn repair-btn-danger" type="button" style="display: none;">Apply Repair</button>
@@ -800,10 +800,14 @@
         if (!res.ok) throw new Error(data.error || "Preview failed.");
         currentDriftItems = Array.isArray(data.items) ? data.items : [];
         const hvacExcluded = Number(data?.skipped?.hvacExcluded || 0);
-        const hvacNote = hvacExcluded > 0
-          ? ` (${hvacExcluded} HVAC deposit record${hvacExcluded === 1 ? "" : "s"} skipped — review HVAC manually)`
+        const achExcluded = Number(data?.skipped?.achExcluded || 0);
+        const achNote = achExcluded > 0
+          ? ` (${achExcluded} ACH record${achExcluded === 1 ? "" : "s"} skipped - paid date stays on clearing date)`
           : "";
-        setRepairStatus(`Checked ${data.candidateCount} paid record${data.candidateCount === 1 ? "" : "s"} — ${currentDriftItems.length} with drift over 24 hours${hvacNote}.`, currentDriftItems.length ? "" : "success");
+        const depositAgreementNote = hvacExcluded > 0
+          ? ` (${hvacExcluded} deposit agreement record${hvacExcluded === 1 ? "" : "s"} skipped - review manually)`
+          : "";
+        setRepairStatus(`Checked ${data.candidateCount} paid record${data.candidateCount === 1 ? "" : "s"} - ${currentDriftItems.length} with drift over 24 hours${depositAgreementNote}${achNote}.`, currentDriftItems.length ? "" : "success");
         renderDriftPreview(currentDriftItems);
       } catch (err) {
         setRepairStatus(err.message || "Preview failed.", "error");

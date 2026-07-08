@@ -11,11 +11,14 @@
       --bg: #f7f8fc;
       --card: #ffffff;
       --text: #1f2937;
+      --muted: #6b7280;
       --border: #dbe1ea;
       --primary: #635bff;
       --primary-hover: #564ef0;
       --error-bg: #fef2f2;
       --error-text: #991b1b;
+      --ok-bg: #ecfdf5;
+      --ok-text: #065f46;
       --shadow: 0 10px 35px rgba(0, 0, 0, 0.08);
       --radius: 18px;
     }
@@ -77,14 +80,10 @@
     }
 
     @media (max-width: 520px) {
-      .header-row {
-        flex-wrap: wrap;
-      }
+      .header-row { flex-wrap: wrap; }
     }
 
-    .field + .field {
-      margin-top: 14px;
-    }
+    .field + .field { margin-top: 14px; }
 
     label {
       display: block;
@@ -123,9 +122,7 @@
       cursor: pointer;
     }
 
-    button:hover {
-      background: var(--primary-hover);
-    }
+    button:hover { background: var(--primary-hover); }
 
     button:disabled {
       opacity: 0.65;
@@ -141,14 +138,44 @@
       line-height: 1.5;
     }
 
-    .status.show {
-      display: block;
-    }
+    .status.show { display: block; }
 
     .status.error {
       background: var(--error-bg);
       color: var(--error-text);
     }
+
+    .status.ok {
+      background: var(--ok-bg);
+      color: var(--ok-text);
+    }
+
+    .links-row {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      margin-top: 16px;
+      font-size: 14px;
+    }
+
+    .links-row a {
+      color: var(--primary);
+      text-decoration: none;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    .links-row a:hover { text-decoration: underline; }
+
+    .subtext {
+      margin-top: 14px;
+      font-size: 13px;
+      color: var(--muted);
+      line-height: 1.5;
+      text-align: center;
+    }
+
+    .hidden { display: none; }
   </style>
 </head>
 <body>
@@ -160,8 +187,8 @@
 
     <form id="loginForm">
       <div class="field">
-        <label for="username">Username</label>
-        <input id="username" name="username" value="wilson" autocomplete="username" />
+        <label for="email">Email</label>
+        <input id="email" name="email" type="text" autocomplete="username" placeholder="you@wilsonappliance.com" />
       </div>
 
       <div class="field">
@@ -170,39 +197,83 @@
       </div>
 
       <button id="loginBtn" type="submit">Continue</button>
-      <div id="status" class="status error"></div>
     </form>
+
+    <form id="resetForm" class="hidden">
+      <div class="field">
+        <label for="resetEmail">Email</label>
+        <input id="resetEmail" name="resetEmail" type="text" autocomplete="username" placeholder="you@wilsonappliance.com" />
+      </div>
+      <button id="resetBtn" type="submit">Email me a reset link</button>
+      <div class="subtext">We'll email a single-use link that expires in 1 hour.</div>
+    </form>
+
+    <div id="status" class="status"></div>
+
+    <div class="links-row">
+      <a id="toggleReset">Forgot password?</a>
+      <a href="/register.html">Register</a>
+    </div>
+
+    <div class="subtext">
+      New accounts require a company email address and are activated by an executive after email verification.
+    </div>
   </div>
 
   <script>
-    const form = document.getElementById("loginForm");
+    const loginForm = document.getElementById("loginForm");
+    const resetForm = document.getElementById("resetForm");
     const loginBtn = document.getElementById("loginBtn");
+    const resetBtn = document.getElementById("resetBtn");
     const statusBox = document.getElementById("status");
+    const toggleReset = document.getElementById("toggleReset");
 
-    function showError(message) {
-      statusBox.className = "status error show";
+    let resetMode = false;
+
+    function showStatus(message, kind) {
+      statusBox.className = "status " + kind + " show";
       statusBox.textContent = message;
     }
 
-    function clearError() {
-      statusBox.className = "status error";
+    function clearStatus() {
+      statusBox.className = "status";
       statusBox.textContent = "";
     }
 
-    form.addEventListener("submit", async (event) => {
+    toggleReset.addEventListener("click", () => {
+      resetMode = !resetMode;
+      clearStatus();
+      loginForm.classList.toggle("hidden", resetMode);
+      resetForm.classList.toggle("hidden", !resetMode);
+      toggleReset.textContent = resetMode ? "Back to sign in" : "Forgot password?";
+
+      if (resetMode) {
+        document.getElementById("resetEmail").value = document.getElementById("email").value;
+      }
+    });
+
+    function pickLandingPage(user) {
+      if (user && user.isExecutive) return "/dashboard.html";
+      if (user && Array.isArray(user.grantedPages)) {
+        if (user.grantedPages.includes("/dashboard.html")) return "/dashboard.html";
+        if (user.grantedPages.length) return user.grantedPages[0];
+        return null;
+      }
+      return "/dashboard.html";
+    }
+
+    loginForm.addEventListener("submit", async (event) => {
       event.preventDefault();
-      clearError();
+      clearStatus();
       loginBtn.disabled = true;
       loginBtn.textContent = "Signing in...";
 
       try {
         const res = await fetch("/api/login", {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json"
-          },
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            username: document.getElementById("username").value.trim(),
+            email: document.getElementById("email").value.trim(),
             password: document.getElementById("password").value
           })
         });
@@ -212,14 +283,76 @@
           throw new Error(data.error || "Unable to sign in.");
         }
 
-        window.location.href = "/dashboard.html";
+        const landing = pickLandingPage(data.user);
+        if (!landing) {
+          showStatus("You're signed in, but no tools have been assigned to your account yet. Ask an executive to grant you access.", "ok");
+          return;
+        }
+
+        window.location.href = landing;
       } catch (err) {
-        showError(err.message || "Unable to sign in.");
+        showStatus(err.message || "Unable to sign in.", "error");
       } finally {
         loginBtn.disabled = false;
         loginBtn.textContent = "Continue";
       }
     });
+
+    resetForm.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      clearStatus();
+      resetBtn.disabled = true;
+      resetBtn.textContent = "Sending...";
+
+      try {
+        const res = await fetch("/api/auth/request-reset", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            email: document.getElementById("resetEmail").value.trim()
+          })
+        });
+
+        const data = await res.json();
+        if (!res.ok) {
+          throw new Error(data.error || "Unable to send the reset email.");
+        }
+
+        showStatus(data.message || "If that address has an account, we've sent a password reset email.", "ok");
+      } catch (err) {
+        showStatus(err.message || "Unable to send the reset email.", "error");
+      } finally {
+        resetBtn.disabled = false;
+        resetBtn.textContent = "Email me a reset link";
+      }
+    });
+
+    // Handle email-verification links: login.html?verifyToken=...
+    (async function handleVerifyToken() {
+      const params = new URLSearchParams(window.location.search);
+      const token = params.get("verifyToken");
+      if (!token) return;
+
+      window.history.replaceState({}, "", "/login.html");
+      showStatus("Verifying your email...", "ok");
+
+      try {
+        const res = await fetch("/api/auth/verify-email", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ token })
+        });
+
+        const data = await res.json();
+        if (!res.ok) {
+          throw new Error(data.error || "Unable to verify your email.");
+        }
+
+        showStatus(data.message || "Email verified. You can now sign in.", "ok");
+      } catch (err) {
+        showStatus(err.message || "Unable to verify your email.", "error");
+      }
+    })();
   </script>
 </body>
 </html>

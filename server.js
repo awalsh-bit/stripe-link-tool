@@ -66,6 +66,7 @@ import {
   cleanupExpiredAuthRows,
   getGrantedPagesForUser,
   setUserPagePermissions,
+  setUserPreferences,
   recordAudit,
   listAuditLog,
   TOKEN_TTLS_SECONDS
@@ -855,7 +856,8 @@ async function resolveAuthUser(req) {
         isExecutive: Boolean(resolved.user.is_executive),
         accessGroup: resolved.user.is_executive ? "executive" : "member",
         role: resolved.user.is_executive ? "executive" : "member",
-        grantedPages
+        grantedPages,
+        preferences: resolved.user.preferences || {}
       };
     } catch (err) {
       console.error("Session lookup failed:", err.message);
@@ -1321,8 +1323,57 @@ app.get("/api/auth/session", (req, res) => {
     grantedPages: getEffectivePagesForUser(req.authUser),
     canManageUsers: isExecutiveUser(req.authUser),
     legacyLoginEnabled: LEGACY_SHARED_LOGIN_ENABLED,
-    availableAccessGroups: ACCESS_GROUPS
+    availableAccessGroups: ACCESS_GROUPS,
+    pageLabels: PAGE_LABELS,
+    // Personal dashboard hero-card slots (db accounts only; legacy sessions
+    // have nowhere to store preferences and get the defaults).
+    dashboardSlots: req.authUser.kind === "db"
+      ? (req.authUser.preferences?.dashboardSlots || null)
+      : null,
+    canCustomizeDashboard: req.authUser.kind === "db"
   });
+});
+
+// Save the signed-in user's dashboard hero-card slots. Personal setting —
+// each slot must be a manageable page the user can actually access, so the
+// cards can never become a side door around page permissions.
+app.post("/api/me/dashboard-slots", async (req, res) => {
+  if (!req.authUser) {
+    return res.status(401).json({ error: "Authentication required." });
+  }
+  if (req.authUser.kind !== "db") {
+    return res.status(400).json({
+      error: "Sign in with your individual account to customize your dashboard cards."
+    });
+  }
+
+  const raw = Array.isArray(req.body?.slots) ? req.body.slots : null;
+  if (!raw) {
+    return res.status(400).json({ error: "Send { slots: [pagePath, ...] }." });
+  }
+
+  const slots = [];
+  for (const value of raw.slice(0, 4)) {
+    const pagePath = String(value || "").trim();
+    if (!pagePath) continue;
+    if (slots.includes(pagePath)) continue;
+    if (pagePath === "/dashboard.html") continue;
+    if (!MANAGEABLE_PAGE_PATHS.includes(pagePath)) {
+      return res.status(400).json({ error: `Unknown page: ${pagePath}` });
+    }
+    if (!canAccessPathForUser(req.authUser, pagePath)) {
+      return res.status(403).json({ error: `You don't have access to ${pagePath}.` });
+    }
+    slots.push(pagePath);
+  }
+
+  try {
+    const preferences = await setUserPreferences(req.authUser.id, { dashboardSlots: slots });
+    return res.json({ success: true, dashboardSlots: preferences.dashboardSlots || [] });
+  } catch (err) {
+    console.error("Save dashboard slots failed:", err.message);
+    return res.status(500).json({ error: "Unable to save your dashboard cards." });
+  }
 });
 
 app.post("/api/auth/register", rateLimit("register", 5, 15 * 60 * 1000), async (req, res) => {

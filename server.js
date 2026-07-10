@@ -91,8 +91,10 @@ import {
   searchSpecPackages,
   retrieveSpecPackage,
   deleteSpecPackage,
-  retrieveUsers as retrieveSteelCodUsers
+  retrieveUsers as retrieveSteelCodUsers,
+  buildSpecPackageUrls
 } from "./lib/steelcod.js";
+import { PDFDocument } from "pdf-lib";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -196,11 +198,11 @@ const UNAUTHENTICATED_INTERNAL_PATHS = new Set([
   "/set-password.html"
 ]);
 
-// ACCESS_GROUPS now serve two purposes:
-// 1. Authorization for the LEGACY shared/env logins (unchanged behavior).
-// 2. Quick-assign presets in user-admin.html, which expand into individual
-//    per-user page rows. The per-user rows are the source of truth for
-//    database-backed accounts, never the group.
+// ACCESS_GROUPS serve ONE purpose now: authorization for the LEGACY
+// shared/env logins (unchanged behavior). Quick-assign presets in
+// user-admin.html come from JOB_CODE_PRESETS below — do not add UI preset
+// roles here, since every key in this map must remain a valid legacy login
+// access group.
 const ACCESS_GROUPS = {
   leader: {
     label: "Leader",
@@ -245,6 +247,80 @@ const EXECUTIVE_ONLY_PAGE_PATHS = new Set([
 const MANAGEABLE_PAGE_PATHS = [...INTERNAL_PAGE_PATHS]
   .filter((p) => !AUTH_PAGE_PATHS.has(p) && !EXECUTIVE_ONLY_PAGE_PATHS.has(p))
   .sort();
+
+// Job-code presets for the User Admin UI. Clicking one CHECKS the included
+// pages in the permission editor (staged, additive — combine presets freely);
+// nothing is applied until the executive clicks Save. "*" = every manageable
+// page. Purely a convenience: the per-user rows remain the source of truth.
+const JOB_CODE_PRESETS = {
+  sales: {
+    label: "Sales",
+    pages: [
+      "/salesdashboard.html",
+      "/secret-menu.html",
+      "/spec-packages.html",
+      "/event-rsvps.html",
+      "/dashboard.html",
+      "/index.html",
+      "/terminal.html",
+      "/charge-saved-card.html",
+      "/paid-order-detail.html"
+    ]
+  },
+  repair_tech: {
+    label: "Repair Tech",
+    pages: [
+      "/appliance-service-calls.html",
+      "/archive-service-calls.html"
+    ]
+  },
+  client_care: {
+    label: "Client Care",
+    pages: [
+      "/appliance-service-calls.html",
+      "/archive-service-calls.html",
+      "/intent-lookup.html",
+      "/link-detail-lookup.html",
+      "/paid-order-detail.html"
+    ]
+  },
+  accounting: {
+    label: "Accounting",
+    pages: [
+      "/paid-order-detail.html",
+      "/bank-balancing.html",
+      "/incoming-payouts.html",
+      "/intent-lookup.html",
+      "/link-detail-lookup.html"
+    ]
+  },
+  installer: {
+    label: "Installer",
+    pages: [
+      "/hvac-dashboard.html",
+      "/terminal.html",
+      "/charge-saved-card.html"
+    ]
+  },
+  warehouse: {
+    label: "Warehouse",
+    pages: [
+      "/secret-menu.html",
+      "/spec-packages.html"
+    ]
+  },
+  leader: {
+    label: "Leader",
+    pages: ["*"]
+  }
+};
+
+function expandJobCodePresetPages(presetKey) {
+  const preset = JOB_CODE_PRESETS[presetKey];
+  if (!preset) return [];
+  if (preset.pages.includes("*")) return [...MANAGEABLE_PAGE_PATHS];
+  return preset.pages.filter((p) => MANAGEABLE_PAGE_PATHS.includes(p));
+}
 
 const PAGE_LABELS = {
   "/dashboard.html": "Payments Dashboard",
@@ -333,19 +409,6 @@ const DASHBOARD_PAGE_ALIASES = {
 
 function resolveDashboardPagePath(pathname) {
   return DASHBOARD_PAGE_ALIASES[pathname] || pathname;
-}
-
-// Expand an ACCESS_GROUPS preset into an explicit page list (per-user rows).
-function expandAccessGroupPages(groupKey) {
-  const group = ACCESS_GROUPS[groupKey];
-  if (!group) return [];
-
-  const excluded = new Set(group.excludedPages || []);
-  const base = group.pages?.includes("*")
-    ? MANAGEABLE_PAGE_PATHS
-    : (group.pages || []).filter((p) => MANAGEABLE_PAGE_PATHS.includes(p));
-
-  return base.filter((p) => !excluded.has(p));
 }
 
 function normalizeUsernameValue(username) {
@@ -1535,10 +1598,10 @@ function buildCategoriesPayload() {
 function buildPresetsPayload() {
   const presets = {};
 
-  for (const [key, group] of Object.entries(ACCESS_GROUPS)) {
-    const pages = expandAccessGroupPages(key);
+  for (const [key, preset] of Object.entries(JOB_CODE_PRESETS)) {
+    const pages = expandJobCodePresetPages(key);
     if (pages.length) {
-      presets[key] = { label: group.label, pages };
+      presets[key] = { label: preset.label, pages };
     }
   }
 
@@ -1683,7 +1746,7 @@ app.post("/api/admin/users/:userId/preset", requireExecutiveApi, async (req, res
     }
 
     const presetKey = String(req.body?.preset || "");
-    const presetPages = expandAccessGroupPages(presetKey);
+    const presetPages = expandJobCodePresetPages(presetKey);
 
     if (!presetPages.length) {
       return res.status(400).json({ error: "Unknown preset." });
@@ -1832,7 +1895,10 @@ function resolveSteelCodUserEmail(req, res) {
 
 function sendSteelCodError(res, err, fallbackMessage) {
   if (err instanceof SteelCodError) {
-    const status = err.status === 400 ? 400 : err.status === 503 ? 503 : 502;
+    const status =
+      err.status === 400 ? 400 :
+      err.status === 429 ? 429 :
+      err.status === 503 ? 503 : 502;
     return res.status(status).json({
       error: err.message,
       errorCode: err.errorCode || undefined,
@@ -1844,6 +1910,12 @@ function sendSteelCodError(res, err, fallbackMessage) {
   console.error("Steel Cod request failed:", err.message);
   return res.status(500).json({ error: fallbackMessage });
 }
+
+// Double/triple-click guard: at most one package creation per user per
+// 10 seconds. In-process is fine (single process), mirroring the Zapier
+// paid-text dedupe approach.
+const SPEC_CREATE_COOLDOWN_MS = 10_000;
+const lastSpecCreateByUser = new Map();
 
 app.post("/api/spec-packages", requirePagePermission("/spec-packages.html"), async (req, res) => {
   const userEmail = resolveSteelCodUserEmail(req, res);
@@ -1875,6 +1947,17 @@ app.post("/api/spec-packages", requirePagePermission("/spec-packages.html"), asy
     if (!String(customerName).trim()) {
       return res.status(400).json({ error: "Customer name is required." });
     }
+
+    // Cooldown check happens after validation so a typo fix isn't penalized,
+    // and the timestamp is set before the Steel Cod call so a concurrent
+    // double-submit is blocked even while the first request is in flight.
+    const lastCreate = lastSpecCreateByUser.get(userEmail) || 0;
+    if (Date.now() - lastCreate < SPEC_CREATE_COOLDOWN_MS) {
+      return res.status(429).json({
+        error: "Hold on — a spec package was just submitted from your account. Give it 10 seconds, then check the search list below before trying again."
+      });
+    }
+    lastSpecCreateByUser.set(userEmail, Date.now());
 
     const result = await createSpecPackage({
       userEmail,
@@ -1931,6 +2014,88 @@ app.get("/api/spec-packages/:navId", requirePagePermission("/spec-packages.html"
     return sendSteelCodError(res, err, "Unable to load the spec package.");
   }
 });
+
+// Append the compiled spec pages (slim or full) to the end of an uploaded
+// sales order / quote PDF and return the merged document. User-initiated
+// from the Spec Packages page; nothing is stored server-side. The package
+// is looked up via Steel Cod as the acting user — the client never supplies
+// a download URL, so this cannot be used to fetch arbitrary content.
+app.post(
+  "/api/spec-packages/:navId/attach-quote",
+  requirePagePermission("/spec-packages.html"),
+  express.raw({ type: ["application/pdf", "application/octet-stream"], limit: "30mb" }),
+  async (req, res) => {
+    const userEmail = resolveSteelCodUserEmail(req, res);
+    if (!userEmail) return;
+
+    const quoteBytes = req.body;
+    if (!Buffer.isBuffer(quoteBytes) || quoteBytes.length < 5) {
+      return res.status(400).json({ error: "Upload the sales order / quote PDF as the request body." });
+    }
+    if (quoteBytes.subarray(0, 5).toString("latin1") !== "%PDF-") {
+      return res.status(400).json({ error: "The uploaded file does not look like a PDF." });
+    }
+
+    const variant = String(req.query.variant || "slim").toLowerCase() === "full" ? "full" : "slim";
+
+    try {
+      const pkg = await retrieveSpecPackage({ userEmail, navId: req.params.navId });
+      const publicUrl =
+        pkg?.publicUrl || pkg?.specPackageUrl || pkg?.specPackage?.publicUrl || "";
+      const urls = buildSpecPackageUrls(publicUrl);
+      if (!urls) {
+        return res.status(502).json({ error: "Steel Cod did not return a URL for that spec package." });
+      }
+
+      const specUrl = variant === "full" ? urls.download : urls.slimDownload;
+      let specResponse;
+      try {
+        specResponse = await fetch(specUrl);
+      } catch (err) {
+        return res.status(502).json({ error: `Unable to reach Steel Cod to download the spec PDF: ${err.message}` });
+      }
+      if (!specResponse.ok) {
+        return res.status(502).json({ error: `Unable to download the spec PDF from Steel Cod (HTTP ${specResponse.status}).` });
+      }
+
+      const specBytes = Buffer.from(await specResponse.arrayBuffer());
+      if (specBytes.subarray(0, 5).toString("latin1") !== "%PDF-") {
+        return res.status(502).json({ error: "Steel Cod returned something that is not a PDF for this package." });
+      }
+
+      let quoteDoc;
+      try {
+        quoteDoc = await PDFDocument.load(quoteBytes);
+      } catch {
+        return res.status(400).json({ error: "Could not read the uploaded PDF. Is it password-protected or corrupted?" });
+      }
+
+      let specDoc;
+      try {
+        specDoc = await PDFDocument.load(specBytes);
+      } catch {
+        return res.status(502).json({ error: "Could not read the spec PDF returned by Steel Cod." });
+      }
+
+      const specPages = await quoteDoc.copyPages(specDoc, specDoc.getPageIndices());
+      for (const page of specPages) quoteDoc.addPage(page);
+
+      const mergedBytes = await quoteDoc.save();
+
+      const safeName =
+        String(req.query.name || "quote")
+          .replace(/[^A-Za-z0-9 ._-]+/g, "")
+          .trim()
+          .slice(0, 80) || "quote";
+
+      res.setHeader("Content-Type", "application/pdf");
+      res.setHeader("Content-Disposition", `attachment; filename="${safeName}-with-specs.pdf"`);
+      return res.send(Buffer.from(mergedBytes));
+    } catch (err) {
+      return sendSteelCodError(res, err, "Unable to attach the spec pages to the quote.");
+    }
+  }
+);
 
 // Deleting purges the package (and its PII) permanently — executive only.
 app.delete("/api/spec-packages/:navId", requireExecutiveApi, async (req, res) => {

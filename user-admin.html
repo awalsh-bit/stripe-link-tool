@@ -162,10 +162,10 @@
     .perm-row td { background: #fbfcff; }
 
     .perm-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-      gap: 8px 18px;
-      padding: 8px 0 4px;
+      display: flex;
+      flex-direction: column;
+      gap: 7px;
+      padding: 8px 0 4px 4px;
     }
 
     .perm-category { margin: 12px 0 4px; }
@@ -263,9 +263,9 @@
     <div class="surface">
       <h2>Users</h2>
       <p class="section-note">
-        Toggle individual pages per user, or apply a preset to start from a role template.
-        Executives always have every page plus user management. Disabling a user immediately
-        ends their sessions.
+        Toggle individual pages per user, or click a job-code preset to check the pages that
+        role needs (presets combine — nothing changes until you Save). Executives always have
+        every page plus user management. Disabling a user immediately ends their sessions.
       </p>
       <div id="usersStatus" class="status"></div>
       <div class="table-scroll">
@@ -568,17 +568,16 @@
 
     function renderPermissionRow(user) {
       const presetRow = el("div", { class: "preset-row" }, [
-        el("span", { class: "hint", text: "Presets (replace current grants):" })
+        el("span", { class: "hint", text: "Job code presets (checks their pages — click Save to apply):" })
       ]);
 
-      for (const [key, preset] of Object.entries(state.presets)) {
+      for (const preset of Object.values(state.presets)) {
         presetRow.appendChild(el("button", {
           class: "tiny secondary",
           text: preset.label,
-          onclick: (e) => {
-            if (!confirm(`Apply the "${preset.label}" preset to ${user.email}? This replaces their current page grants immediately.`)) return;
-            state.pending.delete(user.id);
-            rowAction(e.target, `/api/admin/users/${user.id}/preset`, { preset: key });
+          onclick: () => {
+            preset.pages.forEach((path) => stagePermission(user, path, true));
+            renderUsers();
           }
         }));
       }

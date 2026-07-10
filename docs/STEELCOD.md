@@ -11,6 +11,13 @@ other page) lets staff:
 - **Create** a spec package from a sales order: order #, customer, model
   numbers → returns view/download links (full + slim), the customer Q&A page,
   and found / not-found / excluded model lists.
+- **Attach to quote** — optionally upload the sales order / quote PDF and get
+  back a merged PDF with the spec pages (slim or full, user's choice) appended
+  at the end. Available on the create form (merged file downloads right after
+  creation) and via "Attach quote" on any search result. The merge runs
+  server-side (`pdf-lib`); nothing is stored, and the spec PDF is fetched from
+  the package's own Steel Cod URL resolved server-side (never a client-supplied
+  URL). Still user-initiated per the API guidelines.
 - **Search** packages by order #, title, or customer info, or list their own.
 - **Delete** (executives only — deletion permanently purges the package and its
   PII from Steel Cod; deletions are recorded in the access audit log).

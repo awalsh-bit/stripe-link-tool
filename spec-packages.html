@@ -61,7 +61,7 @@
 
     label { display: block; margin-bottom: 6px; font-size: 13px; font-weight: 700; }
 
-    input[type="text"], input[type="email"], textarea {
+    input[type="text"], input[type="email"], textarea, select {
       width: 100%;
       border: 1px solid var(--border);
       border-radius: 10px;
@@ -73,12 +73,89 @@
       font-family: inherit;
     }
 
+    select { width: auto; cursor: pointer; }
+
+    input[type="file"] {
+      font-size: 13px;
+      font-family: inherit;
+      color: var(--muted);
+    }
+
+    input[type="file"]::file-selector-button {
+      appearance: none;
+      border: none;
+      background: #eef2ff;
+      color: var(--primary);
+      padding: 8px 14px;
+      border-radius: 10px;
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+      margin-right: 10px;
+      font-family: inherit;
+    }
+
+    input[type="file"]::file-selector-button:hover { background: #e0e7ff; }
+
+    .attach-row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+
     textarea { min-height: 90px; resize: vertical; }
 
     input:focus, textarea:focus {
       border-color: rgba(99, 91, 255, 0.75);
       box-shadow: 0 0 0 4px rgba(99, 91, 255, 0.12);
     }
+
+    input[readonly] {
+      background: #f3f4f6;
+      color: #4b5563;
+      cursor: not-allowed;
+    }
+
+    input[readonly]:focus {
+      border-color: var(--border);
+      box-shadow: none;
+    }
+
+    .help-tip {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 16px;
+      height: 16px;
+      margin-left: 6px;
+      border-radius: 50%;
+      background: #eef2ff;
+      color: var(--primary);
+      font-size: 11px;
+      font-weight: 800;
+      cursor: help;
+      position: relative;
+      vertical-align: middle;
+    }
+
+    .help-tip::after {
+      content: attr(data-tip);
+      position: absolute;
+      bottom: calc(100% + 8px);
+      left: 50%;
+      transform: translateX(-50%);
+      background: #1f2937;
+      color: #fff;
+      font-size: 12px;
+      font-weight: 500;
+      line-height: 1.4;
+      padding: 8px 10px;
+      border-radius: 8px;
+      width: 250px;
+      text-align: left;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.15s;
+      z-index: 20;
+    }
+
+    .help-tip:hover::after, .help-tip:focus::after { opacity: 1; }
 
     .checkbox-row {
       display: flex;
@@ -207,12 +284,34 @@
             <input id="customerEmail" type="email" />
           </div>
           <div class="field">
-            <label for="salespersonEmail">Salesperson email (optional)</label>
-            <input id="salespersonEmail" type="email" placeholder="Defaults to you" />
+            <label for="userEmail">Your email (requester)</label>
+            <input id="userEmail" type="email" readonly tabindex="-1" aria-label="Your signed-in email; Steel Cod records you as the requester. Not editable." />
+          </div>
+          <div class="field">
+            <label for="salespersonEmail">Salesperson email
+              <span class="help-tip" tabindex="0" role="tooltip"
+                data-tip="If you are creating this spec book on behalf of a salesperson, update the email here."
+                aria-label="If you are creating this spec book on behalf of a salesperson, update the email here.">?</span>
+            </label>
+            <input id="salespersonEmail" type="email" />
           </div>
           <div class="field full">
             <label for="modelNumbers">Model numbers * (one per line or comma-separated)</label>
             <textarea id="modelNumbers" placeholder="WRF535SWHZ&#10;WDT730PAHZ"></textarea>
+          </div>
+          <div class="field full">
+            <label for="quotePdf">Sales order / quote PDF (optional)
+              <span class="help-tip" tabindex="0" role="tooltip"
+                data-tip="Upload your quote PDF and the compiled spec pages will be appended to the end of it. The merged PDF downloads right after the package is created."
+                aria-label="Upload your quote PDF and the compiled spec pages will be appended to the end of it. The merged PDF downloads right after the package is created.">?</span>
+            </label>
+            <div class="attach-row">
+              <input id="quotePdf" type="file" accept="application/pdf,.pdf" />
+              <select id="quoteVariant" aria-label="Which spec pages to append">
+                <option value="slim" selected>Slim spec pages</option>
+                <option value="full">Full spec pages</option>
+              </select>
+            </div>
           </div>
         </div>
 
@@ -271,6 +370,20 @@
           </tbody>
         </table>
       </div>
+
+      <div id="attachPanel" style="display: none; margin-top: 16px; border: 1px solid var(--border); border-radius: 12px; padding: 16px; background: #fafbff;">
+        <label style="margin-bottom: 10px;">Attach quote to: <span id="attachTitle" style="font-weight: 400;"></span></label>
+        <div class="attach-row">
+          <input id="attachPdf" type="file" accept="application/pdf,.pdf" />
+          <select id="attachVariant" aria-label="Which spec pages to append">
+            <option value="slim" selected>Slim spec pages</option>
+            <option value="full">Full spec pages</option>
+          </select>
+          <button id="attachBtn" type="button">Merge &amp; download</button>
+          <button id="attachCancelBtn" type="button" class="secondary">Cancel</button>
+        </div>
+        <div id="attachStatus" class="status"></div>
+      </div>
       <div class="actions-row">
         <button id="moreBtn" type="button" class="secondary" style="display:none;">Load more</button>
       </div>
@@ -322,12 +435,114 @@
       return el("a", { href, target: "_blank", rel: "noopener noreferrer", text: label });
     }
 
+    // Submit clock: keep a button disabled with a visible countdown after a
+    // submit, so double/triple clicks (and quick "did it work?" re-clicks)
+    // can't fire duplicate requests.
+    function startCooldown(btn, label, seconds) {
+      let remaining = seconds;
+      btn.disabled = true;
+      btn.textContent = label + " (" + remaining + "s)";
+      const timer = setInterval(() => {
+        remaining -= 1;
+        if (remaining <= 0) {
+          clearInterval(timer);
+          btn.disabled = false;
+          btn.textContent = label;
+        } else {
+          btn.textContent = label + " (" + remaining + "s)";
+        }
+      }, 1000);
+    }
+
     function formatWhen(value) {
       if (!value) return "—";
       const date = new Date(value);
       if (Number.isNaN(date.getTime())) return "—";
       return date.toLocaleDateString("en-US", { month: "2-digit", day: "2-digit", year: "2-digit" });
     }
+
+    // ---- Quote merge (attach spec pages to a sales order / quote PDF) ----
+
+    function extractNavId(result) {
+      if (result && result.navId) return String(result.navId);
+      const src = result?.specPackageUrl || result?.urls?.base || "";
+      const parts = String(src).split("/").filter(Boolean);
+      return parts.length ? parts[parts.length - 1] : "";
+    }
+
+    async function mergeQuoteDownload(navId, file, variant, baseName) {
+      const params = new URLSearchParams({ variant: variant || "slim", name: baseName || "quote" });
+      const res = await fetch(
+        "/api/spec-packages/" + encodeURIComponent(navId) + "/attach-quote?" + params.toString(),
+        {
+          method: "POST",
+          credentials: "same-origin",
+          headers: { "Content-Type": "application/pdf" },
+          body: file
+        }
+      );
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || "Unable to merge the quote and spec pages.");
+      }
+
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = (baseName || "quote") + "-with-specs.pdf";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 4000);
+    }
+
+    let attachTarget = null;
+
+    function openAttachPanel(pkg) {
+      attachTarget = pkg;
+      document.getElementById("attachTitle").textContent =
+        (pkg.title || pkg.docId || pkg.navId) + (pkg.docId && pkg.title ? " (" + pkg.docId + ")" : "");
+      document.getElementById("attachPdf").value = "";
+      setStatus("attachStatus", "", "");
+      document.getElementById("attachPanel").style.display = "block";
+      document.getElementById("attachPanel").scrollIntoView({ behavior: "smooth", block: "nearest" });
+    }
+
+    document.getElementById("attachCancelBtn").addEventListener("click", () => {
+      attachTarget = null;
+      document.getElementById("attachPanel").style.display = "none";
+    });
+
+    document.getElementById("attachBtn").addEventListener("click", async () => {
+      if (!attachTarget) return;
+      const file = document.getElementById("attachPdf").files[0];
+      if (!file) {
+        setStatus("attachStatus", "Choose the sales order / quote PDF first.", "warn");
+        return;
+      }
+
+      const btn = document.getElementById("attachBtn");
+      btn.disabled = true;
+      btn.textContent = "Merging...";
+      setStatus("attachStatus", "", "");
+
+      try {
+        const baseName = attachTarget.docId || attachTarget.title || "quote";
+        await mergeQuoteDownload(
+          attachTarget.navId,
+          file,
+          document.getElementById("attachVariant").value,
+          baseName
+        );
+        setStatus("attachStatus", "Merged PDF downloaded.", "ok");
+      } catch (err) {
+        setStatus("attachStatus", err.message, "error");
+      } finally {
+        startCooldown(btn, "Merge & download", 10);
+      }
+    });
 
     // ---- Create ----
 
@@ -356,12 +571,42 @@
         });
 
         renderCreateResult(result);
-        setStatus("createStatus", "Spec package created.", "ok");
+
+        const quoteFile = document.getElementById("quotePdf").files[0];
+        if (quoteFile) {
+          const navId = extractNavId(result);
+          if (!navId) {
+            setStatus("createStatus",
+              "Spec package created, but its ID couldn't be determined for the quote merge. Find it in the search below and use \"Attach quote\".",
+              "warn");
+          } else {
+            setStatus("createStatus", "Spec package created. Merging your quote PDF...", "ok");
+            try {
+              const baseName =
+                document.getElementById("documentID").value.trim() ||
+                quoteFile.name.replace(/\.pdf$/i, "") || "quote";
+              await mergeQuoteDownload(
+                navId,
+                quoteFile,
+                document.getElementById("quoteVariant").value,
+                baseName
+              );
+              setStatus("createStatus", "Spec package created — merged PDF downloaded.", "ok");
+              document.getElementById("quotePdf").value = "";
+            } catch (mergeErr) {
+              setStatus("createStatus",
+                "Spec package created, but merging the quote failed: " + mergeErr.message +
+                " You can retry from the search below with \"Attach quote\".",
+                "warn");
+            }
+          }
+        } else {
+          setStatus("createStatus", "Spec package created.", "ok");
+        }
       } catch (err) {
         setStatus("createStatus", err.message, "error");
       } finally {
-        btn.disabled = false;
-        btn.textContent = "Create spec package";
+        startCooldown(btn, "Create spec package", 10);
       }
     });
 
@@ -468,6 +713,13 @@
         }
 
         const actions = el("div", { class: "row-actions" });
+        if (pkg.navId) {
+          actions.appendChild(el("button", {
+            class: "tiny secondary",
+            text: "Attach quote",
+            onclick: () => openAttachPanel(pkg)
+          }));
+        }
         if (session?.canManageUsers) {
           actions.appendChild(el("button", {
             class: "tiny danger",
@@ -528,6 +780,9 @@
           const email = session?.user?.email || "";
           if (email && email.includes("@")) {
             document.getElementById("whoami").textContent = email;
+            document.getElementById("userEmail").value = email;
+            const salesperson = document.getElementById("salespersonEmail");
+            if (!salesperson.value) salesperson.value = email;
           } else {
             setStatus("createStatus",
               "You're on the shared login. Steel Cod needs to know who is acting, so sign in with your individual account to use this page.",

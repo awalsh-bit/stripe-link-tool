@@ -194,9 +194,28 @@
       align-items: center;
       gap: 8px;
       font-size: 14px;
+      border-radius: 8px;
+      padding: 2px 6px 2px 2px;
     }
 
     .perm-item input { width: auto; }
+
+    /* Staged (unsaved) edits stand out until Save is clicked. */
+    .perm-item.staged {
+      background: var(--warn-bg);
+      color: var(--warn-text);
+      font-weight: 700;
+    }
+
+    .perm-item.staged::after {
+      content: "unsaved";
+      font-size: 10px;
+      font-weight: 800;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      color: var(--warn-text);
+      margin-left: 2px;
+    }
 
     .preset-row {
       display: flex;
@@ -287,6 +306,53 @@
     </div>
 
     <div class="surface">
+      <h2>Employee Directory</h2>
+      <p class="section-note">
+        Employee codes used on Send Payment Link, Card Reader, and Charge Saved Card.
+        Codes tie to accounts <strong>by email</strong> — when the email here matches a
+        user's login email, their code auto-fills on those tools and their dashboard
+        defaults to their own links. Edit codes here when systems change (e.g. ePASS → NetSuite).
+      </p>
+      <div class="toolbar">
+        <div class="field small">
+          <label for="dirCode">Code</label>
+          <input id="dirCode" type="text" maxlength="3" placeholder="ABC" style="text-transform: uppercase;" />
+        </div>
+        <div class="field">
+          <label for="dirName">Name</label>
+          <input id="dirName" type="text" placeholder="First Last" />
+        </div>
+        <div class="field">
+          <label for="dirEmail">Email (ties to account)</label>
+          <input id="dirEmail" type="email" placeholder="name@wilsonappliance.com" />
+        </div>
+        <div class="field small">
+          <label for="dirDepartment">Department</label>
+          <input id="dirDepartment" type="text" list="departmentOptions" placeholder="Appliance" />
+          <datalist id="departmentOptions"></datalist>
+        </div>
+        <button id="dirAddBtn" type="button">Add / Update</button>
+      </div>
+      <div id="dirStatus" class="status"></div>
+      <div class="table-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>Code</th>
+              <th>Name</th>
+              <th>Email</th>
+              <th>Department</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="dirBody">
+            <tr><td colspan="5" class="muted">Loading…</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="surface">
       <h2>Audit log</h2>
       <p class="section-note">Logins, permission changes, invites, deactivations, and password resets.</p>
       <button id="auditRefreshBtn" class="secondary" type="button">Refresh</button>
@@ -322,8 +388,19 @@
       allowedDomain: "wilsonappliance.com",
       expanded: new Set(),
       // Staged (unsaved) permission edits per user: userId -> Map(path -> granted)
-      pending: new Map()
+      pending: new Map(),
+      // Employee directory entries: [{code, name, email, department}]
+      directory: []
     };
+
+    function directoryCodeForEmail(email) {
+      const normalized = String(email || "").trim().toLowerCase();
+      if (!normalized) return "";
+      const entry = state.directory.find(
+        (e) => String(e.email || "").trim().toLowerCase() === normalized
+      );
+      return entry ? entry.code : "";
+    }
 
     function setStatus(id, message, kind) {
       const box = document.getElementById(id);
@@ -407,9 +484,10 @@
       }
 
       for (const user of state.users) {
+        const employeeCode = directoryCodeForEmail(user.email);
         const nameBits = [
           el("div", { text: user.displayName || user.email }),
-          el("div", { class: "muted small-text", text: user.email })
+          el("div", { class: "muted small-text", text: user.email + (employeeCode ? " · Code: " + employeeCode : "") })
         ];
 
         const statusCell = el("td", {}, [statusPill(user)]);
@@ -560,7 +638,8 @@
         renderUsers(); // keeps duplicate checkboxes, counts, and Save in sync
       });
 
-      const label = el("label", { class: "perm-item" });
+      const isStaged = state.pending.get(user.id)?.has(path);
+      const label = el("label", { class: isStaged ? "perm-item staged" : "perm-item" });
       label.appendChild(checkbox);
       label.appendChild(document.createTextNode(" " + pageLabelFor(path)));
       return label;
@@ -727,9 +806,176 @@
       }
     }
 
+    // ---- Employee directory editor ----
+
+    async function loadDirectory() {
+      try {
+        setStatus("dirStatus", "", "");
+        const data = await api("/api/admin/employee-directory");
+        state.directory = data.entries || [];
+        renderDirectory();
+        renderUsers(); // refresh the "Code:" chips on user rows
+      } catch (err) {
+        setStatus("dirStatus", err.message, "error");
+      }
+    }
+
+    function renderDirectory() {
+      const body = document.getElementById("dirBody");
+      body.textContent = "";
+
+      // Keep the department suggestions in sync with what's in use.
+      const datalist = document.getElementById("departmentOptions");
+      datalist.textContent = "";
+      [...new Set(state.directory.map((e) => e.department).filter(Boolean))].sort().forEach((dept) => {
+        datalist.appendChild(el("option", { value: dept }));
+      });
+
+      if (!state.directory.length) {
+        body.appendChild(el("tr", {}, [
+          el("td", { colspan: "5", class: "muted", text: "No directory entries yet. Add the first one above." })
+        ]));
+        return;
+      }
+
+      for (const entry of state.directory) {
+        body.appendChild(renderDirectoryRow(entry));
+      }
+    }
+
+    function renderDirectoryRow(entry, editing) {
+      if (!editing) {
+        const actions = el("div", { class: "row-actions" }, [
+          el("button", {
+            class: "tiny secondary",
+            text: "Edit",
+            onclick: (e) => {
+              e.target.closest("tr").replaceWith(renderDirectoryRow(entry, true));
+            }
+          }),
+          el("button", {
+            class: "tiny danger",
+            text: "Delete",
+            onclick: async (e) => {
+              if (!confirm(`Delete code ${entry.code} (${entry.name})? Existing payment records keep the code; it just leaves the directory.`)) return;
+              e.target.disabled = true;
+              try {
+                await api("/api/admin/employee-directory/" + encodeURIComponent(entry.code), { method: "DELETE" });
+                setStatus("dirStatus", `Deleted ${entry.code}.`, "ok");
+                await loadDirectory();
+              } catch (err) {
+                setStatus("dirStatus", err.message, "error");
+                e.target.disabled = false;
+              }
+            }
+          })
+        ]);
+
+        return el("tr", {}, [
+          el("td", {}, [el("strong", { text: entry.code })]),
+          el("td", { text: entry.name }),
+          el("td", { text: entry.email || "—" }),
+          el("td", { text: entry.department || "—" }),
+          el("td", {}, [actions])
+        ]);
+      }
+
+      // Editing row: name/email/department are editable; the code is the key.
+      // To change a code itself, add the new code and delete the old one.
+      const nameInput = el("input", { type: "text", value: entry.name });
+      const emailInput = el("input", { type: "email", value: entry.email || "" });
+      const deptInput = el("input", { type: "text", value: entry.department || "", list: "departmentOptions" });
+
+      const actions = el("div", { class: "row-actions" }, [
+        el("button", {
+          class: "tiny",
+          text: "Save",
+          onclick: async (e) => {
+            e.target.disabled = true;
+            try {
+              await api("/api/admin/employee-directory", {
+                method: "POST",
+                body: JSON.stringify({
+                  code: entry.code,
+                  name: nameInput.value.trim(),
+                  email: emailInput.value.trim(),
+                  department: deptInput.value.trim()
+                })
+              });
+              setStatus("dirStatus", `Saved ${entry.code}.`, "ok");
+              await loadDirectory();
+            } catch (err) {
+              setStatus("dirStatus", err.message, "error");
+              e.target.disabled = false;
+            }
+          }
+        }),
+        el("button", {
+          class: "tiny secondary",
+          text: "Cancel",
+          onclick: (e) => {
+            e.target.closest("tr").replaceWith(renderDirectoryRow(entry, false));
+          }
+        })
+      ]);
+
+      return el("tr", {}, [
+        el("td", {}, [el("strong", { text: entry.code })]),
+        el("td", {}, [nameInput]),
+        el("td", {}, [emailInput]),
+        el("td", {}, [deptInput]),
+        el("td", {}, [actions])
+      ]);
+    }
+
+    document.getElementById("dirAddBtn").addEventListener("click", async () => {
+      const button = document.getElementById("dirAddBtn");
+      const code = document.getElementById("dirCode").value.trim().toUpperCase();
+      const name = document.getElementById("dirName").value.trim();
+      const email = document.getElementById("dirEmail").value.trim();
+      const department = document.getElementById("dirDepartment").value.trim();
+
+      setStatus("dirStatus", "", "");
+
+      if (!code || !name) {
+        setStatus("dirStatus", "Code and name are required.", "error");
+        return;
+      }
+
+      const existing = state.directory.find((e) => e.code === code);
+      if (existing && !confirm(`Code ${code} already belongs to ${existing.name}. Overwrite it?`)) return;
+
+      button.disabled = true;
+      try {
+        await api("/api/admin/employee-directory", {
+          method: "POST",
+          body: JSON.stringify({ code, name, email, department })
+        });
+        setStatus("dirStatus", `Saved ${code} — ${name}.`, "ok");
+        ["dirCode", "dirName", "dirEmail", "dirDepartment"].forEach((id) => {
+          document.getElementById(id).value = "";
+        });
+        await loadDirectory();
+      } catch (err) {
+        setStatus("dirStatus", err.message, "error");
+      } finally {
+        button.disabled = false;
+      }
+    });
+
     document.getElementById("auditRefreshBtn").addEventListener("click", loadAudit);
 
+    // Don't let unsaved permission edits vanish silently on navigation/close.
+    window.addEventListener("beforeunload", (event) => {
+      const hasPending = [...state.pending.values()].some((staged) => staged.size > 0);
+      if (hasPending) {
+        event.preventDefault();
+        event.returnValue = "";
+      }
+    });
+
     loadUsers();
+    loadDirectory();
     loadAudit();
   </script>
 </body>

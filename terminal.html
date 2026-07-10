@@ -657,5 +657,27 @@
 
     loadReaders();
   </script>
+  <script>
+    // Auto-fill the employee code from the signed-in user's individual account.
+    // Dispatching "input" runs the page's existing lookup (name/email/department).
+    (async function () {
+      const codeInput = document.getElementById("creatorCode");
+      if (!codeInput || codeInput.value.trim()) return;
+      try {
+        const res = await fetch("/api/auth/session", { credentials: "same-origin" });
+        if (!res.ok) return;
+        const session = await res.json();
+        const email = String(session?.user?.email || "").trim().toLowerCase();
+        if (!email) return;
+        const directory = window.WILSON_EMPLOYEE_DIRECTORY || {};
+        const myCode = Object.keys(directory).find(
+          (code) => String(directory[code].email || "").trim().toLowerCase() === email
+        );
+        if (!myCode || codeInput.value.trim()) return;
+        codeInput.value = myCode;
+        codeInput.dispatchEvent(new Event("input", { bubbles: true }));
+      } catch {}
+    })();
+  </script>
 </body>
 </html>

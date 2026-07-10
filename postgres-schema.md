@@ -283,3 +283,13 @@ After this schema file and initial SQL:
 2. implement just the `payment_links` read/write methods
 3. add a storage-mode env switch
 4. test the app with Postgres only for that dataset first
+
+### `employee_directory` (live — created by `sql/005_employee_directory.sql`)
+
+Employee codes used on the payment tools, editable from User Admin (the
+legacy static `employee-directory.js` file is now only a fallback; the
+server serves that path from this table).
+- `code` (pk, 1–3 chars), `name`, `email` (ties the code to an `app_users`
+  account by email — powers code auto-fill and per-employee dashboard
+  defaults), `department`, `updated_at`, `updated_by`
+- Seeded from the legacy static file on first boot when empty.

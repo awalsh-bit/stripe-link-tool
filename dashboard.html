@@ -950,7 +950,7 @@
 <div class="nav-grid" id="navGrid"></div>
 
       <div class="card">
-        <h2>Payment queue and paid history</h2>
+        <h2>Payment Queue and Paid History</h2>
 
         <div class="summary-grid">
           <div class="metric">
@@ -974,6 +974,7 @@
 
         <div class="toolbar">
           <input type="search" id="queueSearchFilter" placeholder="Search unpaid queue by customer, order, phone, or note" />
+          <select id="queueEmployeeFilter"></select>
           <select id="departmentFilter">
             <option value="Appliance">Appliance</option>
             <option value="all">All departments</option>
@@ -998,7 +999,7 @@
 
         <div class="section-label">
           <div>
-            <h3>Open link queue</h3>
+            <h3>Open Link Queue</h3>
             <p>Unpaid links stay here until they are paid or manually deactivated.</p>
           </div>
         </div>
@@ -1027,7 +1028,7 @@
 
         <div class="section-label">
           <div>
-            <h3>Paid history</h3>
+            <h3>Paid History</h3>
             <p>Paid links and terminal payments are grouped by the date they were actually paid.</p>
           </div>
         </div>
@@ -1035,6 +1036,7 @@
         <div class="toolbar">
           <input type="date" id="paidDateFilter" />
           <input type="search" id="paidSearchFilter" placeholder="Search paid history by customer, order, or payment intent" />
+          <select id="paidEmployeeFilter"></select>
           <div class="toolbar-menu">
             <div class="toolbar-menu-trigger">Accounting Detail Tools</div>
             <div class="toolbar-menu-panel">
@@ -1091,9 +1093,53 @@
   const agingDaysFilterEl = document.getElementById("agingDaysFilter");
   const paidSearchFilterEl = document.getElementById("paidSearchFilter");
   const paidDateFilterEl = document.getElementById("paidDateFilter");
+  const queueEmployeeFilterEl = document.getElementById("queueEmployeeFilter");
+  const paidEmployeeFilterEl = document.getElementById("paidEmployeeFilter");
 
   let allRows = [];
   const TEAM_DIRECTORY = window.WILSON_EMPLOYEE_DIRECTORY || {};
+
+  // Employee filters: "All employees" + everyone in the directory, by name.
+  (function populateEmployeeFilters() {
+    const entries = Object.entries(TEAM_DIRECTORY)
+      .map(([code, info]) => ({ code, name: info.name || code }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+
+    for (const select of [queueEmployeeFilterEl, paidEmployeeFilterEl]) {
+      const all = document.createElement("option");
+      all.value = "all";
+      all.textContent = "All employees";
+      select.appendChild(all);
+
+      for (const { code, name } of entries) {
+        const option = document.createElement("option");
+        option.value = code;
+        option.textContent = name;
+        select.appendChild(option);
+      }
+    }
+  })();
+
+  // Default both views to the signed-in employee when they're in the
+  // directory. Department widens to "all" so their links can't be hidden
+  // by the department default; picking "All employees" shows everyone.
+  (async function defaultEmployeeFilters() {
+    try {
+      const res = await fetch("/api/auth/session", { credentials: "same-origin" });
+      if (!res.ok) return;
+      const session = await res.json();
+      const email = String(session?.user?.email || "").trim().toLowerCase();
+      if (!email) return;
+      const myCode = Object.keys(TEAM_DIRECTORY).find(
+        (code) => String(TEAM_DIRECTORY[code].email || "").trim().toLowerCase() === email
+      );
+      if (!myCode) return;
+      queueEmployeeFilterEl.value = myCode;
+      paidEmployeeFilterEl.value = myCode;
+      departmentFilterEl.value = "all";
+      renderDashboard();
+    } catch {}
+  })();
 
   const today = new Date();
   paidDateFilterEl.value = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
@@ -1270,6 +1316,10 @@
     const paidSearch = paidSearchFilterEl.value.trim().toLowerCase();
     const selectedPaidDate = paidDateFilterEl.value;
     const agingDays = Number(agingDaysFilterEl.value || 3);
+    const queueEmployee = queueEmployeeFilterEl.value || "all";
+    const paidEmployee = paidEmployeeFilterEl.value || "all";
+
+    const rowEmployeeCode = (row) => String(row.creatorCode || "").trim().toUpperCase();
 
     const queueRows = allRows
       .filter((row) => isLinkRow(row) && row.status !== "paid")
@@ -1281,7 +1331,9 @@
           queueStatus === "all" ||
           (queueStatus === "active" && ["sent", "viewed", "ach_pending"].includes(row.status)) ||
           row.status === queueStatus;
-        return matchesSearch && matchesDepartment && matchesStatus;
+        const matchesEmployee =
+          queueEmployee === "all" || rowEmployeeCode(row) === queueEmployee;
+        return matchesSearch && matchesDepartment && matchesStatus && matchesEmployee;
       })
       .sort((a, b) => new Date(a.createdAt || 0) - new Date(b.createdAt || 0));
 
@@ -1293,7 +1345,9 @@
           selectedDepartment === "all" || resolveDepartment(row) === selectedDepartment;
         const paidDateOnly = toLocalDateInputValue(row.paidDate);
         const matchesDate = !selectedPaidDate || paidDateOnly === selectedPaidDate;
-        return matchesSearch && matchesDepartment && matchesDate;
+        const matchesEmployee =
+          paidEmployee === "all" || rowEmployeeCode(row) === paidEmployee;
+        return matchesSearch && matchesDepartment && matchesDate && matchesEmployee;
       })
       .sort((a, b) => new Date(b.paidDate || b.createdAt || 0) - new Date(a.paidDate || a.createdAt || 0));
 
@@ -1484,6 +1538,8 @@
   agingDaysFilterEl.addEventListener("change", renderDashboard);
   paidSearchFilterEl.addEventListener("input", renderDashboard);
   paidDateFilterEl.addEventListener("change", renderDashboard);
+  queueEmployeeFilterEl.addEventListener("change", renderDashboard);
+  paidEmployeeFilterEl.addEventListener("change", renderDashboard);
 
   loadStatusData().catch((err) => {
     queueTableBody.innerHTML = `<tr><td colspan="8">Error loading dashboard: ${err.message}</td></tr>`;
@@ -1525,7 +1581,10 @@
         "/salesdashboard.html": "Sales performance and metrics at a glance.",
         "/secret-menu.html": "Browse the internal secret menu of special-price appliances.",
         "/event-rsvps.html": "Manage event listings and attendee RSVPs.",
-        "/spec-packages.html": "Create Steel Cod spec packages for sales orders and attach them to quotes."
+        "/spec-packages.html": "Create Steel Cod spec packages for sales orders and attach them to quotes.",
+        "/user-admin.html": "Invite users, grant page access, and review the audit log.",
+        "/commissions.html": "Build, review, and lock sales commission runs.",
+        "/commissions-print.html": "Print-friendly commission statements."
       };
 
       let session = null;
@@ -1540,10 +1599,39 @@
         return (session?.pageLabels || {})[path] || path;
       }
 
+      // Executive-only pages: only ever present in grantedPages for
+      // executives; grouped under their own heading in the picker.
+      const EXEC_ONLY_PAGES = ["/user-admin.html", "/commissions.html", "/commissions-print.html"];
+
       function allowedPages() {
         return (session?.grantedPages || [])
           .filter((p) => p !== "/dashboard.html" && p.endsWith(".html"))
-          .filter((p) => !["/login.html", "/logout.html", "/register.html", "/set-password.html", "/user-admin.html", "/commissions.html", "/commissions-print.html"].includes(p));
+          .filter((p) => !["/login.html", "/logout.html", "/register.html", "/set-password.html"].includes(p));
+      }
+
+      // Pages the user can pick, grouped by function (server categories) and
+      // alphabetical within each group. Only pages they have access to appear.
+      function groupedAllowedPages() {
+        const allowed = new Set(allowedPages());
+        const byLabel = (a, b) => labelFor(a).localeCompare(labelFor(b));
+        const groups = [];
+        const seen = new Set();
+
+        for (const category of session?.pageCategories || []) {
+          const pages = (category.pages || [])
+            .filter((p) => allowed.has(p) && !seen.has(p))
+            .sort(byLabel);
+          pages.forEach((p) => seen.add(p));
+          if (pages.length) groups.push({ label: category.label, pages });
+        }
+
+        const rest = [...allowed].filter((p) => !seen.has(p));
+        const execPages = rest.filter((p) => EXEC_ONLY_PAGES.includes(p)).sort(byLabel);
+        const other = rest.filter((p) => !EXEC_ONLY_PAGES.includes(p)).sort(byLabel);
+        if (other.length) groups.push({ label: "Other", pages: other });
+        if (execPages.length) groups.push({ label: "Executive", pages: execPages });
+
+        return groups;
       }
 
       function currentSlots() {
@@ -1592,7 +1680,7 @@
       function renderEditor() {
         grid.textContent = "";
         const slots = currentSlots();
-        const allowed = allowedPages();
+        const groups = groupedAllowedPages();
 
         for (let i = 0; i < MAX_SLOTS; i++) {
           const slot = document.createElement("div");
@@ -1610,12 +1698,17 @@
           empty.textContent = "— Empty —";
           select.appendChild(empty);
 
-          for (const path of allowed) {
-            const option = document.createElement("option");
-            option.value = path;
-            option.textContent = labelFor(path);
-            if (slots[i] === path) option.selected = true;
-            select.appendChild(option);
+          for (const group of groups) {
+            const optgroup = document.createElement("optgroup");
+            optgroup.label = group.label;
+            for (const path of group.pages) {
+              const option = document.createElement("option");
+              option.value = path;
+              option.textContent = labelFor(path);
+              if (slots[i] === path) option.selected = true;
+              optgroup.appendChild(option);
+            }
+            select.appendChild(optgroup);
           }
 
           const hint = document.createElement("p");

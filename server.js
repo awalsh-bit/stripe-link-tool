@@ -86,6 +86,14 @@ import {
   deleteCommissionRun
 } from "./lib/commissions-postgres.js";
 import {
+  listEmployeeDirectory,
+  getEmployeeDirectoryObject,
+  upsertEmployeeDirectoryEntry,
+  deleteEmployeeDirectoryEntry,
+  validateEmployeeCode,
+  normalizeEmployeeCode
+} from "./lib/employee-directory.js";
+import {
   isSteelCodConfigured,
   SteelCodError,
   createSpecPackage,
@@ -1325,6 +1333,7 @@ app.get("/api/auth/session", (req, res) => {
     legacyLoginEnabled: LEGACY_SHARED_LOGIN_ENABLED,
     availableAccessGroups: ACCESS_GROUPS,
     pageLabels: PAGE_LABELS,
+    pageCategories: buildCategoriesPayload(),
     // Personal dashboard hero-card slots (db accounts only; legacy sessions
     // have nowhere to store preferences and get the defaults).
     dashboardSlots: req.authUser.kind === "db"
@@ -1358,7 +1367,10 @@ app.post("/api/me/dashboard-slots", async (req, res) => {
     if (!pagePath) continue;
     if (slots.includes(pagePath)) continue;
     if (pagePath === "/dashboard.html") continue;
-    if (!MANAGEABLE_PAGE_PATHS.includes(pagePath)) {
+    // Any internal page is pinnable — including executive-only pages —
+    // as long as this user can actually access it (canAccessPathForUser
+    // enforces is_executive for the exec-only ones).
+    if (!INTERNAL_PAGE_PATHS.has(pagePath) || AUTH_PAGE_PATHS.has(pagePath)) {
       return res.status(400).json({ error: `Unknown page: ${pagePath}` });
     }
     if (!canAccessPathForUser(req.authUser, pagePath)) {
@@ -2180,6 +2192,93 @@ app.get("/api/steelcod-users", requireExecutiveApi, async (req, res) => {
   }
 });
 
+// Serve the employee directory from Postgres (editable in User Admin).
+// Registered BEFORE express.static so it shadows the legacy static file,
+// which remains the fallback when the database is unreachable.
+app.get("/employee-directory.js", async (req, res) => {
+  try {
+    const directory = await getEmployeeDirectoryObject();
+    res.setHeader("Content-Type", "application/javascript; charset=utf-8");
+    res.setHeader("Cache-Control", "no-store");
+    return res.send(
+      "window.WILSON_EMPLOYEE_DIRECTORY = " + JSON.stringify(directory, null, 2) + ";\n"
+    );
+  } catch (err) {
+    console.error("Employee directory DB read failed, serving static fallback:", err.message);
+    return res.sendFile(path.join(__dirname, "employee-directory.js"));
+  }
+});
+
+// --- Executive API: employee directory management -------------------------
+
+app.get("/api/admin/employee-directory", requireExecutiveApi, async (req, res) => {
+  try {
+    const entries = await listEmployeeDirectory();
+    return res.json({ entries });
+  } catch (err) {
+    console.error("List employee directory failed:", err.message);
+    return res.status(500).json({ error: "Unable to load the employee directory." });
+  }
+});
+
+app.post("/api/admin/employee-directory", requireExecutiveApi, async (req, res) => {
+  try {
+    const { code = "", name = "", email = "", department = "" } = req.body || {};
+
+    const codeError = validateEmployeeCode(code);
+    if (codeError) {
+      return res.status(400).json({ error: codeError });
+    }
+    if (!String(name).trim()) {
+      return res.status(400).json({ error: "A name is required." });
+    }
+    const trimmedEmail = String(email).trim().toLowerCase();
+    if (trimmedEmail && !trimmedEmail.includes("@")) {
+      return res.status(400).json({ error: "Enter a valid email (or leave it blank)." });
+    }
+
+    const entry = await upsertEmployeeDirectoryEntry(
+      { code, name, email: trimmedEmail, department },
+      req.authUser.id || null
+    );
+
+    recordAudit({
+      actorUserId: req.authUser.id || null,
+      action: "employee_directory_saved",
+      targetUserId: null,
+      detail: { code: entry.code, name: entry.name, email: entry.email, department: entry.department }
+    }).catch(() => {});
+
+    return res.json({ success: true, entry });
+  } catch (err) {
+    console.error("Save employee directory entry failed:", err.message);
+    return res.status(500).json({ error: "Unable to save the directory entry." });
+  }
+});
+
+app.delete("/api/admin/employee-directory/:code", requireExecutiveApi, async (req, res) => {
+  try {
+    const code = normalizeEmployeeCode(req.params.code);
+    const removed = await deleteEmployeeDirectoryEntry(code);
+
+    if (!removed) {
+      return res.status(404).json({ error: "That employee code was not found." });
+    }
+
+    recordAudit({
+      actorUserId: req.authUser.id || null,
+      action: "employee_directory_deleted",
+      targetUserId: null,
+      detail: { code }
+    }).catch(() => {});
+
+    return res.json({ success: true });
+  } catch (err) {
+    console.error("Delete employee directory entry failed:", err.message);
+    return res.status(500).json({ error: "Unable to delete the directory entry." });
+  }
+});
+
 app.use(express.static(__dirname, { index: false }));
 
 app.get("/", (req, res) => {
@@ -2205,11 +2304,9 @@ app.get("/secret-menu", (req, res) => {
 
 app.get("/api/secret-menu", requirePagePermission("/secret-menu.html"), async (req, res) => {
   try {
-    const allowedGroups = new Set(["leader", "executive", "sales"]);
-    if (!allowedGroups.has(req.authUser?.accessGroup)) {
-      return res.status(403).json({ error: "You don't have access to the Secret Menu." });
-    }
-
+    // NOTE: page access is fully decided by requirePagePermission above.
+    // (An older ACCESS_GROUPS check here used to 403 individual accounts,
+    // whose accessGroup is "member" — do not reintroduce it.)
     const fs = await import("fs/promises");
     const secretMenuPath = path.join(__dirname, "data", "secret-menu.json");
     const raw = await fs.readFile(secretMenuPath, "utf8");
@@ -6005,11 +6102,13 @@ app.post("/api/payment-links/:id/sync-from-stripe", requirePagePermission("/dash
 // =========================================================================
 // PAID-DATE REPAIR (corrective tool used from paid-order-detail.html)
 // =========================================================================
-const REPAIR_ALLOWED_GROUPS = new Set(["leader", "executive", "accounting", "sales", "service"]);
 const REPAIR_DRIFT_THRESHOLD_MS = 24 * 60 * 60 * 1000;
 
+// The repair tool lives on paid-order-detail.html, so access follows that
+// page's grant (works for both individual accounts and legacy group logins).
+// An older ACCESS_GROUPS whitelist here used to 403 individual accounts.
 function requireRepairAccess(req, res) {
-  if (!REPAIR_ALLOWED_GROUPS.has(req.authUser?.accessGroup)) {
+  if (!canAccessPathForUser(req.authUser, "/paid-order-detail.html")) {
     res.status(403).json({ error: "You don't have access to the paid-date repair tool." });
     return false;
   }

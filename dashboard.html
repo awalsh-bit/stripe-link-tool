@@ -451,6 +451,25 @@
       min-width: 220px;
     }
 
+    /* Save Default View: deliberately distinct from the filters it snapshots —
+       black border, bold text, no fill. */
+    .save-default-btn {
+      appearance: none;
+      background: #fff;
+      border: 2px solid #1f2937;
+      border-radius: 12px;
+      color: var(--text);
+      padding: 11px 16px;
+      font-size: 14px;
+      font-weight: 800;
+      cursor: pointer;
+      font-family: inherit;
+      white-space: nowrap;
+    }
+
+    .save-default-btn:hover { background: #f3f4f6; }
+    .save-default-btn:disabled { opacity: 0.6; cursor: wait; }
+
     .toolbar-menu {
       margin-left: auto;
       position: relative;
@@ -974,15 +993,15 @@
 
         <div class="toolbar">
           <input type="search" id="queueSearchFilter" placeholder="Search unpaid queue by customer, order, phone, or note" />
-          <select id="queueEmployeeFilter"></select>
-          <select id="departmentFilter">
+          <select id="queueEmployeeFilter" title="User"></select>
+          <select id="departmentFilter" title="Department">
             <option value="Appliance">Appliance</option>
             <option value="all">All departments</option>
             <option value="Repair Service">Repair Service</option>
             <option value="Kitchen Design">Kitchen Design</option>
             <option value="HVAC Sales">HVAC Sales</option>
           </select>
-          <select id="queueStatusFilter">
+          <select id="queueStatusFilter" title="Status">
             <option value="active">Active queue only</option>
             <option value="ach_pending">ACH pending only</option>
             <option value="viewed">Viewed only</option>
@@ -990,12 +1009,8 @@
             <option value="all">Queue and deactivated</option>
             <option value="deactivated">Deactivated only</option>
           </select>
-          <select id="agingDaysFilter">
-            <option value="3">Aging at 3 days</option>
-            <option value="5">Aging at 5 days</option>
-          </select>
+          <button id="saveViewBtn" class="save-default-btn" type="button" style="display: none;" title="Make the current user + department + status filters your default view on this dashboard.">Save Default View</button>
           <a class="toolbar-menu-trigger" href="link-detail-lookup.html">Link Detail Lookup</a>
-          <button id="saveViewBtn" class="cards-tool-btn" type="button" style="display: none;" title="Make the current employee + department filters your default view on this dashboard.">Save as my default view</button>
         </div>
 
         <div class="section-label">
@@ -1091,7 +1106,6 @@
   const queueSearchFilterEl = document.getElementById("queueSearchFilter");
   const departmentFilterEl = document.getElementById("departmentFilter");
   const queueStatusFilterEl = document.getElementById("queueStatusFilter");
-  const agingDaysFilterEl = document.getElementById("agingDaysFilter");
   const paidSearchFilterEl = document.getElementById("paidSearchFilter");
   const paidDateFilterEl = document.getElementById("paidDateFilter");
   const queueEmployeeFilterEl = document.getElementById("queueEmployeeFilter");
@@ -1375,7 +1389,10 @@
     const queueStatus = queueStatusFilterEl.value;
     const paidSearch = paidSearchFilterEl.value.trim().toLowerCase();
     const selectedPaidDate = paidDateFilterEl.value;
-    const agingDays = Number(agingDaysFilterEl.value || 3);
+    // Fixed 3-day aging threshold — the row colors are the signal to work
+    // the queue (the old aging dropdown was removed with the per-employee
+    // default views).
+    const agingDays = 3;
     const queueEmployee = queueEmployeeFilterEl.value || "all";
     const paidEmployee = paidEmployeeFilterEl.value || "all";
 
@@ -1595,7 +1612,6 @@
   queueSearchFilterEl.addEventListener("input", renderDashboard);
   departmentFilterEl.addEventListener("change", renderDashboard);
   queueStatusFilterEl.addEventListener("change", renderDashboard);
-  agingDaysFilterEl.addEventListener("change", renderDashboard);
   paidSearchFilterEl.addEventListener("input", renderDashboard);
   paidDateFilterEl.addEventListener("change", renderDashboard);
   queueEmployeeFilterEl.addEventListener("change", renderDashboard);

@@ -336,6 +336,10 @@
           <input id="dirCommute" type="number" min="0" step="0.1" placeholder="0" />
         </div>
         <button id="dirAddBtn" type="button">Add / Update</button>
+        <div class="small-text muted" style="flex-basis: 100%;">
+          Type an existing code to load that person for updating, or a new code to add someone.
+          You can also click <strong>Edit</strong> on any row below.
+        </div>
       </div>
       <div id="dirStatus" class="status"></div>
       <div class="table-scroll">
@@ -979,6 +983,19 @@
       ]);
     }
 
+    // Typing an existing code loads that entry into the form, so
+    // "Add / Update" works for both adding new people and updating existing.
+    document.getElementById("dirCode").addEventListener("input", () => {
+      const code = document.getElementById("dirCode").value.trim().toUpperCase();
+      const match = state.directory.find((e) => e.code === code);
+      if (!match) return;
+      document.getElementById("dirName").value = match.name;
+      document.getElementById("dirEmail").value = match.email || "";
+      document.getElementById("dirDepartment").value = match.department || "";
+      document.getElementById("dirCommute").value = match.commuteMiles ?? 0;
+      setStatus("dirStatus", `Loaded ${code} — ${match.name}. Change what you need and click Add / Update to save.`, "ok");
+    });
+
     document.getElementById("dirAddBtn").addEventListener("click", async () => {
       const button = document.getElementById("dirAddBtn");
       const code = document.getElementById("dirCode").value.trim().toUpperCase();
@@ -995,7 +1012,8 @@
       }
 
       const existing = state.directory.find((e) => e.code === code);
-      if (existing && !confirm(`Code ${code} already belongs to ${existing.name}. Overwrite it?`)) return;
+      if (existing && existing.name !== name &&
+          !confirm(`Code ${code} already belongs to ${existing.name}. Overwrite it?`)) return;
 
       button.disabled = true;
       try {

@@ -2616,7 +2616,7 @@ app.get("/api/admin/employee-directory", requireExecutiveApi, async (req, res) =
 
 app.post("/api/admin/employee-directory", requireExecutiveApi, async (req, res) => {
   try {
-    const { code = "", name = "", email = "", department = "" } = req.body || {};
+    const { code = "", name = "", email = "", department = "", commuteMiles = 0 } = req.body || {};
 
     const codeError = validateEmployeeCode(code);
     if (codeError) {
@@ -2630,8 +2630,13 @@ app.post("/api/admin/employee-directory", requireExecutiveApi, async (req, res) 
       return res.status(400).json({ error: "Enter a valid email (or leave it blank)." });
     }
 
+    const commute = Number(commuteMiles);
+    if (!Number.isFinite(commute) || commute < 0 || commute > 500) {
+      return res.status(400).json({ error: "Commute miles must be between 0 and 500." });
+    }
+
     const entry = await upsertEmployeeDirectoryEntry(
-      { code, name, email: trimmedEmail, department },
+      { code, name, email: trimmedEmail, department, commuteMiles: commute },
       req.authUser.id || null
     );
 
@@ -2655,7 +2660,7 @@ app.post("/api/admin/employee-directory", requireExecutiveApi, async (req, res) 
       actorUserId: req.authUser.id || null,
       action: "employee_directory_saved",
       targetUserId: syncedUserId,
-      detail: { code: entry.code, name: entry.name, email: entry.email, department: entry.department, nameSynced: Boolean(syncedUserId) }
+      detail: { code: entry.code, name: entry.name, email: entry.email, department: entry.department, commuteMiles: entry.commuteMiles, nameSynced: Boolean(syncedUserId) }
     }).catch(() => {});
 
     return res.json({ success: true, entry });

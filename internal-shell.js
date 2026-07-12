@@ -168,14 +168,11 @@
 
     if (session?.canManageUsers) {
       links.push({
-        href: "user-admin.html",
-        title: "User Admin",
-        text: "Invite users and manage page access."
-      });
-      links.push({
-        href: "audit-log.html",
-        title: "User Activity Audit",
-        text: "Pull account activity by date range, with IPs, and export to CSV."
+        title: "Admin",
+        children: [
+          { href: "user-admin.html", title: "User Admin" },
+          { href: "audit-log.html", title: "User Activity Audit" }
+        ]
       });
     }
 

@@ -170,6 +170,11 @@
         title: "User Admin",
         text: "Invite users and manage page access."
       });
+      links.push({
+        href: "audit-log.html",
+        title: "User Activity Audit",
+        text: "Pull account activity by date range, with IPs, and export to CSV."
+      });
     }
 
     links.push({
@@ -223,6 +228,7 @@
 
     if (session?.canManageUsers) {
       links.push(`<a class="internal-shell-footer-link" href="user-admin.html">User Admin</a>`);
+      links.push(`<a class="internal-shell-footer-link" href="audit-log.html">Activity Audit</a>`);
     }
 
     links.push(`<a class="internal-shell-footer-link" href="logout.html">Sign Out</a>`);

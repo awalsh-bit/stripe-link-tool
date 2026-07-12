@@ -995,6 +995,7 @@
             <option value="5">Aging at 5 days</option>
           </select>
           <a class="toolbar-menu-trigger" href="link-detail-lookup.html">Link Detail Lookup</a>
+          <button id="saveViewBtn" class="cards-tool-btn" type="button" style="display: none;" title="Make the current employee + department filters your default view on this dashboard.">Save as my default view</button>
         </div>
 
         <div class="section-label">
@@ -1120,24 +1121,83 @@
     }
   })();
 
-  // Default both views to the signed-in employee when they're in the
-  // directory. Department widens to "all" so their links can't be hidden
-  // by the department default; picking "All employees" shows everyone.
+  // Apply the user's saved default view if they have one; otherwise default
+  // to the signed-in employee (when they're in the directory), widening the
+  // department so their links can't be hidden by the department default.
+  let myEmployeeCode = "";
+
+  function selectHasValue(select, value) {
+    return [...select.options].some((option) => option.value === value);
+  }
+
   (async function defaultEmployeeFilters() {
     try {
       const res = await fetch("/api/auth/session", { credentials: "same-origin" });
       if (!res.ok) return;
       const session = await res.json();
       const email = String(session?.user?.email || "").trim().toLowerCase();
-      if (!email) return;
-      const myCode = Object.keys(TEAM_DIRECTORY).find(
+
+      myEmployeeCode = Object.keys(TEAM_DIRECTORY).find(
         (code) => String(TEAM_DIRECTORY[code].email || "").trim().toLowerCase() === email
-      );
-      if (!myCode) return;
-      queueEmployeeFilterEl.value = myCode;
-      paidEmployeeFilterEl.value = myCode;
-      departmentFilterEl.value = "all";
-      renderDashboard();
+      ) || "";
+
+      const saved = session?.dashboardView || null;
+
+      if (saved) {
+        // "self" follows whoever this account maps to in the directory.
+        let employeeValue =
+          saved.employee === "self" ? (myEmployeeCode || "all") : saved.employee;
+        if (!selectHasValue(queueEmployeeFilterEl, employeeValue)) employeeValue = "all";
+
+        queueEmployeeFilterEl.value = employeeValue;
+        paidEmployeeFilterEl.value = employeeValue;
+
+        if (saved.department && selectHasValue(departmentFilterEl, saved.department)) {
+          departmentFilterEl.value = saved.department;
+        }
+        renderDashboard();
+      } else if (myEmployeeCode) {
+        queueEmployeeFilterEl.value = myEmployeeCode;
+        paidEmployeeFilterEl.value = myEmployeeCode;
+        departmentFilterEl.value = "all";
+        renderDashboard();
+      }
+
+      // Individual accounts can save the current filters as their default.
+      const saveViewBtn = document.getElementById("saveViewBtn");
+      if (session?.canCustomizeDashboard && saveViewBtn) {
+        saveViewBtn.style.display = "inline-flex";
+        saveViewBtn.addEventListener("click", async () => {
+          const currentEmployee = queueEmployeeFilterEl.value || "all";
+          const payload = {
+            // Save "self" when they're looking at themselves, so the default
+            // survives employee-code changes (e.g. the NetSuite re-keying).
+            employee: myEmployeeCode && currentEmployee === myEmployeeCode ? "self" : currentEmployee,
+            department: departmentFilterEl.value || "all"
+          };
+
+          saveViewBtn.disabled = true;
+          const originalText = saveViewBtn.textContent;
+          try {
+            const saveRes = await fetch("/api/me/dashboard-view", {
+              method: "POST",
+              credentials: "same-origin",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(payload)
+            });
+            const data = await saveRes.json().catch(() => ({}));
+            if (!saveRes.ok) throw new Error(data.error || "Unable to save your default view.");
+            saveViewBtn.textContent = "Saved ✓";
+          } catch (err) {
+            saveViewBtn.textContent = err.message;
+          } finally {
+            setTimeout(() => {
+              saveViewBtn.textContent = originalText;
+              saveViewBtn.disabled = false;
+            }, 2500);
+          }
+        });
+      }
     } catch {}
   })();
 
@@ -1582,7 +1642,8 @@
         "/secret-menu.html": "Browse the internal secret menu of special-price appliances.",
         "/event-rsvps.html": "Manage event listings and attendee RSVPs.",
         "/spec-packages.html": "Create Steel Cod spec packages for sales orders and attach them to quotes.",
-        "/user-admin.html": "Invite users, grant page access, and review the audit log.",
+        "/user-admin.html": "Invite users, grant page access, and manage the employee directory.",
+        "/audit-log.html": "Pull account activity by date range, with IPs, and export to CSV.",
         "/commissions.html": "Build, review, and lock sales commission runs.",
         "/commissions-print.html": "Print-friendly commission statements."
       };
@@ -1601,7 +1662,7 @@
 
       // Executive-only pages: only ever present in grantedPages for
       // executives; grouped under their own heading in the picker.
-      const EXEC_ONLY_PAGES = ["/user-admin.html", "/commissions.html", "/commissions-print.html"];
+      const EXEC_ONLY_PAGES = ["/user-admin.html", "/audit-log.html", "/commissions.html", "/commissions-print.html"];
 
       function allowedPages() {
         return (session?.grantedPages || [])

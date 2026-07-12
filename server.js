@@ -69,6 +69,8 @@ import {
   setUserPreferences,
   recordAudit,
   listAuditLog,
+  searchAuditLog,
+  listAuditActions,
   TOKEN_TTLS_SECONDS
 } from "./lib/users-postgres.js";
 import {
@@ -90,6 +92,7 @@ import {
   getEmployeeDirectoryObject,
   upsertEmployeeDirectoryEntry,
   deleteEmployeeDirectoryEntry,
+  findEmployeeDirectoryEntryByEmail,
   validateEmployeeCode,
   normalizeEmployeeCode
 } from "./lib/employee-directory.js";
@@ -197,6 +200,7 @@ const INTERNAL_PAGE_PATHS = new Set([
   "/register.html",
   "/set-password.html",
   "/user-admin.html",
+  "/audit-log.html",
   "/spec-packages.html"
 ]);
 
@@ -247,6 +251,7 @@ const AUTH_PAGE_PATHS = new Set([
 // Executive-only pages: reachable only with is_executive, never grantable.
 const EXECUTIVE_ONLY_PAGE_PATHS = new Set([
   "/user-admin.html",
+  "/audit-log.html",
   "/commissions.html",
   "/commissions-print.html"
 ]);
@@ -350,7 +355,8 @@ const PAGE_LABELS = {
   "/spec-packages.html": "Spec Packages",
   "/commissions.html": "Commissions",
   "/commissions-print.html": "Commissions (Print)",
-  "/user-admin.html": "User Admin"
+  "/user-admin.html": "User Admin",
+  "/audit-log.html": "User Activity Audit"
 };
 
 // Category groupings for the User Admin permission UI. A page may appear in
@@ -1239,6 +1245,7 @@ app.post("/api/login", rateLimit("login", 10, 15 * 60 * 1000), async (req, res) 
         });
         setDbSessionCookie(req, res, token);
         recordAudit({
+      ip: req.ip,
           actorUserId: userRow.id,
           action: "login",
           targetUserId: userRow.id,
@@ -1289,6 +1296,7 @@ app.post("/api/login", rateLimit("login", 10, 15 * 60 * 1000), async (req, res) 
     });
     setDbSessionCookie(req, res, token);
     recordAudit({
+      ip: req.ip,
       actorUserId: userRow.id,
       action: "login",
       targetUserId: userRow.id,
@@ -1339,8 +1347,47 @@ app.get("/api/auth/session", (req, res) => {
     dashboardSlots: req.authUser.kind === "db"
       ? (req.authUser.preferences?.dashboardSlots || null)
       : null,
+    // Preferred default filters for the payments dashboard:
+    // { employee: "self" | "all" | "<CODE>", department: "all" | "<name>" }
+    dashboardView: req.authUser.kind === "db"
+      ? (req.authUser.preferences?.dashboardView || null)
+      : null,
     canCustomizeDashboard: req.authUser.kind === "db"
   });
+});
+
+// Save the signed-in user's preferred default dashboard view (employee +
+// department filters). "self" tracks whoever they are in the employee
+// directory, so it survives code re-keying (e.g. the NetSuite move).
+app.post("/api/me/dashboard-view", async (req, res) => {
+  if (!req.authUser) {
+    return res.status(401).json({ error: "Authentication required." });
+  }
+  if (req.authUser.kind !== "db") {
+    return res.status(400).json({
+      error: "Sign in with your individual account to save a default view."
+    });
+  }
+
+  const employee = String(req.body?.employee || "self").trim();
+  const department = String(req.body?.department || "all").trim();
+
+  if (!/^(self|all|[A-Za-z0-9]{1,3})$/.test(employee)) {
+    return res.status(400).json({ error: "Invalid employee selection." });
+  }
+  if (department.length > 40) {
+    return res.status(400).json({ error: "Invalid department selection." });
+  }
+
+  try {
+    const preferences = await setUserPreferences(req.authUser.id, {
+      dashboardView: { employee, department }
+    });
+    return res.json({ success: true, dashboardView: preferences.dashboardView || null });
+  } catch (err) {
+    console.error("Save dashboard view failed:", err.message);
+    return res.status(500).json({ error: "Unable to save your default view." });
+  }
 });
 
 // Save the signed-in user's dashboard hero-card slots. Personal setting —
@@ -1416,17 +1463,31 @@ app.post("/api/auth/register", rateLimit("register", 5, 15 * 60 * 1000), async (
 
     const existing = await findUserByEmail(normalized);
 
+    // The employee directory is the source of truth for names: when the
+    // registering email is in the directory, its (properly cased) name wins
+    // over whatever the person typed.
+    let resolvedDisplayName = String(displayName || "").trim();
+    try {
+      const directoryEntry = await findEmployeeDirectoryEntryByEmail(normalized);
+      if (directoryEntry?.name) {
+        resolvedDisplayName = directoryEntry.name;
+      }
+    } catch {
+      // Directory unavailable — keep the typed name.
+    }
+
     if (!existing) {
       const passwordHash = await hashPassword(password);
       const userRow = await createUser({
         email: normalized,
         passwordHash,
-        displayName,
+        displayName: resolvedDisplayName,
         status: "pending_verification"
       });
       const rawToken = await createAuthToken(userRow.id, "verify");
       await sendVerificationEmail(req, normalized, rawToken);
       recordAudit({
+      ip: req.ip,
         actorUserId: userRow.id,
         action: "register",
         targetUserId: userRow.id,
@@ -1437,8 +1498,8 @@ app.post("/api/auth/register", rateLimit("register", 5, 15 * 60 * 1000), async (
       // password and send a fresh single-use verification link.
       const passwordHash = await hashPassword(password);
       await updateUserPassword(existing.id, passwordHash);
-      if (String(displayName || "").trim()) {
-        await updateUserProfile(existing.id, { displayName });
+      if (resolvedDisplayName) {
+        await updateUserProfile(existing.id, { displayName: resolvedDisplayName });
       }
       const rawToken = await createAuthToken(existing.id, "verify");
       await sendVerificationEmail(req, normalized, rawToken);
@@ -1469,6 +1530,7 @@ app.post("/api/auth/verify-email", rateLimit("verify", 10, 15 * 60 * 1000), asyn
 
     await markUserVerifiedAndActive(userRow.id);
     recordAudit({
+      ip: req.ip,
       actorUserId: userRow.id,
       action: "email_verified",
       targetUserId: userRow.id,
@@ -1518,6 +1580,7 @@ app.post("/api/auth/accept-invite", rateLimit("accept-invite", 10, 15 * 60 * 100
     }
     await markUserVerifiedAndActive(userRow.id);
     recordAudit({
+      ip: req.ip,
       actorUserId: userRow.id,
       action: "invite_accepted",
       targetUserId: userRow.id,
@@ -1550,6 +1613,7 @@ app.post("/api/auth/request-reset", rateLimit("request-reset", 5, 15 * 60 * 1000
       const rawToken = await createAuthToken(userRow.id, "reset");
       await sendPasswordResetEmail(req, userRow.email, rawToken);
       recordAudit({
+      ip: req.ip,
         actorUserId: userRow.id,
         action: "reset_requested",
         targetUserId: userRow.id,
@@ -1594,6 +1658,7 @@ app.post("/api/auth/reset", rateLimit("reset", 10, 15 * 60 * 1000), async (req, 
     // Updates the hash and revokes every existing session for the user.
     await updateUserPassword(userRow.id, await hashPassword(password));
     recordAudit({
+      ip: req.ip,
       actorUserId: userRow.id,
       action: "password_reset",
       targetUserId: userRow.id,
@@ -1730,6 +1795,7 @@ app.post("/api/admin/users/invite", requireExecutiveApi, async (req, res) => {
     const rawToken = await createAuthToken(userRow.id, "invite");
     await sendInviteEmail(req, normalized, rawToken);
     recordAudit({
+      ip: req.ip,
       actorUserId: req.authUser.id || null,
       action: "user_invited",
       targetUserId: userRow.id,
@@ -1761,6 +1827,7 @@ app.post("/api/admin/users/:userId/resend-invite", requireExecutiveApi, async (r
     }
 
     recordAudit({
+      ip: req.ip,
       actorUserId: req.authUser.id || null,
       action: "invite_resent",
       targetUserId: userRow.id,
@@ -1791,7 +1858,8 @@ app.post("/api/admin/users/:userId/permissions", requireExecutiveApi, async (req
     const grantedPages = await setUserPagePermissions(
       userRow.id,
       changes.map((c) => ({ pagePath: String(c.pagePath), granted: Boolean(c.granted) })),
-      req.authUser.id || null
+      req.authUser.id || null,
+      req.ip
     );
 
     return res.json({ success: true, grantedPages });
@@ -1821,8 +1889,9 @@ app.post("/api/admin/users/:userId/preset", requireExecutiveApi, async (req, res
       granted: presetPages.includes(pagePath)
     }));
 
-    const grantedPages = await setUserPagePermissions(userRow.id, changes, req.authUser.id || null);
+    const grantedPages = await setUserPagePermissions(userRow.id, changes, req.authUser.id || null, req.ip);
     recordAudit({
+      ip: req.ip,
       actorUserId: req.authUser.id || null,
       action: "preset_applied",
       targetUserId: userRow.id,
@@ -1855,7 +1924,7 @@ app.post("/api/admin/users/:userId/status", requireExecutiveApi, async (req, res
 
     // Disabling deletes the user's sessions inside the same transaction, so
     // their access is revoked on the next request.
-    await setUserStatus(userRow.id, status, req.authUser.id || null);
+    await setUserStatus(userRow.id, status, req.authUser.id || null, req.ip);
     return res.json({ success: true });
   } catch (err) {
     console.error("Status change failed:", err.message);
@@ -1876,7 +1945,7 @@ app.post("/api/admin/users/:userId/executive", requireExecutiveApi, async (req, 
       return res.status(400).json({ error: "You cannot remove your own executive access." });
     }
 
-    await setUserExecutive(userRow.id, isExecutive, req.authUser.id || null);
+    await setUserExecutive(userRow.id, isExecutive, req.authUser.id || null, req.ip);
 
     if (!isExecutive) {
       // Dropping executive re-scopes them to page grants; end open sessions.
@@ -1898,16 +1967,25 @@ app.post("/api/admin/users/:userId/force-reset", requireExecutiveApi, async (req
       return res.status(400).json({ error: "Only active users can receive a reset email." });
     }
 
+    // lockout: for shared/compromised passwords. Invalidates the current
+    // password and ends every session IMMEDIATELY (single transaction);
+    // the user gets back in only via the emailed reset link.
+    const lockout = Boolean(req.body?.lockout);
+    if (lockout) {
+      await updateUserPassword(userRow.id, null);
+    }
+
     const rawToken = await createAuthToken(userRow.id, "reset");
     await sendPasswordResetEmail(req, userRow.email, rawToken);
     recordAudit({
+      ip: req.ip,
       actorUserId: req.authUser.id || null,
       action: "reset_forced",
       targetUserId: userRow.id,
-      detail: {}
+      detail: { lockout }
     }).catch(() => {});
 
-    return res.json({ success: true });
+    return res.json({ success: true, lockout });
   } catch (err) {
     console.error("Force reset failed:", err.message);
     return res.status(500).json({ error: "Unable to send the reset email." });
@@ -1920,11 +1998,40 @@ app.get("/api/admin/audit-log", requireExecutiveApi, async (req, res) => {
       return res.status(503).json({ error: "User management requires DATABASE_URL." });
     }
 
-    const entries = await listAuditLog(Number(req.query.limit) || 200);
-    return res.json({ entries });
+    const startDate = String(req.query.start || "").trim();
+    const endDate = String(req.query.end || "").trim();
+    const datePattern = /^\d{4}-\d{2}-\d{2}$/;
+
+    if (!datePattern.test(startDate) || !datePattern.test(endDate)) {
+      return res.status(400).json({ error: "Provide start and end dates (YYYY-MM-DD)." });
+    }
+    if (endDate < startDate) {
+      return res.status(400).json({ error: "The end date must be on or after the start date." });
+    }
+
+    const entries = await searchAuditLog({
+      startDate,
+      endDate,
+      userId: String(req.query.userId || "").trim() || null,
+      action: String(req.query.action || "").trim(),
+      limit: Number(req.query.limit) || 2000
+    });
+
+    return res.json({ entries, capped: entries.length >= Math.min(Math.max(Number(req.query.limit) || 2000, 1), 10000) });
   } catch (err) {
     console.error("Audit log read failed:", err.message);
     return res.status(500).json({ error: "Unable to load the audit log." });
+  }
+});
+
+// Distinct activity types, for the audit page's filter dropdown.
+app.get("/api/admin/audit-actions", requireExecutiveApi, async (req, res) => {
+  try {
+    const actions = await listAuditActions();
+    return res.json({ actions });
+  } catch (err) {
+    console.error("Audit actions read failed:", err.message);
+    return res.status(500).json({ error: "Unable to load activity types." });
   }
 });
 
@@ -2168,6 +2275,7 @@ app.delete("/api/spec-packages/:navId", requireExecutiveApi, async (req, res) =>
   try {
     const result = await deleteSpecPackage({ userEmail, navId: req.params.navId });
     recordAudit({
+      ip: req.ip,
       actorUserId: req.authUser.id || null,
       action: "spec_package_deleted",
       targetUserId: null,
@@ -2242,11 +2350,27 @@ app.post("/api/admin/employee-directory", requireExecutiveApi, async (req, res) 
       req.authUser.id || null
     );
 
+    // Names are joined: saving a directory entry updates the matching
+    // account's display name so the two can never drift apart.
+    let syncedUserId = null;
+    if (entry.email) {
+      try {
+        const account = await findUserByEmail(entry.email);
+        if (account && String(account.display_name || "") !== entry.name) {
+          await updateUserProfile(account.id, { displayName: entry.name });
+          syncedUserId = account.id;
+        }
+      } catch (err) {
+        console.error("Directory name sync failed:", err.message);
+      }
+    }
+
     recordAudit({
+      ip: req.ip,
       actorUserId: req.authUser.id || null,
       action: "employee_directory_saved",
-      targetUserId: null,
-      detail: { code: entry.code, name: entry.name, email: entry.email, department: entry.department }
+      targetUserId: syncedUserId,
+      detail: { code: entry.code, name: entry.name, email: entry.email, department: entry.department, nameSynced: Boolean(syncedUserId) }
     }).catch(() => {});
 
     return res.json({ success: true, entry });
@@ -2266,6 +2390,7 @@ app.delete("/api/admin/employee-directory/:code", requireExecutiveApi, async (re
     }
 
     recordAudit({
+      ip: req.ip,
       actorUserId: req.authUser.id || null,
       action: "employee_directory_deleted",
       targetUserId: null,

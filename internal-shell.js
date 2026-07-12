@@ -123,12 +123,14 @@
         ]
       },
       {
-        title: "Accounting Detail Tools",
+        title: "Accounting",
         children: [
           { href: "paid-order-detail.html", title: "Paid Order Detail" },
-          { href: "intent-lookup.html", title: "Intent Lookup" },
+          { href: "intent-lookup.html", title: "Issue Refund" },
           { href: "incoming-payouts.html", title: "Incoming Payouts" },
-          { href: "bank-balancing.html", title: "Bank Balancing" }
+          { href: "bank-balancing.html", title: "Bank Balancing" },
+          { href: "mileage.html", title: "Mileage" },
+          { href: "mileage-review.html", title: "Mileage Review" }
         ]
       },
       {
@@ -163,18 +165,6 @@
         ]
       });
     }
-
-    links.push({
-      href: "mileage.html",
-      title: "Mileage",
-      text: "Log monthly business mileage for reimbursement."
-    });
-
-    links.push({
-      href: "mileage-review.html",
-      title: "Mileage Review",
-      text: "Review, adjust, and approve submitted mileage months."
-    });
 
     if (session?.canManageUsers) {
       links.push({
@@ -225,7 +215,7 @@
     const user = session?.user || session;
     const candidates = [
       { href: "dashboard.html", title: "Payments Dashboard" },
-      { href: "paid-order-detail.html", title: "Accounting Detail Tools" },
+      { href: "paid-order-detail.html", title: "Accounting" },
       { href: "salesdashboard.html", title: "Sales Tools" },
       { href: "event-rsvps.html", title: "Event RSVPs" }
     ];

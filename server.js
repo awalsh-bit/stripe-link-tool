@@ -358,7 +358,7 @@ const PAGE_LABELS = {
   "/charge-saved-card.html": "Charge A Saved Card",
   "/hvac-dashboard.html": "Deposit Agreements",
   "/paid-order-detail.html": "Paid Order Detail",
-  "/intent-lookup.html": "Intent Lookup",
+  "/intent-lookup.html": "Issue Refund",
   "/incoming-payouts.html": "Incoming Payouts",
   "/bank-balancing.html": "Bank Balancing",
   "/link-detail-lookup.html": "Link Detail Lookup",

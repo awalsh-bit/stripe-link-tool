@@ -107,6 +107,19 @@ import {
   buildSpecPackageUrls
 } from "./lib/steelcod.js";
 import { PDFDocument } from "pdf-lib";
+import {
+  computeReimbursedMiles,
+  computeReportTotals,
+  listMileageRates,
+  getMileageRateForYear,
+  upsertMileageRate,
+  getMileageReportById,
+  getOrCreateMileageReport,
+  listMileageReportsForUser,
+  listMileageReportsForReview,
+  saveMileageEntries,
+  setMileageReportStatus
+} from "./lib/mileage-postgres.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -201,6 +214,8 @@ const INTERNAL_PAGE_PATHS = new Set([
   "/set-password.html",
   "/user-admin.html",
   "/audit-log.html",
+  "/mileage.html",
+  "/mileage-review.html",
   "/spec-packages.html"
 ]);
 
@@ -356,7 +371,9 @@ const PAGE_LABELS = {
   "/commissions.html": "Commissions",
   "/commissions-print.html": "Commissions (Print)",
   "/user-admin.html": "User Admin",
-  "/audit-log.html": "User Activity Audit"
+  "/audit-log.html": "User Activity Audit",
+  "/mileage.html": "Mileage",
+  "/mileage-review.html": "Mileage Review"
 };
 
 // Category groupings for the User Admin permission UI. A page may appear in
@@ -2297,6 +2314,274 @@ app.get("/api/steelcod-users", requireExecutiveApi, async (req, res) => {
     return res.json(result);
   } catch (err) {
     return sendSteelCodError(res, err, "Unable to load Steel Cod users.");
+  }
+});
+
+
+// ---------------------------------------------------------------------------
+// Mileage reimbursement
+// Employees log their own months on /mileage.html; reviewers (page grant on
+// /mileage-review.html — executives implicitly) approve/deny and may edit.
+// All math is computed server-side from stored entries; approval snapshots
+// the year's rate onto the report.
+// ---------------------------------------------------------------------------
+
+function resolveMileageUser(req, res) {
+  if (req.authUser?.kind !== "db") {
+    res.status(400).json({
+      error: "Mileage requires signing in with your individual account (not the shared login)."
+    });
+    return null;
+  }
+  return req.authUser;
+}
+
+function isMileageReviewer(user) {
+  return canAccessPathForUser(user, "/mileage-review.html");
+}
+
+async function attachMileageTotals(report) {
+  if (report.rateUsed == null) {
+    report.currentRate = await getMileageRateForYear(report.year);
+  }
+  report.totals = computeReportTotals(report);
+  return report;
+}
+
+function validateMileageEntries(entries, year, month) {
+  if (!Array.isArray(entries)) return "Send entries as an array.";
+  if (entries.length > 62) return "Too many entries for one month.";
+
+  const prefix = `${year}-${String(month).padStart(2, "0")}-`;
+
+  for (const entry of entries) {
+    const date = String(entry.entryDate || "").trim();
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !date.startsWith(prefix)) {
+      return `Each entry needs a date inside ${prefix.slice(0, -1)}.`;
+    }
+    const miles = Number(entry.miles);
+    if (!Number.isFinite(miles) || miles < 0 || miles > 2000) {
+      return "Miles must be between 0 and 2000.";
+    }
+  }
+  return null;
+}
+
+// Current + historical rates (any signed-in user; the page shows the rate).
+app.get("/api/mileage/rates", async (req, res) => {
+  try {
+    const rates = await listMileageRates();
+    return res.json({ rates });
+  } catch (err) {
+    console.error("Mileage rates read failed:", err.message);
+    return res.status(500).json({ error: "Unable to load mileage rates." });
+  }
+});
+
+// Executive: add/update a year's rate.
+app.post("/api/admin/mileage-rates", requireExecutiveApi, async (req, res) => {
+  try {
+    const year = Number(req.body?.year);
+    const rate = Number(req.body?.rate);
+    if (!Number.isInteger(year) || year < 2020 || year > 2100) {
+      return res.status(400).json({ error: "Enter a valid year." });
+    }
+    if (!Number.isFinite(rate) || rate <= 0 || rate >= 10) {
+      return res.status(400).json({ error: "Enter a valid per-mile rate (e.g. 0.725)." });
+    }
+    const saved = await upsertMileageRate(year, rate, req.authUser.id || null);
+    recordAudit({
+      ip: req.ip,
+      actorUserId: req.authUser.id || null,
+      action: "mileage_rate_saved",
+      targetUserId: null,
+      detail: saved
+    }).catch(() => {});
+    return res.json({ success: true, rate: saved });
+  } catch (err) {
+    console.error("Mileage rate save failed:", err.message);
+    return res.status(500).json({ error: "Unable to save the rate." });
+  }
+});
+
+// Employee: list own reports (for the month picker's status hints).
+app.get("/api/mileage/my-reports", requirePagePermission("/mileage.html"), async (req, res) => {
+  const user = resolveMileageUser(req, res);
+  if (!user) return;
+  try {
+    const year = Number(req.query.year) || null;
+    const reports = await listMileageReportsForUser(user.id, year);
+    return res.json({ reports });
+  } catch (err) {
+    console.error("Mileage list failed:", err.message);
+    return res.status(500).json({ error: "Unable to load your mileage reports." });
+  }
+});
+
+// Employee: open (or start) a month. Commute defaults from the directory.
+app.post("/api/mileage/report", requirePagePermission("/mileage.html"), async (req, res) => {
+  const user = resolveMileageUser(req, res);
+  if (!user) return;
+  try {
+    const year = Number(req.body?.year);
+    const month = Number(req.body?.month);
+    if (!Number.isInteger(year) || year < 2020 || year > 2100 || !Number.isInteger(month) || month < 1 || month > 12) {
+      return res.status(400).json({ error: "Choose a valid year and month." });
+    }
+
+    let commute = 0;
+    try {
+      const directoryEntry = await findEmployeeDirectoryEntryByEmail(user.email);
+      commute = directoryEntry?.commuteMiles || 0;
+    } catch {}
+
+    const report = await getOrCreateMileageReport(user.id, year, month, commute);
+    await attachMileageTotals(report);
+    return res.json({ report });
+  } catch (err) {
+    console.error("Mileage open failed:", err.message);
+    return res.status(500).json({ error: "Unable to open that month." });
+  }
+});
+
+// Save entries. Owners may save while draft/denied; reviewers while submitted
+// (approver edits). Reviewers may also adjust the commute snapshot.
+app.post("/api/mileage/report/:id/entries", async (req, res) => {
+  const user = resolveMileageUser(req, res);
+  if (!user) return;
+  try {
+    const report = await getMileageReportById(req.params.id);
+    if (!report) return res.status(404).json({ error: "Report not found." });
+
+    const isOwner = report.userId === user.id;
+    const reviewer = isMileageReviewer(user);
+
+    const ownerCanEdit = isOwner && ["draft", "denied"].includes(report.status) && canAccessPathForUser(user, "/mileage.html");
+    const reviewerCanEdit = reviewer && report.status === "submitted";
+
+    if (!ownerCanEdit && !reviewerCanEdit) {
+      return res.status(403).json({ error: "This report can't be edited in its current status." });
+    }
+
+    const entries = req.body?.entries;
+    const invalid = validateMileageEntries(entries, report.year, report.month);
+    if (invalid) return res.status(400).json({ error: invalid });
+
+    const commuteMiles =
+      reviewerCanEdit && req.body?.commuteMiles != null
+        ? Math.max(Number(req.body.commuteMiles) || 0, 0)
+        : null;
+
+    const saved = await saveMileageEntries(report.id, entries, { commuteMiles });
+    await attachMileageTotals(saved);
+    return res.json({ report: saved });
+  } catch (err) {
+    console.error("Mileage save failed:", err.message);
+    return res.status(500).json({ error: "Unable to save entries." });
+  }
+});
+
+// Employee: submit (locks the month for review).
+app.post("/api/mileage/report/:id/submit", requirePagePermission("/mileage.html"), async (req, res) => {
+  const user = resolveMileageUser(req, res);
+  if (!user) return;
+  try {
+    const report = await getMileageReportById(req.params.id);
+    if (!report) return res.status(404).json({ error: "Report not found." });
+    if (report.userId !== user.id) return res.status(403).json({ error: "Not your report." });
+    if (!["draft", "denied"].includes(report.status)) {
+      return res.status(400).json({ error: "Only draft or denied reports can be submitted." });
+    }
+    if (!report.entries.length) {
+      return res.status(400).json({ error: "Add at least one entry before submitting." });
+    }
+
+    const updated = await setMileageReportStatus(report.id, { status: "submitted" });
+    await attachMileageTotals(updated);
+    recordAudit({
+      ip: req.ip,
+      actorUserId: user.id,
+      action: "mileage_submitted",
+      targetUserId: user.id,
+      detail: { year: report.year, month: report.month, reportId: report.id }
+    }).catch(() => {});
+    return res.json({ report: updated });
+  } catch (err) {
+    console.error("Mileage submit failed:", err.message);
+    return res.status(500).json({ error: "Unable to submit the report." });
+  }
+});
+
+// Reviewer: list reports for review.
+app.get("/api/mileage/review", requirePagePermission("/mileage-review.html"), async (req, res) => {
+  try {
+    const reports = await listMileageReportsForReview({
+      status: String(req.query.status || "").trim(),
+      year: Number(req.query.year) || null,
+      month: Number(req.query.month) || null
+    });
+    for (const report of reports) {
+      await attachMileageTotals(report);
+    }
+    return res.json({ reports });
+  } catch (err) {
+    console.error("Mileage review list failed:", err.message);
+    return res.status(500).json({ error: "Unable to load reports." });
+  }
+});
+
+// Reviewer: approve (snapshots the year's rate) or deny (with a note).
+app.post("/api/mileage/report/:id/decide", requirePagePermission("/mileage-review.html"), async (req, res) => {
+  const user = resolveMileageUser(req, res);
+  if (!user) return;
+  try {
+    const report = await getMileageReportById(req.params.id);
+    if (!report) return res.status(404).json({ error: "Report not found." });
+    if (report.status !== "submitted") {
+      return res.status(400).json({ error: "Only submitted reports can be approved or denied." });
+    }
+    if (report.userId === user.id) {
+      return res.status(400).json({ error: "You can't approve or deny your own mileage — ask another reviewer." });
+    }
+
+    const decision = String(req.body?.decision || "").trim();
+
+    if (decision === "approve") {
+      const rate = await getMileageRateForYear(report.year);
+      if (rate == null) {
+        return res.status(400).json({ error: `No mileage rate is set for ${report.year} — add one first.` });
+      }
+      const updated = await setMileageReportStatus(report.id, { status: "approved", deciderId: user.id, rateUsed: rate });
+      await attachMileageTotals(updated);
+      recordAudit({
+        ip: req.ip,
+        actorUserId: user.id,
+        action: "mileage_approved",
+        targetUserId: report.userId,
+        detail: { year: report.year, month: report.month, reportId: report.id, rate, reimbursementTotal: updated.totals?.reimbursementTotal }
+      }).catch(() => {});
+      return res.json({ report: updated });
+    }
+
+    if (decision === "deny") {
+      const note = String(req.body?.note || "").trim().slice(0, 500);
+      if (!note) return res.status(400).json({ error: "A short note is required when denying." });
+      const updated = await setMileageReportStatus(report.id, { status: "denied", deciderId: user.id, denialNote: note });
+      await attachMileageTotals(updated);
+      recordAudit({
+        ip: req.ip,
+        actorUserId: user.id,
+        action: "mileage_denied",
+        targetUserId: report.userId,
+        detail: { year: report.year, month: report.month, reportId: report.id, note }
+      }).catch(() => {});
+      return res.json({ report: updated });
+    }
+
+    return res.status(400).json({ error: "decision must be approve or deny." });
+  } catch (err) {
+    console.error("Mileage decide failed:", err.message);
+    return res.status(500).json({ error: "Unable to record the decision." });
   }
 });
 

@@ -1,0 +1,590 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="robots" content="noindex,nofollow,noarchive" />
+  <title>Wilson AC & Appliance - Mileage</title>
+  <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+  <link rel="stylesheet" href="internal-shell.css" />
+  <style>
+    :root {
+      --bg: #f7f8fc;
+      --card: #ffffff;
+      --text: #1f2937;
+      --muted: #6b7280;
+      --border: #dbe1ea;
+      --primary: #635bff;
+      --primary-hover: #564ef0;
+      --success-bg: #ecfdf5;
+      --success-text: #065f46;
+      --error-bg: #fef2f2;
+      --error-text: #991b1b;
+      --warn-bg: #fffbeb;
+      --warn-text: #92400e;
+      --shadow: 0 10px 35px rgba(0, 0, 0, 0.08);
+      --radius: 18px;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: linear-gradient(180deg, #eef2ff 0%, var(--bg) 100%);
+      color: var(--text);
+      min-height: 100vh;
+      padding: 32px 16px;
+    }
+
+    .wrap { max-width: 1200px; margin: 0 auto; }
+
+    .surface {
+      background: var(--card);
+      border: 1px solid rgba(99, 91, 255, 0.12);
+      box-shadow: var(--shadow);
+      border-radius: var(--radius);
+      padding: 24px;
+      margin: 0 auto 22px;
+    }
+
+    h2 { margin: 0 0 6px; font-size: 22px; }
+    .section-note { margin: 0 0 16px; color: var(--muted); font-size: 14px; line-height: 1.5; }
+
+    .toolbar { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; margin-bottom: 4px; }
+    .toolbar .field { flex: 0 1 160px; }
+
+    label { display: block; margin-bottom: 6px; font-size: 13px; font-weight: 700; }
+
+    input, select {
+      width: 100%;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 10px 12px;
+      font-size: 14px;
+      background: #fff;
+      color: var(--text);
+      outline: none;
+      font-family: inherit;
+    }
+
+    input:focus, select:focus {
+      border-color: rgba(99, 91, 255, 0.75);
+      box-shadow: 0 0 0 4px rgba(99, 91, 255, 0.12);
+    }
+
+    button {
+      appearance: none;
+      border: none;
+      background: var(--primary);
+      color: #fff;
+      padding: 10px 16px;
+      border-radius: 10px;
+      font-size: 14px;
+      font-weight: 700;
+      cursor: pointer;
+      white-space: nowrap;
+      font-family: inherit;
+    }
+
+    button:hover { background: var(--primary-hover); }
+    button:disabled { opacity: 0.6; cursor: wait; }
+    button.secondary { background: #eef2ff; color: var(--primary); }
+    button.secondary:hover { background: #e0e7ff; }
+    button.danger { background: #fee2e2; color: #991b1b; }
+    button.danger:hover { background: #fecaca; }
+    button.tiny { padding: 6px 10px; font-size: 12px; border-radius: 8px; }
+
+    .status {
+      display: none;
+      margin: 12px 0 0;
+      border-radius: 12px;
+      padding: 12px 14px;
+      font-size: 14px;
+      line-height: 1.5;
+    }
+
+    .status.show { display: block; }
+    .status.error { background: var(--error-bg); color: var(--error-text); }
+    .status.ok { background: var(--success-bg); color: var(--success-text); }
+    .status.warn { background: var(--warn-bg); color: var(--warn-text); }
+
+    .report-banner {
+      display: none;
+      border-radius: 12px;
+      padding: 12px 14px;
+      margin-bottom: 14px;
+      font-size: 14px;
+      line-height: 1.5;
+    }
+
+    .report-banner.show { display: block; }
+    .report-banner.draft { background: #eef2ff; color: #3730a3; }
+    .report-banner.submitted { background: var(--warn-bg); color: var(--warn-text); }
+    .report-banner.approved { background: var(--success-bg); color: var(--success-text); }
+    .report-banner.denied { background: var(--error-bg); color: var(--error-text); }
+
+    table { width: 100%; border-collapse: collapse; font-size: 14px; }
+
+    th, td {
+      text-align: left;
+      padding: 8px 10px;
+      border-bottom: 1px solid #eef1f6;
+      vertical-align: middle;
+    }
+
+    th {
+      font-size: 12px;
+      font-weight: 800;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: #64748b;
+      white-space: nowrap;
+    }
+
+    td input, td select { padding: 8px 10px; }
+    td.num, th.num { text-align: right; }
+
+    .totals-row td { font-weight: 800; border-top: 2px solid var(--border); }
+
+    .grand {
+      margin-top: 14px;
+      display: flex;
+      gap: 24px;
+      flex-wrap: wrap;
+      font-size: 15px;
+    }
+
+    .grand .box { background: #fbfcff; border: 1px solid var(--border); border-radius: 12px; padding: 12px 16px; }
+    .grand .box strong { font-size: 20px; display: block; }
+
+    .muted { color: var(--muted); }
+    .small-text { font-size: 12px; }
+    .table-scroll { overflow-x: auto; }
+    .actions-row { margin-top: 16px; display: flex; gap: 10px; flex-wrap: wrap; }
+
+    @media (max-width: 720px) {
+      body { padding: 18px 8px; }
+      .surface { padding: 16px; }
+    }
+  </style>
+</head>
+<body data-shell-label="Mileage" data-shell-icon="accounting">
+  <div class="wrap">
+    <div id="internal-shell-header"></div>
+
+    <div class="surface">
+      <h2>Monthly Mileage Reimbursement</h2>
+      <p class="section-note">
+        Log business mileage by day. On days you don't start at the showroom, your standard
+        round-trip commute (<span id="commuteNote">—</span> miles) is deducted automatically.
+        Submit the month when it's complete; it locks for review.
+      </p>
+
+      <div class="toolbar">
+        <div class="field">
+          <label for="yearSelect">Year</label>
+          <select id="yearSelect"></select>
+        </div>
+        <div class="field">
+          <label for="monthSelect">Month</label>
+          <select id="monthSelect"></select>
+        </div>
+        <button id="openBtn" type="button">Open month</button>
+      </div>
+      <div id="pageStatus" class="status"></div>
+    </div>
+
+    <div class="surface" id="reportSurface" style="display: none;">
+      <div id="reportBanner" class="report-banner"></div>
+
+      <div class="table-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Showroom Start</th>
+              <th>Business Purpose</th>
+              <th class="num">Miles Driven</th>
+              <th class="num">Reimbursed Miles</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="entriesBody"></tbody>
+          <tbody>
+            <tr class="totals-row">
+              <td colspan="3">TOTAL</td>
+              <td class="num" id="totalMiles">0</td>
+              <td class="num" id="totalReimbursed">0</td>
+              <td></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="actions-row">
+        <button id="addRowBtn" type="button" class="secondary">Add day</button>
+        <span style="flex: 1 1 auto;"></span>
+        <button id="saveBtn" type="button" class="secondary">Save draft</button>
+        <button id="submitBtn" type="button">Submit for approval</button>
+      </div>
+
+      <div class="grand">
+        <div class="box">Rate per mile<strong id="rateBox">—</strong></div>
+        <div class="box">Reimbursement total<strong id="grandTotal">—</strong></div>
+      </div>
+
+      <div id="reportStatus" class="status"></div>
+    </div>
+
+    <div class="surface">
+      <h2>My months</h2>
+      <div class="table-scroll">
+        <table>
+          <thead>
+            <tr><th>Month</th><th>Status</th><th>Submitted</th><th>Decided</th><th></th></tr>
+          </thead>
+          <tbody id="historyBody">
+            <tr><td colspan="5" class="muted">Loading…</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div id="internal-shell-footer"></div>
+  </div>
+
+  <script src="internal-shell.js"></script>
+  <script>
+    const MONTH_NAMES = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+    let report = null;
+    let rates = [];
+
+    function setStatus(id, message, kind) {
+      const box = document.getElementById(id);
+      if (!message) { box.className = "status"; box.textContent = ""; return; }
+      box.className = "status " + kind + " show";
+      box.textContent = message;
+    }
+
+    async function api(path, options) {
+      const res = await fetch(path, {
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json" },
+        ...options
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || "Request failed.");
+      return data;
+    }
+
+    function isEditable() {
+      return report && ["draft", "denied"].includes(report.status);
+    }
+
+    function currentRateForYear(year) {
+      const match = rates.find((r) => r.year === year);
+      return match ? match.rate : null;
+    }
+
+    function monthBounds() {
+      const y = report.year, m = report.month;
+      const last = new Date(y, m, 0).getDate();
+      const mm = String(m).padStart(2, "0");
+      return { min: `${y}-${mm}-01`, max: `${y}-${mm}-${String(last).padStart(2, "0")}` };
+    }
+
+    function computeReimbursed(entry) {
+      const miles = Number(entry.miles) || 0;
+      if (entry.showroomStart) return miles;
+      return Math.max(miles - (report.commuteMiles || 0), 0);
+    }
+
+    function readEntriesFromGrid() {
+      return [...document.querySelectorAll("#entriesBody tr")].map((tr) => ({
+        entryDate: tr.querySelector(".e-date").value,
+        showroomStart: tr.querySelector(".e-start").value === "Y",
+        purpose: tr.querySelector(".e-purpose").value.trim(),
+        miles: Number(tr.querySelector(".e-miles").value) || 0
+      })).filter((e) => e.entryDate);
+    }
+
+    function refreshTotals() {
+      const entries = readEntriesFromGrid();
+      const totalMiles = entries.reduce((s, e) => s + e.miles, 0);
+      const reimbursed = entries.reduce((s, e) => s + computeReimbursed(e), 0);
+      document.getElementById("totalMiles").textContent = (Math.round(totalMiles * 10) / 10).toLocaleString();
+      document.getElementById("totalReimbursed").textContent = (Math.round(reimbursed * 10) / 10).toLocaleString();
+
+      const rate = report.rateUsed != null ? report.rateUsed : currentRateForYear(report.year);
+      document.getElementById("rateBox").textContent = rate != null ? "$" + Number(rate).toFixed(3).replace(/0$/, "") : "not set";
+      document.getElementById("grandTotal").textContent =
+        rate != null ? "$" + (Math.round(reimbursed * rate * 100) / 100).toLocaleString(undefined, { minimumFractionDigits: 2 }) : "—";
+
+      [...document.querySelectorAll("#entriesBody tr")].forEach((tr) => {
+        const entry = {
+          showroomStart: tr.querySelector(".e-start").value === "Y",
+          miles: Number(tr.querySelector(".e-miles").value) || 0
+        };
+        tr.querySelector(".e-reimbursed").textContent = (Math.round(computeReimbursed(entry) * 10) / 10).toLocaleString();
+      });
+    }
+
+    function addEntryRow(entry) {
+      const bounds = monthBounds();
+      const editable = isEditable();
+      const tr = document.createElement("tr");
+
+      const tdDate = document.createElement("td");
+      const dateInput = document.createElement("input");
+      dateInput.type = "date";
+      dateInput.className = "e-date";
+      dateInput.min = bounds.min;
+      dateInput.max = bounds.max;
+      dateInput.value = entry?.entryDate || bounds.min;
+      dateInput.disabled = !editable;
+      tdDate.appendChild(dateInput);
+
+      const tdStart = document.createElement("td");
+      const startSelect = document.createElement("select");
+      startSelect.className = "e-start";
+      for (const [value, label] of [["Y", "Y — from showroom"], ["N", "N — from home"]]) {
+        const option = document.createElement("option");
+        option.value = value;
+        option.textContent = label;
+        startSelect.appendChild(option);
+      }
+      startSelect.value = entry ? (entry.showroomStart ? "Y" : "N") : "Y";
+      startSelect.disabled = !editable;
+      tdStart.appendChild(startSelect);
+
+      const tdPurpose = document.createElement("td");
+      const purposeInput = document.createElement("input");
+      purposeInput.type = "text";
+      purposeInput.className = "e-purpose";
+      purposeInput.maxLength = 200;
+      purposeInput.placeholder = "Client site visit, prospecting, training…";
+      purposeInput.value = entry?.purpose || "";
+      purposeInput.disabled = !editable;
+      tdPurpose.appendChild(purposeInput);
+
+      const tdMiles = document.createElement("td");
+      tdMiles.className = "num";
+      const milesInput = document.createElement("input");
+      milesInput.type = "number";
+      milesInput.className = "e-miles";
+      milesInput.min = "0";
+      milesInput.max = "2000";
+      milesInput.step = "0.1";
+      milesInput.style.textAlign = "right";
+      milesInput.value = entry != null ? entry.miles : 0;
+      milesInput.disabled = !editable;
+      tdMiles.appendChild(milesInput);
+
+      const tdReimbursed = document.createElement("td");
+      tdReimbursed.className = "num";
+      const reimbursedSpan = document.createElement("span");
+      reimbursedSpan.className = "e-reimbursed";
+      reimbursedSpan.textContent = "0";
+      tdReimbursed.appendChild(reimbursedSpan);
+
+      const tdRemove = document.createElement("td");
+      if (editable) {
+        const removeBtn = document.createElement("button");
+        removeBtn.type = "button";
+        removeBtn.className = "tiny danger";
+        removeBtn.textContent = "×";
+        removeBtn.addEventListener("click", () => { tr.remove(); refreshTotals(); });
+        tdRemove.appendChild(removeBtn);
+      }
+
+      for (const td of [tdDate, tdStart, tdPurpose, tdMiles, tdReimbursed, tdRemove]) tr.appendChild(td);
+      for (const input of [dateInput, startSelect, purposeInput, milesInput]) {
+        input.addEventListener("input", refreshTotals);
+        input.addEventListener("change", refreshTotals);
+      }
+
+      document.getElementById("entriesBody").appendChild(tr);
+    }
+
+    function renderReport() {
+      document.getElementById("reportSurface").style.display = "block";
+      document.getElementById("commuteNote").textContent = report.commuteMiles;
+
+      const banner = document.getElementById("reportBanner");
+      const monthLabel = MONTH_NAMES[report.month - 1] + " " + report.year;
+      const bannerText = {
+        draft: `${monthLabel} — draft. Add your days, save as you go, and submit when the month is complete.`,
+        submitted: `${monthLabel} — submitted and locked for review. You'll see it here once it's approved or returned.`,
+        approved: `${monthLabel} — APPROVED at $${report.rateUsed}/mile. Accounting uses this total for payroll.`,
+        denied: `${monthLabel} — returned: "${report.denialNote}" Make your corrections and resubmit.`
+      };
+      banner.className = "report-banner show " + report.status;
+      banner.textContent = bannerText[report.status] || monthLabel;
+
+      const body = document.getElementById("entriesBody");
+      body.textContent = "";
+      for (const entry of report.entries) addEntryRow(entry);
+      if (!report.entries.length && isEditable()) addEntryRow(null);
+
+      const editable = isEditable();
+      document.getElementById("addRowBtn").style.display = editable ? "inline-flex" : "none";
+      document.getElementById("saveBtn").style.display = editable ? "inline-flex" : "none";
+      document.getElementById("submitBtn").style.display = editable ? "inline-flex" : "none";
+      document.getElementById("submitBtn").textContent =
+        report.status === "denied" ? "Resubmit for approval" : "Submit for approval";
+
+      refreshTotals();
+      setStatus("reportStatus", "", "");
+    }
+
+    async function saveEntries() {
+      const entries = readEntriesFromGrid();
+      const data = await api(`/api/mileage/report/${report.id}/entries`, {
+        method: "POST",
+        body: JSON.stringify({ entries })
+      });
+      report = data.report;
+    }
+
+    document.getElementById("openBtn").addEventListener("click", async () => {
+      const btn = document.getElementById("openBtn");
+      btn.disabled = true;
+      setStatus("pageStatus", "", "");
+      try {
+        const data = await api("/api/mileage/report", {
+          method: "POST",
+          body: JSON.stringify({
+            year: Number(document.getElementById("yearSelect").value),
+            month: Number(document.getElementById("monthSelect").value)
+          })
+        });
+        report = data.report;
+        renderReport();
+        await loadHistory();
+      } catch (err) {
+        setStatus("pageStatus", err.message, "error");
+      } finally {
+        btn.disabled = false;
+      }
+    });
+
+    document.getElementById("addRowBtn").addEventListener("click", () => {
+      addEntryRow(null);
+      refreshTotals();
+    });
+
+    document.getElementById("saveBtn").addEventListener("click", async (e) => {
+      e.target.disabled = true;
+      try {
+        await saveEntries();
+        renderReport();
+        setStatus("reportStatus", "Draft saved.", "ok");
+      } catch (err) {
+        setStatus("reportStatus", err.message, "error");
+      } finally {
+        e.target.disabled = false;
+      }
+    });
+
+    document.getElementById("submitBtn").addEventListener("click", async (e) => {
+      const entries = readEntriesFromGrid();
+      if (!entries.length) {
+        setStatus("reportStatus", "Add at least one day before submitting.", "error");
+        return;
+      }
+      if (!confirm(`Submit ${MONTH_NAMES[report.month - 1]} ${report.year} for approval? The month locks until it's reviewed.`)) return;
+
+      e.target.disabled = true;
+      try {
+        await saveEntries();
+        const data = await api(`/api/mileage/report/${report.id}/submit`, { method: "POST", body: "{}" });
+        report = data.report;
+        renderReport();
+        await loadHistory();
+        setStatus("reportStatus", "Submitted for approval.", "ok");
+      } catch (err) {
+        setStatus("reportStatus", err.message, "error");
+      } finally {
+        e.target.disabled = false;
+      }
+    });
+
+    async function loadHistory() {
+      try {
+        const data = await api("/api/mileage/my-reports");
+        const body = document.getElementById("historyBody");
+        body.textContent = "";
+
+        if (!data.reports.length) {
+          const tr = document.createElement("tr");
+          const td = document.createElement("td");
+          td.colSpan = 5;
+          td.className = "muted";
+          td.textContent = "No months yet — open one above to get started.";
+          tr.appendChild(td);
+          body.appendChild(tr);
+          return;
+        }
+
+        for (const r of data.reports) {
+          const tr = document.createElement("tr");
+          const cells = [
+            MONTH_NAMES[r.month - 1] + " " + r.year,
+            r.status.toUpperCase(),
+            r.submittedAt ? new Date(r.submittedAt).toLocaleDateString() : "—",
+            r.decidedAt ? new Date(r.decidedAt).toLocaleDateString() : "—"
+          ];
+          for (const text of cells) {
+            const td = document.createElement("td");
+            td.textContent = text;
+            tr.appendChild(td);
+          }
+          const tdOpen = document.createElement("td");
+          const openBtn = document.createElement("button");
+          openBtn.type = "button";
+          openBtn.className = "tiny secondary";
+          openBtn.textContent = "Open";
+          openBtn.addEventListener("click", () => {
+            document.getElementById("yearSelect").value = r.year;
+            document.getElementById("monthSelect").value = r.month;
+            document.getElementById("openBtn").click();
+          });
+          tdOpen.appendChild(openBtn);
+          tr.appendChild(tdOpen);
+          body.appendChild(tr);
+        }
+      } catch (err) {
+        setStatus("pageStatus", err.message, "error");
+      }
+    }
+
+    (async function init() {
+      const now = new Date();
+      const yearSelect = document.getElementById("yearSelect");
+      for (const y of [now.getFullYear() - 1, now.getFullYear(), now.getFullYear() + 1]) {
+        const option = document.createElement("option");
+        option.value = y;
+        option.textContent = y;
+        if (y === now.getFullYear()) option.selected = true;
+        yearSelect.appendChild(option);
+      }
+      const monthSelect = document.getElementById("monthSelect");
+      MONTH_NAMES.forEach((name, i) => {
+        const option = document.createElement("option");
+        option.value = i + 1;
+        option.textContent = name;
+        if (i === now.getMonth()) option.selected = true;
+        monthSelect.appendChild(option);
+      });
+
+      try {
+        const data = await api("/api/mileage/rates");
+        rates = data.rates || [];
+      } catch {}
+
+      loadHistory();
+    })();
+  </script>
+</body>
+</html>

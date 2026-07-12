@@ -1,0 +1,739 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="robots" content="noindex,nofollow,noarchive" />
+  <title>Wilson AC & Appliance - Mileage Review</title>
+  <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+  <link rel="stylesheet" href="internal-shell.css" />
+  <style>
+    :root {
+      --bg: #f7f8fc;
+      --card: #ffffff;
+      --text: #1f2937;
+      --muted: #6b7280;
+      --border: #dbe1ea;
+      --primary: #635bff;
+      --primary-hover: #564ef0;
+      --success-bg: #ecfdf5;
+      --success-text: #065f46;
+      --error-bg: #fef2f2;
+      --error-text: #991b1b;
+      --warn-bg: #fffbeb;
+      --warn-text: #92400e;
+      --shadow: 0 10px 35px rgba(0, 0, 0, 0.08);
+      --radius: 18px;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: linear-gradient(180deg, #eef2ff 0%, var(--bg) 100%);
+      color: var(--text);
+      min-height: 100vh;
+      padding: 32px 16px;
+    }
+
+    .wrap { max-width: 1300px; margin: 0 auto; }
+
+    .surface {
+      background: var(--card);
+      border: 1px solid rgba(99, 91, 255, 0.12);
+      box-shadow: var(--shadow);
+      border-radius: var(--radius);
+      padding: 24px;
+      margin: 0 auto 22px;
+    }
+
+    h2 { margin: 0 0 6px; font-size: 22px; }
+    h3 { margin: 18px 0 8px; font-size: 16px; }
+    .section-note { margin: 0 0 16px; color: var(--muted); font-size: 14px; line-height: 1.5; }
+
+    .toolbar { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; margin-bottom: 4px; }
+    .toolbar .field { flex: 0 1 170px; }
+
+    label { display: block; margin-bottom: 6px; font-size: 13px; font-weight: 700; }
+
+    input, select {
+      width: 100%;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 10px 12px;
+      font-size: 14px;
+      background: #fff;
+      color: var(--text);
+      outline: none;
+      font-family: inherit;
+    }
+
+    input:focus, select:focus {
+      border-color: rgba(99, 91, 255, 0.75);
+      box-shadow: 0 0 0 4px rgba(99, 91, 255, 0.12);
+    }
+
+    button {
+      appearance: none;
+      border: none;
+      background: var(--primary);
+      color: #fff;
+      padding: 10px 16px;
+      border-radius: 10px;
+      font-size: 14px;
+      font-weight: 700;
+      cursor: pointer;
+      white-space: nowrap;
+      font-family: inherit;
+    }
+
+    button:hover { background: var(--primary-hover); }
+    button:disabled { opacity: 0.6; cursor: wait; }
+    button.secondary { background: #eef2ff; color: var(--primary); }
+    button.secondary:hover { background: #e0e7ff; }
+    button.danger { background: #fee2e2; color: #991b1b; }
+    button.danger:hover { background: #fecaca; }
+    button.approve { background: #059669; }
+    button.approve:hover { background: #047857; }
+    button.tiny { padding: 6px 10px; font-size: 12px; border-radius: 8px; }
+
+    .status {
+      display: none;
+      margin: 12px 0 0;
+      border-radius: 12px;
+      padding: 12px 14px;
+      font-size: 14px;
+      line-height: 1.5;
+    }
+
+    .status.show { display: block; }
+    .status.error { background: var(--error-bg); color: var(--error-text); }
+    .status.ok { background: var(--success-bg); color: var(--success-text); }
+    .status.warn { background: var(--warn-bg); color: var(--warn-text); }
+
+    table { width: 100%; border-collapse: collapse; font-size: 14px; }
+
+    th, td {
+      text-align: left;
+      padding: 8px 10px;
+      border-bottom: 1px solid #eef1f6;
+      vertical-align: middle;
+    }
+
+    th {
+      font-size: 12px;
+      font-weight: 800;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: #64748b;
+      white-space: nowrap;
+    }
+
+    td input, td select { padding: 8px 10px; }
+    td.num, th.num { text-align: right; }
+    .totals-row td { font-weight: 800; border-top: 2px solid var(--border); }
+
+    .pill {
+      display: inline-flex;
+      border-radius: 999px;
+      padding: 3px 10px;
+      font-size: 12px;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+
+    .pill.draft { background: #eef2ff; color: #3730a3; }
+    .pill.submitted { background: var(--warn-bg); color: var(--warn-text); }
+    .pill.approved { background: var(--success-bg); color: var(--success-text); }
+    .pill.denied { background: var(--error-bg); color: var(--error-text); }
+
+    .detail-head { display: flex; flex-wrap: wrap; gap: 16px; align-items: center; margin-bottom: 12px; }
+    .detail-head .who { font-size: 16px; font-weight: 800; }
+
+    .grand { margin-top: 14px; display: flex; gap: 24px; flex-wrap: wrap; font-size: 15px; }
+    .grand .box { background: #fbfcff; border: 1px solid var(--border); border-radius: 12px; padding: 12px 16px; }
+    .grand .box strong { font-size: 20px; display: block; }
+
+    .deny-box { margin-top: 14px; display: none; gap: 10px; }
+    .deny-box.show { display: flex; }
+    .deny-box input { flex: 1; }
+
+    .commute-inline { display: inline-flex; align-items: center; gap: 8px; }
+    .commute-inline input { width: 90px; text-align: right; }
+
+    .muted { color: var(--muted); }
+    .small-text { font-size: 12px; }
+    .table-scroll { overflow-x: auto; }
+    .actions-row { margin-top: 16px; display: flex; gap: 10px; flex-wrap: wrap; }
+
+    @media (max-width: 720px) {
+      body { padding: 18px 8px; }
+      .surface { padding: 16px; }
+    }
+  </style>
+</head>
+<body data-shell-label="Mileage Review" data-shell-icon="accounting">
+  <div class="wrap">
+    <div id="internal-shell-header"></div>
+
+    <div class="surface">
+      <h2>Mileage Review</h2>
+      <p class="section-note">
+        Review submitted months, adjust entries if needed, then approve or return them.
+        Approval locks the month and snapshots the year's rate — the totals here are what
+        accounting keys into payroll.
+      </p>
+
+      <div class="toolbar">
+        <div class="field">
+          <label for="statusFilter">Status</label>
+          <select id="statusFilter">
+            <option value="submitted" selected>Submitted (awaiting review)</option>
+            <option value="approved">Approved</option>
+            <option value="denied">Returned / denied</option>
+            <option value="draft">Draft (in progress)</option>
+            <option value="">All</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="yearFilter">Year</label>
+          <select id="yearFilter"></select>
+        </div>
+        <div class="field">
+          <label for="monthFilter">Month</label>
+          <select id="monthFilter"><option value="">All months</option></select>
+        </div>
+        <button id="loadBtn" type="button">Load reports</button>
+      </div>
+      <div id="listStatus" class="status"></div>
+
+      <div class="table-scroll" style="margin-top: 14px;">
+        <table>
+          <thead>
+            <tr>
+              <th>Employee</th>
+              <th>Month</th>
+              <th>Status</th>
+              <th class="num">Total Mi</th>
+              <th class="num">Reimbursed Mi</th>
+              <th class="num">Total $</th>
+              <th>Submitted</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="listBody">
+            <tr><td colspan="8" class="muted">Load reports to begin.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="surface" id="detailSurface" style="display: none;">
+      <div class="detail-head">
+        <span class="who" id="detailWho"></span>
+        <span id="detailPill" class="pill"></span>
+        <span class="commute-inline small-text muted">
+          Standard commute (mi):
+          <input id="detailCommute" type="number" min="0" step="0.1" />
+        </span>
+      </div>
+      <div id="detailNote" class="status warn" style="margin-bottom: 12px;"></div>
+
+      <div class="table-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Showroom Start</th>
+              <th>Business Purpose</th>
+              <th class="num">Miles</th>
+              <th class="num">Reimbursed</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="detailBody"></tbody>
+          <tbody>
+            <tr class="totals-row">
+              <td colspan="3">TOTAL</td>
+              <td class="num" id="detailTotalMiles">0</td>
+              <td class="num" id="detailTotalReimbursed">0</td>
+              <td></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="grand">
+        <div class="box">Rate per mile<strong id="detailRate">—</strong></div>
+        <div class="box">Reimbursement total<strong id="detailGrand">—</strong></div>
+      </div>
+
+      <div class="actions-row" id="detailActions">
+        <button id="detailAddBtn" type="button" class="secondary">Add day</button>
+        <button id="detailSaveBtn" type="button" class="secondary">Save edits</button>
+        <span style="flex: 1 1 auto;"></span>
+        <button id="denyToggleBtn" type="button" class="danger">Deny…</button>
+        <button id="approveBtn" type="button" class="approve">Approve</button>
+      </div>
+
+      <div class="deny-box" id="denyBox">
+        <input id="denyNote" type="text" maxlength="500" placeholder="Why is this being returned? (the employee sees this)" />
+        <button id="denyConfirmBtn" type="button" class="danger">Return to employee</button>
+      </div>
+
+      <div id="detailStatus" class="status"></div>
+    </div>
+
+    <div class="surface" id="ratesSurface" style="display: none;">
+      <h2>Mileage rates</h2>
+      <p class="section-note">
+        Per-mile reimbursement rate by year (IRS standard rate, typically updated each
+        January). Approved months keep the rate they were approved at.
+      </p>
+      <div class="toolbar">
+        <div class="field">
+          <label for="rateYear">Year</label>
+          <input id="rateYear" type="number" min="2020" max="2100" />
+        </div>
+        <div class="field">
+          <label for="rateValue">Rate (per mile)</label>
+          <input id="rateValue" type="number" min="0" step="0.001" placeholder="0.725" />
+        </div>
+        <button id="rateSaveBtn" type="button">Save rate</button>
+      </div>
+      <div id="rateStatus" class="status"></div>
+      <div class="table-scroll" style="margin-top: 10px; max-width: 300px;">
+        <table>
+          <thead><tr><th>Year</th><th class="num">Rate</th></tr></thead>
+          <tbody id="ratesBody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div id="internal-shell-footer"></div>
+  </div>
+
+  <script src="internal-shell.js"></script>
+  <script>
+    const MONTH_NAMES = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+    let reports = [];
+    let detail = null;
+
+    function setStatus(id, message, kind) {
+      const box = document.getElementById(id);
+      if (!message) { box.className = "status"; box.textContent = ""; return; }
+      box.className = "status " + kind + " show";
+      box.textContent = message;
+    }
+
+    async function api(path, options) {
+      const res = await fetch(path, {
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json" },
+        ...options
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || "Request failed.");
+      return data;
+    }
+
+    function money(value) {
+      return value == null ? "—" : "$" + Number(value).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    }
+
+    // ---- List ----
+
+    document.getElementById("loadBtn").addEventListener("click", loadReports);
+
+    async function loadReports() {
+      const btn = document.getElementById("loadBtn");
+      btn.disabled = true;
+      setStatus("listStatus", "", "");
+      try {
+        const params = new URLSearchParams();
+        const status = document.getElementById("statusFilter").value;
+        const year = document.getElementById("yearFilter").value;
+        const month = document.getElementById("monthFilter").value;
+        if (status) params.set("status", status);
+        if (year) params.set("year", year);
+        if (month) params.set("month", month);
+
+        const data = await api("/api/mileage/review?" + params.toString());
+        reports = data.reports || [];
+        renderList();
+        setStatus("listStatus", `${reports.length} report(s).`, "ok");
+      } catch (err) {
+        setStatus("listStatus", err.message, "error");
+      } finally {
+        btn.disabled = false;
+      }
+    }
+
+    function renderList() {
+      const body = document.getElementById("listBody");
+      body.textContent = "";
+
+      if (!reports.length) {
+        const tr = document.createElement("tr");
+        const td = document.createElement("td");
+        td.colSpan = 8;
+        td.className = "muted";
+        td.textContent = "Nothing matched those filters.";
+        tr.appendChild(td);
+        body.appendChild(tr);
+        return;
+      }
+
+      for (const r of reports) {
+        const tr = document.createElement("tr");
+
+        const addCell = (content, cls) => {
+          const td = document.createElement("td");
+          if (cls) td.className = cls;
+          if (content instanceof HTMLElement) td.appendChild(content);
+          else td.textContent = content;
+          tr.appendChild(td);
+          return td;
+        };
+
+        addCell(r.employeeName || r.employeeEmail);
+        addCell(MONTH_NAMES[r.month - 1] + " " + r.year);
+        const pill = document.createElement("span");
+        pill.className = "pill " + r.status;
+        pill.textContent = r.status.toUpperCase();
+        addCell(pill);
+        addCell((r.totals?.totalMiles ?? 0).toLocaleString(), "num");
+        addCell((r.totals?.reimbursedMiles ?? 0).toLocaleString(), "num");
+        addCell(money(r.totals?.reimbursementTotal), "num");
+        addCell(r.submittedAt ? new Date(r.submittedAt).toLocaleDateString() : "—");
+
+        const openBtn = document.createElement("button");
+        openBtn.type = "button";
+        openBtn.className = "tiny secondary";
+        openBtn.textContent = "Open";
+        openBtn.addEventListener("click", () => openDetail(r));
+        addCell(openBtn);
+
+        body.appendChild(tr);
+      }
+    }
+
+    // ---- Detail ----
+
+    function detailEditable() {
+      return detail && detail.status === "submitted";
+    }
+
+    function detailCommute() {
+      return Number(document.getElementById("detailCommute").value) || 0;
+    }
+
+    function computeReimbursed(entry) {
+      const miles = Number(entry.miles) || 0;
+      if (entry.showroomStart) return miles;
+      return Math.max(miles - detailCommute(), 0);
+    }
+
+    function readDetailEntries() {
+      return [...document.querySelectorAll("#detailBody tr")].map((tr) => ({
+        entryDate: tr.querySelector(".e-date").value,
+        showroomStart: tr.querySelector(".e-start").value === "Y",
+        purpose: tr.querySelector(".e-purpose").value.trim(),
+        miles: Number(tr.querySelector(".e-miles").value) || 0
+      })).filter((e) => e.entryDate);
+    }
+
+    function refreshDetailTotals() {
+      const entries = readDetailEntries();
+      const totalMiles = entries.reduce((s, e) => s + e.miles, 0);
+      const reimbursed = entries.reduce((s, e) => s + computeReimbursed(e), 0);
+      document.getElementById("detailTotalMiles").textContent = (Math.round(totalMiles * 10) / 10).toLocaleString();
+      document.getElementById("detailTotalReimbursed").textContent = (Math.round(reimbursed * 10) / 10).toLocaleString();
+
+      const rate = detail.rateUsed != null ? detail.rateUsed : detail.currentRate;
+      document.getElementById("detailRate").textContent = rate != null ? "$" + Number(rate).toFixed(3).replace(/0$/, "") : "not set";
+      document.getElementById("detailGrand").textContent =
+        rate != null ? money(Math.round(reimbursed * rate * 100) / 100) : "—";
+
+      [...document.querySelectorAll("#detailBody tr")].forEach((tr) => {
+        const entry = {
+          showroomStart: tr.querySelector(".e-start").value === "Y",
+          miles: Number(tr.querySelector(".e-miles").value) || 0
+        };
+        tr.querySelector(".e-reimbursed").textContent = (Math.round(computeReimbursed(entry) * 10) / 10).toLocaleString();
+      });
+    }
+
+    function addDetailRow(entry) {
+      const editable = detailEditable();
+      const y = detail.year, m = detail.month;
+      const last = new Date(y, m, 0).getDate();
+      const mm = String(m).padStart(2, "0");
+      const tr = document.createElement("tr");
+
+      const tdDate = document.createElement("td");
+      const dateInput = document.createElement("input");
+      dateInput.type = "date";
+      dateInput.className = "e-date";
+      dateInput.min = `${y}-${mm}-01`;
+      dateInput.max = `${y}-${mm}-${String(last).padStart(2, "0")}`;
+      dateInput.value = entry?.entryDate || `${y}-${mm}-01`;
+      dateInput.disabled = !editable;
+      tdDate.appendChild(dateInput);
+
+      const tdStart = document.createElement("td");
+      const startSelect = document.createElement("select");
+      startSelect.className = "e-start";
+      for (const [value, label] of [["Y", "Y — from showroom"], ["N", "N — from home"]]) {
+        const option = document.createElement("option");
+        option.value = value;
+        option.textContent = label;
+        startSelect.appendChild(option);
+      }
+      startSelect.value = entry ? (entry.showroomStart ? "Y" : "N") : "Y";
+      startSelect.disabled = !editable;
+      tdStart.appendChild(startSelect);
+
+      const tdPurpose = document.createElement("td");
+      const purposeInput = document.createElement("input");
+      purposeInput.type = "text";
+      purposeInput.className = "e-purpose";
+      purposeInput.maxLength = 200;
+      purposeInput.value = entry?.purpose || "";
+      purposeInput.disabled = !editable;
+      tdPurpose.appendChild(purposeInput);
+
+      const tdMiles = document.createElement("td");
+      tdMiles.className = "num";
+      const milesInput = document.createElement("input");
+      milesInput.type = "number";
+      milesInput.className = "e-miles";
+      milesInput.min = "0";
+      milesInput.max = "2000";
+      milesInput.step = "0.1";
+      milesInput.style.textAlign = "right";
+      milesInput.value = entry != null ? entry.miles : 0;
+      milesInput.disabled = !editable;
+      tdMiles.appendChild(milesInput);
+
+      const tdReimbursed = document.createElement("td");
+      tdReimbursed.className = "num";
+      const reimbursedSpan = document.createElement("span");
+      reimbursedSpan.className = "e-reimbursed";
+      reimbursedSpan.textContent = "0";
+      tdReimbursed.appendChild(reimbursedSpan);
+
+      const tdRemove = document.createElement("td");
+      if (editable) {
+        const removeBtn = document.createElement("button");
+        removeBtn.type = "button";
+        removeBtn.className = "tiny danger";
+        removeBtn.textContent = "×";
+        removeBtn.addEventListener("click", () => { tr.remove(); refreshDetailTotals(); });
+        tdRemove.appendChild(removeBtn);
+      }
+
+      for (const td of [tdDate, tdStart, tdPurpose, tdMiles, tdReimbursed, tdRemove]) tr.appendChild(td);
+      for (const input of [dateInput, startSelect, purposeInput, milesInput]) {
+        input.addEventListener("input", refreshDetailTotals);
+        input.addEventListener("change", refreshDetailTotals);
+      }
+
+      document.getElementById("detailBody").appendChild(tr);
+    }
+
+    function openDetail(r) {
+      detail = r;
+      document.getElementById("detailSurface").style.display = "block";
+      document.getElementById("detailWho").textContent =
+        (r.employeeName || r.employeeEmail) + " — " + MONTH_NAMES[r.month - 1] + " " + r.year;
+
+      const pill = document.getElementById("detailPill");
+      pill.className = "pill " + r.status;
+      pill.textContent = r.status.toUpperCase();
+
+      const commuteInput = document.getElementById("detailCommute");
+      commuteInput.value = r.commuteMiles;
+      commuteInput.disabled = !detailEditable();
+      commuteInput.oninput = refreshDetailTotals;
+
+      const note = document.getElementById("detailNote");
+      if (r.status === "denied" && r.denialNote) {
+        note.className = "status warn show";
+        note.textContent = "Returned with note: " + r.denialNote;
+      } else if (r.status === "approved") {
+        note.className = "status ok show";
+        note.textContent = `Approved${r.decidedByEmail ? " by " + r.decidedByEmail : ""} at $${r.rateUsed}/mile.`;
+      } else {
+        note.className = "status";
+        note.textContent = "";
+      }
+
+      const body = document.getElementById("detailBody");
+      body.textContent = "";
+      for (const entry of r.entries) addDetailRow(entry);
+
+      const editable = detailEditable();
+      document.getElementById("detailAddBtn").style.display = editable ? "inline-flex" : "none";
+      document.getElementById("detailSaveBtn").style.display = editable ? "inline-flex" : "none";
+      document.getElementById("denyToggleBtn").style.display = editable ? "inline-flex" : "none";
+      document.getElementById("approveBtn").style.display = editable ? "inline-flex" : "none";
+      document.getElementById("denyBox").className = "deny-box";
+      setStatus("detailStatus", "", "");
+
+      refreshDetailTotals();
+      document.getElementById("detailSurface").scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+
+    document.getElementById("detailAddBtn").addEventListener("click", () => {
+      addDetailRow(null);
+      refreshDetailTotals();
+    });
+
+    async function saveDetailEdits() {
+      const data = await api(`/api/mileage/report/${detail.id}/entries`, {
+        method: "POST",
+        body: JSON.stringify({ entries: readDetailEntries(), commuteMiles: detailCommute() })
+      });
+      detail = { ...detail, ...data.report };
+    }
+
+    document.getElementById("detailSaveBtn").addEventListener("click", async (e) => {
+      e.target.disabled = true;
+      try {
+        await saveDetailEdits();
+        setStatus("detailStatus", "Edits saved.", "ok");
+        await loadReports();
+      } catch (err) {
+        setStatus("detailStatus", err.message, "error");
+      } finally {
+        e.target.disabled = false;
+      }
+    });
+
+    document.getElementById("approveBtn").addEventListener("click", async (e) => {
+      const total = document.getElementById("detailGrand").textContent;
+      if (!confirm(`Approve ${detail.employeeName || detail.employeeEmail}'s ${MONTH_NAMES[detail.month - 1]} mileage for ${total}? This locks the month.`)) return;
+      e.target.disabled = true;
+      try {
+        await saveDetailEdits();
+        const data = await api(`/api/mileage/report/${detail.id}/decide`, {
+          method: "POST",
+          body: JSON.stringify({ decision: "approve" })
+        });
+        openDetail(data.report);
+        setStatus("detailStatus", "Approved.", "ok");
+        await loadReports();
+      } catch (err) {
+        setStatus("detailStatus", err.message, "error");
+      } finally {
+        e.target.disabled = false;
+      }
+    });
+
+    document.getElementById("denyToggleBtn").addEventListener("click", () => {
+      document.getElementById("denyBox").className = "deny-box show";
+      document.getElementById("denyNote").focus();
+    });
+
+    document.getElementById("denyConfirmBtn").addEventListener("click", async (e) => {
+      const note = document.getElementById("denyNote").value.trim();
+      if (!note) {
+        setStatus("detailStatus", "Add a short note explaining what needs to change.", "error");
+        return;
+      }
+      e.target.disabled = true;
+      try {
+        const data = await api(`/api/mileage/report/${detail.id}/decide`, {
+          method: "POST",
+          body: JSON.stringify({ decision: "deny", note })
+        });
+        document.getElementById("denyNote").value = "";
+        openDetail(data.report);
+        setStatus("detailStatus", "Returned to the employee.", "ok");
+        await loadReports();
+      } catch (err) {
+        setStatus("detailStatus", err.message, "error");
+      } finally {
+        e.target.disabled = false;
+      }
+    });
+
+    // ---- Rates (executives) ----
+
+    async function loadRates() {
+      try {
+        const data = await api("/api/mileage/rates");
+        const body = document.getElementById("ratesBody");
+        body.textContent = "";
+        for (const r of data.rates || []) {
+          const tr = document.createElement("tr");
+          const tdYear = document.createElement("td");
+          tdYear.textContent = r.year;
+          const tdRate = document.createElement("td");
+          tdRate.className = "num";
+          tdRate.textContent = "$" + r.rate;
+          tr.appendChild(tdYear);
+          tr.appendChild(tdRate);
+          body.appendChild(tr);
+        }
+      } catch {}
+    }
+
+    document.getElementById("rateSaveBtn").addEventListener("click", async (e) => {
+      e.target.disabled = true;
+      setStatus("rateStatus", "", "");
+      try {
+        await api("/api/admin/mileage-rates", {
+          method: "POST",
+          body: JSON.stringify({
+            year: Number(document.getElementById("rateYear").value),
+            rate: Number(document.getElementById("rateValue").value)
+          })
+        });
+        setStatus("rateStatus", "Rate saved.", "ok");
+        await loadRates();
+      } catch (err) {
+        setStatus("rateStatus", err.message, "error");
+      } finally {
+        e.target.disabled = false;
+      }
+    });
+
+    // ---- Init ----
+
+    (async function init() {
+      const now = new Date();
+      const yearFilter = document.getElementById("yearFilter");
+      for (const y of ["", now.getFullYear() - 1, now.getFullYear(), now.getFullYear() + 1]) {
+        const option = document.createElement("option");
+        option.value = y;
+        option.textContent = y === "" ? "All years" : y;
+        if (y === now.getFullYear()) option.selected = true;
+        yearFilter.appendChild(option);
+      }
+      const monthFilter = document.getElementById("monthFilter");
+      MONTH_NAMES.forEach((name, i) => {
+        const option = document.createElement("option");
+        option.value = i + 1;
+        option.textContent = name;
+        monthFilter.appendChild(option);
+      });
+
+      try {
+        const res = await fetch("/api/auth/session", { credentials: "same-origin" });
+        if (res.ok) {
+          const session = await res.json();
+          if (session?.canManageUsers) {
+            document.getElementById("ratesSurface").style.display = "block";
+            loadRates();
+          }
+        }
+      } catch {}
+
+      loadReports();
+    })();
+  </script>
+</body>
+</html>

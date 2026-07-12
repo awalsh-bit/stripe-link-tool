@@ -293,3 +293,21 @@ server serves that path from this table).
   account by email — powers code auto-fill and per-employee dashboard
   defaults), `department`, `updated_at`, `updated_by`
 - Seeded from the legacy static file on first boot when empty.
+
+### Mileage reimbursement (live — created by `sql/007_mileage.sql`)
+
+Replaces the monthly Excel worksheet. Created idempotently at boot by
+`lib/mileage-postgres.js` (which also seeds `mileage_rates` 2025→0.67,
+2026→0.725 when empty).
+
+- `mileage_rates`: `year` (pk), `rate` — executive-editable on the Mileage
+  Review page. Approval snapshots the rate onto the report (`rate_used`).
+- `mileage_reports`: one per employee per month (`user_id`, `year`, `month`
+  unique). `commute_miles` snapshot (from `employee_directory.commute_miles`
+  at creation; reviewer-adjustable), `status`
+  (`draft`→`submitted`→`approved`|`denied`), `denial_note`, decision fields.
+- `mileage_entries`: `report_id`, `entry_date`, `showroom_start`, `purpose`,
+  `miles`. Reimbursed miles are computed, never stored:
+  `showroom_start ? miles : max(miles - commute, 0)`.
+- `employee_directory.commute_miles`: per-employee standard round-trip
+  commute, managed in the User Admin directory editor.

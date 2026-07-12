@@ -331,6 +331,10 @@
           <input id="dirDepartment" type="text" list="departmentOptions" placeholder="Appliance" />
           <datalist id="departmentOptions"></datalist>
         </div>
+        <div class="field small">
+          <label for="dirCommute">Commute (mi, round trip)</label>
+          <input id="dirCommute" type="number" min="0" step="0.1" placeholder="0" />
+        </div>
         <button id="dirAddBtn" type="button">Add / Update</button>
       </div>
       <div id="dirStatus" class="status"></div>
@@ -342,11 +346,12 @@
               <th>Name</th>
               <th>Email</th>
               <th>Department</th>
+              <th>Commute (mi)</th>
               <th>Actions</th>
             </tr>
           </thead>
           <tbody id="dirBody">
-            <tr><td colspan="5" class="muted">Loading…</td></tr>
+            <tr><td colspan="6" class="muted">Loading…</td></tr>
           </tbody>
         </table>
       </div>
@@ -762,6 +767,252 @@
       } finally {
         button.disabled = false;
         button.textContent = "Send invite";
+      }
+    });
+
+    // ---- Employee directory editor ----
+
+    async function loadDirectory() {
+      try {
+        setStatus("dirStatus", "", "");
+        const data = await api("/api/admin/employee-directory");
+        state.directory = data.entries || [];
+        renderDirectory();
+        renderUsers(); // refresh the name join + "Code:" chips on user rows
+      } catch (err) {
+        setStatus("dirStatus", err.message, "error");
+      }
+    }
+
+    function renderDirectory() {
+      const body = document.getElementById("dirBody");
+      body.textContent = "";
+
+      // Keep the department suggestions in sync with what's in use.
+      const datalist = document.getElementById("departmentOptions");
+      datalist.textContent = "";
+      [...new Set(state.directory.map((e) => e.department).filter(Boolean))].sort().forEach((dept) => {
+        datalist.appendChild(el("option", { value: dept }));
+      });
+
+      if (!state.directory.length) {
+        body.appendChild(el("tr", {}, [
+          el("td", { colspan: "6", class: "muted", text: "No directory entries yet. Add the first one above." })
+        ]));
+        return;
+      }
+
+      for (const entry of state.directory) {
+        body.appendChild(renderDirectoryRow(entry));
+      }
+    }
+
+    function userForDirectoryEntry(entry) {
+      const email = String(entry.email || "").trim().toLowerCase();
+      if (!email) return null;
+      return state.users.find((u) => String(u.email || "").toLowerCase() === email) || null;
+    }
+
+    function renderDirectoryRow(entry, editing) {
+      if (!editing) {
+        const account = userForDirectoryEntry(entry);
+        const accountButtons = [];
+
+        if (entry.email && !account) {
+          accountButtons.push(el("button", {
+            class: "tiny secondary",
+            text: "Send invite",
+            onclick: async (e) => {
+              if (!confirm(`Send an account invite to ${entry.name} (${entry.email})?`)) return;
+              e.target.disabled = true;
+              try {
+                await api("/api/admin/users/invite", {
+                  method: "POST",
+                  body: JSON.stringify({ email: entry.email, displayName: entry.name, isExecutive: false })
+                });
+                setStatus("dirStatus", `Invite sent to ${entry.email}.`, "ok");
+                await loadUsers();
+                renderDirectory();
+              } catch (err) {
+                setStatus("dirStatus", err.message, "error");
+                e.target.disabled = false;
+              }
+            }
+          }));
+        }
+
+        if (account && ["invited", "pending_verification"].includes(account.status)) {
+          accountButtons.push(el("button", {
+            class: "tiny secondary",
+            text: "Resend invite",
+            onclick: async (e) => {
+              e.target.disabled = true;
+              try {
+                await api(`/api/admin/users/${account.id}/resend-invite`, { method: "POST", body: "{}" });
+                setStatus("dirStatus", `Invite re-sent to ${entry.email}.`, "ok");
+              } catch (err) {
+                setStatus("dirStatus", err.message, "error");
+              } finally {
+                e.target.disabled = false;
+              }
+            }
+          }));
+        }
+
+        if (account && account.status === "active") {
+          accountButtons.push(el("button", {
+            class: "tiny danger",
+            text: "Force reset",
+            onclick: async (e) => {
+              if (!confirm(
+                `Force a password reset for ${entry.name}?\n\n` +
+                `Their current password stops working IMMEDIATELY and all their sessions end. ` +
+                `They get back in via the reset link emailed to ${entry.email} (valid 1 hour).\n\n` +
+                `Use this when a password may have been shared or compromised.`
+              )) return;
+              e.target.disabled = true;
+              try {
+                await api(`/api/admin/users/${account.id}/force-reset`, {
+                  method: "POST",
+                  body: JSON.stringify({ lockout: true })
+                });
+                setStatus("dirStatus", `${entry.name} is locked out; reset link sent to ${entry.email}.`, "ok");
+              } catch (err) {
+                setStatus("dirStatus", err.message, "error");
+              } finally {
+                e.target.disabled = false;
+              }
+            }
+          }));
+        }
+
+        if (account && account.status === "disabled") {
+          accountButtons.push(el("span", { class: "muted small-text", text: "account disabled" }));
+        }
+
+        const actions = el("div", { class: "row-actions" }, [
+          ...accountButtons,
+          el("button", {
+            class: "tiny secondary",
+            text: "Edit",
+            onclick: (e) => {
+              e.target.closest("tr").replaceWith(renderDirectoryRow(entry, true));
+            }
+          }),
+          el("button", {
+            class: "tiny danger",
+            text: "Delete",
+            onclick: async (e) => {
+              if (!confirm(`Delete code ${entry.code} (${entry.name})? Existing payment records keep the code; it just leaves the directory.`)) return;
+              e.target.disabled = true;
+              try {
+                await api("/api/admin/employee-directory/" + encodeURIComponent(entry.code), { method: "DELETE" });
+                setStatus("dirStatus", `Deleted ${entry.code}.`, "ok");
+                await loadDirectory();
+              } catch (err) {
+                setStatus("dirStatus", err.message, "error");
+                e.target.disabled = false;
+              }
+            }
+          })
+        ]);
+
+        return el("tr", {}, [
+          el("td", {}, [el("strong", { text: entry.code })]),
+          el("td", { text: entry.name }),
+          el("td", { text: entry.email || "—" }),
+          el("td", { text: entry.department || "—" }),
+          el("td", { text: String(entry.commuteMiles ?? 0) }),
+          el("td", {}, [actions])
+        ]);
+      }
+
+      // Editing row: name/email/department are editable; the code is the key.
+      // To change a code itself, add the new code and delete the old one.
+      const nameInput = el("input", { type: "text", value: entry.name });
+      const emailInput = el("input", { type: "email", value: entry.email || "" });
+      const deptInput = el("input", { type: "text", value: entry.department || "", list: "departmentOptions" });
+      const commuteInput = el("input", { type: "number", min: "0", step: "0.1", value: String(entry.commuteMiles ?? 0) });
+
+      const actions = el("div", { class: "row-actions" }, [
+        el("button", {
+          class: "tiny",
+          text: "Save",
+          onclick: async (e) => {
+            e.target.disabled = true;
+            try {
+              await api("/api/admin/employee-directory", {
+                method: "POST",
+                body: JSON.stringify({
+                  code: entry.code,
+                  name: nameInput.value.trim(),
+                  email: emailInput.value.trim(),
+                  department: deptInput.value.trim(),
+                  commuteMiles: Number(commuteInput.value) || 0
+                })
+              });
+              setStatus("dirStatus", `Saved ${entry.code}.`, "ok");
+              await loadDirectory();
+              await loadUsers();
+            } catch (err) {
+              setStatus("dirStatus", err.message, "error");
+              e.target.disabled = false;
+            }
+          }
+        }),
+        el("button", {
+          class: "tiny secondary",
+          text: "Cancel",
+          onclick: (e) => {
+            e.target.closest("tr").replaceWith(renderDirectoryRow(entry, false));
+          }
+        })
+      ]);
+
+      return el("tr", {}, [
+        el("td", {}, [el("strong", { text: entry.code })]),
+        el("td", {}, [nameInput]),
+        el("td", {}, [emailInput]),
+        el("td", {}, [deptInput]),
+        el("td", {}, [commuteInput]),
+        el("td", {}, [actions])
+      ]);
+    }
+
+    document.getElementById("dirAddBtn").addEventListener("click", async () => {
+      const button = document.getElementById("dirAddBtn");
+      const code = document.getElementById("dirCode").value.trim().toUpperCase();
+      const name = document.getElementById("dirName").value.trim();
+      const email = document.getElementById("dirEmail").value.trim();
+      const department = document.getElementById("dirDepartment").value.trim();
+      const commuteMiles = Number(document.getElementById("dirCommute").value) || 0;
+
+      setStatus("dirStatus", "", "");
+
+      if (!code || !name) {
+        setStatus("dirStatus", "Code and name are required.", "error");
+        return;
+      }
+
+      const existing = state.directory.find((e) => e.code === code);
+      if (existing && !confirm(`Code ${code} already belongs to ${existing.name}. Overwrite it?`)) return;
+
+      button.disabled = true;
+      try {
+        await api("/api/admin/employee-directory", {
+          method: "POST",
+          body: JSON.stringify({ code, name, email, department, commuteMiles })
+        });
+        setStatus("dirStatus", `Saved ${code} — ${name}.`, "ok");
+        ["dirCode", "dirName", "dirEmail", "dirDepartment", "dirCommute"].forEach((id) => {
+          document.getElementById(id).value = "";
+        });
+        await loadDirectory();
+        await loadUsers();
+      } catch (err) {
+        setStatus("dirStatus", err.message, "error");
+      } finally {
+        button.disabled = false;
       }
     });
 

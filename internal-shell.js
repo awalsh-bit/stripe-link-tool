@@ -164,6 +164,18 @@
       });
     }
 
+    links.push({
+      href: "mileage.html",
+      title: "Mileage",
+      text: "Log monthly business mileage for reimbursement."
+    });
+
+    links.push({
+      href: "mileage-review.html",
+      title: "Mileage Review",
+      text: "Review, adjust, and approve submitted mileage months."
+    });
+
     if (session?.canManageUsers) {
       links.push({
         href: "user-admin.html",

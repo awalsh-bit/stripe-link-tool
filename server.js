@@ -4544,6 +4544,77 @@ app.post("/api/link-detail-lookup/repair", requirePagePermission("/link-detail-l
   }
 });
 
+// Find recent payments by customer phone, email, or name — for issuing a
+// refund when the PaymentIntent ID isn't handy. Searches the app's own
+// ledgers (payment links + terminal/card-on-file charges).
+app.get("/api/intent-lookup/find", requirePagePermission("/intent-lookup.html"), async (req, res) => {
+  try {
+    const query = String(req.query.q || "").trim();
+    if (query.length < 3) {
+      return res.status(400).json({ error: "Enter at least 3 characters of a phone, email, or name." });
+    }
+
+    const digits = query.replace(/\D/g, "");
+    const searchByPhone = digits.length >= 4;
+    const searchByEmail = !searchByPhone && query.includes("@");
+    const needle = query.toLowerCase();
+
+    const [rawLinks, rawCharges] = await Promise.all([readLinks(), readTerminalPayments()]);
+
+    const candidates = [];
+
+    for (const raw of rawLinks) {
+      const row = normalizeLinkRecord({ ...raw });
+      candidates.push({
+        source: "Payment link",
+        paymentIntentId: row.paymentIntentId || "",
+        customerName: row.customerName || "",
+        customerPhone: row.customerPhone || "",
+        customerEmail: row.customerEmail || "",
+        salesOrder: row.salesOrder || row.reference || "",
+        description: row.description || "",
+        amount: Number(row.paidAmount || row.amount || 0),
+        status: row.status || "",
+        when: row.paidDate || row.createdAt || ""
+      });
+    }
+
+    for (const row of rawCharges) {
+      candidates.push({
+        source: row.type === "terminal" ? "Terminal" : "Card on file",
+        paymentIntentId: row.paymentIntentId || "",
+        customerName: row.customerName || "",
+        customerPhone: row.customerPhone || "",
+        customerEmail: row.customerEmail || "",
+        salesOrder: row.salesOrder || row.reference || "",
+        description: row.description || "",
+        amount: Number(row.paidAmount || 0),
+        status: row.status || "paid",
+        when: row.paidDate || row.createdAt || ""
+      });
+    }
+
+    const matches = candidates
+      .filter((c) => c.paymentIntentId)
+      .filter((c) => {
+        if (searchByPhone) {
+          return String(c.customerPhone || "").replace(/\D/g, "").includes(digits);
+        }
+        if (searchByEmail) {
+          return String(c.customerEmail || "").toLowerCase().includes(needle);
+        }
+        return String(c.customerName || "").toLowerCase().includes(needle);
+      })
+      .sort((a, b) => new Date(b.when || 0) - new Date(a.when || 0))
+      .slice(0, 15);
+
+    return res.json({ matches, searchedBy: searchByPhone ? "phone" : searchByEmail ? "email" : "name" });
+  } catch (err) {
+    console.error("Intent finder failed:", err.message);
+    return res.status(500).json({ error: "Unable to search payments." });
+  }
+});
+
 app.get("/api/intent-lookup/:kind/:id", requirePagePermission("/intent-lookup.html"), async (req, res) => {
   try {
     const kind = String(req.params.kind || "").toLowerCase();
@@ -4893,16 +4964,51 @@ app.post("/api/events/:slug/status", requirePagePermission("/event-rsvps.html"),
   }
 });
 
+// Generic phrases that don't identify the product/service being refunded.
+// The refund note must say WHAT was cancelled or returned, not just that the
+// customer asked.
+const GENERIC_REFUND_NOTES = /^(requested by( the)? customer|customer request(ed)?( it)?( a refund)?|per( the)? customer( request)?|customer( asked)?( for( a)? refund)?|refund( requested)?|return(ed)?|cancell?ed|cancellation|cancel|n\/?a|none|misc|other|test)[.!]*$/i;
+
+function validateRefundNote(note) {
+  const trimmed = String(note || "").trim();
+  if (trimmed.length < 8 || GENERIC_REFUND_NOTES.test(trimmed)) {
+    return 'Be specific about the product or service being refunded (e.g. "KDTS434SPS dishwasher returned" or "canceled HVAC maintenance visit").';
+  }
+  return null;
+}
+
 app.post("/api/intent-lookup/payment_intent/:id/refund", requirePagePermission("/intent-lookup.html"), async (req, res) => {
   try {
     const id = String(req.params.id || "").trim();
     const requestedAmount = req.body?.amount;
+    const note = String(req.body?.note || "").trim();
     const requestedReason = String(req.body?.reason || "requested_by_customer").trim();
     const allowedReasons = new Set(["duplicate", "fraudulent", "requested_by_customer"]);
 
     if (!id) {
       return res.status(400).json({
         error: "PaymentIntent ID is required."
+      });
+    }
+
+    // The irreversibility acknowledgement is required — refunds cannot be
+    // pulled back, and re-collecting means paying card fees again.
+    if (req.body?.confirmed !== true) {
+      return res.status(400).json({
+        error: "Check the confirmation box acknowledging the refund cannot be reversed."
+      });
+    }
+
+    const noteError = validateRefundNote(note);
+    if (noteError) {
+      return res.status(400).json({ error: noteError });
+    }
+
+    // Refunds no longer default to the full amount — the exact amount must
+    // be entered deliberately.
+    if (requestedAmount === undefined || requestedAmount === null || String(requestedAmount).trim() === "") {
+      return res.status(400).json({
+        error: "Enter the exact refund amount."
       });
     }
 
@@ -4934,32 +5040,41 @@ app.post("/api/intent-lookup/payment_intent/:id/refund", requirePagePermission("
       });
     }
 
-    let refundAmountCents = remainingRefundableCents;
-    if (requestedAmount !== undefined && requestedAmount !== null && String(requestedAmount).trim() !== "") {
-      const parsedAmount = Number(requestedAmount);
-      if (!Number.isFinite(parsedAmount) || parsedAmount <= 0) {
-        return res.status(400).json({
-          error: "Refund amount must be greater than zero."
-        });
-      }
+    const parsedAmount = Number(requestedAmount);
+    if (!Number.isFinite(parsedAmount) || parsedAmount <= 0) {
+      return res.status(400).json({
+        error: "Refund amount must be greater than zero."
+      });
+    }
 
-      refundAmountCents = Math.round(parsedAmount * 100);
-      if (refundAmountCents <= 0 || refundAmountCents > remainingRefundableCents) {
-        return res.status(400).json({
-          error: `Refund amount cannot exceed ${formatUsdFromCents(remainingRefundableCents)}.`
-        });
-      }
+    const refundAmountCents = Math.round(parsedAmount * 100);
+    if (refundAmountCents <= 0 || refundAmountCents > remainingRefundableCents) {
+      return res.status(400).json({
+        error: `Refund amount cannot exceed ${formatUsdFromCents(remainingRefundableCents)}.`
+      });
     }
 
     const refundConfig = {
       payment_intent: id,
       ...(refundAmountCents === remainingRefundableCents ? {} : { amount: refundAmountCents }),
-      reason: allowedReasons.has(requestedReason) ? requestedReason : "requested_by_customer"
+      reason: allowedReasons.has(requestedReason) ? requestedReason : "requested_by_customer",
+      metadata: {
+        refund_note: note.slice(0, 480),
+        refunded_by: String(req.authUser?.email || req.authUser?.username || "")
+      }
     };
 
     const refund = await stripe.refunds.create(refundConfig, {
       idempotencyKey: createStripeIdempotencyKeyFromPayload("refund", refundConfig)
     });
+
+    recordAudit({
+      ip: req.ip,
+      actorUserId: req.authUser?.id || null,
+      action: "refund_issued",
+      targetUserId: null,
+      detail: { paymentIntentId: id, amount: refundAmountCents / 100, note: note.slice(0, 200) }
+    }).catch(() => {});
 
     return res.json({
       ok: true,

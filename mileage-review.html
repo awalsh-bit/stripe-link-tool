@@ -167,9 +167,60 @@
     .table-scroll { overflow-x: auto; }
     .actions-row { margin-top: 16px; display: flex; gap: 10px; flex-wrap: wrap; }
 
+    .mobile-only { display: none; }
+
     @media (max-width: 720px) {
-      body { padding: 18px 8px; }
+      body { padding: 14px 8px; }
       .surface { padding: 16px; }
+
+      .toolbar .field { flex: 1 1 40%; }
+      #loadBtn { flex: 1 1 100%; }
+
+      /* Both tables become stacked cards. */
+      .list-table thead, .entry-table thead { display: none; }
+      .list-table, .list-table tbody, .list-table tr, .list-table td,
+      .entry-table, .entry-table tbody, .entry-table tr, .entry-table td {
+        display: block;
+        width: 100%;
+      }
+      .list-table tbody tr, .entry-table tbody tr {
+        border: 1px solid var(--border);
+        border-radius: 14px;
+        padding: 10px 12px 12px;
+        margin-bottom: 12px;
+        background: #fbfcff;
+        position: relative;
+      }
+      .list-table td, .entry-table td { border: none; padding: 5px 0; }
+      .list-table td.num, .entry-table td.num { text-align: left; }
+      .entry-table td input, .entry-table td select { width: 100%; }
+      .list-table td[data-label]::before, .entry-table td[data-label]::before {
+        content: attr(data-label);
+        display: block;
+        font-size: 11px;
+        font-weight: 800;
+        letter-spacing: 0.05em;
+        text-transform: uppercase;
+        color: #64748b;
+        margin-bottom: 2px;
+      }
+      .entry-table .e-reimbursed { font-weight: 800; font-size: 16px; }
+      .entry-table td.remove-cell {
+        position: absolute;
+        top: 8px;
+        right: 8px;
+        width: auto;
+        padding: 0;
+      }
+      .entry-table td.remove-cell::before { display: none; }
+      .entry-table .totals-row { display: none; }
+      .mobile-only { display: block; }
+      .grand { gap: 10px; }
+      .grand .box { flex: 1 1 44%; }
+
+      .actions-row { flex-direction: column; }
+      .actions-row button { width: 100%; }
+      .deny-box.show { flex-direction: column; }
     }
   </style>
 </head>
@@ -209,7 +260,7 @@
       <div id="listStatus" class="status"></div>
 
       <div class="table-scroll" style="margin-top: 14px;">
-        <table>
+        <table class="list-table">
           <thead>
             <tr>
               <th>Employee</th>
@@ -241,7 +292,7 @@
       <div id="detailNote" class="status warn" style="margin-bottom: 12px;"></div>
 
       <div class="table-scroll">
-        <table>
+        <table class="entry-table">
           <thead>
             <tr>
               <th>Date</th>
@@ -265,6 +316,8 @@
       </div>
 
       <div class="grand">
+        <div class="box mobile-only">Total miles<strong id="detailTotalMilesM">0</strong></div>
+        <div class="box mobile-only">Reimbursed<strong id="detailTotalReimbursedM">0</strong></div>
         <div class="box">Rate per mile<strong id="detailRate">—</strong></div>
         <div class="box">Reimbursement total<strong id="detailGrand">—</strong></div>
       </div>
@@ -388,25 +441,26 @@
       for (const r of reports) {
         const tr = document.createElement("tr");
 
-        const addCell = (content, cls) => {
+        const addCell = (content, cls, label) => {
           const td = document.createElement("td");
           if (cls) td.className = cls;
+          if (label) td.dataset.label = label;
           if (content instanceof HTMLElement) td.appendChild(content);
           else td.textContent = content;
           tr.appendChild(td);
           return td;
         };
 
-        addCell(r.employeeName || r.employeeEmail);
-        addCell(MONTH_NAMES[r.month - 1] + " " + r.year);
+        addCell(r.employeeName || r.employeeEmail, "", "Employee");
+        addCell(MONTH_NAMES[r.month - 1] + " " + r.year, "", "Month");
         const pill = document.createElement("span");
         pill.className = "pill " + r.status;
         pill.textContent = r.status.toUpperCase();
         addCell(pill);
-        addCell((r.totals?.totalMiles ?? 0).toLocaleString(), "num");
-        addCell((r.totals?.reimbursedMiles ?? 0).toLocaleString(), "num");
-        addCell(money(r.totals?.reimbursementTotal), "num");
-        addCell(r.submittedAt ? new Date(r.submittedAt).toLocaleDateString() : "—");
+        addCell((r.totals?.totalMiles ?? 0).toLocaleString(), "num", "Total Mi");
+        addCell((r.totals?.reimbursedMiles ?? 0).toLocaleString(), "num", "Reimbursed Mi");
+        addCell(money(r.totals?.reimbursementTotal), "num", "Total $");
+        addCell(r.submittedAt ? new Date(r.submittedAt).toLocaleDateString() : "—", "", "Submitted");
 
         const openBtn = document.createElement("button");
         openBtn.type = "button";
@@ -448,8 +502,12 @@
       const entries = readDetailEntries();
       const totalMiles = entries.reduce((s, e) => s + e.miles, 0);
       const reimbursed = entries.reduce((s, e) => s + computeReimbursed(e), 0);
-      document.getElementById("detailTotalMiles").textContent = (Math.round(totalMiles * 10) / 10).toLocaleString();
-      document.getElementById("detailTotalReimbursed").textContent = (Math.round(reimbursed * 10) / 10).toLocaleString();
+      const totalMilesText = (Math.round(totalMiles * 10) / 10).toLocaleString();
+      const reimbursedText = (Math.round(reimbursed * 10) / 10).toLocaleString();
+      document.getElementById("detailTotalMiles").textContent = totalMilesText;
+      document.getElementById("detailTotalReimbursed").textContent = reimbursedText;
+      document.getElementById("detailTotalMilesM").textContent = totalMilesText;
+      document.getElementById("detailTotalReimbursedM").textContent = reimbursedText;
 
       const rate = detail.rateUsed != null ? detail.rateUsed : detail.currentRate;
       document.getElementById("detailRate").textContent = rate != null ? "$" + Number(rate).toFixed(3).replace(/0$/, "") : "not set";
@@ -524,7 +582,14 @@
       reimbursedSpan.textContent = "0";
       tdReimbursed.appendChild(reimbursedSpan);
 
+      tdDate.dataset.label = "Date";
+      tdStart.dataset.label = "Showroom Start";
+      tdPurpose.dataset.label = "Business Purpose";
+      tdMiles.dataset.label = "Miles";
+      tdReimbursed.dataset.label = "Reimbursed";
+
       const tdRemove = document.createElement("td");
+      tdRemove.className = "remove-cell";
       if (editable) {
         const removeBtn = document.createElement("button");
         removeBtn.type = "button";

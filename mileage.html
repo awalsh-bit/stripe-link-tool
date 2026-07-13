@@ -163,9 +163,95 @@
     .table-scroll { overflow-x: auto; }
     .actions-row { margin-top: 16px; display: flex; gap: 10px; flex-wrap: wrap; }
 
+    .section-note a { color: var(--primary); font-weight: 700; }
+
+    .faq-item {
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 0;
+      margin-bottom: 10px;
+      background: #fbfcff;
+      overflow: hidden;
+    }
+
+    .faq-item summary {
+      cursor: pointer;
+      padding: 12px 14px;
+      font-weight: 700;
+      font-size: 14px;
+      list-style-position: inside;
+    }
+
+    .faq-item summary:hover { background: #eef2ff; }
+
+    .faq-item p {
+      margin: 0;
+      padding: 0 14px 14px;
+      font-size: 14px;
+      line-height: 1.6;
+      color: var(--muted);
+    }
+
+    .mobile-only { display: none; }
+
     @media (max-width: 720px) {
-      body { padding: 18px 8px; }
+      body { padding: 14px 8px; }
       .surface { padding: 16px; }
+
+      /* The shell's Internal Tools strip has a fixed min width that forces
+         the page wider than the screen — hide it on phones. */
+      .internal-shell-tools { display: none !important; }
+      .internal-shell-header-top { flex-wrap: wrap !important; }
+
+      /* Month picker: selects share a row, Open month full width below. */
+      .toolbar .field { flex: 1 1 40%; }
+      #openBtn { flex: 1 1 100%; }
+
+      /* Entry grid becomes stacked cards — one day per card. */
+      .entry-table thead { display: none; }
+      .entry-table, .entry-table tbody, .entry-table tr, .entry-table td {
+        display: block;
+        width: 100%;
+      }
+      .entry-table tbody tr {
+        border: 1px solid var(--border);
+        border-radius: 14px;
+        padding: 10px 12px 12px;
+        margin-bottom: 12px;
+        background: #fbfcff;
+        position: relative;
+      }
+      .entry-table td { border: none; padding: 6px 0; }
+      .entry-table td.num { text-align: left; }
+      .entry-table td input, .entry-table td select { width: 100%; }
+      .entry-table td[data-label]::before {
+        content: attr(data-label);
+        display: block;
+        font-size: 11px;
+        font-weight: 800;
+        letter-spacing: 0.05em;
+        text-transform: uppercase;
+        color: #64748b;
+        margin-bottom: 3px;
+      }
+      .entry-table .e-reimbursed { font-weight: 800; font-size: 16px; }
+      .entry-table td.remove-cell {
+        position: absolute;
+        top: 8px;
+        right: 8px;
+        width: auto;
+        padding: 0;
+      }
+      .entry-table td.remove-cell::before { display: none; }
+
+      /* Totals live in the summary boxes on mobile. */
+      .entry-table .totals-row { display: none; }
+      .mobile-only { display: block; }
+      .grand { gap: 10px; }
+      .grand .box { flex: 1 1 44%; }
+
+      .actions-row { flex-direction: column; }
+      .actions-row button { width: 100%; }
     }
   </style>
 </head>
@@ -179,6 +265,7 @@
         Log business mileage by day. On days you don't start at the showroom, your standard
         round-trip commute (<span id="commuteNote">—</span> miles) is deducted automatically.
         Submit the month when it's complete; it locks for review.
+        Questions about how this works? <a href="#mileage-faq">Read the mileage policy FAQ</a>.
       </p>
 
       <div class="toolbar">
@@ -199,7 +286,7 @@
       <div id="reportBanner" class="report-banner"></div>
 
       <div class="table-scroll">
-        <table>
+        <table class="entry-table">
           <thead>
             <tr>
               <th>Date</th>
@@ -230,11 +317,91 @@
       </div>
 
       <div class="grand">
+        <div class="box mobile-only">Total miles<strong id="totalMilesM">0</strong></div>
+        <div class="box mobile-only">Reimbursed miles<strong id="totalReimbursedM">0</strong></div>
         <div class="box">Rate per mile<strong id="rateBox">—</strong></div>
         <div class="box">Reimbursement total<strong id="grandTotal">—</strong></div>
       </div>
 
       <div id="reportStatus" class="status"></div>
+    </div>
+
+    <div class="surface" id="mileage-faq">
+      <h2>Mileage Policy FAQ</h2>
+      <p class="section-note">The principles behind mileage reimbursement and how Wilson's policy works.</p>
+
+      <details class="faq-item">
+        <summary>Why does Wilson reimburse mileage?</summary>
+        <p>
+          When you use your personal vehicle for business — client visits, prospecting,
+          site checks, training — the company covers the cost of that business use.
+          Mileage reimbursement is how we do it fairly and consistently, without anyone
+          having to save gas receipts or repair invoices.
+        </p>
+      </details>
+
+      <details class="faq-item">
+        <summary>What does the per-mile rate actually cover?</summary>
+        <p>
+          Everything it costs to drive a mile: gas, oil, maintenance and repairs, tires,
+          depreciation (wear and tear), insurance, and registration. The rate is an
+          all-in approximation of those costs averaged across vehicles — which is why a
+          single per-mile number replaces itemizing any of it.
+        </p>
+      </details>
+
+      <details class="faq-item">
+        <summary>How is the rate set?</summary>
+        <p>
+          Wilson's rate follows the IRS standard mileage rate guidance, which the IRS
+          updates each year (typically in January) based on national vehicle-cost data.
+          The rate for the year applies to that year's months, and once a month is
+          approved, its rate is locked in — a later rate change never alters an
+          already-approved reimbursement.
+        </p>
+      </details>
+
+      <details class="faq-item">
+        <summary>Why is my commute deducted on days I start from home?</summary>
+        <p>
+          Under IRS principles, the ordinary drive between home and your regular
+          workplace is a personal expense — it isn't business mileage for anyone, in any
+          job. So on days you drive from home straight into the field, your standard
+          round-trip commute is subtracted and everything beyond it is reimbursed. On
+          days you start at the showroom, your commute got you there like any other
+          workday, and every business mile you log from there counts in full.
+        </p>
+      </details>
+
+      <details class="faq-item">
+        <summary>What counts as business mileage?</summary>
+        <p>
+          Driving between work locations: client and site visits, prospecting, builder
+          meetings, training, and trips between the showroom and the field. Personal
+          errands and the ordinary commute don't count — logging accurately protects
+          both you and the company.
+        </p>
+      </details>
+
+      <details class="faq-item">
+        <summary>Is my reimbursement taxed?</summary>
+        <p>
+          Reimbursements paid at or below the IRS standard rate under a policy like this
+          one are generally not treated as taxable wages — they're expense reimbursement,
+          not income. (General information, not tax advice — talk to a tax professional
+          about your own situation.)
+        </p>
+      </details>
+
+      <details class="faq-item">
+        <summary>How do I get paid?</summary>
+        <p>
+          Log your days here as the month goes, then submit when it's complete. The month
+          locks while it's reviewed; once approved, accounting includes the reimbursement
+          total in payroll. If a month is returned to you, the reviewer's note says what
+          to fix — correct it and resubmit.
+        </p>
+      </details>
     </div>
 
     <div class="surface">
@@ -313,8 +480,12 @@
       const entries = readEntriesFromGrid();
       const totalMiles = entries.reduce((s, e) => s + e.miles, 0);
       const reimbursed = entries.reduce((s, e) => s + computeReimbursed(e), 0);
-      document.getElementById("totalMiles").textContent = (Math.round(totalMiles * 10) / 10).toLocaleString();
-      document.getElementById("totalReimbursed").textContent = (Math.round(reimbursed * 10) / 10).toLocaleString();
+      const totalMilesText = (Math.round(totalMiles * 10) / 10).toLocaleString();
+      const reimbursedText = (Math.round(reimbursed * 10) / 10).toLocaleString();
+      document.getElementById("totalMiles").textContent = totalMilesText;
+      document.getElementById("totalReimbursed").textContent = reimbursedText;
+      document.getElementById("totalMilesM").textContent = totalMilesText;
+      document.getElementById("totalReimbursedM").textContent = reimbursedText;
 
       const rate = report.rateUsed != null ? report.rateUsed : currentRateForYear(report.year);
       document.getElementById("rateBox").textContent = rate != null ? "$" + Number(rate).toFixed(3).replace(/0$/, "") : "not set";
@@ -388,7 +559,14 @@
       reimbursedSpan.textContent = "0";
       tdReimbursed.appendChild(reimbursedSpan);
 
+      tdDate.dataset.label = "Date";
+      tdStart.dataset.label = "Showroom Start";
+      tdPurpose.dataset.label = "Business Purpose";
+      tdMiles.dataset.label = "Miles Driven";
+      tdReimbursed.dataset.label = "Reimbursed Miles";
+
       const tdRemove = document.createElement("td");
+      tdRemove.className = "remove-cell";
       if (editable) {
         const removeBtn = document.createElement("button");
         removeBtn.type = "button";

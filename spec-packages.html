@@ -245,8 +245,36 @@
     .row-actions { display: flex; flex-wrap: wrap; gap: 6px; }
 
     @media (max-width: 720px) {
-      body { padding: 18px 8px; }
+      body { padding: 14px 8px; }
       .surface { padding: 16px; }
+
+      .actions-row button { flex: 1 1 auto; }
+      .attach-row input[type="file"] { flex: 1 1 100%; }
+
+      /* Search results become stacked cards. */
+      .results-table thead { display: none; }
+      .results-table, .results-table tbody, .results-table tr, .results-table td {
+        display: block;
+        width: 100%;
+      }
+      .results-table tbody tr {
+        border: 1px solid var(--border);
+        border-radius: 14px;
+        padding: 10px 12px;
+        margin-bottom: 12px;
+        background: #fbfcff;
+      }
+      .results-table td { border: none; padding: 5px 0; }
+      .results-table td[data-label]::before {
+        content: attr(data-label);
+        display: block;
+        font-size: 11px;
+        font-weight: 800;
+        letter-spacing: 0.05em;
+        text-transform: uppercase;
+        color: #64748b;
+        margin-bottom: 2px;
+      }
     }
   </style>
 </head>
@@ -354,7 +382,7 @@
       <div id="searchStatus" class="status"></div>
 
       <div class="table-scroll" style="margin-top: 14px;">
-        <table>
+        <table class="results-table">
           <thead>
             <tr>
               <th>Created</th>
@@ -740,13 +768,13 @@
         }
 
         body.appendChild(el("tr", {}, [
-          el("td", { text: formatWhen(pkg.createdOn) }),
-          el("td", { text: pkg.docId || "—" }),
-          el("td", {}, [
+          el("td", { "data-label": "Created", text: formatWhen(pkg.createdOn) }),
+          el("td", { "data-label": "Order #", text: pkg.docId || "—" }),
+          el("td", { "data-label": "Title" }, [
             el("div", { text: pkg.title || "—" }),
             el("div", { class: "muted small-text", text: pkg.createdByFullName ? `by ${pkg.createdByFullName}` : "" })
           ]),
-          el("td", { text: pkg.salespersonFullName || pkg.salespersonEmail || "—" }),
+          el("td", { "data-label": "Salesperson", text: pkg.salespersonFullName || pkg.salespersonEmail || "—" }),
           el("td", {}, [links]),
           el("td", {}, [actions])
         ]));

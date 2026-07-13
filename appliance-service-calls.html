@@ -362,6 +362,17 @@
   margin-top: 8px;
 }
 
+
+    @media (max-width: 720px) {
+      body { padding: 14px 8px; }
+      .card { padding: 16px; }
+
+      /* Filters stack cleanly; the queue table itself stays full-detail and
+         scrolls sideways inside .table-wrap. */
+      .toolbar { gap: 8px; }
+      input[type="search"] { min-width: 0; flex: 1 1 100%; }
+      .filter-select { width: 100%; flex: 1 1 45%; }
+    }
   </style>
 </head>
 <body data-shell-label="Service Requests" data-shell-icon="service">

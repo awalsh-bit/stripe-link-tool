@@ -259,6 +259,77 @@
       font-size: 14px;
     }
 
+    .finder {
+      margin: 12px 0 4px;
+      border: 1px dashed var(--border, #dbe1ea);
+      border-radius: 12px;
+      padding: 12px 14px;
+      background: #fbfcff;
+    }
+
+    .finder-row { display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap; }
+    .finder-field { flex: 1 1 260px; }
+    .finder-field label { display: block; margin-bottom: 6px; font-size: 13px; font-weight: 700; }
+    .finder-field input { width: 100%; }
+
+    .finder-results { margin-top: 10px; display: grid; gap: 8px; }
+
+    .finder-hit {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      flex-wrap: wrap;
+      border: 1px solid var(--border, #dbe1ea);
+      border-radius: 10px;
+      padding: 10px 12px;
+      background: #fff;
+      font-size: 13px;
+    }
+
+    .finder-hit .hit-main { flex: 1 1 240px; }
+    .finder-hit .hit-main strong { display: block; font-size: 14px; }
+    .finder-hit .hit-meta { color: #6b7280; }
+
+    .refund-panel {
+      margin: 14px 0 4px;
+      border: 1px solid rgba(245, 158, 11, 0.5);
+      background: #fffbeb;
+      border-radius: 14px;
+      padding: 16px;
+    }
+
+    .refund-panel-title { font-weight: 800; font-size: 15px; margin-bottom: 12px; }
+
+    .refund-grid {
+      display: grid;
+      grid-template-columns: 180px 1fr;
+      gap: 14px;
+      align-items: start;
+    }
+
+    .refund-panel label { display: block; margin-bottom: 6px; font-size: 13px; font-weight: 700; }
+    .refund-panel input[type="number"], .refund-panel input[type="text"] { width: 100%; }
+
+    .refund-confirm {
+      display: flex;
+      gap: 10px;
+      align-items: flex-start;
+      margin-top: 14px;
+      font-size: 14px;
+      line-height: 1.5;
+      font-weight: 500 !important;
+      cursor: pointer;
+    }
+
+    .refund-confirm input { width: auto; margin-top: 3px; }
+
+    .refund-actions { display: flex; gap: 10px; margin-top: 14px; flex-wrap: wrap; }
+
+    @media (max-width: 720px) {
+      .refund-grid { grid-template-columns: 1fr; }
+      .refund-actions .btn { flex: 1 1 auto; }
+    }
+
     @media (max-width: 1100px) {
       .summary-grid {
         grid-template-columns: 1fr;
@@ -347,9 +418,46 @@
         <button id="lookupBtn" class="btn btn-primary" type="button">Look up</button>
       </div>
 
+      <div class="finder">
+        <div class="finder-row">
+          <div class="finder-field">
+            <label for="finderQuery">Don't have the ID? Find by customer</label>
+            <input id="finderQuery" placeholder="Phone number, email, or name" />
+          </div>
+          <button id="finderBtn" class="btn btn-secondary" type="button">Find payments</button>
+        </div>
+        <div id="finderResults" class="finder-results" hidden></div>
+      </div>
+
       <div class="toolbar-actions">
         <button id="refundBtn" class="btn btn-secondary" type="button" hidden>Issue refund</button>
         <button id="exportCsvBtn" class="btn btn-secondary" type="button">Export visible to CSV</button>
+      </div>
+
+      <div id="refundPanel" class="refund-panel" hidden>
+        <div class="refund-panel-title">Issue a refund</div>
+        <div class="refund-grid">
+          <div>
+            <label for="refundAmount">Refund amount ($)</label>
+            <input id="refundAmount" type="number" min="0" step="0.01" value="0.00" />
+            <div class="helper" id="refundMaxNote"></div>
+          </div>
+          <div class="refund-note-field">
+            <label for="refundNote">Product or service cancelled / returned</label>
+            <input id="refundNote" type="text" maxlength="200"
+              placeholder='e.g. "KDTS434SPS dishwasher returned" or "canceled HVAC maintenance visit"' />
+          </div>
+        </div>
+        <label class="refund-confirm">
+          <input id="refundConfirm" type="checkbox" />
+          <span>I understand this process <strong>cannot be reversed once submitted</strong>, and
+          Wilson Appliance will need to pay additional credit card fees to re-collect from the
+          customer at a later time.</span>
+        </label>
+        <div class="refund-actions">
+          <button id="refundSubmitBtn" class="btn btn-primary" type="button" disabled>Submit refund</button>
+          <button id="refundCancelBtn" class="btn btn-secondary" type="button">Cancel</button>
+        </div>
       </div>
 
       <div id="status" class="status"></div>
@@ -561,27 +669,57 @@
       `).join("");
     }
 
-    async function issueRefund() {
+    const refundPanel = document.getElementById("refundPanel");
+    const refundAmountEl = document.getElementById("refundAmount");
+    const refundNoteEl = document.getElementById("refundNote");
+    const refundConfirmEl = document.getElementById("refundConfirm");
+    const refundSubmitBtn = document.getElementById("refundSubmitBtn");
+    const refundCancelBtn = document.getElementById("refundCancelBtn");
+
+    // Mirrors the server's rule: the note must identify the product or
+    // service — generic phrases are rejected.
+    const GENERIC_REFUND_NOTES = /^(requested by( the)? customer|customer request(ed)?( it)?( a refund)?|per( the)? customer( request)?|customer( asked)?( for( a)? refund)?|refund( requested)?|return(ed)?|cancell?ed|cancellation|cancel|n\/?a|none|misc|other|test)[.!]*$/i;
+
+    function refundNoteError(note) {
+      const trimmed = String(note || "").trim();
+      if (trimmed.length < 8 || GENERIC_REFUND_NOTES.test(trimmed)) {
+        return 'Be specific about the product or service being refunded (e.g. "KDTS434SPS dishwasher returned" or "canceled HVAC maintenance visit").';
+      }
+      return null;
+    }
+
+    function openRefundPanel() {
       if (!isRefundablePaymentIntent(latestIntentResponse)) {
         showStatus("error", "Only succeeded, refundable PaymentIntents can be refunded here.");
         return;
       }
 
       const refundableAmount = Number(latestIntentResponse.summary.refundableAmount || 0);
-      const amountEntry = window.prompt(
-        `Enter refund amount in dollars. Leave blank for the full refundable amount of ${formatMoney(refundableAmount)}.`,
-        refundableAmount.toFixed(2)
-      );
+      refundAmountEl.value = "0.00";
+      refundNoteEl.value = "";
+      refundConfirmEl.checked = false;
+      refundSubmitBtn.disabled = true;
+      document.getElementById("refundMaxNote").textContent =
+        `Refundable: ${formatMoney(refundableAmount)}. Enter the exact amount — double-check it.`;
+      refundPanel.hidden = false;
+      clearStatus();
+      refundAmountEl.focus();
+    }
 
-      if (amountEntry === null) {
-        return;
-      }
+    refundConfirmEl.addEventListener("change", () => {
+      refundSubmitBtn.disabled = !refundConfirmEl.checked;
+    });
 
-      const trimmedAmount = String(amountEntry).trim();
-      const refundAmount = trimmedAmount === "" ? refundableAmount : Number(trimmedAmount);
+    refundCancelBtn.addEventListener("click", () => {
+      refundPanel.hidden = true;
+    });
+
+    async function submitRefund() {
+      const refundableAmount = Number(latestIntentResponse?.summary?.refundableAmount || 0);
+      const refundAmount = Number(refundAmountEl.value);
 
       if (!Number.isFinite(refundAmount) || refundAmount <= 0) {
-        showStatus("error", "Enter a valid refund amount greater than zero.");
+        showStatus("error", "Enter the exact refund amount — it can't be zero.");
         return;
       }
 
@@ -590,16 +728,20 @@
         return;
       }
 
-      const confirmed = window.confirm(
-        `Issue a refund for ${formatMoney(refundAmount)} on ${latestIntentResponse.id}?`
-      );
-
-      if (!confirmed) {
+      const noteError = refundNoteError(refundNoteEl.value);
+      if (noteError) {
+        showStatus("error", noteError);
+        refundNoteEl.focus();
         return;
       }
 
-      refundBtn.disabled = true;
-      refundBtn.textContent = "Refunding...";
+      if (!refundConfirmEl.checked) {
+        showStatus("error", "Check the confirmation box before submitting.");
+        return;
+      }
+
+      refundSubmitBtn.disabled = true;
+      refundSubmitBtn.textContent = "Refunding...";
       clearStatus();
 
       try {
@@ -610,6 +752,8 @@
           },
           body: JSON.stringify({
             amount: refundAmount,
+            note: refundNoteEl.value.trim(),
+            confirmed: true,
             reason: "requested_by_customer"
           })
         });
@@ -619,18 +763,110 @@
           throw new Error(data.error || "Unable to issue refund.");
         }
 
+        refundPanel.hidden = true;
         showStatus("success", `Refund issued for ${formatMoney(data.amount || refundAmount)}.`);
         await runLookup();
       } catch (err) {
         showStatus("error", err.message || "Unable to issue refund.");
       } finally {
-        refundBtn.disabled = false;
-        refundBtn.textContent = "Issue refund";
+        refundSubmitBtn.disabled = !refundConfirmEl.checked;
+        refundSubmitBtn.textContent = "Submit refund";
       }
     }
 
+    refundSubmitBtn.addEventListener("click", submitRefund);
+
+    const finderQueryEl = document.getElementById("finderQuery");
+    const finderBtn = document.getElementById("finderBtn");
+    const finderResultsEl = document.getElementById("finderResults");
+
+    function escapeText(value) {
+      return String(value == null ? "" : value);
+    }
+
+    async function runFinder() {
+      const query = finderQueryEl.value.trim();
+      if (query.length < 3) {
+        showStatus("error", "Enter at least 3 characters of a phone, email, or name.");
+        return;
+      }
+
+      finderBtn.disabled = true;
+      finderBtn.textContent = "Searching...";
+      clearStatus();
+
+      try {
+        const res = await fetch(`/api/intent-lookup/find?q=${encodeURIComponent(query)}`, {
+          credentials: "same-origin"
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          throw new Error(data.error || "Unable to search payments.");
+        }
+
+        finderResultsEl.textContent = "";
+        finderResultsEl.hidden = false;
+
+        if (!data.matches.length) {
+          const empty = document.createElement("div");
+          empty.className = "hit-meta";
+          empty.textContent = `No payments matched that ${data.searchedBy}. Try fewer digits or a different key.`;
+          finderResultsEl.appendChild(empty);
+          return;
+        }
+
+        for (const match of data.matches) {
+          const hit = document.createElement("div");
+          hit.className = "finder-hit";
+
+          const main = document.createElement("div");
+          main.className = "hit-main";
+          const title = document.createElement("strong");
+          title.textContent = escapeText(match.customerName || "Unknown customer");
+          const meta = document.createElement("div");
+          meta.className = "hit-meta";
+          const when = match.when ? new Date(match.when).toLocaleDateString() : "—";
+          meta.textContent = [
+            match.amount ? formatMoney(match.amount) : null,
+            when,
+            match.salesOrder || match.description || null,
+            match.source,
+            match.customerPhone || match.customerEmail || null
+          ].filter(Boolean).join(" · ");
+          main.appendChild(title);
+          main.appendChild(meta);
+
+          const useBtn = document.createElement("button");
+          useBtn.type = "button";
+          useBtn.className = "btn btn-secondary";
+          useBtn.textContent = "Use";
+          useBtn.addEventListener("click", () => {
+            intentKindEl.value = "payment_intent";
+            intentIdEl.value = match.paymentIntentId;
+            finderResultsEl.hidden = true;
+            runLookup();
+          });
+
+          hit.appendChild(main);
+          hit.appendChild(useBtn);
+          finderResultsEl.appendChild(hit);
+        }
+      } catch (err) {
+        showStatus("error", err.message || "Unable to search payments.");
+      } finally {
+        finderBtn.disabled = false;
+        finderBtn.textContent = "Find payments";
+      }
+    }
+
+    finderBtn.addEventListener("click", runFinder);
+    finderQueryEl.addEventListener("keydown", (event) => {
+      if (event.key === "Enter") runFinder();
+    });
+
     async function runLookup() {
       clearStatus();
+      refundPanel.hidden = true;
       const kind = intentKindEl.value;
       const id = intentIdEl.value.trim();
 
@@ -699,7 +935,7 @@
       }
     });
 
-    refundBtn.addEventListener("click", issueRefund);
+    refundBtn.addEventListener("click", openRefundPanel);
   </script>
 </body>
 </html>

@@ -122,6 +122,25 @@
       border-color: var(--border);
     }
 
+    /* Refund actions carry a soft red hue to match the caution panel —
+       visually distinct from ordinary lookup/export actions. */
+    .btn-refund {
+      background: #fef2f2;
+      color: #991b1b;
+      border-color: #fca5a5;
+    }
+
+    .btn-refund:hover { background: #fee2e2; }
+
+    .btn-refund-solid {
+      background: #dc2626;
+      color: #fff;
+      border-color: #dc2626;
+    }
+
+    .btn-refund-solid:hover:not(:disabled) { background: #b91c1c; }
+    .btn-refund-solid:disabled { opacity: 0.55; cursor: not-allowed; }
+
     .status {
       min-height: 24px;
       margin-bottom: 14px;
@@ -430,7 +449,7 @@
       </div>
 
       <div class="toolbar-actions">
-        <button id="refundBtn" class="btn btn-secondary" type="button" hidden>Issue refund</button>
+        <button id="refundBtn" class="btn btn-refund" type="button" hidden>Issue refund</button>
         <button id="exportCsvBtn" class="btn btn-secondary" type="button">Export visible to CSV</button>
       </div>
 
@@ -455,7 +474,7 @@
           customer at a later time.</span>
         </label>
         <div class="refund-actions">
-          <button id="refundSubmitBtn" class="btn btn-primary" type="button" disabled>Submit refund</button>
+          <button id="refundSubmitBtn" class="btn btn-refund-solid" type="button" disabled>Submit refund</button>
           <button id="refundCancelBtn" class="btn btn-secondary" type="button">Cancel</button>
         </div>
       </div>

@@ -2694,6 +2694,27 @@ app.delete("/api/admin/employee-directory/:code", requireExecutiveApi, async (re
   }
 });
 
+// The static server serves the repo root, so without a guard ANY
+// authenticated user (including zero-permission accounts) could download the
+// data ledgers (customer PII), the server source, SQL, and internal docs.
+// Explicitly deny everything that is not a front-end asset.
+const STATIC_DENY_DIRS = /^\/(data|sql|docs|lib|scripts|items|node_modules|_to_delete|tmp_[^/]+)\//i;
+const STATIC_DENY_FILES = /\.(json|sql|md|xlsx|xlsm|csv|log|txt|env|lock)$/i;
+const STATIC_DENY_EXACT = new Set(["/server.js", "/employee-directory.js"]); // employee-directory.js is served by its DB route above
+
+app.use((req, res, next) => {
+  const requestPath = decodeURIComponent(req.path);
+  if (requestPath === "/robots.txt") return next();
+  if (
+    STATIC_DENY_DIRS.test(requestPath) ||
+    STATIC_DENY_FILES.test(requestPath) ||
+    STATIC_DENY_EXACT.has(requestPath)
+  ) {
+    return res.status(404).send("Not found.");
+  }
+  return next();
+});
+
 app.use(express.static(__dirname, { index: false }));
 
 app.get("/", (req, res) => {
@@ -6396,9 +6417,16 @@ app.get("/api/service/prefill/:token", async (req, res) => {
     const serviceCards = await readServiceCards();
     const row = serviceCards.find((card) => card.secureCardPrefillToken === token);
 
-    if (!row) {
+    // Tokens expire: a forwarded or leaked prefill URL must not expose the
+    // customer's stored details indefinitely. Staff can issue a fresh link
+    // from the service queue at any time.
+    const PREFILL_TOKEN_MAX_AGE_MS = 14 * 24 * 60 * 60 * 1000;
+    const issuedAt = row ? new Date(row.secureCardPrefillUpdatedAt || 0).getTime() : 0;
+    const expired = !Number.isFinite(issuedAt) || issuedAt <= 0 || Date.now() - issuedAt > PREFILL_TOKEN_MAX_AGE_MS;
+
+    if (!row || expired) {
       return res.status(404).json({
-        error: "This secure card link is no longer available."
+        error: "This secure card link is no longer available. Please ask us to send a fresh one."
       });
     }
 

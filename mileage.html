@@ -290,7 +290,7 @@
           <thead>
             <tr>
               <th>Date</th>
-              <th>Showroom Start</th>
+              <th>Starting Location</th>
               <th>Business Purpose</th>
               <th class="num">Miles Driven</th>
               <th class="num">Reimbursed Miles</th>
@@ -519,7 +519,7 @@
       const tdStart = document.createElement("td");
       const startSelect = document.createElement("select");
       startSelect.className = "e-start";
-      for (const [value, label] of [["Y", "Y — from showroom"], ["N", "N — from home"]]) {
+      for (const [value, label] of [["Y", "Showroom"], ["N", "Home"]]) {
         const option = document.createElement("option");
         option.value = value;
         option.textContent = label;
@@ -560,7 +560,7 @@
       tdReimbursed.appendChild(reimbursedSpan);
 
       tdDate.dataset.label = "Date";
-      tdStart.dataset.label = "Showroom Start";
+      tdStart.dataset.label = "Starting Location";
       tdPurpose.dataset.label = "Business Purpose";
       tdMiles.dataset.label = "Miles Driven";
       tdReimbursed.dataset.label = "Reimbursed Miles";

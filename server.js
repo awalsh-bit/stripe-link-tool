@@ -118,6 +118,8 @@ import {
   listMileageReportsForUser,
   listMileageReportsForReview,
   saveMileageEntries,
+  refreshReportCommute,
+  markMileageReportsPaid,
   setMileageReportStatus
 } from "./lib/mileage-postgres.js";
 
@@ -2576,6 +2578,14 @@ app.post("/api/mileage/report", requirePagePermission("/mileage.html"), async (r
     } catch {}
 
     const report = await getOrCreateMileageReport(user.id, year, month, commute);
+
+    // Pick up a commute that was set/changed in the directory after this
+    // report was started (draft/denied only — locked reports keep their snapshot).
+    if (["draft", "denied"].includes(report.status) && Number(report.commuteMiles) !== Number(commute)) {
+      await refreshReportCommute(report.id, commute);
+      report.commuteMiles = Number(commute) || 0;
+    }
+
     await attachMileageTotals(report);
     return res.json({ report });
   } catch (err) {
@@ -2667,6 +2677,32 @@ app.get("/api/mileage/review", requirePagePermission("/mileage-review.html"), as
   } catch (err) {
     console.error("Mileage review list failed:", err.message);
     return res.status(500).json({ error: "Unable to load reports." });
+  }
+});
+
+// Accounting: mark approved reports as paid (approved -> paid).
+app.post("/api/mileage/mark-paid", requirePagePermission("/mileage-review.html"), async (req, res) => {
+  const user = resolveMileageUser(req, res);
+  if (!user) return;
+  try {
+    const reportIds = Array.isArray(req.body?.reportIds) ? req.body.reportIds : [];
+    if (!reportIds.length) {
+      return res.status(400).json({ error: "Select at least one approved report to mark paid." });
+    }
+
+    const count = await markMileageReportsPaid(reportIds, user.id || null);
+    recordAudit({
+      ip: req.ip,
+      actorUserId: user.id || null,
+      action: "mileage_marked_paid",
+      targetUserId: null,
+      detail: { count, reportIds: reportIds.slice(0, 100) }
+    }).catch(() => {});
+
+    return res.json({ success: true, count });
+  } catch (err) {
+    console.error("Mileage mark-paid failed:", err.message);
+    return res.status(500).json({ error: "Unable to mark reports paid." });
   }
 });
 

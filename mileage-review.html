@@ -146,6 +146,7 @@
     .pill.draft { background: #eef2ff; color: #3730a3; }
     .pill.submitted { background: var(--warn-bg); color: var(--warn-text); }
     .pill.approved { background: var(--success-bg); color: var(--success-text); }
+    .pill.paid { background: #d1fae5; color: #065f46; border: 1px solid #6ee7b7; }
     .pill.denied { background: var(--error-bg); color: var(--error-text); }
 
     .detail-head { display: flex; flex-wrap: wrap; gap: 16px; align-items: center; margin-bottom: 12px; }
@@ -240,11 +241,13 @@
         <div class="field">
           <label for="statusFilter">Status</label>
           <select id="statusFilter">
-            <option value="submitted" selected>Submitted (awaiting review)</option>
-            <option value="approved">Approved</option>
+            <option value="" selected>All</option>
+            <option value="submitted">Submitted (awaiting review)</option>
+            <option value="approved_unpaid">Approved — to pay</option>
+            <option value="paid">Paid</option>
+            <option value="approved">Approved (all)</option>
             <option value="denied">Returned / denied</option>
             <option value="draft">Draft (in progress)</option>
-            <option value="">All</option>
           </select>
         </div>
         <div class="field">
@@ -256,6 +259,7 @@
           <select id="monthFilter"><option value="">All months</option></select>
         </div>
         <button id="loadBtn" type="button">Load reports</button>
+        <button id="confirmPaidBtn" type="button" class="approve" style="display: none;">Confirm Paid Records</button>
       </div>
       <div id="listStatus" class="status"></div>
 
@@ -270,11 +274,12 @@
               <th class="num">Reimbursed Mi</th>
               <th class="num">Total $</th>
               <th>Submitted</th>
+              <th>Paid?</th>
               <th></th>
             </tr>
           </thead>
           <tbody id="listBody">
-            <tr><td colspan="8" class="muted">Load reports to begin.</td></tr>
+            <tr><td colspan="9" class="muted">Load reports to begin.</td></tr>
           </tbody>
         </table>
       </div>
@@ -296,7 +301,7 @@
           <thead>
             <tr>
               <th>Date</th>
-              <th>Showroom Start</th>
+              <th>Starting Location</th>
               <th>Business Purpose</th>
               <th class="num">Miles</th>
               <th class="num">Reimbursed</th>
@@ -372,6 +377,41 @@
     const MONTH_NAMES = ["January","February","March","April","May","June","July","August","September","October","November","December"];
     let reports = [];
     let detail = null;
+    const selectedPaid = new Set();
+
+    function updateConfirmPaidBtn() {
+      const btn = document.getElementById("confirmPaidBtn");
+      const n = selectedPaid.size;
+      btn.style.display = n ? "inline-flex" : "none";
+      btn.textContent = n ? `Confirm Paid Records (${n})` : "Confirm Paid Records";
+    }
+
+    document.getElementById("confirmPaidBtn").addEventListener("click", async () => {
+      const ids = [...selectedPaid];
+      if (!ids.length) return;
+      if (!confirm(`Mark ${ids.length} approved report(s) as PAID? This records them as reimbursed in payroll.`)) return;
+
+      const btn = document.getElementById("confirmPaidBtn");
+      btn.disabled = true;
+      try {
+        const res = await fetch("/api/mileage/mark-paid", {
+          method: "POST",
+          credentials: "same-origin",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ reportIds: ids })
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error || "Unable to mark reports paid.");
+        selectedPaid.clear();
+        setStatus("listStatus", `Marked ${data.count} report(s) paid.`, "ok");
+        await loadReports();
+      } catch (err) {
+        setStatus("listStatus", err.message, "error");
+      } finally {
+        btn.disabled = false;
+        updateConfirmPaidBtn();
+      }
+    });
 
     function setStatus(id, message, kind) {
       const box = document.getElementById(id);
@@ -430,13 +470,15 @@
       if (!reports.length) {
         const tr = document.createElement("tr");
         const td = document.createElement("td");
-        td.colSpan = 8;
+        td.colSpan = 9;
         td.className = "muted";
         td.textContent = "Nothing matched those filters.";
         tr.appendChild(td);
         body.appendChild(tr);
         return;
       }
+      selectedPaid.clear();
+      updateConfirmPaidBtn();
 
       for (const r of reports) {
         const tr = document.createElement("tr");
@@ -453,14 +495,33 @@
 
         addCell(r.employeeName || r.employeeEmail, "", "Employee");
         addCell(MONTH_NAMES[r.month - 1] + " " + r.year, "", "Month");
+        const isPaid = Boolean(r.paidAt);
+        const displayStatus = isPaid ? "paid" : r.status;
         const pill = document.createElement("span");
-        pill.className = "pill " + r.status;
-        pill.textContent = r.status.toUpperCase();
+        pill.className = "pill " + displayStatus;
+        pill.textContent = displayStatus.toUpperCase();
         addCell(pill);
         addCell((r.totals?.totalMiles ?? 0).toLocaleString(), "num", "Total Mi");
         addCell((r.totals?.reimbursedMiles ?? 0).toLocaleString(), "num", "Reimbursed Mi");
         addCell(money(r.totals?.reimbursementTotal), "num", "Total $");
         addCell(r.submittedAt ? new Date(r.submittedAt).toLocaleDateString() : "—", "", "Submitted");
+
+        // Paid column: checkbox for approved-unpaid; a check mark once paid.
+        if (r.status === "approved" && !isPaid) {
+          const paidBox = document.createElement("input");
+          paidBox.type = "checkbox";
+          paidBox.checked = selectedPaid.has(r.id);
+          paidBox.addEventListener("change", () => {
+            if (paidBox.checked) selectedPaid.add(r.id);
+            else selectedPaid.delete(r.id);
+            updateConfirmPaidBtn();
+          });
+          addCell(paidBox, "", "Paid?");
+        } else if (isPaid) {
+          addCell("✓ " + (r.paidAt ? new Date(r.paidAt).toLocaleDateString() : "Paid"), "", "Paid?");
+        } else {
+          addCell("—", "", "Paid?");
+        }
 
         const openBtn = document.createElement("button");
         openBtn.type = "button";
@@ -543,7 +604,7 @@
       const tdStart = document.createElement("td");
       const startSelect = document.createElement("select");
       startSelect.className = "e-start";
-      for (const [value, label] of [["Y", "Y — from showroom"], ["N", "N — from home"]]) {
+      for (const [value, label] of [["Y", "Showroom"], ["N", "Home"]]) {
         const option = document.createElement("option");
         option.value = value;
         option.textContent = label;
@@ -583,7 +644,7 @@
       tdReimbursed.appendChild(reimbursedSpan);
 
       tdDate.dataset.label = "Date";
-      tdStart.dataset.label = "Showroom Start";
+      tdStart.dataset.label = "Starting Location";
       tdPurpose.dataset.label = "Business Purpose";
       tdMiles.dataset.label = "Miles";
       tdReimbursed.dataset.label = "Reimbursed";
@@ -770,12 +831,17 @@
 
     (async function init() {
       const now = new Date();
+      // Accounting works the previous month in the first week of the current.
+      const prev = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+      const prevYear = prev.getFullYear();
+      const prevMonth = prev.getMonth() + 1;
+
       const yearFilter = document.getElementById("yearFilter");
       for (const y of ["", now.getFullYear() - 1, now.getFullYear(), now.getFullYear() + 1]) {
         const option = document.createElement("option");
         option.value = y;
         option.textContent = y === "" ? "All years" : y;
-        if (y === now.getFullYear()) option.selected = true;
+        if (y === prevYear) option.selected = true;
         yearFilter.appendChild(option);
       }
       const monthFilter = document.getElementById("monthFilter");
@@ -783,6 +849,7 @@
         const option = document.createElement("option");
         option.value = i + 1;
         option.textContent = name;
+        if (i + 1 === prevMonth) option.selected = true;
         monthFilter.appendChild(option);
       });
 

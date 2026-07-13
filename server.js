@@ -2293,20 +2293,28 @@ function sweepQuoteMerges() {
 app.post(
   "/api/spec-packages/:navId/attach-quote",
   requirePagePermission("/spec-packages.html"),
-  express.raw({ type: ["application/pdf", "application/octet-stream"], limit: "30mb" }),
+  express.json({ limit: "40mb" }),
   async (req, res) => {
     const userEmail = resolveSteelCodUserEmail(req, res);
     if (!userEmail) return;
 
-    const quoteBytes = req.body;
+    // The quote PDF arrives base64'd inside a JSON body (not a raw binary
+    // upload) so it travels the same path as the create call — some endpoint
+    // security/DLP blocks raw file uploads (surfaces as "Failed to fetch").
+    let quoteBytes;
+    try {
+      quoteBytes = Buffer.from(String(req.body?.pdfBase64 || ""), "base64");
+    } catch {
+      quoteBytes = Buffer.alloc(0);
+    }
     if (!Buffer.isBuffer(quoteBytes) || quoteBytes.length < 5) {
-      return res.status(400).json({ error: "Upload the sales order / quote PDF as the request body." });
+      return res.status(400).json({ error: "Upload the sales order / quote PDF." });
     }
     if (quoteBytes.subarray(0, 5).toString("latin1") !== "%PDF-") {
       return res.status(400).json({ error: "The uploaded file does not look like a PDF." });
     }
 
-    const variant = String(req.query.variant || "slim").toLowerCase() === "full" ? "full" : "slim";
+    const variant = String(req.body?.variant || req.query.variant || "slim").toLowerCase() === "full" ? "full" : "slim";
 
     try {
       const pkg = await retrieveSpecPackage({ userEmail, navId: req.params.navId });
@@ -2377,7 +2385,7 @@ app.post(
       const mergedBytes = await quoteDoc.save();
 
       const safeName =
-        String(req.query.name || "quote")
+        String(req.body?.name || req.query.name || "quote")
           .replace(/[^A-Za-z0-9 ._-]+/g, "")
           .trim()
           .slice(0, 80) || "quote";

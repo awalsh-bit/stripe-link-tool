@@ -541,17 +541,24 @@
       return parts.length ? parts[parts.length - 1] : "";
     }
 
-    function fileToBase64(file) {
-      return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => {
-          // result is "data:application/pdf;base64,XXXX" — keep only the base64.
-          const comma = String(reader.result).indexOf(",");
-          resolve(comma >= 0 ? String(reader.result).slice(comma + 1) : "");
-        };
-        reader.onerror = () => reject(new Error("Could not read the PDF file."));
-        reader.readAsDataURL(file);
-      });
+    async function fileToBase64(file) {
+      // Read via Blob.arrayBuffer() (more reliable than FileReader) and
+      // base64 in chunks so large PDFs don't overflow the call stack.
+      let bytes;
+      try {
+        bytes = new Uint8Array(await file.arrayBuffer());
+      } catch (err) {
+        throw new Error("Couldn't read that PDF — make sure it isn't open in another program, then try again.");
+      }
+      if (!bytes.length) {
+        throw new Error("That PDF appears to be empty. Choose the file again.");
+      }
+      let binary = "";
+      const CHUNK = 0x8000;
+      for (let i = 0; i < bytes.length; i += CHUNK) {
+        binary += String.fromCharCode.apply(null, bytes.subarray(i, i + CHUNK));
+      }
+      return btoa(binary);
     }
 
     async function mergeQuoteDownload(navId, file, variant, baseName) {

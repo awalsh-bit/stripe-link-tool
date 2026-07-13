@@ -151,6 +151,13 @@
         href: "event-rsvps.html",
         title: "Event RSVPs",
         text: "Review active and archived event registrations."
+      },
+      {
+        title: "HR",
+        children: [
+          { href: "hr-phone-screen.html", title: "Phone Screen" },
+          { href: "hr-candidates.html", title: "Candidates" }
+        ]
       }
     ];
 

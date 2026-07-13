@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="robots" content="noindex,nofollow,noarchive" />
+  <title>Wilson AC & Appliance - Candidates</title>
+  <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+  <link rel="stylesheet" href="internal-shell.css" />
+  <style>
+    :root {
+      --bg: #f7f8fc; --card: #ffffff; --text: #1f2937; --muted: #6b7280;
+      --border: #dbe1ea; --primary: #635bff; --primary-hover: #564ef0;
+      --success-bg: #ecfdf5; --success-text: #065f46;
+      --error-bg: #fef2f2; --error-text: #991b1b;
+      --warn-bg: #fffbeb; --warn-text: #92400e;
+      --shadow: 0 10px 35px rgba(0, 0, 0, 0.08); --radius: 18px;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: linear-gradient(180deg, #eef2ff 0%, var(--bg) 100%); color: var(--text); min-height: 100vh; padding: 32px 16px; }
+    .wrap { max-width: 1480px; margin: 0 auto; }
+    .surface { background: var(--card); border: 1px solid rgba(99, 91, 255, 0.12); box-shadow: var(--shadow);
+      border-radius: var(--radius); padding: 24px; margin: 0 auto 22px; }
+    h2 { margin: 0 0 6px; font-size: 22px; }
+    h3 { margin: 0 0 10px; font-size: 16px; }
+    .section-note { margin: 0 0 16px; color: var(--muted); font-size: 14px; line-height: 1.5; }
+    .toolbar { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; margin-bottom: 12px; }
+    input, select { border: 1px solid var(--border); border-radius: 12px; padding: 12px 14px; font-size: 14px;
+      background: #fff; color: var(--text); outline: none; font-family: inherit; }
+    .toolbar input[type="search"] { flex: 1; min-width: 240px; }
+    button { appearance: none; border: none; background: var(--primary); color: #fff; padding: 12px 18px;
+      border-radius: 12px; font-size: 14px; font-weight: 700; cursor: pointer; white-space: nowrap; font-family: inherit; }
+    button:hover { background: var(--primary-hover); }
+    button.secondary { background: #eef2ff; color: var(--primary); }
+    button.tiny { padding: 6px 10px; font-size: 12px; border-radius: 8px; }
+    a.btnlink { display: inline-flex; align-items: center; text-decoration: none; }
+    table { width: 100%; border-collapse: collapse; font-size: 14px; }
+    th, td { text-align: left; padding: 10px 12px; border-bottom: 1px solid #eef1f6; vertical-align: middle; }
+    th { font-size: 12px; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; color: #64748b; white-space: nowrap; }
+    .muted { color: var(--muted); }
+    .small-text { font-size: 12px; }
+    .table-scroll { overflow-x: auto; }
+    .status { display: none; margin: 12px 0 0; border-radius: 12px; padding: 12px 14px; font-size: 14px; }
+    .status.show { display: block; }
+    .status.error { background: var(--error-bg); color: var(--error-text); }
+    .rec { display: inline-flex; border-radius: 999px; padding: 3px 10px; font-size: 12px; font-weight: 700; }
+    .rec.advance { background: #ecfdf5; color: #065f46; }
+    .rec.maybe { background: #fffbeb; color: #92400e; }
+    .rec.pass { background: #fef2f2; color: #991b1b; }
+    .screen-card { border: 1px solid var(--border); border-radius: 14px; padding: 14px 16px; margin-bottom: 12px; background: #fbfcff; }
+    .screen-head { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-bottom: 8px; }
+    .screen-head .who { font-weight: 800; }
+    .kv { font-size: 14px; line-height: 1.6; }
+    .kv b { color: #374151; }
+    .check { color: #065f46; font-weight: 700; }
+    .nocheck { color: #991b1b; font-weight: 700; }
+    .profile-meta { display: flex; gap: 20px; flex-wrap: wrap; font-size: 14px; margin-bottom: 14px; color: var(--muted); }
+    .back { color: var(--primary); font-weight: 700; cursor: pointer; }
+    @media (max-width: 640px) { .surface { padding: 16px; } body { padding: 14px 8px; } }
+  </style>
+</head>
+<body data-shell-label="Candidates" data-shell-icon="accounting">
+  <div class="wrap">
+    <div id="internal-shell-header"></div>
+
+    <!-- List view -->
+    <div class="surface" id="listSurface">
+      <h2>Candidates</h2>
+      <p class="section-note">
+        Candidate profiles and the phone screens filed to them.
+        <a href="hr-phone-screen.html">File a new phone screen →</a>
+      </p>
+      <div class="toolbar">
+        <input id="searchInput" type="search" placeholder="Search by name, email, role, or phone" />
+        <button id="searchBtn" type="button">Search</button>
+      </div>
+      <div id="listStatus" class="status"></div>
+      <div class="table-scroll">
+        <table>
+          <thead>
+            <tr><th>Candidate</th><th>Role applied</th><th>Contact</th><th>Screens</th><th>Last activity</th><th></th></tr>
+          </thead>
+          <tbody id="listBody"><tr><td colspan="6" class="muted">Loading…</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Profile view -->
+    <div class="surface" id="profileSurface" style="display: none;">
+      <div class="back" id="backBtn">← Back to candidates</div>
+      <h2 id="profileName" style="margin-top: 10px;"></h2>
+      <div class="profile-meta" id="profileMeta"></div>
+      <a class="btnlink" id="fileAnotherLink" href="hr-phone-screen.html"><button type="button" class="secondary">File another phone screen</button></a>
+      <h3 style="margin-top: 22px;">Phone screens</h3>
+      <div id="screensBody"></div>
+    </div>
+
+    <div id="internal-shell-footer"></div>
+  </div>
+
+  <script src="internal-shell.js"></script>
+  <script>
+    const REC_LABEL = { advance: "Advance", maybe: "Maybe", pass: "Pass" };
+
+    function setStatus(id, message, kind) {
+      const box = document.getElementById(id);
+      if (!message) { box.className = "status"; box.textContent = ""; return; }
+      box.className = "status " + kind + " show";
+      box.textContent = message;
+    }
+
+    async function api(path) {
+      const res = await fetch(path, { credentials: "same-origin" });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || "Request failed.");
+      return data;
+    }
+
+    function el(tag, attrs, children) {
+      const node = document.createElement(tag);
+      for (const [k, v] of Object.entries(attrs || {})) {
+        if (k === "class") node.className = v;
+        else if (k === "text") node.textContent = v;
+        else if (k.startsWith("on")) node.addEventListener(k.slice(2), v);
+        else node.setAttribute(k, v);
+      }
+      for (const c of children || []) node.appendChild(c);
+      return node;
+    }
+
+    function fmtDate(v) {
+      if (!v) return "—";
+      const d = new Date(v);
+      return Number.isNaN(d.getTime()) ? "—" : d.toLocaleDateString("en-US", { month: "2-digit", day: "2-digit", year: "2-digit" });
+    }
+
+    async function loadList() {
+      try {
+        setStatus("listStatus", "", "");
+        const q = document.getElementById("searchInput").value.trim();
+        const data = await api("/api/hr/candidates" + (q ? "?q=" + encodeURIComponent(q) : ""));
+        const body = document.getElementById("listBody");
+        body.textContent = "";
+        const rows = data.candidates || [];
+        if (!rows.length) {
+          body.appendChild(el("tr", {}, [el("td", { colspan: "6", class: "muted", text: "No candidates yet. File a phone screen to create the first profile." })]));
+          return;
+        }
+        for (const c of rows) {
+          const contact = [c.email, c.phone].filter(Boolean).join(" · ") || "—";
+          body.appendChild(el("tr", {}, [
+            el("td", {}, [el("strong", { text: c.name || "—" })]),
+            el("td", { text: c.roleApplied || "—" }),
+            el("td", { class: "small-text muted", text: contact }),
+            el("td", { text: String(c.screenCount || 0) }),
+            el("td", { text: fmtDate(c.lastScreenAt || c.updatedAt) }),
+            el("td", {}, [el("button", { class: "tiny secondary", text: "Open", onclick: () => openProfile(c.id) })])
+          ]));
+        }
+      } catch (err) {
+        setStatus("listStatus", err.message, "error");
+      }
+    }
+
+    async function openProfile(id) {
+      try {
+        const data = await api("/api/hr/candidates/" + encodeURIComponent(id));
+        const c = data.candidate;
+        document.getElementById("listSurface").style.display = "none";
+        document.getElementById("profileSurface").style.display = "block";
+        document.getElementById("profileName").textContent = c.name || "Candidate";
+        history.replaceState(null, "", "hr-candidates.html?id=" + encodeURIComponent(id));
+
+        const meta = document.getElementById("profileMeta");
+        meta.textContent = "";
+        const bits = [];
+        if (c.roleApplied) bits.push("Applied: " + c.roleApplied);
+        if (c.email) bits.push(c.email);
+        if (c.phone) bits.push(c.phone);
+        bits.push("Added " + fmtDate(c.createdAt));
+        bits.forEach((b) => meta.appendChild(el("span", { text: b })));
+
+        const screens = document.getElementById("screensBody");
+        screens.textContent = "";
+        if (!c.phoneScreens || !c.phoneScreens.length) {
+          screens.appendChild(el("p", { class: "muted", text: "No phone screens filed yet." }));
+          return;
+        }
+        for (const s of c.phoneScreens) {
+          const head = el("div", { class: "screen-head" }, [
+            el("span", { class: "who", text: fmtDate(s.screenDate) + " — " + (s.interviewerName || "Interviewer") }),
+            el("span", { class: "rec " + s.recommendation, text: REC_LABEL[s.recommendation] || s.recommendation })
+          ]);
+          const kv = el("div", { class: "kv" });
+          const addLine = (label, val) => { if (val) kv.appendChild(el("div", {}, [el("b", { text: label + ": " }), document.createTextNode(val)])); };
+          addLine("Role applied", s.roleApplied);
+          addLine("Other roles", s.otherRoles);
+          kv.appendChild(el("div", {}, [
+            el("b", { text: "Availability/location reviewed: " }),
+            el("span", { class: s.availabilityReviewed ? "check" : "nocheck", text: s.availabilityReviewed ? "Yes" : "No" })
+          ]));
+          kv.appendChild(el("div", {}, [
+            el("b", { text: "Comp & benefits reviewed: " }),
+            el("span", { class: s.compReviewed ? "check" : "nocheck", text: s.compReviewed ? "Yes" : "No" })
+          ]));
+          addLine("Role questions", s.roleQuestions);
+          addLine("Notes", s.notes);
+          screens.appendChild(el("div", { class: "screen-card" }, [head, kv]));
+        }
+      } catch (err) {
+        setStatus("listStatus", err.message, "error");
+      }
+    }
+
+    function showList() {
+      document.getElementById("profileSurface").style.display = "none";
+      document.getElementById("listSurface").style.display = "block";
+      history.replaceState(null, "", "hr-candidates.html");
+      loadList();
+    }
+
+    document.getElementById("searchBtn").addEventListener("click", loadList);
+    document.getElementById("searchInput").addEventListener("keydown", (e) => { if (e.key === "Enter") loadList(); });
+    document.getElementById("backBtn").addEventListener("click", showList);
+
+    (function init() {
+      const params = new URLSearchParams(window.location.search);
+      const id = params.get("id");
+      loadList();
+      if (id) openProfile(id);
+    })();
+  </script>
+</body>
+</html>

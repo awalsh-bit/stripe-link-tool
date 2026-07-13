@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="robots" content="noindex,nofollow,noarchive" />
+  <title>Wilson AC & Appliance - Phone Screen</title>
+  <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+  <link rel="stylesheet" href="internal-shell.css" />
+  <style>
+    :root {
+      --bg: #f7f8fc; --card: #ffffff; --text: #1f2937; --muted: #6b7280;
+      --border: #dbe1ea; --primary: #635bff; --primary-hover: #564ef0;
+      --success-bg: #ecfdf5; --success-text: #065f46;
+      --error-bg: #fef2f2; --error-text: #991b1b;
+      --warn-bg: #fffbeb; --warn-text: #92400e;
+      --shadow: 0 10px 35px rgba(0, 0, 0, 0.08); --radius: 18px;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: linear-gradient(180deg, #eef2ff 0%, var(--bg) 100%); color: var(--text); min-height: 100vh; padding: 32px 16px; }
+    .wrap { max-width: 1480px; margin: 0 auto; }
+    .surface { background: var(--card); border: 1px solid rgba(99, 91, 255, 0.12); box-shadow: var(--shadow);
+      border-radius: var(--radius); padding: 24px; margin: 0 auto 22px; }
+    h2 { margin: 0 0 6px; font-size: 22px; }
+    h3 { margin: 18px 0 10px; font-size: 14px; text-transform: uppercase; letter-spacing: 0.06em; color: #64748b; }
+    .section-note { margin: 0 0 16px; color: var(--muted); font-size: 14px; line-height: 1.5; }
+    .form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+    .field.full { grid-column: 1 / -1; }
+    label { display: block; margin-bottom: 6px; font-size: 13px; font-weight: 700; }
+    input, select, textarea { width: 100%; border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px;
+      font-size: 14px; background: #fff; color: var(--text); outline: none; font-family: inherit; }
+    textarea { min-height: 80px; resize: vertical; }
+    input:focus, select:focus, textarea:focus { border-color: rgba(99, 91, 255, 0.75); box-shadow: 0 0 0 4px rgba(99, 91, 255, 0.12); }
+    .checkbox-row { display: flex; align-items: flex-start; gap: 10px; font-size: 14px; line-height: 1.5; margin: 4px 0; }
+    .checkbox-row input { width: auto; margin-top: 3px; }
+    button { appearance: none; border: none; background: var(--primary); color: #fff; padding: 12px 18px;
+      border-radius: 12px; font-size: 14px; font-weight: 700; cursor: pointer; white-space: nowrap; font-family: inherit; }
+    button:hover { background: var(--primary-hover); }
+    button:disabled { opacity: 0.6; cursor: wait; }
+    button.secondary { background: #eef2ff; color: var(--primary); }
+    .actions-row { margin-top: 18px; display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+    .status { display: none; margin: 14px 0 0; border-radius: 12px; padding: 12px 14px; font-size: 14px; line-height: 1.5; }
+    .status.show { display: block; }
+    .status.error { background: var(--error-bg); color: var(--error-text); }
+    .status.ok { background: var(--success-bg); color: var(--success-text); }
+    .status.ok a { color: var(--success-text); font-weight: 800; }
+    .divider { border: none; border-top: 1px solid var(--border); margin: 20px 0; }
+    .rec-group { display: flex; gap: 10px; flex-wrap: wrap; }
+    .rec-option { flex: 1 1 140px; border: 1px solid var(--border); border-radius: 12px; padding: 12px 14px;
+      cursor: pointer; font-weight: 700; text-align: center; }
+    .rec-option input { display: none; }
+    .rec-option.advance.on { background: #ecfdf5; border-color: #6ee7b7; color: #065f46; }
+    .rec-option.maybe.on { background: #fffbeb; border-color: #fcd34d; color: #92400e; }
+    .rec-option.pass.on { background: #fef2f2; border-color: #fca5a5; color: #991b1b; }
+    datalist { color: var(--text); }
+    @media (max-width: 640px) { .form-grid { grid-template-columns: 1fr; } .surface { padding: 16px; } body { padding: 14px 8px; } }
+  </style>
+</head>
+<body data-shell-label="Phone Screen" data-shell-icon="accounting">
+  <div class="wrap">
+    <div id="internal-shell-header"></div>
+
+    <div class="surface">
+      <h2>Phone Screen</h2>
+      <p class="section-note">
+        File a quick phone screen to a candidate's profile. If the candidate's email matches an
+        existing profile, this screen attaches to it; otherwise a new profile is created.
+        <a href="hr-candidates.html">View all candidates →</a>
+      </p>
+
+      <form id="screenForm">
+        <h3>Candidate</h3>
+        <div class="form-grid">
+          <div class="field">
+            <label for="candidateName">Candidate name *</label>
+            <input id="candidateName" type="text" list="candidateList" autocomplete="off" />
+            <datalist id="candidateList"></datalist>
+          </div>
+          <div class="field">
+            <label for="roleApplied">Role applied for *</label>
+            <input id="roleApplied" type="text" placeholder="Appliance Sales, Installer…" />
+          </div>
+          <div class="field">
+            <label for="candidateEmail">Candidate email</label>
+            <input id="candidateEmail" type="email" />
+          </div>
+          <div class="field">
+            <label for="candidatePhone">Candidate phone</label>
+            <input id="candidatePhone" type="text" />
+          </div>
+          <div class="field full">
+            <label for="otherRoles">Other roles of interest</label>
+            <input id="otherRoles" type="text" placeholder="If they mentioned interest in other positions" />
+          </div>
+        </div>
+
+        <hr class="divider" />
+
+        <h3>Screen</h3>
+        <div class="form-grid">
+          <div class="field">
+            <label for="interviewerName">Interviewer</label>
+            <input id="interviewerName" type="text" />
+          </div>
+          <div class="field">
+            <label for="screenDate">Date</label>
+            <input id="screenDate" type="date" />
+          </div>
+        </div>
+
+        <div style="margin-top: 14px;">
+          <label class="checkbox-row">
+            <input id="availabilityReviewed" type="checkbox" />
+            <span>Reviewed scheduling / availability requirements and the showroom location; candidate is available as needed.</span>
+          </label>
+          <label class="checkbox-row">
+            <input id="compReviewed" type="checkbox" />
+            <span>Reviewed job code and pay range; candidate understands the compensation range and benefits.</span>
+          </label>
+        </div>
+
+        <div class="field full" style="margin-top: 14px;">
+          <label for="roleQuestions">Role-specific questions &amp; answers</label>
+          <textarea id="roleQuestions" placeholder="1–2 questions to filter on needed skills / experience — lifting requirements, software knowledge, etc."></textarea>
+        </div>
+
+        <hr class="divider" />
+
+        <h3>Recommendation</h3>
+        <div class="rec-group" id="recGroup">
+          <label class="rec-option advance"><input type="radio" name="recommendation" value="advance" />Advance</label>
+          <label class="rec-option maybe on"><input type="radio" name="recommendation" value="maybe" checked />Maybe</label>
+          <label class="rec-option pass"><input type="radio" name="recommendation" value="pass" />Pass</label>
+        </div>
+
+        <div class="field full" style="margin-top: 14px;">
+          <label for="notes">Notes</label>
+          <textarea id="notes" placeholder="Anything else worth capturing."></textarea>
+        </div>
+
+        <div class="actions-row">
+          <button id="submitBtn" type="submit">File phone screen</button>
+          <button id="resetBtn" type="button" class="secondary">Clear form</button>
+        </div>
+        <div id="status" class="status"></div>
+      </form>
+    </div>
+
+    <div id="internal-shell-footer"></div>
+  </div>
+
+  <script src="internal-shell.js"></script>
+  <script>
+    let candidates = [];
+
+    function setStatus(message, kind, html) {
+      const box = document.getElementById("status");
+      if (!message && !html) { box.className = "status"; box.textContent = ""; return; }
+      box.className = "status " + kind + " show";
+      if (html) box.innerHTML = html; else box.textContent = message;
+    }
+
+    async function api(path, options) {
+      const res = await fetch(path, { credentials: "same-origin", headers: { "Content-Type": "application/json" }, ...options });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || "Request failed.");
+      return data;
+    }
+
+    // Recommendation chip highlighting.
+    document.getElementById("recGroup").addEventListener("change", () => {
+      document.querySelectorAll(".rec-option").forEach((el) => {
+        el.classList.toggle("on", el.querySelector("input").checked);
+      });
+    });
+
+    // Prefill candidate fields when a known name is chosen from the datalist.
+    document.getElementById("candidateName").addEventListener("change", () => {
+      const name = document.getElementById("candidateName").value.trim().toLowerCase();
+      const match = candidates.find((c) => (c.name || "").toLowerCase() === name);
+      if (match) {
+        if (!document.getElementById("candidateEmail").value) document.getElementById("candidateEmail").value = match.email || "";
+        if (!document.getElementById("candidatePhone").value) document.getElementById("candidatePhone").value = match.phone || "";
+        if (!document.getElementById("roleApplied").value) document.getElementById("roleApplied").value = match.roleApplied || "";
+      }
+    });
+
+    function currentRecommendation() {
+      const el = document.querySelector('input[name="recommendation"]:checked');
+      return el ? el.value : "maybe";
+    }
+
+    document.getElementById("screenForm").addEventListener("submit", async (event) => {
+      event.preventDefault();
+      setStatus("", "");
+
+      if (!document.getElementById("candidateName").value.trim()) { setStatus("Candidate name is required.", "error"); return; }
+      if (!document.getElementById("roleApplied").value.trim()) { setStatus("Role applied for is required.", "error"); return; }
+      if (!document.getElementById("screenDate").value) { setStatus("Choose the screen date.", "error"); return; }
+
+      const btn = document.getElementById("submitBtn");
+      btn.disabled = true; btn.textContent = "Filing…";
+
+      try {
+        const data = await api("/api/hr/phone-screen", {
+          method: "POST",
+          body: JSON.stringify({
+            candidateName: document.getElementById("candidateName").value.trim(),
+            candidateEmail: document.getElementById("candidateEmail").value.trim(),
+            candidatePhone: document.getElementById("candidatePhone").value.trim(),
+            roleApplied: document.getElementById("roleApplied").value.trim(),
+            otherRoles: document.getElementById("otherRoles").value.trim(),
+            interviewerName: document.getElementById("interviewerName").value.trim(),
+            screenDate: document.getElementById("screenDate").value,
+            availabilityReviewed: document.getElementById("availabilityReviewed").checked,
+            compReviewed: document.getElementById("compReviewed").checked,
+            roleQuestions: document.getElementById("roleQuestions").value.trim(),
+            recommendation: currentRecommendation(),
+            notes: document.getElementById("notes").value.trim()
+          })
+        });
+
+        setStatus("", "ok", `Phone screen filed for <strong>${(data.candidate.name || "").replace(/</g,"&lt;")}</strong>. <a href="hr-candidates.html?id=${encodeURIComponent(data.candidate.id)}">Open candidate profile →</a>`);
+        resetForm(true);
+        await loadCandidates();
+      } catch (err) {
+        setStatus(err.message, "error");
+      } finally {
+        btn.disabled = false; btn.textContent = "File phone screen";
+      }
+    });
+
+    function resetForm(keepStatus) {
+      ["candidateName","candidateEmail","candidatePhone","roleApplied","otherRoles","otherRoles","roleQuestions","notes"].forEach((id) => { document.getElementById(id).value = ""; });
+      document.getElementById("availabilityReviewed").checked = false;
+      document.getElementById("compReviewed").checked = false;
+      document.querySelector('input[name="recommendation"][value="maybe"]').checked = true;
+      document.querySelectorAll(".rec-option").forEach((el) => el.classList.toggle("on", el.classList.contains("maybe")));
+      setDefaults();
+      if (!keepStatus) setStatus("", "");
+    }
+
+    document.getElementById("resetBtn").addEventListener("click", () => resetForm(false));
+
+    async function loadCandidates() {
+      try {
+        const data = await api("/api/hr/candidates");
+        candidates = data.candidates || [];
+        const list = document.getElementById("candidateList");
+        list.textContent = "";
+        candidates.forEach((c) => {
+          const opt = document.createElement("option");
+          opt.value = c.name;
+          list.appendChild(opt);
+        });
+      } catch {}
+    }
+
+    async function setDefaults() {
+      const today = new Date();
+      document.getElementById("screenDate").value =
+        `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+    }
+
+    (async function init() {
+      setDefaults();
+      try {
+        const res = await fetch("/api/auth/session", { credentials: "same-origin" });
+        if (res.ok) {
+          const session = await res.json();
+          document.getElementById("interviewerName").value = session?.user?.displayName || session?.user?.email || "";
+        }
+      } catch {}
+      loadCandidates();
+    })();
+  </script>
+</body>
+</html>

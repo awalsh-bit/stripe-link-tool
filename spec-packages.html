@@ -463,6 +463,8 @@
     <div id="internal-shell-footer"></div>
   </div>
 
+  <iframe name="specMergeFrame" title="merge" style="display:none;position:absolute;width:0;height:0;border:0;"></iframe>
+
   <script src="internal-shell.js"></script>
   <script>
     let session = null;
@@ -541,54 +543,83 @@
       return parts.length ? parts[parts.length - 1] : "";
     }
 
-    async function fileToBase64(file) {
-      // Read via Blob.arrayBuffer() (more reliable than FileReader) and
-      // base64 in chunks so large PDFs don't overflow the call stack.
-      let bytes;
-      try {
-        bytes = new Uint8Array(await file.arrayBuffer());
-      } catch (err) {
-        throw new Error("Couldn't read that PDF — make sure it isn't open in another program, then try again.");
-      }
-      if (!bytes.length) {
-        throw new Error("That PDF appears to be empty. Choose the file again.");
-      }
-      let binary = "";
-      const CHUNK = 0x8000;
-      for (let i = 0; i < bytes.length; i += CHUNK) {
-        binary += String.fromCharCode.apply(null, bytes.subarray(i, i + CHUNK));
-      }
-      return btoa(binary);
-    }
+    // Quote merge uses a NATIVE browser form upload (multipart) targeting a
+    // hidden iframe — the browser reads and sends the file itself, so it works
+    // even where security blocks JS file reads and fetch uploads. The server
+    // replies with a tiny page that postMessages the result back here.
+    let mergeCtx = null;
 
-    async function mergeQuoteDownload(navId, file, variant, baseName) {
-      // Send the PDF base64'd inside JSON (same request shape as the create
-      // call) — raw binary uploads are blocked by some endpoint security.
-      const pdfBase64 = await fileToBase64(file);
-      const res = await fetch(
-        "/api/spec-packages/" + encodeURIComponent(navId) + "/attach-quote",
-        {
-          method: "POST",
-          credentials: "same-origin",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ pdfBase64, variant: variant || "slim", name: baseName || "quote" })
-        }
-      );
+    window.addEventListener("message", (event) => {
+      if (event.origin !== window.location.origin) return;
+      const msg = event.data && event.data.specMerge;
+      if (!msg || !mergeCtx) return;
+      const ctx = mergeCtx;
+      mergeCtx = null;
+      clearTimeout(ctx.timeout);
 
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        throw new Error(data.error || "Unable to merge the quote and spec pages.");
+      if (msg.ok && msg.token) {
+        const a = document.createElement("a");
+        a.href = "/api/spec-packages/quote-download/" + encodeURIComponent(msg.token);
+        a.download = msg.filename || ((ctx.baseName || "quote") + "-with-specs.pdf");
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        setStatus(ctx.statusId, "Merged PDF downloaded.", "ok");
+      } else {
+        setStatus(ctx.statusId, msg.error || "Unable to merge the quote and spec pages.", "error");
+      }
+      if (ctx.resetBtn) ctx.resetBtn();
+    });
+
+    function nativeMergeSubmit(navId, fileInput, variant, baseName, statusId, resetBtn) {
+      if (!fileInput || !fileInput.files || !fileInput.files[0]) {
+        setStatus(statusId, "Choose the sales order / quote PDF first.", "warn");
+        if (resetBtn) resetBtn();
+        return;
       }
 
-      // Download via a normal same-origin navigation (session cookie carries
-      // auth) rather than a fetch-returned blob — the latter is blocked by
-      // some Edge/security setups.
-      const a = document.createElement("a");
-      a.href = "/api/spec-packages/quote-download/" + encodeURIComponent(data.downloadToken);
-      a.download = data.filename || ((baseName || "quote") + "-with-specs.pdf");
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
+      const form = document.createElement("form");
+      form.method = "POST";
+      form.enctype = "multipart/form-data";
+      form.action = "/api/spec-packages/" + encodeURIComponent(navId) + "/attach-quote";
+      form.target = "specMergeFrame";
+      form.style.display = "none";
+
+      const vIn = document.createElement("input");
+      vIn.type = "hidden"; vIn.name = "variant"; vIn.value = variant || "slim";
+      form.appendChild(vIn);
+      const nIn = document.createElement("input");
+      nIn.type = "hidden"; nIn.name = "name"; nIn.value = baseName || "quote";
+      form.appendChild(nIn);
+
+      // Temporarily move the real file input into the form (a File can't be
+      // copied to another input, but the element can be moved).
+      const marker = document.createComment("qpdf-slot");
+      fileInput.parentNode.insertBefore(marker, fileInput);
+      const prevName = fileInput.getAttribute("name");
+      fileInput.setAttribute("name", "quote");
+      form.appendChild(fileInput);
+      document.body.appendChild(form);
+
+      mergeCtx = {
+        statusId, baseName, resetBtn,
+        timeout: setTimeout(() => {
+          mergeCtx = null;
+          setStatus(statusId, "The merge timed out. Try again.", "error");
+          if (resetBtn) resetBtn();
+        }, 90000)
+      };
+
+      if (form.requestSubmit) form.requestSubmit(); else form.submit();
+
+      // Restore the file input to its original place after the submit is sent.
+      setTimeout(() => {
+        if (prevName) fileInput.setAttribute("name", prevName);
+        else fileInput.removeAttribute("name");
+        marker.parentNode.insertBefore(fileInput, marker);
+        marker.remove();
+        form.remove();
+      }, 0);
     }
 
     let attachTarget = null;
@@ -608,10 +639,10 @@
       document.getElementById("attachPanel").style.display = "none";
     });
 
-    document.getElementById("attachBtn").addEventListener("click", async () => {
+    document.getElementById("attachBtn").addEventListener("click", () => {
       if (!attachTarget) return;
-      const file = document.getElementById("attachPdf").files[0];
-      if (!file) {
+      const input = document.getElementById("attachPdf");
+      if (!input.files[0]) {
         setStatus("attachStatus", "Choose the sales order / quote PDF first.", "warn");
         return;
       }
@@ -619,22 +650,17 @@
       const btn = document.getElementById("attachBtn");
       btn.disabled = true;
       btn.textContent = "Merging...";
-      setStatus("attachStatus", "", "");
+      setStatus("attachStatus", "Merging your quote…", "ok");
 
-      try {
-        const baseName = attachTarget.docId || attachTarget.title || "quote";
-        await mergeQuoteDownload(
-          attachTarget.navId,
-          file,
-          document.getElementById("attachVariant").value,
-          baseName
-        );
-        setStatus("attachStatus", "Merged PDF downloaded.", "ok");
-      } catch (err) {
-        setStatus("attachStatus", err.message, "error");
-      } finally {
-        startCooldown(btn, "Merge & download", 10);
-      }
+      const baseName = attachTarget.docId || attachTarget.title || "quote";
+      nativeMergeSubmit(
+        attachTarget.navId,
+        input,
+        document.getElementById("attachVariant").value,
+        baseName,
+        "attachStatus",
+        () => startCooldown(btn, "Merge & download", 10)
+      );
     });
 
     // ---- Create ----
@@ -675,33 +701,26 @@
 
         renderCreateResult(result);
 
-        const quoteFile = document.getElementById("quotePdf").files[0];
-        if (quoteFile) {
+        const quoteInput = document.getElementById("quotePdf");
+        if (quoteInput.files[0]) {
           const navId = extractNavId(result);
           if (!navId) {
             setStatus("createStatus",
               "Spec package created, but its ID couldn't be determined for the quote merge. Find it in the search below and use \"Attach quote\".",
               "warn");
           } else {
-            setStatus("createStatus", "Spec package created. Merging your quote PDF...", "ok");
-            try {
-              const baseName =
-                document.getElementById("documentID").value.trim() ||
-                quoteFile.name.replace(/\.pdf$/i, "") || "quote";
-              await mergeQuoteDownload(
-                navId,
-                quoteFile,
-                document.getElementById("quoteVariant").value,
-                baseName
-              );
-              setStatus("createStatus", "Spec package created — merged PDF downloaded.", "ok");
-              document.getElementById("quotePdf").value = "";
-            } catch (mergeErr) {
-              setStatus("createStatus",
-                "Spec package created, but merging the quote failed: " + mergeErr.message +
-                " You can retry from the search below with \"Attach quote\".",
-                "warn");
-            }
+            setStatus("createStatus", "Spec package created. Merging your quote PDF…", "ok");
+            const baseName =
+              document.getElementById("documentID").value.trim() ||
+              quoteInput.files[0].name.replace(/\.pdf$/i, "") || "quote";
+            nativeMergeSubmit(
+              navId,
+              quoteInput,
+              document.getElementById("quoteVariant").value,
+              baseName,
+              "createStatus",
+              null
+            );
           }
         } else {
           setStatus("createStatus", "Spec package created.", "ok");

@@ -107,6 +107,13 @@ import {
   buildSpecPackageUrls
 } from "./lib/steelcod.js";
 import { PDFDocument } from "pdf-lib";
+import multer from "multer";
+import {
+  findOrCreateCandidate,
+  createPhoneScreen,
+  listCandidates,
+  getCandidateWithScreens
+} from "./lib/hr-postgres.js";
 import {
   computeReimbursedMiles,
   computeReportTotals,
@@ -218,6 +225,8 @@ const INTERNAL_PAGE_PATHS = new Set([
   "/audit-log.html",
   "/mileage.html",
   "/mileage-review.html",
+  "/hr-phone-screen.html",
+  "/hr-candidates.html",
   "/spec-packages.html"
 ]);
 
@@ -375,13 +384,20 @@ const PAGE_LABELS = {
   "/user-admin.html": "User Admin",
   "/audit-log.html": "User Activity Audit",
   "/mileage.html": "Mileage",
-  "/mileage-review.html": "Mileage Review"
+  "/mileage-review.html": "Mileage Review",
+  "/hr-phone-screen.html": "Phone Screen",
+  "/hr-candidates.html": "Candidates"
 };
 
 // Category groupings for the User Admin permission UI. A page may appear in
 // multiple categories (it is still one underlying permission); any manageable
 // page not listed here lands in an automatic "Other" bucket in the UI.
 const PAGE_CATEGORIES = [
+  {
+    key: "hr",
+    label: "HR",
+    pages: ["/hr-phone-screen.html", "/hr-candidates.html"]
+  },
   {
     key: "payments",
     label: "Payments",
@@ -2275,6 +2291,36 @@ function describeShape(value, depth = 0) {
 // blocked by some Edge/security setups (surfaces as "Failed to fetch"
 // / net::ERR_FAILED). The POST returns a token; the browser downloads via a
 // normal navigation the filters trust.
+// Quote PDFs are uploaded via a NATIVE browser form (multipart), because some
+// endpoint security blocks both raw binary fetch uploads AND JavaScript
+// reading local files. The result is returned to a hidden iframe as an HTML
+// page that postMessages the parent — no fetch, no JS file read anywhere.
+const specQuoteUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 40 * 1024 * 1024 } });
+
+function specQuoteUploadMw(req, res, next) {
+  specQuoteUpload.single("quote")(req, res, (err) => {
+    if (err) {
+      const origin = `${req.protocol}://${req.get("host")}`;
+      const msg = err.code === "LIMIT_FILE_SIZE" ? "That PDF is too large (40 MB max)." : "Upload failed — try again.";
+      return sendMergeResult(res, origin, { ok: false, error: msg });
+    }
+    next();
+  });
+}
+
+// Render the hidden-iframe response that hands the result back to the page.
+function sendMergeResult(res, origin, payload) {
+  const json = JSON.stringify(payload).replace(/</g, "\\u003c");
+  const target = JSON.stringify(origin || "*").replace(/</g, "\\u003c");
+  res.setHeader("Content-Type", "text/html; charset=utf-8");
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  return res.send(
+    "<!doctype html><html><body><script>" +
+    "try{parent.postMessage({specMerge:" + json + "}," + target + ");}catch(e){}" +
+    "</script></body></html>"
+  );
+}
+
 const pendingQuoteMerges = new Map(); // token -> { bytes, filename, email, expiresAt }
 const QUOTE_MERGE_TTL_MS = 5 * 60 * 1000;
 
@@ -2293,28 +2339,26 @@ function sweepQuoteMerges() {
 app.post(
   "/api/spec-packages/:navId/attach-quote",
   requirePagePermission("/spec-packages.html"),
-  express.json({ limit: "40mb" }),
+  specQuoteUploadMw,
   async (req, res) => {
-    const userEmail = resolveSteelCodUserEmail(req, res);
-    if (!userEmail) return;
+    const origin = `${req.protocol}://${req.get("host")}`;
+    const fail = (error) => sendMergeResult(res, origin, { ok: false, error });
 
-    // The quote PDF arrives base64'd inside a JSON body (not a raw binary
-    // upload) so it travels the same path as the create call — some endpoint
-    // security/DLP blocks raw file uploads (surfaces as "Failed to fetch").
-    let quoteBytes;
-    try {
-      quoteBytes = Buffer.from(String(req.body?.pdfBase64 || ""), "base64");
-    } catch {
-      quoteBytes = Buffer.alloc(0);
+    if (!isSteelCodConfigured()) return fail("Steel Cod is not configured yet.");
+    const userEmail = req.authUser?.kind === "db" ? req.authUser.email : "";
+    if (!userEmail || !userEmail.includes("@")) {
+      return fail("Sign in with your individual account to use Spec Packages.");
     }
+
+    const quoteBytes = req.file?.buffer;
     if (!Buffer.isBuffer(quoteBytes) || quoteBytes.length < 5) {
-      return res.status(400).json({ error: "Upload the sales order / quote PDF." });
+      return fail("Choose the sales order / quote PDF.");
     }
     if (quoteBytes.subarray(0, 5).toString("latin1") !== "%PDF-") {
-      return res.status(400).json({ error: "The uploaded file does not look like a PDF." });
+      return fail("The uploaded file does not look like a PDF.");
     }
 
-    const variant = String(req.body?.variant || req.query.variant || "slim").toLowerCase() === "full" ? "full" : "slim";
+    const variant = String(req.body?.variant || "slim").toLowerCase() === "full" ? "full" : "slim";
 
     try {
       const pkg = await retrieveSpecPackage({ userEmail, navId: req.params.navId });
@@ -2333,12 +2377,12 @@ app.post(
           "— response shape:",
           JSON.stringify(describeShape(pkg))
         );
-        return res.status(502).json({ error: "Steel Cod did not return a URL for that spec package." });
+        return fail("Steel Cod did not return a URL for that spec package.");
       }
 
       const urls = buildSpecPackageUrls(publicUrl);
       if (!urls) {
-        return res.status(502).json({ error: "Steel Cod did not return a URL for that spec package." });
+        return fail("Steel Cod did not return a URL for that spec package.");
       }
 
       const specUrl = variant === "full" ? urls.download : urls.slimDownload;
@@ -2346,11 +2390,11 @@ app.post(
       try {
         specResponse = await fetch(specUrl);
       } catch (err) {
-        return res.status(502).json({ error: `Unable to reach Steel Cod to download the spec PDF: ${err.message}` });
+        return fail(`Unable to reach Steel Cod to download the spec PDF: ${err.message}`);
       }
       if (!specResponse.ok) {
         console.error("attach-quote: spec PDF download failed", specResponse.status, "from", specUrl);
-        return res.status(502).json({ error: `Unable to download the spec PDF from Steel Cod (HTTP ${specResponse.status}).` });
+        return fail(`Unable to download the spec PDF from Steel Cod (HTTP ${specResponse.status}).`);
       }
 
       const specBytes = Buffer.from(await specResponse.arrayBuffer());
@@ -2360,7 +2404,7 @@ app.post(
           "| content-type:", specResponse.headers.get("content-type"),
           "| first bytes:", specBytes.subarray(0, 40).toString("latin1").replace(/[^\x20-\x7e]/g, ".")
         );
-        return res.status(502).json({ error: "Steel Cod returned something that is not a PDF for this package." });
+        return fail("Steel Cod returned something that is not a PDF for this package.");
       }
 
       let quoteDoc;
@@ -2368,7 +2412,7 @@ app.post(
         quoteDoc = await PDFDocument.load(quoteBytes);
       } catch (loadErr) {
         console.error("attach-quote: uploaded quote PDF failed to parse:", loadErr.message);
-        return res.status(400).json({ error: "Could not read the uploaded PDF. Is it password-protected or corrupted?" });
+        return fail("Could not read the uploaded PDF. Is it password-protected or corrupted?");
       }
 
       let specDoc;
@@ -2376,7 +2420,7 @@ app.post(
         specDoc = await PDFDocument.load(specBytes);
       } catch (loadErr) {
         console.error("attach-quote: Steel Cod spec PDF failed to parse:", loadErr.message);
-        return res.status(502).json({ error: "Could not read the spec PDF returned by Steel Cod." });
+        return fail("Could not read the spec PDF returned by Steel Cod.");
       }
 
       const specPages = await quoteDoc.copyPages(specDoc, specDoc.getPageIndices());
@@ -2385,7 +2429,7 @@ app.post(
       const mergedBytes = await quoteDoc.save();
 
       const safeName =
-        String(req.body?.name || req.query.name || "quote")
+        String(req.body?.name || "quote")
           .replace(/[^A-Za-z0-9 ._-]+/g, "")
           .trim()
           .slice(0, 80) || "quote";
@@ -2400,9 +2444,10 @@ app.post(
         expiresAt: Date.now() + QUOTE_MERGE_TTL_MS
       });
 
-      return res.json({ success: true, downloadToken, filename });
+      return sendMergeResult(res, origin, { ok: true, token: downloadToken, filename });
     } catch (err) {
-      return sendSteelCodError(res, err, "Unable to attach the spec pages to the quote.");
+      console.error("attach-quote failed:", err.message);
+      return fail(err instanceof SteelCodError ? err.message : "Unable to attach the spec pages to the quote.");
     }
   }
 );
@@ -2897,6 +2942,90 @@ app.use((req, res, next) => {
     return res.status(404).send("Not found.");
   }
   return next();
+});
+
+// ---------------------------------------------------------------------------
+// HR — candidate profiles + phone screens
+// ---------------------------------------------------------------------------
+
+function resolveHrUser(req, res) {
+  if (req.authUser?.kind !== "db") {
+    res.status(400).json({ error: "HR tools require signing in with your individual account." });
+    return null;
+  }
+  return req.authUser;
+}
+
+app.get("/api/hr/candidates", requirePagePermission("/hr-candidates.html", "/hr-phone-screen.html"), async (req, res) => {
+  try {
+    const candidates = await listCandidates(String(req.query.q || ""));
+    return res.json({ candidates });
+  } catch (err) {
+    console.error("HR list candidates failed:", err.message);
+    return res.status(500).json({ error: "Unable to load candidates." });
+  }
+});
+
+app.get("/api/hr/candidates/:id", requirePagePermission("/hr-candidates.html", "/hr-phone-screen.html"), async (req, res) => {
+  try {
+    const candidate = await getCandidateWithScreens(req.params.id);
+    if (!candidate) return res.status(404).json({ error: "Candidate not found." });
+    return res.json({ candidate });
+  } catch (err) {
+    console.error("HR candidate detail failed:", err.message);
+    return res.status(500).json({ error: "Unable to load the candidate." });
+  }
+});
+
+// File a phone screen — creates or reuses the candidate profile, then attaches
+// the screen to it.
+app.post("/api/hr/phone-screen", requirePagePermission("/hr-phone-screen.html"), async (req, res) => {
+  const user = resolveHrUser(req, res);
+  if (!user) return;
+  try {
+    const b = req.body || {};
+    const name = String(b.candidateName || "").trim();
+    if (!name) return res.status(400).json({ error: "Candidate name is required." });
+
+    const screenDate = String(b.screenDate || "").trim();
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(screenDate)) {
+      return res.status(400).json({ error: "A valid screen date is required." });
+    }
+    if (!String(b.roleApplied || "").trim()) {
+      return res.status(400).json({ error: "Role applied for is required." });
+    }
+
+    const candidate = await findOrCreateCandidate(
+      { name, email: b.candidateEmail, phone: b.candidatePhone, roleApplied: b.roleApplied },
+      user.id || null
+    );
+
+    const screen = await createPhoneScreen({
+      candidateId: candidate.id,
+      interviewerName: String(b.interviewerName || user.displayName || user.email || "").trim(),
+      screenDate,
+      roleApplied: b.roleApplied,
+      otherRoles: b.otherRoles,
+      availabilityReviewed: b.availabilityReviewed === true || b.availabilityReviewed === "true",
+      compReviewed: b.compReviewed === true || b.compReviewed === "true",
+      roleQuestions: b.roleQuestions,
+      recommendation: b.recommendation,
+      notes: b.notes
+    }, user.id || null);
+
+    recordAudit({
+      ip: req.ip,
+      actorUserId: user.id || null,
+      action: "hr_phone_screen_filed",
+      targetUserId: null,
+      detail: { candidateId: candidate.id, candidateName: candidate.name, recommendation: screen.recommendation }
+    }).catch(() => {});
+
+    return res.json({ success: true, candidate, screen });
+  } catch (err) {
+    console.error("HR phone screen failed:", err.message);
+    return res.status(500).json({ error: "Unable to file the phone screen." });
+  }
 });
 
 app.use(express.static(__dirname, { index: false }));

@@ -2288,6 +2288,12 @@ app.post(
       const pkg = await retrieveSpecPackage({ userEmail, navId: req.params.navId });
       const publicUrl = findSpecPackageUrl(pkg, req.params.navId);
 
+      console.log(
+        "attach-quote:", req.params.navId,
+        "| retrieve shape:", JSON.stringify(describeShape(pkg)),
+        "| resolved URL:", publicUrl || "(none)"
+      );
+
       if (!publicUrl) {
         console.error(
           "Steel Cod retrieve returned no recognizable URL for navId",
@@ -2311,25 +2317,33 @@ app.post(
         return res.status(502).json({ error: `Unable to reach Steel Cod to download the spec PDF: ${err.message}` });
       }
       if (!specResponse.ok) {
+        console.error("attach-quote: spec PDF download failed", specResponse.status, "from", specUrl);
         return res.status(502).json({ error: `Unable to download the spec PDF from Steel Cod (HTTP ${specResponse.status}).` });
       }
 
       const specBytes = Buffer.from(await specResponse.arrayBuffer());
       if (specBytes.subarray(0, 5).toString("latin1") !== "%PDF-") {
+        console.error(
+          "attach-quote: non-PDF response from", specUrl,
+          "| content-type:", specResponse.headers.get("content-type"),
+          "| first bytes:", specBytes.subarray(0, 40).toString("latin1").replace(/[^\x20-\x7e]/g, ".")
+        );
         return res.status(502).json({ error: "Steel Cod returned something that is not a PDF for this package." });
       }
 
       let quoteDoc;
       try {
         quoteDoc = await PDFDocument.load(quoteBytes);
-      } catch {
+      } catch (loadErr) {
+        console.error("attach-quote: uploaded quote PDF failed to parse:", loadErr.message);
         return res.status(400).json({ error: "Could not read the uploaded PDF. Is it password-protected or corrupted?" });
       }
 
       let specDoc;
       try {
         specDoc = await PDFDocument.load(specBytes);
-      } catch {
+      } catch (loadErr) {
+        console.error("attach-quote: Steel Cod spec PDF failed to parse:", loadErr.message);
         return res.status(502).json({ error: "Could not read the spec PDF returned by Steel Cod." });
       }
 

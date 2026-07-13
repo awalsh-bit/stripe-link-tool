@@ -2202,6 +2202,65 @@ app.get("/api/spec-packages/:navId", requirePagePermission("/spec-packages.html"
   }
 });
 
+// Steel Cod's docs are ambiguous about where the retrieve response carries
+// the package URL, and the first live test proved our field-name guesses
+// wrong. Instead of guessing, scan the payload for any http(s) URL —
+// preferring one that references the navId, then anything on a Steel Cod
+// host — and strip a known page suffix to recover the base public URL.
+const SPEC_URL_SUFFIXES = ["/Open", "/Download", "/SlimOpen", "/SlimDownload", "/Json", "/Ask", "/Edit", "/PremEdit"];
+
+function findSpecPackageUrl(payload, navId) {
+  const found = [];
+
+  (function walk(value, depth) {
+    if (depth > 6 || value == null) return;
+    if (typeof value === "string") {
+      const trimmed = value.trim();
+      if (/^https?:\/\//i.test(trimmed)) found.push(trimmed);
+      return;
+    }
+    if (Array.isArray(value)) {
+      value.forEach((item) => walk(item, depth + 1));
+      return;
+    }
+    if (typeof value === "object") {
+      Object.values(value).forEach((item) => walk(item, depth + 1));
+    }
+  })(payload, 0);
+
+  if (!found.length) return "";
+
+  const preferred =
+    (navId && found.find((u) => u.includes(navId))) ||
+    found.find((u) => /steelcod/i.test(u)) ||
+    found[0];
+
+  let base = preferred.replace(/\/+$/, "");
+  for (const suffix of SPEC_URL_SUFFIXES) {
+    if (base.toLowerCase().endsWith(suffix.toLowerCase())) {
+      base = base.slice(0, -suffix.length);
+      break;
+    }
+  }
+  return base;
+}
+
+// Shape summary for diagnostics (keys only, never values — no PII in logs).
+function describeShape(value, depth = 0) {
+  if (depth > 3 || value == null) return typeof value;
+  if (Array.isArray(value)) {
+    return [value.length ? describeShape(value[0], depth + 1) : "empty"];
+  }
+  if (typeof value === "object") {
+    const shape = {};
+    for (const key of Object.keys(value).slice(0, 20)) {
+      shape[key] = describeShape(value[key], depth + 1);
+    }
+    return shape;
+  }
+  return typeof value;
+}
+
 // Append the compiled spec pages (slim or full) to the end of an uploaded
 // sales order / quote PDF and return the merged document. User-initiated
 // from the Spec Packages page; nothing is stored server-side. The package
@@ -2227,8 +2286,18 @@ app.post(
 
     try {
       const pkg = await retrieveSpecPackage({ userEmail, navId: req.params.navId });
-      const publicUrl =
-        pkg?.publicUrl || pkg?.specPackageUrl || pkg?.specPackage?.publicUrl || "";
+      const publicUrl = findSpecPackageUrl(pkg, req.params.navId);
+
+      if (!publicUrl) {
+        console.error(
+          "Steel Cod retrieve returned no recognizable URL for navId",
+          req.params.navId,
+          "— response shape:",
+          JSON.stringify(describeShape(pkg))
+        );
+        return res.status(502).json({ error: "Steel Cod did not return a URL for that spec package." });
+      }
+
       const urls = buildSpecPackageUrls(publicUrl);
       if (!urls) {
         return res.status(502).json({ error: "Steel Cod did not return a URL for that spec package." });

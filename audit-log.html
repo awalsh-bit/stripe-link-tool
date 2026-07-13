@@ -53,21 +53,26 @@
 
     .toolbar {
       display: flex;
+      gap: 12px;
       flex-wrap: wrap;
-      gap: 10px;
-      align-items: flex-end;
-      margin-bottom: 4px;
+      margin-bottom: 12px;
+      align-items: center;
     }
 
-    .toolbar .field { flex: 0 1 200px; }
+    .toolbar select { flex: 1 1 200px; }
 
-    label { display: block; margin-bottom: 6px; font-size: 13px; font-weight: 700; }
+    .toolbar-actions {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-bottom: 6px;
+      justify-content: flex-end;
+    }
 
     input[type="date"], select {
-      width: 100%;
       border: 1px solid var(--border);
-      border-radius: 10px;
-      padding: 10px 12px;
+      border-radius: 12px;
+      padding: 12px 14px;
       font-size: 14px;
       background: #fff;
       color: var(--text);
@@ -85,8 +90,8 @@
       border: none;
       background: var(--primary);
       color: #fff;
-      padding: 10px 16px;
-      border-radius: 10px;
+      padding: 12px 18px;
+      border-radius: 12px;
       font-size: 14px;
       font-weight: 700;
       cursor: pointer;
@@ -171,24 +176,15 @@
       </p>
 
       <div class="toolbar">
-        <div class="field">
-          <label for="startDate">Start date</label>
-          <input id="startDate" type="date" />
-        </div>
-        <div class="field">
-          <label for="endDate">End date</label>
-          <input id="endDate" type="date" />
-        </div>
-        <div class="field">
-          <label for="userFilter">User</label>
-          <select id="userFilter"><option value="">All users</option></select>
-        </div>
-        <div class="field">
-          <label for="actionFilter">Activity type</label>
-          <select id="actionFilter"><option value="">All activity</option></select>
-        </div>
-        <button id="fetchBtn" type="button">Fetch records</button>
-        <button id="exportBtn" type="button" class="secondary" disabled>Export CSV</button>
+        <input id="startDate" type="date" title="Start date" />
+        <input id="endDate" type="date" title="End date" />
+        <button id="fetchBtn" type="button">Run</button>
+        <select id="userFilter" title="User"><option value="">All users</option></select>
+        <select id="actionFilter" title="Activity type"><option value="">All activity</option></select>
+      </div>
+
+      <div class="toolbar-actions">
+        <button id="exportBtn" type="button" class="secondary" disabled>Export visible to CSV</button>
       </div>
 
       <div id="auditStatus" class="status"></div>
@@ -309,7 +305,7 @@
 
       const btn = document.getElementById("fetchBtn");
       btn.disabled = true;
-      btn.textContent = "Fetching...";
+      btn.textContent = "Running...";
       setStatus("", "");
 
       try {
@@ -331,7 +327,7 @@
         setStatus(err.message, "error");
       } finally {
         btn.disabled = false;
-        btn.textContent = "Fetch records";
+        btn.textContent = "Run";
       }
     });
 

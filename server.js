@@ -2117,6 +2117,7 @@ app.post("/api/spec-packages", requirePagePermission("/spec-packages.html"), asy
       salespersonEmail = "",
       emailCopyToSelf = false,
       customerName = "",
+      customerAddress = "",
       customerPhone = "",
       customerEmail = "",
       customerNotes = "",
@@ -2132,7 +2133,11 @@ app.post("/api/spec-packages", requirePagePermission("/spec-packages.html"), asy
     }
 
     if (!String(customerName).trim()) {
-      return res.status(400).json({ error: "Customer name is required." });
+      return res.status(400).json({ error: "Client / project name is required." });
+    }
+
+    if (!String(customerPhone).trim()) {
+      return res.status(400).json({ error: "Customer phone is required." });
     }
 
     // Cooldown check happens after validation so a typo fix isn't penalized,
@@ -2158,7 +2163,9 @@ app.post("/api/spec-packages", requirePagePermission("/spec-packages.html"), asy
         name: String(customerName).trim(),
         phone: String(customerPhone || "").trim(),
         email: String(customerEmail || "").trim(),
-        notes: String(customerNotes || "").trim()
+        notes: [String(customerAddress || "").trim(), String(customerNotes || "").trim()]
+          .filter(Boolean)
+          .join(" — ")
       },
       modelNumbers: models
     });
@@ -2261,6 +2268,21 @@ function describeShape(value, depth = 0) {
   return typeof value;
 }
 
+// Merged quote PDFs are handed back via a one-time GET download rather than
+// streamed as the POST response — a binary attachment returned to fetch() is
+// blocked by some Edge/security setups (surfaces as "Failed to fetch"
+// / net::ERR_FAILED). The POST returns a token; the browser downloads via a
+// normal navigation the filters trust.
+const pendingQuoteMerges = new Map(); // token -> { bytes, filename, email, expiresAt }
+const QUOTE_MERGE_TTL_MS = 5 * 60 * 1000;
+
+function sweepQuoteMerges() {
+  const now = Date.now();
+  for (const [token, entry] of pendingQuoteMerges) {
+    if (entry.expiresAt <= now) pendingQuoteMerges.delete(token);
+  }
+}
+
 // Append the compiled spec pages (slim or full) to the end of an uploaded
 // sales order / quote PDF and return the merged document. User-initiated
 // from the Spec Packages page; nothing is stored server-side. The package
@@ -2358,12 +2380,47 @@ app.post(
           .trim()
           .slice(0, 80) || "quote";
 
-      res.setHeader("Content-Type", "application/pdf");
-      res.setHeader("Content-Disposition", `attachment; filename="${safeName}-with-specs.pdf"`);
-      return res.send(Buffer.from(mergedBytes));
+      sweepQuoteMerges();
+      const downloadToken = crypto.randomBytes(24).toString("hex");
+      const filename = `${safeName}-with-specs.pdf`;
+      pendingQuoteMerges.set(downloadToken, {
+        bytes: Buffer.from(mergedBytes),
+        filename,
+        email: userEmail,
+        expiresAt: Date.now() + QUOTE_MERGE_TTL_MS
+      });
+
+      return res.json({ success: true, downloadToken, filename });
     } catch (err) {
       return sendSteelCodError(res, err, "Unable to attach the spec pages to the quote.");
     }
+  }
+);
+
+// One-time GET download of a merged quote PDF (see note above). A real
+// navigation, so download blockers that trip on fetch()-returned binaries
+// don't apply.
+app.get(
+  "/api/spec-packages/quote-download/:token",
+  requirePagePermission("/spec-packages.html"),
+  (req, res) => {
+    const userEmail = resolveSteelCodUserEmail(req, res);
+    if (!userEmail) return;
+
+    sweepQuoteMerges();
+    const entry = pendingQuoteMerges.get(req.params.token);
+
+    if (!entry || entry.expiresAt <= Date.now()) {
+      return res.status(404).send("This download has expired. Re-run the merge from the Spec Packages page.");
+    }
+    if (entry.email && entry.email !== userEmail) {
+      return res.status(403).send("This download belongs to another user.");
+    }
+
+    pendingQuoteMerges.delete(req.params.token); // one-time
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", `attachment; filename="${entry.filename}"`);
+    return res.send(entry.bytes);
   }
 );
 

@@ -59,6 +59,28 @@
 
     .field.full { grid-column: 1 / -1; }
 
+    .form-grid.two-col { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+
+    /* Order + requester header: two columns, requester emails on the right. */
+    .spec-head {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+      gap: 14px 40px;
+      align-items: start;
+    }
+
+    .spec-head-col { display: flex; flex-direction: column; gap: 14px; }
+    .spec-head-col.right label { text-align: right; }
+
+    .spec-divider { border: none; border-top: 1px solid var(--border); margin: 22px 0; }
+    .spec-gap { height: 8px; }
+
+    @media (max-width: 640px) {
+      .spec-head { grid-template-columns: 1fr; gap: 14px; }
+      .spec-head-col.right label { text-align: left; }
+      .form-grid.two-col { grid-template-columns: 1fr; }
+    }
+
     label { display: block; margin-bottom: 6px; font-size: 13px; font-weight: 700; }
 
     input[type="text"], input[type="email"], textarea, select {
@@ -290,56 +312,77 @@
       </p>
 
       <form id="createForm">
-        <div class="form-grid">
-          <div class="field">
-            <label for="documentID">Sales order / quote #</label>
-            <input id="documentID" type="text" placeholder="SO-12345" />
+        <!-- Order + requester: two columns, requester emails right-aligned. -->
+        <div class="spec-head">
+          <div class="spec-head-col">
+            <div class="field">
+              <label for="title">Title (optional)</label>
+              <input id="title" type="text" placeholder="Defaults to the sales order #" />
+            </div>
+            <div class="field">
+              <label for="documentID">Sales order / quote number</label>
+              <input id="documentID" type="text" placeholder="SO-12345" />
+            </div>
           </div>
-          <div class="field">
-            <label for="title">Title (optional)</label>
-            <input id="title" type="text" placeholder="Defaults to the sales order #" />
+          <div class="spec-head-col right">
+            <div class="field">
+              <label for="userEmail">Your email (requester)</label>
+              <input id="userEmail" type="email" readonly tabindex="-1" aria-label="Your signed-in email; Steel Cod records you as the requester. Not editable." />
+            </div>
+            <div class="field">
+              <label for="salespersonEmail">Salesperson email
+                <span class="help-tip" tabindex="0" role="tooltip"
+                  data-tip="If you are creating this spec book on behalf of a salesperson, update the email here."
+                  aria-label="If you are creating this spec book on behalf of a salesperson, update the email here.">?</span>
+              </label>
+              <input id="salespersonEmail" type="email" />
+            </div>
           </div>
+        </div>
+
+        <hr class="spec-divider" />
+
+        <!-- Customer / project -->
+        <div class="form-grid two-col">
           <div class="field">
-            <label for="customerName">Customer name *</label>
+            <label for="customerName">Client / project name *</label>
             <input id="customerName" type="text" />
           </div>
           <div class="field">
-            <label for="customerPhone">Customer phone</label>
+            <label for="customerAddress">Address (optional)</label>
+            <input id="customerAddress" type="text" placeholder="Street, city, state" />
+          </div>
+          <div class="field">
+            <label for="customerPhone">Customer phone *</label>
             <input id="customerPhone" type="text" />
           </div>
           <div class="field">
-            <label for="customerEmail">Customer email</label>
+            <label for="customerEmail">Customer email (optional)</label>
             <input id="customerEmail" type="email" />
           </div>
-          <div class="field">
-            <label for="userEmail">Your email (requester)</label>
-            <input id="userEmail" type="email" readonly tabindex="-1" aria-label="Your signed-in email; Steel Cod records you as the requester. Not editable." />
-          </div>
-          <div class="field">
-            <label for="salespersonEmail">Salesperson email
-              <span class="help-tip" tabindex="0" role="tooltip"
-                data-tip="If you are creating this spec book on behalf of a salesperson, update the email here."
-                aria-label="If you are creating this spec book on behalf of a salesperson, update the email here.">?</span>
-            </label>
-            <input id="salespersonEmail" type="email" />
-          </div>
-          <div class="field full">
-            <label for="modelNumbers">Model numbers * (one per line or comma-separated)</label>
-            <textarea id="modelNumbers" placeholder="WRF535SWHZ&#10;WDT730PAHZ"></textarea>
-          </div>
-          <div class="field full">
-            <label for="quotePdf">Sales order / quote PDF (optional)
-              <span class="help-tip" tabindex="0" role="tooltip"
-                data-tip="Upload your quote PDF and the compiled spec pages will be appended to the end of it. The merged PDF downloads right after the package is created."
-                aria-label="Upload your quote PDF and the compiled spec pages will be appended to the end of it. The merged PDF downloads right after the package is created.">?</span>
-            </label>
-            <div class="attach-row">
-              <input id="quotePdf" type="file" accept="application/pdf,.pdf" />
-              <select id="quoteVariant" aria-label="Which spec pages to append">
-                <option value="slim" selected>Slim spec pages</option>
-                <option value="full">Full spec pages</option>
-              </select>
-            </div>
+        </div>
+
+        <div class="spec-gap"></div>
+
+        <div class="field full">
+          <label for="modelNumbers">Model numbers * (one per line or comma-separated)</label>
+          <textarea id="modelNumbers" placeholder="WRF535SWHZ&#10;WDT730PAHZ"></textarea>
+        </div>
+
+        <div class="spec-gap"></div>
+
+        <div class="field full">
+          <label for="quotePdf">Sales order / quote PDF (optional)
+            <span class="help-tip" tabindex="0" role="tooltip"
+              data-tip="Upload your quote PDF and the compiled spec pages will be appended to the end of it. The merged PDF downloads right after the package is created."
+              aria-label="Upload your quote PDF and the compiled spec pages will be appended to the end of it. The merged PDF downloads right after the package is created.">?</span>
+          </label>
+          <div class="attach-row">
+            <input id="quotePdf" type="file" accept="application/pdf,.pdf" />
+            <select id="quoteVariant" aria-label="Which spec pages to append">
+              <option value="slim" selected>Slim spec pages</option>
+              <option value="full">Full spec pages</option>
+            </select>
           </div>
         </div>
 
@@ -510,20 +553,20 @@
         }
       );
 
+      const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
         throw new Error(data.error || "Unable to merge the quote and spec pages.");
       }
 
-      const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
+      // Download via a normal same-origin navigation (session cookie carries
+      // auth) rather than a fetch-returned blob — the latter is blocked by
+      // some Edge/security setups.
       const a = document.createElement("a");
-      a.href = url;
-      a.download = (baseName || "quote") + "-with-specs.pdf";
+      a.href = "/api/spec-packages/quote-download/" + encodeURIComponent(data.downloadToken);
+      a.download = data.filename || ((baseName || "quote") + "-with-specs.pdf");
       document.body.appendChild(a);
       a.click();
       a.remove();
-      setTimeout(() => URL.revokeObjectURL(url), 4000);
     }
 
     let attachTarget = null;
@@ -579,6 +622,15 @@
       setStatus("createStatus", "", "");
       document.getElementById("createResult").textContent = "";
 
+      if (!document.getElementById("customerName").value.trim()) {
+        setStatus("createStatus", "Client / project name is required.", "error");
+        return;
+      }
+      if (!document.getElementById("customerPhone").value.trim()) {
+        setStatus("createStatus", "Customer phone is required.", "error");
+        return;
+      }
+
       const btn = document.getElementById("createBtn");
       btn.disabled = true;
       btn.textContent = "Creating...";
@@ -590,6 +642,7 @@
             documentID: document.getElementById("documentID").value.trim(),
             title: document.getElementById("title").value.trim(),
             customerName: document.getElementById("customerName").value.trim(),
+            customerAddress: document.getElementById("customerAddress").value.trim(),
             customerPhone: document.getElementById("customerPhone").value.trim(),
             customerEmail: document.getElementById("customerEmail").value.trim(),
             salespersonEmail: document.getElementById("salespersonEmail").value.trim(),
@@ -685,7 +738,7 @@
 
     // ---- Search ----
 
-    async function runSearch(params, append) {
+    async function runSearch(params, append, limit) {
       const btn = document.getElementById("searchBtn");
       btn.disabled = true;
       setStatus("searchStatus", "", "");
@@ -698,21 +751,32 @@
         if (append && searchState.loaded) query.set("skip", String(searchState.loaded));
 
         const result = await api("/api/spec-packages?" + query.toString());
-        const packages = result.specPackages || [];
+        let packages = result.specPackages || [];
+        const total = result.totalRecords || packages.length;
+
+        // Limited views (e.g. "My packages") show only the N most recent —
+        // Steel Cod returns newest-first — and hide Load more.
+        const limited = Number.isFinite(limit) && limit > 0;
+        if (limited) packages = packages.slice(0, limit);
 
         if (!append) {
-          searchState = { params, skip: 0, total: result.totalRecords || 0, loaded: 0 };
+          searchState = { params, skip: 0, total, loaded: 0, limit: limited ? limit : null };
           document.getElementById("searchBody").textContent = "";
         }
 
         searchState.loaded += packages.length;
-        searchState.total = result.totalRecords || searchState.loaded;
+        searchState.total = total;
         renderSearchRows(packages, append);
 
         document.getElementById("moreBtn").style.display =
-          searchState.loaded < searchState.total ? "inline-flex" : "none";
+          (!searchState.limit && searchState.loaded < searchState.total) ? "inline-flex" : "none";
 
-        setStatus("searchStatus", `Showing ${searchState.loaded} of ${searchState.total} package(s).`, "ok");
+        if (searchState.limit) {
+          const more = total > searchState.loaded ? ` (${total} total — refine the search above to find older ones)` : "";
+          setStatus("searchStatus", `Showing your ${searchState.loaded} most recent package(s)${more}.`, "ok");
+        } else {
+          setStatus("searchStatus", `Showing ${searchState.loaded} of ${searchState.total} package(s).`, "ok");
+        }
       } catch (err) {
         setStatus("searchStatus", err.message, "error");
       } finally {
@@ -791,7 +855,7 @@
 
     document.getElementById("mineBtn").addEventListener("click", () => {
       const email = session?.user?.email || "";
-      runSearch({ createdByUserEmail: email }, false);
+      runSearch({ createdByUserEmail: email }, false, 5);
     });
 
     document.getElementById("moreBtn").addEventListener("click", () => {

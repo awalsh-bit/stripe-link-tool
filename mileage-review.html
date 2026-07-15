@@ -233,7 +233,7 @@
       <h2>Mileage Review</h2>
       <p class="section-note">
         Review submitted months, adjust entries if needed, then approve or return them.
-        Approval locks the month and snapshots the year's rate — the totals here are what
+        Approval locks the month and snapshots the rate in effect for that month — the totals here are what
         accounting keys into payroll.
       </p>
 
@@ -346,24 +346,27 @@
     <div class="surface" id="ratesSurface" style="display: none;">
       <h2>Mileage rates</h2>
       <p class="section-note">
-        Per-mile reimbursement rate by year (IRS standard rate, typically updated each
-        January). Approved months keep the rate they were approved at.
+        Per-mile reimbursement rate by effective date (IRS standard rate). The rate for a
+        month is the most recent one whose effective date is on or before that month — so a
+        mid-year IRS change (e.g. 76¢ effective July 1, 2026) applies from that date forward
+        while earlier months keep the prior rate. Approved months keep the rate they were
+        approved at.
       </p>
       <div class="toolbar">
         <div class="field">
-          <label for="rateYear">Year</label>
-          <input id="rateYear" type="number" min="2020" max="2100" />
+          <label for="rateEffective">Effective from</label>
+          <input id="rateEffective" type="date" />
         </div>
         <div class="field">
           <label for="rateValue">Rate (per mile)</label>
-          <input id="rateValue" type="number" min="0" step="0.001" placeholder="0.725" />
+          <input id="rateValue" type="number" min="0" step="0.001" placeholder="0.76" />
         </div>
         <button id="rateSaveBtn" type="button">Save rate</button>
       </div>
       <div id="rateStatus" class="status"></div>
-      <div class="table-scroll" style="margin-top: 10px; max-width: 300px;">
+      <div class="table-scroll" style="margin-top: 10px; max-width: 340px;">
         <table>
-          <thead><tr><th>Year</th><th class="num">Rate</th></tr></thead>
+          <thead><tr><th>Effective from</th><th class="num">Rate</th></tr></thead>
           <tbody id="ratesBody"></tbody>
         </table>
       </div>
@@ -788,6 +791,14 @@
 
     // ---- Rates (executives) ----
 
+    function fmtEffective(s) {
+      // s is YYYY-MM-DD; render without timezone drift.
+      const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(s || ""));
+      if (!m) return s || "—";
+      const d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+      return d.toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" });
+    }
+
     async function loadRates() {
       try {
         const data = await api("/api/mileage/rates");
@@ -795,12 +806,12 @@
         body.textContent = "";
         for (const r of data.rates || []) {
           const tr = document.createElement("tr");
-          const tdYear = document.createElement("td");
-          tdYear.textContent = r.year;
+          const tdEff = document.createElement("td");
+          tdEff.textContent = fmtEffective(r.effectiveFrom);
           const tdRate = document.createElement("td");
           tdRate.className = "num";
           tdRate.textContent = "$" + r.rate;
-          tr.appendChild(tdYear);
+          tr.appendChild(tdEff);
           tr.appendChild(tdRate);
           body.appendChild(tr);
         }
@@ -814,7 +825,7 @@
         await api("/api/admin/mileage-rates", {
           method: "POST",
           body: JSON.stringify({
-            year: Number(document.getElementById("rateYear").value),
+            effectiveFrom: document.getElementById("rateEffective").value,
             rate: Number(document.getElementById("rateValue").value)
           })
         });

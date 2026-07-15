@@ -331,6 +331,10 @@
           <input id="dirDepartment" type="text" list="departmentOptions" placeholder="Appliance" />
           <datalist id="departmentOptions"></datalist>
         </div>
+        <div class="field">
+          <label for="dirCommissionPlan">Commission Plan</label>
+          <select id="dirCommissionPlan"></select>
+        </div>
         <div class="field small">
           <label for="dirCommute">Commute (mi, round trip)</label>
           <input id="dirCommute" type="number" min="0" step="0.1" placeholder="0" />
@@ -350,12 +354,14 @@
               <th>Name</th>
               <th>Email</th>
               <th>Department</th>
+              <th>Commission Plan</th>
+              <th title="Product sales across commission runs imported in the last 6 months — backs the Field Sales $500k qualification. Read-only.">6-Mo Sales</th>
               <th>Commute (mi)</th>
               <th>Actions</th>
             </tr>
           </thead>
           <tbody id="dirBody">
-            <tr><td colspan="6" class="muted">Loading…</td></tr>
+            <tr><td colspan="8" class="muted">Loading…</td></tr>
           </tbody>
         </table>
       </div>
@@ -776,17 +782,60 @@
 
     // ---- Employee directory editor ----
 
+    function fmtTrailingRevenue(code) {
+      const amount = Number((state.trailingRevenue || {})[String(code || "").trim().toUpperCase()] || 0);
+      if (!amount) return "—";
+      return "$" + Math.round(amount).toLocaleString();
+    }
+
     async function loadDirectory() {
       try {
         setStatus("dirStatus", "", "");
         const data = await api("/api/admin/employee-directory");
         state.directory = data.entries || [];
+        state.trailingRevenue = data.trailingRevenue || {};
         renderDirectory();
         renderUsers(); // refresh the name join + "Code:" chips on user rows
       } catch (err) {
         setStatus("dirStatus", err.message, "error");
       }
     }
+
+    // Commission plans — must match COMMISSION_PLANS in lib/employee-directory.js
+    // (the server validates against that list). "" = none.
+    const COMMISSION_PLANS = [
+      "Showroom Consultant",
+      "Field Sales Consultant",
+      "Kitchen Designer",
+      "Repair Technician",
+      "HVAC Selling Technician",
+      "HVAC Installer"
+    ];
+
+    // Build a <select> of commission plans with the given value selected.
+    function commissionPlanSelect(value) {
+      const sel = document.createElement("select");
+      const none = document.createElement("option");
+      none.value = "";
+      none.textContent = "— None —";
+      sel.appendChild(none);
+      for (const plan of COMMISSION_PLANS) {
+        const opt = document.createElement("option");
+        opt.value = plan;
+        opt.textContent = plan;
+        sel.appendChild(opt);
+      }
+      sel.value = value || "";
+      return sel;
+    }
+
+    // Populate the add/update form's plan dropdown once.
+    (function fillAddFormPlan() {
+      const sel = document.getElementById("dirCommissionPlan");
+      if (!sel || sel.options.length) return;
+      const built = commissionPlanSelect("");
+      while (built.firstChild) sel.appendChild(built.firstChild);
+    })();
 
     function renderDirectory() {
       const body = document.getElementById("dirBody");
@@ -801,7 +850,7 @@
 
       if (!state.directory.length) {
         body.appendChild(el("tr", {}, [
-          el("td", { colspan: "6", class: "muted", text: "No directory entries yet. Add the first one above." })
+          el("td", { colspan: "8", class: "muted", text: "No directory entries yet. Add the first one above." })
         ]));
         return;
       }
@@ -926,6 +975,8 @@
           el("td", { text: entry.name }),
           el("td", { text: entry.email || "—" }),
           el("td", { text: entry.department || "—" }),
+          el("td", { text: entry.commissionPlan || "—" }),
+          el("td", { class: "muted", text: fmtTrailingRevenue(entry.code) }),
           el("td", { text: String(entry.commuteMiles ?? 0) }),
           el("td", {}, [actions])
         ]);
@@ -936,6 +987,7 @@
       const nameInput = el("input", { type: "text", value: entry.name });
       const emailInput = el("input", { type: "email", value: entry.email || "" });
       const deptInput = el("input", { type: "text", value: entry.department || "", list: "departmentOptions" });
+      const planInput = commissionPlanSelect(entry.commissionPlan || "");
       const commuteInput = el("input", { type: "number", min: "0", step: "0.1", value: String(entry.commuteMiles ?? 0) });
 
       const actions = el("div", { class: "row-actions" }, [
@@ -952,6 +1004,7 @@
                   name: nameInput.value.trim(),
                   email: emailInput.value.trim(),
                   department: deptInput.value.trim(),
+                  commissionPlan: planInput.value,
                   commuteMiles: Number(commuteInput.value) || 0
                 })
               });
@@ -978,6 +1031,8 @@
         el("td", {}, [nameInput]),
         el("td", {}, [emailInput]),
         el("td", {}, [deptInput]),
+        el("td", {}, [planInput]),
+        el("td", { class: "muted", text: fmtTrailingRevenue(entry.code) }),
         el("td", {}, [commuteInput]),
         el("td", {}, [actions])
       ]);
@@ -992,6 +1047,7 @@
       document.getElementById("dirName").value = match.name;
       document.getElementById("dirEmail").value = match.email || "";
       document.getElementById("dirDepartment").value = match.department || "";
+      document.getElementById("dirCommissionPlan").value = match.commissionPlan || "";
       document.getElementById("dirCommute").value = match.commuteMiles ?? 0;
       setStatus("dirStatus", `Loaded ${code} — ${match.name}. Change what you need and click Add / Update to save.`, "ok");
     });
@@ -1002,6 +1058,7 @@
       const name = document.getElementById("dirName").value.trim();
       const email = document.getElementById("dirEmail").value.trim();
       const department = document.getElementById("dirDepartment").value.trim();
+      const commissionPlan = document.getElementById("dirCommissionPlan").value;
       const commuteMiles = Number(document.getElementById("dirCommute").value) || 0;
 
       setStatus("dirStatus", "", "");
@@ -1019,10 +1076,10 @@
       try {
         await api("/api/admin/employee-directory", {
           method: "POST",
-          body: JSON.stringify({ code, name, email, department, commuteMiles })
+          body: JSON.stringify({ code, name, email, department, commissionPlan, commuteMiles })
         });
         setStatus("dirStatus", `Saved ${code} — ${name}.`, "ok");
-        ["dirCode", "dirName", "dirEmail", "dirDepartment", "dirCommute"].forEach((id) => {
+        ["dirCode", "dirName", "dirEmail", "dirDepartment", "dirCommissionPlan", "dirCommute"].forEach((id) => {
           document.getElementById(id).value = "";
         });
         await loadDirectory();

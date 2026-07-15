@@ -573,6 +573,46 @@
       line-height: 1.55;
     }
 
+    .plan-panel {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px 22px;
+      align-items: center;
+      margin: 0 0 14px;
+      padding: 12px 14px;
+      border: 1px solid #dbe4f3;
+      border-radius: 12px;
+      background: #f6f9ff;
+      font-size: 13px;
+    }
+
+    .plan-panel .plan-name {
+      font-weight: 700;
+      color: #1d4ed8;
+    }
+
+    .plan-panel .plan-metric strong {
+      font-variant-numeric: tabular-nums;
+    }
+
+    .plan-panel .plan-bonus {
+      color: #065f46;
+      font-weight: 700;
+    }
+
+    .plan-panel label.plan-qualify {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    .plan-panel .plan-unqualified {
+      color: #991b1b;
+      font-weight: 700;
+    }
+
     table {
       width: 100%;
       border-collapse: collapse;
@@ -723,7 +763,7 @@
           <div class="field">
             <label for="commissionFile">Commission Workbook</label>
             <input id="commissionFile" type="file" accept=".xlsx,.xlsm,.xls" />
-            <div class="hint">Upload the raw commission workbook exactly as exported. The system will create a new draft run.</div>
+            <div class="hint">Upload the raw commission workbook exactly as exported (revenue, serial type, serial cost, and GM% per line). Commission is calculated automatically from each person's Commission Plan in User Admin, then stays editable while the run is draft.</div>
           </div>
           <div class="field">
             <label for="periodLabel">Payroll Period Label</label>
@@ -798,6 +838,7 @@
                   </div>
                 </div>
               </div>
+              <div id="planPanel" class="plan-panel hidden"></div>
               <div class="table-wrap">
                 <table id="lineEditorTable">
                   <thead>
@@ -809,13 +850,15 @@
                       <th>Serial</th>
                       <th class="number">Qty</th>
                       <th class="money">Sell Price</th>
+                      <th class="money">Cost</th>
+                      <th class="percent">GM %</th>
                       <th class="percent">Commission %</th>
                       <th class="money">Commission $</th>
                       <th>Calculate</th>
                     </tr>
                   </thead>
                   <tbody id="lineTableBody">
-                    <tr><td colspan="10" class="empty-state">No salesperson selected yet.</td></tr>
+                    <tr><td colspan="12" class="empty-state">No salesperson selected yet.</td></tr>
                   </tbody>
                 </table>
               </div>
@@ -941,11 +984,27 @@
     const hvacOrderTableBody = document.getElementById("hvacOrderTableBody");
     const adjustmentsGrid = document.getElementById("adjustmentsGrid");
     const unpaidNote = document.getElementById("unpaidNote");
+    const planPanel = document.getElementById("planPanel");
 
     let currentRuns = [];
     let currentRunDetail = null;
     let currentRunId = "";
     let currentSalespersonCode = "";
+
+    // Trailing 6-month product revenue by salesperson code (informational,
+    // backs the Field Sales $500k qualification decision).
+    let trailingRevenueByCode = {};
+    async function loadTrailingRevenue() {
+      try {
+        const res = await fetch("/api/commissions/trailing-revenue", { cache: "no-store" });
+        const data = await res.json();
+        if (res.ok) {
+          trailingRevenueByCode = data.revenueByCode || {};
+        }
+      } catch {
+        trailingRevenueByCode = {};
+      }
+    }
 
     pageHeading.textContent = VIEW_CONFIG.heading;
     pageDescription.textContent = VIEW_CONFIG.description;
@@ -974,15 +1033,23 @@
 
     function getClassificationOptions(currentValue) {
       const normalizedCurrent = String(currentValue || "").trim().toUpperCase();
-      const options = ["ALL", "SVC", "SPECIAL", "OPEN", "UNPAID", "OMIT"];
+      const options = ["ALL", "SVC", "SPECIAL", "OPEN", "DISPLAY", "RTV", "UNPAID", "OMIT"];
       if (normalizedCurrent && !options.includes(normalizedCurrent)) {
         options.unshift(normalizedCurrent);
       }
       return options;
     }
 
+    function getGroupPlan(group) {
+      return String(group?.salespersonPlan || "").trim();
+    }
+
     function getWarrantySummaryText(group) {
-      if (String(group.salespersonDepartment || "").trim().toLowerCase() !== "appliance") {
+      const plan = getGroupPlan(group);
+      const showsProtect = plan === "Showroom Consultant" ||
+        plan === "Field Sales Consultant" ||
+        (!plan && String(group.salespersonDepartment || "").trim().toLowerCase() === "appliance");
+      if (!showsProtect) {
         return "";
       }
 
@@ -990,7 +1057,20 @@
     }
 
     function isHvacSalesGroup(group) {
+      const plan = getGroupPlan(group);
+      if (plan) {
+        return plan === "HVAC Selling Technician";
+      }
       return String(group?.salespersonDepartment || "").trim().toLowerCase() === "hvac sales";
+    }
+
+    // Group payout including the Field Sales Protect bonus and the $500k
+    // qualification gate (mirrors the server's math).
+    function computeGroupPayout(group) {
+      const earned = Number(group.totalCommissionAmount || 0) +
+        Number(group.warrantyPayoutAmount || 0) +
+        Number(group.protectBonusAmount || 0);
+      return roundTo((group.fsUnqualified ? 0 : earned) + Number(group.adjustmentNetAmount || 0), 2);
     }
 
     function isProtectLine(line) {
@@ -1061,12 +1141,7 @@
         nextAdjustments.reduce((sum, adjustment) => sum + getAdjustmentSignedAmount(adjustment), 0),
         2
       );
-      targetGroup.totalPayoutAmount = roundTo(
-        Number(targetGroup.totalCommissionAmount || 0) +
-        Number(targetGroup.warrantyPayoutAmount || 0) +
-        Number(targetGroup.adjustmentNetAmount || 0),
-        2
-      );
+      targetGroup.totalPayoutAmount = computeGroupPayout(targetGroup);
 
       if (detail.summary) {
         detail.summary.totalAdjustmentNetAmount = roundTo(
@@ -1074,9 +1149,7 @@
           2
         );
         detail.summary.totalPayoutAmount = roundTo(
-          Number(detail.summary.totalCommissionAmount || 0) +
-          Number(detail.summary.totalProtectPayoutAmount || 0) +
-          Number(detail.summary.totalAdjustmentNetAmount || 0),
+          detail.salespeople.reduce((sum, group) => sum + Number(group.totalPayoutAmount || 0), 0),
           2
         );
       }
@@ -1147,12 +1220,7 @@
         targetGroup.salesOrders.reduce((sum, order) => sum + Number(order.payoutAmount || 0), 0),
         2
       );
-      targetGroup.totalPayoutAmount = roundTo(
-        Number(targetGroup.totalCommissionAmount || 0) +
-        Number(targetGroup.warrantyPayoutAmount || 0) +
-        Number(targetGroup.adjustmentNetAmount || 0),
-        2
-      );
+      targetGroup.totalPayoutAmount = computeGroupPayout(targetGroup);
 
       if (detail.summary) {
         detail.summary.totalSellPrice = roundTo(
@@ -1164,9 +1232,7 @@
           2
         );
         detail.summary.totalPayoutAmount = roundTo(
-          Number(detail.summary.totalCommissionAmount || 0) +
-          Number(detail.summary.totalProtectPayoutAmount || 0) +
-          Number(detail.summary.totalAdjustmentNetAmount || 0),
+          detail.salespeople.reduce((sum, group) => sum + Number(group.totalPayoutAmount || 0), 0),
           2
         );
       }
@@ -1424,12 +1490,15 @@
                 return;
               }
 
+              // 2026 export format:
+              // Invoice # | Customer | Line | Product | Qty | Revenue | Serial Type | SerialCost | GM Rate
+              // Commission is calculated on the server from each salesperson's
+              // commission plan (User Admin -> Commission Plan), not imported.
               const quantity = Number(row[4] || 0);
               const sellPrice = Number(row[5] || 0);
-              const importedCommissionAmount = Number(row[7] || 0);
-              const importedCommissionPercent = sellPrice > 0
-                ? roundTo((importedCommissionAmount / sellPrice) * 100, 4)
-                : 0;
+              const serialType = String(row[6] || "").trim().toUpperCase();
+              const serialCost = Number(row[7] || 0);
+              const gmRate = Number(row[8] || 0); // fraction, e.g. 0.3188 = 31.88%
 
               parsedLines.push({
                 sourceRowNumber: index + 1,
@@ -1442,13 +1511,16 @@
                 customerName: String(row[1] || "").trim(),
                 lineType: String(row[2] || "").trim(),
                 productModel: String(row[3] || "").trim(),
-                sourceClassification: String(row[8] || "").trim(),
+                sourceClassification: serialType,
+                serialType,
+                serialCost: roundTo(serialCost, 2),
+                gmPercent: roundTo(gmRate * 100, 4),
                 quantity: roundTo(quantity, 2),
                 sellPrice: roundTo(sellPrice, 2),
-                importedCommissionPercent,
-                importedCommissionAmount: roundTo(importedCommissionAmount, 2),
-                commissionPercent: importedCommissionPercent,
-                commissionAmount: roundTo(importedCommissionAmount, 2)
+                importedCommissionPercent: 0,
+                importedCommissionAmount: 0,
+                commissionPercent: 0,
+                commissionAmount: 0
               });
             });
 
@@ -1724,16 +1796,82 @@
       });
     }
 
+    function renderPlanPanel(group) {
+      const plan = getGroupPlan(group);
+      if (!group || !plan) {
+        planPanel.classList.add("hidden");
+        planPanel.innerHTML = "";
+        return;
+      }
+
+      const isFieldSales = plan === "Field Sales Consultant";
+      const isDraft = (group.status || "draft") === "draft";
+      const pieces = [`<span class="plan-name">${plan}</span>`];
+
+      if (isFieldSales) {
+        const code = String(group.salespersonCode || "").trim().toUpperCase();
+        const trailing = Number(trailingRevenueByCode[code] || 0);
+        pieces.push(
+          `<span class="plan-metric">Trailing 6-mo product sales: <strong>${formatMoney(trailing)}</strong> (gate: $500,000)</span>`
+        );
+        pieces.push(
+          `<label class="plan-qualify"><input type="checkbox" id="fsQualifiedToggle" ${group.fsQualified === false ? "" : "checked"} ${isDraft ? "" : "disabled"} /> Qualified this month</label>`
+        );
+        if (group.fsUnqualified) {
+          pieces.push('<span class="plan-unqualified">Not qualified — commission, Protect payout, and bonus are withheld; only manual adjustments pay.</span>');
+        } else {
+          const protectSales = Number(group.warrantySellPrice || 0);
+          if (Number(group.protectBonusAmount || 0) > 0) {
+            pieces.push(`<span class="plan-bonus">Protect bonus earned: ${formatMoney(group.protectBonusAmount)} (${formatMoney(protectSales)} Protect sold &gt; $5,000)</span>`);
+          } else {
+            pieces.push(`<span class="plan-metric">Protect sold: <strong>${formatMoney(protectSales)}</strong> — $500 bonus at $5,000+</span>`);
+          }
+        }
+      }
+
+      planPanel.innerHTML = pieces.join("");
+      planPanel.classList.remove("hidden");
+
+      const toggle = document.getElementById("fsQualifiedToggle");
+      if (toggle) {
+        toggle.addEventListener("change", async () => {
+          const nextQualified = toggle.checked;
+          toggle.disabled = true;
+          try {
+            const res = await fetch(`/api/commissions/runs/${encodeURIComponent(currentRunId)}/salespeople/${encodeURIComponent(getSalespersonDisplayKey(group))}/qualified`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ qualified: nextQualified })
+            });
+            const data = await res.json();
+            if (!res.ok) {
+              throw new Error(data.error || "Unable to update qualification.");
+            }
+            await loadRuns();
+            await selectRun(currentRunId, currentSalespersonCode);
+            showStatus("success", nextQualified
+              ? `${group.salespersonName || group.salespersonCode} marked qualified — plan payout restored.`
+              : `${group.salespersonName || group.salespersonCode} marked not qualified — plan payout withheld for this run.`);
+          } catch (error) {
+            showStatus("error", error.message);
+            toggle.checked = !nextQualified;
+            toggle.disabled = false;
+          }
+        });
+      }
+    }
+
     function renderLineTable(group, runStatus) {
       if (!group) {
         salespersonTitle.textContent = "Select a salesperson";
         salespersonMeta.textContent = "Choose a consultant above to review each ticket, model, source classification, sell price, and editable commission values.";
         salespersonActions.classList.add("hidden");
-        lineTableBody.innerHTML = '<tr><td colspan="10" class="empty-state">No salesperson selected yet.</td></tr>';
+        lineTableBody.innerHTML = '<tr><td colspan="12" class="empty-state">No salesperson selected yet.</td></tr>';
         hvacOrderTableBody.innerHTML = '<tr><td colspan="12" class="empty-state">No HVAC salesperson selected yet.</td></tr>';
         lineEditorTable.parentElement.classList.remove("hidden");
         hvacOrderSection.classList.add("hidden");
         adjustmentsGrid.innerHTML = '<div class="empty-state">No salesperson selected yet.</div>';
+        renderPlanPanel(null);
         unpaidNote.classList.add("hidden");
         unpaidNote.textContent = "";
         return;
@@ -1750,6 +1888,7 @@
 
       salespersonTitle.textContent = `${group.salespersonName || group.salespersonCode} | ${group.salespersonCode || ""}`.trim();
       salespersonMeta.textContent = `${group.orderCount} orders | ${group.lineCount} lines | ${getDisplayedCommissionAmount(group)} commission${getWarrantySummaryText(group) ? ` | ${getWarrantySummaryText(group)}` : ""}`;
+      renderPlanPanel(group);
       if (isHvacSalesGroup(group)) {
         renderHvacOrderTable(group);
         renderAdjustments(group);
@@ -1780,6 +1919,8 @@
             : (line.sourceClassification || "")}</td>
           <td class="number">${Number(line.quantity || 0).toFixed(2).replace(/\.00$/, "")}</td>
           <td class="money">${formatMoney(line.sellPrice || 0)}</td>
+          <td class="money">${Number(line.serialCost || 0) ? formatMoney(line.serialCost) : ""}</td>
+          <td class="percent">${isProtectLine(line) || !Number(line.gmPercent || 0) ? "" : formatPercent(line.gmPercent)}</td>
           <td class="percent"><input class="inline-input" data-line-id="${line.id}" data-mode="percent" type="number" step="0.01" value="${getDisplayCommissionPercent(line, group).toFixed(2)}" ${disabled} /></td>
           <td class="money"><input class="inline-input" data-line-id="${line.id}" data-mode="amount" type="number" step="0.01" value="${getDisplayCommissionAmount(line, group).toFixed(2)}" ${disabled} /></td>
           <td class="inline-actions">${(group.status || "draft") === "draft" ? `<button type="button" data-line-id="${line.id}" class="secondary calc-btn">Calculate</button>` : '<span class="hint">Locked</span>'}</td>
@@ -1952,6 +2093,7 @@
       }
     });
 
+    loadTrailingRevenue();
     loadRuns().catch((error) => {
       showStatus("error", error.message);
     });

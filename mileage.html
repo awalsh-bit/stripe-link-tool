@@ -354,10 +354,11 @@
         <summary>How is the rate set?</summary>
         <p>
           Wilson's rate follows the IRS standard mileage rate guidance, which the IRS
-          updates each year (typically in January) based on national vehicle-cost data.
-          The rate for the year applies to that year's months, and once a month is
-          approved, its rate is locked in — a later rate change never alters an
-          already-approved reimbursement.
+          updates based on national vehicle-cost data — usually each January, but
+          occasionally mid-year (as in July 2026). Each rate applies from its effective
+          date forward, so a mid-year change only affects the months on or after it;
+          earlier months keep the prior rate. Once a month is approved, its rate is
+          locked in — a later rate change never alters an already-approved reimbursement.
         </p>
       </details>
 
@@ -449,8 +450,12 @@
       return report && ["draft", "denied"].includes(report.status);
     }
 
-    function currentRateForYear(year) {
-      const match = rates.find((r) => r.year === year);
+    // Rate in effect for a report's month: the most recent period whose
+    // effective_from is on or before the first of that month (mirrors the
+    // server's getRateForReport). `rates` is sorted newest-first by the API.
+    function currentRateForReport(rep) {
+      const first = `${rep.year}-${String(rep.month).padStart(2, "0")}-01`;
+      const match = (rates || []).find((r) => r.effectiveFrom <= first);
       return match ? match.rate : null;
     }
 
@@ -487,7 +492,7 @@
       document.getElementById("totalMilesM").textContent = totalMilesText;
       document.getElementById("totalReimbursedM").textContent = reimbursedText;
 
-      const rate = report.rateUsed != null ? report.rateUsed : currentRateForYear(report.year);
+      const rate = report.rateUsed != null ? report.rateUsed : currentRateForReport(report);
       document.getElementById("rateBox").textContent = rate != null ? "$" + Number(rate).toFixed(3).replace(/0$/, "") : "not set";
       document.getElementById("grandTotal").textContent =
         rate != null ? "$" + (Math.round(reimbursed * rate * 100) / 100).toLocaleString(undefined, { minimumFractionDigits: 2 }) : "—";

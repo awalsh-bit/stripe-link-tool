@@ -222,8 +222,19 @@
       return `${Number(value || 0).toFixed(2)}%`;
     }
 
+    function getGroupPlan(group) {
+      return String(group?.salespersonPlan || "").trim();
+    }
+
+    function groupShowsProtect(group) {
+      const plan = getGroupPlan(group);
+      return plan === "Showroom Consultant" ||
+        plan === "Field Sales Consultant" ||
+        (!plan && String(group?.salespersonDepartment || "").trim().toLowerCase() === "appliance");
+    }
+
     function getWarrantySummaryText(group) {
-      if (String(group.salespersonDepartment || "").trim().toLowerCase() !== "appliance") {
+      if (!groupShowsProtect(group)) {
         return "";
       }
 
@@ -236,6 +247,10 @@
     }
 
     function isHvacSalesGroup(group) {
+      const plan = getGroupPlan(group);
+      if (plan) {
+        return plan === "HVAC Selling Technician";
+      }
       return String(group?.salespersonDepartment || "").trim().toLowerCase() === "hvac sales";
     }
 
@@ -280,11 +295,29 @@
     }
 
     function getProtectSummaryLine(group) {
-      if (String(group?.salespersonDepartment || "").trim().toLowerCase() !== "appliance") {
+      if (!groupShowsProtect(group)) {
         return "No Protect payout in this export";
       }
 
-      return `${formatMoney(group.warrantySellPrice || 0)} Protect sales | ${formatPercent(group.warrantyPenetrationPercent || 0)} Protect % | ${formatMoney(group.warrantyPayoutAmount || 0)} payout`;
+      const bonusText = Number(group.protectBonusAmount || 0) > 0
+        ? ` | ${formatMoney(group.protectBonusAmount)} bonus`
+        : "";
+      return `${formatMoney(group.warrantySellPrice || 0)} Protect sales | ${formatPercent(group.warrantyPenetrationPercent || 0)} Protect % | ${formatMoney(group.warrantyPayoutAmount || 0)} payout${bonusText}`;
+    }
+
+    function getPlanSummaryLine(group) {
+      const plan = getGroupPlan(group);
+      if (!plan) {
+        return "";
+      }
+      const bits = [plan];
+      if (Number(group.protectBonusAmount || 0) > 0) {
+        bits.push(`Protect bonus ${formatMoney(group.protectBonusAmount)}`);
+      }
+      if (group.fsUnqualified) {
+        bits.push("NOT QUALIFIED — plan payout withheld ($500k/6-month minimum)");
+      }
+      return bits.join(" | ");
     }
 
     function getAdjustmentSummaryLine(group) {
@@ -417,6 +450,7 @@
           <div class="group">
             <h2>${group.salespersonName || group.salespersonCode} ${group.salespersonCode ? `| ${group.salespersonCode}` : ""}</h2>
             <p>${group.orderCount} orders | ${group.lineCount} lines | ${getDisplayedCommissionAmount(group)} commission${getWarrantySummaryText(group) ? ` | ${getWarrantySummaryText(group)}` : ""}</p>
+            ${getPlanSummaryLine(group) ? `<p class="muted" style="margin-top:6px;">${getPlanSummaryLine(group)}</p>` : ""}
             <table>
               <thead>
                 <tr>
@@ -441,6 +475,7 @@
                     <th>Serial</th>
                     <th class="number">Qty</th>
                     <th class="money">Sell Price</th>
+                    <th class="percent">GM %</th>
                     <th class="percent">Commission %</th>
                     <th class="money">Commission $</th>
                   `}
@@ -473,6 +508,7 @@
                         <td>${line.sourceClassification || ""}</td>
                         <td class="number">${Number(line.quantity || 0).toFixed(2).replace(/\.00$/, "")}</td>
                         <td class="money">${formatMoney(line.sellPrice || 0)}</td>
+                        <td class="percent">${isProtectLine(line) || !Number(line.gmPercent || 0) ? "" : formatPercent(line.gmPercent)}</td>
                         <td class="percent">${formatPercent(getDisplayCommissionPercent(line, group))}</td>
                         <td class="money">${formatMoney(getDisplayCommissionAmount(line, group))}</td>
                       </tr>

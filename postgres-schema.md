@@ -292,16 +292,26 @@ server serves that path from this table).
 - `code` (pk, 1–3 chars), `name`, `email` (ties the code to an `app_users`
   account by email — powers code auto-fill and per-employee dashboard
   defaults), `department`, `updated_at`, `updated_by`
+- `commission_plan` (added by `sql/011_commission_plan.sql`): one of the fixed
+  plan names in `COMMISSION_PLANS` (lib/employee-directory.js) or `''` for
+  none. Drives the automatic commission calculation at import.
 - Seeded from the legacy static file on first boot when empty.
 
 ### Mileage reimbursement (live — created by `sql/007_mileage.sql`)
 
 Replaces the monthly Excel worksheet. Created idempotently at boot by
-`lib/mileage-postgres.js` (which also seeds `mileage_rates` 2025→0.67,
-2026→0.725 when empty).
+`lib/mileage-postgres.js` (which also seeds the known IRS rate periods —
+2025-01-01→0.67, 2026-01-01→0.725, 2026-07-01→0.76 — for any effective dates
+not already present).
 
-- `mileage_rates`: `year` (pk), `rate` — executive-editable on the Mileage
-  Review page. Approval snapshots the rate onto the report (`rate_used`).
+- `mileage_rate_periods` (added by `sql/010_mileage_rate_periods.sql`):
+  `effective_from` (DATE pk), `rate` — effective-dated so mid-year IRS changes
+  work (e.g. 76¢ effective 2026-07-01 while Jan–Jun stays 72.5¢). The rate for a
+  month is the most recent period whose `effective_from` is on or before the
+  first of that month. Executive-editable on the Mileage Review page. Approval
+  snapshots the rate onto the report (`rate_used`), so later period edits never
+  change an approved month. The old per-year `mileage_rates` table is folded in
+  on migration (year N → effective N-01-01) and otherwise unused.
 - `mileage_reports`: one per employee per month (`user_id`, `year`, `month`
   unique). `commute_miles` snapshot (from `employee_directory.commute_miles`
   at creation; reviewer-adjustable), `status`
@@ -311,3 +321,29 @@ Replaces the monthly Excel worksheet. Created idempotently at boot by
   `showroom_start ? miles : max(miles - commute, 0)`.
 - `employee_directory.commute_miles`: per-employee standard round-trip
   commute, managed in the User Admin directory editor.
+
+### Commissions (live — managed by `lib/commissions-postgres.js`)
+
+Monthly ePASS workbook imports reviewed on the Commissions pages. Since the
+2026 format (`sql/012_commission_plans_calc.sql`) the export carries revenue,
+serial type, serial cost, and GM% per line, and commission is **calculated**
+from each salesperson's `employee_directory.commission_plan` (snapshotted
+per line at import as `salesperson_plan`, so plan changes never rewrite an
+existing run). Plan rules live in `computePlanLineCommission` /
+`buildSalespersonGroups`:
+Showroom Consultant → 5% on DISPLAY/OPEN lines + flat 5% Protect;
+Field Sales Consultant → GM-tiered 2–5% on serial type ALL, attach-rate-tiered
+Protect (5/10/15%), $500 bonus over $5,000 Protect, gated by `fs_qualified`
+($500k/6-month rule, manual toggle, informed by trailing revenue);
+HVAC Selling Technician → per-order net-margin payout. Runs without a plan
+snapshot keep the legacy department-based behavior.
+
+- `commission_runs`: one per imported workbook (`period_label`, importer,
+  status derived from per-salesperson statuses).
+- `commission_lines`: line detail (`sell_price`, `serial_type`, `serial_cost`,
+  `gm_percent`, `salesperson_plan`, editable `commission_percent`/`_amount`,
+  `source_classification` incl. UNPAID/OMIT).
+- `commission_salesperson_statuses`: per-run per-person `status`
+  (draft→locked→final_paid, 48h auto-finalize) and `fs_qualified`.
+- `commission_salesperson_adjustments`: BONUS/DEDUCT/ADVANCE/MISC.
+- `commission_hvac_order_settings`: labor/discounts/COGS/overhead per order.

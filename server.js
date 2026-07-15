@@ -85,6 +85,8 @@ import {
   lockCommissionSalesperson,
   updateCommissionSalespersonAdjustment,
   updateCommissionHvacOrderSettings,
+  setCommissionSalespersonQualified,
+  getTrailingProductRevenueByCode,
   deleteCommissionRun
 } from "./lib/commissions-postgres.js";
 import {
@@ -94,7 +96,8 @@ import {
   deleteEmployeeDirectoryEntry,
   findEmployeeDirectoryEntryByEmail,
   validateEmployeeCode,
-  normalizeEmployeeCode
+  normalizeEmployeeCode,
+  COMMISSION_PLANS
 } from "./lib/employee-directory.js";
 import {
   isSteelCodConfigured,
@@ -117,9 +120,10 @@ import {
 import {
   computeReimbursedMiles,
   computeReportTotals,
-  listMileageRates,
-  getMileageRateForYear,
-  upsertMileageRate,
+  listRatePeriods,
+  getRateForReport,
+  getRateEffectiveOn,
+  upsertRatePeriod,
   getMileageReportById,
   getOrCreateMileageReport,
   listMileageReportsForUser,
@@ -2310,13 +2314,14 @@ function specQuoteUploadMw(req, res, next) {
 
 // Render the hidden-iframe response that hands the result back to the page.
 function sendMergeResult(res, origin, payload) {
+  // Post to "*"; the receiving page verifies event.origin. Pinning a computed
+  // origin risks a silent mismatch on a multi-domain deployment.
   const json = JSON.stringify(payload).replace(/</g, "\\u003c");
-  const target = JSON.stringify(origin || "*").replace(/</g, "\\u003c");
   res.setHeader("Content-Type", "text/html; charset=utf-8");
   res.setHeader("X-Content-Type-Options", "nosniff");
   return res.send(
-    "<!doctype html><html><body><script>" +
-    "try{parent.postMessage({specMerge:" + json + "}," + target + ");}catch(e){}" +
+    "<!doctype html><html><body>Done. You can close this.<script>" +
+    "try{parent.postMessage({specMerge:" + json + "},\"*\");}catch(e){}" +
     "</script></body></html>"
   );
 }
@@ -2537,7 +2542,7 @@ function isMileageReviewer(user) {
 
 async function attachMileageTotals(report) {
   if (report.rateUsed == null) {
-    report.currentRate = await getMileageRateForYear(report.year);
+    report.currentRate = await getRateForReport(report.year, report.month);
   }
   report.totals = computeReportTotals(report);
   return report;
@@ -2565,7 +2570,7 @@ function validateMileageEntries(entries, year, month) {
 // Current + historical rates (any signed-in user; the page shows the rate).
 app.get("/api/mileage/rates", async (req, res) => {
   try {
-    const rates = await listMileageRates();
+    const rates = await listRatePeriods();
     return res.json({ rates });
   } catch (err) {
     console.error("Mileage rates read failed:", err.message);
@@ -2573,18 +2578,18 @@ app.get("/api/mileage/rates", async (req, res) => {
   }
 });
 
-// Executive: add/update a year's rate.
+// Executive: add/update a rate period (effective date + per-mile rate).
 app.post("/api/admin/mileage-rates", requireExecutiveApi, async (req, res) => {
   try {
-    const year = Number(req.body?.year);
+    const effectiveFrom = String(req.body?.effectiveFrom || "").trim();
     const rate = Number(req.body?.rate);
-    if (!Number.isInteger(year) || year < 2020 || year > 2100) {
-      return res.status(400).json({ error: "Enter a valid year." });
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(effectiveFrom)) {
+      return res.status(400).json({ error: "Enter a valid effective date (YYYY-MM-DD)." });
     }
     if (!Number.isFinite(rate) || rate <= 0 || rate >= 10) {
-      return res.status(400).json({ error: "Enter a valid per-mile rate (e.g. 0.725)." });
+      return res.status(400).json({ error: "Enter a valid per-mile rate (e.g. 0.76)." });
     }
-    const saved = await upsertMileageRate(year, rate, req.authUser.id || null);
+    const saved = await upsertRatePeriod(effectiveFrom, rate, req.authUser.id || null);
     recordAudit({
       ip: req.ip,
       actorUserId: req.authUser.id || null,
@@ -2776,9 +2781,9 @@ app.post("/api/mileage/report/:id/decide", requirePagePermission("/mileage-revie
     const decision = String(req.body?.decision || "").trim();
 
     if (decision === "approve") {
-      const rate = await getMileageRateForYear(report.year);
+      const rate = await getRateForReport(report.year, report.month);
       if (rate == null) {
-        return res.status(400).json({ error: `No mileage rate is set for ${report.year} — add one first.` });
+        return res.status(400).json({ error: `No mileage rate is set for ${report.year}-${String(report.month).padStart(2, "0")} — add one first.` });
       }
       const updated = await setMileageReportStatus(report.id, { status: "approved", deciderId: user.id, rateUsed: rate });
       await attachMileageTotals(updated);
@@ -2836,7 +2841,17 @@ app.get("/employee-directory.js", async (req, res) => {
 app.get("/api/admin/employee-directory", requireExecutiveApi, async (req, res) => {
   try {
     const entries = await listEmployeeDirectory();
-    return res.json({ entries });
+
+    // Trailing 6-month product revenue per code (read-only, computed from
+    // commission runs) — backs the Field Sales $500k qualification check.
+    let trailingRevenue = {};
+    try {
+      trailingRevenue = await getTrailingProductRevenueByCode(6);
+    } catch {
+      trailingRevenue = {};
+    }
+
+    return res.json({ entries, trailingRevenue, trailingMonths: 6 });
   } catch (err) {
     console.error("List employee directory failed:", err.message);
     return res.status(500).json({ error: "Unable to load the employee directory." });
@@ -2845,7 +2860,7 @@ app.get("/api/admin/employee-directory", requireExecutiveApi, async (req, res) =
 
 app.post("/api/admin/employee-directory", requireExecutiveApi, async (req, res) => {
   try {
-    const { code = "", name = "", email = "", department = "", commuteMiles = 0 } = req.body || {};
+    const { code = "", name = "", email = "", department = "", commuteMiles = 0, commissionPlan = "" } = req.body || {};
 
     const codeError = validateEmployeeCode(code);
     if (codeError) {
@@ -2864,8 +2879,13 @@ app.post("/api/admin/employee-directory", requireExecutiveApi, async (req, res) 
       return res.status(400).json({ error: "Commute miles must be between 0 and 500." });
     }
 
+    const plan = String(commissionPlan || "").trim();
+    if (plan && !COMMISSION_PLANS.includes(plan)) {
+      return res.status(400).json({ error: "Choose a commission plan from the list (or leave it blank)." });
+    }
+
     const entry = await upsertEmployeeDirectoryEntry(
-      { code, name, email: trimmedEmail, department, commuteMiles: commute },
+      { code, name, email: trimmedEmail, department, commuteMiles: commute, commissionPlan: plan },
       req.authUser.id || null
     );
 
@@ -2889,7 +2909,7 @@ app.post("/api/admin/employee-directory", requireExecutiveApi, async (req, res) 
       actorUserId: req.authUser.id || null,
       action: "employee_directory_saved",
       targetUserId: syncedUserId,
-      detail: { code: entry.code, name: entry.name, email: entry.email, department: entry.department, commuteMiles: entry.commuteMiles, nameSynced: Boolean(syncedUserId) }
+      detail: { code: entry.code, name: entry.name, email: entry.email, department: entry.department, commuteMiles: entry.commuteMiles, commissionPlan: entry.commissionPlan, nameSynced: Boolean(syncedUserId) }
     }).catch(() => {});
 
     return res.json({ success: true, entry });
@@ -3101,12 +3121,30 @@ app.post("/api/commissions/import", requireExecutiveApi, async (req, res) => {
       return res.status(400).json({ error: "At least one commission line is required." });
     }
 
+    // Snapshot each salesperson's commission plan from the employee directory
+    // (User Admin -> Commission Plan). The plan drives the automatic
+    // calculation; missing codes import with no plan and stay hand-editable.
+    let planByCode = {};
+    try {
+      const directory = await listEmployeeDirectory();
+      planByCode = Object.fromEntries(
+        directory.map((entry) => [String(entry.code || "").trim().toUpperCase(), entry.commissionPlan || ""])
+      );
+    } catch (err) {
+      console.error("Commission import: directory plan lookup failed:", err.message);
+    }
+
+    const enrichedLines = importedLines.map((line) => ({
+      ...line,
+      salespersonPlan: planByCode[String(line?.salespersonCode || "").trim().toUpperCase()] || ""
+    }));
+
     const runId = await createCommissionRun({
       periodLabel,
       sourceFileName,
       importedByUsername: req.authUser?.username || "",
       importedByName: req.authUser?.displayName || "",
-      lines: importedLines
+      lines: enrichedLines
     });
 
     const detail = await getCommissionRunDetail(runId);
@@ -3153,6 +3191,49 @@ app.post("/api/commissions/runs/:runId/salespeople/:salespersonKey/lock", requir
   } catch (error) {
     return res.status(400).json({
       error: error.message || "Unable to lock salesperson."
+    });
+  }
+});
+
+// Field Sales $500k/6-month qualification toggle (draft salespeople only).
+app.post("/api/commissions/runs/:runId/salespeople/:salespersonKey/qualified", requireExecutiveApi, async (req, res) => {
+  try {
+    const qualified = Boolean(req.body?.qualified);
+    const salespersonStatus = await setCommissionSalespersonQualified(
+      req.params.runId,
+      decodeURIComponent(req.params.salespersonKey || ""),
+      qualified
+    );
+
+    if (!salespersonStatus) {
+      return res.status(404).json({ error: "Salesperson status not found." });
+    }
+
+    recordAudit({
+      ip: req.ip,
+      actorUserId: req.authUser.id || null,
+      action: "commission_fs_qualification_set",
+      targetUserId: null,
+      detail: { runId: req.params.runId, salesperson: salespersonStatus.salespersonKey, qualified }
+    }).catch(() => {});
+
+    return res.json({ success: true, salespersonStatus });
+  } catch (error) {
+    return res.status(400).json({
+      error: error.message || "Unable to update qualification."
+    });
+  }
+});
+
+// Trailing product revenue per salesperson code (backs the Field Sales
+// $500k/6-month qualification check; informational).
+app.get("/api/commissions/trailing-revenue", requireExecutiveApi, async (req, res) => {
+  try {
+    const revenueByCode = await getTrailingProductRevenueByCode(6);
+    return res.json({ months: 6, revenueByCode });
+  } catch (error) {
+    return res.status(500).json({
+      error: error.message || "Unable to load trailing revenue."
     });
   }
 });

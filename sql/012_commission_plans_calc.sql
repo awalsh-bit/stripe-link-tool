@@ -21,7 +21,11 @@
 
 ALTER TABLE commission_lines ADD COLUMN IF NOT EXISTS serial_type TEXT NOT NULL DEFAULT '';
 ALTER TABLE commission_lines ADD COLUMN IF NOT EXISTS serial_cost NUMERIC(12,2) NOT NULL DEFAULT 0;
-ALTER TABLE commission_lines ADD COLUMN IF NOT EXISTS gm_percent NUMERIC(9,4) NOT NULL DEFAULT 0;
+ALTER TABLE commission_lines ADD COLUMN IF NOT EXISTS gm_percent NUMERIC(12,4) NOT NULL DEFAULT 0;
 ALTER TABLE commission_lines ADD COLUMN IF NOT EXISTS salesperson_plan TEXT NOT NULL DEFAULT '';
+
+-- Widen for penny-revenue lines with exploded GM rates (values are also
+-- clamped to +/-9999% at import). No-op if the column is already 12,4.
+ALTER TABLE commission_lines ALTER COLUMN gm_percent TYPE NUMERIC(12,4);
 
 ALTER TABLE commission_salesperson_statuses ADD COLUMN IF NOT EXISTS fs_qualified BOOLEAN NOT NULL DEFAULT TRUE;

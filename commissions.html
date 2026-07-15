@@ -1514,7 +1514,9 @@
                 sourceClassification: serialType,
                 serialType,
                 serialCost: roundTo(serialCost, 2),
-                gmPercent: roundTo(gmRate * 100, 4),
+                // Clamp: penny-revenue lines produce absurd GM rates
+                // (e.g. -37,499x). Tiers only care about the 18-31% band.
+                gmPercent: Math.max(Math.min(roundTo(gmRate * 100, 4), 9999), -9999),
                 quantity: roundTo(quantity, 2),
                 sellPrice: roundTo(sellPrice, 2),
                 importedCommissionPercent: 0,

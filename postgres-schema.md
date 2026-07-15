@@ -331,7 +331,8 @@ from each salesperson's `employee_directory.commission_plan` (snapshotted
 per line at import as `salesperson_plan`, so plan changes never rewrite an
 existing run). Plan rules live in `computePlanLineCommission` /
 `buildSalespersonGroups`:
-Showroom Consultant → 5% on DISPLAY/OPEN lines + flat 5% Protect;
+Showroom Consultant → 5% on DISPLAY/OPEN lines + attach-rate-tiered Protect +
+$500 bonus over $5,000 Protect;
 Field Sales Consultant → GM-tiered 2–5% on serial type ALL, attach-rate-tiered
 Protect (5/10/15%), $500 bonus over $5,000 Protect, gated by `fs_qualified`
 ($500k/6-month rule, manual toggle, informed by trailing revenue);

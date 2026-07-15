@@ -849,7 +849,7 @@
                       <th>Model</th>
                       <th>Serial</th>
                       <th class="number">Qty</th>
-                      <th class="money">Sell Price</th>
+                      <th class="money" title="Editable while draft — correct the price when ePASS misses a discount line. Saving reprices GM% and the plan commission.">Sell Price</th>
                       <th class="money">Cost</th>
                       <th class="percent">GM %</th>
                       <th class="percent">Commission %</th>
@@ -1807,6 +1807,7 @@
       }
 
       const isFieldSales = plan === "Field Sales Consultant";
+      const hasProtectBonus = isFieldSales || plan === "Showroom Consultant";
       const isDraft = (group.status || "draft") === "draft";
       const pieces = [`<span class="plan-name">${plan}</span>`];
 
@@ -1821,13 +1822,15 @@
         );
         if (group.fsUnqualified) {
           pieces.push('<span class="plan-unqualified">Not qualified — commission, Protect payout, and bonus are withheld; only manual adjustments pay.</span>');
+        }
+      }
+
+      if (hasProtectBonus && !group.fsUnqualified) {
+        const protectSales = Number(group.warrantySellPrice || 0);
+        if (Number(group.protectBonusAmount || 0) > 0) {
+          pieces.push(`<span class="plan-bonus">Protect bonus earned: ${formatMoney(group.protectBonusAmount)} (${formatMoney(protectSales)} Protect sold &gt; $5,000)</span>`);
         } else {
-          const protectSales = Number(group.warrantySellPrice || 0);
-          if (Number(group.protectBonusAmount || 0) > 0) {
-            pieces.push(`<span class="plan-bonus">Protect bonus earned: ${formatMoney(group.protectBonusAmount)} (${formatMoney(protectSales)} Protect sold &gt; $5,000)</span>`);
-          } else {
-            pieces.push(`<span class="plan-metric">Protect sold: <strong>${formatMoney(protectSales)}</strong> — $500 bonus at $5,000+</span>`);
-          }
+          pieces.push(`<span class="plan-metric">Protect sold: <strong>${formatMoney(protectSales)}</strong> — $500 bonus at $5,000+</span>`);
         }
       }
 
@@ -1903,9 +1906,14 @@
       hvacOrderSection.classList.add("hidden");
       lineTableBody.innerHTML = "";
 
+      const groupHasProtectRule = Boolean(getWarrantySummaryText(group));
+
       group.lines.forEach((line) => {
         const row = document.createElement("tr");
         const disabled = (group.status || "draft") !== "draft" ? "disabled" : "";
+        // Protect pays at the salesperson level from the attach-rate tier, so
+        // those lines are display-only — a line edit would double-count.
+        const protectAuto = isProtectLine(line) && groupHasProtectRule;
         const isOmitted = String(line.sourceClassification || "").trim().toUpperCase() === "OMIT";
         row.className = isOmitted ? "omitted-row" : "";
         const classificationOptions = getClassificationOptions(line.sourceClassification)
@@ -1920,12 +1928,20 @@
             ? `<select class="classification-select" data-line-id="${line.id}" ${disabled}>${classificationOptions}</select>`
             : (line.sourceClassification || "")}</td>
           <td class="number">${Number(line.quantity || 0).toFixed(2).replace(/\.00$/, "")}</td>
-          <td class="money">${formatMoney(line.sellPrice || 0)}</td>
+          <td class="money">${(group.status || "draft") === "draft"
+            ? `<input class="inline-input" data-line-id="${line.id}" data-mode="price" type="number" step="0.01" value="${Number(line.sellPrice || 0).toFixed(2)}" title="Editable — fix sell price when ePASS misses a discount line. Saving reprices GM% and the plan commission." />`
+            : formatMoney(line.sellPrice || 0)}</td>
           <td class="money">${Number(line.serialCost || 0) ? formatMoney(line.serialCost) : ""}</td>
           <td class="percent">${isProtectLine(line) || !Number(line.gmPercent || 0) ? "" : formatPercent(line.gmPercent)}</td>
-          <td class="percent"><input class="inline-input" data-line-id="${line.id}" data-mode="percent" type="number" step="0.01" value="${getDisplayCommissionPercent(line, group).toFixed(2)}" ${disabled} /></td>
-          <td class="money"><input class="inline-input" data-line-id="${line.id}" data-mode="amount" type="number" step="0.01" value="${getDisplayCommissionAmount(line, group).toFixed(2)}" ${disabled} /></td>
-          <td class="inline-actions">${(group.status || "draft") === "draft" ? `<button type="button" data-line-id="${line.id}" class="secondary calc-btn">Calculate</button>` : '<span class="hint">Locked</span>'}</td>
+          <td class="percent">${protectAuto
+            ? `<span title="Protect commission pays at the salesperson level from the monthly attach-rate tier.">${formatPercent(getDisplayCommissionPercent(line, group))}</span>`
+            : `<input class="inline-input" data-line-id="${line.id}" data-mode="percent" type="number" step="0.01" value="${getDisplayCommissionPercent(line, group).toFixed(2)}" ${disabled} />`}</td>
+          <td class="money">${protectAuto
+            ? formatMoney(getDisplayCommissionAmount(line, group))
+            : `<input class="inline-input" data-line-id="${line.id}" data-mode="amount" type="number" step="0.01" value="${getDisplayCommissionAmount(line, group).toFixed(2)}" ${disabled} />`}</td>
+          <td class="inline-actions">${(group.status || "draft") === "draft"
+            ? `<button type="button" data-line-id="${line.id}" class="secondary calc-btn" ${protectAuto ? 'title="Saves a sell-price change. Protect commission itself stays on the attach-rate tier — use a manual adjustment for exceptions."' : ""}>Calculate</button>`
+            : '<span class="hint">Locked</span>'}</td>
         `;
         lineTableBody.appendChild(row);
       });
@@ -1971,8 +1987,16 @@
           const percentInput = row.querySelector('input[data-mode="percent"]');
           const amountInput = row.querySelector('input[data-mode="amount"]');
 
-          const mode = row.dataset.lastEditedMode === "amount" ? "amount" : "percent";
-          const value = mode === "amount" ? amountInput.value : percentInput.value;
+          const priceInput = row.querySelector('input[data-mode="price"]');
+          const lastEdited = row.dataset.lastEditedMode;
+          // Protect rows only carry a price input; everything else defaults
+          // to percent unless amount/price was the last field touched.
+          const mode = ["amount", "price"].includes(lastEdited)
+            ? lastEdited
+            : (percentInput ? "percent" : "price");
+          const value = mode === "amount" ? amountInput.value
+            : mode === "price" ? priceInput.value
+            : percentInput.value;
 
           button.disabled = true;
           button.textContent = "Saving...";

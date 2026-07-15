@@ -6,8 +6,10 @@
 -- plan (employee_directory.commission_plan), snapshotted onto each line at
 -- import so later plan changes never rewrite an existing run.
 --
---   Showroom Consultant     5% on DISPLAY/OPEN serial lines; Protect flat 5%;
---                           nothing on ALL (new) product.
+--   Showroom Consultant     5% on DISPLAY/OPEN serial lines; Protect by the
+--                           monthly attach-rate tier plus the $500 bonus when
+--                           Protect sales exceed $5,000; nothing on ALL (new)
+--                           product.
 --   Field Sales Consultant  GM-tiered % of revenue on serial type ALL
 --                           (18-20.99 -> 2%, 21-24.99 -> 3%, 25-30.99 -> 4%,
 --                           31+ -> 5%); Protect by monthly attach rate
@@ -29,3 +31,10 @@ ALTER TABLE commission_lines ADD COLUMN IF NOT EXISTS salesperson_plan TEXT NOT 
 ALTER TABLE commission_lines ALTER COLUMN gm_percent TYPE NUMERIC(12,4);
 
 ALTER TABLE commission_salesperson_statuses ADD COLUMN IF NOT EXISTS fs_qualified BOOLEAN NOT NULL DEFAULT TRUE;
+
+-- Repair: Protect lines on plan-based runs carry no line-level commission
+-- (Protect pays at the salesperson level from the attach-rate tier).
+UPDATE commission_lines SET commission_percent = 0, commission_amount = 0
+WHERE LOWER(BTRIM(line_type)) IN ('wty', 'warranty', 'protect')
+  AND salesperson_plan IN ('Showroom Consultant', 'Field Sales Consultant')
+  AND (commission_percent <> 0 OR commission_amount <> 0);

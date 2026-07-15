@@ -771,6 +771,50 @@
       box-shadow: inset 4px 0 0 #22c55e;
     }
 
+    .receipt-send-row td {
+      background: #f6f9ff;
+      border-bottom: 1px solid #dbe4f3;
+      padding: 12px 16px;
+    }
+
+    .receipt-send-inner {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .receipt-send-label {
+      font-size: 13px;
+      font-weight: 700;
+      color: #1d4ed8;
+      white-space: nowrap;
+    }
+
+    .receipt-email-input {
+      border: 1px solid #c7d2e5;
+      border-radius: 10px;
+      padding: 9px 12px;
+      font-size: 14px;
+      font-family: inherit;
+      min-width: 260px;
+      background: #fff;
+    }
+
+    .receipt-email-input:focus {
+      outline: none;
+      border-color: #635bff;
+      box-shadow: 0 0 0 3px rgba(99, 91, 255, 0.15);
+    }
+
+    .receipt-send-status {
+      font-size: 13px;
+      font-weight: 600;
+    }
+
+    .receipt-send-status.ok { color: #065f46; }
+    .receipt-send-status.error { color: #991b1b; }
+
     .side-list {
       display: grid;
       gap: 12px;
@@ -1079,7 +1123,7 @@
                 <th>Type</th>
                 <th>Paid Amount</th>
                 <th>Paid Date</th>
-                <th>Payment Intent</th>
+                <th>Receipt</th>
               </tr>
             </thead>
             <tbody id="paidTableBody">
@@ -1361,6 +1405,101 @@
     });
   }
 
+  // ---- Email receipt (Paid History) ----
+  // Clicking Email Receipt exposes a second row under the payment with the
+  // customer's email prefilled (from link create or the terminal charge).
+
+  function closeReceiptRows() {
+    document.querySelectorAll(".receipt-send-row").forEach((row) => row.remove());
+  }
+
+  function attachReceiptActions() {
+    document.querySelectorAll('[data-action="email-receipt"]').forEach((button) => {
+      if (button.dataset.receiptBound === "true") return;
+      button.dataset.receiptBound = "true";
+
+      button.addEventListener("click", () => {
+        const parentRow = button.closest("tr");
+        const paymentIntentId = button.getAttribute("data-pi") || "";
+        const prefillEmail = button.getAttribute("data-email") || "";
+        const customerName = button.getAttribute("data-customer") || "";
+
+        // Toggle: clicking again closes the open panel for this payment.
+        const existing = parentRow.nextElementSibling;
+        if (existing?.classList?.contains("receipt-send-row") && existing.dataset.pi === paymentIntentId) {
+          existing.remove();
+          return;
+        }
+        closeReceiptRows();
+
+        const sendRow = document.createElement("tr");
+        sendRow.className = "receipt-send-row";
+        sendRow.dataset.pi = paymentIntentId;
+        sendRow.innerHTML = `
+          <td colspan="7">
+            <div class="receipt-send-inner">
+              <span class="receipt-send-label">Email receipt${customerName ? ` for ${escapeHtml(customerName)}` : ""} to:</span>
+              <input type="email" class="receipt-email-input" value="${escapeHtml(prefillEmail)}" placeholder="customer@email.com" />
+              <button class="btn-primary receipt-send-btn" type="button">Send Receipt</button>
+              <button class="btn-secondary receipt-cancel-btn" type="button">Cancel</button>
+              <span class="receipt-send-status"></span>
+            </div>
+          </td>
+        `;
+        parentRow.after(sendRow);
+
+        const emailInput = sendRow.querySelector(".receipt-email-input");
+        const sendBtn = sendRow.querySelector(".receipt-send-btn");
+        const statusEl = sendRow.querySelector(".receipt-send-status");
+
+        sendRow.querySelector(".receipt-cancel-btn").addEventListener("click", () => sendRow.remove());
+        emailInput.addEventListener("keydown", (event) => {
+          if (event.key === "Enter") {
+            event.preventDefault();
+            sendBtn.click();
+          }
+        });
+        if (!prefillEmail) emailInput.focus();
+
+        sendBtn.addEventListener("click", async () => {
+          const email = emailInput.value.trim();
+          if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+            statusEl.className = "receipt-send-status error";
+            statusEl.textContent = "Enter a valid email address.";
+            return;
+          }
+
+          sendBtn.disabled = true;
+          sendBtn.textContent = "Sending...";
+          statusEl.className = "receipt-send-status";
+          statusEl.textContent = "";
+
+          try {
+            const res = await fetch("/api/receipts/email", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ paymentIntentId, email })
+            });
+            const data = await res.json();
+            if (!res.ok) {
+              throw new Error(data.error || "Unable to send the receipt.");
+            }
+
+            statusEl.className = "receipt-send-status ok";
+            statusEl.textContent = `Receipt sent to ${email}.`;
+            sendBtn.textContent = "Sent";
+            setTimeout(() => sendRow.remove(), 2500);
+          } catch (err) {
+            statusEl.className = "receipt-send-status error";
+            statusEl.textContent = err.message;
+            sendBtn.disabled = false;
+            sendBtn.textContent = "Send Receipt";
+          }
+        });
+      });
+    });
+  }
+
   async function loadStatusData() {
     const res = await fetch("/api/payment-link-status");
     const data = await res.json();
@@ -1508,11 +1647,22 @@
           <td data-label="Type"><span class="${paidTypeClass(row)}">${paidTypeLabel(row)}</span></td>
           <td data-label="Paid Amount" class="amount">${formatMoney(row.paidAmount)}</td>
           <td data-label="Paid Date">${formatDate(row.paidDate)}</td>
-          <td data-label="Payment Intent">${row.paymentIntentId || "-"}</td>
+          <td data-label="Receipt" class="action-cell">
+            ${row.paymentIntentId
+              ? `<div class="button-row">
+                   <button class="btn-secondary" type="button" data-copy-intent="${escapeHtml(row.paymentIntentId)}">Copy Intent</button>
+                   <button class="btn-secondary" type="button" data-action="email-receipt"
+                     data-pi="${escapeHtml(row.paymentIntentId)}"
+                     data-email="${escapeHtml(row.customerEmail || "")}"
+                     data-customer="${escapeHtml(row.customerName || "")}">Email Receipt</button>
+                 </div>`
+              : "-"}
+          </td>
         `;
         paidTableBody.appendChild(tr);
       }
     }
+    attachReceiptActions();
 
     const activeQueueRows = allRows.filter((row) => isLinkRow(row) && ["sent", "viewed", "ach_pending"].includes(row.status));
     const agingRows = activeQueueRows.filter((row) => ["sent", "viewed"].includes(row.status) && daysOpen(row) >= agingDays);

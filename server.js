@@ -1,6 +1,7 @@
 import "dotenv/config";
 import express from "express";
 import cors from "cors";
+import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
 import crypto from "crypto";
@@ -109,7 +110,7 @@ import {
   retrieveUsers as retrieveSteelCodUsers,
   buildSpecPackageUrls
 } from "./lib/steelcod.js";
-import { PDFDocument } from "pdf-lib";
+import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
 import multer from "multer";
 import {
   findOrCreateCandidate,
@@ -4666,6 +4667,241 @@ app.get("/api/payment-link-status", requirePagePermission("/dashboard.html"), as
     res.status(400).json({
       error: err.message
     });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Emailed credit card receipts (Paid History -> Email Receipt)
+// ---------------------------------------------------------------------------
+
+let receiptLogoBytes = null;
+function getReceiptLogoBytes() {
+  if (receiptLogoBytes === null) {
+    try {
+      receiptLogoBytes = fs.readFileSync(path.join(__dirname, "logo-black.png"));
+    } catch {
+      receiptLogoBytes = false; // missing logo: render the text header only
+    }
+  }
+  return receiptLogoBytes || null;
+}
+
+async function buildReceiptPdf(details) {
+  const doc = await PDFDocument.create();
+  const page = doc.addPage([612, 792]); // US Letter
+  const helvetica = await doc.embedFont(StandardFonts.Helvetica);
+  const helveticaBold = await doc.embedFont(StandardFonts.HelveticaBold);
+
+  const ink = rgb(0.12, 0.14, 0.2);
+  const muted = rgb(0.42, 0.45, 0.52);
+  const line = rgb(0.9, 0.91, 0.94);
+  const margin = 64;
+  let y = 792 - 68;
+
+  let logoDrawn = false;
+  const logoBytes = getReceiptLogoBytes();
+  if (logoBytes) {
+    try {
+      const logo = await doc.embedPng(logoBytes);
+      const logoWidth = 150;
+      const logoHeight = (logo.height / logo.width) * logoWidth;
+      page.drawImage(logo, { x: margin, y: y - logoHeight + 12, width: logoWidth, height: logoHeight });
+      y -= logoHeight + 6;
+      logoDrawn = true;
+    } catch {
+      // fall through to the text header
+    }
+  }
+
+  if (!logoDrawn) {
+    page.drawText("Wilson AC & Appliance", { x: margin, y, size: 16, font: helveticaBold, color: ink });
+    y -= 18;
+  }
+  page.drawText("4205 E Hwy 290, Dripping Springs, TX 78620", { x: margin, y, size: 10, font: helvetica, color: muted });
+  y -= 15;
+  page.drawText("512-894-0907  |  wilsonappliance.com", { x: margin, y, size: 10, font: helvetica, color: muted });
+
+  // Title block on the right
+  page.drawText("PAYMENT RECEIPT", { x: 612 - margin - 148, y: 792 - 68, size: 15, font: helveticaBold, color: ink });
+  page.drawText(details.paidDate, { x: 612 - margin - 148, y: 792 - 86, size: 10, font: helvetica, color: muted });
+
+  y -= 34;
+  page.drawLine({ start: { x: margin, y }, end: { x: 612 - margin, y }, thickness: 1, color: line });
+  y -= 40;
+
+  // Amount headline
+  page.drawText("Amount paid", { x: margin, y, size: 10, font: helvetica, color: muted });
+  y -= 26;
+  page.drawText(details.amountText, { x: margin, y, size: 26, font: helveticaBold, color: ink });
+  if (details.refundedNote) {
+    page.drawText(details.refundedNote, { x: margin + helveticaBold.widthOfTextAtSize(details.amountText, 26) + 14, y: y + 4, size: 11, font: helveticaBold, color: rgb(0.6, 0.11, 0.11) });
+  }
+  y -= 44;
+
+  const rows = [
+    ["Payment method", details.methodText],
+    ["Customer", details.customerName],
+    ["Reference", details.reference],
+    ["Salesperson", details.salesperson],
+    ["Payment ID", details.paymentIntentId]
+  ].filter(([, value]) => String(value || "").trim());
+
+  for (const [label, value] of rows) {
+    page.drawText(label, { x: margin, y, size: 10, font: helvetica, color: muted });
+    const text = String(value);
+    page.drawText(text.length > 76 ? `${text.slice(0, 73)}...` : text, { x: margin + 130, y, size: 11, font: helvetica, color: ink });
+    y -= 24;
+  }
+
+  y -= 12;
+  page.drawLine({ start: { x: margin, y }, end: { x: 612 - margin, y }, thickness: 1, color: line });
+  y -= 30;
+  page.drawText("Thank you for your business!", { x: margin, y, size: 11, font: helveticaBold, color: ink });
+  y -= 18;
+  page.drawText("Questions about this payment? Call or text Wilson AC & Appliance at 512-894-0907.", {
+    x: margin, y, size: 10, font: helvetica, color: muted
+  });
+
+  return doc.save();
+}
+
+function formatReceiptDate(isoOrDate) {
+  const date = isoOrDate instanceof Date ? isoOrDate : new Date(isoOrDate);
+  if (Number.isNaN(date.getTime())) return "";
+  return new Intl.DateTimeFormat("en-US", {
+    timeZone: APP_TIMEZONE,
+    month: "long", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit"
+  }).format(date);
+}
+
+app.post("/api/receipts/email", requirePagePermission("/dashboard.html"), async (req, res) => {
+  try {
+    const paymentIntentId = String(req.body?.paymentIntentId || "").trim();
+    const email = String(req.body?.email || "").trim().toLowerCase();
+
+    if (!/^pi_[A-Za-z0-9]+$/.test(paymentIntentId)) {
+      return res.status(400).json({ error: "That record has no valid payment intent." });
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      return res.status(400).json({ error: "Enter a valid email address." });
+    }
+    if (!RESEND_API_KEY || !RESEND_FROM_EMAIL) {
+      return res.status(500).json({ error: "Email delivery is not configured (RESEND_API_KEY / RESEND_FROM_EMAIL)." });
+    }
+
+    // Local record supplies the customer/reference/salesperson context.
+    const links = (await readLinks()).map((row) => normalizeLinkRecord({ ...row }));
+    const terminalPayments = await readTerminalPayments();
+    const record = [...links, ...terminalPayments].find((row) => row.paymentIntentId === paymentIntentId) || {};
+
+    // Stripe is the source of truth for what was actually charged.
+    const paymentIntent = await retrievePaymentIntentWithDetailsWithRetry(paymentIntentId);
+    const charge = paymentIntent?.latest_charge && typeof paymentIntent.latest_charge === "object"
+      ? paymentIntent.latest_charge
+      : null;
+
+    if (paymentIntent?.status !== "succeeded" || !charge || charge.status !== "succeeded") {
+      return res.status(400).json({ error: "That payment hasn't succeeded in Stripe — there's no receipt to send." });
+    }
+
+    const pm = charge.payment_method_details || {};
+    const card = pm.card_present || pm.card || null;
+    const ach = pm.us_bank_account || null;
+    const methodText = card
+      ? `${String(card.brand || "Card").replace(/_/g, " ").toUpperCase()} ending in ${card.last4 || "----"}`
+      : ach
+        ? `Bank transfer (ACH)${ach.last4 ? ` ending in ${ach.last4}` : ""}`
+        : String(pm.type || "Card").replace(/_/g, " ");
+
+    const amount = (charge.amount || 0) / 100;
+    const amountText = `$${amount.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    const refundedAmount = (charge.amount_refunded || 0) / 100;
+    const refundedNote = refundedAmount >= amount && amount > 0
+      ? "FULLY REFUNDED"
+      : refundedAmount > 0
+        ? `PARTIALLY REFUNDED ($${refundedAmount.toFixed(2)})`
+        : "";
+
+    const reference = [record.salesOrder, record.description || record.reference]
+      .filter(Boolean).join(" | ") || paymentIntent.description || "";
+    const customerName = record.customerName || charge.billing_details?.name || "";
+    const paidDate = formatReceiptDate(new Date(charge.created * 1000));
+
+    const pdfBytes = await buildReceiptPdf({
+      paidDate,
+      amountText,
+      refundedNote,
+      methodText,
+      customerName,
+      reference,
+      salesperson: record.creatorName || "",
+      paymentIntentId
+    });
+
+    const fileLabel = String(record.salesOrder || paymentIntentId).replace(/[^A-Za-z0-9_-]+/g, "-");
+    const subject = `Receipt from Wilson AC & Appliance — ${amountText}`;
+    const bodyLines = [
+      customerName ? `Hi ${customerName},` : "Hello,",
+      "",
+      `Thank you for your payment of ${amountText} on ${paidDate}.`,
+      reference ? `Reference: ${reference}` : "",
+      `Payment method: ${methodText}`,
+      "",
+      "Your receipt is attached as a PDF.",
+      "",
+      "Wilson AC & Appliance",
+      "512-894-0907"
+    ].filter((lineText) => lineText !== "");
+    const html = `
+      <div style="font-family: Arial, sans-serif; color: #111827; line-height: 1.6; max-width: 560px;">
+        <p>${customerName ? `Hi ${escapeHtmlForEmail(customerName)},` : "Hello,"}</p>
+        <p>Thank you for your payment of <strong>${escapeHtmlForEmail(amountText)}</strong> on ${escapeHtmlForEmail(paidDate)}.</p>
+        <ul>
+          ${reference ? `<li><strong>Reference:</strong> ${escapeHtmlForEmail(reference)}</li>` : ""}
+          <li><strong>Payment method:</strong> ${escapeHtmlForEmail(methodText)}</li>
+        </ul>
+        <p>Your receipt is attached as a PDF.</p>
+        <p style="color: #6b7280; font-size: 13px;">Wilson AC & Appliance · 512-894-0907</p>
+      </div>
+    `;
+
+    const response = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${RESEND_API_KEY}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        from: RESEND_FROM_EMAIL,
+        to: [email],
+        subject,
+        text: bodyLines.join("\n"),
+        html,
+        attachments: [{
+          filename: `receipt-${fileLabel}.pdf`,
+          content: Buffer.from(pdfBytes).toString("base64")
+        }]
+      })
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error("Receipt email failed:", response.status, errorText);
+      return res.status(502).json({ error: "The email service rejected the receipt — try again in a minute." });
+    }
+
+    recordAudit({
+      ip: req.ip,
+      actorUserId: req.authUser?.id || null,
+      action: "receipt_emailed",
+      targetUserId: null,
+      detail: { paymentIntentId, to: email, amount: amountText, reference }
+    }).catch(() => {});
+
+    return res.json({ success: true });
+  } catch (err) {
+    console.error("Receipt email error:", err.message);
+    return res.status(500).json({ error: "Unable to send the receipt. Check the payment intent and try again." });
   }
 });
 

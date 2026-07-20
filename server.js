@@ -2923,6 +2923,25 @@ app.post("/api/admin/employee-directory", requireExecutiveApi, async (req, res) 
 app.delete("/api/admin/employee-directory/:code", requireExecutiveApi, async (req, res) => {
   try {
     const code = normalizeEmployeeCode(req.params.code);
+
+    // Profiles linked to a user account (by email) are permanent — deleting
+    // the directory half would orphan the account. Deactivate instead; the
+    // whole profile then moves to Deactivated users with its info intact.
+    const entry = (await listEmployeeDirectory()).find((row) => row.code === code);
+    if (entry?.email) {
+      try {
+        const account = await findUserByEmail(entry.email);
+        if (account) {
+          return res.status(400).json({
+            error: `${entry.name || code} is linked to a user account (${entry.email}). Deactivate the account instead of deleting — the profile keeps its code, history, and directory info.`
+          });
+        }
+      } catch (err) {
+        console.error("Directory delete account check failed:", err.message);
+        return res.status(500).json({ error: "Couldn't verify the linked account — try again." });
+      }
+    }
+
     const removed = await deleteEmployeeDirectoryEntry(code);
 
     if (!removed) {
@@ -4774,6 +4793,62 @@ function formatReceiptDate(isoOrDate) {
   }).format(date);
 }
 
+// Shared by the email and download routes: local record for context, Stripe
+// for the truth of what was charged, pdf-lib for the document.
+async function buildReceiptForPaymentIntent(paymentIntentId) {
+  const links = (await readLinks()).map((row) => normalizeLinkRecord({ ...row }));
+  const terminalPayments = await readTerminalPayments();
+  const record = [...links, ...terminalPayments].find((row) => row.paymentIntentId === paymentIntentId) || {};
+
+  const paymentIntent = await retrievePaymentIntentWithDetailsWithRetry(paymentIntentId);
+  const charge = paymentIntent?.latest_charge && typeof paymentIntent.latest_charge === "object"
+    ? paymentIntent.latest_charge
+    : null;
+
+  if (paymentIntent?.status !== "succeeded" || !charge || charge.status !== "succeeded") {
+    const err = new Error("That payment hasn't succeeded in Stripe — there's no receipt to send.");
+    err.statusCode = 400;
+    throw err;
+  }
+
+  const pm = charge.payment_method_details || {};
+  const card = pm.card_present || pm.card || null;
+  const ach = pm.us_bank_account || null;
+  const methodText = card
+    ? `${String(card.brand || "Card").replace(/_/g, " ").toUpperCase()} ending in ${card.last4 || "----"}`
+    : ach
+      ? `Bank transfer (ACH)${ach.last4 ? ` ending in ${ach.last4}` : ""}`
+      : String(pm.type || "Card").replace(/_/g, " ");
+
+  const amount = (charge.amount || 0) / 100;
+  const amountText = `$${amount.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  const refundedAmount = (charge.amount_refunded || 0) / 100;
+  const refundedNote = refundedAmount >= amount && amount > 0
+    ? "FULLY REFUNDED"
+    : refundedAmount > 0
+      ? `PARTIALLY REFUNDED ($${refundedAmount.toFixed(2)})`
+      : "";
+
+  const reference = [record.salesOrder, record.description || record.reference]
+    .filter(Boolean).join(" | ") || paymentIntent.description || "";
+  const customerName = record.customerName || charge.billing_details?.name || "";
+  const paidDate = formatReceiptDate(new Date(charge.created * 1000));
+
+  const pdfBytes = await buildReceiptPdf({
+    paidDate,
+    amountText,
+    refundedNote,
+    methodText,
+    customerName,
+    reference,
+    salesperson: record.creatorName || "",
+    paymentIntentId
+  });
+
+  const fileLabel = String(record.salesOrder || paymentIntentId).replace(/[^A-Za-z0-9_-]+/g, "-");
+  return { pdfBytes, fileLabel, amountText, refundedNote, methodText, reference, customerName, paidDate };
+}
+
 app.post("/api/receipts/email", requirePagePermission("/dashboard.html"), async (req, res) => {
   try {
     const paymentIntentId = String(req.body?.paymentIntentId || "").trim();
@@ -4789,56 +4864,8 @@ app.post("/api/receipts/email", requirePagePermission("/dashboard.html"), async 
       return res.status(500).json({ error: "Email delivery is not configured (RESEND_API_KEY / RESEND_FROM_EMAIL)." });
     }
 
-    // Local record supplies the customer/reference/salesperson context.
-    const links = (await readLinks()).map((row) => normalizeLinkRecord({ ...row }));
-    const terminalPayments = await readTerminalPayments();
-    const record = [...links, ...terminalPayments].find((row) => row.paymentIntentId === paymentIntentId) || {};
-
-    // Stripe is the source of truth for what was actually charged.
-    const paymentIntent = await retrievePaymentIntentWithDetailsWithRetry(paymentIntentId);
-    const charge = paymentIntent?.latest_charge && typeof paymentIntent.latest_charge === "object"
-      ? paymentIntent.latest_charge
-      : null;
-
-    if (paymentIntent?.status !== "succeeded" || !charge || charge.status !== "succeeded") {
-      return res.status(400).json({ error: "That payment hasn't succeeded in Stripe — there's no receipt to send." });
-    }
-
-    const pm = charge.payment_method_details || {};
-    const card = pm.card_present || pm.card || null;
-    const ach = pm.us_bank_account || null;
-    const methodText = card
-      ? `${String(card.brand || "Card").replace(/_/g, " ").toUpperCase()} ending in ${card.last4 || "----"}`
-      : ach
-        ? `Bank transfer (ACH)${ach.last4 ? ` ending in ${ach.last4}` : ""}`
-        : String(pm.type || "Card").replace(/_/g, " ");
-
-    const amount = (charge.amount || 0) / 100;
-    const amountText = `$${amount.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-    const refundedAmount = (charge.amount_refunded || 0) / 100;
-    const refundedNote = refundedAmount >= amount && amount > 0
-      ? "FULLY REFUNDED"
-      : refundedAmount > 0
-        ? `PARTIALLY REFUNDED ($${refundedAmount.toFixed(2)})`
-        : "";
-
-    const reference = [record.salesOrder, record.description || record.reference]
-      .filter(Boolean).join(" | ") || paymentIntent.description || "";
-    const customerName = record.customerName || charge.billing_details?.name || "";
-    const paidDate = formatReceiptDate(new Date(charge.created * 1000));
-
-    const pdfBytes = await buildReceiptPdf({
-      paidDate,
-      amountText,
-      refundedNote,
-      methodText,
-      customerName,
-      reference,
-      salesperson: record.creatorName || "",
-      paymentIntentId
-    });
-
-    const fileLabel = String(record.salesOrder || paymentIntentId).replace(/[^A-Za-z0-9_-]+/g, "-");
+    const { pdfBytes, fileLabel, amountText, methodText, reference, customerName, paidDate } =
+      await buildReceiptForPaymentIntent(paymentIntentId);
     const subject = `Receipt from Wilson AC & Appliance — ${amountText}`;
     const bodyLines = [
       customerName ? `Hi ${customerName},` : "Hello,",
@@ -4901,7 +4928,40 @@ app.post("/api/receipts/email", requirePagePermission("/dashboard.html"), async 
     return res.json({ success: true });
   } catch (err) {
     console.error("Receipt email error:", err.message);
+    if (err.statusCode === 400) {
+      return res.status(400).json({ error: err.message });
+    }
     return res.status(500).json({ error: "Unable to send the receipt. Check the payment intent and try again." });
+  }
+});
+
+// Download the same PDF receipt directly (Paid History -> Download pill).
+app.get("/api/receipts/:paymentIntentId/pdf", requirePagePermission("/dashboard.html"), async (req, res) => {
+  try {
+    const paymentIntentId = String(req.params.paymentIntentId || "").trim();
+    if (!/^pi_[A-Za-z0-9]+$/.test(paymentIntentId)) {
+      return res.status(400).json({ error: "That record has no valid payment intent." });
+    }
+
+    const { pdfBytes, fileLabel, amountText, reference } = await buildReceiptForPaymentIntent(paymentIntentId);
+
+    recordAudit({
+      ip: req.ip,
+      actorUserId: req.authUser?.id || null,
+      action: "receipt_downloaded",
+      targetUserId: null,
+      detail: { paymentIntentId, amount: amountText, reference }
+    }).catch(() => {});
+
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", `attachment; filename="receipt-${fileLabel}.pdf"`);
+    return res.send(Buffer.from(pdfBytes));
+  } catch (err) {
+    console.error("Receipt download error:", err.message);
+    if (err.statusCode === 400) {
+      return res.status(400).json({ error: err.message });
+    }
+    return res.status(500).json({ error: "Unable to build the receipt. Check the payment intent and try again." });
   }
 });
 
@@ -5860,11 +5920,24 @@ function buildPaymentIntentLookupResponse(id, paymentIntent, localRow) {
   }
 
   for (const refund of refunds) {
+    // App refunds carry the required product/service note and the issuer in
+    // metadata — show those, not Stripe's generic reason enum. A refund with
+    // no metadata was almost certainly issued directly in the Stripe
+    // dashboard (or predates the note requirement).
+    const refundNote = String(refund.metadata?.refund_note || "").trim();
+    const refundedBy = String(refund.metadata?.refunded_by || "").trim();
+    const reasonBits = [];
+    if (refundNote) reasonBits.push(refundNote);
+    if (refundedBy) reasonBits.push(`by ${refundedBy}`);
+    if (!reasonBits.length) {
+      reasonBits.push(formatRefundReason(refund.reason) || "Refund created");
+      reasonBits.push("no note on file — likely issued directly in Stripe");
+    }
     events.push({
       date: new Date(refund.created * 1000).toISOString(),
       label: "Refund",
       amount: -Number((refund.amount || 0) / 100),
-      reason: formatRefundReason(refund.reason) || "Refund created"
+      reason: reasonBits.join(" — ")
     });
   }
 

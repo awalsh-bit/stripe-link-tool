@@ -771,6 +771,26 @@
       box-shadow: inset 4px 0 0 #22c55e;
     }
 
+    .btn-pill-sm {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 5px 9px;
+      font-size: 12px;
+      line-height: 1;
+      border-radius: 999px;
+    }
+
+    .btn-pill-sm svg {
+      width: 13px;
+      height: 13px;
+      flex: none;
+    }
+
+    .btn-icon-only {
+      padding: 5px 7px;
+    }
+
     .receipt-send-row td {
       background: #f6f9ff;
       border-bottom: 1px solid #dbe4f3;
@@ -1371,6 +1391,11 @@
     return "status-sent";
   }
 
+  // Compact receipt-pill icons (feather-style, match the queue's sync icon).
+  const ICON_COPY = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"></path></svg>`;
+  const ICON_MAIL = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path><polyline points="22,6 12,13 2,6"></polyline></svg>`;
+  const ICON_PRINT = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 6 2 18 2 18 9"></polyline><path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg>`;
+
   function paidTypeLabel(row) {
     if (row.type === "ach_link") return "ACH Link";
     if (row.type === "terminal") return "Terminal";
@@ -1389,16 +1414,17 @@
 
       button.addEventListener("click", async () => {
         const valueToCopy = button.getAttribute("data-copy-link") || button.getAttribute("data-copy-intent") || "";
-        const originalText = button.textContent;
+        // Preserve markup — icon-only pills carry an SVG, not text.
+        const originalHtml = button.innerHTML;
 
         try {
           await navigator.clipboard.writeText(valueToCopy);
-          button.textContent = "Copied";
+          button.innerHTML = "Copied";
         } catch {
-          button.textContent = "Failed";
+          button.innerHTML = "Failed";
         } finally {
           setTimeout(() => {
-            button.textContent = originalText;
+            button.innerHTML = originalHtml;
           }, 1200);
         }
       });
@@ -1414,6 +1440,47 @@
   }
 
   function attachReceiptActions() {
+    document.querySelectorAll('[data-action="download-receipt"]').forEach((button) => {
+      if (button.dataset.receiptBound === "true") return;
+      button.dataset.receiptBound = "true";
+
+      button.addEventListener("click", async () => {
+        const paymentIntentId = button.getAttribute("data-pi") || "";
+        const salesOrder = button.getAttribute("data-order") || "";
+        const originalHtml = button.innerHTML;
+
+        button.disabled = true;
+        button.innerHTML = "Building...";
+
+        try {
+          const res = await fetch(`/api/receipts/${encodeURIComponent(paymentIntentId)}/pdf`);
+          if (!res.ok) {
+            const data = await res.json().catch(() => ({}));
+            throw new Error(data.error || "Unable to build the receipt.");
+          }
+
+          const blob = await res.blob();
+          const link = document.createElement("a");
+          link.href = URL.createObjectURL(blob);
+          link.download = `receipt-${(salesOrder || paymentIntentId).replace(/[^A-Za-z0-9_-]+/g, "-")}.pdf`;
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+          URL.revokeObjectURL(link.href);
+          button.innerHTML = originalHtml;
+        } catch (err) {
+          button.innerHTML = "Failed";
+          button.title = err.message;
+          setTimeout(() => {
+            button.innerHTML = originalHtml;
+            button.title = "Download the PDF receipt";
+          }, 2000);
+        } finally {
+          button.disabled = false;
+        }
+      });
+    });
+
     document.querySelectorAll('[data-action="email-receipt"]').forEach((button) => {
       if (button.dataset.receiptBound === "true") return;
       button.dataset.receiptBound = "true";
@@ -1650,11 +1717,18 @@
           <td data-label="Receipt" class="action-cell">
             ${row.paymentIntentId
               ? `<div class="button-row">
-                   <button class="btn-secondary" type="button" data-copy-intent="${escapeHtml(row.paymentIntentId)}">Copy Intent</button>
-                   <button class="btn-secondary" type="button" data-action="email-receipt"
+                   <button class="btn-secondary btn-pill-sm" type="button"
+                     data-copy-intent="${escapeHtml(row.paymentIntentId)}"
+                     title="Copy the payment intent for ePASS">${ICON_COPY}<span>Copy PI</span></button>
+                   <button class="btn-secondary btn-pill-sm" type="button" data-action="email-receipt"
                      data-pi="${escapeHtml(row.paymentIntentId)}"
                      data-email="${escapeHtml(row.customerEmail || "")}"
-                     data-customer="${escapeHtml(row.customerName || "")}">Email Receipt</button>
+                     data-customer="${escapeHtml(row.customerName || "")}"
+                     title="Email a PDF receipt to the customer">${ICON_MAIL}<span>Email</span></button>
+                   <button class="btn-secondary btn-pill-sm" type="button" data-action="download-receipt"
+                     data-pi="${escapeHtml(row.paymentIntentId)}"
+                     data-order="${escapeHtml(row.salesOrder || "")}"
+                     title="Download the PDF receipt">${ICON_PRINT}<span>Download</span></button>
                  </div>`
               : "-"}
           </td>

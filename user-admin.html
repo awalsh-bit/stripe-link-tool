@@ -280,38 +280,13 @@
     </div>
 
     <div class="surface">
-      <h2>Users</h2>
+      <h2>Team</h2>
       <p class="section-note">
-        Toggle individual pages per user, or click a job-code preset to check the pages that
-        role needs (presets combine — nothing changes until you Save). Executives always have
-        every page plus user management. Disabling a user immediately ends their sessions.
-      </p>
-      <div id="usersStatus" class="status"></div>
-      <div class="table-scroll">
-        <table id="usersTable">
-          <thead>
-            <tr>
-              <th>User</th>
-              <th>Status</th>
-              <th>Pages</th>
-              <th>Last seen</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody id="usersBody">
-            <tr><td colspan="5" class="muted">Loading…</td></tr>
-          </tbody>
-        </table>
-      </div>
-    </div>
-
-    <div class="surface">
-      <h2>Employee Directory</h2>
-      <p class="section-note">
-        Employee codes used on Send Payment Link, Card Reader, and Charge Saved Card.
-        Codes tie to accounts <strong>by email</strong> — when the email here matches a
-        user's login email, their code auto-fills on those tools and their dashboard
-        defaults to their own links. Edit codes here when systems change (e.g. ePASS → NetSuite).
+        One profile per person, linked permanently by <strong>email</strong> — employee code,
+        department, and commission plan from the directory alongside their login account,
+        page access, and status. A <strong>No account</strong> flag means the profile needs an
+        invite. Deactivating someone ends their sessions and moves the whole profile to
+        <strong>Deactivated users</strong> below — nothing is deleted.
       </p>
       <div class="toolbar">
         <div class="field small">
@@ -341,28 +316,52 @@
         </div>
         <button id="dirAddBtn" type="button">Add / Update</button>
         <div class="small-text muted" style="flex-basis: 100%;">
-          Type an existing code to load that person for updating, or a new code to add someone.
-          You can also click <strong>Edit</strong> on any row below.
+          Type an existing code to load that person for updating, or click <strong>Edit</strong>
+          on any row below. Codes are what the payment tools use (update them when systems
+          change, e.g. ePASS → NetSuite).
         </div>
       </div>
       <div id="dirStatus" class="status"></div>
+      <div id="usersStatus" class="status"></div>
+      <div class="table-scroll">
+        <table id="usersTable">
+          <thead>
+            <tr>
+              <th>Code</th>
+              <th>Name</th>
+              <th>Department</th>
+              <th>Commission Plan</th>
+              <th title="Product sales across commission runs imported in the last 6 months — backs the Field Sales $500k qualification. Read-only.">6-Mo Sales</th>
+              <th>Commute (mi)</th>
+              <th>Account</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="usersBody">
+            <tr><td colspan="8" class="muted">Loading…</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="surface" id="deactivatedSurface" style="display: none;">
+      <h2>Deactivated users</h2>
+      <p class="section-note">
+        Profiles with a disabled account. Their directory info, code history, and payment
+        records are all retained — reactivate to bring the whole profile back.
+      </p>
       <div class="table-scroll">
         <table>
           <thead>
             <tr>
               <th>Code</th>
               <th>Name</th>
-              <th>Email</th>
               <th>Department</th>
-              <th>Commission Plan</th>
-              <th title="Product sales across commission runs imported in the last 6 months — backs the Field Sales $500k qualification. Read-only.">6-Mo Sales</th>
-              <th>Commute (mi)</th>
+              <th>Last seen</th>
               <th>Actions</th>
             </tr>
           </thead>
-          <tbody id="dirBody">
-            <tr><td colspan="8" class="muted">Loading…</td></tr>
-          </tbody>
+          <tbody id="deactivatedBody"></tbody>
         </table>
       </div>
     </div>
@@ -477,105 +476,255 @@
       }
     }
 
+    // ---- Merged Team view ----
+    // One row per person, joined on email: directory info (code, department,
+    // plan, commute) + account info (status, pages, last seen). Disabled
+    // accounts move to the Deactivated users section with their directory
+    // info intact.
+
+    function accountForEmail(email) {
+      const normalized = String(email || "").trim().toLowerCase();
+      if (!normalized) return null;
+      return state.users.find((u) => String(u.email || "").toLowerCase() === normalized) || null;
+    }
+
+    function buildTeamRows() {
+      const rows = [];
+      for (const entry of state.directory) {
+        rows.push({ entry, account: accountForEmail(entry.email) });
+      }
+      for (const user of state.users) {
+        const email = String(user.email || "").toLowerCase();
+        const linked = state.directory.some((e) => String(e.email || "").toLowerCase() === email);
+        if (!linked) rows.push({ entry: null, account: user });
+      }
+      rows.sort((a, b) => {
+        const an = ((a.entry && a.entry.name) || a.account?.displayName || a.account?.email || "").toLowerCase();
+        const bn = ((b.entry && b.entry.name) || b.account?.displayName || b.account?.email || "").toLowerCase();
+        return an.localeCompare(bn);
+      });
+      return rows;
+    }
+
+    function fillFormFromEntry(entry, account) {
+      document.getElementById("dirCode").value = entry?.code || "";
+      document.getElementById("dirName").value = entry?.name || account?.displayName || "";
+      document.getElementById("dirEmail").value = entry?.email || account?.email || "";
+      document.getElementById("dirDepartment").value = entry?.department || "";
+      document.getElementById("dirCommissionPlan").value = entry?.commissionPlan || "";
+      document.getElementById("dirCommute").value = entry?.commuteMiles ?? "";
+      const who = entry?.name || account?.displayName || account?.email || "this person";
+      setStatus("dirStatus", `Editing ${who} — change what you need and click Add / Update to save.`, "ok");
+      document.getElementById("dirCode").scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+
     function renderUsers() {
       const body = document.getElementById("usersBody");
       body.textContent = "";
 
-      if (!state.users.length) {
+      // Keep the department suggestions in sync with what's in use.
+      const datalist = document.getElementById("departmentOptions");
+      datalist.textContent = "";
+      [...new Set(state.directory.map((e) => e.department).filter(Boolean))].sort().forEach((dept) => {
+        datalist.appendChild(el("option", { value: dept }));
+      });
+
+      const allRows = buildTeamRows();
+      const activeRows = allRows.filter((row) => row.account?.status !== "disabled");
+      const deactivatedRows = allRows.filter((row) => row.account?.status === "disabled");
+
+      if (!activeRows.length) {
         body.appendChild(el("tr", {}, [
-          el("td", { colspan: "5", class: "muted", text: "No users yet. Send an invite above, or have people self-register." })
+          el("td", { colspan: "8", class: "muted", text: "No team members yet. Add a directory entry above or send an invite." })
         ]));
+      }
+
+      for (const row of activeRows) {
+        body.appendChild(renderTeamRow(row));
+        if (row.account && state.expanded.has(row.account.id) && !row.account.isExecutive) {
+          body.appendChild(renderPermissionRow(row.account));
+        }
+      }
+
+      renderDeactivated(deactivatedRows);
+    }
+
+    function renderTeamRow({ entry, account }) {
+      // The directory's (curated) name wins over registration casing.
+      const name = (entry && entry.name) || account?.displayName || account?.email || "—";
+      const email = entry?.email || account?.email || "";
+      const subBits = [
+        email || "no email — can't link an account",
+        account ? "last seen " + formatWhen(account.lastSeenAt) : null
+      ].filter(Boolean).join(" · ");
+
+      const nameCell = el("td", {}, [
+        el("div", {}, [el("strong", { text: name })]),
+        el("div", { class: "muted small-text", text: subBits })
+      ]);
+
+      const accountCell = el("td", {});
+      if (account) {
+        accountCell.appendChild(statusPill(account));
+        if (account.isExecutive) {
+          accountCell.appendChild(document.createTextNode(" "));
+          accountCell.appendChild(el("span", { class: "pill exec", text: "Executive" }));
+        }
+        const pagesSummary = account.isExecutive
+          ? "All pages"
+          : (account.grantedPages.length ? `${account.grantedPages.length} page(s)` : "No pages granted");
+        accountCell.appendChild(el("div", { class: "muted small-text", text: pagesSummary }));
+      } else {
+        accountCell.appendChild(el("span", { class: "pill disabled", text: "No account" }));
+        accountCell.appendChild(el("div", {
+          class: "muted small-text",
+          text: email ? "Needs an invite" : "Add an email first"
+        }));
+      }
+
+      const actions = el("div", { class: "row-actions" });
+
+      if (account && !account.isExecutive) {
+        const pendingEdits = state.pending.get(account.id)?.size || 0;
+        actions.appendChild(el("button", {
+          class: "tiny secondary",
+          text: state.expanded.has(account.id)
+            ? "Hide pages"
+            : (pendingEdits ? `Edit pages (${pendingEdits} unsaved)` : "Edit pages"),
+          onclick: () => {
+            if (state.expanded.has(account.id)) state.expanded.delete(account.id);
+            else state.expanded.add(account.id);
+            renderUsers();
+          }
+        }));
+      }
+
+      actions.appendChild(el("button", {
+        class: "tiny secondary",
+        text: entry ? "Edit" : "Add to directory",
+        onclick: () => fillFormFromEntry(entry, account)
+      }));
+
+      if (!account && email) {
+        actions.appendChild(el("button", {
+          class: "tiny",
+          text: "Send invite",
+          onclick: async (e) => {
+            if (!confirm(`Send an account invite to ${name} (${email})?`)) return;
+            e.target.disabled = true;
+            try {
+              await api("/api/admin/users/invite", {
+                method: "POST",
+                body: JSON.stringify({ email, displayName: entry?.name || "", isExecutive: false })
+              });
+              setStatus("usersStatus", `Invite sent to ${email}.`, "ok");
+              await loadUsers();
+            } catch (err) {
+              setStatus("usersStatus", err.message, "error");
+              e.target.disabled = false;
+            }
+          }
+        }));
+      }
+
+      if (account && ["invited", "pending_verification"].includes(account.status)) {
+        actions.appendChild(el("button", {
+          class: "tiny secondary",
+          text: "Resend invite",
+          onclick: (e) => rowAction(e.target, `/api/admin/users/${account.id}/resend-invite`, {})
+        }));
+      }
+
+      if (account && account.status === "active") {
+        actions.appendChild(el("button", {
+          class: "tiny secondary",
+          text: "Send reset",
+          onclick: (e) => rowAction(e.target, `/api/admin/users/${account.id}/force-reset`, {})
+        }));
+        actions.appendChild(el("button", {
+          class: "tiny secondary",
+          text: account.isExecutive ? "Remove executive" : "Make executive",
+          onclick: (e) => {
+            if (account.isExecutive && !confirm(`Remove executive access from ${account.email}?`)) return;
+            if (!account.isExecutive && !confirm(`Give ${account.email} full executive access, including user management?`)) return;
+            rowAction(e.target, `/api/admin/users/${account.id}/executive`, { isExecutive: !account.isExecutive });
+          }
+        }));
+        actions.appendChild(el("button", {
+          class: "tiny danger",
+          text: "Deactivate",
+          onclick: (e) => {
+            if (!confirm(`Deactivate ${name}? Their sessions end immediately and the whole profile moves to Deactivated users below. Directory info and payment records are kept.`)) return;
+            rowAction(e.target, `/api/admin/users/${account.id}/status`, { status: "disabled" });
+          }
+        }));
+      }
+
+      // Delete only exists for directory-only rows. A profile linked to an
+      // account is permanent — deactivate it instead (the server enforces
+      // this too).
+      if (entry && !account) {
+        actions.appendChild(el("button", {
+          class: "tiny danger",
+          text: "Delete",
+          onclick: async (e) => {
+            if (!confirm(`Delete code ${entry.code} (${entry.name})? This row has no linked account. Existing payment records keep the code; it just leaves the directory.`)) return;
+            e.target.disabled = true;
+            try {
+              await api("/api/admin/employee-directory/" + encodeURIComponent(entry.code), { method: "DELETE" });
+              setStatus("dirStatus", `Deleted ${entry.code}.`, "ok");
+              await loadDirectory();
+            } catch (err) {
+              setStatus("dirStatus", err.message, "error");
+              e.target.disabled = false;
+            }
+          }
+        }));
+      }
+
+      return el("tr", {}, [
+        el("td", {}, [el("strong", { text: entry?.code || "—" })]),
+        nameCell,
+        el("td", { text: entry?.department || "—" }),
+        el("td", { text: entry?.commissionPlan || "—" }),
+        el("td", { class: "muted", text: fmtTrailingRevenue(entry?.code) }),
+        el("td", { text: entry ? String(entry.commuteMiles ?? 0) : "—" }),
+        accountCell,
+        el("td", {}, [actions])
+      ]);
+    }
+
+    function renderDeactivated(rows) {
+      const surface = document.getElementById("deactivatedSurface");
+      const body = document.getElementById("deactivatedBody");
+      body.textContent = "";
+
+      if (!rows.length) {
+        surface.style.display = "none";
         return;
       }
 
-      for (const user of state.users) {
-        const dirEntry = directoryEntryForEmail(user.email);
-        // Joined name fields: the directory's (curated) name wins over
-        // whatever casing the person registered with.
-        const nameBits = [
-          el("div", { text: (dirEntry && dirEntry.name) || user.displayName || user.email }),
-          el("div", { class: "muted small-text", text: user.email + (dirEntry ? " · Code: " + dirEntry.code : "") })
-        ];
-
-        const statusCell = el("td", {}, [statusPill(user)]);
-        if (user.isExecutive) {
-          statusCell.appendChild(document.createTextNode(" "));
-          statusCell.appendChild(el("span", { class: "pill exec", text: "Executive" }));
-        }
-
-        const pagesSummary = user.isExecutive
-          ? "All pages"
-          : (user.grantedPages.length ? `${user.grantedPages.length} page(s)` : "None");
-
-        const actions = el("div", { class: "row-actions" });
-
-        if (!user.isExecutive) {
-          const pendingEdits = state.pending.get(user.id)?.size || 0;
-          actions.appendChild(el("button", {
-            class: "tiny secondary",
-            text: state.expanded.has(user.id)
-              ? "Hide pages"
-              : (pendingEdits ? `Edit pages (${pendingEdits} unsaved)` : "Edit pages"),
-            onclick: () => {
-              if (state.expanded.has(user.id)) state.expanded.delete(user.id);
-              else state.expanded.add(user.id);
-              renderUsers();
-            }
-          }));
-        }
-
-        if (["invited", "pending_verification"].includes(user.status)) {
-          actions.appendChild(el("button", {
-            class: "tiny secondary",
-            text: "Resend invite",
-            onclick: (e) => rowAction(e.target, `/api/admin/users/${user.id}/resend-invite`, {})
-          }));
-        }
-
-        if (user.status === "active") {
-          actions.appendChild(el("button", {
-            class: "tiny secondary",
-            text: "Send reset",
-            onclick: (e) => rowAction(e.target, `/api/admin/users/${user.id}/force-reset`, {})
-          }));
-          actions.appendChild(el("button", {
-            class: "tiny " + (user.isExecutive ? "secondary" : "secondary"),
-            text: user.isExecutive ? "Remove executive" : "Make executive",
-            onclick: (e) => {
-              if (user.isExecutive && !confirm(`Remove executive access from ${user.email}?`)) return;
-              if (!user.isExecutive && !confirm(`Give ${user.email} full executive access, including user management?`)) return;
-              rowAction(e.target, `/api/admin/users/${user.id}/executive`, { isExecutive: !user.isExecutive });
-            }
-          }));
-          actions.appendChild(el("button", {
-            class: "tiny danger",
-            text: "Disable",
-            onclick: (e) => {
-              if (!confirm(`Disable ${user.email}? Their sessions end immediately.`)) return;
-              rowAction(e.target, `/api/admin/users/${user.id}/status`, { status: "disabled" });
-            }
-          }));
-        }
-
-        if (user.status === "disabled") {
-          actions.appendChild(el("button", {
-            class: "tiny secondary",
-            text: "Re-enable",
-            onclick: (e) => rowAction(e.target, `/api/admin/users/${user.id}/status`, { status: "active" })
-          }));
-        }
-
+      surface.style.display = "";
+      for (const { entry, account } of rows) {
+        const name = (entry && entry.name) || account.displayName || account.email;
         body.appendChild(el("tr", {}, [
-          el("td", {}, nameBits),
-          statusCell,
-          el("td", { text: pagesSummary }),
-          el("td", { text: formatWhen(user.lastSeenAt) }),
-          el("td", {}, [actions])
+          el("td", {}, [el("strong", { text: entry?.code || "—" })]),
+          el("td", {}, [
+            el("div", { text: name }),
+            el("div", { class: "muted small-text", text: account.email })
+          ]),
+          el("td", { text: entry?.department || "—" }),
+          el("td", { text: formatWhen(account.lastSeenAt) }),
+          el("td", {}, [
+            el("div", { class: "row-actions" }, [
+              el("button", {
+                class: "tiny secondary",
+                text: "Reactivate",
+                onclick: (e) => rowAction(e.target, `/api/admin/users/${account.id}/status`, { status: "active" })
+              })
+            ])
+          ])
         ]));
-
-        if (state.expanded.has(user.id) && !user.isExecutive) {
-          body.appendChild(renderPermissionRow(user));
-        }
       }
     }
 
@@ -727,7 +876,7 @@
         container.appendChild(el("div", { class: "perm-category" }, [head, grid]));
       }
 
-      const cell = el("td", { colspan: "5" }, [container]);
+      const cell = el("td", { colspan: "8" }, [container]);
       return el("tr", { class: "perm-row" }, [cell]);
     }
 
@@ -837,205 +986,10 @@
       while (built.firstChild) sel.appendChild(built.firstChild);
     })();
 
+    // The old separate directory table is gone — everything renders in the
+    // merged Team view above. Kept as an alias for the handlers that call it.
     function renderDirectory() {
-      const body = document.getElementById("dirBody");
-      body.textContent = "";
-
-      // Keep the department suggestions in sync with what's in use.
-      const datalist = document.getElementById("departmentOptions");
-      datalist.textContent = "";
-      [...new Set(state.directory.map((e) => e.department).filter(Boolean))].sort().forEach((dept) => {
-        datalist.appendChild(el("option", { value: dept }));
-      });
-
-      if (!state.directory.length) {
-        body.appendChild(el("tr", {}, [
-          el("td", { colspan: "8", class: "muted", text: "No directory entries yet. Add the first one above." })
-        ]));
-        return;
-      }
-
-      for (const entry of state.directory) {
-        body.appendChild(renderDirectoryRow(entry));
-      }
-    }
-
-    function userForDirectoryEntry(entry) {
-      const email = String(entry.email || "").trim().toLowerCase();
-      if (!email) return null;
-      return state.users.find((u) => String(u.email || "").toLowerCase() === email) || null;
-    }
-
-    function renderDirectoryRow(entry, editing) {
-      if (!editing) {
-        const account = userForDirectoryEntry(entry);
-        const accountButtons = [];
-
-        if (entry.email && !account) {
-          accountButtons.push(el("button", {
-            class: "tiny secondary",
-            text: "Send invite",
-            onclick: async (e) => {
-              if (!confirm(`Send an account invite to ${entry.name} (${entry.email})?`)) return;
-              e.target.disabled = true;
-              try {
-                await api("/api/admin/users/invite", {
-                  method: "POST",
-                  body: JSON.stringify({ email: entry.email, displayName: entry.name, isExecutive: false })
-                });
-                setStatus("dirStatus", `Invite sent to ${entry.email}.`, "ok");
-                await loadUsers();
-                renderDirectory();
-              } catch (err) {
-                setStatus("dirStatus", err.message, "error");
-                e.target.disabled = false;
-              }
-            }
-          }));
-        }
-
-        if (account && ["invited", "pending_verification"].includes(account.status)) {
-          accountButtons.push(el("button", {
-            class: "tiny secondary",
-            text: "Resend invite",
-            onclick: async (e) => {
-              e.target.disabled = true;
-              try {
-                await api(`/api/admin/users/${account.id}/resend-invite`, { method: "POST", body: "{}" });
-                setStatus("dirStatus", `Invite re-sent to ${entry.email}.`, "ok");
-              } catch (err) {
-                setStatus("dirStatus", err.message, "error");
-              } finally {
-                e.target.disabled = false;
-              }
-            }
-          }));
-        }
-
-        if (account && account.status === "active") {
-          accountButtons.push(el("button", {
-            class: "tiny danger",
-            text: "Force reset",
-            onclick: async (e) => {
-              if (!confirm(
-                `Force a password reset for ${entry.name}?\n\n` +
-                `Their current password stops working IMMEDIATELY and all their sessions end. ` +
-                `They get back in via the reset link emailed to ${entry.email} (valid 1 hour).\n\n` +
-                `Use this when a password may have been shared or compromised.`
-              )) return;
-              e.target.disabled = true;
-              try {
-                await api(`/api/admin/users/${account.id}/force-reset`, {
-                  method: "POST",
-                  body: JSON.stringify({ lockout: true })
-                });
-                setStatus("dirStatus", `${entry.name} is locked out; reset link sent to ${entry.email}.`, "ok");
-              } catch (err) {
-                setStatus("dirStatus", err.message, "error");
-              } finally {
-                e.target.disabled = false;
-              }
-            }
-          }));
-        }
-
-        if (account && account.status === "disabled") {
-          accountButtons.push(el("span", { class: "muted small-text", text: "account disabled" }));
-        }
-
-        const actions = el("div", { class: "row-actions" }, [
-          ...accountButtons,
-          el("button", {
-            class: "tiny secondary",
-            text: "Edit",
-            onclick: (e) => {
-              e.target.closest("tr").replaceWith(renderDirectoryRow(entry, true));
-            }
-          }),
-          el("button", {
-            class: "tiny danger",
-            text: "Delete",
-            onclick: async (e) => {
-              if (!confirm(`Delete code ${entry.code} (${entry.name})? Existing payment records keep the code; it just leaves the directory.`)) return;
-              e.target.disabled = true;
-              try {
-                await api("/api/admin/employee-directory/" + encodeURIComponent(entry.code), { method: "DELETE" });
-                setStatus("dirStatus", `Deleted ${entry.code}.`, "ok");
-                await loadDirectory();
-              } catch (err) {
-                setStatus("dirStatus", err.message, "error");
-                e.target.disabled = false;
-              }
-            }
-          })
-        ]);
-
-        return el("tr", {}, [
-          el("td", {}, [el("strong", { text: entry.code })]),
-          el("td", { text: entry.name }),
-          el("td", { text: entry.email || "—" }),
-          el("td", { text: entry.department || "—" }),
-          el("td", { text: entry.commissionPlan || "—" }),
-          el("td", { class: "muted", text: fmtTrailingRevenue(entry.code) }),
-          el("td", { text: String(entry.commuteMiles ?? 0) }),
-          el("td", {}, [actions])
-        ]);
-      }
-
-      // Editing row: name/email/department are editable; the code is the key.
-      // To change a code itself, add the new code and delete the old one.
-      const nameInput = el("input", { type: "text", value: entry.name });
-      const emailInput = el("input", { type: "email", value: entry.email || "" });
-      const deptInput = el("input", { type: "text", value: entry.department || "", list: "departmentOptions" });
-      const planInput = commissionPlanSelect(entry.commissionPlan || "");
-      const commuteInput = el("input", { type: "number", min: "0", step: "0.1", value: String(entry.commuteMiles ?? 0) });
-
-      const actions = el("div", { class: "row-actions" }, [
-        el("button", {
-          class: "tiny",
-          text: "Save",
-          onclick: async (e) => {
-            e.target.disabled = true;
-            try {
-              await api("/api/admin/employee-directory", {
-                method: "POST",
-                body: JSON.stringify({
-                  code: entry.code,
-                  name: nameInput.value.trim(),
-                  email: emailInput.value.trim(),
-                  department: deptInput.value.trim(),
-                  commissionPlan: planInput.value,
-                  commuteMiles: Number(commuteInput.value) || 0
-                })
-              });
-              setStatus("dirStatus", `Saved ${entry.code}.`, "ok");
-              await loadDirectory();
-              await loadUsers();
-            } catch (err) {
-              setStatus("dirStatus", err.message, "error");
-              e.target.disabled = false;
-            }
-          }
-        }),
-        el("button", {
-          class: "tiny secondary",
-          text: "Cancel",
-          onclick: (e) => {
-            e.target.closest("tr").replaceWith(renderDirectoryRow(entry, false));
-          }
-        })
-      ]);
-
-      return el("tr", {}, [
-        el("td", {}, [el("strong", { text: entry.code })]),
-        el("td", {}, [nameInput]),
-        el("td", {}, [emailInput]),
-        el("td", {}, [deptInput]),
-        el("td", {}, [planInput]),
-        el("td", { class: "muted", text: fmtTrailingRevenue(entry.code) }),
-        el("td", {}, [commuteInput]),
-        el("td", {}, [actions])
-      ]);
+      renderUsers();
     }
 
     // Typing an existing code loads that entry into the form, so

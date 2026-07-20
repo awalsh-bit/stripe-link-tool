@@ -322,6 +322,16 @@ not already present).
 - `employee_directory.commute_miles`: per-employee standard round-trip
   commute, managed in the User Admin directory editor.
 
+### Quote Library (live — created by `sql/013_spec_quote_files.sql`)
+
+Uploaded sales order / quote PDFs for the Spec Packages page, stored in
+Postgres (`spec_quote_files`: uploader, filename, `pdf_bytes` BYTEA,
+`uploaded_at`). Lets a quote uploaded from any machine be merged with Steel
+Cod spec pages from any other machine — the workaround for laptops whose
+endpoint security blocks browser uploads. Team-visible; delete is
+uploader-or-executive; rows purge automatically after 90 days (at boot by
+`lib/spec-quotes-postgres.js`).
+
 ### Commissions (live — managed by `lib/commissions-postgres.js`)
 
 Monthly ePASS workbook imports reviewed on the Commissions pages. Since the

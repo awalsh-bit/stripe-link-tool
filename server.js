@@ -119,6 +119,12 @@ import {
   getCandidateWithScreens
 } from "./lib/hr-postgres.js";
 import {
+  saveSpecQuote,
+  listSpecQuotes,
+  getSpecQuote,
+  deleteSpecQuote
+} from "./lib/spec-quotes-postgres.js";
+import {
   computeReimbursedMiles,
   computeReportTotals,
   listRatePeriods,
@@ -2367,96 +2373,261 @@ app.post(
     const variant = String(req.body?.variant || "slim").toLowerCase() === "full" ? "full" : "slim";
 
     try {
-      const pkg = await retrieveSpecPackage({ userEmail, navId: req.params.navId });
-      const publicUrl = findSpecPackageUrl(pkg, req.params.navId);
-
-      console.log(
-        "attach-quote:", req.params.navId,
-        "| retrieve shape:", JSON.stringify(describeShape(pkg)),
-        "| resolved URL:", publicUrl || "(none)"
-      );
-
-      if (!publicUrl) {
-        console.error(
-          "Steel Cod retrieve returned no recognizable URL for navId",
-          req.params.navId,
-          "— response shape:",
-          JSON.stringify(describeShape(pkg))
-        );
-        return fail("Steel Cod did not return a URL for that spec package.");
-      }
-
-      const urls = buildSpecPackageUrls(publicUrl);
-      if (!urls) {
-        return fail("Steel Cod did not return a URL for that spec package.");
-      }
-
-      const specUrl = variant === "full" ? urls.download : urls.slimDownload;
-      let specResponse;
-      try {
-        specResponse = await fetch(specUrl);
-      } catch (err) {
-        return fail(`Unable to reach Steel Cod to download the spec PDF: ${err.message}`);
-      }
-      if (!specResponse.ok) {
-        console.error("attach-quote: spec PDF download failed", specResponse.status, "from", specUrl);
-        return fail(`Unable to download the spec PDF from Steel Cod (HTTP ${specResponse.status}).`);
-      }
-
-      const specBytes = Buffer.from(await specResponse.arrayBuffer());
-      if (specBytes.subarray(0, 5).toString("latin1") !== "%PDF-") {
-        console.error(
-          "attach-quote: non-PDF response from", specUrl,
-          "| content-type:", specResponse.headers.get("content-type"),
-          "| first bytes:", specBytes.subarray(0, 40).toString("latin1").replace(/[^\x20-\x7e]/g, ".")
-        );
-        return fail("Steel Cod returned something that is not a PDF for this package.");
-      }
-
-      let quoteDoc;
-      try {
-        quoteDoc = await PDFDocument.load(quoteBytes);
-      } catch (loadErr) {
-        console.error("attach-quote: uploaded quote PDF failed to parse:", loadErr.message);
-        return fail("Could not read the uploaded PDF. Is it password-protected or corrupted?");
-      }
-
-      let specDoc;
-      try {
-        specDoc = await PDFDocument.load(specBytes);
-      } catch (loadErr) {
-        console.error("attach-quote: Steel Cod spec PDF failed to parse:", loadErr.message);
-        return fail("Could not read the spec PDF returned by Steel Cod.");
-      }
-
-      const specPages = await quoteDoc.copyPages(specDoc, specDoc.getPageIndices());
-      for (const page of specPages) quoteDoc.addPage(page);
-
-      const mergedBytes = await quoteDoc.save();
-
-      const safeName =
-        String(req.body?.name || "quote")
-          .replace(/[^A-Za-z0-9 ._-]+/g, "")
-          .trim()
-          .slice(0, 80) || "quote";
-
-      sweepQuoteMerges();
-      const downloadToken = crypto.randomBytes(24).toString("hex");
-      const filename = `${safeName}-with-specs.pdf`;
-      pendingQuoteMerges.set(downloadToken, {
-        bytes: Buffer.from(mergedBytes),
-        filename,
-        email: userEmail,
-        expiresAt: Date.now() + QUOTE_MERGE_TTL_MS
+      const { token, filename } = await performQuoteSpecMerge({
+        userEmail,
+        navId: req.params.navId,
+        quoteBytes,
+        variant,
+        baseName: req.body?.name
       });
-
-      return sendMergeResult(res, origin, { ok: true, token: downloadToken, filename });
+      return sendMergeResult(res, origin, { ok: true, token, filename });
     } catch (err) {
       console.error("attach-quote failed:", err.message);
-      return fail(err instanceof SteelCodError ? err.message : "Unable to attach the spec pages to the quote.");
+      return fail(
+        (err.userFacing || err instanceof SteelCodError)
+          ? err.message
+          : "Unable to attach the spec pages to the quote."
+      );
     }
   }
 );
+
+// Core merge: append the package's spec pages (slim/full) to a quote PDF and
+// stage the result for one-time download. Shared by the direct-upload route
+// above and the Quote Library route below. Throws errors with user-facing
+// messages (err.userFacing = true).
+async function performQuoteSpecMerge({ userEmail, navId, quoteBytes, variant, baseName }) {
+  const userError = (message) => Object.assign(new Error(message), { userFacing: true });
+
+  const pkg = await retrieveSpecPackage({ userEmail, navId });
+  const publicUrl = findSpecPackageUrl(pkg, navId);
+
+  console.log(
+    "attach-quote:", navId,
+    "| retrieve shape:", JSON.stringify(describeShape(pkg)),
+    "| resolved URL:", publicUrl || "(none)"
+  );
+
+  if (!publicUrl) {
+    console.error(
+      "Steel Cod retrieve returned no recognizable URL for navId",
+      navId,
+      "— response shape:",
+      JSON.stringify(describeShape(pkg))
+    );
+    throw userError("Steel Cod did not return a URL for that spec package.");
+  }
+
+  const urls = buildSpecPackageUrls(publicUrl);
+  if (!urls) {
+    throw userError("Steel Cod did not return a URL for that spec package.");
+  }
+
+  const specUrl = variant === "full" ? urls.download : urls.slimDownload;
+  let specResponse;
+  try {
+    specResponse = await fetch(specUrl);
+  } catch (err) {
+    throw userError(`Unable to reach Steel Cod to download the spec PDF: ${err.message}`);
+  }
+  if (!specResponse.ok) {
+    console.error("attach-quote: spec PDF download failed", specResponse.status, "from", specUrl);
+    throw userError(`Unable to download the spec PDF from Steel Cod (HTTP ${specResponse.status}).`);
+  }
+
+  const specBytes = Buffer.from(await specResponse.arrayBuffer());
+  if (specBytes.subarray(0, 5).toString("latin1") !== "%PDF-") {
+    console.error(
+      "attach-quote: non-PDF response from", specUrl,
+      "| content-type:", specResponse.headers.get("content-type"),
+      "| first bytes:", specBytes.subarray(0, 40).toString("latin1").replace(/[^\x20-\x7e]/g, ".")
+    );
+    throw userError("Steel Cod returned something that is not a PDF for this package.");
+  }
+
+  let quoteDoc;
+  try {
+    quoteDoc = await PDFDocument.load(quoteBytes);
+  } catch (loadErr) {
+    console.error("attach-quote: quote PDF failed to parse:", loadErr.message);
+    throw userError("Could not read the quote PDF. Is it password-protected or corrupted?");
+  }
+
+  let specDoc;
+  try {
+    specDoc = await PDFDocument.load(specBytes);
+  } catch (loadErr) {
+    console.error("attach-quote: Steel Cod spec PDF failed to parse:", loadErr.message);
+    throw userError("Could not read the spec PDF returned by Steel Cod.");
+  }
+
+  const specPages = await quoteDoc.copyPages(specDoc, specDoc.getPageIndices());
+  for (const page of specPages) quoteDoc.addPage(page);
+
+  const mergedBytes = await quoteDoc.save();
+
+  const safeName =
+    String(baseName || "quote")
+      .replace(/[^A-Za-z0-9 ._-]+/g, "")
+      .trim()
+      .slice(0, 80) || "quote";
+
+  sweepQuoteMerges();
+  const downloadToken = crypto.randomBytes(24).toString("hex");
+  const filename = `${safeName}-with-specs.pdf`;
+  pendingQuoteMerges.set(downloadToken, {
+    bytes: Buffer.from(mergedBytes),
+    filename,
+    email: userEmail,
+    expiresAt: Date.now() + QUOTE_MERGE_TTL_MS
+  });
+
+  return { token: downloadToken, filename };
+}
+
+// Merge using a quote already in the Quote Library — plain JSON, no upload,
+// so it works from machines whose security blocks browser file uploads.
+app.post(
+  "/api/spec-packages/:navId/attach-quote-library",
+  requirePagePermission("/spec-packages.html"),
+  async (req, res) => {
+    try {
+      if (!isSteelCodConfigured()) {
+        return res.status(503).json({ error: "Steel Cod is not configured yet." });
+      }
+      const userEmail = req.authUser?.kind === "db" ? req.authUser.email : "";
+      if (!userEmail || !userEmail.includes("@")) {
+        return res.status(400).json({ error: "Sign in with your individual account to use Spec Packages." });
+      }
+
+      const quoteId = String(req.body?.quoteId || "").trim();
+      if (!/^[0-9a-fA-F-]{36}$/.test(quoteId)) {
+        return res.status(400).json({ error: "Pick a quote from the library first." });
+      }
+
+      const quote = await getSpecQuote(quoteId);
+      if (!quote) {
+        return res.status(404).json({ error: "That quote is no longer in the library (quotes purge after 90 days)." });
+      }
+
+      const variant = String(req.body?.variant || "slim").toLowerCase() === "full" ? "full" : "slim";
+      const baseName = String(req.body?.name || "").trim() || quote.filename.replace(/\.pdf$/i, "");
+
+      const { token, filename } = await performQuoteSpecMerge({
+        userEmail,
+        navId: req.params.navId,
+        quoteBytes: quote.bytes,
+        variant,
+        baseName
+      });
+
+      return res.json({ ok: true, token, filename });
+    } catch (err) {
+      console.error("attach-quote-library failed:", err.message);
+      const message = err.userFacing || err instanceof SteelCodError
+        ? err.message
+        : "Unable to attach the spec pages to the quote.";
+      return res.status(400).json({ error: message });
+    }
+  }
+);
+
+// ---------------------------------------------------------------------------
+// Quote Library — upload once (from any machine), reuse for merges anywhere.
+// ---------------------------------------------------------------------------
+
+function sendQuoteUploadResult(res, payload) {
+  const json = JSON.stringify(payload).replace(/</g, "\\u003c");
+  res.setHeader("Content-Type", "text/html; charset=utf-8");
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  return res.send(
+    "<!doctype html><html><body>Done. You can close this.<script>" +
+    "try{parent.postMessage({specQuoteUpload:" + json + "},\"*\");}catch(e){}" +
+    "</script></body></html>"
+  );
+}
+
+function quoteLibraryUploadMw(req, res, next) {
+  specQuoteUpload.single("quote")(req, res, (err) => {
+    if (err) {
+      const msg = err.code === "LIMIT_FILE_SIZE" ? "That PDF is too large (40 MB max)." : "Upload failed — try again.";
+      return sendQuoteUploadResult(res, { ok: false, error: msg });
+    }
+    next();
+  });
+}
+
+app.post("/api/spec-quotes", requirePagePermission("/spec-packages.html"), quoteLibraryUploadMw, async (req, res) => {
+  try {
+    const userEmail = req.authUser?.kind === "db" ? req.authUser.email : "";
+    if (!userEmail || !userEmail.includes("@")) {
+      return sendQuoteUploadResult(res, { ok: false, error: "Sign in with your individual account to upload quotes." });
+    }
+
+    const bytes = req.file?.buffer;
+    if (!Buffer.isBuffer(bytes) || bytes.length < 5) {
+      return sendQuoteUploadResult(res, { ok: false, error: "Choose a quote PDF first." });
+    }
+    if (bytes.subarray(0, 5).toString("latin1") !== "%PDF-") {
+      return sendQuoteUploadResult(res, { ok: false, error: "That file does not look like a PDF." });
+    }
+
+    const quote = await saveSpecQuote({
+      uploadedByEmail: userEmail,
+      uploadedByName: req.authUser?.displayName || "",
+      filename: req.file?.originalname || "quote.pdf",
+      bytes
+    });
+
+    return sendQuoteUploadResult(res, { ok: true, quote });
+  } catch (err) {
+    console.error("Quote library upload failed:", err.message);
+    return sendQuoteUploadResult(res, { ok: false, error: "Unable to save the quote — try again." });
+  }
+});
+
+app.get("/api/spec-quotes", requirePagePermission("/spec-packages.html"), async (req, res) => {
+  try {
+    return res.json({ quotes: await listSpecQuotes() });
+  } catch (err) {
+    console.error("Quote library list failed:", err.message);
+    return res.status(500).json({ error: "Unable to load the quote library." });
+  }
+});
+
+app.get("/api/spec-quotes/:id/pdf", requirePagePermission("/spec-packages.html"), async (req, res) => {
+  try {
+    if (!/^[0-9a-fA-F-]{36}$/.test(req.params.id)) {
+      return res.status(400).send("Bad quote id.");
+    }
+    const quote = await getSpecQuote(req.params.id);
+    if (!quote) {
+      return res.status(404).send("That quote is no longer in the library.");
+    }
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", `inline; filename="${quote.filename.replace(/"/g, "")}"`);
+    return res.send(quote.bytes);
+  } catch (err) {
+    console.error("Quote library view failed:", err.message);
+    return res.status(500).send("Unable to load that quote.");
+  }
+});
+
+app.delete("/api/spec-quotes/:id", requirePagePermission("/spec-packages.html"), async (req, res) => {
+  try {
+    if (!/^[0-9a-fA-F-]{36}$/.test(req.params.id)) {
+      return res.status(400).json({ error: "Bad quote id." });
+    }
+    const removed = await deleteSpecQuote(req.params.id, req.authUser?.email || "", isExecutiveUser(req.authUser));
+    if (!removed) {
+      return res.status(403).json({ error: "Only the uploader (or an executive) can delete a quote." });
+    }
+    return res.json({ success: true });
+  } catch (err) {
+    console.error("Quote library delete failed:", err.message);
+    return res.status(500).json({ error: "Unable to delete that quote." });
+  }
+});
 
 // One-time GET download of a merged quote PDF (see note above). A real
 // navigation, so download blockers that trip on fetch()-returned binaries

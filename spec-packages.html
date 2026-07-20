@@ -119,6 +119,80 @@
 
     input[type="file"]::file-selector-button:hover { background: #e0e7ff; }
 
+    /* Quote Library tiles */
+    .quote-tiles {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+      gap: 12px;
+      margin-top: 14px;
+    }
+
+    .quote-tile {
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 14px;
+      background: #fbfcff;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .quote-tile .qt-icon {
+      width: 34px;
+      height: 34px;
+      border-radius: 9px;
+      background: #eef2ff;
+      color: var(--primary);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 0.04em;
+    }
+
+    .quote-tile .qt-name {
+      font-weight: 700;
+      font-size: 14px;
+      word-break: break-all;
+      line-height: 1.35;
+    }
+
+    .quote-tile .qt-meta {
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.5;
+    }
+
+    .quote-tile .qt-actions {
+      display: flex;
+      gap: 8px;
+      margin-top: 4px;
+      flex-wrap: wrap;
+    }
+
+    .quote-tile .qt-actions button,
+    .quote-tile .qt-actions a {
+      appearance: none;
+      border: none;
+      border-radius: 8px;
+      padding: 6px 10px;
+      font-size: 12px;
+      font-weight: 700;
+      cursor: pointer;
+      text-decoration: none;
+      background: #eef2ff;
+      color: var(--primary);
+      font-family: inherit;
+      display: inline-flex;
+      align-items: center;
+    }
+
+    .quote-tile .qt-actions .qt-delete {
+      background: var(--error-bg);
+      color: var(--error-text);
+    }
+
     .attach-row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
 
     textarea { min-height: 90px; resize: vertical; }
@@ -400,6 +474,21 @@
     </div>
 
     <div class="surface">
+      <h2>Quote Library</h2>
+      <p class="section-note">
+        Upload sales order / quote PDFs here — from <strong>any</strong> computer — and they
+        show up as tiles for the whole team. Then merge spec pages onto a stored quote from
+        the Attach panel below with no re-upload. Quotes clear out automatically after 90 days.
+      </p>
+      <form id="quoteUploadForm" method="POST" action="/api/spec-quotes" enctype="multipart/form-data" target="specMergeFrame" class="attach-row">
+        <input id="libraryPdf" name="quote" type="file" accept="application/pdf,.pdf" />
+        <button id="libraryUploadBtn" type="submit">Upload to library</button>
+      </form>
+      <div id="libraryStatus" class="status"></div>
+      <div id="quoteTiles" class="quote-tiles"><div class="muted">Loading the quote library…</div></div>
+    </div>
+
+    <div class="surface">
       <h2>Find spec packages</h2>
       <p class="section-note">Search by sales order #, title, or customer info. Leave everything blank to list recent packages.</p>
 
@@ -445,6 +534,10 @@
       <div id="attachPanel" style="display: none; margin-top: 16px; border: 1px solid var(--border); border-radius: 12px; padding: 16px; background: #fafbff;">
         <label style="margin-bottom: 10px;">Attach quote to: <span id="attachTitle" style="font-weight: 400;"></span></label>
         <div class="attach-row">
+          <select id="attachLibrary" aria-label="Pick a quote from the library">
+            <option value="">— Pick from the Quote Library —</option>
+          </select>
+          <span class="muted" style="font-size: 13px;">or</span>
           <input id="attachPdf" type="file" accept="application/pdf,.pdf" />
           <select id="attachVariant" aria-label="Which spec pages to append">
             <option value="slim" selected>Slim spec pages</option>
@@ -556,6 +649,7 @@
       const ctx = mergeCtx;
       mergeCtx = null;
       clearTimeout(ctx.timeout);
+      if (ctx.restore) ctx.restore();
 
       if (msg.ok && msg.token) {
         const a = document.createElement("a");
@@ -592,8 +686,10 @@
       nIn.type = "hidden"; nIn.name = "name"; nIn.value = baseName || "quote";
       form.appendChild(nIn);
 
-      // Temporarily move the real file input into the form (a File can't be
-      // copied to another input, but the element can be moved).
+      // Move the real file input into the form (a File can't be copied to
+      // another input, but the element can be moved). It stays in the form
+      // until the merge completes — removing it mid-upload can abort the
+      // multipart body before the browser finishes streaming the file.
       const marker = document.createComment("qpdf-slot");
       fileInput.parentNode.insertBefore(marker, fileInput);
       const prevName = fileInput.getAttribute("name");
@@ -601,26 +697,173 @@
       form.appendChild(fileInput);
       document.body.appendChild(form);
 
+      const restore = () => {
+        if (prevName) fileInput.setAttribute("name", prevName);
+        else fileInput.removeAttribute("name");
+        if (marker.parentNode) marker.parentNode.insertBefore(fileInput, marker);
+        if (marker.parentNode) marker.remove();
+        if (form.parentNode) form.remove();
+      };
+
       mergeCtx = {
-        statusId, baseName, resetBtn,
+        statusId, baseName, resetBtn, restore,
         timeout: setTimeout(() => {
+          const ctx = mergeCtx;
           mergeCtx = null;
-          setStatus(statusId, "The merge timed out. Try again.", "error");
+          if (ctx && ctx.restore) ctx.restore();
+          setStatus(statusId, "The merge timed out — this machine may be blocking the upload. Try another computer, or ask IT to allow uploads to this site.", "error");
           if (resetBtn) resetBtn();
         }, 90000)
       };
 
-      if (form.requestSubmit) form.requestSubmit(); else form.submit();
-
-      // Restore the file input to its original place after the submit is sent.
-      setTimeout(() => {
-        if (prevName) fileInput.setAttribute("name", prevName);
-        else fileInput.removeAttribute("name");
-        marker.parentNode.insertBefore(fileInput, marker);
-        marker.remove();
-        form.remove();
-      }, 0);
+      // form.submit() (not requestSubmit) — unconditional, no submit button
+      // needed, most compatible.
+      form.submit();
     }
+
+    // ---- Quote Library ----
+    // Upload once (from any machine — including a coworker's), then merge
+    // from the stored copy anywhere with no re-upload. Uploads use the same
+    // native-form-to-iframe pattern as the merge, so they work where security
+    // software blocks fetch uploads and JS file reads.
+
+    let quoteLibrary = [];
+    let libraryUploadCtx = null;
+
+    function escapeHtml(value) {
+      return String(value == null ? "" : value).replace(/[&<>"']/g, (ch) => ({
+        "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;", "'": "&#39;"
+      })[ch]);
+    }
+
+    function formatQuoteDate(iso) {
+      const d = new Date(iso);
+      if (Number.isNaN(d.getTime())) return "";
+      return d.toLocaleDateString("en-US", { month: "numeric", day: "numeric", year: "2-digit" }) +
+        " " + d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+    }
+
+    function formatBytes(size) {
+      const n = Number(size) || 0;
+      if (n >= 1024 * 1024) return (n / (1024 * 1024)).toFixed(1) + " MB";
+      return Math.max(1, Math.round(n / 1024)) + " KB";
+    }
+
+    async function loadQuoteLibrary() {
+      const tiles = document.getElementById("quoteTiles");
+      try {
+        const res = await fetch("/api/spec-quotes", { credentials: "same-origin" });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Unable to load the quote library.");
+        quoteLibrary = data.quotes || [];
+        renderQuoteTiles();
+        renderAttachLibraryOptions();
+      } catch (err) {
+        tiles.innerHTML = `<div class="muted">${escapeHtml(err.message)}</div>`;
+      }
+    }
+
+    function renderQuoteTiles() {
+      const tiles = document.getElementById("quoteTiles");
+      const myEmail = String(session?.user?.email || "").toLowerCase();
+
+      if (!quoteLibrary.length) {
+        tiles.innerHTML = '<div class="muted">No quotes in the library yet — upload the first one above.</div>';
+        return;
+      }
+
+      tiles.innerHTML = quoteLibrary.map((q) => {
+        const uploader = q.uploadedByName || q.uploadedByEmail || "unknown";
+        const mine = myEmail && String(q.uploadedByEmail || "").toLowerCase() === myEmail;
+        return `
+          <div class="quote-tile">
+            <div class="qt-icon">PDF</div>
+            <div class="qt-name">${escapeHtml(q.filename)}</div>
+            <div class="qt-meta">${escapeHtml(uploader)}<br>${escapeHtml(formatQuoteDate(q.uploadedAt))} · ${escapeHtml(formatBytes(q.byteSize))}</div>
+            <div class="qt-actions">
+              <a href="/api/spec-quotes/${encodeURIComponent(q.id)}/pdf" target="_blank" rel="noopener">View</a>
+              ${mine ? `<button type="button" class="qt-delete" data-quote-id="${escapeHtml(q.id)}">Delete</button>` : ""}
+            </div>
+          </div>
+        `;
+      }).join("");
+
+      tiles.querySelectorAll(".qt-delete").forEach((btn) => {
+        btn.addEventListener("click", async () => {
+          const id = btn.getAttribute("data-quote-id");
+          const quote = quoteLibrary.find((q) => q.id === id);
+          if (!confirm(`Delete ${quote?.filename || "this quote"} from the library?`)) return;
+          btn.disabled = true;
+          try {
+            const res = await fetch("/api/spec-quotes/" + encodeURIComponent(id), { method: "DELETE" });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || "Unable to delete that quote.");
+            await loadQuoteLibrary();
+          } catch (err) {
+            setStatus("libraryStatus", err.message, "error");
+            btn.disabled = false;
+          }
+        });
+      });
+    }
+
+    function renderAttachLibraryOptions() {
+      const select = document.getElementById("attachLibrary");
+      const current = select.value;
+      select.innerHTML = '<option value="">— Pick from the Quote Library —</option>' +
+        quoteLibrary.map((q) =>
+          `<option value="${escapeHtml(q.id)}">${escapeHtml(q.filename)} (${escapeHtml(q.uploadedByName || q.uploadedByEmail || "")}, ${escapeHtml(formatQuoteDate(q.uploadedAt))})</option>`
+        ).join("");
+      if (current && quoteLibrary.some((q) => q.id === current)) select.value = current;
+    }
+
+    window.addEventListener("message", (event) => {
+      if (event.origin !== window.location.origin) return;
+      const msg = event.data && event.data.specQuoteUpload;
+      if (!msg || !libraryUploadCtx) return;
+      const ctx = libraryUploadCtx;
+      libraryUploadCtx = null;
+      clearTimeout(ctx.timeout);
+
+      const btn = document.getElementById("libraryUploadBtn");
+      btn.disabled = false;
+      btn.textContent = "Upload to library";
+
+      if (msg.ok && msg.quote) {
+        document.getElementById("libraryPdf").value = "";
+        setStatus("libraryStatus", `${msg.quote.filename} is in the library — the whole team can merge from it now.`, "ok");
+        loadQuoteLibrary();
+      } else {
+        setStatus("libraryStatus", msg.error || "Upload failed — try again.", "error");
+      }
+    });
+
+    document.getElementById("quoteUploadForm").addEventListener("submit", (event) => {
+      const input = document.getElementById("libraryPdf");
+      if (!input.files || !input.files[0]) {
+        event.preventDefault();
+        setStatus("libraryStatus", "Choose a quote PDF first.", "warn");
+        return;
+      }
+
+      // Let the NATIVE submission proceed (into the hidden iframe) — no
+      // preventDefault, no JS file handling.
+      const btn = document.getElementById("libraryUploadBtn");
+      btn.disabled = true;
+      btn.textContent = "Uploading...";
+      setStatus("libraryStatus", "Uploading…", "ok");
+
+      libraryUploadCtx = {
+        timeout: setTimeout(() => {
+          libraryUploadCtx = null;
+          btn.disabled = false;
+          btn.textContent = "Upload to library";
+          setStatus("libraryStatus",
+            "The upload timed out — this machine may be blocking it. Upload from another computer instead; once a quote is in the library, ANY machine can merge from it.",
+            "error");
+        }, 90000)
+      };
+    });
 
     let attachTarget = null;
 
@@ -629,6 +872,7 @@
       document.getElementById("attachTitle").textContent =
         (pkg.title || pkg.docId || pkg.navId) + (pkg.docId && pkg.title ? " (" + pkg.docId + ")" : "");
       document.getElementById("attachPdf").value = "";
+      document.getElementById("attachLibrary").value = "";
       setStatus("attachStatus", "", "");
       document.getElementById("attachPanel").style.display = "block";
       document.getElementById("attachPanel").scrollIntoView({ behavior: "smooth", block: "nearest" });
@@ -639,11 +883,13 @@
       document.getElementById("attachPanel").style.display = "none";
     });
 
-    document.getElementById("attachBtn").addEventListener("click", () => {
+    document.getElementById("attachBtn").addEventListener("click", async () => {
       if (!attachTarget) return;
       const input = document.getElementById("attachPdf");
-      if (!input.files[0]) {
-        setStatus("attachStatus", "Choose the sales order / quote PDF first.", "warn");
+      const libraryQuoteId = document.getElementById("attachLibrary").value;
+
+      if (!libraryQuoteId && !input.files[0]) {
+        setStatus("attachStatus", "Pick a quote from the library or choose a PDF file first.", "warn");
         return;
       }
 
@@ -653,10 +899,41 @@
       setStatus("attachStatus", "Merging your quote…", "ok");
 
       const baseName = attachTarget.docId || attachTarget.title || "quote";
+      const variant = document.getElementById("attachVariant").value;
+
+      // Library path: plain JSON request, no upload from this machine at all.
+      if (libraryQuoteId) {
+        try {
+          const res = await fetch(
+            "/api/spec-packages/" + encodeURIComponent(attachTarget.navId) + "/attach-quote-library",
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ quoteId: libraryQuoteId, variant, name: baseName })
+            }
+          );
+          const data = await res.json();
+          if (!res.ok || !data.ok) throw new Error(data.error || "Unable to merge from the library.");
+
+          const a = document.createElement("a");
+          a.href = "/api/spec-packages/quote-download/" + encodeURIComponent(data.token);
+          a.download = data.filename || (baseName + "-with-specs.pdf");
+          document.body.appendChild(a);
+          a.click();
+          a.remove();
+          setStatus("attachStatus", "Merged PDF downloaded.", "ok");
+        } catch (err) {
+          setStatus("attachStatus", err.message, "error");
+        } finally {
+          startCooldown(btn, "Merge & download", 10);
+        }
+        return;
+      }
+
       nativeMergeSubmit(
         attachTarget.navId,
         input,
-        document.getElementById("attachVariant").value,
+        variant,
         baseName,
         "attachStatus",
         () => startCooldown(btn, "Merge & download", 10)
@@ -923,6 +1200,7 @@
           }
         }
       } catch {}
+      loadQuoteLibrary();
     })();
   </script>
 </body>

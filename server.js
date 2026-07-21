@@ -4928,11 +4928,13 @@ async function buildReceiptPdf(details) {
   }
   y -= 44;
 
+  // Receipt = who collected the payment (not the sales order), so the
+  // collecting Wilson user leads the detail rows.
   const rows = [
+    ["Payment initiated by", details.salesperson],
     ["Payment method", details.methodText],
     ["Customer", details.customerName],
     ["Reference", details.reference],
-    ["Salesperson", details.salesperson],
     ["Payment ID", details.paymentIntentId]
   ].filter(([, value]) => String(value || "").trim());
 

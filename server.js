@@ -2326,6 +2326,10 @@ function sendMergeResult(res, origin, payload) {
   const json = JSON.stringify(payload).replace(/</g, "\\u003c");
   res.setHeader("Content-Type", "text/html; charset=utf-8");
   res.setHeader("X-Content-Type-Options", "nosniff");
+  // The global X-Frame-Options is DENY (clickjacking protection), but THIS
+  // response exists solely to render inside our own hidden iframe — DENY
+  // blocks that on every machine and the page never hears the result.
+  res.setHeader("X-Frame-Options", "SAMEORIGIN");
   return res.send(
     "<!doctype html><html><body>Done. You can close this.<script>" +
     "try{parent.postMessage({specMerge:" + json + "},\"*\");}catch(e){}" +
@@ -2540,6 +2544,8 @@ function sendQuoteUploadResult(res, payload) {
   const json = JSON.stringify(payload).replace(/</g, "\\u003c");
   res.setHeader("Content-Type", "text/html; charset=utf-8");
   res.setHeader("X-Content-Type-Options", "nosniff");
+  // Same as sendMergeResult: must be frameable by our own page.
+  res.setHeader("X-Frame-Options", "SAMEORIGIN");
   return res.send(
     "<!doctype html><html><body>Done. You can close this.<script>" +
     "try{parent.postMessage({specQuoteUpload:" + json + "},\"*\");}catch(e){}" +

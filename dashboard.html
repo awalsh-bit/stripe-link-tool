@@ -802,6 +802,9 @@
       align-items: center;
       gap: 10px;
       flex-wrap: wrap;
+      /* The row is opened from the action pills on the right — anchor the
+         exposed controls under them so the eye doesn't jump across the page. */
+      justify-content: flex-end;
     }
 
     .receipt-send-label {

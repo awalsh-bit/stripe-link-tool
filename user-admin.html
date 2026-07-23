@@ -159,6 +159,57 @@
 
     .row-actions { display: flex; flex-wrap: wrap; gap: 6px; }
 
+    /* Kebab (three-dot) row menu */
+    .kebab-btn {
+      appearance: none;
+      border: 1px solid var(--border);
+      background: #fff;
+      color: #374151;
+      width: 32px;
+      height: 32px;
+      border-radius: 10px;
+      font-size: 18px;
+      line-height: 1;
+      font-weight: 800;
+      cursor: pointer;
+      padding: 0;
+    }
+
+    .kebab-btn:hover { background: #eef2ff; color: var(--primary); }
+
+    .kebab-menu {
+      position: fixed;
+      z-index: 60;
+      background: #fff;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      box-shadow: 0 12px 30px rgba(0, 0, 0, 0.14);
+      min-width: 200px;
+      padding: 6px;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .kebab-item {
+      appearance: none;
+      border: none;
+      background: none;
+      text-align: left;
+      padding: 9px 12px;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text);
+      cursor: pointer;
+      font-family: inherit;
+      white-space: nowrap;
+    }
+
+    .kebab-item:hover { background: #eef2ff; color: var(--primary); }
+    .kebab-item.danger { color: var(--error-text); }
+    .kebab-item.danger:hover { background: var(--error-bg); color: var(--error-text); }
+
     .perm-row td { background: #fbfcff; }
 
     .perm-grid {
@@ -549,6 +600,63 @@
       renderDeactivated(deactivatedRows);
     }
 
+    // ---- Kebab (three-dot) menus ----
+    // One open at a time; positioned fixed so the table's scroll container
+    // can't clip it; closes on outside click or any scroll.
+
+    let openKebab = null;
+
+    function closeKebab() {
+      if (openKebab) {
+        openKebab.menu.remove();
+        openKebab = null;
+      }
+    }
+
+    document.addEventListener("click", (event) => {
+      if (openKebab && !openKebab.btn.contains(event.target) && !openKebab.menu.contains(event.target)) {
+        closeKebab();
+      }
+    });
+    window.addEventListener("scroll", closeKebab, true);
+    window.addEventListener("resize", closeKebab);
+
+    function kebabButton(items) {
+      const usable = items.filter(Boolean);
+      const btn = el("button", { class: "kebab-btn", type: "button", "aria-label": "Actions", text: "⋮" });
+
+      btn.addEventListener("click", (event) => {
+        event.stopPropagation();
+        if (openKebab && openKebab.btn === btn) {
+          closeKebab();
+          return;
+        }
+        closeKebab();
+
+        const menu = el("div", { class: "kebab-menu" });
+        for (const item of usable) {
+          const mi = el("button", {
+            class: "kebab-item" + (item.danger ? " danger" : ""),
+            type: "button",
+            text: item.label
+          });
+          mi.addEventListener("click", (ev) => {
+            closeKebab();
+            item.onclick(ev);
+          });
+          menu.appendChild(mi);
+        }
+
+        document.body.appendChild(menu);
+        const rect = btn.getBoundingClientRect();
+        menu.style.top = rect.bottom + 6 + "px";
+        menu.style.left = Math.max(8, rect.right - menu.offsetWidth) + "px";
+        openKebab = { btn, menu };
+      });
+
+      return btn;
+    }
+
     function renderTeamRow({ entry, account }) {
       // The directory's (curated) name wins over registration casing.
       const name = (entry && entry.name) || account?.displayName || account?.email || "—";
@@ -582,13 +690,13 @@
         }));
       }
 
-      const actions = el("div", { class: "row-actions" });
+      // Everything lives in one three-dot menu — only the options that apply
+      // to this person appear.
+      const pendingEdits = account ? (state.pending.get(account.id)?.size || 0) : 0;
 
-      if (account && !account.isExecutive) {
-        const pendingEdits = state.pending.get(account.id)?.size || 0;
-        actions.appendChild(el("button", {
-          class: "tiny secondary",
-          text: state.expanded.has(account.id)
+      const menuItems = [
+        account && !account.isExecutive && {
+          label: state.expanded.has(account.id)
             ? "Hide pages"
             : (pendingEdits ? `Edit pages (${pendingEdits} unsaved)` : "Edit pages"),
           onclick: () => {
@@ -596,22 +704,15 @@
             else state.expanded.add(account.id);
             renderUsers();
           }
-        }));
-      }
-
-      actions.appendChild(el("button", {
-        class: "tiny secondary",
-        text: entry ? "Edit" : "Add to directory",
-        onclick: () => fillFormFromEntry(entry, account)
-      }));
-
-      if (!account && email) {
-        actions.appendChild(el("button", {
-          class: "tiny",
-          text: "Send invite",
+        },
+        {
+          label: entry ? "Edit profile" : "Add to directory",
+          onclick: () => fillFormFromEntry(entry, account)
+        },
+        !account && email && {
+          label: "Send invite",
           onclick: async (e) => {
             if (!confirm(`Send an account invite to ${name} (${email})?`)) return;
-            e.target.disabled = true;
             try {
               await api("/api/admin/users/invite", {
                 method: "POST",
@@ -621,66 +722,51 @@
               await loadUsers();
             } catch (err) {
               setStatus("usersStatus", err.message, "error");
-              e.target.disabled = false;
             }
           }
-        }));
-      }
-
-      if (account && ["invited", "pending_verification"].includes(account.status)) {
-        actions.appendChild(el("button", {
-          class: "tiny secondary",
-          text: "Resend invite",
+        },
+        account && ["invited", "pending_verification"].includes(account.status) && {
+          label: "Resend invite",
           onclick: (e) => rowAction(e.target, `/api/admin/users/${account.id}/resend-invite`, {})
-        }));
-      }
-
-      if (account && account.status === "active") {
-        actions.appendChild(el("button", {
-          class: "tiny secondary",
-          text: "Send reset",
+        },
+        account && account.status === "active" && {
+          label: "Send password reset",
           onclick: (e) => rowAction(e.target, `/api/admin/users/${account.id}/force-reset`, {})
-        }));
-        actions.appendChild(el("button", {
-          class: "tiny secondary",
-          text: account.isExecutive ? "Remove executive" : "Make executive",
+        },
+        account && account.status === "active" && {
+          label: account.isExecutive ? "Remove executive" : "Make executive",
           onclick: (e) => {
             if (account.isExecutive && !confirm(`Remove executive access from ${account.email}?`)) return;
             if (!account.isExecutive && !confirm(`Give ${account.email} full executive access, including user management?`)) return;
             rowAction(e.target, `/api/admin/users/${account.id}/executive`, { isExecutive: !account.isExecutive });
           }
-        }));
-        actions.appendChild(el("button", {
-          class: "tiny danger",
-          text: "Deactivate",
+        },
+        account && account.status === "active" && {
+          label: "Deactivate",
+          danger: true,
           onclick: (e) => {
             if (!confirm(`Deactivate ${name}? Their sessions end immediately and the whole profile moves to Deactivated users below. Directory info and payment records are kept.`)) return;
             rowAction(e.target, `/api/admin/users/${account.id}/status`, { status: "disabled" });
           }
-        }));
-      }
-
-      // Delete only exists for directory-only rows. A profile linked to an
-      // account is permanent — deactivate it instead (the server enforces
-      // this too).
-      if (entry && !account) {
-        actions.appendChild(el("button", {
-          class: "tiny danger",
-          text: "Delete",
-          onclick: async (e) => {
+        },
+        // Delete only exists for directory-only rows. A profile linked to an
+        // account is permanent — deactivate it instead (the server enforces
+        // this too).
+        entry && !account && {
+          label: "Delete",
+          danger: true,
+          onclick: async () => {
             if (!confirm(`Delete code ${entry.code} (${entry.name})? This row has no linked account. Existing payment records keep the code; it just leaves the directory.`)) return;
-            e.target.disabled = true;
             try {
               await api("/api/admin/employee-directory/" + encodeURIComponent(entry.code), { method: "DELETE" });
               setStatus("dirStatus", `Deleted ${entry.code}.`, "ok");
               await loadDirectory();
             } catch (err) {
               setStatus("dirStatus", err.message, "error");
-              e.target.disabled = false;
             }
           }
-        }));
-      }
+        }
+      ];
 
       return el("tr", {}, [
         el("td", {}, [el("strong", { text: entry?.code || "—" })]),
@@ -690,7 +776,7 @@
         el("td", { class: "muted", text: fmtTrailingRevenue(entry?.code) }),
         el("td", { text: entry ? String(entry.commuteMiles ?? 0) : "—" }),
         accountCell,
-        el("td", {}, [actions])
+        el("td", {}, [kebabButton(menuItems)])
       ]);
     }
 

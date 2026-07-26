@@ -131,6 +131,7 @@ import {
 } from "./lib/satisfaction-postgres.js";
 import {
   saveCaseVisitResponse,
+  updateCaseVisitResponse,
   listCaseVisitResponses,
   CASE_VISIT_PROGRESS_OPTIONS
 } from "./lib/case-visit-postgres.js";
@@ -5220,23 +5221,40 @@ app.get("/api/satisfaction/responses", requirePagePermission("/satisfaction-resu
 });
 
 // Case visit survey (Test Modules — temporary/external pilot).
+// Each window asks ONE question and saves on the first tap; passing the id
+// back updates the same record when the visitor changes their answer.
 app.post("/api/case-visit/responses", requirePagePermission("/case-visit-survey.html"), async (req, res) => {
   try {
     const staffRating = String(req.body?.staffRating || "").trim();
-    if (!["sad", "neutral", "happy"].includes(staffRating)) {
+    const progress = String(req.body?.progress || "").trim();
+    const id = String(req.body?.id || "").trim();
+
+    if (staffRating && !["sad", "neutral", "happy"].includes(staffRating)) {
       return res.status(400).json({ error: "Pick a face for the security experience." });
     }
-
-    const progress = String(req.body?.progress || "").trim();
-    if (!CASE_VISIT_PROGRESS_OPTIONS.includes(progress)) {
+    if (progress && !CASE_VISIT_PROGRESS_OPTIONS.includes(progress)) {
       return res.status(400).json({ error: "Pick one of the progress options." });
     }
+    if (!staffRating && !progress) {
+      return res.status(400).json({ error: "Pick an answer first." });
+    }
 
-    const saved = await saveCaseVisitResponse({
-      staffRating,
-      progress,
-      recordedByEmail: req.authUser?.email || ""
-    });
+    let saved;
+    if (id) {
+      if (!/^[0-9a-fA-F-]{36}$/.test(id)) {
+        return res.status(400).json({ error: "Bad response id." });
+      }
+      saved = await updateCaseVisitResponse(id, { staffRating: staffRating || null, progress });
+      if (!saved) {
+        return res.status(404).json({ error: "That response was not found." });
+      }
+    } else {
+      saved = await saveCaseVisitResponse({
+        staffRating: staffRating || null,
+        progress,
+        recordedByEmail: req.authUser?.email || ""
+      });
+    }
 
     return res.json({ success: true, response: saved });
   } catch (err) {

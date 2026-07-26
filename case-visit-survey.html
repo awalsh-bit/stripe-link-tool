@@ -33,16 +33,20 @@
       background: #fffbeb; color: #92400e; font-size: 12px; font-weight: 800;
       letter-spacing: 0.05em; text-transform: uppercase; margin-bottom: 14px;
     }
-    .start-btn {
+
+    /* Launcher: one button per single-question survey */
+    .launch-stack { display: grid; gap: 16px; }
+    .launch-btn {
       appearance: none; border: none; cursor: pointer;
-      width: 100%; padding: 44px 20px;
+      width: 100%; padding: 30px 20px;
       background: var(--primary); color: #fff;
-      border-radius: 22px; font-family: inherit;
-      font-size: clamp(26px, 4vw, 38px); font-weight: 800;
-      box-shadow: 0 14px 40px rgba(99, 91, 255, 0.35);
+      border-radius: 20px; font-family: inherit;
+      font-size: clamp(20px, 3vw, 28px); font-weight: 800;
+      box-shadow: 0 12px 34px rgba(99, 91, 255, 0.32);
       transition: transform 0.08s ease, background 0.12s ease;
     }
-    .start-btn:hover { background: var(--primary-hover); transform: translateY(-2px); }
+    .launch-btn:hover { background: var(--primary-hover); transform: translateY(-2px); }
+    .launch-sub { display: block; margin-top: 6px; font-size: 14px; font-weight: 600; opacity: 0.85; }
     .start-note { margin-top: 14px; color: var(--muted); font-size: 13.5px; text-align: center; }
 
     /* Run mode */
@@ -66,7 +70,6 @@
       text-align: center; margin: 0 0 38px;
     }
 
-    /* Q1: face buttons */
     .face-row { display: flex; gap: 18px; justify-content: center; }
     .face-btn {
       appearance: none; cursor: pointer;
@@ -83,7 +86,6 @@
     .face-btn.selected.face-neutral { background: #fef3c7; border-color: #fcd34d; color: #92400e; }
     .face-btn.selected.face-happy { background: #d1fae5; border-color: #6ee7b7; color: #065f46; }
 
-    /* Q2: PROGRESS stretched over the options */
     .progress-word {
       display: flex; justify-content: space-between;
       font-size: clamp(24px, 4vw, 44px); font-weight: 800;
@@ -103,38 +105,47 @@
     .progress-btn:hover { border-color: #b6c2da; transform: translateY(-2px); }
     .progress-btn.selected { background: #eef2ff; border-color: var(--primary); color: #3730a3; }
 
-    .big-action {
-      appearance: none; border: none; cursor: pointer;
-      width: 100%; margin-top: 42px; padding: 26px 20px;
-      background: var(--primary); color: #fff;
-      border-radius: 20px; font-family: inherit;
-      font-size: clamp(22px, 3vw, 30px); font-weight: 800;
-      box-shadow: 0 14px 40px rgba(99, 91, 255, 0.35);
-      transition: transform 0.08s ease, background 0.12s ease;
-      visibility: hidden;
+    /* Saved view */
+    .saved-view { display: none; text-align: center; }
+    .saved-view.show { display: block; }
+    .saved-check {
+      width: 92px; height: 92px; border-radius: 50%; background: #d1fae5; color: #065f46;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 46px; margin: 0 auto 22px;
     }
-    .big-action.show { visibility: visible; }
-    .big-action:hover { background: var(--primary-hover); transform: translateY(-2px); }
-    .big-action:disabled { opacity: 0.6; cursor: default; }
+    .saved-view h2 { margin: 0 0 10px; font-size: clamp(26px, 4vw, 38px); }
+    .saved-answer { color: var(--muted); font-size: clamp(17px, 2.2vw, 22px); margin: 0 0 34px; }
+    .saved-answer strong { color: var(--text); }
+    .saved-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; max-width: 720px; margin: 0 auto; }
+    .saved-btn {
+      appearance: none; cursor: pointer; font-family: inherit;
+      padding: 24px 18px; border-radius: 18px;
+      font-size: clamp(18px, 2.4vw, 24px); font-weight: 800;
+      transition: transform 0.08s ease, background 0.12s ease;
+    }
+    .saved-btn:hover { transform: translateY(-2px); }
+    .saved-btn.change { border: 2px solid var(--border); background: #fff; color: var(--text); }
+    .saved-btn.change:hover { border-color: #b6c2da; }
+    .saved-btn.close { border: none; background: var(--primary); color: #fff; box-shadow: 0 12px 34px rgba(99, 91, 255, 0.32); }
+    .saved-btn.close:hover { background: var(--primary-hover); }
+
+    /* Close message view */
+    .close-view { display: none; text-align: center; }
+    .close-view.show { display: block; }
+    .close-view p {
+      margin: 0; font-size: clamp(26px, 4vw, 40px);
+      font-weight: 800; line-height: 1.4;
+    }
 
     .run-status { display: none; border-radius: 14px; padding: 14px 16px; font-size: 16px; margin-top: 18px; text-align: center; }
     .run-status.show { display: block; }
     .run-status.error { background: #fef2f2; color: #991b1b; }
 
-    .thanks { display: none; text-align: center; }
-    .thanks.show { display: block; }
-    .thanks-check {
-      width: 110px; height: 110px; border-radius: 50%; background: #d1fae5; color: #065f46;
-      display: flex; align-items: center; justify-content: center;
-      font-size: 56px; margin: 0 auto 26px;
-    }
-    .thanks h2 { margin: 0 0 10px; font-size: clamp(28px, 4vw, 40px); }
-    .thanks p { margin: 0; color: var(--muted); font-size: 18px; }
-
     @media (max-width: 720px) {
       .surface { padding: 20px; }
-      .face-row { flex-direction: row; gap: 10px; }
+      .face-row { gap: 10px; }
       .progress-grid { grid-template-columns: 1fr 1fr; }
+      .saved-actions { grid-template-columns: 1fr; }
       .run-inner { padding: 26px 14px 40px; }
     }
   </style>
@@ -147,47 +158,61 @@
       <span class="test-pill">Test Module — pilot</span>
       <h1>Case Visit Survey</h1>
       <p class="lead">
-        Opens the two-question visit survey in its own full-screen window.
-        It resets itself after every response.
+        Each button opens a one-question survey in its own full-screen window. The answer
+        saves the moment it's tapped — the visitor can change it or close the window.
       </p>
-      <button id="startBtn" class="start-btn" type="button">Start Survey</button>
+      <div class="launch-stack">
+        <button id="startSecurityBtn" class="launch-btn" type="button">
+          Security Experience
+          <span class="launch-sub">How was the security staff &amp; process?</span>
+        </button>
+        <button id="startProgressBtn" class="launch-btn" type="button">
+          Case Manager Progress
+          <span class="launch-sub">How much progress was made today?</span>
+        </button>
+      </div>
       <div class="start-note">Results appear on the Case Visit Results page as they come in.</div>
     </div>
 
     <div id="internal-shell-footer"></div>
   </div>
 
-  <!-- Run mode (survey window) -->
+  <!-- Run mode (one-question survey window) -->
   <div class="run-overlay">
     <div class="run-inner">
-      <!-- Step 1 -->
-      <div id="step1">
-        <div class="run-question">How would you rate your experience with our security staff and process?</div>
-        <div class="face-row" id="faceRow"></div>
+      <!-- Question -->
+      <div id="questionView">
+        <div class="run-question" id="questionText"></div>
+        <div class="face-row" id="faceRow" style="display: none;"></div>
+        <div id="progressWrap" style="display: none;">
+          <div class="progress-word" id="progressWord"></div>
+          <div class="progress-grid" id="progressGrid"></div>
+        </div>
       </div>
 
-      <!-- Step 2 -->
-      <div id="step2" style="display: none;">
-        <div class="run-question">How much progress were you able to make with your case manager in your meeting today?</div>
-        <div class="progress-word" id="progressWord"></div>
-        <div class="progress-grid" id="progressGrid"></div>
+      <!-- Saved -->
+      <div id="savedView" class="saved-view">
+        <div class="saved-check">&#10003;</div>
+        <h2>Your answer is saved</h2>
+        <p class="saved-answer">You answered: <strong id="savedAnswerText"></strong></p>
+        <div class="saved-actions">
+          <button id="changeBtn" class="saved-btn change" type="button">Change Answer</button>
+          <button id="closeBtn" class="saved-btn close" type="button">Close Window</button>
+        </div>
       </div>
 
-      <!-- Thank you -->
-      <div id="stepThanks" class="thanks">
-        <div class="thanks-check">&#10003;</div>
-        <h2>Thank you!</h2>
-        <p>We appreciate your feedback.</p>
+      <!-- Close message -->
+      <div id="closeView" class="close-view">
+        <p>To provide additional feedback,<br />please use the laptops in the lobby.</p>
       </div>
 
-      <button id="bigActionBtn" class="big-action" type="button">Next</button>
       <div id="runStatus" class="run-status"></div>
     </div>
   </div>
 
   <script src="internal-shell.js"></script>
   <script>
-    const RUN_MODE = new URLSearchParams(window.location.search).get("run") === "1";
+    const RUN_TYPE = new URLSearchParams(window.location.search).get("run") || "";
 
     const FACES = [
       {
@@ -221,20 +246,26 @@
     ];
 
     // ---- Launcher ----
-    document.getElementById("startBtn").addEventListener("click", () => {
-      window.open("case-visit-survey.html?run=1", "_blank");
+    document.getElementById("startSecurityBtn").addEventListener("click", () => {
+      window.open("case-visit-survey.html?run=security", "_blank");
+    });
+    document.getElementById("startProgressBtn").addEventListener("click", () => {
+      window.open("case-visit-survey.html?run=progress", "_blank");
     });
 
-    // ---- Run mode ----
-    if (RUN_MODE) {
+    // ---- Run mode: one question, save on first tap ----
+    if (RUN_TYPE === "security" || RUN_TYPE === "progress") {
       document.body.classList.add("run-mode");
 
-      let step = 1;
-      let selectedFace = null;
-      let selectedProgress = null;
+      let savedId = null;      // record id after the first save; updates after
+      let saving = false;
+      let savedLabel = "";
 
-      const bigBtn = document.getElementById("bigActionBtn");
+      const questionView = document.getElementById("questionView");
+      const savedView = document.getElementById("savedView");
+      const closeView = document.getElementById("closeView");
       const faceRow = document.getElementById("faceRow");
+      const progressWrap = document.getElementById("progressWrap");
       const progressGrid = document.getElementById("progressGrid");
 
       function setRunStatus(message) {
@@ -244,76 +275,15 @@
         box.textContent = message;
       }
 
-      function updateBigButton() {
-        if (step === 1) {
-          bigBtn.textContent = "Next";
-          bigBtn.classList.toggle("show", selectedFace != null);
-        } else if (step === 2) {
-          bigBtn.textContent = "Submit";
-          bigBtn.classList.toggle("show", selectedProgress != null);
-        }
+      function showView(name) {
+        questionView.style.display = name === "question" ? "" : "none";
+        savedView.classList.toggle("show", name === "saved");
+        closeView.classList.toggle("show", name === "close");
       }
 
-      // Q1 faces
-      for (const face of FACES) {
-        const btn = document.createElement("button");
-        btn.type = "button";
-        btn.className = "face-btn";
-        btn.innerHTML = faceSvg(face.mouth) + '<span class="face-label">' + face.label + "</span>";
-        btn.addEventListener("click", () => {
-          selectedFace = face.value;
-          faceRow.querySelectorAll(".face-btn").forEach((b) => { b.className = "face-btn"; });
-          btn.className = "face-btn selected " + face.cls;
-          setRunStatus("");
-          updateBigButton();
-        });
-        faceRow.appendChild(btn);
-      }
-
-      // Q2: the word PROGRESS stretched across the option row
-      const progressWord = document.getElementById("progressWord");
-      for (const letter of "PROGRESS") {
-        const span = document.createElement("span");
-        span.textContent = letter;
-        progressWord.appendChild(span);
-      }
-
-      for (const label of PROGRESS_OPTIONS) {
-        const btn = document.createElement("button");
-        btn.type = "button";
-        btn.className = "progress-btn";
-        btn.textContent = label;
-        btn.addEventListener("click", () => {
-          selectedProgress = label;
-          progressGrid.querySelectorAll(".progress-btn").forEach((b) => b.classList.remove("selected"));
-          btn.classList.add("selected");
-          setRunStatus("");
-          updateBigButton();
-        });
-        progressGrid.appendChild(btn);
-      }
-
-      function showStep(next) {
-        step = next;
-        document.getElementById("step1").style.display = step === 1 ? "" : "none";
-        document.getElementById("step2").style.display = step === 2 ? "" : "none";
-        document.getElementById("stepThanks").classList.toggle("show", step === 3);
-        bigBtn.style.display = step === 3 ? "none" : "";
-        updateBigButton();
-      }
-
-      function resetSurvey() {
-        selectedFace = null;
-        selectedProgress = null;
-        faceRow.querySelectorAll(".face-btn").forEach((b) => { b.className = "face-btn"; });
-        progressGrid.querySelectorAll(".progress-btn").forEach((b) => b.classList.remove("selected"));
-        setRunStatus("");
-        showStep(1);
-      }
-
-      async function submitSurvey() {
-        bigBtn.disabled = true;
-        bigBtn.textContent = "Submitting...";
+      async function saveAnswer(payload, label) {
+        if (saving) return;
+        saving = true;
         setRunStatus("");
 
         try {
@@ -321,30 +291,86 @@
             method: "POST",
             headers: { "Content-Type": "application/json" },
             credentials: "same-origin",
-            body: JSON.stringify({ staffRating: selectedFace, progress: selectedProgress })
+            body: JSON.stringify({ ...payload, id: savedId || "" })
           });
           const data = await res.json();
           if (!res.ok) throw new Error(data.error || "Unable to save the response.");
 
-          showStep(3);
-          setTimeout(resetSurvey, 4500);
+          savedId = data.response?.id || savedId;
+          savedLabel = label;
+          document.getElementById("savedAnswerText").textContent = label;
+          showView("saved");
         } catch (err) {
           setRunStatus(err.message);
-          updateBigButton();
         } finally {
-          bigBtn.disabled = false;
+          saving = false;
         }
       }
 
-      bigBtn.addEventListener("click", () => {
-        if (step === 1 && selectedFace != null) {
-          showStep(2);
-        } else if (step === 2 && selectedProgress != null) {
-          submitSurvey();
+      if (RUN_TYPE === "security") {
+        document.getElementById("questionText").textContent =
+          "How would you rate your experience with our security staff and process?";
+        faceRow.style.display = "";
+
+        for (const face of FACES) {
+          const btn = document.createElement("button");
+          btn.type = "button";
+          btn.className = "face-btn";
+          btn.innerHTML = faceSvg(face.mouth) + '<span class="face-label">' + face.label + "</span>";
+          btn.addEventListener("click", () => {
+            faceRow.querySelectorAll(".face-btn").forEach((b) => { b.className = "face-btn"; });
+            btn.className = "face-btn selected " + face.cls;
+            saveAnswer({ staffRating: face.value }, face.label);
+          });
+          faceRow.appendChild(btn);
         }
+      } else {
+        document.getElementById("questionText").textContent =
+          "How much progress were you able to make with your case manager in your meeting today?";
+        progressWrap.style.display = "";
+
+        const progressWord = document.getElementById("progressWord");
+        for (const letter of "PROGRESS") {
+          const span = document.createElement("span");
+          span.textContent = letter;
+          progressWord.appendChild(span);
+        }
+
+        for (const label of PROGRESS_OPTIONS) {
+          const btn = document.createElement("button");
+          btn.type = "button";
+          btn.className = "progress-btn";
+          btn.textContent = label;
+          btn.addEventListener("click", () => {
+            progressGrid.querySelectorAll(".progress-btn").forEach((b) => b.classList.remove("selected"));
+            btn.classList.add("selected");
+            saveAnswer({ progress: label }, label);
+          });
+          progressGrid.appendChild(btn);
+        }
+      }
+
+      document.getElementById("changeBtn").addEventListener("click", () => {
+        showView("question"); // selection stays highlighted; a new tap updates the same record
       });
 
-      showStep(1);
+      document.getElementById("closeBtn").addEventListener("click", () => {
+        showView("close");
+        // Give the message a moment, then close. If the browser refuses
+        // (kiosk settings), reset for the next visitor instead.
+        setTimeout(() => {
+          window.close();
+          setTimeout(() => {
+            savedId = null;
+            savedLabel = "";
+            faceRow.querySelectorAll(".face-btn").forEach((b) => { b.className = "face-btn"; });
+            progressGrid.querySelectorAll(".progress-btn").forEach((b) => b.classList.remove("selected"));
+            showView("question");
+          }, 1500);
+        }, 6000);
+      });
+
+      showView("question");
     }
   </script>
 </body>

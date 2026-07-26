@@ -154,23 +154,31 @@
       currentRows = rows;
       document.getElementById("responseCount").textContent = String(rows.length);
 
-      const happy = rows.filter((r) => r.staffRating === "happy").length;
-      const neutral = rows.filter((r) => r.staffRating === "neutral").length;
-      const sad = rows.filter((r) => r.staffRating === "sad").length;
+      // Each record answers ONE question, so each metric uses its own
+      // denominator: security % over face answers, progress % over
+      // progress answers.
+      const securityRows = rows.filter((r) => r.staffRating);
+      const progressRows = rows.filter((r) => r.progress);
+      const happy = securityRows.filter((r) => r.staffRating === "happy").length;
+      const neutral = securityRows.filter((r) => r.staffRating === "neutral").length;
+      const sad = securityRows.filter((r) => r.staffRating === "sad").length;
 
-      if (rows.length) {
-        const pctHappy = Math.round((happy / rows.length) * 100);
+      if (securityRows.length) {
+        const pctHappy = Math.round((happy / securityRows.length) * 100);
         document.getElementById("securityValue").textContent = pctHappy + "% Great";
         document.getElementById("securityBreakdown").textContent =
           `${happy} Great · ${neutral} Okay · ${sad} Poor`;
-
-        const met = rows.filter((r) =>
-          r.progress === "As much as I expected" || r.progress === "More than I expected"
-        ).length;
-        document.getElementById("metValue").textContent = Math.round((met / rows.length) * 100) + "%";
       } else {
         document.getElementById("securityValue").textContent = "—";
         document.getElementById("securityBreakdown").textContent = "Great · Okay · Poor";
+      }
+
+      if (progressRows.length) {
+        const met = progressRows.filter((r) =>
+          r.progress === "As much as I expected" || r.progress === "More than I expected"
+        ).length;
+        document.getElementById("metValue").textContent = Math.round((met / progressRows.length) * 100) + "%";
+      } else {
         document.getElementById("metValue").textContent = "—";
       }
 
@@ -182,7 +190,7 @@
       const top = [...counts.entries()].sort((a, b) => b[1] - a[1])[0];
       document.getElementById("topProgress").textContent = top ? top[0] : "—";
       document.getElementById("topProgressSub").textContent = top
-        ? `${top[1]} of ${rows.length} response${rows.length === 1 ? "" : "s"}`
+        ? `${top[1]} of ${progressRows.length} progress answer${progressRows.length === 1 ? "" : "s"}`
         : "Most-chosen answer";
 
       if (!rows.length) {
@@ -191,11 +199,11 @@
       }
 
       tableBody.innerHTML = rows.map((r) => {
-        const face = FACE_META[r.staffRating] || { label: r.staffRating, cls: "" };
+        const face = r.staffRating ? (FACE_META[r.staffRating] || { label: r.staffRating, cls: "" }) : null;
         return `
           <tr>
             <td>${formatDateTime(r.createdAt)}</td>
-            <td><span class="face-badge ${face.cls}">${face.label}</span></td>
+            <td>${face ? `<span class="face-badge ${face.cls}">${face.label}</span>` : "—"}</td>
             <td>${escapeHtml(r.progress || "—")}</td>
             <td class="seg-label">${escapeHtml(r.recordedByEmail || "—")}</td>
           </tr>

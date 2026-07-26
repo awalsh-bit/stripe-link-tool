@@ -130,6 +130,11 @@ import {
   SATISFACTION_PRIORITIES
 } from "./lib/satisfaction-postgres.js";
 import {
+  saveCaseVisitResponse,
+  listCaseVisitResponses,
+  CASE_VISIT_PROGRESS_OPTIONS
+} from "./lib/case-visit-postgres.js";
+import {
   computeReimbursedMiles,
   computeReportTotals,
   listRatePeriods,
@@ -245,7 +250,9 @@ const INTERNAL_PAGE_PATHS = new Set([
   "/hr-candidates.html",
   "/spec-packages.html",
   "/satisfaction-survey.html",
-  "/satisfaction-results.html"
+  "/satisfaction-results.html",
+  "/case-visit-survey.html",
+  "/case-visit-results.html"
 ]);
 
 const UNAUTHENTICATED_INTERNAL_PATHS = new Set([
@@ -406,7 +413,9 @@ const PAGE_LABELS = {
   "/hr-phone-screen.html": "Phone Screen",
   "/hr-candidates.html": "Candidates",
   "/satisfaction-survey.html": "Client Satisfaction Survey",
-  "/satisfaction-results.html": "Satisfaction Results"
+  "/satisfaction-results.html": "Satisfaction Results",
+  "/case-visit-survey.html": "Case Visit Survey",
+  "/case-visit-results.html": "Case Visit Results"
 };
 
 // Category groupings for the User Admin permission UI. A page may appear in
@@ -421,7 +430,12 @@ const PAGE_CATEGORIES = [
   {
     key: "test_modules",
     label: "Test Modules",
-    pages: ["/satisfaction-survey.html", "/satisfaction-results.html"]
+    pages: [
+      "/satisfaction-survey.html",
+      "/satisfaction-results.html",
+      "/case-visit-survey.html",
+      "/case-visit-results.html"
+    ]
   },
   {
     key: "payments",
@@ -5201,6 +5215,48 @@ app.get("/api/satisfaction/responses", requirePagePermission("/satisfaction-resu
     return res.json({ responses, priorities: SATISFACTION_PRIORITIES });
   } catch (err) {
     console.error("Satisfaction list failed:", err.message);
+    return res.status(500).json({ error: "Unable to load survey results." });
+  }
+});
+
+// Case visit survey (Test Modules — temporary/external pilot).
+app.post("/api/case-visit/responses", requirePagePermission("/case-visit-survey.html"), async (req, res) => {
+  try {
+    const staffRating = String(req.body?.staffRating || "").trim();
+    if (!["sad", "neutral", "happy"].includes(staffRating)) {
+      return res.status(400).json({ error: "Pick a face for the security experience." });
+    }
+
+    const progress = String(req.body?.progress || "").trim();
+    if (!CASE_VISIT_PROGRESS_OPTIONS.includes(progress)) {
+      return res.status(400).json({ error: "Pick one of the progress options." });
+    }
+
+    const saved = await saveCaseVisitResponse({
+      staffRating,
+      progress,
+      recordedByEmail: req.authUser?.email || ""
+    });
+
+    return res.json({ success: true, response: saved });
+  } catch (err) {
+    console.error("Case visit save failed:", err.message);
+    return res.status(500).json({ error: "Unable to save the response — try again." });
+  }
+});
+
+app.get("/api/case-visit/responses", requirePagePermission("/case-visit-results.html"), async (req, res) => {
+  try {
+    const start = String(req.query.start || "").trim();
+    const end = String(req.query.end || "").trim();
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(start) || !/^\d{4}-\d{2}-\d{2}$/.test(end)) {
+      return res.status(400).json({ error: "start and end dates are required (YYYY-MM-DD)." });
+    }
+
+    const responses = await listCaseVisitResponses(start, end, APP_TIMEZONE);
+    return res.json({ responses });
+  } catch (err) {
+    console.error("Case visit list failed:", err.message);
     return res.status(500).json({ error: "Unable to load survey results." });
   }
 });

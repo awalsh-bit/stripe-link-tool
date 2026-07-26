@@ -341,6 +341,14 @@ Test Module: internal pilot of the eventual public NPS survey
 results + CSV export at `/satisfaction-results.html` (both under Test Modules,
 permission-managed). Managed by `lib/satisfaction-postgres.js`.
 
+### Case visit survey (live — created by `sql/015_case_visit.sql`)
+
+Test Module, temporary/external pilot (security check-in experience
+sad/neutral/happy + case manager meeting progress). `case_visit_responses`;
+survey at `/case-visit-survey.html`, results + CSV at
+`/case-visit-results.html`. Fully self-contained — drop the table and the two
+pages to remove it. Managed by `lib/case-visit-postgres.js`.
+
 ### Commissions (live — managed by `lib/commissions-postgres.js`)
 
 Monthly ePASS workbook imports reviewed on the Commissions pages. Since the

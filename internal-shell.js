@@ -163,7 +163,9 @@
         title: "Test Modules",
         children: [
           { href: "satisfaction-survey.html", title: "Client Satisfaction Survey" },
-          { href: "satisfaction-results.html", title: "Satisfaction Results" }
+          { href: "satisfaction-results.html", title: "Satisfaction Results" },
+          { href: "case-visit-survey.html", title: "Case Visit Survey" },
+          { href: "case-visit-results.html", title: "Case Visit Results" }
         ]
       }
     ];

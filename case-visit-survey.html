@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="robots" content="noindex,nofollow,noarchive" />
+  <title>Case Visit Survey</title>
+  <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+  <link rel="stylesheet" href="internal-shell.css" />
+  <style>
+    :root {
+      --bg: #f7f8fc; --card: #ffffff; --text: #1f2937; --muted: #6b7280;
+      --border: #dbe1ea; --primary: #635bff; --primary-hover: #564ef0;
+      --shadow: 0 10px 35px rgba(0, 0, 0, 0.08); --radius: 18px;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: linear-gradient(180deg, #eef2ff 0%, var(--bg) 100%);
+      color: var(--text); min-height: 100vh; padding: 32px 16px;
+    }
+    .wrap { max-width: 880px; margin: 0 auto; }
+    .surface {
+      background: var(--card); border: 1px solid rgba(99, 91, 255, 0.12);
+      box-shadow: var(--shadow); border-radius: var(--radius);
+      padding: 30px; margin: 0 auto 22px;
+    }
+    h1 { margin: 0 0 8px; font-size: 26px; }
+    .lead { margin: 0 0 26px; color: var(--muted); font-size: 15px; line-height: 1.6; }
+    .test-pill {
+      display: inline-flex; border-radius: 999px; padding: 4px 12px;
+      background: #fffbeb; color: #92400e; font-size: 12px; font-weight: 800;
+      letter-spacing: 0.05em; text-transform: uppercase; margin-bottom: 14px;
+    }
+    .start-btn {
+      appearance: none; border: none; cursor: pointer;
+      width: 100%; padding: 44px 20px;
+      background: var(--primary); color: #fff;
+      border-radius: 22px; font-family: inherit;
+      font-size: clamp(26px, 4vw, 38px); font-weight: 800;
+      box-shadow: 0 14px 40px rgba(99, 91, 255, 0.35);
+      transition: transform 0.08s ease, background 0.12s ease;
+    }
+    .start-btn:hover { background: var(--primary-hover); transform: translateY(-2px); }
+    .start-note { margin-top: 14px; color: var(--muted); font-size: 13.5px; text-align: center; }
+
+    /* Run mode */
+    body.run-mode { padding: 0; }
+    body.run-mode .wrap { display: none; }
+    .run-overlay {
+      display: none;
+      position: fixed; inset: 0; z-index: 100;
+      background: linear-gradient(180deg, #eef2ff 0%, var(--bg) 100%);
+      overflow-y: auto;
+    }
+    body.run-mode .run-overlay { display: block; }
+    .run-inner {
+      max-width: 980px; margin: 0 auto;
+      min-height: 100vh; display: flex; flex-direction: column;
+      justify-content: center; padding: 40px 26px 60px;
+    }
+    .run-question {
+      font-size: clamp(26px, 4.2vw, 42px);
+      font-weight: 800; line-height: 1.28;
+      text-align: center; margin: 0 0 38px;
+    }
+
+    /* Q1: face buttons */
+    .face-row { display: flex; gap: 18px; justify-content: center; }
+    .face-btn {
+      appearance: none; cursor: pointer;
+      flex: 1 1 0; max-width: 240px; padding: 30px 10px 24px;
+      border: 2px solid var(--border); border-radius: 24px; background: #fff;
+      font-family: inherit; color: #6b7280;
+      display: flex; flex-direction: column; align-items: center; gap: 12px;
+      transition: transform 0.06s ease, background 0.12s ease, border-color 0.12s ease, color 0.12s ease;
+    }
+    .face-btn:hover { border-color: #b6c2da; transform: translateY(-2px); }
+    .face-btn svg { width: clamp(64px, 9vw, 96px); height: auto; }
+    .face-label { font-size: clamp(15px, 1.8vw, 19px); font-weight: 700; }
+    .face-btn.selected.face-sad { background: #fee2e2; border-color: #fca5a5; color: #991b1b; }
+    .face-btn.selected.face-neutral { background: #fef3c7; border-color: #fcd34d; color: #92400e; }
+    .face-btn.selected.face-happy { background: #d1fae5; border-color: #6ee7b7; color: #065f46; }
+
+    /* Q2: PROGRESS stretched over the options */
+    .progress-word {
+      display: flex; justify-content: space-between;
+      font-size: clamp(24px, 4vw, 44px); font-weight: 800;
+      color: #a5b4fc; text-transform: uppercase;
+      margin: 0 6px 14px;
+      user-select: none;
+    }
+    .progress-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
+    .progress-btn {
+      appearance: none; cursor: pointer; text-align: center;
+      border: 2px solid var(--border); border-radius: 20px; background: #fff;
+      padding: 30px 14px; font-family: inherit;
+      font-size: clamp(15px, 1.7vw, 19px); font-weight: 700;
+      color: var(--text); line-height: 1.4;
+      transition: transform 0.06s ease, background 0.12s ease, border-color 0.12s ease;
+    }
+    .progress-btn:hover { border-color: #b6c2da; transform: translateY(-2px); }
+    .progress-btn.selected { background: #eef2ff; border-color: var(--primary); color: #3730a3; }
+
+    .big-action {
+      appearance: none; border: none; cursor: pointer;
+      width: 100%; margin-top: 42px; padding: 26px 20px;
+      background: var(--primary); color: #fff;
+      border-radius: 20px; font-family: inherit;
+      font-size: clamp(22px, 3vw, 30px); font-weight: 800;
+      box-shadow: 0 14px 40px rgba(99, 91, 255, 0.35);
+      transition: transform 0.08s ease, background 0.12s ease;
+      visibility: hidden;
+    }
+    .big-action.show { visibility: visible; }
+    .big-action:hover { background: var(--primary-hover); transform: translateY(-2px); }
+    .big-action:disabled { opacity: 0.6; cursor: default; }
+
+    .run-status { display: none; border-radius: 14px; padding: 14px 16px; font-size: 16px; margin-top: 18px; text-align: center; }
+    .run-status.show { display: block; }
+    .run-status.error { background: #fef2f2; color: #991b1b; }
+
+    .thanks { display: none; text-align: center; }
+    .thanks.show { display: block; }
+    .thanks-check {
+      width: 110px; height: 110px; border-radius: 50%; background: #d1fae5; color: #065f46;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 56px; margin: 0 auto 26px;
+    }
+    .thanks h2 { margin: 0 0 10px; font-size: clamp(28px, 4vw, 40px); }
+    .thanks p { margin: 0; color: var(--muted); font-size: 18px; }
+
+    @media (max-width: 720px) {
+      .surface { padding: 20px; }
+      .face-row { flex-direction: row; gap: 10px; }
+      .progress-grid { grid-template-columns: 1fr 1fr; }
+      .run-inner { padding: 26px 14px 40px; }
+    }
+  </style>
+</head>
+<body data-shell-label="Case Visit Survey" data-shell-icon="accounting">
+  <div class="wrap">
+    <div id="internal-shell-header"></div>
+
+    <div class="surface">
+      <span class="test-pill">Test Module — pilot</span>
+      <h1>Case Visit Survey</h1>
+      <p class="lead">
+        Opens the two-question visit survey in its own full-screen window.
+        It resets itself after every response.
+      </p>
+      <button id="startBtn" class="start-btn" type="button">Start Survey</button>
+      <div class="start-note">Results appear on the Case Visit Results page as they come in.</div>
+    </div>
+
+    <div id="internal-shell-footer"></div>
+  </div>
+
+  <!-- Run mode (survey window) -->
+  <div class="run-overlay">
+    <div class="run-inner">
+      <!-- Step 1 -->
+      <div id="step1">
+        <div class="run-question">How would you rate your experience with our security staff and process?</div>
+        <div class="face-row" id="faceRow"></div>
+      </div>
+
+      <!-- Step 2 -->
+      <div id="step2" style="display: none;">
+        <div class="run-question">How much progress were you able to make with your case manager in your meeting today?</div>
+        <div class="progress-word" id="progressWord"></div>
+        <div class="progress-grid" id="progressGrid"></div>
+      </div>
+
+      <!-- Thank you -->
+      <div id="stepThanks" class="thanks">
+        <div class="thanks-check">&#10003;</div>
+        <h2>Thank you!</h2>
+        <p>We appreciate your feedback.</p>
+      </div>
+
+      <button id="bigActionBtn" class="big-action" type="button">Next</button>
+      <div id="runStatus" class="run-status"></div>
+    </div>
+  </div>
+
+  <script src="internal-shell.js"></script>
+  <script>
+    const RUN_MODE = new URLSearchParams(window.location.search).get("run") === "1";
+
+    const FACES = [
+      {
+        value: "sad", label: "Poor", cls: "face-sad",
+        mouth: '<path d="M8 17c1-1.9 2.4-2.8 4-2.8s3 .9 4 2.8" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>'
+      },
+      {
+        value: "neutral", label: "Okay", cls: "face-neutral",
+        mouth: '<line x1="8.4" y1="15.6" x2="15.6" y2="15.6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>'
+      },
+      {
+        value: "happy", label: "Great", cls: "face-happy",
+        mouth: '<path d="M8 14.2c1 1.9 2.4 2.8 4 2.8s3-.9 4-2.8" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>'
+      }
+    ];
+
+    function faceSvg(mouth) {
+      return '<svg viewBox="0 0 24 24" aria-hidden="true">' +
+        '<circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" stroke-width="1.8"/>' +
+        '<circle cx="8.6" cy="9.6" r="1.25" fill="currentColor"/>' +
+        '<circle cx="15.4" cy="9.6" r="1.25" fill="currentColor"/>' +
+        mouth +
+        '</svg>';
+    }
+
+    const PROGRESS_OPTIONS = [
+      "None",
+      "Less than I expected",
+      "As much as I expected",
+      "More than I expected"
+    ];
+
+    // ---- Launcher ----
+    document.getElementById("startBtn").addEventListener("click", () => {
+      window.open("case-visit-survey.html?run=1", "_blank");
+    });
+
+    // ---- Run mode ----
+    if (RUN_MODE) {
+      document.body.classList.add("run-mode");
+
+      let step = 1;
+      let selectedFace = null;
+      let selectedProgress = null;
+
+      const bigBtn = document.getElementById("bigActionBtn");
+      const faceRow = document.getElementById("faceRow");
+      const progressGrid = document.getElementById("progressGrid");
+
+      function setRunStatus(message) {
+        const box = document.getElementById("runStatus");
+        if (!message) { box.className = "run-status"; box.textContent = ""; return; }
+        box.className = "run-status error show";
+        box.textContent = message;
+      }
+
+      function updateBigButton() {
+        if (step === 1) {
+          bigBtn.textContent = "Next";
+          bigBtn.classList.toggle("show", selectedFace != null);
+        } else if (step === 2) {
+          bigBtn.textContent = "Submit";
+          bigBtn.classList.toggle("show", selectedProgress != null);
+        }
+      }
+
+      // Q1 faces
+      for (const face of FACES) {
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "face-btn";
+        btn.innerHTML = faceSvg(face.mouth) + '<span class="face-label">' + face.label + "</span>";
+        btn.addEventListener("click", () => {
+          selectedFace = face.value;
+          faceRow.querySelectorAll(".face-btn").forEach((b) => { b.className = "face-btn"; });
+          btn.className = "face-btn selected " + face.cls;
+          setRunStatus("");
+          updateBigButton();
+        });
+        faceRow.appendChild(btn);
+      }
+
+      // Q2: the word PROGRESS stretched across the option row
+      const progressWord = document.getElementById("progressWord");
+      for (const letter of "PROGRESS") {
+        const span = document.createElement("span");
+        span.textContent = letter;
+        progressWord.appendChild(span);
+      }
+
+      for (const label of PROGRESS_OPTIONS) {
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "progress-btn";
+        btn.textContent = label;
+        btn.addEventListener("click", () => {
+          selectedProgress = label;
+          progressGrid.querySelectorAll(".progress-btn").forEach((b) => b.classList.remove("selected"));
+          btn.classList.add("selected");
+          setRunStatus("");
+          updateBigButton();
+        });
+        progressGrid.appendChild(btn);
+      }
+
+      function showStep(next) {
+        step = next;
+        document.getElementById("step1").style.display = step === 1 ? "" : "none";
+        document.getElementById("step2").style.display = step === 2 ? "" : "none";
+        document.getElementById("stepThanks").classList.toggle("show", step === 3);
+        bigBtn.style.display = step === 3 ? "none" : "";
+        updateBigButton();
+      }
+
+      function resetSurvey() {
+        selectedFace = null;
+        selectedProgress = null;
+        faceRow.querySelectorAll(".face-btn").forEach((b) => { b.className = "face-btn"; });
+        progressGrid.querySelectorAll(".progress-btn").forEach((b) => b.classList.remove("selected"));
+        setRunStatus("");
+        showStep(1);
+      }
+
+      async function submitSurvey() {
+        bigBtn.disabled = true;
+        bigBtn.textContent = "Submitting...";
+        setRunStatus("");
+
+        try {
+          const res = await fetch("/api/case-visit/responses", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            credentials: "same-origin",
+            body: JSON.stringify({ staffRating: selectedFace, progress: selectedProgress })
+          });
+          const data = await res.json();
+          if (!res.ok) throw new Error(data.error || "Unable to save the response.");
+
+          showStep(3);
+          setTimeout(resetSurvey, 4500);
+        } catch (err) {
+          setRunStatus(err.message);
+          updateBigButton();
+        } finally {
+          bigBtn.disabled = false;
+        }
+      }
+
+      bigBtn.addEventListener("click", () => {
+        if (step === 1 && selectedFace != null) {
+          showStep(2);
+        } else if (step === 2 && selectedProgress != null) {
+          submitSurvey();
+        }
+      });
+
+      showStep(1);
+    }
+  </script>
+</body>
+</html>

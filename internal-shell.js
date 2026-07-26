@@ -158,6 +158,13 @@
           { href: "hr-phone-screen.html", title: "Phone Screen" },
           { href: "hr-candidates.html", title: "Candidates" }
         ]
+      },
+      {
+        title: "Test Modules",
+        children: [
+          { href: "satisfaction-survey.html", title: "Client Satisfaction Survey" },
+          { href: "satisfaction-results.html", title: "Satisfaction Results" }
+        ]
       }
     ];
 

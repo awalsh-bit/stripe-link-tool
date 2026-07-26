@@ -332,6 +332,15 @@ endpoint security blocks browser uploads. Team-visible; delete is
 uploader-or-executive; rows purge automatically after 90 days (at boot by
 `lib/spec-quotes-postgres.js`).
 
+### Client satisfaction survey (live — created by `sql/014_satisfaction.sql`)
+
+Test Module: internal pilot of the eventual public NPS survey
+(`satisfaction_responses`: `score` 1–10, `priority` from the fixed
+`SATISFACTION_PRIORITIES` list, `source` = `internal_test` for pilot entries,
+`recorded_by_email`, `created_at`). Survey at `/satisfaction-survey.html`;
+results + CSV export at `/satisfaction-results.html` (both under Test Modules,
+permission-managed). Managed by `lib/satisfaction-postgres.js`.
+
 ### Commissions (live — managed by `lib/commissions-postgres.js`)
 
 Monthly ePASS workbook imports reviewed on the Commissions pages. Since the

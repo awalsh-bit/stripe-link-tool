@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="robots" content="noindex,nofollow,noarchive" />
+  <title>Wilson AC & Appliance - Client Satisfaction Survey</title>
+  <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+  <link rel="stylesheet" href="internal-shell.css" />
+  <style>
+    :root {
+      --bg: #f7f8fc; --card: #ffffff; --text: #1f2937; --muted: #6b7280;
+      --border: #dbe1ea; --primary: #635bff; --primary-hover: #564ef0;
+      --shadow: 0 10px 35px rgba(0, 0, 0, 0.08); --radius: 18px;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: linear-gradient(180deg, #eef2ff 0%, var(--bg) 100%);
+      color: var(--text); min-height: 100vh; padding: 32px 16px;
+    }
+    .wrap { max-width: 880px; margin: 0 auto; }
+    .surface {
+      background: var(--card); border: 1px solid rgba(99, 91, 255, 0.12);
+      box-shadow: var(--shadow); border-radius: var(--radius);
+      padding: 30px; margin: 0 auto 22px;
+    }
+    h1 { margin: 0 0 8px; font-size: 26px; }
+    .lead { margin: 0 0 6px; color: var(--muted); font-size: 15px; line-height: 1.6; }
+    .test-pill {
+      display: inline-flex; border-radius: 999px; padding: 4px 12px;
+      background: #fffbeb; color: #92400e; font-size: 12px; font-weight: 800;
+      letter-spacing: 0.05em; text-transform: uppercase; margin-bottom: 14px;
+    }
+    .question { font-size: 19px; font-weight: 700; line-height: 1.45; margin: 26px 0 16px; }
+
+    /* Q1: 1-10 scale. Neutral until selected; the selected number tints by
+       band (1-6 red, 7-8 yellow, 9-10 green). */
+    .scale-row { display: flex; gap: 8px; flex-wrap: wrap; }
+    .scale-btn {
+      appearance: none; cursor: pointer;
+      flex: 1 1 0; min-width: 52px; height: 62px;
+      border: 1.5px solid var(--border); border-radius: 14px; background: #fff;
+      font-family: inherit; font-size: 20px; font-weight: 800; color: #374151;
+      transition: transform 0.06s ease, background 0.12s ease, border-color 0.12s ease;
+    }
+    .scale-btn:hover { border-color: #b6c2da; transform: translateY(-1px); }
+    .scale-btn.selected.band-low { background: #fee2e2; border-color: #fca5a5; color: #991b1b; }
+    .scale-btn.selected.band-mid { background: #fef3c7; border-color: #fcd34d; color: #92400e; }
+    .scale-btn.selected.band-high { background: #d1fae5; border-color: #6ee7b7; color: #065f46; }
+    .scale-ends {
+      display: flex; justify-content: space-between; margin-top: 8px;
+      color: var(--muted); font-size: 12.5px;
+    }
+
+    /* Q2: large tap boxes */
+    .option-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .option-btn {
+      appearance: none; cursor: pointer; text-align: left;
+      border: 1.5px solid var(--border); border-radius: 16px; background: #fff;
+      padding: 22px 20px; font-family: inherit; font-size: 16px; font-weight: 700;
+      color: var(--text); line-height: 1.4;
+      transition: transform 0.06s ease, background 0.12s ease, border-color 0.12s ease;
+    }
+    .option-btn:hover { border-color: #b6c2da; transform: translateY(-1px); }
+    .option-btn.selected { background: #eef2ff; border-color: var(--primary); color: #3730a3; }
+
+    .actions-row { margin-top: 28px; display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+    .submit-btn {
+      appearance: none; border: none; cursor: pointer;
+      background: var(--primary); color: #fff; border-radius: 14px;
+      padding: 16px 30px; font-size: 16px; font-weight: 800; font-family: inherit;
+    }
+    .submit-btn:hover { background: var(--primary-hover); }
+    .submit-btn:disabled { opacity: 0.55; cursor: default; }
+    .status { display: none; border-radius: 12px; padding: 12px 14px; font-size: 14px; margin-top: 14px; }
+    .status.show { display: block; }
+    .status.error { background: #fef2f2; color: #991b1b; }
+
+    /* Thank-you state */
+    .thanks { display: none; text-align: center; padding: 46px 20px; }
+    .thanks.show { display: block; }
+    .thanks-check {
+      width: 74px; height: 74px; border-radius: 50%; background: #d1fae5; color: #065f46;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 38px; margin: 0 auto 18px;
+    }
+    .thanks h2 { margin: 0 0 8px; font-size: 24px; }
+    .thanks p { margin: 0; color: var(--muted); font-size: 15px; }
+
+    @media (max-width: 640px) {
+      .surface { padding: 20px; }
+      .option-grid { grid-template-columns: 1fr; }
+      .scale-btn { min-width: 44px; height: 54px; font-size: 17px; }
+    }
+  </style>
+</head>
+<body data-shell-label="Client Satisfaction Survey" data-shell-icon="accounting">
+  <div class="wrap">
+    <div id="internal-shell-header"></div>
+
+    <div class="surface">
+      <span class="test-pill">Test Module — internal only</span>
+
+      <div id="surveyBody">
+        <h1>How did we do?</h1>
+        <p class="lead">Two quick questions — it takes about ten seconds.</p>
+
+        <div class="question">How likely are you to recommend Wilson AC &amp; Appliance to a friend or family member?</div>
+        <div class="scale-row" id="scaleRow"></div>
+        <div class="scale-ends"><span>Not at all likely</span><span>Extremely likely</span></div>
+
+        <div class="question">What aspect of your shopping experience is most important to maintaining Wilson AC &amp; Appliance as your destination for the products we sell and service?</div>
+        <div class="option-grid" id="optionGrid"></div>
+
+        <div class="actions-row">
+          <button id="submitBtn" class="submit-btn" type="button" disabled>Submit</button>
+        </div>
+        <div id="surveyStatus" class="status"></div>
+      </div>
+
+      <div class="thanks" id="thanksBody">
+        <div class="thanks-check">&#10003;</div>
+        <h2>Thank you!</h2>
+        <p>We appreciate you taking the time. This screen resets in a moment for the next response.</p>
+      </div>
+    </div>
+
+    <div id="internal-shell-footer"></div>
+  </div>
+
+  <script src="internal-shell.js"></script>
+  <script>
+    const PRIORITIES = [
+      "The Showroom",
+      "Expert Sales Consultants",
+      "Professional Installers",
+      "Expert Repair Technicians",
+      "Competitive Local Pricing on Products and Services"
+    ];
+
+    let selectedScore = null;
+    let selectedPriority = null;
+
+    function bandClass(score) {
+      if (score >= 9) return "band-high";
+      if (score >= 7) return "band-mid";
+      return "band-low";
+    }
+
+    function setStatus(message) {
+      const box = document.getElementById("surveyStatus");
+      if (!message) { box.className = "status"; box.textContent = ""; return; }
+      box.className = "status error show";
+      box.textContent = message;
+    }
+
+    function updateSubmit() {
+      document.getElementById("submitBtn").disabled = !(selectedScore && selectedPriority);
+    }
+
+    // Build the 1-10 scale
+    const scaleRow = document.getElementById("scaleRow");
+    for (let n = 1; n <= 10; n += 1) {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "scale-btn";
+      btn.textContent = String(n);
+      btn.addEventListener("click", () => {
+        selectedScore = n;
+        scaleRow.querySelectorAll(".scale-btn").forEach((b) => { b.className = "scale-btn"; });
+        btn.className = "scale-btn selected " + bandClass(n);
+        setStatus("");
+        updateSubmit();
+      });
+      scaleRow.appendChild(btn);
+    }
+
+    // Build the priority boxes
+    const optionGrid = document.getElementById("optionGrid");
+    for (const label of PRIORITIES) {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "option-btn";
+      btn.textContent = label;
+      btn.addEventListener("click", () => {
+        selectedPriority = label;
+        optionGrid.querySelectorAll(".option-btn").forEach((b) => b.classList.remove("selected"));
+        btn.classList.add("selected");
+        setStatus("");
+        updateSubmit();
+      });
+      optionGrid.appendChild(btn);
+    }
+
+    function resetSurvey() {
+      selectedScore = null;
+      selectedPriority = null;
+      scaleRow.querySelectorAll(".scale-btn").forEach((b) => { b.className = "scale-btn"; });
+      optionGrid.querySelectorAll(".option-btn").forEach((b) => b.classList.remove("selected"));
+      updateSubmit();
+      document.getElementById("thanksBody").classList.remove("show");
+      document.getElementById("surveyBody").style.display = "";
+    }
+
+    document.getElementById("submitBtn").addEventListener("click", async () => {
+      if (!selectedScore || !selectedPriority) return;
+      const btn = document.getElementById("submitBtn");
+      btn.disabled = true;
+      btn.textContent = "Submitting...";
+      setStatus("");
+
+      try {
+        const res = await fetch("/api/satisfaction/responses", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "same-origin",
+          body: JSON.stringify({ score: selectedScore, priority: selectedPriority })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Unable to save the response.");
+
+        document.getElementById("surveyBody").style.display = "none";
+        document.getElementById("thanksBody").classList.add("show");
+        setTimeout(resetSurvey, 4000);
+      } catch (err) {
+        setStatus(err.message);
+      } finally {
+        btn.disabled = false;
+        btn.textContent = "Submit";
+      }
+    });
+  </script>
+</body>
+</html>

@@ -125,6 +125,11 @@ import {
   deleteSpecQuote
 } from "./lib/spec-quotes-postgres.js";
 import {
+  saveSatisfactionResponse,
+  listSatisfactionResponses,
+  SATISFACTION_PRIORITIES
+} from "./lib/satisfaction-postgres.js";
+import {
   computeReimbursedMiles,
   computeReportTotals,
   listRatePeriods,
@@ -238,7 +243,9 @@ const INTERNAL_PAGE_PATHS = new Set([
   "/mileage-review.html",
   "/hr-phone-screen.html",
   "/hr-candidates.html",
-  "/spec-packages.html"
+  "/spec-packages.html",
+  "/satisfaction-survey.html",
+  "/satisfaction-results.html"
 ]);
 
 const UNAUTHENTICATED_INTERNAL_PATHS = new Set([
@@ -397,7 +404,9 @@ const PAGE_LABELS = {
   "/mileage.html": "Mileage",
   "/mileage-review.html": "Mileage Review",
   "/hr-phone-screen.html": "Phone Screen",
-  "/hr-candidates.html": "Candidates"
+  "/hr-candidates.html": "Candidates",
+  "/satisfaction-survey.html": "Client Satisfaction Survey",
+  "/satisfaction-results.html": "Satisfaction Results"
 };
 
 // Category groupings for the User Admin permission UI. A page may appear in
@@ -408,6 +417,11 @@ const PAGE_CATEGORIES = [
     key: "hr",
     label: "HR",
     pages: ["/hr-phone-screen.html", "/hr-candidates.html"]
+  },
+  {
+    key: "test_modules",
+    label: "Test Modules",
+    pages: ["/satisfaction-survey.html", "/satisfaction-results.html"]
   },
   {
     key: "payments",
@@ -5141,6 +5155,53 @@ app.get("/api/receipts/:paymentIntentId/pdf", requirePagePermission("/dashboard.
       return res.status(400).json({ error: err.message });
     }
     return res.status(500).json({ error: "Unable to build the receipt. Check the payment intent and try again." });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Client satisfaction survey (Test Modules) — internal pilot of the eventual
+// public survey.
+// ---------------------------------------------------------------------------
+
+app.post("/api/satisfaction/responses", requirePagePermission("/satisfaction-survey.html"), async (req, res) => {
+  try {
+    const score = Number(req.body?.score);
+    if (!Number.isInteger(score) || score < 1 || score > 10) {
+      return res.status(400).json({ error: "Pick a score from 1 to 10." });
+    }
+
+    const priority = String(req.body?.priority || "").trim();
+    if (!SATISFACTION_PRIORITIES.includes(priority)) {
+      return res.status(400).json({ error: "Pick one of the experience options." });
+    }
+
+    const saved = await saveSatisfactionResponse({
+      score,
+      priority,
+      source: "internal_test",
+      recordedByEmail: req.authUser?.email || ""
+    });
+
+    return res.json({ success: true, response: saved });
+  } catch (err) {
+    console.error("Satisfaction save failed:", err.message);
+    return res.status(500).json({ error: "Unable to save the response — try again." });
+  }
+});
+
+app.get("/api/satisfaction/responses", requirePagePermission("/satisfaction-results.html"), async (req, res) => {
+  try {
+    const start = String(req.query.start || "").trim();
+    const end = String(req.query.end || "").trim();
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(start) || !/^\d{4}-\d{2}-\d{2}$/.test(end)) {
+      return res.status(400).json({ error: "start and end dates are required (YYYY-MM-DD)." });
+    }
+
+    const responses = await listSatisfactionResponses(start, end, APP_TIMEZONE);
+    return res.json({ responses, priorities: SATISFACTION_PRIORITIES });
+  } catch (err) {
+    console.error("Satisfaction list failed:", err.message);
+    return res.status(500).json({ error: "Unable to load survey results." });
   }
 });
 

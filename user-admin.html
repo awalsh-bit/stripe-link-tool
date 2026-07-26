@@ -671,24 +671,13 @@
         el("div", { class: "muted small-text", text: subBits })
       ]);
 
-      const accountCell = el("td", {});
-      if (account) {
-        accountCell.appendChild(statusPill(account));
-        if (account.isExecutive) {
-          accountCell.appendChild(document.createTextNode(" "));
-          accountCell.appendChild(el("span", { class: "pill exec", text: "Executive" }));
-        }
-        const pagesSummary = account.isExecutive
-          ? "All pages"
-          : (account.grantedPages.length ? `${account.grantedPages.length} page(s)` : "No pages granted");
-        accountCell.appendChild(el("div", { class: "muted small-text", text: pagesSummary }));
-      } else {
-        accountCell.appendChild(el("span", { class: "pill disabled", text: "No account" }));
-        accountCell.appendChild(el("div", {
-          class: "muted small-text",
-          text: email ? "Needs an invite" : "Add an email first"
-        }));
-      }
+      // Status only — executive flag and page counts live in the kebab menu
+      // and the Edit pages panel, not at a glance.
+      const accountCell = el("td", {}, [
+        account
+          ? statusPill(account)
+          : el("span", { class: "pill disabled", text: "No account" })
+      ]);
 
       // Everything lives in one three-dot menu — only the options that apply
       // to this person appear.

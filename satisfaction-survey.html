@@ -27,72 +27,116 @@
       padding: 30px; margin: 0 auto 22px;
     }
     h1 { margin: 0 0 8px; font-size: 26px; }
-    .lead { margin: 0 0 6px; color: var(--muted); font-size: 15px; line-height: 1.6; }
+    .lead { margin: 0 0 26px; color: var(--muted); font-size: 15px; line-height: 1.6; }
     .test-pill {
       display: inline-flex; border-radius: 999px; padding: 4px 12px;
       background: #fffbeb; color: #92400e; font-size: 12px; font-weight: 800;
       letter-spacing: 0.05em; text-transform: uppercase; margin-bottom: 14px;
     }
-    .question { font-size: 19px; font-weight: 700; line-height: 1.45; margin: 26px 0 16px; }
 
-    /* Q1: 1-10 scale. Neutral until selected; the selected number tints by
-       band (1-6 red, 7-8 yellow, 9-10 green). */
-    .scale-row { display: flex; gap: 8px; flex-wrap: wrap; }
+    /* Launcher */
+    .start-btn {
+      appearance: none; border: none; cursor: pointer;
+      width: 100%; padding: 44px 20px;
+      background: var(--primary); color: #fff;
+      border-radius: 22px; font-family: inherit;
+      font-size: clamp(26px, 4vw, 38px); font-weight: 800;
+      box-shadow: 0 14px 40px rgba(99, 91, 255, 0.35);
+      transition: transform 0.08s ease, background 0.12s ease;
+    }
+    .start-btn:hover { background: var(--primary-hover); transform: translateY(-2px); }
+    .start-note { margin-top: 14px; color: var(--muted); font-size: 13.5px; text-align: center; }
+
+    /* ------------------------------------------------------------------ */
+    /* Run mode: full-screen kiosk survey, no shell.                      */
+    /* ------------------------------------------------------------------ */
+    body.run-mode { padding: 0; }
+    body.run-mode .wrap { display: none; }
+
+    .run-overlay {
+      display: none;
+      position: fixed; inset: 0; z-index: 100;
+      background: linear-gradient(180deg, #eef2ff 0%, var(--bg) 100%);
+      overflow-y: auto;
+    }
+    body.run-mode .run-overlay { display: block; }
+
+    .run-inner {
+      max-width: 980px; margin: 0 auto;
+      min-height: 100vh; display: flex; flex-direction: column;
+      justify-content: center; padding: 40px 26px 60px;
+    }
+
+    .run-question {
+      font-size: clamp(26px, 4.2vw, 42px);
+      font-weight: 800; line-height: 1.28;
+      text-align: center; margin: 0 0 38px;
+    }
+
+    .scale-row { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
     .scale-btn {
       appearance: none; cursor: pointer;
-      flex: 1 1 0; min-width: 52px; height: 62px;
-      border: 1.5px solid var(--border); border-radius: 14px; background: #fff;
-      font-family: inherit; font-size: 20px; font-weight: 800; color: #374151;
+      flex: 1 1 0; min-width: 64px; height: 96px;
+      border: 2px solid var(--border); border-radius: 18px; background: #fff;
+      font-family: inherit; font-size: 30px; font-weight: 800; color: #374151;
       transition: transform 0.06s ease, background 0.12s ease, border-color 0.12s ease;
     }
-    .scale-btn:hover { border-color: #b6c2da; transform: translateY(-1px); }
+    .scale-btn:hover { border-color: #b6c2da; transform: translateY(-2px); }
     .scale-btn.selected.band-low { background: #fee2e2; border-color: #fca5a5; color: #991b1b; }
     .scale-btn.selected.band-mid { background: #fef3c7; border-color: #fcd34d; color: #92400e; }
     .scale-btn.selected.band-high { background: #d1fae5; border-color: #6ee7b7; color: #065f46; }
     .scale-ends {
-      display: flex; justify-content: space-between; margin-top: 8px;
-      color: var(--muted); font-size: 12.5px;
+      display: flex; justify-content: space-between; margin-top: 12px;
+      color: var(--muted); font-size: 15px;
     }
 
-    /* Q2: large tap boxes */
-    .option-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .option-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
     .option-btn {
-      appearance: none; cursor: pointer; text-align: left;
-      border: 1.5px solid var(--border); border-radius: 16px; background: #fff;
-      padding: 22px 20px; font-family: inherit; font-size: 16px; font-weight: 700;
+      appearance: none; cursor: pointer; text-align: center;
+      border: 2px solid var(--border); border-radius: 20px; background: #fff;
+      padding: 34px 24px; font-family: inherit;
+      font-size: clamp(17px, 2vw, 22px); font-weight: 700;
       color: var(--text); line-height: 1.4;
       transition: transform 0.06s ease, background 0.12s ease, border-color 0.12s ease;
     }
-    .option-btn:hover { border-color: #b6c2da; transform: translateY(-1px); }
+    .option-btn:hover { border-color: #b6c2da; transform: translateY(-2px); }
     .option-btn.selected { background: #eef2ff; border-color: var(--primary); color: #3730a3; }
 
-    .actions-row { margin-top: 28px; display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
-    .submit-btn {
+    /* The one big action slot: Next on step 1, Submit on step 2. Hidden
+       (but space reserved) until an answer is picked, so nothing jumps. */
+    .big-action {
       appearance: none; border: none; cursor: pointer;
-      background: var(--primary); color: #fff; border-radius: 14px;
-      padding: 16px 30px; font-size: 16px; font-weight: 800; font-family: inherit;
+      width: 100%; margin-top: 42px; padding: 26px 20px;
+      background: var(--primary); color: #fff;
+      border-radius: 20px; font-family: inherit;
+      font-size: clamp(22px, 3vw, 30px); font-weight: 800;
+      box-shadow: 0 14px 40px rgba(99, 91, 255, 0.35);
+      transition: transform 0.08s ease, background 0.12s ease;
+      visibility: hidden;
     }
-    .submit-btn:hover { background: var(--primary-hover); }
-    .submit-btn:disabled { opacity: 0.55; cursor: default; }
-    .status { display: none; border-radius: 12px; padding: 12px 14px; font-size: 14px; margin-top: 14px; }
-    .status.show { display: block; }
-    .status.error { background: #fef2f2; color: #991b1b; }
+    .big-action.show { visibility: visible; }
+    .big-action:hover { background: var(--primary-hover); transform: translateY(-2px); }
+    .big-action:disabled { opacity: 0.6; cursor: default; }
 
-    /* Thank-you state */
-    .thanks { display: none; text-align: center; padding: 46px 20px; }
+    .run-status { display: none; border-radius: 14px; padding: 14px 16px; font-size: 16px; margin-top: 18px; text-align: center; }
+    .run-status.show { display: block; }
+    .run-status.error { background: #fef2f2; color: #991b1b; }
+
+    .thanks { display: none; text-align: center; }
     .thanks.show { display: block; }
     .thanks-check {
-      width: 74px; height: 74px; border-radius: 50%; background: #d1fae5; color: #065f46;
+      width: 110px; height: 110px; border-radius: 50%; background: #d1fae5; color: #065f46;
       display: flex; align-items: center; justify-content: center;
-      font-size: 38px; margin: 0 auto 18px;
+      font-size: 56px; margin: 0 auto 26px;
     }
-    .thanks h2 { margin: 0 0 8px; font-size: 24px; }
-    .thanks p { margin: 0; color: var(--muted); font-size: 15px; }
+    .thanks h2 { margin: 0 0 10px; font-size: clamp(28px, 4vw, 40px); }
+    .thanks p { margin: 0; color: var(--muted); font-size: 18px; }
 
     @media (max-width: 640px) {
       .surface { padding: 20px; }
       .option-grid { grid-template-columns: 1fr; }
-      .scale-btn { min-width: 44px; height: 54px; font-size: 17px; }
+      .scale-btn { min-width: 52px; height: 72px; font-size: 22px; }
+      .run-inner { padding: 26px 14px 40px; }
     }
   </style>
 </head>
@@ -102,36 +146,50 @@
 
     <div class="surface">
       <span class="test-pill">Test Module — internal only</span>
-
-      <div id="surveyBody">
-        <h1>How did we do?</h1>
-        <p class="lead">Two quick questions — it takes about ten seconds.</p>
-
-        <div class="question">How likely are you to recommend Wilson AC &amp; Appliance to a friend or family member?</div>
-        <div class="scale-row" id="scaleRow"></div>
-        <div class="scale-ends"><span>Not at all likely</span><span>Extremely likely</span></div>
-
-        <div class="question">What aspect of your shopping experience is most important to maintaining Wilson AC &amp; Appliance as your destination for the products we sell and service?</div>
-        <div class="option-grid" id="optionGrid"></div>
-
-        <div class="actions-row">
-          <button id="submitBtn" class="submit-btn" type="button" disabled>Submit</button>
-        </div>
-        <div id="surveyStatus" class="status"></div>
-      </div>
-
-      <div class="thanks" id="thanksBody">
-        <div class="thanks-check">&#10003;</div>
-        <h2>Thank you!</h2>
-        <p>We appreciate you taking the time. This screen resets in a moment for the next response.</p>
-      </div>
+      <h1>Client Satisfaction Survey</h1>
+      <p class="lead">
+        Opens the two-question survey in its own full-screen window — hand the customer the
+        tablet or turn the screen around. It resets itself after every response.
+      </p>
+      <button id="startBtn" class="start-btn" type="button">Start Survey</button>
+      <div class="start-note">Results appear on the Satisfaction Results page as they come in.</div>
     </div>
 
     <div id="internal-shell-footer"></div>
   </div>
 
+  <!-- Run mode (survey window) -->
+  <div class="run-overlay">
+    <div class="run-inner">
+      <!-- Step 1 -->
+      <div id="step1">
+        <div class="run-question">How likely are you to recommend Wilson AC &amp; Appliance to a friend or family member?</div>
+        <div class="scale-row" id="scaleRow"></div>
+        <div class="scale-ends"><span>Not at all likely</span><span>Extremely likely</span></div>
+      </div>
+
+      <!-- Step 2 -->
+      <div id="step2" style="display: none;">
+        <div class="run-question">What aspect of your shopping experience is most important to maintaining Wilson AC &amp; Appliance as your destination for the products we sell and service?</div>
+        <div class="option-grid" id="optionGrid"></div>
+      </div>
+
+      <!-- Thank you -->
+      <div id="stepThanks" class="thanks">
+        <div class="thanks-check">&#10003;</div>
+        <h2>Thank you!</h2>
+        <p>We appreciate you taking the time.</p>
+      </div>
+
+      <button id="bigActionBtn" class="big-action" type="button">Next</button>
+      <div id="runStatus" class="run-status"></div>
+    </div>
+  </div>
+
   <script src="internal-shell.js"></script>
   <script>
+    const RUN_MODE = new URLSearchParams(window.location.search).get("run") === "1";
+
     const PRIORITIES = [
       "The Showroom",
       "Expert Sales Consultants",
@@ -140,97 +198,131 @@
       "Competitive Local Pricing on Products and Services"
     ];
 
-    let selectedScore = null;
-    let selectedPriority = null;
-
-    function bandClass(score) {
-      if (score >= 9) return "band-high";
-      if (score >= 7) return "band-mid";
-      return "band-low";
-    }
-
-    function setStatus(message) {
-      const box = document.getElementById("surveyStatus");
-      if (!message) { box.className = "status"; box.textContent = ""; return; }
-      box.className = "status error show";
-      box.textContent = message;
-    }
-
-    function updateSubmit() {
-      document.getElementById("submitBtn").disabled = !(selectedScore && selectedPriority);
-    }
-
-    // Build the 1-10 scale
-    const scaleRow = document.getElementById("scaleRow");
-    for (let n = 1; n <= 10; n += 1) {
-      const btn = document.createElement("button");
-      btn.type = "button";
-      btn.className = "scale-btn";
-      btn.textContent = String(n);
-      btn.addEventListener("click", () => {
-        selectedScore = n;
-        scaleRow.querySelectorAll(".scale-btn").forEach((b) => { b.className = "scale-btn"; });
-        btn.className = "scale-btn selected " + bandClass(n);
-        setStatus("");
-        updateSubmit();
-      });
-      scaleRow.appendChild(btn);
-    }
-
-    // Build the priority boxes
-    const optionGrid = document.getElementById("optionGrid");
-    for (const label of PRIORITIES) {
-      const btn = document.createElement("button");
-      btn.type = "button";
-      btn.className = "option-btn";
-      btn.textContent = label;
-      btn.addEventListener("click", () => {
-        selectedPriority = label;
-        optionGrid.querySelectorAll(".option-btn").forEach((b) => b.classList.remove("selected"));
-        btn.classList.add("selected");
-        setStatus("");
-        updateSubmit();
-      });
-      optionGrid.appendChild(btn);
-    }
-
-    function resetSurvey() {
-      selectedScore = null;
-      selectedPriority = null;
-      scaleRow.querySelectorAll(".scale-btn").forEach((b) => { b.className = "scale-btn"; });
-      optionGrid.querySelectorAll(".option-btn").forEach((b) => b.classList.remove("selected"));
-      updateSubmit();
-      document.getElementById("thanksBody").classList.remove("show");
-      document.getElementById("surveyBody").style.display = "";
-    }
-
-    document.getElementById("submitBtn").addEventListener("click", async () => {
-      if (!selectedScore || !selectedPriority) return;
-      const btn = document.getElementById("submitBtn");
-      btn.disabled = true;
-      btn.textContent = "Submitting...";
-      setStatus("");
-
-      try {
-        const res = await fetch("/api/satisfaction/responses", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          credentials: "same-origin",
-          body: JSON.stringify({ score: selectedScore, priority: selectedPriority })
-        });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error || "Unable to save the response.");
-
-        document.getElementById("surveyBody").style.display = "none";
-        document.getElementById("thanksBody").classList.add("show");
-        setTimeout(resetSurvey, 4000);
-      } catch (err) {
-        setStatus(err.message);
-      } finally {
-        btn.disabled = false;
-        btn.textContent = "Submit";
-      }
+    // ---- Launcher ----
+    document.getElementById("startBtn").addEventListener("click", () => {
+      window.open("satisfaction-survey.html?run=1", "_blank");
     });
+
+    // ---- Run mode ----
+    if (RUN_MODE) {
+      document.body.classList.add("run-mode");
+
+      let step = 1;
+      let selectedScore = null;
+      let selectedPriority = null;
+
+      const bigBtn = document.getElementById("bigActionBtn");
+      const scaleRow = document.getElementById("scaleRow");
+      const optionGrid = document.getElementById("optionGrid");
+
+      function bandClass(score) {
+        if (score >= 9) return "band-high";
+        if (score >= 7) return "band-mid";
+        return "band-low";
+      }
+
+      function setRunStatus(message) {
+        const box = document.getElementById("runStatus");
+        if (!message) { box.className = "run-status"; box.textContent = ""; return; }
+        box.className = "run-status error show";
+        box.textContent = message;
+      }
+
+      function updateBigButton() {
+        if (step === 1) {
+          bigBtn.textContent = "Next";
+          bigBtn.classList.toggle("show", selectedScore != null);
+        } else if (step === 2) {
+          bigBtn.textContent = "Submit";
+          bigBtn.classList.toggle("show", selectedPriority != null);
+        }
+      }
+
+      // Build the 1-10 scale
+      for (let n = 1; n <= 10; n += 1) {
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "scale-btn";
+        btn.textContent = String(n);
+        btn.addEventListener("click", () => {
+          selectedScore = n;
+          scaleRow.querySelectorAll(".scale-btn").forEach((b) => { b.className = "scale-btn"; });
+          btn.className = "scale-btn selected " + bandClass(n);
+          setRunStatus("");
+          updateBigButton();
+        });
+        scaleRow.appendChild(btn);
+      }
+
+      // Build the priority boxes
+      for (const label of PRIORITIES) {
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "option-btn";
+        btn.textContent = label;
+        btn.addEventListener("click", () => {
+          selectedPriority = label;
+          optionGrid.querySelectorAll(".option-btn").forEach((b) => b.classList.remove("selected"));
+          btn.classList.add("selected");
+          setRunStatus("");
+          updateBigButton();
+        });
+        optionGrid.appendChild(btn);
+      }
+
+      function showStep(next) {
+        step = next;
+        document.getElementById("step1").style.display = step === 1 ? "" : "none";
+        document.getElementById("step2").style.display = step === 2 ? "" : "none";
+        document.getElementById("stepThanks").classList.toggle("show", step === 3);
+        bigBtn.style.display = step === 3 ? "none" : "";
+        updateBigButton();
+      }
+
+      function resetSurvey() {
+        selectedScore = null;
+        selectedPriority = null;
+        scaleRow.querySelectorAll(".scale-btn").forEach((b) => { b.className = "scale-btn"; });
+        optionGrid.querySelectorAll(".option-btn").forEach((b) => b.classList.remove("selected"));
+        setRunStatus("");
+        showStep(1);
+      }
+
+      async function submitSurvey() {
+        bigBtn.disabled = true;
+        bigBtn.textContent = "Submitting...";
+        setRunStatus("");
+
+        try {
+          const res = await fetch("/api/satisfaction/responses", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            credentials: "same-origin",
+            body: JSON.stringify({ score: selectedScore, priority: selectedPriority })
+          });
+          const data = await res.json();
+          if (!res.ok) throw new Error(data.error || "Unable to save the response.");
+
+          showStep(3);
+          setTimeout(resetSurvey, 4500);
+        } catch (err) {
+          setRunStatus(err.message);
+          updateBigButton();
+        } finally {
+          bigBtn.disabled = false;
+        }
+      }
+
+      bigBtn.addEventListener("click", () => {
+        if (step === 1 && selectedScore != null) {
+          showStep(2);
+        } else if (step === 2 && selectedPriority != null) {
+          submitSurvey();
+        }
+      });
+
+      showStep(1);
+    }
   </script>
 </body>
 </html>

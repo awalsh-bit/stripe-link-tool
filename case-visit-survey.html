@@ -300,11 +300,55 @@
           savedLabel = label;
           document.getElementById("savedAnswerText").textContent = label;
           showView("saved");
+          startSavedCountdown();
         } catch (err) {
           setRunStatus(err.message);
         } finally {
           saving = false;
         }
+      }
+
+      // Attention-span autopilot: the saved screen counts down 8 seconds on
+      // the Close Window button and taps it for the visitor; the lobby
+      // message holds another 8 seconds; then the window closes for real,
+      // returning to the survey select screen. (If the browser refuses to
+      // close a window, we navigate this one back to the select screen.)
+      let savedCountdownTimer = null;
+
+      function stopSavedCountdown() {
+        if (savedCountdownTimer) {
+          clearInterval(savedCountdownTimer);
+          savedCountdownTimer = null;
+        }
+        document.getElementById("closeBtn").textContent = "Close Window";
+      }
+
+      function startSavedCountdown() {
+        stopSavedCountdown();
+        let remaining = 8;
+        const closeBtn = document.getElementById("closeBtn");
+        closeBtn.textContent = "Close Window (" + remaining + ")";
+        savedCountdownTimer = setInterval(() => {
+          remaining -= 1;
+          if (remaining <= 0) {
+            beginCloseFlow();
+          } else {
+            closeBtn.textContent = "Close Window (" + remaining + ")";
+          }
+        }, 1000);
+      }
+
+      function beginCloseFlow() {
+        stopSavedCountdown();
+        showView("close");
+        setTimeout(() => {
+          window.close();
+          // window.close() is ignored in some kiosk/browser setups — fall
+          // back to navigating this window to the survey select screen.
+          setTimeout(() => {
+            window.location.href = "case-visit-survey.html";
+          }, 400);
+        }, 8000);
       }
 
       if (RUN_TYPE === "security") {
@@ -351,24 +395,11 @@
       }
 
       document.getElementById("changeBtn").addEventListener("click", () => {
+        stopSavedCountdown();
         showView("question"); // selection stays highlighted; a new tap updates the same record
       });
 
-      document.getElementById("closeBtn").addEventListener("click", () => {
-        showView("close");
-        // Give the message a moment, then close. If the browser refuses
-        // (kiosk settings), reset for the next visitor instead.
-        setTimeout(() => {
-          window.close();
-          setTimeout(() => {
-            savedId = null;
-            savedLabel = "";
-            faceRow.querySelectorAll(".face-btn").forEach((b) => { b.className = "face-btn"; });
-            progressGrid.querySelectorAll(".progress-btn").forEach((b) => b.classList.remove("selected"));
-            showView("question");
-          }, 1500);
-        }, 6000);
-      });
+      document.getElementById("closeBtn").addEventListener("click", beginCloseFlow);
 
       showView("question");
     }

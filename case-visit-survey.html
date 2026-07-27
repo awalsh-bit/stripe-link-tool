@@ -137,6 +137,13 @@
       font-weight: 800; line-height: 1.4;
     }
 
+    .close-countdown {
+      margin-top: 34px;
+      font-size: clamp(44px, 7vw, 72px);
+      font-weight: 800;
+      color: #a5b4fc;
+    }
+
     .run-status { display: none; border-radius: 14px; padding: 14px 16px; font-size: 16px; margin-top: 18px; text-align: center; }
     .run-status.show { display: block; }
     .run-status.error { background: #fef2f2; color: #991b1b; }
@@ -204,6 +211,7 @@
       <!-- Close message -->
       <div id="closeView" class="close-view">
         <p>To provide additional feedback,<br />please use the laptops in the lobby.</p>
+        <div class="close-countdown" id="closeCountdown">8</div>
       </div>
 
       <div id="runStatus" class="run-status"></div>
@@ -341,14 +349,24 @@
       function beginCloseFlow() {
         stopSavedCountdown();
         showView("close");
-        setTimeout(() => {
-          window.close();
-          // window.close() is ignored in some kiosk/browser setups — fall
-          // back to navigating this window to the survey select screen.
-          setTimeout(() => {
-            window.location.href = "case-visit-survey.html";
-          }, 400);
-        }, 8000);
+
+        let remaining = 8;
+        const counter = document.getElementById("closeCountdown");
+        counter.textContent = String(remaining);
+        const timer = setInterval(() => {
+          remaining -= 1;
+          if (remaining <= 0) {
+            clearInterval(timer);
+            window.close();
+            // window.close() is ignored in some kiosk/browser setups — fall
+            // back to navigating this window to the survey select screen.
+            setTimeout(() => {
+              window.location.href = "case-visit-survey.html";
+            }, 400);
+          } else {
+            counter.textContent = String(remaining);
+          }
+        }, 1000);
       }
 
       if (RUN_TYPE === "security") {

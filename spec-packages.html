@@ -457,6 +457,8 @@
               <option value="slim" selected>Slim spec pages</option>
               <option value="full">Full spec pages</option>
             </select>
+            <button id="scanModelsBtn" type="button" class="secondary"
+              title="Reads the chosen ePASS quote PDF and fills the model numbers above automatically.">Scan for models</button>
           </div>
         </div>
 
@@ -781,12 +783,33 @@
             <div class="qt-name">${escapeHtml(q.filename)}</div>
             <div class="qt-meta">${escapeHtml(uploader)}<br>${escapeHtml(formatQuoteDate(q.uploadedAt))} · ${escapeHtml(formatBytes(q.byteSize))}</div>
             <div class="qt-actions">
+              <button type="button" class="qt-scan" data-quote-id="${escapeHtml(q.id)}" title="Read this quote and fill the model numbers on the create form.">Scan models</button>
               <a href="/api/spec-quotes/${encodeURIComponent(q.id)}/pdf" target="_blank" rel="noopener">View</a>
               ${mine ? `<button type="button" class="qt-delete" data-quote-id="${escapeHtml(q.id)}">Delete</button>` : ""}
             </div>
           </div>
         `;
       }).join("");
+
+      tiles.querySelectorAll(".qt-scan").forEach((btn) => {
+        btn.addEventListener("click", async () => {
+          const id = btn.getAttribute("data-quote-id");
+          const original = btn.textContent;
+          btn.disabled = true;
+          btn.textContent = "Scanning...";
+          try {
+            const res = await fetch("/api/spec-quotes/" + encodeURIComponent(id) + "/scan", { credentials: "same-origin" });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || "Unable to scan that quote.");
+            applyScannedModels(data.models || [], "libraryStatus");
+          } catch (err) {
+            setStatus("libraryStatus", err.message, "error");
+          } finally {
+            btn.disabled = false;
+            btn.textContent = original;
+          }
+        });
+      });
 
       tiles.querySelectorAll(".qt-delete").forEach((btn) => {
         btn.addEventListener("click", async () => {
@@ -863,6 +886,111 @@
             "error");
         }, 90000)
       };
+    });
+
+    // ---- Quote scanner ----
+    // Reads an ePASS quote PDF (chosen file or library quote) server-side and
+    // fills the model numbers field. Steel Cod's found/not-found response on
+    // create remains the validator — this only saves the typing.
+
+    let scanCtx = null;
+
+    function applyScannedModels(models, statusId) {
+      if (!models.length) {
+        setStatus(statusId, "No model numbers found in that PDF — is it an ePASS quote/sales order export?", "warn");
+        return;
+      }
+      const ta = document.getElementById("modelNumbers");
+      const existing = ta.value.split(/[\n,]/).map((s) => s.trim()).filter(Boolean);
+      const seen = new Set(existing.map((s) => s.toUpperCase()));
+      let added = 0;
+      for (const model of models) {
+        if (!seen.has(model.toUpperCase())) {
+          existing.push(model);
+          seen.add(model.toUpperCase());
+          added += 1;
+        }
+      }
+      ta.value = existing.join("\n");
+      setStatus(statusId,
+        `Scan found ${models.length} model${models.length === 1 ? "" : "s"}` +
+        (added === models.length ? "" : ` (${added} new)`) +
+        " — review the list before creating.", "ok");
+      ta.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+
+    window.addEventListener("message", (event) => {
+      if (event.origin !== window.location.origin) return;
+      const msg = event.data && event.data.specScan;
+      if (!msg || !scanCtx) return;
+      const ctx = scanCtx;
+      scanCtx = null;
+      clearTimeout(ctx.timeout);
+      if (ctx.restore) ctx.restore();
+      if (ctx.resetBtn) ctx.resetBtn();
+
+      if (msg.ok) {
+        applyScannedModels(msg.models || [], "createStatus");
+      } else {
+        setStatus("createStatus", msg.error || "Unable to scan the quote.", "error");
+      }
+    });
+
+    document.getElementById("scanModelsBtn").addEventListener("click", () => {
+      const fileInput = document.getElementById("quotePdf");
+      if (!fileInput.files || !fileInput.files[0]) {
+        setStatus("createStatus", "Choose the sales order / quote PDF first, then scan.", "warn");
+        return;
+      }
+
+      const scanBtn = document.getElementById("scanModelsBtn");
+      scanBtn.disabled = true;
+      scanBtn.textContent = "Scanning...";
+      setStatus("createStatus", "Reading the quote…", "ok");
+
+      // Same native-form-to-iframe upload as the merge (works where security
+      // blocks JS file reads). The input is moved into a throwaway form and
+      // restored when the result comes back.
+      const form = document.createElement("form");
+      form.method = "POST";
+      form.enctype = "multipart/form-data";
+      form.action = "/api/spec-quotes/scan";
+      form.target = "specMergeFrame";
+      form.style.display = "none";
+
+      const marker = document.createComment("scan-slot");
+      fileInput.parentNode.insertBefore(marker, fileInput);
+      const prevName = fileInput.getAttribute("name");
+      fileInput.setAttribute("name", "quote");
+      form.appendChild(fileInput);
+      document.body.appendChild(form);
+
+      const restore = () => {
+        if (prevName) fileInput.setAttribute("name", prevName);
+        else fileInput.removeAttribute("name");
+        if (marker.parentNode) marker.parentNode.insertBefore(fileInput, marker);
+        if (marker.parentNode) marker.remove();
+        if (form.parentNode) form.remove();
+      };
+
+      const resetBtn = () => {
+        scanBtn.disabled = false;
+        scanBtn.textContent = "Scan for models";
+      };
+
+      scanCtx = {
+        restore,
+        resetBtn,
+        timeout: setTimeout(() => {
+          const ctx = scanCtx;
+          scanCtx = null;
+          if (ctx && ctx.restore) ctx.restore();
+          setStatus("createStatus", "The scan timed out — try again, or upload the quote to the library and scan it there.", "error");
+          resetBtn();
+        }, 90000)
+      };
+
+      form.submit();
     });
 
     let attachTarget = null;

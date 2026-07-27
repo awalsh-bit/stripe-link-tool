@@ -124,6 +124,7 @@ import {
   getSpecQuote,
   deleteSpecQuote
 } from "./lib/spec-quotes-postgres.js";
+import { extractModelsFromPdfBuffer } from "./lib/spec-scan.js";
 import {
   saveSatisfactionResponse,
   listSatisfactionResponses,
@@ -2618,6 +2619,68 @@ app.post("/api/spec-quotes", requirePagePermission("/spec-packages.html"), quote
   } catch (err) {
     console.error("Quote library upload failed:", err.message);
     return sendQuoteUploadResult(res, { ok: false, error: "Unable to save the quote — try again." });
+  }
+});
+
+// Scanner: pull model numbers out of an ePASS quote PDF so nobody types
+// them. Two entry points share the same extractor — an uploaded file (native
+// form -> hidden iframe, like every other upload here) and a stored Quote
+// Library file (plain JSON).
+
+function sendScanResult(res, payload) {
+  const json = JSON.stringify(payload).replace(/</g, "\\u003c");
+  res.setHeader("Content-Type", "text/html; charset=utf-8");
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  res.setHeader("X-Frame-Options", "SAMEORIGIN"); // must render in our own iframe
+  return res.send(
+    "<!doctype html><html><body>Done. You can close this.<script>" +
+    "try{parent.postMessage({specScan:" + json + "},\"*\");}catch(e){}" +
+    "</script></body></html>"
+  );
+}
+
+function scanUploadMw(req, res, next) {
+  specQuoteUpload.single("quote")(req, res, (err) => {
+    if (err) {
+      const msg = err.code === "LIMIT_FILE_SIZE" ? "That PDF is too large (40 MB max)." : "Upload failed — try again.";
+      return sendScanResult(res, { ok: false, error: msg });
+    }
+    next();
+  });
+}
+
+app.post("/api/spec-quotes/scan", requirePagePermission("/spec-packages.html"), scanUploadMw, async (req, res) => {
+  try {
+    const bytes = req.file?.buffer;
+    if (!Buffer.isBuffer(bytes) || bytes.length < 5) {
+      return sendScanResult(res, { ok: false, error: "Choose the quote PDF first." });
+    }
+    if (bytes.subarray(0, 5).toString("latin1") !== "%PDF-") {
+      return sendScanResult(res, { ok: false, error: "That file does not look like a PDF." });
+    }
+
+    const models = await extractModelsFromPdfBuffer(bytes);
+    return sendScanResult(res, { ok: true, models });
+  } catch (err) {
+    console.error("Quote scan failed:", err.message);
+    return sendScanResult(res, { ok: false, error: "Couldn't read that PDF — if it's a scan/image rather than an ePASS export, type the models instead." });
+  }
+});
+
+app.get("/api/spec-quotes/:id/scan", requirePagePermission("/spec-packages.html"), async (req, res) => {
+  try {
+    if (!/^[0-9a-fA-F-]{36}$/.test(req.params.id)) {
+      return res.status(400).json({ error: "Bad quote id." });
+    }
+    const quote = await getSpecQuote(req.params.id);
+    if (!quote) {
+      return res.status(404).json({ error: "That quote is no longer in the library." });
+    }
+    const models = await extractModelsFromPdfBuffer(quote.bytes);
+    return res.json({ models });
+  } catch (err) {
+    console.error("Library quote scan failed:", err.message);
+    return res.status(500).json({ error: "Couldn't read that PDF — if it's a scan/image rather than an ePASS export, type the models instead." });
   }
 });
 

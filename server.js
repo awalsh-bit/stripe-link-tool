@@ -124,7 +124,7 @@ import {
   getSpecQuote,
   deleteSpecQuote
 } from "./lib/spec-quotes-postgres.js";
-import { extractModelsFromPdfBuffer } from "./lib/spec-scan.js";
+import { extractQuoteDataFromPdfBuffer } from "./lib/spec-scan.js";
 import {
   saveSatisfactionResponse,
   listSatisfactionResponses,
@@ -2412,7 +2412,8 @@ app.post(
         navId: req.params.navId,
         quoteBytes,
         variant,
-        baseName: req.body?.name
+        baseName: req.body?.name,
+        position: normalizeQuotePosition(req.body?.quotePosition)
       });
       return sendMergeResult(res, origin, { ok: true, token, filename });
     } catch (err) {
@@ -2426,13 +2427,11 @@ app.post(
   }
 );
 
-// Core merge: append the package's spec pages (slim/full) to a quote PDF and
-// stage the result for one-time download. Shared by the direct-upload route
-// above and the Quote Library route below. Throws errors with user-facing
-// messages (err.userFacing = true).
-async function performQuoteSpecMerge({ userEmail, navId, quoteBytes, variant, baseName }) {
-  const userError = (message) => Object.assign(new Error(message), { userFacing: true });
+const specUserError = (message) => Object.assign(new Error(message), { userFacing: true });
 
+// Download a package's compiled spec PDF (slim or full) from Steel Cod, as
+// the acting user. Shared by merge and email.
+async function fetchSpecPdf({ userEmail, navId, variant }) {
   const pkg = await retrieveSpecPackage({ userEmail, navId });
   const publicUrl = findSpecPackageUrl(pkg, navId);
 
@@ -2449,12 +2448,12 @@ async function performQuoteSpecMerge({ userEmail, navId, quoteBytes, variant, ba
       "— response shape:",
       JSON.stringify(describeShape(pkg))
     );
-    throw userError("Steel Cod did not return a URL for that spec package.");
+    throw specUserError("Steel Cod did not return a URL for that spec package.");
   }
 
   const urls = buildSpecPackageUrls(publicUrl);
   if (!urls) {
-    throw userError("Steel Cod did not return a URL for that spec package.");
+    throw specUserError("Steel Cod did not return a URL for that spec package.");
   }
 
   const specUrl = variant === "full" ? urls.download : urls.slimDownload;
@@ -2462,11 +2461,11 @@ async function performQuoteSpecMerge({ userEmail, navId, quoteBytes, variant, ba
   try {
     specResponse = await fetch(specUrl);
   } catch (err) {
-    throw userError(`Unable to reach Steel Cod to download the spec PDF: ${err.message}`);
+    throw specUserError(`Unable to reach Steel Cod to download the spec PDF: ${err.message}`);
   }
   if (!specResponse.ok) {
     console.error("attach-quote: spec PDF download failed", specResponse.status, "from", specUrl);
-    throw userError(`Unable to download the spec PDF from Steel Cod (HTTP ${specResponse.status}).`);
+    throw specUserError(`Unable to download the spec PDF from Steel Cod (HTTP ${specResponse.status}).`);
   }
 
   const specBytes = Buffer.from(await specResponse.arrayBuffer());
@@ -2476,15 +2475,24 @@ async function performQuoteSpecMerge({ userEmail, navId, quoteBytes, variant, ba
       "| content-type:", specResponse.headers.get("content-type"),
       "| first bytes:", specBytes.subarray(0, 40).toString("latin1").replace(/[^\x20-\x7e]/g, ".")
     );
-    throw userError("Steel Cod returned something that is not a PDF for this package.");
+    throw specUserError("Steel Cod returned something that is not a PDF for this package.");
   }
+
+  return specBytes;
+}
+
+// Merge a quote PDF with the package's spec pages. `position` is where the
+// QUOTE sits: "front" (quote first, specs appended — the classic layout) or
+// "back" (specs first, quote at the end). Returns raw bytes.
+async function buildMergedQuotePdf({ userEmail, navId, quoteBytes, variant, position = "front" }) {
+  const specBytes = await fetchSpecPdf({ userEmail, navId, variant });
 
   let quoteDoc;
   try {
     quoteDoc = await PDFDocument.load(quoteBytes);
   } catch (loadErr) {
     console.error("attach-quote: quote PDF failed to parse:", loadErr.message);
-    throw userError("Could not read the quote PDF. Is it password-protected or corrupted?");
+    throw specUserError("Could not read the quote PDF. Is it password-protected or corrupted?");
   }
 
   let specDoc;
@@ -2492,13 +2500,26 @@ async function performQuoteSpecMerge({ userEmail, navId, quoteBytes, variant, ba
     specDoc = await PDFDocument.load(specBytes);
   } catch (loadErr) {
     console.error("attach-quote: Steel Cod spec PDF failed to parse:", loadErr.message);
-    throw userError("Could not read the spec PDF returned by Steel Cod.");
+    throw specUserError("Could not read the spec PDF returned by Steel Cod.");
   }
 
-  const specPages = await quoteDoc.copyPages(specDoc, specDoc.getPageIndices());
-  for (const page of specPages) quoteDoc.addPage(page);
+  const merged = await PDFDocument.create();
+  const sources = position === "back" ? [specDoc, quoteDoc] : [quoteDoc, specDoc];
+  for (const src of sources) {
+    const pages = await merged.copyPages(src, src.getPageIndices());
+    for (const page of pages) merged.addPage(page);
+  }
 
-  const mergedBytes = await quoteDoc.save();
+  return { mergedBytes: Buffer.from(await merged.save()), specBytes };
+}
+
+function normalizeQuotePosition(value) {
+  return String(value || "front").toLowerCase() === "back" ? "back" : "front";
+}
+
+// Stage a merged PDF for one-time download (see quote-download route).
+async function performQuoteSpecMerge({ userEmail, navId, quoteBytes, variant, baseName, position = "front" }) {
+  const { mergedBytes } = await buildMergedQuotePdf({ userEmail, navId, quoteBytes, variant, position });
 
   const safeName =
     String(baseName || "quote")
@@ -2510,7 +2531,7 @@ async function performQuoteSpecMerge({ userEmail, navId, quoteBytes, variant, ba
   const downloadToken = crypto.randomBytes(24).toString("hex");
   const filename = `${safeName}-with-specs.pdf`;
   pendingQuoteMerges.set(downloadToken, {
-    bytes: Buffer.from(mergedBytes),
+    bytes: mergedBytes,
     filename,
     email: userEmail,
     expiresAt: Date.now() + QUOTE_MERGE_TTL_MS
@@ -2552,7 +2573,8 @@ app.post(
         navId: req.params.navId,
         quoteBytes: quote.bytes,
         variant,
-        baseName
+        baseName,
+        position: normalizeQuotePosition(req.body?.quotePosition)
       });
 
       return res.json({ ok: true, token, filename });
@@ -2565,6 +2587,124 @@ app.post(
     }
   }
 );
+
+// Email the finished documents (complete merged package / specs only / ePASS
+// file only) to the chosen recipients via Resend with attachments.
+app.post("/api/spec-packages/:navId/email", requirePagePermission("/spec-packages.html"), async (req, res) => {
+  try {
+    if (!isSteelCodConfigured()) return res.status(503).json({ error: "Steel Cod is not configured yet." });
+    if (!RESEND_API_KEY || !RESEND_FROM_EMAIL) {
+      return res.status(500).json({ error: "Email delivery is not configured (RESEND_API_KEY / RESEND_FROM_EMAIL)." });
+    }
+    const userEmail = req.authUser?.kind === "db" ? req.authUser.email : "";
+    if (!userEmail || !userEmail.includes("@")) {
+      return res.status(400).json({ error: "Sign in with your individual account to use Spec Packages." });
+    }
+
+    const recipients = (Array.isArray(req.body?.recipients) ? req.body.recipients : [])
+      .map((r) => String(r || "").trim().toLowerCase())
+      .filter(Boolean);
+    const uniqueRecipients = [...new Set(recipients)];
+    if (!uniqueRecipients.length || uniqueRecipients.length > 10) {
+      return res.status(400).json({ error: "Provide 1–10 recipient email addresses." });
+    }
+    for (const email of uniqueRecipients) {
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        return res.status(400).json({ error: `"${email}" is not a valid email address.` });
+      }
+    }
+
+    const contents = req.body?.contents || {};
+    const wantComplete = Boolean(contents.complete);
+    const wantSpecs = Boolean(contents.specsOnly);
+    const wantEpass = Boolean(contents.epassOnly);
+    if (!wantComplete && !wantSpecs && !wantEpass) {
+      return res.status(400).json({ error: "Pick at least one document to send." });
+    }
+
+    const variant = String(req.body?.variant || "slim").toLowerCase() === "full" ? "full" : "slim";
+    const position = normalizeQuotePosition(req.body?.quotePosition);
+    const quoteId = String(req.body?.quoteId || "").trim();
+
+    let quoteBytes = null;
+    if (wantComplete || wantEpass) {
+      if (!/^[0-9a-fA-F-]{36}$/.test(quoteId)) {
+        return res.status(400).json({ error: "The complete package and ePASS file need a scanned or library quote." });
+      }
+      const quote = await getSpecQuote(quoteId);
+      if (!quote) {
+        return res.status(404).json({ error: "That quote is no longer in the library." });
+      }
+      quoteBytes = quote.bytes;
+    }
+
+    const base = String(req.body?.salesOrder || req.params.navId)
+      .replace(/[^A-Za-z0-9 ._-]+/g, "").trim().slice(0, 60) || "spec-package";
+
+    const attachments = [];
+    if (wantComplete) {
+      const { mergedBytes } = await buildMergedQuotePdf({
+        userEmail, navId: req.params.navId, quoteBytes, variant, position
+      });
+      attachments.push({ filename: `${base}-complete.pdf`, content: mergedBytes.toString("base64") });
+    }
+    if (wantSpecs) {
+      const specBytes = await fetchSpecPdf({ userEmail, navId: req.params.navId, variant });
+      attachments.push({ filename: `${base}-specs-${variant}.pdf`, content: specBytes.toString("base64") });
+    }
+    if (wantEpass) {
+      attachments.push({ filename: `${base}-sales-order.pdf`, content: Buffer.from(quoteBytes).toString("base64") });
+    }
+
+    const subject = `Your documents from Wilson AC & Appliance — ${base}`;
+    const bodyText = [
+      "Hello,",
+      "",
+      "Attached are the documents for your order" + (req.body?.salesOrder ? ` ${req.body.salesOrder}` : "") + ":",
+      ...attachments.map((a) => `• ${a.filename}`),
+      "",
+      "Questions? Call or text Wilson AC & Appliance at 512-894-0907.",
+      "",
+      "Wilson AC & Appliance",
+      "4205 E Hwy 290, Dripping Springs, TX 78620"
+    ].join("\n");
+
+    const response = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${RESEND_API_KEY}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        from: RESEND_FROM_EMAIL,
+        to: uniqueRecipients,
+        subject,
+        text: bodyText,
+        attachments
+      })
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error("Spec package email failed:", response.status, errorText);
+      return res.status(502).json({ error: "The email service rejected the message — try again in a minute." });
+    }
+
+    recordAudit({
+      ip: req.ip,
+      actorUserId: req.authUser?.id || null,
+      action: "spec_package_emailed",
+      targetUserId: null,
+      detail: { navId: req.params.navId, salesOrder: req.body?.salesOrder || "", to: uniqueRecipients, files: attachments.map((a) => a.filename) }
+    }).catch(() => {});
+
+    return res.json({ success: true, sent: uniqueRecipients.length, files: attachments.map((a) => a.filename) });
+  } catch (err) {
+    console.error("Spec package email error:", err.message);
+    const message = (err.userFacing || err instanceof SteelCodError) ? err.message : "Unable to email the documents.";
+    return res.status(400).json({ error: message });
+  }
+});
 
 // ---------------------------------------------------------------------------
 // Quote Library — upload once (from any machine), reuse for merges anywhere.
@@ -2659,8 +2799,33 @@ app.post("/api/spec-quotes/scan", requirePagePermission("/spec-packages.html"), 
       return sendScanResult(res, { ok: false, error: "That file does not look like a PDF." });
     }
 
-    const models = await extractModelsFromPdfBuffer(bytes);
-    return sendScanResult(res, { ok: true, models });
+    const data = await extractQuoteDataFromPdfBuffer(bytes);
+
+    // Scanned quotes are saved into the Quote Library automatically — the
+    // same upload then powers the merge and the email attachments with no
+    // second upload from the user's machine.
+    let quote = null;
+    const userEmail = req.authUser?.kind === "db" ? req.authUser.email : "";
+    if (userEmail) {
+      try {
+        quote = await saveSpecQuote({
+          uploadedByEmail: userEmail,
+          uploadedByName: req.authUser?.displayName || "",
+          filename: req.file?.originalname || (data.salesOrder ? data.salesOrder.toLowerCase() + ".pdf" : "quote.pdf"),
+          bytes
+        });
+      } catch (saveErr) {
+        console.error("Scan library save failed:", saveErr.message);
+      }
+    }
+
+    return sendScanResult(res, {
+      ok: true,
+      models: data.models,
+      customer: data.customer,
+      salesOrder: data.salesOrder,
+      quote
+    });
   } catch (err) {
     console.error("Quote scan failed:", err.message);
     return sendScanResult(res, { ok: false, error: "Couldn't read that PDF — if it's a scan/image rather than an ePASS export, type the models instead." });
@@ -2676,8 +2841,8 @@ app.get("/api/spec-quotes/:id/scan", requirePagePermission("/spec-packages.html"
     if (!quote) {
       return res.status(404).json({ error: "That quote is no longer in the library." });
     }
-    const models = await extractModelsFromPdfBuffer(quote.bytes);
-    return res.json({ models });
+    const data = await extractQuoteDataFromPdfBuffer(quote.bytes);
+    return res.json({ models: data.models, customer: data.customer, salesOrder: data.salesOrder, quote: { id: quote.id, filename: quote.filename } });
   } catch (err) {
     console.error("Library quote scan failed:", err.message);
     return res.status(500).json({ error: "Couldn't read that PDF — if it's a scan/image rather than an ePASS export, type the models instead." });

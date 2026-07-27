@@ -195,6 +195,98 @@
 
     .attach-row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
 
+    /* Scan-first create flow */
+    .scan-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+      gap: 16px;
+      flex-wrap: wrap;
+      margin-bottom: 18px;
+    }
+
+    .scan-field { flex: 1 1 340px; min-width: 260px; }
+
+    .mode-toggle {
+      display: inline-flex;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 3px;
+      background: #f3f4f8;
+      gap: 3px;
+      flex: 0 0 auto;
+    }
+
+    .mode-btn {
+      appearance: none;
+      border: none;
+      background: transparent;
+      color: var(--muted);
+      padding: 8px 14px;
+      border-radius: 9px;
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+      font-family: inherit;
+      white-space: nowrap;
+    }
+
+    .mode-btn:hover { background: #e8ebf5; color: var(--text); }
+
+    .mode-btn.active {
+      background: #fff;
+      color: var(--primary);
+      box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+    }
+
+    .mode-btn.active:hover { background: #fff; }
+
+    .finish-header {
+      margin: 0 0 12px;
+      font-size: 15px;
+      letter-spacing: 0.02em;
+    }
+
+    .finish-row {
+      display: flex;
+      gap: 18px;
+      flex-wrap: wrap;
+      align-items: flex-end;
+      margin-bottom: 14px;
+    }
+
+    .finish-row .field { min-width: 220px; }
+    .finish-row .field.grow { flex: 1 1 320px; }
+
+    .contents-row {
+      align-items: center;
+      background: #fafbff;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 12px 14px;
+    }
+
+    .contents-label { font-size: 13px; font-weight: 700; }
+
+    .content-check {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      margin: 0;
+      font-size: 14px;
+      font-weight: 400;
+      cursor: pointer;
+    }
+
+    /* Quote Library filter */
+    .library-toolbar {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+    }
+
     textarea { min-height: 90px; resize: vertical; }
 
     input:focus, textarea:focus {
@@ -381,11 +473,27 @@
     <div class="surface">
       <h2>Create a spec package</h2>
       <p class="section-note">
-        Enter the sales order and model numbers; Steel Cod compiles the spec sheets into a
-        shareable package. The package is created under <span id="whoami">your account</span>.
+        Scan the ePASS quote / sales order and the form fills itself — order number, client,
+        and models. Steel Cod compiles the spec sheets into a shareable package created under
+        <span id="whoami">your account</span>.
       </p>
 
+      <div class="scan-row">
+        <div class="field scan-field">
+          <label for="quotePdf">Scan Quote / Sales Order</label>
+          <div class="attach-row">
+            <input id="quotePdf" type="file" accept="application/pdf,.pdf" />
+            <button id="scanModelsBtn" type="button">Scan</button>
+          </div>
+        </div>
+        <div class="mode-toggle" role="tablist" aria-label="Entry mode">
+          <button id="modeScanBtn" type="button" class="mode-btn active">Scanner</button>
+          <button id="modeManualBtn" type="button" class="mode-btn">Manual entry</button>
+        </div>
+      </div>
+
       <form id="createForm">
+        <div id="createDetails" style="display: none;">
         <!-- Order + requester: two columns, requester emails right-aligned. -->
         <div class="spec-head">
           <div class="spec-head-col">
@@ -443,33 +551,65 @@
           <textarea id="modelNumbers" placeholder="WRF535SWHZ&#10;WDT730PAHZ"></textarea>
         </div>
 
-        <div class="spec-gap"></div>
+        <hr class="spec-divider" />
 
-        <div class="field full">
-          <label for="quotePdf">Sales order / quote PDF (optional)
-            <span class="help-tip" tabindex="0" role="tooltip"
-              data-tip="Upload your quote PDF and the compiled spec pages will be appended to the end of it. The merged PDF downloads right after the package is created."
-              aria-label="Upload your quote PDF and the compiled spec pages will be appended to the end of it. The merged PDF downloads right after the package is created.">?</span>
-          </label>
-          <div class="attach-row">
-            <input id="quotePdf" type="file" accept="application/pdf,.pdf" />
-            <select id="quoteVariant" aria-label="Which spec pages to append">
-              <option value="slim" selected>Slim spec pages</option>
-              <option value="full">Full spec pages</option>
+        <h3 class="finish-header">Finishing Options</h3>
+
+        <div class="finish-row">
+          <div class="field">
+            <label for="mergeChoice">Merge ePASS / NetSuite file?</label>
+            <select id="mergeChoice">
+              <option value="no" selected>No</option>
+              <option value="yes">Yes</option>
             </select>
-            <button id="scanModelsBtn" type="button" class="secondary"
-              title="Reads the chosen ePASS quote PDF and fills the model numbers above automatically.">Scan for models</button>
+          </div>
+          <div class="field" id="mergePositionField" style="display: none;">
+            <label for="mergePosition">Where does the ePASS file go?</label>
+            <select id="mergePosition">
+              <option value="front" selected>Front of the spec package</option>
+              <option value="back">End of the spec package</option>
+            </select>
           </div>
         </div>
 
-        <div class="checkbox-row">
-          <input id="emailCopy" type="checkbox" />
-          <label for="emailCopy" style="margin: 0; font-weight: 500;">Email me a copy of the compiled spec document</label>
+        <div class="finish-row">
+          <div class="field">
+            <label for="quoteVariant">Spec pages</label>
+            <select id="quoteVariant">
+              <option value="slim" selected>Slim specs</option>
+              <option value="full">Full specs</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="finish-row">
+          <div class="field">
+            <label for="emailRecipient">Email options — recipient</label>
+            <select id="emailRecipient">
+              <option value="none" selected>No email</option>
+              <option value="myself">Myself</option>
+              <option value="client">Client</option>
+              <option value="both">Both</option>
+              <option value="other">Other</option>
+            </select>
+          </div>
+          <div class="field grow" id="emailOtherField" style="display: none;">
+            <label for="emailOther">Addresses (separate with semicolons)</label>
+            <input id="emailOther" type="text" placeholder="name@one.com; name@two.com" />
+          </div>
+        </div>
+
+        <div class="finish-row contents-row" id="emailContentsRow" style="display: none;">
+          <span class="contents-label">Contents to be sent:</span>
+          <label class="content-check"><input id="sendComplete" type="checkbox" checked /> Complete spec package</label>
+          <label class="content-check"><input id="sendSpecs" type="checkbox" /> Specs only</label>
+          <label class="content-check"><input id="sendEpass" type="checkbox" /> ePASS file only</label>
         </div>
 
         <div class="actions-row">
           <button id="createBtn" type="submit">Create spec package</button>
         </div>
+        </div><!-- /createDetails -->
         <div id="createStatus" class="status"></div>
         <div id="createResult"></div>
       </form>
@@ -478,14 +618,23 @@
     <div class="surface">
       <h2>Quote Library</h2>
       <p class="section-note">
-        Upload sales order / quote PDFs here — from <strong>any</strong> computer — and they
-        show up as tiles for the whole team. Then merge spec pages onto a stored quote from
-        the Attach panel below with no re-upload. Quotes clear out automatically after 90 days.
+        Scanned and uploaded quotes are stored here for 90 days, so any computer can re-merge
+        or re-scan them with no re-upload. You see <strong>your own</strong> uploads by
+        default — use the filter to see a teammate's when you're helping out.
       </p>
-      <form id="quoteUploadForm" method="POST" action="/api/spec-quotes" enctype="multipart/form-data" target="specMergeFrame" class="attach-row">
-        <input id="libraryPdf" name="quote" type="file" accept="application/pdf,.pdf" />
-        <button id="libraryUploadBtn" type="submit">Upload to library</button>
-      </form>
+      <div class="library-toolbar">
+        <form id="quoteUploadForm" method="POST" action="/api/spec-quotes" enctype="multipart/form-data" target="specMergeFrame" class="attach-row">
+          <input id="libraryPdf" name="quote" type="file" accept="application/pdf,.pdf" />
+          <button id="libraryUploadBtn" type="submit">Upload to library</button>
+        </form>
+        <div class="attach-row">
+          <label for="libraryFilter" style="margin: 0;">Show</label>
+          <select id="libraryFilter" aria-label="Filter quote library by uploader">
+            <option value="mine" selected>My uploads</option>
+            <option value="all">Everyone's uploads</option>
+          </select>
+        </div>
+      </div>
       <div id="libraryStatus" class="status"></div>
       <div id="quoteTiles" class="quote-tiles"><div class="muted">Loading the quote library…</div></div>
     </div>
@@ -564,6 +713,45 @@
   <script>
     let session = null;
     let searchState = { params: null, skip: 0, total: 0, loaded: 0 };
+
+    // ---- Entry mode (Scanner vs Manual) ----
+    // Scanner (default): the form fields stay hidden until a scan fills
+    // them, then appear prefilled for review/edits. Manual shows everything
+    // immediately, like the classic form.
+    let entryMode = "scan";
+    let scanCompleted = false;   // a successful scan reveals the fields
+    let scannedQuoteId = null;   // library id of the auto-saved scanned quote
+
+    function updateDetailsVisibility() {
+      const show = entryMode === "manual" || scanCompleted;
+      document.getElementById("createDetails").style.display = show ? "" : "none";
+    }
+
+    function setEntryMode(mode) {
+      entryMode = mode;
+      document.getElementById("modeScanBtn").classList.toggle("active", mode === "scan");
+      document.getElementById("modeManualBtn").classList.toggle("active", mode === "manual");
+      updateDetailsVisibility();
+    }
+
+    document.getElementById("modeScanBtn").addEventListener("click", () => setEntryMode("scan"));
+    document.getElementById("modeManualBtn").addEventListener("click", () => setEntryMode("manual"));
+
+    // ---- Finishing Options show/hide ----
+
+    function updateFinishToggles() {
+      const mergeYes = document.getElementById("mergeChoice").value === "yes";
+      document.getElementById("mergePositionField").style.display = mergeYes ? "" : "none";
+
+      const recipient = document.getElementById("emailRecipient").value;
+      document.getElementById("emailOtherField").style.display = recipient === "other" ? "" : "none";
+      document.getElementById("emailContentsRow").style.display = recipient === "none" ? "none" : "flex";
+    }
+
+    document.getElementById("mergeChoice").addEventListener("change", updateFinishToggles);
+    document.getElementById("emailRecipient").addEventListener("change", updateFinishToggles);
+    updateFinishToggles();
+    updateDetailsVisibility();
 
     function setStatus(id, message, kind) {
       const box = document.getElementById(id);
@@ -667,7 +855,7 @@
       if (ctx.resetBtn) ctx.resetBtn();
     });
 
-    function nativeMergeSubmit(navId, fileInput, variant, baseName, statusId, resetBtn) {
+    function nativeMergeSubmit(navId, fileInput, variant, baseName, statusId, resetBtn, position) {
       if (!fileInput || !fileInput.files || !fileInput.files[0]) {
         setStatus(statusId, "Choose the sales order / quote PDF first.", "warn");
         if (resetBtn) resetBtn();
@@ -687,6 +875,9 @@
       const nIn = document.createElement("input");
       nIn.type = "hidden"; nIn.name = "name"; nIn.value = baseName || "quote";
       form.appendChild(nIn);
+      const pIn = document.createElement("input");
+      pIn.type = "hidden"; pIn.name = "quotePosition"; pIn.value = position || "front";
+      form.appendChild(pIn);
 
       // Move the real file input into the form (a File can't be copied to
       // another input, but the element can be moved). It stays in the form
@@ -731,6 +922,7 @@
 
     let quoteLibrary = [];
     let libraryUploadCtx = null;
+    let libraryFilter = "mine"; // "mine" | "all" | a teammate's email
 
     function escapeHtml(value) {
       return String(value == null ? "" : value).replace(/[&<>"']/g, (ch) => ({
@@ -758,6 +950,7 @@
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || "Unable to load the quote library.");
         quoteLibrary = data.quotes || [];
+        renderLibraryFilterOptions();
         renderQuoteTiles();
         renderAttachLibraryOptions();
       } catch (err) {
@@ -765,16 +958,56 @@
       }
     }
 
+    // The filter dropdown: My uploads / Everyone's, plus one entry per
+    // teammate who has quotes in the library (so you can help a specific
+    // person without wading through everyone's).
+    function renderLibraryFilterOptions() {
+      const select = document.getElementById("libraryFilter");
+      const myEmail = String(session?.user?.email || "").toLowerCase();
+      const current = select.value || libraryFilter;
+
+      const others = new Map();
+      for (const q of quoteLibrary) {
+        const email = String(q.uploadedByEmail || "").toLowerCase();
+        if (!email || email === myEmail) continue;
+        if (!others.has(email)) others.set(email, q.uploadedByName || email);
+      }
+
+      select.innerHTML = '<option value="mine">My uploads</option>' +
+        '<option value="all">Everyone\'s uploads</option>' +
+        [...others.entries()]
+          .sort((a, b) => a[1].localeCompare(b[1]))
+          .map(([email, name]) => `<option value="${escapeHtml(email)}">${escapeHtml(name)}</option>`)
+          .join("");
+
+      select.value = [...select.options].some((o) => o.value === current) ? current : "mine";
+      libraryFilter = select.value;
+    }
+
+    function visibleQuotes() {
+      const myEmail = String(session?.user?.email || "").toLowerCase();
+      if (libraryFilter === "all" || !myEmail) return quoteLibrary;
+      const target = libraryFilter === "mine" ? myEmail : libraryFilter;
+      return quoteLibrary.filter((q) => String(q.uploadedByEmail || "").toLowerCase() === target);
+    }
+
     function renderQuoteTiles() {
       const tiles = document.getElementById("quoteTiles");
       const myEmail = String(session?.user?.email || "").toLowerCase();
+      const shown = visibleQuotes();
 
       if (!quoteLibrary.length) {
         tiles.innerHTML = '<div class="muted">No quotes in the library yet — upload the first one above.</div>';
         return;
       }
+      if (!shown.length) {
+        tiles.innerHTML = libraryFilter === "mine"
+          ? '<div class="muted">You haven\'t uploaded any quotes yet — switch the filter to see the team\'s uploads.</div>'
+          : '<div class="muted">No quotes match this filter.</div>';
+        return;
+      }
 
-      tiles.innerHTML = quoteLibrary.map((q) => {
+      tiles.innerHTML = shown.map((q) => {
         const uploader = q.uploadedByName || q.uploadedByEmail || "unknown";
         const mine = myEmail && String(q.uploadedByEmail || "").toLowerCase() === myEmail;
         return `
@@ -801,7 +1034,7 @@
             const res = await fetch("/api/spec-quotes/" + encodeURIComponent(id) + "/scan", { credentials: "same-origin" });
             const data = await res.json();
             if (!res.ok) throw new Error(data.error || "Unable to scan that quote.");
-            applyScannedModels(data.models || [], "libraryStatus");
+            applyScanResult(data, "libraryStatus");
           } catch (err) {
             setStatus("libraryStatus", err.message, "error");
           } finally {
@@ -861,6 +1094,11 @@
       }
     });
 
+    document.getElementById("libraryFilter").addEventListener("change", () => {
+      libraryFilter = document.getElementById("libraryFilter").value;
+      renderQuoteTiles();
+    });
+
     document.getElementById("quoteUploadForm").addEventListener("submit", (event) => {
       const input = document.getElementById("libraryPdf");
       if (!input.files || !input.files[0]) {
@@ -895,11 +1133,43 @@
 
     let scanCtx = null;
 
-    function applyScannedModels(models, statusId) {
-      if (!models.length) {
-        setStatus(statusId, "No model numbers found in that PDF — is it an ePASS quote/sales order export?", "warn");
+    function applyScanResult(result, statusId) {
+      const models = result.models || [];
+      const customer = result.customer || null;
+      const salesOrder = String(result.salesOrder || "").trim();
+
+      // Scan fills only fields the user hasn't typed in — it never
+      // overwrites manual entry.
+      const filled = [];
+      const fills = [
+        ["documentID", salesOrder, "sales order #"],
+        ["title", salesOrder, null],
+        ["customerName", customer?.name, "client name"],
+        ["customerAddress", customer?.address, "address"],
+        ["customerPhone", customer?.phone, "phone"]
+      ];
+      for (const [id, value, label] of fills) {
+        const input = document.getElementById(id);
+        if (value && input && !input.value.trim()) {
+          input.value = value;
+          if (label) filled.push(label);
+        }
+      }
+
+      // The scanned PDF was saved to the Quote Library server-side; remember
+      // it so the merge and email steps reuse the stored copy (no re-upload).
+      if (result.quote && result.quote.id) {
+        scannedQuoteId = result.quote.id;
+        document.getElementById("mergeChoice").value = "yes";
+        updateFinishToggles();
+        if (!quoteLibrary.some((q) => q.id === result.quote.id)) loadQuoteLibrary();
+      }
+
+      if (!models.length && !filled.length) {
+        setStatus(statusId, "Nothing found in that PDF — is it an ePASS quote/sales order export? Switch to Manual entry to type the details.", "warn");
         return;
       }
+
       const ta = document.getElementById("modelNumbers");
       const existing = ta.value.split(/[\n,]/).map((s) => s.trim()).filter(Boolean);
       const seen = new Set(existing.map((s) => s.toUpperCase()));
@@ -912,11 +1182,22 @@
         }
       }
       ta.value = existing.join("\n");
-      setStatus(statusId,
-        `Scan found ${models.length} model${models.length === 1 ? "" : "s"}` +
-        (added === models.length ? "" : ` (${added} new)`) +
-        " — review the list before creating.", "ok");
-      ta.scrollIntoView({ behavior: "smooth", block: "center" });
+
+      // Reveal the (now prefilled) form for review.
+      scanCompleted = true;
+      updateDetailsVisibility();
+
+      const bits = [];
+      if (salesOrder) bits.push(salesOrder);
+      if (models.length) {
+        bits.push(`${models.length} model${models.length === 1 ? "" : "s"}` +
+          (added === models.length ? "" : ` (${added} new)`));
+      }
+      if (filled.filter((f) => f !== "sales order #").length) {
+        bits.push("Ship To " + filled.filter((f) => f !== "sales order #").join(" + "));
+      }
+      setStatus(statusId, `Scan found ${bits.join(", ")} — review the details below, then create.`, "ok");
+      document.getElementById("createDetails").scrollIntoView({ behavior: "smooth", block: "start" });
     }
 
     window.addEventListener("message", (event) => {
@@ -930,7 +1211,7 @@
       if (ctx.resetBtn) ctx.resetBtn();
 
       if (msg.ok) {
-        applyScannedModels(msg.models || [], "createStatus");
+        applyScanResult(msg, "createStatus");
       } else {
         setStatus("createStatus", msg.error || "Unable to scan the quote.", "error");
       }
@@ -975,7 +1256,7 @@
 
       const resetBtn = () => {
         scanBtn.disabled = false;
-        scanBtn.textContent = "Scan for models";
+        scanBtn.textContent = "Scan";
       };
 
       scanCtx = {
@@ -1070,6 +1351,50 @@
 
     // ---- Create ----
 
+    // Work out who gets the email (and of what) BEFORE creating the package,
+    // so bad input fails fast instead of after the Steel Cod call.
+    function resolveEmailPlan() {
+      const choice = document.getElementById("emailRecipient").value;
+      if (choice === "none") return { recipients: [] };
+
+      const contents = {
+        complete: document.getElementById("sendComplete").checked,
+        specsOnly: document.getElementById("sendSpecs").checked,
+        epassOnly: document.getElementById("sendEpass").checked
+      };
+      if (!contents.complete && !contents.specsOnly && !contents.epassOnly) {
+        return { error: "Pick at least one document to email — or set the recipient back to No email." };
+      }
+
+      const myEmail = String(session?.user?.email || "").trim();
+      const clientEmail = document.getElementById("customerEmail").value.trim();
+      let recipients = [];
+      if (choice === "myself") {
+        if (!myEmail) return { error: "Your signed-in email isn't available — sign in with your individual account to email yourself a copy." };
+        recipients = [myEmail];
+      } else if (choice === "client") {
+        if (!clientEmail) return { error: "Add the customer email above to send the documents to the client." };
+        recipients = [clientEmail];
+      } else if (choice === "both") {
+        if (!clientEmail) return { error: "Add the customer email above to send the documents to the client." };
+        recipients = [myEmail, clientEmail].filter(Boolean);
+      } else if (choice === "other") {
+        recipients = document.getElementById("emailOther").value
+          .split(";").map((s) => s.trim()).filter(Boolean);
+        if (!recipients.length) return { error: "Paste at least one email address (separate several with semicolons)." };
+      }
+
+      const bad = recipients.find((r) => !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(r));
+      if (bad) return { error: `"${bad}" doesn't look like an email address.` };
+      if (recipients.length > 10) return { error: "That's more than 10 email addresses — trim the list down." };
+
+      if ((contents.complete || contents.epassOnly) && !scannedQuoteId) {
+        return { error: "The complete package and ePASS-file emails are built from the scanned copy — scan the ePASS / NetSuite PDF above first, or send Specs only." };
+      }
+
+      return { recipients, contents };
+    }
+
     document.getElementById("createForm").addEventListener("submit", async (event) => {
       event.preventDefault();
       setStatus("createStatus", "", "");
@@ -1081,6 +1406,22 @@
       }
       if (!document.getElementById("customerPhone").value.trim()) {
         setStatus("createStatus", "Customer phone is required.", "error");
+        return;
+      }
+
+      const emailPlan = resolveEmailPlan();
+      if (emailPlan.error) {
+        setStatus("createStatus", emailPlan.error, "error");
+        return;
+      }
+
+      const mergeYes = document.getElementById("mergeChoice").value === "yes";
+      const variant = document.getElementById("quoteVariant").value;
+      const position = document.getElementById("mergePosition").value;
+      const quoteInput = document.getElementById("quotePdf");
+      const hasChosenFile = Boolean(quoteInput.files && quoteInput.files[0]);
+      if (mergeYes && !scannedQuoteId && !hasChosenFile) {
+        setStatus("createStatus", "Merging needs the ePASS / NetSuite PDF — scan or choose it above, or set Merge to No.", "error");
         return;
       }
 
@@ -1099,36 +1440,78 @@
             customerPhone: document.getElementById("customerPhone").value.trim(),
             customerEmail: document.getElementById("customerEmail").value.trim(),
             salespersonEmail: document.getElementById("salespersonEmail").value.trim(),
-            emailCopyToSelf: document.getElementById("emailCopy").checked,
             modelNumbers: document.getElementById("modelNumbers").value
           })
         });
 
         renderCreateResult(result);
 
-        const quoteInput = document.getElementById("quotePdf");
-        if (quoteInput.files[0]) {
-          const navId = extractNavId(result);
-          if (!navId) {
-            setStatus("createStatus",
-              "Spec package created, but its ID couldn't be determined for the quote merge. Find it in the search below and use \"Attach quote\".",
-              "warn");
-          } else {
-            setStatus("createStatus", "Spec package created. Merging your quote PDF…", "ok");
-            const baseName =
-              document.getElementById("documentID").value.trim() ||
-              quoteInput.files[0].name.replace(/\.pdf$/i, "") || "quote";
-            nativeMergeSubmit(
-              navId,
-              quoteInput,
-              document.getElementById("quoteVariant").value,
-              baseName,
-              "createStatus",
-              null
-            );
+        const navId = extractNavId(result);
+        const salesOrder = document.getElementById("documentID").value.trim();
+        const baseName = salesOrder ||
+          (hasChosenFile ? quoteInput.files[0].name.replace(/\.pdf$/i, "") : "") || "quote";
+        const done = ["Spec package created"];
+        let hadTrouble = false;
+
+        const wantsFollowUp = (emailPlan.recipients && emailPlan.recipients.length) || mergeYes;
+        if (wantsFollowUp && !navId) {
+          setStatus("createStatus",
+            "Spec package created, but its ID couldn't be determined for the merge/email. Find it in the search below and use \"Attach quote\".",
+            "warn");
+          return;
+        }
+
+        // Email step — uses the stored scanned quote, nothing re-uploads.
+        if (emailPlan.recipients && emailPlan.recipients.length) {
+          setStatus("createStatus", "Spec package created. Emailing the documents…", "ok");
+          try {
+            const sent = await api("/api/spec-packages/" + encodeURIComponent(navId) + "/email", {
+              method: "POST",
+              body: JSON.stringify({
+                recipients: emailPlan.recipients,
+                contents: emailPlan.contents,
+                variant,
+                quotePosition: position,
+                quoteId: scannedQuoteId || "",
+                salesOrder
+              })
+            });
+            done.push(`emailed ${sent.sent} recipient${sent.sent === 1 ? "" : "s"}`);
+          } catch (err) {
+            hadTrouble = true;
+            done.push("but the email failed: " + err.message);
           }
+        }
+
+        // Merge & download step.
+        if (mergeYes && scannedQuoteId) {
+          setStatus("createStatus", done.join(", ") + ". Building the merged PDF…", "ok");
+          try {
+            const data = await api(
+              "/api/spec-packages/" + encodeURIComponent(navId) + "/attach-quote-library",
+              {
+                method: "POST",
+                body: JSON.stringify({ quoteId: scannedQuoteId, variant, name: baseName, quotePosition: position })
+              }
+            );
+            if (!data.ok) throw new Error(data.error || "Unable to merge the quote and spec pages.");
+            const a = document.createElement("a");
+            a.href = "/api/spec-packages/quote-download/" + encodeURIComponent(data.token);
+            a.download = data.filename || (baseName + "-with-specs.pdf");
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            done.push("merged PDF downloaded");
+          } catch (err) {
+            hadTrouble = true;
+            done.push("but the merge failed: " + err.message);
+          }
+          setStatus("createStatus", done.join(", ") + ".", hadTrouble ? "warn" : "ok");
+        } else if (mergeYes && hasChosenFile) {
+          setStatus("createStatus", done.join(", ") + ". Merging your quote PDF…", "ok");
+          nativeMergeSubmit(navId, quoteInput, variant, baseName, "createStatus", null, position);
         } else {
-          setStatus("createStatus", "Spec package created.", "ok");
+          setStatus("createStatus", done.join(", ") + ".", hadTrouble ? "warn" : "ok");
         }
       } catch (err) {
         setStatus("createStatus", err.message, "error");

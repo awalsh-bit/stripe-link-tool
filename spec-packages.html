@@ -923,6 +923,7 @@
     let quoteLibrary = [];
     let libraryUploadCtx = null;
     let libraryFilter = "mine"; // "mine" | "all" | a teammate's email
+    let specTeam = [];          // everyone with access to this page
 
     function escapeHtml(value) {
       return String(value == null ? "" : value).replace(/[&<>"']/g, (ch) => ({
@@ -959,14 +960,20 @@
     }
 
     // The filter dropdown: My uploads / Everyone's, plus one entry per
-    // teammate who has quotes in the library (so you can help a specific
-    // person without wading through everyone's).
+    // teammate with access to this page (from Users), so you can jump to a
+    // specific person even before they have uploads. Falls back to the
+    // uploaders present in the library if the team list isn't available.
     function renderLibraryFilterOptions() {
       const select = document.getElementById("libraryFilter");
       const myEmail = String(session?.user?.email || "").toLowerCase();
       const current = select.value || libraryFilter;
 
       const others = new Map();
+      for (const member of specTeam) {
+        const email = String(member.email || "").toLowerCase();
+        if (!email || email === myEmail) continue;
+        others.set(email, member.name || email);
+      }
       for (const q of quoteLibrary) {
         const email = String(q.uploadedByEmail || "").toLowerCase();
         if (!email || email === myEmail) continue;
@@ -982,6 +989,17 @@
 
       select.value = [...select.options].some((o) => o.value === current) ? current : "mine";
       libraryFilter = select.value;
+    }
+
+    async function loadSpecTeam() {
+      try {
+        const res = await fetch("/api/spec-packages/team", { credentials: "same-origin" });
+        const data = await res.json();
+        if (res.ok && Array.isArray(data.team)) {
+          specTeam = data.team;
+          renderLibraryFilterOptions();
+        }
+      } catch {}
     }
 
     function visibleQuotes() {
@@ -1473,7 +1491,8 @@
                 variant,
                 quotePosition: position,
                 quoteId: scannedQuoteId || "",
-                salesOrder
+                salesOrder,
+                salespersonEmail: document.getElementById("salespersonEmail").value.trim()
               })
             });
             done.push(`emailed ${sent.sent} recipient${sent.sent === 1 ? "" : "s"}`);
@@ -1712,6 +1731,7 @@
         }
       } catch {}
       loadQuoteLibrary();
+      loadSpecTeam();
     })();
   </script>
 </body>

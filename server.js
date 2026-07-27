@@ -2256,6 +2256,25 @@ app.get("/api/spec-packages", requirePagePermission("/spec-packages.html"), asyn
   }
 });
 
+// Everyone with access to the Spec Packages page — powers the Quote Library
+// uploader filter, so the dropdown shows the whole team (not just people who
+// happen to have uploads right now). Must be registered BEFORE /:navId.
+app.get("/api/spec-packages/team", requirePagePermission("/spec-packages.html"), async (req, res) => {
+  try {
+    const users = await listUsersWithAccess();
+    const team = users
+      .filter((u) => u.status === "active")
+      .filter((u) => u.isExecutive ||
+        (Array.isArray(u.grantedPages) && u.grantedPages.includes("/spec-packages.html")))
+      .map((u) => ({ email: u.email, name: u.displayName || u.email }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+    return res.json({ team });
+  } catch (err) {
+    console.error("Spec package team list failed:", err.message);
+    return res.status(500).json({ error: "Unable to load the team list." });
+  }
+});
+
 app.get("/api/spec-packages/:navId", requirePagePermission("/spec-packages.html"), async (req, res) => {
   const userEmail = resolveSteelCodUserEmail(req, res);
   if (!userEmail) return;
@@ -2656,7 +2675,20 @@ app.post("/api/spec-packages/:navId/email", requirePagePermission("/spec-package
       attachments.push({ filename: `${base}-sales-order.pdf`, content: Buffer.from(quoteBytes).toString("base64") });
     }
 
-    const subject = `Your documents from Wilson AC & Appliance — ${base}`;
+    // Sign with the salesperson's name (matched from Users by the form's
+    // salesperson email) so the email reads like it came from a person.
+    let salespersonName = "";
+    const salespersonEmail = String(req.body?.salespersonEmail || "").trim();
+    if (salespersonEmail && salespersonEmail.includes("@")) {
+      try {
+        const salespersonRow = await findUserByEmail(salespersonEmail);
+        salespersonName = salespersonRow?.display_name || "";
+      } catch (lookupErr) {
+        console.error("Salesperson lookup failed:", lookupErr.message);
+      }
+    }
+
+    const subject = "Specification Documents from Wilson AC & Appliance";
     const bodyText = [
       "Hello,",
       "",
@@ -2665,8 +2697,10 @@ app.post("/api/spec-packages/:navId/email", requirePagePermission("/spec-package
       "",
       "Questions? Call or text Wilson AC & Appliance at 512-894-0907.",
       "",
+      ...(salespersonName ? [salespersonName] : []),
       "Wilson AC & Appliance",
-      "4205 E Hwy 290, Dripping Springs, TX 78620"
+      "4205 E Hwy 290",
+      "Dripping Springs, TX 78620"
     ].join("\n");
 
     const response = await fetch("https://api.resend.com/emails", {

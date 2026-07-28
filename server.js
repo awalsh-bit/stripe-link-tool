@@ -254,7 +254,8 @@ const INTERNAL_PAGE_PATHS = new Set([
   "/satisfaction-survey.html",
   "/satisfaction-results.html",
   "/case-visit-survey.html",
-  "/case-visit-results.html"
+  "/case-visit-results.html",
+  "/refund-dashboard.html"
 ]);
 
 const UNAUTHENTICATED_INTERNAL_PATHS = new Set([
@@ -417,7 +418,8 @@ const PAGE_LABELS = {
   "/satisfaction-survey.html": "Client Satisfaction Survey",
   "/satisfaction-results.html": "Satisfaction Results",
   "/case-visit-survey.html": "Case Visit Survey",
-  "/case-visit-results.html": "Case Visit Results"
+  "/case-visit-results.html": "Case Visit Results",
+  "/refund-dashboard.html": "Refund Dashboard"
 };
 
 // Category groupings for the User Admin permission UI. A page may appear in
@@ -457,6 +459,7 @@ const PAGE_CATEGORIES = [
     pages: [
       "/paid-order-detail.html",
       "/intent-lookup.html",
+      "/refund-dashboard.html",
       "/incoming-payouts.html",
       "/bank-balancing.html",
       "/link-detail-lookup.html"
@@ -7655,6 +7658,90 @@ function buildRefundReportRow(refund, refundIso, sourceRow, paymentIntent) {
     netAmount
   };
 }
+
+// ---------------------------------------------------------------------------
+// Refund Dashboard — refunds in a date range with the refund note (reason),
+// who issued it, and the employee code ("sender code") from the original
+// payment's metadata as a proxy for the salesperson who sold the ticket.
+// ---------------------------------------------------------------------------
+
+app.get("/api/refund-dashboard", requirePagePermission("/refund-dashboard.html"), async (req, res) => {
+  try {
+    const start = String(req.query.start || "").trim();
+    const end = String(req.query.end || "").trim();
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(start) || !/^\d{4}-\d{2}-\d{2}$/.test(end) || start > end) {
+      return res.status(400).json({ error: "Provide a valid start and end date (YYYY-MM-DD)." });
+    }
+    const spanDays = (new Date(end + "T00:00:00Z") - new Date(start + "T00:00:00Z")) / 86400000;
+    if (spanDays > 400) {
+      return res.status(400).json({ error: "Pick a range of 400 days or less." });
+    }
+
+    const rows = [];
+    const piCache = new Map(); // several partial refunds can share one PI
+    let startingAfter = "";
+    let keepLoading = true;
+
+    while (keepLoading) {
+      const page = await stripe.refunds.list({
+        limit: 100,
+        ...(startingAfter ? { starting_after: startingAfter } : {})
+      });
+      if (!page.data.length) break;
+
+      for (const refund of page.data) {
+        if (!refund?.created) continue;
+        const refundIso = new Date(refund.created * 1000).toISOString();
+        const dateKey = toTimeZoneDateKey(refundIso, APP_TIMEZONE);
+        if (dateKey < start) { keepLoading = false; break; } // list is newest-first
+        if (dateKey > end) continue;
+        if (["failed", "canceled"].includes(refund.status)) continue;
+
+        let paymentIntent = null;
+        const piId = refund.payment_intent || "";
+        if (piId) {
+          if (piCache.has(piId)) {
+            paymentIntent = piCache.get(piId);
+          } else {
+            try {
+              paymentIntent = await stripe.paymentIntents.retrieve(piId);
+            } catch (piErr) {
+              console.error("Refund dashboard PI retrieve failed:", piId, piErr.message);
+              paymentIntent = null;
+            }
+            piCache.set(piId, paymentIntent);
+            await sleep(120); // stay friendly with Stripe rate limits
+          }
+        }
+
+        const metadata = paymentIntent?.metadata || {};
+        rows.push({
+          id: refund.id,
+          date: refundIso,
+          amount: Number(((refund.amount || 0) / 100).toFixed(2)),
+          stripeReason: refund.reason || "",
+          note: String(refund.metadata?.refund_note || "").trim(),
+          refundedBy: String(refund.metadata?.refunded_by || "").trim(),
+          senderCode: String(metadata.creator_code || "").trim().toUpperCase(),
+          senderName: String(metadata.creator_name || "").trim(),
+          department: String(metadata.department || "").trim(),
+          salesOrder: String(metadata.sales_order || "").trim(),
+          customerName: String(metadata.customer_name || "").trim(),
+          paymentIntentId: piId
+        });
+      }
+
+      if (!page.has_more || !keepLoading) break;
+      startingAfter = page.data[page.data.length - 1]?.id || "";
+      if (!startingAfter) break;
+    }
+
+    return res.json({ refunds: rows, start, end });
+  } catch (err) {
+    console.error("Refund dashboard failed:", err.message);
+    return res.status(500).json({ error: "Unable to load refunds from Stripe." });
+  }
+});
 
 app.post("/api/service-cards/:id/prefill-link", requirePagePermission("/appliance-service-calls.html", "/archive-service-calls.html"), async (req, res) => {
   try {

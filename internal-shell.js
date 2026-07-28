@@ -127,6 +127,7 @@
         children: [
           { href: "paid-order-detail.html", title: "Paid Order Detail" },
           { href: "intent-lookup.html", title: "Issue Refund" },
+          { href: "refund-dashboard.html", title: "Refund Dashboard" },
           { href: "incoming-payouts.html", title: "Incoming Payouts" },
           { href: "bank-balancing.html", title: "Bank Balancing" },
           { href: "mileage.html", title: "Mileage" },

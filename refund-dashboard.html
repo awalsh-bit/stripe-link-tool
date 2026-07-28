@@ -1,0 +1,700 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="robots" content="noindex,nofollow,noarchive" />
+  <title>Wilson AC &amp; Appliance - Refund Dashboard</title>
+  <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+  <link rel="stylesheet" href="internal-shell.css" />
+  <style>
+    :root {
+      --bg: #f7f8fc;
+      --card: #ffffff;
+      --text: #1f2937;
+      --muted: #6b7280;
+      --border: #dbe1ea;
+      --primary: #635bff;
+      --primary-hover: #564ef0;
+      --error-bg: #fef2f2;
+      --error-text: #991b1b;
+      --shadow: 0 10px 35px rgba(0, 0, 0, 0.08);
+      --radius: 18px;
+      /* Chart marks (validated palette; labels + table are the relief for aqua) */
+      --series-1: #2a78d6;
+      --series-2: #1baf7a;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: linear-gradient(180deg, #eef2ff 0%, var(--bg) 100%);
+      color: var(--text);
+      min-height: 100vh;
+      padding: 32px 16px;
+    }
+
+    .wrap { max-width: 1480px; margin: 0 auto; }
+
+    .surface {
+      background: var(--card);
+      border: 1px solid rgba(99, 91, 255, 0.12);
+      box-shadow: var(--shadow);
+      border-radius: var(--radius);
+      padding: 22px;
+      margin: 0 auto 20px;
+    }
+
+    h2 { margin: 0 0 6px; font-size: 20px; }
+    .section-note { margin: 0 0 14px; color: var(--muted); font-size: 13.5px; line-height: 1.5; }
+
+    /* Filter row — one row above everything it scopes. */
+    .filter-row {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+
+    .preset-chip {
+      appearance: none;
+      border: 1px solid var(--border);
+      background: #fff;
+      color: var(--text);
+      padding: 9px 14px;
+      border-radius: 999px;
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+      font-family: inherit;
+    }
+
+    .preset-chip:hover { background: #f5f7ff; border-color: rgba(99, 91, 255, 0.32); }
+    .preset-chip.active { background: var(--primary); border-color: var(--primary); color: #fff; }
+
+    input[type="date"] {
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 9px 12px;
+      font-size: 13.5px;
+      background: #fff;
+      color: var(--text);
+      font-family: inherit;
+      outline: none;
+    }
+
+    input[type="date"]:focus {
+      border-color: rgba(99, 91, 255, 0.75);
+      box-shadow: 0 0 0 4px rgba(99, 91, 255, 0.12);
+    }
+
+    .filter-actions { margin-left: auto; display: flex; gap: 10px; }
+
+    button.action {
+      appearance: none;
+      border: none;
+      background: var(--primary);
+      color: #fff;
+      padding: 10px 16px;
+      border-radius: 10px;
+      font-size: 13.5px;
+      font-weight: 700;
+      cursor: pointer;
+      font-family: inherit;
+      white-space: nowrap;
+    }
+
+    button.action:hover { background: var(--primary-hover); }
+    button.action:disabled { opacity: 0.6; cursor: wait; }
+    button.action.secondary { background: #eef2ff; color: var(--primary); }
+    button.action.secondary:hover { background: #e0e7ff; }
+
+    .error-banner {
+      display: none;
+      background: var(--error-bg);
+      color: var(--error-text);
+      border-radius: 12px;
+      padding: 12px 14px;
+      margin: 14px 0 0;
+      font-size: 13.5px;
+      font-weight: 600;
+    }
+
+    /* KPI row — stat tiles, not charts. */
+    .kpi-row {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 14px;
+      margin-bottom: 20px;
+    }
+
+    .kpi {
+      background: var(--card);
+      border: 1px solid rgba(99, 91, 255, 0.12);
+      box-shadow: var(--shadow);
+      border-radius: 16px;
+      padding: 16px 18px;
+    }
+
+    .kpi-label {
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 6px;
+    }
+
+    .kpi-value { font-size: clamp(22px, 2.6vw, 32px); font-weight: 800; line-height: 1.1; }
+    .kpi-sub { margin-top: 6px; color: var(--muted); font-size: 12.5px; line-height: 1.4; }
+
+    /* Charts */
+    .chart-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 20px;
+      margin-bottom: 20px;
+    }
+
+    .barlist { display: flex; flex-direction: column; gap: 8px; margin-top: 6px; }
+
+    .bar-row {
+      display: grid;
+      grid-template-columns: 170px 1fr;
+      gap: 10px;
+      align-items: center;
+      min-height: 24px;
+      border-radius: 8px;
+      padding: 2px 4px;
+      cursor: default;
+    }
+
+    .bar-row:hover, .bar-row:focus-visible { background: #f5f7ff; outline: none; }
+
+    .bar-cat {
+      font-size: 12.5px;
+      font-weight: 600;
+      color: var(--text);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      text-align: right;
+    }
+
+    .bar-track { display: flex; align-items: center; gap: 8px; min-width: 0; }
+
+    .bar-fill {
+      height: 18px;
+      border-radius: 0 4px 4px 0; /* rounded data end, square baseline */
+      background: var(--series-1);
+      flex: 0 0 auto;
+      min-width: 2px;
+      transition: filter 0.1s ease;
+    }
+
+    .bar-row:hover .bar-fill { filter: brightness(1.12); }
+    .barlist.series-2 .bar-fill { background: var(--series-2); }
+
+    .bar-value {
+      font-size: 12.5px;
+      font-weight: 700;
+      color: var(--text);
+      white-space: nowrap;
+    }
+
+    .bar-value .bar-count { color: var(--muted); font-weight: 500; }
+
+    .chart-empty { color: var(--muted); font-size: 13.5px; padding: 18px 0 8px; }
+
+    .loading-dim { opacity: 0.45; pointer-events: none; }
+
+    /* Tooltip */
+    .viz-tooltip {
+      position: fixed;
+      z-index: 50;
+      background: #1f2937;
+      color: #fff;
+      border-radius: 10px;
+      padding: 10px 12px;
+      font-size: 12.5px;
+      line-height: 1.5;
+      pointer-events: none;
+      display: none;
+      max-width: 320px;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+    }
+
+    .viz-tooltip .tt-value { font-size: 15px; font-weight: 800; }
+    .viz-tooltip .tt-sub { color: rgba(255, 255, 255, 0.75); }
+
+    /* Table */
+    table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+
+    th, td {
+      text-align: left;
+      padding: 10px 10px;
+      border-bottom: 1px solid #eef1f6;
+      vertical-align: top;
+    }
+
+    th {
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: #64748b;
+      white-space: nowrap;
+    }
+
+    td.num { text-align: right; font-variant-numeric: tabular-nums; font-weight: 700; white-space: nowrap; }
+    th.num { text-align: right; }
+
+    .cell-note { color: var(--muted); font-size: 12.5px; line-height: 1.45; }
+    .bucket-pill {
+      display: inline-block;
+      background: #eef2ff;
+      color: #3730a3;
+      border-radius: 999px;
+      padding: 3px 10px;
+      font-size: 11.5px;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+
+    .muted { color: var(--muted); }
+    .table-scroll { overflow-x: auto; }
+
+    @media (max-width: 1000px) {
+      .kpi-row { grid-template-columns: 1fr 1fr; }
+      .chart-grid { grid-template-columns: 1fr; }
+    }
+
+    @media (max-width: 640px) {
+      body { padding: 14px 8px; }
+      .surface { padding: 16px; }
+      .kpi-row { grid-template-columns: 1fr; }
+      .bar-row { grid-template-columns: 110px 1fr; }
+      .filter-actions { margin-left: 0; width: 100%; justify-content: flex-end; }
+    }
+  </style>
+</head>
+<body data-shell-label="Refund Dashboard" data-shell-icon="accounting">
+  <div class="wrap">
+    <div id="internal-shell-header"></div>
+
+    <div class="surface">
+      <h2>Refund Dashboard</h2>
+      <p class="section-note">
+        Refunds by return reason and dollar amount, with the employee code from the original
+        payment (the sender code) as a proxy for the salesperson who sold the ticket.
+        Reasons are grouped from the refund notes; the exact note is always in the table.
+      </p>
+      <div class="filter-row">
+        <button type="button" class="preset-chip" data-preset="month">This month</button>
+        <button type="button" class="preset-chip" data-preset="30">Last 30 days</button>
+        <button type="button" class="preset-chip" data-preset="90">Last 90 days</button>
+        <input type="date" id="startDate" aria-label="Start date" />
+        <input type="date" id="endDate" aria-label="End date" />
+        <div class="filter-actions">
+          <button type="button" id="runBtn" class="action">Run</button>
+          <button type="button" id="exportBtn" class="action secondary">Export CSV</button>
+        </div>
+      </div>
+      <div id="errorBanner" class="error-banner"></div>
+    </div>
+
+    <div class="kpi-row" id="kpiRow">
+      <div class="kpi">
+        <div class="kpi-label">Total refunded</div>
+        <div class="kpi-value" id="kpiTotal">—</div>
+        <div class="kpi-sub" id="kpiTotalSub">&nbsp;</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-label">Refunds</div>
+        <div class="kpi-value" id="kpiCount">—</div>
+        <div class="kpi-sub" id="kpiCountSub">&nbsp;</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-label">Average refund</div>
+        <div class="kpi-value" id="kpiAvg">—</div>
+        <div class="kpi-sub">Per refund in range</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-label">Top reason</div>
+        <div class="kpi-value" id="kpiTopReason" style="font-size: clamp(15px, 1.7vw, 20px); line-height: 1.25;">—</div>
+        <div class="kpi-sub" id="kpiTopReasonSub">By dollars refunded</div>
+      </div>
+    </div>
+
+    <div class="chart-grid">
+      <div class="surface" style="margin: 0;">
+        <h2 style="font-size: 16px;">Dollars refunded by return reason</h2>
+        <p class="section-note" style="margin-bottom: 6px;">Grouped from refund notes — hover a bar for count and share.</p>
+        <div class="barlist" id="reasonChart"><div class="chart-empty">Run a report to see reasons.</div></div>
+      </div>
+      <div class="surface" style="margin: 0;">
+        <h2 style="font-size: 16px;">Dollars refunded by salesperson</h2>
+        <p class="section-note" style="margin-bottom: 6px;">Sender code on the original payment — the person who sold the ticket, not who issued the refund.</p>
+        <div class="barlist series-2" id="senderChart"><div class="chart-empty">Run a report to see salespeople.</div></div>
+      </div>
+    </div>
+
+    <div class="surface">
+      <h2 style="font-size: 16px;">Refund detail</h2>
+      <p class="section-note" id="tableNote">Every refund in the selected range, newest first.</p>
+      <div class="table-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Customer</th>
+              <th>Sales order</th>
+              <th>Salesperson</th>
+              <th>Reason</th>
+              <th>Refund note</th>
+              <th>Refunded by</th>
+              <th class="num">Amount</th>
+            </tr>
+          </thead>
+          <tbody id="tableBody">
+            <tr><td colspan="8" class="muted">Loading this month's refunds…</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div id="internal-shell-footer"></div>
+  </div>
+
+  <div class="viz-tooltip" id="vizTooltip"></div>
+
+  <script src="internal-shell.js"></script>
+  <script src="employee-directory.js"></script>
+  <script>
+    const TEAM_DIRECTORY = window.WILSON_EMPLOYEE_DIRECTORY || {};
+    const tooltip = document.getElementById("vizTooltip");
+    let currentRows = [];
+    let activePreset = "month";
+
+    // ---- Reason bucketing (first match wins; raw note stays in the table) ----
+
+    const REASON_BUCKETS = [
+      { key: "Duplicate charge", test: (t, sr) => sr === "duplicate" || /duplicat|double charg|charged twice|billed twice|twice/.test(t) },
+      { key: "Fraudulent", test: (t, sr) => sr === "fraudulent" || /fraud/.test(t) },
+      { key: "Cancelled order", test: (t) => /cancel/.test(t) },
+      { key: "Damaged / defective", test: (t) => /damag|defect|dent|scratch|broke|not working|doa/.test(t) },
+      { key: "Return / exchange", test: (t) => /return|exchang|swap/.test(t) },
+      { key: "Price adjustment", test: (t) => /price|adjust|discount|overcharg|over charg|differen|match|rebate/.test(t) },
+      { key: "Delivery / install issue", test: (t) => /deliver|install|schedul|backorder|back order|out of stock/.test(t) },
+      { key: "Service issue", test: (t) => /service|repair|warranty|tech/.test(t) },
+      { key: "No note on file", test: (t) => !t }
+    ];
+
+    function bucketReason(row) {
+      const t = String(row.note || "").toLowerCase();
+      const sr = String(row.stripeReason || "");
+      for (const bucket of REASON_BUCKETS) {
+        if (bucket.test(t, sr)) return bucket.key;
+      }
+      return "Other";
+    }
+
+    function senderLabel(row) {
+      const code = String(row.senderCode || "").trim().toUpperCase();
+      if (!code) return "No sender code";
+      const name = TEAM_DIRECTORY[code]?.name || row.senderName || "";
+      return name ? `${name} (${code})` : code;
+    }
+
+    // ---- Formatting ----
+
+    const money = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" });
+    const money0 = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 });
+
+    function formatDate(iso) {
+      const d = new Date(iso);
+      if (Number.isNaN(d.getTime())) return "—";
+      return d.toLocaleDateString("en-US", { month: "2-digit", day: "2-digit", year: "2-digit" });
+    }
+
+    function localYmd(d) {
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    }
+
+    // ---- Aggregation + bar charts ----
+
+    function aggregate(rows, keyFn) {
+      const map = new Map();
+      for (const row of rows) {
+        const key = keyFn(row);
+        const entry = map.get(key) || { key, total: 0, count: 0 };
+        entry.total += row.amount;
+        entry.count += 1;
+        map.set(key, entry);
+      }
+      return [...map.values()].sort((a, b) => b.total - a.total);
+    }
+
+    function showTooltip(event, lines) {
+      tooltip.textContent = "";
+      for (const [text, cls] of lines) {
+        const div = document.createElement("div");
+        div.className = cls;
+        div.textContent = text; // notes are untrusted — textContent only
+        tooltip.appendChild(div);
+      }
+      tooltip.style.display = "block";
+      positionTooltip(event);
+    }
+
+    function positionTooltip(event) {
+      const pad = 14;
+      let x = event.clientX + pad;
+      let y = event.clientY + pad;
+      const rect = tooltip.getBoundingClientRect();
+      if (x + rect.width > window.innerWidth - 8) x = event.clientX - rect.width - pad;
+      if (y + rect.height > window.innerHeight - 8) y = event.clientY - rect.height - pad;
+      tooltip.style.left = x + "px";
+      tooltip.style.top = y + "px";
+    }
+
+    function hideTooltip() { tooltip.style.display = "none"; }
+
+    function renderBarList(hostId, entries, grandTotal) {
+      const host = document.getElementById(hostId);
+      host.textContent = "";
+
+      if (!entries.length) {
+        const empty = document.createElement("div");
+        empty.className = "chart-empty";
+        empty.textContent = "No refunds in the selected range.";
+        host.appendChild(empty);
+        return;
+      }
+
+      const max = entries[0].total || 1;
+      for (const entry of entries) {
+        const row = document.createElement("div");
+        row.className = "bar-row";
+        row.tabIndex = 0;
+
+        const cat = document.createElement("div");
+        cat.className = "bar-cat";
+        cat.textContent = entry.key;
+        cat.title = entry.key;
+
+        const track = document.createElement("div");
+        track.className = "bar-track";
+
+        const fill = document.createElement("div");
+        fill.className = "bar-fill";
+        fill.style.width = Math.max(1.5, (entry.total / max) * 70) + "%";
+
+        const value = document.createElement("div");
+        value.className = "bar-value";
+        value.textContent = money0.format(entry.total) + " ";
+        const count = document.createElement("span");
+        count.className = "bar-count";
+        count.textContent = `· ${entry.count}`;
+        value.appendChild(count);
+
+        track.appendChild(fill);
+        track.appendChild(value);
+        row.appendChild(cat);
+        row.appendChild(track);
+
+        const share = grandTotal > 0 ? Math.round((entry.total / grandTotal) * 100) : 0;
+        const ttLines = () => [
+          [money.format(entry.total), "tt-value"],
+          [entry.key, "tt-sub"],
+          [`${entry.count} refund${entry.count === 1 ? "" : "s"} · ${share}% of dollars refunded`, "tt-sub"]
+        ];
+        row.addEventListener("pointermove", (e) => showTooltip(e, ttLines()));
+        row.addEventListener("pointerleave", hideTooltip);
+        row.addEventListener("focus", (e) => {
+          const r = row.getBoundingClientRect();
+          showTooltip({ clientX: r.right - 60, clientY: r.top }, ttLines());
+        });
+        row.addEventListener("blur", hideTooltip);
+
+        host.appendChild(row);
+      }
+    }
+
+    // ---- Render ----
+
+    function render(rows) {
+      currentRows = rows;
+      const total = rows.reduce((sum, r) => sum + r.amount, 0);
+
+      document.getElementById("kpiTotal").textContent = money.format(total);
+      document.getElementById("kpiTotalSub").textContent =
+        rows.length ? `${formatDate(rows[rows.length - 1].date)} – ${formatDate(rows[0].date)}` : "No refunds in range";
+      document.getElementById("kpiCount").textContent = String(rows.length);
+      const withNote = rows.filter((r) => r.note).length;
+      document.getElementById("kpiCountSub").textContent =
+        rows.length ? `${withNote} with a note on file` : " ";
+      document.getElementById("kpiAvg").textContent = rows.length ? money.format(total / rows.length) : "—";
+
+      const byReason = aggregate(rows, bucketReason);
+      const bySender = aggregate(rows, senderLabel);
+
+      document.getElementById("kpiTopReason").textContent = byReason.length ? byReason[0].key : "—";
+      document.getElementById("kpiTopReasonSub").textContent = byReason.length
+        ? `${money0.format(byReason[0].total)} · ${byReason[0].count} refund${byReason[0].count === 1 ? "" : "s"}`
+        : "By dollars refunded";
+
+      renderBarList("reasonChart", byReason, total);
+      renderBarList("senderChart", bySender, total);
+
+      const body = document.getElementById("tableBody");
+      body.textContent = "";
+      if (!rows.length) {
+        const tr = document.createElement("tr");
+        const td = document.createElement("td");
+        td.colSpan = 8;
+        td.className = "muted";
+        td.textContent = "No refunds in the selected range.";
+        tr.appendChild(td);
+        body.appendChild(tr);
+        return;
+      }
+
+      for (const row of rows) {
+        const tr = document.createElement("tr");
+        const cells = [
+          [formatDate(row.date), ""],
+          [row.customerName || "—", ""],
+          [row.salesOrder || "—", ""],
+          [senderLabel(row), ""],
+          [bucketReason(row), "bucket"],
+          [row.note || "no note on file — likely issued directly in Stripe", "cell-note"],
+          [row.refundedBy || "—", "cell-note"],
+          [money.format(row.amount), "num"]
+        ];
+        for (const [text, kind] of cells) {
+          const td = document.createElement("td");
+          if (kind === "bucket") {
+            const pill = document.createElement("span");
+            pill.className = "bucket-pill";
+            pill.textContent = text;
+            td.appendChild(pill);
+          } else {
+            if (kind) td.className = kind;
+            td.textContent = text;
+          }
+          tr.appendChild(td);
+        }
+        body.appendChild(tr);
+      }
+    }
+
+    // ---- Load ----
+
+    async function runReport() {
+      const btn = document.getElementById("runBtn");
+      const banner = document.getElementById("errorBanner");
+      banner.style.display = "none";
+      btn.disabled = true;
+      btn.textContent = "Loading...";
+      document.querySelectorAll(".chart-grid, .kpi-row").forEach((el) => el.classList.add("loading-dim"));
+
+      try {
+        const params = new URLSearchParams({
+          start: document.getElementById("startDate").value,
+          end: document.getElementById("endDate").value
+        });
+        const res = await fetch("/api/refund-dashboard?" + params.toString(), { credentials: "same-origin" });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Unable to load refunds.");
+        const rows = (data.refunds || []).slice().sort((a, b) => new Date(b.date) - new Date(a.date));
+        render(rows);
+        document.getElementById("tableNote").textContent =
+          `Every refund from ${data.start} to ${data.end}, newest first.`;
+      } catch (err) {
+        banner.textContent = err.message;
+        banner.style.display = "block";
+      } finally {
+        btn.disabled = false;
+        btn.textContent = "Run";
+        document.querySelectorAll(".chart-grid, .kpi-row").forEach((el) => el.classList.remove("loading-dim"));
+      }
+    }
+
+    // ---- CSV ----
+
+    function escapeCsv(value) {
+      const s = String(value ?? "");
+      return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+    }
+
+    document.getElementById("exportBtn").addEventListener("click", () => {
+      const headers = ["Date", "Customer", "Sales Order", "Sender Code", "Salesperson", "Reason", "Refund Note", "Refunded By", "Amount", "Payment Intent"];
+      const lines = [headers.join(",")];
+      for (const row of currentRows) {
+        lines.push([
+          formatDate(row.date),
+          row.customerName || "",
+          row.salesOrder || "",
+          row.senderCode || "",
+          senderLabel(row),
+          bucketReason(row),
+          row.note || "",
+          row.refundedBy || "",
+          row.amount.toFixed(2),
+          row.paymentIntentId || ""
+        ].map(escapeCsv).join(","));
+      }
+      const blob = new Blob([lines.join("\r\n")], { type: "text/csv;charset=utf-8;" });
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(blob);
+      link.download = `refunds_${document.getElementById("startDate").value}_to_${document.getElementById("endDate").value}.csv`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(link.href);
+    });
+
+    // ---- Presets + init ----
+
+    function applyPreset(preset) {
+      activePreset = preset;
+      const today = new Date();
+      let start;
+      if (preset === "month") {
+        start = new Date(today.getFullYear(), today.getMonth(), 1);
+      } else {
+        start = new Date(today.getTime());
+        start.setDate(start.getDate() - Number(preset));
+      }
+      document.getElementById("startDate").value = localYmd(start);
+      document.getElementById("endDate").value = localYmd(today);
+      markActivePreset();
+      runReport();
+    }
+
+    function markActivePreset() {
+      document.querySelectorAll(".preset-chip").forEach((chip) => {
+        chip.classList.toggle("active", chip.getAttribute("data-preset") === activePreset);
+      });
+    }
+
+    document.querySelectorAll(".preset-chip").forEach((chip) => {
+      chip.addEventListener("click", () => applyPreset(chip.getAttribute("data-preset")));
+    });
+
+    for (const id of ["startDate", "endDate"]) {
+      document.getElementById(id).addEventListener("change", () => {
+        activePreset = "";
+        markActivePreset();
+      });
+    }
+
+    document.getElementById("runBtn").addEventListener("click", runReport);
+
+    applyPreset("month");
+  </script>
+</body>
+</html>

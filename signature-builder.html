@@ -1,0 +1,519 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="robots" content="noindex,nofollow,noarchive" />
+  <title>Wilson AC &amp; Appliance - Email Signature</title>
+  <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+  <link rel="stylesheet" href="internal-shell.css" />
+  <style>
+    :root {
+      --bg: #f7f8fc;
+      --card: #ffffff;
+      --text: #1f2937;
+      --muted: #6b7280;
+      --border: #dbe1ea;
+      --primary: #635bff;
+      --primary-hover: #564ef0;
+      --success-bg: #ecfdf5;
+      --success-text: #065f46;
+      --error-bg: #fef2f2;
+      --error-text: #991b1b;
+      --warn-bg: #fffbeb;
+      --warn-text: #92400e;
+      --shadow: 0 10px 35px rgba(0, 0, 0, 0.08);
+      --radius: 18px;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: linear-gradient(180deg, #eef2ff 0%, var(--bg) 100%);
+      color: var(--text);
+      min-height: 100vh;
+      padding: 32px 16px;
+    }
+
+    .wrap { max-width: 1180px; margin: 0 auto; }
+
+    .surface {
+      background: var(--card);
+      border: 1px solid rgba(99, 91, 255, 0.12);
+      box-shadow: var(--shadow);
+      border-radius: var(--radius);
+      padding: 24px;
+      margin: 0 auto 22px;
+    }
+
+    h2 { margin: 0 0 6px; font-size: 22px; }
+    h3 { margin: 0 0 10px; font-size: 15px; }
+    .section-note { margin: 0 0 16px; color: var(--muted); font-size: 14px; line-height: 1.5; }
+
+    .builder-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 380px) minmax(0, 1fr);
+      gap: 26px;
+      align-items: start;
+    }
+
+    label { display: block; margin-bottom: 6px; font-size: 13px; font-weight: 700; }
+
+    input[type="text"], input[type="email"], select {
+      width: 100%;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 10px 12px;
+      font-size: 14px;
+      background: #fff;
+      color: var(--text);
+      outline: none;
+      font-family: inherit;
+    }
+
+    input:focus, select:focus {
+      border-color: rgba(99, 91, 255, 0.75);
+      box-shadow: 0 0 0 4px rgba(99, 91, 255, 0.12);
+    }
+
+    input[type="file"] { font-size: 13px; font-family: inherit; color: var(--muted); }
+
+    input[type="file"]::file-selector-button {
+      appearance: none;
+      border: none;
+      background: #eef2ff;
+      color: var(--primary);
+      padding: 8px 14px;
+      border-radius: 10px;
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+      margin-right: 10px;
+      font-family: inherit;
+    }
+
+    .field { margin-bottom: 14px; }
+    .phone-row { display: grid; grid-template-columns: 110px 1fr; gap: 10px; }
+
+    button {
+      appearance: none;
+      border: none;
+      background: var(--primary);
+      color: #fff;
+      padding: 11px 18px;
+      border-radius: 10px;
+      font-size: 14px;
+      font-weight: 700;
+      cursor: pointer;
+      font-family: inherit;
+      white-space: nowrap;
+    }
+
+    button:hover { background: var(--primary-hover); }
+    button:disabled { opacity: 0.6; cursor: wait; }
+    button.secondary { background: #eef2ff; color: var(--primary); }
+    button.secondary:hover { background: #e0e7ff; }
+
+    .actions-row { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 4px; }
+
+    .status {
+      display: none;
+      margin: 14px 0 0;
+      border-radius: 12px;
+      padding: 12px 14px;
+      font-size: 14px;
+      line-height: 1.5;
+    }
+
+    .status.show { display: block; }
+    .status.error { background: var(--error-bg); color: var(--error-text); }
+    .status.ok { background: var(--success-bg); color: var(--success-text); }
+    .status.warn { background: var(--warn-bg); color: var(--warn-text); }
+
+    .preview-frame {
+      border: 1px dashed rgba(99, 91, 255, 0.35);
+      border-radius: 14px;
+      padding: 22px;
+      background: #fff;
+      overflow-x: auto;
+    }
+
+    .preview-hint { color: var(--muted); font-size: 12.5px; margin-top: 10px; line-height: 1.5; }
+
+    .howto {
+      font-size: 13.5px;
+      color: var(--muted);
+      line-height: 1.65;
+    }
+
+    .howto strong { color: var(--text); }
+
+    .photo-thumb {
+      width: 64px;
+      height: 64px;
+      border-radius: 50%;
+      object-fit: cover;
+      border: 1px solid var(--border);
+      display: block;
+    }
+
+    .photo-row { display: flex; gap: 14px; align-items: center; }
+
+    @media (max-width: 900px) {
+      .builder-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body data-shell-label="Email Signature" data-shell-icon="sales">
+  <div class="wrap">
+    <div id="internal-shell-header"></div>
+
+    <div class="surface">
+      <h2>Email Signature Builder</h2>
+      <p class="section-note">
+        Build the standard Wilson signature — your name, job title, and photo, with your
+        phone number(s) and email. The photo is hosted on this site, so it shows up
+        reliably in Outlook and Gmail. Fill in the fields, then copy the signature
+        straight into your email settings.
+      </p>
+
+      <div class="builder-grid">
+        <div>
+          <div class="field">
+            <label for="sigName">Full name</label>
+            <input id="sigName" type="text" placeholder="First Last" />
+          </div>
+          <div class="field">
+            <label for="sigTitle">Job title</label>
+            <input id="sigTitle" type="text" placeholder="e.g. Sales Consultant" />
+          </div>
+          <div class="field">
+            <label for="sigEmail">Email address</label>
+            <input id="sigEmail" type="email" placeholder="you@wilsonappliance.com" />
+          </div>
+          <div class="field">
+            <label for="phone1">Phone 1</label>
+            <div class="phone-row">
+              <select id="phone1Label" aria-label="Phone 1 label">
+                <option value="O" selected>Office</option>
+                <option value="C">Cell</option>
+                <option value="D">Direct</option>
+              </select>
+              <input id="phone1" type="text" value="512-894-0907" />
+            </div>
+          </div>
+          <div class="field">
+            <label for="phone2">Phone 2 (optional)</label>
+            <div class="phone-row">
+              <select id="phone2Label" aria-label="Phone 2 label">
+                <option value="C" selected>Cell</option>
+                <option value="O">Office</option>
+                <option value="D">Direct</option>
+              </select>
+              <input id="phone2" type="text" placeholder="Leave blank to skip" />
+            </div>
+          </div>
+          <div class="field">
+            <label for="sigPhoto">Headshot photo (JPG or PNG, square works best)</label>
+            <div class="photo-row">
+              <img id="photoThumb" class="photo-thumb" alt="Your headshot" style="display: none;" />
+              <div style="flex: 1;">
+                <input id="sigPhoto" type="file" accept="image/jpeg,image/png,.jpg,.jpeg,.png" />
+                <div class="actions-row">
+                  <button id="uploadPhotoBtn" type="button" class="secondary">Upload photo</button>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div id="builderStatus" class="status"></div>
+        </div>
+
+        <div>
+          <h3>Preview</h3>
+          <div class="preview-frame" id="previewFrame"></div>
+          <p class="preview-hint">
+            This is exactly what recipients will see. The picture loads from the Wilson
+            site — if you replace your photo later, signatures already installed update
+            on their own.
+          </p>
+          <div class="actions-row">
+            <button id="copyBtn" type="button">Copy signature</button>
+            <button id="downloadBtn" type="button" class="secondary">Download .htm file</button>
+          </div>
+          <div id="copyStatus" class="status"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="surface">
+      <h3>Installing it</h3>
+      <p class="howto">
+        <strong>Gmail:</strong> Settings (gear) &rarr; See all settings &rarr; General &rarr; Signature &rarr;
+        Create new &rarr; click in the box and paste (Ctrl+V) &rarr; Save Changes at the bottom.<br />
+        <strong>Outlook (new / web):</strong> Settings &rarr; Account &rarr; Signatures &rarr; New signature &rarr;
+        paste into the editor &rarr; Save. Set it as the default for new messages and replies.<br />
+        <strong>Outlook (classic desktop):</strong> File &rarr; Options &rarr; Mail &rarr; Signatures &rarr; New &rarr;
+        paste &rarr; OK. If pasting loses the picture, use the downloaded .htm file: open it, select all
+        (Ctrl+A), copy, and paste that instead.
+      </p>
+    </div>
+
+    <div id="internal-shell-footer"></div>
+  </div>
+
+  <iframe name="sigPhotoFrame" title="photo upload" style="display:none;position:absolute;width:0;height:0;border:0;"></iframe>
+
+  <script src="internal-shell.js"></script>
+  <script>
+    let session = null;
+    let photoUrl = "";
+
+    function setStatus(id, message, kind) {
+      const box = document.getElementById(id);
+      if (!message) {
+        box.className = "status";
+        box.textContent = "";
+        return;
+      }
+      box.className = "status " + kind + " show";
+      box.textContent = message;
+    }
+
+    function escapeHtml(value) {
+      return String(value == null ? "" : value).replace(/[&<>"']/g, (ch) => ({
+        "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;", "'": "&#39;"
+      })[ch]);
+    }
+
+    // ---- The signature itself: table-based, inline styles, email-safe. ----
+
+    const PHONE_LABELS = { O: "O", C: "C", D: "D" };
+
+    function buildSignatureHtml() {
+      const name = document.getElementById("sigName").value.trim();
+      const title = document.getElementById("sigTitle").value.trim();
+      const email = document.getElementById("sigEmail").value.trim();
+
+      const phones = [];
+      const p1 = document.getElementById("phone1").value.trim();
+      const p2 = document.getElementById("phone2").value.trim();
+      if (p1) phones.push(`${PHONE_LABELS[document.getElementById("phone1Label").value]}: ${p1}`);
+      if (p2) phones.push(`${PHONE_LABELS[document.getElementById("phone2Label").value]}: ${p2}`);
+
+      const photoCell = photoUrl
+        ? `<td style="padding: 0 16px 0 0; vertical-align: middle;">
+            <img src="${escapeHtml(photoUrl)}" width="84" height="84" alt="${escapeHtml(name)}"
+              style="display: block; width: 84px; height: 84px; border-radius: 50%; border: 0;" />
+          </td>`
+        : "";
+
+      const phoneLine = phones.length
+        ? `<div style="font-size: 12.5px; color: #374151; line-height: 1.6;">${escapeHtml(phones.join("  |  "))}</div>`
+        : "";
+
+      const emailLine = email
+        ? `<div style="font-size: 12.5px; line-height: 1.6;"><a href="mailto:${escapeHtml(email)}" style="color: #1f2937; text-decoration: none;">${escapeHtml(email)}</a></div>`
+        : "";
+
+      return `<table cellpadding="0" cellspacing="0" border="0" style="border-collapse: collapse; font-family: Arial, Helvetica, sans-serif;">
+  <tr>
+    ${photoCell}
+    <td style="border-left: 3px solid #c9a14a; padding: 2px 0 2px 16px; vertical-align: middle;">
+      <div style="font-size: 16px; font-weight: bold; color: #1f2937; line-height: 1.35;">${escapeHtml(name)}</div>
+      <div style="font-size: 13px; color: #6b7280; line-height: 1.5;">${escapeHtml(title)}</div>
+      <div style="font-size: 13px; font-weight: bold; color: #1f2937; line-height: 1.6; padding-bottom: 4px;">Wilson AC &amp; Appliance</div>
+      ${phoneLine}
+      ${emailLine}
+    </td>
+  </tr>
+</table>`;
+    }
+
+    function renderPreview() {
+      document.getElementById("previewFrame").innerHTML = buildSignatureHtml();
+    }
+
+    for (const id of ["sigName", "sigTitle", "sigEmail", "phone1", "phone2"]) {
+      document.getElementById(id).addEventListener("input", renderPreview);
+    }
+    for (const id of ["phone1Label", "phone2Label"]) {
+      document.getElementById(id).addEventListener("change", renderPreview);
+    }
+
+    // ---- Photo upload (native form -> hidden iframe, like the quote library) ----
+
+    let photoCtx = null;
+
+    window.addEventListener("message", (event) => {
+      if (event.origin !== window.location.origin) return;
+      const msg = event.data && event.data.signaturePhoto;
+      if (!msg || !photoCtx) return;
+      const ctx = photoCtx;
+      photoCtx = null;
+      clearTimeout(ctx.timeout);
+      if (ctx.restore) ctx.restore();
+
+      const btn = document.getElementById("uploadPhotoBtn");
+      btn.disabled = false;
+      btn.textContent = "Upload photo";
+
+      if (msg.ok && msg.url) {
+        photoUrl = msg.url;
+        showThumb();
+        renderPreview();
+        setStatus("builderStatus", "Photo uploaded — it's now hosted on the Wilson site.", "ok");
+      } else {
+        setStatus("builderStatus", msg.error || "Upload failed — try again.", "error");
+      }
+    });
+
+    function showThumb() {
+      const thumb = document.getElementById("photoThumb");
+      if (photoUrl) {
+        thumb.src = photoUrl + "?t=" + Date.now(); // bypass cache after replace
+        thumb.style.display = "block";
+      }
+    }
+
+    document.getElementById("uploadPhotoBtn").addEventListener("click", () => {
+      const fileInput = document.getElementById("sigPhoto");
+      if (!fileInput.files || !fileInput.files[0]) {
+        setStatus("builderStatus", "Choose a JPG or PNG photo first.", "warn");
+        return;
+      }
+
+      const btn = document.getElementById("uploadPhotoBtn");
+      btn.disabled = true;
+      btn.textContent = "Uploading...";
+      setStatus("builderStatus", "Uploading your photo…", "ok");
+
+      const form = document.createElement("form");
+      form.method = "POST";
+      form.enctype = "multipart/form-data";
+      form.action = "/api/signature-photo";
+      form.target = "sigPhotoFrame";
+      form.style.display = "none";
+
+      const marker = document.createComment("photo-slot");
+      fileInput.parentNode.insertBefore(marker, fileInput);
+      const prevName = fileInput.getAttribute("name");
+      fileInput.setAttribute("name", "photo");
+      form.appendChild(fileInput);
+      document.body.appendChild(form);
+
+      const restore = () => {
+        if (prevName) fileInput.setAttribute("name", prevName);
+        else fileInput.removeAttribute("name");
+        if (marker.parentNode) marker.parentNode.insertBefore(fileInput, marker);
+        if (marker.parentNode) marker.remove();
+        if (form.parentNode) form.remove();
+      };
+
+      photoCtx = {
+        restore,
+        timeout: setTimeout(() => {
+          const ctx = photoCtx;
+          photoCtx = null;
+          if (ctx && ctx.restore) ctx.restore();
+          btn.disabled = false;
+          btn.textContent = "Upload photo";
+          setStatus("builderStatus", "The upload timed out — try again, or from another computer.", "error");
+        }, 90000)
+      };
+
+      form.submit();
+    });
+
+    // ---- Copy & download ----
+
+    async function copySignature() {
+      const html = buildSignatureHtml();
+      const name = document.getElementById("sigName").value.trim();
+      if (!name) {
+        setStatus("copyStatus", "Add your name first.", "warn");
+        return;
+      }
+      if (!photoUrl) {
+        setStatus("copyStatus", "Upload your photo first so the picture is part of the signature.", "warn");
+        return;
+      }
+
+      // Rich copy: modern clipboard first, selection-copy fallback.
+      try {
+        if (navigator.clipboard && window.ClipboardItem) {
+          await navigator.clipboard.write([
+            new ClipboardItem({
+              "text/html": new Blob([html], { type: "text/html" }),
+              "text/plain": new Blob([document.getElementById("previewFrame").innerText], { type: "text/plain" })
+            })
+          ]);
+          setStatus("copyStatus", "Signature copied — paste it into your email signature settings.", "ok");
+          return;
+        }
+      } catch {}
+
+      try {
+        const frame = document.getElementById("previewFrame");
+        const range = document.createRange();
+        range.selectNodeContents(frame);
+        const selection = window.getSelection();
+        selection.removeAllRanges();
+        selection.addRange(range);
+        const ok = document.execCommand("copy");
+        selection.removeAllRanges();
+        if (!ok) throw new Error("copy failed");
+        setStatus("copyStatus", "Signature copied — paste it into your email signature settings.", "ok");
+      } catch {
+        setStatus("copyStatus", "Copying is blocked on this machine — use Download .htm instead, open it, select all, and copy from there.", "error");
+      }
+    }
+
+    document.getElementById("copyBtn").addEventListener("click", copySignature);
+
+    document.getElementById("downloadBtn").addEventListener("click", () => {
+      const doc = "<!DOCTYPE html><html><head><meta charset=\"UTF-8\"><title>Wilson Email Signature</title></head><body>" +
+        buildSignatureHtml() + "</body></html>";
+      const blob = new Blob([doc], { type: "text/html;charset=utf-8;" });
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(blob);
+      const name = document.getElementById("sigName").value.trim().replace(/[^A-Za-z0-9 _-]+/g, "").replace(/\s+/g, "-") || "wilson";
+      link.download = name.toLowerCase() + "-email-signature.htm";
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(link.href);
+    });
+
+    // ---- Init: prefill from the session + existing photo ----
+
+    (async function init() {
+      try {
+        const res = await fetch("/api/auth/session", { credentials: "same-origin" });
+        if (res.ok) {
+          session = await res.json();
+          const user = session?.user || {};
+          if (user.displayName && !document.getElementById("sigName").value) {
+            document.getElementById("sigName").value = user.displayName;
+          }
+          if (user.email && user.email.includes("@") && !document.getElementById("sigEmail").value) {
+            document.getElementById("sigEmail").value = user.email;
+          }
+        }
+      } catch {}
+
+      try {
+        const res = await fetch("/api/signature-photo/mine", { credentials: "same-origin" });
+        const data = await res.json();
+        if (res.ok && data.photo && data.photo.url) {
+          photoUrl = data.photo.url;
+          showThumb();
+        }
+      } catch {}
+
+      renderPreview();
+    })();
+  </script>
+</body>
+</html>

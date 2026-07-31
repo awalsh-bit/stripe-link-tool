@@ -108,6 +108,7 @@ import {
   retrieveSpecPackage,
   deleteSpecPackage,
   retrieveUsers as retrieveSteelCodUsers,
+  toggleDocumentInclusion,
   buildSpecPackageUrls
 } from "./lib/steelcod.js";
 import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
@@ -124,6 +125,11 @@ import {
   getSpecQuote,
   deleteSpecQuote
 } from "./lib/spec-quotes-postgres.js";
+import {
+  saveSignaturePhoto,
+  getSignaturePhoto,
+  getSignaturePhotoByEmail
+} from "./lib/signature-postgres.js";
 import { extractQuoteDataFromPdfBuffer } from "./lib/spec-scan.js";
 import {
   saveSatisfactionResponse,
@@ -255,7 +261,8 @@ const INTERNAL_PAGE_PATHS = new Set([
   "/satisfaction-results.html",
   "/case-visit-survey.html",
   "/case-visit-results.html",
-  "/refund-dashboard.html"
+  "/refund-dashboard.html",
+  "/signature-builder.html"
 ]);
 
 const UNAUTHENTICATED_INTERNAL_PATHS = new Set([
@@ -302,6 +309,12 @@ const AUTH_PAGE_PATHS = new Set([
   "/set-password.html"
 ]);
 
+// Pages every signed-in user can open — no per-user grant needed, never
+// shown in the User Admin permission editor.
+const EVERYONE_PAGE_PATHS = new Set([
+  "/signature-builder.html"
+]);
+
 // Executive-only pages: reachable only with is_executive, never grantable.
 const EXECUTIVE_ONLY_PAGE_PATHS = new Set([
   "/user-admin.html",
@@ -313,7 +326,7 @@ const EXECUTIVE_ONLY_PAGE_PATHS = new Set([
 // Canonical list of pages an executive can grant/deny per user. Derived from
 // INTERNAL_PAGE_PATHS so the admin UI and enforcement share one source.
 const MANAGEABLE_PAGE_PATHS = [...INTERNAL_PAGE_PATHS]
-  .filter((p) => !AUTH_PAGE_PATHS.has(p) && !EXECUTIVE_ONLY_PAGE_PATHS.has(p))
+  .filter((p) => !AUTH_PAGE_PATHS.has(p) && !EXECUTIVE_ONLY_PAGE_PATHS.has(p) && !EVERYONE_PAGE_PATHS.has(p))
   .sort();
 
 // Job-code presets for the User Admin UI. Clicking one CHECKS the included
@@ -419,7 +432,8 @@ const PAGE_LABELS = {
   "/satisfaction-results.html": "Satisfaction Results",
   "/case-visit-survey.html": "Case Visit Survey",
   "/case-visit-results.html": "Case Visit Results",
-  "/refund-dashboard.html": "Refund Dashboard"
+  "/refund-dashboard.html": "Refund Dashboard",
+  "/signature-builder.html": "Email Signature"
 };
 
 // Category groupings for the User Admin permission UI. A page may appear in
@@ -561,6 +575,10 @@ function isServicePublicPath(pathname) {
 }
 
 function isAlwaysPublicPath(pathname) {
+  // Signature headshots are fetched by email clients with no cookies.
+  if (/^\/public\/signature-photos\/[0-9a-fA-F-]{36}$/.test(pathname)) {
+    return true;
+  }
   return ALWAYS_PUBLIC_PATHS.has(pathname);
 }
 
@@ -737,6 +755,10 @@ function canAccessPathForUser(user, pathname) {
 
   if (AUTH_PAGE_PATHS.has(pathname)) {
     return true;
+  }
+
+  if (EVERYONE_PAGE_PATHS.has(pathname)) {
+    return true; // every signed-in user
   }
 
   if (EXECUTIVE_ONLY_PAGE_PATHS.has(pathname)) {
@@ -2183,14 +2205,30 @@ app.post("/api/spec-packages", requirePagePermission("/spec-packages.html"), asy
       customerPhone = "",
       customerEmail = "",
       customerNotes = "",
-      modelNumbers = []
+      modelNumbers = [],
+      modelGroups = null
     } = req.body || {};
 
     const models = (Array.isArray(modelNumbers) ? modelNumbers : String(modelNumbers).split(/[\n,]/))
       .map((m) => String(m).trim())
       .filter(Boolean);
 
-    if (!models.length) {
+    // v1.3 grouped models (Scan & Build): { "Kitchen": ["WRF535..."], ... }.
+    // Groups pre-assemble the PSP Editor sections on Steel Cod's side.
+    const groups = {};
+    if (modelGroups && typeof modelGroups === "object" && !Array.isArray(modelGroups)) {
+      const entries = Object.entries(modelGroups).slice(0, 8);
+      for (const [groupTitle, groupModels] of entries) {
+        const cleanTitle = String(groupTitle || "").trim().slice(0, 60);
+        const cleanModels = (Array.isArray(groupModels) ? groupModels : String(groupModels).split(/[\n,]/))
+          .map((m) => String(m).trim())
+          .filter(Boolean);
+        if (cleanTitle && cleanModels.length) groups[cleanTitle] = cleanModels;
+      }
+    }
+    const usingGroups = Object.keys(groups).length > 0;
+
+    if (!usingGroups && !models.length) {
       return res.status(400).json({ error: "Enter at least one model number." });
     }
 
@@ -2229,12 +2267,78 @@ app.post("/api/spec-packages", requirePagePermission("/spec-packages.html"), asy
           .filter(Boolean)
           .join(" — ")
       },
-      modelNumbers: models
+      modelNumbers: usingGroups ? [] : models,
+      modelGroups: usingGroups ? groups : null
     });
 
     return res.json(result);
   } catch (err) {
     return sendSteelCodError(res, err, "Unable to create the spec package.");
+  }
+});
+
+// v1.3 curate: include/exclude one document in an existing package. The
+// public and slim PDFs update on Steel Cod's side immediately.
+app.post("/api/spec-packages/:navId/toggle-document", requirePagePermission("/spec-packages.html"), async (req, res) => {
+  const userEmail = resolveSteelCodUserEmail(req, res);
+  if (!userEmail) return;
+
+  try {
+    const xUid = String(req.body?.xUid || "").trim();
+    if (!xUid) {
+      return res.status(400).json({ error: "Missing document id (xUid)." });
+    }
+    const include = typeof req.body?.include === "boolean" ? req.body.include : undefined;
+    const result = await toggleDocumentInclusion({
+      userEmail,
+      navId: req.params.navId,
+      xUid,
+      include
+    });
+    return res.json(result);
+  } catch (err) {
+    return sendSteelCodError(res, err, "Unable to update that document.");
+  }
+});
+
+// On-demand merged PDF (ePASS quote + spec pages) served INLINE so the team
+// can view the finished package in the browser right after create — and
+// again after curating, since it re-fetches the current spec PDF each time.
+app.get("/api/spec-packages/:navId/merged.pdf", requirePagePermission("/spec-packages.html"), async (req, res) => {
+  const userEmail = resolveSteelCodUserEmail(req, res);
+  if (!userEmail) return;
+
+  try {
+    const quoteId = String(req.query.quoteId || "").trim();
+    if (!/^[0-9a-fA-F-]{36}$/.test(quoteId)) {
+      return res.status(400).json({ error: "A stored quote id is required for the merged view." });
+    }
+    const quote = await getSpecQuote(quoteId);
+    if (!quote) {
+      return res.status(404).json({ error: "That quote is no longer in the library." });
+    }
+
+    const variant = String(req.query.variant || "slim").toLowerCase() === "full" ? "full" : "slim";
+    const position = normalizeQuotePosition(req.query.quotePosition);
+    const { mergedBytes } = await buildMergedQuotePdf({
+      userEmail,
+      navId: req.params.navId,
+      quoteBytes: quote.bytes,
+      variant,
+      position
+    });
+
+    const base = String(req.query.name || req.params.navId)
+      .replace(/[^A-Za-z0-9 ._-]+/g, "").trim().slice(0, 60) || "spec-package";
+    const disposition = String(req.query.download || "") === "1" ? "attachment" : "inline";
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", `${disposition}; filename="${base}-complete.pdf"`);
+    res.setHeader("Cache-Control", "no-store");
+    return res.send(Buffer.from(mergedBytes));
+  } catch (err) {
+    console.error("Merged view failed:", err.message);
+    const message = (err.userFacing || err instanceof SteelCodError) ? err.message : "Unable to build the merged PDF.";
+    return res.status(400).json({ error: message });
   }
 });
 
@@ -2746,6 +2850,108 @@ app.post("/api/spec-packages/:navId/email", requirePagePermission("/spec-package
 // ---------------------------------------------------------------------------
 // Quote Library — upload once (from any machine), reuse for merges anywhere.
 // ---------------------------------------------------------------------------
+
+// ---------------------------------------------------------------------------
+// Email Signature Builder — headshot upload (native form -> hidden iframe,
+// same pattern as the quote library so endpoint security can't block it) and
+// the public image route email clients load the picture from.
+// ---------------------------------------------------------------------------
+
+const signaturePhotoUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 8 * 1024 * 1024 } });
+
+function sendSignaturePhotoResult(res, payload) {
+  const json = JSON.stringify(payload).replace(/</g, "\\u003c");
+  res.setHeader("Content-Type", "text/html; charset=utf-8");
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  res.setHeader("X-Frame-Options", "SAMEORIGIN"); // must be frameable by our page
+  return res.send(
+    "<!doctype html><html><body>Done. You can close this.<script>" +
+    "try{parent.postMessage({signaturePhoto:" + json + "},\"*\");}catch(e){}" +
+    "</script></body></html>"
+  );
+}
+
+function signaturePhotoUploadMw(req, res, next) {
+  signaturePhotoUpload.single("photo")(req, res, (err) => {
+    if (err) {
+      const msg = err.code === "LIMIT_FILE_SIZE" ? "That image is too large (8 MB max)." : "Upload failed — try again.";
+      return sendSignaturePhotoResult(res, { ok: false, error: msg });
+    }
+    next();
+  });
+}
+
+function detectImageType(bytes) {
+  if (!Buffer.isBuffer(bytes) || bytes.length < 12) return null;
+  if (bytes[0] === 0xff && bytes[1] === 0xd8) return "image/jpeg";
+  if (bytes[0] === 0x89 && bytes.subarray(1, 4).toString("latin1") === "PNG") return "image/png";
+  return null;
+}
+
+function buildSignaturePhotoUrl(req, id) {
+  const protocol = String(req.headers["x-forwarded-proto"] || "").split(",")[0].trim() || req.protocol || "https";
+  return `${protocol}://${getRequestHost(req)}/public/signature-photos/${id}`;
+}
+
+app.post("/api/signature-photo", requirePagePermission("/signature-builder.html"), signaturePhotoUploadMw, async (req, res) => {
+  try {
+    const userEmail = req.authUser?.kind === "db" ? req.authUser.email : "";
+    if (!userEmail || !userEmail.includes("@")) {
+      return sendSignaturePhotoResult(res, { ok: false, error: "Sign in with your individual account to upload a photo." });
+    }
+
+    const bytes = req.file?.buffer;
+    const contentType = detectImageType(bytes);
+    if (!contentType) {
+      return sendSignaturePhotoResult(res, { ok: false, error: "Choose a JPG or PNG photo (a square headshot works best)." });
+    }
+
+    const saved = await saveSignaturePhoto({ userEmail, contentType, bytes });
+    return sendSignaturePhotoResult(res, {
+      ok: true,
+      id: saved.id,
+      url: buildSignaturePhotoUrl(req, saved.id)
+    });
+  } catch (err) {
+    console.error("Signature photo upload failed:", err.message);
+    return sendSignaturePhotoResult(res, { ok: false, error: "Unable to save the photo — try again." });
+  }
+});
+
+app.get("/api/signature-photo/mine", requirePagePermission("/signature-builder.html"), async (req, res) => {
+  try {
+    const userEmail = req.authUser?.kind === "db" ? req.authUser.email : "";
+    if (!userEmail) return res.json({ photo: null });
+    const photo = await getSignaturePhotoByEmail(userEmail);
+    return res.json({
+      photo: photo ? { id: photo.id, url: buildSignaturePhotoUrl(req, photo.id), updatedAt: photo.updatedAt } : null
+    });
+  } catch (err) {
+    console.error("Signature photo lookup failed:", err.message);
+    return res.json({ photo: null });
+  }
+});
+
+// PUBLIC: email clients fetch this with no cookies. The unguessable UUID is
+// the only thing exposed; the response is just the image.
+app.get("/public/signature-photos/:id", async (req, res) => {
+  try {
+    if (!/^[0-9a-fA-F-]{36}$/.test(req.params.id)) {
+      return res.status(400).send("Bad photo id.");
+    }
+    const photo = await getSignaturePhoto(req.params.id);
+    if (!photo) {
+      return res.status(404).send("Photo not found.");
+    }
+    res.setHeader("Content-Type", photo.contentType);
+    res.setHeader("Cache-Control", "public, max-age=86400");
+    res.setHeader("X-Content-Type-Options", "nosniff");
+    return res.send(Buffer.from(photo.bytes));
+  } catch (err) {
+    console.error("Signature photo serve failed:", err.message);
+    return res.status(500).send("Unable to load the photo.");
+  }
+});
 
 function sendQuoteUploadResult(res, payload) {
   const json = JSON.stringify(payload).replace(/</g, "\\u003c");
@@ -6267,6 +6473,21 @@ function validateRefundNote(note) {
   return null;
 }
 
+// Structured reason codes for refunds — suggested from the note on the Issue
+// Refund page, user-correctable, stored in the refund's metadata so the
+// Refund Dashboard doesn't have to guess from free text.
+const REFUND_REASON_CODES = new Set([
+  "Cancelled order",
+  "Return / exchange",
+  "Damaged / defective",
+  "Price adjustment",
+  "Duplicate charge",
+  "Delivery / install issue",
+  "Service issue",
+  "Fraudulent",
+  "Other"
+]);
+
 app.post("/api/intent-lookup/payment_intent/:id/refund", requirePagePermission("/intent-lookup.html"), async (req, res) => {
   try {
     const id = String(req.params.id || "").trim();
@@ -6344,12 +6565,22 @@ app.post("/api/intent-lookup/payment_intent/:id/refund", requirePagePermission("
       });
     }
 
+    const reasonCode = String(req.body?.reasonCode || "").trim();
+    const storedReasonCode = REFUND_REASON_CODES.has(reasonCode) ? reasonCode : "";
+
+    // The structured code also drives Stripe's coarse reason enum.
+    const stripeReason =
+      storedReasonCode === "Duplicate charge" ? "duplicate"
+      : storedReasonCode === "Fraudulent" ? "fraudulent"
+      : (allowedReasons.has(requestedReason) ? requestedReason : "requested_by_customer");
+
     const refundConfig = {
       payment_intent: id,
       ...(refundAmountCents === remainingRefundableCents ? {} : { amount: refundAmountCents }),
-      reason: allowedReasons.has(requestedReason) ? requestedReason : "requested_by_customer",
+      reason: stripeReason,
       metadata: {
         refund_note: note.slice(0, 480),
+        refund_reason_code: storedReasonCode,
         refunded_by: String(req.authUser?.email || req.authUser?.username || "")
       }
     };
@@ -7721,6 +7952,7 @@ app.get("/api/refund-dashboard", requirePagePermission("/refund-dashboard.html")
           amount: Number(((refund.amount || 0) / 100).toFixed(2)),
           stripeReason: refund.reason || "",
           note: String(refund.metadata?.refund_note || "").trim(),
+          reasonCode: String(refund.metadata?.refund_reason_code || "").trim(),
           refundedBy: String(refund.metadata?.refunded_by || "").trim(),
           senderCode: String(metadata.creator_code || "").trim().toUpperCase(),
           senderName: String(metadata.creator_name || "").trim(),

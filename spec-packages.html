@@ -278,6 +278,37 @@
       cursor: pointer;
     }
 
+    /* Curate list */
+    .curate-row {
+      display: flex;
+      gap: 12px;
+      align-items: flex-start;
+      padding: 10px 12px;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      margin-bottom: 8px;
+      background: #fbfcff;
+    }
+
+    .curate-row.excluded { opacity: 0.55; }
+    .curate-row.excluded .curate-name { text-decoration: line-through; }
+    .curate-check { margin-top: 3px; }
+    .curate-name { font-size: 13.5px; font-weight: 700; word-break: break-all; }
+    .curate-meta { font-size: 12px; color: var(--muted); line-height: 1.5; }
+
+    .curate-badge {
+      display: inline-block;
+      background: #fffbeb;
+      color: #92400e;
+      border: 1px solid rgba(217, 119, 6, 0.25);
+      border-radius: 999px;
+      padding: 1px 8px;
+      font-size: 10.5px;
+      font-weight: 700;
+      margin-left: 6px;
+      vertical-align: middle;
+    }
+
     /* Quote Library filter */
     .library-toolbar {
       display: flex;
@@ -487,7 +518,8 @@
           </div>
         </div>
         <div class="mode-toggle" role="tablist" aria-label="Entry mode">
-          <button id="modeScanBtn" type="button" class="mode-btn active">Scanner</button>
+          <button id="modeQuickBtn" type="button" class="mode-btn active">Quick Scan &amp; Create</button>
+          <button id="modeBuildBtn" type="button" class="mode-btn">Scan &amp; Build</button>
           <button id="modeManualBtn" type="button" class="mode-btn">Manual entry</button>
         </div>
       </div>
@@ -546,9 +578,33 @@
 
         <div class="spec-gap"></div>
 
-        <div class="field full">
+        <div class="field full" id="flatModelsField">
           <label for="modelNumbers">Model numbers * (one per line or comma-separated)</label>
           <textarea id="modelNumbers" placeholder="WRF535SWHZ&#10;WDT730PAHZ"></textarea>
+        </div>
+
+        <!-- Scan & Build: group the models into rooms; sent as v1.3 modelGroups
+             so the sections are pre-assembled in Steel Cod's PSP Editor. -->
+        <div id="buildSection" style="display: none;">
+          <div class="field full">
+            <label for="scannedModels">Scanned models — copy each into its room below</label>
+            <textarea id="scannedModels" readonly style="background: #f8fafc; min-height: 70px;"></textarea>
+          </div>
+          <div class="finish-row">
+            <div class="field">
+              <label for="groupCount">How many groups?</label>
+              <select id="groupCount">
+                <option value="1">1</option>
+                <option value="2" selected>2</option>
+                <option value="3">3</option>
+                <option value="4">4</option>
+              </select>
+            </div>
+            <div class="field" style="align-self: flex-end;">
+              <button id="groupNextBtn" type="button" class="secondary">Next — set up groups</button>
+            </div>
+          </div>
+          <div id="groupBoxes" class="form-grid two-col" style="display: none;"></div>
         </div>
 
         <hr class="spec-divider" />
@@ -582,12 +638,25 @@
           </div>
         </div>
 
+        <div class="actions-row">
+          <button id="createBtn" type="submit">Create spec package</button>
+        </div>
+        </div><!-- /createDetails -->
+        <div id="createStatus" class="status"></div>
+        <div id="createResult"></div>
+      </form>
+
+      <!-- After create: view the finished package (incl. the merged PDF),
+           email it, and curate which documents stay in. -->
+      <div id="postCreatePanel" style="display: none; margin-top: 18px; border-top: 1px solid var(--border); padding-top: 18px;">
+        <h3 class="finish-header">Finish up</h3>
+        <div id="mergedLinks" class="result-links" style="display: none;"></div>
+
         <div class="finish-row">
           <div class="field">
-            <label for="emailRecipient">Email options — recipient</label>
+            <label for="emailRecipient">Email the documents — recipient</label>
             <select id="emailRecipient">
-              <option value="none" selected>No email</option>
-              <option value="myself">Myself</option>
+              <option value="myself" selected>Myself</option>
               <option value="client">Client</option>
               <option value="both">Both</option>
               <option value="other">Other</option>
@@ -598,21 +667,31 @@
             <input id="emailOther" type="text" placeholder="name@one.com; name@two.com" />
           </div>
         </div>
-
-        <div class="finish-row contents-row" id="emailContentsRow" style="display: none;">
+        <div class="finish-row contents-row" id="emailContentsRow">
           <span class="contents-label">Contents to be sent:</span>
           <label class="content-check"><input id="sendComplete" type="checkbox" checked /> Complete spec package</label>
           <label class="content-check"><input id="sendSpecs" type="checkbox" /> Specs only</label>
           <label class="content-check"><input id="sendEpass" type="checkbox" /> ePASS file only</label>
         </div>
-
         <div class="actions-row">
-          <button id="createBtn" type="submit">Create spec package</button>
+          <button id="sendEmailBtn" type="button">Send email</button>
         </div>
-        </div><!-- /createDetails -->
-        <div id="createStatus" class="status"></div>
-        <div id="createResult"></div>
-      </form>
+        <div id="emailStatus" class="status"></div>
+
+        <div id="curateSection" style="display: none; margin-top: 18px;">
+          <h3 class="finish-header">Curate the package</h3>
+          <p class="section-note" style="margin-bottom: 8px;">
+            These documents are in the compiled package. Check any that don't belong
+            (use &amp; care guides, other languages, over-matched models) and apply —
+            the full and slim PDFs update immediately.
+          </p>
+          <div id="curateList"></div>
+          <div class="actions-row">
+            <button id="applyCurateBtn" type="button" class="secondary">Apply exclusions</button>
+          </div>
+          <div id="curateStatus" class="status"></div>
+        </div>
+      </div>
     </div>
 
     <div class="surface">
@@ -714,28 +793,80 @@
     let session = null;
     let searchState = { params: null, skip: 0, total: 0, loaded: 0 };
 
-    // ---- Entry mode (Scanner vs Manual) ----
-    // Scanner (default): the form fields stay hidden until a scan fills
-    // them, then appear prefilled for review/edits. Manual shows everything
-    // immediately, like the classic form.
-    let entryMode = "scan";
+    // ---- Entry mode ----
+    // quick  (default): scan fills everything, review, create — one pass.
+    // build: scan grabs the models, the user sorts them into named groups
+    //        (rooms) that become v1.3 modelGroups / PSP Editor sections.
+    // manual: the classic full form, no scan required.
+    let entryMode = "quick";
     let scanCompleted = false;   // a successful scan reveals the fields
     let scannedQuoteId = null;   // library id of the auto-saved scanned quote
+
+    const GROUP_PRESETS = ["Kitchen", "Laundry", "Outdoor", "Bar"];
 
     function updateDetailsVisibility() {
       const show = entryMode === "manual" || scanCompleted;
       document.getElementById("createDetails").style.display = show ? "" : "none";
+      document.getElementById("buildSection").style.display = entryMode === "build" ? "" : "none";
+      document.getElementById("flatModelsField").style.display = entryMode === "build" ? "none" : "";
     }
 
     function setEntryMode(mode) {
       entryMode = mode;
-      document.getElementById("modeScanBtn").classList.toggle("active", mode === "scan");
+      document.getElementById("modeQuickBtn").classList.toggle("active", mode === "quick");
+      document.getElementById("modeBuildBtn").classList.toggle("active", mode === "build");
       document.getElementById("modeManualBtn").classList.toggle("active", mode === "manual");
       updateDetailsVisibility();
     }
 
-    document.getElementById("modeScanBtn").addEventListener("click", () => setEntryMode("scan"));
+    document.getElementById("modeQuickBtn").addEventListener("click", () => setEntryMode("quick"));
+    document.getElementById("modeBuildBtn").addEventListener("click", () => setEntryMode("build"));
     document.getElementById("modeManualBtn").addEventListener("click", () => setEntryMode("manual"));
+
+    // ---- Scan & Build: group boxes ----
+
+    function renderGroupBoxes() {
+      const count = Number(document.getElementById("groupCount").value) || 2;
+      const host = document.getElementById("groupBoxes");
+      host.textContent = "";
+      for (let i = 0; i < count; i += 1) {
+        const field = document.createElement("div");
+        field.className = "field";
+
+        const label = document.createElement("label");
+        label.textContent = "Group " + (i + 1) + " — title & models";
+        field.appendChild(label);
+
+        const titleInput = document.createElement("input");
+        titleInput.type = "text";
+        titleInput.className = "group-title";
+        titleInput.value = GROUP_PRESETS[i] || "Group " + (i + 1);
+        titleInput.style.marginBottom = "6px";
+        field.appendChild(titleInput);
+
+        const ta = document.createElement("textarea");
+        ta.className = "group-models";
+        ta.placeholder = "Paste this room's models — one per line";
+        field.appendChild(ta);
+
+        host.appendChild(field);
+      }
+      host.style.display = "";
+    }
+
+    document.getElementById("groupNextBtn").addEventListener("click", renderGroupBoxes);
+
+    function collectModelGroups() {
+      const groups = {};
+      const titles = [...document.querySelectorAll("#groupBoxes .group-title")];
+      const boxes = [...document.querySelectorAll("#groupBoxes .group-models")];
+      for (let i = 0; i < boxes.length; i += 1) {
+        const title = (titles[i]?.value || "Group " + (i + 1)).trim() || "Group " + (i + 1);
+        const models = boxes[i].value.split(/[\n,]/).map((s) => s.trim()).filter(Boolean);
+        if (models.length) groups[title] = models;
+      }
+      return groups;
+    }
 
     // ---- Finishing Options show/hide ----
 
@@ -745,7 +876,6 @@
 
       const recipient = document.getElementById("emailRecipient").value;
       document.getElementById("emailOtherField").style.display = recipient === "other" ? "" : "none";
-      document.getElementById("emailContentsRow").style.display = recipient === "none" ? "none" : "flex";
     }
 
     document.getElementById("mergeChoice").addEventListener("change", updateFinishToggles);
@@ -1188,7 +1318,9 @@
         return;
       }
 
-      const ta = document.getElementById("modelNumbers");
+      // Quick/manual: models land in the create textarea. Build: they land
+      // in the read-only reference box the user copies rooms from.
+      const ta = document.getElementById(entryMode === "build" ? "scannedModels" : "modelNumbers");
       const existing = ta.value.split(/[\n,]/).map((s) => s.trim()).filter(Boolean);
       const seen = new Set(existing.map((s) => s.toUpperCase()));
       let added = 0;
@@ -1369,11 +1501,11 @@
 
     // ---- Create ----
 
-    // Work out who gets the email (and of what) BEFORE creating the package,
-    // so bad input fails fast instead of after the Steel Cod call.
+    let lastCreated = null; // { navId, salesOrder, variant, position, mergeYes }
+
+    // Who gets the email, and of what — used by the post-create Send button.
     function resolveEmailPlan() {
       const choice = document.getElementById("emailRecipient").value;
-      if (choice === "none") return { recipients: [] };
 
       const contents = {
         complete: document.getElementById("sendComplete").checked,
@@ -1381,7 +1513,7 @@
         epassOnly: document.getElementById("sendEpass").checked
       };
       if (!contents.complete && !contents.specsOnly && !contents.epassOnly) {
-        return { error: "Pick at least one document to email — or set the recipient back to No email." };
+        return { error: "Pick at least one document to email." };
       }
 
       const myEmail = String(session?.user?.email || "").trim();
@@ -1407,16 +1539,178 @@
       if (recipients.length > 10) return { error: "That's more than 10 email addresses — trim the list down." };
 
       if ((contents.complete || contents.epassOnly) && !scannedQuoteId) {
-        return { error: "The complete package and ePASS-file emails are built from the scanned copy — scan the ePASS / NetSuite PDF above first, or send Specs only." };
+        return { error: "The complete package and ePASS-file emails are built from the scanned copy — scan the ePASS / NetSuite PDF first, or send Specs only." };
       }
 
       return { recipients, contents };
     }
 
+    function resetPostCreatePanel() {
+      document.getElementById("postCreatePanel").style.display = "none";
+      document.getElementById("mergedLinks").style.display = "none";
+      document.getElementById("mergedLinks").textContent = "";
+      document.getElementById("curateSection").style.display = "none";
+      document.getElementById("curateList").textContent = "";
+      setStatus("emailStatus", "", "");
+      setStatus("curateStatus", "", "");
+    }
+
+    function mergedPdfUrl(download) {
+      if (!lastCreated || !scannedQuoteId) return "";
+      const params = new URLSearchParams({
+        quoteId: scannedQuoteId,
+        variant: lastCreated.variant,
+        quotePosition: lastCreated.position,
+        name: lastCreated.salesOrder || lastCreated.navId
+      });
+      if (download) params.set("download", "1");
+      return "/api/spec-packages/" + encodeURIComponent(lastCreated.navId) + "/merged.pdf?" + params.toString();
+    }
+
+    function renderPostCreatePanel(result) {
+      const panel = document.getElementById("postCreatePanel");
+
+      // Merged package links (view inline + download) — built on demand
+      // server-side, so they stay current after curating.
+      if (lastCreated.mergeYes && scannedQuoteId) {
+        const links = document.getElementById("mergedLinks");
+        links.textContent = "";
+        links.appendChild(el("a", {
+          href: mergedPdfUrl(false), target: "_blank", rel: "noopener noreferrer",
+          text: "View merged package"
+        }));
+        links.appendChild(el("a", {
+          href: mergedPdfUrl(true),
+          text: "Download merged package"
+        }));
+        links.style.display = "flex";
+      }
+
+      renderCurateList(result);
+      panel.style.display = "";
+      panel.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    }
+
+    // ---- Curate: exclude documents from the compiled package ----
+
+    function renderCurateList(result) {
+      const specs = (result?.details?.specs || []).filter((s) => s && s.xUid);
+      const included = specs.filter((s) => s.isIncluded !== false);
+      if (!included.length) return;
+
+      const host = document.getElementById("curateList");
+      host.textContent = "";
+      for (const spec of included) {
+        const row = el("div", { class: "curate-row" });
+
+        const check = el("input", { type: "checkbox", class: "curate-check" });
+        check.setAttribute("data-xuid", spec.xUid);
+        row.appendChild(check);
+
+        const info = el("div", {});
+        const name = el("div", { class: "curate-name", text: spec.fileName || "document" });
+        for (const cat of spec.specCategories || []) {
+          if (cat?.name) name.appendChild(el("span", { class: "curate-badge", text: cat.name }));
+        }
+        info.appendChild(name);
+
+        const models = (spec.models || []).map((m) => m.modelNumber).filter(Boolean).join(", ");
+        if (models) info.appendChild(el("div", { class: "curate-meta", text: models }));
+        row.appendChild(info);
+
+        host.appendChild(row);
+      }
+      document.getElementById("curateSection").style.display = "";
+    }
+
+    document.getElementById("applyCurateBtn").addEventListener("click", async () => {
+      if (!lastCreated) return;
+      const rows = [...document.querySelectorAll("#curateList .curate-row")]
+        .filter((row) => !row.classList.contains("excluded") && row.querySelector(".curate-check").checked);
+      if (!rows.length) {
+        setStatus("curateStatus", "Check the documents to exclude first.", "warn");
+        return;
+      }
+
+      const btn = document.getElementById("applyCurateBtn");
+      btn.disabled = true;
+      btn.textContent = "Applying...";
+      let done = 0;
+      const failures = [];
+
+      for (const row of rows) {
+        const xUid = row.querySelector(".curate-check").getAttribute("data-xuid");
+        const label = row.querySelector(".curate-name").childNodes[0]?.textContent || "document";
+        try {
+          const res = await fetch(
+            "/api/spec-packages/" + encodeURIComponent(lastCreated.navId) + "/toggle-document",
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              credentials: "same-origin",
+              body: JSON.stringify({ xUid, include: false })
+            }
+          );
+          const data = await res.json();
+          if (!res.ok) throw new Error(data.error || "Unable to exclude that document.");
+          row.classList.add("excluded");
+          row.querySelector(".curate-check").disabled = true;
+          done += 1;
+        } catch (err) {
+          failures.push(`${label}: ${err.message}`);
+        }
+      }
+
+      btn.disabled = false;
+      btn.textContent = "Apply exclusions";
+      if (failures.length) {
+        setStatus("curateStatus", `Excluded ${done}; ${failures.length} failed — ${failures.join(" · ")}`, "warn");
+      } else {
+        setStatus("curateStatus", `Excluded ${done} document${done === 1 ? "" : "s"} — the full, slim, and merged PDFs are updated.`, "ok");
+      }
+    });
+
+    // ---- Post-create email ----
+
+    document.getElementById("sendEmailBtn").addEventListener("click", async () => {
+      if (!lastCreated) return;
+      const plan = resolveEmailPlan();
+      if (plan.error) {
+        setStatus("emailStatus", plan.error, "error");
+        return;
+      }
+
+      const btn = document.getElementById("sendEmailBtn");
+      btn.disabled = true;
+      btn.textContent = "Sending...";
+      setStatus("emailStatus", "Sending the documents\u2026", "ok");
+
+      try {
+        const sent = await api("/api/spec-packages/" + encodeURIComponent(lastCreated.navId) + "/email", {
+          method: "POST",
+          body: JSON.stringify({
+            recipients: plan.recipients,
+            contents: plan.contents,
+            variant: lastCreated.variant,
+            quotePosition: lastCreated.position,
+            quoteId: scannedQuoteId || "",
+            salesOrder: lastCreated.salesOrder,
+            salespersonEmail: document.getElementById("salespersonEmail").value.trim()
+          })
+        });
+        setStatus("emailStatus", `Sent to ${sent.sent} recipient${sent.sent === 1 ? "" : "s"}: ${(sent.files || []).join(", ")}.`, "ok");
+      } catch (err) {
+        setStatus("emailStatus", err.message, "error");
+      } finally {
+        startCooldown(btn, "Send email", 10);
+      }
+    });
+
     document.getElementById("createForm").addEventListener("submit", async (event) => {
       event.preventDefault();
       setStatus("createStatus", "", "");
       document.getElementById("createResult").textContent = "";
+      resetPostCreatePanel();
 
       if (!document.getElementById("customerName").value.trim()) {
         setStatus("createStatus", "Client / project name is required.", "error");
@@ -1427,9 +1721,15 @@
         return;
       }
 
-      const emailPlan = resolveEmailPlan();
-      if (emailPlan.error) {
-        setStatus("createStatus", emailPlan.error, "error");
+      let modelGroups = null;
+      if (entryMode === "build") {
+        modelGroups = collectModelGroups();
+        if (!Object.keys(modelGroups).length) {
+          setStatus("createStatus", "Set up the groups and paste at least one model into a room (hit \"Next — set up groups\" if the boxes aren't showing).", "error");
+          return;
+        }
+      } else if (!document.getElementById("modelNumbers").value.trim()) {
+        setStatus("createStatus", "Enter at least one model number.", "error");
         return;
       }
 
@@ -1458,7 +1758,8 @@
             customerPhone: document.getElementById("customerPhone").value.trim(),
             customerEmail: document.getElementById("customerEmail").value.trim(),
             salespersonEmail: document.getElementById("salespersonEmail").value.trim(),
-            modelNumbers: document.getElementById("modelNumbers").value
+            modelNumbers: entryMode === "build" ? [] : document.getElementById("modelNumbers").value,
+            modelGroups
           })
         });
 
@@ -1466,71 +1767,24 @@
 
         const navId = extractNavId(result);
         const salesOrder = document.getElementById("documentID").value.trim();
-        const baseName = salesOrder ||
-          (hasChosenFile ? quoteInput.files[0].name.replace(/\.pdf$/i, "") : "") || "quote";
-        const done = ["Spec package created"];
-        let hadTrouble = false;
+        lastCreated = { navId, salesOrder, variant, position, mergeYes };
 
-        const wantsFollowUp = (emailPlan.recipients && emailPlan.recipients.length) || mergeYes;
-        if (wantsFollowUp && !navId) {
+        if (!navId) {
           setStatus("createStatus",
-            "Spec package created, but its ID couldn't be determined for the merge/email. Find it in the search below and use \"Attach quote\".",
+            "Spec package created, but its ID couldn't be determined — find it in the search below for merge/email.",
             "warn");
           return;
         }
 
-        // Email step — uses the stored scanned quote, nothing re-uploads.
-        if (emailPlan.recipients && emailPlan.recipients.length) {
-          setStatus("createStatus", "Spec package created. Emailing the documents…", "ok");
-          try {
-            const sent = await api("/api/spec-packages/" + encodeURIComponent(navId) + "/email", {
-              method: "POST",
-              body: JSON.stringify({
-                recipients: emailPlan.recipients,
-                contents: emailPlan.contents,
-                variant,
-                quotePosition: position,
-                quoteId: scannedQuoteId || "",
-                salesOrder,
-                salespersonEmail: document.getElementById("salespersonEmail").value.trim()
-              })
-            });
-            done.push(`emailed ${sent.sent} recipient${sent.sent === 1 ? "" : "s"}`);
-          } catch (err) {
-            hadTrouble = true;
-            done.push("but the email failed: " + err.message);
-          }
-        }
+        setStatus("createStatus", "Spec package created — view, email, and curate it below.", "ok");
+        renderPostCreatePanel(result);
 
-        // Merge & download step.
-        if (mergeYes && scannedQuoteId) {
-          setStatus("createStatus", done.join(", ") + ". Building the merged PDF…", "ok");
-          try {
-            const data = await api(
-              "/api/spec-packages/" + encodeURIComponent(navId) + "/attach-quote-library",
-              {
-                method: "POST",
-                body: JSON.stringify({ quoteId: scannedQuoteId, variant, name: baseName, quotePosition: position })
-              }
-            );
-            if (!data.ok) throw new Error(data.error || "Unable to merge the quote and spec pages.");
-            const a = document.createElement("a");
-            a.href = "/api/spec-packages/quote-download/" + encodeURIComponent(data.token);
-            a.download = data.filename || (baseName + "-with-specs.pdf");
-            document.body.appendChild(a);
-            a.click();
-            a.remove();
-            done.push("merged PDF downloaded");
-          } catch (err) {
-            hadTrouble = true;
-            done.push("but the merge failed: " + err.message);
-          }
-          setStatus("createStatus", done.join(", ") + ".", hadTrouble ? "warn" : "ok");
-        } else if (mergeYes && hasChosenFile) {
-          setStatus("createStatus", done.join(", ") + ". Merging your quote PDF…", "ok");
+        // Manual-mode fallback: a chosen-but-never-scanned file can't power
+        // the on-demand merged view, so merge-and-download it the old way.
+        if (mergeYes && !scannedQuoteId && hasChosenFile) {
+          const baseName = salesOrder || quoteInput.files[0].name.replace(/\.pdf$/i, "") || "quote";
+          setStatus("createStatus", "Spec package created. Merging your quote PDF\u2026", "ok");
           nativeMergeSubmit(navId, quoteInput, variant, baseName, "createStatus", null, position);
-        } else {
-          setStatus("createStatus", done.join(", ") + ".", hadTrouble ? "warn" : "ok");
         }
       } catch (err) {
         setStatus("createStatus", err.message, "error");

@@ -74,11 +74,12 @@
     .preset-chip:hover { background: #f5f7ff; border-color: rgba(99, 91, 255, 0.32); }
     .preset-chip.active { background: var(--primary); border-color: var(--primary); color: #fff; }
 
+    /* Date inputs + buttons match Paid Order Detail. */
     input[type="date"] {
       border: 1px solid var(--border);
-      border-radius: 10px;
-      padding: 9px 12px;
-      font-size: 13.5px;
+      border-radius: 12px;
+      padding: 12px 14px;
+      font-size: 14px;
       background: #fff;
       color: var(--text);
       font-family: inherit;
@@ -90,26 +91,30 @@
       box-shadow: 0 0 0 4px rgba(99, 91, 255, 0.12);
     }
 
-    .filter-actions { margin-left: auto; display: flex; gap: 10px; }
+    .filter-actions {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+      margin-top: 12px;
+    }
 
     button.action {
       appearance: none;
-      border: none;
-      background: var(--primary);
-      color: #fff;
-      padding: 10px 16px;
-      border-radius: 10px;
-      font-size: 13.5px;
+      border: 1px solid rgba(99, 91, 255, 0.18);
+      background: #eef2ff;
+      color: #3730a3;
+      border-radius: 12px;
+      padding: 12px 16px;
+      font-size: 14px;
       font-weight: 700;
       cursor: pointer;
       font-family: inherit;
       white-space: nowrap;
     }
 
-    button.action:hover { background: var(--primary-hover); }
+    button.action:hover { background: #e0e7ff; }
     button.action:disabled { opacity: 0.6; cursor: wait; }
-    button.action.secondary { background: #eef2ff; color: var(--primary); }
-    button.action.secondary:hover { background: #e0e7ff; }
 
     .error-banner {
       display: none;
@@ -297,10 +302,10 @@
         <button type="button" class="preset-chip" data-preset="90">Last 90 days</button>
         <input type="date" id="startDate" aria-label="Start date" />
         <input type="date" id="endDate" aria-label="End date" />
-        <div class="filter-actions">
-          <button type="button" id="runBtn" class="action">Run</button>
-          <button type="button" id="exportBtn" class="action secondary">Export CSV</button>
-        </div>
+        <button type="button" id="runBtn" class="action">Run</button>
+      </div>
+      <div class="filter-actions">
+        <button type="button" id="exportBtn" class="action">Export visible to CSV</button>
       </div>
       <div id="errorBanner" class="error-banner"></div>
     </div>
@@ -317,9 +322,9 @@
         <div class="kpi-sub" id="kpiCountSub">&nbsp;</div>
       </div>
       <div class="kpi">
-        <div class="kpi-label">Average refund</div>
-        <div class="kpi-value" id="kpiAvg">—</div>
-        <div class="kpi-sub">Per refund in range</div>
+        <div class="kpi-label">Top dept refunded</div>
+        <div class="kpi-value" id="kpiTopDept" style="font-size: clamp(15px, 1.7vw, 20px); line-height: 1.25;">—</div>
+        <div class="kpi-sub" id="kpiTopDeptSub">By dollars refunded</div>
       </div>
       <div class="kpi">
         <div class="kpi-label">Top reason</div>
@@ -349,9 +354,9 @@
           <thead>
             <tr>
               <th>Date</th>
-              <th>Customer</th>
-              <th>Sales order</th>
               <th>Salesperson</th>
+              <th>Sales order</th>
+              <th>Customer</th>
               <th>Reason</th>
               <th>Refund note</th>
               <th>Refunded by</th>
@@ -380,25 +385,43 @@
 
     // ---- Reason bucketing (first match wins; raw note stays in the table) ----
 
+    // Refunds issued through the app carry a structured reason code chosen on
+    // the Issue Refund page — that always wins. Keyword matching only covers
+    // older refunds from before the code existed. "Scratch and save" is the
+    // direct-mail DISCOUNT, so the price-adjustment check runs before the
+    // damage check can catch "scratch".
+    const REASON_CODES = new Set([
+      "Cancelled order", "Return / exchange", "Damaged / defective",
+      "Price adjustment", "Duplicate charge", "Delivery / install issue",
+      "Service issue", "Fraudulent", "Other"
+    ]);
+
     const REASON_BUCKETS = [
-      { key: "Duplicate charge", test: (t, sr) => sr === "duplicate" || /duplicat|double charg|charged twice|billed twice|twice/.test(t) },
+      { key: "Duplicate charge", test: (t, sr) => sr === "duplicate" || /duplicat|double charg|charged twice|billed twice/.test(t) },
       { key: "Fraudulent", test: (t, sr) => sr === "fraudulent" || /fraud/.test(t) },
+      { key: "Price adjustment", test: (t) => /scratch\s*(and|&|\+|n)\s*save|scratch-?n-?save|price|adjust|discount|overcharg|over charg|differen|rebate|coupon|promo code|match/.test(t) },
       { key: "Cancelled order", test: (t) => /cancel/.test(t) },
       { key: "Damaged / defective", test: (t) => /damag|defect|dent|scratch|broke|not working|doa/.test(t) },
       { key: "Return / exchange", test: (t) => /return|exchang|swap/.test(t) },
-      { key: "Price adjustment", test: (t) => /price|adjust|discount|overcharg|over charg|differen|match|rebate/.test(t) },
       { key: "Delivery / install issue", test: (t) => /deliver|install|schedul|backorder|back order|out of stock/.test(t) },
       { key: "Service issue", test: (t) => /service|repair|warranty|tech/.test(t) },
       { key: "No note on file", test: (t) => !t }
     ];
 
     function bucketReason(row) {
+      if (row.reasonCode && REASON_CODES.has(row.reasonCode)) return row.reasonCode;
       const t = String(row.note || "").toLowerCase();
       const sr = String(row.stripeReason || "");
       for (const bucket of REASON_BUCKETS) {
         if (bucket.test(t, sr)) return bucket.key;
       }
       return "Other";
+    }
+
+    function departmentLabel(row) {
+      if (row.department) return row.department;
+      const code = String(row.senderCode || "").trim().toUpperCase();
+      return TEAM_DIRECTORY[code]?.department || "No department";
     }
 
     function senderLabel(row) {
@@ -536,10 +559,14 @@
       const withNote = rows.filter((r) => r.note).length;
       document.getElementById("kpiCountSub").textContent =
         rows.length ? `${withNote} with a note on file` : " ";
-      document.getElementById("kpiAvg").textContent = rows.length ? money.format(total / rows.length) : "—";
-
       const byReason = aggregate(rows, bucketReason);
       const bySender = aggregate(rows, senderLabel);
+      const byDept = aggregate(rows, departmentLabel);
+
+      document.getElementById("kpiTopDept").textContent = byDept.length ? byDept[0].key : "—";
+      document.getElementById("kpiTopDeptSub").textContent = byDept.length
+        ? `${money0.format(byDept[0].total)} · ${byDept[0].count} refund${byDept[0].count === 1 ? "" : "s"}`
+        : "By dollars refunded";
 
       document.getElementById("kpiTopReason").textContent = byReason.length ? byReason[0].key : "—";
       document.getElementById("kpiTopReasonSub").textContent = byReason.length
@@ -566,9 +593,9 @@
         const tr = document.createElement("tr");
         const cells = [
           [formatDate(row.date), ""],
-          [row.customerName || "—", ""],
-          [row.salesOrder || "—", ""],
           [senderLabel(row), ""],
+          [row.salesOrder || "—", ""],
+          [row.customerName || "—", ""],
           [bucketReason(row), "bucket"],
           [row.note || "no note on file — likely issued directly in Stripe", "cell-note"],
           [row.refundedBy || "—", "cell-note"],
@@ -631,15 +658,16 @@
     }
 
     document.getElementById("exportBtn").addEventListener("click", () => {
-      const headers = ["Date", "Customer", "Sales Order", "Sender Code", "Salesperson", "Reason", "Refund Note", "Refunded By", "Amount", "Payment Intent"];
+      const headers = ["Date", "Salesperson", "Sender Code", "Sales Order", "Customer", "Department", "Reason", "Refund Note", "Refunded By", "Amount", "Payment Intent"];
       const lines = [headers.join(",")];
       for (const row of currentRows) {
         lines.push([
           formatDate(row.date),
-          row.customerName || "",
-          row.salesOrder || "",
-          row.senderCode || "",
           senderLabel(row),
+          row.senderCode || "",
+          row.salesOrder || "",
+          row.customerName || "",
+          departmentLabel(row),
           bucketReason(row),
           row.note || "",
           row.refundedBy || "",

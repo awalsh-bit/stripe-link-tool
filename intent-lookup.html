@@ -321,13 +321,29 @@
 
     .refund-grid {
       display: grid;
-      grid-template-columns: 180px 1fr;
+      grid-template-columns: 180px 1fr 220px;
       gap: 14px;
       align-items: start;
     }
 
     .refund-panel label { display: block; margin-bottom: 6px; font-size: 13px; font-weight: 700; }
     .refund-panel input[type="number"], .refund-panel input[type="text"] { width: 100%; }
+    .refund-panel select {
+      width: 100%;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 12px 14px;
+      font-size: 14px;
+      background: #fff;
+      color: var(--text);
+      font-family: inherit;
+      outline: none;
+      cursor: pointer;
+    }
+    .refund-panel select:focus {
+      border-color: rgba(99, 91, 255, 0.75);
+      box-shadow: 0 0 0 4px rgba(99, 91, 255, 0.12);
+    }
 
     .refund-confirm {
       display: flex;
@@ -465,6 +481,21 @@
             <label for="refundNote">Product or service cancelled / returned</label>
             <input id="refundNote" type="text" maxlength="200"
               placeholder='e.g. "KDTS434SPS dishwasher returned" or "canceled HVAC maintenance visit"' />
+          </div>
+          <div>
+            <label for="refundReasonCode">Reason code</label>
+            <select id="refundReasonCode">
+              <option value="Cancelled order">Cancelled order</option>
+              <option value="Return / exchange">Return / exchange</option>
+              <option value="Damaged / defective">Damaged / defective</option>
+              <option value="Price adjustment">Price adjustment</option>
+              <option value="Duplicate charge">Duplicate charge</option>
+              <option value="Delivery / install issue">Delivery / install issue</option>
+              <option value="Service issue">Service issue</option>
+              <option value="Fraudulent">Fraudulent</option>
+              <option value="Other" selected>Other</option>
+            </select>
+            <div class="helper" id="reasonCodeHint">Suggested from the note — change it if it's wrong.</div>
           </div>
         </div>
         <label class="refund-confirm">
@@ -707,6 +738,35 @@
       return null;
     }
 
+    // Suggest a structured reason code from the note as it's typed. First
+    // match wins; "scratch and save" is the direct-mail DISCOUNT, so the
+    // price-adjustment check runs before the damage check catches "scratch".
+    const refundReasonCodeEl = document.getElementById("refundReasonCode");
+    let reasonCodeManuallyChosen = false;
+
+    function suggestReasonCode(note) {
+      const t = String(note || "").toLowerCase();
+      if (/duplicat|double charg|charged twice|billed twice/.test(t)) return "Duplicate charge";
+      if (/fraud/.test(t)) return "Fraudulent";
+      if (/scratch\s*(and|&|\+|n)\s*save|scratch-?n-?save|price|adjust|discount|overcharg|over charg|differen|rebate|coupon|promo code|match/.test(t)) return "Price adjustment";
+      if (/cancel/.test(t)) return "Cancelled order";
+      if (/damag|defect|dent|scratch|broke|not working|doa/.test(t)) return "Damaged / defective";
+      if (/return|exchang|swap/.test(t)) return "Return / exchange";
+      if (/deliver|install|schedul|backorder|back order|out of stock/.test(t)) return "Delivery / install issue";
+      if (/service|repair|warranty|tech/.test(t)) return "Service issue";
+      return "Other";
+    }
+
+    refundNoteEl.addEventListener("input", () => {
+      if (reasonCodeManuallyChosen) return; // the user's choice wins
+      refundReasonCodeEl.value = suggestReasonCode(refundNoteEl.value);
+    });
+
+    refundReasonCodeEl.addEventListener("change", () => {
+      reasonCodeManuallyChosen = true;
+      document.getElementById("reasonCodeHint").textContent = "Using your selection.";
+    });
+
     function openRefundPanel() {
       if (!isRefundablePaymentIntent(latestIntentResponse)) {
         showStatus("error", "Only succeeded, refundable PaymentIntents can be refunded here.");
@@ -716,6 +776,9 @@
       const refundableAmount = Number(latestIntentResponse.summary.refundableAmount || 0);
       refundAmountEl.value = "0.00";
       refundNoteEl.value = "";
+      refundReasonCodeEl.value = "Other";
+      reasonCodeManuallyChosen = false;
+      document.getElementById("reasonCodeHint").textContent = "Suggested from the note — change it if it's wrong.";
       refundConfirmEl.checked = false;
       refundSubmitBtn.disabled = true;
       document.getElementById("refundMaxNote").textContent =
@@ -772,6 +835,7 @@
           body: JSON.stringify({
             amount: refundAmount,
             note: refundNoteEl.value.trim(),
+            reasonCode: refundReasonCodeEl.value,
             confirmed: true,
             reason: "requested_by_customer"
           })

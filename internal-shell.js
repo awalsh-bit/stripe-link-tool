@@ -154,6 +154,11 @@
         text: "Review active and archived event registrations."
       },
       {
+        href: "signature-builder.html",
+        title: "Email Signature",
+        text: "Build your standard Wilson email signature."
+      },
+      {
         title: "HR",
         children: [
           { href: "hr-phone-screen.html", title: "Phone Screen" },

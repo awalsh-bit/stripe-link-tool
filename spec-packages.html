@@ -657,9 +657,24 @@
         <h3 class="finish-header">Finish up</h3>
         <div id="mergedLinks" class="result-links" style="display: none;"></div>
 
+        <div id="curateSection" style="display: none; margin-bottom: 18px;">
+          <h3 class="finish-header">Curate the package</h3>
+          <p class="section-note" style="margin-bottom: 8px;">
+            These documents are in the compiled package. Check any that don't belong
+            (use &amp; care guides, other languages, over-matched models) and apply —
+            the full, slim, and merged PDFs update immediately.
+          </p>
+          <div id="curateList"></div>
+          <div class="actions-row">
+            <button id="applyCurateBtn" type="button" class="secondary">Apply exclusions</button>
+          </div>
+          <div id="curateStatus" class="status"></div>
+        </div>
+
+        <h3 class="finish-header">Email the documents</h3>
         <div class="finish-row">
           <div class="field">
-            <label for="emailRecipient">Email the documents — recipient</label>
+            <label for="emailRecipient">Recipient</label>
             <select id="emailRecipient">
               <option value="myself" selected>Myself</option>
               <option value="client">Client</option>
@@ -682,20 +697,6 @@
           <button id="sendEmailBtn" type="button">Send email</button>
         </div>
         <div id="emailStatus" class="status"></div>
-
-        <div id="curateSection" style="display: none; margin-top: 18px;">
-          <h3 class="finish-header">Curate the package</h3>
-          <p class="section-note" style="margin-bottom: 8px;">
-            These documents are in the compiled package. Check any that don't belong
-            (use &amp; care guides, other languages, over-matched models) and apply —
-            the full and slim PDFs update immediately.
-          </p>
-          <div id="curateList"></div>
-          <div class="actions-row">
-            <button id="applyCurateBtn" type="button" class="secondary">Apply exclusions</button>
-          </div>
-          <div id="curateStatus" class="status"></div>
-        </div>
       </div>
     </div>
 
@@ -1655,11 +1656,12 @@
     function renderPostCreatePanel(result) {
       const panel = document.getElementById("postCreatePanel");
 
-      // Merged package links (view inline + download) — built on demand
-      // server-side, so they stay current after curating.
+      // One combined links row: the merged package (built on demand
+      // server-side, so it stays current after curating) — or the plain full
+      // package when there's no merge — plus slim and the Q&A page.
+      const links = document.getElementById("mergedLinks");
+      links.textContent = "";
       if (lastCreated.mergeYes && scannedQuoteId) {
-        const links = document.getElementById("mergedLinks");
-        links.textContent = "";
         links.appendChild(el("a", {
           href: mergedPdfUrl(false), target: "_blank", rel: "noopener noreferrer",
           text: "View merged package"
@@ -1668,8 +1670,16 @@
           href: mergedPdfUrl(true),
           text: "Download merged package"
         }));
-        links.style.display = "flex";
+      } else if (result.urls) {
+        links.appendChild(linkChip("View package", result.urls.open));
+        links.appendChild(linkChip("Download PDF", result.urls.download));
       }
+      if (result.urls) {
+        links.appendChild(linkChip("View slim", result.urls.slimOpen));
+        links.appendChild(linkChip("Download slim", result.urls.slimDownload));
+        links.appendChild(linkChip("Customer Q&A page", result.urls.ask));
+      }
+      links.style.display = "flex";
 
       renderCurateList(result);
       panel.style.display = "";
@@ -1892,15 +1902,6 @@
       const host = document.getElementById("createResult");
       host.textContent = "";
 
-      if (result.urls) {
-        host.appendChild(el("div", { class: "result-links" }, [
-          linkChip("View package", result.urls.open),
-          linkChip("Download PDF", result.urls.download),
-          linkChip("View slim", result.urls.slimOpen),
-          linkChip("Download slim", result.urls.slimDownload),
-          linkChip("Customer Q&A page", result.urls.ask)
-        ]));
-      }
 
       const details = result.details || {};
       const lists = el("div", { class: "model-lists" });

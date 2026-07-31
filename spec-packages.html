@@ -514,18 +514,19 @@
           <label for="quotePdf">Scan Quote / Sales Order</label>
           <div class="attach-row">
             <input id="quotePdf" type="file" accept="application/pdf,.pdf" />
-            <button id="scanModelsBtn" type="button">Scan</button>
+            <button id="quickScanBtn" type="button">Quick Scan</button>
+            <button id="buildScanBtn" type="button">Scan &amp; Build</button>
           </div>
         </div>
         <div class="mode-toggle" role="tablist" aria-label="Entry mode">
-          <button id="modeQuickBtn" type="button" class="mode-btn active">Quick Scan &amp; Create</button>
-          <button id="modeBuildBtn" type="button" class="mode-btn">Scan &amp; Build</button>
+          <button id="modeScanBtn" type="button" class="mode-btn active">Scanner</button>
           <button id="modeManualBtn" type="button" class="mode-btn">Manual entry</button>
         </div>
       </div>
 
       <form id="createForm">
         <div id="createDetails" style="display: none;">
+        <div id="clientSection">
         <!-- Order + requester: two columns, requester emails right-aligned. -->
         <div class="spec-head">
           <div class="spec-head-col">
@@ -577,6 +578,7 @@
         </div>
 
         <div class="spec-gap"></div>
+        </div><!-- /clientSection -->
 
         <div class="field full" id="flatModelsField">
           <label for="modelNumbers">Model numbers * (one per line or comma-separated)</label>
@@ -587,26 +589,28 @@
              so the sections are pre-assembled in Steel Cod's PSP Editor. -->
         <div id="buildSection" style="display: none;">
           <div class="field full">
-            <label for="scannedModels">Scanned models — copy each into its room below</label>
-            <textarea id="scannedModels" readonly style="background: #f8fafc; min-height: 70px;"></textarea>
+            <label for="scannedModels">Scanned models — group them into rooms below, or edit the list and continue without groups</label>
+            <textarea id="scannedModels" style="min-height: 70px;"></textarea>
           </div>
           <div class="finish-row">
             <div class="field">
               <label for="groupCount">How many groups?</label>
               <select id="groupCount">
+                <option value="0" selected>No groups</option>
                 <option value="1">1</option>
-                <option value="2" selected>2</option>
+                <option value="2">2</option>
                 <option value="3">3</option>
                 <option value="4">4</option>
               </select>
             </div>
             <div class="field" style="align-self: flex-end;">
-              <button id="groupNextBtn" type="button" class="secondary">Next — set up groups</button>
+              <button id="groupNextBtn" type="button">Next</button>
             </div>
           </div>
           <div id="groupBoxes" class="form-grid two-col" style="display: none;"></div>
         </div>
 
+        <div id="finishSection">
         <hr class="spec-divider" />
 
         <h3 class="finish-header">Finishing Options</h3>
@@ -641,6 +645,7 @@
         <div class="actions-row">
           <button id="createBtn" type="submit">Create spec package</button>
         </div>
+        </div><!-- /finishSection -->
         </div><!-- /createDetails -->
         <div id="createStatus" class="status"></div>
         <div id="createResult"></div>
@@ -794,39 +799,47 @@
     let searchState = { params: null, skip: 0, total: 0, loaded: 0 };
 
     // ---- Entry mode ----
-    // quick  (default): scan fills everything, review, create — one pass.
-    // build: scan grabs the models, the user sorts them into named groups
-    //        (rooms) that become v1.3 modelGroups / PSP Editor sections.
-    // manual: the classic full form, no scan required.
-    let entryMode = "quick";
+    // Scanner (default): pick Quick Scan (one pass — scan fills everything)
+    // or Scan & Build (staged — models first, optional room groups, then the
+    // client info + finishing options). Manual: classic full form.
+    let entryMode = "scan";      // "scan" | "manual"
+    let scanFlow = "quick";      // which scan button ran: "quick" | "build"
     let scanCompleted = false;   // a successful scan reveals the fields
+    let buildReady = false;      // build flow reached the client-info stage
     let scannedQuoteId = null;   // library id of the auto-saved scanned quote
+    let pendingScanFill = null;  // build flow: scan results held until buildReady
 
     const GROUP_PRESETS = ["Kitchen", "Laundry", "Outdoor", "Bar"];
 
     function updateDetailsVisibility() {
-      const show = entryMode === "manual" || scanCompleted;
-      document.getElementById("createDetails").style.display = show ? "" : "none";
-      document.getElementById("buildSection").style.display = entryMode === "build" ? "" : "none";
-      document.getElementById("flatModelsField").style.display = entryMode === "build" ? "none" : "";
+      const isManual = entryMode === "manual";
+      document.getElementById("createDetails").style.display = (isManual || scanCompleted) ? "" : "none";
+
+      const inBuild = !isManual && scanFlow === "build" && scanCompleted;
+      document.getElementById("buildSection").style.display = inBuild ? "" : "none";
+      document.getElementById("flatModelsField").style.display = inBuild ? "none" : "";
+
+      // Build holds the client info + finishing options back until the
+      // groups step is done; quick and manual show everything.
+      const showClient = isManual || (scanCompleted && (scanFlow === "quick" || buildReady));
+      document.getElementById("clientSection").style.display = showClient ? "" : "none";
+      document.getElementById("finishSection").style.display = showClient ? "" : "none";
     }
 
     function setEntryMode(mode) {
       entryMode = mode;
-      document.getElementById("modeQuickBtn").classList.toggle("active", mode === "quick");
-      document.getElementById("modeBuildBtn").classList.toggle("active", mode === "build");
+      document.getElementById("modeScanBtn").classList.toggle("active", mode === "scan");
       document.getElementById("modeManualBtn").classList.toggle("active", mode === "manual");
       updateDetailsVisibility();
     }
 
-    document.getElementById("modeQuickBtn").addEventListener("click", () => setEntryMode("quick"));
-    document.getElementById("modeBuildBtn").addEventListener("click", () => setEntryMode("build"));
+    document.getElementById("modeScanBtn").addEventListener("click", () => setEntryMode("scan"));
     document.getElementById("modeManualBtn").addEventListener("click", () => setEntryMode("manual"));
 
-    // ---- Scan & Build: group boxes ----
+    // ---- Scan & Build: staged groups then client info ----
 
     function renderGroupBoxes() {
-      const count = Number(document.getElementById("groupCount").value) || 2;
+      const count = Number(document.getElementById("groupCount").value) || 0;
       const host = document.getElementById("groupBoxes");
       host.textContent = "";
       for (let i = 0; i < count; i += 1) {
@@ -851,10 +864,58 @@
 
         host.appendChild(field);
       }
-      host.style.display = "";
+      host.style.display = count ? "" : "none";
     }
 
-    document.getElementById("groupNextBtn").addEventListener("click", renderGroupBoxes);
+    // Applies the scan's order number + customer details that were held back
+    // during the groups step (never overwriting anything already typed).
+    function applyPendingScanFill() {
+      if (!pendingScanFill) return;
+      const fills = [
+        ["documentID", pendingScanFill.salesOrder],
+        ["title", pendingScanFill.salesOrder],
+        ["customerName", pendingScanFill.customer?.name],
+        ["customerAddress", pendingScanFill.customer?.address],
+        ["customerPhone", pendingScanFill.customer?.phone]
+      ];
+      for (const [id, value] of fills) {
+        const input = document.getElementById(id);
+        if (value && input && !input.value.trim()) input.value = value;
+      }
+      pendingScanFill = null;
+    }
+
+    function revealClientStage() {
+      buildReady = true;
+      applyPendingScanFill();
+      updateDetailsVisibility();
+      document.getElementById("groupNextBtn").style.display = "none";
+      document.getElementById("clientSection").scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+
+    document.getElementById("groupNextBtn").addEventListener("click", () => {
+      const count = Number(document.getElementById("groupCount").value) || 0;
+      const boxesVisible = document.getElementById("groupBoxes").style.display !== "none";
+      if (count > 0 && !boxesVisible) {
+        // First Next with groups chosen: expose the room boxes.
+        renderGroupBoxes();
+        document.getElementById("groupNextBtn").textContent = "Next — client info & finishing";
+        return;
+      }
+      // No groups, or the rooms are filled in: on to client info + finishing.
+      revealClientStage();
+    });
+
+    // Changing the count after the boxes are showing re-renders them.
+    document.getElementById("groupCount").addEventListener("change", () => {
+      const host = document.getElementById("groupBoxes");
+      if (host.style.display !== "none") {
+        const count = Number(document.getElementById("groupCount").value) || 0;
+        renderGroupBoxes();
+        document.getElementById("groupNextBtn").textContent =
+          count > 0 ? "Next — client info & finishing" : "Next";
+      }
+    });
 
     function collectModelGroups() {
       const groups = {};
@@ -1287,20 +1348,28 @@
       const salesOrder = String(result.salesOrder || "").trim();
 
       // Scan fills only fields the user hasn't typed in — it never
-      // overwrites manual entry.
+      // overwrites manual entry. In the Build flow the client fields stay
+      // hidden through the groups step, so those values are HELD and applied
+      // when the client stage is revealed.
+      const isBuildFlow = entryMode === "scan" && scanFlow === "build" && !buildReady;
       const filled = [];
-      const fills = [
-        ["documentID", salesOrder, "sales order #"],
-        ["title", salesOrder, null],
-        ["customerName", customer?.name, "client name"],
-        ["customerAddress", customer?.address, "address"],
-        ["customerPhone", customer?.phone, "phone"]
-      ];
-      for (const [id, value, label] of fills) {
-        const input = document.getElementById(id);
-        if (value && input && !input.value.trim()) {
-          input.value = value;
-          if (label) filled.push(label);
+      if (isBuildFlow) {
+        pendingScanFill = { salesOrder, customer };
+        if (customer?.name) filled.push("client details (held for the next step)");
+      } else {
+        const fills = [
+          ["documentID", salesOrder, "sales order #"],
+          ["title", salesOrder, null],
+          ["customerName", customer?.name, "client name"],
+          ["customerAddress", customer?.address, "address"],
+          ["customerPhone", customer?.phone, "phone"]
+        ];
+        for (const [id, value, label] of fills) {
+          const input = document.getElementById(id);
+          if (value && input && !input.value.trim()) {
+            input.value = value;
+            if (label) filled.push(label);
+          }
         }
       }
 
@@ -1319,8 +1388,8 @@
       }
 
       // Quick/manual: models land in the create textarea. Build: they land
-      // in the read-only reference box the user copies rooms from.
-      const ta = document.getElementById(entryMode === "build" ? "scannedModels" : "modelNumbers");
+      // in the scanned-models box the user groups (or edits) first.
+      const ta = document.getElementById(isBuildFlow ? "scannedModels" : "modelNumbers");
       const existing = ta.value.split(/[\n,]/).map((s) => s.trim()).filter(Boolean);
       const seen = new Set(existing.map((s) => s.toUpperCase()));
       let added = 0;
@@ -1346,7 +1415,9 @@
       if (filled.filter((f) => f !== "sales order #").length) {
         bits.push("Ship To " + filled.filter((f) => f !== "sales order #").join(" + "));
       }
-      setStatus(statusId, `Scan found ${bits.join(", ")} — review the details below, then create.`, "ok");
+      setStatus(statusId, isBuildFlow
+        ? `Scan found ${bits.join(", ")} — set up groups below (or pick No groups) and hit Next.`
+        : `Scan found ${bits.join(", ")} — review the details below, then create.`, "ok");
       document.getElementById("createDetails").scrollIntoView({ behavior: "smooth", block: "start" });
     }
 
@@ -1367,17 +1438,25 @@
       }
     });
 
-    document.getElementById("scanModelsBtn").addEventListener("click", () => {
+    const SCAN_BTN_LABELS = { quickScanBtn: "Quick Scan", buildScanBtn: "Scan & Build" };
+
+    function startScan(flow, btnId) {
       const fileInput = document.getElementById("quotePdf");
       if (!fileInput.files || !fileInput.files[0]) {
         setStatus("createStatus", "Choose the sales order / quote PDF first, then scan.", "warn");
         return;
       }
 
-      const scanBtn = document.getElementById("scanModelsBtn");
-      scanBtn.disabled = true;
+      // Which scan button ran decides the flow: quick fills everything at
+      // once; build stages models -> groups -> client info.
+      scanFlow = flow;
+      setEntryMode("scan");
+
+      const scanBtn = document.getElementById(btnId);
+      document.getElementById("quickScanBtn").disabled = true;
+      document.getElementById("buildScanBtn").disabled = true;
       scanBtn.textContent = "Scanning...";
-      setStatus("createStatus", "Reading the quote…", "ok");
+      setStatus("createStatus", "Reading the quote\u2026", "ok");
 
       // Same native-form-to-iframe upload as the merge (works where security
       // blocks JS file reads). The input is moved into a throwaway form and
@@ -1405,8 +1484,11 @@
       };
 
       const resetBtn = () => {
-        scanBtn.disabled = false;
-        scanBtn.textContent = "Scan";
+        for (const [id, label] of Object.entries(SCAN_BTN_LABELS)) {
+          const el = document.getElementById(id);
+          el.disabled = false;
+          el.textContent = label;
+        }
       };
 
       scanCtx = {
@@ -1422,7 +1504,10 @@
       };
 
       form.submit();
-    });
+    }
+
+    document.getElementById("quickScanBtn").addEventListener("click", () => startScan("quick", "quickScanBtn"));
+    document.getElementById("buildScanBtn").addEventListener("click", () => startScan("build", "buildScanBtn"));
 
     let attachTarget = null;
 
@@ -1721,16 +1806,26 @@
         return;
       }
 
+      const inBuildFlow = entryMode === "scan" && scanFlow === "build" && scanCompleted;
       let modelGroups = null;
-      if (entryMode === "build") {
+      let flatModels = "";
+      if (inBuildFlow) {
         modelGroups = collectModelGroups();
         if (!Object.keys(modelGroups).length) {
-          setStatus("createStatus", "Set up the groups and paste at least one model into a room (hit \"Next — set up groups\" if the boxes aren't showing).", "error");
+          // No groups path: the scanned-models box IS the model list.
+          modelGroups = null;
+          flatModels = document.getElementById("scannedModels").value;
+          if (!flatModels.trim()) {
+            setStatus("createStatus", "No models — paste them into a group, or into the scanned-models box to go without groups.", "error");
+            return;
+          }
+        }
+      } else {
+        flatModels = document.getElementById("modelNumbers").value;
+        if (!flatModels.trim()) {
+          setStatus("createStatus", "Enter at least one model number.", "error");
           return;
         }
-      } else if (!document.getElementById("modelNumbers").value.trim()) {
-        setStatus("createStatus", "Enter at least one model number.", "error");
-        return;
       }
 
       const mergeYes = document.getElementById("mergeChoice").value === "yes";
@@ -1758,7 +1853,7 @@
             customerPhone: document.getElementById("customerPhone").value.trim(),
             customerEmail: document.getElementById("customerEmail").value.trim(),
             salespersonEmail: document.getElementById("salespersonEmail").value.trim(),
-            modelNumbers: entryMode === "build" ? [] : document.getElementById("modelNumbers").value,
+            modelNumbers: modelGroups ? [] : flatModels,
             modelGroups
           })
         });

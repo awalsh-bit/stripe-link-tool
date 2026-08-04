@@ -37,7 +37,7 @@
       padding: 32px 16px;
     }
 
-    .wrap { max-width: 1180px; margin: 0 auto; }
+    .wrap { max-width: 1480px; margin: 0 auto; }
 
     .surface {
       background: var(--card);
@@ -57,6 +57,7 @@
       grid-template-columns: minmax(0, 380px) minmax(0, 1fr);
       gap: 26px;
       align-items: start;
+      max-width: 1240px;
     }
 
     label { display: block; margin-bottom: 6px; font-size: 13px; font-weight: 700; }
@@ -342,6 +343,46 @@
       document.getElementById(id).addEventListener("change", renderPreview);
     }
 
+    // Phone numbers auto-format to (xxx) xxx-xxxx as they're typed.
+    function formatPhone(value) {
+      let digits = String(value || "").replace(/\D/g, "");
+      if (digits.length === 11 && digits.startsWith("1")) digits = digits.slice(1);
+      digits = digits.slice(0, 10);
+      if (digits.length < 4) return digits;
+      if (digits.length < 7) return `(${digits.slice(0, 3)}) ${digits.slice(3)}`;
+      return `(${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6)}`;
+    }
+
+    for (const id of ["phone1", "phone2"]) {
+      const input = document.getElementById(id);
+      input.addEventListener("input", () => {
+        input.value = formatPhone(input.value);
+        renderPreview();
+      });
+    }
+
+    // Name and title get proper capitalization on blur. All-lower or
+    // all-upper words are title-cased (including after hyphens and
+    // apostrophes); deliberately mixed-case words (McCormick) are left alone.
+    function properCase(text) {
+      // Each segment between spaces, hyphens, and apostrophes is judged on
+      // its own: all-lower or all-upper gets capitalized; deliberately mixed
+      // segments (McCormick) are left alone.
+      return String(text || "").replace(/[^\s\-'\u2019]+/g, (seg) => {
+        if (seg !== seg.toLowerCase() && seg !== seg.toUpperCase()) return seg;
+        const lower = seg.toLowerCase();
+        return lower.charAt(0).toUpperCase() + lower.slice(1);
+      });
+    }
+
+    for (const id of ["sigName", "sigTitle"]) {
+      const input = document.getElementById(id);
+      input.addEventListener("blur", () => {
+        input.value = properCase(input.value);
+        renderPreview();
+      });
+    }
+
     // ---- Photo upload (native form -> hidden iframe, like the quote library) ----
 
     let photoCtx = null;
@@ -500,6 +541,7 @@
           if (user.email && user.email.includes("@") && !document.getElementById("sigEmail").value) {
             document.getElementById("sigEmail").value = user.email;
           }
+          document.getElementById("sigName").value = properCase(document.getElementById("sigName").value);
         }
       } catch {}
 
@@ -512,6 +554,10 @@
         }
       } catch {}
 
+      for (const id of ["phone1", "phone2"]) {
+        const input = document.getElementById(id);
+        input.value = formatPhone(input.value);
+      }
       renderPreview();
     })();
   </script>

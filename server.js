@@ -130,6 +130,11 @@ import {
   getSignaturePhoto,
   getSignaturePhotoByEmail
 } from "./lib/signature-postgres.js";
+import {
+  listClearanceStatuses,
+  markClearanceSold,
+  clearClearanceSold
+} from "./lib/clearance-postgres.js";
 import { extractQuoteDataFromPdfBuffer } from "./lib/spec-scan.js";
 import {
   saveSatisfactionResponse,
@@ -262,7 +267,8 @@ const INTERNAL_PAGE_PATHS = new Set([
   "/case-visit-survey.html",
   "/case-visit-results.html",
   "/refund-dashboard.html",
-  "/signature-builder.html"
+  "/signature-builder.html",
+  "/clearance.html"
 ]);
 
 const UNAUTHENTICATED_INTERNAL_PATHS = new Set([
@@ -339,6 +345,7 @@ const JOB_CODE_PRESETS = {
     pages: [
       "/salesdashboard.html",
       "/secret-menu.html",
+      "/clearance.html",
       "/spec-packages.html",
       "/event-rsvps.html",
       "/dashboard.html",
@@ -433,7 +440,8 @@ const PAGE_LABELS = {
   "/case-visit-survey.html": "Case Visit Survey",
   "/case-visit-results.html": "Case Visit Results",
   "/refund-dashboard.html": "Refund Dashboard",
-  "/signature-builder.html": "Email Signature"
+  "/signature-builder.html": "Email Signature",
+  "/clearance.html": "Clearance Hit List"
 };
 
 // Category groupings for the User Admin permission UI. A page may appear in
@@ -3784,6 +3792,118 @@ app.get("/api/secret-menu", requirePagePermission("/secret-menu.html"), async (r
       return res.status(500).json({ error: "Secret Menu data file is missing." });
     }
     return res.status(500).json({ error: err.message || "Unable to load secret menu." });
+  }
+});
+
+app.get("/api/clearance", requirePagePermission("/clearance.html"), async (req, res) => {
+  try {
+    const fs = await import("fs/promises");
+    const clearancePath = path.join(__dirname, "data", "clearance.json");
+    const raw = await fs.readFile(clearancePath, "utf8");
+    const data = JSON.parse(raw);
+
+    // Attach live sold marks (kept in Postgres so they survive list
+    // refreshes). If the DB is unreachable the list still loads, read-only.
+    try {
+      const statuses = await listClearanceStatuses();
+      const byId = new Map(statuses.map((s) => [s.itemId, s]));
+      for (const item of data.items || []) {
+        const status = byId.get(item.id);
+        if (status) item.sold = status;
+      }
+    } catch (dbErr) {
+      console.error("Clearance status load failed:", dbErr.message);
+      data._meta = { ...(data._meta || {}), statusUnavailable: true };
+    }
+
+    res.setHeader("Cache-Control", "no-store");
+    return res.json(data);
+  } catch (err) {
+    if (err?.code === "ENOENT") {
+      return res.status(500).json({ error: "Clearance data file is missing." });
+    }
+    return res.status(500).json({ error: err.message || "Unable to load the clearance list." });
+  }
+});
+
+// Mark a clearance unit sold. First seller wins — a second attempt gets the
+// existing mark back as a 409 so the race is visible, not silent.
+app.post("/api/clearance/sold", requirePagePermission("/clearance.html"), async (req, res) => {
+  try {
+    const itemId = String(req.body?.itemId || "").trim();
+    const salesOrder = String(req.body?.salesOrder || "").trim();
+    if (!itemId) {
+      return res.status(400).json({ error: "Missing item id." });
+    }
+    if (!salesOrder) {
+      return res.status(400).json({ error: "Enter the sales order number." });
+    }
+
+    const userEmail = req.authUser?.kind === "db" ? req.authUser.email : "";
+    if (!userEmail) {
+      return res.status(400).json({ error: "Sign in with your individual account to close a line." });
+    }
+
+    const result = await markClearanceSold({
+      itemId,
+      salesOrder,
+      soldByEmail: userEmail,
+      soldByName: req.authUser?.displayName || ""
+    });
+
+    if (result.conflict) {
+      return res.status(409).json({
+        error: `Already sold by ${result.existing?.soldByName || result.existing?.soldByEmail || "someone else"} on ${result.existing?.salesOrder || "another order"}.`,
+        sold: result.existing
+      });
+    }
+
+    recordAudit({
+      ip: req.ip,
+      actorUserId: req.authUser?.id || null,
+      action: "clearance_marked_sold",
+      targetUserId: null,
+      detail: { itemId, salesOrder }
+    }).catch(() => {});
+
+    return res.json({ ok: true, sold: result.status });
+  } catch (err) {
+    console.error("Clearance sold failed:", err.message);
+    return res.status(500).json({ error: "Unable to mark that unit sold." });
+  }
+});
+
+// Undo a sold mark — the person who marked it, or an executive.
+app.post("/api/clearance/unsold", requirePagePermission("/clearance.html"), async (req, res) => {
+  try {
+    const itemId = String(req.body?.itemId || "").trim();
+    if (!itemId) {
+      return res.status(400).json({ error: "Missing item id." });
+    }
+
+    const userEmail = String(req.authUser?.kind === "db" ? req.authUser.email : "").toLowerCase();
+    const statuses = await listClearanceStatuses();
+    const existing = statuses.find((s) => s.itemId === itemId);
+    if (!existing) {
+      return res.json({ ok: true }); // already clear
+    }
+    if (existing.soldByEmail !== userEmail && !isExecutiveUser(req.authUser)) {
+      return res.status(403).json({ error: `Only ${existing.soldByName || existing.soldByEmail} or an executive can reopen this line.` });
+    }
+
+    await clearClearanceSold(itemId);
+    recordAudit({
+      ip: req.ip,
+      actorUserId: req.authUser?.id || null,
+      action: "clearance_unmarked_sold",
+      targetUserId: null,
+      detail: { itemId, previousSalesOrder: existing.salesOrder, previouslySoldBy: existing.soldByEmail }
+    }).catch(() => {});
+
+    return res.json({ ok: true });
+  } catch (err) {
+    console.error("Clearance unsold failed:", err.message);
+    return res.status(500).json({ error: "Unable to reopen that line." });
   }
 });
 

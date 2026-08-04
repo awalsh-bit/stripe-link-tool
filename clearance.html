@@ -1,0 +1,536 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="robots" content="noindex,nofollow,noarchive" />
+  <title>Wilson AC &amp; Appliance - Clearance Hit List</title>
+  <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+  <link rel="stylesheet" href="internal-shell.css" />
+  <style>
+    :root {
+      --bg: #f7f8fc;
+      --card: #ffffff;
+      --text: #1f2937;
+      --muted: #6b7280;
+      --border: #dbe1ea;
+      --primary: #635bff;
+      --shadow: 0 10px 35px rgba(0, 0, 0, 0.08);
+      --radius: 18px;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: linear-gradient(180deg, #eef2ff 0%, var(--bg) 100%);
+      color: var(--text);
+      min-height: 100vh;
+      padding: 32px 16px;
+    }
+
+    .wrap { max-width: 1480px; margin: 0 auto; }
+
+    .page-intro {
+      background: linear-gradient(135deg, #2d2566 0%, #4338ca 60%, #635bff 100%);
+      color: #fff;
+      border-radius: var(--radius);
+      padding: 22px 26px;
+      margin-bottom: 22px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 18px;
+      flex-wrap: wrap;
+      box-shadow: var(--shadow);
+    }
+
+    .page-intro-title { font-size: 22px; font-weight: 800; margin: 0 0 4px; letter-spacing: 0.02em; }
+    .page-intro-sub { margin: 0; font-size: 14px; color: rgba(255, 255, 255, 0.85); line-height: 1.5; }
+
+    .page-intro-eyebrow {
+      display: inline-flex;
+      align-items: center;
+      padding: 6px 12px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.15);
+      color: #fff;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      margin-bottom: 10px;
+    }
+
+    .page-intro-count { color: rgba(255, 255, 255, 0.78); font-size: 13px; font-weight: 600; }
+
+    .filter-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-bottom: 12px;
+    }
+
+    .search-input {
+      flex: 1 1 320px;
+      max-width: 460px;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 12px 14px;
+      font-size: 15px;
+      background: #fff;
+      color: var(--text);
+      outline: none;
+      font-family: inherit;
+    }
+
+    .search-input:focus {
+      border-color: rgba(99, 91, 255, 0.65);
+      box-shadow: 0 0 0 4px rgba(99, 91, 255, 0.12);
+    }
+
+    .cat-filter { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 16px; }
+
+    .cat-chip {
+      border: 1px solid var(--border);
+      background: #fff;
+      color: var(--text);
+      padding: 7px 12px;
+      border-radius: 999px;
+      font-size: 12.5px;
+      font-weight: 700;
+      cursor: pointer;
+      font-family: inherit;
+      transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+    }
+
+    .cat-chip .chip-count { color: var(--muted); font-weight: 500; margin-left: 4px; }
+    .cat-chip:hover { background: #f5f7ff; border-color: rgba(99, 91, 255, 0.32); }
+    .cat-chip.active { background: var(--primary); border-color: var(--primary); color: #fff; }
+    .cat-chip.active .chip-count { color: rgba(255, 255, 255, 0.75); }
+
+    .card {
+      background: var(--card);
+      border: 1px solid rgba(99, 91, 255, 0.12);
+      box-shadow: var(--shadow);
+      border-radius: var(--radius);
+      padding: 22px;
+    }
+
+    table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+
+    th, td {
+      text-align: left;
+      padding: 9px 10px;
+      border-bottom: 1px solid #eef1f6;
+      vertical-align: top;
+    }
+
+    th {
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: #64748b;
+      white-space: nowrap;
+      position: sticky;
+      top: 0;
+      background: var(--card);
+    }
+
+    td.model { font-weight: 700; white-space: nowrap; }
+    td.num { text-align: right; font-variant-numeric: tabular-nums; font-weight: 700; white-space: nowrap; }
+    th.num { text-align: right; }
+    td.serial, td.loc { color: var(--muted); font-size: 12.5px; white-space: nowrap; }
+
+    .cat-pill {
+      display: inline-block;
+      background: #eef2ff;
+      color: #3730a3;
+      border-radius: 999px;
+      padding: 2px 9px;
+      font-size: 11px;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+
+    .empty { color: var(--muted); padding: 20px 0 8px; }
+    .error-banner {
+      display: none;
+      background: #fef2f2;
+      color: #991b1b;
+      border-radius: 12px;
+      padding: 12px 14px;
+      margin-bottom: 16px;
+      font-size: 14px;
+      font-weight: 600;
+    }
+
+    .table-scroll { overflow-x: auto; max-height: 72vh; overflow-y: auto; }
+
+    mark { background: #fef08a; border-radius: 3px; padding: 0 1px; }
+
+    tr.sold-row td { opacity: 0.55; }
+    tr.sold-row td.model { text-decoration: line-through; }
+    tr.sold-row td.status-cell { opacity: 1; }
+
+    .sold-pill {
+      display: inline-block;
+      background: #ecfdf5;
+      color: #065f46;
+      border: 1px solid rgba(6, 95, 70, 0.18);
+      border-radius: 999px;
+      padding: 3px 10px;
+      font-size: 11.5px;
+      font-weight: 800;
+      white-space: nowrap;
+    }
+
+    .sold-meta { display: block; color: var(--muted); font-size: 11.5px; margin-top: 3px; white-space: nowrap; }
+
+    .sold-btn, .reopen-link {
+      appearance: none;
+      border: none;
+      background: #eef2ff;
+      color: var(--primary);
+      border-radius: 8px;
+      padding: 5px 10px;
+      font-size: 12px;
+      font-weight: 700;
+      cursor: pointer;
+      font-family: inherit;
+      white-space: nowrap;
+    }
+
+    .sold-btn:hover, .reopen-link:hover { background: #e0e7ff; }
+    .reopen-link { background: transparent; color: var(--muted); padding: 3px 6px; font-weight: 600; }
+
+    .sold-editor { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+
+    .sold-editor input {
+      width: 130px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 6px 9px;
+      font-size: 12.5px;
+      font-family: inherit;
+      outline: none;
+    }
+
+    .sold-editor input:focus { border-color: rgba(99, 91, 255, 0.65); }
+    .sold-editor .confirm-sold { background: var(--primary); color: #fff; }
+    .sold-editor .confirm-sold:hover { background: #564ef0; }
+
+    .toggle-chip {
+      border: 1px solid var(--border);
+      background: #fff;
+      color: var(--text);
+      padding: 10px 14px;
+      border-radius: 999px;
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+      font-family: inherit;
+    }
+
+    .toggle-chip.active { background: #1f2937; border-color: #1f2937; color: #fff; }
+
+    @media (max-width: 720px) {
+      body { padding: 14px 8px; }
+      .card { padding: 14px; }
+      td.serial { display: none; }
+      th.serial { display: none; }
+    }
+  </style>
+</head>
+<body data-shell-label="Clearance Hit List" data-shell-icon="sales">
+  <div class="wrap">
+    <div id="internal-shell-header"></div>
+
+    <div class="page-intro">
+      <div>
+        <span class="page-intro-eyebrow">Sales Tools</span>
+        <h1 class="page-intro-title">Clearance Hit List</h1>
+        <p class="page-intro-sub" id="introSub">Every clearance unit on the floor — one row per serial number. Filter by category or search by model and description.</p>
+      </div>
+      <div class="page-intro-count" id="itemCount">&nbsp;</div>
+    </div>
+
+    <div id="errorBanner" class="error-banner"></div>
+
+    <div class="filter-row">
+      <input id="searchInput" class="search-input" type="search" placeholder="Search model, description, or brand..." aria-label="Search the clearance list" />
+      <button id="hideSoldBtn" type="button" class="toggle-chip">Hide sold</button>
+    </div>
+    <div class="cat-filter" id="catFilter"></div>
+
+    <div class="card">
+      <div class="table-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>Model</th>
+              <th>Brand</th>
+              <th>Category</th>
+              <th>Description</th>
+              <th class="serial">Serial</th>
+              <th>Loc</th>
+              <th class="num">Price</th>
+              <th class="status-cell">Status</th>
+            </tr>
+          </thead>
+          <tbody id="tableBody">
+            <tr><td colspan="8" class="empty">Loading the clearance list…</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div id="internal-shell-footer"></div>
+  </div>
+
+  <script src="internal-shell.js"></script>
+  <script>
+    let items = [];
+    let categories = [];
+    let activeCategory = "All";
+    let searchTerm = "";
+    let hideSold = false;
+    let soldEditId = null;   // row whose sales-order box is open
+    let session = null;
+
+    const money = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 2 });
+
+    const catLabel = (key) => (categories.find((c) => c.key === key)?.label) || key;
+
+    function escapeHtml(value) {
+      return String(value == null ? "" : value).replace(/[&<>"']/g, (ch) => ({
+        "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;", "'": "&#39;"
+      })[ch]);
+    }
+
+    // Highlight the search term inside already-escaped text.
+    function highlight(text) {
+      const safe = escapeHtml(text);
+      if (!searchTerm) return safe;
+      const pattern = searchTerm.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      return safe.replace(new RegExp("(" + pattern + ")", "ig"), "<mark>$1</mark>");
+    }
+
+    function priceLabel(item) {
+      if (typeof item.price === "number") return money.format(item.price);
+      return item.priceText || "—";
+    }
+
+    function matches(item) {
+      if (hideSold && item.sold) return false;
+      if (activeCategory !== "All" && item.category !== activeCategory) return false;
+      if (!searchTerm) return true;
+      return [item.model, item.description, item.brand]
+        .join(" ").toLowerCase().includes(searchTerm.toLowerCase());
+    }
+
+    function canReopen(sold) {
+      const myEmail = String(session?.user?.email || "").toLowerCase();
+      return Boolean(sold) && (sold.soldByEmail === myEmail || session?.canManageUsers);
+    }
+
+    function statusCellHtml(item) {
+      if (item.sold) {
+        const seller = item.sold.soldByName || item.sold.soldByEmail || "";
+        return `<span class="sold-pill">SOLD · ${escapeHtml(item.sold.salesOrder || "—")}</span>` +
+          `<span class="sold-meta">${escapeHtml(seller)}` +
+          (canReopen(item.sold) ? ` · <button type="button" class="reopen-link" data-id="${escapeHtml(item.id)}">reopen</button>` : "") +
+          `</span>`;
+      }
+      if (soldEditId === item.id) {
+        return `<div class="sold-editor">
+          <input type="text" class="so-input" data-id="${escapeHtml(item.id)}" placeholder="Sales order #" maxlength="60" />
+          <button type="button" class="sold-btn confirm-sold" data-id="${escapeHtml(item.id)}">Confirm</button>
+          <button type="button" class="reopen-link cancel-sold" data-id="${escapeHtml(item.id)}">cancel</button>
+        </div>`;
+      }
+      return `<button type="button" class="sold-btn open-sold" data-id="${escapeHtml(item.id)}">Sold</button>`;
+    }
+
+    function renderChips() {
+      const host = document.getElementById("catFilter");
+      host.textContent = "";
+      const counts = {};
+      for (const item of items) counts[item.category] = (counts[item.category] || 0) + 1;
+
+      const makeChip = (key, label, count) => {
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "cat-chip" + (key === activeCategory ? " active" : "");
+        btn.innerHTML = escapeHtml(label) + '<span class="chip-count">' + count + "</span>";
+        btn.addEventListener("click", () => {
+          activeCategory = key;
+          renderChips();
+          renderTable();
+        });
+        return btn;
+      };
+
+      host.appendChild(makeChip("All", "All", items.length));
+      for (const cat of categories) {
+        if (!counts[cat.key]) continue;
+        host.appendChild(makeChip(cat.key, cat.label, counts[cat.key]));
+      }
+    }
+
+    function renderTable() {
+      const body = document.getElementById("tableBody");
+      const filtered = items.filter(matches);
+
+      const totalLabel = `${filtered.length === items.length ? items.length : filtered.length + " of " + items.length} unit${items.length === 1 ? "" : "s"}`;
+      document.getElementById("itemCount").textContent =
+        activeCategory === "All" ? totalLabel : `${totalLabel} · ${catLabel(activeCategory)}`;
+
+      if (!filtered.length) {
+        body.innerHTML = '<tr><td colspan="8" class="empty">Nothing matches — try a different search or category.</td></tr>';
+        return;
+      }
+
+      body.innerHTML = filtered.map((item) => `
+        <tr class="${item.sold ? "sold-row" : ""}">
+          <td class="model">${highlight(item.model)}</td>
+          <td>${highlight(item.brand)}</td>
+          <td><span class="cat-pill">${escapeHtml(catLabel(item.category))}</span></td>
+          <td>${highlight(item.description)}</td>
+          <td class="serial">${escapeHtml(item.serial)}</td>
+          <td class="loc">${escapeHtml(item.location || "—")}</td>
+          <td class="num">${escapeHtml(priceLabel(item))}</td>
+          <td class="status-cell">${statusCellHtml(item)}</td>
+        </tr>
+      `).join("");
+
+      const editor = body.querySelector(".so-input");
+      if (editor) editor.focus();
+    }
+
+    // ---- Sold actions (event delegation — the table re-renders often) ----
+
+    function showError(message) {
+      const banner = document.getElementById("errorBanner");
+      banner.textContent = message;
+      banner.style.display = message ? "block" : "none";
+      if (message) setTimeout(() => { banner.style.display = "none"; }, 6000);
+    }
+
+    async function confirmSold(itemId) {
+      const input = document.querySelector(`.so-input[data-id="${CSS.escape(itemId)}"]`);
+      const salesOrder = (input?.value || "").trim();
+      if (!salesOrder) {
+        input?.focus();
+        return;
+      }
+      try {
+        const res = await fetch("/api/clearance/sold", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "same-origin",
+          body: JSON.stringify({ itemId, salesOrder })
+        });
+        const data = await res.json();
+        const item = items.find((i) => i.id === itemId);
+        if (!res.ok) {
+          // 409 = someone beat them to it; show who and reflect it.
+          if (res.status === 409 && data.sold && item) item.sold = data.sold;
+          throw new Error(data.error || "Unable to mark that unit sold.");
+        }
+        if (item) item.sold = data.sold;
+      } catch (err) {
+        showError(err.message);
+      } finally {
+        soldEditId = null;
+        renderTable();
+      }
+    }
+
+    async function reopenLine(itemId) {
+      try {
+        const res = await fetch("/api/clearance/unsold", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "same-origin",
+          body: JSON.stringify({ itemId })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Unable to reopen that line.");
+        const item = items.find((i) => i.id === itemId);
+        if (item) delete item.sold;
+        renderTable();
+      } catch (err) {
+        showError(err.message);
+      }
+    }
+
+    document.getElementById("tableBody").addEventListener("click", (event) => {
+      const target = event.target;
+      const id = target.getAttribute && target.getAttribute("data-id");
+      if (!id) return;
+      if (target.classList.contains("open-sold")) {
+        soldEditId = id;
+        renderTable();
+      } else if (target.classList.contains("cancel-sold")) {
+        soldEditId = null;
+        renderTable();
+      } else if (target.classList.contains("confirm-sold")) {
+        confirmSold(id);
+      } else if (target.classList.contains("reopen-link")) {
+        reopenLine(id);
+      }
+    });
+
+    document.getElementById("tableBody").addEventListener("keydown", (event) => {
+      if (event.key === "Enter" && event.target.classList?.contains("so-input")) {
+        event.preventDefault();
+        confirmSold(event.target.getAttribute("data-id"));
+      }
+    });
+
+    document.getElementById("hideSoldBtn").addEventListener("click", () => {
+      hideSold = !hideSold;
+      const soldCount = items.filter((i) => i.sold).length;
+      const btn = document.getElementById("hideSoldBtn");
+      btn.classList.toggle("active", hideSold);
+      btn.textContent = hideSold ? `Showing open only (${soldCount} sold hidden)` : "Hide sold";
+      renderTable();
+    });
+
+    document.getElementById("searchInput").addEventListener("input", () => {
+      searchTerm = document.getElementById("searchInput").value.trim();
+      renderTable();
+    });
+
+    (async function load() {
+      try {
+        const sessionRes = await fetch("/api/auth/session", { credentials: "same-origin" });
+        if (sessionRes.ok) session = await sessionRes.json();
+      } catch {}
+      try {
+        const res = await fetch("/api/clearance", { credentials: "same-origin" });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Unable to load the clearance list.");
+        items = data.items || [];
+        categories = data._meta?.categories || [];
+        if (data._meta?.listDate) {
+          document.getElementById("introSub").textContent =
+            `Every clearance unit on the floor — one row per serial number. List updated ${data._meta.listDate}. Filter by category or search by model and description.`;
+        }
+        renderChips();
+        renderTable();
+      } catch (err) {
+        const banner = document.getElementById("errorBanner");
+        banner.textContent = err.message;
+        banner.style.display = "block";
+        document.getElementById("tableBody").innerHTML =
+          '<tr><td colspan="7" class="empty">Could not load the clearance list.</td></tr>';
+      }
+    })();
+  </script>
+</body>
+</html>

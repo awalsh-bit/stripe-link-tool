@@ -145,6 +145,7 @@
         children: [
           { href: "salesdashboard.html", title: "Sales Dashboard" },
           { href: "secret-menu.html", title: "Secret Menu" },
+          { href: "clearance.html", title: "Clearance Hit List" },
           { href: "spec-packages.html", title: "Spec Packages" }
         ]
       },

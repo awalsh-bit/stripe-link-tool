@@ -175,6 +175,35 @@
     tr.sold-row td { opacity: 0.55; }
     tr.sold-row td.model { text-decoration: line-through; }
     tr.sold-row td.status-cell { opacity: 1; }
+    tr.hold-row td { background: #fffdf3; }
+
+    .avail-btn {
+      appearance: none;
+      border: 1px solid rgba(6, 95, 70, 0.28);
+      background: #f0fdf6;
+      color: #065f46;
+      border-radius: 999px;
+      padding: 4px 12px;
+      font-size: 11.5px;
+      font-weight: 800;
+      cursor: pointer;
+      font-family: inherit;
+      white-space: nowrap;
+    }
+
+    .avail-btn:hover { background: #dcfce7; }
+
+    .hold-pill {
+      display: inline-block;
+      background: #fffbeb;
+      color: #92400e;
+      border: 1px solid rgba(217, 119, 6, 0.28);
+      border-radius: 999px;
+      padding: 3px 10px;
+      font-size: 11.5px;
+      font-weight: 800;
+      white-space: nowrap;
+    }
 
     .sold-pill {
       display: inline-block;
@@ -298,7 +327,8 @@
     let activeCategory = "All";
     let searchTerm = "";
     let hideSold = false;
-    let soldEditId = null;   // row whose sales-order box is open
+    let editId = null;       // row with an open action UI
+    let editMode = null;     // "choose" (hold vs sold) or "sold" (sales-order box)
     let session = null;
 
     const money = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 2 });
@@ -324,35 +354,75 @@
       return item.priceText || "—";
     }
 
+    // Treat a hold whose clock ran out as available even before a reload —
+    // the server purges it on the next request anyway.
+    function liveState(item) {
+      const s = item.state;
+      if (!s) return null;
+      if (s.status === "hold" && s.heldUntil && new Date(s.heldUntil).getTime() < Date.now()) return null;
+      return s;
+    }
+
     function matches(item) {
-      if (hideSold && item.sold) return false;
+      if (hideSold && liveState(item)?.status === "sold") return false;
       if (activeCategory !== "All" && item.category !== activeCategory) return false;
       if (!searchTerm) return true;
       return [item.model, item.description, item.brand]
         .join(" ").toLowerCase().includes(searchTerm.toLowerCase());
     }
 
-    function canReopen(sold) {
+    function canAct(state) {
       const myEmail = String(session?.user?.email || "").toLowerCase();
-      return Boolean(sold) && (sold.soldByEmail === myEmail || session?.canManageUsers);
+      return Boolean(state) && (state.byEmail === myEmail || session?.canManageUsers);
+    }
+
+    function formatUntil(iso) {
+      const d = new Date(iso);
+      if (Number.isNaN(d.getTime())) return "";
+      return d.toLocaleString("en-US", { weekday: "short", hour: "numeric", minute: "2-digit" });
+    }
+
+    function soldEditorHtml(id) {
+      return `<div class="sold-editor">
+        <input type="text" class="so-input" data-id="${escapeHtml(id)}" placeholder="Sales order #" maxlength="60" />
+        <button type="button" class="sold-btn confirm-sold" data-id="${escapeHtml(id)}">Confirm sold</button>
+        <button type="button" class="reopen-link cancel-edit" data-id="${escapeHtml(id)}">cancel</button>
+      </div>`;
     }
 
     function statusCellHtml(item) {
-      if (item.sold) {
-        const seller = item.sold.soldByName || item.sold.soldByEmail || "";
-        return `<span class="sold-pill">SOLD · ${escapeHtml(item.sold.salesOrder || "—")}</span>` +
+      const state = liveState(item);
+
+      if (state?.status === "sold") {
+        const seller = state.byName || state.byEmail || "";
+        return `<span class="sold-pill">SOLD · ${escapeHtml(state.salesOrder || "—")}</span>` +
           `<span class="sold-meta">${escapeHtml(seller)}` +
-          (canReopen(item.sold) ? ` · <button type="button" class="reopen-link" data-id="${escapeHtml(item.id)}">reopen</button>` : "") +
+          (canAct(state) ? ` · <button type="button" class="reopen-link release-line" data-id="${escapeHtml(item.id)}">reopen</button>` : "") +
           `</span>`;
       }
-      if (soldEditId === item.id) {
+
+      if (state?.status === "hold") {
+        if (editId === item.id && editMode === "sold") return soldEditorHtml(item.id);
+        const holder = state.byName || state.byEmail || "";
+        return `<span class="hold-pill">HOLD · until ${escapeHtml(formatUntil(state.heldUntil))}</span>` +
+          `<span class="sold-meta">${escapeHtml(holder)}` +
+          (canAct(state)
+            ? ` · <button type="button" class="reopen-link open-sell" data-id="${escapeHtml(item.id)}">sold</button>` +
+              ` · <button type="button" class="reopen-link release-line" data-id="${escapeHtml(item.id)}">release</button>`
+            : "") +
+          `</span>`;
+      }
+
+      if (editId === item.id) {
+        if (editMode === "sold") return soldEditorHtml(item.id);
         return `<div class="sold-editor">
-          <input type="text" class="so-input" data-id="${escapeHtml(item.id)}" placeholder="Sales order #" maxlength="60" />
-          <button type="button" class="sold-btn confirm-sold" data-id="${escapeHtml(item.id)}">Confirm</button>
-          <button type="button" class="reopen-link cancel-sold" data-id="${escapeHtml(item.id)}">cancel</button>
+          <button type="button" class="sold-btn choose-hold" data-id="${escapeHtml(item.id)}">24-hr hold</button>
+          <button type="button" class="sold-btn open-sell" data-id="${escapeHtml(item.id)}">Sold</button>
+          <button type="button" class="reopen-link cancel-edit" data-id="${escapeHtml(item.id)}">cancel</button>
         </div>`;
       }
-      return `<button type="button" class="sold-btn open-sold" data-id="${escapeHtml(item.id)}">Sold</button>`;
+
+      return `<button type="button" class="avail-btn open-status" data-id="${escapeHtml(item.id)}">Available</button>`;
     }
 
     function renderChips() {
@@ -395,7 +465,7 @@
       }
 
       body.innerHTML = filtered.map((item) => `
-        <tr class="${item.sold ? "sold-row" : ""}">
+        <tr class="${liveState(item)?.status === "sold" ? "sold-row" : liveState(item)?.status === "hold" ? "hold-row" : ""}">
           <td class="model">${highlight(item.model)}</td>
           <td>${highlight(item.brand)}</td>
           <td><span class="cat-pill">${escapeHtml(catLabel(item.category))}</span></td>
@@ -420,48 +490,53 @@
       if (message) setTimeout(() => { banner.style.display = "none"; }, 6000);
     }
 
-    async function confirmSold(itemId) {
+    async function postStatus(itemId, action, salesOrder) {
+      try {
+        const res = await fetch("/api/clearance/status", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "same-origin",
+          body: JSON.stringify({ itemId, action, salesOrder: salesOrder || "" })
+        });
+        const data = await res.json();
+        const item = items.find((i) => i.id === itemId);
+        if (!res.ok) {
+          // 409 = someone beat them to it; show who and reflect it.
+          if (res.status === 409 && data.state && item) item.state = data.state;
+          throw new Error(data.error || "Unable to update that line.");
+        }
+        if (item) item.state = data.state;
+      } catch (err) {
+        showError(err.message);
+      } finally {
+        editId = null;
+        editMode = null;
+        renderTable();
+      }
+    }
+
+    function confirmSold(itemId) {
       const input = document.querySelector(`.so-input[data-id="${CSS.escape(itemId)}"]`);
       const salesOrder = (input?.value || "").trim();
       if (!salesOrder) {
         input?.focus();
         return;
       }
-      try {
-        const res = await fetch("/api/clearance/sold", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          credentials: "same-origin",
-          body: JSON.stringify({ itemId, salesOrder })
-        });
-        const data = await res.json();
-        const item = items.find((i) => i.id === itemId);
-        if (!res.ok) {
-          // 409 = someone beat them to it; show who and reflect it.
-          if (res.status === 409 && data.sold && item) item.sold = data.sold;
-          throw new Error(data.error || "Unable to mark that unit sold.");
-        }
-        if (item) item.sold = data.sold;
-      } catch (err) {
-        showError(err.message);
-      } finally {
-        soldEditId = null;
-        renderTable();
-      }
+      postStatus(itemId, "sold", salesOrder);
     }
 
-    async function reopenLine(itemId) {
+    async function releaseLine(itemId) {
       try {
-        const res = await fetch("/api/clearance/unsold", {
+        const res = await fetch("/api/clearance/release", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           credentials: "same-origin",
           body: JSON.stringify({ itemId })
         });
         const data = await res.json();
-        if (!res.ok) throw new Error(data.error || "Unable to reopen that line.");
+        if (!res.ok) throw new Error(data.error || "Unable to release that line.");
         const item = items.find((i) => i.id === itemId);
-        if (item) delete item.sold;
+        if (item) delete item.state;
         renderTable();
       } catch (err) {
         showError(err.message);
@@ -472,16 +547,24 @@
       const target = event.target;
       const id = target.getAttribute && target.getAttribute("data-id");
       if (!id) return;
-      if (target.classList.contains("open-sold")) {
-        soldEditId = id;
+      if (target.classList.contains("open-status")) {
+        editId = id;
+        editMode = "choose";
         renderTable();
-      } else if (target.classList.contains("cancel-sold")) {
-        soldEditId = null;
+      } else if (target.classList.contains("open-sell")) {
+        editId = id;
+        editMode = "sold";
+        renderTable();
+      } else if (target.classList.contains("choose-hold")) {
+        postStatus(id, "hold");
+      } else if (target.classList.contains("cancel-edit")) {
+        editId = null;
+        editMode = null;
         renderTable();
       } else if (target.classList.contains("confirm-sold")) {
         confirmSold(id);
-      } else if (target.classList.contains("reopen-link")) {
-        reopenLine(id);
+      } else if (target.classList.contains("release-line")) {
+        releaseLine(id);
       }
     });
 
@@ -494,7 +577,7 @@
 
     document.getElementById("hideSoldBtn").addEventListener("click", () => {
       hideSold = !hideSold;
-      const soldCount = items.filter((i) => i.sold).length;
+      const soldCount = items.filter((i) => liveState(i)?.status === "sold").length;
       const btn = document.getElementById("hideSoldBtn");
       btn.classList.toggle("active", hideSold);
       btn.textContent = hideSold ? `Showing open only (${soldCount} sold hidden)` : "Hide sold";

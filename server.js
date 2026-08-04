@@ -132,8 +132,10 @@ import {
 } from "./lib/signature-postgres.js";
 import {
   listClearanceStatuses,
-  markClearanceSold,
-  clearClearanceSold
+  markClearanceStatus,
+  upgradeHoldToSold,
+  clearClearanceStatus,
+  getClearanceStatus
 } from "./lib/clearance-postgres.js";
 import { extractQuoteDataFromPdfBuffer } from "./lib/spec-scan.js";
 import {
@@ -3809,7 +3811,7 @@ app.get("/api/clearance", requirePagePermission("/clearance.html"), async (req, 
       const byId = new Map(statuses.map((s) => [s.itemId, s]));
       for (const item of data.items || []) {
         const status = byId.get(item.id);
-        if (status) item.sold = status;
+        if (status) item.state = status;
       }
     } catch (dbErr) {
       console.error("Clearance status load failed:", dbErr.message);
@@ -3826,84 +3828,102 @@ app.get("/api/clearance", requirePagePermission("/clearance.html"), async (req, 
   }
 });
 
-// Mark a clearance unit sold. First seller wins — a second attempt gets the
-// existing mark back as a 409 so the race is visible, not silent.
-app.post("/api/clearance/sold", requirePagePermission("/clearance.html"), async (req, res) => {
+// Mark a clearance unit: 24-hour hold or sold. First writer wins — a second
+// attempt gets the existing mark back as a 409 so the race is visible. The
+// holder (or an executive) can complete their own hold as a sale.
+app.post("/api/clearance/status", requirePagePermission("/clearance.html"), async (req, res) => {
   try {
     const itemId = String(req.body?.itemId || "").trim();
+    const action = String(req.body?.action || "").trim();
     const salesOrder = String(req.body?.salesOrder || "").trim();
-    if (!itemId) {
-      return res.status(400).json({ error: "Missing item id." });
+
+    if (!itemId) return res.status(400).json({ error: "Missing item id." });
+    if (!["sold", "hold"].includes(action)) {
+      return res.status(400).json({ error: "Action must be sold or hold." });
     }
-    if (!salesOrder) {
+    if (action === "sold" && !salesOrder) {
       return res.status(400).json({ error: "Enter the sales order number." });
     }
 
-    const userEmail = req.authUser?.kind === "db" ? req.authUser.email : "";
+    const userEmail = String(req.authUser?.kind === "db" ? req.authUser.email : "").toLowerCase();
     if (!userEmail) {
-      return res.status(400).json({ error: "Sign in with your individual account to close a line." });
+      return res.status(400).json({ error: "Sign in with your individual account to update a line." });
+    }
+    const userName = req.authUser?.displayName || "";
+
+    const describe = (s) => s.status === "hold"
+      ? `On hold for ${s.byName || s.byEmail} until ${new Date(s.heldUntil).toLocaleString("en-US", { timeZone: APP_TIMEZONE, weekday: "short", hour: "numeric", minute: "2-digit" })}.`
+      : `Already sold by ${s.byName || s.byEmail} on ${s.salesOrder || "another order"}.`;
+
+    const existing = await getClearanceStatus(itemId);
+    if (existing) {
+      const canAct = existing.byEmail === userEmail || isExecutiveUser(req.authUser);
+      if (existing.status === "hold" && canAct && action === "sold") {
+        const upgraded = await upgradeHoldToSold({ itemId, salesOrder, byEmail: userEmail, byName: userName });
+        if (upgraded) {
+          recordAudit({
+            ip: req.ip, actorUserId: req.authUser?.id || null,
+            action: "clearance_marked_sold", targetUserId: null,
+            detail: { itemId, salesOrder, fromHold: true }
+          }).catch(() => {});
+          return res.json({ ok: true, state: upgraded });
+        }
+      }
+      if (existing.status === "hold" && canAct && action === "hold") {
+        return res.json({ ok: true, state: existing }); // already held by them
+      }
+      return res.status(409).json({ error: describe(existing), state: existing });
     }
 
-    const result = await markClearanceSold({
-      itemId,
-      salesOrder,
-      soldByEmail: userEmail,
-      soldByName: req.authUser?.displayName || ""
-    });
-
+    const result = await markClearanceStatus({ itemId, status: action, salesOrder, byEmail: userEmail, byName: userName });
     if (result.conflict) {
       return res.status(409).json({
-        error: `Already sold by ${result.existing?.soldByName || result.existing?.soldByEmail || "someone else"} on ${result.existing?.salesOrder || "another order"}.`,
-        sold: result.existing
+        error: result.existing ? describe(result.existing) : "Someone else just updated this line.",
+        state: result.existing
       });
     }
 
     recordAudit({
-      ip: req.ip,
-      actorUserId: req.authUser?.id || null,
-      action: "clearance_marked_sold",
+      ip: req.ip, actorUserId: req.authUser?.id || null,
+      action: action === "sold" ? "clearance_marked_sold" : "clearance_marked_hold",
       targetUserId: null,
-      detail: { itemId, salesOrder }
+      detail: { itemId, salesOrder, heldUntil: result.status.heldUntil || "" }
     }).catch(() => {});
 
-    return res.json({ ok: true, sold: result.status });
+    return res.json({ ok: true, state: result.status });
   } catch (err) {
-    console.error("Clearance sold failed:", err.message);
-    return res.status(500).json({ error: "Unable to mark that unit sold." });
+    console.error("Clearance status failed:", err.message);
+    return res.status(500).json({ error: "Unable to update that line." });
   }
 });
 
-// Undo a sold mark — the person who marked it, or an executive.
-app.post("/api/clearance/unsold", requirePagePermission("/clearance.html"), async (req, res) => {
+// Release a hold or reopen a sold line — the person who marked it, or an
+// executive.
+app.post("/api/clearance/release", requirePagePermission("/clearance.html"), async (req, res) => {
   try {
     const itemId = String(req.body?.itemId || "").trim();
-    if (!itemId) {
-      return res.status(400).json({ error: "Missing item id." });
-    }
+    if (!itemId) return res.status(400).json({ error: "Missing item id." });
 
     const userEmail = String(req.authUser?.kind === "db" ? req.authUser.email : "").toLowerCase();
-    const statuses = await listClearanceStatuses();
-    const existing = statuses.find((s) => s.itemId === itemId);
+    const existing = await getClearanceStatus(itemId);
     if (!existing) {
-      return res.json({ ok: true }); // already clear
+      return res.json({ ok: true }); // already clear (or the hold expired)
     }
-    if (existing.soldByEmail !== userEmail && !isExecutiveUser(req.authUser)) {
-      return res.status(403).json({ error: `Only ${existing.soldByName || existing.soldByEmail} or an executive can reopen this line.` });
+    if (existing.byEmail !== userEmail && !isExecutiveUser(req.authUser)) {
+      return res.status(403).json({ error: `Only ${existing.byName || existing.byEmail} or an executive can release this line.` });
     }
 
-    await clearClearanceSold(itemId);
+    await clearClearanceStatus(itemId);
     recordAudit({
-      ip: req.ip,
-      actorUserId: req.authUser?.id || null,
-      action: "clearance_unmarked_sold",
-      targetUserId: null,
-      detail: { itemId, previousSalesOrder: existing.salesOrder, previouslySoldBy: existing.soldByEmail }
+      ip: req.ip, actorUserId: req.authUser?.id || null,
+      action: "clearance_released", targetUserId: null,
+      detail: { itemId, previousStatus: existing.status, previousSalesOrder: existing.salesOrder, previouslyBy: existing.byEmail }
     }).catch(() => {});
 
     return res.json({ ok: true });
   } catch (err) {
-    console.error("Clearance unsold failed:", err.message);
-    return res.status(500).json({ error: "Unable to reopen that line." });
+    console.error("Clearance release failed:", err.message);
+    return res.status(500).json({ error: "Unable to release that line." });
   }
 });
 

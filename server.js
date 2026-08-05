@@ -140,6 +140,14 @@ import {
   setPriceOverride,
   clearPriceOverride
 } from "./lib/clearance-postgres.js";
+import {
+  normalizeCreditAppToken,
+  getCreditApplication,
+  saveCreditApplicationStep,
+  submitCreditApplication,
+  listCreditApplications,
+  deleteCreditApplication
+} from "./lib/credit-app-postgres.js";
 import { extractQuoteDataFromPdfBuffer } from "./lib/spec-scan.js";
 import {
   saveSatisfactionResponse,
@@ -201,6 +209,7 @@ const SERVICE_PUBLIC_PATHS = new Set([
   "/fireflavor",
   "/applianceservice.html",
   "/builder-credit.html",
+  "/builder-credit-terms.pdf",
   "/fireflavor.html",
   "/terms.html",
   "/public-shell.css",
@@ -215,7 +224,9 @@ const SERVICE_PUBLIC_PATHS = new Set([
 
 const SERVICE_PUBLIC_API_PREFIXES = [
   "/api/config",
-  "/api/credit-application",
+  // Trailing slash matters: the internal admin API lives at
+  // /api/credit-applications and must NOT match this public prefix.
+  "/api/credit-application/",
   "/api/events/fire-flavor/rsvp",
   "/api/service/setup-intent",
   "/api/service/submit-request",
@@ -275,7 +286,8 @@ const INTERNAL_PAGE_PATHS = new Set([
   "/case-visit-results.html",
   "/refund-dashboard.html",
   "/signature-builder.html",
-  "/clearance.html"
+  "/clearance.html",
+  "/credit-applications.html"
 ]);
 
 const UNAUTHENTICATED_INTERNAL_PATHS = new Set([
@@ -448,7 +460,8 @@ const PAGE_LABELS = {
   "/case-visit-results.html": "Case Visit Results",
   "/refund-dashboard.html": "Refund Dashboard",
   "/signature-builder.html": "Email Signature",
-  "/clearance.html": "Clearance Hit List"
+  "/clearance.html": "Clearance Hit List",
+  "/credit-applications.html": "Builder Credit Applications"
 };
 
 // Category groupings for the User Admin permission UI. A page may appear in
@@ -491,7 +504,8 @@ const PAGE_CATEGORIES = [
       "/refund-dashboard.html",
       "/incoming-payouts.html",
       "/bank-balancing.html",
-      "/link-detail-lookup.html"
+      "/link-detail-lookup.html",
+      "/credit-applications.html"
     ]
   },
   {
@@ -4883,40 +4897,174 @@ app.get("/api/service/setup-intent-result/:setupIntentId", async (req, res) => {
 });
 
 
-// PUBLIC: Trade Partner (builder) credit application. Nothing is stored —
-// the application is formatted and emailed to accounting, full stop.
-app.post("/api/credit-application", rateLimit("credit-application", 5, 60 * 60 * 1000), async (req, res) => {
+// PUBLIC: Trade Partner (builder) credit application — a three-step wizard.
+// Each "Save & Continue" stores that step server-side under a short
+// application code (BCA-XXXX-XXXX) so accounting can see and process
+// partially completed applications (credit-applications.html) and the
+// applicant can resume later with the code. The final submit flips the
+// record to submitted and emails accounting, as the one-page form did.
+
+const CREDIT_APP_INBOX = ["accounting@wilsonappliance.com"];
+
+function cleanCreditValue(value, max = 200) {
+  return String(value || "").trim().slice(0, max);
+}
+
+app.post("/api/credit-application/step", rateLimit("credit-application-step", 30, 60 * 60 * 1000), async (req, res) => {
   try {
     // Honeypot: bots fill every field; humans never see this one.
     if (String(req.body?.website || "").trim()) {
-      return res.json({ ok: true });
+      return res.json({ ok: true, token: null });
     }
 
+    const step = Number(req.body?.step);
+    if (![1, 2].includes(step)) {
+      return res.status(400).json({ error: "Bad step." });
+    }
+
+    const stepData = req.body?.data;
+    if (!stepData || typeof stepData !== "object" || Array.isArray(stepData)) {
+      return res.status(400).json({ error: "Missing step data." });
+    }
+    if (JSON.stringify(stepData).length > 40000) {
+      return res.status(400).json({ error: "Step data is too large." });
+    }
+
+    if (step === 1) {
+      const company = stepData.company || {};
+      if (!cleanCreditValue(company.legalName)) {
+        return res.status(400).json({ error: "Legal company name is required." });
+      }
+      if (!cleanCreditValue(company.contactName)) {
+        return res.status(400).json({ error: "Primary contact name is required." });
+      }
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanCreditValue(company.contactEmail))) {
+        return res.status(400).json({ error: "Enter a valid contact email address." });
+      }
+    }
+
+    let token = null;
+    if (req.body?.token) {
+      token = normalizeCreditAppToken(req.body.token);
+      if (!token) return res.status(400).json({ error: "Bad application code." });
+    }
+
+    const saved = await saveCreditApplicationStep({
+      token,
+      step,
+      stepData,
+      legalName: cleanCreditValue(req.body?.legalName),
+      contactName: cleanCreditValue(req.body?.contactName),
+      contactEmail: cleanCreditValue(req.body?.contactEmail)
+    });
+    if (!saved) {
+      return res.status(404).json({ error: "We couldn't find that application — it may already be submitted." });
+    }
+
+    return res.json({ ok: true, token: saved.token, stepCompleted: saved.stepCompleted });
+  } catch (err) {
+    console.error("Credit application step save failed:", err.message);
+    return res.status(500).json({ error: "We couldn't save your progress — please try again." });
+  }
+});
+
+app.get("/api/credit-application/resume/:token", rateLimit("credit-application-resume", 20, 60 * 60 * 1000), async (req, res) => {
+  try {
+    const token = normalizeCreditAppToken(req.params.token);
+    if (!token) {
+      return res.status(400).json({ error: "That doesn't look like an application code (BCA-XXXX-XXXX)." });
+    }
+    const application = await getCreditApplication(token);
+    if (!application || application.status !== "in_progress") {
+      return res.status(404).json({ error: "We couldn't find an in-progress application with that code." });
+    }
+    // Step 3 (affirmations/signature) never goes back out.
+    const { step3, ...resumableData } = application.data || {};
+    return res.json({
+      ok: true,
+      application: {
+        token: application.token,
+        stepCompleted: application.stepCompleted,
+        data: resumableData
+      }
+    });
+  } catch (err) {
+    console.error("Credit application resume failed:", err.message);
+    return res.status(500).json({ error: "Unable to look that up right now — please try again." });
+  }
+});
+
+app.post("/api/credit-application/submit", rateLimit("credit-application", 5, 60 * 60 * 1000), async (req, res) => {
+  try {
     if (!RESEND_API_KEY || !RESEND_FROM_EMAIL) {
       return res.status(500).json({ error: "Email delivery is not configured." });
     }
 
-    const clean = (value, max = 200) => String(value || "").trim().slice(0, max);
-    const company = req.body?.company || {};
-    const business = req.body?.business || {};
-    const bank = req.body?.bank || {};
-    const references = Array.isArray(req.body?.references) ? req.body.references.slice(0, 2) : [];
-    const affirmations = req.body?.affirmations || {};
-    const signature = req.body?.signature || {};
-
-    const legalName = clean(company.legalName);
-    const contactEmail = clean(company.contactEmail);
-    if (!legalName) return res.status(400).json({ error: "Legal company name is required." });
-    if (!clean(company.contactName)) return res.status(400).json({ error: "Primary contact name is required." });
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contactEmail)) {
-      return res.status(400).json({ error: "Enter a valid contact email address." });
+    const token = normalizeCreditAppToken(req.body?.token);
+    if (!token) {
+      return res.status(400).json({ error: "Missing application code — please start from step 1." });
     }
+
+    const stepData = req.body?.data || {};
+    const affirmations = stepData.affirmations || {};
+    const signature = stepData.signature || {};
+
     if (!affirmations.accurate || !affirmations.terms || !affirmations.authorize) {
       return res.status(400).json({ error: "All three affirmations must be checked." });
     }
-    if (!clean(signature.printedName) || !clean(signature.signatureText)) {
+    if (!cleanCreditValue(signature.printedName) || !cleanCreditValue(signature.title)) {
       return res.status(400).json({ error: "The authorized signature section is required." });
     }
+
+    const signatureMode = signature.mode === "typed" ? "typed" : "drawn";
+    const signatureImage = String(signature.imageData || "");
+    if (signatureMode === "typed") {
+      if (!cleanCreditValue(signature.signatureText)) {
+        return res.status(400).json({ error: "Type your full legal name as your signature." });
+      }
+    } else if (!/^data:image\/png;base64,[A-Za-z0-9+/=]+$/.test(signatureImage) || signatureImage.length > 400000) {
+      return res.status(400).json({ error: "We couldn't read your drawn signature — please try signing again." });
+    }
+
+    const existing = await getCreditApplication(token);
+    if (!existing) {
+      return res.status(404).json({ error: "We couldn't find that application — please start over." });
+    }
+    if (existing.status === "submitted") {
+      return res.json({ ok: true, token }); // double-submit safe
+    }
+    if (!existing.data?.step1) {
+      return res.status(400).json({ error: "Step 1 hasn't been saved yet — please start from the beginning." });
+    }
+
+    const record = await submitCreditApplication({
+      token,
+      stepData: {
+        affirmations: { accurate: true, terms: true, authorize: true },
+        signature: {
+          printedName: cleanCreditValue(signature.printedName),
+          title: cleanCreditValue(signature.title),
+          mode: signatureMode,
+          signatureText: cleanCreditValue(signature.signatureText),
+          imageData: signatureMode === "drawn" ? signatureImage : "",
+          date: cleanCreditValue(signature.date, 40)
+        }
+      }
+    });
+    if (!record) {
+      return res.json({ ok: true, token });
+    }
+
+    const clean = cleanCreditValue;
+    const company = record.data?.step1?.company || {};
+    const business = record.data?.step1?.business || {};
+    const bank = record.data?.step2?.bank || {};
+    const references = Array.isArray(record.data?.step2?.references)
+      ? record.data.step2.references.slice(0, 2)
+      : [];
+    const sig = record.data?.step3?.signature || {};
+    const legalName = clean(company.legalName) || record.legalName || "(unknown)";
+    const contactEmail = clean(company.contactEmail) || record.contactEmail;
 
     const esc = (value) => String(value == null ? "" : value)
       .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
@@ -4943,7 +5091,7 @@ app.post("/api/credit-application", rateLimit("credit-application", 5, 60 * 60 *
 
     const html = `<div style="font-family:Arial,Helvetica,sans-serif;color:#1f2937;max-width:640px;">
       <h2 style="margin:0 0 2px;">Trade Partner Credit Application</h2>
-      <div style="color:#6b7280;font-size:13px;margin-bottom:6px;">Submitted ${esc(new Date().toLocaleString("en-US", { timeZone: APP_TIMEZONE }))} (Central) via the public form</div>
+      <div style="color:#6b7280;font-size:13px;margin-bottom:6px;">Application code ${esc(token)} — submitted ${esc(new Date().toLocaleString("en-US", { timeZone: APP_TIMEZONE }))} (Central) via the public form</div>
       ${section("Applicant Company", [
         row("Legal name", legalName),
         row("DBA / trade name", clean(company.dbaName)),
@@ -4952,9 +5100,9 @@ app.post("/api/credit-application", rateLimit("credit-application", 5, 60 * 60 *
         row("Primary contact", [clean(company.contactName), clean(company.contactTitle)].filter(Boolean).join(" — ")),
         row("Phone", clean(company.contactPhone)),
         row("Email", contactEmail),
-        row("AP contact", clean(company.apContact)),
-        row("AP phone", clean(company.apPhone)),
-        row("AP email", clean(company.apEmail))
+        row("Accounts payable contact", clean(company.apContact)),
+        row("Accounts payable phone", clean(company.apPhone)),
+        row("Accounts payable email", clean(company.apEmail))
       ].join(""))}
       ${section("Business Information", [
         row("Business type", clean(business.businessType)),
@@ -4963,7 +5111,7 @@ app.post("/api/credit-application", rateLimit("credit-application", 5, 60 * 60 *
         row("Nature of business", clean(business.natureOfBusiness)),
         row("Owner / officer 1", [clean(business.owner1Name), clean(business.owner1Title), clean(business.owner1Phone)].filter(Boolean).join(" — ")),
         row("Owner / officer 2", [clean(business.owner2Name), clean(business.owner2Title), clean(business.owner2Phone)].filter(Boolean).join(" — ")),
-        row("Est. monthly volume", clean(business.monthlyVolume)),
+        row("Est. annual volume", clean(business.annualVolume)),
         row("Requested credit limit", clean(business.creditLimit)),
         row("PO required", clean(business.poRequired)),
         row("Tax-exempt", clean(business.taxExempt)),
@@ -4974,7 +5122,7 @@ app.post("/api/credit-application", rateLimit("credit-application", 5, 60 * 60 *
         row("Bank name", clean(bank.bankName)),
         row("Contact / branch phone", clean(bank.bankContact)),
         row("Account reference", clean(bank.accountReference))
-      ].join("")) }
+      ].join(""))}
       ${refBlock("Trade Reference 1", references[0])}
       ${refBlock("Trade Reference 2", references[1])}
       ${section("Affirmations", [
@@ -4983,13 +5131,27 @@ app.post("/api/credit-application", rateLimit("credit-application", 5, 60 * 60 *
         row("References / credit reports authorized", "Yes")
       ].join(""))}
       ${section("Authorized Signature", [
-        row("Printed name", clean(signature.printedName)),
-        row("Title", clean(signature.title)),
-        row("Signature (typed)", clean(signature.signatureText)),
-        row("Date", clean(signature.date))
+        row("Printed name", clean(sig.printedName)),
+        row("Title", clean(sig.title)),
+        row("Signature", sig.mode === "typed" ? `Typed: ${clean(sig.signatureText)}` : "Drawn — attached as PNG"),
+        row("Date", clean(sig.date))
       ].join(""))}
       ${clean(business.taxExempt) === "Yes" ? `<p style="font-size:12.5px;color:#92400e;background:#fffbeb;padding:10px 12px;border-radius:8px;">Applicant marked purchases tax-exempt — watch for their Texas resale certificate.</p>` : ""}
     </div>`;
+
+    const emailPayload = {
+      from: RESEND_FROM_EMAIL,
+      to: CREDIT_APP_INBOX,
+      reply_to: contactEmail || undefined,
+      subject: `Trade Partner Credit Application — ${legalName}`,
+      html
+    };
+    if (sig.mode === "drawn" && sig.imageData) {
+      emailPayload.attachments = [{
+        filename: `signature-${token}.png`,
+        content: sig.imageData.split(",")[1]
+      }];
+    }
 
     const response = await fetch("https://api.resend.com/emails", {
       method: "POST",
@@ -4997,26 +5159,66 @@ app.post("/api/credit-application", rateLimit("credit-application", 5, 60 * 60 *
         "Authorization": `Bearer ${RESEND_API_KEY}`,
         "Content-Type": "application/json"
       },
-      body: JSON.stringify({
-        from: RESEND_FROM_EMAIL,
-        to: ["accounting@wilsonappliance.com"],
-        reply_to: contactEmail,
-        subject: `Trade Partner Credit Application — ${legalName}`,
-        html
-      })
+      body: JSON.stringify(emailPayload)
     });
 
     if (!response.ok) {
       const errorText = await response.text();
       console.error("Credit application email failed:", response.status, errorText);
-      return res.status(502).json({ error: "We couldn't send your application just now — please try again in a few minutes." });
+      // The application IS stored and marked submitted — accounting can still
+      // process it from the admin page, so don't fail the applicant.
     }
 
-    console.log(`Credit application submitted for ${legalName} (${contactEmail})`);
-    return res.json({ ok: true });
+    console.log(`Credit application ${token} submitted for ${legalName} (${contactEmail})`);
+    return res.json({ ok: true, token });
   } catch (err) {
     console.error("Credit application failed:", err.message);
     return res.status(500).json({ error: "Unable to submit the application." });
+  }
+});
+
+// INTERNAL: Builder Credit Applications admin (credit-applications.html) —
+// tokens and saved answers for complete and partially complete applications.
+app.get("/api/credit-applications", requirePagePermission("/credit-applications.html"), async (req, res) => {
+  try {
+    const applications = await listCreditApplications();
+    return res.json({ applications });
+  } catch (err) {
+    console.error("Credit applications list failed:", err.message);
+    return res.status(500).json({ error: "Unable to load credit applications." });
+  }
+});
+
+app.get("/api/credit-applications/:token", requirePagePermission("/credit-applications.html"), async (req, res) => {
+  try {
+    const token = normalizeCreditAppToken(req.params.token);
+    if (!token) return res.status(400).json({ error: "Bad application code." });
+    const application = await getCreditApplication(token);
+    if (!application) return res.status(404).json({ error: "Application not found." });
+    return res.json({ application });
+  } catch (err) {
+    console.error("Credit application detail failed:", err.message);
+    return res.status(500).json({ error: "Unable to load the application." });
+  }
+});
+
+app.post("/api/credit-applications/:token/delete", requireExecutiveApi, async (req, res) => {
+  try {
+    const token = normalizeCreditAppToken(req.params.token);
+    if (!token) return res.status(400).json({ error: "Bad application code." });
+    const removed = await deleteCreditApplication(token);
+    if (!removed) return res.status(404).json({ error: "Application not found." });
+
+    recordAudit({
+      ip: req.ip, actorUserId: req.authUser?.id || null,
+      action: "credit_application_deleted", targetUserId: null,
+      detail: { token }
+    }).catch(() => {});
+
+    return res.json({ ok: true });
+  } catch (err) {
+    console.error("Credit application delete failed:", err.message);
+    return res.status(500).json({ error: "Unable to delete the application." });
   }
 });
 

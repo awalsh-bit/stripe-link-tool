@@ -1,0 +1,468 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="robots" content="noindex,nofollow,noarchive" />
+  <title>Wilson AC &amp; Appliance - Builder Credit Applications</title>
+  <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+  <link rel="stylesheet" href="internal-shell.css" />
+  <style>
+    :root {
+      --bg: #f7f8fc;
+      --card: #ffffff;
+      --text: #1f2937;
+      --muted: #6b7280;
+      --border: #dbe1ea;
+      --primary: #635bff;
+      --primary-hover: #564ef0;
+      --error-bg: #fef2f2;
+      --error-text: #991b1b;
+      --shadow: 0 10px 35px rgba(0, 0, 0, 0.08);
+      --radius: 18px;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: linear-gradient(180deg, #eef2ff 0%, var(--bg) 100%);
+      color: var(--text);
+      min-height: 100vh;
+      padding: 32px 16px;
+    }
+
+    .wrap { max-width: 1280px; margin: 0 auto; }
+
+    .surface {
+      background: var(--card);
+      border: 1px solid rgba(99, 91, 255, 0.12);
+      box-shadow: var(--shadow);
+      border-radius: var(--radius);
+      padding: 22px;
+      margin: 0 auto 20px;
+    }
+
+    h2 { margin: 0 0 6px; font-size: 20px; }
+    .section-note { margin: 0 0 14px; color: var(--muted); font-size: 13.5px; line-height: 1.5; }
+
+    .toolbar { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+    .toolbar input[type="text"] {
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 9px 12px;
+      font-size: 13.5px;
+      font-family: inherit;
+      min-width: 260px;
+      outline: none;
+    }
+    .toolbar input:focus { border-color: rgba(99, 91, 255, 0.75); box-shadow: 0 0 0 4px rgba(99, 91, 255, 0.12); }
+
+    .chip {
+      appearance: none;
+      border: 1px solid var(--border);
+      background: #fff;
+      color: var(--text);
+      border-radius: 999px;
+      padding: 8px 14px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      font-family: inherit;
+    }
+    .chip:hover { background: #f3f4f6; }
+    .chip.active { background: var(--primary); border-color: var(--primary); color: #fff; }
+
+    table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+    thead th {
+      text-align: left;
+      font-size: 11.5px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--muted);
+      padding: 10px 10px 8px;
+      border-bottom: 1px solid var(--border);
+      white-space: nowrap;
+    }
+    tbody td { padding: 10px; border-bottom: 1px solid #eef0f5; vertical-align: top; }
+    tbody tr.row { cursor: pointer; }
+    tbody tr.row:hover { background: #f8f8ff; }
+    tbody tr.row.open { background: #f5f5ff; }
+    .empty { text-align: center; color: var(--muted); padding: 26px 10px; }
+
+    .code { font-weight: 700; letter-spacing: 0.03em; white-space: nowrap; }
+
+    .pill {
+      display: inline-block;
+      border-radius: 999px;
+      padding: 3px 10px;
+      font-size: 11.5px;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+    .pill.submitted { background: #ecfdf5; color: #065f46; }
+    .pill.progress { background: #fffbeb; color: #92400e; }
+
+    /* Detail row */
+    .detail-cell { background: #fafbff; padding: 16px 18px 20px; }
+    .detail-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 18px; }
+    .detail-section h4 {
+      margin: 0 0 6px;
+      font-size: 11.5px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: #4f46e5;
+    }
+    .kv { display: grid; grid-template-columns: auto 1fr; gap: 3px 12px; font-size: 13px; }
+    .kv .k { color: var(--muted); font-size: 12px; white-space: nowrap; }
+    .sig-img {
+      display: block;
+      max-width: 320px;
+      max-height: 110px;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: #fff;
+      padding: 6px 10px;
+      margin-top: 4px;
+    }
+    .detail-actions { margin-top: 14px; display: flex; gap: 10px; align-items: center; }
+    .danger-btn {
+      appearance: none;
+      border: 1px solid #fecaca;
+      background: #fff;
+      color: #991b1b;
+      border-radius: 10px;
+      padding: 8px 14px;
+      font-size: 12.5px;
+      font-weight: 700;
+      cursor: pointer;
+      font-family: inherit;
+    }
+    .danger-btn:hover { background: var(--error-bg); }
+    .detail-note { font-size: 12px; color: var(--muted); }
+
+    .banner {
+      display: none;
+      border-radius: 12px;
+      padding: 12px 15px;
+      margin-bottom: 14px;
+      font-size: 13.5px;
+      background: var(--error-bg);
+      color: var(--error-text);
+    }
+
+    @media (max-width: 760px) {
+      body { padding: 14px 8px; }
+      .surface { padding: 14px; }
+      thead { display: none; }
+      tbody tr.row { display: block; border-bottom: 1px solid var(--border); }
+      tbody tr.row td { display: block; border: none; padding: 4px 8px; }
+    }
+  </style>
+</head>
+<body data-shell-label="Builder Credit Applications" data-shell-icon="accounting">
+  <div class="wrap">
+    <div id="internal-shell-header"></div>
+
+    <div class="surface">
+      <h2>Builder Credit Applications</h2>
+      <p class="section-note">
+        Every application started on the public Trade Partner Credit Application form — including
+        partially completed ones. The code is what the applicant sees on their screen, so you can
+        look up an application from a phone call. Click a row for the full detail.
+      </p>
+      <div class="toolbar">
+        <input id="searchInput" type="text" placeholder="Search code, company, contact, or email…" />
+        <button type="button" class="chip active" data-filter="all">All</button>
+        <button type="button" class="chip" data-filter="in_progress">In progress</button>
+        <button type="button" class="chip" data-filter="submitted">Submitted</button>
+        <span style="flex: 1;"></span>
+        <button type="button" class="chip" id="refreshBtn">Refresh</button>
+      </div>
+    </div>
+
+    <div class="surface">
+      <div class="banner" id="errorBanner"></div>
+      <table>
+        <thead>
+          <tr>
+            <th>Code</th>
+            <th>Status</th>
+            <th>Company</th>
+            <th>Contact</th>
+            <th>Email</th>
+            <th>Started</th>
+            <th>Last activity</th>
+          </tr>
+        </thead>
+        <tbody id="tableBody">
+          <tr><td colspan="7" class="empty">Loading…</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div id="internal-shell-footer"></div>
+  </div>
+
+  <script src="internal-shell.js"></script>
+  <script>
+    let applications = [];
+    let session = null;
+    let statusFilter = "all";
+    let searchTerm = "";
+    let openToken = null;
+
+    function escapeHtml(value) {
+      return String(value == null ? "" : value)
+        .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+    }
+
+    function formatWhen(iso) {
+      if (!iso) return "";
+      try {
+        return new Date(iso).toLocaleString("en-US", {
+          timeZone: "America/Chicago",
+          month: "short", day: "numeric",
+          hour: "numeric", minute: "2-digit"
+        });
+      } catch { return iso; }
+    }
+
+    function statusPill(app) {
+      if (app.status === "submitted") {
+        return '<span class="pill submitted">Submitted</span>';
+      }
+      return `<span class="pill progress">In progress — step ${app.stepCompleted || 0} of 3</span>`;
+    }
+
+    function matchesSearch(app, term) {
+      if (!term) return true;
+      const haystack = [app.token, app.legalName, app.contactName, app.contactEmail]
+        .join(" ").toLowerCase();
+      return haystack.includes(term.toLowerCase());
+    }
+
+    function renderTable() {
+      const body = document.getElementById("tableBody");
+      const rows = applications
+        .filter((app) => statusFilter === "all" || app.status === statusFilter)
+        .filter((app) => matchesSearch(app, searchTerm));
+
+      if (!rows.length) {
+        body.innerHTML = '<tr><td colspan="7" class="empty">No applications match.</td></tr>';
+        return;
+      }
+
+      body.innerHTML = rows.map((app) => `
+        <tr class="row${app.token === openToken ? " open" : ""}" data-token="${escapeHtml(app.token)}">
+          <td class="code">${escapeHtml(app.token)}</td>
+          <td>${statusPill(app)}</td>
+          <td>${escapeHtml(app.legalName || "—")}</td>
+          <td>${escapeHtml(app.contactName || "—")}</td>
+          <td>${escapeHtml(app.contactEmail || "—")}</td>
+          <td style="white-space: nowrap;">${escapeHtml(formatWhen(app.createdAt))}</td>
+          <td style="white-space: nowrap;">${escapeHtml(formatWhen(app.status === "submitted" ? (app.submittedAt || app.updatedAt) : app.updatedAt))}</td>
+        </tr>
+        ${app.token === openToken ? `<tr class="detail-row"><td colspan="7" class="detail-cell" id="detailCell">Loading detail…</td></tr>` : ""}
+      `).join("");
+
+      body.querySelectorAll("tr.row").forEach((tr) => {
+        tr.addEventListener("click", () => toggleDetail(tr.dataset.token));
+      });
+
+      if (openToken) loadDetail(openToken);
+    }
+
+    function toggleDetail(token) {
+      openToken = openToken === token ? null : token;
+      renderTable();
+    }
+
+    function kv(label, value) {
+      if (!value) return "";
+      return `<div class="k">${escapeHtml(label)}</div><div>${escapeHtml(value)}</div>`;
+    }
+
+    async function loadDetail(token) {
+      const cell = document.getElementById("detailCell");
+      if (!cell) return;
+      try {
+        const res = await fetch("/api/credit-applications/" + encodeURIComponent(token), { credentials: "same-origin" });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Unable to load the application.");
+        const app = data.application;
+        const s1 = app.data?.step1 || {};
+        const c = s1.company || {};
+        const b = s1.business || {};
+        const s2 = app.data?.step2 || {};
+        const bank = s2.bank || {};
+        const refs = Array.isArray(s2.references) ? s2.references : [];
+        const sig = app.data?.step3?.signature || null;
+
+        const mailing = [c.mailingAddress, c.mailingCity, c.mailingState, c.mailingZip].filter(Boolean).join(", ");
+        const physical = c.physicalSameAsMailing
+          ? "Same as mailing"
+          : [c.physicalAddress, c.physicalCity, c.physicalState, c.physicalZip].filter(Boolean).join(", ");
+
+        const refSection = (label, ref) => ref && (ref.company || ref.contact) ? `
+          <div class="detail-section">
+            <h4>${escapeHtml(label)}</h4>
+            <div class="kv">
+              ${kv("Company", ref.company)}
+              ${kv("Contact", ref.contact)}
+              ${kv("Email", ref.email)}
+              ${kv("Phone", ref.phone)}
+              ${kv("Terms / since", ref.terms)}
+            </div>
+          </div>` : "";
+
+        let signatureHtml = "";
+        if (app.status === "submitted" && sig) {
+          const sigBody = sig.mode === "typed"
+            ? kv("Signature (typed)", sig.signatureText)
+            : (sig.imageData
+                ? `<div class="k">Signature</div><div><img class="sig-img" src="${escapeHtml(sig.imageData)}" alt="Drawn signature" /></div>`
+                : kv("Signature", "Drawn"));
+          signatureHtml = `
+            <div class="detail-section">
+              <h4>Authorized Signature</h4>
+              <div class="kv">
+                ${kv("Printed name", sig.printedName)}
+                ${kv("Title", sig.title)}
+                ${sigBody}
+                ${kv("Date", sig.date)}
+              </div>
+            </div>`;
+        }
+
+        const canDelete = !!(session && session.canManageUsers);
+
+        cell.innerHTML = `
+          <div class="detail-grid">
+            <div class="detail-section">
+              <h4>Applicant Company</h4>
+              <div class="kv">
+                ${kv("Legal name", c.legalName)}
+                ${kv("DBA", c.dbaName)}
+                ${kv("Mailing", mailing)}
+                ${kv("Physical", physical)}
+                ${kv("Contact", [c.contactName, c.contactTitle].filter(Boolean).join(" — "))}
+                ${kv("Phone", c.contactPhone)}
+                ${kv("Email", c.contactEmail)}
+                ${kv("Accounts payable contact", c.apContact)}
+                ${kv("Accounts payable phone", c.apPhone)}
+                ${kv("Accounts payable email", c.apEmail)}
+              </div>
+            </div>
+            <div class="detail-section">
+              <h4>Business Information</h4>
+              <div class="kv">
+                ${kv("Business type", b.businessType)}
+                ${kv("Time in business", b.yearsInBusiness)}
+                ${kv("EIN", b.ein)}
+                ${kv("Nature of business", b.natureOfBusiness)}
+                ${kv("Owner 1", [b.owner1Name, b.owner1Title, b.owner1Phone].filter(Boolean).join(" — "))}
+                ${kv("Owner 2", [b.owner2Name, b.owner2Title, b.owner2Phone].filter(Boolean).join(" — "))}
+                ${kv("Est. annual volume", b.annualVolume)}
+                ${kv("Requested limit", b.creditLimit)}
+                ${kv("PO required", b.poRequired)}
+                ${kv("Tax-exempt", b.taxExempt)}
+                ${kv("TX permit", b.taxPermit)}
+                ${kv("Invoice delivery", b.invoiceDelivery)}
+              </div>
+            </div>
+            ${(bank.bankName || bank.bankContact) ? `
+            <div class="detail-section">
+              <h4>Bank Reference</h4>
+              <div class="kv">
+                ${kv("Bank", bank.bankName)}
+                ${kv("Contact", bank.bankContact)}
+                ${kv("Account ref", bank.accountReference)}
+              </div>
+            </div>` : ""}
+            ${refSection("Trade Reference 1", refs[0])}
+            ${refSection("Trade Reference 2", refs[1])}
+            ${signatureHtml}
+          </div>
+          <div class="detail-actions">
+            ${canDelete ? `<button type="button" class="danger-btn" id="deleteBtn">Delete application</button>` : ""}
+            <span class="detail-note">${app.status === "submitted"
+              ? `Submitted ${escapeHtml(formatWhen(app.submittedAt))} — the full application was also emailed to accounting.`
+              : `Started ${escapeHtml(formatWhen(app.createdAt))}, last saved ${escapeHtml(formatWhen(app.updatedAt))}. The applicant can resume with code ${escapeHtml(app.token)}.`}</span>
+          </div>`;
+
+        const deleteBtn = document.getElementById("deleteBtn");
+        if (deleteBtn) {
+          deleteBtn.addEventListener("click", async () => {
+            if (deleteBtn.dataset.armed !== "1") {
+              deleteBtn.dataset.armed = "1";
+              deleteBtn.textContent = "Really delete? This can't be undone";
+              return;
+            }
+            deleteBtn.disabled = true;
+            try {
+              const delRes = await fetch("/api/credit-applications/" + encodeURIComponent(token) + "/delete", {
+                method: "POST",
+                credentials: "same-origin"
+              });
+              const delData = await delRes.json().catch(() => ({}));
+              if (!delRes.ok) throw new Error(delData.error || "Unable to delete.");
+              openToken = null;
+              await loadList();
+            } catch (err) {
+              deleteBtn.disabled = false;
+              deleteBtn.textContent = err.message;
+            }
+          });
+        }
+      } catch (err) {
+        cell.textContent = err.message;
+      }
+    }
+
+    async function loadList() {
+      try {
+        const res = await fetch("/api/credit-applications", { credentials: "same-origin" });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Unable to load credit applications.");
+        applications = data.applications || [];
+        document.getElementById("errorBanner").style.display = "none";
+        renderTable();
+      } catch (err) {
+        const banner = document.getElementById("errorBanner");
+        banner.textContent = err.message;
+        banner.style.display = "block";
+        document.getElementById("tableBody").innerHTML =
+          '<tr><td colspan="7" class="empty">Could not load applications.</td></tr>';
+      }
+    }
+
+    document.querySelectorAll(".chip[data-filter]").forEach((chip) => {
+      chip.addEventListener("click", () => {
+        document.querySelectorAll(".chip[data-filter]").forEach((c) => c.classList.remove("active"));
+        chip.classList.add("active");
+        statusFilter = chip.dataset.filter;
+        openToken = null;
+        renderTable();
+      });
+    });
+
+    document.getElementById("searchInput").addEventListener("input", (event) => {
+      searchTerm = event.target.value.trim();
+      renderTable();
+    });
+
+    document.getElementById("refreshBtn").addEventListener("click", loadList);
+
+    (async function init() {
+      try {
+        const sessionRes = await fetch("/api/auth/session", { credentials: "same-origin" });
+        if (sessionRes.ok) session = await sessionRes.json();
+      } catch {}
+      await loadList();
+    })();
+  </script>
+</body>
+</html>

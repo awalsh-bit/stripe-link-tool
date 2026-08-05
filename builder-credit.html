@@ -54,7 +54,7 @@
       letter-spacing: 0.08em;
       color: #4f46e5;
     }
-    h2:first-of-type { margin-top: 6px; }
+    .step h2:first-of-type { margin-top: 6px; }
     .section-note { margin: 0 0 14px; color: var(--muted); font-size: 13.5px; line-height: 1.55; }
     .intro { margin: 0 0 6px; color: var(--muted); font-size: 14px; line-height: 1.6; }
 
@@ -62,8 +62,9 @@
     .grid-3 { display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 14px; }
     .grid .full, .grid-3 .full { grid-column: 1 / -1; }
 
-    label { display: block; margin-bottom: 5px; font-size: 12.5px; font-weight: 700; }
-    label .opt { color: var(--muted); font-weight: 500; }
+    /* Required fields are bold; optional fields are not. */
+    label { display: block; margin-bottom: 5px; font-size: 12.5px; font-weight: 400; }
+    label.req { font-weight: 700; }
 
     input[type="text"], input[type="email"], input[type="tel"], input[type="date"], select, textarea {
       width: 100%;
@@ -80,6 +81,11 @@
     input:focus, select:focus, textarea:focus {
       border-color: rgba(99, 91, 255, 0.75);
       box-shadow: 0 0 0 4px rgba(99, 91, 255, 0.12);
+    }
+
+    input.field-error, select.field-error {
+      border-color: #f87171;
+      box-shadow: 0 0 0 4px rgba(248, 113, 113, 0.12);
     }
 
     .check-row {
@@ -104,8 +110,6 @@
       margin-bottom: 4px;
     }
 
-    .divider { border: none; border-top: 1px solid var(--border); margin: 22px 0; }
-
     button {
       appearance: none;
       border: none;
@@ -122,7 +126,16 @@
     button:hover { background: var(--primary-hover); }
     button:disabled { opacity: 0.6; cursor: wait; }
 
-    .actions { margin-top: 20px; display: flex; justify-content: flex-end; }
+    button.ghost {
+      background: #fff;
+      color: var(--text);
+      border: 1px solid var(--border);
+      font-weight: 600;
+    }
+    button.ghost:hover { background: #f3f4f6; }
+
+    .actions { margin-top: 22px; display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+    .actions .spacer { flex: 1; }
 
     .status {
       display: none;
@@ -137,6 +150,97 @@
     .status.error { background: var(--error-bg); color: var(--error-text); }
     .status.ok { background: var(--success-bg); color: var(--success-text); }
 
+    /* Step progress */
+    .stepper {
+      display: flex;
+      gap: 6px;
+      margin: 18px 0 4px;
+    }
+    .stepper .seg {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 10px 6px;
+      border-radius: 12px;
+      border: 1.5px solid #1f2937;
+      background: #fff;
+      font-size: 12.5px;
+      color: var(--muted);
+      line-height: 1;
+    }
+    .stepper .seg .num {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      background: #eef0f5;
+      color: var(--muted);
+      font-weight: 700;
+      font-size: 11.5px;
+      flex: 0 0 auto;
+    }
+    .stepper .seg.current {
+      border-color: var(--primary);
+      background: #e7e4ff;
+      color: #312e81;
+      font-weight: 700;
+    }
+    .stepper .seg.current .num { background: var(--primary); color: #fff; }
+    .stepper .seg.done { color: var(--text); }
+    .stepper .seg.done .num { background: #10b981; color: #fff; }
+
+    .code-banner {
+      display: none;
+      margin: 14px 0 0;
+      border: 1px dashed rgba(99, 91, 255, 0.5);
+      background: #f5f5ff;
+      border-radius: 12px;
+      padding: 11px 14px;
+      font-size: 13px;
+      line-height: 1.55;
+      color: #3730a3;
+    }
+    .code-banner.show { display: block; }
+    .code-banner strong { font-size: 15px; letter-spacing: 0.04em; }
+
+    .resume-row { margin-top: 10px; font-size: 13px; color: var(--muted); }
+    .resume-row a { color: var(--primary); cursor: pointer; }
+    .resume-box { display: none; margin-top: 10px; gap: 10px; align-items: center; }
+    .resume-box.show { display: flex; flex-wrap: wrap; }
+    .resume-box input { max-width: 220px; text-transform: uppercase; }
+    .resume-box button { padding: 10px 16px; font-size: 13.5px; }
+
+    /* Signature */
+    .sig-wrap { margin-top: 4px; }
+    .sig-canvas-frame {
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: #fff;
+      position: relative;
+      overflow: hidden;
+    }
+    #sigCanvas { display: block; width: 100%; height: 170px; touch-action: none; cursor: crosshair; }
+    .sig-hint {
+      position: absolute;
+      left: 0; right: 0; bottom: 34px;
+      text-align: center;
+      color: #c7cbd4;
+      font-size: 13px;
+      pointer-events: none;
+    }
+    .sig-line {
+      position: absolute;
+      left: 24px; right: 24px; bottom: 30px;
+      border-bottom: 1.5px solid #e5e7eb;
+      pointer-events: none;
+    }
+    .sig-tools { display: flex; justify-content: space-between; align-items: center; margin-top: 6px; font-size: 12.5px; }
+    .sig-tools a { color: var(--primary); cursor: pointer; }
+
     .success-panel {
       display: none;
       text-align: center;
@@ -148,59 +252,89 @@
 
     .hp-field { position: absolute; left: -9999px; top: -9999px; height: 0; overflow: hidden; }
 
+    .step { display: none; }
+    .step.active { display: block; }
+
     @media (max-width: 680px) {
       body { padding: 14px 8px; }
       .card { padding: 16px; }
       .grid, .grid-3 { grid-template-columns: 1fr; }
+      .stepper { flex-direction: column; }
     }
   </style>
 </head>
 <body data-public-shell-label="Trade Partner Credit Application"
-      data-public-shell-footer-text="WACA, Inc. dba Wilson AC &amp; Appliance | 4205 E Hwy 290, Dripping Springs, TX 78620">
+      data-public-shell-footer-text="WACA, Inc. dba Wilson AC &amp; Appliance | 4205 E Hwy 290, Dripping Springs, TX 78620"
+      data-public-shell-footer-link-label="Builder Credit Terms"
+      data-public-shell-footer-link-href="builder-credit-terms.pdf">
   <div class="wrap">
     <div id="public-shell-header"></div>
 
     <div class="card" id="formCard">
       <h1>Trade Partner Credit Application</h1>
       <p class="intro">
-        Complete all applicable fields. If purchases will be tax-exempt, please also email a completed
-        Texas resale certificate to <strong>accounting@wilsonappliance.com</strong>.
+        The application takes three short steps, and your progress is saved along the way.
+        <strong>Required fields are bold</strong> and marked *. If purchases will be tax-exempt, please
+        also email a completed Texas resale certificate to <strong>accounting@wilsonappliance.com</strong>.
+        Before applying, review our full <a href="builder-credit-terms.pdf" target="_blank" rel="noopener">Builder &amp;
+        Trade Account Credit Terms (PDF)</a>.
       </p>
 
-      <form id="creditForm" novalidate>
-        <!-- Honeypot: humans never see or fill this. -->
-        <div class="hp-field" aria-hidden="true">
-          <label for="website">Website</label>
-          <input id="website" name="website" type="text" tabindex="-1" autocomplete="off" />
+      <div class="resume-row" id="resumeRow">
+        Started earlier? <a id="resumeToggle">Enter your application code to pick up where you left off</a>.
+        <div class="resume-box" id="resumeBox">
+          <input id="resumeCode" type="text" placeholder="BCA-XXXX-XXXX" autocomplete="off" />
+          <button type="button" class="ghost" id="resumeBtn">Resume application</button>
         </div>
+      </div>
 
+      <div class="stepper" id="stepper">
+        <div class="seg" data-step="1"><span class="num">1</span>Company &amp; Business</div>
+        <div class="seg" data-step="2"><span class="num">2</span>References</div>
+        <div class="seg" data-step="3"><span class="num">3</span>Terms &amp; Signature</div>
+      </div>
+
+      <div class="code-banner" id="codeBanner">
+        Your application code is <strong id="codeValue"></strong> — jot it down. If you need to step
+        away, you can return to this page and resume with that code. Our team can also look up your
+        partial application by this code.
+      </div>
+
+      <!-- Honeypot: humans never see or fill this. -->
+      <div class="hp-field" aria-hidden="true">
+        <label for="website">Website</label>
+        <input id="website" name="website" type="text" tabindex="-1" autocomplete="off" />
+      </div>
+
+      <!-- ============================= STEP 1 ============================= -->
+      <div class="step active" id="step1">
         <h2>Applicant Company</h2>
         <div class="grid">
           <div>
-            <label for="legalName">Legal company name *</label>
-            <input id="legalName" type="text" required />
+            <label class="req" for="legalName">Legal company name *</label>
+            <input id="legalName" type="text" />
           </div>
           <div>
-            <label for="dbaName">DBA / trade name <span class="opt">(optional)</span></label>
+            <label for="dbaName">DBA / trade name</label>
             <input id="dbaName" type="text" />
           </div>
           <div class="full">
-            <label for="mailAddress">Mailing address *</label>
-            <input id="mailAddress" type="text" required />
+            <label class="req" for="mailAddress">Mailing address *</label>
+            <input id="mailAddress" type="text" />
           </div>
         </div>
         <div class="grid-3" style="margin-top: 14px;">
           <div>
-            <label for="mailCity">City *</label>
-            <input id="mailCity" type="text" required />
+            <label class="req" for="mailCity">City *</label>
+            <input id="mailCity" type="text" />
           </div>
           <div>
-            <label for="mailState">State *</label>
-            <input id="mailState" type="text" required />
+            <label class="req" for="mailState">State *</label>
+            <input id="mailState" type="text" />
           </div>
           <div>
-            <label for="mailZip">ZIP *</label>
-            <input id="mailZip" type="text" required />
+            <label class="req" for="mailZip">ZIP *</label>
+            <input id="mailZip" type="text" />
           </div>
         </div>
         <div class="check-row">
@@ -232,31 +366,31 @@
 
         <div class="grid" style="margin-top: 14px;">
           <div>
-            <label for="contactName">Primary contact name *</label>
-            <input id="contactName" type="text" required />
+            <label class="req" for="contactName">Primary contact name *</label>
+            <input id="contactName" type="text" />
           </div>
           <div>
             <label for="contactTitle">Title</label>
             <input id="contactTitle" type="text" />
           </div>
           <div>
-            <label for="contactPhone">Phone *</label>
-            <input id="contactPhone" type="tel" required />
+            <label class="req" for="contactPhone">Phone *</label>
+            <input id="contactPhone" type="tel" />
           </div>
           <div>
-            <label for="contactEmail">Email *</label>
-            <input id="contactEmail" type="email" required />
+            <label class="req" for="contactEmail">Email *</label>
+            <input id="contactEmail" type="email" />
           </div>
           <div>
-            <label for="apContact">Accounts payable contact <span class="opt">(optional)</span></label>
+            <label for="apContact">Accounts payable contact</label>
             <input id="apContact" type="text" />
           </div>
           <div>
-            <label for="apPhone">AP phone</label>
+            <label for="apPhone">Accounts payable phone</label>
             <input id="apPhone" type="tel" />
           </div>
           <div class="full">
-            <label for="apEmail">AP email</label>
+            <label for="apEmail">Accounts payable email</label>
             <input id="apEmail" type="email" />
           </div>
         </div>
@@ -264,8 +398,8 @@
         <h2>Business Information</h2>
         <div class="grid">
           <div>
-            <label for="businessType">Business type *</label>
-            <select id="businessType" required>
+            <label class="req" for="businessType">Business type *</label>
+            <select id="businessType">
               <option value="">Select…</option>
               <option>LLC</option>
               <option>Corporation</option>
@@ -275,20 +409,27 @@
             </select>
           </div>
           <div>
-            <label for="yearsInBusiness">Length of time in business *</label>
-            <input id="yearsInBusiness" type="text" placeholder="e.g. 8 years" required />
+            <label class="req" for="yearsInBusiness">Length of time in business *</label>
+            <input id="yearsInBusiness" type="text" placeholder="e.g. 8 years" />
           </div>
           <div>
-            <label for="ein">Federal tax ID (EIN) *</label>
-            <input id="ein" type="text" placeholder="12-3456789" required />
+            <label class="req" for="ein">Federal tax ID (EIN) *</label>
+            <input id="ein" type="text" placeholder="12-3456789" />
           </div>
           <div>
-            <label for="natureOfBusiness">Nature of business *</label>
-            <input id="natureOfBusiness" type="text" placeholder="e.g. Custom home builder" required />
+            <label class="req" for="natureOfBusiness">Nature of business *</label>
+            <select id="natureOfBusiness">
+              <option selected>Home Builder</option>
+              <option>Other</option>
+            </select>
+          </div>
+          <div id="natureOtherField" style="display: none;">
+            <label class="req" for="natureOther">Describe your business *</label>
+            <input id="natureOther" type="text" placeholder="e.g. Remodeler, property manager" />
           </div>
           <div>
-            <label for="owner1Name">Owner / officer / partner name *</label>
-            <input id="owner1Name" type="text" required />
+            <label class="req" for="owner1Name">Owner / officer / partner name *</label>
+            <input id="owner1Name" type="text" />
           </div>
           <div class="grid" style="gap: 14px; grid-template-columns: 1fr 1fr;">
             <div>
@@ -301,7 +442,7 @@
             </div>
           </div>
           <div>
-            <label for="owner2Name">Second owner / officer <span class="opt">(optional)</span></label>
+            <label for="owner2Name">Second owner / officer</label>
             <input id="owner2Name" type="text" />
           </div>
           <div class="grid" style="gap: 14px; grid-template-columns: 1fr 1fr;">
@@ -315,24 +456,24 @@
             </div>
           </div>
           <div>
-            <label for="monthlyVolume">Estimated monthly purchase volume *</label>
-            <input id="monthlyVolume" type="text" placeholder="$" required />
+            <label class="req" for="annualVolume">Estimated annual purchase volume *</label>
+            <input id="annualVolume" type="text" placeholder="$" />
           </div>
           <div>
-            <label for="creditLimit">Requested credit limit *</label>
-            <input id="creditLimit" type="text" placeholder="$" required />
+            <label class="req" for="creditLimit">Requested credit limit *</label>
+            <input id="creditLimit" type="text" placeholder="$" />
           </div>
           <div>
-            <label for="poRequired">Purchase order required? *</label>
-            <select id="poRequired" required>
+            <label class="req" for="poRequired">Purchase order required? *</label>
+            <select id="poRequired">
               <option value="">Select…</option>
               <option>Yes</option>
               <option>No</option>
             </select>
           </div>
           <div>
-            <label for="taxExempt">Purchases tax-exempt? *</label>
-            <select id="taxExempt" required>
+            <label class="req" for="taxExempt">Purchases tax-exempt? *</label>
+            <select id="taxExempt">
               <option value="">Select…</option>
               <option>Yes</option>
               <option>No</option>
@@ -343,8 +484,8 @@
             <input id="taxPermit" type="text" />
           </div>
           <div>
-            <label for="invoiceDelivery">Preferred invoice delivery *</label>
-            <select id="invoiceDelivery" required>
+            <label class="req" for="invoiceDelivery">Preferred invoice delivery *</label>
+            <select id="invoiceDelivery">
               <option value="">Select…</option>
               <option>Email</option>
               <option>Other</option>
@@ -360,7 +501,15 @@
           certificate to accounting@wilsonappliance.com.
         </p>
 
-        <h2>Bank Reference <span class="opt" style="text-transform: none; letter-spacing: 0;">(optional)</span></h2>
+        <div class="actions">
+          <span class="spacer"></span>
+          <button type="button" id="step1Next">Save &amp; Continue</button>
+        </div>
+      </div>
+
+      <!-- ============================= STEP 2 ============================= -->
+      <div class="step" id="step2">
+        <h2>Bank Reference <span style="text-transform: none; letter-spacing: 0; color: var(--muted); font-weight: 500;">(optional)</span></h2>
         <div class="grid-3">
           <div>
             <label for="bankName">Bank name</label>
@@ -380,8 +529,8 @@
         <p class="section-note">Provide two suppliers or subcontractors with whom you currently hold an open account.</p>
         <div class="grid">
           <div class="full">
-            <label for="ref1Company">Reference 1 — company name *</label>
-            <input id="ref1Company" type="text" required />
+            <label class="req" for="ref1Company">Reference 1 — company name *</label>
+            <input id="ref1Company" type="text" />
           </div>
           <div>
             <label for="ref1Contact">Contact name</label>
@@ -396,12 +545,12 @@
             <input id="ref1Phone" type="tel" />
           </div>
           <div>
-            <label for="ref1Terms">Current terms / account since <span class="opt">(optional)</span></label>
+            <label for="ref1Terms">Current terms / account since</label>
             <input id="ref1Terms" type="text" />
           </div>
           <div class="full" style="margin-top: 6px;">
-            <label for="ref2Company">Reference 2 — company name *</label>
-            <input id="ref2Company" type="text" required />
+            <label class="req" for="ref2Company">Reference 2 — company name *</label>
+            <input id="ref2Company" type="text" />
           </div>
           <div>
             <label for="ref2Contact">Contact name</label>
@@ -416,71 +565,113 @@
             <input id="ref2Phone" type="tel" />
           </div>
           <div>
-            <label for="ref2Terms">Current terms / account since <span class="opt">(optional)</span></label>
+            <label for="ref2Terms">Current terms / account since</label>
             <input id="ref2Terms" type="text" />
           </div>
         </div>
 
+        <div class="actions">
+          <button type="button" class="ghost" id="step2Back">Back</button>
+          <span class="spacer"></span>
+          <button type="button" id="step2Next">Save &amp; Continue</button>
+        </div>
+      </div>
+
+      <!-- ============================= STEP 3 ============================= -->
+      <div class="step" id="step3">
         <h2>Terms of Sale</h2>
         <div class="terms-box">
-          Approved accounts are sold on net thirty day terms from date of invoice. Balances outstanding beyond
-          thirty days are subject to a service charge of one and one half percent per month, an annual rate of
-          eighteen percent, or the maximum rate permitted by Texas law, whichever is less. WACA, Inc. reserves
-          the right to suspend deliveries, place the account on credit hold, or revoke the credit line at any
-          time and without prior notice. In the event collection efforts become necessary, the applicant agrees
-          to pay all costs of collection, including reasonable attorney fees and court costs, and further agrees
-          that venue for any action arising under this agreement lies in Hays County, Texas. Claims for damage,
-          shortage, or product defect must be submitted in writing within five business days of delivery.
-          Special order and non-stocking merchandise is non-returnable, and any authorized return of stocking
-          merchandise is subject to a twenty five percent restocking fee.
+          Approved accounts are sold on net thirty (30) day terms from date of invoice. Balances outstanding
+          beyond forty-five (45) days from the invoice date are subject to a service charge of one and one-half
+          percent (1.5%) per month (18% annually), or the maximum rate permitted by Texas law, whichever is
+          less. Past due balances or purchases beyond the approved credit limit may result in suspension of
+          deliveries, installations, scheduling, or credit privileges until the account is brought current and
+          within limit. In the event collection efforts become necessary, the applicant agrees to pay all costs
+          of collection, including reasonable attorney fees and court costs, and agrees that venue for any
+          action arising under this agreement lies in Hays County, Texas. Claims for damage, shortage, or
+          product defect must be submitted in writing within three (3) business days of delivery. Returns and
+          cancellations of special-order, custom, or build-to-order products are subject to manufacturer
+          approval and may be denied or subject to restocking fees; authorized returns of standard assortment
+          merchandise are subject to a twenty-five percent (25%) restocking fee.
         </div>
+        <p class="section-note" style="margin: 8px 0 2px;">
+          The summary above is part of our complete
+          <a href="builder-credit-terms.pdf" target="_blank" rel="noopener">Builder &amp; Trade Account
+          Credit Terms (PDF)</a>, which apply to all approved accounts.
+        </p>
         <div class="check-row">
-          <input id="affirmAccurate" type="checkbox" required />
+          <input id="affirmAccurate" type="checkbox" />
           <label for="affirmAccurate" style="margin: 0; font-weight: 500;">I affirm that all information provided in this application is true, complete, and accurate to the best of my knowledge. *</label>
         </div>
         <div class="check-row">
-          <input id="affirmTerms" type="checkbox" required />
-          <label for="affirmTerms" style="margin: 0; font-weight: 500;">I have read and understand the terms of sale stated above, including net thirty day payment terms and applicable finance charges. *</label>
+          <input id="affirmTerms" type="checkbox" />
+          <label for="affirmTerms" style="margin: 0; font-weight: 500;">I have read and understand the terms of sale stated above and the full <a href="builder-credit-terms.pdf" target="_blank" rel="noopener">Builder &amp; Trade Account Credit Terms</a>, including net thirty day payment terms and applicable finance charges. *</label>
         </div>
         <div class="check-row">
-          <input id="affirmAuthorize" type="checkbox" required />
+          <input id="affirmAuthorize" type="checkbox" />
           <label for="affirmAuthorize" style="margin: 0; font-weight: 500;">I authorize WACA, Inc. to contact the bank and trade references listed above, obtain commercial credit reports on the applicant company, and exchange credit experience information with other creditors. *</label>
         </div>
 
         <h2>Authorized Signature</h2>
         <div class="grid">
           <div>
-            <label for="signerName">Authorized signer — printed name *</label>
-            <input id="signerName" type="text" required />
+            <label class="req" for="signerName">Authorized signer — printed name *</label>
+            <input id="signerName" type="text" />
           </div>
           <div>
-            <label for="signerTitle">Title *</label>
-            <input id="signerTitle" type="text" required />
+            <label class="req" for="signerTitle">Title *</label>
+            <input id="signerTitle" type="text" />
           </div>
-          <div>
-            <label for="signatureText">Signature — type your full legal name *</label>
-            <input id="signatureText" type="text" placeholder="Typing your name acts as your signature" required />
+        </div>
+
+        <div class="sig-wrap">
+          <label class="req" style="margin-top: 14px;">Signature *</label>
+          <div id="sigCanvasBlock">
+            <div class="sig-canvas-frame">
+              <canvas id="sigCanvas"></canvas>
+              <div class="sig-hint" id="sigHint">Sign here with your mouse or finger</div>
+              <div class="sig-line"></div>
+            </div>
+            <div class="sig-tools">
+              <a id="sigClear">Clear signature</a>
+            </div>
           </div>
+          <div id="typedSigBlock" style="display: none;">
+            <input id="signatureText" type="text" placeholder="Type your full legal name" />
+          </div>
+          <div class="check-row" style="margin-top: 8px;">
+            <input id="typedSigToggle" type="checkbox" />
+            <label for="typedSigToggle" style="margin: 0; font-weight: 500;">I'd rather type it — typing your name acts as your signature.</label>
+          </div>
+        </div>
+
+        <div class="grid" style="margin-top: 14px;">
           <div>
-            <label for="signDate">Date *</label>
-            <input id="signDate" type="date" required />
+            <label class="req" for="signDate">Date *</label>
+            <input id="signDate" type="date" />
           </div>
         </div>
 
         <div class="actions">
-          <button id="submitBtn" type="submit">Submit application</button>
+          <button type="button" class="ghost" id="step3Back">Back</button>
+          <span class="spacer"></span>
+          <button type="button" id="submitBtn">Submit application</button>
         </div>
-        <div id="formStatus" class="status"></div>
-      </form>
+      </div>
+
+      <div id="formStatus" class="status"></div>
 
       <div class="success-panel" id="successPanel">
         <h2>Application received</h2>
         <p>Thank you — your credit application has been sent to our accounting team. We typically
         review applications within a few business days and will reach out to
         <span id="successEmail">your email</span> with next steps.</p>
+        <p>Your application reference is <strong id="successCode"></strong>.</p>
         <p id="successResaleNote" style="display: none;"><strong>One more step:</strong> since your purchases
         will be tax-exempt, please email a completed Texas resale certificate to
         accounting@wilsonappliance.com.</p>
+        <p>Keep a copy of our <a href="builder-credit-terms.pdf" target="_blank" rel="noopener">Builder &amp;
+        Trade Account Credit Terms (PDF)</a> for your records.</p>
       </div>
     </div>
 
@@ -489,11 +680,16 @@
 
   <script src="public-shell.js"></script>
   <script>
-    function val(id) { return document.getElementById(id).value.trim(); }
-    function checked(id) { return document.getElementById(id).checked; }
+    function el(id) { return document.getElementById(id); }
+    function val(id) { return el(id).value.trim(); }
+    function checked(id) { return el(id).checked; }
+    function setVal(id, v) { if (v != null && v !== "") el(id).value = v; }
+
+    let appToken = null;      // application code from the server
+    let currentStep = 1;
 
     function setStatus(message, kind) {
-      const box = document.getElementById("formStatus");
+      const box = el("formStatus");
       if (!message) {
         box.className = "status";
         box.textContent = "";
@@ -503,47 +699,98 @@
       box.textContent = message;
     }
 
-    // Show/hide dependent fields
-    document.getElementById("sameAddress").addEventListener("change", () => {
-      document.getElementById("physicalBlock").style.display =
-        document.getElementById("sameAddress").checked ? "none" : "";
+    // ---------------- Step navigation ----------------
+    function showStep(step) {
+      currentStep = step;
+      [1, 2, 3].forEach((n) => {
+        el("step" + n).classList.toggle("active", n === step);
+        const seg = document.querySelector('.stepper .seg[data-step="' + n + '"]');
+        seg.classList.toggle("current", n === step);
+        seg.classList.toggle("done", n < step);
+      });
+      setStatus("", "");
+      // The canvas can only be sized correctly once its frame is visible.
+      if (step === 3) sizeSigCanvas();
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+
+    el("step2Back").addEventListener("click", () => showStep(1));
+    el("step3Back").addEventListener("click", () => showStep(2));
+    showStep(1); // highlight step 1 in the stepper on load
+
+    // ---------------- Field validation ----------------
+    const REQUIRED_STEP1 = ["legalName", "mailAddress", "mailCity", "mailState", "mailZip",
+      "contactName", "contactPhone", "contactEmail", "businessType", "yearsInBusiness", "ein",
+      "owner1Name", "annualVolume", "creditLimit", "poRequired", "taxExempt", "invoiceDelivery"];
+    const REQUIRED_STEP2 = ["ref1Company", "ref2Company"];
+
+    function clearFieldError(event) {
+      event.target.classList.remove("field-error");
+    }
+    document.querySelectorAll("input, select").forEach((field) => {
+      field.addEventListener("input", clearFieldError);
+      field.addEventListener("change", clearFieldError);
     });
 
-    document.getElementById("taxExempt").addEventListener("change", () => {
-      const isExempt = document.getElementById("taxExempt").value === "Yes";
-      document.getElementById("permitField").style.display = isExempt ? "" : "none";
-      document.getElementById("resaleNote").style.display = isExempt ? "" : "none";
+    function validateFields(ids) {
+      let firstMissing = null;
+      ids.forEach((id) => {
+        const field = el(id);
+        if (!field.value.trim()) {
+          field.classList.add("field-error");
+          if (!firstMissing) firstMissing = field;
+        }
+      });
+      if (firstMissing) {
+        firstMissing.focus();
+        setStatus("Please fill in the highlighted required fields.", "error");
+        return false;
+      }
+      return true;
+    }
+
+    function validateStep1() {
+      const ids = [...REQUIRED_STEP1];
+      if (val("natureOfBusiness") === "Other") ids.push("natureOther");
+      if (!validateFields(ids)) return false;
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val("contactEmail"))) {
+        el("contactEmail").classList.add("field-error");
+        el("contactEmail").focus();
+        setStatus("Please enter a valid contact email address.", "error");
+        return false;
+      }
+      return true;
+    }
+
+    // ---------------- Dependent fields ----------------
+    el("sameAddress").addEventListener("change", () => {
+      el("physicalBlock").style.display = el("sameAddress").checked ? "none" : "";
     });
 
-    document.getElementById("invoiceDelivery").addEventListener("change", () => {
-      document.getElementById("invoiceOtherField").style.display =
-        document.getElementById("invoiceDelivery").value === "Other" ? "" : "none";
+    el("natureOfBusiness").addEventListener("change", () => {
+      el("natureOtherField").style.display = val("natureOfBusiness") === "Other" ? "" : "none";
+    });
+
+    el("taxExempt").addEventListener("change", () => {
+      const isExempt = val("taxExempt") === "Yes";
+      el("permitField").style.display = isExempt ? "" : "none";
+      el("resaleNote").style.display = isExempt ? "" : "none";
+    });
+
+    el("invoiceDelivery").addEventListener("change", () => {
+      el("invoiceOtherField").style.display = val("invoiceDelivery") === "Other" ? "" : "none";
     });
 
     // Default the date to today.
     (function () {
       const now = new Date();
-      document.getElementById("signDate").value =
+      el("signDate").value =
         `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
     })();
 
-    document.getElementById("creditForm").addEventListener("submit", async (event) => {
-      event.preventDefault();
-      setStatus("", "");
-
-      const form = document.getElementById("creditForm");
-      if (!form.checkValidity()) {
-        form.reportValidity();
-        return;
-      }
-
-      if (!checked("affirmAccurate") || !checked("affirmTerms") || !checked("affirmAuthorize")) {
-        setStatus("Please check all three affirmation boxes to continue.", "error");
-        return;
-      }
-
-      const payload = {
-        website: val("website"), // honeypot
+    // ---------------- Step payloads ----------------
+    function step1Data() {
+      return {
         company: {
           legalName: val("legalName"),
           dbaName: val("dbaName"),
@@ -568,20 +815,27 @@
           businessType: val("businessType"),
           yearsInBusiness: val("yearsInBusiness"),
           ein: val("ein"),
-          natureOfBusiness: val("natureOfBusiness"),
+          natureOfBusiness: val("natureOfBusiness") === "Other"
+            ? "Other: " + val("natureOther")
+            : val("natureOfBusiness"),
           owner1Name: val("owner1Name"),
           owner1Title: val("owner1Title"),
           owner1Phone: val("owner1Phone"),
           owner2Name: val("owner2Name"),
           owner2Title: val("owner2Title"),
           owner2Phone: val("owner2Phone"),
-          monthlyVolume: val("monthlyVolume"),
+          annualVolume: val("annualVolume"),
           creditLimit: val("creditLimit"),
           poRequired: val("poRequired"),
           taxExempt: val("taxExempt"),
           taxPermit: val("taxPermit"),
           invoiceDelivery: val("invoiceDelivery") === "Other" ? "Other: " + val("invoiceOther") : val("invoiceDelivery")
-        },
+        }
+      };
+    }
+
+    function step2Data() {
+      return {
         bank: {
           bankName: val("bankName"),
           bankContact: val("bankContact"),
@@ -590,38 +844,310 @@
         references: [
           { company: val("ref1Company"), contact: val("ref1Contact"), email: val("ref1Email"), phone: val("ref1Phone"), terms: val("ref1Terms") },
           { company: val("ref2Company"), contact: val("ref2Contact"), email: val("ref2Email"), phone: val("ref2Phone"), terms: val("ref2Terms") }
-        ],
-        affirmations: {
-          accurate: checked("affirmAccurate"),
-          terms: checked("affirmTerms"),
-          authorize: checked("affirmAuthorize")
-        },
-        signature: {
-          printedName: val("signerName"),
-          title: val("signerTitle"),
-          signatureText: val("signatureText"),
-          date: val("signDate")
+        ]
+      };
+    }
+
+    // ---------------- Saving steps ----------------
+    async function saveStep(step, data, button, nextStep) {
+      button.disabled = true;
+      const original = button.textContent;
+      button.textContent = "Saving…";
+      try {
+        const res = await fetch("/api/credit-application/step", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            website: val("website"), // honeypot
+            token: appToken,
+            step,
+            data,
+            legalName: val("legalName"),
+            contactName: val("contactName"),
+            contactEmail: val("contactEmail")
+          })
+        });
+        const body = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(body.error || "We couldn't save your progress — please try again.");
+        if (body.token) {
+          appToken = body.token;
+          el("codeValue").textContent = appToken;
+          el("codeBanner").classList.add("show");
+          el("resumeRow").style.display = "none";
+        }
+        showStep(nextStep);
+      } catch (err) {
+        setStatus(err.message, "error");
+      } finally {
+        button.disabled = false;
+        button.textContent = original;
+      }
+    }
+
+    el("step1Next").addEventListener("click", () => {
+      if (!validateStep1()) return;
+      saveStep(1, step1Data(), el("step1Next"), 2);
+    });
+
+    el("step2Next").addEventListener("click", () => {
+      if (!validateFields(REQUIRED_STEP2)) return;
+      saveStep(2, step2Data(), el("step2Next"), 3);
+    });
+
+    // ---------------- Resume ----------------
+    el("resumeToggle").addEventListener("click", () => {
+      el("resumeBox").classList.toggle("show");
+      el("resumeCode").focus();
+    });
+
+    function fillFromSaved(app) {
+      const s1 = app.data?.step1 || {};
+      const c = s1.company || {};
+      const b = s1.business || {};
+      setVal("legalName", c.legalName); setVal("dbaName", c.dbaName);
+      setVal("mailAddress", c.mailingAddress); setVal("mailCity", c.mailingCity);
+      setVal("mailState", c.mailingState); setVal("mailZip", c.mailingZip);
+      if (c.physicalSameAsMailing === false) {
+        el("sameAddress").checked = false;
+        el("physicalBlock").style.display = "";
+        setVal("physAddress", c.physicalAddress); setVal("physCity", c.physicalCity);
+        setVal("physState", c.physicalState); setVal("physZip", c.physicalZip);
+      }
+      setVal("contactName", c.contactName); setVal("contactTitle", c.contactTitle);
+      setVal("contactPhone", c.contactPhone); setVal("contactEmail", c.contactEmail);
+      setVal("apContact", c.apContact); setVal("apPhone", c.apPhone); setVal("apEmail", c.apEmail);
+      setVal("businessType", b.businessType); setVal("yearsInBusiness", b.yearsInBusiness);
+      setVal("ein", b.ein);
+      const nature = String(b.natureOfBusiness || "");
+      if (nature && nature !== "Home Builder") {
+        el("natureOfBusiness").value = "Other";
+        el("natureOtherField").style.display = "";
+        setVal("natureOther", nature.replace(/^Other:\s*/, ""));
+      }
+      setVal("owner1Name", b.owner1Name); setVal("owner1Title", b.owner1Title); setVal("owner1Phone", b.owner1Phone);
+      setVal("owner2Name", b.owner2Name); setVal("owner2Title", b.owner2Title); setVal("owner2Phone", b.owner2Phone);
+      setVal("annualVolume", b.annualVolume); setVal("creditLimit", b.creditLimit);
+      setVal("poRequired", b.poRequired);
+      setVal("taxExempt", b.taxExempt);
+      if (b.taxExempt === "Yes") {
+        el("permitField").style.display = "";
+        el("resaleNote").style.display = "";
+        setVal("taxPermit", b.taxPermit);
+      }
+      const invoice = String(b.invoiceDelivery || "");
+      if (invoice.startsWith("Other")) {
+        el("invoiceDelivery").value = "Other";
+        el("invoiceOtherField").style.display = "";
+        setVal("invoiceOther", invoice.replace(/^Other:\s*/, ""));
+      } else {
+        setVal("invoiceDelivery", invoice);
+      }
+
+      const s2 = app.data?.step2 || {};
+      const bank = s2.bank || {};
+      setVal("bankName", bank.bankName); setVal("bankContact", bank.bankContact);
+      setVal("bankAccountRef", bank.accountReference);
+      const refs = Array.isArray(s2.references) ? s2.references : [];
+      const r1 = refs[0] || {}, r2 = refs[1] || {};
+      setVal("ref1Company", r1.company); setVal("ref1Contact", r1.contact); setVal("ref1Email", r1.email);
+      setVal("ref1Phone", r1.phone); setVal("ref1Terms", r1.terms);
+      setVal("ref2Company", r2.company); setVal("ref2Contact", r2.contact); setVal("ref2Email", r2.email);
+      setVal("ref2Phone", r2.phone); setVal("ref2Terms", r2.terms);
+    }
+
+    el("resumeBtn").addEventListener("click", async () => {
+      const code = val("resumeCode");
+      if (!code) return;
+      el("resumeBtn").disabled = true;
+      try {
+        const res = await fetch("/api/credit-application/resume/" + encodeURIComponent(code));
+        const body = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(body.error || "We couldn't find that application code.");
+        const app = body.application;
+        appToken = app.token;
+        fillFromSaved(app);
+        el("codeValue").textContent = appToken;
+        el("codeBanner").classList.add("show");
+        el("resumeRow").style.display = "none";
+        showStep(Math.min(3, (app.stepCompleted || 1) + 1));
+        setStatus("Welcome back — we've restored what you saved.", "ok");
+      } catch (err) {
+        setStatus(err.message, "error");
+      } finally {
+        el("resumeBtn").disabled = false;
+      }
+    });
+
+    // ---------------- Signature pad ----------------
+    const sigCanvas = el("sigCanvas");
+    const sigCtx = sigCanvas.getContext("2d");
+    let sigDrawn = false;
+    let drawing = false;
+
+    function sizeSigCanvas() {
+      const frame = sigCanvas.parentElement;
+      const ratio = window.devicePixelRatio || 1;
+      const width = frame.clientWidth || 600;
+      const height = 170;
+      // Preserve any existing drawing across resizes.
+      const prior = sigDrawn ? sigCanvas.toDataURL("image/png") : null;
+      sigCanvas.width = width * ratio;
+      sigCanvas.height = height * ratio;
+      sigCtx.setTransform(ratio, 0, 0, ratio, 0, 0);
+      sigCtx.lineWidth = 2.2;
+      sigCtx.lineCap = "round";
+      sigCtx.lineJoin = "round";
+      sigCtx.strokeStyle = "#1f2937";
+      if (prior) {
+        const img = new Image();
+        img.onload = () => sigCtx.drawImage(img, 0, 0, width, height);
+        img.src = prior;
+      }
+    }
+    sizeSigCanvas();
+    window.addEventListener("resize", sizeSigCanvas);
+
+    function sigPoint(event) {
+      const rect = sigCanvas.getBoundingClientRect();
+      return { x: event.clientX - rect.left, y: event.clientY - rect.top };
+    }
+
+    sigCanvas.addEventListener("pointerdown", (event) => {
+      event.preventDefault();
+      drawing = true;
+      sigCanvas.setPointerCapture(event.pointerId);
+      const p = sigPoint(event);
+      sigCtx.beginPath();
+      sigCtx.moveTo(p.x, p.y);
+      // A dot for taps.
+      sigCtx.lineTo(p.x + 0.1, p.y + 0.1);
+      sigCtx.stroke();
+      sigDrawn = true;
+      el("sigHint").style.display = "none";
+    });
+    sigCanvas.addEventListener("pointermove", (event) => {
+      if (!drawing) return;
+      event.preventDefault();
+      const p = sigPoint(event);
+      sigCtx.lineTo(p.x, p.y);
+      sigCtx.stroke();
+    });
+    ["pointerup", "pointercancel", "pointerleave"].forEach((type) =>
+      sigCanvas.addEventListener(type, () => { drawing = false; })
+    );
+
+    el("sigClear").addEventListener("click", () => {
+      sigCtx.clearRect(0, 0, sigCanvas.width, sigCanvas.height);
+      sigDrawn = false;
+      el("sigHint").style.display = "";
+    });
+
+    el("typedSigToggle").addEventListener("change", () => {
+      const typed = checked("typedSigToggle");
+      el("sigCanvasBlock").style.display = typed ? "none" : "";
+      el("typedSigBlock").style.display = typed ? "" : "none";
+    });
+
+    // Trim the signature image to just the drawn area (plus padding) so the
+    // emailed PNG isn't a mostly-empty banner.
+    function signatureImageData() {
+      const ratio = window.devicePixelRatio || 1;
+      const { width, height } = sigCanvas;
+      const pixels = sigCtx.getImageData(0, 0, width, height);
+      let minX = width, minY = height, maxX = -1, maxY = -1;
+      for (let y = 0; y < height; y++) {
+        for (let x = 0; x < width; x++) {
+          if (pixels.data[(y * width + x) * 4 + 3] > 10) {
+            if (x < minX) minX = x;
+            if (x > maxX) maxX = x;
+            if (y < minY) minY = y;
+            if (y > maxY) maxY = y;
+          }
+        }
+      }
+      if (maxX < 0) return null;
+      const pad = Math.round(8 * ratio);
+      minX = Math.max(0, minX - pad); minY = Math.max(0, minY - pad);
+      maxX = Math.min(width - 1, maxX + pad); maxY = Math.min(height - 1, maxY + pad);
+      const out = document.createElement("canvas");
+      out.width = maxX - minX + 1;
+      out.height = maxY - minY + 1;
+      out.getContext("2d").putImageData(
+        sigCtx.getImageData(minX, minY, out.width, out.height), 0, 0);
+      return out.toDataURL("image/png");
+    }
+
+    // ---------------- Submit ----------------
+    el("submitBtn").addEventListener("click", async () => {
+      setStatus("", "");
+
+      if (!checked("affirmAccurate") || !checked("affirmTerms") || !checked("affirmAuthorize")) {
+        setStatus("Please check all three affirmation boxes to continue.", "error");
+        return;
+      }
+      if (!validateFields(["signerName", "signerTitle", "signDate"])) return;
+
+      const typed = checked("typedSigToggle");
+      let imageData = null;
+      if (typed) {
+        if (!val("signatureText")) {
+          el("signatureText").classList.add("field-error");
+          el("signatureText").focus();
+          setStatus("Please type your full legal name as your signature.", "error");
+          return;
+        }
+      } else {
+        if (!sigDrawn) {
+          setStatus("Please draw your signature, or check the box to type it instead.", "error");
+          return;
+        }
+        imageData = signatureImageData();
+        if (!imageData) {
+          setStatus("Please draw your signature, or check the box to type it instead.", "error");
+          return;
+        }
+      }
+
+      const payload = {
+        token: appToken,
+        data: {
+          affirmations: {
+            accurate: checked("affirmAccurate"),
+            terms: checked("affirmTerms"),
+            authorize: checked("affirmAuthorize")
+          },
+          signature: {
+            printedName: val("signerName"),
+            title: val("signerTitle"),
+            mode: typed ? "typed" : "drawn",
+            signatureText: typed ? val("signatureText") : "",
+            imageData: imageData || "",
+            date: val("signDate")
+          }
         }
       };
 
-      const btn = document.getElementById("submitBtn");
+      const btn = el("submitBtn");
       btn.disabled = true;
       btn.textContent = "Submitting…";
 
       try {
-        const res = await fetch("/api/credit-application", {
+        const res = await fetch("/api/credit-application/submit", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload)
         });
-        const data = await res.json().catch(() => ({}));
-        if (!res.ok) throw new Error(data.error || "Unable to submit the application — please try again.");
+        const body = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(body.error || "Unable to submit the application — please try again.");
 
-        document.getElementById("creditForm").style.display = "none";
-        document.getElementById("successEmail").textContent = payload.company.contactEmail || "your email";
-        document.getElementById("successResaleNote").style.display =
-          payload.business.taxExempt === "Yes" ? "" : "none";
-        document.getElementById("successPanel").style.display = "block";
+        [1, 2, 3].forEach((n) => el("step" + n).classList.remove("active"));
+        el("stepper").style.display = "none";
+        el("codeBanner").classList.remove("show");
+        el("resumeRow").style.display = "none";
+        el("successEmail").textContent = val("contactEmail") || "your email";
+        el("successCode").textContent = appToken || "";
+        el("successResaleNote").style.display = val("taxExempt") === "Yes" ? "" : "none";
+        el("successPanel").style.display = "block";
         window.scrollTo({ top: 0, behavior: "smooth" });
       } catch (err) {
         setStatus(err.message, "error");

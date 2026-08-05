@@ -130,6 +130,7 @@
           { href: "refund-dashboard.html", title: "Refund Dashboard" },
           { href: "incoming-payouts.html", title: "Incoming Payouts" },
           { href: "bank-balancing.html", title: "Bank Balancing" },
+          { href: "credit-applications.html", title: "Builder Credit Applications" },
           { href: "mileage.html", title: "Mileage" },
           { href: "mileage-review.html", title: "Mileage Review" }
         ]

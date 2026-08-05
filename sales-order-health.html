@@ -1,0 +1,805 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="robots" content="noindex,nofollow,noarchive" />
+  <title>Wilson AC &amp; Appliance - Sales Order Health Report</title>
+  <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+  <link rel="stylesheet" href="internal-shell.css" />
+  <style>
+    :root {
+      --bg: #f7f8fc;
+      --card: #ffffff;
+      --text: #1f2937;
+      --muted: #6b7280;
+      --border: #dbe1ea;
+      --primary: #635bff;
+      --primary-hover: #564ef0;
+      --error-bg: #fef2f2;
+      --error-text: #991b1b;
+      --shadow: 0 10px 35px rgba(0, 0, 0, 0.08);
+      --radius: 18px;
+      --series-1: #2a78d6; /* validated chart blue */
+      --warn: #d97706;
+      --danger: #dc2626;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: linear-gradient(180deg, #eef2ff 0%, var(--bg) 100%);
+      color: var(--text);
+      min-height: 100vh;
+      padding: 32px 16px;
+    }
+
+    .wrap { max-width: 1480px; margin: 0 auto; }
+
+    .surface {
+      background: var(--card);
+      border: 1px solid rgba(99, 91, 255, 0.12);
+      box-shadow: var(--shadow);
+      border-radius: var(--radius);
+      padding: 22px;
+      margin: 0 auto 20px;
+    }
+
+    h2 { margin: 0 0 6px; font-size: 20px; }
+    h3 { margin: 0 0 10px; font-size: 15px; }
+    .section-note { margin: 0 0 14px; color: var(--muted); font-size: 13.5px; line-height: 1.5; }
+
+    .toolbar { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+
+    .primary-btn {
+      appearance: none;
+      border: none;
+      background: var(--primary);
+      color: #fff;
+      border-radius: 10px;
+      padding: 10px 16px;
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+      font-family: inherit;
+    }
+    .primary-btn:hover { background: var(--primary-hover); }
+    .primary-btn:disabled { opacity: 0.6; cursor: wait; }
+
+    .asof { font-size: 13px; color: var(--muted); }
+    .asof strong { color: var(--text); }
+
+    /* Tiles */
+    .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 14px; margin-top: 14px; }
+    .tile {
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 14px 16px;
+      background: #fff;
+    }
+    .tile .label { font-size: 11.5px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
+    .tile .value { font-size: 24px; font-weight: 700; margin-top: 4px; }
+    .tile.red .value { color: var(--danger); }
+    .tile.yellow .value { color: var(--warn); }
+
+    /* Chart */
+    .chart-frame { width: 100%; overflow-x: auto; }
+    .chart-note { font-size: 12px; color: var(--muted); margin-top: 6px; }
+
+    /* Filters */
+    .chip {
+      appearance: none;
+      border: 1px solid var(--border);
+      background: #fff;
+      color: var(--text);
+      border-radius: 999px;
+      padding: 8px 14px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      font-family: inherit;
+    }
+    .chip:hover { background: #f3f4f6; }
+    .chip.active { background: var(--primary); border-color: var(--primary); color: #fff; }
+    .chip.red.active { background: var(--danger); border-color: var(--danger); }
+    .chip.yellow.active { background: var(--warn); border-color: var(--warn); }
+
+    select, .toolbar input[type="text"] {
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 9px 12px;
+      font-size: 13px;
+      font-family: inherit;
+      background: #fff;
+      outline: none;
+    }
+    .toolbar input[type="text"] { min-width: 240px; }
+    .toolbar input:focus, select:focus { border-color: rgba(99, 91, 255, 0.75); box-shadow: 0 0 0 4px rgba(99, 91, 255, 0.12); }
+
+    .check-inline { display: inline-flex; align-items: center; gap: 7px; font-size: 13px; font-weight: 600; }
+
+    /* Table */
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    thead th {
+      text-align: left;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--muted);
+      padding: 9px 9px 7px;
+      border-bottom: 1px solid var(--border);
+      white-space: nowrap;
+    }
+    thead th.num, td.num { text-align: right; }
+    tbody td { padding: 8px 9px; border-bottom: 1px solid #eef0f5; vertical-align: top; }
+    tbody tr.sev-red { background: #fef2f2; }
+    tbody tr.sev-yellow { background: #fffbeb; }
+    .empty { text-align: center; color: var(--muted); padding: 26px 10px; }
+
+    .badge {
+      display: inline-block;
+      border-radius: 999px;
+      padding: 2px 9px;
+      font-size: 11px;
+      font-weight: 700;
+      margin: 1px 3px 1px 0;
+      white-space: nowrap;
+    }
+    .badge.red { background: #fee2e2; color: #991b1b; }
+    .badge.yellow { background: #fef3c7; color: #92400e; }
+    .badge.status { background: #eef2ff; color: #3730a3; }
+
+    details.legend { font-size: 13px; color: var(--muted); }
+    details.legend summary { cursor: pointer; font-weight: 600; color: var(--text); }
+    details.legend td { padding: 4px 12px 4px 0; vertical-align: top; }
+    details.legend td:first-child { font-weight: 700; color: var(--text); white-space: nowrap; }
+
+    .banner {
+      display: none;
+      border-radius: 12px;
+      padding: 12px 15px;
+      margin: 12px 0 0;
+      font-size: 13.5px;
+    }
+    .banner.error { background: var(--error-bg); color: var(--error-text); }
+    .banner.ok { background: #ecfdf5; color: #065f46; }
+    .banner.show { display: block; }
+
+    @media (max-width: 760px) {
+      body { padding: 14px 8px; }
+      .surface { padding: 14px; }
+    }
+  </style>
+</head>
+<body data-shell-label="Sales Order Health Report" data-shell-icon="sales">
+  <div class="wrap">
+    <div id="internal-shell-header"></div>
+
+    <div class="surface">
+      <h2>Sales Order Health Report</h2>
+      <p class="section-note">
+        Open orders checked against our job status rules — dates, routing, and COD balances.
+        Upload the latest ExportInvoice report to refresh; everyone sees the same snapshot.
+      </p>
+      <div class="toolbar">
+        <button type="button" class="primary-btn" id="uploadBtn">Upload open order report</button>
+        <input type="file" id="fileInput" accept=".xlsx,.xls" style="display: none;" />
+        <span class="asof" id="asofLine">No data uploaded yet.</span>
+      </div>
+      <div class="banner" id="statusBanner"></div>
+      <div class="tiles" id="tiles" style="display: none;">
+        <div class="tile"><div class="label">Open orders</div><div class="value" id="tileOrders">–</div></div>
+        <div class="tile red"><div class="label">Red flag orders</div><div class="value" id="tileRed">–</div></div>
+        <div class="tile yellow"><div class="label">Yellow flag orders</div><div class="value" id="tileYellow">–</div></div>
+        <div class="tile"><div class="label">Revenue next 12 months</div><div class="value" id="tileRevenue">–</div></div>
+      </div>
+    </div>
+
+    <div class="surface" id="chartSurface" style="display: none;">
+      <h3>Scheduled revenue by month — next 12 months</h3>
+      <p class="section-note" style="margin-bottom: 8px;">Sum of the order Total by scheduled date (pickup date for customer pickups).</p>
+      <div class="chart-frame" id="chartFrame"></div>
+      <div class="chart-note" id="chartNote"></div>
+    </div>
+
+    <div class="surface" id="tableSurface" style="display: none;">
+      <div class="toolbar" style="margin-bottom: 12px;">
+        <input id="searchInput" type="text" placeholder="Search invoice, customer, or SP…" />
+        <button type="button" class="chip active" data-sev="all">All severities</button>
+        <button type="button" class="chip red" data-sev="red">Red</button>
+        <button type="button" class="chip yellow" data-sev="yellow">Yellow</button>
+        <select id="statusFilter">
+          <option value="all">All job statuses</option>
+        </select>
+        <label class="check-inline"><input type="checkbox" id="flaggedOnly" checked /> Flagged orders only</label>
+        <span style="flex: 1;"></span>
+        <span class="asof" id="countLine"></span>
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th>Invoice</th>
+            <th>Job Status</th>
+            <th>SP</th>
+            <th>Customer</th>
+            <th>Date</th>
+            <th>Route</th>
+            <th>Type</th>
+            <th class="num">Total</th>
+            <th class="num">Balance</th>
+            <th>Flags</th>
+          </tr>
+        </thead>
+        <tbody id="tableBody"></tbody>
+      </table>
+    </div>
+
+    <div class="surface">
+      <details class="legend">
+        <summary>Job status rules used by this report</summary>
+        <table style="margin-top: 10px;">
+          <tr><td>Everything</td><td>No date in the past (except D7) and no negative COD balance.</td></tr>
+          <tr><td>D1</td><td>Written business awaiting deposit or PO — no extra checks.</td></tr>
+          <tr><td>D2 / D2T</td><td>Should be ordered. Yellow if COD with no payment received.</td></tr>
+          <tr><td>D2R</td><td>Yellow by default (product not here, holding schedule time). Red if any COD balance is due or the order isn't routed.</td></tr>
+          <tr><td>D3</td><td>Product reserved, ready to fulfill. Yellow if not yet scheduled (no route).</td></tr>
+          <tr><td>D3-PRE</td><td>Obsolete status — always red.</td></tr>
+          <tr><td>D4 / D4T</td><td>Scheduled to go out. Red if not routed or any COD balance remains.</td></tr>
+          <tr><td>D7</td><td>Finished. Red if dated in the future; yellow if still Open ("Not Posted" is fine).</td></tr>
+          <tr><td>D8</td><td>Cancelled — yellow until closed.</td></tr>
+          <tr><td>CPU…</td><td>Customer pickups — only checked for pickup dates in the past.</td></tr>
+        </table>
+      </details>
+    </div>
+
+    <div id="internal-shell-footer"></div>
+  </div>
+
+  <script src="internal-shell.js"></script>
+  <script>
+    let snapshot = null;   // { rows, uploadedAt, uploadedByName, filename, rowCount }
+    let health = [];       // rows + computed flags
+    let sevFilter = "all";
+    let statusFilterValue = "all";
+    let searchTerm = "";
+
+    function el(id) { return document.getElementById(id); }
+    function escapeHtml(value) {
+      return String(value == null ? "" : value)
+        .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+    }
+
+    function todayChicago() {
+      return new Date().toLocaleDateString("en-CA", { timeZone: "America/Chicago" });
+    }
+
+    function fmtMoney(n, decimals = 0) {
+      if (n == null || !Number.isFinite(n)) return "";
+      return "$" + n.toLocaleString("en-US", { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
+    }
+    function fmtCompact(n) {
+      if (n >= 1000000) return "$" + (n / 1000000).toFixed(2).replace(/\.?0+$/, "") + "M";
+      if (n >= 10000) return "$" + Math.round(n / 1000) + "k";
+      return fmtMoney(n);
+    }
+
+    // ------------------------------------------------------------------
+    // Health rules
+    // ------------------------------------------------------------------
+    function isCpu(order) { return /^CPU/i.test(order.jobStatus || ""); }
+    function baseStatus(order) {
+      const js = String(order.jobStatus || "").toUpperCase();
+      if (js === "D2T") return "D2";
+      if (js === "D4T") return "D4";
+      return js;
+    }
+    function effectiveDate(order) {
+      return isCpu(order) ? (order.pickupDate || order.schedDate || "") : (order.schedDate || order.pickupDate || "");
+    }
+
+    function computeFlags(order, today) {
+      const flags = [];
+      const red = (text) => flags.push({ level: "red", text });
+      const yellow = (text) => flags.push({ level: "yellow", text });
+      const js = baseStatus(order);
+      const date = effectiveDate(order);
+      const cod = String(order.paymentType || "").toUpperCase() === "COD";
+      const balance = Number.isFinite(order.balance) ? order.balance : null;
+      const total = Number.isFinite(order.total) ? order.total : null;
+      const routed = !!String(order.route || "").trim();
+
+      // Customer pickups: only the past-date rule applies for now.
+      if (isCpu(order)) {
+        if (date && date < today) red("Pickup date in the past");
+        return flags;
+      }
+
+      // Global rules
+      if (js !== "D7") {
+        if (date && date < today) red("Date in the past");
+        if (!date) yellow("No scheduled date");
+      }
+      if (cod && balance != null && balance < 0) red("Negative balance");
+
+      switch (js) {
+        case "D2":
+          if (cod && total != null && total > 0 && balance != null && balance >= total) {
+            yellow("COD with no payment — hold ordering");
+          }
+          break;
+        case "D2R":
+          yellow("Awaiting product, holding schedule time");
+          if (cod && balance != null && balance > 0) red("Balance due on D2R");
+          if (!routed) red("Holding schedule but not routed");
+          break;
+        case "D3":
+          if (!routed) yellow("Ready to fulfill — needs scheduling");
+          break;
+        case "D3-PRE":
+          red("Obsolete status (D3-PRE)");
+          break;
+        case "D4":
+          if (!routed) red("Scheduled to go out but not routed");
+          if (cod && balance != null && balance > 0) red("Balance due on scheduled order");
+          break;
+        case "D7":
+          if (date && date > today) red("Finished order dated in the future");
+          if (String(order.status || "").trim().toLowerCase() === "open") yellow("Finished but still open");
+          break;
+        case "D8":
+          yellow("Cancelled — needs to be closed");
+          break;
+      }
+      return flags;
+    }
+
+    function severityOf(flags) {
+      if (flags.some((f) => f.level === "red")) return "red";
+      if (flags.length) return "yellow";
+      return "ok";
+    }
+
+    function computeHealth() {
+      const today = todayChicago();
+      health = (snapshot?.rows || []).map((order) => {
+        const flags = computeFlags(order, today);
+        return { ...order, flags, severity: severityOf(flags) };
+      });
+    }
+
+    // ------------------------------------------------------------------
+    // Rendering
+    // ------------------------------------------------------------------
+    function renderAsOf() {
+      if (!snapshot) {
+        el("asofLine").textContent = "No data uploaded yet — upload the ExportInvoice report to begin.";
+        return;
+      }
+      const when = snapshot.uploadedAt
+        ? new Date(snapshot.uploadedAt).toLocaleString("en-US", { timeZone: "America/Chicago", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })
+        : "";
+      el("asofLine").innerHTML = `Data as of <strong>${escapeHtml(when)}</strong>` +
+        (snapshot.uploadedByName ? ` — uploaded by ${escapeHtml(snapshot.uploadedByName)}` : "") +
+        ` (${snapshot.rowCount} orders)`;
+    }
+
+    function renderTiles() {
+      el("tiles").style.display = "";
+      el("tileOrders").textContent = health.length;
+      el("tileRed").textContent = health.filter((h) => h.severity === "red").length;
+      el("tileYellow").textContent = health.filter((h) => h.severity === "yellow").length;
+
+      const today = todayChicago();
+      const horizon = monthKeys()[11] + "-31";
+      const next12 = health
+        .filter((h) => { const d = effectiveDate(h); return d && d >= today.slice(0, 8) + "01" && d <= horizon; })
+        .reduce((sum, h) => sum + (Number.isFinite(h.total) ? h.total : 0), 0);
+      el("tileRevenue").textContent = fmtCompact(next12);
+    }
+
+    function monthKeys() {
+      const today = todayChicago();
+      let y = Number(today.slice(0, 4));
+      let m = Number(today.slice(5, 7));
+      const keys = [];
+      for (let i = 0; i < 12; i++) {
+        keys.push(`${y}-${String(m).padStart(2, "0")}`);
+        m++; if (m > 12) { m = 1; y++; }
+      }
+      return keys;
+    }
+
+    const MONTH_NAMES = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    function monthLabel(key) {
+      return `${MONTH_NAMES[Number(key.slice(5, 7)) - 1]} ’${key.slice(2, 4)}`;
+    }
+
+    function renderChart() {
+      el("chartSurface").style.display = "";
+      const keys = monthKeys();
+      const today = todayChicago();
+      const buckets = keys.map((key) => ({ key, label: monthLabel(key), value: 0, kind: "month" }));
+      let past = 0, later = 0, noDate = 0, noDateCount = 0;
+
+      health.forEach((h) => {
+        const total = Number.isFinite(h.total) ? h.total : 0;
+        const d = effectiveDate(h);
+        if (!d) { noDate += total; noDateCount++; return; }
+        const key = d.slice(0, 7);
+        const bucket = buckets.find((b) => b.key === key);
+        if (bucket) bucket.value += total;
+        else if (d < today) past += total;
+        else later += total;
+      });
+
+      const bars = [];
+      if (past > 0) bars.push({ label: "Past due", value: past, kind: "past" });
+      bars.push(...buckets);
+      if (later > 0) bars.push({ label: "Later", value: later, kind: "later" });
+
+      const W = 1280, H = 320, PAD_L = 20, PAD_R = 20, PAD_T = 40, PAD_B = 40;
+      const innerW = W - PAD_L - PAD_R;
+      const innerH = H - PAD_T - PAD_B;
+      const max = Math.max(...bars.map((b) => b.value), 1);
+      const slot = innerW / bars.length;
+      const barW = Math.min(72, slot * 0.66);
+
+      const rects = bars.map((b, i) => {
+        const h = Math.max(b.value > 0 ? 3 : 0, (b.value / max) * innerH);
+        const x = PAD_L + i * slot + (slot - barW) / 2;
+        const y = PAD_T + innerH - h;
+        const fill = b.kind === "past" ? "#d97706" : b.kind === "later" ? "#9ca3af" : "var(--series-1)";
+        const valueLabel = b.value > 0
+          ? `<text x="${x + barW / 2}" y="${y - 8}" text-anchor="middle" font-size="13" font-weight="700" fill="#1f2937">${fmtCompact(b.value)}</text>`
+          : "";
+        return `
+          <rect x="${x}" y="${y}" width="${barW}" height="${h}" rx="5" fill="${fill}"></rect>
+          ${valueLabel}
+          <text x="${x + barW / 2}" y="${PAD_T + innerH + 20}" text-anchor="middle" font-size="12" fill="#6b7280">${escapeHtml(b.label)}</text>`;
+      }).join("");
+
+      el("chartFrame").innerHTML = `
+        <svg viewBox="0 0 ${W} ${H}" style="width: 100%; min-width: 900px; display: block;" role="img" aria-label="Scheduled revenue by month">
+          <line x1="${PAD_L}" y1="${PAD_T + innerH}" x2="${W - PAD_R}" y2="${PAD_T + innerH}" stroke="#dbe1ea" stroke-width="1.5"></line>
+          ${rects}
+        </svg>`;
+
+      const notes = [];
+      if (past > 0) notes.push(`“Past due” is revenue on orders dated before today — those carry red flags below.`);
+      if (later > 0) notes.push(`“Later” is scheduled beyond 12 months.`);
+      if (noDate > 0) notes.push(`${noDateCount} order(s) with no date (${fmtCompact(noDate)}) are excluded.`);
+      el("chartNote").textContent = notes.join(" ");
+    }
+
+    function statusBucketOf(order) {
+      if (isCpu(order)) return "CPU";
+      return baseStatus(order);
+    }
+
+    function renderStatusFilter() {
+      const buckets = [...new Set(health.map(statusBucketOf))].sort();
+      el("statusFilter").innerHTML = '<option value="all">All job statuses</option>' +
+        buckets.map((b) => `<option value="${escapeHtml(b)}">${escapeHtml(b)}</option>`).join("");
+      el("statusFilter").value = statusFilterValue = "all";
+    }
+
+    function renderTable() {
+      el("tableSurface").style.display = "";
+      const flaggedOnly = el("flaggedOnly").checked;
+      const term = searchTerm.toLowerCase();
+
+      const sevRank = { red: 0, yellow: 1, ok: 2 };
+      const rows = health
+        .filter((h) => !flaggedOnly || h.severity !== "ok")
+        .filter((h) => sevFilter === "all" || h.severity === sevFilter)
+        .filter((h) => statusFilterValue === "all" || statusBucketOf(h) === statusFilterValue)
+        .filter((h) => !term || [h.invoice, h.name, h.sp, h.jobStatus].join(" ").toLowerCase().includes(term))
+        .sort((a, b) => (sevRank[a.severity] - sevRank[b.severity]) ||
+          (effectiveDate(a) || "9999").localeCompare(effectiveDate(b) || "9999"));
+
+      el("countLine").textContent = `${rows.length} of ${health.length} orders`;
+
+      if (!rows.length) {
+        el("tableBody").innerHTML = '<tr><td colspan="10" class="empty">No orders match.</td></tr>';
+        return;
+      }
+
+      el("tableBody").innerHTML = rows.map((h) => `
+        <tr class="sev-${h.severity}">
+          <td style="white-space: nowrap; font-weight: 600;">${escapeHtml(h.invoice)}</td>
+          <td><span class="badge status">${escapeHtml(h.jobStatus)}</span></td>
+          <td>${escapeHtml(h.sp)}</td>
+          <td>${escapeHtml(h.name)}</td>
+          <td style="white-space: nowrap;">${escapeHtml(effectiveDate(h))}</td>
+          <td>${escapeHtml(h.route || "—")}</td>
+          <td>${escapeHtml(h.paymentType)}</td>
+          <td class="num">${fmtMoney(h.total, 2)}</td>
+          <td class="num">${fmtMoney(h.balance, 2)}</td>
+          <td>${h.flags.map((f) => `<span class="badge ${f.level}">${escapeHtml(f.text)}</span>`).join("") || ""}</td>
+        </tr>`).join("");
+    }
+
+    function renderAll() {
+      computeHealth();
+      renderAsOf();
+      renderTiles();
+      renderChart();
+      renderStatusFilter();
+      renderTable();
+    }
+
+    // ------------------------------------------------------------------
+    // Upload — parse the xlsx in the browser, post normalized rows.
+    // ------------------------------------------------------------------
+    function setBanner(message, kind) {
+      const banner = el("statusBanner");
+      if (!message) { banner.className = "banner"; banner.textContent = ""; return; }
+      banner.className = "banner show " + kind;
+      banner.textContent = message;
+    }
+
+    function toDateStr(value) {
+      if (value == null || value === "") return "";
+      if (value instanceof Date && !isNaN(value)) {
+        return `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, "0")}-${String(value.getDate()).padStart(2, "0")}`;
+      }
+      if (typeof value === "number" && value > 20000 && value < 60000) {
+        const d = new Date(Math.round((value - 25569) * 86400 * 1000));
+        return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-${String(d.getUTCDate()).padStart(2, "0")}`;
+      }
+      const s = String(value).trim();
+      if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10);
+      const parsed = new Date(s);
+      if (!isNaN(parsed)) {
+        return `${parsed.getFullYear()}-${String(parsed.getMonth() + 1).padStart(2, "0")}-${String(parsed.getDate()).padStart(2, "0")}`;
+      }
+      return "";
+    }
+
+    function headerKey(header) {
+      const h = String(header || "").toLowerCase();
+      if (!h) return null;
+      if (h.includes("user created")) return "userCreated";
+      if (h === "sp") return "sp";
+      if (h.includes("date created")) return "dateCreated";
+      if (h.includes("invoice")) return "invoice";
+      if (h.includes("payment type")) return "paymentType";
+      if (h.includes("balance")) return "balance";
+      if (h.includes("total")) return "total";
+      if (h.includes("job status")) return "jobStatus";
+      if (h === "status") return "status";
+      if (h.includes("pickup")) return "pickupDate";
+      if (h.includes("sched")) return "schedDate";
+      if (h.includes("route")) return "route";
+      if (h.includes("customer")) return "customerNumber";
+      if (h === "name") return "name";
+      if (h.includes("address")) return "address";
+      if (h.includes("zip")) return "zip";
+      if (h.includes("po")) return "po";
+      if (h.includes("reference")) return "reference";
+      return null;
+    }
+
+    // ---- Minimal self-contained xlsx reader (no external libraries). An
+    // xlsx is a ZIP of XML files; the browser can inflate ZIP entries
+    // natively with DecompressionStream, and DOMParser reads the XML. ----
+    async function inflateRaw(bytes) {
+      const stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream("deflate-raw"));
+      return new Uint8Array(await new Response(stream).arrayBuffer());
+    }
+
+    function readZipDirectory(buffer) {
+      const view = new DataView(buffer);
+      const bytes = new Uint8Array(buffer);
+      let eocd = -1;
+      const scanStart = Math.max(0, buffer.byteLength - 22 - 65536);
+      for (let i = buffer.byteLength - 22; i >= scanStart; i--) {
+        if (view.getUint32(i, true) === 0x06054b50) { eocd = i; break; }
+      }
+      if (eocd < 0) throw new Error("That doesn't look like an xlsx file.");
+      const count = view.getUint16(eocd + 10, true);
+      let offset = view.getUint32(eocd + 16, true);
+      const entries = {};
+      const decoder = new TextDecoder();
+      for (let i = 0; i < count; i++) {
+        if (view.getUint32(offset, true) !== 0x02014b50) break;
+        const method = view.getUint16(offset + 10, true);
+        const compSize = view.getUint32(offset + 20, true);
+        const nameLen = view.getUint16(offset + 28, true);
+        const extraLen = view.getUint16(offset + 30, true);
+        const commentLen = view.getUint16(offset + 32, true);
+        const localOffset = view.getUint32(offset + 42, true);
+        const name = decoder.decode(bytes.subarray(offset + 46, offset + 46 + nameLen));
+        entries[name] = { method, compSize, localOffset };
+        offset += 46 + nameLen + extraLen + commentLen;
+      }
+      return { view, bytes, entries };
+    }
+
+    async function readZipText(zip, name) {
+      const entry = zip.entries[name];
+      if (!entry) return null;
+      const nameLen = zip.view.getUint16(entry.localOffset + 26, true);
+      const extraLen = zip.view.getUint16(entry.localOffset + 28, true);
+      const start = entry.localOffset + 30 + nameLen + extraLen;
+      const data = zip.bytes.subarray(start, start + entry.compSize);
+      const raw = entry.method === 0 ? data : await inflateRaw(data);
+      return new TextDecoder().decode(raw);
+    }
+
+    function textOfShared(si) {
+      let out = "";
+      const ts = si.getElementsByTagName("t");
+      for (let i = 0; i < ts.length; i++) out += ts[i].textContent;
+      return out;
+    }
+
+    function refToColIndex(ref) {
+      let n = 0;
+      for (let i = 0; i < ref.length; i++) {
+        const code = ref.charCodeAt(i);
+        if (code < 65 || code > 90) break;
+        n = n * 26 + (code - 64);
+      }
+      return n - 1;
+    }
+
+    async function workbookToGrid(arrayBuffer) {
+      const zip = readZipDirectory(arrayBuffer);
+      const sheetNames = Object.keys(zip.entries)
+        .filter((n) => /^xl\/worksheets\/sheet\d+\.xml$/.test(n))
+        .sort((a, b) => Number(a.match(/\d+/)[0]) - Number(b.match(/\d+/)[0]));
+      if (!sheetNames.length) throw new Error("No worksheet found in that file.");
+
+      const sharedXml = await readZipText(zip, "xl/sharedStrings.xml");
+      const shared = [];
+      if (sharedXml) {
+        const sharedDoc = new DOMParser().parseFromString(sharedXml, "application/xml");
+        const sis = sharedDoc.getElementsByTagName("si");
+        for (let i = 0; i < sis.length; i++) shared.push(textOfShared(sis[i]));
+      }
+
+      const sheetXml = await readZipText(zip, sheetNames[0]);
+      const doc = new DOMParser().parseFromString(sheetXml, "application/xml");
+      const grid = [];
+      const rows = doc.getElementsByTagName("row");
+      for (let r = 0; r < rows.length; r++) {
+        const rowIndex = Number(rows[r].getAttribute("r") || (r + 1)) - 1;
+        const cells = rows[r].getElementsByTagName("c");
+        const out = [];
+        for (let c = 0; c < cells.length; c++) {
+          const cell = cells[c];
+          const ref = cell.getAttribute("r") || "";
+          const col = ref ? refToColIndex(ref) : c;
+          const type = cell.getAttribute("t") || "n";
+          let value = null;
+          if (type === "inlineStr") {
+            value = textOfShared(cell);
+          } else {
+            const v = cell.getElementsByTagName("v")[0];
+            if (v) {
+              const text = v.textContent;
+              if (type === "s") value = shared[Number(text)] ?? "";
+              else if (type === "str" || type === "b") value = text;
+              else value = text === "" ? null : Number(text);
+            }
+          }
+          out[col] = value;
+        }
+        grid[rowIndex] = out;
+      }
+      return grid;
+    }
+
+    function parseWorkbook(grid) {
+      const headerIndex = grid.findIndex((row) =>
+        row && row.some((cell) => String(cell || "").toLowerCase().includes("job status")));
+      if (headerIndex < 0) {
+        throw new Error("Couldn't find the header row — is this the ExportInvoice report?");
+      }
+
+      const keys = grid[headerIndex].map(headerKey);
+      const rows = [];
+      for (let i = headerIndex + 1; i < grid.length; i++) {
+        const raw = grid[i];
+        if (!raw || raw.every((cell) => cell == null || cell === "")) continue;
+        const row = {};
+        keys.forEach((key, col) => { if (key) row[key] = raw[col]; });
+        const invoice = String(row.invoice || "").trim();
+        if (!invoice) continue;
+        rows.push({
+          invoice,
+          sp: String(row.sp || "").trim(),
+          userCreated: String(row.userCreated || "").trim(),
+          dateCreated: toDateStr(row.dateCreated),
+          paymentType: String(row.paymentType || "").trim(),
+          balance: Number.isFinite(Number(row.balance)) && row.balance !== null ? Number(row.balance) : null,
+          total: Number.isFinite(Number(row.total)) && row.total !== null ? Number(row.total) : null,
+          status: String(row.status || "").trim(),
+          pickupDate: toDateStr(row.pickupDate),
+          schedDate: toDateStr(row.schedDate),
+          route: String(row.route || "").trim(),
+          jobStatus: String(row.jobStatus || "").trim(),
+          customerNumber: String(row.customerNumber || "").trim(),
+          name: String(row.name || "").trim(),
+          address: String(row.address || "").trim(),
+          zip: String(row.zip || "").trim(),
+          po: String(row.po || "").trim(),
+          reference: String(row.reference || "").trim()
+        });
+      }
+      return rows;
+    }
+
+    el("uploadBtn").addEventListener("click", () => el("fileInput").click());
+
+    el("fileInput").addEventListener("change", async () => {
+      const file = el("fileInput").files[0];
+      if (!file) return;
+      setBanner("", "");
+      el("uploadBtn").disabled = true;
+      el("uploadBtn").textContent = "Uploading…";
+      try {
+        const buffer = await file.arrayBuffer();
+        const grid = await workbookToGrid(buffer);
+        const rows = parseWorkbook(grid);
+        if (!rows.length) throw new Error("No order rows found in that file.");
+
+        const res = await fetch("/api/sales-orders", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "same-origin",
+          body: JSON.stringify({ filename: file.name, rows })
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error || "Upload failed.");
+        snapshot = data.snapshot;
+        renderAll();
+        setBanner(`Loaded ${rows.length} orders from ${file.name}.`, "ok");
+      } catch (err) {
+        setBanner(err.message, "error");
+      } finally {
+        el("uploadBtn").disabled = false;
+        el("uploadBtn").textContent = "Upload open order report";
+        el("fileInput").value = "";
+      }
+    });
+
+    // ------------------------------------------------------------------
+    // Filters
+    // ------------------------------------------------------------------
+    document.querySelectorAll(".chip[data-sev]").forEach((chip) => {
+      chip.addEventListener("click", () => {
+        document.querySelectorAll(".chip[data-sev]").forEach((c) => c.classList.remove("active"));
+        chip.classList.add("active");
+        sevFilter = chip.dataset.sev;
+        renderTable();
+      });
+    });
+    el("statusFilter").addEventListener("change", () => {
+      statusFilterValue = el("statusFilter").value;
+      renderTable();
+    });
+    el("flaggedOnly").addEventListener("change", renderTable);
+    el("searchInput").addEventListener("input", (event) => {
+      searchTerm = event.target.value.trim();
+      renderTable();
+    });
+
+    // ------------------------------------------------------------------
+    (async function init() {
+      try {
+        const res = await fetch("/api/sales-orders", { credentials: "same-origin" });
+        const data = await res.json();
+        if (res.ok && data.snapshot) {
+          snapshot = data.snapshot;
+          renderAll();
+        }
+      } catch {}
+    })();
+  </script>
+</body>
+</html>

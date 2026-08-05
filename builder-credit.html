@@ -509,15 +509,23 @@
 
       <!-- ============================= STEP 2 ============================= -->
       <div class="step" id="step2">
-        <h2>Bank Reference <span style="text-transform: none; letter-spacing: 0; color: var(--muted); font-weight: 500;">(optional)</span></h2>
-        <div class="grid-3">
+        <h2>Bank Reference</h2>
+        <div class="grid">
           <div>
-            <label for="bankName">Bank name</label>
+            <label class="req" for="bankName">Bank name *</label>
             <input id="bankName" type="text" />
           </div>
           <div>
-            <label for="bankContact">Bank contact or branch phone</label>
-            <input id="bankContact" type="text" />
+            <label class="req" for="bankContactName">Bank contact name *</label>
+            <input id="bankContactName" type="text" />
+          </div>
+          <div>
+            <label class="req" for="bankContactPhone">Bank contact phone *</label>
+            <input id="bankContactPhone" type="tel" />
+          </div>
+          <div>
+            <label class="req" for="bankContactEmail">Bank contact email *</label>
+            <input id="bankContactEmail" type="email" />
           </div>
           <div>
             <label for="bankAccountRef">Account reference</label>
@@ -533,19 +541,19 @@
             <input id="ref1Company" type="text" />
           </div>
           <div>
-            <label for="ref1Contact">Contact name</label>
+            <label class="req" for="ref1Contact">Contact name *</label>
             <input id="ref1Contact" type="text" />
           </div>
           <div>
-            <label for="ref1Email">Email</label>
+            <label class="req" for="ref1Email">Email *</label>
             <input id="ref1Email" type="email" />
           </div>
           <div>
-            <label for="ref1Phone">Phone</label>
+            <label class="req" for="ref1Phone">Phone *</label>
             <input id="ref1Phone" type="tel" />
           </div>
           <div>
-            <label for="ref1Terms">Current terms / account since</label>
+            <label class="req" for="ref1Terms">Current terms / account since *</label>
             <input id="ref1Terms" type="text" />
           </div>
           <div class="full" style="margin-top: 6px;">
@@ -553,19 +561,19 @@
             <input id="ref2Company" type="text" />
           </div>
           <div>
-            <label for="ref2Contact">Contact name</label>
+            <label class="req" for="ref2Contact">Contact name *</label>
             <input id="ref2Contact" type="text" />
           </div>
           <div>
-            <label for="ref2Email">Email</label>
+            <label class="req" for="ref2Email">Email *</label>
             <input id="ref2Email" type="email" />
           </div>
           <div>
-            <label for="ref2Phone">Phone</label>
+            <label class="req" for="ref2Phone">Phone *</label>
             <input id="ref2Phone" type="tel" />
           </div>
           <div>
-            <label for="ref2Terms">Current terms / account since</label>
+            <label class="req" for="ref2Terms">Current terms / account since *</label>
             <input id="ref2Terms" type="text" />
           </div>
         </div>
@@ -605,7 +613,7 @@
         </div>
         <div class="check-row">
           <input id="affirmTerms" type="checkbox" />
-          <label for="affirmTerms" style="margin: 0; font-weight: 500;">I have read and understand the terms of sale stated above and the full <a href="builder-credit-terms.pdf" target="_blank" rel="noopener">Builder &amp; Trade Account Credit Terms</a>, including net thirty day payment terms and applicable finance charges. *</label>
+          <label for="affirmTerms" style="margin: 0; font-weight: 500;">I have read and understand the terms of sale stated above and the full Builder &amp; Trade Account Credit Terms, including net thirty day payment terms and applicable finance charges. *</label>
         </div>
         <div class="check-row">
           <input id="affirmAuthorize" type="checkbox" />
@@ -722,7 +730,9 @@
     const REQUIRED_STEP1 = ["legalName", "mailAddress", "mailCity", "mailState", "mailZip",
       "contactName", "contactPhone", "contactEmail", "businessType", "yearsInBusiness", "ein",
       "owner1Name", "annualVolume", "creditLimit", "poRequired", "taxExempt", "invoiceDelivery"];
-    const REQUIRED_STEP2 = ["ref1Company", "ref2Company"];
+    const REQUIRED_STEP2 = ["bankName", "bankContactName", "bankContactPhone", "bankContactEmail",
+      "ref1Company", "ref1Contact", "ref1Email", "ref1Phone", "ref1Terms",
+      "ref2Company", "ref2Contact", "ref2Email", "ref2Phone", "ref2Terms"];
 
     function clearFieldError(event) {
       event.target.classList.remove("field-error");
@@ -758,6 +768,19 @@
         el("contactEmail").focus();
         setStatus("Please enter a valid contact email address.", "error");
         return false;
+      }
+      return true;
+    }
+
+    function validateStep2() {
+      if (!validateFields(REQUIRED_STEP2)) return false;
+      for (const id of ["bankContactEmail", "ref1Email", "ref2Email"]) {
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val(id))) {
+          el(id).classList.add("field-error");
+          el(id).focus();
+          setStatus("Please enter a valid email address for the highlighted field.", "error");
+          return false;
+        }
       }
       return true;
     }
@@ -838,7 +861,9 @@
       return {
         bank: {
           bankName: val("bankName"),
-          bankContact: val("bankContact"),
+          contactName: val("bankContactName"),
+          contactPhone: val("bankContactPhone"),
+          contactEmail: val("bankContactEmail"),
           accountReference: val("bankAccountRef")
         },
         references: [
@@ -890,7 +915,7 @@
     });
 
     el("step2Next").addEventListener("click", () => {
-      if (!validateFields(REQUIRED_STEP2)) return;
+      if (!validateStep2()) return;
       saveStep(2, step2Data(), el("step2Next"), 3);
     });
 
@@ -945,7 +970,10 @@
 
       const s2 = app.data?.step2 || {};
       const bank = s2.bank || {};
-      setVal("bankName", bank.bankName); setVal("bankContact", bank.bankContact);
+      setVal("bankName", bank.bankName);
+      setVal("bankContactName", bank.contactName || bank.bankContact);
+      setVal("bankContactPhone", bank.contactPhone);
+      setVal("bankContactEmail", bank.contactEmail);
       setVal("bankAccountRef", bank.accountReference);
       const refs = Array.isArray(s2.references) ? s2.references : [];
       const r1 = refs[0] || {}, r2 = refs[1] || {};

@@ -150,6 +150,10 @@ import {
   recordResultEmail,
   deleteCreditApplication
 } from "./lib/credit-app-postgres.js";
+import {
+  getSalesOrderSnapshot,
+  saveSalesOrderSnapshot
+} from "./lib/sales-orders-postgres.js";
 import { extractQuoteDataFromPdfBuffer } from "./lib/spec-scan.js";
 import {
   saveSatisfactionResponse,
@@ -289,7 +293,8 @@ const INTERNAL_PAGE_PATHS = new Set([
   "/refund-dashboard.html",
   "/signature-builder.html",
   "/clearance.html",
-  "/credit-applications.html"
+  "/credit-applications.html",
+  "/sales-order-health.html"
 ]);
 
 const UNAUTHENTICATED_INTERNAL_PATHS = new Set([
@@ -463,7 +468,8 @@ const PAGE_LABELS = {
   "/refund-dashboard.html": "Refund Dashboard",
   "/signature-builder.html": "Email Signature",
   "/clearance.html": "Clearance Hit List",
-  "/credit-applications.html": "Builder Credit Applications"
+  "/credit-applications.html": "Builder Credit Applications",
+  "/sales-order-health.html": "Sales Order Health Report"
 };
 
 // Category groupings for the User Admin permission UI. A page may appear in
@@ -526,6 +532,7 @@ const PAGE_CATEGORIES = [
     label: "Sales",
     pages: [
       "/salesdashboard.html",
+      "/sales-order-health.html",
       "/secret-menu.html",
       "/spec-packages.html",
       "/event-rsvps.html",
@@ -5122,7 +5129,9 @@ app.post("/api/credit-application/submit", rateLimit("credit-application", 5, 60
       ].join(""))}
       ${section("Bank Reference", [
         row("Bank name", clean(bank.bankName)),
-        row("Contact / branch phone", clean(bank.bankContact)),
+        row("Contact name", clean(bank.contactName || bank.bankContact)),
+        row("Contact phone", clean(bank.contactPhone)),
+        row("Contact email", clean(bank.contactEmail)),
         row("Account reference", clean(bank.accountReference))
       ].join(""))}
       ${refBlock("Trade Reference 1", references[0])}
@@ -5179,6 +5188,86 @@ app.post("/api/credit-application/submit", rateLimit("credit-application", 5, 60
   }
 });
 
+// INTERNAL: Sales Order Health Report (sales-order-health.html). The page
+// parses the ExportInvoice xlsx in the browser and posts normalized rows;
+// the latest snapshot is stored whole so everyone sees the same data.
+app.get("/api/sales-orders", requirePagePermission("/sales-order-health.html"), async (req, res) => {
+  try {
+    const snapshot = await getSalesOrderSnapshot();
+    return res.json({ snapshot });
+  } catch (err) {
+    console.error("Sales orders load failed:", err.message);
+    return res.status(500).json({ error: "Unable to load the sales order snapshot." });
+  }
+});
+
+app.post("/api/sales-orders", requirePagePermission("/sales-order-health.html"), async (req, res) => {
+  try {
+    const rows = req.body?.rows;
+    if (!Array.isArray(rows) || !rows.length) {
+      return res.status(400).json({ error: "No order rows found in the upload." });
+    }
+    if (rows.length > 20000) {
+      return res.status(400).json({ error: "That upload has too many rows." });
+    }
+
+    const cleanText = (value, max = 200) => String(value == null ? "" : value).trim().slice(0, max);
+    const cleanNumber = (value) => {
+      const n = Number(value);
+      return Number.isFinite(n) ? Math.round(n * 100) / 100 : null;
+    };
+    const cleanDate = (value) => {
+      const s = String(value || "").trim().slice(0, 10);
+      return /^\d{4}-\d{2}-\d{2}$/.test(s) ? s : "";
+    };
+
+    const normalized = rows
+      .map((row) => ({
+        invoice: cleanText(row.invoice, 40),
+        sp: cleanText(row.sp, 20),
+        userCreated: cleanText(row.userCreated, 20),
+        dateCreated: cleanDate(row.dateCreated),
+        paymentType: cleanText(row.paymentType, 20),
+        balance: cleanNumber(row.balance),
+        total: cleanNumber(row.total),
+        status: cleanText(row.status, 40),
+        pickupDate: cleanDate(row.pickupDate),
+        schedDate: cleanDate(row.schedDate),
+        route: cleanText(row.route, 20),
+        jobStatus: cleanText(row.jobStatus, 20),
+        customerNumber: cleanText(row.customerNumber, 40),
+        name: cleanText(row.name, 120),
+        address: cleanText(row.address, 160),
+        zip: cleanText(row.zip, 20),
+        po: cleanText(row.po, 60),
+        reference: cleanText(row.reference, 120)
+      }))
+      .filter((row) => row.invoice);
+
+    if (!normalized.length) {
+      return res.status(400).json({ error: "No rows with an invoice number found — is this the right export?" });
+    }
+
+    const snapshot = await saveSalesOrderSnapshot({
+      rows: normalized,
+      filename: String(req.body?.filename || "").slice(0, 200),
+      byEmail: req.authUser?.email || req.authUser?.username || "",
+      byName: req.authUser?.displayName || ""
+    });
+
+    recordAudit({
+      ip: req.ip, actorUserId: req.authUser?.id || null,
+      action: "sales_orders_uploaded", targetUserId: null,
+      detail: { rows: normalized.length, filename: snapshot.filename }
+    }).catch(() => {});
+
+    return res.json({ ok: true, snapshot });
+  } catch (err) {
+    console.error("Sales orders upload failed:", err.message);
+    return res.status(500).json({ error: "Unable to store the sales order snapshot." });
+  }
+});
+
 // INTERNAL: Builder Credit Applications admin (credit-applications.html) —
 // tokens and saved answers for complete and partially complete applications.
 app.get("/api/credit-applications", requirePagePermission("/credit-applications.html"), async (req, res) => {
@@ -5213,11 +5302,17 @@ app.post("/api/credit-applications/:token/decision", requirePagePermission("/cre
     if (!token) return res.status(400).json({ error: "Bad application code." });
 
     const decision = String(req.body?.decision || "");
-    const creditLine = String(req.body?.creditLine || "").trim();
+    let creditLine = String(req.body?.creditLine || "").trim();
     const reason = String(req.body?.reason || "").trim();
 
     if (decision === "approved") {
       if (!creditLine) return res.status(400).json({ error: "Enter the approved credit line." });
+      // Normalize to whole dollars with a dollar sign, however it was typed.
+      const amount = Number(creditLine.replace(/[^0-9.]/g, ""));
+      if (!Number.isFinite(amount) || amount <= 0) {
+        return res.status(400).json({ error: "Enter a valid dollar amount for the credit line." });
+      }
+      creditLine = "$" + Math.round(amount).toLocaleString("en-US");
     } else if (decision === "declined") {
       if (!reason) return res.status(400).json({ error: "Enter a reason for the decline." });
     } else {
@@ -5288,12 +5383,11 @@ app.post("/api/credit-applications/:token/email-result", requirePagePermission("
         <strong>${esc(legalName)}</strong> has been <strong style="color:#065f46;">approved</strong>.</p>
         <table cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin:10px 0;">
           <tr><td style="padding:4px 14px 4px 0;color:#6b7280;font-size:12px;">Approved credit line</td><td style="padding:4px 0;font-size:14px;font-weight:bold;">${esc(application.decisionCreditLine)}</td></tr>
-          <tr><td style="padding:4px 14px 4px 0;color:#6b7280;font-size:12px;">Payment terms</td><td style="padding:4px 0;font-size:14px;">Net 30 days from date of invoice</td></tr>
           <tr><td style="padding:4px 14px 4px 0;color:#6b7280;font-size:12px;">Application reference</td><td style="padding:4px 0;font-size:14px;">${esc(token)}</td></tr>
         </table>
         <p style="font-size:14px;">Your account is governed by our
         <a href="${esc(termsUrl)}">Builder &amp; Trade Account Credit Terms</a> — keep a copy for your records.
-        To place an order on your new account, reply to this email or contact your Wilson salesperson.</p>
+        To place an order using your account, please contact your sales consultant.</p>
         <p style="font-size:14px;">Welcome aboard,<br/>Wilson AC &amp; Appliance Accounting</p>`;
     } else {
       subject = "Your Wilson AC & Appliance credit application";

@@ -456,6 +456,16 @@
       const errorEl = () => document.getElementById("actionError");
       const fail = (message) => { const e = errorEl(); if (e) e.textContent = message; };
 
+      // The credit line formats itself as whole dollars — strip whatever the
+      // user types down to digits and re-add the $ and commas.
+      const creditInput = document.getElementById("creditLineInput");
+      if (creditInput) {
+        creditInput.addEventListener("input", () => {
+          const digits = creditInput.value.replace(/[^0-9]/g, "");
+          creditInput.value = digits ? "$" + Number(digits).toLocaleString("en-US") : "";
+        });
+      }
+
       const approveBtn = document.getElementById("approveBtn");
       if (approveBtn) {
         approveBtn.addEventListener("click", async () => {
@@ -600,10 +610,12 @@
               ${kv("Tax-exempt", b.taxExempt)}
               ${kv("TX sales tax permit", b.taxPermit)}
               ${kv("Invoice delivery", b.invoiceDelivery)}
-              ${(bank.bankName || bank.bankContact || bank.accountReference) ? [
+              ${(bank.bankName || bank.contactName || bank.bankContact) ? [
                 sec("Bank Reference"),
                 kv("Bank name", bank.bankName),
-                kv("Contact / branch phone", bank.bankContact),
+                kv("Contact name", bank.contactName || bank.bankContact),
+                kv("Contact phone", bank.contactPhone),
+                kv("Contact email", bank.contactEmail),
                 kv("Account reference", bank.accountReference)
               ].join("") : ""}
               ${refRows("Trade Reference 1", refs[0])}

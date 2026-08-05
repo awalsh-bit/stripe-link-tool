@@ -145,20 +145,18 @@
         title: "Sales Tools",
         children: [
           { href: "salesdashboard.html", title: "Sales Dashboard" },
+          { href: "sales-order-health.html", title: "Sales Order Health Report" },
           { href: "secret-menu.html", title: "Secret Menu" },
           { href: "clearance.html", title: "Clearance Hit List" },
           { href: "spec-packages.html", title: "Spec Packages" }
         ]
       },
       {
-        href: "event-rsvps.html",
-        title: "Event RSVPs",
-        text: "Review active and archived event registrations."
-      },
-      {
-        href: "signature-builder.html",
-        title: "Email Signature",
-        text: "Build your standard Wilson email signature."
+        title: "Company Tools",
+        children: [
+          { href: "event-rsvps.html", title: "Event RSVPs" },
+          { href: "signature-builder.html", title: "Email Signature" }
+        ]
       },
       {
         title: "HR",

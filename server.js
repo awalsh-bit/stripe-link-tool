@@ -200,6 +200,7 @@ const SERVICE_PUBLIC_PATHS = new Set([
   "/",
   "/fireflavor",
   "/applianceservice.html",
+  "/builder-credit.html",
   "/fireflavor.html",
   "/terms.html",
   "/public-shell.css",
@@ -214,6 +215,7 @@ const SERVICE_PUBLIC_PATHS = new Set([
 
 const SERVICE_PUBLIC_API_PREFIXES = [
   "/api/config",
+  "/api/credit-application",
   "/api/events/fire-flavor/rsvp",
   "/api/service/setup-intent",
   "/api/service/submit-request",
@@ -4880,6 +4882,143 @@ app.get("/api/service/setup-intent-result/:setupIntentId", async (req, res) => {
   }
 });
 
+
+// PUBLIC: Trade Partner (builder) credit application. Nothing is stored —
+// the application is formatted and emailed to accounting, full stop.
+app.post("/api/credit-application", rateLimit("credit-application", 5, 60 * 60 * 1000), async (req, res) => {
+  try {
+    // Honeypot: bots fill every field; humans never see this one.
+    if (String(req.body?.website || "").trim()) {
+      return res.json({ ok: true });
+    }
+
+    if (!RESEND_API_KEY || !RESEND_FROM_EMAIL) {
+      return res.status(500).json({ error: "Email delivery is not configured." });
+    }
+
+    const clean = (value, max = 200) => String(value || "").trim().slice(0, max);
+    const company = req.body?.company || {};
+    const business = req.body?.business || {};
+    const bank = req.body?.bank || {};
+    const references = Array.isArray(req.body?.references) ? req.body.references.slice(0, 2) : [];
+    const affirmations = req.body?.affirmations || {};
+    const signature = req.body?.signature || {};
+
+    const legalName = clean(company.legalName);
+    const contactEmail = clean(company.contactEmail);
+    if (!legalName) return res.status(400).json({ error: "Legal company name is required." });
+    if (!clean(company.contactName)) return res.status(400).json({ error: "Primary contact name is required." });
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contactEmail)) {
+      return res.status(400).json({ error: "Enter a valid contact email address." });
+    }
+    if (!affirmations.accurate || !affirmations.terms || !affirmations.authorize) {
+      return res.status(400).json({ error: "All three affirmations must be checked." });
+    }
+    if (!clean(signature.printedName) || !clean(signature.signatureText)) {
+      return res.status(400).json({ error: "The authorized signature section is required." });
+    }
+
+    const esc = (value) => String(value == null ? "" : value)
+      .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
+    const row = (label, value) => value
+      ? `<tr><td style="padding:4px 14px 4px 0;color:#6b7280;font-size:12px;white-space:nowrap;vertical-align:top;">${esc(label)}</td><td style="padding:4px 0;font-size:13px;">${esc(value)}</td></tr>`
+      : "";
+    const section = (title, rows) =>
+      `<h3 style="margin:18px 0 6px;font-size:13px;letter-spacing:0.06em;text-transform:uppercase;color:#4f46e5;">${esc(title)}</h3>` +
+      `<table cellpadding="0" cellspacing="0" style="border-collapse:collapse;">${rows}</table>`;
+
+    const mailingLine = [clean(company.mailingAddress), clean(company.mailingCity), clean(company.mailingState), clean(company.mailingZip)].filter(Boolean).join(", ");
+    const physicalLine = company.physicalSameAsMailing
+      ? "Same as mailing address"
+      : [clean(company.physicalAddress), clean(company.physicalCity), clean(company.physicalState), clean(company.physicalZip)].filter(Boolean).join(", ");
+
+    const refBlock = (label, ref) => section(label, [
+      row("Company", clean(ref?.company)),
+      row("Contact", clean(ref?.contact)),
+      row("Email", clean(ref?.email)),
+      row("Phone", clean(ref?.phone)),
+      row("Terms / since", clean(ref?.terms))
+    ].join(""));
+
+    const html = `<div style="font-family:Arial,Helvetica,sans-serif;color:#1f2937;max-width:640px;">
+      <h2 style="margin:0 0 2px;">Trade Partner Credit Application</h2>
+      <div style="color:#6b7280;font-size:13px;margin-bottom:6px;">Submitted ${esc(new Date().toLocaleString("en-US", { timeZone: APP_TIMEZONE }))} (Central) via the public form</div>
+      ${section("Applicant Company", [
+        row("Legal name", legalName),
+        row("DBA / trade name", clean(company.dbaName)),
+        row("Mailing address", mailingLine),
+        row("Physical address", physicalLine),
+        row("Primary contact", [clean(company.contactName), clean(company.contactTitle)].filter(Boolean).join(" — ")),
+        row("Phone", clean(company.contactPhone)),
+        row("Email", contactEmail),
+        row("AP contact", clean(company.apContact)),
+        row("AP phone", clean(company.apPhone)),
+        row("AP email", clean(company.apEmail))
+      ].join(""))}
+      ${section("Business Information", [
+        row("Business type", clean(business.businessType)),
+        row("Time in business", clean(business.yearsInBusiness)),
+        row("Federal tax ID (EIN)", clean(business.ein)),
+        row("Nature of business", clean(business.natureOfBusiness)),
+        row("Owner / officer 1", [clean(business.owner1Name), clean(business.owner1Title), clean(business.owner1Phone)].filter(Boolean).join(" — ")),
+        row("Owner / officer 2", [clean(business.owner2Name), clean(business.owner2Title), clean(business.owner2Phone)].filter(Boolean).join(" — ")),
+        row("Est. monthly volume", clean(business.monthlyVolume)),
+        row("Requested credit limit", clean(business.creditLimit)),
+        row("PO required", clean(business.poRequired)),
+        row("Tax-exempt", clean(business.taxExempt)),
+        row("TX sales tax permit", clean(business.taxPermit)),
+        row("Invoice delivery", clean(business.invoiceDelivery))
+      ].join(""))}
+      ${section("Bank Reference", [
+        row("Bank name", clean(bank.bankName)),
+        row("Contact / branch phone", clean(bank.bankContact)),
+        row("Account reference", clean(bank.accountReference))
+      ].join("")) }
+      ${refBlock("Trade Reference 1", references[0])}
+      ${refBlock("Trade Reference 2", references[1])}
+      ${section("Affirmations", [
+        row("Information accurate", "Yes"),
+        row("Terms of sale accepted", "Yes"),
+        row("References / credit reports authorized", "Yes")
+      ].join(""))}
+      ${section("Authorized Signature", [
+        row("Printed name", clean(signature.printedName)),
+        row("Title", clean(signature.title)),
+        row("Signature (typed)", clean(signature.signatureText)),
+        row("Date", clean(signature.date))
+      ].join(""))}
+      ${clean(business.taxExempt) === "Yes" ? `<p style="font-size:12.5px;color:#92400e;background:#fffbeb;padding:10px 12px;border-radius:8px;">Applicant marked purchases tax-exempt — watch for their Texas resale certificate.</p>` : ""}
+    </div>`;
+
+    const response = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${RESEND_API_KEY}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        from: RESEND_FROM_EMAIL,
+        to: ["accounting@wilsonappliance.com"],
+        reply_to: contactEmail,
+        subject: `Trade Partner Credit Application — ${legalName}`,
+        html
+      })
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error("Credit application email failed:", response.status, errorText);
+      return res.status(502).json({ error: "We couldn't send your application just now — please try again in a few minutes." });
+    }
+
+    console.log(`Credit application submitted for ${legalName} (${contactEmail})`);
+    return res.json({ ok: true });
+  } catch (err) {
+    console.error("Credit application failed:", err.message);
+    return res.status(500).json({ error: "Unable to submit the application." });
+  }
+});
 
 app.post("/api/service/submit-request", async (req, res) => {
   try {

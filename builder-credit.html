@@ -1,0 +1,634 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="robots" content="noindex,nofollow,noarchive" />
+  <title>Wilson AC &amp; Appliance - Trade Partner Credit Application</title>
+  <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+  <link rel="stylesheet" href="public-shell.css" />
+  <style>
+    :root {
+      --bg: #f7f8fc;
+      --card: #ffffff;
+      --text: #1f2937;
+      --muted: #6b7280;
+      --border: #dbe1ea;
+      --primary: #635bff;
+      --primary-hover: #564ef0;
+      --success-bg: #ecfdf5;
+      --success-text: #065f46;
+      --error-bg: #fef2f2;
+      --error-text: #991b1b;
+      --shadow: 0 10px 35px rgba(0, 0, 0, 0.08);
+      --radius: 18px;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: linear-gradient(180deg, #eef2ff 0%, var(--bg) 100%);
+      color: var(--text);
+      min-height: 100vh;
+      padding: 32px 16px;
+    }
+
+    .wrap { max-width: 980px; margin: 0 auto; }
+
+    .card {
+      background: var(--card);
+      border: 1px solid rgba(99, 91, 255, 0.12);
+      box-shadow: var(--shadow);
+      border-radius: var(--radius);
+      padding: 26px;
+      margin-bottom: 22px;
+    }
+
+    h1 { margin: 0 0 6px; font-size: 24px; }
+    h2 {
+      margin: 26px 0 4px;
+      font-size: 14px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: #4f46e5;
+    }
+    h2:first-of-type { margin-top: 6px; }
+    .section-note { margin: 0 0 14px; color: var(--muted); font-size: 13.5px; line-height: 1.55; }
+    .intro { margin: 0 0 6px; color: var(--muted); font-size: 14px; line-height: 1.6; }
+
+    .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+    .grid-3 { display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 14px; }
+    .grid .full, .grid-3 .full { grid-column: 1 / -1; }
+
+    label { display: block; margin-bottom: 5px; font-size: 12.5px; font-weight: 700; }
+    label .opt { color: var(--muted); font-weight: 500; }
+
+    input[type="text"], input[type="email"], input[type="tel"], input[type="date"], select, textarea {
+      width: 100%;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 10px 12px;
+      font-size: 14px;
+      background: #fff;
+      color: var(--text);
+      outline: none;
+      font-family: inherit;
+    }
+
+    input:focus, select:focus, textarea:focus {
+      border-color: rgba(99, 91, 255, 0.75);
+      box-shadow: 0 0 0 4px rgba(99, 91, 255, 0.12);
+    }
+
+    .check-row {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      font-size: 13.5px;
+      line-height: 1.55;
+      margin-top: 10px;
+    }
+
+    .check-row input { margin-top: 3px; flex: 0 0 auto; }
+
+    .terms-box {
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: #fafbff;
+      padding: 14px 16px;
+      font-size: 12.5px;
+      color: #374151;
+      line-height: 1.65;
+      margin-bottom: 4px;
+    }
+
+    .divider { border: none; border-top: 1px solid var(--border); margin: 22px 0; }
+
+    button {
+      appearance: none;
+      border: none;
+      background: var(--primary);
+      color: #fff;
+      padding: 13px 22px;
+      border-radius: 12px;
+      font-size: 15px;
+      font-weight: 700;
+      cursor: pointer;
+      font-family: inherit;
+    }
+
+    button:hover { background: var(--primary-hover); }
+    button:disabled { opacity: 0.6; cursor: wait; }
+
+    .actions { margin-top: 20px; display: flex; justify-content: flex-end; }
+
+    .status {
+      display: none;
+      margin: 16px 0 0;
+      border-radius: 12px;
+      padding: 13px 15px;
+      font-size: 14px;
+      line-height: 1.55;
+    }
+
+    .status.show { display: block; }
+    .status.error { background: var(--error-bg); color: var(--error-text); }
+    .status.ok { background: var(--success-bg); color: var(--success-text); }
+
+    .success-panel {
+      display: none;
+      text-align: center;
+      padding: 30px 18px;
+    }
+
+    .success-panel h2 { text-transform: none; letter-spacing: 0; font-size: 22px; color: var(--text); margin: 0 0 10px; }
+    .success-panel p { color: var(--muted); font-size: 14.5px; line-height: 1.65; max-width: 560px; margin: 0 auto 8px; }
+
+    .hp-field { position: absolute; left: -9999px; top: -9999px; height: 0; overflow: hidden; }
+
+    @media (max-width: 680px) {
+      body { padding: 14px 8px; }
+      .card { padding: 16px; }
+      .grid, .grid-3 { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body data-public-shell-label="Trade Partner Credit Application"
+      data-public-shell-footer-text="WACA, Inc. dba Wilson AC &amp; Appliance | 4205 E Hwy 290, Dripping Springs, TX 78620">
+  <div class="wrap">
+    <div id="public-shell-header"></div>
+
+    <div class="card" id="formCard">
+      <h1>Trade Partner Credit Application</h1>
+      <p class="intro">
+        Complete all applicable fields. If purchases will be tax-exempt, please also email a completed
+        Texas resale certificate to <strong>accounting@wilsonappliance.com</strong>.
+      </p>
+
+      <form id="creditForm" novalidate>
+        <!-- Honeypot: humans never see or fill this. -->
+        <div class="hp-field" aria-hidden="true">
+          <label for="website">Website</label>
+          <input id="website" name="website" type="text" tabindex="-1" autocomplete="off" />
+        </div>
+
+        <h2>Applicant Company</h2>
+        <div class="grid">
+          <div>
+            <label for="legalName">Legal company name *</label>
+            <input id="legalName" type="text" required />
+          </div>
+          <div>
+            <label for="dbaName">DBA / trade name <span class="opt">(optional)</span></label>
+            <input id="dbaName" type="text" />
+          </div>
+          <div class="full">
+            <label for="mailAddress">Mailing address *</label>
+            <input id="mailAddress" type="text" required />
+          </div>
+        </div>
+        <div class="grid-3" style="margin-top: 14px;">
+          <div>
+            <label for="mailCity">City *</label>
+            <input id="mailCity" type="text" required />
+          </div>
+          <div>
+            <label for="mailState">State *</label>
+            <input id="mailState" type="text" required />
+          </div>
+          <div>
+            <label for="mailZip">ZIP *</label>
+            <input id="mailZip" type="text" required />
+          </div>
+        </div>
+        <div class="check-row">
+          <input id="sameAddress" type="checkbox" checked />
+          <label for="sameAddress" style="margin: 0; font-weight: 600;">Physical address same as mailing address</label>
+        </div>
+        <div id="physicalBlock" style="display: none; margin-top: 14px;">
+          <div class="grid">
+            <div class="full">
+              <label for="physAddress">Physical address</label>
+              <input id="physAddress" type="text" />
+            </div>
+          </div>
+          <div class="grid-3" style="margin-top: 14px;">
+            <div>
+              <label for="physCity">City</label>
+              <input id="physCity" type="text" />
+            </div>
+            <div>
+              <label for="physState">State</label>
+              <input id="physState" type="text" />
+            </div>
+            <div>
+              <label for="physZip">ZIP</label>
+              <input id="physZip" type="text" />
+            </div>
+          </div>
+        </div>
+
+        <div class="grid" style="margin-top: 14px;">
+          <div>
+            <label for="contactName">Primary contact name *</label>
+            <input id="contactName" type="text" required />
+          </div>
+          <div>
+            <label for="contactTitle">Title</label>
+            <input id="contactTitle" type="text" />
+          </div>
+          <div>
+            <label for="contactPhone">Phone *</label>
+            <input id="contactPhone" type="tel" required />
+          </div>
+          <div>
+            <label for="contactEmail">Email *</label>
+            <input id="contactEmail" type="email" required />
+          </div>
+          <div>
+            <label for="apContact">Accounts payable contact <span class="opt">(optional)</span></label>
+            <input id="apContact" type="text" />
+          </div>
+          <div>
+            <label for="apPhone">AP phone</label>
+            <input id="apPhone" type="tel" />
+          </div>
+          <div class="full">
+            <label for="apEmail">AP email</label>
+            <input id="apEmail" type="email" />
+          </div>
+        </div>
+
+        <h2>Business Information</h2>
+        <div class="grid">
+          <div>
+            <label for="businessType">Business type *</label>
+            <select id="businessType" required>
+              <option value="">Select…</option>
+              <option>LLC</option>
+              <option>Corporation</option>
+              <option>Partnership</option>
+              <option>Sole Proprietor</option>
+              <option>Other</option>
+            </select>
+          </div>
+          <div>
+            <label for="yearsInBusiness">Length of time in business *</label>
+            <input id="yearsInBusiness" type="text" placeholder="e.g. 8 years" required />
+          </div>
+          <div>
+            <label for="ein">Federal tax ID (EIN) *</label>
+            <input id="ein" type="text" placeholder="12-3456789" required />
+          </div>
+          <div>
+            <label for="natureOfBusiness">Nature of business *</label>
+            <input id="natureOfBusiness" type="text" placeholder="e.g. Custom home builder" required />
+          </div>
+          <div>
+            <label for="owner1Name">Owner / officer / partner name *</label>
+            <input id="owner1Name" type="text" required />
+          </div>
+          <div class="grid" style="gap: 14px; grid-template-columns: 1fr 1fr;">
+            <div>
+              <label for="owner1Title">Title</label>
+              <input id="owner1Title" type="text" />
+            </div>
+            <div>
+              <label for="owner1Phone">Phone</label>
+              <input id="owner1Phone" type="tel" />
+            </div>
+          </div>
+          <div>
+            <label for="owner2Name">Second owner / officer <span class="opt">(optional)</span></label>
+            <input id="owner2Name" type="text" />
+          </div>
+          <div class="grid" style="gap: 14px; grid-template-columns: 1fr 1fr;">
+            <div>
+              <label for="owner2Title">Title</label>
+              <input id="owner2Title" type="text" />
+            </div>
+            <div>
+              <label for="owner2Phone">Phone</label>
+              <input id="owner2Phone" type="tel" />
+            </div>
+          </div>
+          <div>
+            <label for="monthlyVolume">Estimated monthly purchase volume *</label>
+            <input id="monthlyVolume" type="text" placeholder="$" required />
+          </div>
+          <div>
+            <label for="creditLimit">Requested credit limit *</label>
+            <input id="creditLimit" type="text" placeholder="$" required />
+          </div>
+          <div>
+            <label for="poRequired">Purchase order required? *</label>
+            <select id="poRequired" required>
+              <option value="">Select…</option>
+              <option>Yes</option>
+              <option>No</option>
+            </select>
+          </div>
+          <div>
+            <label for="taxExempt">Purchases tax-exempt? *</label>
+            <select id="taxExempt" required>
+              <option value="">Select…</option>
+              <option>Yes</option>
+              <option>No</option>
+            </select>
+          </div>
+          <div id="permitField" style="display: none;">
+            <label for="taxPermit">Texas sales tax permit no.</label>
+            <input id="taxPermit" type="text" />
+          </div>
+          <div>
+            <label for="invoiceDelivery">Preferred invoice delivery *</label>
+            <select id="invoiceDelivery" required>
+              <option value="">Select…</option>
+              <option>Email</option>
+              <option>Other</option>
+            </select>
+          </div>
+          <div id="invoiceOtherField" style="display: none;">
+            <label for="invoiceOther">Invoice delivery details</label>
+            <input id="invoiceOther" type="text" />
+          </div>
+        </div>
+        <p class="section-note" id="resaleNote" style="display: none; margin-top: 10px;">
+          Since purchases will be tax-exempt, remember to email a completed Texas resale
+          certificate to accounting@wilsonappliance.com.
+        </p>
+
+        <h2>Bank Reference <span class="opt" style="text-transform: none; letter-spacing: 0;">(optional)</span></h2>
+        <div class="grid-3">
+          <div>
+            <label for="bankName">Bank name</label>
+            <input id="bankName" type="text" />
+          </div>
+          <div>
+            <label for="bankContact">Bank contact or branch phone</label>
+            <input id="bankContact" type="text" />
+          </div>
+          <div>
+            <label for="bankAccountRef">Account reference</label>
+            <input id="bankAccountRef" type="text" />
+          </div>
+        </div>
+
+        <h2>Trade References</h2>
+        <p class="section-note">Provide two suppliers or subcontractors with whom you currently hold an open account.</p>
+        <div class="grid">
+          <div class="full">
+            <label for="ref1Company">Reference 1 — company name *</label>
+            <input id="ref1Company" type="text" required />
+          </div>
+          <div>
+            <label for="ref1Contact">Contact name</label>
+            <input id="ref1Contact" type="text" />
+          </div>
+          <div>
+            <label for="ref1Email">Email</label>
+            <input id="ref1Email" type="email" />
+          </div>
+          <div>
+            <label for="ref1Phone">Phone</label>
+            <input id="ref1Phone" type="tel" />
+          </div>
+          <div>
+            <label for="ref1Terms">Current terms / account since <span class="opt">(optional)</span></label>
+            <input id="ref1Terms" type="text" />
+          </div>
+          <div class="full" style="margin-top: 6px;">
+            <label for="ref2Company">Reference 2 — company name *</label>
+            <input id="ref2Company" type="text" required />
+          </div>
+          <div>
+            <label for="ref2Contact">Contact name</label>
+            <input id="ref2Contact" type="text" />
+          </div>
+          <div>
+            <label for="ref2Email">Email</label>
+            <input id="ref2Email" type="email" />
+          </div>
+          <div>
+            <label for="ref2Phone">Phone</label>
+            <input id="ref2Phone" type="tel" />
+          </div>
+          <div>
+            <label for="ref2Terms">Current terms / account since <span class="opt">(optional)</span></label>
+            <input id="ref2Terms" type="text" />
+          </div>
+        </div>
+
+        <h2>Terms of Sale</h2>
+        <div class="terms-box">
+          Approved accounts are sold on net thirty day terms from date of invoice. Balances outstanding beyond
+          thirty days are subject to a service charge of one and one half percent per month, an annual rate of
+          eighteen percent, or the maximum rate permitted by Texas law, whichever is less. WACA, Inc. reserves
+          the right to suspend deliveries, place the account on credit hold, or revoke the credit line at any
+          time and without prior notice. In the event collection efforts become necessary, the applicant agrees
+          to pay all costs of collection, including reasonable attorney fees and court costs, and further agrees
+          that venue for any action arising under this agreement lies in Hays County, Texas. Claims for damage,
+          shortage, or product defect must be submitted in writing within five business days of delivery.
+          Special order and non-stocking merchandise is non-returnable, and any authorized return of stocking
+          merchandise is subject to a twenty five percent restocking fee.
+        </div>
+        <div class="check-row">
+          <input id="affirmAccurate" type="checkbox" required />
+          <label for="affirmAccurate" style="margin: 0; font-weight: 500;">I affirm that all information provided in this application is true, complete, and accurate to the best of my knowledge. *</label>
+        </div>
+        <div class="check-row">
+          <input id="affirmTerms" type="checkbox" required />
+          <label for="affirmTerms" style="margin: 0; font-weight: 500;">I have read and understand the terms of sale stated above, including net thirty day payment terms and applicable finance charges. *</label>
+        </div>
+        <div class="check-row">
+          <input id="affirmAuthorize" type="checkbox" required />
+          <label for="affirmAuthorize" style="margin: 0; font-weight: 500;">I authorize WACA, Inc. to contact the bank and trade references listed above, obtain commercial credit reports on the applicant company, and exchange credit experience information with other creditors. *</label>
+        </div>
+
+        <h2>Authorized Signature</h2>
+        <div class="grid">
+          <div>
+            <label for="signerName">Authorized signer — printed name *</label>
+            <input id="signerName" type="text" required />
+          </div>
+          <div>
+            <label for="signerTitle">Title *</label>
+            <input id="signerTitle" type="text" required />
+          </div>
+          <div>
+            <label for="signatureText">Signature — type your full legal name *</label>
+            <input id="signatureText" type="text" placeholder="Typing your name acts as your signature" required />
+          </div>
+          <div>
+            <label for="signDate">Date *</label>
+            <input id="signDate" type="date" required />
+          </div>
+        </div>
+
+        <div class="actions">
+          <button id="submitBtn" type="submit">Submit application</button>
+        </div>
+        <div id="formStatus" class="status"></div>
+      </form>
+
+      <div class="success-panel" id="successPanel">
+        <h2>Application received</h2>
+        <p>Thank you — your credit application has been sent to our accounting team. We typically
+        review applications within a few business days and will reach out to
+        <span id="successEmail">your email</span> with next steps.</p>
+        <p id="successResaleNote" style="display: none;"><strong>One more step:</strong> since your purchases
+        will be tax-exempt, please email a completed Texas resale certificate to
+        accounting@wilsonappliance.com.</p>
+      </div>
+    </div>
+
+    <div id="public-shell-footer"></div>
+  </div>
+
+  <script src="public-shell.js"></script>
+  <script>
+    function val(id) { return document.getElementById(id).value.trim(); }
+    function checked(id) { return document.getElementById(id).checked; }
+
+    function setStatus(message, kind) {
+      const box = document.getElementById("formStatus");
+      if (!message) {
+        box.className = "status";
+        box.textContent = "";
+        return;
+      }
+      box.className = "status " + kind + " show";
+      box.textContent = message;
+    }
+
+    // Show/hide dependent fields
+    document.getElementById("sameAddress").addEventListener("change", () => {
+      document.getElementById("physicalBlock").style.display =
+        document.getElementById("sameAddress").checked ? "none" : "";
+    });
+
+    document.getElementById("taxExempt").addEventListener("change", () => {
+      const isExempt = document.getElementById("taxExempt").value === "Yes";
+      document.getElementById("permitField").style.display = isExempt ? "" : "none";
+      document.getElementById("resaleNote").style.display = isExempt ? "" : "none";
+    });
+
+    document.getElementById("invoiceDelivery").addEventListener("change", () => {
+      document.getElementById("invoiceOtherField").style.display =
+        document.getElementById("invoiceDelivery").value === "Other" ? "" : "none";
+    });
+
+    // Default the date to today.
+    (function () {
+      const now = new Date();
+      document.getElementById("signDate").value =
+        `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+    })();
+
+    document.getElementById("creditForm").addEventListener("submit", async (event) => {
+      event.preventDefault();
+      setStatus("", "");
+
+      const form = document.getElementById("creditForm");
+      if (!form.checkValidity()) {
+        form.reportValidity();
+        return;
+      }
+
+      if (!checked("affirmAccurate") || !checked("affirmTerms") || !checked("affirmAuthorize")) {
+        setStatus("Please check all three affirmation boxes to continue.", "error");
+        return;
+      }
+
+      const payload = {
+        website: val("website"), // honeypot
+        company: {
+          legalName: val("legalName"),
+          dbaName: val("dbaName"),
+          mailingAddress: val("mailAddress"),
+          mailingCity: val("mailCity"),
+          mailingState: val("mailState"),
+          mailingZip: val("mailZip"),
+          physicalSameAsMailing: checked("sameAddress"),
+          physicalAddress: val("physAddress"),
+          physicalCity: val("physCity"),
+          physicalState: val("physState"),
+          physicalZip: val("physZip"),
+          contactName: val("contactName"),
+          contactTitle: val("contactTitle"),
+          contactPhone: val("contactPhone"),
+          contactEmail: val("contactEmail"),
+          apContact: val("apContact"),
+          apPhone: val("apPhone"),
+          apEmail: val("apEmail")
+        },
+        business: {
+          businessType: val("businessType"),
+          yearsInBusiness: val("yearsInBusiness"),
+          ein: val("ein"),
+          natureOfBusiness: val("natureOfBusiness"),
+          owner1Name: val("owner1Name"),
+          owner1Title: val("owner1Title"),
+          owner1Phone: val("owner1Phone"),
+          owner2Name: val("owner2Name"),
+          owner2Title: val("owner2Title"),
+          owner2Phone: val("owner2Phone"),
+          monthlyVolume: val("monthlyVolume"),
+          creditLimit: val("creditLimit"),
+          poRequired: val("poRequired"),
+          taxExempt: val("taxExempt"),
+          taxPermit: val("taxPermit"),
+          invoiceDelivery: val("invoiceDelivery") === "Other" ? "Other: " + val("invoiceOther") : val("invoiceDelivery")
+        },
+        bank: {
+          bankName: val("bankName"),
+          bankContact: val("bankContact"),
+          accountReference: val("bankAccountRef")
+        },
+        references: [
+          { company: val("ref1Company"), contact: val("ref1Contact"), email: val("ref1Email"), phone: val("ref1Phone"), terms: val("ref1Terms") },
+          { company: val("ref2Company"), contact: val("ref2Contact"), email: val("ref2Email"), phone: val("ref2Phone"), terms: val("ref2Terms") }
+        ],
+        affirmations: {
+          accurate: checked("affirmAccurate"),
+          terms: checked("affirmTerms"),
+          authorize: checked("affirmAuthorize")
+        },
+        signature: {
+          printedName: val("signerName"),
+          title: val("signerTitle"),
+          signatureText: val("signatureText"),
+          date: val("signDate")
+        }
+      };
+
+      const btn = document.getElementById("submitBtn");
+      btn.disabled = true;
+      btn.textContent = "Submitting…";
+
+      try {
+        const res = await fetch("/api/credit-application", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error || "Unable to submit the application — please try again.");
+
+        document.getElementById("creditForm").style.display = "none";
+        document.getElementById("successEmail").textContent = payload.company.contactEmail || "your email";
+        document.getElementById("successResaleNote").style.display =
+          payload.business.taxExempt === "Yes" ? "" : "none";
+        document.getElementById("successPanel").style.display = "block";
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      } catch (err) {
+        setStatus(err.message, "error");
+        btn.disabled = false;
+        btn.textContent = "Submit application";
+      }
+    });
+  </script>
+</body>
+</html>

@@ -34,6 +34,7 @@
               <div class="public-shell-menu-panel">
                 <a class="public-shell-menu-link" href="https://www.wilsonappliance.com" target="_blank" rel="noopener noreferrer">Home</a>
                 <a class="public-shell-menu-link" href="applianceservice.html">Request Repair Service</a>
+                <a class="public-shell-menu-link" href="builder-credit.html">Builder Credit Application</a>
               </div>
             </div>
             <img class="public-shell-logo" src="logo-black.png" alt="Wilson AC & Appliance" />

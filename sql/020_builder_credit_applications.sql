@@ -16,5 +16,14 @@ CREATE TABLE IF NOT EXISTS builder_credit_applications (
   data JSONB NOT NULL DEFAULT '{}'::jsonb,      -- { step1: {...}, step2: {...}, step3: {...} }
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  submitted_at TIMESTAMPTZ
+  submitted_at TIMESTAMPTZ,
+  -- Approval processing (credit-applications.html): approve with a credit
+  -- line or decline with a reason, then email the applicant the result.
+  decision TEXT NOT NULL DEFAULT '',            -- '' | approved | declined
+  decision_credit_line TEXT NOT NULL DEFAULT '',
+  decision_reason TEXT NOT NULL DEFAULT '',
+  decided_by TEXT NOT NULL DEFAULT '',
+  decided_at TIMESTAMPTZ,
+  result_emailed_to TEXT NOT NULL DEFAULT '',
+  result_emailed_at TIMESTAMPTZ
 );

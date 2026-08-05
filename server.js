@@ -146,6 +146,8 @@ import {
   saveCreditApplicationStep,
   submitCreditApplication,
   listCreditApplications,
+  recordCreditDecision,
+  recordResultEmail,
   deleteCreditApplication
 } from "./lib/credit-app-postgres.js";
 import { extractQuoteDataFromPdfBuffer } from "./lib/spec-scan.js";
@@ -5199,6 +5201,146 @@ app.get("/api/credit-applications/:token", requirePagePermission("/credit-applic
   } catch (err) {
     console.error("Credit application detail failed:", err.message);
     return res.status(500).json({ error: "Unable to load the application." });
+  }
+});
+
+// Approve (with a credit line) or decline (with a reason) a submitted
+// application. Anyone with the page grant can decide; the latest decision
+// wins so a mistaken click can be corrected.
+app.post("/api/credit-applications/:token/decision", requirePagePermission("/credit-applications.html"), async (req, res) => {
+  try {
+    const token = normalizeCreditAppToken(req.params.token);
+    if (!token) return res.status(400).json({ error: "Bad application code." });
+
+    const decision = String(req.body?.decision || "");
+    const creditLine = String(req.body?.creditLine || "").trim();
+    const reason = String(req.body?.reason || "").trim();
+
+    if (decision === "approved") {
+      if (!creditLine) return res.status(400).json({ error: "Enter the approved credit line." });
+    } else if (decision === "declined") {
+      if (!reason) return res.status(400).json({ error: "Enter a reason for the decline." });
+    } else {
+      return res.status(400).json({ error: "Bad decision." });
+    }
+
+    const application = await recordCreditDecision({
+      token,
+      decision,
+      creditLine: decision === "approved" ? creditLine : "",
+      reason: decision === "declined" ? reason : "",
+      byName: req.authUser?.displayName || req.authUser?.username || ""
+    });
+    if (!application) {
+      return res.status(404).json({ error: "Only submitted applications can be approved or declined." });
+    }
+
+    recordAudit({
+      ip: req.ip, actorUserId: req.authUser?.id || null,
+      action: decision === "approved" ? "credit_application_approved" : "credit_application_declined",
+      targetUserId: null,
+      detail: { token, creditLine, reason }
+    }).catch(() => {});
+
+    return res.json({ ok: true, application });
+  } catch (err) {
+    console.error("Credit application decision failed:", err.message);
+    return res.status(500).json({ error: "Unable to record the decision." });
+  }
+});
+
+// Email the applicant the result of the decision — the user confirms the
+// destination address first, like a card receipt.
+app.post("/api/credit-applications/:token/email-result", requirePagePermission("/credit-applications.html"), async (req, res) => {
+  try {
+    if (!RESEND_API_KEY || !RESEND_FROM_EMAIL) {
+      return res.status(500).json({ error: "Email delivery is not configured." });
+    }
+
+    const token = normalizeCreditAppToken(req.params.token);
+    if (!token) return res.status(400).json({ error: "Bad application code." });
+
+    const email = String(req.body?.email || "").trim();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      return res.status(400).json({ error: "Enter a valid email address." });
+    }
+
+    const application = await getCreditApplication(token);
+    if (!application) return res.status(404).json({ error: "Application not found." });
+    if (!application.decision) {
+      return res.status(400).json({ error: "Approve or decline the application before emailing the result." });
+    }
+
+    const esc = (value) => String(value == null ? "" : value)
+      .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    const company = application.data?.step1?.company || {};
+    const legalName = company.legalName || application.legalName || "your company";
+    const contactFirst = String(company.contactName || application.contactName || "").trim().split(/\s+/)[0] || "there";
+    const termsUrl = `${getServiceBaseUrl(req)}/builder-credit-terms.pdf`;
+
+    let subject;
+    let bodyHtml;
+    if (application.decision === "approved") {
+      subject = "Your Wilson AC & Appliance trade account is approved";
+      bodyHtml = `
+        <p style="font-size:14px;">Hi ${esc(contactFirst)},</p>
+        <p style="font-size:14px;">Good news — the trade partner credit application for
+        <strong>${esc(legalName)}</strong> has been <strong style="color:#065f46;">approved</strong>.</p>
+        <table cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin:10px 0;">
+          <tr><td style="padding:4px 14px 4px 0;color:#6b7280;font-size:12px;">Approved credit line</td><td style="padding:4px 0;font-size:14px;font-weight:bold;">${esc(application.decisionCreditLine)}</td></tr>
+          <tr><td style="padding:4px 14px 4px 0;color:#6b7280;font-size:12px;">Payment terms</td><td style="padding:4px 0;font-size:14px;">Net 30 days from date of invoice</td></tr>
+          <tr><td style="padding:4px 14px 4px 0;color:#6b7280;font-size:12px;">Application reference</td><td style="padding:4px 0;font-size:14px;">${esc(token)}</td></tr>
+        </table>
+        <p style="font-size:14px;">Your account is governed by our
+        <a href="${esc(termsUrl)}">Builder &amp; Trade Account Credit Terms</a> — keep a copy for your records.
+        To place an order on your new account, reply to this email or contact your Wilson salesperson.</p>
+        <p style="font-size:14px;">Welcome aboard,<br/>Wilson AC &amp; Appliance Accounting</p>`;
+    } else {
+      subject = "Your Wilson AC & Appliance credit application";
+      bodyHtml = `
+        <p style="font-size:14px;">Hi ${esc(contactFirst)},</p>
+        <p style="font-size:14px;">Thank you for applying for a trade partner account for
+        <strong>${esc(legalName)}</strong>. After review, we're unable to approve credit terms at this time.</p>
+        ${application.decisionReason ? `<p style="font-size:14px;"><span style="color:#6b7280;font-size:12px;">Reason:</span><br/>${esc(application.decisionReason)}</p>` : ""}
+        <p style="font-size:14px;">We'd still love to work with you — purchases are always welcome on
+        standard payment (card or check at time of sale), and you're welcome to reapply as circumstances
+        change. Questions? Just reply to this email.</p>
+        <p style="font-size:14px;">Wilson AC &amp; Appliance Accounting<br/>
+        <span style="color:#6b7280;font-size:12px;">Application reference ${esc(token)}</span></p>`;
+    }
+
+    const response = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${RESEND_API_KEY}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        from: RESEND_FROM_EMAIL,
+        to: [email],
+        reply_to: "accounting@wilsonappliance.com",
+        subject,
+        html: `<div style="font-family:Arial,Helvetica,sans-serif;color:#1f2937;max-width:600px;">${bodyHtml}</div>`
+      })
+    });
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error("Credit result email failed:", response.status, errorText);
+      return res.status(502).json({ error: "The email couldn't be sent just now — please try again." });
+    }
+
+    const updated = await recordResultEmail({ token, email });
+
+    recordAudit({
+      ip: req.ip, actorUserId: req.authUser?.id || null,
+      action: "credit_application_result_emailed", targetUserId: null,
+      detail: { token, email, decision: application.decision }
+    }).catch(() => {});
+
+    return res.json({ ok: true, application: updated });
+  } catch (err) {
+    console.error("Credit result email failed:", err.message);
+    return res.status(500).json({ error: "Unable to send the result email." });
   }
 });
 

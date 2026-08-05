@@ -33,7 +33,7 @@
       padding: 32px 16px;
     }
 
-    .wrap { max-width: 1280px; margin: 0 auto; }
+    .wrap { max-width: 1480px; margin: 0 auto; }
 
     .surface {
       background: var(--card);
@@ -74,8 +74,8 @@
     .chip:hover { background: #f3f4f6; }
     .chip.active { background: var(--primary); border-color: var(--primary); color: #fff; }
 
-    table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
-    thead th {
+    table.list { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+    table.list thead th {
       text-align: left;
       font-size: 11.5px;
       text-transform: uppercase;
@@ -85,7 +85,7 @@
       border-bottom: 1px solid var(--border);
       white-space: nowrap;
     }
-    tbody td { padding: 10px; border-bottom: 1px solid #eef0f5; vertical-align: top; }
+    table.list tbody td { padding: 10px; border-bottom: 1px solid #eef0f5; vertical-align: top; }
     tbody tr.row { cursor: pointer; }
     tbody tr.row:hover { background: #f8f8ff; }
     tbody tr.row.open { background: #f5f5ff; }
@@ -101,21 +101,45 @@
       font-weight: 700;
       white-space: nowrap;
     }
-    .pill.submitted { background: #ecfdf5; color: #065f46; }
+    .pill.submitted { background: #eef2ff; color: #3730a3; }
     .pill.progress { background: #fffbeb; color: #92400e; }
+    .pill.approved { background: #ecfdf5; color: #065f46; }
+    .pill.declined { background: #fef2f2; color: #991b1b; }
 
-    /* Detail row */
-    .detail-cell { background: #fafbff; padding: 16px 18px 20px; }
-    .detail-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 18px; }
-    .detail-section h4 {
-      margin: 0 0 6px;
-      font-size: 11.5px;
+    /* ---------- Detail: one standard table ---------- */
+    .detail-cell { background: #fafbff; padding: 16px 18px 20px; cursor: default; }
+    .detail-table-wrap {
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      overflow: hidden;
+      background: #fff;
+    }
+    table.detail { width: 100%; border-collapse: collapse; font-size: 13px; }
+    table.detail tr.sec td {
+      background: #f5f5ff;
+      color: #4f46e5;
       text-transform: uppercase;
       letter-spacing: 0.06em;
-      color: #4f46e5;
+      font-weight: 700;
+      font-size: 11px;
+      padding: 8px 14px;
+      border-top: 1px solid var(--border);
     }
-    .kv { display: grid; grid-template-columns: auto 1fr; gap: 3px 12px; font-size: 13px; }
-    .kv .k { color: var(--muted); font-size: 12px; white-space: nowrap; }
+    table.detail tr:first-child.sec td { border-top: none; }
+    table.detail td.k {
+      width: 260px;
+      color: var(--muted);
+      font-size: 12px;
+      padding: 7px 14px;
+      border-top: 1px solid #eef0f5;
+      white-space: nowrap;
+      vertical-align: top;
+    }
+    table.detail td.v {
+      padding: 7px 14px;
+      border-top: 1px solid #eef0f5;
+      word-break: break-word;
+    }
     .sig-img {
       display: block;
       max-width: 320px;
@@ -124,23 +148,75 @@
       border-radius: 10px;
       background: #fff;
       padding: 6px 10px;
-      margin-top: 4px;
+      margin: 2px 0;
     }
-    .detail-actions { margin-top: 14px; display: flex; gap: 10px; align-items: center; }
+
+    /* ---------- Detail action bar ---------- */
+    .action-bar {
+      margin-top: 14px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    .action-bar .spacer { flex: 1; }
+    .action-bar input[type="text"], .action-bar input[type="email"] {
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 9px 12px;
+      font-size: 13px;
+      font-family: inherit;
+      outline: none;
+    }
+    .action-bar input:focus { border-color: rgba(99, 91, 255, 0.75); box-shadow: 0 0 0 4px rgba(99, 91, 255, 0.12); }
+
+    .approve-btn, .decline-btn, .email-btn {
+      appearance: none;
+      border: none;
+      border-radius: 10px;
+      padding: 10px 16px;
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+      font-family: inherit;
+      color: #fff;
+    }
+    .approve-btn { background: #10b981; }
+    .approve-btn:hover { background: #0ca678; }
+    .decline-btn { background: #dc2626; }
+    .decline-btn:hover { background: #c22020; }
+    .email-btn { background: var(--primary); }
+    .email-btn:hover { background: var(--primary-hover); }
+    .approve-btn:disabled, .decline-btn:disabled, .email-btn:disabled { opacity: 0.6; cursor: wait; }
+
     .danger-btn {
       appearance: none;
       border: 1px solid #fecaca;
       background: #fff;
       color: #991b1b;
       border-radius: 10px;
-      padding: 8px 14px;
+      padding: 9px 14px;
       font-size: 12.5px;
       font-weight: 700;
       cursor: pointer;
       font-family: inherit;
     }
     .danger-btn:hover { background: var(--error-bg); }
-    .detail-note { font-size: 12px; color: var(--muted); }
+
+    .decision-banner {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      border-radius: 10px;
+      padding: 9px 14px;
+      font-size: 13px;
+      font-weight: 600;
+    }
+    .decision-banner.approved { background: #ecfdf5; color: #065f46; }
+    .decision-banner.declined { background: #fef2f2; color: #991b1b; }
+
+    .action-note { font-size: 12px; color: var(--muted); }
+    .action-error { font-size: 12.5px; color: var(--error-text); }
 
     .banner {
       display: none;
@@ -155,9 +231,10 @@
     @media (max-width: 760px) {
       body { padding: 14px 8px; }
       .surface { padding: 14px; }
-      thead { display: none; }
+      table.list thead { display: none; }
       tbody tr.row { display: block; border-bottom: 1px solid var(--border); }
       tbody tr.row td { display: block; border: none; padding: 4px 8px; }
+      table.detail td.k { width: 140px; white-space: normal; }
     }
   </style>
 </head>
@@ -170,13 +247,15 @@
       <p class="section-note">
         Every application started on the public Trade Partner Credit Application form — including
         partially completed ones. The code is what the applicant sees on their screen, so you can
-        look up an application from a phone call. Click a row for the full detail.
+        look up an application from a phone call. Click a row to review, approve or decline, and
+        email the applicant the result.
       </p>
       <div class="toolbar">
         <input id="searchInput" type="text" placeholder="Search code, company, contact, or email…" />
         <button type="button" class="chip active" data-filter="all">All</button>
         <button type="button" class="chip" data-filter="in_progress">In progress</button>
-        <button type="button" class="chip" data-filter="submitted">Submitted</button>
+        <button type="button" class="chip" data-filter="submitted">Awaiting decision</button>
+        <button type="button" class="chip" data-filter="decided">Decided</button>
         <span style="flex: 1;"></span>
         <button type="button" class="chip" id="refreshBtn">Refresh</button>
       </div>
@@ -184,7 +263,7 @@
 
     <div class="surface">
       <div class="banner" id="errorBanner"></div>
-      <table>
+      <table class="list">
         <thead>
           <tr>
             <th>Code</th>
@@ -231,10 +310,18 @@
     }
 
     function statusPill(app) {
-      if (app.status === "submitted") {
-        return '<span class="pill submitted">Submitted</span>';
-      }
+      if (app.decision === "approved") return '<span class="pill approved">Approved</span>';
+      if (app.decision === "declined") return '<span class="pill declined">Declined</span>';
+      if (app.status === "submitted") return '<span class="pill submitted">Awaiting decision</span>';
       return `<span class="pill progress">In progress — step ${app.stepCompleted || 0} of 3</span>`;
+    }
+
+    function matchesFilter(app) {
+      if (statusFilter === "all") return true;
+      if (statusFilter === "in_progress") return app.status === "in_progress";
+      if (statusFilter === "submitted") return app.status === "submitted" && !app.decision;
+      if (statusFilter === "decided") return !!app.decision;
+      return true;
     }
 
     function matchesSearch(app, term) {
@@ -246,9 +333,7 @@
 
     function renderTable() {
       const body = document.getElementById("tableBody");
-      const rows = applications
-        .filter((app) => statusFilter === "all" || app.status === statusFilter)
-        .filter((app) => matchesSearch(app, searchTerm));
+      const rows = applications.filter(matchesFilter).filter((app) => matchesSearch(app, searchTerm));
 
       if (!rows.length) {
         body.innerHTML = '<tr><td colspan="7" class="empty">No applications match.</td></tr>';
@@ -280,9 +365,165 @@
       renderTable();
     }
 
-    function kv(label, value) {
+    function sec(title) {
+      return `<tr class="sec"><td colspan="2">${escapeHtml(title)}</td></tr>`;
+    }
+    function kv(label, value, rawHtml) {
       if (!value) return "";
-      return `<div class="k">${escapeHtml(label)}</div><div>${escapeHtml(value)}</div>`;
+      return `<tr><td class="k">${escapeHtml(label)}</td><td class="v">${rawHtml ? value : escapeHtml(value)}</td></tr>`;
+    }
+
+    async function postAction(url, payload) {
+      const res = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "same-origin",
+        body: JSON.stringify(payload || {})
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || "Request failed.");
+      return data;
+    }
+
+    function mergeApplication(updated) {
+      const index = applications.findIndex((a) => a.token === updated.token);
+      if (index >= 0) {
+        // Keep the list payload light: never hold the signature image in the list.
+        const light = { ...applications[index], ...updated };
+        if (light.data?.step3?.signature?.imageData) {
+          light.data = { ...light.data, step3: { ...light.data.step3, signature: { ...light.data.step3.signature, imageData: "" } } };
+        }
+        applications[index] = light;
+      }
+    }
+
+    function actionBarHtml(app) {
+      const canDelete = !!(session && session.canManageUsers);
+      const deleteBtn = canDelete ? `<button type="button" class="danger-btn" id="deleteBtn">Delete application</button>` : "";
+
+      // Partial applications: nothing to decide yet.
+      if (app.status !== "submitted") {
+        return `
+          <div class="action-bar">
+            ${deleteBtn}
+            <span class="spacer"></span>
+            <span class="action-note">Started ${escapeHtml(formatWhen(app.createdAt))}, last saved ${escapeHtml(formatWhen(app.updatedAt))}.
+            The applicant can resume with code ${escapeHtml(app.token)}.</span>
+          </div>`;
+      }
+
+      // Submitted, no decision yet: approve with credit line / decline with reason.
+      if (!app.decision) {
+        return `
+          <div class="action-bar">
+            ${deleteBtn}
+            <span class="spacer"></span>
+            <input id="creditLineInput" type="text" placeholder="Credit line, e.g. $25,000" style="width: 190px;" />
+            <button type="button" class="approve-btn" id="approveBtn">Approve</button>
+            <input id="declineReasonInput" type="text" placeholder="Reason for decline" style="width: 220px;" />
+            <button type="button" class="decline-btn" id="declineBtn">Decline</button>
+          </div>
+          <div class="action-bar"><span class="spacer"></span><span class="action-error" id="actionError"></span></div>`;
+      }
+
+      // Decided: show the decision and the email-result flow.
+      const decided = app.decision === "approved"
+        ? `<span class="decision-banner approved">Approved — ${escapeHtml(app.decisionCreditLine || "")} credit line</span>`
+        : `<span class="decision-banner declined">Declined${app.decisionReason ? " — " + escapeHtml(app.decisionReason) : ""}</span>`;
+      const decidedNote = `${app.decidedBy ? "by " + escapeHtml(app.decidedBy) : ""} ${app.decidedAt ? escapeHtml(formatWhen(app.decidedAt)) : ""}`.trim();
+      const emailedNote = app.resultEmailedAt
+        ? `<span class="action-note">Result emailed to ${escapeHtml(app.resultEmailedTo)} ${escapeHtml(formatWhen(app.resultEmailedAt))}.</span>`
+        : "";
+
+      return `
+        <div class="action-bar">
+          ${deleteBtn}
+          <span class="spacer"></span>
+          ${decided}
+          <span class="action-note">${decidedNote}</span>
+        </div>
+        <div class="action-bar">
+          <span class="spacer"></span>
+          ${emailedNote}
+          <input id="resultEmailInput" type="email" value="${escapeHtml(app.contactEmail || "")}" placeholder="applicant@email.com" style="width: 260px;" />
+          <button type="button" class="email-btn" id="emailResultBtn">${app.resultEmailedAt ? "Email result again" : "Email result"}</button>
+        </div>
+        <div class="action-bar"><span class="spacer"></span><span class="action-error" id="actionError"></span></div>`;
+    }
+
+    function wireActions(app) {
+      const token = app.token;
+      const errorEl = () => document.getElementById("actionError");
+      const fail = (message) => { const e = errorEl(); if (e) e.textContent = message; };
+
+      const approveBtn = document.getElementById("approveBtn");
+      if (approveBtn) {
+        approveBtn.addEventListener("click", async () => {
+          const creditLine = document.getElementById("creditLineInput").value.trim();
+          if (!creditLine) return fail("Enter the approved credit line first.");
+          approveBtn.disabled = true;
+          try {
+            const data = await postAction(`/api/credit-applications/${encodeURIComponent(token)}/decision`,
+              { decision: "approved", creditLine });
+            mergeApplication(data.application);
+            renderTable();
+          } catch (err) { approveBtn.disabled = false; fail(err.message); }
+        });
+      }
+
+      const declineBtn = document.getElementById("declineBtn");
+      if (declineBtn) {
+        declineBtn.addEventListener("click", async () => {
+          const reason = document.getElementById("declineReasonInput").value.trim();
+          if (!reason) return fail("Enter a reason for the decline first.");
+          declineBtn.disabled = true;
+          try {
+            const data = await postAction(`/api/credit-applications/${encodeURIComponent(token)}/decision`,
+              { decision: "declined", reason });
+            mergeApplication(data.application);
+            renderTable();
+          } catch (err) { declineBtn.disabled = false; fail(err.message); }
+        });
+      }
+
+      const emailBtn = document.getElementById("emailResultBtn");
+      if (emailBtn) {
+        emailBtn.addEventListener("click", async () => {
+          const email = document.getElementById("resultEmailInput").value.trim();
+          if (!email) return fail("Confirm the email address first.");
+          emailBtn.disabled = true;
+          emailBtn.textContent = "Sending…";
+          try {
+            const data = await postAction(`/api/credit-applications/${encodeURIComponent(token)}/email-result`, { email });
+            mergeApplication(data.application);
+            renderTable();
+          } catch (err) {
+            emailBtn.disabled = false;
+            emailBtn.textContent = "Email result";
+            fail(err.message);
+          }
+        });
+      }
+
+      const deleteBtn = document.getElementById("deleteBtn");
+      if (deleteBtn) {
+        deleteBtn.addEventListener("click", async () => {
+          if (deleteBtn.dataset.armed !== "1") {
+            deleteBtn.dataset.armed = "1";
+            deleteBtn.textContent = "Really delete? This can't be undone";
+            return;
+          }
+          deleteBtn.disabled = true;
+          try {
+            await postAction(`/api/credit-applications/${encodeURIComponent(token)}/delete`);
+            openToken = null;
+            await loadList();
+          } catch (err) {
+            deleteBtn.disabled = false;
+            deleteBtn.textContent = err.message;
+          }
+        });
+      }
     }
 
     async function loadDetail(token) {
@@ -293,6 +534,7 @@
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || "Unable to load the application.");
         const app = data.application;
+        mergeApplication(app);
         const s1 = app.data?.step1 || {};
         const c = s1.company || {};
         const b = s1.business || {};
@@ -306,117 +548,73 @@
           ? "Same as mailing"
           : [c.physicalAddress, c.physicalCity, c.physicalState, c.physicalZip].filter(Boolean).join(", ");
 
-        const refSection = (label, ref) => ref && (ref.company || ref.contact) ? `
-          <div class="detail-section">
-            <h4>${escapeHtml(label)}</h4>
-            <div class="kv">
-              ${kv("Company", ref.company)}
-              ${kv("Contact", ref.contact)}
-              ${kv("Email", ref.email)}
-              ${kv("Phone", ref.phone)}
-              ${kv("Terms / since", ref.terms)}
-            </div>
-          </div>` : "";
+        const refRows = (label, ref) => ref && (ref.company || ref.contact) ? [
+          sec(label),
+          kv("Company", ref.company),
+          kv("Contact", ref.contact),
+          kv("Email", ref.email),
+          kv("Phone", ref.phone),
+          kv("Terms / account since", ref.terms)
+        ].join("") : "";
 
-        let signatureHtml = "";
+        let signatureRows = "";
         if (app.status === "submitted" && sig) {
-          const sigBody = sig.mode === "typed"
+          const sigRow = sig.mode === "typed"
             ? kv("Signature (typed)", sig.signatureText)
             : (sig.imageData
-                ? `<div class="k">Signature</div><div><img class="sig-img" src="${escapeHtml(sig.imageData)}" alt="Drawn signature" /></div>`
+                ? kv("Signature", `<img class="sig-img" src="${escapeHtml(sig.imageData)}" alt="Drawn signature" />`, true)
                 : kv("Signature", "Drawn"));
-          signatureHtml = `
-            <div class="detail-section">
-              <h4>Authorized Signature</h4>
-              <div class="kv">
-                ${kv("Printed name", sig.printedName)}
-                ${kv("Title", sig.title)}
-                ${sigBody}
-                ${kv("Date", sig.date)}
-              </div>
-            </div>`;
+          signatureRows = [
+            sec("Authorized Signature"),
+            kv("Printed name", sig.printedName),
+            kv("Title", sig.title),
+            sigRow,
+            kv("Date", sig.date)
+          ].join("");
         }
-
-        const canDelete = !!(session && session.canManageUsers);
 
         cell.innerHTML = `
-          <div class="detail-grid">
-            <div class="detail-section">
-              <h4>Applicant Company</h4>
-              <div class="kv">
-                ${kv("Legal name", c.legalName)}
-                ${kv("DBA", c.dbaName)}
-                ${kv("Mailing", mailing)}
-                ${kv("Physical", physical)}
-                ${kv("Contact", [c.contactName, c.contactTitle].filter(Boolean).join(" — "))}
-                ${kv("Phone", c.contactPhone)}
-                ${kv("Email", c.contactEmail)}
-                ${kv("Accounts payable contact", c.apContact)}
-                ${kv("Accounts payable phone", c.apPhone)}
-                ${kv("Accounts payable email", c.apEmail)}
-              </div>
-            </div>
-            <div class="detail-section">
-              <h4>Business Information</h4>
-              <div class="kv">
-                ${kv("Business type", b.businessType)}
-                ${kv("Time in business", b.yearsInBusiness)}
-                ${kv("EIN", b.ein)}
-                ${kv("Nature of business", b.natureOfBusiness)}
-                ${kv("Owner 1", [b.owner1Name, b.owner1Title, b.owner1Phone].filter(Boolean).join(" — "))}
-                ${kv("Owner 2", [b.owner2Name, b.owner2Title, b.owner2Phone].filter(Boolean).join(" — "))}
-                ${kv("Est. annual volume", b.annualVolume)}
-                ${kv("Requested limit", b.creditLimit)}
-                ${kv("PO required", b.poRequired)}
-                ${kv("Tax-exempt", b.taxExempt)}
-                ${kv("TX permit", b.taxPermit)}
-                ${kv("Invoice delivery", b.invoiceDelivery)}
-              </div>
-            </div>
-            ${(bank.bankName || bank.bankContact) ? `
-            <div class="detail-section">
-              <h4>Bank Reference</h4>
-              <div class="kv">
-                ${kv("Bank", bank.bankName)}
-                ${kv("Contact", bank.bankContact)}
-                ${kv("Account ref", bank.accountReference)}
-              </div>
-            </div>` : ""}
-            ${refSection("Trade Reference 1", refs[0])}
-            ${refSection("Trade Reference 2", refs[1])}
-            ${signatureHtml}
+          <div class="detail-table-wrap">
+            <table class="detail">
+              ${sec("Applicant Company")}
+              ${kv("Legal name", c.legalName)}
+              ${kv("DBA / trade name", c.dbaName)}
+              ${kv("Mailing address", mailing)}
+              ${kv("Physical address", physical)}
+              ${kv("Primary contact", [c.contactName, c.contactTitle].filter(Boolean).join(" — "))}
+              ${kv("Phone", c.contactPhone)}
+              ${kv("Email", c.contactEmail)}
+              ${kv("Accounts payable contact", c.apContact)}
+              ${kv("Accounts payable phone", c.apPhone)}
+              ${kv("Accounts payable email", c.apEmail)}
+              ${sec("Business Information")}
+              ${kv("Business type", b.businessType)}
+              ${kv("Time in business", b.yearsInBusiness)}
+              ${kv("Federal tax ID (EIN)", b.ein)}
+              ${kv("Nature of business", b.natureOfBusiness)}
+              ${kv("Owner / officer 1", [b.owner1Name, b.owner1Title, b.owner1Phone].filter(Boolean).join(" — "))}
+              ${kv("Owner / officer 2", [b.owner2Name, b.owner2Title, b.owner2Phone].filter(Boolean).join(" — "))}
+              ${kv("Est. annual purchase volume", b.annualVolume)}
+              ${kv("Requested credit limit", b.creditLimit)}
+              ${kv("PO required", b.poRequired)}
+              ${kv("Tax-exempt", b.taxExempt)}
+              ${kv("TX sales tax permit", b.taxPermit)}
+              ${kv("Invoice delivery", b.invoiceDelivery)}
+              ${(bank.bankName || bank.bankContact || bank.accountReference) ? [
+                sec("Bank Reference"),
+                kv("Bank name", bank.bankName),
+                kv("Contact / branch phone", bank.bankContact),
+                kv("Account reference", bank.accountReference)
+              ].join("") : ""}
+              ${refRows("Trade Reference 1", refs[0])}
+              ${refRows("Trade Reference 2", refs[1])}
+              ${signatureRows}
+            </table>
           </div>
-          <div class="detail-actions">
-            ${canDelete ? `<button type="button" class="danger-btn" id="deleteBtn">Delete application</button>` : ""}
-            <span class="detail-note">${app.status === "submitted"
-              ? `Submitted ${escapeHtml(formatWhen(app.submittedAt))} — the full application was also emailed to accounting.`
-              : `Started ${escapeHtml(formatWhen(app.createdAt))}, last saved ${escapeHtml(formatWhen(app.updatedAt))}. The applicant can resume with code ${escapeHtml(app.token)}.`}</span>
-          </div>`;
+          ${actionBarHtml(app)}`;
 
-        const deleteBtn = document.getElementById("deleteBtn");
-        if (deleteBtn) {
-          deleteBtn.addEventListener("click", async () => {
-            if (deleteBtn.dataset.armed !== "1") {
-              deleteBtn.dataset.armed = "1";
-              deleteBtn.textContent = "Really delete? This can't be undone";
-              return;
-            }
-            deleteBtn.disabled = true;
-            try {
-              const delRes = await fetch("/api/credit-applications/" + encodeURIComponent(token) + "/delete", {
-                method: "POST",
-                credentials: "same-origin"
-              });
-              const delData = await delRes.json().catch(() => ({}));
-              if (!delRes.ok) throw new Error(delData.error || "Unable to delete.");
-              openToken = null;
-              await loadList();
-            } catch (err) {
-              deleteBtn.disabled = false;
-              deleteBtn.textContent = err.message;
-            }
-          });
-        }
+        cell.addEventListener("click", (event) => event.stopPropagation());
+        wireActions(app);
       } catch (err) {
         cell.textContent = err.message;
       }

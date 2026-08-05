@@ -266,6 +266,35 @@
 
     .toggle-chip.active { background: #1f2937; border-color: #1f2937; color: #fff; }
 
+    .was-price { display: block; color: var(--muted); font-size: 11px; font-weight: 500; text-decoration: line-through; }
+
+    .price-edit {
+      appearance: none;
+      border: none;
+      background: transparent;
+      color: var(--primary);
+      cursor: pointer;
+      font-size: 11px;
+      padding: 1px 4px;
+      font-family: inherit;
+      opacity: 0.55;
+    }
+
+    tr:hover .price-edit { opacity: 1; }
+
+    .price-editor { display: flex; gap: 5px; align-items: center; justify-content: flex-end; flex-wrap: wrap; }
+    .price-editor input {
+      width: 90px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 5px 8px;
+      font-size: 12.5px;
+      font-family: inherit;
+      outline: none;
+      text-align: right;
+    }
+    .price-editor input:focus { border-color: rgba(99, 91, 255, 0.65); }
+
     @media (max-width: 720px) {
       body { padding: 14px 8px; }
       .card { padding: 14px; }
@@ -349,9 +378,39 @@
       return safe.replace(new RegExp("(" + pattern + ")", "ig"), "<mark>$1</mark>");
     }
 
+    function effectivePrice(item) {
+      if (item.priceOverride) return item.priceOverride.price;
+      return typeof item.price === "number" ? item.price : null;
+    }
+
     function priceLabel(item) {
-      if (typeof item.price === "number") return money.format(item.price);
+      const price = effectivePrice(item);
+      if (typeof price === "number") return money.format(price);
       return item.priceText || "—";
+    }
+
+    let priceEditId = null;
+
+    function priceCellHtml(item) {
+      if (priceEditId === item.id) {
+        const current = effectivePrice(item);
+        return `<div class="price-editor">
+          <input type="text" class="price-input" data-id="${escapeHtml(item.id)}" value="${current == null ? "" : current}" />
+          <button type="button" class="sold-btn confirm-price" data-id="${escapeHtml(item.id)}">Save</button>` +
+          (item.priceOverride ? `<button type="button" class="reopen-link reset-price" data-id="${escapeHtml(item.id)}">reset</button>` : "") +
+          `<button type="button" class="reopen-link cancel-price" data-id="${escapeHtml(item.id)}">cancel</button>
+        </div>`;
+      }
+      let html = escapeHtml(priceLabel(item));
+      // Show the crossed-out original only on markdowns — a cut sells better
+      // with the old price visible; a raise just shows the new price.
+      if (item.priceOverride && typeof item.price === "number" && item.priceOverride.price < item.price) {
+        html += `<span class="was-price">was ${escapeHtml(money.format(item.price))}</span>`;
+      }
+      if (session?.canManageUsers) {
+        html += ` <button type="button" class="price-edit" data-id="${escapeHtml(item.id)}" title="Edit price (executive)">edit</button>`;
+      }
+      return html;
     }
 
     // Treat a hold whose clock ran out as available even before a reload —
@@ -472,13 +531,13 @@
           <td>${highlight(item.description)}</td>
           <td class="serial">${escapeHtml(item.serial)}</td>
           <td class="loc">${escapeHtml(item.location || "—")}</td>
-          <td class="num">${escapeHtml(priceLabel(item))}</td>
+          <td class="num">${priceCellHtml(item)}</td>
           <td class="status-cell">${statusCellHtml(item)}</td>
         </tr>
       `).join("");
 
-      const editor = body.querySelector(".so-input");
-      if (editor) editor.focus();
+      const editor = body.querySelector(".so-input") || body.querySelector(".price-input");
+      if (editor) { editor.focus(); if (editor.select) editor.select(); }
     }
 
     // ---- Sold actions (event delegation — the table re-renders often) ----
@@ -543,10 +602,54 @@
       }
     }
 
+    async function postPrice(itemId, price) {
+      try {
+        const res = await fetch("/api/clearance/price", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "same-origin",
+          body: JSON.stringify({ itemId, price })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Unable to update the price.");
+        const item = items.find((i) => i.id === itemId);
+        if (item) {
+          if (data.priceOverride) item.priceOverride = data.priceOverride;
+          else delete item.priceOverride;
+        }
+      } catch (err) {
+        showError(err.message);
+      } finally {
+        priceEditId = null;
+        renderTable();
+      }
+    }
+
     document.getElementById("tableBody").addEventListener("click", (event) => {
       const target = event.target;
       const id = target.getAttribute && target.getAttribute("data-id");
       if (!id) return;
+      if (target.classList.contains("price-edit")) {
+        priceEditId = id;
+        renderTable();
+        return;
+      }
+      if (target.classList.contains("cancel-price")) {
+        priceEditId = null;
+        renderTable();
+        return;
+      }
+      if (target.classList.contains("confirm-price")) {
+        const input = document.querySelector(`.price-input[data-id="${CSS.escape(id)}"]`);
+        const value = (input?.value || "").trim();
+        if (!value) { input?.focus(); return; }
+        postPrice(id, value);
+        return;
+      }
+      if (target.classList.contains("reset-price")) {
+        postPrice(id, null);
+        return;
+      }
       if (target.classList.contains("open-status")) {
         editId = id;
         editMode = "choose";
@@ -572,6 +675,12 @@
       if (event.key === "Enter" && event.target.classList?.contains("so-input")) {
         event.preventDefault();
         confirmSold(event.target.getAttribute("data-id"));
+      }
+      if (event.key === "Enter" && event.target.classList?.contains("price-input")) {
+        event.preventDefault();
+        const id = event.target.getAttribute("data-id");
+        const value = event.target.value.trim();
+        if (value) postPrice(id, value);
       }
     });
 

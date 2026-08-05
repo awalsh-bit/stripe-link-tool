@@ -135,7 +135,10 @@ import {
   markClearanceStatus,
   upgradeHoldToSold,
   clearClearanceStatus,
-  getClearanceStatus
+  getClearanceStatus,
+  listPriceOverrides,
+  setPriceOverride,
+  clearPriceOverride
 } from "./lib/clearance-postgres.js";
 import { extractQuoteDataFromPdfBuffer } from "./lib/spec-scan.js";
 import {
@@ -3807,11 +3810,14 @@ app.get("/api/clearance", requirePagePermission("/clearance.html"), async (req, 
     // Attach live sold marks (kept in Postgres so they survive list
     // refreshes). If the DB is unreachable the list still loads, read-only.
     try {
-      const statuses = await listClearanceStatuses();
+      const [statuses, overrides] = await Promise.all([listClearanceStatuses(), listPriceOverrides()]);
       const byId = new Map(statuses.map((s) => [s.itemId, s]));
+      const overrideById = new Map(overrides.map((o) => [o.itemId, o]));
       for (const item of data.items || []) {
         const status = byId.get(item.id);
         if (status) item.state = status;
+        const override = overrideById.get(item.id);
+        if (override) item.priceOverride = override;
       }
     } catch (dbErr) {
       console.error("Clearance status load failed:", dbErr.message);
@@ -3924,6 +3930,52 @@ app.post("/api/clearance/release", requirePagePermission("/clearance.html"), asy
   } catch (err) {
     console.error("Clearance release failed:", err.message);
     return res.status(500).json({ error: "Unable to release that line." });
+  }
+});
+
+// Executive-only: override a clearance price (or clear the override by
+// sending price: null). The workbook price is never modified — the override
+// rides on top and survives list refreshes.
+app.post("/api/clearance/price", requireExecutiveApi, async (req, res) => {
+  try {
+    const itemId = String(req.body?.itemId || "").trim();
+    if (!itemId) return res.status(400).json({ error: "Missing item id." });
+
+    const userEmail = String(req.authUser?.kind === "db" ? req.authUser.email : "").toLowerCase();
+    const rawPrice = req.body?.price;
+
+    if (rawPrice === null || rawPrice === undefined || String(rawPrice).trim() === "") {
+      await clearPriceOverride(itemId);
+      recordAudit({
+        ip: req.ip, actorUserId: req.authUser?.id || null,
+        action: "clearance_price_cleared", targetUserId: null,
+        detail: { itemId }
+      }).catch(() => {});
+      return res.json({ ok: true, priceOverride: null });
+    }
+
+    const price = Number(String(rawPrice).replace(/[,$\s]/g, ""));
+    if (!Number.isFinite(price) || price < 0 || price > 1000000) {
+      return res.status(400).json({ error: "Enter a valid price." });
+    }
+
+    const override = await setPriceOverride({
+      itemId,
+      price: Math.round(price * 100) / 100,
+      byEmail: userEmail,
+      byName: req.authUser?.displayName || ""
+    });
+
+    recordAudit({
+      ip: req.ip, actorUserId: req.authUser?.id || null,
+      action: "clearance_price_set", targetUserId: null,
+      detail: { itemId, price: override.price }
+    }).catch(() => {});
+
+    return res.json({ ok: true, priceOverride: override });
+  } catch (err) {
+    console.error("Clearance price failed:", err.message);
+    return res.status(500).json({ error: "Unable to update the price." });
   }
 });
 

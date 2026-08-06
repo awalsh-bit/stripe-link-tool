@@ -154,7 +154,10 @@ import {
   getSalesOrderSnapshot,
   saveSalesOrderSnapshot,
   listOrderFlagDismissals,
-  dismissOrderFlag
+  dismissOrderFlag,
+  recordFlagClosure,
+  listFlagClosures,
+  listFlagClosuresRange
 } from "./lib/sales-orders-postgres.js";
 import { extractQuoteDataFromPdfBuffer } from "./lib/spec-scan.js";
 import {
@@ -297,7 +300,8 @@ const INTERNAL_PAGE_PATHS = new Set([
   "/signature-builder.html",
   "/clearance.html",
   "/credit-applications.html",
-  "/sales-order-health.html"
+  "/sales-order-health.html",
+  "/flag-closures.html"
 ]);
 
 const UNAUTHENTICATED_INTERNAL_PATHS = new Set([
@@ -472,7 +476,8 @@ const PAGE_LABELS = {
   "/signature-builder.html": "Email Signature",
   "/clearance.html": "Clearance Hit List",
   "/credit-applications.html": "Builder Credit Applications",
-  "/sales-order-health.html": "Sales Order Health Report"
+  "/sales-order-health.html": "Sales Order Health Report",
+  "/flag-closures.html": "Instance Closure Report"
 };
 
 // Category groupings for the User Admin permission UI. A page may appear in
@@ -536,6 +541,7 @@ const PAGE_CATEGORIES = [
     pages: [
       "/salesdashboard.html",
       "/sales-order-health.html",
+      "/flag-closures.html",
       "/secret-menu.html",
       "/spec-packages.html",
       "/event-rsvps.html",
@@ -5334,15 +5340,81 @@ app.post("/api/sales-orders/dismiss", requirePagePermission("/dashboard.html"), 
     if (!email || !invoice) {
       return res.status(400).json({ error: "Missing invoice." });
     }
-    await dismissOrderFlag({
-      userEmail: email,
-      invoice,
-      signature: String(req.body?.signature || "")
-    });
-    return res.json({ ok: true });
+    const signature = String(req.body?.signature || "");
+
+    await dismissOrderFlag({ userEmail: email, invoice, signature });
+
+    // Append a flag-instance record (RFI-…/YFI-…) so closed fixes can be
+    // inspected on the Sales Order Health Report page. The order row is
+    // snapshotted from the stored report, not trusted from the client.
+    let token = null;
+    try {
+      const snapshot = await getSalesOrderSnapshot();
+      const orderRow = (snapshot?.rows || []).find(
+        (row) => String(row.invoice || "").trim() === invoice
+      );
+      const severity = req.body?.severity === "red" ? "red" : "yellow";
+      const flags = Array.isArray(req.body?.flags)
+        ? req.body.flags
+            .slice(0, 20)
+            .map((f) => ({
+              level: f?.level === "red" ? "red" : "yellow",
+              text: String(f?.text || "").slice(0, 120)
+            }))
+        : [];
+      token = await recordFlagClosure({
+        severity,
+        invoice,
+        signature,
+        flags,
+        orderSnapshot: orderRow || {},
+        byEmail: email,
+        byName: req.authUser?.displayName || "",
+        // Tie the instance to the report version it was closed against.
+        reportUploadedAt: snapshot?.uploadedAt || null,
+        reportFilename: snapshot?.filename || ""
+      });
+    } catch (logErr) {
+      // The close itself succeeded — don't fail the user over the log.
+      console.error("Flag closure log failed:", logErr.message);
+    }
+
+    return res.json({ ok: true, token });
   } catch (err) {
     console.error("Order flag dismiss failed:", err.message);
     return res.status(500).json({ error: "Unable to close that flag." });
+  }
+});
+
+// Closed-flag history for inspection on the Sales Order Health Report page.
+app.get("/api/sales-orders/closures", requirePagePermission("/sales-order-health.html"), async (req, res) => {
+  try {
+    const closures = await listFlagClosures();
+    return res.json({ closures });
+  } catch (err) {
+    console.error("Flag closures load failed:", err.message);
+    return res.status(500).json({ error: "Unable to load the closed flag log." });
+  }
+});
+
+// INTERNAL: Instance Closure Report (flag-closures.html) — date-ranged view
+// of every flag-instance close, for auditing that closed flags were actually
+// fixed on the ePASS order.
+app.get("/api/flag-closures", requirePagePermission("/flag-closures.html"), async (req, res) => {
+  try {
+    const start = String(req.query.start || "").trim();
+    const end = String(req.query.end || "").trim();
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(start) || !/^\d{4}-\d{2}-\d{2}$/.test(end)) {
+      return res.status(400).json({ error: "Provide start and end dates (YYYY-MM-DD)." });
+    }
+    if (end < start) {
+      return res.status(400).json({ error: "End date is before start date." });
+    }
+    const closures = await listFlagClosuresRange({ start, end });
+    return res.json({ closures });
+  } catch (err) {
+    console.error("Instance closure report failed:", err.message);
+    return res.status(500).json({ error: "Unable to load the closure report." });
   }
 });
 

@@ -1064,7 +1064,8 @@
             <h3>My Sales Order Health</h3>
             <p>Flagged sales orders under your employee code, from the latest open order report.
             Close a flag once it's handled — it stays closed unless the order's flags change.
-            <span class="oflag-note" id="orderFlagsAsOf"></span></p>
+            <span class="oflag-note" id="orderFlagsAsOf"></span>
+            <span class="oflag-note" id="orderFlagsClosedNote" style="font-weight: 700;"></span></p>
           </div>
         </div>
         <div class="table-wrap">
@@ -2196,9 +2197,20 @@
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 credentials: "same-origin",
-                body: JSON.stringify({ invoice, signature: order.signature })
+                body: JSON.stringify({
+                  invoice,
+                  signature: order.signature,
+                  severity: order.severity,
+                  flags: order.flags
+                })
               });
               if (!res.ok) throw new Error();
+              const result = await res.json().catch(() => ({}));
+              if (result.token) {
+                const note = document.getElementById("orderFlagsClosedNote");
+                note.textContent = `Closed ${invoice} as ${result.token}.`;
+                setTimeout(() => { if (note.textContent.includes(result.token)) note.textContent = ""; }, 12000);
+              }
               flagged = flagged.filter((o) => o.invoice !== invoice);
               renderOrderFlags();
             } catch {

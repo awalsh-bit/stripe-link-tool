@@ -13,3 +13,14 @@ CREATE TABLE IF NOT EXISTS sales_order_snapshots (
   row_count INTEGER NOT NULL DEFAULT 0,
   data JSONB NOT NULL DEFAULT '[]'::jsonb  -- array of normalized order rows
 );
+
+-- "My Order Flags" queue on the Payments Dashboard: closing a flag card
+-- stores the order's current flag signature per user; the card stays closed
+-- until the order's flags change, then it reappears.
+CREATE TABLE IF NOT EXISTS sales_order_dismissals (
+  user_email TEXT NOT NULL,
+  invoice TEXT NOT NULL,
+  signature TEXT NOT NULL DEFAULT '',
+  dismissed_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  PRIMARY KEY (user_email, invoice)
+);

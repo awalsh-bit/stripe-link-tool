@@ -680,6 +680,29 @@
       flex-wrap: wrap;
     }
 
+    /* My Sales Order Health queue (between the hero cards and the payment queue) */
+    .oflag-badge {
+      display: inline-block;
+      border-radius: 999px;
+      padding: 2px 9px;
+      font-size: 11px;
+      font-weight: 700;
+      margin: 1px 3px 1px 0;
+      white-space: nowrap;
+    }
+    .oflag-badge.red { background: #fee2e2; color: #991b1b; }
+    .oflag-badge.yellow { background: #fef3c7; color: #92400e; }
+    .oflag-badge.status { background: #eef2ff; color: #3730a3; }
+    tr.oflag-red td { background: #fef2f2; }
+    tr.oflag-yellow td { background: #fffbeb; }
+    .oflag-close {
+      background: #fff;
+      color: #374151;
+      border: 1px solid #dbe1ea !important;
+    }
+    .oflag-close:hover { background: #f3f4f6; }
+    .oflag-note { font-size: 12px; color: #6b7280; }
+
     button {
       border: 1px solid transparent;
       border-radius: 999px;
@@ -1034,6 +1057,35 @@
   <button id="cardsCancelBtn" class="cards-tool-btn" type="button" style="display: none;">Cancel</button>
 </div>
 <div class="nav-grid" id="navGrid"></div>
+
+      <div class="card" id="orderFlagsCard" style="display: none;">
+        <div class="section-label">
+          <div>
+            <h3>My Sales Order Health</h3>
+            <p>Flagged sales orders under your employee code, from the latest open order report.
+            Close a flag once it's handled — it stays closed unless the order's flags change.
+            <span class="oflag-note" id="orderFlagsAsOf"></span></p>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Invoice</th>
+                <th>Customer</th>
+                <th>Job Status</th>
+                <th>Date</th>
+                <th>Route</th>
+                <th>Total</th>
+                <th>Balance</th>
+                <th>Flags</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="orderFlagsBody"></tbody>
+          </table>
+        </div>
+      </div>
 
       <div class="card">
         <h2>Payment Queue and Paid History</h2>
@@ -2083,6 +2135,106 @@
           // Leave the grid empty rather than showing cards the user may not
           // be allowed to open.
         }
+      })();
+    })();
+  </script>
+  <script src="order-health-rules.js"></script>
+  <script>
+    // ------------------------------------------------------------------
+    // My Sales Order Health — the signed-in user's flagged sales orders from the
+    // Sales Order Health snapshot, closable per flag state.
+    // ------------------------------------------------------------------
+    (function () {
+      const rules = window.WILSON_ORDER_HEALTH;
+      const card = document.getElementById("orderFlagsCard");
+      const body = document.getElementById("orderFlagsBody");
+      if (!rules || !card) return;
+
+      function esc(value) {
+        return String(value == null ? "" : value)
+          .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+          .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+      }
+      function money(n) {
+        if (n == null || !Number.isFinite(n)) return "";
+        return "$" + n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      }
+
+      let flagged = [];
+
+      function renderOrderFlags() {
+        if (!flagged.length) {
+          card.style.display = "none";
+          return;
+        }
+        card.style.display = "";
+        const sevRank = { red: 0, yellow: 1 };
+        flagged.sort((a, b) => (sevRank[a.severity] - sevRank[b.severity]) ||
+          (rules.effectiveDate(a) || "9999").localeCompare(rules.effectiveDate(b) || "9999"));
+
+        body.innerHTML = flagged.map((order) => `
+          <tr class="oflag-${order.severity}">
+            <td style="white-space: nowrap; font-weight: 600;">${esc(order.invoice)}</td>
+            <td>${esc(order.name)}</td>
+            <td><span class="oflag-badge status">${esc(order.jobStatus)}</span></td>
+            <td style="white-space: nowrap;">${esc(rules.effectiveDate(order))}</td>
+            <td>${esc(order.route || "—")}</td>
+            <td>${money(order.total)}</td>
+            <td>${money(order.balance)}</td>
+            <td>${order.flags.map((f) => `<span class="oflag-badge ${f.level}">${esc(f.text)}</span>`).join("")}</td>
+            <td><button type="button" class="oflag-close" data-invoice="${esc(order.invoice)}">Close</button></td>
+          </tr>`).join("");
+
+        body.querySelectorAll(".oflag-close").forEach((button) => {
+          button.addEventListener("click", async () => {
+            const invoice = button.dataset.invoice;
+            const order = flagged.find((o) => o.invoice === invoice);
+            if (!order) return;
+            button.disabled = true;
+            try {
+              const res = await fetch("/api/sales-orders/dismiss", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                credentials: "same-origin",
+                body: JSON.stringify({ invoice, signature: order.signature })
+              });
+              if (!res.ok) throw new Error();
+              flagged = flagged.filter((o) => o.invoice !== invoice);
+              renderOrderFlags();
+            } catch {
+              button.disabled = false;
+              button.textContent = "Try again";
+            }
+          });
+        });
+      }
+
+      (async function initOrderFlags() {
+        try {
+          const res = await fetch("/api/sales-orders/mine", { credentials: "same-origin" });
+          if (!res.ok) return;
+          const data = await res.json();
+          if (!data.code || !Array.isArray(data.rows) || !data.rows.length) return;
+
+          const today = new Date().toLocaleDateString("en-CA", { timeZone: "America/Chicago" });
+          const dismissed = new Map((data.dismissals || []).map((d) => [d.invoice, d.signature]));
+
+          flagged = data.rows
+            .map((order) => {
+              const flags = rules.computeFlags(order, today);
+              return { ...order, flags, severity: rules.severityOf(flags), signature: rules.flagsSignature(order, flags) };
+            })
+            .filter((order) => order.severity !== "ok")
+            .filter((order) => dismissed.get(order.invoice) !== order.signature);
+
+          if (data.uploadedAt) {
+            const when = new Date(data.uploadedAt).toLocaleString("en-US", {
+              timeZone: "America/Chicago", month: "short", day: "numeric", hour: "numeric", minute: "2-digit"
+            });
+            document.getElementById("orderFlagsAsOf").textContent = `Report data as of ${when}.`;
+          }
+          renderOrderFlags();
+        } catch {}
       })();
     })();
   </script>

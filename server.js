@@ -152,7 +152,9 @@ import {
 } from "./lib/credit-app-postgres.js";
 import {
   getSalesOrderSnapshot,
-  saveSalesOrderSnapshot
+  saveSalesOrderSnapshot,
+  listOrderFlagDismissals,
+  dismissOrderFlag
 } from "./lib/sales-orders-postgres.js";
 import { extractQuoteDataFromPdfBuffer } from "./lib/spec-scan.js";
 import {
@@ -180,7 +182,8 @@ import {
   saveMileageEntries,
   refreshReportCommute,
   markMileageReportsPaid,
-  setMileageReportStatus
+  setMileageReportStatus,
+  deleteMileageReport
 } from "./lib/mileage-postgres.js";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -3481,6 +3484,36 @@ app.post("/api/mileage/mark-paid", requirePagePermission("/mileage-review.html")
 });
 
 // Reviewer: approve (snapshots the year's rate) or deny (with a note).
+// Delete a draft month that never entered review — drafts are auto-created
+// just by opening the Mileage page, so empty ones pile up in the review list.
+app.post("/api/mileage/report/:id/delete", requirePagePermission("/mileage-review.html"), async (req, res) => {
+  const user = resolveMileageUser(req, res);
+  if (!user) return;
+  try {
+    const report = await getMileageReportById(req.params.id);
+    if (!report) return res.status(404).json({ error: "Report not found." });
+    if (report.status !== "draft") {
+      return res.status(400).json({ error: "Only draft months can be deleted. Use Deny to return a submitted month." });
+    }
+
+    const removed = await deleteMileageReport(report.id);
+    if (!removed) return res.status(404).json({ error: "Report not found." });
+
+    recordAudit({
+      ip: req.ip,
+      actorUserId: user.id,
+      action: "mileage_draft_deleted",
+      targetUserId: report.userId,
+      detail: { year: report.year, month: report.month, reportId: report.id }
+    }).catch(() => {});
+
+    return res.json({ ok: true });
+  } catch (err) {
+    console.error("Mileage draft delete failed:", err.message);
+    return res.status(500).json({ error: "Unable to delete the draft." });
+  }
+});
+
 app.post("/api/mileage/report/:id/decide", requirePagePermission("/mileage-review.html"), async (req, res) => {
   const user = resolveMileageUser(req, res);
   if (!user) return;
@@ -5265,6 +5298,51 @@ app.post("/api/sales-orders", requirePagePermission("/sales-order-health.html"),
   } catch (err) {
     console.error("Sales orders upload failed:", err.message);
     return res.status(500).json({ error: "Unable to store the sales order snapshot." });
+  }
+});
+
+// INTERNAL: "My Order Flags" queue on the Payments Dashboard — the caller's
+// flagged sales orders, matched by their employee code from the directory
+// (account email → code). Flags themselves are computed client-side with the
+// same shared rules the health report uses.
+app.get("/api/sales-orders/mine", requirePagePermission("/dashboard.html"), async (req, res) => {
+  try {
+    const email = String(req.authUser?.email || req.authUser?.username || "").trim().toLowerCase();
+    const entry = await findEmployeeDirectoryEntryByEmail(email);
+    if (!entry?.code) {
+      return res.json({ code: null, rows: [], dismissals: [], uploadedAt: null });
+    }
+
+    const snapshot = await getSalesOrderSnapshot();
+    const code = String(entry.code).toUpperCase();
+    const rows = (snapshot?.rows || []).filter(
+      (row) => String(row.sp || "").trim().toUpperCase() === code
+    );
+    const dismissals = await listOrderFlagDismissals(email);
+
+    return res.json({ code, rows, dismissals, uploadedAt: snapshot?.uploadedAt || null });
+  } catch (err) {
+    console.error("My order flags failed:", err.message);
+    return res.status(500).json({ error: "Unable to load your order flags." });
+  }
+});
+
+app.post("/api/sales-orders/dismiss", requirePagePermission("/dashboard.html"), async (req, res) => {
+  try {
+    const email = String(req.authUser?.email || req.authUser?.username || "").trim().toLowerCase();
+    const invoice = String(req.body?.invoice || "").trim();
+    if (!email || !invoice) {
+      return res.status(400).json({ error: "Missing invoice." });
+    }
+    await dismissOrderFlag({
+      userEmail: email,
+      invoice,
+      signature: String(req.body?.signature || "")
+    });
+    return res.json({ ok: true });
+  } catch (err) {
+    console.error("Order flag dismiss failed:", err.message);
+    return res.status(500).json({ error: "Unable to close that flag." });
   }
 });
 

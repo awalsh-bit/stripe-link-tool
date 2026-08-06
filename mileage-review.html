@@ -331,6 +331,7 @@
         <button id="detailAddBtn" type="button" class="secondary">Add day</button>
         <button id="detailSaveBtn" type="button" class="secondary">Save edits</button>
         <span style="flex: 1 1 auto;"></span>
+        <button id="deleteDraftBtn" type="button" class="danger" style="display: none;">Delete draft</button>
         <button id="denyToggleBtn" type="button" class="danger">Deny…</button>
         <button id="approveBtn" type="button" class="approve">Approve</button>
       </div>
@@ -708,6 +709,7 @@
       document.getElementById("detailSaveBtn").style.display = editable ? "inline-flex" : "none";
       document.getElementById("denyToggleBtn").style.display = editable ? "inline-flex" : "none";
       document.getElementById("approveBtn").style.display = editable ? "inline-flex" : "none";
+      document.getElementById("deleteDraftBtn").style.display = r.status === "draft" ? "inline-flex" : "none";
       document.getElementById("denyBox").className = "deny-box";
       setStatus("detailStatus", "", "");
 
@@ -718,6 +720,22 @@
     document.getElementById("detailAddBtn").addEventListener("click", () => {
       addDetailRow(null);
       refreshDetailTotals();
+    });
+
+    document.getElementById("deleteDraftBtn").addEventListener("click", async (e) => {
+      const who = detail.employeeName || detail.employeeEmail;
+      if (!confirm(`Delete ${who}'s ${MONTH_NAMES[detail.month - 1]} ${detail.year} draft? Any logged days on it are removed too. They can start the month fresh from the Mileage page.`)) return;
+      e.target.disabled = true;
+      try {
+        await api(`/api/mileage/report/${detail.id}/delete`, { method: "POST" });
+        document.getElementById("detailSurface").style.display = "none";
+        detail = null;
+        await loadReports();
+      } catch (err) {
+        setStatus("detailStatus", err.message, "error");
+      } finally {
+        e.target.disabled = false;
+      }
     });
 
     async function saveDetailEdits() {

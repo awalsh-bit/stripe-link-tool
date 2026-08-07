@@ -354,8 +354,14 @@
         </div>
         <div class="field small">
           <label for="dirDepartment">Department</label>
-          <input id="dirDepartment" type="text" list="departmentOptions" placeholder="Appliance" />
-          <datalist id="departmentOptions"></datalist>
+          <select id="dirDepartment">
+            <option value="">— No department —</option>
+            <option>Appliance</option>
+            <option>Client Care</option>
+            <option>Repair Service</option>
+            <option>Kitchen Design</option>
+            <option>HVAC Sales</option>
+          </select>
         </div>
         <div class="field">
           <label for="dirCommissionPlan">Commission Plan</label>
@@ -557,11 +563,33 @@
       return rows;
     }
 
+    // If a saved entry carries a legacy department not in the fixed list,
+    // show it explicitly so it can be corrected rather than silently blanked.
+    function setDirDepartment(value) {
+      const select = document.getElementById("dirDepartment");
+      const raw = String(value || "").trim();
+      const options = [...select.options].map((o) => o.value);
+      const canonical = options.find((o) => o && o.toLowerCase() === raw.toLowerCase());
+      if (!raw || canonical !== undefined && canonical) {
+        select.value = canonical || "";
+        return;
+      }
+      let legacy = select.querySelector("option[data-legacy]");
+      if (!legacy) {
+        legacy = document.createElement("option");
+        legacy.dataset.legacy = "1";
+        select.appendChild(legacy);
+      }
+      legacy.value = raw;
+      legacy.textContent = raw + " (not a standard department — please re-save)";
+      select.value = raw;
+    }
+
     function fillFormFromEntry(entry, account) {
       document.getElementById("dirCode").value = entry?.code || "";
       document.getElementById("dirName").value = entry?.name || account?.displayName || "";
       document.getElementById("dirEmail").value = entry?.email || account?.email || "";
-      document.getElementById("dirDepartment").value = entry?.department || "";
+      setDirDepartment(entry?.department);
       document.getElementById("dirCommissionPlan").value = entry?.commissionPlan || "";
       document.getElementById("dirCommute").value = entry?.commuteMiles ?? "";
       const who = entry?.name || account?.displayName || account?.email || "this person";
@@ -572,13 +600,6 @@
     function renderUsers() {
       const body = document.getElementById("usersBody");
       body.textContent = "";
-
-      // Keep the department suggestions in sync with what's in use.
-      const datalist = document.getElementById("departmentOptions");
-      datalist.textContent = "";
-      [...new Set(state.directory.map((e) => e.department).filter(Boolean))].sort().forEach((dept) => {
-        datalist.appendChild(el("option", { value: dept }));
-      });
 
       const allRows = buildTeamRows();
       const activeRows = allRows.filter((row) => row.account?.status !== "disabled");
@@ -1075,7 +1096,7 @@
       if (!match) return;
       document.getElementById("dirName").value = match.name;
       document.getElementById("dirEmail").value = match.email || "";
-      document.getElementById("dirDepartment").value = match.department || "";
+      setDirDepartment(match.department);
       document.getElementById("dirCommissionPlan").value = match.commissionPlan || "";
       document.getElementById("dirCommute").value = match.commuteMiles ?? 0;
       setStatus("dirStatus", `Loaded ${code} — ${match.name}. Change what you need and click Add / Update to save.`, "ok");

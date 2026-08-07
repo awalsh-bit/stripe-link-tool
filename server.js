@@ -151,13 +151,23 @@ import {
   deleteCreditApplication
 } from "./lib/credit-app-postgres.js";
 import {
+  TARGET_DEPARTMENTS,
+  monthWorkingDays,
+  isValidTargetMonth,
+  getRevenueTarget,
+  saveRevenueTarget
+} from "./lib/revenue-targets-postgres.js";
+import {
   getSalesOrderSnapshot,
   saveSalesOrderSnapshot,
   listOrderFlagDismissals,
   dismissOrderFlag,
   recordFlagClosure,
   listFlagClosures,
-  listFlagClosuresRange
+  listFlagClosuresRange,
+  createPushedNotification,
+  listMyPushedNotifications,
+  getPushedNotification
 } from "./lib/sales-orders-postgres.js";
 import { extractQuoteDataFromPdfBuffer } from "./lib/spec-scan.js";
 import {
@@ -301,7 +311,8 @@ const INTERNAL_PAGE_PATHS = new Set([
   "/clearance.html",
   "/credit-applications.html",
   "/sales-order-health.html",
-  "/flag-closures.html"
+  "/flag-closures.html",
+  "/target-builder.html"
 ]);
 
 const UNAUTHENTICATED_INTERNAL_PATHS = new Set([
@@ -477,7 +488,8 @@ const PAGE_LABELS = {
   "/clearance.html": "Clearance Hit List",
   "/credit-applications.html": "Builder Credit Applications",
   "/sales-order-health.html": "Sales Order Health Report",
-  "/flag-closures.html": "Instance Closure Report"
+  "/flag-closures.html": "Instance Closure Report",
+  "/target-builder.html": "Target Builder"
 };
 
 // Category groupings for the User Admin permission UI. A page may appear in
@@ -542,6 +554,7 @@ const PAGE_CATEGORIES = [
       "/salesdashboard.html",
       "/sales-order-health.html",
       "/flag-closures.html",
+      "/target-builder.html",
       "/secret-menu.html",
       "/spec-packages.html",
       "/event-rsvps.html",
@@ -1495,6 +1508,10 @@ app.get("/api/auth/session", (req, res) => {
     dashboardSlots: req.authUser.kind === "db"
       ? (req.authUser.preferences?.dashboardSlots || null)
       : null,
+    // Vertical order of the dashboard module cards (e.g. ["queue","paid"]).
+    dashboardModules: req.authUser.kind === "db"
+      ? (req.authUser.preferences?.dashboardModules || null)
+      : null,
     // Preferred default filters for the payments dashboard:
     // { employee: "self" | "all" | "<CODE>", department: "all" | "<name>" }
     dashboardView: req.authUser.kind === "db"
@@ -1580,6 +1597,43 @@ app.post("/api/me/dashboard-slots", async (req, res) => {
   } catch (err) {
     console.error("Save dashboard slots failed:", err.message);
     return res.status(500).json({ error: "Unable to save your dashboard cards." });
+  }
+});
+
+// Save the signed-in user's dashboard module order (the vertical arrangement
+// of the module cards). Personal setting, mirrors dashboard-slots.
+const DASHBOARD_MODULE_IDS = ["queue", "paid", "revenue", "health"];
+
+app.post("/api/me/dashboard-modules", async (req, res) => {
+  if (!req.authUser) {
+    return res.status(401).json({ error: "Authentication required." });
+  }
+  if (req.authUser.kind !== "db") {
+    return res.status(400).json({
+      error: "Sign in with your individual account to arrange your dashboard modules."
+    });
+  }
+
+  const raw = Array.isArray(req.body?.order) ? req.body.order : null;
+  if (!raw) {
+    return res.status(400).json({ error: "Send { order: [moduleId, ...] }." });
+  }
+
+  const order = [];
+  for (const value of raw.slice(0, 8)) {
+    const id = String(value || "").trim();
+    if (!DASHBOARD_MODULE_IDS.includes(id)) {
+      return res.status(400).json({ error: `Unknown module: ${id}` });
+    }
+    if (!order.includes(id)) order.push(id);
+  }
+
+  try {
+    const preferences = await setUserPreferences(req.authUser.id, { dashboardModules: order });
+    return res.json({ success: true, dashboardModules: preferences.dashboardModules || [] });
+  } catch (err) {
+    console.error("Save dashboard modules failed:", err.message);
+    return res.status(500).json({ error: "Unable to save your module order." });
   }
 });
 
@@ -3639,8 +3693,23 @@ app.post("/api/admin/employee-directory", requireExecutiveApi, async (req, res) 
       return res.status(400).json({ error: "Choose a commission plan from the list (or leave it blank)." });
     }
 
+    // Departments are a fixed vocabulary — pages match on these strings
+    // (Send Payment Link, dashboard filters, refund dashboard), so variants
+    // like "client care" are normalized and unknown values rejected.
+    const DIRECTORY_DEPARTMENTS = ["Appliance", "Client Care", "Repair Service", "Kitchen Design", "HVAC Sales"];
+    const rawDepartment = String(department || "").trim();
+    let normalizedDepartment = "";
+    if (rawDepartment) {
+      normalizedDepartment = DIRECTORY_DEPARTMENTS.find(
+        (d) => d.toLowerCase() === rawDepartment.toLowerCase()
+      ) || "";
+      if (!normalizedDepartment) {
+        return res.status(400).json({ error: "Choose a department from the list (or leave it blank)." });
+      }
+    }
+
     const entry = await upsertEmployeeDirectoryEntry(
-      { code, name, email: trimmedEmail, department, commuteMiles: commute, commissionPlan: plan },
+      { code, name, email: trimmedEmail, department: normalizedDepartment, commuteMiles: commute, commissionPlan: plan },
       req.authUser.id || null
     );
 
@@ -5227,6 +5296,87 @@ app.post("/api/credit-application/submit", rateLimit("credit-application", 5, 60
   }
 });
 
+// INTERNAL: Revenue targets (target-builder.html). GET is also readable by
+// dashboard users so the Revenue Snapshot module can show % to target;
+// editing requires the Target Builder page grant.
+app.get("/api/revenue-targets", requirePagePermission("/target-builder.html", "/dashboard.html"), async (req, res) => {
+  try {
+    const month = String(req.query.month || "").trim() ||
+      new Date().toLocaleDateString("en-CA", { timeZone: APP_TIMEZONE }).slice(0, 7);
+    if (!isValidTargetMonth(month)) {
+      return res.status(400).json({ error: "Provide a month as YYYY-MM." });
+    }
+
+    const today = new Date().toLocaleDateString("en-CA", { timeZone: APP_TIMEZONE });
+    const target = await getRevenueTarget(month);
+    const workingDays = monthWorkingDays(month, today);
+
+    // Working-day proration: to-date target = month target × elapsed/total.
+    const toDate = {
+      total: Math.round(target.totalTarget * workingDays.progression * 100) / 100,
+      byDepartment: {}
+    };
+    const byDepartment = {};
+    for (const dept of TARGET_DEPARTMENTS) {
+      const pct = Number(target.splits[dept] || 0);
+      const monthTarget = Math.round(target.totalTarget * pct) / 100;
+      byDepartment[dept] = { percent: pct, monthTarget };
+      toDate.byDepartment[dept] = Math.round(monthTarget * workingDays.progression * 100) / 100;
+    }
+
+    return res.json({ target, byDepartment, workingDays, toDate, today });
+  } catch (err) {
+    console.error("Revenue target load failed:", err.message);
+    return res.status(500).json({ error: "Unable to load revenue targets." });
+  }
+});
+
+app.post("/api/revenue-targets", requirePagePermission("/target-builder.html"), async (req, res) => {
+  try {
+    const month = String(req.body?.month || "").trim();
+    if (!isValidTargetMonth(month)) {
+      return res.status(400).json({ error: "Provide a month as YYYY-MM." });
+    }
+
+    const totalTarget = Number(String(req.body?.totalTarget ?? "").toString().replace(/[,$\s]/g, ""));
+    if (!Number.isFinite(totalTarget) || totalTarget <= 0 || totalTarget > 1000000000) {
+      return res.status(400).json({ error: "Enter a valid monthly target amount." });
+    }
+
+    const splits = req.body?.splits || {};
+    let sum = 0;
+    for (const dept of TARGET_DEPARTMENTS) {
+      const pct = Number(splits[dept]);
+      if (!Number.isFinite(pct) || pct < 0 || pct > 100) {
+        return res.status(400).json({ error: `Enter a valid percentage for ${dept}.` });
+      }
+      sum += pct;
+    }
+    if (Math.abs(sum - 100) > 0.01) {
+      return res.status(400).json({ error: `Department splits must add up to 100% (currently ${Math.round(sum * 100) / 100}%).` });
+    }
+
+    const saved = await saveRevenueTarget({
+      month,
+      totalTarget,
+      splits,
+      byEmail: req.authUser?.email || req.authUser?.username || "",
+      byName: req.authUser?.displayName || ""
+    });
+
+    recordAudit({
+      ip: req.ip, actorUserId: req.authUser?.id || null,
+      action: "revenue_target_saved", targetUserId: null,
+      detail: { month, totalTarget: saved.totalTarget, splits: saved.splits }
+    }).catch(() => {});
+
+    return res.json({ ok: true, target: saved });
+  } catch (err) {
+    console.error("Revenue target save failed:", err.message);
+    return res.status(500).json({ error: "Unable to save the target." });
+  }
+});
+
 // INTERNAL: Sales Order Health Report (sales-order-health.html). The page
 // parses the ExportInvoice xlsx in the browser and posts normalized rows;
 // the latest snapshot is stored whole so everyone sees the same data.
@@ -5383,6 +5533,86 @@ app.post("/api/sales-orders/dismiss", requirePagePermission("/dashboard.html"), 
   } catch (err) {
     console.error("Order flag dismiss failed:", err.message);
     return res.status(500).json({ error: "Unable to close that flag." });
+  }
+});
+
+// INTERNAL: My Notifications — pushed items (company news, supervisor
+// actions) for the signed-in user. Order flags ride alongside these on the
+// dashboard via /api/sales-orders/mine.
+app.get("/api/notifications/mine", requirePagePermission("/dashboard.html"), async (req, res) => {
+  try {
+    const email = String(req.authUser?.email || req.authUser?.username || "").trim().toLowerCase();
+    const notifications = await listMyPushedNotifications(email);
+    return res.json({ notifications });
+  } catch (err) {
+    console.error("Notifications load failed:", err.message);
+    return res.status(500).json({ error: "Unable to load notifications." });
+  }
+});
+
+// Closing a pushed notification mints a token (NFI/GFI/YFI/RFI by severity)
+// into the closure log — which doubles as the read receipt supervisors can
+// inspect on the Instance Closure Report.
+app.post("/api/notifications/:id/close", requirePagePermission("/dashboard.html"), async (req, res) => {
+  try {
+    const email = String(req.authUser?.email || req.authUser?.username || "").trim().toLowerCase();
+    const notification = await getPushedNotification(req.params.id);
+    if (!notification) return res.status(404).json({ error: "Notification not found." });
+    if (notification.audienceEmail && notification.audienceEmail !== email) {
+      return res.status(403).json({ error: "That notification isn't addressed to you." });
+    }
+
+    const token = await recordFlagClosure({
+      severity: notification.severity,
+      invoice: "",
+      signature: `notification:${notification.id}`,
+      flags: [{ level: notification.severity, text: notification.typeLabel }],
+      orderSnapshot: {},
+      byEmail: email,
+      byName: req.authUser?.displayName || "",
+      kind: "notification",
+      refId: String(notification.id),
+      title: notification.title
+    });
+
+    return res.json({ ok: true, token });
+  } catch (err) {
+    console.error("Notification close failed:", err.message);
+    return res.status(500).json({ error: "Unable to close that notification." });
+  }
+});
+
+// Executives can push a notification to one user or everyone. (Management UI
+// comes later; this endpoint is the foundation.)
+app.post("/api/notifications", requireExecutiveApi, async (req, res) => {
+  try {
+    const title = String(req.body?.title || "").trim();
+    if (!title) return res.status(400).json({ error: "A title is required." });
+    const severity = String(req.body?.severity || "neutral");
+    if (!["neutral", "green", "yellow", "red"].includes(severity)) {
+      return res.status(400).json({ error: "Severity must be neutral, green, yellow, or red." });
+    }
+
+    const notification = await createPushedNotification({
+      severity,
+      typeLabel: req.body?.typeLabel,
+      title,
+      body: req.body?.body,
+      audienceEmail: req.body?.audienceEmail,
+      byEmail: req.authUser?.email || req.authUser?.username || "",
+      byName: req.authUser?.displayName || ""
+    });
+
+    recordAudit({
+      ip: req.ip, actorUserId: req.authUser?.id || null,
+      action: "notification_pushed", targetUserId: null,
+      detail: { id: notification.id, severity, title, audience: notification.audienceEmail || "all" }
+    }).catch(() => {});
+
+    return res.json({ ok: true, notification });
+  } catch (err) {
+    console.error("Notification push failed:", err.message);
+    return res.status(500).json({ error: "Unable to push the notification." });
   }
 });
 

@@ -147,6 +147,7 @@
           { href: "salesdashboard.html", title: "Sales Dashboard" },
           { href: "sales-order-health.html", title: "Sales Order Health Report" },
           { href: "flag-closures.html", title: "Instance Closure Report" },
+          { href: "target-builder.html", title: "Target Builder" },
           { href: "secret-menu.html", title: "Secret Menu" },
           { href: "clearance.html", title: "Clearance Hit List" },
           { href: "spec-packages.html", title: "Spec Packages" }

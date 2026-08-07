@@ -167,6 +167,8 @@
     }
     .badge.red { background: #fee2e2; color: #991b1b; }
     .badge.yellow { background: #fef3c7; color: #92400e; }
+    .badge.green { background: #dcfce7; color: #166534; }
+    .badge.neutral { background: #e5e7eb; color: #374151; }
     .badge.status { background: #eef2ff; color: #3730a3; }
     .badge.repeat { background: #fdf2f8; color: #9d174d; }
 
@@ -185,9 +187,9 @@
     <div class="surface">
       <h2>Instance Closure Report</h2>
       <p class="section-note">
-        Every flag instance closed from My Sales Order Health, by date range — use it to verify
-        that a closed flag was actually fixed on the ePASS order. Repeat closures on the same
-        invoice are marked: they usually mean the "fix" didn't stick.
+        Every instance closed from My Notifications, by date range — order flags plus pushed
+        company notifications, so this doubles as a read receipt for anything leadership sends.
+        Repeat closures on the same invoice are marked: they usually mean the "fix" didn't stick.
       </p>
       <div class="filter-row">
         <button type="button" class="preset-chip active" data-preset="week">This week</button>
@@ -204,6 +206,8 @@
           <option value="all">All severities</option>
           <option value="red">Red instances</option>
           <option value="yellow">Yellow instances</option>
+          <option value="green">Green instances</option>
+          <option value="neutral">Neutral instances</option>
         </select>
         <select id="spFilter"><option value="all">All salespeople</option></select>
         <select id="closerFilter"><option value="all">All closed by</option></select>
@@ -360,12 +364,12 @@
         .filter((c) => spFilter === "all" || String(c.order?.sp || "").toUpperCase() === spFilter)
         .filter((c) => closerFilter === "all" || (c.closedByName || c.closedByEmail) === closerFilter)
         .filter((c) => !term ||
-          [c.token, c.invoice, c.order?.name, c.closedByName].join(" ").toLowerCase().includes(term));
+          [c.token, c.invoice, c.order?.name, c.title, c.closedByName].join(" ").toLowerCase().includes(term));
     }
 
     function repeatInvoiceSet(rows) {
       const counts = {};
-      rows.forEach((c) => { counts[c.invoice] = (counts[c.invoice] || 0) + 1; });
+      rows.forEach((c) => { if (c.invoice) counts[c.invoice] = (counts[c.invoice] || 0) + 1; });
       return new Set(Object.keys(counts).filter((invoice) => counts[invoice] > 1));
     }
 
@@ -386,12 +390,12 @@
       el("tableBody").innerHTML = rows.length ? rows.map((c) => `
         <tr>
           <td style="white-space: nowrap; font-weight: 700;">${escapeHtml(c.token)}</td>
-          <td><span class="badge ${c.severity === "red" ? "red" : "yellow"}">${c.severity === "red" ? "Red" : "Yellow"}</span></td>
+          <td><span class="badge ${escapeHtml(c.severity)}">${escapeHtml(c.severity.charAt(0).toUpperCase() + c.severity.slice(1))}</span></td>
           <td style="white-space: nowrap;">${escapeHtml(fmtWhen(c.closedAt))}</td>
           <td>${escapeHtml(c.closedByName || c.closedByEmail)}</td>
-          <td style="white-space: nowrap; font-weight: 600;">${escapeHtml(c.invoice)}${repeats.has(c.invoice) ? ' <span class="badge repeat">repeat</span>' : ""}</td>
+          <td style="white-space: nowrap; font-weight: 600;">${c.invoice ? escapeHtml(c.invoice) : "—"}${c.invoice && repeats.has(c.invoice) ? ' <span class="badge repeat">repeat</span>' : ""}</td>
           <td>${escapeHtml(c.order?.sp || "")}</td>
-          <td>${escapeHtml(c.order?.name || "")}</td>
+          <td>${escapeHtml(c.order?.name || c.title || "")}</td>
           <td>${c.order?.jobStatus ? `<span class="badge status">${escapeHtml(c.order.jobStatus)}</span>` : ""}</td>
           <td>${(c.flags || []).map((f) => `<span class="badge ${f.level}">${escapeHtml(f.text)}</span>`).join("")}</td>
           <td class="num">${fmtMoney(c.order?.total)}</td>
@@ -530,7 +534,7 @@
         c.closedByName || c.closedByEmail || "",
         c.invoice,
         c.order?.sp || "",
-        c.order?.name || "",
+        c.order?.name || c.title || "",
         c.order?.jobStatus || "",
         c.order?.schedDate || c.order?.pickupDate || "",
         c.order?.paymentType || "",

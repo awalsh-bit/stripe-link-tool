@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="robots" content="noindex,nofollow,noarchive" />
+  <title>Wilson AC &amp; Appliance - Target Builder</title>
+  <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+  <link rel="stylesheet" href="internal-shell.css" />
+  <style>
+    :root {
+      --bg: #f7f8fc;
+      --card: #ffffff;
+      --text: #1f2937;
+      --muted: #6b7280;
+      --border: #dbe1ea;
+      --primary: #635bff;
+      --primary-hover: #564ef0;
+      --error-bg: #fef2f2;
+      --error-text: #991b1b;
+      --shadow: 0 10px 35px rgba(0, 0, 0, 0.08);
+      --radius: 18px;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: linear-gradient(180deg, #eef2ff 0%, var(--bg) 100%);
+      color: var(--text);
+      min-height: 100vh;
+      padding: 32px 16px;
+    }
+
+    .wrap { max-width: 1480px; margin: 0 auto; }
+
+    .surface {
+      background: var(--card);
+      border: 1px solid rgba(99, 91, 255, 0.12);
+      box-shadow: var(--shadow);
+      border-radius: var(--radius);
+      padding: 22px;
+      margin: 0 auto 20px;
+    }
+
+    h2 { margin: 0 0 6px; font-size: 20px; }
+    h3 { margin: 0 0 10px; font-size: 15px; }
+    .section-note { margin: 0 0 14px; color: var(--muted); font-size: 13.5px; line-height: 1.5; }
+
+    .toolbar { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+
+    input[type="month"], input[type="text"] {
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 11px 13px;
+      font-size: 14px;
+      font-family: inherit;
+      background: #fff;
+      color: var(--text);
+      outline: none;
+    }
+    input:focus { border-color: rgba(99, 91, 255, 0.75); box-shadow: 0 0 0 4px rgba(99, 91, 255, 0.12); }
+
+    .primary-btn {
+      appearance: none;
+      border: none;
+      background: var(--primary);
+      color: #fff;
+      border-radius: 12px;
+      padding: 11px 18px;
+      font-size: 14px;
+      font-weight: 700;
+      cursor: pointer;
+      font-family: inherit;
+    }
+    .primary-btn:hover { background: var(--primary-hover); }
+    .primary-btn:disabled { opacity: 0.6; cursor: wait; }
+
+    .pill {
+      display: inline-block;
+      border-radius: 999px;
+      padding: 3px 10px;
+      font-size: 11.5px;
+      font-weight: 700;
+    }
+    .pill.default { background: #fef3c7; color: #92400e; }
+    .pill.saved { background: #ecfdf5; color: #065f46; }
+
+    /* Tiles */
+    .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px; margin-top: 14px; }
+    .tile { border: 1px solid var(--border); border-radius: 14px; padding: 14px 16px; background: #fff; }
+    .tile .label { font-size: 11.5px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
+    .tile .value { font-size: 24px; font-weight: 700; margin-top: 4px; }
+    .tile .sub { font-size: 12px; color: var(--muted); margin-top: 2px; }
+
+    /* Working-day calendar */
+    .cal { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; max-width: 560px; }
+    .cal .dow { text-align: center; font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); padding-bottom: 2px; }
+    .cal .day {
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      min-height: 44px;
+      padding: 5px 7px;
+      font-size: 12.5px;
+      font-weight: 600;
+      background: #fff;
+      position: relative;
+    }
+    .cal .day.off { background: #f3f4f6; color: #9ca3af; border-style: dashed; font-weight: 400; }
+    .cal .day.worked { background: #eef2ff; border-color: rgba(99, 91, 255, 0.45); }
+    .cal .day.today { outline: 3px solid var(--primary); outline-offset: -1px; }
+    .cal .day .n { display: block; }
+    .cal .day .wd { position: absolute; bottom: 3px; right: 7px; font-size: 10px; color: #6d68e8; font-weight: 700; }
+    .cal .blank { border: none; background: transparent; }
+
+    /* Editor table */
+    table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+    thead th {
+      text-align: left;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--muted);
+      padding: 9px 10px 7px;
+      border-bottom: 1px solid var(--border);
+    }
+    thead th.num, td.num { text-align: right; }
+    tbody td { padding: 9px 10px; border-bottom: 1px solid #eef0f5; }
+    tbody tr.total-row td { font-weight: 700; border-top: 2px solid var(--border); }
+    .pct-input { width: 90px; text-align: right; }
+    .pct-ok { color: #065f46; font-weight: 700; }
+    .pct-bad { color: #991b1b; font-weight: 700; }
+
+    .status {
+      display: none;
+      margin: 14px 0 0;
+      border-radius: 12px;
+      padding: 12px 15px;
+      font-size: 13.5px;
+    }
+    .status.show { display: block; }
+    .status.error { background: var(--error-bg); color: var(--error-text); }
+    .status.ok { background: #ecfdf5; color: #065f46; }
+
+    @media (max-width: 760px) {
+      body { padding: 14px 8px; }
+      .surface { padding: 14px; }
+    }
+  </style>
+</head>
+<body data-shell-label="Target Builder" data-shell-icon="sales">
+  <div class="wrap">
+    <div id="internal-shell-header"></div>
+
+    <div class="surface">
+      <h2>Target Builder</h2>
+      <p class="section-note">
+        Monthly revenue targets by department, prorated to date by working days (Monday–Saturday).
+        The Revenue Snapshot's "% to target" reads from here. Months without a saved target use the
+        placeholder: $2,000,000 split 90 / 5 / 4 / 1.
+      </p>
+      <div class="toolbar">
+        <input type="month" id="monthInput" />
+        <span id="sourcePill"></span>
+        <span class="section-note" style="margin: 0;" id="updatedNote"></span>
+      </div>
+      <div class="tiles">
+        <div class="tile"><div class="label">Monthly target</div><div class="value" id="tileMonth">–</div><div class="sub" id="tileMonthSub">&nbsp;</div></div>
+        <div class="tile"><div class="label">To-date target</div><div class="value" id="tileToDate">–</div><div class="sub" id="tileToDateSub">&nbsp;</div></div>
+        <div class="tile"><div class="label">Working days</div><div class="value" id="tileDays">–</div><div class="sub" id="tileDaysSub">Monday–Saturday</div></div>
+      </div>
+    </div>
+
+    <div class="surface">
+      <h3>Working-day calendar</h3>
+      <p class="section-note" style="margin-bottom: 10px;" id="calNote"></p>
+      <div class="cal" id="calendar"></div>
+    </div>
+
+    <div class="surface">
+      <h3>Department targets</h3>
+      <p class="section-note">Percentages must add up to 100. Dollar columns update as you type; Save stores this month's target.</p>
+      <table>
+        <thead>
+          <tr>
+            <th>Department</th>
+            <th class="num">% of target</th>
+            <th class="num">Month target</th>
+            <th class="num">To-date target</th>
+          </tr>
+        </thead>
+        <tbody id="deptBody"></tbody>
+      </table>
+      <div class="toolbar" style="margin-top: 16px;">
+        <label style="font-size: 13px; font-weight: 700;">Monthly total&nbsp;
+          <input type="text" id="totalInput" style="width: 160px; text-align: right;" />
+        </label>
+        <span style="flex: 1;"></span>
+        <button type="button" class="primary-btn" id="saveBtn">Save this month's target</button>
+      </div>
+      <div id="statusBox" class="status"></div>
+    </div>
+
+    <div id="internal-shell-footer"></div>
+  </div>
+
+  <script src="internal-shell.js"></script>
+  <script>
+    const DEPARTMENTS = ["Appliance", "HVAC Sales", "Repair Service", "Kitchen Design"];
+    let current = null; // last API payload
+
+    function el(id) { return document.getElementById(id); }
+    function esc(value) {
+      return String(value == null ? "" : value)
+        .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    }
+    function money(n, decimals = 0) {
+      if (!Number.isFinite(n)) return "—";
+      return "$" + n.toLocaleString("en-US", { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
+    }
+    function setStatus(message, kind) {
+      const box = el("statusBox");
+      box.className = message ? `status show ${kind}` : "status";
+      box.textContent = message || "";
+    }
+
+    // ---------------- Load ----------------
+    async function loadMonth() {
+      const month = el("monthInput").value;
+      if (!month) return;
+      setStatus("", "");
+      try {
+        const res = await fetch(`/api/revenue-targets?month=${encodeURIComponent(month)}`, { credentials: "same-origin" });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Unable to load targets.");
+        current = data;
+        renderAll();
+      } catch (err) {
+        setStatus(err.message, "error");
+      }
+    }
+
+    function renderAll() {
+      const { target, workingDays, toDate } = current;
+
+      el("sourcePill").innerHTML = target.source === "saved"
+        ? '<span class="pill saved">Saved target</span>'
+        : '<span class="pill default">Using placeholder defaults</span>';
+      el("updatedNote").textContent = target.updatedAt
+        ? `Last saved by ${target.updatedByName || target.updatedByEmail} on ${new Date(target.updatedAt).toLocaleDateString("en-US", { timeZone: "America/Chicago", month: "short", day: "numeric" })}.`
+        : "";
+
+      el("totalInput").value = money(target.totalTarget);
+      renderCalendar();
+      renderDepartments();
+      recalc();
+    }
+
+    function renderCalendar() {
+      const { workingDays, today } = current;
+      const cal = el("calendar");
+      const dows = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+      let html = dows.map((d) => `<div class="dow">${d}</div>`).join("");
+
+      const firstDow = workingDays.days[0].dow;
+      for (let i = 0; i < firstDow; i++) html += '<div class="blank"></div>';
+
+      let workingIndex = 0;
+      for (const day of workingDays.days) {
+        if (day.working) workingIndex++;
+        const classes = ["day"];
+        if (!day.working) classes.push("off");
+        if (day.working && day.past) classes.push("worked");
+        if (day.date === today) classes.push("today");
+        const dayNum = Number(day.date.slice(8));
+        html += `<div class="${classes.join(" ")}"><span class="n">${dayNum}</span>${day.working ? `<span class="wd">${workingIndex}</span>` : ""}</div>`;
+      }
+      cal.innerHTML = html;
+
+      el("calNote").textContent = workingDays.elapsed > 0
+        ? `Working day ${workingDays.elapsed} of ${workingDays.total} — progression ${workingDays.elapsed}/${workingDays.total} = ${(workingDays.progression * 100).toFixed(1)}% of the month's target is due to date.`
+        : `${workingDays.total} working days this month — none elapsed yet.`;
+    }
+
+    function renderDepartments() {
+      const { target } = current;
+      el("deptBody").innerHTML = DEPARTMENTS.map((dept) => `
+        <tr>
+          <td>${esc(dept)}</td>
+          <td class="num"><input type="text" class="pct-input" data-dept="${esc(dept)}" value="${Number(target.splits[dept] || 0)}" /> %</td>
+          <td class="num" data-month-for="${esc(dept)}">—</td>
+          <td class="num" data-todate-for="${esc(dept)}">—</td>
+        </tr>`).join("") + `
+        <tr class="total-row">
+          <td>Total</td>
+          <td class="num" id="pctSum">—</td>
+          <td class="num" id="sumMonth">—</td>
+          <td class="num" id="sumToDate">—</td>
+        </tr>`;
+
+      document.querySelectorAll(".pct-input").forEach((input) => input.addEventListener("input", recalc));
+    }
+
+    function parsedTotal() {
+      return Number(String(el("totalInput").value).replace(/[,$\s]/g, ""));
+    }
+
+    function recalc() {
+      const total = parsedTotal();
+      const progression = current.workingDays.progression;
+      let pctSum = 0;
+      let monthSum = 0;
+
+      for (const dept of DEPARTMENTS) {
+        const pct = Number(document.querySelector(`.pct-input[data-dept="${dept}"]`).value) || 0;
+        pctSum += pct;
+        const monthTarget = Number.isFinite(total) ? total * pct / 100 : NaN;
+        monthSum += Number.isFinite(monthTarget) ? monthTarget : 0;
+        document.querySelector(`[data-month-for="${dept}"]`).textContent = money(monthTarget);
+        document.querySelector(`[data-todate-for="${dept}"]`).textContent = money(monthTarget * progression);
+      }
+
+      const sumEl = el("pctSum");
+      pctSum = Math.round(pctSum * 100) / 100;
+      sumEl.textContent = pctSum + " %";
+      sumEl.className = "num " + (Math.abs(pctSum - 100) < 0.01 ? "pct-ok" : "pct-bad");
+      el("sumMonth").textContent = money(monthSum);
+      el("sumToDate").textContent = money(monthSum * progression);
+
+      el("tileMonth").textContent = money(total);
+      el("tileMonthSub").textContent = current.target.month;
+      el("tileToDate").textContent = money(total * progression);
+      el("tileToDateSub").textContent = `${(progression * 100).toFixed(1)}% of month elapsed`;
+      el("tileDays").textContent = `${current.workingDays.elapsed} / ${current.workingDays.total}`;
+    }
+
+    el("totalInput").addEventListener("input", recalc);
+    el("totalInput").addEventListener("blur", () => {
+      const total = parsedTotal();
+      if (Number.isFinite(total) && total > 0) el("totalInput").value = money(total);
+      recalc();
+    });
+
+    // ---------------- Save ----------------
+    el("saveBtn").addEventListener("click", async () => {
+      const month = el("monthInput").value;
+      const total = parsedTotal();
+      const splits = {};
+      for (const dept of DEPARTMENTS) {
+        splits[dept] = Number(document.querySelector(`.pct-input[data-dept="${dept}"]`).value) || 0;
+      }
+
+      const btn = el("saveBtn");
+      btn.disabled = true;
+      try {
+        const res = await fetch("/api/revenue-targets", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "same-origin",
+          body: JSON.stringify({ month, totalTarget: total, splits })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Unable to save the target.");
+        await loadMonth();
+        setStatus(`Saved ${month}: ${money(data.target.totalTarget)} across ${DEPARTMENTS.length} departments.`, "ok");
+      } catch (err) {
+        setStatus(err.message, "error");
+      } finally {
+        btn.disabled = false;
+      }
+    });
+
+    // ---------------- Init ----------------
+    el("monthInput").addEventListener("change", loadMonth);
+    el("monthInput").value = new Date().toLocaleDateString("en-CA", { timeZone: "America/Chicago" }).slice(0, 7);
+    loadMonth();
+  </script>
+</body>
+</html>

@@ -680,6 +680,41 @@
       flex-wrap: wrap;
     }
 
+    /* Module cards — the title slot is a dropdown of available modules. */
+    .module-card, .pinned-module { margin-top: 30px; }
+    .module-title {
+      font-size: 17px;
+      font-weight: 700;
+      padding: 10px 2px;
+    }
+    .oflag-empty { text-align: center; color: #6b7280; padding: 18px 8px; font-size: 13px; }
+
+    .module-header {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      flex-wrap: wrap;
+      margin-bottom: 14px;
+    }
+    .module-select {
+      appearance: none;
+      border: 1px solid var(--border, #dbe1ea);
+      border-radius: 12px;
+      background: #fff url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%236b7280' stroke-width='2' fill='none' stroke-linecap='round'/%3E%3C/svg%3E") no-repeat right 14px center;
+      padding: 10px 38px 10px 14px;
+      font-size: 17px;
+      font-weight: 700;
+      color: inherit;
+      font-family: inherit;
+      cursor: pointer;
+      outline: none;
+    }
+    .module-select:focus {
+      border-color: rgba(99, 91, 255, 0.75);
+      box-shadow: 0 0 0 4px rgba(99, 91, 255, 0.12);
+    }
+    .module-desc { margin: 0; font-size: 13px; color: #6b7280; }
+
     /* My Sales Order Health queue (between the hero cards and the payment queue) */
     .oflag-badge {
       display: inline-block;
@@ -692,9 +727,12 @@
     }
     .oflag-badge.red { background: #fee2e2; color: #991b1b; }
     .oflag-badge.yellow { background: #fef3c7; color: #92400e; }
+    .oflag-badge.green { background: #dcfce7; color: #166534; }
+    .oflag-badge.neutral { background: #e5e7eb; color: #374151; }
     .oflag-badge.status { background: #eef2ff; color: #3730a3; }
     tr.oflag-red td { background: #fef2f2; }
     tr.oflag-yellow td { background: #fffbeb; }
+    tr.oflag-green td { background: #f0fdf4; }
     .oflag-close {
       background: #fff;
       color: #374151;
@@ -1058,28 +1096,22 @@
 </div>
 <div class="nav-grid" id="navGrid"></div>
 
-      <div class="card" id="orderFlagsCard" style="display: none;">
-        <div class="section-label">
-          <div>
-            <h3>My Sales Order Health</h3>
-            <p>Flagged sales orders under your employee code, from the latest open order report.
-            Close a flag once it's handled — it stays closed unless the order's flags change.
+      <div class="card pinned-module" id="orderFlagsCard">
+        <div class="module-header">
+          <div class="module-title">My Notifications</div>
+          <p class="module-desc">Order flags under your employee code plus company notifications —
+            close each one once it's handled or read; every close is tracked with a token.
             <span class="oflag-note" id="orderFlagsAsOf"></span>
             <span class="oflag-note" id="orderFlagsClosedNote" style="font-weight: 700;"></span></p>
-          </div>
         </div>
         <div class="table-wrap">
           <table>
             <thead>
               <tr>
-                <th>Invoice</th>
-                <th>Customer</th>
-                <th>Job Status</th>
+                <th>Type</th>
+                <th>Notification</th>
                 <th>Date</th>
-                <th>Route</th>
-                <th>Total</th>
-                <th>Balance</th>
-                <th>Flags</th>
+                <th>Details</th>
                 <th>Actions</th>
               </tr>
             </thead>
@@ -1088,27 +1120,10 @@
         </div>
       </div>
 
-      <div class="card">
-        <h2>Payment Queue and Paid History</h2>
-
-        <div class="summary-grid">
-          <div class="metric">
-            <div class="metric-label">Unpaid queue total</div>
-            <div class="metric-value" id="queueTotal">$0.00</div>
-            <div class="metric-sub" id="queueCount">0 unpaid links</div>
-          </div>
-
-          <div class="metric">
-            <div class="metric-label">Aging links</div>
-            <div class="metric-value" id="agingCount">0</div>
-            <div class="metric-sub" id="agingHint">0 links over age threshold</div>
-          </div>
-
-          <div class="metric">
-            <div class="metric-label">Paid total for date</div>
-            <div class="metric-value" id="paidTotal">$0.00</div>
-            <div class="metric-sub" id="paidCount">0 paid on selected date</div>
-          </div>
+      <div class="card module-card" data-module="queue">
+        <div class="module-header">
+          <select class="module-select" aria-label="Module shown in this position"></select>
+          <p class="module-desc">Unpaid links stay here until they are paid or manually deactivated.</p>
         </div>
 
         <div class="toolbar">
@@ -1133,13 +1148,6 @@
           <a class="toolbar-menu-trigger" href="link-detail-lookup.html">Link Detail Lookup</a>
         </div>
 
-        <div class="section-label">
-          <div>
-            <h3>Open Link Queue</h3>
-            <p>Unpaid links stay here until they are paid or manually deactivated.</p>
-          </div>
-        </div>
-
         <div class="table-wrap">
           <table>
             <thead>
@@ -1161,18 +1169,25 @@
             </tbody>
           </table>
         </div>
+      </div>
 
-        <div class="section-label">
-          <div>
-            <h3>Paid History</h3>
-            <p>Paid links and terminal payments are grouped by the date they were actually paid.</p>
-          </div>
+      <div class="card module-card" data-module="paid">
+        <div class="module-header">
+          <select class="module-select" aria-label="Module shown in this position"></select>
+          <p class="module-desc">Paid links and terminal payments are grouped by the date they were actually paid.</p>
         </div>
 
         <div class="toolbar">
           <input type="date" id="paidDateFilter" />
           <input type="search" id="paidSearchFilter" placeholder="Search paid history by customer, order, or payment intent" />
           <select id="paidEmployeeFilter"></select>
+          <select id="paidDepartmentFilter" title="Department">
+            <option value="Appliance">Appliance</option>
+            <option value="all">All departments</option>
+            <option value="Repair Service">Repair Service</option>
+            <option value="Kitchen Design">Kitchen Design</option>
+            <option value="HVAC Sales">HVAC Sales</option>
+          </select>
           <div class="toolbar-menu">
             <div class="toolbar-menu-trigger">Accounting</div>
             <div class="toolbar-menu-panel">
@@ -1210,6 +1225,30 @@
           </table>
         </div>
       </div>
+
+      <div class="card module-card" data-module="revenue">
+        <div class="module-header">
+          <select class="module-select" aria-label="Module shown in this position"></select>
+          <p class="module-desc">Unpaid queue, aging, and paid totals at a glance. The paid tile follows the Paid History date.</p>
+        </div>
+        <div class="summary-grid">
+          <div class="metric">
+            <div class="metric-label">Unpaid queue total</div>
+            <div class="metric-value" id="queueTotal">$0.00</div>
+            <div class="metric-sub" id="queueCount">0 unpaid links</div>
+          </div>
+          <div class="metric">
+            <div class="metric-label">Aging links</div>
+            <div class="metric-value" id="agingCount">0</div>
+            <div class="metric-sub" id="agingHint">0 links over age threshold</div>
+          </div>
+          <div class="metric">
+            <div class="metric-label">Paid total for date</div>
+            <div class="metric-value" id="paidTotal">$0.00</div>
+            <div class="metric-sub" id="paidCount">0 paid on selected date</div>
+          </div>
+        </div>
+      </div>
     <div id="internal-shell-footer"></div>
   </div>
 
@@ -1217,12 +1256,7 @@
   <script>
   const queueTableBody = document.getElementById("queueTableBody");
   const paidTableBody = document.getElementById("paidTableBody");
-  const queueTotalEl = document.getElementById("queueTotal");
-  const queueCountEl = document.getElementById("queueCount");
-  const agingCountEl = document.getElementById("agingCount");
-  const agingHintEl = document.getElementById("agingHint");
-  const paidTotalEl = document.getElementById("paidTotal");
-  const paidCountEl = document.getElementById("paidCount");
+  const paidDepartmentFilterEl = document.getElementById("paidDepartmentFilter");
   const queueSearchFilterEl = document.getElementById("queueSearchFilter");
   const departmentFilterEl = document.getElementById("departmentFilter");
   const queueStatusFilterEl = document.getElementById("queueStatusFilter");
@@ -1288,12 +1322,14 @@
 
         if (saved.department && selectHasValue(departmentFilterEl, saved.department)) {
           departmentFilterEl.value = saved.department;
+          paidDepartmentFilterEl.value = saved.department;
         }
         renderDashboard();
       } else if (myEmployeeCode) {
         queueEmployeeFilterEl.value = myEmployeeCode;
         paidEmployeeFilterEl.value = myEmployeeCode;
         departmentFilterEl.value = "all";
+        paidDepartmentFilterEl.value = "all";
         renderDashboard();
       }
 
@@ -1676,12 +1712,13 @@
       })
       .sort((a, b) => new Date(a.createdAt || 0) - new Date(b.createdAt || 0));
 
+    const selectedPaidDepartment = paidDepartmentFilterEl.value;
     const paidRows = allRows
       .filter((row) => row.status === "paid")
       .filter((row) => {
         const matchesSearch = !paidSearch || paidSearchText(row).includes(paidSearch);
         const matchesDepartment =
-          selectedDepartment === "all" || resolveDepartment(row) === selectedDepartment;
+          selectedPaidDepartment === "all" || resolveDepartment(row) === selectedPaidDepartment;
         const paidDateOnly = toLocalDateInputValue(row.paidDate);
         const matchesDate = !selectedPaidDate || paidDateOnly === selectedPaidDate;
         const matchesEmployee =
@@ -1794,17 +1831,17 @@
     }
     attachReceiptActions();
 
+    // Revenue Snapshot module tiles
     const activeQueueRows = allRows.filter((row) => isLinkRow(row) && ["sent", "viewed", "ach_pending"].includes(row.status));
     const agingRows = activeQueueRows.filter((row) => ["sent", "viewed"].includes(row.status) && daysOpen(row) >= agingDays);
     const queueTotal = activeQueueRows.reduce((sum, row) => sum + (row.requestedAmount || 0), 0);
     const paidTotal = paidRows.reduce((sum, row) => sum + (row.paidAmount || 0), 0);
-
-    queueTotalEl.textContent = formatMoney(queueTotal);
-    queueCountEl.textContent = `${activeQueueRows.length} unpaid active links`;
-    agingCountEl.textContent = String(agingRows.length);
-    agingHintEl.textContent = `${agingRows.length} active link${agingRows.length === 1 ? "" : "s"} at least ${agingDays} days old`;
-    paidTotalEl.textContent = formatMoney(paidTotal);
-    paidCountEl.textContent = `${paidRows.length} paid record${paidRows.length === 1 ? "" : "s"} on selected date`;
+    document.getElementById("queueTotal").textContent = formatMoney(queueTotal);
+    document.getElementById("queueCount").textContent = `${activeQueueRows.length} unpaid active links`;
+    document.getElementById("agingCount").textContent = String(agingRows.length);
+    document.getElementById("agingHint").textContent = `${agingRows.length} active link${agingRows.length === 1 ? "" : "s"} at least ${agingDays} days old`;
+    document.getElementById("paidTotal").textContent = formatMoney(paidTotal);
+    document.getElementById("paidCount").textContent = `${paidRows.length} paid record${paidRows.length === 1 ? "" : "s"} on selected date`;
     attachCopyActions();
   }
 
@@ -1891,6 +1928,7 @@
 
   queueSearchFilterEl.addEventListener("input", renderDashboard);
   departmentFilterEl.addEventListener("change", renderDashboard);
+  paidDepartmentFilterEl.addEventListener("change", renderDashboard);
   queueStatusFilterEl.addEventListener("change", renderDashboard);
   paidSearchFilterEl.addEventListener("input", renderDashboard);
   paidDateFilterEl.addEventListener("change", renderDashboard);
@@ -2139,6 +2177,90 @@
       })();
     })();
   </script>
+  <script>
+    // ------------------------------------------------------------------
+    // Dashboard modules — each module card's title is a dropdown of the
+    // available modules; picking a different one swaps the two cards'
+    // positions. The chosen order is saved per user (individual accounts).
+    // ------------------------------------------------------------------
+    (function () {
+      const MODULES = {
+        queue: "Open Payment Links",
+        paid: "Paid History",
+        revenue: "Revenue Snapshot"
+      };
+      const DEFAULT_ORDER = ["queue", "paid", "revenue"];
+
+      const cards = {};
+      document.querySelectorAll(".module-card").forEach((card) => {
+        cards[card.dataset.module] = card;
+      });
+      if (Object.keys(cards).length < 2) return;
+
+      function currentOrder() {
+        return [...document.querySelectorAll(".module-card")].map((card) => card.dataset.module);
+      }
+
+      function applyOrder(order) {
+        const anchor = document.getElementById("internal-shell-footer");
+        for (const id of order) {
+          if (cards[id]) anchor.parentNode.insertBefore(cards[id], anchor);
+        }
+        syncSelects();
+      }
+
+      function syncSelects() {
+        document.querySelectorAll(".module-card").forEach((card) => {
+          const select = card.querySelector(".module-select");
+          select.innerHTML = Object.keys(MODULES)
+            .map((id) => `<option value="${id}"${id === card.dataset.module ? " selected" : ""}>${MODULES[id]}</option>`)
+            .join("");
+        });
+      }
+
+      function persistOrder(order) {
+        fetch("/api/me/dashboard-modules", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "same-origin",
+          body: JSON.stringify({ order })
+        }).catch(() => {});
+      }
+
+      document.querySelectorAll(".module-card .module-select").forEach((select) => {
+        select.addEventListener("change", () => {
+          const card = select.closest(".module-card");
+          const here = card.dataset.module;
+          const wanted = select.value;
+          if (wanted === here) return;
+          // Swap this card's position with the card currently showing `wanted`.
+          const order = currentOrder();
+          const a = order.indexOf(here);
+          const b = order.indexOf(wanted);
+          [order[a], order[b]] = [order[b], order[a]];
+          applyOrder(order);
+          persistOrder(order);
+        });
+      });
+
+      (async function initModules() {
+        syncSelects();
+        let order = DEFAULT_ORDER.slice();
+        try {
+          const res = await fetch("/api/auth/session", { credentials: "same-origin" });
+          if (res.ok) {
+            const session = await res.json();
+            const saved = Array.isArray(session?.dashboardModules) ? session.dashboardModules : null;
+            if (saved && saved.length) {
+              order = saved.filter((id) => cards[id]);
+              for (const id of DEFAULT_ORDER) if (!order.includes(id)) order.push(id);
+            }
+          }
+        } catch {}
+        applyOrder(order);
+      })();
+    })();
+  </script>
   <script src="order-health-rules.js"></script>
   <script>
     // ------------------------------------------------------------------
@@ -2161,57 +2283,80 @@
         return "$" + n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
       }
 
-      let flagged = [];
+      // Unified notification list: order flags (kind "order") + pushed
+      // company notifications (kind "pushed"). Everything closes with a token.
+      let items = [];
+      let emptyMessage = "Loading your notifications…";
+
+      const SEV_RANK = { red: 0, yellow: 1, green: 2, neutral: 3 };
+
+      function itemDate(item) {
+        return item.kind === "order" ? (rules.effectiveDate(item.order) || "9999") : (item.createdAt || "").slice(0, 10);
+      }
 
       function renderOrderFlags() {
-        if (!flagged.length) {
-          card.style.display = "none";
+        if (!items.length) {
+          body.innerHTML = `<tr><td colspan="5" class="oflag-empty">${esc(emptyMessage)}</td></tr>`;
           return;
         }
-        card.style.display = "";
-        const sevRank = { red: 0, yellow: 1 };
-        flagged.sort((a, b) => (sevRank[a.severity] - sevRank[b.severity]) ||
-          (rules.effectiveDate(a) || "9999").localeCompare(rules.effectiveDate(b) || "9999"));
+        items.sort((a, b) => (SEV_RANK[a.severity] - SEV_RANK[b.severity]) || itemDate(a).localeCompare(itemDate(b)));
 
-        body.innerHTML = flagged.map((order) => `
-          <tr class="oflag-${order.severity}">
-            <td style="white-space: nowrap; font-weight: 600;">${esc(order.invoice)}</td>
-            <td>${esc(order.name)}</td>
-            <td><span class="oflag-badge status">${esc(order.jobStatus)}</span></td>
-            <td style="white-space: nowrap;">${esc(rules.effectiveDate(order))}</td>
-            <td>${esc(order.route || "—")}</td>
-            <td>${money(order.total)}</td>
-            <td>${money(order.balance)}</td>
-            <td>${order.flags.map((f) => `<span class="oflag-badge ${f.level}">${esc(f.text)}</span>`).join("")}</td>
-            <td><button type="button" class="oflag-close" data-invoice="${esc(order.invoice)}">Close</button></td>
-          </tr>`).join("");
+        body.innerHTML = items.map((item, index) => {
+          const badges = item.kind === "order"
+            ? item.flags.map((f) => `<span class="oflag-badge ${f.level}">${esc(f.text)}</span>`).join("")
+            : `<span class="oflag-badge ${item.severity}">${esc(item.typeLabel)}</span>`;
+          const main = item.kind === "order"
+            ? `<strong>${esc(item.order.invoice)}</strong> — ${esc(item.order.name)}`
+            : `<strong>${esc(item.title)}</strong>${item.body ? " — " + esc(item.body) : ""}`;
+          const details = item.kind === "order"
+            ? `<span class="oflag-badge status">${esc(item.order.jobStatus)}</span> ${esc(item.order.route || "No route")} · ${money(item.order.total)} total · ${money(item.order.balance)} due`
+            : `From ${esc(item.createdByName || "Wilson leadership")}`;
+          return `
+          <tr class="oflag-${item.severity}">
+            <td>${badges}</td>
+            <td>${main}</td>
+            <td style="white-space: nowrap;">${esc(itemDate(item) === "9999" ? "" : itemDate(item))}</td>
+            <td>${details}</td>
+            <td><button type="button" class="oflag-close" data-index="${index}">Close</button></td>
+          </tr>`;
+        }).join("");
 
         body.querySelectorAll(".oflag-close").forEach((button) => {
           button.addEventListener("click", async () => {
-            const invoice = button.dataset.invoice;
-            const order = flagged.find((o) => o.invoice === invoice);
-            if (!order) return;
+            const item = items[Number(button.dataset.index)];
+            if (!item) return;
             button.disabled = true;
             try {
-              const res = await fetch("/api/sales-orders/dismiss", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                credentials: "same-origin",
-                body: JSON.stringify({
-                  invoice,
-                  signature: order.signature,
-                  severity: order.severity,
-                  flags: order.flags
-                })
-              });
+              let res;
+              if (item.kind === "order") {
+                res = await fetch("/api/sales-orders/dismiss", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  credentials: "same-origin",
+                  body: JSON.stringify({
+                    invoice: item.order.invoice,
+                    signature: item.signature,
+                    severity: item.severity,
+                    flags: item.flags
+                  })
+                });
+              } else {
+                res = await fetch(`/api/notifications/${encodeURIComponent(item.id)}/close`, {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  credentials: "same-origin"
+                });
+              }
               if (!res.ok) throw new Error();
               const result = await res.json().catch(() => ({}));
               if (result.token) {
                 const note = document.getElementById("orderFlagsClosedNote");
-                note.textContent = `Closed ${invoice} as ${result.token}.`;
+                const label = item.kind === "order" ? item.order.invoice : `"${item.title}"`;
+                note.textContent = `Closed ${label} as ${result.token}.`;
                 setTimeout(() => { if (note.textContent.includes(result.token)) note.textContent = ""; }, 12000);
               }
-              flagged = flagged.filter((o) => o.invoice !== invoice);
+              items = items.filter((other) => other !== item);
+              if (!items.length) emptyMessage = "No notifications — all clear.";
               renderOrderFlags();
             } catch {
               button.disabled = false;
@@ -2222,31 +2367,55 @@
       }
 
       (async function initOrderFlags() {
+        const collected = [];
+        let hadError = false;
+
+        // Pushed company notifications
+        try {
+          const res = await fetch("/api/notifications/mine", { credentials: "same-origin" });
+          if (res.ok) {
+            const data = await res.json();
+            for (const n of (data.notifications || [])) {
+              collected.push({ kind: "pushed", ...n });
+            }
+          }
+        } catch { hadError = true; }
+
+        // Order flags under the user's employee code
         try {
           const res = await fetch("/api/sales-orders/mine", { credentials: "same-origin" });
-          if (!res.ok) return;
-          const data = await res.json();
-          if (!data.code || !Array.isArray(data.rows) || !data.rows.length) return;
-
-          const today = new Date().toLocaleDateString("en-CA", { timeZone: "America/Chicago" });
-          const dismissed = new Map((data.dismissals || []).map((d) => [d.invoice, d.signature]));
-
-          flagged = data.rows
-            .map((order) => {
-              const flags = rules.computeFlags(order, today);
-              return { ...order, flags, severity: rules.severityOf(flags), signature: rules.flagsSignature(order, flags) };
-            })
-            .filter((order) => order.severity !== "ok")
-            .filter((order) => dismissed.get(order.invoice) !== order.signature);
-
-          if (data.uploadedAt) {
-            const when = new Date(data.uploadedAt).toLocaleString("en-US", {
-              timeZone: "America/Chicago", month: "short", day: "numeric", hour: "numeric", minute: "2-digit"
-            });
-            document.getElementById("orderFlagsAsOf").textContent = `Report data as of ${when}.`;
+          if (!res.ok) {
+            hadError = true;
+          } else {
+            const data = await res.json();
+            if (data.code && Array.isArray(data.rows) && data.rows.length) {
+              const today = new Date().toLocaleDateString("en-CA", { timeZone: "America/Chicago" });
+              const dismissed = new Map((data.dismissals || []).map((d) => [d.invoice, d.signature]));
+              for (const order of data.rows) {
+                const flags = rules.computeFlags(order, today);
+                const severity = rules.severityOf(flags);
+                if (severity === "ok") continue;
+                const signature = rules.flagsSignature(order, flags);
+                if (dismissed.get(order.invoice) === signature) continue;
+                collected.push({ kind: "order", order, flags, severity, signature });
+              }
+              if (data.uploadedAt) {
+                const when = new Date(data.uploadedAt).toLocaleString("en-US", {
+                  timeZone: "America/Chicago", month: "short", day: "numeric", hour: "numeric", minute: "2-digit"
+                });
+                document.getElementById("orderFlagsAsOf").textContent = `Order data as of ${when}.`;
+              }
+            }
           }
-          renderOrderFlags();
-        } catch {}
+        } catch { hadError = true; }
+
+        items = collected;
+        if (!items.length) {
+          emptyMessage = hadError
+            ? "Couldn't load some notifications — refresh to retry."
+            : "No notifications — all clear.";
+        }
+        renderOrderFlags();
       })();
     })();
   </script>

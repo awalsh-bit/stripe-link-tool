@@ -149,6 +149,8 @@
     }
     .badge.red { background: #fee2e2; color: #991b1b; }
     .badge.yellow { background: #fef3c7; color: #92400e; }
+    .badge.green { background: #dcfce7; color: #166534; }
+    .badge.neutral { background: #e5e7eb; color: #374151; }
     .badge.status { background: #eef2ff; color: #3730a3; }
 
     details.legend { font-size: 13px; color: var(--muted); }
@@ -239,8 +241,8 @@
     <div class="surface" id="closuresSurface" style="display: none;">
       <h3>Closed Flag Log</h3>
       <p class="section-note" style="margin-bottom: 8px;">
-        Every flag closed from "My Sales Order Health" on the dashboard, under its flag-instance
-        token — RFI-… for red, YFI-… for yellow — with the order as it looked at the time.
+        Every instance closed from "My Notifications" on the dashboard, under its token —
+        RFI/YFI/GFI/NFI by severity — with the order as it looked at the time.
         For date ranges, filters, and Excel export, open the
         <a href="flag-closures.html">Instance Closure Report</a>.
       </p>
@@ -518,7 +520,7 @@
     }
 
     function headerKey(header) {
-      const h = String(header || "").toLowerCase();
+      const h = normalizeHeaderText(header);
       if (!h) return null;
       if (h.includes("user created")) return "userCreated";
       if (h === "sp") return "sp";
@@ -605,11 +607,18 @@
       return n - 1;
     }
 
-    async function workbookToGrid(arrayBuffer) {
+    // All worksheets, in workbook order where discoverable — some export
+    // writers put a criteria/cover sheet first, so the data sheet may not be
+    // sheet1.xml.
+    async function workbookToGrids(arrayBuffer) {
       const zip = readZipDirectory(arrayBuffer);
       const sheetNames = Object.keys(zip.entries)
-        .filter((n) => /^xl\/worksheets\/sheet\d+\.xml$/.test(n))
-        .sort((a, b) => Number(a.match(/\d+/)[0]) - Number(b.match(/\d+/)[0]));
+        .filter((n) => /^xl\/worksheets\/[^\/]+\.xml$/i.test(n))
+        .sort((a, b) => {
+          const na = Number((a.match(/(\d+)\.xml$/i) || [])[1] || 0);
+          const nb = Number((b.match(/(\d+)\.xml$/i) || [])[1] || 0);
+          return na - nb || a.localeCompare(b);
+        });
       if (!sheetNames.length) throw new Error("No worksheet found in that file.");
 
       const sharedXml = await readZipText(zip, "xl/sharedStrings.xml");
@@ -620,43 +629,75 @@
         for (let i = 0; i < sis.length; i++) shared.push(textOfShared(sis[i]));
       }
 
-      const sheetXml = await readZipText(zip, sheetNames[0]);
-      const doc = new DOMParser().parseFromString(sheetXml, "application/xml");
-      const grid = [];
-      const rows = doc.getElementsByTagName("row");
-      for (let r = 0; r < rows.length; r++) {
-        const rowIndex = Number(rows[r].getAttribute("r") || (r + 1)) - 1;
-        const cells = rows[r].getElementsByTagName("c");
-        const out = [];
-        for (let c = 0; c < cells.length; c++) {
-          const cell = cells[c];
-          const ref = cell.getAttribute("r") || "";
-          const col = ref ? refToColIndex(ref) : c;
-          const type = cell.getAttribute("t") || "n";
-          let value = null;
-          if (type === "inlineStr") {
-            value = textOfShared(cell);
-          } else {
-            const v = cell.getElementsByTagName("v")[0];
-            if (v) {
-              const text = v.textContent;
-              if (type === "s") value = shared[Number(text)] ?? "";
-              else if (type === "str" || type === "b") value = text;
-              else value = text === "" ? null : Number(text);
+      const grids = [];
+      for (const sheetName of sheetNames) {
+        const sheetXml = await readZipText(zip, sheetName);
+        if (!sheetXml) continue;
+        const doc = new DOMParser().parseFromString(sheetXml, "application/xml");
+        const grid = [];
+        const rows = doc.getElementsByTagName("row");
+        for (let r = 0; r < rows.length; r++) {
+          const rowIndex = Number(rows[r].getAttribute("r") || (r + 1)) - 1;
+          const cells = rows[r].getElementsByTagName("c");
+          const out = [];
+          for (let c = 0; c < cells.length; c++) {
+            const cell = cells[c];
+            const ref = cell.getAttribute("r") || "";
+            const col = ref ? refToColIndex(ref) : c;
+            const type = cell.getAttribute("t") || "n";
+            let value = null;
+            if (type === "inlineStr") {
+              value = textOfShared(cell);
+            } else {
+              const v = cell.getElementsByTagName("v")[0];
+              if (v) {
+                const text = v.textContent;
+                if (type === "s") value = shared[Number(text)] ?? "";
+                else if (type === "str" || type === "b") value = text;
+                else value = text === "" ? null : Number(text);
+              }
             }
+            out[col] = value;
           }
-          out[col] = value;
+          grid[rowIndex] = out;
         }
-        grid[rowIndex] = out;
+        grids.push(grid);
       }
-      return grid;
+      return grids;
     }
 
-    function parseWorkbook(grid) {
-      const headerIndex = grid.findIndex((row) =>
-        row && row.some((cell) => String(cell || "").toLowerCase().includes("job status")));
-      if (headerIndex < 0) {
-        throw new Error("Couldn't find the header row — is this the ExportInvoice report?");
+    // Collapse newlines, non-breaking spaces, and doubled spaces so header
+    // matching survives however ePASS formats the header cells.
+    function normalizeHeaderText(value) {
+      return String(value == null ? "" : value).replace(/[\s\u00a0]+/g, " ").trim().toLowerCase();
+    }
+
+    function findHeaderRowIndex(grid) {
+      const texts = (row) => (row || []).map(normalizeHeaderText);
+      // Primary signal: a "Job Status" column.
+      let index = grid.findIndex((row) => row && texts(row).some((t) => t.includes("job status")));
+      if (index >= 0) return index;
+      // Fallback: a row that looks like the invoice header even if the
+      // Job Status column is renamed or missing.
+      return grid.findIndex((row) => {
+        if (!row) return false;
+        const t = texts(row);
+        const hasInvoice = t.some((x) => x.includes("invoice"));
+        const hasMoney = t.some((x) => x.includes("balance") || x.includes("total"));
+        const hasSchedule = t.some((x) => x.includes("sched") || x.includes("route") || x.includes("pickup"));
+        return hasInvoice && hasMoney && hasSchedule;
+      });
+    }
+
+    function parseWorkbook(grids) {
+      let grid = null;
+      let headerIndex = -1;
+      for (const candidate of grids) {
+        const found = findHeaderRowIndex(candidate);
+        if (found >= 0) { grid = candidate; headerIndex = found; break; }
+      }
+      if (!grid) {
+        throw new Error(`Couldn't find the header row in any of the ${grids.length} sheet(s) — is this the ExportInvoice report?`);
       }
 
       const keys = grid[headerIndex].map(headerKey);
@@ -702,8 +743,8 @@
       el("uploadBtn").textContent = "Uploading…";
       try {
         const buffer = await file.arrayBuffer();
-        const grid = await workbookToGrid(buffer);
-        const rows = parseWorkbook(grid);
+        const grids = await workbookToGrids(buffer);
+        const rows = parseWorkbook(grids);
         if (!rows.length) throw new Error("No order rows found in that file.");
 
         const res = await fetch("/api/sales-orders", {
@@ -776,9 +817,9 @@
       el("closuresBody").innerHTML = rows.length ? rows.map((c) => `
         <tr>
           <td style="white-space: nowrap; font-weight: 700;">${escapeHtml(c.token)}</td>
-          <td><span class="badge ${c.severity === "red" ? "red" : "yellow"}">${c.severity === "red" ? "Red" : "Yellow"}</span></td>
-          <td style="white-space: nowrap; font-weight: 600;">${escapeHtml(c.invoice)}</td>
-          <td>${escapeHtml(c.order?.name || "")}</td>
+          <td><span class="badge ${escapeHtml(c.severity)}">${escapeHtml(c.severity.charAt(0).toUpperCase() + c.severity.slice(1))}</span></td>
+          <td style="white-space: nowrap; font-weight: 600;">${c.invoice ? escapeHtml(c.invoice) : "—"}</td>
+          <td>${escapeHtml(c.order?.name || c.title || "")}</td>
           <td>${c.order?.jobStatus ? `<span class="badge status">${escapeHtml(c.order.jobStatus)}</span>` : ""}</td>
           <td>${(c.flags || []).map((f) => `<span class="badge ${f.level}">${escapeHtml(f.text)}</span>`).join("")}</td>
           <td>${escapeHtml(c.closedByName || c.closedByEmail)}</td>

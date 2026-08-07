@@ -473,22 +473,27 @@
 
       creatorNameInput.value = match.name;
       creatorEmailInput.value = match.email;
-      const matchedDepartment = match.department || '';
-      const validDepartmentOptions = new Set([
-        'Appliance',
-        'Repair Service',
-        'Kitchen Design',
-        'HVAC Sales'
-      ]);
+      // Match the directory department tolerantly (case/whitespace can vary
+      // when entries are edited in User Admin) and NEVER dead-end: anything
+      // that isn't a recognized payment department lets the user choose.
+      const matchedDepartment = String(match.department || '').trim();
+      const paymentDepartments = ['Appliance', 'Repair Service', 'Kitchen Design', 'HVAC Sales'];
+      const validDepartmentOptions = new Set(paymentDepartments);
+      const canonicalDepartment = paymentDepartments.find(
+        (d) => d.toLowerCase() === matchedDepartment.toLowerCase()
+      ) || '';
+      const isClientCare = matchedDepartment.toLowerCase() === 'client care';
 
-      if (matchedDepartment === 'Client Care') {
+      if (isClientCare || !canonicalDepartment) {
         departmentInput.disabled = false;
         if (!validDepartmentOptions.has(departmentInput.value)) {
           departmentInput.value = 'Appliance';
         }
-        departmentHint.textContent = 'Client Care can manually choose which department should own this payment link.';
+        departmentHint.textContent = isClientCare
+          ? 'Client Care can manually choose which department should own this payment link.'
+          : 'No payment department on file for this code — choose the department that owns this link.';
       } else {
-        departmentInput.value = matchedDepartment;
+        departmentInput.value = canonicalDepartment;
         departmentInput.disabled = true;
         departmentHint.textContent = 'Department was assigned from the employee code.';
       }

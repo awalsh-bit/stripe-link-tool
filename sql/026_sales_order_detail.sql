@@ -54,6 +54,7 @@ CREATE TABLE IF NOT EXISTS sales_order_lines (
   customer TEXT NOT NULL DEFAULT '',
   line_type TEXT NOT NULL DEFAULT '',              -- 'Model' | 'Wty'
   product TEXT NOT NULL DEFAULT '',
+  serial_number TEXT NOT NULL DEFAULT '',          -- v2 Crystal exports; '' on v1 months and Wty lines
   qty NUMERIC(10,2) NOT NULL DEFAULT 0,
   revenue NUMERIC(14,2) NOT NULL DEFAULT 0,
   serial_type TEXT NOT NULL DEFAULT '',            -- ALL / OPEN / RTV / DISPLAY / SVC / '' (Wty)
@@ -65,6 +66,7 @@ CREATE TABLE IF NOT EXISTS sales_order_lines (
   source_filename TEXT NOT NULL DEFAULT '',
   uploaded_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+ALTER TABLE sales_order_lines ADD COLUMN IF NOT EXISTS serial_number TEXT NOT NULL DEFAULT '';
 ALTER TABLE sales_order_lines ADD COLUMN IF NOT EXISTS split BOOLEAN NOT NULL DEFAULT FALSE;
 ALTER TABLE sales_order_lines ADD COLUMN IF NOT EXISTS split_partners TEXT NOT NULL DEFAULT '';
 CREATE INDEX IF NOT EXISTS idx_sol_base_invoice ON sales_order_lines (base_invoice);
@@ -80,6 +82,14 @@ CREATE INDEX IF NOT EXISTS idx_sol_month ON sales_order_lines (source_month);
 -- salesperson_code by normalized (uppercase, whitespace-collapsed) name
 -- match; when both sources know a name, the commission pair wins.
 ALTER TABLE sales_order_detail ADD COLUMN IF NOT EXISTS salesperson_code TEXT NOT NULL DEFAULT '';
+
+-- SV service ticket classification (from the OE-23 customer rows): COD
+-- tickets bill the real customer (numeric phone-style customer number);
+-- warranty tickets bill the manufacturer's account (alpha key like
+-- SPEEDQUEEN); customer 5128940907 is Wilson's own "WACA Warranty"
+-- goodwill bucket. '' on non-SV orders. Feeds tech comp: COD labor,
+-- COD parts margin, warranty labor.
+ALTER TABLE sales_order_detail ADD COLUMN IF NOT EXISTS service_type TEXT NOT NULL DEFAULT '';
 
 CREATE TABLE IF NOT EXISTS salesperson_codes (
   code TEXT PRIMARY KEY,

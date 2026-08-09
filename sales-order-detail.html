@@ -149,6 +149,20 @@
       white-space: nowrap;
     }
 
+    .svc-chip {
+      display: inline-block;
+      margin-left: 6px;
+      padding: 1px 7px;
+      border-radius: 999px;
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.03em;
+      white-space: nowrap;
+    }
+    .svc-chip.cod { background: #eaf4ec; color: #1a5222; }
+    .svc-chip.mfg { background: #e0ecf7; color: #1e40af; }
+    .svc-chip.waca { background: #fef3c7; color: #92400e; }
+
     .sp-code {
       display: inline-block;
       margin-left: 6px;
@@ -395,7 +409,7 @@
       return lineRows.filter((l) =>
         (!deptFilter || l.department === deptFilter) &&
         (!spFilter || l.salesperson === spFilter) &&
-        (!term || [l.invoice, l.orderInvoice, l.orderCustomerName, l.customer, l.product].join(" ").toLowerCase().includes(term)));
+        (!term || [l.invoice, l.orderInvoice, l.orderCustomerName, l.customer, l.product, l.serialNumber].join(" ").toLowerCase().includes(term)));
     }
 
     function filteredOrders() {
@@ -451,7 +465,7 @@
         const main = `
           <tr class="order-row">
             <td style="font-weight: 700; white-space: nowrap;">${escapeHtml(o.invoice)}</td>
-            <td>${escapeHtml(o.department)}</td>
+            <td>${escapeHtml(o.department)}${o.serviceType ? `<span class="svc-chip ${o.serviceType === "COD" ? "cod" : (o.serviceType === "WACA Warranty" ? "waca" : "mfg")}">${escapeHtml(o.serviceType === "Manufacturer Warranty" ? "MFG WTY" : (o.serviceType === "WACA Warranty" ? "WACA" : o.serviceType))}</span>` : ""}</td>
             <td>${escapeHtml(o.salesperson)}${o.salespersonCode ? `<span class="sp-code">${escapeHtml(o.salespersonCode)}</span>` : ""}</td>
             <td style="white-space: nowrap;">${escapeHtml(o.finishDate)}</td>
             <td>${escapeHtml(o.customerName)}</td>
@@ -483,6 +497,7 @@
             <th>Customer</th>
             <th>Type</th>
             <th>Product</th>
+            <th>Serial #</th>
             <th class="num">Qty</th>
             <th class="num">Revenue</th>
             <th>Serial</th>
@@ -512,13 +527,14 @@
             <td>${escapeHtml(l.orderCustomerName)}</td>
             <td>${escapeHtml(l.lineType)}${l.split ? `<span class="split-badge" title="Split sale — revenue made whole, cost counted once (${escapeHtml(l.splitPartners)})">Split ${escapeHtml(l.splitPartners)}</span>` : ""}</td>
             <td style="font-weight: 600;">${escapeHtml(l.product)}</td>
+            <td style="font-family: ui-monospace, monospace; font-size: 12px; white-space: nowrap;">${escapeHtml(l.serialNumber || "—")}</td>
             <td class="num">${l.qty}</td>
             <td class="num">${fmtMoney(l.revenue)}</td>
             <td>${escapeHtml(l.serialType || "—")}</td>
             <td class="num">${l.serialCost == null ? "—" : fmtMoney(l.serialCost)}</td>
             <td class="num ${marginClass(margin)}">${Number.isFinite(margin) ? margin.toFixed(1) + "%" : "—"}</td>
           </tr>`;
-      }).join("") : '<tr><td colspan="12" class="empty">No line items in this range match the filters. Upload the commission report for the months in range if it\'s missing.</td></tr>';
+      }).join("") : '<tr><td colspan="13" class="empty">No line items in this range match the filters. Upload the commission report for the months in range if it\'s missing.</td></tr>';
     }
 
     function renderLinesTable(lines) {
@@ -526,13 +542,14 @@
       return `
         <table class="lines-table">
           <thead>
-            <tr><th>Type</th><th>Product</th><th class="num">Qty</th><th class="num">Revenue</th><th>Serial</th><th class="num">Serial Cost</th><th>SP</th></tr>
+            <tr><th>Type</th><th>Product</th><th>Serial #</th><th class="num">Qty</th><th class="num">Revenue</th><th>Serial</th><th class="num">Serial Cost</th><th>SP</th></tr>
           </thead>
           <tbody>
             ${lines.map((l) => `
               <tr>
                 <td>${escapeHtml(l.lineType)}${l.split ? `<span class="split-badge">Split ${escapeHtml(l.splitPartners)}</span>` : ""}</td>
                 <td style="font-weight: 600;">${escapeHtml(l.product)}</td>
+                <td style="font-family: ui-monospace, monospace; font-size: 11.5px;">${escapeHtml(l.serialNumber || "—")}</td>
                 <td class="num">${l.qty}</td>
                 <td class="num">${fmtMoney(l.revenue)}</td>
                 <td>${escapeHtml(l.serialType || "—")}</td>
@@ -771,11 +788,11 @@
     }
 
     function buildDetailXlsx(rows) {
-      const header = ["Invoice", "Department", "Salesperson", "SP Code", "Finish Date", "Customer #", "Customer",
+      const header = ["Invoice", "Department", "Service Type", "Salesperson", "SP Code", "Finish Date", "Customer #", "Customer",
         "Product", "Parts", "Labor", "Wty", "Misc", "Revenue (No Tax)", "Invoice Total", "Cost",
         "Profit", "Margin %", "Line Items", "Source Month"];
       const dataRows = rows.map((o) => [
-        o.invoice, o.department, o.salesperson, o.salespersonCode || "", o.finishDate, o.customerNumber, o.customerName,
+        o.invoice, o.department, o.serviceType || "", o.salesperson, o.salespersonCode || "", o.finishDate, o.customerNumber, o.customerName,
         o.listProduct, o.listParts, o.listLabor, o.listWty, o.listMisc, o.revenue, o.invoiceTotal,
         o.cost, o.profit,
         o.revenue ? Math.round(o.profit / o.revenue * 1000) / 10 : "",
@@ -798,11 +815,11 @@
 
     function buildLineReportXlsx(rows) {
       const header = ["Invoice", "Order Invoice", "Department", "Salesperson", "SP Code", "Finish Date",
-        "Customer", "Type", "Product", "Qty", "Revenue", "Serial Type", "Serial Cost", "Line Margin %",
+        "Customer", "Type", "Product", "Serial Number", "Qty", "Revenue", "Serial Type", "Serial Cost", "Line Margin %",
         "Split", "Split Partners", "Source Month"];
       const dataRows = rows.map((l) => [
         l.invoice, l.orderInvoice, l.department, l.salesperson, l.salespersonCode || "", l.finishDate,
-        l.orderCustomerName, l.lineType, l.product, l.qty, l.revenue, l.serialType || "",
+        l.orderCustomerName, l.lineType, l.product, l.serialNumber || "", l.qty, l.revenue, l.serialType || "",
         l.serialCost == null ? "" : l.serialCost,
         l.serialCost != null && l.revenue ? Math.round((l.revenue - l.serialCost) / l.revenue * 1000) / 10 : "",
         l.split ? "Yes" : "", l.splitPartners || "",

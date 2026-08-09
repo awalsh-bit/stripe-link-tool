@@ -205,7 +205,7 @@
       <div class="toolbar" style="margin-bottom: 12px;">
         <select id="deptFilter"><option value="">All departments</option></select>
         <select id="stFilter"><option value="">All serial types</option></select>
-        <input type="text" id="searchInput" placeholder="Search invoice, customer, or model…" style="min-width: 240px;" />
+        <input type="text" id="searchInput" placeholder="Search invoice, customer, model, or serial…" style="min-width: 250px;" />
         <span style="flex: 1;"></span>
         <span class="asof" id="countNote"></span>
         <button type="button" class="secondary-btn" id="exportBtn">Export to Excel</button>
@@ -219,6 +219,7 @@
             <th>Customer</th>
             <th>Salesperson</th>
             <th>Product</th>
+            <th>Serial #</th>
             <th class="num">Qty</th>
             <th class="num">Revenue</th>
             <th>Serial</th>
@@ -228,7 +229,7 @@
           </tr>
         </thead>
         <tbody id="tableBody">
-          <tr><td colspan="12" class="empty">Pick a month range and run the report.</td></tr>
+          <tr><td colspan="13" class="empty">Pick a month range and run the report.</td></tr>
         </tbody>
       </table>
     </div>
@@ -318,7 +319,7 @@
       return rows.filter((r) =>
         (!deptFilter || r.department === deptFilter) &&
         (!stFilter || stOf(r) === stFilter) &&
-        (!term || [r.invoice, r.orderCustomerName, r.customer, r.product].join(" ").toLowerCase().includes(term)));
+        (!term || [r.invoice, r.orderCustomerName, r.customer, r.product, r.serialNumber].join(" ").toLowerCase().includes(term)));
     }
 
     function stBadge(r) {
@@ -345,6 +346,7 @@
           <td>${escapeHtml(r.orderCustomerName)}</td>
           <td>${escapeHtml(r.orderSalesperson || "—")}</td>
           <td style="font-weight: 600;">${escapeHtml(r.product)}</td>
+          <td style="white-space: nowrap; font-family: ui-monospace, monospace; font-size: 12px;">${escapeHtml(r.serialNumber || "—")}</td>
           <td class="num">${r.qty}</td>
           <td class="num neg">${fmtMoney(r.revenue)}</td>
           <td>${stBadge(r)}</td>
@@ -352,11 +354,11 @@
           <td>${r.originalSale ? `
             <span class="sale-match">
               ${escapeHtml(r.originalSale.invoice)} · ${escapeHtml(r.originalSale.month)} · ${fmtMoney(r.originalSale.revenue)}
-              ${r.originalSale.sameSerialCost ? '<span class="fp" title="Serial cost identical — same unit">same unit</span>' : '<span class="fp weak" title="Serial cost differs — likely same model, verify unit">model match</span>'}
+              ${r.originalSale.sameSerial ? '<span class="fp" title="Serial numbers identical — definitively the same unit">same serial</span>' : (r.originalSale.sameSerialCost ? '<span class="fp" title="Serial cost identical — same unit">same unit</span>' : '<span class="fp weak" title="Serial cost differs — likely same model, verify unit">model match</span>')}
               <span class="how">${escapeHtml(r.originalSale.matchedBy)}</span>
             </span>` : '<span class="asof">not found yet — upload earlier months</span>'}</td>
           <td style="white-space: nowrap;">${escapeHtml(r.finishDate || "—")}</td>
-        </tr>`).join("") : '<tr><td colspan="12" class="empty">No return lines in this range match the filters.</td></tr>';
+        </tr>`).join("") : '<tr><td colspan="13" class="empty">No return lines in this range match the filters.</td></tr>';
     }
 
     el("deptFilter").addEventListener("change", () => { deptFilter = el("deptFilter").value; renderAll(); });
@@ -457,14 +459,15 @@
     function buildReturnsXlsx(view) {
       const header = ["Commission Month", "Invoice", "Order In Warehouse", "Department", "Customer", "Salesperson",
         "Type", "Product", "Qty", "Revenue", "Serial Type", "Serial Cost", "Order Finished", "Split",
-        "Sale Invoice", "Sale Month", "Sale Revenue", "Sale Serial Cost", "Same Unit (Cost Match)", "Matched By"];
+        "Sale Invoice", "Sale Month", "Sale Revenue", "Sale Serial Cost", "Same Unit (Cost Match)", "Matched By", "Serial Number", "Sale Serial Number"];
       const dataRows = view.map((r) => [
         r.sourceMonth, r.invoice, r.orderInvoice ? "Yes" : "No", r.department || "", r.orderCustomerName,
         r.orderSalesperson || "", r.lineType, r.product, r.qty, r.revenue, stOf(r),
         r.serialCost == null ? "" : r.serialCost, r.finishDate || "", r.split ? "Yes" : "",
         r.originalSale?.invoice || "", r.originalSale?.month || "",
         r.originalSale ? r.originalSale.revenue : "", r.originalSale?.serialCost ?? "",
-        r.originalSale ? (r.originalSale.sameSerialCost ? "Yes" : "No") : "", r.originalSale?.matchedBy || ""
+        r.originalSale ? (r.originalSale.sameSerialCost ? "Yes" : "No") : "", r.originalSale?.matchedBy || "",
+        r.serialNumber || "", r.originalSale?.serialNumber || ""
       ]);
       const files = [
         { name: "[Content_Types].xml", text: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>

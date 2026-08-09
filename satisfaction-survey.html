@@ -10,19 +10,19 @@
   <style>
     :root {
       --bg: #f7f8fc; --card: #ffffff; --text: #1f2937; --muted: #6b7280;
-      --border: #dbe1ea; --primary: #635bff; --primary-hover: #564ef0;
+      --border: #dbe1ea; --primary: #21692c; --primary-hover: #1a5222;
       --shadow: 0 10px 35px rgba(0, 0, 0, 0.08); --radius: 18px;
     }
     * { box-sizing: border-box; }
     body {
       margin: 0;
       font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-      background: linear-gradient(180deg, #eef2ff 0%, var(--bg) 100%);
+      background: linear-gradient(180deg, #eaf4ec 0%, var(--bg) 100%);
       color: var(--text); min-height: 100vh; padding: 32px 16px;
     }
     .wrap { max-width: 880px; margin: 0 auto; }
     .surface {
-      background: var(--card); border: 1px solid rgba(99, 91, 255, 0.12);
+      background: var(--card); border: 1px solid rgba(33, 105, 44, 0.12);
       box-shadow: var(--shadow); border-radius: var(--radius);
       padding: 30px; margin: 0 auto 22px;
     }
@@ -41,7 +41,7 @@
       background: var(--primary); color: #fff;
       border-radius: 22px; font-family: inherit;
       font-size: clamp(26px, 4vw, 38px); font-weight: 800;
-      box-shadow: 0 14px 40px rgba(99, 91, 255, 0.35);
+      box-shadow: 0 14px 40px rgba(33, 105, 44, 0.35);
       transition: transform 0.08s ease, background 0.12s ease;
     }
     .start-btn:hover { background: var(--primary-hover); transform: translateY(-2px); }
@@ -56,7 +56,7 @@
     .run-overlay {
       display: none;
       position: fixed; inset: 0; z-index: 100;
-      background: linear-gradient(180deg, #eef2ff 0%, var(--bg) 100%);
+      background: linear-gradient(180deg, #eaf4ec 0%, var(--bg) 100%);
       overflow-y: auto;
     }
     body.run-mode .run-overlay { display: block; }
@@ -100,7 +100,7 @@
       transition: transform 0.06s ease, background 0.12s ease, border-color 0.12s ease;
     }
     .option-btn:hover { border-color: #b6c2da; transform: translateY(-2px); }
-    .option-btn.selected { background: #eef2ff; border-color: var(--primary); color: #3730a3; }
+    .option-btn.selected { background: #eaf4ec; border-color: var(--primary); color: #1a5222; }
 
     /* The one big action slot: Next on step 1, Submit on step 2. Hidden
        (but space reserved) until an answer is picked, so nothing jumps. */
@@ -110,7 +110,7 @@
       background: var(--primary); color: #fff;
       border-radius: 20px; font-family: inherit;
       font-size: clamp(22px, 3vw, 30px); font-weight: 800;
-      box-shadow: 0 14px 40px rgba(99, 91, 255, 0.35);
+      box-shadow: 0 14px 40px rgba(33, 105, 44, 0.35);
       transition: transform 0.08s ease, background 0.12s ease;
       visibility: hidden;
     }

@@ -885,11 +885,11 @@ function sendForbiddenPage(res) {
   <meta name="robots" content="noindex,nofollow,noarchive" />
   <title>Access restricted</title>
   <style>
-    body { margin: 0; min-height: 100vh; display: flex; align-items: center; justify-content: center; font-family: Inter, system-ui, sans-serif; background: linear-gradient(180deg, #eef2ff 0%, #f7f8fc 100%); color: #1f2937; padding: 24px; }
-    .card { width: min(100%, 480px); background: #fff; border: 1px solid rgba(99, 91, 255, 0.12); border-radius: 18px; box-shadow: 0 10px 35px rgba(0, 0, 0, 0.08); padding: 28px; text-align: center; }
+    body { margin: 0; min-height: 100vh; display: flex; align-items: center; justify-content: center; font-family: Inter, system-ui, sans-serif; background: linear-gradient(180deg, #eaf4ec 0%, #f7f8fc 100%); color: #1f2937; padding: 24px; }
+    .card { width: min(100%, 480px); background: #fff; border: 1px solid rgba(33, 105, 44, 0.12); border-radius: 18px; box-shadow: 0 10px 35px rgba(0, 0, 0, 0.08); padding: 28px; text-align: center; }
     h1 { margin: 0 0 10px; font-size: 32px; }
     p { margin: 0 0 18px; color: #6b7280; line-height: 1.6; }
-    a { display: inline-flex; align-items: center; justify-content: center; padding: 12px 16px; border-radius: 12px; background: #635bff; color: #fff; text-decoration: none; font-weight: 700; }
+    a { display: inline-flex; align-items: center; justify-content: center; padding: 12px 16px; border-radius: 12px; background: #21692c; color: #fff; text-decoration: none; font-weight: 700; }
   </style>
 </head>
 <body>
@@ -1240,7 +1240,7 @@ function buildAuthEmailHtml(title, bodyLines, buttonLabel, buttonUrl, footerLine
       <h2 style="margin: 0 0 16px;">${escapeHtmlForEmail(title)}</h2>
       ${paragraphs}
       <p style="margin: 20px 0;">
-        <a href="${buttonUrl}" style="display: inline-block; padding: 12px 20px; border-radius: 10px; background: #635bff; color: #ffffff; text-decoration: none; font-weight: 700;">${escapeHtmlForEmail(buttonLabel)}</a>
+        <a href="${buttonUrl}" style="display: inline-block; padding: 12px 20px; border-radius: 10px; background: #21692c; color: #ffffff; text-decoration: none; font-weight: 700;">${escapeHtmlForEmail(buttonLabel)}</a>
       </p>
       <p style="margin: 0 0 12px; font-size: 13px; color: #6b7280;">If the button does not work, copy this link into your browser:<br>${escapeHtmlForEmail(buttonUrl)}</p>
       <p style="margin: 0; font-size: 13px; color: #6b7280;">${escapeHtmlForEmail(footerLine)}</p>
@@ -5200,7 +5200,7 @@ app.post("/api/credit-application/submit", rateLimit("credit-application", 5, 60
       ? `<tr><td style="padding:4px 14px 4px 0;color:#6b7280;font-size:12px;white-space:nowrap;vertical-align:top;">${esc(label)}</td><td style="padding:4px 0;font-size:13px;">${esc(value)}</td></tr>`
       : "";
     const section = (title, rows) =>
-      `<h3 style="margin:18px 0 6px;font-size:13px;letter-spacing:0.06em;text-transform:uppercase;color:#4f46e5;">${esc(title)}</h3>` +
+      `<h3 style="margin:18px 0 6px;font-size:13px;letter-spacing:0.06em;text-transform:uppercase;color:#1f6329;">${esc(title)}</h3>` +
       `<table cellpadding="0" cellspacing="0" style="border-collapse:collapse;">${rows}</table>`;
 
     const mailingLine = [clean(company.mailingAddress), clean(company.mailingCity), clean(company.mailingState), clean(company.mailingZip)].filter(Boolean).join(", ");

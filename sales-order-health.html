@@ -14,8 +14,8 @@
       --text: #1f2937;
       --muted: #6b7280;
       --border: #dbe1ea;
-      --primary: #635bff;
-      --primary-hover: #564ef0;
+      --primary: #21692c;
+      --primary-hover: #1a5222;
       --error-bg: #fef2f2;
       --error-text: #991b1b;
       --shadow: 0 10px 35px rgba(0, 0, 0, 0.08);
@@ -30,7 +30,7 @@
     body {
       margin: 0;
       font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-      background: linear-gradient(180deg, #eef2ff 0%, var(--bg) 100%);
+      background: linear-gradient(180deg, #eaf4ec 0%, var(--bg) 100%);
       color: var(--text);
       min-height: 100vh;
       padding: 32px 16px;
@@ -40,7 +40,7 @@
 
     .surface {
       background: var(--card);
-      border: 1px solid rgba(99, 91, 255, 0.12);
+      border: 1px solid rgba(33, 105, 44, 0.12);
       box-shadow: var(--shadow);
       border-radius: var(--radius);
       padding: 22px;
@@ -116,7 +116,7 @@
       outline: none;
     }
     .toolbar input[type="text"] { min-width: 240px; }
-    .toolbar input:focus, select:focus { border-color: rgba(99, 91, 255, 0.75); box-shadow: 0 0 0 4px rgba(99, 91, 255, 0.12); }
+    .toolbar input:focus, select:focus { border-color: rgba(33, 105, 44, 0.75); box-shadow: 0 0 0 4px rgba(33, 105, 44, 0.12); }
 
     .check-inline { display: inline-flex; align-items: center; gap: 7px; font-size: 13px; font-weight: 600; }
 
@@ -151,7 +151,7 @@
     .badge.yellow { background: #fef3c7; color: #92400e; }
     .badge.green { background: #dcfce7; color: #166534; }
     .badge.neutral { background: #e5e7eb; color: #374151; }
-    .badge.status { background: #eef2ff; color: #3730a3; }
+    .badge.status { background: #eaf4ec; color: #1a5222; }
 
     details.legend { font-size: 13px; color: var(--muted); }
     details.legend summary { cursor: pointer; font-weight: 600; color: var(--text); }

@@ -14,8 +14,8 @@
       --text: #1f2937;
       --muted: #6b7280;
       --border: #dbe1ea;
-      --primary: #635bff;
-      --primary-hover: #564ef0;
+      --primary: #21692c;
+      --primary-hover: #1a5222;
       --success-bg: #ecfdf5;
       --success-text: #065f46;
       --error-bg: #fef2f2;
@@ -31,7 +31,7 @@
     body {
       margin: 0;
       font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-      background: linear-gradient(180deg, #eef2ff 0%, var(--bg) 100%);
+      background: linear-gradient(180deg, #eaf4ec 0%, var(--bg) 100%);
       color: var(--text);
       min-height: 100vh;
       padding: 32px 16px;
@@ -41,7 +41,7 @@
 
     .surface {
       background: var(--card);
-      border: 1px solid rgba(99, 91, 255, 0.12);
+      border: 1px solid rgba(33, 105, 44, 0.12);
       box-shadow: var(--shadow);
       border-radius: var(--radius);
       padding: 24px;
@@ -77,8 +77,8 @@
     }
 
     input:focus, select:focus {
-      border-color: rgba(99, 91, 255, 0.75);
-      box-shadow: 0 0 0 4px rgba(99, 91, 255, 0.12);
+      border-color: rgba(33, 105, 44, 0.75);
+      box-shadow: 0 0 0 4px rgba(33, 105, 44, 0.12);
     }
 
     button {
@@ -98,11 +98,11 @@
     button:disabled { opacity: 0.6; cursor: wait; }
 
     button.secondary {
-      background: #eef2ff;
+      background: #eaf4ec;
       color: var(--primary);
     }
 
-    button.secondary:hover { background: #e0e7ff; }
+    button.secondary:hover { background: #d7ead9; }
 
     button.danger {
       background: #fee2e2;
@@ -155,7 +155,7 @@
     .pill.active { background: var(--success-bg); color: var(--success-text); }
     .pill.disabled { background: var(--error-bg); color: var(--error-text); }
     .pill.pending { background: var(--warn-bg); color: var(--warn-text); }
-    .pill.exec { background: #eef2ff; color: var(--primary); }
+    .pill.exec { background: #eaf4ec; color: var(--primary); }
 
     .row-actions { display: flex; flex-wrap: wrap; gap: 6px; }
 
@@ -175,7 +175,7 @@
       padding: 0;
     }
 
-    .kebab-btn:hover { background: #eef2ff; color: var(--primary); }
+    .kebab-btn:hover { background: #eaf4ec; color: var(--primary); }
 
     .kebab-menu {
       position: fixed;
@@ -206,11 +206,11 @@
       white-space: nowrap;
     }
 
-    .kebab-item:hover { background: #eef2ff; color: var(--primary); }
+    .kebab-item:hover { background: #eaf4ec; color: var(--primary); }
     .kebab-item.danger { color: var(--error-text); }
     .kebab-item.danger:hover { background: var(--error-bg); color: var(--error-text); }
 
-    .perm-row td { background: #fbfcff; }
+    .perm-row td { background: #fbfdfb; }
 
     .perm-grid {
       display: flex;

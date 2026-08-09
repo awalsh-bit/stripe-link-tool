@@ -45,8 +45,8 @@
   width: 40px;
   height: 40px;
   border-radius: 999px;
-  background: rgba(99, 91, 255, 0.14);
-  color: #635bff;
+  background: rgba(33, 105, 44, 0.14);
+  color: #21692c;
   flex: 0 0 auto;
 }
 
@@ -62,8 +62,8 @@
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: #635bff;
-  background: rgba(99, 91, 255, 0.1);
+  color: #21692c;
+  background: rgba(33, 105, 44, 0.1);
   padding: 10px 14px;
   border-radius: 999px;
   margin-bottom: 0;
@@ -80,7 +80,7 @@
   width: 42px;
   height: 42px;
   border-radius: 12px;
-  border: 1px solid rgba(99, 91, 255, 0.16);
+  border: 1px solid rgba(33, 105, 44, 0.16);
   background: rgba(255, 255, 255, 0.92);
   box-shadow: 0 10px 35px rgba(0, 0, 0, 0.08);
   cursor: pointer;
@@ -88,8 +88,8 @@
 }
 
 .internal-shell-menu-trigger:hover {
-  background: #eef2ff;
-  border-color: rgba(99, 91, 255, 0.32);
+  background: #eaf4ec;
+  border-color: rgba(33, 105, 44, 0.32);
   transform: translateY(-1px);
 }
 
@@ -103,7 +103,7 @@
   width: 16px;
   height: 2px;
   border-radius: 999px;
-  background: #4338ca;
+  background: #1c5c26;
 }
 
 .internal-shell-menu-panel {
@@ -112,7 +112,7 @@
   left: 0;
   min-width: 320px;
   background: rgba(255, 255, 255, 0.98);
-  border: 1px solid rgba(99, 91, 255, 0.14);
+  border: 1px solid rgba(33, 105, 44, 0.14);
   box-shadow: 0 16px 40px rgba(0, 0, 0, 0.12);
   border-radius: 18px;
   padding: 12px;
@@ -144,7 +144,7 @@
 }
 
 .internal-shell-menu-link:hover {
-  background: #f5f7ff;
+  background: #f4f9f5;
 }
 
 .internal-shell-menu-link-button {
@@ -188,7 +188,7 @@
   left: calc(100% - 6px);
   min-width: 240px;
   background: rgba(255, 255, 255, 0.99);
-  border: 1px solid rgba(99, 91, 255, 0.14);
+  border: 1px solid rgba(33, 105, 44, 0.14);
   box-shadow: 0 16px 40px rgba(0, 0, 0, 0.12);
   border-radius: 18px;
   padding: 12px;
@@ -213,12 +213,12 @@
 }
 
 .internal-shell-submenu-link:hover {
-  background: #f5f7ff;
+  background: #f4f9f5;
 }
 
 .internal-shell-tools {
   background: rgba(255, 255, 255, 0.92);
-  border: 1px solid rgba(99, 91, 255, 0.1);
+  border: 1px solid rgba(33, 105, 44, 0.1);
   border-radius: 22px;
   box-shadow: 0 10px 35px rgba(0, 0, 0, 0.08);
   overflow: hidden;
@@ -227,7 +227,7 @@
 
 .internal-shell-tools-top {
   height: 6px;
-  background: linear-gradient(90deg, #4338ca 0%, #635bff 100%);
+  background: linear-gradient(90deg, #1c5c26 0%, #21692c 100%);
 }
 
 .internal-shell-tools-row {
@@ -265,7 +265,7 @@
 .internal-shell-tool-link:hover {
   transform: translateY(-1px);
   box-shadow: 0 10px 22px rgba(15, 23, 42, 0.08);
-  border-color: rgba(99, 91, 255, 0.24);
+  border-color: rgba(33, 105, 44, 0.24);
 }
 
 .internal-shell-tool-image {
@@ -286,7 +286,7 @@
   margin-top: 24px;
   padding: 18px 20px;
   border-radius: 18px;
-  border: 1px solid rgba(99, 91, 255, 0.1);
+  border: 1px solid rgba(33, 105, 44, 0.1);
   background: rgba(255, 255, 255, 0.9);
   box-shadow: 0 10px 35px rgba(0, 0, 0, 0.06);
 }
@@ -311,7 +311,7 @@
 }
 
 .internal-shell-footer-link {
-  color: #4338ca;
+  color: #1c5c26;
   text-decoration: none;
   font-weight: 700;
 }

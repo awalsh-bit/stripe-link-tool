@@ -14,8 +14,8 @@
       --text: #1f2937;
       --muted: #6b7280;
       --border: #dbe1ea;
-      --primary: #635bff;
-      --primary-hover: #564ef0;
+      --primary: #21692c;
+      --primary-hover: #1a5222;
       --error-bg: #fef2f2;
       --error-text: #991b1b;
       --shadow: 0 10px 35px rgba(0, 0, 0, 0.08);
@@ -27,7 +27,7 @@
     body {
       margin: 0;
       font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-      background: linear-gradient(180deg, #eef2ff 0%, var(--bg) 100%);
+      background: linear-gradient(180deg, #eaf4ec 0%, var(--bg) 100%);
       color: var(--text);
       min-height: 100vh;
       padding: 32px 16px;
@@ -37,7 +37,7 @@
 
     .surface {
       background: var(--card);
-      border: 1px solid rgba(99, 91, 255, 0.12);
+      border: 1px solid rgba(33, 105, 44, 0.12);
       box-shadow: var(--shadow);
       border-radius: var(--radius);
       padding: 22px;
@@ -57,7 +57,7 @@
       min-width: 260px;
       outline: none;
     }
-    .toolbar input:focus { border-color: rgba(99, 91, 255, 0.75); box-shadow: 0 0 0 4px rgba(99, 91, 255, 0.12); }
+    .toolbar input:focus { border-color: rgba(33, 105, 44, 0.75); box-shadow: 0 0 0 4px rgba(33, 105, 44, 0.12); }
 
     .chip {
       appearance: none;
@@ -87,8 +87,8 @@
     }
     table.list tbody td { padding: 10px; border-bottom: 1px solid #eef0f5; vertical-align: top; }
     tbody tr.row { cursor: pointer; }
-    tbody tr.row:hover { background: #f8f8ff; }
-    tbody tr.row.open { background: #f5f5ff; }
+    tbody tr.row:hover { background: #f7fbf8; }
+    tbody tr.row.open { background: #f5faf5; }
     .empty { text-align: center; color: var(--muted); padding: 26px 10px; }
 
     .code { font-weight: 700; letter-spacing: 0.03em; white-space: nowrap; }
@@ -101,13 +101,13 @@
       font-weight: 700;
       white-space: nowrap;
     }
-    .pill.submitted { background: #eef2ff; color: #3730a3; }
+    .pill.submitted { background: #eaf4ec; color: #1a5222; }
     .pill.progress { background: #fffbeb; color: #92400e; }
     .pill.approved { background: #ecfdf5; color: #065f46; }
     .pill.declined { background: #fef2f2; color: #991b1b; }
 
     /* ---------- Detail: one standard table ---------- */
-    .detail-cell { background: #fafbff; padding: 16px 18px 20px; cursor: default; }
+    .detail-cell { background: #fafdfa; padding: 16px 18px 20px; cursor: default; }
     .detail-table-wrap {
       border: 1px solid var(--border);
       border-radius: 12px;
@@ -116,8 +116,8 @@
     }
     table.detail { width: 100%; border-collapse: collapse; font-size: 13px; }
     table.detail tr.sec td {
-      background: #f5f5ff;
-      color: #4f46e5;
+      background: #f5faf5;
+      color: #1f6329;
       text-transform: uppercase;
       letter-spacing: 0.06em;
       font-weight: 700;
@@ -168,7 +168,7 @@
       font-family: inherit;
       outline: none;
     }
-    .action-bar input:focus { border-color: rgba(99, 91, 255, 0.75); box-shadow: 0 0 0 4px rgba(99, 91, 255, 0.12); }
+    .action-bar input:focus { border-color: rgba(33, 105, 44, 0.75); box-shadow: 0 0 0 4px rgba(33, 105, 44, 0.12); }
 
     .approve-btn, .decline-btn, .email-btn {
       appearance: none;

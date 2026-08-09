@@ -14,7 +14,7 @@
       --text: #1f2937;
       --muted: #6b7280;
       --border: #dbe1ea;
-      --primary: #635bff;
+      --primary: #21692c;
       --shadow: 0 10px 35px rgba(0, 0, 0, 0.08);
       --radius: 18px;
     }
@@ -24,7 +24,7 @@
     body {
       margin: 0;
       font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-      background: linear-gradient(180deg, #eef2ff 0%, var(--bg) 100%);
+      background: linear-gradient(180deg, #eaf4ec 0%, var(--bg) 100%);
       color: var(--text);
       min-height: 100vh;
       padding: 32px 16px;
@@ -33,7 +33,7 @@
     .wrap { max-width: 1480px; margin: 0 auto; }
 
     .page-intro {
-      background: linear-gradient(135deg, #2d2566 0%, #4338ca 60%, #635bff 100%);
+      background: linear-gradient(135deg, #143d1a 0%, #1c5c26 60%, #21692c 100%);
       color: #fff;
       border-radius: var(--radius);
       padding: 22px 26px;
@@ -87,8 +87,8 @@
     }
 
     .search-input:focus {
-      border-color: rgba(99, 91, 255, 0.65);
-      box-shadow: 0 0 0 4px rgba(99, 91, 255, 0.12);
+      border-color: rgba(33, 105, 44, 0.65);
+      box-shadow: 0 0 0 4px rgba(33, 105, 44, 0.12);
     }
 
     .cat-filter { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 16px; }
@@ -107,13 +107,13 @@
     }
 
     .cat-chip .chip-count { color: var(--muted); font-weight: 500; margin-left: 4px; }
-    .cat-chip:hover { background: #f5f7ff; border-color: rgba(99, 91, 255, 0.32); }
+    .cat-chip:hover { background: #f4f9f5; border-color: rgba(33, 105, 44, 0.32); }
     .cat-chip.active { background: var(--primary); border-color: var(--primary); color: #fff; }
     .cat-chip.active .chip-count { color: rgba(255, 255, 255, 0.75); }
 
     .card {
       background: var(--card);
-      border: 1px solid rgba(99, 91, 255, 0.12);
+      border: 1px solid rgba(33, 105, 44, 0.12);
       box-shadow: var(--shadow);
       border-radius: var(--radius);
       padding: 22px;
@@ -147,8 +147,8 @@
 
     .cat-pill {
       display: inline-block;
-      background: #eef2ff;
-      color: #3730a3;
+      background: #eaf4ec;
+      color: #1a5222;
       border-radius: 999px;
       padding: 2px 9px;
       font-size: 11px;
@@ -222,7 +222,7 @@
     .sold-btn, .reopen-link {
       appearance: none;
       border: none;
-      background: #eef2ff;
+      background: #eaf4ec;
       color: var(--primary);
       border-radius: 8px;
       padding: 5px 10px;
@@ -233,7 +233,7 @@
       white-space: nowrap;
     }
 
-    .sold-btn:hover, .reopen-link:hover { background: #e0e7ff; }
+    .sold-btn:hover, .reopen-link:hover { background: #d7ead9; }
     .reopen-link { background: transparent; color: var(--muted); padding: 3px 6px; font-weight: 600; }
 
     .sold-editor { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
@@ -248,9 +248,9 @@
       outline: none;
     }
 
-    .sold-editor input:focus { border-color: rgba(99, 91, 255, 0.65); }
+    .sold-editor input:focus { border-color: rgba(33, 105, 44, 0.65); }
     .sold-editor .confirm-sold { background: var(--primary); color: #fff; }
-    .sold-editor .confirm-sold:hover { background: #564ef0; }
+    .sold-editor .confirm-sold:hover { background: #1a5222; }
 
     .toggle-chip {
       border: 1px solid var(--border);
@@ -293,7 +293,7 @@
       outline: none;
       text-align: right;
     }
-    .price-editor input:focus { border-color: rgba(99, 91, 255, 0.65); }
+    .price-editor input:focus { border-color: rgba(33, 105, 44, 0.65); }
 
     @media (max-width: 720px) {
       body { padding: 14px 8px; }

@@ -136,6 +136,19 @@
     .lines-btn:hover { border-color: rgba(33, 105, 44, 0.6); }
     .lines-btn.none { color: var(--muted); cursor: default; }
 
+    .split-badge {
+      display: inline-block;
+      margin-left: 6px;
+      padding: 1px 7px;
+      border-radius: 999px;
+      background: #fef3c7;
+      color: #92400e;
+      font-size: 10.5px;
+      font-weight: 700;
+      letter-spacing: 0.03em;
+      white-space: nowrap;
+    }
+
     .sp-code {
       display: inline-block;
       margin-left: 6px;
@@ -486,7 +499,7 @@
             <td>${escapeHtml(l.salesperson)}${l.salespersonCode ? `<span class="sp-code">${escapeHtml(l.salespersonCode)}</span>` : ""}</td>
             <td style="white-space: nowrap;">${escapeHtml(l.finishDate)}</td>
             <td>${escapeHtml(l.orderCustomerName)}</td>
-            <td>${escapeHtml(l.lineType)}</td>
+            <td>${escapeHtml(l.lineType)}${l.split ? `<span class="split-badge" title="Split sale — revenue made whole, cost counted once (${escapeHtml(l.splitPartners)})">Split ${escapeHtml(l.splitPartners)}</span>` : ""}</td>
             <td style="font-weight: 600;">${escapeHtml(l.product)}</td>
             <td class="num">${l.qty}</td>
             <td class="num">${fmtMoney(l.revenue)}</td>
@@ -507,7 +520,7 @@
           <tbody>
             ${lines.map((l) => `
               <tr>
-                <td>${escapeHtml(l.lineType)}</td>
+                <td>${escapeHtml(l.lineType)}${l.split ? `<span class="split-badge">Split ${escapeHtml(l.splitPartners)}</span>` : ""}</td>
                 <td style="font-weight: 600;">${escapeHtml(l.product)}</td>
                 <td class="num">${l.qty}</td>
                 <td class="num">${fmtMoney(l.revenue)}</td>
@@ -710,12 +723,14 @@
 
     function buildLineReportXlsx(rows) {
       const header = ["Invoice", "Order Invoice", "Department", "Salesperson", "SP Code", "Finish Date",
-        "Customer", "Type", "Product", "Qty", "Revenue", "Serial Type", "Serial Cost", "Line Margin %", "Source Month"];
+        "Customer", "Type", "Product", "Qty", "Revenue", "Serial Type", "Serial Cost", "Line Margin %",
+        "Split", "Split Partners", "Source Month"];
       const dataRows = rows.map((l) => [
         l.invoice, l.orderInvoice, l.department, l.salesperson, l.salespersonCode || "", l.finishDate,
         l.orderCustomerName, l.lineType, l.product, l.qty, l.revenue, l.serialType || "",
         l.serialCost == null ? "" : l.serialCost,
         l.serialCost != null && l.revenue ? Math.round((l.revenue - l.serialCost) / l.revenue * 1000) / 10 : "",
+        l.split ? "Yes" : "", l.splitPartners || "",
         l.sourceMonth
       ]);
       const files = [

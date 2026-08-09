@@ -7,7 +7,10 @@
 -- so re-running a month refreshes it while history accumulates.
 --
 -- sales_order_lines holds commission-report line items (models / warranty
--- plans with qty, revenue, serial cost). Lines have no natural unique key,
+-- plans with qty, revenue, serial cost). Split sales (ePASS lists the same
+-- line under each partner with divided revenue but full repeated cost) are
+-- merged whole at parse time and flagged split=TRUE with the partner codes.
+-- Lines have no natural unique key,
 -- so each upload REPLACES its source_month. Join rule: a line matches the
 -- order with the EXACT same invoice (OE-23 keeps split orders as separate
 -- suffixed rows, e.g. "S00063116-8"); only when no exact order exists does a
@@ -57,9 +60,13 @@ CREATE TABLE IF NOT EXISTS sales_order_lines (
   serial_cost NUMERIC(14,2),                       -- NULL on Wty lines
   salesperson_code TEXT NOT NULL DEFAULT '',
   salesperson_name TEXT NOT NULL DEFAULT '',
+  split BOOLEAN NOT NULL DEFAULT FALSE,               -- cross-salesperson split, merged whole at parse
+  split_partners TEXT NOT NULL DEFAULT '',            -- e.g. 'JD+VWJ'
   source_filename TEXT NOT NULL DEFAULT '',
   uploaded_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+ALTER TABLE sales_order_lines ADD COLUMN IF NOT EXISTS split BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE sales_order_lines ADD COLUMN IF NOT EXISTS split_partners TEXT NOT NULL DEFAULT '';
 CREATE INDEX IF NOT EXISTS idx_sol_base_invoice ON sales_order_lines (base_invoice);
 CREATE INDEX IF NOT EXISTS idx_sol_invoice ON sales_order_lines (invoice);
 CREATE INDEX IF NOT EXISTS idx_sol_month ON sales_order_lines (source_month);

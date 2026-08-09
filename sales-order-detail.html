@@ -1,0 +1,624 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="robots" content="noindex,nofollow,noarchive" />
+  <title>Wilson AC &amp; Appliance - Sales Order Detail</title>
+  <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+  <link rel="stylesheet" href="internal-shell.css" />
+  <style>
+    :root {
+      --bg: #f7f8fc;
+      --card: #ffffff;
+      --text: #1f2937;
+      --muted: #6b7280;
+      --border: #dbe1ea;
+      --primary: #21692c;
+      --primary-hover: #1a5222;
+      --error-bg: #fef2f2;
+      --error-text: #991b1b;
+      --shadow: 0 10px 35px rgba(0, 0, 0, 0.08);
+      --radius: 18px;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: linear-gradient(180deg, #eaf4ec 0%, var(--bg) 100%);
+      color: var(--text);
+      min-height: 100vh;
+      padding: 32px 16px;
+    }
+
+    .wrap { max-width: 1560px; margin: 0 auto; }
+
+    .surface {
+      background: var(--card);
+      border: 1px solid rgba(33, 105, 44, 0.12);
+      box-shadow: var(--shadow);
+      border-radius: var(--radius);
+      padding: 22px;
+      margin: 0 auto 20px;
+    }
+
+    h2 { margin: 0 0 6px; font-size: 20px; }
+    h3 { margin: 0 0 10px; font-size: 15px; }
+    .section-note { margin: 0 0 14px; color: var(--muted); font-size: 13.5px; line-height: 1.5; }
+
+    .toolbar { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+
+    input[type="date"], input[type="month"], input[type="text"], select {
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 10px 12px;
+      font-size: 13.5px;
+      font-family: inherit;
+      background: #fff;
+      color: var(--text);
+      outline: none;
+    }
+    input:focus, select:focus { border-color: rgba(33, 105, 44, 0.75); box-shadow: 0 0 0 4px rgba(33, 105, 44, 0.12); }
+
+    .primary-btn {
+      appearance: none;
+      border: none;
+      background: var(--primary);
+      color: #fff;
+      border-radius: 12px;
+      padding: 10px 18px;
+      font-size: 13.5px;
+      font-weight: 700;
+      cursor: pointer;
+      font-family: inherit;
+    }
+    .primary-btn:hover { background: var(--primary-hover); }
+    .primary-btn:disabled { opacity: 0.6; cursor: wait; }
+
+    .secondary-btn {
+      appearance: none;
+      border: 1px solid var(--border);
+      background: #fff;
+      color: var(--text);
+      border-radius: 12px;
+      padding: 9px 15px;
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+      font-family: inherit;
+    }
+    .secondary-btn:hover { border-color: rgba(33, 105, 44, 0.6); color: var(--primary); }
+    .secondary-btn:disabled { opacity: 0.6; cursor: wait; }
+
+    .preset { padding: 8px 12px; font-size: 12.5px; }
+
+    /* KPI tiles */
+    .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 14px; margin-top: 4px; }
+    .tile { border: 1px solid var(--border); border-radius: 14px; padding: 13px 15px; background: #fff; }
+    .tile .label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
+    .tile .value { font-size: 21px; font-weight: 700; margin-top: 4px; }
+
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    thead th {
+      text-align: left;
+      font-size: 10.5px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--muted);
+      padding: 9px 9px 7px;
+      border-bottom: 1px solid var(--border);
+      white-space: nowrap;
+    }
+    thead th.num, td.num { text-align: right; }
+    tbody td { padding: 8px 9px; border-bottom: 1px solid #eef0f5; vertical-align: top; }
+    tbody tr.order-row:hover { background: #f7fbf8; }
+    tbody td.empty { text-align: center; color: var(--muted); padding: 26px 0; }
+
+    .margin-good { color: #1a5222; font-weight: 700; }
+    .margin-mid { color: #92400e; font-weight: 700; }
+    .margin-bad { color: #991b1b; font-weight: 700; }
+
+    .lines-btn {
+      appearance: none;
+      border: 1px solid var(--border);
+      background: #fff;
+      border-radius: 999px;
+      padding: 3px 10px;
+      font-size: 11.5px;
+      font-weight: 700;
+      color: var(--primary);
+      cursor: pointer;
+      font-family: inherit;
+      white-space: nowrap;
+    }
+    .lines-btn:hover { border-color: rgba(33, 105, 44, 0.6); }
+    .lines-btn.none { color: var(--muted); cursor: default; }
+
+    tr.lines-row > td { background: #f7fbf8; padding: 10px 14px 14px; }
+    .lines-table { font-size: 12.5px; width: auto; min-width: 60%; }
+    .lines-table thead th { border-bottom: 1px solid #d9e6dc; }
+    .lines-table td { border-bottom: 1px solid #e6efe8; padding: 6px 9px; }
+
+    .status {
+      display: none;
+      margin: 12px 0 0;
+      border-radius: 12px;
+      padding: 11px 14px;
+      font-size: 13px;
+    }
+    .status.show { display: block; }
+    .status.error { background: var(--error-bg); color: var(--error-text); }
+    .status.ok { background: #ecfdf5; color: #065f46; }
+
+    .asof { color: var(--muted); font-size: 12.5px; }
+
+    @media (max-width: 760px) {
+      body { padding: 14px 8px; }
+      .surface { padding: 14px; }
+    }
+  </style>
+</head>
+<body data-shell-label="Sales Order Detail" data-shell-icon="accounting">
+  <div class="wrap">
+    <div id="internal-shell-header"></div>
+
+    <div class="surface">
+      <h2>Sales Order Detail</h2>
+      <p class="section-note">
+        Every order with its revenue and cost, accumulated from the monthly OE-23 upload on the
+        Target Builder. Commission report uploads below add per-item line detail (models, warranty
+        plans, serial costs) for R / S / AC tickets. When NetSuite arrives, its exports feed these
+        same tables.
+      </p>
+      <div class="toolbar">
+        <label style="font-size: 12.5px; font-weight: 700;">From
+          <input type="date" id="startInput" />
+        </label>
+        <label style="font-size: 12.5px; font-weight: 700;">To
+          <input type="date" id="endInput" />
+        </label>
+        <button type="button" class="secondary-btn preset" data-preset="month">This month</button>
+        <button type="button" class="secondary-btn preset" data-preset="lastmonth">Last month</button>
+        <button type="button" class="secondary-btn preset" data-preset="90">Last 90 days</button>
+        <button type="button" class="secondary-btn preset" data-preset="ytd">YTD</button>
+        <span style="flex: 1;"></span>
+        <button type="button" class="primary-btn" id="runBtn">Run report</button>
+      </div>
+      <div class="tiles" style="margin-top: 16px;">
+        <div class="tile"><div class="label">Orders</div><div class="value" id="kpiOrders">–</div></div>
+        <div class="tile"><div class="label">Revenue</div><div class="value" id="kpiRevenue">–</div></div>
+        <div class="tile"><div class="label">Cost</div><div class="value" id="kpiCost">–</div></div>
+        <div class="tile"><div class="label">Profit</div><div class="value" id="kpiProfit">–</div></div>
+        <div class="tile"><div class="label">Margin</div><div class="value" id="kpiMargin">–</div></div>
+      </div>
+      <div id="runStatus" class="status"></div>
+    </div>
+
+    <div class="surface">
+      <h3>Commission report upload</h3>
+      <p class="section-note" style="margin-bottom: 10px;">
+        Pick the month the report covers, then attach the export. Each upload replaces that month's
+        line items. (Order rows come from the OE-23 upload on the Target Builder.)
+      </p>
+      <div class="toolbar">
+        <input type="month" id="commMonth" />
+        <input type="file" id="commFile" accept=".xls,.xlsx" style="display: none;" />
+        <button type="button" class="secondary-btn" id="commBtn">Upload commission report</button>
+      </div>
+      <div id="commStatus" class="status"></div>
+    </div>
+
+    <div class="surface">
+      <div class="toolbar" style="margin-bottom: 12px;">
+        <select id="deptFilter">
+          <option value="">All departments</option>
+        </select>
+        <select id="spFilter">
+          <option value="">All salespeople</option>
+        </select>
+        <input type="text" id="searchInput" placeholder="Search invoice or customer…" style="min-width: 230px;" />
+        <span style="flex: 1;"></span>
+        <span class="asof" id="countNote"></span>
+        <button type="button" class="secondary-btn" id="exportBtn">Export to Excel</button>
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th>Invoice</th>
+            <th>Department</th>
+            <th>Salesperson</th>
+            <th>Finished</th>
+            <th>Customer</th>
+            <th class="num">Revenue</th>
+            <th class="num">Cost</th>
+            <th class="num">Profit</th>
+            <th class="num">Margin</th>
+            <th>Items</th>
+          </tr>
+        </thead>
+        <tbody id="tableBody">
+          <tr><td colspan="10" class="empty">Pick a date range and run the report.</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div id="internal-shell-footer"></div>
+  </div>
+
+  <script src="internal-shell.js"></script>
+  <script>
+    function el(id) { return document.getElementById(id); }
+    function escapeHtml(value) {
+      return String(value == null ? "" : value)
+        .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+    }
+    function fmtMoney(n) {
+      if (!Number.isFinite(Number(n))) return "—";
+      return "$" + Number(n).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    }
+    function todayCentral() {
+      return new Date().toLocaleDateString("en-CA", { timeZone: "America/Chicago" });
+    }
+
+    let orders = [];
+    let deptFilter = "";
+    let spFilter = "";
+    let searchTerm = "";
+    const openLines = new Set(); // invoices with expanded line detail
+    const linesCache = new Map();
+
+    function setStatus(id, message, kind) {
+      const box = el(id);
+      box.className = message ? `status show ${kind}` : "status";
+      box.textContent = message || "";
+    }
+
+    // ---------------- Presets ----------------
+    document.querySelectorAll(".preset").forEach((btn) => btn.addEventListener("click", () => {
+      const today = todayCentral();
+      const [y, m] = [Number(today.slice(0, 4)), Number(today.slice(5, 7))];
+      let start;
+      let end = today;
+      if (btn.dataset.preset === "month") {
+        start = today.slice(0, 8) + "01";
+      } else if (btn.dataset.preset === "lastmonth") {
+        const prev = new Date(Date.UTC(y, m - 2, 1));
+        start = prev.toISOString().slice(0, 8) + "01";
+        end = new Date(Date.UTC(y, m - 1, 0)).toISOString().slice(0, 10);
+      } else if (btn.dataset.preset === "90") {
+        const d = new Date(today + "T12:00:00Z");
+        d.setUTCDate(d.getUTCDate() - 90);
+        start = d.toISOString().slice(0, 10);
+      } else {
+        start = today.slice(0, 5) + "01-01";
+      }
+      el("startInput").value = start;
+      el("endInput").value = end;
+      runReport();
+    }));
+
+    // ---------------- Load ----------------
+    async function runReport() {
+      const start = el("startInput").value;
+      const end = el("endInput").value;
+      if (!start || !end) return setStatus("runStatus", "Pick both dates first.", "error");
+      setStatus("runStatus", "", "");
+      el("runBtn").disabled = true;
+      try {
+        const qs = new URLSearchParams({ start, end });
+        const res = await fetch(`/api/sales-order-detail?${qs}`, { credentials: "same-origin" });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Unable to load the report.");
+        orders = data.orders || [];
+        openLines.clear();
+        syncFilterOptions();
+        renderAll();
+      } catch (err) {
+        setStatus("runStatus", err.message, "error");
+      } finally {
+        el("runBtn").disabled = false;
+      }
+    }
+
+    function syncFilterOptions() {
+      const depts = [...new Set(orders.map((o) => o.department).filter(Boolean))].sort();
+      const sps = [...new Set(orders.map((o) => o.salesperson).filter(Boolean))].sort();
+      el("deptFilter").innerHTML = '<option value="">All departments</option>' +
+        depts.map((d) => `<option value="${escapeHtml(d)}"${d === deptFilter ? " selected" : ""}>${escapeHtml(d)}</option>`).join("");
+      el("spFilter").innerHTML = '<option value="">All salespeople</option>' +
+        sps.map((s) => `<option value="${escapeHtml(s)}"${s === spFilter ? " selected" : ""}>${escapeHtml(s)}</option>`).join("");
+      if (!depts.includes(deptFilter)) deptFilter = "";
+      if (!sps.includes(spFilter)) spFilter = "";
+    }
+
+    function filteredOrders() {
+      const term = searchTerm.toLowerCase();
+      return orders.filter((o) =>
+        (!deptFilter || o.department === deptFilter) &&
+        (!spFilter || o.salesperson === spFilter) &&
+        (!term || [o.invoice, o.customerName, o.customerNumber].join(" ").toLowerCase().includes(term)));
+    }
+
+    function marginClass(pct) {
+      if (!Number.isFinite(pct)) return "";
+      if (pct >= 25) return "margin-good";
+      if (pct >= 10) return "margin-mid";
+      return "margin-bad";
+    }
+
+    function renderAll() {
+      const rows = filteredOrders();
+
+      const revenue = rows.reduce((s, o) => s + o.revenue, 0);
+      const cost = rows.reduce((s, o) => s + o.cost, 0);
+      const profit = rows.reduce((s, o) => s + o.profit, 0);
+      el("kpiOrders").textContent = rows.length.toLocaleString("en-US");
+      el("kpiRevenue").textContent = fmtMoney(revenue);
+      el("kpiCost").textContent = fmtMoney(cost);
+      el("kpiProfit").textContent = fmtMoney(profit);
+      el("kpiMargin").textContent = revenue ? (profit / revenue * 100).toFixed(1) + "%" : "—";
+      el("countNote").textContent = `${rows.length.toLocaleString("en-US")} of ${orders.length.toLocaleString("en-US")} orders`;
+
+      el("tableBody").innerHTML = rows.length ? rows.map((o) => {
+        const margin = o.revenue ? o.profit / o.revenue * 100 : NaN;
+        const linesCell = o.lineCount
+          ? `<button type="button" class="lines-btn" data-invoice="${escapeHtml(o.invoice)}">${openLines.has(o.invoice) ? "Hide" : "View"} ${o.lineCount}</button>`
+          : '<span class="lines-btn none">—</span>';
+        const main = `
+          <tr class="order-row">
+            <td style="font-weight: 700; white-space: nowrap;">${escapeHtml(o.invoice)}</td>
+            <td>${escapeHtml(o.department)}</td>
+            <td>${escapeHtml(o.salesperson)}</td>
+            <td style="white-space: nowrap;">${escapeHtml(o.finishDate)}</td>
+            <td>${escapeHtml(o.customerName)}</td>
+            <td class="num">${fmtMoney(o.revenue)}</td>
+            <td class="num">${fmtMoney(o.cost)}</td>
+            <td class="num">${fmtMoney(o.profit)}</td>
+            <td class="num ${marginClass(margin)}">${Number.isFinite(margin) ? margin.toFixed(1) + "%" : "—"}</td>
+            <td>${linesCell}</td>
+          </tr>`;
+        if (!openLines.has(o.invoice)) return main;
+        const cached = linesCache.get(o.invoice);
+        const inner = cached
+          ? renderLinesTable(cached)
+          : '<span class="asof">Loading line items…</span>';
+        return main + `<tr class="lines-row"><td colspan="10">${inner}</td></tr>`;
+      }).join("") : '<tr><td colspan="10" class="empty">No orders in this range match the filters.</td></tr>';
+    }
+
+    function renderLinesTable(lines) {
+      if (!lines.length) return '<span class="asof">No line items for this order.</span>';
+      return `
+        <table class="lines-table">
+          <thead>
+            <tr><th>Type</th><th>Product</th><th class="num">Qty</th><th class="num">Revenue</th><th>Serial</th><th class="num">Serial Cost</th><th>SP</th></tr>
+          </thead>
+          <tbody>
+            ${lines.map((l) => `
+              <tr>
+                <td>${escapeHtml(l.lineType)}</td>
+                <td style="font-weight: 600;">${escapeHtml(l.product)}</td>
+                <td class="num">${l.qty}</td>
+                <td class="num">${fmtMoney(l.revenue)}</td>
+                <td>${escapeHtml(l.serialType || "—")}</td>
+                <td class="num">${l.serialCost == null ? "—" : fmtMoney(l.serialCost)}</td>
+                <td>${escapeHtml(l.salespersonCode)}</td>
+              </tr>`).join("")}
+          </tbody>
+        </table>`;
+    }
+
+    document.addEventListener("click", async (event) => {
+      const btn = event.target.closest(".lines-btn[data-invoice]");
+      if (!btn) return;
+      const invoice = btn.dataset.invoice;
+      if (openLines.has(invoice)) {
+        openLines.delete(invoice);
+        renderAll();
+        return;
+      }
+      openLines.add(invoice);
+      renderAll();
+      if (!linesCache.has(invoice)) {
+        try {
+          const res = await fetch(`/api/sales-order-detail/lines?invoice=${encodeURIComponent(invoice)}`, { credentials: "same-origin" });
+          const data = await res.json();
+          linesCache.set(invoice, res.ok ? (data.lines || []) : []);
+        } catch {
+          linesCache.set(invoice, []);
+        }
+        renderAll();
+      }
+    });
+
+    el("deptFilter").addEventListener("change", () => { deptFilter = el("deptFilter").value; renderAll(); });
+    el("spFilter").addEventListener("change", () => { spFilter = el("spFilter").value; renderAll(); });
+    el("searchInput").addEventListener("input", (event) => { searchTerm = event.target.value.trim(); renderAll(); });
+    el("runBtn").addEventListener("click", runReport);
+
+    // ---------------- Commission upload ----------------
+    el("commBtn").addEventListener("click", () => {
+      if (!el("commMonth").value) return setStatus("commStatus", "Pick the report month first.", "error");
+      el("commFile").click();
+    });
+    el("commFile").addEventListener("change", async () => {
+      const file = el("commFile").files[0];
+      if (!file) return;
+      el("commBtn").disabled = true;
+      setStatus("commStatus", "", "");
+      try {
+        const form = new FormData();
+        form.append("month", el("commMonth").value);
+        form.append("report", file);
+        const res = await fetch("/api/commission-report", { method: "POST", credentials: "same-origin", body: form });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Upload failed.");
+        setStatus("commStatus", `Loaded ${data.lines.toLocaleString("en-US")} line items across ${data.invoices.toLocaleString("en-US")} orders for ${data.month} (${fmtMoney(data.revenueTotal)} revenue).`, "ok");
+        linesCache.clear();
+        if (orders.length) runReport();
+      } catch (err) {
+        setStatus("commStatus", err.message, "error");
+      } finally {
+        el("commBtn").disabled = false;
+        el("commFile").value = "";
+      }
+    });
+
+    // ---------------- Excel export ----------------
+    const CRC_TABLE = (() => {
+      const table = new Uint32Array(256);
+      for (let n = 0; n < 256; n++) {
+        let c = n;
+        for (let k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1;
+        table[n] = c >>> 0;
+      }
+      return table;
+    })();
+
+    function crc32(bytes) {
+      let crc = 0xFFFFFFFF;
+      for (let i = 0; i < bytes.length; i++) crc = CRC_TABLE[(crc ^ bytes[i]) & 0xFF] ^ (crc >>> 8);
+      return (crc ^ 0xFFFFFFFF) >>> 0;
+    }
+
+    function zipStore(files) {
+      const encoder = new TextEncoder();
+      const chunks = [];
+      const central = [];
+      let offset = 0;
+      const now = new Date();
+      const dosTime = ((now.getHours() << 11) | (now.getMinutes() << 5) | Math.floor(now.getSeconds() / 2)) & 0xFFFF;
+      const dosDate = (((now.getFullYear() - 1980) << 9) | ((now.getMonth() + 1) << 5) | now.getDate()) & 0xFFFF;
+
+      for (const file of files) {
+        const nameBytes = encoder.encode(file.name);
+        const data = encoder.encode(file.text);
+        const crc = crc32(data);
+
+        const local = new DataView(new ArrayBuffer(30));
+        local.setUint32(0, 0x04034b50, true);
+        local.setUint16(4, 20, true);
+        local.setUint16(8, 0, true);
+        local.setUint16(10, dosTime, true);
+        local.setUint16(12, dosDate, true);
+        local.setUint32(14, crc, true);
+        local.setUint32(18, data.length, true);
+        local.setUint32(22, data.length, true);
+        local.setUint16(26, nameBytes.length, true);
+        chunks.push(new Uint8Array(local.buffer), nameBytes, data);
+
+        const cd = new DataView(new ArrayBuffer(46));
+        cd.setUint32(0, 0x02014b50, true);
+        cd.setUint16(4, 20, true);
+        cd.setUint16(6, 20, true);
+        cd.setUint16(12, dosTime, true);
+        cd.setUint16(14, dosDate, true);
+        cd.setUint32(16, crc, true);
+        cd.setUint32(20, data.length, true);
+        cd.setUint32(24, data.length, true);
+        cd.setUint16(28, nameBytes.length, true);
+        cd.setUint32(42, offset, true);
+        central.push(new Uint8Array(cd.buffer), nameBytes);
+
+        offset += 30 + nameBytes.length + data.length;
+      }
+
+      let centralSize = 0;
+      for (const part of central) centralSize += part.length;
+
+      const eocd = new DataView(new ArrayBuffer(22));
+      eocd.setUint32(0, 0x06054b50, true);
+      eocd.setUint16(8, files.length, true);
+      eocd.setUint16(10, files.length, true);
+      eocd.setUint32(12, centralSize, true);
+      eocd.setUint32(16, offset, true);
+
+      const total = offset + centralSize + 22;
+      const out = new Uint8Array(total);
+      let pos = 0;
+      for (const part of [...chunks, ...central, new Uint8Array(eocd.buffer)]) {
+        out.set(part, pos);
+        pos += part.length;
+      }
+      return out;
+    }
+
+    function xmlEscape(value) {
+      return String(value == null ? "" : value)
+        .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;");
+    }
+
+    function colLetter(index) {
+      let name = "";
+      let n = index + 1;
+      while (n > 0) { const r = (n - 1) % 26; name = String.fromCharCode(65 + r) + name; n = Math.floor((n - 1) / 26); }
+      return name;
+    }
+
+    function sheetXml(rows) {
+      const body = rows.map((cells, rowIndex) => {
+        const cellsXml = cells.map((value, colIndex) => {
+          const ref = colLetter(colIndex) + (rowIndex + 1);
+          if (typeof value === "number" && Number.isFinite(value)) {
+            return `<c r="${ref}"><v>${value}</v></c>`;
+          }
+          return `<c r="${ref}" t="inlineStr"><is><t xml:space="preserve">${xmlEscape(value)}</t></is></c>`;
+        }).join("");
+        return `<row r="${rowIndex + 1}">${cellsXml}</row>`;
+      }).join("");
+      return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData>${body}</sheetData></worksheet>`;
+    }
+
+    function buildDetailXlsx(rows) {
+      const header = ["Invoice", "Department", "Salesperson", "Finish Date", "Customer #", "Customer",
+        "Product", "Parts", "Labor", "Wty", "Misc", "Revenue (No Tax)", "Invoice Total", "Cost",
+        "Profit", "Margin %", "Line Items", "Source Month"];
+      const dataRows = rows.map((o) => [
+        o.invoice, o.department, o.salesperson, o.finishDate, o.customerNumber, o.customerName,
+        o.listProduct, o.listParts, o.listLabor, o.listWty, o.listMisc, o.revenue, o.invoiceTotal,
+        o.cost, o.profit,
+        o.revenue ? Math.round(o.profit / o.revenue * 1000) / 10 : "",
+        o.lineCount || 0, o.sourceMonth
+      ]);
+      const files = [
+        { name: "[Content_Types].xml", text: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/></Types>` },
+        { name: "_rels/.rels", text: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>` },
+        { name: "xl/workbook.xml", text: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="Sales Order Detail" sheetId="1" r:id="rId1"/></sheets></workbook>` },
+        { name: "xl/_rels/workbook.xml.rels", text: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/></Relationships>` },
+        { name: "xl/worksheets/sheet1.xml", text: sheetXml([header, ...dataRows]) }
+      ];
+      return zipStore(files);
+    }
+    window.__buildDetailXlsx = buildDetailXlsx;
+
+    el("exportBtn").addEventListener("click", () => {
+      const rows = filteredOrders();
+      if (!rows.length) return setStatus("runStatus", "Run the report first — nothing to export.", "error");
+      const bytes = buildDetailXlsx(rows);
+      const blob = new Blob([bytes], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(blob);
+      link.download = `sales-order-detail_${el("startInput").value}_${el("endInput").value}.xlsx`;
+      link.click();
+      URL.revokeObjectURL(link.href);
+    });
+
+    // ---------------- Init ----------------
+    (function init() {
+      const today = todayCentral();
+      el("startInput").value = today.slice(0, 8) + "01";
+      el("endInput").value = today;
+      el("commMonth").value = today.slice(0, 7);
+      runReport();
+    })();
+  </script>
+</body>
+</html>

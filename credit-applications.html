@@ -292,6 +292,16 @@
     let searchTerm = "";
     let openToken = null;
 
+
+    // Decisions saved before server-side formatting shipped may hold a raw
+    // number ("4"); re-format for display so every row reads "$4,000"-style.
+    function displayCreditLine(value) {
+      const raw = String(value || "").trim();
+      const amount = Number(raw.replace(/[^0-9.]/g, ""));
+      if (!Number.isFinite(amount) || amount <= 0) return raw;
+      return "$" + Math.round(amount).toLocaleString("en-US");
+    }
+
     function escapeHtml(value) {
       return String(value == null ? "" : value)
         .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
@@ -428,7 +438,7 @@
 
       // Decided: show the decision and the email-result flow.
       const decided = app.decision === "approved"
-        ? `<span class="decision-banner approved">Approved — ${escapeHtml(app.decisionCreditLine || "")} credit line</span>`
+        ? `<span class="decision-banner approved">Approved — ${escapeHtml(displayCreditLine(app.decisionCreditLine))} credit line</span>`
         : `<span class="decision-banner declined">Declined${app.decisionReason ? " — " + escapeHtml(app.decisionReason) : ""}</span>`;
       const decidedNote = `${app.decidedBy ? "by " + escapeHtml(app.decidedBy) : ""} ${app.decidedAt ? escapeHtml(formatWhen(app.decidedAt)) : ""}`.trim();
       const emailedNote = app.resultEmailedAt

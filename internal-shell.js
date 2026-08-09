@@ -220,7 +220,8 @@
         title: "Admin",
         children: [
           { href: "user-admin.html", title: "User Admin" },
-          { href: "audit-log.html", title: "User Activity Audit" }
+          { href: "audit-log.html", title: "User Activity Audit" },
+          { href: "sales-order-detail.html", title: "Sales Order Detail" }
         ]
       });
     }

@@ -167,6 +167,13 @@ import {
   saveRevenuePerformance,
   getRevenuePerformance
 } from "./lib/revenue-performance-postgres.js";
+import { parseCommissionGrid } from "./lib/commission-report.js";
+import {
+  upsertOrdersFromActivity,
+  replaceCommissionLines,
+  listOrderDetail,
+  listLinesForInvoice
+} from "./lib/sales-order-detail-postgres.js";
 import {
   getSalesOrderSnapshot,
   saveSalesOrderSnapshot,
@@ -307,6 +314,7 @@ const INTERNAL_PAGE_PATHS = new Set([
   "/set-password.html",
   "/user-admin.html",
   "/audit-log.html",
+  "/sales-order-detail.html",
   "/mileage.html",
   "/mileage-review.html",
   "/hr-phone-screen.html",
@@ -379,6 +387,7 @@ const EVERYONE_PAGE_PATHS = new Set([
 const EXECUTIVE_ONLY_PAGE_PATHS = new Set([
   "/user-admin.html",
   "/audit-log.html",
+  "/sales-order-detail.html",
   "/commissions.html",
   "/commissions-print.html"
 ]);
@@ -485,6 +494,7 @@ const PAGE_LABELS = {
   "/commissions-print.html": "Commissions (Print)",
   "/user-admin.html": "User Admin",
   "/audit-log.html": "User Activity Audit",
+  "/sales-order-detail.html": "Sales Order Detail",
   "/mileage.html": "Mileage",
   "/mileage-review.html": "Mileage Review",
   "/hr-phone-screen.html": "Phone Screen",
@@ -5436,13 +5446,24 @@ app.post("/api/revenue-performance", requirePagePermission("/target-builder.html
         tickets: parsed.tickets
       });
 
+      // Feed the durable per-order warehouse (sales-order-detail.html).
+      let ordersUpserted = 0;
+      try {
+        ordersUpserted = await upsertOrdersFromActivity(parsed.tickets, {
+          sourceMonth: month,
+          filename: req.file.originalname || ""
+        });
+      } catch (detailErr) {
+        console.error("Sales order detail upsert failed:", detailErr.message);
+      }
+
       recordAudit({
         ip: req.ip, actorUserId: req.authUser?.id || null,
         action: "revenue_performance_uploaded", targetUserId: null,
-        detail: { month, periodFrom: parsed.periodFrom, periodTo: parsed.periodTo, tickets: parsed.tickets.length, filename: req.file.originalname || "", warnings: parsed.warnings.length }
+        detail: { month, periodFrom: parsed.periodFrom, periodTo: parsed.periodTo, tickets: parsed.tickets.length, ordersUpserted, filename: req.file.originalname || "", warnings: parsed.warnings.length }
       }).catch(() => {});
 
-      return res.json({ ok: true, performance: saved });
+      return res.json({ ok: true, performance: saved, ordersUpserted });
     } catch (parseErr) {
       console.error("Activity report parse failed:", parseErr.message);
       return res.status(400).json({ error: parseErr.message || "Unable to parse the report." });
@@ -5462,6 +5483,91 @@ app.get("/api/revenue-performance", requirePagePermission("/target-builder.html"
   } catch (err) {
     console.error("Revenue performance load failed:", err.message);
     return res.status(500).json({ error: "Unable to load revenue performance." });
+  }
+});
+
+// INTERNAL: Sales Order Detail (sales-order-detail.html, Admin/executive).
+// The commission report upload adds line items (models / warranty plans with
+// qty, revenue, serial cost); each upload replaces its month. The order rows
+// themselves are fed by the OE-23 upload on the Target Builder.
+app.post("/api/commission-report", requirePagePermission("/sales-order-detail.html"), (req, res) => {
+  activityReportUpload.single("report")(req, res, async (err) => {
+    if (err) {
+      return res.status(400).json({ error: err.code === "LIMIT_FILE_SIZE" ? "That file is over the 20 MB limit." : "Upload failed — please try again." });
+    }
+    try {
+      const month = String(req.body?.month || "").trim();
+      if (!isValidTargetMonth(month)) {
+        return res.status(400).json({ error: "Pick the month this commission report covers." });
+      }
+      if (!req.file?.buffer?.length) {
+        return res.status(400).json({ error: "Attach the commission report export (.xlsx)." });
+      }
+
+      let grid;
+      try {
+        const workbook = readWorkbook(req.file.buffer, { type: "buffer", cellDates: true });
+        const sheet = workbook.Sheets[workbook.SheetNames[0]];
+        grid = xlsxUtils.sheet_to_json(sheet, { header: 1, defval: null, raw: true });
+      } catch (parseErr) {
+        console.error("Commission report read failed:", parseErr.message);
+        return res.status(400).json({ error: "Couldn't read that file as an Excel workbook." });
+      }
+
+      const parsed = parseCommissionGrid(grid);
+      await replaceCommissionLines(month, parsed.lines, { filename: req.file.originalname || "" });
+
+      recordAudit({
+        ip: req.ip, actorUserId: req.authUser?.id || null,
+        action: "commission_report_uploaded", targetUserId: null,
+        detail: { month, lines: parsed.lines.length, invoices: parsed.invoiceCount, revenueTotal: parsed.revenueTotal, filename: req.file.originalname || "" }
+      }).catch(() => {});
+
+      return res.json({
+        ok: true,
+        month,
+        lines: parsed.lines.length,
+        invoices: parsed.invoiceCount,
+        revenueTotal: parsed.revenueTotal,
+        serialCostTotal: parsed.serialCostTotal,
+        warnings: parsed.warnings
+      });
+    } catch (parseErr) {
+      console.error("Commission report parse failed:", parseErr.message);
+      return res.status(400).json({ error: parseErr.message || "Unable to parse the report." });
+    }
+  });
+});
+
+app.get("/api/sales-order-detail", requirePagePermission("/sales-order-detail.html"), async (req, res) => {
+  try {
+    const startDate = String(req.query.start || "").trim();
+    const endDate = String(req.query.end || "").trim();
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(startDate) || !/^\d{4}-\d{2}-\d{2}$/.test(endDate)) {
+      return res.status(400).json({ error: "Provide start and end dates as YYYY-MM-DD." });
+    }
+    const orders = await listOrderDetail({
+      startDate,
+      endDate,
+      department: String(req.query.department || "").trim() || null,
+      salesperson: String(req.query.salesperson || "").trim() || null
+    });
+    return res.json({ orders });
+  } catch (err) {
+    console.error("Sales order detail load failed:", err.message);
+    return res.status(500).json({ error: "Unable to load sales order detail." });
+  }
+});
+
+app.get("/api/sales-order-detail/lines", requirePagePermission("/sales-order-detail.html"), async (req, res) => {
+  try {
+    const invoice = String(req.query.invoice || "").trim().toUpperCase();
+    if (!invoice) return res.status(400).json({ error: "Provide an invoice." });
+    const lines = await listLinesForInvoice(invoice);
+    return res.json({ invoice, lines });
+  } catch (err) {
+    console.error("Sales order lines load failed:", err.message);
+    return res.status(500).json({ error: "Unable to load line items." });
   }
 });
 
@@ -5850,7 +5956,7 @@ app.post("/api/credit-applications/:token/email-result", requirePagePermission("
         <p style="font-size:14px;">Good news — the trade partner credit application for
         <strong>${esc(legalName)}</strong> has been <strong style="color:#065f46;">approved</strong>.</p>
         <table cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin:10px 0;">
-          <tr><td style="padding:4px 14px 4px 0;color:#6b7280;font-size:12px;">Approved credit line</td><td style="padding:4px 0;font-size:14px;font-weight:bold;">${esc(application.decisionCreditLine)}</td></tr>
+          <tr><td style="padding:4px 14px 4px 0;color:#6b7280;font-size:12px;">Approved credit line</td><td style="padding:4px 0;font-size:14px;font-weight:bold;">${esc(formatCreditLineForDisplay(application.decisionCreditLine))}</td></tr>
           <tr><td style="padding:4px 14px 4px 0;color:#6b7280;font-size:12px;">Application reference</td><td style="padding:4px 0;font-size:14px;">${esc(token)}</td></tr>
         </table>
         <p style="font-size:14px;">Your account is governed by our
@@ -10216,6 +10322,15 @@ async function sendPaymentLinkPaidEmail(record) {
     const errorText = await response.text();
     throw new Error(`Email API error: ${response.status} ${errorText}`);
   }
+}
+
+// Decisions saved before credit-line normalization shipped may hold a raw
+// number; re-format at send time so the email always reads "$4,000"-style.
+function formatCreditLineForDisplay(value) {
+  const raw = String(value || "").trim();
+  const amount = Number(raw.replace(/[^0-9.]/g, ""));
+  if (!Number.isFinite(amount) || amount <= 0) return raw;
+  return "$" + Math.round(amount).toLocaleString("en-US");
 }
 
 function escapeHtmlForEmail(value) {

@@ -1233,25 +1233,42 @@
       <div class="card module-card" data-module="revenue">
         <div class="module-header">
           <select class="module-select" aria-label="Module shown in this position"></select>
-          <p class="module-desc">Unpaid queue, aging, and paid totals at a glance. The paid tile follows the Paid History date.</p>
+          <p class="module-desc">Finished-order revenue vs target from the OE-23 feed — quarter to date and month to date, with last year's comps.</p>
         </div>
-        <div class="summary-grid">
-          <div class="metric">
-            <div class="metric-label">Unpaid queue total</div>
-            <div class="metric-value" id="queueTotal">$0.00</div>
-            <div class="metric-sub" id="queueCount">0 unpaid links</div>
-          </div>
-          <div class="metric">
-            <div class="metric-label">Aging links</div>
-            <div class="metric-value" id="agingCount">0</div>
-            <div class="metric-sub" id="agingHint">0 links over age threshold</div>
-          </div>
-          <div class="metric">
-            <div class="metric-label">Paid total for date</div>
-            <div class="metric-value" id="paidTotal">$0.00</div>
-            <div class="metric-sub" id="paidCount">0 paid on selected date</div>
-          </div>
+        <div id="rsBlocks" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(430px, 1fr)); gap: 16px;"></div>
+        <div class="metric-sub" id="rsFootnote" style="margin-top: 8px;"></div>
+      </div>
+
+      <style>
+        .bonus-hero { display: flex; gap: 20px; align-items: flex-start; justify-content: space-between; flex-wrap: wrap; margin-bottom: 14px; }
+        .bonus-ladder { font-size: 12.5px; color: #6b7280; max-width: 460px; text-align: right; line-height: 1.6; }
+        .bonus-panels { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 14px; }
+        .bonus-panel { border: 1px solid #dbe1ea; border-radius: 14px; padding: 14px 16px; background: #fff; }
+        .bonus-panel .bp-head { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+        .bonus-panel .bp-dot { width: 26px; height: 26px; border-radius: 999px; display: inline-flex; align-items: center; justify-content: center; color: #fff; font-size: 13px; font-weight: 800; }
+        .bonus-panel .bp-title { font-size: 11px; text-transform: uppercase; letter-spacing: 0.07em; color: #6b7280; font-weight: 700; }
+        .bonus-panel .bp-att { font-size: 24px; font-weight: 800; margin: 2px 0 8px; }
+        .bonus-panel .bp-pills { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
+        .bonus-panel .bp-pill { border-radius: 999px; padding: 4px 11px; font-size: 12px; font-weight: 700; background: #f3f4f6; color: #1f2937; }
+        .bonus-panel .bp-pill small { font-weight: 600; color: #6b7280; margin-left: 4px; }
+        .bonus-panel .bp-legend { display: flex; gap: 12px; font-size: 11px; color: #6b7280; margin-top: 6px; }
+        .bonus-panel .bp-legend span::before { content: ""; display: inline-block; width: 9px; height: 9px; border-radius: 2px; margin-right: 4px; background: var(--sw); }
+        .bonus-panel .bp-note { font-size: 12px; color: #6b7280; margin-top: 8px; line-height: 1.5; }
+      </style>
+      <div class="card module-card" data-module="bonus">
+        <div class="module-header">
+          <select class="module-select" aria-label="Module shown in this position"></select>
+          <p class="module-desc" id="bonusDesc">Your bonus payout so far this month, from department and company attainment.</p>
         </div>
+        <div class="bonus-hero">
+          <div>
+            <div class="metric-label">Bonus unlocked (MTD)</div>
+            <div class="metric-value" id="bonusTotal" style="font-size: 30px;">—</div>
+            <div class="metric-sub" id="bonusSub">&nbsp;</div>
+          </div>
+          <div id="bonusLadder" class="bonus-ladder"></div>
+        </div>
+        <div class="bonus-panels" id="bonusPanels"></div>
       </div>
     <div id="internal-shell-footer"></div>
   </div>
@@ -1842,14 +1859,8 @@
     // Revenue Snapshot module tiles
     const activeQueueRows = allRows.filter((row) => isLinkRow(row) && ["sent", "viewed", "ach_pending"].includes(row.status));
     const agingRows = activeQueueRows.filter((row) => ["sent", "viewed"].includes(row.status) && daysOpen(row) >= agingDays);
-    const queueTotal = activeQueueRows.reduce((sum, row) => sum + (row.requestedAmount || 0), 0);
-    const paidTotal = paidRows.reduce((sum, row) => sum + (row.paidAmount || 0), 0);
-    document.getElementById("queueTotal").textContent = formatMoney(queueTotal);
-    document.getElementById("queueCount").textContent = `${activeQueueRows.length} unpaid active links`;
-    document.getElementById("agingCount").textContent = String(agingRows.length);
-    document.getElementById("agingHint").textContent = `${agingRows.length} active link${agingRows.length === 1 ? "" : "s"} at least ${agingDays} days old`;
-    document.getElementById("paidTotal").textContent = formatMoney(paidTotal);
-    document.getElementById("paidCount").textContent = `${paidRows.length} paid record${paidRows.length === 1 ? "" : "s"} on selected date`;
+    // (The Revenue Snapshot module now shows OE-23 finished-order revenue —
+    // the old Stripe payment tiles were removed with it.)
     attachCopyActions();
   }
 
@@ -2195,9 +2206,10 @@
       const MODULES = {
         queue: "Open Payment Links",
         paid: "Paid History",
-        revenue: "Revenue Snapshot"
+        revenue: "Revenue Snapshot",
+        bonus: "Bonus Tracker"
       };
-      const DEFAULT_ORDER = ["queue", "paid", "revenue"];
+      const DEFAULT_ORDER = ["queue", "paid", "revenue", "bonus"];
 
       const cards = {};
       document.querySelectorAll(".module-card").forEach((card) => {
@@ -2267,6 +2279,297 @@
         } catch {}
         applyOrder(order);
       })();
+    })();
+  </script>
+  <script>
+    // ------------------------------------------------------------------
+    // Bonus Tracker — payout from department + company attainment tiers
+    // (rules on the Target Builder) with 3-month target-vs-actual charts and
+    // the signed-in user's personal contribution.
+    // Panel palette (validated): dark = target, light = actual.
+    // ------------------------------------------------------------------
+    (function () {
+      const card = document.querySelector('.module-card[data-module="bonus"]');
+      if (!card) return;
+
+      const PANEL_COLORS = {
+        dept: { dark: "#2e7d3b", light: "#7cc884", initial: "D" },
+        company: { dark: "#9c5a10", light: "#e5a33c", initial: "C" },
+        personal: { dark: "#0369a1", light: "#38bdf8", initial: "Y" }
+      };
+
+      function money(n) {
+        return "$" + Number(n || 0).toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+      }
+      function moneyShort(n) {
+        const v = Number(n || 0);
+        if (Math.abs(v) >= 1000000) return "$" + (v / 1000000).toFixed(1) + "M";
+        if (Math.abs(v) >= 1000) return "$" + Math.round(v / 1000) + "k";
+        return "$" + Math.round(v);
+      }
+      function pct(n) {
+        return n == null ? "—" : n.toFixed(1) + "%";
+      }
+      function esc(value) {
+        return String(value == null ? "" : value)
+          .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+      }
+
+      // Grouped bar chart: months on x, up to two series (target dark, actual
+      // light), value labels over every bar, 4px rounded data ends.
+      function barChart(months, series, colors) {
+        const W = 250, H = 122, plotTop = 16, plotBottom = 96, labelY = 112;
+        const groups = months.length;
+        const barsPerGroup = series.length;
+        const groupW = W / groups;
+        const barW = Math.min(26, (groupW - 18) / barsPerGroup);
+        const maxVal = Math.max(1, ...series.flatMap((s) => s.values));
+        const scale = (v) => (plotBottom - plotTop) * Math.max(0, v) / maxVal;
+        let svg = `<svg viewBox="0 0 ${W} ${H}" width="100%" height="${H}" role="img" aria-label="Target vs actual by month">`;
+        svg += `<line x1="0" y1="${plotBottom}" x2="${W}" y2="${plotBottom}" stroke="#e5e7eb" stroke-width="1"/>`;
+        months.forEach((label, gi) => {
+          const groupX = gi * groupW + (groupW - (barW * barsPerGroup + 2 * (barsPerGroup - 1))) / 2;
+          series.forEach((s, siIdx) => {
+            const v = s.values[gi];
+            const h = scale(v);
+            const x = groupX + siIdx * (barW + 2);
+            const y = plotBottom - h;
+            svg += `<path d="M${x} ${plotBottom} V${y + 4} Q${x} ${y} ${x + 4} ${y} H${x + barW - 4} Q${x + barW} ${y} ${x + barW} ${y + 4} V${plotBottom} Z" fill="${s.color}"/>`;
+            svg += `<text x="${x + barW / 2}" y="${Math.min(y - 3, plotBottom - 3)}" text-anchor="middle" font-size="8.5" fill="#374151">${esc(moneyShort(v))}</text>`;
+          });
+          svg += `<text x="${gi * groupW + groupW / 2}" y="${labelY}" text-anchor="middle" font-size="9.5" fill="#6b7280">${esc(label)}</text>`;
+        });
+        svg += "</svg>";
+        return svg;
+      }
+
+      function attColor(att) {
+        if (att == null) return "#6b7280";
+        if (att >= 100) return "#1a5222";
+        if (att >= 85) return "#92400e";
+        return "#991b1b";
+      }
+
+      function panelHtml({ key, title, att, actual, target, targetLabel, chart, twoSeries, note }) {
+        const c = PANEL_COLORS[key];
+        return `
+          <div class="bonus-panel">
+            <div class="bp-head">
+              <span class="bp-dot" style="background: ${c.dark};">${c.initial}</span>
+              <span class="bp-title">${esc(title)}</span>
+            </div>
+            <div class="bp-att" style="color: ${attColor(att)};">${att == null ? "—" : pct(att)}</div>
+            <div class="bp-pills">
+              <span class="bp-pill" style="background: ${c.light}33;">${money(actual)}<small>actual</small></span>
+              ${target != null ? `<span class="bp-pill">${money(target)}<small>${esc(targetLabel)}</small></span>` : ""}
+            </div>
+            ${chart}
+            <div class="bp-legend">
+              ${twoSeries ? `<span style="--sw: ${c.dark};">Target</span>` : ""}
+              <span style="--sw: ${c.light};">Actual</span>
+            </div>
+            ${note ? `<div class="bp-note">${note}</div>` : ""}
+          </div>`;
+      }
+
+      async function loadBonus() {
+        try {
+          const res = await fetch("/api/bonus-tracker", { credentials: "same-origin" });
+          const data = await res.json();
+          if (!res.ok) throw new Error(data.error || "");
+
+          const totalEl = document.getElementById("bonusTotal");
+          totalEl.textContent = money(data.payout.total);
+          totalEl.style.color = data.payout.total > 0 ? "#1a5222" : "";
+
+          if (!data.department) {
+            document.getElementById("bonusSub").textContent = "No department assigned — ask an admin to set yours in User Admin.";
+          } else if (!data.hasPerformance) {
+            document.getElementById("bonusSub").textContent = `No revenue upload yet for ${data.month}.`;
+          } else {
+            const parts = [];
+            if (data.payout.deptAmount > 0) parts.push(`${money(data.payout.deptAmount)} dept`);
+            if (data.payout.companyAmount > 0) parts.push(`${money(data.payout.companyAmount)} company`);
+            document.getElementById("bonusSub").textContent = parts.length
+              ? parts.join(" + ") + ` · day ${data.workingDays.elapsed} of ${data.workingDays.total}`
+              : `Nothing unlocked yet · day ${data.workingDays.elapsed} of ${data.workingDays.total}`;
+          }
+
+          const bits = [];
+          if (data.payout.deptNextTier) bits.push(`Next dept tier: ${esc(String(data.payout.deptNextTier.threshold))}% unlocks ${money(data.payout.deptNextTier.amount)}`);
+          if (data.payout.companyNextTier) bits.push(`Next company tier: ${esc(String(data.payout.companyNextTier.threshold))}% unlocks ${money(data.payout.companyNextTier.amount)}`);
+          if (data.rulesSource === "default") bits.push("Placeholder tiers — real bonus rules pending.");
+          document.getElementById("bonusLadder").innerHTML = bits.join("<br>");
+
+          const months = (data.history || []).map((h) => h.label + (h.prorated ? "*" : ""));
+          const panels = [];
+
+          // Year-over-year comp: project month-end at the current pace and
+          // compare against the same month last year (needs 2025 uploads).
+          function yoy(actual, prior) {
+            if (!data.priorYear || prior == null || !prior || !data.progression) return "";
+            const delta = (actual / data.progression - prior) / prior * 100;
+            const sign = delta >= 0 ? "+" : "";
+            return `${esc(data.priorYear.month)}: ${money(prior)} · pacing ${sign}${delta.toFixed(1)}%`;
+          }
+
+          // Reads company → department → individual, widest lens first.
+          panels.push(panelHtml({
+            key: "company",
+            title: "Company — target vs actual",
+            att: data.company.attainment,
+            actual: data.company.revenue,
+            target: data.company.toDateTarget,
+            targetLabel: "to-date target",
+            twoSeries: true,
+            chart: barChart(months, [
+              { color: PANEL_COLORS.company.dark, values: data.history.map((h) => h.companyTarget) },
+              { color: PANEL_COLORS.company.light, values: data.history.map((h) => h.companyActual) }
+            ], PANEL_COLORS.company),
+            note: yoy(data.company.revenue, data.priorYear?.companyRevenue)
+          }));
+
+          if (data.department && data.departmentHasTarget) {
+            panels.push(panelHtml({
+              key: "dept",
+              title: `${data.department} — target vs actual`,
+              att: data.dept.attainment,
+              actual: data.dept.revenue,
+              target: data.dept.toDateTarget,
+              targetLabel: "to-date target",
+              twoSeries: true,
+              chart: barChart(months, [
+                { color: PANEL_COLORS.dept.dark, values: data.history.map((h) => h.deptTarget) },
+                { color: PANEL_COLORS.dept.light, values: data.history.map((h) => h.deptActual) }
+              ], PANEL_COLORS.dept),
+              note: yoy(data.dept.revenue, data.priorYear?.deptRevenue)
+            }));
+          } else if (data.department) {
+            // Departments without a revenue target (Client Care): hold the
+            // spot with a placeholder until their source metrics are defined.
+            panels.push(`<div class="bonus-panel"><div class="bp-head"><span class="bp-dot" style="background: ${PANEL_COLORS.dept.dark};">D</span><span class="bp-title">${esc(data.department)}</span></div><div class="bp-att" style="color: #9ca3af;">—</div><div class="bp-note">Department metrics coming soon — this spot is reserved while the right source reports are defined. Your bonus rides the company ladder for now.</div></div>`);
+          }
+
+          // Individual panel only where personal revenue applies (revenue-
+          // target departments); Client Care and similar roles skip it.
+          if (data.department && data.departmentHasTarget) {
+            const shareBits = [];
+            if (data.personal.deptShare != null) shareBits.push(`${data.personal.deptShare}% of ${esc(data.department)} revenue`);
+            if (data.personal.companyShare != null) shareBits.push(`${data.personal.companyShare}% of company revenue`);
+            panels.push(panelHtml({
+              key: "personal",
+              title: "Your contribution",
+              att: null,
+              actual: data.personal.revenue,
+              target: null,
+              targetLabel: "",
+              twoSeries: false,
+              chart: barChart(months, [
+                { color: PANEL_COLORS.personal.light, values: data.history.map((h) => h.personalActual) }
+              ], PANEL_COLORS.personal),
+              note: [shareBits.join(" · "), yoy(data.personal.revenue, data.priorYear?.personalRevenue)].filter(Boolean).join("<br>") || (data.personal.name ? "No finished revenue attributed to you yet this month." : "")
+            }));
+          }
+
+          document.getElementById("bonusPanels").innerHTML = panels.join("") +
+            `<div style="grid-column: 1 / -1; font-size: 11px; color: #9ca3af;">* current month compares against the working-day to-date target</div>`;
+        } catch {
+          document.getElementById("bonusSub").textContent = "Bonus tracker unavailable right now.";
+        }
+      }
+
+      loadBonus();
+    })();
+  </script>
+  <script>
+    // ------------------------------------------------------------------
+    // Revenue Snapshot — finished-order revenue vs target by department
+    // (OE-23 feed), QTD on the left and MTD on the right, with last-year
+    // comps once the 2025 uploads land.
+    // ------------------------------------------------------------------
+    (function () {
+      const card = document.querySelector('.module-card[data-module="revenue"]');
+      if (!card) return;
+
+      const DEPT_BAR = { actual: "#7cc884", target: "#2e7d3b" };
+
+      function money(n) {
+        return "$" + Number(n || 0).toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+      }
+      function esc(v) {
+        return String(v == null ? "" : v).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+      }
+      function attColor(att) {
+        if (att == null) return "#6b7280";
+        if (att >= 100) return "#1a5222";
+        if (att >= 85) return "#92400e";
+        return "#991b1b";
+      }
+      function compText(actual, priorActual, progression) {
+        if (priorActual == null || !priorActual || !progression) return "";
+        const delta = (actual / progression - priorActual) / priorActual * 100;
+        const sign = delta >= 0 ? "+" : "";
+        return `${sign}${delta.toFixed(1)}% vs LY pace`;
+      }
+
+      function blockHtml(block, monthNote) {
+        const comp = compText(block.company.actual, block.company.priorYearActual, block.progression);
+        const depts = Object.entries(block.byDepartment || {});
+        const maxVal = Math.max(1, ...depts.flatMap(([, d]) => [d.actual, d.toDateTarget]));
+        return `
+          <div style="border: 1px solid #dbe1ea; border-radius: 14px; padding: 14px 16px;">
+            <div class="metric-label" style="margin-bottom: 8px;">${esc(block.label)}</div>
+            <div class="bonus-hero" style="margin-bottom: 8px;">
+              <div>
+                <div class="metric-value" style="font-size: 26px;">${money(block.company.actual)}</div>
+                <div class="metric-sub">${block.hasPerformance ? `of ${money(block.company.toDateTarget)} to date${monthNote}` : "No OE-23 uploads for this period yet."}</div>
+              </div>
+              <div style="text-align: right;">
+                <div class="metric-value" style="font-size: 26px; color: ${attColor(block.company.attainment)};">${block.company.attainment == null ? "—" : block.company.attainment.toFixed(1) + "%"}</div>
+                <div class="metric-sub">${comp ? `${comp} (${esc(block.priorLabel)}: ${money(block.company.priorYearActual)})` : ""}</div>
+              </div>
+            </div>
+            ${depts.map(([name, d]) => {
+              const aw = Math.max(1, Math.round(d.actual / maxVal * 100));
+              const tw = Math.max(1, Math.round(d.toDateTarget / maxVal * 100));
+              const dComp = compText(d.actual, d.priorYearActual, block.progression);
+              return `
+                <div style="display: grid; grid-template-columns: 108px 1fr 158px; gap: 10px; align-items: center; padding: 6px 0; border-bottom: 1px solid #eef0f5;">
+                  <div style="font-size: 12px; font-weight: 700;">${esc(name)}</div>
+                  <div>
+                    <div style="height: 7px; border-radius: 4px; width: ${tw}%; background: ${DEPT_BAR.target}; margin-bottom: 3px;" title="To-date target ${money(d.toDateTarget)}"></div>
+                    <div style="height: 7px; border-radius: 4px; width: ${aw}%; background: ${DEPT_BAR.actual};" title="Actual ${money(d.actual)}"></div>
+                  </div>
+                  <div style="text-align: right; font-size: 11.5px;">
+                    <span style="font-weight: 800; color: ${attColor(d.attainment)};">${d.attainment == null ? "—" : d.attainment.toFixed(1) + "%"}</span>
+                    <span style="color: #6b7280;"> · ${money(d.actual)}</span>
+                    ${dComp ? `<div style="color: #6b7280;">${dComp}</div>` : ""}
+                  </div>
+                </div>`;
+            }).join("")}
+          </div>`;
+      }
+
+      async function load() {
+        try {
+          const res = await fetch("/api/revenue-snapshot", { credentials: "same-origin" });
+          const data = await res.json();
+          if (!res.ok) throw new Error(data.error || "");
+
+          const monthNote = ` · day ${data.workingDays.elapsed} of ${data.workingDays.total}`;
+          document.getElementById("rsBlocks").innerHTML =
+            blockHtml(data.qtd, "") + blockHtml(data.mtd, monthNote);
+
+          document.getElementById("rsFootnote").innerHTML =
+            '<span style="display:inline-flex;align-items:center;gap:4px;margin-right:12px;"><span style="width:9px;height:9px;border-radius:2px;background:#2e7d3b;display:inline-block;"></span>To-date target</span>' +
+            '<span style="display:inline-flex;align-items:center;gap:4px;"><span style="width:9px;height:9px;border-radius:2px;background:#7cc884;display:inline-block;"></span>Actual</span>' +
+            (data.mtd.hasPriorYear || data.qtd.hasPriorYear ? "" : " &nbsp;·&nbsp; Upload 2025 OE-23s to unlock last-year comps.");
+        } catch {
+          document.getElementById("rsBlocks").innerHTML = '<div class="metric-sub">Revenue snapshot unavailable right now.</div>';
+        }
+      }
+
+      load();
     })();
   </script>
   <script src="order-health-rules.js"></script>

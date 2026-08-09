@@ -221,7 +221,8 @@
         children: [
           { href: "user-admin.html", title: "User Admin" },
           { href: "audit-log.html", title: "User Activity Audit" },
-          { href: "sales-order-detail.html", title: "Sales Order Detail" }
+          { href: "sales-order-detail.html", title: "Sales Order Detail" },
+          { href: "returns-report.html", title: "Returns Report" }
         ]
       });
     }

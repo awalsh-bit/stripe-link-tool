@@ -1,0 +1,507 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="robots" content="noindex,nofollow,noarchive" />
+  <title>Wilson AC &amp; Appliance - Returns Report</title>
+  <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+  <link rel="stylesheet" href="internal-shell.css" />
+  <style>
+    :root {
+      --bg: #f7f8fc;
+      --card: #ffffff;
+      --text: #1f2937;
+      --muted: #6b7280;
+      --border: #dbe1ea;
+      --primary: #21692c;
+      --primary-hover: #1a5222;
+      --error-bg: #fef2f2;
+      --error-text: #991b1b;
+      --shadow: 0 10px 35px rgba(0, 0, 0, 0.08);
+      --radius: 18px;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: linear-gradient(180deg, #eaf4ec 0%, var(--bg) 100%);
+      color: var(--text);
+      min-height: 100vh;
+      padding: 32px 16px;
+    }
+
+    .wrap { max-width: 1460px; margin: 0 auto; }
+
+    .surface {
+      background: var(--card);
+      border: 1px solid rgba(33, 105, 44, 0.12);
+      box-shadow: var(--shadow);
+      border-radius: var(--radius);
+      padding: 22px;
+      margin: 0 auto 20px;
+    }
+
+    h2 { margin: 0 0 6px; font-size: 20px; }
+    .section-note { margin: 0 0 14px; color: var(--muted); font-size: 13.5px; line-height: 1.5; }
+
+    .toolbar { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+
+    input[type="month"], input[type="text"], select {
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 10px 12px;
+      font-size: 13.5px;
+      font-family: inherit;
+      background: #fff;
+      color: var(--text);
+      outline: none;
+    }
+    input:focus, select:focus { border-color: rgba(33, 105, 44, 0.75); box-shadow: 0 0 0 4px rgba(33, 105, 44, 0.12); }
+
+    .primary-btn {
+      appearance: none;
+      border: none;
+      background: var(--primary);
+      color: #fff;
+      border-radius: 12px;
+      padding: 10px 18px;
+      font-size: 13.5px;
+      font-weight: 700;
+      cursor: pointer;
+      font-family: inherit;
+    }
+    .primary-btn:hover { background: var(--primary-hover); }
+    .primary-btn:disabled { opacity: 0.6; cursor: wait; }
+
+    .secondary-btn {
+      appearance: none;
+      border: 1px solid var(--border);
+      background: #fff;
+      color: var(--text);
+      border-radius: 12px;
+      padding: 9px 15px;
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+      font-family: inherit;
+    }
+    .secondary-btn:hover { border-color: rgba(33, 105, 44, 0.6); color: var(--primary); }
+
+    .preset { padding: 8px 12px; font-size: 12.5px; }
+
+    .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 14px; margin-top: 16px; }
+    .tile { border: 1px solid var(--border); border-radius: 14px; padding: 13px 15px; background: #fff; }
+    .tile .label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
+    .tile .value { font-size: 21px; font-weight: 700; margin-top: 4px; }
+
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    thead th {
+      text-align: left;
+      font-size: 10.5px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--muted);
+      padding: 9px 9px 7px;
+      border-bottom: 1px solid var(--border);
+      white-space: nowrap;
+    }
+    thead th.num, td.num { text-align: right; }
+    tbody td { padding: 8px 9px; border-bottom: 1px solid #eef0f5; }
+    tbody tr:hover { background: #f7fbf8; }
+    tbody td.empty { text-align: center; color: var(--muted); padding: 26px 0; }
+
+    .neg { color: #991b1b; font-weight: 700; }
+
+    .st-badge {
+      display: inline-block;
+      border-radius: 999px;
+      padding: 2px 9px;
+      font-size: 11px;
+      font-weight: 700;
+      background: #f3f4f6;
+      color: #374151;
+    }
+    .st-badge.rtv { background: #fee2e2; color: #991b1b; }
+    .st-badge.wty { background: #eaf4ec; color: #1a5222; }
+
+    .sale-match { font-size: 12px; white-space: nowrap; }
+    .sale-match .fp {
+      display: inline-block;
+      margin-left: 5px;
+      padding: 1px 7px;
+      border-radius: 999px;
+      font-size: 10px;
+      font-weight: 700;
+      background: #eaf4ec;
+      color: #1a5222;
+    }
+    .sale-match .fp.weak { background: #fef3c7; color: #92400e; }
+    .sale-match .how { display: block; color: #9ca3af; font-size: 10.5px; }
+
+    .no-order {
+      display: inline-block;
+      margin-left: 6px;
+      font-size: 10.5px;
+      color: #92400e;
+      font-weight: 700;
+    }
+
+    .status {
+      display: none;
+      margin: 12px 0 0;
+      border-radius: 12px;
+      padding: 11px 14px;
+      font-size: 13px;
+    }
+    .status.show { display: block; }
+    .status.error { background: var(--error-bg); color: var(--error-text); }
+
+    .asof { color: var(--muted); font-size: 12.5px; }
+
+    @media (max-width: 760px) {
+      body { padding: 14px 8px; }
+      .surface { padding: 14px; }
+    }
+  </style>
+</head>
+<body data-shell-label="Returns Report" data-shell-icon="accounting">
+  <div class="wrap">
+    <div id="internal-shell-header"></div>
+
+    <div class="surface">
+      <h2>Returns Report</h2>
+      <p class="section-note">
+        Every negative-quantity line from the Crystal Commissions feed — returns, RTVs, and
+        swap-outs — down to the individual unit, keyed by the commission month it hit. Where the
+        order lives in the warehouse, its finish date and salesperson are attached.
+      </p>
+      <div class="toolbar">
+        <label style="font-size: 12.5px; font-weight: 700;">From
+          <input type="month" id="startInput" />
+        </label>
+        <label style="font-size: 12.5px; font-weight: 700;">To
+          <input type="month" id="endInput" />
+        </label>
+        <button type="button" class="secondary-btn preset" data-preset="month">This month</button>
+        <button type="button" class="secondary-btn preset" data-preset="3">Last 3 months</button>
+        <button type="button" class="secondary-btn preset" data-preset="ytd">YTD</button>
+        <span style="flex: 1;"></span>
+        <button type="button" class="primary-btn" id="runBtn">Run report</button>
+      </div>
+      <div class="tiles">
+        <div class="tile"><div class="label">Return lines</div><div class="value" id="kpiLines">–</div></div>
+        <div class="tile"><div class="label">Units back</div><div class="value" id="kpiUnits">–</div></div>
+        <div class="tile"><div class="label">Revenue credited</div><div class="value neg" id="kpiRevenue">–</div></div>
+        <div class="tile"><div class="label">Serial cost involved</div><div class="value" id="kpiCost">–</div></div>
+        <div class="tile"><div class="label">Matched to sale</div><div class="value" id="kpiMatched">–</div></div>
+      </div>
+      <div id="runStatus" class="status"></div>
+    </div>
+
+    <div class="surface">
+      <div class="toolbar" style="margin-bottom: 12px;">
+        <select id="deptFilter"><option value="">All departments</option></select>
+        <select id="stFilter"><option value="">All serial types</option></select>
+        <input type="text" id="searchInput" placeholder="Search invoice, customer, or model…" style="min-width: 240px;" />
+        <span style="flex: 1;"></span>
+        <span class="asof" id="countNote"></span>
+        <button type="button" class="secondary-btn" id="exportBtn">Export to Excel</button>
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th>Month</th>
+            <th>Invoice</th>
+            <th>Department</th>
+            <th>Customer</th>
+            <th>Salesperson</th>
+            <th>Product</th>
+            <th class="num">Qty</th>
+            <th class="num">Revenue</th>
+            <th>Serial</th>
+            <th class="num">Serial Cost</th>
+            <th>Original Sale</th>
+            <th>Order Finished</th>
+          </tr>
+        </thead>
+        <tbody id="tableBody">
+          <tr><td colspan="12" class="empty">Pick a month range and run the report.</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div id="internal-shell-footer"></div>
+  </div>
+
+  <script src="internal-shell.js"></script>
+  <script>
+    function el(id) { return document.getElementById(id); }
+    function escapeHtml(v) {
+      return String(v == null ? "" : v)
+        .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+    }
+    function fmtMoney(n) {
+      if (!Number.isFinite(Number(n))) return "—";
+      return "$" + Number(n).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    }
+    function todayCentral() {
+      return new Date().toLocaleDateString("en-CA", { timeZone: "America/Chicago" });
+    }
+
+    let rows = [];
+    let deptFilter = "";
+    let stFilter = "";
+    let searchTerm = "";
+
+    function setStatus(message, kind) {
+      const box = el("runStatus");
+      box.className = message ? `status show ${kind}` : "status";
+      box.textContent = message || "";
+    }
+
+    document.querySelectorAll(".preset").forEach((btn) => btn.addEventListener("click", () => {
+      const month = todayCentral().slice(0, 7);
+      const [y, m] = [Number(month.slice(0, 4)), Number(month.slice(5, 7))];
+      let start = month;
+      if (btn.dataset.preset === "3") {
+        const d = new Date(Date.UTC(y, m - 3, 1));
+        start = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
+      } else if (btn.dataset.preset === "ytd") {
+        start = `${y}-01`;
+      }
+      el("startInput").value = start;
+      el("endInput").value = month;
+      runReport();
+    }));
+
+    async function runReport() {
+      const start = el("startInput").value;
+      const end = el("endInput").value;
+      if (!start || !end) return setStatus("Pick both months first.", "error");
+      setStatus("", "");
+      el("runBtn").disabled = true;
+      try {
+        const qs = new URLSearchParams({ start, end });
+        const res = await fetch(`/api/returns-report?${qs}`, { credentials: "same-origin" });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Unable to load the report.");
+        rows = data.returns || [];
+        syncFilterOptions();
+        renderAll();
+      } catch (err) {
+        setStatus(err.message, "error");
+      } finally {
+        el("runBtn").disabled = false;
+      }
+    }
+
+    function syncFilterOptions() {
+      const depts = [...new Set(rows.map((r) => r.department).filter(Boolean))].sort();
+      const sts = [...new Set(rows.map((r) => r.serialType || (r.lineType === "Wty" ? "WTY" : "")).filter(Boolean))].sort();
+      el("deptFilter").innerHTML = '<option value="">All departments</option>' +
+        depts.map((d) => `<option value="${escapeHtml(d)}"${d === deptFilter ? " selected" : ""}>${escapeHtml(d)}</option>`).join("");
+      el("stFilter").innerHTML = '<option value="">All serial types</option>' +
+        sts.map((s) => `<option value="${escapeHtml(s)}"${s === stFilter ? " selected" : ""}>${escapeHtml(s)}</option>`).join("");
+      if (!depts.includes(deptFilter)) deptFilter = "";
+      if (!sts.includes(stFilter)) stFilter = "";
+    }
+
+    function stOf(r) {
+      return r.serialType || (r.lineType === "Wty" ? "WTY" : "");
+    }
+
+    function filteredRows() {
+      const term = searchTerm.toLowerCase();
+      return rows.filter((r) =>
+        (!deptFilter || r.department === deptFilter) &&
+        (!stFilter || stOf(r) === stFilter) &&
+        (!term || [r.invoice, r.orderCustomerName, r.customer, r.product].join(" ").toLowerCase().includes(term)));
+    }
+
+    function stBadge(r) {
+      const st = stOf(r);
+      const cls = st === "RTV" ? "rtv" : (st === "WTY" ? "wty" : "");
+      return st ? `<span class="st-badge ${cls}">${escapeHtml(st)}</span>` : "—";
+    }
+
+    function renderAll() {
+      const view = filteredRows();
+      el("kpiLines").textContent = view.length.toLocaleString("en-US");
+      el("kpiUnits").textContent = Math.abs(view.reduce((s, r) => s + r.qty, 0)).toLocaleString("en-US");
+      el("kpiRevenue").textContent = fmtMoney(view.reduce((s, r) => s + r.revenue, 0));
+      el("kpiCost").textContent = fmtMoney(view.reduce((s, r) => s + (r.serialCost || 0), 0));
+      const matched = view.filter((r) => r.originalSale).length;
+      el("kpiMatched").textContent = view.length ? `${matched} / ${view.length}` : "–";
+      el("countNote").textContent = `${view.length.toLocaleString("en-US")} of ${rows.length.toLocaleString("en-US")} return lines`;
+
+      el("tableBody").innerHTML = view.length ? view.map((r) => `
+        <tr>
+          <td style="white-space: nowrap;">${escapeHtml(r.sourceMonth)}</td>
+          <td style="font-weight: 700; white-space: nowrap;">${escapeHtml(r.invoice)}${r.orderInvoice ? "" : '<span class="no-order" title="Order not in the warehouse — upload its OE-23 month">no order</span>'}</td>
+          <td>${escapeHtml(r.department || "—")}</td>
+          <td>${escapeHtml(r.orderCustomerName)}</td>
+          <td>${escapeHtml(r.orderSalesperson || "—")}</td>
+          <td style="font-weight: 600;">${escapeHtml(r.product)}</td>
+          <td class="num">${r.qty}</td>
+          <td class="num neg">${fmtMoney(r.revenue)}</td>
+          <td>${stBadge(r)}</td>
+          <td class="num">${r.serialCost == null ? "—" : fmtMoney(r.serialCost)}</td>
+          <td>${r.originalSale ? `
+            <span class="sale-match">
+              ${escapeHtml(r.originalSale.invoice)} · ${escapeHtml(r.originalSale.month)} · ${fmtMoney(r.originalSale.revenue)}
+              ${r.originalSale.sameSerialCost ? '<span class="fp" title="Serial cost identical — same unit">same unit</span>' : '<span class="fp weak" title="Serial cost differs — likely same model, verify unit">model match</span>'}
+              <span class="how">${escapeHtml(r.originalSale.matchedBy)}</span>
+            </span>` : '<span class="asof">not found yet — upload earlier months</span>'}</td>
+          <td style="white-space: nowrap;">${escapeHtml(r.finishDate || "—")}</td>
+        </tr>`).join("") : '<tr><td colspan="12" class="empty">No return lines in this range match the filters.</td></tr>';
+    }
+
+    el("deptFilter").addEventListener("change", () => { deptFilter = el("deptFilter").value; renderAll(); });
+    el("stFilter").addEventListener("change", () => { stFilter = el("stFilter").value; renderAll(); });
+    el("searchInput").addEventListener("input", (e) => { searchTerm = e.target.value.trim(); renderAll(); });
+    el("runBtn").addEventListener("click", runReport);
+
+    // ---------------- Excel export (dependency-free, stored zip) ----------------
+    const CRC_TABLE = (() => {
+      const table = new Uint32Array(256);
+      for (let n = 0; n < 256; n++) {
+        let c = n;
+        for (let k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1;
+        table[n] = c >>> 0;
+      }
+      return table;
+    })();
+    function crc32(bytes) {
+      let crc = 0xFFFFFFFF;
+      for (let i = 0; i < bytes.length; i++) crc = CRC_TABLE[(crc ^ bytes[i]) & 0xFF] ^ (crc >>> 8);
+      return (crc ^ 0xFFFFFFFF) >>> 0;
+    }
+    function zipStore(files) {
+      const encoder = new TextEncoder();
+      const chunks = [];
+      const central = [];
+      let offset = 0;
+      const now = new Date();
+      const dosTime = ((now.getHours() << 11) | (now.getMinutes() << 5) | Math.floor(now.getSeconds() / 2)) & 0xFFFF;
+      const dosDate = (((now.getFullYear() - 1980) << 9) | ((now.getMonth() + 1) << 5) | now.getDate()) & 0xFFFF;
+      for (const file of files) {
+        const nameBytes = encoder.encode(file.name);
+        const data = encoder.encode(file.text);
+        const crc = crc32(data);
+        const local = new DataView(new ArrayBuffer(30));
+        local.setUint32(0, 0x04034b50, true);
+        local.setUint16(4, 20, true);
+        local.setUint16(8, 0, true);
+        local.setUint16(10, dosTime, true);
+        local.setUint16(12, dosDate, true);
+        local.setUint32(14, crc, true);
+        local.setUint32(18, data.length, true);
+        local.setUint32(22, data.length, true);
+        local.setUint16(26, nameBytes.length, true);
+        chunks.push(new Uint8Array(local.buffer), nameBytes, data);
+        const cd = new DataView(new ArrayBuffer(46));
+        cd.setUint32(0, 0x02014b50, true);
+        cd.setUint16(4, 20, true);
+        cd.setUint16(6, 20, true);
+        cd.setUint16(12, dosTime, true);
+        cd.setUint16(14, dosDate, true);
+        cd.setUint32(16, crc, true);
+        cd.setUint32(20, data.length, true);
+        cd.setUint32(24, data.length, true);
+        cd.setUint16(28, nameBytes.length, true);
+        cd.setUint32(42, offset, true);
+        central.push(new Uint8Array(cd.buffer), nameBytes);
+        offset += 30 + nameBytes.length + data.length;
+      }
+      let centralSize = 0;
+      for (const part of central) centralSize += part.length;
+      const eocd = new DataView(new ArrayBuffer(22));
+      eocd.setUint32(0, 0x06054b50, true);
+      eocd.setUint16(8, files.length, true);
+      eocd.setUint16(10, files.length, true);
+      eocd.setUint32(12, centralSize, true);
+      eocd.setUint32(16, offset, true);
+      const out = new Uint8Array(offset + centralSize + 22);
+      let pos = 0;
+      for (const part of [...chunks, ...central, new Uint8Array(eocd.buffer)]) {
+        out.set(part, pos);
+        pos += part.length;
+      }
+      return out;
+    }
+    function xmlEscape(v) {
+      return String(v == null ? "" : v)
+        .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+    }
+    function colLetter(index) {
+      let name = "";
+      let n = index + 1;
+      while (n > 0) { const r = (n - 1) % 26; name = String.fromCharCode(65 + r) + name; n = Math.floor((n - 1) / 26); }
+      return name;
+    }
+    function sheetXml(rowsIn) {
+      const body = rowsIn.map((cells, rowIndex) => {
+        const cellsXml = cells.map((value, colIndex) => {
+          const ref = colLetter(colIndex) + (rowIndex + 1);
+          if (typeof value === "number" && Number.isFinite(value)) return `<c r="${ref}"><v>${value}</v></c>`;
+          return `<c r="${ref}" t="inlineStr"><is><t xml:space="preserve">${xmlEscape(value)}</t></is></c>`;
+        }).join("");
+        return `<row r="${rowIndex + 1}">${cellsXml}</row>`;
+      }).join("");
+      return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData>${body}</sheetData></worksheet>`;
+    }
+    function buildReturnsXlsx(view) {
+      const header = ["Commission Month", "Invoice", "Order In Warehouse", "Department", "Customer", "Salesperson",
+        "Type", "Product", "Qty", "Revenue", "Serial Type", "Serial Cost", "Order Finished", "Split",
+        "Sale Invoice", "Sale Month", "Sale Revenue", "Sale Serial Cost", "Same Unit (Cost Match)", "Matched By"];
+      const dataRows = view.map((r) => [
+        r.sourceMonth, r.invoice, r.orderInvoice ? "Yes" : "No", r.department || "", r.orderCustomerName,
+        r.orderSalesperson || "", r.lineType, r.product, r.qty, r.revenue, stOf(r),
+        r.serialCost == null ? "" : r.serialCost, r.finishDate || "", r.split ? "Yes" : "",
+        r.originalSale?.invoice || "", r.originalSale?.month || "",
+        r.originalSale ? r.originalSale.revenue : "", r.originalSale?.serialCost ?? "",
+        r.originalSale ? (r.originalSale.sameSerialCost ? "Yes" : "No") : "", r.originalSale?.matchedBy || ""
+      ]);
+      const files = [
+        { name: "[Content_Types].xml", text: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/></Types>` },
+        { name: "_rels/.rels", text: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>` },
+        { name: "xl/workbook.xml", text: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="Returns" sheetId="1" r:id="rId1"/></sheets></workbook>` },
+        { name: "xl/_rels/workbook.xml.rels", text: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/></Relationships>` },
+        { name: "xl/worksheets/sheet1.xml", text: sheetXml([header, ...dataRows]) }
+      ];
+      return zipStore(files);
+    }
+    window.__buildReturnsXlsx = buildReturnsXlsx;
+
+    el("exportBtn").addEventListener("click", () => {
+      const view = filteredRows();
+      if (!view.length) return setStatus("Run the report first — nothing to export.", "error");
+      const bytes = buildReturnsXlsx(view);
+      const blob = new Blob([bytes], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(blob);
+      link.download = `returns-report_${el("startInput").value}_${el("endInput").value}.xlsx`;
+      link.click();
+      URL.revokeObjectURL(link.href);
+    });
+
+    // ---------------- Init ----------------
+    (function init() {
+      const month = todayCentral().slice(0, 7);
+      const [y, m] = [Number(month.slice(0, 4)), Number(month.slice(5, 7))];
+      const d = new Date(Date.UTC(y, m - 3, 1));
+      el("startInput").value = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
+      el("endInput").value = month;
+      runReport();
+    })();
+  </script>
+</body>
+</html>

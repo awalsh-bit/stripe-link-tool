@@ -169,12 +169,20 @@ import {
 } from "./lib/revenue-performance-postgres.js";
 import { parseCommissionGrid } from "./lib/commission-report.js";
 import {
+  getBonusRules,
+  saveBonusRules,
+  computeBonus,
+  BONUS_DEPARTMENTS
+} from "./lib/bonus-rules-postgres.js";
+import {
   upsertOrdersFromActivity,
   replaceCommissionLines,
   listOrderDetail,
   listOrderLineDetail,
   listLinesForInvoice,
-  listSourceVersions
+  listSourceVersions,
+  listReturnLines,
+  normalizeSalespersonName
 } from "./lib/sales-order-detail-postgres.js";
 import {
   getSalesOrderSnapshot,
@@ -317,6 +325,7 @@ const INTERNAL_PAGE_PATHS = new Set([
   "/user-admin.html",
   "/audit-log.html",
   "/sales-order-detail.html",
+  "/returns-report.html",
   "/mileage.html",
   "/mileage-review.html",
   "/hr-phone-screen.html",
@@ -390,6 +399,7 @@ const EXECUTIVE_ONLY_PAGE_PATHS = new Set([
   "/user-admin.html",
   "/audit-log.html",
   "/sales-order-detail.html",
+  "/returns-report.html",
   "/commissions.html",
   "/commissions-print.html"
 ]);
@@ -497,6 +507,7 @@ const PAGE_LABELS = {
   "/user-admin.html": "User Admin",
   "/audit-log.html": "User Activity Audit",
   "/sales-order-detail.html": "Sales Order Detail",
+  "/returns-report.html": "Returns Report",
   "/mileage.html": "Mileage",
   "/mileage-review.html": "Mileage Review",
   "/hr-phone-screen.html": "Phone Screen",
@@ -1624,7 +1635,7 @@ app.post("/api/me/dashboard-slots", async (req, res) => {
 
 // Save the signed-in user's dashboard module order (the vertical arrangement
 // of the module cards). Personal setting, mirrors dashboard-slots.
-const DASHBOARD_MODULE_IDS = ["queue", "paid", "revenue", "health"];
+const DASHBOARD_MODULE_IDS = ["queue", "paid", "revenue", "health", "bonus"];
 
 app.post("/api/me/dashboard-modules", async (req, res) => {
   if (!req.authUser) {
@@ -5488,6 +5499,266 @@ app.get("/api/revenue-performance", requirePagePermission("/target-builder.html"
   }
 });
 
+// INTERNAL: Bonus Tracker — attainment-tier rules (edited on the Target
+// Builder) and the per-user payout view (dashboard module). Two ladders per
+// department: dept MTD attainment and company MTD attainment, both vs the
+// working-day-prorated targets.
+app.get("/api/bonus-rules", requirePagePermission("/target-builder.html", "/dashboard.html"), async (req, res) => {
+  try {
+    const saved = await getBonusRules();
+    return res.json({ ...saved, departments: BONUS_DEPARTMENTS });
+  } catch (err) {
+    console.error("Bonus rules load failed:", err.message);
+    return res.status(500).json({ error: "Unable to load bonus rules." });
+  }
+});
+
+app.post("/api/bonus-rules", requirePagePermission("/target-builder.html"), async (req, res) => {
+  try {
+    const clean = await saveBonusRules({
+      rules: req.body?.rules || {},
+      byEmail: req.authUser?.email || req.authUser?.username || "",
+      byName: req.authUser?.displayName || ""
+    });
+    recordAudit({
+      ip: req.ip, actorUserId: req.authUser?.id || null,
+      action: "bonus_rules_saved", targetUserId: null,
+      detail: { departments: Object.keys(clean).filter((d) => (clean[d].deptTiers.length + clean[d].companyTiers.length) > 0) }
+    }).catch(() => {});
+    return res.json({ ok: true, rules: clean });
+  } catch (err) {
+    console.error("Bonus rules save failed:", err.message);
+    return res.status(500).json({ error: "Unable to save bonus rules." });
+  }
+});
+
+app.get("/api/bonus-tracker", requirePagePermission("/dashboard.html", "/target-builder.html"), async (req, res) => {
+  try {
+    const month = new Date().toLocaleDateString("en-CA", { timeZone: APP_TIMEZONE }).slice(0, 7);
+    const today = new Date().toLocaleDateString("en-CA", { timeZone: APP_TIMEZONE });
+
+    const email = String(req.authUser?.email || req.authUser?.username || "").trim().toLowerCase();
+    let department = null;
+    try {
+      const entry = await findEmployeeDirectoryEntryByEmail(email);
+      department = entry?.department || null;
+    } catch {}
+
+    const [target, performance, savedRules] = await Promise.all([
+      getRevenueTarget(month),
+      getRevenuePerformance(month),
+      getBonusRules()
+    ]);
+    const workingDays = monthWorkingDays(month, today);
+    const progression = workingDays?.progression || 0;
+
+    const companyRevenue = Number(performance?.totals?.totalNoTax) || 0;
+    const companyToDateTarget = Math.round(target.totalTarget * progression * 100) / 100;
+    const companyAttainment = companyToDateTarget > 0 && performance ? companyRevenue / companyToDateTarget * 100 : NaN;
+
+    const deptPct = Number(target.splits?.[department] || 0);
+    const deptMonthTarget = Math.round(target.totalTarget * deptPct) / 100;
+    const deptToDateTarget = Math.round(deptMonthTarget * progression * 100) / 100;
+    const deptRevenue = Number(performance?.byDepartment?.[department]?.revenue) || 0;
+    const departmentHasTarget = deptPct > 0;
+    const deptAttainment = departmentHasTarget && deptToDateTarget > 0 && performance ? deptRevenue / deptToDateTarget * 100 : NaN;
+
+    const payout = computeBonus({
+      department,
+      deptAttainment,
+      companyAttainment,
+      rules: savedRules.rules
+    });
+
+    // Directory entry name → personal revenue (OE-23 keys are all-caps names).
+    let personalName = "";
+    try {
+      const entry = await findEmployeeDirectoryEntryByEmail(email);
+      personalName = entry?.name || "";
+    } catch {}
+    const normalizedPersonal = normalizeSalespersonName(personalName);
+    const personalRevenueIn = (perf) => {
+      if (!perf?.bySalesperson || !normalizedPersonal) return 0;
+      for (const [name, stats] of Object.entries(perf.bySalesperson)) {
+        if (normalizeSalespersonName(name) === normalizedPersonal) return Number(stats?.revenue) || 0;
+      }
+      return 0;
+    };
+
+    // Three months of target-vs-actual for the charts (oldest first). Past
+    // months compare against the FULL month target; the current month against
+    // the working-day-prorated to-date target.
+    const history = [];
+    const [y, m] = [Number(month.slice(0, 4)), Number(month.slice(5, 7))];
+    for (let back = 2; back >= 0; back--) {
+      const d = new Date(Date.UTC(y, m - 1 - back, 1));
+      const hm = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
+      const isCurrent = hm === month;
+      const [hTarget, hPerf] = isCurrent
+        ? [target, performance]
+        : await Promise.all([getRevenueTarget(hm), getRevenuePerformance(hm)]);
+      const factor = isCurrent ? progression : 1;
+      const hDeptMonthTarget = Math.round(hTarget.totalTarget * Number(hTarget.splits?.[department] || 0)) / 100;
+      history.push({
+        month: hm,
+        label: d.toLocaleDateString("en-US", { timeZone: "UTC", month: "short" }),
+        prorated: isCurrent,
+        deptActual: Number(hPerf?.byDepartment?.[department]?.revenue) || 0,
+        deptTarget: Math.round(hDeptMonthTarget * factor * 100) / 100,
+        companyActual: Number(hPerf?.totals?.totalNoTax) || 0,
+        companyTarget: Math.round(hTarget.totalTarget * factor * 100) / 100,
+        personalActual: personalRevenueIn(hPerf)
+      });
+    }
+
+    const personalRevenue = personalRevenueIn(performance);
+
+    // Year-over-year comp: the same month last year, if its OE-23 was
+    // uploaded (the plumbing accepts any historical export).
+    const priorMonth = `${y - 1}-${String(m).padStart(2, "0")}`;
+    let priorYear = null;
+    try {
+      const priorPerf = await getRevenuePerformance(priorMonth);
+      if (priorPerf) {
+        priorYear = {
+          month: priorMonth,
+          companyRevenue: Number(priorPerf.totals?.totalNoTax) || 0,
+          deptRevenue: Number(priorPerf.byDepartment?.[department]?.revenue) || 0,
+          personalRevenue: personalRevenueIn(priorPerf)
+        };
+      }
+    } catch {}
+
+    return res.json({
+      month,
+      department,
+      departmentHasTarget,
+      hasPerformance: Boolean(performance),
+      performanceAsOf: performance?.uploadedAt || null,
+      workingDays: { total: workingDays?.total || 0, elapsed: workingDays?.elapsed || 0 },
+      dept: { revenue: deptRevenue, toDateTarget: deptToDateTarget, monthTarget: deptMonthTarget, attainment: Number.isFinite(deptAttainment) ? Math.round(deptAttainment * 10) / 10 : null },
+      company: { revenue: companyRevenue, toDateTarget: companyToDateTarget, attainment: Number.isFinite(companyAttainment) ? Math.round(companyAttainment * 10) / 10 : null },
+      personal: {
+        name: personalName,
+        revenue: personalRevenue,
+        deptShare: deptRevenue > 0 ? Math.round(personalRevenue / deptRevenue * 1000) / 10 : null,
+        companyShare: companyRevenue > 0 ? Math.round(personalRevenue / companyRevenue * 1000) / 10 : null
+      },
+      history,
+      priorYear,
+      progression: Math.round(progression * 10000) / 10000,
+      payout,
+      rulesSource: savedRules.source
+    });
+  } catch (err) {
+    console.error("Bonus tracker load failed:", err.message);
+    return res.status(500).json({ error: "Unable to load the bonus tracker." });
+  }
+});
+
+// INTERNAL: Revenue Snapshot module (dashboard.html) — finished-order
+// revenue from the OE-23 warehouse vs targets, with a year-over-year comp.
+// (Replaced the old Stripe payment-link tiles.)
+app.get("/api/revenue-snapshot", requirePagePermission("/dashboard.html", "/target-builder.html"), async (req, res) => {
+  try {
+    const month = new Date().toLocaleDateString("en-CA", { timeZone: APP_TIMEZONE }).slice(0, 7);
+    const today = new Date().toLocaleDateString("en-CA", { timeZone: APP_TIMEZONE });
+    const [y, m] = [Number(month.slice(0, 4)), Number(month.slice(5, 7))];
+
+    // Quarter months (calendar quarters), current month included.
+    const qStart = Math.floor((m - 1) / 3) * 3 + 1;
+    const quarterMonths = [0, 1, 2].map((i) => `${y}-${String(qStart + i).padStart(2, "0")}`);
+    const quarterLabel = `Q${Math.floor((m - 1) / 3) + 1} ${y}`;
+    const priorYearOf = (ym) => `${Number(ym.slice(0, 4)) - 1}${ym.slice(4)}`;
+
+    // Load once per involved month: target, performance, prior-year performance.
+    const monthData = new Map();
+    async function loadMonthData(ym) {
+      if (!monthData.has(ym)) {
+        const [t, p, pp] = await Promise.all([
+          getRevenueTarget(ym),
+          getRevenuePerformance(ym).catch(() => null),
+          getRevenuePerformance(priorYearOf(ym)).catch(() => null)
+        ]);
+        monthData.set(ym, { target: t, perf: p, priorPerf: pp });
+      }
+      return monthData.get(ym);
+    }
+
+    const currentWd = monthWorkingDays(month, today);
+    const progressionOf = (ym) => (ym === month ? (currentWd?.progression || 0) : (ym < month ? 1 : 0));
+
+    // Build one block (MTD = [current month], QTD = quarter months).
+    async function buildBlock(months) {
+      const block = {
+        company: { actual: 0, toDateTarget: 0, fullTarget: 0, priorYearActual: 0 },
+        byDepartment: {},
+        elapsedWeight: 0,
+        totalWeight: 0,
+        hasAnyPerformance: false,
+        hasPriorYear: false
+      };
+      for (const dept of TARGET_DEPARTMENTS) {
+        block.byDepartment[dept] = { actual: 0, toDateTarget: 0, fullTarget: 0, priorYearActual: 0 };
+      }
+      for (const ym of months) {
+        const { target, perf, priorPerf } = await loadMonthData(ym);
+        const factor = progressionOf(ym);
+        const wd = ym === month ? currentWd : monthWorkingDays(ym, today);
+        block.totalWeight += wd?.total || 0;
+        block.elapsedWeight += Math.round((wd?.total || 0) * factor);
+        if (perf) block.hasAnyPerformance = true;
+        if (priorPerf) block.hasPriorYear = true;
+
+        block.company.actual += Number(perf?.totals?.totalNoTax) || 0;
+        block.company.toDateTarget += target.totalTarget * factor;
+        block.company.fullTarget += target.totalTarget;
+        block.company.priorYearActual += Number(priorPerf?.totals?.totalNoTax) || 0;
+
+        for (const dept of TARGET_DEPARTMENTS) {
+          const pct = Number(target.splits?.[dept] || 0);
+          const monthTarget = target.totalTarget * pct / 100;
+          const d = block.byDepartment[dept];
+          d.actual += Number(perf?.byDepartment?.[dept]?.revenue) || 0;
+          d.toDateTarget += monthTarget * factor;
+          d.fullTarget += monthTarget;
+          d.priorYearActual += Number(priorPerf?.byDepartment?.[dept]?.revenue) || 0;
+        }
+      }
+      const progression = block.totalWeight ? block.elapsedWeight / block.totalWeight : 0;
+      const finish = (entry) => ({
+        actual: Math.round(entry.actual * 100) / 100,
+        toDateTarget: Math.round(entry.toDateTarget * 100) / 100,
+        fullTarget: Math.round(entry.fullTarget * 100) / 100,
+        attainment: entry.toDateTarget > 0 && block.hasAnyPerformance ? Math.round(entry.actual / entry.toDateTarget * 1000) / 10 : null,
+        priorYearActual: block.hasPriorYear ? Math.round(entry.priorYearActual * 100) / 100 : null
+      });
+      return {
+        progression: Math.round(progression * 10000) / 10000,
+        hasPerformance: block.hasAnyPerformance,
+        hasPriorYear: block.hasPriorYear,
+        company: finish(block.company),
+        byDepartment: Object.fromEntries(Object.entries(block.byDepartment).map(([k, v]) => [k, finish(v)]))
+      };
+    }
+
+    const [mtd, qtd] = [await buildBlock([month]), await buildBlock(quarterMonths)];
+    const { perf } = await loadMonthData(month);
+    const monthLabel = new Date(Date.UTC(y, m - 1, 1)).toLocaleDateString("en-US", { timeZone: "UTC", month: "long" });
+
+    return res.json({
+      month,
+      workingDays: { total: currentWd?.total || 0, elapsed: currentWd?.elapsed || 0 },
+      performanceAsOf: perf?.uploadedAt || null,
+      mtd: { ...mtd, label: `MTD — ${monthLabel}`, priorLabel: `${y - 1}-${String(m).padStart(2, "0")}` },
+      qtd: { ...qtd, label: `QTD — ${quarterLabel}`, priorLabel: `Q${Math.floor((m - 1) / 3) + 1} ${y - 1}` }
+    });
+  } catch (err) {
+    console.error("Revenue snapshot load failed:", err.message);
+    return res.status(500).json({ error: "Unable to load the revenue snapshot." });
+  }
+});
+
 // INTERNAL: Sales Order Detail (sales-order-detail.html, Admin/executive).
 // The commission report upload adds line items (models / warranty plans with
 // qty, revenue, serial cost); each upload replaces its month. The order rows
@@ -5578,6 +5849,23 @@ app.get("/api/sales-order-detail/line-report", requirePagePermission("/sales-ord
   } catch (err) {
     console.error("Sales order line report failed:", err.message);
     return res.status(500).json({ error: "Unable to load the line item report." });
+  }
+});
+
+// INTERNAL: Returns Report (returns-report.html) — negative-quantity
+// commission lines (returns / RTV / swap-outs) by commission month.
+app.get("/api/returns-report", requirePagePermission("/returns-report.html"), async (req, res) => {
+  try {
+    const startMonth = String(req.query.start || "").trim();
+    const endMonth = String(req.query.end || "").trim();
+    if (!/^\d{4}-\d{2}$/.test(startMonth) || !/^\d{4}-\d{2}$/.test(endMonth)) {
+      return res.status(400).json({ error: "Provide start and end months as YYYY-MM." });
+    }
+    const returns = await listReturnLines({ startMonth, endMonth });
+    return res.json({ returns });
+  } catch (err) {
+    console.error("Returns report load failed:", err.message);
+    return res.status(500).json({ error: "Unable to load the returns report." });
   }
 });
 

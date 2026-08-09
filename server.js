@@ -113,6 +113,7 @@ import {
 } from "./lib/steelcod.js";
 import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
 import multer from "multer";
+import { read as readWorkbook, utils as xlsxUtils } from "xlsx";
 import {
   findOrCreateCandidate,
   createPhoneScreen,
@@ -157,6 +158,15 @@ import {
   getRevenueTarget,
   saveRevenueTarget
 } from "./lib/revenue-targets-postgres.js";
+import {
+  parseActivityGrid,
+  rollupByDepartment,
+  rollupBySalesperson
+} from "./lib/salesperson-activity.js";
+import {
+  saveRevenuePerformance,
+  getRevenuePerformance
+} from "./lib/revenue-performance-postgres.js";
 import {
   getSalesOrderSnapshot,
   saveSalesOrderSnapshot,
@@ -5374,6 +5384,84 @@ app.post("/api/revenue-targets", requirePagePermission("/target-builder.html"), 
   } catch (err) {
     console.error("Revenue target save failed:", err.message);
     return res.status(500).json({ error: "Unable to save the target." });
+  }
+});
+
+// INTERNAL: Revenue performance — the Salesperson Activity Report (ePASS
+// OE-23, legacy .xls) parsed server-side. This is the revenue numerator to
+// the target denominator: revenue = List "Total (no Tax)", departments come
+// from the ticket prefix (SV → Repair Service, CB → Kitchen Design,
+// AC → HVAC Sales, R/S → Appliance). One snapshot per month keyed by the
+// report's From date; re-uploads replace the month.
+const activityReportUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } });
+
+app.post("/api/revenue-performance", requirePagePermission("/target-builder.html"), (req, res) => {
+  activityReportUpload.single("report")(req, res, async (err) => {
+    if (err) {
+      return res.status(400).json({ error: err.code === "LIMIT_FILE_SIZE" ? "That file is over the 20 MB limit." : "Upload failed — please try again." });
+    }
+    try {
+      if (!req.file?.buffer?.length) {
+        return res.status(400).json({ error: "Attach the Salesperson Activity Report export (.xls)." });
+      }
+
+      let grid;
+      try {
+        const workbook = readWorkbook(req.file.buffer, { type: "buffer", cellDates: true });
+        const sheet = workbook.Sheets[workbook.SheetNames[0]];
+        grid = xlsxUtils.sheet_to_json(sheet, { header: 1, defval: null, raw: true });
+      } catch (parseErr) {
+        console.error("Activity report read failed:", parseErr.message);
+        return res.status(400).json({ error: "Couldn't read that file as an Excel workbook. Export the Salesperson Activity Report from ePASS and upload it unmodified." });
+      }
+
+      const parsed = parseActivityGrid(grid);
+      if (!parsed.periodFrom) {
+        return res.status(400).json({ error: "Couldn't find the report period — is this the Salesperson Activity Report (OE-23)?" });
+      }
+
+      const month = parsed.periodFrom.slice(0, 7);
+      const saved = await saveRevenuePerformance({
+        month,
+        periodFrom: parsed.periodFrom,
+        periodTo: parsed.periodTo,
+        filename: req.file.originalname || "",
+        byEmail: req.authUser?.email || req.authUser?.username || "",
+        byName: req.authUser?.displayName || "",
+        ticketCount: parsed.tickets.length,
+        totals: parsed.grandListTotals,
+        byDepartment: rollupByDepartment(parsed.tickets),
+        bySalesperson: rollupBySalesperson(parsed.tickets),
+        warnings: parsed.warnings,
+        tickets: parsed.tickets
+      });
+
+      recordAudit({
+        ip: req.ip, actorUserId: req.authUser?.id || null,
+        action: "revenue_performance_uploaded", targetUserId: null,
+        detail: { month, periodFrom: parsed.periodFrom, periodTo: parsed.periodTo, tickets: parsed.tickets.length, filename: req.file.originalname || "", warnings: parsed.warnings.length }
+      }).catch(() => {});
+
+      return res.json({ ok: true, performance: saved });
+    } catch (parseErr) {
+      console.error("Activity report parse failed:", parseErr.message);
+      return res.status(400).json({ error: parseErr.message || "Unable to parse the report." });
+    }
+  });
+});
+
+app.get("/api/revenue-performance", requirePagePermission("/target-builder.html", "/dashboard.html"), async (req, res) => {
+  try {
+    const month = String(req.query.month || "").trim() ||
+      new Date().toLocaleDateString("en-CA", { timeZone: APP_TIMEZONE }).slice(0, 7);
+    if (!isValidTargetMonth(month)) {
+      return res.status(400).json({ error: "Provide a month as YYYY-MM." });
+    }
+    const performance = await getRevenuePerformance(month);
+    return res.json({ month, performance });
+  } catch (err) {
+    console.error("Revenue performance load failed:", err.message);
+    return res.status(500).json({ error: "Unable to load revenue performance." });
   }
 });
 

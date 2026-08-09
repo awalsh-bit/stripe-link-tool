@@ -132,6 +132,35 @@
     .pct-ok { color: #065f46; font-weight: 700; }
     .pct-bad { color: #991b1b; font-weight: 700; }
 
+    /* Performance vs target */
+    .secondary-btn {
+      appearance: none;
+      border: 1px solid var(--border);
+      background: #fff;
+      color: var(--text);
+      border-radius: 12px;
+      padding: 10px 16px;
+      font-size: 13.5px;
+      font-weight: 700;
+      cursor: pointer;
+      font-family: inherit;
+    }
+    .secondary-btn:hover { border-color: rgba(99, 91, 255, 0.6); color: var(--primary); }
+    .secondary-btn:disabled { opacity: 0.6; cursor: wait; }
+    .att-good { color: #065f46; font-weight: 700; }
+    .att-mid { color: #92400e; font-weight: 700; }
+    .att-bad { color: #991b1b; font-weight: 700; }
+    .perf-empty { color: var(--muted); font-size: 13.5px; padding: 14px 4px; }
+    .warn-box {
+      margin-top: 12px;
+      border-radius: 12px;
+      padding: 11px 14px;
+      background: #fffbeb;
+      color: #92400e;
+      font-size: 13px;
+      line-height: 1.5;
+    }
+
     .status {
       display: none;
       margin: 14px 0 0;
@@ -202,6 +231,22 @@
       <div id="statusBox" class="status"></div>
     </div>
 
+    <div class="surface">
+      <h3>Performance vs target</h3>
+      <p class="section-note">
+        Revenue from the ePASS Salesperson Activity Report (OE-23) — upload the month-to-date export to
+        refresh. Revenue is List price, Total (no Tax). SV tickets count as Repair Service, CB as Kitchen
+        Design, AC as HVAC Sales, R and S as Appliance.
+      </p>
+      <div class="toolbar" style="margin-bottom: 12px;">
+        <input type="file" id="reportFile" accept=".xls,.xlsx" style="display: none;" />
+        <button type="button" class="secondary-btn" id="uploadBtn">Upload Activity Report</button>
+        <span class="section-note" style="margin: 0;" id="perfMeta"></span>
+      </div>
+      <div id="perfBody"></div>
+      <div id="perfStatus" class="status"></div>
+    </div>
+
     <div id="internal-shell-footer"></div>
   </div>
 
@@ -236,6 +281,7 @@
         if (!res.ok) throw new Error(data.error || "Unable to load targets.");
         current = data;
         renderAll();
+        await loadPerformance();
       } catch (err) {
         setStatus(err.message, "error");
       }
@@ -368,6 +414,160 @@
         setStatus(err.message, "error");
       } finally {
         btn.disabled = false;
+      }
+    });
+
+    // ---------------- Performance vs target ----------------
+    let perf = null;
+
+    function setPerfStatus(message, kind) {
+      const box = el("perfStatus");
+      box.className = message ? `status show ${kind}` : "status";
+      box.textContent = message || "";
+    }
+
+    async function loadPerformance() {
+      const month = el("monthInput").value;
+      if (!month) return;
+      try {
+        const res = await fetch(`/api/revenue-performance?month=${encodeURIComponent(month)}`, { credentials: "same-origin" });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Unable to load performance.");
+        perf = data.performance;
+        renderPerformance();
+      } catch (err) {
+        perf = null;
+        renderPerformance();
+        setPerfStatus(err.message, "error");
+      }
+    }
+
+    function attClass(pct) {
+      if (!Number.isFinite(pct)) return "";
+      if (pct >= 100) return "att-good";
+      if (pct >= 85) return "att-mid";
+      return "att-bad";
+    }
+
+    function fmtPct(pct) {
+      return Number.isFinite(pct) ? pct.toFixed(1) + "%" : "—";
+    }
+
+    function renderPerformance() {
+      const body = el("perfBody");
+      const meta = el("perfMeta");
+
+      if (!perf) {
+        meta.textContent = "";
+        body.innerHTML = '<div class="perf-empty">No Activity Report uploaded for this month yet.</div>';
+        return;
+      }
+
+      const range = perf.periodFrom && perf.periodTo ? `${perf.periodFrom} to ${perf.periodTo}` : perf.month;
+      const uploaded = perf.uploadedAt
+        ? new Date(perf.uploadedAt).toLocaleString("en-US", { timeZone: "America/Chicago", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })
+        : "";
+      meta.textContent = `${range} · ${perf.ticketCount} tickets · uploaded ${uploaded}${perf.uploadedByName ? " by " + perf.uploadedByName : ""}`;
+
+      const toDate = current?.toDate?.byDepartment || {};
+      const monthTargets = current?.byDepartment || {};
+
+      let totalRevenue = 0;
+      let totalProfit = 0;
+      const rows = DEPARTMENTS.map((dept) => {
+        const d = perf.byDepartment[dept] || { revenue: 0, profit: 0, tickets: 0 };
+        totalRevenue += d.revenue;
+        totalProfit += d.profit;
+        const toDateTarget = Number(toDate[dept]);
+        const monthTarget = Number(monthTargets[dept]?.monthTarget);
+        const attainment = toDateTarget > 0 ? d.revenue / toDateTarget * 100 : NaN;
+        const monthPct = monthTarget > 0 ? d.revenue / monthTarget * 100 : NaN;
+        return `
+          <tr>
+            <td>${esc(dept)}</td>
+            <td class="num">${money(d.revenue, 0)}</td>
+            <td class="num">${money(d.profit, 0)}</td>
+            <td class="num">${money(toDateTarget, 0)}</td>
+            <td class="num ${attClass(attainment)}">${fmtPct(attainment)}</td>
+            <td class="num">${money(monthTarget, 0)}</td>
+            <td class="num">${fmtPct(monthPct)}</td>
+          </tr>`;
+      });
+
+      const otherDepts = Object.keys(perf.byDepartment).filter((d) => !DEPARTMENTS.includes(d));
+      for (const dept of otherDepts) {
+        const d = perf.byDepartment[dept];
+        totalRevenue += d.revenue;
+        totalProfit += d.profit;
+        rows.push(`
+          <tr>
+            <td>${esc(dept)}</td>
+            <td class="num">${money(d.revenue, 0)}</td>
+            <td class="num">${money(d.profit, 0)}</td>
+            <td class="num">—</td><td class="num">—</td><td class="num">—</td><td class="num">—</td>
+          </tr>`);
+      }
+
+      const totalToDate = Number(current?.toDate?.total);
+      const totalMonth = Number(current?.target?.totalTarget);
+      const totalAtt = totalToDate > 0 ? totalRevenue / totalToDate * 100 : NaN;
+      const totalMonthPct = totalMonth > 0 ? totalRevenue / totalMonth * 100 : NaN;
+
+      body.innerHTML = `
+        <table>
+          <thead>
+            <tr>
+              <th>Department</th>
+              <th class="num">Revenue (MTD)</th>
+              <th class="num">Profit (MTD)</th>
+              <th class="num">To-date target</th>
+              <th class="num">% to date</th>
+              <th class="num">Month target</th>
+              <th class="num">% of month</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rows.join("")}
+            <tr class="total-row">
+              <td>Total</td>
+              <td class="num">${money(totalRevenue, 0)}</td>
+              <td class="num">${money(totalProfit, 0)}</td>
+              <td class="num">${money(totalToDate, 0)}</td>
+              <td class="num ${attClass(totalAtt)}">${fmtPct(totalAtt)}</td>
+              <td class="num">${money(totalMonth, 0)}</td>
+              <td class="num">${fmtPct(totalMonthPct)}</td>
+            </tr>
+          </tbody>
+        </table>
+        ${perf.warnings?.length ? `<div class="warn-box"><strong>Report checksum warnings:</strong><br>${perf.warnings.map(esc).join("<br>")}</div>` : ""}`;
+    }
+
+    el("uploadBtn").addEventListener("click", () => el("reportFile").click());
+    el("reportFile").addEventListener("change", async () => {
+      const file = el("reportFile").files[0];
+      if (!file) return;
+      const btn = el("uploadBtn");
+      btn.disabled = true;
+      setPerfStatus("", "");
+      try {
+        const form = new FormData();
+        form.append("report", file);
+        const res = await fetch("/api/revenue-performance", { method: "POST", credentials: "same-origin", body: form });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Upload failed.");
+        const saved = data.performance;
+        if (saved.month !== el("monthInput").value) {
+          el("monthInput").value = saved.month;
+          await loadMonth();
+        }
+        perf = saved;
+        renderPerformance();
+        setPerfStatus(`Loaded ${saved.ticketCount} tickets for ${saved.periodFrom} to ${saved.periodTo}.${saved.warnings?.length ? ` ${saved.warnings.length} checksum warning(s) — see below.` : ""}`, "ok");
+      } catch (err) {
+        setPerfStatus(err.message, "error");
+      } finally {
+        btn.disabled = false;
+        el("reportFile").value = "";
       }
     });
 

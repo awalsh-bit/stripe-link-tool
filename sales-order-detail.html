@@ -192,10 +192,10 @@
     <div class="surface">
       <h2>Sales Order Detail</h2>
       <p class="section-note">
-        Every order with its revenue and cost, accumulated from the monthly OE-23 upload on the
-        Target Builder. Commission report uploads below add per-item line detail (models, warranty
-        plans, serial costs) for R / S / AC tickets. When NetSuite arrives, its exports feed these
-        same tables.
+        Every order with its revenue and cost. The Finished Orders MTD (OE-23) export builds the
+        order rows; the Crystal Commissions report adds per-item line detail (models, warranty
+        plans, serial costs) for R / S / AC tickets — upload both below. When NetSuite arrives,
+        its exports feed these same tables.
       </p>
       <div class="toolbar">
         <label style="font-size: 12.5px; font-weight: 700;">From
@@ -222,17 +222,28 @@
     </div>
 
     <div class="surface">
-      <h3>Commission report upload</h3>
-      <p class="section-note" style="margin-bottom: 10px;">
-        Pick the month the report covers, then attach the export. Each upload replaces that month's
-        line items. (Order rows come from the OE-23 upload on the Target Builder.)
+      <h3>Source uploads</h3>
+      <p class="section-note" style="margin-bottom: 12px;">
+        Two ePASS exports feed this report: the <strong>Finished Orders MTD (OE-23)</strong> builds
+        the order rows (also refreshes Performance vs Target), and the
+        <strong>Crystal Commissions — Finished Orders</strong> report adds the per-item line detail.
+        Re-uploading a month replaces it.
       </p>
+      <div class="toolbar" style="margin-bottom: 8px;">
+        <span style="font-size: 12.5px; font-weight: 700; min-width: 250px;">Finished Orders MTD (OE-23)</span>
+        <input type="file" id="oe23File" accept=".xls,.xlsx" style="display: none;" />
+        <button type="button" class="secondary-btn" id="oe23Btn">Upload OE-23</button>
+        <span class="asof">month comes from the report period</span>
+      </div>
+      <div id="oe23Status" class="status" style="margin-bottom: 8px;"></div>
       <div class="toolbar">
+        <span style="font-size: 12.5px; font-weight: 700; min-width: 250px;">Crystal Commissions (Finished Orders)</span>
         <input type="month" id="commMonth" />
         <input type="file" id="commFile" accept=".xls,.xlsx" style="display: none;" />
-        <button type="button" class="secondary-btn" id="commBtn">Upload commission report</button>
+        <button type="button" class="secondary-btn" id="commBtn">Upload Commissions</button>
       </div>
       <div id="commStatus" class="status"></div>
+      <div id="sourceVersions" style="margin-top: 14px;"></div>
     </div>
 
     <div class="surface">
@@ -560,6 +571,68 @@
     el("searchInput").addEventListener("input", (event) => { searchTerm = event.target.value.trim(); renderAll(); });
     el("runBtn").addEventListener("click", runReport);
 
+    // ---------------- Source versions ----------------
+    function fmtWhenShort(iso) {
+      if (!iso) return "";
+      try {
+        return new Date(iso).toLocaleString("en-US", { timeZone: "America/Chicago", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+      } catch { return iso; }
+    }
+
+    async function loadSourceVersions() {
+      try {
+        const res = await fetch("/api/sales-order-detail/sources", { credentials: "same-origin" });
+        const data = await res.json();
+        if (!res.ok) return;
+        const months = [...new Set([...(data.oe23 || []).map((s) => s.month), ...(data.commissions || []).map((s) => s.month)])].sort().reverse();
+        if (!months.length) {
+          el("sourceVersions").innerHTML = '<span class="asof">No source uploads yet.</span>';
+          return;
+        }
+        const oe = Object.fromEntries((data.oe23 || []).map((s) => [s.month, s]));
+        const cm = Object.fromEntries((data.commissions || []).map((s) => [s.month, s]));
+        el("sourceVersions").innerHTML = `
+          <table style="width: auto; min-width: 65%;">
+            <thead><tr><th>Month</th><th>OE-23 feeding orders</th><th>Commissions feeding line items</th></tr></thead>
+            <tbody>
+              ${months.map((m) => `
+                <tr>
+                  <td style="font-weight: 700;">${escapeHtml(m)}</td>
+                  <td>${oe[m] ? `${escapeHtml(oe[m].filename)} <span class="asof">· ${oe[m].tickets} orders · ${escapeHtml(fmtWhenShort(oe[m].uploadedAt))}</span>` : '<span class="asof">— not uploaded</span>'}</td>
+                  <td>${cm[m] ? `${escapeHtml(cm[m].filename)} <span class="asof">· ${cm[m].lines} lines · ${escapeHtml(fmtWhenShort(cm[m].uploadedAt))}</span>` : '<span class="asof">— not uploaded</span>'}</td>
+                </tr>`).join("")}
+            </tbody>
+          </table>`;
+      } catch {}
+    }
+
+    // ---------------- OE-23 upload ----------------
+    el("oe23Btn").addEventListener("click", () => el("oe23File").click());
+    el("oe23File").addEventListener("change", async () => {
+      const file = el("oe23File").files[0];
+      if (!file) return;
+      el("oe23Btn").disabled = true;
+      setStatus("oe23Status", "", "");
+      try {
+        const form = new FormData();
+        form.append("report", file);
+        const res = await fetch("/api/revenue-performance", { method: "POST", credentials: "same-origin", body: form });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Upload failed.");
+        const p = data.performance;
+        setStatus("oe23Status", `Loaded ${p.ticketCount.toLocaleString("en-US")} orders for ${p.periodFrom} to ${p.periodTo} (${data.ordersUpserted.toLocaleString("en-US")} written to the detail table).${p.warnings?.length ? ` ${p.warnings.length} checksum warning(s).` : ""}`, "ok");
+        lineRowsLoadedFor = "";
+        linesCache.clear();
+        loadSourceVersions();
+        runReport();
+      } catch (err) {
+        setStatus("oe23Status", err.message, "error");
+      } finally {
+        el("oe23Btn").disabled = false;
+        el("oe23File").value = "";
+      }
+    });
+
     // ---------------- Commission upload ----------------
     el("commBtn").addEventListener("click", () => {
       if (!el("commMonth").value) return setStatus("commStatus", "Pick the report month first.", "error");
@@ -579,6 +652,8 @@
         if (!res.ok) throw new Error(data.error || "Upload failed.");
         setStatus("commStatus", `Loaded ${data.lines.toLocaleString("en-US")} line items across ${data.invoices.toLocaleString("en-US")} orders for ${data.month} (${fmtMoney(data.revenueTotal)} revenue).`, "ok");
         linesCache.clear();
+        lineRowsLoadedFor = "";
+        loadSourceVersions();
         if (orders.length) runReport();
       } catch (err) {
         setStatus("commStatus", err.message, "error");
@@ -768,6 +843,7 @@
       el("endInput").value = today;
       el("commMonth").value = today.slice(0, 7);
       runReport();
+      loadSourceVersions();
     })();
   </script>
 </body>

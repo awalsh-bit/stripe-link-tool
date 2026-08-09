@@ -173,7 +173,8 @@ import {
   replaceCommissionLines,
   listOrderDetail,
   listOrderLineDetail,
-  listLinesForInvoice
+  listLinesForInvoice,
+  listSourceVersions
 } from "./lib/sales-order-detail-postgres.js";
 import {
   getSalesOrderSnapshot,
@@ -5406,7 +5407,7 @@ app.post("/api/revenue-targets", requirePagePermission("/target-builder.html"), 
 // report's From date; re-uploads replace the month.
 const activityReportUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } });
 
-app.post("/api/revenue-performance", requirePagePermission("/target-builder.html"), (req, res) => {
+app.post("/api/revenue-performance", requirePagePermission("/target-builder.html", "/sales-order-detail.html"), (req, res) => {
   activityReportUpload.single("report")(req, res, async (err) => {
     if (err) {
       return res.status(400).json({ error: err.code === "LIMIT_FILE_SIZE" ? "That file is over the 20 MB limit." : "Upload failed — please try again." });
@@ -5577,6 +5578,16 @@ app.get("/api/sales-order-detail/line-report", requirePagePermission("/sales-ord
   } catch (err) {
     console.error("Sales order line report failed:", err.message);
     return res.status(500).json({ error: "Unable to load the line item report." });
+  }
+});
+
+app.get("/api/sales-order-detail/sources", requirePagePermission("/sales-order-detail.html"), async (req, res) => {
+  try {
+    const sources = await listSourceVersions();
+    return res.json(sources);
+  } catch (err) {
+    console.error("Source versions load failed:", err.message);
+    return res.status(500).json({ error: "Unable to load source versions." });
   }
 });
 

@@ -172,6 +172,7 @@ import {
   upsertOrdersFromActivity,
   replaceCommissionLines,
   listOrderDetail,
+  listOrderLineDetail,
   listLinesForInvoice
 } from "./lib/sales-order-detail-postgres.js";
 import {
@@ -5400,7 +5401,7 @@ app.post("/api/revenue-targets", requirePagePermission("/target-builder.html"), 
 // INTERNAL: Revenue performance — the Salesperson Activity Report (ePASS
 // OE-23, legacy .xls) parsed server-side. This is the revenue numerator to
 // the target denominator: revenue = List "Total (no Tax)", departments come
-// from the ticket prefix (SV → Repair Service, CB → Kitchen Design,
+// from the ticket prefix (SV → Repair Service, CB/MD → Kitchen Design,
 // AC → HVAC Sales, R/S → Appliance). One snapshot per month keyed by the
 // report's From date; re-uploads replace the month.
 const activityReportUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } });
@@ -5556,6 +5557,26 @@ app.get("/api/sales-order-detail", requirePagePermission("/sales-order-detail.ht
   } catch (err) {
     console.error("Sales order detail load failed:", err.message);
     return res.status(500).json({ error: "Unable to load sales order detail." });
+  }
+});
+
+app.get("/api/sales-order-detail/line-report", requirePagePermission("/sales-order-detail.html"), async (req, res) => {
+  try {
+    const startDate = String(req.query.start || "").trim();
+    const endDate = String(req.query.end || "").trim();
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(startDate) || !/^\d{4}-\d{2}-\d{2}$/.test(endDate)) {
+      return res.status(400).json({ error: "Provide start and end dates as YYYY-MM-DD." });
+    }
+    const lines = await listOrderLineDetail({
+      startDate,
+      endDate,
+      department: String(req.query.department || "").trim() || null,
+      salesperson: String(req.query.salesperson || "").trim() || null
+    });
+    return res.json({ lines });
+  } catch (err) {
+    console.error("Sales order line report failed:", err.message);
+    return res.status(500).json({ error: "Unable to load the line item report." });
   }
 });
 

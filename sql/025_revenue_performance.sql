@@ -4,7 +4,7 @@
 -- replaces that month's snapshot, so a daily month-to-date export keeps the
 -- current month fresh while prior months keep their final numbers.
 -- Revenue = List "Total (no Tax)". Departments come from the ticket prefix:
--- SV → Repair Service (service + warranty), CB → Kitchen Design,
+-- SV → Repair Service (service + warranty), CB/MD → Kitchen Design,
 -- AC → HVAC Sales, R/S → Appliance. The server also runs this idempotently
 -- at boot (lib/revenue-performance-postgres.js).
 

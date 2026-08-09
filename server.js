@@ -465,7 +465,7 @@ function expandJobCodePresetPages(presetKey) {
 }
 
 const PAGE_LABELS = {
-  "/dashboard.html": "Payments Dashboard",
+  "/dashboard.html": "User Dashboard",
   "/index.html": "Send Payment Link",
   "/terminal.html": "Send To Card Reader",
   "/charge-saved-card.html": "Charge A Saved Card",
@@ -498,7 +498,7 @@ const PAGE_LABELS = {
   "/clearance.html": "Clearance Hit List",
   "/credit-applications.html": "Builder Credit Applications",
   "/sales-order-health.html": "Sales Order Health Report",
-  "/flag-closures.html": "Instance Closure Report",
+  "/flag-closures.html": "Notification Closure Report",
   "/target-builder.html": "Target Builder"
 };
 
@@ -5545,7 +5545,7 @@ app.post("/api/sales-orders", requirePagePermission("/sales-order-health.html"),
   }
 });
 
-// INTERNAL: "My Order Flags" queue on the Payments Dashboard — the caller's
+// INTERNAL: "My Order Flags" queue on the user dashboard — the caller's
 // flagged sales orders, matched by their employee code from the directory
 // (account email → code). Flags themselves are computed client-side with the
 // same shared rules the health report uses.
@@ -5640,7 +5640,7 @@ app.get("/api/notifications/mine", requirePagePermission("/dashboard.html"), asy
 
 // Closing a pushed notification mints a token (NFI/GFI/YFI/RFI by severity)
 // into the closure log — which doubles as the read receipt supervisors can
-// inspect on the Instance Closure Report.
+// inspect on the Notification Closure Report.
 app.post("/api/notifications/:id/close", requirePagePermission("/dashboard.html"), async (req, res) => {
   try {
     const email = String(req.authUser?.email || req.authUser?.username || "").trim().toLowerCase();
@@ -5715,7 +5715,7 @@ app.get("/api/sales-orders/closures", requirePagePermission("/sales-order-health
   }
 });
 
-// INTERNAL: Instance Closure Report (flag-closures.html) — date-ranged view
+// INTERNAL: Notification Closure Report (flag-closures.html) — date-ranged view
 // of every flag-instance close, for auditing that closed flags were actually
 // fixed on the ePASS order.
 app.get("/api/flag-closures", requirePagePermission("/flag-closures.html"), async (req, res) => {

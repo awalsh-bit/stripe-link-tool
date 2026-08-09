@@ -68,6 +68,12 @@
           <path d="M8.5 15H13" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path>
         </svg>
       `,
+      home: `
+        <svg viewBox="0 0 24 24" fill="none">
+          <path d="M4 11L12 4l8 7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path>
+          <path d="M6 10v9a1 1 0 001 1h3.5v-5.5h3V20H17a1 1 0 001-1v-9" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path>
+        </svg>
+      `,
       commissions: `
         <svg viewBox="0 0 24 24" fill="none">
           <path d="M5 18.5h14" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path>
@@ -79,6 +85,21 @@
     };
 
     return icons[name] || icons.payments;
+  }
+
+  function firstNameOf(user) {
+    const name = String(user?.displayName || user?.name || "").trim();
+    return name ? name.split(/\s+/)[0] : "";
+  }
+
+  // data-shell-label-personal="Dashboard" renders as "<First>'s Dashboard"
+  // for the logged-in user ("My Dashboard" when the name is unknown).
+  function resolveLabel(session) {
+    const personal = body.dataset.shellLabelPersonal;
+    if (!personal) return label;
+    const user = session?.user || session;
+    const first = firstNameOf(user);
+    return first ? `${first}'s ${personal}` : `My ${personal}`;
   }
 
   function canSeePage(session, href) {
@@ -113,9 +134,13 @@
     const user = session?.user || session;
     const links = [
       {
+        href: "dashboard.html",
+        title: "Home",
+        icon: "home"
+      },
+      {
         title: "Payments",
         children: [
-          { href: "dashboard.html", title: "Payments Dashboard" },
           { href: "index.html", title: "Send Payment Link" },
           { href: "terminal.html", title: "Send To Card Reader" },
           { href: "charge-saved-card.html", title: "Charge A Saved Card" },
@@ -146,7 +171,7 @@
         children: [
           { href: "salesdashboard.html", title: "Sales Dashboard" },
           { href: "sales-order-health.html", title: "Sales Order Health Report" },
-          { href: "flag-closures.html", title: "Instance Closure Report" },
+          { href: "flag-closures.html", title: "Notification Closure Report" },
           { href: "target-builder.html", title: "Target Builder" },
           { href: "secret-menu.html", title: "Secret Menu" },
           { href: "clearance.html", title: "Clearance Hit List" },
@@ -223,10 +248,13 @@
         `;
       }
 
+      const iconHtml = link.icon
+        ? `<span class="internal-shell-menu-link-icon" aria-hidden="true" style="display:inline-flex;width:15px;height:15px;vertical-align:-2px;margin-right:8px;">${iconSvg(link.icon).replace("<svg ", '<svg style="width:100%;height:100%;display:block;" ')}</span>`
+        : "";
       return `
         <a class="internal-shell-menu-link" href="${link.href}">
-          <div class="internal-shell-menu-link-title">${link.title}</div>
-          <div class="internal-shell-menu-link-text">${link.text}</div>
+          <div class="internal-shell-menu-link-title">${iconHtml}${link.title}</div>
+          ${link.text ? `<div class="internal-shell-menu-link-text">${link.text}</div>` : ""}
         </a>
       `;
     }).join("");
@@ -235,7 +263,7 @@
   function buildFooterLinks(session) {
     const user = session?.user || session;
     const candidates = [
-      { href: "dashboard.html", title: "Payments Dashboard" },
+      { href: "dashboard.html", title: "Home" },
       { href: "paid-order-detail.html", title: "Accounting" },
       { href: "salesdashboard.html", title: "Sales Tools" },
       { href: "event-rsvps.html", title: "Event RSVPs" }
@@ -259,6 +287,10 @@
   }
 
   function buildHeader(user) {
+    const headerLabel = resolveLabel(user);
+    if (body.dataset.shellLabelPersonal && document.title.includes(label)) {
+      document.title = document.title.replace(label, headerLabel);
+    }
     return `
       <div class="internal-shell-header">
         <div class="internal-shell-header-top">
@@ -280,7 +312,7 @@
             <div class="internal-shell-labels">
               <div class="internal-shell-badge-wrap">
                 <span class="internal-shell-badge-icon" aria-hidden="true">${iconSvg(icon)}</span>
-                <div class="internal-shell-badge"><span>${label}</span></div>
+                <div class="internal-shell-badge"><span>${headerLabel}</span></div>
               </div>
             </div>
           </div>

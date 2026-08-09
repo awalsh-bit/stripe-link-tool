@@ -238,37 +238,6 @@
       </table>
     </div>
 
-    <div class="surface" id="closuresSurface" style="display: none;">
-      <h3>Closed Flag Log</h3>
-      <p class="section-note" style="margin-bottom: 8px;">
-        Every instance closed from "My Notifications" on the dashboard, under its token —
-        RFI/YFI/GFI/NFI by severity — with the order as it looked at the time.
-        For date ranges, filters, and Excel export, open the
-        <a href="flag-closures.html">Instance Closure Report</a>.
-      </p>
-      <div class="toolbar" style="margin-bottom: 12px;">
-        <input id="closureSearch" type="text" placeholder="Search token, invoice, customer, or closer…" />
-        <span style="flex: 1;"></span>
-        <span class="asof" id="closureCount"></span>
-      </div>
-      <table>
-        <thead>
-          <tr>
-            <th>Token</th>
-            <th>Severity</th>
-            <th>Invoice</th>
-            <th>Customer</th>
-            <th>Job Status</th>
-            <th>Flags at close</th>
-            <th>Closed by</th>
-            <th>Closed</th>
-            <th>Report version</th>
-          </tr>
-        </thead>
-        <tbody id="closuresBody"></tbody>
-      </table>
-    </div>
-
     <div class="surface">
       <details class="legend">
         <summary>Job status rules used by this report</summary>
@@ -789,63 +758,6 @@
     });
 
     // ------------------------------------------------------------------
-    // Closed Flag Log
-    // ------------------------------------------------------------------
-    let closures = [];
-    let closureTerm = "";
-
-    function closureWhen(iso) {
-      if (!iso) return "";
-      try {
-        return new Date(iso).toLocaleString("en-US", {
-          timeZone: "America/Chicago",
-          month: "short", day: "numeric",
-          hour: "numeric", minute: "2-digit"
-        });
-      } catch { return iso; }
-    }
-
-    function renderClosures() {
-      if (!closures.length) return;
-      el("closuresSurface").style.display = "";
-      const term = closureTerm.toLowerCase();
-      const rows = closures.filter((c) => !term ||
-        [c.token, c.invoice, c.order?.name, c.closedByName, c.closedByEmail].join(" ").toLowerCase().includes(term));
-
-      el("closureCount").textContent = `${rows.length} of ${closures.length} closures`;
-
-      el("closuresBody").innerHTML = rows.length ? rows.map((c) => `
-        <tr>
-          <td style="white-space: nowrap; font-weight: 700;">${escapeHtml(c.token)}</td>
-          <td><span class="badge ${escapeHtml(c.severity)}">${escapeHtml(c.severity.charAt(0).toUpperCase() + c.severity.slice(1))}</span></td>
-          <td style="white-space: nowrap; font-weight: 600;">${c.invoice ? escapeHtml(c.invoice) : "—"}</td>
-          <td>${escapeHtml(c.order?.name || c.title || "")}</td>
-          <td>${c.order?.jobStatus ? `<span class="badge status">${escapeHtml(c.order.jobStatus)}</span>` : ""}</td>
-          <td>${(c.flags || []).map((f) => `<span class="badge ${f.level}">${escapeHtml(f.text)}</span>`).join("")}</td>
-          <td>${escapeHtml(c.closedByName || c.closedByEmail)}</td>
-          <td style="white-space: nowrap;">${escapeHtml(closureWhen(c.closedAt))}</td>
-          <td style="white-space: nowrap;" title="${escapeHtml(c.reportFilename || "")}">${escapeHtml(c.reportUploadedAt ? closureWhen(c.reportUploadedAt) : "—")}</td>
-        </tr>`).join("")
-        : '<tr><td colspan="9" class="empty">No closures match.</td></tr>';
-    }
-
-    el("closureSearch").addEventListener("input", (event) => {
-      closureTerm = event.target.value.trim();
-      renderClosures();
-    });
-
-    async function loadClosures() {
-      try {
-        const res = await fetch("/api/sales-orders/closures", { credentials: "same-origin" });
-        const data = await res.json();
-        if (res.ok) {
-          closures = data.closures || [];
-          renderClosures();
-        }
-      } catch {}
-    }
-
-    // ------------------------------------------------------------------
     (async function init() {
       try {
         const res = await fetch("/api/sales-orders", { credentials: "same-origin" });
@@ -855,7 +767,6 @@
           renderAll();
         }
       } catch {}
-      loadClosures();
     })();
   </script>
 </body>

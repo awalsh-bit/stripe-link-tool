@@ -1179,7 +1179,13 @@
         <div class="module-header">
           <select class="module-select" aria-label="Module shown in this position"></select>
           <p class="module-desc">Paid links and terminal payments are grouped by the date they were actually paid.</p>
+          <label class="stripe-today-toggle" title="Today's Stripe Activity Summary">
+            <input type="checkbox" id="stripeTodayToggle" />
+            <span>View Summary</span>
+          </label>
         </div>
+
+        <div id="stripeTodayBox" style="display: none;"></div>
 
         <div class="toolbar">
           <input type="date" id="paidDateFilter" />
@@ -1240,6 +1246,40 @@
       </div>
 
       <style>
+        .stripe-today-toggle {
+          margin-left: auto;
+          display: inline-flex;
+          align-items: center;
+          gap: 7px;
+          font-size: 12px;
+          font-weight: 700;
+          color: #6b7280;
+          cursor: pointer;
+          user-select: none;
+          white-space: nowrap;
+        }
+        .stripe-today-toggle input { accent-color: #21692c; width: 15px; height: 15px; cursor: pointer; }
+        .stripe-today-toggle:has(input:checked) { color: #1a5222; }
+        #stripeTodayBox {
+          border: 1px solid #dbe1ea;
+          border-radius: 14px;
+          padding: 12px 16px;
+          margin-bottom: 14px;
+        }
+        #stripeTodayBox .st-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 4px; }
+        #stripeTodayBox .st-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: #6b7280; font-weight: 700; }
+        #stripeTodayBox .st-total { font-size: 22px; font-weight: 800; }
+        #stripeTodayBox .st-row {
+          display: grid;
+          grid-template-columns: 140px 1fr;
+          gap: 10px;
+          align-items: center;
+          padding: 5px 0;
+          border-bottom: 1px solid #eef0f5;
+        }
+        #stripeTodayBox .st-row:last-child { border-bottom: none; }
+        #stripeTodayBox .st-row .st-dept { font-size: 12.5px; font-weight: 700; }
+        #stripeTodayBox .st-row .st-val { text-align: right; font-size: 12.5px; }
         .bonus-hero { display: flex; gap: 20px; align-items: flex-start; justify-content: space-between; flex-wrap: wrap; margin-bottom: 14px; }
         .bonus-ladder { font-size: 12.5px; color: #6b7280; max-width: 460px; text-align: right; line-height: 1.6; }
         .bonus-panels { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 14px; }
@@ -1706,6 +1746,58 @@
     }
   }
 
+  // Today's Stripe Activity Summary — per-department paid totals for today,
+  // toggled from the Paid History header (off by default; managers/execs
+  // switch it on and the choice sticks per browser).
+  const STRIPE_TODAY_DEPTS = ["Appliance", "HVAC Sales", "Repair Service", "Kitchen Design"];
+
+  function renderStripeToday() {
+    const box = document.getElementById("stripeTodayBox");
+    const toggle = document.getElementById("stripeTodayToggle");
+    if (!box || !toggle) return;
+    box.style.display = toggle.checked ? "" : "none";
+    if (!toggle.checked) return;
+
+    const today = toLocalDateInputValue(new Date());
+    const byDept = {};
+    for (const dept of STRIPE_TODAY_DEPTS) byDept[dept] = { paid: 0, count: 0 };
+    let total = 0;
+    let count = 0;
+    for (const row of allRows) {
+      if (row.status !== "paid" || !row.paidDate) continue;
+      if (toLocalDateInputValue(row.paidDate) !== today) continue;
+      const amount = Number(row.paidAmount) || 0;
+      total += amount;
+      count++;
+      const dept = resolveDepartment(row);
+      if (byDept[dept]) {
+        byDept[dept].paid += amount;
+        byDept[dept].count++;
+      }
+    }
+
+    box.innerHTML = `
+      <div class="st-head">
+        <span class="st-label">Today's Stripe Activity</span>
+        <span class="st-total">${formatMoney(total)} <span style="font-size: 12px; font-weight: 600; color: #6b7280;">· ${count} payment${count === 1 ? "" : "s"}</span></span>
+      </div>
+      ${STRIPE_TODAY_DEPTS.map((dept) => `
+        <div class="st-row">
+          <div class="st-dept">${dept}</div>
+          <div class="st-val"><strong>${formatMoney(byDept[dept].paid)}</strong> <span style="color: #6b7280;">· ${byDept[dept].count} payment${byDept[dept].count === 1 ? "" : "s"}</span></div>
+        </div>`).join("")}`;
+  }
+
+  (function initStripeToday() {
+    const toggle = document.getElementById("stripeTodayToggle");
+    if (!toggle) return;
+    try { toggle.checked = localStorage.getItem("stripeTodayVisible") === "1"; } catch {}
+    toggle.addEventListener("change", () => {
+      try { localStorage.setItem("stripeTodayVisible", toggle.checked ? "1" : "0"); } catch {}
+      renderStripeToday();
+    });
+  })();
+
   function renderDashboard() {
     const queueSearch = queueSearchFilterEl.value.trim().toLowerCase();
     const selectedDepartment = departmentFilterEl.value;
@@ -1861,6 +1953,7 @@
     const agingRows = activeQueueRows.filter((row) => ["sent", "viewed"].includes(row.status) && daysOpen(row) >= agingDays);
     // (The Revenue Snapshot module now shows OE-23 finished-order revenue —
     // the old Stripe payment tiles were removed with it.)
+    renderStripeToday();
     attachCopyActions();
   }
 

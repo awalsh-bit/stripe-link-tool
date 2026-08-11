@@ -310,6 +310,44 @@
             </div>
           </div>
 
+          <div class="field full">
+            <label class="choice" style="align-items: flex-start; gap: 10px;">
+              <input type="checkbox" id="onBehalfOfTenant" style="margin-top: 3px;" />
+              Check if you are a homeowner filling this out on behalf of a tenant that will be the repair contact
+            </label>
+
+            <div id="tenantPanel" style="display: none; margin: 12px 0 4px 26px; padding: 12px 14px; border: 1px solid #dbe1ea; border-radius: 12px;">
+              <label style="display: block; margin-bottom: 6px;">Is the tenant the primary contact?</label>
+              <div class="choice-row">
+                <label class="choice"><input type="radio" name="tenantIsPrimaryContact" value="Yes" checked> Yes</label>
+                <label class="choice"><input type="radio" name="tenantIsPrimaryContact" value="No"> No</label>
+              </div>
+              <div id="repairContactFields" style="display: none; margin-top: 10px;">
+                <label style="display: block; margin-bottom: 6px;">Primary contact for this repair</label>
+                <div class="grid" style="grid-template-columns: 1fr 1fr; gap: 10px;">
+                  <div class="field full"><label for="repairContactName">Name</label><input id="repairContactName" placeholder="Contact name" /></div>
+                  <div class="field"><label for="repairContactPhone">Phone Number</label><input id="repairContactPhone" type="tel" placeholder="(512) 555-0100" /></div>
+                  <div class="field"><label for="repairContactEmail">Email</label><input id="repairContactEmail" type="email" placeholder="name@example.com" /></div>
+                </div>
+              </div>
+            </div>
+
+            <label class="choice" style="align-items: flex-start; gap: 10px; margin-top: 8px;">
+              <input type="checkbox" id="onBehalfManagement" style="margin-top: 3px;" />
+              Check if you are a management professional filling this out on behalf of a homeowner
+            </label>
+
+            <div id="managerPanel" style="display: none; margin: 12px 0 4px 26px; padding: 12px 14px; border: 1px solid #dbe1ea; border-radius: 12px;">
+              <label style="display: block; margin-bottom: 6px;">Your contact details</label>
+              <div class="grid" style="grid-template-columns: 1fr 1fr; gap: 10px;">
+                <div class="field"><label for="managerName">Name</label><input id="managerName" placeholder="Manager name" /></div>
+                <div class="field"><label for="managerTitle">Job Title</label><input id="managerTitle" placeholder="Property manager" /></div>
+                <div class="field"><label for="managerPhone">Phone Number</label><input id="managerPhone" type="tel" placeholder="(512) 555-0100" /></div>
+                <div class="field"><label for="managerEmail">Email</label><input id="managerEmail" type="email" placeholder="name@example.com" /></div>
+              </div>
+            </div>
+          </div>
+
           <div class="field">
             <label for="firstName">First Name</label>
             <input id="firstName" required placeholder="Jane" />
@@ -799,6 +837,7 @@ fillBillingStates();
       syncSecondUnit();
       syncBillingAddress();
       syncPaymentRequirement();
+      syncOnBehalfPanels();
     }
 
     function getRadioValue(name) {
@@ -855,12 +894,35 @@ function syncPaymentRequirement() {
     document.querySelectorAll('input[name="unitCount"]').forEach((el) => el.addEventListener("change", syncSecondUnit));
     document.querySelectorAll('input[name="billingSameAsService"]').forEach((el) => el.addEventListener("change", syncBillingAddress));
     document.querySelectorAll('input[name="purchasedWithin12Months"]').forEach((el) => el.addEventListener("change", syncPaymentRequirement));
+
+    // On-behalf sub-panels: tenant panel exposes the primary-contact toggle
+    // (default Yes); "No" exposes the repair-contact override. The manager
+    // panel collects the professional's own details. Required flags follow
+    // visibility so hidden fields never block submit.
+    function syncOnBehalfPanels() {
+      const tenantOn = document.getElementById("onBehalfOfTenant").checked;
+      const managerOn = document.getElementById("onBehalfManagement").checked;
+      const tenantNotPrimary = tenantOn && getRadioValue("tenantIsPrimaryContact") === "No";
+
+      document.getElementById("tenantPanel").style.display = tenantOn ? "" : "none";
+      document.getElementById("repairContactFields").style.display = tenantNotPrimary ? "" : "none";
+      document.getElementById("managerPanel").style.display = managerOn ? "" : "none";
+
+      document.getElementById("repairContactName").required = tenantNotPrimary;
+      document.getElementById("repairContactPhone").required = tenantNotPrimary;
+      document.getElementById("managerName").required = managerOn;
+      document.getElementById("managerPhone").required = managerOn;
+    }
+    document.getElementById("onBehalfOfTenant").addEventListener("change", syncOnBehalfPanels);
+    document.getElementById("onBehalfManagement").addEventListener("change", syncOnBehalfPanels);
+    document.querySelectorAll('input[name="tenantIsPrimaryContact"]').forEach((el) => el.addEventListener("change", syncOnBehalfPanels));
     document.getElementById("applianceType1").addEventListener("change", syncOtherApplianceFields);
     document.getElementById("applianceType2").addEventListener("change", syncOtherApplianceFields);
     syncSecondUnit();
     syncBillingAddress();
     syncPaymentRequirement();
     syncOtherApplianceFields();
+    syncOnBehalfPanels();
 
     function getApplianceTypeValue(selectId, otherId) {
       const type = document.getElementById(selectId).value;
@@ -885,6 +947,20 @@ function syncPaymentRequirement() {
         customerEmail: document.getElementById("customerEmail").value.trim(),
         customerPhone: document.getElementById("customerPhone").value.trim(),
         purchasedWithin12Months: getRadioValue("purchasedWithin12Months"),
+        onBehalfOfTenant: document.getElementById("onBehalfOfTenant").checked,
+        tenantIsPrimaryContact: document.getElementById("onBehalfOfTenant").checked ? getRadioValue("tenantIsPrimaryContact") || "Yes" : "",
+        repairContact: document.getElementById("onBehalfOfTenant").checked && getRadioValue("tenantIsPrimaryContact") === "No" ? {
+          name: document.getElementById("repairContactName").value.trim(),
+          phone: document.getElementById("repairContactPhone").value.trim(),
+          email: document.getElementById("repairContactEmail").value.trim()
+        } : null,
+        onBehalfManagement: document.getElementById("onBehalfManagement").checked,
+        managerContact: document.getElementById("onBehalfManagement").checked ? {
+          name: document.getElementById("managerName").value.trim(),
+          jobTitle: document.getElementById("managerTitle").value.trim(),
+          phone: document.getElementById("managerPhone").value.trim(),
+          email: document.getElementById("managerEmail").value.trim()
+        } : null,
         serviceAddress: {
           line1: document.getElementById("serviceAddress1").value.trim(),
           line2: document.getElementById("serviceAddress2").value.trim(),
@@ -1054,6 +1130,17 @@ async function submitRequestRecord(payload) {
       document.getElementById("problem2").value = data.units?.[1]?.problemDescription || "";
 
       setRadioValue("purchasedWithin12Months", data.purchasedWithin12Months || "No");
+      document.getElementById("onBehalfOfTenant").checked = !!data.onBehalfOfTenant;
+      document.getElementById("onBehalfManagement").checked = !!data.onBehalfManagement;
+      setRadioValue("tenantIsPrimaryContact", data.tenantIsPrimaryContact === "No" ? "No" : "Yes");
+      document.getElementById("repairContactName").value = data.repairContact?.name || "";
+      document.getElementById("repairContactPhone").value = data.repairContact?.phone || "";
+      document.getElementById("repairContactEmail").value = data.repairContact?.email || "";
+      document.getElementById("managerName").value = data.managerContact?.name || "";
+      document.getElementById("managerTitle").value = data.managerContact?.jobTitle || "";
+      document.getElementById("managerPhone").value = data.managerContact?.phone || "";
+      document.getElementById("managerEmail").value = data.managerContact?.email || "";
+      syncOnBehalfPanels();
       setRadioValue("contactMethod", data.contactMethod || "");
       setRadioValue("unitCount", data.unitCount || (data.units?.length > 1 ? "Multiple" : "One"));
       setRadioValue("billingSameAsService", data.billingSameAsService === false ? "No" : "Yes");

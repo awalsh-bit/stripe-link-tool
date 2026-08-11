@@ -298,6 +298,33 @@
       ].filter(Boolean).join(", ");
     }
 
+    // On-behalf flags with their sub-answers: the tenant flag shows either the
+    // tenant-as-contact wording or the repair-contact override; the management
+    // flag shows the professional's own details when provided.
+    function formatOnBehalf(row) {
+      const parts = [];
+      if (row.onBehalfOfTenant) {
+        const override = row.tenantIsPrimaryContact === "No" ? row.repairContact : null;
+        if (override) {
+          parts.push('<br><span class="strong" style="color: #92400e;">Homeowner on behalf of tenant</span>');
+          const contact = [override.name, override.phone, override.email].filter(Boolean).map(escapeHtml).join(" &middot; ");
+          parts.push(`<br><span style="color: #92400e;">Primary repair contact: ${contact || "-"}</span>`);
+        } else {
+          parts.push('<br><span class="strong" style="color: #92400e;">Homeowner on behalf of tenant &mdash; tenant is the repair contact</span>');
+        }
+      }
+      if (row.onBehalfManagement) {
+        parts.push('<br><span class="strong" style="color: #1e40af;">Management professional on behalf of homeowner</span>');
+        const mgr = row.managerContact;
+        if (mgr) {
+          const name = [mgr.name, mgr.jobTitle ? `(${mgr.jobTitle})` : ""].filter(Boolean).map(escapeHtml).join(" ");
+          const contact = [name, mgr.phone && escapeHtml(mgr.phone), mgr.email && escapeHtml(mgr.email)].filter(Boolean).join(" &middot; ");
+          parts.push(`<br><span style="color: #1e40af;">Manager: ${contact || "-"}</span>`);
+        }
+      }
+      return parts.join("");
+    }
+
     function hasSavedCard(row) {
       return !!(row.customerId && row.paymentMethodId);
     }
@@ -440,7 +467,7 @@
               Gate code: ${escapeHtml(row.gateCode || "-")}<br>
               Contact method: ${escapeHtml(row.contactMethod || "-")}<br>
               Purchase date: ${escapeHtml(row.purchaseDate || "-")}<br>
-              Purchased within 12 months: ${escapeHtml(row.purchasedWithin12Months || "-")}
+              Purchased within 12 months: ${escapeHtml(row.purchasedWithin12Months || "-")}${formatOnBehalf(row)}
             </div>
           </td>
 

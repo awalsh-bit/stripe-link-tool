@@ -6352,6 +6352,20 @@ app.post("/api/credit-applications/:token/delete", requireExecutiveApi, async (r
   }
 });
 
+// On-behalf contact sub-objects from the public form: keep only the expected
+// string fields, and drop the object entirely if every field is blank.
+function sanitizeOnBehalfContact(raw, fields) {
+  if (!raw || typeof raw !== "object") return null;
+  const out = {};
+  let any = false;
+  for (const field of fields) {
+    const value = String(raw[field] == null ? "" : raw[field]).trim().slice(0, 200);
+    out[field] = value;
+    if (value) any = true;
+  }
+  return any ? out : null;
+}
+
 app.post("/api/service/submit-request", async (req, res) => {
   try {
     const { serviceRequest, setupIntentId, existingServiceCardId } = req.body;
@@ -6361,6 +6375,18 @@ app.post("/api/service/submit-request", async (req, res) => {
         error: "Missing service request data."
       });
     }
+
+    // Tenant/manager sub-answers only persist alongside their parent checkbox;
+    // the repair-contact override only when the tenant is NOT the primary contact.
+    const tenantIsPrimaryContact = serviceRequest.onBehalfOfTenant
+      ? (serviceRequest.tenantIsPrimaryContact === "No" ? "No" : "Yes")
+      : "";
+    const repairContact = tenantIsPrimaryContact === "No"
+      ? sanitizeOnBehalfContact(serviceRequest.repairContact, ["name", "phone", "email"])
+      : null;
+    const managerContact = serviceRequest.onBehalfManagement
+      ? sanitizeOnBehalfContact(serviceRequest.managerContact, ["name", "jobTitle", "phone", "email"])
+      : null;
 
     const serviceCards = await readServiceCards();
     const explicitExistingId =
@@ -6388,6 +6414,11 @@ app.post("/api/service/submit-request", async (req, res) => {
           customerEmail: serviceRequest.customerEmail || "",
           customerPhone: serviceRequest.customerPhone || "",
           purchasedWithin12Months: serviceRequest.purchasedWithin12Months || "",
+          onBehalfOfTenant: !!serviceRequest.onBehalfOfTenant,
+          tenantIsPrimaryContact,
+          repairContact,
+          onBehalfManagement: !!serviceRequest.onBehalfManagement,
+          managerContact,
           cardRequired: serviceRequest.purchasedWithin12Months !== "Yes",
           gateCode: serviceRequest.gateCode || "",
           contactMethod: serviceRequest.contactMethod || "",
@@ -6427,6 +6458,11 @@ app.post("/api/service/submit-request", async (req, res) => {
           customerEmail: serviceRequest.customerEmail || "",
           customerPhone: serviceRequest.customerPhone || "",
           purchasedWithin12Months: serviceRequest.purchasedWithin12Months || "",
+          onBehalfOfTenant: !!serviceRequest.onBehalfOfTenant,
+          tenantIsPrimaryContact,
+          repairContact,
+          onBehalfManagement: !!serviceRequest.onBehalfManagement,
+          managerContact,
           cardRequired: serviceRequest.purchasedWithin12Months !== "Yes",
           gateCode: serviceRequest.gateCode || "",
           contactMethod: serviceRequest.contactMethod || "",
@@ -6466,6 +6502,11 @@ app.post("/api/service/submit-request", async (req, res) => {
       customerEmail: serviceRequest.customerEmail || "",
       customerPhone: serviceRequest.customerPhone || "",
       purchasedWithin12Months: serviceRequest.purchasedWithin12Months || "",
+      onBehalfOfTenant: !!serviceRequest.onBehalfOfTenant,
+      tenantIsPrimaryContact,
+      repairContact,
+      onBehalfManagement: !!serviceRequest.onBehalfManagement,
+      managerContact,
       cardRequired: serviceRequest.purchasedWithin12Months !== "Yes",
       gateCode: serviceRequest.gateCode || "",
       contactMethod: serviceRequest.contactMethod || "",
@@ -9702,6 +9743,11 @@ app.get("/api/service/prefill/:token", async (req, res) => {
         customerEmail: row.customerEmail || "",
         customerPhone: row.customerPhone || "",
         purchasedWithin12Months: "No",
+        onBehalfOfTenant: !!row.onBehalfOfTenant,
+        tenantIsPrimaryContact: row.tenantIsPrimaryContact || "",
+        repairContact: row.repairContact || null,
+        onBehalfManagement: !!row.onBehalfManagement,
+        managerContact: row.managerContact || null,
         serviceAddress: row.serviceAddress || {},
         billingAddress: row.billingAddress || row.serviceAddress || {},
         billingSameAsService: row.billingSameAsService !== false,

@@ -313,7 +313,7 @@
           <div class="field full">
             <label class="choice" style="align-items: flex-start; gap: 10px;">
               <input type="checkbox" id="onBehalfOfTenant" style="margin-top: 3px;" />
-              Check if you are a homeowner filling this out on behalf of a tenant that will be the repair contact
+              Check if you are a homeowner filling this out on behalf of a tenant
             </label>
 
             <div id="tenantPanel" style="display: none; margin: 12px 0 4px 26px; padding: 12px 14px; border: 1px solid #dbe1ea; border-radius: 12px;">
@@ -338,12 +338,19 @@
             </label>
 
             <div id="managerPanel" style="display: none; margin: 12px 0 4px 26px; padding: 12px 14px; border: 1px solid #dbe1ea; border-radius: 12px;">
-              <label style="display: block; margin-bottom: 6px;">Your contact details</label>
-              <div class="grid" style="grid-template-columns: 1fr 1fr; gap: 10px;">
-                <div class="field"><label for="managerName">Name</label><input id="managerName" placeholder="Manager name" /></div>
-                <div class="field"><label for="managerTitle">Job Title</label><input id="managerTitle" placeholder="Property manager" /></div>
-                <div class="field"><label for="managerPhone">Phone Number</label><input id="managerPhone" type="tel" placeholder="(512) 555-0100" /></div>
-                <div class="field"><label for="managerEmail">Email</label><input id="managerEmail" type="email" placeholder="name@example.com" /></div>
+              <label style="display: block; margin-bottom: 6px;">Will you as the management professional be the primary contact?</label>
+              <div class="choice-row">
+                <label class="choice"><input type="radio" name="managerIsPrimaryContact" value="Yes" checked> Yes</label>
+                <label class="choice"><input type="radio" name="managerIsPrimaryContact" value="No"> No</label>
+              </div>
+              <div id="managerContactFields" style="display: none; margin-top: 10px;">
+                <label style="display: block; margin-bottom: 6px;">Your contact details</label>
+                <div class="grid" style="grid-template-columns: 1fr 1fr; gap: 10px;">
+                  <div class="field"><label for="managerName">Name</label><input id="managerName" placeholder="Manager name" /></div>
+                  <div class="field"><label for="managerTitle">Job Title</label><input id="managerTitle" placeholder="Property manager" /></div>
+                  <div class="field"><label for="managerPhone">Phone Number</label><input id="managerPhone" type="tel" placeholder="(512) 555-0100" /></div>
+                  <div class="field"><label for="managerEmail">Email</label><input id="managerEmail" type="email" placeholder="name@example.com" /></div>
+                </div>
               </div>
             </div>
           </div>
@@ -903,19 +910,22 @@ function syncPaymentRequirement() {
       const tenantOn = document.getElementById("onBehalfOfTenant").checked;
       const managerOn = document.getElementById("onBehalfManagement").checked;
       const tenantNotPrimary = tenantOn && getRadioValue("tenantIsPrimaryContact") === "No";
+      const managerIsPrimary = managerOn && getRadioValue("managerIsPrimaryContact") !== "No";
 
       document.getElementById("tenantPanel").style.display = tenantOn ? "" : "none";
       document.getElementById("repairContactFields").style.display = tenantNotPrimary ? "" : "none";
       document.getElementById("managerPanel").style.display = managerOn ? "" : "none";
+      document.getElementById("managerContactFields").style.display = managerIsPrimary ? "" : "none";
 
       document.getElementById("repairContactName").required = tenantNotPrimary;
       document.getElementById("repairContactPhone").required = tenantNotPrimary;
-      document.getElementById("managerName").required = managerOn;
-      document.getElementById("managerPhone").required = managerOn;
+      document.getElementById("managerName").required = managerIsPrimary;
+      document.getElementById("managerPhone").required = managerIsPrimary;
     }
     document.getElementById("onBehalfOfTenant").addEventListener("change", syncOnBehalfPanels);
     document.getElementById("onBehalfManagement").addEventListener("change", syncOnBehalfPanels);
     document.querySelectorAll('input[name="tenantIsPrimaryContact"]').forEach((el) => el.addEventListener("change", syncOnBehalfPanels));
+    document.querySelectorAll('input[name="managerIsPrimaryContact"]').forEach((el) => el.addEventListener("change", syncOnBehalfPanels));
     document.getElementById("applianceType1").addEventListener("change", syncOtherApplianceFields);
     document.getElementById("applianceType2").addEventListener("change", syncOtherApplianceFields);
     syncSecondUnit();
@@ -955,7 +965,8 @@ function syncPaymentRequirement() {
           email: document.getElementById("repairContactEmail").value.trim()
         } : null,
         onBehalfManagement: document.getElementById("onBehalfManagement").checked,
-        managerContact: document.getElementById("onBehalfManagement").checked ? {
+        managerIsPrimaryContact: document.getElementById("onBehalfManagement").checked ? getRadioValue("managerIsPrimaryContact") || "Yes" : "",
+        managerContact: document.getElementById("onBehalfManagement").checked && getRadioValue("managerIsPrimaryContact") !== "No" ? {
           name: document.getElementById("managerName").value.trim(),
           jobTitle: document.getElementById("managerTitle").value.trim(),
           phone: document.getElementById("managerPhone").value.trim(),
@@ -1133,6 +1144,7 @@ async function submitRequestRecord(payload) {
       document.getElementById("onBehalfOfTenant").checked = !!data.onBehalfOfTenant;
       document.getElementById("onBehalfManagement").checked = !!data.onBehalfManagement;
       setRadioValue("tenantIsPrimaryContact", data.tenantIsPrimaryContact === "No" ? "No" : "Yes");
+      setRadioValue("managerIsPrimaryContact", data.managerIsPrimaryContact === "No" ? "No" : "Yes");
       document.getElementById("repairContactName").value = data.repairContact?.name || "";
       document.getElementById("repairContactPhone").value = data.repairContact?.phone || "";
       document.getElementById("repairContactEmail").value = data.repairContact?.email || "";

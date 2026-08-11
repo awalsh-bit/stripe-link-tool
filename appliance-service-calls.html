@@ -525,11 +525,13 @@
       }
       if (row.onBehalfManagement) {
         parts.push('<br><span class="strong" style="color: #1e40af;">Management professional on behalf of homeowner</span>');
-        const mgr = row.managerContact;
+        const mgr = row.managerIsPrimaryContact === "No" ? null : row.managerContact;
         if (mgr) {
           const name = [mgr.name, mgr.jobTitle ? `(${mgr.jobTitle})` : ""].filter(Boolean).map(escapeHtml).join(" ");
           const contact = [name, mgr.phone && escapeHtml(mgr.phone), mgr.email && escapeHtml(mgr.email)].filter(Boolean).join(" &middot; ");
-          parts.push(`<br><span style="color: #1e40af;">Manager: ${contact || "-"}</span>`);
+          parts.push(`<br><span style="color: #1e40af;">Manager is the primary contact: ${contact || "-"}</span>`);
+        } else if (row.managerIsPrimaryContact === "No") {
+          parts.push('<br><span style="color: #1e40af;">Manager is NOT the primary contact &mdash; use the contact details above</span>');
         }
       }
       return parts.join("");

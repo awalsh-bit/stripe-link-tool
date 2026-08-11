@@ -6384,7 +6384,10 @@ app.post("/api/service/submit-request", async (req, res) => {
     const repairContact = tenantIsPrimaryContact === "No"
       ? sanitizeOnBehalfContact(serviceRequest.repairContact, ["name", "phone", "email"])
       : null;
-    const managerContact = serviceRequest.onBehalfManagement
+    const managerIsPrimaryContact = serviceRequest.onBehalfManagement
+      ? (serviceRequest.managerIsPrimaryContact === "No" ? "No" : "Yes")
+      : "";
+    const managerContact = managerIsPrimaryContact === "Yes"
       ? sanitizeOnBehalfContact(serviceRequest.managerContact, ["name", "jobTitle", "phone", "email"])
       : null;
 
@@ -6418,6 +6421,7 @@ app.post("/api/service/submit-request", async (req, res) => {
           tenantIsPrimaryContact,
           repairContact,
           onBehalfManagement: !!serviceRequest.onBehalfManagement,
+          managerIsPrimaryContact,
           managerContact,
           cardRequired: serviceRequest.purchasedWithin12Months !== "Yes",
           gateCode: serviceRequest.gateCode || "",
@@ -6462,6 +6466,7 @@ app.post("/api/service/submit-request", async (req, res) => {
           tenantIsPrimaryContact,
           repairContact,
           onBehalfManagement: !!serviceRequest.onBehalfManagement,
+          managerIsPrimaryContact,
           managerContact,
           cardRequired: serviceRequest.purchasedWithin12Months !== "Yes",
           gateCode: serviceRequest.gateCode || "",
@@ -6506,6 +6511,7 @@ app.post("/api/service/submit-request", async (req, res) => {
       tenantIsPrimaryContact,
       repairContact,
       onBehalfManagement: !!serviceRequest.onBehalfManagement,
+      managerIsPrimaryContact,
       managerContact,
       cardRequired: serviceRequest.purchasedWithin12Months !== "Yes",
       gateCode: serviceRequest.gateCode || "",
@@ -9747,6 +9753,7 @@ app.get("/api/service/prefill/:token", async (req, res) => {
         tenantIsPrimaryContact: row.tenantIsPrimaryContact || "",
         repairContact: row.repairContact || null,
         onBehalfManagement: !!row.onBehalfManagement,
+        managerIsPrimaryContact: row.managerIsPrimaryContact || "",
         managerContact: row.managerContact || null,
         serviceAddress: row.serviceAddress || {},
         billingAddress: row.billingAddress || row.serviceAddress || {},

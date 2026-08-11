@@ -1,3 +1,81 @@
+/* ---------------------------------------------------------------------------
+   Brand color scheme. The default is Wilson green; each user can pick a
+   scheme on their profile (hamburger menu → Color Scheme), applied as
+   data-theme on <html> by internal-shell.js. Pages reference ONLY these
+   variables for brand color — never raw hexes — so a scheme swap restyles
+   everything at once. html[data-theme] outranks any page-level :root
+   declaration by specificity.
+   Semantic status colors (red/yellow/green severity pills, paid/success,
+   warnings) are NOT variables and never change with the scheme; see the
+   severity-pill hardening at the bottom of this file.
+--------------------------------------------------------------------------- */
+:root {
+  --primary: #21692c;
+  --primary-hover: #1a5222;
+  --primary-deep: #1c5c26;
+  --primary-alt: #1f6329;
+  --primary-ink: #143d1a;
+  --primary-bright: #2f7d3b;
+  --primary-soft: #8fc49a;
+  --primary-soft-2: #b9d9bf;
+  --primary-tint: #eaf4ec;
+  --primary-tint-2: #d7ead9;
+  --primary-tint-3: #ddeede;
+  --primary-faint: #fafdfa;
+  --primary-faint-2: #fbfdfb;
+  --primary-wash: #f4f9f5;
+  --primary-wash-2: #f7fbf8;
+  --primary-wash-3: #f5faf5;
+  --primary-wash-4: #f6faf6;
+  --primary-rgb: 33, 105, 44;
+}
+
+/* The original Agility purple, rebuilt exactly as it was before the green
+   rebrand (hexes recovered from the pre-rebrand stylesheets). */
+html[data-theme="purple"] {
+  --primary: #635bff;
+  --primary-hover: #564ef0;
+  --primary-deep: #4338ca;
+  --primary-alt: #4f46e5;
+  --primary-ink: #2d2566;
+  --primary-bright: #6366f1;
+  --primary-soft: #a5b4fc;
+  --primary-soft-2: #c7d2fe;
+  --primary-tint: #eef2ff;
+  --primary-tint-2: #e0e7ff;
+  --primary-tint-3: #e7e4ff;
+  --primary-faint: #fafbff;
+  --primary-faint-2: #fbfcff;
+  --primary-wash: #f5f7ff;
+  --primary-wash-2: #f8faff;
+  --primary-wash-3: #f5f5ff;
+  --primary-wash-4: #f6f9ff;
+  --primary-rgb: 99, 91, 255;
+}
+
+/* Wilson red — same lightness structure as the green so every surface,
+   focus ring, and tint keeps its contrast. */
+html[data-theme="red"] {
+  --primary: #a32222;
+  --primary-hover: #7f1a1a;
+  --primary-deep: #8c1d1d;
+  --primary-alt: #97201f;
+  --primary-ink: #4d0f0f;
+  --primary-bright: #bf3434;
+  --primary-soft: #dba1a1;
+  --primary-soft-2: #e8c0c0;
+  --primary-tint: #f9eaea;
+  --primary-tint-2: #f0d5d5;
+  --primary-tint-3: #eedddd;
+  --primary-faint: #fdfafa;
+  --primary-faint-2: #fdfbfb;
+  --primary-wash: #faf4f4;
+  --primary-wash-2: #fbf7f7;
+  --primary-wash-3: #faf5f5;
+  --primary-wash-4: #fbf6f6;
+  --primary-rgb: 163, 34, 34;
+}
+
 .internal-shell-header {
   margin-bottom: 22px;
 }
@@ -45,8 +123,8 @@
   width: 40px;
   height: 40px;
   border-radius: 999px;
-  background: rgba(33, 105, 44, 0.14);
-  color: #21692c;
+  background: rgba(var(--primary-rgb), 0.14);
+  color: var(--primary);
   flex: 0 0 auto;
 }
 
@@ -62,8 +140,8 @@
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: #21692c;
-  background: rgba(33, 105, 44, 0.1);
+  color: var(--primary);
+  background: rgba(var(--primary-rgb), 0.1);
   padding: 10px 14px;
   border-radius: 999px;
   margin-bottom: 0;
@@ -80,7 +158,7 @@
   width: 42px;
   height: 42px;
   border-radius: 12px;
-  border: 1px solid rgba(33, 105, 44, 0.16);
+  border: 1px solid rgba(var(--primary-rgb), 0.16);
   background: rgba(255, 255, 255, 0.92);
   box-shadow: 0 10px 35px rgba(0, 0, 0, 0.08);
   cursor: pointer;
@@ -88,8 +166,8 @@
 }
 
 .internal-shell-menu-trigger:hover {
-  background: #eaf4ec;
-  border-color: rgba(33, 105, 44, 0.32);
+  background: var(--primary-tint);
+  border-color: rgba(var(--primary-rgb), 0.32);
   transform: translateY(-1px);
 }
 
@@ -103,7 +181,7 @@
   width: 16px;
   height: 2px;
   border-radius: 999px;
-  background: #1c5c26;
+  background: var(--primary-deep);
 }
 
 .internal-shell-menu-panel {
@@ -112,7 +190,7 @@
   left: 0;
   min-width: 320px;
   background: rgba(255, 255, 255, 0.98);
-  border: 1px solid rgba(33, 105, 44, 0.14);
+  border: 1px solid rgba(var(--primary-rgb), 0.14);
   box-shadow: 0 16px 40px rgba(0, 0, 0, 0.12);
   border-radius: 18px;
   padding: 12px;
@@ -144,7 +222,7 @@
 }
 
 .internal-shell-menu-link:hover {
-  background: #f4f9f5;
+  background: var(--primary-wash);
 }
 
 .internal-shell-menu-link-button {
@@ -188,7 +266,7 @@
   left: calc(100% - 6px);
   min-width: 240px;
   background: rgba(255, 255, 255, 0.99);
-  border: 1px solid rgba(33, 105, 44, 0.14);
+  border: 1px solid rgba(var(--primary-rgb), 0.14);
   box-shadow: 0 16px 40px rgba(0, 0, 0, 0.12);
   border-radius: 18px;
   padding: 12px;
@@ -213,12 +291,12 @@
 }
 
 .internal-shell-submenu-link:hover {
-  background: #f4f9f5;
+  background: var(--primary-wash);
 }
 
 .internal-shell-tools {
   background: rgba(255, 255, 255, 0.92);
-  border: 1px solid rgba(33, 105, 44, 0.1);
+  border: 1px solid rgba(var(--primary-rgb), 0.1);
   border-radius: 22px;
   box-shadow: 0 10px 35px rgba(0, 0, 0, 0.08);
   overflow: hidden;
@@ -227,7 +305,7 @@
 
 .internal-shell-tools-top {
   height: 6px;
-  background: linear-gradient(90deg, #1c5c26 0%, #21692c 100%);
+  background: linear-gradient(90deg, var(--primary-deep) 0%, var(--primary) 100%);
 }
 
 .internal-shell-tools-row {
@@ -265,7 +343,7 @@
 .internal-shell-tool-link:hover {
   transform: translateY(-1px);
   box-shadow: 0 10px 22px rgba(15, 23, 42, 0.08);
-  border-color: rgba(33, 105, 44, 0.24);
+  border-color: rgba(var(--primary-rgb), 0.24);
 }
 
 .internal-shell-tool-image {
@@ -286,7 +364,7 @@
   margin-top: 24px;
   padding: 18px 20px;
   border-radius: 18px;
-  border: 1px solid rgba(33, 105, 44, 0.1);
+  border: 1px solid rgba(var(--primary-rgb), 0.1);
   background: rgba(255, 255, 255, 0.9);
   box-shadow: 0 10px 35px rgba(0, 0, 0, 0.06);
 }
@@ -311,7 +389,7 @@
 }
 
 .internal-shell-footer-link {
-  color: #1c5c26;
+  color: var(--primary-deep);
   text-decoration: none;
   font-weight: 700;
 }
@@ -337,4 +415,61 @@
     top: calc(100% - 2px);
     min-width: 100%;
   }
+}
+
+/* ---------------------------------------------------------------------------
+   Severity pills stand on their own. Red/Yellow/Green flags and status
+   badges keep their fixed semantic colors under every scheme, and carry a
+   heavy dark border so they read as status tokens against any chrome —
+   including the red scheme sitting next to red flags.
+--------------------------------------------------------------------------- */
+.badge.red, .badge.yellow, .badge.green,
+.oflag-badge.red, .oflag-badge.yellow, .oflag-badge.green,
+.st-badge.rtv, .st-badge.wty {
+  border: 2px solid #111827;
+}
+
+/* ---------------------------------------------------------------------------
+   Color Scheme picker (hamburger menu). Swatches show the actual primary of
+   each scheme regardless of the active one.
+--------------------------------------------------------------------------- */
+.internal-shell-theme-row {
+  display: flex;
+  gap: 8px;
+  padding: 8px 10px 10px;
+}
+
+.internal-shell-theme-btn {
+  appearance: none;
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  border: 1px solid #dbe1ea;
+  background: #fff;
+  color: #1f2937;
+  border-radius: 10px;
+  padding: 8px 6px;
+  font-size: 12px;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.internal-shell-theme-btn:hover {
+  background: #f3f4f6;
+}
+
+.internal-shell-theme-btn.active {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(var(--primary-rgb), 0.18);
+}
+
+.internal-shell-theme-dot {
+  width: 14px;
+  height: 14px;
+  border-radius: 999px;
+  flex: 0 0 auto;
+  border: 1px solid rgba(0, 0, 0, 0.18);
 }

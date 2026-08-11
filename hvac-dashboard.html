@@ -14,8 +14,6 @@
       --text: #1f2937;
       --muted: #6b7280;
       --border: #dbe1ea;
-      --primary: #21692c;
-      --primary-hover: #1a5222;
       --success-bg: #ecfdf5;
       --success-text: #065f46;
       --error-bg: #fef2f2;
@@ -29,7 +27,7 @@
     body {
       margin: 0;
       font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-      background: linear-gradient(180deg, #eaf4ec 0%, var(--bg) 100%);
+      background: linear-gradient(180deg, var(--primary-tint) 0%, var(--bg) 100%);
       color: var(--text);
       min-height: 100vh;
       padding: 32px 16px;
@@ -42,7 +40,7 @@
 
     .surface {
       background: var(--card);
-      border: 1px solid rgba(33, 105, 44, 0.12);
+      border: 1px solid rgba(var(--primary-rgb), 0.12);
       box-shadow: var(--shadow);
       border-radius: var(--radius);
       padding: 24px;
@@ -60,7 +58,7 @@
       border: 1px solid var(--border);
       border-radius: 18px;
       padding: 20px;
-      background: #fbfdfb;
+      background: var(--primary-faint-2);
     }
 
     .summary-label {
@@ -160,8 +158,8 @@
       min-height: 42px;
       padding: 0 16px;
       border-radius: 999px;
-      background: #eaf4ec;
-      color: #1a5222;
+      background: var(--primary-tint);
+      color: var(--primary-hover);
       text-decoration: none;
       font-weight: 700;
       white-space: nowrap;
@@ -171,7 +169,7 @@
     }
 
     .action-link:hover {
-      background: #d7ead9;
+      background: var(--primary-tint-2);
     }
 
     .action-link.secondary {
@@ -201,15 +199,15 @@
       min-height: auto;
       padding: 12px 16px;
       border-radius: 12px;
-      border: 1px solid rgba(33, 105, 44, 0.18);
-      background: #eaf4ec;
-      color: #1a5222;
+      border: 1px solid rgba(var(--primary-rgb), 0.18);
+      background: var(--primary-tint);
+      color: var(--primary-hover);
       font-size: 14px;
       font-weight: 700;
     }
 
     .page-actions .action-link:hover {
-      background: #d7ead9;
+      background: var(--primary-tint-2);
     }
 
     .empty-state {

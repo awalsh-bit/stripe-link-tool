@@ -7,6 +7,66 @@
   const icon = body.dataset.shellIcon || "payments";
   const replaceHero = body.dataset.shellReplaceHero === "true";
 
+  // ------------------------------------------------------------------
+  // Color scheme. Green is the default; red and purple are per-user
+  // choices saved on the profile. Applied as data-theme on <html>, which
+  // the shared variable blocks in internal-shell.css pick up. The last
+  // choice is cached locally so pages paint in the right scheme before
+  // the session round-trip completes.
+  // ------------------------------------------------------------------
+  const THEMES = [
+    { key: "green", label: "Green", swatch: "#21692c" },
+    { key: "red", label: "Red", swatch: "#a32222" },
+    { key: "purple", label: "Purple", swatch: "#635bff" }
+  ];
+
+  function applyTheme(theme) {
+    const key = THEMES.some((t) => t.key === theme) ? theme : "green";
+    if (key === "green") {
+      delete document.documentElement.dataset.theme;
+    } else {
+      document.documentElement.dataset.theme = key;
+    }
+    document.querySelectorAll(".internal-shell-theme-btn").forEach((btn) => {
+      btn.classList.toggle("active", btn.dataset.themePick === key);
+    });
+    return key;
+  }
+
+  function cachedTheme() {
+    try { return localStorage.getItem("wilsonTheme") || ""; } catch { return ""; }
+  }
+
+  applyTheme(cachedTheme());
+
+  function pickTheme(theme) {
+    const key = applyTheme(theme);
+    try { localStorage.setItem("wilsonTheme", key); } catch {}
+    fetch("/api/me/theme", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "same-origin",
+      body: JSON.stringify({ theme: key })
+    }).catch(() => {});
+  }
+
+  document.addEventListener("click", (event) => {
+    const btn = event.target.closest?.("[data-theme-pick]");
+    if (btn) pickTheme(btn.dataset.themePick);
+  });
+
+  function buildThemePicker() {
+    return `
+      <div class="internal-shell-menu-title" style="margin-top: 12px;">Color Scheme</div>
+      <div class="internal-shell-theme-row">
+        ${THEMES.map((t) => `
+          <button type="button" class="internal-shell-theme-btn" data-theme-pick="${t.key}">
+            <span class="internal-shell-theme-dot" style="background: ${t.swatch};"></span>${t.label}
+          </button>`).join("")}
+      </div>
+    `;
+  }
+
   function iconSvg(name) {
     const icons = {
       payments: `
@@ -163,7 +223,8 @@
       {
         title: "Client Care",
         children: [
-          { href: "appliance-service-calls.html", title: "Service Request Queue" }
+          { href: "appliance-service-calls.html", title: "Service Request Queue" },
+          { href: "service-order-health.html", title: "Service Order Health" }
         ]
       },
       {
@@ -308,6 +369,7 @@
               <div class="internal-shell-menu-panel">
                 <div class="internal-shell-menu-title">Dashboards</div>
                 ${buildMenuLinks(user)}
+                ${buildThemePicker()}
               </div>
             </div>
             <img class="internal-shell-logo" src="logo-black.png" alt="Wilson AC & Appliance" />
@@ -391,5 +453,14 @@
     }
   }
 
-  loadSessionUser().then(renderShell);
+  loadSessionUser().then((session) => {
+    renderShell(session);
+    // The profile's saved scheme wins over the local cache (covers a new
+    // machine, a cleared cache, or a choice made on another device). Either
+    // way, re-apply after render so the picker buttons mark the active one.
+    if (session?.theme) {
+      try { localStorage.setItem("wilsonTheme", session.theme); } catch {}
+    }
+    applyTheme(session?.theme || cachedTheme());
+  });
 })();

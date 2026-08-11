@@ -14,8 +14,6 @@
       --text: #1f2937;
       --muted: #6b7280;
       --border: #dbe1ea;
-      --primary: #21692c;
-      --primary-hover: #1a5222;
       --error-bg: #fef2f2;
       --error-text: #991b1b;
       --shadow: 0 10px 35px rgba(0, 0, 0, 0.08);
@@ -27,7 +25,7 @@
     body {
       margin: 0;
       font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-      background: linear-gradient(180deg, #eaf4ec 0%, var(--bg) 100%);
+      background: linear-gradient(180deg, var(--primary-tint) 0%, var(--bg) 100%);
       color: var(--text);
       min-height: 100vh;
       padding: 32px 16px;
@@ -37,7 +35,7 @@
 
     .surface {
       background: var(--card);
-      border: 1px solid rgba(33, 105, 44, 0.12);
+      border: 1px solid rgba(var(--primary-rgb), 0.12);
       box-shadow: var(--shadow);
       border-radius: var(--radius);
       padding: 22px;
@@ -60,7 +58,7 @@
       color: var(--text);
       outline: none;
     }
-    input:focus { border-color: rgba(33, 105, 44, 0.75); box-shadow: 0 0 0 4px rgba(33, 105, 44, 0.12); }
+    input:focus { border-color: rgba(var(--primary-rgb), 0.75); box-shadow: 0 0 0 4px rgba(var(--primary-rgb), 0.12); }
 
     .primary-btn {
       appearance: none;
@@ -108,10 +106,10 @@
       position: relative;
     }
     .cal .day.off { background: #f3f4f6; color: #9ca3af; border-style: dashed; font-weight: 400; }
-    .cal .day.worked { background: #eaf4ec; border-color: rgba(33, 105, 44, 0.45); }
+    .cal .day.worked { background: var(--primary-tint); border-color: rgba(var(--primary-rgb), 0.45); }
     .cal .day.today { outline: 3px solid var(--primary); outline-offset: -1px; }
     .cal .day .n { display: block; }
-    .cal .day .wd { position: absolute; bottom: 3px; right: 7px; font-size: 10px; color: #2f7d3b; font-weight: 700; }
+    .cal .day .wd { position: absolute; bottom: 3px; right: 7px; font-size: 10px; color: var(--primary-bright); font-weight: 700; }
     .cal .blank { border: none; background: transparent; }
 
     /* Editor table */
@@ -145,7 +143,7 @@
       cursor: pointer;
       font-family: inherit;
     }
-    .secondary-btn:hover { border-color: rgba(33, 105, 44, 0.6); color: var(--primary); }
+    .secondary-btn:hover { border-color: rgba(var(--primary-rgb), 0.6); color: var(--primary); }
     .secondary-btn:disabled { opacity: 0.6; cursor: wait; }
     .att-good { color: #065f46; font-weight: 700; }
     .att-mid { color: #92400e; font-weight: 700; }

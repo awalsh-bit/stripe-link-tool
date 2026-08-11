@@ -10,19 +10,19 @@
   <style>
     :root {
       --bg: #f7f8fc; --card: #ffffff; --text: #1f2937; --muted: #6b7280;
-      --border: #dbe1ea; --primary: #21692c; --primary-hover: #1a5222;
+      --border: #dbe1ea; --primary: var(--primary); --primary-hover: var(--primary-hover);
       --shadow: 0 10px 35px rgba(0, 0, 0, 0.08); --radius: 18px;
     }
     * { box-sizing: border-box; }
     body {
       margin: 0;
       font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-      background: linear-gradient(180deg, #eaf4ec 0%, var(--bg) 100%);
+      background: linear-gradient(180deg, var(--primary-tint) 0%, var(--bg) 100%);
       color: var(--text); min-height: 100vh; padding: 32px 16px;
     }
     .wrap { max-width: 1480px; margin: 0 auto; }
     .card {
-      background: var(--card); border: 1px solid rgba(33, 105, 44, 0.12);
+      background: var(--card); border: 1px solid rgba(var(--primary-rgb), 0.12);
       box-shadow: var(--shadow); border-radius: var(--radius); padding: 22px;
     }
     .toolbar { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 18px; align-items: center; }
@@ -31,15 +31,15 @@
       border: 1px solid var(--border); border-radius: 12px; padding: 12px 14px;
       font-size: 14px; background: #fff; color: var(--text); outline: none; font-family: inherit;
     }
-    input:focus { border-color: rgba(33, 105, 44, 0.75); box-shadow: 0 0 0 4px rgba(33, 105, 44, 0.12); }
+    input:focus { border-color: rgba(var(--primary-rgb), 0.75); box-shadow: 0 0 0 4px rgba(var(--primary-rgb), 0.12); }
     button {
-      appearance: none; border: 1px solid rgba(33, 105, 44, 0.18); background: #eaf4ec;
-      color: #1a5222; border-radius: 12px; padding: 12px 16px; font-size: 14px;
+      appearance: none; border: 1px solid rgba(var(--primary-rgb), 0.18); background: var(--primary-tint);
+      color: var(--primary-hover); border-radius: 12px; padding: 12px 16px; font-size: 14px;
       font-weight: 700; cursor: pointer; font-family: inherit;
     }
-    button:hover { background: #d7ead9; }
+    button:hover { background: var(--primary-tint-2); }
     .summary-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; margin-bottom: 18px; }
-    .metric { border: 1px solid var(--border); border-radius: 16px; padding: 16px; background: #fafdfa; }
+    .metric { border: 1px solid var(--border); border-radius: 16px; padding: 16px; background: var(--primary-faint); }
     .metric-label { font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); font-weight: 700; margin-bottom: 6px; }
     .metric-value { font-size: clamp(24px, 3vw, 36px); font-weight: 800; line-height: 1; }
     .metric-sub { margin-top: 8px; color: var(--muted); font-size: 13px; }

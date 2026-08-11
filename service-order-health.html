@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="robots" content="noindex,nofollow,noarchive" />
-  <title>Wilson AC &amp; Appliance - Sales Order Health Report</title>
+  <title>Wilson AC &amp; Appliance - Service Order Health</title>
   <link rel="icon" type="image/svg+xml" href="favicon.svg" />
   <link rel="stylesheet" href="internal-shell.css" />
   <style>
@@ -70,7 +70,7 @@
     .asof strong { color: var(--text); }
 
     /* Tiles */
-    .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 14px; margin-top: 14px; }
+    .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 14px; margin-top: 14px; }
     .tile {
       border: 1px solid var(--border);
       border-radius: 14px;
@@ -79,12 +79,18 @@
     }
     .tile .label { font-size: 11.5px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
     .tile .value { font-size: 24px; font-weight: 700; margin-top: 4px; }
+    .tile .sub { font-size: 12px; color: var(--muted); margin-top: 2px; }
     .tile.red .value { color: var(--danger); }
     .tile.yellow .value { color: var(--warn); }
 
-    /* Chart */
-    .chart-frame { width: 100%; overflow-x: auto; }
-    .chart-note { font-size: 12px; color: var(--muted); margin-top: 6px; }
+    /* Job status chart (horizontal bars) */
+    .status-rows { display: grid; gap: 6px; }
+    .status-row { display: grid; grid-template-columns: 130px 1fr 150px; gap: 10px; align-items: center; font-size: 13px; }
+    .status-row .bar-track { background: #eef0f5; border-radius: 7px; height: 18px; overflow: hidden; }
+    .status-row .bar-fill { background: var(--series-1); height: 100%; border-radius: 7px; min-width: 2px; }
+    .status-row .status-name { font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .status-row .status-count { color: var(--muted); white-space: nowrap; }
+    .status-row .status-count strong { color: var(--text); }
 
     /* Filters */
     .chip {
@@ -101,8 +107,6 @@
     }
     .chip:hover { background: #f3f4f6; }
     .chip.active { background: var(--primary); border-color: var(--primary); color: #fff; }
-    .chip.red.active { background: var(--danger); border-color: var(--danger); }
-    .chip.yellow.active { background: var(--warn); border-color: var(--warn); }
 
     select, .toolbar input[type="text"] {
       border: 1px solid var(--border);
@@ -132,9 +136,8 @@
     }
     thead th.num, td.num { text-align: right; }
     tbody td { padding: 8px 9px; border-bottom: 1px solid #eef0f5; vertical-align: top; }
-    tbody tr.sev-red { background: #fef2f2; }
-    tbody tr.sev-yellow { background: #fffbeb; }
     .empty { text-align: center; color: var(--muted); padding: 26px 10px; }
+    td.past-date { color: var(--danger); font-weight: 700; }
 
     .badge {
       display: inline-block;
@@ -150,11 +153,8 @@
     .badge.green { background: #dcfce7; color: #166534; }
     .badge.neutral { background: #e5e7eb; color: #374151; }
     .badge.status { background: var(--primary-tint); color: var(--primary-hover); }
-
-    details.legend { font-size: 13px; color: var(--muted); }
-    details.legend summary { cursor: pointer; font-weight: 600; color: var(--text); }
-    details.legend td { padding: 4px 12px 4px 0; vertical-align: top; }
-    details.legend td:first-child { font-weight: 700; color: var(--text); white-space: nowrap; }
+    .badge.sv { background: #dbeafe; color: #1e40af; }
+    .badge.wty { background: #e5e7eb; color: #374151; }
 
     .banner {
       display: none;
@@ -170,50 +170,59 @@
     @media (max-width: 760px) {
       body { padding: 14px 8px; }
       .surface { padding: 14px; }
+      .status-row { grid-template-columns: 90px 1fr 120px; }
     }
   </style>
 </head>
-<body data-shell-label="Sales Order Health Report" data-shell-icon="sales">
+<body data-shell-label="Service Order Health" data-shell-icon="sales">
   <div class="wrap">
     <div id="internal-shell-header"></div>
 
     <div class="surface">
-      <h2>Sales Order Health Report</h2>
+      <h2>Service Order Health</h2>
       <p class="section-note">
-        Open orders checked against our job status rules — dates, routing, and COD balances.
-        Upload the latest ExportInvoice report to refresh; everyone sees the same snapshot.
+        Open service tickets (SV and WTY invoice types) from the ExportInvoice report.
+        Each SV ticket's Invoice # is matched to the Service Request Queue's ERP Order Number
+        to check whether a secure card is on file. Upload the latest export to refresh;
+        everyone sees the same snapshot.
       </p>
       <div class="toolbar">
-        <button type="button" class="primary-btn" id="uploadBtn">Upload open order report</button>
+        <button type="button" class="primary-btn" id="uploadBtn">Upload service ticket report</button>
         <input type="file" id="fileInput" accept=".xlsx,.xls" style="display: none;" />
         <span class="asof" id="asofLine">No data uploaded yet.</span>
       </div>
       <div class="banner" id="statusBanner"></div>
       <div class="tiles" id="tiles" style="display: none;">
-        <div class="tile"><div class="label">Open orders</div><div class="value" id="tileOrders">–</div></div>
-        <div class="tile red"><div class="label">Red flag orders</div><div class="value" id="tileRed">–</div></div>
-        <div class="tile yellow"><div class="label">Yellow flag orders</div><div class="value" id="tileYellow">–</div></div>
-        <div class="tile"><div class="label">Revenue next 12 months</div><div class="value" id="tileRevenue">–</div></div>
+        <div class="tile"><div class="label">Open tickets</div><div class="value" id="tileTickets">–</div><div class="sub" id="tileTicketsSub"></div></div>
+        <div class="tile yellow"><div class="label">Dates in the past</div><div class="value" id="tilePast">–</div><div class="sub" id="tilePastSub"></div></div>
+        <div class="tile red"><div class="label">SV without card on file</div><div class="value" id="tileNoCard">–</div><div class="sub" id="tileNoCardSub"></div></div>
+        <div class="tile"><div class="label">SV matched to queue</div><div class="value" id="tileMatched">–</div><div class="sub" id="tileMatchedSub"></div></div>
       </div>
     </div>
 
     <div class="surface" id="chartSurface" style="display: none;">
-      <h3>Scheduled revenue by month — next 12 months</h3>
-      <p class="section-note" style="margin-bottom: 8px;">Sum of the order Total by scheduled date (pickup date for customer pickups).</p>
-      <div class="chart-frame" id="chartFrame"></div>
-      <div class="chart-note" id="chartNote"></div>
+      <h3>Tickets by job status</h3>
+      <p class="section-note" style="margin-bottom: 12px;" id="chartScopeNote">Share of all open tickets, largest first. The Type filter below narrows this chart too.</p>
+      <div class="status-rows" id="statusRows"></div>
     </div>
 
     <div class="surface" id="tableSurface" style="display: none;">
       <div class="toolbar" style="margin-bottom: 12px;">
-        <input id="searchInput" type="text" placeholder="Search invoice, customer, or SP…" />
-        <button type="button" class="chip active" data-sev="all">All severities</button>
-        <button type="button" class="chip red" data-sev="red">Red</button>
-        <button type="button" class="chip yellow" data-sev="yellow">Yellow</button>
+        <input id="searchInput" type="text" placeholder="Search invoice, customer, or tech…" />
+        <button type="button" class="chip active" data-type="all">All types</button>
+        <button type="button" class="chip" data-type="SV">SV</button>
+        <button type="button" class="chip" data-type="WTY">WTY</button>
         <select id="statusFilter">
           <option value="all">All job statuses</option>
         </select>
-        <label class="check-inline"><input type="checkbox" id="flaggedOnly" checked /> Flagged orders only</label>
+        <select id="cardFilter">
+          <option value="all">Card on file — all</option>
+          <option value="missing">SV without card on file</option>
+          <option value="nocard">Request found — no card</option>
+          <option value="none">No request found</option>
+          <option value="card">Card on file</option>
+        </select>
+        <label class="check-inline"><input type="checkbox" id="pastOnly" /> Past dates only</label>
         <span style="flex: 1;"></span>
         <span class="asof" id="countLine"></span>
       </div>
@@ -221,15 +230,16 @@
         <thead>
           <tr>
             <th>Invoice</th>
+            <th>Type</th>
             <th>Job Status</th>
-            <th>SP</th>
-            <th>Customer</th>
             <th>Date</th>
             <th>Route</th>
-            <th>Type</th>
+            <th>Tech</th>
+            <th>Customer</th>
+            <th>Pay</th>
             <th class="num">Total</th>
             <th class="num">Balance</th>
-            <th>Flags</th>
+            <th>Card on file</th>
           </tr>
         </thead>
         <tbody id="tableBody"></tbody>
@@ -237,34 +247,25 @@
     </div>
 
     <div class="surface">
-      <details class="legend">
-        <summary>Job status rules used by this report</summary>
-        <table style="margin-top: 10px;">
-          <tr><td>Everything</td><td>No date in the past (except D7) and no negative COD balance.</td></tr>
-          <tr><td>D1</td><td>Written business awaiting deposit or PO — no extra checks.</td></tr>
-          <tr><td>D2 / D2T</td><td>Should be ordered. Yellow if COD with no payment received.</td></tr>
-          <tr><td>D2R</td><td>Yellow by default (product not here, holding schedule time). Red if any COD balance is due or the order isn't routed.</td></tr>
-          <tr><td>D3</td><td>Product reserved, ready to fulfill. Yellow if not yet scheduled (no route).</td></tr>
-          <tr><td>D3-PRE</td><td>Obsolete status — always red.</td></tr>
-          <tr><td>D4 / D4T</td><td>Scheduled to go out. Red if not routed or any COD balance remains.</td></tr>
-          <tr><td>D7</td><td>Finished. Red if dated in the future; yellow if still Open ("Not Posted" is fine).</td></tr>
-          <tr><td>D8</td><td>Cancelled — yellow until closed.</td></tr>
-          <tr><td>CPU…</td><td>Customer pickups — only checked for pickup dates in the past.</td></tr>
-        </table>
-      </details>
+      <p class="section-note" style="margin: 0;">
+        <strong>Card matching:</strong> tickets are matched to the Service Request Queue by
+        Invoice # ↔ ERP Order Number (tolerant of leading zeros and spacing; archived requests
+        count too). "No request found" means the ticket never came through the request form —
+        those SV tickets have no way to have a card on file. WTY tickets are not checked.
+        Notification flags for service orders will be layered on later.
+      </p>
     </div>
 
     <div id="internal-shell-footer"></div>
   </div>
 
   <script src="internal-shell.js"></script>
-  <script src="order-health-rules.js"></script>
   <script>
-    const { isCpu, baseStatus, effectiveDate, computeFlags, severityOf } = window.WILSON_ORDER_HEALTH;
     let snapshot = null;   // { rows, uploadedAt, uploadedByName, filename, rowCount }
-    let health = [];       // rows + computed flags
-    let sevFilter = "all";
+    let cards = {};        // invoice -> { hasCard, archived, queueStatus }
+    let typeFilter = "all";
     let statusFilterValue = "all";
+    let cardFilterValue = "all";
     let searchTerm = "";
 
     function el(id) { return document.getElementById(id); }
@@ -278,23 +279,30 @@
       return new Date().toLocaleDateString("en-CA", { timeZone: "America/Chicago" });
     }
 
-    function fmtMoney(n, decimals = 0) {
+    function fmtMoney(n, decimals = 2) {
       if (n == null || !Number.isFinite(n)) return "";
       return "$" + n.toLocaleString("en-US", { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
     }
-    function fmtCompact(n) {
-      if (n >= 1000000) return "$" + (n / 1000000).toFixed(2).replace(/\.?0+$/, "") + "M";
-      if (n >= 10000) return "$" + Math.round(n / 1000) + "k";
-      return fmtMoney(n);
+    function pct(part, whole) {
+      if (!whole) return "0%";
+      return (Math.round((part / whole) * 1000) / 10).toFixed(1).replace(/\.0$/, "") + "%";
     }
 
-    // Health rules live in order-health-rules.js (shared with the dashboard).
-    function computeHealth() {
-      const today = todayChicago();
-      health = (snapshot?.rows || []).map((order) => {
-        const flags = computeFlags(order, today);
-        return { ...order, flags, severity: severityOf(flags) };
-      });
+    function effectiveDate(row) {
+      return row.schedDate || row.pickupDate || "";
+    }
+    function isPast(row, today) {
+      const d = effectiveDate(row);
+      return !!d && d < today;
+    }
+    // Card state for a ticket: WTY isn't checked; SV resolves through the
+    // queue match the server computed. "missing" = the SV problem bucket
+    // (either state that means no secure card).
+    function cardState(row) {
+      if (String(row.invType).toUpperCase() !== "SV") return "na";
+      const match = cards[row.invoice];
+      if (!match) return "none";
+      return match.hasCard ? "card" : "nocard";
     }
 
     // ------------------------------------------------------------------
@@ -302,7 +310,7 @@
     // ------------------------------------------------------------------
     function renderAsOf() {
       if (!snapshot) {
-        el("asofLine").textContent = "No data uploaded yet — upload the ExportInvoice report to begin.";
+        el("asofLine").textContent = "No data uploaded yet — upload the ExportInvoice service report to begin.";
         return;
       }
       const when = snapshot.uploadedAt
@@ -310,156 +318,129 @@
         : "";
       el("asofLine").innerHTML = `Data as of <strong>${escapeHtml(when)}</strong>` +
         (snapshot.uploadedByName ? ` — uploaded by ${escapeHtml(snapshot.uploadedByName)}` : "") +
-        ` (${snapshot.rowCount} orders)`;
+        ` (${snapshot.rowCount} tickets)`;
     }
 
     function renderTiles() {
       el("tiles").style.display = "";
-      el("tileOrders").textContent = health.length;
-      el("tileRed").textContent = health.filter((h) => h.severity === "red").length;
-      el("tileYellow").textContent = health.filter((h) => h.severity === "yellow").length;
-
+      const rows = snapshot?.rows || [];
       const today = todayChicago();
-      const horizon = monthKeys()[11] + "-31";
-      const next12 = health
-        .filter((h) => { const d = effectiveDate(h); return d && d >= today.slice(0, 8) + "01" && d <= horizon; })
-        .reduce((sum, h) => sum + (Number.isFinite(h.total) ? h.total : 0), 0);
-      el("tileRevenue").textContent = fmtCompact(next12);
+      const sv = rows.filter((r) => String(r.invType).toUpperCase() === "SV");
+      const wty = rows.length - sv.length;
+      const past = rows.filter((r) => isPast(r, today));
+      const svNoCard = sv.filter((r) => cardState(r) !== "card");
+      const svMatched = sv.filter((r) => cards[r.invoice]);
+
+      el("tileTickets").textContent = rows.length;
+      el("tileTicketsSub").textContent = `${sv.length} SV · ${wty} WTY`;
+      el("tilePast").textContent = past.length;
+      el("tilePastSub").textContent = `${pct(past.length, rows.length)} of all tickets`;
+      el("tileNoCard").textContent = svNoCard.length;
+      el("tileNoCardSub").textContent = `${pct(svNoCard.length, sv.length)} of SV tickets`;
+      el("tileMatched").textContent = svMatched.length;
+      el("tileMatchedSub").textContent = `${sv.length - svMatched.length} with no request found`;
     }
 
-    function monthKeys() {
-      const today = todayChicago();
-      let y = Number(today.slice(0, 4));
-      let m = Number(today.slice(5, 7));
-      const keys = [];
-      for (let i = 0; i < 12; i++) {
-        keys.push(`${y}-${String(m).padStart(2, "0")}`);
-        m++; if (m > 12) { m = 1; y++; }
-      }
-      return keys;
-    }
-
-    const MONTH_NAMES = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-    function monthLabel(key) {
-      return `${MONTH_NAMES[Number(key.slice(5, 7)) - 1]} ’${key.slice(2, 4)}`;
-    }
-
-    function renderChart() {
+    function renderStatusChart() {
       el("chartSurface").style.display = "";
-      const keys = monthKeys();
-      const today = todayChicago();
-      const buckets = keys.map((key) => ({ key, label: monthLabel(key), value: 0, kind: "month" }));
-      let past = 0, later = 0, noDate = 0, noDateCount = 0;
-
-      health.forEach((h) => {
-        const total = Number.isFinite(h.total) ? h.total : 0;
-        const d = effectiveDate(h);
-        if (!d) { noDate += total; noDateCount++; return; }
-        const key = d.slice(0, 7);
-        const bucket = buckets.find((b) => b.key === key);
-        if (bucket) bucket.value += total;
-        else if (d < today) past += total;
-        else later += total;
+      const rows = (snapshot?.rows || []).filter((r) =>
+        typeFilter === "all" || String(r.invType).toUpperCase() === typeFilter);
+      const counts = new Map();
+      rows.forEach((r) => {
+        const key = String(r.jobStatus || "").trim() || "(blank)";
+        counts.set(key, (counts.get(key) || 0) + 1);
       });
+      const entries = [...counts.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+      const max = entries.length ? entries[0][1] : 1;
 
-      const bars = [];
-      if (past > 0) bars.push({ label: "Past due", value: past, kind: "past" });
-      bars.push(...buckets);
-      if (later > 0) bars.push({ label: "Later", value: later, kind: "later" });
+      el("chartScopeNote").textContent = typeFilter === "all"
+        ? "Share of all open tickets, largest first. The Type filter below narrows this chart too."
+        : `Share of ${typeFilter} tickets only (Type filter applied), largest first.`;
 
-      const W = 1280, H = 320, PAD_L = 20, PAD_R = 20, PAD_T = 40, PAD_B = 40;
-      const innerW = W - PAD_L - PAD_R;
-      const innerH = H - PAD_T - PAD_B;
-      const max = Math.max(...bars.map((b) => b.value), 1);
-      const slot = innerW / bars.length;
-      const barW = Math.min(72, slot * 0.66);
-
-      const rects = bars.map((b, i) => {
-        const h = Math.max(b.value > 0 ? 3 : 0, (b.value / max) * innerH);
-        const x = PAD_L + i * slot + (slot - barW) / 2;
-        const y = PAD_T + innerH - h;
-        const fill = b.kind === "past" ? "#d97706" : b.kind === "later" ? "#9ca3af" : "var(--series-1)";
-        const valueLabel = b.value > 0
-          ? `<text x="${x + barW / 2}" y="${y - 8}" text-anchor="middle" font-size="13" font-weight="700" fill="#1f2937">${fmtCompact(b.value)}</text>`
-          : "";
-        return `
-          <rect x="${x}" y="${y}" width="${barW}" height="${h}" rx="5" fill="${fill}"></rect>
-          ${valueLabel}
-          <text x="${x + barW / 2}" y="${PAD_T + innerH + 20}" text-anchor="middle" font-size="12" fill="#6b7280">${escapeHtml(b.label)}</text>`;
-      }).join("");
-
-      el("chartFrame").innerHTML = `
-        <svg viewBox="0 0 ${W} ${H}" style="width: 100%; min-width: 900px; display: block;" role="img" aria-label="Scheduled revenue by month">
-          <line x1="${PAD_L}" y1="${PAD_T + innerH}" x2="${W - PAD_R}" y2="${PAD_T + innerH}" stroke="#dbe1ea" stroke-width="1.5"></line>
-          ${rects}
-        </svg>`;
-
-      const notes = [];
-      if (past > 0) notes.push(`“Past due” is revenue on orders dated before today — those carry red flags below.`);
-      if (later > 0) notes.push(`“Later” is scheduled beyond 12 months.`);
-      if (noDate > 0) notes.push(`${noDateCount} order(s) with no date (${fmtCompact(noDate)}) are excluded.`);
-      el("chartNote").textContent = notes.join(" ");
-    }
-
-    function statusBucketOf(order) {
-      if (isCpu(order)) return "CPU";
-      return baseStatus(order);
+      el("statusRows").innerHTML = entries.map(([status, count]) => `
+        <div class="status-row">
+          <div class="status-name" title="${escapeHtml(status)}">${escapeHtml(status)}</div>
+          <div class="bar-track"><div class="bar-fill" style="width: ${Math.max(0.4, (count / max) * 100)}%;"></div></div>
+          <div class="status-count"><strong>${count}</strong> · ${pct(count, rows.length)}</div>
+        </div>`).join("") || '<div class="empty">No tickets.</div>';
     }
 
     function renderStatusFilter() {
-      const buckets = [...new Set(health.map(statusBucketOf))].sort();
+      const buckets = [...new Set((snapshot?.rows || []).map((r) => String(r.jobStatus || "").trim() || "(blank)"))].sort();
       el("statusFilter").innerHTML = '<option value="all">All job statuses</option>' +
         buckets.map((b) => `<option value="${escapeHtml(b)}">${escapeHtml(b)}</option>`).join("");
       el("statusFilter").value = statusFilterValue = "all";
     }
 
+    function cardBadge(row) {
+      const state = cardState(row);
+      const match = cards[row.invoice];
+      const archivedNote = match?.archived ? " (archived)" : "";
+      if (state === "na") return '<span class="badge neutral">—</span>';
+      if (state === "card") return `<span class="badge green">Card on file${archivedNote}</span>`;
+      if (state === "nocard") return `<span class="badge red">Request found — no card${archivedNote}</span>`;
+      return '<span class="badge red">No request found</span>';
+    }
+
     function renderTable() {
       el("tableSurface").style.display = "";
-      const flaggedOnly = el("flaggedOnly").checked;
+      const today = todayChicago();
       const term = searchTerm.toLowerCase();
+      const pastOnly = el("pastOnly").checked;
 
-      const sevRank = { red: 0, yellow: 1, ok: 2 };
-      const rows = health
-        .filter((h) => !flaggedOnly || h.severity !== "ok")
-        .filter((h) => sevFilter === "all" || h.severity === sevFilter)
-        .filter((h) => statusFilterValue === "all" || statusBucketOf(h) === statusFilterValue)
-        .filter((h) => !term || [h.invoice, h.name, h.sp, h.jobStatus].join(" ").toLowerCase().includes(term))
-        .sort((a, b) => (sevRank[a.severity] - sevRank[b.severity]) ||
-          (effectiveDate(a) || "9999").localeCompare(effectiveDate(b) || "9999"));
+      const rows = (snapshot?.rows || [])
+        .filter((r) => typeFilter === "all" || String(r.invType).toUpperCase() === typeFilter)
+        .filter((r) => statusFilterValue === "all" || (String(r.jobStatus || "").trim() || "(blank)") === statusFilterValue)
+        .filter((r) => {
+          if (cardFilterValue === "all") return true;
+          const state = cardState(r);
+          if (cardFilterValue === "missing") return state === "nocard" || state === "none";
+          return state === cardFilterValue;
+        })
+        .filter((r) => !pastOnly || isPast(r, today))
+        .filter((r) => !term || [r.invoice, r.name, r.sp, r.jobStatus, r.customerNumber].join(" ").toLowerCase().includes(term))
+        .sort((a, b) => (effectiveDate(a) || "9999").localeCompare(effectiveDate(b) || "9999") ||
+          String(a.invoice).localeCompare(String(b.invoice)));
 
-      el("countLine").textContent = `${rows.length} of ${health.length} orders`;
+      el("countLine").textContent = `${rows.length} of ${snapshot?.rows?.length || 0} tickets`;
 
       if (!rows.length) {
-        el("tableBody").innerHTML = '<tr><td colspan="10" class="empty">No orders match.</td></tr>';
+        el("tableBody").innerHTML = '<tr><td colspan="11" class="empty">No tickets match.</td></tr>';
         return;
       }
 
-      el("tableBody").innerHTML = rows.map((h) => `
-        <tr class="sev-${h.severity}">
-          <td style="white-space: nowrap; font-weight: 600;">${escapeHtml(h.invoice)}</td>
-          <td><span class="badge status">${escapeHtml(h.jobStatus)}</span></td>
-          <td>${escapeHtml(h.sp)}</td>
-          <td>${escapeHtml(h.name)}</td>
-          <td style="white-space: nowrap;">${escapeHtml(effectiveDate(h))}</td>
-          <td>${escapeHtml(h.route || "—")}</td>
-          <td>${escapeHtml(h.paymentType)}</td>
-          <td class="num">${fmtMoney(h.total, 2)}</td>
-          <td class="num">${fmtMoney(h.balance, 2)}</td>
-          <td>${h.flags.map((f) => `<span class="badge ${f.level}">${escapeHtml(f.text)}</span>`).join("") || ""}</td>
-        </tr>`).join("");
+      el("tableBody").innerHTML = rows.map((r) => {
+        const type = String(r.invType).toUpperCase();
+        const date = effectiveDate(r);
+        return `
+        <tr>
+          <td style="white-space: nowrap; font-weight: 600;">${escapeHtml(r.invoice)}</td>
+          <td><span class="badge ${type === "SV" ? "sv" : "wty"}">${escapeHtml(type || "—")}</span></td>
+          <td><span class="badge status">${escapeHtml(r.jobStatus || "—")}</span></td>
+          <td style="white-space: nowrap;" class="${isPast(r, today) ? "past-date" : ""}">${escapeHtml(date || "—")}</td>
+          <td>${escapeHtml(r.route || "—")}</td>
+          <td>${escapeHtml(r.sp || "—")}</td>
+          <td>${escapeHtml(r.name || "—")}</td>
+          <td>${escapeHtml(r.paymentType || "—")}</td>
+          <td class="num">${fmtMoney(r.total)}</td>
+          <td class="num">${fmtMoney(r.balance)}</td>
+          <td>${cardBadge(r)}</td>
+        </tr>`;
+      }).join("");
     }
 
     function renderAll() {
-      computeHealth();
       renderAsOf();
       renderTiles();
-      renderChart();
+      renderStatusChart();
       renderStatusFilter();
       renderTable();
     }
 
     // ------------------------------------------------------------------
-    // Upload — parse the xlsx in the browser, post normalized rows.
+    // Upload — parse the xlsx in the browser, post normalized rows. The
+    // header row is FOUND (scan for "Job Status"), never assumed to be the
+    // first row — raw exports carry junk rows above it.
     // ------------------------------------------------------------------
     function setBanner(message, kind) {
       const banner = el("statusBanner");
@@ -489,6 +470,7 @@
     function headerKey(header) {
       const h = normalizeHeaderText(header);
       if (!h) return null;
+      if (h.includes("inv type")) return "invType";
       if (h.includes("user created")) return "userCreated";
       if (h === "sp") return "sp";
       if (h.includes("date created")) return "dateCreated";
@@ -636,7 +618,7 @@
     // Collapse newlines, non-breaking spaces, and doubled spaces so header
     // matching survives however ePASS formats the header cells.
     function normalizeHeaderText(value) {
-      return String(value == null ? "" : value).replace(/[\s\u00a0]+/g, " ").trim().toLowerCase();
+      return String(value == null ? "" : value).replace(/[\s ]+/g, " ").trim().toLowerCase();
     }
 
     function findHeaderRowIndex(grid) {
@@ -677,6 +659,7 @@
         const invoice = String(row.invoice || "").trim();
         if (!invoice) continue;
         rows.push({
+          invType: String(row.invType || "").trim().toUpperCase(),
           invoice,
           sp: String(row.sp || "").trim(),
           userCreated: String(row.userCreated || "").trim(),
@@ -712,9 +695,9 @@
         const buffer = await file.arrayBuffer();
         const grids = await workbookToGrids(buffer);
         const rows = parseWorkbook(grids);
-        if (!rows.length) throw new Error("No order rows found in that file.");
+        if (!rows.length) throw new Error("No ticket rows found in that file.");
 
-        const res = await fetch("/api/sales-orders", {
+        const res = await fetch("/api/service-orders", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           credentials: "same-origin",
@@ -722,14 +705,14 @@
         });
         const data = await res.json().catch(() => ({}));
         if (!res.ok) throw new Error(data.error || "Upload failed.");
-        snapshot = data.snapshot;
-        renderAll();
-        setBanner(`Loaded ${rows.length} orders from ${file.name}.`, "ok");
+        // Re-fetch so the card-on-file join reflects the new snapshot.
+        await loadSnapshot();
+        setBanner(`Loaded ${rows.length} tickets from ${file.name}.`, "ok");
       } catch (err) {
         setBanner(err.message, "error");
       } finally {
         el("uploadBtn").disabled = false;
-        el("uploadBtn").textContent = "Upload open order report";
+        el("uploadBtn").textContent = "Upload service ticket report";
         el("fileInput").value = "";
       }
     });
@@ -737,11 +720,12 @@
     // ------------------------------------------------------------------
     // Filters
     // ------------------------------------------------------------------
-    document.querySelectorAll(".chip[data-sev]").forEach((chip) => {
+    document.querySelectorAll(".chip[data-type]").forEach((chip) => {
       chip.addEventListener("click", () => {
-        document.querySelectorAll(".chip[data-sev]").forEach((c) => c.classList.remove("active"));
+        document.querySelectorAll(".chip[data-type]").forEach((c) => c.classList.remove("active"));
         chip.classList.add("active");
-        sevFilter = chip.dataset.sev;
+        typeFilter = chip.dataset.type;
+        renderStatusChart();
         renderTable();
       });
     });
@@ -749,22 +733,29 @@
       statusFilterValue = el("statusFilter").value;
       renderTable();
     });
-    el("flaggedOnly").addEventListener("change", renderTable);
+    el("cardFilter").addEventListener("change", () => {
+      cardFilterValue = el("cardFilter").value;
+      renderTable();
+    });
+    el("pastOnly").addEventListener("change", renderTable);
     el("searchInput").addEventListener("input", (event) => {
       searchTerm = event.target.value.trim();
       renderTable();
     });
 
     // ------------------------------------------------------------------
+    async function loadSnapshot() {
+      const res = await fetch("/api/service-orders", { credentials: "same-origin" });
+      const data = await res.json();
+      if (res.ok && data.snapshot) {
+        snapshot = data.snapshot;
+        cards = data.cards || {};
+        renderAll();
+      }
+    }
+
     (async function init() {
-      try {
-        const res = await fetch("/api/sales-orders", { credentials: "same-origin" });
-        const data = await res.json();
-        if (res.ok && data.snapshot) {
-          snapshot = data.snapshot;
-          renderAll();
-        }
-      } catch {}
+      try { await loadSnapshot(); } catch {}
     })();
   </script>
 </body>

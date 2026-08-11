@@ -10,19 +10,19 @@
   <style>
     :root {
       --bg: #f7f8fc; --card: #ffffff; --text: #1f2937; --muted: #6b7280;
-      --border: #dbe1ea; --primary: #21692c; --primary-hover: #1a5222;
+      --border: #dbe1ea; --primary: var(--primary); --primary-hover: var(--primary-hover);
       --shadow: 0 10px 35px rgba(0, 0, 0, 0.08); --radius: 18px;
     }
     * { box-sizing: border-box; }
     body {
       margin: 0;
       font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-      background: linear-gradient(180deg, #eaf4ec 0%, var(--bg) 100%);
+      background: linear-gradient(180deg, var(--primary-tint) 0%, var(--bg) 100%);
       color: var(--text); min-height: 100vh; padding: 32px 16px;
     }
     .wrap { max-width: 880px; margin: 0 auto; }
     .surface {
-      background: var(--card); border: 1px solid rgba(33, 105, 44, 0.12);
+      background: var(--card); border: 1px solid rgba(var(--primary-rgb), 0.12);
       box-shadow: var(--shadow); border-radius: var(--radius);
       padding: 30px; margin: 0 auto 22px;
     }
@@ -42,7 +42,7 @@
       background: var(--primary); color: #fff;
       border-radius: 20px; font-family: inherit;
       font-size: clamp(20px, 3vw, 28px); font-weight: 800;
-      box-shadow: 0 12px 34px rgba(33, 105, 44, 0.32);
+      box-shadow: 0 12px 34px rgba(var(--primary-rgb), 0.32);
       transition: transform 0.08s ease, background 0.12s ease;
     }
     .launch-btn:hover { background: var(--primary-hover); transform: translateY(-2px); }
@@ -55,7 +55,7 @@
     .run-overlay {
       display: none;
       position: fixed; inset: 0; z-index: 100;
-      background: linear-gradient(180deg, #eaf4ec 0%, var(--bg) 100%);
+      background: linear-gradient(180deg, var(--primary-tint) 0%, var(--bg) 100%);
       overflow-y: auto;
     }
     body.run-mode .run-overlay { display: block; }
@@ -89,7 +89,7 @@
     .progress-word {
       display: flex; justify-content: space-between;
       font-size: clamp(24px, 4vw, 44px); font-weight: 800;
-      color: #8fc49a; text-transform: uppercase;
+      color: var(--primary-soft); text-transform: uppercase;
       margin: 0 6px 14px;
       user-select: none;
     }
@@ -103,7 +103,7 @@
       transition: transform 0.06s ease, background 0.12s ease, border-color 0.12s ease;
     }
     .progress-btn:hover { border-color: #b6c2da; transform: translateY(-2px); }
-    .progress-btn.selected { background: #eaf4ec; border-color: var(--primary); color: #1a5222; }
+    .progress-btn.selected { background: var(--primary-tint); border-color: var(--primary); color: var(--primary-hover); }
 
     /* Saved view */
     .saved-view { display: none; text-align: center; }
@@ -126,7 +126,7 @@
     .saved-btn:hover { transform: translateY(-2px); }
     .saved-btn.change { border: 2px solid var(--border); background: #fff; color: var(--text); }
     .saved-btn.change:hover { border-color: #b6c2da; }
-    .saved-btn.close { border: none; background: var(--primary); color: #fff; box-shadow: 0 12px 34px rgba(33, 105, 44, 0.32); }
+    .saved-btn.close { border: none; background: var(--primary); color: #fff; box-shadow: 0 12px 34px rgba(var(--primary-rgb), 0.32); }
     .saved-btn.close:hover { background: var(--primary-hover); }
 
     /* Close message view */
@@ -141,7 +141,7 @@
       margin-top: 34px;
       font-size: clamp(44px, 7vw, 72px);
       font-weight: 800;
-      color: #8fc49a;
+      color: var(--primary-soft);
     }
 
     .run-status { display: none; border-radius: 14px; padding: 14px 16px; font-size: 16px; margin-top: 18px; text-align: center; }

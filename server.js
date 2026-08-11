@@ -196,6 +196,10 @@ import {
   listMyPushedNotifications,
   getPushedNotification
 } from "./lib/sales-orders-postgres.js";
+import {
+  getServiceOrderSnapshot,
+  saveServiceOrderSnapshot
+} from "./lib/service-orders-postgres.js";
 import { extractQuoteDataFromPdfBuffer } from "./lib/spec-scan.js";
 import {
   saveSatisfactionResponse,
@@ -340,6 +344,7 @@ const INTERNAL_PAGE_PATHS = new Set([
   "/clearance.html",
   "/credit-applications.html",
   "/sales-order-health.html",
+  "/service-order-health.html",
   "/flag-closures.html",
   "/target-builder.html"
 ]);
@@ -442,6 +447,7 @@ const JOB_CODE_PRESETS = {
     pages: [
       "/appliance-service-calls.html",
       "/archive-service-calls.html",
+      "/service-order-health.html",
       "/intent-lookup.html",
       "/link-detail-lookup.html",
       "/paid-order-detail.html"
@@ -521,6 +527,7 @@ const PAGE_LABELS = {
   "/clearance.html": "Clearance Hit List",
   "/credit-applications.html": "Builder Credit Applications",
   "/sales-order-health.html": "Sales Order Health Report",
+  "/service-order-health.html": "Service Order Health",
   "/flag-closures.html": "Notification Closure Report",
   "/target-builder.html": "Target Builder"
 };
@@ -575,6 +582,7 @@ const PAGE_CATEGORIES = [
     pages: [
       "/appliance-service-calls.html",
       "/archive-service-calls.html",
+      "/service-order-health.html",
       "/intent-lookup.html",
       "/link-detail-lookup.html",
       "/paid-order-detail.html"
@@ -1550,8 +1558,35 @@ app.get("/api/auth/session", (req, res) => {
     dashboardView: req.authUser.kind === "db"
       ? (req.authUser.preferences?.dashboardView || null)
       : null,
-    canCustomizeDashboard: req.authUser.kind === "db"
+    canCustomizeDashboard: req.authUser.kind === "db",
+    // Preferred color scheme ("green" | "red" | "purple") — internal-shell.js
+    // applies it as data-theme on <html>. Legacy sessions get the default.
+    theme: req.authUser.kind === "db"
+      ? (req.authUser.preferences?.theme || "green")
+      : "green"
   });
+});
+
+// Save the signed-in user's color scheme. Legacy shared logins have no
+// profile row, so their choice only lives in the browser's local cache.
+app.post("/api/me/theme", async (req, res) => {
+  if (!req.authUser) {
+    return res.status(401).json({ error: "Authentication required." });
+  }
+  const theme = String(req.body?.theme || "").trim();
+  if (!["green", "red", "purple"].includes(theme)) {
+    return res.status(400).json({ error: "Unknown color scheme." });
+  }
+  if (req.authUser.kind !== "db") {
+    return res.json({ success: true, saved: false, theme });
+  }
+  try {
+    await setUserPreferences(req.authUser.id, { theme });
+    return res.json({ success: true, saved: true, theme });
+  } catch (err) {
+    console.error("Save theme failed:", err.message);
+    return res.status(500).json({ error: "Unable to save your color scheme." });
+  }
 });
 
 // Save the signed-in user's preferred default dashboard view (employee +
@@ -5968,6 +6003,144 @@ app.post("/api/sales-orders", requirePagePermission("/sales-order-health.html"),
   } catch (err) {
     console.error("Sales orders upload failed:", err.message);
     return res.status(500).json({ error: "Unable to store the sales order snapshot." });
+  }
+});
+
+// INTERNAL: Service Order Health (service-order-health.html, Client Care).
+// Same pattern as /api/sales-orders — the page parses the ExportInvoice xlsx
+// (SV + WTY invoice types) in the browser and posts normalized rows; the
+// latest snapshot is stored whole. The GET additionally joins each ticket's
+// Invoice # against the Service Request Queue's ERP Order Number (active +
+// archived cards) so the page can show whether a secure card is on file —
+// computed at read time so it always reflects the current queue.
+
+// Both sides of the match are staff-entered / export-formatted text, so
+// compare on tolerant keys: uppercase alphanumerics ("SV00092385"), the
+// zero-compressed variant ("SV92385"), and the bare zero-stripped digits
+// ("92385", ignored when shorter than 4 digits to avoid false hits).
+function erpInvoiceMatchKeys(value) {
+  const raw = String(value || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+  if (!raw) return [];
+  const keys = new Set([raw]);
+  const compact = raw.replace(/([A-Z])0+(?=\d)/g, "$1").replace(/^0+(?=\d)/, "");
+  keys.add(compact);
+  const digits = raw.replace(/[^0-9]/g, "").replace(/^0+(?=\d)/, "");
+  if (digits.length >= 4) keys.add(digits);
+  return [...keys];
+}
+
+async function buildServiceCardMatchIndex() {
+  const [active, archived] = await Promise.all([
+    readServiceCards(),
+    readArchivedServiceCards().catch(() => [])
+  ]);
+  const index = new Map();
+  const add = (row, isArchived) => {
+    const entry = {
+      hasCard: !!(row.customerId && row.paymentMethodId),
+      archived: isArchived,
+      queueStatus: row.queueStatus || "",
+      customerName: row.customerName || ""
+    };
+    for (const key of erpInvoiceMatchKeys(row.erpOrderNumber)) {
+      const existing = index.get(key);
+      // Prefer a match that has a card, then an active card over an archived one.
+      if (!existing || (entry.hasCard && !existing.hasCard) ||
+          (entry.hasCard === existing.hasCard && existing.archived && !isArchived)) {
+        index.set(key, entry);
+      }
+    }
+  };
+  (Array.isArray(archived) ? archived : []).forEach((row) => add(row, true));
+  (Array.isArray(active) ? active : []).forEach((row) => add(row, false));
+  return index;
+}
+
+app.get("/api/service-orders", requirePagePermission("/service-order-health.html"), async (req, res) => {
+  try {
+    const snapshot = await getServiceOrderSnapshot();
+    const cards = {};
+    if (snapshot?.rows?.length) {
+      const index = await buildServiceCardMatchIndex();
+      for (const row of snapshot.rows) {
+        for (const key of erpInvoiceMatchKeys(row.invoice)) {
+          const match = index.get(key);
+          if (match) { cards[row.invoice] = match; break; }
+        }
+      }
+    }
+    return res.json({ snapshot, cards });
+  } catch (err) {
+    console.error("Service orders load failed:", err.message);
+    return res.status(500).json({ error: "Unable to load the service order snapshot." });
+  }
+});
+
+app.post("/api/service-orders", requirePagePermission("/service-order-health.html"), async (req, res) => {
+  try {
+    const rows = req.body?.rows;
+    if (!Array.isArray(rows) || !rows.length) {
+      return res.status(400).json({ error: "No ticket rows found in the upload." });
+    }
+    if (rows.length > 20000) {
+      return res.status(400).json({ error: "That upload has too many rows." });
+    }
+
+    const cleanText = (value, max = 200) => String(value == null ? "" : value).trim().slice(0, max);
+    const cleanNumber = (value) => {
+      const n = Number(value);
+      return Number.isFinite(n) ? Math.round(n * 100) / 100 : null;
+    };
+    const cleanDate = (value) => {
+      const s = String(value || "").trim().slice(0, 10);
+      return /^\d{4}-\d{2}-\d{2}$/.test(s) ? s : "";
+    };
+
+    const normalized = rows
+      .map((row) => ({
+        invType: cleanText(row.invType, 10).toUpperCase(),
+        invoice: cleanText(row.invoice, 40),
+        sp: cleanText(row.sp, 20),
+        userCreated: cleanText(row.userCreated, 20),
+        dateCreated: cleanDate(row.dateCreated),
+        paymentType: cleanText(row.paymentType, 20),
+        balance: cleanNumber(row.balance),
+        total: cleanNumber(row.total),
+        status: cleanText(row.status, 40),
+        pickupDate: cleanDate(row.pickupDate),
+        schedDate: cleanDate(row.schedDate),
+        route: cleanText(row.route, 20),
+        jobStatus: cleanText(row.jobStatus, 30),
+        customerNumber: cleanText(row.customerNumber, 40),
+        name: cleanText(row.name, 120),
+        address: cleanText(row.address, 160),
+        zip: cleanText(row.zip, 20),
+        po: cleanText(row.po, 60),
+        reference: cleanText(row.reference, 120)
+      }))
+      .filter((row) => row.invoice);
+
+    if (!normalized.length) {
+      return res.status(400).json({ error: "No rows with an invoice number found — is this the right export?" });
+    }
+
+    const snapshot = await saveServiceOrderSnapshot({
+      rows: normalized,
+      filename: String(req.body?.filename || "").slice(0, 200),
+      byEmail: req.authUser?.email || req.authUser?.username || "",
+      byName: req.authUser?.displayName || ""
+    });
+
+    recordAudit({
+      ip: req.ip, actorUserId: req.authUser?.id || null,
+      action: "service_orders_uploaded", targetUserId: null,
+      detail: { rows: normalized.length, filename: snapshot.filename }
+    }).catch(() => {});
+
+    return res.json({ ok: true, snapshot });
+  } catch (err) {
+    console.error("Service orders upload failed:", err.message);
+    return res.status(500).json({ error: "Unable to store the service order snapshot." });
   }
 });
 

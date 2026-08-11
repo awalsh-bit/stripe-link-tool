@@ -14,8 +14,6 @@
       --text: #1f2937;
       --muted: #6b7280;
       --border: #dbe1ea;
-      --primary: #21692c;
-      --primary-hover: #1a5222;
       --success-bg: #ecfdf5;
       --success-text: #065f46;
       --error-bg: #fef2f2;
@@ -31,7 +29,7 @@
     body {
       margin: 0;
       font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-      background: linear-gradient(180deg, #eaf4ec 0%, var(--bg) 100%);
+      background: linear-gradient(180deg, var(--primary-tint) 0%, var(--bg) 100%);
       color: var(--text);
       min-height: 100vh;
       padding: 24px 12px;
@@ -49,7 +47,7 @@
 
     .card {
       background: var(--card);
-      border: 1px solid rgba(33, 105, 44, 0.12);
+      border: 1px solid rgba(var(--primary-rgb), 0.12);
       box-shadow: var(--shadow);
       border-radius: var(--radius);
       padding: 24px;
@@ -69,7 +67,7 @@
       min-height: 34px;
       padding: 0 12px;
       border-radius: 999px;
-      background: rgba(33, 105, 44, 0.1);
+      background: rgba(var(--primary-rgb), 0.1);
       color: var(--primary);
       font-size: 12px;
       font-weight: 800;
@@ -143,8 +141,8 @@
     }
 
     input:focus, select:focus {
-      border-color: rgba(33, 105, 44, 0.75);
-      box-shadow: 0 0 0 4px rgba(33, 105, 44, 0.12);
+      border-color: rgba(var(--primary-rgb), 0.75);
+      box-shadow: 0 0 0 4px rgba(var(--primary-rgb), 0.12);
     }
 
     .hint {
@@ -185,12 +183,12 @@
     }
 
     .secondary {
-      background: #eaf4ec;
-      color: #1a5222;
+      background: var(--primary-tint);
+      color: var(--primary-hover);
     }
 
     .secondary:hover {
-      background: #d7ead9;
+      background: var(--primary-tint-2);
     }
 
     .status {
@@ -239,7 +237,7 @@
       border: 1px solid var(--border);
       border-radius: 16px;
       padding: 16px;
-      background: #fafdfa;
+      background: var(--primary-faint);
       color: var(--text);
       cursor: pointer;
       transition: border-color 0.2s ease, box-shadow 0.2s ease;
@@ -247,8 +245,8 @@
     }
 
     .run-card.active {
-      border-color: rgba(33, 105, 44, 0.45);
-      box-shadow: 0 8px 24px rgba(33, 105, 44, 0.12);
+      border-color: rgba(var(--primary-rgb), 0.45);
+      box-shadow: 0 8px 24px rgba(var(--primary-rgb), 0.12);
       background: #fff;
     }
 
@@ -323,7 +321,7 @@
     }
 
     .badge.draft {
-      background: rgba(33, 105, 44, 0.1);
+      background: rgba(var(--primary-rgb), 0.1);
       color: var(--primary);
     }
 
@@ -347,7 +345,7 @@
     .kpi {
       border: 1px solid var(--border);
       border-radius: 16px;
-      background: #fafdfa;
+      background: var(--primary-faint);
       padding: 16px;
     }
 
@@ -410,7 +408,7 @@
     .salesperson-card {
       border: 1px solid var(--border);
       border-radius: 16px;
-      background: #fafdfa;
+      background: var(--primary-faint);
       padding: 14px 16px;
       cursor: pointer;
       transition: border-color 0.2s ease, box-shadow 0.2s ease;
@@ -419,8 +417,8 @@
     }
 
     .salesperson-card.active {
-      border-color: rgba(33, 105, 44, 0.45);
-      box-shadow: 0 8px 24px rgba(33, 105, 44, 0.12);
+      border-color: rgba(var(--primary-rgb), 0.45);
+      box-shadow: 0 8px 24px rgba(var(--primary-rgb), 0.12);
       background: #fff;
     }
 
@@ -489,7 +487,7 @@
     .detail-panel-header {
       padding: 18px 20px;
       border-bottom: 1px solid var(--border);
-      background: #fafdfa;
+      background: var(--primary-faint);
     }
 
     .detail-panel-header-row {
@@ -520,7 +518,7 @@
       padding: 0 12px;
       border-radius: 999px;
       border: 1px solid var(--border);
-      background: #fafdfa;
+      background: var(--primary-faint);
       color: #475569;
       font-size: 13px;
       font-weight: 700;
@@ -582,7 +580,7 @@
       padding: 12px 14px;
       border: 1px solid #dbe4f3;
       border-radius: 12px;
-      background: #f6faf6;
+      background: var(--primary-wash-4);
       font-size: 13px;
     }
 
@@ -632,7 +630,7 @@
       letter-spacing: 0.08em;
       text-transform: uppercase;
       color: #64748b;
-      background: #fafdfa;
+      background: var(--primary-faint);
       position: sticky;
       top: 0;
       z-index: 1;

@@ -14,8 +14,6 @@
       --text: #1f2937;
       --muted: #6b7280;
       --border: #dbe1ea;
-      --primary: #21692c;
-      --primary-hover: #1a5222;
       --error-bg: #fef2f2;
       --error-text: #991b1b;
       --shadow: 0 10px 35px rgba(0, 0, 0, 0.08);
@@ -29,7 +27,7 @@
     body {
       margin: 0;
       font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-      background: linear-gradient(180deg, #eaf4ec 0%, var(--bg) 100%);
+      background: linear-gradient(180deg, var(--primary-tint) 0%, var(--bg) 100%);
       color: var(--text);
       min-height: 100vh;
       padding: 32px 16px;
@@ -39,7 +37,7 @@
 
     .surface {
       background: var(--card);
-      border: 1px solid rgba(33, 105, 44, 0.12);
+      border: 1px solid rgba(var(--primary-rgb), 0.12);
       box-shadow: var(--shadow);
       border-radius: var(--radius);
       padding: 22px;
@@ -64,7 +62,7 @@
       cursor: pointer;
       font-family: inherit;
     }
-    .preset-chip:hover { background: #f4f9f5; border-color: rgba(33, 105, 44, 0.32); }
+    .preset-chip:hover { background: var(--primary-wash); border-color: rgba(var(--primary-rgb), 0.32); }
     .preset-chip.active { background: var(--primary); border-color: var(--primary); color: #fff; }
 
     input[type="date"] {
@@ -78,15 +76,15 @@
       outline: none;
     }
     input[type="date"]:focus {
-      border-color: rgba(33, 105, 44, 0.75);
-      box-shadow: 0 0 0 4px rgba(33, 105, 44, 0.12);
+      border-color: rgba(var(--primary-rgb), 0.75);
+      box-shadow: 0 0 0 4px rgba(var(--primary-rgb), 0.12);
     }
 
     button.action {
       appearance: none;
-      border: 1px solid rgba(33, 105, 44, 0.18);
-      background: #eaf4ec;
-      color: #1a5222;
+      border: 1px solid rgba(var(--primary-rgb), 0.18);
+      background: var(--primary-tint);
+      color: var(--primary-hover);
       border-radius: 12px;
       padding: 12px 16px;
       font-size: 14px;
@@ -94,7 +92,7 @@
       cursor: pointer;
       font-family: inherit;
     }
-    button.action:hover { background: #d7ead9; }
+    button.action:hover { background: var(--primary-tint-2); }
     button.action:disabled { opacity: 0.6; cursor: wait; }
     button.action.primary { background: var(--primary); border-color: var(--primary); color: #fff; }
     button.action.primary:hover { background: var(--primary-hover); }
@@ -111,8 +109,8 @@
     }
     input[type="search"] { min-width: 260px; }
     select:focus, input[type="search"]:focus {
-      border-color: rgba(33, 105, 44, 0.75);
-      box-shadow: 0 0 0 4px rgba(33, 105, 44, 0.12);
+      border-color: rgba(var(--primary-rgb), 0.75);
+      box-shadow: 0 0 0 4px rgba(var(--primary-rgb), 0.12);
     }
 
     .error-banner {
@@ -130,7 +128,7 @@
     .kpi-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 14px; margin: 0 auto 20px; }
     .kpi {
       background: var(--card);
-      border: 1px solid rgba(33, 105, 44, 0.12);
+      border: 1px solid rgba(var(--primary-rgb), 0.12);
       box-shadow: var(--shadow);
       border-radius: 14px;
       padding: 14px 16px;
@@ -169,7 +167,7 @@
     .badge.yellow { background: #fef3c7; color: #92400e; }
     .badge.green { background: #dcfce7; color: #166534; }
     .badge.neutral { background: #e5e7eb; color: #374151; }
-    .badge.status { background: #eaf4ec; color: #1a5222; }
+    .badge.status { background: var(--primary-tint); color: var(--primary-hover); }
     .badge.repeat { background: #fdf2f8; color: #9d174d; }
 
     .asof { font-size: 13px; color: var(--muted); }

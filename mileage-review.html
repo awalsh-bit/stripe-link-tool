@@ -14,8 +14,6 @@
       --text: #1f2937;
       --muted: #6b7280;
       --border: #dbe1ea;
-      --primary: #21692c;
-      --primary-hover: #1a5222;
       --success-bg: #ecfdf5;
       --success-text: #065f46;
       --error-bg: #fef2f2;
@@ -31,7 +29,7 @@
     body {
       margin: 0;
       font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-      background: linear-gradient(180deg, #eaf4ec 0%, var(--bg) 100%);
+      background: linear-gradient(180deg, var(--primary-tint) 0%, var(--bg) 100%);
       color: var(--text);
       min-height: 100vh;
       padding: 32px 16px;
@@ -41,7 +39,7 @@
 
     .surface {
       background: var(--card);
-      border: 1px solid rgba(33, 105, 44, 0.12);
+      border: 1px solid rgba(var(--primary-rgb), 0.12);
       box-shadow: var(--shadow);
       border-radius: var(--radius);
       padding: 24px;
@@ -70,8 +68,8 @@
     }
 
     input:focus, select:focus {
-      border-color: rgba(33, 105, 44, 0.75);
-      box-shadow: 0 0 0 4px rgba(33, 105, 44, 0.12);
+      border-color: rgba(var(--primary-rgb), 0.75);
+      box-shadow: 0 0 0 4px rgba(var(--primary-rgb), 0.12);
     }
 
     button {
@@ -90,8 +88,8 @@
 
     button:hover { background: var(--primary-hover); }
     button:disabled { opacity: 0.6; cursor: wait; }
-    button.secondary { background: #eaf4ec; color: var(--primary); }
-    button.secondary:hover { background: #d7ead9; }
+    button.secondary { background: var(--primary-tint); color: var(--primary); }
+    button.secondary:hover { background: var(--primary-tint-2); }
     button.danger { background: #fee2e2; color: #991b1b; }
     button.danger:hover { background: #fecaca; }
     button.approve { background: #059669; }
@@ -143,7 +141,7 @@
       white-space: nowrap;
     }
 
-    .pill.draft { background: #eaf4ec; color: #1a5222; }
+    .pill.draft { background: var(--primary-tint); color: var(--primary-hover); }
     .pill.submitted { background: var(--warn-bg); color: var(--warn-text); }
     .pill.approved { background: var(--success-bg); color: var(--success-text); }
     .pill.paid { background: #d1fae5; color: #065f46; border: 1px solid #6ee7b7; }
@@ -153,7 +151,7 @@
     .detail-head .who { font-size: 16px; font-weight: 800; }
 
     .grand { margin-top: 14px; display: flex; gap: 24px; flex-wrap: wrap; font-size: 15px; }
-    .grand .box { background: #fbfdfb; border: 1px solid var(--border); border-radius: 12px; padding: 12px 16px; }
+    .grand .box { background: var(--primary-faint-2); border: 1px solid var(--border); border-radius: 12px; padding: 12px 16px; }
     .grand .box strong { font-size: 20px; display: block; }
 
     .deny-box { margin-top: 14px; display: none; gap: 10px; }
@@ -189,7 +187,7 @@
         border-radius: 14px;
         padding: 10px 12px 12px;
         margin-bottom: 12px;
-        background: #fbfdfb;
+        background: var(--primary-faint-2);
         position: relative;
       }
       .list-table td, .entry-table td { border: none; padding: 5px 0; }

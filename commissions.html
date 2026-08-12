@@ -113,6 +113,57 @@
     .badge.ineligible { background: #fee2e2; color: #991b1b; border: 2px solid #111827; }
     .badge.split { background: #ede9fe; color: #5b21b6; }
     .badge.floor { background: #fef3c7; color: #92400e; }
+    .badge.adjusted { background: #ffedd5; color: #9a3412; border: 1px solid #fdba74; }
+    .badge.unpaid { background: #fee2e2; color: #991b1b; border: 2px solid #111827; }
+    .badge.released { background: #dcfce7; color: #166534; border: 2px solid #111827; }
+    .badge.heldmonth { background: #e5e7eb; color: #374151; }
+
+    tr.held-row td { background: #fff7f7; }
+    tr.held-row .held-commission { text-decoration: line-through; color: #9ca3af; font-weight: 600; }
+
+    .balance-line { font-size: 12.5px; margin-top: 10px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+    .balance-line.ok { color: #166534; }
+    .balance-line.warn { color: #92400e; font-weight: 600; }
+
+    .edit-btn {
+      appearance: none;
+      border: 1px solid var(--border);
+      background: #fff;
+      color: #6b7280;
+      border-radius: 7px;
+      width: 24px; height: 22px;
+      font-size: 12px;
+      line-height: 1;
+      cursor: pointer;
+      padding: 0;
+    }
+    .edit-btn:hover { background: var(--primary-tint); color: var(--primary-hover); border-color: rgba(var(--primary-rgb), 0.4); }
+
+    tr.editor-row td {
+      background: var(--primary-wash);
+      border-bottom: 2px solid rgba(var(--primary-rgb), 0.25);
+      padding: 10px 12px;
+    }
+    .editor-grid { display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end; }
+    .editor-grid .ef { display: flex; flex-direction: column; gap: 3px; }
+    .editor-grid label { font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); font-weight: 700; }
+    .editor-grid input[type="number"], .editor-grid input[type="text"], .editor-grid select {
+      border: 1px solid var(--border); border-radius: 8px; padding: 7px 9px; font-size: 12.5px; font-family: inherit; background: #fff; outline: none;
+    }
+    .editor-grid input[type="number"] { width: 110px; }
+    .editor-grid input[type="text"] { width: 200px; }
+    .editor-grid .save-ov {
+      appearance: none; border: none; background: var(--primary); color: #fff;
+      border-radius: 8px; padding: 8px 14px; font-size: 12.5px; font-weight: 700; cursor: pointer; font-family: inherit;
+    }
+    .editor-grid .save-ov:hover { background: var(--primary-hover); }
+    .editor-grid .clear-ov {
+      appearance: none; border: 1px solid var(--border); background: #fff; color: #991b1b;
+      border-radius: 8px; padding: 8px 12px; font-size: 12.5px; font-weight: 700; cursor: pointer; font-family: inherit;
+    }
+    .editor-grid .ef.credit { flex-direction: row; align-items: center; gap: 7px; padding-bottom: 8px; }
+    .editor-grid .ef.credit label { text-transform: none; letter-spacing: 0; font-size: 12.5px; color: var(--text); }
+    .editor-hint { font-size: 11.5px; color: var(--muted); margin-top: 6px; width: 100%; }
 
     .totals-strip {
       display: grid;
@@ -196,9 +247,12 @@
         <select id="monthSelect"></select>
         <label class="check-inline"><input type="checkbox" id="showAll" /> Show all salespeople (not just Field Sales Consultants)</label>
         <span style="flex: 1;"></span>
+        <button type="button" class="ghost-btn" id="balanceBtn">Upload balance check</button>
+        <input type="file" id="balanceFile" accept=".xlsx,.xls" style="display: none;" />
         <button type="button" class="ghost-btn" id="csvBtn">Export summary CSV</button>
         <span class="asof" id="countLine"></span>
       </div>
+      <div class="balance-line" id="balanceLine"></div>
       <div class="banner" id="errorBanner"></div>
 
       <details class="plan" style="margin-top: 14px;">
@@ -276,10 +330,67 @@
         </div>`;
     }
 
+    const COLS = { new: 10, closeout: 9, protect: 8, excluded: 8 };
+    let editorKey = null; // lineKey of the open editor
+
+    function splitBadge(l) {
+      if (l.overridden?.credit) return ` <span class="badge adjusted" title="Split overridden — 100% credit">100% credit${l.splitPartners ? " (was " + escapeHtml(l.splitPartners) + ")" : ""}</span>`;
+      if (l.split) return ` <span class="badge split">split ½ (${escapeHtml(l.splitPartners)})</span>`;
+      return "";
+    }
+    function adjBadge(l) {
+      if (!l.overridden) return "";
+      const what = [l.overridden.list && "list", l.overridden.cost && "cost", l.overridden.rate && "rate"].filter(Boolean).join("+");
+      if (!what) return "";
+      const title = `Original list ${money(l.original.revenue)}${l.original.serialCost != null ? ", cost " + money(l.original.serialCost) : ""}${l.overrideNote ? " — " + l.overrideNote : ""}`;
+      return ` <span class="badge adjusted" title="${escapeHtml(title)}">adjusted: ${what}</span>`;
+    }
+
+    function editorHtml(l, kind) {
+      const ov = l.override || {};
+      const partners = String(l.splitPartners || "").split("+").filter(Boolean);
+      const canRate = kind !== "protect";
+      return `
+        <tr class="editor-row" data-editor="${escapeHtml(l.lineKey)}">
+          <td colspan="${COLS[kind]}">
+            <div class="editor-grid">
+              <div class="ef"><label>List $ override</label>
+                <input type="number" step="0.01" class="ov-list" value="${ov.listPrice ?? ""}" placeholder="${l.original.revenue}"></div>
+              ${kind === "protect" ? "" : `
+              <div class="ef"><label>Cost $ override</label>
+                <input type="number" step="0.01" class="ov-cost" value="${ov.serialCost ?? ""}" placeholder="${l.original.serialCost ?? "n/a"}"></div>`}
+              ${canRate ? `
+              <div class="ef"><label>Payout % override</label>
+                <input type="number" step="0.1" min="0" max="100" class="ov-rate" value="${ov.rate != null ? Math.round(ov.rate * 10000) / 100 : ""}" placeholder="tier"></div>` : ""}
+              ${l.split && partners.length > 1 ? `
+              <div class="ef credit">
+                <label style="display: inline-flex; align-items: center; gap: 7px; cursor: pointer;">
+                  <input type="checkbox" class="ov-credit-on" ${ov.fullCreditTo ? "checked" : ""}>
+                  Credit 100% to
+                </label>
+                <select class="ov-credit-to">${partners.map((p) => `<option value="${escapeHtml(p)}" ${ov.fullCreditTo === p ? "selected" : ""}>${escapeHtml(p)}</option>`).join("")}</select>
+              </div>` : ""}
+              <div class="ef"><label>Note</label>
+                <input type="text" class="ov-note" maxlength="300" value="${escapeHtml(ov.note || "")}" placeholder="why (shows on hover)"></div>
+              <button type="button" class="save-ov" data-save-ov="${escapeHtml(l.lineKey)}">Save</button>
+              ${l.override ? `<button type="button" class="clear-ov" data-clear-ov="${escapeHtml(l.lineKey)}">Clear override</button>` : ""}
+              <div class="editor-hint">Blank fields keep the report's values (shown as placeholders). A payout % on an RTV/SVC line forces it back into pay. Overrides stick to this line across re-uploads.</div>
+            </div>
+          </td>
+        </tr>`;
+    }
+
+    function heldBadge(l) {
+      return l.held ? ' <span class="badge unpaid" title="Invoice carries a balance on the uploaded balance check — held out of this month\'s payout until it clears">Unpaid</span>' : "";
+    }
+    function releasedBadge(l) {
+      return l.released ? ` <span class="badge released">released</span> <span class="badge heldmonth">held ${escapeHtml(monthLabel(l.heldFrom))}</span>` : "";
+    }
+
     function lineRows(lines, kind) {
       return lines.map((l) => `
-        <tr>
-          <td style="white-space: nowrap; font-weight: 600;">${escapeHtml(l.invoice)}${l.split ? ' <span class="badge split">split ½ (' + escapeHtml(l.splitPartners) + ')</span>' : ""}</td>
+        <tr class="${l.held ? "held-row" : ""}">
+          <td style="white-space: nowrap; font-weight: 600;">${escapeHtml(l.invoice)}${splitBadge(l)}${adjBadge(l)}${heldBadge(l)}${releasedBadge(l)}</td>
           <td>${escapeHtml(l.customer)}</td>
           <td>${escapeHtml(l.product)}</td>
           <td class="mono">${escapeHtml(l.serialNumber || "—")}</td>
@@ -289,8 +400,9 @@
             <td class="num">${l.gmPercent == null ? '<span class="badge floor">no cost data</span>' : l.gmPercent.toFixed(1) + "%"}</td>
             <td class="num">${l.belowFloor ? '<span class="badge floor">below 18%</span>' : pctText(l.rate, 0)}</td>` : ""}
           ${kind === "closeout" ? `<td class="num">${pctText(l.rate, 0)}</td>` : ""}
-          <td class="num" style="font-weight: 700;">${kind === "protect" ? "—" : money(l.commission)}</td>
-        </tr>`).join("");
+          <td class="num" style="font-weight: 700;">${kind === "protect" ? "—" : (l.held ? `<span class="held-commission">${money(l.commission)}</span>` : money(l.commission))}</td>
+          <td class="num no-print"><button type="button" class="edit-btn" data-edit="${escapeHtml(l.lineKey)}" data-kind="${kind}" title="Override list, cost, payout, or split credit">✎</button></td>
+        </tr>${editorKey === l.lineKey ? editorHtml(l, kind) : ""}`).join("");
     }
 
     function statementHtml(st) {
@@ -317,24 +429,26 @@
           <div class="tot"><div class="t-label">Closeout commission</div><div class="t-value">${money(t.closeoutCommission)}</div></div>
           <div class="tot"><div class="t-label">EPIC Protect</div><div class="t-value">${money(t.protectCommission)}</div></div>
           <div class="tot"><div class="t-label">Protect bonus</div><div class="t-value">${money(t.protectBonus)}</div></div>
+          ${t.releasedCount ? `<div class="tot"><div class="t-label">Released holds</div><div class="t-value" style="color: #166534;">${money(t.releasedCommission)}</div></div>` : ""}
+          ${t.heldCount ? `<div class="tot"><div class="t-label">Held — unpaid</div><div class="t-value" style="color: #991b1b;">${money(t.heldCommission)}</div></div>` : ""}
           <div class="tot grand"><div class="t-label">Total commission</div><div class="t-value">${money(t.commission)}</div></div>
         </div>
 
         <div class="sec-title">New Serial Inventory<span class="sec-sub">${money(t.newRevenue)} delivered list</span></div>
         ${st.newLines.length ? `
         <table class="lines">
-          <thead><tr><th>Invoice</th><th>Customer</th><th>Model</th><th>Serial #</th><th class="num">Qty</th><th class="num">List</th><th class="num">GM</th><th class="num">Rate</th><th class="num">Commission</th></tr></thead>
+          <thead><tr><th>Invoice</th><th>Customer</th><th>Model</th><th>Serial #</th><th class="num">Qty</th><th class="num">List</th><th class="num">GM</th><th class="num">Rate</th><th class="num">Commission</th><th class="no-print"></th></tr></thead>
           <tbody>${lineRows(st.newLines, "new")}
-            <tr class="total-row"><td colspan="5">Total</td><td class="num">${money(t.newRevenue)}</td><td></td><td></td><td class="num">${money(t.newCommission)}</td></tr>
+            <tr class="total-row"><td colspan="5">Total</td><td class="num">${money(t.newRevenue)}</td><td></td><td></td><td class="num">${money(t.newCommission)}</td><td class="no-print"></td></tr>
           </tbody>
         </table>` : '<div class="empty-sec">No new serial inventory this month.</div>'}
 
         <div class="sec-title">Closeout Serial Inventory<span class="sec-sub">Open Box &amp; Display — flat rate</span></div>
         ${st.closeoutLines.length ? `
         <table class="lines">
-          <thead><tr><th>Invoice</th><th>Customer</th><th>Model</th><th>Serial #</th><th class="num">Qty</th><th class="num">List</th><th class="num">Rate</th><th class="num">Commission</th></tr></thead>
+          <thead><tr><th>Invoice</th><th>Customer</th><th>Model</th><th>Serial #</th><th class="num">Qty</th><th class="num">List</th><th class="num">Rate</th><th class="num">Commission</th><th class="no-print"></th></tr></thead>
           <tbody>${lineRows(st.closeoutLines, "closeout")}
-            <tr class="total-row"><td colspan="5">Total</td><td class="num">${money(t.closeoutRevenue)}</td><td></td><td class="num">${money(t.closeoutCommission)}</td></tr>
+            <tr class="total-row"><td colspan="5">Total</td><td class="num">${money(t.closeoutRevenue)}</td><td></td><td class="num">${money(t.closeoutCommission)}</td><td class="no-print"></td></tr>
           </tbody>
         </table>` : '<div class="empty-sec">No closeout units this month.</div>'}
 
@@ -349,19 +463,44 @@
         </div>
         ${st.protectLines.length ? `
         <table class="lines">
-          <thead><tr><th>Invoice</th><th>Customer</th><th>Plan</th><th>Serial #</th><th class="num">Qty</th><th class="num">Sell</th><th class="num"></th></tr></thead>
+          <thead><tr><th>Invoice</th><th>Customer</th><th>Plan</th><th>Serial #</th><th class="num">Qty</th><th class="num">Sell</th><th class="num"></th><th class="no-print"></th></tr></thead>
           <tbody>${lineRows(st.protectLines, "protect")}</tbody>
         </table>` : '<div class="empty-sec">No protection plans sold this month.</div>'}
 
+        ${st.releasedLines.length ? `
+        <div class="sec-title">Released Holds<span class="sec-sub">invoices now paid — commission from earlier held months pays this month</span></div>
+        <table class="lines">
+          <thead><tr><th>Invoice</th><th>Customer</th><th>Model</th><th class="num">Qty</th><th class="num">List</th><th class="num">GM</th><th class="num">Rate</th><th class="num">Commission</th></tr></thead>
+          <tbody>${st.releasedLines.map((l) => `
+            <tr><td style="white-space: nowrap; font-weight: 600;">${escapeHtml(l.invoice)} <span class="badge released">released</span> <span class="badge heldmonth">held ${escapeHtml(monthLabel(l.heldFrom))}</span></td>
+            <td>${escapeHtml(l.customer)}</td><td>${escapeHtml(l.product)}</td><td class="num">${l.qty}</td>
+            <td class="num">${money(l.revenue)}</td><td class="num">${l.gmPercent == null ? "—" : l.gmPercent.toFixed(1) + "%"}</td>
+            <td class="num">${pctText(l.rate, 0)}</td><td class="num" style="font-weight: 700;">${money(l.commission)}</td></tr>`).join("")}
+            <tr class="total-row"><td colspan="7">Total released</td><td class="num">${money(t.releasedCommission)}</td></tr>
+          </tbody>
+        </table>` : ""}
+
+        ${st.stillHeldLines.length ? `
+        <div class="sec-title" style="color: #991b1b;">Still Unpaid — Check Next Balance Upload<span class="sec-sub">held from earlier months; pays automatically once a balance check shows the invoice paid</span></div>
+        <table class="lines">
+          <thead><tr><th>Invoice</th><th>Customer</th><th>Model</th><th class="num">Qty</th><th class="num">List</th><th class="num">Commission waiting</th></tr></thead>
+          <tbody>${st.stillHeldLines.map((l) => `
+            <tr class="held-row"><td style="white-space: nowrap; font-weight: 600;">${escapeHtml(l.invoice)} <span class="badge unpaid">Unpaid</span> <span class="badge heldmonth">held ${escapeHtml(monthLabel(l.heldFrom))}</span></td>
+            <td>${escapeHtml(l.customer)}</td><td>${escapeHtml(l.product)}</td><td class="num">${l.qty}</td>
+            <td class="num">${money(l.revenue)}</td>
+            <td class="num">${l.commission == null ? "with protect pool" : money(l.commission)}</td></tr>`).join("")}</tbody>
+        </table>` : ""}
+
         ${st.excludedLines.length ? `
-        <details class="excluded no-print">
-          <summary>${st.excludedLines.length} excluded line(s) — RTV / SVC, not commissioned</summary>
+        <details class="excluded no-print" ${st.excludedLines.some((l) => editorKey === l.lineKey) ? "open" : ""}>
+          <summary>${st.excludedLines.length} excluded line(s) — RTV / SVC, not commissioned (a payout % override brings one back into pay)</summary>
           <table class="lines" style="margin-top: 8px;">
-            <thead><tr><th>Invoice</th><th>Customer</th><th>Model</th><th>Serial #</th><th class="num">Qty</th><th class="num">List</th><th>Reason</th></tr></thead>
+            <thead><tr><th>Invoice</th><th>Customer</th><th>Model</th><th>Serial #</th><th class="num">Qty</th><th class="num">List</th><th>Reason</th><th></th></tr></thead>
             <tbody>${st.excludedLines.map((l) => `
-              <tr><td class="mono">${escapeHtml(l.invoice)}</td><td>${escapeHtml(l.customer)}</td><td>${escapeHtml(l.product)}</td>
+              <tr><td class="mono">${escapeHtml(l.invoice)}${adjBadge(l)}</td><td>${escapeHtml(l.customer)}</td><td>${escapeHtml(l.product)}</td>
               <td class="mono">${escapeHtml(l.serialNumber || "—")}</td><td class="num">${l.qty}</td><td class="num">${money(l.revenue)}</td>
-              <td>${escapeHtml(l.reason)}</td></tr>`).join("")}</tbody>
+              <td>${escapeHtml(l.reason)}</td>
+              <td class="num"><button type="button" class="edit-btn" data-edit="${escapeHtml(l.lineKey)}" data-kind="excluded" title="Override — a payout % puts this line back into pay">✎</button></td></tr>${editorKey === l.lineKey ? editorHtml(l, "excluded") : ""}`).join("")}</tbody>
           </table>
         </details>` : ""}
 
@@ -374,11 +513,28 @@
       return showAll ? all : all.filter((s) => s.commissionPlan === "Field Sales Consultant");
     }
 
+    function renderBalanceLine() {
+      const bl = el("balanceLine");
+      if (!data?.month) { bl.textContent = ""; return; }
+      const check = (data.balanceChecks || {})[data.month];
+      const stillHeld = visibleStatements().reduce((s, st) => s + st.totals.stillHeldCount, 0);
+      const reminder = stillHeld ? ` · ${stillHeld} line(s) held from earlier months await payment — see the red sections below.` : "";
+      if (check) {
+        const when = check.uploadedAt ? new Date(check.uploadedAt).toLocaleString("en-US", { timeZone: "America/Chicago", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) : "";
+        bl.className = "balance-line ok";
+        bl.textContent = `Balance check for ${monthLabel(data.month)}: ${check.filename || "uploaded"} (${when}) — ${check.unpaidCount} unpaid invoice(s) held.${reminder}`;
+      } else {
+        bl.className = "balance-line warn";
+        bl.textContent = `No balance check uploaded for ${monthLabel(data.month)} yet — unpaid invoices are NOT being held. Upload the latest finished Invoice Maintenance export.${reminder}`;
+      }
+    }
+
     function render() {
       const rows = visibleStatements();
       el("countLine").textContent = data?.month
         ? `${rows.length} statement(s) — ${monthLabel(data.month)}`
         : "";
+      renderBalanceLine();
       if (!data?.months?.length) {
         el("statements").innerHTML = '<div class="surface"><div class="empty">No commission data yet — upload a Crystal Commissions report on the Sales Order Detail page to begin.</div></div>';
         return;
@@ -405,7 +561,7 @@
       }
     }
 
-    el("monthSelect").addEventListener("change", () => load(el("monthSelect").value));
+    el("monthSelect").addEventListener("change", () => { editorKey = null; load(el("monthSelect").value); });
     el("showAll").addEventListener("change", () => { showAll = el("showAll").checked; render(); });
 
     document.addEventListener("click", (event) => {
@@ -420,17 +576,238 @@
       card.classList.remove("print-target");
     });
 
+    // ---- Override editor ----
+    document.addEventListener("click", async (event) => {
+      const editBtn = event.target.closest?.("[data-edit]");
+      if (editBtn) {
+        editorKey = editorKey === editBtn.dataset.edit ? null : editBtn.dataset.edit;
+        render();
+        document.querySelector(`[data-editor="${CSS.escape(editorKey || "")}"]`)?.scrollIntoView({ block: "center", behavior: "smooth" });
+        return;
+      }
+
+      const saveBtn = event.target.closest?.("[data-save-ov]");
+      const clearBtn = event.target.closest?.("[data-clear-ov]");
+      if (!saveBtn && !clearBtn) return;
+      const key = (saveBtn || clearBtn).dataset.saveOv || (saveBtn || clearBtn).dataset.clearOv;
+      const row = document.querySelector(`[data-editor="${CSS.escape(key)}"]`);
+      if (!row) return;
+
+      const val = (sel) => row.querySelector(sel)?.value?.trim() ?? "";
+      const payload = clearBtn
+        ? { lineKey: key, sourceMonth: data.month }
+        : {
+            lineKey: key,
+            sourceMonth: data.month,
+            listPrice: val(".ov-list") || null,
+            serialCost: val(".ov-cost") || null,
+            ratePercent: val(".ov-rate") || null,
+            fullCreditTo: row.querySelector(".ov-credit-on")?.checked ? val(".ov-credit-to") : "",
+            note: val(".ov-note")
+          };
+
+      (saveBtn || clearBtn).disabled = true;
+      try {
+        const res = await fetch("/api/field-commissions/override", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "same-origin",
+          body: JSON.stringify(payload)
+        });
+        const body = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(body.error || "Unable to save the override.");
+        editorKey = null;
+        await load(data.month);
+      } catch (err) {
+        el("errorBanner").textContent = err.message;
+        el("errorBanner").className = "banner error show";
+        (saveBtn || clearBtn).disabled = false;
+      }
+    });
+
+    // ---- Balance check upload: parse the finished Invoice Maintenance xlsx
+    // in the browser (header row is FOUND — raw exports carry junk rows
+    // above it), post { invoice, balance } rows for the selected month. ----
+    async function inflateRaw(bytes) {
+      const stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream("deflate-raw"));
+      return new Uint8Array(await new Response(stream).arrayBuffer());
+    }
+    function readZipDirectory(buffer) {
+      const view = new DataView(buffer);
+      const bytes = new Uint8Array(buffer);
+      let eocd = -1;
+      const scanStart = Math.max(0, buffer.byteLength - 22 - 65536);
+      for (let i = buffer.byteLength - 22; i >= scanStart; i--) {
+        if (view.getUint32(i, true) === 0x06054b50) { eocd = i; break; }
+      }
+      if (eocd < 0) throw new Error("That doesn't look like an xlsx file.");
+      const count = view.getUint16(eocd + 10, true);
+      let offset = view.getUint32(eocd + 16, true);
+      const entries = {};
+      const decoder = new TextDecoder();
+      for (let i = 0; i < count; i++) {
+        if (view.getUint32(offset, true) !== 0x02014b50) break;
+        const method = view.getUint16(offset + 10, true);
+        const compSize = view.getUint32(offset + 20, true);
+        const nameLen = view.getUint16(offset + 28, true);
+        const extraLen = view.getUint16(offset + 30, true);
+        const commentLen = view.getUint16(offset + 32, true);
+        const localOffset = view.getUint32(offset + 42, true);
+        const name = decoder.decode(bytes.subarray(offset + 46, offset + 46 + nameLen));
+        entries[name] = { method, compSize, localOffset };
+        offset += 46 + nameLen + extraLen + commentLen;
+      }
+      return { view, bytes, entries };
+    }
+    async function readZipText(zip, name) {
+      const entry = zip.entries[name];
+      if (!entry) return null;
+      const nameLen = zip.view.getUint16(entry.localOffset + 26, true);
+      const extraLen = zip.view.getUint16(entry.localOffset + 28, true);
+      const start = entry.localOffset + 30 + nameLen + extraLen;
+      const dataBytes = zip.bytes.subarray(start, start + entry.compSize);
+      const raw = entry.method === 0 ? dataBytes : await inflateRaw(dataBytes);
+      return new TextDecoder().decode(raw);
+    }
+    function textOfShared(si) {
+      let out = "";
+      const ts = si.getElementsByTagName("t");
+      for (let i = 0; i < ts.length; i++) out += ts[i].textContent;
+      return out;
+    }
+    function refToColIndex(ref) {
+      let n = 0;
+      for (let i = 0; i < ref.length; i++) {
+        const code = ref.charCodeAt(i);
+        if (code < 65 || code > 90) break;
+        n = n * 26 + (code - 64);
+      }
+      return n - 1;
+    }
+    async function workbookToGrids(arrayBuffer) {
+      const zip = readZipDirectory(arrayBuffer);
+      const sheetNames = Object.keys(zip.entries)
+        .filter((n) => /^xl\/worksheets\/[^\/]+\.xml$/i.test(n))
+        .sort((a, b) => {
+          const na = Number((a.match(/(\d+)\.xml$/i) || [])[1] || 0);
+          const nb = Number((b.match(/(\d+)\.xml$/i) || [])[1] || 0);
+          return na - nb || a.localeCompare(b);
+        });
+      if (!sheetNames.length) throw new Error("No worksheet found in that file.");
+      const sharedXml = await readZipText(zip, "xl/sharedStrings.xml");
+      const shared = [];
+      if (sharedXml) {
+        const sis = new DOMParser().parseFromString(sharedXml, "application/xml").getElementsByTagName("si");
+        for (let i = 0; i < sis.length; i++) shared.push(textOfShared(sis[i]));
+      }
+      const grids = [];
+      for (const sheetName of sheetNames) {
+        const sheetXml = await readZipText(zip, sheetName);
+        if (!sheetXml) continue;
+        const doc = new DOMParser().parseFromString(sheetXml, "application/xml");
+        const grid = [];
+        const rowsXml = doc.getElementsByTagName("row");
+        // Some ePASS exports only stamp r/ref attributes on SOME rows/cells
+        // — track cursors so explicit and implicit positions interleave.
+        let lastRow = -1;
+        for (let r = 0; r < rowsXml.length; r++) {
+          const rAttr = rowsXml[r].getAttribute("r");
+          const rowIndex = rAttr ? Number(rAttr) - 1 : lastRow + 1;
+          lastRow = rowIndex;
+          const cells = rowsXml[r].getElementsByTagName("c");
+          const out = [];
+          let lastCol = -1;
+          for (let c = 0; c < cells.length; c++) {
+            const cell = cells[c];
+            const ref = cell.getAttribute("r") || "";
+            const col = ref ? refToColIndex(ref) : lastCol + 1;
+            lastCol = col;
+            const type = cell.getAttribute("t") || "n";
+            let value = null;
+            if (type === "inlineStr") value = textOfShared(cell);
+            else {
+              const v = cell.getElementsByTagName("v")[0];
+              if (v) {
+                const text = v.textContent;
+                if (type === "s") value = shared[Number(text)] ?? "";
+                else if (type === "str" || type === "b") value = text;
+                else value = text === "" ? null : Number(text);
+              }
+            }
+            out[col] = value;
+          }
+          grid[rowIndex] = out;
+        }
+        grids.push(grid);
+      }
+      return grids;
+    }
+    function normHeader(v) { return String(v == null ? "" : v).replace(/[\s ]+/g, " ").trim().toLowerCase(); }
+
+    function parseBalanceWorkbook(grids) {
+      for (const grid of grids) {
+        const headerIndex = grid.findIndex((row) => {
+          if (!row) return false;
+          const t = row.map(normHeader);
+          return t.some((x) => x.includes("invoice")) && t.some((x) => x.includes("balance"));
+        });
+        if (headerIndex < 0) continue;
+        const header = grid[headerIndex].map(normHeader);
+        const invCol = header.findIndex((h) => h.includes("invoice"));
+        const balCol = header.findIndex((h) => h.includes("balance"));
+        const rows = [];
+        for (let i = headerIndex + 1; i < grid.length; i++) {
+          const raw = grid[i];
+          if (!raw) continue;
+          const invoice = String(raw[invCol] || "").trim();
+          if (!invoice || !/^[A-Za-z]{1,3}\d{4,}/.test(invoice)) continue;
+          rows.push({ invoice, balance: Number(raw[balCol]) || 0 });
+        }
+        if (rows.length) return rows;
+      }
+      throw new Error("Couldn't find Invoice # and Balance columns — is this the Invoice Maintenance export?");
+    }
+
+    el("balanceBtn").addEventListener("click", () => el("balanceFile").click());
+    el("balanceFile").addEventListener("change", async () => {
+      const file = el("balanceFile").files[0];
+      if (!file) return;
+      el("balanceBtn").disabled = true;
+      el("balanceBtn").textContent = "Uploading…";
+      try {
+        const rows = parseBalanceWorkbook(await workbookToGrids(await file.arrayBuffer()));
+        const res = await fetch("/api/field-commissions/balance-check", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "same-origin",
+          body: JSON.stringify({ month: data.month, filename: file.name, rows })
+        });
+        const body = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(body.error || "Upload failed.");
+        await load(data.month);
+      } catch (err) {
+        el("errorBanner").textContent = err.message;
+        el("errorBanner").className = "banner error show";
+      } finally {
+        el("balanceBtn").disabled = false;
+        el("balanceBtn").textContent = "Upload balance check";
+        el("balanceFile").value = "";
+      }
+    });
+
     el("csvBtn").addEventListener("click", () => {
       const rows = visibleStatements();
       const esc = (v) => `"${String(v == null ? "" : v).replace(/"/g, '""')}"`;
       const csv = [
-        ["Month", "Code", "Name", "Plan", "Eligible", "Trailing 6mo Serial Rev", "New List", "New Commission", "Closeout List", "Closeout Commission", "Protect Sell", "Attach %", "Protect Rate %", "Protect Commission", "Protect Bonus", "Total Commission"].map(esc).join(","),
+        ["Month", "Code", "Name", "Plan", "Eligible", "Trailing 6mo Serial Rev", "New List", "New Commission", "Closeout List", "Closeout Commission", "Protect Sell", "Attach %", "Protect Rate %", "Protect Commission", "Protect Bonus", "Released Holds", "Held Unpaid", "Still Held (count)", "Total Commission"].map(esc).join(","),
         ...rows.map((s) => [
           data.month, s.code, s.name, s.commissionPlan, s.eligibility.eligible ? "Yes" : "No",
           s.eligibility.trailingSerialRevenue, s.totals.newRevenue, s.totals.newCommission,
           s.totals.closeoutRevenue, s.totals.closeoutCommission, s.totals.protectSell,
           (s.totals.attachRate * 100).toFixed(2), (s.totals.protectRate * 100).toFixed(0),
-          s.totals.protectCommission, s.totals.protectBonus, s.totals.commission
+          s.totals.protectCommission, s.totals.protectBonus,
+          s.totals.releasedCommission, s.totals.heldCommission, s.totals.stillHeldCount,
+          s.totals.commission
         ].map(esc).join(","))
       ].join("\r\n");
       const a = document.createElement("a");

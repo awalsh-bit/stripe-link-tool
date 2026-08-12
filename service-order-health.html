@@ -585,14 +585,22 @@
         const doc = new DOMParser().parseFromString(sheetXml, "application/xml");
         const grid = [];
         const rows = doc.getElementsByTagName("row");
+        // Some ePASS exports only stamp r/ref attributes on SOME rows/cells
+        // (e.g. after a skipped blank row) — track cursors so explicit and
+        // implicit positions interleave without clobbering each other.
+        let lastRow = -1;
         for (let r = 0; r < rows.length; r++) {
-          const rowIndex = Number(rows[r].getAttribute("r") || (r + 1)) - 1;
+          const rAttr = rows[r].getAttribute("r");
+          const rowIndex = rAttr ? Number(rAttr) - 1 : lastRow + 1;
+          lastRow = rowIndex;
           const cells = rows[r].getElementsByTagName("c");
           const out = [];
+          let lastCol = -1;
           for (let c = 0; c < cells.length; c++) {
             const cell = cells[c];
             const ref = cell.getAttribute("r") || "";
-            const col = ref ? refToColIndex(ref) : c;
+            const col = ref ? refToColIndex(ref) : lastCol + 1;
+            lastCol = col;
             const type = cell.getAttribute("t") || "n";
             let value = null;
             if (type === "inlineStr") {

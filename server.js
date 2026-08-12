@@ -169,6 +169,10 @@ import {
   listCommissionLinesForMonths,
   listCommissionMonths,
   listSalespersonNames,
+  listCommissionOverrides,
+  saveCommissionOverride,
+  saveCommissionBalanceCheck,
+  listCommissionBalanceChecks,
   normalizeSalespersonName
 } from "./lib/sales-order-detail-postgres.js";
 import {
@@ -4192,30 +4196,134 @@ app.get("/api/field-commissions", requireExecutiveApi, async (req, res) => {
       m--; if (m < 1) { m = 12; y--; }
     }
 
-    const [windowLines, properNames, directory] = await Promise.all([
+    const [windowLines, properNames, directory, overrides, balanceChecks] = await Promise.all([
       listCommissionLinesForMonths(windowMonths),
       listSalespersonNames(),
-      listEmployeeDirectory().catch(() => [])
+      listEmployeeDirectory().catch(() => []),
+      listCommissionOverrides(windowMonths),
+      listCommissionBalanceChecks(windowMonths)
     ]);
 
-    const monthLines = windowLines.filter((l) => l.sourceMonth === month);
+    // The whole window feeds the engine: current-month rows make the
+    // statement; prior-month rows drive the unpaid hold / release cycle.
     const statements = computeFieldSalesStatements({
-      monthLines,
-      trailingByCode: serialRevenueByCode(windowLines),
+      monthLines: windowLines,
+      month,
+      balanceChecks,
+      trailingByCode: serialRevenueByCode(windowLines, overrides),
       directory,
-      properNames
+      properNames,
+      overrides
     });
+
+    const balanceMeta = {};
+    for (const [m, check] of Object.entries(balanceChecks)) {
+      balanceMeta[m] = {
+        filename: check.filename, uploadedAt: check.uploadedAt,
+        invoiceCount: check.invoiceCount, unpaidCount: check.unpaidCount
+      };
+    }
 
     return res.json({
       months,
       month,
       windowMonths,
       statements,
+      balanceChecks: balanceMeta,
       plan: FIELD_SALES_PLAN
     });
   } catch (err) {
     console.error("Field commissions failed:", err.message);
     return res.status(500).json({ error: "Unable to compute commission statements." });
+  }
+});
+
+// Upload a paid-balance check for a statement month: the finished Invoice
+// Maintenance export, parsed in the browser to { invoice, balance } rows.
+// Unpaid invoices (balance > 0) hold their commission lines that month;
+// later months' checks release them once paid.
+app.post("/api/field-commissions/balance-check", requireExecutiveApi, async (req, res) => {
+  try {
+    const month = String(req.body?.month || "");
+    const rows = req.body?.rows;
+    if (!/^\d{4}-\d{2}$/.test(month)) {
+      return res.status(400).json({ error: "Missing statement month." });
+    }
+    if (!Array.isArray(rows) || !rows.length) {
+      return res.status(400).json({ error: "No invoice rows found in the upload." });
+    }
+    if (rows.length > 30000) {
+      return res.status(400).json({ error: "That upload has too many rows." });
+    }
+
+    const result = await saveCommissionBalanceCheck({
+      month,
+      rows,
+      filename: String(req.body?.filename || "").slice(0, 200),
+      byEmail: req.authUser?.email || req.authUser?.username || ""
+    });
+
+    recordAudit({
+      ip: req.ip, actorUserId: req.authUser?.id || null,
+      action: "commission_balance_check_uploaded", targetUserId: null,
+      detail: { month, invoices: result.invoiceCount, unpaid: result.unpaidCount }
+    }).catch(() => {});
+
+    return res.json({ ok: true, ...result });
+  } catch (err) {
+    console.error("Balance check upload failed:", err.message);
+    return res.status(500).json({ error: "Unable to store the balance check." });
+  }
+});
+
+// Save (or clear) an exec override on one commission line: list price, cost,
+// payout rate, and/or 100%-credit reassignment of a split. Overrides key on
+// a stable line fingerprint, so they survive re-uploads of the same report.
+app.post("/api/field-commissions/override", requireExecutiveApi, async (req, res) => {
+  try {
+    const b = req.body || {};
+    const lineKey = String(b.lineKey || "");
+    const sourceMonth = String(b.sourceMonth || "");
+    if (!lineKey || !/^\d{4}-\d{2}$/.test(sourceMonth)) {
+      return res.status(400).json({ error: "Missing line key or month." });
+    }
+
+    const num = (v, name, { min = -10000000, max = 10000000 } = {}) => {
+      if (v == null || v === "") return null;
+      const n = Number(v);
+      if (!Number.isFinite(n) || n < min || n > max) throw new Error(`Enter a valid ${name}.`);
+      return Math.round(n * 100) / 100;
+    };
+    const listPrice = num(b.listPrice, "list price");
+    const serialCost = num(b.serialCost, "cost");
+    let rate = null;
+    if (b.ratePercent != null && b.ratePercent !== "") {
+      const p = Number(b.ratePercent);
+      if (!Number.isFinite(p) || p < 0 || p > 100) {
+        return res.status(400).json({ error: "Payout percent must be between 0 and 100." });
+      }
+      rate = Math.round(p * 1000) / 100000; // percent -> fraction, 3dp of percent
+    }
+    const fullCreditTo = String(b.fullCreditTo || "").trim().toUpperCase();
+    if (fullCreditTo && !/^[A-Z0-9]{1,10}$/.test(fullCreditTo)) {
+      return res.status(400).json({ error: "Invalid salesperson code for full credit." });
+    }
+
+    const saved = await saveCommissionOverride({
+      lineKey, sourceMonth, listPrice, serialCost, rate, fullCreditTo,
+      note: b.note, byEmail: req.authUser?.email || req.authUser?.username || ""
+    });
+
+    recordAudit({
+      ip: req.ip, actorUserId: req.authUser?.id || null,
+      action: saved ? "commission_override_saved" : "commission_override_cleared",
+      targetUserId: null,
+      detail: { lineKey: lineKey.slice(0, 120), sourceMonth, listPrice, serialCost, rate, fullCreditTo }
+    }).catch(() => {});
+
+    return res.json({ ok: true, cleared: !saved });
+  } catch (err) {
+    return res.status(400).json({ error: err.message || "Unable to save the override." });
   }
 });
 

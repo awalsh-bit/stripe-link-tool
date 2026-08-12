@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="robots" content="noindex,nofollow,noarchive" />
+  <title>Wilson AC &amp; Appliance - Terms &amp; Conditions</title>
+  <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+  <link rel="stylesheet" href="public-shell.css" />
+  <style>
+    :root {
+      --bg: #f7f8fc;
+      --card: #ffffff;
+      --text: #1f2937;
+      --muted: #6b7280;
+      --border: #dbe1ea;
+      --primary: #21692c;
+      --primary-hover: #1a5222;
+      --success-bg: #ecfdf5;
+      --success-text: #065f46;
+      --error-bg: #fef2f2;
+      --error-text: #991b1b;
+      --shadow: 0 10px 35px rgba(0, 0, 0, 0.08);
+      --radius: 18px;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: "Roboto", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: linear-gradient(180deg, #eaf4ec 0%, var(--bg) 100%);
+      color: var(--text);
+      min-height: 100vh;
+      padding: 32px 16px;
+    }
+
+    .wrap { max-width: 860px; margin: 0 auto; }
+    .hero { margin-bottom: 22px; }
+
+    .card {
+      background: var(--card);
+      border: 1px solid rgba(33, 105, 44, 0.12);
+      box-shadow: var(--shadow);
+      border-radius: var(--radius);
+      padding: 28px;
+    }
+
+    .company-block { text-align: center; margin-bottom: 8px; color: var(--muted); font-size: 14px; line-height: 1.6; }
+    .company-block .co-name { font-size: 20px; font-weight: 800; color: var(--text); }
+
+    h1.tc-title { text-align: center; font-size: 22px; letter-spacing: 0.08em; margin: 18px 0 6px; }
+
+    h2 { font-size: 17px; margin: 26px 0 10px; color: var(--primary-hover); }
+    .terms p {
+      margin: 0 0 14px;
+      font-size: 14px;
+      line-height: 1.65;
+    }
+    .terms p::before { content: "•  "; color: var(--primary); font-weight: 700; }
+    .terms p.noBullet::before { content: ""; }
+
+    .sign-block { margin-top: 30px; border-top: 2px solid var(--border); padding-top: 22px; }
+
+    label { font-size: 14px; font-weight: 700; display: block; margin-bottom: 8px; }
+    label .req { color: #b91c1c; }
+
+    input[type="text"] {
+      width: 100%;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 13px 14px;
+      font-size: 16px;
+      background: #fff;
+      color: var(--text);
+      outline: none;
+      font-family: inherit;
+    }
+    input[type="text"]:focus { border-color: rgba(33, 105, 44, 0.75); box-shadow: 0 0 0 4px rgba(33, 105, 44, 0.12); }
+
+    .sig-wrap { margin-top: 20px; }
+    .sig-frame {
+      position: relative;
+      border: 1.5px dashed rgba(33, 105, 44, 0.5);
+      border-radius: 12px;
+      background: #fff;
+      touch-action: none;
+    }
+    canvas#sigPad { display: block; width: 100%; height: 200px; border-radius: 12px; cursor: crosshair; }
+    .sig-hint {
+      position: absolute; inset: 0;
+      display: flex; align-items: center; justify-content: center;
+      color: #c3cbd6; font-size: 15px; pointer-events: none;
+    }
+    .sig-line {
+      position: absolute; left: 24px; right: 24px; bottom: 40px;
+      border-bottom: 1px solid #e5e7eb; pointer-events: none;
+    }
+    .sig-tools { display: flex; justify-content: space-between; align-items: center; margin-top: 8px; }
+    .clear-btn {
+      appearance: none; border: 1px solid var(--border); background: #fff; color: var(--muted);
+      border-radius: 9px; padding: 7px 14px; font-size: 13px; font-weight: 700; cursor: pointer; font-family: inherit;
+    }
+    .clear-btn:hover { color: var(--error-text); border-color: #fca5a5; }
+    .sig-note { font-size: 12px; color: var(--muted); }
+
+    .actions { margin-top: 24px; }
+    button.submit {
+      appearance: none; border: none; background: var(--primary); color: #fff;
+      padding: 15px 26px; border-radius: 12px; font-size: 16px; font-weight: 700;
+      cursor: pointer; font-family: inherit; width: 100%;
+    }
+    button.submit:hover { background: var(--primary-hover); }
+    button.submit:disabled { opacity: 0.55; cursor: not-allowed; }
+
+    .status { margin-top: 16px; padding: 14px 16px; border-radius: 12px; font-size: 14px; display: none; line-height: 1.5; }
+    .status.error { display: block; background: var(--error-bg); color: var(--error-text); }
+
+    .done {
+      display: none; text-align: center; padding: 30px 10px;
+    }
+    .done.show { display: block; }
+    .done h2 { color: var(--success-text); font-size: 24px; margin: 0 0 10px; }
+    .done p { color: var(--muted); font-size: 15px; line-height: 1.6; }
+
+    .license {
+      margin-top: 26px; text-align: center; color: var(--muted);
+      font-size: 11.5px; line-height: 1.7;
+    }
+    .license a { color: var(--primary); }
+
+    @media (max-width: 640px) {
+      body { padding: 14px 8px; }
+      .card { padding: 18px; }
+    }
+  </style>
+</head>
+<body data-public-shell-label="Terms &amp; Conditions">
+  <div class="wrap">
+    <div class="hero"><div id="public-shell-header"></div></div>
+
+    <div class="card">
+      <div class="company-block">
+        <div class="co-name">Wilson AC &amp; Appliance</div>
+        4205 E Hwy 290<br>
+        Dripping Springs, TX 78620<br>
+        wilsonappliance.com &middot; 512-894-0907
+      </div>
+
+      <h1 class="tc-title">TERMS &amp; CONDITIONS</h1>
+
+      <div class="terms" id="termsBody">
+        <h2>Installation</h2>
+        <p>Wilson AC &amp; Appliance installs appliances in accordance with manufacturer guidelines for performance and safety reasons. Wilson AC &amp; Appliances does not modify, or correct issues/problems with client property / other trades necessary to facilitate installation of appliances. These include but are not limited to framing, cabinetry, electrical supply, water supply, water drainage, gas supply, dryer vents, or hood ventilation systems. It is the responsibility of the contractor, project manager, or customer to ensure systems for the supply of gas, water, electrical, drainage, venting etc. meet local building codes, and are available to facilitate the installation using standard materials associated with the install of that appliance.</p>
+        <p>Units installed by Wilson AC &amp; Appliance that are connected to water or gas will be checked at time of installation. If gas or water is NOT present at the time of installation and connections cannot be tested, Wilson AC &amp; Appliance accepts no responsibility for leaks. Customer assumes liability for any water or gas leaks after completion of installation.</p>
+        <p>All pathways from the delivery truck to the final install location must allow for adequate clearance for safe movement of the installers, appliances, and client property. Make sure all areas from the truck to the home's entrance have a substantially wide hard-packed surface, the number of stairs are communicated to our installation dispatchers, and all doorways and hallways are measured appropriately. Additional fees may be assessed for difficult access that requires additional time, specialized equipment, or additional installers.</p>
+        <p>Wilson AC &amp; Appliance provides standard basic flooring protection at no charge. Plywood, Masonite, or other means of protection are not included in our standard installation pricing. Contractors, project managers and customers are responsible for materials to protect floors. If requested, Wilson AC &amp; Appliance can supply these materials at additional cost.</p>
+        <p>Remote ventilators, in-line ventilators, primary ducting for ventilation hoods is to be installed by respective trade professionals. Wilson AC &amp; Appliance will provide minor ducting materials to connect to an existing duct system. Size &amp; positioning of the duct system is crucial to allow for a properly sealed connection and to allow for satisfactory performance. If the installer does not have adequate access to connect to the duct system, installation cannot occur.</p>
+
+        <h2>Sales</h2>
+        <p>Special order appliance sales are final. Special order products include, but are not limited to, those that are ordered to custom specifications or in a specialty finish.</p>
+        <p>A 25% restocking fee will be assessed on any product returned after delivery / pickup and must be in the original or satisfactory packaging.</p>
+        <p>A 25% restocking fee will be assessed on any expanded assortment appliance cancelled after Wilson AC &amp; Appliance accepts receipt of the product.</p>
+        <p>Open box models are sold as-is in terms of cosmetic appearance. Please inquire in regards to functional warranty for individual pieces as each manufacturer supports their products differently.</p>
+        <p>Pricing is subject to change in rare circumstances as required by manufacturer dealer agreements and / or significant delays in fulfillment.</p>
+        <p>Significant delays in the ability of the client to accept delivery of appliances after Wilson AC &amp; Appliances accepts receipt of the inventory from the manufacturer may require repricing and reordering or the assessment of a monthly storage fee.</p>
+        <p>Payment is due in full prior to Wilson AC &amp; Appliance accepting receipt of appliances from vendors. Credit accounts are subject to agreement terms.</p>
+        <p>Pickup orders must be completed within five days of scheduled pick up date. Orders not picked up within five days will be cancelled and refunded.</p>
+
+        <h2>Service</h2>
+        <p>Wilson AC &amp; Appliance is a factory authorized service provider. Wilson AC &amp; Appliance will provide warranty repair service within our designated service region per manufacturer guidelines. This region is typically a 25-mile radius. Wilson AC &amp; Appliance provides warranty service for the following brands: Sub-Zero, Wolf, Cove, La Cornue, Monogram, GE, GE Profile Series, Cafe, Thermador, Bosch, Miele, Kalamazoo Outdoor Gourmet, Speed Queen, Alfresco, Whirlpool, Maytag, KitchenAid, Jenn-Air, Trane, and Evo. Visit wilsonappliance.com/service to complete a service request.</p>
+      </div>
+
+      <form id="signForm" class="sign-block">
+        <label for="clientName">Please Print First &amp; Last Name <span class="req">*</span></label>
+        <input type="text" id="clientName" autocomplete="name" maxlength="120" placeholder="First Last" required />
+
+        <div class="sig-wrap">
+          <label>By signing you agree to these terms &amp; conditions <span class="req">*</span></label>
+          <div class="sig-frame">
+            <canvas id="sigPad"></canvas>
+            <div class="sig-hint" id="sigHint">Sign here</div>
+            <div class="sig-line"></div>
+          </div>
+          <div class="sig-tools">
+            <button type="button" class="clear-btn" id="clearBtn">clear</button>
+            <span class="sig-note">Draw with your finger or mouse</span>
+          </div>
+        </div>
+
+        <div class="actions">
+          <button type="submit" class="submit" id="submitBtn" disabled>Agree &amp; Sign</button>
+        </div>
+        <div class="status" id="statusBox"></div>
+      </form>
+
+      <div class="done" id="doneBox">
+        <h2>Thank you!</h2>
+        <p>Your signature has been recorded.<br>A copy of these terms is available any time at this page.</p>
+      </div>
+
+      <div class="license">
+        Texas Air Conditioning License #008513E &mdash; Texas Residential Appliance Installer License #297<br>
+        Regulated by the Texas Department of Licensing &amp; Regulation, PO Box 12157, Austin TX 78711<br>
+        800-803-9202, 512-463-6599 &middot; <a href="https://www.tdlr.texas.gov" target="_blank" rel="noopener noreferrer">www.tdlr.texas.gov</a>
+      </div>
+    </div>
+  </div>
+
+  <script src="public-shell.js"></script>
+  <script>
+    // ---- Signature pad: pointer-drawn strokes on a dpr-scaled canvas ----
+    (function () {
+      const canvas = document.getElementById("sigPad");
+      const hint = document.getElementById("sigHint");
+      const nameInput = document.getElementById("clientName");
+      const submitBtn = document.getElementById("submitBtn");
+      const statusBox = document.getElementById("statusBox");
+      let ctx = null;
+      let drawing = false;
+      let hasInk = false;
+
+      function sizeCanvas() {
+        const dpr = window.devicePixelRatio || 1;
+        const rect = canvas.getBoundingClientRect();
+        // Preserve ink across resizes by re-drawing the bitmap.
+        const prev = hasInk ? canvas.toDataURL("image/png") : null;
+        canvas.width = Math.round(rect.width * dpr);
+        canvas.height = Math.round(rect.height * dpr);
+        ctx = canvas.getContext("2d");
+        ctx.scale(dpr, dpr);
+        ctx.lineWidth = 2.4;
+        ctx.lineCap = "round";
+        ctx.lineJoin = "round";
+        ctx.strokeStyle = "#1f2937";
+        if (prev) {
+          const img = new Image();
+          img.onload = () => ctx.drawImage(img, 0, 0, rect.width, rect.height);
+          img.src = prev;
+        }
+      }
+
+      function pos(event) {
+        const rect = canvas.getBoundingClientRect();
+        return { x: event.clientX - rect.left, y: event.clientY - rect.top };
+      }
+
+      function updateSubmit() {
+        submitBtn.disabled = !(hasInk && nameInput.value.trim().length >= 3);
+      }
+
+      canvas.addEventListener("pointerdown", (event) => {
+        event.preventDefault();
+        canvas.setPointerCapture(event.pointerId);
+        drawing = true;
+        const p = pos(event);
+        ctx.beginPath();
+        ctx.moveTo(p.x, p.y);
+        // A dot for taps
+        ctx.lineTo(p.x + 0.01, p.y + 0.01);
+        ctx.stroke();
+        hasInk = true;
+        hint.style.display = "none";
+        updateSubmit();
+      });
+      canvas.addEventListener("pointermove", (event) => {
+        if (!drawing) return;
+        event.preventDefault();
+        const p = pos(event);
+        ctx.lineTo(p.x, p.y);
+        ctx.stroke();
+      });
+      const stop = () => { drawing = false; };
+      canvas.addEventListener("pointerup", stop);
+      canvas.addEventListener("pointercancel", stop);
+
+      document.getElementById("clearBtn").addEventListener("click", () => {
+        const rect = canvas.getBoundingClientRect();
+        ctx.clearRect(0, 0, rect.width, rect.height);
+        hasInk = false;
+        hint.style.display = "";
+        updateSubmit();
+      });
+
+      nameInput.addEventListener("input", updateSubmit);
+
+      document.getElementById("signForm").addEventListener("submit", async (event) => {
+        event.preventDefault();
+        statusBox.className = "status";
+        submitBtn.disabled = true;
+        submitBtn.textContent = "Saving…";
+        try {
+          const res = await fetch("/api/terms/sign", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            credentials: "same-origin",
+            body: JSON.stringify({
+              name: nameInput.value.trim(),
+              signature: canvas.toDataURL("image/png")
+            })
+          });
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok) throw new Error(data.error || "Unable to save your signature — please try again.");
+          document.getElementById("signForm").style.display = "none";
+          document.getElementById("doneBox").classList.add("show");
+        } catch (err) {
+          statusBox.textContent = err.message;
+          statusBox.className = "status error";
+          submitBtn.disabled = false;
+          submitBtn.textContent = "Agree & Sign";
+        }
+      });
+
+      window.addEventListener("resize", sizeCanvas);
+      sizeCanvas();
+    })();
+  </script>
+</body>
+</html>

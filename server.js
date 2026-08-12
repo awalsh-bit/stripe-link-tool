@@ -177,9 +177,13 @@ import {
 } from "./lib/sales-order-detail-postgres.js";
 import {
   FIELD_SALES_PLAN,
+  SHOWROOM_PLAN,
+  COMMISSION_PAGE_PLANS,
   serialRevenueByCode,
   computeFieldSalesStatements
 } from "./lib/field-sales-commissions.js";
+import { buildCommissionStatementPdf } from "./lib/commission-statement-pdf.js";
+import { saveTermsSignature, listTermsSignatures, TERMS_VERSION } from "./lib/terms-signatures-postgres.js";
 import {
   getSalesOrderSnapshot,
   saveSalesOrderSnapshot,
@@ -261,6 +265,7 @@ const SERVICE_PUBLIC_PATHS = new Set([
   "/builder-credit-terms.pdf",
   "/fireflavor.html",
   "/terms.html",
+  "/terms-sign.html",
   "/public-shell.css",
   "/public-shell.js",
   "/logo-black.png",
@@ -277,6 +282,7 @@ const SERVICE_PUBLIC_API_PREFIXES = [
   // /api/credit-applications and must NOT match this public prefix.
   "/api/credit-application/",
   "/api/events/fire-flavor/rsvp",
+  "/api/terms/sign",
   "/api/service/setup-intent",
   "/api/service/submit-request",
   "/api/service/setup-intent-result/",
@@ -340,6 +346,7 @@ const INTERNAL_PAGE_PATHS = new Set([
   "/credit-applications.html",
   "/sales-order-health.html",
   "/service-order-health.html",
+  "/terms-signatures.html",
   "/flag-closures.html",
   "/target-builder.html"
 ]);
@@ -502,7 +509,7 @@ const PAGE_LABELS = {
   "/secret-menu.html": "Secret Menu",
   "/event-rsvps.html": "Event RSVPs",
   "/spec-packages.html": "Spec Packages",
-  "/commissions.html": "Field Sales Commissions",
+  "/commissions.html": "Sales Commissions",
   "/user-admin.html": "User Admin",
   "/audit-log.html": "User Activity Audit",
   "/sales-order-detail.html": "Sales Order Detail",
@@ -520,6 +527,7 @@ const PAGE_LABELS = {
   "/clearance.html": "Clearance Hit List",
   "/credit-applications.html": "Builder Credit Applications",
   "/sales-order-health.html": "Sales Order Health Report",
+  "/terms-signatures.html": "Terms & Conditions Signatures",
   "/service-order-health.html": "Service Order Health",
   "/flag-closures.html": "Notification Closure Report",
   "/target-builder.html": "Target Builder"
@@ -587,6 +595,7 @@ const PAGE_CATEGORIES = [
     pages: [
       "/salesdashboard.html",
       "/sales-order-health.html",
+      "/terms-signatures.html",
       "/flag-closures.html",
       "/target-builder.html",
       "/secret-menu.html",
@@ -4176,46 +4185,58 @@ app.post("/api/clearance/price", requireExecutiveApi, async (req, res) => {
 // reports on Sales Order Detail refreshes the statements. Plan math lives in
 // lib/field-sales-commissions.js; eligibility is trailing-6-month serial
 // revenue ending at the statement month.
+// Shared by the statements API and the PDF download/email routes.
+async function computeFieldCommissionMonth(requestedMonth) {
+  const months = await listCommissionMonths();
+  if (!months.length) {
+    return { months: [], month: null, windowMonths: [], statements: [], balanceChecks: {} };
+  }
+  const month = /^\d{4}-\d{2}$/.test(String(requestedMonth || "")) && months.includes(requestedMonth)
+    ? String(requestedMonth)
+    : months[0];
+
+  // Rolling window: the statement month plus the 5 calendar months before
+  // it (only months actually uploaded contribute).
+  const windowMonths = [];
+  let [y, m] = month.split("-").map(Number);
+  for (let i = 0; i < FIELD_SALES_PLAN.eligibility.rollingMonths; i++) {
+    const key = `${y}-${String(m).padStart(2, "0")}`;
+    if (months.includes(key)) windowMonths.push(key);
+    m--; if (m < 1) { m = 12; y--; }
+  }
+
+  const [windowLines, properNames, directory, overrides, balanceChecks] = await Promise.all([
+    listCommissionLinesForMonths(windowMonths),
+    listSalespersonNames(),
+    listEmployeeDirectory().catch(() => []),
+    listCommissionOverrides(windowMonths),
+    listCommissionBalanceChecks(windowMonths)
+  ]);
+
+  // The whole window feeds the engine: current-month rows make the
+  // statement; prior-month rows drive the unpaid hold / release cycle.
+  const statements = computeFieldSalesStatements({
+    monthLines: windowLines,
+    month,
+    balanceChecks,
+    trailingByCode: serialRevenueByCode(windowLines, overrides),
+    directory,
+    properNames,
+    overrides
+  });
+
+  return { months, month, windowMonths, statements, balanceChecks };
+}
+
+function commissionMonthLabel(month) {
+  const [y, m] = String(month || "").split("-").map(Number);
+  if (!y || !m) return String(month || "");
+  return `${["January","February","March","April","May","June","July","August","September","October","November","December"][m - 1]} ${y}`;
+}
+
 app.get("/api/field-commissions", requireExecutiveApi, async (req, res) => {
   try {
-    const months = await listCommissionMonths();
-    if (!months.length) {
-      return res.json({ months: [], month: null, statements: [], plan: FIELD_SALES_PLAN });
-    }
-    const month = /^\d{4}-\d{2}$/.test(String(req.query.month || "")) && months.includes(req.query.month)
-      ? String(req.query.month)
-      : months[0];
-
-    // Rolling window: the statement month plus the 5 calendar months before
-    // it (only months actually uploaded contribute).
-    const windowMonths = [];
-    let [y, m] = month.split("-").map(Number);
-    for (let i = 0; i < FIELD_SALES_PLAN.eligibility.rollingMonths; i++) {
-      const key = `${y}-${String(m).padStart(2, "0")}`;
-      if (months.includes(key)) windowMonths.push(key);
-      m--; if (m < 1) { m = 12; y--; }
-    }
-
-    const [windowLines, properNames, directory, overrides, balanceChecks] = await Promise.all([
-      listCommissionLinesForMonths(windowMonths),
-      listSalespersonNames(),
-      listEmployeeDirectory().catch(() => []),
-      listCommissionOverrides(windowMonths),
-      listCommissionBalanceChecks(windowMonths)
-    ]);
-
-    // The whole window feeds the engine: current-month rows make the
-    // statement; prior-month rows drive the unpaid hold / release cycle.
-    const statements = computeFieldSalesStatements({
-      monthLines: windowLines,
-      month,
-      balanceChecks,
-      trailingByCode: serialRevenueByCode(windowLines, overrides),
-      directory,
-      properNames,
-      overrides
-    });
-
+    const { months, month, windowMonths, statements, balanceChecks } = await computeFieldCommissionMonth(req.query.month);
     const balanceMeta = {};
     for (const [m, check] of Object.entries(balanceChecks)) {
       balanceMeta[m] = {
@@ -4223,18 +4244,141 @@ app.get("/api/field-commissions", requireExecutiveApi, async (req, res) => {
         invoiceCount: check.invoiceCount, unpaidCount: check.unpaidCount
       };
     }
-
     return res.json({
-      months,
-      month,
-      windowMonths,
-      statements,
-      balanceChecks: balanceMeta,
-      plan: FIELD_SALES_PLAN
+      months, month, windowMonths, statements, balanceChecks: balanceMeta,
+      plan: FIELD_SALES_PLAN,
+      plans: [FIELD_SALES_PLAN, SHOWROOM_PLAN],
+      pagePlans: COMMISSION_PAGE_PLANS
     });
   } catch (err) {
     console.error("Field commissions failed:", err.message);
     return res.status(500).json({ error: "Unable to compute commission statements." });
+  }
+});
+
+// Statement PDF builder (commissions.html → Download). Same pdf-lib recipe
+// as the payment receipt, one statement per file.
+async function buildStatementPdfFor(month, code) {
+  const { month: resolvedMonth, statements } = await computeFieldCommissionMonth(month);
+  if (!resolvedMonth || resolvedMonth !== month) {
+    const err = new Error("No commission data for that month.");
+    err.statusCode = 400;
+    throw err;
+  }
+  const statement = statements.find((s) => s.code === String(code || "").toUpperCase());
+  if (!statement) {
+    const err = new Error("No statement for that salesperson in that month.");
+    err.statusCode = 404;
+    throw err;
+  }
+  const pdfBytes = await buildCommissionStatementPdf({
+    statement,
+    monthLabel: commissionMonthLabel(month),
+    logoBytes: getReceiptLogoBytes()
+  });
+  const fileLabel = `commission-statement-${statement.code}-${month}`.replace(/[^A-Za-z0-9_-]+/g, "-");
+  return { pdfBytes, fileLabel, statement };
+}
+
+app.get("/api/field-commissions/statement-pdf", requireExecutiveApi, async (req, res) => {
+  try {
+    const month = String(req.query.month || "");
+    const code = String(req.query.code || "");
+    const { pdfBytes, fileLabel, statement } = await buildStatementPdfFor(month, code);
+
+    recordAudit({
+      ip: req.ip, actorUserId: req.authUser?.id || null,
+      action: "commission_statement_downloaded", targetUserId: null,
+      detail: { month, code: statement.code, total: statement.totals.commission }
+    }).catch(() => {});
+
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", `attachment; filename="${fileLabel}.pdf"`);
+    return res.send(Buffer.from(pdfBytes));
+  } catch (err) {
+    console.error("Statement PDF error:", err.message);
+    return res.status(err.statusCode || 500).json({ error: err.message || "Unable to build the statement." });
+  }
+});
+
+// Email the statement PDF straight to the salesperson (user directory email,
+// or an explicit override address).
+app.post("/api/field-commissions/statement-email", requireExecutiveApi, async (req, res) => {
+  try {
+    const month = String(req.body?.month || "");
+    const code = String(req.body?.code || "").toUpperCase();
+    if (!RESEND_API_KEY || !RESEND_FROM_EMAIL) {
+      return res.status(500).json({ error: "Email delivery is not configured (RESEND_API_KEY / RESEND_FROM_EMAIL)." });
+    }
+
+    const { pdfBytes, fileLabel, statement } = await buildStatementPdfFor(month, code);
+    const email = String(req.body?.email || statement.email || "").trim().toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      return res.status(400).json({ error: "No email on file for this salesperson — add one in the User Admin directory." });
+    }
+
+    const label = commissionMonthLabel(month);
+    const firstName = statement.name.split(/\s+/)[0] || statement.name;
+    const totalText = `$${statement.totals.commission.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    const subject = `Your ${label} commission statement — ${totalText}`;
+    const stillHeldNote = statement.totals.stillHeldCount
+      ? `${statement.totals.stillHeldCount} line(s) are held on unpaid invoices and will pay automatically once the invoice clears.`
+      : "";
+    const bodyLines = [
+      `Hi ${firstName},`,
+      "",
+      `Your Field Sales commission statement for ${label} is attached — total commission ${totalText}.`,
+      stillHeldNote,
+      "",
+      "Questions about a line? Reply to this email.",
+      "",
+      "Wilson AC & Appliance"
+    ].filter((lineText) => lineText !== "");
+    const html = `
+      <div style="font-family: Arial, sans-serif; color: #111827; line-height: 1.6; max-width: 560px;">
+        <p>Hi ${escapeHtmlForEmail(firstName)},</p>
+        <p>Your Field Sales commission statement for <strong>${escapeHtmlForEmail(label)}</strong> is attached — total commission <strong>${escapeHtmlForEmail(totalText)}</strong>.</p>
+        ${stillHeldNote ? `<p>${escapeHtmlForEmail(stillHeldNote)}</p>` : ""}
+        <p>Questions about a line? Reply to this email.</p>
+        <p style="color: #6b7280; font-size: 13px;">Wilson AC & Appliance</p>
+      </div>
+    `;
+
+    const response = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${RESEND_API_KEY}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        from: RESEND_FROM_EMAIL,
+        to: [email],
+        subject,
+        text: bodyLines.join("\n"),
+        html,
+        attachments: [{
+          filename: `${fileLabel}.pdf`,
+          content: Buffer.from(pdfBytes).toString("base64")
+        }]
+      })
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error("Statement email failed:", response.status, errorText);
+      return res.status(502).json({ error: "The email service rejected the statement — try again in a minute." });
+    }
+
+    recordAudit({
+      ip: req.ip, actorUserId: req.authUser?.id || null,
+      action: "commission_statement_emailed", targetUserId: null,
+      detail: { month, code: statement.code, to: email, total: statement.totals.commission }
+    }).catch(() => {});
+
+    return res.json({ success: true, to: email });
+  } catch (err) {
+    console.error("Statement email error:", err.message);
+    return res.status(err.statusCode || 500).json({ error: err.message || "Unable to email the statement." });
   }
 });
 
@@ -6415,6 +6559,45 @@ function sanitizeOnBehalfContact(raw, fields) {
   }
   return any ? out : null;
 }
+
+// ---------------------------------------------------------------------------
+// Terms & Conditions signatures. The PUBLIC form (terms-sign.html, direct
+// URL only) and the INTERNAL capture page (terms-signatures.html) both post
+// here; authed submissions record as internal captures with the staff email.
+// Replaces the FormSite terms form.
+// ---------------------------------------------------------------------------
+app.post("/api/terms/sign", async (req, res) => {
+  try {
+    const record = await saveTermsSignature({
+      name: req.body?.name,
+      signature: req.body?.signature,
+      source: req.authUser ? "internal" : "public",
+      capturedBy: req.authUser ? (req.authUser.email || req.authUser.username || "") : "",
+      ip: req.ip,
+      userAgent: String(req.headers["user-agent"] || "")
+    });
+
+    recordAudit({
+      ip: req.ip, actorUserId: req.authUser?.id || null,
+      action: "terms_signature_captured", targetUserId: null,
+      detail: { name: record.name, source: record.source, termsVersion: TERMS_VERSION }
+    }).catch(() => {});
+
+    return res.json({ success: true, id: record.id, signedAt: record.signedAt });
+  } catch (err) {
+    return res.status(400).json({ error: err.message || "Unable to save the signature." });
+  }
+});
+
+app.get("/api/terms-signatures", requirePagePermission("/terms-signatures.html"), async (req, res) => {
+  try {
+    const rows = await listTermsSignatures({ search: req.query.search, limit: req.query.limit });
+    return res.json({ rows, termsVersion: TERMS_VERSION });
+  } catch (err) {
+    console.error("Terms signatures list failed:", err.message);
+    return res.status(500).json({ error: "Unable to load signatures." });
+  }
+});
 
 app.post("/api/service/submit-request", async (req, res) => {
   try {

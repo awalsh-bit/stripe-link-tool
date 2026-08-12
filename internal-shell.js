@@ -236,7 +236,8 @@
           { href: "target-builder.html", title: "Target Builder" },
           { href: "secret-menu.html", title: "Secret Menu" },
           { href: "clearance.html", title: "Clearance Hit List" },
-          { href: "spec-packages.html", title: "Spec Packages" }
+          { href: "spec-packages.html", title: "Spec Packages" },
+          { href: "terms-signatures.html", title: "Terms & Conditions Signatures" }
         ]
       },
       {
@@ -268,7 +269,7 @@
       links.push({
         title: "Commissions",
         children: [
-          { href: "commissions.html", title: "Field Sales Commissions" }
+          { href: "commissions.html", title: "Sales Commissions" }
         ]
       });
     }

@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="robots" content="noindex,nofollow,noarchive" />
+  <title>Wilson AC &amp; Appliance - Terms &amp; Conditions Signatures</title>
+  <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+  <link rel="stylesheet" href="internal-shell.css" />
+  <style>
+    :root {
+      --bg: #f7f8fc;
+      --card: #ffffff;
+      --text: #1f2937;
+      --muted: #6b7280;
+      --border: #dbe1ea;
+      --shadow: 0 10px 35px rgba(0, 0, 0, 0.08);
+      --radius: 18px;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: "Roboto", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: linear-gradient(180deg, var(--primary-tint) 0%, var(--bg) 100%);
+      color: var(--text);
+      min-height: 100vh;
+      padding: 32px 16px;
+    }
+
+    .wrap { max-width: 1100px; margin: 0 auto; }
+
+    .surface {
+      background: var(--card);
+      border: 1px solid rgba(var(--primary-rgb), 0.12);
+      box-shadow: var(--shadow);
+      border-radius: var(--radius);
+      padding: 22px;
+      margin: 0 auto 20px;
+    }
+
+    h2 { margin: 0 0 6px; font-size: 20px; }
+    .section-note { margin: 0 0 14px; color: var(--muted); font-size: 13.5px; line-height: 1.5; }
+    .section-note a { color: var(--primary); font-weight: 600; }
+
+    label { font-size: 13px; font-weight: 700; display: block; margin-bottom: 6px; }
+    input[type="text"], input[type="search"] {
+      width: 100%;
+      border: 1px solid var(--border);
+      border-radius: 11px;
+      padding: 11px 13px;
+      font-size: 14px;
+      background: #fff;
+      color: var(--text);
+      outline: none;
+      font-family: inherit;
+    }
+    input:focus { border-color: rgba(var(--primary-rgb), 0.75); box-shadow: 0 0 0 4px rgba(var(--primary-rgb), 0.12); }
+
+    .capture-grid { display: grid; grid-template-columns: 280px 1fr auto; gap: 16px; align-items: end; }
+    @media (max-width: 860px) { .capture-grid { grid-template-columns: 1fr; } }
+
+    .sig-frame {
+      position: relative;
+      border: 1.5px dashed rgba(var(--primary-rgb), 0.5);
+      border-radius: 12px;
+      background: #fff;
+      touch-action: none;
+    }
+    canvas#sigPad { display: block; width: 100%; height: 140px; border-radius: 12px; cursor: crosshair; }
+    .sig-hint {
+      position: absolute; inset: 0;
+      display: flex; align-items: center; justify-content: center;
+      color: #c3cbd6; font-size: 14px; pointer-events: none;
+    }
+    .sig-tools { display: flex; gap: 10px; margin-top: 6px; }
+    .clear-btn {
+      appearance: none; border: 1px solid var(--border); background: #fff; color: var(--muted);
+      border-radius: 9px; padding: 6px 12px; font-size: 12px; font-weight: 700; cursor: pointer; font-family: inherit;
+    }
+    .clear-btn:hover { color: #991b1b; border-color: #fca5a5; }
+
+    button.save {
+      appearance: none; border: none; background: var(--primary); color: #fff;
+      padding: 12px 22px; border-radius: 11px; font-size: 14px; font-weight: 700;
+      cursor: pointer; font-family: inherit; white-space: nowrap;
+    }
+    button.save:hover { background: var(--primary-hover); }
+    button.save:disabled { opacity: 0.55; cursor: not-allowed; }
+
+    details.terms-ref { font-size: 13px; color: var(--muted); margin-top: 14px; }
+    details.terms-ref summary { cursor: pointer; font-weight: 700; color: var(--text); }
+
+    .banner {
+      display: none;
+      border-radius: 12px;
+      padding: 11px 14px;
+      margin: 12px 0 0;
+      font-size: 13.5px;
+    }
+    .banner.error { background: #fef2f2; color: #991b1b; }
+    .banner.ok { background: #ecfdf5; color: #065f46; }
+    .banner.show { display: block; }
+
+    /* Records table */
+    .toolbar { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-bottom: 12px; }
+    .toolbar input[type="search"] { max-width: 320px; }
+    .asof { font-size: 13px; color: var(--muted); }
+
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    thead th {
+      text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em;
+      color: var(--muted); padding: 9px 9px 7px; border-bottom: 1px solid var(--border); white-space: nowrap;
+    }
+    tbody td { padding: 10px 9px; border-bottom: 1px solid #eef0f5; vertical-align: middle; }
+    .empty { text-align: center; color: var(--muted); padding: 26px 10px; }
+
+    .sig-thumb {
+      height: 46px; max-width: 220px;
+      border: 1px solid var(--border); border-radius: 8px; background: #fff;
+      cursor: zoom-in;
+    }
+    .badge {
+      display: inline-block; border-radius: 999px; padding: 2px 9px;
+      font-size: 11px; font-weight: 700; white-space: nowrap;
+    }
+    .badge.public { background: #dbeafe; color: #1e40af; }
+    .badge.internal { background: var(--primary-tint); color: var(--primary-hover); }
+
+    /* Signature zoom overlay */
+    #zoomOverlay {
+      display: none; position: fixed; inset: 0; background: rgba(17, 24, 39, 0.55);
+      align-items: center; justify-content: center; z-index: 60; cursor: zoom-out;
+    }
+    #zoomOverlay.show { display: flex; }
+    #zoomOverlay img { background: #fff; border-radius: 14px; padding: 20px; max-width: 90vw; max-height: 60vh; }
+
+    @media (max-width: 760px) {
+      body { padding: 14px 8px; }
+      .surface { padding: 14px; }
+    }
+  </style>
+</head>
+<body data-shell-label="Terms &amp; Conditions Signatures" data-shell-icon="service">
+  <div class="wrap">
+    <div id="internal-shell-header"></div>
+
+    <div class="surface">
+      <h2>Capture a Signature</h2>
+      <p class="section-note">
+        Hand the device to the client to sign our general terms &amp; conditions in person — the same
+        agreement as the <a href="terms-sign.html" target="_blank" rel="noopener">public signing page</a>.
+        Records are stored below; mapping to sales orders comes later.
+      </p>
+      <form id="captureForm">
+        <div class="capture-grid">
+          <div>
+            <label for="clientName">Client's First &amp; Last Name</label>
+            <input type="text" id="clientName" maxlength="120" placeholder="First Last" autocomplete="off" required />
+          </div>
+          <div>
+            <label>Client signature — signing agrees to the terms &amp; conditions</label>
+            <div class="sig-frame">
+              <canvas id="sigPad"></canvas>
+              <div class="sig-hint" id="sigHint">Sign here</div>
+            </div>
+            <div class="sig-tools">
+              <button type="button" class="clear-btn" id="clearBtn">clear</button>
+            </div>
+          </div>
+          <button type="submit" class="save" id="saveBtn" disabled>Save signature</button>
+        </div>
+      </form>
+      <div class="banner" id="statusBanner"></div>
+      <details class="terms-ref">
+        <summary>What they're agreeing to</summary>
+        <p style="margin: 10px 0 0;">The full Wilson AC &amp; Appliance general terms &amp; conditions (installation, sales, and service),
+        exactly as published on the <a href="terms-sign.html" target="_blank" rel="noopener">public signing page</a>. Open it in a new tab
+        if the client wants to read before signing.</p>
+      </details>
+    </div>
+
+    <div class="surface">
+      <h2>Signed Records</h2>
+      <div class="toolbar">
+        <input type="search" id="searchInput" placeholder="Search by name…" />
+        <span style="flex: 1;"></span>
+        <span class="asof" id="countLine"></span>
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th>Signed</th>
+            <th>Name</th>
+            <th>Signature</th>
+            <th>Source</th>
+            <th>Terms Version</th>
+            <th>Sales Order</th>
+          </tr>
+        </thead>
+        <tbody id="tableBody">
+          <tr><td colspan="6" class="empty">Loading…</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div id="internal-shell-footer"></div>
+  </div>
+
+  <div id="zoomOverlay"><img id="zoomImg" alt="Signature" /></div>
+
+  <script src="internal-shell.js"></script>
+  <script>
+    function el(id) { return document.getElementById(id); }
+    function escapeHtml(value) {
+      return String(value == null ? "" : value)
+        .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+    }
+
+    // ---- Signature pad (same pad as the public form, compact) ----
+    const canvas = el("sigPad");
+    let ctx = null;
+    let drawing = false;
+    let hasInk = false;
+
+    function sizeCanvas() {
+      const dpr = window.devicePixelRatio || 1;
+      const rect = canvas.getBoundingClientRect();
+      const prev = hasInk ? canvas.toDataURL("image/png") : null;
+      canvas.width = Math.round(rect.width * dpr);
+      canvas.height = Math.round(rect.height * dpr);
+      ctx = canvas.getContext("2d");
+      ctx.scale(dpr, dpr);
+      ctx.lineWidth = 2.4;
+      ctx.lineCap = "round";
+      ctx.lineJoin = "round";
+      ctx.strokeStyle = "#1f2937";
+      if (prev) {
+        const img = new Image();
+        img.onload = () => ctx.drawImage(img, 0, 0, rect.width, rect.height);
+        img.src = prev;
+      }
+    }
+    function pos(event) {
+      const rect = canvas.getBoundingClientRect();
+      return { x: event.clientX - rect.left, y: event.clientY - rect.top };
+    }
+    function updateSave() {
+      el("saveBtn").disabled = !(hasInk && el("clientName").value.trim().length >= 3);
+    }
+    canvas.addEventListener("pointerdown", (event) => {
+      event.preventDefault();
+      canvas.setPointerCapture(event.pointerId);
+      drawing = true;
+      const p = pos(event);
+      ctx.beginPath();
+      ctx.moveTo(p.x, p.y);
+      ctx.lineTo(p.x + 0.01, p.y + 0.01);
+      ctx.stroke();
+      hasInk = true;
+      el("sigHint").style.display = "none";
+      updateSave();
+    });
+    canvas.addEventListener("pointermove", (event) => {
+      if (!drawing) return;
+      event.preventDefault();
+      const p = pos(event);
+      ctx.lineTo(p.x, p.y);
+      ctx.stroke();
+    });
+    canvas.addEventListener("pointerup", () => { drawing = false; });
+    canvas.addEventListener("pointercancel", () => { drawing = false; });
+    el("clearBtn").addEventListener("click", () => {
+      const rect = canvas.getBoundingClientRect();
+      ctx.clearRect(0, 0, rect.width, rect.height);
+      hasInk = false;
+      el("sigHint").style.display = "";
+      updateSave();
+    });
+    el("clientName").addEventListener("input", updateSave);
+    window.addEventListener("resize", sizeCanvas);
+    sizeCanvas();
+
+    function setBanner(message, kind) {
+      const banner = el("statusBanner");
+      if (!message) { banner.className = "banner"; banner.textContent = ""; return; }
+      banner.className = "banner show " + kind;
+      banner.textContent = message;
+    }
+
+    el("captureForm").addEventListener("submit", async (event) => {
+      event.preventDefault();
+      setBanner("", "");
+      el("saveBtn").disabled = true;
+      el("saveBtn").textContent = "Saving…";
+      try {
+        const res = await fetch("/api/terms/sign", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "same-origin",
+          body: JSON.stringify({ name: el("clientName").value.trim(), signature: canvas.toDataURL("image/png") })
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error || "Unable to save the signature.");
+        setBanner(`Signature saved for ${el("clientName").value.trim()}.`, "ok");
+        el("clientName").value = "";
+        el("clearBtn").click();
+        await loadRecords();
+      } catch (err) {
+        setBanner(err.message, "error");
+      } finally {
+        el("saveBtn").textContent = "Save signature";
+        updateSave();
+      }
+    });
+
+    // ---- Records ----
+    let searchTimer = null;
+    async function loadRecords() {
+      const search = el("searchInput").value.trim();
+      const res = await fetch("/api/terms-signatures" + (search ? `?search=${encodeURIComponent(search)}` : ""), { credentials: "same-origin" });
+      const data = await res.json();
+      if (!res.ok) {
+        el("tableBody").innerHTML = `<tr><td colspan="6" class="empty">${escapeHtml(data.error || "Unable to load signatures.")}</td></tr>`;
+        return;
+      }
+      const rows = data.rows || [];
+      el("countLine").textContent = `${rows.length} record(s) · terms version ${data.termsVersion}`;
+      if (!rows.length) {
+        el("tableBody").innerHTML = '<tr><td colspan="6" class="empty">No signatures yet.</td></tr>';
+        return;
+      }
+      el("tableBody").innerHTML = rows.map((r) => `
+        <tr>
+          <td style="white-space: nowrap;">${r.signedAt ? new Date(r.signedAt).toLocaleString("en-US", { timeZone: "America/Chicago", month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" }) : "—"}</td>
+          <td style="font-weight: 700;">${escapeHtml(r.name)}</td>
+          <td><img class="sig-thumb" src="${r.signature && r.signature.startsWith("data:image/png;base64,") ? r.signature : ""}" alt="Signature of ${escapeHtml(r.name)}" loading="lazy" /></td>
+          <td><span class="badge ${r.source === "internal" ? "internal" : "public"}">${r.source === "internal" ? "In store" : "Public form"}</span>${r.capturedBy ? `<div style="font-size: 11px; color: var(--muted); margin-top: 2px;">${escapeHtml(r.capturedBy)}</div>` : ""}</td>
+          <td>${escapeHtml(r.termsVersion || "—")}</td>
+          <td style="color: var(--muted);">${escapeHtml(r.salesOrder || "—")}</td>
+        </tr>`).join("");
+    }
+    el("searchInput").addEventListener("input", () => {
+      clearTimeout(searchTimer);
+      searchTimer = setTimeout(loadRecords, 250);
+    });
+
+    document.addEventListener("click", (event) => {
+      const thumb = event.target.closest?.(".sig-thumb");
+      if (thumb) {
+        el("zoomImg").src = thumb.src;
+        el("zoomOverlay").classList.add("show");
+        return;
+      }
+      if (event.target.closest?.("#zoomOverlay")) el("zoomOverlay").classList.remove("show");
+    });
+
+    loadRecords().catch(() => {
+      el("tableBody").innerHTML = '<tr><td colspan="6" class="empty">Unable to load signatures.</td></tr>';
+    });
+  </script>
+</body>
+</html>

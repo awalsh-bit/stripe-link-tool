@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="robots" content="noindex,nofollow,noarchive" />
-  <title>Wilson AC &amp; Appliance - Field Sales Commissions</title>
+  <title>Wilson AC &amp; Appliance - Sales Commissions</title>
   <link rel="icon" type="image/svg+xml" href="favicon.svg" />
   <link rel="stylesheet" href="internal-shell.css" />
   <style>
@@ -232,20 +232,21 @@
     }
   </style>
 </head>
-<body data-shell-label="Field Sales Commissions" data-shell-icon="commissions">
+<body data-shell-label="Sales Commissions" data-shell-icon="commissions">
   <div class="wrap">
     <div id="internal-shell-header"></div>
 
     <div class="surface" id="controlsSurface">
-      <h2>Field Sales Commissions</h2>
+      <h2>Sales Commissions</h2>
       <p class="section-note">
         Live statements computed from the <a href="sales-order-detail.html">Sales Order Detail</a> warehouse —
-        no import runs, no locks. Re-uploading a month's Crystal Commissions report there refreshes these
-        numbers instantly. Split sales are credited half to each partner and badged.
+        no import runs, no locks. Each rep computes under their directory commission plan (Field Sales or
+        Showroom); re-uploading a month's Crystal report refreshes everything. Split sales are credited half
+        to each partner and badged.
       </p>
       <div class="toolbar">
         <select id="monthSelect"></select>
-        <label class="check-inline"><input type="checkbox" id="showAll" /> Show all salespeople (not just Field Sales Consultants)</label>
+        <label class="check-inline"><input type="checkbox" id="showAll" /> Show all salespeople (including unassigned plans)</label>
         <span style="flex: 1;"></span>
         <button type="button" class="ghost-btn" id="balanceBtn">Upload balance check</button>
         <input type="file" id="balanceFile" accept=".xlsx,.xls" style="display: none;" />
@@ -256,7 +257,7 @@
       <div class="banner" id="errorBanner"></div>
 
       <details class="plan" style="margin-top: 14px;">
-        <summary>Plan reference — Field Sales</summary>
+        <summary>Plan reference — all plans</summary>
         <div class="plan-grid" id="planGrid"></div>
         <p class="plan-note">
           Eligibility: delivered serial revenue must remain above $500,000 in any six-month rolling period.
@@ -298,13 +299,7 @@
       return ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][m - 1] + " " + y;
     }
 
-    function renderPlan(plan) {
-      const gmTiers = plan.newSerialTiers.slice().reverse(); // ascending minGm
-      const gmRows = gmTiers.map((t, i) => {
-        const next = gmTiers[i + 1];
-        const range = next ? `${t.minGm}% – ${(next.minGm - 0.01).toFixed(2)}% GM` : `${t.minGm}%+ GM`;
-        return `<tr><td>${range}</td><td>${pctText(t.rate)} of list</td></tr>`;
-      }).join("");
+    function protectBoxHtml(plan) {
       const pTiers = plan.protectTiers.slice().reverse(); // ascending minAttach
       const protectRows = pTiers.map((t, i) => {
         const next = pTiers[i + 1];
@@ -313,21 +308,52 @@
           : (next ? `${pctText(t.minAttach, 0)} – ${pctText(next.minAttach, 0)}` : `${pctText(t.minAttach, 0)}+`);
         return `<tr><td>${range} attach</td><td>${pctText(t.rate, 0)} of protect sell</td></tr>`;
       }).join("");
-      el("planGrid").innerHTML = `
-        <div class="plan-box">
-          <div class="pb-title">New Serial Inventory (ALL) — % of list by line GM</div>
-          <table>${gmRows}<tr><td>Below ${gmTiers[0].minGm}% GM</td><td>No commission</td></tr></table>
-        </div>
+      return `
         <div class="plan-box">
           <div class="pb-title">EPIC Protect — % of protect sell by attachment</div>
           <table>${protectRows}
             <tr><td>Monthly protect ≥ ${money(plan.protectBonus.monthlyProtectThreshold, 0)}</td><td>+${money(plan.protectBonus.amount, 0)} bonus</td></tr>
           </table>
-        </div>
+        </div>`;
+    }
+    function closeoutBoxHtml(plan) {
+      return `
         <div class="plan-box">
           <div class="pb-title">Closeout Serial Inventory (OPEN / DISPLAY)</div>
           <table><tr><td>Flat rate, GM-approved</td><td>${pctText(plan.closeoutRate, 0)} of list</td></tr></table>
         </div>`;
+    }
+
+    function renderPlan(plans) {
+      const html = [];
+      for (const plan of plans) {
+        html.push(`<div style="grid-column: 1 / -1; font-weight: 800; font-size: 13px; color: var(--text); margin-top: ${html.length ? "8px" : "0"};">${escapeHtml(plan.label)}</div>`);
+        if (plan.manualSelect) {
+          const brandRows = (plan.selectBrands || []).map((b) =>
+            `<tr><td>${escapeHtml(b.brand)} — ${b.minGm}%+ margin</td><td>${pctText(b.rate, 1)} of list</td></tr>`).join("");
+          html.push(`
+            <div class="plan-box">
+              <div class="pb-title">Select Brands (non-spiff) — marked manually</div>
+              <table>${brandRows}<tr><td>All other brands</td><td>No commission (vendor spiff)</td></tr></table>
+              <div class="plan-note">Brand isn't on the Crystal export yet, so qualifying lines are marked with a payout-% override in the line editor. NetSuite will carry brand later.</div>
+            </div>`);
+        } else {
+          const gmTiers = plan.newSerialTiers.slice().reverse(); // ascending minGm
+          const gmRows = gmTiers.map((t, i) => {
+            const next = gmTiers[i + 1];
+            const range = next ? `${t.minGm}% – ${(next.minGm - 0.01).toFixed(2)}% GM` : `${t.minGm}%+ GM`;
+            return `<tr><td>${range}</td><td>${pctText(t.rate)} of list</td></tr>`;
+          }).join("");
+          html.push(`
+            <div class="plan-box">
+              <div class="pb-title">New Serial Inventory (ALL) — % of list by line GM</div>
+              <table>${gmRows}<tr><td>Below ${gmTiers[0].minGm}% GM</td><td>No commission</td></tr></table>
+            </div>`);
+        }
+        html.push(protectBoxHtml(plan));
+        html.push(closeoutBoxHtml(plan));
+      }
+      el("planGrid").innerHTML = html.join("");
     }
 
     const COLS = { new: 10, closeout: 9, protect: 8, excluded: 8 };
@@ -398,7 +424,7 @@
           <td class="num">${money(l.revenue)}</td>
           ${kind === "new" ? `
             <td class="num">${l.gmPercent == null ? '<span class="badge floor">no cost data</span>' : l.gmPercent.toFixed(1) + "%"}</td>
-            <td class="num">${l.belowFloor ? '<span class="badge floor">below 18%</span>' : pctText(l.rate, 0)}</td>` : ""}
+            <td class="num">${l.notSelect ? '<span class="badge neutralish" style="background:#e5e7eb;color:#374151;">spiff brand</span>' : l.belowFloor ? '<span class="badge floor">below 18%</span>' : pctText(l.rate, 0)}</td>` : ""}
           ${kind === "closeout" ? `<td class="num">${pctText(l.rate, 0)}</td>` : ""}
           <td class="num" style="font-weight: 700;">${kind === "protect" ? "—" : (l.held ? `<span class="held-commission">${money(l.commission)}</span>` : money(l.commission))}</td>
           <td class="num no-print"><button type="button" class="edit-btn" data-edit="${escapeHtml(l.lineKey)}" data-kind="${kind}" title="Override list, cost, payout, or split credit">✎</button></td>
@@ -414,14 +440,19 @@
           <span class="st-name">${escapeHtml(st.name)}</span>
           <span class="st-code">${escapeHtml(st.code)}</span>
           ${st.commissionPlan
-            ? `<span class="badge plan">${escapeHtml(st.commissionPlan)}</span>`
-            : '<span class="badge noplan">no plan assigned</span>'}
-          <span class="badge ${e.eligible ? "eligible" : "ineligible"}"
+            ? `<span class="badge plan">${escapeHtml(st.planLabel || st.commissionPlan)}</span>`
+            : '<span class="badge noplan">no plan assigned — computing as Field Sales</span>'}
+          ${e.required != null ? `<span class="badge ${e.eligible ? "eligible" : "ineligible"}"
             title="Delivered serial revenue over the trailing ${e.months} uploaded months">
             ${e.eligible ? "Eligible" : "Below eligibility"} — ${money(e.trailingSerialRevenue, 0)} / ${money(e.required, 0)} trailing ${e.months} mo
-          </span>
+          </span>` : `<span class="badge heldmonth" title="Showroom plan has no rolling-revenue requirement">${money(e.trailingSerialRevenue, 0)} trailing serial</span>`}
           <span style="flex: 1;"></span>
-          <button type="button" class="ghost-btn no-print" data-print="${escapeHtml(st.code)}">Print statement</button>
+          <a class="ghost-btn no-print" style="text-decoration: none;" href="/api/field-commissions/statement-pdf?month=${encodeURIComponent(data.month)}&code=${encodeURIComponent(st.code)}" download>Download PDF</a>
+          <button type="button" class="ghost-btn no-print" data-email-statement="${escapeHtml(st.code)}"
+            ${st.email ? "" : 'disabled title="No email on file — add one in the User Admin directory"'}>
+            ${st.email ? `Email to ${escapeHtml(st.email)}` : "No directory email"}
+          </button>
+          <button type="button" class="ghost-btn no-print" data-print="${escapeHtml(st.code)}">Print</button>
         </div>
 
         <div class="totals-strip">
@@ -434,14 +465,14 @@
           <div class="tot grand"><div class="t-label">Total commission</div><div class="t-value">${money(t.commission)}</div></div>
         </div>
 
-        <div class="sec-title">New Serial Inventory<span class="sec-sub">${money(t.newRevenue)} delivered list</span></div>
+        <div class="sec-title">${escapeHtml(st.sectionNewTitle || "New Serial Inventory")}<span class="sec-sub">${money(t.newRevenue)} delivered list${st.planKey === "showroom" ? " · unmarked brands pay vendor spiff, not commission" : ""}</span></div>
         ${st.newLines.length ? `
         <table class="lines">
           <thead><tr><th>Invoice</th><th>Customer</th><th>Model</th><th>Serial #</th><th class="num">Qty</th><th class="num">List</th><th class="num">GM</th><th class="num">Rate</th><th class="num">Commission</th><th class="no-print"></th></tr></thead>
           <tbody>${lineRows(st.newLines, "new")}
             <tr class="total-row"><td colspan="5">Total</td><td class="num">${money(t.newRevenue)}</td><td></td><td></td><td class="num">${money(t.newCommission)}</td><td class="no-print"></td></tr>
           </tbody>
-        </table>` : '<div class="empty-sec">No new serial inventory this month.</div>'}
+        </table>` : '<div class="empty-sec">No serial inventory this month.</div>'}
 
         <div class="sec-title">Closeout Serial Inventory<span class="sec-sub">Open Box &amp; Display — flat rate</span></div>
         ${st.closeoutLines.length ? `
@@ -510,7 +541,8 @@
 
     function visibleStatements() {
       const all = data?.statements || [];
-      return showAll ? all : all.filter((s) => s.commissionPlan === "Field Sales Consultant");
+      const pagePlans = data?.pagePlans || ["Field Sales Consultant", "Showroom Consultant"];
+      return showAll ? all : all.filter((s) => pagePlans.includes(s.commissionPlan));
     }
 
     function renderBalanceLine() {
@@ -552,7 +584,7 @@
         data = body;
         el("monthSelect").innerHTML = (data.months || []).map((m) =>
           `<option value="${m}" ${m === data.month ? "selected" : ""}>${monthLabel(m)}</option>`).join("");
-        if (data.plan) renderPlan(data.plan);
+        renderPlan(data.plans || (data.plan ? [data.plan] : []));
         render();
         el("errorBanner").className = "banner";
       } catch (err) {
@@ -574,6 +606,33 @@
       window.print();
       document.body.classList.remove("print-one");
       card.classList.remove("print-target");
+    });
+
+    // ---- Email statement (directory email, like the payment receipt) ----
+    document.addEventListener("click", async (event) => {
+      const btn = event.target.closest?.("[data-email-statement]");
+      if (!btn || btn.disabled) return;
+      const code = btn.dataset.emailStatement;
+      const original = btn.textContent;
+      btn.disabled = true;
+      btn.textContent = "Sending…";
+      try {
+        const res = await fetch("/api/field-commissions/statement-email", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "same-origin",
+          body: JSON.stringify({ month: data.month, code })
+        });
+        const body = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(body.error || "Unable to email the statement.");
+        btn.textContent = `Sent to ${body.to} ✓`;
+        setTimeout(() => { btn.textContent = original; btn.disabled = false; }, 5000);
+      } catch (err) {
+        el("errorBanner").textContent = err.message;
+        el("errorBanner").className = "banner error show";
+        btn.textContent = original;
+        btn.disabled = false;
+      }
     });
 
     // ---- Override editor ----

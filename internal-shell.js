@@ -268,10 +268,7 @@
       links.push({
         title: "Commissions",
         children: [
-          { href: "commissions.html?view=appliance", title: "Appliance Sales" },
-          { href: "commissions.html?view=hvac", title: "HVAC Sales" },
-          { href: "commissions.html?view=kitchen", title: "Kitchen Design" },
-          { href: "commissions.html?view=repair", title: "Repair Service" }
+          { href: "commissions.html", title: "Field Sales Commissions" }
         ]
       });
     }
@@ -337,7 +334,7 @@
       .map((link) => `<a class="internal-shell-footer-link" href="${link.href}">${link.title}</a>`);
 
     if (user?.accessGroup === "executive" || user?.isExecutive) {
-      links.push(`<a class="internal-shell-footer-link" href="commissions.html?view=appliance">Commissions</a>`);
+      links.push(`<a class="internal-shell-footer-link" href="commissions.html">Commissions</a>`);
     }
 
     if (session?.canManageUsers) {

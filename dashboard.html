@@ -1239,7 +1239,7 @@
           <select class="module-select" aria-label="Module shown in this position"></select>
           <p class="module-desc">Finished-order revenue vs target from the OE-23 feed — quarter to date and month to date, with last year's comps.</p>
         </div>
-        <div id="rsBlocks" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(430px, 1fr)); gap: 16px;"></div>
+        <div id="rsBlocks" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(430px, 100%), 1fr)); gap: 16px;"></div>
         <div class="metric-sub" id="rsFootnote" style="margin-top: 8px;"></div>
       </div>
 
@@ -1279,6 +1279,34 @@
         #stripeTodayBox .st-row .st-dept { font-size: 12.5px; font-weight: 700; }
         #stripeTodayBox .st-row .st-val { text-align: right; font-size: 12.5px; }
         .bonus-hero { display: flex; gap: 20px; align-items: flex-start; justify-content: space-between; flex-wrap: wrap; margin-bottom: 14px; }
+
+        /* Revenue Snapshot — desktop keeps the three-column rows; phones
+           stack each department as name+numbers with full-width bars below,
+           and the QTD/MTD cards collapse to one column without clipping. */
+        .rs-block { border: 1px solid #dbe1ea; border-radius: 14px; padding: 14px 16px; min-width: 0; }
+        .rs-hero { display: flex; gap: 14px; align-items: flex-start; justify-content: space-between; flex-wrap: wrap; margin-bottom: 8px; }
+        .rs-hero .rs-money { font-size: 26px; }
+        .rs-hero .rs-att { font-size: 26px; }
+        .rs-row { display: grid; grid-template-columns: 108px 1fr 158px; gap: 10px; align-items: center; padding: 6px 0; border-bottom: 1px solid #eef0f5; }
+        .rs-row:last-child { border-bottom: none; }
+        .rs-name { font-size: 12px; font-weight: 700; }
+        .rs-bars { min-width: 0; }
+        .rs-bar { height: 7px; border-radius: 4px; min-width: 3px; }
+        .rs-stats { text-align: right; font-size: 11.5px; }
+        @media (max-width: 640px) {
+          .rs-hero .rs-money, .rs-hero .rs-att { font-size: 21px; }
+          .rs-row {
+            grid-template-columns: 1fr auto;
+            grid-template-areas: "name stats" "bars bars";
+            row-gap: 5px;
+            padding: 9px 0;
+          }
+          .rs-name { grid-area: name; font-size: 13px; }
+          .rs-stats { grid-area: stats; font-size: 12px; }
+          .rs-stats .rs-comp { display: inline; margin-left: 6px; }
+          .rs-bars { grid-area: bars; }
+          .rs-bar { height: 9px; }
+        }
         .bonus-ladder { font-size: 12.5px; color: #6b7280; max-width: 460px; text-align: right; line-height: 1.6; }
         .bonus-panels { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 14px; }
         .bonus-panel { border: 1px solid #dbe1ea; border-radius: 14px; padding: 14px 16px; background: #fff; }
@@ -2092,8 +2120,7 @@
         "/audit-log.html": "Pull account activity by date range, with IPs, and export to CSV.",
         "/hr-phone-screen.html": "File a quick phone screen to a candidate profile.",
         "/hr-candidates.html": "Browse candidate profiles and their filed phone screens.",
-        "/commissions.html": "Build, review, and lock sales commission runs.",
-        "/commissions-print.html": "Print-friendly commission statements."
+        "/commissions.html": "Live Field Sales commission statements from the Sales Order Detail warehouse."
       };
 
       let session = null;
@@ -2110,7 +2137,7 @@
 
       // Executive-only pages: only ever present in grantedPages for
       // executives; grouped under their own heading in the picker.
-      const EXEC_ONLY_PAGES = ["/user-admin.html", "/audit-log.html", "/commissions.html", "/commissions-print.html"];
+      const EXEC_ONLY_PAGES = ["/user-admin.html", "/audit-log.html", "/commissions.html"];
 
       function allowedPages() {
         return (session?.grantedPages || [])
@@ -2608,15 +2635,15 @@
         const depts = Object.entries(block.byDepartment || {});
         const maxVal = Math.max(1, ...depts.flatMap(([, d]) => [d.actual, d.toDateTarget]));
         return `
-          <div style="border: 1px solid #dbe1ea; border-radius: 14px; padding: 14px 16px;">
+          <div class="rs-block">
             <div class="metric-label" style="margin-bottom: 8px;">${esc(block.label)}</div>
-            <div class="bonus-hero" style="margin-bottom: 8px;">
+            <div class="rs-hero">
               <div>
-                <div class="metric-value" style="font-size: 26px;">${money(block.company.actual)}</div>
+                <div class="metric-value rs-money">${money(block.company.actual)}</div>
                 <div class="metric-sub">${block.hasPerformance ? `of ${money(block.company.toDateTarget)} to date${monthNote}` : "No OE-23 uploads for this period yet."}</div>
               </div>
               <div style="text-align: right;">
-                <div class="metric-value" style="font-size: 26px; color: ${attColor(block.company.attainment)};">${block.company.attainment == null ? "—" : block.company.attainment.toFixed(1) + "%"}</div>
+                <div class="metric-value rs-att" style="color: ${attColor(block.company.attainment)};">${block.company.attainment == null ? "—" : block.company.attainment.toFixed(1) + "%"}</div>
                 <div class="metric-sub">${comp ? `${comp} (${esc(block.priorLabel)}: ${money(block.company.priorYearActual)})` : ""}</div>
               </div>
             </div>
@@ -2625,16 +2652,16 @@
               const tw = Math.max(1, Math.round(d.toDateTarget / maxVal * 100));
               const dComp = compText(d.actual, d.priorYearActual, block.progression);
               return `
-                <div style="display: grid; grid-template-columns: 108px 1fr 158px; gap: 10px; align-items: center; padding: 6px 0; border-bottom: 1px solid #eef0f5;">
-                  <div style="font-size: 12px; font-weight: 700;">${esc(name)}</div>
-                  <div>
-                    <div style="height: 7px; border-radius: 4px; width: ${tw}%; background: ${DEPT_BAR.target}; margin-bottom: 3px;" title="To-date target ${money(d.toDateTarget)}"></div>
-                    <div style="height: 7px; border-radius: 4px; width: ${aw}%; background: ${DEPT_BAR.actual};" title="Actual ${money(d.actual)}"></div>
+                <div class="rs-row">
+                  <div class="rs-name">${esc(name)}</div>
+                  <div class="rs-bars">
+                    <div class="rs-bar" style="width: ${tw}%; background: ${DEPT_BAR.target}; margin-bottom: 3px;" title="To-date target ${money(d.toDateTarget)}"></div>
+                    <div class="rs-bar" style="width: ${aw}%; background: ${DEPT_BAR.actual};" title="Actual ${money(d.actual)}"></div>
                   </div>
-                  <div style="text-align: right; font-size: 11.5px;">
+                  <div class="rs-stats">
                     <span style="font-weight: 800; color: ${attColor(d.attainment)};">${d.attainment == null ? "—" : d.attainment.toFixed(1) + "%"}</span>
                     <span style="color: #6b7280;"> · ${money(d.actual)}</span>
-                    ${dComp ? `<div style="color: #6b7280;">${dComp}</div>` : ""}
+                    ${dComp ? `<div class="rs-comp" style="color: #6b7280;">${dComp}</div>` : ""}
                   </div>
                 </div>`;
             }).join("")}

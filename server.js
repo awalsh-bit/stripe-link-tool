@@ -75,22 +75,6 @@ import {
   TOKEN_TTLS_SECONDS
 } from "./lib/users-postgres.js";
 import {
-  ensureCommissionTables,
-  finalizeExpiredCommissionRuns,
-  listCommissionRuns,
-  createCommissionRun,
-  getCommissionRunDetail,
-  recalculateCommissionLine,
-  updateCommissionLineClassification,
-  lockCommissionRun,
-  lockCommissionSalesperson,
-  updateCommissionSalespersonAdjustment,
-  updateCommissionHvacOrderSettings,
-  setCommissionSalespersonQualified,
-  getTrailingProductRevenueByCode,
-  deleteCommissionRun
-} from "./lib/commissions-postgres.js";
-import {
   listEmployeeDirectory,
   getEmployeeDirectoryObject,
   upsertEmployeeDirectoryEntry,
@@ -182,8 +166,16 @@ import {
   listLinesForInvoice,
   listSourceVersions,
   listReturnLines,
+  listCommissionLinesForMonths,
+  listCommissionMonths,
+  listSalespersonNames,
   normalizeSalespersonName
 } from "./lib/sales-order-detail-postgres.js";
+import {
+  FIELD_SALES_PLAN,
+  serialRevenueByCode,
+  computeFieldSalesStatements
+} from "./lib/field-sales-commissions.js";
 import {
   getSalesOrderSnapshot,
   saveSalesOrderSnapshot,
@@ -310,7 +302,6 @@ const INTERNAL_PAGE_PATHS = new Set([
   "/secret-menu.html",
   "/event-rsvps.html",
   "/commissions.html",
-  "/commissions-print.html",
   "/hvac-dashboard.html",
   "/link-detail-lookup.html",
   "/intent-lookup.html",
@@ -365,7 +356,7 @@ const ACCESS_GROUPS = {
   leader: {
     label: "Leader",
     pages: ["*"],
-    excludedPages: ["/commissions.html", "/commissions-print.html", "/user-admin.html"]
+    excludedPages: ["/commissions.html", "/user-admin.html"]
   },
   executive: {
     label: "Executive",
@@ -405,8 +396,7 @@ const EXECUTIVE_ONLY_PAGE_PATHS = new Set([
   "/audit-log.html",
   "/sales-order-detail.html",
   "/returns-report.html",
-  "/commissions.html",
-  "/commissions-print.html"
+  "/commissions.html"
 ]);
 
 // Canonical list of pages an executive can grant/deny per user. Derived from
@@ -508,8 +498,7 @@ const PAGE_LABELS = {
   "/secret-menu.html": "Secret Menu",
   "/event-rsvps.html": "Event RSVPs",
   "/spec-packages.html": "Spec Packages",
-  "/commissions.html": "Commissions",
-  "/commissions-print.html": "Commissions (Print)",
+  "/commissions.html": "Field Sales Commissions",
   "/user-admin.html": "User Admin",
   "/audit-log.html": "User Activity Audit",
   "/sales-order-detail.html": "Sales Order Detail",
@@ -612,8 +601,7 @@ const PAGE_CATEGORIES = [
 // page-permission check can't be bypassed by requesting the alias.
 const DASHBOARD_PAGE_ALIASES = {
   "/": "/dashboard.html",
-  "/secret-menu": "/secret-menu.html",
-  "/commissions-print": "/commissions-print.html"
+  "/secret-menu": "/secret-menu.html"
 };
 
 function resolveDashboardPagePath(pathname) {
@@ -3719,11 +3707,13 @@ app.get("/api/admin/employee-directory", requireExecutiveApi, async (req, res) =
   try {
     const entries = await listEmployeeDirectory();
 
-    // Trailing 6-month product revenue per code (read-only, computed from
-    // commission runs) — backs the Field Sales $500k qualification check.
+    // Trailing 6-month serial (Model-line) revenue per code, computed from
+    // the Sales Order Detail warehouse — backs the Field Sales $500k
+    // qualification check.
     let trailingRevenue = {};
     try {
-      trailingRevenue = await getTrailingProductRevenueByCode(6);
+      const months = (await listCommissionMonths()).slice(0, 6);
+      trailingRevenue = serialRevenueByCode(await listCommissionLinesForMonths(months));
     } catch {
       trailingRevenue = {};
     }
@@ -3974,10 +3964,6 @@ app.get("/fireflavor", (req, res) => {
   res.sendFile(path.join(__dirname, "fireflavor.html"));
 });
 
-app.get("/commissions-print", (req, res) => {
-  res.sendFile(path.join(__dirname, "commissions-print.html"));
-});
-
 app.get("/secret-menu", (req, res) => {
   res.sendFile(path.join(__dirname, "secret-menu.html"));
 });
@@ -4180,275 +4166,58 @@ app.post("/api/clearance/price", requireExecutiveApi, async (req, res) => {
   }
 });
 
-app.get("/api/commissions/runs", requireExecutiveApi, async (req, res) => {
+// INTERNAL (exec): Field Sales Commissions (commissions.html) — live monthly
+// statements computed from the Sales Order Detail warehouse (Crystal upload
+// feeds sales_order_lines). No import runs, no locks: re-uploading a month's
+// reports on Sales Order Detail refreshes the statements. Plan math lives in
+// lib/field-sales-commissions.js; eligibility is trailing-6-month serial
+// revenue ending at the statement month.
+app.get("/api/field-commissions", requireExecutiveApi, async (req, res) => {
   try {
-    const runs = await listCommissionRuns();
-    return res.json({ runs });
-  } catch (error) {
-    return res.status(500).json({
-      error: error.message || "Unable to load commission runs."
+    const months = await listCommissionMonths();
+    if (!months.length) {
+      return res.json({ months: [], month: null, statements: [], plan: FIELD_SALES_PLAN });
+    }
+    const month = /^\d{4}-\d{2}$/.test(String(req.query.month || "")) && months.includes(req.query.month)
+      ? String(req.query.month)
+      : months[0];
+
+    // Rolling window: the statement month plus the 5 calendar months before
+    // it (only months actually uploaded contribute).
+    const windowMonths = [];
+    let [y, m] = month.split("-").map(Number);
+    for (let i = 0; i < FIELD_SALES_PLAN.eligibility.rollingMonths; i++) {
+      const key = `${y}-${String(m).padStart(2, "0")}`;
+      if (months.includes(key)) windowMonths.push(key);
+      m--; if (m < 1) { m = 12; y--; }
+    }
+
+    const [windowLines, properNames, directory] = await Promise.all([
+      listCommissionLinesForMonths(windowMonths),
+      listSalespersonNames(),
+      listEmployeeDirectory().catch(() => [])
+    ]);
+
+    const monthLines = windowLines.filter((l) => l.sourceMonth === month);
+    const statements = computeFieldSalesStatements({
+      monthLines,
+      trailingByCode: serialRevenueByCode(windowLines),
+      directory,
+      properNames
     });
-  }
-});
-
-app.post("/api/commissions/import", requireExecutiveApi, async (req, res) => {
-  try {
-    await ensureCommissionTables();
-
-    const periodLabel = String(req.body?.periodLabel || "").trim();
-    const sourceFileName = String(req.body?.sourceFileName || "").trim();
-    const importedLines = Array.isArray(req.body?.lines) ? req.body.lines : [];
-
-    if (!periodLabel) {
-      return res.status(400).json({ error: "A commission period label is required." });
-    }
-
-    if (!sourceFileName) {
-      return res.status(400).json({ error: "A source file name is required." });
-    }
-
-    if (importedLines.length === 0) {
-      return res.status(400).json({ error: "At least one commission line is required." });
-    }
-
-    // Snapshot each salesperson's commission plan from the employee directory
-    // (User Admin -> Commission Plan). The plan drives the automatic
-    // calculation; missing codes import with no plan and stay hand-editable.
-    let planByCode = {};
-    try {
-      const directory = await listEmployeeDirectory();
-      planByCode = Object.fromEntries(
-        directory.map((entry) => [String(entry.code || "").trim().toUpperCase(), entry.commissionPlan || ""])
-      );
-    } catch (err) {
-      console.error("Commission import: directory plan lookup failed:", err.message);
-    }
-
-    const enrichedLines = importedLines.map((line) => ({
-      ...line,
-      salespersonPlan: planByCode[String(line?.salespersonCode || "").trim().toUpperCase()] || ""
-    }));
-
-    const runId = await createCommissionRun({
-      periodLabel,
-      sourceFileName,
-      importedByUsername: req.authUser?.username || "",
-      importedByName: req.authUser?.displayName || "",
-      lines: enrichedLines
-    });
-
-    const detail = await getCommissionRunDetail(runId);
 
     return res.json({
-      success: true,
-      run: detail?.run || null
+      months,
+      month,
+      windowMonths,
+      statements,
+      plan: FIELD_SALES_PLAN
     });
-  } catch (error) {
-    return res.status(500).json({
-      error: error.message || "Unable to import commission run."
-    });
+  } catch (err) {
+    console.error("Field commissions failed:", err.message);
+    return res.status(500).json({ error: "Unable to compute commission statements." });
   }
 });
-
-app.get("/api/commissions/runs/:runId", requireExecutiveApi, async (req, res) => {
-  try {
-    const detail = await getCommissionRunDetail(req.params.runId);
-    if (!detail) {
-      return res.status(404).json({ error: "Commission run not found." });
-    }
-
-    return res.json(detail);
-  } catch (error) {
-    return res.status(500).json({
-      error: error.message || "Unable to load commission run."
-    });
-  }
-});
-
-app.post("/api/commissions/runs/:runId/salespeople/:salespersonKey/lock", requireExecutiveApi, async (req, res) => {
-  try {
-    const salespersonStatus = await lockCommissionSalesperson(
-      req.params.runId,
-      decodeURIComponent(req.params.salespersonKey || "")
-    );
-
-    if (!salespersonStatus) {
-      return res.status(404).json({ error: "Salesperson status not found." });
-    }
-
-    await finalizeExpiredCommissionRuns();
-    return res.json({ success: true, salespersonStatus });
-  } catch (error) {
-    return res.status(400).json({
-      error: error.message || "Unable to lock salesperson."
-    });
-  }
-});
-
-// Field Sales $500k/6-month qualification toggle (draft salespeople only).
-app.post("/api/commissions/runs/:runId/salespeople/:salespersonKey/qualified", requireExecutiveApi, async (req, res) => {
-  try {
-    const qualified = Boolean(req.body?.qualified);
-    const salespersonStatus = await setCommissionSalespersonQualified(
-      req.params.runId,
-      decodeURIComponent(req.params.salespersonKey || ""),
-      qualified
-    );
-
-    if (!salespersonStatus) {
-      return res.status(404).json({ error: "Salesperson status not found." });
-    }
-
-    recordAudit({
-      ip: req.ip,
-      actorUserId: req.authUser.id || null,
-      action: "commission_fs_qualification_set",
-      targetUserId: null,
-      detail: { runId: req.params.runId, salesperson: salespersonStatus.salespersonKey, qualified }
-    }).catch(() => {});
-
-    return res.json({ success: true, salespersonStatus });
-  } catch (error) {
-    return res.status(400).json({
-      error: error.message || "Unable to update qualification."
-    });
-  }
-});
-
-// Trailing product revenue per salesperson code (backs the Field Sales
-// $500k/6-month qualification check; informational).
-app.get("/api/commissions/trailing-revenue", requireExecutiveApi, async (req, res) => {
-  try {
-    const revenueByCode = await getTrailingProductRevenueByCode(6);
-    return res.json({ months: 6, revenueByCode });
-  } catch (error) {
-    return res.status(500).json({
-      error: error.message || "Unable to load trailing revenue."
-    });
-  }
-});
-
-app.post("/api/commissions/lines/:lineId/calculate", requireExecutiveApi, async (req, res) => {
-  try {
-    const mode = String(req.body?.mode || "").trim();
-    const value = req.body?.value;
-
-    if (!mode) {
-      return res.status(400).json({ error: "A calculation mode is required." });
-    }
-
-    const line = await recalculateCommissionLine(req.params.lineId, mode, value);
-    if (!line) {
-      return res.status(404).json({ error: "Commission line not found." });
-    }
-
-    return res.json({ success: true, line });
-  } catch (error) {
-    return res.status(400).json({
-      error: error.message || "Unable to recalculate commission line."
-    });
-  }
-});
-
-app.post("/api/commissions/lines/:lineId/classification", requireExecutiveApi, async (req, res) => {
-  try {
-    const sourceClassification = String(req.body?.sourceClassification || "").trim();
-
-    const line = await updateCommissionLineClassification(req.params.lineId, sourceClassification);
-    if (!line) {
-      return res.status(404).json({ error: "Commission line not found." });
-    }
-
-    return res.json({ success: true, line });
-  } catch (error) {
-    return res.status(400).json({
-      error: error.message || "Unable to update commission line classification."
-    });
-  }
-});
-
-app.post("/api/commissions/runs/:runId/salespeople/:salespersonKey/adjustments", requireExecutiveApi, async (req, res) => {
-  try {
-    const runId = req.params.runId;
-    const adjustment = await updateCommissionSalespersonAdjustment(
-      runId,
-      decodeURIComponent(req.params.salespersonKey || ""),
-      String(req.body?.adjustmentType || "").trim(),
-      req.body?.amount,
-      String(req.body?.comment || "").trim()
-    );
-
-    if (!adjustment) {
-      return res.status(404).json({ error: "Salesperson adjustment target not found." });
-    }
-
-    const detail = await getCommissionRunDetail(runId);
-    return res.json({ success: true, adjustment, detail });
-  } catch (error) {
-    return res.status(400).json({
-      error: error.message || "Unable to update salesperson adjustment."
-    });
-  }
-});
-
-app.post("/api/commissions/runs/:runId/salespeople/:salespersonKey/orders/:salesOrder/hvac", requireExecutiveApi, async (req, res) => {
-  try {
-    const runId = req.params.runId;
-    const order = await updateCommissionHvacOrderSettings(
-      runId,
-      decodeURIComponent(req.params.salespersonKey || ""),
-      decodeURIComponent(req.params.salesOrder || ""),
-      req.body?.laborAmount,
-      req.body?.discountsAmount,
-      req.body?.cogsAmount,
-      req.body?.overheadPercent
-    );
-
-    if (!order) {
-      return res.status(404).json({ error: "HVAC order target not found." });
-    }
-
-    const detail = await getCommissionRunDetail(runId);
-    return res.json({ success: true, order, detail });
-  } catch (error) {
-    return res.status(400).json({
-      error: error.message || "Unable to update HVAC order settings."
-    });
-  }
-});
-
-app.post("/api/commissions/runs/:runId/lock", requireExecutiveApi, async (req, res) => {
-  try {
-    const run = await lockCommissionRun(req.params.runId);
-    if (!run) {
-      return res.status(404).json({ error: "Commission run not found." });
-    }
-
-    await finalizeExpiredCommissionRuns();
-    return res.json({ success: true, run });
-  } catch (error) {
-    return res.status(400).json({
-      error: error.message || "Unable to lock commission run."
-    });
-  }
-});
-
-app.delete("/api/commissions/runs/:runId", requireExecutiveApi, async (req, res) => {
-  try {
-    const run = await deleteCommissionRun(req.params.runId);
-    if (!run) {
-      return res.status(404).json({ error: "Commission run not found." });
-    }
-
-    return res.json({ success: true, run });
-  } catch (error) {
-    return res.status(400).json({
-      error: error.message || "Unable to delete commission run."
-    });
-  }
-});
-
-
 
 // -------------------------
 // EXISTING PAYMENT LINK ROUTE

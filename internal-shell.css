@@ -1,4 +1,25 @@
 /* ---------------------------------------------------------------------------
+   Agility's typeface: Roboto, self-hosted (fonts/, variable weight 100-900)
+   so every device renders identically — no reliance on Google's CDN or
+   locally installed fonts. font-display: swap paints immediately in the
+   system fallback, then swaps.
+--------------------------------------------------------------------------- */
+@font-face {
+  font-family: "Roboto";
+  src: url("fonts/roboto-latin-wght-normal.woff2") format("woff2");
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Roboto";
+  src: url("fonts/roboto-latin-wght-italic.woff2") format("woff2");
+  font-style: italic;
+  font-weight: 100 900;
+  font-display: swap;
+}
+
+/* ---------------------------------------------------------------------------
    Brand color scheme. The default is Wilson green; each user can pick a
    scheme on their profile (hamburger menu → Color Scheme), applied as
    data-theme on <html> by internal-shell.js. Pages reference ONLY these

@@ -1,3 +1,19 @@
+/* Agility's typeface: Roboto, self-hosted (variable weight). */
+@font-face {
+  font-family: "Roboto";
+  src: url("fonts/roboto-latin-wght-normal.woff2") format("woff2");
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Roboto";
+  src: url("fonts/roboto-latin-wght-italic.woff2") format("woff2");
+  font-style: italic;
+  font-weight: 100 900;
+  font-display: swap;
+}
+
 :root {
   --public-shell-border: rgba(33, 105, 44, 0.12);
   --public-shell-shadow: 0 10px 35px rgba(0, 0, 0, 0.08);

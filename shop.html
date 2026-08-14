@@ -77,7 +77,7 @@
 
     /* ---- Catalog ---- */
     main { max-width: 1140px; margin: 0 auto; padding: 20px 18px 80px; }
-    .map-note { background: #fffbeb; border: 1px solid #fde68a; color: #92400e; border-radius: 12px; padding: 12px 16px; font-size: 13.5px; line-height: 1.55; margin-bottom: 18px; }
+    .map-note { background: var(--wash); border: 1px solid #cfe3d2; color: var(--primary-dark); border-radius: 12px; padding: 12px 16px; font-size: 13.5px; line-height: 1.55; margin-bottom: 18px; }
     .filters { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 18px; align-items: center; }
     .filters input[type="search"] { max-width: 260px; }
     .filters select { width: auto; }
@@ -192,8 +192,7 @@
 
   <main id="mainArea">
     <div class="map-note" id="mapNote" style="display:none;">
-      Clearance pricing on premium brands can't be advertised publicly. Create a free
-      shopping profile to unlock your prices — it takes 30 seconds.
+      Create a free shopping profile to see your clearance pricing — it takes 30 seconds.
     </div>
 
     <div class="filters" id="filterBar" style="display:none;">
@@ -451,7 +450,7 @@
         <div class="item-foot">
           ${state.unlocked
             ? `<span class="item-price">${money(item.price)}</span>`
-            : `<span class="locked-price">Price hidden — MAP</span>`}
+            : `<span></span>`}
           ${state.unlocked
             ? (inCart
                 ? `<span class="in-cart">In cart ✓</span>`

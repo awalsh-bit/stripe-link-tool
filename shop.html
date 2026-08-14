@@ -84,9 +84,19 @@
     .chip-row { display: flex; flex-wrap: wrap; gap: 7px; }
     .chip { border: 1px solid #d1d5db; background: #fff; border-radius: 999px; padding: 6px 13px; font-size: 13px; cursor: pointer; }
     .chip.active { background: var(--primary); border-color: var(--primary); color: #fff; }
+    .deal-chip {
+      border: 2px solid #b45309; background: #fffbeb; color: #92400e;
+      border-radius: 999px; padding: 9px 20px; font-size: 15px; font-weight: 700;
+      cursor: pointer; letter-spacing: 0.01em;
+    }
+    .deal-chip.active { background: #b45309; color: #fff; }
 
     .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(255px, 1fr)); gap: 14px; }
     .item-card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 16px; display: flex; flex-direction: column; gap: 6px; }
+    .item-img { width: 100%; height: 150px; object-fit: contain; background: #fff; border-radius: 8px; margin-bottom: 4px; }
+    .cond-badge { display: inline-block; align-self: flex-start; border-radius: 999px; padding: 3px 10px; font-size: 11.5px; font-weight: 700; letter-spacing: 0.03em; }
+    .cond-badge.new { background: #dcfce7; color: #166534; }
+    .cond-badge.open { background: #fef3c7; color: #92400e; }
     .item-brand { font-size: 12px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
     .item-model { font-weight: 600; font-size: 15.5px; }
     .item-desc { font-size: 13.5px; color: #374151; line-height: 1.45; flex: 1; }
@@ -108,6 +118,12 @@
     .modal-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 18px; }
     .form-error { color: var(--danger); font-size: 13.5px; margin-top: 12px; display: none; line-height: 1.5; }
     .form-error.show { display: block; }
+    .linklike { background: none; border: none; color: var(--primary-dark); font-size: 13.5px; font-weight: 600; cursor: pointer; padding: 0; text-decoration: underline; display: block; margin-top: 8px; }
+    .client-code {
+      display: inline-block; font-size: 26px; font-weight: 700; letter-spacing: 0.14em;
+      background: var(--wash); border: 2px dashed #9fc4a5; color: var(--primary-dark);
+      border-radius: 12px; padding: 12px 26px;
+    }
 
     .addon-row { display: flex; align-items: center; gap: 11px; padding: 10px 0; border-bottom: 1px solid var(--line); }
     .addon-row:last-child { border-bottom: none; }
@@ -196,6 +212,7 @@
     </div>
 
     <div class="filters" id="filterBar" style="display:none;">
+      <button type="button" class="deal-chip" id="dealChip"></button>
       <input type="search" id="searchInput" placeholder="Search model, brand, description...">
       <select id="brandSelect"><option value="">All brands</option></select>
       <div class="chip-row" id="catChips"></div>
@@ -211,15 +228,32 @@
     <p>Your order number is <span class="order-no" id="doneOrderNo"></span></p>
     <p id="doneDetail">Your card is securely on file but has <strong>not been charged</strong>.
     A Wilson team member will reach out using your preferred contact method to confirm
-    availability, delivery scheduling, and final total (including sales tax) before anything is charged.</p>
+    availability, delivery scheduling, and your final total before anything is charged.</p>
+    <p id="doneCode" style="display:none;">Your client code is <span class="order-no" id="doneCodeVal"></span> —
+    enter it with your phone number next visit to skip the sign-up form.</p>
   </div>
 
   <!-- Registration modal -->
   <div class="overlay" id="registerOverlay">
-    <div class="modal">
+    <div class="modal" id="registerModal">
       <h2>Unlock clearance pricing</h2>
       <p class="lead">Tell us where these deals would be headed and how to reach you.
-      We only sell online within our local delivery area.</p>
+      We only sell online within our local delivery area.
+      <button type="button" class="linklike" id="haveCodeBtn">Shopped with us before? Enter your client code</button></p>
+
+      <div id="lookupPanel" style="display:none;">
+        <div class="form-grid">
+          <div><label for="lookPhone">Phone number</label><input id="lookPhone" type="tel" autocomplete="tel"></div>
+          <div><label for="lookCode">Client code</label><input id="lookCode" placeholder="W-XXXXX" style="text-transform:uppercase;"></div>
+        </div>
+        <div class="form-error" id="lookError"></div>
+        <div class="modal-actions">
+          <button class="btn ghost" type="button" id="backToRegBtn">Back to sign-up</button>
+          <button class="btn primary" id="lookSubmit" type="button">Restore my profile</button>
+        </div>
+      </div>
+
+      <div id="regPanel">
       <div class="form-grid">
         <div><label for="regFirst">First name</label><input id="regFirst" autocomplete="given-name"></div>
         <div><label for="regLast">Last name</label><input id="regLast" autocomplete="family-name"></div>
@@ -245,6 +279,16 @@
       <div class="modal-actions">
         <button class="btn ghost" type="button" data-close="registerOverlay">Not now</button>
         <button class="btn primary" id="regSubmit" type="button">Unlock pricing</button>
+      </div>
+      </div>
+
+      <div id="codePanel" style="display:none; text-align:center; padding: 10px 0 4px;">
+        <p style="font-size:15px; margin-bottom:10px;">You're in, <span id="codeName"></span>! Here's your client code:</p>
+        <div class="client-code" id="clientCodeBox"></div>
+        <p class="muted" style="font-size:13.5px; line-height:1.55; margin: 12px 0 16px;">
+          Save it — next visit, enter it with your phone number and we'll fill everything in for you.
+        </p>
+        <button class="btn primary" type="button" id="codeContinue">Start shopping</button>
       </div>
     </div>
   </div>
@@ -291,10 +335,12 @@
     catalog: null,
     unlocked: false,
     shopperName: "",
+    clientCode: "",
+    taxRate: 0.0825,
     addons: null,
     delivery: null,
     cart: { itemIds: [], addons: new Map() },
-    filter: { search: "", brand: "", category: "" },
+    filter: { search: "", brand: "", category: "", topDeals: false },
     checkout: { open: false, stripe: null, elements: null, setupIntentId: "" },
     pendingAddonItem: null
   };
@@ -378,8 +424,10 @@
     state.catalog = data;
     state.unlocked = data.unlocked;
     state.shopperName = data.shopperName || "";
+    state.clientCode = data.clientCode || state.clientCode || "";
     state.addons = data.addons;
     state.delivery = data.delivery;
+    if (Number.isFinite(Number(data.taxRate)) && data.taxRate) state.taxRate = Number(data.taxRate);
     buildFilters();
     renderHeader();
     renderGrid();
@@ -388,12 +436,22 @@
   function renderHeader() {
     $("unlockBtn").style.display = state.unlocked ? "none" : "";
     $("unlockChip").style.display = state.unlocked ? "" : "none";
-    if (state.unlocked) $("unlockChip").textContent = "Pricing unlocked" + (state.shopperName ? " for " + state.shopperName : "");
+    if (state.unlocked) {
+      $("unlockChip").textContent = "Pricing unlocked" + (state.shopperName ? " for " + state.shopperName : "") +
+        (state.clientCode ? " · " + state.clientCode : "");
+    }
     $("mapNote").style.display = state.unlocked ? "none" : "block";
     $("filterBar").style.display = "";
   }
 
   function buildFilters() {
+    const dealCount = (state.catalog.items || []).filter((i) => i.topDeal).length;
+    const dealMax = Number(state.catalog.topDealMax || 999);
+    const chip = $("dealChip");
+    chip.textContent = `Top Deals under $${dealMax.toLocaleString()} (${dealCount})`;
+    chip.classList.toggle("active", state.filter.topDeals);
+    chip.style.display = dealCount ? "" : "none";
+
     const brands = [...new Set((state.catalog.items || []).map((i) => i.brand).filter(Boolean))].sort();
     const sel = $("brandSelect");
     const current = state.filter.brand;
@@ -425,6 +483,7 @@
   function visibleItems() {
     const q = state.filter.search.trim().toUpperCase();
     return (state.catalog?.items || []).filter((i) => {
+      if (state.filter.topDeals && !i.topDeal) return false;
       if (state.filter.brand && i.brand !== state.filter.brand) return false;
       if (state.filter.category && i.category !== state.filter.category) return false;
       if (q && !`${i.model} ${i.brand} ${i.description}`.toUpperCase().includes(q)) return false;
@@ -443,8 +502,10 @@
       card.className = "item-card";
       const inCart = state.cart.itemIds.includes(item.id);
       card.innerHTML = `
+        ${item.image ? `<img class="item-img" src="${esc(item.image)}" alt="${esc(item.model)}" loading="lazy" onerror="this.remove()">` : ""}
         <div class="item-brand">${esc(item.brand)}</div>
         <div class="item-model">${esc(item.model)}</div>
+        ${conditionBadge(item)}
         <div class="item-desc">${esc(item.description)}</div>
         <div class="item-cat">${esc(categoryLabel(item.category))} · 1 available</div>
         <div class="item-foot">
@@ -468,19 +529,70 @@
     });
   }
 
+  function conditionBadge(item) {
+    if (item.condition === "new") return `<span class="cond-badge new">New in Box</span>`;
+    if (item.condition === "open") return `<span class="cond-badge open">Open Box</span>`;
+    return "";
+  }
+
   function categoryLabel(key) {
     const cat = (state.catalog?.categories || []).find((c) => c.key === key);
     return cat ? cat.label : key;
   }
 
+  $("dealChip").addEventListener("click", () => {
+    state.filter.topDeals = !state.filter.topDeals;
+    $("dealChip").classList.toggle("active", state.filter.topDeals);
+    renderGrid();
+  });
   $("searchInput").addEventListener("input", (e) => { state.filter.search = e.target.value; renderGrid(); });
   $("brandSelect").addEventListener("change", (e) => { state.filter.brand = e.target.value; renderGrid(); });
 
   // ---------- Registration ----------
   function openRegister() {
     $("regZip").value = $("regZip").value || state.zip;
+    $("regPanel").style.display = "";
+    $("lookupPanel").style.display = "none";
+    $("codePanel").style.display = "none";
+    $("haveCodeBtn").style.display = "";
     $("registerOverlay").classList.add("show");
   }
+
+  $("haveCodeBtn").addEventListener("click", () => {
+    $("regPanel").style.display = "none";
+    $("lookupPanel").style.display = "";
+    $("haveCodeBtn").style.display = "none";
+  });
+  $("backToRegBtn").addEventListener("click", () => {
+    $("lookupPanel").style.display = "none";
+    $("regPanel").style.display = "";
+    $("haveCodeBtn").style.display = "";
+  });
+
+  $("lookSubmit").addEventListener("click", async () => {
+    const err = $("lookError");
+    err.classList.remove("show");
+    $("lookSubmit").disabled = true;
+    try {
+      const res = await fetch("/api/shop/lookup", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phone: $("lookPhone").value.trim(), clientCode: $("lookCode").value.trim() })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Unable to look that up.");
+      state.token = data.token;
+      state.clientCode = data.clientCode || "";
+      localStorage.setItem(TOKEN_KEY, data.token);
+      $("registerOverlay").classList.remove("show");
+      await loadCatalog();
+    } catch (e) {
+      err.textContent = e.message;
+      err.classList.add("show");
+    } finally {
+      $("lookSubmit").disabled = false;
+    }
+  });
   $("unlockBtn").addEventListener("click", openRegister);
   document.querySelectorAll("[data-close]").forEach((btn) => {
     btn.addEventListener("click", () => $(btn.getAttribute("data-close")).classList.remove("show"));
@@ -517,8 +629,15 @@
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Unable to register.");
       state.token = data.token;
+      state.clientCode = data.clientCode || "";
       localStorage.setItem(TOKEN_KEY, data.token);
-      $("registerOverlay").classList.remove("show");
+      // Show the client code before closing — it's how they skip this form
+      // next time.
+      $("regPanel").style.display = "none";
+      $("haveCodeBtn").style.display = "none";
+      $("codeName").textContent = data.firstName || "";
+      $("clientCodeBox").textContent = data.clientCode || "";
+      $("codePanel").style.display = "";
       await loadCatalog();
     } catch (e) {
       err.textContent = e.message;
@@ -526,6 +645,10 @@
     } finally {
       $("regSubmit").disabled = false;
     }
+  });
+
+  $("codeContinue").addEventListener("click", () => {
+    $("registerOverlay").classList.remove("show");
   });
 
   // ---------- Cart & add-ons ----------
@@ -602,12 +725,22 @@
       .filter(Boolean);
     const itemsTotal = items.reduce((s, i) => s + (i.price || 0), 0);
     let addonsTotal = 0;
+    let taxableAddons = 0;
     for (const [id, qty] of state.cart.addons) {
       const a = addonInfo(id);
-      if (a) addonsTotal += a.price * qty;
+      if (!a) continue;
+      addonsTotal += a.price * qty;
+      // Parts and freestanding-install labor are taxable; built-in install
+      // labor is exempt (mirrors the server's math exactly).
+      if (a.taxable !== false) taxableAddons += a.price * qty;
     }
-    const delivery = state.delivery?.price || 0;
-    return { items, itemsTotal, addonsTotal, delivery, total: itemsTotal + addonsTotal + (items.length ? delivery : 0) };
+    const delivery = items.length ? (state.delivery?.price || 0) : 0;
+    const taxableBase = itemsTotal + taxableAddons + delivery;
+    const tax = Math.round(taxableBase * state.taxRate * 100) / 100;
+    return {
+      items, itemsTotal, addonsTotal, delivery, tax,
+      total: Math.round((itemsTotal + addonsTotal + delivery + tax) * 100) / 100
+    };
   }
 
   function openCart() {
@@ -639,7 +772,7 @@
       line.innerHTML = `
         <div class="info">
           <div class="nm">${esc(item.brand)} ${esc(item.model)}</div>
-          <div class="ds">${esc(item.description)}</div>
+          <div class="ds">${item.condition === "new" ? "New in Box · " : item.condition === "open" ? "Open Box · " : ""}${esc(item.description)}</div>
           <button class="rm-btn" data-rm-item="${esc(item.id)}">Remove</button>
         </div>
         <div class="pr">${money(item.price)}</div>`;
@@ -694,8 +827,9 @@
       <div class="tot-row"><span>Clearance items</span><span>${money(t.itemsTotal)}</span></div>
       ${t.addonsTotal ? `<div class="tot-row"><span>Parts &amp; installation</span><span>${money(t.addonsTotal)}</span></div>` : ""}
       <div class="tot-row"><span>White Glove Delivery</span><span>${money(t.delivery)}</span></div>
+      <div class="tot-row"><span>Sales tax (${(state.taxRate * 100).toFixed(2).replace(/\.?0+$/, "")}%)</span><span>${money(t.tax)}</span></div>
       <div class="tot-row grand"><span>Estimated total</span><span>${money(t.total)}</span></div>
-      <div class="tax-note">Sales tax is added when your order is finalized. Your card is saved securely now and only charged after a Wilson team member confirms your order with you.</div>
+      <div class="tax-note">Built-in installation labor is tax-exempt. Your card is saved securely now and only charged after a Wilson team member confirms your order with you.</div>
       <button class="btn primary" id="checkoutBtn" style="width:100%;">Continue to secure checkout</button>`;
     document.getElementById("checkoutBtn").addEventListener("click", startCheckout);
   }
@@ -716,6 +850,7 @@
             return a ? `${esc(a.name)} × ${qty} — ${money(a.price * qty)}` : "";
           }).filter(Boolean).join("<br>") : ""}
           <br>${esc(state.delivery?.name || "Delivery")} — ${money(t.delivery)}
+          <br>Sales tax — ${money(t.tax)}
           <br><strong>Estimated total — ${money(t.total)}</strong>
         </div>
       </div>
@@ -817,6 +952,10 @@
       $("cartDrawer").classList.remove("show");
       $("mainArea").style.display = "none";
       $("doneOrderNo").textContent = data.orderNumber;
+      if (state.clientCode) {
+        $("doneCodeVal").textContent = state.clientCode;
+        $("doneCode").style.display = "block";
+      }
       $("doneCard").style.display = "block";
       window.scrollTo({ top: 0 });
     } catch (e) {

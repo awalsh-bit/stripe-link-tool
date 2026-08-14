@@ -1,7 +1,9 @@
 {
  "_meta": {
   "note": "Generated from the NS shop accessories and installs folder. Connectors from ePASS Connectors Price Levels; installs from Service Item for Sale Import v2. byProduct maps clearance product codes to suggested add-on ids.",
-  "sourceFolder": "shop accessories and installs"
+  "sourceFolder": "shop accessories and installs",
+  "taxRate": 0.0825,
+  "taxNote": "Items, parts, and delivery are taxed at 8.25%. Install labor is taxed only for freestanding product; built-in installs are exempt."
  },
  "delivery": {
   "id": "white-glove-delivery",
@@ -15,67 +17,78 @@
    "id": "universal-nema-5-15-cord",
    "name": "Universal NEMA 5-15 Cord",
    "price": 12.95,
-   "type": "connector"
+   "type": "connector",
+   "taxable": true
   },
   {
    "id": "dryer-vent-kit",
    "name": "Dryer Vent Kit",
    "price": 27.95,
-   "type": "connector"
+   "type": "connector",
+   "taxable": true
   },
   {
    "id": "dryer-cord",
    "name": "Dryer Cord",
    "price": 29.95,
-   "type": "connector"
+   "type": "connector",
+   "taxable": true
   },
   {
    "id": "washer-fill-hoses-5ft-rubber",
    "name": "Washer Fill Hoses - 5ft Rubber",
    "price": 21.95,
-   "type": "connector"
+   "type": "connector",
+   "taxable": true
   },
   {
    "id": "washer-fill-hoses-5ft-stainless",
    "name": "Washer Fill Hoses - 5ft Stainless",
    "price": 29.95,
-   "type": "connector"
+   "type": "connector",
+   "taxable": true
   },
   {
    "id": "washer-fill-hoses-10ft-stainless",
    "name": "Washer Fill Hoses - 10ft Stainless",
    "price": 39.95,
-   "type": "connector"
+   "type": "connector",
+   "taxable": true
   },
   {
    "id": "dryer-steam-kit",
    "name": "Dryer Steam Kit",
    "price": 24.95,
-   "type": "connector"
+   "type": "connector",
+   "taxable": true
   },
   {
    "id": "range-cord",
    "name": "Range Cord",
    "price": 34.95,
-   "type": "connector"
+   "type": "connector",
+   "taxable": true
   },
   {
    "id": "dishwasher-install-kit",
    "name": "Dishwasher Install Kit",
    "price": 29.95,
-   "type": "connector"
+   "type": "connector",
+   "taxable": true
   },
   {
    "id": "universal-gas-install-kit",
    "name": "Universal Gas Install Kit",
    "price": 34.95,
-   "type": "connector"
+   "type": "connector",
+   "taxable": true
   },
   {
    "id": "refrigerator-water-supply-stainless",
    "name": "Refrigerator Water Supply - Stainless",
    "price": 21.95,
-   "type": "connector"
+   "type": "connector",
+   "taxable": true
   }
  ],
  "installs": [
@@ -84,434 +97,496 @@
    "name": "Kalamazoo Cabinet Installation",
    "price": 199.95,
    "durationMin": 120,
-   "type": "install"
+   "type": "install",
+   "taxable": false
   },
   {
    "id": "coffee-system-non-plumbed-install",
    "name": "Coffee System - Non-Plumbed Install",
    "price": 99.95,
    "durationMin": 60,
-   "type": "install"
+   "type": "install",
+   "taxable": false
   },
   {
    "id": "coffee-system-plumbed-install",
    "name": "Coffee System - Plumbed Install",
    "price": 149.95,
    "durationMin": 105,
-   "type": "install"
+   "type": "install",
+   "taxable": false
   },
   {
    "id": "cooktop-standard-install",
    "name": "Cooktop - Standard Install",
    "price": 139.95,
    "durationMin": 60,
-   "type": "install"
+   "type": "install",
+   "taxable": false
   },
   {
    "id": "pro-rangetop-install",
    "name": "Pro Rangetop Install",
    "price": 189.95,
    "durationMin": 90,
-   "type": "install"
+   "type": "install",
+   "taxable": false
   },
   {
    "id": "cooktop-modular-standard-install",
    "name": "Cooktop - Modular Standard Install",
    "price": 124.95,
    "durationMin": 75,
-   "type": "install"
+   "type": "install",
+   "taxable": false
   },
   {
    "id": "door-reversal-freestanding-refrigerator",
    "name": "Door Reversal - Freestanding Refrigerator",
    "price": 29.95,
    "durationMin": 45,
-   "type": "install"
+   "type": "install",
+   "taxable": true
   },
   {
    "id": "dishwasher-standard-install",
    "name": "Dishwasher - Standard Install",
    "price": 179.95,
    "durationMin": 60,
-   "type": "install"
+   "type": "install",
+   "taxable": false
   },
   {
    "id": "dishwasher-with-panel-install",
    "name": "Dishwasher - With Panel Install",
    "price": 219.95,
    "durationMin": 75,
-   "type": "install"
+   "type": "install",
+   "taxable": false
   },
   {
    "id": "pro-dishwasher-install",
    "name": "Pro Dishwasher Install",
    "price": 299.95,
    "durationMin": 75,
-   "type": "install"
+   "type": "install",
+   "taxable": false
   },
   {
    "id": "dish-drawer-install",
    "name": "Dish Drawer Install",
    "price": 249.95,
    "durationMin": 90,
-   "type": "install"
+   "type": "install",
+   "taxable": false
   },
   {
    "id": "outdoor-grill-standard-install",
    "name": "Outdoor Grill - Standard Install",
    "price": 249.95,
    "durationMin": 90,
-   "type": "install"
+   "type": "install",
+   "taxable": false
   },
   {
    "id": "outdoor-grill-kalamazoo-install",
    "name": "Outdoor Grill - Kalamazoo Install",
    "price": 389.95,
    "durationMin": 120,
-   "type": "install"
+   "type": "install",
+   "taxable": false
   },
   {
    "id": "outdoor-sideburner-install",
    "name": "Outdoor Sideburner Install",
    "price": 69.95,
    "durationMin": 60,
-   "type": "install"
+   "type": "install",
+   "taxable": false
   },
   {
    "id": "grill-access-door-drawer-install",
    "name": "Grill Access Door/Drawer Install",
    "price": 79.95,
    "durationMin": 45,
-   "type": "install"
+   "type": "install",
+   "taxable": false
   },
   {
    "id": "built-in-ice-machine-install",
    "name": "Built-In Ice Machine Install",
    "price": 449.95,
    "durationMin": 90,
-   "type": "install"
+   "type": "install",
+   "taxable": false
   },
   {
    "id": "built-in-ice-machine-install-with-panel",
    "name": "Built-In Ice Machine Install - With Panel",
    "price": 599.95,
    "durationMin": 105,
-   "type": "install"
+   "type": "install",
+   "taxable": false
   },
   {
    "id": "washer-standard-install",
    "name": "Washer - Standard Install",
    "price": 79.95,
    "durationMin": 30,
-   "type": "install"
+   "type": "install",
+   "taxable": true
   },
   {
    "id": "washer-condo-install",
    "name": "Washer - Condo Install",
    "price": 179.95,
    "durationMin": 45,
-   "type": "install"
+   "type": "install",
+   "taxable": true
   },
   {
    "id": "dryer-standard-install",
    "name": "Dryer - Standard Install",
    "price": 79.95,
    "durationMin": 30,
-   "type": "install"
+   "type": "install",
+   "taxable": true
   },
   {
    "id": "dryer-condo-install",
    "name": "Dryer - Condo Install",
    "price": 179.95,
    "durationMin": 45,
-   "type": "install"
+   "type": "install",
+   "taxable": true
   },
   {
    "id": "side-vent-dryer-add-on-install",
    "name": "Side Vent Dryer - Add-On Install",
    "price": 99.95,
    "durationMin": 30,
-   "type": "install"
+   "type": "install",
+   "taxable": true
   },
   {
    "id": "dryer-door-reversal",
    "name": "Dryer - Door Reversal",
    "price": 29.95,
    "durationMin": 30,
-   "type": "install"
+   "type": "install",
+   "taxable": true
   },
   {
    "id": "stacking-kit-add-on-install",
    "name": "Stacking Kit - Add-On Install",
    "price": 49.95,
    "durationMin": 30,
-   "type": "install"
+   "type": "install",
+   "taxable": true
   },
   {
    "id": "pedestal-basic-add-on-install",
    "name": "Pedestal - Basic - Add-On Install",
    "price": 24.95,
    "durationMin": 30,
-   "type": "install"
+   "type": "install",
+   "taxable": true
   },
   {
    "id": "pedestal-washer-add-on-install",
    "name": "Pedestal - Washer - Add-On Install",
    "price": 79.95,
    "durationMin": 30,
-   "type": "install"
+   "type": "install",
+   "taxable": true
   },
   {
    "id": "gas-conversion-cooktop",
    "name": "Gas Conversion - Cooktop",
    "price": 129.95,
    "durationMin": 45,
-   "type": "install"
+   "type": "install",
+   "taxable": false
   },
   {
    "id": "gas-conversion-rangetop",
    "name": "Gas Conversion - Rangetop",
    "price": 179.95,
    "durationMin": 45,
-   "type": "install"
+   "type": "install",
+   "taxable": false
   },
   {
    "id": "gas-conversion-all-gas-range",
    "name": "Gas Conversion - All-Gas Range",
    "price": 249.95,
    "durationMin": 45,
-   "type": "install"
+   "type": "install",
+   "taxable": true
   },
   {
    "id": "gas-conversion-dual-fuel-range",
    "name": "Gas Conversion - Dual-Fuel Range",
    "price": 199.95,
    "durationMin": 45,
-   "type": "install"
+   "type": "install",
+   "taxable": true
   },
   {
    "id": "gas-conversion-dryer",
    "name": "Gas Conversion - Dryer",
    "price": 149.95,
    "durationMin": 30,
-   "type": "install"
+   "type": "install",
+   "taxable": true
   },
   {
    "id": "microwave-with-trim-kit-install",
    "name": "Microwave - With Trim Kit Install",
    "price": 159.95,
    "durationMin": 60,
-   "type": "install"
+   "type": "install",
+   "taxable": false
   },
   {
    "id": "microwave-countertop-no-trim-kit",
    "name": "Microwave - Countertop, No Trim Kit",
    "price": 19.95,
    "durationMin": 15,
-   "type": "install"
+   "type": "install",
+   "taxable": true
   },
   {
    "id": "microwave-drawer-install",
    "name": "Microwave Drawer Install",
    "price": 159.95,
    "durationMin": 60,
-   "type": "install"
+   "type": "install",
+   "taxable": false
   },
   {
    "id": "over-the-range-microwave-install",
    "name": "Over-the-Range Microwave Install",
    "price": 169.95,
    "durationMin": 60,
-   "type": "install"
+   "type": "install",
+   "taxable": false
   },
   {
    "id": "microwave-built-in-install",
    "name": "Microwave - Built-In Install",
    "price": 149.95,
    "durationMin": 60,
-   "type": "install"
+   "type": "install",
+   "taxable": false
   },
   {
    "id": "oven-single-install",
    "name": "Oven - Single Install",
    "price": 159.95,
    "durationMin": 60,
-   "type": "install"
+   "type": "install",
+   "taxable": false
   },
   {
    "id": "oven-double-install",
    "name": "Oven - Double Install",
    "price": 199.95,
    "durationMin": 90,
-   "type": "install"
+   "type": "install",
+   "taxable": false
   },
   {
    "id": "oven-steam-non-plumbed-install",
    "name": "Oven - Steam, Non-Plumbed Install",
    "price": 129.95,
    "durationMin": 75,
-   "type": "install"
+   "type": "install",
+   "taxable": false
   },
   {
    "id": "oven-steam-plumbed-install",
    "name": "Oven - Steam, Plumbed Install",
    "price": 179.95,
    "durationMin": 105,
-   "type": "install"
+   "type": "install",
+   "taxable": false
   },
   {
    "id": "oven-speed-install",
    "name": "Oven - Speed Install",
    "price": 139.95,
    "durationMin": 60,
-   "type": "install"
+   "type": "install",
+   "taxable": false
   },
   {
    "id": "oven-pizza-countertop-install",
    "name": "Oven - Pizza, Countertop Install",
    "price": 129.95,
    "durationMin": 30,
-   "type": "install"
+   "type": "install",
+   "taxable": true
   },
   {
    "id": "oven-pizza-built-in-install",
    "name": "Oven - Pizza, Built-In Install",
    "price": 329.95,
    "durationMin": 90,
-   "type": "install"
+   "type": "install",
+   "taxable": false
   },
   {
    "id": "range-standard-electric-install",
    "name": "Range - Standard Electric Install",
    "price": 89.95,
    "durationMin": 45,
-   "type": "install"
+   "type": "install",
+   "taxable": true
   },
   {
    "id": "range-standard-gas-install",
    "name": "Range - Standard Gas Install",
    "price": 89.95,
    "durationMin": 60,
-   "type": "install"
+   "type": "install",
+   "taxable": true
   },
   {
    "id": "range-pro-install",
    "name": "Range - Pro Install",
    "price": 299.95,
    "durationMin": 90,
-   "type": "install"
+   "type": "install",
+   "taxable": true
   },
   {
    "id": "refrigerator-freestanding-install",
    "name": "Refrigerator - Freestanding Install",
    "price": 89.95,
    "durationMin": 45,
-   "type": "install"
+   "type": "install",
+   "taxable": true
   },
   {
    "id": "refrigerator-built-in-no-panels-install",
    "name": "Refrigerator - Built-In, No Panels Install",
    "price": 299.95,
    "durationMin": 120,
-   "type": "install"
+   "type": "install",
+   "taxable": false
   },
   {
    "id": "refrigerator-built-in-with-panel-install",
    "name": "Refrigerator - Built-In, With Panel Install",
    "price": 379.95,
    "durationMin": 150,
-   "type": "install"
+   "type": "install",
+   "taxable": false
   },
   {
    "id": "refrigerator-built-in-column-stainless-install",
    "name": "Refrigerator - Built-In Column, Stainless Install",
    "price": 379.95,
    "durationMin": 120,
-   "type": "install"
+   "type": "install",
+   "taxable": false
   },
   {
    "id": "refrigerator-built-in-column-with-panel-install",
    "name": "Refrigerator - Built-In Column, With Panel Install",
    "price": 399.95,
    "durationMin": 150,
-   "type": "install"
+   "type": "install",
+   "taxable": false
   },
   {
    "id": "refrigerator-undercounter-built-in-no-panel-install",
    "name": "Refrigerator - Undercounter Built-In, No Panel Install",
    "price": 79.95,
    "durationMin": 75,
-   "type": "install"
+   "type": "install",
+   "taxable": false
   },
   {
    "id": "refrigerator-undercounter-built-in-with-panel-install",
    "name": "Refrigerator - Undercounter Built-In, With Panel Install",
    "price": 129.95,
    "durationMin": 90,
-   "type": "install"
+   "type": "install",
+   "taxable": false
   },
   {
    "id": "refrigerator-undercounter-drawers-install",
    "name": "Refrigerator - Undercounter Drawers Install",
    "price": 139.95,
    "durationMin": 90,
-   "type": "install"
+   "type": "install",
+   "taxable": false
   },
   {
    "id": "built-in-vacuum-seal-drawer-install",
    "name": "Built-In Vacuum Seal Drawer Install",
    "price": 79.95,
    "durationMin": 60,
-   "type": "install"
+   "type": "install",
+   "taxable": false
   },
   {
    "id": "hood-under-cabinet-install",
    "name": "Hood - Under Cabinet Install",
    "price": 99.95,
    "durationMin": 60,
-   "type": "install"
+   "type": "install",
+   "taxable": false
   },
   {
    "id": "hood-wall-install",
    "name": "Hood - Wall Install",
    "price": 289.95,
    "durationMin": 90,
-   "type": "install"
+   "type": "install",
+   "taxable": false
   },
   {
    "id": "hood-island-install",
    "name": "Hood - Island Install",
    "price": 399.95,
    "durationMin": 120,
-   "type": "install"
+   "type": "install",
+   "taxable": false
   },
   {
    "id": "hood-liner-insert-install",
    "name": "Hood Liner/Insert Install",
    "price": 329.95,
    "durationMin": 75,
-   "type": "install"
+   "type": "install",
+   "taxable": false
   },
   {
    "id": "cattura-downdraft-install",
    "name": "Cattura Downdraft Install",
    "price": 399.95,
    "durationMin": 120,
-   "type": "install"
+   "type": "install",
+   "taxable": false
   },
   {
    "id": "warming-drawer-no-panel-install",
    "name": "Warming Drawer - No Panel Install",
    "price": 74.95,
    "durationMin": 60,
-   "type": "install"
+   "type": "install",
+   "taxable": false
   },
   {
    "id": "warming-drawer-with-panel-install",
    "name": "Warming Drawer - With Panel Install",
    "price": 99.95,
    "durationMin": 75,
-   "type": "install"
+   "type": "install",
+   "taxable": false
   }
  ],
  "byProduct": {

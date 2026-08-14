@@ -473,8 +473,8 @@
 
       if (state?.status === "web") {
         return `<span class="web-pill">WEB ORDER · ${escapeHtml(state.salesOrder || "—")}</span>` +
-          `<span class="sold-meta">Reserved by the online shop · finish or cancel it in ` +
-          `<a href="shop-orders.html">Online Shop Orders</a></span>`;
+          `<span class="sold-meta">Reserved by the online shop · finish or cancel it in the ` +
+          `<a href="dashboard.html">Online Shop Orders module</a></span>`;
       }
 
       if (state?.status === "hold") {

@@ -1,0 +1,541 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="robots" content="noindex,nofollow,noarchive" />
+  <title>Wilson AC &amp; Appliance - Online Shop Orders</title>
+  <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+  <link rel="stylesheet" href="internal-shell.css" />
+  <style>
+    :root {
+      --bg: #f7f8fc;
+      --card: #ffffff;
+      --text: #1f2937;
+      --muted: #6b7280;
+      --border: #dbe1ea;
+      --shadow: 0 10px 35px rgba(0, 0, 0, 0.08);
+      --radius: 18px;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Roboto", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: linear-gradient(180deg, var(--primary-tint) 0%, var(--bg) 100%);
+      color: var(--text);
+      min-height: 100vh;
+      padding: 32px 16px;
+    }
+    .wrap { max-width: 1100px; margin: 0 auto; }
+    .surface {
+      background: var(--card);
+      border: 1px solid rgba(var(--primary-rgb), 0.12);
+      box-shadow: var(--shadow);
+      border-radius: var(--radius);
+      padding: 22px;
+      margin: 0 auto 20px;
+    }
+    h2 { margin: 0 0 6px; font-size: 20px; }
+    .section-note { margin: 0 0 14px; color: var(--muted); font-size: 13.5px; line-height: 1.5; }
+    .section-note a { color: var(--primary); font-weight: 600; }
+    button {
+      font-family: inherit; border: none; border-radius: 10px; cursor: pointer;
+      font-size: 13.5px; font-weight: 600; padding: 9px 14px;
+    }
+    button:disabled { opacity: 0.55; cursor: wait; }
+    .btn-primary { background: var(--primary); color: #fff; }
+    .btn-primary:hover { background: var(--primary-strong, var(--primary)); }
+    .btn-ghost { background: #fff; color: var(--text); border: 1px solid var(--border); }
+    .btn-danger { background: #fff; color: #b91c1c; border: 1px solid #fca5a5; }
+    input[type="text"] {
+      border: 1px solid var(--border); border-radius: 10px; padding: 9px 12px;
+      font-size: 13.5px; font-family: inherit; background: #fff; color: var(--text); outline: none;
+    }
+    input[type="text"]:focus { border-color: rgba(var(--primary-rgb), 0.75); box-shadow: 0 0 0 4px rgba(var(--primary-rgb), 0.12); }
+
+    .status { display: none; border-radius: 12px; padding: 11px 14px; font-size: 13.5px; margin: 12px 0; line-height: 1.5; }
+    .status.show { display: block; }
+    .status.ok { background: rgba(var(--primary-rgb), 0.1); color: var(--primary-strong, var(--primary)); }
+    .status.error { background: #fee2e2; color: #991b1b; }
+
+    /* snapshot */
+    .snap-row { display: flex; flex-wrap: wrap; gap: 14px; align-items: center; }
+    .snap-meta { font-size: 13.5px; color: var(--muted); line-height: 1.55; flex: 1; min-width: 240px; }
+    .snap-meta strong { color: var(--text); }
+    .file-label {
+      display: inline-flex; align-items: center; gap: 8px; background: var(--primary); color: #fff;
+      border-radius: 10px; padding: 10px 16px; font-size: 13.5px; font-weight: 600; cursor: pointer;
+    }
+    .file-label input { display: none; }
+
+    /* order cards */
+    .filter-chips { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; }
+    .chip { border: 1px solid var(--border); background: #fff; border-radius: 999px; padding: 6px 13px; font-size: 13px; cursor: pointer; color: var(--text); font-weight: 500; }
+    .chip.active { background: var(--primary); border-color: var(--primary); color: #fff; }
+
+    .order { border: 1px solid var(--border); border-radius: 14px; padding: 16px 18px; margin-bottom: 14px; background: #fff; }
+    .order.conflict { border-color: #f59e0b; box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.12); }
+    .order-head { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-bottom: 8px; }
+    .order-no { font-size: 16.5px; font-weight: 700; letter-spacing: 0.02em; }
+    .order-when { font-size: 12.5px; color: var(--muted); }
+    .spacer { flex: 1; }
+    .pill { border-radius: 999px; padding: 4px 11px; font-size: 12px; font-weight: 700; border: 2px solid #111827; }
+    .pill.new { background: #dbeafe; color: #1e40af; }
+    .pill.claimed { background: #fef3c7; color: #92400e; }
+    .pill.completed { background: #dcfce7; color: #166534; }
+    .pill.canceled { background: #f3f4f6; color: #4b5563; }
+    .pill.contact { background: #eef2ff; color: #3730a3; border: none; font-weight: 600; }
+    .pill.card { background: #f0fdf4; color: #166534; border: none; font-weight: 600; }
+    .pill.nocard { background: #fee2e2; color: #991b1b; border: none; font-weight: 600; }
+
+    .order-grid { display: grid; grid-template-columns: 1.2fr 1fr; gap: 14px; }
+    @media (max-width: 760px) { .order-grid { grid-template-columns: 1fr; } }
+    .block-title { font-size: 11.5px; font-weight: 700; letter-spacing: 0.07em; text-transform: uppercase; color: var(--muted); margin-bottom: 5px; }
+    .line-item { display: flex; justify-content: space-between; gap: 10px; font-size: 13.5px; padding: 3px 0; }
+    .line-item .nm { flex: 1; }
+    .line-item .serial { color: var(--muted); font-size: 12px; }
+    .cust { font-size: 13.5px; line-height: 1.65; }
+    .totals-line { border-top: 1px solid var(--border); margin-top: 7px; padding-top: 7px; font-weight: 700; display: flex; justify-content: space-between; font-size: 14px; }
+    .conflict-note { background: #fffbeb; border: 1px solid #fde68a; color: #92400e; border-radius: 10px; padding: 9px 12px; font-size: 13px; line-height: 1.5; margin-top: 10px; }
+    .order-actions { display: flex; flex-wrap: wrap; gap: 9px; margin-top: 13px; align-items: center; }
+    .order-actions input { width: 170px; }
+    .claim-note { font-size: 12.5px; color: var(--muted); }
+    .empty { text-align: center; color: var(--muted); padding: 44px 0; font-size: 14.5px; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div id="shellNav"></div>
+
+    <div class="surface">
+      <h2>Online Shop Orders</h2>
+      <p class="section-note">
+        Orders placed at <a href="https://shop.wilsonappliance.com" target="_blank" rel="noopener">shop.wilsonappliance.com</a>.
+        The client's card is saved (never charged online) and each unit is web-locked on the
+        <a href="clearance.html">Clearance Hit List</a> the moment the order lands.
+        <strong>Claim</strong> an order to work it, build the ticket in ePASS, then
+        <strong>Complete</strong> it here with the ticket number — that flips the hit-list locks to Sold.
+        Canceling releases the locks.
+      </p>
+      <div id="ordersStatus" class="status"></div>
+      <div class="filter-chips" id="statusChips"></div>
+      <div id="ordersList"></div>
+    </div>
+
+    <div class="surface">
+      <h2>Availability Snapshot</h2>
+      <p class="section-note">
+        The shop only lists clearance units whose serial number appears in the latest ePASS
+        <strong>ExportModel</strong> (Model Maintenance serial-level export). Upload a fresh export
+        any time inventory moves — units that left ePASS disappear from the shop immediately.
+      </p>
+      <div class="snap-row">
+        <div class="snap-meta" id="snapMeta">No snapshot uploaded yet — the shop is showing the full clearance list.</div>
+        <label class="file-label">Upload ExportModel .xlsx
+          <input type="file" id="snapFile" accept=".xlsx" />
+        </label>
+      </div>
+      <div id="snapStatus" class="status"></div>
+    </div>
+  </div>
+
+  <script src="internal-shell.js"></script>
+  <script>
+    const state = { orders: [], snapshot: null, filter: "open" };
+
+    function el(tag, attrs, children) {
+      const node = document.createElement(tag);
+      for (const [key, value] of Object.entries(attrs || {})) {
+        if (key === "class") node.className = value;
+        else if (key === "text") node.textContent = value;
+        else if (key.startsWith("on")) node.addEventListener(key.slice(2), value);
+        else node.setAttribute(key, value);
+      }
+      for (const child of children || []) node.appendChild(child);
+      return node;
+    }
+
+    function setStatus(id, message, kind) {
+      const box = document.getElementById(id);
+      if (!message) { box.className = "status"; box.textContent = ""; return; }
+      box.className = "status " + kind + " show";
+      box.textContent = message;
+    }
+
+    const money = (n) => "$" + Number(n || 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const when = (iso) => iso ? new Date(iso).toLocaleString("en-US", { month: "2-digit", day: "2-digit", year: "2-digit", hour: "numeric", minute: "2-digit" }) : "—";
+
+    async function api(path, options) {
+      const res = await fetch(path, {
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json" },
+        ...options
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || "Request failed.");
+      return data;
+    }
+
+    async function load() {
+      try {
+        const data = await api("/api/shop-orders");
+        state.orders = data.orders || [];
+        state.snapshot = data.snapshot;
+        renderSnapshot();
+        renderChips();
+        renderOrders();
+      } catch (err) {
+        setStatus("ordersStatus", err.message, "error");
+      }
+    }
+
+    function renderSnapshot() {
+      const meta = document.getElementById("snapMeta");
+      if (!state.snapshot) {
+        meta.innerHTML = "No snapshot uploaded yet — the shop is showing the <strong>full clearance list</strong>. Upload the latest ExportModel to trim it to live inventory.";
+        return;
+      }
+      meta.innerHTML = `Latest snapshot: <strong>${escapeHtml(state.snapshot.sourceFile || "ExportModel")}</strong>
+        · ${Number(state.snapshot.count).toLocaleString()} serials
+        · uploaded ${when(state.snapshot.uploadedAt)}${state.snapshot.uploadedBy ? " by " + escapeHtml(state.snapshot.uploadedBy) : ""}`;
+    }
+
+    function escapeHtml(s) {
+      return String(s ?? "").replace(/[&<>"']/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch]));
+    }
+
+    const FILTERS = [
+      { key: "open", label: "Open (New + Claimed)" },
+      { key: "new", label: "New" },
+      { key: "claimed", label: "Claimed" },
+      { key: "completed", label: "Completed" },
+      { key: "canceled", label: "Canceled" },
+      { key: "all", label: "All" }
+    ];
+
+    function renderChips() {
+      const box = document.getElementById("statusChips");
+      box.textContent = "";
+      const counts = { new: 0, claimed: 0, completed: 0, canceled: 0 };
+      for (const o of state.orders) counts[o.status] = (counts[o.status] || 0) + 1;
+      for (const f of FILTERS) {
+        const count =
+          f.key === "all" ? state.orders.length :
+          f.key === "open" ? (counts.new + counts.claimed) :
+          (counts[f.key] || 0);
+        const chip = el("button", {
+          class: "chip" + (state.filter === f.key ? " active" : ""),
+          text: `${f.label} (${count})`,
+          onclick: () => { state.filter = f.key; renderChips(); renderOrders(); }
+        });
+        box.appendChild(chip);
+      }
+    }
+
+    function visibleOrders() {
+      if (state.filter === "all") return state.orders;
+      if (state.filter === "open") return state.orders.filter((o) => ["new", "claimed"].includes(o.status));
+      return state.orders.filter((o) => o.status === state.filter);
+    }
+
+    function renderOrders() {
+      const list = document.getElementById("ordersList");
+      list.textContent = "";
+      const orders = visibleOrders();
+      if (!orders.length) {
+        list.appendChild(el("div", { class: "empty", text: "No orders here yet. New web orders appear the moment a client checks out." }));
+        return;
+      }
+      for (const order of orders) list.appendChild(renderOrder(order));
+    }
+
+    function renderOrder(order) {
+      const c = order.customer || {};
+      const addr = c.address || {};
+      const statusPill = el("span", { class: "pill " + order.status, text: order.status.toUpperCase() });
+      const card = order.cardSummary?.last4
+        ? el("span", { class: "pill card", text: `${(order.cardSummary.brand || "card").toUpperCase()} •••• ${order.cardSummary.last4}` })
+        : el("span", { class: "pill nocard", text: "No card captured" });
+
+      const head = el("div", { class: "order-head" }, [
+        el("span", { class: "order-no", text: order.orderNumber }),
+        el("span", { class: "order-when", text: when(order.createdAt) }),
+        el("span", { class: "spacer" }),
+        el("span", { class: "pill contact", text: (c.preferredContact || "Contact") + " preferred" }),
+        card,
+        statusPill
+      ]);
+
+      const itemsBlock = el("div", {}, [
+        el("div", { class: "block-title", text: "Items" }),
+        ...(order.items || []).map((i) => el("div", { class: "line-item" }, [
+          el("span", { class: "nm" }, [
+            el("span", { text: `${i.brand} ${i.model} ` }),
+            el("span", { class: "serial", text: `SN ${i.serial}` })
+          ]),
+          el("span", { text: money(i.price) })
+        ])),
+        ...(order.addons || []).map((a) => el("div", { class: "line-item" }, [
+          el("span", { class: "nm", text: `${a.name}${a.qty > 1 ? " × " + a.qty : ""}` }),
+          el("span", { text: money(a.price * a.qty) })
+        ])),
+        el("div", { class: "line-item" }, [
+          el("span", { class: "nm", text: order.delivery?.name || "White Glove Delivery" }),
+          el("span", { text: money(order.delivery?.price) })
+        ]),
+        el("div", { class: "totals-line" }, [
+          el("span", { text: "Estimated total (pre-tax)" }),
+          el("span", { text: money(order.totals?.total) })
+        ])
+      ]);
+
+      const custBlock = el("div", {}, [
+        el("div", { class: "block-title", text: "Client" }),
+        el("div", { class: "cust" }, [
+          el("div", {}, [el("strong", { text: `${c.firstName || ""} ${c.lastName || ""}`.trim() || "—" })]),
+          el("div", { text: c.phone || "" }),
+          ...(c.email ? [el("div", { text: c.email })] : []),
+          el("div", { text: [addr.line1, addr.line2].filter(Boolean).join(", ") }),
+          el("div", { text: [addr.city, addr.state, addr.zip].filter(Boolean).join(", ") })
+        ]),
+        ...(order.claimedByName || order.claimedByEmail ? [
+          el("div", { class: "block-title", text: "Claimed by", style: "margin-top:10px;" }),
+          el("div", { class: "cust", text: `${order.claimedByName || order.claimedByEmail}${order.claimedAt ? " · " + when(order.claimedAt) : ""}` })
+        ] : []),
+        ...(order.epassTicket ? [
+          el("div", { class: "block-title", text: "ePASS ticket", style: "margin-top:10px;" }),
+          el("div", { class: "cust", text: order.epassTicket })
+        ] : []),
+        ...(order.cancelReason ? [
+          el("div", { class: "block-title", text: "Cancel reason", style: "margin-top:10px;" }),
+          el("div", { class: "cust", text: order.cancelReason })
+        ] : [])
+      ]);
+
+      const children = [head, el("div", { class: "order-grid" }, [itemsBlock, custBlock])];
+
+      if ((order.lockConflicts || []).length) {
+        children.push(el("div", { class: "conflict-note", text:
+          "Heads up — " + order.lockConflicts.map((x) => x.model).join(", ") +
+          " couldn't be locked on the hit list (someone marked it first). Confirm availability with the client before building the ticket." }));
+      }
+
+      const actions = el("div", { class: "order-actions" });
+      if (order.status === "new") {
+        actions.appendChild(el("button", { class: "btn-primary", text: "Claim this order", onclick: (e) => act(e.target, `/api/shop-orders/${order.id}/claim`, {}) }));
+      }
+      if (["new", "claimed"].includes(order.status)) {
+        const ticketInput = el("input", { type: "text", placeholder: "ePASS ticket #", id: `ticket-${order.id}` });
+        actions.appendChild(ticketInput);
+        actions.appendChild(el("button", {
+          class: "btn-primary", text: "Complete order",
+          onclick: (e) => {
+            const epassTicket = ticketInput.value.trim();
+            if (!epassTicket) { setStatus("ordersStatus", "Enter the ePASS ticket number to complete " + order.orderNumber + ".", "error"); return; }
+            act(e.target, `/api/shop-orders/${order.id}/complete`, { epassTicket });
+          }
+        }));
+        actions.appendChild(el("button", {
+          class: "btn-danger", text: "Cancel order",
+          onclick: (e) => {
+            const reason = prompt(`Cancel ${order.orderNumber}? The hit-list locks release immediately.\n\nReason (shared internally):`);
+            if (reason === null) return;
+            act(e.target, `/api/shop-orders/${order.id}/cancel`, { reason });
+          }
+        }));
+      }
+      if (actions.childNodes.length) children.push(actions);
+
+      return el("div", { class: "order" + ((order.lockConflicts || []).length && order.status !== "canceled" ? " conflict" : "") }, children);
+    }
+
+    async function act(button, path, payload) {
+      button.disabled = true;
+      try {
+        await api(path, { method: "POST", body: JSON.stringify(payload) });
+        setStatus("ordersStatus", "Done.", "ok");
+        await load();
+      } catch (err) {
+        setStatus("ordersStatus", err.message, "error");
+        button.disabled = false;
+        await load();
+      }
+    }
+
+    // ---- ExportModel snapshot upload (self-contained xlsx reader — an xlsx
+    // is a ZIP of XML; DecompressionStream inflates, DOMParser reads). ----
+    async function inflateRaw(bytes) {
+      const stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream("deflate-raw"));
+      return new Uint8Array(await new Response(stream).arrayBuffer());
+    }
+
+    function readZipDirectory(buffer) {
+      const view = new DataView(buffer);
+      const bytes = new Uint8Array(buffer);
+      let eocd = -1;
+      const scanStart = Math.max(0, buffer.byteLength - 22 - 65536);
+      for (let i = buffer.byteLength - 22; i >= scanStart; i--) {
+        if (view.getUint32(i, true) === 0x06054b50) { eocd = i; break; }
+      }
+      if (eocd < 0) throw new Error("That doesn't look like an xlsx file.");
+      const count = view.getUint16(eocd + 10, true);
+      let offset = view.getUint32(eocd + 16, true);
+      const entries = {};
+      const decoder = new TextDecoder();
+      for (let i = 0; i < count; i++) {
+        if (view.getUint32(offset, true) !== 0x02014b50) break;
+        const method = view.getUint16(offset + 10, true);
+        const compSize = view.getUint32(offset + 20, true);
+        const nameLen = view.getUint16(offset + 28, true);
+        const extraLen = view.getUint16(offset + 30, true);
+        const commentLen = view.getUint16(offset + 32, true);
+        const localOffset = view.getUint32(offset + 42, true);
+        const name = decoder.decode(bytes.subarray(offset + 46, offset + 46 + nameLen));
+        entries[name] = { method, compSize, localOffset };
+        offset += 46 + nameLen + extraLen + commentLen;
+      }
+      return { view, bytes, entries };
+    }
+
+    async function readZipText(zip, name) {
+      const entry = zip.entries[name];
+      if (!entry) return null;
+      const nameLen = zip.view.getUint16(entry.localOffset + 26, true);
+      const extraLen = zip.view.getUint16(entry.localOffset + 28, true);
+      const start = entry.localOffset + 30 + nameLen + extraLen;
+      const data = zip.bytes.subarray(start, start + entry.compSize);
+      const raw = entry.method === 0 ? data : await inflateRaw(data);
+      return new TextDecoder().decode(raw);
+    }
+
+    function textOfShared(si) {
+      let out = "";
+      const ts = si.getElementsByTagName("t");
+      for (let i = 0; i < ts.length; i++) out += ts[i].textContent;
+      return out;
+    }
+
+    function refToColIndex(ref) {
+      let n = 0;
+      for (let i = 0; i < ref.length; i++) {
+        const code = ref.charCodeAt(i);
+        if (code < 65 || code > 90) break;
+        n = n * 26 + (code - 64);
+      }
+      return n - 1;
+    }
+
+    async function workbookToGrids(arrayBuffer) {
+      const zip = readZipDirectory(arrayBuffer);
+      const sheetNames = Object.keys(zip.entries)
+        .filter((n) => /^xl\/worksheets\/[^\/]+\.xml$/i.test(n))
+        .sort((a, b) => {
+          const na = Number((a.match(/(\d+)\.xml$/i) || [])[1] || 0);
+          const nb = Number((b.match(/(\d+)\.xml$/i) || [])[1] || 0);
+          return na - nb || a.localeCompare(b);
+        });
+      if (!sheetNames.length) throw new Error("No worksheet found in that file.");
+
+      const sharedXml = await readZipText(zip, "xl/sharedStrings.xml");
+      const shared = [];
+      if (sharedXml) {
+        const sharedDoc = new DOMParser().parseFromString(sharedXml, "application/xml");
+        const sis = sharedDoc.getElementsByTagName("si");
+        for (let i = 0; i < sis.length; i++) shared.push(textOfShared(sis[i]));
+      }
+
+      const grids = [];
+      for (const sheetName of sheetNames) {
+        const sheetXml = await readZipText(zip, sheetName);
+        if (!sheetXml) continue;
+        const doc = new DOMParser().parseFromString(sheetXml, "application/xml");
+        const grid = [];
+        const rows = doc.getElementsByTagName("row");
+        // ePASS stamps r/ref attributes on only SOME rows/cells — track
+        // cursors so explicit and implicit positions interleave correctly.
+        let lastRow = -1;
+        for (let r = 0; r < rows.length; r++) {
+          const rAttr = rows[r].getAttribute("r");
+          const rowIndex = rAttr ? Number(rAttr) - 1 : lastRow + 1;
+          lastRow = rowIndex;
+          const cells = rows[r].getElementsByTagName("c");
+          const out = [];
+          let lastCol = -1;
+          for (let c = 0; c < cells.length; c++) {
+            const cell = cells[c];
+            const ref = cell.getAttribute("r") || "";
+            const col = ref ? refToColIndex(ref) : lastCol + 1;
+            lastCol = col;
+            const type = cell.getAttribute("t") || "n";
+            let value = null;
+            if (type === "inlineStr") {
+              value = textOfShared(cell);
+            } else {
+              const v = cell.getElementsByTagName("v")[0];
+              if (v) {
+                const text = v.textContent;
+                if (type === "s") value = shared[Number(text)] ?? "";
+                else if (type === "str" || type === "b") value = text;
+                else value = text === "" ? null : Number(text);
+              }
+            }
+            out[col] = value;
+          }
+          grid[rowIndex] = out;
+        }
+        grids.push(grid);
+      }
+      return grids;
+    }
+
+    function normalizeHeaderText(value) {
+      return String(value == null ? "" : value).replace(/[\s ]+/g, " ").trim().toLowerCase();
+    }
+
+    // The ExportModel header row carries "Serial" and a model column ("*
+    // Model" or "Model") — scan every sheet for it rather than assuming
+    // position.
+    function extractSerials(grids) {
+      for (const grid of grids) {
+        const headerIndex = grid.findIndex((row) => {
+          if (!row) return false;
+          const t = row.map(normalizeHeaderText);
+          return t.includes("serial") && t.some((x) => x === "* model" || x === "model" || x === "sku");
+        });
+        if (headerIndex < 0) continue;
+        const serialCol = grid[headerIndex].map(normalizeHeaderText).indexOf("serial");
+        const serials = [];
+        for (let r = headerIndex + 1; r < grid.length; r++) {
+          const raw = grid[r]?.[serialCol];
+          const serial = String(raw ?? "").trim();
+          if (serial) serials.push(serial);
+        }
+        return serials;
+      }
+      throw new Error("Couldn't find a Serial column — is this the ExportModel (Model Maintenance) export?");
+    }
+
+    document.getElementById("snapFile").addEventListener("change", async (event) => {
+      const file = event.target.files?.[0];
+      event.target.value = "";
+      if (!file) return;
+      setStatus("snapStatus", "Reading " + file.name + "…", "ok");
+      try {
+        const grids = await workbookToGrids(await file.arrayBuffer());
+        const serials = extractSerials(grids);
+        if (!serials.length) throw new Error("No serial numbers found in that file.");
+        const result = await api("/api/shop/inventory-snapshot", {
+          method: "POST",
+          body: JSON.stringify({ serials, sourceFile: file.name })
+        });
+        setStatus("snapStatus", `Snapshot updated — ${result.count.toLocaleString()} serials. The shop now reflects this inventory.`, "ok");
+        await load();
+      } catch (err) {
+        setStatus("snapStatus", err.message, "error");
+      }
+    });
+
+    load();
+  </script>
+</body>
+</html>

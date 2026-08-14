@@ -123,8 +123,24 @@ import {
   getClearanceStatus,
   listPriceOverrides,
   setPriceOverride,
-  clearPriceOverride
+  clearPriceOverride,
+  markWebLock,
+  upgradeWebToSold
 } from "./lib/clearance-postgres.js";
+import {
+  createShopper,
+  getShopperByToken,
+  createShopOrder,
+  listShopOrders,
+  getShopOrder,
+  claimShopOrder,
+  completeShopOrder,
+  cancelShopOrder,
+  updateShopOrderCardSummary,
+  updateShopOrderLockConflicts,
+  saveShopInventorySnapshot,
+  getShopInventorySnapshot
+} from "./lib/shop-postgres.js";
 import {
   normalizeCreditAppToken,
   getCreditApplication,
@@ -235,6 +251,14 @@ const __dirname = path.dirname(__filename);
 
 const DASHBOARD_HOST = (process.env.DASHBOARD_HOST || "dashboards.wilsonappliance.com").toLowerCase();
 const SERVICE_PUBLIC_HOST = (process.env.SERVICE_PUBLIC_HOST || "service.wilsonappliance.com").toLowerCase();
+const SHOP_PUBLIC_HOST = (process.env.SHOP_PUBLIC_HOST || "shop.wilsonappliance.com").toLowerCase();
+// MAP compliance: the shop only serves (and prices) deliveries inside this
+// ZIP list — like an age gate on an alcohol site. Override with a
+// comma-separated SHOP_ALLOWED_ZIPS env var.
+const SHOP_ALLOWED_ZIPS = new Set(
+  String(process.env.SHOP_ALLOWED_ZIPS || "78620,78737,78746,78749,78739,78738,78676,78703,78704,78748")
+    .split(",").map((z) => z.trim()).filter(Boolean)
+);
 const AUTH_COOKIE_NAME = "wilson_dashboard_session";
 const AUTH_COOKIE_TTL_SECONDS = 60 * 60 * 12;
 const LEADER_USERNAME = String(process.env.APP_USERNAME || "wilson").trim();
@@ -268,6 +292,8 @@ const SERVICE_PUBLIC_PATHS = new Set([
   "/terms-sign.html",
   "/public-shell.css",
   "/public-shell.js",
+  "/fonts/roboto-latin-wght-normal.woff2",
+  "/fonts/roboto-latin-wght-italic.woff2",
   "/logo-black.png",
   "/fireflavor-hero.png",
   "/fireflavor-what-to-expect.png",
@@ -287,6 +313,31 @@ const SERVICE_PUBLIC_API_PREFIXES = [
   "/api/service/submit-request",
   "/api/service/setup-intent-result/",
   "/api/service/prefill/"
+];
+
+// Online clearance shop (shop.wilsonappliance.com). shop.html is served at
+// the shop host's root; these assets/APIs are reachable without a login on
+// that host only.
+const SHOP_PUBLIC_PATHS = new Set([
+  "/",
+  "/shop.html",
+  "/public-shell.css",
+  "/fonts/roboto-latin-wght-normal.woff2",
+  "/fonts/roboto-latin-wght-italic.woff2",
+  "/logo-black.png",
+  "/favicon.svg",
+  "/robots.txt",
+  "/favicon.ico"
+]);
+
+const SHOP_PUBLIC_API_PREFIXES = [
+  "/api/config",
+  "/api/shop/zip-check",
+  "/api/shop/register",
+  "/api/shop/catalog",
+  "/api/shop/setup-intent",
+  "/api/shop/submit-order",
+  "/api/shop/setup-intent-result/"
 ];
 
 const ALWAYS_PUBLIC_PATHS = new Set([
@@ -348,7 +399,8 @@ const INTERNAL_PAGE_PATHS = new Set([
   "/service-order-health.html",
   "/terms-signatures.html",
   "/flag-closures.html",
-  "/target-builder.html"
+  "/target-builder.html",
+  "/shop-orders.html"
 ]);
 
 const UNAUTHENTICATED_INTERNAL_PATHS = new Set([
@@ -427,6 +479,7 @@ const JOB_CODE_PRESETS = {
       "/salesdashboard.html",
       "/secret-menu.html",
       "/clearance.html",
+      "/shop-orders.html",
       "/spec-packages.html",
       "/event-rsvps.html",
       "/dashboard.html",
@@ -530,7 +583,8 @@ const PAGE_LABELS = {
   "/terms-signatures.html": "Terms & Conditions Signatures",
   "/service-order-health.html": "Service Order Health",
   "/flag-closures.html": "Notification Closure Report",
-  "/target-builder.html": "Target Builder"
+  "/target-builder.html": "Target Builder",
+  "/shop-orders.html": "Online Shop Orders"
 };
 
 // Category groupings for the User Admin permission UI. A page may appear in
@@ -594,6 +648,7 @@ const PAGE_CATEGORIES = [
     label: "Sales",
     pages: [
       "/salesdashboard.html",
+      "/shop-orders.html",
       "/sales-order-health.html",
       "/terms-signatures.html",
       "/flag-closures.html",
@@ -673,6 +728,13 @@ function isServicePublicPath(pathname) {
   return (
     SERVICE_PUBLIC_PATHS.has(pathname) ||
     SERVICE_PUBLIC_API_PREFIXES.some((prefix) => pathname === prefix || pathname.startsWith(prefix))
+  );
+}
+
+function isShopPublicPath(pathname) {
+  return (
+    SHOP_PUBLIC_PATHS.has(pathname) ||
+    SHOP_PUBLIC_API_PREFIXES.some((prefix) => pathname === prefix || pathname.startsWith(prefix))
   );
 }
 
@@ -1028,8 +1090,17 @@ app.use((req, res, next) => {
     return res.redirect(302, buildHostUrl(req, DASHBOARD_HOST));
   }
 
+  if (host === SHOP_PUBLIC_HOST && INTERNAL_PAGE_PATHS.has(req.path)) {
+    return res.redirect(302, buildHostUrl(req, DASHBOARD_HOST));
+  }
+
   if (host === DASHBOARD_HOST && req.path !== "/" && SERVICE_PUBLIC_PATHS.has(req.path)) {
     return res.redirect(302, buildHostUrl(req, SERVICE_PUBLIC_HOST));
+  }
+
+  // shop.html lives on the shop host only.
+  if (host !== SHOP_PUBLIC_HOST && req.path === "/shop.html") {
+    return res.redirect(302, buildHostUrl(req, SHOP_PUBLIC_HOST));
   }
 
   next();
@@ -1113,6 +1184,9 @@ app.use(async (req, res, next) => {
   const isPublicServiceRequest =
     (host === SERVICE_PUBLIC_HOST || isLocalHost(host)) &&
     isServicePublicPath(req.path);
+  const isPublicShopRequest =
+    (host === SHOP_PUBLIC_HOST || isLocalHost(host)) &&
+    isShopPublicPath(req.path);
   const isUnauthenticatedInternalPage =
     (host === DASHBOARD_HOST || isLocalHost(host)) &&
     UNAUTHENTICATED_INTERNAL_PATHS.has(req.path);
@@ -1120,7 +1194,7 @@ app.use(async (req, res, next) => {
     (host === DASHBOARD_HOST || isLocalHost(host)) &&
     isPublicAuthPath(req.path);
 
-  if (isWebhookRequest || isPublicServiceRequest || isUnauthenticatedInternalPage || isPublicAuthRequest) {
+  if (isWebhookRequest || isPublicServiceRequest || isPublicShopRequest || isUnauthenticatedInternalPage || isPublicAuthRequest) {
     return next();
   }
 
@@ -3969,7 +4043,9 @@ app.get("/", (req, res) => {
   const landingPage =
     host === SERVICE_PUBLIC_HOST
       ? "applianceservice.html"
-      : "dashboard.html";
+      : host === SHOP_PUBLIC_HOST
+        ? "shop.html"
+        : "dashboard.html";
   res.sendFile(path.join(__dirname, landingPage));
 });
 
@@ -4176,6 +4252,551 @@ app.post("/api/clearance/price", requireExecutiveApi, async (req, res) => {
   } catch (err) {
     console.error("Clearance price failed:", err.message);
     return res.status(500).json({ error: "Unable to update the price." });
+  }
+});
+
+// ===========================================================================
+// ONLINE CLEARANCE SHOP (shop.wilsonappliance.com)
+//
+// Public storefront for the Clearance Hit List, MAP-compliant:
+//  - ZIP gate at the door (SHOP_ALLOWED_ZIPS) like an alcohol-site age check.
+//  - Pricing is hidden until the visitor registers (name, shipping address,
+//    phone, preferred contact) — registration issues a shopper token that
+//    unlocks prices and checkout.
+//  - Checkout saves a card via SetupIntent (never charged online) and creates
+//    a WEB-### order; the units are immediately web-locked on the internal
+//    hit list so the showroom can't double-sell them. The sales team claims
+//    the order in shop-orders.html and finishes it as an ePASS ticket.
+//  - Availability = clearance list ∩ latest ePASS serial snapshot (uploaded
+//    in shop-orders.html), minus anything sold/held/web-locked.
+// ===========================================================================
+
+const SHOP_DELIVERY_OFFER = {
+  id: "white-glove-delivery",
+  name: "White Glove Delivery + Haul Away",
+  price: 49.95,
+  regularPrice: 89.95,
+  note: "Special online offer — includes delivery and haul off of the appliance being replaced (if applicable)."
+};
+
+function shopZipAllowed(zip) {
+  return SHOP_ALLOWED_ZIPS.has(String(zip || "").trim().slice(0, 5));
+}
+
+async function loadShopData() {
+  const fs = await import("fs/promises");
+  const [clearanceRaw, addonsRaw] = await Promise.all([
+    fs.readFile(path.join(__dirname, "data", "clearance.json"), "utf8"),
+    fs.readFile(path.join(__dirname, "data", "shop-addons.json"), "utf8")
+  ]);
+  return { clearance: JSON.parse(clearanceRaw), addons: JSON.parse(addonsRaw) };
+}
+
+// The single source of truth for what the shop will sell right now and at
+// what price. Used by the catalog AND re-run at checkout so a stale cart
+// can't buy an unavailable unit or an outdated price.
+async function computeShopCatalog() {
+  const { clearance, addons } = await loadShopData();
+
+  let statuses = [];
+  let overrides = [];
+  let snapshot = null;
+  try {
+    [statuses, overrides, snapshot] = await Promise.all([
+      listClearanceStatuses(),
+      listPriceOverrides(),
+      getShopInventorySnapshot()
+    ]);
+  } catch (err) {
+    // If the DB is down, sell nothing rather than something already sold.
+    throw new Error("Shop availability is temporarily unreadable.");
+  }
+
+  const statusById = new Map(statuses.map((s) => [s.itemId, s]));
+  const overrideById = new Map(overrides.map((o) => [o.itemId, o]));
+  const snapshotSerials = snapshot && Array.isArray(snapshot.serials) && snapshot.serials.length
+    ? new Set(snapshot.serials)
+    : null;
+
+  const items = [];
+  for (const item of clearance.items || []) {
+    if (statusById.has(item.id)) continue; // sold, held, or web-locked
+    const serial = String(item.serial || "").trim().toUpperCase();
+    if (snapshotSerials && !snapshotSerials.has(serial)) continue; // no longer in ePASS
+    const override = overrideById.get(item.id);
+    const price = override ? Number(override.price) : Number(item.price || 0);
+    if (!Number.isFinite(price) || price <= 0) continue;
+    items.push({
+      id: item.id,
+      model: item.model,
+      brand: item.brand,
+      product: item.product,
+      category: item.category,
+      description: item.description,
+      serial,
+      price: Math.round(price * 100) / 100
+    });
+  }
+
+  return {
+    items,
+    addons,
+    categories: clearance._meta?.categories || [],
+    listDate: clearance._meta?.listDate || "",
+    snapshot: snapshot
+      ? { uploadedAt: snapshot.uploadedAt, sourceFile: snapshot.sourceFile, count: snapshot.serials.length }
+      : null
+  };
+}
+
+function shopAddonById(addons) {
+  const map = new Map();
+  for (const a of [...(addons.connectors || []), ...(addons.installs || [])]) {
+    map.set(a.id, a);
+  }
+  return map;
+}
+
+// Recompute the whole cart server-side. Returns null if any unit is gone.
+function priceShopCart(catalog, cart) {
+  const itemById = new Map(catalog.items.map((i) => [i.id, i]));
+  const addonMap = shopAddonById(catalog.addons);
+
+  const items = [];
+  for (const rawId of (Array.isArray(cart?.itemIds) ? cart.itemIds : [])) {
+    const item = itemById.get(String(rawId));
+    if (!item) return { unavailable: String(rawId) };
+    items.push(item);
+  }
+  if (!items.length) return { empty: true };
+
+  const addons = [];
+  for (const raw of (Array.isArray(cart?.addons) ? cart.addons : [])) {
+    const addon = addonMap.get(String(raw?.id || ""));
+    if (!addon) continue;
+    const qty = Math.max(1, Math.min(20, Math.round(Number(raw?.qty) || 1)));
+    addons.push({ id: addon.id, name: addon.name, type: addon.type, price: addon.price, qty });
+  }
+
+  const itemsTotal = items.reduce((s, i) => s + i.price, 0);
+  const addonsTotal = addons.reduce((s, a) => s + a.price * a.qty, 0);
+  const delivery = { ...SHOP_DELIVERY_OFFER };
+  const total = Math.round((itemsTotal + addonsTotal + delivery.price) * 100) / 100;
+
+  return {
+    items,
+    addons,
+    delivery,
+    totals: {
+      items: Math.round(itemsTotal * 100) / 100,
+      addons: Math.round(addonsTotal * 100) / 100,
+      delivery: delivery.price,
+      total,
+      note: "Sales tax is calculated when your order is finalized. Nothing is charged until a Wilson team member confirms your order."
+    }
+  };
+}
+
+// PUBLIC: the door check.
+app.post("/api/shop/zip-check", (req, res) => {
+  const zip = String(req.body?.zip || "").trim().slice(0, 10);
+  if (!/^\d{5}/.test(zip)) {
+    return res.status(400).json({ error: "Enter a 5-digit ZIP code." });
+  }
+  return res.json({ allowed: shopZipAllowed(zip) });
+});
+
+// PUBLIC: the pricing wall. Registration requires the contact details the
+// sales team needs to finish the order, and the shipping ZIP must be in zone.
+app.post("/api/shop/register", async (req, res) => {
+  try {
+    const b = req.body || {};
+    const firstName = String(b.firstName || "").trim();
+    const lastName = String(b.lastName || "").trim();
+    const phone = String(b.phone || "").trim();
+    const email = String(b.email || "").trim();
+    const preferredContact = String(b.preferredContact || "").trim();
+    const address = {
+      line1: String(b.address?.line1 || "").trim(),
+      line2: String(b.address?.line2 || "").trim(),
+      city: String(b.address?.city || "").trim(),
+      state: String(b.address?.state || "TX").trim(),
+      zip: String(b.address?.zip || "").trim()
+    };
+
+    if (!firstName || !lastName) return res.status(400).json({ error: "First and last name are required." });
+    if (!address.line1 || !address.city || !address.zip) return res.status(400).json({ error: "A complete shipping address is required." });
+    if (!phone) return res.status(400).json({ error: "A contact phone number is required." });
+    if (!["Call", "Text", "Email"].includes(preferredContact)) return res.status(400).json({ error: "Choose a preferred contact method." });
+    if (preferredContact === "Email" && !email) return res.status(400).json({ error: "Add an email address so we can reach you by email." });
+    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return res.status(400).json({ error: "That email address doesn't look right." });
+    if (!shopZipAllowed(address.zip)) {
+      return res.status(400).json({ error: "We can only deliver online clearance orders inside our local delivery area right now." });
+    }
+
+    const shopper = await createShopper({ firstName, lastName, email, phone, preferredContact, address });
+
+    recordAudit({
+      ip: req.ip, actorUserId: null,
+      action: "shop_shopper_registered", targetUserId: null,
+      detail: { name: `${firstName} ${lastName}`, zip: address.zip }
+    }).catch(() => {});
+
+    return res.json({ token: shopper.token, firstName: shopper.firstName });
+  } catch (err) {
+    console.error("Shop registration failed:", err.message);
+    return res.status(500).json({ error: "Unable to register right now." });
+  }
+});
+
+// PUBLIC: the catalog. Prices only appear with a valid shopper token — the
+// anonymous view is model/brand/description with no advertised price (MAP).
+app.get("/api/shop/catalog", async (req, res) => {
+  try {
+    const catalog = await computeShopCatalog();
+    const shopper = await getShopperByToken(req.query.token).catch(() => null);
+    const withPrices = Boolean(shopper);
+
+    const items = catalog.items.map((i) => {
+      const base = {
+        id: i.id,
+        model: i.model,
+        brand: i.brand,
+        product: i.product,
+        category: i.category,
+        description: i.description
+      };
+      return withPrices ? { ...base, price: i.price } : base;
+    });
+
+    res.setHeader("Cache-Control", "no-store");
+    return res.json({
+      items,
+      categories: catalog.categories,
+      listDate: catalog.listDate,
+      unlocked: withPrices,
+      shopperName: shopper?.firstName || "",
+      addons: withPrices ? catalog.addons : null,
+      delivery: withPrices ? SHOP_DELIVERY_OFFER : null
+    });
+  } catch (err) {
+    console.error("Shop catalog failed:", err.message);
+    return res.status(500).json({ error: "The shop is temporarily unavailable." });
+  }
+});
+
+// PUBLIC: begin checkout — validates the cart against live availability and
+// opens a SetupIntent (card saved for the order, charged only by the sales
+// team when the order is finalized).
+app.post("/api/shop/setup-intent", async (req, res) => {
+  try {
+    const shopper = await getShopperByToken(req.body?.token);
+    if (!shopper) return res.status(401).json({ error: "Please register to check out." });
+
+    const catalog = await computeShopCatalog();
+    const priced = priceShopCart(catalog, req.body?.cart);
+    if (priced.empty) return res.status(400).json({ error: "Your cart is empty." });
+    if (priced.unavailable) {
+      return res.status(409).json({ error: "An item in your cart was just claimed by another buyer. Refresh to see what's still available." });
+    }
+
+    const customerConfig = {
+      name: `${shopper.firstName} ${shopper.lastName}`,
+      email: shopper.email || undefined,
+      phone: shopper.phone || undefined,
+      address: {
+        line1: shopper.address.line1 || undefined,
+        line2: shopper.address.line2 || undefined,
+        city: shopper.address.city || undefined,
+        state: shopper.address.state === "Texas" ? "TX" : (shopper.address.state || undefined),
+        postal_code: shopper.address.zip || undefined,
+        country: "US"
+      },
+      metadata: {
+        shop_shopper_id: shopper.id,
+        preferred_contact: shopper.preferredContact,
+        source: "online_shop"
+      }
+    };
+    const customer = await stripe.customers.create(customerConfig, {
+      idempotencyKey: createStripeIdempotencyKeyFromPayload("shop-customer", customerConfig)
+    });
+
+    const itemSummary = priced.items.map((i) => `${i.model} (${i.serial})`).join(", ").slice(0, 480);
+    const setupIntentConfig = {
+      customer: customer.id,
+      payment_method_types: ["card"],
+      usage: "off_session",
+      metadata: {
+        source: "online_shop",
+        shop_shopper_id: shopper.id,
+        items: itemSummary,
+        estimated_total: String(priced.totals.total)
+      }
+    };
+    const setupIntent = await stripe.setupIntents.create(setupIntentConfig, {
+      idempotencyKey: createStripeIdempotencyKeyFromPayload("shop-setup-intent", setupIntentConfig)
+    });
+
+    return res.json({
+      clientSecret: setupIntent.client_secret,
+      setupIntentId: setupIntent.id,
+      customerId: customer.id,
+      pricing: { totals: priced.totals, delivery: priced.delivery }
+    });
+  } catch (err) {
+    console.error("Shop setup intent failed:", err.message);
+    return res.status(400).json({ error: err.message || "Unable to start secure checkout." });
+  }
+});
+
+// PUBLIC: finish checkout after the card is saved client-side. Verifies the
+// SetupIntent actually succeeded, re-prices the cart, web-locks the units on
+// the hit list, and files the order for the sales team.
+app.post("/api/shop/submit-order", async (req, res) => {
+  try {
+    const shopper = await getShopperByToken(req.body?.token);
+    if (!shopper) return res.status(401).json({ error: "Please register to check out." });
+
+    const setupIntentId = String(req.body?.setupIntentId || "").trim();
+    if (!/^seti_/.test(setupIntentId)) return res.status(400).json({ error: "Missing card setup reference." });
+
+    const setupIntent = await stripe.setupIntents.retrieve(setupIntentId, { expand: ["payment_method"] });
+    if (setupIntent.status !== "succeeded") {
+      return res.status(400).json({ error: "Your card wasn't saved — please try the card step again." });
+    }
+    if (setupIntent.metadata?.shop_shopper_id !== shopper.id) {
+      return res.status(400).json({ error: "This card setup doesn't match your session." });
+    }
+
+    const catalog = await computeShopCatalog();
+    const priced = priceShopCart(catalog, req.body?.cart);
+    if (priced.empty) return res.status(400).json({ error: "Your cart is empty." });
+    if (priced.unavailable) {
+      return res.status(409).json({ error: "An item in your cart was just claimed by another buyer. Refresh to see what's still available." });
+    }
+
+    const card = setupIntent.payment_method?.card || {};
+    const cardSummary = card.brand
+      ? { brand: card.brand, last4: card.last4, expMonth: card.exp_month, expYear: card.exp_year }
+      : {};
+
+    // File the order, then lock its units. A lock conflict here is a
+    // photo-finish race — the order still files with the conflict recorded
+    // so the sales team can sort it out with the client.
+    const lockConflicts = [];
+
+    const order = await createShopOrder({
+      shopperId: shopper.id,
+      customer: {
+        firstName: shopper.firstName,
+        lastName: shopper.lastName,
+        email: shopper.email,
+        phone: shopper.phone,
+        preferredContact: shopper.preferredContact,
+        address: shopper.address
+      },
+      items: priced.items,
+      addons: priced.addons,
+      delivery: priced.delivery,
+      totals: priced.totals,
+      lockConflicts: [],
+      stripeCustomerId: String(setupIntent.customer || ""),
+      setupIntentId,
+      cardSummary
+    });
+
+    for (const item of priced.items) {
+      try {
+        const lock = await markWebLock({ itemId: item.id, orderNumber: order.orderNumber });
+        if (lock.conflict) lockConflicts.push({ itemId: item.id, model: item.model, existing: lock.existing });
+      } catch (err) {
+        lockConflicts.push({ itemId: item.id, model: item.model, error: err.message });
+      }
+    }
+    if (lockConflicts.length) {
+      // Persist what happened for the module to show loudly.
+      await updateShopOrderLockConflicts({ id: order.id, lockConflicts }).catch(() => {});
+    }
+
+    recordAudit({
+      ip: req.ip, actorUserId: null,
+      action: "shop_order_submitted", targetUserId: null,
+      detail: {
+        orderNumber: order.orderNumber,
+        items: priced.items.length,
+        total: priced.totals.total,
+        conflicts: lockConflicts.length
+      }
+    }).catch(() => {});
+
+    return res.json({
+      success: true,
+      orderNumber: order.orderNumber,
+      totals: priced.totals
+    });
+  } catch (err) {
+    console.error("Shop order submit failed:", err.message);
+    return res.status(500).json({ error: "Unable to file your order. Your card was not charged." });
+  }
+});
+
+// PUBLIC: card-save result poll (mirrors the service flow).
+app.get("/api/shop/setup-intent-result/:setupIntentId", async (req, res) => {
+  try {
+    const setupIntent = await stripe.setupIntents.retrieve(req.params.setupIntentId, { expand: ["payment_method"] });
+    const card = setupIntent.payment_method?.card || {};
+    return res.json({
+      status: setupIntent.status,
+      card: card.brand ? { brand: card.brand, last4: card.last4 } : null
+    });
+  } catch (err) {
+    return res.status(400).json({ error: err.message || "Unable to check the card status." });
+  }
+});
+
+// INTERNAL: the sales module. Orders newest-first plus the snapshot banner.
+app.get("/api/shop-orders", requirePagePermission("/shop-orders.html"), async (req, res) => {
+  try {
+    const [orders, snapshot] = await Promise.all([
+      listShopOrders(),
+      getShopInventorySnapshot().catch(() => null)
+    ]);
+    res.setHeader("Cache-Control", "no-store");
+    return res.json({
+      orders,
+      snapshot: snapshot
+        ? { uploadedAt: snapshot.uploadedAt, sourceFile: snapshot.sourceFile, count: snapshot.serials.length, uploadedBy: snapshot.uploadedBy }
+        : null,
+      allowedZips: [...SHOP_ALLOWED_ZIPS]
+    });
+  } catch (err) {
+    console.error("Shop orders load failed:", err.message);
+    return res.status(500).json({ error: "Unable to load shop orders." });
+  }
+});
+
+// INTERNAL: grab an order (first writer wins).
+app.post("/api/shop-orders/:id/claim", requirePagePermission("/shop-orders.html"), async (req, res) => {
+  try {
+    const userEmail = String(req.authUser?.kind === "db" ? req.authUser.email : "").toLowerCase();
+    if (!userEmail) return res.status(400).json({ error: "Sign in with your individual account to claim an order." });
+
+    const order = await claimShopOrder({
+      id: req.params.id,
+      byEmail: userEmail,
+      byName: req.authUser?.displayName || ""
+    });
+    if (!order) {
+      const existing = await getShopOrder(req.params.id);
+      return res.status(409).json({
+        error: existing?.claimedByName
+          ? `Already claimed by ${existing.claimedByName}.`
+          : "This order is no longer claimable.",
+        order: existing
+      });
+    }
+
+    recordAudit({
+      ip: req.ip, actorUserId: req.authUser?.id || null,
+      action: "shop_order_claimed", targetUserId: null,
+      detail: { orderNumber: order.orderNumber }
+    }).catch(() => {});
+
+    return res.json({ ok: true, order });
+  } catch (err) {
+    console.error("Shop order claim failed:", err.message);
+    return res.status(500).json({ error: "Unable to claim the order." });
+  }
+});
+
+// INTERNAL: finish an order as an ePASS ticket — flips the web locks to Sold
+// under the ticket number so the hit list shows the final state.
+app.post("/api/shop-orders/:id/complete", requirePagePermission("/shop-orders.html"), async (req, res) => {
+  try {
+    const epassTicket = String(req.body?.epassTicket || "").trim();
+    if (!epassTicket) return res.status(400).json({ error: "Enter the ePASS ticket number." });
+
+    const userEmail = String(req.authUser?.kind === "db" ? req.authUser.email : "").toLowerCase();
+    const order = await completeShopOrder({ id: req.params.id, epassTicket });
+    if (!order) return res.status(409).json({ error: "This order can't be completed (already completed or canceled)." });
+
+    for (const item of order.items || []) {
+      await upgradeWebToSold({
+        itemId: item.id,
+        salesOrder: epassTicket,
+        byEmail: userEmail,
+        byName: req.authUser?.displayName || ""
+      }).catch(() => {});
+    }
+
+    recordAudit({
+      ip: req.ip, actorUserId: req.authUser?.id || null,
+      action: "shop_order_completed", targetUserId: null,
+      detail: { orderNumber: order.orderNumber, epassTicket }
+    }).catch(() => {});
+
+    return res.json({ ok: true, order });
+  } catch (err) {
+    console.error("Shop order complete failed:", err.message);
+    return res.status(500).json({ error: "Unable to complete the order." });
+  }
+});
+
+// INTERNAL: cancel an order and release its web locks (only locks that still
+// belong to this order — a unit re-sold in the meantime is left alone).
+app.post("/api/shop-orders/:id/cancel", requirePagePermission("/shop-orders.html"), async (req, res) => {
+  try {
+    const order = await cancelShopOrder({ id: req.params.id, reason: req.body?.reason || "" });
+    if (!order) return res.status(409).json({ error: "This order can't be canceled (already completed or canceled)." });
+
+    for (const item of order.items || []) {
+      try {
+        const status = await getClearanceStatus(item.id);
+        if (status && status.status === "web" && status.salesOrder === order.orderNumber) {
+          await clearClearanceStatus(item.id);
+        }
+      } catch {}
+    }
+
+    recordAudit({
+      ip: req.ip, actorUserId: req.authUser?.id || null,
+      action: "shop_order_canceled", targetUserId: null,
+      detail: { orderNumber: order.orderNumber, reason: order.cancelReason }
+    }).catch(() => {});
+
+    return res.json({ ok: true, order });
+  } catch (err) {
+    console.error("Shop order cancel failed:", err.message);
+    return res.status(500).json({ error: "Unable to cancel the order." });
+  }
+});
+
+// INTERNAL: refresh the availability snapshot from the latest ePASS
+// ExportModel export (parsed in the browser; serials only travel here).
+app.post("/api/shop/inventory-snapshot", requirePagePermission("/shop-orders.html"), async (req, res) => {
+  try {
+    const serials = Array.isArray(req.body?.serials) ? req.body.serials : [];
+    if (!serials.length) return res.status(400).json({ error: "No serial numbers found in that file." });
+    if (serials.length > 50000) return res.status(400).json({ error: "That file has more serials than expected — is it the right export?" });
+
+    const userEmail = String(req.authUser?.kind === "db" ? req.authUser.email : "").toLowerCase();
+    const saved = await saveShopInventorySnapshot({
+      serials,
+      sourceFile: String(req.body?.sourceFile || "").slice(0, 200),
+      uploadedBy: userEmail
+    });
+
+    recordAudit({
+      ip: req.ip, actorUserId: req.authUser?.id || null,
+      action: "shop_snapshot_uploaded", targetUserId: null,
+      detail: { count: saved.count, sourceFile: String(req.body?.sourceFile || "").slice(0, 120) }
+    }).catch(() => {});
+
+    return res.json({ ok: true, count: saved.count });
+  } catch (err) {
+    console.error("Shop snapshot upload failed:", err.message);
+    return res.status(500).json({ error: "Unable to save the snapshot." });
   }
 });
 

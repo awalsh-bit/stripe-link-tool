@@ -1,0 +1,917 @@
+{
+ "_meta": {
+  "note": "Generated from the NS shop accessories and installs folder. Connectors from ePASS Connectors Price Levels; installs from Service Item for Sale Import v2. byProduct maps clearance product codes to suggested add-on ids.",
+  "sourceFolder": "shop accessories and installs"
+ },
+ "delivery": {
+  "id": "white-glove-delivery",
+  "name": "White Glove Delivery + Haul Away",
+  "price": 49.95,
+  "regularPrice": 89.95,
+  "note": "Special online offer \u2014 includes delivery and haul off of the appliance being replaced (if applicable)."
+ },
+ "connectors": [
+  {
+   "id": "universal-nema-5-15-cord",
+   "name": "Universal NEMA 5-15 Cord",
+   "price": 12.95,
+   "type": "connector"
+  },
+  {
+   "id": "dryer-vent-kit",
+   "name": "Dryer Vent Kit",
+   "price": 27.95,
+   "type": "connector"
+  },
+  {
+   "id": "dryer-cord",
+   "name": "Dryer Cord",
+   "price": 29.95,
+   "type": "connector"
+  },
+  {
+   "id": "washer-fill-hoses-5ft-rubber",
+   "name": "Washer Fill Hoses - 5ft Rubber",
+   "price": 21.95,
+   "type": "connector"
+  },
+  {
+   "id": "washer-fill-hoses-5ft-stainless",
+   "name": "Washer Fill Hoses - 5ft Stainless",
+   "price": 29.95,
+   "type": "connector"
+  },
+  {
+   "id": "washer-fill-hoses-10ft-stainless",
+   "name": "Washer Fill Hoses - 10ft Stainless",
+   "price": 39.95,
+   "type": "connector"
+  },
+  {
+   "id": "dryer-steam-kit",
+   "name": "Dryer Steam Kit",
+   "price": 24.95,
+   "type": "connector"
+  },
+  {
+   "id": "range-cord",
+   "name": "Range Cord",
+   "price": 34.95,
+   "type": "connector"
+  },
+  {
+   "id": "dishwasher-install-kit",
+   "name": "Dishwasher Install Kit",
+   "price": 29.95,
+   "type": "connector"
+  },
+  {
+   "id": "universal-gas-install-kit",
+   "name": "Universal Gas Install Kit",
+   "price": 34.95,
+   "type": "connector"
+  },
+  {
+   "id": "refrigerator-water-supply-stainless",
+   "name": "Refrigerator Water Supply - Stainless",
+   "price": 21.95,
+   "type": "connector"
+  }
+ ],
+ "installs": [
+  {
+   "id": "kalamazoo-cabinet-installation",
+   "name": "Kalamazoo Cabinet Installation",
+   "price": 199.95,
+   "durationMin": 120,
+   "type": "install"
+  },
+  {
+   "id": "coffee-system-non-plumbed-install",
+   "name": "Coffee System - Non-Plumbed Install",
+   "price": 99.95,
+   "durationMin": 60,
+   "type": "install"
+  },
+  {
+   "id": "coffee-system-plumbed-install",
+   "name": "Coffee System - Plumbed Install",
+   "price": 149.95,
+   "durationMin": 105,
+   "type": "install"
+  },
+  {
+   "id": "cooktop-standard-install",
+   "name": "Cooktop - Standard Install",
+   "price": 139.95,
+   "durationMin": 60,
+   "type": "install"
+  },
+  {
+   "id": "pro-rangetop-install",
+   "name": "Pro Rangetop Install",
+   "price": 189.95,
+   "durationMin": 90,
+   "type": "install"
+  },
+  {
+   "id": "cooktop-modular-standard-install",
+   "name": "Cooktop - Modular Standard Install",
+   "price": 124.95,
+   "durationMin": 75,
+   "type": "install"
+  },
+  {
+   "id": "door-reversal-freestanding-refrigerator",
+   "name": "Door Reversal - Freestanding Refrigerator",
+   "price": 29.95,
+   "durationMin": 45,
+   "type": "install"
+  },
+  {
+   "id": "dishwasher-standard-install",
+   "name": "Dishwasher - Standard Install",
+   "price": 179.95,
+   "durationMin": 60,
+   "type": "install"
+  },
+  {
+   "id": "dishwasher-with-panel-install",
+   "name": "Dishwasher - With Panel Install",
+   "price": 219.95,
+   "durationMin": 75,
+   "type": "install"
+  },
+  {
+   "id": "pro-dishwasher-install",
+   "name": "Pro Dishwasher Install",
+   "price": 299.95,
+   "durationMin": 75,
+   "type": "install"
+  },
+  {
+   "id": "dish-drawer-install",
+   "name": "Dish Drawer Install",
+   "price": 249.95,
+   "durationMin": 90,
+   "type": "install"
+  },
+  {
+   "id": "outdoor-grill-standard-install",
+   "name": "Outdoor Grill - Standard Install",
+   "price": 249.95,
+   "durationMin": 90,
+   "type": "install"
+  },
+  {
+   "id": "outdoor-grill-kalamazoo-install",
+   "name": "Outdoor Grill - Kalamazoo Install",
+   "price": 389.95,
+   "durationMin": 120,
+   "type": "install"
+  },
+  {
+   "id": "outdoor-sideburner-install",
+   "name": "Outdoor Sideburner Install",
+   "price": 69.95,
+   "durationMin": 60,
+   "type": "install"
+  },
+  {
+   "id": "grill-access-door-drawer-install",
+   "name": "Grill Access Door/Drawer Install",
+   "price": 79.95,
+   "durationMin": 45,
+   "type": "install"
+  },
+  {
+   "id": "built-in-ice-machine-install",
+   "name": "Built-In Ice Machine Install",
+   "price": 449.95,
+   "durationMin": 90,
+   "type": "install"
+  },
+  {
+   "id": "built-in-ice-machine-install-with-panel",
+   "name": "Built-In Ice Machine Install - With Panel",
+   "price": 599.95,
+   "durationMin": 105,
+   "type": "install"
+  },
+  {
+   "id": "washer-standard-install",
+   "name": "Washer - Standard Install",
+   "price": 79.95,
+   "durationMin": 30,
+   "type": "install"
+  },
+  {
+   "id": "washer-condo-install",
+   "name": "Washer - Condo Install",
+   "price": 179.95,
+   "durationMin": 45,
+   "type": "install"
+  },
+  {
+   "id": "dryer-standard-install",
+   "name": "Dryer - Standard Install",
+   "price": 79.95,
+   "durationMin": 30,
+   "type": "install"
+  },
+  {
+   "id": "dryer-condo-install",
+   "name": "Dryer - Condo Install",
+   "price": 179.95,
+   "durationMin": 45,
+   "type": "install"
+  },
+  {
+   "id": "side-vent-dryer-add-on-install",
+   "name": "Side Vent Dryer - Add-On Install",
+   "price": 99.95,
+   "durationMin": 30,
+   "type": "install"
+  },
+  {
+   "id": "dryer-door-reversal",
+   "name": "Dryer - Door Reversal",
+   "price": 29.95,
+   "durationMin": 30,
+   "type": "install"
+  },
+  {
+   "id": "stacking-kit-add-on-install",
+   "name": "Stacking Kit - Add-On Install",
+   "price": 49.95,
+   "durationMin": 30,
+   "type": "install"
+  },
+  {
+   "id": "pedestal-basic-add-on-install",
+   "name": "Pedestal - Basic - Add-On Install",
+   "price": 24.95,
+   "durationMin": 30,
+   "type": "install"
+  },
+  {
+   "id": "pedestal-washer-add-on-install",
+   "name": "Pedestal - Washer - Add-On Install",
+   "price": 79.95,
+   "durationMin": 30,
+   "type": "install"
+  },
+  {
+   "id": "gas-conversion-cooktop",
+   "name": "Gas Conversion - Cooktop",
+   "price": 129.95,
+   "durationMin": 45,
+   "type": "install"
+  },
+  {
+   "id": "gas-conversion-rangetop",
+   "name": "Gas Conversion - Rangetop",
+   "price": 179.95,
+   "durationMin": 45,
+   "type": "install"
+  },
+  {
+   "id": "gas-conversion-all-gas-range",
+   "name": "Gas Conversion - All-Gas Range",
+   "price": 249.95,
+   "durationMin": 45,
+   "type": "install"
+  },
+  {
+   "id": "gas-conversion-dual-fuel-range",
+   "name": "Gas Conversion - Dual-Fuel Range",
+   "price": 199.95,
+   "durationMin": 45,
+   "type": "install"
+  },
+  {
+   "id": "gas-conversion-dryer",
+   "name": "Gas Conversion - Dryer",
+   "price": 149.95,
+   "durationMin": 30,
+   "type": "install"
+  },
+  {
+   "id": "microwave-with-trim-kit-install",
+   "name": "Microwave - With Trim Kit Install",
+   "price": 159.95,
+   "durationMin": 60,
+   "type": "install"
+  },
+  {
+   "id": "microwave-countertop-no-trim-kit",
+   "name": "Microwave - Countertop, No Trim Kit",
+   "price": 19.95,
+   "durationMin": 15,
+   "type": "install"
+  },
+  {
+   "id": "microwave-drawer-install",
+   "name": "Microwave Drawer Install",
+   "price": 159.95,
+   "durationMin": 60,
+   "type": "install"
+  },
+  {
+   "id": "over-the-range-microwave-install",
+   "name": "Over-the-Range Microwave Install",
+   "price": 169.95,
+   "durationMin": 60,
+   "type": "install"
+  },
+  {
+   "id": "microwave-built-in-install",
+   "name": "Microwave - Built-In Install",
+   "price": 149.95,
+   "durationMin": 60,
+   "type": "install"
+  },
+  {
+   "id": "oven-single-install",
+   "name": "Oven - Single Install",
+   "price": 159.95,
+   "durationMin": 60,
+   "type": "install"
+  },
+  {
+   "id": "oven-double-install",
+   "name": "Oven - Double Install",
+   "price": 199.95,
+   "durationMin": 90,
+   "type": "install"
+  },
+  {
+   "id": "oven-steam-non-plumbed-install",
+   "name": "Oven - Steam, Non-Plumbed Install",
+   "price": 129.95,
+   "durationMin": 75,
+   "type": "install"
+  },
+  {
+   "id": "oven-steam-plumbed-install",
+   "name": "Oven - Steam, Plumbed Install",
+   "price": 179.95,
+   "durationMin": 105,
+   "type": "install"
+  },
+  {
+   "id": "oven-speed-install",
+   "name": "Oven - Speed Install",
+   "price": 139.95,
+   "durationMin": 60,
+   "type": "install"
+  },
+  {
+   "id": "oven-pizza-countertop-install",
+   "name": "Oven - Pizza, Countertop Install",
+   "price": 129.95,
+   "durationMin": 30,
+   "type": "install"
+  },
+  {
+   "id": "oven-pizza-built-in-install",
+   "name": "Oven - Pizza, Built-In Install",
+   "price": 329.95,
+   "durationMin": 90,
+   "type": "install"
+  },
+  {
+   "id": "range-standard-electric-install",
+   "name": "Range - Standard Electric Install",
+   "price": 89.95,
+   "durationMin": 45,
+   "type": "install"
+  },
+  {
+   "id": "range-standard-gas-install",
+   "name": "Range - Standard Gas Install",
+   "price": 89.95,
+   "durationMin": 60,
+   "type": "install"
+  },
+  {
+   "id": "range-pro-install",
+   "name": "Range - Pro Install",
+   "price": 299.95,
+   "durationMin": 90,
+   "type": "install"
+  },
+  {
+   "id": "refrigerator-freestanding-install",
+   "name": "Refrigerator - Freestanding Install",
+   "price": 89.95,
+   "durationMin": 45,
+   "type": "install"
+  },
+  {
+   "id": "refrigerator-built-in-no-panels-install",
+   "name": "Refrigerator - Built-In, No Panels Install",
+   "price": 299.95,
+   "durationMin": 120,
+   "type": "install"
+  },
+  {
+   "id": "refrigerator-built-in-with-panel-install",
+   "name": "Refrigerator - Built-In, With Panel Install",
+   "price": 379.95,
+   "durationMin": 150,
+   "type": "install"
+  },
+  {
+   "id": "refrigerator-built-in-column-stainless-install",
+   "name": "Refrigerator - Built-In Column, Stainless Install",
+   "price": 379.95,
+   "durationMin": 120,
+   "type": "install"
+  },
+  {
+   "id": "refrigerator-built-in-column-with-panel-install",
+   "name": "Refrigerator - Built-In Column, With Panel Install",
+   "price": 399.95,
+   "durationMin": 150,
+   "type": "install"
+  },
+  {
+   "id": "refrigerator-undercounter-built-in-no-panel-install",
+   "name": "Refrigerator - Undercounter Built-In, No Panel Install",
+   "price": 79.95,
+   "durationMin": 75,
+   "type": "install"
+  },
+  {
+   "id": "refrigerator-undercounter-built-in-with-panel-install",
+   "name": "Refrigerator - Undercounter Built-In, With Panel Install",
+   "price": 129.95,
+   "durationMin": 90,
+   "type": "install"
+  },
+  {
+   "id": "refrigerator-undercounter-drawers-install",
+   "name": "Refrigerator - Undercounter Drawers Install",
+   "price": 139.95,
+   "durationMin": 90,
+   "type": "install"
+  },
+  {
+   "id": "built-in-vacuum-seal-drawer-install",
+   "name": "Built-In Vacuum Seal Drawer Install",
+   "price": 79.95,
+   "durationMin": 60,
+   "type": "install"
+  },
+  {
+   "id": "hood-under-cabinet-install",
+   "name": "Hood - Under Cabinet Install",
+   "price": 99.95,
+   "durationMin": 60,
+   "type": "install"
+  },
+  {
+   "id": "hood-wall-install",
+   "name": "Hood - Wall Install",
+   "price": 289.95,
+   "durationMin": 90,
+   "type": "install"
+  },
+  {
+   "id": "hood-island-install",
+   "name": "Hood - Island Install",
+   "price": 399.95,
+   "durationMin": 120,
+   "type": "install"
+  },
+  {
+   "id": "hood-liner-insert-install",
+   "name": "Hood Liner/Insert Install",
+   "price": 329.95,
+   "durationMin": 75,
+   "type": "install"
+  },
+  {
+   "id": "cattura-downdraft-install",
+   "name": "Cattura Downdraft Install",
+   "price": 399.95,
+   "durationMin": 120,
+   "type": "install"
+  },
+  {
+   "id": "warming-drawer-no-panel-install",
+   "name": "Warming Drawer - No Panel Install",
+   "price": 74.95,
+   "durationMin": 60,
+   "type": "install"
+  },
+  {
+   "id": "warming-drawer-with-panel-install",
+   "name": "Warming Drawer - With Panel Install",
+   "price": 99.95,
+   "durationMin": 75,
+   "type": "install"
+  }
+ ],
+ "byProduct": {
+  "DW": {
+   "connectors": [
+    "dishwasher-install-kit",
+    "universal-nema-5-15-cord"
+   ],
+   "installs": [
+    "dishwasher-standard-install",
+    "dishwasher-with-panel-install",
+    "pro-dishwasher-install"
+   ]
+  },
+  "DWDRA": {
+   "connectors": [
+    "dishwasher-install-kit",
+    "universal-nema-5-15-cord"
+   ],
+   "installs": [
+    "dish-drawer-install"
+   ]
+  },
+  "DRELE": {
+   "connectors": [
+    "dryer-cord",
+    "dryer-vent-kit",
+    "dryer-steam-kit"
+   ],
+   "installs": [
+    "dryer-standard-install",
+    "dryer-condo-install",
+    "side-vent-dryer-add-on-install",
+    "dryer-door-reversal",
+    "stacking-kit-add-on-install"
+   ]
+  },
+  "DRGAS": {
+   "connectors": [
+    "universal-gas-install-kit",
+    "dryer-vent-kit",
+    "dryer-steam-kit"
+   ],
+   "installs": [
+    "dryer-standard-install",
+    "dryer-condo-install",
+    "gas-conversion-dryer",
+    "side-vent-dryer-add-on-install",
+    "stacking-kit-add-on-install"
+   ]
+  },
+  "WASHF": {
+   "connectors": [
+    "washer-fill-hoses-5ft-rubber",
+    "washer-fill-hoses-5ft-stainless",
+    "washer-fill-hoses-10ft-stainless"
+   ],
+   "installs": [
+    "washer-standard-install",
+    "washer-condo-install",
+    "stacking-kit-add-on-install"
+   ]
+  },
+  "WASHT": {
+   "connectors": [
+    "washer-fill-hoses-5ft-rubber",
+    "washer-fill-hoses-5ft-stainless",
+    "washer-fill-hoses-10ft-stainless"
+   ],
+   "installs": [
+    "washer-standard-install",
+    "washer-condo-install"
+   ]
+  },
+  "PED": {
+   "connectors": [],
+   "installs": [
+    "pedestal-basic-add-on-install",
+    "pedestal-washer-add-on-install"
+   ]
+  },
+  "WD": {
+   "connectors": [],
+   "installs": [
+    "warming-drawer-no-panel-install",
+    "warming-drawer-with-panel-install"
+   ]
+  },
+  "VHOOD": {
+   "connectors": [],
+   "installs": [
+    "hood-under-cabinet-install",
+    "hood-wall-install"
+   ]
+  },
+  "VHISL": {
+   "connectors": [],
+   "installs": [
+    "hood-island-install"
+   ]
+  },
+  "VHINS": {
+   "connectors": [],
+   "installs": [
+    "hood-liner-insert-install"
+   ]
+  },
+  "VHDD": {
+   "connectors": [],
+   "installs": [
+    "cattura-downdraft-install"
+   ]
+  },
+  "CTGAS": {
+   "connectors": [
+    "universal-gas-install-kit"
+   ],
+   "installs": [
+    "cooktop-standard-install",
+    "gas-conversion-cooktop"
+   ]
+  },
+  "CTIND": {
+   "connectors": [],
+   "installs": [
+    "cooktop-standard-install"
+   ]
+  },
+  "CTELE": {
+   "connectors": [],
+   "installs": [
+    "cooktop-standard-install"
+   ]
+  },
+  "CTPRO": {
+   "connectors": [
+    "universal-gas-install-kit"
+   ],
+   "installs": [
+    "pro-rangetop-install",
+    "gas-conversion-rangetop"
+   ]
+  },
+  "RAGAS": {
+   "connectors": [
+    "universal-gas-install-kit"
+   ],
+   "installs": [
+    "range-standard-gas-install",
+    "gas-conversion-all-gas-range"
+   ]
+  },
+  "RAELE": {
+   "connectors": [
+    "range-cord"
+   ],
+   "installs": [
+    "range-standard-electric-install"
+   ]
+  },
+  "RAIND": {
+   "connectors": [
+    "range-cord"
+   ],
+   "installs": [
+    "range-standard-electric-install"
+   ]
+  },
+  "RADF": {
+   "connectors": [
+    "universal-gas-install-kit",
+    "range-cord"
+   ],
+   "installs": [
+    "range-standard-gas-install",
+    "gas-conversion-dual-fuel-range"
+   ]
+  },
+  "RAPRO": {
+   "connectors": [
+    "universal-gas-install-kit"
+   ],
+   "installs": [
+    "range-pro-install"
+   ]
+  },
+  "OVELE": {
+   "connectors": [],
+   "installs": [
+    "oven-single-install",
+    "oven-double-install"
+   ]
+  },
+  "OVSTE": {
+   "connectors": [],
+   "installs": [
+    "oven-steam-non-plumbed-install",
+    "oven-steam-plumbed-install"
+   ]
+  },
+  "OVSPE": {
+   "connectors": [],
+   "installs": [
+    "oven-speed-install"
+   ]
+  },
+  "OVMW": {
+   "connectors": [],
+   "installs": [
+    "oven-double-install",
+    "oven-single-install"
+   ]
+  },
+  "MW": {
+   "connectors": [],
+   "installs": [
+    "microwave-countertop-no-trim-kit",
+    "microwave-with-trim-kit-install"
+   ]
+  },
+  "MWCON": {
+   "connectors": [],
+   "installs": [
+    "microwave-countertop-no-trim-kit",
+    "microwave-with-trim-kit-install"
+   ]
+  },
+  "MWDR": {
+   "connectors": [],
+   "installs": [
+    "microwave-drawer-install"
+   ]
+  },
+  "MWOTR": {
+   "connectors": [],
+   "installs": [
+    "over-the-range-microwave-install"
+   ]
+  },
+  "MWBI": {
+   "connectors": [],
+   "installs": [
+    "microwave-built-in-install"
+   ]
+  },
+  "TRIMK": {
+   "connectors": [],
+   "installs": [
+    "microwave-with-trim-kit-install"
+   ]
+  },
+  "REFRE": {
+   "connectors": [
+    "refrigerator-water-supply-stainless"
+   ],
+   "installs": [
+    "refrigerator-freestanding-install",
+    "door-reversal-freestanding-refrigerator"
+   ]
+  },
+  "RESXS": {
+   "connectors": [
+    "refrigerator-water-supply-stainless"
+   ],
+   "installs": [
+    "refrigerator-freestanding-install"
+   ]
+  },
+  "REFWI": {
+   "connectors": [
+    "refrigerator-water-supply-stainless"
+   ],
+   "installs": [
+    "refrigerator-freestanding-install"
+   ]
+  },
+  "RETOP": {
+   "connectors": [
+    "refrigerator-water-supply-stainless"
+   ],
+   "installs": [
+    "refrigerator-freestanding-install",
+    "door-reversal-freestanding-refrigerator"
+   ]
+  },
+  "REALL": {
+   "connectors": [
+    "refrigerator-water-supply-stainless"
+   ],
+   "installs": [
+    "refrigerator-built-in-column-stainless-install",
+    "refrigerator-built-in-column-with-panel-install"
+   ]
+  },
+  "REBIF": {
+   "connectors": [
+    "refrigerator-water-supply-stainless"
+   ],
+   "installs": [
+    "refrigerator-built-in-no-panels-install",
+    "refrigerator-built-in-with-panel-install"
+   ]
+  },
+  "REBIW": {
+   "connectors": [
+    "refrigerator-water-supply-stainless"
+   ],
+   "installs": [
+    "refrigerator-built-in-no-panels-install",
+    "refrigerator-built-in-with-panel-install"
+   ]
+  },
+  "REBIB": {
+   "connectors": [
+    "refrigerator-water-supply-stainless"
+   ],
+   "installs": [
+    "refrigerator-built-in-no-panels-install",
+    "refrigerator-built-in-with-panel-install"
+   ]
+  },
+  "REBFD": {
+   "connectors": [
+    "refrigerator-water-supply-stainless"
+   ],
+   "installs": [
+    "refrigerator-built-in-no-panels-install",
+    "refrigerator-built-in-with-panel-install"
+   ]
+  },
+  "REUC": {
+   "connectors": [
+    "refrigerator-water-supply-stainless"
+   ],
+   "installs": [
+    "refrigerator-undercounter-built-in-no-panel-install",
+    "refrigerator-undercounter-built-in-with-panel-install"
+   ]
+  },
+  "REDRA": {
+   "connectors": [],
+   "installs": [
+    "refrigerator-undercounter-drawers-install"
+   ]
+  },
+  "IMUC": {
+   "connectors": [
+    "refrigerator-water-supply-stainless"
+   ],
+   "installs": [
+    "built-in-ice-machine-install",
+    "built-in-ice-machine-install-with-panel"
+   ]
+  },
+  "COFFE": {
+   "connectors": [],
+   "installs": [
+    "coffee-system-non-plumbed-install",
+    "coffee-system-plumbed-install"
+   ]
+  },
+  "PIZZA": {
+   "connectors": [],
+   "installs": [
+    "oven-pizza-countertop-install",
+    "oven-pizza-built-in-install"
+   ]
+  },
+  "GROUT": {
+   "connectors": [],
+   "installs": [
+    "outdoor-grill-standard-install",
+    "outdoor-grill-kalamazoo-install",
+    "outdoor-sideburner-install"
+   ]
+  },
+  "GRIND": {
+   "connectors": [],
+   "installs": [
+    "cooktop-modular-standard-install"
+   ]
+  },
+  "CAB": {
+   "connectors": [],
+   "installs": [
+    "grill-access-door-drawer-install",
+    "kalamazoo-cabinet-installation"
+   ]
+  },
+  "CABSS": {
+   "connectors": [],
+   "installs": [
+    "grill-access-door-drawer-install"
+   ]
+  },
+  "VACSE": {
+   "connectors": [],
+   "installs": [
+    "built-in-vacuum-seal-drawer-install"
+   ]
+  }
+ }
+}

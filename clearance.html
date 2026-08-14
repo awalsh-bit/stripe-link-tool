@@ -216,6 +216,18 @@
       white-space: nowrap;
     }
 
+    .web-pill {
+      display: inline-block;
+      background: #eef2ff;
+      color: #3730a3;
+      border: 1px solid rgba(55, 48, 163, 0.22);
+      border-radius: 999px;
+      padding: 3px 10px;
+      font-size: 11.5px;
+      font-weight: 800;
+      white-space: nowrap;
+    }
+
     .sold-meta { display: block; color: var(--muted); font-size: 11.5px; margin-top: 3px; white-space: nowrap; }
 
     .sold-btn, .reopen-link {
@@ -459,6 +471,12 @@
           `</span>`;
       }
 
+      if (state?.status === "web") {
+        return `<span class="web-pill">WEB ORDER · ${escapeHtml(state.salesOrder || "—")}</span>` +
+          `<span class="sold-meta">Reserved by the online shop · finish or cancel it in ` +
+          `<a href="shop-orders.html">Online Shop Orders</a></span>`;
+      }
+
       if (state?.status === "hold") {
         if (editId === item.id && editMode === "sold") return soldEditorHtml(item.id);
         const holder = state.byName || state.byEmail || "";
@@ -523,7 +541,7 @@
       }
 
       body.innerHTML = filtered.map((item) => `
-        <tr class="${liveState(item)?.status === "sold" ? "sold-row" : liveState(item)?.status === "hold" ? "hold-row" : ""}">
+        <tr class="${liveState(item)?.status === "sold" ? "sold-row" : ["hold", "web"].includes(liveState(item)?.status || "") ? "hold-row" : ""}">
           <td class="model">${highlight(item.model)}</td>
           <td>${highlight(item.brand)}</td>
           <td><span class="cat-pill">${escapeHtml(catLabel(item.category))}</span></td>

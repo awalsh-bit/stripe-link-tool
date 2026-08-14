@@ -1,0 +1,839 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Wilson Clearance Shop</title>
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <script src="https://js.stripe.com/v3/"></script>
+  <style>
+    :root {
+      --primary: #21692c;
+      --primary-dark: #17501f;
+      --ink: #111827;
+      --muted: #6b7280;
+      --line: #e5e7eb;
+      --bg: #f7f7f5;
+      --card: #ffffff;
+      --danger: #b91c1c;
+      --wash: #eef5ef;
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: "Roboto", system-ui, -apple-system, "Segoe UI", sans-serif; background: var(--bg); color: var(--ink); }
+    @font-face {
+      font-family: "Roboto";
+      font-style: normal;
+      font-weight: 100 900;
+      font-display: swap;
+      src: url("fonts/roboto-latin-wght-normal.woff2") format("woff2-variations");
+    }
+    button { font-family: inherit; }
+    input, select { font-family: inherit; font-size: 15px; padding: 10px 12px; border: 1px solid #d1d5db; border-radius: 10px; width: 100%; background: #fff; }
+    input:focus, select:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px rgba(33,105,44,0.12); }
+    label { font-size: 13px; font-weight: 500; color: #374151; display: block; margin-bottom: 5px; }
+
+    .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; border: none; border-radius: 10px; padding: 11px 18px; font-size: 15px; font-weight: 600; cursor: pointer; transition: background 0.15s; }
+    .btn.primary { background: var(--primary); color: #fff; }
+    .btn.primary:hover { background: var(--primary-dark); }
+    .btn.ghost { background: #fff; color: var(--ink); border: 1px solid #d1d5db; }
+    .btn.ghost:hover { border-color: var(--primary); color: var(--primary); }
+    .btn:disabled { opacity: 0.55; cursor: not-allowed; }
+    .small-text { font-size: 12.5px; }
+    .muted { color: var(--muted); }
+
+    /* ---- ZIP gate ---- */
+    .gate {
+      position: fixed; inset: 0; z-index: 100; background: rgba(17, 24, 39, 0.55);
+      display: flex; align-items: center; justify-content: center; padding: 18px;
+      backdrop-filter: blur(6px);
+    }
+    .gate.hidden { display: none; }
+    .gate-card { background: #fff; border-radius: 18px; max-width: 430px; width: 100%; padding: 34px 30px; text-align: center; box-shadow: 0 24px 60px rgba(0,0,0,0.25); }
+    .gate-card img { height: 44px; margin-bottom: 14px; }
+    .gate-card h1 { font-size: 21px; margin-bottom: 8px; }
+    .gate-card p { font-size: 14.5px; color: var(--muted); line-height: 1.55; margin-bottom: 18px; }
+    .gate-row { display: flex; gap: 10px; }
+    .gate-row input { text-align: center; font-size: 18px; letter-spacing: 0.08em; }
+    .gate-error { color: var(--danger); font-size: 13.5px; margin-top: 12px; display: none; line-height: 1.5; }
+    .gate-error.show { display: block; }
+
+    /* ---- Header ---- */
+    header {
+      background: #fff; border-bottom: 1px solid var(--line);
+      position: sticky; top: 0; z-index: 40;
+    }
+    .head-inner { max-width: 1140px; margin: 0 auto; padding: 12px 18px; display: flex; align-items: center; gap: 14px; }
+    .head-inner img { height: 34px; }
+    .head-title { font-weight: 600; font-size: 16px; }
+    .head-title .sub { display: block; font-size: 11.5px; font-weight: 500; color: var(--muted); letter-spacing: 0.06em; text-transform: uppercase; }
+    .head-spacer { flex: 1; }
+    .cart-btn { position: relative; }
+    .cart-count {
+      position: absolute; top: -7px; right: -7px; background: var(--primary); color: #fff;
+      font-size: 11px; font-weight: 700; border-radius: 999px; min-width: 19px; height: 19px;
+      display: flex; align-items: center; justify-content: center; padding: 0 5px;
+    }
+    .unlock-chip { background: var(--wash); border: 1px solid #cfe3d2; color: var(--primary-dark); border-radius: 999px; padding: 7px 14px; font-size: 13px; font-weight: 600; }
+
+    /* ---- Catalog ---- */
+    main { max-width: 1140px; margin: 0 auto; padding: 20px 18px 80px; }
+    .map-note { background: #fffbeb; border: 1px solid #fde68a; color: #92400e; border-radius: 12px; padding: 12px 16px; font-size: 13.5px; line-height: 1.55; margin-bottom: 18px; }
+    .filters { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 18px; align-items: center; }
+    .filters input[type="search"] { max-width: 260px; }
+    .filters select { width: auto; }
+    .chip-row { display: flex; flex-wrap: wrap; gap: 7px; }
+    .chip { border: 1px solid #d1d5db; background: #fff; border-radius: 999px; padding: 6px 13px; font-size: 13px; cursor: pointer; }
+    .chip.active { background: var(--primary); border-color: var(--primary); color: #fff; }
+
+    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(255px, 1fr)); gap: 14px; }
+    .item-card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 16px; display: flex; flex-direction: column; gap: 6px; }
+    .item-brand { font-size: 12px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+    .item-model { font-weight: 600; font-size: 15.5px; }
+    .item-desc { font-size: 13.5px; color: #374151; line-height: 1.45; flex: 1; }
+    .item-cat { font-size: 11.5px; color: var(--muted); }
+    .item-price { font-size: 19px; font-weight: 700; color: var(--primary-dark); }
+    .item-foot { display: flex; align-items: center; justify-content: space-between; margin-top: 6px; gap: 8px; }
+    .locked-price { font-size: 13px; color: var(--muted); font-style: italic; }
+    .in-cart { font-size: 13.5px; font-weight: 600; color: var(--primary-dark); }
+    .empty-note { text-align: center; color: var(--muted); padding: 60px 0; font-size: 15px; }
+
+    /* ---- Modals / drawer ---- */
+    .overlay { position: fixed; inset: 0; z-index: 60; background: rgba(17,24,39,0.5); display: none; align-items: flex-start; justify-content: center; padding: 24px 14px; overflow-y: auto; }
+    .overlay.show { display: flex; }
+    .modal { background: #fff; border-radius: 16px; max-width: 520px; width: 100%; padding: 26px; box-shadow: 0 24px 60px rgba(0,0,0,0.25); margin: auto 0; }
+    .modal h2 { font-size: 19px; margin-bottom: 4px; }
+    .modal .lead { font-size: 14px; color: var(--muted); line-height: 1.5; margin-bottom: 16px; }
+    .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .form-grid .full { grid-column: 1 / -1; }
+    .modal-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 18px; }
+    .form-error { color: var(--danger); font-size: 13.5px; margin-top: 12px; display: none; line-height: 1.5; }
+    .form-error.show { display: block; }
+
+    .addon-row { display: flex; align-items: center; gap: 11px; padding: 10px 0; border-bottom: 1px solid var(--line); }
+    .addon-row:last-child { border-bottom: none; }
+    .addon-row input[type="checkbox"] { width: 17px; height: 17px; accent-color: var(--primary); flex: none; }
+    .addon-name { flex: 1; font-size: 14px; }
+    .addon-name .muted { display: block; font-size: 12px; }
+    .addon-price { font-weight: 600; font-size: 14px; white-space: nowrap; }
+    .addon-head { font-size: 12.5px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); margin: 14px 0 2px; }
+
+    .drawer { position: fixed; top: 0; right: 0; bottom: 0; width: min(430px, 100vw); background: #fff; z-index: 70; box-shadow: -18px 0 50px rgba(0,0,0,0.18); transform: translateX(105%); transition: transform 0.22s ease; display: flex; flex-direction: column; }
+    .drawer.show { transform: translateX(0); }
+    .drawer-head { display: flex; align-items: center; justify-content: space-between; padding: 16px 20px; border-bottom: 1px solid var(--line); }
+    .drawer-head h2 { font-size: 17px; }
+    .drawer-body { flex: 1; overflow-y: auto; padding: 14px 20px; }
+    .cart-line { display: flex; gap: 10px; align-items: flex-start; padding: 11px 0; border-bottom: 1px solid var(--line); }
+    .cart-line .info { flex: 1; }
+    .cart-line .nm { font-size: 14px; font-weight: 600; }
+    .cart-line .ds { font-size: 12.5px; color: var(--muted); }
+    .cart-line .pr { font-weight: 600; font-size: 14px; white-space: nowrap; }
+    .rm-btn { background: none; border: none; color: var(--danger); font-size: 12.5px; cursor: pointer; padding: 2px 0; }
+    .qty-ctl { display: inline-flex; align-items: center; gap: 8px; margin-top: 3px; }
+    .qty-ctl button { width: 24px; height: 24px; border-radius: 7px; border: 1px solid #d1d5db; background: #fff; cursor: pointer; font-size: 15px; line-height: 1; }
+    .deal { background: var(--wash); border: 1px solid #cfe3d2; border-radius: 12px; padding: 11px 13px; margin-top: 12px; }
+    .deal .nm { font-size: 14px; font-weight: 600; }
+    .deal .compare { text-decoration: line-through; color: var(--muted); font-weight: 400; margin-right: 6px; }
+    .deal .note { font-size: 12.5px; color: #3f6212; margin-top: 3px; line-height: 1.45; }
+    .totals { padding: 14px 20px; border-top: 1px solid var(--line); }
+    .tot-row { display: flex; justify-content: space-between; font-size: 14px; padding: 3px 0; }
+    .tot-row.grand { font-size: 17px; font-weight: 700; padding-top: 8px; }
+    .tax-note { font-size: 12px; color: var(--muted); line-height: 1.5; margin: 8px 0 12px; }
+
+    /* ---- Checkout ---- */
+    .checkout-section { margin-top: 14px; }
+    .checkout-section h3 { font-size: 15px; margin-bottom: 8px; }
+    .summary-box { background: var(--bg); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; font-size: 13.5px; line-height: 1.6; }
+    #payment-element { margin: 14px 0; }
+    .consent { display: flex; gap: 10px; align-items: flex-start; font-size: 13px; color: #374151; line-height: 1.5; margin: 12px 0; }
+    .consent input { width: 17px; height: 17px; accent-color: var(--primary); flex: none; margin-top: 2px; }
+
+    .done-card { max-width: 560px; margin: 60px auto; background: #fff; border: 1px solid var(--line); border-radius: 18px; padding: 40px 34px; text-align: center; }
+    .done-card .big-check { width: 62px; height: 62px; border-radius: 50%; background: var(--wash); color: var(--primary); font-size: 30px; display: flex; align-items: center; justify-content: center; margin: 0 auto 16px; }
+    .done-card h2 { font-size: 22px; margin-bottom: 10px; }
+    .done-card p { font-size: 14.5px; color: #374151; line-height: 1.6; margin-bottom: 8px; }
+    .order-no { font-size: 18px; font-weight: 700; color: var(--primary-dark); letter-spacing: 0.04em; }
+
+    footer { border-top: 1px solid var(--line); background: #fff; }
+    .foot-inner { max-width: 1140px; margin: 0 auto; padding: 18px; font-size: 12.5px; color: var(--muted); line-height: 1.6; text-align: center; }
+
+    @media (max-width: 560px) {
+      .form-grid { grid-template-columns: 1fr; }
+      .head-title .sub { display: none; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ZIP gate -->
+  <div class="gate" id="zipGate">
+    <div class="gate-card">
+      <img src="logo-black.png" alt="Wilson AC &amp; Appliance">
+      <h1>Local Clearance Shop</h1>
+      <p>Our online clearance offers are available for delivery in the Wilson AC &amp; Appliance
+      local area only. Enter your delivery ZIP code to come in.</p>
+      <div class="gate-row">
+        <input id="gateZip" inputmode="numeric" maxlength="5" placeholder="ZIP code" autocomplete="postal-code">
+        <button class="btn primary" id="gateBtn" type="button">Enter</button>
+      </div>
+      <div class="gate-error" id="gateError"></div>
+    </div>
+  </div>
+
+  <header>
+    <div class="head-inner">
+      <img src="logo-black.png" alt="Wilson AC &amp; Appliance">
+      <div class="head-title">Clearance Shop<span class="sub">Dripping Springs, Texas</span></div>
+      <div class="head-spacer"></div>
+      <span class="unlock-chip" id="unlockChip" style="display:none;"></span>
+      <button class="btn ghost" id="unlockBtn" type="button" style="display:none;">See clearance pricing</button>
+      <button class="btn ghost cart-btn" id="cartBtn" type="button">Cart<span class="cart-count" id="cartCount" style="display:none;">0</span></button>
+    </div>
+  </header>
+
+  <main id="mainArea">
+    <div class="map-note" id="mapNote" style="display:none;">
+      Clearance pricing on premium brands can't be advertised publicly. Create a free
+      shopping profile to unlock your prices — it takes 30 seconds.
+    </div>
+
+    <div class="filters" id="filterBar" style="display:none;">
+      <input type="search" id="searchInput" placeholder="Search model, brand, description...">
+      <select id="brandSelect"><option value="">All brands</option></select>
+      <div class="chip-row" id="catChips"></div>
+    </div>
+
+    <div class="grid" id="itemGrid"></div>
+    <div class="empty-note" id="emptyNote" style="display:none;">No clearance units match those filters right now — check back soon, the list moves fast.</div>
+  </main>
+
+  <div class="done-card" id="doneCard" style="display:none;">
+    <div class="big-check">✓</div>
+    <h2>Order received!</h2>
+    <p>Your order number is <span class="order-no" id="doneOrderNo"></span></p>
+    <p id="doneDetail">Your card is securely on file but has <strong>not been charged</strong>.
+    A Wilson team member will reach out using your preferred contact method to confirm
+    availability, delivery scheduling, and final total (including sales tax) before anything is charged.</p>
+  </div>
+
+  <!-- Registration modal -->
+  <div class="overlay" id="registerOverlay">
+    <div class="modal">
+      <h2>Unlock clearance pricing</h2>
+      <p class="lead">Tell us where these deals would be headed and how to reach you.
+      We only sell online within our local delivery area.</p>
+      <div class="form-grid">
+        <div><label for="regFirst">First name</label><input id="regFirst" autocomplete="given-name"></div>
+        <div><label for="regLast">Last name</label><input id="regLast" autocomplete="family-name"></div>
+        <div class="full"><label for="regLine1">Shipping address</label><input id="regLine1" autocomplete="address-line1" placeholder="Street address"></div>
+        <div class="full"><label for="regLine2">Apt / suite (optional)</label><input id="regLine2" autocomplete="address-line2"></div>
+        <div><label for="regCity">City</label><input id="regCity" autocomplete="address-level2"></div>
+        <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+          <div><label for="regState">State</label><input id="regState" value="TX"></div>
+          <div><label for="regZip">ZIP</label><input id="regZip" inputmode="numeric" maxlength="5" autocomplete="postal-code"></div>
+        </div>
+        <div><label for="regPhone">Best contact phone</label><input id="regPhone" type="tel" autocomplete="tel"></div>
+        <div><label for="regContact">Preferred contact method</label>
+          <select id="regContact">
+            <option value="">Choose...</option>
+            <option>Call</option>
+            <option>Text</option>
+            <option>Email</option>
+          </select>
+        </div>
+        <div class="full"><label for="regEmail">Email <span class="muted" id="emailOptional">(optional)</span></label><input id="regEmail" type="email" autocomplete="email"></div>
+      </div>
+      <div class="form-error" id="regError"></div>
+      <div class="modal-actions">
+        <button class="btn ghost" type="button" data-close="registerOverlay">Not now</button>
+        <button class="btn primary" id="regSubmit" type="button">Unlock pricing</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Add-ons modal -->
+  <div class="overlay" id="addonOverlay">
+    <div class="modal">
+      <h2>Complete the setup</h2>
+      <p class="lead" id="addonLead"></p>
+      <div id="addonList"></div>
+      <div class="modal-actions">
+        <button class="btn ghost" type="button" id="addonSkip">No thanks</button>
+        <button class="btn primary" id="addonAdd" type="button">Add selected</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Cart drawer -->
+  <div class="drawer" id="cartDrawer">
+    <div class="drawer-head">
+      <h2 id="drawerTitle">Your cart</h2>
+      <button class="btn ghost" type="button" id="drawerClose">Close</button>
+    </div>
+    <div class="drawer-body" id="drawerBody"></div>
+    <div class="totals" id="drawerTotals"></div>
+  </div>
+
+  <footer>
+    <div class="foot-inner">
+      Wilson AC &amp; Appliance · 4205 E Hwy 290, Dripping Springs, TX 78620 · 512-894-0907 · wilsonappliance.com<br>
+      All clearance units are sold as-is where noted, one of each — first come, first served.
+      Nothing is charged online; a Wilson team member confirms every order before payment.
+    </div>
+  </footer>
+
+<script>
+(() => {
+  const TOKEN_KEY = "wilsonShopToken";
+  const ZIP_KEY = "wilsonShopZip";
+
+  const state = {
+    token: localStorage.getItem(TOKEN_KEY) || "",
+    zip: sessionStorage.getItem(ZIP_KEY) || "",
+    catalog: null,
+    unlocked: false,
+    shopperName: "",
+    addons: null,
+    delivery: null,
+    cart: { itemIds: [], addons: new Map() },
+    filter: { search: "", brand: "", category: "" },
+    checkout: { open: false, stripe: null, elements: null, setupIntentId: "" },
+    pendingAddonItem: null
+  };
+
+  const $ = (id) => document.getElementById(id);
+  const money = (n) => "$" + Number(n).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+  // ---------- ZIP gate ----------
+  async function checkZip(zip) {
+    const res = await fetch("/api/shop/zip-check", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ zip })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Unable to check that ZIP.");
+    return data.allowed;
+  }
+
+  async function initGate() {
+    if (state.zip) {
+      try {
+        if (await checkZip(state.zip)) {
+          $("zipGate").classList.add("hidden");
+          return true;
+        }
+      } catch {}
+      sessionStorage.removeItem(ZIP_KEY);
+      state.zip = "";
+    }
+    return false;
+  }
+
+  $("gateBtn").addEventListener("click", async () => {
+    const zip = $("gateZip").value.trim();
+    const err = $("gateError");
+    err.classList.remove("show");
+    if (!/^\d{5}$/.test(zip)) {
+      err.textContent = "Enter a 5-digit ZIP code.";
+      err.classList.add("show");
+      return;
+    }
+    $("gateBtn").disabled = true;
+    try {
+      const allowed = await checkZip(zip);
+      if (!allowed) {
+        err.innerHTML = "We're sorry — online clearance ordering isn't available for delivery to " + zip +
+          " yet. Come see the deals in person at our Dripping Springs showroom, or call 512-894-0907.";
+        err.classList.add("show");
+        return;
+      }
+      state.zip = zip;
+      sessionStorage.setItem(ZIP_KEY, zip);
+      $("zipGate").classList.add("hidden");
+      loadCatalog();
+    } catch (e) {
+      err.textContent = e.message;
+      err.classList.add("show");
+    } finally {
+      $("gateBtn").disabled = false;
+    }
+  });
+  $("gateZip").addEventListener("keydown", (e) => { if (e.key === "Enter") $("gateBtn").click(); });
+
+  // ---------- Catalog ----------
+  async function loadCatalog() {
+    const url = "/api/shop/catalog" + (state.token ? "?token=" + encodeURIComponent(state.token) : "");
+    const res = await fetch(url);
+    const data = await res.json();
+    if (!res.ok) {
+      $("itemGrid").innerHTML = "";
+      $("emptyNote").style.display = "block";
+      $("emptyNote").textContent = data.error || "The shop is temporarily unavailable.";
+      return;
+    }
+    if (state.token && !data.unlocked) {
+      // stale token — drop it
+      localStorage.removeItem(TOKEN_KEY);
+      state.token = "";
+    }
+    state.catalog = data;
+    state.unlocked = data.unlocked;
+    state.shopperName = data.shopperName || "";
+    state.addons = data.addons;
+    state.delivery = data.delivery;
+    buildFilters();
+    renderHeader();
+    renderGrid();
+  }
+
+  function renderHeader() {
+    $("unlockBtn").style.display = state.unlocked ? "none" : "";
+    $("unlockChip").style.display = state.unlocked ? "" : "none";
+    if (state.unlocked) $("unlockChip").textContent = "Pricing unlocked" + (state.shopperName ? " for " + state.shopperName : "");
+    $("mapNote").style.display = state.unlocked ? "none" : "block";
+    $("filterBar").style.display = "";
+  }
+
+  function buildFilters() {
+    const brands = [...new Set((state.catalog.items || []).map((i) => i.brand).filter(Boolean))].sort();
+    const sel = $("brandSelect");
+    const current = state.filter.brand;
+    sel.innerHTML = "<option value=''>All brands</option>" + brands.map((b) => `<option${b === current ? " selected" : ""}>${esc(b)}</option>`).join("");
+
+    const counts = new Map();
+    for (const i of state.catalog.items || []) counts.set(i.category, (counts.get(i.category) || 0) + 1);
+    const cats = (state.catalog.categories || []).filter((c) => counts.get(c.key));
+    const chips = $("catChips");
+    chips.innerHTML = "";
+    const all = document.createElement("button");
+    all.className = "chip" + (state.filter.category ? "" : " active");
+    all.textContent = "All";
+    all.addEventListener("click", () => { state.filter.category = ""; buildFilters(); renderGrid(); });
+    chips.appendChild(all);
+    for (const c of cats) {
+      const chip = document.createElement("button");
+      chip.className = "chip" + (state.filter.category === c.key ? " active" : "");
+      chip.textContent = `${c.label} (${counts.get(c.key)})`;
+      chip.addEventListener("click", () => { state.filter.category = c.key; buildFilters(); renderGrid(); });
+      chips.appendChild(chip);
+    }
+  }
+
+  function esc(s) {
+    return String(s ?? "").replace(/[&<>"']/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch]));
+  }
+
+  function visibleItems() {
+    const q = state.filter.search.trim().toUpperCase();
+    return (state.catalog?.items || []).filter((i) => {
+      if (state.filter.brand && i.brand !== state.filter.brand) return false;
+      if (state.filter.category && i.category !== state.filter.category) return false;
+      if (q && !`${i.model} ${i.brand} ${i.description}`.toUpperCase().includes(q)) return false;
+      return true;
+    });
+  }
+
+  function renderGrid() {
+    const grid = $("itemGrid");
+    grid.innerHTML = "";
+    const items = visibleItems();
+    $("emptyNote").style.display = items.length ? "none" : "block";
+
+    for (const item of items) {
+      const card = document.createElement("div");
+      card.className = "item-card";
+      const inCart = state.cart.itemIds.includes(item.id);
+      card.innerHTML = `
+        <div class="item-brand">${esc(item.brand)}</div>
+        <div class="item-model">${esc(item.model)}</div>
+        <div class="item-desc">${esc(item.description)}</div>
+        <div class="item-cat">${esc(categoryLabel(item.category))} · 1 available</div>
+        <div class="item-foot">
+          ${state.unlocked
+            ? `<span class="item-price">${money(item.price)}</span>`
+            : `<span class="locked-price">Price hidden — MAP</span>`}
+          ${state.unlocked
+            ? (inCart
+                ? `<span class="in-cart">In cart ✓</span>`
+                : `<button class="btn primary" data-add="${esc(item.id)}">Add to cart</button>`)
+            : `<button class="btn ghost" data-unlock="1">See price</button>`}
+        </div>`;
+      grid.appendChild(card);
+    }
+
+    grid.querySelectorAll("[data-add]").forEach((btn) => {
+      btn.addEventListener("click", () => addToCart(btn.getAttribute("data-add")));
+    });
+    grid.querySelectorAll("[data-unlock]").forEach((btn) => {
+      btn.addEventListener("click", openRegister);
+    });
+  }
+
+  function categoryLabel(key) {
+    const cat = (state.catalog?.categories || []).find((c) => c.key === key);
+    return cat ? cat.label : key;
+  }
+
+  $("searchInput").addEventListener("input", (e) => { state.filter.search = e.target.value; renderGrid(); });
+  $("brandSelect").addEventListener("change", (e) => { state.filter.brand = e.target.value; renderGrid(); });
+
+  // ---------- Registration ----------
+  function openRegister() {
+    $("regZip").value = $("regZip").value || state.zip;
+    $("registerOverlay").classList.add("show");
+  }
+  $("unlockBtn").addEventListener("click", openRegister);
+  document.querySelectorAll("[data-close]").forEach((btn) => {
+    btn.addEventListener("click", () => $(btn.getAttribute("data-close")).classList.remove("show"));
+  });
+
+  $("regContact").addEventListener("change", () => {
+    $("emailOptional").textContent = $("regContact").value === "Email" ? "(required for email contact)" : "(optional)";
+  });
+
+  $("regSubmit").addEventListener("click", async () => {
+    const err = $("regError");
+    err.classList.remove("show");
+    const payload = {
+      firstName: $("regFirst").value.trim(),
+      lastName: $("regLast").value.trim(),
+      phone: $("regPhone").value.trim(),
+      email: $("regEmail").value.trim(),
+      preferredContact: $("regContact").value,
+      address: {
+        line1: $("regLine1").value.trim(),
+        line2: $("regLine2").value.trim(),
+        city: $("regCity").value.trim(),
+        state: $("regState").value.trim() || "TX",
+        zip: $("regZip").value.trim()
+      }
+    };
+    $("regSubmit").disabled = true;
+    try {
+      const res = await fetch("/api/shop/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Unable to register.");
+      state.token = data.token;
+      localStorage.setItem(TOKEN_KEY, data.token);
+      $("registerOverlay").classList.remove("show");
+      await loadCatalog();
+    } catch (e) {
+      err.textContent = e.message;
+      err.classList.add("show");
+    } finally {
+      $("regSubmit").disabled = false;
+    }
+  });
+
+  // ---------- Cart & add-ons ----------
+  function addToCart(itemId) {
+    if (state.cart.itemIds.includes(itemId)) return;
+    state.cart.itemIds.push(itemId);
+    renderGrid();
+    renderCartCount();
+    maybeOfferAddons(itemId);
+  }
+
+  function maybeOfferAddons(itemId) {
+    const item = (state.catalog.items || []).find((i) => i.id === itemId);
+    const map = state.addons?.byProduct?.[item?.product];
+    if (!item || !map || (!map.connectors?.length && !map.installs?.length)) {
+      openCart();
+      return;
+    }
+    state.pendingAddonItem = item;
+    $("addonLead").textContent = `Popular hookup parts and professional installation for your ${item.brand} ${item.model}:`;
+    const list = $("addonList");
+    list.innerHTML = "";
+
+    const renderGroup = (title, ids, pool) => {
+      const picks = ids.map((id) => pool.find((a) => a.id === id)).filter(Boolean);
+      if (!picks.length) return;
+      const head = document.createElement("div");
+      head.className = "addon-head";
+      head.textContent = title;
+      list.appendChild(head);
+      for (const addon of picks) {
+        const row = document.createElement("label");
+        row.className = "addon-row";
+        row.innerHTML = `
+          <input type="checkbox" value="${esc(addon.id)}">
+          <span class="addon-name">${esc(addon.name)}${addon.durationMin ? `<span class="muted">Professional install · ~${addon.durationMin} min</span>` : ""}</span>
+          <span class="addon-price">${money(addon.price)}</span>`;
+        list.appendChild(row);
+      }
+    };
+    renderGroup("Hookup & connection parts", map.connectors || [], state.addons.connectors || []);
+    renderGroup("Installation services", map.installs || [], state.addons.installs || []);
+    $("addonOverlay").classList.add("show");
+  }
+
+  $("addonSkip").addEventListener("click", () => {
+    $("addonOverlay").classList.remove("show");
+    openCart();
+  });
+  $("addonAdd").addEventListener("click", () => {
+    $("addonList").querySelectorAll("input[type=checkbox]:checked").forEach((cb) => {
+      const id = cb.value;
+      state.cart.addons.set(id, (state.cart.addons.get(id) || 0) + 1);
+    });
+    $("addonOverlay").classList.remove("show");
+    renderCartCount();
+    openCart();
+  });
+
+  function renderCartCount() {
+    const count = state.cart.itemIds.length + [...state.cart.addons.values()].reduce((s, q) => s + q, 0);
+    $("cartCount").style.display = count ? "" : "none";
+    $("cartCount").textContent = count;
+  }
+
+  function addonInfo(id) {
+    const pools = [...(state.addons?.connectors || []), ...(state.addons?.installs || [])];
+    return pools.find((a) => a.id === id);
+  }
+
+  function cartTotals() {
+    const items = state.cart.itemIds
+      .map((id) => (state.catalog.items || []).find((i) => i.id === id))
+      .filter(Boolean);
+    const itemsTotal = items.reduce((s, i) => s + (i.price || 0), 0);
+    let addonsTotal = 0;
+    for (const [id, qty] of state.cart.addons) {
+      const a = addonInfo(id);
+      if (a) addonsTotal += a.price * qty;
+    }
+    const delivery = state.delivery?.price || 0;
+    return { items, itemsTotal, addonsTotal, delivery, total: itemsTotal + addonsTotal + (items.length ? delivery : 0) };
+  }
+
+  function openCart() {
+    state.checkout.open = false;
+    renderCart();
+    $("cartDrawer").classList.add("show");
+  }
+  $("cartBtn").addEventListener("click", () => {
+    if (!state.unlocked) { openRegister(); return; }
+    openCart();
+  });
+  $("drawerClose").addEventListener("click", () => $("cartDrawer").classList.remove("show"));
+
+  function renderCart() {
+    $("drawerTitle").textContent = "Your cart";
+    const body = $("drawerBody");
+    body.innerHTML = "";
+    const t = cartTotals();
+
+    if (!t.items.length) {
+      body.innerHTML = "<p class='muted' style='padding: 30px 0; text-align:center;'>Your cart is empty.</p>";
+      $("drawerTotals").innerHTML = "";
+      return;
+    }
+
+    for (const item of t.items) {
+      const line = document.createElement("div");
+      line.className = "cart-line";
+      line.innerHTML = `
+        <div class="info">
+          <div class="nm">${esc(item.brand)} ${esc(item.model)}</div>
+          <div class="ds">${esc(item.description)}</div>
+          <button class="rm-btn" data-rm-item="${esc(item.id)}">Remove</button>
+        </div>
+        <div class="pr">${money(item.price)}</div>`;
+      body.appendChild(line);
+    }
+
+    for (const [id, qty] of state.cart.addons) {
+      const a = addonInfo(id);
+      if (!a) continue;
+      const line = document.createElement("div");
+      line.className = "cart-line";
+      line.innerHTML = `
+        <div class="info">
+          <div class="nm">${esc(a.name)}</div>
+          <div class="ds">${a.type === "install" ? "Professional installation" : "Hookup part"}</div>
+          <div class="qty-ctl">
+            <button data-qm="${esc(id)}">−</button><span>${qty}</span><button data-qp="${esc(id)}">+</button>
+          </div>
+        </div>
+        <div class="pr">${money(a.price * qty)}</div>`;
+      body.appendChild(line);
+    }
+
+    if (state.delivery) {
+      const deal = document.createElement("div");
+      deal.className = "deal";
+      deal.innerHTML = `
+        <div class="nm">${esc(state.delivery.name)}
+          <span style="float:right;"><span class="compare">${money(state.delivery.regularPrice)}</span>${money(state.delivery.price)}</span>
+        </div>
+        <div class="note">${esc(state.delivery.note)}</div>`;
+      body.appendChild(deal);
+    }
+
+    body.querySelectorAll("[data-rm-item]").forEach((b) => b.addEventListener("click", () => {
+      state.cart.itemIds = state.cart.itemIds.filter((id) => id !== b.getAttribute("data-rm-item"));
+      renderGrid(); renderCartCount(); renderCart();
+    }));
+    body.querySelectorAll("[data-qm]").forEach((b) => b.addEventListener("click", () => {
+      const id = b.getAttribute("data-qm");
+      const q = (state.cart.addons.get(id) || 1) - 1;
+      if (q <= 0) state.cart.addons.delete(id); else state.cart.addons.set(id, q);
+      renderCartCount(); renderCart();
+    }));
+    body.querySelectorAll("[data-qp]").forEach((b) => b.addEventListener("click", () => {
+      const id = b.getAttribute("data-qp");
+      state.cart.addons.set(id, (state.cart.addons.get(id) || 0) + 1);
+      renderCartCount(); renderCart();
+    }));
+
+    $("drawerTotals").innerHTML = `
+      <div class="tot-row"><span>Clearance items</span><span>${money(t.itemsTotal)}</span></div>
+      ${t.addonsTotal ? `<div class="tot-row"><span>Parts &amp; installation</span><span>${money(t.addonsTotal)}</span></div>` : ""}
+      <div class="tot-row"><span>White Glove Delivery</span><span>${money(t.delivery)}</span></div>
+      <div class="tot-row grand"><span>Estimated total</span><span>${money(t.total)}</span></div>
+      <div class="tax-note">Sales tax is added when your order is finalized. Your card is saved securely now and only charged after a Wilson team member confirms your order with you.</div>
+      <button class="btn primary" id="checkoutBtn" style="width:100%;">Continue to secure checkout</button>`;
+    document.getElementById("checkoutBtn").addEventListener("click", startCheckout);
+  }
+
+  // ---------- Checkout ----------
+  async function startCheckout() {
+    state.checkout.open = true;
+    $("drawerTitle").textContent = "Secure checkout";
+    const body = $("drawerBody");
+    const t = cartTotals();
+    body.innerHTML = `
+      <div class="checkout-section">
+        <h3>Order summary</h3>
+        <div class="summary-box">
+          ${t.items.map((i) => `${esc(i.brand)} ${esc(i.model)} — ${money(i.price)}`).join("<br>")}
+          ${state.cart.addons.size ? "<br>" + [...state.cart.addons].map(([id, qty]) => {
+            const a = addonInfo(id);
+            return a ? `${esc(a.name)} × ${qty} — ${money(a.price * qty)}` : "";
+          }).filter(Boolean).join("<br>") : ""}
+          <br>${esc(state.delivery?.name || "Delivery")} — ${money(t.delivery)}
+          <br><strong>Estimated total — ${money(t.total)}</strong>
+        </div>
+      </div>
+      <div class="checkout-section">
+        <h3>Card on file</h3>
+        <div id="payment-element"><p class="muted small-text">Loading secure card entry…</p></div>
+        <label class="consent">
+          <input type="checkbox" id="consentBox">
+          <span>I authorize Wilson AC &amp; Appliance to keep this card securely on file for this order and to
+          charge it only after confirming my order and final total with me. Nothing is charged today.</span>
+        </label>
+        <div class="form-error" id="checkoutError"></div>
+        <button class="btn primary" id="placeOrderBtn" style="width:100%;" disabled>Place order</button>
+      </div>`;
+    $("drawerTotals").innerHTML = "";
+
+    const errBox = $("checkoutError");
+    try {
+      if (!state.checkout.stripe) {
+        const cfgRes = await fetch("/api/config");
+        const cfg = await cfgRes.json();
+        if (!cfgRes.ok) throw new Error(cfg.error || "Payment configuration unavailable.");
+        state.checkout.stripe = Stripe(cfg.publishableKey);
+      }
+
+      const res = await fetch("/api/shop/setup-intent", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ token: state.token, cart: cartPayload() })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Unable to start checkout.");
+      state.checkout.setupIntentId = data.setupIntentId;
+
+      state.checkout.elements = state.checkout.stripe.elements({
+        clientSecret: data.clientSecret,
+        appearance: { theme: "stripe", variables: { colorPrimary: "#21692c", borderRadius: "10px" } }
+      });
+      const paymentElement = state.checkout.elements.create("payment", {
+        layout: "tabs",
+        fields: { billingDetails: { name: "never", email: "never", phone: "never", address: "never" } }
+      });
+      document.getElementById("payment-element").innerHTML = "";
+      paymentElement.mount("#payment-element");
+
+      const placeBtn = $("placeOrderBtn");
+      const consent = $("consentBox");
+      consent.addEventListener("change", () => { placeBtn.disabled = !consent.checked; });
+      placeBtn.addEventListener("click", placeOrder);
+    } catch (e) {
+      errBox.textContent = e.message;
+      errBox.classList.add("show");
+    }
+  }
+
+  function cartPayload() {
+    return {
+      itemIds: [...state.cart.itemIds],
+      addons: [...state.cart.addons].map(([id, qty]) => ({ id, qty }))
+    };
+  }
+
+  async function placeOrder() {
+    const errBox = $("checkoutError");
+    const btn = $("placeOrderBtn");
+    errBox.classList.remove("show");
+    btn.disabled = true;
+    btn.textContent = "Saving card…";
+
+    try {
+      const shopperName = state.shopperName || "Shop customer";
+      const { error, setupIntent } = await state.checkout.stripe.confirmSetup({
+        elements: state.checkout.elements,
+        confirmParams: {
+          payment_method_data: {
+            billing_details: { name: shopperName }
+          }
+        },
+        redirect: "if_required"
+      });
+      if (error) throw new Error(error.message || "Unable to save your card.");
+      if (setupIntent?.id) state.checkout.setupIntentId = setupIntent.id;
+
+      btn.textContent = "Filing order…";
+      const res = await fetch("/api/shop/submit-order", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          token: state.token,
+          setupIntentId: state.checkout.setupIntentId,
+          cart: cartPayload()
+        })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Unable to file your order.");
+
+      state.cart = { itemIds: [], addons: new Map() };
+      renderCartCount();
+      $("cartDrawer").classList.remove("show");
+      $("mainArea").style.display = "none";
+      $("doneOrderNo").textContent = data.orderNumber;
+      $("doneCard").style.display = "block";
+      window.scrollTo({ top: 0 });
+    } catch (e) {
+      errBox.textContent = e.message;
+      errBox.classList.add("show");
+      btn.disabled = false;
+      btn.textContent = "Place order";
+    }
+  }
+
+  // ---------- Boot ----------
+  (async () => {
+    const passed = await initGate();
+    if (passed) loadCatalog();
+  })();
+})();
+</script>
+</body>
+</html>

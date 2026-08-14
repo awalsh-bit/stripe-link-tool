@@ -884,14 +884,19 @@
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Unable to start checkout.");
       state.checkout.setupIntentId = data.setupIntentId;
+      state.checkout.billing = data.billing || null;
 
       state.checkout.elements = state.checkout.stripe.elements({
         clientSecret: data.clientSecret,
         appearance: { theme: "stripe", variables: { colorPrimary: "#21692c", borderRadius: "10px" } }
       });
+      // Fields we already have from the shopping profile are suppressed and
+      // passed back verbatim at confirmSetup (Stripe requires every "never"
+      // field to be supplied there). No email on file → let Stripe collect it.
+      const hasEmail = Boolean(state.checkout.billing?.email);
       const paymentElement = state.checkout.elements.create("payment", {
         layout: "tabs",
-        fields: { billingDetails: { name: "never", email: "never", phone: "never", address: "never" } }
+        fields: { billingDetails: { name: "never", email: hasEmail ? "never" : "auto", phone: "never", address: "never" } }
       });
       document.getElementById("payment-element").innerHTML = "";
       paymentElement.mount("#payment-element");
@@ -921,12 +926,25 @@
     btn.textContent = "Saving card…";
 
     try {
-      const shopperName = state.shopperName || "Shop customer";
+      const b = state.checkout.billing || {};
+      const billingDetails = {
+        name: b.name || state.shopperName || "Shop customer",
+        phone: b.phone || undefined,
+        address: {
+          line1: b.address?.line1 || undefined,
+          line2: b.address?.line2 || undefined,
+          city: b.address?.city || undefined,
+          state: b.address?.state || undefined,
+          postal_code: b.address?.postal_code || undefined,
+          country: b.address?.country || "US"
+        }
+      };
+      if (b.email) billingDetails.email = b.email; // collected by the element otherwise
       const { error, setupIntent } = await state.checkout.stripe.confirmSetup({
         elements: state.checkout.elements,
         confirmParams: {
           payment_method_data: {
-            billing_details: { name: shopperName }
+            billing_details: billingDetails
           }
         },
         redirect: "if_required"

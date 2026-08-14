@@ -4663,7 +4663,23 @@ app.post("/api/shop/setup-intent", async (req, res) => {
       clientSecret: setupIntent.client_secret,
       setupIntentId: setupIntent.id,
       customerId: customer.id,
-      pricing: { totals: priced.totals, delivery: priced.delivery }
+      pricing: { totals: priced.totals, delivery: priced.delivery },
+      // The payment element suppresses billing-detail collection (the
+      // shopper already gave us everything), so the client must hand these
+      // back to stripe.confirmSetup verbatim.
+      billing: {
+        name: `${shopper.firstName} ${shopper.lastName}`.trim(),
+        email: shopper.email || "",
+        phone: shopper.phone || "",
+        address: {
+          line1: shopper.address.line1 || "",
+          line2: shopper.address.line2 || "",
+          city: shopper.address.city || "",
+          state: shopper.address.state === "Texas" ? "TX" : (shopper.address.state || "TX"),
+          postal_code: shopper.address.zip || "",
+          country: "US"
+        }
+      }
     });
   } catch (err) {
     console.error("Shop setup intent failed:", err.message);

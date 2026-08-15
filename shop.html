@@ -3,6 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="robots" content="noindex, nofollow, noarchive, nosnippet, noimageindex">
   <title>Wilson Clearance Shop</title>
   <link rel="icon" href="favicon.svg" type="image/svg+xml">
   <script src="https://js.stripe.com/v3/"></script>
@@ -73,7 +74,8 @@
       font-size: 11px; font-weight: 700; border-radius: 999px; min-width: 19px; height: 19px;
       display: flex; align-items: center; justify-content: center; padding: 0 5px;
     }
-    .unlock-chip { background: var(--wash); border: 1px solid #cfe3d2; color: var(--primary-dark); border-radius: 999px; padding: 7px 14px; font-size: 13px; font-weight: 600; }
+    .unlock-chip { background: var(--wash); border: 1px solid #cfe3d2; color: var(--primary-dark); border-radius: 999px; padding: 7px 14px; font-size: 13px; font-weight: 600; cursor: pointer; font-family: inherit; }
+    .unlock-chip:hover { border-color: var(--primary); }
 
     /* ---- Catalog ---- */
     main { max-width: 1140px; margin: 0 auto; padding: 20px 18px 80px; }
@@ -92,13 +94,15 @@
     .deal-chip.active { background: #b45309; color: #fff; }
 
     .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(255px, 1fr)); gap: 14px; }
-    .item-card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 16px; display: flex; flex-direction: column; gap: 6px; }
+    .item-card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 16px; display: flex; flex-direction: column; gap: 6px; position: relative; }
     .item-img { width: 100%; height: 150px; object-fit: contain; background: #fff; border-radius: 8px; margin-bottom: 4px; }
-    .cond-badge { display: inline-block; align-self: flex-start; border-radius: 999px; padding: 3px 10px; font-size: 11.5px; font-weight: 700; letter-spacing: 0.03em; }
+    .cond-badge { position: absolute; top: 10px; right: 10px; z-index: 2; border-radius: 999px; padding: 3px 10px; font-size: 11.5px; font-weight: 700; letter-spacing: 0.03em; box-shadow: 0 1px 4px rgba(0,0,0,0.12); }
     .cond-badge.new { background: #dcfce7; color: #166534; }
     .cond-badge.open { background: #fef3c7; color: #92400e; }
     .item-brand { font-size: 12px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
     .item-model { font-weight: 600; font-size: 15.5px; }
+    .item-model a { color: inherit; text-decoration: none; }
+    .item-model a:hover { color: var(--primary-dark); text-decoration: underline; }
     .item-desc { font-size: 13.5px; color: #374151; line-height: 1.45; flex: 1; }
     .item-cat { font-size: 11.5px; color: var(--muted); }
     .item-price { font-size: 19px; font-weight: 700; color: var(--primary-dark); }
@@ -118,6 +122,9 @@
     .modal-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 18px; }
     .form-error { color: var(--danger); font-size: 13.5px; margin-top: 12px; display: none; line-height: 1.5; }
     .form-error.show { display: block; }
+    .pf-ok { display: none; color: var(--primary-dark); background: var(--wash); border-radius: 10px; padding: 9px 12px; font-size: 13.5px; margin-top: 12px; }
+    .pf-ok.show { display: block; }
+    .or-rule { text-align: center; font-size: 12.5px; color: var(--muted); margin: 14px 0 10px; border-top: 1px solid var(--line); padding-top: 12px; }
     .linklike { background: none; border: none; color: var(--primary-dark); font-size: 13.5px; font-weight: 600; cursor: pointer; padding: 0; text-decoration: underline; display: block; margin-top: 8px; }
     .client-code {
       display: inline-block; font-size: 26px; font-weight: 700; letter-spacing: 0.14em;
@@ -131,6 +138,7 @@
     .addon-name { flex: 1; font-size: 14px; }
     .addon-name .muted { display: block; font-size: 12px; }
     .addon-price { font-weight: 600; font-size: 14px; white-space: nowrap; }
+    .req-note { display: block; font-size: 12px; color: var(--primary-dark); font-weight: 600; }
     .addon-head { font-size: 12.5px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); margin: 14px 0 2px; }
 
     .drawer { position: fixed; top: 0; right: 0; bottom: 0; width: min(430px, 100vw); background: #fff; z-index: 70; box-shadow: -18px 0 50px rgba(0,0,0,0.18); transform: translateX(105%); transition: transform 0.22s ease; display: flex; flex-direction: column; }
@@ -200,7 +208,7 @@
       <img src="logo-black.png" alt="Wilson AC &amp; Appliance">
       <div class="head-title">Clearance Shop<span class="sub">Dripping Springs, Texas</span></div>
       <div class="head-spacer"></div>
-      <span class="unlock-chip" id="unlockChip" style="display:none;"></span>
+      <button type="button" class="unlock-chip" id="unlockChip" style="display:none;" title="View and update your profile"></button>
       <button class="btn ghost" id="unlockBtn" type="button" style="display:none;">See clearance pricing</button>
       <button class="btn ghost cart-btn" id="cartBtn" type="button">Cart<span class="cart-count" id="cartCount" style="display:none;">0</span></button>
     </div>
@@ -243,13 +251,18 @@
 
       <div id="lookupPanel" style="display:none;">
         <div class="form-grid">
-          <div><label for="lookPhone">Phone number</label><input id="lookPhone" type="tel" autocomplete="tel"></div>
+          <div class="full"><label for="lookPhone">Phone number</label><input id="lookPhone" type="tel" autocomplete="tel"></div>
+          <div><label for="lookPassword">Password</label><input id="lookPassword" type="password" autocomplete="current-password"></div>
+          <div style="display:flex; align-items:flex-end;"><button class="btn primary" id="loginSubmit" type="button" style="width:100%;">Sign in</button></div>
+        </div>
+        <div class="or-rule">or restore with your client code</div>
+        <div class="form-grid">
           <div><label for="lookCode">Client code</label><input id="lookCode" placeholder="W-XXXXX" style="text-transform:uppercase;"></div>
+          <div style="display:flex; align-items:flex-end;"><button class="btn ghost" id="lookSubmit" type="button" style="width:100%;">Use my code</button></div>
         </div>
         <div class="form-error" id="lookError"></div>
         <div class="modal-actions">
           <button class="btn ghost" type="button" id="backToRegBtn">Back to sign-up</button>
-          <button class="btn primary" id="lookSubmit" type="button">Restore my profile</button>
         </div>
       </div>
 
@@ -288,6 +301,11 @@
         <p class="muted" style="font-size:13.5px; line-height:1.55; margin: 12px 0 16px;">
           Save it — next visit, enter it with your phone number and we'll fill everything in for you.
         </p>
+        <div style="text-align:left; max-width: 320px; margin: 0 auto 14px;">
+          <label for="newPassBox">Prefer a password? Create one (optional)</label>
+          <input id="newPassBox" type="password" autocomplete="new-password" placeholder="At least 8 characters">
+          <div class="form-error" id="newPassError"></div>
+        </div>
         <button class="btn primary" type="button" id="codeContinue">Start shopping</button>
       </div>
     </div>
@@ -302,6 +320,51 @@
       <div class="modal-actions">
         <button class="btn ghost" type="button" id="addonSkip">No thanks</button>
         <button class="btn primary" id="addonAdd" type="button">Add selected</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Profile panel -->
+  <div class="overlay" id="profileOverlay">
+    <div class="modal">
+      <h2>Your shopping profile</h2>
+      <p class="lead">Client code <strong id="pfCode" style="color: var(--primary-dark); letter-spacing: 0.06em;"></strong>
+      — your delivery details and how we reach you about orders.</p>
+      <div class="form-grid">
+        <div><label for="pfFirst">First name</label><input id="pfFirst" autocomplete="given-name"></div>
+        <div><label for="pfLast">Last name</label><input id="pfLast" autocomplete="family-name"></div>
+        <div class="full"><label for="pfLine1">Shipping address</label><input id="pfLine1" autocomplete="address-line1"></div>
+        <div class="full"><label for="pfLine2">Apt / suite (optional)</label><input id="pfLine2" autocomplete="address-line2"></div>
+        <div><label for="pfCity">City</label><input id="pfCity" autocomplete="address-level2"></div>
+        <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+          <div><label for="pfState">State</label><input id="pfState"></div>
+          <div><label for="pfZip">ZIP</label><input id="pfZip" inputmode="numeric" maxlength="5" autocomplete="postal-code"></div>
+        </div>
+        <div><label for="pfPhone">Best contact phone</label><input id="pfPhone" type="tel" autocomplete="tel"></div>
+        <div><label for="pfContact">Preferred contact method</label>
+          <select id="pfContact">
+            <option>Call</option>
+            <option>Text</option>
+            <option>Email</option>
+          </select>
+        </div>
+        <div class="full"><label for="pfEmail">Email</label><input id="pfEmail" type="email" autocomplete="email"></div>
+        <div class="full">
+          <label for="pfPassword" id="pfPasswordLabel">Create a password (optional)</label>
+          <div style="display:flex; gap:10px;">
+            <input id="pfPassword" type="password" autocomplete="new-password" placeholder="At least 8 characters">
+            <button class="btn ghost" type="button" id="pfPasswordSave" style="white-space:nowrap;">Save password</button>
+          </div>
+        </div>
+      </div>
+      <div class="form-error" id="pfError"></div>
+      <div class="pf-ok" id="pfOk"></div>
+      <div class="modal-actions" style="justify-content: space-between;">
+        <button class="btn ghost" type="button" id="pfSignOut" style="color: var(--danger); border-color: #fca5a5;">Sign out</button>
+        <div style="display:flex; gap:10px;">
+          <button class="btn ghost" type="button" data-close="profileOverlay">Close</button>
+          <button class="btn primary" type="button" id="pfSave">Save changes</button>
+        </div>
       </div>
     </div>
   </div>
@@ -491,38 +554,69 @@
     });
   }
 
+  // Identical units (same model, brand, condition, and price) collapse into
+  // one tile showing how many are available — six of the same cooktop is one
+  // card that says "6 available", not six duplicate cards.
+  function groupedItems() {
+    const groups = [];
+    const byKey = new Map();
+    for (const item of visibleItems()) {
+      const key = [item.model, item.brand, item.condition || "", item.price ?? ""].join("\u0001");
+      let group = byKey.get(key);
+      if (!group) {
+        group = { ...item, ids: [] };
+        byKey.set(key, group);
+        groups.push(group);
+      }
+      group.ids.push(item.id);
+    }
+    return groups;
+  }
+
+  function productPageUrl(model) {
+    return "https://www.wilsonappliance.com/search?search=" + encodeURIComponent(String(model || "").trim());
+  }
+
   function renderGrid() {
     const grid = $("itemGrid");
     grid.innerHTML = "";
-    const items = visibleItems();
-    $("emptyNote").style.display = items.length ? "none" : "block";
+    const groups = groupedItems();
+    state.renderedGroups = groups;
+    $("emptyNote").style.display = groups.length ? "none" : "block";
 
-    for (const item of items) {
+    groups.forEach((group, index) => {
       const card = document.createElement("div");
       card.className = "item-card";
-      const inCart = state.cart.itemIds.includes(item.id);
+      const total = group.ids.length;
+      const carted = group.ids.filter((id) => state.cart.itemIds.includes(id)).length;
+      const allInCart = carted >= total;
       card.innerHTML = `
-        ${item.image ? `<img class="item-img" src="${esc(item.image)}" alt="${esc(item.model)}" loading="lazy" onerror="this.remove()">` : ""}
-        <div class="item-brand">${esc(item.brand)}</div>
-        <div class="item-model">${esc(item.model)}</div>
-        ${conditionBadge(item)}
-        <div class="item-desc">${esc(item.description)}</div>
-        <div class="item-cat">${esc(categoryLabel(item.category))} · 1 available</div>
+        ${conditionBadge(group)}
+        ${group.image ? `<img class="item-img" src="${esc(group.image)}" alt="${esc(group.model)}" loading="lazy" onerror="this.remove()">` : ""}
+        <div class="item-brand">${esc(group.brand)}</div>
+        <div class="item-model"><a href="${esc(productPageUrl(group.model))}" target="_blank" rel="noopener" title="View ${esc(group.model)} on wilsonappliance.com">${esc(group.model)}</a></div>
+        <div class="item-desc">${esc(group.description)}</div>
+        <div class="item-cat">${esc(categoryLabel(group.category))} · ${total} available${carted && !allInCart ? ` · ${carted} in cart` : ""}</div>
         <div class="item-foot">
           ${state.unlocked
-            ? `<span class="item-price">${money(item.price)}</span>`
+            ? `<span class="item-price">${money(group.price)}</span>`
             : `<span></span>`}
           ${state.unlocked
-            ? (inCart
-                ? `<span class="in-cart">In cart ✓</span>`
-                : `<button class="btn primary" data-add="${esc(item.id)}">Add to cart</button>`)
+            ? (allInCart
+                ? `<span class="in-cart">${total > 1 ? "All " + total + " in cart ✓" : "In cart ✓"}</span>`
+                : `<button class="btn primary" data-add-group="${index}">Add to cart</button>`)
             : `<button class="btn ghost" data-unlock="1">See price</button>`}
         </div>`;
       grid.appendChild(card);
-    }
+    });
 
-    grid.querySelectorAll("[data-add]").forEach((btn) => {
-      btn.addEventListener("click", () => addToCart(btn.getAttribute("data-add")));
+    grid.querySelectorAll("[data-add-group]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const group = state.renderedGroups[Number(btn.getAttribute("data-add-group"))];
+        if (!group) return;
+        const nextId = group.ids.find((id) => !state.cart.itemIds.includes(id));
+        if (nextId) addToCart(nextId);
+      });
     });
     grid.querySelectorAll("[data-unlock]").forEach((btn) => {
       btn.addEventListener("click", openRegister);
@@ -568,6 +662,32 @@
     $("regPanel").style.display = "";
     $("haveCodeBtn").style.display = "";
   });
+
+  $("loginSubmit").addEventListener("click", async () => {
+    const err = $("lookError");
+    err.classList.remove("show");
+    $("loginSubmit").disabled = true;
+    try {
+      const res = await fetch("/api/shop/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phone: $("lookPhone").value.trim(), password: $("lookPassword").value })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Unable to sign in.");
+      state.token = data.token;
+      state.clientCode = data.clientCode || "";
+      localStorage.setItem(TOKEN_KEY, data.token);
+      $("registerOverlay").classList.remove("show");
+      await loadCatalog();
+    } catch (e) {
+      err.textContent = e.message;
+      err.classList.add("show");
+    } finally {
+      $("loginSubmit").disabled = false;
+    }
+  });
+  $("lookPassword").addEventListener("keydown", (e) => { if (e.key === "Enter") $("loginSubmit").click(); });
 
   $("lookSubmit").addEventListener("click", async () => {
     const err = $("lookError");
@@ -647,8 +767,148 @@
     }
   });
 
-  $("codeContinue").addEventListener("click", () => {
+  $("codeContinue").addEventListener("click", async () => {
+    const pass = $("newPassBox").value;
+    const err = $("newPassError");
+    err.classList.remove("show");
+    if (pass) {
+      if (pass.length < 8) {
+        err.textContent = "Passwords need at least 8 characters — or clear the box to continue as a guest.";
+        err.classList.add("show");
+        return;
+      }
+      $("codeContinue").disabled = true;
+      try {
+        const res = await fetch("/api/shop/password", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ token: state.token, password: pass })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Unable to save that password.");
+        $("newPassBox").value = "";
+      } catch (e) {
+        err.textContent = e.message;
+        err.classList.add("show");
+        $("codeContinue").disabled = false;
+        return;
+      }
+      $("codeContinue").disabled = false;
+    }
     $("registerOverlay").classList.remove("show");
+  });
+
+  // ---------- Profile panel ----------
+  function pfStatus(message, ok) {
+    const good = $("pfOk");
+    const bad = $("pfError");
+    good.classList.remove("show");
+    bad.classList.remove("show");
+    if (!message) return;
+    const box = ok ? good : bad;
+    box.textContent = message;
+    box.classList.add("show");
+  }
+
+  async function openProfile() {
+    pfStatus("");
+    $("pfPassword").value = "";
+    try {
+      const res = await fetch("/api/shop/profile?token=" + encodeURIComponent(state.token));
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Unable to load your profile.");
+      const p = data.profile;
+      $("pfCode").textContent = p.clientCode || "";
+      $("pfFirst").value = p.firstName || "";
+      $("pfLast").value = p.lastName || "";
+      $("pfLine1").value = p.address?.line1 || "";
+      $("pfLine2").value = p.address?.line2 || "";
+      $("pfCity").value = p.address?.city || "";
+      $("pfState").value = p.address?.state || "TX";
+      $("pfZip").value = p.address?.zip || "";
+      $("pfPhone").value = p.phone || "";
+      $("pfContact").value = p.preferredContact || "Call";
+      $("pfEmail").value = p.email || "";
+      $("pfPasswordLabel").textContent = p.hasPassword ? "Change your password" : "Create a password (optional)";
+      $("profileOverlay").classList.add("show");
+    } catch (e) {
+      // Stale token — fall back to the sign-in flow.
+      localStorage.removeItem(TOKEN_KEY);
+      state.token = "";
+      await loadCatalog();
+      openRegister();
+    }
+  }
+
+  $("unlockChip").addEventListener("click", openProfile);
+
+  $("pfSave").addEventListener("click", async () => {
+    pfStatus("");
+    $("pfSave").disabled = true;
+    try {
+      const res = await fetch("/api/shop/profile", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          token: state.token,
+          firstName: $("pfFirst").value.trim(),
+          lastName: $("pfLast").value.trim(),
+          phone: $("pfPhone").value.trim(),
+          email: $("pfEmail").value.trim(),
+          preferredContact: $("pfContact").value,
+          address: {
+            line1: $("pfLine1").value.trim(),
+            line2: $("pfLine2").value.trim(),
+            city: $("pfCity").value.trim(),
+            state: $("pfState").value.trim() || "TX",
+            zip: $("pfZip").value.trim()
+          }
+        })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Unable to save your profile.");
+      state.shopperName = data.firstName || state.shopperName;
+      renderHeader();
+      pfStatus("Saved — your delivery details are up to date.", true);
+    } catch (e) {
+      pfStatus(e.message, false);
+    } finally {
+      $("pfSave").disabled = false;
+    }
+  });
+
+  $("pfPasswordSave").addEventListener("click", async () => {
+    pfStatus("");
+    const pass = $("pfPassword").value;
+    if (pass.length < 8) { pfStatus("Passwords need at least 8 characters.", false); return; }
+    $("pfPasswordSave").disabled = true;
+    try {
+      const res = await fetch("/api/shop/password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ token: state.token, password: pass })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Unable to save that password.");
+      $("pfPassword").value = "";
+      $("pfPasswordLabel").textContent = "Change your password";
+      pfStatus("Password saved — sign in next time with your phone number and password.", true);
+    } catch (e) {
+      pfStatus(e.message, false);
+    } finally {
+      $("pfPasswordSave").disabled = false;
+    }
+  });
+
+  $("pfSignOut").addEventListener("click", async () => {
+    localStorage.removeItem(TOKEN_KEY);
+    state.token = "";
+    state.shopperName = "";
+    state.clientCode = "";
+    state.cart = { itemIds: [], addons: new Map() };
+    renderCartCount();
+    $("profileOverlay").classList.remove("show");
+    await loadCatalog();
   });
 
   // ---------- Cart & add-ons ----------
@@ -668,7 +928,7 @@
       return;
     }
     state.pendingAddonItem = item;
-    $("addonLead").textContent = `Popular hookup parts and professional installation for your ${item.brand} ${item.model}:`;
+    $("addonLead").textContent = `Professional installation and hookup parts for your ${item.brand} ${item.model}:`;
     const list = $("addonList");
     list.innerHTML = "";
 
@@ -683,15 +943,64 @@
         const row = document.createElement("label");
         row.className = "addon-row";
         row.innerHTML = `
-          <input type="checkbox" value="${esc(addon.id)}">
-          <span class="addon-name">${esc(addon.name)}${addon.durationMin ? `<span class="muted">Professional install · ~${addon.durationMin} min</span>` : ""}</span>
+          <input type="checkbox" value="${esc(addon.id)}" data-addon-type="${esc(addon.type)}">
+          <span class="addon-name">${esc(addon.name)}${addon.durationMin ? `<span class="muted">Professional install · ~${addon.durationMin} min</span>` : ""}<span class="req-note" style="display:none;"> Required with your install</span></span>
           <span class="addon-price">${money(addon.price)}</span>`;
         list.appendChild(row);
       }
     };
-    renderGroup("Hookup & connection parts", map.connectors || [], state.addons.connectors || []);
+    // Installs lead — picking one auto-selects (and locks) the connectors
+    // that install can't happen without.
     renderGroup("Installation services", map.installs || [], state.addons.installs || []);
+    renderGroup("Hookup & connection parts", map.connectors || [], state.addons.connectors || []);
+    if (!list.dataset.reqWired) {
+      list.addEventListener("change", syncAddonRequirements);
+      list.dataset.reqWired = "1";
+    }
+    syncAddonRequirements();
     $("addonOverlay").classList.add("show");
+  }
+
+  // Requirement groups for every checked install: each group needs exactly
+  // one of its (displayed) alternatives checked; that one is locked until
+  // the install is deselected. Picking a different alternative in the group
+  // moves the check (e.g. 5ft vs 10ft stainless hoses).
+  function activeRequirementGroups() {
+    const list = $("addonList");
+    const requires = state.addons?.requires || {};
+    const displayed = new Set([...list.querySelectorAll("input[type=checkbox]")].map((cb) => cb.value));
+    const groups = [];
+    for (const cb of list.querySelectorAll("input[data-addon-type=install]:checked")) {
+      for (const group of requires[cb.value] || []) {
+        const visible = group.filter((id) => displayed.has(id));
+        if (visible.length) groups.push(visible);
+      }
+    }
+    return groups;
+  }
+
+  function syncAddonRequirements() {
+    const list = $("addonList");
+    const boxes = new Map([...list.querySelectorAll("input[type=checkbox]")].map((cb) => [cb.value, cb]));
+    // reset connector locks
+    for (const cb of boxes.values()) {
+      if (cb.dataset.addonType !== "install") {
+        cb.disabled = false;
+        cb.closest(".addon-row").querySelector(".req-note").style.display = "none";
+      }
+    }
+    for (const group of activeRequirementGroups()) {
+      let checked = group.find((id) => boxes.get(id)?.checked);
+      if (!checked) {
+        checked = group[0];
+        boxes.get(checked).checked = true;
+      }
+      // Lock only the satisfying member; alternatives stay clickable so the
+      // shopper can switch within the group.
+      const cb = boxes.get(checked);
+      cb.disabled = true;
+      cb.closest(".addon-row").querySelector(".req-note").style.display = "";
+    }
   }
 
   $("addonSkip").addEventListener("click", () => {
@@ -743,6 +1052,24 @@
     };
   }
 
+  // Would removing one unit of `connId` leave a checked install without a
+  // required connector? Returns the blocking install's name, or null.
+  function cartRemovalBlock(connId) {
+    const requires = state.addons?.requires || {};
+    const qtyAfter = new Map(state.cart.addons);
+    qtyAfter.set(connId, (qtyAfter.get(connId) || 0) - 1);
+    for (const [addonId] of state.cart.addons) {
+      const info = addonInfo(addonId);
+      if (info?.type !== "install") continue;
+      for (const group of requires[addonId] || []) {
+        if (!group.includes(connId)) continue;
+        const satisfied = group.some((id) => (qtyAfter.get(id) || 0) > 0);
+        if (!satisfied) return info.name;
+      }
+    }
+    return null;
+  }
+
   function openCart() {
     state.checkout.open = false;
     renderCart();
@@ -754,10 +1081,23 @@
   });
   $("drawerClose").addEventListener("click", () => $("cartDrawer").classList.remove("show"));
 
+  function alertLine(message) {
+    const box = document.getElementById("cartNotice");
+    if (!box) return;
+    box.textContent = message;
+    box.style.display = "block";
+    clearTimeout(alertLine._t);
+    alertLine._t = setTimeout(() => { box.style.display = "none"; }, 4200);
+  }
+
   function renderCart() {
     $("drawerTitle").textContent = "Your cart";
     const body = $("drawerBody");
     body.innerHTML = "";
+    const notice = document.createElement("div");
+    notice.id = "cartNotice";
+    notice.style.cssText = "display:none; background:#fffbeb; border:1px solid #fde68a; color:#92400e; border-radius:10px; padding:9px 12px; font-size:13px; line-height:1.5; margin-bottom:8px;";
+    body.appendChild(notice);
     const t = cartTotals();
 
     if (!t.items.length) {
@@ -813,6 +1153,11 @@
     }));
     body.querySelectorAll("[data-qm]").forEach((b) => b.addEventListener("click", () => {
       const id = b.getAttribute("data-qm");
+      const blockedBy = cartRemovalBlock(id);
+      if (blockedBy) {
+        alertLine(`${addonInfo(id)?.name || "That part"} is required with ${blockedBy} — remove the install first.`);
+        return;
+      }
       const q = (state.cart.addons.get(id) || 1) - 1;
       if (q <= 0) state.cart.addons.delete(id); else state.cart.addons.set(id, q);
       renderCartCount(); renderCart();

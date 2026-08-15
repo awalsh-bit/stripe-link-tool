@@ -676,26 +676,34 @@
    ]
   },
   "VHOOD": {
-   "connectors": [],
+   "connectors": [
+    "universal-nema-5-15-cord"
+   ],
    "installs": [
     "hood-under-cabinet-install",
     "hood-wall-install"
    ]
   },
   "VHISL": {
-   "connectors": [],
+   "connectors": [
+    "universal-nema-5-15-cord"
+   ],
    "installs": [
     "hood-island-install"
    ]
   },
   "VHINS": {
-   "connectors": [],
+   "connectors": [
+    "universal-nema-5-15-cord"
+   ],
    "installs": [
     "hood-liner-insert-install"
    ]
   },
   "VHDD": {
-   "connectors": [],
+   "connectors": [
+    "universal-nema-5-15-cord"
+   ],
    "installs": [
     "cattura-downdraft-install"
    ]
@@ -988,5 +996,142 @@
     "built-in-vacuum-seal-drawer-install"
    ]
   }
+ },
+ "requires": {
+  "washer-standard-install": [
+   [
+    "washer-fill-hoses-5ft-stainless",
+    "washer-fill-hoses-10ft-stainless"
+   ]
+  ],
+  "washer-condo-install": [
+   [
+    "washer-fill-hoses-5ft-stainless",
+    "washer-fill-hoses-10ft-stainless"
+   ]
+  ],
+  "dryer-standard-install": [
+   [
+    "dryer-cord",
+    "universal-gas-install-kit"
+   ],
+   [
+    "dryer-vent-kit"
+   ]
+  ],
+  "dryer-condo-install": [
+   [
+    "dryer-cord",
+    "universal-gas-install-kit"
+   ],
+   [
+    "dryer-vent-kit"
+   ]
+  ],
+  "dishwasher-standard-install": [
+   [
+    "dishwasher-install-kit"
+   ]
+  ],
+  "dishwasher-with-panel-install": [
+   [
+    "dishwasher-install-kit"
+   ]
+  ],
+  "pro-dishwasher-install": [
+   [
+    "dishwasher-install-kit"
+   ]
+  ],
+  "dish-drawer-install": [
+   [
+    "dishwasher-install-kit"
+   ]
+  ],
+  "refrigerator-freestanding-install": [
+   [
+    "refrigerator-water-supply-stainless"
+   ]
+  ],
+  "refrigerator-built-in-no-panels-install": [
+   [
+    "refrigerator-water-supply-stainless"
+   ]
+  ],
+  "refrigerator-built-in-with-panel-install": [
+   [
+    "refrigerator-water-supply-stainless"
+   ]
+  ],
+  "refrigerator-built-in-column-stainless-install": [
+   [
+    "refrigerator-water-supply-stainless"
+   ]
+  ],
+  "refrigerator-built-in-column-with-panel-install": [
+   [
+    "refrigerator-water-supply-stainless"
+   ]
+  ],
+  "refrigerator-undercounter-built-in-no-panel-install": [
+   [
+    "refrigerator-water-supply-stainless"
+   ]
+  ],
+  "refrigerator-undercounter-built-in-with-panel-install": [
+   [
+    "refrigerator-water-supply-stainless"
+   ]
+  ],
+  "built-in-ice-machine-install": [
+   [
+    "refrigerator-water-supply-stainless"
+   ]
+  ],
+  "built-in-ice-machine-install-with-panel": [
+   [
+    "refrigerator-water-supply-stainless"
+   ]
+  ],
+  "hood-under-cabinet-install": [
+   [
+    "universal-nema-5-15-cord"
+   ]
+  ],
+  "hood-wall-install": [
+   [
+    "universal-nema-5-15-cord"
+   ]
+  ],
+  "hood-island-install": [
+   [
+    "universal-nema-5-15-cord"
+   ]
+  ],
+  "hood-liner-insert-install": [
+   [
+    "universal-nema-5-15-cord"
+   ]
+  ],
+  "cattura-downdraft-install": [
+   [
+    "universal-nema-5-15-cord"
+   ]
+  ],
+  "range-standard-gas-install": [
+   [
+    "universal-gas-install-kit"
+   ]
+  ],
+  "range-pro-install": [
+   [
+    "universal-gas-install-kit"
+   ]
+  ],
+  "range-standard-electric-install": [
+   [
+    "range-cord"
+   ]
+  ]
  }
 }

@@ -137,6 +137,9 @@ import {
   completeShopOrder,
   cancelShopOrder,
   findShopperByCodeAndPhone,
+  setShopperPassword,
+  verifyShopperLogin,
+  updateShopperProfile,
   updateShopOrderCardSummary,
   updateShopOrderLockConflicts,
   saveShopInventorySnapshot,
@@ -336,6 +339,9 @@ const SHOP_PUBLIC_API_PREFIXES = [
   "/api/shop/zip-check",
   "/api/shop/register",
   "/api/shop/lookup",
+  "/api/shop/login",
+  "/api/shop/profile",
+  "/api/shop/password",
   "/api/shop/catalog",
   "/api/shop/setup-intent",
   "/api/shop/submit-order",
@@ -4485,33 +4491,54 @@ app.post("/api/shop/zip-check", (req, res) => {
   return res.json({ allowed: shopZipAllowed(zip) });
 });
 
+// Shared shopper-field validation for registration and profile edits.
+// Returns { fields } or { error }.
+function validateShopperFields(b) {
+  const firstName = String(b?.firstName || "").trim();
+  const lastName = String(b?.lastName || "").trim();
+  const phone = String(b?.phone || "").trim();
+  const email = String(b?.email || "").trim();
+  const preferredContact = String(b?.preferredContact || "").trim();
+  const address = {
+    line1: String(b?.address?.line1 || "").trim(),
+    line2: String(b?.address?.line2 || "").trim(),
+    city: String(b?.address?.city || "").trim(),
+    state: String(b?.address?.state || "TX").trim(),
+    zip: String(b?.address?.zip || "").trim()
+  };
+
+  if (!firstName || !lastName) return { error: "First and last name are required." };
+  if (!address.line1 || !address.city || !address.zip) return { error: "A complete shipping address is required." };
+  if (!phone) return { error: "A contact phone number is required." };
+  if (!["Call", "Text", "Email"].includes(preferredContact)) return { error: "Choose a preferred contact method." };
+  if (preferredContact === "Email" && !email) return { error: "Add an email address so we can reach you by email." };
+  if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return { error: "That email address doesn't look right." };
+  if (!shopZipAllowed(address.zip)) {
+    return { error: "We can only deliver online clearance orders inside our local delivery area right now." };
+  }
+  return { fields: { firstName, lastName, email, phone, preferredContact, address } };
+}
+
+function shopperProfilePayload(shopper) {
+  return {
+    firstName: shopper.firstName,
+    lastName: shopper.lastName,
+    email: shopper.email,
+    phone: shopper.phone,
+    preferredContact: shopper.preferredContact,
+    address: shopper.address,
+    clientCode: shopper.clientCode,
+    hasPassword: Boolean(shopper.hasPassword)
+  };
+}
+
 // PUBLIC: the pricing wall. Registration requires the contact details the
 // sales team needs to finish the order, and the shipping ZIP must be in zone.
 app.post("/api/shop/register", async (req, res) => {
   try {
-    const b = req.body || {};
-    const firstName = String(b.firstName || "").trim();
-    const lastName = String(b.lastName || "").trim();
-    const phone = String(b.phone || "").trim();
-    const email = String(b.email || "").trim();
-    const preferredContact = String(b.preferredContact || "").trim();
-    const address = {
-      line1: String(b.address?.line1 || "").trim(),
-      line2: String(b.address?.line2 || "").trim(),
-      city: String(b.address?.city || "").trim(),
-      state: String(b.address?.state || "TX").trim(),
-      zip: String(b.address?.zip || "").trim()
-    };
-
-    if (!firstName || !lastName) return res.status(400).json({ error: "First and last name are required." });
-    if (!address.line1 || !address.city || !address.zip) return res.status(400).json({ error: "A complete shipping address is required." });
-    if (!phone) return res.status(400).json({ error: "A contact phone number is required." });
-    if (!["Call", "Text", "Email"].includes(preferredContact)) return res.status(400).json({ error: "Choose a preferred contact method." });
-    if (preferredContact === "Email" && !email) return res.status(400).json({ error: "Add an email address so we can reach you by email." });
-    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return res.status(400).json({ error: "That email address doesn't look right." });
-    if (!shopZipAllowed(address.zip)) {
-      return res.status(400).json({ error: "We can only deliver online clearance orders inside our local delivery area right now." });
-    }
+    const checked = validateShopperFields(req.body);
+    if (checked.error) return res.status(400).json({ error: checked.error });
+    const { firstName, lastName, email, phone, preferredContact, address } = checked.fields;
 
     const shopper = await createShopper({ firstName, lastName, email, phone, preferredContact, address });
 
@@ -4561,6 +4588,98 @@ app.post("/api/shop/lookup", async (req, res) => {
   } catch (err) {
     console.error("Shop lookup failed:", err.message);
     return res.status(500).json({ error: "Unable to look that up right now." });
+  }
+});
+
+// PUBLIC: phone + password sign-in (the optional account layer on top of
+// the guest flow). Shares the lookup throttle.
+app.post("/api/shop/login", async (req, res) => {
+  try {
+    const now = Date.now();
+    const key = "login:" + String(req.ip || "");
+    const attempts = (shopLookupAttempts.get(key) || []).filter((t) => now - t < 60 * 60 * 1000);
+    if (attempts.length >= 20) {
+      return res.status(429).json({ error: "Too many sign-in attempts — please try again later." });
+    }
+    attempts.push(now);
+    shopLookupAttempts.set(key, attempts);
+
+    const shopper = await verifyShopperLogin({ phone: req.body?.phone, password: req.body?.password });
+    if (!shopper) {
+      return res.status(401).json({ error: "That phone number and password don't match. You can also restore your profile with your client code." });
+    }
+
+    recordAudit({
+      ip: req.ip, actorUserId: null,
+      action: "shop_shopper_login", targetUserId: null,
+      detail: { clientCode: shopper.clientCode }
+    }).catch(() => {});
+
+    return res.json({ token: shopper.token, firstName: shopper.firstName, clientCode: shopper.clientCode });
+  } catch (err) {
+    console.error("Shop login failed:", err.message);
+    return res.status(500).json({ error: "Unable to sign in right now." });
+  }
+});
+
+// PUBLIC: the shopper's own profile — view (GET) and update (POST). The
+// token IS the credential; updates re-run the same validation as sign-up,
+// including the delivery-ZIP gate.
+app.get("/api/shop/profile", async (req, res) => {
+  try {
+    const shopper = await getShopperByToken(req.query.token);
+    if (!shopper) return res.status(401).json({ error: "Please register or sign in first." });
+    res.setHeader("Cache-Control", "no-store");
+    return res.json({ profile: shopperProfilePayload(shopper) });
+  } catch (err) {
+    console.error("Shop profile load failed:", err.message);
+    return res.status(500).json({ error: "Unable to load your profile." });
+  }
+});
+
+app.post("/api/shop/profile", async (req, res) => {
+  try {
+    const shopper = await getShopperByToken(req.body?.token);
+    if (!shopper) return res.status(401).json({ error: "Please register or sign in first." });
+
+    const checked = validateShopperFields(req.body);
+    if (checked.error) return res.status(400).json({ error: checked.error });
+
+    const updated = await updateShopperProfile({ token: shopper.token, ...checked.fields });
+    if (!updated) return res.status(401).json({ error: "Please register or sign in first." });
+
+    recordAudit({
+      ip: req.ip, actorUserId: null,
+      action: "shop_shopper_profile_updated", targetUserId: null,
+      detail: { clientCode: updated.clientCode }
+    }).catch(() => {});
+
+    return res.json({ profile: shopperProfilePayload(updated), firstName: updated.firstName });
+  } catch (err) {
+    console.error("Shop profile update failed:", err.message);
+    return res.status(500).json({ error: "Unable to save your profile." });
+  }
+});
+
+// PUBLIC: set or change the optional password.
+app.post("/api/shop/password", async (req, res) => {
+  try {
+    const password = String(req.body?.password || "");
+    if (password.length < 8) return res.status(400).json({ error: "Passwords need at least 8 characters." });
+
+    const updated = await setShopperPassword({ token: req.body?.token, password });
+    if (!updated) return res.status(401).json({ error: "Please register or sign in first." });
+
+    recordAudit({
+      ip: req.ip, actorUserId: null,
+      action: "shop_shopper_password_set", targetUserId: null,
+      detail: { clientCode: updated.clientCode }
+    }).catch(() => {});
+
+    return res.json({ ok: true, hasPassword: true });
+  } catch (err) {
+    console.error("Shop password set failed:", err.message);
+    return res.status(500).json({ error: err.message || "Unable to save that password." });
   }
 });
 

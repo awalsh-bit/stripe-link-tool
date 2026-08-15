@@ -140,6 +140,10 @@ import {
   setShopperPassword,
   verifyShopperLogin,
   updateShopperProfile,
+  updateShopperProfileById,
+  searchShopShoppers,
+  getShopperById,
+  setShopperTempPassword,
   updateShopOrderCardSummary,
   updateShopOrderLockConflicts,
   saveShopInventorySnapshot,
@@ -1749,7 +1753,7 @@ app.post("/api/me/dashboard-slots", async (req, res) => {
 
 // Save the signed-in user's dashboard module order (the vertical arrangement
 // of the module cards). Personal setting, mirrors dashboard-slots.
-const DASHBOARD_MODULE_IDS = ["queue", "paid", "revenue", "health", "bonus"];
+const DASHBOARD_MODULE_IDS = ["queue", "paid", "revenue", "health", "bonus", "webshop"];
 
 app.post("/api/me/dashboard-modules", async (req, res) => {
   if (!req.authUser) {
@@ -4927,6 +4931,7 @@ app.get("/api/shop-orders", requirePagePermission("/dashboard.html"), async (req
             uploadedAt: snapshot.uploadedAt,
             sourceFile: snapshot.sourceFile,
             count: new Set((snapshot.serials || []).map((k) => String(k).split("|").pop())).size,
+            typedCount: Object.keys(snapshot.serialTypes || {}).length,
             writtenCount: Object.keys(snapshot.serialWritten || {}).length,
             uploadedBy: snapshot.uploadedBy
           }
@@ -5068,6 +5073,74 @@ app.post("/api/shop/inventory-snapshot", requirePagePermission("/dashboard.html"
   } catch (err) {
     console.error("Shop snapshot upload failed:", err.message);
     return res.status(500).json({ error: "Unable to save the snapshot." });
+  }
+});
+
+// INTERNAL: shopper profile admin for the dashboard module — when a client
+// calls in stuck, staff can find them, fix their contact details, and hand
+// them a temporary password.
+app.get("/api/shop-shoppers", requirePagePermission("/dashboard.html"), async (req, res) => {
+  try {
+    const shoppers = await searchShopShoppers(req.query.search);
+    res.setHeader("Cache-Control", "no-store");
+    return res.json({
+      shoppers: shoppers.map((s) => ({
+        id: s.id,
+        clientCode: s.clientCode,
+        hasPassword: s.hasPassword,
+        firstName: s.firstName,
+        lastName: s.lastName,
+        email: s.email,
+        phone: s.phone,
+        preferredContact: s.preferredContact,
+        address: s.address,
+        createdAt: s.createdAt
+      }))
+    });
+  } catch (err) {
+    console.error("Shopper search failed:", err.message);
+    return res.status(500).json({ error: "Unable to search shopper profiles." });
+  }
+});
+
+app.post("/api/shop-shoppers/:id/profile", requirePagePermission("/dashboard.html"), async (req, res) => {
+  try {
+    const checked = validateShopperFields(req.body);
+    if (checked.error) return res.status(400).json({ error: checked.error });
+
+    const updated = await updateShopperProfileById({ id: req.params.id, ...checked.fields });
+    if (!updated) return res.status(404).json({ error: "Shopper profile not found." });
+
+    recordAudit({
+      ip: req.ip, actorUserId: req.authUser?.id || null,
+      action: "shop_shopper_admin_updated", targetUserId: null,
+      detail: { clientCode: updated.clientCode }
+    }).catch(() => {});
+
+    return res.json({ ok: true, shopper: { id: updated.id, clientCode: updated.clientCode } });
+  } catch (err) {
+    console.error("Shopper admin update failed:", err.message);
+    return res.status(500).json({ error: "Unable to update the profile." });
+  }
+});
+
+// Generates a temporary password and returns it ONCE for the rep to read
+// to the client (they can change it themselves in their shop profile).
+app.post("/api/shop-shoppers/:id/temp-password", requirePagePermission("/dashboard.html"), async (req, res) => {
+  try {
+    const result = await setShopperTempPassword({ id: req.params.id });
+    if (!result) return res.status(404).json({ error: "Shopper profile not found." });
+
+    recordAudit({
+      ip: req.ip, actorUserId: req.authUser?.id || null,
+      action: "shop_shopper_temp_password", targetUserId: null,
+      detail: { clientCode: result.shopper.clientCode }
+    }).catch(() => {});
+
+    return res.json({ ok: true, tempPassword: result.tempPassword, clientCode: result.shopper.clientCode });
+  } catch (err) {
+    console.error("Shopper temp password failed:", err.message);
+    return res.status(500).json({ error: "Unable to reset the password." });
   }
 });
 

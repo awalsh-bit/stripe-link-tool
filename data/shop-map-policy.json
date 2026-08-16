@@ -1,0 +1,12 @@
+{
+  "_meta": {
+    "note": "Public-pricing policy for the online shop. A clearance unit shows its price WITHOUT profile creation only when (1) its brand + category matches a rule below, (2) a MAP/UMRP floor price exists for its model in the nightly price feed (SHOP_MAP_PRICE_URL), and (3) our price is at or above that floor. Everything else keeps the 'See price' profile gate. Brand matching is case-insensitive; categories use the clearance list's category keys (DW, Lau, Ref, Oven, ...)."
+  },
+  "rules": [
+    {
+      "brand": "Miele",
+      "categories": ["DW"],
+      "note": "Miele dishwashers are UMRP — safe to list publicly at or above the published price."
+    }
+  ]
+}

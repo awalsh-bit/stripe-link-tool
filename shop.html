@@ -215,6 +215,9 @@
   </header>
 
   <main id="mainArea">
+    <div class="map-note" id="pausedNote" style="display:none; background:#fef3c7; border-color:#fde68a; color:#92400e;">
+      Online ordering is briefly paused while we refresh our inventory. Everything you see is still at the store — call <a href="tel:512-894-0907" style="color:inherit; font-weight:700;">512-894-0907</a> for availability, or check back shortly.
+    </div>
     <div class="map-note" id="mapNote" style="display:none;">
       Create a free shopping profile to see your clearance pricing — it takes 30 seconds.
     </div>
@@ -486,6 +489,7 @@
     }
     state.catalog = data;
     state.unlocked = data.unlocked;
+    state.paused = Boolean(data.paused);
     state.shopperName = data.shopperName || "";
     state.clientCode = data.clientCode || state.clientCode || "";
     state.addons = data.addons;
@@ -503,7 +507,9 @@
       $("unlockChip").textContent = "Pricing unlocked" + (state.shopperName ? " for " + state.shopperName : "") +
         (state.clientCode ? " · " + state.clientCode : "");
     }
-    $("mapNote").style.display = state.unlocked ? "none" : "block";
+    $("pausedNote").style.display = state.paused ? "block" : "none";
+    $("mapNote").style.display = state.unlocked || state.paused ? "none" : "block";
+    $("cartBtn").style.display = state.paused ? "none" : "";
     $("filterBar").style.display = "";
   }
 
@@ -598,14 +604,16 @@
         <div class="item-desc">${esc(group.description)}</div>
         <div class="item-cat">${esc(categoryLabel(group.category))} · ${total} available${carted && !allInCart ? ` · ${carted} in cart` : ""}</div>
         <div class="item-foot">
-          ${state.unlocked
+          ${group.price != null && !state.paused
             ? `<span class="item-price">${money(group.price)}</span>`
             : `<span></span>`}
-          ${state.unlocked
-            ? (allInCart
-                ? `<span class="in-cart">${total > 1 ? "All " + total + " in cart ✓" : "In cart ✓"}</span>`
-                : `<button class="btn primary" data-add-group="${index}">Add to cart</button>`)
-            : `<button class="btn ghost" data-unlock="1">See price</button>`}
+          ${state.paused
+            ? `<a class="btn ghost" href="tel:512-894-0907">Call for availability</a>`
+            : group.price != null
+              ? (allInCart
+                  ? `<span class="in-cart">${total > 1 ? "All " + total + " in cart ✓" : "In cart ✓"}</span>`
+                  : `<button class="btn primary" data-add-group="${index}">Add to cart</button>`)
+              : `<button class="btn ghost" data-unlock="1">See price</button>`}
         </div>`;
       grid.appendChild(card);
     });
@@ -680,6 +688,7 @@
       localStorage.setItem(TOKEN_KEY, data.token);
       $("registerOverlay").classList.remove("show");
       await loadCatalog();
+      resumePendingCheckout();
     } catch (e) {
       err.textContent = e.message;
       err.classList.add("show");
@@ -706,6 +715,7 @@
       localStorage.setItem(TOKEN_KEY, data.token);
       $("registerOverlay").classList.remove("show");
       await loadCatalog();
+      resumePendingCheckout();
     } catch (e) {
       err.textContent = e.message;
       err.classList.add("show");
@@ -796,7 +806,18 @@
       $("codeContinue").disabled = false;
     }
     $("registerOverlay").classList.remove("show");
+    resumePendingCheckout();
   });
+
+  // An anonymous MAP cart that hit "Continue to secure checkout" lands right
+  // back in checkout once the profile exists.
+  function resumePendingCheckout() {
+    if (!state.pendingCheckout || !state.unlocked) return;
+    state.pendingCheckout = false;
+    if (!state.cart.itemIds.length) return;
+    openCart();
+    startCheckout();
+  }
 
   // ---------- Profile panel ----------
   function pfStatus(message, ok) {
@@ -1076,7 +1097,9 @@
     $("cartDrawer").classList.add("show");
   }
   $("cartBtn").addEventListener("click", () => {
-    if (!state.unlocked) { openRegister(); return; }
+    // MAP-cleared items can be carted without a profile — only an EMPTY
+    // anonymous cart routes to registration.
+    if (!state.unlocked && !state.cart.itemIds.length) { openRegister(); return; }
     openCart();
   });
   $("drawerClose").addEventListener("click", () => $("cartDrawer").classList.remove("show"));
@@ -1181,6 +1204,13 @@
 
   // ---------- Checkout ----------
   async function startCheckout() {
+    // Card capture needs a shopper profile (name, address, contact) — an
+    // anonymous MAP cart registers here, then lands right back in checkout.
+    if (!state.unlocked) {
+      state.pendingCheckout = true;
+      openRegister();
+      return;
+    }
     state.checkout.open = true;
     $("drawerTitle").textContent = "Secure checkout";
     const body = $("drawerBody");

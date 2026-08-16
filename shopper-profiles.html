@@ -1,0 +1,484 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="robots" content="noindex,nofollow,noarchive" />
+  <title>Wilson AC &amp; Appliance - Shopper Profiles</title>
+  <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+  <link rel="stylesheet" href="internal-shell.css" />
+  <style>
+    :root {
+      --bg: #f7f8fc;
+      --card: #ffffff;
+      --text: #1f2937;
+      --muted: #6b7280;
+      --border: #dbe1ea;
+      --error-bg: #fef2f2;
+      --error-text: #991b1b;
+      --shadow: 0 10px 35px rgba(0, 0, 0, 0.08);
+      --radius: 18px;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Roboto", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: linear-gradient(180deg, var(--primary-tint) 0%, var(--bg) 100%);
+      color: var(--text);
+      min-height: 100vh;
+      padding: 32px 16px;
+    }
+    .wrap { max-width: 1380px; margin: 0 auto; }
+    .surface {
+      background: var(--card);
+      border: 1px solid rgba(var(--primary-rgb), 0.12);
+      box-shadow: var(--shadow);
+      border-radius: var(--radius);
+      padding: 22px;
+      margin: 0 auto 20px;
+    }
+    h2 { margin: 0 0 6px; font-size: 20px; }
+    .page-head { margin-bottom: 12px; }
+    .section-note { margin: 0 0 14px; color: var(--muted); font-size: 13.5px; line-height: 1.5; }
+    .sp-status { display: none; border-radius: 12px; padding: 10px 13px; font-size: 13px; margin-bottom: 12px; line-height: 1.5; }
+    .sp-status.show { display: block; }
+    .sp-status.ok { background: rgba(var(--primary-rgb), 0.1); color: var(--primary); }
+    .sp-status.error { background: #fee2e2; color: #991b1b; }
+    .sp-toolbar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-bottom: 14px; }
+    .sp-toolbar input[type="search"] {
+      border: 1px solid var(--border); border-radius: 10px; padding: 9px 12px;
+      font-size: 13px; font-family: inherit; flex: 1; min-width: 240px; max-width: 460px;
+    }
+    .sp-toolbar input[type="search"]:focus {
+      outline: none;
+      border-color: rgba(var(--primary-rgb), 0.75);
+      box-shadow: 0 0 0 4px rgba(var(--primary-rgb), 0.12);
+    }
+    .sp-count { font-size: 12px; color: var(--muted); }
+    .sp-spacer { flex: 1; }
+    .sp-btn { border: none; border-radius: 10px; cursor: pointer; font-size: 12.5px; font-weight: 600; padding: 9px 14px; font-family: inherit; }
+    .sp-btn:disabled { opacity: 0.55; cursor: wait; }
+    .sp-btn.primary { background: var(--primary); color: #fff; }
+    .sp-btn.quiet { background: #fff; color: #374151; border: 1px solid var(--border); }
+
+    /* Spreadsheet-style table */
+    .sp-table-wrap { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th, td {
+      text-align: left;
+      padding: 9px 11px;
+      border-bottom: 1px solid #eef1f6;
+      vertical-align: middle;
+      white-space: nowrap;
+    }
+    th {
+      font-size: 11.5px;
+      font-weight: 800;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: #64748b;
+      position: sticky;
+      top: 0;
+      background: var(--card);
+    }
+    tbody tr:hover td { background: var(--primary-faint-2, #f8fafc); }
+    td.sp-kebab-cell, th.sp-kebab-cell { width: 40px; padding-right: 2px; }
+    .sp-name { font-weight: 700; }
+    .sp-addr { color: var(--muted); font-size: 12.5px; max-width: 300px; overflow: hidden; text-overflow: ellipsis; }
+    .sp-code-chip { background: #eef2ff; color: #3730a3; border-radius: 999px; padding: 2px 9px; font-size: 11.5px; font-weight: 700; }
+    .sp-chip { border-radius: 999px; padding: 2px 9px; font-size: 11.5px; font-weight: 600; display: inline-block; }
+    .sp-chip.yes { background: #dcfce7; color: #166534; }
+    .sp-chip.no { background: #f3f4f6; color: var(--muted); }
+    .sp-chip.stripe { background: #ede9fe; color: #5b21b6; }
+    .sp-empty { text-align: center; color: var(--muted); padding: 26px 8px; font-size: 13px; }
+
+    /* Kebab (three-dot) row menu — far-left actions column */
+    .kebab-btn {
+      appearance: none;
+      border: 1px solid var(--border);
+      background: #fff;
+      color: #374151;
+      width: 32px;
+      height: 32px;
+      border-radius: 10px;
+      font-size: 18px;
+      line-height: 1;
+      font-weight: 800;
+      cursor: pointer;
+      padding: 0;
+      font-family: inherit;
+    }
+    .kebab-btn:hover { background: var(--primary-tint); color: var(--primary); }
+    .kebab-menu {
+      position: fixed;
+      z-index: 60;
+      background: #fff;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      box-shadow: 0 12px 30px rgba(0, 0, 0, 0.14);
+      min-width: 190px;
+      padding: 6px;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    .kebab-item {
+      appearance: none;
+      border: none;
+      background: none;
+      text-align: left;
+      padding: 9px 12px;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text);
+      cursor: pointer;
+      font-family: inherit;
+      white-space: nowrap;
+    }
+    .kebab-item:hover { background: var(--primary-tint); color: var(--primary); }
+    .kebab-item.danger { color: var(--error-text); }
+    .kebab-item.danger:hover { background: var(--error-bg); color: var(--error-text); }
+
+    /* Inline editor + temp-password rows */
+    .sp-editor-row td { background: var(--primary-faint-2, #f8fafc); white-space: normal; }
+    .sp-form { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 9px; padding: 4px 0; }
+    .sp-form input, .sp-form select {
+      border: 1px solid var(--border); border-radius: 9px; padding: 7px 10px;
+      font-size: 12.5px; font-family: inherit; width: 100%; background: #fff;
+    }
+    .sp-form-actions { display: flex; gap: 8px; margin-top: 10px; }
+    .sp-temp-row td { white-space: normal; }
+    .sp-temp-pass { background: #fffbeb; border: 1px solid #fde68a; color: #92400e; border-radius: 10px; padding: 8px 11px; font-size: 13px; line-height: 1.5; }
+    .sp-temp-pass strong { font-size: 15px; letter-spacing: 0.08em; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div id="shellNav"></div>
+
+    <div class="surface">
+      <div class="page-head">
+        <h2>Shopper Profiles</h2>
+        <p class="section-note">Every client with a profile on <a href="https://shop.wilsonappliance.com" target="_blank" rel="noopener" style="color:var(--primary); font-weight:600;">shop.wilsonappliance.com</a>. Fix contact details, hand out a temporary password (clients change it in their shop profile), or clean up test records — use the ⋮ menu on a row. Orders themselves live on <a href="shop-orders.html" style="color:var(--primary); font-weight:600;">Online Shop Orders</a>.</p>
+      </div>
+      <div id="spStatus" class="sp-status"></div>
+      <div class="sp-toolbar">
+        <input type="search" id="spSearch" placeholder="Search by name, phone, client code, or email" />
+        <span class="sp-count" id="spCount"></span>
+        <span class="sp-spacer"></span>
+        <button type="button" class="sp-btn primary" id="spStripeImport" title="Pull existing Stripe customers into the shopper list">Import Stripe customers</button>
+      </div>
+      <div class="sp-table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th class="sp-kebab-cell"></th>
+              <th>Name</th>
+              <th>Client code</th>
+              <th>Phone</th>
+              <th>Contact</th>
+              <th>Email</th>
+              <th>Address</th>
+              <th>Password</th>
+              <th>Stripe</th>
+              <th>Created</th>
+            </tr>
+          </thead>
+          <tbody id="spBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <script src="internal-shell.js"></script>
+  <script>
+    // ------------------------------------------------------------------
+    // Shopper Profiles — Client Care admin for shop.wilsonappliance.com
+    // client accounts. Spreadsheet-style table; each row's far-left ⋮
+    // menu offers Edit profile, Temp password, and Delete. The web-order
+    // queue is a separate page (shop-orders.html) — different function.
+    // ------------------------------------------------------------------
+    (function () {
+      const state = { rows: [], editing: null, tempFor: null, tempPass: "" };
+
+      const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch]));
+      const when = (iso) => iso ? new Date(iso).toLocaleDateString("en-US", { month: "2-digit", day: "2-digit", year: "2-digit" }) : "—";
+
+      function setStatus(message, kind) {
+        const box = document.getElementById("spStatus");
+        if (!message) { box.className = "sp-status"; box.textContent = ""; return; }
+        box.className = "sp-status " + kind + " show";
+        box.textContent = message;
+      }
+
+      async function api(path, options) {
+        const res = await fetch(path, {
+          credentials: "same-origin",
+          headers: { "Content-Type": "application/json" },
+          ...options
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error || "Request failed.");
+        return data;
+      }
+
+      async function load() {
+        try {
+          const data = await api("/api/shop-shoppers?search=" + encodeURIComponent(document.getElementById("spSearch").value.trim()));
+          state.rows = data.shoppers || [];
+          render();
+        } catch (err) {
+          setStatus(err.message, "error");
+        }
+      }
+
+      let searchTimer = null;
+      document.getElementById("spSearch").addEventListener("input", () => {
+        clearTimeout(searchTimer);
+        searchTimer = setTimeout(load, 250);
+      });
+
+      document.getElementById("spStripeImport").addEventListener("click", async (e) => {
+        if (!confirm("Scan your Stripe account and pull its customers into the shopper list?\n\nExisting shoppers are matched by phone or email (no duplicates); customers with no phone or email are skipped. Safe to re-run any time.")) return;
+        e.target.disabled = true;
+        e.target.textContent = "Importing… (this can take a minute)";
+        try {
+          const result = await api("/api/shop-shoppers/import-stripe", { method: "POST", body: "{}" });
+          setStatus(
+            `Stripe import: ${result.scanned.toLocaleString()} customers scanned — ` +
+            `${result.created.toLocaleString()} new profiles created, ${result.linked.toLocaleString()} linked to existing shoppers, ` +
+            `${result.already.toLocaleString()} already linked, ${result.skipped.toLocaleString()} skipped (no contact info).` +
+            (result.capped ? " Scan cap reached — run again to continue." : ""),
+            "ok"
+          );
+          await load();
+        } catch (err) {
+          setStatus(err.message, "error");
+        } finally {
+          e.target.disabled = false;
+          e.target.textContent = "Import Stripe customers";
+        }
+      });
+
+      // ---- Kebab (three-dot) menus ----
+      // One open at a time; positioned fixed so the table's scroll wrapper
+      // can't clip it; closes on outside click or any scroll.
+      let openKebab = null;
+
+      function closeKebab() {
+        if (openKebab) {
+          openKebab.menu.remove();
+          openKebab = null;
+        }
+      }
+
+      document.addEventListener("click", (event) => {
+        if (openKebab && !openKebab.btn.contains(event.target) && !openKebab.menu.contains(event.target)) {
+          closeKebab();
+        }
+      });
+      window.addEventListener("scroll", closeKebab, true);
+      window.addEventListener("resize", closeKebab);
+
+      function kebabButton(items) {
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "kebab-btn";
+        btn.setAttribute("aria-label", "Actions");
+        btn.textContent = "⋮";
+
+        btn.addEventListener("click", (event) => {
+          event.stopPropagation();
+          if (openKebab && openKebab.btn === btn) {
+            closeKebab();
+            return;
+          }
+          closeKebab();
+
+          const menu = document.createElement("div");
+          menu.className = "kebab-menu";
+          for (const item of items) {
+            const mi = document.createElement("button");
+            mi.type = "button";
+            mi.className = "kebab-item" + (item.danger ? " danger" : "");
+            mi.textContent = item.label;
+            mi.addEventListener("click", () => {
+              closeKebab();
+              item.onclick();
+            });
+            menu.appendChild(mi);
+          }
+
+          document.body.appendChild(menu);
+          const rect = btn.getBoundingClientRect();
+          menu.style.top = rect.bottom + 6 + "px";
+          menu.style.left = Math.max(8, Math.min(rect.left, window.innerWidth - menu.offsetWidth - 8)) + "px";
+          openKebab = { btn, menu };
+        });
+
+        return btn;
+      }
+
+      // ---- Table ----
+      function render() {
+        const body = document.getElementById("spBody");
+        body.textContent = "";
+        document.getElementById("spCount").textContent = state.rows.length
+          ? state.rows.length + (state.rows.length === 200 ? "+ profiles" : " profile" + (state.rows.length === 1 ? "" : "s"))
+          : "";
+        if (!state.rows.length) {
+          const tr = document.createElement("tr");
+          const td = document.createElement("td");
+          td.colSpan = 10;
+          td.className = "sp-empty";
+          td.textContent = "No matching shopper profiles.";
+          tr.appendChild(td);
+          body.appendChild(tr);
+          return;
+        }
+        for (const s of state.rows) {
+          body.appendChild(renderRow(s));
+          if (state.tempFor === s.id && state.tempPass) body.appendChild(renderTempRow(s));
+          if (state.editing === s.id) body.appendChild(renderEditorRow(s));
+        }
+      }
+
+      function renderRow(s) {
+        const addr = s.address || {};
+        const tr = document.createElement("tr");
+
+        const kebabCell = document.createElement("td");
+        kebabCell.className = "sp-kebab-cell";
+        kebabCell.appendChild(kebabButton([
+          {
+            label: state.editing === s.id ? "Close editor" : "Edit profile",
+            onclick: () => {
+              state.editing = state.editing === s.id ? null : s.id;
+              render();
+            }
+          },
+          {
+            label: "Temp password",
+            onclick: async () => {
+              if (!confirm(`Give ${s.firstName} ${s.lastName} a new temporary password? Any old password stops working immediately.`)) return;
+              try {
+                const data = await api(`/api/shop-shoppers/${s.id}/temp-password`, { method: "POST", body: "{}" });
+                state.tempFor = s.id;
+                state.tempPass = data.tempPassword;
+                await load();
+              } catch (err) {
+                setStatus(err.message, "error");
+              }
+            }
+          },
+          {
+            label: "Delete profile",
+            danger: true,
+            onclick: async () => {
+              if (!confirm(`Delete ${s.firstName} ${s.lastName}'s shopper profile (${s.clientCode || "no code"})? Their past orders keep their details, but their code, password, and saved profile stop working. This can't be undone.`)) return;
+              try {
+                await api(`/api/shop-shoppers/${s.id}`, { method: "DELETE" });
+                setStatus(`Deleted ${s.firstName} ${s.lastName}'s profile.`, "ok");
+                await load();
+              } catch (err) {
+                setStatus(err.message, "error");
+              }
+            }
+          }
+        ]));
+        tr.appendChild(kebabCell);
+
+        const addrText = [addr.line1, addr.line2].filter(Boolean).join(", ");
+        const cityText = [addr.city, addr.state, addr.zip].filter(Boolean).join(", ");
+        tr.insertAdjacentHTML("beforeend", `
+          <td class="sp-name">${esc(s.firstName)} ${esc(s.lastName)}</td>
+          <td><span class="sp-code-chip">${esc(s.clientCode || "—")}</span></td>
+          <td>${esc(s.phone || "—")}</td>
+          <td>${esc(s.preferredContact || "—")}</td>
+          <td>${s.email ? esc(s.email) : '<span style="color:var(--muted);">—</span>'}</td>
+          <td class="sp-addr" title="${esc([addrText, cityText].filter(Boolean).join(" · "))}">${esc(addrText || "—")}${cityText ? `<br>${esc(cityText)}` : ""}</td>
+          <td><span class="sp-chip ${s.hasPassword ? "yes" : "no"}">${s.hasPassword ? "set" : "none"}</span></td>
+          <td>${s.stripeLinked ? '<span class="sp-chip stripe">linked</span>' : '<span style="color:var(--muted);">—</span>'}</td>
+          <td>${when(s.createdAt)}</td>`);
+        return tr;
+      }
+
+      function renderTempRow(s) {
+        const tr = document.createElement("tr");
+        tr.className = "sp-temp-row";
+        const td = document.createElement("td");
+        td.colSpan = 10;
+        td.innerHTML = `<div class="sp-temp-pass">Temporary password for ${esc(s.firstName)}: <strong>${esc(state.tempPass)}</strong> — read it to the client now; it won't be shown again. They sign in with their phone number and can change it in their shop profile.</div>`;
+        tr.appendChild(td);
+        return tr;
+      }
+
+      function renderEditorRow(s) {
+        const addr = s.address || {};
+        const tr = document.createElement("tr");
+        tr.className = "sp-editor-row";
+        const td = document.createElement("td");
+        td.colSpan = 10;
+
+        const form = document.createElement("div");
+        form.className = "sp-form";
+        form.innerHTML = `
+          <input data-f="firstName" placeholder="First name" value="${esc(s.firstName)}">
+          <input data-f="lastName" placeholder="Last name" value="${esc(s.lastName)}">
+          <input data-f="phone" placeholder="Phone" value="${esc(s.phone)}">
+          <select data-f="preferredContact">
+            ${["Call", "Text", "Email"].map((c) => `<option${c === s.preferredContact ? " selected" : ""}>${c}</option>`).join("")}
+          </select>
+          <input data-f="email" placeholder="Email (optional)" value="${esc(s.email || "")}">
+          <input data-f="line1" placeholder="Address" value="${esc(addr.line1 || "")}">
+          <input data-f="line2" placeholder="Apt / suite" value="${esc(addr.line2 || "")}">
+          <input data-f="city" placeholder="City" value="${esc(addr.city || "")}">
+          <input data-f="state" placeholder="State" value="${esc(addr.state || "TX")}">
+          <input data-f="zip" placeholder="ZIP" value="${esc(addr.zip || "")}">`;
+
+        const actions = document.createElement("div");
+        actions.className = "sp-form-actions";
+        const save = document.createElement("button");
+        save.type = "button";
+        save.className = "sp-btn primary";
+        save.textContent = "Save profile";
+        save.addEventListener("click", async () => {
+          const val = (f) => form.querySelector(`[data-f="${f}"]`).value.trim();
+          save.disabled = true;
+          try {
+            await api(`/api/shop-shoppers/${s.id}/profile`, {
+              method: "POST",
+              body: JSON.stringify({
+                firstName: val("firstName"), lastName: val("lastName"), phone: val("phone"),
+                email: val("email"), preferredContact: form.querySelector("[data-f=preferredContact]").value,
+                address: { line1: val("line1"), line2: val("line2"), city: val("city"), state: val("state") || "TX", zip: val("zip") }
+              })
+            });
+            setStatus(`Saved ${val("firstName")}'s profile.`, "ok");
+            state.editing = null;
+            await load();
+          } catch (err) {
+            setStatus(err.message, "error");
+            save.disabled = false;
+          }
+        });
+        const cancel = document.createElement("button");
+        cancel.type = "button";
+        cancel.className = "sp-btn quiet";
+        cancel.textContent = "Cancel";
+        cancel.addEventListener("click", () => { state.editing = null; render(); });
+        actions.appendChild(save);
+        actions.appendChild(cancel);
+
+        td.appendChild(form);
+        td.appendChild(actions);
+        tr.appendChild(td);
+        return tr;
+      }
+
+      load();
+    })();
+  </script>
+</body>
+</html>

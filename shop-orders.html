@@ -79,18 +79,6 @@
     .ws-btn.primary { background: var(--primary); color: #fff; }
     .ws-btn.danger { background: #fff; color: #b91c1c; border: 1px solid #fca5a5; }
     .ws-empty { text-align: center; color: var(--muted); padding: 22px 8px; font-size: 13px; }
-    .ws-shopper { border: 1px solid var(--border); border-radius: 12px; padding: 10px 13px; margin-bottom: 9px; font-size: 13px; }
-    .ws-shopper-head { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
-    .ws-shopper-head .nm { font-weight: 700; }
-    .ws-shopper-head .meta { color: var(--muted); }
-    .ws-code-chip { background: #eef2ff; color: #3730a3; border-radius: 999px; padding: 2px 9px; font-size: 11.5px; font-weight: 700; }
-    .ws-pass-chip { border-radius: 999px; padding: 2px 9px; font-size: 11.5px; font-weight: 600; }
-    .ws-pass-chip.yes { background: #dcfce7; color: #166534; }
-    .ws-pass-chip.no { background: #f3f4f6; color: var(--muted); }
-    .ws-shopper-form { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 9px; margin-top: 10px; }
-    .ws-shopper-form input, .ws-shopper-form select { border: 1px solid var(--border); border-radius: 9px; padding: 7px 10px; font-size: 12.5px; font-family: inherit; width: 100%; }
-    .ws-temp-pass { background: #fffbeb; border: 1px solid #fde68a; color: #92400e; border-radius: 10px; padding: 8px 11px; font-size: 13px; margin-top: 9px; }
-    .ws-temp-pass strong { font-size: 15px; letter-spacing: 0.08em; }
   </style>
 </head>
 <body>
@@ -100,7 +88,7 @@
     <div class="surface">
         <div class="page-head">
           <h2>Online Shop Orders</h2>
-          <p class="section-note">Web orders from <a href="https://shop.wilsonappliance.com" target="_blank" rel="noopener">shop.wilsonappliance.com</a> — claim one, build the ticket in ePASS, then complete it here to flip its <a href="clearance.html">hit-list</a> locks to Sold. Canceling releases them.</p>
+          <p class="section-note">Web orders from <a href="https://shop.wilsonappliance.com" target="_blank" rel="noopener">shop.wilsonappliance.com</a> — claim one, build the ticket in ePASS, then complete it here to flip its <a href="clearance.html">hit-list</a> locks to Sold. Canceling releases them. Client account admin moved to <a href="shopper-profiles.html">Shopper Profiles</a>.</p>
         </div>
         <div id="wsStatus" class="ws-status"></div>
         <div class="ws-toolbar">
@@ -112,16 +100,11 @@
             </label>
           </div>
         </div>
-        <div id="wsOrders"></div>
-        <div class="ws-shopper-admin">
-          <div class="block-title" style="font-size:12px; font-weight:700; letter-spacing:0.07em; text-transform:uppercase; color:#6b7280; margin: 18px 0 8px;">Shopper Profiles</div>
-          <p class="section-note" style="margin-bottom: 10px;">Client having trouble on the shop? Find their profile to fix contact details or hand them a temporary password (they can change it in their shop profile).</p>
-          <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
-            <input type="search" id="wsShopperSearch" placeholder="Search by name, phone, client code, or email" style="border:1px solid var(--border,#dbe1ea); border-radius:10px; padding:9px 12px; font-size:13px; font-family:inherit; flex:1; min-width:240px; max-width:420px;" />
-            <button type="button" class="ws-btn primary" id="wsStripeImport" title="Pull existing Stripe customers into the shopper list">Import Stripe customers</button>
-          </div>
-          <div id="wsShoppers" style="margin-top:10px;"></div>
+        <div class="ws-toolbar" style="margin-top:-4px;">
+          <span class="ws-snap-meta" id="wsMapMeta"></span>
+          <button type="button" class="ws-btn" id="wsMapRefresh" style="background:#fff; color:#374151; border:1px solid var(--border); display:none;">Refresh MAP prices</button>
         </div>
+        <div id="wsOrders"></div>
       </div>
     </div>
   </div>
@@ -165,7 +148,10 @@
           const data = await api("/api/shop-orders");
           state.orders = data.orders || [];
           state.snapshot = data.snapshot;
+          state.mapPrices = data.mapPrices;
+          state.mapFeedConfigured = Boolean(data.mapFeedConfigured);
           renderSnapshot();
+          renderMapFeed();
           renderChips();
           renderOrders();
         } catch (err) {
@@ -184,7 +170,38 @@
           ? " · condition flags live"
           : " · ⚠ NO condition flags — re-upload the newer ExportModel (with the Serial Type column)";
         meta.textContent = `Snapshot: ${state.snapshot.sourceFile || "ExportModel"} · ${Number(state.snapshot.count).toLocaleString()} serials${typeBit}${writtenBit} · ${when(state.snapshot.uploadedAt)}`;
+        if (state.snapshot.stale) {
+          meta.innerHTML = `<span style="color:#b91c1c; font-weight:700;">⚠ FEED STALE — the storefront is PAUSED (snapshot older than ${state.snapshot.maxAgeHours}h). Check the nightly upload on the store server PC, or upload a fresh ExportModel here to reopen.</span><br>` + meta.textContent;
+        }
       }
+
+      function renderMapFeed() {
+        const meta = document.getElementById("wsMapMeta");
+        const btn = document.getElementById("wsMapRefresh");
+        btn.style.display = state.mapFeedConfigured ? "" : "none";
+        if (!state.mapFeedConfigured) {
+          meta.textContent = "MAP price feed not configured (SHOP_MAP_PRICE_URL) — no items show public pricing.";
+          return;
+        }
+        meta.textContent = state.mapPrices
+          ? `MAP/UMRP floor prices: ${Number(state.mapPrices.count).toLocaleString()} models · fetched ${when(state.mapPrices.fetchedAt)}${state.mapPrices.sourceNote ? " · " + state.mapPrices.sourceNote : ""}`
+          : "MAP price feed configured — first overnight fetch pending (or use Refresh).";
+      }
+
+      document.getElementById("wsMapRefresh").addEventListener("click", async (e) => {
+        e.target.disabled = true;
+        e.target.textContent = "Refreshing…";
+        try {
+          const result = await api("/api/shop/map-prices/refresh", { method: "POST", body: "{}" });
+          setWsStatus(`MAP prices refreshed: ${Number(result.count).toLocaleString()} models (${result.note}).`, "ok");
+          await load();
+        } catch (err) {
+          setWsStatus(err.message, "error");
+        } finally {
+          e.target.disabled = false;
+          e.target.textContent = "Refresh MAP prices";
+        }
+      });
 
       const FILTERS = [
         { key: "open", label: "Open" },
@@ -520,173 +537,6 @@
         }
         throw new Error("Couldn't find a Serial column — is this the ExportModel (Model Maintenance) export?");
       }
-
-      // ---- Shopper profile admin ----
-      const shopperState = { rows: [], editing: null, tempFor: null, tempPass: "" };
-
-      async function loadShoppers() {
-        try {
-          const data = await api("/api/shop-shoppers?search=" + encodeURIComponent(document.getElementById("wsShopperSearch").value.trim()));
-          shopperState.rows = data.shoppers || [];
-          renderShoppers();
-        } catch (err) {
-          setWsStatus(err.message, "error");
-        }
-      }
-
-      document.getElementById("wsStripeImport").addEventListener("click", async (e) => {
-        if (!confirm("Scan your Stripe account and pull its customers into the shopper list?\n\nExisting shoppers are matched by phone or email (no duplicates); customers with no phone or email are skipped. Safe to re-run any time.")) return;
-        e.target.disabled = true;
-        e.target.textContent = "Importing… (this can take a minute)";
-        try {
-          const result = await api("/api/shop-shoppers/import-stripe", { method: "POST", body: "{}" });
-          setWsStatus(
-            `Stripe import: ${result.scanned.toLocaleString()} customers scanned — ` +
-            `${result.created.toLocaleString()} new profiles created, ${result.linked.toLocaleString()} linked to existing shoppers, ` +
-            `${result.already.toLocaleString()} already linked, ${result.skipped.toLocaleString()} skipped (no contact info).` +
-            (result.capped ? " Scan cap reached — run again to continue." : ""),
-            "ok"
-          );
-          await loadShoppers();
-        } catch (err) {
-          setWsStatus(err.message, "error");
-        } finally {
-          e.target.disabled = false;
-          e.target.textContent = "Import Stripe customers";
-        }
-      });
-
-      let shopperSearchTimer = null;
-      document.getElementById("wsShopperSearch").addEventListener("input", () => {
-        clearTimeout(shopperSearchTimer);
-        shopperSearchTimer = setTimeout(loadShoppers, 250);
-      });
-
-      function renderShoppers() {
-        const box = document.getElementById("wsShoppers");
-        box.textContent = "";
-        if (!shopperState.rows.length) {
-          const empty = document.createElement("div");
-          empty.className = "ws-empty";
-          empty.textContent = "No matching shopper profiles.";
-          box.appendChild(empty);
-          return;
-        }
-        for (const s of shopperState.rows) box.appendChild(renderShopper(s));
-      }
-
-      function renderShopper(s) {
-        const wrap = document.createElement("div");
-        wrap.className = "ws-shopper";
-        const addr = s.address || {};
-        wrap.innerHTML = `
-          <div class="ws-shopper-head">
-            <span class="nm">${esc(s.firstName)} ${esc(s.lastName)}</span>
-            <span class="ws-code-chip">${esc(s.clientCode || "—")}</span>
-            <span class="ws-pass-chip ${s.hasPassword ? "yes" : "no"}">${s.hasPassword ? "password set" : "no password"}</span>
-            <span class="meta">${esc(s.phone)} · ${esc(s.preferredContact)} preferred${s.email ? " · " + esc(s.email) : ""}</span>
-            <span class="ws-spacer"></span>
-            <button type="button" class="ws-btn primary" data-edit>Edit</button>
-            <button type="button" class="ws-btn danger" data-temp>Temp password</button>
-            <button type="button" class="ws-btn danger" data-del>Delete</button>
-          </div>
-          <div class="meta" style="color:#6b7280; margin-top:3px;">${esc([addr.line1, addr.line2, addr.city, addr.state, addr.zip].filter(Boolean).join(", "))}</div>`;
-
-        if (shopperState.tempFor === s.id && shopperState.tempPass) {
-          const note = document.createElement("div");
-          note.className = "ws-temp-pass";
-          note.innerHTML = `Temporary password for ${esc(s.firstName)}: <strong>${esc(shopperState.tempPass)}</strong> — read it to the client now; it won't be shown again. They sign in with their phone number and can change it in their shop profile.`;
-          wrap.appendChild(note);
-        }
-
-        if (shopperState.editing === s.id) {
-          const form = document.createElement("div");
-          form.className = "ws-shopper-form";
-          form.innerHTML = `
-            <input data-f="firstName" placeholder="First name" value="${esc(s.firstName)}">
-            <input data-f="lastName" placeholder="Last name" value="${esc(s.lastName)}">
-            <input data-f="phone" placeholder="Phone" value="${esc(s.phone)}">
-            <select data-f="preferredContact">
-              ${["Call", "Text", "Email"].map((c) => `<option${c === s.preferredContact ? " selected" : ""}>${c}</option>`).join("")}
-            </select>
-            <input data-f="email" placeholder="Email (optional)" value="${esc(s.email || "")}">
-            <input data-f="line1" placeholder="Address" value="${esc(addr.line1 || "")}">
-            <input data-f="line2" placeholder="Apt / suite" value="${esc(addr.line2 || "")}">
-            <input data-f="city" placeholder="City" value="${esc(addr.city || "")}">
-            <input data-f="state" placeholder="State" value="${esc(addr.state || "TX")}">
-            <input data-f="zip" placeholder="ZIP" value="${esc(addr.zip || "")}">`;
-          const actions = document.createElement("div");
-          actions.style.cssText = "display:flex; gap:8px; margin-top:9px;";
-          const save = document.createElement("button");
-          save.type = "button";
-          save.className = "ws-btn primary";
-          save.textContent = "Save profile";
-          save.addEventListener("click", async () => {
-            const val = (f) => form.querySelector(`[data-f="${f}"]`).value.trim();
-            save.disabled = true;
-            try {
-              await api(`/api/shop-shoppers/${s.id}/profile`, {
-                method: "POST",
-                body: JSON.stringify({
-                  firstName: val("firstName"), lastName: val("lastName"), phone: val("phone"),
-                  email: val("email"), preferredContact: form.querySelector("[data-f=preferredContact]").value,
-                  address: { line1: val("line1"), line2: val("line2"), city: val("city"), state: val("state") || "TX", zip: val("zip") }
-                })
-              });
-              setWsStatus(`Saved ${val("firstName")}'s profile.`, "ok");
-              shopperState.editing = null;
-              await loadShoppers();
-            } catch (err) {
-              setWsStatus(err.message, "error");
-              save.disabled = false;
-            }
-          });
-          const cancel = document.createElement("button");
-          cancel.type = "button";
-          cancel.className = "ws-btn danger";
-          cancel.style.cssText = "color:#374151; border-color:var(--border,#dbe1ea);";
-          cancel.textContent = "Cancel";
-          cancel.addEventListener("click", () => { shopperState.editing = null; renderShoppers(); });
-          actions.appendChild(save);
-          actions.appendChild(cancel);
-          form.appendChild(actions);
-          wrap.appendChild(form);
-        }
-
-        wrap.querySelector("[data-edit]").addEventListener("click", () => {
-          shopperState.editing = shopperState.editing === s.id ? null : s.id;
-          renderShoppers();
-        });
-        wrap.querySelector("[data-del]").addEventListener("click", async (e) => {
-          if (!confirm(`Delete ${s.firstName} ${s.lastName}'s shopper profile (${s.clientCode || "no code"})? Their past orders keep their details, but their code, password, and saved profile stop working. This can't be undone.`)) return;
-          e.target.disabled = true;
-          try {
-            await api(`/api/shop-shoppers/${s.id}`, { method: "DELETE" });
-            setWsStatus(`Deleted ${s.firstName} ${s.lastName}'s profile.`, "ok");
-            await loadShoppers();
-          } catch (err) {
-            setWsStatus(err.message, "error");
-            e.target.disabled = false;
-          }
-        });
-        wrap.querySelector("[data-temp]").addEventListener("click", async (e) => {
-          if (!confirm(`Give ${s.firstName} ${s.lastName} a new temporary password? Any old password stops working immediately.`)) return;
-          e.target.disabled = true;
-          try {
-            const data = await api(`/api/shop-shoppers/${s.id}/temp-password`, { method: "POST", body: "{}" });
-            shopperState.tempFor = s.id;
-            shopperState.tempPass = data.tempPassword;
-            await loadShoppers();
-          } catch (err) {
-            setWsStatus(err.message, "error");
-            e.target.disabled = false;
-          }
-        });
-
-        return wrap;
-      }
-
-      loadShoppers();
 
       document.getElementById("wsSnapFile").addEventListener("change", async (event) => {
         const file = event.target.files?.[0];

@@ -151,7 +151,9 @@ import {
   updateShopOrderCardSummary,
   updateShopOrderLockConflicts,
   saveShopInventorySnapshot,
-  getShopInventorySnapshot
+  getShopInventorySnapshot,
+  saveShopMapPrices,
+  getShopMapPrices
 } from "./lib/shop-postgres.js";
 import {
   normalizeCreditAppToken,
@@ -358,7 +360,10 @@ const SHOP_PUBLIC_API_PREFIXES = [
 ];
 
 const ALWAYS_PUBLIC_PATHS = new Set([
-  "/api/stripe/webhook"
+  "/api/stripe/webhook",
+  // Machine-to-machine: the store PC's nightly ExportModel upload. Guarded
+  // by its own shared key (SHOP_SNAPSHOT_KEY), not a session.
+  "/api/shop/inventory-snapshot/file"
 ]);
 
 const PUBLIC_AUTH_PATHS = new Set([
@@ -417,7 +422,8 @@ const INTERNAL_PAGE_PATHS = new Set([
   "/terms-signatures.html",
   "/flag-closures.html",
   "/target-builder.html",
-  "/shop-orders.html"
+  "/shop-orders.html",
+  "/shopper-profiles.html"
 ]);
 
 const UNAUTHENTICATED_INTERNAL_PATHS = new Set([
@@ -519,6 +525,7 @@ const JOB_CODE_PRESETS = {
       "/appliance-service-calls.html",
       "/archive-service-calls.html",
       "/service-order-health.html",
+      "/shopper-profiles.html",
       "/intent-lookup.html",
       "/link-detail-lookup.html",
       "/paid-order-detail.html"
@@ -601,7 +608,8 @@ const PAGE_LABELS = {
   "/service-order-health.html": "Service Order Health",
   "/flag-closures.html": "Notification Closure Report",
   "/target-builder.html": "Target Builder",
-  "/shop-orders.html": "Online Shop Orders"
+  "/shop-orders.html": "Online Shop Orders",
+  "/shopper-profiles.html": "Shopper Profiles"
 };
 
 // Category groupings for the User Admin permission UI. A page may appear in
@@ -655,6 +663,7 @@ const PAGE_CATEGORIES = [
       "/appliance-service-calls.html",
       "/archive-service-calls.html",
       "/service-order-health.html",
+      "/shopper-profiles.html",
       "/intent-lookup.html",
       "/link-detail-lookup.html",
       "/paid-order-detail.html"
@@ -4294,6 +4303,21 @@ app.post("/api/clearance/price", requireExecutiveApi, async (req, res) => {
 // on data/shop-addons.json).
 const SHOP_TAX_RATE = Number(process.env.SHOP_TAX_RATE || "0.0825");
 
+// Machine credentials for the nightly ePASS export upload from the store
+// server PC (scripts/upload-inventory-snapshot.ps1). Unset = endpoint off.
+const SHOP_SNAPSHOT_KEY = String(process.env.SHOP_SNAPSHOT_KEY || "");
+
+// Once the automated feed is live, a snapshot older than this pauses the
+// storefront (tiles say "call for availability", checkout closes) rather
+// than risk selling units ePASS no longer has. No snapshot at all keeps the
+// pre-automation behavior (full clearance list, no pause).
+const SHOP_SNAPSHOT_MAX_AGE_HOURS = Number(process.env.SHOP_SNAPSHOT_MAX_AGE_HOURS || "48");
+
+// Published MAP/UMRP price spreadsheet (the ~35MB RES file). Fetched
+// overnight and fully replaced each time; drives the public-price floor
+// check together with data/shop-map-policy.json.
+const SHOP_MAP_PRICE_URL = String(process.env.SHOP_MAP_PRICE_URL || "");
+
 const SHOP_DELIVERY_OFFER = {
   id: "white-glove-delivery",
   name: "White Glove Delivery + Haul Away",
@@ -4318,7 +4342,22 @@ async function loadShopData() {
   try {
     images = JSON.parse(await fs.readFile(path.join(__dirname, "data", "shop-images.json"), "utf8")).byModel || {};
   } catch {}
-  return { clearance: JSON.parse(clearanceRaw), addons: JSON.parse(addonsRaw), images };
+  // Public-pricing whitelist (brand + category rules) — optional.
+  let mapPolicy = { rules: [] };
+  try {
+    mapPolicy = JSON.parse(await fs.readFile(path.join(__dirname, "data", "shop-map-policy.json"), "utf8"));
+  } catch {}
+  return { clearance: JSON.parse(clearanceRaw), addons: JSON.parse(addonsRaw), images, mapPolicy };
+}
+
+// Does this brand+category match a public-pricing rule? Brand matching is
+// case-insensitive; categories are the clearance list's category keys.
+function shopMapRuleMatch(mapPolicy, brand, category) {
+  const b = String(brand || "").trim().toUpperCase();
+  return (mapPolicy?.rules || []).some((rule) =>
+    String(rule.brand || "").trim().toUpperCase() === b &&
+    (rule.categories || []).includes(category)
+  );
 }
 
 function normalizeModelKey(model) {
@@ -4368,21 +4407,33 @@ function shopConditionOf(serialType) {
 // what price. Used by the catalog AND re-run at checkout so a stale cart
 // can't buy an unavailable unit or an outdated price.
 async function computeShopCatalog() {
-  const { clearance, addons, images } = await loadShopData();
+  const { clearance, addons, images, mapPolicy } = await loadShopData();
 
   let statuses = [];
   let overrides = [];
   let snapshot = null;
+  let mapPrices = null;
   try {
-    [statuses, overrides, snapshot] = await Promise.all([
+    [statuses, overrides, snapshot, mapPrices] = await Promise.all([
       listClearanceStatuses(),
       listPriceOverrides(),
-      getShopInventorySnapshot()
+      getShopInventorySnapshot(),
+      getShopMapPrices().catch(() => null)
     ]);
   } catch (err) {
     // If the DB is down, sell nothing rather than something already sold.
     throw new Error("Shop availability is temporarily unreadable.");
   }
+
+  // Stale automated feed → pause the store rather than sell ghosts. A shop
+  // with no snapshot at all is still in pre-automation mode and stays open.
+  const snapshotAgeHours = snapshot?.uploadedAt
+    ? (Date.now() - Date.parse(snapshot.uploadedAt)) / 3600000
+    : null;
+  const paused = Boolean(
+    snapshot && Number.isFinite(snapshotAgeHours) && snapshotAgeHours > SHOP_SNAPSHOT_MAX_AGE_HOURS
+  );
+  const mapFloor = mapPrices?.prices || {};
 
   const statusById = new Map(statuses.map((s) => [s.itemId, s]));
   const overrideById = new Map(overrides.map((o) => [o.itemId, o]));
@@ -4408,6 +4459,15 @@ async function computeShopCatalog() {
     const price = override ? Number(override.price) : Number(item.price || 0);
     if (!Number.isFinite(price) || price <= 0) continue;
     const serialType = lookupKeyed(serialTypes, composite, serial) || "";
+    // Public (no-profile) price: whitelisted brand+category AND a MAP/UMRP
+    // floor exists for the model AND our price is at or above it. No floor
+    // entry → stays behind the gate; a penny below the floor → gate.
+    const floor = mapFloor[normalizeModelKey(item.model)];
+    const mapPublic = Boolean(
+      shopMapRuleMatch(mapPolicy, item.brand, item.category) &&
+      Number.isFinite(Number(floor)) &&
+      price >= Number(floor) - 0.005
+    );
     items.push({
       id: item.id,
       model: item.model,
@@ -4420,7 +4480,8 @@ async function computeShopCatalog() {
       condition: shopConditionOf(serialType),
       image: images[normalizeModelKey(item.model)] || "",
       price: Math.round(price * 100) / 100,
-      topDeal: price <= SHOP_TOP_DEAL_MAX
+      topDeal: price <= SHOP_TOP_DEAL_MAX,
+      mapPublic
     });
   }
   shopSortItems(items);
@@ -4433,6 +4494,9 @@ async function computeShopCatalog() {
     addons,
     categories,
     listDate: clearance._meta?.listDate || "",
+    paused,
+    snapshotAgeHours,
+    mapPriceCount: Object.keys(mapFloor).length,
     snapshot: snapshot
       ? { uploadedAt: snapshot.uploadedAt, sourceFile: snapshot.sourceFile, count: snapshot.serials.length }
       : null
@@ -4697,13 +4761,16 @@ app.post("/api/shop/password", async (req, res) => {
   }
 });
 
-// PUBLIC: the catalog. Prices only appear with a valid shopper token — the
-// anonymous view is model/brand/description with no advertised price (MAP).
+// PUBLIC: the catalog. Prices appear with a valid shopper token, or — for
+// MAP/UMRP-cleared items (brand+category whitelist + floor check) — for
+// everyone. The rest of the anonymous view is model/brand/description with
+// no advertised price (MAP). A stale automated feed pauses the whole store:
+// no prices, no carting, checkout closed.
 app.get("/api/shop/catalog", async (req, res) => {
   try {
     const catalog = await computeShopCatalog();
     const shopper = await getShopperByToken(req.query.token).catch(() => null);
-    const withPrices = Boolean(shopper);
+    const withPrices = Boolean(shopper) && !catalog.paused;
 
     const items = catalog.items.map((i) => {
       const base = {
@@ -4717,20 +4784,28 @@ app.get("/api/shop/catalog", async (req, res) => {
         image: i.image,
         topDeal: i.topDeal
       };
-      return withPrices ? { ...base, price: i.price } : base;
+      return withPrices || (i.mapPublic && !catalog.paused)
+        ? { ...base, price: i.price, mapPublic: i.mapPublic }
+        : base;
     });
+
+    // Add-on parts/install/delivery pricing is Wilson's own service pricing
+    // (not manufacturer MAP) — it travels whenever anything is purchasable,
+    // so a no-profile MAP shopper can build a complete cart.
+    const canBuild = !catalog.paused && (withPrices || items.some((i) => i.mapPublic));
 
     res.setHeader("Cache-Control", "no-store");
     return res.json({
       items,
       categories: catalog.categories,
       listDate: catalog.listDate,
-      unlocked: withPrices,
+      unlocked: Boolean(shopper),
+      paused: catalog.paused,
       shopperName: shopper?.firstName || "",
       clientCode: shopper?.clientCode || "",
-      addons: withPrices ? catalog.addons : null,
-      delivery: withPrices ? SHOP_DELIVERY_OFFER : null,
-      taxRate: withPrices ? SHOP_TAX_RATE : null,
+      addons: canBuild ? catalog.addons : null,
+      delivery: canBuild ? SHOP_DELIVERY_OFFER : null,
+      taxRate: canBuild ? SHOP_TAX_RATE : null,
       topDealMax: SHOP_TOP_DEAL_MAX
     });
   } catch (err) {
@@ -4748,6 +4823,7 @@ app.post("/api/shop/setup-intent", async (req, res) => {
     if (!shopper) return res.status(401).json({ error: "Please register to check out." });
 
     const catalog = await computeShopCatalog();
+    if (catalog.paused) return res.status(503).json({ error: "Online checkout is briefly paused while we refresh inventory. Please try again soon or call the store." });
     const priced = priceShopCart(catalog, req.body?.cart);
     if (priced.empty) return res.status(400).json({ error: "Your cart is empty." });
     if (priced.unavailable) {
@@ -4881,6 +4957,7 @@ app.post("/api/shop/submit-order", async (req, res) => {
     }
 
     const catalog = await computeShopCatalog();
+    if (catalog.paused) return res.status(503).json({ error: "Online checkout is briefly paused while we refresh inventory. Please try again soon or call the store." });
     const priced = priceShopCart(catalog, req.body?.cart);
     if (priced.empty) return res.status(400).json({ error: "Your cart is empty." });
     if (priced.unavailable) {
@@ -4979,10 +5056,14 @@ app.get("/api/shop/setup-intent-result/:setupIntentId", async (req, res) => {
 // INTERNAL: the sales module. Orders newest-first plus the snapshot banner.
 app.get("/api/shop-orders", requirePagePermission("/shop-orders.html"), async (req, res) => {
   try {
-    const [orders, snapshot] = await Promise.all([
+    const [orders, snapshot, mapPrices] = await Promise.all([
       listShopOrders(),
-      getShopInventorySnapshot().catch(() => null)
+      getShopInventorySnapshot().catch(() => null),
+      getShopMapPrices().catch(() => null)
     ]);
+    const snapshotAgeHours = snapshot?.uploadedAt
+      ? (Date.now() - Date.parse(snapshot.uploadedAt)) / 3600000
+      : null;
     res.setHeader("Cache-Control", "no-store");
     return res.json({
       orders,
@@ -4993,9 +5074,15 @@ app.get("/api/shop-orders", requirePagePermission("/shop-orders.html"), async (r
             count: new Set((snapshot.serials || []).map((k) => String(k).split("|").pop())).size,
             typedCount: Object.keys(snapshot.serialTypes || {}).length,
             writtenCount: Object.keys(snapshot.serialWritten || {}).length,
-            uploadedBy: snapshot.uploadedBy
+            uploadedBy: snapshot.uploadedBy,
+            stale: Number.isFinite(snapshotAgeHours) && snapshotAgeHours > SHOP_SNAPSHOT_MAX_AGE_HOURS,
+            maxAgeHours: SHOP_SNAPSHOT_MAX_AGE_HOURS
           }
         : null,
+      mapPrices: mapPrices
+        ? { count: mapPrices.count, fetchedAt: mapPrices.fetchedAt, sourceNote: mapPrices.sourceNote }
+        : null,
+      mapFeedConfigured: Boolean(SHOP_MAP_PRICE_URL),
       allowedZips: [...SHOP_ALLOWED_ZIPS]
     });
   } catch (err) {
@@ -5179,10 +5266,205 @@ app.post("/api/shop/inventory-snapshot", requirePagePermission("/shop-orders.htm
   }
 });
 
+// ---------------------------------------------------------------------------
+// AUTOMATED snapshot feed — the store server PC posts the raw ExportModel
+// .xlsx nightly (scripts/upload-inventory-snapshot.ps1, Windows Task
+// Scheduler). Auth is a shared key (SHOP_SNAPSHOT_KEY), not a session, so
+// the parse happens HERE — the exact same extraction the browser upload
+// does: composite MODELKEY|SERIAL keys per model-column spelling, Serial
+// Type map, Written To map.
+// ---------------------------------------------------------------------------
+
+function extractSerialsFromWorkbook(buffer) {
+  const workbook = readWorkbook(buffer, { type: "buffer", dense: true });
+  const normHeader = (v) => String(v == null ? "" : v).replace(/[\s ]+/g, " ").trim().toLowerCase();
+  const normModel = (v) => String(v ?? "").toUpperCase().replace(/[^0-9A-Z]/g, "");
+
+  for (const name of workbook.SheetNames) {
+    const grid = xlsxUtils.sheet_to_json(workbook.Sheets[name], { header: 1, raw: true, defval: null });
+    const headerIndex = grid.findIndex((row) => {
+      if (!row) return false;
+      const t = row.map(normHeader);
+      return t.includes("serial") && t.some((x) => x === "* model" || x === "model" || x === "sku");
+    });
+    if (headerIndex < 0) continue;
+    const headerTexts = grid[headerIndex].map(normHeader);
+    const serialCol = headerTexts.indexOf("serial");
+    const typeCol = headerTexts.indexOf("serial type");
+    const writtenCol = headerTexts.indexOf("written to");
+    const modelCols = [headerTexts.indexOf("* model"), headerTexts.indexOf("model"), headerTexts.indexOf("sku")].filter((c) => c >= 0);
+    const serials = new Set();
+    const types = {};
+    const written = {};
+    const units = new Set();
+    for (let r = headerIndex + 1; r < grid.length; r++) {
+      const serial = String(grid[r]?.[serialCol] ?? "").trim().toUpperCase();
+      if (!serial) continue;
+      units.add(serial);
+      const type = typeCol >= 0 ? String(grid[r]?.[typeCol] ?? "").trim() : "";
+      const writtenTo = writtenCol >= 0 ? String(grid[r]?.[writtenCol] ?? "").trim() : "";
+      const keys = new Set();
+      for (const c of modelCols) {
+        const mk = normModel(grid[r]?.[c]);
+        if (mk) keys.add(mk + "|" + serial);
+      }
+      if (!keys.size) keys.add(serial);
+      for (const key of keys) {
+        serials.add(key);
+        if (type) types[key] = type;
+        if (writtenTo) written[key] = writtenTo;
+      }
+    }
+    return { serials: [...serials], types, written, unitCount: units.size };
+  }
+  throw new Error("Couldn't find a Serial column — is this the ExportModel (Model Maintenance) export?");
+}
+
+function snapshotKeyOk(provided) {
+  if (!SHOP_SNAPSHOT_KEY || !provided) return false;
+  const a = Buffer.from(String(provided));
+  const b = Buffer.from(SHOP_SNAPSHOT_KEY);
+  return a.length === b.length && crypto.timingSafeEqual(a, b);
+}
+
+app.post("/api/shop/inventory-snapshot/file", express.raw({ type: () => true, limit: "60mb" }), async (req, res) => {
+  try {
+    if (!SHOP_SNAPSHOT_KEY) return res.status(503).json({ error: "Automated snapshot uploads are not configured (SHOP_SNAPSHOT_KEY)." });
+    if (!snapshotKeyOk(req.headers["x-snapshot-key"])) return res.status(401).json({ error: "Bad snapshot key." });
+    if (!Buffer.isBuffer(req.body) || req.body.length < 100) return res.status(400).json({ error: "No file received." });
+
+    const { serials, types, written, unitCount } = extractSerialsFromWorkbook(req.body);
+    if (!serials.length) return res.status(400).json({ error: "No serial numbers found in that file." });
+
+    const sourceFile = String(req.headers["x-source-file"] || "ExportModel (automated)").slice(0, 200);
+    const saved = await saveShopInventorySnapshot({
+      serials, types, written, sourceFile,
+      uploadedBy: "automation"
+    });
+
+    recordAudit({
+      ip: req.ip, actorUserId: null,
+      action: "shop_snapshot_uploaded", targetUserId: null,
+      detail: { count: saved.count, sourceFile: sourceFile.slice(0, 120), via: "automation" }
+    }).catch(() => {});
+
+    return res.json({ ok: true, count: saved.count, unitCount, typedCount: saved.typedCount, writtenCount: saved.writtenCount });
+  } catch (err) {
+    console.error("Automated snapshot upload failed:", err.message);
+    return res.status(400).json({ error: err.message || "Unable to parse that file." });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// MAP/UMRP price feed — fetches the published price spreadsheet
+// (SHOP_MAP_PRICE_URL, the ~35MB RES file) and fully replaces the stored
+// floor-price table. Runs overnight (2–6am Central once the data is ~a day
+// old) plus on boot when the table is empty; the internal page has a manual
+// Refresh button. The parser hunts for a model column and the best
+// UMRP/MAP-ish price column and records what it matched in sourceNote so
+// the column mapping can be verified from the internal page.
+// ---------------------------------------------------------------------------
+
+function parseMapPriceWorkbook(buffer) {
+  const workbook = readWorkbook(buffer, { type: "buffer", dense: true });
+  const normHeader = (v) => String(v == null ? "" : v).replace(/[\s ]+/g, " ").trim().toLowerCase();
+  const MODEL_HEADERS = ["model", "* model", "model #", "model number", "sku", "item", "item #", "item number"];
+  const PRICE_HEADERS = [
+    /\bumrp\b/, /\bmap\b/, /minimum advertised/, /min.*advertised/, /\bmsrp\b/, /suggested retail/, /\bretail\b/
+  ];
+
+  let best = null;
+  for (const name of workbook.SheetNames) {
+    const grid = xlsxUtils.sheet_to_json(workbook.Sheets[name], { header: 1, raw: true, defval: null });
+    const scanMax = Math.min(grid.length, 30);
+    for (let h = 0; h < scanMax; h++) {
+      const texts = (grid[h] || []).map(normHeader);
+      const modelCol = texts.findIndex((t) => MODEL_HEADERS.includes(t));
+      if (modelCol < 0) continue;
+      let priceCol = -1;
+      let priceRank = PRICE_HEADERS.length;
+      texts.forEach((t, idx) => {
+        const rank = PRICE_HEADERS.findIndex((re) => re.test(t));
+        if (rank >= 0 && rank < priceRank) { priceRank = rank; priceCol = idx; }
+      });
+      if (priceCol < 0) continue;
+
+      const prices = {};
+      for (let r = h + 1; r < grid.length; r++) {
+        const model = String(grid[r]?.[modelCol] ?? "").trim();
+        if (!model) continue;
+        const raw = grid[r]?.[priceCol];
+        const price = typeof raw === "number" ? raw : Number(String(raw ?? "").replace(/[$,\s]/g, ""));
+        if (Number.isFinite(price) && price > 0) prices[model] = price;
+      }
+      if (Object.keys(prices).length && (!best || Object.keys(prices).length > best.count)) {
+        best = {
+          prices,
+          count: Object.keys(prices).length,
+          note: `sheet "${name}" · model col "${texts[modelCol]}" · price col "${texts[priceCol]}"`
+        };
+      }
+      break; // one header row per sheet
+    }
+  }
+  if (!best) throw new Error("Couldn't find a model + MAP/UMRP price column in that spreadsheet.");
+  return best;
+}
+
+let shopMapRefreshInFlight = null;
+
+async function refreshShopMapPricesNow() {
+  if (!SHOP_MAP_PRICE_URL) throw new Error("SHOP_MAP_PRICE_URL is not configured.");
+  if (shopMapRefreshInFlight) return shopMapRefreshInFlight;
+  shopMapRefreshInFlight = (async () => {
+    const response = await fetch(SHOP_MAP_PRICE_URL, { redirect: "follow" });
+    if (!response.ok) throw new Error(`Price feed returned ${response.status}.`);
+    const buffer = Buffer.from(await response.arrayBuffer());
+    const parsed = parseMapPriceWorkbook(buffer);
+    await saveShopMapPrices({ prices: parsed.prices, sourceUrl: SHOP_MAP_PRICE_URL, sourceNote: parsed.note });
+    console.log(`MAP price feed refreshed: ${parsed.count} models (${parsed.note}).`);
+    return { count: parsed.count, note: parsed.note };
+  })().finally(() => { shopMapRefreshInFlight = null; });
+  return shopMapRefreshInFlight;
+}
+
+async function maybeRefreshShopMapPrices() {
+  if (!SHOP_MAP_PRICE_URL) return;
+  try {
+    const existing = await getShopMapPrices().catch(() => null);
+    const ageHours = existing?.fetchedAt ? (Date.now() - Date.parse(existing.fetchedAt)) / 3600000 : Infinity;
+    const centralHour = Number(new Date().toLocaleString("en-US", { timeZone: "America/Chicago", hour: "2-digit", hour12: false }));
+    const overnight = centralHour >= 2 && centralHour < 6;
+    if (!existing?.count || (ageHours > 20 && overnight) || ageHours > 48) {
+      await refreshShopMapPricesNow();
+    }
+  } catch (err) {
+    console.error("MAP price feed refresh failed:", err.message);
+  }
+}
+setInterval(maybeRefreshShopMapPrices, 60 * 60 * 1000).unref?.();
+setTimeout(maybeRefreshShopMapPrices, 30 * 1000).unref?.();
+
+// INTERNAL: MAP feed status + manual refresh for the Online Shop Orders page.
+app.post("/api/shop/map-prices/refresh", requirePagePermission("/shop-orders.html"), async (req, res) => {
+  try {
+    const result = await refreshShopMapPricesNow();
+    recordAudit({
+      ip: req.ip, actorUserId: req.authUser?.id || null,
+      action: "shop_map_prices_refreshed", targetUserId: null,
+      detail: result
+    }).catch(() => {});
+    return res.json({ ok: true, ...result });
+  } catch (err) {
+    console.error("Manual MAP refresh failed:", err.message);
+    return res.status(500).json({ error: err.message || "Unable to refresh MAP prices." });
+  }
+});
+
 // INTERNAL: shopper profile admin for the dashboard module — when a client
 // calls in stuck, staff can find them, fix their contact details, and hand
 // them a temporary password.
-app.get("/api/shop-shoppers", requirePagePermission("/shop-orders.html"), async (req, res) => {
+app.get("/api/shop-shoppers", requirePagePermission("/shopper-profiles.html"), async (req, res) => {
   try {
     const shoppers = await searchShopShoppers(req.query.search);
     res.setHeader("Cache-Control", "no-store");
@@ -5197,6 +5479,7 @@ app.get("/api/shop-shoppers", requirePagePermission("/shop-orders.html"), async 
         phone: s.phone,
         preferredContact: s.preferredContact,
         address: s.address,
+        stripeLinked: Boolean(s.stripeCustomerId),
         createdAt: s.createdAt
       }))
     });
@@ -5206,7 +5489,7 @@ app.get("/api/shop-shoppers", requirePagePermission("/shop-orders.html"), async 
   }
 });
 
-app.post("/api/shop-shoppers/:id/profile", requirePagePermission("/shop-orders.html"), async (req, res) => {
+app.post("/api/shop-shoppers/:id/profile", requirePagePermission("/shopper-profiles.html"), async (req, res) => {
   try {
     const checked = validateShopperFields(req.body);
     if (checked.error) return res.status(400).json({ error: checked.error });
@@ -5229,7 +5512,7 @@ app.post("/api/shop-shoppers/:id/profile", requirePagePermission("/shop-orders.h
 
 // INTERNAL: delete a shopper profile (test records, spam). Orders keep
 // their embedded customer snapshot; only the login/profile goes away.
-app.delete("/api/shop-shoppers/:id", requirePagePermission("/shop-orders.html"), async (req, res) => {
+app.delete("/api/shop-shoppers/:id", requirePagePermission("/shopper-profiles.html"), async (req, res) => {
   try {
     const shopper = await getShopperById(req.params.id);
     if (!shopper) return res.status(404).json({ error: "Shopper profile not found." });
@@ -5254,7 +5537,7 @@ app.delete("/api/shop-shoppers/:id", requirePagePermission("/shop-orders.html"),
 // shopper (phone/email match), imported as a new profile (client code and
 // all), or skipped when Stripe has no usable contact info. Safe to re-run —
 // already-linked customers are counted and left alone.
-app.post("/api/shop-shoppers/import-stripe", requirePagePermission("/shop-orders.html"), async (req, res) => {
+app.post("/api/shop-shoppers/import-stripe", requirePagePermission("/shopper-profiles.html"), async (req, res) => {
   try {
     const summary = { created: 0, linked: 0, already: 0, skipped: 0, scanned: 0 };
     const MAX_SCAN = 5000;
@@ -5294,7 +5577,7 @@ app.post("/api/shop-shoppers/import-stripe", requirePagePermission("/shop-orders
 
 // Generates a temporary password and returns it ONCE for the rep to read
 // to the client (they can change it themselves in their shop profile).
-app.post("/api/shop-shoppers/:id/temp-password", requirePagePermission("/shop-orders.html"), async (req, res) => {
+app.post("/api/shop-shoppers/:id/temp-password", requirePagePermission("/shopper-profiles.html"), async (req, res) => {
   try {
     const result = await setShopperTempPassword({ id: req.params.id });
     if (!result) return res.status(404).json({ error: "Shopper profile not found." });

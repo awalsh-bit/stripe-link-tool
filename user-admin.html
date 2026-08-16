@@ -332,7 +332,7 @@
       <h2>Team</h2>
       <p class="section-note">
         One profile per person, linked permanently by <strong>email</strong> — employee code,
-        department, and commission plan from the directory alongside their login account,
+        department, and job title from the directory alongside their login account,
         page access, and status. A <strong>No account</strong> flag means the profile needs an
         invite. Deactivating someone ends their sessions and moves the whole profile to
         <strong>Deactivated users</strong> below — nothing is deleted.
@@ -362,7 +362,7 @@
           </select>
         </div>
         <div class="field">
-          <label for="dirCommissionPlan">Commission Plan</label>
+          <label for="dirCommissionPlan">Job title</label>
           <select id="dirCommissionPlan"></select>
         </div>
         <div class="field small">
@@ -385,7 +385,7 @@
               <th>Code</th>
               <th>Name</th>
               <th>Department</th>
-              <th>Commission Plan</th>
+              <th>Job title</th>
               <th title="Product sales across commission runs imported in the last 6 months — backs the Field Sales $500k qualification. Read-only.">6-Mo Sales</th>
               <th>Commute (mi)</th>
               <th>Account</th>
@@ -1044,7 +1044,8 @@
       }
     }
 
-    // Commission plans — must match COMMISSION_PLANS in lib/employee-directory.js
+    // Job titles — must match COMMISSION_PLANS in lib/employee-directory.js (the
+    // title doubles as the commission-plan selector, e.g. Showroom Consultant).
     // (the server validates against that list). "" = none.
     const COMMISSION_PLANS = [
       "Showroom Consultant",

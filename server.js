@@ -134,6 +134,7 @@ import {
   listShopOrders,
   getShopOrder,
   claimShopOrder,
+  unclaimShopOrder,
   completeShopOrder,
   cancelShopOrder,
   findShopperByCodeAndPhone,
@@ -146,6 +147,7 @@ import {
   setShopperTempPassword,
   setShopperStripeCustomerId,
   importStripeCustomerRecord,
+  deleteShopper,
   updateShopOrderCardSummary,
   updateShopOrderLockConflicts,
   saveShopInventorySnapshot,
@@ -220,7 +222,8 @@ import {
   listFlagClosuresRange,
   createPushedNotification,
   listMyPushedNotifications,
-  getPushedNotification
+  getPushedNotification,
+  retirePushedNotificationsByRef
 } from "./lib/sales-orders-postgres.js";
 import {
   getServiceOrderSnapshot,
@@ -413,7 +416,8 @@ const INTERNAL_PAGE_PATHS = new Set([
   "/service-order-health.html",
   "/terms-signatures.html",
   "/flag-closures.html",
-  "/target-builder.html"
+  "/target-builder.html",
+  "/shop-orders.html"
 ]);
 
 const UNAUTHENTICATED_INTERNAL_PATHS = new Set([
@@ -492,6 +496,7 @@ const JOB_CODE_PRESETS = {
       "/salesdashboard.html",
       "/secret-menu.html",
       "/clearance.html",
+      "/shop-orders.html",
       "/spec-packages.html",
       "/event-rsvps.html",
       "/dashboard.html",
@@ -595,7 +600,8 @@ const PAGE_LABELS = {
   "/terms-signatures.html": "Terms & Conditions Signatures",
   "/service-order-health.html": "Service Order Health",
   "/flag-closures.html": "Notification Closure Report",
-  "/target-builder.html": "Target Builder"
+  "/target-builder.html": "Target Builder",
+  "/shop-orders.html": "Online Shop Orders"
 };
 
 // Category groupings for the User Admin permission UI. A page may appear in
@@ -659,6 +665,7 @@ const PAGE_CATEGORIES = [
     label: "Sales",
     pages: [
       "/salesdashboard.html",
+      "/shop-orders.html",
       "/sales-order-health.html",
       "/terms-signatures.html",
       "/flag-closures.html",
@@ -4830,6 +4837,30 @@ app.post("/api/shop/setup-intent", async (req, res) => {
   }
 });
 
+// Green flag on every Showroom Consultant's dashboard (routed by the
+// directory's job title). Used when an order lands — and again if a claim
+// is released back into the pool.
+async function pushWebOrderFlags({ orderNumber, customerName, total, models }) {
+  const directory = await listEmployeeDirectory();
+  const consultants = directory.filter((entry) =>
+    String(entry.commissionPlan || "").trim().toLowerCase() === "showroom consultant" &&
+    String(entry.email || "").trim()
+  );
+  const itemSummaryShort = (models || []).join(", ").slice(0, 120);
+  for (const consultant of consultants) {
+    await createPushedNotification({
+      severity: "green",
+      typeLabel: "New Web Order",
+      refId: `weborder:${orderNumber}`,
+      title: `${orderNumber} — ${customerName} · $${Number(total || 0).toLocaleString("en-US", { minimumFractionDigits: 2 })}`,
+      body: `${itemSummaryShort}. Claim it on the Online Shop Orders page.`,
+      audienceEmail: consultant.email,
+      byEmail: "webshop",
+      byName: "Online Shop"
+    });
+  }
+}
+
 // PUBLIC: finish checkout after the card is saved client-side. Verifies the
 // SetupIntent actually succeeded, re-prices the cart, web-locks the units on
 // the hit list, and files the order for the sales team.
@@ -4911,6 +4942,15 @@ app.post("/api/shop/submit-order", async (req, res) => {
       }
     }).catch(() => {});
 
+    // Green flag on every Showroom Consultant's dashboard (routed by the
+    // directory's job title) so new web orders get claimed fast.
+    pushWebOrderFlags({
+      orderNumber: order.orderNumber,
+      customerName: `${shopper.firstName} ${shopper.lastName}`,
+      total: priced.totals.total,
+      models: priced.items.map((i) => i.model)
+    }).catch((err) => console.error("Web order notification push failed:", err.message));
+
     return res.json({
       success: true,
       orderNumber: order.orderNumber,
@@ -4937,7 +4977,7 @@ app.get("/api/shop/setup-intent-result/:setupIntentId", async (req, res) => {
 });
 
 // INTERNAL: the sales module. Orders newest-first plus the snapshot banner.
-app.get("/api/shop-orders", requirePagePermission("/dashboard.html"), async (req, res) => {
+app.get("/api/shop-orders", requirePagePermission("/shop-orders.html"), async (req, res) => {
   try {
     const [orders, snapshot] = await Promise.all([
       listShopOrders(),
@@ -4965,7 +5005,7 @@ app.get("/api/shop-orders", requirePagePermission("/dashboard.html"), async (req
 });
 
 // INTERNAL: grab an order (first writer wins).
-app.post("/api/shop-orders/:id/claim", requirePagePermission("/dashboard.html"), async (req, res) => {
+app.post("/api/shop-orders/:id/claim", requirePagePermission("/shop-orders.html"), async (req, res) => {
   try {
     const userEmail = String(req.authUser?.kind === "db" ? req.authUser.email : "").toLowerCase();
     if (!userEmail) return res.status(400).json({ error: "Sign in with your individual account to claim an order." });
@@ -4991,6 +5031,9 @@ app.post("/api/shop-orders/:id/claim", requirePagePermission("/dashboard.html"),
       detail: { orderNumber: order.orderNumber }
     }).catch(() => {});
 
+    // The race is over — pull the green flag off every consultant's dashboard.
+    retirePushedNotificationsByRef(`weborder:${order.orderNumber}`).catch(() => {});
+
     return res.json({ ok: true, order });
   } catch (err) {
     console.error("Shop order claim failed:", err.message);
@@ -4998,9 +5041,47 @@ app.post("/api/shop-orders/:id/claim", requirePagePermission("/dashboard.html"),
   }
 });
 
+// INTERNAL: release a claim back to the pool (grabbed it, then the phone
+// rang). The claimer or an executive can unclaim; the green flags re-push
+// to every consultant so the order gets picked up again.
+app.post("/api/shop-orders/:id/unclaim", requirePagePermission("/shop-orders.html"), async (req, res) => {
+  try {
+    const existing = await getShopOrder(req.params.id);
+    if (!existing) return res.status(404).json({ error: "Order not found." });
+    if (existing.status !== "claimed") return res.status(409).json({ error: "Only claimed orders can be unclaimed." });
+
+    const userEmail = String(req.authUser?.kind === "db" ? req.authUser.email : "").toLowerCase();
+    if (existing.claimedByEmail !== userEmail && !isExecutiveUser(req.authUser)) {
+      return res.status(403).json({ error: `Only ${existing.claimedByName || existing.claimedByEmail} or an executive can unclaim this order.` });
+    }
+
+    const order = await unclaimShopOrder({ id: req.params.id });
+    if (!order) return res.status(409).json({ error: "This order is no longer claimed." });
+
+    recordAudit({
+      ip: req.ip, actorUserId: req.authUser?.id || null,
+      action: "shop_order_unclaimed", targetUserId: null,
+      detail: { orderNumber: order.orderNumber, previouslyClaimedBy: existing.claimedByEmail }
+    }).catch(() => {});
+
+    // Reopen the race.
+    pushWebOrderFlags({
+      orderNumber: order.orderNumber,
+      customerName: `${order.customer?.firstName || ""} ${order.customer?.lastName || ""}`.trim() || "Web customer",
+      total: order.totals?.total,
+      models: (order.items || []).map((i) => i.model)
+    }).catch((err) => console.error("Unclaim re-push failed:", err.message));
+
+    return res.json({ ok: true, order });
+  } catch (err) {
+    console.error("Shop order unclaim failed:", err.message);
+    return res.status(500).json({ error: "Unable to unclaim the order." });
+  }
+});
+
 // INTERNAL: finish an order as an ePASS ticket — flips the web locks to Sold
 // under the ticket number so the hit list shows the final state.
-app.post("/api/shop-orders/:id/complete", requirePagePermission("/dashboard.html"), async (req, res) => {
+app.post("/api/shop-orders/:id/complete", requirePagePermission("/shop-orders.html"), async (req, res) => {
   try {
     const epassTicket = String(req.body?.epassTicket || "").trim();
     if (!epassTicket) return res.status(400).json({ error: "Enter the ePASS ticket number." });
@@ -5023,6 +5104,7 @@ app.post("/api/shop-orders/:id/complete", requirePagePermission("/dashboard.html
       action: "shop_order_completed", targetUserId: null,
       detail: { orderNumber: order.orderNumber, epassTicket }
     }).catch(() => {});
+    retirePushedNotificationsByRef(`weborder:${order.orderNumber}`).catch(() => {});
 
     return res.json({ ok: true, order });
   } catch (err) {
@@ -5033,7 +5115,7 @@ app.post("/api/shop-orders/:id/complete", requirePagePermission("/dashboard.html
 
 // INTERNAL: cancel an order and release its web locks (only locks that still
 // belong to this order — a unit re-sold in the meantime is left alone).
-app.post("/api/shop-orders/:id/cancel", requirePagePermission("/dashboard.html"), async (req, res) => {
+app.post("/api/shop-orders/:id/cancel", requirePagePermission("/shop-orders.html"), async (req, res) => {
   try {
     const order = await cancelShopOrder({ id: req.params.id, reason: req.body?.reason || "" });
     if (!order) return res.status(409).json({ error: "This order can't be canceled (already completed or canceled)." });
@@ -5052,6 +5134,7 @@ app.post("/api/shop-orders/:id/cancel", requirePagePermission("/dashboard.html")
       action: "shop_order_canceled", targetUserId: null,
       detail: { orderNumber: order.orderNumber, reason: order.cancelReason }
     }).catch(() => {});
+    retirePushedNotificationsByRef(`weborder:${order.orderNumber}`).catch(() => {});
 
     return res.json({ ok: true, order });
   } catch (err) {
@@ -5062,7 +5145,7 @@ app.post("/api/shop-orders/:id/cancel", requirePagePermission("/dashboard.html")
 
 // INTERNAL: refresh the availability snapshot from the latest ePASS
 // ExportModel export (parsed in the browser; serials only travel here).
-app.post("/api/shop/inventory-snapshot", requirePagePermission("/dashboard.html"), async (req, res) => {
+app.post("/api/shop/inventory-snapshot", requirePagePermission("/shop-orders.html"), async (req, res) => {
   try {
     const serials = Array.isArray(req.body?.serials) ? req.body.serials : [];
     if (!serials.length) return res.status(400).json({ error: "No serial numbers found in that file." });
@@ -5099,7 +5182,7 @@ app.post("/api/shop/inventory-snapshot", requirePagePermission("/dashboard.html"
 // INTERNAL: shopper profile admin for the dashboard module — when a client
 // calls in stuck, staff can find them, fix their contact details, and hand
 // them a temporary password.
-app.get("/api/shop-shoppers", requirePagePermission("/dashboard.html"), async (req, res) => {
+app.get("/api/shop-shoppers", requirePagePermission("/shop-orders.html"), async (req, res) => {
   try {
     const shoppers = await searchShopShoppers(req.query.search);
     res.setHeader("Cache-Control", "no-store");
@@ -5123,7 +5206,7 @@ app.get("/api/shop-shoppers", requirePagePermission("/dashboard.html"), async (r
   }
 });
 
-app.post("/api/shop-shoppers/:id/profile", requirePagePermission("/dashboard.html"), async (req, res) => {
+app.post("/api/shop-shoppers/:id/profile", requirePagePermission("/shop-orders.html"), async (req, res) => {
   try {
     const checked = validateShopperFields(req.body);
     if (checked.error) return res.status(400).json({ error: checked.error });
@@ -5144,12 +5227,34 @@ app.post("/api/shop-shoppers/:id/profile", requirePagePermission("/dashboard.htm
   }
 });
 
+// INTERNAL: delete a shopper profile (test records, spam). Orders keep
+// their embedded customer snapshot; only the login/profile goes away.
+app.delete("/api/shop-shoppers/:id", requirePagePermission("/shop-orders.html"), async (req, res) => {
+  try {
+    const shopper = await getShopperById(req.params.id);
+    if (!shopper) return res.status(404).json({ error: "Shopper profile not found." });
+    const removed = await deleteShopper(req.params.id);
+    if (!removed) return res.status(404).json({ error: "Shopper profile not found." });
+
+    recordAudit({
+      ip: req.ip, actorUserId: req.authUser?.id || null,
+      action: "shop_shopper_deleted", targetUserId: null,
+      detail: { clientCode: shopper.clientCode, name: `${shopper.firstName} ${shopper.lastName}` }
+    }).catch(() => {});
+
+    return res.json({ ok: true });
+  } catch (err) {
+    console.error("Shopper delete failed:", err.message);
+    return res.status(500).json({ error: "Unable to delete the profile." });
+  }
+});
+
 // INTERNAL: pull existing Stripe customers into the Agility shopper list.
 // Walks the full Stripe customer list; each record is linked to an existing
 // shopper (phone/email match), imported as a new profile (client code and
 // all), or skipped when Stripe has no usable contact info. Safe to re-run —
 // already-linked customers are counted and left alone.
-app.post("/api/shop-shoppers/import-stripe", requirePagePermission("/dashboard.html"), async (req, res) => {
+app.post("/api/shop-shoppers/import-stripe", requirePagePermission("/shop-orders.html"), async (req, res) => {
   try {
     const summary = { created: 0, linked: 0, already: 0, skipped: 0, scanned: 0 };
     const MAX_SCAN = 5000;
@@ -5189,7 +5294,7 @@ app.post("/api/shop-shoppers/import-stripe", requirePagePermission("/dashboard.h
 
 // Generates a temporary password and returns it ONCE for the rep to read
 // to the client (they can change it themselves in their shop profile).
-app.post("/api/shop-shoppers/:id/temp-password", requirePagePermission("/dashboard.html"), async (req, res) => {
+app.post("/api/shop-shoppers/:id/temp-password", requirePagePermission("/shop-orders.html"), async (req, res) => {
   try {
     const result = await setShopperTempPassword({ id: req.params.id });
     if (!result) return res.status(404).json({ error: "Shopper profile not found." });

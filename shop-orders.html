@@ -1,0 +1,718 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="robots" content="noindex,nofollow,noarchive" />
+  <title>Wilson AC &amp; Appliance - Online Shop Orders</title>
+  <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+  <link rel="stylesheet" href="internal-shell.css" />
+  <style>
+    :root {
+      --bg: #f7f8fc;
+      --card: #ffffff;
+      --text: #1f2937;
+      --muted: #6b7280;
+      --border: #dbe1ea;
+      --shadow: 0 10px 35px rgba(0, 0, 0, 0.08);
+      --radius: 18px;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Roboto", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: linear-gradient(180deg, var(--primary-tint) 0%, var(--bg) 100%);
+      color: var(--text);
+      min-height: 100vh;
+      padding: 32px 16px;
+    }
+    .wrap { max-width: 1100px; margin: 0 auto; }
+    .surface {
+      background: var(--card);
+      border: 1px solid rgba(var(--primary-rgb), 0.12);
+      box-shadow: var(--shadow);
+      border-radius: var(--radius);
+      padding: 22px;
+      margin: 0 auto 20px;
+    }
+    h2 { margin: 0 0 6px; font-size: 20px; }
+    .page-head { margin-bottom: 12px; }
+    .section-note { margin: 0 0 14px; color: var(--muted); font-size: 13.5px; line-height: 1.5; }
+    .section-note a { color: var(--primary); font-weight: 600; }
+    .block-title { font-size: 12px; font-weight: 700; letter-spacing: 0.07em; text-transform: uppercase; color: var(--muted); margin: 18px 0 8px; }
+    .ws-status { display: none; border-radius: 12px; padding: 10px 13px; font-size: 13px; margin-bottom: 12px; line-height: 1.5; }
+    .ws-status.show { display: block; }
+    .ws-status.ok { background: rgba(var(--primary-rgb), 0.1); color: var(--primary); }
+    .ws-status.error { background: #fee2e2; color: #991b1b; }
+    .ws-toolbar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+    .ws-chips { display: flex; flex-wrap: wrap; gap: 7px; }
+    .ws-chip { border: 1px solid var(--border); background: #fff; border-radius: 999px; padding: 5px 12px; font-size: 12.5px; cursor: pointer; font-weight: 500; font-family: inherit; }
+    .ws-chip.active { background: var(--primary); border-color: var(--primary); color: #fff; }
+    .ws-snap { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+    .ws-snap-meta { font-size: 12px; color: var(--muted); max-width: 420px; line-height: 1.45; }
+    .ws-file { display: inline-flex; align-items: center; background: #fff; border: 1px solid var(--border); color: inherit; border-radius: 10px; padding: 7px 12px; font-size: 12.5px; font-weight: 600; cursor: pointer; }
+    .ws-file input { display: none; }
+    .ws-order { border: 1px solid var(--border); border-radius: 13px; padding: 13px 15px; margin-bottom: 11px; }
+    .ws-order.conflict { border-color: #f59e0b; box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.12); }
+    .ws-head { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 7px; }
+    .ws-no { font-weight: 700; font-size: 14.5px; }
+    .ws-when { font-size: 12px; color: var(--muted); }
+    .ws-spacer { flex: 1; }
+    .ws-pill { border-radius: 999px; padding: 3px 10px; font-size: 11.5px; font-weight: 700; border: 2px solid #111827; }
+    .ws-pill.new { background: #dbeafe; color: #1e40af; }
+    .ws-pill.claimed { background: #fef3c7; color: #92400e; }
+    .ws-pill.completed { background: #dcfce7; color: #166534; }
+    .ws-pill.canceled { background: #f3f4f6; color: #4b5563; }
+    .ws-tag { border-radius: 999px; padding: 3px 10px; font-size: 11.5px; font-weight: 600; }
+    .ws-tag.contact { background: #eef2ff; color: #3730a3; }
+    .ws-tag.card { background: #f0fdf4; color: #166534; }
+    .ws-tag.nocard { background: #fee2e2; color: #991b1b; }
+    .ws-lines { font-size: 13px; line-height: 1.6; color: #374151; }
+    .ws-lines .ws-serial { color: var(--muted); font-size: 11.5px; }
+    .ws-lines .ws-total { font-weight: 700; color: inherit; }
+    .ws-client { font-size: 12.5px; color: var(--muted); margin-top: 5px; line-height: 1.55; }
+    .ws-conflict-note { background: #fffbeb; border: 1px solid #fde68a; color: #92400e; border-radius: 10px; padding: 8px 11px; font-size: 12.5px; line-height: 1.5; margin-top: 9px; }
+    .ws-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 11px; align-items: center; }
+    .ws-actions input[type="text"] { width: 160px; border: 1px solid var(--border); border-radius: 10px; padding: 8px 11px; font-size: 12.5px; font-family: inherit; }
+    .ws-btn { border: none; border-radius: 10px; cursor: pointer; font-size: 12.5px; font-weight: 600; padding: 8px 13px; font-family: inherit; }
+    .ws-btn:disabled { opacity: 0.55; cursor: wait; }
+    .ws-btn.primary { background: var(--primary); color: #fff; }
+    .ws-btn.danger { background: #fff; color: #b91c1c; border: 1px solid #fca5a5; }
+    .ws-empty { text-align: center; color: var(--muted); padding: 22px 8px; font-size: 13px; }
+    .ws-shopper { border: 1px solid var(--border); border-radius: 12px; padding: 10px 13px; margin-bottom: 9px; font-size: 13px; }
+    .ws-shopper-head { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+    .ws-shopper-head .nm { font-weight: 700; }
+    .ws-shopper-head .meta { color: var(--muted); }
+    .ws-code-chip { background: #eef2ff; color: #3730a3; border-radius: 999px; padding: 2px 9px; font-size: 11.5px; font-weight: 700; }
+    .ws-pass-chip { border-radius: 999px; padding: 2px 9px; font-size: 11.5px; font-weight: 600; }
+    .ws-pass-chip.yes { background: #dcfce7; color: #166534; }
+    .ws-pass-chip.no { background: #f3f4f6; color: var(--muted); }
+    .ws-shopper-form { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 9px; margin-top: 10px; }
+    .ws-shopper-form input, .ws-shopper-form select { border: 1px solid var(--border); border-radius: 9px; padding: 7px 10px; font-size: 12.5px; font-family: inherit; width: 100%; }
+    .ws-temp-pass { background: #fffbeb; border: 1px solid #fde68a; color: #92400e; border-radius: 10px; padding: 8px 11px; font-size: 13px; margin-top: 9px; }
+    .ws-temp-pass strong { font-size: 15px; letter-spacing: 0.08em; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div id="shellNav"></div>
+
+    <div class="surface">
+        <div class="page-head">
+          <h2>Online Shop Orders</h2>
+          <p class="section-note">Web orders from <a href="https://shop.wilsonappliance.com" target="_blank" rel="noopener">shop.wilsonappliance.com</a> — claim one, build the ticket in ePASS, then complete it here to flip its <a href="clearance.html">hit-list</a> locks to Sold. Canceling releases them.</p>
+        </div>
+        <div id="wsStatus" class="ws-status"></div>
+        <div class="ws-toolbar">
+          <div class="ws-chips" id="wsChips"></div>
+          <div class="ws-snap">
+            <span class="ws-snap-meta" id="wsSnapMeta">No availability snapshot yet — the shop shows the full clearance list.</span>
+            <label class="ws-file">Upload ExportModel .xlsx
+              <input type="file" id="wsSnapFile" accept=".xlsx" />
+            </label>
+          </div>
+        </div>
+        <div id="wsOrders"></div>
+        <div class="ws-shopper-admin">
+          <div class="block-title" style="font-size:12px; font-weight:700; letter-spacing:0.07em; text-transform:uppercase; color:#6b7280; margin: 18px 0 8px;">Shopper Profiles</div>
+          <p class="section-note" style="margin-bottom: 10px;">Client having trouble on the shop? Find their profile to fix contact details or hand them a temporary password (they can change it in their shop profile).</p>
+          <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
+            <input type="search" id="wsShopperSearch" placeholder="Search by name, phone, client code, or email" style="border:1px solid var(--border,#dbe1ea); border-radius:10px; padding:9px 12px; font-size:13px; font-family:inherit; flex:1; min-width:240px; max-width:420px;" />
+            <button type="button" class="ws-btn primary" id="wsStripeImport" title="Pull existing Stripe customers into the shopper list">Import Stripe customers</button>
+          </div>
+          <div id="wsShoppers" style="margin-top:10px;"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="internal-shell.js"></script>
+  <script>
+    // ------------------------------------------------------------------
+    // Online Shop Orders module — the web-order queue from
+    // shop.wilsonappliance.com. Claim → complete with the ePASS ticket
+    // (flips the Clearance Hit List web locks to Sold) or cancel
+    // (releases them). Also hosts the ExportModel availability snapshot
+    // upload that trims the storefront to live ePASS inventory.
+    // ------------------------------------------------------------------
+    (function () {
+      const state = { orders: [], snapshot: null, filter: "open" };
+
+      const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch]));
+      const money = (n) => "$" + Number(n || 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      const when = (iso) => iso ? new Date(iso).toLocaleString("en-US", { month: "2-digit", day: "2-digit", year: "2-digit", hour: "numeric", minute: "2-digit" }) : "—";
+
+      function setWsStatus(message, kind) {
+        const box = document.getElementById("wsStatus");
+        if (!message) { box.className = "ws-status"; box.textContent = ""; return; }
+        box.className = "ws-status " + kind + " show";
+        box.textContent = message;
+      }
+
+      async function api(path, options) {
+        const res = await fetch(path, {
+          credentials: "same-origin",
+          headers: { "Content-Type": "application/json" },
+          ...options
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error || "Request failed.");
+        return data;
+      }
+
+      async function load() {
+        try {
+          const data = await api("/api/shop-orders");
+          state.orders = data.orders || [];
+          state.snapshot = data.snapshot;
+          renderSnapshot();
+          renderChips();
+          renderOrders();
+        } catch (err) {
+          setWsStatus(err.message, "error");
+        }
+      }
+
+      function renderSnapshot() {
+        const meta = document.getElementById("wsSnapMeta");
+        if (!state.snapshot) {
+          meta.textContent = "No availability snapshot yet — the shop shows the full clearance list.";
+          return;
+        }
+        const writtenBit = state.snapshot.writtenCount ? ` · written-to excluded` : "";
+        const typeBit = state.snapshot.typedCount
+          ? " · condition flags live"
+          : " · ⚠ NO condition flags — re-upload the newer ExportModel (with the Serial Type column)";
+        meta.textContent = `Snapshot: ${state.snapshot.sourceFile || "ExportModel"} · ${Number(state.snapshot.count).toLocaleString()} serials${typeBit}${writtenBit} · ${when(state.snapshot.uploadedAt)}`;
+      }
+
+      const FILTERS = [
+        { key: "open", label: "Open" },
+        { key: "completed", label: "Completed" },
+        { key: "canceled", label: "Canceled" },
+        { key: "all", label: "All" }
+      ];
+
+      function renderChips() {
+        const box = document.getElementById("wsChips");
+        box.textContent = "";
+        const counts = { new: 0, claimed: 0, completed: 0, canceled: 0 };
+        for (const o of state.orders) counts[o.status] = (counts[o.status] || 0) + 1;
+        for (const f of FILTERS) {
+          const count =
+            f.key === "all" ? state.orders.length :
+            f.key === "open" ? (counts.new + counts.claimed) :
+            (counts[f.key] || 0);
+          const chip = document.createElement("button");
+          chip.type = "button";
+          chip.className = "ws-chip" + (state.filter === f.key ? " active" : "");
+          chip.textContent = `${f.label} (${count})`;
+          chip.addEventListener("click", () => { state.filter = f.key; renderChips(); renderOrders(); });
+          box.appendChild(chip);
+        }
+      }
+
+      function visibleOrders() {
+        if (state.filter === "all") return state.orders;
+        if (state.filter === "open") return state.orders.filter((o) => ["new", "claimed"].includes(o.status));
+        return state.orders.filter((o) => o.status === state.filter);
+      }
+
+      function renderOrders() {
+        const list = document.getElementById("wsOrders");
+        list.textContent = "";
+        const orders = visibleOrders();
+        if (!orders.length) {
+          const empty = document.createElement("div");
+          empty.className = "ws-empty";
+          empty.textContent = "No orders here yet — new web orders appear the moment a client checks out.";
+          list.appendChild(empty);
+          return;
+        }
+        for (const order of orders) list.appendChild(renderOrder(order));
+      }
+
+      function renderOrder(order) {
+        const c = order.customer || {};
+        const addr = c.address || {};
+        const wrap = document.createElement("div");
+        wrap.className = "ws-order" + ((order.lockConflicts || []).length && order.status !== "canceled" ? " conflict" : "");
+
+        const cardTag = order.cardSummary?.last4
+          ? `<span class="ws-tag card">${esc((order.cardSummary.brand || "card").toUpperCase())} •••• ${esc(order.cardSummary.last4)}</span>`
+          : `<span class="ws-tag nocard">No card captured</span>`;
+
+        const lines = [
+          ...(order.items || []).map((i) =>
+            `<div>${esc(i.brand)} ${esc(i.model)}${i.condition === "new" ? " · New in Box" : i.condition === "open" ? " · Open Box" : ""} <span class="ws-serial">SN ${esc(i.serial)}${i.serialType ? " · " + esc(i.serialType) : ""}</span> — ${money(i.price)}</div>`),
+          ...(order.addons || []).map((a) =>
+            `<div>${esc(a.name)}${a.qty > 1 ? " × " + a.qty : ""} — ${money(a.price * a.qty)}</div>`),
+          `<div>${esc(order.delivery?.name || "White Glove Delivery")} — ${money(order.delivery?.price)}</div>`,
+          ...(order.totals?.tax != null ? [`<div>Sales tax — ${money(order.totals.tax)}</div>`] : []),
+          `<div class="ws-total">Estimated total — ${money(order.totals?.total)}</div>`
+        ].join("");
+
+        const clientBits = [
+          `${esc(c.firstName || "")} ${esc(c.lastName || "")}`.trim(),
+          esc(c.phone || ""),
+          c.email ? esc(c.email) : "",
+          esc([addr.line1, addr.line2, addr.city, addr.zip].filter(Boolean).join(", ")),
+          c.clientCode ? "Client code " + esc(c.clientCode) : "",
+          order.claimedByName || order.claimedByEmail ? "Claimed by " + esc(order.claimedByName || order.claimedByEmail) : "",
+          order.epassTicket ? "ePASS " + esc(order.epassTicket) : "",
+          order.cancelReason ? "Cancel reason: " + esc(order.cancelReason) : ""
+        ].filter(Boolean).join(" · ");
+
+        wrap.innerHTML = `
+          <div class="ws-head">
+            <span class="ws-no">${esc(order.orderNumber)}</span>
+            <span class="ws-when">${when(order.createdAt)}</span>
+            <span class="ws-spacer"></span>
+            <span class="ws-tag contact">${esc(c.preferredContact || "Contact")} preferred</span>
+            ${cardTag}
+            <span class="ws-pill ${esc(order.status)}">${esc(order.status.toUpperCase())}</span>
+          </div>
+          <div class="ws-lines">${lines}</div>
+          <div class="ws-client">${clientBits}</div>
+          ${(order.lockConflicts || []).length ? `<div class="ws-conflict-note">Heads up — ${esc(order.lockConflicts.map((x) => x.model).join(", "))} couldn't be locked on the hit list (someone marked it first). Confirm availability with the client before building the ticket.</div>` : ""}`;
+
+        if (["new", "claimed"].includes(order.status)) {
+          const actions = document.createElement("div");
+          actions.className = "ws-actions";
+          if (order.status === "new") {
+            const claim = document.createElement("button");
+            claim.type = "button";
+            claim.className = "ws-btn primary";
+            claim.textContent = "Claim this order";
+            claim.addEventListener("click", (e) => act(e.target, `/api/shop-orders/${order.id}/claim`, {}));
+            actions.appendChild(claim);
+          }
+          if (order.status === "claimed") {
+            const unclaim = document.createElement("button");
+            unclaim.type = "button";
+            unclaim.className = "ws-btn danger";
+            unclaim.textContent = "Unclaim";
+            unclaim.title = "Release this order back to the pool — the green flags go back out to every consultant";
+            unclaim.addEventListener("click", (e) => {
+              if (!confirm(`Release ${order.orderNumber} back to the pool? The green flags go back out to every consultant.`)) return;
+              act(e.target, `/api/shop-orders/${order.id}/unclaim`, {});
+            });
+            actions.appendChild(unclaim);
+          }
+          const ticket = document.createElement("input");
+          ticket.type = "text";
+          ticket.placeholder = "ePASS ticket #";
+          actions.appendChild(ticket);
+          const complete = document.createElement("button");
+          complete.type = "button";
+          complete.className = "ws-btn primary";
+          complete.textContent = "Complete order";
+          complete.addEventListener("click", (e) => {
+            const epassTicket = ticket.value.trim();
+            if (!epassTicket) { setWsStatus("Enter the ePASS ticket number to complete " + order.orderNumber + ".", "error"); return; }
+            act(e.target, `/api/shop-orders/${order.id}/complete`, { epassTicket });
+          });
+          actions.appendChild(complete);
+          const cancel = document.createElement("button");
+          cancel.type = "button";
+          cancel.className = "ws-btn danger";
+          cancel.textContent = "Cancel order";
+          cancel.addEventListener("click", (e) => {
+            const reason = prompt(`Cancel ${order.orderNumber}? The hit-list locks release immediately.\n\nReason (shared internally):`);
+            if (reason === null) return;
+            act(e.target, `/api/shop-orders/${order.id}/cancel`, { reason });
+          });
+          actions.appendChild(cancel);
+          wrap.appendChild(actions);
+        }
+
+        return wrap;
+      }
+
+      async function act(button, path, payload) {
+        button.disabled = true;
+        try {
+          await api(path, { method: "POST", body: JSON.stringify(payload) });
+          setWsStatus("Done.", "ok");
+          await load();
+        } catch (err) {
+          setWsStatus(err.message, "error");
+          button.disabled = false;
+          await load();
+        }
+      }
+
+      // ---- ExportModel snapshot upload (self-contained xlsx reader — a
+      // ZIP of XML; DecompressionStream inflates, DOMParser reads). ----
+      async function inflateRaw(bytes) {
+        const stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream("deflate-raw"));
+        return new Uint8Array(await new Response(stream).arrayBuffer());
+      }
+
+      function readZipDirectory(buffer) {
+        const view = new DataView(buffer);
+        const bytes = new Uint8Array(buffer);
+        let eocd = -1;
+        const scanStart = Math.max(0, buffer.byteLength - 22 - 65536);
+        for (let i = buffer.byteLength - 22; i >= scanStart; i--) {
+          if (view.getUint32(i, true) === 0x06054b50) { eocd = i; break; }
+        }
+        if (eocd < 0) throw new Error("That doesn't look like an xlsx file.");
+        const count = view.getUint16(eocd + 10, true);
+        let offset = view.getUint32(eocd + 16, true);
+        const entries = {};
+        const decoder = new TextDecoder();
+        for (let i = 0; i < count; i++) {
+          if (view.getUint32(offset, true) !== 0x02014b50) break;
+          const method = view.getUint16(offset + 10, true);
+          const compSize = view.getUint32(offset + 20, true);
+          const nameLen = view.getUint16(offset + 28, true);
+          const extraLen = view.getUint16(offset + 30, true);
+          const commentLen = view.getUint16(offset + 32, true);
+          const localOffset = view.getUint32(offset + 42, true);
+          const name = decoder.decode(bytes.subarray(offset + 46, offset + 46 + nameLen));
+          entries[name] = { method, compSize, localOffset };
+          offset += 46 + nameLen + extraLen + commentLen;
+        }
+        return { view, bytes, entries };
+      }
+
+      async function readZipText(zip, name) {
+        const entry = zip.entries[name];
+        if (!entry) return null;
+        const nameLen = zip.view.getUint16(entry.localOffset + 26, true);
+        const extraLen = zip.view.getUint16(entry.localOffset + 28, true);
+        const start = entry.localOffset + 30 + nameLen + extraLen;
+        const data = zip.bytes.subarray(start, start + entry.compSize);
+        const raw = entry.method === 0 ? data : await inflateRaw(data);
+        return new TextDecoder().decode(raw);
+      }
+
+      function textOfShared(si) {
+        let out = "";
+        const ts = si.getElementsByTagName("t");
+        for (let i = 0; i < ts.length; i++) out += ts[i].textContent;
+        return out;
+      }
+
+      function refToColIndex(ref) {
+        let n = 0;
+        for (let i = 0; i < ref.length; i++) {
+          const code = ref.charCodeAt(i);
+          if (code < 65 || code > 90) break;
+          n = n * 26 + (code - 64);
+        }
+        return n - 1;
+      }
+
+      async function workbookToGrids(arrayBuffer) {
+        const zip = readZipDirectory(arrayBuffer);
+        const sheetNames = Object.keys(zip.entries)
+          .filter((n) => /^xl\/worksheets\/[^\/]+\.xml$/i.test(n))
+          .sort((a, b) => {
+            const na = Number((a.match(/(\d+)\.xml$/i) || [])[1] || 0);
+            const nb = Number((b.match(/(\d+)\.xml$/i) || [])[1] || 0);
+            return na - nb || a.localeCompare(b);
+          });
+        if (!sheetNames.length) throw new Error("No worksheet found in that file.");
+
+        const sharedXml = await readZipText(zip, "xl/sharedStrings.xml");
+        const shared = [];
+        if (sharedXml) {
+          const sharedDoc = new DOMParser().parseFromString(sharedXml, "application/xml");
+          const sis = sharedDoc.getElementsByTagName("si");
+          for (let i = 0; i < sis.length; i++) shared.push(textOfShared(sis[i]));
+        }
+
+        const grids = [];
+        for (const sheetName of sheetNames) {
+          const sheetXml = await readZipText(zip, sheetName);
+          if (!sheetXml) continue;
+          const doc = new DOMParser().parseFromString(sheetXml, "application/xml");
+          const grid = [];
+          const rows = doc.getElementsByTagName("row");
+          // ePASS stamps r/ref attributes on only SOME rows/cells — track
+          // cursors so explicit and implicit positions interleave correctly.
+          let lastRow = -1;
+          for (let r = 0; r < rows.length; r++) {
+            const rAttr = rows[r].getAttribute("r");
+            const rowIndex = rAttr ? Number(rAttr) - 1 : lastRow + 1;
+            lastRow = rowIndex;
+            const cells = rows[r].getElementsByTagName("c");
+            const out = [];
+            let lastCol = -1;
+            for (let cIdx = 0; cIdx < cells.length; cIdx++) {
+              const cell = cells[cIdx];
+              const ref = cell.getAttribute("r") || "";
+              const col = ref ? refToColIndex(ref) : lastCol + 1;
+              lastCol = col;
+              const type = cell.getAttribute("t") || "n";
+              let value = null;
+              if (type === "inlineStr") {
+                value = textOfShared(cell);
+              } else {
+                const v = cell.getElementsByTagName("v")[0];
+                if (v) {
+                  const text = v.textContent;
+                  if (type === "s") value = shared[Number(text)] ?? "";
+                  else if (type === "str" || type === "b") value = text;
+                  else value = text === "" ? null : Number(text);
+                }
+              }
+              out[col] = value;
+            }
+            grid[rowIndex] = out;
+          }
+          grids.push(grid);
+        }
+        return grids;
+      }
+
+      function normalizeHeaderText(value) {
+        return String(value == null ? "" : value).replace(/[\s\u00a0]+/g, " ").trim().toLowerCase();
+      }
+
+      // Snapshot entries are keyed "MODELKEY|SERIAL" (both the * Model and
+      // SKU spellings) because accessory pseudo-serials like "00001" repeat
+      // across models. Returns:
+      //   serials — composite availability keys
+      //   types   — { key: Serial Type } (ALL/OPEN/DISPLAY/...)
+      //   written — { key: Written To } — units already written to a sales
+      //             order, which the shop must never sell
+      //   unitCount — distinct physical serials, for the status message
+      function extractSerials(grids) {
+        const normModel = (v) => String(v ?? "").toUpperCase().replace(/[^0-9A-Z]/g, "");
+        for (const grid of grids) {
+          const headerIndex = grid.findIndex((row) => {
+            if (!row) return false;
+            const t = row.map(normalizeHeaderText);
+            return t.includes("serial") && t.some((x) => x === "* model" || x === "model" || x === "sku");
+          });
+          if (headerIndex < 0) continue;
+          const headerTexts = grid[headerIndex].map(normalizeHeaderText);
+          const serialCol = headerTexts.indexOf("serial");
+          const typeCol = headerTexts.indexOf("serial type");
+          const writtenCol = headerTexts.indexOf("written to");
+          const modelCols = [headerTexts.indexOf("* model"), headerTexts.indexOf("model"), headerTexts.indexOf("sku")].filter((c) => c >= 0);
+          const serials = new Set();
+          const types = {};
+          const written = {};
+          const units = new Set();
+          for (let r = headerIndex + 1; r < grid.length; r++) {
+            const serial = String(grid[r]?.[serialCol] ?? "").trim().toUpperCase();
+            if (!serial) continue;
+            units.add(serial);
+            const type = typeCol >= 0 ? String(grid[r]?.[typeCol] ?? "").trim() : "";
+            const writtenTo = writtenCol >= 0 ? String(grid[r]?.[writtenCol] ?? "").trim() : "";
+            const keys = new Set();
+            for (const c of modelCols) {
+              const mk = normModel(grid[r]?.[c]);
+              if (mk) keys.add(mk + "|" + serial);
+            }
+            if (!keys.size) keys.add(serial); // no model columns — plain serial fallback
+            for (const key of keys) {
+              serials.add(key);
+              if (type) types[key] = type;
+              if (writtenTo) written[key] = writtenTo;
+            }
+          }
+          return { serials: [...serials], types, written, unitCount: units.size };
+        }
+        throw new Error("Couldn't find a Serial column — is this the ExportModel (Model Maintenance) export?");
+      }
+
+      // ---- Shopper profile admin ----
+      const shopperState = { rows: [], editing: null, tempFor: null, tempPass: "" };
+
+      async function loadShoppers() {
+        try {
+          const data = await api("/api/shop-shoppers?search=" + encodeURIComponent(document.getElementById("wsShopperSearch").value.trim()));
+          shopperState.rows = data.shoppers || [];
+          renderShoppers();
+        } catch (err) {
+          setWsStatus(err.message, "error");
+        }
+      }
+
+      document.getElementById("wsStripeImport").addEventListener("click", async (e) => {
+        if (!confirm("Scan your Stripe account and pull its customers into the shopper list?\n\nExisting shoppers are matched by phone or email (no duplicates); customers with no phone or email are skipped. Safe to re-run any time.")) return;
+        e.target.disabled = true;
+        e.target.textContent = "Importing… (this can take a minute)";
+        try {
+          const result = await api("/api/shop-shoppers/import-stripe", { method: "POST", body: "{}" });
+          setWsStatus(
+            `Stripe import: ${result.scanned.toLocaleString()} customers scanned — ` +
+            `${result.created.toLocaleString()} new profiles created, ${result.linked.toLocaleString()} linked to existing shoppers, ` +
+            `${result.already.toLocaleString()} already linked, ${result.skipped.toLocaleString()} skipped (no contact info).` +
+            (result.capped ? " Scan cap reached — run again to continue." : ""),
+            "ok"
+          );
+          await loadShoppers();
+        } catch (err) {
+          setWsStatus(err.message, "error");
+        } finally {
+          e.target.disabled = false;
+          e.target.textContent = "Import Stripe customers";
+        }
+      });
+
+      let shopperSearchTimer = null;
+      document.getElementById("wsShopperSearch").addEventListener("input", () => {
+        clearTimeout(shopperSearchTimer);
+        shopperSearchTimer = setTimeout(loadShoppers, 250);
+      });
+
+      function renderShoppers() {
+        const box = document.getElementById("wsShoppers");
+        box.textContent = "";
+        if (!shopperState.rows.length) {
+          const empty = document.createElement("div");
+          empty.className = "ws-empty";
+          empty.textContent = "No matching shopper profiles.";
+          box.appendChild(empty);
+          return;
+        }
+        for (const s of shopperState.rows) box.appendChild(renderShopper(s));
+      }
+
+      function renderShopper(s) {
+        const wrap = document.createElement("div");
+        wrap.className = "ws-shopper";
+        const addr = s.address || {};
+        wrap.innerHTML = `
+          <div class="ws-shopper-head">
+            <span class="nm">${esc(s.firstName)} ${esc(s.lastName)}</span>
+            <span class="ws-code-chip">${esc(s.clientCode || "—")}</span>
+            <span class="ws-pass-chip ${s.hasPassword ? "yes" : "no"}">${s.hasPassword ? "password set" : "no password"}</span>
+            <span class="meta">${esc(s.phone)} · ${esc(s.preferredContact)} preferred${s.email ? " · " + esc(s.email) : ""}</span>
+            <span class="ws-spacer"></span>
+            <button type="button" class="ws-btn primary" data-edit>Edit</button>
+            <button type="button" class="ws-btn danger" data-temp>Temp password</button>
+            <button type="button" class="ws-btn danger" data-del>Delete</button>
+          </div>
+          <div class="meta" style="color:#6b7280; margin-top:3px;">${esc([addr.line1, addr.line2, addr.city, addr.state, addr.zip].filter(Boolean).join(", "))}</div>`;
+
+        if (shopperState.tempFor === s.id && shopperState.tempPass) {
+          const note = document.createElement("div");
+          note.className = "ws-temp-pass";
+          note.innerHTML = `Temporary password for ${esc(s.firstName)}: <strong>${esc(shopperState.tempPass)}</strong> — read it to the client now; it won't be shown again. They sign in with their phone number and can change it in their shop profile.`;
+          wrap.appendChild(note);
+        }
+
+        if (shopperState.editing === s.id) {
+          const form = document.createElement("div");
+          form.className = "ws-shopper-form";
+          form.innerHTML = `
+            <input data-f="firstName" placeholder="First name" value="${esc(s.firstName)}">
+            <input data-f="lastName" placeholder="Last name" value="${esc(s.lastName)}">
+            <input data-f="phone" placeholder="Phone" value="${esc(s.phone)}">
+            <select data-f="preferredContact">
+              ${["Call", "Text", "Email"].map((c) => `<option${c === s.preferredContact ? " selected" : ""}>${c}</option>`).join("")}
+            </select>
+            <input data-f="email" placeholder="Email (optional)" value="${esc(s.email || "")}">
+            <input data-f="line1" placeholder="Address" value="${esc(addr.line1 || "")}">
+            <input data-f="line2" placeholder="Apt / suite" value="${esc(addr.line2 || "")}">
+            <input data-f="city" placeholder="City" value="${esc(addr.city || "")}">
+            <input data-f="state" placeholder="State" value="${esc(addr.state || "TX")}">
+            <input data-f="zip" placeholder="ZIP" value="${esc(addr.zip || "")}">`;
+          const actions = document.createElement("div");
+          actions.style.cssText = "display:flex; gap:8px; margin-top:9px;";
+          const save = document.createElement("button");
+          save.type = "button";
+          save.className = "ws-btn primary";
+          save.textContent = "Save profile";
+          save.addEventListener("click", async () => {
+            const val = (f) => form.querySelector(`[data-f="${f}"]`).value.trim();
+            save.disabled = true;
+            try {
+              await api(`/api/shop-shoppers/${s.id}/profile`, {
+                method: "POST",
+                body: JSON.stringify({
+                  firstName: val("firstName"), lastName: val("lastName"), phone: val("phone"),
+                  email: val("email"), preferredContact: form.querySelector("[data-f=preferredContact]").value,
+                  address: { line1: val("line1"), line2: val("line2"), city: val("city"), state: val("state") || "TX", zip: val("zip") }
+                })
+              });
+              setWsStatus(`Saved ${val("firstName")}'s profile.`, "ok");
+              shopperState.editing = null;
+              await loadShoppers();
+            } catch (err) {
+              setWsStatus(err.message, "error");
+              save.disabled = false;
+            }
+          });
+          const cancel = document.createElement("button");
+          cancel.type = "button";
+          cancel.className = "ws-btn danger";
+          cancel.style.cssText = "color:#374151; border-color:var(--border,#dbe1ea);";
+          cancel.textContent = "Cancel";
+          cancel.addEventListener("click", () => { shopperState.editing = null; renderShoppers(); });
+          actions.appendChild(save);
+          actions.appendChild(cancel);
+          form.appendChild(actions);
+          wrap.appendChild(form);
+        }
+
+        wrap.querySelector("[data-edit]").addEventListener("click", () => {
+          shopperState.editing = shopperState.editing === s.id ? null : s.id;
+          renderShoppers();
+        });
+        wrap.querySelector("[data-del]").addEventListener("click", async (e) => {
+          if (!confirm(`Delete ${s.firstName} ${s.lastName}'s shopper profile (${s.clientCode || "no code"})? Their past orders keep their details, but their code, password, and saved profile stop working. This can't be undone.`)) return;
+          e.target.disabled = true;
+          try {
+            await api(`/api/shop-shoppers/${s.id}`, { method: "DELETE" });
+            setWsStatus(`Deleted ${s.firstName} ${s.lastName}'s profile.`, "ok");
+            await loadShoppers();
+          } catch (err) {
+            setWsStatus(err.message, "error");
+            e.target.disabled = false;
+          }
+        });
+        wrap.querySelector("[data-temp]").addEventListener("click", async (e) => {
+          if (!confirm(`Give ${s.firstName} ${s.lastName} a new temporary password? Any old password stops working immediately.`)) return;
+          e.target.disabled = true;
+          try {
+            const data = await api(`/api/shop-shoppers/${s.id}/temp-password`, { method: "POST", body: "{}" });
+            shopperState.tempFor = s.id;
+            shopperState.tempPass = data.tempPassword;
+            await loadShoppers();
+          } catch (err) {
+            setWsStatus(err.message, "error");
+            e.target.disabled = false;
+          }
+        });
+
+        return wrap;
+      }
+
+      loadShoppers();
+
+      document.getElementById("wsSnapFile").addEventListener("change", async (event) => {
+        const file = event.target.files?.[0];
+        event.target.value = "";
+        if (!file) return;
+        setWsStatus("Reading " + file.name + "…", "ok");
+        try {
+          const grids = await workbookToGrids(await file.arrayBuffer());
+          const { serials, types, written, unitCount } = extractSerials(grids);
+          if (!serials.length) throw new Error("No serial numbers found in that file.");
+          const result = await api("/api/shop/inventory-snapshot", {
+            method: "POST",
+            body: JSON.stringify({ serials, types, written, sourceFile: file.name })
+          });
+          const bits = [`${unitCount.toLocaleString()} serials`];
+          bits.push(result.typedCount ? "condition flags live" : "no Serial Type column");
+          if (result.writtenCount) bits.push(`written-to units excluded from the shop`);
+          setWsStatus(`Snapshot updated — ${bits.join(" · ")}.`, "ok");
+          await load();
+        } catch (err) {
+          setWsStatus(err.message, "error");
+        }
+      });
+
+      load();
+    })();
+  </script>
+</body>
+</html>

@@ -717,14 +717,42 @@
       box-shadow: 0 0 0 4px rgba(var(--primary-rgb), 0.12);
     }
     .module-desc { margin: 0; font-size: 13px; color: #6b7280; }
-    .slot-bar { display: flex; align-items: center; gap: 8px; }
-    .slot-hide {
+    .slot-bar { display: flex; align-items: center; gap: 9px; }
+    .slot-title { padding: 6px 0; }
+    .slot-edit {
       border: 1px solid var(--border, #dbe1ea); background: #fff; color: #6b7280;
-      border-radius: 10px; width: 34px; height: 38px; font-size: 15px; cursor: pointer;
-      line-height: 1; font-family: inherit;
+      border-radius: 10px; width: 34px; height: 34px; cursor: pointer;
+      display: inline-flex; align-items: center; justify-content: center; font-family: inherit;
     }
-    .slot-hide:hover { color: #b91c1c; border-color: #fca5a5; }
-    .module-select:disabled { opacity: 1; cursor: default; background-image: none; padding-right: 14px; }
+    .slot-edit:hover { color: var(--primary); border-color: rgba(var(--primary-rgb), 0.55); }
+    .slot-menu {
+      position: absolute; z-index: 90; background: #fff; border: 1px solid var(--border, #dbe1ea);
+      border-radius: 12px; box-shadow: 0 14px 40px rgba(0,0,0,0.16); padding: 6px; min-width: 210px;
+    }
+    .slot-menu-item {
+      display: flex; align-items: center; gap: 8px; width: 100%; text-align: left;
+      border: none; background: none; font-family: inherit; font-size: 13.5px; color: inherit;
+      padding: 8px 10px; border-radius: 8px; cursor: pointer;
+    }
+    .slot-menu-item:hover { background: rgba(var(--primary-rgb), 0.08); }
+    .slot-menu-item.current { font-weight: 700; color: var(--primary); }
+    .slot-menu-item.danger { color: #b91c1c; }
+    .slot-menu-dot { font-size: 11px; width: 12px; }
+    .slot-menu-divider { border-top: 1px solid var(--border, #dbe1ea); margin: 5px 4px; }
+    .slot-menu-warning {
+      background: #fffbeb; border: 1px solid #fde68a; border-radius: 10px;
+      padding: 9px 11px; margin: 4px 4px 6px;
+    }
+    .slot-menu-warning-text { font-size: 12.5px; color: #92400e; line-height: 1.5; }
+    .slot-menu-warning-actions { display: flex; gap: 8px; margin-top: 8px; }
+    .slot-menu-proceed {
+      border: none; background: var(--primary); color: #fff; border-radius: 8px;
+      padding: 6px 14px; font-size: 12.5px; font-weight: 700; cursor: pointer; font-family: inherit;
+    }
+    .slot-menu-cancel {
+      border: 1px solid var(--border, #dbe1ea); background: #fff; color: inherit; border-radius: 8px;
+      padding: 6px 12px; font-size: 12.5px; font-weight: 600; cursor: pointer; font-family: inherit;
+    }
     .module-add-card {
       margin-top: 30px; border: 2px dashed var(--border, #dbe1ea); background: transparent;
       box-shadow: none; display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
@@ -1421,7 +1449,10 @@
         <div class="ws-shopper-admin">
           <div class="block-title" style="font-size:12px; font-weight:700; letter-spacing:0.07em; text-transform:uppercase; color:#6b7280; margin: 18px 0 8px;">Shopper Profiles</div>
           <p class="module-desc" style="margin-bottom: 10px;">Client having trouble on the shop? Find their profile to fix contact details or hand them a temporary password (they can change it in their shop profile).</p>
-          <input type="search" id="wsShopperSearch" placeholder="Search by name, phone, client code, or email" style="border:1px solid var(--border,#dbe1ea); border-radius:10px; padding:9px 12px; font-size:13px; font-family:inherit; width:100%; max-width:420px;" />
+          <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
+            <input type="search" id="wsShopperSearch" placeholder="Search by name, phone, client code, or email" style="border:1px solid var(--border,#dbe1ea); border-radius:10px; padding:9px 12px; font-size:13px; font-family:inherit; flex:1; min-width:240px; max-width:420px;" />
+            <button type="button" class="ws-btn primary" id="wsStripeImport" title="Pull existing Stripe customers into the shopper list">Import Stripe customers</button>
+          </div>
           <div id="wsShoppers" style="margin-top:10px;"></div>
         </div>
       </div>
@@ -2405,12 +2436,12 @@
   </script>
   <script>
     // ------------------------------------------------------------------
-    // Dashboard modules — slot based. Each visible slot is labeled with its
-    // module and stays put: picking a different module in a slot's dropdown
-    // REPLACES that slot's content (nothing swaps or jumps). The ✕ hides a
-    // module (and its slot); "Add a module" brings hidden ones back. The
-    // layout is saved to the user's profile, and new modules added to the
-    // app stay hidden until a user adds them deliberately.
+    // Dashboard modules — up to THREE labeled slots that never jump.
+    // Each card shows a fixed title; the pencil beside it opens a picker to
+    // change what that slot shows or hide it. Picking a module that's live
+    // in another position warns inline and, on Proceed, MOVES it here.
+    // Layouts save to the user's profile; new modules stay in "Add a
+    // module" until chosen deliberately.
     // ------------------------------------------------------------------
     (function () {
       const MODULES = {
@@ -2421,96 +2452,157 @@
         webshop: "Online Shop Orders"
       };
       const DEFAULT_SLOTS = ["queue", "paid", "bonus"];
+      const MAX_SLOTS = 3;
 
       const cards = {};
       document.querySelectorAll(".module-card").forEach((card) => {
         cards[card.dataset.module] = card;
+        const select = card.querySelector(".module-select");
+        if (select) select.remove(); // titles are static labels now
       });
       if (!Object.keys(cards).length) return;
 
-      let slots = DEFAULT_SLOTS.filter((id) => cards[id]);
+      let slots = DEFAULT_SLOTS.filter((id) => cards[id]).slice(0, MAX_SLOTS);
+
+      const PENCIL_SVG = `
+        <svg viewBox="0 0 24 24" fill="none" width="17" height="17" aria-hidden="true">
+          <path d="M4 6.5h8" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path>
+          <path d="M4 11h5.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path>
+          <path d="M4 15.5h3.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path>
+          <path d="M13.2 17.2l6.3-6.3a1.4 1.4 0 000-2l-1.4-1.4a1.4 1.4 0 00-2 0l-6.3 6.3-.8 3.6a.5.5 0 00.6.6l3.6-.8z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"></path>
+        </svg>`;
+
+      function closeMenus() {
+        document.querySelectorAll(".slot-menu").forEach((m) => m.remove());
+      }
+      document.addEventListener("click", (event) => {
+        if (!event.target.closest?.(".slot-menu") && !event.target.closest?.(".slot-edit")) closeMenus();
+      });
+
+      function openSlotMenu(button, slotIndex) {
+        closeMenus();
+        const menu = document.createElement("div");
+        menu.className = "slot-menu";
+        const current = slots[slotIndex];
+        for (const [id, label] of Object.entries(MODULES)) {
+          if (!cards[id]) continue;
+          const row = document.createElement("button");
+          row.type = "button";
+          row.className = "slot-menu-item" + (id === current ? " current" : "");
+          row.innerHTML = `<span class="slot-menu-dot">${id === current ? "●" : "○"}</span>${label}`;
+          row.addEventListener("click", () => {
+            if (slots[slotIndex] === id) { closeMenus(); return; }
+            const elsewhere = slots.findIndex((s, i) => s === id && i !== slotIndex);
+            if (elsewhere < 0) {
+              closeMenus();
+              slots[slotIndex] = id; // replace THIS slot only — nothing moves
+              render();
+              persist();
+              return;
+            }
+            // Already live in another slot — warn inline and confirm the move.
+            menu.querySelector(".slot-menu-warning")?.remove();
+            const warn = document.createElement("div");
+            warn.className = "slot-menu-warning";
+            warn.innerHTML = `
+              <div class="slot-menu-warning-text">This module is live in another position on your dashboard, selecting it will move it from the other position to this one. Proceed?</div>
+              <div class="slot-menu-warning-actions">
+                <button type="button" class="slot-menu-proceed">Proceed</button>
+                <button type="button" class="slot-menu-cancel">Cancel</button>
+              </div>`;
+            warn.querySelector(".slot-menu-proceed").addEventListener("click", () => {
+              closeMenus();
+              slots[slotIndex] = id;
+              const source = slots.findIndex((s, i) => s === id && i !== slotIndex);
+              if (source >= 0) slots.splice(source, 1);
+              render();
+              persist();
+            });
+            warn.querySelector(".slot-menu-cancel").addEventListener("click", (e) => { e.stopPropagation(); warn.remove(); });
+            row.after(warn);
+          });
+          menu.appendChild(row);
+        }
+        const divider = document.createElement("div");
+        divider.className = "slot-menu-divider";
+        menu.appendChild(divider);
+        const hide = document.createElement("button");
+        hide.type = "button";
+        hide.className = "slot-menu-item danger";
+        hide.textContent = "Hide this module";
+        hide.addEventListener("click", () => {
+          closeMenus();
+          slots.splice(slotIndex, 1);
+          render();
+          persist();
+        });
+        menu.appendChild(hide);
+
+        document.body.appendChild(menu);
+        const rect = button.getBoundingClientRect();
+        menu.style.top = rect.bottom + window.scrollY + 6 + "px";
+        menu.style.left = Math.max(8, rect.left + window.scrollX - 40) + "px";
+      }
+
+      function slotBar(id, slotIndex) {
+        const bar = document.createElement("div");
+        bar.className = "slot-bar";
+        const title = document.createElement("div");
+        title.className = "module-title slot-title";
+        title.textContent = MODULES[id];
+        const edit = document.createElement("button");
+        edit.type = "button";
+        edit.className = "slot-edit";
+        edit.title = "Change or hide this module";
+        edit.setAttribute("aria-label", "Change or hide this module");
+        edit.innerHTML = PENCIL_SVG;
+        edit.addEventListener("click", (event) => {
+          event.stopPropagation();
+          openSlotMenu(edit, slotIndex);
+        });
+        bar.appendChild(title);
+        bar.appendChild(edit);
+        return bar;
+      }
 
       // ---- add-module control (dashed card at the end) ----
       const addCard = document.createElement("div");
       addCard.className = "card module-add-card";
       addCard.innerHTML = `
-        <span class="module-add-label">Add a module to your dashboard:</span>
+        <span class="module-add-label">Add a module (up to ${MAX_SLOTS}):</span>
         <select class="module-select module-add-select" aria-label="Add a module"></select>`;
       const addSelect = addCard.querySelector("select");
       addSelect.addEventListener("change", () => {
         const id = addSelect.value;
-        if (!id || !cards[id] || slots.includes(id)) return;
+        if (!id || !cards[id] || slots.length >= MAX_SLOTS || slots.includes(id)) return;
         slots.push(id);
         render();
         persist();
-        cards[id].scrollIntoView({ behavior: "smooth", block: "start" });
       });
+
+      function render() {
+        closeMenus();
+        const anchor = document.getElementById("internal-shell-footer");
+        for (const card of Object.values(cards)) {
+          card.style.display = "none";
+          card.querySelector(".slot-bar")?.remove();
+        }
+
+        slots.forEach((id, slotIndex) => {
+          const node = cards[id];
+          node.style.display = "";
+          node.querySelector(".module-header").prepend(slotBar(id, slotIndex));
+          anchor.parentNode.insertBefore(node, anchor);
+        });
+        anchor.parentNode.insertBefore(addCard, anchor);
+
+        addCard.style.display = slots.length < MAX_SLOTS && hiddenModules().length ? "" : "none";
+        addSelect.innerHTML = `<option value="">Choose…</option>` +
+          hiddenModules().map((m) => `<option value="${m}">${MODULES[m]}</option>`).join("");
+      }
 
       function hiddenModules() {
         return Object.keys(MODULES).filter((id) => cards[id] && !slots.includes(id));
-      }
-
-      function ensureChrome(card) {
-        if (card.querySelector(".slot-bar")) return;
-        const header = card.querySelector(".module-header");
-        const select = card.querySelector(".module-select");
-        const bar = document.createElement("div");
-        bar.className = "slot-bar";
-        header.prepend(bar);
-        bar.appendChild(select);
-        const hide = document.createElement("button");
-        hide.type = "button";
-        hide.className = "slot-hide";
-        hide.title = "Hide this module (add it back any time below)";
-        hide.setAttribute("aria-label", "Hide this module");
-        hide.textContent = "✕";
-        hide.addEventListener("click", () => {
-          const idx = slots.indexOf(card.dataset.module);
-          if (idx < 0) return;
-          slots.splice(idx, 1);
-          render();
-          persist();
-        });
-        bar.appendChild(hide);
-        select.addEventListener("change", () => {
-          const here = card.dataset.module;
-          const wanted = select.value;
-          if (wanted === here || !cards[wanted]) return;
-          // Replace THIS slot's module in place — no swapping.
-          const idx = slots.indexOf(here);
-          if (idx < 0) return;
-          slots[idx] = wanted;
-          render();
-          persist();
-        });
-      }
-
-      function render() {
-        const anchor = document.getElementById("internal-shell-footer");
-        // visibility + order
-        for (const [id, card] of Object.entries(cards)) {
-          card.style.display = slots.includes(id) ? "" : "none";
-        }
-        for (const id of slots) {
-          anchor.parentNode.insertBefore(cards[id], anchor);
-        }
-        anchor.parentNode.insertBefore(addCard, anchor);
-
-        // selects: this slot's module plus everything not shown elsewhere
-        const hidden = hiddenModules();
-        for (const id of slots) {
-          const card = cards[id];
-          ensureChrome(card);
-          const select = card.querySelector(".module-select");
-          select.innerHTML = [id, ...hidden]
-            .map((m) => `<option value="${m}"${m === id ? " selected" : ""}>${MODULES[m]}</option>`)
-            .join("");
-          select.disabled = !hidden.length;
-        }
-
-        addCard.style.display = hidden.length ? "" : "none";
-        addSelect.innerHTML = `<option value="">Choose…</option>` +
-          hidden.map((m) => `<option value="${m}">${MODULES[m]}</option>`).join("");
       }
 
       function persist() {
@@ -2530,8 +2622,7 @@
             const session = await res.json();
             const saved = Array.isArray(session?.dashboardModules) ? session.dashboardModules : null;
             // A saved layout is authoritative — including an empty one.
-            // (No auto-appending of new modules: they wait in "Add a module".)
-            if (saved) slots = saved.filter((id) => cards[id]);
+            if (saved) slots = [...new Set(saved.filter((id) => cards[id]))].slice(0, MAX_SLOTS);
           }
         } catch {}
         render();
@@ -3384,6 +3475,28 @@
           setWsStatus(err.message, "error");
         }
       }
+
+      document.getElementById("wsStripeImport").addEventListener("click", async (e) => {
+        if (!confirm("Scan your Stripe account and pull its customers into the shopper list?\n\nExisting shoppers are matched by phone or email (no duplicates); customers with no phone or email are skipped. Safe to re-run any time.")) return;
+        e.target.disabled = true;
+        e.target.textContent = "Importing… (this can take a minute)";
+        try {
+          const result = await api("/api/shop-shoppers/import-stripe", { method: "POST", body: "{}" });
+          setWsStatus(
+            `Stripe import: ${result.scanned.toLocaleString()} customers scanned — ` +
+            `${result.created.toLocaleString()} new profiles created, ${result.linked.toLocaleString()} linked to existing shoppers, ` +
+            `${result.already.toLocaleString()} already linked, ${result.skipped.toLocaleString()} skipped (no contact info).` +
+            (result.capped ? " Scan cap reached — run again to continue." : ""),
+            "ok"
+          );
+          await loadShoppers();
+        } catch (err) {
+          setWsStatus(err.message, "error");
+        } finally {
+          e.target.disabled = false;
+          e.target.textContent = "Import Stripe customers";
+        }
+      });
 
       let shopperSearchTimer = null;
       document.getElementById("wsShopperSearch").addEventListener("input", () => {

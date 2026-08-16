@@ -144,6 +144,8 @@ import {
   searchShopShoppers,
   getShopperById,
   setShopperTempPassword,
+  setShopperStripeCustomerId,
+  importStripeCustomerRecord,
   updateShopOrderCardSummary,
   updateShopOrderLockConflicts,
   saveShopInventorySnapshot,
@@ -1770,8 +1772,9 @@ app.post("/api/me/dashboard-modules", async (req, res) => {
     return res.status(400).json({ error: "Send { order: [moduleId, ...] }." });
   }
 
+  // Up to three slots, one position per module.
   const order = [];
-  for (const value of raw.slice(0, 8)) {
+  for (const value of raw.slice(0, 3)) {
     const id = String(value || "").trim();
     if (!DASHBOARD_MODULE_IDS.includes(id)) {
       return res.status(400).json({ error: `Unknown module: ${id}` });
@@ -4758,13 +4761,30 @@ app.post("/api/shop/setup-intent", async (req, res) => {
       },
       metadata: {
         shop_shopper_id: shopper.id,
+        shop_client_code: shopper.clientCode || "",
         preferred_contact: shopper.preferredContact,
         source: "online_shop"
       }
     };
-    const customer = await stripe.customers.create(customerConfig, {
-      idempotencyKey: createStripeIdempotencyKeyFromPayload("shop-customer", customerConfig)
-    });
+
+    // ONE Stripe customer per shopper — reuse the linked record (keeping its
+    // details fresh) so payment history accumulates on a single profile
+    // instead of fragmenting into duplicates Stripe can never merge.
+    let customer = null;
+    if (shopper.stripeCustomerId) {
+      try {
+        customer = await stripe.customers.update(shopper.stripeCustomerId, customerConfig);
+      } catch (err) {
+        console.error("Stripe customer reuse failed, creating fresh:", err.message);
+        customer = null;
+      }
+    }
+    if (!customer) {
+      customer = await stripe.customers.create(customerConfig, {
+        idempotencyKey: createStripeIdempotencyKeyFromPayload("shop-customer", customerConfig)
+      });
+      await setShopperStripeCustomerId({ id: shopper.id, stripeCustomerId: customer.id }).catch(() => {});
+    }
 
     const itemSummary = priced.items.map((i) => `${i.model} (${i.serial})`).join(", ").slice(0, 480);
     const setupIntentConfig = {
@@ -5121,6 +5141,49 @@ app.post("/api/shop-shoppers/:id/profile", requirePagePermission("/dashboard.htm
   } catch (err) {
     console.error("Shopper admin update failed:", err.message);
     return res.status(500).json({ error: "Unable to update the profile." });
+  }
+});
+
+// INTERNAL: pull existing Stripe customers into the Agility shopper list.
+// Walks the full Stripe customer list; each record is linked to an existing
+// shopper (phone/email match), imported as a new profile (client code and
+// all), or skipped when Stripe has no usable contact info. Safe to re-run —
+// already-linked customers are counted and left alone.
+app.post("/api/shop-shoppers/import-stripe", requirePagePermission("/dashboard.html"), async (req, res) => {
+  try {
+    const summary = { created: 0, linked: 0, already: 0, skipped: 0, scanned: 0 };
+    const MAX_SCAN = 5000;
+
+    let startingAfter = null;
+    while (summary.scanned < MAX_SCAN) {
+      const page = await stripe.customers.list({
+        limit: 100,
+        ...(startingAfter ? { starting_after: startingAfter } : {})
+      });
+      for (const customer of page.data) {
+        summary.scanned++;
+        try {
+          const result = await importStripeCustomerRecord(customer);
+          summary[result.outcome] = (summary[result.outcome] || 0) + 1;
+        } catch (err) {
+          console.error("Stripe import failed for", customer.id, err.message);
+          summary.skipped++;
+        }
+      }
+      if (!page.has_more || !page.data.length) break;
+      startingAfter = page.data[page.data.length - 1].id;
+    }
+
+    recordAudit({
+      ip: req.ip, actorUserId: req.authUser?.id || null,
+      action: "shop_stripe_import", targetUserId: null,
+      detail: summary
+    }).catch(() => {});
+
+    return res.json({ ok: true, ...summary, capped: summary.scanned >= MAX_SCAN });
+  } catch (err) {
+    console.error("Stripe customer import failed:", err.message);
+    return res.status(500).json({ error: err.message || "Unable to import Stripe customers." });
   }
 });
 

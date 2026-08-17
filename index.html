@@ -549,6 +549,22 @@
       }
     }
 
+    // Departments come from the DB vocabulary (served alongside the employee
+    // directory). Falls back to the baked-in options if the list is absent.
+    (function fillDepartments() {
+      const list = Array.isArray(window.WILSON_DEPARTMENTS) ? window.WILSON_DEPARTMENTS : null;
+      if (!list || !list.length) return;
+      const current = departmentInput.value;
+      departmentInput.innerHTML = '';
+      for (const name of list) {
+        const opt = document.createElement('option');
+        opt.value = name;
+        opt.textContent = name;
+        departmentInput.appendChild(opt);
+      }
+      if (current && list.includes(current)) departmentInput.value = current;
+    })();
+
     creatorCodeInput.addEventListener('input', () => {
       const isValid = applyCreatorLookup();
       if (creatorCodeInput.value.trim() && !isValid) {

@@ -224,6 +224,8 @@
     .jt-chip.route { background: var(--success-bg); color: var(--success-text); }
     .jt-chip.count { background: #f3f4f6; color: var(--muted); font-weight: 600; }
     .jt-chip.pages { background: var(--primary-tint); color: var(--primary); }
+    .jt-chip.jobcode { background: #1f2937; color: #f9fafb; letter-spacing: 0.05em; }
+    .jt-chip.nocode { background: var(--warn-bg); color: var(--warn-text); }
     .jt-overlay {
       display: none; position: fixed; inset: 0; z-index: 80;
       background: rgba(15, 23, 42, 0.45); padding: 20px;
@@ -393,11 +395,6 @@
           <label for="dirDepartment">Department</label>
           <select id="dirDepartment">
             <option value="">— No department —</option>
-            <option>Appliance</option>
-            <option>Client Care</option>
-            <option>Repair Service</option>
-            <option>Kitchen Design</option>
-            <option>HVAC Sales</option>
           </select>
         </div>
         <div class="field">
@@ -463,22 +460,28 @@
     <div class="surface">
       <h2>Job titles &amp; codes</h2>
       <p class="section-note">
-        The vocabularies behind the Team editor. <strong>Job titles</strong> drive commission plans and
-        notification routing — titles with <strong>web-order alerts</strong> on get the green dashboard flag
-        and claim email for every new (or unclaimed) web order. Renaming a title migrates everyone holding
-        it in the same step. <strong>Job codes</strong> are the quick-assign buttons in the permission
-        editor — editing one changes what the button checks going forward, never anyone's saved access.
+        The vocabularies behind the Team editor. Each <strong>job title</strong> is the relabelable display
+        name for a permanent <strong>job code</strong> (E10, NE20 — exempt/non-exempt + level) that data links
+        on: rename the title anytime, the code never changes. Titles with <strong>web-order alerts</strong> on
+        get the green dashboard flag and claim email for every new (or unclaimed) web order.
+        <strong>Permission groups</strong> are the quick-assign buttons in the permission editor — editing one
+        changes what the button checks going forward, never anyone's saved access.
       </p>
       <div class="jt-grid">
         <div>
-          <div class="jt-col-head">Job titles</div>
+          <div class="jt-col-head">Job titles &amp; codes</div>
           <div id="jobTitleList" class="jt-list"></div>
           <button type="button" class="secondary tiny" id="jobTitleAdd">+ Add job title</button>
         </div>
         <div>
-          <div class="jt-col-head">Job codes (permission presets)</div>
+          <div class="jt-col-head">Departments</div>
+          <div id="deptList" class="jt-list"></div>
+          <button type="button" class="secondary tiny" id="deptAdd">+ Add department</button>
+        </div>
+        <div>
+          <div class="jt-col-head">Permission groups (quick-assign)</div>
           <div id="jobCodeList" class="jt-list"></div>
-          <button type="button" class="secondary tiny" id="jobCodeAdd">+ Add job code</button>
+          <button type="button" class="secondary tiny" id="jobCodeAdd">+ Add permission group</button>
         </div>
       </div>
       <div id="jobStatus" class="status"></div>
@@ -523,8 +526,10 @@
       pending: new Map(),
       // Employee directory entries: [{code, name, email, department}]
       directory: [],
-      // Job titles from the DB: [{id, name, notifyWebOrders}]
-      jobTitles: []
+      // Job titles from the DB: [{id, name, code, notifyWebOrders}]
+      jobTitles: [],
+      // Departments from the DB: [{id, name, code}]
+      departments: []
     };
 
     function directoryEntryForEmail(email) {
@@ -603,8 +608,10 @@
         state.categories = data.categories || [];
         state.presets = data.presets || {};
         state.jobTitles = data.jobTitles || [];
+        state.departments = data.departments || [];
         state.allowedDomain = data.allowedDomain || state.allowedDomain;
         fillAddFormPlan();
+        fillDirDepartments();
         renderUsers();
         renderDirectory(); // account-action buttons on directory rows depend on users
         renderJobConfig();
@@ -641,6 +648,26 @@
         return an.localeCompare(bn);
       });
       return rows;
+    }
+
+    // (Re)build the department dropdown from the DB list, preserving the
+    // current pick (and any legacy option setDirDepartment added).
+    function fillDirDepartments() {
+      const select = document.getElementById("dirDepartment");
+      if (!select) return;
+      const current = select.value;
+      select.innerHTML = "";
+      const none = document.createElement("option");
+      none.value = "";
+      none.textContent = "— No department —";
+      select.appendChild(none);
+      for (const dept of state.departments || []) {
+        const opt = document.createElement("option");
+        opt.value = dept.name;
+        opt.textContent = dept.name;
+        select.appendChild(opt);
+      }
+      if (current) setDirDepartment(current);
     }
 
     // If a saved entry carries a legacy department not in the fixed list,
@@ -1245,6 +1272,9 @@
       titleList.textContent = "";
       for (const title of state.jobTitles || []) {
         const row = el("button", { class: "jt-row", type: "button" }, [
+          title.code
+            ? el("span", { class: "jt-chip jobcode", text: title.code })
+            : el("span", { class: "jt-chip nocode", text: "no code yet" }),
           el("span", { text: title.name }),
           title.notifyWebOrders ? el("span", { class: "jt-chip route", text: "web-order alerts" }) : null,
           el("span", { class: "jt-chip count", text: `${titleHolderCount(title.name)} on team` })
@@ -1254,6 +1284,24 @@
       }
       if (!(state.jobTitles || []).length) {
         titleList.appendChild(el("div", { class: "muted small-text", text: "No job titles yet." }));
+      }
+
+      const deptList = document.getElementById("deptList");
+      deptList.textContent = "";
+      for (const dept of state.departments || []) {
+        const members = state.directory.filter((e) => String(e.department || "").trim().toLowerCase() === dept.name.trim().toLowerCase()).length;
+        const row = el("button", { class: "jt-row", type: "button" }, [
+          dept.code
+            ? el("span", { class: "jt-chip jobcode", text: dept.code })
+            : el("span", { class: "jt-chip nocode", text: "no code yet" }),
+          el("span", { text: dept.name }),
+          el("span", { class: "jt-chip count", text: `${members} on team` })
+        ]);
+        row.addEventListener("click", () => openDeptEditor(dept));
+        deptList.appendChild(row);
+      }
+      if (!(state.departments || []).length) {
+        deptList.appendChild(el("div", { class: "muted small-text", text: "No departments yet." }));
       }
 
       codeList.textContent = "";
@@ -1286,10 +1334,18 @@
       jt.item = title || null;
       document.getElementById("jtHeading").textContent = title ? "Edit job title" : "New job title";
       const body = document.getElementById("jtBody");
+      const hasCode = Boolean(title?.code);
       body.innerHTML = `
         <div class="jt-field">
-          <label for="jtName">Title</label>
+          <label for="jtName">Title (the relabelable display name)</label>
           <input id="jtName" type="text" maxlength="60" placeholder="e.g. Delivery Driver" value="${escapeAttr(title?.name || "")}" />
+        </div>
+        <div class="jt-field">
+          <label for="jtCode">Job code ${hasCode ? "(permanent)" : "(optional now, permanent once set)"}</label>
+          <input id="jtCode" type="text" maxlength="7" placeholder="e.g. E10, NE20" style="text-transform:uppercase; max-width: 160px; ${hasCode ? "background:#f3f4f6;" : ""}" value="${escapeAttr(title?.code || "")}" ${hasCode ? "readonly" : ""} />
+          <div class="small-text muted" style="margin-top:5px;">${hasCode
+            ? "This code is the key data links on — it can't change. If the classification changed, create a new title."
+            : "Letters + level number (E = exempt, NE = non-exempt; e.g. E10, NE20, NE21 for sub-codes). Data links on this key, so relabeling the title later never breaks anything. Assigning it backfills everyone currently holding the title."}</div>
         </div>
         <label class="jt-toggle">
           <input type="checkbox" id="jtNotify" ${title?.notifyWebOrders ? "checked" : ""}>
@@ -1308,7 +1364,7 @@
     function openCodeEditor(preset) {
       jt.mode = "code";
       jt.item = preset || null;
-      document.getElementById("jtHeading").textContent = preset ? "Edit job code" : "New job code";
+      document.getElementById("jtHeading").textContent = preset ? "Edit permission group" : "New permission group";
       const body = document.getElementById("jtBody");
       const checkedPages = new Set(preset?.allPages ? [] : (preset?.pages || []));
       let pagesHtml = "";
@@ -1320,7 +1376,7 @@
       }
       body.innerHTML = `
         <div class="jt-field">
-          <label for="jtLabel">Label (what the quick-assign button says)</label>
+          <label for="jtLabel">Group label (what the quick-assign button says)</label>
           <input id="jtLabel" type="text" maxlength="60" placeholder="e.g. Warehouse" value="${escapeAttr(preset?.label || "")}" />
         </div>
         <label class="jt-toggle" style="margin-bottom: 12px;">
@@ -1331,10 +1387,10 @@
           </span>
         </label>
         <div class="jt-field">
-          <label>Pages this code checks</label>
+          <label>Pages this group checks</label>
           <div class="jt-pagebox" id="jtPagebox">${pagesHtml}</div>
         </div>
-        <p class="small-text muted" style="margin: 0;">Job codes are staging shortcuts — changing one never edits anyone's saved access.</p>`;
+        <p class="small-text muted" style="margin: 0;">Permission groups are staging shortcuts — changing one never edits anyone's saved access.</p>`;
       const sync = () => {
         const all = document.getElementById("jtAllPages").checked;
         document.getElementById("jtPagebox").style.opacity = all ? "0.45" : "1";
@@ -1352,6 +1408,31 @@
       return String(s ?? "").replace(/[&<>"']/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch]));
     }
 
+    function openDeptEditor(dept) {
+      jt.mode = "dept";
+      jt.item = dept || null;
+      document.getElementById("jtHeading").textContent = dept ? "Edit department" : "New department";
+      const hasCode = Boolean(dept?.code);
+      const members = dept ? state.directory.filter((e) => String(e.department || "").trim().toLowerCase() === dept.name.trim().toLowerCase()).length : 0;
+      document.getElementById("jtBody").innerHTML = `
+        <div class="jt-field">
+          <label for="jtDeptName">Department name (the relabelable display name)</label>
+          <input id="jtDeptName" type="text" maxlength="60" placeholder="e.g. Warehouse" value="${escapeAttr(dept?.name || "")}" />
+        </div>
+        <div class="jt-field">
+          <label for="jtDeptCode">Department code ${hasCode ? "(permanent)" : "(optional now, permanent once set)"}</label>
+          <input id="jtDeptCode" type="text" maxlength="6" placeholder="e.g. APP, CC, HVAC" style="text-transform:uppercase; max-width: 160px; ${hasCode ? "background:#f3f4f6;" : ""}" value="${escapeAttr(dept?.code || "")}" ${hasCode ? "readonly" : ""} />
+          <div class="small-text muted" style="margin-top:5px;">${hasCode
+            ? "This code is the key data links on — it can't change. If the structure changed, create a new department."
+            : "1-6 letters/digits. Data links on this key, so renaming the department later never breaks anything. Assigning it backfills everyone currently in the department."}</div>
+        </div>
+        ${dept ? `<p class="small-text muted" style="margin: 0;">Renaming migrates the ${members} teammate(s) in this department in the same step. Past payment records keep the department label they were created with.</p>` : ""}`;
+      document.getElementById("jtDelete").style.display = dept ? "" : "none";
+      document.getElementById("jtOverlay").classList.add("show");
+      document.getElementById("jtDeptName").focus();
+    }
+
+    document.getElementById("deptAdd").addEventListener("click", () => openDeptEditor(null));
     document.getElementById("jobTitleAdd").addEventListener("click", () => openTitleEditor(null));
     document.getElementById("jobCodeAdd").addEventListener("click", () => openCodeEditor(null));
 
@@ -1360,9 +1441,27 @@
       setStatus("jtError", "", "");
       save.disabled = true;
       try {
+        if (jt.mode === "dept") {
+          const payload = {
+            name: document.getElementById("jtDeptName").value.trim(),
+            code: document.getElementById("jtDeptCode").value.trim().toUpperCase()
+          };
+          const result = jt.item
+            ? await api(`/api/admin/departments/${jt.item.id}`, { method: "PATCH", body: JSON.stringify(payload) })
+            : await api("/api/admin/departments", { method: "POST", body: JSON.stringify(payload) });
+          setStatus("jobStatus",
+            jt.item
+              ? `Saved "${payload.name}".` + (result.migrated ? ` Migrated ${result.migrated} teammate${result.migrated === 1 ? "" : "s"} to the new name.` : "")
+              : `Added the "${payload.name}" department.`,
+            "ok");
+          closeJtOverlay();
+          await loadUsers();
+          return;
+        }
         if (jt.mode === "title") {
           const payload = {
             name: document.getElementById("jtName").value.trim(),
+            code: document.getElementById("jtCode").value.trim().toUpperCase(),
             notifyWebOrders: document.getElementById("jtNotify").checked
           };
           const result = jt.item
@@ -1381,11 +1480,11 @@
               : [...document.querySelectorAll(".jt-page:checked")].map((cb) => cb.value)
           };
           if (jt.item) {
-            await api(`/api/admin/job-codes/${encodeURIComponent(jt.item.key)}`, { method: "PATCH", body: JSON.stringify(payload) });
-            setStatus("jobStatus", `Saved the "${payload.label}" job code.`, "ok");
+            await api(`/api/admin/permission-groups/${encodeURIComponent(jt.item.key)}`, { method: "PATCH", body: JSON.stringify(payload) });
+            setStatus("jobStatus", `Saved the "${payload.label}" permission group.`, "ok");
           } else {
-            await api("/api/admin/job-codes", { method: "POST", body: JSON.stringify(payload) });
-            setStatus("jobStatus", `Added the "${payload.label}" job code.`, "ok");
+            await api("/api/admin/permission-groups", { method: "POST", body: JSON.stringify(payload) });
+            setStatus("jobStatus", `Added the "${payload.label}" permission group.`, "ok");
           }
         }
         closeJtOverlay();
@@ -1399,16 +1498,16 @@
 
     document.getElementById("jtDelete").addEventListener("click", async () => {
       if (!jt.item) return;
-      const label = jt.mode === "title" ? jt.item.name : jt.item.label;
-      if (!confirm(`Delete "${label}"? ${jt.mode === "title" ? "Titles still held by teammates can't be deleted." : "The quick-assign button disappears; nobody's saved access changes."}`)) return;
+      const label = jt.mode === "code" ? jt.item.label : jt.item.name;
+      if (!confirm(`Delete "${label}"? ${jt.mode === "title" ? "Titles still held by teammates can't be deleted." : jt.mode === "dept" ? "Departments with teammates in them can't be deleted." : "The quick-assign button disappears; nobody's saved access changes."}`)) return;
       const del = document.getElementById("jtDelete");
       del.disabled = true;
       setStatus("jtError", "", "");
       try {
         await api(
-          jt.mode === "title"
-            ? `/api/admin/job-titles/${jt.item.id}`
-            : `/api/admin/job-codes/${encodeURIComponent(jt.item.key)}`,
+          jt.mode === "title" ? `/api/admin/job-titles/${jt.item.id}`
+            : jt.mode === "dept" ? `/api/admin/departments/${jt.item.id}`
+            : `/api/admin/permission-groups/${encodeURIComponent(jt.item.key)}`,
           { method: "DELETE" }
         );
         setStatus("jobStatus", `Deleted "${label}".`, "ok");

@@ -283,6 +283,12 @@
           <div><label for="lookCode">Client code</label><input id="lookCode" placeholder="WXXXXX" style="text-transform:uppercase;"></div>
           <div style="display:flex; align-items:flex-end;"><button class="btn ghost" id="lookSubmit" type="button" style="width:100%;">Use my code</button></div>
         </div>
+        <div class="or-rule">forgot your code? find it with your last name</div>
+        <div class="form-grid">
+          <div><label for="recLast">Last name</label><input id="recLast" autocomplete="family-name"></div>
+          <div style="display:flex; align-items:flex-end;"><button class="btn ghost" id="recSubmit" type="button" style="width:100%;">Find my code</button></div>
+        </div>
+        <div id="recResult" style="display:none; background:#dcfce7; color:#166534; border-radius:12px; padding:11px 14px; font-size:14px; line-height:1.5; margin-top:10px;"></div>
         <div class="form-error" id="lookError"></div>
         <div class="modal-actions">
           <button class="btn ghost" type="button" id="backToRegBtn">Back to sign-up</button>
@@ -769,6 +775,40 @@
     $("emailOptional").textContent = $("regContact").value === "Email" ? "(required for email contact)" : "(optional)";
   });
 
+  // "Forgot your code?" — last name + the phone number above. A match either
+  // reveals the code and signs straight in, or (when a password exists)
+  // points at password sign-in without revealing anything.
+  $("recSubmit").addEventListener("click", async () => {
+    const err = $("lookError");
+    err.classList.remove("show");
+    $("recResult").style.display = "none";
+    $("recSubmit").disabled = true;
+    try {
+      const res = await fetch("/api/shop/recover-code", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phone: $("lookPhone").value.trim(), lastName: $("recLast").value.trim() })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Unable to look that up.");
+      if (data.hasPassword) {
+        $("recResult").innerHTML = `Good news${data.firstName ? ", " + esc(data.firstName) : ""} — your profile has a password. Sign in at the top with your phone number and password.`;
+        $("recResult").style.display = "block";
+        $("lookPassword").focus();
+        return;
+      }
+      $("recResult").innerHTML = `Found it${data.firstName ? ", " + esc(data.firstName) : ""} — your client code is <strong style="letter-spacing:0.08em;">${esc(data.clientCode)}</strong>. Signing you in…`;
+      $("recResult").style.display = "block";
+      $("lookCode").value = data.clientCode;
+      $("lookSubmit").click();
+    } catch (e) {
+      err.textContent = e.message;
+      err.classList.add("show");
+    } finally {
+      $("recSubmit").disabled = false;
+    }
+  });
+
   $("regSubmit").addEventListener("click", async () => {
     const err = $("regError");
     err.classList.remove("show");
@@ -794,7 +834,23 @@
         body: JSON.stringify(payload)
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Unable to register.");
+      if (!res.ok) {
+        // Existing profile for this phone + last name: steer to recovery
+        // (or password sign-in) instead of creating a duplicate.
+        if (data.duplicate) {
+          $("regPanel").style.display = "none";
+          $("haveCodeBtn").style.display = "none";
+          $("lookupPanel").style.display = "";
+          $("lookPhone").value = payload.phone;
+          $("recLast").value = payload.lastName;
+          $("recResult").innerHTML = esc(data.error || "You already have a profile — recover your code below.");
+          $("recResult").style.display = "block";
+          if (data.hasPassword) $("lookPassword").focus();
+          else $("recSubmit").focus();
+          return;
+        }
+        throw new Error(data.error || "Unable to register.");
+      }
       state.token = data.token;
       state.clientCode = data.clientCode || "";
       localStorage.setItem(TOKEN_KEY, data.token);

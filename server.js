@@ -90,10 +90,14 @@ import {
   updateJobTitle,
   deleteJobTitle,
   validateJobTitleName,
-  listJobCodes,
-  createJobCode,
-  updateJobCode,
-  deleteJobCode
+  listPermissionGroups,
+  createPermissionGroup,
+  updatePermissionGroup,
+  deletePermissionGroup,
+  listDepartments,
+  createDepartment,
+  updateDepartment,
+  deleteDepartment
 } from "./lib/employee-directory.js";
 import {
   isSteelCodConfigured,
@@ -149,6 +153,7 @@ import {
   completeShopOrder,
   cancelShopOrder,
   findShopperByCodeAndPhone,
+  findShopperByPhoneAndLastName,
   setShopperPassword,
   verifyShopperLogin,
   updateShopperProfile,
@@ -363,6 +368,7 @@ const SHOP_PUBLIC_API_PREFIXES = [
   "/api/shop/zip-check",
   "/api/shop/register",
   "/api/shop/lookup",
+  "/api/shop/recover-code",
   "/api/shop/login",
   "/api/shop/profile",
   "/api/shop/password",
@@ -580,16 +586,16 @@ const JOB_CODE_PRESETS = {
 // the source of truth.
 setJobCodeSeed(JOB_CODE_PRESETS);
 
-function expandJobCodePages(pages) {
+function expandPermissionGroupPages(pages) {
   if ((pages || []).includes("*")) return [...MANAGEABLE_PAGE_PATHS];
   return (pages || []).filter((p) => MANAGEABLE_PAGE_PATHS.includes(p));
 }
 
 async function expandJobCodePresetPages(presetKey) {
-  const codes = await listJobCodes();
-  const code = codes.find((c) => c.key === presetKey);
-  if (!code) return [];
-  return expandJobCodePages(code.pages);
+  const groups = await listPermissionGroups();
+  const group = groups.find((g) => g.key === presetKey);
+  if (!group) return [];
+  return expandPermissionGroupPages(group.pages);
 }
 
 const PAGE_LABELS = {
@@ -2120,10 +2126,10 @@ function buildCategoriesPayload() {
 
 async function buildPresetsPayload() {
   const presets = {};
-  for (const code of await listJobCodes()) {
-    const pages = expandJobCodePages(code.pages);
+  for (const group of await listPermissionGroups()) {
+    const pages = expandPermissionGroupPages(group.pages);
     if (pages.length) {
-      presets[code.key] = { label: code.label, pages, allPages: (code.pages || []).includes("*"), key: code.key };
+      presets[group.key] = { label: group.label, pages, allPages: (group.pages || []).includes("*"), key: group.key };
     }
   }
   return presets;
@@ -2142,6 +2148,7 @@ app.get("/api/admin/users", requireExecutiveApi, async (req, res) => {
       categories: buildCategoriesPayload(),
       presets: await buildPresetsPayload(),
       jobTitles: await listJobTitles(),
+      departments: await listDepartments(),
       allowedDomain: getAllowedSignupDomain(),
       legacyLoginEnabled: LEGACY_SHARED_LOGIN_ENABLED
     });
@@ -2273,12 +2280,12 @@ app.post("/api/admin/job-titles", requireExecutiveApi, async (req, res) => {
   try {
     const nameError = validateJobTitleName(req.body?.name);
     if (nameError) return res.status(400).json({ error: nameError });
-    const result = await createJobTitle({ name: req.body.name, notifyWebOrders: Boolean(req.body?.notifyWebOrders) });
+    const result = await createJobTitle({ name: req.body.name, code: req.body?.code, notifyWebOrders: Boolean(req.body?.notifyWebOrders) });
     if (!result.ok) return res.status(400).json({ error: result.error });
     recordAudit({
       ip: req.ip, actorUserId: req.authUser.id || null,
       action: "job_title_created", targetUserId: null,
-      detail: { name: result.title.name, notifyWebOrders: result.title.notifyWebOrders }
+      detail: { name: result.title.name, code: result.title.code, notifyWebOrders: result.title.notifyWebOrders }
     }).catch(() => {});
     return res.json({ ok: true, title: result.title });
   } catch (err) {
@@ -2294,13 +2301,14 @@ app.patch("/api/admin/job-titles/:id", requireExecutiveApi, async (req, res) => 
     const result = await updateJobTitle({
       id: Number(req.params.id),
       name: req.body.name,
+      code: req.body?.code,
       notifyWebOrders: Boolean(req.body?.notifyWebOrders)
     });
     if (!result.ok) return res.status(400).json({ error: result.error });
     recordAudit({
       ip: req.ip, actorUserId: req.authUser.id || null,
       action: "job_title_updated", targetUserId: null,
-      detail: { name: result.title.name, oldName: result.oldName, migrated: result.migrated, notifyWebOrders: result.title.notifyWebOrders }
+      detail: { name: result.title.name, code: result.title.code, oldName: result.oldName, migrated: result.migrated, notifyWebOrders: result.title.notifyWebOrders }
     }).catch(() => {});
     return res.json({ ok: true, title: result.title, migrated: result.migrated });
   } catch (err) {
@@ -2325,61 +2333,111 @@ app.delete("/api/admin/job-titles/:id", requireExecutiveApi, async (req, res) =>
   }
 });
 
-function cleanJobCodePages(pages) {
+function cleanPermissionGroupPages(pages) {
   if (!Array.isArray(pages)) return [];
   if (pages.includes("*")) return ["*"];
   return [...new Set(pages.filter((p) => MANAGEABLE_PAGE_PATHS.includes(p)))];
 }
 
-app.post("/api/admin/job-codes", requireExecutiveApi, async (req, res) => {
+app.post("/api/admin/permission-groups", requireExecutiveApi, async (req, res) => {
   try {
-    const pages = cleanJobCodePages(req.body?.pages);
-    if (!pages.length) return res.status(400).json({ error: "Pick at least one page for this job code." });
-    const result = await createJobCode({ label: req.body?.label, pages });
+    const pages = cleanPermissionGroupPages(req.body?.pages);
+    if (!pages.length) return res.status(400).json({ error: "Pick at least one page for this permission group." });
+    const result = await createPermissionGroup({ label: req.body?.label, pages });
     if (!result.ok) return res.status(400).json({ error: result.error });
     recordAudit({
       ip: req.ip, actorUserId: req.authUser.id || null,
-      action: "job_code_created", targetUserId: null,
-      detail: { key: result.code.key, label: result.code.label, pages: result.code.pages }
+      action: "permission_group_created", targetUserId: null,
+      detail: { key: result.group.key, label: result.group.label, pages: result.group.pages }
     }).catch(() => {});
-    return res.json({ ok: true, code: result.code });
+    return res.json({ ok: true, group: result.group });
   } catch (err) {
-    console.error("Job code create failed:", err.message);
-    return res.status(500).json({ error: "Unable to create the job code." });
+    console.error("Permission group create failed:", err.message);
+    return res.status(500).json({ error: "Unable to create the permission group." });
   }
 });
 
-app.patch("/api/admin/job-codes/:key", requireExecutiveApi, async (req, res) => {
+app.patch("/api/admin/permission-groups/:key", requireExecutiveApi, async (req, res) => {
   try {
-    const pages = cleanJobCodePages(req.body?.pages);
-    if (!pages.length) return res.status(400).json({ error: "Pick at least one page for this job code." });
-    const result = await updateJobCode({ key: req.params.key, label: req.body?.label, pages });
+    const pages = cleanPermissionGroupPages(req.body?.pages);
+    if (!pages.length) return res.status(400).json({ error: "Pick at least one page for this permission group." });
+    const result = await updatePermissionGroup({ key: req.params.key, label: req.body?.label, pages });
     if (!result.ok) return res.status(404).json({ error: result.error });
     recordAudit({
       ip: req.ip, actorUserId: req.authUser.id || null,
-      action: "job_code_updated", targetUserId: null,
-      detail: { key: result.code.key, label: result.code.label, pages: result.code.pages }
+      action: "permission_group_updated", targetUserId: null,
+      detail: { key: result.group.key, label: result.group.label, pages: result.group.pages }
     }).catch(() => {});
-    return res.json({ ok: true, code: result.code });
+    return res.json({ ok: true, group: result.group });
   } catch (err) {
-    console.error("Job code update failed:", err.message);
-    return res.status(500).json({ error: "Unable to update the job code." });
+    console.error("Permission group update failed:", err.message);
+    return res.status(500).json({ error: "Unable to update the permission group." });
   }
 });
 
-app.delete("/api/admin/job-codes/:key", requireExecutiveApi, async (req, res) => {
+app.delete("/api/admin/permission-groups/:key", requireExecutiveApi, async (req, res) => {
   try {
-    const result = await deleteJobCode(req.params.key);
+    const result = await deletePermissionGroup(req.params.key);
     if (!result.ok) return res.status(404).json({ error: result.error });
     recordAudit({
       ip: req.ip, actorUserId: req.authUser.id || null,
-      action: "job_code_deleted", targetUserId: null,
+      action: "permission_group_deleted", targetUserId: null,
       detail: { key: req.params.key, label: result.label }
     }).catch(() => {});
     return res.json({ ok: true });
   } catch (err) {
-    console.error("Job code delete failed:", err.message);
-    return res.status(500).json({ error: "Unable to delete the job code." });
+    console.error("Permission group delete failed:", err.message);
+    return res.status(500).json({ error: "Unable to delete the permission group." });
+  }
+});
+
+// ---- Departments (same editor pattern: permanent code, relabelable name) ----
+
+app.post("/api/admin/departments", requireExecutiveApi, async (req, res) => {
+  try {
+    const result = await createDepartment({ name: req.body?.name, code: req.body?.code });
+    if (!result.ok) return res.status(400).json({ error: result.error });
+    recordAudit({
+      ip: req.ip, actorUserId: req.authUser.id || null,
+      action: "department_created", targetUserId: null,
+      detail: { name: result.department.name, code: result.department.code }
+    }).catch(() => {});
+    return res.json({ ok: true, department: result.department });
+  } catch (err) {
+    console.error("Department create failed:", err.message);
+    return res.status(500).json({ error: "Unable to create the department." });
+  }
+});
+
+app.patch("/api/admin/departments/:id", requireExecutiveApi, async (req, res) => {
+  try {
+    const result = await updateDepartment({ id: Number(req.params.id), name: req.body?.name, code: req.body?.code });
+    if (!result.ok) return res.status(400).json({ error: result.error });
+    recordAudit({
+      ip: req.ip, actorUserId: req.authUser.id || null,
+      action: "department_updated", targetUserId: null,
+      detail: { name: result.department.name, code: result.department.code, oldName: result.oldName, migrated: result.migrated }
+    }).catch(() => {});
+    return res.json({ ok: true, department: result.department, migrated: result.migrated });
+  } catch (err) {
+    console.error("Department update failed:", err.message);
+    return res.status(500).json({ error: "Unable to update the department." });
+  }
+});
+
+app.delete("/api/admin/departments/:id", requireExecutiveApi, async (req, res) => {
+  try {
+    const result = await deleteDepartment(Number(req.params.id));
+    if (!result.ok) return res.status(result.inUse ? 409 : 404).json({ error: result.error });
+    recordAudit({
+      ip: req.ip, actorUserId: req.authUser.id || null,
+      action: "department_deleted", targetUserId: null,
+      detail: { name: result.name }
+    }).catch(() => {});
+    return res.json({ ok: true });
+  } catch (err) {
+    console.error("Department delete failed:", err.message);
+    return res.status(500).json({ error: "Unable to delete the department." });
   }
 });
 
@@ -3946,10 +4004,12 @@ app.post("/api/mileage/report/:id/decide", requirePagePermission("/mileage-revie
 app.get("/employee-directory.js", async (req, res) => {
   try {
     const directory = await getEmployeeDirectoryObject();
+    const departments = await listDepartments().catch(() => []);
     res.setHeader("Content-Type", "application/javascript; charset=utf-8");
     res.setHeader("Cache-Control", "no-store");
     return res.send(
-      "window.WILSON_EMPLOYEE_DIRECTORY = " + JSON.stringify(directory, null, 2) + ";\n"
+      "window.WILSON_EMPLOYEE_DIRECTORY = " + JSON.stringify(directory, null, 2) + ";\n" +
+      "window.WILSON_DEPARTMENTS = " + JSON.stringify(departments.map((d) => d.name)) + ";\n"
     );
   } catch (err) {
     console.error("Employee directory DB read failed, serving static fallback:", err.message);
@@ -4010,16 +4070,17 @@ app.post("/api/admin/employee-directory", requireExecutiveApi, async (req, res) 
       }
     }
 
-    // Departments are a fixed vocabulary — pages match on these strings
-    // (Send Payment Link, dashboard filters, refund dashboard), so variants
-    // like "client care" are normalized and unknown values rejected.
-    const DIRECTORY_DEPARTMENTS = ["Appliance", "Client Care", "Repair Service", "Kitchen Design", "HVAC Sales"];
+    // Departments come from the DB vocabulary (User Admin editor). Pages
+    // match on these strings (Send Payment Link, dashboard filters, refund
+    // dashboard), so variants like "client care" are normalized to the
+    // canonical spelling and unknown values rejected.
     const rawDepartment = String(department || "").trim();
     let normalizedDepartment = "";
     if (rawDepartment) {
-      normalizedDepartment = DIRECTORY_DEPARTMENTS.find(
-        (d) => d.toLowerCase() === rawDepartment.toLowerCase()
-      ) || "";
+      const validDepartments = await listDepartments();
+      normalizedDepartment = validDepartments.find(
+        (d) => d.name.toLowerCase() === rawDepartment.toLowerCase()
+      )?.name || "";
       if (!normalizedDepartment) {
         return res.status(400).json({ error: "Choose a department from the list (or leave it blank)." });
       }
@@ -4765,6 +4826,20 @@ app.post("/api/shop/register", async (req, res) => {
     if (checked.error) return res.status(400).json({ error: checked.error });
     const { firstName, lastName, email, phone, preferredContact, address } = checked.fields;
 
+    // Duplicate guard: same phone + same last name = same person. Steer
+    // them to code recovery instead of minting another profile (and
+    // another Stripe customer down the line).
+    const existing = await findShopperByPhoneAndLastName({ phone, lastName }).catch(() => null);
+    if (existing) {
+      return res.status(409).json({
+        duplicate: true,
+        hasPassword: existing.hasPassword,
+        error: existing.hasPassword
+          ? "Good news — you already have a profile with this phone number. Sign in with your phone and password instead."
+          : "Good news — you already have a client code for this phone number. Use \"Find my code\" to pick up right where you left off."
+      });
+    }
+
     const shopper = await createShopper({ firstName, lastName, email, phone, preferredContact, address });
 
     recordAudit({
@@ -4777,6 +4852,47 @@ app.post("/api/shop/register", async (req, res) => {
   } catch (err) {
     console.error("Shop registration failed:", err.message);
     return res.status(500).json({ error: "Unable to register right now." });
+  }
+});
+
+// PUBLIC: code recovery — last name + phone reveals the client code (or, if
+// a password exists, points at password sign-in without revealing anything).
+// Those two facts already restore the profile here (name+phone -> code,
+// code+phone -> profile), so this reveals no access an asker didn't have —
+// same per-IP throttle as lookup. Registration's duplicate guard lands
+// people here instead of minting a second profile.
+app.post("/api/shop/recover-code", async (req, res) => {
+  try {
+    const now = Date.now();
+    const key = "recover:" + String(req.ip || "");
+    const attempts = (shopLookupAttempts.get(key) || []).filter((t) => now - t < 60 * 60 * 1000);
+    if (attempts.length >= 20) {
+      return res.status(429).json({ error: "Too many attempts — please try again later or just fill out the form." });
+    }
+    attempts.push(now);
+    shopLookupAttempts.set(key, attempts);
+
+    const shopper = await findShopperByPhoneAndLastName({
+      phone: req.body?.phone,
+      lastName: req.body?.lastName
+    });
+    if (!shopper) {
+      return res.status(404).json({ error: "We couldn't find a profile matching that phone number and last name. Double-check both, or just fill out the sign-up form — it only takes 30 seconds." });
+    }
+
+    recordAudit({
+      ip: req.ip, actorUserId: null,
+      action: "shop_code_recovered", targetUserId: null,
+      detail: { clientCode: shopper.clientCode, hasPassword: shopper.hasPassword }
+    }).catch(() => {});
+
+    if (shopper.hasPassword) {
+      return res.json({ hasPassword: true, firstName: shopper.firstName });
+    }
+    return res.json({ clientCode: shopper.clientCode, firstName: shopper.firstName });
+  } catch (err) {
+    console.error("Shop code recovery failed:", err.message);
+    return res.status(500).json({ error: "Unable to look that up right now." });
   }
 });
 

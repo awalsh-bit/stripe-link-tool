@@ -66,11 +66,54 @@
     .head-inner { max-width: 1140px; margin: 0 auto; padding: 12px 18px; display: flex; align-items: center; gap: 14px; }
     .menu-btn {
       appearance: none; border: 1px solid var(--line, #e5e7eb); background: #fff; cursor: pointer;
-      width: 42px; height: 42px; border-radius: 12px; display: inline-flex; align-items: center;
-      justify-content: center; flex: 0 0 auto; padding: 0;
+      height: 42px; border-radius: 12px; display: inline-flex; align-items: center; gap: 9px;
+      justify-content: center; flex: 0 0 auto; padding: 0 14px; font-family: inherit;
     }
     .menu-btn:hover { border-color: var(--primary-dark); }
-    .menu-btn svg { width: 22px; height: 22px; stroke: #1f2937; }
+    .menu-btn svg { width: 22px; height: 22px; stroke: #1f2937; flex: 0 0 auto; }
+    .menu-btn-label { font-size: 13.5px; font-weight: 700; color: #1f2937; white-space: nowrap; }
+    @media (max-width: 560px) { .menu-btn-label { display: none; } .menu-btn { width: 42px; padding: 0; } }
+
+    /* Department ribbon under the header (Abt-style) + mega panel */
+    .dept-ribbon { background: #fff; border-bottom: 1px solid var(--line, #e5e7eb); position: relative; z-index: 40; }
+    .dept-inner { max-width: 1140px; margin: 0 auto; padding: 0 18px; display: flex; gap: 26px; }
+    .dept-link {
+      appearance: none; border: none; background: none; cursor: pointer; font-family: inherit;
+      font-size: 14.5px; font-weight: 700; color: #1f2937; padding: 13px 2px;
+      border-bottom: 3px solid transparent; margin-bottom: -1px;
+    }
+    .dept-link:hover, .dept-link.open { border-bottom-color: var(--primary-dark, #21692c); color: var(--primary-dark, #21692c); }
+    .dept-link.outlet { color: #b91c1c; }
+    .dept-link.outlet:hover { border-bottom-color: #b91c1c; color: #b91c1c; }
+    .mega-panel {
+      display: none; position: absolute; left: 0; right: 0; top: 100%;
+      background: #fff; border-bottom: 1px solid var(--line, #e5e7eb);
+      box-shadow: 0 24px 50px rgba(15, 23, 42, 0.16); z-index: 39;
+      max-height: min(72vh, 640px); overflow-y: auto;
+    }
+    .mega-panel.show { display: block; }
+    .mega-inner { max-width: 1140px; margin: 0 auto; padding: 22px 18px 30px; }
+    .mega-head { display: flex; align-items: center; gap: 16px; margin-bottom: 16px; }
+    .mega-head h2 { margin: 0; font-size: 21px; }
+    .mega-shopall {
+      appearance: none; border: none; cursor: pointer; font-family: inherit;
+      background: var(--primary-dark, #21692c); color: #fff; border-radius: 999px;
+      padding: 8px 18px; font-size: 13px; font-weight: 700;
+    }
+    .mega-close { appearance: none; border: none; background: none; cursor: pointer; font-size: 19px; color: #6b7280; margin-left: auto; padding: 4px 8px; }
+    .mega-cols { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 22px 28px; }
+    .mega-col h4 {
+      margin: 0 0 9px; font-size: 15px; cursor: pointer; color: #1f2937;
+    }
+    .mega-col h4:hover { color: var(--primary-dark, #21692c); text-decoration: underline; }
+    .mega-link {
+      appearance: none; border: none; background: none; cursor: pointer; font-family: inherit;
+      display: block; width: 100%; text-align: left; padding: 5px 0; font-size: 13.5px;
+      color: #374151; font-weight: 500;
+    }
+    .mega-link:hover { color: var(--primary-dark, #21692c); text-decoration: underline; }
+    .mega-backdrop { display: none; position: fixed; inset: 0; background: rgba(15, 23, 42, 0.25); z-index: 38; }
+    .mega-backdrop.show { display: block; }
 
     /* Two-tier category drawer (root list -> Shop All + guided sub-options) */
     .menu-backdrop {
@@ -314,6 +357,7 @@
     <div class="head-inner">
       <button type="button" class="menu-btn" id="menuBtn" aria-label="Shop by category">
         <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
+        <span class="menu-btn-label">Shop by Category</span>
       </button>
       <img src="logo-black.png" alt="Wilson AC &amp; Appliance">
       <div class="head-title">Clearance Shop<span class="sub">Dripping Springs, Texas</span></div>
@@ -323,6 +367,24 @@
       <button class="btn ghost cart-btn" id="cartBtn" type="button">Cart<span class="cart-count" id="cartCount" style="display:none;">0</span></button>
     </div>
   </header>
+
+  <nav class="dept-ribbon" id="deptRibbon">
+    <div class="dept-inner">
+      <button type="button" class="dept-link" id="deptAppliances">Appliances</button>
+      <button type="button" class="dept-link outlet" id="deptOutlet">Outlet</button>
+    </div>
+    <div class="mega-panel" id="megaPanel">
+      <div class="mega-inner">
+        <div class="mega-head">
+          <h2>Appliances</h2>
+          <button type="button" class="mega-shopall" id="megaShopAll">Shop All</button>
+          <button type="button" class="mega-close" id="megaClose" aria-label="Close">✕</button>
+        </div>
+        <div class="mega-cols" id="megaCols"></div>
+      </div>
+    </div>
+  </nav>
+  <div class="mega-backdrop" id="megaBackdrop"></div>
 
   <div class="menu-backdrop" id="menuBackdrop"></div>
   <aside class="menu-drawer" id="menuDrawer" aria-label="Shop by category">
@@ -362,7 +424,6 @@
         <option value="price-asc">Price: Low to High</option>
         <option value="price-desc">Price: High to Low</option>
       </select>
-      <div class="chip-row" id="catChips"></div>
     </div>
 
     <div class="crumb-bar" id="crumbBar">
@@ -675,35 +736,25 @@
     const current = state.filter.brand;
     sel.innerHTML = "<option value=''>All brands</option>" + brands.map((b) => `<option${b === current ? " selected" : ""}>${esc(b)}</option>`).join("");
 
-    const counts = new Map();
-    for (const i of state.catalog.items || []) counts.set(i.category, (counts.get(i.category) || 0) + 1);
-    const cats = (state.catalog.categories || []).filter((c) => counts.get(c.key));
-    const chips = $("catChips");
-    chips.innerHTML = "";
-    const activeSel = state.filter.selection;
-    const isChipActive = (key) => Boolean(activeSel && !activeSel.products?.length && activeSel.cats?.length === 1 && activeSel.cats[0] === key);
-    const all = document.createElement("button");
-    all.className = "chip" + (activeSel ? "" : " active");
-    all.textContent = "All";
-    all.addEventListener("click", () => applySelection(null));
-    chips.appendChild(all);
-    for (const c of cats) {
-      const chip = document.createElement("button");
-      chip.className = "chip" + (isChipActive(c.key) ? " active" : "");
-      chip.textContent = `${c.label} (${counts.get(c.key)})`;
-      chip.addEventListener("click", () => applySelection({ label: c.label, cats: [c.key] }));
-      chips.appendChild(chip);
-    }
   }
 
-  // One entry point for every category pick (chips, drawer tier-1 Shop All,
-  // drawer sub-options). Renders the breadcrumb pill and closes the drawer.
+  // Does an item satisfy a selection? cats / products / condition compose.
+  function selectionMatches(sel, i) {
+    if (sel.cats?.length && !sel.cats.includes(i.category)) return false;
+    if (sel.products?.length && !sel.products.includes(i.product)) return false;
+    if (sel.condition && i.condition !== sel.condition) return false;
+    return true;
+  }
+
+  // One entry point for every category pick (department ribbon, mega panel,
+  // drawer tiers). Renders the breadcrumb pill and closes any open surface.
   function applySelection(sel) {
     state.filter.selection = sel;
     buildFilters();
     renderGrid();
     renderCrumb();
     closeMenu();
+    closeMega();
   }
 
   function renderCrumb() {
@@ -727,10 +778,7 @@
       if (state.filter.topDeals && !i.topDeal) return false;
       if (state.filter.brand && i.brand !== state.filter.brand) return false;
       const sel = state.filter.selection;
-      if (sel) {
-        if (sel.cats?.length && !sel.cats.includes(i.category)) return false;
-        if (sel.products?.length && !sel.products.includes(i.product)) return false;
-      }
+      if (sel && !selectionMatches(sel, i)) return false;
       if (q && !`${i.model} ${i.brand} ${i.description}`.toUpperCase().includes(q)) return false;
       return true;
     });
@@ -931,11 +979,7 @@
   ];
 
   function countForSelection(sel) {
-    return (state.catalog?.items || []).filter((i) => {
-      if (sel.cats?.length && !sel.cats.includes(i.category)) return false;
-      if (sel.products?.length && !sel.products.includes(i.product)) return false;
-      return true;
-    }).length;
+    return (state.catalog?.items || []).filter((i) => selectionMatches(sel, i)).length;
   }
 
   function openMenu() {
@@ -952,7 +996,7 @@
   $("menuClose").addEventListener("click", closeMenu);
   $("menuBackdrop").addEventListener("click", closeMenu);
   $("menuBack").addEventListener("click", () => $("menuTrack").classList.remove("sub"));
-  document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeMenu(); });
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape") { closeMenu(); closeMega(); } });
 
   function buildMenuRoot() {
     const list = $("menuRootList");
@@ -986,6 +1030,60 @@
       list.appendChild(row);
     }
     $("menuTrack").classList.add("sub");
+  }
+
+  // ---------- Department ribbon + mega panel (Abt desktop pattern) ----------
+  // "Appliances" opens the see-everything mega panel: every stocked
+  // department as a column (header = that department's Shop All) with its
+  // guided sub-options underneath — built from the same MENU_TREE as the
+  // drawer, so the two can never disagree. "Outlet" jumps straight to the
+  // open-box & display units.
+  function openMega() {
+    buildMega();
+    $("megaPanel").classList.add("show");
+    $("megaBackdrop").classList.add("show");
+    $("deptAppliances").classList.add("open");
+  }
+  function closeMega() {
+    $("megaPanel").classList.remove("show");
+    $("megaBackdrop").classList.remove("show");
+    $("deptAppliances").classList.remove("open");
+  }
+  $("deptAppliances").addEventListener("click", () => {
+    $("megaPanel").classList.contains("show") ? closeMega() : openMega();
+  });
+  $("megaClose").addEventListener("click", closeMega);
+  $("megaBackdrop").addEventListener("click", closeMega);
+  $("megaShopAll").addEventListener("click", () => applySelection(null));
+  $("deptOutlet").addEventListener("click", () => {
+    applySelection({ label: "Outlet — Open Box & Display", condition: "open" });
+  });
+
+  function buildMega() {
+    const cols = $("megaCols");
+    cols.textContent = "";
+    for (const tier of MENU_TREE) {
+      const count = countForSelection({ cats: tier.cats });
+      if (!count) continue;
+      const col = document.createElement("div");
+      col.className = "mega-col";
+      const head = document.createElement("h4");
+      head.textContent = tier.label;
+      head.title = `Shop all ${tier.label}`;
+      head.addEventListener("click", () => applySelection({ label: tier.label, cats: tier.cats }));
+      col.appendChild(head);
+      for (const sub of tier.subs) {
+        const subCount = countForSelection(sub);
+        if (!subCount) continue;
+        const link = document.createElement("button");
+        link.type = "button";
+        link.className = "mega-link";
+        link.textContent = sub.label;
+        link.addEventListener("click", () => applySelection({ label: `${tier.label} › ${sub.label}`, cats: sub.cats, products: sub.products }));
+        col.appendChild(link);
+      }
+      cols.appendChild(col);
+    }
   }
 
   // ---------- Registration ----------

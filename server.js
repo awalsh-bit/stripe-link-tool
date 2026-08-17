@@ -197,6 +197,14 @@ import {
   saveRevenuePerformance,
   getRevenuePerformance
 } from "./lib/revenue-performance-postgres.js";
+import {
+  parseInvoiceMaintenanceQuotes,
+  replaceOpenQuotes,
+  saveQuoteDisposition,
+  listQuoteOwners,
+  getQuoteFollowupBoard,
+  listQuoteSalespeople
+} from "./lib/quote-followup-postgres.js";
 import { parseCommissionGrid } from "./lib/commission-report.js";
 import {
   getBonusRules,
@@ -437,6 +445,7 @@ const INTERNAL_PAGE_PATHS = new Set([
   "/clearance.html",
   "/credit-applications.html",
   "/sales-order-health.html",
+  "/quote-follow-up.html",
   "/service-order-health.html",
   "/terms-signatures.html",
   "/flag-closures.html",
@@ -633,6 +642,7 @@ const PAGE_LABELS = {
   "/clearance.html": "Clearance Hit List",
   "/credit-applications.html": "Builder Credit Applications",
   "/sales-order-health.html": "Sales Order Health Report",
+  "/quote-follow-up.html": "Quote Follow-Up",
   "/terms-signatures.html": "Terms & Conditions Signatures",
   "/service-order-health.html": "Service Order Health",
   "/flag-closures.html": "Notification Closure Report",
@@ -705,6 +715,7 @@ const PAGE_CATEGORIES = [
       "/salesdashboard.html",
       "/shop-orders.html",
       "/sales-order-health.html",
+      "/quote-follow-up.html",
       "/terms-signatures.html",
       "/flag-closures.html",
       "/target-builder.html",
@@ -7397,6 +7408,131 @@ app.get("/api/revenue-performance", requirePagePermission("/target-builder.html"
   } catch (err) {
     console.error("Revenue performance load failed:", err.message);
     return res.status(500).json({ error: "Unable to load revenue performance." });
+  }
+});
+
+// INTERNAL: Quote Follow-Up (quote-follow-up.html) — the ePASS Invoice
+// Maintenance quote export (Inv Type Q / Status Open) uploaded here and
+// matched against the OE-23 sales_order_detail warehouse: an order with the
+// same customer number + same salesperson code on/after the quote date is a
+// conversion. Salespeople see their own queue (matched by their directory
+// ePASS code); executives see everyone with a salesperson filter.
+const quoteExportUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } });
+
+async function quoteFollowupViewer(req) {
+  const exec = isExecutiveUser(req.authUser);
+  const email = String(req.authUser?.email || req.authUser?.username || "").trim().toLowerCase();
+  let code = "";
+  let name = "";
+  try {
+    const entry = await findEmployeeDirectoryEntryByEmail(email);
+    code = String(entry?.code || "").trim().toUpperCase();
+    name = entry?.name || "";
+  } catch {}
+  return { exec, code, name };
+}
+
+app.get("/api/quote-followup", requirePagePermission("/quote-follow-up.html"), async (req, res) => {
+  try {
+    const viewer = await quoteFollowupViewer(req);
+    let spCode = null;
+    if (viewer.exec) {
+      const filter = String(req.query.salesperson || "").trim().toUpperCase();
+      spCode = filter && filter !== "ALL" ? filter : null;
+    } else {
+      if (!viewer.code) {
+        return res.json({ viewer, board: null, salespeople: [], noCode: true });
+      }
+      spCode = viewer.code;
+    }
+    const board = await getQuoteFollowupBoard({ spCode });
+    const salespeople = viewer.exec ? await listQuoteSalespeople() : [];
+    return res.json({ viewer, board, salespeople, filter: spCode });
+  } catch (err) {
+    console.error("Quote follow-up load failed:", err.message);
+    return res.status(500).json({ error: "Unable to load the quote follow-up board." });
+  }
+});
+
+app.post("/api/quote-followup/upload", requirePagePermission("/quote-follow-up.html"), (req, res) => {
+  if (!isExecutiveUser(req.authUser)) {
+    return res.status(403).json({ error: "Executive access is required to upload the quote export." });
+  }
+  quoteExportUpload.single("report")(req, res, async (err) => {
+    if (err) {
+      return res.status(400).json({ error: err.code === "LIMIT_FILE_SIZE" ? "That file is over the 20 MB limit." : "Upload failed — please try again." });
+    }
+    try {
+      if (!req.file?.buffer?.length) {
+        return res.status(400).json({ error: "Attach the Invoice Maintenance quote export (.xlsx)." });
+      }
+      let grid;
+      try {
+        const workbook = readWorkbook(req.file.buffer, { type: "buffer", cellDates: true });
+        const sheet = workbook.Sheets[workbook.SheetNames[0]];
+        grid = xlsxUtils.sheet_to_json(sheet, { header: 1, defval: null, raw: true });
+      } catch (parseErr) {
+        console.error("Quote export read failed:", parseErr.message);
+        return res.status(400).json({ error: "Couldn't read that file as an Excel workbook. Export Invoice Maintenance (quotes, Open) from ePASS and upload it unmodified." });
+      }
+      const parsed = parseInvoiceMaintenanceQuotes(grid);
+      if (parsed.notInvoiceMaintenance) {
+        return res.status(400).json({ error: "Couldn't find the header row — is this the Invoice Maintenance export?" });
+      }
+      if (!parsed.quotes.length) {
+        return res.status(400).json({ error: "No open quotes found in that file." });
+      }
+      const count = await replaceOpenQuotes(parsed.quotes, {
+        filename: req.file.originalname || "",
+        byEmail: req.authUser?.email || req.authUser?.username || "",
+        byName: req.authUser?.displayName || ""
+      });
+      recordAudit({
+        ip: req.ip, actorUserId: req.authUser?.id || null,
+        action: "quote_export_uploaded", targetUserId: null,
+        detail: { quotes: count, filename: req.file.originalname || "", warnings: parsed.warnings.length }
+      }).catch(() => {});
+      return res.json({ ok: true, quotes: count, warnings: parsed.warnings.slice(0, 10) });
+    } catch (uploadErr) {
+      console.error("Quote export upload failed:", uploadErr.message);
+      return res.status(500).json({ error: uploadErr.message || "Unable to process the export." });
+    }
+  });
+});
+
+app.post("/api/quote-followup/disposition", requirePagePermission("/quote-follow-up.html"), async (req, res) => {
+  try {
+    const viewer = await quoteFollowupViewer(req);
+    const quoteNumbers = (Array.isArray(req.body?.quoteNumbers) ? req.body.quoteNumbers : [])
+      .map((n) => String(n).trim().toUpperCase()).filter(Boolean);
+    const action = String(req.body?.action || "");
+    if (!quoteNumbers.length) {
+      return res.status(400).json({ error: "No quote numbers provided." });
+    }
+    if (!viewer.exec) {
+      const owners = await listQuoteOwners(quoteNumbers);
+      const foreign = quoteNumbers.filter((n) => (owners[n] || "") !== viewer.code);
+      if (!viewer.code || foreign.length) {
+        return res.status(403).json({ error: "You can only update your own quotes." });
+      }
+    }
+    const result = await saveQuoteDisposition({
+      quoteNumbers,
+      action,
+      salesOrderNumber: req.body?.salesOrderNumber || "",
+      comment: req.body?.comment || "",
+      byEmail: req.authUser?.email || req.authUser?.username || "",
+      byName: req.authUser?.displayName || ""
+    });
+    recordAudit({
+      ip: req.ip, actorUserId: req.authUser?.id || null,
+      action: "quote_disposition_saved", targetUserId: null,
+      detail: { action, quotes: quoteNumbers, salesOrderNumber: String(req.body?.salesOrderNumber || "").slice(0, 40) }
+    }).catch(() => {});
+    return res.json({ ok: true, ...result });
+  } catch (err) {
+    console.error("Quote disposition failed:", err.message);
+    return res.status(400).json({ error: err.message || "Unable to save that update." });
   }
 });
 

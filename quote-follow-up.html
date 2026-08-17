@@ -1,0 +1,541 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="robots" content="noindex,nofollow,noarchive" />
+  <title>Wilson AC &amp; Appliance - Quote Follow-Up</title>
+  <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+  <link rel="stylesheet" href="internal-shell.css" />
+  <style>
+    :root {
+      --bg: #f7f8fc;
+      --card: #ffffff;
+      --text: #1f2937;
+      --muted: #6b7280;
+      --border: #dbe1ea;
+      --shadow: 0 10px 35px rgba(0, 0, 0, 0.08);
+      --radius: 18px;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Roboto", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: linear-gradient(180deg, var(--primary-tint) 0%, var(--bg) 100%);
+      color: var(--text);
+      min-height: 100vh;
+      padding: 32px 16px;
+    }
+    .wrap { max-width: 1480px; margin: 0 auto; }
+    .surface {
+      background: var(--card);
+      border: 1px solid rgba(var(--primary-rgb), 0.12);
+      box-shadow: var(--shadow);
+      border-radius: var(--radius);
+      padding: 22px;
+      margin: 0 auto 20px;
+    }
+    h2 { margin: 0 0 6px; font-size: 20px; }
+    .page-head { margin-bottom: 12px; }
+    .section-note { margin: 0 0 14px; color: var(--muted); font-size: 13.5px; line-height: 1.5; }
+    .qf-status { display: none; border-radius: 12px; padding: 10px 13px; font-size: 13px; margin-bottom: 12px; line-height: 1.5; }
+    .qf-status.show { display: block; }
+    .qf-status.ok { background: rgba(var(--primary-rgb), 0.1); color: var(--primary); }
+    .qf-status.error { background: #fee2e2; color: #991b1b; }
+
+    .qf-toolbar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-bottom: 14px; }
+    .qf-tabs { display: flex; gap: 6px; flex-wrap: wrap; }
+    .qf-tab {
+      border: 1px solid var(--border); background: #fff; color: #374151; border-radius: 999px;
+      padding: 8px 15px; font-size: 12.5px; font-weight: 700; cursor: pointer; font-family: inherit;
+    }
+    .qf-tab.active { background: var(--primary); border-color: var(--primary); color: #fff; }
+    .qf-tab .n { opacity: 0.75; font-weight: 600; margin-left: 4px; }
+    .qf-spacer { flex: 1; }
+    .qf-toolbar select {
+      border: 1px solid var(--border); border-radius: 10px; padding: 8px 11px;
+      font-size: 13px; font-family: inherit; background: #fff; max-width: 280px;
+    }
+    .qf-btn { border: none; border-radius: 10px; cursor: pointer; font-size: 12.5px; font-weight: 600; padding: 9px 14px; font-family: inherit; }
+    .qf-btn:disabled { opacity: 0.55; cursor: wait; }
+    .qf-btn.primary { background: var(--primary); color: #fff; }
+    .qf-btn.quiet { background: #fff; color: #374151; border: 1px solid var(--border); }
+    .qf-btn.danger { background: #fff; color: #b91c1c; border: 1px solid #fecaca; }
+    .qf-meta { font-size: 12px; color: var(--muted); margin-bottom: 14px; line-height: 1.6; }
+    .qf-meta .warn { color: #b45309; font-weight: 600; }
+
+    /* Opportunity cards */
+    .qf-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(370px, 1fr)); gap: 14px; }
+    .qf-card {
+      border: 1px solid var(--border); border-radius: 14px; padding: 15px 16px 13px;
+      display: flex; flex-direction: column; gap: 9px; background: #fff;
+    }
+    .qf-card-head { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+    .qf-client { font-weight: 800; font-size: 15px; }
+    .qf-cust { font-size: 11.5px; color: var(--muted); }
+    .qf-sp-chip {
+      margin-left: auto; background: #eef2ff; color: #3730a3; border-radius: 999px;
+      font-size: 10.5px; font-weight: 800; padding: 3px 9px; letter-spacing: 0.04em;
+    }
+    .qf-other {
+      background: #fffbeb; color: #92400e; border-radius: 10px; padding: 7px 10px;
+      font-size: 12px; line-height: 1.45;
+    }
+    .qf-note { font-size: 11.5px; color: var(--muted); }
+    .qf-quotes { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+    .qf-quotes td { padding: 5px 4px; border-bottom: 1px dashed #eef1f6; white-space: nowrap; }
+    .qf-quotes tr:last-child td { border-bottom: none; }
+    .qf-qnum { font-weight: 700; }
+    .qf-stage { font-size: 10px; font-weight: 800; color: #64748b; background: #f1f5f9; border-radius: 6px; padding: 2px 6px; letter-spacing: 0.05em; }
+    .qf-amt { text-align: right; font-variant-numeric: tabular-nums; }
+    .qf-total-row { display: flex; align-items: center; justify-content: space-between; font-size: 13px; }
+    .qf-total-row .lbl { color: var(--muted); font-size: 11.5px; text-transform: uppercase; letter-spacing: 0.06em; font-weight: 700; }
+    .qf-total-row .val { font-weight: 800; font-size: 15px; }
+    .qf-actions { display: flex; gap: 7px; flex-wrap: wrap; margin-top: 2px; }
+    .qf-actions .qf-btn { flex: 1; min-width: 105px; padding: 8px 6px; font-size: 11.5px; text-align: center; }
+
+    /* Flat tables (Converted / Lost) */
+    .qf-table-wrap { overflow-x: auto; }
+    table.qf-flat { width: 100%; border-collapse: collapse; font-size: 13px; }
+    .qf-flat th, .qf-flat td { text-align: left; padding: 9px 11px; border-bottom: 1px solid #eef1f6; vertical-align: middle; white-space: nowrap; }
+    .qf-flat th { font-size: 11.5px; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; color: #64748b; }
+    .qf-flat td.wrap-cell { white-space: normal; min-width: 200px; }
+    .qf-how {
+      font-size: 10.5px; font-weight: 800; border-radius: 999px; padding: 3px 9px; letter-spacing: 0.04em;
+    }
+    .qf-how.auto { background: rgba(var(--primary-rgb), 0.12); color: var(--primary); }
+    .qf-how.manual { background: #eef2ff; color: #3730a3; }
+
+    .qf-empty { color: var(--muted); font-size: 13.5px; padding: 22px 4px; text-align: center; }
+
+    /* Overlay editor */
+    .qf-overlay {
+      display: none; position: fixed; inset: 0; background: rgba(15, 23, 42, 0.45);
+      z-index: 60; align-items: center; justify-content: center; padding: 18px;
+    }
+    .qf-overlay.show { display: flex; }
+    .qf-panel {
+      background: #fff; border-radius: 16px; box-shadow: 0 24px 60px rgba(0,0,0,0.25);
+      width: 100%; max-width: 460px; padding: 22px;
+    }
+    .qf-panel h3 { margin: 0 0 4px; font-size: 16.5px; }
+    .qf-panel .sub { margin: 0 0 14px; color: var(--muted); font-size: 12.5px; line-height: 1.5; }
+    .qf-panel label { display: block; font-size: 11.5px; font-weight: 800; letter-spacing: 0.05em; text-transform: uppercase; color: #64748b; margin: 0 0 6px; }
+    .qf-panel input[type="text"], .qf-panel textarea {
+      width: 100%; border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px;
+      font-size: 13.5px; font-family: inherit; margin-bottom: 12px;
+    }
+    .qf-panel textarea { min-height: 84px; resize: vertical; }
+    .qf-panel input:focus, .qf-panel textarea:focus {
+      outline: none; border-color: rgba(var(--primary-rgb), 0.75);
+      box-shadow: 0 0 0 4px rgba(var(--primary-rgb), 0.12);
+    }
+    .qf-panel .err { display: none; background: #fee2e2; color: #991b1b; border-radius: 10px; padding: 8px 11px; font-size: 12.5px; margin-bottom: 12px; }
+    .qf-panel .err.show { display: block; }
+    .qf-panel-actions { display: flex; gap: 8px; justify-content: flex-end; }
+    @media (max-width: 560px) {
+      .qf-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body data-shell-label="Quote Follow-Up" data-shell-icon="sales">
+  <div class="wrap">
+    <div id="internal-shell-header"></div>
+
+    <div class="surface">
+      <div class="page-head">
+        <h2>Quote Follow-Up</h2>
+        <p class="section-note">
+          Open ePASS quotes that haven't turned into a sale yet. Quotes for the same client written within 30 days
+          share one opportunity card. A finished order for the same customer number and salesperson (from the OE-23 feed)
+          automatically moves the card to <strong>Converted</strong> — for everything else, work the card:
+          record a missing conversion, queue a follow-up, or mark the opportunity lost.
+        </p>
+      </div>
+      <div id="qfStatus" class="qf-status"></div>
+      <div class="qf-toolbar">
+        <div class="qf-tabs" id="qfTabs">
+          <button type="button" class="qf-tab active" data-tab="queue">To Work<span class="n" id="nQueue"></span></button>
+          <button type="button" class="qf-tab" data-tab="followup">Follow-Up Queue<span class="n" id="nFollowup"></span></button>
+          <button type="button" class="qf-tab" data-tab="converted">Converted<span class="n" id="nConverted"></span></button>
+          <button type="button" class="qf-tab" data-tab="lost">Lost<span class="n" id="nLost"></span></button>
+        </div>
+        <span class="qf-spacer"></span>
+        <select id="qfSp" style="display:none;"></select>
+        <input type="file" id="qfFile" accept=".xlsx,.xls" style="display:none;" />
+        <button type="button" class="qf-btn primary" id="qfUpload" style="display:none;">Upload quote export</button>
+      </div>
+      <div class="qf-meta" id="qfMeta"></div>
+
+      <div id="paneQueue"><div class="qf-grid" id="gridQueue"></div><div class="qf-empty" id="emptyQueue" style="display:none;"></div></div>
+      <div id="paneFollowup" style="display:none;"><div class="qf-grid" id="gridFollowup"></div><div class="qf-empty" id="emptyFollowup" style="display:none;"></div></div>
+      <div id="paneConverted" style="display:none;"><div class="qf-table-wrap" id="tblConverted"></div></div>
+      <div id="paneLost" style="display:none;"><div class="qf-table-wrap" id="tblLost"></div></div>
+    </div>
+
+    <div id="internal-shell-footer"></div>
+  </div>
+
+  <!-- Action overlay: missing conversion (sales order #) / opportunity lost (optional comment) -->
+  <div class="qf-overlay" id="qfOverlay">
+    <div class="qf-panel">
+      <h3 id="qfPanelTitle"></h3>
+      <p class="sub" id="qfPanelSub"></p>
+      <div class="err" id="qfPanelErr"></div>
+      <div id="qfSoField">
+        <label for="qfSo">Sales order number</label>
+        <input type="text" id="qfSo" placeholder="e.g. S00063116" autocomplete="off" />
+      </div>
+      <div id="qfCommentField">
+        <label for="qfComment">Comment <span style="font-weight:600; text-transform:none; letter-spacing:0;">(optional)</span></label>
+        <textarea id="qfComment" placeholder="Why was this opportunity lost?"></textarea>
+      </div>
+      <div class="qf-panel-actions">
+        <button type="button" class="qf-btn quiet" id="qfPanelCancel">Cancel</button>
+        <button type="button" class="qf-btn primary" id="qfPanelSave"></button>
+      </div>
+    </div>
+  </div>
+
+  <script src="internal-shell.js"></script>
+  <script>
+    // ------------------------------------------------------------------
+    // Quote Follow-Up — each salesperson works their open, non-converted
+    // ePASS quotes. Opportunity cards group a customer's quotes written
+    // within 30 days; three actions per card (missing conversion with a
+    // sales order number, follow-up queue, opportunity lost with an
+    // optional comment). Executives see everyone + the upload box.
+    // ------------------------------------------------------------------
+    (function () {
+      const state = { data: null, tab: "queue", overlay: null };
+
+      const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch]));
+      const money = (n) => "$" + Number(n || 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      const day = (iso) => {
+        if (!iso) return "—";
+        const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso);
+        return m ? `${m[2]}/${m[3]}/${m[1].slice(2)}` : new Date(iso).toLocaleDateString("en-US", { month: "2-digit", day: "2-digit", year: "2-digit" });
+      };
+      const when = (iso) => iso ? new Date(iso).toLocaleDateString("en-US", { month: "2-digit", day: "2-digit", year: "2-digit" }) : "—";
+      const $ = (id) => document.getElementById(id);
+
+      function setStatus(message, kind) {
+        const box = $("qfStatus");
+        if (!message) { box.className = "qf-status"; box.textContent = ""; return; }
+        box.className = "qf-status " + kind + " show";
+        box.textContent = message;
+      }
+
+      async function api(path, options) {
+        const res = await fetch(path, { credentials: "same-origin", headers: { "Content-Type": "application/json" }, ...options });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error || "Request failed.");
+        return data;
+      }
+
+      function spName(code) {
+        const names = state.data?.board?.spNames || {};
+        return names[code] || "";
+      }
+
+      function spLabel(code) {
+        const n = spName(code);
+        return n ? `${n} (${code})` : code;
+      }
+
+      async function load() {
+        try {
+          const filter = $("qfSp").value || "";
+          const data = await api("/api/quote-followup" + (filter && filter !== "ALL" ? "?salesperson=" + encodeURIComponent(filter) : ""));
+          state.data = data;
+          if (data.noCode) {
+            setStatus("Your account isn't linked to an ePASS salesperson code yet — ask an executive to set your code on the Team section of User Admin.", "error");
+            render();
+            return;
+          }
+          render();
+        } catch (err) {
+          setStatus(err.message, "error");
+        }
+      }
+
+      function render() {
+        const d = state.data || {};
+        const b = d.board || { queue: [], followup: [], converted: [], lost: [], closedUnmatched: 0, lastUpload: null };
+        const exec = !!d.viewer?.exec;
+
+        // Exec controls
+        $("qfUpload").style.display = exec ? "" : "none";
+        const sel = $("qfSp");
+        if (exec) {
+          const current = sel.value || d.filter || "ALL";
+          const opts = ['<option value="ALL">All salespeople</option>']
+            .concat((d.salespeople || []).map((s) => `<option value="${esc(s.code)}"${s.code === current ? " selected" : ""}>${esc(s.name ? `${s.name} (${s.code})` : s.code)} — ${s.openCount} open</option>`));
+          sel.innerHTML = opts.join("");
+          if (current === "ALL") sel.value = "ALL";
+          sel.style.display = "";
+        } else {
+          sel.style.display = "none";
+        }
+
+        // Counts
+        const count = (groups) => groups.reduce((s, g) => s + g.quotes.length, 0);
+        $("nQueue").textContent = b.queue.length ? ` ${b.queue.length}` : " 0";
+        $("nFollowup").textContent = b.followup.length ? ` ${b.followup.length}` : " 0";
+        $("nConverted").textContent = ` ${b.converted.length}`;
+        $("nLost").textContent = ` ${b.lost.length}`;
+
+        // Meta line
+        const metaBits = [];
+        if (b.lastUpload) {
+          metaBits.push(`Quote export: <strong>${esc(b.lastUpload.filename)}</strong> — ${Number(b.lastUpload.quoteCount).toLocaleString()} open quotes, uploaded ${when(b.lastUpload.at)}${b.lastUpload.byName ? " by " + esc(b.lastUpload.byName) : ""}.`);
+        } else {
+          metaBits.push(`<span class="warn">No quote export uploaded yet.</span> Upload the ePASS Invoice Maintenance export (quotes, Open) to build the board.`);
+        }
+        if (b.closedUnmatched > 0 && exec) {
+          metaBits.push(`${b.closedUnmatched.toLocaleString()} quote${b.closedUnmatched === 1 ? "" : "s"} closed in ePASS without a matched order or a recorded outcome.`);
+        }
+        $("qfMeta").innerHTML = metaBits.join(" ");
+
+        renderCards("gridQueue", "emptyQueue", b.queue, exec, false);
+        renderCards("gridFollowup", "emptyFollowup", b.followup, exec, true);
+        renderConverted(b.converted, exec);
+        renderLost(b.lost, exec);
+        showTab(state.tab);
+      }
+
+      function quoteRows(g) {
+        return g.quotes.map((q) => `
+          <tr>
+            <td class="qf-qnum">${esc(q.quoteNumber)}</td>
+            <td>${day(q.dateCreated)}</td>
+            <td>${q.jobStatus ? `<span class="qf-stage">${esc(q.jobStatus)}</span>` : ""}</td>
+            <td class="qf-amt">${money(q.total)}</td>
+          </tr>`).join("");
+      }
+
+      function renderCards(gridId, emptyId, groups, exec, isFollowup) {
+        const grid = $(gridId);
+        const empty = $(emptyId);
+        if (!groups.length) {
+          grid.innerHTML = "";
+          empty.style.display = "";
+          empty.textContent = isFollowup ? "The follow-up queue is empty." : "Nothing to work — every open quote is converted, queued, or resolved.";
+          return;
+        }
+        empty.style.display = "none";
+        grid.innerHTML = groups.map((g, i) => `
+          <div class="qf-card" data-idx="${i}">
+            <div class="qf-card-head">
+              <span class="qf-client">${esc(g.customerName || "Unknown client")}</span>
+              <span class="qf-cust">#${esc(g.customerNumber || "—")}${g.zip ? " · " + esc(g.zip) : ""}</span>
+              ${exec ? `<span class="qf-sp-chip">${esc(spLabel(g.spCode))}</span>` : ""}
+            </div>
+            ${g.otherSpConversion ? `<div class="qf-other">Heads up — this customer bought from <strong>${esc(spLabel(g.otherSpConversion.spCode))}</strong> (${esc(g.otherSpConversion.invoice)}, ${day(g.otherSpConversion.finishDate)}) after this quote.</div>` : ""}
+            ${isFollowup && g.followupBy ? `<div class="qf-note">Moved to follow-up by ${esc(g.followupBy)} on ${when(g.followupAt)}.</div>` : ""}
+            <table class="qf-quotes"><tbody>${quoteRows(g)}</tbody></table>
+            <div class="qf-total-row"><span class="lbl">${g.quotes.length === 1 ? "Quote total" : g.quotes.length + " quotes"}</span><span class="val">${money(g.total)}</span></div>
+            <div class="qf-actions">
+              <button type="button" class="qf-btn primary" data-act="so">Missing Conversion</button>
+              ${isFollowup
+                ? `<button type="button" class="qf-btn quiet" data-act="requeue">Return to Queue</button>`
+                : `<button type="button" class="qf-btn quiet" data-act="followup">Follow-Up Required</button>`}
+              <button type="button" class="qf-btn danger" data-act="lost">Opportunity Lost</button>
+            </div>
+          </div>`).join("");
+
+        grid.querySelectorAll(".qf-card").forEach((card) => {
+          const g = groups[Number(card.dataset.idx)];
+          card.querySelectorAll("[data-act]").forEach((btn) => {
+            btn.addEventListener("click", () => onAction(btn.dataset.act, g, btn));
+          });
+        });
+      }
+
+      function renderConverted(rows, exec) {
+        const host = $("tblConverted");
+        if (!rows.length) { host.innerHTML = `<div class="qf-empty">No converted quotes yet.</div>`; return; }
+        host.innerHTML = `
+          <table class="qf-flat">
+            <thead><tr><th>Quote</th><th>Client</th>${exec ? "<th>Salesperson</th>" : ""}<th>Quote $</th><th>Sales order</th><th>Matched</th><th></th></tr></thead>
+            <tbody>${rows.map((r, i) => `
+              <tr data-idx="${i}">
+                <td class="qf-qnum">${esc(r.quoteNumber)}</td>
+                <td>${esc(r.customerName)}<span class="qf-cust"> #${esc(r.customerNumber)}</span></td>
+                ${exec ? `<td>${esc(spLabel(r.spCode))}</td>` : ""}
+                <td class="qf-amt">${money(r.total)}</td>
+                <td class="qf-qnum">${esc(r.orderNumber)}${r.how === "auto" && r.orderDate ? `<span class="qf-cust"> · ${day(r.orderDate)}</span>` : ""}</td>
+                <td>${r.how === "auto"
+                  ? `<span class="qf-how auto">AUTO-MATCHED</span>`
+                  : `<span class="qf-how manual">ENTERED${r.by ? " · " + esc(r.by).toUpperCase() : ""}</span>`}</td>
+                <td>${r.how === "manual" ? `<button type="button" class="qf-btn quiet" data-reopen="${esc(r.quoteNumber)}">Reopen</button>` : ""}</td>
+              </tr>`).join("")}
+            </tbody>
+          </table>`;
+        host.querySelectorAll("[data-reopen]").forEach((btn) => {
+          btn.addEventListener("click", () => reopen([btn.dataset.reopen], btn));
+        });
+      }
+
+      function renderLost(rows, exec) {
+        const host = $("tblLost");
+        if (!rows.length) { host.innerHTML = `<div class="qf-empty">No lost opportunities recorded.</div>`; return; }
+        host.innerHTML = `
+          <table class="qf-flat">
+            <thead><tr><th>Quote</th><th>Client</th>${exec ? "<th>Salesperson</th>" : ""}<th>Quote $</th><th>Comment</th><th>By</th><th></th></tr></thead>
+            <tbody>${rows.map((r) => `
+              <tr>
+                <td class="qf-qnum">${esc(r.quoteNumber)}</td>
+                <td>${esc(r.customerName)}<span class="qf-cust"> #${esc(r.customerNumber)}</span></td>
+                ${exec ? `<td>${esc(spLabel(r.spCode))}</td>` : ""}
+                <td class="qf-amt">${money(r.total)}</td>
+                <td class="wrap-cell">${esc(r.comment) || "<span class='qf-cust'>—</span>"}</td>
+                <td>${esc(r.by)}<span class="qf-cust"> · ${when(r.at)}</span></td>
+                <td><button type="button" class="qf-btn quiet" data-reopen="${esc(r.quoteNumber)}">Reopen</button></td>
+              </tr>`).join("")}
+            </tbody>
+          </table>`;
+        host.querySelectorAll("[data-reopen]").forEach((btn) => {
+          btn.addEventListener("click", () => reopen([btn.dataset.reopen], btn));
+        });
+      }
+
+      // ---- tabs ----
+      function showTab(tab) {
+        state.tab = tab;
+        document.querySelectorAll("#qfTabs .qf-tab").forEach((t) => t.classList.toggle("active", t.dataset.tab === tab));
+        $("paneQueue").style.display = tab === "queue" ? "" : "none";
+        $("paneFollowup").style.display = tab === "followup" ? "" : "none";
+        $("paneConverted").style.display = tab === "converted" ? "" : "none";
+        $("paneLost").style.display = tab === "lost" ? "" : "none";
+      }
+      document.querySelectorAll("#qfTabs .qf-tab").forEach((t) => {
+        t.addEventListener("click", () => showTab(t.dataset.tab));
+      });
+
+      // ---- actions ----
+      async function sendDisposition(g, action, extra, btn) {
+        if (btn) btn.disabled = true;
+        try {
+          await api("/api/quote-followup/disposition", {
+            method: "POST",
+            body: JSON.stringify({ quoteNumbers: g.quotes.map((q) => q.quoteNumber), action, ...extra })
+          });
+          const labels = {
+            missing_conversion: `Marked converted — ${g.customerName}`,
+            followup: `Moved to the follow-up queue — ${g.customerName}`,
+            lost: `Opportunity lost recorded — ${g.customerName}`,
+            reopen: `Returned to the queue — ${g.customerName}`
+          };
+          setStatus(labels[action] || "Saved.", "ok");
+          closeOverlay();
+          await load();
+        } catch (err) {
+          if (state.overlay) {
+            const e = $("qfPanelErr"); e.textContent = err.message; e.classList.add("show");
+          } else {
+            setStatus(err.message, "error");
+          }
+        } finally {
+          if (btn) btn.disabled = false;
+        }
+      }
+
+      function onAction(act, g, btn) {
+        if (act === "followup") return sendDisposition(g, "followup", {}, btn);
+        if (act === "requeue") return sendDisposition(g, "reopen", {}, btn);
+        if (act === "so") return openOverlay("so", g);
+        if (act === "lost") return openOverlay("lost", g);
+      }
+
+      async function reopen(quoteNumbers, btn) {
+        if (btn) btn.disabled = true;
+        try {
+          await api("/api/quote-followup/disposition", { method: "POST", body: JSON.stringify({ quoteNumbers, action: "reopen" }) });
+          setStatus("Quote returned to the working queue.", "ok");
+          await load();
+        } catch (err) {
+          setStatus(err.message, "error");
+          if (btn) btn.disabled = false;
+        }
+      }
+
+      // ---- overlay ----
+      function openOverlay(mode, g) {
+        state.overlay = { mode, group: g };
+        const qn = g.quotes.map((q) => q.quoteNumber).join(", ");
+        $("qfPanelErr").classList.remove("show");
+        $("qfSo").value = "";
+        $("qfComment").value = "";
+        if (mode === "so") {
+          $("qfPanelTitle").textContent = "Missing conversion";
+          $("qfPanelSub").textContent = `${g.customerName} — ${qn}. Enter the sales order number this quote actually converted to; the card moves to Converted.`;
+          $("qfSoField").style.display = "";
+          $("qfCommentField").style.display = "none";
+          $("qfPanelSave").textContent = "Mark converted";
+        } else {
+          $("qfPanelTitle").textContent = "Opportunity lost";
+          $("qfPanelSub").textContent = `${g.customerName} — ${qn}. This removes the card from the working queue. Add a comment if there's a reason worth keeping.`;
+          $("qfSoField").style.display = "none";
+          $("qfCommentField").style.display = "";
+          $("qfPanelSave").textContent = "Mark lost";
+        }
+        $("qfOverlay").classList.add("show");
+        setTimeout(() => (mode === "so" ? $("qfSo") : $("qfComment")).focus(), 40);
+      }
+
+      function closeOverlay() {
+        state.overlay = null;
+        $("qfOverlay").classList.remove("show");
+      }
+
+      $("qfPanelCancel").addEventListener("click", closeOverlay);
+      $("qfOverlay").addEventListener("click", (e) => { if (e.target === $("qfOverlay")) closeOverlay(); });
+      document.addEventListener("keydown", (e) => { if (e.key === "Escape" && state.overlay) closeOverlay(); });
+
+      $("qfPanelSave").addEventListener("click", () => {
+        const o = state.overlay;
+        if (!o) return;
+        if (o.mode === "so") {
+          const so = $("qfSo").value.trim();
+          if (!so) {
+            const e = $("qfPanelErr"); e.textContent = "Enter the sales order number the quote converted to."; e.classList.add("show");
+            return;
+          }
+          sendDisposition(o.group, "missing_conversion", { salesOrderNumber: so }, $("qfPanelSave"));
+        } else {
+          sendDisposition(o.group, "lost", { comment: $("qfComment").value.trim() }, $("qfPanelSave"));
+        }
+      });
+
+      // ---- exec: salesperson filter + upload ----
+      $("qfSp").addEventListener("change", load);
+      $("qfUpload").addEventListener("click", () => $("qfFile").click());
+      $("qfFile").addEventListener("change", async () => {
+        const file = $("qfFile").files[0];
+        if (!file) return;
+        const btn = $("qfUpload");
+        btn.disabled = true;
+        btn.textContent = "Uploading…";
+        try {
+          const form = new FormData();
+          form.append("report", file);
+          const res = await fetch("/api/quote-followup/upload", { method: "POST", credentials: "same-origin", body: form });
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok) throw new Error(data.error || "Upload failed.");
+          setStatus(`Quote export loaded — ${Number(data.quotes).toLocaleString()} open quotes.${data.warnings?.length ? " " + data.warnings[0] : ""}`, "ok");
+          await load();
+        } catch (err) {
+          setStatus(err.message, "error");
+        } finally {
+          btn.disabled = false;
+          btn.textContent = "Upload quote export";
+          $("qfFile").value = "";
+        }
+      });
+
+      load();
+    })();
+  </script>
+</body>
+</html>

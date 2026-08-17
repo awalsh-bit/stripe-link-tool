@@ -107,6 +107,26 @@
     .item-cat { font-size: 11.5px; color: var(--muted); }
     .item-price { font-size: 19px; font-weight: 700; color: var(--primary-dark); }
     .item-foot { display: flex; align-items: center; justify-content: space-between; margin-top: 6px; gap: 8px; }
+    /* MAP-displayed price: the ⓘ explains the real price is even lower */
+    .info-dot {
+      appearance: none; border: 1.5px solid currentColor; background: none; color: var(--muted, #6b7280);
+      width: 17px; height: 17px; border-radius: 50%; font-size: 11px; line-height: 1; font-weight: 700;
+      font-style: italic; font-family: Georgia, serif; cursor: pointer; padding: 0;
+      display: inline-flex; align-items: center; justify-content: center;
+      vertical-align: 3px; margin-left: 6px; position: relative;
+    }
+    .info-dot:hover { color: var(--primary-dark); }
+    .info-tip {
+      display: none; position: absolute; bottom: calc(100% + 9px); right: -12px; z-index: 30;
+      width: 235px; background: #1f2937; color: #f9fafb; border-radius: 10px; padding: 10px 12px;
+      font-size: 12.5px; line-height: 1.5; font-weight: 500; font-style: normal; font-family: inherit;
+      text-align: left; box-shadow: 0 8px 22px rgba(0, 0, 0, 0.25); cursor: default;
+    }
+    .info-tip::after {
+      content: ""; position: absolute; top: 100%; right: 16px;
+      border: 6px solid transparent; border-top-color: #1f2937;
+    }
+    .info-dot:hover .info-tip, .info-dot:focus .info-tip, .info-dot.open .info-tip { display: block; }
     .locked-price { font-size: 13px; color: var(--muted); font-style: italic; }
     .in-cart { font-size: 13.5px; font-weight: 600; color: var(--primary-dark); }
     .empty-note { text-align: center; color: var(--muted); padding: 60px 0; font-size: 15px; }
@@ -567,7 +587,7 @@
     const groups = [];
     const byKey = new Map();
     for (const item of visibleItems()) {
-      const key = [item.model, item.brand, item.condition || "", item.price ?? ""].join("\u0001");
+      const key = [item.model, item.brand, item.condition || "", item.price ?? "", item.mapDisplayPrice ?? ""].join("\u0001");
       let group = byKey.get(key);
       if (!group) {
         group = { ...item, ids: [] };
@@ -604,9 +624,13 @@
         <div class="item-desc">${esc(group.description)}</div>
         <div class="item-cat">${esc(categoryLabel(group.category))} · ${total} available${carted && !allInCart ? ` · ${carted} in cart` : ""}</div>
         <div class="item-foot">
-          ${group.price != null && !state.paused
-            ? `<span class="item-price">${money(group.price)}</span>`
-            : `<span></span>`}
+          ${state.paused
+            ? `<span></span>`
+            : group.price != null
+              ? `<span class="item-price">${money(group.price)}</span>`
+              : group.mapDisplayPrice != null
+                ? `<span class="item-price">${money(group.mapDisplayPrice)}<button type="button" class="info-dot" data-info="1" aria-label="About this price">i<span class="info-tip">This model is available to local customers at a price too low to display outside of a shopping cart — create your free profile to see it.</span></button></span>`
+                : `<span></span>`}
           ${state.paused
             ? `<a class="btn ghost" href="tel:512-894-0907">Call for availability</a>`
             : group.price != null
@@ -629,7 +653,20 @@
     grid.querySelectorAll("[data-unlock]").forEach((btn) => {
       btn.addEventListener("click", openRegister);
     });
+    // The i-in-a-circle on MAP-displayed prices: hover shows the tip (CSS);
+    // tap/click pins it open for touch screens. Outside clicks close it.
+    grid.querySelectorAll(".info-dot").forEach((dot) => {
+      dot.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const wasOpen = dot.classList.contains('open');
+        document.querySelectorAll('.info-dot.open').forEach((d) => d.classList.remove('open'));
+        if (!wasOpen) dot.classList.add('open');
+      });
+    });
   }
+  document.addEventListener('click', () => {
+    document.querySelectorAll('.info-dot.open').forEach((d) => d.classList.remove('open'));
+  });
 
   function conditionBadge(item) {
     if (item.condition === "new") return `<span class="cond-badge new">New in Box</span>`;

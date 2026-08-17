@@ -4468,6 +4468,7 @@ async function computeShopCatalog() {
       Number.isFinite(Number(floor)) &&
       price >= Number(floor) - 0.005
     );
+    const itemMapFloor = Number.isFinite(Number(floor)) ? Number(floor) : null;
     items.push({
       id: item.id,
       model: item.model,
@@ -4481,7 +4482,8 @@ async function computeShopCatalog() {
       image: images[normalizeModelKey(item.model)] || "",
       price: Math.round(price * 100) / 100,
       topDeal: price <= SHOP_TOP_DEAL_MAX,
-      mapPublic
+      mapPublic,
+      mapFloor: itemMapFloor
     });
   }
   shopSortItems(items);
@@ -4784,9 +4786,15 @@ app.get("/api/shop/catalog", async (req, res) => {
         image: i.image,
         topDeal: i.topDeal
       };
-      return withPrices || (i.mapPublic && !catalog.paused)
-        ? { ...base, price: i.price, mapPublic: i.mapPublic }
-        : base;
+      if (withPrices || (i.mapPublic && !catalog.paused)) {
+        return { ...base, price: i.price, mapPublic: i.mapPublic };
+      }
+      // Below-floor units advertise AT the floor (always compliant) with an
+      // explainer icon -- the real price only shows behind a profile.
+      if (!catalog.paused && Number.isFinite(i.mapFloor) && i.price < i.mapFloor) {
+        return { ...base, mapDisplayPrice: Math.round(i.mapFloor * 100) / 100 };
+      }
+      return base;
     });
 
     // Add-on parts/install/delivery pricing is Wilson's own service pricing
@@ -5367,7 +5375,64 @@ app.post("/api/shop/inventory-snapshot/file", express.raw({ type: () => true, li
 
 function parseMapPriceWorkbook(buffer) {
   const workbook = readWorkbook(buffer, { type: "buffer", dense: true });
-  const normHeader = (v) => String(v == null ? "" : v).replace(/[\s ]+/g, " ").trim().toLowerCase();
+  const normHeader = (v) => String(v == null ? "" : v).replace(/[\s\u00a0]+/g, " ").trim().toLowerCase();
+  const normModel = (v) => String(v ?? "").toUpperCase().replace(/[^0-9A-Z]/g, "");
+  const numOf = (v) => {
+    const n = typeof v === "number" ? v : Number(String(v ?? "").replace(/[$,\s]/g, ""));
+    return Number.isFinite(n) && n > 0 ? n : null;
+  };
+
+  // ---- RetailDeck whse_inventory_and_prices layout (the live feed) ----
+  // One row per SKU with explicit policy columns. The advertising floor is
+  // rws_minimum -- RetailDeck's own resolved minimum advertised price across
+  // every supplier program (UMRP, MAP, LAP, PLAP, MAP-10, PMAP-10...), which
+  // sidesteps the conflicting per-program columns. The UMRP/MAP cascade is
+  // only a fallback for rows/exports without a minimum value.
+  // Both the normalized pn and the manufacturer_pn index the same floor so
+  // either spelling of a model matches; on a duplicate key the HIGHER floor
+  // wins (stricter -- never lets a below-floor price go public).
+  for (const name of workbook.SheetNames) {
+    const grid = xlsxUtils.sheet_to_json(workbook.Sheets[name], { header: 1, raw: true, defval: null });
+    const headerIndex = grid.findIndex((row) => {
+      if (!row) return false;
+      const t = row.map(normHeader);
+      return (t.includes("pn") || t.includes("manufacturer_pn")) &&
+        (t.includes("rws_minimum") || t.includes("rws_umrp") || t.includes("rws_map") || t.includes("rws_map_no_promos"));
+    });
+    if (headerIndex < 0) continue;
+    const t = grid[headerIndex].map(normHeader);
+    const pnCol = t.indexOf("pn");
+    const mpnCol = t.indexOf("manufacturer_pn");
+    const floorCols = [t.indexOf("rws_minimum"), t.indexOf("rws_umrp_promo"), t.indexOf("rws_umrp"), t.indexOf("rws_map"), t.indexOf("rws_map_no_promos")]
+      .filter((c) => c >= 0);
+    const prices = {};
+    let priced = 0;
+    for (let r = headerIndex + 1; r < grid.length; r++) {
+      const row = grid[r];
+      if (!row) continue;
+      let floor = null;
+      for (const c of floorCols) {
+        floor = numOf(row[c]);
+        if (floor != null) break;
+      }
+      if (floor == null) continue;
+      priced++;
+      for (const c of [pnCol, mpnCol]) {
+        if (c < 0) continue;
+        const key = normModel(row[c]);
+        if (!key || key.length > 60) continue;
+        if (!(key in prices) || floor > prices[key]) prices[key] = floor;
+      }
+    }
+    if (!Object.keys(prices).length) continue;
+    return {
+      prices,
+      count: Object.keys(prices).length,
+      note: `RetailDeck layout \u00b7 sheet "${name}" \u00b7 ${priced.toLocaleString()} priced rows \u00b7 floor = rws_minimum (umrp/map fallback)`
+    };
+  }
+
+  // ---- generic fallback: hunt for a model column + a MAP/UMRP-ish price ----
   const MODEL_HEADERS = ["model", "* model", "model #", "model number", "sku", "item", "item #", "item number"];
   const PRICE_HEADERS = [
     /\bumrp\b/, /\bmap\b/, /minimum advertised/, /min.*advertised/, /\bmsrp\b/, /suggested retail/, /\bretail\b/

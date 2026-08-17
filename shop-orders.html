@@ -26,7 +26,7 @@
       min-height: 100vh;
       padding: 32px 16px;
     }
-    .wrap { max-width: 1100px; margin: 0 auto; }
+    .wrap { max-width: 1480px; margin: 0 auto; }
     .surface {
       background: var(--card);
       border: 1px solid rgba(var(--primary-rgb), 0.12);
@@ -106,9 +106,8 @@
         </div>
         <div id="wsOrders"></div>
       </div>
+      <div id="internal-shell-footer"></div>
     </div>
-    <div id="internal-shell-footer"></div>
-  </div>
 
   <script src="internal-shell.js"></script>
   <script>
@@ -151,6 +150,7 @@
           state.snapshot = data.snapshot;
           state.mapPrices = data.mapPrices;
           state.mapFeedConfigured = Boolean(data.mapFeedConfigured);
+          state.mapFeedLastAttempt = data.mapFeedLastAttempt || null;
           renderSnapshot();
           renderMapFeed();
           renderChips();
@@ -187,6 +187,9 @@
         meta.textContent = state.mapPrices
           ? `MAP/UMRP floor prices: ${Number(state.mapPrices.count).toLocaleString()} models · fetched ${when(state.mapPrices.fetchedAt)}${state.mapPrices.sourceNote ? " · " + state.mapPrices.sourceNote : ""}`
           : "MAP price feed configured — first overnight fetch pending (or use Refresh).";
+        if (state.mapFeedLastAttempt && !state.mapFeedLastAttempt.ok) {
+          meta.innerHTML += ` <span style="color:#b91c1c; font-weight:700;">⚠ Last fetch attempt failed (${esc(when(state.mapFeedLastAttempt.at))}): ${esc(state.mapFeedLastAttempt.error)}</span>`;
+        }
       }
 
       document.getElementById("wsMapRefresh").addEventListener("click", async (e) => {

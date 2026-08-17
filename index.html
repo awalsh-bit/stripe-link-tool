@@ -284,6 +284,7 @@
             <select id="linkType" name="linkType">
               <option value="appliance">One-Time Payment Link</option>
               <option value="hvac_deposit">Deposit Agreement Link</option>
+              <option value="card_capture">SetupIntent Capture (Save Card — No Charge)</option>
             </select>
           </div>
 
@@ -331,7 +332,7 @@
             <input id="customerEmail" name="customerEmail" type="email" placeholder="jane@example.com" />
           </div>
 
-          <div class="field">
+          <div class="field" id="amountField">
             <label for="amount" id="amountLabel">Amount</label>
             <input id="amount" name="amount" type="number" min="1" step="0.01" placeholder="125.00" required />
           </div>
@@ -363,6 +364,11 @@
               <label for="agreementText">Customer Agreement Text</label>
               <textarea id="agreementText" readonly></textarea>
             </div>
+          </div>
+
+          <div id="capturePanel" class="mode-panel full">
+            <div class="mode-panel-title">SetupIntent Capture — No Charge</div>
+            <div class="hint">Sends a secure Stripe page where the client saves a card on file. <strong>Nothing is charged.</strong> When they finish, you'll get an email and the saved card is chargeable from <strong>Charge A Saved Card</strong> (details in Link Detail Lookup). Capture links expire after 24 hours if unused.</div>
           </div>
 </div>
 
@@ -506,7 +512,9 @@
     }
 
     function getLinkType() {
-      return linkTypeInput.value === 'hvac_deposit' ? 'hvac_deposit' : 'appliance';
+      if (linkTypeInput.value === 'hvac_deposit') return 'hvac_deposit';
+      if (linkTypeInput.value === 'card_capture') return 'card_capture';
+      return 'appliance';
     }
 
     function getAgreementCopy(totalAmount, depositAmount, balanceAmount) {
@@ -523,6 +531,10 @@
       amountInput.placeholder = linkType === 'hvac_deposit' ? 'Full order amount' : '125.00';
       hvacPanel.classList.toggle('show', linkType === 'hvac_deposit');
       customerEmailInput.required = linkType === 'hvac_deposit';
+      // Card capture takes no money — the amount field disappears entirely.
+      document.getElementById('amountField').style.display = linkType === 'card_capture' ? 'none' : '';
+      amountInput.required = linkType !== 'card_capture';
+      document.getElementById('capturePanel').classList.toggle('show', linkType === 'card_capture');
 
       if (linkType === 'hvac_deposit') {
         depositAmountPreview.value = depositAmount ? formatMoney(depositAmount, 'usd') : '';
@@ -555,6 +567,9 @@
       if (requestedType === 'deposit_agreement' || requestedType === 'deposit' || requestedType === 'hvac_deposit') {
         linkTypeInput.value = 'hvac_deposit';
       }
+      if (requestedType === 'card_capture' || requestedType === 'capture' || requestedType === 'setup' || requestedType === 'setupintent') {
+        linkTypeInput.value = 'card_capture';
+      }
     }
 
     form.addEventListener('submit', async (event) => {
@@ -573,7 +588,7 @@
 const customerPhone = formData.get('customerPhone')?.toString().trim() || '';
 const customerPhoneDigits = customerPhone.replace(/\D/g, '');
 const linkType = getLinkType();
-const enteredAmount = Number(formData.get('amount'));
+const enteredAmount = linkType === 'card_capture' ? 0 : Number(formData.get('amount'));
 const depositAmount = linkType === 'hvac_deposit' ? Number((enteredAmount / 2).toFixed(2)) : enteredAmount;
 const balanceAmount = linkType === 'hvac_deposit' ? Number((enteredAmount - depositAmount).toFixed(2)) : 0;
 const agreementCopy = linkType === 'hvac_deposit'
@@ -610,7 +625,7 @@ if (!payload.department) {
   return;
 }
 
-if (!payload.customerName || !payload.customerPhone || !payload.salesOrder || !payload.description || !payload.amount) {
+if (!payload.customerName || !payload.customerPhone || !payload.salesOrder || !payload.description || (linkType !== 'card_capture' && !payload.amount)) {
   showStatus('error', 'Please complete all required fields.');
   return;
 }
@@ -645,7 +660,9 @@ if (linkType === 'hvac_deposit' && !payload.customerEmail) {
         resultCustomer.textContent = payload.customerEmail
   ? `${payload.customerName} (${payload.customerEmail})`
   : payload.customerName;
-        resultAmount.textContent = formatMoney(payload.amount, payload.currency);
+        resultAmount.textContent = linkType === 'card_capture'
+          ? 'No charge — card capture only'
+          : formatMoney(payload.amount, payload.currency);
         resultLink.innerHTML = `<a href="${data.url}" target="_blank" rel="noopener noreferrer">${data.url}</a>`;
         if (linkType === 'hvac_deposit') {
           resultAgreement.textContent = agreementCopy;
@@ -658,7 +675,9 @@ if (linkType === 'hvac_deposit' && !payload.customerEmail) {
           data.message ||
             (linkType === 'hvac_deposit'
               ? `Deposit agreement link created successfully. The link charges ${formatMoney(payload.amount, payload.currency)} now and saves the payment method for the remaining balance.`
-              : `Payment link created successfully. ${payload.creatorName} will be notified by email when it is paid if paid-email notifications are configured.`)
+              : linkType === 'card_capture'
+                ? `Card capture link created — nothing will be charged. ${payload.creatorName} will be emailed when the client saves their card; charge it later from Charge A Saved Card.`
+                : `Payment link created successfully. ${payload.creatorName} will be notified by email when it is paid if paid-email notifications are configured.`)
         );
       } catch (error) {
         showStatus(

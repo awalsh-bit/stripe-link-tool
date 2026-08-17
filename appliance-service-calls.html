@@ -201,6 +201,11 @@
       color: var(--cancelled-text);
     }
 
+    .badge-awaiting {
+      background: #eef2ff;
+      color: #3730a3;
+    }
+
     .badge-neutral {
       background: var(--primary-tint);
       color: var(--primary-deep);
@@ -388,6 +393,7 @@
         <select id="statusFilter" class="filter-select">
           <option value="all">All queue statuses</option>
           <option value="Call Status Pending">Call Status Pending</option>
+          <option value="Awaiting SetupIntent">Awaiting SetupIntent</option>
           <option value="Call Scheduled">Call Scheduled</option>
           <option value="Call Cancelled">Call Cancelled</option>
         </select>
@@ -581,6 +587,9 @@
       }
       if (status === "Call Cancelled") {
         return `<span class="badge badge-cancelled">Call Cancelled</span>`;
+      }
+      if (status === "Awaiting SetupIntent") {
+        return `<span class="badge badge-awaiting">Awaiting SetupIntent</span>`;
       }
       return `<span class="badge badge-pending">Call Status Pending</span>`;
     }
@@ -804,6 +813,7 @@ function attachPrefillActions() {
 
               <select class="status-select" data-status-id="${escapeHtml(row.id)}">
                 <option value="Call Status Pending" ${queueStatus === "Call Status Pending" ? "selected" : ""}>Call Status Pending</option>
+                <option value="Awaiting SetupIntent" ${queueStatus === "Awaiting SetupIntent" ? "selected" : ""}>Awaiting SetupIntent</option>
                 <option value="Call Scheduled" ${queueStatus === "Call Scheduled" ? "selected" : ""}>Call Scheduled</option>
                 <option value="Call Cancelled" ${queueStatus === "Call Cancelled" ? "selected" : ""}>Call Cancelled</option>
               </select>

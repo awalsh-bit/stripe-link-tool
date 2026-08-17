@@ -82,7 +82,18 @@ import {
   findEmployeeDirectoryEntryByEmail,
   validateEmployeeCode,
   normalizeEmployeeCode,
-  COMMISSION_PLANS
+  setJobCodeSeed,
+  listJobTitles,
+  listNotifyTitleNames,
+  countJobTitleHolders,
+  createJobTitle,
+  updateJobTitle,
+  deleteJobTitle,
+  validateJobTitleName,
+  listJobCodes,
+  createJobCode,
+  updateJobCode,
+  deleteJobCode
 } from "./lib/employee-directory.js";
 import {
   isSteelCodConfigured,
@@ -306,6 +317,7 @@ const SERVICE_PUBLIC_PATHS = new Set([
   "/fireflavor.html",
   "/terms.html",
   "/terms-sign.html",
+  "/card-saved.html",
   "/public-shell.css",
   "/public-shell.js",
   "/fonts/roboto-latin-wght-normal.woff2",
@@ -563,11 +575,21 @@ const JOB_CODE_PRESETS = {
   }
 };
 
-function expandJobCodePresetPages(presetKey) {
-  const preset = JOB_CODE_PRESETS[presetKey];
-  if (!preset) return [];
-  if (preset.pages.includes("*")) return [...MANAGEABLE_PAGE_PATHS];
-  return preset.pages.filter((p) => MANAGEABLE_PAGE_PATHS.includes(p));
+// The legacy hardcoded presets now only SEED the job_codes table on first
+// boot — after that, executives manage codes in User Admin and the DB is
+// the source of truth.
+setJobCodeSeed(JOB_CODE_PRESETS);
+
+function expandJobCodePages(pages) {
+  if ((pages || []).includes("*")) return [...MANAGEABLE_PAGE_PATHS];
+  return (pages || []).filter((p) => MANAGEABLE_PAGE_PATHS.includes(p));
+}
+
+async function expandJobCodePresetPages(presetKey) {
+  const codes = await listJobCodes();
+  const code = codes.find((c) => c.key === presetKey);
+  if (!code) return [];
+  return expandJobCodePages(code.pages);
 }
 
 const PAGE_LABELS = {
@@ -2096,16 +2118,14 @@ function buildCategoriesPayload() {
   return categories;
 }
 
-function buildPresetsPayload() {
+async function buildPresetsPayload() {
   const presets = {};
-
-  for (const [key, preset] of Object.entries(JOB_CODE_PRESETS)) {
-    const pages = expandJobCodePresetPages(key);
+  for (const code of await listJobCodes()) {
+    const pages = expandJobCodePages(code.pages);
     if (pages.length) {
-      presets[key] = { label: preset.label, pages };
+      presets[code.key] = { label: code.label, pages, allPages: (code.pages || []).includes("*"), key: code.key };
     }
   }
-
   return presets;
 }
 
@@ -2120,7 +2140,8 @@ app.get("/api/admin/users", requireExecutiveApi, async (req, res) => {
       users,
       manageablePages: buildManageablePagesPayload(),
       categories: buildCategoriesPayload(),
-      presets: buildPresetsPayload(),
+      presets: await buildPresetsPayload(),
+      jobTitles: await listJobTitles(),
       allowedDomain: getAllowedSignupDomain(),
       legacyLoginEnabled: LEGACY_SHARED_LOGIN_ENABLED
     });
@@ -2242,6 +2263,126 @@ app.post("/api/admin/users/:userId/permissions", requireExecutiveApi, async (req
   }
 });
 
+// ---------------------------------------------------------------------------
+// Job titles & codes editor (User Admin, executives only). Titles double as
+// the commission-plan selector and notification routing; codes are the
+// quick-assign permission presets. Renaming a title migrates every holder.
+// ---------------------------------------------------------------------------
+
+app.post("/api/admin/job-titles", requireExecutiveApi, async (req, res) => {
+  try {
+    const nameError = validateJobTitleName(req.body?.name);
+    if (nameError) return res.status(400).json({ error: nameError });
+    const result = await createJobTitle({ name: req.body.name, notifyWebOrders: Boolean(req.body?.notifyWebOrders) });
+    if (!result.ok) return res.status(400).json({ error: result.error });
+    recordAudit({
+      ip: req.ip, actorUserId: req.authUser.id || null,
+      action: "job_title_created", targetUserId: null,
+      detail: { name: result.title.name, notifyWebOrders: result.title.notifyWebOrders }
+    }).catch(() => {});
+    return res.json({ ok: true, title: result.title });
+  } catch (err) {
+    console.error("Job title create failed:", err.message);
+    return res.status(500).json({ error: "Unable to create the title." });
+  }
+});
+
+app.patch("/api/admin/job-titles/:id", requireExecutiveApi, async (req, res) => {
+  try {
+    const nameError = validateJobTitleName(req.body?.name);
+    if (nameError) return res.status(400).json({ error: nameError });
+    const result = await updateJobTitle({
+      id: Number(req.params.id),
+      name: req.body.name,
+      notifyWebOrders: Boolean(req.body?.notifyWebOrders)
+    });
+    if (!result.ok) return res.status(400).json({ error: result.error });
+    recordAudit({
+      ip: req.ip, actorUserId: req.authUser.id || null,
+      action: "job_title_updated", targetUserId: null,
+      detail: { name: result.title.name, oldName: result.oldName, migrated: result.migrated, notifyWebOrders: result.title.notifyWebOrders }
+    }).catch(() => {});
+    return res.json({ ok: true, title: result.title, migrated: result.migrated });
+  } catch (err) {
+    console.error("Job title update failed:", err.message);
+    return res.status(500).json({ error: "Unable to update the title." });
+  }
+});
+
+app.delete("/api/admin/job-titles/:id", requireExecutiveApi, async (req, res) => {
+  try {
+    const result = await deleteJobTitle(Number(req.params.id));
+    if (!result.ok) return res.status(result.inUse ? 409 : 404).json({ error: result.error });
+    recordAudit({
+      ip: req.ip, actorUserId: req.authUser.id || null,
+      action: "job_title_deleted", targetUserId: null,
+      detail: { name: result.name }
+    }).catch(() => {});
+    return res.json({ ok: true });
+  } catch (err) {
+    console.error("Job title delete failed:", err.message);
+    return res.status(500).json({ error: "Unable to delete the title." });
+  }
+});
+
+function cleanJobCodePages(pages) {
+  if (!Array.isArray(pages)) return [];
+  if (pages.includes("*")) return ["*"];
+  return [...new Set(pages.filter((p) => MANAGEABLE_PAGE_PATHS.includes(p)))];
+}
+
+app.post("/api/admin/job-codes", requireExecutiveApi, async (req, res) => {
+  try {
+    const pages = cleanJobCodePages(req.body?.pages);
+    if (!pages.length) return res.status(400).json({ error: "Pick at least one page for this job code." });
+    const result = await createJobCode({ label: req.body?.label, pages });
+    if (!result.ok) return res.status(400).json({ error: result.error });
+    recordAudit({
+      ip: req.ip, actorUserId: req.authUser.id || null,
+      action: "job_code_created", targetUserId: null,
+      detail: { key: result.code.key, label: result.code.label, pages: result.code.pages }
+    }).catch(() => {});
+    return res.json({ ok: true, code: result.code });
+  } catch (err) {
+    console.error("Job code create failed:", err.message);
+    return res.status(500).json({ error: "Unable to create the job code." });
+  }
+});
+
+app.patch("/api/admin/job-codes/:key", requireExecutiveApi, async (req, res) => {
+  try {
+    const pages = cleanJobCodePages(req.body?.pages);
+    if (!pages.length) return res.status(400).json({ error: "Pick at least one page for this job code." });
+    const result = await updateJobCode({ key: req.params.key, label: req.body?.label, pages });
+    if (!result.ok) return res.status(404).json({ error: result.error });
+    recordAudit({
+      ip: req.ip, actorUserId: req.authUser.id || null,
+      action: "job_code_updated", targetUserId: null,
+      detail: { key: result.code.key, label: result.code.label, pages: result.code.pages }
+    }).catch(() => {});
+    return res.json({ ok: true, code: result.code });
+  } catch (err) {
+    console.error("Job code update failed:", err.message);
+    return res.status(500).json({ error: "Unable to update the job code." });
+  }
+});
+
+app.delete("/api/admin/job-codes/:key", requireExecutiveApi, async (req, res) => {
+  try {
+    const result = await deleteJobCode(req.params.key);
+    if (!result.ok) return res.status(404).json({ error: result.error });
+    recordAudit({
+      ip: req.ip, actorUserId: req.authUser.id || null,
+      action: "job_code_deleted", targetUserId: null,
+      detail: { key: req.params.key, label: result.label }
+    }).catch(() => {});
+    return res.json({ ok: true });
+  } catch (err) {
+    console.error("Job code delete failed:", err.message);
+    return res.status(500).json({ error: "Unable to delete the job code." });
+  }
+});
+
 app.post("/api/admin/users/:userId/preset", requireExecutiveApi, async (req, res) => {
   try {
     const userRow = await getUserById(req.params.userId);
@@ -2250,7 +2391,7 @@ app.post("/api/admin/users/:userId/preset", requireExecutiveApi, async (req, res
     }
 
     const presetKey = String(req.body?.preset || "");
-    const presetPages = expandJobCodePresetPages(presetKey);
+    const presetPages = await expandJobCodePresetPages(presetKey);
 
     if (!presetPages.length) {
       return res.status(400).json({ error: "Unknown preset." });
@@ -3862,8 +4003,11 @@ app.post("/api/admin/employee-directory", requireExecutiveApi, async (req, res) 
     }
 
     const plan = String(commissionPlan || "").trim();
-    if (plan && !COMMISSION_PLANS.includes(plan)) {
-      return res.status(400).json({ error: "Choose a commission plan from the list (or leave it blank)." });
+    if (plan) {
+      const validTitles = await listJobTitles();
+      if (!validTitles.some((t) => t.name === plan)) {
+        return res.status(400).json({ error: "Choose a job title from the list (or leave it blank)." });
+      }
     }
 
     // Departments are a fixed vocabulary — pages match on these strings
@@ -4922,13 +5066,20 @@ app.post("/api/shop/setup-intent", async (req, res) => {
   }
 });
 
+// From address for web-order claim emails (Resend). The team asked for a
+// plain no-reply sender; override with SHOP_ORDER_NOTIFY_FROM if needed.
+const SHOP_ORDER_NOTIFY_FROM =
+  process.env.SHOP_ORDER_NOTIFY_FROM || "Wilson Online Shop <no-reply@wilsonappliance.com>";
+
 // Green flag on every Showroom Consultant's dashboard (routed by the
-// directory's job title). Used when an order lands — and again if a claim
-// is released back into the pool.
+// directory's job title) PLUS a claim email to each of them — both fire
+// when an order lands, and BOTH fire again if a claim is released back
+// into the pool (unclaim re-pushes the flags, which re-sends the email).
 async function pushWebOrderFlags({ orderNumber, customerName, total, models }) {
-  const directory = await listEmployeeDirectory();
+  const [directory, notifyNames] = await Promise.all([listEmployeeDirectory(), listNotifyTitleNames()]);
+  const notifySet = new Set(notifyNames.map((n) => n.trim().toLowerCase()));
   const consultants = directory.filter((entry) =>
-    String(entry.commissionPlan || "").trim().toLowerCase() === "showroom consultant" &&
+    notifySet.has(String(entry.commissionPlan || "").trim().toLowerCase()) &&
     String(entry.email || "").trim()
   );
   const itemSummaryShort = (models || []).join(", ").slice(0, 120);
@@ -4942,6 +5093,35 @@ async function pushWebOrderFlags({ orderNumber, customerName, total, models }) {
       audienceEmail: consultant.email,
       byEmail: "webshop",
       byName: "Online Shop"
+    });
+  }
+
+  // Claim email — deliberately minimal (order number + where to claim it);
+  // the dashboard flag and the page itself carry the details. Fire-and-
+  // forget: a mail hiccup must never block the order or the unclaim.
+  if (RESEND_API_KEY && consultants.length) {
+    const pageUrl = `https://${DASHBOARD_HOST}/shop-orders.html`;
+    const subject = `New Web Order ${orderNumber} — available to claim`;
+    const text = `Web Order ${orderNumber} is available to claim on the Online Shop Orders page: ${pageUrl}`;
+    const html = buildAuthEmailHtml(
+      `Web Order ${orderNumber}`,
+      [`A new Web Order (${orderNumber}) is available to claim on the Online Shop Orders page.`],
+      "Open Online Shop Orders",
+      pageUrl,
+      "You're receiving this because your job title receives web-order notifications."
+    );
+    Promise.allSettled(consultants.map((consultant) =>
+      fetch("https://api.resend.com/emails", {
+        method: "POST",
+        headers: { "Authorization": `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ from: SHOP_ORDER_NOTIFY_FROM, to: [consultant.email], subject, text, html })
+      }).then((r) => {
+        if (!r.ok) return r.text().then((t) => { throw new Error(`${r.status} ${t.slice(0, 200)}`); });
+      })
+    )).then((results) => {
+      const failed = results.filter((r) => r.status === "rejected");
+      if (failed.length) console.error(`Web order email failed for ${failed.length}/${consultants.length} consultants (${orderNumber}):`, failed[0].reason?.message);
+      else console.log(`Web order claim email sent to ${consultants.length} consultant(s) for ${orderNumber}.`);
     });
   }
 }
@@ -5092,6 +5272,7 @@ app.get("/api/shop-orders", requirePagePermission("/shop-orders.html"), async (r
         ? { count: mapPrices.count, fetchedAt: mapPrices.fetchedAt, sourceNote: mapPrices.sourceNote }
         : null,
       mapFeedConfigured: Boolean(SHOP_MAP_PRICE_URL),
+      mapFeedLastAttempt: shopMapLastAttempt,
       allowedZips: [...SHOP_ALLOWED_ZIPS]
     });
   } catch (err) {
@@ -5438,6 +5619,7 @@ async function parseMapPriceWorkbook(buffer) {
 }
 
 let shopMapRefreshInFlight = null;
+let shopMapLastAttempt = null;   // { at, ok, error } for the internal status line
 
 async function refreshShopMapPricesNow() {
   if (!SHOP_MAP_PRICE_URL) throw new Error("SHOP_MAP_PRICE_URL is not configured.");
@@ -5450,7 +5632,14 @@ async function refreshShopMapPricesNow() {
     await saveShopMapPrices({ prices: parsed.prices, sourceUrl: SHOP_MAP_PRICE_URL, sourceNote: parsed.note });
     console.log(`MAP price feed refreshed: ${parsed.count} models (${parsed.note}).`);
     return { count: parsed.count, note: parsed.note };
-  })().finally(() => { shopMapRefreshInFlight = null; });
+  })().then(
+    (result) => { shopMapLastAttempt = { at: new Date().toISOString(), ok: true, error: "" }; return result; },
+    (err) => {
+      const cause = err?.cause ? ' — ' + (err.cause.code || err.cause.message || '') : '';
+      shopMapLastAttempt = { at: new Date().toISOString(), ok: false, error: (String(err?.message || err) + cause).slice(0, 300) };
+      throw err;
+    }
+  ).finally(() => { shopMapRefreshInFlight = null; });
   return shopMapRefreshInFlight;
 }
 
@@ -5938,13 +6127,18 @@ app.post("/api/create-payment-link", requirePagePermission("/index.html"), async
       agreementText
     } = req.body;
 
-    if (!amount || !salesOrder || !customerPhone) {
+    const normalizedLinkType =
+      linkType === "hvac_deposit" ? "hvac_deposit" :
+      linkType === "card_capture" ? "card_capture" :
+      "appliance";
+
+    if (!salesOrder || !customerPhone || (normalizedLinkType !== "card_capture" && !amount)) {
       return res.status(400).json({
-        error: "amount, salesOrder, and customerPhone are required"
+        error: normalizedLinkType === "card_capture"
+          ? "salesOrder and customerPhone are required"
+          : "amount, salesOrder, and customerPhone are required"
       });
     }
-
-    const normalizedLinkType = linkType === "hvac_deposit" ? "hvac_deposit" : "appliance";
     const normalizedCurrency = "usd";
     const chargeNowAmount = Number(amount);
     const fullOrderAmount =
@@ -5961,6 +6155,99 @@ app.post("/api/create-payment-link", requirePagePermission("/index.html"), async
         error: "customerEmail is required for deposit agreement links"
       });
     }
+
+// ---- SetupIntent capture: save a card, charge NOTHING ----
+// Stripe Payment Links can't run in setup mode, so this uses a Checkout
+// Session (mode:"setup") pinned to a pre-created customer — the card
+// attaches automatically on completion and the webhook marks the record
+// card_saved. Checkout sessions expire after 24h if unused (Stripe limit).
+if (normalizedLinkType === "card_capture") {
+  const captureMetadata = {
+    workflow_type: "card_capture",
+    sales_order: salesOrder || "",
+    customer_name: customerName || "",
+    customer_phone: customerPhoneDigits || customerPhone || "",
+    customer_email: customerEmail || "",
+    creator_code: creatorCode || "",
+    creator_name: creatorName || "",
+    creator_email: creatorEmail || "",
+    department: department || "",
+    notes: notes || "",
+    link_description: description || ""
+  };
+
+  const customerConfig = {
+    name: customerName || undefined,
+    phone: customerPhone || undefined,
+    email: customerEmail || undefined,
+    metadata: { sales_order: salesOrder || "", source: "agility_card_capture" }
+  };
+  const captureCustomer = await stripe.customers.create(customerConfig, {
+    idempotencyKey: createStripeIdempotencyKeyFromPayload("card-capture-customer", { ...customerConfig, salesOrder, t: req.body?.clientRequestId || "" })
+  });
+
+  const sessionConfig = {
+    mode: "setup",
+    customer: captureCustomer.id,
+    payment_method_types: ["card"],
+    success_url: `https://${SERVICE_PUBLIC_HOST}/card-saved.html`,
+    metadata: captureMetadata,
+    setup_intent_data: { metadata: captureMetadata }
+  };
+  const captureSession = await stripe.checkout.sessions.create(sessionConfig, {
+    idempotencyKey: createStripeIdempotencyKeyFromPayload("card-capture-session", sessionConfig)
+  });
+
+  const links = await readLinks();
+  links.unshift({
+    id: `req_${Date.now()}`,
+    createdAt: new Date().toISOString(),
+    customerName: customerName || "",
+    customerPhone: customerPhoneDigits || customerPhone || "",
+    customerEmail: customerEmail || "",
+    creatorCode: creatorCode || "",
+    creatorName: creatorName || "",
+    creatorEmail: creatorEmail || "",
+    department: department || "",
+    salesOrder: salesOrder || "",
+    description: description || "",
+    notes: notes || "",
+    workflowType: "card_capture",
+    requestedAmount: 0,
+    requestedTotalAmount: 0,
+    depositAmount: 0,
+    balanceAmount: 0,
+    agreementText: "",
+    currency: normalizedCurrency,
+    paymentLinkId: "",
+    paymentLinkUrl: captureSession.url,
+    status: "sent",
+    active: true,
+    deactivatedAt: "",
+    deactivationReason: "",
+    paymentMethodType: "",
+    paymentStatusDetail: "",
+    paymentNotificationSentAt: "",
+    paymentNotificationError: "",
+    customerId: captureCustomer.id,
+    paymentMethodId: "",
+    setupIntentId: "",
+    paidAmount: 0,
+    paidDate: "",
+    paymentIntentId: "",
+    checkoutSessionId: captureSession.id,
+    balanceChargedAt: "",
+    balancePaymentIntentId: "",
+    balancePaidAmount: 0
+  });
+  await writeLinks(links);
+
+  return res.json({
+    url: captureSession.url,
+    checkoutSessionId: captureSession.id,
+    workflowType: "card_capture"
+  });
+}
 
 const unitAmount = Math.round(chargeNowAmount * 100);
 if (!Number.isFinite(unitAmount) || unitAmount < 50) {
@@ -8675,6 +8962,7 @@ app.post("/api/service-cards/:id/status", requirePagePermission("/appliance-serv
 
     const allowedStatuses = [
       "Call Status Pending",
+      "Awaiting SetupIntent",
       "Call Scheduled",
       "Call Cancelled"
     ];
@@ -11968,6 +12256,9 @@ function normalizeLinkRecord(record) {
       normalized.paymentMethodType === "us_bank_account" || normalized.type === "ach_link"
         ? "ach_link"
         : "card_link";
+  } else if (normalized.status === "card_saved") {
+    normalized.active = false;
+    normalized.type = "setup_link";
   } else if (normalized.status === "deactivated" || normalized.active === false) {
     normalized.status = "deactivated";
     normalized.active = false;
@@ -12000,8 +12291,92 @@ function toTimeZoneDateKey(isoValue, timeZone) {
   }).format(new Date(isoValue));
 }
 
+// Card-capture (setup mode) sessions: on completion, pull the saved
+// payment method off the SetupIntent, mark the record card_saved, and email
+// the rep who sent the link. Expiry promotes sent → viewed like other links.
+async function processSetupSessionWebhookEvent(event, session) {
+  const links = await readLinks();
+  const record = links.find((row) => row.checkoutSessionId === session.id);
+  if (!record || record.workflowType !== "card_capture") {
+    if (!record) {
+      console.warn(`[webhook miss] event=${event.type} setup session=${session.id} (no matching card_capture row)`);
+    }
+    return;
+  }
+
+  if (event.type === "checkout.session.expired") {
+    if (record.status === "sent") {
+      record.status = "viewed";
+      record.active = true;
+      record.updatedAt = new Date().toISOString();
+      await writeLinks(links);
+    }
+    return;
+  }
+
+  if (event.type !== "checkout.session.completed" || !session.setup_intent) {
+    return;
+  }
+
+  const setupIntent = await stripe.setupIntents.retrieve(session.setup_intent, { expand: ["payment_method"] });
+  if (setupIntent.status !== "succeeded") return;
+
+  const card = setupIntent.payment_method?.card || {};
+  record.status = "card_saved";
+  record.active = false;
+  record.customerId = String(session.customer || record.customerId || "");
+  record.paymentMethodId = setupIntent.payment_method?.id || "";
+  record.setupIntentId = setupIntent.id;
+  record.paymentMethodType = "card";
+  record.paymentStatusDetail = card.brand
+    ? `Card saved — ${card.brand} ending ${card.last4}`
+    : "Card saved";
+  record.updatedAt = new Date().toISOString();
+
+  if (!record.paymentNotificationSentAt && record.creatorEmail) {
+    try {
+      await sendCardCapturedEmail(record, card);
+      record.paymentNotificationSentAt = new Date().toISOString();
+      record.paymentNotificationError = "";
+    } catch (err) {
+      record.paymentNotificationError = err.message || "Unable to send card-captured notification.";
+    }
+  }
+
+  await writeLinks(links);
+  console.log(`[webhook] card captured for ${record.salesOrder || record.id} (${record.paymentMethodId})`);
+}
+
+async function sendCardCapturedEmail(record, card) {
+  const subject = `Card captured — ${record.salesOrder || record.customerName || "sales order"}`;
+  const cardBit = card?.brand ? `${card.brand} ending ${card.last4}` : "their card";
+  const lines = [
+    `${record.customerName || "Your client"} saved ${cardBit} on file for ${record.salesOrder || "the sales order"}. Nothing was charged.`,
+    `Charge it when ready from the Charge A Saved Card page — the customer and payment method are in Link Detail Lookup under this sales order.`
+  ];
+  await sendAuthEmail(
+    record.creatorEmail,
+    subject,
+    lines.join(" "),
+    buildAuthEmailHtml(
+      "Card captured",
+      lines,
+      "Open Charge A Saved Card",
+      `https://${DASHBOARD_HOST}/charge-saved-card.html`,
+      "Sent by the Agility payment tools."
+    )
+  );
+}
+
 async function processCheckoutSessionWebhookEvent(event) {
   const session = event.data?.object;
+
+  // SetupIntent-capture links are Checkout Sessions in setup mode — no
+  // payment_link, no money. Matched by session id.
+  if (session?.mode === "setup") {
+    await processSetupSessionWebhookEvent(event, session);
+    return;
+  }
 
   if (!session?.payment_link) {
     return;

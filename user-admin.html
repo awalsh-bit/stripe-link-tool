@@ -208,6 +208,45 @@
     .kebab-item.danger { color: var(--error-text); }
     .kebab-item.danger:hover { background: var(--error-bg); color: var(--error-text); }
 
+    /* Job titles & codes editor — rows open an overlay card like the shop's
+       profile editor: labeled fields, Save/Cancel, Delete tucked right. */
+    .jt-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 22px; }
+    .jt-col-head { font-size: 12px; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; color: #64748b; margin-bottom: 8px; }
+    .jt-list { display: flex; flex-direction: column; gap: 7px; margin-bottom: 10px; }
+    .jt-row {
+      appearance: none; font-family: inherit; text-align: left; cursor: pointer;
+      display: flex; align-items: center; gap: 9px; flex-wrap: wrap;
+      background: #fff; border: 1px solid var(--border); border-radius: 12px;
+      padding: 10px 13px; font-size: 13.5px; color: var(--text); font-weight: 600;
+    }
+    .jt-row:hover { border-color: rgba(var(--primary-rgb), 0.5); background: var(--primary-tint); }
+    .jt-chip { border-radius: 999px; padding: 2px 9px; font-size: 11.5px; font-weight: 700; }
+    .jt-chip.route { background: var(--success-bg); color: var(--success-text); }
+    .jt-chip.count { background: #f3f4f6; color: var(--muted); font-weight: 600; }
+    .jt-chip.pages { background: var(--primary-tint); color: var(--primary); }
+    .jt-overlay {
+      display: none; position: fixed; inset: 0; z-index: 80;
+      background: rgba(15, 23, 42, 0.45); padding: 20px;
+      align-items: center; justify-content: center;
+    }
+    .jt-overlay.show { display: flex; }
+    .jt-card {
+      background: #fff; border-radius: 18px; box-shadow: 0 24px 70px rgba(0, 0, 0, 0.25);
+      padding: 22px; width: 100%; max-width: 620px; max-height: 88vh; overflow: auto;
+    }
+    .jt-card h3 { margin: 0 0 14px; font-size: 18px; }
+    .jt-field { margin-bottom: 14px; }
+    .jt-field label { display: block; margin-bottom: 6px; font-size: 13px; font-weight: 700; }
+    .jt-toggle { display: flex; gap: 10px; align-items: flex-start; background: var(--primary-faint-2, #f8fafc); border: 1px solid var(--border); border-radius: 12px; padding: 11px 13px; cursor: pointer; }
+    .jt-toggle input { margin-top: 3px; width: 16px; height: 16px; accent-color: var(--primary); }
+    .jt-toggle .t { font-weight: 700; font-size: 13.5px; }
+    .jt-toggle .d { font-size: 12.5px; color: var(--muted); line-height: 1.45; margin-top: 2px; font-weight: 400; }
+    .jt-pagebox { border: 1px solid var(--border); border-radius: 12px; max-height: 300px; overflow: auto; padding: 6px 12px 10px; }
+    .jt-pagebox .cat { font-size: 11.5px; font-weight: 800; letter-spacing: 0.05em; text-transform: uppercase; color: #64748b; margin: 10px 0 5px; }
+    .jt-pagebox label { display: flex; gap: 8px; align-items: center; font-size: 13px; font-weight: 500; padding: 3px 0; cursor: pointer; }
+    .jt-pagebox input { accent-color: var(--primary); }
+    .jt-actions { display: flex; gap: 10px; align-items: center; margin-top: 16px; }
+
     .perm-row td { background: var(--primary-faint-2); }
 
     .perm-grid {
@@ -422,6 +461,30 @@
     </div>
 
     <div class="surface">
+      <h2>Job titles &amp; codes</h2>
+      <p class="section-note">
+        The vocabularies behind the Team editor. <strong>Job titles</strong> drive commission plans and
+        notification routing — titles with <strong>web-order alerts</strong> on get the green dashboard flag
+        and claim email for every new (or unclaimed) web order. Renaming a title migrates everyone holding
+        it in the same step. <strong>Job codes</strong> are the quick-assign buttons in the permission
+        editor — editing one changes what the button checks going forward, never anyone's saved access.
+      </p>
+      <div class="jt-grid">
+        <div>
+          <div class="jt-col-head">Job titles</div>
+          <div id="jobTitleList" class="jt-list"></div>
+          <button type="button" class="secondary tiny" id="jobTitleAdd">+ Add job title</button>
+        </div>
+        <div>
+          <div class="jt-col-head">Job codes (permission presets)</div>
+          <div id="jobCodeList" class="jt-list"></div>
+          <button type="button" class="secondary tiny" id="jobCodeAdd">+ Add job code</button>
+        </div>
+      </div>
+      <div id="jobStatus" class="status"></div>
+    </div>
+
+    <div class="surface">
       <h2>Activity audit</h2>
       <p class="section-note" style="margin-bottom: 0;">
         Account activity (logins, permission changes, invites, resets, deactivations — with IPs)
@@ -431,6 +494,20 @@
     </div>
 
     <div id="internal-shell-footer"></div>
+  </div>
+
+  <div class="jt-overlay" id="jtOverlay">
+    <div class="jt-card">
+      <h3 id="jtHeading">Edit</h3>
+      <div id="jtBody"></div>
+      <div id="jtError" class="status"></div>
+      <div class="jt-actions">
+        <button type="button" id="jtSave">Save</button>
+        <button type="button" class="secondary" id="jtCancel">Cancel</button>
+        <span style="flex: 1;"></span>
+        <button type="button" class="danger" id="jtDelete" style="display: none;">Delete</button>
+      </div>
+    </div>
   </div>
 
   <script src="internal-shell.js"></script>
@@ -445,7 +522,9 @@
       // Staged (unsaved) permission edits per user: userId -> Map(path -> granted)
       pending: new Map(),
       // Employee directory entries: [{code, name, email, department}]
-      directory: []
+      directory: [],
+      // Job titles from the DB: [{id, name, notifyWebOrders}]
+      jobTitles: []
     };
 
     function directoryEntryForEmail(email) {
@@ -523,9 +602,12 @@
         state.manageablePages = data.manageablePages || [];
         state.categories = data.categories || [];
         state.presets = data.presets || {};
+        state.jobTitles = data.jobTitles || [];
         state.allowedDomain = data.allowedDomain || state.allowedDomain;
+        fillAddFormPlan();
         renderUsers();
         renderDirectory(); // account-action buttons on directory rows depend on users
+        renderJobConfig();
       } catch (err) {
         setStatus("usersStatus", err.message, "error");
       }
@@ -1039,31 +1121,25 @@
         state.trailingRevenue = data.trailingRevenue || {};
         renderDirectory();
         renderUsers(); // refresh the name join + "Code:" chips on user rows
+        renderJobConfig(); // holder counts on title rows come from the directory
       } catch (err) {
         setStatus("dirStatus", err.message, "error");
       }
     }
 
-    // Job titles — must match COMMISSION_PLANS in lib/employee-directory.js (the
-    // title doubles as the commission-plan selector, e.g. Showroom Consultant).
-    // (the server validates against that list). "" = none.
-    const COMMISSION_PLANS = [
-      "Showroom Consultant",
-      "Field Sales Consultant",
-      "Kitchen Designer",
-      "Repair Technician",
-      "HVAC Selling Technician",
-      "HVAC Installer"
-    ];
-
-    // Build a <select> of commission plans with the given value selected.
+    // Job titles come from the database (the "Job titles & codes" editor
+    // below manages them); loadUsers() puts them in state.jobTitles.
+    // "" = none. Someone holding a since-deleted/legacy title keeps it —
+    // the select shows it so a save doesn't silently wipe it.
     function commissionPlanSelect(value) {
       const sel = document.createElement("select");
       const none = document.createElement("option");
       none.value = "";
       none.textContent = "— None —";
       sel.appendChild(none);
-      for (const plan of COMMISSION_PLANS) {
+      const names = (state.jobTitles || []).map((t) => t.name);
+      if (value && !names.includes(value)) names.push(value);
+      for (const plan of names) {
         const opt = document.createElement("option");
         opt.value = plan;
         opt.textContent = plan;
@@ -1073,13 +1149,17 @@
       return sel;
     }
 
-    // Populate the add/update form's plan dropdown once.
-    (function fillAddFormPlan() {
+    // (Re)populate the add/update form's title dropdown from the live list,
+    // preserving whatever is currently picked.
+    function fillAddFormPlan() {
       const sel = document.getElementById("dirCommissionPlan");
-      if (!sel || sel.options.length) return;
-      const built = commissionPlanSelect("");
+      if (!sel) return;
+      const current = sel.value;
+      sel.innerHTML = "";
+      const built = commissionPlanSelect(current);
       while (built.firstChild) sel.appendChild(built.firstChild);
-    })();
+      sel.value = current || "";
+    }
 
     // The old separate directory table is gone — everything renders in the
     // merged Team view above. Kept as an alias for the handlers that call it.
@@ -1137,6 +1217,207 @@
         setStatus("dirStatus", err.message, "error");
       } finally {
         button.disabled = false;
+      }
+    });
+
+    // ---- Job titles & codes editor ----
+    // Rows open an overlay card (modeled on the shop's profile editor):
+    // labeled fields, Save/Cancel, Delete tucked bottom-right. Every save
+    // reloads the whole admin payload so dropdowns, preset buttons, and
+    // holder counts stay honest.
+
+    const jt = { mode: null, item: null }; // mode: "title" | "code"
+
+    function pageLabelOf(path) {
+      return (state.manageablePages.find((p) => p.path === path) || {}).label || path;
+    }
+
+    function titleHolderCount(name) {
+      const target = String(name || "").trim().toLowerCase();
+      return state.directory.filter((e) => String(e.commissionPlan || "").trim().toLowerCase() === target).length;
+    }
+
+    function renderJobConfig() {
+      const titleList = document.getElementById("jobTitleList");
+      const codeList = document.getElementById("jobCodeList");
+      if (!titleList || !codeList) return;
+
+      titleList.textContent = "";
+      for (const title of state.jobTitles || []) {
+        const row = el("button", { class: "jt-row", type: "button" }, [
+          el("span", { text: title.name }),
+          title.notifyWebOrders ? el("span", { class: "jt-chip route", text: "web-order alerts" }) : null,
+          el("span", { class: "jt-chip count", text: `${titleHolderCount(title.name)} on team` })
+        ].filter(Boolean));
+        row.addEventListener("click", () => openTitleEditor(title));
+        titleList.appendChild(row);
+      }
+      if (!(state.jobTitles || []).length) {
+        titleList.appendChild(el("div", { class: "muted small-text", text: "No job titles yet." }));
+      }
+
+      codeList.textContent = "";
+      for (const preset of Object.values(state.presets || {})) {
+        const row = el("button", { class: "jt-row", type: "button" }, [
+          el("span", { text: preset.label }),
+          el("span", { class: "jt-chip pages", text: preset.allPages ? "all pages" : `${preset.pages.length} page${preset.pages.length === 1 ? "" : "s"}` })
+        ]);
+        row.addEventListener("click", () => openCodeEditor(preset));
+        codeList.appendChild(row);
+      }
+      if (!Object.keys(state.presets || {}).length) {
+        codeList.appendChild(el("div", { class: "muted small-text", text: "No job codes yet." }));
+      }
+    }
+
+    function closeJtOverlay() {
+      document.getElementById("jtOverlay").classList.remove("show");
+      setStatus("jtError", "", "");
+      jt.mode = null;
+      jt.item = null;
+    }
+    document.getElementById("jtCancel").addEventListener("click", closeJtOverlay);
+    document.getElementById("jtOverlay").addEventListener("click", (e) => {
+      if (e.target === document.getElementById("jtOverlay")) closeJtOverlay();
+    });
+
+    function openTitleEditor(title) {
+      jt.mode = "title";
+      jt.item = title || null;
+      document.getElementById("jtHeading").textContent = title ? "Edit job title" : "New job title";
+      const body = document.getElementById("jtBody");
+      body.innerHTML = `
+        <div class="jt-field">
+          <label for="jtName">Title</label>
+          <input id="jtName" type="text" maxlength="60" placeholder="e.g. Delivery Driver" value="${escapeAttr(title?.name || "")}" />
+        </div>
+        <label class="jt-toggle">
+          <input type="checkbox" id="jtNotify" ${title?.notifyWebOrders ? "checked" : ""}>
+          <span>
+            <span class="t">Receives web-order alerts</span>
+            <span class="d" style="display:block;">Everyone with this title gets the green dashboard flag and a claim email from the online shop — when an order lands, and again if a claim is released.</span>
+          </span>
+        </label>
+        ${title ? `<p class="small-text muted" style="margin: 12px 0 0;">Renaming migrates the ${titleHolderCount(title.name)} teammate(s) holding this title in the same step — routing and commission plans follow the new name.</p>` : ""}`;
+      const del = document.getElementById("jtDelete");
+      del.style.display = title ? "" : "none";
+      document.getElementById("jtOverlay").classList.add("show");
+      document.getElementById("jtName").focus();
+    }
+
+    function openCodeEditor(preset) {
+      jt.mode = "code";
+      jt.item = preset || null;
+      document.getElementById("jtHeading").textContent = preset ? "Edit job code" : "New job code";
+      const body = document.getElementById("jtBody");
+      const checkedPages = new Set(preset?.allPages ? [] : (preset?.pages || []));
+      let pagesHtml = "";
+      for (const category of state.categories) {
+        pagesHtml += `<div class="cat">${escapeAttr(category.label)}</div>`;
+        for (const path of category.pages) {
+          pagesHtml += `<label><input type="checkbox" class="jt-page" value="${escapeAttr(path)}" ${checkedPages.has(path) ? "checked" : ""}> ${escapeAttr(pageLabelOf(path))}</label>`;
+        }
+      }
+      body.innerHTML = `
+        <div class="jt-field">
+          <label for="jtLabel">Label (what the quick-assign button says)</label>
+          <input id="jtLabel" type="text" maxlength="60" placeholder="e.g. Warehouse" value="${escapeAttr(preset?.label || "")}" />
+        </div>
+        <label class="jt-toggle" style="margin-bottom: 12px;">
+          <input type="checkbox" id="jtAllPages" ${preset?.allPages ? "checked" : ""}>
+          <span>
+            <span class="t">Every manageable page</span>
+            <span class="d" style="display:block;">The button checks all pages, including ones added later. Overrides the list below.</span>
+          </span>
+        </label>
+        <div class="jt-field">
+          <label>Pages this code checks</label>
+          <div class="jt-pagebox" id="jtPagebox">${pagesHtml}</div>
+        </div>
+        <p class="small-text muted" style="margin: 0;">Job codes are staging shortcuts — changing one never edits anyone's saved access.</p>`;
+      const sync = () => {
+        const all = document.getElementById("jtAllPages").checked;
+        document.getElementById("jtPagebox").style.opacity = all ? "0.45" : "1";
+        document.querySelectorAll(".jt-page").forEach((cb) => { cb.disabled = all; });
+      };
+      document.getElementById("jtAllPages").addEventListener("change", sync);
+      sync();
+      const del = document.getElementById("jtDelete");
+      del.style.display = preset ? "" : "none";
+      document.getElementById("jtOverlay").classList.add("show");
+      document.getElementById("jtLabel").focus();
+    }
+
+    function escapeAttr(s) {
+      return String(s ?? "").replace(/[&<>"']/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch]));
+    }
+
+    document.getElementById("jobTitleAdd").addEventListener("click", () => openTitleEditor(null));
+    document.getElementById("jobCodeAdd").addEventListener("click", () => openCodeEditor(null));
+
+    document.getElementById("jtSave").addEventListener("click", async () => {
+      const save = document.getElementById("jtSave");
+      setStatus("jtError", "", "");
+      save.disabled = true;
+      try {
+        if (jt.mode === "title") {
+          const payload = {
+            name: document.getElementById("jtName").value.trim(),
+            notifyWebOrders: document.getElementById("jtNotify").checked
+          };
+          const result = jt.item
+            ? await api(`/api/admin/job-titles/${jt.item.id}`, { method: "PATCH", body: JSON.stringify(payload) })
+            : await api("/api/admin/job-titles", { method: "POST", body: JSON.stringify(payload) });
+          setStatus("jobStatus",
+            jt.item
+              ? `Saved "${payload.name}".` + (result.migrated ? ` Migrated ${result.migrated} teammate${result.migrated === 1 ? "" : "s"} to the new name.` : "")
+              : `Added "${payload.name}".`,
+            "ok");
+        } else {
+          const payload = {
+            label: document.getElementById("jtLabel").value.trim(),
+            pages: document.getElementById("jtAllPages").checked
+              ? ["*"]
+              : [...document.querySelectorAll(".jt-page:checked")].map((cb) => cb.value)
+          };
+          if (jt.item) {
+            await api(`/api/admin/job-codes/${encodeURIComponent(jt.item.key)}`, { method: "PATCH", body: JSON.stringify(payload) });
+            setStatus("jobStatus", `Saved the "${payload.label}" job code.`, "ok");
+          } else {
+            await api("/api/admin/job-codes", { method: "POST", body: JSON.stringify(payload) });
+            setStatus("jobStatus", `Added the "${payload.label}" job code.`, "ok");
+          }
+        }
+        closeJtOverlay();
+        await loadUsers();
+      } catch (err) {
+        setStatus("jtError", err.message, "error");
+      } finally {
+        save.disabled = false;
+      }
+    });
+
+    document.getElementById("jtDelete").addEventListener("click", async () => {
+      if (!jt.item) return;
+      const label = jt.mode === "title" ? jt.item.name : jt.item.label;
+      if (!confirm(`Delete "${label}"? ${jt.mode === "title" ? "Titles still held by teammates can't be deleted." : "The quick-assign button disappears; nobody's saved access changes."}`)) return;
+      const del = document.getElementById("jtDelete");
+      del.disabled = true;
+      setStatus("jtError", "", "");
+      try {
+        await api(
+          jt.mode === "title"
+            ? `/api/admin/job-titles/${jt.item.id}`
+            : `/api/admin/job-codes/${encodeURIComponent(jt.item.key)}`,
+          { method: "DELETE" }
+        );
+        setStatus("jobStatus", `Deleted "${label}".`, "ok");
+        closeJtOverlay();
+        await loadUsers();
+      } catch (err) {
+        setStatus("jtError", err.message, "error");
+      } finally {
+        del.disabled = false;
       }
     });
 

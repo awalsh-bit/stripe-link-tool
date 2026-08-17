@@ -64,6 +64,93 @@
       position: sticky; top: 0; z-index: 40;
     }
     .head-inner { max-width: 1140px; margin: 0 auto; padding: 12px 18px; display: flex; align-items: center; gap: 14px; }
+    .menu-btn {
+      appearance: none; border: 1px solid var(--line, #e5e7eb); background: #fff; cursor: pointer;
+      width: 42px; height: 42px; border-radius: 12px; display: inline-flex; align-items: center;
+      justify-content: center; flex: 0 0 auto; padding: 0;
+    }
+    .menu-btn:hover { border-color: var(--primary-dark); }
+    .menu-btn svg { width: 22px; height: 22px; stroke: #1f2937; }
+
+    /* Two-tier category drawer (root list -> Shop All + guided sub-options) */
+    .menu-backdrop {
+      display: none; position: fixed; inset: 0; background: rgba(15, 23, 42, 0.45); z-index: 90;
+    }
+    .menu-backdrop.show { display: block; }
+    .menu-drawer {
+      position: fixed; top: 0; left: 0; bottom: 0; z-index: 91;
+      width: min(380px, 94vw); background: #fff; box-shadow: 18px 0 50px rgba(0, 0, 0, 0.18);
+      transform: translateX(-105%); transition: transform 0.22s ease; overflow: hidden;
+      display: flex; flex-direction: column;
+    }
+    .menu-drawer.show { transform: translateX(0); }
+    .menu-track {
+      flex: 1; display: flex; width: 200%; transition: transform 0.22s ease; min-height: 0;
+    }
+    .menu-track.sub { transform: translateX(-50%); }
+    .menu-panel { width: 50%; overflow-y: auto; padding: 14px 0 24px; }
+    .menu-head-row {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 4px 18px 12px; border-bottom: 1px solid #eef1f6; margin-bottom: 4px;
+    }
+    .menu-head-row strong { font-size: 15px; letter-spacing: 0.02em; }
+    .menu-close {
+      appearance: none; border: none; background: none; cursor: pointer; font-size: 19px;
+      color: #6b7280; padding: 4px 8px; line-height: 1;
+    }
+    .menu-row {
+      appearance: none; border: none; background: none; cursor: pointer; width: 100%;
+      display: flex; align-items: center; gap: 14px; padding: 15px 18px; font-family: inherit;
+      font-size: 15.5px; font-weight: 600; color: #1f2937; text-align: left;
+      border-bottom: 1px solid #f3f4f6;
+    }
+    .menu-row:hover { background: var(--primary-tint, #f0f7f1); }
+    .menu-row .mi { width: 30px; height: 30px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; }
+    .menu-row .mi svg { width: 26px; height: 26px; stroke: #1f2937; fill: none; stroke-width: 1.6; }
+    .menu-row .chev { margin-left: auto; color: #9ca3af; font-size: 18px; }
+    .menu-row .cnt { margin-left: auto; color: #9ca3af; font-size: 12.5px; font-weight: 500; }
+    .menu-back {
+      appearance: none; border: none; background: none; cursor: pointer; font-family: inherit;
+      display: flex; align-items: center; gap: 8px; padding: 6px 18px 10px; font-size: 13.5px;
+      font-weight: 600; color: var(--primary-dark);
+    }
+    .menu-sub-head {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 4px 18px 12px; border-bottom: 1px solid #eef1f6; margin-bottom: 4px;
+    }
+    .menu-sub-head h3 { margin: 0; font-size: 19px; }
+    .menu-shopall {
+      appearance: none; border: none; cursor: pointer; font-family: inherit;
+      background: var(--primary-dark, #21692c); color: #fff; border-radius: 999px;
+      padding: 8px 18px; font-size: 13.5px; font-weight: 700;
+    }
+    .menu-sub-row {
+      appearance: none; border: none; background: none; cursor: pointer; width: 100%;
+      display: flex; align-items: center; gap: 10px; padding: 13px 18px; font-family: inherit;
+      font-size: 14.5px; font-weight: 500; color: #1f2937; text-align: left;
+      border-bottom: 1px solid #f3f4f6;
+    }
+    .menu-sub-row:hover { background: var(--primary-tint, #f0f7f1); }
+    .menu-sub-row .cnt { margin-left: auto; color: #9ca3af; font-size: 12.5px; }
+
+    /* Active category breadcrumb over the grid */
+    .crumb-bar {
+      display: none; align-items: center; gap: 10px; margin: 0 0 14px;
+      background: #fff; border: 1px solid var(--line, #e5e7eb); border-radius: 999px;
+      padding: 8px 8px 8px 16px; width: fit-content; max-width: 100%;
+    }
+    .crumb-bar.show { display: flex; }
+    .crumb-bar .cb-label { font-weight: 700; font-size: 14px; }
+    .crumb-bar .cb-count { color: var(--muted); font-size: 12.5px; }
+    .crumb-bar .cb-clear {
+      appearance: none; border: none; cursor: pointer; background: #f3f4f6; color: #374151;
+      border-radius: 999px; width: 26px; height: 26px; font-size: 13px; line-height: 1; font-weight: 700;
+    }
+    .crumb-bar .cb-clear:hover { background: #e5e7eb; }
+    .sort-select {
+      border: 1px solid var(--line, #e5e7eb); border-radius: 999px; padding: 9px 14px;
+      font-size: 13.5px; font-family: inherit; background: #fff; cursor: pointer;
+    }
     .head-inner img { height: 34px; }
     .head-title { font-weight: 600; font-size: 16px; }
     .head-title .sub { display: block; font-size: 11.5px; font-weight: 500; color: var(--muted); letter-spacing: 0.06em; text-transform: uppercase; }
@@ -225,6 +312,9 @@
 
   <header>
     <div class="head-inner">
+      <button type="button" class="menu-btn" id="menuBtn" aria-label="Shop by category">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
+      </button>
       <img src="logo-black.png" alt="Wilson AC &amp; Appliance">
       <div class="head-title">Clearance Shop<span class="sub">Dripping Springs, Texas</span></div>
       <div class="head-spacer"></div>
@@ -233,6 +323,27 @@
       <button class="btn ghost cart-btn" id="cartBtn" type="button">Cart<span class="cart-count" id="cartCount" style="display:none;">0</span></button>
     </div>
   </header>
+
+  <div class="menu-backdrop" id="menuBackdrop"></div>
+  <aside class="menu-drawer" id="menuDrawer" aria-label="Shop by category">
+    <div class="menu-track" id="menuTrack">
+      <div class="menu-panel">
+        <div class="menu-head-row">
+          <strong>Shop by Category</strong>
+          <button type="button" class="menu-close" id="menuClose" aria-label="Close menu">✕</button>
+        </div>
+        <div id="menuRootList"></div>
+      </div>
+      <div class="menu-panel">
+        <button type="button" class="menu-back" id="menuBack">‹ All Categories</button>
+        <div class="menu-sub-head">
+          <h3 id="menuSubTitle"></h3>
+          <button type="button" class="menu-shopall" id="menuShopAll">Shop All</button>
+        </div>
+        <div id="menuSubList"></div>
+      </div>
+    </div>
+  </aside>
 
   <main id="mainArea">
     <div class="map-note" id="pausedNote" style="display:none; background:#fef3c7; border-color:#fde68a; color:#92400e;">
@@ -246,7 +357,18 @@
       <button type="button" class="deal-chip" id="dealChip"></button>
       <input type="search" id="searchInput" placeholder="Search model, brand, description...">
       <select id="brandSelect"><option value="">All brands</option></select>
+      <select id="sortSelect" class="sort-select" title="Sort results">
+        <option value="featured">Sort: Featured</option>
+        <option value="price-asc">Price: Low to High</option>
+        <option value="price-desc">Price: High to Low</option>
+      </select>
       <div class="chip-row" id="catChips"></div>
+    </div>
+
+    <div class="crumb-bar" id="crumbBar">
+      <span class="cb-label" id="crumbLabel"></span>
+      <span class="cb-count" id="crumbCount"></span>
+      <button type="button" class="cb-clear" id="crumbClear" aria-label="Clear category">✕</button>
     </div>
 
     <div class="grid" id="itemGrid"></div>
@@ -432,7 +554,8 @@
     addons: null,
     delivery: null,
     cart: { itemIds: [], addons: new Map() },
-    filter: { search: "", brand: "", category: "", topDeals: false },
+    // selection: { label, cats: [category keys], products: [product codes] } | null
+    filter: { search: "", brand: "", selection: null, topDeals: false, sort: "featured" },
     checkout: { open: false, stripe: null, elements: null, setupIntentId: "" },
     pendingAddonItem: null
   };
@@ -557,19 +680,42 @@
     const cats = (state.catalog.categories || []).filter((c) => counts.get(c.key));
     const chips = $("catChips");
     chips.innerHTML = "";
+    const activeSel = state.filter.selection;
+    const isChipActive = (key) => Boolean(activeSel && !activeSel.products?.length && activeSel.cats?.length === 1 && activeSel.cats[0] === key);
     const all = document.createElement("button");
-    all.className = "chip" + (state.filter.category ? "" : " active");
+    all.className = "chip" + (activeSel ? "" : " active");
     all.textContent = "All";
-    all.addEventListener("click", () => { state.filter.category = ""; buildFilters(); renderGrid(); });
+    all.addEventListener("click", () => applySelection(null));
     chips.appendChild(all);
     for (const c of cats) {
       const chip = document.createElement("button");
-      chip.className = "chip" + (state.filter.category === c.key ? " active" : "");
+      chip.className = "chip" + (isChipActive(c.key) ? " active" : "");
       chip.textContent = `${c.label} (${counts.get(c.key)})`;
-      chip.addEventListener("click", () => { state.filter.category = c.key; buildFilters(); renderGrid(); });
+      chip.addEventListener("click", () => applySelection({ label: c.label, cats: [c.key] }));
       chips.appendChild(chip);
     }
   }
+
+  // One entry point for every category pick (chips, drawer tier-1 Shop All,
+  // drawer sub-options). Renders the breadcrumb pill and closes the drawer.
+  function applySelection(sel) {
+    state.filter.selection = sel;
+    buildFilters();
+    renderGrid();
+    renderCrumb();
+    closeMenu();
+  }
+
+  function renderCrumb() {
+    const sel = state.filter.selection;
+    const bar = $("crumbBar");
+    if (!sel) { bar.classList.remove("show"); return; }
+    $("crumbLabel").textContent = sel.label;
+    const n = visibleItems().length;
+    $("crumbCount").textContent = `${n} item${n === 1 ? "" : "s"}`;
+    bar.classList.add("show");
+  }
+  $("crumbClear").addEventListener("click", () => applySelection(null));
 
   function esc(s) {
     return String(s ?? "").replace(/[&<>"']/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch]));
@@ -580,7 +726,11 @@
     return (state.catalog?.items || []).filter((i) => {
       if (state.filter.topDeals && !i.topDeal) return false;
       if (state.filter.brand && i.brand !== state.filter.brand) return false;
-      if (state.filter.category && i.category !== state.filter.category) return false;
+      const sel = state.filter.selection;
+      if (sel) {
+        if (sel.cats?.length && !sel.cats.includes(i.category)) return false;
+        if (sel.products?.length && !sel.products.includes(i.product)) return false;
+      }
       if (q && !`${i.model} ${i.brand} ${i.description}`.toUpperCase().includes(q)) return false;
       return true;
     });
@@ -613,6 +763,24 @@
     const grid = $("itemGrid");
     grid.innerHTML = "";
     const groups = groupedItems();
+    // Sort by price uses whatever price the shopper can SEE (real price when
+    // unlocked/public, the MAP display price otherwise); unpriced tiles sink
+    // to the end either way. Featured keeps the merchandised order.
+    const sort = state.filter.sort;
+    if (sort === "price-asc" || sort === "price-desc") {
+      const priceOf = (g) => {
+        const p = g.price ?? g.mapDisplayPrice;
+        return Number.isFinite(Number(p)) ? Number(p) : null;
+      };
+      groups.sort((a, b) => {
+        const pa = priceOf(a);
+        const pb = priceOf(b);
+        if (pa === null && pb === null) return 0;
+        if (pa === null) return 1;
+        if (pb === null) return -1;
+        return sort === "price-asc" ? pa - pb : pb - pa;
+      });
+    }
     state.renderedGroups = groups;
     $("emptyNote").style.display = groups.length ? "none" : "block";
 
@@ -692,6 +860,133 @@
   });
   $("searchInput").addEventListener("input", (e) => { state.filter.search = e.target.value; renderGrid(); });
   $("brandSelect").addEventListener("change", (e) => { state.filter.brand = e.target.value; renderGrid(); });
+  $("sortSelect").addEventListener("change", (e) => { state.filter.sort = e.target.value; renderGrid(); });
+
+  // ---------- Category drawer (Abt-style two tiers) ----------
+  // Tier 1: broad departments with icons. Tapping one slides to tier 2:
+  // a "Shop All" button plus guided sub-options driven by the clearance
+  // list's product codes — no keyword guessing. Rows with zero live items
+  // hide themselves, so the menu always reflects what's actually in stock.
+  const MENU_ICONS = {
+    laundry: '<svg viewBox="0 0 24 24"><rect x="4" y="2.5" width="16" height="19" rx="2"/><circle cx="12" cy="13" r="5"/><circle cx="12" cy="13" r="2"/><circle cx="7" cy="5.5" r="0.6" fill="currentColor"/><circle cx="9.5" cy="5.5" r="0.6" fill="currentColor"/></svg>',
+    fridge: '<svg viewBox="0 0 24 24"><rect x="5" y="2.5" width="14" height="19" rx="2"/><path d="M5 9.5h14"/><path d="M8.5 5.5v2M8.5 12.5v3"/></svg>',
+    dish: '<svg viewBox="0 0 24 24"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M4 7.5h16"/><circle cx="6.5" cy="5.2" r="0.6" fill="currentColor"/><circle cx="12" cy="14" r="3.5"/></svg>',
+    range: '<svg viewBox="0 0 24 24"><rect x="4" y="6" width="16" height="15" rx="2"/><path d="M4 10h16"/><path d="M7 3.5v2M12 3.5v2M17 3.5v2"/><rect x="7" y="13" width="10" height="5" rx="1"/></svg>',
+    vent: '<svg viewBox="0 0 24 24"><path d="M6 10.5L12 4l6 6.5"/><rect x="6" y="10.5" width="12" height="4" rx="1"/><path d="M8 18h8M9.5 21h5"/></svg>',
+    grill: '<svg viewBox="0 0 24 24"><path d="M5 8h14a7 7 0 01-14 0z"/><path d="M12 15v3M8 21l2.5-4M16 21l-2.5-4"/></svg>'
+  };
+
+  const MENU_TREE = [
+    { label: "Laundry", icon: "laundry", cats: ["Lau", "Lau Acc"], subs: [
+      { label: "All Laundry", cats: ["Lau"] },
+      { label: "Front Load Washers", products: ["WASHF"] },
+      { label: "Top Load Washers", products: ["WASHT"] },
+      { label: "Electric Dryers", products: ["DRELE"] },
+      { label: "Gas Dryers", products: ["DRGAS"] },
+      { label: "Laundry Accessories", cats: ["Lau Acc"] }
+    ]},
+    { label: "Refrigeration", icon: "fridge", cats: ["Ref", "IM", "Ref Acc"], subs: [
+      { label: "All Refrigeration", cats: ["Ref"] },
+      { label: "French Door", products: ["REFRE", "REBFD"] },
+      { label: "Side-by-Side", products: ["RESXS"] },
+      { label: "Top Freezer", products: ["RETOP"] },
+      { label: "Built-In & Columns", products: ["REBIF", "REBIW", "REBIB", "REALL"] },
+      { label: "Undercounter & Drawers", products: ["REUC", "REDRA"] },
+      { label: "Wine & Beverage", products: ["REFWI"] },
+      { label: "Ice Makers", cats: ["IM"] },
+      { label: "Refrigeration Accessories", cats: ["Ref Acc"] }
+    ]},
+    { label: "Dishwashers", icon: "dish", cats: ["DW", "DW Acc"], subs: [
+      { label: "All Dishwashers", cats: ["DW"] },
+      { label: "Dishwasher Drawers", products: ["DWDRA"] },
+      { label: "Dishwasher Accessories", cats: ["DW Acc"] }
+    ]},
+    { label: "Cooking", icon: "range", cats: ["Range", "Oven", "CT", "Steam Ov", "MW", "Coffee", "Cook Acc"], subs: [
+      { label: "All Cooking", cats: ["Range", "Oven", "CT", "Steam Ov", "MW", "Coffee"] },
+      { label: "Gas Ranges", products: ["RAGAS", "RAPRO"] },
+      { label: "Induction Ranges", products: ["RAIND"] },
+      { label: "Dual Fuel Ranges", products: ["RADF"] },
+      { label: "Electric Ranges", products: ["RAELE"] },
+      { label: "Wall Ovens", cats: ["Oven"] },
+      { label: "Steam Ovens", cats: ["Steam Ov"] },
+      { label: "Cooktops", cats: ["CT"] },
+      { label: "Microwaves", cats: ["MW"] },
+      { label: "Coffee Systems", cats: ["Coffee"] },
+      { label: "Cooking Accessories", cats: ["Cook Acc"] }
+    ]},
+    { label: "Ventilation", icon: "vent", cats: ["Vent", "Vent Acc"], subs: [
+      { label: "All Ventilation", cats: ["Vent"] },
+      { label: "Wall & Chimney Hoods", products: ["VHOOD"] },
+      { label: "Hood Inserts", products: ["VHINS"] },
+      { label: "Island Hoods", products: ["VHISL"] },
+      { label: "Downdrafts", products: ["VHDD"] },
+      { label: "Ventilation Accessories", cats: ["Vent Acc"] }
+    ]},
+    { label: "Outdoor", icon: "grill", cats: ["Outdoor", "Out Acc"], subs: [
+      { label: "All Outdoor", cats: ["Outdoor"] },
+      { label: "Pizza Ovens", products: ["PIZZA"] },
+      { label: "Grills", products: ["GROUT"] },
+      { label: "Outdoor Accessories", cats: ["Out Acc"] }
+    ]}
+  ];
+
+  function countForSelection(sel) {
+    return (state.catalog?.items || []).filter((i) => {
+      if (sel.cats?.length && !sel.cats.includes(i.category)) return false;
+      if (sel.products?.length && !sel.products.includes(i.product)) return false;
+      return true;
+    }).length;
+  }
+
+  function openMenu() {
+    buildMenuRoot();
+    $("menuTrack").classList.remove("sub");
+    $("menuDrawer").classList.add("show");
+    $("menuBackdrop").classList.add("show");
+  }
+  function closeMenu() {
+    $("menuDrawer").classList.remove("show");
+    $("menuBackdrop").classList.remove("show");
+  }
+  $("menuBtn").addEventListener("click", openMenu);
+  $("menuClose").addEventListener("click", closeMenu);
+  $("menuBackdrop").addEventListener("click", closeMenu);
+  $("menuBack").addEventListener("click", () => $("menuTrack").classList.remove("sub"));
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeMenu(); });
+
+  function buildMenuRoot() {
+    const list = $("menuRootList");
+    list.textContent = "";
+    for (const tier of MENU_TREE) {
+      const count = countForSelection({ cats: tier.cats });
+      if (!count) continue;
+      const row = document.createElement("button");
+      row.type = "button";
+      row.className = "menu-row";
+      row.innerHTML = `<span class="mi">${MENU_ICONS[tier.icon] || ""}</span><span>${esc(tier.label)}</span><span class="chev">›</span>`;
+      row.addEventListener("click", () => openMenuSub(tier));
+      list.appendChild(row);
+    }
+  }
+
+  function openMenuSub(tier) {
+    $("menuSubTitle").textContent = tier.label;
+    const shopAll = $("menuShopAll");
+    shopAll.onclick = () => applySelection({ label: tier.label, cats: tier.cats });
+    const list = $("menuSubList");
+    list.textContent = "";
+    for (const sub of tier.subs) {
+      const count = countForSelection(sub);
+      if (!count) continue;
+      const row = document.createElement("button");
+      row.type = "button";
+      row.className = "menu-sub-row";
+      row.innerHTML = `<span>${esc(sub.label)}</span><span class="cnt">${count}</span>`;
+      row.addEventListener("click", () => applySelection({ label: `${tier.label} › ${sub.label}`, cats: sub.cats, products: sub.products }));
+      list.appendChild(row);
+    }
+    $("menuTrack").classList.add("sub");
+  }
 
   // ---------- Registration ----------
   function openRegister() {

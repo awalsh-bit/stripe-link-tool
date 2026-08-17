@@ -243,11 +243,14 @@
         return n ? `${n} (${code})` : code;
       }
 
+      let loadingShown = false;
       async function load() {
         try {
+          if (!state.data) { setStatus("Loading the quote board…", "ok"); loadingShown = true; }
           const filter = $("qfSp").value || "";
           const data = await api("/api/quote-followup" + (filter && filter !== "ALL" ? "?salesperson=" + encodeURIComponent(filter) : ""));
           state.data = data;
+          if (loadingShown) { setStatus("", ""); loadingShown = false; }
           if (data.noCode) {
             setStatus("Your account isn't linked to an ePASS salesperson code yet — ask an executive to set your code on the Team section of User Admin.", "error");
             render();
@@ -255,7 +258,8 @@
           }
           render();
         } catch (err) {
-          setStatus(err.message, "error");
+          loadingShown = false;
+          setStatus("Couldn't load the board — " + err.message, "error");
         }
       }
 
@@ -323,8 +327,15 @@
           empty.textContent = isFollowup ? "The follow-up queue is empty." : "Nothing to work — every open quote is converted, queued, or resolved.";
           return;
         }
-        empty.style.display = "none";
-        grid.innerHTML = groups.map((g, i) => `
+        const MAX_CARDS = 600;
+        const shown = groups.length > MAX_CARDS ? groups.slice(0, MAX_CARDS) : groups;
+        if (groups.length > MAX_CARDS) {
+          empty.style.display = "";
+          empty.textContent = `Showing the ${MAX_CARDS} most recent opportunities of ${groups.length.toLocaleString()} — use the salesperson filter to narrow the view.`;
+        } else {
+          empty.style.display = "none";
+        }
+        grid.innerHTML = shown.map((g, i) => `
           <div class="qf-card" data-idx="${i}">
             <div class="qf-card-head">
               <span class="qf-client">${esc(g.customerName || "Unknown client")}</span>
@@ -345,7 +356,7 @@
           </div>`).join("");
 
         grid.querySelectorAll(".qf-card").forEach((card) => {
-          const g = groups[Number(card.dataset.idx)];
+          const g = shown[Number(card.dataset.idx)];
           card.querySelectorAll("[data-act]").forEach((btn) => {
             btn.addEventListener("click", () => onAction(btn.dataset.act, g, btn));
           });

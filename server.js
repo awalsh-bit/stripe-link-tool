@@ -214,6 +214,7 @@ import {
 } from "./lib/field-sales-commissions.js";
 import { buildCommissionStatementPdf } from "./lib/commission-statement-pdf.js";
 import { saveTermsSignature, listTermsSignatures, TERMS_VERSION } from "./lib/terms-signatures-postgres.js";
+import { extractRetailDeckFloors } from "./lib/retaildeck-prices.js";
 import {
   getSalesOrderSnapshot,
   saveSalesOrderSnapshot,
@@ -5373,64 +5374,24 @@ app.post("/api/shop/inventory-snapshot/file", express.raw({ type: () => true, li
 // the column mapping can be verified from the internal page.
 // ---------------------------------------------------------------------------
 
-function parseMapPriceWorkbook(buffer) {
-  const workbook = readWorkbook(buffer, { type: "buffer", dense: true });
-  const normHeader = (v) => String(v == null ? "" : v).replace(/[\s\u00a0]+/g, " ").trim().toLowerCase();
-  const normModel = (v) => String(v ?? "").toUpperCase().replace(/[^0-9A-Z]/g, "");
-  const numOf = (v) => {
-    const n = typeof v === "number" ? v : Number(String(v ?? "").replace(/[$,\s]/g, ""));
-    return Number.isFinite(n) && n > 0 ? n : null;
-  };
-
-  // ---- RetailDeck whse_inventory_and_prices layout (the live feed) ----
-  // One row per SKU with explicit policy columns. The advertising floor is
-  // rws_minimum -- RetailDeck's own resolved minimum advertised price across
-  // every supplier program (UMRP, MAP, LAP, PLAP, MAP-10, PMAP-10...), which
-  // sidesteps the conflicting per-program columns. The UMRP/MAP cascade is
-  // only a fallback for rows/exports without a minimum value.
-  // Both the normalized pn and the manufacturer_pn index the same floor so
-  // either spelling of a model matches; on a duplicate key the HIGHER floor
-  // wins (stricter -- never lets a below-floor price go public).
-  for (const name of workbook.SheetNames) {
-    const grid = xlsxUtils.sheet_to_json(workbook.Sheets[name], { header: 1, raw: true, defval: null });
-    const headerIndex = grid.findIndex((row) => {
-      if (!row) return false;
-      const t = row.map(normHeader);
-      return (t.includes("pn") || t.includes("manufacturer_pn")) &&
-        (t.includes("rws_minimum") || t.includes("rws_umrp") || t.includes("rws_map") || t.includes("rws_map_no_promos"));
-    });
-    if (headerIndex < 0) continue;
-    const t = grid[headerIndex].map(normHeader);
-    const pnCol = t.indexOf("pn");
-    const mpnCol = t.indexOf("manufacturer_pn");
-    const floorCols = [t.indexOf("rws_minimum"), t.indexOf("rws_umrp_promo"), t.indexOf("rws_umrp"), t.indexOf("rws_map"), t.indexOf("rws_map_no_promos")]
-      .filter((c) => c >= 0);
-    const prices = {};
-    let priced = 0;
-    for (let r = headerIndex + 1; r < grid.length; r++) {
-      const row = grid[r];
-      if (!row) continue;
-      let floor = null;
-      for (const c of floorCols) {
-        floor = numOf(row[c]);
-        if (floor != null) break;
-      }
-      if (floor == null) continue;
-      priced++;
-      for (const c of [pnCol, mpnCol]) {
-        if (c < 0) continue;
-        const key = normModel(row[c]);
-        if (!key || key.length > 60) continue;
-        if (!(key in prices) || floor > prices[key]) prices[key] = floor;
-      }
-    }
-    if (!Object.keys(prices).length) continue;
-    return {
-      prices,
-      count: Object.keys(prices).length,
-      note: `RetailDeck layout \u00b7 sheet "${name}" \u00b7 ${priced.toLocaleString()} priced rows \u00b7 floor = rws_minimum (umrp/map fallback)`
-    };
+async function parseMapPriceWorkbook(buffer) {
+  // The live RetailDeck feed (whse_inventory_and_prices.xlsx, ~35MB, 108k
+  // rows) is parsed with a purpose-built STREAMING scanner -- loading it
+  // through the xlsx library peaks ~1.6GB of RSS and OOMs small cloud
+  // instances, killing the refresh silently. The scanner keeps only the
+  // pn/manufacturer_pn keys and the floor columns (rws_minimum first --
+  // RetailDeck's resolved minimum across UMRP/MAP/LAP/PLAP/MAP-10/PMAP-10 --
+  // then the UMRP/MAP cascade); peak memory is ~150MB, ~13s.
+  try {
+    return await extractRetailDeckFloors(buffer);
+  } catch (err) {
+    if (err?.code !== "NOT_RETAILDECK") throw err;
+    // Not the RetailDeck layout -- fall through to the generic hunt below
+    // (meant for small hand-made price lists, parsed in memory).
   }
+
+  const workbook = readWorkbook(buffer, { type: "buffer", dense: true });
+  const normHeader = (v) => String(v == null ? "" : v).replace(/[\s ]+/g, " ").trim().toLowerCase();
 
   // ---- generic fallback: hunt for a model column + a MAP/UMRP-ish price ----
   const MODEL_HEADERS = ["model", "* model", "model #", "model number", "sku", "item", "item #", "item number"];
@@ -5485,7 +5446,7 @@ async function refreshShopMapPricesNow() {
     const response = await fetch(SHOP_MAP_PRICE_URL, { redirect: "follow" });
     if (!response.ok) throw new Error(`Price feed returned ${response.status}.`);
     const buffer = Buffer.from(await response.arrayBuffer());
-    const parsed = parseMapPriceWorkbook(buffer);
+    const parsed = await parseMapPriceWorkbook(buffer);
     await saveShopMapPrices({ prices: parsed.prices, sourceUrl: SHOP_MAP_PRICE_URL, sourceNote: parsed.note });
     console.log(`MAP price feed refreshed: ${parsed.count} models (${parsed.note}).`);
     return { count: parsed.count, note: parsed.note };

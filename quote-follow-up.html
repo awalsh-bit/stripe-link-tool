@@ -108,6 +108,29 @@
 
     .qf-empty { color: var(--muted); font-size: 13.5px; padding: 22px 4px; text-align: center; }
 
+    /* POD-style date range */
+    .qf-range { display: flex; align-items: center; gap: 7px; }
+    .qf-range input[type="date"] {
+      border: 1px solid var(--border); border-radius: 10px; padding: 8px 10px;
+      font-size: 12.5px; font-family: inherit; background: #fff;
+    }
+    .qf-range-sep { font-size: 12px; color: var(--muted); }
+
+    /* Scoreboard pies — validated categorical palette (fixed order, one hue per bucket) */
+    .qf-score-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 14px; }
+    .qf-score-card { border: 1px solid var(--border); border-radius: 14px; padding: 16px; background: #fff; }
+    .qf-score-head { font-weight: 800; font-size: 14.5px; margin-bottom: 4px; }
+    .qf-score-sub { font-size: 11.5px; color: var(--muted); margin-bottom: 10px; }
+    .qf-score-body { display: flex; gap: 16px; align-items: center; }
+    .qf-score-body svg { flex-shrink: 0; }
+    .qf-donut-total { font-size: 22px; font-weight: 800; fill: #1f2937; }
+    .qf-donut-lbl { font-size: 9px; font-weight: 700; fill: #6b7280; letter-spacing: 0.08em; }
+    .qf-legend { list-style: none; margin: 0; padding: 0; font-size: 12.5px; flex: 1; }
+    .qf-legend li { display: flex; align-items: center; gap: 8px; padding: 3px 0; }
+    .qf-legend .sw { width: 11px; height: 11px; border-radius: 3px; flex-shrink: 0; }
+    .qf-legend .lbl { color: #374151; }
+    .qf-legend .ct { margin-left: auto; font-weight: 800; font-variant-numeric: tabular-nums; }
+
     /* Overlay editor */
     .qf-overlay {
       display: none; position: fixed; inset: 0; background: rgba(15, 23, 42, 0.45);
@@ -146,10 +169,13 @@
       <div class="page-head">
         <h2>Quote Follow-Up</h2>
         <p class="section-note">
-          Open ePASS quotes that haven't turned into a sale yet. Quotes for the same client written within 30 days
-          share one opportunity card. A finished order for the same customer number and salesperson (from the OE-23 feed)
-          automatically moves the card to <strong>Converted</strong> — for everything else, work the card:
-          record a missing conversion, queue a follow-up, or mark the opportunity lost.
+          Open ePASS quotes that haven't turned into a sale yet, for Showroom and Field Sales Consultants.
+          Quotes for the same client written within 30 days share one opportunity card. A finished order for the
+          same customer number and salesperson (from the OE-23 feed) automatically moves the card to
+          <strong>Converted</strong>; QUOTE 2s resolve themselves (converted with an order, lost without one) and
+          never need work. For everything else, work the card: record a missing conversion, queue a follow-up,
+          or mark the opportunity lost. The <strong>Scoreboard</strong> tab charts each consultant's mix of direct
+          sales, conversions, and open pipeline for the date range.
         </p>
       </div>
       <div id="qfStatus" class="qf-status"></div>
@@ -159,14 +185,22 @@
           <button type="button" class="qf-tab" data-tab="followup">Follow-Up Queue<span class="n" id="nFollowup"></span></button>
           <button type="button" class="qf-tab" data-tab="converted">Converted<span class="n" id="nConverted"></span></button>
           <button type="button" class="qf-tab" data-tab="lost">Lost<span class="n" id="nLost"></span></button>
+          <button type="button" class="qf-tab" data-tab="scoreboard">Scoreboard</button>
         </div>
         <span class="qf-spacer"></span>
+        <div class="qf-range">
+          <input type="date" id="qfFrom" title="Quotes created from" />
+          <span class="qf-range-sep">to</span>
+          <input type="date" id="qfTo" title="Quotes created through" />
+          <button type="button" class="qf-btn primary" id="qfRun">Run</button>
+        </div>
         <select id="qfSp" style="display:none;"></select>
         <input type="file" id="qfFile" accept=".xlsx,.xls" style="display:none;" />
         <button type="button" class="qf-btn primary" id="qfUpload" style="display:none;">Upload quote export</button>
       </div>
       <div class="qf-meta" id="qfMeta"></div>
 
+      <div id="paneScoreboard" style="display:none;"><div class="qf-score-grid" id="gridScore"></div></div>
       <div id="paneQueue"><div class="qf-grid" id="gridQueue"></div><div class="qf-empty" id="emptyQueue" style="display:none;"></div></div>
       <div id="paneFollowup" style="display:none;"><div class="qf-grid" id="gridFollowup"></div><div class="qf-empty" id="emptyFollowup" style="display:none;"></div></div>
       <div id="paneConverted" style="display:none;"><div class="qf-table-wrap" id="tblConverted"></div></div>
@@ -243,16 +277,35 @@
         return n ? `${n} (${code})` : code;
       }
 
+      // Default range: the last 30 days of quotes.
+      (function initRange() {
+        const t = new Date();
+        const iso = (d) => d.toISOString().slice(0, 10);
+        $("qfTo").value = iso(t);
+        const f = new Date(t); f.setDate(f.getDate() - 30);
+        $("qfFrom").value = iso(f);
+      })();
+
       let loadingShown = false;
       async function load() {
         try {
           if (!state.data) { setStatus("Loading the quote board…", "ok"); loadingShown = true; }
+          const params = new URLSearchParams();
           const filter = $("qfSp").value || "";
-          const data = await api("/api/quote-followup" + (filter && filter !== "ALL" ? "?salesperson=" + encodeURIComponent(filter) : ""));
+          if (filter && filter !== "ALL") params.set("salesperson", filter);
+          if ($("qfFrom").value) params.set("from", $("qfFrom").value);
+          if ($("qfTo").value) params.set("to", $("qfTo").value);
+          const qs = params.toString();
+          const data = await api("/api/quote-followup" + (qs ? "?" + qs : ""));
           state.data = data;
           if (loadingShown) { setStatus("", ""); loadingShown = false; }
           if (data.noCode) {
             setStatus("Your account isn't linked to an ePASS salesperson code yet — ask an executive to set your code on the Team section of User Admin.", "error");
+            render();
+            return;
+          }
+          if (data.notSalesRole) {
+            setStatus("Quote Follow-Up covers Showroom and Field Sales Consultants — your directory job title isn't one of those, so there's no queue for you here.", "error");
             render();
             return;
           }
@@ -262,6 +315,7 @@
           setStatus("Couldn't load the board — " + err.message, "error");
         }
       }
+      $("qfRun").addEventListener("click", load);
 
       function render() {
         const d = state.data || {};
@@ -296,6 +350,9 @@
         } else {
           metaBits.push(`<span class="warn">No quote export uploaded yet.</span> Upload the ePASS Invoice Maintenance export (quotes, Open) to build the board.`);
         }
+        if (b.range?.from || b.range?.to) {
+          metaBits.push(`Showing quotes created ${b.range.from ? day(b.range.from) : "…"} – ${b.range.to ? day(b.range.to) : "…"}.`);
+        }
         if (b.closedUnmatched > 0 && exec) {
           metaBits.push(`${b.closedUnmatched.toLocaleString()} quote${b.closedUnmatched === 1 ? "" : "s"} closed in ePASS without a matched order or a recorded outcome.`);
         }
@@ -305,6 +362,7 @@
         renderCards("gridFollowup", "emptyFollowup", b.followup, exec, true);
         renderConverted(b.converted, exec);
         renderLost(b.lost, exec);
+        renderScoreboard(b.scoreboard || []);
         showTab(state.tab);
       }
 
@@ -401,14 +459,90 @@
                 ${exec ? `<td>${esc(spLabel(r.spCode))}</td>` : ""}
                 <td class="qf-amt">${money(r.total)}</td>
                 <td class="wrap-cell">${esc(r.comment) || "<span class='qf-cust'>—</span>"}</td>
-                <td>${esc(r.by)}<span class="qf-cust"> · ${when(r.at)}</span></td>
-                <td><button type="button" class="qf-btn quiet" data-reopen="${esc(r.quoteNumber)}">Reopen</button></td>
+                <td>${r.how === "auto"
+                  ? `<span class="qf-how auto">AUTO — QUOTE 2</span>`
+                  : `${esc(r.by)}<span class="qf-cust"> · ${when(r.at)}</span>`}</td>
+                <td>${r.how === "auto" ? "" : `<button type="button" class="qf-btn quiet" data-reopen="${esc(r.quoteNumber)}">Reopen</button>`}</td>
               </tr>`).join("")}
             </tbody>
           </table>`;
         host.querySelectorAll("[data-reopen]").forEach((btn) => {
           btn.addEventListener("click", () => reopen([btn.dataset.reopen], btn));
         });
+      }
+
+      // ---- scoreboard pies ----
+      // Fixed bucket order + validated categorical palette (colors follow the
+      // bucket, never the size; legend carries identity + counts).
+      const BUCKETS = [
+        { key: "direct", label: "Direct sales (R/S orders)", color: "#2a78d6" },
+        { key: "converted", label: "Quote conversions", color: "#eb6834" },
+        { key: "working", label: "Working opportunities", color: "#1baf7a" },
+        { key: "followup", label: "Needs follow-up", color: "#eda100" },
+        { key: "lost", label: "Opportunities lost", color: "#e87ba4" }
+      ];
+
+      function donutSvg(s) {
+        const total = BUCKETS.reduce((sum, b) => sum + s[b.key], 0);
+        const R = 52, C = 70, W = 20;
+        const seg = (start, frac, color, title) => {
+          if (frac >= 0.9999) {
+            return `<circle cx="${C}" cy="${C}" r="${R}" fill="none" stroke="${color}" stroke-width="${W}"><title>${esc(title)}</title></circle>`;
+          }
+          const a0 = 2 * Math.PI * start - Math.PI / 2;
+          const a1 = 2 * Math.PI * (start + frac) - Math.PI / 2;
+          const large = frac > 0.5 ? 1 : 0;
+          const x0 = C + R * Math.cos(a0), y0 = C + R * Math.sin(a0);
+          const x1 = C + R * Math.cos(a1), y1 = C + R * Math.sin(a1);
+          return `<path d="M ${x0.toFixed(2)} ${y0.toFixed(2)} A ${R} ${R} 0 ${large} 1 ${x1.toFixed(2)} ${y1.toFixed(2)}"
+            fill="none" stroke="${color}" stroke-width="${W}" stroke-linecap="butt"><title>${esc(title)}</title></path>`;
+        };
+        let at = 0;
+        const parts = [];
+        for (const b of BUCKETS) {
+          const v = s[b.key];
+          if (!v) continue;
+          const frac = v / total;
+          parts.push(seg(at, frac, b.color, `${b.label}: ${v}`));
+          at += frac;
+        }
+        // 2px surface gaps between segments: white hairlines at each boundary.
+        let gapAt = 0;
+        const gaps = [];
+        const nonZero = BUCKETS.filter((b) => s[b.key] > 0);
+        if (nonZero.length > 1) {
+          for (const b of nonZero) {
+            const a = 2 * Math.PI * gapAt - Math.PI / 2;
+            const x0 = C + (R - W / 2 - 1) * Math.cos(a), y0 = C + (R - W / 2 - 1) * Math.sin(a);
+            const x1 = C + (R + W / 2 + 1) * Math.cos(a), y1 = C + (R + W / 2 + 1) * Math.sin(a);
+            gaps.push(`<line x1="${x0.toFixed(2)}" y1="${y0.toFixed(2)}" x2="${x1.toFixed(2)}" y2="${y1.toFixed(2)}" stroke="#fff" stroke-width="2" />`);
+            gapAt += s[b.key] / total;
+          }
+        }
+        return `<svg width="140" height="140" viewBox="0 0 140 140" role="img" aria-label="Order and opportunity mix">
+          ${parts.join("")}${gaps.join("")}
+          <text x="${C}" y="${C - 2}" text-anchor="middle" class="qf-donut-total">${total}</text>
+          <text x="${C}" y="${C + 14}" text-anchor="middle" class="qf-donut-lbl">TOTAL</text>
+        </svg>`;
+      }
+
+      function renderScoreboard(list) {
+        const grid = $("gridScore");
+        if (!list.length) {
+          grid.innerHTML = `<div class="qf-empty">No activity in this date range yet.</div>`;
+          return;
+        }
+        grid.innerHTML = list.map((s) => `
+          <div class="qf-score-card">
+            <div class="qf-score-head">${esc(s.name || s.code)}</div>
+            <div class="qf-score-sub">${esc(s.code)} · orders by finish date, opportunities by quote date, within the range above</div>
+            <div class="qf-score-body">
+              ${donutSvg(s)}
+              <ul class="qf-legend">
+                ${BUCKETS.map((b) => `<li><span class="sw" style="background:${b.color}"></span><span class="lbl">${b.label}</span><span class="ct">${s[b.key]}</span></li>`).join("")}
+              </ul>
+            </div>
+          </div>`).join("");
       }
 
       // ---- tabs ----
@@ -419,6 +553,7 @@
         $("paneFollowup").style.display = tab === "followup" ? "" : "none";
         $("paneConverted").style.display = tab === "converted" ? "" : "none";
         $("paneLost").style.display = tab === "lost" ? "" : "none";
+        $("paneScoreboard").style.display = tab === "scoreboard" ? "" : "none";
       }
       document.querySelectorAll("#qfTabs .qf-tab").forEach((t) => {
         t.addEventListener("click", () => showTab(t.dataset.tab));

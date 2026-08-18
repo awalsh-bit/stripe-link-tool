@@ -7445,7 +7445,14 @@ app.get("/api/quote-followup", requirePagePermission("/quote-follow-up.html"), a
       }
       spCode = viewer.code;
     }
-    const board = await getQuoteFollowupBoard({ spCode });
+    const from = String(req.query.from || "").trim();
+    const to = String(req.query.to || "").trim();
+    const board = await getQuoteFollowupBoard({ spCode, from, to });
+    // A rep whose job title isn't a sales title sees a clear notice instead
+    // of a silently empty board.
+    if (!viewer.exec && board.salesFilterActive && !board.salesCodes.includes(viewer.code)) {
+      return res.json({ viewer, board: null, salespeople: [], notSalesRole: true });
+    }
     const salespeople = viewer.exec ? await listQuoteSalespeople() : [];
     return res.json({ viewer, board, salespeople, filter: spCode });
   } catch (err) {

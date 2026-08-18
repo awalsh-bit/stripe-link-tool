@@ -268,7 +268,11 @@
             `<div>${esc(i.brand)} ${esc(i.model)}${i.condition === "new" ? " · New in Box" : i.condition === "open" ? " · Open Box" : ""} <span class="ws-serial">SN ${esc(i.serial)}${i.serialType ? " · " + esc(i.serialType) : ""}</span> — ${money(i.price)}</div>`),
           ...(order.addons || []).map((a) =>
             `<div>${esc(a.name)}${a.qty > 1 ? " × " + a.qty : ""} — ${money(a.price * a.qty)}</div>`),
-          `<div>${esc(order.delivery?.name || "White Glove Delivery")} — ${money(order.delivery?.price)}</div>`,
+          order.delivery?.method === "pickup"
+            ? `<div style="font-weight:700; color:#1d4ed8;">CUSTOMER PICKUP — ${order.delivery?.later
+                ? "client will schedule later (30-day pickup window on clearance/outlet units)"
+                : `requested <u>${esc(order.delivery?.dateLabel || order.delivery?.date || "")}</u>`}. Confirm via the client's preferred contact method when it's ready.</div>`
+            : `<div>${esc(order.delivery?.name || "White Glove Delivery")} — ${money(order.delivery?.price)}${order.delivery?.date ? ` · <strong>Requested day: ${esc(order.delivery.dateLabel || order.delivery.date)}</strong> — call with the 4-hour window 2 business days prior` : ""}</div>`,
           ...(order.totals?.tax != null ? [`<div>Sales tax — ${money(order.totals.tax)}</div>`] : []),
           `<div class="ws-total">Estimated total — ${money(order.totals?.total)}</div>`
         ].join("");

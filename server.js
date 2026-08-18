@@ -4596,6 +4596,63 @@ const SHOP_DELIVERY_OFFER = {
   note: "Special online offer — includes delivery and haul off of the appliance being replaced (if applicable)."
 };
 
+// Blind scheduling (Andrew, 2026-08-18): at checkout the client picks a DAY
+// only — the 3rd, 4th, or 5th working day (Mon–Sat; Sundays closed) after
+// today, Central time. Dispatch calls with the 4-hour window two business
+// days before the selected day. Customer pickup skips both the fee and the
+// scheduling entirely.
+const SHOP_SCHEDULE_NOTE = "You'll receive a 4-hour arrival window two business days before your selected day.";
+const SHOP_PICKUP_OFFER = {
+  id: "customer-pickup",
+  method: "pickup",
+  name: "Customer Pickup",
+  price: 0,
+  note: "Free — skip the delivery fee. We'll follow up through your preferred contact method to confirm your order is ready."
+};
+const SHOP_PICKUP_LATER_NOTE = "Clearance and outlet items must be picked up within 30 days.";
+
+// Pickup scheduling: orders placed before noon (Central) may choose same-day;
+// otherwise the choices run up to three working days out (Mon–Sat), plus
+// "I'd like to pick this up later" handled as the literal date "later".
+function shopPickupDateChoices() {
+  const todayStr = new Date().toLocaleDateString("en-CA", { timeZone: APP_TIMEZONE });
+  const hourStr = new Date().toLocaleString("en-US", { timeZone: APP_TIMEZONE, hour12: false, hour: "2-digit" });
+  const hour = Number(hourStr) % 24;
+  const d = new Date(`${todayStr}T00:00:00Z`);
+  const label = (day) => day.toLocaleDateString("en-US", { timeZone: "UTC", weekday: "long", month: "long", day: "numeric" });
+  const choices = [];
+  if (hour < 12 && d.getUTCDay() !== 0) {
+    choices.push({ date: todayStr, label: `Today (${label(d)})` });
+  }
+  let futureDays = 0;
+  while (futureDays < 3) {
+    d.setUTCDate(d.getUTCDate() + 1);
+    if (d.getUTCDay() === 0) continue; // closed Sundays
+    futureDays++;
+    choices.push({ date: d.toISOString().slice(0, 10), label: label(d) });
+  }
+  return choices;
+}
+
+function shopDeliveryDateChoices() {
+  const todayStr = new Date().toLocaleDateString("en-CA", { timeZone: APP_TIMEZONE });
+  const d = new Date(`${todayStr}T00:00:00Z`);
+  const choices = [];
+  let workingDays = 0;
+  while (choices.length < 3) {
+    d.setUTCDate(d.getUTCDate() + 1);
+    if (d.getUTCDay() === 0) continue; // closed Sundays
+    workingDays++;
+    if (workingDays >= 3) {
+      choices.push({
+        date: d.toISOString().slice(0, 10),
+        label: d.toLocaleDateString("en-US", { timeZone: "UTC", weekday: "long", month: "long", day: "numeric" })
+      });
+    }
+  }
+  return choices;
+}
+
 function shopZipAllowed(zip) {
   return SHOP_ALLOWED_ZIPS.has(String(zip || "").trim().slice(0, 5));
 }
@@ -4784,7 +4841,7 @@ function shopAddonById(addons) {
 }
 
 // Recompute the whole cart server-side. Returns null if any unit is gone.
-function priceShopCart(catalog, cart) {
+function priceShopCart(catalog, cart, fulfillment) {
   const itemById = new Map(catalog.items.map((i) => [i.id, i]));
   const addonMap = shopAddonById(catalog.addons);
 
@@ -4806,7 +4863,26 @@ function priceShopCart(catalog, cart) {
 
   const itemsTotal = items.reduce((s, i) => s + i.price, 0);
   const addonsTotal = addons.reduce((s, a) => s + a.price * a.qty, 0);
-  const delivery = { ...SHOP_DELIVERY_OFFER };
+
+  // Fulfillment: customer pickup skips scheduling and the delivery fee;
+  // delivery must carry one of the offered blind-scheduling days.
+  const method = fulfillment?.method === "pickup" ? "pickup" : "delivery";
+  let delivery;
+  if (method === "pickup") {
+    const requested = String(fulfillment?.date || "").trim();
+    if (requested === "later") {
+      delivery = { ...SHOP_PICKUP_OFFER, later: true, pickupNote: SHOP_PICKUP_LATER_NOTE };
+    } else {
+      const choice = shopPickupDateChoices().find((c) => c.date === requested);
+      if (!choice) return { badSchedule: true };
+      delivery = { ...SHOP_PICKUP_OFFER, date: choice.date, dateLabel: choice.label };
+    }
+  } else {
+    const requestedDate = String(fulfillment?.date || "").trim();
+    const choice = shopDeliveryDateChoices().find((c) => c.date === requestedDate);
+    if (!choice) return { badSchedule: true };
+    delivery = { ...SHOP_DELIVERY_OFFER, method: "delivery", date: choice.date, dateLabel: choice.label, scheduleNote: SHOP_SCHEDULE_NOTE };
+  }
 
   // Tax: items, parts, and delivery always; install labor only when the
   // addon is flagged taxable (freestanding product — built-ins are exempt).
@@ -4824,6 +4900,8 @@ function priceShopCart(catalog, cart) {
       items: Math.round(itemsTotal * 100) / 100,
       addons: Math.round(addonsTotal * 100) / 100,
       delivery: delivery.price,
+      fulfillment: method,
+      deliveryDate: delivery.date || null,
       taxRate: SHOP_TAX_RATE,
       tax,
       total,
@@ -5138,6 +5216,13 @@ app.get("/api/shop/catalog", async (req, res) => {
       clientCode: shopper?.clientCode || "",
       addons: canBuild ? catalog.addons : null,
       delivery: canBuild ? SHOP_DELIVERY_OFFER : null,
+      fulfillment: canBuild ? {
+        pickup: SHOP_PICKUP_OFFER,
+        deliveryDates: shopDeliveryDateChoices(),
+        scheduleNote: SHOP_SCHEDULE_NOTE,
+        pickupDates: shopPickupDateChoices(),
+        pickupLaterNote: SHOP_PICKUP_LATER_NOTE
+      } : null,
       taxRate: canBuild ? SHOP_TAX_RATE : null,
       topDealMax: SHOP_TOP_DEAL_MAX
     });
@@ -5157,7 +5242,10 @@ app.post("/api/shop/setup-intent", async (req, res) => {
 
     const catalog = await computeShopCatalog();
     if (catalog.paused) return res.status(503).json({ error: "Online checkout is briefly paused while we refresh inventory. Please try again soon or call the store." });
-    const priced = priceShopCart(catalog, req.body?.cart);
+    const priced = priceShopCart(catalog, req.body?.cart, req.body?.fulfillment);
+    if (priced.badSchedule) {
+      return res.status(400).json({ error: "Please pick a day for your delivery or pickup — the option you selected is no longer available." });
+    }
     if (priced.empty) return res.status(400).json({ error: "Your cart is empty." });
     if (priced.unavailable) {
       return res.status(409).json({ error: "An item in your cart was just claimed by another buyer. Refresh to see what's still available." });
@@ -5255,7 +5343,7 @@ const SHOP_ORDER_NOTIFY_FROM =
 // directory's job title) PLUS a claim email to each of them — both fire
 // when an order lands, and BOTH fire again if a claim is released back
 // into the pool (unclaim re-pushes the flags, which re-sends the email).
-async function pushWebOrderFlags({ orderNumber, customerName, total, models }) {
+async function pushWebOrderFlags({ orderNumber, customerName, total, models, fulfillment = "" }) {
   const [directory, notifyNames] = await Promise.all([listEmployeeDirectory(), listNotifyTitleNames()]);
   const notifySet = new Set(notifyNames.map((n) => n.trim().toLowerCase()));
   const consultants = directory.filter((entry) =>
@@ -5269,7 +5357,7 @@ async function pushWebOrderFlags({ orderNumber, customerName, total, models }) {
       typeLabel: "New Web Order",
       refId: `weborder:${orderNumber}`,
       title: `${orderNumber} — ${customerName} · $${Number(total || 0).toLocaleString("en-US", { minimumFractionDigits: 2 })}`,
-      body: `${itemSummaryShort}. Claim it on the Online Shop Orders page.`,
+      body: `${itemSummaryShort}.${fulfillment ? " " + fulfillment + "." : ""} Claim it on the Online Shop Orders page.`,
       audienceEmail: consultant.email,
       byEmail: "webshop",
       byName: "Online Shop"
@@ -5327,7 +5415,10 @@ app.post("/api/shop/submit-order", async (req, res) => {
 
     const catalog = await computeShopCatalog();
     if (catalog.paused) return res.status(503).json({ error: "Online checkout is briefly paused while we refresh inventory. Please try again soon or call the store." });
-    const priced = priceShopCart(catalog, req.body?.cart);
+    const priced = priceShopCart(catalog, req.body?.cart, req.body?.fulfillment);
+    if (priced.badSchedule) {
+      return res.status(400).json({ error: "Please pick a day for your delivery or pickup — the option you selected is no longer available." });
+    }
     if (priced.empty) return res.status(400).json({ error: "Your cart is empty." });
     if (priced.unavailable) {
       return res.status(409).json({ error: "An item in your cart was just claimed by another buyer. Refresh to see what's still available." });
@@ -5384,6 +5475,8 @@ app.post("/api/shop/submit-order", async (req, res) => {
         orderNumber: order.orderNumber,
         items: priced.items.length,
         total: priced.totals.total,
+        fulfillment: priced.totals.fulfillment,
+        deliveryDate: priced.totals.deliveryDate,
         conflicts: lockConflicts.length
       }
     }).catch(() => {});
@@ -5394,7 +5487,10 @@ app.post("/api/shop/submit-order", async (req, res) => {
       orderNumber: order.orderNumber,
       customerName: `${shopper.firstName} ${shopper.lastName}`,
       total: priced.totals.total,
-      models: priced.items.map((i) => i.model)
+      models: priced.items.map((i) => i.model),
+      fulfillment: priced.delivery.method === "pickup"
+        ? (priced.delivery.later ? "Customer pickup — will schedule later" : `Customer pickup requested ${priced.delivery.dateLabel}`)
+        : `Delivery requested ${priced.delivery.dateLabel}`
     }).catch((err) => console.error("Web order notification push failed:", err.message));
 
     return res.json({

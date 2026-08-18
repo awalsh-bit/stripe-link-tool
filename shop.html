@@ -305,6 +305,18 @@
     .qty-ctl { display: inline-flex; align-items: center; gap: 8px; margin-top: 3px; }
     .qty-ctl button { width: 24px; height: 24px; border-radius: 7px; border: 1px solid #d1d5db; background: #fff; cursor: pointer; font-size: 15px; line-height: 1; }
     .deal { background: var(--wash); border: 1px solid #cfe3d2; border-radius: 12px; padding: 11px 13px; margin-top: 12px; }
+    .fulfill-opt { display: flex; gap: 10px; align-items: flex-start; border: 1.5px solid #cfe3d2; border-radius: 12px; padding: 11px 13px; margin-top: 10px; cursor: pointer; background: #fff; }
+    .fulfill-opt.on { border-color: var(--green, #21692c); background: var(--wash); }
+    .fulfill-opt input[type="radio"] { width: 17px; height: 17px; flex: none; padding: 0; margin: 3px 0 0; accent-color: var(--primary); }
+    .fulfill-opt .fo-body { flex: 1; display: block; min-width: 0; }
+    .fulfill-opt .fo-nm { display: flex; justify-content: space-between; gap: 10px; align-items: baseline; font-size: 14px; font-weight: 700; }
+    .fulfill-opt .fo-price { white-space: nowrap; font-weight: 700; }
+    .fulfill-opt .compare { text-decoration: line-through; color: var(--muted); font-weight: 400; margin-right: 6px; }
+    .fulfill-opt .fo-note { display: block; font-size: 12px; color: var(--muted); line-height: 1.45; margin-top: 3px; }
+    .day-chips { display: flex; flex-direction: column; align-items: stretch; gap: 7px; margin-top: 9px; }
+    .day-chip { border: 1.5px solid #cfe3d2; background: #fff; border-radius: 10px; padding: 8px 12px; font-size: 12.5px; font-weight: 700; cursor: pointer; font-family: inherit; text-align: left; width: 100%; }
+    .day-chip.on { background: var(--green, #21692c); border-color: var(--green, #21692c); color: #fff; }
+    .sched-note { font-size: 11.5px; color: var(--muted); line-height: 1.45; margin-top: 8px; }
     .deal .nm { font-size: 14px; font-weight: 600; }
     .deal .compare { text-decoration: line-through; color: var(--muted); font-weight: 400; margin-right: 6px; }
     .deal .note { font-size: 12.5px; color: #3f6212; margin-top: 3px; line-height: 1.45; }
@@ -440,6 +452,7 @@
     <div class="big-check">✓</div>
     <h2>Order received!</h2>
     <p>Your order number is <span class="order-no" id="doneOrderNo"></span></p>
+    <p id="doneFulfill" style="display:none; font-weight:600;"></p>
     <p id="doneDetail">Your card is securely on file but has <strong>not been charged</strong>.
     A Wilson team member will reach out using your preferred contact method to confirm
     availability, delivery scheduling, and your final total before anything is charged.</p>
@@ -614,6 +627,9 @@
     taxRate: 0.0825,
     addons: null,
     delivery: null,
+    fulfillOptions: null,
+    // Blind scheduling: delivery needs a chosen day; pickup skips it.
+    fulfillment: { method: "delivery", date: null },
     cart: { itemIds: [], addons: new Map() },
     // selection: { label, cats: [category keys], products: [product codes] } | null
     filter: { search: "", brand: "", selection: null, topDeals: false, sort: "featured" },
@@ -704,6 +720,16 @@
     state.clientCode = data.clientCode || state.clientCode || "";
     state.addons = data.addons;
     state.delivery = data.delivery;
+    state.fulfillOptions = data.fulfillment || null;
+    // Drop a stale chosen day if it's no longer offered (page left open
+    // overnight) — checked against the day pool for the chosen method;
+    // "later" is always a valid pickup choice.
+    const validDays = state.fulfillment.method === "pickup"
+      ? [...(state.fulfillOptions?.pickupDates || []).map((d) => d.date), "later"]
+      : (state.fulfillOptions?.deliveryDates || []).map((d) => d.date);
+    if (state.fulfillment.date && !validDays.includes(state.fulfillment.date)) {
+      state.fulfillment.date = null;
+    }
     if (Number.isFinite(Number(data.taxRate)) && data.taxRate) state.taxRate = Number(data.taxRate);
     buildFilters();
     renderHeader();
@@ -1550,7 +1576,8 @@
       // labor is exempt (mirrors the server's math exactly).
       if (a.taxable !== false) taxableAddons += a.price * qty;
     }
-    const delivery = items.length ? (state.delivery?.price || 0) : 0;
+    const pickup = state.fulfillment.method === "pickup";
+    const delivery = items.length && !pickup ? (state.delivery?.price || 0) : 0;
     const taxableBase = itemsTotal + taxableAddons + delivery;
     const tax = Math.round(taxableBase * state.taxRate * 100) / 100;
     return {
@@ -1646,14 +1673,52 @@
     }
 
     if (state.delivery) {
-      const deal = document.createElement("div");
-      deal.className = "deal";
-      deal.innerHTML = `
-        <div class="nm">${esc(state.delivery.name)}
-          <span style="float:right;"><span class="compare">${money(state.delivery.regularPrice)}</span>${money(state.delivery.price)}</span>
-        </div>
-        <div class="note">${esc(state.delivery.note)}</div>`;
-      body.appendChild(deal);
+      const f = state.fulfillment;
+      const opts = state.fulfillOptions || {};
+      const days = opts.deliveryDates || [];
+      const chooser = document.createElement("div");
+      chooser.innerHTML = `
+        <label class="fulfill-opt${f.method === "delivery" ? " on" : ""}">
+          <input type="radio" name="fulfillMethod" value="delivery"${f.method === "delivery" ? " checked" : ""}>
+          <span class="fo-body">
+            <span class="fo-nm"><span>${esc(state.delivery.name)}</span>
+              <span class="fo-price"><span class="compare">${money(state.delivery.regularPrice)}</span>${money(state.delivery.price)}</span>
+            </span>
+            <span class="fo-note">${esc(state.delivery.note)}</span>
+            ${f.method === "delivery" ? `
+              <span class="fo-note" style="font-weight:700; color: var(--text, #1f2937); display:block; margin-top:8px;">Pick your delivery day:</span>
+              <span class="day-chips">${days.map((d) => `<button type="button" class="day-chip${f.date === d.date ? " on" : ""}" data-day="${esc(d.date)}">${esc(d.label)}</button>`).join("")}</span>
+              <span class="sched-note">${esc(opts.scheduleNote || "You'll receive a 4-hour arrival window two business days before your selected day.")}</span>
+            ` : ""}
+          </span>
+        </label>
+        <label class="fulfill-opt${f.method === "pickup" ? " on" : ""}">
+          <input type="radio" name="fulfillMethod" value="pickup"${f.method === "pickup" ? " checked" : ""}>
+          <span class="fo-body">
+            <span class="fo-nm"><span>${esc(opts.pickup?.name || "Customer Pickup")}</span>
+              <span class="fo-price" style="color: var(--green, #21692c);">FREE</span>
+            </span>
+            <span class="fo-note">${esc(opts.pickup?.note || "Free — skip the delivery fee. We'll follow up through your preferred contact method to confirm your order is ready.")}</span>
+            ${f.method === "pickup" ? `
+              <span class="fo-note" style="font-weight:700; color: var(--text, #1f2937); display:block; margin-top:8px;">Pick your pickup day:</span>
+              <span class="day-chips">
+                ${(opts.pickupDates || []).map((d) => `<button type="button" class="day-chip${f.date === d.date ? " on" : ""}" data-day="${esc(d.date)}">${esc(d.label)}</button>`).join("")}
+                <button type="button" class="day-chip${f.date === "later" ? " on" : ""}" data-day="later">I'd like to pick this up later</button>
+              </span>
+              ${f.date === "later" ? `<span class="sched-note">${esc(opts.pickupLaterNote || "Clearance and outlet items must be picked up within 30 days.")}</span>` : ""}
+            ` : ""}
+          </span>
+        </label>`;
+      body.appendChild(chooser);
+      chooser.querySelectorAll("input[name='fulfillMethod']").forEach((r) => r.addEventListener("change", () => {
+        if (state.fulfillment.method !== r.value) state.fulfillment = { method: r.value, date: null };
+        renderCart();
+      }));
+      chooser.querySelectorAll(".day-chip").forEach((b) => b.addEventListener("click", (e) => {
+        e.preventDefault();
+        state.fulfillment.date = b.getAttribute("data-day");
+        renderCart();
+      }));
     }
 
     body.querySelectorAll("[data-rm-item]").forEach((b) => b.addEventListener("click", () => {
@@ -1680,7 +1745,7 @@
     $("drawerTotals").innerHTML = `
       <div class="tot-row"><span>Clearance items</span><span>${money(t.itemsTotal)}</span></div>
       ${t.addonsTotal ? `<div class="tot-row"><span>Parts &amp; installation</span><span>${money(t.addonsTotal)}</span></div>` : ""}
-      <div class="tot-row"><span>White Glove Delivery</span><span>${money(t.delivery)}</span></div>
+      <div class="tot-row"><span>${state.fulfillment.method === "pickup" ? "Customer Pickup" : "White Glove Delivery"}</span><span>${state.fulfillment.method === "pickup" ? "FREE" : money(t.delivery)}</span></div>
       <div class="tot-row"><span>Sales tax (${(state.taxRate * 100).toFixed(2).replace(/\.?0+$/, "")}%)</span><span>${money(t.tax)}</span></div>
       <div class="tot-row grand"><span>Estimated total</span><span>${money(t.total)}</span></div>
       <div class="tax-note">Built-in installation labor is tax-exempt. Your card is saved securely now and only charged after a Wilson team member confirms your order with you.</div>
@@ -1690,6 +1755,16 @@
 
   // ---------- Checkout ----------
   async function startCheckout() {
+    // Blind scheduling: a delivery order needs its day picked first. (Also
+    // catches the post-registration resume — it lands back on the cart with
+    // the chooser highlighted rather than dead-ending.)
+    if (state.delivery && !state.fulfillment.date) {
+      openCart();
+      alertLine(state.fulfillment.method === "pickup"
+        ? "Pick your pickup day — or choose \u201cI'd like to pick this up later\u201d — to continue to checkout."
+        : "Pick your delivery day (or choose free customer pickup) to continue to checkout.");
+      return;
+    }
     // Card capture needs a shopper profile (name, address, contact) — an
     // anonymous MAP cart registers here, then lands right back in checkout.
     if (!state.unlocked) {
@@ -1710,9 +1785,16 @@
             const a = addonInfo(id);
             return a ? `${esc(a.name)} × ${qty} — ${money(a.price * qty)}` : "";
           }).filter(Boolean).join("<br>") : ""}
-          <br>${esc(state.delivery?.name || "Delivery")} — ${money(t.delivery)}
+          <br>${state.fulfillment.method === "pickup"
+            ? `Customer Pickup (${state.fulfillment.date === "later" ? "scheduling later" : esc(fulfillDayLabel() || "day TBD")}) — FREE`
+            : `${esc(state.delivery?.name || "Delivery")} (${esc(fulfillDayLabel() || "day TBD")}) — ${money(t.delivery)}`}
           <br>Sales tax — ${money(t.tax)}
           <br><strong>Estimated total — ${money(t.total)}</strong>
+          ${state.fulfillment.method === "delivery"
+            ? `<br><span class="muted" style="font-size:12px;">${esc(state.fulfillOptions?.scheduleNote || "You'll receive a 4-hour arrival window two business days before your selected day.")}</span>`
+            : state.fulfillment.date === "later"
+              ? `<br><span class="muted" style="font-size:12px;">${esc(state.fulfillOptions?.pickupLaterNote || "Clearance and outlet items must be picked up within 30 days.")}</span>`
+              : ""}
         </div>
       </div>
       <div class="checkout-section">
@@ -1740,7 +1822,7 @@
       const res = await fetch("/api/shop/setup-intent", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ token: state.token, cart: cartPayload() })
+        body: JSON.stringify({ token: state.token, cart: cartPayload(), fulfillment: fulfillPayload() })
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Unable to start checkout.");
@@ -1777,6 +1859,17 @@
       itemIds: [...state.cart.itemIds],
       addons: [...state.cart.addons].map(([id, qty]) => ({ id, qty }))
     };
+  }
+
+  function fulfillPayload() {
+    return { method: state.fulfillment.method === "pickup" ? "pickup" : "delivery", date: state.fulfillment.date };
+  }
+
+  function fulfillDayLabel() {
+    const pool = state.fulfillment.method === "pickup"
+      ? (state.fulfillOptions?.pickupDates || [])
+      : (state.fulfillOptions?.deliveryDates || []);
+    return pool.find((d) => d.date === state.fulfillment.date)?.label || "";
   }
 
   async function placeOrder() {
@@ -1820,17 +1913,26 @@
         body: JSON.stringify({
           token: state.token,
           setupIntentId: state.checkout.setupIntentId,
-          cart: cartPayload()
+          cart: cartPayload(),
+          fulfillment: fulfillPayload()
         })
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Unable to file your order.");
 
+      const fulfillLine = state.fulfillment.method === "pickup"
+        ? (state.fulfillment.date === "later"
+            ? `Customer pickup — you chose to schedule it later. We'll follow up using your preferred contact method to confirm your order is ready. ${state.fulfillOptions?.pickupLaterNote || "Clearance and outlet items must be picked up within 30 days."}`
+            : `Customer pickup requested for ${fulfillDayLabel()}. We'll follow up using your preferred contact method to confirm your order is ready.`)
+        : `Delivery requested for ${fulfillDayLabel()}. ${state.fulfillOptions?.scheduleNote || "You'll receive a 4-hour arrival window two business days before your selected day."}`;
       state.cart = { itemIds: [], addons: new Map() };
+      state.fulfillment = { method: "delivery", date: null };
       renderCartCount();
       $("cartDrawer").classList.remove("show");
       $("mainArea").style.display = "none";
       $("doneOrderNo").textContent = data.orderNumber;
+      $("doneFulfill").textContent = fulfillLine;
+      $("doneFulfill").style.display = "block";
       if (state.clientCode) {
         $("doneCodeVal").textContent = state.clientCode;
         $("doneCode").style.display = "block";

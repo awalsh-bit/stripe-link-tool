@@ -64,6 +64,7 @@ import {
   getSessionWithUser,
   deleteSessionByToken,
   deleteSessionsForUser,
+  deleteUserAccount,
   cleanupExpiredAuthRows,
   getGrantedPagesForUser,
   setUserPagePermissions,
@@ -80,6 +81,7 @@ import {
   upsertEmployeeDirectoryEntry,
   deleteEmployeeDirectoryEntry,
   findEmployeeDirectoryEntryByEmail,
+  setEmployeeDirectoryArchived,
   validateEmployeeCode,
   normalizeEmployeeCode,
   setJobCodeSeed,
@@ -4172,6 +4174,57 @@ app.delete("/api/admin/employee-directory/:code", requireExecutiveApi, async (re
   } catch (err) {
     console.error("Delete employee directory entry failed:", err.message);
     return res.status(500).json({ error: "Unable to delete the directory entry." });
+  }
+});
+
+// INTERNAL: archive / restore a directory entry (former employees). The row
+// and every record keyed on its code stay in the system — it just moves to
+// Deactivated users and drops out of the title-driven tools.
+app.post("/api/admin/employee-directory/:code/archive", requireExecutiveApi, async (req, res) => {
+  try {
+    const code = normalizeEmployeeCode(req.params.code);
+    const archived = Boolean(req.body?.archived);
+    const done = await setEmployeeDirectoryArchived(code, archived);
+    if (!done) {
+      return res.status(404).json({ error: "That employee code was not found." });
+    }
+    recordAudit({
+      ip: req.ip, actorUserId: req.authUser.id || null,
+      action: archived ? "employee_directory_archived" : "employee_directory_restored",
+      targetUserId: null, detail: { code }
+    }).catch(() => {});
+    return res.json({ success: true, archived });
+  } catch (err) {
+    console.error("Directory archive failed:", err.message);
+    return res.status(500).json({ error: "Unable to update the directory entry." });
+  }
+});
+
+// INTERNAL: remove a never-activated account (stale invite / abandoned
+// registration). Active and deactivated accounts carry history and can only
+// be deactivated, never deleted.
+app.delete("/api/admin/users/:id", requireExecutiveApi, async (req, res) => {
+  try {
+    const target = await getUserById(req.params.id);
+    if (!target) {
+      return res.status(404).json({ error: "That account was not found." });
+    }
+    if (target.id === req.authUser.id) {
+      return res.status(400).json({ error: "You can't remove your own account." });
+    }
+    if (!["invited", "pending_verification"].includes(target.status)) {
+      return res.status(400).json({ error: "Only invited or unverified accounts can be removed. Deactivate active accounts instead — their history stays intact." });
+    }
+    await deleteUserAccount(target.id);
+    recordAudit({
+      ip: req.ip, actorUserId: req.authUser.id || null,
+      action: "user_account_removed", targetUserId: null,
+      detail: { email: target.email, status: target.status }
+    }).catch(() => {});
+    return res.json({ success: true });
+  } catch (err) {
+    console.error("User account removal failed:", err.message);
+    return res.status(500).json({ error: "Unable to remove the account." });
   }
 });
 

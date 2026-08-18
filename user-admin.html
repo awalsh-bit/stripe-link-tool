@@ -249,6 +249,21 @@
     .jt-pagebox input { accent-color: var(--primary); }
     .jt-actions { display: flex; gap: 10px; align-items: center; margin-top: 16px; }
 
+    .up-card { max-width: 800px; }
+    .up-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; margin-bottom: 8px; }
+    .up-grid .jt-field { margin-bottom: 0; }
+    .up-sec {
+      font-size: 11.5px; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase;
+      color: #64748b; margin: 18px 0 10px; border-top: 1px solid var(--border); padding-top: 14px;
+    }
+    .up-sec.first { border-top: none; padding-top: 0; margin-top: 4px; }
+    .up-note { font-size: 12.5px; color: var(--muted); line-height: 1.5; margin: 6px 0 10px; }
+    .acct-line { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 10px; font-size: 13px; }
+    .acct-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+    #usersTable tbody tr:not(.perm-row) { cursor: pointer; }
+    #usersTable tbody tr:not(.perm-row):hover td { background: var(--primary-faint-2, #f8fafc); }
+    #deactivatedBody tr { cursor: pointer; }
+
     .perm-row td { background: var(--primary-faint-2); }
 
     .perm-grid {
@@ -372,45 +387,19 @@
     <div class="surface">
       <h2>Team</h2>
       <p class="section-note">
-        One profile per person, linked permanently by <strong>email</strong> — employee code,
-        department, and job title from the directory alongside their login account,
-        page access, and status. A <strong>No account</strong> flag means the profile needs an
-        invite. Deactivating someone ends their sessions and moves the whole profile to
-        <strong>Deactivated users</strong> below — nothing is deleted.
+        Every person is <strong>one profile with two halves, linked by email</strong>:
+        the <strong>login account</strong> (what they sign in with — status and page access)
+        and the <strong>directory entry</strong> (their ePASS code, job title, and department —
+        what the sales, commission, and payment tools key on). Someone can have either half
+        alone: <em>No account</em> means a directory person who can't sign in yet;
+        a row with no code means a login that isn't tied to ePASS data.
+        Click any row to see and edit everything about that person in one card.
       </p>
-      <div class="toolbar">
-        <div class="field small">
-          <label for="dirCode">Code</label>
-          <input id="dirCode" type="text" maxlength="3" placeholder="ABC" style="text-transform: uppercase;" />
+      <div class="toolbar" style="justify-content: space-between; align-items: center;">
+        <div class="small-text muted" style="flex: 1 1 260px;">
+          Codes are what the payment and sales tools link on — set one for everyone who rings sales or takes payments.
         </div>
-        <div class="field">
-          <label for="dirName">Name</label>
-          <input id="dirName" type="text" placeholder="First Last" />
-        </div>
-        <div class="field">
-          <label for="dirEmail">Email (ties to account)</label>
-          <input id="dirEmail" type="email" placeholder="name@wilsonappliance.com" />
-        </div>
-        <div class="field small">
-          <label for="dirDepartment">Department</label>
-          <select id="dirDepartment">
-            <option value="">— No department —</option>
-          </select>
-        </div>
-        <div class="field">
-          <label for="dirCommissionPlan">Job title</label>
-          <select id="dirCommissionPlan"></select>
-        </div>
-        <div class="field small">
-          <label for="dirCommute">Commute (mi, round trip)</label>
-          <input id="dirCommute" type="number" min="0" step="0.1" placeholder="0" />
-        </div>
-        <button id="dirAddBtn" type="button">Add / Update</button>
-        <div class="small-text muted" style="flex-basis: 100%;">
-          Type an existing code to load that person for updating, or click <strong>Edit</strong>
-          on any row below. Codes are what the payment tools use (update them when systems
-          change, e.g. ePASS → NetSuite).
-        </div>
+        <button id="upAddBtn" type="button">+ Add teammate</button>
       </div>
       <div id="dirStatus" class="status"></div>
       <div id="usersStatus" class="status"></div>
@@ -425,7 +414,7 @@
               <th title="Product sales across commission runs imported in the last 6 months — backs the Field Sales $500k qualification. Read-only.">6-Mo Sales</th>
               <th>Commute (mi)</th>
               <th>Account</th>
-              <th>Actions</th>
+              <th></th>
             </tr>
           </thead>
           <tbody id="usersBody">
@@ -436,20 +425,24 @@
     </div>
 
     <div class="surface" id="deactivatedSurface" style="display: none;">
-      <h2>Deactivated users</h2>
+      <h2 style="display: flex; align-items: center; gap: 10px;">
+        Former team members <span class="pill disabled" id="deactCount"></span>
+        <button id="deactToggle" type="button" class="tiny secondary" style="margin-left: auto;">Show</button>
+      </h2>
       <p class="section-note">
-        Profiles with a disabled account. Their directory info, code history, and payment
-        records are all retained — reactivate to bring the whole profile back.
+        Deactivated accounts and archived directory profiles, hidden from the Team list and every
+        tool. Nothing is deleted — codes, payment history, and commission records stay linked.
+        Click a row to reactivate or restore.
       </p>
-      <div class="table-scroll">
+      <div class="table-scroll" id="deactTableWrap" style="display: none;">
         <table>
           <thead>
             <tr>
               <th>Code</th>
               <th>Name</th>
               <th>Department</th>
+              <th>Status</th>
               <th>Last seen</th>
-              <th>Actions</th>
             </tr>
           </thead>
           <tbody id="deactivatedBody"></tbody>
@@ -497,6 +490,21 @@
     </div>
 
     <div id="internal-shell-footer"></div>
+  </div>
+
+  <!-- Profile overlay: the whole person — directory, account, page access -->
+  <div class="jt-overlay" id="upOverlay">
+    <div class="jt-card up-card">
+      <h3 id="upHeading">Profile</h3>
+      <div id="upBody"></div>
+      <div id="upError" class="status"></div>
+      <div class="jt-actions">
+        <button type="button" id="upSave">Save</button>
+        <button type="button" class="secondary" id="upCancel">Cancel</button>
+        <span style="flex: 1 1 auto;"></span>
+        <span id="upDanger" style="display: flex; gap: 8px;"></span>
+      </div>
+    </div>
   </div>
 
   <div class="jt-overlay" id="jtOverlay">
@@ -610,8 +618,6 @@
         state.jobTitles = data.jobTitles || [];
         state.departments = data.departments || [];
         state.allowedDomain = data.allowedDomain || state.allowedDomain;
-        fillAddFormPlan();
-        fillDirDepartments();
         renderUsers();
         renderDirectory(); // account-action buttons on directory rows depend on users
         renderJobConfig();
@@ -650,67 +656,15 @@
       return rows;
     }
 
-    // (Re)build the department dropdown from the DB list, preserving the
-    // current pick (and any legacy option setDirDepartment added).
-    function fillDirDepartments() {
-      const select = document.getElementById("dirDepartment");
-      if (!select) return;
-      const current = select.value;
-      select.innerHTML = "";
-      const none = document.createElement("option");
-      none.value = "";
-      none.textContent = "— No department —";
-      select.appendChild(none);
-      for (const dept of state.departments || []) {
-        const opt = document.createElement("option");
-        opt.value = dept.name;
-        opt.textContent = dept.name;
-        select.appendChild(opt);
-      }
-      if (current) setDirDepartment(current);
-    }
-
-    // If a saved entry carries a legacy department not in the fixed list,
-    // show it explicitly so it can be corrected rather than silently blanked.
-    function setDirDepartment(value) {
-      const select = document.getElementById("dirDepartment");
-      const raw = String(value || "").trim();
-      const options = [...select.options].map((o) => o.value);
-      const canonical = options.find((o) => o && o.toLowerCase() === raw.toLowerCase());
-      if (!raw || canonical !== undefined && canonical) {
-        select.value = canonical || "";
-        return;
-      }
-      let legacy = select.querySelector("option[data-legacy]");
-      if (!legacy) {
-        legacy = document.createElement("option");
-        legacy.dataset.legacy = "1";
-        select.appendChild(legacy);
-      }
-      legacy.value = raw;
-      legacy.textContent = raw + " (not a standard department — please re-save)";
-      select.value = raw;
-    }
-
-    function fillFormFromEntry(entry, account) {
-      document.getElementById("dirCode").value = entry?.code || "";
-      document.getElementById("dirName").value = entry?.name || account?.displayName || "";
-      document.getElementById("dirEmail").value = entry?.email || account?.email || "";
-      setDirDepartment(entry?.department);
-      document.getElementById("dirCommissionPlan").value = entry?.commissionPlan || "";
-      document.getElementById("dirCommute").value = entry?.commuteMiles ?? "";
-      const who = entry?.name || account?.displayName || account?.email || "this person";
-      setStatus("dirStatus", `Editing ${who} — change what you need and click Add / Update to save.`, "ok");
-      document.getElementById("dirCode").scrollIntoView({ behavior: "smooth", block: "center" });
-    }
-
     function renderUsers() {
       const body = document.getElementById("usersBody");
       body.textContent = "";
 
       const allRows = buildTeamRows();
-      const activeRows = allRows.filter((row) => row.account?.status !== "disabled");
-      const deactivatedRows = allRows.filter((row) => row.account?.status === "disabled");
+      const isFormer = (row) =>
+        row.account?.status === "disabled" || (!row.account && row.entry?.archived);
+      const activeRows = allRows.filter((row) => !isFormer(row));
+      const deactivatedRows = allRows.filter(isFormer);
 
       if (!activeRows.length) {
         body.appendChild(el("tr", {}, [
@@ -720,69 +674,9 @@
 
       for (const row of activeRows) {
         body.appendChild(renderTeamRow(row));
-        if (row.account && state.expanded.has(row.account.id) && !row.account.isExecutive) {
-          body.appendChild(renderPermissionRow(row.account));
-        }
       }
 
       renderDeactivated(deactivatedRows);
-    }
-
-    // ---- Kebab (three-dot) menus ----
-    // One open at a time; positioned fixed so the table's scroll container
-    // can't clip it; closes on outside click or any scroll.
-
-    let openKebab = null;
-
-    function closeKebab() {
-      if (openKebab) {
-        openKebab.menu.remove();
-        openKebab = null;
-      }
-    }
-
-    document.addEventListener("click", (event) => {
-      if (openKebab && !openKebab.btn.contains(event.target) && !openKebab.menu.contains(event.target)) {
-        closeKebab();
-      }
-    });
-    window.addEventListener("scroll", closeKebab, true);
-    window.addEventListener("resize", closeKebab);
-
-    function kebabButton(items) {
-      const usable = items.filter(Boolean);
-      const btn = el("button", { class: "kebab-btn", type: "button", "aria-label": "Actions", text: "⋮" });
-
-      btn.addEventListener("click", (event) => {
-        event.stopPropagation();
-        if (openKebab && openKebab.btn === btn) {
-          closeKebab();
-          return;
-        }
-        closeKebab();
-
-        const menu = el("div", { class: "kebab-menu" });
-        for (const item of usable) {
-          const mi = el("button", {
-            class: "kebab-item" + (item.danger ? " danger" : ""),
-            type: "button",
-            text: item.label
-          });
-          mi.addEventListener("click", (ev) => {
-            closeKebab();
-            item.onclick(ev);
-          });
-          menu.appendChild(mi);
-        }
-
-        document.body.appendChild(menu);
-        const rect = btn.getBoundingClientRect();
-        menu.style.top = rect.bottom + 6 + "px";
-        menu.style.left = Math.max(8, rect.right - menu.offsetWidth) + "px";
-        openKebab = { btn, menu };
-      });
-
-      return btn;
     }
 
     function renderTeamRow({ entry, account }) {
@@ -799,93 +693,14 @@
         el("div", { class: "muted small-text", text: subBits })
       ]);
 
-      // Status only — executive flag and page counts live in the kebab menu
-      // and the Edit pages panel, not at a glance.
       const accountCell = el("td", {}, [
         account
           ? statusPill(account)
           : el("span", { class: "pill disabled", text: "No account" })
       ]);
+      if (account?.isExecutive) accountCell.appendChild(el("span", { class: "pill exec", text: "Exec", style: "margin-left: 6px;" }));
 
-      // Everything lives in one three-dot menu — only the options that apply
-      // to this person appear.
-      const pendingEdits = account ? (state.pending.get(account.id)?.size || 0) : 0;
-
-      const menuItems = [
-        account && !account.isExecutive && {
-          label: state.expanded.has(account.id)
-            ? "Hide pages"
-            : (pendingEdits ? `Edit pages (${pendingEdits} unsaved)` : "Edit pages"),
-          onclick: () => {
-            if (state.expanded.has(account.id)) state.expanded.delete(account.id);
-            else state.expanded.add(account.id);
-            renderUsers();
-          }
-        },
-        {
-          label: entry ? "Edit profile" : "Add to directory",
-          onclick: () => fillFormFromEntry(entry, account)
-        },
-        !account && email && {
-          label: "Send invite",
-          onclick: async (e) => {
-            if (!confirm(`Send an account invite to ${name} (${email})?`)) return;
-            try {
-              await api("/api/admin/users/invite", {
-                method: "POST",
-                body: JSON.stringify({ email, displayName: entry?.name || "", isExecutive: false })
-              });
-              setStatus("usersStatus", `Invite sent to ${email}.`, "ok");
-              await loadUsers();
-            } catch (err) {
-              setStatus("usersStatus", err.message, "error");
-            }
-          }
-        },
-        account && ["invited", "pending_verification"].includes(account.status) && {
-          label: "Resend invite",
-          onclick: (e) => rowAction(e.target, `/api/admin/users/${account.id}/resend-invite`, {})
-        },
-        account && account.status === "active" && {
-          label: "Send password reset",
-          onclick: (e) => rowAction(e.target, `/api/admin/users/${account.id}/force-reset`, {})
-        },
-        account && account.status === "active" && {
-          label: account.isExecutive ? "Remove executive" : "Make executive",
-          onclick: (e) => {
-            if (account.isExecutive && !confirm(`Remove executive access from ${account.email}?`)) return;
-            if (!account.isExecutive && !confirm(`Give ${account.email} full executive access, including user management?`)) return;
-            rowAction(e.target, `/api/admin/users/${account.id}/executive`, { isExecutive: !account.isExecutive });
-          }
-        },
-        account && account.status === "active" && {
-          label: "Deactivate",
-          danger: true,
-          onclick: (e) => {
-            if (!confirm(`Deactivate ${name}? Their sessions end immediately and the whole profile moves to Deactivated users below. Directory info and payment records are kept.`)) return;
-            rowAction(e.target, `/api/admin/users/${account.id}/status`, { status: "disabled" });
-          }
-        },
-        // Delete only exists for directory-only rows. A profile linked to an
-        // account is permanent — deactivate it instead (the server enforces
-        // this too).
-        entry && !account && {
-          label: "Delete",
-          danger: true,
-          onclick: async () => {
-            if (!confirm(`Delete code ${entry.code} (${entry.name})? This row has no linked account. Existing payment records keep the code; it just leaves the directory.`)) return;
-            try {
-              await api("/api/admin/employee-directory/" + encodeURIComponent(entry.code), { method: "DELETE" });
-              setStatus("dirStatus", `Deleted ${entry.code}.`, "ok");
-              await loadDirectory();
-            } catch (err) {
-              setStatus("dirStatus", err.message, "error");
-            }
-          }
-        }
-      ];
-
-      return el("tr", {}, [
+      const row = el("tr", {}, [
         el("td", {}, [el("strong", { text: entry?.code || "—" })]),
         nameCell,
         el("td", { text: entry?.department || "—" }),
@@ -893,43 +708,51 @@
         el("td", { class: "muted", text: fmtTrailingRevenue(entry?.code) }),
         el("td", { text: entry ? String(entry.commuteMiles ?? 0) : "—" }),
         accountCell,
-        el("td", {}, [kebabButton(menuItems)])
+        el("td", { class: "muted", text: "›" })
       ]);
+      row.addEventListener("click", () => openProfile({ entry, account }));
+      return row;
     }
 
     function renderDeactivated(rows) {
       const surface = document.getElementById("deactivatedSurface");
       const body = document.getElementById("deactivatedBody");
       body.textContent = "";
+      document.getElementById("deactCount").textContent = String(rows.length);
 
       if (!rows.length) {
         surface.style.display = "none";
         return;
       }
-
       surface.style.display = "";
+
       for (const { entry, account } of rows) {
-        const name = (entry && entry.name) || account.displayName || account.email;
-        body.appendChild(el("tr", {}, [
+        const name = (entry && entry.name) || account?.displayName || account?.email || "—";
+        const row = el("tr", {}, [
           el("td", {}, [el("strong", { text: entry?.code || "—" })]),
           el("td", {}, [
             el("div", { text: name }),
-            el("div", { class: "muted small-text", text: account.email })
+            el("div", { class: "muted small-text", text: entry?.email || account?.email || "" })
           ]),
           el("td", { text: entry?.department || "—" }),
-          el("td", { text: formatWhen(account.lastSeenAt) }),
           el("td", {}, [
-            el("div", { class: "row-actions" }, [
-              el("button", {
-                class: "tiny secondary",
-                text: "Reactivate",
-                onclick: (e) => rowAction(e.target, `/api/admin/users/${account.id}/status`, { status: "active" })
-              })
-            ])
-          ])
-        ]));
+            account
+              ? el("span", { class: "pill disabled", text: "Deactivated account" })
+              : el("span", { class: "pill disabled", text: "Archived — directory only" })
+          ]),
+          el("td", { text: account ? formatWhen(account.lastSeenAt) : "—" })
+        ]);
+        row.addEventListener("click", () => openProfile({ entry, account }));
+        body.appendChild(row);
       }
     }
+
+    document.getElementById("deactToggle").addEventListener("click", () => {
+      const wrap = document.getElementById("deactTableWrap");
+      const showing = wrap.style.display !== "none";
+      wrap.style.display = showing ? "none" : "";
+      document.getElementById("deactToggle").textContent = showing ? "Show" : "Hide";
+    });
 
     function pageLabelFor(path) {
       const page = state.manageablePages.find((p) => p.path === path);
@@ -966,35 +789,12 @@
       return state.pending.get(user.id)?.size || 0;
     }
 
-    async function savePermissions(user, button) {
-      const staged = state.pending.get(user.id);
-      if (!staged || !staged.size) return;
-
-      button.disabled = true;
-      button.textContent = "Saving...";
-
-      try {
-        const changes = [...staged].map(([pagePath, granted]) => ({ pagePath, granted }));
-        const data = await api(`/api/admin/users/${user.id}/permissions`, {
-          method: "POST",
-          body: JSON.stringify({ changes })
-        });
-        user.grantedPages = data.grantedPages || [];
-        state.pending.delete(user.id);
-        setStatus("usersStatus", `Saved ${changes.length} permission change(s) for ${user.email}.`, "ok");
-      } catch (err) {
-        setStatus("usersStatus", err.message, "error");
-      }
-
-      renderUsers();
-    }
-
-    function buildPermCheckbox(user, path) {
+    function buildPermCheckbox(user, path, rerender) {
       const checkbox = el("input", { type: "checkbox" });
       checkbox.checked = isGrantedEffective(user, path);
       checkbox.addEventListener("change", () => {
         stagePermission(user, path, checkbox.checked);
-        renderUsers(); // keeps duplicate checkboxes, counts, and Save in sync
+        rerender();
       });
 
       const isStaged = state.pending.get(user.id)?.has(path);
@@ -1004,83 +804,56 @@
       return label;
     }
 
-    function renderPermissionRow(user) {
-      const presetRow = el("div", { class: "preset-row" }, [
-        el("span", { class: "hint", text: "Job code presets (checks their pages — click Save to apply):" })
-      ]);
+    // Page-access editor inside the profile overlay. Edits stage locally and
+    // save with the card's Save button.
+    function renderPermSectionInto(host, user) {
+      host.textContent = "";
+      const rerender = () => { renderPermSectionInto(host, user); syncUpSave(); };
 
+      const presetRow = el("div", { class: "preset-row" }, [
+        el("span", { class: "hint", text: "Permission groups (checks their pages — Save applies):" })
+      ]);
       for (const preset of Object.values(state.presets)) {
         presetRow.appendChild(el("button", {
           class: "tiny secondary",
           text: preset.label,
           onclick: () => {
             preset.pages.forEach((path) => stagePermission(user, path, true));
-            renderUsers();
+            rerender();
           }
         }));
       }
-
-      // Save / discard bar for staged changes.
       const pending = pendingCount(user);
-      const saveBtn = el("button", {
-        class: "tiny",
-        text: pending ? `Save (${pending})` : "Save",
-        onclick: (e) => savePermissions(user, e.target)
-      });
-      saveBtn.disabled = !pending;
-      presetRow.appendChild(el("span", { style: "flex: 1 1 auto;" }));
-      presetRow.appendChild(saveBtn);
-
       if (pending) {
+        presetRow.appendChild(el("span", { style: "flex: 1 1 auto;" }));
         presetRow.appendChild(el("button", {
           class: "tiny secondary",
-          text: "Discard",
-          onclick: () => {
-            state.pending.delete(user.id);
-            renderUsers();
-          }
+          text: `Discard ${pending} unsaved`,
+          onclick: () => { state.pending.delete(user.id); rerender(); }
         }));
       }
+      host.appendChild(presetRow);
 
-      const container = el("div", {});
-      container.appendChild(presetRow);
-
-      // Categories: a page can appear under several categories; every copy is
-      // the same underlying permission and stays in sync while you edit.
       for (const category of state.categories) {
         const grantedInCategory = category.pages.filter((p) => isGrantedEffective(user, p)).length;
-
         const head = el("div", { class: "perm-category-head" }, [
           el("span", { class: "perm-category-title", text: category.label }),
           el("span", { class: "perm-category-count", text: `${grantedInCategory}/${category.pages.length}` }),
           el("button", {
-            class: "tiny secondary",
-            text: "All",
-            onclick: () => {
-              category.pages.forEach((path) => stagePermission(user, path, true));
-              renderUsers();
-            }
+            class: "tiny secondary", text: "All",
+            onclick: () => { category.pages.forEach((path) => stagePermission(user, path, true)); rerender(); }
           }),
           el("button", {
-            class: "tiny secondary",
-            text: "None",
-            onclick: () => {
-              category.pages.forEach((path) => stagePermission(user, path, false));
-              renderUsers();
-            }
+            class: "tiny secondary", text: "None",
+            onclick: () => { category.pages.forEach((path) => stagePermission(user, path, false)); rerender(); }
           })
         ]);
-
         const grid = el("div", { class: "perm-grid" });
         for (const path of category.pages) {
-          grid.appendChild(buildPermCheckbox(user, path));
+          grid.appendChild(buildPermCheckbox(user, path, rerender));
         }
-
-        container.appendChild(el("div", { class: "perm-category" }, [head, grid]));
+        host.appendChild(el("div", { class: "perm-category" }, [head, grid]));
       }
-
-      const cell = el("td", { colspan: "8" }, [container]);
-      return el("tr", { class: "perm-row" }, [cell]);
     }
 
     async function rowAction(button, path, payload) {
@@ -1176,74 +949,305 @@
       return sel;
     }
 
-    // (Re)populate the add/update form's title dropdown from the live list,
-    // preserving whatever is currently picked.
-    function fillAddFormPlan() {
-      const sel = document.getElementById("dirCommissionPlan");
-      if (!sel) return;
-      const current = sel.value;
-      sel.innerHTML = "";
-      const built = commissionPlanSelect(current);
-      while (built.firstChild) sel.appendChild(built.firstChild);
-      sel.value = current || "";
-    }
-
     // The old separate directory table is gone — everything renders in the
-    // merged Team view above. Kept as an alias for the handlers that call it.
+    // merged Team view. Kept as an alias for the handlers that call it.
     function renderDirectory() {
       renderUsers();
     }
 
-    // Typing an existing code loads that entry into the form, so
-    // "Add / Update" works for both adding new people and updating existing.
-    document.getElementById("dirCode").addEventListener("input", () => {
-      const code = document.getElementById("dirCode").value.trim().toUpperCase();
-      const match = state.directory.find((e) => e.code === code);
-      if (!match) return;
-      document.getElementById("dirName").value = match.name;
-      document.getElementById("dirEmail").value = match.email || "";
-      setDirDepartment(match.department);
-      document.getElementById("dirCommissionPlan").value = match.commissionPlan || "";
-      document.getElementById("dirCommute").value = match.commuteMiles ?? 0;
-      setStatus("dirStatus", `Loaded ${code} — ${match.name}. Change what you need and click Add / Update to save.`, "ok");
-    });
+    // ---- Profile overlay ----
+    // One card per person, modeled on the shop profile / job-title editors:
+    // the directory half (code, title, department), the account half (status
+    // + actions), and the page-access grid all in one pop-up.
 
-    document.getElementById("dirAddBtn").addEventListener("click", async () => {
-      const button = document.getElementById("dirAddBtn");
-      const code = document.getElementById("dirCode").value.trim().toUpperCase();
-      const name = document.getElementById("dirName").value.trim();
-      const email = document.getElementById("dirEmail").value.trim();
-      const department = document.getElementById("dirDepartment").value.trim();
-      const commissionPlan = document.getElementById("dirCommissionPlan").value;
-      const commuteMiles = Number(document.getElementById("dirCommute").value) || 0;
+    const up = { entry: null, account: null, mode: "edit" };
 
-      setStatus("dirStatus", "", "");
+    function fieldWrap(labelText, input) {
+      return el("div", { class: "jt-field" }, [
+        el("label", { text: labelText }),
+        input
+      ]);
+    }
 
-      if (!code || !name) {
-        setStatus("dirStatus", "Code and name are required.", "error");
+    function deptSelectFor(value) {
+      const sel = document.createElement("select");
+      sel.id = "upDept";
+      const none = document.createElement("option");
+      none.value = "";
+      none.textContent = "— No department —";
+      sel.appendChild(none);
+      const names = (state.departments || []).map((d) => d.name);
+      const raw = String(value || "").trim();
+      const canonical = names.find((n) => n.toLowerCase() === raw.toLowerCase());
+      if (raw && !canonical) names.push(raw); // legacy value — keep it visible
+      for (const name of names) {
+        const opt = document.createElement("option");
+        opt.value = name;
+        opt.textContent = name === raw && !canonical ? raw + " (legacy — please re-save)" : name;
+        sel.appendChild(opt);
+      }
+      sel.value = canonical || raw || "";
+      return sel;
+    }
+
+    function titleSelectFor(value) {
+      const sel = commissionPlanSelect(value || "");
+      sel.id = "upTitle";
+      return sel;
+    }
+
+    function syncUpSave() {
+      const btn = document.getElementById("upSave");
+      const pending = up.account ? pendingCount(up.account) : 0;
+      btn.textContent = pending ? `Save (${pending} page change${pending === 1 ? "" : "s"})` : "Save";
+    }
+
+    function closeUpOverlay() {
+      // Cancel/close discards staged page edits — what you see is saved state.
+      if (up.account) state.pending.delete(up.account.id);
+      document.getElementById("upOverlay").classList.remove("show");
+      up.entry = null; up.account = null;
+      renderUsers();
+    }
+
+    // After a server action, re-open this person from freshly loaded state.
+    async function upActionThenReopen(path, payload, { close = false, method = "POST" } = {}) {
+      const key = { email: up.entry?.email || up.account?.email || "", code: up.entry?.code || "" };
+      await api(path, { method, body: method === "DELETE" ? undefined : JSON.stringify(payload || {}) });
+      await Promise.all([loadUsers(), loadDirectory()]);
+      if (close) {
+        document.getElementById("upOverlay").classList.remove("show");
+        up.entry = null; up.account = null;
         return;
       }
+      const rows = buildTeamRows();
+      const fresh = rows.find((r) =>
+        (key.code && r.entry?.code === key.code) ||
+        (key.email && String(r.entry?.email || r.account?.email || "").toLowerCase() === key.email.toLowerCase())
+      );
+      if (fresh) openProfile(fresh);
+      else { document.getElementById("upOverlay").classList.remove("show"); up.entry = null; up.account = null; }
+    }
 
-      const existing = state.directory.find((e) => e.code === code);
-      if (existing && existing.name !== name &&
-          !confirm(`Code ${code} already belongs to ${existing.name}. Overwrite it?`)) return;
+    function acctBtn(label, handler, { danger = false, secondary = true } = {}) {
+      const btn = el("button", {
+        class: (danger ? "danger " : secondary ? "secondary " : "") + "tiny",
+        type: "button",
+        text: label
+      });
+      btn.addEventListener("click", async () => {
+        btn.disabled = true;
+        try { await handler(); }
+        catch (err) { setStatus("upError", err.message, "error"); btn.disabled = false; }
+      });
+      return btn;
+    }
 
-      button.disabled = true;
+    function openProfile(row) {
+      up.entry = row?.entry || null;
+      up.account = row?.account || null;
+      up.mode = row ? "edit" : "add";
+      const entry = up.entry, account = up.account;
+      const name = entry?.name || account?.displayName || account?.email || "";
+
+      document.getElementById("upHeading").textContent = up.mode === "add" ? "Add teammate" : name;
+      setStatus("upError", "", "");
+      const body = document.getElementById("upBody");
+      body.textContent = "";
+
+      // --- Directory half ---
+      body.appendChild(el("div", { class: "up-sec first", text: "Directory profile — what the sales & payment tools key on" }));
+      const grid = el("div", { class: "up-grid" });
+      const codeLocked = !!entry;
+      const codeInput = el("input", {
+        id: "upCode", type: "text", maxlength: "3", placeholder: "ABC",
+        value: entry?.code || "",
+        style: "text-transform: uppercase;" + (codeLocked ? " background: #f3f4f6;" : "")
+      });
+      if (codeLocked) codeInput.setAttribute("readonly", "readonly");
+      grid.appendChild(fieldWrap("Employee code", codeInput));
+      grid.appendChild(fieldWrap("Name", el("input", { id: "upName", type: "text", placeholder: "First Last", value: entry?.name || account?.displayName || "" })));
+      const emailLocked = !!account;
+      const emailInput = el("input", {
+        id: "upEmail", type: "email", placeholder: "name@" + state.allowedDomain,
+        value: entry?.email || account?.email || "",
+        style: emailLocked ? "background: #f3f4f6;" : ""
+      });
+      if (emailLocked) emailInput.setAttribute("readonly", "readonly");
+      grid.appendChild(fieldWrap("Email — the link between the two halves", emailInput));
+      grid.appendChild(fieldWrap("Department", deptSelectFor(entry?.department)));
+      grid.appendChild(fieldWrap("Job title", titleSelectFor(entry?.commissionPlan)));
+      grid.appendChild(fieldWrap("Commute (mi, round trip)", el("input", { id: "upCommute", type: "number", min: "0", step: "0.1", value: String(entry?.commuteMiles ?? "") })));
+      body.appendChild(grid);
+      body.appendChild(el("div", { class: "up-note", text: codeLocked
+        ? "The code is permanent — payment and commission records link on it. The email ties this directory entry to the matching login account."
+        : "Pick the code they use in ePASS (1–3 letters). The email ties this entry to their login account — use their company address." }));
+
+      // --- Account half ---
+      body.appendChild(el("div", { class: "up-sec", text: "Login account" }));
+      if (account) {
+        const line = el("div", { class: "acct-line" }, [statusPill(account)]);
+        if (account.isExecutive) line.appendChild(el("span", { class: "pill exec", text: "Executive" }));
+        line.appendChild(el("span", { class: "muted small-text", text: account.email }));
+        line.appendChild(el("span", { class: "muted small-text", text: "last seen " + formatWhen(account.lastSeenAt) }));
+        body.appendChild(line);
+
+        const actions = el("div", { class: "acct-actions" });
+        if (["invited", "pending_verification"].includes(account.status)) {
+          actions.appendChild(acctBtn("Resend invite", () => upActionThenReopen(`/api/admin/users/${account.id}/resend-invite`, {})));
+        }
+        if (account.status === "active") {
+          actions.appendChild(acctBtn("Send password reset", () => upActionThenReopen(`/api/admin/users/${account.id}/force-reset`, {})));
+          actions.appendChild(acctBtn(account.isExecutive ? "Remove executive" : "Make executive", async () => {
+            const q = account.isExecutive
+              ? `Remove executive access from ${account.email}?`
+              : `Give ${account.email} full executive access, including user management?`;
+            if (!confirm(q)) return;
+            await upActionThenReopen(`/api/admin/users/${account.id}/executive`, { isExecutive: !account.isExecutive });
+          }));
+        }
+        body.appendChild(actions);
+      } else if (up.mode === "add") {
+        body.appendChild(el("div", { class: "up-note", text: "No login account yet. Check the box below to send an account invite along with saving, or send one later from this card." }));
+        body.appendChild(el("label", { class: "jt-toggle" }, [
+          el("input", { type: "checkbox", id: "upInviteToo" }),
+          el("span", {}, [
+            el("div", { class: "t", text: "Also send an account invite" }),
+            el("div", { class: "d", text: "Emails a single-use setup link (72 h) so they can sign in. Grant pages after they accept, or right now below once the account exists." })
+          ])
+        ]));
+      } else {
+        body.appendChild(el("div", { class: "up-note", text: "No login account — directory-only profile. The payment and sales tools work off the code; signing in to dashboards requires an account." }));
+        const actions = el("div", { class: "acct-actions" });
+        if (entry?.email) {
+          actions.appendChild(acctBtn("Send account invite", async () => {
+            if (!confirm(`Send an account invite to ${name} (${entry.email})?`)) return;
+            await upActionThenReopen("/api/admin/users/invite", { email: entry.email, displayName: entry.name || "", isExecutive: false });
+          }));
+        } else {
+          actions.appendChild(el("span", { class: "muted small-text", text: "Add an email above and save to enable invites." }));
+        }
+        body.appendChild(actions);
+      }
+
+      // --- Page access ---
+      body.appendChild(el("div", { class: "up-sec", text: "Page access" }));
+      if (!account) {
+        body.appendChild(el("div", { class: "up-note", text: "Page access appears here once this person has a login account." }));
+      } else if (account.isExecutive) {
+        body.appendChild(el("div", { class: "up-note", text: "Executives have full access to every page, including User Admin — no per-page grants needed." }));
+      } else {
+        const host = el("div", {});
+        body.appendChild(host);
+        renderPermSectionInto(host, account);
+      }
+
+      // --- Danger / lifecycle buttons (bottom-right of the card) ---
+      const dangerHost = document.getElementById("upDanger");
+      dangerHost.textContent = "";
+      if (account && account.status === "active") {
+        dangerHost.appendChild(acctBtn("Deactivate", async () => {
+          if (!confirm(`Deactivate ${name}? Their sessions end immediately and the whole profile moves to Former team members. Directory info and payment records are kept.`)) return;
+          await upActionThenReopen(`/api/admin/users/${account.id}/status`, { status: "disabled" }, { close: true });
+          setStatus("usersStatus", `${name} deactivated — find them under Former team members.`, "ok");
+        }, { danger: true }));
+      }
+      if (account && account.status === "disabled") {
+        dangerHost.appendChild(acctBtn("Reactivate", async () => {
+          await upActionThenReopen(`/api/admin/users/${account.id}/status`, { status: "active" }, { close: true });
+          setStatus("usersStatus", `${name} reactivated.`, "ok");
+        }));
+      }
+      if (account && ["invited", "pending_verification"].includes(account.status)) {
+        dangerHost.appendChild(acctBtn("Remove account", async () => {
+          if (!confirm(`Remove the never-activated account for ${account.email}? The invite link stops working. ${entry ? "The directory entry stays." : "This person disappears from the list entirely."}`)) return;
+          await upActionThenReopen(`/api/admin/users/${account.id}`, null, { close: true, method: "DELETE" });
+          setStatus("usersStatus", `Removed the account for ${account.email}.`, "ok");
+        }, { danger: true }));
+      }
+      if (entry && !account) {
+        if (entry.archived) {
+          dangerHost.appendChild(acctBtn("Restore to team", async () => {
+            await upActionThenReopen(`/api/admin/employee-directory/${encodeURIComponent(entry.code)}/archive`, { archived: false }, { close: true });
+            setStatus("usersStatus", `${name} restored to the Team list.`, "ok");
+          }));
+        } else {
+          dangerHost.appendChild(acctBtn("Archive (former employee)", async () => {
+            if (!confirm(`Archive ${name} (${entry.code})? They leave the Team list and the sales tools; the code and all records are kept. Restore any time from Former team members.`)) return;
+            await upActionThenReopen(`/api/admin/employee-directory/${encodeURIComponent(entry.code)}/archive`, { archived: true }, { close: true });
+            setStatus("usersStatus", `${name} archived — find them under Former team members.`, "ok");
+          }, { danger: true }));
+        }
+        dangerHost.appendChild(acctBtn("Delete", async () => {
+          if (!confirm(`Delete code ${entry.code} (${entry.name})? This row has no linked account. Existing payment records keep the code; it just leaves the directory. If they might come back, Archive instead.`)) return;
+          await upActionThenReopen(`/api/admin/employee-directory/${encodeURIComponent(entry.code)}`, null, { close: true, method: "DELETE" });
+          setStatus("usersStatus", `Deleted ${entry.code}.`, "ok");
+        }, { danger: true }));
+      }
+
+      syncUpSave();
+      document.getElementById("upOverlay").classList.add("show");
+    }
+
+    document.getElementById("upAddBtn").addEventListener("click", () => openProfile(null));
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape" && document.getElementById("upOverlay").classList.contains("show")) closeUpOverlay();
+    });
+    document.getElementById("upCancel").addEventListener("click", closeUpOverlay);
+    document.getElementById("upOverlay").addEventListener("click", (e) => {
+      if (e.target === document.getElementById("upOverlay")) closeUpOverlay();
+    });
+
+    document.getElementById("upSave").addEventListener("click", async () => {
+      const btn = document.getElementById("upSave");
+      setStatus("upError", "", "");
+      const code = document.getElementById("upCode").value.trim().toUpperCase();
+      const name = document.getElementById("upName").value.trim();
+      const email = document.getElementById("upEmail").value.trim();
+      const department = document.getElementById("upDept").value.trim();
+      const commissionPlan = document.getElementById("upTitle").value;
+      const commuteMiles = Number(document.getElementById("upCommute").value) || 0;
+
+      const wantsDirectory = up.entry || code || name;
+      btn.disabled = true;
       try {
-        await api("/api/admin/employee-directory", {
-          method: "POST",
-          body: JSON.stringify({ code, name, email, department, commissionPlan, commuteMiles })
-        });
-        setStatus("dirStatus", `Saved ${code} — ${name}.`, "ok");
-        ["dirCode", "dirName", "dirEmail", "dirDepartment", "dirCommissionPlan", "dirCommute"].forEach((id) => {
-          document.getElementById(id).value = "";
-        });
-        await loadDirectory();
-        await loadUsers();
+        if (wantsDirectory) {
+          if (!code || !name) throw new Error("Employee code and name are both required to save the directory half.");
+          if (!up.entry) {
+            const existing = state.directory.find((e) => e.code === code);
+            if (existing && !confirm(`Code ${code} already belongs to ${existing.name}. Overwrite it?`)) {
+              btn.disabled = false;
+              return;
+            }
+          }
+          await api("/api/admin/employee-directory", {
+            method: "POST",
+            body: JSON.stringify({ code, name, email, department, commissionPlan, commuteMiles })
+          });
+        }
+        if (up.account && pendingCount(up.account)) {
+          const changes = [...state.pending.get(up.account.id)].map(([pagePath, granted]) => ({ pagePath, granted }));
+          await api(`/api/admin/users/${up.account.id}/permissions`, {
+            method: "POST",
+            body: JSON.stringify({ changes })
+          });
+          state.pending.delete(up.account.id);
+        }
+        if (up.mode === "add" && document.getElementById("upInviteToo")?.checked) {
+          if (!email) throw new Error("Saved the directory entry, but an invite needs an email — add one and use Send account invite.");
+          await api("/api/admin/users/invite", {
+            method: "POST",
+            body: JSON.stringify({ email, displayName: name, isExecutive: false })
+          });
+        }
+        await Promise.all([loadUsers(), loadDirectory()]);
+        document.getElementById("upOverlay").classList.remove("show");
+        up.entry = null; up.account = null;
+        setStatus("usersStatus", `Saved ${name || email || "profile"}.`, "ok");
       } catch (err) {
-        setStatus("dirStatus", err.message, "error");
+        setStatus("upError", err.message, "error");
       } finally {
-        button.disabled = false;
+        btn.disabled = false;
       }
     });
 

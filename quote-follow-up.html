@@ -43,18 +43,11 @@
     .qf-status.ok { background: rgba(var(--primary-rgb), 0.1); color: var(--primary); }
     .qf-status.error { background: #fee2e2; color: #991b1b; }
 
-    .qf-toolbar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-bottom: 14px; }
-    .qf-tabs { display: flex; gap: 6px; flex-wrap: wrap; }
-    .qf-tab {
-      border: 1px solid var(--border); background: #fff; color: #374151; border-radius: 999px;
-      padding: 8px 15px; font-size: 12.5px; font-weight: 700; cursor: pointer; font-family: inherit;
-    }
-    .qf-tab.active { background: var(--primary); border-color: var(--primary); color: #fff; }
-    .qf-tab .n { opacity: 0.75; font-weight: 600; margin-left: 4px; }
+    .qf-bar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-bottom: 10px; }
     .qf-spacer { flex: 1; }
-    .qf-toolbar select {
-      border: 1px solid var(--border); border-radius: 10px; padding: 8px 11px;
-      font-size: 13px; font-family: inherit; background: #fff; max-width: 280px;
+    .qf-bar select {
+      border: 1px solid var(--border); border-radius: 10px; padding: 9px 11px;
+      font-size: 13px; font-weight: 600; font-family: inherit; background: #fff; max-width: 300px;
     }
     .qf-btn { border: none; border-radius: 10px; cursor: pointer; font-size: 12.5px; font-weight: 600; padding: 9px 14px; font-family: inherit; }
     .qf-btn:disabled { opacity: 0.55; cursor: wait; }
@@ -108,13 +101,17 @@
 
     .qf-empty { color: var(--muted); font-size: 13.5px; padding: 22px 4px; text-align: center; }
 
-    /* POD-style date range */
-    .qf-range { display: flex; align-items: center; gap: 7px; }
+    /* POD-style date range: dates hug the left, Run hugs the right */
+    .qf-range { display: flex; align-items: center; gap: 7px; flex: 1; min-width: 0; }
     .qf-range input[type="date"] {
       border: 1px solid var(--border); border-radius: 10px; padding: 8px 10px;
-      font-size: 12.5px; font-family: inherit; background: #fff;
+      font-size: 12.5px; font-family: inherit; background: #fff; min-width: 0;
     }
     .qf-range-sep { font-size: 12px; color: var(--muted); }
+    @media (max-width: 560px) {
+      .qf-range input[type="date"] { flex: 1; min-width: 106px; padding: 8px 6px; }
+      .qf-bar select { max-width: none; flex: 1; }
+    }
 
     /* Scoreboard pies — validated categorical palette (fixed order, one hue per bucket) */
     .qf-score-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 14px; }
@@ -179,24 +176,27 @@
         </p>
       </div>
       <div id="qfStatus" class="qf-status"></div>
-      <div class="qf-toolbar">
-        <div class="qf-tabs" id="qfTabs">
-          <button type="button" class="qf-tab active" data-tab="queue">To Work<span class="n" id="nQueue"></span></button>
-          <button type="button" class="qf-tab" data-tab="followup">Follow-Up Queue<span class="n" id="nFollowup"></span></button>
-          <button type="button" class="qf-tab" data-tab="converted">Converted<span class="n" id="nConverted"></span></button>
-          <button type="button" class="qf-tab" data-tab="lost">Lost<span class="n" id="nLost"></span></button>
-          <button type="button" class="qf-tab" data-tab="scoreboard">Scoreboard</button>
-        </div>
-        <span class="qf-spacer"></span>
+      <div class="qf-bar">
         <div class="qf-range">
           <input type="date" id="qfFrom" title="Quotes created from" />
           <span class="qf-range-sep">to</span>
           <input type="date" id="qfTo" title="Quotes created through" />
-          <button type="button" class="qf-btn primary" id="qfRun">Run</button>
         </div>
-        <select id="qfSp" style="display:none;"></select>
+        <span class="qf-spacer"></span>
+        <button type="button" class="qf-btn primary" id="qfRun">Run</button>
+      </div>
+      <div class="qf-bar">
+        <select id="qfView" title="Which queue to show">
+          <option value="queue">To Work</option>
+          <option value="followup">Follow-Up Queue</option>
+          <option value="converted">Converted</option>
+          <option value="lost">Lost</option>
+          <option value="scoreboard">Scoreboard</option>
+        </select>
+        <select id="qfSp" style="display:none;" title="Salesperson"></select>
+        <span class="qf-spacer"></span>
         <input type="file" id="qfFile" accept=".xlsx,.xls" style="display:none;" />
-        <button type="button" class="qf-btn primary" id="qfUpload" style="display:none;">Upload quote export</button>
+        <button type="button" class="qf-btn quiet" id="qfUpload" style="display:none;">Upload quote export</button>
       </div>
       <div class="qf-meta" id="qfMeta"></div>
 
@@ -336,12 +336,15 @@
           sel.style.display = "none";
         }
 
-        // Counts
-        const count = (groups) => groups.reduce((s, g) => s + g.quotes.length, 0);
-        $("nQueue").textContent = b.queue.length ? ` ${b.queue.length}` : " 0";
-        $("nFollowup").textContent = b.followup.length ? ` ${b.followup.length}` : " 0";
-        $("nConverted").textContent = ` ${b.converted.length}`;
-        $("nLost").textContent = ` ${b.lost.length}`;
+        // Status dropdown counts
+        const labels = {
+          queue: `To Work (${b.queue.length})`,
+          followup: `Follow-Up Queue (${b.followup.length})`,
+          converted: `Converted (${b.converted.length})`,
+          lost: `Lost (${b.lost.length})`,
+          scoreboard: "Scoreboard"
+        };
+        for (const opt of $("qfView").options) opt.textContent = labels[opt.value];
 
         // Meta line
         const metaBits = [];
@@ -545,19 +548,17 @@
           </div>`).join("");
       }
 
-      // ---- tabs ----
+      // ---- status dropdown drives which pane shows ----
       function showTab(tab) {
         state.tab = tab;
-        document.querySelectorAll("#qfTabs .qf-tab").forEach((t) => t.classList.toggle("active", t.dataset.tab === tab));
+        if ($("qfView").value !== tab) $("qfView").value = tab;
         $("paneQueue").style.display = tab === "queue" ? "" : "none";
         $("paneFollowup").style.display = tab === "followup" ? "" : "none";
         $("paneConverted").style.display = tab === "converted" ? "" : "none";
         $("paneLost").style.display = tab === "lost" ? "" : "none";
         $("paneScoreboard").style.display = tab === "scoreboard" ? "" : "none";
       }
-      document.querySelectorAll("#qfTabs .qf-tab").forEach((t) => {
-        t.addEventListener("click", () => showTab(t.dataset.tab));
-      });
+      $("qfView").addEventListener("change", () => showTab($("qfView").value));
 
       // ---- actions ----
       async function sendDisposition(g, action, extra, btn) {

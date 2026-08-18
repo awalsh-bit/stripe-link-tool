@@ -191,8 +191,9 @@
           <option value="followup">Follow-Up Queue</option>
           <option value="converted">Converted</option>
           <option value="lost">Lost</option>
-          <option value="scoreboard">Scoreboard</option>
         </select>
+        <button type="button" class="qf-btn quiet" id="qfScoreBtn">Scoreboard</button>
+        <button type="button" class="qf-btn quiet" id="qfLeadsBtn" style="display:none;">Service Leads</button>
         <select id="qfSp" style="display:none;" title="Salesperson"></select>
         <span class="qf-spacer"></span>
         <input type="file" id="qfFile" accept=".xlsx,.xls" style="display:none;" />
@@ -201,6 +202,7 @@
       <div class="qf-meta" id="qfMeta"></div>
 
       <div id="paneScoreboard" style="display:none;"><div class="qf-score-grid" id="gridScore"></div></div>
+      <div id="paneLeads" style="display:none;"><div id="leadsBody"><div class="qf-empty">Loading…</div></div></div>
       <div id="paneQueue"><div class="qf-grid" id="gridQueue"></div><div class="qf-empty" id="emptyQueue" style="display:none;"></div></div>
       <div id="paneFollowup" style="display:none;"><div class="qf-grid" id="gridFollowup"></div><div class="qf-empty" id="emptyFollowup" style="display:none;"></div></div>
       <div id="paneConverted" style="display:none;"><div class="qf-table-wrap" id="tblConverted"></div></div>
@@ -241,7 +243,7 @@
     // optional comment). Executives see everyone + the upload box.
     // ------------------------------------------------------------------
     (function () {
-      const state = { data: null, tab: "queue", overlay: null };
+      const state = { data: null, tab: "queue", lastQueueTab: "queue", overlay: null };
 
       const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch]));
       const money = (n) => "$" + Number(n || 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -315,7 +317,10 @@
           setStatus("Couldn't load the board — " + err.message, "error");
         }
       }
-      $("qfRun").addEventListener("click", load);
+      $("qfRun").addEventListener("click", () => {
+        load();
+        if (state.tab === "leads") loadLeads();
+      });
 
       function render() {
         const d = state.data || {};
@@ -324,6 +329,7 @@
 
         // Exec controls
         $("qfUpload").style.display = exec ? "" : "none";
+        $("qfLeadsBtn").style.display = exec ? "" : "none";
         const sel = $("qfSp");
         if (exec) {
           const current = sel.value || d.filter || "ALL";
@@ -341,8 +347,7 @@
           queue: `To Work (${b.queue.length})`,
           followup: `Follow-Up Queue (${b.followup.length})`,
           converted: `Converted (${b.converted.length})`,
-          lost: `Lost (${b.lost.length})`,
-          scoreboard: "Scoreboard"
+          lost: `Lost (${b.lost.length})`
         };
         for (const opt of $("qfView").options) opt.textContent = labels[opt.value];
 
@@ -436,11 +441,13 @@
                 <td>${esc(r.customerName)}<span class="qf-cust"> #${esc(r.customerNumber)}</span></td>
                 ${exec ? `<td>${esc(spLabel(r.spCode))}</td>` : ""}
                 <td class="qf-amt">${money(r.total)}</td>
-                <td class="qf-qnum">${esc(r.orderNumber)}${r.how === "auto" && r.orderDate ? `<span class="qf-cust"> · ${day(r.orderDate)}</span>` : ""}</td>
+                <td class="qf-qnum">${r.how === "flagged" ? "<span class='qf-cust'>—</span>" : esc(r.orderNumber)}${r.how === "auto" && r.orderDate ? `<span class="qf-cust"> · ${day(r.orderDate)}</span>` : ""}</td>
                 <td>${r.how === "auto"
                   ? `<span class="qf-how auto">AUTO-MATCHED</span>`
-                  : `<span class="qf-how manual">ENTERED${r.by ? " · " + esc(r.by).toUpperCase() : ""}</span>`}</td>
-                <td>${r.how === "manual" ? `<button type="button" class="qf-btn quiet" data-reopen="${esc(r.quoteNumber)}">Reopen</button>` : ""}</td>
+                  : r.how === "flagged"
+                    ? `<span class="qf-how manual">PURCHASED — NO FOLLOW-UP${r.by ? " · " + esc(r.by).toUpperCase() : ""}</span>`
+                    : `<span class="qf-how manual">ENTERED${r.by ? " · " + esc(r.by).toUpperCase() : ""}</span>`}</td>
+                <td>${r.how !== "auto" ? `<button type="button" class="qf-btn quiet" data-reopen="${esc(r.quoteNumber)}">Reopen</button>` : ""}</td>
               </tr>`).join("")}
             </tbody>
           </table>`;
@@ -465,12 +472,34 @@
                 <td>${r.how === "auto"
                   ? `<span class="qf-how auto">AUTO — QUOTE 2</span>`
                   : `${esc(r.by)}<span class="qf-cust"> · ${when(r.at)}</span>`}</td>
-                <td>${r.how === "auto" ? "" : `<button type="button" class="qf-btn quiet" data-reopen="${esc(r.quoteNumber)}">Reopen</button>`}</td>
+                <td style="white-space:nowrap;">${r.how === "auto"
+                  ? `<button type="button" class="qf-btn quiet" data-recordsale="${esc(r.quoteNumber)}" data-client="${esc(r.customerName)}">Record sale</button>
+                     <button type="button" class="qf-btn quiet" data-purchased="${esc(r.quoteNumber)}" title="They bought — no order number to link, no follow-up needed. Counts as a converted sale.">Purchased — no follow-up</button>`
+                  : `<button type="button" class="qf-btn quiet" data-reopen="${esc(r.quoteNumber)}">Reopen</button>`}</td>
               </tr>`).join("")}
             </tbody>
           </table>`;
         host.querySelectorAll("[data-reopen]").forEach((btn) => {
           btn.addEventListener("click", () => reopen([btn.dataset.reopen], btn));
+        });
+        host.querySelectorAll("[data-recordsale]").forEach((btn) => {
+          btn.addEventListener("click", () => openOverlay("so", {
+            customerName: btn.dataset.client || "this client",
+            quotes: [{ quoteNumber: btn.dataset.recordsale }]
+          }));
+        });
+        host.querySelectorAll("[data-purchased]").forEach((btn) => {
+          btn.addEventListener("click", async () => {
+            btn.disabled = true;
+            try {
+              await api("/api/quote-followup/disposition", { method: "POST", body: JSON.stringify({ quoteNumbers: [btn.dataset.purchased], action: "no_followup" }) });
+              setStatus("Flagged as purchased — moved to Converted, no follow-up needed.", "ok");
+              await load();
+            } catch (err) {
+              setStatus(err.message, "error");
+              btn.disabled = false;
+            }
+          });
         });
       }
 
@@ -524,8 +553,8 @@
         }
         return `<svg width="140" height="140" viewBox="0 0 140 140" role="img" aria-label="Order and opportunity mix">
           ${parts.join("")}${gaps.join("")}
-          <text x="${C}" y="${C - 2}" text-anchor="middle" class="qf-donut-total">${total}</text>
-          <text x="${C}" y="${C + 14}" text-anchor="middle" class="qf-donut-lbl">TOTAL</text>
+          <text x="${C}" y="${C - 2}" text-anchor="middle" class="qf-donut-total">${s.closeRate != null ? Math.round(s.closeRate) + "%" : total}</text>
+          <text x="${C}" y="${C + 14}" text-anchor="middle" class="qf-donut-lbl">${s.closeRate != null ? "CLOSE RATE" : "TOTAL"}</text>
         </svg>`;
       }
 
@@ -538,7 +567,7 @@
         grid.innerHTML = list.map((s) => `
           <div class="qf-score-card">
             <div class="qf-score-head">${esc(s.name || s.code)}</div>
-            <div class="qf-score-sub">${esc(s.code)} · orders by finish date, opportunities by quote date, within the range above</div>
+            <div class="qf-score-sub">${esc(s.code)} · close rate = (direct + conversions) ÷ all five buckets · range above</div>
             <div class="qf-score-body">
               ${donutSvg(s)}
               <ul class="qf-legend">
@@ -548,17 +577,98 @@
           </div>`).join("");
       }
 
-      // ---- status dropdown drives which pane shows ----
+      // ---- status dropdown drives the queue panes; Scoreboard is its own
+      // toggle button so it can't get lost inside the dropdown ----
       function showTab(tab) {
         state.tab = tab;
-        if ($("qfView").value !== tab) $("qfView").value = tab;
+        if (tab !== "scoreboard" && tab !== "leads") {
+          state.lastQueueTab = tab;
+          if ($("qfView").value !== tab) $("qfView").value = tab;
+        }
+        const scoreBtn = $("qfScoreBtn");
+        scoreBtn.classList.toggle("primary", tab === "scoreboard");
+        scoreBtn.classList.toggle("quiet", tab !== "scoreboard");
+        const leadsBtn = $("qfLeadsBtn");
+        leadsBtn.classList.toggle("primary", tab === "leads");
+        leadsBtn.classList.toggle("quiet", tab !== "leads");
         $("paneQueue").style.display = tab === "queue" ? "" : "none";
         $("paneFollowup").style.display = tab === "followup" ? "" : "none";
         $("paneConverted").style.display = tab === "converted" ? "" : "none";
         $("paneLost").style.display = tab === "lost" ? "" : "none";
         $("paneScoreboard").style.display = tab === "scoreboard" ? "" : "none";
+        $("paneLeads").style.display = tab === "leads" ? "" : "none";
+        if (tab === "leads") loadLeads();
       }
       $("qfView").addEventListener("change", () => showTab($("qfView").value));
+      $("qfScoreBtn").addEventListener("click", () =>
+        showTab(state.tab === "scoreboard" ? (state.lastQueueTab || "queue") : "scoreboard"));
+      $("qfLeadsBtn").addEventListener("click", () =>
+        showTab(state.tab === "leads" ? (state.lastQueueTab || "queue") : "leads"));
+
+      // ---- Service → Sales lead conversions (exec) ----
+      async function loadLeads() {
+        const host = $("leadsBody");
+        host.innerHTML = `<div class="qf-empty">Building the service-lead report…</div>`;
+        try {
+          const params = new URLSearchParams();
+          if ($("qfFrom").value) params.set("from", $("qfFrom").value);
+          if ($("qfTo").value) params.set("to", $("qfTo").value);
+          const data = await api("/api/quote-followup/service-leads" + (params.toString() ? "?" + params.toString() : ""));
+          renderLeads(data);
+        } catch (err) {
+          host.innerHTML = `<div class="qf-empty">${esc(err.message)}</div>`;
+        }
+      }
+
+      function renderLeads(data) {
+        const host = $("leadsBody");
+        const leads = data.leads || [];
+        const pairs = data.pairs || [];
+        if (!leads.length) {
+          host.innerHTML = `<div class="qf-empty">No service orders converted to sales orders in this date range (service finish date, sales order within 30 days).</div>`;
+          return;
+        }
+        host.innerHTML = `
+          <p class="section-note" style="margin-top:2px;">
+            Every <strong>service order</strong> whose customer placed a <strong>sales order within 30 days</strong>
+            of the service finish (by customer number, from the OE-23 feed). The pairing table shows which tech's
+            calls turn into which salesperson's orders — lead routing at a glance.
+          </p>
+          <h3 style="margin:14px 0 8px; font-size:15px;">Tech → Salesperson pairings</h3>
+          <div class="qf-table-wrap">
+            <table class="qf-flat">
+              <thead><tr><th>Tech (service)</th><th>Salesperson (sale)</th><th>Conversions</th><th>Sales revenue</th></tr></thead>
+              <tbody>${pairs.map((p) => `
+                <tr>
+                  <td>${esc(p.techName || p.techCode || "—")}${p.techCode ? `<span class="qf-cust"> · ${esc(p.techCode)}</span>` : ""}</td>
+                  <td>${esc(p.spName || p.spCode || "—")}${p.spCode ? `<span class="qf-cust"> · ${esc(p.spCode)}</span>` : ""}</td>
+                  <td class="qf-amt">${p.count}</td>
+                  <td class="qf-amt">${money(p.revenue)}</td>
+                </tr>`).join("")}
+              </tbody>
+            </table>
+          </div>
+          <h3 style="margin:18px 0 8px; font-size:15px;">Conversions (${leads.length}${leads.length === 2000 ? "+ — capped, narrow the range" : ""})</h3>
+          <div class="qf-table-wrap">
+            <table class="qf-flat">
+              <thead><tr><th>Service order</th><th>Client</th><th>Tech</th><th>Sales order</th><th>Salesperson</th><th>Days later</th><th>Revenue</th></tr></thead>
+              <tbody>${leads.map((l) => {
+                const days = Math.round((new Date(l.salesDate + "T00:00:00Z") - new Date(l.serviceDate + "T00:00:00Z")) / 86400000);
+                return `
+                <tr>
+                  <td class="qf-qnum">${esc(l.serviceInvoice)}<span class="qf-cust"> · ${day(l.serviceDate)}</span></td>
+                  <td>${esc(l.customerName)}<span class="qf-cust"> #${esc(l.customerNumber)}</span></td>
+                  <td>${esc(l.techName || l.techCode || "—")}</td>
+                  <td class="qf-qnum">${esc(l.salesInvoice)}<span class="qf-cust"> · ${day(l.salesDate)}</span></td>
+                  <td>${esc(l.spName || l.spCode || "—")}</td>
+                  <td class="qf-amt">${Number.isFinite(days) ? days : "—"}</td>
+                  <td class="qf-amt">${money(l.salesRevenue)}</td>
+                </tr>`;
+              }).join("")}
+              </tbody>
+            </table>
+          </div>`;
+      }
 
       // ---- actions ----
       async function sendDisposition(g, action, extra, btn) {

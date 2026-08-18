@@ -217,6 +217,7 @@ import {
 import {
   upsertOrdersFromActivity,
   replaceCommissionLines,
+  listServiceLeadConversions,
   listOrderDetail,
   listOrderLineDetail,
   listLinesForInvoice,
@@ -7654,6 +7655,27 @@ app.post("/api/quote-followup/upload", requirePagePermission("/quote-follow-up.h
       return res.status(500).json({ error: uploadErr.message || "Unable to process the export." });
     }
   });
+});
+
+// INTERNAL (exec): Service → Sales lead conversions — every service order
+// whose customer bought within 30 days, paired tech → salesperson so lead
+// routing (and any favoritism) is visible.
+app.get("/api/quote-followup/service-leads", requirePagePermission("/quote-follow-up.html"), async (req, res) => {
+  try {
+    if (!isExecutiveUser(req.authUser)) {
+      return res.status(403).json({ error: "Executive access is required for the service-lead report." });
+    }
+    const from = String(req.query.from || "").trim();
+    const to = String(req.query.to || "").trim();
+    const report = await listServiceLeadConversions({
+      from: /^\d{4}-\d{2}-\d{2}$/.test(from) ? from : "",
+      to: /^\d{4}-\d{2}-\d{2}$/.test(to) ? to : ""
+    });
+    return res.json(report);
+  } catch (err) {
+    console.error("Service lead report failed:", err.message);
+    return res.status(500).json({ error: "Unable to build the service-lead report." });
+  }
 });
 
 app.post("/api/quote-followup/disposition", requirePagePermission("/quote-follow-up.html"), async (req, res) => {

@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <!-- EDIT ME: remove noindex when you're ready for Google to find this page -->
+  <meta name="robots" content="noindex,nofollow,noarchive" />
+  <title>Sub-Zero, Wolf &amp; Cove at Wilson AC &amp; Appliance — Designer Inspiration &amp; Showroom</title>
+  <meta name="description" content="Explore Sub-Zero, Wolf, and Cove at Wilson AC & Appliance in Dripping Springs, Texas. Designer inspiration, current promotions, and a working showroom worth the drive." />
+  <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet" />
+  <style>
+    /* =====================================================================
+       SUB-ZERO LANDING — SKELETON
+       Luxury palette: charcoal, ivory, brushed brass. Every image is a
+       styled placeholder — swap each .ph block for an <img> when you have
+       photography (instructions beside each one). Sections are in the order
+       a designer-lead page usually converts: hero → promotion → inspiration
+       → showroom → trade program → consultation.
+       ===================================================================== */
+    :root {
+      --ink: #14171a;          /* near-black charcoal */
+      --ink-soft: #23282d;
+      --ivory: #f7f5f0;        /* warm paper */
+      --paper: #ffffff;
+      --muted: #6f6a61;
+      --brass: #a8845c;        /* brushed brass accent */
+      --brass-soft: rgba(168, 132, 92, 0.14);
+      --line: #e3ded4;
+      --serif: "Cormorant Garamond", Georgia, "Times New Roman", serif;
+      --sans: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body { margin: 0; font-family: var(--sans); font-weight: 300; color: var(--ink); background: var(--ivory); line-height: 1.6; }
+    .wrap { max-width: 1180px; margin: 0 auto; padding: 0 22px; }
+    h1, h2, h3 { font-family: var(--serif); font-weight: 500; line-height: 1.12; margin: 0; }
+    .eyebrow {
+      font-family: var(--sans); font-size: 11.5px; font-weight: 600; letter-spacing: 0.28em;
+      text-transform: uppercase; color: var(--brass); margin-bottom: 16px;
+    }
+    .btn {
+      display: inline-block; padding: 14px 30px; font-family: var(--sans); font-size: 13px;
+      font-weight: 500; letter-spacing: 0.14em; text-transform: uppercase; text-decoration: none;
+      border: 1px solid var(--ink); color: var(--ink); background: transparent; cursor: pointer;
+      transition: all 0.25s ease;
+    }
+    .btn:hover { background: var(--ink); color: var(--ivory); }
+    .btn.solid { background: var(--ink); color: var(--ivory); }
+    .btn.solid:hover { background: var(--brass); border-color: var(--brass); }
+    .btn.light { border-color: var(--ivory); color: var(--ivory); }
+    .btn.light:hover { background: var(--ivory); color: var(--ink); }
+
+    /* ---- image placeholders: swap for <img class="photo" src="..."> ---- */
+    .ph {
+      background:
+        linear-gradient(145deg, #2b3036 0%, #191d21 55%, #101317 100%);
+      color: rgba(247, 245, 240, 0.5); display: flex; align-items: center; justify-content: center;
+      text-align: center; font-size: 11px; letter-spacing: 0.22em; text-transform: uppercase;
+      font-weight: 500; padding: 14px; line-height: 1.8;
+    }
+    .photo { width: 100%; height: 100%; object-fit: cover; display: block; }
+
+    /* ---- top bar ---- */
+    .topbar {
+      position: sticky; top: 0; z-index: 40; background: rgba(20, 23, 26, 0.96);
+      backdrop-filter: blur(8px); color: var(--ivory);
+      border-bottom: 1px solid rgba(247, 245, 240, 0.12);
+    }
+    .topbar .wrap { display: flex; align-items: center; gap: 18px; padding-top: 16px; padding-bottom: 16px; }
+    .brand { font-family: var(--serif); font-size: 20px; letter-spacing: 0.04em; }
+    .brand small { display: block; font-family: var(--sans); font-size: 10px; letter-spacing: 0.26em; text-transform: uppercase; color: var(--brass); margin-top: 2px; }
+    .topnav { margin-left: auto; display: flex; gap: 26px; align-items: center; }
+    .topnav a { color: rgba(247, 245, 240, 0.85); text-decoration: none; font-size: 12.5px; letter-spacing: 0.1em; text-transform: uppercase; }
+    .topnav a:hover { color: var(--brass); }
+    .topnav .tel { color: var(--brass); font-weight: 500; }
+    @media (max-width: 760px) { .topnav a:not(.tel) { display: none; } }
+
+    /* ---- hero ---- */
+    .hero { position: relative; background: var(--ink); color: var(--ivory); overflow: hidden; }
+    .hero-media { position: absolute; inset: 0; }
+    .hero-media .ph { width: 100%; height: 100%; opacity: 0.55; }
+    .hero-inner { position: relative; padding: 130px 0 120px; max-width: 720px; }
+    .hero h1 { font-size: clamp(40px, 6vw, 68px); }
+    .hero h1 em { font-style: italic; color: var(--brass); }
+    .hero p { font-size: 17px; font-weight: 300; color: rgba(247, 245, 240, 0.85); max-width: 540px; margin: 22px 0 34px; }
+    .hero-ctas { display: flex; gap: 14px; flex-wrap: wrap; }
+
+    /* ---- promo strip ---- */
+    .promo { background: var(--paper); border-bottom: 1px solid var(--line); }
+    .promo .wrap { display: flex; gap: 30px; align-items: center; padding-top: 46px; padding-bottom: 46px; flex-wrap: wrap; }
+    .promo-badge {
+      flex-shrink: 0; width: 128px; height: 128px; border: 1px solid var(--brass); border-radius: 50%;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      font-family: var(--serif); color: var(--brass); text-align: center;
+    }
+    .promo-badge .big { font-size: 34px; line-height: 1; }
+    .promo-badge .sm { font-family: var(--sans); font-size: 9.5px; letter-spacing: 0.2em; text-transform: uppercase; margin-top: 6px; }
+    .promo-copy { flex: 1; min-width: 280px; }
+    .promo-copy h2 { font-size: 30px; margin-bottom: 8px; }
+    .promo-copy p { color: var(--muted); margin: 0 0 6px; max-width: 640px; }
+    .promo-fine { font-size: 11.5px; color: var(--muted); }
+
+    /* ---- section scaffolding ---- */
+    section { padding: 90px 0; }
+    .sec-head { max-width: 640px; margin-bottom: 52px; }
+    .sec-head h2 { font-size: clamp(30px, 4vw, 42px); }
+    .sec-head p { color: var(--muted); margin: 14px 0 0; }
+
+    /* ---- inspiration gallery ---- */
+    .gallery { display: grid; grid-template-columns: repeat(6, 1fr); gap: 14px; }
+    .g-tile { position: relative; overflow: hidden; min-height: 260px; }
+    .g-tile.wide { grid-column: span 4; }
+    .g-tile.tall { grid-column: span 2; grid-row: span 2; min-height: 0; }
+    .g-tile.std { grid-column: span 2; }
+    .g-tile .ph { position: absolute; inset: 0; }
+    .g-label {
+      position: absolute; left: 18px; bottom: 16px; z-index: 2; color: var(--ivory);
+      font-family: var(--serif); font-size: 21px; text-shadow: 0 2px 14px rgba(0,0,0,0.55);
+    }
+    .g-label small { display: block; font-family: var(--sans); font-size: 10px; letter-spacing: 0.24em; text-transform: uppercase; color: var(--brass); margin-bottom: 3px; }
+    @media (max-width: 860px) {
+      .gallery { grid-template-columns: 1fr 1fr; }
+      .g-tile.wide, .g-tile.tall, .g-tile.std { grid-column: span 2; grid-row: auto; min-height: 230px; }
+    }
+
+    /* ---- showroom ---- */
+    .showroom { background: var(--ink); color: var(--ivory); }
+    .showroom .sec-head p { color: rgba(247, 245, 240, 0.75); }
+    .show-grid { display: grid; grid-template-columns: 1.25fr 1fr; gap: 44px; align-items: center; }
+    .show-media { min-height: 420px; position: relative; }
+    .show-media .ph { position: absolute; inset: 0; }
+    .show-info h3 { font-size: 26px; color: var(--brass); margin-bottom: 14px; }
+    .show-info p { color: rgba(247, 245, 240, 0.82); margin: 0 0 18px; }
+    .show-fact { display: flex; gap: 14px; padding: 14px 0; border-top: 1px solid rgba(247, 245, 240, 0.14); font-size: 14px; }
+    .show-fact .k { width: 110px; flex-shrink: 0; font-family: var(--sans); font-size: 10.5px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--brass); padding-top: 3px; }
+    .show-thumbs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-top: 14px; }
+    .show-thumbs .ph { height: 120px; }
+    @media (max-width: 860px) { .show-grid { grid-template-columns: 1fr; } .show-media { min-height: 280px; } }
+
+    /* ---- trade ---- */
+    .trade .wrap { display: grid; grid-template-columns: 1fr 1fr; gap: 44px; align-items: start; }
+    .trade-card { background: var(--paper); border: 1px solid var(--line); padding: 34px; }
+    .trade-card h3 { font-size: 23px; margin-bottom: 10px; }
+    .trade-card p { color: var(--muted); margin: 0 0 14px; font-size: 14.5px; }
+    @media (max-width: 860px) { .trade .wrap { grid-template-columns: 1fr; } }
+
+    /* ---- consultation form ---- */
+    .consult { background: var(--paper); border-top: 1px solid var(--line); }
+    .consult .wrap { display: grid; grid-template-columns: 1fr 1fr; gap: 54px; }
+    .consult form { display: grid; gap: 16px; }
+    .consult label { font-size: 11px; letter-spacing: 0.18em; text-transform: uppercase; font-weight: 600; color: var(--muted); display: block; margin-bottom: 7px; }
+    .consult input, .consult select, .consult textarea {
+      width: 100%; border: 1px solid var(--line); background: var(--ivory); padding: 13px 14px;
+      font-family: var(--sans); font-size: 14.5px; font-weight: 300; color: var(--ink);
+    }
+    .consult input:focus, .consult select:focus, .consult textarea:focus { outline: none; border-color: var(--brass); }
+    .consult textarea { min-height: 110px; resize: vertical; }
+    .form-note { font-size: 12px; color: var(--muted); }
+    .form-status { display: none; padding: 13px 15px; font-size: 13.5px; }
+    .form-status.ok { display: block; background: var(--brass-soft); color: #6d5433; }
+    .form-status.error { display: block; background: #fdf0ef; color: #8d3b32; }
+    @media (max-width: 860px) { .consult .wrap { grid-template-columns: 1fr; gap: 30px; } }
+
+    /* ---- footer ---- */
+    footer { background: var(--ink); color: rgba(247, 245, 240, 0.6); font-size: 12.5px; }
+    footer .wrap { padding: 34px 22px; display: flex; gap: 18px; flex-wrap: wrap; justify-content: space-between; }
+    footer a { color: var(--brass); text-decoration: none; }
+  </style>
+</head>
+<body>
+
+  <!-- ============ TOP BAR ============ -->
+  <div class="topbar">
+    <div class="wrap">
+      <div class="brand">Wilson AC &amp; Appliance
+        <small>Authorized Sub-Zero, Wolf &amp; Cove Dealer</small>
+      </div>
+      <nav class="topnav">
+        <a href="#promotions">Promotions</a>
+        <a href="#inspiration">Inspiration</a>
+        <a href="#showroom">Showroom</a>
+        <a href="#consult">Consultation</a>
+        <a class="tel" href="tel:512-894-0907">512-894-0907</a>
+      </nav>
+    </div>
+  </div>
+
+  <!-- ============ HERO ============ -->
+  <!-- EDIT ME: swap the .ph below for your best full-width showroom or
+       installed-kitchen photo:  <img class="photo" src="subzero-hero.jpg" alt=""> -->
+  <header class="hero">
+    <div class="hero-media"><div class="ph">Hero photo — full-bleed kitchen or showroom shot<br>(swap this placeholder)</div></div>
+    <div class="wrap">
+      <div class="hero-inner">
+        <div class="eyebrow">Dripping Springs · Texas Hill Country</div>
+        <h1>The kitchen you've been<br><em>designing in your head.</em></h1>
+        <p>
+          Sub-Zero, Wolf, and Cove — specified by designers, loved by cooks, and
+          on display in a working showroom twenty minutes from Austin. Come see,
+          touch, and plan it with people who install these every week.
+        </p>
+        <div class="hero-ctas">
+          <a class="btn light" href="#inspiration">Find Inspiration</a>
+          <a class="btn solid" style="border-color: var(--brass); background: var(--brass);" href="#consult">Book a Design Consultation</a>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- ============ CURRENT PROMOTION ============ -->
+  <!-- EDIT ME: this whole strip is placeholder copy. Swap in the live
+       Sub-Zero promotion (e.g. 3% distinction rebate, free Cove with
+       package, financing) and its dates/fine print. Duplicate the strip
+       if you're running more than one. -->
+  <div class="promo" id="promotions">
+    <div class="wrap">
+      <div class="promo-badge">
+        <div class="big">$$$</div>
+        <div class="sm">Current<br>Offer</div>
+      </div>
+      <div class="promo-copy">
+        <div class="eyebrow" style="margin-bottom: 6px;">Limited-Time Promotion</div>
+        <h2>[Promotion headline goes here]</h2>
+        <p>
+          [One or two sentences describing the current Sub-Zero / Wolf / Cove offer —
+          qualifying packages, rebate amount or gift, and the window it runs.]
+        </p>
+        <p class="promo-fine">[Fine print: dates, qualifying models, see showroom for details.]</p>
+      </div>
+      <a class="btn" href="#consult">Ask About This Offer</a>
+    </div>
+  </div>
+
+  <!-- ============ DESIGNER INSPIRATION ============ -->
+  <!-- EDIT ME: each tile = one look. Swap each .ph for an install photo
+       (yours or approved Sub-Zero imagery) and retitle the labels to match
+       the looks you want to sell: e.g. "Hill Country Modern", "Classic
+       White", "Chef's Galley", "Wine Wall", "Outdoor Kitchen". -->
+  <section id="inspiration">
+    <div class="wrap">
+      <div class="sec-head">
+        <div class="eyebrow">Designer Inspiration</div>
+        <h2>Start with a look you love.</h2>
+        <p>
+          Six directions to steal from. Every one is built around appliances we
+          stock, spec, deliver, and install ourselves — bring your designer, or
+          borrow ours.
+        </p>
+      </div>
+      <div class="gallery">
+        <div class="g-tile wide"><div class="ph">Install photo — panel-ready integrated kitchen</div><div class="g-label"><small>The Integrated Kitchen</small>Sub-Zero, invisible until it opens</div></div>
+        <div class="g-tile tall"><div class="ph">Install photo — full-height wine storage</div><div class="g-label"><small>The Collector</small>Wine storage as a design feature</div></div>
+        <div class="g-tile std"><div class="ph">Install photo — Wolf dual-fuel range</div><div class="g-label"><small>The Range Wall</small>Wolf red knobs, front and center</div></div>
+        <div class="g-tile std"><div class="ph">Install photo — Cove dishwasher / prep zone</div><div class="g-label"><small>The Quiet Workhorse</small>Cove, seen and never heard</div></div>
+        <div class="g-tile std"><div class="ph">Install photo — coffee/breakfast station</div><div class="g-label"><small>The Morning Station</small>Built-in coffee &amp; refreshment</div></div>
+        <div class="g-tile wide"><div class="ph">Install photo — outdoor kitchen / Hill Country patio</div><div class="g-label"><small>The Outdoor Room</small>Hill Country evenings, Wolf outside</div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ SHOWROOM ============ -->
+  <!-- EDIT ME: swap placeholders for real showroom photography (the big one
+       + three thumbnails), and correct the hours line. -->
+  <section class="showroom" id="showroom">
+    <div class="wrap">
+      <div class="sec-head">
+        <div class="eyebrow">The Showroom</div>
+        <h2>See it running before you buy it.</h2>
+        <p>
+          Not a wall of boxes — live displays you can open, run, and compare,
+          staffed by consultants who have stood in hundreds of Hill Country kitchens.
+        </p>
+      </div>
+      <div class="show-grid">
+        <div class="show-media"><div class="ph">Showroom photo — main display vignette<br>(swap this placeholder)</div></div>
+        <div class="show-info">
+          <h3>Wilson AC &amp; Appliance Showroom</h3>
+          <p>
+            Bring your plans, your countertop sample, or just your phone full of
+            saved photos. We'll walk the displays, talk through ventilation and
+            panel details, and leave you with a real spec — not a brochure.
+          </p>
+          <div class="show-fact"><div class="k">Address</div><div>4205 E Hwy 290, Dripping Springs, TX 78620</div></div>
+          <div class="show-fact"><div class="k">Hours</div><div>[Mon–Sat 9–6 — confirm &amp; edit]</div></div>
+          <div class="show-fact"><div class="k">Phone</div><div><a href="tel:512-894-0907" style="color: var(--brass); text-decoration: none;">512-894-0907</a></div></div>
+          <div style="margin-top: 22px; display: flex; gap: 12px; flex-wrap: wrap;">
+            <a class="btn light" href="https://maps.google.com/?q=Wilson+AC+%26+Appliance,+4205+E+Hwy+290,+Dripping+Springs,+TX+78620" target="_blank" rel="noopener">Get Directions</a>
+            <a class="btn solid" style="border-color: var(--brass); background: var(--brass);" href="#consult">Plan a Visit</a>
+          </div>
+        </div>
+      </div>
+      <div class="show-thumbs">
+        <div class="ph">Showroom photo — detail 1</div>
+        <div class="ph">Showroom photo — detail 2</div>
+        <div class="ph">Showroom photo — detail 3</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ TRADE / DESIGNER PROGRAM ============ -->
+  <!-- EDIT ME: firm up what you actually offer the trade — spec support,
+       job-site delivery, builder terms — and adjust these three cards. -->
+  <section class="trade">
+    <div class="wrap">
+      <div>
+        <div class="eyebrow">For Designers, Builders &amp; Architects</div>
+        <h2 style="font-size: clamp(28px, 3.5vw, 38px);">Your spec, our back office.</h2>
+        <p style="color: var(--muted); margin-top: 14px;">
+          We work alongside the trade every day — from panel dimensions and
+          ventilation calcs to job-site timing. One local team from selection
+          to install, twenty minutes from Austin.
+        </p>
+        <div style="margin-top: 24px;"><a class="btn" href="#consult">Partner With Us</a></div>
+      </div>
+      <div style="display: grid; gap: 16px;">
+        <div class="trade-card"><h3>Selection &amp; Spec Support</h3><p>Cut sheets, panel details, and side-by-side comparisons on live displays — with a consultant who knows what actually fits the opening.</p></div>
+        <div class="trade-card"><h3>Client Showroom Visits</h3><p>Send your client to us — or bring them. We present your spec, keep the design story yours, and send them back sold.</p></div>
+        <div class="trade-card"><h3>Delivery &amp; Install, In-House</h3><p>Our crews, not a third party. Scheduled around your job, with haul-off and hookup handled.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ CONSULTATION ============ -->
+  <section class="consult" id="consult">
+    <div class="wrap">
+      <div>
+        <div class="eyebrow">Design Consultation</div>
+        <h2 style="font-size: clamp(28px, 3.5vw, 38px);">Tell us about the project.</h2>
+        <p style="color: var(--muted); margin-top: 14px;">
+          A Wilson consultant will reach out within one business day — no
+          pressure, no spam, just a real person who can talk models, panels,
+          promotions, and timelines.
+        </p>
+        <p style="color: var(--muted);">
+          Prefer to talk now? Call <a href="tel:512-894-0907" style="color: var(--brass);">512-894-0907</a>
+          or just come by the showroom.
+        </p>
+      </div>
+      <form id="leadForm">
+        <div>
+          <label for="leadName">Name</label>
+          <input id="leadName" type="text" autocomplete="name" required />
+        </div>
+        <div>
+          <label for="leadContact">Email or phone</label>
+          <input id="leadContact" type="text" autocomplete="email" required />
+        </div>
+        <div>
+          <label for="leadRole">I am a…</label>
+          <select id="leadRole">
+            <option>Homeowner</option>
+            <option>Interior Designer</option>
+            <option>Builder</option>
+            <option>Architect</option>
+            <option>Other</option>
+          </select>
+        </div>
+        <div>
+          <label for="leadMessage">About your project (optional)</label>
+          <textarea id="leadMessage" placeholder="New build, remodel, must-have pieces, timeline…"></textarea>
+        </div>
+        <div class="form-status" id="leadStatus"></div>
+        <button class="btn solid" type="submit" id="leadSubmit" style="justify-self: start;">Request Consultation</button>
+        <div class="form-note">We only use this to reach you about your project.</div>
+      </form>
+    </div>
+  </section>
+
+  <footer>
+    <div class="wrap">
+      <div>© Wilson AC &amp; Appliance · 4205 E Hwy 290, Dripping Springs, TX 78620</div>
+      <div>Authorized Sub-Zero, Wolf &amp; Cove Dealer · <a href="tel:512-894-0907">512-894-0907</a></div>
+    </div>
+  </footer>
+
+  <script>
+    // Consultation form → the sales team (same routing as web orders: a
+    // dashboard flag + email to every consultant whose title gets alerts).
+    (function () {
+      const form = document.getElementById("leadForm");
+      const status = document.getElementById("leadStatus");
+      form.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const btn = document.getElementById("leadSubmit");
+        status.className = "form-status";
+        btn.disabled = true;
+        btn.textContent = "Sending…";
+        try {
+          const res = await fetch("/api/subzero/inquiry", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              name: document.getElementById("leadName").value.trim(),
+              contact: document.getElementById("leadContact").value.trim(),
+              role: document.getElementById("leadRole").value,
+              message: document.getElementById("leadMessage").value.trim()
+            })
+          });
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok) throw new Error(data.error || "Something went wrong — please call us instead.");
+          form.reset();
+          status.textContent = "Thank you — a Wilson consultant will reach out within one business day.";
+          status.className = "form-status ok";
+        } catch (err) {
+          status.textContent = err.message;
+          status.className = "form-status error";
+        } finally {
+          btn.disabled = false;
+          btn.textContent = "Request Consultation";
+        }
+      });
+    })();
+  </script>
+</body>
+</html>

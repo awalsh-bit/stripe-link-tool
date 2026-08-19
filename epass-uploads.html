@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="robots" content="noindex,nofollow,noarchive" />
+  <title>Wilson AC &amp; Appliance - ePASS Upload Center</title>
+  <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+  <link rel="stylesheet" href="internal-shell.css" />
+  <style>
+    :root {
+      --bg: #f7f8fc;
+      --card: #ffffff;
+      --text: #1f2937;
+      --muted: #6b7280;
+      --border: #dbe1ea;
+      --shadow: 0 10px 35px rgba(0, 0, 0, 0.08);
+      --radius: 18px;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Roboto", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: linear-gradient(180deg, var(--primary-tint) 0%, var(--bg) 100%);
+      color: var(--text);
+      min-height: 100vh;
+      padding: 32px 16px;
+    }
+    .wrap { max-width: 1480px; margin: 0 auto; }
+    .surface {
+      background: var(--card);
+      border: 1px solid rgba(var(--primary-rgb), 0.12);
+      box-shadow: var(--shadow);
+      border-radius: var(--radius);
+      padding: 22px;
+      margin: 0 auto 20px;
+    }
+    h2 { margin: 0 0 6px; font-size: 20px; }
+    .section-note { margin: 0 0 16px; color: var(--muted); font-size: 13.5px; line-height: 1.5; }
+    .ep-status { display: none; border-radius: 12px; padding: 10px 13px; font-size: 13px; margin-bottom: 14px; line-height: 1.5; }
+    .ep-status.show { display: block; }
+    .ep-status.ok { background: rgba(var(--primary-rgb), 0.1); color: var(--primary); }
+    .ep-status.error { background: #fee2e2; color: #991b1b; }
+
+    .ep-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(430px, 1fr)); gap: 16px; }
+    @media (max-width: 560px) { .ep-grid { grid-template-columns: 1fr; } }
+    .ep-card {
+      border: 1px solid var(--border); border-radius: 14px; padding: 17px 18px;
+      background: #fff; display: flex; flex-direction: column; gap: 10px;
+    }
+    .ep-head { display: flex; gap: 10px; align-items: baseline; }
+    .ep-title { font-weight: 800; font-size: 15.5px; }
+    .ep-cad {
+      margin-left: auto; font-size: 10px; font-weight: 800; letter-spacing: 0.06em;
+      border-radius: 999px; padding: 3px 10px; flex-shrink: 0;
+    }
+    .ep-cad.daily { background: rgba(var(--primary-rgb), 0.12); color: var(--primary); }
+    .ep-cad.monthly { background: #eef2ff; color: #3730a3; }
+    .ep-cad.auto { background: #f1f5f9; color: #64748b; }
+    .ep-src { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 11.5px; color: #64748b; background: #f8fafc; border-radius: 8px; padding: 5px 9px; align-self: flex-start; }
+    .ep-desc { font-size: 13px; color: #4b5563; line-height: 1.55; }
+    .ep-fresh { display: flex; align-items: flex-start; gap: 8px; font-size: 12.5px; line-height: 1.5; }
+    .ep-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; margin-top: 4px; }
+    .ep-dot.green { background: #16a34a; }
+    .ep-dot.amber { background: #d97706; }
+    .ep-dot.red { background: #dc2626; }
+    .ep-dot.gray { background: #9ca3af; }
+    .ep-fresh strong { font-weight: 700; }
+    .ep-actions { display: flex; gap: 9px; align-items: center; flex-wrap: wrap; margin-top: auto; padding-top: 4px; }
+    .ep-btn { border: none; border-radius: 10px; cursor: pointer; font-size: 12.5px; font-weight: 700; padding: 9px 14px; font-family: inherit; }
+    .ep-btn:disabled { opacity: 0.55; cursor: wait; }
+    .ep-btn.primary { background: var(--primary); color: #fff; }
+    .ep-btn.quiet { background: #fff; color: #374151; border: 1px solid var(--border); }
+    .ep-month { border: 1px solid var(--border); border-radius: 10px; padding: 8px 10px; font-family: inherit; font-size: 12.5px; }
+    .ep-link { font-size: 12.5px; font-weight: 700; color: var(--primary); text-decoration: none; }
+    .ep-link:hover { text-decoration: underline; }
+    .ep-result { font-size: 12px; line-height: 1.5; }
+    .ep-result.ok { color: var(--primary); }
+    .ep-result.error { color: #b91c1c; }
+  </style>
+</head>
+<body data-shell-label="ePASS Upload Center" data-shell-icon="accounting">
+  <div class="wrap">
+    <div id="internal-shell-header"></div>
+
+    <div class="surface">
+      <div class="page-head">
+        <h2>ePASS Upload Center</h2>
+        <p class="section-note">
+          Every recurring ePASS export the dashboards run on, in one place — what it is, what it feeds,
+          how often it's due, and when it last landed. <strong>Work top-left to bottom-right each morning:</strong>
+          green dot means fresh, amber means aging, red means a tool is (or is about to be) running on stale data.
+          Uploads land instantly; re-uploading the same day just refreshes the data, so when in doubt, upload.
+        </p>
+      </div>
+      <div id="epStatus" class="ep-status"></div>
+      <div class="ep-grid" id="epGrid"></div>
+    </div>
+
+    <div id="internal-shell-footer"></div>
+  </div>
+
+  <script src="internal-shell.js"></script>
+  <script>
+    // ------------------------------------------------------------------
+    // ePASS Upload Center — the office's daily checklist (Tracy) until the
+    // exports are automated. Cards with inline uploads post to each tool's
+    // real endpoint; link cards jump to pages whose uploads need in-page
+    // parsing. Freshness thresholds are per-report [amber hours, red hours].
+    // ------------------------------------------------------------------
+    (function () {
+      const $ = (id) => document.getElementById(id);
+      const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch]));
+
+      // Inline-upload reports. `field` is the multipart field the endpoint
+      // expects; `month: true` adds the statement-month picker.
+      const REPORTS = [
+        {
+          key: "inventory", title: "Serialized Inventory", cadence: "DAILY",
+          src: "ePASS → Inventory → ExportModel…xlsx (serialized export)",
+          desc: "Every unit in stock with its serial number and status. Feeds the Clearance Hit List and the Online Shop — the shop AUTO-PAUSES checkout when this is more than 48 hours old, so this is the one that can't slip.",
+          endpoint: "/api/epass-uploads/inventory", field: "report", fresh: [26, 48]
+        },
+        {
+          key: "quotes", title: "Open Quotes (Invoice Maintenance)", cadence: "DAILY",
+          src: "ePASS → Invoice Maintenance → open quotes → ExportInvoice…xlsx",
+          desc: "The Invoice Maintenance export filtered to open quotes (Inv Type Q, Status Open). Feeds the Quote Follow-Up tool: each upload replaces the open-quote set, re-runs conversion matching, and refreshes the consultants' queues and scoreboard.",
+          endpoint: "/api/quote-followup/upload", field: "report", fresh: [26, 48]
+        },
+        {
+          key: "oe23", title: "OE-23 Salesperson Activity Report", cadence: "DAILY",
+          src: "ePASS → Reports → OE-23 (current month, legacy .xls)",
+          desc: "Month-to-date finished orders by salesperson. Feeds the Revenue Snapshot, target attainment, the bonus tracker, the Sales Order Detail warehouse, quote conversion matching, and the service-lead report. Re-uploading the current month refreshes it — run it daily so MTD numbers stay live.",
+          endpoint: "/api/revenue-performance", field: "report", fresh: [30, 72]
+        },
+        {
+          key: "commissions", title: "Commission Report (unfiltered)", cadence: "MONTHLY",
+          src: "ePASS → Commissions → unfiltered report (.xlsx)",
+          desc: "Model-level commission lines for one statement month. Feeds Sales Order Detail line items, Field Sales Commissions, and the Returns report. Pick the month it covers, then upload — each upload replaces that month.",
+          endpoint: "/api/commission-report", field: "report", month: true
+        }
+      ];
+
+      // Reports handled elsewhere (their pages parse the file in-browser)
+      // or fully automatic — shown for the checklist, linked not uploaded.
+      const LINKS = [
+        {
+          key: "salesOrders", title: "Open Sales Orders", cadence: "DAILY",
+          src: "ePASS open sales order export → upload on its page",
+          desc: "Open sales orders for the Sales Order Health report (aging, deposits, follow-ups). Its page reads the file directly, so upload it there.",
+          href: "sales-order-health.html", linkLabel: "Open Sales Order Health →"
+        },
+        {
+          key: "serviceOrders", title: "Open Service Orders", cadence: "DAILY",
+          src: "ePASS open service order export → upload on its page",
+          desc: "Open service tickets for the Service Order Health report. Same deal — its page parses the file, upload it there.",
+          href: "service-order-health.html", linkLabel: "Open Service Order Health →"
+        },
+        {
+          key: "balance", title: "Paid-Balance Check (Invoice Maintenance)", cadence: "MONTHLY",
+          src: "Finished Invoice Maintenance export → Field Sales Commissions (exec)",
+          desc: "Before commission statements go out: the finished Invoice Maintenance export proves which invoices are paid. Executive-only, uploaded on the Commissions page against the statement month.",
+          href: "commissions.html", linkLabel: "Open Commissions →"
+        },
+        {
+          key: "mapFeed", title: "RetailDeck MAP/UMRP Price Feed", cadence: "AUTOMATIC",
+          src: "Fetched overnight from RetailDeck — no upload needed",
+          desc: "Floor prices for the online shop's public MAP pricing. Fetches itself overnight; this card just confirms it's healthy. If it shows red, use Refresh on Online Shop Orders or tell Andrew.",
+          href: "shop-orders.html", linkLabel: "Open Online Shop Orders →"
+        }
+      ];
+
+      let status = {};
+
+      function setStatus(message, kind) {
+        const box = $("epStatus");
+        if (!message) { box.className = "ep-status"; box.textContent = ""; return; }
+        box.className = "ep-status " + kind + " show";
+        box.textContent = message;
+      }
+
+      const fmtWhen = (iso) => iso ? new Date(iso).toLocaleString("en-US", { month: "2-digit", day: "2-digit", year: "2-digit", hour: "numeric", minute: "2-digit" }) : null;
+      const hoursAgo = (iso) => iso ? (Date.now() - new Date(iso).getTime()) / 36e5 : null;
+      const agoText = (iso) => {
+        const h = hoursAgo(iso);
+        if (h == null) return "";
+        if (h < 1) return "just now";
+        if (h < 48) return Math.round(h) + " hour" + (Math.round(h) === 1 ? "" : "s") + " ago";
+        return Math.round(h / 24) + " days ago";
+      };
+
+      function freshInfo(key) {
+        // returns { dotClass, html }
+        const s = status || {};
+        if (key === "inventory" && s.inventory) {
+          const h = hoursAgo(s.inventory.uploadedAt);
+          const dot = h == null ? "gray" : h < 26 ? "green" : h < (s.snapshotMaxAgeHours || 48) ? "amber" : "red";
+          return { dot, html: `<strong>${esc(s.inventory.sourceFile || "snapshot")}</strong> — ${esc(fmtWhen(s.inventory.uploadedAt) || "?")} (${agoText(s.inventory.uploadedAt)})${s.inventory.uploadedBy ? " by " + esc(s.inventory.uploadedBy) : ""} · ${Number(s.inventory.count || 0).toLocaleString()} serials${dot === "red" ? " · <strong>SHOP IS PAUSED — upload now</strong>" : ""}` };
+        }
+        if (key === "quotes" && s.quotes) {
+          const h = hoursAgo(s.quotes.uploadedAt);
+          const dot = h == null ? "gray" : h < 26 ? "green" : h < 48 ? "amber" : "red";
+          return { dot, html: `<strong>${esc(s.quotes.filename)}</strong> — ${esc(fmtWhen(s.quotes.uploadedAt) || "?")} (${agoText(s.quotes.uploadedAt)})${s.quotes.byName ? " by " + esc(s.quotes.byName) : ""} · ${Number(s.quotes.quoteCount || 0).toLocaleString()} open quotes` };
+        }
+        if (key === "oe23" && s.oe23) {
+          const h = hoursAgo(s.oe23.uploadedAt);
+          const dot = h == null ? "gray" : h < 30 ? "green" : h < 72 ? "amber" : "red";
+          return { dot, html: `<strong>${esc(s.oe23.filename || s.oe23.month)}</strong> (month ${esc(s.oe23.month)}) — ${esc(fmtWhen(s.oe23.uploadedAt) || "?")} (${agoText(s.oe23.uploadedAt)}) · ${Number(s.oe23.tickets || 0).toLocaleString()} tickets` };
+        }
+        if (key === "commissions" && s.commissions) {
+          const thisMonth = new Date().toISOString().slice(0, 7);
+          const dot = s.commissions.month >= prevMonth(thisMonth) ? "green" : "amber";
+          return { dot, html: `<strong>${esc(s.commissions.filename || "")}</strong> — statement month ${esc(s.commissions.month)}, uploaded ${esc(fmtWhen(s.commissions.uploadedAt) || "?")} · ${Number(s.commissions.lines || 0).toLocaleString()} lines` };
+        }
+        if (key === "mapFeed") {
+          const f = s.mapFeed || {};
+          if (f.lastAttempt && f.lastAttempt.ok === false) {
+            return { dot: "red", html: `Last fetch FAILED ${esc(fmtWhen(f.lastAttempt.at) || "")} — ${esc(f.lastAttempt.error || "unknown error")}` };
+          }
+          if (f.fetchedAt) {
+            const h = hoursAgo(f.fetchedAt);
+            const dot = h < 36 ? "green" : "amber";
+            return { dot, html: `${Number(f.count || 0).toLocaleString()} floor prices — fetched ${esc(fmtWhen(f.fetchedAt))} (${agoText(f.fetchedAt)})` };
+          }
+          return { dot: "gray", html: "No fetch recorded yet." };
+        }
+        return { dot: "gray", html: "No upload recorded yet." };
+      }
+
+      function prevMonth(ym) {
+        const [y, m] = ym.split("-").map(Number);
+        const d = new Date(Date.UTC(y, m - 2, 1));
+        return d.toISOString().slice(0, 7);
+      }
+
+      function card(r, isLink) {
+        const f = freshInfo(r.key);
+        const cadClass = r.cadence === "DAILY" ? "daily" : r.cadence === "MONTHLY" ? "monthly" : "auto";
+        return `
+          <div class="ep-card" data-key="${esc(r.key)}">
+            <div class="ep-head"><span class="ep-title">${esc(r.title)}</span><span class="ep-cad ${cadClass}">${esc(r.cadence)}</span></div>
+            <span class="ep-src">${esc(r.src)}</span>
+            <div class="ep-desc">${esc(r.desc)}</div>
+            <div class="ep-fresh"><span class="ep-dot ${f.dot}"></span><span>${f.html}</span></div>
+            <div class="ep-actions">
+              ${isLink
+                ? `<a class="ep-link" href="${esc(r.href)}">${esc(r.linkLabel)}</a>`
+                : `${r.month ? `<input type="month" class="ep-month" data-month value="${new Date().toISOString().slice(0, 7)}" />` : ""}
+                   <input type="file" accept=".xlsx,.xls" data-file style="display:none;" />
+                   <button type="button" class="ep-btn primary" data-upload>Upload</button>
+                   <span class="ep-result" data-result></span>`}
+            </div>
+          </div>`;
+      }
+
+      function render() {
+        $("epGrid").innerHTML =
+          REPORTS.map((r) => card(r, false)).join("") +
+          LINKS.map((r) => card(r, true)).join("");
+
+        document.querySelectorAll(".ep-card [data-upload]").forEach((btn) => {
+          const cardEl = btn.closest(".ep-card");
+          const report = REPORTS.find((r) => r.key === cardEl.dataset.key);
+          const fileInput = cardEl.querySelector("[data-file]");
+          btn.addEventListener("click", () => fileInput.click());
+          fileInput.addEventListener("change", async () => {
+            const file = fileInput.files[0];
+            if (!file) return;
+            const result = cardEl.querySelector("[data-result]");
+            btn.disabled = true;
+            btn.textContent = "Uploading…";
+            result.textContent = "";
+            try {
+              const form = new FormData();
+              form.append(report.field, file);
+              if (report.month) form.append("month", cardEl.querySelector("[data-month]").value);
+              const res = await fetch(report.endpoint, { method: "POST", credentials: "same-origin", body: form });
+              const data = await res.json().catch(() => ({}));
+              if (!res.ok) throw new Error(data.error || "Upload failed.");
+              result.className = "ep-result ok";
+              result.textContent = "Uploaded ✓";
+              setStatus(`${report.title} uploaded — ${file.name}.`, "ok");
+              await load();
+            } catch (err) {
+              result.className = "ep-result error";
+              result.textContent = err.message;
+            } finally {
+              btn.disabled = false;
+              btn.textContent = "Upload";
+              fileInput.value = "";
+            }
+          });
+        });
+      }
+
+      async function load() {
+        try {
+          const res = await fetch("/api/epass-uploads/status", { credentials: "same-origin" });
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok) throw new Error(data.error || "Unable to load upload status.");
+          status = data;
+          render();
+        } catch (err) {
+          setStatus(err.message, "error");
+          render();
+        }
+      }
+
+      load();
+    })();
+  </script>
+</body>
+</html>

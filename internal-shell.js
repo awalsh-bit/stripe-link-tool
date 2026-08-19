@@ -246,6 +246,7 @@
       {
         title: "Company Tools",
         children: [
+          { href: "epass-uploads.html", title: "ePASS Upload Center" },
           { href: "event-rsvps.html", title: "Event RSVPs" },
           { href: "signature-builder.html", title: "Email Signature" }
         ]

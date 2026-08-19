@@ -205,7 +205,8 @@ import {
   saveQuoteDisposition,
   listQuoteOwners,
   getQuoteFollowupBoard,
-  listQuoteSalespeople
+  listQuoteSalespeople,
+  getLatestQuoteUploadMeta
 } from "./lib/quote-followup-postgres.js";
 import { parseCommissionGrid } from "./lib/commission-report.js";
 import {
@@ -334,6 +335,9 @@ const SERVICE_PUBLIC_PATHS = new Set([
   "/terms.html",
   "/terms-sign.html",
   "/card-saved.html",
+  "/subzero",
+  "/subzero.html",
+  "/api/subzero/inquiry",
   "/public-shell.css",
   "/public-shell.js",
   "/fonts/roboto-latin-wght-normal.woff2",
@@ -449,6 +453,7 @@ const INTERNAL_PAGE_PATHS = new Set([
   "/credit-applications.html",
   "/sales-order-health.html",
   "/quote-follow-up.html",
+  "/epass-uploads.html",
   "/service-order-health.html",
   "/terms-signatures.html",
   "/flag-closures.html",
@@ -646,6 +651,7 @@ const PAGE_LABELS = {
   "/credit-applications.html": "Builder Credit Applications",
   "/sales-order-health.html": "Sales Order Health Report",
   "/quote-follow-up.html": "Quote Follow-Up",
+  "/epass-uploads.html": "ePASS Upload Center",
   "/terms-signatures.html": "Terms & Conditions Signatures",
   "/service-order-health.html": "Service Order Health",
   "/flag-closures.html": "Notification Closure Report",
@@ -719,6 +725,7 @@ const PAGE_CATEGORIES = [
       "/shop-orders.html",
       "/sales-order-health.html",
       "/quote-follow-up.html",
+      "/epass-uploads.html",
       "/terms-signatures.html",
       "/flag-closures.html",
       "/target-builder.html",
@@ -1069,6 +1076,21 @@ function isExecutiveUser(user) {
   if (!user) return false;
   if (user.kind === "db") return user.isExecutive === true;
   return user.accessGroup === "executive";
+}
+
+// Does this signed-in user hold a specific page grant? (Executives always
+// count as holding every page.) Used for in-handler checks where a route is
+// gated by one page but a sub-action needs another.
+async function userHoldsPage(user, pagePath) {
+  if (!user) return false;
+  if (isExecutiveUser(user)) return true;
+  if (user.kind !== "db") return false;
+  try {
+    const pages = await getGrantedPagesForUser(user.id);
+    return pages.includes(pagePath);
+  } catch {
+    return false;
+  }
 }
 
 function requireExecutiveApi(req, res, next) {
@@ -4347,6 +4369,10 @@ app.get("/", (req, res) => {
   res.sendFile(path.join(__dirname, landingPage));
 });
 
+app.get("/subzero", (req, res) => {
+  res.sendFile(path.join(__dirname, "subzero.html"));
+});
+
 app.get("/fireflavor", (req, res) => {
   res.sendFile(path.join(__dirname, "fireflavor.html"));
 });
@@ -5395,6 +5421,75 @@ async function pushWebOrderFlags({ orderNumber, customerName, total, models, ful
   }
 }
 
+// PUBLIC: Sub-Zero landing page consultation requests (subzero.html on the
+// service host). Same routing as new web orders: a green dashboard flag and
+// an email to every consultant whose job title receives web-order alerts.
+const subzeroInquiryAttempts = new Map(); // ip -> [timestamps]
+app.post("/api/subzero/inquiry", async (req, res) => {
+  try {
+    const now = Date.now();
+    const hits = (subzeroInquiryAttempts.get(req.ip) || []).filter((t) => now - t < 60 * 60 * 1000);
+    if (hits.length >= 10) {
+      return res.status(429).json({ error: "Too many requests — please call the showroom at 512-894-0907." });
+    }
+    hits.push(now);
+    subzeroInquiryAttempts.set(req.ip, hits);
+
+    const name = String(req.body?.name || "").trim().slice(0, 120);
+    const contact = String(req.body?.contact || "").trim().slice(0, 160);
+    const role = String(req.body?.role || "").trim().slice(0, 40);
+    const message = String(req.body?.message || "").trim().slice(0, 1200);
+    if (!name || !contact) {
+      return res.status(400).json({ error: "Please include your name and an email or phone number." });
+    }
+
+    recordAudit({
+      ip: req.ip, actorUserId: null,
+      action: "subzero_inquiry", targetUserId: null,
+      detail: { name, contact, role, message: message.slice(0, 300) }
+    }).catch(() => {});
+
+    const [directory, notifyNames] = await Promise.all([listEmployeeDirectory(), listNotifyTitleNames()]);
+    const notifySet = new Set(notifyNames.map((n) => n.trim().toLowerCase()));
+    const consultants = directory.filter((entry) =>
+      !entry.archived &&
+      notifySet.has(String(entry.commissionPlan || "").trim().toLowerCase()) &&
+      String(entry.email || "").trim()
+    );
+    for (const consultant of consultants) {
+      await createPushedNotification({
+        severity: "green",
+        typeLabel: "Sub-Zero Design Inquiry",
+        refId: `subzero:${now}`,
+        title: `${name} (${role || "prospect"}) — ${contact}`,
+        body: message ? message.slice(0, 240) : "Consultation requested from the Sub-Zero landing page.",
+        audienceEmail: consultant.email,
+        byEmail: "subzero-landing",
+        byName: "Sub-Zero Landing Page"
+      }).catch(() => {});
+    }
+    if (RESEND_API_KEY && consultants.length) {
+      const subject = `Sub-Zero design inquiry — ${name}`;
+      const text = `${name} (${role || "prospect"})\nContact: ${contact}\n\n${message || "(no project details given)"}\n\nSubmitted from the Sub-Zero landing page.`;
+      Promise.allSettled(consultants.map((consultant) =>
+        fetch("https://api.resend.com/emails", {
+          method: "POST",
+          headers: { "Authorization": `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" },
+          body: JSON.stringify({ from: SHOP_ORDER_NOTIFY_FROM, to: [consultant.email], subject, text })
+        })
+      )).then((results) => {
+        const failed = results.filter((r) => r.status === "rejected");
+        if (failed.length) console.error(`Sub-Zero inquiry email failed for ${failed.length}/${consultants.length}:`, failed[0].reason?.message);
+      });
+    }
+
+    return res.json({ ok: true });
+  } catch (err) {
+    console.error("Sub-Zero inquiry failed:", err.message);
+    return res.status(500).json({ error: "Unable to send that right now — please call 512-894-0907." });
+  }
+});
+
 // PUBLIC: finish checkout after the card is saved client-side. Verifies the
 // SetupIntent actually succeeded, re-prices the cart, web-locks the units on
 // the hit list, and files the order for the sales team.
@@ -5793,6 +5888,64 @@ function snapshotKeyOk(provided) {
   const b = Buffer.from(SHOP_SNAPSHOT_KEY);
   return a.length === b.length && crypto.timingSafeEqual(a, b);
 }
+
+// INTERNAL: ePASS Upload Center (epass-uploads.html) — one page where the
+// office (Tracy) keeps every recurring ePASS export current until the
+// exports are automated. Status + a session-gated inventory upload; the
+// other uploads reuse their existing endpoints with this page added to
+// their permission lists.
+const epassInventoryUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 60 * 1024 * 1024 } });
+
+app.get("/api/epass-uploads/status", requirePagePermission("/epass-uploads.html"), async (req, res) => {
+  try {
+    const [snapshot, quoteMeta, versions, mapPrices] = await Promise.all([
+      getShopInventorySnapshot().catch(() => null),
+      getLatestQuoteUploadMeta().catch(() => null),
+      listSourceVersions().catch(() => ({ oe23: [], commissions: [] })),
+      getShopMapPrices().catch(() => null)
+    ]);
+    return res.json({
+      inventory: snapshot ? { sourceFile: snapshot.sourceFile, uploadedAt: snapshot.uploadedAt, uploadedBy: snapshot.uploadedBy, count: (snapshot.serials || []).length } : null,
+      quotes: quoteMeta,
+      oe23: (versions.oe23 || [])[0] || null,
+      commissions: (versions.commissions || [])[0] || null,
+      mapFeed: mapPrices ? { fetchedAt: mapPrices.fetchedAt, count: mapPrices.count, sourceNote: mapPrices.sourceNote, lastAttempt: shopMapLastAttempt } : { lastAttempt: shopMapLastAttempt },
+      snapshotMaxAgeHours: SHOP_SNAPSHOT_MAX_AGE_HOURS
+    });
+  } catch (err) {
+    console.error("ePASS status failed:", err.message);
+    return res.status(500).json({ error: "Unable to load upload status." });
+  }
+});
+
+app.post("/api/epass-uploads/inventory", requirePagePermission("/epass-uploads.html", "/shop-orders.html"), (req, res) => {
+  epassInventoryUpload.single("report")(req, res, async (err) => {
+    if (err) {
+      return res.status(400).json({ error: err.code === "LIMIT_FILE_SIZE" ? "That file is over the 60 MB limit." : "Upload failed — please try again." });
+    }
+    try {
+      if (!req.file?.buffer?.length) {
+        return res.status(400).json({ error: "Attach the ExportModel inventory export (.xlsx)." });
+      }
+      const { serials, types, written, unitCount } = extractSerialsFromWorkbook(req.file.buffer);
+      if (!serials.length) return res.status(400).json({ error: "No serial numbers found in that file — is it the ExportModel export?" });
+      const saved = await saveShopInventorySnapshot({
+        serials, types, written,
+        sourceFile: String(req.file.originalname || "ExportModel").slice(0, 200),
+        uploadedBy: String(req.authUser?.kind === "db" ? req.authUser.email : "").toLowerCase()
+      });
+      recordAudit({
+        ip: req.ip, actorUserId: req.authUser?.id || null,
+        action: "shop_snapshot_uploaded", targetUserId: null,
+        detail: { count: saved.count, sourceFile: String(req.file.originalname || "").slice(0, 120), via: "upload-center" }
+      }).catch(() => {});
+      return res.json({ ok: true, count: saved.count, unitCount });
+    } catch (uploadErr) {
+      console.error("Upload-center snapshot failed:", uploadErr.message);
+      return res.status(400).json({ error: uploadErr.message || "Unable to parse that file." });
+    }
+  });
+});
 
 app.post("/api/shop/inventory-snapshot/file", express.raw({ type: () => true, limit: "60mb" }), async (req, res) => {
   try {
@@ -7480,7 +7633,7 @@ app.post("/api/revenue-targets", requirePagePermission("/target-builder.html"), 
 // report's From date; re-uploads replace the month.
 const activityReportUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } });
 
-app.post("/api/revenue-performance", requirePagePermission("/target-builder.html", "/sales-order-detail.html"), (req, res) => {
+app.post("/api/revenue-performance", requirePagePermission("/target-builder.html", "/sales-order-detail.html", "/epass-uploads.html"), (req, res) => {
   activityReportUpload.single("report")(req, res, async (err) => {
     if (err) {
       return res.status(400).json({ error: err.code === "LIMIT_FILE_SIZE" ? "That file is over the 20 MB limit." : "Upload failed — please try again." });
@@ -7611,9 +7764,11 @@ app.get("/api/quote-followup", requirePagePermission("/quote-follow-up.html"), a
   }
 });
 
-app.post("/api/quote-followup/upload", requirePagePermission("/quote-follow-up.html"), (req, res) => {
-  if (!isExecutiveUser(req.authUser)) {
-    return res.status(403).json({ error: "Executive access is required to upload the quote export." });
+app.post("/api/quote-followup/upload", requirePagePermission("/quote-follow-up.html", "/epass-uploads.html"), async (req, res) => {
+  // Executives, or anyone granted the ePASS Upload Center (Tracy's daily
+  // upload duty) — but never regular quote-page salespeople.
+  if (!(await userHoldsPage(req.authUser, "/epass-uploads.html"))) {
+    return res.status(403).json({ error: "Executive access (or the ePASS Upload Center page) is required to upload the quote export." });
   }
   quoteExportUpload.single("report")(req, res, async (err) => {
     if (err) {
@@ -7978,7 +8133,7 @@ app.get("/api/revenue-snapshot", requirePagePermission("/dashboard.html", "/targ
 // The commission report upload adds line items (models / warranty plans with
 // qty, revenue, serial cost); each upload replaces its month. The order rows
 // themselves are fed by the OE-23 upload on the Target Builder.
-app.post("/api/commission-report", requirePagePermission("/sales-order-detail.html"), (req, res) => {
+app.post("/api/commission-report", requirePagePermission("/sales-order-detail.html", "/epass-uploads.html"), (req, res) => {
   activityReportUpload.single("report")(req, res, async (err) => {
     if (err) {
       return res.status(400).json({ error: err.code === "LIMIT_FILE_SIZE" ? "That file is over the 20 MB limit." : "Upload failed — please try again." });

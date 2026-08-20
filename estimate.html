@@ -115,6 +115,9 @@
         if (est.status === "shopping") {
           return doneCard("We're on it", "Thanks for letting us know — a Wilson consultant will reach out shortly to talk replacement options.");
         }
+        if (est.status === "elsewhere") {
+          return doneCard("Thanks for letting us know", "We appreciate the feedback. If you change your mind, your <strong>$100 discount toward any purchase over $999</strong> is waiting for you at Wilson — in the showroom or online.");
+        }
         const applianceBits = [[s.brand, s.product].filter(Boolean).join(" "), s.model ? "Model " + s.model : "", s.serial ? "Serial " + s.serial : ""].filter(Boolean);
         $("mainCard").innerHTML = `
           <h1>Hi ${esc(firstName(est.customerName))} — your estimate is ready.</h1>
@@ -140,6 +143,7 @@
           <button type="button" class="btn shop" id="shopBtn">I'd rather shop for a replacement</button>
 
           <div class="shop-form" id="shopForm">
+            <div id="shopMain">
             <div class="q">No problem — what are you thinking?</div>
             <label class="opt"><input type="radio" name="direction" value="similar"><span>Something <strong>similar</strong> to what I have now</span></label>
             <label class="opt"><input type="radio" name="direction" value="new"><span>I'd like to <strong>try something new</strong></span></label>
@@ -154,6 +158,24 @@
             <textarea id="shopNotes" placeholder="Brand or color preferences, sizes, budget, timing…"></textarea>
 
             <button type="button" class="btn approve" id="shopSubmit" style="background:#3730a3;">Send to the Wilson team</button>
+
+            <div style="text-align:center; margin-top:14px;">
+              <button type="button" id="elseBtn" style="background:none; border:none; cursor:pointer; font-family:inherit; font-size:12.5px; color:var(--muted); text-decoration:underline; padding:6px;">I'd prefer to start my search elsewhere</button>
+            </div>
+            </div>
+
+            <div id="elseForm" style="display:none; margin-top:14px; border-top:1px solid var(--border); padding-top:16px;">
+              <div style="background:#f2f8f2; border:1.5px solid var(--green); border-radius:12px; padding:12px 14px; font-size:13.5px; line-height:1.5; margin-bottom:14px;">
+                Before you go — as a Wilson service client you have a <strong>$100 discount toward any purchase
+                over $999</strong>, in the showroom or online. It's yours whenever you're ready.
+              </div>
+              <div class="q">Is there anything else we should know about your Wilson repair or sales experience?</div>
+              <textarea id="elseNotes" placeholder="Anything at all — pricing, timing, selection, how the repair went…"></textarea>
+              <button type="button" class="btn shop" id="elseSubmit" style="margin-top:12px;">Send &amp; finish</button>
+              <div style="text-align:center; margin-top:8px;">
+                <button type="button" id="elseBack" style="background:none; border:none; cursor:pointer; font-family:inherit; font-size:12px; color:var(--muted); text-decoration:underline; padding:4px;">← Back to shopping with Wilson</button>
+              </div>
+            </div>
           </div>
 
           <div class="err" id="respErr"></div>
@@ -175,6 +197,20 @@
           const direction = document.querySelector(".opt input[name='direction']:checked")?.value || "";
           const visit = document.querySelector(".opt input[name='visit']:checked")?.value || "";
           respond({ choice: "shop", productDirection: direction, visit, notes: $("shopNotes").value.trim() }, $("shopSubmit"));
+        });
+        // Escape hatch: the client would rather look elsewhere — remind them
+        // of the service-client discount and ask for experience feedback.
+        $("elseBtn").addEventListener("click", () => {
+          $("shopMain").style.display = "none";
+          $("elseForm").style.display = "block";
+          $("elseForm").scrollIntoView({ behavior: "smooth", block: "start" });
+        });
+        $("elseBack").addEventListener("click", () => {
+          $("elseForm").style.display = "none";
+          $("shopMain").style.display = "";
+        });
+        $("elseSubmit").addEventListener("click", () => {
+          respond({ choice: "elsewhere", notes: $("elseNotes").value.trim() }, $("elseSubmit"));
         });
       }
 

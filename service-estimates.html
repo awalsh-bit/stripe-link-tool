@@ -63,6 +63,7 @@
     .pill.viewed { background: #fffbeb; color: #92400e; }
     .pill.approved { background: rgba(var(--primary-rgb), 0.12); color: var(--primary); }
     .pill.shopping { background: #eef2ff; color: #3730a3; }
+    .pill.elsewhere { background: #fef3c7; color: #92400e; }
 
     .se-overlay { display: none; position: fixed; inset: 0; background: rgba(15,23,42,0.45); z-index: 60; align-items: center; justify-content: center; padding: 18px; }
     .se-overlay.show { display: flex; }
@@ -343,7 +344,7 @@
       });
 
       // ---- list ----
-      const PILL = { sent: "Sent", viewed: "Viewed", approved: "Approved", shopping: "Shopping" };
+      const PILL = { sent: "Sent", viewed: "Viewed", approved: "Approved", shopping: "Shopping", elsewhere: "Went elsewhere" };
       function render() {
         const body = $("seBody");
         if (!state.estimates.length) {
@@ -379,7 +380,8 @@
           <div class="se-kv"><div class="k">Emailed</div><div>${e.emailedAt ? when(e.emailedAt) : "Not emailed — copy the link or use the button below."}</div></div>
           <div class="se-summary" style="margin-top:12px;">${summaryHtml(e.summary || {})}</div>
           ${e.status === "shopping" ? `<div class="se-resp"><strong>Shopping for a replacement.</strong><br>${[directionText, visitText].filter(Boolean).map(esc).join("<br>")}${r.notes ? `<br>“${esc(r.notes)}”` : ""}<br><span style="color:var(--muted); font-size:12px;">Showroom team was notified — lead is up for grabs.</span></div>` : ""}
-          ${e.status === "approved" ? `<div class="se-resp" style="background: rgba(var(--primary-rgb), 0.1);"><strong>Approved.</strong> Schedule the repair.</div>` : ""}`;
+          ${e.status === "approved" ? `<div class="se-resp" style="background: rgba(var(--primary-rgb), 0.1);"><strong>Approved.</strong> Schedule the repair.</div>` : ""}
+          ${e.status === "elsewhere" ? `<div class="se-resp" style="background:#fef3c7;"><strong>Starting their search elsewhere.</strong>${r.notes ? `<br>Their feedback: “${esc(r.notes)}”` : "<br>No feedback left."}<br><span style="color:var(--muted); font-size:12px;">They were reminded of the $100 service-client discount toward a purchase over $999.</span></div>` : ""}`;
         const emailRow = $("soEmailRow");
         const canEmail = ["sent", "viewed"].includes(e.status);
         emailRow.style.display = canEmail ? "flex" : "none";

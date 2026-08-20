@@ -207,7 +207,9 @@ import {
   markServiceEstimateViewed,
   markServiceEstimateEmailed,
   saveServiceEstimateResponse,
-  lookupKnownClientEmail
+  lookupKnownClientEmail,
+  listStaleSentEstimates,
+  markServiceEstimateStaleFlagged
 } from "./lib/service-estimates-postgres.js";
 import {
   parseInvoiceMaintenanceQuotes,
@@ -5557,6 +5559,51 @@ app.post("/api/service-estimates/send-email", requirePagePermission("/service-es
   }
 });
 
+// Estimates the client never opened: after the wait window (48h default) a
+// yellow flag goes to everyone holding the Senior Customer Service job code
+// (NE17) so they can chase the client. One flag per estimate, ever — the
+// estimate is stamped once the flags are out. If nobody currently holds the
+// code, the estimate stays unstamped and gets flagged when someone does.
+const SERVICE_ESTIMATE_STALE_HOURS = Number(process.env.SERVICE_ESTIMATE_STALE_HOURS || 48);
+const SENIOR_CS_JOB_CODE = (process.env.SENIOR_CS_JOB_CODE || "NE17").toUpperCase();
+async function sweepStaleServiceEstimates() {
+  try {
+    const stale = await listStaleSentEstimates(SERVICE_ESTIMATE_STALE_HOURS);
+    if (!stale.length) return;
+    const directory = await listEmployeeDirectory();
+    const seniors = directory.filter((entry) =>
+      !entry.archived &&
+      String(entry.jobTitleCode || "").trim().toUpperCase() === SENIOR_CS_JOB_CODE &&
+      String(entry.email || "").trim()
+    );
+    if (!seniors.length) return;
+    for (const est of stale) {
+      const sentWhen = est.createdAt
+        ? new Date(est.createdAt).toLocaleString("en-US", { timeZone: "America/Chicago", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })
+        : "recently";
+      const prefNote = { call: " (prefers a call)", text: " (prefers text)", email: " (prefers email)" }[est.contactPref] || "";
+      for (const senior of seniors) {
+        await createPushedNotification({
+          severity: "yellow",
+          typeLabel: "Estimate Not Viewed",
+          refId: `svstale:${est.token}`,
+          title: `${est.customerName}'s estimate hasn't been opened (${est.svNumber || "service"})`,
+          body: `Sent ${sentWhen} by ${est.createdByName || est.createdByEmail || "the service team"} — the client hasn't viewed the link after ${SERVICE_ESTIMATE_STALE_HOURS} hours. Reach out and make sure it landed. Contact: ${[est.contactPhone, est.contactEmail].filter(Boolean).join(" / ") || "on the estimate record"}${prefNote}.`,
+          audienceEmail: senior.email,
+          byEmail: "service-estimates",
+          byName: "Estimate Approvals"
+        }).catch(() => {});
+      }
+      await markServiceEstimateStaleFlagged(est.token);
+    }
+  } catch (err) {
+    if (!/DATABASE_URL/.test(err.message || "")) console.error("Stale estimate sweep failed:", err.message);
+  }
+}
+const SWEEP_EVERY_MS = Number(process.env.SERVICE_ESTIMATE_SWEEP_MS || 30 * 60 * 1000);
+setInterval(sweepStaleServiceEstimates, SWEEP_EVERY_MS).unref?.();
+setTimeout(sweepStaleServiceEstimates, Math.min(SWEEP_EVERY_MS, 20 * 1000)).unref?.();
+
 app.get("/api/service-estimates", requirePagePermission("/service-estimates.html"), async (req, res) => {
   try {
     return res.json({ estimates: await listServiceEstimates(), publicHost: SERVICE_PUBLIC_HOST });
@@ -5592,10 +5639,10 @@ app.post("/api/estimate/respond", async (req, res) => {
   try {
     const token = String(req.body?.token || "").slice(0, 60);
     const choice = String(req.body?.choice || "");
-    if (!["approve", "shop"].includes(choice)) return res.status(400).json({ error: "Choose an option." });
+    if (!["approve", "shop", "elsewhere"].includes(choice)) return res.status(400).json({ error: "Choose an option." });
     const existing = await getServiceEstimateByToken(token);
     if (!existing) return res.status(404).json({ error: "This estimate link isn't valid." });
-    if (["approved", "shopping"].includes(existing.status)) {
+    if (["approved", "shopping", "elsewhere"].includes(existing.status)) {
       return res.json({ ok: true, status: existing.status, alreadyResponded: true });
     }
     const estimate = await saveServiceEstimateResponse(token, {
@@ -5608,12 +5655,47 @@ app.post("/api/estimate/respond", async (req, res) => {
 
     recordAudit({
       ip: req.ip, actorUserId: null,
-      action: choice === "approve" ? "service_estimate_approved" : "service_estimate_shopping",
+      action: choice === "approve" ? "service_estimate_approved" : choice === "elsewhere" ? "service_estimate_elsewhere" : "service_estimate_shopping",
       targetUserId: null,
       detail: { svNumber: estimate.svNumber, customerName: estimate.customerName, response: estimate.response }
     }).catch(() => {});
 
-    if (choice === "approve") {
+    if (choice === "elsewhere") {
+      // The client is starting their search elsewhere. No sales fan-out —
+      // they asked not to be shopped — but the Client Care rep who sent the
+      // estimate gets the experience feedback (and knows the $100-over-$999
+      // service-client discount was offered on the way out).
+      const feedback = String(estimate.response?.notes || "").trim();
+      if (estimate.createdByEmail) {
+        createPushedNotification({
+          severity: "yellow",
+          typeLabel: "Estimate — Went Elsewhere",
+          refId: `svelse:${estimate.token}`,
+          title: `${estimate.customerName} is starting their search elsewhere (${estimate.svNumber || "service"})`,
+          body: `${feedback ? `Their feedback: “${feedback}”` : "No feedback left."} They were reminded of the $100 service-client discount toward a purchase over $999.`,
+          audienceEmail: estimate.createdByEmail,
+          byEmail: "service-estimates",
+          byName: "Estimate Approvals"
+        }).catch(() => {});
+        if (RESEND_API_KEY) {
+          fetch("https://api.resend.com/emails", {
+            method: "POST",
+            headers: { "Authorization": `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" },
+            body: JSON.stringify({
+              from: SHOP_ORDER_NOTIFY_FROM,
+              to: [estimate.createdByEmail],
+              subject: `Estimate feedback — ${estimate.customerName} is shopping elsewhere (${estimate.svNumber || "service"})`,
+              text: [
+                `${estimate.customerName} declined service estimate ${estimate.svNumber || ""} ($${Number(estimate.summary?.invoiceTotal || 0).toFixed(2)}) and chose to start their replacement search elsewhere.`,
+                feedback ? `Their feedback: "${feedback}"` : "They didn't leave feedback.",
+                "They were reminded of the $100 service-client discount toward a purchase over $999.",
+                `Contact: ${[estimate.contactPhone, estimate.contactEmail].filter(Boolean).join(" / ") || "on the estimate record"}`
+              ].join("\n")
+            })
+          }).catch((e) => console.error("Estimate-elsewhere email failed:", e.message));
+        }
+      }
+    } else if (choice === "approve") {
       // Tell the Client Care rep who sent it (flag + email).
       if (estimate.createdByEmail) {
         createPushedNotification({
@@ -5649,6 +5731,37 @@ app.post("/api/estimate/respond", async (req, res) => {
       const prefText = { call: "PREFERS A CALL", text: "PREFERS TEXT", email: "PREFERS EMAIL" }[estimate.contactPref] || "";
       const applianceText = [[s.brand, s.product].filter(Boolean).join(" "), s.model ? `Model ${s.model}` : "", s.serial ? `Serial ${s.serial}` : ""].filter(Boolean).join(" · ");
       const detailBits = [directionText, visitText, r.notes ? `Notes: ${r.notes}` : ""].filter(Boolean).join(" · ");
+
+      // Tell the Client Care rep who sent the estimate (flag + email) —
+      // their repair isn't happening; the client elected to go shopping.
+      if (estimate.createdByEmail) {
+        createPushedNotification({
+          severity: "green",
+          typeLabel: "Estimate — Client Shopping",
+          refId: `svshop:${estimate.token}`,
+          title: `${estimate.customerName} elected to shop for a replacement (${estimate.svNumber || "service"})`,
+          body: `The repair estimate wasn't approved — the showroom team has the lead. ${detailBits || "No preferences given."}`,
+          audienceEmail: estimate.createdByEmail,
+          byEmail: "service-estimates",
+          byName: "Estimate Approvals"
+        }).catch(() => {});
+        if (RESEND_API_KEY) {
+          fetch("https://api.resend.com/emails", {
+            method: "POST",
+            headers: { "Authorization": `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" },
+            body: JSON.stringify({
+              from: SHOP_ORDER_NOTIFY_FROM,
+              to: [estimate.createdByEmail],
+              subject: `Client shopping instead — ${estimate.customerName} (${estimate.svNumber || "service"})`,
+              text: [
+                `${estimate.customerName} elected to shop for a replacement instead of approving service estimate ${estimate.svNumber || ""} ($${Number(estimate.summary?.invoiceTotal || 0).toFixed(2)} repair).`,
+                detailBits ? `Their preferences: ${detailBits}` : "",
+                "The showroom team has been notified and will claim the lead — no action needed on the repair."
+              ].filter(Boolean).join("\n")
+            })
+          }).catch((e) => console.error("Estimate-shopping creator email failed:", e.message));
+        }
+      }
       try {
         const [directory, notifyNames] = await Promise.all([listEmployeeDirectory(), listNotifyTitleNames()]);
         const notifySet = new Set(notifyNames.map((n) => n.trim().toLowerCase()));

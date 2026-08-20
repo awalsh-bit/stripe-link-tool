@@ -205,7 +205,9 @@ import {
   listServiceEstimates,
   getServiceEstimateByToken,
   markServiceEstimateViewed,
-  saveServiceEstimateResponse
+  markServiceEstimateEmailed,
+  saveServiceEstimateResponse,
+  lookupKnownClientEmail
 } from "./lib/service-estimates-postgres.js";
 import {
   parseInvoiceMaintenanceQuotes,
@@ -5450,7 +5452,13 @@ app.post("/api/service-estimates/scan", requirePagePermission("/service-estimate
     try {
       if (!req.file?.buffer?.length) return res.status(400).json({ error: "Attach the ePASS service quote PDF." });
       const summary = extractServiceEstimateFromPdf(req.file.buffer);
-      return res.json({ ok: true, summary });
+      // If the phone (or account number) matches a shopper we already know,
+      // offer the email as a prefill — never auto-sent, always editable.
+      let knownEmail = null;
+      try {
+        knownEmail = await lookupKnownClientEmail({ phone: summary.phone, customerNumber: summary.customerNumber });
+      } catch { /* prefill is best-effort */ }
+      return res.json({ ok: true, summary, knownEmail });
     } catch (scanErr) {
       return res.status(400).json({ error: scanErr.message || "Couldn't read that PDF." });
     }
@@ -5459,7 +5467,7 @@ app.post("/api/service-estimates/scan", requirePagePermission("/service-estimate
 
 app.post("/api/service-estimates", requirePagePermission("/service-estimates.html"), async (req, res) => {
   try {
-    const { svNumber = "", estimateName = "", customerName = "", customerNumber = "", contactPhone = "", contactEmail = "", summary = null } = req.body || {};
+    const { svNumber = "", estimateName = "", customerName = "", customerNumber = "", contactPhone = "", contactEmail = "", contactPref = "", summary = null } = req.body || {};
     if (!String(customerName).trim()) return res.status(400).json({ error: "The client's name is required." });
     if (!String(contactPhone).trim() && !String(contactEmail).trim()) {
       return res.status(400).json({ error: "Add a phone number or email so the client can be reached." });
@@ -5468,55 +5476,82 @@ app.post("/api/service-estimates", requirePagePermission("/service-estimates.htm
       return res.status(400).json({ error: "Scan the quote PDF first — the summary is missing its totals." });
     }
     const estimate = await createServiceEstimate({
-      svNumber, estimateName, customerName, customerNumber, contactPhone, contactEmail, summary,
+      svNumber, estimateName, customerName, customerNumber, contactPhone, contactEmail, contactPref, summary,
       byEmail: req.authUser?.email || req.authUser?.username || "",
       byName: req.authUser?.displayName || ""
     });
     const url = `https://${SERVICE_PUBLIC_HOST}/estimate.html?e=${estimate.token}`;
 
-    let emailed = false;
-    const to = String(contactEmail || "").trim().toLowerCase();
-    if (RESEND_API_KEY && to) {
-      const firstName = String(customerName).trim().split(/[\s,]+/).pop() || "there";
-      const html = buildAuthEmailHtml(
-        "Your Wilson service estimate is ready",
-        [
-          `Your repair estimate${estimate.svNumber ? ` (${estimate.svNumber})` : ""} from Wilson AC & Appliance is ready to review.`,
-          "It takes about a minute: see the parts, labor, and tax breakdown, then approve the repair — or let us know you'd rather shop for a replacement."
-        ],
-        "Review Your Estimate",
-        url,
-        "Questions? Call us at 512-894-0907."
-      );
-      try {
-        const r = await fetch("https://api.resend.com/emails", {
-          method: "POST",
-          headers: { "Authorization": `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" },
-          body: JSON.stringify({
-            from: SHOP_ORDER_NOTIFY_FROM,
-            to: [to],
-            subject: `Your Wilson service estimate${estimate.svNumber ? " — " + estimate.svNumber : ""}`,
-            text: `Your repair estimate is ready to review and approve: ${url}`,
-            html
-          })
-        });
-        emailed = r.ok;
-        if (!r.ok) console.error("Estimate email failed:", r.status, (await r.text()).slice(0, 200));
-      } catch (mailErr) {
-        console.error("Estimate email failed:", mailErr.message);
-      }
-    }
-
+    // Deliberately NO automated email here — clients often have a clear
+    // contact preference (CALL PREF / TEXT PREF on the work order), so the
+    // team copies the link into a call/text, or clicks "Email the link"
+    // explicitly (POST /api/service-estimates/send-email below).
     recordAudit({
       ip: req.ip, actorUserId: req.authUser?.id || null,
       action: "service_estimate_created", targetUserId: null,
-      detail: { svNumber: estimate.svNumber, customerName: estimate.customerName, total: summary.invoiceTotal, emailed }
+      detail: { svNumber: estimate.svNumber, customerName: estimate.customerName, total: summary.invoiceTotal }
     }).catch(() => {});
 
-    return res.json({ ok: true, estimate, url, emailed });
+    return res.json({ ok: true, estimate, url });
   } catch (err) {
     console.error("Service estimate create failed:", err.message);
     return res.status(500).json({ error: "Unable to create the estimate link." });
+  }
+});
+
+// Explicit, on-click email of the estimate link to the client. Separate from
+// create on purpose: no email goes out unless someone presses the button.
+app.post("/api/service-estimates/send-email", requirePagePermission("/service-estimates.html"), async (req, res) => {
+  try {
+    const token = String(req.body?.token || "").slice(0, 60);
+    const overrideEmail = String(req.body?.email || "").trim().toLowerCase();
+    if (overrideEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(overrideEmail)) {
+      return res.status(400).json({ error: "That email address doesn't look right." });
+    }
+    const estimate = await getServiceEstimateByToken(token);
+    if (!estimate) return res.status(404).json({ error: "Estimate not found." });
+    const to = overrideEmail || String(estimate.contactEmail || "").trim().toLowerCase();
+    if (!to) return res.status(400).json({ error: "Add the client's email address first." });
+    if (!RESEND_API_KEY) return res.status(500).json({ error: "Email isn't configured on this server." });
+
+    const url = `https://${SERVICE_PUBLIC_HOST}/estimate.html?e=${estimate.token}`;
+    const html = buildAuthEmailHtml(
+      "Your Wilson service estimate is ready",
+      [
+        `Your repair estimate${estimate.svNumber ? ` (${estimate.svNumber})` : ""} from Wilson AC & Appliance is ready to review.`,
+        "It takes about a minute: see the parts, labor, and tax breakdown, then approve the repair — or let us know you'd rather shop for a replacement."
+      ],
+      "Review Your Estimate",
+      url,
+      "Questions? Call us at 512-894-0907."
+    );
+    const r = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: { "Authorization": `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        from: SHOP_ORDER_NOTIFY_FROM,
+        to: [to],
+        subject: `Your Wilson service estimate${estimate.svNumber ? " — " + estimate.svNumber : ""}`,
+        text: `Your repair estimate is ready to review and approve: ${url}`,
+        html
+      })
+    });
+    if (!r.ok) {
+      console.error("Estimate email failed:", r.status, (await r.text()).slice(0, 200));
+      return res.status(502).json({ error: "The email didn't go through — try again or copy the link instead." });
+    }
+    const updated = await markServiceEstimateEmailed(token, overrideEmail || "");
+
+    recordAudit({
+      ip: req.ip, actorUserId: req.authUser?.id || null,
+      action: "service_estimate_emailed", targetUserId: null,
+      detail: { svNumber: estimate.svNumber, customerName: estimate.customerName, to }
+    }).catch(() => {});
+
+    return res.json({ ok: true, to, estimate: updated || estimate });
+  } catch (err) {
+    console.error("Estimate send-email failed:", err.message);
+    return res.status(500).json({ error: "Unable to send the email right now." });
   }
 });
 
@@ -5606,8 +5641,11 @@ app.post("/api/estimate/respond", async (req, res) => {
       // Showroom lead — same fan-out as new web orders (notify-title
       // consultants get the green flag + a claim email with the details).
       const r = estimate.response || {};
+      const s = estimate.summary || {};
       const directionText = { similar: "wants something similar to their current unit", new: "open to trying something new", unsure: "not sure yet — wants help deciding" }[r.productDirection] || "";
       const visitText = { visit: "wants to schedule a showroom visit", contact: "wants a call/text first", info: "just wants info sent over" }[r.visit] || "";
+      const prefText = { call: "PREFERS A CALL", text: "PREFERS TEXT" }[estimate.contactPref] || "";
+      const applianceText = [[s.brand, s.product].filter(Boolean).join(" "), s.model ? `Model ${s.model}` : "", s.serial ? `Serial ${s.serial}` : ""].filter(Boolean).join(" · ");
       const detailBits = [directionText, visitText, r.notes ? `Notes: ${r.notes}` : ""].filter(Boolean).join(" · ");
       try {
         const [directory, notifyNames] = await Promise.all([listEmployeeDirectory(), listNotifyTitleNames()]);
@@ -5623,7 +5661,11 @@ app.post("/api/estimate/respond", async (req, res) => {
             typeLabel: "Service Client Lead",
             refId: `svlead:${estimate.token}`,
             title: `${estimate.customerName} — replacing instead of repairing (${estimate.svNumber || "service"})`,
-            body: `${detailBits || "No preferences given."} Contact: ${[estimate.contactPhone, estimate.contactEmail].filter(Boolean).join(" / ") || "see estimate record"}.`,
+            body: [
+              applianceText ? `Replacing: ${applianceText}.` : "",
+              `${detailBits || "No preferences given."}`,
+              `Contact: ${[estimate.contactPhone, estimate.contactEmail].filter(Boolean).join(" / ") || "see estimate record"}${prefText ? ` — ${prefText}` : ""}.`
+            ].filter(Boolean).join(" "),
             audienceEmail: consultant.email,
             byEmail: "service-estimates",
             byName: "Estimate Approvals"
@@ -5633,10 +5675,13 @@ app.post("/api/estimate/respond", async (req, res) => {
           const subject = `Service client lead — ${estimate.customerName} — available to claim`;
           const text = [
             `${estimate.customerName} chose to SHOP FOR A REPLACEMENT instead of approving service estimate ${estimate.svNumber || ""} ($${Number(estimate.summary?.invoiceTotal || 0).toFixed(2)} repair).`,
+            applianceText ? `Current appliance: ${applianceText}` : "",
+            s.complaint ? `Service complaint: ${s.complaint}` : "",
             directionText ? `Direction: ${directionText}` : "",
             visitText ? `Visit: ${visitText}` : "",
             r.notes ? `Notes: ${r.notes}` : "",
             `Contact: ${[estimate.contactPhone, estimate.contactEmail].filter(Boolean).join(" / ") || "on the estimate record"}`,
+            prefText ? `Client contact preference: ${prefText}` : "",
             "First to reach out wins — coordinate in the morning huddle if needed."
           ].filter(Boolean).join("\n");
           Promise.allSettled(consultants.map((consultant) =>

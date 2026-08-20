@@ -71,6 +71,14 @@
     .se-kv { display: flex; gap: 10px; font-size: 13px; padding: 6px 0; border-bottom: 1px dashed #eef1f6; }
     .se-kv .k { width: 130px; flex-shrink: 0; font-size: 11px; font-weight: 800; letter-spacing: 0.05em; text-transform: uppercase; color: #64748b; padding-top: 2px; }
     .se-resp { background: #eef2ff; border-radius: 10px; padding: 10px 12px; font-size: 13px; line-height: 1.5; margin-top: 10px; }
+    .se-chip { display: inline-block; border-radius: 999px; font-size: 10.5px; font-weight: 800; letter-spacing: 0.05em; padding: 3px 10px; background: #fef3c7; color: #92400e; }
+    .se-hint { font-size: 11.5px; color: var(--muted); margin-top: 5px; line-height: 1.4; }
+    .se-result { border: 1.5px solid rgba(var(--primary-rgb), 0.35); background: rgba(var(--primary-rgb), 0.05); border-radius: 12px; padding: 14px 16px; margin-top: 14px; display: none; }
+    .se-result.show { display: block; }
+    .se-result .lnk { font-size: 12.5px; word-break: break-all; margin-bottom: 10px; }
+    .se-send-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+    .se-send-row input { flex: 1 1 220px; border: 1px solid var(--border); border-radius: 10px; padding: 9px 12px; font-size: 13px; font-family: inherit; min-width: 0; }
+    .se-field select { width: 100%; border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; font-size: 13.5px; font-family: inherit; background: #fff; }
   </style>
 </head>
 <body data-shell-label="Service Estimate Approvals" data-shell-icon="service">
@@ -81,10 +89,12 @@
       <div class="page-head">
         <h2>Send an estimate for approval</h2>
         <p class="section-note">
-          Upload the ePASS service quote print (SV… PDF). The scanner builds a client-friendly
-          summary of parts, labor, and sales tax; the client's link lets them <strong>approve the repair</strong>
-          or <strong>shop for a replacement</strong> — a shopping answer notifies the showroom team like a new
-          web order, and an approval flags whoever sent it.
+          Upload the ePASS <strong>Work Order</strong> print (preferred — it carries the model, serial, phone,
+          and CALL&nbsp;PREF/TEXT&nbsp;PREF) or the plain quote print. The scanner builds a client-friendly summary of
+          parts, labor, and sales tax; the client's link lets them <strong>approve the repair</strong> or
+          <strong>shop for a replacement</strong> — a shopping answer notifies the showroom team like a new web
+          order, and an approval flags whoever sent it. Nothing emails automatically: copy the link to call or
+          text, or click <strong>Email the link</strong> when that's what the client wants.
         </p>
       </div>
       <div id="seStatus" class="se-status"></div>
@@ -97,15 +107,38 @@
           <div class="se-field"><label>SV number</label><input id="seSv" readonly style="background:#f3f4f6;" /></div>
           <div class="se-field"><label>Client name</label><input id="seName" /></div>
           <div class="se-field"><label>Phone (for texting the link)</label><input id="sePhone" type="tel" placeholder="512-555-0100" /></div>
-          <div class="se-field"><label>Email (sends the link automatically)</label><input id="seEmail" type="email" placeholder="client@email.com" /></div>
+          <div class="se-field">
+            <label>Email (optional — nothing sends automatically)</label>
+            <input id="seEmail" type="email" placeholder="client@email.com" />
+            <div class="se-hint" id="seEmailNote" style="display:none;"></div>
+          </div>
+          <div class="se-field">
+            <label>Contact preference</label>
+            <select id="sePref">
+              <option value="">Not specified</option>
+              <option value="call">Prefers a call</option>
+              <option value="text">Prefers text</option>
+            </select>
+            <div class="se-hint" id="sePrefNote" style="display:none;"></div>
+          </div>
           <div class="se-field"><label>Estimate name (optional)</label><input id="seLabel" placeholder="e.g. Sub-Zero sealed system repair" /></div>
         </div>
         <div class="se-summary" id="seSummary"></div>
         <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
-          <button type="button" class="se-btn primary" id="seCreate">Create &amp; send approval link</button>
+          <button type="button" class="se-btn primary" id="seCreate">Create approval link</button>
           <button type="button" class="se-btn quiet" id="seCancelForm">Start over</button>
-          <span id="seLinkOut" style="font-size:12.5px;"></span>
         </div>
+      </div>
+
+      <div class="se-result" id="seResult">
+        <div style="font-size:13px; font-weight:800; margin-bottom:6px;">Approval link ready</div>
+        <div class="lnk"><a id="srLink" href="#" target="_blank" rel="noopener" style="color:var(--primary); font-weight:700;"></a></div>
+        <div class="se-send-row">
+          <button type="button" class="se-btn quiet" id="srCopy">Copy link</button>
+          <input id="srEmail" type="email" placeholder="client@email.com" />
+          <button type="button" class="se-btn primary" id="srSend">Email the link</button>
+        </div>
+        <div class="se-hint" id="srNote">The link is on your clipboard, ready to call or text. Email goes out only when you click “Email the link.”</div>
       </div>
     </div>
 
@@ -127,6 +160,11 @@
     <div class="se-panel">
       <h3 id="soTitle"></h3>
       <div id="soBody"></div>
+      <div class="se-send-row" id="soEmailRow" style="margin-top:14px; display:none;">
+        <input id="soEmailInput" type="email" placeholder="client@email.com" />
+        <button type="button" class="se-btn primary" id="soEmailSend">Email the link</button>
+      </div>
+      <div class="se-hint" id="soEmailNote" style="display:none;"></div>
       <div style="display:flex; gap:10px; margin-top:16px;">
         <button type="button" class="se-btn quiet" id="soCopy">Copy client link</button>
         <span style="flex:1;"></span>
@@ -143,7 +181,7 @@
       const money = (n) => "$" + Number(n || 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
       const when = (iso) => iso ? new Date(iso).toLocaleString("en-US", { month: "2-digit", day: "2-digit", year: "2-digit", hour: "numeric", minute: "2-digit" }) : "—";
 
-      const state = { summary: null, estimates: [], publicHost: "", open: null };
+      const state = { summary: null, estimates: [], publicHost: "", open: null, created: null };
 
       function setStatus(message, kind) {
         const box = $("seStatus");
@@ -173,8 +211,8 @@
           const data = await res.json().catch(() => ({}));
           if (!res.ok) throw new Error(data.error || "Couldn't read that PDF.");
           state.summary = data.summary;
-          fillForm(data.summary);
-          setStatus(data.summary.warnings?.length ? data.summary.warnings.join(" ") : "Scanned — check the summary, add contact info, and send.", data.summary.warnings?.length ? "warn" : "ok");
+          fillForm(data.summary, data.knownEmail);
+          setStatus(data.summary.warnings?.length ? data.summary.warnings.join(" ") : "Scanned — check the summary and contact info, then create the link.", data.summary.warnings?.length ? "warn" : "ok");
         } catch (err) {
           setStatus(err.message, "error");
         } finally {
@@ -183,8 +221,14 @@
         }
       });
 
+      function applianceLine(s) {
+        const bits = [[s.brand, s.product].filter(Boolean).join(" "), s.model ? "Model " + s.model : "", s.serial ? "Serial " + s.serial : ""].filter(Boolean);
+        return bits.length ? `<div style="font-size:12px; font-weight:700; color:#475569; margin-bottom:8px;">${esc(bits.join(" · "))}</div>` : "";
+      }
+
       function summaryHtml(s) {
         return `
+          ${applianceLine(s)}
           <table>
             ${(s.parts || []).map((p) => `<tr><td>${p.qty > 1 ? p.qty + " × " : ""}${esc(p.description)}${p.model ? ` <span style="color:var(--muted); font-size:11px;">${esc(p.model)}</span>` : ""}</td><td class="se-amt">${money(p.ext)}</td></tr>`).join("")}
             ${s.laborEntries ? `<tr><td>Labor (${s.laborEntries} ${s.laborEntries === 1 ? "entry" : "entries"})</td><td class="se-amt">${money(s.laborTotal)}</td></tr>` : ""}
@@ -195,11 +239,27 @@
           </table>`;
       }
 
-      function fillForm(s) {
+      function fillForm(s, knownEmail) {
         $("seSv").value = s.svNumber || "";
         $("seName").value = s.customerName || "";
+        $("sePhone").value = s.phone || "";
+        $("sePref").value = ["call", "text"].includes(s.contactPref) ? s.contactPref : "";
+        const prefNote = $("sePrefNote");
+        if (s.contactPref === "call" || s.contactPref === "text") {
+          prefNote.innerHTML = `<span class="se-chip">${s.contactPref === "call" ? "CALL PREF" : "TEXT PREF"}</span> from the work order — carries through to the sales lead.`;
+          prefNote.style.display = "block";
+        } else { prefNote.style.display = "none"; }
+        const emailNote = $("seEmailNote");
+        if (knownEmail?.email) {
+          $("seEmail").value = knownEmail.email;
+          emailNote.textContent = `Found on file — ${knownEmail.source || "existing record"}. Edit if it's wrong; nothing sends automatically.`;
+          emailNote.style.display = "block";
+        } else {
+          $("seEmail").value = "";
+          emailNote.style.display = "none";
+        }
         $("seSummary").innerHTML = summaryHtml(s);
-        $("seLinkOut").textContent = "";
+        $("seResult").classList.remove("show");
         $("seForm").classList.add("show");
       }
 
@@ -209,7 +269,30 @@
         setStatus("", "");
       });
 
-      // ---- create ----
+      // ---- send the email (explicit click only — never automatic) ----
+      async function sendEstimateEmail(token, email, btn, noteEl) {
+        const to = String(email || "").trim();
+        if (!to) { setStatus("Add the client's email address first.", "error"); return false; }
+        const original = btn.textContent;
+        btn.disabled = true;
+        btn.textContent = "Sending…";
+        try {
+          const data = await api("/api/service-estimates/send-email", { method: "POST", body: JSON.stringify({ token, email: to }) });
+          btn.textContent = "Emailed ✓";
+          if (noteEl) { noteEl.textContent = `Emailed to ${data.to}.`; noteEl.style.display = "block"; }
+          await load();
+          setTimeout(() => { btn.textContent = original; btn.disabled = false; }, 2500);
+          return true;
+        } catch (err) {
+          setStatus(err.message, "error");
+          btn.textContent = original;
+          btn.disabled = false;
+          return false;
+        }
+      }
+
+      // ---- create (builds the link; the team copies it to call/text, or
+      // clicks "Email the link" — separate on purpose) ----
       $("seCreate").addEventListener("click", async () => {
         const btn = $("seCreate");
         btn.disabled = true;
@@ -223,21 +306,37 @@
               customerNumber: state.summary?.customerNumber || "",
               contactPhone: $("sePhone").value.trim(),
               contactEmail: $("seEmail").value.trim(),
+              contactPref: $("sePref").value,
               summary: state.summary
             })
           });
-          $("seLinkOut").innerHTML = `<a href="${esc(data.url)}" target="_blank" rel="noopener" style="color:var(--primary); font-weight:700;">${esc(data.url)}</a>`;
+          state.created = { token: data.estimate.token, url: data.url };
+          $("srLink").textContent = data.url;
+          $("srLink").href = data.url;
+          $("srEmail").value = $("seEmail").value.trim();
+          $("srNote").textContent = "The link is on your clipboard, ready to call or text. Email goes out only when you click “Email the link.”";
+          $("seResult").classList.add("show");
           try { await navigator.clipboard.writeText(data.url); } catch {}
-          setStatus(`Link created${data.emailed ? " and emailed to the client" : ""} — it's on your clipboard${$("sePhone").value.trim() ? ", ready to text" : ""}.`, "ok");
+          setStatus("Link created — nothing was emailed.", "ok");
           $("seForm").classList.remove("show");
           state.summary = null;
           ["seSv", "seName", "sePhone", "seEmail", "seLabel"].forEach((id) => { $(id).value = ""; });
+          $("sePref").value = "";
           await load();
         } catch (err) {
           setStatus(err.message, "error");
         } finally {
           btn.disabled = false;
         }
+      });
+
+      $("srCopy").addEventListener("click", async () => {
+        if (!state.created) return;
+        try { await navigator.clipboard.writeText(state.created.url); $("srCopy").textContent = "Copied ✓"; setTimeout(() => { $("srCopy").textContent = "Copy link"; }, 1500); } catch {}
+      });
+      $("srSend").addEventListener("click", () => {
+        if (!state.created) return;
+        sendEstimateEmail(state.created.token, $("srEmail").value, $("srSend"), $("srNote"));
       });
 
       // ---- list ----
@@ -269,13 +368,22 @@
         const r = e.response || {};
         const directionText = { similar: "Something similar to the current unit", new: "Open to trying something new", unsure: "Not sure — wants help deciding" }[r.productDirection] || "";
         const visitText = { visit: "Wants to schedule a showroom visit", contact: "Wants a call/text first", info: "Just send information" }[r.visit] || "";
+        const prefChip = { call: "CALL PREF", text: "TEXT PREF" }[e.contactPref] || "";
         $("soBody").innerHTML = `
           <div class="se-kv"><div class="k">Status</div><div><span class="pill ${esc(e.status)}">${PILL[e.status] || esc(e.status)}</span>${e.respondedAt ? " · " + when(e.respondedAt) : e.viewedAt ? " · viewed " + when(e.viewedAt) : ""}</div></div>
-          <div class="se-kv"><div class="k">Contact</div><div>${esc([e.contactPhone, e.contactEmail].filter(Boolean).join(" · ") || "—")}</div></div>
-          <div class="se-kv"><div class="k">Sent</div><div>${when(e.createdAt)} by ${esc(e.createdByName || e.createdByEmail || "—")}</div></div>
+          <div class="se-kv"><div class="k">Contact</div><div>${esc([e.contactPhone, e.contactEmail].filter(Boolean).join(" · ") || "—")}${prefChip ? ` <span class="se-chip">${prefChip}</span>` : ""}</div></div>
+          <div class="se-kv"><div class="k">Created</div><div>${when(e.createdAt)} by ${esc(e.createdByName || e.createdByEmail || "—")}</div></div>
+          <div class="se-kv"><div class="k">Emailed</div><div>${e.emailedAt ? when(e.emailedAt) : "Not emailed — copy the link or use the button below."}</div></div>
           <div class="se-summary" style="margin-top:12px;">${summaryHtml(e.summary || {})}</div>
           ${e.status === "shopping" ? `<div class="se-resp"><strong>Shopping for a replacement.</strong><br>${[directionText, visitText].filter(Boolean).map(esc).join("<br>")}${r.notes ? `<br>“${esc(r.notes)}”` : ""}<br><span style="color:var(--muted); font-size:12px;">Showroom team was notified — lead is up for grabs.</span></div>` : ""}
           ${e.status === "approved" ? `<div class="se-resp" style="background: rgba(var(--primary-rgb), 0.1);"><strong>Approved.</strong> Schedule the repair.</div>` : ""}`;
+        const emailRow = $("soEmailRow");
+        const canEmail = ["sent", "viewed"].includes(e.status);
+        emailRow.style.display = canEmail ? "flex" : "none";
+        $("soEmailInput").value = e.contactEmail || "";
+        $("soEmailNote").style.display = "none";
+        $("soEmailSend").disabled = false;
+        $("soEmailSend").textContent = "Email the link";
         $("seOverlay").classList.add("show");
       }
 
@@ -285,6 +393,10 @@
         if (!state.open) return;
         const url = `https://${state.publicHost}/estimate.html?e=${state.open.token}`;
         try { await navigator.clipboard.writeText(url); $("soCopy").textContent = "Copied ✓"; setTimeout(() => { $("soCopy").textContent = "Copy client link"; }, 1500); } catch {}
+      });
+      $("soEmailSend").addEventListener("click", () => {
+        if (!state.open) return;
+        sendEstimateEmail(state.open.token, $("soEmailInput").value, $("soEmailSend"), $("soEmailNote"));
       });
 
       async function load() {

@@ -264,7 +264,9 @@ import {
   createPushedNotification,
   listMyPushedNotifications,
   getPushedNotification,
-  retirePushedNotificationsByRef
+  retirePushedNotificationsByRef,
+  claimPushedNotificationsByRef,
+  unclaimPushedNotificationsByRef
 } from "./lib/sales-orders-postgres.js";
 import {
   getServiceOrderSnapshot,
@@ -5644,7 +5646,7 @@ app.post("/api/estimate/respond", async (req, res) => {
       const s = estimate.summary || {};
       const directionText = { similar: "wants something similar to their current unit", new: "open to trying something new", unsure: "not sure yet — wants help deciding" }[r.productDirection] || "";
       const visitText = { visit: "wants to schedule a showroom visit", contact: "wants a call/text first", info: "just wants info sent over" }[r.visit] || "";
-      const prefText = { call: "PREFERS A CALL", text: "PREFERS TEXT" }[estimate.contactPref] || "";
+      const prefText = { call: "PREFERS A CALL", text: "PREFERS TEXT", email: "PREFERS EMAIL" }[estimate.contactPref] || "";
       const applianceText = [[s.brand, s.product].filter(Boolean).join(" "), s.model ? `Model ${s.model}` : "", s.serial ? `Serial ${s.serial}` : ""].filter(Boolean).join(" · ");
       const detailBits = [directionText, visitText, r.notes ? `Notes: ${r.notes}` : ""].filter(Boolean).join(" · ");
       try {
@@ -5660,6 +5662,7 @@ app.post("/api/estimate/respond", async (req, res) => {
             severity: "green",
             typeLabel: "Service Client Lead",
             refId: `svlead:${estimate.token}`,
+            claimable: true,
             title: `${estimate.customerName} — replacing instead of repairing (${estimate.svNumber || "service"})`,
             body: [
               applianceText ? `Replacing: ${applianceText}.` : "",
@@ -5672,23 +5675,30 @@ app.post("/api/estimate/respond", async (req, res) => {
           }).catch(() => {});
         }
         if (RESEND_API_KEY && consultants.length) {
-          const subject = `Service client lead — ${estimate.customerName} — available to claim`;
+          // From-name per the sales team's ask; same verified send address.
+          const notifyAddr = (SHOP_ORDER_NOTIFY_FROM.match(/<([^>]+)>/) || [null, SHOP_ORDER_NOTIFY_FROM])[1];
+          const leadFrom = `New Lead Available on Your Dash <${notifyAddr}>`;
+          const subject = `Service client lead — ${estimate.customerName}`;
+          const applianceShort = [[s.brand, s.product].filter(Boolean).join(" "), s.model ? `Model ${s.model}` : ""].filter(Boolean).join(" · ");
           const text = [
-            `${estimate.customerName} chose to SHOP FOR A REPLACEMENT instead of approving service estimate ${estimate.svNumber || ""} ($${Number(estimate.summary?.invoiceTotal || 0).toFixed(2)} repair).`,
-            applianceText ? `Current appliance: ${applianceText}` : "",
-            s.complaint ? `Service complaint: ${s.complaint}` : "",
-            directionText ? `Direction: ${directionText}` : "",
-            visitText ? `Visit: ${visitText}` : "",
-            r.notes ? `Notes: ${r.notes}` : "",
+            "Sales Team,",
+            "",
+            "A repair service client has chosen to shop instead of proceeding with repair. View the details below and claim the lead on your Dash.",
+            "",
+            `Client: ${estimate.customerName}`,
+            applianceShort ? `Current appliance: ${applianceShort}` : null,
+            [directionText, visitText].filter(Boolean).length ? `Direction & visit: ${[directionText, visitText].filter(Boolean).join(" · ")}` : null,
+            r.notes ? `Notes: ${r.notes}` : null,
             `Contact: ${[estimate.contactPhone, estimate.contactEmail].filter(Boolean).join(" / ") || "on the estimate record"}`,
-            prefText ? `Client contact preference: ${prefText}` : "",
-            "First to reach out wins — coordinate in the morning huddle if needed."
-          ].filter(Boolean).join("\n");
+            prefText ? `Contact preference: ${prefText}` : null,
+            "",
+            `Claim the lead: https://${DASHBOARD_HOST}/dashboard.html`
+          ].filter((line) => line !== null).join("\n");
           Promise.allSettled(consultants.map((consultant) =>
             fetch("https://api.resend.com/emails", {
               method: "POST",
               headers: { "Authorization": `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" },
-              body: JSON.stringify({ from: SHOP_ORDER_NOTIFY_FROM, to: [consultant.email], subject, text })
+              body: JSON.stringify({ from: leadFrom, to: [consultant.email], subject, text })
             })
           )).then((results) => {
             const failed = results.filter((x) => x.status === "rejected");
@@ -8883,10 +8893,72 @@ app.post("/api/notifications/:id/close", requirePagePermission("/dashboard.html"
       title: notification.title
     });
 
+    // A claimed lead the claimer closes is done — retire the whole ref
+    // group so the hidden copies don't linger for anyone else.
+    if (notification.claimable && notification.refId && notification.claimedByEmail === email) {
+      retirePushedNotificationsByRef(notification.refId).catch(() => {});
+    }
+
     return res.json({ ok: true, token });
   } catch (err) {
     console.error("Notification close failed:", err.message);
     return res.status(500).json({ error: "Unable to close that notification." });
+  }
+});
+
+// Claim a claimable notification (e.g. a Service Client Lead): the lead
+// stays on the claimer's dashboard and disappears from everyone else's.
+// First claim wins.
+app.post("/api/notifications/:id/claim", requirePagePermission("/dashboard.html"), async (req, res) => {
+  try {
+    const email = String(req.authUser?.email || req.authUser?.username || "").trim().toLowerCase();
+    const notification = await getPushedNotification(req.params.id);
+    if (!notification) return res.status(404).json({ error: "Notification not found." });
+    if (!notification.claimable || !notification.refId) return res.status(400).json({ error: "That notification isn't claimable." });
+    if (notification.audienceEmail && notification.audienceEmail !== email) {
+      return res.status(403).json({ error: "That notification isn't addressed to you." });
+    }
+    if (notification.claimedByEmail === email) return res.json({ ok: true, alreadyYours: true });
+    if (notification.claimedByEmail) {
+      return res.status(409).json({ error: `Already claimed by ${notification.claimedByName || notification.claimedByEmail}.` });
+    }
+    const count = await claimPushedNotificationsByRef(notification.refId, email, req.authUser?.displayName || "");
+    if (!count) {
+      const again = await getPushedNotification(req.params.id);
+      return res.status(409).json({ error: `Already claimed by ${again?.claimedByName || again?.claimedByEmail || "someone else"}.` });
+    }
+    recordAudit({
+      ip: req.ip, actorUserId: req.authUser?.id || null,
+      action: "notification_claimed", targetUserId: null,
+      detail: { refId: notification.refId, title: notification.title }
+    }).catch(() => {});
+    return res.json({ ok: true });
+  } catch (err) {
+    console.error("Notification claim failed:", err.message);
+    return res.status(500).json({ error: "Unable to claim that lead." });
+  }
+});
+
+// Release a claim made in error — the lead goes back into the pool and
+// reappears on every consultant's dashboard.
+app.post("/api/notifications/:id/unclaim", requirePagePermission("/dashboard.html"), async (req, res) => {
+  try {
+    const email = String(req.authUser?.email || req.authUser?.username || "").trim().toLowerCase();
+    const notification = await getPushedNotification(req.params.id);
+    if (!notification) return res.status(404).json({ error: "Notification not found." });
+    if (notification.claimedByEmail !== email) {
+      return res.status(403).json({ error: "Only the person who claimed this can release it." });
+    }
+    await unclaimPushedNotificationsByRef(notification.refId, email);
+    recordAudit({
+      ip: req.ip, actorUserId: req.authUser?.id || null,
+      action: "notification_unclaimed", targetUserId: null,
+      detail: { refId: notification.refId, title: notification.title }
+    }).catch(() => {});
+    return res.json({ ok: true });
+  } catch (err) {
+    console.error("Notification unclaim failed:", err.message);
+    return res.status(500).json({ error: "Unable to release that claim." });
   }
 });
 

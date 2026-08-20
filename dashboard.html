@@ -836,6 +836,14 @@
       border: 1px solid #dbe1ea !important;
     }
     .oflag-close:hover { background: #f3f4f6; }
+    .oflag-claim {
+      background: var(--primary, #21692c);
+      color: #fff;
+      border: 1px solid transparent !important;
+      margin-right: 6px;
+    }
+    .oflag-claim.unclaim { background: #fff; color: #92400e; border-color: #f4d38a !important; }
+    .oflag-mine { display: inline-block; margin-left: 6px; border-radius: 999px; font-size: 10px; font-weight: 800; letter-spacing: 0.05em; padding: 2px 8px; background: #dcfce7; color: #166534; }
     .oflag-note { font-size: 12px; color: #6b7280; }
 
     button {
@@ -2937,21 +2945,65 @@
           const badges = item.kind === "order"
             ? item.flags.map((f) => `<span class="oflag-badge ${f.level}">${esc(f.text)}</span>`).join("")
             : `<span class="oflag-badge ${item.severity}">${esc(item.typeLabel)}</span>`;
+          const claimedByMe = item.kind === "pushed" && item.claimable && item.claimedByEmail;
           const main = item.kind === "order"
             ? `<strong>${esc(item.order.invoice)}</strong> — ${esc(item.order.name)}`
-            : `<strong>${esc(item.title)}</strong>${item.body ? " — " + esc(item.body) : ""}`;
+            : `<strong>${esc(item.title)}</strong>${item.body ? " — " + esc(item.body) : ""}${claimedByMe ? `<span class="oflag-mine">CLAIMED BY YOU</span>` : ""}`;
           const details = item.kind === "order"
             ? `<span class="oflag-badge status">${esc(item.order.jobStatus)}</span> ${esc(item.order.route || "No route")} · ${money(item.order.total)} total · ${money(item.order.balance)} due`
             : `From ${esc(item.createdByName || "Wilson leadership")}`;
+          // A claimable lead: Claim locks it to you (everyone else's copy
+          // vanishes); Unclaim releases it back to the pool; Close when
+          // you've worked it and the loop is closed.
+          const claimButton = item.kind === "pushed" && item.claimable
+            ? (claimedByMe
+                ? `<button type="button" class="oflag-claim unclaim" data-claim="${index}">Unclaim</button>`
+                : `<button type="button" class="oflag-claim" data-claim="${index}">Claim</button>`)
+            : "";
           return `
           <tr class="oflag-${item.severity}">
             <td>${badges}</td>
             <td>${main}</td>
             <td style="white-space: nowrap;">${esc(itemDate(item) === "9999" ? "" : itemDate(item))}</td>
             <td>${details}</td>
-            <td><button type="button" class="oflag-close" data-index="${index}">Close</button></td>
+            <td style="white-space: nowrap;">${claimButton}<button type="button" class="oflag-close" data-index="${index}">Close</button></td>
           </tr>`;
         }).join("");
+
+        body.querySelectorAll(".oflag-claim").forEach((button) => {
+          button.addEventListener("click", async () => {
+            const item = items[Number(button.dataset.claim)];
+            if (!item) return;
+            const releasing = button.classList.contains("unclaim");
+            button.disabled = true;
+            const note = document.getElementById("orderFlagsClosedNote");
+            try {
+              const res = await fetch(`/api/notifications/${encodeURIComponent(item.id)}/${releasing ? "unclaim" : "claim"}`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                credentials: "same-origin"
+              });
+              const result = await res.json().catch(() => ({}));
+              if (res.status === 409) {
+                // Someone beat them to it — the lead is gone from their list.
+                note.textContent = result.error || "That lead was already claimed.";
+                items = items.filter((other) => other !== item);
+                renderOrderFlags();
+                return;
+              }
+              if (!res.ok) throw new Error();
+              item.claimedByEmail = releasing ? "" : "me";
+              note.textContent = releasing
+                ? "Claim released — the lead is back in the pool for the team."
+                : "Lead claimed — it stays on your list until you close it. Everyone else's copy is gone.";
+              setTimeout(() => { note.textContent = ""; }, 12000);
+              renderOrderFlags();
+            } catch {
+              button.disabled = false;
+              button.textContent = "Try again";
+            }
+          });
+        });
 
         body.querySelectorAll(".oflag-close").forEach((button) => {
           button.addEventListener("click", async () => {

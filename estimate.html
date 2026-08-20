@@ -86,12 +86,14 @@
       let est = null;
 
       function firstName(name) {
-        // "McNALLEN, ELIZABETH \"BETTY\"" → prefer the nickname, else the given name.
+        // Prefer a quoted nickname ('Elizabeth "Betty" McNallen' → Betty).
+        // Names scan as "First Last" now, but older records may still be
+        // "LAST, FIRST" — handle both.
         const nick = String(name || "").match(/"([^"]+)"/);
-        if (nick) return nick[1].charAt(0) + nick[1].slice(1).toLowerCase();
-        const parts = String(name || "").split(",");
-        const given = (parts[1] || parts[0] || "").trim().split(/\s+/)[0] || "";
-        return given ? given.charAt(0) + given.slice(1).toLowerCase() : "there";
+        if (nick) return nick[1].charAt(0).toUpperCase() + nick[1].slice(1).toLowerCase();
+        const s = String(name || "").trim();
+        const given = (s.includes(",") ? (s.split(",")[1] || "").trim() : s).split(/\s+/)[0] || "";
+        return given ? given.charAt(0).toUpperCase() + given.slice(1).toLowerCase() : "there";
       }
 
       function doneCard(title, message) {
@@ -123,10 +125,13 @@
             how you'd like to move forward — nothing is charged today.
           </p>
           <table>
-            ${(s.parts || []).map((p) => `<tr><td>${p.qty > 1 ? p.qty + " × " : ""}${esc(p.description)}${p.model ? `<div class="model">Part ${esc(p.model)}</div>` : ""}</td><td class="amt">${money(p.ext)}</td></tr>`).join("")}
+            ${s.noLinePricing
+              ? `<tr><td>Repair parts &amp; labor</td><td class="amt">${money(s.subTotal)}</td></tr>`
+              : `
+            ${s.partsTotal ? `<tr><td>Parts</td><td class="amt">${money(s.partsTotal)}</td></tr>` : ""}
             ${s.laborEntries ? `<tr><td>Labor</td><td class="amt">${money(s.laborTotal)}</td></tr>` : ""}
             ${s.shippingTotal ? `<tr><td>Shipping &amp; handling</td><td class="amt">${money(s.shippingTotal)}</td></tr>` : ""}
-            <tr><td>Subtotal</td><td class="amt">${money(s.subTotal)}</td></tr>
+            <tr><td>Subtotal</td><td class="amt">${money(s.subTotal)}</td></tr>`}
             <tr><td>Sales tax</td><td class="amt">${money(s.tax)}</td></tr>
             <tr class="tot"><td>Estimate total</td><td class="amt">${money(s.invoiceTotal)}</td></tr>
           </table>

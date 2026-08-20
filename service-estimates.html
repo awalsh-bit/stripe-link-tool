@@ -106,9 +106,9 @@
         <div class="se-grid">
           <div class="se-field"><label>SV number</label><input id="seSv" readonly style="background:#f3f4f6;" /></div>
           <div class="se-field"><label>Client name</label><input id="seName" /></div>
-          <div class="se-field"><label>Phone (for texting the link)</label><input id="sePhone" type="tel" placeholder="512-555-0100" /></div>
+          <div class="se-field"><label>Phone</label><input id="sePhone" type="tel" placeholder="512-555-0100" /></div>
           <div class="se-field">
-            <label>Email (optional — nothing sends automatically)</label>
+            <label>Email</label>
             <input id="seEmail" type="email" placeholder="client@email.com" />
             <div class="se-hint" id="seEmailNote" style="display:none;"></div>
           </div>
@@ -118,6 +118,7 @@
               <option value="">Not specified</option>
               <option value="call">Prefers a call</option>
               <option value="text">Prefers text</option>
+              <option value="email">Prefers email</option>
             </select>
             <div class="se-hint" id="sePrefNote" style="display:none;"></div>
           </div>
@@ -230,29 +231,31 @@
         return `
           ${applianceLine(s)}
           <table>
-            ${(s.parts || []).map((p) => `<tr><td>${p.qty > 1 ? p.qty + " × " : ""}${esc(p.description)}${p.model ? ` <span style="color:var(--muted); font-size:11px;">${esc(p.model)}</span>` : ""}</td><td class="se-amt">${money(p.ext)}</td></tr>`).join("")}
-            ${s.laborEntries ? `<tr><td>Labor (${s.laborEntries} ${s.laborEntries === 1 ? "entry" : "entries"})</td><td class="se-amt">${money(s.laborTotal)}</td></tr>` : ""}
+            ${(s.parts || []).map((p) => `<tr><td>${p.qty > 1 ? p.qty + " × " : ""}${esc(p.description)}${p.model ? ` <span style="color:var(--muted); font-size:11px;">${esc(p.model)}</span>` : ""}</td><td class="se-amt">${p.ext == null ? "—" : money(p.ext)}</td></tr>`).join("")}
+            ${s.laborEntries ? `<tr><td>Labor (${s.laborEntries} ${s.laborEntries === 1 ? "entry" : "entries"})</td><td class="se-amt">${s.noLinePricing ? "—" : money(s.laborTotal)}</td></tr>` : ""}
             ${s.shippingTotal ? `<tr><td>Shipping &amp; handling</td><td class="se-amt">${money(s.shippingTotal)}</td></tr>` : ""}
             <tr><td>Subtotal</td><td class="se-amt">${money(s.subTotal)}</td></tr>
             <tr><td>Sales tax</td><td class="se-amt">${money(s.tax)}</td></tr>
             <tr class="se-tot"><td>Estimate total</td><td class="se-amt">${money(s.invoiceTotal)}</td></tr>
-          </table>`;
+          </table>
+          ${s.noLinePricing ? `<div class="se-hint">This print doesn't itemize prices — the client will see a single "Repair parts &amp; labor" line for the subtotal. (The client never sees part numbers on any format.)</div>` : ""}`;
       }
 
       function fillForm(s, knownEmail) {
         $("seSv").value = s.svNumber || "";
         $("seName").value = s.customerName || "";
         $("sePhone").value = s.phone || "";
-        $("sePref").value = ["call", "text"].includes(s.contactPref) ? s.contactPref : "";
+        const PREF_CHIP = { call: "CALL PREF", text: "TEXT PREF", email: "EMAIL PREF" };
+        $("sePref").value = PREF_CHIP[s.contactPref] ? s.contactPref : "";
         const prefNote = $("sePrefNote");
-        if (s.contactPref === "call" || s.contactPref === "text") {
-          prefNote.innerHTML = `<span class="se-chip">${s.contactPref === "call" ? "CALL PREF" : "TEXT PREF"}</span> from the work order — carries through to the sales lead.`;
+        if (PREF_CHIP[s.contactPref]) {
+          prefNote.innerHTML = `<span class="se-chip">${PREF_CHIP[s.contactPref]}</span> from the work order — carries through to the sales lead.`;
           prefNote.style.display = "block";
         } else { prefNote.style.display = "none"; }
         const emailNote = $("seEmailNote");
         if (knownEmail?.email) {
           $("seEmail").value = knownEmail.email;
-          emailNote.textContent = `Found on file — ${knownEmail.source || "existing record"}. Edit if it's wrong; nothing sends automatically.`;
+          emailNote.textContent = `Found on file — ${knownEmail.source || "existing record"}.`;
           emailNote.style.display = "block";
         } else {
           $("seEmail").value = "";
@@ -368,7 +371,7 @@
         const r = e.response || {};
         const directionText = { similar: "Something similar to the current unit", new: "Open to trying something new", unsure: "Not sure — wants help deciding" }[r.productDirection] || "";
         const visitText = { visit: "Wants to schedule a showroom visit", contact: "Wants a call/text first", info: "Just send information" }[r.visit] || "";
-        const prefChip = { call: "CALL PREF", text: "TEXT PREF" }[e.contactPref] || "";
+        const prefChip = { call: "CALL PREF", text: "TEXT PREF", email: "EMAIL PREF" }[e.contactPref] || "";
         $("soBody").innerHTML = `
           <div class="se-kv"><div class="k">Status</div><div><span class="pill ${esc(e.status)}">${PILL[e.status] || esc(e.status)}</span>${e.respondedAt ? " · " + when(e.respondedAt) : e.viewedAt ? " · viewed " + when(e.viewedAt) : ""}</div></div>
           <div class="se-kv"><div class="k">Contact</div><div>${esc([e.contactPhone, e.contactEmail].filter(Boolean).join(" · ") || "—")}${prefChip ? ` <span class="se-chip">${prefChip}</span>` : ""}</div></div>

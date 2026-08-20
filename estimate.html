@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="robots" content="noindex,nofollow,noarchive" />
+  <title>Your Service Estimate — Wilson AC &amp; Appliance</title>
+  <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+  <style>
+    :root {
+      --green: #21692c; --text: #1f2937; --muted: #6b7280; --border: #dbe1ea;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; font-family: "Roboto", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: linear-gradient(180deg, #eef5ee 0%, #f7f8fc 100%); color: var(--text);
+      min-height: 100vh; padding: 26px 16px 50px;
+    }
+    .wrap { max-width: 560px; margin: 0 auto; }
+    .brand { text-align: center; margin-bottom: 18px; }
+    .brand img { height: 46px; }
+    .brand .sub { font-size: 12px; color: var(--muted); margin-top: 4px; }
+    .card {
+      background: #fff; border-radius: 18px; box-shadow: 0 14px 45px rgba(0,0,0,0.1);
+      padding: 26px 24px; margin-bottom: 16px;
+    }
+    h1 { font-size: 21px; margin: 0 0 8px; }
+    .lead { color: var(--muted); font-size: 14px; line-height: 1.55; margin: 0 0 18px; }
+    table { width: 100%; border-collapse: collapse; font-size: 14px; }
+    td { padding: 8px 4px; border-bottom: 1px dashed #eef1f6; vertical-align: top; }
+    tr:last-child td { border-bottom: none; }
+    .amt { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .model { color: var(--muted); font-size: 11.5px; }
+    .tot td { font-weight: 800; font-size: 16px; border-top: 2px solid var(--border); }
+    .btn {
+      display: block; width: 100%; border: none; border-radius: 12px; cursor: pointer;
+      font-family: inherit; font-size: 15px; font-weight: 700; padding: 15px; margin-top: 12px; text-align: center;
+    }
+    .btn.approve { background: var(--green); color: #fff; }
+    .btn.shop { background: #fff; color: var(--text); border: 1.5px solid var(--border); }
+    .btn:disabled { opacity: 0.6; cursor: wait; }
+    .fine { font-size: 12px; color: var(--muted); line-height: 1.5; margin-top: 14px; }
+    .fine a { color: var(--green); font-weight: 700; text-decoration: none; }
+
+    /* shop form */
+    .shop-form { display: none; margin-top: 16px; border-top: 1px solid var(--border); padding-top: 16px; }
+    .shop-form.show { display: block; }
+    .q { font-size: 13.5px; font-weight: 700; margin: 14px 0 8px; }
+    .opt {
+      display: flex; gap: 10px; align-items: flex-start; border: 1.5px solid var(--border);
+      border-radius: 12px; padding: 11px 13px; margin-bottom: 8px; cursor: pointer; font-size: 13.5px;
+    }
+    .opt input { margin-top: 2px; accent-color: var(--green); width: 16px; height: 16px; flex: none; }
+    .opt.on { border-color: var(--green); background: #f2f8f2; }
+    textarea {
+      width: 100%; border: 1px solid var(--border); border-radius: 12px; padding: 11px 13px;
+      font-family: inherit; font-size: 14px; min-height: 84px; resize: vertical;
+    }
+    textarea:focus { outline: none; border-color: var(--green); }
+    .err { display: none; background: #fee2e2; color: #991b1b; border-radius: 10px; padding: 10px 13px; font-size: 13px; margin-top: 12px; }
+    .err.show { display: block; }
+    .done { text-align: center; padding: 12px 0 4px; }
+    .done .check { width: 62px; height: 62px; border-radius: 50%; background: var(--green); color: #fff; font-size: 34px; line-height: 62px; margin: 0 auto 14px; }
+    .done h2 { font-size: 19px; margin: 0 0 8px; }
+    .done p { color: var(--muted); font-size: 14px; line-height: 1.55; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="brand">
+      <img src="logo-black.png" alt="Wilson AC &amp; Appliance" onerror="this.style.display='none'" />
+      <div class="sub">Wilson AC &amp; Appliance · Dripping Springs, TX · <a href="tel:512-894-0907" style="color:var(--green); text-decoration:none;">512-894-0907</a></div>
+    </div>
+
+    <div class="card" id="mainCard">
+      <p class="lead" id="loading">Loading your estimate…</p>
+    </div>
+  </div>
+
+  <script>
+    (function () {
+      const $ = (id) => document.getElementById(id);
+      const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch]));
+      const money = (n) => "$" + Number(n || 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      const token = new URLSearchParams(location.search).get("e") || "";
+      let est = null;
+
+      function firstName(name) {
+        // "McNALLEN, ELIZABETH \"BETTY\"" → prefer the nickname, else the given name.
+        const nick = String(name || "").match(/"([^"]+)"/);
+        if (nick) return nick[1].charAt(0) + nick[1].slice(1).toLowerCase();
+        const parts = String(name || "").split(",");
+        const given = (parts[1] || parts[0] || "").trim().split(/\s+/)[0] || "";
+        return given ? given.charAt(0) + given.slice(1).toLowerCase() : "there";
+      }
+
+      function doneCard(title, message) {
+        $("mainCard").innerHTML = `
+          <div class="done">
+            <div class="check">✓</div>
+            <h2>${esc(title)}</h2>
+            <p>${message}</p>
+            <p style="font-size:12.5px;">Questions? Call or text <a href="tel:512-894-0907" style="color:var(--green); font-weight:700; text-decoration:none;">512-894-0907</a>.</p>
+          </div>`;
+        window.scrollTo({ top: 0 });
+      }
+
+      function render() {
+        const s = est.summary || {};
+        if (est.status === "approved") {
+          return doneCard("Estimate approved", "Thanks — our service team will reach out to get your repair scheduled.");
+        }
+        if (est.status === "shopping") {
+          return doneCard("We're on it", "Thanks for letting us know — a Wilson consultant will reach out shortly to talk replacement options.");
+        }
+        $("mainCard").innerHTML = `
+          <h1>Hi ${esc(firstName(est.customerName))} — your estimate is ready.</h1>
+          <p class="lead">
+            Here's the summary for ${est.estimateName ? `<strong>${esc(est.estimateName)}</strong> (` : ""}service
+            ticket <strong>${esc(est.svNumber || "—")}</strong>${est.estimateName ? ")" : ""}. Review it, then choose
+            how you'd like to move forward — nothing is charged today.
+          </p>
+          <table>
+            ${(s.parts || []).map((p) => `<tr><td>${p.qty > 1 ? p.qty + " × " : ""}${esc(p.description)}${p.model ? `<div class="model">Part ${esc(p.model)}</div>` : ""}</td><td class="amt">${money(p.ext)}</td></tr>`).join("")}
+            ${s.laborEntries ? `<tr><td>Labor</td><td class="amt">${money(s.laborTotal)}</td></tr>` : ""}
+            ${s.shippingTotal ? `<tr><td>Shipping &amp; handling</td><td class="amt">${money(s.shippingTotal)}</td></tr>` : ""}
+            <tr><td>Subtotal</td><td class="amt">${money(s.subTotal)}</td></tr>
+            <tr><td>Sales tax</td><td class="amt">${money(s.tax)}</td></tr>
+            <tr class="tot"><td>Estimate total</td><td class="amt">${money(s.invoiceTotal)}</td></tr>
+          </table>
+
+          <button type="button" class="btn approve" id="approveBtn">Approve this estimate</button>
+          <button type="button" class="btn shop" id="shopBtn">I'd rather shop for a replacement</button>
+
+          <div class="shop-form" id="shopForm">
+            <div class="q">No problem — what are you thinking?</div>
+            <label class="opt"><input type="radio" name="direction" value="similar"><span>Something <strong>similar</strong> to what I have now</span></label>
+            <label class="opt"><input type="radio" name="direction" value="new"><span>I'd like to <strong>try something new</strong></span></label>
+            <label class="opt"><input type="radio" name="direction" value="unsure"><span>Not sure yet — <strong>help me decide</strong></span></label>
+
+            <div class="q">Would you like to visit the showroom?</div>
+            <label class="opt"><input type="radio" name="visit" value="visit"><span>Yes — help me <strong>schedule a visit</strong></span></label>
+            <label class="opt"><input type="radio" name="visit" value="contact"><span><strong>Call or text me</strong> first</span></label>
+            <label class="opt"><input type="radio" name="visit" value="info"><span>Just <strong>send me options</strong> to look at</span></label>
+
+            <div class="q">Anything else we should know? <span style="font-weight:400; color:var(--muted);">(optional)</span></div>
+            <textarea id="shopNotes" placeholder="Brand or color preferences, sizes, budget, timing…"></textarea>
+
+            <button type="button" class="btn approve" id="shopSubmit" style="background:#3730a3;">Send to the Wilson team</button>
+          </div>
+
+          <div class="err" id="respErr"></div>
+          <p class="fine">
+            This estimate reflects the parts and labor quoted for your service ticket; final billing follows the
+            completed work. Prefer to talk it through? Call or text <a href="tel:512-894-0907">512-894-0907</a>.
+          </p>`;
+
+        document.querySelectorAll(".opt input").forEach((r) => r.addEventListener("change", () => {
+          document.querySelectorAll(`.opt input[name='${r.name}']`).forEach((o) => o.closest(".opt").classList.toggle("on", o.checked));
+        }));
+        $("approveBtn").addEventListener("click", () => respond({ choice: "approve" }, $("approveBtn")));
+        $("shopBtn").addEventListener("click", () => {
+          $("shopForm").classList.add("show");
+          $("shopBtn").style.display = "none";
+          $("shopForm").scrollIntoView({ behavior: "smooth", block: "start" });
+        });
+        $("shopSubmit").addEventListener("click", () => {
+          const direction = document.querySelector(".opt input[name='direction']:checked")?.value || "";
+          const visit = document.querySelector(".opt input[name='visit']:checked")?.value || "";
+          respond({ choice: "shop", productDirection: direction, visit, notes: $("shopNotes").value.trim() }, $("shopSubmit"));
+        });
+      }
+
+      async function respond(payload, btn) {
+        const errBox = $("respErr");
+        errBox.classList.remove("show");
+        btn.disabled = true;
+        try {
+          const res = await fetch("/api/estimate/respond", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ token, ...payload })
+          });
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok) throw new Error(data.error || "Something went wrong — please call us.");
+          est.status = data.status;
+          render();
+        } catch (err) {
+          errBox.textContent = err.message;
+          errBox.classList.add("show");
+          btn.disabled = false;
+        }
+      }
+
+      (async () => {
+        try {
+          const res = await fetch("/api/estimate/view", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ token })
+          });
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok) throw new Error(data.error || "This estimate link isn't valid.");
+          est = data;
+          render();
+        } catch (err) {
+          $("mainCard").innerHTML = `<h1>Hmm — we can't find that estimate.</h1>
+            <p class="lead">${esc(err.message)}</p>`;
+        }
+      })();
+    })();
+  </script>
+</body>
+</html>

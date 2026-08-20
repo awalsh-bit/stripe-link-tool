@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="robots" content="noindex,nofollow,noarchive" />
+  <title>Wilson AC &amp; Appliance - Service Estimate Approvals</title>
+  <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+  <link rel="stylesheet" href="internal-shell.css" />
+  <style>
+    :root {
+      --bg: #f7f8fc; --card: #ffffff; --text: #1f2937; --muted: #6b7280;
+      --border: #dbe1ea; --shadow: 0 10px 35px rgba(0, 0, 0, 0.08); --radius: 18px;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; font-family: "Roboto", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: linear-gradient(180deg, var(--primary-tint) 0%, var(--bg) 100%);
+      color: var(--text); min-height: 100vh; padding: 32px 16px;
+    }
+    .wrap { max-width: 1480px; margin: 0 auto; }
+    .surface {
+      background: var(--card); border: 1px solid rgba(var(--primary-rgb), 0.12);
+      box-shadow: var(--shadow); border-radius: var(--radius); padding: 22px; margin: 0 auto 20px;
+    }
+    h2 { margin: 0 0 6px; font-size: 20px; }
+    .section-note { margin: 0 0 14px; color: var(--muted); font-size: 13.5px; line-height: 1.5; }
+    .se-status { display: none; border-radius: 12px; padding: 10px 13px; font-size: 13px; margin-bottom: 12px; line-height: 1.5; }
+    .se-status.show { display: block; }
+    .se-status.ok { background: rgba(var(--primary-rgb), 0.1); color: var(--primary); }
+    .se-status.error { background: #fee2e2; color: #991b1b; }
+    .se-status.warn { background: #fffbeb; color: #92400e; }
+
+    .se-btn { border: none; border-radius: 10px; cursor: pointer; font-size: 12.5px; font-weight: 700; padding: 9px 14px; font-family: inherit; }
+    .se-btn:disabled { opacity: 0.55; cursor: wait; }
+    .se-btn.primary { background: var(--primary); color: #fff; }
+    .se-btn.quiet { background: #fff; color: #374151; border: 1px solid var(--border); }
+
+    .se-form { display: none; }
+    .se-form.show { display: block; }
+    .se-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin: 14px 0; }
+    .se-field label { display: block; font-size: 11.5px; font-weight: 800; letter-spacing: 0.05em; text-transform: uppercase; color: #64748b; margin-bottom: 6px; }
+    .se-field input {
+      width: 100%; border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px;
+      font-size: 13.5px; font-family: inherit;
+    }
+    .se-field input:focus { outline: none; border-color: rgba(var(--primary-rgb), 0.75); box-shadow: 0 0 0 4px rgba(var(--primary-rgb), 0.12); }
+
+    .se-summary { border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px; margin: 6px 0 14px; background: #fbfcfe; }
+    .se-summary table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    .se-summary td { padding: 5px 4px; border-bottom: 1px dashed #eef1f6; }
+    .se-summary tr:last-child td { border-bottom: none; }
+    .se-amt { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .se-tot td { font-weight: 800; border-top: 2px solid var(--border); }
+
+    table.se-list { width: 100%; border-collapse: collapse; font-size: 13px; }
+    .se-list th, .se-list td { text-align: left; padding: 9px 11px; border-bottom: 1px solid #eef1f6; white-space: nowrap; }
+    .se-list th { font-size: 11.5px; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; color: #64748b; }
+    .se-list tbody tr { cursor: pointer; }
+    .se-list tbody tr:hover td { background: var(--primary-faint-2, #f8fafc); }
+    .pill { border-radius: 999px; font-size: 10.5px; font-weight: 800; padding: 3px 10px; letter-spacing: 0.04em; }
+    .pill.sent { background: #f1f5f9; color: #64748b; }
+    .pill.viewed { background: #fffbeb; color: #92400e; }
+    .pill.approved { background: rgba(var(--primary-rgb), 0.12); color: var(--primary); }
+    .pill.shopping { background: #eef2ff; color: #3730a3; }
+
+    .se-overlay { display: none; position: fixed; inset: 0; background: rgba(15,23,42,0.45); z-index: 60; align-items: center; justify-content: center; padding: 18px; }
+    .se-overlay.show { display: flex; }
+    .se-panel { background: #fff; border-radius: 16px; box-shadow: 0 24px 60px rgba(0,0,0,0.25); width: 100%; max-width: 560px; max-height: 88vh; overflow: auto; padding: 22px; }
+    .se-panel h3 { margin: 0 0 10px; font-size: 17px; }
+    .se-kv { display: flex; gap: 10px; font-size: 13px; padding: 6px 0; border-bottom: 1px dashed #eef1f6; }
+    .se-kv .k { width: 130px; flex-shrink: 0; font-size: 11px; font-weight: 800; letter-spacing: 0.05em; text-transform: uppercase; color: #64748b; padding-top: 2px; }
+    .se-resp { background: #eef2ff; border-radius: 10px; padding: 10px 12px; font-size: 13px; line-height: 1.5; margin-top: 10px; }
+  </style>
+</head>
+<body data-shell-label="Service Estimate Approvals" data-shell-icon="service">
+  <div class="wrap">
+    <div id="internal-shell-header"></div>
+
+    <div class="surface">
+      <div class="page-head">
+        <h2>Send an estimate for approval</h2>
+        <p class="section-note">
+          Upload the ePASS service quote print (SV… PDF). The scanner builds a client-friendly
+          summary of parts, labor, and sales tax; the client's link lets them <strong>approve the repair</strong>
+          or <strong>shop for a replacement</strong> — a shopping answer notifies the showroom team like a new
+          web order, and an approval flags whoever sent it.
+        </p>
+      </div>
+      <div id="seStatus" class="se-status"></div>
+
+      <input type="file" id="seFile" accept=".pdf" style="display:none;" />
+      <button type="button" class="se-btn primary" id="seScanBtn">Scan a service quote PDF</button>
+
+      <div class="se-form" id="seForm">
+        <div class="se-grid">
+          <div class="se-field"><label>SV number</label><input id="seSv" readonly style="background:#f3f4f6;" /></div>
+          <div class="se-field"><label>Client name</label><input id="seName" /></div>
+          <div class="se-field"><label>Phone (for texting the link)</label><input id="sePhone" type="tel" placeholder="512-555-0100" /></div>
+          <div class="se-field"><label>Email (sends the link automatically)</label><input id="seEmail" type="email" placeholder="client@email.com" /></div>
+          <div class="se-field"><label>Estimate name (optional)</label><input id="seLabel" placeholder="e.g. Sub-Zero sealed system repair" /></div>
+        </div>
+        <div class="se-summary" id="seSummary"></div>
+        <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+          <button type="button" class="se-btn primary" id="seCreate">Create &amp; send approval link</button>
+          <button type="button" class="se-btn quiet" id="seCancelForm">Start over</button>
+          <span id="seLinkOut" style="font-size:12.5px;"></span>
+        </div>
+      </div>
+    </div>
+
+    <div class="surface">
+      <h2>Estimates</h2>
+      <p class="section-note">Newest first. Click a row for the client's response and the link.</p>
+      <div style="overflow-x:auto;">
+        <table class="se-list">
+          <thead><tr><th>Created</th><th>SV #</th><th>Client</th><th>Total</th><th>Contact</th><th>Status</th><th>Sent by</th></tr></thead>
+          <tbody id="seBody"><tr><td colspan="7" class="section-note">Loading…</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div id="internal-shell-footer"></div>
+  </div>
+
+  <div class="se-overlay" id="seOverlay">
+    <div class="se-panel">
+      <h3 id="soTitle"></h3>
+      <div id="soBody"></div>
+      <div style="display:flex; gap:10px; margin-top:16px;">
+        <button type="button" class="se-btn quiet" id="soCopy">Copy client link</button>
+        <span style="flex:1;"></span>
+        <button type="button" class="se-btn quiet" id="soClose">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="internal-shell.js"></script>
+  <script>
+    (function () {
+      const $ = (id) => document.getElementById(id);
+      const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch]));
+      const money = (n) => "$" + Number(n || 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      const when = (iso) => iso ? new Date(iso).toLocaleString("en-US", { month: "2-digit", day: "2-digit", year: "2-digit", hour: "numeric", minute: "2-digit" }) : "—";
+
+      const state = { summary: null, estimates: [], publicHost: "", open: null };
+
+      function setStatus(message, kind) {
+        const box = $("seStatus");
+        if (!message) { box.className = "se-status"; box.textContent = ""; return; }
+        box.className = "se-status " + kind + " show";
+        box.textContent = message;
+      }
+
+      async function api(path, options) {
+        const res = await fetch(path, { credentials: "same-origin", headers: { "Content-Type": "application/json" }, ...options });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error || "Request failed.");
+        return data;
+      }
+
+      // ---- scan ----
+      $("seScanBtn").addEventListener("click", () => $("seFile").click());
+      $("seFile").addEventListener("change", async () => {
+        const file = $("seFile").files[0];
+        if (!file) return;
+        setStatus("Scanning " + file.name + "…", "ok");
+        $("seScanBtn").disabled = true;
+        try {
+          const form = new FormData();
+          form.append("quote", file);
+          const res = await fetch("/api/service-estimates/scan", { method: "POST", credentials: "same-origin", body: form });
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok) throw new Error(data.error || "Couldn't read that PDF.");
+          state.summary = data.summary;
+          fillForm(data.summary);
+          setStatus(data.summary.warnings?.length ? data.summary.warnings.join(" ") : "Scanned — check the summary, add contact info, and send.", data.summary.warnings?.length ? "warn" : "ok");
+        } catch (err) {
+          setStatus(err.message, "error");
+        } finally {
+          $("seScanBtn").disabled = false;
+          $("seFile").value = "";
+        }
+      });
+
+      function summaryHtml(s) {
+        return `
+          <table>
+            ${(s.parts || []).map((p) => `<tr><td>${p.qty > 1 ? p.qty + " × " : ""}${esc(p.description)}${p.model ? ` <span style="color:var(--muted); font-size:11px;">${esc(p.model)}</span>` : ""}</td><td class="se-amt">${money(p.ext)}</td></tr>`).join("")}
+            ${s.laborEntries ? `<tr><td>Labor (${s.laborEntries} ${s.laborEntries === 1 ? "entry" : "entries"})</td><td class="se-amt">${money(s.laborTotal)}</td></tr>` : ""}
+            ${s.shippingTotal ? `<tr><td>Shipping &amp; handling</td><td class="se-amt">${money(s.shippingTotal)}</td></tr>` : ""}
+            <tr><td>Subtotal</td><td class="se-amt">${money(s.subTotal)}</td></tr>
+            <tr><td>Sales tax</td><td class="se-amt">${money(s.tax)}</td></tr>
+            <tr class="se-tot"><td>Estimate total</td><td class="se-amt">${money(s.invoiceTotal)}</td></tr>
+          </table>`;
+      }
+
+      function fillForm(s) {
+        $("seSv").value = s.svNumber || "";
+        $("seName").value = s.customerName || "";
+        $("seSummary").innerHTML = summaryHtml(s);
+        $("seLinkOut").textContent = "";
+        $("seForm").classList.add("show");
+      }
+
+      $("seCancelForm").addEventListener("click", () => {
+        state.summary = null;
+        $("seForm").classList.remove("show");
+        setStatus("", "");
+      });
+
+      // ---- create ----
+      $("seCreate").addEventListener("click", async () => {
+        const btn = $("seCreate");
+        btn.disabled = true;
+        try {
+          const data = await api("/api/service-estimates", {
+            method: "POST",
+            body: JSON.stringify({
+              svNumber: $("seSv").value,
+              estimateName: $("seLabel").value.trim(),
+              customerName: $("seName").value.trim(),
+              customerNumber: state.summary?.customerNumber || "",
+              contactPhone: $("sePhone").value.trim(),
+              contactEmail: $("seEmail").value.trim(),
+              summary: state.summary
+            })
+          });
+          $("seLinkOut").innerHTML = `<a href="${esc(data.url)}" target="_blank" rel="noopener" style="color:var(--primary); font-weight:700;">${esc(data.url)}</a>`;
+          try { await navigator.clipboard.writeText(data.url); } catch {}
+          setStatus(`Link created${data.emailed ? " and emailed to the client" : ""} — it's on your clipboard${$("sePhone").value.trim() ? ", ready to text" : ""}.`, "ok");
+          $("seForm").classList.remove("show");
+          state.summary = null;
+          ["seSv", "seName", "sePhone", "seEmail", "seLabel"].forEach((id) => { $(id).value = ""; });
+          await load();
+        } catch (err) {
+          setStatus(err.message, "error");
+        } finally {
+          btn.disabled = false;
+        }
+      });
+
+      // ---- list ----
+      const PILL = { sent: "Sent", viewed: "Viewed", approved: "Approved", shopping: "Shopping" };
+      function render() {
+        const body = $("seBody");
+        if (!state.estimates.length) {
+          body.innerHTML = `<tr><td colspan="7" class="section-note">No estimates yet — scan a quote above to send the first one.</td></tr>`;
+          return;
+        }
+        body.innerHTML = state.estimates.map((e, i) => `
+          <tr data-idx="${i}">
+            <td>${when(e.createdAt)}</td>
+            <td><strong>${esc(e.svNumber || "—")}</strong></td>
+            <td>${esc(e.customerName)}</td>
+            <td>${money(e.summary?.invoiceTotal)}</td>
+            <td>${esc([e.contactPhone, e.contactEmail].filter(Boolean).join(" / ") || "—")}</td>
+            <td><span class="pill ${esc(e.status)}">${PILL[e.status] || esc(e.status)}</span></td>
+            <td>${esc(e.createdByName || e.createdByEmail || "—")}</td>
+          </tr>`).join("");
+        body.querySelectorAll("tr[data-idx]").forEach((tr) => {
+          tr.addEventListener("click", () => openDetail(state.estimates[Number(tr.dataset.idx)]));
+        });
+      }
+
+      function openDetail(e) {
+        state.open = e;
+        $("soTitle").textContent = `${e.customerName} — ${e.svNumber || "service estimate"}`;
+        const r = e.response || {};
+        const directionText = { similar: "Something similar to the current unit", new: "Open to trying something new", unsure: "Not sure — wants help deciding" }[r.productDirection] || "";
+        const visitText = { visit: "Wants to schedule a showroom visit", contact: "Wants a call/text first", info: "Just send information" }[r.visit] || "";
+        $("soBody").innerHTML = `
+          <div class="se-kv"><div class="k">Status</div><div><span class="pill ${esc(e.status)}">${PILL[e.status] || esc(e.status)}</span>${e.respondedAt ? " · " + when(e.respondedAt) : e.viewedAt ? " · viewed " + when(e.viewedAt) : ""}</div></div>
+          <div class="se-kv"><div class="k">Contact</div><div>${esc([e.contactPhone, e.contactEmail].filter(Boolean).join(" · ") || "—")}</div></div>
+          <div class="se-kv"><div class="k">Sent</div><div>${when(e.createdAt)} by ${esc(e.createdByName || e.createdByEmail || "—")}</div></div>
+          <div class="se-summary" style="margin-top:12px;">${summaryHtml(e.summary || {})}</div>
+          ${e.status === "shopping" ? `<div class="se-resp"><strong>Shopping for a replacement.</strong><br>${[directionText, visitText].filter(Boolean).map(esc).join("<br>")}${r.notes ? `<br>“${esc(r.notes)}”` : ""}<br><span style="color:var(--muted); font-size:12px;">Showroom team was notified — lead is up for grabs.</span></div>` : ""}
+          ${e.status === "approved" ? `<div class="se-resp" style="background: rgba(var(--primary-rgb), 0.1);"><strong>Approved.</strong> Schedule the repair.</div>` : ""}`;
+        $("seOverlay").classList.add("show");
+      }
+
+      $("soClose").addEventListener("click", () => $("seOverlay").classList.remove("show"));
+      $("seOverlay").addEventListener("click", (ev) => { if (ev.target === $("seOverlay")) $("seOverlay").classList.remove("show"); });
+      $("soCopy").addEventListener("click", async () => {
+        if (!state.open) return;
+        const url = `https://${state.publicHost}/estimate.html?e=${state.open.token}`;
+        try { await navigator.clipboard.writeText(url); $("soCopy").textContent = "Copied ✓"; setTimeout(() => { $("soCopy").textContent = "Copy client link"; }, 1500); } catch {}
+      });
+
+      async function load() {
+        try {
+          const data = await api("/api/service-estimates");
+          state.estimates = data.estimates || [];
+          state.publicHost = data.publicHost || location.host;
+          render();
+        } catch (err) {
+          setStatus(err.message, "error");
+        }
+      }
+
+      load();
+    })();
+  </script>
+</body>
+</html>

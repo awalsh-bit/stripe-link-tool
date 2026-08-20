@@ -1038,7 +1038,8 @@
       btn.addEventListener("click", async () => {
         btn.disabled = true;
         try { await handler(); }
-        catch (err) { setStatus("upError", err.message, "error"); btn.disabled = false; }
+        catch (err) { setStatus("upError", err.message, "error"); }
+        finally { btn.disabled = false; } // confirm-cancel must not dead-end the button
       });
       return btn;
     }

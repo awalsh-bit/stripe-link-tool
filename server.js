@@ -200,6 +200,14 @@ import {
   getRevenuePerformance
 } from "./lib/revenue-performance-postgres.js";
 import {
+  extractServiceEstimateFromPdf,
+  createServiceEstimate,
+  listServiceEstimates,
+  getServiceEstimateByToken,
+  markServiceEstimateViewed,
+  saveServiceEstimateResponse
+} from "./lib/service-estimates-postgres.js";
+import {
   parseInvoiceMaintenanceQuotes,
   replaceOpenQuotes,
   saveQuoteDisposition,
@@ -335,6 +343,9 @@ const SERVICE_PUBLIC_PATHS = new Set([
   "/terms.html",
   "/terms-sign.html",
   "/card-saved.html",
+  "/estimate.html",
+  "/api/estimate/view",
+  "/api/estimate/respond",
   "/subzero",
   "/subzero.html",
   "/api/subzero/inquiry",
@@ -454,6 +465,7 @@ const INTERNAL_PAGE_PATHS = new Set([
   "/sales-order-health.html",
   "/quote-follow-up.html",
   "/epass-uploads.html",
+  "/service-estimates.html",
   "/service-order-health.html",
   "/terms-signatures.html",
   "/flag-closures.html",
@@ -560,6 +572,7 @@ const JOB_CODE_PRESETS = {
     pages: [
       "/appliance-service-calls.html",
       "/archive-service-calls.html",
+      "/service-estimates.html",
       "/service-order-health.html",
       "/shopper-profiles.html",
       "/intent-lookup.html",
@@ -652,6 +665,7 @@ const PAGE_LABELS = {
   "/sales-order-health.html": "Sales Order Health Report",
   "/quote-follow-up.html": "Quote Follow-Up",
   "/epass-uploads.html": "ePASS Upload Center",
+  "/service-estimates.html": "Service Estimate Approvals",
   "/terms-signatures.html": "Terms & Conditions Signatures",
   "/service-order-health.html": "Service Order Health",
   "/flag-closures.html": "Notification Closure Report",
@@ -710,6 +724,7 @@ const PAGE_CATEGORIES = [
     pages: [
       "/appliance-service-calls.html",
       "/archive-service-calls.html",
+      "/service-estimates.html",
       "/service-order-health.html",
       "/shopper-profiles.html",
       "/intent-lookup.html",
@@ -5420,6 +5435,232 @@ async function pushWebOrderFlags({ orderNumber, customerName, total, models, ful
     });
   }
 }
+
+// INTERNAL + PUBLIC: Service Estimate Approvals — Client Care scans the
+// ePASS service quote PDF, sends the client a link; the client approves or
+// asks to shop for a replacement (which fires the showroom-lead fan-out,
+// same routing as new web orders).
+const estimatePdfUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
+
+app.post("/api/service-estimates/scan", requirePagePermission("/service-estimates.html"), (req, res) => {
+  estimatePdfUpload.single("quote")(req, res, async (err) => {
+    if (err) {
+      return res.status(400).json({ error: err.code === "LIMIT_FILE_SIZE" ? "That PDF is over the 10 MB limit." : "Upload failed — please try again." });
+    }
+    try {
+      if (!req.file?.buffer?.length) return res.status(400).json({ error: "Attach the ePASS service quote PDF." });
+      const summary = extractServiceEstimateFromPdf(req.file.buffer);
+      return res.json({ ok: true, summary });
+    } catch (scanErr) {
+      return res.status(400).json({ error: scanErr.message || "Couldn't read that PDF." });
+    }
+  });
+});
+
+app.post("/api/service-estimates", requirePagePermission("/service-estimates.html"), async (req, res) => {
+  try {
+    const { svNumber = "", estimateName = "", customerName = "", customerNumber = "", contactPhone = "", contactEmail = "", summary = null } = req.body || {};
+    if (!String(customerName).trim()) return res.status(400).json({ error: "The client's name is required." });
+    if (!String(contactPhone).trim() && !String(contactEmail).trim()) {
+      return res.status(400).json({ error: "Add a phone number or email so the client can be reached." });
+    }
+    if (!summary || (summary.invoiceTotal == null && summary.subTotal == null)) {
+      return res.status(400).json({ error: "Scan the quote PDF first — the summary is missing its totals." });
+    }
+    const estimate = await createServiceEstimate({
+      svNumber, estimateName, customerName, customerNumber, contactPhone, contactEmail, summary,
+      byEmail: req.authUser?.email || req.authUser?.username || "",
+      byName: req.authUser?.displayName || ""
+    });
+    const url = `https://${SERVICE_PUBLIC_HOST}/estimate.html?e=${estimate.token}`;
+
+    let emailed = false;
+    const to = String(contactEmail || "").trim().toLowerCase();
+    if (RESEND_API_KEY && to) {
+      const firstName = String(customerName).trim().split(/[\s,]+/).pop() || "there";
+      const html = buildAuthEmailHtml(
+        "Your Wilson service estimate is ready",
+        [
+          `Your repair estimate${estimate.svNumber ? ` (${estimate.svNumber})` : ""} from Wilson AC & Appliance is ready to review.`,
+          "It takes about a minute: see the parts, labor, and tax breakdown, then approve the repair — or let us know you'd rather shop for a replacement."
+        ],
+        "Review Your Estimate",
+        url,
+        "Questions? Call us at 512-894-0907."
+      );
+      try {
+        const r = await fetch("https://api.resend.com/emails", {
+          method: "POST",
+          headers: { "Authorization": `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" },
+          body: JSON.stringify({
+            from: SHOP_ORDER_NOTIFY_FROM,
+            to: [to],
+            subject: `Your Wilson service estimate${estimate.svNumber ? " — " + estimate.svNumber : ""}`,
+            text: `Your repair estimate is ready to review and approve: ${url}`,
+            html
+          })
+        });
+        emailed = r.ok;
+        if (!r.ok) console.error("Estimate email failed:", r.status, (await r.text()).slice(0, 200));
+      } catch (mailErr) {
+        console.error("Estimate email failed:", mailErr.message);
+      }
+    }
+
+    recordAudit({
+      ip: req.ip, actorUserId: req.authUser?.id || null,
+      action: "service_estimate_created", targetUserId: null,
+      detail: { svNumber: estimate.svNumber, customerName: estimate.customerName, total: summary.invoiceTotal, emailed }
+    }).catch(() => {});
+
+    return res.json({ ok: true, estimate, url, emailed });
+  } catch (err) {
+    console.error("Service estimate create failed:", err.message);
+    return res.status(500).json({ error: "Unable to create the estimate link." });
+  }
+});
+
+app.get("/api/service-estimates", requirePagePermission("/service-estimates.html"), async (req, res) => {
+  try {
+    return res.json({ estimates: await listServiceEstimates(), publicHost: SERVICE_PUBLIC_HOST });
+  } catch (err) {
+    console.error("Service estimate list failed:", err.message);
+    return res.status(500).json({ error: "Unable to load estimates." });
+  }
+});
+
+// PUBLIC: the client's view of one estimate (marks it viewed).
+app.post("/api/estimate/view", async (req, res) => {
+  try {
+    const token = String(req.body?.token || "").slice(0, 60);
+    const estimate = await getServiceEstimateByToken(token);
+    if (!estimate) return res.status(404).json({ error: "This estimate link isn't valid — call us at 512-894-0907 and we'll get you a fresh one." });
+    if (estimate.status === "sent") await markServiceEstimateViewed(token);
+    return res.json({
+      svNumber: estimate.svNumber,
+      estimateName: estimate.estimateName,
+      customerName: estimate.customerName,
+      summary: estimate.summary,
+      status: estimate.status === "sent" ? "viewed" : estimate.status,
+      response: estimate.response || {}
+    });
+  } catch (err) {
+    console.error("Estimate view failed:", err.message);
+    return res.status(500).json({ error: "Unable to load this estimate right now." });
+  }
+});
+
+// PUBLIC: the client's decision. First response wins.
+app.post("/api/estimate/respond", async (req, res) => {
+  try {
+    const token = String(req.body?.token || "").slice(0, 60);
+    const choice = String(req.body?.choice || "");
+    if (!["approve", "shop"].includes(choice)) return res.status(400).json({ error: "Choose an option." });
+    const existing = await getServiceEstimateByToken(token);
+    if (!existing) return res.status(404).json({ error: "This estimate link isn't valid." });
+    if (["approved", "shopping"].includes(existing.status)) {
+      return res.json({ ok: true, status: existing.status, alreadyResponded: true });
+    }
+    const estimate = await saveServiceEstimateResponse(token, {
+      choice,
+      productDirection: req.body?.productDirection,
+      visit: req.body?.visit,
+      notes: req.body?.notes
+    });
+    if (!estimate) return res.status(409).json({ error: "This estimate was already answered." });
+
+    recordAudit({
+      ip: req.ip, actorUserId: null,
+      action: choice === "approve" ? "service_estimate_approved" : "service_estimate_shopping",
+      targetUserId: null,
+      detail: { svNumber: estimate.svNumber, customerName: estimate.customerName, response: estimate.response }
+    }).catch(() => {});
+
+    if (choice === "approve") {
+      // Tell the Client Care rep who sent it (flag + email).
+      if (estimate.createdByEmail) {
+        createPushedNotification({
+          severity: "green",
+          typeLabel: "Estimate Approved",
+          refId: `svest:${estimate.token}`,
+          title: `${estimate.customerName} approved ${estimate.svNumber || "their estimate"} — $${Number(estimate.summary?.invoiceTotal || 0).toLocaleString("en-US", { minimumFractionDigits: 2 })}`,
+          body: "Schedule the repair.",
+          audienceEmail: estimate.createdByEmail,
+          byEmail: "service-estimates",
+          byName: "Estimate Approvals"
+        }).catch(() => {});
+        if (RESEND_API_KEY) {
+          fetch("https://api.resend.com/emails", {
+            method: "POST",
+            headers: { "Authorization": `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" },
+            body: JSON.stringify({
+              from: SHOP_ORDER_NOTIFY_FROM,
+              to: [estimate.createdByEmail],
+              subject: `Estimate approved — ${estimate.customerName} (${estimate.svNumber || "service"})`,
+              text: `${estimate.customerName} approved ${estimate.svNumber || "their service estimate"} for $${Number(estimate.summary?.invoiceTotal || 0).toFixed(2)}. Schedule the repair.`
+            })
+          }).catch((e) => console.error("Estimate-approved email failed:", e.message));
+        }
+      }
+    } else {
+      // Showroom lead — same fan-out as new web orders (notify-title
+      // consultants get the green flag + a claim email with the details).
+      const r = estimate.response || {};
+      const directionText = { similar: "wants something similar to their current unit", new: "open to trying something new", unsure: "not sure yet — wants help deciding" }[r.productDirection] || "";
+      const visitText = { visit: "wants to schedule a showroom visit", contact: "wants a call/text first", info: "just wants info sent over" }[r.visit] || "";
+      const detailBits = [directionText, visitText, r.notes ? `Notes: ${r.notes}` : ""].filter(Boolean).join(" · ");
+      try {
+        const [directory, notifyNames] = await Promise.all([listEmployeeDirectory(), listNotifyTitleNames()]);
+        const notifySet = new Set(notifyNames.map((n) => n.trim().toLowerCase()));
+        const consultants = directory.filter((entry) =>
+          !entry.archived &&
+          notifySet.has(String(entry.commissionPlan || "").trim().toLowerCase()) &&
+          String(entry.email || "").trim()
+        );
+        for (const consultant of consultants) {
+          await createPushedNotification({
+            severity: "green",
+            typeLabel: "Service Client Lead",
+            refId: `svlead:${estimate.token}`,
+            title: `${estimate.customerName} — replacing instead of repairing (${estimate.svNumber || "service"})`,
+            body: `${detailBits || "No preferences given."} Contact: ${[estimate.contactPhone, estimate.contactEmail].filter(Boolean).join(" / ") || "see estimate record"}.`,
+            audienceEmail: consultant.email,
+            byEmail: "service-estimates",
+            byName: "Estimate Approvals"
+          }).catch(() => {});
+        }
+        if (RESEND_API_KEY && consultants.length) {
+          const subject = `Service client lead — ${estimate.customerName} — available to claim`;
+          const text = [
+            `${estimate.customerName} chose to SHOP FOR A REPLACEMENT instead of approving service estimate ${estimate.svNumber || ""} ($${Number(estimate.summary?.invoiceTotal || 0).toFixed(2)} repair).`,
+            directionText ? `Direction: ${directionText}` : "",
+            visitText ? `Visit: ${visitText}` : "",
+            r.notes ? `Notes: ${r.notes}` : "",
+            `Contact: ${[estimate.contactPhone, estimate.contactEmail].filter(Boolean).join(" / ") || "on the estimate record"}`,
+            "First to reach out wins — coordinate in the morning huddle if needed."
+          ].filter(Boolean).join("\n");
+          Promise.allSettled(consultants.map((consultant) =>
+            fetch("https://api.resend.com/emails", {
+              method: "POST",
+              headers: { "Authorization": `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" },
+              body: JSON.stringify({ from: SHOP_ORDER_NOTIFY_FROM, to: [consultant.email], subject, text })
+            })
+          )).then((results) => {
+            const failed = results.filter((x) => x.status === "rejected");
+            if (failed.length) console.error(`Service-lead email failed for ${failed.length}/${consultants.length}:`, failed[0].reason?.message);
+          });
+        }
+      } catch (leadErr) {
+        console.error("Service lead fan-out failed:", leadErr.message);
+      }
+    }
+
+    return res.json({ ok: true, status: estimate.status });
+  } catch (err) {
+    console.error("Estimate respond failed:", err.message);
+    return res.status(500).json({ error: "Unable to record your choice — please call 512-894-0907." });
+  }
+});
 
 // PUBLIC: Sub-Zero landing page consultation requests (subzero.html on the
 // service host). Same routing as new web orders: a green dashboard flag and

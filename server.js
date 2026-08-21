@@ -209,7 +209,8 @@ import {
   saveServiceEstimateResponse,
   lookupKnownClientEmail,
   listStaleSentEstimates,
-  markServiceEstimateStaleFlagged
+  markServiceEstimateStaleFlagged,
+  setServiceEstimateClosed
 } from "./lib/service-estimates-postgres.js";
 import {
   parseInvoiceMaintenanceQuotes,
@@ -5604,6 +5605,27 @@ const SWEEP_EVERY_MS = Number(process.env.SERVICE_ESTIMATE_SWEEP_MS || 30 * 60 *
 setInterval(sweepStaleServiceEstimates, SWEEP_EVERY_MS).unref?.();
 setTimeout(sweepStaleServiceEstimates, Math.min(SWEEP_EVERY_MS, 20 * 1000)).unref?.();
 
+// Close (or reopen) an estimate from the internal list. Closed estimates
+// leave the active table, stop accepting client responses, and are skipped
+// by the not-viewed sweep.
+app.post("/api/service-estimates/close", requirePagePermission("/service-estimates.html"), async (req, res) => {
+  try {
+    const token = String(req.body?.token || "").slice(0, 60);
+    const closed = req.body?.closed !== false;
+    const estimate = await setServiceEstimateClosed(token, closed, req.authUser?.email || req.authUser?.username || "");
+    if (!estimate) return res.status(404).json({ error: "Estimate not found." });
+    recordAudit({
+      ip: req.ip, actorUserId: req.authUser?.id || null,
+      action: closed ? "service_estimate_closed" : "service_estimate_reopened", targetUserId: null,
+      detail: { svNumber: estimate.svNumber, customerName: estimate.customerName }
+    }).catch(() => {});
+    return res.json({ ok: true, estimate });
+  } catch (err) {
+    console.error("Service estimate close failed:", err.message);
+    return res.status(500).json({ error: "Unable to update that estimate." });
+  }
+});
+
 app.get("/api/service-estimates", requirePagePermission("/service-estimates.html"), async (req, res) => {
   try {
     return res.json({ estimates: await listServiceEstimates(), publicHost: SERVICE_PUBLIC_HOST });
@@ -5619,6 +5641,9 @@ app.post("/api/estimate/view", async (req, res) => {
     const token = String(req.body?.token || "").slice(0, 60);
     const estimate = await getServiceEstimateByToken(token);
     if (!estimate) return res.status(404).json({ error: "This estimate link isn't valid — call us at 512-894-0907 and we'll get you a fresh one." });
+    if (estimate.closedAt && !["approved", "shopping", "elsewhere"].includes(estimate.status)) {
+      return res.status(410).json({ error: "This estimate is no longer active — call or text us at 512-894-0907 and we'll get you a current one." });
+    }
     if (estimate.status === "sent") await markServiceEstimateViewed(token);
     return res.json({
       svNumber: estimate.svNumber,
@@ -5644,6 +5669,9 @@ app.post("/api/estimate/respond", async (req, res) => {
     if (!existing) return res.status(404).json({ error: "This estimate link isn't valid." });
     if (["approved", "shopping", "elsewhere"].includes(existing.status)) {
       return res.json({ ok: true, status: existing.status, alreadyResponded: true });
+    }
+    if (existing.closedAt) {
+      return res.status(410).json({ error: "This estimate is no longer active — call or text us at 512-894-0907." });
     }
     const estimate = await saveServiceEstimateResponse(token, {
       choice,

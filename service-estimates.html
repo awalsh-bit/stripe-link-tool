@@ -149,9 +149,12 @@
       <p class="section-note">Newest first. Click a row for the client's response and the link.</p>
       <div style="overflow-x:auto;">
         <table class="se-list">
-          <thead><tr><th>Created</th><th>SV #</th><th>Client</th><th>Total</th><th>Contact</th><th>Status</th><th>Sent by</th></tr></thead>
-          <tbody id="seBody"><tr><td colspan="7" class="section-note">Loading…</td></tr></tbody>
+          <thead><tr><th>Created</th><th>SV #</th><th>Client</th><th>Total</th><th>Contact</th><th>Status</th><th>Sent by</th><th></th></tr></thead>
+          <tbody id="seBody"><tr><td colspan="8" class="section-note">Loading…</td></tr></tbody>
         </table>
+      </div>
+      <div style="margin-top:10px;">
+        <button type="button" class="se-btn quiet" id="seClosedToggle" style="display:none;"></button>
       </div>
     </div>
 
@@ -169,6 +172,7 @@
       <div class="se-hint" id="soEmailNote" style="display:none;"></div>
       <div style="display:flex; gap:10px; margin-top:16px;">
         <button type="button" class="se-btn quiet" id="soCopy">Copy client link</button>
+        <button type="button" class="se-btn quiet" id="soCloseEst"></button>
         <span style="flex:1;"></span>
         <button type="button" class="se-btn quiet" id="soClose">Close</button>
       </div>
@@ -183,7 +187,7 @@
       const money = (n) => "$" + Number(n || 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
       const when = (iso) => iso ? new Date(iso).toLocaleString("en-US", { month: "2-digit", day: "2-digit", year: "2-digit", hour: "numeric", minute: "2-digit" }) : "—";
 
-      const state = { summary: null, estimates: [], publicHost: "", open: null, created: null };
+      const state = { summary: null, estimates: [], publicHost: "", open: null, created: null, showClosed: false };
 
       function setStatus(message, kind) {
         const box = $("seStatus");
@@ -345,14 +349,9 @@
 
       // ---- list ----
       const PILL = { sent: "Sent", viewed: "Viewed", approved: "Approved", shopping: "Shopping", elsewhere: "Went elsewhere" };
-      function render() {
-        const body = $("seBody");
-        if (!state.estimates.length) {
-          body.innerHTML = `<tr><td colspan="7" class="section-note">No estimates yet — scan a quote above to send the first one.</td></tr>`;
-          return;
-        }
-        body.innerHTML = state.estimates.map((e, i) => `
-          <tr data-idx="${i}">
+      function rowHtml(e, i, isClosed) {
+        return `
+          <tr data-idx="${i}"${isClosed ? ` style="opacity:0.55;"` : ""}>
             <td>${when(e.createdAt)}</td>
             <td><strong>${esc(e.svNumber || "—")}</strong></td>
             <td>${esc(e.customerName)}</td>
@@ -360,11 +359,46 @@
             <td>${esc([e.contactPhone, e.contactEmail].filter(Boolean).join(" / ") || "—")}</td>
             <td><span class="pill ${esc(e.status)}">${PILL[e.status] || esc(e.status)}</span></td>
             <td>${esc(e.createdByName || e.createdByEmail || "—")}</td>
-          </tr>`).join("");
+            <td><button type="button" class="se-btn quiet se-row-close" data-tok="${esc(e.token)}" data-reopen="${isClosed ? "1" : ""}">${isClosed ? "Reopen" : "Close"}</button></td>
+          </tr>`;
+      }
+
+      function render() {
+        const body = $("seBody");
+        const active = state.estimates.filter((e) => !e.closedAt);
+        const closed = state.estimates.filter((e) => e.closedAt);
+        const toggle = $("seClosedToggle");
+        toggle.style.display = closed.length ? "" : "none";
+        toggle.textContent = state.showClosed ? `Hide closed (${closed.length})` : `Show closed (${closed.length})`;
+        if (!active.length && !(state.showClosed && closed.length)) {
+          body.innerHTML = `<tr><td colspan="8" class="section-note">${state.estimates.length ? "No open estimates — everything's closed out." : "No estimates yet — scan a quote above to send the first one."}</td></tr>`;
+          return;
+        }
+        body.innerHTML =
+          active.map((e) => rowHtml(e, state.estimates.indexOf(e), false)).join("") +
+          (state.showClosed ? closed.map((e) => rowHtml(e, state.estimates.indexOf(e), true)).join("") : "");
         body.querySelectorAll("tr[data-idx]").forEach((tr) => {
           tr.addEventListener("click", () => openDetail(state.estimates[Number(tr.dataset.idx)]));
         });
+        body.querySelectorAll(".se-row-close").forEach((btn) => {
+          btn.addEventListener("click", async (ev) => {
+            ev.stopPropagation();
+            btn.disabled = true;
+            try {
+              await api("/api/service-estimates/close", { method: "POST", body: JSON.stringify({ token: btn.dataset.tok, closed: !btn.dataset.reopen }) });
+              await load();
+            } catch (err) {
+              setStatus(err.message, "error");
+              btn.disabled = false;
+            }
+          });
+        });
       }
+
+      $("seClosedToggle").addEventListener("click", () => {
+        state.showClosed = !state.showClosed;
+        render();
+      });
 
       function openDetail(e) {
         state.open = e;
@@ -378,6 +412,7 @@
           <div class="se-kv"><div class="k">Contact</div><div>${esc([e.contactPhone, e.contactEmail].filter(Boolean).join(" · ") || "—")}${prefChip ? ` <span class="se-chip">${prefChip}</span>` : ""}</div></div>
           <div class="se-kv"><div class="k">Created</div><div>${when(e.createdAt)} by ${esc(e.createdByName || e.createdByEmail || "—")}</div></div>
           <div class="se-kv"><div class="k">Emailed</div><div>${e.emailedAt ? when(e.emailedAt) : "Not emailed — copy the link or use the button below."}</div></div>
+          ${e.closedAt ? `<div class="se-kv"><div class="k">Closed</div><div>${when(e.closedAt)} — hidden from the active list; the client link is inactive.</div></div>` : ""}
           <div class="se-summary" style="margin-top:12px;">${summaryHtml(e.summary || {})}</div>
           ${e.status === "shopping" ? `<div class="se-resp"><strong>Shopping for a replacement.</strong><br>${[directionText, visitText].filter(Boolean).map(esc).join("<br>")}${r.notes ? `<br>“${esc(r.notes)}”` : ""}<br><span style="color:var(--muted); font-size:12px;">Showroom team was notified — lead is up for grabs.</span></div>` : ""}
           ${e.status === "approved" ? `<div class="se-resp" style="background: rgba(var(--primary-rgb), 0.1);"><strong>Approved.</strong> Schedule the repair.</div>` : ""}
@@ -389,8 +424,24 @@
         $("soEmailNote").style.display = "none";
         $("soEmailSend").disabled = false;
         $("soEmailSend").textContent = "Email the link";
+        $("soCloseEst").textContent = e.closedAt ? "Reopen estimate" : "Close estimate";
         $("seOverlay").classList.add("show");
       }
+
+      $("soCloseEst").addEventListener("click", async () => {
+        if (!state.open) return;
+        const btn = $("soCloseEst");
+        btn.disabled = true;
+        try {
+          await api("/api/service-estimates/close", { method: "POST", body: JSON.stringify({ token: state.open.token, closed: !state.open.closedAt }) });
+          $("seOverlay").classList.remove("show");
+          await load();
+        } catch (err) {
+          setStatus(err.message, "error");
+        } finally {
+          btn.disabled = false;
+        }
+      });
 
       $("soClose").addEventListener("click", () => $("seOverlay").classList.remove("show"));
       $("seOverlay").addEventListener("click", (ev) => { if (ev.target === $("seOverlay")) $("seOverlay").classList.remove("show"); });

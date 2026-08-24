@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="robots" content="noindex,nofollow,noarchive" />
+  <title>Wilson AC &amp; Appliance - Driver Run Sheet</title>
+  <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+  <link rel="stylesheet" href="internal-shell.css" />
+  <style>
+    :root { --bg: #f7f8fc; --text: #1f2937; --muted: #6b7280; --border: #dbe1ea; }
+    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    body {
+      margin: 0; font-family: "Roboto", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: linear-gradient(180deg, var(--primary-tint) 0%, var(--bg) 100%);
+      color: var(--text); min-height: 100vh; padding: 16px 12px 60px;
+    }
+    .wrap { max-width: 560px; margin: 0 auto; }
+    .card { background: #fff; border-radius: 16px; box-shadow: 0 10px 30px rgba(0,0,0,0.09); padding: 18px; margin-bottom: 14px; }
+    h1 { font-size: 19px; margin: 0 0 4px; }
+    h2 { font-size: 15px; margin: 0 0 8px; }
+    .mut { color: var(--muted); font-size: 12.5px; line-height: 1.45; }
+    .dr-status { display: none; border-radius: 12px; padding: 10px 13px; font-size: 13px; margin-bottom: 12px; }
+    .dr-status.show { display: block; }
+    .dr-status.ok { background: rgba(var(--primary-rgb), 0.1); color: var(--primary); }
+    .dr-status.error { background: #fee2e2; color: #991b1b; }
+    .big {
+      display: block; width: 100%; border: none; border-radius: 14px; cursor: pointer;
+      font-family: inherit; font-size: 16px; font-weight: 800; padding: 16px; margin-top: 10px; text-align: center;
+    }
+    .big.go { background: var(--primary); color: #fff; }
+    .big.blue { background: #1d4ed8; color: #fff; }
+    .big.quiet { background: #fff; color: #374151; border: 1.5px solid var(--border); }
+    .big.warn { background: #fffbeb; color: #92400e; border: 1.5px solid #f4d38a; }
+    .big:disabled { opacity: 0.55; }
+    .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .addr { font-size: 15px; font-weight: 700; margin: 6px 0; }
+    .navlinks a { display: inline-block; margin-right: 12px; font-size: 13.5px; font-weight: 800; color: var(--primary); text-decoration: none; }
+    .chip { display: inline-block; border-radius: 999px; font-size: 10.5px; font-weight: 800; letter-spacing: 0.04em; padding: 3px 10px; }
+    .chip.pending { background: #f1f5f9; color: #64748b; }
+    .chip.arrived { background: #dbeafe; color: #1e40af; }
+    .chip.done { background: rgba(var(--primary-rgb), 0.12); color: var(--primary); }
+    .chip.skipped, .chip.exception { background: #fee2e2; color: #991b1b; }
+    .uplist { list-style: none; margin: 0; padding: 0; }
+    .uplist li { padding: 9px 0; border-bottom: 1px dashed #eef1f6; font-size: 13.5px; display: flex; gap: 8px; align-items: baseline; }
+    .uplist .n { font-weight: 800; color: var(--muted); width: 20px; flex: none; }
+    #sigPad { border: 1.5px dashed var(--border); border-radius: 12px; width: 100%; height: 170px; touch-action: none; background: #fff; }
+    .photo-thumbs { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+    .photo-thumbs img { width: 64px; height: 64px; object-fit: cover; border-radius: 10px; border: 1px solid var(--border); }
+    .pausebar { position: sticky; top: 0; z-index: 5; background: #fffbeb; border: 1.5px solid #f4d38a; color: #92400e; border-radius: 12px; padding: 10px 13px; font-size: 13.5px; font-weight: 700; margin-bottom: 12px; display: none; }
+    .pausebar.show { display: block; }
+  </style>
+</head>
+<body data-shell-label="Driver Run Sheet" data-shell-icon="service">
+  <div class="wrap">
+    <div id="internal-shell-header"></div>
+    <div id="drStatus" class="dr-status"></div>
+    <div id="pauseBar" class="pausebar">⏸ On a break — customer texts are paused until you resume.</div>
+    <div id="main"><div class="card"><p class="mut">Loading your run…</p></div></div>
+    <input type="file" id="photoInput" accept="image/*" capture="environment" style="display:none;" />
+    <div id="internal-shell-footer"></div>
+  </div>
+
+  <script src="internal-shell.js"></script>
+  <script>
+    (function () {
+      const $ = (id) => document.getElementById(id);
+      const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch]));
+      const state = { run: null, stops: [], photoStop: null, sigStop: null };
+
+      function setStatus(message, kind) {
+        const box = $("drStatus");
+        if (!message) { box.className = "dr-status"; return; }
+        box.className = "dr-status " + kind + " show";
+        box.textContent = message;
+        if (kind === "ok") setTimeout(() => { if (box.textContent === message) box.className = "dr-status"; }, 4000);
+      }
+
+      async function api(path, options = {}) {
+        const res = await fetch(path, { credentials: "same-origin", headers: options.body ? { "Content-Type": "application/json" } : {}, ...options });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error || "Request failed.");
+        return data;
+      }
+
+      const mapsUrl = (addr) => `https://maps.google.com/?q=${encodeURIComponent(addr)}`;
+      const wazeUrl = (addr) => `https://waze.com/ul?q=${encodeURIComponent(addr)}&navigate=yes`;
+
+      function currentStop() {
+        return state.stops.find((s) => s.status === "arrived") || state.stops.find((s) => s.status === "pending") || null;
+      }
+
+      function render() {
+        $("pauseBar").classList.toggle("show", state.run?.status === "paused");
+        const main = $("main");
+        if (!state.run) {
+          main.innerHTML = `<div class="card"><h1>No run today</h1><p class="mut">Nothing is assigned to you. Dispatch builds runs on the Delivery Dispatch board.</p></div>`;
+          return;
+        }
+        const run = state.run;
+        const cur = currentStop();
+        const doneCount = state.stops.filter((s) => ["done", "skipped", "exception"].includes(s.status)).length;
+        const upcoming = state.stops.filter((s) => s.status === "pending" && s !== cur);
+
+        let html = `
+          <div class="card">
+            <h1>${esc(run.name || "Today's run")} — ${esc(run.runDate)}</h1>
+            <p class="mut">${doneCount}/${state.stops.length} stops complete${run.vehicleName ? " · " + esc(run.vehicleName) : ""}</p>
+            ${run.status === "planned" ? `<p class="mut">Waiting for dispatch to start the run.</p>` : ""}
+            ${run.status === "active" ? `<button type="button" class="big warn" id="pauseBtn">⏸ Taking a break (lunch / gas)</button>` : ""}
+            ${run.status === "paused" ? `<button type="button" class="big go" id="resumeBtn">▶ Back on the road</button>` : ""}
+          </div>`;
+
+        if (cur && ["active", "paused"].includes(run.status)) {
+          html += `
+          <div class="card">
+            <h2>Stop ${cur.seq} of ${state.stops.length} <span class="chip ${esc(cur.status)}">${esc(cur.status)}</span></h2>
+            <div class="addr">${esc(cur.customerName)}</div>
+            <div class="addr" style="font-weight:400;">${esc(cur.address)}</div>
+            ${cur.items ? `<p class="mut"><strong>Items:</strong> ${esc(cur.items)}</p>` : ""}
+            ${cur.notes ? `<p class="mut"><strong>Notes:</strong> ${esc(cur.notes)}</p>` : ""}
+            <div class="navlinks">
+              ${cur.address ? `<a href="${wazeUrl(cur.address)}">Waze ▸</a><a href="${mapsUrl(cur.address)}">Maps ▸</a>` : ""}
+              ${cur.phone ? `<a href="tel:${esc(cur.phone)}">Call ▸</a>` : ""}
+            </div>
+            ${cur.status === "pending" ? `<button type="button" class="big blue" data-arrive="${cur.id}">📍 Arrived</button>` : ""}
+            <div class="row2">
+              <button type="button" class="big quiet" data-photo="${cur.id}">📷 Photo${cur.photoCount ? ` (${cur.photoCount})` : ""}</button>
+              <button type="button" class="big quiet" data-sign="${cur.id}">${cur.signature ? "✍ Signed ✓" : "✍ Signature"}</button>
+            </div>
+            ${cur.photos?.length ? `<div class="photo-thumbs">${cur.photos.map((p) => `<img src="${p.dataUrl}" alt="POD" />`).join("")}</div>` : ""}
+            <button type="button" class="big go" data-complete="${cur.id}">✓ Complete stop</button>
+            <div class="row2">
+              <button type="button" class="big quiet" data-exception="${cur.id}">⚠ Problem</button>
+              <button type="button" class="big quiet" data-skip="${cur.id}">Skip for now</button>
+            </div>
+          </div>`;
+        }
+
+        if (!cur && ["active", "paused"].includes(run.status)) {
+          html += `
+          <div class="card">
+            <h2>All stops handled 🎉</h2>
+            <p class="mut">Wrap the day when you're back — this cleans up geofences.</p>
+            <button type="button" class="big go" id="finishBtn">Finish the day</button>
+          </div>`;
+        }
+
+        if (upcoming.length) {
+          html += `<div class="card"><h2>Up next</h2><ul class="uplist">${upcoming.map((s) => `<li><span class="n">${s.seq}</span><span><strong>${esc(s.customerName)}</strong><br><span class="mut">${esc(s.address)}</span></span></li>`).join("")}</ul></div>`;
+        }
+        const finished = state.stops.filter((s) => ["done", "skipped", "exception"].includes(s.status));
+        if (finished.length) {
+          html += `<div class="card"><h2>Done</h2><ul class="uplist">${finished.map((s) => `<li><span class="n">${s.seq}</span><span>${esc(s.customerName)} <span class="chip ${esc(s.status)}">${esc(s.status)}</span></span></li>`).join("")}</ul></div>`;
+        }
+        main.innerHTML = html;
+        wire();
+      }
+
+      function wire() {
+        const on = (sel, fn) => document.querySelectorAll(sel).forEach((el) => el.addEventListener("click", () => fn(el)));
+        on("#pauseBtn", async () => { try { await api(`/api/deliveries/runs/${state.run.id}/pause`, { method: "POST", body: "{}" }); await load(); } catch (e) { setStatus(e.message, "error"); } });
+        on("#resumeBtn", async () => { try { await api(`/api/deliveries/runs/${state.run.id}/resume`, { method: "POST", body: "{}" }); await load(); } catch (e) { setStatus(e.message, "error"); } });
+        on("#finishBtn", async () => { try { await api(`/api/deliveries/runs/${state.run.id}/finish`, { method: "POST", body: "{}" }); await load(); } catch (e) { setStatus(e.message, "error"); } });
+        on("[data-arrive]", (el) => setStop(el.dataset.arrive, "arrived"));
+        on("[data-complete]", (el) => {
+          const stop = state.stops.find((s) => String(s.id) === el.dataset.complete);
+          if (stop && !stop.photoCount && !confirm("No photos yet — complete anyway?")) return;
+          setStop(el.dataset.complete, "done");
+        });
+        on("[data-skip]", (el) => { if (confirm("Skip this stop and come back later? The next customer gets their heads-up text.")) setStop(el.dataset.skip, "skipped"); });
+        on("[data-exception]", (el) => {
+          const note = prompt("What happened? (damage, no answer, refused…)");
+          if (note === null) return;
+          setStop(el.dataset.exception, "exception", note);
+        });
+        on("[data-photo]", (el) => { state.photoStop = Number(el.dataset.photo); $("photoInput").click(); });
+        on("[data-sign]", (el) => openSignature(Number(el.dataset.sign)));
+      }
+
+      async function setStop(id, status, exceptionNote) {
+        try {
+          await api(`/api/deliveries/stops/${id}/status`, { method: "POST", body: JSON.stringify({ status, exceptionNote }) });
+          await load();
+        } catch (e) { setStatus(e.message, "error"); }
+      }
+
+      // Photos: downscale on-device so uploads survive one bar of signal.
+      $("photoInput").addEventListener("change", () => {
+        const file = $("photoInput").files[0];
+        $("photoInput").value = "";
+        if (!file || !state.photoStop) return;
+        const img = new Image();
+        img.onload = async () => {
+          const scale = Math.min(1, 1400 / Math.max(img.width, img.height));
+          const canvas = document.createElement("canvas");
+          canvas.width = Math.round(img.width * scale);
+          canvas.height = Math.round(img.height * scale);
+          canvas.getContext("2d").drawImage(img, 0, 0, canvas.width, canvas.height);
+          const dataUrl = canvas.toDataURL("image/jpeg", 0.72);
+          try {
+            await api(`/api/deliveries/stops/${state.photoStop}/photo`, { method: "POST", body: JSON.stringify({ dataUrl }) });
+            setStatus("Photo saved.", "ok");
+            await load();
+          } catch (e) { setStatus(e.message, "error"); }
+          URL.revokeObjectURL(img.src);
+        };
+        img.src = URL.createObjectURL(file);
+      });
+
+      function openSignature(stopId) {
+        state.sigStop = stopId;
+        const overlay = document.createElement("div");
+        overlay.style.cssText = "position:fixed;inset:0;background:rgba(15,23,42,0.5);z-index:50;display:flex;align-items:center;justify-content:center;padding:14px;";
+        overlay.innerHTML = `
+          <div class="card" style="width:100%;max-width:520px;margin:0;">
+            <h2>Customer signature</h2>
+            <canvas id="sigPad"></canvas>
+            <input id="sigName" placeholder="Printed name" style="width:100%;border:1px solid var(--border);border-radius:10px;padding:10px 12px;font-family:inherit;font-size:14px;margin-top:10px;" />
+            <div class="row2">
+              <button type="button" class="big quiet" id="sigClear">Clear</button>
+              <button type="button" class="big go" id="sigSave">Save</button>
+            </div>
+            <button type="button" class="big quiet" id="sigCancel">Cancel</button>
+          </div>`;
+        document.body.appendChild(overlay);
+        const pad = overlay.querySelector("#sigPad");
+        pad.width = pad.offsetWidth * 2; pad.height = 340;
+        pad.style.height = "170px";
+        const ctx = pad.getContext("2d");
+        ctx.lineWidth = 3; ctx.lineCap = "round"; ctx.strokeStyle = "#111";
+        let drawing = false, drew = false;
+        const pos = (e) => {
+          const r = pad.getBoundingClientRect();
+          const t = e.touches ? e.touches[0] : e;
+          return { x: (t.clientX - r.left) * (pad.width / r.width), y: (t.clientY - r.top) * (pad.height / r.height) };
+        };
+        const start = (e) => { drawing = true; drew = true; const p = pos(e); ctx.beginPath(); ctx.moveTo(p.x, p.y); e.preventDefault(); };
+        const move = (e) => { if (!drawing) return; const p = pos(e); ctx.lineTo(p.x, p.y); ctx.stroke(); e.preventDefault(); };
+        const end = () => { drawing = false; };
+        pad.addEventListener("mousedown", start); pad.addEventListener("mousemove", move); window.addEventListener("mouseup", end);
+        pad.addEventListener("touchstart", start, { passive: false }); pad.addEventListener("touchmove", move, { passive: false }); pad.addEventListener("touchend", end);
+        overlay.querySelector("#sigClear").addEventListener("click", () => { ctx.clearRect(0, 0, pad.width, pad.height); drew = false; });
+        overlay.querySelector("#sigCancel").addEventListener("click", () => overlay.remove());
+        overlay.querySelector("#sigSave").addEventListener("click", async () => {
+          if (!drew) return setStatus("Have the customer sign first.", "error");
+          try {
+            await api(`/api/deliveries/stops/${state.sigStop}/signature`, {
+              method: "POST",
+              body: JSON.stringify({ dataUrl: pad.toDataURL("image/png"), signedName: overlay.querySelector("#sigName").value.trim() })
+            });
+            overlay.remove();
+            setStatus("Signature saved.", "ok");
+            await load();
+          } catch (e) { setStatus(e.message, "error"); }
+        });
+      }
+
+      async function load() {
+        try {
+          const data = await api("/api/deliveries/my-run");
+          state.run = data.run;
+          state.stops = data.stops || [];
+          render();
+        } catch (e) { setStatus(e.message, "error"); }
+      }
+
+      load();
+      setInterval(load, 45000); // geofence advances show up without taps
+    })();
+  </script>
+</body>
+</html>

@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="robots" content="noindex,nofollow,noarchive" />
+  <title>Track Your Delivery — Wilson AC &amp; Appliance</title>
+  <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+  <style>
+    :root { --green: #21692c; --text: #1f2937; --muted: #6b7280; --border: #dbe1ea; }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; font-family: "Roboto", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: linear-gradient(180deg, #eef5ee 0%, #f7f8fc 100%); color: var(--text);
+      min-height: 100vh; padding: 26px 16px 50px;
+    }
+    .wrap { max-width: 480px; margin: 0 auto; }
+    .brand { text-align: center; margin-bottom: 18px; }
+    .brand img { height: 46px; }
+    .brand .sub { font-size: 12px; color: var(--muted); margin-top: 4px; }
+    .card { background: #fff; border-radius: 18px; box-shadow: 0 14px 45px rgba(0,0,0,0.1); padding: 26px 24px; text-align: center; }
+    h1 { font-size: 20px; margin: 0 0 8px; }
+    .lead { color: var(--muted); font-size: 14px; line-height: 1.55; }
+    .bignum { font-size: 46px; font-weight: 800; color: var(--green); margin: 12px 0 2px; line-height: 1; }
+    .biglabel { font-size: 12px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+    .stage { display: flex; justify-content: center; gap: 6px; margin: 20px 0 6px; }
+    .dot { width: 34px; height: 6px; border-radius: 999px; background: #e5e7eb; }
+    .dot.on { background: var(--green); }
+    .paused { background: #fffbeb; color: #92400e; border-radius: 12px; padding: 10px 13px; font-size: 13px; margin-top: 14px; }
+    .fine { font-size: 12px; color: var(--muted); margin-top: 16px; line-height: 1.5; }
+    .fine a { color: var(--green); font-weight: 700; text-decoration: none; }
+    .check { width: 64px; height: 64px; border-radius: 50%; background: var(--green); color: #fff; font-size: 34px; line-height: 64px; margin: 4px auto 14px; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="brand">
+      <img src="logo-black.png" alt="Wilson AC &amp; Appliance" onerror="this.style.display='none'" />
+      <div class="sub">Wilson AC &amp; Appliance · Dripping Springs, TX</div>
+    </div>
+    <div class="card" id="card"><p class="lead">Loading your delivery…</p></div>
+  </div>
+
+  <script>
+    (function () {
+      const card = document.getElementById("card");
+      const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch]));
+      const token = new URLSearchParams(location.search).get("t") || "";
+
+      function stageDots(n) {
+        return `<div class="stage">${[0, 1, 2, 3].map((i) => `<div class="dot ${i < n ? "on" : ""}"></div>`).join("")}</div>`;
+      }
+      const fine = `<p class="fine">Questions? Call or text <a href="tel:512-894-0907">512-894-0907</a> — replies to our texts reach a real person.</p>`;
+
+      function render(d) {
+        if (d.status === "done" || d.completedAt) {
+          card.innerHTML = `<div class="check">✓</div><h1>Delivered!</h1>
+            <p class="lead">Thanks, ${esc(d.firstName)} — your delivery is complete. Enjoy!</p>${fine}`;
+          return true;
+        }
+        if (["skipped", "exception"].includes(d.status)) {
+          card.innerHTML = `<h1>We hit a snag</h1>
+            <p class="lead">We'll reach out shortly to make it right — or call us and we'll sort it now.</p>${fine}`;
+          return true;
+        }
+        if (d.runStatus === "planned" || !d.runStatus) {
+          card.innerHTML = `<h1>Hi ${esc(d.firstName)} — you're on the schedule.</h1>
+            <p class="lead">${d.runDate ? `Delivery day: <strong>${esc(d.runDate)}</strong>` : ""}${d.windowText ? ` · window <strong>${esc(d.windowText)}</strong>` : ""}.
+            This page goes live with truck updates on delivery day.</p>${stageDots(1)}${fine}`;
+          return false;
+        }
+        if (d.status === "arrived") {
+          card.innerHTML = `<h1>We're here! 🚚</h1>
+            <p class="lead">The Wilson team has arrived.</p>${stageDots(3)}${fine}`;
+          return false;
+        }
+        // pending on an active/paused run
+        let headline, detail;
+        if (d.stopsAhead === 0) {
+          headline = "You're next!";
+          detail = d.etaMinutes
+            ? `<div class="bignum">~${esc(d.etaMinutes)}</div><div class="biglabel">minutes away</div>`
+            : `<p class="lead">The truck is on its way to you now.</p>`;
+        } else {
+          headline = `Hi ${esc(d.firstName)} — today's the day.`;
+          detail = `<div class="bignum">${esc(d.stopsAhead)}</div><div class="biglabel">stop${d.stopsAhead === 1 ? "" : "s"} ahead of you</div>
+            ${d.windowText ? `<p class="lead">Your window: <strong>${esc(d.windowText)}</strong></p>` : ""}`;
+        }
+        card.innerHTML = `<h1>${headline}</h1>${detail}${stageDots(2)}
+          ${d.paused ? `<div class="paused">Our crew is on a short stop — updates resume shortly.</div>` : ""}${fine}`;
+        return false;
+      }
+
+      async function refresh() {
+        try {
+          const res = await fetch("/api/track", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ token })
+          });
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok) {
+            card.innerHTML = `<h1>Hmm — we can't find that delivery.</h1><p class="lead">${esc(data.error || "The link may have expired.")}</p>${fine}`;
+            return;
+          }
+          const final = render(data);
+          if (!final) setTimeout(refresh, 40000);
+        } catch {
+          setTimeout(refresh, 60000);
+        }
+      }
+      refresh();
+    })();
+  </script>
+</body>
+</html>

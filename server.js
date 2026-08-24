@@ -213,6 +213,41 @@ import {
   setServiceEstimateClosed
 } from "./lib/service-estimates-postgres.js";
 import {
+  createDeliveryRun,
+  updateDeliveryRun,
+  setDeliveryRunStatus,
+  getDeliveryRun,
+  deleteDeliveryRun,
+  listDeliveryRuns,
+  getRunForDriver,
+  addDeliveryStop,
+  updateDeliveryStop,
+  deleteDeliveryStop,
+  reorderDeliveryStops,
+  listDeliveryStops,
+  getDeliveryStop,
+  getDeliveryStopByToken,
+  getDeliveryStopByGeofence,
+  setDeliveryStopStatus,
+  markDeliveryStopDeparted,
+  addDeliveryStopPhoto,
+  setDeliveryStopSignature,
+  logDeliveryStopText,
+  markNextTextSent,
+  getNextPendingStop,
+  countStopsAhead
+} from "./lib/deliveries-postgres.js";
+import {
+  samsaraConfigured,
+  listVehicles as listSamsaraVehicles,
+  getVehicleLocation,
+  createStopGeofence,
+  deleteStopGeofence,
+  parseGeofenceEvent,
+  roughEtaMinutes
+} from "./lib/samsara.js";
+import { sendCustomerText, podiumSendConfigured } from "./lib/podium-send.js";
+import {
   parseInvoiceMaintenanceQuotes,
   replaceOpenQuotes,
   saveQuoteDisposition,
@@ -269,7 +304,8 @@ import {
   getPushedNotification,
   retirePushedNotificationsByRef,
   claimPushedNotificationsByRef,
-  unclaimPushedNotificationsByRef
+  unclaimPushedNotificationsByRef,
+  pushedNotificationRefExists
 } from "./lib/sales-orders-postgres.js";
 import {
   getServiceOrderSnapshot,
@@ -356,6 +392,8 @@ const SERVICE_PUBLIC_PATHS = new Set([
   "/subzero",
   "/subzero.html",
   "/api/subzero/inquiry",
+  "/track.html",
+  "/api/track",
   "/public-shell.css",
   "/public-shell.js",
   "/fonts/roboto-latin-wght-normal.woff2",
@@ -478,7 +516,9 @@ const INTERNAL_PAGE_PATHS = new Set([
   "/flag-closures.html",
   "/target-builder.html",
   "/shop-orders.html",
-  "/shopper-profiles.html"
+  "/shopper-profiles.html",
+  "/dispatch.html",
+  "/driver.html"
 ]);
 
 const UNAUTHENTICATED_INTERNAL_PATHS = new Set([
@@ -678,7 +718,9 @@ const PAGE_LABELS = {
   "/flag-closures.html": "Notification Closure Report",
   "/target-builder.html": "Target Builder",
   "/shop-orders.html": "Online Shop Orders",
-  "/shopper-profiles.html": "Shopper Profiles"
+  "/shopper-profiles.html": "Shopper Profiles",
+  "/dispatch.html": "Delivery Dispatch",
+  "/driver.html": "Driver Run Sheet"
 };
 
 // Category groupings for the User Admin permission UI. A page may appear in
@@ -738,6 +780,11 @@ const PAGE_CATEGORIES = [
       "/link-detail-lookup.html",
       "/paid-order-detail.html"
     ]
+  },
+  {
+    key: "delivery",
+    label: "Delivery",
+    pages: ["/dispatch.html", "/driver.html"]
   },
   {
     key: "sales",
@@ -839,6 +886,10 @@ function isShopPublicPath(pathname) {
 function isAlwaysPublicPath(pathname) {
   // Signature headshots are fetched by email clients with no cookies.
   if (/^\/public\/signature-photos\/[0-9a-fA-F-]{36}$/.test(pathname)) {
+    return true;
+  }
+  // Samsara webhooks arrive with no session; guarded by the key in the URL.
+  if (/^\/api\/samsara\/webhook\//.test(pathname)) {
     return true;
   }
   return ALWAYS_PUBLIC_PATHS.has(pathname);
@@ -5858,6 +5909,444 @@ app.post("/api/estimate/respond", async (req, res) => {
   }
 });
 
+// ===========================================================================
+// Delivery runs — the in-house delivery day (DispatchTrack replacement).
+// Dispatch builds a run of stops; Samsara geofences auto-advance statuses;
+// Podium texts narrate the day to customers from the showroom number; the
+// driver page handles photos/signatures; /track.html is the customer link.
+// ===========================================================================
+const GOOGLE_MAPS_API_KEY = process.env.GOOGLE_MAPS_API_KEY || "";
+const SAMSARA_WEBHOOK_KEY = process.env.SAMSARA_WEBHOOK_KEY || "";
+
+const deliveryTrackUrl = (token) => `https://${SERVICE_PUBLIC_HOST}/track.html?t=${token}`;
+
+async function googleGeocodeAddress(address) {
+  if (!GOOGLE_MAPS_API_KEY || !String(address || "").trim()) return null;
+  try {
+    const base = (process.env.GOOGLE_GEOCODE_API_BASE || "https://maps.googleapis.com").replace(/\/$/, "");
+    const res = await fetch(`${base}/maps/api/geocode/json?address=${encodeURIComponent(address)}&key=${GOOGLE_MAPS_API_KEY}`);
+    const data = await res.json();
+    const loc = data?.results?.[0]?.geometry?.location;
+    return loc && Number.isFinite(loc.lat) ? { lat: loc.lat, lng: loc.lng } : null;
+  } catch (err) {
+    console.error("Geocode failed:", err.message);
+    return null;
+  }
+}
+
+async function computeDriveEtaMinutes(fromLat, fromLng, toLat, toLng) {
+  if (![fromLat, fromLng, toLat, toLng].every((n) => Number.isFinite(Number(n)))) return null;
+  if (GOOGLE_MAPS_API_KEY) {
+    try {
+      const base = (process.env.GOOGLE_ROUTES_API_BASE || "https://routes.googleapis.com").replace(/\/$/, "");
+      const res = await fetch(`${base}/directions/v2:computeRoutes`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Goog-Api-Key": GOOGLE_MAPS_API_KEY,
+          "X-Goog-FieldMask": "routes.duration"
+        },
+        body: JSON.stringify({
+          origin: { location: { latLng: { latitude: fromLat, longitude: fromLng } } },
+          destination: { location: { latLng: { latitude: toLat, longitude: toLng } } },
+          travelMode: "DRIVE",
+          routingPreference: "TRAFFIC_AWARE"
+        })
+      });
+      const data = await res.json();
+      const seconds = Number(String(data?.routes?.[0]?.duration || "").replace(/s$/, ""));
+      if (Number.isFinite(seconds) && seconds > 0) return Math.max(2, Math.round(seconds / 60));
+    } catch (err) {
+      console.error("Routes ETA failed:", err.message);
+    }
+  }
+  return roughEtaMinutes(fromLat, fromLng, toLat, toLng);
+}
+
+async function sendDeliveryText(stop, kind, body) {
+  const result = await sendCustomerText({ phone: stop.phone, body });
+  logDeliveryStopText(stop.id, { kind, to: stop.phone, body, ok: result.ok, transport: result.transport || null, error: result.error || null }).catch(() => {});
+  if (!result.ok && result.error !== "bad_phone") console.error(`Delivery text (${kind}) failed for stop ${stop.id}:`, result.error);
+  return result;
+}
+
+// Text the run's next pending stop that they're up — once per stop, ever.
+// Suppressed while the run is paused; resume releases it.
+async function notifyNextDeliveryStop(runId) {
+  try {
+    const run = await getDeliveryRun(runId);
+    if (!run || run.status !== "active") return;
+    const next = await getNextPendingStop(run.id);
+    if (!next || !String(next.phone).trim()) return;
+    if (!(await markNextTextSent(next.id))) return;
+    let etaBit = " — the truck is on the way";
+    try {
+      if (run.vehicleId && samsaraConfigured() && next.lat != null && next.lng != null) {
+        const loc = await getVehicleLocation(run.vehicleId);
+        if (loc) {
+          const mins = await computeDriveEtaMinutes(loc.lat, loc.lng, next.lat, next.lng);
+          if (mins) etaBit = ` — about ${mins} minutes out`;
+        }
+      }
+    } catch (err) {
+      console.error("Next-stop ETA failed:", err.message);
+    }
+    await sendDeliveryText(next, "next_stop",
+      `Wilson AC & Appliance: you're our next delivery stop${etaBit}. Track your delivery here: ${deliveryTrackUrl(next.trackingToken)}`);
+  } catch (err) {
+    console.error("notifyNextDeliveryStop failed:", err.message);
+  }
+}
+
+const requireDispatch = requirePagePermission("/dispatch.html");
+const requireDriver = requirePagePermission("/driver.html", "/dispatch.html");
+
+async function canTouchRun(req, run) {
+  if (!run) return false;
+  const email = String(req.authUser?.email || req.authUser?.username || "").trim().toLowerCase();
+  if (run.driverEmail && run.driverEmail === email) return true;
+  return isExecutiveUser(req.authUser) || await userHoldsPage(req.authUser, "/dispatch.html");
+}
+
+app.get("/api/deliveries/runs", requireDispatch, async (req, res) => {
+  try {
+    const date = /^\d{4}-\d{2}-\d{2}$/.test(String(req.query.date || "")) ? req.query.date : null;
+    const runs = await listDeliveryRuns({ date });
+    const withStops = await Promise.all(runs.map(async (run) => ({ ...run, stops: await listDeliveryStops(run.id, { includePod: false }) })));
+    return res.json({ runs: withStops, samsara: samsaraConfigured(), texting: podiumSendConfigured(), publicHost: SERVICE_PUBLIC_HOST });
+  } catch (err) {
+    console.error("Delivery runs load failed:", err.message);
+    return res.status(500).json({ error: "Unable to load delivery runs." });
+  }
+});
+
+app.post("/api/deliveries/runs", requireDispatch, async (req, res) => {
+  try {
+    const run = await createDeliveryRun({ ...req.body, byEmail: req.authUser?.email || req.authUser?.username || "" });
+    return res.json({ ok: true, run });
+  } catch (err) {
+    return res.status(400).json({ error: err.message || "Unable to create the run." });
+  }
+});
+
+app.post("/api/deliveries/runs/:id/update", requireDispatch, async (req, res) => {
+  try {
+    const run = await updateDeliveryRun(Number(req.params.id), req.body || {});
+    if (!run) return res.status(404).json({ error: "Run not found." });
+    return res.json({ ok: true, run });
+  } catch (err) {
+    return res.status(500).json({ error: "Unable to update the run." });
+  }
+});
+
+app.delete("/api/deliveries/runs/:id", requireDispatch, async (req, res) => {
+  try {
+    const ok = await deleteDeliveryRun(Number(req.params.id));
+    return ok ? res.json({ ok: true }) : res.status(400).json({ error: "Only planned runs can be deleted." });
+  } catch (err) {
+    return res.status(500).json({ error: "Unable to delete the run." });
+  }
+});
+
+app.post("/api/deliveries/runs/:id/stops", requireDispatch, async (req, res) => {
+  try {
+    const run = await getDeliveryRun(Number(req.params.id));
+    if (!run) return res.status(404).json({ error: "Run not found." });
+    let { lat = null, lng = null } = req.body || {};
+    if ((lat == null || lng == null) && req.body?.address) {
+      const geo = await googleGeocodeAddress(req.body.address);
+      if (geo) { lat = geo.lat; lng = geo.lng; }
+    }
+    const stop = await addDeliveryStop(run.id, { ...req.body, lat, lng });
+    return res.json({ ok: true, stop });
+  } catch (err) {
+    return res.status(400).json({ error: err.message || "Unable to add the stop." });
+  }
+});
+
+app.post("/api/deliveries/stops/:id/update", requireDispatch, async (req, res) => {
+  try {
+    const stop = await updateDeliveryStop(Number(req.params.id), req.body || {});
+    if (!stop) return res.status(404).json({ error: "Stop not found." });
+    return res.json({ ok: true, stop });
+  } catch (err) {
+    return res.status(500).json({ error: "Unable to update the stop." });
+  }
+});
+
+app.delete("/api/deliveries/stops/:id", requireDispatch, async (req, res) => {
+  try {
+    const stop = await getDeliveryStop(Number(req.params.id));
+    if (stop?.geofenceId && samsaraConfigured()) deleteStopGeofence(stop.geofenceId).catch(() => {});
+    const ok = await deleteDeliveryStop(Number(req.params.id));
+    return ok ? res.json({ ok: true }) : res.status(404).json({ error: "Stop not found." });
+  } catch (err) {
+    return res.status(500).json({ error: "Unable to remove the stop." });
+  }
+});
+
+app.post("/api/deliveries/runs/:id/reorder", requireDispatch, async (req, res) => {
+  try {
+    const stops = await reorderDeliveryStops(Number(req.params.id), (req.body?.stopIds || []).map(Number));
+    return res.json({ ok: true, stops });
+  } catch (err) {
+    return res.status(500).json({ error: "Unable to reorder stops." });
+  }
+});
+
+// Start the day: create Samsara geofences (best effort), send each customer
+// their morning "today's the day" text, then queue the first next-stop text.
+app.post("/api/deliveries/runs/:id/start", requireDispatch, async (req, res) => {
+  try {
+    const run = await getDeliveryRun(Number(req.params.id));
+    if (!run) return res.status(404).json({ error: "Run not found." });
+    if (run.status !== "planned") return res.status(400).json({ error: "This run has already started." });
+    const stops = await listDeliveryStops(run.id, { includePod: false });
+    if (!stops.length) return res.status(400).json({ error: "Add at least one stop before starting the run." });
+
+    const warnings = [];
+    if (samsaraConfigured()) {
+      for (const stop of stops) {
+        if (stop.lat == null || stop.lng == null || stop.geofenceId) continue;
+        try {
+          const geofenceId = await createStopGeofence({
+            name: `Run ${run.runDate} #${stop.seq} — ${stop.customerName}`,
+            formattedAddress: stop.address,
+            lat: stop.lat, lng: stop.lng
+          });
+          if (geofenceId) await updateDeliveryStop(stop.id, { geofenceId });
+        } catch (err) {
+          warnings.push(`Geofence failed for stop ${stop.seq} (${stop.customerName}).`);
+          console.error("Geofence create failed:", err.message);
+        }
+      }
+    } else {
+      warnings.push("Samsara isn't configured — statuses advance from driver taps only.");
+    }
+
+    const started = await setDeliveryRunStatus(run.id, "active");
+
+    for (const stop of stops) {
+      if (!String(stop.phone).trim()) continue;
+      await sendDeliveryText(stop, "morning",
+        `Wilson AC & Appliance: your delivery is today${stop.windowText ? ` (${stop.windowText})` : ""}. We'll text when you're next up. Track it anytime: ${deliveryTrackUrl(stop.trackingToken)}`);
+    }
+    await notifyNextDeliveryStop(run.id);
+
+    recordAudit({
+      ip: req.ip, actorUserId: req.authUser?.id || null,
+      action: "delivery_run_started", targetUserId: null,
+      detail: { runId: run.id, runDate: run.runDate, stops: stops.length, driver: run.driverEmail }
+    }).catch(() => {});
+
+    return res.json({ ok: true, run: started, warnings });
+  } catch (err) {
+    console.error("Run start failed:", err.message);
+    return res.status(500).json({ error: "Unable to start the run." });
+  }
+});
+
+app.post("/api/deliveries/runs/:id/finish", requireDriver, async (req, res) => {
+  try {
+    const run = await getDeliveryRun(Number(req.params.id));
+    if (!run) return res.status(404).json({ error: "Run not found." });
+    if (!(await canTouchRun(req, run))) return res.status(403).json({ error: "Not your run." });
+    const stops = await listDeliveryStops(run.id, { includePod: false });
+    if (samsaraConfigured()) {
+      for (const stop of stops) if (stop.geofenceId) deleteStopGeofence(stop.geofenceId).catch(() => {});
+    }
+    const finished = await setDeliveryRunStatus(run.id, "done");
+    recordAudit({
+      ip: req.ip, actorUserId: req.authUser?.id || null,
+      action: "delivery_run_finished", targetUserId: null,
+      detail: { runId: run.id, runDate: run.runDate, done: stops.filter((s) => s.status === "done").length, total: stops.length }
+    }).catch(() => {});
+    return res.json({ ok: true, run: finished });
+  } catch (err) {
+    return res.status(500).json({ error: "Unable to finish the run." });
+  }
+});
+
+// Driver "taking a break" — pauses auto-texts; resume releases the pending one.
+app.post("/api/deliveries/runs/:id/pause", requireDriver, async (req, res) => {
+  try {
+    const run = await getDeliveryRun(Number(req.params.id));
+    if (!run) return res.status(404).json({ error: "Run not found." });
+    if (!(await canTouchRun(req, run))) return res.status(403).json({ error: "Not your run." });
+    if (run.status !== "active") return res.status(400).json({ error: "The run isn't active." });
+    const paused = await setDeliveryRunStatus(run.id, "paused", { pauseNote: req.body?.note || "" });
+    return res.json({ ok: true, run: paused });
+  } catch (err) {
+    return res.status(500).json({ error: "Unable to pause." });
+  }
+});
+
+app.post("/api/deliveries/runs/:id/resume", requireDriver, async (req, res) => {
+  try {
+    const run = await getDeliveryRun(Number(req.params.id));
+    if (!run) return res.status(404).json({ error: "Run not found." });
+    if (!(await canTouchRun(req, run))) return res.status(403).json({ error: "Not your run." });
+    if (run.status !== "paused") return res.status(400).json({ error: "The run isn't paused." });
+    const resumed = await setDeliveryRunStatus(run.id, "active");
+    await notifyNextDeliveryStop(run.id);
+    return res.json({ ok: true, run: resumed });
+  } catch (err) {
+    return res.status(500).json({ error: "Unable to resume." });
+  }
+});
+
+app.get("/api/deliveries/vehicles", requireDispatch, async (req, res) => {
+  try {
+    if (!samsaraConfigured()) return res.json({ vehicles: [], configured: false });
+    return res.json({ vehicles: await listSamsaraVehicles(), configured: true });
+  } catch (err) {
+    console.error("Samsara vehicles failed:", err.message);
+    return res.status(502).json({ error: "Couldn't reach Samsara." });
+  }
+});
+
+// ---- driver page -----------------------------------------------------------
+
+app.get("/api/deliveries/my-run", requireDriver, async (req, res) => {
+  try {
+    const email = String(req.authUser?.email || req.authUser?.username || "").trim().toLowerCase();
+    const today = new Date().toLocaleDateString("en-CA", { timeZone: APP_TIMEZONE });
+    const run = await getRunForDriver(email, today);
+    if (!run) return res.json({ run: null });
+    const stops = await listDeliveryStops(run.id);
+    return res.json({ run, stops, publicHost: SERVICE_PUBLIC_HOST });
+  } catch (err) {
+    console.error("My-run load failed:", err.message);
+    return res.status(500).json({ error: "Unable to load your run." });
+  }
+});
+
+app.post("/api/deliveries/stops/:id/status", requireDriver, async (req, res) => {
+  try {
+    const stop = await getDeliveryStop(Number(req.params.id));
+    if (!stop) return res.status(404).json({ error: "Stop not found." });
+    const run = await getDeliveryRun(stop.runId);
+    if (!(await canTouchRun(req, run))) return res.status(403).json({ error: "Not your run." });
+    const status = String(req.body?.status || "");
+    if (!["arrived", "done", "skipped", "exception"].includes(status)) {
+      return res.status(400).json({ error: "Bad status." });
+    }
+    const updated = await setDeliveryStopStatus(stop.id, status, { exceptionNote: req.body?.exceptionNote || "" });
+    if (["done", "skipped", "exception"].includes(status)) {
+      await notifyNextDeliveryStop(stop.runId);
+      if (status === "done" && String(stop.phone).trim()) {
+        await sendDeliveryText(updated, "completed",
+          `Wilson AC & Appliance: your delivery is complete — thank you! Questions? Just reply to this text.`);
+      }
+    }
+    return res.json({ ok: true, stop: updated });
+  } catch (err) {
+    console.error("Stop status failed:", err.message);
+    return res.status(500).json({ error: "Unable to update the stop." });
+  }
+});
+
+app.post("/api/deliveries/stops/:id/photo", requireDriver, async (req, res) => {
+  try {
+    const stop = await getDeliveryStop(Number(req.params.id));
+    if (!stop) return res.status(404).json({ error: "Stop not found." });
+    if (!(await canTouchRun(req, await getDeliveryRun(stop.runId)))) return res.status(403).json({ error: "Not your run." });
+    const dataUrl = String(req.body?.dataUrl || "");
+    if (!/^data:image\/(jpeg|png|webp);base64,/.test(dataUrl)) return res.status(400).json({ error: "Send a photo." });
+    if (dataUrl.length > 2_500_000) return res.status(400).json({ error: "Photo too large — retake at lower quality." });
+    const updated = await addDeliveryStopPhoto(stop.id, dataUrl);
+    if (!updated) return res.status(400).json({ error: "Photo limit reached for this stop." });
+    return res.json({ ok: true, photoCount: updated.photoCount });
+  } catch (err) {
+    return res.status(500).json({ error: "Unable to save the photo." });
+  }
+});
+
+app.post("/api/deliveries/stops/:id/signature", requireDriver, async (req, res) => {
+  try {
+    const stop = await getDeliveryStop(Number(req.params.id));
+    if (!stop) return res.status(404).json({ error: "Stop not found." });
+    if (!(await canTouchRun(req, await getDeliveryRun(stop.runId)))) return res.status(403).json({ error: "Not your run." });
+    const dataUrl = String(req.body?.dataUrl || "");
+    if (!/^data:image\/(png|jpeg);base64,/.test(dataUrl) || dataUrl.length > 500_000) {
+      return res.status(400).json({ error: "Signature capture failed — try again." });
+    }
+    await setDeliveryStopSignature(stop.id, { dataUrl, signedName: req.body?.signedName || "" });
+    return res.json({ ok: true });
+  } catch (err) {
+    return res.status(500).json({ error: "Unable to save the signature." });
+  }
+});
+
+// ---- PUBLIC: customer tracking page ---------------------------------------
+
+app.post("/api/track", async (req, res) => {
+  try {
+    const stop = await getDeliveryStopByToken(String(req.body?.token || "").slice(0, 80));
+    if (!stop) return res.status(404).json({ error: "This tracking link isn't valid." });
+    const run = await getDeliveryRun(stop.runId);
+    const firstName = (String(stop.customerName).trim().split(/\s+/)[0] || "there");
+    const payload = {
+      firstName,
+      windowText: stop.windowText,
+      runDate: run?.runDate || null,
+      status: stop.status,
+      runStatus: run?.status || "planned",
+      paused: run?.status === "paused",
+      completedAt: stop.completedAt
+    };
+    if (run && ["active", "paused"].includes(run.status) && ["pending", "arrived"].includes(stop.status)) {
+      payload.stopsAhead = await countStopsAhead(stop);
+      // The truck's position is only shared when this customer is up next
+      // (or the truck is at their home) — not all day.
+      if (payload.stopsAhead === 0 && run.status === "active" && run.vehicleId && samsaraConfigured()) {
+        try {
+          const loc = await getVehicleLocation(run.vehicleId);
+          if (loc) {
+            payload.truck = { lat: loc.lat, lng: loc.lng, at: loc.at };
+            if (stop.lat != null && stop.lng != null) {
+              payload.etaMinutes = await computeDriveEtaMinutes(loc.lat, loc.lng, stop.lat, stop.lng);
+            }
+          }
+        } catch (err) {
+          console.error("Track truck location failed:", err.message);
+        }
+      }
+    }
+    return res.json(payload);
+  } catch (err) {
+    console.error("Track failed:", err.message);
+    return res.status(500).json({ error: "Unable to load tracking right now." });
+  }
+});
+
+// ---- Samsara webhook: geofence entry/exit auto-advances the day -----------
+
+app.post("/api/samsara/webhook/:key", async (req, res) => {
+  try {
+    if (!SAMSARA_WEBHOOK_KEY || req.params.key !== SAMSARA_WEBHOOK_KEY) {
+      return res.status(403).json({ error: "Bad key." });
+    }
+    const event = parseGeofenceEvent(req.body || {});
+    if (!event || !event.addressId) return res.json({ ok: true, ignored: true });
+    const stop = await getDeliveryStopByGeofence(event.addressId);
+    if (!stop) return res.json({ ok: true, ignored: true });
+
+    if (event.kind === "entry" && stop.status === "pending") {
+      await setDeliveryStopStatus(stop.id, "arrived");
+    } else if (event.kind === "exit" && ["arrived", "done"].includes(stop.status)) {
+      await markDeliveryStopDeparted(stop.id);
+      // Truck rolling → the next customer gets their heads-up (paperwork can
+      // finish later; the guard makes this a no-op if already sent).
+      await notifyNextDeliveryStop(stop.runId);
+    }
+    return res.json({ ok: true });
+  } catch (err) {
+    console.error("Samsara webhook failed:", err.message);
+    return res.status(500).json({ error: "Webhook processing failed." });
+  }
+});
+
 // PUBLIC: Sub-Zero landing page consultation requests (subzero.html on the
 // service host). Same routing as new web orders: a green dashboard flag and
 // an email to every consultant whose job title receives web-order alerts.
@@ -8828,6 +9317,90 @@ async function buildServiceCardMatchIndex() {
   return index;
 }
 
+// ---------------------------------------------------------------------------
+// Service Order Health → dashboard flag routing, run on every upload.
+//   WTY tickets with problems  → per-ticket yellow flag to every Warranty
+//                                Analyst (job code NE12), flagged once per
+//                                invoice so daily uploads don't re-nag.
+//   SV/COD tickets with problems → ONE living summary flag to every Senior
+//                                Client Care Specialist (job code NE17),
+//                                refreshed (replaced) on each upload and
+//                                dropped entirely when the list is clean.
+// "Problems" mirror the report page: scheduled/pickup date in the past, and
+// for SV additionally no secure card on file via the request-queue match.
+// ---------------------------------------------------------------------------
+const WARRANTY_ANALYST_JOB_CODE = (process.env.WARRANTY_ANALYST_JOB_CODE || "NE12").toUpperCase();
+const SVH_SV_COD_SUMMARY_REF = "svh:sv-cod-summary";
+
+async function jobCodeHolders(code) {
+  const directory = await listEmployeeDirectory();
+  return directory.filter((entry) =>
+    !entry.archived &&
+    String(entry.jobTitleCode || "").trim().toUpperCase() === code &&
+    String(entry.email || "").trim()
+  );
+}
+
+async function pushServiceOrderHealthFlags(rows) {
+  const today = new Date().toLocaleDateString("en-CA", { timeZone: APP_TIMEZONE });
+  const effDate = (r) => r.schedDate || r.pickupDate || "";
+  const isPast = (r) => { const d = effDate(r); return !!d && d < today; };
+
+  // ---- WTY → Warranty Analyst (NE12), one flag per problem invoice, ever.
+  const analysts = await jobCodeHolders(WARRANTY_ANALYST_JOB_CODE);
+  if (analysts.length) {
+    const wtyFlagged = rows.filter((r) => r.invType === "WTY" && isPast(r));
+    for (const order of wtyFlagged) {
+      const ref = `svhwty:${order.invoice}`;
+      if (await pushedNotificationRefExists(ref)) continue;
+      for (const analyst of analysts) {
+        await createPushedNotification({
+          severity: "yellow",
+          typeLabel: "Warranty Ticket",
+          refId: ref,
+          title: `${order.invoice} — ${order.name || "warranty ticket"} needs attention`,
+          body: `${order.jobStatus || "Open"} · dated ${effDate(order)} (past) · tech ${order.sp || "—"}${Number(order.balance) ? ` · balance $${Number(order.balance).toFixed(2)}` : ""}. Review it on Service Order Health.`,
+          audienceEmail: analyst.email,
+          byEmail: "service-order-health",
+          byName: "Service Order Health"
+        }).catch(() => {});
+      }
+    }
+  }
+
+  // ---- SV/COD → Senior Client Care (NE17), one living summary flag.
+  const index = await buildServiceCardMatchIndex();
+  const hasCard = (r) => {
+    for (const key of erpInvoiceMatchKeys(r.invoice)) {
+      const match = index.get(key);
+      if (match) return match.hasCard;
+    }
+    return false;
+  };
+  const svCod = rows.filter((r) => r.invType === "SV" && /COD/i.test(r.paymentType || ""));
+  const flagged = svCod.filter((r) => isPast(r) || !hasCard(r));
+  const pastCount = flagged.filter((r) => isPast(r)).length;
+  const noCardCount = flagged.filter((r) => !hasCard(r)).length;
+
+  await retirePushedNotificationsByRef(SVH_SV_COD_SUMMARY_REF).catch(() => {});
+  if (flagged.length) {
+    const seniors = await jobCodeHolders(SENIOR_CS_JOB_CODE);
+    for (const senior of seniors) {
+      await createPushedNotification({
+        severity: "yellow",
+        typeLabel: "SV/COD Tickets",
+        refId: SVH_SV_COD_SUMMARY_REF,
+        title: `${flagged.length} SV/COD service ticket${flagged.length === 1 ? "" : "s"} need attention`,
+        body: `${pastCount} past-date · ${noCardCount} without a secure card on file. The full list is on Service Order Health — this flag refreshes with each upload.`,
+        audienceEmail: senior.email,
+        byEmail: "service-order-health",
+        byName: "Service Order Health"
+      }).catch(() => {});
+    }
+  }
+  return { wty: rows.filter((r) => r.invType === "WTY" && isPast(r)).length, svCod: flagged.length };
+}
+
 app.get("/api/service-orders", requirePagePermission("/service-order-health.html"), async (req, res) => {
   try {
     const snapshot = await getServiceOrderSnapshot();
@@ -8903,13 +9476,20 @@ app.post("/api/service-orders", requirePagePermission("/service-order-health.htm
       byName: req.authUser?.displayName || ""
     });
 
+    let flagCounts = null;
+    try {
+      flagCounts = await pushServiceOrderHealthFlags(normalized);
+    } catch (flagErr) {
+      console.error("Service order flag routing failed:", flagErr.message);
+    }
+
     recordAudit({
       ip: req.ip, actorUserId: req.authUser?.id || null,
       action: "service_orders_uploaded", targetUserId: null,
-      detail: { rows: normalized.length, filename: snapshot.filename }
+      detail: { rows: normalized.length, filename: snapshot.filename, flags: flagCounts }
     }).catch(() => {});
 
-    return res.json({ ok: true, snapshot });
+    return res.json({ ok: true, snapshot, flags: flagCounts });
   } catch (err) {
     console.error("Service orders upload failed:", err.message);
     return res.status(500).json({ error: "Unable to store the service order snapshot." });

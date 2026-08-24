@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="robots" content="noindex,nofollow,noarchive" />
+  <title>Wilson AC &amp; Appliance - Delivery Dispatch</title>
+  <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+  <link rel="stylesheet" href="internal-shell.css" />
+  <style>
+    :root {
+      --bg: #f7f8fc; --card: #ffffff; --text: #1f2937; --muted: #6b7280;
+      --border: #dbe1ea; --shadow: 0 10px 35px rgba(0, 0, 0, 0.08); --radius: 18px;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; font-family: "Roboto", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: linear-gradient(180deg, var(--primary-tint) 0%, var(--bg) 100%);
+      color: var(--text); min-height: 100vh; padding: 32px 16px;
+    }
+    .wrap { max-width: 1480px; margin: 0 auto; }
+    .surface {
+      background: var(--card); border: 1px solid rgba(var(--primary-rgb), 0.12);
+      box-shadow: var(--shadow); border-radius: var(--radius); padding: 22px; margin: 0 auto 20px;
+    }
+    h2 { margin: 0 0 6px; font-size: 20px; }
+    .section-note { margin: 0 0 14px; color: var(--muted); font-size: 13.5px; line-height: 1.5; }
+    .dd-status { display: none; border-radius: 12px; padding: 10px 13px; font-size: 13px; margin-bottom: 12px; }
+    .dd-status.show { display: block; }
+    .dd-status.ok { background: rgba(var(--primary-rgb), 0.1); color: var(--primary); }
+    .dd-status.error { background: #fee2e2; color: #991b1b; }
+    .dd-status.warn { background: #fffbeb; color: #92400e; }
+    .dd-btn { border: none; border-radius: 10px; cursor: pointer; font-size: 12.5px; font-weight: 700; padding: 9px 14px; font-family: inherit; }
+    .dd-btn:disabled { opacity: 0.55; cursor: wait; }
+    .dd-btn.primary { background: var(--primary); color: #fff; }
+    .dd-btn.quiet { background: #fff; color: #374151; border: 1px solid var(--border); }
+    .dd-btn.danger { background: #fff; color: #991b1b; border: 1px solid #fecaca; }
+    .dd-toolbar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 14px; }
+    .dd-toolbar input[type="date"] { border: 1px solid var(--border); border-radius: 10px; padding: 9px 12px; font-family: inherit; font-size: 13.5px; }
+    .run-card { border: 1.5px solid var(--border); border-radius: 14px; padding: 16px; margin-bottom: 16px; }
+    .run-card.active { border-color: rgba(var(--primary-rgb), 0.6); }
+    .run-head { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 10px; }
+    .run-head input, .run-head select { border: 1px solid var(--border); border-radius: 10px; padding: 8px 11px; font-family: inherit; font-size: 13px; }
+    .pill { border-radius: 999px; font-size: 10.5px; font-weight: 800; padding: 3px 10px; letter-spacing: 0.04em; }
+    .pill.planned { background: #f1f5f9; color: #64748b; }
+    .pill.active { background: rgba(var(--primary-rgb), 0.12); color: var(--primary); }
+    .pill.paused { background: #fffbeb; color: #92400e; }
+    .pill.done { background: #e5e7eb; color: #374151; }
+    table.stops { width: 100%; border-collapse: collapse; font-size: 13px; }
+    .stops th, .stops td { text-align: left; padding: 7px 9px; border-bottom: 1px solid #eef1f6; vertical-align: top; }
+    .stops th { font-size: 11px; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; color: #64748b; white-space: nowrap; }
+    .spill { border-radius: 999px; font-size: 10px; font-weight: 800; padding: 2px 9px; }
+    .spill.pending { background: #f1f5f9; color: #64748b; }
+    .spill.arrived { background: #dbeafe; color: #1e40af; }
+    .spill.done { background: rgba(var(--primary-rgb), 0.12); color: var(--primary); }
+    .spill.skipped, .spill.exception { background: #fee2e2; color: #991b1b; }
+    .addstop { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 8px; margin-top: 10px; }
+    .addstop input { border: 1px solid var(--border); border-radius: 10px; padding: 8px 11px; font-family: inherit; font-size: 13px; }
+    .mono { font-variant-numeric: tabular-nums; }
+    .mut { color: var(--muted); font-size: 11.5px; }
+  </style>
+</head>
+<body data-shell-label="Delivery Dispatch" data-shell-icon="service">
+  <div class="wrap">
+    <div id="internal-shell-header"></div>
+
+    <div class="surface">
+      <div class="page-head">
+        <h2>Delivery Dispatch</h2>
+        <p class="section-note">
+          Build each truck's day, order the stops, and hit <strong>Start run</strong>. From there the day runs
+          itself: customers get their morning text and "you're next" updates from the showroom number
+          (replies land in Podium), Samsara geofences advance stop statuses as the truck moves, and the
+          driver page collects photos and signatures.
+        </p>
+      </div>
+      <div id="ddStatus" class="dd-status"></div>
+      <div class="dd-toolbar">
+        <label style="font-size:12px; font-weight:800; color:#64748b;">RUN DATE</label>
+        <input type="date" id="ddDate" />
+        <button type="button" class="dd-btn primary" id="ddNewRun">+ New run</button>
+        <span id="ddConfig" class="mut"></span>
+      </div>
+      <div id="ddRuns"><p class="section-note">Loading…</p></div>
+    </div>
+
+    <div id="internal-shell-footer"></div>
+  </div>
+
+  <script src="internal-shell.js"></script>
+  <script>
+    (function () {
+      const $ = (id) => document.getElementById(id);
+      const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch]));
+      const state = { runs: [], vehicles: [], samsara: false, texting: false, publicHost: "" };
+
+      function setStatus(message, kind) {
+        const box = $("ddStatus");
+        if (!message) { box.className = "dd-status"; box.textContent = ""; return; }
+        box.className = "dd-status " + kind + " show";
+        box.textContent = message;
+        if (kind === "ok") setTimeout(() => { if (box.textContent === message) { box.className = "dd-status"; } }, 6000);
+      }
+
+      async function api(path, options = {}) {
+        const res = await fetch(path, {
+          credentials: "same-origin",
+          headers: options.body ? { "Content-Type": "application/json" } : {},
+          ...options
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error || "Request failed.");
+        return data;
+      }
+
+      const PILL = { planned: "Planned", active: "Active", paused: "Paused", done: "Done" };
+
+      function stopRow(run, stop, index, count) {
+        const editable = run.status === "planned";
+        return `
+          <tr>
+            <td class="mono">${stop.seq}</td>
+            <td><strong>${esc(stop.customerName)}</strong>${stop.orderRef ? ` <span class="mut">${esc(stop.orderRef)}</span>` : ""}<br><span class="mut">${esc(stop.address)}</span></td>
+            <td>${esc(stop.phone || "—")}<br><span class="mut">${esc(stop.windowText || "")}</span></td>
+            <td>${esc(stop.items || "—")}${stop.notes ? `<br><span class="mut">${esc(stop.notes)}</span>` : ""}</td>
+            <td><span class="spill ${esc(stop.status)}">${esc(stop.status)}</span>${stop.geofenceId ? `<br><span class="mut">geofence ✓</span>` : ""}${stop.texts?.length ? `<br><span class="mut">${stop.texts.length} text${stop.texts.length === 1 ? "" : "s"}</span>` : ""}${stop.exceptionNote ? `<br><span class="mut">⚠ ${esc(stop.exceptionNote)}</span>` : ""}</td>
+            <td style="white-space:nowrap;">
+              ${editable ? `
+                <button type="button" class="dd-btn quiet" data-move="${stop.id}" data-dir="-1" ${index === 0 ? "disabled" : ""}>↑</button>
+                <button type="button" class="dd-btn quiet" data-move="${stop.id}" data-dir="1" ${index === count - 1 ? "disabled" : ""}>↓</button>
+                <button type="button" class="dd-btn danger" data-delstop="${stop.id}">✕</button>` : ""}
+            </td>
+          </tr>`;
+      }
+
+      function runCard(run) {
+        const editable = run.status === "planned";
+        const doneCount = run.stops.filter((s) => ["done", "skipped", "exception"].includes(s.status)).length;
+        return `
+          <div class="run-card ${run.status === "active" ? "active" : ""}" data-run="${run.id}">
+            <div class="run-head">
+              <span class="pill ${esc(run.status)}">${PILL[run.status]}</span>
+              <strong>${esc(run.runDate)}</strong>
+              <input placeholder="Run name (Truck 1)" value="${esc(run.name)}" data-rf="name" ${editable ? "" : "disabled"} style="width:130px;" />
+              <input placeholder="Driver name" value="${esc(run.driverName)}" data-rf="driverName" ${editable ? "" : "disabled"} style="width:130px;" />
+              <input placeholder="driver@wilsonappliance.com" value="${esc(run.driverEmail)}" data-rf="driverEmail" ${editable ? "" : "disabled"} style="width:220px;" />
+              ${state.vehicles.length ? `
+                <select data-rf="vehicleId" ${editable ? "" : "disabled"}>
+                  <option value="">No vehicle</option>
+                  ${state.vehicles.map((v) => `<option value="${esc(v.id)}" ${run.vehicleId === v.id ? "selected" : ""}>${esc(v.name)}</option>`).join("")}
+                </select>` :
+                `<input placeholder="Samsara vehicle id" value="${esc(run.vehicleId)}" data-rf="vehicleId" ${editable ? "" : "disabled"} style="width:140px;" />`}
+              <span style="flex:1;"></span>
+              ${run.status === "paused" ? `<span class="mut">Paused${run.pauseNote ? ": " + esc(run.pauseNote) : ""}</span>` : ""}
+              ${editable ? `<button type="button" class="dd-btn primary" data-start="${run.id}">Start run</button>
+                            <button type="button" class="dd-btn danger" data-delrun="${run.id}">Delete</button>` : ""}
+              ${["active", "paused"].includes(run.status) ? `<span class="mut mono">${doneCount}/${run.stops.length} stops done</span>
+                <button type="button" class="dd-btn quiet" data-finish="${run.id}">Finish day</button>` : ""}
+            </div>
+            <div style="overflow-x:auto;">
+              <table class="stops">
+                <thead><tr><th>#</th><th>Customer</th><th>Contact</th><th>Items</th><th>Status</th><th></th></tr></thead>
+                <tbody>${run.stops.map((s, i) => stopRow(run, s, i, run.stops.length)).join("") || `<tr><td colspan="6" class="mut">No stops yet.</td></tr>`}</tbody>
+              </table>
+            </div>
+            ${editable ? `
+              <div class="addstop">
+                <input placeholder="Customer name *" data-af="customerName" />
+                <input placeholder="Phone" data-af="phone" />
+                <input placeholder="Address" data-af="address" style="grid-column: span 2;" />
+                <input placeholder="Order # (R/S/shop)" data-af="orderRef" />
+                <input placeholder="Items" data-af="items" />
+                <input placeholder="Window (10am–2pm)" data-af="windowText" />
+                <input placeholder="Notes (gate code, dogs…)" data-af="notes" />
+                <button type="button" class="dd-btn quiet" data-addstop="${run.id}">+ Add stop</button>
+              </div>` : ""}
+          </div>`;
+      }
+
+      function render() {
+        $("ddConfig").textContent =
+          `${state.samsara ? "Samsara connected" : "Samsara not configured"} · ${state.texting ? "texting ready" : "texting NOT configured (no messages will send)"}`;
+        const box = $("ddRuns");
+        if (!state.runs.length) { box.innerHTML = `<p class="section-note">No runs for this date — create one.</p>`; return; }
+        box.innerHTML = state.runs.map(runCard).join("");
+
+        box.querySelectorAll("[data-rf]").forEach((input) => {
+          input.addEventListener("change", async () => {
+            const runId = input.closest(".run-card").dataset.run;
+            try { await api(`/api/deliveries/runs/${runId}/update`, { method: "POST", body: JSON.stringify({ [input.dataset.rf]: input.value, ...(input.dataset.rf === "vehicleId" && input.tagName === "SELECT" ? { vehicleName: input.selectedOptions[0]?.textContent || "" } : {}) }) }); }
+            catch (err) { setStatus(err.message, "error"); }
+          });
+        });
+        box.querySelectorAll("[data-addstop]").forEach((btn) => btn.addEventListener("click", async () => {
+          const card = btn.closest(".run-card");
+          const fields = {};
+          card.querySelectorAll("[data-af]").forEach((i) => { fields[i.dataset.af] = i.value.trim(); });
+          if (!fields.customerName) return setStatus("The customer's name is required.", "error");
+          btn.disabled = true;
+          try { await api(`/api/deliveries/runs/${btn.dataset.addstop}/stops`, { method: "POST", body: JSON.stringify(fields) }); await load(); }
+          catch (err) { setStatus(err.message, "error"); btn.disabled = false; }
+        }));
+        box.querySelectorAll("[data-move]").forEach((btn) => btn.addEventListener("click", async () => {
+          const run = state.runs.find((r) => String(r.id) === btn.closest(".run-card").dataset.run);
+          const ids = run.stops.map((s) => s.id);
+          const idx = ids.indexOf(Number(btn.dataset.move));
+          const to = idx + Number(btn.dataset.dir);
+          if (to < 0 || to >= ids.length) return;
+          [ids[idx], ids[to]] = [ids[to], ids[idx]];
+          try { await api(`/api/deliveries/runs/${run.id}/reorder`, { method: "POST", body: JSON.stringify({ stopIds: ids }) }); await load(); }
+          catch (err) { setStatus(err.message, "error"); }
+        }));
+        box.querySelectorAll("[data-delstop]").forEach((btn) => btn.addEventListener("click", async () => {
+          if (!confirm("Remove this stop?")) return;
+          try { await api(`/api/deliveries/stops/${btn.dataset.delstop}`, { method: "DELETE" }); await load(); }
+          catch (err) { setStatus(err.message, "error"); }
+        }));
+        box.querySelectorAll("[data-delrun]").forEach((btn) => btn.addEventListener("click", async () => {
+          if (!confirm("Delete this run and its stops?")) return;
+          try { await api(`/api/deliveries/runs/${btn.dataset.delrun}`, { method: "DELETE" }); await load(); }
+          catch (err) { setStatus(err.message, "error"); }
+        }));
+        box.querySelectorAll("[data-start]").forEach((btn) => btn.addEventListener("click", async () => {
+          if (!confirm("Start this run? Morning texts go out to every stop with a phone number.")) return;
+          btn.disabled = true;
+          try {
+            const data = await api(`/api/deliveries/runs/${btn.dataset.start}/start`, { method: "POST", body: "{}" });
+            setStatus(data.warnings?.length ? data.warnings.join(" ") : "Run started — morning texts sent.", data.warnings?.length ? "warn" : "ok");
+            await load();
+          } catch (err) { setStatus(err.message, "error"); btn.disabled = false; }
+        }));
+        box.querySelectorAll("[data-finish]").forEach((btn) => btn.addEventListener("click", async () => {
+          if (!confirm("Finish this run? Geofences are cleaned up.")) return;
+          try { await api(`/api/deliveries/runs/${btn.dataset.finish}/finish`, { method: "POST", body: "{}" }); await load(); }
+          catch (err) { setStatus(err.message, "error"); }
+        }));
+      }
+
+      async function load() {
+        try {
+          const data = await api(`/api/deliveries/runs?date=${$("ddDate").value}`);
+          state.runs = data.runs || [];
+          state.samsara = data.samsara;
+          state.texting = data.texting;
+          state.publicHost = data.publicHost || "";
+          render();
+        } catch (err) { setStatus(err.message, "error"); }
+      }
+
+      $("ddNewRun").addEventListener("click", async () => {
+        try {
+          await api("/api/deliveries/runs", { method: "POST", body: JSON.stringify({ runDate: $("ddDate").value, name: "Truck 1" }) });
+          await load();
+        } catch (err) { setStatus(err.message, "error"); }
+      });
+      $("ddDate").addEventListener("change", load);
+
+      (async () => {
+        $("ddDate").value = new Date().toLocaleDateString("en-CA", { timeZone: "America/Chicago" });
+        try {
+          const v = await api("/api/deliveries/vehicles");
+          state.vehicles = v.vehicles || [];
+        } catch { state.vehicles = []; }
+        await load();
+        setInterval(load, 60000); // live board on delivery day
+      })();
+    })();
+  </script>
+</body>
+</html>

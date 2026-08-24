@@ -252,7 +252,10 @@
         Invoice # ↔ ERP Order Number (tolerant of leading zeros and spacing; archived requests
         count too). "No request found" means the ticket never came through the request form —
         those SV tickets have no way to have a card on file. WTY tickets are not checked.
-        Notification flags for service orders will be layered on later.
+        <br><strong>Flag routing:</strong> each upload pushes dashboard flags — WTY tickets with
+        past dates go to the Warranty Analyst (one flag per ticket), and flagged SV/COD tickets
+        (past-date or no card on file) roll up into a single refreshed flag for the Senior
+        Client Care Specialists.
       </p>
     </div>
 

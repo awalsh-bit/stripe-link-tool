@@ -261,6 +261,16 @@ import {
   listMessageTemplates
 } from "./lib/podium.js";
 import {
+  createCardConfirm,
+  getCardConfirm,
+  markCardConfirmDecided
+} from "./lib/card-confirms-postgres.js";
+import {
+  listPodiumAutomations,
+  upsertPodiumAutomation,
+  resolveAutomationTemplate
+} from "./lib/podium-automations-postgres.js";
+import {
   parseInvoiceMaintenanceQuotes,
   replaceOpenQuotes,
   saveQuoteDisposition,
@@ -407,6 +417,10 @@ const SERVICE_PUBLIC_PATHS = new Set([
   "/api/subzero/inquiry",
   "/track.html",
   "/api/track",
+  "/card-confirm.html",
+  "/api/card-confirm/view",
+  "/api/card-confirm/use",
+  "/api/card-confirm/other",
   "/public-shell.css",
   "/public-shell.js",
   "/fonts/roboto-latin-wght-normal.woff2",
@@ -531,7 +545,8 @@ const INTERNAL_PAGE_PATHS = new Set([
   "/shop-orders.html",
   "/shopper-profiles.html",
   "/dispatch.html",
-  "/driver.html"
+  "/driver.html",
+  "/message-automations.html"
 ]);
 
 const UNAUTHENTICATED_INTERNAL_PATHS = new Set([
@@ -733,7 +748,8 @@ const PAGE_LABELS = {
   "/shop-orders.html": "Online Shop Orders",
   "/shopper-profiles.html": "Shopper Profiles",
   "/dispatch.html": "Delivery Dispatch",
-  "/driver.html": "Driver Run Sheet"
+  "/driver.html": "Driver Run Sheet",
+  "/message-automations.html": "Text Automations"
 };
 
 // Category groupings for the User Admin permission UI. A page may appear in
@@ -798,6 +814,11 @@ const PAGE_CATEGORIES = [
     key: "delivery",
     label: "Delivery",
     pages: ["/dispatch.html", "/driver.html"]
+  },
+  {
+    key: "automations",
+    label: "Automations",
+    pages: ["/message-automations.html"]
   },
   {
     key: "sales",
@@ -5968,6 +5989,84 @@ app.get("/api/podium/status", requireExecutiveApi, async (req, res) => {
   }
 });
 
+// ---- Text automations (message-automations.html) --------------------------
+// The registry of triggers Agility can text on. Adding a new automation is
+// one entry here plus a resolveAutomationTemplate() call at the event site.
+const TEXT_AUTOMATION_TRIGGERS = [
+  {
+    key: "payment_received",
+    label: "Payment link paid",
+    description: "Fires when a payment link is paid (card immediately, ACH when it clears). Sends at most one text per link, ever — webhook retries and manual syncs can't double-text.",
+    vars: ["first_name", "name", "amount", "order"],
+    sampleVars: { first_name: "Taylor", name: "Taylor Client", amount: "$1,234.56", order: "S012345" }
+  }
+];
+
+app.get("/api/podium/automations", requireExecutiveApi, async (req, res) => {
+  try {
+    const saved = await listPodiumAutomations();
+    const triggers = TEXT_AUTOMATION_TRIGGERS.map((t) => {
+      const row = saved.find((r) => r.triggerKey === t.key);
+      return {
+        key: t.key, label: t.label, description: t.description, vars: t.vars,
+        templateTitle: row?.templateTitle || "",
+        enabled: row?.enabled === true,
+        envFallback: t.key === "payment_received" ? PODIUM_TEMPLATE_PAYMENT_RECEIVED : "",
+        updatedBy: row?.updatedBy || "", updatedAt: row?.updatedAt || null
+      };
+    });
+    let templates = [];
+    try { if (await podiumConnected()) templates = (await listMessageTemplates({ force: true })).map((t) => t.title).filter(Boolean); }
+    catch (err) { console.error("Automation template list failed:", err.message); }
+    return res.json({ triggers, templates, connected: await podiumConnected() });
+  } catch (err) {
+    console.error("Automations load failed:", err.message);
+    return res.status(500).json({ error: "Unable to load automations." });
+  }
+});
+
+app.post("/api/podium/automations", requireExecutiveApi, async (req, res) => {
+  try {
+    const key = String(req.body?.triggerKey || "");
+    if (!TEXT_AUTOMATION_TRIGGERS.some((t) => t.key === key)) return res.status(400).json({ error: "Unknown trigger." });
+    const enabled = req.body?.enabled === true;
+    const templateTitle = String(req.body?.templateTitle || "").trim();
+    if (enabled && !templateTitle) return res.status(400).json({ error: "Pick a template before enabling." });
+    const row = await upsertPodiumAutomation({ triggerKey: key, templateTitle, enabled, byEmail: req.authUser?.email || "" });
+    recordAudit({
+      ip: req.ip, actorUserId: req.authUser?.id || null,
+      action: "text_automation_updated", targetUserId: null,
+      detail: { trigger: key, template: templateTitle, enabled }
+    }).catch(() => {});
+    return res.json({ ok: true, automation: row });
+  } catch (err) {
+    console.error("Automation save failed:", err.message);
+    return res.status(500).json({ error: "Unable to save the automation." });
+  }
+});
+
+// Send a sample of the trigger's template (with placeholder values) to a
+// phone the exec types — always explicit, never a customer.
+app.post("/api/podium/automations/test", requireExecutiveApi, async (req, res) => {
+  try {
+    const trigger = TEXT_AUTOMATION_TRIGGERS.find((t) => t.key === String(req.body?.triggerKey || ""));
+    if (!trigger) return res.status(400).json({ error: "Unknown trigger." });
+    const digits = String(req.body?.phone || "").replace(/\D/g, "");
+    if (!(digits.length === 10 || (digits.length === 11 && digits.startsWith("1")))) {
+      return res.status(400).json({ error: "Enter a 10-digit phone number." });
+    }
+    const templateTitle = String(req.body?.templateTitle || "").trim() ||
+      await resolveAutomationTemplate(trigger.key, trigger.key === "payment_received" ? PODIUM_TEMPLATE_PAYMENT_RECEIVED : "");
+    if (!templateTitle) return res.status(400).json({ error: "Pick a template first." });
+    const result = await sendPodiumTemplateText({ phone: digits, templateTitle, vars: trigger.sampleVars });
+    if (!result.ok) return res.status(400).json({ error: `Send failed: ${result.error}.` });
+    return res.json({ ok: true, usedTemplate: result.usedTemplate });
+  } catch (err) {
+    console.error("Automation test failed:", err.message);
+    return res.status(500).json({ error: "Test send failed." });
+  }
+});
+
 // The team's Podium templates (titles + text) — handy for picking the exact
 // title to put in PODIUM_TEMPLATE_* env vars.
 app.get("/api/podium/templates", requireExecutiveApi, async (req, res) => {
@@ -7542,6 +7641,196 @@ app.post("/api/field-commissions/override", requireExecutiveApi, async (req, res
 // -------------------------
 // EXISTING PAYMENT LINK ROUTE
 // -------------------------
+// ---------------------------------------------------------------------------
+// Card-on-file reuse for repeat service clients. SetupIntent-saved cards are
+// durable: the PaymentMethod stays attached to its Stripe Customer until
+// detached, and Stripe's network updater refreshes reissued cards. So when a
+// card-capture link is requested for a phone we've captured before, we verify
+// the old card is still alive and let the CLIENT confirm reusing it (brand +
+// last4 shown on a tokenized page) instead of re-entering it.
+// ---------------------------------------------------------------------------
+
+async function findSavedCardForPhone(phone) {
+  const target = String(phone || "").replace(/\D/g, "").slice(-10);
+  if (target.length !== 10) return null;
+  const links = await readLinks();
+  const candidates = links.filter((row) =>
+    row.workflowType === "card_capture" &&
+    row.status === "card_saved" &&
+    row.customerId && row.paymentMethodId &&
+    String(row.customerPhone || "").replace(/\D/g, "").slice(-10) === target
+  );
+  for (const row of candidates) { // links store is newest-first
+    try {
+      const pm = await stripe.paymentMethods.retrieve(row.paymentMethodId);
+      if (!pm?.customer) continue; // detached — no longer chargeable
+      const card = pm.card || {};
+      const now = new Date();
+      const expOk = Number(card.exp_year) > now.getFullYear() ||
+        (Number(card.exp_year) === now.getFullYear() && Number(card.exp_month) >= now.getMonth() + 1);
+      if (!expOk) continue;
+      return {
+        customerId: typeof pm.customer === "string" ? pm.customer : pm.customer.id,
+        paymentMethodId: pm.id,
+        brand: card.brand || "card",
+        last4: card.last4 || "",
+        expMonth: Number(card.exp_month) || null,
+        expYear: Number(card.exp_year) || null,
+        fingerprint: card.fingerprint || "",
+        fromSalesOrder: row.salesOrder || "",
+        fromDate: row.createdAt || ""
+      };
+    } catch (err) {
+      if (err?.statusCode !== 404) console.error("Saved-card check failed:", err.message);
+    }
+  }
+  return null;
+}
+
+async function createCardCaptureStripeSession({ salesOrder, customerName, customerPhone, customerPhoneDigits, customerEmail, creatorCode, creatorName, creatorEmail, department, notes, description, clientRequestId }) {
+  const captureMetadata = {
+    workflow_type: "card_capture",
+    sales_order: salesOrder || "",
+    customer_name: customerName || "",
+    customer_phone: customerPhoneDigits || customerPhone || "",
+    customer_email: customerEmail || "",
+    creator_code: creatorCode || "",
+    creator_name: creatorName || "",
+    creator_email: creatorEmail || "",
+    department: department || "",
+    notes: notes || "",
+    link_description: description || ""
+  };
+  const customerConfig = {
+    name: customerName || undefined,
+    phone: customerPhone || undefined,
+    email: customerEmail || undefined,
+    metadata: { sales_order: salesOrder || "", source: "agility_card_capture" }
+  };
+  const captureCustomer = await stripe.customers.create(customerConfig, {
+    idempotencyKey: createStripeIdempotencyKeyFromPayload("card-capture-customer", { ...customerConfig, salesOrder, t: clientRequestId || "" })
+  });
+  const sessionConfig = {
+    mode: "setup",
+    customer: captureCustomer.id,
+    payment_method_types: ["card"],
+    success_url: `https://${SERVICE_PUBLIC_HOST}/card-saved.html`,
+    metadata: captureMetadata,
+    setup_intent_data: { metadata: captureMetadata }
+  };
+  const captureSession = await stripe.checkout.sessions.create(sessionConfig, {
+    idempotencyKey: createStripeIdempotencyKeyFromPayload("card-capture-session", sessionConfig)
+  });
+  return { captureCustomer, captureSession };
+}
+
+async function findCardConfirmRecord(token) {
+  const cc = await getCardConfirm(token).catch(() => null);
+  if (!cc) return { links: null, record: null, cc: null };
+  const links = await readLinks();
+  const record = links.find((row) => row.workflowType === "card_capture" && row.id === cc.linkId);
+  return { links, record, cc };
+}
+
+// PUBLIC (service host): the client's view of a card-on-file confirmation.
+app.post("/api/card-confirm/view", async (req, res) => {
+  try {
+    const { links, record, cc } = await findCardConfirmRecord(req.body?.token);
+    if (!record) return res.status(404).json({ error: "This link isn't valid — call us at 512-894-0907." });
+    if (record.status === "sent") {
+      record.status = "viewed";
+      record.updatedAt = new Date().toISOString();
+      await writeLinks(links);
+    }
+    const prior = cc.prior || {};
+    return res.json({
+      firstName: String(record.customerName || "").trim().split(/\s+/)[0] || "there",
+      salesOrder: record.salesOrder || "",
+      brand: prior.brand || "card",
+      last4: prior.last4 || "",
+      expMonth: prior.expMonth, expYear: prior.expYear,
+      fromDate: prior.fromDate || "",
+      done: record.status === "card_saved",
+      switchedToForm: Boolean(record.checkoutSessionId)
+    });
+  } catch (err) {
+    console.error("Card-confirm view failed:", err.message);
+    return res.status(500).json({ error: "Unable to load this page right now." });
+  }
+});
+
+// PUBLIC: client approves reusing the card on file.
+app.post("/api/card-confirm/use", async (req, res) => {
+  try {
+    const { links, record, cc } = await findCardConfirmRecord(req.body?.token);
+    if (!record) return res.status(404).json({ error: "This link isn't valid." });
+    if (record.status === "card_saved") return res.json({ ok: true, already: true });
+    const prior = cc.prior || {};
+    // Re-verify at decision time — the card could have died since the link went out.
+    const pm = await stripe.paymentMethods.retrieve(prior.paymentMethodId).catch(() => null);
+    if (!pm?.customer) {
+      return res.status(409).json({ error: "That saved card is no longer available — tap \"Use a different card\" instead." });
+    }
+    record.status = "card_saved";
+    record.active = false;
+    record.customerId = prior.customerId;
+    record.paymentMethodId = prior.paymentMethodId;
+    record.paymentMethodType = "card";
+    record.paymentStatusDetail = `Card on file confirmed — ${prior.brand} ending ${prior.last4}${prior.fromSalesOrder ? ` (from ${prior.fromSalesOrder})` : ""}`;
+    await markCardConfirmDecided(cc.token).catch(() => {});
+    record.updatedAt = new Date().toISOString();
+    if (!record.paymentNotificationSentAt && record.creatorEmail) {
+      try {
+        await sendCardCapturedEmail(record, { brand: prior.brand, last4: prior.last4 });
+        record.paymentNotificationSentAt = new Date().toISOString();
+      } catch (mailErr) {
+        record.paymentNotificationError = mailErr.message || "Unable to send card-confirmed notification.";
+      }
+    }
+    await writeLinks(links);
+    recordAudit({
+      ip: req.ip, actorUserId: null,
+      action: "card_on_file_confirmed", targetUserId: null,
+      detail: { salesOrder: record.salesOrder, from: prior.fromSalesOrder, last4: prior.last4 }
+    }).catch(() => {});
+    return res.json({ ok: true });
+  } catch (err) {
+    console.error("Card-confirm use failed:", err.message);
+    return res.status(500).json({ error: "Unable to confirm the card — please call us." });
+  }
+});
+
+// PUBLIC: client wants to enter a different card — create the real Stripe
+// Checkout session now and hand back its URL.
+app.post("/api/card-confirm/other", async (req, res) => {
+  try {
+    const { links, record, cc } = await findCardConfirmRecord(req.body?.token);
+    if (!record) return res.status(404).json({ error: "This link isn't valid." });
+    if (record.status === "card_saved") return res.status(409).json({ error: "A card is already on file for this order." });
+    if (record.checkoutSessionId && record.paymentLinkUrl.includes("stripe")) {
+      return res.json({ ok: true, url: record.paymentLinkUrl });
+    }
+    const { captureCustomer, captureSession } = await createCardCaptureStripeSession({
+      salesOrder: record.salesOrder, customerName: record.customerName,
+      customerPhone: record.customerPhone, customerPhoneDigits: record.customerPhone,
+      customerEmail: record.customerEmail, creatorCode: record.creatorCode,
+      creatorName: record.creatorName, creatorEmail: record.creatorEmail,
+      department: record.department, notes: record.notes, description: record.description,
+      clientRequestId: cc.token
+    });
+    record.customerId = captureCustomer.id;
+    record.checkoutSessionId = captureSession.id;
+    record.paymentLinkUrl = captureSession.url;
+    await markCardConfirmDecided(cc.token).catch(() => {});
+    record.updatedAt = new Date().toISOString();
+    await writeLinks(links);
+    return res.json({ ok: true, url: captureSession.url });
+  } catch (err) {
+    console.error("Card-confirm other failed:", err.message);
+    return res.status(500).json({ error: "Unable to open the card form — please call us." });
+  }
+});
+
 app.post("/api/create-payment-link", requirePagePermission("/index.html"), async (req, res) => {
   try {
     const {
@@ -7598,45 +7887,19 @@ app.post("/api/create-payment-link", requirePagePermission("/index.html"), async
 // Session (mode:"setup") pinned to a pre-created customer — the card
 // attaches automatically on completion and the webhook marks the record
 // card_saved. Checkout sessions expire after 24h if unused (Stripe limit).
+// Repeat clients: if a still-valid card is already on file from a prior
+// capture (matched by phone, verified against Stripe), the link becomes a
+// CONFIRM page — the client sees brand + last4 and approves reuse, or opts
+// into the normal Stripe form for a different card.
 if (normalizedLinkType === "card_capture") {
-  const captureMetadata = {
-    workflow_type: "card_capture",
-    sales_order: salesOrder || "",
-    customer_name: customerName || "",
-    customer_phone: customerPhoneDigits || customerPhone || "",
-    customer_email: customerEmail || "",
-    creator_code: creatorCode || "",
-    creator_name: creatorName || "",
-    creator_email: creatorEmail || "",
-    department: department || "",
-    notes: notes || "",
-    link_description: description || ""
-  };
+  let priorCard = null;
+  try {
+    priorCard = await findSavedCardForPhone(customerPhoneDigits || customerPhone);
+  } catch (lookupErr) {
+    console.error("Saved-card lookup failed (falling back to fresh capture):", lookupErr.message);
+  }
 
-  const customerConfig = {
-    name: customerName || undefined,
-    phone: customerPhone || undefined,
-    email: customerEmail || undefined,
-    metadata: { sales_order: salesOrder || "", source: "agility_card_capture" }
-  };
-  const captureCustomer = await stripe.customers.create(customerConfig, {
-    idempotencyKey: createStripeIdempotencyKeyFromPayload("card-capture-customer", { ...customerConfig, salesOrder, t: req.body?.clientRequestId || "" })
-  });
-
-  const sessionConfig = {
-    mode: "setup",
-    customer: captureCustomer.id,
-    payment_method_types: ["card"],
-    success_url: `https://${SERVICE_PUBLIC_HOST}/card-saved.html`,
-    metadata: captureMetadata,
-    setup_intent_data: { metadata: captureMetadata }
-  };
-  const captureSession = await stripe.checkout.sessions.create(sessionConfig, {
-    idempotencyKey: createStripeIdempotencyKeyFromPayload("card-capture-session", sessionConfig)
-  });
-
-  const links = await readLinks();
-  links.unshift({
+  const makeCaptureRecord = (overrides) => ({
     id: `req_${Date.now()}`,
     createdAt: new Date().toISOString(),
     customerName: customerName || "",
@@ -7657,7 +7920,6 @@ if (normalizedLinkType === "card_capture") {
     agreementText: "",
     currency: normalizedCurrency,
     paymentLinkId: "",
-    paymentLinkUrl: captureSession.url,
     status: "sent",
     active: true,
     deactivatedAt: "",
@@ -7666,17 +7928,54 @@ if (normalizedLinkType === "card_capture") {
     paymentStatusDetail: "",
     paymentNotificationSentAt: "",
     paymentNotificationError: "",
-    customerId: captureCustomer.id,
     paymentMethodId: "",
     setupIntentId: "",
     paidAmount: 0,
     paidDate: "",
     paymentIntentId: "",
-    checkoutSessionId: captureSession.id,
     balanceChargedAt: "",
     balancePaymentIntentId: "",
-    balancePaidAmount: 0
+    balancePaidAmount: 0,
+    ...overrides
   });
+
+  if (priorCard) {
+    const confirmToken = crypto.randomBytes(18).toString("base64url");
+    const confirmUrl = `https://${SERVICE_PUBLIC_HOST}/card-confirm.html?t=${confirmToken}`;
+    const links = await readLinks();
+    const confirmRecord = makeCaptureRecord({
+      id: `req_${Date.now()}_${confirmToken.slice(0, 6)}`,
+      paymentLinkUrl: confirmUrl,
+      customerId: "",
+      checkoutSessionId: "",
+      paymentStatusDetail: `Awaiting client confirmation — ${priorCard.brand} ending ${priorCard.last4} on file`
+    });
+    links.unshift(confirmRecord);
+    await writeLinks(links);
+    await createCardConfirm({ token: confirmToken, linkId: confirmRecord.id, prior: priorCard });
+    return res.json({
+      url: confirmUrl,
+      workflowType: "card_capture",
+      cardOnFile: {
+        brand: priorCard.brand, last4: priorCard.last4,
+        expMonth: priorCard.expMonth, expYear: priorCard.expYear,
+        fromSalesOrder: priorCard.fromSalesOrder
+      }
+    });
+  }
+
+  const { captureCustomer, captureSession } = await createCardCaptureStripeSession({
+    salesOrder, customerName, customerPhone, customerPhoneDigits, customerEmail,
+    creatorCode, creatorName, creatorEmail, department, notes, description,
+    clientRequestId: req.body?.clientRequestId || ""
+  });
+
+  const links = await readLinks();
+  links.unshift(makeCaptureRecord({
+    paymentLinkUrl: captureSession.url,
+    customerId: captureCustomer.id,
+    checkoutSessionId: captureSession.id
+  }));
   await writeLinks(links);
 
   return res.json({
@@ -14156,14 +14455,16 @@ const PODIUM_TEMPLATE_PAYMENT_RECEIVED = process.env.PODIUM_TEMPLATE_PAYMENT_REC
 
 async function sendPaymentReceivedTemplateText(record) {
   try {
-    if (!PODIUM_TEMPLATE_PAYMENT_RECEIVED || record.customerTextSentAt) return;
+    if (record.customerTextSentAt) return;
+    const templateTitle = await resolveAutomationTemplate("payment_received", PODIUM_TEMPLATE_PAYMENT_RECEIVED);
+    if (!templateTitle) return;
     if (!podiumOAuthConfigured() || !(await podiumConnected())) return;
     const digits = String(record.customerPhone || "").replace(/\D/g, "");
     if (!(digits.length === 10 || (digits.length === 11 && digits.startsWith("1")))) return;
     const name = String(record.customerName || "").trim();
     const result = await sendPodiumTemplateText({
       phone: digits,
-      templateTitle: PODIUM_TEMPLATE_PAYMENT_RECEIVED,
+      templateTitle,
       vars: {
         first_name: name.split(/\s+/)[0] || "there",
         name: name || "there",
@@ -14174,7 +14475,7 @@ async function sendPaymentReceivedTemplateText(record) {
     });
     if (result.ok) {
       record.customerTextSentAt = new Date().toISOString();
-      if (!result.usedTemplate) console.warn(`Podium template "${PODIUM_TEMPLATE_PAYMENT_RECEIVED}" not found — sent the built-in fallback text.`);
+      if (!result.usedTemplate) console.warn(`Podium template "${templateTitle}" not found — sent the built-in fallback text.`);
     } else {
       console.error("Payment-received text skipped:", result.error);
     }

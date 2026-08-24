@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="robots" content="noindex,nofollow,noarchive" />
+  <title>Wilson AC &amp; Appliance - Text Automations</title>
+  <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+  <link rel="stylesheet" href="internal-shell.css" />
+  <style>
+    :root {
+      --bg: #f7f8fc; --card: #ffffff; --text: #1f2937; --muted: #6b7280;
+      --border: #dbe1ea; --shadow: 0 10px 35px rgba(0, 0, 0, 0.08); --radius: 18px;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; font-family: "Roboto", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: linear-gradient(180deg, var(--primary-tint) 0%, var(--bg) 100%);
+      color: var(--text); min-height: 100vh; padding: 32px 16px;
+    }
+    .wrap { max-width: 1100px; margin: 0 auto; }
+    .surface {
+      background: var(--card); border: 1px solid rgba(var(--primary-rgb), 0.12);
+      box-shadow: var(--shadow); border-radius: var(--radius); padding: 22px; margin: 0 auto 20px;
+    }
+    h2 { margin: 0 0 6px; font-size: 20px; }
+    .section-note { margin: 0 0 14px; color: var(--muted); font-size: 13.5px; line-height: 1.5; }
+    .ta-status { display: none; border-radius: 12px; padding: 10px 13px; font-size: 13px; margin-bottom: 12px; }
+    .ta-status.show { display: block; }
+    .ta-status.ok { background: rgba(var(--primary-rgb), 0.1); color: var(--primary); }
+    .ta-status.error { background: #fee2e2; color: #991b1b; }
+    .trig { border: 1.5px solid var(--border); border-radius: 14px; padding: 16px 18px; margin-bottom: 14px; }
+    .trig.on { border-color: rgba(var(--primary-rgb), 0.55); }
+    .trig h3 { margin: 0; font-size: 15.5px; display: flex; align-items: center; gap: 10px; }
+    .trig .desc { color: var(--muted); font-size: 12.5px; line-height: 1.5; margin: 6px 0 12px; }
+    .pill { border-radius: 999px; font-size: 10px; font-weight: 800; letter-spacing: 0.05em; padding: 3px 10px; }
+    .pill.on { background: rgba(var(--primary-rgb), 0.12); color: var(--primary); }
+    .pill.off { background: #f1f5f9; color: #64748b; }
+    .vars { font-size: 11.5px; color: var(--muted); }
+    .vars code { background: #f1f5f9; border-radius: 6px; padding: 1px 6px; font-size: 11px; }
+    .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-top: 10px; }
+    select, input[type="tel"] {
+      border: 1px solid var(--border); border-radius: 10px; padding: 9px 12px; font-family: inherit; font-size: 13px; background: #fff;
+    }
+    .ta-btn { border: none; border-radius: 10px; cursor: pointer; font-size: 12.5px; font-weight: 700; padding: 9px 14px; font-family: inherit; }
+    .ta-btn:disabled { opacity: 0.55; cursor: wait; }
+    .ta-btn.primary { background: var(--primary); color: #fff; }
+    .ta-btn.quiet { background: #fff; color: #374151; border: 1px solid var(--border); }
+    .switch { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 700; cursor: pointer; }
+    .switch input { width: 40px; height: 22px; accent-color: var(--primary); cursor: pointer; }
+    .meta { font-size: 11.5px; color: var(--muted); margin-top: 8px; }
+  </style>
+</head>
+<body data-shell-label="Text Automations" data-shell-icon="link">
+  <div class="wrap">
+    <div id="internal-shell-header"></div>
+
+    <div class="surface">
+      <div class="page-head">
+        <h2>Text Automations</h2>
+        <p class="section-note">
+          Each trigger sends a <strong>Podium template</strong> from the showroom number when its event
+          happens — replies land in the Podium inbox. Author and edit the message copy in
+          Podium (Inbox → Templates); pick which template each trigger uses here. A trigger sends
+          nothing until it's switched on. Variables like <code>{{first_name}}</code> are filled by
+          Agility at send time.
+        </p>
+      </div>
+      <div id="taStatus" class="ta-status"></div>
+      <div id="taList"><p class="section-note">Loading…</p></div>
+    </div>
+
+    <div id="internal-shell-footer"></div>
+  </div>
+
+  <script src="internal-shell.js"></script>
+  <script>
+    (function () {
+      const $ = (id) => document.getElementById(id);
+      const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch]));
+      const state = { triggers: [], templates: [], connected: false };
+
+      function setStatus(message, kind) {
+        const box = $("taStatus");
+        if (!message) { box.className = "ta-status"; return; }
+        box.className = "ta-status " + kind + " show";
+        box.textContent = message;
+        if (kind === "ok") setTimeout(() => { if (box.textContent === message) box.className = "ta-status"; }, 5000);
+      }
+
+      async function api(path, options = {}) {
+        const res = await fetch(path, { credentials: "same-origin", headers: options.body ? { "Content-Type": "application/json" } : {}, ...options });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error || "Request failed.");
+        return data;
+      }
+
+      function render() {
+        const box = $("taList");
+        if (!state.connected) {
+          box.innerHTML = `<p class="section-note">Podium isn't connected yet — an executive needs to visit <code>/api/podium/oauth/start</code> first.</p>`;
+          return;
+        }
+        box.innerHTML = state.triggers.map((t) => `
+          <div class="trig ${t.enabled ? "on" : ""}" data-key="${esc(t.key)}">
+            <h3>${esc(t.label)} <span class="pill ${t.enabled ? "on" : "off"}">${t.enabled ? "ON" : "OFF"}</span></h3>
+            <div class="desc">${esc(t.description)}</div>
+            <div class="vars">Available variables: ${t.vars.map((v) => `<code>{{${esc(v)}}}</code>`).join(" ")}</div>
+            <div class="row">
+              <select data-tpl>
+                <option value="">— pick a Podium template —</option>
+                ${state.templates.map((title) => `<option value="${esc(title)}" ${t.templateTitle === title ? "selected" : ""}>${esc(title)}</option>`).join("")}
+                ${t.templateTitle && !state.templates.includes(t.templateTitle) ? `<option value="${esc(t.templateTitle)}" selected>${esc(t.templateTitle)} (missing in Podium!)</option>` : ""}
+              </select>
+              <label class="switch"><input type="checkbox" data-en ${t.enabled ? "checked" : ""} /> Enabled</label>
+              <button type="button" class="ta-btn primary" data-save>Save</button>
+              <span style="flex:1;"></span>
+              <input type="tel" data-phone placeholder="Your cell for a test" style="width:170px;" />
+              <button type="button" class="ta-btn quiet" data-test>Send test</button>
+            </div>
+            ${t.updatedAt ? `<div class="meta">Last saved ${new Date(t.updatedAt).toLocaleString("en-US", { timeZone: "America/Chicago", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}${t.updatedBy ? " by " + esc(t.updatedBy) : ""}</div>` : (t.envFallback ? `<div class="meta">Currently using the env-var fallback: "${esc(t.envFallback)}". Saving here takes over.</div>` : "")}
+          </div>`).join("");
+
+        box.querySelectorAll(".trig").forEach((card) => {
+          const key = card.dataset.key;
+          card.querySelector("[data-save]").addEventListener("click", async (ev) => {
+            const btn = ev.target;
+            btn.disabled = true;
+            try {
+              await api("/api/podium/automations", {
+                method: "POST",
+                body: JSON.stringify({
+                  triggerKey: key,
+                  templateTitle: card.querySelector("[data-tpl]").value,
+                  enabled: card.querySelector("[data-en]").checked
+                })
+              });
+              setStatus("Saved.", "ok");
+              await load();
+            } catch (err) {
+              setStatus(err.message, "error");
+              btn.disabled = false;
+            }
+          });
+          card.querySelector("[data-test]").addEventListener("click", async (ev) => {
+            const btn = ev.target;
+            btn.disabled = true;
+            try {
+              const data = await api("/api/podium/automations/test", {
+                method: "POST",
+                body: JSON.stringify({
+                  triggerKey: key,
+                  templateTitle: card.querySelector("[data-tpl]").value,
+                  phone: card.querySelector("[data-phone]").value
+                })
+              });
+              setStatus(`Test sent using "${data.usedTemplate || "built-in fallback"}" — check your phone (and the Podium inbox).`, "ok");
+            } catch (err) {
+              setStatus(err.message, "error");
+            } finally {
+              btn.disabled = false;
+            }
+          });
+        });
+      }
+
+      async function load() {
+        try {
+          const data = await api("/api/podium/automations");
+          state.triggers = data.triggers || [];
+          state.templates = data.templates || [];
+          state.connected = data.connected;
+          render();
+        } catch (err) { setStatus(err.message, "error"); }
+      }
+      load();
+    })();
+  </script>
+</body>
+</html>

@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="robots" content="noindex,nofollow,noarchive" />
+  <title>Card on File — Wilson AC &amp; Appliance</title>
+  <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+  <style>
+    :root { --green: #21692c; --text: #1f2937; --muted: #6b7280; --border: #dbe1ea; }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; font-family: "Roboto", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: linear-gradient(180deg, #eef5ee 0%, #f7f8fc 100%); color: var(--text);
+      min-height: 100vh; padding: 26px 16px 50px;
+    }
+    .wrap { max-width: 480px; margin: 0 auto; }
+    .brand { text-align: center; margin-bottom: 18px; }
+    .brand img { height: 46px; }
+    .brand .sub { font-size: 12px; color: var(--muted); margin-top: 4px; }
+    .card { background: #fff; border-radius: 18px; box-shadow: 0 14px 45px rgba(0,0,0,0.1); padding: 26px 24px; }
+    h1 { font-size: 20px; margin: 0 0 8px; }
+    .lead { color: var(--muted); font-size: 14px; line-height: 1.55; }
+    .pm {
+      display: flex; align-items: center; gap: 14px; border: 1.5px solid var(--border);
+      border-radius: 14px; padding: 16px; margin: 16px 0;
+    }
+    .pm .chiplogo {
+      width: 52px; height: 36px; border-radius: 8px; background: linear-gradient(135deg, #1e3a8a, #3b82f6);
+      color: #fff; font-size: 11px; font-weight: 800; display: flex; align-items: center; justify-content: center;
+      text-transform: uppercase; letter-spacing: 0.05em; flex: none;
+    }
+    .pm .num { font-size: 17px; font-weight: 800; letter-spacing: 0.08em; }
+    .pm .exp { font-size: 12px; color: var(--muted); }
+    .btn {
+      display: block; width: 100%; border: none; border-radius: 12px; cursor: pointer;
+      font-family: inherit; font-size: 15px; font-weight: 700; padding: 15px; margin-top: 12px; text-align: center;
+    }
+    .btn.approve { background: var(--green); color: #fff; }
+    .btn.quiet { background: #fff; color: var(--text); border: 1.5px solid var(--border); text-decoration: none; }
+    .btn:disabled { opacity: 0.6; cursor: wait; }
+    .err { display: none; background: #fee2e2; color: #991b1b; border-radius: 10px; padding: 10px 13px; font-size: 13px; margin-top: 12px; }
+    .err.show { display: block; }
+    .fine { font-size: 12px; color: var(--muted); line-height: 1.5; margin-top: 14px; }
+    .fine a { color: var(--green); font-weight: 700; text-decoration: none; }
+    .done { text-align: center; padding: 12px 0 4px; }
+    .done .check { width: 62px; height: 62px; border-radius: 50%; background: var(--green); color: #fff; font-size: 34px; line-height: 62px; margin: 0 auto 14px; }
+    .done h2 { font-size: 19px; margin: 0 0 8px; }
+    .done p { color: var(--muted); font-size: 14px; line-height: 1.55; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="brand">
+      <img src="logo-black.png" alt="Wilson AC &amp; Appliance" onerror="this.style.display='none'" />
+      <div class="sub">Wilson AC &amp; Appliance · Dripping Springs, TX · <a href="tel:512-894-0907" style="color:var(--green); text-decoration:none;">512-894-0907</a></div>
+    </div>
+    <div class="card" id="mainCard"><p class="lead">Loading…</p></div>
+  </div>
+
+  <script>
+    (function () {
+      const card = document.getElementById("mainCard");
+      const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch]));
+      const token = new URLSearchParams(location.search).get("t") || "";
+      const fine = `<p class="fine">Nothing is charged now — your card is only billed when your service is complete.
+        Questions? Call or text <a href="tel:512-894-0907">512-894-0907</a>.</p>`;
+
+      function doneCard() {
+        card.innerHTML = `<div class="done"><div class="check">✓</div><h2>You're all set</h2>
+          <p>Your card on file will be used for this service call — nothing is charged until the work is done. See you soon!</p></div>${fine}`;
+      }
+
+      async function api(path, body) {
+        const res = await fetch(path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) { const err = new Error(data.error || "Something went wrong."); err.status = res.status; throw err; }
+        return data;
+      }
+
+      function render(d) {
+        if (d.done) return doneCard();
+        const exp = d.expMonth && d.expYear ? `expires ${String(d.expMonth).padStart(2, "0")}/${String(d.expYear).slice(-2)}` : "";
+        card.innerHTML = `
+          <h1>Hi ${esc(d.firstName)} — good news, we have your card.</h1>
+          <p class="lead">
+            From a previous visit, we securely have a card on file${d.salesOrder ? ` for <strong>${esc(d.salesOrder)}</strong>` : ""}.
+            Want to use it for this service call instead of entering it again?
+          </p>
+          <div class="pm">
+            <div class="chiplogo">${esc(d.brand)}</div>
+            <div>
+              <div class="num">•••• ${esc(d.last4)}</div>
+              <div class="exp">${esc(d.brand)} ${exp ? "· " + esc(exp) : ""}</div>
+            </div>
+          </div>
+          <button type="button" class="btn approve" id="useBtn">Yes — use this card</button>
+          <button type="button" class="btn quiet" id="otherBtn">Use a different card</button>
+          <div class="err" id="errBox"></div>
+          ${fine}`;
+
+        document.getElementById("useBtn").addEventListener("click", async () => {
+          const btn = document.getElementById("useBtn");
+          btn.disabled = true;
+          try {
+            await api("/api/card-confirm/use", { token });
+            doneCard();
+          } catch (err) {
+            const box = document.getElementById("errBox");
+            box.textContent = err.message;
+            box.classList.add("show");
+            btn.disabled = false;
+          }
+        });
+        document.getElementById("otherBtn").addEventListener("click", async () => {
+          const btn = document.getElementById("otherBtn");
+          btn.disabled = true;
+          btn.textContent = "Opening secure card form…";
+          try {
+            const data = await api("/api/card-confirm/other", { token });
+            location.href = data.url;
+          } catch (err) {
+            const box = document.getElementById("errBox");
+            box.textContent = err.message;
+            box.classList.add("show");
+            btn.disabled = false;
+            btn.textContent = "Use a different card";
+          }
+        });
+      }
+
+      (async () => {
+        try {
+          const data = await api("/api/card-confirm/view", { token });
+          if (data.switchedToForm && !data.done) {
+            card.innerHTML = `<h1>Almost there</h1><p class="lead">You already opened the secure card form — use the Stripe page from your earlier visit, or call us and we'll resend it.</p>${fine}`;
+            return;
+          }
+          render(data);
+        } catch (err) {
+          card.innerHTML = `<h1>Hmm — this link isn't working.</h1><p class="lead">${esc(err.message)}</p>${fine}`;
+        }
+      })();
+    })();
+  </script>
+</body>
+</html>

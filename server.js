@@ -302,7 +302,8 @@ import {
   saveCommissionOverride,
   saveCommissionBalanceCheck,
   listCommissionBalanceChecks,
-  normalizeSalespersonName
+  normalizeSalespersonName,
+  getOrdersByInvoices
 } from "./lib/sales-order-detail-postgres.js";
 import {
   FIELD_SALES_PLAN,
@@ -546,7 +547,8 @@ const INTERNAL_PAGE_PATHS = new Set([
   "/shopper-profiles.html",
   "/dispatch.html",
   "/driver.html",
-  "/message-automations.html"
+  "/message-automations.html",
+  "/aging-inventory.html"
 ]);
 
 const UNAUTHENTICATED_INTERNAL_PATHS = new Set([
@@ -749,7 +751,8 @@ const PAGE_LABELS = {
   "/shopper-profiles.html": "Shopper Profiles",
   "/dispatch.html": "Delivery Dispatch",
   "/driver.html": "Driver Run Sheet",
-  "/message-automations.html": "Text Automations"
+  "/message-automations.html": "Text Automations",
+  "/aging-inventory.html": "Aging Inventory"
 };
 
 // Category groupings for the User Admin permission UI. A page may appear in
@@ -829,6 +832,7 @@ const PAGE_CATEGORIES = [
       "/sales-order-health.html",
       "/quote-follow-up.html",
       "/epass-uploads.html",
+      "/aging-inventory.html",
       "/terms-signatures.html",
       "/flag-closures.html",
       "/target-builder.html",
@@ -6917,6 +6921,7 @@ app.post("/api/shop/inventory-snapshot", requirePagePermission("/shop-orders.htm
       serials,
       types,
       written,
+      units: Array.isArray(req.body?.units) ? req.body.units : [],
       sourceFile: String(req.body?.sourceFile || "").slice(0, 200),
       uploadedBy: userEmail
     });
@@ -6957,20 +6962,69 @@ function extractSerialsFromWorkbook(buffer) {
     });
     if (headerIndex < 0) continue;
     const headerTexts = grid[headerIndex].map(normHeader);
-    const serialCol = headerTexts.indexOf("serial");
-    const typeCol = headerTexts.indexOf("serial type");
-    const writtenCol = headerTexts.indexOf("written to");
-    const modelCols = [headerTexts.indexOf("* model"), headerTexts.indexOf("model"), headerTexts.indexOf("sku")].filter((c) => c >= 0);
+    // ePASS stars the sorted column ("* model") — strip the marker everywhere.
+    const col = (name) => {
+      const target = String(name).toLowerCase();
+      return headerTexts.findIndex((h) => h.replace(/^\*\s*/, "") === target);
+    };
+    const serialCol = col("serial");
+    const typeCol = col("serial type");
+    const writtenCol = col("written to");
+    const modelCol = col("model");
+    const skuCol = col("sku");
+    const brandCol = col("brand");
+    const descCol = col("description");
+    const prodCol = col("prod");
+    const receivedCol = col("received");
+    const costCol = col("act cost");
+    const listCol = col("l1");
+    const modelCols = [modelCol, skuCol].filter((c) => c >= 0);
+
+    // Excel dates arrive as serial numbers, Date objects, or strings.
+    const toIsoDate = (v) => {
+      if (v == null || v === "") return "";
+      if (v instanceof Date) return Number.isNaN(v.getTime()) ? "" : v.toISOString().slice(0, 10);
+      if (typeof v === "number" && v > 20000 && v < 80000) {
+        return new Date(Date.UTC(1899, 11, 30) + Math.round(v) * 86400000 - Date.UTC(1970, 0, 1) + Date.UTC(1970, 0, 1)).toISOString().slice(0, 10);
+      }
+      const m = String(v).match(/^(\d{4})-(\d{2})-(\d{2})/);
+      if (m) return m[0];
+      const us = String(v).match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+      if (us) return `${us[3]}-${us[1].padStart(2, "0")}-${us[2].padStart(2, "0")}`;
+      return "";
+    };
+
     const serials = new Set();
     const types = {};
     const written = {};
     const units = new Set();
+    const unitRows = [];
+    const seenUnitSerials = new Set();
     for (let r = headerIndex + 1; r < grid.length; r++) {
       const serial = String(grid[r]?.[serialCol] ?? "").trim().toUpperCase();
       if (!serial) continue;
       units.add(serial);
       const type = typeCol >= 0 ? String(grid[r]?.[typeCol] ?? "").trim() : "";
       const writtenTo = writtenCol >= 0 ? String(grid[r]?.[writtenCol] ?? "").trim() : "";
+      // Serials repeat across models in ePASS (accessory tags like "00019"),
+      // so unit identity is model|serial, matching the availability keys.
+      const unitKey = (normModel(grid[r]?.[modelCol]) || normModel(grid[r]?.[skuCol]) || "?") + "|" + serial;
+      if (!seenUnitSerials.has(unitKey)) {
+        seenUnitSerials.add(unitKey);
+        unitRows.push({
+          serial,
+          model: modelCol >= 0 ? String(grid[r]?.[modelCol] ?? "").trim() : "",
+          sku: skuCol >= 0 ? String(grid[r]?.[skuCol] ?? "").trim() : "",
+          brand: brandCol >= 0 ? String(grid[r]?.[brandCol] ?? "").trim() : "",
+          description: descCol >= 0 ? String(grid[r]?.[descCol] ?? "").trim() : "",
+          prod: prodCol >= 0 ? String(grid[r]?.[prodCol] ?? "").trim() : "",
+          serialType: type,
+          writtenTo,
+          received: receivedCol >= 0 ? toIsoDate(grid[r]?.[receivedCol]) : "",
+          cost: costCol >= 0 ? Number(grid[r]?.[costCol]) || 0 : 0,
+          list: listCol >= 0 ? Number(grid[r]?.[listCol]) || 0 : 0
+        });
+      }
       const keys = new Set();
       for (const c of modelCols) {
         const mk = normModel(grid[r]?.[c]);
@@ -6983,7 +7037,7 @@ function extractSerialsFromWorkbook(buffer) {
         if (writtenTo) written[key] = writtenTo;
       }
     }
-    return { serials: [...serials], types, written, unitCount: units.size };
+    return { serials: [...serials], types, written, units: unitRows, unitCount: units.size };
   }
   throw new Error("Couldn't find a Serial column — is this the ExportModel (Model Maintenance) export?");
 }
@@ -7033,10 +7087,11 @@ app.post("/api/epass-uploads/inventory", requirePagePermission("/epass-uploads.h
       if (!req.file?.buffer?.length) {
         return res.status(400).json({ error: "Attach the ExportModel inventory export (.xlsx)." });
       }
-      const { serials, types, written, unitCount } = extractSerialsFromWorkbook(req.file.buffer);
+      const { serials, types, written, units, unitCount } = extractSerialsFromWorkbook(req.file.buffer);
       if (!serials.length) return res.status(400).json({ error: "No serial numbers found in that file — is it the ExportModel export?" });
       const saved = await saveShopInventorySnapshot({
         serials, types, written,
+      units,
         sourceFile: String(req.file.originalname || "ExportModel").slice(0, 200),
         uploadedBy: String(req.authUser?.kind === "db" ? req.authUser.email : "").toLowerCase()
       });
@@ -7059,12 +7114,13 @@ app.post("/api/shop/inventory-snapshot/file", express.raw({ type: () => true, li
     if (!snapshotKeyOk(req.headers["x-snapshot-key"])) return res.status(401).json({ error: "Bad snapshot key." });
     if (!Buffer.isBuffer(req.body) || req.body.length < 100) return res.status(400).json({ error: "No file received." });
 
-    const { serials, types, written, unitCount } = extractSerialsFromWorkbook(req.body);
+    const { serials, types, written, units, unitCount } = extractSerialsFromWorkbook(req.body);
     if (!serials.length) return res.status(400).json({ error: "No serial numbers found in that file." });
 
     const sourceFile = String(req.headers["x-source-file"] || "ExportModel (automated)").slice(0, 200);
     const saved = await saveShopInventorySnapshot({
-      serials, types, written, sourceFile,
+      serials, types, written,
+      units, sourceFile,
       uploadedBy: "automation"
     });
 
@@ -9780,6 +9836,42 @@ async function pushServiceOrderHealthFlags(rows) {
   }
   return { wty: rows.filter((r) => r.invType === "WTY" && isPast(r)).length, svCod: flagged.length };
 }
+
+// INTERNAL: Aging Inventory by salesperson. Joins the serial export's
+// per-unit detail (receive date + Written To ticket) against OE-23 order
+// detail (ticket → salesperson). Unreserved units group under STOCK.
+app.get("/api/aging-inventory", requirePagePermission("/aging-inventory.html"), async (req, res) => {
+  try {
+    const snapshot = await getShopInventorySnapshot();
+    if (!snapshot || !Array.isArray(snapshot.serialUnits) || !snapshot.serialUnits.length) {
+      return res.json({ uploadedAt: snapshot?.uploadedAt || null, sourceFile: snapshot?.sourceFile || "", units: [], note: "The latest inventory upload predates per-unit detail — re-upload the ExportModel report." });
+    }
+    const today = new Date().toLocaleDateString("en-CA", { timeZone: APP_TIMEZONE });
+    const todayMs = new Date(today + "T00:00:00Z").getTime();
+    const tickets = snapshot.serialUnits.map((u) => u.writtenTo).filter(Boolean);
+    const orders = await getOrdersByInvoices(tickets);
+    const units = snapshot.serialUnits.map((u) => {
+      const order = u.writtenTo ? orders[String(u.writtenTo).toUpperCase()] || null : null;
+      const ageDays = /^\d{4}-\d{2}-\d{2}$/.test(u.received)
+        ? Math.max(0, Math.round((todayMs - new Date(u.received + "T00:00:00Z").getTime()) / 86400000))
+        : null;
+      return {
+        serial: u.serial, model: u.model || u.sku, brand: u.brand, description: u.description,
+        prod: u.prod, serialType: u.serialType, received: u.received, ageDays,
+        cost: u.cost, list: u.list,
+        writtenTo: u.writtenTo || "",
+        salesperson: order?.salesperson || "",
+        salespersonCode: order?.salespersonCode || "",
+        orderCustomer: order?.customerName || "",
+        orderKnown: Boolean(order)
+      };
+    });
+    return res.json({ uploadedAt: snapshot.uploadedAt, sourceFile: snapshot.sourceFile, units });
+  } catch (err) {
+    console.error("Aging inventory failed:", err.message);
+    return res.status(500).json({ error: "Unable to build the aging report." });
+  }
+});
 
 app.get("/api/service-orders", requirePagePermission("/service-order-health.html"), async (req, res) => {
   try {

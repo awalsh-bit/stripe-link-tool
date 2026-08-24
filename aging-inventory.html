@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="robots" content="noindex,nofollow,noarchive" />
+  <title>Wilson AC &amp; Appliance - Aging Inventory</title>
+  <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+  <link rel="stylesheet" href="internal-shell.css" />
+  <style>
+    :root {
+      --bg: #f7f8fc; --card: #ffffff; --text: #1f2937; --muted: #6b7280;
+      --border: #dbe1ea; --shadow: 0 10px 35px rgba(0, 0, 0, 0.08); --radius: 18px;
+      --warn: #b45309; --danger: #b91c1c;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; font-family: "Roboto", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: linear-gradient(180deg, var(--primary-tint) 0%, var(--bg) 100%);
+      color: var(--text); min-height: 100vh; padding: 32px 16px;
+    }
+    .wrap { max-width: 1480px; margin: 0 auto; }
+    .surface {
+      background: var(--card); border: 1px solid rgba(var(--primary-rgb), 0.12);
+      box-shadow: var(--shadow); border-radius: var(--radius); padding: 22px; margin: 0 auto 20px;
+    }
+    h2 { margin: 0 0 6px; font-size: 20px; }
+    h3 { margin: 0 0 10px; font-size: 16px; }
+    .section-note { margin: 0 0 14px; color: var(--muted); font-size: 13.5px; line-height: 1.5; }
+    .asof { font-size: 12.5px; color: var(--muted); }
+    .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 14px; margin-top: 14px; }
+    .tile { border: 1px solid var(--border); border-radius: 14px; padding: 14px 16px; }
+    .tile .label { font-size: 11.5px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
+    .tile .value { font-size: 24px; font-weight: 700; margin-top: 4px; font-variant-numeric: tabular-nums; }
+    .tile .sub { font-size: 12px; color: var(--muted); margin-top: 2px; }
+    .tile.red .value { color: var(--danger); }
+    .tile.yellow .value { color: var(--warn); }
+    .toolbar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 12px; }
+    .toolbar input[type="text"], .toolbar select {
+      border: 1px solid var(--border); border-radius: 10px; padding: 9px 12px; font-family: inherit; font-size: 13px; background: #fff;
+    }
+    .chip { border: 1px solid var(--border); background: #fff; border-radius: 999px; padding: 7px 14px; font-size: 12.5px; font-weight: 700; cursor: pointer; font-family: inherit; }
+    .chip.active { background: var(--primary); border-color: var(--primary); color: #fff; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid #eef1f6; white-space: nowrap; }
+    th { font-size: 11px; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; color: #64748b; }
+    td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+    tbody tr.sp-row { cursor: pointer; }
+    tbody tr.sp-row:hover td { background: var(--primary-faint-2, #f8fafc); }
+    tbody tr.sp-row.sel td { background: rgba(var(--primary-rgb), 0.07); }
+    .age { border-radius: 999px; font-size: 11px; font-weight: 800; padding: 2px 9px; }
+    .age.a0 { background: #f1f5f9; color: #64748b; }
+    .age.a1 { background: #fef9c3; color: #854d0e; }
+    .age.a2 { background: #fed7aa; color: #9a3412; }
+    .age.a3 { background: #fee2e2; color: #991b1b; }
+    .mut { color: var(--muted); font-size: 11.5px; white-space: normal; }
+  </style>
+</head>
+<body data-shell-label="Aging Inventory" data-shell-icon="sales">
+  <div class="wrap">
+    <div id="internal-shell-header"></div>
+
+    <div class="surface">
+      <div class="page-head">
+        <h2>Aging Inventory by Salesperson</h2>
+        <p class="section-note">
+          Every serialized unit from the latest ExportModel upload, aged from its <strong>receive date</strong>.
+          Units written to a ticket are attributed to that ticket's salesperson via the OE-23 order detail;
+          everything else sits under <strong>STOCK</strong>. Old reserved units are money on the floor —
+          chase the delivery or release the unit.
+        </p>
+        <span class="asof" id="asofLine">Loading…</span>
+      </div>
+      <div class="tiles" id="tiles" style="display:none;">
+        <div class="tile"><div class="label">Units</div><div class="value" id="tUnits">–</div><div class="sub" id="tUnitsSub"></div></div>
+        <div class="tile"><div class="label">Inventory cost</div><div class="value" id="tCost">–</div><div class="sub">actual cost on hand</div></div>
+        <div class="tile yellow"><div class="label">61–90 days</div><div class="value" id="t61">–</div><div class="sub" id="t61Sub"></div></div>
+        <div class="tile red"><div class="label">Over 90 days</div><div class="value" id="t90">–</div><div class="sub" id="t90Sub"></div></div>
+      </div>
+    </div>
+
+    <div class="surface" id="mainSurface" style="display:none;">
+      <div class="toolbar">
+        <button type="button" class="chip active" data-view="all">All units</button>
+        <button type="button" class="chip" data-view="reserved">Reserved to tickets</button>
+        <button type="button" class="chip" data-view="stock">Unreserved stock</button>
+        <select id="bucketFilter">
+          <option value="all">All ages</option>
+          <option value="0">0–30 days</option>
+          <option value="1">31–60 days</option>
+          <option value="2">61–90 days</option>
+          <option value="3">Over 90 days</option>
+        </select>
+        <input type="text" id="searchInput" placeholder="Search model, serial, brand, ticket…" style="flex:1; min-width:200px;" />
+        <span class="asof" id="countLine"></span>
+      </div>
+
+      <div style="overflow-x:auto;">
+        <table>
+          <thead><tr>
+            <th>Salesperson</th>
+            <th class="num">0–30</th><th class="num">31–60</th><th class="num">61–90</th><th class="num">90+</th>
+            <th class="num">Units</th><th class="num">Cost</th><th class="num">Oldest</th>
+          </tr></thead>
+          <tbody id="spBody"></tbody>
+        </table>
+      </div>
+
+      <div id="detailWrap" style="display:none; margin-top:18px;">
+        <h3 id="detailTitle"></h3>
+        <div style="overflow-x:auto;">
+          <table>
+            <thead><tr>
+              <th>Age</th><th>Received</th><th>Brand</th><th>Model</th><th>Description</th>
+              <th>Serial</th><th>Type</th><th>Ticket</th><th>Order customer</th><th class="num">Cost</th>
+            </tr></thead>
+            <tbody id="detailBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div id="internal-shell-footer"></div>
+  </div>
+
+  <script src="internal-shell.js"></script>
+  <script>
+    (function () {
+      const $ = (id) => document.getElementById(id);
+      const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch]));
+      const money = (n) => "$" + Number(n || 0).toLocaleString("en-US", { maximumFractionDigits: 0 });
+      const state = { units: [], view: "all", bucket: "all", search: "", selected: null };
+
+      const bucketOf = (d) => d == null ? 0 : d <= 30 ? 0 : d <= 60 ? 1 : d <= 90 ? 2 : 3;
+      const BUCKET_LABEL = ["0–30", "31–60", "61–90", "90+"];
+
+      function groupKey(u) {
+        if (!u.writtenTo) return "STOCK";
+        return u.salesperson || (u.orderKnown ? "(unnamed)" : "UNMATCHED TICKETS");
+      }
+
+      function filtered() {
+        const q = state.search.toLowerCase();
+        return state.units.filter((u) => {
+          if (state.view === "reserved" && !u.writtenTo) return false;
+          if (state.view === "stock" && u.writtenTo) return false;
+          if (state.bucket !== "all" && bucketOf(u.ageDays) !== Number(state.bucket)) return false;
+          if (q && ![u.model, u.serial, u.brand, u.description, u.writtenTo, u.salesperson, u.orderCustomer].some((v) => String(v || "").toLowerCase().includes(q))) return false;
+          return true;
+        });
+      }
+
+      function render() {
+        const rows = filtered();
+        // tiles reflect the current view
+        $("tiles").style.display = "";
+        $("mainSurface").style.display = "";
+        const cost = rows.reduce((s, u) => s + (u.cost || 0), 0);
+        const b2 = rows.filter((u) => bucketOf(u.ageDays) === 2);
+        const b3 = rows.filter((u) => bucketOf(u.ageDays) === 3);
+        $("tUnits").textContent = rows.length;
+        $("tUnitsSub").textContent = `${rows.filter((u) => u.writtenTo).length} reserved · ${rows.filter((u) => !u.writtenTo).length} stock`;
+        $("tCost").textContent = money(cost);
+        $("t61").textContent = b2.length;
+        $("t61Sub").textContent = money(b2.reduce((s, u) => s + (u.cost || 0), 0));
+        $("t90").textContent = b3.length;
+        $("t90Sub").textContent = money(b3.reduce((s, u) => s + (u.cost || 0), 0));
+
+        // per-salesperson summary
+        const groups = new Map();
+        for (const u of rows) {
+          const key = groupKey(u);
+          if (!groups.has(key)) groups.set(key, { units: [], buckets: [0, 0, 0, 0], cost: 0, oldest: null });
+          const g = groups.get(key);
+          g.units.push(u);
+          g.buckets[bucketOf(u.ageDays)]++;
+          g.cost += u.cost || 0;
+          if (u.ageDays != null && (g.oldest == null || u.ageDays > g.oldest)) g.oldest = u.ageDays;
+        }
+        const sorted = [...groups.entries()].sort((a, b) => {
+          if (a[0] === "STOCK") return 1;
+          if (b[0] === "STOCK") return -1;
+          return (b[1].buckets[3] - a[1].buckets[3]) || (b[1].units.length - a[1].units.length);
+        });
+        $("spBody").innerHTML = sorted.map(([name, g]) => `
+          <tr class="sp-row ${state.selected === name ? "sel" : ""}" data-sp="${esc(name)}">
+            <td><strong>${esc(name)}</strong></td>
+            <td class="num">${g.buckets[0] || ""}</td>
+            <td class="num">${g.buckets[1] || ""}</td>
+            <td class="num">${g.buckets[2] || ""}</td>
+            <td class="num">${g.buckets[3] ? `<span class="age a3">${g.buckets[3]}</span>` : ""}</td>
+            <td class="num">${g.units.length}</td>
+            <td class="num">${money(g.cost)}</td>
+            <td class="num">${g.oldest != null ? g.oldest + "d" : "—"}</td>
+          </tr>`).join("") || `<tr><td colspan="8" class="section-note">Nothing matches these filters.</td></tr>`;
+        $("countLine").textContent = `${rows.length} units · ${groups.size} groups`;
+
+        document.querySelectorAll(".sp-row").forEach((tr) => tr.addEventListener("click", () => {
+          state.selected = state.selected === tr.dataset.sp ? null : tr.dataset.sp;
+          render();
+        }));
+
+        const wrap = $("detailWrap");
+        if (state.selected && groups.has(state.selected)) {
+          wrap.style.display = "";
+          const g = groups.get(state.selected);
+          const detail = [...g.units].sort((a, b) => (b.ageDays ?? -1) - (a.ageDays ?? -1));
+          $("detailTitle").textContent = `${state.selected} — ${detail.length} units, ${money(g.cost)}`;
+          $("detailBody").innerHTML = detail.map((u) => `
+            <tr>
+              <td>${u.ageDays != null ? `<span class="age a${bucketOf(u.ageDays)}">${u.ageDays}d</span>` : "—"}</td>
+              <td>${esc(u.received || "—")}</td>
+              <td>${esc(u.brand || "—")}</td>
+              <td><strong>${esc(u.model || "—")}</strong></td>
+              <td class="mut">${esc(u.description || "")}</td>
+              <td>${esc(u.serial)}</td>
+              <td>${esc(u.serialType || "")}</td>
+              <td>${esc(u.writtenTo || "—")}</td>
+              <td>${esc(u.orderCustomer || (u.writtenTo && !u.orderKnown ? "not in OE-23 yet" : ""))}</td>
+              <td class="num">${money(u.cost)}</td>
+            </tr>`).join("");
+        } else {
+          wrap.style.display = "none";
+        }
+      }
+
+      document.querySelectorAll("[data-view]").forEach((btn) => btn.addEventListener("click", () => {
+        document.querySelectorAll("[data-view]").forEach((b) => b.classList.toggle("active", b === btn));
+        state.view = btn.dataset.view;
+        render();
+      }));
+      $("bucketFilter").addEventListener("change", () => { state.bucket = $("bucketFilter").value; render(); });
+      let searchTimer;
+      $("searchInput").addEventListener("input", () => {
+        clearTimeout(searchTimer);
+        searchTimer = setTimeout(() => { state.search = $("searchInput").value.trim(); render(); }, 200);
+      });
+
+      (async () => {
+        try {
+          const res = await fetch("/api/aging-inventory", { credentials: "same-origin" });
+          const data = await res.json();
+          if (!res.ok) throw new Error(data.error || "Unable to load.");
+          state.units = data.units || [];
+          const when = data.uploadedAt ? new Date(data.uploadedAt).toLocaleString("en-US", { timeZone: "America/Chicago", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) : "";
+          $("asofLine").innerHTML = data.note
+            ? esc(data.note)
+            : `Inventory as of <strong>${esc(when)}</strong> (${esc(data.sourceFile || "")}) · ${state.units.length} serialized units`;
+          if (state.units.length) render();
+        } catch (err) {
+          $("asofLine").textContent = err.message;
+        }
+      })();
+    })();
+  </script>
+</body>
+</html>

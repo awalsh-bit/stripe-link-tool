@@ -235,6 +235,7 @@
           { href: "salesdashboard.html", title: "Sales Dashboard" },
           { href: "sales-order-health.html", title: "Sales Order Health Report" },
           { href: "quote-follow-up.html", title: "Quote Follow-Up" },
+          { href: "aging-inventory.html", title: "Aging Inventory" },
           { href: "flag-closures.html", title: "Notification Closure Report" },
           { href: "target-builder.html", title: "Target Builder" },
           { href: "secret-menu.html", title: "Secret Menu" },

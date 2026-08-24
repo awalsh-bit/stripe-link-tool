@@ -451,7 +451,7 @@
         <tr>
           <td>
             <div class="strong">${formatDate(row.createdAt)}</div>
-            <div class="small muted">Updated: ${formatDate(row.updatedAt)}</div>
+            <div class="small muted">Updated: ${formatDate(row.updatedAt)}${row.updatedBy ? ` — ${escapeHtml(row.updatedBy)}` : ""}</div>
           </td>
 
           <td>${queueBadge(queueStatus)}</td>

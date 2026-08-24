@@ -761,11 +761,12 @@ function attachPrefillActions() {
             queueStatus: data.row.queueStatus,
             queueStatusNotes: data.row.queueStatusNotes,
             erpOrderNumber: data.row.erpOrderNumber,
-            updatedAt: data.row.updatedAt
+            updatedAt: data.row.updatedAt,
+            updatedBy: data.row.updatedBy || allRows[rowIndex].updatedBy || ""
           };
         }
 
-        saveMsgEl.textContent = "Saved.";
+        saveMsgEl.textContent = data.unchanged ? "No changes." : "Saved.";
         render();
       } catch (err) {
         saveMsgEl.textContent = err.message;
@@ -804,7 +805,7 @@ function attachPrefillActions() {
         <tr class="${rowClass}">
           <td>
             <div class="strong">${formatDate(row.createdAt)}</div>
-            <div class="small muted">Updated: ${formatDate(row.updatedAt)}</div>
+            <div class="small muted">Updated: ${formatDate(row.updatedAt)}${row.updatedBy ? ` — ${escapeHtml(row.updatedBy)}` : ""}</div>
           </td>
 
           <td class="status-cell">

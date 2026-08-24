@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Custom Maintenance Quote | Wilson Internal</title>
+  <link rel="stylesheet" href="assets/wilson.css">
+</head>
+<body data-mode="internal" data-page-title="Maintenance Quote Builder">
+  <header id="site-header"></header>
+
+  <main>
+    <div class="page-shell">
+      <section class="page-title">
+        <div class="section-heading">
+          <div>
+            <span class="eyebrow dark">House manager tool</span>
+            <h1>Custom Maintenance Quote Builder</h1>
+            <p>Paste or enter the home’s appliance portfolio, select the service level, and generate a consistent Wilson proposal. The draft base-plus structure keeps normal estates simple while protecting time on unusually large portfolios.</p>
+          </div>
+          <a class="button ghost" href="admin.html#quotes">← Custom quotes</a>
+        </div>
+      </section>
+
+      <form id="quote-form">
+        <div class="builder-layout">
+          <div class="stack">
+            <section class="form-section">
+              <div class="section-heading"><div><h2>1. Property and contact</h2><p>Use the household or estate name that should appear on the proposal.</p></div><span class="badge info">Internal draft</span></div>
+              <div class="form-grid">
+                <div class="field"><label for="property-name">Property / household name</label><input id="property-name" required placeholder="Example: Hamilton Family Estate"></div>
+                <div class="field"><label for="contact-name">House manager / contact</label><input id="contact-name" required></div>
+                <div class="field"><label for="contact-email">Email</label><input id="contact-email" type="email"></div>
+                <div class="field"><label for="contact-phone">Phone</label><input id="contact-phone" type="tel"></div>
+                <div class="field full"><label for="property-address">Service address</label><input id="property-address" required></div>
+                <div class="field"><label for="prepared-by">Prepared by</label><input id="prepared-by" value="Cayden Mayfield"></div>
+                <div class="field"><label for="valid-until">Valid until</label><input id="valid-until" type="date" required></div>
+              </div>
+            </section>
+
+            <section class="form-section">
+              <div class="section-heading"><div><h2>2. Select the estate plan</h2><p>The published base covers the first 15 appliances. The overage rate is configurable and appears clearly in the proposal.</p></div><span class="badge warning">Draft pricing model</span></div>
+              <div id="quote-plan-options" class="plan-card-grid"></div>
+            </section>
+
+            <section class="form-section">
+              <div class="section-heading"><div><h2>3. Appliance portfolio</h2><p>Quantity counts toward pricing. IMUC rows default to twice-yearly maintenance when the selected plan includes only one whole-home visit.</p></div><span class="badge" id="quote-asset-count">0 appliances</span></div>
+              <div class="quote-inventory-head" aria-hidden="true"><span>Type</span><span>Brand</span><span>Model</span><span>Location</span><span>Qty</span><span>IMUC frequency</span><span></span></div>
+              <div id="quote-asset-list" class="quote-asset-list"></div>
+              <div class="inline-actions" style="margin-top: 14px;"><button class="button secondary" id="add-quote-asset" type="button">+ Add appliance line</button><button class="button ghost" id="load-quote-demo" type="button">Load sample estate</button></div>
+              <div id="quote-review-note" class="callout warning hidden"></div>
+            </section>
+
+            <section class="form-section">
+              <h2>4. Quote adjustments and notes</h2>
+              <p>Use a manual adjustment only when the property or scope justifies it. The reason appears on the customer-facing proposal.</p>
+              <div class="form-grid">
+                <div class="field"><label for="adjustment-label">Adjustment description</label><input id="adjustment-label" placeholder="Example: Existing Wilson service relationship"></div>
+                <div class="field"><label for="manual-adjustment">Adjustment amount</label><input id="manual-adjustment" type="number" step="0.01" value="0"><span class="hint">Use a negative number for a credit.</span></div>
+                <div class="field full"><label for="quote-notes">Scope notes</label><textarea id="quote-notes" placeholder="Final model and filter inventory, exclusions, access requirements, or onboarding notes."></textarea></div>
+              </div>
+            </section>
+          </div>
+
+          <aside class="sticky">
+            <div class="summary-card">
+              <div class="summary-head"><div class="label">Quoted annual amount</div><div class="amount" id="quote-total">$0.00 <small>/ year</small></div></div>
+              <div class="summary-body">
+                <div class="summary-lines" id="quote-summary-lines"></div>
+                <div id="quote-value-note"></div>
+                <div class="callout info"><strong>Suggested base-plus structure</strong>The published plan price covers the first 15 appliances. A plan-specific per-appliance amount applies above 15, with internal review beginning at 26 appliances.</div>
+                <button class="button wide" type="submit">Save and open proposal</button>
+                <p class="disclaimer" style="margin-bottom: 0;">This prototype stores the draft in the browser. Production should create a server record, PDF snapshot, customer-share link, and audit trail.</p>
+              </div>
+            </div>
+          </aside>
+        </div>
+      </form>
+    </div>
+  </main>
+
+  <footer id="site-footer"></footer>
+  <script src="assets/plan-config.js"></script>
+  <script src="assets/ui.js"></script>
+  <script src="assets/store.js"></script>
+  <script src="assets/quote-builder.js"></script>
+</body>
+</html>

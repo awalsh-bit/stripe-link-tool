@@ -1,0 +1,411 @@
+diff -ru '--exclude=__pycache__' orig/wilson_maintenance_portal_v09/CHANGELOG.md extracted/wilson_maintenance_portal_v091/CHANGELOG.md
+--- orig/wilson_maintenance_portal_v09/CHANGELOG.md	2026-08-24 04:58:01.000000000 +0000
++++ extracted/wilson_maintenance_portal_v091/CHANGELOG.md	2026-08-24 20:03:00.238903541 +0000
+@@ -1,3 +1,23 @@
++# v0.9.1a - SQL migration
++
++- Added `sql/maintenance_migration_v09.sql`, implementing MERGE_GUIDE section 7: property areas, household AR/billing method, the three-table technician field-inspection layer, report delivery tracking, technician user linkage, and versioned lifecycle and protocol configuration. 12 new tables, 11 new columns on existing tables, 3 new views.
++- The migration is strictly additive and idempotent: every table is guarded by `OBJECT_ID`, every column by `COL_LENGTH`, every index by a `sys.indexes` check, and every seed is a `MERGE` on a unique key. It redefines no existing object, so re-running `maintenance_schema.sql` afterwards cannot revert it.
++- Protocol, brand-tier, expected-life and lifecycle-stage seeds are generated from `assets/plan-config.js` by `sql/generate_migration_v09.py` rather than hand-transcribed, so the database and the JS config cannot drift.
++- `dbo.MaintenanceProtocolAssignments` plus `dbo.vw_MaintenanceAssetProtocol` are the SQL form of `WILSON_PROTOCOL.resolveCheckpointSet()`, including the IMUC override and the stored-snapshot fallback. `StoredValueIsStale` finds assets still carrying a pre-v0.9.1 `CheckpointSetCode`.
++- Added `dbo.vw_MaintenanceHouseholdPaymentReadiness` so AR households resolve as payment-ready without a card, per MERGE_GUIDE 7.2, and `dbo.vw_MaintenanceFieldProgress` for Command Center field/report progress.
++- Status columns carry `CHECK` constraints using the MERGE_GUIDE section 34 vocabularies, so a UI phrase cannot be persisted as state.
++- Added `_qa/verify-sql-migration.py` (structure, guards, FK targets, MERGE key backing, N-prefixed literals) and `_qa/verify-protocol-parity.py`, which compares the SQL resolution model against the real JS resolver across all 520 type/category/group combinations. `_qa/run_all.sh` runs everything.
++
++# v0.9.1
++
++- Consolidated inspection-protocol selection into a single source of truth. `plan-config.js` now owns resolution via `WILSON_PROTOCOL.resolveCheckpointSet()`; the duplicate hardcoded if-chain in `tech-maintenance.js` `templateKey()` has been removed.
++- Corrected four customer categories that stored the wrong `checkpointSet`: Ventilation (was generic), Microwave (was cooking), Washer and Dryer (both were laundry). The `ventilation`, `microwave`, `washer` and `dryer` protocols were defined but never assigned.
++- Corrected the same class of defect in the internal `applianceTypes` taxonomy: Vent Hood and Hood Insert (were generic), Microwave / Speed Oven (was cooking), Washer and Dryer (were laundry).
++- Corrected nine seeded demo appliances that persisted the wrong `checkpointSet`.
++- Added a `laundry` entry to `lifecycleMatrix`. Laundry-center assets previously fell through to the generic 15/10/8 expected-life curve.
++- Added `_qa/verify-protocol-resolution.js`, the first automated test in the package: asserts that every customer category and every exact appliance type resolves to its intended protocol, that no protocol is orphaned, and that legacy assets holding a wrong stored value still resolve correctly without a data migration.
++- Marked `docs/API_CONTRACT.md` superseded pending its v0.9 rewrite.
++
+ # v0.7
+ 
+ - Fixed mobile technician number-entry fields so age and temperature entry no longer re-render the page or jump back to the top.
+diff -ru '--exclude=__pycache__' orig/wilson_maintenance_portal_v09/WILSON_MAINTENANCE_PORTAL_PROJECT_CONTEXT.md extracted/wilson_maintenance_portal_v091/WILSON_MAINTENANCE_PORTAL_PROJECT_CONTEXT.md
+--- orig/wilson_maintenance_portal_v09/WILSON_MAINTENANCE_PORTAL_PROJECT_CONTEXT.md	2026-08-24 15:30:18.000000000 +0000
++++ extracted/wilson_maintenance_portal_v091/WILSON_MAINTENANCE_PORTAL_PROJECT_CONTEXT.md	2026-08-24 20:03:00.238198334 +0000
+@@ -1,7 +1,7 @@
+ # Wilson Maintenance Portal — Project Context, Business Rules, and Merge Handoff
+ 
+ _Last updated: 2026-08-24_
+-_Current prototype generation: v0.9_
++_Current prototype generation: v0.9.1_
+ 
+ ## 1. Purpose of this document
+ 
+@@ -1133,29 +1133,81 @@
+ 
+ ---
+ 
+-## 32. v0.9 prototype file map
+-
+-Important files currently include:
++## 32. Prototype file map (v0.9.1)
+ 
+ ```text
+-admin.html                 Internal Maintenance Command Center
+-household.html             Household profile / Appliance + HVAC sections
+-tech-maintenance.html      Mobile appliance technician field workflow
+-report-view.html            Locked customer appliance health-report presentation
+-appliance-signup.html      Public appliance enrollment
+-hvac-signup.html            Public HVAC enrollment
+ index.html                  Public maintenance landing page
++appliance-signup.html       Public appliance enrollment
++hvac-signup.html            Public HVAC enrollment
+ confirmation.html           Enrollment confirmation
++household.html              Household profile / Appliance + HVAC sections
++admin.html                  Internal Maintenance Command Center
++tech-maintenance.html       Mobile appliance technician field workflow
++report-view.html            Locked customer appliance health-report presentation
+ quote-builder.html          Internal estate proposal builder
+ quote-view.html             Proposal presentation
++
++assets/plan-config.js       Business-rule engine: pricing constants, all four plan
++                            definitions, filter service config, both appliance
++                            taxonomies, all ten checkpoint sets, scoring weights,
++                            lifecycle matrix, and WILSON_PROTOCOL.resolveCheckpointSet()
++assets/store.js             Demo data/state engine and mock backend (~960 lines):
++                            seeded households, enrollment, visit creation, mock
++                            charge/AR, tech inspections, report generation, quotes,
++                            invoice drafts, localStorage persistence
++assets/tech-maintenance.js  Field workflow: brand-tier defaults, expected-life
++                            lookup, lifecycle staging, 75/25 scoring, autosave,
++                            readiness gating, 1-5 tap ratings
++assets/appliance-builder.js Customer appliance enrollment builder (IMUC-aware
++                            Estate comparison lives here)
++assets/hvac-builder.js      HVAC enrollment builder
++assets/invoice-import.js    Wilson sales-invoice import UI and asset drafting
++assets/admin.js             Command Center behaviour
++assets/household.js         Household profile behaviour
++assets/quote-builder.js     Estate proposal builder behaviour
++assets/quote-view.js        Proposal presentation behaviour
++assets/report-view.js       Health-report rendering
++assets/confirmation.js      Confirmation page behaviour
++assets/ui.js                Shared UI helpers
++assets/wilson.css           All styling
++assets/appliance-icons/     Twelve category SVG icons
++assets/logo-black.png       Wilson logo
++
++serve_portal.py             Local server plus the PDF invoice-import endpoint
++invoice_parser.py           Wilson sales-invoice PDF parser
++vendor/pypdf/               Vendored pypdf (third party, unmodified)
++start_demo.sh               Local launch (macOS/Linux)
++start_demo.bat              Local launch (Windows)
++OPEN_WILSON_PORTAL.bat      Windows one-click launch
++
++sql/maintenance_schema.sql  Base schema v0.3: 24 tables, 3 views. Predates the
++                            v0.5-v0.9 field workflow -- see Section 34
++sql/maintenance_migration_v09.sql  Generated v0.9 migration implementing
++                            MERGE_GUIDE Section 7. Do not hand-edit
++sql/_migration_v09_ddl.sql  Structure template for the generator
++sql/generate_migration_v09.py  Regenerates the migration from plan-config.js
++sql/dump_config.js          Dumps WILSON_CONFIG to JSON for the generator
++
++_qa/run_all.sh              Runs every automated check
++_qa/verify-protocol-resolution.js  Protocol resolution per category and type
++_qa/verify-sql-migration.py Migration structure, guards, FK targets, seed keys
++_qa/verify-protocol-parity.py  Proves the SQL and JS resolvers agree
++
++samples/Wilson_Appliance_Health_Report_Sample.pdf   Locked 7-page report
++samples/Wilson_Estate_Maintenance_Proposal_Sample.pdf   3-page proposal
++screenshots_v03/            Four customer-side reference images
++
+ CHANGELOG.md                Version changes
+ README.md                   Prototype notes
+-README_FIRST.txt             Local/phone prototype launch instructions
++README_FIRST.txt            Local/phone prototype launch instructions
++docs/MERGE_GUIDE.md         Production merge architecture (authoritative target)
+ docs/ARCHITECTURE.md        Production architecture direction
+-docs/API_CONTRACT.md        API direction
++docs/API_CONTRACT.md        SUPERSEDED at v0.3 -- do not build to it, see Section 34
+ docs/DECISIONS.md           Business decision log
+ docs/INVOICE_IMPORT.md      Wilson sales invoice parsing notes
+ docs/PRICING_RATIONALE.md   Estate/base-plus pricing rationale
++docs/QA_SUMMARY.md          QA notes
++docs/QA_SUMMARY_V09.md      v0.9 QA notes
+ docs/V05_DECISIONS.md       Field/report/scoring evolution
+ docs/V06_DECISIONS.md       Refrigeration protocol and filter-service decisions
+ docs/V07_DECISIONS.md       Field-generated-only report workflow and brand tiers
+@@ -1191,6 +1243,8 @@
+ - Checkpoint photos are optional.
+ - Field data is the sole source for customer health reports.
+ - Old manual health-report builder remains retired.
++- Every customer category and appliance type resolves to its intended checkpoint set from configuration, not from hardcoded logic. `_qa/verify-protocol-resolution.js` enforces this.
++- Protocol resolution has exactly one implementation. If a second one appears, the two must be proven equivalent -- `_qa/verify-protocol-parity.py` does this for the JS resolver and the SQL model.
+ - Health score is 75% condition / 25% lifecycle.
+ - Brand tier defaults automatically but remains overridable.
+ - Lifecycle stage is displayed separately from health score.
+@@ -1216,7 +1270,17 @@
+ 10. Merge maintenance into the authenticated main Wilson Flask + SQL Server dashboard.
+ 11. Move trusted pricing/scoring/business logic out of browser JavaScript and into backend services.
+ 12. Establish role permissions for dispatcher/client care, technician, sales/house-manager liaison, and manager/admin.
+-13. Decide whether combined WashTower/laundry-center products count as one maintained asset or washer + dryer for pricing.
++13. Decide whether combined WashTower/laundry-center products count as one maintained asset or washer + dryer for pricing. **Now blocking code:** `laundry_center` is the only remaining user of the combined `laundry` checkpoint set. Answering this retires that set entirely.
++
++### Resolved in v0.9.1
++
++- **Protocol configuration consolidated.** Four customer categories (Ventilation, Microwave, Washer, Dryer) and five appliance types stored the wrong `checkpointSet`; the field tool masked it with a duplicate hardcoded if-chain. Resolution now lives only in `WILSON_PROTOCOL.resolveCheckpointSet()` and is covered by tests. See CHANGELOG v0.9.1.
++
++### Stale artifacts to be aware of
++
++- `docs/API_CONTRACT.md` is at v0.3 and **contradicts the current package**. It specifies the retired office-built report endpoint and contains essentially no technician/field endpoints. It carries a SUPERSEDED banner; it must be rewritten to v0.9 before anyone builds against it.
++- `sql/maintenance_schema.sql` is at v0.3 (2026-08-21) and predates the v0.5-v0.9 field workflow. `sql/maintenance_migration_v09.sql` supplies the Section 7 additions on top of it; the two are applied in that order. The pre-v0.7 `MaintenanceHealthReport*` tables still reflect the retired office-builder model and should be retired alongside the API contract rewrite.
++- Missing from the package entirely: `wilson_routing_dashboard_context (2).md`, the Wilson sales-invoice samples (`S00063887`, `S00063887-1`) needed to validate `invoice_parser.py`, and Wilson dashboard screenshots.
+ 
+ ---
+ 
+@@ -1227,12 +1291,13 @@
+ 1. `WILSON_MAINTENANCE_PORTAL_PROJECT_CONTEXT.md` — authoritative product/business state.
+ 2. `wilson_routing_dashboard_context (2).md` — existing Wilson dashboard architecture and EPASS routing context.
+ 3. Latest prototype source files — current UI behavior/reference implementation.
+-4. `docs/ARCHITECTURE.md` and `docs/API_CONTRACT.md` — target backend direction.
+-5. `docs/DECISIONS.md` plus version-specific decision files — history and rationale.
+-6. Wilson sales-invoice PDF examples — invoice parser source format.
+-7. `Appliance Health Report _ Wilson.pdf` — locked appliance health-report visual standard.
+-8. Existing HVAC measureQuick report — reference for the broader "health vitals" concept, not a template to copy literally.
+-9. Wilson dashboard/customer-facing screenshots — visual-language reference.
++4. `docs/MERGE_GUIDE.md` — the authoritative production merge target, including the Section 7 schema additions.
++5. `docs/ARCHITECTURE.md` — target backend direction. **Skip `docs/API_CONTRACT.md`:** it is superseded at v0.3 and actively misleading until rewritten (see Section 34).
++6. `docs/DECISIONS.md` plus version-specific decision files — history and rationale.
++7. Wilson sales-invoice PDF examples — invoice parser source format. **Not in the package.**
++8. `samples/Wilson_Appliance_Health_Report_Sample.pdf` — locked appliance health-report visual standard.
++9. Existing HVAC measureQuick report — reference for the broader "health vitals" concept, not a template to copy literally.
++10. Wilson dashboard/customer-facing screenshots — visual-language reference. **Only four customer-side images are present (`screenshots_v03/`).**
+ 
+ The latest prototype code is a UX/behavior specification and proof of concept. It should not be treated as production architecture simply because it works locally.
+ 
+@@ -1247,5 +1312,6 @@
+ - remove obsolete rules rather than leaving contradictory current-state statements,
+ - keep version-specific rationale in the changelog/decision files,
+ - add any new non-regression behavior to Section 33,
+-- keep this file inside the root of every prototype ZIP.
++- keep this file inside the root of every prototype ZIP,
++- run `bash _qa/run_all.sh` before declaring a revision complete.
+ 
+Only in extracted/wilson_maintenance_portal_v091/_qa: run_all.sh
+Only in extracted/wilson_maintenance_portal_v091/_qa: verify-protocol-parity.py
+Only in extracted/wilson_maintenance_portal_v091/_qa: verify-protocol-resolution.js
+Only in extracted/wilson_maintenance_portal_v091/_qa: verify-sql-migration.py
+diff -ru '--exclude=__pycache__' orig/wilson_maintenance_portal_v09/assets/plan-config.js extracted/wilson_maintenance_portal_v091/assets/plan-config.js
+--- orig/wilson_maintenance_portal_v09/assets/plan-config.js	2026-08-24 04:02:42.000000000 +0000
++++ extracted/wilson_maintenance_portal_v091/assets/plan-config.js	2026-08-24 19:41:29.281734255 +0000
+@@ -124,13 +124,13 @@
+       { id: "cooktop", label: "Cooktop / Rangetop", shortLabel: "Cooktop / Rangetop", icon: "cooktop.svg", group: "standard", checkpointSet: "cooking", filterTypes: [], help: "Gas, electric, or induction cooking surface" },
+       { id: "range", label: "Range", shortLabel: "Range", icon: "range.svg", group: "standard", checkpointSet: "cooking", filterTypes: [], help: "Freestanding, slide-in, or professional range" },
+       { id: "dishwasher", label: "Dishwasher", shortLabel: "Dishwasher", icon: "dishwasher.svg", group: "standard", checkpointSet: "dishwasher", filterTypes: [], help: "Built-in top-control dishwasher" },
+-      { id: "ventilation", label: "Ventilation", shortLabel: "Ventilation", icon: "ventilation.svg", group: "standard", checkpointSet: "generic", filterTypes: [], help: "Hood, liner, insert, or downdraft" },
+-      { id: "microwave", label: "Microwave", shortLabel: "Microwave", icon: "microwave.svg", group: "standard", checkpointSet: "cooking", filterTypes: [], help: "Built-in, over-the-range, drawer, countertop, or speed oven" },
++      { id: "ventilation", label: "Ventilation", shortLabel: "Ventilation", icon: "ventilation.svg", group: "standard", checkpointSet: "ventilation", filterTypes: [], help: "Hood, liner, insert, or downdraft" },
++      { id: "microwave", label: "Microwave", shortLabel: "Microwave", icon: "microwave.svg", group: "standard", checkpointSet: "microwave", filterTypes: [], help: "Built-in, over-the-range, drawer, countertop, or speed oven" },
+       { id: "ovens", label: "Ovens", shortLabel: "Ovens", icon: "ovens.svg", group: "standard", checkpointSet: "cooking", filterTypes: [], help: "Single, double, steam, or combination wall oven" },
+       { id: "warming_drawer", label: "Warming Drawer", shortLabel: "Warming Drawer", icon: "warming_drawer.svg", group: "standard", checkpointSet: "cooking", filterTypes: [], help: "Built-in warming or proofing drawer" },
+       { id: "coffee", label: "Built-In Coffee", shortLabel: "Built-In Coffee", icon: "coffee.svg", group: "standard", checkpointSet: "generic", filterTypes: [], help: "Plumbed or reservoir built-in coffee system" },
+-      { id: "washer", label: "Washer", shortLabel: "Washer", icon: "washer.svg", group: "standard", checkpointSet: "laundry", filterTypes: [], help: "Front-load or top-load washer" },
+-      { id: "dryer", label: "Dryer", shortLabel: "Dryer", icon: "dryer.svg", group: "standard", checkpointSet: "laundry", filterTypes: [], help: "Electric, gas, heat-pump, or ventless dryer" }
++      { id: "washer", label: "Washer", shortLabel: "Washer", icon: "washer.svg", group: "standard", checkpointSet: "washer", filterTypes: [], help: "Front-load or top-load washer" },
++      { id: "dryer", label: "Dryer", shortLabel: "Dryer", icon: "dryer.svg", group: "standard", checkpointSet: "dryer", filterTypes: [], help: "Electric, gas, heat-pump, or ventless dryer" }
+     ],
+     applianceTypes: [
+       { id: "refrigerator", label: "Refrigerator", group: "standard", checkpointSet: "refrigerator", filterTypes: ["Refrigerator water filter", "Refrigerator air / food-preservation filter"] },
+@@ -141,13 +141,17 @@
+       { id: "range", label: "Range", group: "standard", checkpointSet: "cooking", filterTypes: [] },
+       { id: "cooktop", label: "Cooktop / Rangetop", group: "standard", checkpointSet: "cooking", filterTypes: [] },
+       { id: "wall_oven", label: "Wall Oven", group: "standard", checkpointSet: "cooking", filterTypes: [] },
+-      { id: "speed_oven", label: "Microwave / Speed Oven", group: "standard", checkpointSet: "cooking", filterTypes: [] },
+-      { id: "washer", label: "Washer", group: "standard", checkpointSet: "laundry", filterTypes: [] },
+-      { id: "dryer", label: "Dryer", group: "standard", checkpointSet: "laundry", filterTypes: [] },
+-      { id: "hood", label: "Vent Hood", group: "standard", checkpointSet: "generic", filterTypes: [] },
+-      { id: "hood_insert", label: "Hood Insert / Liner", group: "standard", checkpointSet: "generic", filterTypes: [] },
++      { id: "speed_oven", label: "Microwave / Speed Oven", group: "standard", checkpointSet: "microwave", filterTypes: [] },
++      { id: "washer", label: "Washer", group: "standard", checkpointSet: "washer", filterTypes: [] },
++      { id: "dryer", label: "Dryer", group: "standard", checkpointSet: "dryer", filterTypes: [] },
++      { id: "hood", label: "Vent Hood", group: "standard", checkpointSet: "ventilation", filterTypes: [] },
++      { id: "hood_insert", label: "Hood Insert / Liner", group: "standard", checkpointSet: "ventilation", filterTypes: [] },
+       { id: "warming_drawer", label: "Warming Drawer", group: "standard", checkpointSet: "cooking", filterTypes: [] },
+       { id: "coffee_maker", label: "Built-In Coffee Maker", group: "standard", checkpointSet: "generic", filterTypes: [] },
++      // OPEN BUSINESS QUESTION (context §34 item 13): a WashTower may be one maintained
++      // asset or two. Until Wilson answers, this stays on the combined `laundry` set --
++      // the only remaining legitimate use of it. If a WashTower counts as two assets,
++      // this entry should be split into washer + dryer and `laundry` retired entirely.
+       { id: "laundry_center", label: "Laundry Center / WashTower", group: "standard", checkpointSet: "laundry", filterTypes: [] },
+       { id: "commercial_refrigeration", label: "Commercial / Specialty Refrigeration", group: "standard", checkpointSet: "refrigerator", filterTypes: [] },
+       { id: "outdoor", label: "Outdoor Appliance", group: "standard", checkpointSet: "generic", filterTypes: [] },
+@@ -311,6 +315,9 @@
+       icemaker: { luxury: 12, premium: 10, mass: 8 },
+       washer: { luxury: 15, premium: 11, mass: 8 },
+       dryer: { luxury: 15, premium: 11, mass: 8 },
++      // Combined laundry center / WashTower. Previously absent, so any asset on the
++      // `laundry` set silently used the generic 15/10/8 curve instead of a laundry one.
++      laundry: { luxury: 15, premium: 11, mass: 8 },
+       ventilation: { luxury: 18, premium: 14, mass: 10 },
+       microwave: { luxury: 10, premium: 8, mass: 7 },
+       generic: { luxury: 15, premium: 10, mass: 8 }
+@@ -347,5 +354,66 @@
+     ],
+   };
+ 
++  // ---------------------------------------------------------------------------
++  // Protocol resolution -- single source of truth.
++  //
++  // Which checkpoint set (inspection protocol) applies to an asset is decided
++  // here and nowhere else. Before v0.9.1 this was decided twice: by the
++  // `checkpointSet` field on the two taxonomies above (which was wrong for
++  // ventilation, microwave, washer and dryer) and again by a hardcoded if-chain
++  // in tech-maintenance.js `templateKey()`. The field tool happened to show the
++  // right protocol because the if-chain won, so the defect was invisible while
++  // persisting wrong values on every asset ever created.
++  //
++  // Resolution order is deliberate:
++  //   1. IMUC group / icemaker -- group membership always wins.
++  //   2. applianceTypes match on the asset's exact type (most specific).
++  //   3. customerApplianceCategories match on the customer-facing category.
++  //   4. The asset's own stored checkpointSet, if it names a real set.
++  //   5. generic.
++  //
++  // Config is consulted BEFORE the stored value so that assets already
++  // persisted with a wrong checkpointSet (all of them, pre-fix) resolve
++  // correctly without a data migration. When MERGE_GUIDE §22 moves protocol
++  // config into versioned SQL, steps 2-3 become table lookups and this function
++  // is the only thing that changes.
++  // ---------------------------------------------------------------------------
++  const norm = (value) => String(value == null ? "" : value).trim().toLowerCase();
++  const isRealSet = (key) => Boolean(key && Object.prototype.hasOwnProperty.call(config.checkpointSets, key));
++
++  function buildIndex(list) {
++    const index = {};
++    (list || []).forEach((entry) => {
++      if (!entry || !entry.checkpointSet) return;
++      index[norm(entry.id)] = entry.checkpointSet;
++      if (entry.label) index[norm(entry.label)] = entry.checkpointSet;
++    });
++    return index;
++  }
++
++  const typeIndex = buildIndex(config.applianceTypes);
++  const categoryIndex = buildIndex(config.customerApplianceCategories);
++
++  function resolveCheckpointSet(asset) {
++    if (!asset) return "generic";
++
++    const group = norm(asset.group);
++    if (group === "imuc") return "icemaker";
++    if (group === "hvac") return "generic";
++
++    const candidates = [asset.exactType, asset.exactTypeLabel, asset.type, asset.typeLabel];
++    for (let i = 0; i < candidates.length; i += 1) {
++      const hit = typeIndex[norm(candidates[i])];
++      if (isRealSet(hit)) return hit;
++    }
++
++    const categoryHit = categoryIndex[norm(asset.customerCategory)] || categoryIndex[norm(asset.type)];
++    if (isRealSet(categoryHit)) return categoryHit;
++
++    if (isRealSet(asset.checkpointSet)) return asset.checkpointSet;
++    return "generic";
++  }
++
+   window.WILSON_CONFIG = config;
++  window.WILSON_PROTOCOL = { resolveCheckpointSet: resolveCheckpointSet };
+ })();
+diff -ru '--exclude=__pycache__' orig/wilson_maintenance_portal_v09/assets/store.js extracted/wilson_maintenance_portal_v091/assets/store.js
+--- orig/wilson_maintenance_portal_v09/assets/store.js	2026-08-24 04:33:39.000000000 +0000
++++ extracted/wilson_maintenance_portal_v091/assets/store.js	2026-08-24 19:41:55.297124834 +0000
+@@ -191,15 +191,15 @@
+       appliance("dishwasher", "Dishwasher", "Cove", "DW2450", "Main Kitchen - Left", "dishwasher"),
+       appliance("dishwasher", "Dishwasher", "Cove", "DW2450", "Main Kitchen - Right", "dishwasher"),
+       appliance("range", "Range", "Wolf", "GR486G", "Main Kitchen", "cooking"),
+-      appliance("hood", "Vent Hood", "Wolf", "PI543418", "Main Kitchen", "generic"),
++      appliance("hood", "Vent Hood", "Wolf", "PI543418", "Main Kitchen", "ventilation"),
+       appliance("wall_oven", "Wall Oven", "Wolf", "SO3050CM", "Catering Kitchen", "cooking"),
+       appliance("refrigerator", "Refrigerator", "Sub-Zero", "CL3650R", "Catering Kitchen", "refrigerator", { filterTypes: ["Refrigerator water filter"] }),
+       appliance("ice_maker", "Icemaker (IMUC)", "Scotsman", "DCE33", "Wet Bar", "icemaker", { filterTypes: ["Icemaker water filter"] }),
+       appliance("wine_beverage", "Wine Storage", "Sub-Zero", "UW-24", "Wine Room", "refrigerator"),
+-      appliance("washer", "Washer", "Miele", "WXF660", "Primary Laundry", "laundry"),
+-      appliance("dryer", "Dryer", "Miele", "TXI680", "Primary Laundry", "laundry"),
+-      appliance("washer", "Washer", "Speed Queen", "FF7009", "Guest Laundry", "laundry"),
+-      appliance("dryer", "Dryer", "Speed Queen", "DF7004", "Guest Laundry", "laundry"),
++      appliance("washer", "Washer", "Miele", "WXF660", "Primary Laundry", "washer"),
++      appliance("dryer", "Dryer", "Miele", "TXI680", "Primary Laundry", "dryer"),
++      appliance("washer", "Washer", "Speed Queen", "FF7009", "Guest Laundry", "washer"),
++      appliance("dryer", "Dryer", "Speed Queen", "DF7004", "Guest Laundry", "dryer"),
+       appliance("outdoor", "Outdoor Grill", "Hestan", "GMBR36", "Outdoor Kitchen", "cooking"),
+       appliance("refrigerator", "Outdoor Refrigerator", "True", "TUR-24", "Outdoor Kitchen", "refrigerator")
+     ]));
+@@ -209,12 +209,12 @@
+       appliance("freezer", "Freezer", "Thermador", "T24IF905SP", "Kitchen", "refrigerator"),
+       appliance("dishwasher", "Dishwasher", "Thermador", "DWHD770WPR", "Kitchen", "dishwasher"),
+       appliance("range", "Range", "Thermador", "PRD486WDHU", "Kitchen", "cooking"),
+-      appliance("hood", "Vent Hood", "Thermador", "VCIN48GWS", "Kitchen", "generic"),
+-      appliance("speed_oven", "Speed Oven", "Thermador", "MC30WP", "Kitchen", "cooking"),
++      appliance("hood", "Vent Hood", "Thermador", "VCIN48GWS", "Kitchen", "ventilation"),
++      appliance("speed_oven", "Speed Oven", "Thermador", "MC30WP", "Kitchen", "microwave"),
+       appliance("wine_beverage", "Wine Column", "Thermador", "T24IW905SP", "Bar", "refrigerator"),
+       appliance("ice_maker", "Icemaker (IMUC)", "Scotsman", "CU50", "Bar", "icemaker", { filterTypes: ["Icemaker water filter"] }),
+-      appliance("washer", "Washer", "LG", "WM6700", "Laundry", "laundry"),
+-      appliance("dryer", "Dryer", "LG", "DLEX6700", "Laundry", "laundry")
++      appliance("washer", "Washer", "LG", "WM6700", "Laundry", "washer"),
++      appliance("dryer", "Dryer", "LG", "DLEX6700", "Laundry", "dryer")
+     ]));
+ 
+     assets = assets.concat(createAssets("hh_torres", [
+diff -ru '--exclude=__pycache__' orig/wilson_maintenance_portal_v09/assets/tech-maintenance.js extracted/wilson_maintenance_portal_v091/assets/tech-maintenance.js
+--- orig/wilson_maintenance_portal_v09/assets/tech-maintenance.js	2026-08-24 04:58:01.000000000 +0000
++++ extracted/wilson_maintenance_portal_v091/assets/tech-maintenance.js	2026-08-24 19:40:51.973735356 +0000
+@@ -42,17 +42,17 @@
+   function inspectionFor(assetId){ return WilsonStore.getTechInspection(visitId,assetId); }
+   const completedFor=(assetId)=>Boolean(inspectionFor(assetId)?.complete);
+ 
++  /*
++   * Protocol selection lives in plan-config.js (WILSON_PROTOCOL). It used to be
++   * duplicated here as a hardcoded if-chain, which masked four wrong
++   * checkpointSet values in config -- see the note above resolveCheckpointSet.
++   * Do not reintroduce type-string matching here; add or correct the mapping in
++   * the taxonomy instead, so the field tool, enrollment, invoice import and the
++   * eventual SQL protocol table all agree.
++   */
+   function templateKey(asset){
+-    const t=(asset.type||"").toLowerCase(), c=(asset.customerCategory||"").toLowerCase();
+-    if(asset.group==="imuc"||t.includes("ice")) return "icemaker";
+-    if(t.includes("dish")) return "dishwasher";
+-    if(t.includes("washer")||c==="washer") return "washer";
+-    if(t.includes("dryer")||c==="dryer") return "dryer";
+-    if(t.includes("hood")||t.includes("vent")||c==="ventilation") return "ventilation";
+-    if(t.includes("micro")||t.includes("speed")||c==="microwave") return "microwave";
+-    if(t.includes("refrig")||t.includes("freezer")||t.includes("wine")||c==="refrigeration") return "refrigerator";
+-    if(["range","cooktop","wall_oven","warming_drawer"].includes(t)||["range","cooktop","ovens","warming_drawer"].includes(c)) return "cooking";
+-    return asset.checkpointSet&&config.checkpointSets[asset.checkpointSet]?asset.checkpointSet:"generic";
++    const key=window.WILSON_PROTOCOL.resolveCheckpointSet(asset);
++    return config.checkpointSets[key]?key:"generic";
+   }
+ 
+   function tierForBrand(brand){
+diff -ru '--exclude=__pycache__' orig/wilson_maintenance_portal_v09/docs/API_CONTRACT.md extracted/wilson_maintenance_portal_v091/docs/API_CONTRACT.md
+--- orig/wilson_maintenance_portal_v09/docs/API_CONTRACT.md	2026-08-24 04:30:49.000000000 +0000
++++ extracted/wilson_maintenance_portal_v091/docs/API_CONTRACT.md	2026-08-24 19:42:16.098162682 +0000
+@@ -1,3 +1,18 @@
++> **SUPERSEDED — DO NOT BUILD TO THIS DOCUMENT (flagged 2026-08-24).**
++>
++> This contract is still at v0.3 and contradicts the rest of the package in two ways:
++>
++> 1. §11 specifies `POST /api/maintenance/admin/reports`, the office-built report flow.
++>    That builder was **retired** in v0.7 — field data is the sole source for health
++>    reports (context §25, MERGE_GUIDE §23). Building to §11 would rebuild the thing
++>    that was deliberately removed.
++> 2. It contains essentially no technician/field endpoints, so the entire v0.5–v0.9
++>    field workflow is unrepresented.
++>
++> Until this file is rewritten to v0.9, treat `assets/store.js` (demo backend),
++> `assets/tech-maintenance.js` (field workflow) and `docs/MERGE_GUIDE.md` as
++> authoritative instead.
++
+ # Wilson Maintenance Portal - Proposed API Contract v0.3
+ 
+ This contract is a production handoff. Browser demo methods in `assets/store.js` should be replaced with authenticated API calls. All prices, plan selection, charge eligibility, scores, and permissions must be recalculated or verified by the server.
+Only in extracted/wilson_maintenance_portal_v091/sql: _migration_v09_ddl.sql
+Only in extracted/wilson_maintenance_portal_v091/sql: dump_config.js
+Only in extracted/wilson_maintenance_portal_v091/sql: generate_migration_v09.py
+Only in extracted/wilson_maintenance_portal_v091/sql: maintenance_migration_v09.sql

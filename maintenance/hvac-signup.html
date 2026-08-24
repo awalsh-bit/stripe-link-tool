@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>HVAC Maintenance | Wilson</title>
+  <link rel="stylesheet" href="assets/wilson.css">
+</head>
+<body data-mode="public" data-page-title="HVAC Maintenance">
+  <header id="site-header"></header>
+
+  <main>
+    <div class="page-shell">
+      <section class="page-title">
+        <span class="eyebrow dark">Wilson AC</span>
+        <h1>Choose HVAC maintenance for each system in the home.</h1>
+        <p>HVAC pricing stays separate from household appliances, while both programs feed the same internal household, payment, scheduling, filter, and dispatch workspace.</p>
+      </section>
+
+      <form id="hvac-enrollment-form" novalidate>
+        <div class="builder-layout">
+          <div class="stack">
+            <section class="form-section">
+              <h2>1. Choose the HVAC plan</h2>
+              <p>Both plans include two visits per system each year. Wilson will contact the household each spring and fall, weather permitting.</p>
+              <div id="hvac-plan-options" class="plan-card-grid"></div>
+            </section>
+
+            <section class="form-section">
+              <h2>2. Add the HVAC systems</h2>
+              <p>Model information is optional at enrollment. Filter details appear when the filter-management tier is selected.</p>
+              <div id="system-list" class="asset-list"></div>
+              <button class="button secondary" id="add-system" type="button" style="margin-top: 14px;">+ Add another HVAC system</button>
+            </section>
+
+            <section class="form-section">
+              <h2>3. Household and contact</h2>
+              <p>Use the same contact and service address structure as the appliance enrollment so records merge cleanly.</p>
+              <div class="form-grid">
+                <div class="field"><label for="first-name">First name</label><input id="first-name" name="firstName" required></div>
+                <div class="field"><label for="last-name">Last name</label><input id="last-name" name="lastName" required></div>
+                <div class="field"><label for="household-label">Household label <span class="hint">Optional</span></label><input id="household-label" name="householdLabel"></div>
+                <div class="field"><label for="preferred-contact">Preferred contact</label><select id="preferred-contact" name="preferredContact"><option>Text</option><option>Phone</option><option>Email</option></select></div>
+                <div class="field"><label for="phone">Best phone</label><input id="phone" name="phone" type="tel" required></div>
+                <div class="field"><label for="email">Email</label><input id="email" name="email" type="email" required></div>
+                <div class="field full"><label for="address1">Service address</label><input id="address1" name="address1" required></div>
+                <div class="field"><label for="address2">Apt / suite / gate note</label><input id="address2" name="address2"></div>
+                <div class="field"><label for="city">City</label><input id="city" name="city" required></div>
+                <div class="field"><label for="state">State</label><input id="state" name="state" value="TX" maxlength="2" required></div>
+                <div class="field"><label for="zip">ZIP</label><input id="zip" name="zip" required></div>
+                <div class="field"><label for="preferred-months">Preferred timing</label><input id="preferred-months" name="preferredMonths" value="Spring / Fall"></div>
+                <div class="field full"><label for="notes">Access or scheduling notes</label><textarea id="notes" name="notes"></textarea></div>
+              </div>
+            </section>
+
+            <section class="form-section">
+              <h2>4. Secure payment authorization</h2>
+              <p>Stripe should create a reusable payment method. The card is not charged at signup; the office charges it when the scheduled maintenance interval is ready to proceed.</p>
+              <div class="payment-box">
+                <div class="payment-row">
+                  <div class="payment-status">
+                    <span class="status-dot" id="payment-dot"></span>
+                    <div><strong id="payment-title">No payment method connected</strong><div class="table-sub" id="payment-subtitle">Prototype integration point</div></div>
+                  </div>
+                  <button class="button secondary" id="connect-payment" type="button">Connect demo card</button>
+                </div>
+              </div>
+              <p class="disclaimer">Prototype only. The final implementation should use Stripe SetupIntents and server-side PaymentIntents.</p>
+            </section>
+
+            <section class="form-section">
+              <h2>5. Renewal authorization</h2>
+              <label class="authorization-card">
+                <input id="renewal-authorization" name="renewalAuthorization" type="checkbox" required>
+                <span><strong>Annual renewal and scheduled-maintenance charge</strong><small>I understand the selected plan renews annually until canceled, and I authorize Wilson to charge the card on file when a scheduled maintenance interval is ready to proceed.</small></span>
+              </label>
+            </section>
+          </div>
+
+          <aside class="sticky">
+            <div class="summary-card">
+              <div class="summary-head">
+                <div class="label">Estimated annual program</div>
+                <div class="amount" id="summary-total">$0.00 <small>/ year</small></div>
+              </div>
+              <div class="summary-body">
+                <div class="summary-lines" id="summary-lines"></div>
+                <div class="callout info"><strong>Scheduling</strong>Wilson will contact the customer each spring and fall, weather permitting.</div>
+                <button class="button wide" type="submit">Submit HVAC enrollment</button>
+                <p class="disclaimer" style="margin-bottom: 0;">Wilson will verify the systems and filter details before the first scheduled-maintenance charge or service order is created.</p>
+              </div>
+            </div>
+          </aside>
+        </div>
+      </form>
+    </div>
+  </main>
+
+  <footer id="site-footer"></footer>
+  <script src="assets/plan-config.js"></script>
+  <script src="assets/ui.js"></script>
+  <script src="assets/store.js"></script>
+  <script src="assets/hvac-builder.js"></script>
+</body>
+</html>

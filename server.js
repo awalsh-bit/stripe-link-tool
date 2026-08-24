@@ -339,6 +339,7 @@ import {
   saveServiceOrderSnapshot
 } from "./lib/service-orders-postgres.js";
 import { extractQuoteDataFromPdfBuffer } from "./lib/spec-scan.js";
+import { parseMaintenanceInvoices } from "./lib/maintenance-invoice-parser.js";
 import {
   saveSatisfactionResponse,
   listSatisfactionResponses,
@@ -551,7 +552,17 @@ const INTERNAL_PAGE_PATHS = new Set([
   "/dispatch.html",
   "/driver.html",
   "/message-automations.html",
-  "/aging-inventory.html"
+  "/aging-inventory.html",
+  "/maintenance/index.html",
+  "/maintenance/appliance-signup.html",
+  "/maintenance/hvac-signup.html",
+  "/maintenance/confirmation.html",
+  "/maintenance/admin.html",
+  "/maintenance/household.html",
+  "/maintenance/quote-builder.html",
+  "/maintenance/quote-view.html",
+  "/maintenance/tech-maintenance.html",
+  "/maintenance/report-view.html"
 ]);
 
 const UNAUTHENTICATED_INTERNAL_PATHS = new Set([
@@ -755,7 +766,17 @@ const PAGE_LABELS = {
   "/dispatch.html": "Delivery Dispatch",
   "/driver.html": "Driver Run Sheet",
   "/message-automations.html": "Text Automations",
-  "/aging-inventory.html": "Aging Inventory"
+  "/aging-inventory.html": "Aging Inventory",
+  "/maintenance/index.html": "Maintenance Enrollment (Demo)",
+  "/maintenance/appliance-signup.html": "Maintenance Appliance Signup",
+  "/maintenance/hvac-signup.html": "Maintenance HVAC Signup",
+  "/maintenance/confirmation.html": "Maintenance Enrollment Confirmation",
+  "/maintenance/admin.html": "Maintenance Command Center",
+  "/maintenance/household.html": "Maintenance Household Profile",
+  "/maintenance/quote-builder.html": "Maintenance Quote Builder",
+  "/maintenance/quote-view.html": "Maintenance Quote View",
+  "/maintenance/tech-maintenance.html": "Maintenance Field Tool",
+  "/maintenance/report-view.html": "Appliance Health Report View"
 };
 
 // Category groupings for the User Admin permission UI. A page may appear in
@@ -774,7 +795,17 @@ const PAGE_CATEGORIES = [
       "/satisfaction-survey.html",
       "/satisfaction-results.html",
       "/case-visit-survey.html",
-      "/case-visit-results.html"
+      "/case-visit-results.html",
+      "/maintenance/index.html",
+      "/maintenance/appliance-signup.html",
+      "/maintenance/hvac-signup.html",
+      "/maintenance/confirmation.html",
+      "/maintenance/admin.html",
+      "/maintenance/household.html",
+      "/maintenance/quote-builder.html",
+      "/maintenance/quote-view.html",
+      "/maintenance/tech-maintenance.html",
+      "/maintenance/report-view.html"
     ]
   },
   {
@@ -7083,6 +7114,45 @@ app.get("/api/epass-uploads/status", requirePagePermission("/epass-uploads.html"
   }
 });
 
+// ---------------------------------------------------------------------------
+// Maintenance module (pilot, Test Modules): Wilson sales-invoice import.
+// Serves the invoice-import tab in /maintenance/admin.html — the JS port of
+// the maintenance prototype's Python parser (lib/maintenance-invoice-parser.js).
+// ---------------------------------------------------------------------------
+
+const maintenanceInvoiceUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 30 * 1024 * 1024, files: 10 } });
+
+app.post("/api/invoice/import", requirePagePermission("/maintenance/admin.html"), (req, res) => {
+  maintenanceInvoiceUpload.array("invoices", 10)(req, res, async (err) => {
+    if (err) {
+      return res.status(400).json({ ok: false, error: err.code === "LIMIT_FILE_SIZE" ? "A file is over the 30 MB limit." : "Upload failed — please try again." });
+    }
+    try {
+      const files = (req.files || []).filter((f) => f?.buffer?.length);
+      if (!files.length) {
+        return res.status(400).json({ ok: false, error: "Attach at least one Wilson sales invoice PDF." });
+      }
+      const result = await parseMaintenanceInvoices(
+        files.map((f) => ({ filename: String(f.originalname || "invoice.pdf").slice(0, 200), buffer: f.buffer }))
+      );
+      recordAudit({
+        ip: req.ip, actorUserId: req.authUser?.id || null,
+        action: "maintenance_invoices_parsed", targetUserId: null,
+        detail: {
+          invoiceNumbers: result.invoiceNumbers,
+          lineItemCount: result.lineItemCount,
+          ignoredCount: result.ignored.length,
+          sourceFiles: result.sourceFiles
+        }
+      }).catch(() => {});
+      return res.json(result);
+    } catch (parseErr) {
+      console.error("Maintenance invoice import failed:", parseErr.message);
+      return res.status(400).json({ ok: false, error: "The invoices could not be parsed — are they Wilson sales invoice PDFs?" });
+    }
+  });
+});
+
 app.post("/api/epass-uploads/inventory", requirePagePermission("/epass-uploads.html", "/shop-orders.html"), (req, res) => {
   epassInventoryUpload.single("report")(req, res, async (err) => {
     if (err) {
@@ -8536,12 +8606,25 @@ app.get("/api/service/setup-intent-result/:setupIntentId", async (req, res) => {
       updatedAt: new Date().toISOString()
     };
 
+    // Clients can re-open the confirmation page; only rewrite (and stamp
+    // "Updated") when the Stripe result actually changed something.
+    let cardResultChanged = true;
+    let cardAuditRowId = "";
     if (existingCardIdIndex >= 0) {
-      serviceCards[existingCardIdIndex] = {
-        ...serviceCards[existingCardIdIndex],
-        setupIntentId: setupIntent.id,
-        ...stripeFields
-      };
+      const beforeRow = serviceCards[existingCardIdIndex];
+      cardResultChanged =
+        (beforeRow.setupIntentId || "") !== setupIntent.id ||
+        (beforeRow.paymentMethodId || "") !== stripeFields.paymentMethodId ||
+        (beforeRow.setupIntentStatus || "") !== stripeFields.setupIntentStatus ||
+        (beforeRow.last4 || "") !== last4;
+      if (cardResultChanged) {
+        serviceCards[existingCardIdIndex] = {
+          ...beforeRow,
+          setupIntentId: setupIntent.id,
+          ...stripeFields
+        };
+        cardAuditRowId = beforeRow.id;
+      }
     } else {
       serviceCards.unshift({
         id: `svc_${Date.now()}`,
@@ -8607,9 +8690,20 @@ app.get("/api/service/setup-intent-result/:setupIntentId", async (req, res) => {
         cardBrand: brand,
         last4
       });
+      cardAuditRowId = serviceCards[0].id;
     }
 
-    await writeServiceCards(serviceCards);
+    if (cardResultChanged) {
+      await writeServiceCards(serviceCards);
+
+      recordAudit({
+        ip: req.ip,
+        actorUserId: null,
+        action: "service_request_card_saved",
+        targetUserId: null,
+        detail: { serviceCardId: cardAuditRowId, cardBrand: brand, last4 }
+      }).catch(() => {});
+    }
 
     res.json({
       setupIntentId: setupIntent.id,
@@ -10575,6 +10669,22 @@ app.post("/api/service/submit-request", async (req, res) => {
     const explicitExistingId =
       existingServiceCardId || serviceRequest.existingServiceCardId || "";
 
+    // Client-side lifecycle events land in the audit trail (actor null = the
+    // public service site, not a signed-in team member).
+    const auditServiceSubmit = (action, row) => {
+      recordAudit({
+        ip: req.ip,
+        actorUserId: null,
+        action,
+        targetUserId: null,
+        detail: {
+          serviceCardId: row?.id || "",
+          customerName: row?.customerName || "",
+          customerPhone: row?.customerPhone || ""
+        }
+      }).catch(() => {});
+    };
+
     if (setupIntentId) {
       const existingIndex = serviceCards.findIndex(
         (row) => row.setupIntentId === setupIntentId
@@ -10617,6 +10727,8 @@ app.post("/api/service/submit-request", async (req, res) => {
         };
 
         await writeServiceCards(serviceCards);
+
+        auditServiceSubmit("service_request_resubmitted", serviceCards[existingByIdIndex]);
 
         return res.json({
           success: true,
@@ -10662,6 +10774,8 @@ app.post("/api/service/submit-request", async (req, res) => {
         };
 
         await writeServiceCards(serviceCards);
+
+        auditServiceSubmit("service_request_resubmitted", serviceCards[existingByIdIndex]);
 
         return res.json({
           success: true,
@@ -10709,6 +10823,8 @@ app.post("/api/service/submit-request", async (req, res) => {
     });
 
     await writeServiceCards(serviceCards);
+
+    auditServiceSubmit("service_request_submitted", serviceCards[0]);
 
     res.json({
       success: true
@@ -11200,15 +11316,49 @@ app.post("/api/service-cards/:id/status", requirePagePermission("/appliance-serv
       });
     }
 
+    // Field-level diff so a Save that changes nothing doesn't rewrite the row
+    // (a no-op Save used to bump "Updated" and make old calls look freshly
+    // touched) and so the audit trail records exactly what changed.
+    const before = serviceCards[index];
+    const changes = {};
+    if ((before.queueStatus || "Call Status Pending") !== queueStatus) {
+      changes.queueStatus = { from: before.queueStatus || "Call Status Pending", to: queueStatus };
+    }
+    if ((before.queueStatusNotes || "") !== queueStatusNotes) {
+      changes.queueStatusNotes = { from: before.queueStatusNotes || "", to: queueStatusNotes };
+    }
+    if ((before.erpOrderNumber || "") !== erpOrderNumber) {
+      changes.erpOrderNumber = { from: before.erpOrderNumber || "", to: erpOrderNumber };
+    }
+
+    if (Object.keys(changes).length === 0) {
+      return res.json({ success: true, unchanged: true, row: before });
+    }
+
     serviceCards[index] = {
-      ...serviceCards[index],
+      ...before,
       queueStatus,
       queueStatusNotes,
       erpOrderNumber,
-      updatedAt: new Date().toISOString()
+      updatedAt: new Date().toISOString(),
+      updatedBy: req.authUser?.displayName || req.authUser?.email || "",
+      updatedByEmail: req.authUser?.email || ""
     };
 
     await writeServiceCards(serviceCards);
+
+    recordAudit({
+      ip: req.ip,
+      actorUserId: req.authUser?.id || null,
+      action: "service_request_saved",
+      targetUserId: null,
+      detail: {
+        serviceCardId: id,
+        customerName: before.customerName || "",
+        erpOrderNumber: erpOrderNumber || before.erpOrderNumber || "",
+        changes
+      }
+    }).catch(() => {});
 
     res.json({
       success: true,
@@ -13886,6 +14036,17 @@ app.post("/api/service-cards/:id/prefill-link", requirePagePermission("/applianc
     };
 
     await writeServiceCards(serviceCards);
+
+    recordAudit({
+      ip: req.ip,
+      actorUserId: req.authUser?.id || null,
+      action: "service_card_link_generated",
+      targetUserId: null,
+      detail: {
+        serviceCardId: id,
+        customerName: serviceCards[index].customerName || ""
+      }
+    }).catch(() => {});
 
     const url = `${getServiceBaseUrl(req)}/applianceservice.html?prefill=${encodeURIComponent(token)}`;
 

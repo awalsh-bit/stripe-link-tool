@@ -274,7 +274,10 @@
           { href: "satisfaction-survey.html", title: "Client Satisfaction Survey" },
           { href: "satisfaction-results.html", title: "Satisfaction Results" },
           { href: "case-visit-survey.html", title: "Case Visit Survey" },
-          { href: "case-visit-results.html", title: "Case Visit Results" }
+          { href: "case-visit-results.html", title: "Case Visit Results" },
+          { href: "/maintenance/admin.html", title: "Maintenance Command Center" },
+          { href: "/maintenance/tech-maintenance.html", title: "Maintenance Field Tool" },
+          { href: "/maintenance/index.html", title: "Maintenance Enrollment (Demo)" }
         ]
       }
     ];

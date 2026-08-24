@@ -1,0 +1,233 @@
+diff -ru '--exclude=__pycache__' orig/wilson_maintenance_portal_v09/CHANGELOG.md extracted/wilson_maintenance_portal_v091/CHANGELOG.md
+--- orig/wilson_maintenance_portal_v09/CHANGELOG.md	2026-08-24 04:58:01.000000000 +0000
++++ extracted/wilson_maintenance_portal_v091/CHANGELOG.md	2026-08-24 19:42:16.097712546 +0000
+@@ -1,3 +1,13 @@
++# v0.9.1
++
++- Consolidated inspection-protocol selection into a single source of truth. `plan-config.js` now owns resolution via `WILSON_PROTOCOL.resolveCheckpointSet()`; the duplicate hardcoded if-chain in `tech-maintenance.js` `templateKey()` has been removed.
++- Corrected four customer categories that stored the wrong `checkpointSet`: Ventilation (was generic), Microwave (was cooking), Washer and Dryer (both were laundry). The `ventilation`, `microwave`, `washer` and `dryer` protocols were defined but never assigned.
++- Corrected the same class of defect in the internal `applianceTypes` taxonomy: Vent Hood and Hood Insert (were generic), Microwave / Speed Oven (was cooking), Washer and Dryer (were laundry).
++- Corrected nine seeded demo appliances that persisted the wrong `checkpointSet`.
++- Added a `laundry` entry to `lifecycleMatrix`. Laundry-center assets previously fell through to the generic 15/10/8 expected-life curve.
++- Added `_qa/verify-protocol-resolution.js`, the first automated test in the package: asserts that every customer category and every exact appliance type resolves to its intended protocol, that no protocol is orphaned, and that legacy assets holding a wrong stored value still resolve correctly without a data migration.
++- Marked `docs/API_CONTRACT.md` superseded pending its v0.9 rewrite.
++
+ # v0.7
+ 
+ - Fixed mobile technician number-entry fields so age and temperature entry no longer re-render the page or jump back to the top.
+Only in extracted/wilson_maintenance_portal_v091/_qa: verify-protocol-resolution.js
+diff -ru '--exclude=__pycache__' orig/wilson_maintenance_portal_v09/assets/plan-config.js extracted/wilson_maintenance_portal_v091/assets/plan-config.js
+--- orig/wilson_maintenance_portal_v09/assets/plan-config.js	2026-08-24 04:02:42.000000000 +0000
++++ extracted/wilson_maintenance_portal_v091/assets/plan-config.js	2026-08-24 19:41:29.281734255 +0000
+@@ -124,13 +124,13 @@
+       { id: "cooktop", label: "Cooktop / Rangetop", shortLabel: "Cooktop / Rangetop", icon: "cooktop.svg", group: "standard", checkpointSet: "cooking", filterTypes: [], help: "Gas, electric, or induction cooking surface" },
+       { id: "range", label: "Range", shortLabel: "Range", icon: "range.svg", group: "standard", checkpointSet: "cooking", filterTypes: [], help: "Freestanding, slide-in, or professional range" },
+       { id: "dishwasher", label: "Dishwasher", shortLabel: "Dishwasher", icon: "dishwasher.svg", group: "standard", checkpointSet: "dishwasher", filterTypes: [], help: "Built-in top-control dishwasher" },
+-      { id: "ventilation", label: "Ventilation", shortLabel: "Ventilation", icon: "ventilation.svg", group: "standard", checkpointSet: "generic", filterTypes: [], help: "Hood, liner, insert, or downdraft" },
+-      { id: "microwave", label: "Microwave", shortLabel: "Microwave", icon: "microwave.svg", group: "standard", checkpointSet: "cooking", filterTypes: [], help: "Built-in, over-the-range, drawer, countertop, or speed oven" },
++      { id: "ventilation", label: "Ventilation", shortLabel: "Ventilation", icon: "ventilation.svg", group: "standard", checkpointSet: "ventilation", filterTypes: [], help: "Hood, liner, insert, or downdraft" },
++      { id: "microwave", label: "Microwave", shortLabel: "Microwave", icon: "microwave.svg", group: "standard", checkpointSet: "microwave", filterTypes: [], help: "Built-in, over-the-range, drawer, countertop, or speed oven" },
+       { id: "ovens", label: "Ovens", shortLabel: "Ovens", icon: "ovens.svg", group: "standard", checkpointSet: "cooking", filterTypes: [], help: "Single, double, steam, or combination wall oven" },
+       { id: "warming_drawer", label: "Warming Drawer", shortLabel: "Warming Drawer", icon: "warming_drawer.svg", group: "standard", checkpointSet: "cooking", filterTypes: [], help: "Built-in warming or proofing drawer" },
+       { id: "coffee", label: "Built-In Coffee", shortLabel: "Built-In Coffee", icon: "coffee.svg", group: "standard", checkpointSet: "generic", filterTypes: [], help: "Plumbed or reservoir built-in coffee system" },
+-      { id: "washer", label: "Washer", shortLabel: "Washer", icon: "washer.svg", group: "standard", checkpointSet: "laundry", filterTypes: [], help: "Front-load or top-load washer" },
+-      { id: "dryer", label: "Dryer", shortLabel: "Dryer", icon: "dryer.svg", group: "standard", checkpointSet: "laundry", filterTypes: [], help: "Electric, gas, heat-pump, or ventless dryer" }
++      { id: "washer", label: "Washer", shortLabel: "Washer", icon: "washer.svg", group: "standard", checkpointSet: "washer", filterTypes: [], help: "Front-load or top-load washer" },
++      { id: "dryer", label: "Dryer", shortLabel: "Dryer", icon: "dryer.svg", group: "standard", checkpointSet: "dryer", filterTypes: [], help: "Electric, gas, heat-pump, or ventless dryer" }
+     ],
+     applianceTypes: [
+       { id: "refrigerator", label: "Refrigerator", group: "standard", checkpointSet: "refrigerator", filterTypes: ["Refrigerator water filter", "Refrigerator air / food-preservation filter"] },
+@@ -141,13 +141,17 @@
+       { id: "range", label: "Range", group: "standard", checkpointSet: "cooking", filterTypes: [] },
+       { id: "cooktop", label: "Cooktop / Rangetop", group: "standard", checkpointSet: "cooking", filterTypes: [] },
+       { id: "wall_oven", label: "Wall Oven", group: "standard", checkpointSet: "cooking", filterTypes: [] },
+-      { id: "speed_oven", label: "Microwave / Speed Oven", group: "standard", checkpointSet: "cooking", filterTypes: [] },
+-      { id: "washer", label: "Washer", group: "standard", checkpointSet: "laundry", filterTypes: [] },
+-      { id: "dryer", label: "Dryer", group: "standard", checkpointSet: "laundry", filterTypes: [] },
+-      { id: "hood", label: "Vent Hood", group: "standard", checkpointSet: "generic", filterTypes: [] },
+-      { id: "hood_insert", label: "Hood Insert / Liner", group: "standard", checkpointSet: "generic", filterTypes: [] },
++      { id: "speed_oven", label: "Microwave / Speed Oven", group: "standard", checkpointSet: "microwave", filterTypes: [] },
++      { id: "washer", label: "Washer", group: "standard", checkpointSet: "washer", filterTypes: [] },
++      { id: "dryer", label: "Dryer", group: "standard", checkpointSet: "dryer", filterTypes: [] },
++      { id: "hood", label: "Vent Hood", group: "standard", checkpointSet: "ventilation", filterTypes: [] },
++      { id: "hood_insert", label: "Hood Insert / Liner", group: "standard", checkpointSet: "ventilation", filterTypes: [] },
+       { id: "warming_drawer", label: "Warming Drawer", group: "standard", checkpointSet: "cooking", filterTypes: [] },
+       { id: "coffee_maker", label: "Built-In Coffee Maker", group: "standard", checkpointSet: "generic", filterTypes: [] },
++      // OPEN BUSINESS QUESTION (context §34 item 13): a WashTower may be one maintained
++      // asset or two. Until Wilson answers, this stays on the combined `laundry` set --
++      // the only remaining legitimate use of it. If a WashTower counts as two assets,
++      // this entry should be split into washer + dryer and `laundry` retired entirely.
+       { id: "laundry_center", label: "Laundry Center / WashTower", group: "standard", checkpointSet: "laundry", filterTypes: [] },
+       { id: "commercial_refrigeration", label: "Commercial / Specialty Refrigeration", group: "standard", checkpointSet: "refrigerator", filterTypes: [] },
+       { id: "outdoor", label: "Outdoor Appliance", group: "standard", checkpointSet: "generic", filterTypes: [] },
+@@ -311,6 +315,9 @@
+       icemaker: { luxury: 12, premium: 10, mass: 8 },
+       washer: { luxury: 15, premium: 11, mass: 8 },
+       dryer: { luxury: 15, premium: 11, mass: 8 },
++      // Combined laundry center / WashTower. Previously absent, so any asset on the
++      // `laundry` set silently used the generic 15/10/8 curve instead of a laundry one.
++      laundry: { luxury: 15, premium: 11, mass: 8 },
+       ventilation: { luxury: 18, premium: 14, mass: 10 },
+       microwave: { luxury: 10, premium: 8, mass: 7 },
+       generic: { luxury: 15, premium: 10, mass: 8 }
+@@ -347,5 +354,66 @@
+     ],
+   };
+ 
++  // ---------------------------------------------------------------------------
++  // Protocol resolution -- single source of truth.
++  //
++  // Which checkpoint set (inspection protocol) applies to an asset is decided
++  // here and nowhere else. Before v0.9.1 this was decided twice: by the
++  // `checkpointSet` field on the two taxonomies above (which was wrong for
++  // ventilation, microwave, washer and dryer) and again by a hardcoded if-chain
++  // in tech-maintenance.js `templateKey()`. The field tool happened to show the
++  // right protocol because the if-chain won, so the defect was invisible while
++  // persisting wrong values on every asset ever created.
++  //
++  // Resolution order is deliberate:
++  //   1. IMUC group / icemaker -- group membership always wins.
++  //   2. applianceTypes match on the asset's exact type (most specific).
++  //   3. customerApplianceCategories match on the customer-facing category.
++  //   4. The asset's own stored checkpointSet, if it names a real set.
++  //   5. generic.
++  //
++  // Config is consulted BEFORE the stored value so that assets already
++  // persisted with a wrong checkpointSet (all of them, pre-fix) resolve
++  // correctly without a data migration. When MERGE_GUIDE §22 moves protocol
++  // config into versioned SQL, steps 2-3 become table lookups and this function
++  // is the only thing that changes.
++  // ---------------------------------------------------------------------------
++  const norm = (value) => String(value == null ? "" : value).trim().toLowerCase();
++  const isRealSet = (key) => Boolean(key && Object.prototype.hasOwnProperty.call(config.checkpointSets, key));
++
++  function buildIndex(list) {
++    const index = {};
++    (list || []).forEach((entry) => {
++      if (!entry || !entry.checkpointSet) return;
++      index[norm(entry.id)] = entry.checkpointSet;
++      if (entry.label) index[norm(entry.label)] = entry.checkpointSet;
++    });
++    return index;
++  }
++
++  const typeIndex = buildIndex(config.applianceTypes);
++  const categoryIndex = buildIndex(config.customerApplianceCategories);
++
++  function resolveCheckpointSet(asset) {
++    if (!asset) return "generic";
++
++    const group = norm(asset.group);
++    if (group === "imuc") return "icemaker";
++    if (group === "hvac") return "generic";
++
++    const candidates = [asset.exactType, asset.exactTypeLabel, asset.type, asset.typeLabel];
++    for (let i = 0; i < candidates.length; i += 1) {
++      const hit = typeIndex[norm(candidates[i])];
++      if (isRealSet(hit)) return hit;
++    }
++
++    const categoryHit = categoryIndex[norm(asset.customerCategory)] || categoryIndex[norm(asset.type)];
++    if (isRealSet(categoryHit)) return categoryHit;
++
++    if (isRealSet(asset.checkpointSet)) return asset.checkpointSet;
++    return "generic";
++  }
++
+   window.WILSON_CONFIG = config;
++  window.WILSON_PROTOCOL = { resolveCheckpointSet: resolveCheckpointSet };
+ })();
+diff -ru '--exclude=__pycache__' orig/wilson_maintenance_portal_v09/assets/store.js extracted/wilson_maintenance_portal_v091/assets/store.js
+--- orig/wilson_maintenance_portal_v09/assets/store.js	2026-08-24 04:33:39.000000000 +0000
++++ extracted/wilson_maintenance_portal_v091/assets/store.js	2026-08-24 19:41:55.297124834 +0000
+@@ -191,15 +191,15 @@
+       appliance("dishwasher", "Dishwasher", "Cove", "DW2450", "Main Kitchen - Left", "dishwasher"),
+       appliance("dishwasher", "Dishwasher", "Cove", "DW2450", "Main Kitchen - Right", "dishwasher"),
+       appliance("range", "Range", "Wolf", "GR486G", "Main Kitchen", "cooking"),
+-      appliance("hood", "Vent Hood", "Wolf", "PI543418", "Main Kitchen", "generic"),
++      appliance("hood", "Vent Hood", "Wolf", "PI543418", "Main Kitchen", "ventilation"),
+       appliance("wall_oven", "Wall Oven", "Wolf", "SO3050CM", "Catering Kitchen", "cooking"),
+       appliance("refrigerator", "Refrigerator", "Sub-Zero", "CL3650R", "Catering Kitchen", "refrigerator", { filterTypes: ["Refrigerator water filter"] }),
+       appliance("ice_maker", "Icemaker (IMUC)", "Scotsman", "DCE33", "Wet Bar", "icemaker", { filterTypes: ["Icemaker water filter"] }),
+       appliance("wine_beverage", "Wine Storage", "Sub-Zero", "UW-24", "Wine Room", "refrigerator"),
+-      appliance("washer", "Washer", "Miele", "WXF660", "Primary Laundry", "laundry"),
+-      appliance("dryer", "Dryer", "Miele", "TXI680", "Primary Laundry", "laundry"),
+-      appliance("washer", "Washer", "Speed Queen", "FF7009", "Guest Laundry", "laundry"),
+-      appliance("dryer", "Dryer", "Speed Queen", "DF7004", "Guest Laundry", "laundry"),
++      appliance("washer", "Washer", "Miele", "WXF660", "Primary Laundry", "washer"),
++      appliance("dryer", "Dryer", "Miele", "TXI680", "Primary Laundry", "dryer"),
++      appliance("washer", "Washer", "Speed Queen", "FF7009", "Guest Laundry", "washer"),
++      appliance("dryer", "Dryer", "Speed Queen", "DF7004", "Guest Laundry", "dryer"),
+       appliance("outdoor", "Outdoor Grill", "Hestan", "GMBR36", "Outdoor Kitchen", "cooking"),
+       appliance("refrigerator", "Outdoor Refrigerator", "True", "TUR-24", "Outdoor Kitchen", "refrigerator")
+     ]));
+@@ -209,12 +209,12 @@
+       appliance("freezer", "Freezer", "Thermador", "T24IF905SP", "Kitchen", "refrigerator"),
+       appliance("dishwasher", "Dishwasher", "Thermador", "DWHD770WPR", "Kitchen", "dishwasher"),
+       appliance("range", "Range", "Thermador", "PRD486WDHU", "Kitchen", "cooking"),
+-      appliance("hood", "Vent Hood", "Thermador", "VCIN48GWS", "Kitchen", "generic"),
+-      appliance("speed_oven", "Speed Oven", "Thermador", "MC30WP", "Kitchen", "cooking"),
++      appliance("hood", "Vent Hood", "Thermador", "VCIN48GWS", "Kitchen", "ventilation"),
++      appliance("speed_oven", "Speed Oven", "Thermador", "MC30WP", "Kitchen", "microwave"),
+       appliance("wine_beverage", "Wine Column", "Thermador", "T24IW905SP", "Bar", "refrigerator"),
+       appliance("ice_maker", "Icemaker (IMUC)", "Scotsman", "CU50", "Bar", "icemaker", { filterTypes: ["Icemaker water filter"] }),
+-      appliance("washer", "Washer", "LG", "WM6700", "Laundry", "laundry"),
+-      appliance("dryer", "Dryer", "LG", "DLEX6700", "Laundry", "laundry")
++      appliance("washer", "Washer", "LG", "WM6700", "Laundry", "washer"),
++      appliance("dryer", "Dryer", "LG", "DLEX6700", "Laundry", "dryer")
+     ]));
+ 
+     assets = assets.concat(createAssets("hh_torres", [
+diff -ru '--exclude=__pycache__' orig/wilson_maintenance_portal_v09/assets/tech-maintenance.js extracted/wilson_maintenance_portal_v091/assets/tech-maintenance.js
+--- orig/wilson_maintenance_portal_v09/assets/tech-maintenance.js	2026-08-24 04:58:01.000000000 +0000
++++ extracted/wilson_maintenance_portal_v091/assets/tech-maintenance.js	2026-08-24 19:40:51.973735356 +0000
+@@ -42,17 +42,17 @@
+   function inspectionFor(assetId){ return WilsonStore.getTechInspection(visitId,assetId); }
+   const completedFor=(assetId)=>Boolean(inspectionFor(assetId)?.complete);
+ 
++  /*
++   * Protocol selection lives in plan-config.js (WILSON_PROTOCOL). It used to be
++   * duplicated here as a hardcoded if-chain, which masked four wrong
++   * checkpointSet values in config -- see the note above resolveCheckpointSet.
++   * Do not reintroduce type-string matching here; add or correct the mapping in
++   * the taxonomy instead, so the field tool, enrollment, invoice import and the
++   * eventual SQL protocol table all agree.
++   */
+   function templateKey(asset){
+-    const t=(asset.type||"").toLowerCase(), c=(asset.customerCategory||"").toLowerCase();
+-    if(asset.group==="imuc"||t.includes("ice")) return "icemaker";
+-    if(t.includes("dish")) return "dishwasher";
+-    if(t.includes("washer")||c==="washer") return "washer";
+-    if(t.includes("dryer")||c==="dryer") return "dryer";
+-    if(t.includes("hood")||t.includes("vent")||c==="ventilation") return "ventilation";
+-    if(t.includes("micro")||t.includes("speed")||c==="microwave") return "microwave";
+-    if(t.includes("refrig")||t.includes("freezer")||t.includes("wine")||c==="refrigeration") return "refrigerator";
+-    if(["range","cooktop","wall_oven","warming_drawer"].includes(t)||["range","cooktop","ovens","warming_drawer"].includes(c)) return "cooking";
+-    return asset.checkpointSet&&config.checkpointSets[asset.checkpointSet]?asset.checkpointSet:"generic";
++    const key=window.WILSON_PROTOCOL.resolveCheckpointSet(asset);
++    return config.checkpointSets[key]?key:"generic";
+   }
+ 
+   function tierForBrand(brand){
+diff -ru '--exclude=__pycache__' orig/wilson_maintenance_portal_v09/docs/API_CONTRACT.md extracted/wilson_maintenance_portal_v091/docs/API_CONTRACT.md
+--- orig/wilson_maintenance_portal_v09/docs/API_CONTRACT.md	2026-08-24 04:30:49.000000000 +0000
++++ extracted/wilson_maintenance_portal_v091/docs/API_CONTRACT.md	2026-08-24 19:42:16.098162682 +0000
+@@ -1,3 +1,18 @@
++> **SUPERSEDED — DO NOT BUILD TO THIS DOCUMENT (flagged 2026-08-24).**
++>
++> This contract is still at v0.3 and contradicts the rest of the package in two ways:
++>
++> 1. §11 specifies `POST /api/maintenance/admin/reports`, the office-built report flow.
++>    That builder was **retired** in v0.7 — field data is the sole source for health
++>    reports (context §25, MERGE_GUIDE §23). Building to §11 would rebuild the thing
++>    that was deliberately removed.
++> 2. It contains essentially no technician/field endpoints, so the entire v0.5–v0.9
++>    field workflow is unrepresented.
++>
++> Until this file is rewritten to v0.9, treat `assets/store.js` (demo backend),
++> `assets/tech-maintenance.js` (field workflow) and `docs/MERGE_GUIDE.md` as
++> authoritative instead.
++
+ # Wilson Maintenance Portal - Proposed API Contract v0.3
+ 
+ This contract is a production handoff. Browser demo methods in `assets/store.js` should be replaced with authenticated API calls. All prices, plan selection, charge eligibility, scores, and permissions must be recalculated or verified by the server.

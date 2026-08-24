@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Household Maintenance Record | Wilson</title>
+  <link rel="stylesheet" href="assets/wilson.css">
+</head>
+<body data-mode="internal" data-page-title="Household Record">
+  <header id="site-header"></header>
+  <main>
+    <div class="page-shell">
+      <section class="page-title" id="household-title"></section>
+      <section class="detail-grid" id="household-summary"></section>
+
+      <section class="section split-layout">
+        <div class="stack">
+          <div class="table-card maintenance-domain-card" id="appliance-maintenance-section">
+            <div class="card-pad" style="padding-bottom: 6px;"><div class="section-heading"><div><span class="eyebrow dark">Appliance program</span><h2>Appliance Maintenance</h2><p>Appliances, IMUC service, filter coverage, and field-generated health reports for this residence.</p></div><a class="button small" id="launch-appliance-tech" href="#">Launch appliance visit</a></div><div id="appliance-visit-context" class="domain-visit-context"></div></div>
+            <div class="table-wrap"><table><thead><tr><th>Equipment</th><th>Brand / model</th><th>Location</th><th>Service frequency</th><th>Filter profile</th><th>Report template</th></tr></thead><tbody id="appliance-asset-table-body"></tbody></table></div>
+          </div>
+
+          <div class="table-card maintenance-domain-card" id="hvac-maintenance-section">
+            <div class="card-pad" style="padding-bottom: 6px;"><div class="section-heading"><div><span class="eyebrow dark">HVAC program</span><h2>HVAC Maintenance</h2><p>HVAC systems and filter-management coverage stay separate from the appliance field workflow.</p></div><button class="button small secondary" id="launch-hvac-tech" type="button" disabled>HVAC field tool coming next</button></div><div id="hvac-visit-context" class="domain-visit-context"></div></div>
+            <div class="table-wrap"><table><thead><tr><th>System</th><th>Brand / model</th><th>Location</th><th>Service frequency</th><th>Filter profile</th><th>Status</th></tr></thead><tbody id="hvac-asset-table-body"></tbody></table></div>
+          </div>
+
+          <div class="table-card">
+            <div class="card-pad" style="padding-bottom: 6px;"><div class="section-heading"><div><h2>Maintenance intervals</h2><p>Payment and service-order actions are tied to the exact due interval, not merely the annual subscription.</p></div></div></div>
+            <div class="table-wrap"><table><thead><tr><th>Due</th><th>Program</th><th>Scope</th><th>Status</th><th>Charge</th><th>Payment</th><th>Service order</th><th>Actions</th></tr></thead><tbody id="visit-table-body"></tbody></table></div>
+          </div>
+
+          <div class="table-card" id="reports">
+            <div class="card-pad" style="padding-bottom: 6px;"><div class="section-heading"><div><h2>Health report history</h2><p>Reports are generated from completed technician field protocols and stay with the household and appliance history.</p></div><span class="badge success">Field-generated only</span></div><div id="report-delivery-banner"></div>
+            <div class="table-wrap"><table><thead><tr><th>Date</th><th>Appliance</th><th>Score</th><th>Condition</th><th>Technician</th><th></th></tr></thead><tbody id="report-history-body"></tbody></table></div>
+          </div>
+        </div>
+
+        <aside class="stack">
+          <div class="card card-pad" id="plan-payment-card"></div>
+          <div class="card card-pad"><div class="section-heading"><div><h2>Filters and consumables</h2><p>Part, coverage, source, and interval detail for this household.</p></div></div><div id="household-filter-list" class="activity-list"></div></div>
+          <div class="card card-pad"><div class="section-heading"><div><h2>Household activity</h2></div></div><div id="household-activity-list" class="activity-list"></div></div>
+        </aside>
+      </section>
+    </div>
+  </main>
+  <footer id="site-footer"></footer>
+  <script src="assets/plan-config.js"></script>
+  <script src="assets/ui.js"></script>
+  <script src="assets/store.js"></script>
+  <script src="assets/household.js"></script>
+</body>
+</html>

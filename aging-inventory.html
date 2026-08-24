@@ -92,6 +92,8 @@
           <option value="3">Over 90 days</option>
         </select>
         <input type="text" id="searchInput" placeholder="Search model, serial, brand, ticket…" style="flex:1; min-width:200px;" />
+        <input type="file" id="ooFile" accept=".xls,.xlsx" style="display:none;" />
+        <button type="button" class="chip" id="ooUpload" title="OE-23 · Report by Invoice Start Date · Record type Current · From date set years back">⬆ Upload open-orders OE-23</button>
         <span class="asof" id="countLine"></span>
       </div>
 
@@ -236,21 +238,50 @@
         searchTimer = setTimeout(() => { state.search = $("searchInput").value.trim(); render(); }, 200);
       });
 
-      (async () => {
+      async function load() {
         try {
           const res = await fetch("/api/aging-inventory", { credentials: "same-origin" });
           const data = await res.json();
           if (!res.ok) throw new Error(data.error || "Unable to load.");
           state.units = data.units || [];
-          const when = data.uploadedAt ? new Date(data.uploadedAt).toLocaleString("en-US", { timeZone: "America/Chicago", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) : "";
+          const fmt = (iso) => iso ? new Date(iso).toLocaleString("en-US", { timeZone: "America/Chicago", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) : "";
+          const oo = data.openOrders;
+          const ooBit = oo
+            ? ` · open-orders OE-23: <strong>${esc(fmt(oo.uploadedAt))}</strong> (${Number(oo.rowCount || 0).toLocaleString()} tickets, from ${esc(oo.periodFrom || "?")})`
+            : ` · <strong style="color:#b45309;">no open-orders OE-23 uploaded yet</strong> — reserved tickets fall back to finished orders only`;
           $("asofLine").innerHTML = data.note
             ? esc(data.note)
-            : `Inventory as of <strong>${esc(when)}</strong> (${esc(data.sourceFile || "")}) · ${state.units.length} serialized units`;
+            : `Inventory as of <strong>${esc(fmt(data.uploadedAt))}</strong> (${esc(data.sourceFile || "")}) · ${state.units.length} serialized units${ooBit}`;
           if (state.units.length) render();
         } catch (err) {
           $("asofLine").textContent = err.message;
         }
-      })();
+      }
+
+      $("ooUpload").addEventListener("click", () => $("ooFile").click());
+      $("ooFile").addEventListener("change", async () => {
+        const file = $("ooFile").files[0];
+        $("ooFile").value = "";
+        if (!file) return;
+        $("ooUpload").disabled = true;
+        $("ooUpload").textContent = "Uploading…";
+        try {
+          const form = new FormData();
+          form.append("report", file);
+          const res = await fetch("/api/epass-uploads/open-orders", { method: "POST", credentials: "same-origin", body: form });
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok) throw new Error(data.error || "Upload failed.");
+          $("ooUpload").textContent = `✓ ${Number(data.tickets).toLocaleString()} open tickets`;
+          await load();
+          setTimeout(() => { $("ooUpload").textContent = "⬆ Upload open-orders OE-23"; $("ooUpload").disabled = false; }, 3000);
+        } catch (err) {
+          alert(err.message);
+          $("ooUpload").textContent = "⬆ Upload open-orders OE-23";
+          $("ooUpload").disabled = false;
+        }
+      });
+
+      load();
     })();
   </script>
 </body>

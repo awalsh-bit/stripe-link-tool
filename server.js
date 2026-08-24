@@ -303,7 +303,10 @@ import {
   saveCommissionBalanceCheck,
   listCommissionBalanceChecks,
   normalizeSalespersonName,
-  getOrdersByInvoices
+  getOrdersByInvoices,
+  replaceOpenOrders,
+  getOpenOrdersMeta,
+  getOpenOrdersByInvoices
 } from "./lib/sales-order-detail-postgres.js";
 import {
   FIELD_SALES_PLAN,
@@ -7058,14 +7061,16 @@ const epassInventoryUpload = multer({ storage: multer.memoryStorage(), limits: {
 
 app.get("/api/epass-uploads/status", requirePagePermission("/epass-uploads.html"), async (req, res) => {
   try {
-    const [snapshot, quoteMeta, versions, mapPrices] = await Promise.all([
+    const [snapshot, quoteMeta, versions, mapPrices, openOrders] = await Promise.all([
       getShopInventorySnapshot().catch(() => null),
       getLatestQuoteUploadMeta().catch(() => null),
       listSourceVersions().catch(() => ({ oe23: [], commissions: [] })),
-      getShopMapPrices().catch(() => null)
+      getShopMapPrices().catch(() => null),
+      getOpenOrdersMeta().catch(() => null)
     ]);
     return res.json({
       inventory: snapshot ? { sourceFile: snapshot.sourceFile, uploadedAt: snapshot.uploadedAt, uploadedBy: snapshot.uploadedBy, count: (snapshot.serials || []).length } : null,
+      openOrders,
       quotes: quoteMeta,
       oe23: (versions.oe23 || [])[0] || null,
       commissions: (versions.commissions || [])[0] || null,
@@ -9837,6 +9842,48 @@ async function pushServiceOrderHealthFlags(rows) {
   return { wty: rows.filter((r) => r.invType === "WTY" && isPast(r)).length, svCod: flagged.length };
 }
 
+// INTERNAL: OE-23 OPEN-orders upload (Report by: Invoice Start Date,
+// Record type: Current). Feeds ticket→salesperson attribution for OPEN
+// orders — run the export with a period-from far in the past so long-open
+// tickets (the aging ones!) are included. Same OE-23 layout, same parser.
+app.post("/api/epass-uploads/open-orders", requirePagePermission("/epass-uploads.html", "/aging-inventory.html"), (req, res) => {
+  epassInventoryUpload.single("report")(req, res, async (err) => {
+    if (err) {
+      return res.status(400).json({ error: err.code === "LIMIT_FILE_SIZE" ? "That file is over the size limit." : "Upload failed — try again." });
+    }
+    try {
+      if (!req.file?.buffer?.length) {
+        return res.status(400).json({ error: "Attach the OE-23 open-orders export (.xls)." });
+      }
+      let grid;
+      try {
+        const workbook = readWorkbook(req.file.buffer, { type: "buffer", cellDates: true });
+        grid = xlsxUtils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]], { header: 1, defval: null, raw: true });
+      } catch (readErr) {
+        return res.status(400).json({ error: "Couldn't read that file as an Excel workbook — export OE-23 from ePASS and upload it unmodified." });
+      }
+      const parsed = parseActivityGrid(grid);
+      if (!parsed.periodFrom || !parsed.tickets.length) {
+        return res.status(400).json({ error: "Couldn't find OE-23 ticket blocks — is this the Salesperson Activity Report?" });
+      }
+      const saved = await replaceOpenOrders(parsed.tickets, {
+        filename: String(req.file.originalname || "OE-23 open").slice(0, 200),
+        byEmail: req.authUser?.email || req.authUser?.username || "",
+        periodFrom: parsed.periodFrom, periodTo: parsed.periodTo
+      });
+      recordAudit({
+        ip: req.ip, actorUserId: req.authUser?.id || null,
+        action: "open_orders_uploaded", targetUserId: null,
+        detail: { tickets: saved.count, periodFrom: parsed.periodFrom, periodTo: parsed.periodTo, filename: req.file.originalname }
+      }).catch(() => {});
+      return res.json({ ok: true, tickets: saved.count, periodFrom: parsed.periodFrom, periodTo: parsed.periodTo, warnings: parsed.warnings || [] });
+    } catch (uploadErr) {
+      console.error("Open-orders upload failed:", uploadErr.message);
+      return res.status(500).json({ error: "Unable to store the open-orders report." });
+    }
+  });
+});
+
 // INTERNAL: Aging Inventory by salesperson. Joins the serial export's
 // per-unit detail (receive date + Written To ticket) against OE-23 order
 // detail (ticket → salesperson). Unreserved units group under STOCK.
@@ -9849,9 +9896,14 @@ app.get("/api/aging-inventory", requirePagePermission("/aging-inventory.html"), 
     const today = new Date().toLocaleDateString("en-CA", { timeZone: APP_TIMEZONE });
     const todayMs = new Date(today + "T00:00:00Z").getTime();
     const tickets = snapshot.serialUnits.map((u) => u.writtenTo).filter(Boolean);
-    const orders = await getOrdersByInvoices(tickets);
+    const [openOrders, finishedOrders, openMeta] = await Promise.all([
+      getOpenOrdersByInvoices(tickets).catch(() => ({})),
+      getOrdersByInvoices(tickets),
+      getOpenOrdersMeta().catch(() => null)
+    ]);
     const units = snapshot.serialUnits.map((u) => {
-      const order = u.writtenTo ? orders[String(u.writtenTo).toUpperCase()] || null : null;
+      const key = String(u.writtenTo || "").toUpperCase();
+      const order = u.writtenTo ? openOrders[key] || finishedOrders[key] || null : null;
       const ageDays = /^\d{4}-\d{2}-\d{2}$/.test(u.received)
         ? Math.max(0, Math.round((todayMs - new Date(u.received + "T00:00:00Z").getTime()) / 86400000))
         : null;
@@ -9866,7 +9918,7 @@ app.get("/api/aging-inventory", requirePagePermission("/aging-inventory.html"), 
         orderKnown: Boolean(order)
       };
     });
-    return res.json({ uploadedAt: snapshot.uploadedAt, sourceFile: snapshot.sourceFile, units });
+    return res.json({ uploadedAt: snapshot.uploadedAt, sourceFile: snapshot.sourceFile, openOrders: openMeta, units });
   } catch (err) {
     console.error("Aging inventory failed:", err.message);
     return res.status(500).json({ error: "Unable to build the aging report." });

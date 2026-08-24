@@ -134,6 +134,12 @@
           endpoint: "/api/revenue-performance", field: "report", fresh: [30, 72]
         },
         {
+          key: "openOrders", title: "OE-23 Open Orders (Invoice Start Date)", cadence: "DAILY",
+          src: "ePASS → Reports → OE-23 → Report by: Invoice Start Date · Record type: Current · From date set YEARS back (Jan 2024 is safe)",
+          desc: "Every still-open sales/service ticket with its salesperson and start date. Feeds the Aging Inventory report's ticket→salesperson attribution for OPEN orders (the finished-order OE-23 only covers completed jobs). The wide From date matters — long-open tickets are exactly the aging ones.",
+          endpoint: "/api/epass-uploads/open-orders", field: "report", fresh: [30, 72]
+        },
+        {
           key: "commissions", title: "Commission Report (unfiltered)", cadence: "MONTHLY",
           src: "ePASS → Commissions → unfiltered report (.xlsx)",
           desc: "Model-level commission lines for one statement month. Feeds Sales Order Detail line items, Field Sales Commissions, and the Returns report. Pick the month it covers, then upload — each upload replaces that month.",
@@ -206,6 +212,11 @@
           const h = hoursAgo(s.oe23.uploadedAt);
           const dot = h == null ? "gray" : h < 30 ? "green" : h < 72 ? "amber" : "red";
           return { dot, html: `<strong>${esc(s.oe23.filename || s.oe23.month)}</strong> (month ${esc(s.oe23.month)}) — ${esc(fmtWhen(s.oe23.uploadedAt) || "?")} (${agoText(s.oe23.uploadedAt)}) · ${Number(s.oe23.tickets || 0).toLocaleString()} tickets` };
+        }
+        if (key === "openOrders" && s.openOrders) {
+          const h = hoursAgo(s.openOrders.uploadedAt);
+          const dot = h == null ? "gray" : h < 30 ? "green" : h < 72 ? "amber" : "red";
+          return { dot, html: `<strong>${esc(s.openOrders.filename || "OE-23 open")}</strong> — ${esc(fmtWhen(s.openOrders.uploadedAt) || "?")} (${agoText(s.openOrders.uploadedAt)}) · ${Number(s.openOrders.rowCount || 0).toLocaleString()} open tickets · period ${esc(s.openOrders.periodFrom || "?")} → ${esc(s.openOrders.periodTo || "?")}` };
         }
         if (key === "commissions" && s.commissions) {
           const thisMonth = new Date().toISOString().slice(0, 7);

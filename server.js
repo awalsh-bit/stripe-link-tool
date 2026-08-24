@@ -248,6 +248,19 @@ import {
 } from "./lib/samsara.js";
 import { sendCustomerText, podiumSendConfigured } from "./lib/podium-send.js";
 import {
+  podiumOAuthConfigured,
+  podiumConnected,
+  getPodiumConnection,
+  disconnectPodium,
+  makeOAuthState,
+  verifyOAuthState,
+  getAuthorizeUrl,
+  exchangeOAuthCode,
+  noteAndAssign as podiumNoteAndAssign,
+  sendPodiumTemplateText,
+  listMessageTemplates
+} from "./lib/podium.js";
+import {
   parseInvoiceMaintenanceQuotes,
   replaceOpenQuotes,
   saveQuoteDisposition,
@@ -5910,6 +5923,74 @@ app.post("/api/estimate/respond", async (req, res) => {
 });
 
 // ===========================================================================
+// Podium OAuth — one org-level connection made by an exec. Tokens live in
+// Postgres and auto-refresh; every Podium feature (delivery texts, lead-claim
+// notes/assignment, later review invites) rides this connection.
+// ===========================================================================
+const podiumRedirectUri = () => `https://${DASHBOARD_HOST}/api/podium/oauth/callback`;
+
+app.get("/api/podium/oauth/start", requireExecutiveApi, (req, res) => {
+  if (!podiumOAuthConfigured()) {
+    return res.status(400).json({ error: "Set PODIUM_CLIENT_ID and PODIUM_CLIENT_SECRET first." });
+  }
+  const state = makeOAuthState(AUTH_COOKIE_SECRET);
+  return res.redirect(302, getAuthorizeUrl(podiumRedirectUri(), state));
+});
+
+app.get("/api/podium/oauth/callback", requireExecutiveApi, async (req, res) => {
+  try {
+    if (!verifyOAuthState(String(req.query.state || ""), AUTH_COOKIE_SECRET)) {
+      return res.status(400).send("This connect link expired — start again from /api/podium/oauth/start.");
+    }
+    const code = String(req.query.code || "");
+    if (!code) return res.status(400).send("Podium didn't return an authorization code.");
+    const connection = await exchangeOAuthCode(code, podiumRedirectUri(), req.authUser?.email || "");
+    recordAudit({
+      ip: req.ip, actorUserId: req.authUser?.id || null,
+      action: "podium_connected", targetUserId: null,
+      detail: { locationUid: connection?.locationUid || "" }
+    }).catch(() => {});
+    return res.send(`<!doctype html><body style="font-family:system-ui;padding:40px;text-align:center;">
+      <h2>✓ Podium connected</h2>
+      <p>Location ${connection?.locationUid || "(resolving…)"} — texts, lead notes, and assignments now go direct. You can close this tab.</p>
+    </body>`);
+  } catch (err) {
+    console.error("Podium OAuth callback failed:", err.message);
+    return res.status(500).send("Connecting Podium failed — check the server logs and try again.");
+  }
+});
+
+app.get("/api/podium/status", requireExecutiveApi, async (req, res) => {
+  try {
+    return res.json({ configured: podiumOAuthConfigured(), connection: await getPodiumConnection() });
+  } catch (err) {
+    return res.status(500).json({ error: "Unable to read the Podium connection." });
+  }
+});
+
+// The team's Podium templates (titles + text) — handy for picking the exact
+// title to put in PODIUM_TEMPLATE_* env vars.
+app.get("/api/podium/templates", requireExecutiveApi, async (req, res) => {
+  try {
+    if (!(await podiumConnected())) return res.status(400).json({ error: "Podium isn't connected yet." });
+    return res.json({ templates: await listMessageTemplates({ force: true }) });
+  } catch (err) {
+    console.error("Podium templates failed:", err.message);
+    return res.status(502).json({ error: "Couldn't fetch templates from Podium." });
+  }
+});
+
+app.post("/api/podium/disconnect", requireExecutiveApi, async (req, res) => {
+  try {
+    await disconnectPodium();
+    recordAudit({ ip: req.ip, actorUserId: req.authUser?.id || null, action: "podium_disconnected", targetUserId: null, detail: {} }).catch(() => {});
+    return res.json({ ok: true });
+  } catch (err) {
+    return res.status(500).json({ error: "Unable to disconnect." });
+  }
+});
+
+// ===========================================================================
 // Delivery runs — the in-house delivery day (DispatchTrack replacement).
 // Dispatch builds a run of stops; Samsara geofences auto-advance statuses;
 // Podium texts narrate the day to customers from the showroom number; the
@@ -9653,6 +9734,36 @@ app.post("/api/notifications/:id/claim", requirePagePermission("/dashboard.html"
       action: "notification_claimed", targetUserId: null,
       detail: { refId: notification.refId, title: notification.title }
     }).catch(() => {});
+
+    // Service client lead claimed → drop a context note into the customer's
+    // Podium thread as the claimer and route the conversation to their
+    // queue. Best-effort: a Podium hiccup never blocks the claim.
+    if (notification.refId.startsWith("svlead:") && podiumOAuthConfigured()) {
+      (async () => {
+        try {
+          if (!(await podiumConnected())) return;
+          const estimate = await getServiceEstimateByToken(notification.refId.slice("svlead:".length));
+          if (!estimate?.contactPhone) return;
+          const s = estimate.summary || {};
+          const appliance = [[s.brand, s.product].filter(Boolean).join(" "), s.model ? `model ${s.model}` : ""].filter(Boolean).join(", ");
+          const r = estimate.response || {};
+          const prefText = { call: "prefers a call", text: "prefers text", email: "prefers email" }[estimate.contactPref] || "";
+          const claimerName = req.authUser?.displayName || email;
+          const note = [
+            `Claimed the service client lead in Agility (${estimate.svNumber || "service"}).`,
+            appliance ? `Replacing: ${appliance}.` : "",
+            `Repair estimate was $${Number(s.invoiceTotal || 0).toFixed(2)} — client chose to shop instead.`,
+            r.notes ? `Client notes: "${r.notes}"` : "",
+            prefText ? `Contact preference: ${prefText}.` : ""
+          ].filter(Boolean).join(" ");
+          const result = await podiumNoteAndAssign({ phone: estimate.contactPhone, note, senderName: claimerName, assigneeEmail: email });
+          if (!result.ok) console.error("Podium lead note skipped:", result.error);
+        } catch (err) {
+          console.error("Podium lead note failed:", err.message);
+        }
+      })();
+    }
+
     return res.json({ ok: true });
   } catch (err) {
     console.error("Notification claim failed:", err.message);
@@ -14032,6 +14143,46 @@ async function sendCardCapturedEmail(record, card) {
   );
 }
 
+// ---------------------------------------------------------------------------
+// Stripe event → Podium template texts. Templates are authored in Podium
+// (Inbox → Templates) so the team owns the copy without deploys; the env var
+// names which template a Stripe event fires. Unset env = feature off.
+// Variables filled server-side (Podium's send API doesn't expand them):
+//   {{first_name}} {{name}} {{amount}} {{order}}
+// One text per link record, ever (customerTextSentAt guard survives webhook
+// re-deliveries and manual Sync clicks).
+// ---------------------------------------------------------------------------
+const PODIUM_TEMPLATE_PAYMENT_RECEIVED = process.env.PODIUM_TEMPLATE_PAYMENT_RECEIVED || "";
+
+async function sendPaymentReceivedTemplateText(record) {
+  try {
+    if (!PODIUM_TEMPLATE_PAYMENT_RECEIVED || record.customerTextSentAt) return;
+    if (!podiumOAuthConfigured() || !(await podiumConnected())) return;
+    const digits = String(record.customerPhone || "").replace(/\D/g, "");
+    if (!(digits.length === 10 || (digits.length === 11 && digits.startsWith("1")))) return;
+    const name = String(record.customerName || "").trim();
+    const result = await sendPodiumTemplateText({
+      phone: digits,
+      templateTitle: PODIUM_TEMPLATE_PAYMENT_RECEIVED,
+      vars: {
+        first_name: name.split(/\s+/)[0] || "there",
+        name: name || "there",
+        amount: `$${Number(record.paidAmount || 0).toLocaleString("en-US", { minimumFractionDigits: 2 })}`,
+        order: record.salesOrder || ""
+      },
+      fallbackBody: `Wilson AC & Appliance: we received your payment of $${Number(record.paidAmount || 0).toFixed(2)}${record.salesOrder ? ` on order ${record.salesOrder}` : ""}. Thank you!`
+    });
+    if (result.ok) {
+      record.customerTextSentAt = new Date().toISOString();
+      if (!result.usedTemplate) console.warn(`Podium template "${PODIUM_TEMPLATE_PAYMENT_RECEIVED}" not found — sent the built-in fallback text.`);
+    } else {
+      console.error("Payment-received text skipped:", result.error);
+    }
+  } catch (err) {
+    console.error("Payment-received text failed:", err.message);
+  }
+}
+
 async function processCheckoutSessionWebhookEvent(event) {
   const session = event.data?.object;
 
@@ -14099,6 +14250,7 @@ async function processCheckoutSessionWebhookEvent(event) {
       await recordDepositCollectedFromLink(record);
       await deactivateCompletedPaymentLink(record);
       await maybeSendLinkPaidNotification(record);
+      await sendPaymentReceivedTemplateText(record);
     } else if (isAchPendingIntent(paymentIntent, record)) {
       applyAchPendingState(record, session, paymentIntent);
     }
@@ -14111,6 +14263,7 @@ async function processCheckoutSessionWebhookEvent(event) {
     await recordDepositCollectedFromLink(record);
     await deactivateCompletedPaymentLink(record);
     await maybeSendLinkPaidNotification(record);
+    await sendPaymentReceivedTemplateText(record);
   }
 
   if (event.type === "checkout.session.async_payment_failed") {
@@ -14145,6 +14298,7 @@ async function processPaymentIntentWebhookEvent(event) {
     });
     await deactivateCompletedPaymentLink(record);
     await maybeSendLinkPaidNotification(record);
+    await sendPaymentReceivedTemplateText(record);
   }
 
   if (event.type === "payment_intent.payment_failed") {

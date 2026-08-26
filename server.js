@@ -332,6 +332,7 @@ import {
   exceptionWindowOpen
 } from "./lib/commission-review-postgres.js";
 import { saveTermsSignature, listTermsSignatures, TERMS_VERSION } from "./lib/terms-signatures-postgres.js";
+import { recordRefundEvent, listRefundEvents, getRefundEvent } from "./lib/refund-events-postgres.js";
 import { extractRetailDeckFloors } from "./lib/retaildeck-prices.js";
 import {
   getSalesOrderSnapshot,
@@ -11655,6 +11656,7 @@ app.get("/api/payment-link-status", requirePagePermission("/dashboard.html"), as
   try {
     const links = await readLinks();
     const terminalPayments = await readTerminalPayments();
+    const refundEvents = await listRefundEvents().catch(() => []);
 
     const normalizedTerminalPayments = terminalPayments.map((row) => ({
       ...row,
@@ -11666,7 +11668,29 @@ app.get("/api/payment-link-status", requirePagePermission("/dashboard.html"), as
 
     const normalizedLinks = links.map((row) => normalizeLinkRecord({ ...row }));
 
-    const combinedRows = [...normalizedTerminalPayments, ...normalizedLinks].sort((a, b) => {
+    // Refunds issued in Agility ride Paid History as negative rows with
+    // their own receipt actions (refund receipt PDF/email).
+    const refundRows = refundEvents.map((event) => ({
+      type: "refund",
+      status: "refunded",
+      active: false,
+      refundId: event.refundId,
+      paymentIntentId: event.paymentIntentId,
+      customerName: event.customerName,
+      customerEmail: event.customerEmail,
+      creatorCode: event.creatorCode,
+      creatorName: event.refundedByName || event.creatorName,
+      salesOrder: event.salesOrder,
+      description: event.description,
+      reference: [event.salesOrder, event.description].filter(Boolean).join(" | ") || event.paymentIntentId,
+      cardBrand: event.cardBrand,
+      last4: event.last4,
+      paidAmount: -Math.abs(event.amount),
+      paidDate: event.createdAt,
+      createdAt: event.createdAt
+    }));
+
+    const combinedRows = [...normalizedTerminalPayments, ...normalizedLinks, ...refundRows].sort((a, b) => {
       const aDate = new Date(a.paidDate || a.createdAt || 0).getTime();
       const bDate = new Date(b.paidDate || b.createdAt || 0).getTime();
       return bDate - aDate;
@@ -11746,16 +11770,19 @@ async function buildReceiptPdf(details) {
   y -= 15;
   page.drawText("512-894-0907  |  wilsonappliance.com", { x: margin, y, size: 10, font: helvetica, color: muted });
 
-  // Title block on the right
-  page.drawText("PAYMENT RECEIPT", { x: 612 - margin - 148, y: 792 - 68, size: 15, font: helveticaBold, color: ink });
-  page.drawText(details.paidDate, { x: 612 - margin - 148, y: 792 - 86, size: 10, font: helvetica, color: muted });
+  // Title block on the right (payment receipt by default; refund receipts
+  // pass their own title/labels/rows through the same layout).
+  const title = details.title || "PAYMENT RECEIPT";
+  const titleX = 612 - margin - helveticaBold.widthOfTextAtSize(title, 15);
+  page.drawText(title, { x: titleX, y: 792 - 68, size: 15, font: helveticaBold, color: ink });
+  page.drawText(details.paidDate, { x: titleX, y: 792 - 86, size: 10, font: helvetica, color: muted });
 
   y -= 34;
   page.drawLine({ start: { x: margin, y }, end: { x: 612 - margin, y }, thickness: 1, color: line });
   y -= 40;
 
   // Amount headline
-  page.drawText("Amount paid", { x: margin, y, size: 10, font: helvetica, color: muted });
+  page.drawText(details.amountLabel || "Amount paid", { x: margin, y, size: 10, font: helvetica, color: muted });
   y -= 26;
   page.drawText(details.amountText, { x: margin, y, size: 26, font: helveticaBold, color: ink });
   if (details.refundedNote) {
@@ -11765,13 +11792,13 @@ async function buildReceiptPdf(details) {
 
   // Receipt = who collected the payment (not the sales order), so the
   // collecting Wilson user leads the detail rows.
-  const rows = [
+  const rows = (details.detailRows || [
     ["Payment initiated by", details.salesperson],
     ["Payment method", details.methodText],
     ["Customer", details.customerName],
     ["Reference", details.reference],
     ["Payment ID", details.paymentIntentId]
-  ].filter(([, value]) => String(value || "").trim());
+  ]).filter(([, value]) => String(value || "").trim());
 
   for (const [label, value] of rows) {
     page.drawText(label, { x: margin, y, size: 10, font: helvetica, color: muted });
@@ -11783,11 +11810,14 @@ async function buildReceiptPdf(details) {
   y -= 12;
   page.drawLine({ start: { x: margin, y }, end: { x: 612 - margin, y }, thickness: 1, color: line });
   y -= 30;
-  page.drawText("Thank you for your business!", { x: margin, y, size: 11, font: helveticaBold, color: ink });
-  y -= 18;
-  page.drawText("Questions about this payment? Call or text Wilson AC & Appliance at 512-894-0907.", {
-    x: margin, y, size: 10, font: helvetica, color: muted
-  });
+  page.drawText(details.footerTitle || "Thank you for your business!", { x: margin, y, size: 11, font: helveticaBold, color: ink });
+  const footerLines = details.footerLines || [
+    "Questions about this payment? Call or text Wilson AC & Appliance at 512-894-0907."
+  ];
+  for (const footerLine of footerLines) {
+    y -= 18;
+    page.drawText(footerLine, { x: margin, y, size: 10, font: helvetica, color: muted });
+  }
 
   return doc.save();
 }
@@ -11971,6 +12001,155 @@ app.get("/api/receipts/:paymentIntentId/pdf", requirePagePermission("/dashboard.
       return res.status(400).json({ error: err.message });
     }
     return res.status(500).json({ error: "Unable to build the receipt. Check the payment intent and try again." });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Refund receipts (Paid History). Refunds issued in Agility are recorded in
+// refund_events at issue time; Stripe stays the truth for amount/status.
+// ---------------------------------------------------------------------------
+
+async function buildReceiptForRefund(refundId) {
+  const event = await getRefundEvent(refundId);
+  if (!event) {
+    const err = new Error("That refund isn't on record here — it may have been issued outside Agility.");
+    err.statusCode = 404;
+    throw err;
+  }
+
+  const refund = await stripe.refunds.retrieve(refundId);
+  if (["failed", "canceled"].includes(String(refund?.status || ""))) {
+    const err = new Error(`That refund ${refund.status} in Stripe — there's no receipt to send.`);
+    err.statusCode = 400;
+    throw err;
+  }
+
+  const amount = (refund?.amount || 0) / 100 || event.amount;
+  const amountText = `$${amount.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  const methodText = event.cardBrand
+    ? `${event.cardBrand} ending in ${event.last4 || "----"}`
+    : "Original payment method";
+  const refundDate = formatReceiptDate(refund?.created ? new Date(refund.created * 1000) : new Date(event.createdAt));
+  const reference = [event.salesOrder, event.description].filter(Boolean).join(" | ");
+
+  const pdfBytes = await buildReceiptPdf({
+    title: "REFUND RECEIPT",
+    amountLabel: "Amount refunded",
+    paidDate: refundDate,
+    amountText,
+    detailRows: [
+      ["Refund issued by", event.refundedByName],
+      ["Refunded to", methodText],
+      ["Customer", event.customerName],
+      ["Reference", reference],
+      ["Refund ID", refundId],
+      ["Original payment", event.paymentIntentId]
+    ],
+    footerTitle: "Your refund is on its way.",
+    footerLines: [
+      "Refunds typically appear on your statement within 5-10 business days, depending on your bank.",
+      "Questions about this refund? Call or text Wilson AC & Appliance at 512-894-0907."
+    ]
+  });
+
+  const fileLabel = String(event.salesOrder || refundId).replace(/[^A-Za-z0-9_-]+/g, "-");
+  return { pdfBytes, fileLabel, amountText, methodText, reference, customerName: event.customerName, refundDate };
+}
+
+app.get("/api/receipts/refund/:refundId/pdf", requirePagePermission("/dashboard.html"), async (req, res) => {
+  try {
+    const refundId = String(req.params.refundId || "").trim();
+    if (!/^re_[A-Za-z0-9]+$/.test(refundId)) {
+      return res.status(400).json({ error: "That record has no valid refund id." });
+    }
+    const { pdfBytes, fileLabel, amountText, reference } = await buildReceiptForRefund(refundId);
+    recordAudit({
+      ip: req.ip, actorUserId: req.authUser?.id || null,
+      action: "refund_receipt_downloaded", targetUserId: null,
+      detail: { refundId, amount: amountText, reference }
+    }).catch(() => {});
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", `attachment; filename="refund-receipt-${fileLabel}.pdf"`);
+    return res.send(Buffer.from(pdfBytes));
+  } catch (err) {
+    console.error("Refund receipt download error:", err.message);
+    return res.status(err.statusCode || 500).json({ error: err.message || "Unable to build the refund receipt." });
+  }
+});
+
+app.post("/api/receipts/refund-email", requirePagePermission("/dashboard.html"), async (req, res) => {
+  try {
+    const refundId = String(req.body?.refundId || "").trim();
+    const email = String(req.body?.email || "").trim().toLowerCase();
+    if (!/^re_[A-Za-z0-9]+$/.test(refundId)) {
+      return res.status(400).json({ error: "That record has no valid refund id." });
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      return res.status(400).json({ error: "Enter a valid email address." });
+    }
+    if (!RESEND_API_KEY || !RESEND_FROM_EMAIL) {
+      return res.status(500).json({ error: "Email delivery is not configured (RESEND_API_KEY / RESEND_FROM_EMAIL)." });
+    }
+
+    const { pdfBytes, fileLabel, amountText, methodText, reference, customerName, refundDate } =
+      await buildReceiptForRefund(refundId);
+    const subject = `Refund receipt from Wilson AC & Appliance — ${amountText}`;
+    const bodyLines = [
+      customerName ? `Hi ${customerName},` : "Hello,",
+      "",
+      `We've issued your refund of ${amountText} on ${refundDate}, returned to your ${methodText.toLowerCase()}.`,
+      "Refunds typically appear on your statement within 5-10 business days, depending on your bank.",
+      reference ? `Reference: ${reference}` : "",
+      "",
+      "Your refund receipt is attached as a PDF.",
+      "",
+      "Wilson AC & Appliance",
+      "512-894-0907"
+    ].filter((lineText) => lineText !== "");
+    const html = `
+      <div style="font-family: Arial, sans-serif; color: #111827; line-height: 1.6; max-width: 560px;">
+        <p>${customerName ? `Hi ${escapeHtmlForEmail(customerName)},` : "Hello,"}</p>
+        <p>We've issued your refund of <strong>${escapeHtmlForEmail(amountText)}</strong> on ${escapeHtmlForEmail(refundDate)},
+        returned to your ${escapeHtmlForEmail(methodText.toLowerCase())}. Refunds typically appear on your statement
+        within 5&ndash;10 business days, depending on your bank.</p>
+        ${reference ? `<p><strong>Reference:</strong> ${escapeHtmlForEmail(reference)}</p>` : ""}
+        <p>Your refund receipt is attached as a PDF.</p>
+        <p style="color: #6b7280; font-size: 13px;">Wilson AC &amp; Appliance · 512-894-0907</p>
+      </div>
+    `;
+
+    const response = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: { "Authorization": `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        from: RESEND_FROM_EMAIL,
+        reply_to: userReplyTo(req),
+        to: [email],
+        subject,
+        text: bodyLines.join("\n"),
+        html,
+        attachments: [{
+          filename: `refund-receipt-${fileLabel}.pdf`,
+          content: Buffer.from(pdfBytes).toString("base64")
+        }]
+      })
+    });
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error("Refund receipt email failed:", response.status, errorText);
+      return res.status(502).json({ error: "The email service rejected the receipt — try again in a minute." });
+    }
+
+    recordAudit({
+      ip: req.ip, actorUserId: req.authUser?.id || null,
+      action: "refund_receipt_emailed", targetUserId: null,
+      detail: { refundId, to: email, amount: amountText, reference }
+    }).catch(() => {});
+
+    return res.json({ success: true });
+  } catch (err) {
+    console.error("Refund receipt email error:", err.message);
+    return res.status(err.statusCode || 500).json({ error: err.message || "Unable to send the refund receipt." });
   }
 });
 
@@ -12926,6 +13105,37 @@ app.post("/api/intent-lookup/payment_intent/:id/refund", requirePagePermission("
       targetUserId: null,
       detail: { paymentIntentId: id, amount: refundAmountCents / 100, note: note.slice(0, 200) }
     }).catch(() => {});
+
+    // Record the refund for Paid History + refund receipts. Context comes
+    // from the expanded charge and the local link/terminal record; failing
+    // to record never fails the refund itself.
+    (async () => {
+      const pmCard = latestCharge.payment_method_details?.card_present || latestCharge.payment_method_details?.card || {};
+      const metadata = paymentIntent.metadata || {};
+      let localRecord = {};
+      try {
+        const links = (await readLinks()).map((row) => normalizeLinkRecord({ ...row }));
+        const terminalPayments = await readTerminalPayments();
+        localRecord = [...links, ...terminalPayments].find((row) => row.paymentIntentId === id) || {};
+      } catch { /* context only */ }
+      await recordRefundEvent({
+        refundId: refund.id,
+        paymentIntentId: id,
+        amount: (refund.amount || refundAmountCents) / 100,
+        customerName: localRecord.customerName || latestCharge.billing_details?.name || metadata.customer_name || "",
+        customerEmail: localRecord.customerEmail || latestCharge.billing_details?.email || "",
+        cardBrand: String(pmCard.brand || "").toUpperCase(),
+        last4: pmCard.last4 || "",
+        salesOrder: localRecord.salesOrder || metadata.sales_order || "",
+        description: localRecord.description || localRecord.reference || paymentIntent.description || "",
+        reasonCode: storedReasonCode,
+        note,
+        creatorCode: localRecord.creatorCode || metadata.creator_code || "",
+        creatorName: localRecord.creatorName || metadata.creator_name || "",
+        refundedByEmail: req.authUser?.email || "",
+        refundedByName: req.authUser?.displayName || req.authUser?.username || ""
+      });
+    })().catch((recordErr) => console.error("Refund event record failed:", recordErr.message));
 
     return res.json({
       ok: true,

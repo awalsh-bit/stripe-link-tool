@@ -937,6 +937,22 @@
       box-shadow: inset 4px 0 0 #22c55e;
     }
 
+    .paid-type-refund {
+      background: #fef2f2;
+      color: #991b1b;
+      box-shadow: inset 3px 0 0 #ef4444;
+    }
+
+    .paid-row-refund {
+      background: #fffbfb;
+      box-shadow: inset 4px 0 0 #ef4444;
+    }
+
+    .amount-refund {
+      color: #991b1b;
+      font-weight: 700;
+    }
+
     .btn-pill-sm {
       display: inline-flex;
       align-items: center;
@@ -1682,6 +1698,7 @@
   const ICON_PRINT = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 6 2 18 2 18 9"></polyline><path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg>`;
 
   function paidTypeLabel(row) {
+    if (row.type === "refund") return "Refund";
     if (row.type === "ach_link") return "ACH Link";
     if (row.type === "terminal") return "Terminal";
     if (row.type === "card_on_file") return "Card on file";
@@ -1689,6 +1706,7 @@
   }
 
   function paidTypeClass(row) {
+    if (row.type === "refund") return "paid-type-pill paid-type-refund";
     return row.type === "ach_link" ? "paid-type-pill paid-type-ach" : "paid-type-pill";
   }
 
@@ -1731,6 +1749,7 @@
 
       button.addEventListener("click", async () => {
         const paymentIntentId = button.getAttribute("data-pi") || "";
+        const refundId = button.getAttribute("data-refund") || "";
         const salesOrder = button.getAttribute("data-order") || "";
         const originalHtml = button.innerHTML;
 
@@ -1738,7 +1757,10 @@
         button.innerHTML = "Building...";
 
         try {
-          const res = await fetch(`/api/receipts/${encodeURIComponent(paymentIntentId)}/pdf`);
+          const url = refundId
+            ? `/api/receipts/refund/${encodeURIComponent(refundId)}/pdf`
+            : `/api/receipts/${encodeURIComponent(paymentIntentId)}/pdf`;
+          const res = await fetch(url);
           if (!res.ok) {
             const data = await res.json().catch(() => ({}));
             throw new Error(data.error || "Unable to build the receipt.");
@@ -1747,7 +1769,7 @@
           const blob = await res.blob();
           const link = document.createElement("a");
           link.href = URL.createObjectURL(blob);
-          link.download = `receipt-${(salesOrder || paymentIntentId).replace(/[^A-Za-z0-9_-]+/g, "-")}.pdf`;
+          link.download = `${refundId ? "refund-receipt" : "receipt"}-${(salesOrder || refundId || paymentIntentId).replace(/[^A-Za-z0-9_-]+/g, "-")}.pdf`;
           document.body.appendChild(link);
           link.click();
           document.body.removeChild(link);
@@ -1773,12 +1795,14 @@
       button.addEventListener("click", () => {
         const parentRow = button.closest("tr");
         const paymentIntentId = button.getAttribute("data-pi") || "";
+        const refundId = button.getAttribute("data-refund") || "";
         const prefillEmail = button.getAttribute("data-email") || "";
         const customerName = button.getAttribute("data-customer") || "";
+        const panelKey = refundId || paymentIntentId;
 
         // Toggle: clicking again closes the open panel for this payment.
         const existing = parentRow.nextElementSibling;
-        if (existing?.classList?.contains("receipt-send-row") && existing.dataset.pi === paymentIntentId) {
+        if (existing?.classList?.contains("receipt-send-row") && existing.dataset.pi === panelKey) {
           existing.remove();
           return;
         }
@@ -1786,11 +1810,11 @@
 
         const sendRow = document.createElement("tr");
         sendRow.className = "receipt-send-row";
-        sendRow.dataset.pi = paymentIntentId;
+        sendRow.dataset.pi = panelKey;
         sendRow.innerHTML = `
           <td colspan="7">
             <div class="receipt-send-inner">
-              <span class="receipt-send-label">Email receipt${customerName ? ` for ${escapeHtml(customerName)}` : ""} to:</span>
+              <span class="receipt-send-label">Email ${refundId ? "refund receipt" : "receipt"}${customerName ? ` for ${escapeHtml(customerName)}` : ""} to:</span>
               <input type="email" class="receipt-email-input" value="${escapeHtml(prefillEmail)}" placeholder="customer@email.com" />
               <button class="btn-primary receipt-send-btn" type="button">Send Receipt</button>
               <button class="btn-secondary receipt-cancel-btn" type="button">Cancel</button>
@@ -1827,10 +1851,10 @@
           statusEl.textContent = "";
 
           try {
-            const res = await fetch("/api/receipts/email", {
+            const res = await fetch(refundId ? "/api/receipts/refund-email" : "/api/receipts/email", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ paymentIntentId, email })
+              body: JSON.stringify(refundId ? { refundId, email } : { paymentIntentId, email })
             });
             const data = await res.json();
             if (!res.ok) {
@@ -1888,32 +1912,57 @@
 
     const today = toLocalDateInputValue(new Date());
     const byDept = {};
-    for (const dept of STRIPE_TODAY_DEPTS) byDept[dept] = { paid: 0, count: 0 };
+    for (const dept of STRIPE_TODAY_DEPTS) byDept[dept] = { paid: 0, count: 0, refunded: 0, refundCount: 0 };
     let total = 0;
     let count = 0;
+    let refundTotal = 0;
+    let refundCount = 0;
     for (const row of allRows) {
-      if (row.status !== "paid" || !row.paidDate) continue;
-      if (toLocalDateInputValue(row.paidDate) !== today) continue;
+      if (!row.paidDate || toLocalDateInputValue(row.paidDate) !== today) continue;
+      const dept = resolveDepartment(row);
+      if (row.type === "refund") {
+        const refunded = Math.abs(Number(row.paidAmount) || 0);
+        refundTotal += refunded;
+        refundCount++;
+        if (byDept[dept]) {
+          byDept[dept].refunded += refunded;
+          byDept[dept].refundCount++;
+        }
+        continue;
+      }
+      if (row.status !== "paid") continue;
       const amount = Number(row.paidAmount) || 0;
       total += amount;
       count++;
-      const dept = resolveDepartment(row);
       if (byDept[dept]) {
         byDept[dept].paid += amount;
         byDept[dept].count++;
       }
     }
+    const net = total - refundTotal;
 
     box.innerHTML = `
       <div class="st-head">
         <span class="st-label">Today's Stripe Activity</span>
-        <span class="st-total">${formatMoney(total)} <span style="font-size: 12px; font-weight: 600; color: #6b7280;">· ${count} payment${count === 1 ? "" : "s"}</span></span>
+        <span class="st-total">${formatMoney(net)} <span style="font-size: 12px; font-weight: 600; color: #6b7280;">net revenue</span></span>
       </div>
-      ${STRIPE_TODAY_DEPTS.map((dept) => `
+      <div class="st-row">
+        <div class="st-dept">Collected</div>
+        <div class="st-val"><strong>${formatMoney(total)}</strong> <span style="color: #6b7280;">· ${count} payment${count === 1 ? "" : "s"}</span></div>
+      </div>
+      <div class="st-row">
+        <div class="st-dept" style="color: #991b1b;">Refunds</div>
+        <div class="st-val"><strong style="color: ${refundTotal ? "#991b1b" : "inherit"};">${refundTotal ? "-" : ""}${formatMoney(refundTotal)}</strong> <span style="color: #6b7280;">· ${refundCount} refund${refundCount === 1 ? "" : "s"}</span></div>
+      </div>
+      ${STRIPE_TODAY_DEPTS.map((dept) => {
+        const d = byDept[dept];
+        const deptNet = d.paid - d.refunded;
+        return `
         <div class="st-row">
           <div class="st-dept">${dept}</div>
-          <div class="st-val"><strong>${formatMoney(byDept[dept].paid)}</strong> <span style="color: #6b7280;">· ${byDept[dept].count} payment${byDept[dept].count === 1 ? "" : "s"}</span></div>
-        </div>`).join("")}`;
+          <div class="st-val"><strong>${formatMoney(deptNet)}</strong> <span style="color: #6b7280;">· ${d.count} payment${d.count === 1 ? "" : "s"}${d.refundCount ? ` <span style="color: #991b1b;">· −${formatMoney(d.refunded)} (${d.refundCount} refund${d.refundCount === 1 ? "" : "s"})</span>` : ""}</span></div>
+        </div>`;
+      }).join("")}`;
   }
 
   (function initStripeToday() {
@@ -1959,7 +2008,7 @@
 
     const selectedPaidDepartment = paidDepartmentFilterEl.value;
     const paidRows = allRows
-      .filter((row) => row.status === "paid")
+      .filter((row) => row.status === "paid" || row.type === "refund")
       .filter((row) => {
         const matchesSearch = !paidSearch || paidSearchText(row).includes(paidSearch);
         const matchesDepartment =
@@ -2045,28 +2094,34 @@
         if (row.type === "ach_link") {
           tr.classList.add("paid-row-ach");
         }
+        if (row.type === "refund") {
+          tr.classList.add("paid-row-refund");
+        }
+        const isRefund = row.type === "refund";
         tr.innerHTML = `
           <td data-label="Customer">${row.customerName || "-"}</td>
           <td data-label="Employee">${row.creatorName || "-"}</td>
           <td data-label="Reference">${formatReference(row)}</td>
           <td data-label="Type"><span class="${paidTypeClass(row)}">${paidTypeLabel(row)}</span></td>
-          <td data-label="Paid Amount" class="amount">${formatMoney(row.paidAmount)}</td>
+          <td data-label="Paid Amount" class="amount${isRefund ? " amount-refund" : ""}">${formatMoney(row.paidAmount)}</td>
           <td data-label="Paid Date">${formatDate(row.paidDate)}</td>
           <td data-label="Receipt" class="action-cell">
-            ${row.paymentIntentId
+            ${row.paymentIntentId || row.refundId
               ? `<div class="button-row">
-                   <button class="btn-secondary btn-pill-sm" type="button"
+                   ${row.paymentIntentId ? `<button class="btn-secondary btn-pill-sm" type="button"
                      data-copy-intent="${escapeHtml(row.paymentIntentId)}"
-                     title="Copy the payment intent for ePASS">${ICON_COPY}<span>Copy PI</span></button>
+                     title="Copy the payment intent for ePASS">${ICON_COPY}<span>Copy PI</span></button>` : ""}
                    <button class="btn-secondary btn-pill-sm" type="button" data-action="email-receipt"
-                     data-pi="${escapeHtml(row.paymentIntentId)}"
+                     data-pi="${escapeHtml(row.paymentIntentId || "")}"
+                     ${isRefund ? `data-refund="${escapeHtml(row.refundId)}"` : ""}
                      data-email="${escapeHtml(row.customerEmail || "")}"
                      data-customer="${escapeHtml(row.customerName || "")}"
-                     title="Email a PDF receipt to the customer">${ICON_MAIL}<span>Email</span></button>
+                     title="Email a PDF ${isRefund ? "refund " : ""}receipt to the customer">${ICON_MAIL}<span>Email</span></button>
                    <button class="btn-secondary btn-pill-sm" type="button" data-action="download-receipt"
-                     data-pi="${escapeHtml(row.paymentIntentId)}"
+                     data-pi="${escapeHtml(row.paymentIntentId || "")}"
+                     ${isRefund ? `data-refund="${escapeHtml(row.refundId)}"` : ""}
                      data-order="${escapeHtml(row.salesOrder || "")}"
-                     title="Download the PDF receipt">${ICON_PRINT}<span>Download</span></button>
+                     title="Download the PDF ${isRefund ? "refund " : ""}receipt">${ICON_PRINT}<span>Download</span></button>
                  </div>`
               : "-"}
           </td>

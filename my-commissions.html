@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="robots" content="noindex,nofollow,noarchive" />
+  <title>Wilson AC &amp; Appliance - My Commission Review</title>
+  <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+  <link rel="stylesheet" href="internal-shell.css" />
+  <style>
+    :root {
+      --bg: #f7f8fc; --card: #ffffff; --text: #1f2937; --muted: #6b7280;
+      --border: #dbe1ea; --shadow: 0 10px 35px rgba(0, 0, 0, 0.08); --radius: 18px;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; font-family: "Roboto", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: linear-gradient(180deg, var(--primary-tint) 0%, var(--bg) 100%);
+      color: var(--text); min-height: 100vh; padding: 32px 16px;
+    }
+    .wrap { max-width: 1150px; margin: 0 auto; }
+    .surface {
+      background: var(--card); border: 1px solid rgba(var(--primary-rgb), 0.12);
+      box-shadow: var(--shadow); border-radius: var(--radius); padding: 22px; margin: 0 auto 20px;
+    }
+    h2 { margin: 0 0 6px; font-size: 20px; }
+    .section-note { margin: 0 0 10px; color: var(--muted); font-size: 13.5px; line-height: 1.5; }
+    .status { display: none; border-radius: 12px; padding: 10px 13px; font-size: 13px; margin-bottom: 12px; }
+    .status.show { display: block; }
+    .status.ok { background: rgba(var(--primary-rgb), 0.1); color: var(--primary); }
+    .status.error { background: #fee2e2; color: #991b1b; }
+    .toolbar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 4px; }
+    select {
+      border: 1.5px solid var(--border); border-radius: 10px; padding: 8px 12px; font-size: 13.5px;
+      background: #fff; color: var(--text);
+    }
+    .posted-line { color: var(--muted); font-size: 12.5px; }
+    .window-chip { border-radius: 999px; font-size: 11px; font-weight: 700; padding: 4px 12px; }
+    .window-chip.open { background: rgba(22, 101, 52, 0.12); color: #166534; }
+    .window-chip.closed { background: #f1f5f9; color: #64748b; }
+    .totals-strip { display: flex; gap: 12px; flex-wrap: wrap; margin: 14px 0 4px; }
+    .tot { background: #f8fafc; border: 1px solid var(--border); border-radius: 12px; padding: 10px 16px; min-width: 150px; }
+    .tot.grand { background: rgba(var(--primary-rgb), 0.08); border-color: rgba(var(--primary-rgb), 0.35); }
+    .t-label { font-size: 11px; color: var(--muted); font-weight: 700; letter-spacing: 0.03em; text-transform: uppercase; }
+    .t-value { font-size: 18px; font-weight: 800; margin-top: 2px; }
+    .sec-title { font-weight: 800; font-size: 14px; margin: 22px 0 8px; display: flex; align-items: baseline; gap: 10px; }
+    .sec-sub { color: var(--muted); font-weight: 500; font-size: 12px; }
+    table.lines { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+    table.lines th { text-align: left; color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; padding: 6px 8px; border-bottom: 1.5px solid var(--border); }
+    table.lines td { padding: 7px 8px; border-bottom: 1px solid #eef1f6; vertical-align: top; }
+    table.lines td.num, table.lines th.num { text-align: right; white-space: nowrap; }
+    .model { font-weight: 700; }
+    .cust { color: var(--muted); font-size: 11.5px; }
+    .heldtag { background: #fee2e2; color: #991b1b; border-radius: 999px; font-size: 10px; font-weight: 800; padding: 2px 8px; margin-left: 6px; }
+    .reltag { background: rgba(22, 101, 52, 0.12); color: #166534; border-radius: 999px; font-size: 10px; font-weight: 800; padding: 2px 8px; margin-left: 6px; }
+    .exc-col { width: 34px; text-align: center; }
+    .exc-col input { width: 17px; height: 17px; accent-color: var(--primary); cursor: pointer; }
+    .primary-btn {
+      background: var(--primary); color: #fff; border: none; border-radius: 10px;
+      padding: 10px 18px; font-size: 13.5px; font-weight: 700; cursor: pointer;
+    }
+    .primary-btn:disabled { opacity: 0.55; cursor: not-allowed; }
+    .ghost-btn {
+      background: #fff; color: var(--primary); border: 1.5px solid rgba(var(--primary-rgb), 0.45);
+      border-radius: 10px; padding: 9px 16px; font-size: 13px; font-weight: 700; cursor: pointer;
+    }
+    .exc-bar {
+      position: sticky; bottom: 12px; background: #1f2937; color: #fff; border-radius: 14px;
+      padding: 14px 18px; margin-top: 18px; box-shadow: 0 12px 30px rgba(0,0,0,0.25);
+    }
+    .exc-bar textarea {
+      width: 100%; border-radius: 10px; border: none; padding: 10px 12px; font-size: 13px;
+      font-family: inherit; min-height: 64px; margin: 10px 0; resize: vertical;
+    }
+    .exc-bar .bar-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+    .exc-bar .count { font-weight: 800; }
+    .req { border: 1.5px solid var(--border); border-radius: 14px; padding: 14px 16px; margin-bottom: 12px; }
+    .req .pill { border-radius: 999px; font-size: 10px; font-weight: 800; letter-spacing: 0.05em; padding: 3px 10px; }
+    .req .pill.open { background: #fef3c7; color: #92400e; }
+    .req .pill.resolved { background: rgba(22, 101, 52, 0.12); color: #166534; }
+    .req .models { font-size: 12.5px; margin: 6px 0; }
+    .req .note { font-size: 12.5px; color: var(--text); background: #f8fafc; border-radius: 8px; padding: 8px 10px; margin: 6px 0; }
+    .req .resp { font-size: 12.5px; background: rgba(var(--primary-rgb), 0.07); border-radius: 8px; padding: 8px 10px; margin-top: 6px; }
+    .req .meta { color: var(--muted); font-size: 11.5px; }
+    .empty { color: var(--muted); font-size: 13.5px; padding: 12px 0; }
+    @media (max-width: 700px) { .tot { min-width: 120px; } table.lines { font-size: 11.5px; } }
+  </style>
+</head>
+<body data-shell-label="My Commission Review" data-shell-icon="chart">
+  <div class="wrap">
+    <div id="internal-shell-header"></div>
+
+    <div class="surface">
+      <h2>My Commission Review</h2>
+      <p class="section-note">
+        These are your <strong>final posted statements</strong>. If something looks wrong, use
+        <strong>Request exception</strong>: check the model line(s) in question and tell us what and why.
+        Exceptions can be filed through <strong>45 days after the end of the statement month</strong>.
+      </p>
+      <div id="status" class="status"></div>
+      <div class="toolbar">
+        <select id="monthSelect"></select>
+        <span id="windowChip" class="window-chip"></span>
+        <span style="flex: 1;"></span>
+        <span id="postedLine" class="posted-line"></span>
+      </div>
+    </div>
+
+    <div id="statementHost"></div>
+    <div id="requestsHost"></div>
+
+    <div id="internal-shell-footer"></div>
+  </div>
+
+  <script src="internal-shell.js"></script>
+  <script>
+    (function () {
+      const $ = (id) => document.getElementById(id);
+      const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch]));
+      const money = (n) => "$" + Number(n || 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      const monthLabel = (key) => {
+        const [y, m] = String(key || "").split("-").map(Number);
+        if (!y || !m) return String(key || "");
+        return ["January","February","March","April","May","June","July","August","September","October","November","December"][m - 1] + " " + y;
+      };
+      const dateLabel = (iso) => iso ? new Date(iso).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) : "";
+      const dayLabel = (ymd) => {
+        const [y, m, d] = String(ymd || "").split("-").map(Number);
+        if (!y) return String(ymd || "");
+        return ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][m - 1] + " " + d + ", " + y;
+      };
+
+      let data = null;
+      let excMode = false;
+      const selected = new Map(); // "section|lineKey" -> {section, lineKey, product}
+
+      function setStatus(message, kind) {
+        const box = $("status");
+        if (!message) { box.className = "status"; return; }
+        box.className = "status " + kind + " show";
+        box.textContent = message;
+        if (kind === "ok") setTimeout(() => { if (box.textContent === message) box.className = "status"; }, 6000);
+      }
+
+      async function api(path, options = {}) {
+        const res = await fetch(path, { credentials: "same-origin", headers: options.body ? { "Content-Type": "application/json" } : {}, ...options });
+        const body = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(body.error || "Request failed.");
+        return body;
+      }
+
+      function lineRows(lines, section, opts = {}) {
+        return (lines || []).map((l) => {
+          const key = section + "|" + (l.lineKey || "");
+          const checkbox = excMode && l.lineKey
+            ? `<td class="exc-col"><input type="checkbox" data-exc-line="${esc(key)}" data-product="${esc(l.product || "")}" ${selected.has(key) ? "checked" : ""}></td>`
+            : (excMode ? '<td class="exc-col"></td>' : "");
+          return `<tr>
+            ${checkbox}
+            <td><span class="model">${esc(l.product || "—")}</span>${l.held ? '<span class="heldtag">HELD — unpaid</span>' : ""}${l.released ? '<span class="reltag">RELEASED</span>' : ""}<div class="cust">${esc(l.customer || "")}</div>${l.reason ? `<div class="cust">${esc(l.reason)}</div>` : ""}</td>
+            <td>${esc(l.invoice || "")}</td>
+            <td class="num">${Number(l.qty) || ""}</td>
+            <td class="num">${money(l.revenue)}</td>
+            <td class="num">${opts.gm ? (l.gmPercent == null ? "—" : l.gmPercent.toFixed(1) + "%") : ""}</td>
+            <td class="num">${opts.rate ? ((l.rate != null ? (l.rate * 100).toFixed(1) + "%" : "")) : ""}</td>
+            <td class="num">${l.commission == null ? "—" : money(l.commission)}</td>
+          </tr>`;
+        }).join("");
+      }
+
+      function sectionTable(title, sub, lines, section, opts = {}) {
+        if (!lines || !lines.length) return "";
+        return `
+          <div class="sec-title">${esc(title)}<span class="sec-sub">${esc(sub || "")}</span></div>
+          <table class="lines">
+            <thead><tr>
+              ${excMode ? '<th class="exc-col"></th>' : ""}
+              <th>Model</th><th>Invoice</th><th class="num">Qty</th><th class="num">Your revenue</th>
+              <th class="num">${opts.gm ? "GM%" : ""}</th><th class="num">${opts.rate ? "Rate" : ""}</th><th class="num">Commission</th>
+            </tr></thead>
+            <tbody>${lineRows(lines, section, opts)}</tbody>
+          </table>`;
+      }
+
+      function render() {
+        const host = $("statementHost");
+        const reqHost = $("requestsHost");
+        if (!data || !data.months.length) {
+          host.innerHTML = '<div class="surface"><div class="empty">No statements have been posted to you yet. Your manager posts final monthly statements here after review.</div></div>';
+          reqHost.innerHTML = "";
+          $("windowChip").className = "window-chip";
+          $("windowChip").textContent = "";
+          $("postedLine").textContent = "";
+          return;
+        }
+
+        $("monthSelect").innerHTML = data.months.map((m) =>
+          `<option value="${m}" ${m === data.month ? "selected" : ""}>${monthLabel(m)}</option>`).join("");
+
+        const chip = $("windowChip");
+        chip.className = "window-chip " + (data.windowOpen ? "open" : "closed");
+        chip.textContent = data.windowOpen
+          ? `Exception window open — closes ${dayLabel(data.windowCloses)}`
+          : `Exception window closed ${dayLabel(data.windowCloses)}`;
+
+        const post = data.post;
+        $("postedLine").textContent = post
+          ? `Posted ${dateLabel(post.postedAt)}${post.postedByName ? " by " + post.postedByName : ""}`
+          : "";
+
+        const st = post?.statement || {};
+        const t = st.totals || {};
+        const excludedSub = "not commissioned — shown so nothing is hidden";
+
+        host.innerHTML = `
+        <div class="surface">
+          <div class="totals-strip">
+            <div class="tot"><div class="t-label">New serial</div><div class="t-value">${money(t.newCommission)}</div></div>
+            <div class="tot"><div class="t-label">Closeout</div><div class="t-value">${money(t.closeoutCommission)}</div></div>
+            <div class="tot"><div class="t-label">EPIC Protect</div><div class="t-value">${money(t.protectCommission)}</div></div>
+            <div class="tot"><div class="t-label">Protect bonus</div><div class="t-value">${money(t.protectBonus)}</div></div>
+            ${t.releasedCount ? `<div class="tot"><div class="t-label">Released holds</div><div class="t-value" style="color:#166534;">${money(t.releasedCommission)}</div></div>` : ""}
+            ${t.heldCount ? `<div class="tot"><div class="t-label">Held — unpaid</div><div class="t-value" style="color:#991b1b;">${money(t.heldCommission)}</div></div>` : ""}
+            <div class="tot grand"><div class="t-label">Total commission</div><div class="t-value">${money(t.commission)}</div></div>
+          </div>
+
+          <div style="display:flex; gap:10px; margin-top:10px;">
+            ${data.windowOpen
+              ? (excMode
+                ? '<button type="button" class="ghost-btn" id="cancelExc">Cancel exception request</button>'
+                : '<button type="button" class="primary-btn" id="startExc">Request exception</button>')
+              : ""}
+          </div>
+
+          ${sectionTable(st.sectionNewTitle || "New Serial Inventory", money(t.newRevenue) + " delivered list", st.newLines, "new", { gm: true, rate: true })}
+          ${sectionTable("Closeouts / Open Box", money(t.closeoutRevenue) + " delivered", st.closeoutLines, "closeout", { rate: true })}
+          ${sectionTable("EPIC Protect", money(t.protectSell) + " sold — paid at the monthly attach-rate tier", st.protectLines, "protect", {})}
+          ${sectionTable("Released holds", "paid this month after their invoice cleared", st.releasedLines, "released", { gm: true, rate: true })}
+          ${sectionTable("Still held", "unpaid invoices — pays when the balance clears", st.stillHeldLines, "held", {})}
+          ${sectionTable("Excluded lines", excludedSub, st.excludedLines, "excluded", {})}
+
+          ${excMode ? `
+          <div class="exc-bar">
+            <div class="bar-row">
+              <span class="count" id="excCount">0 line(s) checked</span>
+              <span style="flex:1;"></span>
+              <span style="font-size:12px; opacity:0.8;">Window closes ${dayLabel(data.windowCloses)}</span>
+            </div>
+            <textarea id="excNote" placeholder="What's wrong and why? (e.g. 'Model DF48450 shows the wrong sell price — the signed order was $14,999.')"></textarea>
+            <div class="bar-row">
+              <button type="button" class="primary-btn" id="submitExc">Submit exception request</button>
+            </div>
+          </div>` : ""}
+        </div>`;
+
+        const reqs = data.exceptions || [];
+        reqHost.innerHTML = `
+        <div class="surface">
+          <h2 style="font-size:16px;">Exception requests — ${esc(monthLabel(data.month))}</h2>
+          ${reqs.length ? reqs.map((r) => `
+            <div class="req">
+              <span class="pill ${r.status === "open" ? "open" : "resolved"}">${r.status === "open" ? "OPEN" : "RESOLVED"}</span>
+              <span class="meta"> filed ${dateLabel(r.createdAt)}</span>
+              <div class="models">${r.lines.map((l) => `<span class="model">${esc(l.product || l.invoice || "line")}</span>`).join(", ")}</div>
+              <div class="note">${esc(r.note)}</div>
+              ${r.status === "resolved" ? `<div class="resp"><strong>${esc(r.resolvedByName || "Manager")}:</strong> ${esc(r.response || "Resolved.")} <span class="meta">${dateLabel(r.resolvedAt)}</span></div>` : ""}
+            </div>`).join("") : '<div class="empty">No exception requests for this month.</div>'}
+        </div>`;
+
+        wire();
+      }
+
+      function updateCount() {
+        const el = $("excCount");
+        if (el) el.textContent = `${selected.size} line(s) checked`;
+      }
+
+      function wire() {
+        document.querySelectorAll("[data-exc-line]").forEach((box) => {
+          box.addEventListener("change", () => {
+            const key = box.dataset.excLine;
+            if (box.checked) {
+              const [section, ...rest] = key.split("|");
+              selected.set(key, { section, lineKey: rest.join("|"), product: box.dataset.product });
+            } else {
+              selected.delete(key);
+            }
+            updateCount();
+          });
+        });
+        $("startExc")?.addEventListener("click", () => { excMode = true; selected.clear(); render(); });
+        $("cancelExc")?.addEventListener("click", () => { excMode = false; selected.clear(); render(); });
+        $("submitExc")?.addEventListener("click", submitException);
+        updateCount();
+      }
+
+      async function submitException() {
+        const note = ($("excNote")?.value || "").trim();
+        if (!selected.size) { setStatus("Check at least one model line first.", "error"); return; }
+        if (note.length < 5) { setStatus("Tell us what's wrong and why — a sentence or two.", "error"); return; }
+        const btn = $("submitExc");
+        btn.disabled = true;
+        try {
+          const body = await api("/api/my-commissions/exception", {
+            method: "POST",
+            body: JSON.stringify({
+              month: data.month,
+              note,
+              lines: [...selected.values()].map((s) => ({ section: s.section, lineKey: s.lineKey }))
+            })
+          });
+          data.exceptions = body.exceptions || data.exceptions;
+          excMode = false;
+          selected.clear();
+          render();
+          setStatus("Exception request filed — your manager has been flagged.", "ok");
+        } catch (err) {
+          setStatus(err.message, "error");
+          btn.disabled = false;
+        }
+      }
+
+      async function load(month) {
+        try {
+          data = await api("/api/my-commissions" + (month ? "?month=" + encodeURIComponent(month) : ""));
+          excMode = false;
+          selected.clear();
+          render();
+        } catch (err) {
+          setStatus(err.message, "error");
+        }
+      }
+
+      $("monthSelect").addEventListener("change", () => load($("monthSelect").value));
+      load();
+    })();
+  </script>
+</body>
+</html>

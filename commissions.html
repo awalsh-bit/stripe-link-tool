@@ -268,6 +268,7 @@
       </details>
     </div>
 
+    <div id="excPanel"></div>
     <div id="statements"></div>
 
     <div id="internal-shell-footer"></div>
@@ -277,6 +278,7 @@
   <script>
     let data = null;
     let showAll = false;
+    let review = null; // /api/field-commissions/review-status for data.month
 
     function el(id) { return document.getElementById(id); }
     function escapeHtml(value) {
@@ -396,11 +398,17 @@
                 </label>
                 <select class="ov-credit-to">${partners.map((p) => `<option value="${escapeHtml(p)}" ${ov.fullCreditTo === p ? "selected" : ""}>${escapeHtml(p)}</option>`).join("")}</select>
               </div>` : ""}
-              <div class="ef"><label>Note</label>
-                <input type="text" class="ov-note" maxlength="300" value="${escapeHtml(ov.note || "")}" placeholder="why (shows on hover)"></div>
+              <div class="ef credit">
+                <label style="display: inline-flex; align-items: center; gap: 7px; cursor: pointer;">
+                  <input type="checkbox" class="ov-omit" ${ov.omit ? "checked" : ""}>
+                  Omit this line
+                </label>
+              </div>
+              <div class="ef"><label>Note${ov.omit ? " (required for omit)" : ""}</label>
+                <input type="text" class="ov-note" maxlength="300" value="${escapeHtml(ov.note || "")}" placeholder="why (shows on the statement)"></div>
               <button type="button" class="save-ov" data-save-ov="${escapeHtml(l.lineKey)}">Save</button>
               ${l.override ? `<button type="button" class="clear-ov" data-clear-ov="${escapeHtml(l.lineKey)}">Clear override</button>` : ""}
-              <div class="editor-hint">Blank fields keep the report's values (shown as placeholders). A payout % on an RTV/SVC line forces it back into pay. Overrides stick to this line across re-uploads.</div>
+              <div class="editor-hint">Blank fields keep the report's values (shown as placeholders). A payout % on an RTV/SVC line forces it back into pay. <strong>Omit</strong> removes the line entirely — no pay, no charge-back, no revenue counted — and lists it under excluded lines with your note (for return lines not charged back, or artifacts that landed in the wrong name). Overrides stick to this line across re-uploads.</div>
             </div>
           </td>
         </tr>`;
@@ -431,6 +439,70 @@
         </tr>${editorKey === l.lineKey ? editorHtml(l, kind) : ""}`).join("");
     }
 
+    // ---- Rep review posting (my-commissions.html) ----
+    function postOf(code) {
+      return (review?.posts || []).find((p) => p.code === code) || null;
+    }
+
+    function postBadgeHtml(st) {
+      const post = postOf(st.code);
+      if (!post) return "";
+      const when = new Date(post.postedAt).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+      return `<span class="badge eligible" title="Frozen snapshot on the rep's My Commission Review page">Posted ${escapeHtml(when)}</span>`;
+    }
+
+    function postButtonsHtml(st) {
+      const post = postOf(st.code);
+      const disabled = st.email ? "" : 'disabled title="No directory email — the statement can’t route to a login"';
+      return `
+        <button type="button" class="ghost-btn no-print" data-post-statement="${escapeHtml(st.code)}" ${disabled}>
+          ${post ? "Re-post" : "Post to rep review"}
+        </button>
+        ${post ? `<button type="button" class="ghost-btn no-print" data-unpost-statement="${escapeHtml(st.code)}">Retract</button>` : ""}`;
+    }
+
+    function excPanelHtml() {
+      const reqs = review?.exceptions || [];
+      if (!review) return "";
+      const openCount = reqs.filter((r) => r.status === "open").length;
+      const windowText = review.windowOpen
+        ? `Exception window open through ${escapeHtml(review.windowCloses || "")}`
+        : `Exception window closed ${escapeHtml(review.windowCloses || "")}`;
+      if (!reqs.length && !(review.posts || []).length) return "";
+      return `
+      <div class="surface" style="margin-bottom: 20px;">
+        <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+          <span style="font-weight:800; font-size:15px;">Exception requests — ${escapeHtml(monthLabel(review.month))}</span>
+          ${openCount ? `<span class="badge ineligible">${openCount} open</span>` : '<span class="badge eligible">none open</span>'}
+          <span class="asof">${windowText} · ${(review.posts || []).length} statement(s) posted</span>
+        </div>
+        ${reqs.map((r) => `
+          <div style="border:1.5px solid #dbe1ea; border-radius:12px; padding:12px 14px; margin-top:10px;">
+            <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+              <strong>${escapeHtml(r.repName || r.code)}</strong>
+              <span class="badge ${r.status === "open" ? "ineligible" : "eligible"}">${r.status.toUpperCase()}</span>
+              <span class="asof">filed ${new Date(r.createdAt).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}</span>
+            </div>
+            <div style="font-size:12.5px; margin:6px 0;">${r.lines.map((l) => `<strong>${escapeHtml(l.product || l.invoice || "line")}</strong>${l.invoice ? ` <span class="asof">(${escapeHtml(l.invoice)})</span>` : ""}`).join(", ")}</div>
+            <div style="font-size:12.5px; background:#f8fafc; border-radius:8px; padding:8px 10px;">${escapeHtml(r.note)}</div>
+            ${r.status === "resolved"
+              ? `<div style="font-size:12.5px; margin-top:6px; color:#166534;"><strong>${escapeHtml(r.resolvedByName || "Resolved")}:</strong> ${escapeHtml(r.response || "Resolved.")}</div>`
+              : `<div style="display:flex; gap:8px; margin-top:8px; align-items:center;">
+                  <input type="text" data-exc-response="${escapeHtml(r.id)}" placeholder="Response the rep will see (e.g. 'Corrected — $42.10 added to next month')" style="flex:1; border:1.5px solid #dbe1ea; border-radius:8px; padding:8px 10px; font-size:12.5px;">
+                  <button type="button" class="ghost-btn" data-exc-resolve="${escapeHtml(r.id)}">Resolve</button>
+                </div>`}
+          </div>`).join("")}
+      </div>`;
+    }
+
+    async function loadReviewStatus() {
+      if (!data?.month) { review = null; return; }
+      try {
+        const res = await fetch(`/api/field-commissions/review-status?month=${encodeURIComponent(data.month)}`, { credentials: "same-origin" });
+        review = res.ok ? await res.json() : null;
+      } catch { review = null; }
+    }
+
     function statementHtml(st) {
       const t = st.totals;
       const e = st.eligibility;
@@ -447,7 +519,9 @@
             ${e.eligible ? "Eligible" : "Below eligibility"} — ${money(e.trailingSerialRevenue, 0)} / ${money(e.required, 0)} trailing ${e.months} mo
           </span>` : `<span class="badge heldmonth" title="Showroom plan has no rolling-revenue requirement">${money(e.trailingSerialRevenue, 0)} trailing serial</span>`}
           <span style="flex: 1;"></span>
+          ${postBadgeHtml(st)}
           <a class="ghost-btn no-print" style="text-decoration: none;" href="/api/field-commissions/statement-pdf?month=${encodeURIComponent(data.month)}&code=${encodeURIComponent(st.code)}" download>Download PDF</a>
+          ${postButtonsHtml(st)}
           <button type="button" class="ghost-btn no-print" data-email-statement="${escapeHtml(st.code)}"
             ${st.email ? "" : 'disabled title="No email on file — add one in the User Admin directory"'}>
             ${st.email ? `Email to ${escapeHtml(st.email)}` : "No directory email"}
@@ -524,11 +598,11 @@
 
         ${st.excludedLines.length ? `
         <details class="excluded no-print" ${st.excludedLines.some((l) => editorKey === l.lineKey) ? "open" : ""}>
-          <summary>${st.excludedLines.length} excluded line(s) — RTV / SVC, not commissioned (a payout % override brings one back into pay)</summary>
+          <summary>${st.excludedLines.length} excluded line(s) — RTV / SVC not commissioned, plus exec-omitted lines (a payout % override brings an RTV back into pay; clearing an omit restores the line)</summary>
           <table class="lines" style="margin-top: 8px;">
             <thead><tr><th>Invoice</th><th>Customer</th><th>Model</th><th>Serial #</th><th class="num">Qty</th><th class="num">List</th><th>Reason</th><th></th></tr></thead>
             <tbody>${st.excludedLines.map((l) => `
-              <tr><td class="mono">${escapeHtml(l.invoice)}${adjBadge(l)}</td><td>${escapeHtml(l.customer)}</td><td>${escapeHtml(l.product)}</td>
+              <tr><td class="mono">${escapeHtml(l.invoice)}${l.omitted ? ' <span class="badge adjusted">omitted</span>' : ""}${adjBadge(l)}</td><td>${escapeHtml(l.customer)}</td><td>${escapeHtml(l.product)}</td>
               <td class="mono">${escapeHtml(l.serialNumber || "—")}</td><td class="num">${l.qty}</td><td class="num">${money(l.revenue)}</td>
               <td>${escapeHtml(l.reason)}</td>
               <td class="num"><button type="button" class="edit-btn" data-edit="${escapeHtml(l.lineKey)}" data-kind="excluded" title="Override — a payout % puts this line back into pay">✎</button></td></tr>${editorKey === l.lineKey ? editorHtml(l, "excluded") : ""}`).join("")}</tbody>
@@ -574,6 +648,7 @@
       el("statements").innerHTML = rows.length
         ? rows.map(statementHtml).join("")
         : '<div class="surface"><div class="empty">No Field Sales Consultant statements this month. Assign commission plans in User Admin, or check "Show all salespeople".</div></div>';
+      el("excPanel").innerHTML = excPanelHtml();
     }
 
     async function load(month) {
@@ -585,6 +660,7 @@
         el("monthSelect").innerHTML = (data.months || []).map((m) =>
           `<option value="${m}" ${m === data.month ? "selected" : ""}>${monthLabel(m)}</option>`).join("");
         renderPlan(data.plans || (data.plan ? [data.plan] : []));
+        await loadReviewStatus();
         render();
         el("errorBanner").className = "banner";
       } catch (err) {
@@ -635,6 +711,57 @@
       }
     });
 
+    // ---- Post / retract statements to the rep review page ----
+    async function reviewAction(path, body, btn, busyLabel) {
+      const original = btn.textContent;
+      btn.disabled = true;
+      btn.textContent = busyLabel;
+      try {
+        const res = await fetch(path, {
+          method: "POST",
+          credentials: "same-origin",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body)
+        });
+        const payload = await res.json();
+        if (!res.ok) throw new Error(payload.error || "Request failed.");
+        await loadReviewStatus();
+        render();
+      } catch (err) {
+        el("errorBanner").textContent = err.message;
+        el("errorBanner").className = "banner error show";
+        btn.textContent = original;
+        btn.disabled = false;
+      }
+    }
+
+    document.addEventListener("click", async (event) => {
+      const postBtn = event.target.closest?.("[data-post-statement]");
+      if (postBtn && !postBtn.disabled) {
+        await reviewAction("/api/field-commissions/post", { month: data.month, code: postBtn.dataset.postStatement }, postBtn, "Posting…");
+        return;
+      }
+      const unpostBtn = event.target.closest?.("[data-unpost-statement]");
+      if (unpostBtn) {
+        if (!confirm("Retract this posted statement? The rep will no longer see this month.")) return;
+        await reviewAction("/api/field-commissions/unpost", { month: data.month, code: unpostBtn.dataset.unpostStatement }, unpostBtn, "Retracting…");
+        return;
+      }
+      const resolveBtn = event.target.closest?.("[data-exc-resolve]");
+      if (resolveBtn) {
+        const id = resolveBtn.dataset.excResolve;
+        const input = document.querySelector(`[data-exc-response="${CSS.escape(id)}"]`);
+        const response = (input?.value || "").trim();
+        if (!response) {
+          el("errorBanner").textContent = "Add a response the rep will see before resolving.";
+          el("errorBanner").className = "banner error show";
+          return;
+        }
+        await reviewAction(`/api/field-commissions/exceptions/${encodeURIComponent(id)}/resolve`, { response }, resolveBtn, "Resolving…");
+        return;
+      }
+    });
+
     // ---- Override editor ----
     document.addEventListener("click", async (event) => {
       const editBtn = event.target.closest?.("[data-edit]");
@@ -662,6 +789,7 @@
             serialCost: val(".ov-cost") || null,
             ratePercent: val(".ov-rate") || null,
             fullCreditTo: row.querySelector(".ov-credit-on")?.checked ? val(".ov-credit-to") : "",
+            omit: !!row.querySelector(".ov-omit")?.checked,
             note: val(".ov-note")
           };
 

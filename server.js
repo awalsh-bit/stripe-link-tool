@@ -316,6 +316,21 @@ import {
   computeFieldSalesStatements
 } from "./lib/field-sales-commissions.js";
 import { buildCommissionStatementPdf } from "./lib/commission-statement-pdf.js";
+import {
+  upsertCommissionPost,
+  deleteCommissionPost,
+  listCommissionPostsForMonth,
+  listPostedMonthsForEmail,
+  getCommissionPostForEmail,
+  createCommissionException,
+  listCommissionExceptionsForMonth,
+  listCommissionExceptionsForRep,
+  countOpenCommissionExceptions,
+  getCommissionException,
+  resolveCommissionException,
+  exceptionDeadlineDate,
+  exceptionWindowOpen
+} from "./lib/commission-review-postgres.js";
 import { saveTermsSignature, listTermsSignatures, TERMS_VERSION } from "./lib/terms-signatures-postgres.js";
 import { extractRetailDeckFloors } from "./lib/retaildeck-prices.js";
 import {
@@ -553,6 +568,7 @@ const INTERNAL_PAGE_PATHS = new Set([
   "/driver.html",
   "/message-automations.html",
   "/aging-inventory.html",
+  "/my-commissions.html",
   "/maintenance/index.html",
   "/maintenance/appliance-signup.html",
   "/maintenance/hvac-signup.html",
@@ -767,6 +783,7 @@ const PAGE_LABELS = {
   "/driver.html": "Driver Run Sheet",
   "/message-automations.html": "Text Automations",
   "/aging-inventory.html": "Aging Inventory",
+  "/my-commissions.html": "My Commission Review",
   "/maintenance/index.html": "Maintenance Enrollment (Demo)",
   "/maintenance/appliance-signup.html": "Maintenance Appliance Signup",
   "/maintenance/hvac-signup.html": "Maintenance HVAC Signup",
@@ -862,6 +879,7 @@ const PAGE_CATEGORIES = [
     label: "Sales",
     pages: [
       "/salesdashboard.html",
+      "/my-commissions.html",
       "/shop-orders.html",
       "/sales-order-health.html",
       "/quote-follow-up.html",
@@ -1476,6 +1494,17 @@ app.use(async (req, res, next) => {
     error: "Authentication required."
   });
 });
+
+// User-clicked emails keep the verified base from address but stamp the
+// signed-in sender as reply_to, so client replies land in that person's
+// inbox. reply_to is a per-message Resend field — no dashboard config, no
+// verification needed. Automated sends (webhooks, sweeps) omit it.
+function userReplyTo(req) {
+  const email = String(req?.authUser?.email || "").trim();
+  if (!email) return undefined;
+  const name = String(req.authUser?.displayName || "").trim();
+  return name ? `${name} <${email}>` : email;
+}
 
 const STRIPE_WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET || "";
 const RESEND_API_KEY = process.env.RESEND_API_KEY || "";
@@ -3470,6 +3499,7 @@ app.post("/api/spec-packages/:navId/email", requirePagePermission("/spec-package
       },
       body: JSON.stringify({
         from: RESEND_FROM_EMAIL,
+        reply_to: userReplyTo(req),
         to: uniqueRecipients,
         subject,
         text: bodyText,
@@ -5658,6 +5688,7 @@ app.post("/api/service-estimates/send-email", requirePagePermission("/service-es
       headers: { "Authorization": `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" },
       body: JSON.stringify({
         from: SHOP_ORDER_NOTIFY_FROM,
+        reply_to: userReplyTo(req),
         to: [to],
         subject: `Your Wilson service estimate${estimate.svNumber ? " — " + estimate.svNumber : ""}`,
         text: `Your repair estimate is ready to review and approve: ${url}`,
@@ -7650,6 +7681,7 @@ app.post("/api/field-commissions/statement-email", requireExecutiveApi, async (r
       },
       body: JSON.stringify({
         from: RESEND_FROM_EMAIL,
+        reply_to: userReplyTo(req),
         to: [email],
         subject,
         text: bodyLines.join("\n"),
@@ -7677,6 +7709,236 @@ app.post("/api/field-commissions/statement-email", requireExecutiveApi, async (r
   } catch (err) {
     console.error("Statement email error:", err.message);
     return res.status(err.statusCode || 500).json({ error: err.message || "Unable to email the statement." });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Commission review: post final statements to the sales team's review page
+// (my-commissions.html), collect exception requests within the 45-day window.
+// Statements on commissions.html recompute live, so posting freezes a
+// snapshot the rep can rely on. Per-rep posting; re-posting replaces.
+// ---------------------------------------------------------------------------
+
+// Exec: post (or re-post) one rep's statement for a month.
+app.post("/api/field-commissions/post", requireExecutiveApi, async (req, res) => {
+  try {
+    const month = String(req.body?.month || "");
+    const code = String(req.body?.code || "").trim().toUpperCase();
+    if (!/^\d{4}-\d{2}$/.test(month) || !code) {
+      return res.status(400).json({ error: "Missing statement month or salesperson code." });
+    }
+    const { month: resolvedMonth, statements } = await computeFieldCommissionMonth(month);
+    if (resolvedMonth !== month) {
+      return res.status(400).json({ error: "No commission data for that month." });
+    }
+    const statement = statements.find((s) => s.code === code);
+    if (!statement) {
+      return res.status(404).json({ error: "No statement for that salesperson this month." });
+    }
+    if (!statement.email) {
+      return res.status(400).json({ error: "No directory email for this salesperson — add one in User Admin so the statement can route to their login." });
+    }
+    await upsertCommissionPost({
+      month, code,
+      repEmail: statement.email,
+      repName: statement.name,
+      statement,
+      byEmail: req.authUser?.email || "",
+      byName: req.authUser?.displayName || ""
+    });
+    recordAudit({
+      ip: req.ip, actorUserId: req.authUser?.id || null,
+      action: "commission_statement_posted", targetUserId: null,
+      detail: { month, code, repEmail: statement.email, total: statement.totals.commission }
+    }).catch(() => {});
+    const posts = await listCommissionPostsForMonth(month);
+    return res.json({ ok: true, posts });
+  } catch (err) {
+    console.error("Commission post failed:", err.message);
+    return res.status(500).json({ error: "Unable to post the statement." });
+  }
+});
+
+// Exec: retract a posted statement.
+app.post("/api/field-commissions/unpost", requireExecutiveApi, async (req, res) => {
+  try {
+    const month = String(req.body?.month || "");
+    const code = String(req.body?.code || "").trim().toUpperCase();
+    const removed = await deleteCommissionPost(month, code);
+    if (removed) {
+      recordAudit({
+        ip: req.ip, actorUserId: req.authUser?.id || null,
+        action: "commission_statement_retracted", targetUserId: null,
+        detail: { month, code }
+      }).catch(() => {});
+    }
+    const posts = await listCommissionPostsForMonth(month);
+    return res.json({ ok: true, removed, posts });
+  } catch (err) {
+    console.error("Commission unpost failed:", err.message);
+    return res.status(500).json({ error: "Unable to retract the statement." });
+  }
+});
+
+// Exec: posting + exception status for a month (drives the commissions.html
+// Post buttons and the exceptions panel).
+app.get("/api/field-commissions/review-status", requireExecutiveApi, async (req, res) => {
+  try {
+    const month = String(req.query.month || "");
+    if (!/^\d{4}-\d{2}$/.test(month)) return res.status(400).json({ error: "Missing statement month." });
+    const [posts, exceptions, openTotal] = await Promise.all([
+      listCommissionPostsForMonth(month),
+      listCommissionExceptionsForMonth(month),
+      countOpenCommissionExceptions()
+    ]);
+    return res.json({
+      month, posts, exceptions,
+      openExceptionsTotal: openTotal,
+      windowOpen: exceptionWindowOpen(month),
+      windowCloses: exceptionDeadlineDate(month)
+    });
+  } catch (err) {
+    console.error("Commission review status failed:", err.message);
+    return res.status(500).json({ error: "Unable to load review status." });
+  }
+});
+
+// Exec: resolve an exception request with a response the rep can read.
+app.post("/api/field-commissions/exceptions/:id/resolve", requireExecutiveApi, async (req, res) => {
+  try {
+    const resolved = await resolveCommissionException(req.params.id, {
+      byEmail: req.authUser?.email || "",
+      byName: req.authUser?.displayName || "",
+      response: String(req.body?.response || "")
+    });
+    if (!resolved) {
+      const existing = await getCommissionException(req.params.id);
+      return res.status(existing ? 409 : 404).json({ error: existing ? "Already resolved." : "Exception request not found." });
+    }
+    retirePushedNotificationsByRef(`cex:${resolved.id}`).catch(() => {});
+    recordAudit({
+      ip: req.ip, actorUserId: req.authUser?.id || null,
+      action: "commission_exception_resolved", targetUserId: null,
+      detail: { id: resolved.id, month: resolved.month, code: resolved.code, response: resolved.response.slice(0, 300) }
+    }).catch(() => {});
+    return res.json({ ok: true, exception: resolved });
+  } catch (err) {
+    console.error("Commission exception resolve failed:", err.message);
+    return res.status(500).json({ error: "Unable to resolve the request." });
+  }
+});
+
+// Rep: their own posted statements (routed by directory email = login email).
+app.get("/api/my-commissions", requirePagePermission("/my-commissions.html"), async (req, res) => {
+  try {
+    const email = String(req.authUser?.email || "").toLowerCase();
+    if (!email) return res.status(400).json({ error: "Your login has no email — statements route by directory email." });
+    const posted = await listPostedMonthsForEmail(email);
+    const months = posted.map((p) => p.month);
+    if (!months.length) return res.json({ months: [], month: null, post: null, exceptions: [] });
+    const month = months.includes(String(req.query.month || "")) ? String(req.query.month) : months[0];
+    const [post, exceptions] = await Promise.all([
+      getCommissionPostForEmail(email, month),
+      listCommissionExceptionsForRep(email, month)
+    ]);
+    return res.json({
+      months, month, post, exceptions,
+      windowOpen: exceptionWindowOpen(month),
+      windowCloses: exceptionDeadlineDate(month)
+    });
+  } catch (err) {
+    console.error("My commissions failed:", err.message);
+    return res.status(500).json({ error: "Unable to load your commission review." });
+  }
+});
+
+// Rep: file an exception request against posted lines. Enforced server-side:
+// the post must exist for THIS login, the 45-day window must be open, and
+// every requested line must exist in the posted snapshot.
+app.post("/api/my-commissions/exception", requirePagePermission("/my-commissions.html"), async (req, res) => {
+  try {
+    const email = String(req.authUser?.email || "").toLowerCase();
+    const month = String(req.body?.month || "");
+    const note = String(req.body?.note || "").trim();
+    const requested = Array.isArray(req.body?.lines) ? req.body.lines : [];
+    if (!email || !/^\d{4}-\d{2}$/.test(month)) return res.status(400).json({ error: "Missing statement month." });
+    if (!requested.length) return res.status(400).json({ error: "Check at least one model line." });
+    if (note.length < 5) return res.status(400).json({ error: "Tell us what's wrong and why (a sentence or two)." });
+
+    const post = await getCommissionPostForEmail(email, month);
+    if (!post) return res.status(404).json({ error: "No posted statement for that month." });
+    if (!exceptionWindowOpen(month)) {
+      return res.status(400).json({ error: `The exception window for this month closed on ${exceptionDeadlineDate(month)}.` });
+    }
+
+    // Validate every requested line against the snapshot and rebuild the
+    // stored entries from the snapshot itself (never trust client copies).
+    const st = post.statement || {};
+    const sections = [
+      ["new", st.newLines], ["closeout", st.closeoutLines], ["protect", st.protectLines],
+      ["released", st.releasedLines], ["held", st.stillHeldLines], ["excluded", st.excludedLines]
+    ];
+    const byKey = new Map();
+    for (const [section, lines] of sections) {
+      for (const line of lines || []) {
+        if (line?.lineKey) byKey.set(`${section}|${line.lineKey}`, { section, line });
+      }
+    }
+    const lines = [];
+    for (const r of requested.slice(0, 60)) {
+      const hit = byKey.get(`${String(r.section || "")}|${String(r.lineKey || "")}`);
+      if (!hit) return res.status(400).json({ error: "One of the checked lines is not on your posted statement — reload and try again." });
+      lines.push({
+        lineKey: hit.line.lineKey,
+        section: hit.section,
+        invoice: hit.line.invoice || "",
+        product: hit.line.product || "",
+        customer: hit.line.customer || ""
+      });
+    }
+
+    const id = await createCommissionException({
+      month, code: post.code, repEmail: email, repName: post.repName, lines, note
+    });
+    recordAudit({
+      ip: req.ip, actorUserId: req.authUser?.id || null,
+      action: "commission_exception_requested", targetUserId: null,
+      detail: { id, month, code: post.code, lineCount: lines.length, models: lines.map((l) => l.product).slice(0, 10), note: note.slice(0, 300) }
+    }).catch(() => {});
+
+    // Yellow flag to the commission-exception job codes (E60 + E80 by
+    // default, env-overridable). One copy per holder, all under the same
+    // ref so resolving retires every copy. Falls back to whoever posted
+    // the statement if no directory entry holds either code.
+    try {
+      const codes = String(process.env.COMMISSION_EXCEPTION_JOB_CODES || "E60,E80")
+        .split(",").map((c) => c.trim().toUpperCase()).filter(Boolean);
+      const holders = [];
+      for (const jobCode of codes) holders.push(...await jobCodeHolders(jobCode));
+      const audienceEmails = [...new Set(holders.map((h) => String(h.email).toLowerCase()))];
+      if (!audienceEmails.length && post.postedByEmail) audienceEmails.push(post.postedByEmail);
+      const models = lines.map((l) => l.product).filter(Boolean);
+      for (const audienceEmail of audienceEmails) {
+        createPushedNotification({
+          severity: "yellow",
+          typeLabel: "Commission Exception",
+          refId: `cex:${id}`,
+          title: `${post.repName || post.code} requests a commission exception — ${commissionMonthLabel(month)}`,
+          body: `${models.length} line(s): ${models.slice(0, 4).join(", ")}${models.length > 4 ? "…" : ""}. “${note.slice(0, 200)}”. Review on the Sales Commissions page.`,
+          audienceEmail,
+          byEmail: email,
+          byName: post.repName || post.code
+        }).catch(() => {});
+      }
+    } catch (flagErr) {
+      console.error("Commission exception flag routing failed:", flagErr.message);
+    }
+
+    const exceptions = await listCommissionExceptionsForRep(email, month);
+    return res.json({ ok: true, id, exceptions });
+  } catch (err) {
+    console.error("Commission exception failed:", err.message);
+    return res.status(500).json({ error: "Unable to file the exception request." });
   }
 });
 
@@ -7751,8 +8013,13 @@ app.post("/api/field-commissions/override", requireExecutiveApi, async (req, res
       return res.status(400).json({ error: "Invalid salesperson code for full credit." });
     }
 
+    const omit = !!b.omit;
+    if (omit && !String(b.note || "").trim()) {
+      return res.status(400).json({ error: "Add a note explaining why the line is omitted (it shows on the statement)." });
+    }
+
     const saved = await saveCommissionOverride({
-      lineKey, sourceMonth, listPrice, serialCost, rate, fullCreditTo,
+      lineKey, sourceMonth, listPrice, serialCost, rate, fullCreditTo, omit,
       note: b.note, byEmail: req.authUser?.email || req.authUser?.username || ""
     });
 
@@ -7760,7 +8027,7 @@ app.post("/api/field-commissions/override", requireExecutiveApi, async (req, res
       ip: req.ip, actorUserId: req.authUser?.id || null,
       action: saved ? "commission_override_saved" : "commission_override_cleared",
       targetUserId: null,
-      detail: { lineKey: lineKey.slice(0, 120), sourceMonth, listPrice, serialCost, rate, fullCreditTo }
+      detail: { lineKey: lineKey.slice(0, 120), sourceMonth, listPrice, serialCost, rate, fullCreditTo, omit, note: String(b.note || "").slice(0, 200) }
     }).catch(() => {});
 
     return res.json({ ok: true, cleared: !saved });
@@ -10501,35 +10768,37 @@ app.post("/api/credit-applications/:token/email-result", requirePagePermission("
     const legalName = company.legalName || application.legalName || "your company";
     const contactFirst = String(company.contactName || application.contactName || "").trim().split(/\s+/)[0] || "there";
     const termsUrl = `${getServiceBaseUrl(req)}/builder-credit-terms.pdf`;
+    const senderName = String(req.authUser?.displayName || "").trim();
+    const termsPdf = getBuilderTermsPdfBase64();
+
+    // Written like a person from accounting would write it — short prose
+    // paragraphs, no data tables, no reference codes in the body. The terms
+    // ride along as an attachment (with a link fallback if the PDF is ever
+    // missing from the deploy). Replies go to whoever clicked Send.
+    const p = (text) => `<p style="font-size:14px;line-height:1.55;margin:0 0 16px;">${text}</p>`;
+    const signoffHtml = `<p style="font-size:14px;line-height:1.55;margin:0;">Thank you,${senderName ? `<br/>${esc(senderName)}` : ""}<br/>Wilson AC &amp; Appliance Accounting</p>`;
+    const signoffText = `Thank you,\n${senderName ? senderName + "\n" : ""}Wilson AC & Appliance Accounting`;
 
     let subject;
     let bodyHtml;
+    let bodyText;
     if (application.decision === "approved") {
-      subject = "Your Wilson AC & Appliance trade account is approved";
-      bodyHtml = `
-        <p style="font-size:14px;">Hi ${esc(contactFirst)},</p>
-        <p style="font-size:14px;">Good news — the trade partner credit application for
-        <strong>${esc(legalName)}</strong> has been <strong style="color:#065f46;">approved</strong>.</p>
-        <table cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin:10px 0;">
-          <tr><td style="padding:4px 14px 4px 0;color:#6b7280;font-size:12px;">Approved credit line</td><td style="padding:4px 0;font-size:14px;font-weight:bold;">${esc(formatCreditLineForDisplay(application.decisionCreditLine))}</td></tr>
-          <tr><td style="padding:4px 14px 4px 0;color:#6b7280;font-size:12px;">Application reference</td><td style="padding:4px 0;font-size:14px;">${esc(token)}</td></tr>
-        </table>
-        <p style="font-size:14px;">Your account is governed by our
-        <a href="${esc(termsUrl)}">Builder &amp; Trade Account Credit Terms</a> — keep a copy for your records.
-        To place an order using your account, please contact your sales consultant.</p>
-        <p style="font-size:14px;">Welcome aboard,<br/>Wilson AC &amp; Appliance Accounting</p>`;
+      const line = formatCreditLineForDisplay(application.decisionCreditLine);
+      subject = `${legalName} Credit App - Wilson AC & Appliance`;
+      const termsSentence = termsPdf
+        ? "We've attached our credit terms for your records, which cover payment, deposits, and ordering."
+        : `Our credit terms, which cover payment, deposits, and ordering, are here for your records: ${termsUrl}`;
+      const para1 = `We received your credit application and wanted to let you know that it has been approved, and your account has been set up with a ${line} limit on net 30 terms. As we continue to work together, we're happy to revisit the limit if your needs grow.`;
+      const para2 = `${termsSentence} Please don't hesitate to contact us with any questions as we get started. Glad to have you on board and we look forward to working with you!`;
+      bodyHtml = p(`Hi ${esc(contactFirst)},`) + p(esc(para1)) + p(esc(para2)) + signoffHtml;
+      bodyText = `Hi ${contactFirst},\n\n${para1}\n\n${para2}\n\n${signoffText}`;
     } else {
-      subject = "Your Wilson AC & Appliance credit application";
-      bodyHtml = `
-        <p style="font-size:14px;">Hi ${esc(contactFirst)},</p>
-        <p style="font-size:14px;">Thank you for applying for a trade partner account for
-        <strong>${esc(legalName)}</strong>. After review, we're unable to approve credit terms at this time.</p>
-        ${application.decisionReason ? `<p style="font-size:14px;"><span style="color:#6b7280;font-size:12px;">Reason:</span><br/>${esc(application.decisionReason)}</p>` : ""}
-        <p style="font-size:14px;">We'd still love to work with you — purchases are always welcome on
-        standard payment (card or check at time of sale), and you're welcome to reapply as circumstances
-        change. Questions? Just reply to this email.</p>
-        <p style="font-size:14px;">Wilson AC &amp; Appliance Accounting<br/>
-        <span style="color:#6b7280;font-size:12px;">Application reference ${esc(token)}</span></p>`;
+      subject = `${legalName} Credit App - Wilson AC & Appliance`;
+      const para1 = `Thank you for applying for a trade account for ${legalName} — we appreciate you thinking of us. After reviewing the application, we aren't able to extend credit terms right now.`;
+      const reasonPara = String(application.decisionReason || "").trim();
+      const para2 = `We'd still love to work with you. Purchases are always welcome on standard payment at the time of sale, and you're welcome to reapply down the road as things change. If any of this raises questions, just reply — this email comes straight to us.`;
+      bodyHtml = p(`Hi ${esc(contactFirst)},`) + p(esc(para1)) + (reasonPara ? p(esc(reasonPara)) : "") + p(esc(para2)) + signoffHtml;
+      bodyText = `Hi ${contactFirst},\n\n${para1}\n\n${reasonPara ? reasonPara + "\n\n" : ""}${para2}\n\n${signoffText}`;
     }
 
     const response = await fetch("https://api.resend.com/emails", {
@@ -10541,9 +10810,15 @@ app.post("/api/credit-applications/:token/email-result", requirePagePermission("
       body: JSON.stringify({
         from: RESEND_FROM_EMAIL,
         to: [email],
-        reply_to: "accounting@wilsonappliance.com",
+        // Replies go to the accounting person who clicked Send; the shared
+        // accounting inbox stays the fallback for sessions without an email.
+        reply_to: userReplyTo(req) || "accounting@wilsonappliance.com",
         subject,
-        html: `<div style="font-family:Arial,Helvetica,sans-serif;color:#1f2937;max-width:600px;">${bodyHtml}</div>`
+        text: bodyText,
+        html: `<div style="font-family:Arial,Helvetica,sans-serif;color:#1f2937;max-width:600px;">${bodyHtml}</div>`,
+        ...(application.decision === "approved" && termsPdf
+          ? { attachments: [{ filename: "builder-credit-terms.pdf", content: termsPdf }] }
+          : {})
       })
     });
     if (!response.ok) {
@@ -11411,6 +11686,19 @@ app.get("/api/payment-link-status", requirePagePermission("/dashboard.html"), as
 // Emailed credit card receipts (Paid History -> Email Receipt)
 // ---------------------------------------------------------------------------
 
+// Builder & Trade credit terms PDF, attached to approval result emails.
+let builderTermsPdfCache = null;
+function getBuilderTermsPdfBase64() {
+  if (builderTermsPdfCache === null) {
+    try {
+      builderTermsPdfCache = fs.readFileSync(path.join(__dirname, "builder-credit-terms.pdf")).toString("base64");
+    } catch {
+      builderTermsPdfCache = false; // missing from the deploy: fall back to the terms link
+    }
+  }
+  return builderTermsPdfCache || null;
+}
+
 let receiptLogoBytes = null;
 function getReceiptLogoBytes() {
   if (receiptLogoBytes === null) {
@@ -11620,6 +11908,7 @@ app.post("/api/receipts/email", requirePagePermission("/dashboard.html"), async 
       },
       body: JSON.stringify({
         from: RESEND_FROM_EMAIL,
+        reply_to: userReplyTo(req),
         to: [email],
         subject,
         text: bodyLines.join("\n"),

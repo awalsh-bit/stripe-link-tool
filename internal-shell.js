@@ -233,6 +233,7 @@
         title: "Sales Tools",
         children: [
           { href: "salesdashboard.html", title: "Sales Dashboard" },
+          { href: "my-commissions.html", title: "My Commission Review" },
           { href: "sales-order-health.html", title: "Sales Order Health Report" },
           { href: "quote-follow-up.html", title: "Quote Follow-Up" },
           { href: "aging-inventory.html", title: "Aging Inventory" },

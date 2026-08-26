@@ -221,6 +221,8 @@
     }
     .jt-row:hover { border-color: rgba(var(--primary-rgb), 0.5); background: var(--primary-tint); }
     .jt-chip { border-radius: 999px; padding: 2px 9px; font-size: 11.5px; font-weight: 700; }
+    .jt-group-label { font-size: 10.5px; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted, #6b7280); margin: 10px 2px 4px; }
+    .jt-group-label:first-child { margin-top: 2px; }
     .jt-chip.route { background: var(--success-bg); color: var(--success-text); }
     .jt-chip.count { background: #f3f4f6; color: var(--muted); font-weight: 600; }
     .jt-chip.pages { background: var(--primary-tint); color: var(--primary); }
@@ -931,18 +933,50 @@
     // below manages them); loadUsers() puts them in state.jobTitles.
     // "" = none. Someone holding a since-deleted/legacy title keeps it —
     // the select shows it so a save doesn't silently wipe it.
+
+    // Titles grouped Exempt (E##) → Non-exempt (NE##) → no code, numeric
+    // within each group, so the dropdown and the chips list read in order.
+    function groupedJobTitles() {
+      const groups = { E: [], NE: [], other: [] };
+      for (const t of state.jobTitles || []) {
+        const m = /^(NE|E)\s*-?\s*(\d+)/.exec(String(t.code || "").trim().toUpperCase());
+        if (m) groups[m[1]].push({ t, n: Number(m[2]) });
+        else groups.other.push({ t, n: 0 });
+      }
+      const byNum = (a, b) => a.n - b.n || a.t.name.localeCompare(b.t.name);
+      groups.E.sort(byNum);
+      groups.NE.sort(byNum);
+      groups.other.sort((a, b) => a.t.name.localeCompare(b.t.name));
+      return [
+        { key: "E", label: "Exempt (E)", titles: groups.E.map((x) => x.t) },
+        { key: "NE", label: "Non-exempt (NE)", titles: groups.NE.map((x) => x.t) },
+        { key: "other", label: "No code yet", titles: groups.other.map((x) => x.t) }
+      ].filter((g) => g.titles.length);
+    }
+
     function commissionPlanSelect(value) {
       const sel = document.createElement("select");
       const none = document.createElement("option");
       none.value = "";
       none.textContent = "— None —";
       sel.appendChild(none);
-      const names = (state.jobTitles || []).map((t) => t.name);
-      if (value && !names.includes(value)) names.push(value);
-      for (const plan of names) {
+      let valueInList = false;
+      for (const group of groupedJobTitles()) {
+        const og = document.createElement("optgroup");
+        og.label = group.label;
+        for (const t of group.titles) {
+          const opt = document.createElement("option");
+          opt.value = t.name;
+          opt.textContent = t.code ? `${t.code} — ${t.name}` : t.name;
+          if (t.name === value) valueInList = true;
+          og.appendChild(opt);
+        }
+        sel.appendChild(og);
+      }
+      if (value && !valueInList) {
         const opt = document.createElement("option");
-        opt.value = plan;
-        opt.textContent = plan;
+        opt.value = value;
+        opt.textContent = `${value} (legacy title)`;
         sel.appendChild(opt);
       }
       sel.value = value || "";
@@ -1275,17 +1309,20 @@
       if (!titleList || !codeList) return;
 
       titleList.textContent = "";
-      for (const title of state.jobTitles || []) {
-        const row = el("button", { class: "jt-row", type: "button" }, [
-          title.code
-            ? el("span", { class: "jt-chip jobcode", text: title.code })
-            : el("span", { class: "jt-chip nocode", text: "no code yet" }),
-          el("span", { text: title.name }),
-          title.notifyWebOrders ? el("span", { class: "jt-chip route", text: "web-order alerts" }) : null,
-          el("span", { class: "jt-chip count", text: `${titleHolderCount(title.name)} on team` })
-        ].filter(Boolean));
-        row.addEventListener("click", () => openTitleEditor(title));
-        titleList.appendChild(row);
+      for (const group of groupedJobTitles()) {
+        titleList.appendChild(el("div", { class: "jt-group-label", text: group.label }));
+        for (const title of group.titles) {
+          const row = el("button", { class: "jt-row", type: "button" }, [
+            title.code
+              ? el("span", { class: "jt-chip jobcode", text: title.code })
+              : el("span", { class: "jt-chip nocode", text: "no code yet" }),
+            el("span", { text: title.name }),
+            title.notifyWebOrders ? el("span", { class: "jt-chip route", text: "web-order alerts" }) : null,
+            el("span", { class: "jt-chip count", text: `${titleHolderCount(title.name)} on team` })
+          ].filter(Boolean));
+          row.addEventListener("click", () => openTitleEditor(title));
+          titleList.appendChild(row);
+        }
       }
       if (!(state.jobTitles || []).length) {
         titleList.appendChild(el("div", { class: "muted small-text", text: "No job titles yet." }));

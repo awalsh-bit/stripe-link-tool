@@ -6640,6 +6640,7 @@ app.post("/api/subzero/inquiry", async (req, res) => {
         title: `${name} (${role || "prospect"}) — ${contact}`,
         body: message ? message.slice(0, 240) : "Consultation requested from the Sub-Zero landing page.",
         audienceEmail: consultant.email,
+        claimable: true, // DIBS-able like a service lead: first claim wins, the rest vanish
         byEmail: "subzero-landing",
         byName: "Sub-Zero Landing Page"
       }).catch(() => {});

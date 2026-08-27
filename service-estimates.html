@@ -140,6 +140,10 @@
           <input id="srEmail" type="email" placeholder="client@email.com" />
           <button type="button" class="se-btn primary" id="srSend">Email the link</button>
         </div>
+        <div class="se-send-row" style="margin-top:8px;">
+          <input id="srPhone" type="tel" placeholder="client mobile #" />
+          <button type="button" class="se-btn primary" id="srText">Text the link</button>
+        </div>
         <div class="se-hint" id="srNote">The link is on your clipboard, ready to call or text. Email goes out only when you click “Email the link.”</div>
       </div>
     </div>
@@ -168,6 +172,10 @@
       <div class="se-send-row" id="soEmailRow" style="margin-top:14px; display:none;">
         <input id="soEmailInput" type="email" placeholder="client@email.com" />
         <button type="button" class="se-btn primary" id="soEmailSend">Email the link</button>
+      </div>
+      <div class="se-send-row" id="soTextRow" style="margin-top:8px; display:none;">
+        <input id="soPhoneInput" type="tel" placeholder="client mobile #" />
+        <button type="button" class="se-btn primary" id="soTextSend">Text the link</button>
       </div>
       <div class="se-hint" id="soEmailNote" style="display:none;"></div>
       <div style="display:flex; gap:10px; margin-top:16px;">
@@ -322,6 +330,7 @@
           $("srLink").textContent = data.url;
           $("srLink").href = data.url;
           $("srEmail").value = $("seEmail").value.trim();
+          $("srPhone").value = $("sePhone").value.trim();
           $("srNote").textContent = "The link is on your clipboard, ready to call or text. Email goes out only when you click “Email the link.”";
           $("seResult").classList.add("show");
           try { await navigator.clipboard.writeText(data.url); } catch {}
@@ -346,6 +355,31 @@
         if (!state.created) return;
         sendEstimateEmail(state.created.token, $("srEmail").value, $("srSend"), $("srNote"));
       });
+      $("srText").addEventListener("click", () => {
+        if (!state.created) return;
+        sendEstimateText(state.created.token, $("srPhone").value, $("srText"), $("srNote"));
+      });
+
+      // ---- send the text (explicit click only — showroom number via Podium) ----
+      async function sendEstimateText(token, phone, btn, noteEl) {
+        const to = String(phone || "").replace(/\D/g, "");
+        if (to.length < 10) { setStatus("Add the client's 10-digit mobile number first.", "error"); return false; }
+        const original = btn.textContent;
+        btn.disabled = true;
+        btn.textContent = "Texting…";
+        try {
+          const data = await api("/api/service-estimates/send-text", { method: "POST", body: JSON.stringify({ token, phone: to }) });
+          btn.textContent = "Texted ✓";
+          if (noteEl) { noteEl.textContent = `Texted to ${data.to} from the showroom number — replies land in Podium.`; noteEl.style.display = "block"; }
+          setTimeout(() => { btn.textContent = original; btn.disabled = false; }, 2500);
+          return true;
+        } catch (err) {
+          setStatus(err.message, "error");
+          btn.textContent = original;
+          btn.disabled = false;
+          return false;
+        }
+      }
 
       // ---- list ----
       const PILL = { sent: "Sent", viewed: "Viewed", approved: "Approved", shopping: "Shopping", elsewhere: "Went elsewhere" };
@@ -424,6 +458,10 @@
         $("soEmailNote").style.display = "none";
         $("soEmailSend").disabled = false;
         $("soEmailSend").textContent = "Email the link";
+        $("soTextRow").style.display = canEmail ? "flex" : "none";
+        $("soPhoneInput").value = e.contactPhone || "";
+        $("soTextSend").disabled = false;
+        $("soTextSend").textContent = "Text the link";
         $("soCloseEst").textContent = e.closedAt ? "Reopen estimate" : "Close estimate";
         $("seOverlay").classList.add("show");
       }
@@ -453,6 +491,10 @@
       $("soEmailSend").addEventListener("click", () => {
         if (!state.open) return;
         sendEstimateEmail(state.open.token, $("soEmailInput").value, $("soEmailSend"), $("soEmailNote"));
+      });
+      $("soTextSend").addEventListener("click", () => {
+        if (!state.open) return;
+        sendEstimateText(state.open.token, $("soPhoneInput").value, $("soTextSend"), $("soEmailNote"));
       });
 
       async function load() {

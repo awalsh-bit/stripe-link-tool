@@ -5715,6 +5715,91 @@ app.post("/api/service-estimates/send-email", requirePagePermission("/service-es
   }
 });
 
+// Explicit, on-click TEXT of the estimate link — sent from the showroom
+// number via the Podium connection, replies land in the Podium inbox.
+// Same principle as email: nothing sends without the button press.
+app.post("/api/service-estimates/send-text", requirePagePermission("/service-estimates.html"), async (req, res) => {
+  try {
+    const token = String(req.body?.token || "").slice(0, 60);
+    const overridePhone = String(req.body?.phone || "").replace(/\D/g, "");
+    const estimate = await getServiceEstimateByToken(token);
+    if (!estimate) return res.status(404).json({ error: "Estimate not found." });
+    if (!podiumSendConfigured()) {
+      return res.status(503).json({ error: "Texting isn't connected — connect Podium in Text Automations first." });
+    }
+    const phone = overridePhone || String(estimate.contactPhone || "").replace(/\D/g, "");
+    if (phone.length !== 10 && !(phone.length === 11 && phone.startsWith("1"))) {
+      return res.status(400).json({ error: "Add the client's 10-digit mobile number first." });
+    }
+
+    const url = `https://${SERVICE_PUBLIC_HOST}/estimate.html?e=${estimate.token}`;
+    const first = String(estimate.customerName || "").trim().split(/\s+/)[0] || "";
+    const body =
+      `${first ? `Hi ${first}, this` : "This"} is Wilson AC & Appliance. ` +
+      `Your repair estimate${estimate.svNumber ? ` (${estimate.svNumber})` : ""} is ready to review and approve: ${url} ` +
+      `Questions? Just reply to this text.`;
+
+    const result = await sendCustomerText({ phone, body });
+    if (!result.ok) {
+      return res.status(502).json({ error: "The text didn't go through — try again or copy the link instead." });
+    }
+
+    recordAudit({
+      ip: req.ip, actorUserId: req.authUser?.id || null,
+      action: "service_estimate_texted", targetUserId: null,
+      detail: { svNumber: estimate.svNumber, customerName: estimate.customerName, to: phone, transport: result.transport }
+    }).catch(() => {});
+
+    return res.json({ ok: true, to: phone });
+  } catch (err) {
+    console.error("Estimate send-text failed:", err.message);
+    return res.status(500).json({ error: "Unable to send the text right now." });
+  }
+});
+
+// Explicit, on-click TEXT of a payment link from the dashboard queue.
+app.post("/api/payment-links/:id/send-text", requirePagePermission("/dashboard.html"), async (req, res) => {
+  try {
+    const id = String(req.params.id || "");
+    const overridePhone = String(req.body?.phone || "").replace(/\D/g, "");
+    const links = await readLinks();
+    const record = links.map((row) => normalizeLinkRecord({ ...row })).find((row) => String(row.id) === id);
+    if (!record) return res.status(404).json({ error: "Payment link not found." });
+    if (record.status === "paid") return res.status(400).json({ error: "That link is already paid." });
+    if (!record.paymentLinkUrl) return res.status(400).json({ error: "That record has no client link to send." });
+    if (!podiumSendConfigured()) {
+      return res.status(503).json({ error: "Texting isn't connected — connect Podium in Text Automations first." });
+    }
+    const phone = overridePhone || String(record.customerPhone || "").replace(/\D/g, "");
+    if (phone.length !== 10 && !(phone.length === 11 && phone.startsWith("1"))) {
+      return res.status(400).json({ error: "Add the client's 10-digit mobile number first." });
+    }
+
+    const first = String(record.customerName || "").trim().split(/\s+/)[0] || "";
+    const ref = String(record.salesOrder || record.description || "").trim();
+    const body =
+      `${first ? `Hi ${first}, this` : "This"} is Wilson AC & Appliance. ` +
+      `Here's your secure payment link${ref ? ` for ${ref}` : ""}: ${record.paymentLinkUrl} ` +
+      `Questions? Just reply to this text.`;
+
+    const result = await sendCustomerText({ phone, body });
+    if (!result.ok) {
+      return res.status(502).json({ error: "The text didn't go through — try again or copy the link instead." });
+    }
+
+    recordAudit({
+      ip: req.ip, actorUserId: req.authUser?.id || null,
+      action: "payment_link_texted", targetUserId: null,
+      detail: { linkId: id, salesOrder: record.salesOrder || "", customerName: record.customerName || "", to: phone, transport: result.transport }
+    }).catch(() => {});
+
+    return res.json({ ok: true, to: phone });
+  } catch (err) {
+    console.error("Payment link send-text failed:", err.message);
+    return res.status(500).json({ error: "Unable to send the text right now." });
+  }
+});
+
 // Estimates the client never opened: after the wait window (48h default) a
 // yellow flag goes to everyone holding the Senior Customer Service job code
 // (NE17) so they can chase the client. One flag per estimate, ever — the

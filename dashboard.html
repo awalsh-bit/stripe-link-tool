@@ -1876,6 +1876,85 @@
     });
   }
 
+  // ---- Text a payment link (queue) — explicit click, showroom number ----
+  function attachTextLinkActions() {
+    document.querySelectorAll('[data-action="text-link"]').forEach((button) => {
+      if (button.dataset.textBound === "true") return;
+      button.dataset.textBound = "true";
+
+      button.addEventListener("click", () => {
+        const parentRow = button.closest("tr");
+        const linkId = button.getAttribute("data-id") || "";
+        const prefillPhone = button.getAttribute("data-phone") || "";
+        const customerName = button.getAttribute("data-customer") || "";
+
+        const existing = parentRow.nextElementSibling;
+        if (existing?.classList?.contains("receipt-send-row") && existing.dataset.textLink === linkId) {
+          existing.remove();
+          return;
+        }
+        closeReceiptRows();
+
+        const sendRow = document.createElement("tr");
+        sendRow.className = "receipt-send-row";
+        sendRow.dataset.textLink = linkId;
+        sendRow.innerHTML = `
+          <td colspan="8">
+            <div class="receipt-send-inner">
+              <span class="receipt-send-label">Text the payment link${customerName ? ` for ${escapeHtml(customerName)}` : ""} to:</span>
+              <input type="tel" class="receipt-email-input" value="${escapeHtml(prefillPhone)}" placeholder="10-digit mobile #" />
+              <button class="btn-primary receipt-send-btn" type="button">Send Text</button>
+              <button class="btn-secondary receipt-cancel-btn" type="button">Cancel</button>
+              <span class="receipt-send-status"></span>
+            </div>
+          </td>
+        `;
+        parentRow.after(sendRow);
+
+        const phoneInput = sendRow.querySelector(".receipt-email-input");
+        const sendBtn = sendRow.querySelector(".receipt-send-btn");
+        const statusEl = sendRow.querySelector(".receipt-send-status");
+
+        sendRow.querySelector(".receipt-cancel-btn").addEventListener("click", () => sendRow.remove());
+        phoneInput.addEventListener("keydown", (event) => {
+          if (event.key === "Enter") { event.preventDefault(); sendBtn.click(); }
+        });
+        if (!prefillPhone) phoneInput.focus();
+
+        sendBtn.addEventListener("click", async () => {
+          const digits = phoneInput.value.replace(/\D/g, "");
+          if (digits.length < 10) {
+            statusEl.className = "receipt-send-status error";
+            statusEl.textContent = "Enter a 10-digit mobile number.";
+            return;
+          }
+          sendBtn.disabled = true;
+          sendBtn.textContent = "Sending...";
+          statusEl.className = "receipt-send-status";
+          statusEl.textContent = "";
+          try {
+            const res = await fetch(`/api/payment-links/${encodeURIComponent(linkId)}/send-text`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ phone: digits })
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || "Unable to send the text.");
+            statusEl.className = "receipt-send-status ok";
+            statusEl.textContent = `Texted from the showroom number — replies land in Podium.`;
+            sendBtn.textContent = "Sent";
+            setTimeout(() => sendRow.remove(), 3000);
+          } catch (err) {
+            statusEl.className = "receipt-send-status error";
+            statusEl.textContent = err.message;
+            sendBtn.disabled = false;
+            sendBtn.textContent = "Send Text";
+          }
+        });
+      });
+    });
+  }
+
   async function loadStatusData() {
     const res = await fetch("/api/payment-link-status");
     const data = await res.json();
@@ -2077,6 +2156,13 @@
                 : ""
               }
               ${row.paymentLinkUrl ? `<button class="btn-secondary" type="button" data-copy-link="${escapeHtml(row.paymentLinkUrl)}">Copy link</button>` : ""}
+              ${row.paymentLinkUrl && ["sent", "viewed", "ach_pending"].includes(row.status)
+                ? `<button class="btn-secondary" type="button" data-action="text-link"
+                     data-id="${escapeHtml(String(row.id))}"
+                     data-phone="${escapeHtml(row.customerPhone || "")}"
+                     data-customer="${escapeHtml(row.customerName || "")}"
+                     title="Text the payment link from the showroom number — replies land in Podium">Text link</button>`
+                : ""}
             </div>
           </td>
         `;
@@ -2130,6 +2216,7 @@
       }
     }
     attachReceiptActions();
+    attachTextLinkActions();
 
     // Revenue Snapshot module tiles
     const activeQueueRows = allRows.filter((row) => isLinkRow(row) && ["sent", "viewed", "ach_pending"].includes(row.status));

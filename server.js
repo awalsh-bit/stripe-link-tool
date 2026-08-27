@@ -338,6 +338,13 @@ import { saveTermsSignature, listTermsSignatures, TERMS_VERSION } from "./lib/te
 import { recordRefundEvent, listRefundEvents, getRefundEvent } from "./lib/refund-events-postgres.js";
 import { getOrCreateReceiptToken, getReceiptTokenRecord } from "./lib/receipt-tokens-postgres.js";
 import { saveEstimateDocument, attachEstimateDocument, getEstimateDocumentByToken, estimateDocumentExists } from "./lib/estimate-docs-postgres.js";
+import {
+  countBookingsBySlot,
+  createAppointment as createSubzeroAppointment,
+  getAppointment as getSubzeroAppointment,
+  claimAppointment as claimSubzeroAppointment,
+  unclaimAppointment as unclaimSubzeroAppointment
+} from "./lib/subzero-appointments-postgres.js";
 import { extractRetailDeckFloors } from "./lib/retaildeck-prices.js";
 import {
   getSalesOrderSnapshot,
@@ -442,6 +449,19 @@ const SERVICE_PUBLIC_PATHS = new Set([
   "/subzero",
   "/subzero.html",
   "/api/subzero/inquiry",
+  "/api/subzero/slots",
+  // SZWC living-kitchen photography on the Sub-Zero landing page.
+  "/subzero-photos/hero.jpg",
+  "/subzero-photos/g1-integrated.jpg",
+  "/subzero-photos/g2-morning.jpg",
+  "/subzero-photos/g3-range.jpg",
+  "/subzero-photos/g4-pro.jpg",
+  "/subzero-photos/g5-family.jpg",
+  "/subzero-photos/g6-columns.jpg",
+  "/subzero-photos/show-main.jpg",
+  "/subzero-photos/thumb-1.jpg",
+  "/subzero-photos/thumb-2.jpg",
+  "/subzero-photos/thumb-3.jpg",
   "/track.html",
   "/api/track",
   "/card-confirm.html",
@@ -6892,9 +6912,80 @@ app.post("/api/samsara/webhook/:key", async (req, res) => {
   }
 });
 
+// ---- Sub-Zero consultation scheduler ------------------------------------
+// Customers pick a real showroom slot on the landing page. Hourly starts:
+// Mon-Fri 10:00-5:00, Saturday 10:00-3:00 (doors close at four), closed
+// Sunday. Bookable from tomorrow out three weeks; a slot holds
+// SUBZERO_APPT_CAPACITY consultations (the showroom can host two at once)
+// and disappears from the picker when full.
+const SUBZERO_APPT_CAPACITY = Number(process.env.SUBZERO_APPT_CAPACITY) > 0 ? Number(process.env.SUBZERO_APPT_CAPACITY) : 2;
+const SUBZERO_APPT_DAYS_AHEAD = Number(process.env.SUBZERO_APPT_DAYS_AHEAD) > 0 ? Number(process.env.SUBZERO_APPT_DAYS_AHEAD) : 21;
+
+function subzeroSlotTimesForDate(dateStr) {
+  const weekday = new Date(`${dateStr}T00:00:00Z`).getUTCDay(); // calendar weekday — timezone-free
+  if (weekday === 0) return []; // Sunday closed
+  const lastStart = weekday === 6 ? 15 : 17;
+  const times = [];
+  for (let h = 10; h <= lastStart; h++) times.push(`${String(h).padStart(2, "0")}:00`);
+  return times;
+}
+
+function subzeroSlotDayLabel(dateStr) {
+  return new Date(`${dateStr}T12:00:00Z`).toLocaleDateString("en-US", {
+    timeZone: "UTC", weekday: "short", month: "short", day: "numeric"
+  });
+}
+
+function subzeroSlotTimeLabel(timeStr) {
+  const h = Number(timeStr.slice(0, 2));
+  const twelve = h % 12 === 0 ? 12 : h % 12;
+  return `${twelve}:00 ${h < 12 ? "AM" : "PM"}`;
+}
+
+function subzeroSlotLabel(dateStr, timeStr) {
+  return `${subzeroSlotDayLabel(dateStr)} · ${subzeroSlotTimeLabel(timeStr)}`;
+}
+
+// Every offerable slot from tomorrow (local) through the booking horizon.
+function listSubzeroSlotCandidates() {
+  const today = new Date().toLocaleDateString("en-CA", { timeZone: APP_TIMEZONE });
+  const anchor = new Date(`${today}T12:00:00Z`);
+  const days = [];
+  for (let i = 1; i <= SUBZERO_APPT_DAYS_AHEAD; i++) {
+    const d = new Date(anchor.getTime() + i * 24 * 60 * 60 * 1000);
+    const dateStr = d.toISOString().slice(0, 10);
+    const times = subzeroSlotTimesForDate(dateStr);
+    if (times.length) days.push({ date: dateStr, label: subzeroSlotDayLabel(dateStr), times });
+  }
+  return days;
+}
+
+// PUBLIC: open showroom slots for the landing page picker (full ones drop out).
+app.get("/api/subzero/slots", async (req, res) => {
+  try {
+    const candidates = listSubzeroSlotCandidates();
+    if (!candidates.length) return res.json({ days: [] });
+    const counts = await countBookingsBySlot(candidates[0].date, candidates[candidates.length - 1].date);
+    const days = candidates
+      .map((day) => ({
+        date: day.date,
+        label: day.label,
+        times: day.times
+          .filter((t) => (counts.get(`${day.date} ${t}`) || 0) < SUBZERO_APPT_CAPACITY)
+          .map((t) => ({ time: t, label: subzeroSlotTimeLabel(t) }))
+      }))
+      .filter((day) => day.times.length);
+    return res.json({ days });
+  } catch (err) {
+    console.error("Sub-Zero slots failed:", err.message);
+    return res.status(500).json({ error: "Unable to load available times." });
+  }
+});
+
 // PUBLIC: Sub-Zero landing page consultation requests (subzero.html on the
 // service host). Same routing as new web orders: a green dashboard flag and
 // an email to every consultant whose job title receives web-order alerts.
+// With a slot picked, the flag becomes a specific DIBS-able appointment.
 const subzeroInquiryAttempts = new Map(); // ip -> [timestamps]
 app.post("/api/subzero/inquiry", async (req, res) => {
   try {
@@ -6907,18 +6998,86 @@ app.post("/api/subzero/inquiry", async (req, res) => {
     subzeroInquiryAttempts.set(req.ip, hits);
 
     const name = String(req.body?.name || "").trim().slice(0, 120);
-    const contact = String(req.body?.contact || "").trim().slice(0, 160);
     const role = String(req.body?.role || "").trim().slice(0, 40);
     const message = String(req.body?.message || "").trim().slice(0, 1200);
-    if (!name || !contact) {
-      return res.status(400).json({ error: "Please include your name and an email or phone number." });
+    const email = String(req.body?.email || "").trim().toLowerCase().slice(0, 160);
+    const phoneDigits = String(req.body?.phone || "").replace(/\D/g, "").slice(0, 11);
+    const phoneOk = phoneDigits.length === 10 || (phoneDigits.length === 11 && phoneDigits.startsWith("1"));
+    const emailOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+    const contactPref = ["text", "call", "email"].includes(req.body?.contactPref) ? req.body.contactPref : "";
+    // Legacy single contact field kept working so a cached page can't strand
+    // a customer mid-submit during the deploy window.
+    const legacyContact = String(req.body?.contact || "").trim().slice(0, 160);
+
+    if (!name) return res.status(400).json({ error: "Please include your name." });
+    if ((contactPref === "text" || contactPref === "call") && !phoneOk) {
+      return res.status(400).json({ error: "Please enter a 10-digit mobile number so we can reach you the way you prefer." });
     }
+    if (contactPref === "email" && !emailOk) {
+      return res.status(400).json({ error: "Please enter a valid email address so we can reach you the way you prefer." });
+    }
+    if (!phoneOk && !emailOk && !legacyContact) {
+      return res.status(400).json({ error: "Please include an email or phone number." });
+    }
+    const prefWord = { text: "prefers text", call: "prefers a call", email: "prefers email" }[contactPref] || "";
+    const phonePretty = phoneOk
+      ? phoneDigits.slice(-10).replace(/(\d{3})(\d{3})(\d{4})/, "$1-$2-$3")
+      : "";
+    const contactDisplay = [[phonePretty, emailOk ? email : ""].filter(Boolean).join(" · ") || legacyContact, prefWord ? `(${prefWord})` : ""]
+      .filter(Boolean).join(" ");
+
+    // Optional appointment slot. Validated against the live slot generator so
+    // nobody can book a past date, a Sunday, or an after-hours time — then
+    // inserted with the capacity guard so a just-filled slot bounces cleanly.
+    const slotDate = String(req.body?.slotDate || "").trim().slice(0, 10);
+    const slotTime = String(req.body?.slotTime || "").trim().slice(0, 5);
+    if (slotDate || slotTime) {
+      const day = listSubzeroSlotCandidates().find((d) => d.date === slotDate);
+      if (!day || !day.times.includes(slotTime)) {
+        return res.status(400).json({ error: "That time isn't available — please pick another from the list.", code: "slot_invalid" });
+      }
+    }
+    // Every inquiry gets a record (slot or not) so the DIBS claim always has
+    // something to stamp and a Podium note knows the customer's number.
+    const appointment = await createSubzeroAppointment({
+      slotDate, slotTime, customerName: name, contact: contactDisplay,
+      email: emailOk ? email : "", phone: phoneOk ? phoneDigits.slice(-10) : "",
+      contactPref, role, message, capacity: SUBZERO_APPT_CAPACITY
+    });
+    if (!appointment) {
+      return res.status(409).json({ error: "That time was just booked — please pick another.", code: "slot_full" });
+    }
+    const hasSlot = Boolean(appointment.slotDate && appointment.slotTime);
+    const slotLabel = hasSlot ? subzeroSlotLabel(appointment.slotDate, appointment.slotTime) : "";
 
     recordAudit({
       ip: req.ip, actorUserId: null,
       action: "subzero_inquiry", targetUserId: null,
-      detail: { name, contact, role, message: message.slice(0, 300) }
+      detail: {
+        name, contact: contactDisplay, role, message: message.slice(0, 300),
+        appointmentId: appointment.id, ...(hasSlot ? { slot: slotLabel } : {})
+      }
     }).catch(() => {});
+
+    // Customer asked to be reached by phone — send a brief confirmation text
+    // through the Podium showroom number so the thread starts on their terms.
+    // Best-effort: a texting hiccup never blocks the request itself.
+    if ((contactPref === "text" || contactPref === "call") && phoneOk && podiumSendConfigured()) {
+      const first = name.split(/\s+/)[0];
+      const confirmBody = hasSlot
+        ? `Hi ${first}, this is Wilson AC & Appliance — we received your design consultation request for ${slotLabel.replace(" · ", " at ")} at our Dripping Springs showroom. A consultant will reach out shortly to confirm. Questions? Just reply to this text.`
+        : `Hi ${first}, this is Wilson AC & Appliance — we received your design consultation request. A consultant will reach out within one business day. Questions? Just reply to this text.`;
+      sendCustomerText({ phone: phoneDigits.slice(-10), body: confirmBody })
+        .then((result) => {
+          if (!result.ok) return console.error("Sub-Zero confirmation text failed:", result.error);
+          recordAudit({
+            ip: req.ip, actorUserId: null,
+            action: "subzero_confirmation_texted", targetUserId: null,
+            detail: { appointmentId: appointment.id, name, to: phoneDigits.slice(-10), ...(hasSlot ? { slot: slotLabel } : {}) }
+          }).catch(() => {});
+        })
+        .catch((err) => console.error("Sub-Zero confirmation text failed:", err.message));
+    }
 
     const [directory, notifyNames] = await Promise.all([listEmployeeDirectory(), listNotifyTitleNames()]);
     const notifySet = new Set(notifyNames.map((n) => n.trim().toLowerCase()));
@@ -6930,10 +7089,16 @@ app.post("/api/subzero/inquiry", async (req, res) => {
     for (const consultant of consultants) {
       await createPushedNotification({
         severity: "green",
-        typeLabel: "Sub-Zero Design Inquiry",
-        refId: `subzero:${now}`,
-        title: `${name} (${role || "prospect"}) — ${contact}`,
-        body: message ? message.slice(0, 240) : "Consultation requested from the Sub-Zero landing page.",
+        typeLabel: hasSlot ? "Sub-Zero Showroom Appointment" : "Sub-Zero Design Inquiry",
+        refId: `subzero-appt:${appointment.id}`,
+        title: hasSlot
+          ? `${slotLabel} — ${name} (${role || "prospect"}) — ${contactDisplay}`
+          : `${name} (${role || "prospect"}) — ${contactDisplay}`,
+        body: message
+          ? message.slice(0, 240)
+          : (hasSlot
+              ? "Booked from the Sub-Zero landing page — DIBS to take this consultation."
+              : "Consultation requested from the Sub-Zero landing page."),
         audienceEmail: consultant.email,
         claimable: true, // DIBS-able like a service lead: first claim wins, the rest vanish
         byEmail: "subzero-landing",
@@ -6941,8 +7106,16 @@ app.post("/api/subzero/inquiry", async (req, res) => {
       }).catch(() => {});
     }
     if (RESEND_API_KEY && consultants.length) {
-      const subject = `Sub-Zero design inquiry — ${name}`;
-      const text = `${name} (${role || "prospect"})\nContact: ${contact}\n\n${message || "(no project details given)"}\n\nSubmitted from the Sub-Zero landing page.`;
+      const subject = hasSlot
+        ? `Sub-Zero showroom appointment — ${slotLabel} — ${name}`
+        : `Sub-Zero design inquiry — ${name}`;
+      const contactLines = [
+        phonePretty ? `Phone: ${phonePretty}` : "",
+        emailOk ? `Email: ${email}` : "",
+        !phonePretty && !emailOk && legacyContact ? `Contact: ${legacyContact}` : "",
+        prefWord ? `Preference: ${prefWord.replace("prefers ", "")}` : ""
+      ].filter(Boolean).join("\n");
+      const text = `${name} (${role || "prospect"})\n${contactLines}\n${hasSlot ? `Requested time: ${slotLabel} at the showroom\n` : ""}\n${message || "(no project details given)"}\n\n${hasSlot ? "Booked" : "Submitted"} from the Sub-Zero landing page. First DIBS in Agility takes it.`;
       Promise.allSettled(consultants.map((consultant) =>
         fetch("https://api.resend.com/emails", {
           method: "POST",
@@ -6955,7 +7128,8 @@ app.post("/api/subzero/inquiry", async (req, res) => {
       });
     }
 
-    return res.json({ ok: true });
+    const confirmTexting = (contactPref === "text" || contactPref === "call") && phoneOk && podiumSendConfigured();
+    return res.json({ ok: true, confirmTexting, ...(hasSlot ? { booked: true, slotLabel } : {}) });
   } catch (err) {
     console.error("Sub-Zero inquiry failed:", err.message);
     return res.status(500).json({ error: "Unable to send that right now — please call 512-894-0907." });
@@ -8558,6 +8732,16 @@ app.post("/api/create-payment-link", requirePagePermission("/index.html"), async
         error: normalizedLinkType === "card_capture"
           ? "salesOrder and customerPhone are required"
           : "amount, salesOrder, and customerPhone are required"
+      });
+    }
+
+    // Cap descriptions at 50 characters — enough for a list of items or a
+    // long address, while the dashboard clips the display so Paid History
+    // rows stay tidy. Enforced here so nothing oversized reaches storage
+    // regardless of which client created the link.
+    if (String(description || "").trim().length > 50) {
+      return res.status(400).json({
+        error: "Keep the description to 50 characters or fewer."
       });
     }
     const normalizedCurrency = "usd";
@@ -10837,6 +11021,36 @@ app.post("/api/notifications/:id/claim", requirePagePermission("/dashboard.html"
       detail: { refId: notification.refId, title: notification.title }
     }).catch(() => {});
 
+    // Sub-Zero showroom appointment claimed → stamp the appointment row so
+    // the booking and the DIBS flag agree about who owns the consultation,
+    // then drop an internal note naming the claimer into the customer's
+    // Podium thread (and route the conversation to them). Best-effort — a
+    // Podium hiccup never blocks the claim.
+    if (notification.refId.startsWith("subzero-appt:")) {
+      const claimerName = req.authUser?.displayName || "";
+      (async () => {
+        try {
+          const apptId = notification.refId.slice("subzero-appt:".length);
+          const stamped = await claimSubzeroAppointment(apptId, email, claimerName);
+          const appt = stamped || await getSubzeroAppointment(apptId);
+          if (!stamped || !appt?.phone) return;
+          if (!podiumOAuthConfigured() || !(await podiumConnected())) return;
+          const slotBit = appt.slotDate && appt.slotTime
+            ? ` — ${subzeroSlotLabel(appt.slotDate, appt.slotTime)} at the showroom`
+            : "";
+          const note = [
+            `${claimerName || email} claimed this Sub-Zero ${slotBit ? "showroom appointment" : "design inquiry"} in Agility (DIBS)${slotBit}.`,
+            appt.role ? `Prospect: ${appt.role}.` : "",
+            appt.contactPref ? `Contact preference: ${appt.contactPref}.` : ""
+          ].filter(Boolean).join(" ");
+          const result = await podiumNoteAndAssign({ phone: appt.phone, note, senderName: claimerName || email, assigneeEmail: email });
+          if (!result.ok) console.error("Sub-Zero claim note skipped:", result.error);
+        } catch (err) {
+          console.error("Sub-Zero claim note failed:", err.message);
+        }
+      })();
+    }
+
     // Service client lead claimed → drop a context note into the customer's
     // Podium thread as the claimer and route the conversation to their
     // queue. Best-effort: a Podium hiccup never blocks the claim.
@@ -10884,6 +11098,10 @@ app.post("/api/notifications/:id/unclaim", requirePagePermission("/dashboard.htm
       return res.status(403).json({ error: "Only the person who claimed this can release it." });
     }
     await unclaimPushedNotificationsByRef(notification.refId, email);
+    if (notification.refId.startsWith("subzero-appt:")) {
+      unclaimSubzeroAppointment(notification.refId.slice("subzero-appt:".length), email)
+        .catch((err) => console.error("Sub-Zero appointment unclaim failed:", err.message));
+    }
     recordAudit({
       ip: req.ip, actorUserId: req.authUser?.id || null,
       action: "notification_unclaimed", targetUserId: null,

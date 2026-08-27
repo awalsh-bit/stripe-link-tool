@@ -338,8 +338,11 @@
           </div>
 
           <div class="field full">
-            <label for="description">Description</label>
-            <input id="description" name="description" placeholder="123 Main Street Appliances or Smith Residence HVAC System" required />
+            <label for="description" style="display:flex; justify-content:space-between; align-items:baseline;">
+              <span>Description</span>
+              <span id="descCount" class="hint" style="font-weight:400;">50 left</span>
+            </label>
+            <input id="description" name="description" maxlength="50" placeholder="Smith Residence HVAC" required />
           </div>
 
 <div class="field full">
@@ -584,6 +587,17 @@
     linkTypeInput.addEventListener('change', updateHvacPreview);
     amountInput.addEventListener('input', updateHvacPreview);
 
+    // Descriptions are capped at 50 characters (the dashboard clips the
+    // display to keep Paid History tidy). The counter shows what's left.
+    const descriptionInput = document.getElementById('description');
+    const descCountEl = document.getElementById('descCount');
+    function updateDescCount() {
+      const left = 50 - descriptionInput.value.length;
+      descCountEl.textContent = left <= 0 ? 'limit reached' : `${left} left`;
+    }
+    descriptionInput.addEventListener('input', updateDescCount);
+    updateDescCount();
+
     function applyInitialLinkTypeFromQuery() {
       const params = new URLSearchParams(window.location.search);
       const requestedType = String(params.get('type') || params.get('linkType') || '').trim().toLowerCase();
@@ -653,6 +667,11 @@ if (!payload.department) {
 
 if (!payload.customerName || !payload.customerPhone || !payload.salesOrder || !payload.description || (linkType !== 'card_capture' && !payload.amount)) {
   showStatus('error', 'Please complete all required fields.');
+  return;
+}
+
+if (payload.description.length > 50) {
+  showStatus('error', 'Keep the description to 50 characters or fewer.');
   return;
 }
 

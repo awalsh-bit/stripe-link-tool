@@ -62,6 +62,13 @@
       font-weight: 500; padding: 14px; line-height: 1.8;
     }
     .photo { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .hero-media .photo { opacity: 0.55; }
+    .g-tile .photo, .show-media .photo { position: absolute; inset: 0; }
+    .g-tile::after {
+      content: ""; position: absolute; inset: 0; z-index: 1; pointer-events: none;
+      background: linear-gradient(to top, rgba(10, 12, 14, 0.55), rgba(10, 12, 14, 0) 48%);
+    }
+    .show-thumbs .photo { height: 120px; }
 
     /* ---- top bar ---- */
     .topbar {
@@ -159,6 +166,27 @@
     .consult input:focus, .consult select:focus, .consult textarea:focus { outline: none; border-color: var(--brass); }
     .consult textarea { min-height: 110px; resize: vertical; }
     .form-note { font-size: 12px; color: var(--muted); }
+    .slot-times { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 10px; }
+    .slot-time {
+      font-family: var(--sans); font-size: 13px; font-weight: 500; cursor: pointer;
+      border: 1px solid var(--line); background: var(--ivory); color: var(--ink); padding: 9px 4px;
+    }
+    .slot-time:hover { border-color: var(--brass); }
+    .slot-time.picked { background: var(--brass); border-color: var(--brass); color: var(--ivory); }
+    .slot-note { font-size: 12.5px; color: var(--muted); margin-top: 9px; }
+    .slot-note b { color: #6d5433; font-weight: 600; }
+    .slot-clear { background: none; border: none; color: var(--brass); cursor: pointer; font-size: 12.5px; padding: 0; text-decoration: underline; }
+    .pref-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+    .pref-chip { display: block; cursor: pointer; margin: 0; }
+    .pref-chip input { position: absolute; opacity: 0; pointer-events: none; }
+    .pref-chip span {
+      display: block; text-align: center; border: 1px solid var(--line); background: var(--ivory);
+      color: var(--ink); font-family: var(--sans); font-size: 13px; font-weight: 500; padding: 10px 4px;
+      letter-spacing: normal; text-transform: none;
+    }
+    .pref-chip:hover span { border-color: var(--brass); }
+    .pref-chip input:checked + span { background: var(--brass); border-color: var(--brass); color: var(--ivory); }
+    .pref-chip input:focus-visible + span { outline: 2px solid var(--ink); outline-offset: 2px; }
     .form-status { display: none; padding: 13px 15px; font-size: 13.5px; }
     .form-status.ok { display: block; background: var(--brass-soft); color: #6d5433; }
     .form-status.error { display: block; background: #fdf0ef; color: #8d3b32; }
@@ -189,10 +217,8 @@
   </div>
 
   <!-- ============ HERO ============ -->
-  <!-- EDIT ME: swap the .ph below for your best full-width showroom or
-       installed-kitchen photo:  <img class="photo" src="subzero-hero.jpg" alt=""> -->
   <header class="hero">
-    <div class="hero-media"><div class="ph">Hero photo — full-bleed kitchen or showroom shot<br>(swap this placeholder)</div></div>
+    <div class="hero-media"><img class="photo" src="subzero-photos/hero.jpg" alt="The SZWC living kitchen display at the Wilson showroom — Sub-Zero refrigeration, Wolf ovens, and island seating" /></div>
     <div class="wrap">
       <div class="hero-inner">
         <div class="eyebrow">Dripping Springs · Texas Hill Country</div>
@@ -235,10 +261,8 @@
   </div>
 
   <!-- ============ DESIGNER INSPIRATION ============ -->
-  <!-- EDIT ME: each tile = one look. Swap each .ph for an install photo
-       (yours or approved Sub-Zero imagery) and retitle the labels to match
-       the looks you want to sell: e.g. "Hill Country Modern", "Classic
-       White", "Chef's Galley", "Wine Wall", "Outdoor Kitchen". -->
+  <!-- Photos are the SZWC living-kitchen display (showroom-photos 216-244).
+       To change a look, swap the img src and retitle the label. -->
   <section id="inspiration">
     <div class="wrap">
       <div class="sec-head">
@@ -251,19 +275,18 @@
         </p>
       </div>
       <div class="gallery">
-        <div class="g-tile wide"><div class="ph">Install photo — panel-ready integrated kitchen</div><div class="g-label"><small>The Integrated Kitchen</small>Sub-Zero, invisible until it opens</div></div>
-        <div class="g-tile tall"><div class="ph">Install photo — full-height wine storage</div><div class="g-label"><small>The Collector</small>Wine storage as a design feature</div></div>
-        <div class="g-tile std"><div class="ph">Install photo — Wolf dual-fuel range</div><div class="g-label"><small>The Range Wall</small>Wolf red knobs, front and center</div></div>
-        <div class="g-tile std"><div class="ph">Install photo — Cove dishwasher / prep zone</div><div class="g-label"><small>The Quiet Workhorse</small>Cove, seen and never heard</div></div>
-        <div class="g-tile std"><div class="ph">Install photo — coffee/breakfast station</div><div class="g-label"><small>The Morning Station</small>Built-in coffee &amp; refreshment</div></div>
-        <div class="g-tile wide"><div class="ph">Install photo — outdoor kitchen / Hill Country patio</div><div class="g-label"><small>The Outdoor Room</small>Hill Country evenings, Wolf outside</div></div>
+        <div class="g-tile wide"><img class="photo" src="subzero-photos/g1-integrated.jpg" alt="White panel-ready kitchen with island rangetop and mosaic backsplash" /><div class="g-label"><small>The Integrated Kitchen</small>Sub-Zero, invisible until it opens</div></div>
+        <div class="g-tile tall"><img class="photo" src="subzero-photos/g2-morning.jpg" alt="Built-in Wolf coffee system and convection column" /><div class="g-label"><small>The Morning Station</small>Built-in coffee &amp; refreshment</div></div>
+        <div class="g-tile std"><img class="photo" src="subzero-photos/g3-range.jpg" alt="Wolf 48-inch dual-fuel range with signature red knobs" /><div class="g-label"><small>The Range Wall</small>Wolf red knobs, front and center</div></div>
+        <div class="g-tile std"><img class="photo" src="subzero-photos/g4-pro.jpg" alt="Sub-Zero PRO refrigerators, one with a glass door" /><div class="g-label"><small>The Pro Statement</small>Sub-Zero PRO, glass door and all</div></div>
+        <div class="g-tile std"><img class="photo" src="subzero-photos/g5-family.jpg" alt="French-door Sub-Zero beside a sunny breakfast nook" /><div class="g-label"><small>The Gathering Kitchen</small>French-door Sub-Zero at the heart</div></div>
+        <div class="g-tile wide"><img class="photo" src="subzero-photos/g6-columns.jpg" alt="A full wall of stainless Sub-Zero refrigeration columns" /><div class="g-label"><small>The Column Wall</small>Refrigeration floor to ceiling, sized to you</div></div>
       </div>
     </div>
   </section>
 
   <!-- ============ SHOWROOM ============ -->
-  <!-- EDIT ME: swap placeholders for real showroom photography (the big one
-       + three thumbnails), and correct the hours line. -->
+  <!-- EDIT ME: confirm the hours line. -->
   <section class="showroom" id="showroom">
     <div class="wrap">
       <div class="sec-head">
@@ -275,7 +298,7 @@
         </p>
       </div>
       <div class="show-grid">
-        <div class="show-media"><div class="ph">Showroom photo — main display vignette<br>(swap this placeholder)</div></div>
+        <div class="show-media"><img class="photo" src="subzero-photos/show-main.jpg" alt="Live displays across the Wilson showroom floor — hoods, wine storage, and refrigeration you can open and run" /></div>
         <div class="show-info">
           <h3>Wilson AC &amp; Appliance Showroom</h3>
           <p>
@@ -293,9 +316,9 @@
         </div>
       </div>
       <div class="show-thumbs">
-        <div class="ph">Showroom photo — detail 1</div>
-        <div class="ph">Showroom photo — detail 2</div>
-        <div class="ph">Showroom photo — detail 3</div>
+        <img class="photo" src="subzero-photos/thumb-1.jpg" alt="Wolf range in a warm wood-paneled vignette" />
+        <img class="photo" src="subzero-photos/thumb-2.jpg" alt="Range with brass knobs against navy and white" />
+        <img class="photo" src="subzero-photos/thumb-3.jpg" alt="The design center with tile samples and a backlit onyx worktable" />
       </div>
     </div>
   </section>
@@ -345,8 +368,20 @@
           <input id="leadName" type="text" autocomplete="name" required />
         </div>
         <div>
-          <label for="leadContact">Email or phone</label>
-          <input id="leadContact" type="text" autocomplete="email" required />
+          <label for="leadPhone">Phone</label>
+          <input id="leadPhone" type="tel" autocomplete="tel" placeholder="512-555-0100" />
+        </div>
+        <div>
+          <label for="leadEmail">Email</label>
+          <input id="leadEmail" type="email" autocomplete="email" placeholder="you@example.com" />
+        </div>
+        <div>
+          <label>How should we reach you?</label>
+          <div class="pref-row">
+            <label class="pref-chip"><input type="radio" name="leadPref" value="text" checked /><span>Text me</span></label>
+            <label class="pref-chip"><input type="radio" name="leadPref" value="call" /><span>Call me</span></label>
+            <label class="pref-chip"><input type="radio" name="leadPref" value="email" /><span>Email me</span></label>
+          </div>
         </div>
         <div>
           <label for="leadRole">I am a…</label>
@@ -357,6 +392,12 @@
             <option>Architect</option>
             <option>Other</option>
           </select>
+        </div>
+        <div id="slotSection" style="display: none;">
+          <label for="slotDaySelect">Pick a showroom time (optional)</label>
+          <select id="slotDaySelect"></select>
+          <div class="slot-times" id="slotTimes"></div>
+          <div class="slot-note" id="slotNote">Or skip this and we'll simply reach out.</div>
         </div>
         <div>
           <label for="leadMessage">About your project (optional)</label>
@@ -379,9 +420,73 @@
   <script>
     // Consultation form → the sales team (same routing as web orders: a
     // dashboard flag + email to every consultant whose title gets alerts).
+    // Picking a showroom time turns the flag into a specific DIBS-able
+    // appointment; skipping it keeps the plain "reach out" behavior.
     (function () {
       const form = document.getElementById("leadForm");
       const status = document.getElementById("leadStatus");
+      const slotSection = document.getElementById("slotSection");
+      const daySelect = document.getElementById("slotDaySelect");
+      const timesEl = document.getElementById("slotTimes");
+      const noteEl = document.getElementById("slotNote");
+      let slotDays = [];
+      let picked = null; // { date, time, label }
+
+      function renderNote() {
+        if (picked) {
+          noteEl.innerHTML = "Holding <b></b> for you — book it by sending the form. ";
+          noteEl.querySelector("b").textContent = picked.label;
+          const clear = document.createElement("button");
+          clear.type = "button";
+          clear.className = "slot-clear";
+          clear.textContent = "Clear time";
+          clear.addEventListener("click", () => { picked = null; renderTimes(); });
+          noteEl.appendChild(clear);
+        } else {
+          noteEl.textContent = "Or skip this and we'll simply reach out.";
+        }
+      }
+
+      function renderTimes() {
+        const day = slotDays.find((d) => d.date === daySelect.value);
+        timesEl.innerHTML = "";
+        (day ? day.times : []).forEach((t) => {
+          const b = document.createElement("button");
+          b.type = "button";
+          b.className = "slot-time" + (picked && picked.date === day.date && picked.time === t.time ? " picked" : "");
+          b.textContent = t.label;
+          b.addEventListener("click", () => {
+            picked = { date: day.date, time: t.time, label: day.label + " at " + t.label };
+            renderTimes();
+          });
+          timesEl.appendChild(b);
+        });
+        renderNote();
+      }
+
+      async function loadSlots() {
+        try {
+          const res = await fetch("/api/subzero/slots");
+          const data = await res.json();
+          slotDays = (data.days || []);
+          if (!slotDays.length) { slotSection.style.display = "none"; return; }
+          const keep = picked && slotDays.some((d) => d.date === picked.date && d.times.some((t) => t.time === picked.time));
+          if (!keep) picked = null;
+          daySelect.innerHTML = "";
+          slotDays.forEach((d) => {
+            const o = document.createElement("option");
+            o.value = d.date;
+            o.textContent = d.label;
+            daySelect.appendChild(o);
+          });
+          if (picked) daySelect.value = picked.date;
+          slotSection.style.display = "";
+          renderTimes();
+        } catch (e) { slotSection.style.display = "none"; }
+      }
+      daySelect.addEventListener("change", renderTimes);
+      loadSlots();
+
       form.addEventListener("submit", async (e) => {
         e.preventDefault();
         const btn = document.getElementById("leadSubmit");
@@ -389,21 +494,42 @@
         btn.disabled = true;
         btn.textContent = "Sending…";
         try {
+          const phone = document.getElementById("leadPhone").value.trim();
+          const email = document.getElementById("leadEmail").value.trim();
+          const pref = (form.querySelector('input[name="leadPref"]:checked') || {}).value || "";
+          const phoneDigits = phone.replace(/\D/g, "");
+          if ((pref === "text" || pref === "call") && phoneDigits.length < 10) {
+            throw new Error("Please add your phone number so we can " + (pref === "text" ? "text" : "call") + " you.");
+          }
+          if (pref === "email" && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+            throw new Error("Please add your email address so we can email you.");
+          }
           const res = await fetch("/api/subzero/inquiry", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
               name: document.getElementById("leadName").value.trim(),
-              contact: document.getElementById("leadContact").value.trim(),
+              phone,
+              email,
+              contactPref: pref,
               role: document.getElementById("leadRole").value,
-              message: document.getElementById("leadMessage").value.trim()
+              message: document.getElementById("leadMessage").value.trim(),
+              ...(picked ? { slotDate: picked.date, slotTime: picked.time } : {})
             })
           });
           const data = await res.json().catch(() => ({}));
-          if (!res.ok) throw new Error(data.error || "Something went wrong — please call us instead.");
+          if (!res.ok) {
+            if (data.code === "slot_full" || data.code === "slot_invalid") loadSlots();
+            throw new Error(data.error || "Something went wrong — please call us instead.");
+          }
           form.reset();
-          status.textContent = "Thank you — a Wilson consultant will reach out within one business day.";
+          const texted = data.confirmTexting === true;
+          status.textContent = data.booked
+            ? "You're on the books for " + data.slotLabel.replace(" · ", " at ") + (texted ? " — keep an eye on your texts for a confirmation." : " — a Wilson consultant will reach out to confirm.")
+            : "Thank you — a Wilson consultant will reach out within one business day." + (texted ? " Keep an eye on your texts for a confirmation." : "");
           status.className = "form-status ok";
+          picked = null;
+          loadSlots();
         } catch (err) {
           status.textContent = err.message;
           status.className = "form-status error";

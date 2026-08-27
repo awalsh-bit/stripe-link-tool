@@ -1658,8 +1658,22 @@
     ].join(" ").toLowerCase();
   }
 
+  // Reference cell: sales order stays whole, but the description is clipped
+  // to keep table rows tidy — hover (title tooltip) shows the full text.
   function formatReference(row) {
-    const parts = [row.salesOrder, row.description || row.reference].filter(Boolean);
+    const MAX_DESC = 30;
+    const salesOrder = String(row.salesOrder || "").trim();
+    const desc = String(row.description || row.reference || "").trim();
+    let descHtml = "";
+    if (desc) {
+      if (desc.length > MAX_DESC) {
+        const shown = desc.slice(0, MAX_DESC - 1).trimEnd() + "…";
+        descHtml = `<span title="${escapeHtml(desc)}">${escapeHtml(shown)}</span>`;
+      } else {
+        descHtml = escapeHtml(desc);
+      }
+    }
+    const parts = [salesOrder ? escapeHtml(salesOrder) : "", descHtml].filter(Boolean);
     return parts.length ? parts.join(" | ") : "-";
   }
 

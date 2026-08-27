@@ -1696,6 +1696,7 @@
   const ICON_COPY = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"></path></svg>`;
   const ICON_MAIL = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path><polyline points="22,6 12,13 2,6"></polyline></svg>`;
   const ICON_PRINT = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 6 2 18 2 18 9"></polyline><path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg>`;
+  const ICON_SMS = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"></path></svg>`;
 
   function paidTypeLabel(row) {
     if (row.type === "refund") return "Refund";
@@ -1785,6 +1786,83 @@
         } finally {
           button.disabled = false;
         }
+      });
+    });
+
+    document.querySelectorAll('[data-action="text-receipt"]').forEach((button) => {
+      if (button.dataset.receiptBound === "true") return;
+      button.dataset.receiptBound = "true";
+
+      button.addEventListener("click", () => {
+        const parentRow = button.closest("tr");
+        const paymentIntentId = button.getAttribute("data-pi") || "";
+        const prefillPhone = button.getAttribute("data-phone") || "";
+        const customerName = button.getAttribute("data-customer") || "";
+        const panelKey = "sms:" + paymentIntentId;
+
+        const existing = parentRow.nextElementSibling;
+        if (existing?.classList?.contains("receipt-send-row") && existing.dataset.pi === panelKey) {
+          existing.remove();
+          return;
+        }
+        closeReceiptRows();
+
+        const sendRow = document.createElement("tr");
+        sendRow.className = "receipt-send-row";
+        sendRow.dataset.pi = panelKey;
+        sendRow.innerHTML = `
+          <td colspan="7">
+            <div class="receipt-send-inner">
+              <span class="receipt-send-label">Text receipt${customerName ? ` for ${escapeHtml(customerName)}` : ""} to:</span>
+              <input type="tel" class="receipt-email-input" value="${escapeHtml(prefillPhone)}" placeholder="10-digit mobile #" />
+              <button class="btn-primary receipt-send-btn" type="button">Send Text</button>
+              <button class="btn-secondary receipt-cancel-btn" type="button">Cancel</button>
+              <span class="receipt-send-status"></span>
+            </div>
+          </td>
+        `;
+        parentRow.after(sendRow);
+
+        const phoneInput = sendRow.querySelector(".receipt-email-input");
+        const sendBtn = sendRow.querySelector(".receipt-send-btn");
+        const statusEl = sendRow.querySelector(".receipt-send-status");
+
+        sendRow.querySelector(".receipt-cancel-btn").addEventListener("click", () => sendRow.remove());
+        phoneInput.addEventListener("keydown", (event) => {
+          if (event.key === "Enter") { event.preventDefault(); sendBtn.click(); }
+        });
+        if (!prefillPhone) phoneInput.focus();
+
+        sendBtn.addEventListener("click", async () => {
+          const digits = phoneInput.value.replace(/\D/g, "");
+          if (digits.length < 10) {
+            statusEl.className = "receipt-send-status error";
+            statusEl.textContent = "Enter a 10-digit mobile number.";
+            return;
+          }
+          sendBtn.disabled = true;
+          sendBtn.textContent = "Sending...";
+          statusEl.className = "receipt-send-status";
+          statusEl.textContent = "";
+          try {
+            const res = await fetch("/api/receipts/text", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ paymentIntentId, phone: digits })
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || "Unable to send the text.");
+            statusEl.className = "receipt-send-status ok";
+            statusEl.textContent = "Receipt texted from the showroom number — replies land in Podium.";
+            sendBtn.textContent = "Sent";
+            setTimeout(() => sendRow.remove(), 3000);
+          } catch (err) {
+            statusEl.className = "receipt-send-status error";
+            statusEl.textContent = err.message;
+            sendBtn.disabled = false;
+            sendBtn.textContent = "Send Text";
+          }
+        });
       });
     });
 
@@ -2203,6 +2281,11 @@
                      data-email="${escapeHtml(row.customerEmail || "")}"
                      data-customer="${escapeHtml(row.customerName || "")}"
                      title="Email a PDF ${isRefund ? "refund " : ""}receipt to the customer">${ICON_MAIL}<span>Email</span></button>
+                   ${!isRefund && row.paymentIntentId ? `<button class="btn-secondary btn-pill-sm" type="button" data-action="text-receipt"
+                     data-pi="${escapeHtml(row.paymentIntentId)}"
+                     data-phone="${escapeHtml(row.customerPhone || "")}"
+                     data-customer="${escapeHtml(row.customerName || "")}"
+                     title="Text a receipt summary from the showroom number — replies land in Podium">${ICON_SMS}<span>Text</span></button>` : ""}
                    <button class="btn-secondary btn-pill-sm" type="button" data-action="download-receipt"
                      data-pi="${escapeHtml(row.paymentIntentId || "")}"
                      ${isRefund ? `data-refund="${escapeHtml(row.refundId)}"` : ""}

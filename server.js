@@ -336,6 +336,7 @@ import {
 } from "./lib/commission-review-postgres.js";
 import { saveTermsSignature, listTermsSignatures, TERMS_VERSION } from "./lib/terms-signatures-postgres.js";
 import { recordRefundEvent, listRefundEvents, getRefundEvent } from "./lib/refund-events-postgres.js";
+import { getOrCreateReceiptToken, getReceiptTokenRecord } from "./lib/receipt-tokens-postgres.js";
 import { extractRetailDeckFloors } from "./lib/retaildeck-prices.js";
 import {
   getSalesOrderSnapshot,
@@ -442,6 +443,7 @@ const SERVICE_PUBLIC_PATHS = new Set([
   "/track.html",
   "/api/track",
   "/card-confirm.html",
+  "/receipt.pdf",
   "/api/card-confirm/view",
   "/api/card-confirm/use",
   "/api/card-confirm/other",
@@ -12069,7 +12071,22 @@ async function buildReceiptForPaymentIntent(paymentIntentId) {
   });
 
   const fileLabel = String(record.salesOrder || paymentIntentId).replace(/[^A-Za-z0-9_-]+/g, "-");
-  return { pdfBytes, fileLabel, amountText, refundedNote, methodText, reference, customerName, paidDate };
+  const customerPhone = String(record.customerPhone || charge.billing_details?.phone || "").replace(/\D/g, "");
+  return { pdfBytes, fileLabel, amountText, refundedNote, methodText, reference, customerName, customerPhone, paidDate };
+}
+
+// Internal Podium note when a receipt goes out (text or email): the exact
+// line the team asked for, signed by whoever clicked Send. No once-guard —
+// each send is its own event worth noting. Skips quietly with no thread.
+function notePodiumReceiptSent(phone, senderName) {
+  (async () => {
+    if (!podiumOAuthConfigured() || !(await podiumConnected())) return;
+    const digits = String(phone || "").replace(/\D/g, "");
+    if (!(digits.length === 10 || (digits.length === 11 && digits.startsWith("1")))) return;
+    const convo = await podiumFindConversationByPhone(digits.length === 11 ? digits.slice(1) : digits);
+    if (!convo) return;
+    await podiumAddConversationNote(convo.uid, "Sent client receipt", senderName || "Agility");
+  })().catch((err) => console.error("Receipt Podium note failed:", err.message));
 }
 
 app.post("/api/receipts/email", requirePagePermission("/dashboard.html"), async (req, res) => {
@@ -12087,7 +12104,7 @@ app.post("/api/receipts/email", requirePagePermission("/dashboard.html"), async 
       return res.status(500).json({ error: "Email delivery is not configured (RESEND_API_KEY / RESEND_FROM_EMAIL)." });
     }
 
-    const { pdfBytes, fileLabel, amountText, methodText, reference, customerName, paidDate } =
+    const { pdfBytes, fileLabel, amountText, methodText, reference, customerName, customerPhone, paidDate } =
       await buildReceiptForPaymentIntent(paymentIntentId);
     const subject = `Receipt from Wilson AC & Appliance — ${amountText}`;
     const bodyLines = [
@@ -12149,6 +12166,8 @@ app.post("/api/receipts/email", requirePagePermission("/dashboard.html"), async 
       detail: { paymentIntentId, to: email, amount: amountText, reference }
     }).catch(() => {});
 
+    notePodiumReceiptSent(customerPhone, req.authUser?.displayName || "");
+
     return res.json({ success: true });
   } catch (err) {
     console.error("Receipt email error:", err.message);
@@ -12156,6 +12175,86 @@ app.post("/api/receipts/email", requirePagePermission("/dashboard.html"), async 
       return res.status(400).json({ error: err.message });
     }
     return res.status(500).json({ error: "Unable to send the receipt. Check the payment intent and try again." });
+  }
+});
+
+// Text the receipt (Paid History -> Text pill): an SMS receipt summary from
+// the showroom number — no PDF over SMS, the text IS the receipt. Explicit
+// click only, like everything else.
+app.post("/api/receipts/text", requirePagePermission("/dashboard.html"), async (req, res) => {
+  try {
+    const paymentIntentId = String(req.body?.paymentIntentId || "").trim();
+    const overridePhone = String(req.body?.phone || "").replace(/\D/g, "");
+    if (!/^pi_[A-Za-z0-9]+$/.test(paymentIntentId)) {
+      return res.status(400).json({ error: "That record has no valid payment intent." });
+    }
+    if (!podiumSendConfigured()) {
+      return res.status(503).json({ error: "Texting isn't connected — connect Podium in Text Automations first." });
+    }
+
+    const { amountText, methodText, reference, customerName, customerPhone, paidDate } =
+      await buildReceiptForPaymentIntent(paymentIntentId);
+    const phone = overridePhone || customerPhone;
+    if (phone.length !== 10 && !(phone.length === 11 && phone.startsWith("1"))) {
+      return res.status(400).json({ error: "Add the client's 10-digit mobile number first." });
+    }
+
+    // Tokenized PDF link on the public service host — the same receipt the
+    // email attaches, regenerated live from Stripe whenever it's opened.
+    let receiptUrl = "";
+    try {
+      const shareToken = await getOrCreateReceiptToken(paymentIntentId);
+      receiptUrl = `${getServiceBaseUrl(req)}/receipt.pdf?r=${shareToken}`;
+    } catch (tokenErr) {
+      console.error("Receipt link token failed:", tokenErr.message);
+    }
+
+    const first = String(customerName || "").trim().split(/\s+/)[0] || "";
+    const body =
+      `${first ? `Hi ${first}, this` : "This"} is Wilson AC & Appliance. ` +
+      `Your receipt: ${amountText} paid ${paidDate}${reference ? ` for ${reference}` : ""} with ${methodText}. ` +
+      `${receiptUrl ? `PDF copy: ${receiptUrl} ` : ""}` +
+      `Thank you! Questions? Just reply to this text.`;
+
+    const result = await sendCustomerText({ phone, body });
+    if (!result.ok) {
+      return res.status(502).json({ error: "The text didn't go through — try again or email the receipt instead." });
+    }
+
+    recordAudit({
+      ip: req.ip, actorUserId: req.authUser?.id || null,
+      action: "receipt_texted", targetUserId: null,
+      detail: { paymentIntentId, to: phone, amount: amountText, reference, transport: result.transport }
+    }).catch(() => {});
+
+    notePodiumReceiptSent(phone, req.authUser?.displayName || "");
+
+    return res.json({ success: true, to: phone });
+  } catch (err) {
+    console.error("Receipt text error:", err.message);
+    if (err.statusCode === 400) return res.status(400).json({ error: err.message });
+    return res.status(500).json({ error: "Unable to send the receipt text." });
+  }
+});
+
+// PUBLIC (service host): tokenized receipt PDF — the link texted to clients.
+// The token is 24 random bytes, one per payment, expiring per
+// RECEIPT_LINK_DAYS (365 default). The PDF regenerates from Stripe on each
+// open; nothing is stored server-side.
+app.get("/receipt.pdf", async (req, res) => {
+  try {
+    const share = await getReceiptTokenRecord(req.query.r);
+    if (!share) {
+      return res.status(404).send("This receipt link is no longer available. Call or text Wilson AC & Appliance at 512-894-0907 for a copy.");
+    }
+    const { pdfBytes, fileLabel } = await buildReceiptForPaymentIntent(share.paymentIntentId);
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", `inline; filename="receipt-${fileLabel}.pdf"`);
+    res.setHeader("Cache-Control", "private, no-store");
+    return res.send(Buffer.from(pdfBytes));
+  } catch (err) {
+    console.error("Public receipt link error:", err.message);
+    return res.status(500).send("Unable to load this receipt right now. Call or text Wilson AC & Appliance at 512-894-0907 for a copy.");
   }
 });
 

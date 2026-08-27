@@ -124,6 +124,8 @@
             <div class="se-hint" id="sePrefNote" style="display:none;"></div>
           </div>
           <div class="se-field"><label>Estimate name (optional)</label><input id="seLabel" placeholder="e.g. Sub-Zero sealed system repair" /></div>
+          <div class="se-field"><label>Appliance — shows on the client's page</label><input id="seAppliance" placeholder="e.g. KitchenAid dishwasher, model KDTE204KPS" />
+            <div class="se-hint">Pulled from the work order when the scan finds it — edit or fill it in so the client knows what the estimate is for.</div></div>
         </div>
         <div class="se-summary" id="seSummary"></div>
         <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
@@ -274,6 +276,7 @@
           $("seEmail").value = "";
           emailNote.style.display = "none";
         }
+        $("seAppliance").value = [[s.brand, s.product].filter(Boolean).join(" "), s.model ? "model " + s.model : ""].filter(Boolean).join(", ");
         $("seSummary").innerHTML = summaryHtml(s);
         $("seResult").classList.remove("show");
         $("seForm").classList.add("show");
@@ -323,7 +326,7 @@
               contactPhone: $("sePhone").value.trim(),
               contactEmail: $("seEmail").value.trim(),
               contactPref: $("sePref").value,
-              summary: state.summary
+              summary: { ...state.summary, applianceLabel: $("seAppliance").value.trim() }
             })
           });
           state.created = { token: data.estimate.token, url: data.url };
@@ -337,7 +340,7 @@
           setStatus("Link created — nothing was emailed.", "ok");
           $("seForm").classList.remove("show");
           state.summary = null;
-          ["seSv", "seName", "sePhone", "seEmail", "seLabel"].forEach((id) => { $(id).value = ""; });
+          ["seSv", "seName", "sePhone", "seEmail", "seLabel", "seAppliance"].forEach((id) => { $(id).value = ""; });
           $("sePref").value = "";
           await load();
         } catch (err) {

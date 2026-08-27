@@ -1981,7 +1981,9 @@
             <div class="receipt-send-inner">
               <span class="receipt-send-label">Text the payment link${customerName ? ` for ${escapeHtml(customerName)}` : ""} to:</span>
               <input type="tel" class="receipt-email-input" value="${escapeHtml(prefillPhone)}" placeholder="10-digit mobile #" />
-              <button class="btn-primary receipt-send-btn" type="button">Send Text</button>
+              <button class="btn-primary receipt-send-btn" type="button" data-variant="standard">Send Text</button>
+              <button class="btn-secondary receipt-reminder-btn" type="button" data-variant="reminder"
+                title="Gentle nudge for a link that's been sitting — 'your payment link is still waiting for you'">Send Reminder</button>
               <button class="btn-secondary receipt-cancel-btn" type="button">Cancel</button>
               <span class="receipt-send-status"></span>
             </div>
@@ -1991,6 +1993,7 @@
 
         const phoneInput = sendRow.querySelector(".receipt-email-input");
         const sendBtn = sendRow.querySelector(".receipt-send-btn");
+        const reminderBtn = sendRow.querySelector(".receipt-reminder-btn");
         const statusEl = sendRow.querySelector(".receipt-send-status");
 
         sendRow.querySelector(".receipt-cancel-btn").addEventListener("click", () => sendRow.remove());
@@ -1999,7 +2002,10 @@
         });
         if (!prefillPhone) phoneInput.focus();
 
-        sendBtn.addEventListener("click", async () => {
+        const sendVariant = async (btn) => {
+          const variant = btn.dataset.variant;
+          const busy = variant === "reminder" ? "Reminding..." : "Sending...";
+          const original = btn.textContent;
           const digits = phoneInput.value.replace(/\D/g, "");
           if (digits.length < 10) {
             statusEl.className = "receipt-send-status error";
@@ -2007,28 +2013,35 @@
             return;
           }
           sendBtn.disabled = true;
-          sendBtn.textContent = "Sending...";
+          reminderBtn.disabled = true;
+          btn.textContent = busy;
           statusEl.className = "receipt-send-status";
           statusEl.textContent = "";
           try {
             const res = await fetch(`/api/payment-links/${encodeURIComponent(linkId)}/send-text`, {
               method: "POST",
               headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ phone: digits })
+              body: JSON.stringify({ phone: digits, variant })
             });
             const data = await res.json();
             if (!res.ok) throw new Error(data.error || "Unable to send the text.");
             statusEl.className = "receipt-send-status ok";
-            statusEl.textContent = `Texted from the showroom number — replies land in Podium.`;
-            sendBtn.textContent = "Sent";
+            statusEl.textContent = variant === "reminder"
+              ? "Reminder texted from the showroom number — replies land in Podium."
+              : "Texted from the showroom number — replies land in Podium.";
+            btn.textContent = "Sent";
             setTimeout(() => sendRow.remove(), 3000);
           } catch (err) {
             statusEl.className = "receipt-send-status error";
             statusEl.textContent = err.message;
             sendBtn.disabled = false;
-            sendBtn.textContent = "Send Text";
+            reminderBtn.disabled = false;
+            btn.textContent = original;
           }
-        });
+        };
+
+        sendBtn.addEventListener("click", () => sendVariant(sendBtn));
+        reminderBtn.addEventListener("click", () => sendVariant(reminderBtn));
       });
     });
   }

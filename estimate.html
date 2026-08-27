@@ -118,12 +118,15 @@
         if (est.status === "elsewhere") {
           return doneCard("Thanks for letting us know", "We appreciate the feedback. If you change your mind, your <strong>$100 discount toward any purchase over $999</strong> is waiting for you at Wilson — in the showroom or online.");
         }
-        const applianceBits = [[s.brand, s.product].filter(Boolean).join(" "), s.model ? "Model " + s.model : "", s.serial ? "Serial " + s.serial : ""].filter(Boolean);
+        // What the estimate is FOR — the team's free-text appliance label
+        // when present, else the appliance details the work-order scan found.
+        const appliance = String(s.applianceLabel || "").trim()
+          || [[s.brand, s.product].filter(Boolean).join(" "), s.model ? "Model " + s.model : "", s.serial ? "Serial " + s.serial : ""].filter(Boolean).join(" · ");
         $("mainCard").innerHTML = `
           <h1>Hi ${esc(firstName(est.customerName))} — your estimate is ready.</h1>
-          ${applianceBits.length ? `<p style="margin:0 0 10px; font-size:13px; font-weight:700; color:#475569;">${esc(applianceBits.join(" · "))}</p>` : ""}
+          ${appliance ? `<p style="margin:0 0 10px; font-size:14px; font-weight:700; color:#475569;">For your ${esc(appliance)}</p>` : ""}
           <p class="lead">
-            Here's the summary for ${est.estimateName ? `<strong>${esc(est.estimateName)}</strong> (` : ""}service
+            Here's the ${appliance ? "repair estimate" : "summary"} for ${est.estimateName ? `<strong>${esc(est.estimateName)}</strong> (` : ""}service
             ticket <strong>${esc(est.svNumber || "—")}</strong>${est.estimateName ? ")" : ""}. Review it, then choose
             how you'd like to move forward — nothing is charged today.
           </p>

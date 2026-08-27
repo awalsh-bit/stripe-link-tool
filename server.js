@@ -5782,10 +5782,16 @@ app.post("/api/payment-links/:id/send-text", requirePagePermission("/dashboard.h
 
     const first = String(record.customerName || "").trim().split(/\s+/)[0] || "";
     const ref = String(record.salesOrder || record.description || "").trim();
-    const body =
-      `${first ? `Hi ${first}, this` : "This"} is Wilson AC & Appliance. ` +
-      `Here's your secure payment link${ref ? ` for ${ref}` : ""}: ${record.paymentLinkUrl} ` +
-      `Questions? Just reply to this text.`;
+    // Two flavors: "standard" introduces the link; "reminder" nudges gently
+    // on a link that's been sitting.
+    const variant = req.body?.variant === "reminder" ? "reminder" : "standard";
+    const body = variant === "reminder"
+      ? `${first ? `Hi ${first}, this` : "This"} is Wilson AC & Appliance with a friendly reminder — ` +
+        `your secure payment link${ref ? ` for ${ref}` : ""} is still waiting for you: ${record.paymentLinkUrl} ` +
+        `If anything is holding things up, just reply to this text and we'll help.`
+      : `${first ? `Hi ${first}, this` : "This"} is Wilson AC & Appliance. ` +
+        `Here's your secure payment link${ref ? ` for ${ref}` : ""}: ${record.paymentLinkUrl} ` +
+        `Questions? Just reply to this text.`;
 
     const result = await sendCustomerText({ phone, body });
     if (!result.ok) {
@@ -5795,7 +5801,7 @@ app.post("/api/payment-links/:id/send-text", requirePagePermission("/dashboard.h
     recordAudit({
       ip: req.ip, actorUserId: req.authUser?.id || null,
       action: "payment_link_texted", targetUserId: null,
-      detail: { linkId: id, salesOrder: record.salesOrder || "", customerName: record.customerName || "", to: phone, transport: result.transport }
+      detail: { linkId: id, salesOrder: record.salesOrder || "", customerName: record.customerName || "", to: phone, variant, transport: result.transport }
     }).catch(() => {});
 
     return res.json({ ok: true, to: phone });

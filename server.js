@@ -337,6 +337,7 @@ import {
 import { saveTermsSignature, listTermsSignatures, TERMS_VERSION } from "./lib/terms-signatures-postgres.js";
 import { recordRefundEvent, listRefundEvents, getRefundEvent } from "./lib/refund-events-postgres.js";
 import { getOrCreateReceiptToken, getReceiptTokenRecord } from "./lib/receipt-tokens-postgres.js";
+import { saveEstimateDocument, attachEstimateDocument, getEstimateDocumentByToken, estimateDocumentExists } from "./lib/estimate-docs-postgres.js";
 import { extractRetailDeckFloors } from "./lib/retaildeck-prices.js";
 import {
   getSalesOrderSnapshot,
@@ -435,6 +436,7 @@ const SERVICE_PUBLIC_PATHS = new Set([
   "/terms-sign.html",
   "/card-saved.html",
   "/estimate.html",
+  "/estimate-doc.pdf",
   "/api/estimate/view",
   "/api/estimate/respond",
   "/subzero",
@@ -5622,7 +5624,16 @@ app.post("/api/service-estimates/scan", requirePagePermission("/service-estimate
       try {
         knownEmail = await lookupKnownClientEmail({ phone: summary.phone, customerNumber: summary.customerNumber });
       } catch { /* prefill is best-effort */ }
-      return res.json({ ok: true, summary, knownEmail });
+      // Keep the scanned PDF so the client's estimate page can link the
+      // original work order. Attached to the estimate at create; abandoned
+      // scans sweep out after 48h.
+      let documentId = null;
+      try {
+        documentId = await saveEstimateDocument({ buffer: req.file.buffer, filename: req.file.originalname });
+      } catch (docErr) {
+        console.error("Estimate document save failed:", docErr.message);
+      }
+      return res.json({ ok: true, summary, knownEmail, documentId });
     } catch (scanErr) {
       return res.status(400).json({ error: scanErr.message || "Couldn't read that PDF." });
     }
@@ -5631,7 +5642,7 @@ app.post("/api/service-estimates/scan", requirePagePermission("/service-estimate
 
 app.post("/api/service-estimates", requirePagePermission("/service-estimates.html"), async (req, res) => {
   try {
-    const { svNumber = "", estimateName = "", customerName = "", customerNumber = "", contactPhone = "", contactEmail = "", contactPref = "", summary = null } = req.body || {};
+    const { svNumber = "", estimateName = "", customerName = "", customerNumber = "", contactPhone = "", contactEmail = "", contactPref = "", summary = null, documentId = "" } = req.body || {};
     if (!String(customerName).trim()) return res.status(400).json({ error: "The client's name is required." });
     if (!String(contactPhone).trim() && !String(contactEmail).trim()) {
       return res.status(400).json({ error: "Add a phone number or email so the client can be reached." });
@@ -5645,6 +5656,14 @@ app.post("/api/service-estimates", requirePagePermission("/service-estimates.htm
       byName: req.authUser?.displayName || ""
     });
     const url = `https://${SERVICE_PUBLIC_HOST}/estimate.html?e=${estimate.token}`;
+
+    // Link the scanned work-order PDF to this estimate's token so the
+    // client page can offer it. Best-effort — a failed attach never fails
+    // the estimate.
+    if (/^doc_[A-Za-z0-9_]+$/.test(String(documentId || ""))) {
+      attachEstimateDocument(documentId, estimate.token)
+        .catch((docErr) => console.error("Estimate document attach failed:", docErr.message));
+    }
 
     // Deliberately NO automated email here — clients often have a clear
     // contact preference (CALL PREF / TEXT PREF on the work order), so the
@@ -5663,6 +5682,17 @@ app.post("/api/service-estimates", requirePagePermission("/service-estimates.htm
   }
 });
 
+// Short appliance name for client-facing wording — "KitchenAid Dishwasher",
+// never model/serial detail. The team-edited Appliance label wins (trimmed
+// at its first comma, where the model usually starts); the scan's
+// brand+product is the fallback. Empty when neither is known.
+function estimateApplianceShort(estimate) {
+  const s = estimate?.summary || {};
+  const label = String(s.applianceLabel || "").trim();
+  if (label) return label.split(",")[0].trim();
+  return [s.brand, s.product].filter(Boolean).join(" ").trim();
+}
+
 // Explicit, on-click email of the estimate link to the client. Separate from
 // create on purpose: no email goes out unless someone presses the button.
 app.post("/api/service-estimates/send-email", requirePagePermission("/service-estimates.html"), async (req, res) => {
@@ -5680,13 +5710,17 @@ app.post("/api/service-estimates/send-email", requirePagePermission("/service-es
 
     const url = `https://${SERVICE_PUBLIC_HOST}/estimate.html?e=${estimate.token}`;
     // "standard" introduces the estimate; "reminder" nudges one that's
-    // been sitting unanswered.
+    // been sitting unanswered. The appliance leads the wording when known
+    // ("your KitchenAid Dishwasher repair estimate") — the SV number stays
+    // as the small reference in parentheses.
     const variant = req.body?.variant === "reminder" ? "reminder" : "standard";
+    const appl = estimateApplianceShort(estimate);
+    const estPhrase = `${appl ? `${appl} ` : ""}repair estimate${estimate.svNumber ? ` (${estimate.svNumber})` : ""}`;
     const html = variant === "reminder"
       ? buildAuthEmailHtml(
           "A friendly reminder from Wilson",
           [
-            `Just a quick reminder — your repair estimate${estimate.svNumber ? ` (${estimate.svNumber})` : ""} from Wilson AC & Appliance is still waiting for your review.`,
+            `Just a quick reminder — your ${estPhrase} from Wilson AC & Appliance is still waiting for your review.`,
             "It takes about a minute: see the breakdown, then approve the repair — or let us know you'd rather shop for a replacement. If anything's unclear, we're happy to talk it through."
           ],
           "Review Your Estimate",
@@ -5694,9 +5728,9 @@ app.post("/api/service-estimates/send-email", requirePagePermission("/service-es
           "Questions? Call or text us at 512-894-0907."
         )
       : buildAuthEmailHtml(
-          "Your Wilson service estimate is ready",
+          appl ? `Your ${appl} estimate is ready` : "Your Wilson service estimate is ready",
           [
-            `Your repair estimate${estimate.svNumber ? ` (${estimate.svNumber})` : ""} from Wilson AC & Appliance is ready to review.`,
+            `Your ${estPhrase} from Wilson AC & Appliance is ready to review.`,
             "It takes about a minute: see the parts, labor, and tax breakdown, then approve the repair — or let us know you'd rather shop for a replacement."
           ],
           "Review Your Estimate",
@@ -5711,11 +5745,15 @@ app.post("/api/service-estimates/send-email", requirePagePermission("/service-es
         reply_to: userReplyTo(req),
         to: [to],
         subject: variant === "reminder"
-          ? `Reminder — your Wilson service estimate${estimate.svNumber ? " (" + estimate.svNumber + ")" : ""} is waiting`
-          : `Your Wilson service estimate${estimate.svNumber ? " — " + estimate.svNumber : ""}`,
+          ? (appl
+              ? `Reminder — your ${appl} estimate is waiting`
+              : `Reminder — your Wilson service estimate${estimate.svNumber ? " (" + estimate.svNumber + ")" : ""} is waiting`)
+          : (appl
+              ? `Your Wilson repair estimate — ${appl}`
+              : `Your Wilson service estimate${estimate.svNumber ? " — " + estimate.svNumber : ""}`),
         text: variant === "reminder"
-          ? `Just a friendly reminder — your repair estimate is still waiting for your review: ${url}`
-          : `Your repair estimate is ready to review and approve: ${url}`,
+          ? `Just a friendly reminder — your ${estPhrase} is still waiting for your review: ${url}`
+          : `Your ${estPhrase} is ready to review and approve: ${url}`,
         html
       })
     });
@@ -5730,6 +5768,12 @@ app.post("/api/service-estimates/send-email", requirePagePermission("/service-es
       action: "service_estimate_emailed", targetUserId: null,
       detail: { svNumber: estimate.svNumber, customerName: estimate.customerName, to, variant }
     }).catch(() => {});
+
+    notePodiumThread(
+      estimate.contactPhone,
+      `${variant === "reminder" ? "Emailed an estimate reminder" : "Emailed the estimate"}${estimate.svNumber ? ` (${estimate.svNumber})` : ""} to ${to}`,
+      req.authUser?.displayName || ""
+    );
 
     return res.json({ ok: true, to, estimate: updated || estimate });
   } catch (err) {
@@ -5758,12 +5802,14 @@ app.post("/api/service-estimates/send-text", requirePagePermission("/service-est
     const url = `https://${SERVICE_PUBLIC_HOST}/estimate.html?e=${estimate.token}`;
     const first = String(estimate.customerName || "").trim().split(/\s+/)[0] || "";
     const variant = req.body?.variant === "reminder" ? "reminder" : "standard";
+    const appl = estimateApplianceShort(estimate);
+    const estPhrase = `${appl ? `${appl} ` : ""}repair estimate${estimate.svNumber ? ` (${estimate.svNumber})` : ""}`;
     const body = variant === "reminder"
       ? `${first ? `Hi ${first}, this` : "This"} is Wilson AC & Appliance with a friendly reminder — ` +
-        `your repair estimate${estimate.svNumber ? ` (${estimate.svNumber})` : ""} is still waiting for your review: ${url} ` +
+        `your ${estPhrase} is still waiting for your review: ${url} ` +
         `If anything's unclear, just reply to this text and we'll help.`
       : `${first ? `Hi ${first}, this` : "This"} is Wilson AC & Appliance. ` +
-        `Your repair estimate${estimate.svNumber ? ` (${estimate.svNumber})` : ""} is ready to review and approve: ${url} ` +
+        `Your ${estPhrase} is ready to review and approve: ${url} ` +
         `Questions? Just reply to this text.`;
 
     const result = await sendCustomerText({ phone, body });
@@ -5903,6 +5949,12 @@ app.post("/api/payment-links/:id/send-email", requirePagePermission("/dashboard.
       detail: { linkId: id, salesOrder: record.salesOrder || "", customerName: record.customerName || "", to }
     }).catch(() => {});
 
+    notePodiumThread(
+      record.customerPhone,
+      `Emailed the payment link${ref ? ` (${ref})` : ""} to ${to}`,
+      req.authUser?.displayName || ""
+    );
+
     return res.json({ ok: true, to });
   } catch (err) {
     console.error("Payment link send-email failed:", err.message);
@@ -5995,17 +6047,47 @@ app.post("/api/estimate/view", async (req, res) => {
       return res.status(410).json({ error: "This estimate is no longer active — call or text us at 512-894-0907 and we'll get you a current one." });
     }
     if (estimate.status === "sent") await markServiceEstimateViewed(token);
+    const hasDocument = await estimateDocumentExists(token).catch(() => false);
     return res.json({
       svNumber: estimate.svNumber,
       estimateName: estimate.estimateName,
       customerName: estimate.customerName,
       summary: estimate.summary,
       status: estimate.status === "sent" ? "viewed" : estimate.status,
-      response: estimate.response || {}
+      response: estimate.response || {},
+      hasDocument
     });
   } catch (err) {
     console.error("Estimate view failed:", err.message);
     return res.status(500).json({ error: "Unable to load this estimate right now." });
+  }
+});
+
+// PUBLIC (service host): the original technician work-order PDF behind an
+// estimate token — same access rules as the estimate page itself, so a
+// closed estimate's document goes dark with its link.
+app.get("/estimate-doc.pdf", async (req, res) => {
+  try {
+    const token = String(req.query.e || "").slice(0, 60);
+    const estimate = await getServiceEstimateByToken(token);
+    if (!estimate) {
+      return res.status(404).send("This link isn't valid — call or text Wilson AC & Appliance at 512-894-0907 for a copy of your work order.");
+    }
+    if (estimate.closedAt && !["approved", "shopping", "elsewhere"].includes(estimate.status)) {
+      return res.status(410).send("This estimate is no longer active — call or text Wilson AC & Appliance at 512-894-0907 for a current copy.");
+    }
+    const doc = await getEstimateDocumentByToken(token);
+    if (!doc) {
+      return res.status(404).send("No work-order document is attached to this estimate — call or text 512-894-0907 for a copy.");
+    }
+    const label = String(estimate.svNumber || "work-order").replace(/[^A-Za-z0-9_-]+/g, "-");
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", `inline; filename="wilson-work-order-${label}.pdf"`);
+    res.setHeader("Cache-Control", "private, no-store");
+    return res.send(doc.content);
+  } catch (err) {
+    console.error("Estimate document serve failed:", err.message);
+    return res.status(500).send("Unable to load the work order right now — call or text 512-894-0907 for a copy.");
   }
 });
 
@@ -12124,15 +12206,23 @@ async function buildReceiptForPaymentIntent(paymentIntentId) {
 // Internal Podium note when a receipt goes out (text or email): the exact
 // line the team asked for, signed by whoever clicked Send. No once-guard —
 // each send is its own event worth noting. Skips quietly with no thread.
-function notePodiumReceiptSent(phone, senderName) {
+// Generic internal note on a client's phone thread — fire-and-forget, skips
+// quietly when Podium isn't connected, the phone is bad, or no thread
+// exists. Texts never need this (the text itself lands in the thread);
+// EMAIL sends do, so the Podium-watching team sees every touch.
+function notePodiumThread(phone, body, senderName) {
   (async () => {
     if (!podiumOAuthConfigured() || !(await podiumConnected())) return;
     const digits = String(phone || "").replace(/\D/g, "");
     if (!(digits.length === 10 || (digits.length === 11 && digits.startsWith("1")))) return;
     const convo = await podiumFindConversationByPhone(digits.length === 11 ? digits.slice(1) : digits);
     if (!convo) return;
-    await podiumAddConversationNote(convo.uid, "Sent client receipt", senderName || "Agility");
-  })().catch((err) => console.error("Receipt Podium note failed:", err.message));
+    await podiumAddConversationNote(convo.uid, String(body).slice(0, 500), senderName || "Agility");
+  })().catch((err) => console.error("Podium thread note failed:", err.message));
+}
+
+function notePodiumReceiptSent(phone, senderName) {
+  notePodiumThread(phone, "Sent client receipt", senderName);
 }
 
 app.post("/api/receipts/email", requirePagePermission("/dashboard.html"), async (req, res) => {

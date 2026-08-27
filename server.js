@@ -6052,6 +6052,24 @@ app.post("/api/estimate/respond", async (req, res) => {
         }
       }
     } else if (choice === "approve") {
+      // Internal Podium note on the client's thread — anyone opening the
+      // conversation sees the approval without leaving Podium. The respond
+      // route is idempotent (already-responded estimates return early), so
+      // one approval = one note.
+      (async () => {
+        if (!podiumOAuthConfigured() || !(await podiumConnected())) return;
+        const digits = String(estimate.contactPhone || "").replace(/\D/g, "");
+        if (!(digits.length === 10 || (digits.length === 11 && digits.startsWith("1")))) return;
+        const convo = await podiumFindConversationByPhone(digits.length === 11 ? digits.slice(1) : digits);
+        if (!convo) return;
+        const total = `$${Number(estimate.summary?.invoiceTotal || 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+        await podiumAddConversationNote(
+          convo.uid,
+          `${estimate.customerName || "Client"} approved repair estimate${estimate.svNumber ? ` ${estimate.svNumber}` : ""} — ${total}. Schedule the repair.`,
+          "Agility"
+        );
+      })().catch((noteErr) => console.error("Estimate-approved Podium note failed:", noteErr.message));
+
       // Tell the Client Care rep who sent it (flag + email).
       if (estimate.createdByEmail) {
         createPushedNotification({

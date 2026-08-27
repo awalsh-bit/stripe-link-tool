@@ -174,10 +174,12 @@
       <div class="se-send-row" id="soEmailRow" style="margin-top:14px; display:none;">
         <input id="soEmailInput" type="email" placeholder="client@email.com" />
         <button type="button" class="se-btn primary" id="soEmailSend">Email the link</button>
+        <button type="button" class="se-btn quiet" id="soEmailRemind" title="Gentle nudge for an estimate that's been sitting — 'still waiting for your review'">Email reminder</button>
       </div>
       <div class="se-send-row" id="soTextRow" style="margin-top:8px; display:none;">
         <input id="soPhoneInput" type="tel" placeholder="client mobile #" />
         <button type="button" class="se-btn primary" id="soTextSend">Text the link</button>
+        <button type="button" class="se-btn quiet" id="soTextRemind" title="Gentle nudge for an estimate that's been sitting — 'still waiting for your review'">Text reminder</button>
       </div>
       <div class="se-hint" id="soEmailNote" style="display:none;"></div>
       <div style="display:flex; gap:10px; margin-top:16px;">
@@ -289,16 +291,16 @@
       });
 
       // ---- send the email (explicit click only — never automatic) ----
-      async function sendEstimateEmail(token, email, btn, noteEl) {
+      async function sendEstimateEmail(token, email, btn, noteEl, variant = "standard") {
         const to = String(email || "").trim();
         if (!to) { setStatus("Add the client's email address first.", "error"); return false; }
         const original = btn.textContent;
         btn.disabled = true;
         btn.textContent = "Sending…";
         try {
-          const data = await api("/api/service-estimates/send-email", { method: "POST", body: JSON.stringify({ token, email: to }) });
-          btn.textContent = "Emailed ✓";
-          if (noteEl) { noteEl.textContent = `Emailed to ${data.to}.`; noteEl.style.display = "block"; }
+          const data = await api("/api/service-estimates/send-email", { method: "POST", body: JSON.stringify({ token, email: to, variant }) });
+          btn.textContent = variant === "reminder" ? "Reminded ✓" : "Emailed ✓";
+          if (noteEl) { noteEl.textContent = `${variant === "reminder" ? "Reminder emailed" : "Emailed"} to ${data.to}.`; noteEl.style.display = "block"; }
           await load();
           setTimeout(() => { btn.textContent = original; btn.disabled = false; }, 2500);
           return true;
@@ -364,16 +366,16 @@
       });
 
       // ---- send the text (explicit click only — showroom number via Podium) ----
-      async function sendEstimateText(token, phone, btn, noteEl) {
+      async function sendEstimateText(token, phone, btn, noteEl, variant = "standard") {
         const to = String(phone || "").replace(/\D/g, "");
         if (to.length < 10) { setStatus("Add the client's 10-digit mobile number first.", "error"); return false; }
         const original = btn.textContent;
         btn.disabled = true;
         btn.textContent = "Texting…";
         try {
-          const data = await api("/api/service-estimates/send-text", { method: "POST", body: JSON.stringify({ token, phone: to }) });
-          btn.textContent = "Texted ✓";
-          if (noteEl) { noteEl.textContent = `Texted to ${data.to} from the showroom number — replies land in Podium.`; noteEl.style.display = "block"; }
+          const data = await api("/api/service-estimates/send-text", { method: "POST", body: JSON.stringify({ token, phone: to, variant }) });
+          btn.textContent = variant === "reminder" ? "Reminded ✓" : "Texted ✓";
+          if (noteEl) { noteEl.textContent = `${variant === "reminder" ? "Reminder texted" : "Texted"} to ${data.to} from the showroom number — replies land in Podium.`; noteEl.style.display = "block"; }
           setTimeout(() => { btn.textContent = original; btn.disabled = false; }, 2500);
           return true;
         } catch (err) {
@@ -465,6 +467,10 @@
         $("soPhoneInput").value = e.contactPhone || "";
         $("soTextSend").disabled = false;
         $("soTextSend").textContent = "Text the link";
+        $("soEmailRemind").disabled = false;
+        $("soEmailRemind").textContent = "Email reminder";
+        $("soTextRemind").disabled = false;
+        $("soTextRemind").textContent = "Text reminder";
         $("soCloseEst").textContent = e.closedAt ? "Reopen estimate" : "Close estimate";
         $("seOverlay").classList.add("show");
       }
@@ -498,6 +504,14 @@
       $("soTextSend").addEventListener("click", () => {
         if (!state.open) return;
         sendEstimateText(state.open.token, $("soPhoneInput").value, $("soTextSend"), $("soEmailNote"));
+      });
+      $("soEmailRemind").addEventListener("click", () => {
+        if (!state.open) return;
+        sendEstimateEmail(state.open.token, $("soEmailInput").value, $("soEmailRemind"), $("soEmailNote"), "reminder");
+      });
+      $("soTextRemind").addEventListener("click", () => {
+        if (!state.open) return;
+        sendEstimateText(state.open.token, $("soPhoneInput").value, $("soTextRemind"), $("soEmailNote"), "reminder");
       });
 
       async function load() {

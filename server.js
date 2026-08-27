@@ -5679,16 +5679,30 @@ app.post("/api/service-estimates/send-email", requirePagePermission("/service-es
     if (!RESEND_API_KEY) return res.status(500).json({ error: "Email isn't configured on this server." });
 
     const url = `https://${SERVICE_PUBLIC_HOST}/estimate.html?e=${estimate.token}`;
-    const html = buildAuthEmailHtml(
-      "Your Wilson service estimate is ready",
-      [
-        `Your repair estimate${estimate.svNumber ? ` (${estimate.svNumber})` : ""} from Wilson AC & Appliance is ready to review.`,
-        "It takes about a minute: see the parts, labor, and tax breakdown, then approve the repair — or let us know you'd rather shop for a replacement."
-      ],
-      "Review Your Estimate",
-      url,
-      "Questions? Call us at 512-894-0907."
-    );
+    // "standard" introduces the estimate; "reminder" nudges one that's
+    // been sitting unanswered.
+    const variant = req.body?.variant === "reminder" ? "reminder" : "standard";
+    const html = variant === "reminder"
+      ? buildAuthEmailHtml(
+          "A friendly reminder from Wilson",
+          [
+            `Just a quick reminder — your repair estimate${estimate.svNumber ? ` (${estimate.svNumber})` : ""} from Wilson AC & Appliance is still waiting for your review.`,
+            "It takes about a minute: see the breakdown, then approve the repair — or let us know you'd rather shop for a replacement. If anything's unclear, we're happy to talk it through."
+          ],
+          "Review Your Estimate",
+          url,
+          "Questions? Call or text us at 512-894-0907."
+        )
+      : buildAuthEmailHtml(
+          "Your Wilson service estimate is ready",
+          [
+            `Your repair estimate${estimate.svNumber ? ` (${estimate.svNumber})` : ""} from Wilson AC & Appliance is ready to review.`,
+            "It takes about a minute: see the parts, labor, and tax breakdown, then approve the repair — or let us know you'd rather shop for a replacement."
+          ],
+          "Review Your Estimate",
+          url,
+          "Questions? Call us at 512-894-0907."
+        );
     const r = await fetch("https://api.resend.com/emails", {
       method: "POST",
       headers: { "Authorization": `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" },
@@ -5696,8 +5710,12 @@ app.post("/api/service-estimates/send-email", requirePagePermission("/service-es
         from: SHOP_ORDER_NOTIFY_FROM,
         reply_to: userReplyTo(req),
         to: [to],
-        subject: `Your Wilson service estimate${estimate.svNumber ? " — " + estimate.svNumber : ""}`,
-        text: `Your repair estimate is ready to review and approve: ${url}`,
+        subject: variant === "reminder"
+          ? `Reminder — your Wilson service estimate${estimate.svNumber ? " (" + estimate.svNumber + ")" : ""} is waiting`
+          : `Your Wilson service estimate${estimate.svNumber ? " — " + estimate.svNumber : ""}`,
+        text: variant === "reminder"
+          ? `Just a friendly reminder — your repair estimate is still waiting for your review: ${url}`
+          : `Your repair estimate is ready to review and approve: ${url}`,
         html
       })
     });
@@ -5710,7 +5728,7 @@ app.post("/api/service-estimates/send-email", requirePagePermission("/service-es
     recordAudit({
       ip: req.ip, actorUserId: req.authUser?.id || null,
       action: "service_estimate_emailed", targetUserId: null,
-      detail: { svNumber: estimate.svNumber, customerName: estimate.customerName, to }
+      detail: { svNumber: estimate.svNumber, customerName: estimate.customerName, to, variant }
     }).catch(() => {});
 
     return res.json({ ok: true, to, estimate: updated || estimate });
@@ -5739,10 +5757,14 @@ app.post("/api/service-estimates/send-text", requirePagePermission("/service-est
 
     const url = `https://${SERVICE_PUBLIC_HOST}/estimate.html?e=${estimate.token}`;
     const first = String(estimate.customerName || "").trim().split(/\s+/)[0] || "";
-    const body =
-      `${first ? `Hi ${first}, this` : "This"} is Wilson AC & Appliance. ` +
-      `Your repair estimate${estimate.svNumber ? ` (${estimate.svNumber})` : ""} is ready to review and approve: ${url} ` +
-      `Questions? Just reply to this text.`;
+    const variant = req.body?.variant === "reminder" ? "reminder" : "standard";
+    const body = variant === "reminder"
+      ? `${first ? `Hi ${first}, this` : "This"} is Wilson AC & Appliance with a friendly reminder — ` +
+        `your repair estimate${estimate.svNumber ? ` (${estimate.svNumber})` : ""} is still waiting for your review: ${url} ` +
+        `If anything's unclear, just reply to this text and we'll help.`
+      : `${first ? `Hi ${first}, this` : "This"} is Wilson AC & Appliance. ` +
+        `Your repair estimate${estimate.svNumber ? ` (${estimate.svNumber})` : ""} is ready to review and approve: ${url} ` +
+        `Questions? Just reply to this text.`;
 
     const result = await sendCustomerText({ phone, body });
     if (!result.ok) {
@@ -5752,7 +5774,7 @@ app.post("/api/service-estimates/send-text", requirePagePermission("/service-est
     recordAudit({
       ip: req.ip, actorUserId: req.authUser?.id || null,
       action: "service_estimate_texted", targetUserId: null,
-      detail: { svNumber: estimate.svNumber, customerName: estimate.customerName, to: phone, transport: result.transport }
+      detail: { svNumber: estimate.svNumber, customerName: estimate.customerName, to: phone, variant, transport: result.transport }
     }).catch(() => {});
 
     return res.json({ ok: true, to: phone });

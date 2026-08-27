@@ -374,7 +374,9 @@
 
         <div class="actions">
           <button id="submitBtn" type="submit">Create payment link</button>
-          <button id="copyBtn" class="secondary" type="button" disabled>Copy link</button>
+          <button id="textLinkBtn" class="secondary" type="button" disabled title="Text the link from the showroom number — replies land in Podium">Text pay link</button>
+          <button id="emailLinkBtn" class="secondary" type="button" disabled title="Email the link — replies come to you">Email pay link</button>
+          <button id="copyBtn" class="secondary" type="button" disabled title="Copy the link to send it your own way">Copy link</button>
         </div>
 
         <div id="status" class="status"></div>
@@ -418,6 +420,8 @@
     const form = document.getElementById('paymentForm');
     const submitBtn = document.getElementById('submitBtn');
     const copyBtn = document.getElementById('copyBtn');
+    const textLinkBtn = document.getElementById('textLinkBtn');
+    const emailLinkBtn = document.getElementById('emailLinkBtn');
     const statusEl = document.getElementById('status');
     const resultEl = document.getElementById('result');
     const resultCustomer = document.getElementById('resultCustomer');
@@ -440,6 +444,9 @@
     const resultAgreement = document.getElementById('resultAgreement');
 
     let latestLink = '';
+    let latestLinkId = '';
+    let latestClientPhone = '';
+    let latestClientEmail = '';
     const TEAM_DIRECTORY = window.WILSON_EMPLOYEE_DIRECTORY || {};
 
     function showStatus(type, message) {
@@ -595,7 +602,10 @@
       resultAgreementRow.style.display = 'none';
       resultAgreement.textContent = '';
       copyBtn.disabled = true;
+      textLinkBtn.disabled = true;
+      emailLinkBtn.disabled = true;
       latestLink = '';
+      latestLinkId = '';
 
       const creatorLookupValid = applyCreatorLookup();
 
@@ -672,6 +682,14 @@ if (linkType === 'hvac_deposit' && !payload.customerEmail) {
 
         latestLink = data.url;
         copyBtn.disabled = false;
+        latestLinkId = data.id || '';
+        latestClientPhone = payload.customerPhone || '';
+        latestClientEmail = payload.customerEmail || '';
+        // Text/email the link directly (not for card-capture / card-confirm
+        // flows, which have their own client journey).
+        const canDirectSend = Boolean(latestLinkId) && linkType !== 'card_capture';
+        textLinkBtn.disabled = !canDirectSend;
+        emailLinkBtn.disabled = !canDirectSend;
 
         resultCustomer.textContent = payload.customerEmail
   ? `${payload.customerName} (${payload.customerEmail})`
@@ -690,10 +708,10 @@ if (linkType === 'hvac_deposit' && !payload.customerEmail) {
           'success',
           data.message ||
             (linkType === 'hvac_deposit'
-              ? `Deposit agreement link created successfully. The link charges ${formatMoney(payload.amount, payload.currency)} now and saves the payment method for the remaining balance.`
+              ? `Deposit agreement link created. The link charges ${formatMoney(payload.amount, payload.currency)} now and saves the payment method for the remaining balance. Text or email it to the client, or copy the link to send it your own way.`
               : linkType === 'card_capture'
-                ? `Card capture link created — nothing will be charged. ${payload.creatorName} will be emailed when the client saves their card; charge it later from Charge A Saved Card.`
-                : `Payment link created successfully. ${payload.creatorName} will be notified by email when it is paid if paid-email notifications are configured.`)
+                ? `Card capture link created — nothing will be charged. You'll be emailed when the client saves their card; charge it later from Charge A Saved Card.`
+                : `Payment link created. Text or email it to the client, or copy the link to send it your own way — you'll be emailed when it's paid.`)
         );
       } catch (error) {
         showStatus(
@@ -716,6 +734,36 @@ if (linkType === 'hvac_deposit' && !payload.customerEmail) {
         showStatus('error', 'Could not copy the link automatically.');
       }
     });
+
+    // ---- Text / email the pay link (explicit click only) ----
+    async function sendPayLink(kind, btn) {
+      if (!latestLinkId) return;
+      const original = btn.textContent;
+      btn.disabled = true;
+      btn.textContent = kind === 'text' ? 'Texting…' : 'Emailing…';
+      try {
+        const res = await fetch(`/api/payment-links/${encodeURIComponent(latestLinkId)}/send-${kind === 'text' ? 'text' : 'email'}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'same-origin',
+          body: JSON.stringify(kind === 'text' ? { phone: latestClientPhone } : { email: latestClientEmail }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error || `Unable to send the ${kind}.`);
+        btn.textContent = kind === 'text' ? 'Texted ✓' : 'Emailed ✓';
+        showStatus('success', kind === 'text'
+          ? `Pay link texted to ${data.to} from the showroom number — replies land in Podium.`
+          : `Pay link emailed to ${data.to} — replies come to you.`);
+        setTimeout(() => { btn.textContent = original; btn.disabled = false; }, 2500);
+      } catch (error) {
+        showStatus('error', error.message);
+        btn.textContent = original;
+        btn.disabled = false;
+      }
+    }
+
+    textLinkBtn.addEventListener('click', () => sendPayLink('text', textLinkBtn));
+    emailLinkBtn.addEventListener('click', () => sendPayLink('email', emailLinkBtn));
 
     applyInitialLinkTypeFromQuery();
     updateHvacPreview();

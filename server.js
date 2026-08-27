@@ -257,6 +257,8 @@ import {
   getAuthorizeUrl,
   exchangeOAuthCode,
   noteAndAssign as podiumNoteAndAssign,
+  findConversationByPhone as podiumFindConversationByPhone,
+  addConversationNote as podiumAddConversationNote,
   sendPodiumTemplateText,
   listMessageTemplates
 } from "./lib/podium.js";
@@ -268,7 +270,8 @@ import {
 import {
   listPodiumAutomations,
   upsertPodiumAutomation,
-  resolveAutomationTemplate
+  resolveAutomationTemplate,
+  claimPodiumPaymentNoteOnce
 } from "./lib/podium-automations-postgres.js";
 import {
   parseInvoiceMaintenanceQuotes,
@@ -5758,7 +5761,7 @@ app.post("/api/service-estimates/send-text", requirePagePermission("/service-est
 });
 
 // Explicit, on-click TEXT of a payment link from the dashboard queue.
-app.post("/api/payment-links/:id/send-text", requirePagePermission("/dashboard.html"), async (req, res) => {
+app.post("/api/payment-links/:id/send-text", requirePagePermission("/dashboard.html", "/index.html"), async (req, res) => {
   try {
     const id = String(req.params.id || "");
     const overridePhone = String(req.body?.phone || "").replace(/\D/g, "");
@@ -5797,6 +5800,83 @@ app.post("/api/payment-links/:id/send-text", requirePagePermission("/dashboard.h
   } catch (err) {
     console.error("Payment link send-text failed:", err.message);
     return res.status(500).json({ error: "Unable to send the text right now." });
+  }
+});
+
+// Explicit, on-click EMAIL of a payment link — reply-to whoever clicked.
+app.post("/api/payment-links/:id/send-email", requirePagePermission("/dashboard.html", "/index.html"), async (req, res) => {
+  try {
+    const id = String(req.params.id || "");
+    const overrideEmail = String(req.body?.email || "").trim().toLowerCase();
+    if (overrideEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(overrideEmail)) {
+      return res.status(400).json({ error: "That email address doesn't look right." });
+    }
+    const links = await readLinks();
+    const record = links.map((row) => normalizeLinkRecord({ ...row })).find((row) => String(row.id) === id);
+    if (!record) return res.status(404).json({ error: "Payment link not found." });
+    if (record.status === "paid") return res.status(400).json({ error: "That link is already paid." });
+    if (!record.paymentLinkUrl) return res.status(400).json({ error: "That record has no client link to send." });
+    if (!RESEND_API_KEY || !RESEND_FROM_EMAIL) {
+      return res.status(500).json({ error: "Email delivery is not configured." });
+    }
+    const to = overrideEmail || String(record.customerEmail || "").trim().toLowerCase();
+    if (!to) return res.status(400).json({ error: "Add the client's email address first." });
+
+    const first = String(record.customerName || "").trim().split(/\s+/)[0] || "";
+    const ref = String(record.salesOrder || record.description || "").trim();
+    const amountText = Number(record.requestedTotalAmount || record.requestedAmount || 0) > 0
+      ? `$${Number(record.requestedTotalAmount || record.requestedAmount).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+      : "";
+    const subject = `Your Wilson AC & Appliance payment link${ref ? ` — ${ref}` : ""}`;
+    const para1 = `Here's your secure payment link${ref ? ` for ${ref}` : ""}${amountText ? ` (${amountText})` : ""}:`;
+    const bodyText = [
+      first ? `Hi ${first},` : "Hello,",
+      "",
+      para1,
+      record.paymentLinkUrl,
+      "",
+      "Payment is handled securely by Stripe. Questions? Just reply to this email or call us at 512-894-0907.",
+      "",
+      "Wilson AC & Appliance"
+    ].join("\n");
+    const html = `
+      <div style="font-family: Arial, sans-serif; color: #111827; line-height: 1.6; max-width: 560px;">
+        <p>${first ? `Hi ${escapeHtmlForEmail(first)},` : "Hello,"}</p>
+        <p>${escapeHtmlForEmail(para1)}</p>
+        <p><a href="${escapeHtmlForEmail(record.paymentLinkUrl)}">${escapeHtmlForEmail(record.paymentLinkUrl)}</a></p>
+        <p>Payment is handled securely by Stripe. Questions? Just reply to this email or call us at 512-894-0907.</p>
+        <p style="color: #6b7280; font-size: 13px;">Wilson AC &amp; Appliance · 512-894-0907</p>
+      </div>
+    `;
+
+    const response = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: { "Authorization": `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        from: RESEND_FROM_EMAIL,
+        reply_to: userReplyTo(req),
+        to: [to],
+        subject,
+        text: bodyText,
+        html
+      })
+    });
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error("Payment link email failed:", response.status, errorText);
+      return res.status(502).json({ error: "The email didn't go through — try again or copy the link instead." });
+    }
+
+    recordAudit({
+      ip: req.ip, actorUserId: req.authUser?.id || null,
+      action: "payment_link_emailed", targetUserId: null,
+      detail: { linkId: id, salesOrder: record.salesOrder || "", customerName: record.customerName || "", to }
+    }).catch(() => {});
+
+    return res.json({ ok: true, to });
+  } catch (err) {
+    console.error("Payment link send-email failed:", err.message);
+    return res.status(500).json({ error: "Unable to send the email right now." });
   }
 });
 
@@ -8609,6 +8689,7 @@ const paymentLink = await stripe.paymentLinks.create(paymentLinkConfig, {
 
     res.json({
       url: paymentLink.url,
+      id: linkRecord.id,
       paymentLinkId: paymentLink.id,
       workflowType: normalizedLinkType,
       depositAgreementId: linkRecord.depositAgreementId || ""
@@ -11285,6 +11366,24 @@ app.post("/api/card-on-file/charge", requirePagePermission("/charge-saved-card.h
       });
 
       await writeTerminalPayments(terminalPayments);
+
+      // Internal Podium note on the client's thread — phone comes from the
+      // Stripe customer the saved card is attached to. Fire-and-forget.
+      (async () => {
+        let phone = "";
+        try {
+          const customer = await stripe.customers.retrieve(customerId);
+          phone = customer?.phone || "";
+        } catch { /* no phone — note skipped */ }
+        await addPodiumPaymentNote({
+          id: `cof:${paymentIntent.id}`,
+          type: "card_on_file",
+          customerPhone: phone,
+          customerName: customerName || "",
+          paidAmount: (paymentIntent.amount || 0) / 100,
+          salesOrder: salesOrder || ""
+        });
+      })().catch((noteErr) => console.error("Card-on-file Podium note failed:", noteErr.message));
     }
 
     if (paymentIntent.status === "succeeded" && resolvedDepositAgreementId) {
@@ -15343,6 +15442,34 @@ async function sendCardCapturedEmail(record, card) {
 // ---------------------------------------------------------------------------
 const PODIUM_TEMPLATE_PAYMENT_RECEIVED = process.env.PODIUM_TEMPLATE_PAYMENT_RECEIVED || "";
 
+// Internal Podium note on the client's thread when a payment lands, so
+// whoever opens the conversation sees the money without leaving Podium.
+// One note per link record ever (podium_payment_notes guard). Skips quietly
+// when Podium isn't connected or the client has no conversation yet.
+function paymentMethodLabelForNote(record) {
+  if (record.type === "card_on_file") return "Stripe Charge Card on File";
+  if (record.workflowType === "hvac_deposit") return "Stripe Deposit Agreement";
+  return "Stripe Secure Link";
+}
+
+async function addPodiumPaymentNote(record) {
+  try {
+    if (!podiumOAuthConfigured() || !(await podiumConnected())) return;
+    const digits = String(record.customerPhone || "").replace(/\D/g, "");
+    if (!(digits.length === 10 || (digits.length === 11 && digits.startsWith("1")))) return;
+    if (!(await claimPodiumPaymentNoteOnce(record.id))) return;
+
+    const convo = await podiumFindConversationByPhone(digits.length === 11 ? digits.slice(1) : digits);
+    if (!convo) return; // no thread yet — nothing to annotate
+    const name = String(record.customerName || "").trim() || "Client";
+    const amount = `$${Number(record.paidAmount || 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    const note = `${name} paid ${amount}${record.salesOrder ? ` for order ${record.salesOrder}` : ""} via ${paymentMethodLabelForNote(record)}.`;
+    await podiumAddConversationNote(convo.uid, note, "Agility");
+  } catch (err) {
+    console.error("Podium payment note failed:", err.message);
+  }
+}
+
 async function sendPaymentReceivedTemplateText(record) {
   try {
     if (record.customerTextSentAt) return;
@@ -15442,6 +15569,7 @@ async function processCheckoutSessionWebhookEvent(event) {
       await deactivateCompletedPaymentLink(record);
       await maybeSendLinkPaidNotification(record);
       await sendPaymentReceivedTemplateText(record);
+      await addPodiumPaymentNote(record);
     } else if (isAchPendingIntent(paymentIntent, record)) {
       applyAchPendingState(record, session, paymentIntent);
     }
@@ -15455,6 +15583,7 @@ async function processCheckoutSessionWebhookEvent(event) {
     await deactivateCompletedPaymentLink(record);
     await maybeSendLinkPaidNotification(record);
     await sendPaymentReceivedTemplateText(record);
+      await addPodiumPaymentNote(record);
   }
 
   if (event.type === "checkout.session.async_payment_failed") {
@@ -15490,6 +15619,7 @@ async function processPaymentIntentWebhookEvent(event) {
     await deactivateCompletedPaymentLink(record);
     await maybeSendLinkPaidNotification(record);
     await sendPaymentReceivedTemplateText(record);
+      await addPodiumPaymentNote(record);
   }
 
   if (event.type === "payment_intent.payment_failed") {

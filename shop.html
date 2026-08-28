@@ -466,9 +466,39 @@
   <div class="overlay" id="registerOverlay">
     <div class="modal" id="registerModal">
       <h2>Unlock clearance pricing</h2>
-      <p class="lead">Tell us where these deals would be headed and how to reach you.
+      <p class="lead" id="regLead" style="display:none;">Tell us where these deals would be headed and how to reach you.
       We only sell online within our local delivery area.
-      <button type="button" class="linklike" id="haveCodeBtn">Shopped with us before? Enter your client code</button></p>
+      <button type="button" class="linklike" id="haveCodeBtn">Shopped with us before? More sign-in options</button></p>
+
+      <!-- Step 1: phone only. One field, one button (feedback 2026-08-27:
+           the old three-way sign-in was too complicated). -->
+      <div id="phonePanel">
+        <p class="lead">Enter your phone number and we'll see if you already have a profile with us.</p>
+        <div class="form-grid">
+          <div class="full"><label for="idPhone">Phone number</label><input id="idPhone" type="tel" autocomplete="tel" placeholder="512-555-0100"></div>
+        </div>
+        <div class="form-error" id="idError"></div>
+        <div class="modal-actions">
+          <button class="btn ghost" type="button" data-close="registerOverlay">Not now</button>
+          <button class="btn primary" id="idNext" type="button">Next</button>
+        </div>
+      </div>
+
+      <!-- Step 2a: profile found — last name logs them in. -->
+      <div id="lastNamePanel" style="display:none;">
+        <div style="background:#dcfce7; color:#166534; border-radius:12px; padding:11px 14px; font-size:14.5px; line-height:1.5; margin-bottom:14px;">
+          <strong>Yes — we found your profile.</strong> Enter your last name to log in.
+        </div>
+        <div class="form-grid">
+          <div><label for="lnName">Last name</label><input id="lnName" autocomplete="family-name"></div>
+          <div style="display:flex; align-items:flex-end;"><button class="btn primary" id="lnSubmit" type="button" style="width:100%;">Log in</button></div>
+        </div>
+        <div class="form-error" id="lnError"></div>
+        <div class="modal-actions" style="justify-content: space-between;">
+          <button class="btn ghost" type="button" id="lnBack">Back</button>
+          <button type="button" class="linklike" id="moreSignin">More sign-in options</button>
+        </div>
+      </div>
 
       <div id="lookupPanel" style="display:none;">
         <div class="form-grid">
@@ -489,11 +519,14 @@
         <div id="recResult" style="display:none; background:#dcfce7; color:#166534; border-radius:12px; padding:11px 14px; font-size:14px; line-height:1.5; margin-top:10px;"></div>
         <div class="form-error" id="lookError"></div>
         <div class="modal-actions">
-          <button class="btn ghost" type="button" id="backToRegBtn">Back to sign-up</button>
+          <button class="btn ghost" type="button" id="backToRegBtn">Back</button>
         </div>
       </div>
 
       <div id="regPanel">
+      <div id="newHereNote" style="display:none; background:#fffbeb; color:#92400e; border-radius:12px; padding:11px 14px; font-size:14.5px; line-height:1.5; margin-bottom:14px;">
+        We didn't find a profile for that number — let's get you set up. It takes about a minute.
+      </div>
       <div class="form-grid">
         <div><label for="regFirst">First name</label><input id="regFirst" autocomplete="given-name"></div>
         <div><label for="regLast">Last name</label><input id="regLast" autocomplete="family-name"></div>
@@ -1117,25 +1150,103 @@
     }
   }
 
-  // ---------- Registration ----------
-  function openRegister() {
-    $("regZip").value = $("regZip").value || state.zip;
-    $("regPanel").style.display = "";
-    $("lookupPanel").style.display = "none";
-    $("codePanel").style.display = "none";
-    $("haveCodeBtn").style.display = "";
-    $("registerOverlay").classList.add("show");
+  // ---------- Registration / sign-in ----------
+  // Phone-first flow: one field, then either "enter your last name" (profile
+  // found) or the sign-up form (not found). The old password/client-code
+  // panel survives behind "More sign-in options".
+  function showAuthPanel(name) {
+    for (const id of ["phonePanel", "lastNamePanel", "lookupPanel", "regPanel", "codePanel"]) {
+      $(id).style.display = id === name + "Panel" ? "" : "none";
+    }
+    $("regLead").style.display = name === "reg" ? "" : "none";
+    $("haveCodeBtn").style.display = name === "reg" ? "" : "none";
+    if (name !== "reg") $("newHereNote").style.display = "none";
   }
 
+  function openRegister() {
+    $("regZip").value = $("regZip").value || state.zip;
+    $("idError").classList.remove("show");
+    $("lnError").classList.remove("show");
+    showAuthPanel("phone");
+    $("registerOverlay").classList.add("show");
+    setTimeout(() => $("idPhone").focus(), 50);
+  }
+
+  $("idNext").addEventListener("click", async () => {
+    const err = $("idError");
+    err.classList.remove("show");
+    const digits = $("idPhone").value.replace(/\D/g, "");
+    if (digits.length !== 10 && !(digits.length === 11 && digits.startsWith("1"))) {
+      err.textContent = "Please enter a 10-digit phone number.";
+      err.classList.add("show");
+      return;
+    }
+    $("idNext").disabled = true;
+    $("idNext").textContent = "Checking…";
+    try {
+      const res = await fetch("/api/shop/identify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phone: $("idPhone").value.trim() })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Unable to check that right now.");
+      if (data.exists) {
+        showAuthPanel("lastName");
+        setTimeout(() => $("lnName").focus(), 50);
+      } else {
+        $("regPhone").value = $("idPhone").value.trim();
+        showAuthPanel("reg");
+        $("newHereNote").style.display = "";
+        setTimeout(() => $("regFirst").focus(), 50);
+      }
+    } catch (e) {
+      err.textContent = e.message;
+      err.classList.add("show");
+    } finally {
+      $("idNext").disabled = false;
+      $("idNext").textContent = "Next";
+    }
+  });
+  $("idPhone").addEventListener("keydown", (e) => { if (e.key === "Enter") $("idNext").click(); });
+
+  $("lnSubmit").addEventListener("click", async () => {
+    const err = $("lnError");
+    err.classList.remove("show");
+    $("lnSubmit").disabled = true;
+    try {
+      const res = await fetch("/api/shop/signin", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phone: $("idPhone").value.trim(), lastName: $("lnName").value.trim() })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Unable to sign in.");
+      state.token = data.token;
+      state.clientCode = data.clientCode || "";
+      localStorage.setItem(TOKEN_KEY, data.token);
+      $("registerOverlay").classList.remove("show");
+      await loadCatalog();
+      resumePendingCheckout();
+    } catch (e) {
+      err.textContent = e.message;
+      err.classList.add("show");
+    } finally {
+      $("lnSubmit").disabled = false;
+    }
+  });
+  $("lnName").addEventListener("keydown", (e) => { if (e.key === "Enter") $("lnSubmit").click(); });
+  $("lnBack").addEventListener("click", () => showAuthPanel("phone"));
+  $("moreSignin").addEventListener("click", () => {
+    $("lookPhone").value = $("idPhone").value.trim();
+    showAuthPanel("lookup");
+  });
+
   $("haveCodeBtn").addEventListener("click", () => {
-    $("regPanel").style.display = "none";
-    $("lookupPanel").style.display = "";
-    $("haveCodeBtn").style.display = "none";
+    showAuthPanel("lookup");
   });
   $("backToRegBtn").addEventListener("click", () => {
-    $("lookupPanel").style.display = "none";
-    $("regPanel").style.display = "";
-    $("haveCodeBtn").style.display = "";
+    showAuthPanel("phone");
   });
 
   $("loginSubmit").addEventListener("click", async () => {
@@ -1280,11 +1391,9 @@
       localStorage.setItem(TOKEN_KEY, data.token);
       // Show the client code before closing — it's how they skip this form
       // next time.
-      $("regPanel").style.display = "none";
-      $("haveCodeBtn").style.display = "none";
+      showAuthPanel("code");
       $("codeName").textContent = data.firstName || "";
       $("clientCodeBox").textContent = data.clientCode || "";
-      $("codePanel").style.display = "";
       await loadCatalog();
     } catch (e) {
       err.textContent = e.message;

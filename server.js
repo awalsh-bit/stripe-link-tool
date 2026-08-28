@@ -156,6 +156,7 @@ import {
   cancelShopOrder,
   findShopperByCodeAndPhone,
   findShopperByPhoneAndLastName,
+  shopperExistsByPhone,
   setShopperPassword,
   verifyShopperLogin,
   updateShopperProfile,
@@ -520,6 +521,8 @@ const SHOP_PUBLIC_API_PREFIXES = [
   "/api/shop/zip-check",
   "/api/shop/register",
   "/api/shop/lookup",
+  "/api/shop/identify",
+  "/api/shop/signin",
   "/api/shop/recover-code",
   "/api/shop/login",
   "/api/shop/profile",
@@ -5337,6 +5340,67 @@ app.post("/api/shop/recover-code", async (req, res) => {
 // PUBLIC: return-visit lookup — client code + phone restores the profile so
 // nobody retypes their address. Lightly throttled per IP against guessing.
 const shopLookupAttempts = new Map();
+// PUBLIC: step 1 of the simplified unlock flow — "enter your phone number".
+// Answers only whether a profile exists (yes/no, no names), so the page
+// knows whether to ask for a last name or offer sign-up. Shares the
+// per-IP lookup throttle.
+app.post("/api/shop/identify", async (req, res) => {
+  try {
+    const now = Date.now();
+    const key = "identify:" + String(req.ip || "");
+    const attempts = (shopLookupAttempts.get(key) || []).filter((t) => now - t < 60 * 60 * 1000);
+    if (attempts.length >= 30) {
+      return res.status(429).json({ error: "Too many attempts — please try again later." });
+    }
+    attempts.push(now);
+    shopLookupAttempts.set(key, attempts);
+
+    const digits = String(req.body?.phone || "").replace(/\D/g, "");
+    if (digits.length !== 10 && !(digits.length === 11 && digits.startsWith("1"))) {
+      return res.status(400).json({ error: "Please enter a 10-digit phone number." });
+    }
+    const exists = await shopperExistsByPhone(digits);
+    return res.json({ exists });
+  } catch (err) {
+    console.error("Shop identify failed:", err.message);
+    return res.status(500).json({ error: "Unable to check that right now." });
+  }
+});
+
+// PUBLIC: step 2 — phone + last name signs the returning shopper in.
+// Same trust level as the existing recover-code path (phone + last name
+// already unlocks the client code, and code + phone restores the profile),
+// with the same throttle.
+app.post("/api/shop/signin", async (req, res) => {
+  try {
+    const now = Date.now();
+    const key = "signin:" + String(req.ip || "");
+    const attempts = (shopLookupAttempts.get(key) || []).filter((t) => now - t < 60 * 60 * 1000);
+    if (attempts.length >= 20) {
+      return res.status(429).json({ error: "Too many sign-in attempts — please try again later." });
+    }
+    attempts.push(now);
+    shopLookupAttempts.set(key, attempts);
+
+    const shopper = await findShopperByPhoneAndLastName({
+      phone: req.body?.phone,
+      lastName: req.body?.lastName
+    });
+    if (!shopper) {
+      return res.status(401).json({ error: "That last name doesn't match what we have for this number. Double-check the spelling, or use one of the other sign-in options below." });
+    }
+    recordAudit({
+      ip: req.ip, actorUserId: null,
+      action: "shop_shopper_login", targetUserId: null,
+      detail: { clientCode: shopper.clientCode, method: "phone_lastname" }
+    }).catch(() => {});
+    return res.json({ token: shopper.token, firstName: shopper.firstName, clientCode: shopper.clientCode });
+  } catch (err) {
+    console.error("Shop signin failed:", err.message);
+    return res.status(500).json({ error: "Unable to sign in right now." });
+  }
+});
+
 app.post("/api/shop/lookup", async (req, res) => {
   try {
     const now = Date.now();

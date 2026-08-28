@@ -2082,9 +2082,10 @@
     }
   }
 
-  // Today's Stripe Activity Summary — per-department paid totals for today,
-  // toggled from the Paid History header (off by default; managers/execs
-  // switch it on and the choice sticks per browser).
+  // Stripe Activity Summary — per-department paid totals for the day picked
+  // in the Paid History date filter (defaults to today; clearing the filter
+  // falls back to today too). Toggled from the Paid History header (off by
+  // default; managers/execs switch it on and the choice sticks per browser).
   const STRIPE_TODAY_DEPTS = ["Appliance", "HVAC Sales", "Repair Service", "Kitchen Design"];
 
   function renderStripeToday() {
@@ -2094,7 +2095,11 @@
     box.style.display = toggle.checked ? "" : "none";
     if (!toggle.checked) return;
 
-    const today = toLocalDateInputValue(new Date());
+    const todayActual = toLocalDateInputValue(new Date());
+    const today = (paidDateFilterEl && paidDateFilterEl.value) || todayActual;
+    const summaryLabel = today === todayActual
+      ? "Today's Stripe Activity"
+      : "Stripe Activity — " + new Date(`${today}T12:00:00`).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", year: "numeric" });
     const byDept = {};
     for (const dept of STRIPE_TODAY_DEPTS) byDept[dept] = { paid: 0, count: 0, refunded: 0, refundCount: 0 };
     let total = 0;
@@ -2127,7 +2132,7 @@
 
     box.innerHTML = `
       <div class="st-head">
-        <span class="st-label">Today's Stripe Activity</span>
+        <span class="st-label">${summaryLabel}</span>
         <span class="st-total">${formatMoney(net)} <span style="font-size: 12px; font-weight: 600; color: #6b7280;">net revenue</span></span>
       </div>
       <div class="st-row">

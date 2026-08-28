@@ -12,8 +12,13 @@
 # GMAIL SETUP (one time):
 #   1. Create the account (e.g. wilsonagilityreports@gmail.com).
 #   2. Turn ON 2-Step Verification (myaccount.google.com/security).
+#      IMPORTANT: use a PHONE NUMBER (text) or Authenticator app as the
+#      2-step method — a passkey alone hides App Passwords. Also turn OFF
+#      "Skip password when possible" under Security > How you sign in.
 #   3. Create an App Password (myaccount.google.com/apppasswords) — 16 chars,
-#      paste it below. Normal password will NOT work for IMAP.
+#      paste it below. Normal password will NOT work for IMAP. If Google says
+#      the setting "is not available for your account", see the CONFIG notes
+#      below (fix the sign-in settings, or fall back to Zoho Mail).
 #   4. Point every EPASS scheduled report's email distribution at the address.
 #
 # SCHEDULE: same Task Scheduler pattern as epass-agent.ps1, every 10 minutes,
@@ -25,8 +30,14 @@
 # =============================================================================
 
 # ---- CONFIG ----------------------------------------------------------------
-$GmailUser   = "wilsonagilityreports@gmail.com"
-$GmailAppPw  = "PASTE-16-CHAR-APP-PASSWORD"       # App Password, NOT the login password
+# Works with any IMAP mailbox. Gmail is the default; if Google won't offer
+# App Passwords on the account (it hides them behind passkey-first sign-in,
+# and sometimes on brand-new accounts), a free Zoho Mail box is the drop-in
+# fallback: $ImapHost = "imap.zoho.com", same port, Zoho app password.
+$ImapHost    = "imap.gmail.com"
+$ImapPort    = 993
+$MailUser    = "wilsonagilityreports@gmail.com"
+$MailAppPw   = "PASTE-16-CHAR-APP-PASSWORD"       # App Password, NOT the login password
 $Root        = "W:\Agility"
 $FromFilter  = ""    # optional: only take mail from this sender (the EPASS SMTP from-address); "" = any
 # Filename -> outbox kind. First match wins; unmatched attachments land in
@@ -88,8 +99,8 @@ function RouteKind([string]$filename) {
 # ---- Fetch -----------------------------------------------------------------
 $client = New-Object MailKit.Net.Imap.ImapClient
 try {
-  $client.Connect("imap.gmail.com", 993, $true)
-  $client.Authenticate($GmailUser, $GmailAppPw)
+  $client.Connect($ImapHost, $ImapPort, $true)
+  $client.Authenticate($MailUser, $MailAppPw)
   $inbox = $client.Inbox
   [void]$inbox.Open([MailKit.FolderAccess]::ReadWrite)
 

@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="robots" content="noindex,nofollow,noarchive" />
+  <title>Wilson AC &amp; Appliance - Uniform Ordering</title>
+  <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+  <link rel="stylesheet" href="internal-shell.css" />
+  <style>
+    :root {
+      --bg: #f7f8fc; --card: #ffffff; --text: #1f2937; --muted: #6b7280;
+      --border: #dbe1ea; --shadow: 0 10px 35px rgba(0, 0, 0, 0.08); --radius: 18px;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; font-family: "Roboto", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: linear-gradient(180deg, var(--primary-tint) 0%, var(--bg) 100%);
+      color: var(--text); min-height: 100vh; padding: 32px 16px;
+    }
+    .wrap { max-width: 1480px; margin: 0 auto; }
+    .surface {
+      background: var(--card); border: 1px solid rgba(var(--primary-rgb), 0.12);
+      box-shadow: var(--shadow); border-radius: var(--radius); padding: 22px; margin: 0 auto 20px;
+    }
+    h2 { margin: 0 0 6px; font-size: 20px; }
+    .section-note { margin: 0 0 14px; color: var(--muted); font-size: 13.5px; line-height: 1.5; }
+    .block-label { font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.03em; margin: 14px 0 6px; }
+    .dept-chips { display: flex; gap: 8px; flex-wrap: wrap; }
+    .dept-chip {
+      border: 1.5px solid var(--border); background: #fff; color: var(--text); border-radius: 999px;
+      padding: 7px 14px; font-size: 13px; font-weight: 600; cursor: pointer; font-family: inherit;
+    }
+    .dept-chip:hover { border-color: var(--primary); color: var(--primary); }
+    .dept-chip .n { color: var(--muted); font-weight: 500; }
+    .add-row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+    select, input[type="search"] {
+      border: 1.5px solid var(--border); border-radius: 10px; padding: 8px 12px; font-size: 13.5px;
+      background: #fff; color: var(--text); font-family: inherit;
+    }
+    button.action {
+      border: none; border-radius: 10px; padding: 9px 16px; font-size: 13.5px; font-weight: 700;
+      background: var(--primary); color: #fff; cursor: pointer; font-family: inherit;
+    }
+    button.action.secondary { background: rgba(var(--primary-rgb), 0.1); color: var(--primary); }
+    button.action:disabled { opacity: 0.5; cursor: default; }
+    .order-bar { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; margin-bottom: 12px; }
+    .order-bar .spacer { margin-left: auto; }
+    .toggle { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; color: var(--text); cursor: pointer; user-select: none; }
+    .toggle input { accent-color: var(--primary); width: 16px; height: 16px; }
+    .count-line { color: var(--muted); font-size: 12.5px; }
+    table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+    th { text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: 0.03em; color: var(--muted); padding: 8px 10px; border-bottom: 2px solid var(--border); white-space: nowrap; }
+    td { padding: 9px 10px; border-bottom: 1px solid #eef1f5; vertical-align: middle; }
+    .who { font-weight: 600; }
+    .dept-cell { color: var(--muted); }
+    .size-chip { display: inline-block; border-radius: 8px; font-size: 12.5px; font-weight: 700; padding: 3px 10px; background: rgba(var(--primary-rgb), 0.1); color: var(--primary); }
+    .size-missing { display: inline-block; border-radius: 8px; font-size: 11px; font-weight: 700; padding: 3px 10px; background: #fef3c7; color: #92400e; }
+    .rm-btn {
+      border: none; background: none; color: #b91c1c; font-size: 16px; line-height: 1; cursor: pointer;
+      padding: 4px 8px; border-radius: 8px; font-family: inherit;
+    }
+    .rm-btn:hover { background: #fee2e2; }
+    .tally { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+    .tally-chip { border: 1px solid var(--border); border-radius: 999px; padding: 4px 12px; font-size: 12px; color: var(--muted); background: #fff; }
+    .tally-chip b { color: var(--text); }
+    .tally-chip.warn { border-color: #fcd34d; background: #fffbeb; color: #92400e; }
+    .empty { text-align: center; color: var(--muted); padding: 34px 10px; font-size: 13.5px; }
+    .hint { color: var(--muted); font-size: 12px; margin-top: 10px; }
+    @media (max-width: 760px) {
+      .order-bar .spacer { margin-left: 0; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div id="internal-shell-header"></div>
+
+    <div class="surface">
+      <h2>Uniform Ordering</h2>
+      <p class="section-note">
+        Build a uniform order from the team roster. Add a whole department or individual people, drop anyone
+        who doesn't need gear this round, choose whether shirt and shoe sizes show, and export the finished
+        list as a CSV for the vendor. Sizes live on the employee profile (User Admin) — anyone missing a size
+        shows amber here, and the team can fill in their own from their dashboard.
+      </p>
+
+      <div class="block-label">Add a department</div>
+      <div class="dept-chips" id="deptChips"></div>
+
+      <div class="block-label">Add an individual</div>
+      <div class="add-row">
+        <select id="personSelect"><option value="">— Pick a teammate —</option></select>
+        <button class="action secondary" id="addPerson">Add to order</button>
+      </div>
+    </div>
+
+    <div class="surface">
+      <div class="order-bar">
+        <h2 style="margin:0;">This Order</h2>
+        <span class="count-line" id="countLine">Nobody added yet</span>
+        <span class="spacer"></span>
+        <label class="toggle"><input type="checkbox" id="showShirt" checked /> Shirt sizes</label>
+        <label class="toggle"><input type="checkbox" id="showShoe" checked /> Shoe sizes</label>
+        <button class="action secondary" id="clearOrder">Clear</button>
+        <button class="action" id="exportCsv">Export CSV</button>
+      </div>
+      <div id="orderHost"><div class="empty">Add a department or a teammate above to start the order.</div></div>
+      <div class="tally" id="tally"></div>
+      <div class="hint" id="missingHint" hidden>
+        Amber = size not on file. It still exports (blank cell) — or have them fill it in on their dashboard /
+        set it in User Admin, then reload this page.
+      </div>
+    </div>
+
+    <div id="internal-shell-footer"></div>
+  </div>
+
+  <script src="internal-shell.js"></script>
+  <script>
+    (function () {
+      const $ = (id) => document.getElementById(id);
+      const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch]));
+
+      let roster = [];          // active directory entries from the server
+      let departments = [];     // department names in display order
+      const order = new Map();  // code -> roster entry, insertion-ordered
+
+      function deptMembers(name) {
+        return roster.filter((e) => (e.department || "") === name);
+      }
+
+      function renderPickers() {
+        // Department chips with live member counts (skip empty departments).
+        $("deptChips").innerHTML = departments
+          .map((d) => ({ d, n: deptMembers(d).length }))
+          .filter((x) => x.n > 0)
+          .map((x) => `<button class="dept-chip" data-dept="${esc(x.d)}">+ ${esc(x.d)} <span class="n">(${x.n})</span></button>`)
+          .join("") || '<span class="count-line">No departments with members yet.</span>';
+
+        // Individual picker: everyone not already on the order.
+        const current = $("personSelect").value;
+        $("personSelect").innerHTML = '<option value="">— Pick a teammate —</option>' +
+          roster.filter((e) => !order.has(e.code))
+            .map((e) => `<option value="${esc(e.code)}" ${e.code === current ? "selected" : ""}>${esc(e.name)}${e.department ? " — " + esc(e.department) : ""}</option>`)
+            .join("");
+      }
+
+      function sizeCell(value) {
+        return value
+          ? `<span class="size-chip">${esc(value)}</span>`
+          : '<span class="size-missing">missing</span>';
+      }
+
+      function renderOrder() {
+        const rows = [...order.values()];
+        const showShirt = $("showShirt").checked;
+        const showShoe = $("showShoe").checked;
+        $("countLine").textContent = rows.length
+          ? `${rows.length} ${rows.length === 1 ? "person" : "people"} on this order`
+          : "Nobody added yet";
+
+        if (!rows.length) {
+          $("orderHost").innerHTML = '<div class="empty">Add a department or a teammate above to start the order.</div>';
+          $("tally").innerHTML = "";
+          $("missingHint").hidden = true;
+          return;
+        }
+
+        $("orderHost").innerHTML = `
+        <table>
+          <thead><tr>
+            <th>Name</th><th>Department</th>
+            ${showShirt ? "<th>Shirt</th>" : ""}
+            ${showShoe ? "<th>Shoe</th>" : ""}
+            <th style="width:40px;"></th>
+          </tr></thead>
+          <tbody>
+            ${rows.map((e) => `<tr>
+              <td class="who">${esc(e.name)}</td>
+              <td class="dept-cell">${esc(e.department || "—")}</td>
+              ${showShirt ? `<td>${sizeCell(e.shirtSize)}</td>` : ""}
+              ${showShoe ? `<td>${sizeCell(e.shoeSize)}</td>` : ""}
+              <td><button class="rm-btn" data-rm="${esc(e.code)}" title="Remove from this order">&times;</button></td>
+            </tr>`).join("")}
+          </tbody>
+        </table>`;
+
+        // Tally strip — what the vendor order actually needs: counts by size.
+        const chips = [];
+        if (showShirt) {
+          const counts = {};
+          let missing = 0;
+          rows.forEach((e) => { e.shirtSize ? counts[e.shirtSize] = (counts[e.shirtSize] || 0) + 1 : missing++; });
+          const parts = Object.entries(counts).map(([s, n]) => `<b>${esc(s)}</b>&times;${n}`).join(" &nbsp;");
+          if (parts) chips.push(`<span class="tally-chip">Shirts: ${parts}</span>`);
+          if (missing) chips.push(`<span class="tally-chip warn">${missing} shirt size${missing === 1 ? "" : "s"} missing</span>`);
+        }
+        if (showShoe) {
+          const missing = rows.filter((e) => !e.shoeSize).length;
+          if (missing) chips.push(`<span class="tally-chip warn">${missing} shoe size${missing === 1 ? "" : "s"} missing</span>`);
+        }
+        $("tally").innerHTML = chips.join("");
+        $("missingHint").hidden = !rows.some((e) => (showShirt && !e.shirtSize) || (showShoe && !e.shoeSize));
+      }
+
+      function renderAll() { renderPickers(); renderOrder(); }
+
+      // --- Add / remove ---
+      $("deptChips").addEventListener("click", (ev) => {
+        const btn = ev.target.closest("[data-dept]");
+        if (!btn) return;
+        deptMembers(btn.dataset.dept).forEach((e) => order.set(e.code, e));
+        renderAll();
+      });
+      $("addPerson").addEventListener("click", () => {
+        const code = $("personSelect").value;
+        const entry = roster.find((e) => e.code === code);
+        if (entry) { order.set(entry.code, entry); renderAll(); }
+      });
+      $("orderHost").addEventListener("click", (ev) => {
+        const btn = ev.target.closest("[data-rm]");
+        if (!btn) return;
+        order.delete(btn.dataset.rm);
+        renderAll();
+      });
+      $("clearOrder").addEventListener("click", () => { order.clear(); renderAll(); });
+      $("showShirt").addEventListener("change", renderOrder);
+      $("showShoe").addEventListener("change", renderOrder);
+
+      // --- CSV export: exactly the visible columns, quoted, CRLF (Excel-clean).
+      $("exportCsv").addEventListener("click", () => {
+        const rows = [...order.values()];
+        if (!rows.length) return;
+        const showShirt = $("showShirt").checked;
+        const showShoe = $("showShoe").checked;
+        const q = (v) => '"' + String(v ?? "").replace(/"/g, '""') + '"';
+        const header = ["Name", "Department", ...(showShirt ? ["Shirt Size"] : []), ...(showShoe ? ["Shoe Size"] : [])];
+        const lines = [header.map(q).join(",")];
+        rows.forEach((e) => lines.push([
+          e.name, e.department || "",
+          ...(showShirt ? [e.shirtSize || ""] : []),
+          ...(showShoe ? [e.shoeSize || ""] : [])
+        ].map(q).join(",")));
+        const stamp = new Date().toISOString().slice(0, 10);
+        const blob = new Blob(["﻿" + lines.join("\r\n")], { type: "text/csv;charset=utf-8;" });
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(blob);
+        a.download = `uniform-order-${stamp}.csv`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(a.href);
+      });
+
+      async function load() {
+        try {
+          const res = await fetch("/api/uniform-report", { credentials: "same-origin" });
+          const body = await res.json();
+          if (!res.ok) throw new Error(body.error || "Unable to load the roster.");
+          roster = body.entries || [];
+          departments = body.departments || [];
+          renderAll();
+        } catch (err) {
+          $("orderHost").innerHTML = `<div class="empty">${esc(err.message)}</div>`;
+        }
+      }
+      load();
+    })();
+  </script>
+</body>
+</html>

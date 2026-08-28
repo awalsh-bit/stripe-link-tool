@@ -267,7 +267,8 @@
         title: "HR",
         children: [
           { href: "hr-phone-screen.html", title: "Phone Screen" },
-          { href: "hr-candidates.html", title: "Candidates" }
+          { href: "hr-candidates.html", title: "Candidates" },
+          { href: "uniform-orders.html", title: "Uniform Ordering" }
         ]
       },
       {

@@ -68,6 +68,16 @@ schedule it every 10 minutes a couple of minutes before the upload agent.
 First run auto-downloads the small mail libraries it needs into
 W:\Agility\lib (one-time, ~2MB from NuGet).
 
+**If Google says App Passwords "is not available for your account"** even
+with 2-Step on: (1) turn OFF "Skip password when possible" under Security →
+How you sign in — a passkey-first account hides App Passwords; (2) make sure
+a phone number (text) is on the account as a 2-step method, not just a
+passkey; (3) brand-new accounts are sometimes held back for a day or two —
+sign in on a desktop, use it normally, retry. If none of that brings the
+page back, the script works with any IMAP mailbox — a free **Zoho Mail**
+account is the drop-in fallback (set `$ImapHost = "imap.zoho.com"` in the
+config and use a Zoho app password).
+
 Attachments route to an outbox by filename (ExportModel -> inventory,
 ExportInvoice / Invoice Maintenance / Quote -> quotes, OE-23 / Salesperson
 Activity -> open-orders); anything unrecognized lands in `outbox\unsorted`

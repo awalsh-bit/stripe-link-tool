@@ -1217,6 +1217,26 @@
 </div>
 <div class="nav-grid" id="navGrid"></div>
 
+      <!-- Self-serve uniform sizes: only appears when the signed-in user's
+           directory profile is missing a shirt or shoe size (HR uniform
+           ordering). Saves via /api/me/sizes, then thanks + disappears. -->
+      <div class="card" id="sizesCard" hidden style="border-left: 4px solid #f59e0b;">
+        <div class="module-header" style="margin-bottom: 6px;">
+          <div class="module-title">Quick one for HR — your uniform sizes</div>
+          <p class="module-desc">HR builds uniform orders from the team roster. Add your sizes once and you're set.</p>
+        </div>
+        <div style="display: flex; gap: 12px; flex-wrap: wrap; align-items: flex-end;">
+          <label style="font-size: 12px; font-weight: 700; color: #6b7280;">Shirt size<br />
+            <select id="sizesShirt" style="margin-top: 4px; border: 1.5px solid #dbe1ea; border-radius: 10px; padding: 8px 12px; font-size: 13.5px; font-family: inherit;"></select>
+          </label>
+          <label style="font-size: 12px; font-weight: 700; color: #6b7280;">Shoe size<br />
+            <input id="sizesShoe" type="text" maxlength="20" placeholder="10.5 · W 8 · 11 wide" style="margin-top: 4px; border: 1.5px solid #dbe1ea; border-radius: 10px; padding: 8px 12px; font-size: 13.5px; font-family: inherit; width: 160px;" />
+          </label>
+          <button id="sizesSave" type="button" style="border: none; border-radius: 10px; padding: 9px 16px; font-size: 13.5px; font-weight: 700; background: var(--primary, #166534); color: #fff; cursor: pointer; font-family: inherit;">Save my sizes</button>
+          <span id="sizesMsg" style="font-size: 12.5px; color: #6b7280;"></span>
+        </div>
+      </div>
+
       <div class="card pinned-module" id="orderFlagsCard">
         <div class="module-header">
           <div class="module-title">My Notifications</div>
@@ -3358,6 +3378,46 @@
         }
         renderOrderFlags();
       })();
+    })();
+  </script>
+
+  <script>
+    // Self-serve uniform sizes prompt (HR uniform ordering). Shows only when
+    // the signed-in user's directory profile exists and is missing a shirt
+    // or shoe size; saving hides it. Fully independent of the dashboard app.
+    (function () {
+      const card = document.getElementById("sizesCard");
+      if (!card) return;
+      const shirtSel = document.getElementById("sizesShirt");
+      const shoeInput = document.getElementById("sizesShoe");
+      const msg = document.getElementById("sizesMsg");
+      fetch("/api/me/sizes", { credentials: "same-origin" })
+        .then((r) => (r.ok ? r.json() : null))
+        .then((me) => {
+          if (!me || !me.found || (me.shirtSize && me.shoeSize)) return;
+          shirtSel.innerHTML = '<option value="">— Pick —</option>' +
+            (me.shirtSizes || []).map((s) => `<option value="${s}" ${s === me.shirtSize ? "selected" : ""}>${s}</option>`).join("");
+          shoeInput.value = me.shoeSize || "";
+          card.hidden = false;
+        })
+        .catch(() => {});
+      document.getElementById("sizesSave").addEventListener("click", async () => {
+        msg.textContent = "Saving…";
+        try {
+          const res = await fetch("/api/me/sizes", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            credentials: "same-origin",
+            body: JSON.stringify({ shirtSize: shirtSel.value, shoeSize: shoeInput.value.trim() })
+          });
+          const body = await res.json();
+          if (!res.ok) throw new Error(body.error || "Unable to save.");
+          msg.textContent = "Saved — thanks!";
+          setTimeout(() => { card.hidden = true; }, 1600);
+        } catch (err) {
+          msg.textContent = err.message;
+        }
+      });
     })();
   </script>
 

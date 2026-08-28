@@ -1030,6 +1030,29 @@
       return sel;
     }
 
+    // Uniform sizes — mirrors the server's SHIRT_SIZES vocabulary (standard
+    // cuts + tall variants). Feeds the HR Uniform Ordering report.
+    const SHIRT_SIZES = ["XS", "S", "M", "L", "XL", "2XL", "3XL", "4XL", "LT", "XLT", "2XLT", "3XLT"];
+    function shirtSelectFor(value) {
+      const sel = document.createElement("select");
+      sel.id = "upShirt";
+      const none = document.createElement("option");
+      none.value = "";
+      none.textContent = "— Not set —";
+      sel.appendChild(none);
+      const current = String(value || "").trim().toUpperCase();
+      const sizes = SHIRT_SIZES.slice();
+      if (current && !sizes.includes(current)) sizes.push(current); // legacy value — keep it visible
+      for (const size of sizes) {
+        const opt = document.createElement("option");
+        opt.value = size;
+        opt.textContent = size;
+        if (size === current) opt.selected = true;
+        sel.appendChild(opt);
+      }
+      return sel;
+    }
+
     function syncUpSave() {
       const btn = document.getElementById("upSave");
       const pending = up.account ? pendingCount(up.account) : 0;
@@ -1113,6 +1136,8 @@
       grid.appendChild(fieldWrap("Department", deptSelectFor(entry?.department)));
       grid.appendChild(fieldWrap("Job title", titleSelectFor(entry?.commissionPlan)));
       grid.appendChild(fieldWrap("Commute (mi, round trip)", el("input", { id: "upCommute", type: "number", min: "0", step: "0.1", value: String(entry?.commuteMiles ?? "") })));
+      grid.appendChild(fieldWrap("Shirt size (uniforms)", shirtSelectFor(entry?.shirtSize)));
+      grid.appendChild(fieldWrap("Shoe size (uniforms)", el("input", { id: "upShoe", type: "text", maxlength: "20", placeholder: "10.5 · W 8 · 11 wide", value: entry?.shoeSize || "" })));
       body.appendChild(grid);
       body.appendChild(el("div", { class: "up-note", text: codeLocked
         ? "The code is permanent — payment and commission records link on it. The email ties this directory entry to the matching login account."
@@ -1242,6 +1267,8 @@
       const department = document.getElementById("upDept").value.trim();
       const commissionPlan = document.getElementById("upTitle").value;
       const commuteMiles = Number(document.getElementById("upCommute").value) || 0;
+      const shirtSize = document.getElementById("upShirt").value;
+      const shoeSize = document.getElementById("upShoe").value.trim();
 
       const wantsDirectory = up.entry || code || name;
       btn.disabled = true;
@@ -1257,7 +1284,7 @@
           }
           await api("/api/admin/employee-directory", {
             method: "POST",
-            body: JSON.stringify({ code, name, email, department, commissionPlan, commuteMiles })
+            body: JSON.stringify({ code, name, email, department, commissionPlan, commuteMiles, shirtSize, shoeSize })
           });
         }
         if (up.account && pendingCount(up.account)) {

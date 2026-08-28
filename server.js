@@ -99,7 +99,9 @@ import {
   listDepartments,
   createDepartment,
   updateDepartment,
-  deleteDepartment
+  deleteDepartment,
+  SHIRT_SIZES,
+  setEmployeeSizesByEmail
 } from "./lib/employee-directory.js";
 import {
   isSteelCodConfigured,
@@ -585,6 +587,7 @@ const INTERNAL_PAGE_PATHS = new Set([
   "/mileage-review.html",
   "/hr-phone-screen.html",
   "/hr-candidates.html",
+  "/uniform-orders.html",
   "/spec-packages.html",
   "/satisfaction-survey.html",
   "/satisfaction-results.html",
@@ -802,6 +805,7 @@ const PAGE_LABELS = {
   "/mileage-review.html": "Mileage Review",
   "/hr-phone-screen.html": "Phone Screen",
   "/hr-candidates.html": "Candidates",
+  "/uniform-orders.html": "Uniform Ordering",
   "/satisfaction-survey.html": "Client Satisfaction Survey",
   "/satisfaction-results.html": "Satisfaction Results",
   "/case-visit-survey.html": "Case Visit Survey",
@@ -845,7 +849,7 @@ const PAGE_CATEGORIES = [
   {
     key: "hr",
     label: "HR",
-    pages: ["/hr-phone-screen.html", "/hr-candidates.html"]
+    pages: ["/hr-phone-screen.html", "/hr-candidates.html", "/uniform-orders.html"]
   },
   {
     key: "test_modules",
@@ -1969,6 +1973,61 @@ app.post("/api/me/theme", async (req, res) => {
   } catch (err) {
     console.error("Save theme failed:", err.message);
     return res.status(500).json({ error: "Unable to save your color scheme." });
+  }
+});
+
+// --- Self-serve uniform sizes (HR uniform ordering) ------------------------
+// The dashboard prompts anyone whose directory entry is missing a shirt or
+// shoe size; they save their own. Keyed on the account email = directory
+// email link. Execs can also set sizes in User Admin.
+
+app.get("/api/me/sizes", async (req, res) => {
+  if (!req.authUser) {
+    return res.status(401).json({ error: "Authentication required." });
+  }
+  try {
+    const email = String(req.authUser.email || "").trim().toLowerCase();
+    const entry = email ? await findEmployeeDirectoryEntryByEmail(email) : null;
+    if (!entry || entry.archived) {
+      return res.json({ found: false, shirtSizes: SHIRT_SIZES });
+    }
+    return res.json({
+      found: true,
+      name: entry.name,
+      shirtSize: entry.shirtSize,
+      shoeSize: entry.shoeSize,
+      shirtSizes: SHIRT_SIZES
+    });
+  } catch (err) {
+    console.error("Load my sizes failed:", err.message);
+    return res.status(500).json({ error: "Unable to load your sizes." });
+  }
+});
+
+app.post("/api/me/sizes", async (req, res) => {
+  if (!req.authUser) {
+    return res.status(401).json({ error: "Authentication required." });
+  }
+  try {
+    const sizes = readUniformSizeFields(req.body);
+    if (sizes.error) return res.status(400).json({ error: sizes.error });
+    if (sizes.shirtSize == null && sizes.shoeSize == null) {
+      return res.status(400).json({ error: "Nothing to save — pick a shirt size or enter a shoe size." });
+    }
+    const email = String(req.authUser.email || "").trim().toLowerCase();
+    const entry = email ? await setEmployeeSizesByEmail(email, sizes) : null;
+    if (!entry) {
+      return res.status(404).json({ error: "Your account isn't linked to a directory profile — ask an executive to set your sizes in User Admin." });
+    }
+    recordAudit({
+      ip: req.ip, actorUserId: req.authUser.id || null,
+      action: "employee_sizes_self_saved", targetUserId: null,
+      detail: { code: entry.code, shirtSize: entry.shirtSize, shoeSize: entry.shoeSize }
+    }).catch(() => {});
+    return res.json({ success: true, shirtSize: entry.shirtSize, shoeSize: entry.shoeSize });
+  } catch (err) {
+    console.error("Save my sizes failed:", err.message);
+    return res.status(500).json({ error: "Unable to save your sizes." });
   }
 });
 
@@ -4295,6 +4354,31 @@ app.get("/api/admin/employee-directory", requireExecutiveApi, async (req, res) =
   }
 });
 
+// Uniform sizes (HR uniform ordering). Shirt must come from the shared
+// SHIRT_SIZES vocabulary; shoe is free text ("10.5", "W 8", "11 wide").
+// A field ABSENT from the body means "leave the stored value alone" (null
+// through to the lib), so older callers can never wipe self-served sizes.
+function readUniformSizeFields(body) {
+  const out = { shirtSize: null, shoeSize: null, error: null };
+  if (body && Object.prototype.hasOwnProperty.call(body, "shirtSize")) {
+    const s = String(body.shirtSize || "").trim().toUpperCase();
+    if (s && !SHIRT_SIZES.includes(s)) {
+      out.error = `Shirt size must be one of ${SHIRT_SIZES.join(", ")} — or blank.`;
+      return out;
+    }
+    out.shirtSize = s;
+  }
+  if (body && Object.prototype.hasOwnProperty.call(body, "shoeSize")) {
+    const s = String(body.shoeSize || "").trim();
+    if (s.length > 20) {
+      out.error = "Shoe size is capped at 20 characters.";
+      return out;
+    }
+    out.shoeSize = s;
+  }
+  return out;
+}
+
 app.post("/api/admin/employee-directory", requireExecutiveApi, async (req, res) => {
   try {
     const { code = "", name = "", email = "", department = "", commuteMiles = 0, commissionPlan = "" } = req.body || {};
@@ -4340,8 +4424,13 @@ app.post("/api/admin/employee-directory", requireExecutiveApi, async (req, res) 
       }
     }
 
+    const sizes = readUniformSizeFields(req.body);
+    if (sizes.error) {
+      return res.status(400).json({ error: sizes.error });
+    }
+
     const entry = await upsertEmployeeDirectoryEntry(
-      { code, name, email: trimmedEmail, department: normalizedDepartment, commuteMiles: commute, commissionPlan: plan },
+      { code, name, email: trimmedEmail, department: normalizedDepartment, commuteMiles: commute, commissionPlan: plan, shirtSize: sizes.shirtSize, shoeSize: sizes.shoeSize },
       req.authUser.id || null
     );
 
@@ -4365,7 +4454,7 @@ app.post("/api/admin/employee-directory", requireExecutiveApi, async (req, res) 
       actorUserId: req.authUser.id || null,
       action: "employee_directory_saved",
       targetUserId: syncedUserId,
-      detail: { code: entry.code, name: entry.name, email: entry.email, department: entry.department, commuteMiles: entry.commuteMiles, commissionPlan: entry.commissionPlan, nameSynced: Boolean(syncedUserId) }
+      detail: { code: entry.code, name: entry.name, email: entry.email, department: entry.department, commuteMiles: entry.commuteMiles, commissionPlan: entry.commissionPlan, shirtSize: entry.shirtSize, shoeSize: entry.shoeSize, nameSynced: Boolean(syncedUserId) }
     }).catch(() => {});
 
     return res.json({ success: true, entry });
@@ -8649,6 +8738,24 @@ app.post("/api/field-commissions/exceptions/:id/resolve", requireExecutiveApi, a
   } catch (err) {
     console.error("Commission exception resolve failed:", err.message);
     return res.status(500).json({ error: "Unable to resolve the request." });
+  }
+});
+
+// Uniform ordering (HR): the active roster with sizes, for the order
+// builder on uniform-orders.html. Page-permission gated like any HR page.
+app.get("/api/uniform-report", requirePagePermission("/uniform-orders.html"), async (req, res) => {
+  try {
+    const [entries, departments] = await Promise.all([listEmployeeDirectory(), listDepartments()]);
+    return res.json({
+      shirtSizes: SHIRT_SIZES,
+      departments: departments.map((d) => d.name),
+      entries: entries
+        .filter((e) => !e.archived)
+        .map((e) => ({ code: e.code, name: e.name, department: e.department || "", shirtSize: e.shirtSize, shoeSize: e.shoeSize }))
+    });
+  } catch (err) {
+    console.error("Uniform report failed:", err.message);
+    return res.status(500).json({ error: "Unable to load the uniform roster." });
   }
 });
 

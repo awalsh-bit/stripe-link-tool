@@ -537,7 +537,10 @@ const ALWAYS_PUBLIC_PATHS = new Set([
   "/api/stripe/webhook",
   // Machine-to-machine: the store PC's nightly ExportModel upload. Guarded
   // by its own shared key (SHOP_SNAPSHOT_KEY), not a session.
-  "/api/shop/inventory-snapshot/file"
+  "/api/shop/inventory-snapshot/file",
+  // Machine-to-machine: the showroom server's ePASS agent (W: drive watcher,
+  // scripts/epass-agent.ps1). Guarded by EPASS_AGENT_KEY, not a session.
+  "/api/epass-agent/upload"
 ]);
 
 const PUBLIC_AUTH_PATHS = new Set([
@@ -5697,10 +5700,21 @@ app.post("/api/shop/setup-intent", async (req, res) => {
   }
 });
 
-// From address for web-order claim emails (Resend). The team asked for a
-// plain no-reply sender; override with SHOP_ORDER_NOTIFY_FROM if needed.
-const SHOP_ORDER_NOTIFY_FROM =
-  process.env.SHOP_ORDER_NOTIFY_FROM || "Wilson Online Shop <no-reply@wilsonappliance.com>";
+// From address for INTERNAL team alert emails (web-order claims, lead
+// fan-outs, estimate outcomes, statement postings). Renamed from
+// "Wilson Online Shop" per Andrew (2026-08-28) — these alerts long ago
+// outgrew the shop. Override with AGILITY_ALERTS_FROM; the legacy
+// SHOP_ORDER_NOTIFY_FROM env name is still honored if it's ever set.
+const AGILITY_ALERTS_FROM =
+  process.env.AGILITY_ALERTS_FROM ||
+  process.env.SHOP_ORDER_NOTIFY_FROM ||
+  "Agility Alerts <no-reply@wilsonappliance.com>";
+
+// From address for CLIENT-facing sends — customers should see the company
+// name, never "Agility" (an internal tool name) or "Online Shop" (wrong for
+// a service estimate). RESEND_FROM_EMAIL carries the display-name form.
+const CLIENT_FROM_EMAIL =
+  RESEND_FROM_EMAIL || "Wilson AC & Appliance <no-reply@wilsonappliance.com>";
 
 // Green flag on every Showroom Consultant's dashboard (routed by the
 // directory's job title) PLUS a claim email to each of them — both fire
@@ -5745,7 +5759,7 @@ async function pushWebOrderFlags({ orderNumber, customerName, total, models, ful
       fetch("https://api.resend.com/emails", {
         method: "POST",
         headers: { "Authorization": `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ from: SHOP_ORDER_NOTIFY_FROM, to: [consultant.email], subject, text, html })
+        body: JSON.stringify({ from: AGILITY_ALERTS_FROM, to: [consultant.email], subject, text, html })
       }).then((r) => {
         if (!r.ok) return r.text().then((t) => { throw new Error(`${r.status} ${t.slice(0, 200)}`); });
       })
@@ -5894,7 +5908,7 @@ app.post("/api/service-estimates/send-email", requirePagePermission("/service-es
       method: "POST",
       headers: { "Authorization": `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" },
       body: JSON.stringify({
-        from: SHOP_ORDER_NOTIFY_FROM,
+        from: CLIENT_FROM_EMAIL,
         reply_to: userReplyTo(req),
         to: [to],
         subject: variant === "reminder"
@@ -6160,19 +6174,43 @@ const SWEEP_EVERY_MS = Number(process.env.SERVICE_ESTIMATE_SWEEP_MS || 30 * 60 *
 setInterval(sweepStaleServiceEstimates, SWEEP_EVERY_MS).unref?.();
 setTimeout(sweepStaleServiceEstimates, Math.min(SWEEP_EVERY_MS, 20 * 1000)).unref?.();
 
+// ---- Estimate ⇄ flag close sync (Andrew, 2026-08-28) ----
+// An estimate's OUTCOME flags (Approved / Client Shopping / Went Elsewhere)
+// and the estimate's own closed state are two views of one fact: this
+// estimate is done. Closing either side closes the other. The chase flag
+// (svstale) retires along with a closed estimate, but closing a chase flag
+// alone means "I reached out", not "estimate finished" — and svlead is the
+// showroom team's workstream, never touched here.
+const ESTIMATE_OUTCOME_FLAG_PREFIXES = ["svest:", "svshop:", "svelse:"];
+const ESTIMATE_FLAG_PREFIXES = [...ESTIMATE_OUTCOME_FLAG_PREFIXES, "svstale:"];
+
+function estimateTokenFromOutcomeFlag(refId) {
+  const prefix = ESTIMATE_OUTCOME_FLAG_PREFIXES.find((p) => String(refId || "").startsWith(p));
+  return prefix ? String(refId).slice(prefix.length) : "";
+}
+
+// Retire every estimate-lifecycle flag for a token (all audiences) so a
+// closed estimate leaves nothing dangling on anyone's dashboard.
+function retireEstimateFlags(token) {
+  for (const prefix of ESTIMATE_FLAG_PREFIXES) {
+    retirePushedNotificationsByRef(`${prefix}${token}`).catch(() => {});
+  }
+}
+
 // Close (or reopen) an estimate from the internal list. Closed estimates
-// leave the active table, stop accepting client responses, and are skipped
-// by the not-viewed sweep.
+// leave the active table, stop accepting client responses, are skipped
+// by the not-viewed sweep — and their dashboard flags retire with them.
 app.post("/api/service-estimates/close", requirePagePermission("/service-estimates.html"), async (req, res) => {
   try {
     const token = String(req.body?.token || "").slice(0, 60);
     const closed = req.body?.closed !== false;
     const estimate = await setServiceEstimateClosed(token, closed, req.authUser?.email || req.authUser?.username || "");
     if (!estimate) return res.status(404).json({ error: "Estimate not found." });
+    if (closed) retireEstimateFlags(token);
     recordAudit({
       ip: req.ip, actorUserId: req.authUser?.id || null,
       action: closed ? "service_estimate_closed" : "service_estimate_reopened", targetUserId: null,
-      detail: { svNumber: estimate.svNumber, customerName: estimate.customerName }
+      detail: { svNumber: estimate.svNumber, customerName: estimate.customerName, flagsRetired: closed }
     }).catch(() => {});
     return res.json({ ok: true, estimate });
   } catch (err) {
@@ -6295,7 +6333,7 @@ app.post("/api/estimate/respond", async (req, res) => {
             method: "POST",
             headers: { "Authorization": `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" },
             body: JSON.stringify({
-              from: SHOP_ORDER_NOTIFY_FROM,
+              from: AGILITY_ALERTS_FROM,
               to: [estimate.createdByEmail],
               subject: `Estimate feedback — ${estimate.customerName} is shopping elsewhere (${estimate.svNumber || "service"})`,
               text: [
@@ -6344,7 +6382,7 @@ app.post("/api/estimate/respond", async (req, res) => {
             method: "POST",
             headers: { "Authorization": `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" },
             body: JSON.stringify({
-              from: SHOP_ORDER_NOTIFY_FROM,
+              from: AGILITY_ALERTS_FROM,
               to: [estimate.createdByEmail],
               subject: `Estimate approved — ${estimate.customerName} (${estimate.svNumber || "service"})`,
               text: `${estimate.customerName} approved ${estimate.svNumber || "their service estimate"} for $${Number(estimate.summary?.invoiceTotal || 0).toFixed(2)}. Schedule the repair.`
@@ -6381,7 +6419,7 @@ app.post("/api/estimate/respond", async (req, res) => {
             method: "POST",
             headers: { "Authorization": `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" },
             body: JSON.stringify({
-              from: SHOP_ORDER_NOTIFY_FROM,
+              from: AGILITY_ALERTS_FROM,
               to: [estimate.createdByEmail],
               subject: `Client shopping instead — ${estimate.customerName} (${estimate.svNumber || "service"})`,
               text: [
@@ -6433,7 +6471,7 @@ app.post("/api/estimate/respond", async (req, res) => {
         }).catch((err) => console.error("Service lead → follow-up board failed:", err.message));
         if (RESEND_API_KEY && consultants.length) {
           // From-name per the sales team's ask; same verified send address.
-          const notifyAddr = (SHOP_ORDER_NOTIFY_FROM.match(/<([^>]+)>/) || [null, SHOP_ORDER_NOTIFY_FROM])[1];
+          const notifyAddr = (AGILITY_ALERTS_FROM.match(/<([^>]+)>/) || [null, AGILITY_ALERTS_FROM])[1];
           const leadFrom = `New Lead Available on Your Dash <${notifyAddr}>`;
           const subject = `Service client lead — ${estimate.customerName}`;
           const applianceShort = [[s.brand, s.product].filter(Boolean).join(" "), s.model ? `Model ${s.model}` : ""].filter(Boolean).join(" · ");
@@ -7266,7 +7304,7 @@ app.post("/api/subzero/inquiry", async (req, res) => {
         fetch("https://api.resend.com/emails", {
           method: "POST",
           headers: { "Authorization": `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" },
-          body: JSON.stringify({ from: SHOP_ORDER_NOTIFY_FROM, to: [consultant.email], subject, text })
+          body: JSON.stringify({ from: AGILITY_ALERTS_FROM, to: [consultant.email], subject, text })
         })
       )).then((results) => {
         const failed = results.filter((r) => r.status === "rejected");
@@ -7776,6 +7814,86 @@ function snapshotKeyOk(provided) {
   const b = Buffer.from(SHOP_SNAPSHOT_KEY);
   return a.length === b.length && crypto.timingSafeEqual(a, b);
 }
+
+// ---------------------------------------------------------------------------
+// ePASS AGENT intake — the showroom server (which can see the W: drive) runs
+// scripts/epass-agent.ps1 on a schedule: it watches W:\Agility\outbox\<kind>
+// and PUSHES new exports here over HTTPS. Agility never touches the drive or
+// the VPN — the connection is outbound-only from the building, authenticated
+// by EPASS_AGENT_KEY. Same trust model as the nightly ExportModel feed.
+// Kinds map to the same processing their manual upload pages use.
+// ---------------------------------------------------------------------------
+const EPASS_AGENT_KEY = String(process.env.EPASS_AGENT_KEY || "");
+function epassAgentKeyOk(provided) {
+  if (!EPASS_AGENT_KEY || !provided) return false;
+  const a = Buffer.from(String(provided));
+  const b = Buffer.from(EPASS_AGENT_KEY);
+  return a.length === b.length && crypto.timingSafeEqual(a, b);
+}
+
+app.post("/api/epass-agent/upload", express.raw({ type: () => true, limit: "60mb" }), async (req, res) => {
+  try {
+    if (!EPASS_AGENT_KEY) return res.status(503).json({ error: "Agent uploads are not configured (EPASS_AGENT_KEY)." });
+    if (!epassAgentKeyOk(req.headers["x-agent-key"])) return res.status(401).json({ error: "Bad agent key." });
+    if (!Buffer.isBuffer(req.body) || req.body.length < 100) return res.status(400).json({ error: "No file received." });
+    const kind = String(req.headers["x-upload-kind"] || "").trim().toLowerCase();
+    const sourceFile = String(req.headers["x-source-file"] || `${kind} (agent)`).slice(0, 200);
+    const agentBy = { byEmail: "epass-agent", byName: "ePASS Agent (W: drive)" };
+
+    if (kind === "inventory") {
+      const { serials, types, written, units } = extractSerialsFromWorkbook(req.body);
+      if (!serials.length) return res.status(400).json({ error: "No serial numbers found in that file." });
+      const saved = await saveShopInventorySnapshot({ serials, types, written, units, sourceFile, uploadedBy: "epass-agent" });
+      recordAudit({ ip: req.ip, actorUserId: null, action: "shop_snapshot_uploaded", targetUserId: null,
+        detail: { count: saved.count, sourceFile: sourceFile.slice(0, 120), via: "epass-agent" } }).catch(() => {});
+      return res.json({ ok: true, kind, count: saved.count });
+    }
+
+    if (kind === "quotes") {
+      let grid;
+      try {
+        const workbook = readWorkbook(req.body, { type: "buffer", cellDates: true });
+        grid = xlsxUtils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]], { header: 1, defval: null, raw: true });
+      } catch {
+        return res.status(400).json({ error: "Couldn't read that file as an Excel workbook (quotes)." });
+      }
+      const parsed = parseInvoiceMaintenanceQuotes(grid);
+      if (parsed.notInvoiceMaintenance || !parsed.quotes.length) {
+        return res.status(400).json({ error: "No open quotes found — is this the Invoice Maintenance export?" });
+      }
+      const count = await replaceOpenQuotes(parsed.quotes, { filename: sourceFile, ...agentBy });
+      recordAudit({ ip: req.ip, actorUserId: null, action: "quote_export_uploaded", targetUserId: null,
+        detail: { quotes: count, filename: sourceFile, via: "epass-agent", warnings: parsed.warnings.length } }).catch(() => {});
+      return res.json({ ok: true, kind, quotes: count, warnings: parsed.warnings.slice(0, 5) });
+    }
+
+    if (kind === "open-orders") {
+      let grid;
+      try {
+        const workbook = readWorkbook(req.body, { type: "buffer", cellDates: true });
+        grid = xlsxUtils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]], { header: 1, defval: null, raw: true });
+      } catch {
+        return res.status(400).json({ error: "Couldn't read that file as an Excel workbook (open orders)." });
+      }
+      const parsed = parseActivityGrid(grid);
+      if (!parsed.periodFrom || !parsed.tickets.length) {
+        return res.status(400).json({ error: "Couldn't find OE-23 ticket blocks — is this the Salesperson Activity Report?" });
+      }
+      const saved = await replaceOpenOrders(parsed.tickets, {
+        filename: sourceFile, byEmail: "epass-agent",
+        periodFrom: parsed.periodFrom, periodTo: parsed.periodTo
+      });
+      recordAudit({ ip: req.ip, actorUserId: null, action: "open_orders_uploaded", targetUserId: null,
+        detail: { tickets: saved.count, periodFrom: parsed.periodFrom, periodTo: parsed.periodTo, filename: sourceFile, via: "epass-agent" } }).catch(() => {});
+      return res.json({ ok: true, kind, tickets: saved.count, periodFrom: parsed.periodFrom, periodTo: parsed.periodTo });
+    }
+
+    return res.status(400).json({ error: `Unknown upload kind "${kind}" — expected inventory, quotes, or open-orders.` });
+  } catch (err) {
+    console.error("ePASS agent upload failed:", err.message);
+    return res.status(400).json({ error: err.message || "Unable to process that file." });
+  }
+});
 
 // INTERNAL: ePASS Upload Center (epass-uploads.html) — one page where the
 // office (Tracy) keeps every recurring ePASS export current until the
@@ -8428,7 +8546,7 @@ app.post("/api/field-commissions/post", requireExecutiveApi, async (req, res) =>
           method: "POST",
           headers: { "Authorization": `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" },
           body: JSON.stringify({
-            from: SHOP_ORDER_NOTIFY_FROM,
+            from: AGILITY_ALERTS_FROM,
             reply_to: userReplyTo(req),
             to: [statement.email],
             subject: `Your ${label} commission statement is ready for review`,
@@ -11236,6 +11354,28 @@ app.post("/api/notifications/:id/close", requirePagePermission("/dashboard.html"
     // group so the hidden copies don't linger for anyone else.
     if (notification.claimable && notification.refId && notification.claimedByEmail === email) {
       retirePushedNotificationsByRef(notification.refId).catch(() => {});
+    }
+
+    // Closing an estimate OUTCOME flag (Approved / Client Shopping / Went
+    // Elsewhere) closes the estimate itself, so the Estimate Tool row
+    // doesn't sit open after the flag is worked — the mirror of the
+    // retire-on-close in /api/service-estimates/close.
+    const estToken = estimateTokenFromOutcomeFlag(notification.refId);
+    if (estToken) {
+      (async () => {
+        try {
+          const est = await setServiceEstimateClosed(estToken, true, email);
+          if (!est) return;
+          retireEstimateFlags(estToken);
+          recordAudit({
+            ip: req.ip, actorUserId: req.authUser?.id || null,
+            action: "service_estimate_closed", targetUserId: null,
+            detail: { svNumber: est.svNumber, customerName: est.customerName, via: "flag_close", flag: notification.typeLabel }
+          }).catch(() => {});
+        } catch (err) {
+          console.error("Estimate close-from-flag failed:", err.message);
+        }
+      })();
     }
 
     return res.json({ ok: true, token });

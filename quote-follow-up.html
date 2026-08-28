@@ -70,6 +70,10 @@
       margin-left: auto; background: #eef2ff; color: #3730a3; border-radius: 999px;
       font-size: 10.5px; font-weight: 800; padding: 3px 9px; letter-spacing: 0.04em;
     }
+    .qf-lead-chip {
+      background: rgba(22, 101, 52, 0.12); color: #166534; border-radius: 999px;
+      font-size: 10.5px; font-weight: 800; padding: 3px 9px; letter-spacing: 0.04em;
+    }
     .qf-other {
       background: #fffbeb; color: #92400e; border-radius: 10px; padding: 7px 10px;
       font-size: 12px; line-height: 1.45;
@@ -405,9 +409,12 @@
           <div class="qf-card" data-idx="${i}">
             <div class="qf-card-head">
               <span class="qf-client">${esc(g.customerName || "Unknown client")}</span>
-              <span class="qf-cust">#${esc(g.customerNumber || "—")}${g.zip ? " · " + esc(g.zip) : ""}</span>
-              ${exec ? `<span class="qf-sp-chip">${esc(spLabel(g.spCode))}</span>` : ""}
+              ${g.source === "service_lead"
+                ? `<span class="qf-lead-chip">SERVICE LEAD${g.spCode ? "" : " — unclaimed"}</span>`
+                : `<span class="qf-cust">#${esc(g.customerNumber || "—")}${g.zip ? " · " + esc(g.zip) : ""}</span>`}
+              ${exec ? `<span class="qf-sp-chip">${esc(spLabel(g.spCode) || (g.source === "service_lead" ? "Unclaimed" : ""))}</span>` : ""}
             </div>
+            ${g.source === "service_lead" && g.leadNote ? `<div class="qf-note">${esc(g.leadNote)}${g.address ? " · " + esc(g.address) : ""}</div>` : ""}
             ${g.otherSpConversion ? `<div class="qf-other">Heads up — this customer bought from <strong>${esc(spLabel(g.otherSpConversion.spCode))}</strong> (${esc(g.otherSpConversion.invoice)}, ${day(g.otherSpConversion.finishDate)}) after this quote.</div>` : ""}
             ${isFollowup && g.followupBy ? `<div class="qf-note">Moved to follow-up by ${esc(g.followupBy)} on ${when(g.followupAt)}.</div>` : ""}
             <table class="qf-quotes"><tbody>${quoteRows(g)}</tbody></table>

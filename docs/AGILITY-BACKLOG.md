@@ -68,3 +68,30 @@ lead claimed → internal note (sender = claimer) + assign conversation
 (by claimer email) + reopen. Zapier custom actions
 (add_internal_note_to_conversation, list_users_with_uids) remain as
 prototypes/fallback.
+
+## Brand landing page playbook (Andrew, 2026-08-27)
+
+The Sub-Zero landing page (subzero.html) is the TEMPLATE for future brand
+landing pages (Wolf, Cove, Monogram, etc.). When building the next one,
+replicate its full format:
+
+- **Structure**: dark topbar with the white-filtered logo-black.png +
+  "Authorized … Dealer" line → full-bleed hero photo → promotion strip
+  (badge / headline / fine print / Ask About This Offer) → six-tile
+  Designer Inspiration gallery → showroom section (vista + 3 thumbs, real
+  hours) → trade program cards → consultation form.
+- **Consultation form**: split phone/email + Text me / Call me / Email me
+  preference chips, optional showroom slot picker (same-day scheduler API),
+  Podium confirmation text on phone prefs, DIBS-able appointment flags.
+- **Photography**: web-optimized copies in a per-page public folder
+  (subzero-photos/ pattern), each file individually allowlisted in
+  SERVICE_PUBLIC_PATHS; originals never in git.
+- **Rich text-message previews (marketing)**: the head carries an OG block —
+  og:title = the LIVE promotion, og:description = offer + showroom pitch,
+  og:image = 1200x630 JPEG under ~300KB (og-card.jpg in the page's photo
+  folder, also allowlisted), og:url = the short path (/subzero), plus
+  twitter:card summary_large_image. Texting the short link renders a branded
+  image card in iMessage/Android with no MMS infrastructure. UPDATE og:title
+  whenever the promo strip changes — the two must always say the same thing.
+- Register the short path + page + every photo in SERVICE_PUBLIC_PATHS, and
+  point the promo + inquiry APIs at the same DIBS fan-out used by Sub-Zero.

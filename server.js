@@ -282,7 +282,9 @@ import {
   listQuoteOwners,
   getQuoteFollowupBoard,
   listQuoteSalespeople,
-  getLatestQuoteUploadMeta
+  getLatestQuoteUploadMeta,
+  upsertServiceLeadQuote,
+  setServiceLeadQuoteOwner
 } from "./lib/quote-followup-postgres.js";
 import { parseCommissionGrid } from "./lib/commission-report.js";
 import {
@@ -454,6 +456,7 @@ const SERVICE_PUBLIC_PATHS = new Set([
   "/api/subzero/inquiry",
   "/api/subzero/slots",
   // SZWC living-kitchen photography on the Sub-Zero landing page.
+  "/subzero-photos/og-card.jpg", // rich link-preview card (texted links)
   "/subzero-photos/hero.jpg",
   "/subzero-photos/g1-integrated.jpg",
   "/subzero-photos/g2-morning.jpg",
@@ -6351,6 +6354,19 @@ app.post("/api/estimate/respond", async (req, res) => {
             byName: "Estimate Approvals"
           }).catch(() => {});
         }
+
+        // Every service lead is an opportunity on the Quote Follow-Up board
+        // (Andrew, 2026-08-27) — the flag is just the doorbell. Ownership is
+        // stamped at DIBS; conversion is any sales order for the same
+        // customer name within 30 days.
+        upsertServiceLeadQuote({
+          token: estimate.token,
+          svNumber: estimate.svNumber,
+          customerName: estimate.customerName,
+          phone: estimate.contactPhone,
+          applianceText,
+          estimateTotal: estimate.summary?.invoiceTotal || 0
+        }).catch((err) => console.error("Service lead → follow-up board failed:", err.message));
         if (RESEND_API_KEY && consultants.length) {
           // From-name per the sales team's ask; same verified send address.
           const notifyAddr = (SHOP_ORDER_NOTIFY_FROM.match(/<([^>]+)>/) || [null, SHOP_ORDER_NOTIFY_FROM])[1];
@@ -11222,6 +11238,19 @@ app.post("/api/notifications/:id/claim", requirePagePermission("/dashboard.html"
       })();
     }
 
+    // Service client lead claimed → the follow-up board row becomes the
+    // claimer's (their directory salesperson code).
+    if (notification.refId.startsWith("svlead:")) {
+      (async () => {
+        try {
+          const entry = await findEmployeeDirectoryEntryByEmail(email);
+          if (entry?.code) await setServiceLeadQuoteOwner(notification.refId.slice("svlead:".length), entry.code);
+        } catch (err) {
+          console.error("Service lead owner stamp failed:", err.message);
+        }
+      })();
+    }
+
     // Service client lead claimed → drop a context note into the customer's
     // Podium thread as the claimer and route the conversation to their
     // queue. Best-effort: a Podium hiccup never blocks the claim.
@@ -11272,6 +11301,11 @@ app.post("/api/notifications/:id/unclaim", requirePagePermission("/dashboard.htm
     if (notification.refId.startsWith("subzero-appt:")) {
       unclaimSubzeroAppointment(notification.refId.slice("subzero-appt:".length), email)
         .catch((err) => console.error("Sub-Zero appointment unclaim failed:", err.message));
+    }
+    if (notification.refId.startsWith("svlead:")) {
+      // Released back to the pool → the board row goes unassigned again.
+      setServiceLeadQuoteOwner(notification.refId.slice("svlead:".length), "")
+        .catch((err) => console.error("Service lead owner clear failed:", err.message));
     }
     recordAudit({
       ip: req.ip, actorUserId: req.authUser?.id || null,

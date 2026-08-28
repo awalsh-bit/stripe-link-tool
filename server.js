@@ -171,7 +171,9 @@ import {
   saveShopInventorySnapshot,
   getShopInventorySnapshot,
   saveShopMapPrices,
-  getShopMapPrices
+  getShopMapPrices,
+  getShopExpressSettings,
+  saveShopExpressSettings
 } from "./lib/shop-postgres.js";
 import {
   normalizeCreditAppToken,
@@ -360,7 +362,8 @@ import {
   retirePushedNotificationsByRef,
   claimPushedNotificationsByRef,
   unclaimPushedNotificationsByRef,
-  pushedNotificationRefExists
+  pushedNotificationRefExists,
+  listClaimableLeadReport
 } from "./lib/sales-orders-postgres.js";
 import {
   getServiceOrderSnapshot,
@@ -583,6 +586,7 @@ const INTERNAL_PAGE_PATHS = new Set([
   "/clearance.html",
   "/credit-applications.html",
   "/sales-order-health.html",
+  "/lead-report.html",
   "/quote-follow-up.html",
   "/epass-uploads.html",
   "/service-estimates.html",
@@ -798,6 +802,7 @@ const PAGE_LABELS = {
   "/clearance.html": "Clearance Hit List",
   "/credit-applications.html": "Builder Credit Applications",
   "/sales-order-health.html": "Sales Order Health Report",
+  "/lead-report.html": "DIBS Lead Report",
   "/quote-follow-up.html": "Quote Follow-Up",
   "/epass-uploads.html": "ePASS Upload Center",
   "/service-estimates.html": "Service Estimate Approvals",
@@ -910,6 +915,7 @@ const PAGE_CATEGORIES = [
       "/my-commissions.html",
       "/shop-orders.html",
       "/sales-order-health.html",
+      "/lead-report.html",
       "/quote-follow-up.html",
       "/epass-uploads.html",
       "/aging-inventory.html",
@@ -4883,6 +4889,49 @@ function shopDeliveryDateChoices() {
   return choices;
 }
 
+// ---- Express install program (Andrew, 2026-08-27) ----
+// The warehouse team installs clearance washers, dryers, and freestanding
+// refrigerators. Carts made up ENTIRELY of qualifying units get fast
+// delivery days: order before the cutoff (default 11 AM local) → same day
+// offered; after → next day onward. Everything else keeps the standard
+// 3-working-day schedule. Cutoff and qualifying products are SETTINGS,
+// managed on the Online Shop Orders page (getShopExpressSettings).
+function shopHourLabel(hour) {
+  const h = Number(hour) % 24;
+  const twelve = h % 12 === 0 ? 12 : h % 12;
+  return `${twelve} ${h < 12 ? "AM" : "PM"}`;
+}
+
+function shopExpressNote(express) {
+  return `These units qualify for same-day install — order by ${shopHourLabel(express.cutoffHour)} and our warehouse team can deliver and install today.`;
+}
+
+function shopItemExpressEligible(item, express) {
+  return Boolean(express?.productSet?.has(`${item.category}|${item.product}`));
+}
+
+function shopExpressDateChoices(express) {
+  const now = new Date();
+  const todayStr = now.toLocaleDateString("en-CA", { timeZone: APP_TIMEZONE });
+  const hourNow = Number(now.toLocaleString("en-US", { timeZone: APP_TIMEZONE, hour12: false, hour: "2-digit" })) % 24;
+  const d = new Date(`${todayStr}T00:00:00Z`);
+  const choices = [];
+  if (hourNow < express.cutoffHour && d.getUTCDay() !== 0) {
+    choices.push({ date: todayStr, label: "Today — same-day delivery & install", sameDay: true });
+  }
+  let future = 0;
+  while (future < 3) {
+    d.setUTCDate(d.getUTCDate() + 1);
+    if (d.getUTCDay() === 0) continue; // closed Sundays
+    future++;
+    choices.push({
+      date: d.toISOString().slice(0, 10),
+      label: d.toLocaleDateString("en-US", { timeZone: "UTC", weekday: "long", month: "long", day: "numeric" })
+    });
+  }
+  return choices;
+}
+
 function shopZipAllowed(zip) {
   return SHOP_ALLOWED_ZIPS.has(String(zip || "").trim().slice(0, 5));
 }
@@ -4970,12 +5019,14 @@ async function computeShopCatalog() {
   let overrides = [];
   let snapshot = null;
   let mapPrices = null;
+  let expressSettings = null;
   try {
-    [statuses, overrides, snapshot, mapPrices] = await Promise.all([
+    [statuses, overrides, snapshot, mapPrices, expressSettings] = await Promise.all([
       listClearanceStatuses(),
       listPriceOverrides(),
       getShopInventorySnapshot(),
-      getShopMapPrices().catch(() => null)
+      getShopMapPrices().catch(() => null),
+      getShopExpressSettings()
     ]);
   } catch (err) {
     // If the DB is down, sell nothing rather than something already sold.
@@ -5054,6 +5105,7 @@ async function computeShopCatalog() {
     categories,
     listDate: clearance._meta?.listDate || "",
     paused,
+    express: { ...expressSettings, productSet: new Set(expressSettings.products) },
     snapshotAgeHours,
     mapPriceCount: Object.keys(mapFloor).length,
     snapshot: snapshot
@@ -5109,9 +5161,20 @@ function priceShopCart(catalog, cart, fulfillment) {
     }
   } else {
     const requestedDate = String(fulfillment?.date || "").trim();
-    const choice = shopDeliveryDateChoices().find((c) => c.date === requestedDate);
+    // Express carts (all units installable by the warehouse team) choose
+    // from the fast schedule — including today before the 11 AM cutoff.
+    // The cutoff re-checks HERE at submit time, so a page loaded at 10:55
+    // can't sneak a same-day order through at 11:10.
+    const expressCart = items.every((i) => shopItemExpressEligible(i, catalog.express));
+    const dateChoices = expressCart ? shopExpressDateChoices(catalog.express) : shopDeliveryDateChoices();
+    const choice = dateChoices.find((c) => c.date === requestedDate);
     if (!choice) return { badSchedule: true };
-    delivery = { ...SHOP_DELIVERY_OFFER, method: "delivery", date: choice.date, dateLabel: choice.label, scheduleNote: SHOP_SCHEDULE_NOTE };
+    delivery = {
+      ...SHOP_DELIVERY_OFFER, method: "delivery", date: choice.date, dateLabel: choice.label,
+      scheduleNote: choice.sameDay ? "Same-day: our warehouse team will call to coordinate arrival today." : SHOP_SCHEDULE_NOTE,
+      ...(choice.sameDay ? { sameDay: true } : {}),
+      ...(expressCart ? { express: true } : {})
+    };
   }
 
   // Tax: items, parts, and delivery always; install labor only when the
@@ -5417,7 +5480,8 @@ app.get("/api/shop/catalog", async (req, res) => {
         description: i.description,
         condition: i.condition,
         image: i.image,
-        topDeal: i.topDeal
+        topDeal: i.topDeal,
+        expressEligible: shopItemExpressEligible(i, catalog.express)
       };
       if (withPrices || (i.mapPublic && !catalog.paused)) {
         return { ...base, price: i.price, mapPublic: i.mapPublic };
@@ -5449,6 +5513,8 @@ app.get("/api/shop/catalog", async (req, res) => {
       fulfillment: canBuild ? {
         pickup: SHOP_PICKUP_OFFER,
         deliveryDates: shopDeliveryDateChoices(),
+        expressDates: shopExpressDateChoices(catalog.express),
+        expressNote: shopExpressNote(catalog.express),
         scheduleNote: SHOP_SCHEDULE_NOTE,
         pickupDates: shopPickupDateChoices(),
         pickupLaterNote: SHOP_PICKUP_LATER_NOTE
@@ -7232,7 +7298,9 @@ app.post("/api/shop/submit-order", async (req, res) => {
       models: priced.items.map((i) => i.model),
       fulfillment: priced.delivery.method === "pickup"
         ? (priced.delivery.later ? "Customer pickup — will schedule later" : `Customer pickup requested ${priced.delivery.dateLabel}`)
-        : `Delivery requested ${priced.delivery.dateLabel}`
+        : (priced.delivery.sameDay
+            ? `SAME-DAY DELIVERY & INSTALL requested — TODAY (${priced.delivery.date})`
+            : `Delivery requested ${priced.delivery.dateLabel}`)
     }).catch((err) => console.error("Web order notification push failed:", err.message));
 
     return res.json({
@@ -7300,6 +7368,50 @@ app.get("/api/shop-orders", requirePagePermission("/shop-orders.html"), async (r
 });
 
 // INTERNAL: grab an order (first writer wins).
+// Express install program settings — cutoff hour + qualifying products,
+// edited on the Online Shop Orders page. Options come from the live
+// clearance list so the checklist always matches what's actually for sale.
+app.get("/api/shop/express-settings", requirePagePermission("/shop-orders.html"), async (req, res) => {
+  try {
+    const [settings, { clearance }] = await Promise.all([getShopExpressSettings(), loadShopData()]);
+    const catLabels = new Map((clearance._meta?.categories || []).map((c) => [c.key, c.label]));
+    const counts = new Map();
+    for (const item of clearance.items || []) {
+      const key = `${item.category}|${item.product}`;
+      counts.set(key, (counts.get(key) || 0) + 1);
+    }
+    const options = [...counts.entries()]
+      .map(([key, count]) => {
+        const [category, product] = key.split("|");
+        return { key, category, categoryLabel: catLabels.get(category) || category, product, count };
+      })
+      .sort((a, b) => a.categoryLabel.localeCompare(b.categoryLabel) || a.product.localeCompare(b.product));
+    return res.json({ settings, options });
+  } catch (err) {
+    console.error("Express settings load failed:", err.message);
+    return res.status(500).json({ error: "Unable to load express install settings." });
+  }
+});
+
+app.post("/api/shop/express-settings", requirePagePermission("/shop-orders.html"), async (req, res) => {
+  try {
+    const saved = await saveShopExpressSettings({
+      cutoffHour: req.body?.cutoffHour,
+      products: req.body?.products,
+      byEmail: req.authUser?.email || ""
+    });
+    recordAudit({
+      ip: req.ip, actorUserId: req.authUser?.id || null,
+      action: "shop_express_settings_saved", targetUserId: null,
+      detail: { cutoffHour: saved.cutoffHour, products: saved.products }
+    }).catch(() => {});
+    return res.json({ ok: true, settings: saved });
+  } catch (err) {
+    console.error("Express settings save failed:", err.message);
+    return res.status(500).json({ error: "Unable to save express install settings." });
+  }
+});
+
 app.post("/api/shop-orders/:id/claim", requirePagePermission("/shop-orders.html"), async (req, res) => {
   try {
     const userEmail = String(req.authUser?.kind === "db" ? req.authUser.email : "").toLowerCase();
@@ -8217,13 +8329,56 @@ app.post("/api/field-commissions/post", requireExecutiveApi, async (req, res) =>
       byEmail: req.authUser?.email || "",
       byName: req.authUser?.displayName || ""
     });
+
+    // Heads-up email to the rep — posting IS the explicit click, so this
+    // rides on it. Brief on purpose: no dollar amounts in the inbox, the
+    // review page has the numbers. Best-effort — an email hiccup never
+    // un-posts the statement.
+    let emailed = false;
+    if (RESEND_API_KEY) {
+      try {
+        const label = commissionMonthLabel(month);
+        const firstName = statement.name.split(/\s+/)[0] || statement.name;
+        const reviewUrl = `https://${DASHBOARD_HOST}/my-commissions.html`;
+        const windowCloses = exceptionDeadlineDate(month);
+        const closesLabel = windowCloses
+          ? new Date(`${windowCloses}T12:00:00Z`).toLocaleDateString("en-US", { timeZone: "UTC", month: "long", day: "numeric" })
+          : "";
+        const r = await fetch("https://api.resend.com/emails", {
+          method: "POST",
+          headers: { "Authorization": `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" },
+          body: JSON.stringify({
+            from: SHOP_ORDER_NOTIFY_FROM,
+            reply_to: userReplyTo(req),
+            to: [statement.email],
+            subject: `Your ${label} commission statement is ready for review`,
+            text: `Hi ${firstName} — your ${label} commission statement is posted in Agility and ready for your review: ${reviewUrl}\n\nIf anything looks off, use Request Exception right on the page${closesLabel ? ` — the review window closes ${closesLabel}` : ""}.`,
+            html: buildAuthEmailHtml(
+              `Your ${label} statement is posted`,
+              [
+                `Hi ${firstName} — your ${label} commission statement is posted in Agility and ready for your review.`,
+                `If anything looks off, use Request Exception right on the page${closesLabel ? ` — the review window closes ${closesLabel}` : ""}.`
+              ],
+              "Review My Statement",
+              reviewUrl,
+              "Questions? Just reply to this email."
+            )
+          })
+        });
+        emailed = r.ok;
+        if (!r.ok) console.error("Statement-posted email failed:", r.status, (await r.text()).slice(0, 200));
+      } catch (err) {
+        console.error("Statement-posted email failed:", err.message);
+      }
+    }
+
     recordAudit({
       ip: req.ip, actorUserId: req.authUser?.id || null,
       action: "commission_statement_posted", targetUserId: null,
-      detail: { month, code, repEmail: statement.email, total: statement.totals.commission }
+      detail: { month, code, repEmail: statement.email, total: statement.totals.commission, emailed }
     }).catch(() => {});
     const posts = await listCommissionPostsForMonth(month);
-    return res.json({ ok: true, posts });
+    return res.json({ ok: true, emailed, posts });
   } catch (err) {
     console.error("Commission post failed:", err.message);
     return res.status(500).json({ error: "Unable to post the statement." });
@@ -8300,6 +8455,22 @@ app.post("/api/field-commissions/exceptions/:id/resolve", requireExecutiveApi, a
 });
 
 // Rep: their own posted statements (routed by directory email = login email).
+// DIBS lifecycle report: every claimable lead in the window, from flag
+// creation through DIBS to the claimer's Close.
+app.get("/api/lead-report", requirePagePermission("/lead-report.html"), async (req, res) => {
+  try {
+    const today = new Date().toLocaleDateString("en-CA", { timeZone: APP_TIMEZONE });
+    const defFrom = new Date(Date.now() - 29 * 24 * 60 * 60 * 1000).toLocaleDateString("en-CA", { timeZone: APP_TIMEZONE });
+    const from = /^\d{4}-\d{2}-\d{2}$/.test(String(req.query.from || "")) ? String(req.query.from) : defFrom;
+    const to = /^\d{4}-\d{2}-\d{2}$/.test(String(req.query.to || "")) ? String(req.query.to) : today;
+    const leads = await listClaimableLeadReport({ fromDate: from, toDate: to });
+    return res.json({ from, to, leads });
+  } catch (err) {
+    console.error("Lead report failed:", err.message);
+    return res.status(500).json({ error: "Unable to build the lead report." });
+  }
+});
+
 app.get("/api/my-commissions", requirePagePermission("/my-commissions.html"), async (req, res) => {
   try {
     const email = String(req.authUser?.email || "").toLowerCase();

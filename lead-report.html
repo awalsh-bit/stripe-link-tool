@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="robots" content="noindex,nofollow,noarchive" />
+  <title>Wilson AC &amp; Appliance - DIBS Lead Report</title>
+  <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+  <link rel="stylesheet" href="internal-shell.css" />
+  <style>
+    :root {
+      --bg: #f7f8fc; --card: #ffffff; --text: #1f2937; --muted: #6b7280;
+      --border: #dbe1ea; --shadow: 0 10px 35px rgba(0, 0, 0, 0.08); --radius: 18px;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; font-family: "Roboto", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: linear-gradient(180deg, var(--primary-tint) 0%, var(--bg) 100%);
+      color: var(--text); min-height: 100vh; padding: 32px 16px;
+    }
+    .wrap { max-width: 1250px; margin: 0 auto; }
+    .surface {
+      background: var(--card); border: 1px solid rgba(var(--primary-rgb), 0.12);
+      box-shadow: var(--shadow); border-radius: var(--radius); padding: 22px; margin: 0 auto 20px;
+    }
+    h2 { margin: 0 0 6px; font-size: 20px; }
+    .section-note { margin: 0 0 14px; color: var(--muted); font-size: 13.5px; line-height: 1.5; }
+    .toolbar { display: flex; align-items: flex-end; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }
+    .field-label { display: block; font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.03em; margin-bottom: 4px; }
+    select, input[type="date"], input[type="search"] {
+      border: 1.5px solid var(--border); border-radius: 10px; padding: 8px 12px; font-size: 13.5px;
+      background: #fff; color: var(--text); font-family: inherit;
+    }
+    input[type="search"] { min-width: 220px; }
+    .count-line { color: var(--muted); font-size: 12.5px; margin-left: auto; align-self: center; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th { text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: 0.03em; color: var(--muted); padding: 8px 10px; border-bottom: 2px solid var(--border); white-space: nowrap; }
+    th.num, td.num { text-align: right; }
+    td { padding: 9px 10px; border-bottom: 1px solid #eef1f5; vertical-align: top; }
+    tr.retired td { opacity: 0.55; }
+    .lead-title { font-weight: 500; max-width: 380px; }
+    .lead-by { color: var(--muted); font-size: 11.5px; margin-top: 2px; }
+    .type-chip { display: inline-block; border-radius: 999px; font-size: 10.5px; font-weight: 700; padding: 3px 10px; background: rgba(var(--primary-rgb), 0.1); color: var(--primary); white-space: nowrap; }
+    .status-chip { display: inline-block; border-radius: 999px; font-size: 10.5px; font-weight: 700; padding: 3px 10px; white-space: nowrap; }
+    .status-chip.open { background: #fef3c7; color: #92400e; }
+    .status-chip.claimed { background: #dbeafe; color: #1e40af; }
+    .status-chip.closed { background: rgba(22, 101, 52, 0.13); color: #166534; }
+    .dur { font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .dur.slow { color: #991b1b; font-weight: 600; }
+    .empty { text-align: center; color: var(--muted); padding: 34px 10px; font-size: 13.5px; }
+    .who { white-space: nowrap; }
+    @media (max-width: 900px) {
+      table, thead, tbody, tr { display: block; }
+      thead { display: none; }
+      tr { border: 1px solid var(--border); border-radius: 12px; margin-bottom: 10px; padding: 8px; }
+      td { border: none; padding: 4px 8px; }
+      td.num { text-align: left; }
+      td[data-label]::before { content: attr(data-label) ": "; font-size: 10.5px; color: var(--muted); font-weight: 700; text-transform: uppercase; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div id="internal-shell-header"></div>
+
+    <div class="surface">
+      <h2>DIBS Lead Report</h2>
+      <p class="section-note">
+        Every claimable lead from flag to finish: when it fanned out, who called DIBS and how fast,
+        and when the claimer closed the loop. Sub-Zero appointments, service client leads, web orders —
+        anything with a DIBS button lands here.
+      </p>
+
+      <div class="toolbar">
+        <div><span class="field-label">From</span><input type="date" id="fromDate" /></div>
+        <div><span class="field-label">To</span><input type="date" id="toDate" /></div>
+        <div><span class="field-label">Lead type</span><select id="typeFilter"><option value="">All types</option></select></div>
+        <div><span class="field-label">Status</span>
+          <select id="statusFilter">
+            <option value="">All statuses</option>
+            <option value="open">Open — nobody has claimed it</option>
+            <option value="claimed">Claimed — DIBS called, not closed</option>
+            <option value="closed">Closed — claimer finished the loop</option>
+          </select>
+        </div>
+        <div><span class="field-label">Search</span><input type="search" id="searchBox" placeholder="Customer, rep, lead text…" /></div>
+        <span class="count-line" id="countLine"></span>
+      </div>
+
+      <div id="tableHost"><div class="empty">Loading…</div></div>
+    </div>
+
+    <div id="internal-shell-footer"></div>
+  </div>
+
+  <script src="internal-shell.js"></script>
+  <script>
+    (function () {
+      const $ = (id) => document.getElementById(id);
+      const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch]));
+      let data = null;
+
+      const fmtWhen = (iso) => {
+        if (!iso) return "—";
+        return new Date(iso).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+      };
+
+      // "12m", "3.5h", "2.1d" — the numbers a manager actually compares.
+      const fmtDur = (fromIso, toIso) => {
+        if (!fromIso || !toIso) return "";
+        const mins = (new Date(toIso) - new Date(fromIso)) / 60000;
+        if (mins < 0) return "";
+        if (mins < 60) return Math.round(mins) + "m";
+        if (mins < 1440) return (mins / 60).toFixed(1).replace(/\.0$/, "") + "h";
+        return (mins / 1440).toFixed(1).replace(/\.0$/, "") + "d";
+      };
+      const durMins = (fromIso, toIso) => (!fromIso || !toIso) ? null : (new Date(toIso) - new Date(fromIso)) / 60000;
+
+      const statusOf = (l) => l.closedAt ? "closed" : (l.claimedAt ? "claimed" : "open");
+      const STATUS_LABEL = { open: "OPEN", claimed: "CLAIMED", closed: "CLOSED" };
+
+      function render() {
+        if (!data) return;
+        const type = $("typeFilter").value;
+        const status = $("statusFilter").value;
+        const q = $("searchBox").value.trim().toLowerCase();
+        const rows = data.leads.filter((l) =>
+          (!type || l.typeLabel === type) &&
+          (!status || statusOf(l) === status) &&
+          (!q || [l.title, l.typeLabel, l.claimedByName, l.claimedByEmail, l.createdByName].join(" ").toLowerCase().includes(q))
+        );
+        $("countLine").textContent = `${rows.length} of ${data.leads.length} lead${data.leads.length === 1 ? "" : "s"} in the window`;
+        if (!rows.length) {
+          $("tableHost").innerHTML = '<div class="empty">No leads match — widen the dates or clear a filter.</div>';
+          return;
+        }
+        $("tableHost").innerHTML = `
+        <table>
+          <thead><tr>
+            <th>Type</th><th>Lead</th><th>Created</th><th class="num">Fanned to</th>
+            <th>DIBS by</th><th class="num">Time to DIBS</th><th>Closed</th><th class="num">Time to close</th><th>Status</th>
+          </tr></thead>
+          <tbody>
+            ${rows.map((l) => {
+              const st = statusOf(l);
+              const toDibs = durMins(l.createdAt, l.claimedAt);
+              const toClose = durMins(l.claimedAt, l.closedAt);
+              const openAge = st === "open" && l.active ? fmtDur(l.createdAt, new Date().toISOString()) : "";
+              return `<tr class="${!l.active && st === "open" ? "retired" : ""}">
+                <td data-label="Type"><span class="type-chip">${esc(l.typeLabel)}</span></td>
+                <td data-label="Lead"><div class="lead-title">${esc(l.title)}</div><div class="lead-by">from ${esc(l.createdByName || "Agility")}</div></td>
+                <td data-label="Created" class="dur">${fmtWhen(l.createdAt)}</td>
+                <td data-label="Fanned to" class="num">${l.fannedTo}</td>
+                <td data-label="DIBS by" class="who">${esc(l.claimedByName || l.claimedByEmail || "—")}</td>
+                <td data-label="Time to DIBS" class="num"><span class="dur ${toDibs != null && toDibs > 240 ? "slow" : ""}">${l.claimedAt ? fmtDur(l.createdAt, l.claimedAt) : (openAge ? "open " + openAge : "—")}</span></td>
+                <td data-label="Closed" class="dur">${fmtWhen(l.closedAt)}</td>
+                <td data-label="Time to close" class="num"><span class="dur">${toClose != null ? fmtDur(l.claimedAt, l.closedAt) : "—"}</span></td>
+                <td data-label="Status"><span class="status-chip ${st}">${STATUS_LABEL[st]}${!l.active && st === "open" ? " · RETIRED" : ""}</span></td>
+              </tr>`;
+            }).join("")}
+          </tbody>
+        </table>`;
+      }
+
+      async function load() {
+        const params = new URLSearchParams();
+        if ($("fromDate").value) params.set("from", $("fromDate").value);
+        if ($("toDate").value) params.set("to", $("toDate").value);
+        try {
+          const res = await fetch("/api/lead-report?" + params, { credentials: "same-origin" });
+          const body = await res.json();
+          if (!res.ok) throw new Error(body.error || "Unable to load the report.");
+          data = body;
+          $("fromDate").value = body.from;
+          $("toDate").value = body.to;
+          const types = [...new Set(body.leads.map((l) => l.typeLabel))].sort();
+          const current = $("typeFilter").value;
+          $("typeFilter").innerHTML = '<option value="">All types</option>' +
+            types.map((t) => `<option ${t === current ? "selected" : ""}>${esc(t)}</option>`).join("");
+          render();
+        } catch (err) {
+          $("tableHost").innerHTML = `<div class="empty">${esc(err.message)}</div>`;
+        }
+      }
+
+      $("fromDate").addEventListener("change", load);
+      $("toDate").addEventListener("change", load);
+      $("typeFilter").addEventListener("change", render);
+      $("statusFilter").addEventListener("change", render);
+      $("searchBox").addEventListener("input", render);
+      load();
+    })();
+  </script>
+</body>
+</html>

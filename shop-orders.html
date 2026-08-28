@@ -27,6 +27,14 @@
       padding: 32px 16px;
     }
     .wrap { max-width: 1480px; margin: 0 auto; }
+    .exp-summary { cursor: pointer; display: flex; gap: 12px; align-items: baseline; flex-wrap: wrap; font-size: 15px; }
+    .exp-sub { color: #6b7280; font-size: 12.5px; font-weight: 400; }
+    .exp-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin: 10px 0 14px; }
+    .exp-row select { border: 1.5px solid var(--border, #dbe1ea); border-radius: 10px; padding: 7px 10px; font-size: 13px; background: #fff; font-family: inherit; }
+    .exp-options { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 4px 18px; }
+    .exp-cat { grid-column: 1 / -1; font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.04em; color: #6b7280; margin-top: 10px; }
+    .exp-opt { display: flex; align-items: center; gap: 8px; font-size: 13px; padding: 3px 0; cursor: pointer; }
+    .exp-opt .cnt { color: #9ca3af; font-size: 11.5px; }
     .surface {
       background: var(--card);
       border: 1px solid rgba(var(--primary-rgb), 0.12);
@@ -106,6 +114,27 @@
         </div>
         <div id="wsOrders"></div>
       </div>
+
+      <details class="surface" id="expressCard">
+        <summary class="exp-summary">
+          <strong>Same-day install program</strong>
+          <span class="exp-sub" id="expSummaryLine">Cutoff and qualifying products for warehouse-team installs.</span>
+        </summary>
+        <p class="section-note" style="margin-top:10px;">
+          Carts made up entirely of checked products get the fast delivery schedule: <b>same day</b> when the
+          order lands before the cutoff, <b>next day or later</b> after it. Everything else keeps the standard
+          3-working-day schedule. Changes apply to the live shop immediately — no deploy.
+        </p>
+        <div class="exp-row">
+          <label for="expCutoff"><b>Order-by cutoff</b></label>
+          <select id="expCutoff"></select>
+          <span style="flex:1;"></span>
+          <button type="button" class="ws-btn" id="expSave">Save settings</button>
+          <span class="ws-snap-meta" id="expStatus"></span>
+        </div>
+        <div id="expOptions" class="exp-options">Loading…</div>
+        <div class="ws-snap-meta" id="expMeta"></div>
+      </details>
       <div id="internal-shell-footer"></div>
     </div>
 
@@ -568,6 +597,81 @@
           setWsStatus(err.message, "error");
         }
       });
+
+      // ---- Same-day install program settings ----
+      (function () {
+        const esc2 = (s) => String(s ?? "").replace(/[&<>"']/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch]));
+        const hourLabel = (h) => `${h % 12 === 0 ? 12 : h % 12}:00 ${h < 12 ? "AM" : "PM"}`;
+        let expData = null;
+        let expLoaded = false;
+
+        function renderExpress() {
+          const sel = document.getElementById("expCutoff");
+          sel.innerHTML = "";
+          for (let h = 6; h <= 18; h++) {
+            const o = document.createElement("option");
+            o.value = h;
+            o.textContent = hourLabel(h);
+            if (h === expData.settings.cutoffHour) o.selected = true;
+            sel.appendChild(o);
+          }
+          const chosen = new Set(expData.settings.products);
+          const host = document.getElementById("expOptions");
+          let lastCat = null;
+          host.innerHTML = expData.options.map((opt) => {
+            const catHead = opt.categoryLabel !== lastCat ? `<div class="exp-cat">${esc2(opt.categoryLabel)}</div>` : "";
+            lastCat = opt.categoryLabel;
+            return `${catHead}<label class="exp-opt"><input type="checkbox" data-exp-key="${esc2(opt.key)}" ${chosen.has(opt.key) ? "checked" : ""}>
+              <span>${esc2(opt.product)}</span><span class="cnt">${opt.count} on the list</span></label>`;
+          }).join("");
+          document.getElementById("expSummaryLine").textContent =
+            `Order by ${hourLabel(expData.settings.cutoffHour)} for same-day · ${expData.settings.products.length} qualifying product code(s).`;
+          document.getElementById("expMeta").textContent = expData.settings.saved
+            ? `Last saved ${new Date(expData.settings.updatedAt).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}${expData.settings.updatedBy ? " by " + expData.settings.updatedBy : ""}.`
+            : "Using the built-in defaults — save once to take ownership of the list.";
+        }
+
+        async function loadExpress() {
+          try {
+            const res = await fetch("/api/shop/express-settings", { credentials: "same-origin" });
+            expData = await res.json();
+            if (!res.ok) throw new Error(expData.error || "Unable to load settings.");
+            renderExpress();
+          } catch (err) {
+            document.getElementById("expOptions").textContent = err.message;
+          }
+        }
+
+        document.getElementById("expressCard").addEventListener("toggle", (e) => {
+          if (e.target.open && !expLoaded) { expLoaded = true; loadExpress(); }
+        });
+
+        document.getElementById("expSave").addEventListener("click", async () => {
+          const btn = document.getElementById("expSave");
+          const status = document.getElementById("expStatus");
+          btn.disabled = true;
+          status.textContent = "Saving…";
+          try {
+            const products = [...document.querySelectorAll("[data-exp-key]:checked")].map((c) => c.getAttribute("data-exp-key"));
+            const res = await fetch("/api/shop/express-settings", {
+              method: "POST",
+              credentials: "same-origin",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ cutoffHour: Number(document.getElementById("expCutoff").value), products })
+            });
+            const body = await res.json();
+            if (!res.ok) throw new Error(body.error || "Save failed.");
+            expData.settings = body.settings;
+            renderExpress();
+            status.textContent = "Saved — live on the shop now.";
+            setTimeout(() => { if (status.textContent.startsWith("Saved")) status.textContent = ""; }, 6000);
+          } catch (err) {
+            status.textContent = err.message;
+          } finally {
+            btn.disabled = false;
+          }
+        });
+      })();
 
       load();
     })();

@@ -78,7 +78,9 @@
     }
     .topbar .wrap { display: flex; align-items: center; gap: 18px; padding-top: 16px; padding-bottom: 16px; }
     .brand { font-family: var(--serif); font-size: 20px; letter-spacing: 0.04em; }
-    .brand small { display: block; font-family: var(--sans); font-size: 10px; letter-spacing: 0.26em; text-transform: uppercase; color: var(--brass); margin-top: 2px; }
+    /* White-out the black wordmark for the dark bar (the PNG is transparent). */
+    .brand-logo { display: block; height: 36px; width: auto; filter: brightness(0) invert(1); }
+    .brand small { display: block; font-family: var(--sans); font-size: 10px; letter-spacing: 0.26em; text-transform: uppercase; color: var(--brass); margin-top: 4px; }
     .topnav { margin-left: auto; display: flex; gap: 26px; align-items: center; }
     .topnav a { color: rgba(247, 245, 240, 0.85); text-decoration: none; font-size: 12.5px; letter-spacing: 0.1em; text-transform: uppercase; }
     .topnav a:hover { color: var(--brass); }
@@ -203,7 +205,8 @@
   <!-- ============ TOP BAR ============ -->
   <div class="topbar">
     <div class="wrap">
-      <div class="brand">Wilson AC &amp; Appliance
+      <div class="brand">
+        <img class="brand-logo" src="logo-black.png" alt="Wilson AC &amp; Appliance" />
         <small>Authorized Sub-Zero, Wolf &amp; Cove Dealer</small>
       </div>
       <nav class="topnav">
@@ -237,24 +240,22 @@
   </header>
 
   <!-- ============ CURRENT PROMOTION ============ -->
-  <!-- EDIT ME: this whole strip is placeholder copy. Swap in the live
-       Sub-Zero promotion (e.g. 3% distinction rebate, free Cove with
-       package, financing) and its dates/fine print. Duplicate the strip
-       if you're running more than one. -->
+  <!-- Live offer (Andrew, 2026-08-27). Duplicate the strip if running more
+       than one promotion at a time. -->
   <div class="promo" id="promotions">
     <div class="wrap">
       <div class="promo-badge">
-        <div class="big">$$$</div>
-        <div class="sm">Current<br>Offer</div>
+        <div class="big">$1,500</div>
+        <div class="sm">Save<br>up to</div>
       </div>
       <div class="promo-copy">
         <div class="eyebrow" style="margin-bottom: 6px;">Limited-Time Promotion</div>
-        <h2>[Promotion headline goes here]</h2>
+        <h2>Save up to $1,500 on Classic and Pro Series refrigeration</h2>
         <p>
-          [One or two sentences describing the current Sub-Zero / Wolf / Cove offer —
-          qualifying packages, rebate amount or gift, and the window it runs.]
+          Now through September 30th, 2026 — save up to $1,500 on Sub-Zero
+          Classic and Pro Series refrigeration.
         </p>
-        <p class="promo-fine">[Fine print: dates, qualifying models, see showroom for details.]</p>
+        <p class="promo-fine">Offer valid through September 30, 2026.</p>
       </div>
       <a class="btn" href="#consult">Ask About This Offer</a>
     </div>
@@ -286,7 +287,6 @@
   </section>
 
   <!-- ============ SHOWROOM ============ -->
-  <!-- EDIT ME: confirm the hours line. -->
   <section class="showroom" id="showroom">
     <div class="wrap">
       <div class="sec-head">
@@ -307,7 +307,7 @@
             panel details, and leave you with a real spec — not a brochure.
           </p>
           <div class="show-fact"><div class="k">Address</div><div>4205 E Hwy 290, Dripping Springs, TX 78620</div></div>
-          <div class="show-fact"><div class="k">Hours</div><div>[Mon–Sat 9–6 — confirm &amp; edit]</div></div>
+          <div class="show-fact"><div class="k">Hours</div><div>Mon–Fri 10–6 · Sat 10–4 · Closed Sunday</div></div>
           <div class="show-fact"><div class="k">Phone</div><div><a href="tel:512-894-0907" style="color: var(--brass); text-decoration: none;">512-894-0907</a></div></div>
           <div style="margin-top: 22px; display: flex; gap: 12px; flex-wrap: wrap;">
             <a class="btn light" href="https://maps.google.com/?q=Wilson+AC+%26+Appliance,+4205+E+Hwy+290,+Dripping+Springs,+TX+78620" target="_blank" rel="noopener">Get Directions</a>

@@ -91,6 +91,14 @@
 
     /* Statement cards */
     .statement { margin-bottom: 20px; }
+    /* Fold/unfold: header + totals strip stay visible; the line tables fold.
+       Post/PDF/Email/Print all live in the header, so a folded statement is
+       still fully workable. */
+    .st-head { cursor: pointer; }
+    .st-caret { display: inline-flex; width: 18px; justify-content: center; color: #6b7280; font-size: 13px; transition: transform 0.15s ease; user-select: none; }
+    .statement.collapsed .st-caret { transform: rotate(-90deg); }
+    .statement.collapsed .st-body { display: none; }
+    @media print { .st-body { display: block !important; } .st-caret { display: none; } }
     .st-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 4px; }
     .st-name { font-size: 18px; font-weight: 800; }
     .st-code {
@@ -213,6 +221,7 @@
       font-size: 13.5px;
     }
     .banner.error { background: #fef2f2; color: #991b1b; }
+    .banner.ok { background: rgba(22, 101, 52, 0.1); color: #166534; }
     .banner.show { display: block; }
 
     /* Per-rep printing: body.print-one hides everything but the target */
@@ -247,6 +256,7 @@
       <div class="toolbar">
         <select id="monthSelect"></select>
         <label class="check-inline"><input type="checkbox" id="showAll" /> Show all salespeople (including unassigned plans)</label>
+        <button type="button" class="ghost-btn" id="foldAll">Expand all</button>
         <span style="flex: 1;"></span>
         <button type="button" class="ghost-btn" id="balanceBtn">Upload balance check</button>
         <input type="file" id="balanceFile" accept=".xlsx,.xls" style="display: none;" />
@@ -279,6 +289,7 @@
     let data = null;
     let showAll = false;
     let review = null; // /api/field-commissions/review-status for data.month
+    const expandedCodes = new Set(); // statements unfolded this visit (default: all folded)
 
     function el(id) { return document.getElementById(id); }
     function escapeHtml(value) {
@@ -506,9 +517,11 @@
     function statementHtml(st) {
       const t = st.totals;
       const e = st.eligibility;
+      const isOpen = expandedCodes.has(st.code);
       return `
-      <div class="surface statement" data-code="${escapeHtml(st.code)}">
-        <div class="st-head">
+      <div class="surface statement ${isOpen ? "" : "collapsed"}" data-code="${escapeHtml(st.code)}">
+        <div class="st-head" title="Click to ${isOpen ? "fold" : "unfold"} this statement">
+          <span class="st-caret no-print">▾</span>
           <span class="st-name">${escapeHtml(st.name)}</span>
           <span class="st-code">${escapeHtml(st.code)}</span>
           ${st.commissionPlan
@@ -535,10 +548,11 @@
           <div class="tot"><div class="t-label">EPIC Protect</div><div class="t-value">${money(t.protectCommission)}</div></div>
           <div class="tot"><div class="t-label">Protect bonus</div><div class="t-value">${money(t.protectBonus)}</div></div>
           ${t.releasedCount ? `<div class="tot"><div class="t-label">Released holds</div><div class="t-value" style="color: #166534;">${money(t.releasedCommission)}</div></div>` : ""}
-          ${t.heldCount ? `<div class="tot"><div class="t-label">Held — unpaid</div><div class="t-value" style="color: #991b1b;">${money(t.heldCommission)}</div></div>` : ""}
+          ${t.heldCount ? `<div class="tot" title="Held lines are already left OUT of every tile on this strip — this is what will pay once the invoice clears, not a deduction."><div class="t-label">Held — unpaid · not in total</div><div class="t-value" style="color: #991b1b;">${money(t.heldCommission)}</div></div>` : ""}
           <div class="tot grand"><div class="t-label">Total commission</div><div class="t-value">${money(t.commission)}</div></div>
         </div>
 
+        <div class="st-body">
         <div class="sec-title">${escapeHtml(st.sectionNewTitle || "New Serial Inventory")}<span class="sec-sub">${money(t.newRevenue)} delivered list${st.planKey === "showroom" ? " · unmarked brands pay vendor spiff, not commission" : ""}</span></div>
         ${st.newLines.length ? `
         <table class="lines">
@@ -610,6 +624,7 @@
         </details>` : ""}
 
         <div class="print-only">Wilson AC &amp; Appliance — Field Sales commission statement. Computed from Sales Order Detail warehouse data.</div>
+        </div>
       </div>`;
     }
 
@@ -649,6 +664,7 @@
         ? rows.map(statementHtml).join("")
         : '<div class="surface"><div class="empty">No Field Sales Consultant statements this month. Assign commission plans in User Admin, or check "Show all salespeople".</div></div>';
       el("excPanel").innerHTML = excPanelHtml();
+      el("foldAll").textContent = rows.length && rows.every((s) => expandedCodes.has(s.code)) ? "Collapse all" : "Expand all";
     }
 
     async function load(month) {
@@ -671,6 +687,29 @@
 
     el("monthSelect").addEventListener("change", () => { editorKey = null; load(el("monthSelect").value); });
     el("showAll").addEventListener("change", () => { showAll = el("showAll").checked; render(); });
+
+    // ---- Fold / unfold statements ----
+    // Header click toggles one card (buttons and links in the header keep
+    // their own jobs); the toolbar button folds or unfolds the whole page.
+    document.addEventListener("click", (event) => {
+      const head = event.target.closest?.(".st-head");
+      if (!head || event.target.closest("a, button, input, select, textarea, label")) return;
+      const card = head.closest(".statement");
+      const code = card?.dataset.code;
+      if (!code) return;
+      if (expandedCodes.has(code)) expandedCodes.delete(code); else expandedCodes.add(code);
+      card.classList.toggle("collapsed", !expandedCodes.has(code));
+      head.title = `Click to ${expandedCodes.has(code) ? "fold" : "unfold"} this statement`;
+      const rows = visibleStatements();
+      el("foldAll").textContent = rows.length && rows.every((s) => expandedCodes.has(s.code)) ? "Collapse all" : "Expand all";
+    });
+    el("foldAll").addEventListener("click", () => {
+      const rows = visibleStatements();
+      const allOpen = rows.length && rows.every((s) => expandedCodes.has(s.code));
+      if (allOpen) expandedCodes.clear();
+      else rows.forEach((s) => expandedCodes.add(s.code));
+      render();
+    });
 
     document.addEventListener("click", (event) => {
       const btn = event.target.closest?.("[data-print]");
@@ -727,6 +766,14 @@
         if (!res.ok) throw new Error(payload.error || "Request failed.");
         await loadReviewStatus();
         render();
+        if (path.endsWith("/post")) {
+          const banner = el("errorBanner");
+          banner.textContent = payload.emailed
+            ? "Posted — the rep was emailed that their statement is ready for review."
+            : "Posted. Heads-up email didn't go out (email not configured or failed) — the statement is still live on their review page.";
+          banner.className = "banner ok show";
+          setTimeout(() => { if (banner.classList.contains("ok")) banner.className = "banner"; }, 9000);
+        }
       } catch (err) {
         el("errorBanner").textContent = err.message;
         el("errorBanner").className = "banner error show";

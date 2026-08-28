@@ -232,7 +232,7 @@
             <div class="tot"><div class="t-label">EPIC Protect</div><div class="t-value">${money(t.protectCommission)}</div></div>
             <div class="tot"><div class="t-label">Protect bonus</div><div class="t-value">${money(t.protectBonus)}</div></div>
             ${t.releasedCount ? `<div class="tot"><div class="t-label">Released holds</div><div class="t-value" style="color:#166534;">${money(t.releasedCommission)}</div></div>` : ""}
-            ${t.heldCount ? `<div class="tot"><div class="t-label">Held — unpaid</div><div class="t-value" style="color:#991b1b;">${money(t.heldCommission)}</div></div>` : ""}
+            ${t.heldCount ? `<div class="tot" title="Held lines are not in any total on this page — this amount pays automatically once the invoice clears."><div class="t-label">Held — unpaid · not in total</div><div class="t-value" style="color:#991b1b;">${money(t.heldCommission)}</div></div>` : ""}
             <div class="tot grand"><div class="t-label">Total commission</div><div class="t-value">${money(t.commission)}</div></div>
           </div>
 

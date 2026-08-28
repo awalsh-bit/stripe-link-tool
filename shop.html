@@ -316,6 +316,8 @@
     .day-chips { display: flex; flex-direction: column; align-items: stretch; gap: 7px; margin-top: 9px; }
     .day-chip { border: 1.5px solid #cfe3d2; background: #fff; border-radius: 10px; padding: 8px 12px; font-size: 12.5px; font-weight: 700; cursor: pointer; font-family: inherit; text-align: left; width: 100%; }
     .day-chip.on { background: var(--green, #21692c); border-color: var(--green, #21692c); color: #fff; }
+    .day-chip.sameday { border-color: var(--green, #21692c); box-shadow: 0 0 0 1px var(--green, #21692c) inset; }
+    .day-chip.sameday.on { box-shadow: none; }
     .sched-note { font-size: 11.5px; color: var(--muted); line-height: 1.45; margin-top: 8px; }
     .deal .nm { font-size: 14px; font-weight: 600; }
     .deal .compare { text-decoration: line-through; color: var(--muted); font-weight: 400; margin-right: 6px; }
@@ -726,7 +728,10 @@
     // "later" is always a valid pickup choice.
     const validDays = state.fulfillment.method === "pickup"
       ? [...(state.fulfillOptions?.pickupDates || []).map((d) => d.date), "later"]
-      : (state.fulfillOptions?.deliveryDates || []).map((d) => d.date);
+      : [
+          ...(state.fulfillOptions?.deliveryDates || []).map((d) => d.date),
+          ...(state.fulfillOptions?.expressDates || []).map((d) => d.date)
+        ];
     if (state.fulfillment.date && !validDays.includes(state.fulfillment.date)) {
       state.fulfillment.date = null;
     }
@@ -1675,7 +1680,17 @@
     if (state.delivery) {
       const f = state.fulfillment;
       const opts = state.fulfillOptions || {};
-      const days = opts.deliveryDates || [];
+      // Express carts — every unit is a washer, dryer, or freestanding
+      // refrigerator the warehouse team installs — get the fast schedule
+      // (same-day before 11 AM, next day after).
+      const cartItems = state.cart.itemIds
+        .map((id) => (state.catalog.items || []).find((i) => i.id === id))
+        .filter(Boolean);
+      const expressCart = cartItems.length > 0 && cartItems.every((i) => i.expressEligible);
+      const days = (expressCart && opts.expressDates ? opts.expressDates : opts.deliveryDates) || [];
+      // Cart changed from express to mixed (or vice versa): a chosen day
+      // that's no longer on offer silently un-picks itself.
+      if (f.method === "delivery" && f.date && !days.some((d) => d.date === f.date)) f.date = null;
       const chooser = document.createElement("div");
       chooser.innerHTML = `
         <label class="fulfill-opt${f.method === "delivery" ? " on" : ""}">
@@ -1687,8 +1702,11 @@
             <span class="fo-note">${esc(state.delivery.note)}</span>
             ${f.method === "delivery" ? `
               <span class="fo-note" style="font-weight:700; color: var(--text, #1f2937); display:block; margin-top:8px;">Pick your delivery day:</span>
-              <span class="day-chips">${days.map((d) => `<button type="button" class="day-chip${f.date === d.date ? " on" : ""}" data-day="${esc(d.date)}">${esc(d.label)}</button>`).join("")}</span>
-              <span class="sched-note">${esc(opts.scheduleNote || "You'll receive a 4-hour arrival window two business days before your selected day.")}</span>
+              <span class="day-chips">${days.map((d) => `<button type="button" class="day-chip${f.date === d.date ? " on" : ""}${d.sameDay ? " sameday" : ""}" data-day="${esc(d.date)}">${esc(d.label)}</button>`).join("")}</span>
+              ${expressCart && opts.expressNote ? `<span class="sched-note" style="color: var(--green, #21692c); font-weight: 600;">${esc(opts.expressNote)}</span>` : ""}
+              <span class="sched-note">${days.some((d) => d.sameDay && f.date === d.date)
+                ? "Same-day: our warehouse team will call to coordinate arrival today."
+                : esc(opts.scheduleNote || "You'll receive a 4-hour arrival window two business days before your selected day.")}</span>
             ` : ""}
           </span>
         </label>

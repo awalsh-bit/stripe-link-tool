@@ -240,8 +240,15 @@ import {
   logDeliveryStopText,
   markNextTextSent,
   getNextPendingStop,
-  countStopsAhead
+  countStopsAhead,
+  findDeliveryStopByOrderRef
 } from "./lib/deliveries-postgres.js";
+import {
+  saveInstallDamagePhoto,
+  getInstallDamagePhoto,
+  saveCustomerRequestPhoto,
+  claimCustomerRequestPhotos
+} from "./lib/install-damage-postgres.js";
 import {
   samsaraConfigured,
   listVehicles as listSamsaraVehicles,
@@ -499,6 +506,7 @@ const SERVICE_PUBLIC_API_PREFIXES = [
   "/api/terms/sign",
   "/api/service/setup-intent",
   "/api/service/submit-request",
+  "/api/service/request-photo",
   "/api/service/setup-intent-result/",
   "/api/service/prefill/"
 ];
@@ -610,6 +618,7 @@ const INTERNAL_PAGE_PATHS = new Set([
   "/shopper-profiles.html",
   "/dispatch.html",
   "/driver.html",
+  "/install-damage.html",
   "/message-automations.html",
   "/aging-inventory.html",
   "/my-commissions.html",
@@ -827,6 +836,7 @@ const PAGE_LABELS = {
   "/shopper-profiles.html": "Shopper Profiles",
   "/dispatch.html": "Delivery Dispatch",
   "/driver.html": "Driver Run Sheet",
+  "/install-damage.html": "Install Damage Report",
   "/message-automations.html": "Text Automations",
   "/aging-inventory.html": "Aging Inventory",
   "/my-commissions.html": "My Commission Review",
@@ -914,6 +924,11 @@ const PAGE_CATEGORIES = [
     key: "delivery",
     label: "Delivery",
     pages: ["/dispatch.html", "/driver.html"]
+  },
+  {
+    key: "installation",
+    label: "Installation",
+    pages: ["/install-damage.html"]
   },
   {
     key: "automations",
@@ -11947,6 +11962,35 @@ app.get("/api/terms-signatures", requirePagePermission("/terms-signatures.html")
   }
 });
 
+// Customer photo upload for service requests (public form, optional).
+// Uploaded as the customer picks them, BEFORE submit; each upload returns
+// {id, token} and the submit call attaches them by echoing those pairs —
+// a wrong token can't claim someone else's photo. IP-throttled, images
+// only, 8MB cap (the form compresses client-side first).
+const customerPhotoUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 8 * 1024 * 1024, files: 1 } });
+
+app.post("/api/service/request-photo", customerPhotoUpload.single("photo"), async (req, res) => {
+  try {
+    const now = Date.now();
+    const key = "svcphoto:" + String(req.ip || "");
+    const attempts = (shopLookupAttempts.get(key) || []).filter((t) => now - t < 60 * 60 * 1000);
+    if (attempts.length >= 40) {
+      return res.status(429).json({ error: "Too many uploads — please try again later." });
+    }
+    attempts.push(now);
+    shopLookupAttempts.set(key, attempts);
+
+    const file = req.file;
+    if (!file || !file.buffer?.length) return res.status(400).json({ error: "No photo received." });
+    if (!/^image\//.test(String(file.mimetype || ""))) return res.status(400).json({ error: "Photos only, please." });
+    const saved = await saveCustomerRequestPhoto({ contentType: file.mimetype, buffer: file.buffer });
+    return res.json({ ok: true, id: saved.id, token: saved.token });
+  } catch (err) {
+    console.error("Service request photo upload failed:", err.message);
+    return res.status(500).json({ error: "Unable to save the photo." });
+  }
+});
+
 app.post("/api/service/submit-request", async (req, res) => {
   try {
     const { serviceRequest, setupIntentId, existingServiceCardId } = req.body;
@@ -11992,6 +12036,21 @@ app.post("/api/service/submit-request", async (req, res) => {
       }).catch(() => {});
     };
 
+    // Optional customer photos: claim the pre-uploaded {id, token} pairs
+    // onto this card and record them so the queue card can render them.
+    const photoRefs = Array.isArray(serviceRequest.photoRefs) ? serviceRequest.photoRefs.slice(0, 6) : [];
+    const attachRequestPhotos = async (row) => {
+      if (!photoRefs.length || !row) return;
+      try {
+        const ids = await claimCustomerRequestPhotos(photoRefs, row.id);
+        if (ids.length) {
+          row.photos = [...(Array.isArray(row.photos) ? row.photos : []), ...ids.map((id) => ({ id, kind: "customer" }))];
+        }
+      } catch (err) {
+        console.error("Attach request photos failed:", err.message);
+      }
+    };
+
     if (setupIntentId) {
       const existingIndex = serviceCards.findIndex(
         (row) => row.setupIntentId === setupIntentId
@@ -12033,13 +12092,15 @@ app.post("/api/service/submit-request", async (req, res) => {
           consent: !!serviceRequest.consent
         };
 
+        await attachRequestPhotos(serviceCards[existingByIdIndex]);
         await writeServiceCards(serviceCards);
 
         auditServiceSubmit("service_request_resubmitted", serviceCards[existingByIdIndex]);
 
         return res.json({
           success: true,
-          updatedExisting: true
+          updatedExisting: true,
+          requestId: serviceCards[existingByIdIndex].id
         });
       }
     }
@@ -12080,13 +12141,15 @@ app.post("/api/service/submit-request", async (req, res) => {
           consent: !!serviceRequest.consent
         };
 
+        await attachRequestPhotos(serviceCards[existingByIdIndex]);
         await writeServiceCards(serviceCards);
 
         auditServiceSubmit("service_request_resubmitted", serviceCards[existingByIdIndex]);
 
         return res.json({
           success: true,
-          updatedExisting: true
+          updatedExisting: true,
+          requestId: serviceCards[existingByIdIndex].id
         });
       }
     }
@@ -12129,12 +12192,14 @@ app.post("/api/service/submit-request", async (req, res) => {
       last4: ""
     });
 
+    await attachRequestPhotos(serviceCards[0]);
     await writeServiceCards(serviceCards);
 
     auditServiceSubmit("service_request_submitted", serviceCards[0]);
 
     res.json({
-      success: true
+      success: true,
+      requestId: serviceCards[0].id
     });
   } catch (err) {
     res.status(400).json({
@@ -12143,6 +12208,202 @@ app.post("/api/service/submit-request", async (req, res) => {
   }
 });
 
+
+// =====================  INSTALL DAMAGE REPORT (Installation)  ==============
+// Installers file damage from the field via install-damage.html (the mobile
+// form Jack speced — self-contained page). This backend does three jobs:
+// 1) invoice lookup that prefills the job from data Agility already has,
+// 2) submit → a Service Request Queue entry with the photos in Postgres
+// (the queue is the single home for these — no duplicate email copy),
+// 3) serving those photos back onto the queue card.
+
+const installDamageUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 12 * 1024 * 1024, files: 4 } });
+
+app.get("/api/install-damage/lookup", requirePagePermission("/install-damage.html"), async (req, res) => {
+  try {
+    const raw = String(req.query.invoice || "").trim().toUpperCase();
+    if (!raw) return res.json({ found: false });
+    const base = raw.replace(/-\d+$/, "");
+
+    // Customer name: today's open orders first (a job being installed is
+    // usually still open), finished Sales Order Detail as the fallback.
+    let customerName = "";
+    try {
+      const open = await getOpenOrdersByInvoices([base]);
+      customerName = open[base]?.customerName || "";
+    } catch {}
+    if (!customerName) {
+      try {
+        const done = await getOrdersByInvoices([raw, base]);
+        customerName = done[raw]?.customerName || done[base]?.customerName || "";
+      } catch {}
+    }
+
+    // Units: the DAILY serial snapshot's per-unit rows carry the Written To
+    // ticket + model + serial; monthly commission lines are the fallback.
+    let units = [];
+    try {
+      const snapshot = await getShopInventorySnapshot();
+      units = (snapshot?.serialUnits || [])
+        .filter((u) => String(u.writtenTo || "").trim().toUpperCase().replace(/-\d+$/, "") === base)
+        .slice(0, 8)
+        .map((u) => ({
+          applianceType: u.description || u.prod || "",
+          brand: u.brand || "",
+          model: u.model || u.sku || "",
+          serial: u.serial || ""
+        }));
+    } catch {}
+    if (!units.length) {
+      try {
+        const lines = await listLinesForInvoice(base);
+        units = lines
+          .filter((l) => String(l.serialNumber || "").trim())
+          .slice(0, 8)
+          .map((l) => ({ applianceType: "", brand: "", model: l.product || "", serial: l.serialNumber || "" }));
+      } catch {}
+    }
+
+    // Address (and a name fallback): the dispatch stop for that ticket.
+    let address = "";
+    try {
+      const stop = await findDeliveryStopByOrderRef(base);
+      if (stop) {
+        address = stop.address || "";
+        if (!customerName) customerName = stop.customerName || "";
+      }
+    } catch {}
+
+    if (!customerName && !units.length && !address) return res.json({ found: false });
+    return res.json({ found: true, customerName, address, units });
+  } catch (err) {
+    console.error("Install-damage lookup failed:", err.message);
+    return res.json({ found: false });
+  }
+});
+
+app.post(
+  "/api/install-damage",
+  requirePagePermission("/install-damage.html"),
+  installDamageUpload.fields([{ name: "tagPhoto", maxCount: 1 }, { name: "damagePhotos", maxCount: 3 }]),
+  async (req, res) => {
+    try {
+      const b = req.body || {};
+      const invoice = String(b.invoiceNumber || "").trim().toUpperCase().slice(0, 30);
+      const customerName = String(b.customerName || "").trim().slice(0, 160);
+      const installer = String(b.installer || "").trim().slice(0, 120);
+      const problem = String(b.problem || "").trim().slice(0, 4000);
+      const applianceType = String(b.applianceType || "").trim().slice(0, 80);
+      const issueType = String(b.issueType || "").trim().slice(0, 60);
+      const damageLocation = String(b.damageLocation || "").trim().slice(0, 80);
+      const address = String(b.address || "").trim().slice(0, 300);
+      if (!customerName && !invoice) {
+        return res.status(400).json({ error: "A customer name or invoice number is required." });
+      }
+
+      const reportRef = `dmg_${Date.now()}`;
+      const tagFile = req.files?.tagPhoto?.[0] || null;
+      const damageFiles = req.files?.damagePhotos || [];
+      const photoIds = [];
+      for (const [kind, file] of [["tag", tagFile], ...damageFiles.map((f) => ["damage", f])]) {
+        if (!file || !file.buffer?.length) continue;
+        try {
+          const id = await saveInstallDamagePhoto({ reportRef, kind, contentType: file.mimetype || "image/jpeg", buffer: file.buffer });
+          photoIds.push({ id, kind });
+        } catch (photoErr) {
+          console.error("Install-damage photo store failed:", photoErr.message);
+        }
+      }
+
+      // Queue entry — same store the customer-submitted requests land in,
+      // and the ONLY place the report lives (no duplicate email; the photos
+      // render right on the queue card). No card step for install damage
+      // (it's our unit), so the row arrives with cardRequired false and the
+      // normal "Call Status Pending" status.
+      const header = [
+        `INSTALL DAMAGE — reported from the field by ${installer || "an installer"}`,
+        issueType ? `Issue: ${issueType}` : "",
+        damageLocation ? `Location on unit: ${damageLocation}` : "",
+        photoIds.length ? `${photoIds.length} photo${photoIds.length === 1 ? "" : "s"} attached — on the queue card.` : "No photos stored."
+      ].filter(Boolean).join("\n");
+
+      const now = new Date().toISOString();
+      const serviceCards = await readServiceCards();
+      const row = {
+        id: `svc_${Date.now()}`,
+        createdAt: now,
+        updatedAt: now,
+        queueStatus: "Call Status Pending",
+        queueStatusNotes: "",
+        erpOrderNumber: invoice,
+        setupIntentId: "",
+        setupIntentStatus: "not_required",
+        customerId: "",
+        paymentMethodId: "",
+        customerName: customerName || `Invoice ${invoice}`,
+        firstName: "",
+        lastName: "",
+        customerEmail: "",
+        customerPhone: "",
+        purchasedWithin12Months: "Yes",
+        onBehalfOfTenant: false,
+        tenantIsPrimaryContact: "",
+        repairContact: null,
+        onBehalfManagement: false,
+        managerIsPrimaryContact: "",
+        managerContact: null,
+        cardRequired: false,
+        gateCode: "",
+        contactMethod: "",
+        purchaseDate: "",
+        serviceAddress: address ? { line1: address } : {},
+        billingAddress: {},
+        billingSameAsService: true,
+        unitCount: "One",
+        units: applianceType ? [{ applianceType, brand: "", model: "", serial: "", problemDescription: problem }] : [],
+        problemDescription: `${header}${problem ? `\n\n${problem}` : ""}`,
+        consent: false,
+        source: "install_damage",
+        installer,
+        installDamage: { installer, issueType, damageLocation, invoice, photos: photoIds },
+        cardBrand: "",
+        last4: ""
+      };
+      serviceCards.unshift(row);
+      await writeServiceCards(serviceCards);
+
+      recordAudit({
+        ip: req.ip, actorUserId: req.authUser?.id || null,
+        action: "install_damage_submitted", targetUserId: null,
+        detail: { serviceCardId: row.id, invoice, customerName: row.customerName, installer, issueType, photoCount: photoIds.length }
+      }).catch(() => {});
+
+      // No email copy — the Service Request Queue is the single home for
+      // these (Andrew, 2026-08-31): photos render on the queue card, so a
+      // second copy in service@'s inbox would just be the same thing twice.
+
+      return res.json({ success: true, ok: true, id: row.id, reportRef, photoCount: photoIds.length });
+    } catch (err) {
+      console.error("Install-damage submit failed:", err.message);
+      return res.status(500).json({ error: "Unable to submit the damage report." });
+    }
+  }
+);
+
+// Photos are for the queue staff working the request — gated on the queue
+// page's permission, not the installer form's.
+app.get("/api/install-damage/photo/:id", requirePagePermission("/appliance-service-calls.html"), async (req, res) => {
+  try {
+    const photo = await getInstallDamagePhoto(req.params.id);
+    if (!photo) return res.status(404).json({ error: "Photo not found." });
+    res.setHeader("Content-Type", photo.contentType || "image/jpeg");
+    res.setHeader("Cache-Control", "private, max-age=86400");
+    return res.send(photo.bytes);
+  } catch (err) {
+    console.error("Install-damage photo failed:", err.message);
+    return res.status(500).json({ error: "Unable to load the photo." });
+  }
+});
 
 app.post("/api/card-on-file/charge", requirePagePermission("/charge-saved-card.html"), async (req, res) => {
   try {

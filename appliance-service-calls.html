@@ -626,6 +626,46 @@
       `).join("");
     }
 
+    // Install-damage rows (filed by installers from the field via the
+    // Install Damage Report form) carry their photos in Agility — render
+    // them right on the card so the queue is the single home for the report.
+    function renderInstallDamage(row) {
+      if (row.source !== "install_damage") return "";
+      const d = row.installDamage || {};
+      const photos = Array.isArray(d.photos) ? d.photos : [];
+      return `
+        <div class="small" style="margin-top:10px; padding:10px 12px; border:1px solid #fcd34d; background:#fffbeb; border-radius:10px;">
+          <div class="strong">INSTALL DAMAGE — field report${d.installer ? ` by ${escapeHtml(d.installer)}` : ""}</div>
+          ${d.issueType ? `<div style="margin-top:2px;">Issue: ${escapeHtml(d.issueType)}${d.damageLocation ? ` — ${escapeHtml(d.damageLocation)}` : ""}</div>` : ""}
+          ${photos.length ? `
+            <div style="display:flex; gap:6px; flex-wrap:wrap; margin-top:8px;">
+              ${photos.map((p) => `
+                <a href="/api/install-damage/photo/${encodeURIComponent(p.id)}" target="_blank" rel="noopener" title="${p.kind === "tag" ? "Model/serial tag — click for full size" : "Damage photo — click for full size"}">
+                  <img src="/api/install-damage/photo/${encodeURIComponent(p.id)}" alt="${escapeHtml(p.kind || "photo")}"
+                    style="width:76px; height:76px; object-fit:cover; border-radius:8px; border:1px solid #e5e7eb; display:block;" loading="lazy">
+                </a>`).join("")}
+            </div>` : `<div style="margin-top:6px;" class="muted">No photos attached.</div>`}
+        </div>`;
+    }
+
+    // Optional photos the customer attached on the public request form —
+    // stored in Agility, rendered as thumbnails on the card.
+    function renderRequestPhotos(row) {
+      const photos = (Array.isArray(row.photos) ? row.photos : []).filter((p) => p && p.id);
+      if (!photos.length) return "";
+      return `
+        <div class="small" style="margin-top:10px;">
+          <span class="strong">Customer photos (${photos.length})</span>
+          <div style="display:flex; gap:6px; flex-wrap:wrap; margin-top:6px;">
+            ${photos.map((p) => `
+              <a href="/api/install-damage/photo/${encodeURIComponent(p.id)}" target="_blank" rel="noopener" title="Customer photo — click for full size">
+                <img src="/api/install-damage/photo/${encodeURIComponent(p.id)}" alt="customer photo"
+                  style="width:76px; height:76px; object-fit:cover; border-radius:8px; border:1px solid #e5e7eb; display:block;" loading="lazy">
+              </a>`).join("")}
+          </div>
+        </div>`;
+    }
+
     function isRecentlyWorkedRow(row) {
       const status = row.queueStatus || "Call Status Pending";
       if (status === "Call Status Pending") {
@@ -866,6 +906,8 @@ function attachPrefillActions() {
               <div style="margin-top:10px;">
                 ${formatUnits(row.units || [])}
               </div>
+              ${renderInstallDamage(row)}
+              ${renderRequestPhotos(row)}
             </div>
           </td>
 

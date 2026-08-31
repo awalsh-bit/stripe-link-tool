@@ -189,6 +189,15 @@
 
     .secondary:hover { background: #d7ead9; }
 
+    .photo-strip { display: flex; gap: 8px; flex-wrap: wrap; }
+    .photo-strip:empty { display: none; }
+    .photo-thumb { position: relative; width: 84px; height: 84px; border-radius: 10px; overflow: hidden; border: 1px solid #d8e2da; background: #f2f6f2; }
+    .photo-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .photo-thumb .ph-x { position: absolute; top: 4px; right: 4px; width: 22px; height: 22px; border-radius: 50%; background: rgba(0,0,0,0.55); color: #fff; border: none; padding: 0; font-size: 13px; line-height: 22px; cursor: pointer; }
+    .photo-thumb .ph-x:hover { background: rgba(0,0,0,0.75); }
+    .photo-thumb .ph-state { position: absolute; left: 0; right: 0; bottom: 0; font-size: 10px; text-align: center; padding: 2px 0; color: #fff; background: rgba(0,0,0,0.45); }
+    .photo-thumb.failed { border-color: #e3b04a; cursor: pointer; }
+
     .status {
       margin-top: 18px;
       padding: 14px 16px;
@@ -249,6 +258,12 @@
     }
 
     .result.show { display: block; }
+
+    /* Submitted state: the confirmation replaces the form entirely, so
+       there's no live submit button (or blank re-validated fields) left on
+       screen to double-tap or mistake for a failed submit. */
+    form#serviceForm.submitted > :not(#result) { display: none !important; }
+    form#serviceForm.submitted #result { margin-top: 0; }
 
     .result-title {
       margin: 0 0 10px;
@@ -474,6 +489,18 @@
             <textarea id="problem1" placeholder="Describe the issue, symptoms, and any relevant background"></textarea>
           </div>
 
+          <div class="field full">
+            <label>Photos <span style="font-weight:400; color:#5b6b5d;">(optional — up to 6)</span></label>
+            <div class="photo-strip" id="photoStrip"></div>
+            <div class="actions" style="margin-top:8px;">
+              <button type="button" id="addPhotosBtn" class="secondary">Add photos</button>
+            </div>
+            <input id="photoInput" type="file" accept="image/*" multiple style="display:none;" />
+            <div style="margin-top:6px; font-size:13px; color:#5b6b5d;">
+              A photo of the problem and of the model/serial tag helps our technician arrive prepared.
+            </div>
+          </div>
+
           <div id="secondUnitSection" class="field full hidden">
             <h2>Second Unit</h2>
             <div class="grid">
@@ -588,13 +615,17 @@ I have read and agree to the <a href="terms.html" target="_blank" rel="noopener 
         </div>
 
         <div id="result" class="result" role="status" aria-live="polite">
-          <div class="result-title">Service Request Submitted</div>
+          <div class="result-title">&#10003; Service Request Submitted</div>
           <p class="result-text">
             Thank you! Your request has been received and we will follow up with the next available date for a technician visit.
           </p>
+          <p class="result-note" id="resultMeta"></p>
           <p class="result-note">
             Please note the service department that processes these requests is staffed Monday through Friday from 8:30am - 5pm.
           </p>
+          <div class="actions" style="margin-top: 16px;">
+            <button type="button" id="newRequestBtn" class="secondary">Submit another request</button>
+          </div>
         </div>
       </form>
 
@@ -819,6 +850,32 @@ fillBillingStates();
 
     function clearResult() {
       resultBox.classList.remove("show");
+      form.classList.remove("submitted");
+    }
+
+    // Success = a dedicated confirmation view: the form (and its submit
+    // button) disappears, the green panel names what was received and how
+    // we'll follow up, and "Submit another request" brings the form back.
+    // This replaced a banner shown BELOW the still-live form — clients were
+    // tapping the (reset) submit button again and reading its validation
+    // error as "my request didn't go through".
+    function showSubmittedView(payload, requestId) {
+      const meta = document.getElementById("resultMeta");
+      if (meta) {
+        const when = new Date().toLocaleString("en-US", { weekday: "long", month: "long", day: "numeric", hour: "numeric", minute: "2-digit" });
+        const contactWord = { "Text": "text", "Email": "email", "Phone Call": "phone call" }[payload?.contactMethod] || "";
+        meta.textContent = [
+          `Received ${when}`,
+          payload?.customerName ? ` for ${payload.customerName}` : "",
+          ".",
+          contactWord ? ` We'll reach out by ${contactWord} to schedule.` : "",
+          requestId ? ` Reference ${String(requestId).replace(/^svc_/, "SR-")}.` : ""
+        ].join("");
+      }
+      form.classList.add("submitted");
+      resultBox.classList.add("show");
+      clearStatus();
+      window.scrollTo({ top: 0, behavior: "auto" });
     }
 
     function resetServiceForm() {
@@ -845,6 +902,13 @@ fillBillingStates();
       syncBillingAddress();
       syncPaymentRequirement();
       syncOnBehalfPanels();
+
+      // A fresh form starts with a fresh photo strip (uploaded photos from
+      // the submitted request are already claimed and attached to it).
+      if (typeof photoState !== "undefined") {
+        photoState.length = 0;
+        renderPhotoStrip();
+      }
     }
 
     function getRadioValue(name) {
@@ -901,6 +965,91 @@ function syncPaymentRequirement() {
     document.querySelectorAll('input[name="unitCount"]').forEach((el) => el.addEventListener("change", syncSecondUnit));
     document.querySelectorAll('input[name="billingSameAsService"]').forEach((el) => el.addEventListener("change", syncBillingAddress));
     document.querySelectorAll('input[name="purchasedWithin12Months"]').forEach((el) => el.addEventListener("change", syncPaymentRequirement));
+
+    // ---- Optional photos ---------------------------------------------------
+    // Compressed in the browser (resized to ~1600px JPEG, orientation fixed)
+    // and uploaded as soon as they're picked; each upload hands back
+    // {id, token}, which submit echoes so the server attaches only THIS
+    // customer's photos to the request.
+    const photoState = []; // { url, id, token, status, blob }
+    const photoInput = document.getElementById("photoInput");
+    document.getElementById("addPhotosBtn").addEventListener("click", () => photoInput.click());
+    photoInput.addEventListener("change", async () => {
+      const files = Array.from(photoInput.files || []);
+      photoInput.value = "";
+      for (const file of files) {
+        if (photoState.length >= 6) break;
+        if (!/^image\//.test(file.type || "")) continue;
+        const entry = { url: "", id: null, token: null, status: "uploading", blob: null };
+        photoState.push(entry);
+        renderPhotoStrip();
+        try {
+          entry.blob = await compressPhoto(file);
+          entry.url = URL.createObjectURL(entry.blob);
+          renderPhotoStrip();
+          await uploadPhoto(entry);
+        } catch (e) {
+          entry.status = "failed";
+        }
+        renderPhotoStrip();
+      }
+    });
+
+    async function compressPhoto(file) {
+      try {
+        const bmp = await createImageBitmap(file, { imageOrientation: "from-image" });
+        const scale = Math.min(1, 1600 / Math.max(bmp.width, bmp.height));
+        const canvas = document.createElement("canvas");
+        canvas.width = Math.max(1, Math.round(bmp.width * scale));
+        canvas.height = Math.max(1, Math.round(bmp.height * scale));
+        canvas.getContext("2d").drawImage(bmp, 0, 0, canvas.width, canvas.height);
+        if (bmp.close) bmp.close();
+        const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.72));
+        if (blob && blob.size) return blob;
+      } catch (e) { /* older browser — send the original as-is */ }
+      return file;
+    }
+
+    async function uploadPhoto(entry) {
+      entry.status = "uploading";
+      const fd = new FormData();
+      fd.append("photo", entry.blob, "photo.jpg");
+      try {
+        const res = await fetch("/api/service/request-photo", { method: "POST", body: fd });
+        const data = await res.json();
+        if (!res.ok || !data.id) throw new Error(data.error || "Upload failed");
+        entry.id = data.id;
+        entry.token = data.token;
+        entry.status = "done";
+      } catch (e) {
+        entry.status = "failed";
+      }
+    }
+
+    function renderPhotoStrip() {
+      const host = document.getElementById("photoStrip");
+      host.innerHTML = "";
+      photoState.forEach((p, i) => {
+        const d = document.createElement("div");
+        d.className = "photo-thumb" + (p.status === "failed" ? " failed" : "");
+        d.innerHTML = `${p.url ? `<img src="${p.url}" alt="photo">` : ""}
+          <button type="button" class="ph-x" aria-label="Remove photo">&times;</button>
+          ${p.status === "uploading" ? '<div class="ph-state">Uploading…</div>' : ""}
+          ${p.status === "failed" ? '<div class="ph-state">Tap to retry</div>' : ""}`;
+        d.querySelector(".ph-x").addEventListener("click", (ev) => {
+          ev.stopPropagation();
+          photoState.splice(i, 1);
+          renderPhotoStrip();
+        });
+        if (p.status === "failed") d.addEventListener("click", async () => {
+          if (p.blob) { await uploadPhoto(p); renderPhotoStrip(); }
+        });
+        host.appendChild(d);
+      });
+      const btn = document.getElementById("addPhotosBtn");
+      btn.disabled = photoState.length >= 6;
+      btn.textContent = photoState.length ? "Add more photos" : "Add photos";
+    }
 
     // On-behalf sub-panels: tenant panel exposes the primary-contact toggle
     // (default Yes); "No" exposes the repair-contact override. The manager
@@ -996,6 +1145,7 @@ function syncPaymentRequirement() {
         ],
         problemDescription: document.getElementById("problem1").value.trim(),
         unitCount: getRadioValue("unitCount") || "One",
+        photoRefs: photoState.filter((p) => p.status === "done" && p.id).map((p) => ({ id: p.id, token: p.token })),
         consent: document.getElementById("consent").checked,
         billingSameAsService: billingSame,
         billingAddress: billingSame ? {
@@ -1267,11 +1417,9 @@ beginBtn.addEventListener("click", async () => {
     beginBtn.textContent = "Submitting...";
 
     try {
-      await submitRequestRecord(payload);
+      const submitted = await submitRequestRecord(payload);
       resetServiceForm();
-      resultBox.classList.add("show");
-      clearStatus();
-      resultBox.scrollIntoView({ behavior: "smooth", block: "start" });
+      showSubmittedView(payload, submitted?.requestId);
     } catch (err) {
       showStatus("error", err.message || "Unable to submit service request.");
     } finally {
@@ -1388,7 +1536,7 @@ form.addEventListener("submit", async (event) => {
       setupIntentId = setupIntent.id;
     }
 
-    await submitRequestRecord(payload);
+    const submitted = await submitRequestRecord(payload);
 
     const resultRes = await fetch(`/api/service/setup-intent-result/${encodeURIComponent(setupIntentId)}`);
     const resultData = await resultRes.json();
@@ -1398,9 +1546,7 @@ form.addEventListener("submit", async (event) => {
     }
 
     resetServiceForm();
-    resultBox.classList.add("show");
-    clearStatus();
-    resultBox.scrollIntoView({ behavior: "smooth", block: "start" });
+    showSubmittedView(payload, submitted?.requestId);
   } catch (err) {
     showStatus("error", err.message || "Unable to save card.");
   } finally {
@@ -1413,6 +1559,11 @@ form.addEventListener("submit", async (event) => {
   clearResult();
   resetServiceForm();
 });
+
+    document.getElementById("newRequestBtn").addEventListener("click", () => {
+      clearResult();
+      window.scrollTo({ top: 0, behavior: "auto" });
+    });
 
     loadPrefill();
 

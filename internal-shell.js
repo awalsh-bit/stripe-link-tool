@@ -255,6 +255,12 @@
         ]
       },
       {
+        title: "Installation",
+        children: [
+          { href: "install-damage.html", title: "Install Damage Report" }
+        ]
+      },
+      {
         title: "Company Tools",
         children: [
           { href: "epass-uploads.html", title: "ePASS Upload Center" },

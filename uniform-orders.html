@@ -54,8 +54,15 @@
     td { padding: 9px 10px; border-bottom: 1px solid #eef1f5; vertical-align: middle; }
     .who { font-weight: 600; }
     .dept-cell { color: var(--muted); }
-    .size-chip { display: inline-block; border-radius: 8px; font-size: 12.5px; font-weight: 700; padding: 3px 10px; background: rgba(var(--primary-rgb), 0.1); color: var(--primary); }
-    .size-missing { display: inline-block; border-radius: 8px; font-size: 11px; font-weight: 700; padding: 3px 10px; background: #fef3c7; color: #92400e; }
+    td select, td input[type="text"], td input[type="number"] {
+      border: 1.5px solid var(--border); border-radius: 8px; padding: 6px 8px; font-size: 13px;
+      background: #fff; color: var(--text); font-family: inherit;
+    }
+    td input[type="number"].qty { width: 64px; text-align: center; }
+    td input[type="text"].shoe { width: 110px; }
+    td .blank { border-color: #fcd34d; background: #fffbeb; }
+    td .overridden { border-color: var(--primary); box-shadow: 0 0 0 2px rgba(var(--primary-rgb), 0.12); }
+    .prof-hint { display: block; font-size: 10.5px; color: var(--muted); margin-top: 3px; }
     .rm-btn {
       border: none; background: none; color: #b91c1c; font-size: 16px; line-height: 1; cursor: pointer;
       padding: 4px 8px; border-radius: 8px; font-family: inherit;
@@ -80,9 +87,10 @@
       <h2>Uniform Ordering</h2>
       <p class="section-note">
         Build a uniform order from the team roster. Add a whole department or individual people, drop anyone
-        who doesn't need gear this round, choose whether shirt and shoe sizes show, and export the finished
-        list as a CSV for the vendor. Sizes live on the employee profile (User Admin) — anyone missing a size
-        shows amber here, and the team can fill in their own from their dashboard.
+        who doesn't need gear this round, set a quantity per person, and adjust any size right on the row —
+        edits apply to <b>this order only</b>; the profile keeps what HR or the employee set. Choose whether
+        shirt and shoe sizes show, then export the finished list as a CSV for the vendor. Amber inputs =
+        no size on file yet (the team can fill in their own from their dashboard).
       </p>
 
       <div class="block-label">Add a department</div>
@@ -108,8 +116,8 @@
       <div id="orderHost"><div class="empty">Add a department or a teammate above to start the order.</div></div>
       <div class="tally" id="tally"></div>
       <div class="hint" id="missingHint" hidden>
-        Amber = size not on file. It still exports (blank cell) — or have them fill it in on their dashboard /
-        set it in User Admin, then reload this page.
+        Amber = no size on file. Type one right here for this order (the profile stays untouched — outlined
+        inputs mark an override), or have them set it on their dashboard / User Admin for next time.
       </div>
     </div>
 
@@ -124,7 +132,21 @@
 
       let roster = [];          // active directory entries from the server
       let departments = [];     // department names in display order
-      const order = new Map();  // code -> roster entry, insertion-ordered
+      let shirtSizes = [];      // SHIRT_SIZES vocabulary from the server
+      const order = new Map();  // code -> order line, insertion-ordered
+
+      // An order line starts from the profile but is freely editable for
+      // THIS order only (qty, shirt, shoe) — the profile is never touched.
+      function makeLine(e) {
+        return {
+          code: e.code, name: e.name, department: e.department || "",
+          profShirt: e.shirtSize || "", profShoe: e.shoeSize || "",
+          shirt: e.shirtSize || "", shoe: e.shoeSize || "", qty: 1
+        };
+      }
+      function addEntry(e) {
+        if (!order.has(e.code)) order.set(e.code, makeLine(e));
+      }
 
       function deptMembers(name) {
         return roster.filter((e) => (e.department || "") === name);
@@ -146,10 +168,50 @@
             .join("");
       }
 
-      function sizeCell(value) {
-        return value
-          ? `<span class="size-chip">${esc(value)}</span>`
-          : '<span class="size-missing">missing</span>';
+      function shirtCell(l) {
+        const overridden = l.shirt !== l.profShirt;
+        const opts = shirtSizes.slice();
+        if (l.shirt && !opts.includes(l.shirt)) opts.push(l.shirt);
+        return `<td>
+          <select data-shirt="${esc(l.code)}" class="${!l.shirt ? "blank" : overridden ? "overridden" : ""}" title="${overridden ? "Profile: " + (l.profShirt || "not set") : ""}">
+            <option value="">—</option>
+            ${opts.map((s) => `<option value="${esc(s)}" ${s === l.shirt ? "selected" : ""}>${esc(s)}</option>`).join("")}
+          </select>
+          ${overridden ? `<span class="prof-hint">profile: ${esc(l.profShirt || "not set")}</span>` : ""}
+        </td>`;
+      }
+
+      function shoeCell(l) {
+        const overridden = l.shoe !== l.profShoe;
+        return `<td>
+          <input type="text" class="shoe ${!l.shoe ? "blank" : overridden ? "overridden" : ""}" maxlength="20"
+            data-shoe="${esc(l.code)}" value="${esc(l.shoe)}" placeholder="10.5"
+            title="${overridden ? "Profile: " + (l.profShoe || "not set") : ""}" />
+          ${overridden ? `<span class="prof-hint">profile: ${esc(l.profShoe || "not set")}</span>` : ""}
+        </td>`;
+      }
+
+      function renderTally() {
+        const rows = [...order.values()];
+        const showShirt = $("showShirt").checked;
+        const showShoe = $("showShoe").checked;
+        const chips = [];
+        if (showShirt) {
+          const counts = {};
+          let missing = 0;
+          rows.forEach((l) => { l.shirt ? counts[l.shirt] = (counts[l.shirt] || 0) + l.qty : missing++; });
+          const parts = Object.entries(counts).map(([s, n]) => `<b>${esc(s)}</b>&times;${n}`).join(" &nbsp;");
+          if (parts) chips.push(`<span class="tally-chip">Shirts: ${parts}</span>`);
+          if (missing) chips.push(`<span class="tally-chip warn">${missing} shirt size${missing === 1 ? "" : "s"} missing</span>`);
+        }
+        if (showShoe) {
+          const missing = rows.filter((l) => !l.shoe).length;
+          if (missing) chips.push(`<span class="tally-chip warn">${missing} shoe size${missing === 1 ? "" : "s"} missing</span>`);
+        }
+        const pieces = rows.reduce((sum, l) => sum + l.qty, 0);
+        if (rows.length && pieces !== rows.length) chips.unshift(`<span class="tally-chip"><b>${pieces}</b> total sets</span>`);
+        $("tally").innerHTML = chips.join("");
+        $("missingHint").hidden = !rows.some((l) => ($("showShirt").checked && !l.shirt) || ($("showShoe").checked && !l.shoe));
       }
 
       function renderOrder() {
@@ -170,38 +232,23 @@
         $("orderHost").innerHTML = `
         <table>
           <thead><tr>
-            <th>Name</th><th>Department</th>
+            <th>Name</th><th>Department</th><th>Qty</th>
             ${showShirt ? "<th>Shirt</th>" : ""}
             ${showShoe ? "<th>Shoe</th>" : ""}
             <th style="width:40px;"></th>
           </tr></thead>
           <tbody>
-            ${rows.map((e) => `<tr>
-              <td class="who">${esc(e.name)}</td>
-              <td class="dept-cell">${esc(e.department || "—")}</td>
-              ${showShirt ? `<td>${sizeCell(e.shirtSize)}</td>` : ""}
-              ${showShoe ? `<td>${sizeCell(e.shoeSize)}</td>` : ""}
-              <td><button class="rm-btn" data-rm="${esc(e.code)}" title="Remove from this order">&times;</button></td>
+            ${rows.map((l) => `<tr>
+              <td class="who">${esc(l.name)}</td>
+              <td class="dept-cell">${esc(l.department || "—")}</td>
+              <td><input type="number" class="qty" min="1" max="99" step="1" data-qty="${esc(l.code)}" value="${l.qty}" /></td>
+              ${showShirt ? shirtCell(l) : ""}
+              ${showShoe ? shoeCell(l) : ""}
+              <td><button class="rm-btn" data-rm="${esc(l.code)}" title="Remove from this order">&times;</button></td>
             </tr>`).join("")}
           </tbody>
         </table>`;
-
-        // Tally strip — what the vendor order actually needs: counts by size.
-        const chips = [];
-        if (showShirt) {
-          const counts = {};
-          let missing = 0;
-          rows.forEach((e) => { e.shirtSize ? counts[e.shirtSize] = (counts[e.shirtSize] || 0) + 1 : missing++; });
-          const parts = Object.entries(counts).map(([s, n]) => `<b>${esc(s)}</b>&times;${n}`).join(" &nbsp;");
-          if (parts) chips.push(`<span class="tally-chip">Shirts: ${parts}</span>`);
-          if (missing) chips.push(`<span class="tally-chip warn">${missing} shirt size${missing === 1 ? "" : "s"} missing</span>`);
-        }
-        if (showShoe) {
-          const missing = rows.filter((e) => !e.shoeSize).length;
-          if (missing) chips.push(`<span class="tally-chip warn">${missing} shoe size${missing === 1 ? "" : "s"} missing</span>`);
-        }
-        $("tally").innerHTML = chips.join("");
-        $("missingHint").hidden = !rows.some((e) => (showShirt && !e.shirtSize) || (showShoe && !e.shoeSize));
+        renderTally();
       }
 
       function renderAll() { renderPickers(); renderOrder(); }
@@ -210,19 +257,47 @@
       $("deptChips").addEventListener("click", (ev) => {
         const btn = ev.target.closest("[data-dept]");
         if (!btn) return;
-        deptMembers(btn.dataset.dept).forEach((e) => order.set(e.code, e));
+        deptMembers(btn.dataset.dept).forEach(addEntry); // re-adding never resets edits
         renderAll();
       });
       $("addPerson").addEventListener("click", () => {
         const code = $("personSelect").value;
         const entry = roster.find((e) => e.code === code);
-        if (entry) { order.set(entry.code, entry); renderAll(); }
+        if (entry) { addEntry(entry); renderAll(); }
       });
       $("orderHost").addEventListener("click", (ev) => {
         const btn = ev.target.closest("[data-rm]");
         if (!btn) return;
         order.delete(btn.dataset.rm);
         renderAll();
+      });
+
+      // Inline edits (this order only). Text typing updates state + tally
+      // without re-rendering the table, so the input keeps focus; the
+      // profile-hint refreshes on change/blur.
+      $("orderHost").addEventListener("input", (ev) => {
+        const t = ev.target;
+        if (t.dataset.qty) {
+          const l = order.get(t.dataset.qty);
+          if (l) { l.qty = Math.min(Math.max(Math.round(Number(t.value) || 1), 1), 99); renderTally(); }
+        } else if (t.dataset.shoe) {
+          const l = order.get(t.dataset.shoe);
+          if (l) {
+            l.shoe = t.value.trim();
+            t.classList.toggle("blank", !l.shoe);
+            t.classList.toggle("overridden", Boolean(l.shoe) && l.shoe !== l.profShoe);
+            renderTally();
+          }
+        }
+      });
+      $("orderHost").addEventListener("change", (ev) => {
+        const t = ev.target;
+        if (t.dataset.shirt) {
+          const l = order.get(t.dataset.shirt);
+          if (l) { l.shirt = t.value; renderOrder(); }
+        } else if (t.dataset.qty || t.dataset.shoe) {
+          renderOrder(); // normalize the cell + refresh profile hints
+        }
       });
       $("clearOrder").addEventListener("click", () => { order.clear(); renderAll(); });
       $("showShirt").addEventListener("change", renderOrder);
@@ -235,12 +310,12 @@
         const showShirt = $("showShirt").checked;
         const showShoe = $("showShoe").checked;
         const q = (v) => '"' + String(v ?? "").replace(/"/g, '""') + '"';
-        const header = ["Name", "Department", ...(showShirt ? ["Shirt Size"] : []), ...(showShoe ? ["Shoe Size"] : [])];
+        const header = ["Name", "Department", "Qty", ...(showShirt ? ["Shirt Size"] : []), ...(showShoe ? ["Shoe Size"] : [])];
         const lines = [header.map(q).join(",")];
-        rows.forEach((e) => lines.push([
-          e.name, e.department || "",
-          ...(showShirt ? [e.shirtSize || ""] : []),
-          ...(showShoe ? [e.shoeSize || ""] : [])
+        rows.forEach((l) => lines.push([
+          l.name, l.department || "", l.qty,
+          ...(showShirt ? [l.shirt || ""] : []),
+          ...(showShoe ? [l.shoe || ""] : [])
         ].map(q).join(",")));
         const stamp = new Date().toISOString().slice(0, 10);
         const blob = new Blob(["﻿" + lines.join("\r\n")], { type: "text/csv;charset=utf-8;" });
@@ -260,6 +335,7 @@
           if (!res.ok) throw new Error(body.error || "Unable to load the roster.");
           roster = body.entries || [];
           departments = body.departments || [];
+          shirtSizes = body.shirtSizes || [];
           renderAll();
         } catch (err) {
           $("orderHost").innerHTML = `<div class="empty">${esc(err.message)}</div>`;

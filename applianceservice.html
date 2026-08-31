@@ -338,7 +338,7 @@
                 <label class="choice"><input type="radio" name="tenantIsPrimaryContact" value="No"> No</label>
               </div>
               <div id="repairContactFields" style="display: none; margin-top: 10px;">
-                <label style="display: block; margin-bottom: 6px;">Primary contact for this repair</label>
+                <label style="display: block; margin-bottom: 6px;">Tenant's contact info &mdash; we'll coordinate the repair visit with them</label>
                 <div class="grid" style="grid-template-columns: 1fr 1fr; gap: 10px;">
                   <div class="field full"><label for="repairContactName">Name</label><input id="repairContactName" placeholder="Contact name" /></div>
                   <div class="field"><label for="repairContactPhone">Phone Number</label><input id="repairContactPhone" type="tel" placeholder="(512) 555-0100" /></div>
@@ -411,8 +411,8 @@
           </div>
 
           <div class="field">
-            <label for="customerEmail">Client Email</label>
-            <input id="customerEmail" type="email" required placeholder="jane@example.com" />
+            <label for="customerEmail">Client Email <span style="font-weight: 400; color: #5b6b5d;">(required only for email contact)</span></label>
+            <input id="customerEmail" type="email" placeholder="jane@example.com" />
           </div>
 
           <div class="field">
@@ -851,6 +851,8 @@ fillBillingStates();
     function clearResult() {
       resultBox.classList.remove("show");
       form.classList.remove("submitted");
+      const footerNote = document.querySelector(".footer-note");
+      if (footerNote) footerNote.style.display = "";
     }
 
     // Success = a dedicated confirmation view: the form (and its submit
@@ -860,6 +862,12 @@ fillBillingStates();
     // tapping the (reset) submit button again and reading its validation
     // error as "my request didn't go through".
     function showSubmittedView(payload, requestId) {
+      // Warranty submissions never touched a card — the "securely saves a
+      // card for later billing" footer would contradict the confirmation.
+      const footerNote = document.querySelector(".footer-note");
+      if (footerNote) {
+        footerNote.style.display = payload?.purchasedWithin12Months === "Yes" ? "none" : "";
+      }
       const meta = document.getElementById("resultMeta");
       if (meta) {
         const when = new Date().toLocaleString("en-US", { weekday: "long", month: "long", day: "numeric", hour: "numeric", minute: "2-digit" });
@@ -1051,23 +1059,26 @@ function syncPaymentRequirement() {
       btn.textContent = photoState.length ? "Add more photos" : "Add photos";
     }
 
-    // On-behalf sub-panels: tenant panel exposes the primary-contact toggle
-    // (default Yes); "No" exposes the repair-contact override. The manager
+    // On-behalf sub-panels. Tenant logic (fixed 2026-08-31 — it was
+    // backwards): the person FILLING the form is the homeowner, so their
+    // own details live in the main fields. "Yes, the tenant is the primary
+    // contact" is what needs the tenant's name/phone collected; "No" means
+    // we coordinate with the homeowner using the main fields. The manager
     // panel collects the professional's own details. Required flags follow
     // visibility so hidden fields never block submit.
     function syncOnBehalfPanels() {
       const tenantOn = document.getElementById("onBehalfOfTenant").checked;
       const managerOn = document.getElementById("onBehalfManagement").checked;
-      const tenantNotPrimary = tenantOn && getRadioValue("tenantIsPrimaryContact") === "No";
+      const tenantIsPrimary = tenantOn && getRadioValue("tenantIsPrimaryContact") !== "No";
       const managerIsPrimary = managerOn && getRadioValue("managerIsPrimaryContact") !== "No";
 
       document.getElementById("tenantPanel").style.display = tenantOn ? "" : "none";
-      document.getElementById("repairContactFields").style.display = tenantNotPrimary ? "" : "none";
+      document.getElementById("repairContactFields").style.display = tenantIsPrimary ? "" : "none";
       document.getElementById("managerPanel").style.display = managerOn ? "" : "none";
       document.getElementById("managerContactFields").style.display = managerIsPrimary ? "" : "none";
 
-      document.getElementById("repairContactName").required = tenantNotPrimary;
-      document.getElementById("repairContactPhone").required = tenantNotPrimary;
+      document.getElementById("repairContactName").required = tenantIsPrimary;
+      document.getElementById("repairContactPhone").required = tenantIsPrimary;
       document.getElementById("managerName").required = managerIsPrimary;
       document.getElementById("managerPhone").required = managerIsPrimary;
     }
@@ -1108,7 +1119,7 @@ function syncPaymentRequirement() {
         purchasedWithin12Months: getRadioValue("purchasedWithin12Months"),
         onBehalfOfTenant: document.getElementById("onBehalfOfTenant").checked,
         tenantIsPrimaryContact: document.getElementById("onBehalfOfTenant").checked ? getRadioValue("tenantIsPrimaryContact") || "Yes" : "",
-        repairContact: document.getElementById("onBehalfOfTenant").checked && getRadioValue("tenantIsPrimaryContact") === "No" ? {
+        repairContact: document.getElementById("onBehalfOfTenant").checked && getRadioValue("tenantIsPrimaryContact") !== "No" ? {
           name: document.getElementById("repairContactName").value.trim(),
           phone: document.getElementById("repairContactPhone").value.trim(),
           email: document.getElementById("repairContactEmail").value.trim()
@@ -1178,6 +1189,27 @@ function syncPaymentRequirement() {
       return payload;
     }
 
+    // Contact-driven validation (Andrew, 2026-08-31): email is required ONLY
+    // when Email is the preferred contact method, and a phone number ONLY
+    // when Text or Phone Call is. Each message names the one thing missing —
+    // the old combined "client name and client email" line fired even when
+    // both names were filled in, which read as a broken form.
+    function contactValidationError(payload) {
+      if (!payload.customerName) return "Please enter your first and last name.";
+      if (!payload.contactMethod) return "Please select how you'd like us to contact you (text, email, or phone call).";
+      const digits = String(payload.customerPhone || "").replace(/\D/g, "");
+      if ((payload.contactMethod === "Text" || payload.contactMethod === "Phone Call") && digits.length < 10) {
+        return `You chose ${payload.contactMethod.toLowerCase()} as your preferred contact — please enter a 10-digit phone number.`;
+      }
+      if (payload.contactMethod === "Email" && !payload.customerEmail) {
+        return "You chose email as your preferred contact — please enter your email address.";
+      }
+      if (payload.customerEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(payload.customerEmail)) {
+        return "That email address doesn't look right — please double-check it.";
+      }
+      return null;
+    }
+
     async function loadStripe() {
       const res = await fetch("/api/config");
       const data = await res.json();
@@ -1188,16 +1220,13 @@ function syncPaymentRequirement() {
     async function createSetupIntent() {
       const payload = getPayload();
 
-      if (!payload.customerName || !payload.customerEmail) {
-        throw new Error("Please complete client name and client email.");
+      const contactErr = contactValidationError(payload);
+      if (contactErr) {
+        throw new Error(contactErr);
       }
 
       if (!payload.serviceAddress.line1 || !payload.serviceAddress.city || !payload.serviceAddress.zip) {
         throw new Error("Please complete the full service address.");
-      }
-
-      if (!payload.contactMethod) {
-        throw new Error("Please select a contact method preference.");
       }
 
      
@@ -1383,18 +1412,14 @@ beginBtn.addEventListener("click", async () => {
 
   const payload = getPayload();
 
-  if (!payload.customerName || !payload.customerEmail) {
-    showStatus("error", "Please complete client name and client email.");
+  const contactErr = contactValidationError(payload);
+  if (contactErr) {
+    showStatus("error", contactErr);
     return;
   }
 
   if (!payload.serviceAddress.line1 || !payload.serviceAddress.city || !payload.serviceAddress.zip) {
     showStatus("error", "Please complete the full service address.");
-    return;
-  }
-
-  if (!payload.contactMethod) {
-    showStatus("error", "Please select a contact method preference.");
     return;
   }
 
@@ -1464,18 +1489,14 @@ form.addEventListener("submit", async (event) => {
 
   const payload = getPayload();
 
-  if (!payload.customerName || !payload.customerEmail) {
-    showStatus("error", "Please complete client name and client email.");
+  const contactErr = contactValidationError(payload);
+  if (contactErr) {
+    showStatus("error", contactErr);
     return;
   }
 
   if (!payload.serviceAddress.line1 || !payload.serviceAddress.city || !payload.serviceAddress.zip) {
     showStatus("error", "Please complete the full service address.");
-    return;
-  }
-
-  if (!payload.contactMethod) {
-    showStatus("error", "Please select a contact method preference.");
     return;
   }
 
@@ -1512,8 +1533,8 @@ form.addEventListener("submit", async (event) => {
         payment_method_data: {
           billing_details: {
             name: nameOnCard,
-            email: payload.customerEmail,
-            phone: payload.customerPhone,
+            email: payload.customerEmail || undefined,
+            phone: payload.customerPhone || undefined,
             address: {
               line1: billing.line1,
               line2: billing.line2,

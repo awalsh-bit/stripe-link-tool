@@ -519,13 +519,20 @@
     function formatOnBehalf(row) {
       const parts = [];
       if (row.onBehalfOfTenant) {
-        const override = row.tenantIsPrimaryContact === "No" ? row.repairContact : null;
-        if (override) {
-          parts.push('<br><span class="strong" style="color: #92400e;">Homeowner on behalf of tenant</span>');
-          const contact = [override.name, override.phone, override.email].filter(Boolean).map(escapeHtml).join(" &middot; ");
-          parts.push(`<br><span style="color: #92400e;">Primary repair contact: ${contact || "-"}</span>`);
+        parts.push('<br><span class="strong" style="color: #92400e;">Homeowner on behalf of tenant</span>');
+        // New rows: repairContact = the TENANT's details when the tenant is
+        // primary. Old rows (pre-flip): repairContact was an override
+        // collected when the tenant was NOT primary — label it generically
+        // so both generations read correctly.
+        const c = row.repairContact;
+        const contact = c ? [c.name, c.phone, c.email].filter(Boolean).map(escapeHtml).join(" &middot; ") : "";
+        if (contact) {
+          const label = row.tenantIsPrimaryContact === "Yes" ? "Tenant is the primary contact" : "Primary repair contact";
+          parts.push(`<br><span style="color: #92400e;">${label}: ${contact}</span>`);
+        } else if (row.tenantIsPrimaryContact === "No") {
+          parts.push('<br><span style="color: #92400e;">Homeowner (details above) is the primary contact</span>');
         } else {
-          parts.push('<br><span class="strong" style="color: #92400e;">Homeowner on behalf of tenant &mdash; tenant is the repair contact</span>');
+          parts.push('<br><span style="color: #92400e;">Tenant is the primary contact &mdash; no separate details left</span>');
         }
       }
       if (row.onBehalfManagement) {

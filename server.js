@@ -9704,9 +9704,16 @@ app.post("/api/service/setup-intent", async (req, res) => {
       consent
     } = req.body;
 
-    if (!customerName || !customerEmail) {
+    // Email is only mandatory when it's the chosen contact method (Andrew,
+    // 2026-08-31) — Stripe accepts a customer without an email.
+    if (!customerName) {
       return res.status(400).json({
-        error: "Client name and client email are required."
+        error: "Client name is required."
+      });
+    }
+    if (String(contactMethod || "") === "Email" && !customerEmail) {
+      return res.status(400).json({
+        error: "Email is the preferred contact method — a client email is required."
       });
     }
 
@@ -9723,7 +9730,7 @@ app.post("/api/service/setup-intent", async (req, res) => {
 
     const serviceCustomerConfig = {
       name: customerName,
-      email: customerEmail,
+      email: customerEmail || undefined,
       phone: customerPhone || undefined,
       address: serviceAddress
         ? {
@@ -12006,7 +12013,10 @@ app.post("/api/service/submit-request", async (req, res) => {
     const tenantIsPrimaryContact = serviceRequest.onBehalfOfTenant
       ? (serviceRequest.tenantIsPrimaryContact === "No" ? "No" : "Yes")
       : "";
-    const repairContact = tenantIsPrimaryContact === "No"
+    // Flipped 2026-08-31: repairContact now carries the TENANT's details,
+    // collected when the tenant IS the primary contact (the homeowner's own
+    // info lives in the main fields).
+    const repairContact = tenantIsPrimaryContact === "Yes"
       ? sanitizeOnBehalfContact(serviceRequest.repairContact, ["name", "phone", "email"])
       : null;
     const managerIsPrimaryContact = serviceRequest.onBehalfManagement

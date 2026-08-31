@@ -568,6 +568,14 @@
 
     <!-- ============ STEP 1: FIND THE JOB ============ -->
     <section class="step active" data-step="1">
+      <div class="card" id="truckCard" style="display:none;">
+        <label class="field-label">Which truck are you on?</label>
+        <div class="field-help" style="margin-top:-4px; margin-bottom:12px;">Tap your route to see the stops on your run.</div>
+        <div class="chip-grid" id="truckChips"></div>
+        <div class="field-help" id="truckMeta" style="margin-top:10px;"></div>
+        <div id="truckOrders"></div>
+      </div>
+
       <div class="card">
         <label class="field-label" for="invoiceInput">Sales invoice #</label>
         <input type="text" id="invoiceInput" class="invoice-input" inputmode="text" placeholder="S00012345" autocomplete="off" autocapitalize="characters">
@@ -789,6 +797,8 @@
    ===================================================================== */
 const CONFIG = {
   LOOKUP_URL: "/api/install-damage/lookup",   // Agility: open orders + serial snapshot + dispatch stops
+  ROUTES_URL: "/api/install-damage/routes",         // truck picker (Sales Order Health Route column); blank = hidden
+  ROUTE_ORDERS_URL: "/api/install-damage/route-orders",
   SUBMIT_URL: "/api/install-damage",          // Agility: Service Request Queue + photos + email to service@
   SUBMIT_AUTH_HEADER: "",
   EMAIL_ENDPOINT_URL: ""  // blank: the Agility submit endpoint sends the service@ email itself
@@ -1018,6 +1028,73 @@ $("#locChangeBtn").addEventListener("click", ()=>{
   locShow("overview");
 });
 
+/* ---- Truck-first picker (Sales Order Health routes: D01, D02, …) ---- */
+async function initTruckPicker(){
+  if(!CONFIG.ROUTES_URL || !CONFIG.ROUTE_ORDERS_URL) return;
+  try{
+    const res = await fetch(CONFIG.ROUTES_URL);
+    if(!res.ok) return;
+    const data = await res.json();
+    if(!data.routes || !data.routes.length) return;
+    $("#truckCard").style.display = "block";
+    $("#truckMeta").textContent = data.today
+      ? ""
+      : (data.date ? `Showing the last routed day on file (${data.date}) — today's Sales Order Health upload hasn't landed yet.` : "");
+    const host = $("#truckChips");
+    host.innerHTML = "";
+    data.routes.forEach((r)=>{
+      const c = el("div", "chip", `${r.route} · ${r.count} stop${r.count === 1 ? "" : "s"}`);
+      c.addEventListener("click", ()=>{
+        host.querySelectorAll(".chip").forEach((x)=>x.classList.remove("selected"));
+        c.classList.add("selected");
+        loadTruckOrders(r.route, data.date);
+      });
+      host.appendChild(c);
+    });
+  } catch(e){ /* picker is optional — invoice lookup below still works */ }
+}
+
+async function loadTruckOrders(route, date){
+  const host = $("#truckOrders");
+  host.innerHTML = '<div class="lookup-status loading"><span class="spinner"></span> Loading stops…</div>';
+  try{
+    const res = await fetch(CONFIG.ROUTE_ORDERS_URL + "?route=" + encodeURIComponent(route) + "&date=" + encodeURIComponent(date || ""));
+    const data = await res.json();
+    if(!res.ok) throw new Error(data.error || "load failed");
+    host.innerHTML = "";
+    if(!data.orders.length){
+      host.appendChild(el("div", "lookup-status error", "No routed stops for that truck — use the invoice lookup below."));
+      return;
+    }
+    const help = el("div", "field-help", "Tap the job you're at:");
+    help.style.margin = "12px 0 8px";
+    host.appendChild(help);
+    data.orders.forEach((o)=>{
+      const opt = el("div", "unit-option");
+      const left = el("div");
+      left.appendChild(el("div", "u-name", o.name || o.invoice));
+      left.appendChild(el("div", "u-meta", [o.address, o.invoice].filter(Boolean).join(" · ")));
+      opt.appendChild(left);
+      opt.appendChild(el("div", "radio-dot"));
+      opt.addEventListener("click", ()=>{
+        host.querySelectorAll(".unit-option").forEach((x)=>x.classList.remove("selected"));
+        opt.classList.add("selected");
+        $("#invoiceInput").value = o.invoice;
+        // Same workflow from here: the stop feeds the normal invoice lookup,
+        // with its own name/address as the safety net.
+        runLookup({ name: o.name, address: o.address }).then(()=>{
+          $("#jobResult").scrollIntoView({ behavior: "smooth", block: "nearest" });
+        });
+      });
+      host.appendChild(opt);
+    });
+  } catch(e){
+    host.innerHTML = "";
+    host.appendChild(el("div", "lookup-status error", "Couldn't load that truck's stops — use the invoice lookup below."));
+  }
+}
+initTruckPicker();
+
 /* ============================= STEP 1: LOOKUP ============================= */
 $("#manualBtn").addEventListener("click", ()=>{
   state.jobSource = "manual";
@@ -1028,7 +1105,9 @@ $("#manualBtn").addEventListener("click", ()=>{
   $("#manualCard").scrollIntoView({behavior:"smooth", block:"nearest"});
 });
 
-$("#lookupBtn").addEventListener("click", async ()=>{
+$("#lookupBtn").addEventListener("click", ()=>runLookup());
+
+async function runLookup(fallback){
   const val = $("#invoiceInput").value.trim();
   if(!val){ showToast("Enter an invoice number first"); return; }
   state.invoice = val;
@@ -1062,6 +1141,13 @@ $("#lookupBtn").addEventListener("click", async ()=>{
     const data = await res.json();
     statusHost.innerHTML = "";
     if(!data || !data.found){
+      if(fallback && (fallback.name || fallback.address)){
+        state.jobSource = "lookup";
+        state.customerName = fallback.name || "";
+        state.address = fallback.address || "";
+        renderJobCard({ customerName: state.customerName, address: state.address, units: [] });
+        return;
+      }
       const b = el("div", "lookup-status error", "Couldn't find that invoice. Double check the number, or enter the job manually below.");
       resultHost.appendChild(b);
       state.jobSource = "manual";
@@ -1069,9 +1155,9 @@ $("#lookupBtn").addEventListener("click", async ()=>{
       return;
     }
     state.jobSource = "lookup";
-    state.customerName = data.customerName || "";
-    state.address = data.address || "";
-    renderJobCard(data);
+    state.customerName = data.customerName || fallback?.name || "";
+    state.address = data.address || fallback?.address || "";
+    renderJobCard({ ...data, customerName: state.customerName, address: state.address });
   } catch(err){
     statusHost.innerHTML = "";
     const b = el("div", "lookup-status error", "Couldn't reach the lookup service. Enter the job manually below.");
@@ -1079,7 +1165,7 @@ $("#lookupBtn").addEventListener("click", async ()=>{
     state.jobSource = "manual";
     $("#manualCard").style.display = "block";
   }
-});
+}
 
 function renderJobCard(data){
   const host = $("#jobResult");
@@ -1090,12 +1176,21 @@ function renderJobCard(data){
   host.appendChild(card);
 
   const units = data.units || [];
-  if(units.length <= 1){
+  if(units.length === 0){
+    const help = el("div", "field-help", "Which appliance is damaged?");
+    help.style.marginTop = "12px";
+    host.appendChild(help);
+    const grid = el("div", "chip-grid");
+    host.appendChild(grid);
+    const sel = [];
+    buildChips(grid, APPLIANCE_TYPES, sel, false);
+    grid.addEventListener("click", ()=>{ state.applianceType = sel[0] || ""; });
+    return;
+  }
+  if(units.length === 1){
     const u = units[0];
-    if(u){
-      state.applianceType = u.applianceType || "";
-      state.selectedUnit = u;
-    }
+    state.applianceType = u.applianceType || "";
+    state.selectedUnit = u;
     return;
   }
   const help = el("div", "field-help", "Multiple units on this invoice — tap the one that's damaged:");

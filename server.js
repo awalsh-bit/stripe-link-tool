@@ -12292,6 +12292,63 @@ app.get("/api/install-damage/lookup", requirePagePermission("/install-damage.htm
   }
 });
 
+// Truck-first lookup: routes (D01, D02…) come from the Sales Order Health
+// snapshot's Route column. The installer taps their truck, sees that run's
+// stops, taps the job — then the normal invoice lookup takes over.
+app.get("/api/install-damage/routes", requirePagePermission("/install-damage.html"), async (req, res) => {
+  try {
+    const snapshot = await getSalesOrderSnapshot();
+    const rows = (snapshot?.rows || []).filter((r) => String(r.route || "").trim() && String(r.invoice || "").trim());
+    if (!rows.length) return res.json({ routes: [], date: "", today: false, uploadedAt: snapshot?.uploadedAt || null });
+
+    // Prefer today's routed stops; on a stale snapshot fall back to the most
+    // recent routed day on file so the picker still works (and says so).
+    const today = new Date().toLocaleDateString("en-CA", { timeZone: APP_TIMEZONE });
+    const dates = [...new Set(rows.map((r) => String(r.schedDate || "").slice(0, 10)).filter(Boolean))].sort();
+    const active = dates.includes(today) ? today : (dates.filter((d) => d <= today).pop() || dates[dates.length - 1] || "");
+
+    const counts = {};
+    rows.filter((r) => String(r.schedDate || "").slice(0, 10) === active).forEach((r) => {
+      const key = String(r.route).trim().toUpperCase();
+      counts[key] = (counts[key] || 0) + 1;
+    });
+    return res.json({
+      date: active,
+      today: active === today,
+      uploadedAt: snapshot?.uploadedAt || null,
+      routes: Object.keys(counts).sort().map((route) => ({ route, count: counts[route] }))
+    });
+  } catch (err) {
+    console.error("Install-damage routes failed:", err.message);
+    return res.status(500).json({ error: "Unable to load the trucks." });
+  }
+});
+
+app.get("/api/install-damage/route-orders", requirePagePermission("/install-damage.html"), async (req, res) => {
+  try {
+    const route = String(req.query.route || "").trim().toUpperCase().slice(0, 20);
+    const date = String(req.query.date || "").slice(0, 10);
+    if (!route) return res.json({ route, date, orders: [] });
+    const snapshot = await getSalesOrderSnapshot();
+    const orders = (snapshot?.rows || [])
+      .filter((r) =>
+        String(r.route || "").trim().toUpperCase() === route &&
+        String(r.invoice || "").trim() &&
+        (!date || String(r.schedDate || "").slice(0, 10) === date))
+      .slice(0, 80)
+      .map((r) => ({
+        invoice: String(r.invoice).trim().toUpperCase(),
+        name: r.name || "",
+        address: [r.address, r.zip].filter(Boolean).join(", "),
+        reference: r.reference || ""
+      }));
+    return res.json({ route, date, orders });
+  } catch (err) {
+    console.error("Install-damage route-orders failed:", err.message);
+    return res.status(500).json({ error: "Unable to load that truck's stops." });
+  }
+});
+
 app.post(
   "/api/install-damage",
   requirePagePermission("/install-damage.html"),

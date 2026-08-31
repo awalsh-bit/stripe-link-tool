@@ -173,6 +173,7 @@ import {
   updateShopOrderLockConflicts,
   saveShopInventorySnapshot,
   getShopInventorySnapshot,
+  listWrittenUnitsForInvoice,
   saveShopMapPrices,
   getShopMapPrices,
   getShopExpressSettings,
@@ -12249,30 +12250,41 @@ app.get("/api/install-damage/lookup", requirePagePermission("/install-damage.htm
       } catch {}
     }
 
-    // Units: the DAILY serial snapshot's per-unit rows carry the Written To
-    // ticket + model + serial; monthly commission lines are the fallback.
-    let units = [];
+    // Units, from three generations of the same data: the DAILY serial
+    // snapshot (unit still in stock / on the truck), then the PERMANENT
+    // written-to history (the unit left the inventory export when it was
+    // delivered/invoiced — exactly when installers file these), then the
+    // monthly commission lines (older orders). Merged + deduped so a
+    // partially-delivered multi-unit ticket shows every unit.
+    const unitKey = (u) => `${String(u.model).toUpperCase()}|${String(u.serial).toUpperCase()}`;
+    const unitMap = new Map();
     try {
       const snapshot = await getShopInventorySnapshot();
-      units = (snapshot?.serialUnits || [])
+      (snapshot?.serialUnits || [])
         .filter((u) => String(u.writtenTo || "").trim().toUpperCase().replace(/-\d+$/, "") === base)
-        .slice(0, 8)
-        .map((u) => ({
-          applianceType: u.description || u.prod || "",
-          brand: u.brand || "",
-          model: u.model || u.sku || "",
-          serial: u.serial || ""
-        }));
+        .forEach((u) => {
+          const mapped = { applianceType: u.description || u.prod || "", brand: u.brand || "", model: u.model || u.sku || "", serial: u.serial || "" };
+          unitMap.set(unitKey(mapped), mapped);
+        });
     } catch {}
-    if (!units.length) {
+    try {
+      (await listWrittenUnitsForInvoice(base)).forEach((u) => {
+        const mapped = { applianceType: u.description || u.prod || "", brand: u.brand || "", model: u.model || "", serial: u.serial || "" };
+        if (!unitMap.has(unitKey(mapped))) unitMap.set(unitKey(mapped), mapped);
+      });
+    } catch {}
+    if (!unitMap.size) {
       try {
         const lines = await listLinesForInvoice(base);
-        units = lines
+        lines
           .filter((l) => String(l.serialNumber || "").trim())
-          .slice(0, 8)
-          .map((l) => ({ applianceType: "", brand: "", model: l.product || "", serial: l.serialNumber || "" }));
+          .forEach((l) => {
+            const mapped = { applianceType: "", brand: "", model: l.product || "", serial: l.serialNumber || "" };
+            if (!unitMap.has(unitKey(mapped))) unitMap.set(unitKey(mapped), mapped);
+          });
       } catch {}
     }
+    const units = [...unitMap.values()].slice(0, 8);
 
     // Address (and a name fallback): the dispatch stop for that ticket.
     let address = "";

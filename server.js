@@ -175,6 +175,8 @@ import {
   getShopInventorySnapshot,
   listWrittenUnitsForInvoice,
   getModelBrandMap,
+  importModelBrandCatalog,
+  getModelBrandStats,
   saveShopMapPrices,
   getShopMapPrices,
   getShopExpressSettings,
@@ -8014,14 +8016,16 @@ const epassInventoryUpload = multer({ storage: multer.memoryStorage(), limits: {
 
 app.get("/api/epass-uploads/status", requirePagePermission("/epass-uploads.html"), async (req, res) => {
   try {
-    const [snapshot, quoteMeta, versions, mapPrices, openOrders] = await Promise.all([
+    const [snapshot, quoteMeta, versions, mapPrices, openOrders, catalog] = await Promise.all([
       getShopInventorySnapshot().catch(() => null),
       getLatestQuoteUploadMeta().catch(() => null),
       listSourceVersions().catch(() => ({ oe23: [], commissions: [] })),
       getShopMapPrices().catch(() => null),
-      getOpenOrdersMeta().catch(() => null)
+      getOpenOrdersMeta().catch(() => null),
+      getModelBrandStats().catch(() => null)
     ]);
     return res.json({
+      catalog,
       inventory: snapshot ? { sourceFile: snapshot.sourceFile, uploadedAt: snapshot.uploadedAt, uploadedBy: snapshot.uploadedBy, count: (snapshot.serials || []).length } : null,
       openOrders,
       quotes: quoteMeta,
@@ -8034,6 +8038,81 @@ app.get("/api/epass-uploads/status", requirePagePermission("/epass-uploads.html"
     console.error("ePASS status failed:", err.message);
     return res.status(500).json({ error: "Unable to load upload status." });
   }
+});
+
+// NetSuite Item Catalog import → model_brand_map (Brand Sales attribution,
+// authoritative over the snapshot-accumulated rows). Header-matched, not
+// position-matched, so the export can gain columns freely; .csv and .xlsx
+// both parse through the same workbook reader.
+app.post("/api/epass-uploads/model-catalog", requirePagePermission("/epass-uploads.html"), (req, res) => {
+  epassInventoryUpload.single("report")(req, res, async (err) => {
+    if (err) {
+      return res.status(400).json({ error: err.code === "LIMIT_FILE_SIZE" ? "That file is over the 60 MB limit." : "Upload failed — please try again." });
+    }
+    try {
+      if (!req.file?.buffer?.length) {
+        return res.status(400).json({ error: "Attach the NetSuite items export (.csv or .xlsx)." });
+      }
+      const wb = readWorkbook(req.file.buffer, { type: "buffer" });
+      const sheet = wb.Sheets[wb.SheetNames[0]];
+      const grid = xlsxUtils.sheet_to_json(sheet, { header: 1, raw: false, defval: "" });
+
+      const norm = (v) => String(v ?? "").trim().toLowerCase();
+      let headerIndex = -1;
+      let headers = [];
+      for (let i = 0; i < Math.min(grid.length, 10); i++) {
+        const cells = (grid[i] || []).map(norm);
+        if (cells.some((c) => c.includes("model")) && cells.some((c) => c.includes("brand"))) {
+          headerIndex = i;
+          headers = cells;
+          break;
+        }
+      }
+      if (headerIndex < 0) {
+        return res.status(400).json({ error: "Couldn't find Model and Brand columns — is this the NetSuite items export?" });
+      }
+      const findCol = (...cands) => {
+        for (const c of cands) { const i = headers.findIndex((h) => h === c); if (i >= 0) return i; }
+        for (const c of cands) { const i = headers.findIndex((h) => h.includes(c)); if (i >= 0) return i; }
+        return -1;
+      };
+      const modelCol = findCol("model number", "model #", "model");
+      const brandCol = findCol("brand");
+      const descCol = findCol("short description", "display name", "description");
+      if (modelCol < 0 || brandCol < 0) {
+        return res.status(400).json({ error: "Couldn't find Model and Brand columns — is this the NetSuite items export?" });
+      }
+
+      const rows = [];
+      let skippedNoBrand = 0;
+      for (let r = headerIndex + 1; r < grid.length && rows.length < 50000; r++) {
+        const model = String(grid[r]?.[modelCol] ?? "").trim();
+        if (!model) continue;
+        const brand = String(grid[r]?.[brandCol] ?? "").trim();
+        if (!brand) { skippedNoBrand++; continue; }
+        rows.push({ model, brand, description: descCol >= 0 ? String(grid[r]?.[descCol] ?? "").trim() : "" });
+      }
+      if (!rows.length) {
+        return res.status(400).json({ error: "No rows with both a model and a brand found in that file." });
+      }
+
+      const result = await importModelBrandCatalog({
+        rows,
+        filename: req.file.originalname || "",
+        byEmail: req.authUser?.email || ""
+      });
+      recordAudit({
+        ip: req.ip, actorUserId: req.authUser?.id || null,
+        action: "model_catalog_imported", targetUserId: null,
+        detail: { filename: req.file.originalname || "", imported: result.imported, added: result.added, updated: result.updated, skippedNoBrand }
+      }).catch(() => {});
+      const stats = await getModelBrandStats().catch(() => null);
+      return res.json({ ok: true, ...result, skippedNoBrand, totalModels: stats?.total || result.imported });
+    } catch (parseErr) {
+      console.error("Model catalog import failed:", parseErr.message);
+      return res.status(400).json({ error: "Couldn't read that file — export it as .csv or .xlsx and try again." });
+    }
+  });
 });
 
 // ---------------------------------------------------------------------------

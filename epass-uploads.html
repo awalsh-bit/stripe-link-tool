@@ -144,6 +144,12 @@
           src: "ePASS → Commissions → unfiltered report (.xlsx)",
           desc: "Model-level commission lines for one statement month. Feeds Sales Order Detail line items, Field Sales Commissions, and the Returns report. Pick the month it covers, then upload — each upload replaces that month.",
           endpoint: "/api/commission-report", field: "report", month: true
+        },
+        {
+          key: "catalog", title: "NetSuite Item Catalog (model → brand)", cadence: "AS NEEDED",
+          src: "NetSuite → Items export (.csv or .xlsx) — needs a Model and a Brand column, extra columns are fine",
+          desc: "Brand + description for every catalog model. Feeds the Brand Sales report's model→brand attribution. Columns are matched by header name, so NetSuite can gain fields without breaking this — and catalog rows outrank whatever the nightly inventory feed guessed.",
+          endpoint: "/api/epass-uploads/model-catalog", field: "report", accept: ".csv,.xlsx,.xls"
         }
       ];
 
@@ -223,6 +229,16 @@
           const dot = s.commissions.month >= prevMonth(thisMonth) ? "green" : "amber";
           return { dot, html: `<strong>${esc(s.commissions.filename || "")}</strong> — statement month ${esc(s.commissions.month)}, uploaded ${esc(fmtWhen(s.commissions.uploadedAt) || "?")} · ${Number(s.commissions.lines || 0).toLocaleString()} lines` };
         }
+        if (key === "catalog") {
+          const c = s.catalog || {};
+          if (c.lastImport?.uploadedAt) {
+            return { dot: "green", html: `<strong>${esc(c.lastImport.filename || "catalog")}</strong> — ${esc(fmtWhen(c.lastImport.uploadedAt) || "?")} (${agoText(c.lastImport.uploadedAt)})${c.lastImport.uploadedBy ? " by " + esc(c.lastImport.uploadedBy) : ""} · ${Number(c.netsuite || 0).toLocaleString()} catalog models (${Number(c.total || 0).toLocaleString()} in the map total)` };
+          }
+          if (c.total) {
+            return { dot: "amber", html: `No catalog import yet — ${Number(c.total).toLocaleString()} models accumulated from the inventory feed only.` };
+          }
+          return { dot: "gray", html: "No catalog imported yet." };
+        }
         if (key === "mapFeed") {
           const f = s.mapFeed || {};
           if (f.lastAttempt && f.lastAttempt.ok === false) {
@@ -257,7 +273,7 @@
               ${isLink
                 ? `<a class="ep-link" href="${esc(r.href)}">${esc(r.linkLabel)}</a>`
                 : `${r.month ? `<input type="month" class="ep-month" data-month value="${new Date().toISOString().slice(0, 7)}" />` : ""}
-                   <input type="file" accept=".xlsx,.xls" data-file style="display:none;" />
+                   <input type="file" accept="${esc(r.accept || ".xlsx,.xls")}" data-file style="display:none;" />
                    <button type="button" class="ep-btn primary" data-upload>Upload</button>
                    <span class="ep-result" data-result></span>`}
             </div>

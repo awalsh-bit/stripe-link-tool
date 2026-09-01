@@ -174,6 +174,7 @@ import {
   saveShopInventorySnapshot,
   getShopInventorySnapshot,
   listWrittenUnitsForInvoice,
+  getModelBrandMap,
   saveShopMapPrices,
   getShopMapPrices,
   getShopExpressSettings,
@@ -311,6 +312,7 @@ import {
   listOrderDetail,
   listOrderLineDetail,
   listLinesForInvoice,
+  listBrandSalesByModel,
   listSourceVersions,
   listReturnLines,
   listCommissionLinesForMonths,
@@ -607,6 +609,7 @@ const INTERNAL_PAGE_PATHS = new Set([
   "/clearance.html",
   "/credit-applications.html",
   "/sales-order-health.html",
+  "/brand-sales.html",
   "/lead-report.html",
   "/quote-follow-up.html",
   "/epass-uploads.html",
@@ -826,6 +829,7 @@ const PAGE_LABELS = {
   "/credit-applications.html": "Builder Credit Applications",
   "/sales-order-health.html": "Sales Order Health Report",
   "/lead-report.html": "DIBS Lead Report",
+  "/brand-sales.html": "Brand Sales",
   "/quote-follow-up.html": "Quote Follow-Up",
   "/epass-uploads.html": "ePASS Upload Center",
   "/service-estimates.html": "Service Estimate Approvals",
@@ -944,6 +948,7 @@ const PAGE_CATEGORIES = [
       "/my-commissions.html",
       "/shop-orders.html",
       "/sales-order-health.html",
+      "/brand-sales.html",
       "/lead-report.html",
       "/quote-follow-up.html",
       "/epass-uploads.html",
@@ -8754,6 +8759,55 @@ app.post("/api/field-commissions/exceptions/:id/resolve", requireExecutiveApi, a
   } catch (err) {
     console.error("Commission exception resolve failed:", err.message);
     return res.status(500).json({ error: "Unable to resolve the request." });
+  }
+});
+
+// Brand Sales report: delivered appliance revenue + units by brand over a
+// period. Revenue/units = commission-report Model lines on the finish date
+// (OE-23 finished orders); brands come from the model→brand map the nightly
+// inventory snapshots accumulate (the commission report has no brand
+// column). Models the map hasn't seen land in an explicit unmatched bucket
+// rather than silently vanishing.
+app.get("/api/brand-sales", requirePagePermission("/brand-sales.html"), async (req, res) => {
+  try {
+    const todayStr = new Date().toLocaleDateString("en-CA", { timeZone: APP_TIMEZONE });
+    // Default window: the first day of the month five months back → today
+    // (six months of delivered business).
+    const t = new Date(`${todayStr}T12:00:00Z`);
+    const defaultFrom = new Date(Date.UTC(t.getUTCFullYear(), t.getUTCMonth() - 5, 1)).toISOString().slice(0, 10);
+    const from = /^\d{4}-\d{2}-\d{2}$/.test(String(req.query.from || "")) ? String(req.query.from) : defaultFrom;
+    const to = /^\d{4}-\d{2}-\d{2}$/.test(String(req.query.to || "")) ? String(req.query.to) : todayStr;
+    const department = String(req.query.department || "").slice(0, 40);
+
+    const [data, brandMap] = await Promise.all([
+      listBrandSalesByModel({ from, to, department }),
+      getModelBrandMap()
+    ]);
+
+    const brands = new Map();
+    for (const m of data.models) {
+      const info = brandMap[m.model];
+      const brand = (info?.brand || "").trim() || "— Model not in brand map —";
+      if (!brands.has(brand)) brands.set(brand, { brand, revenue: 0, units: 0, models: [] });
+      const b = brands.get(brand);
+      b.revenue = Math.round((b.revenue + m.revenue) * 100) / 100;
+      b.units = Math.round((b.units + m.units) * 100) / 100;
+      b.models.push({ model: m.model, description: info?.description || "", units: m.units, revenue: m.revenue, orders: m.orders });
+    }
+    const brandList = [...brands.values()].sort((a, b) => b.revenue - a.revenue);
+    brandList.forEach((b) => b.models.sort((x, y) => y.revenue - x.revenue));
+
+    const totals = {
+      revenue: Math.round(brandList.reduce((s, b) => s + b.revenue, 0) * 100) / 100,
+      units: Math.round(brandList.reduce((s, b) => s + b.units, 0) * 100) / 100,
+      models: data.models.length,
+      unmatchedModels: brands.get("— Model not in brand map —")?.models.length || 0
+    };
+
+    return res.json({ from, to, department, departments: data.departments, coverage: data.coverage, totals, brands: brandList });
+  } catch (err) {
+    console.error("Brand sales failed:", err.message);
+    return res.status(500).json({ error: "Unable to build the brand sales report." });
   }
 });
 

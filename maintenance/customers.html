@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Customers | Wilson Internal</title>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <link rel="stylesheet" href="/internal-shell.css">
+  <link rel="stylesheet" href="assets/wilson.css">
+  <link rel="stylesheet" href="assets/agility-bridge.css">
+</head>
+<!--
+  WHO WILSON SERVES.  (v0.9.28)
+
+  The second of the two screens. admin.html is what needs doing; this is
+  everybody, searchable, and every row opens the household's own page where its
+  filters, reports, history, equipment and scheduling constraints already live.
+
+  OPEN QUOTES ARE ON THIS LIST. A quote is an unaccepted enrollment, so a
+  prospect is a customer Wilson does not have yet -- and putting them on a
+  separate screen is how a sent quote gets forgotten. They carry a "Quote" badge
+  and open the proposal instead of a household.
+
+  The Households tab this replaces was one table with a search box. What it
+  lacked was any way to answer "who has a payment problem" or "who has never had
+  their water tested" without reading every row, so the search gained filters.
+-->
+<body data-mode="internal" data-page-title="Customers">
+  <header id="site-header"></header>
+
+  <main>
+    <div class="page-shell">
+      <section class="ops-bar">
+        <div class="ops-bar-title">
+          <h1>Customers</h1>
+          <span class="ops-bar-sub" id="customer-bar-sub">Every household and open quote</span>
+        </div>
+        <!-- "New quote or enrollment" is in the header on every internal page,
+             so repeating it here was the same button twice on one screen. The
+             importer stays because it belongs to this page specifically. -->
+        <div class="inline-actions">
+          <a class="button secondary" href="invoice-import.html">Import a sales invoice</a>
+        </div>
+      </section>
+
+      <div class="command-intro">
+        <div><span class="eyebrow dark">Search and filter</span><h2 id="customer-count">0 customers</h2></div>
+        <div class="command-search">
+          <input class="search-input" id="customer-search" placeholder="Name, address, city, plan, quote number...">
+          <button class="button secondary" id="customer-search-go" type="button">Search</button>
+        </div>
+      </div>
+
+      <!-- Filters answer the questions the old single table could not: who is
+           blocked on payment, who has equipment with no install date, who has
+           never had their water tested. Rendered from a declared list so a new
+           filter is one entry rather than a new chunk of markup. -->
+      <div class="customer-filters" id="customer-filters" role="group" aria-label="Filter customers"></div>
+
+      <div class="customer-list" id="customer-list"></div>
+    </div>
+  </main>
+
+  <footer id="site-footer"></footer>
+  <script src="assets/plan-config.js"></script>
+  <script src="assets/ui.js"></script>
+  <script src="assets/store.js"></script>
+  <script src="assets/customers.js"></script>
+  <script src="assets/offline.js"></script>
+</body>
+</html>

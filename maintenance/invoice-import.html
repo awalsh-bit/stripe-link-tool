@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Import a sales invoice | Wilson Internal</title>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <link rel="stylesheet" href="/internal-shell.css">
+  <link rel="stylesheet" href="assets/wilson.css">
+  <link rel="stylesheet" href="assets/agility-bridge.css">
+</head>
+<!--
+  THE INVOICE IMPORTER, ON ITS OWN PAGE.  (v0.9.28)
+
+  It was a tab on the command center, which put an 86-line three-step flow --
+  upload, review the extraction, create the draft -- inside a screen whose job is
+  to show what needs doing today. It is also not per-household: it CREATES a
+  customer, so it belongs next to the other way of creating one.
+
+  Reached from customers.html, alongside "New quote or enrollment".
+-->
+<body data-mode="internal" data-page-title="Invoice import">
+  <header id="site-header"></header>
+
+  <main>
+    <div class="page-shell">
+      <div class="toolbar no-print">
+        <div class="inline-actions">
+          <a class="button ghost" href="customers.html">&larr; Customers</a>
+        </div>
+        <div class="inline-actions">
+          <a class="button secondary" href="appliance-signup.html">Enroll without an invoice</a>
+        </div>
+      </div>
+
+      <div class="invoice-import-layout">
+        <div class="card card-pad invoice-upload-card">
+          <div class="section-heading">
+            <div>
+              <h2>Import Wilson sales invoices</h2>
+              <p>Upload every PDF tied to the sale. Split invoices are combined into one appliance inventory while accessories, installation, payments, and promotional lines are filtered out.</p>
+            </div>
+            <span class="badge success">PDF parser active</span>
+          </div>
+
+          <input id="invoice-files" type="file" accept="application/pdf,.pdf" multiple hidden>
+          <div id="invoice-dropzone" class="invoice-dropzone" tabindex="0" role="button" aria-label="Choose Wilson sales invoice PDFs">
+            <div class="invoice-drop-icon">↥</div>
+            <strong>Drop Wilson invoice PDFs here</strong>
+            <span>For split sales, select the main invoice and every “-1”, “-2”, or related file together.</span>
+            <button class="button secondary" id="choose-invoices" type="button">Choose PDF files</button>
+          </div>
+          <div id="invoice-file-list" class="invoice-file-list"></div>
+          <div class="invoice-import-actions">
+            <button class="button" id="parse-invoices" type="button" disabled>Extract appliance inventory</button>
+            <button class="button ghost" id="clear-invoice-files" type="button">Clear</button>
+          </div>
+          <p class="disclaimer">The prototype reads the Wilson invoice layout locally. Uploaded files are not sent outside this computer.</p>
+        </div>
+
+        <aside class="card card-pad invoice-import-guide">
+          <div class="section-heading"><div><h2>What the importer keeps</h2><p>The office gets detail; the homeowner gets simplicity.</p></div></div>
+          <div class="import-guide-list">
+            <div><span>1</span><p><strong>Exact internal record</strong>Invoice, area heading, brand, model, serial, description, and inferred product type.</p></div>
+            <div><span>2</span><p><strong>Broad customer category</strong>Refrigeration, dishwasher, range, microwave, washer, dryer, and the other simple enrollment buttons.</p></div>
+            <div><span>3</span><p><strong>Review before use</strong>Unassigned areas, laundry centers, and low-confidence matches stay visibly flagged.</p></div>
+          </div>
+        </aside>
+      </div>
+
+      <div id="invoice-import-results" class="stack hidden">
+        <div class="metric-grid invoice-import-metrics" id="invoice-import-metrics"></div>
+
+        <div id="invoice-import-warnings" class="callout warning hidden"></div>
+
+        <div class="card card-pad">
+          <div class="section-heading">
+            <div><h2>Ship-to household</h2><p>The service address is taken from the invoice Ship To section and can be corrected before creating the draft.</p></div>
+            <span class="badge" id="invoice-number-badge">Invoice</span>
+          </div>
+          <div class="form-grid three">
+            <div class="field"><label for="import-household-name">Household / property</label><input id="import-household-name"></div>
+            <div class="field"><label for="import-phone">Phone</label><input id="import-phone"></div>
+            <div class="field"><label for="import-email">Email <span class="hint">Not printed on invoice</span></label><input id="import-email" type="email"></div>
+            <div class="field full"><label for="import-address1">Service address</label><input id="import-address1"></div>
+            <div class="field"><label for="import-city">City</label><input id="import-city"></div>
+            <div class="field"><label for="import-state">State</label><input id="import-state" maxlength="2"></div>
+            <div class="field"><label for="import-zip">ZIP</label><input id="import-zip"></div>
+          </div>
+        </div>
+
+        <div class="table-card">
+          <div class="card-pad" style="padding-bottom: 7px;">
+            <div class="section-heading">
+              <div><h2>Extracted appliance inventory</h2><p>Confirm quantities, broad categories, and areas. Exact invoice detail remains attached to every record.</p></div>
+              <span class="badge success" id="invoice-included-count">0 included</span>
+            </div>
+          </div>
+          <div class="table-wrap invoice-review-table-wrap">
+            <table class="invoice-review-table">
+              <thead><tr><th>Use</th><th>Invoice item</th><th>Area</th><th>Category &amp; qty</th><th>Review</th></tr></thead>
+              <tbody id="invoice-review-body"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <details class="card card-pad ignored-lines-card">
+          <summary><strong>Ignored invoice lines</strong><span id="invoice-ignored-count">0 installation, accessory, payment, or credit lines</span></summary>
+          <div class="table-wrap"><table><thead><tr><th>Invoice</th><th>Model</th><th>Description</th><th>Reason</th></tr></thead><tbody id="invoice-ignored-body"></tbody></table></div>
+        </details>
+
+        <div class="card card-pad invoice-draft-actions">
+          <div><strong>Ready to build the maintenance plan?</strong><p>The next button opens the customer-style enrollment with the broad icons already counted and arranged. Brand, model, serial, and exact type remain attached behind the scenes.</p></div>
+          <div class="inline-actions">
+            <button class="button secondary" id="reset-invoice-import" type="button">Start over</button>
+            <button class="button" id="create-maintenance-draft" type="button">Create maintenance draft →</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <footer id="site-footer"></footer>
+  <script src="assets/plan-config.js"></script>
+  <script src="assets/ui.js"></script>
+  <script src="assets/store.js"></script>
+  <script src="assets/invoice-import.js"></script>
+  <script src="assets/offline.js"></script>
+</body>
+</html>

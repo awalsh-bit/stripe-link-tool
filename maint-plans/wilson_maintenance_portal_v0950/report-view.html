@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Appliance Health Report | Wilson</title>
+  <link rel="manifest" href="app.webmanifest">
+  <meta name="theme-color" content="#12331f">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link rel="apple-touch-icon" href="assets/icon-192.png">
+  <link rel="stylesheet" href="assets/wilson.css">
+</head>
+<body data-mode="internal" data-page-title="Appliance Health Report">
+  <header id="site-header"></header>
+
+  <main>
+    <div class="page-shell">
+      <div class="toolbar no-print">
+        <div class="inline-actions"><a class="button ghost" href="customers.html">← Customers</a><a class="button ghost" id="visit-review-link" href="#" hidden>Whole-visit review</a><span class="badge success">Field-generated report</span></div>
+        <button class="button" id="print-report" type="button">Print / Save PDF</button>
+      </div>
+      <article class="report-sheet multi-page" id="report-sheet"></article>
+    </div>
+  </main>
+
+  <footer id="site-footer"></footer>
+  <script src="assets/plan-config.js"></script>
+  <script src="assets/ui.js"></script>
+  <script src="assets/store.js"></script>
+  <script src="assets/temp-monitoring.js"></script>
+  <script src="assets/photo-store.js"></script>
+  <script src="assets/trend-analysis.js"></script>
+  <script src="assets/hvac-performance.js"></script>
+  <script src="assets/lifecycle-advice.js"></script>
+  <script src="assets/paginate.js"></script>
+  <script src="assets/report-view.js"></script>
+  <script src="assets/offline.js"></script>
+</body>
+</html>

@@ -1,0 +1,20 @@
+# The shop passcode's salted hash. Local to one machine, never shared, never
+# packaged -- serve_portal.py --set-passcode writes it.
+.wilson-passcode
+
+# Photographs uploaded from phones during real maintenance stops. These are the
+# insides of customers' houses; they do not belong in a repository or a zip.
+photo-store/
+
+# Local scratch
+__pycache__/
+*.pyc
+.DS_Store
+field-preview.html
+guardian-pilot-sensors.json
+guardian-pilot-data.json
+guardian-pilot-incidents.jsonl
+# The labeled failure-drill training set and drill log: trade secret, stays
+# on the pilot box, never in the repo or a zip.
+guardian-pilot-drills.json
+guardian-pilot-training.jsonl

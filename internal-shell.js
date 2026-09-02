@@ -6,6 +6,15 @@
   const label = body.dataset.shellLabel || "Internal Tool";
   const icon = body.dataset.shellIcon || "payments";
   const replaceHero = body.dataset.shellReplaceHero === "true";
+  // Pages served from a subfolder (e.g. /maintenance/) set
+  // data-shell-root="/" so the shell's relative links and images still
+  // resolve to the dashboard root instead of the subfolder.
+  const shellRoot = body.dataset.shellRoot || "";
+  function withRoot(href) {
+    const value = String(href || "");
+    if (!shellRoot || !value || /^(?:[a-z]+:|\/|#)/i.test(value)) return value;
+    return shellRoot + value;
+  }
 
   // ------------------------------------------------------------------
   // Color scheme. Green is the default; red and purple are per-user
@@ -235,6 +244,7 @@
           { href: "salesdashboard.html", title: "Sales Dashboard" },
           { href: "my-commissions.html", title: "My Commission Review" },
           { href: "sales-order-health.html", title: "Sales Order Health Report" },
+          { href: "sales-order-detail.html", title: "Sales Order Detail" },
           { href: "brand-sales.html", title: "Brand Sales" },
           { href: "lead-report.html", title: "DIBS Lead Report" },
           { href: "quote-follow-up.html", title: "Quote Follow-Up" },
@@ -284,10 +294,20 @@
           { href: "satisfaction-survey.html", title: "Client Satisfaction Survey" },
           { href: "satisfaction-results.html", title: "Satisfaction Results" },
           { href: "case-visit-survey.html", title: "Case Visit Survey" },
-          { href: "case-visit-results.html", title: "Case Visit Results" },
-          { href: "/maintenance/admin.html", title: "Maintenance Command Center" },
-          { href: "/maintenance/tech-maintenance.html", title: "Maintenance Field Tool" },
-          { href: "/maintenance/index.html", title: "Maintenance Enrollment (Demo)" }
+          { href: "case-visit-results.html", title: "Case Visit Results" }
+        ]
+      },
+      {
+        title: "Maintenance Plans",
+        children: [
+          { href: "/maintenance/admin.html", title: "Today (Command Center)" },
+          { href: "/maintenance/customers.html", title: "Customers" },
+          { href: "/maintenance/monitoring.html", title: "Refrigeration Guardian" },
+          { href: "/maintenance/tech-maintenance.html", title: "Field Tool" },
+          { href: "/maintenance/appliance-signup.html", title: "New Quote or Enrollment" },
+          { href: "/maintenance/invoice-import.html", title: "Invoice Import" },
+          { href: "/maintenance/filter-finder.html", title: "Filter Finder" },
+          { href: "/maintenance/index.html", title: "Customer-Facing Site (Demo)" }
         ]
       }
     ];
@@ -307,7 +327,6 @@
         children: [
           { href: "user-admin.html", title: "User Admin" },
           { href: "audit-log.html", title: "User Activity Audit" },
-          { href: "sales-order-detail.html", title: "Sales Order Detail" },
           { href: "returns-report.html", title: "Returns Report" }
         ]
       });
@@ -329,7 +348,7 @@
             </button>
             <div class="internal-shell-submenu-panel">
               ${link.children.map((child) => `
-                <a class="internal-shell-submenu-link" href="${child.href}">${child.title}</a>
+                <a class="internal-shell-submenu-link" href="${withRoot(child.href)}">${child.title}</a>
               `).join("")}
             </div>
           </div>
@@ -340,7 +359,7 @@
         ? `<span class="internal-shell-menu-link-icon" aria-hidden="true" style="display:inline-flex;width:15px;height:15px;vertical-align:-2px;margin-right:8px;">${iconSvg(link.icon).replace("<svg ", '<svg style="width:100%;height:100%;display:block;" ')}</span>`
         : "";
       return `
-        <a class="internal-shell-menu-link" href="${link.href}">
+        <a class="internal-shell-menu-link" href="${withRoot(link.href)}">
           <div class="internal-shell-menu-link-title">${iconHtml}${link.title}</div>
           ${link.text ? `<div class="internal-shell-menu-link-text">${link.text}</div>` : ""}
         </a>
@@ -359,18 +378,18 @@
 
     const links = candidates
       .filter((link) => canSeePage(session, link.href))
-      .map((link) => `<a class="internal-shell-footer-link" href="${link.href}">${link.title}</a>`);
+      .map((link) => `<a class="internal-shell-footer-link" href="${withRoot(link.href)}">${link.title}</a>`);
 
     if (user?.accessGroup === "executive" || user?.isExecutive) {
-      links.push(`<a class="internal-shell-footer-link" href="commissions.html">Commissions</a>`);
+      links.push(`<a class="internal-shell-footer-link" href="${withRoot("commissions.html")}">Commissions</a>`);
     }
 
     if (session?.canManageUsers) {
-      links.push(`<a class="internal-shell-footer-link" href="user-admin.html">User Admin</a>`);
-      links.push(`<a class="internal-shell-footer-link" href="audit-log.html">Activity Audit</a>`);
+      links.push(`<a class="internal-shell-footer-link" href="${withRoot("user-admin.html")}">User Admin</a>`);
+      links.push(`<a class="internal-shell-footer-link" href="${withRoot("audit-log.html")}">Activity Audit</a>`);
     }
 
-    links.push(`<a class="internal-shell-footer-link" href="logout.html">Sign Out</a>`);
+    links.push(`<a class="internal-shell-footer-link" href="${withRoot("logout.html")}">Sign Out</a>`);
     return links.join("");
   }
 
@@ -397,7 +416,7 @@
                 ${buildThemePicker()}
               </div>
             </div>
-            <img class="internal-shell-logo" src="logo-black.png" alt="Wilson AC & Appliance" />
+            <img class="internal-shell-logo" src="${withRoot("logo-black.png")}" alt="Wilson AC & Appliance" />
             <div class="internal-shell-labels">
               <div class="internal-shell-badge-wrap">
                 <span class="internal-shell-badge-icon" aria-hidden="true">${iconSvg(icon)}</span>
@@ -410,10 +429,10 @@
             <div class="internal-shell-tools-row">
               <div class="internal-shell-tools-label">Internal Tools</div>
               <a class="internal-shell-tool-link" href="https://app.podium.com/home" target="_blank" rel="noopener noreferrer">
-                <img class="internal-shell-tool-image podium" src="podium-logo.jpg" alt="Podium" />
+                <img class="internal-shell-tool-image podium" src="${withRoot("podium-logo.jpg")}" alt="Podium" />
               </a>
               <a class="internal-shell-tool-link" href="https://wilsonappliance.dispatchtrack.com/a18/login" target="_blank" rel="noopener noreferrer">
-                <img class="internal-shell-tool-image" src="dispatchtrack-logo.png" alt="DispatchTrack" />
+                <img class="internal-shell-tool-image" src="${withRoot("dispatchtrack-logo.png")}" alt="DispatchTrack" />
               </a>
             </div>
           </div>

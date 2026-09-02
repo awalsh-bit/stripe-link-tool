@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Refrigeration Guardian · Wilson AC & Appliance</title>
+  <link rel="stylesheet" href="assets/wilson.css">
+</head>
+<body data-mode="internal">
+  <header id="site-header"></header>
+  <main>
+    <div class="page-shell">
+      <section class="page-title" id="tw-title"></section>
+      <section class="detail-grid" id="tw-summary"></section>
+
+      <section class="section">
+        <div class="table-card card-pad" id="tw-flags-card">
+          <div class="section-heading"><div><span class="eyebrow dark">Needs a truck</span><h2>Open flags</h2><p>Sustained out-of-band temperature, evaluated against the draft flag rules. A flag here is a phone call and a priority dispatch — not an email.</p></div></div>
+          <div id="tw-flags"></div>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="table-card card-pad">
+          <div class="section-heading"><div><h2>The fleet</h2><p>Every enrolled sensor. Readings shown are <strong>simulated</strong> — the prototype has no live UbiBot feed, and says so rather than dressing fake data as telemetry.</p></div><span class="badge info" id="tw-fleet-count"></span></div>
+          <div id="tw-controls-host"></div>
+          <div id="tw-fleet" class="tw-fleet"></div>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="card card-pad">
+          <div class="section-heading"><div><h2>Dispatches opened from this hub</h2></div></div>
+          <div id="tw-dispatches" class="activity-list"></div>
+        </div>
+      </section>
+    </div>
+  </main>
+  <footer id="site-footer"></footer>
+  <script src="assets/plan-config.js"></script>
+  <script src="assets/ui.js"></script>
+  <script src="assets/store.js"></script>
+  <script src="assets/temp-monitoring.js"></script>
+  <script src="assets/monitoring.js"></script>
+  <script src="assets/offline.js"></script>
+</body>
+</html>

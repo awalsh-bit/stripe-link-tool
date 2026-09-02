@@ -1,0 +1,18 @@
+{
+  "_readme": [
+    "Copy this file to the repo root as guardian-pilot-sensors.json and edit.",
+    "channelId: the UbiBot channel id (from the console URL or channel info).",
+    "field:     which feed field carries the temperature you trust.",
+    "           field1 = the device's onboard air sensor;",
+    "           field7-field10 = external DS18B20 probes (the glycol probe).",
+    "kind:      fresh_food | freezer | wine — picks which flag rule applies.",
+    "unit:      C or F — what the channel reports. UbiBot defaults to C;",
+    "           the server converts to °F before judging.",
+    "label:     how the sensor appears on the status page and in incidents."
+  ],
+  "sensors": [
+    { "channelId": "12345", "field": "field7", "kind": "fresh_food", "unit": "C", "label": "Shop fridge — glycol probe" },
+    { "channelId": "12346", "field": "field7", "kind": "freezer", "unit": "C", "label": "Shop freezer — glycol probe" },
+    { "channelId": "12347", "field": "field1", "kind": "fresh_food", "unit": "C", "label": "Shop fridge — bare air (comparison)" }
+  ]
+}

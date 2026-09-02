@@ -1,0 +1,260 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Household Appliance Maintenance | Wilson</title>
+  <link rel="manifest" href="app.webmanifest">
+  <meta name="theme-color" content="#12331f">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link rel="apple-touch-icon" href="assets/icon-192.png">
+  <link rel="stylesheet" href="assets/wilson.css">
+</head>
+<body data-mode="public" data-page-title="Appliance Maintenance">
+  <header id="site-header"></header>
+
+  <main>
+    <div class="page-shell">
+      <section class="page-title enrollment-title">
+        <div>
+          <span class="eyebrow dark">Household appliance maintenance</span>
+          <h1>Tap what you have. We’ll build the plan.</h1>
+          <p>No model numbers and no long plan comparison. Pick the appliance categories, organize them by area, and Wilson will automatically apply the right pricing.</p>
+        </div>
+        <div class="enrollment-progress" aria-label="Enrollment steps">
+          <div class="progress-step active"><span>1</span><strong>Pick</strong></div>
+          <div class="progress-line"></div>
+          <div class="progress-step"><span>2</span><strong>Arrange</strong></div>
+          <div class="progress-line"></div>
+          <div class="progress-step"><span>3</span><strong>Finish</strong></div>
+        </div>
+      </section>
+
+      <div id="invoice-import-banner" class="import-banner hidden">
+        <div class="import-banner-icon">↧</div>
+        <div>
+          <strong>Wilson sales invoice loaded</strong>
+          <span>Exact models stay attached behind the scenes. Review the household areas and finish the enrollment.</span>
+        </div>
+        <button class="button small ghost" id="clear-import-draft" type="button">Clear import</button>
+      </div>
+
+      <form id="appliance-enrollment-form" novalidate>
+        <div class="builder-layout enrollment-builder-layout">
+          <div class="stack">
+            <section class="form-section picker-section" id="picker-section">
+              <div class="section-heading picker-heading">
+                <div>
+                  <div class="step-kicker">Step 1</div>
+                  <h2>What should Wilson maintain?</h2>
+                  <p>Tap a category to add one. Use the quantity controls when the home has multiples.</p>
+                </div>
+                <div class="selection-pill"><strong id="selected-appliance-count">0</strong><span>selected</span></div>
+              </div>
+              <div id="appliance-picker-grid" class="appliance-picker-grid" aria-live="polite"></div>
+              <div class="picker-footer-note">
+                <span class="picker-note-icon">✓</span>
+                <div>
+                  <strong>Broad categories are all we need from the homeowner.</strong>
+                  <span>Wilson can verify exact brand, model, serial, filter, and product type from purchase history or during onboarding.
+                  Wondering what the service does and doesn't include? <a class="text-link" href="customer-info.html">How our service works</a>.</span>
+                </div>
+              </div>
+            </section>
+
+            <section class="form-section area-section" id="area-section">
+              <div class="section-heading">
+                <div>
+                  <div class="step-kicker">Step 2</div>
+                  <h2>Put them where they belong.</h2>
+                  <p>Everything starts in Main House. Add areas such as a Casita, Bar, or Outdoor Kitchen, then drag appliances between them.</p>
+                </div>
+                <button class="button secondary" id="show-add-area" type="button">+ Add an area</button>
+              </div>
+
+              <div id="add-area-panel" class="add-area-panel hidden">
+                <div class="field grow">
+                  <label for="new-area-name">Area name</label>
+                  <input id="new-area-name" placeholder="Example: Casita">
+                </div>
+                <button class="button" id="confirm-add-area" type="button">Add area</button>
+                <button class="button ghost" id="cancel-add-area" type="button">Cancel</button>
+                <div class="quick-area-row" aria-label="Suggested area names">
+                  <button type="button" data-quick-area="Laundry Room">Laundry Room</button>
+                  <button type="button" data-quick-area="Casita">Casita</button>
+                  <button type="button" data-quick-area="Guest House">Guest House</button>
+                  <button type="button" data-quick-area="Bar">Bar</button>
+                  <button type="button" data-quick-area="Outdoor Kitchen">Outdoor Kitchen</button>
+                  <button type="button" data-quick-area="Pool House">Pool House</button>
+                </div>
+              </div>
+
+              <div id="area-board" class="area-board"></div>
+              <div class="drag-help"><span>↔</span> Drag on desktop. On a phone, use the “Move to” menu on each appliance card.</div>
+            </section>
+
+            <section class="form-section auto-plan-section" id="plan-section">
+              <div class="section-heading">
+                <div>
+                  <div class="step-kicker">Step 3</div>
+                  <h2>We’ll choose the best-value plan.</h2>
+                  <p>Pricing stays automatic. Estate choices appear only when an Estate plan becomes a better value for the appliance mix—including twice-yearly icemaker service.</p>
+                </div>
+                <span class="badge success">Automatic pricing on</span>
+              </div>
+
+              <div id="simple-plan-card" class="simple-plan-card"></div>
+
+              <div id="estate-choice-wrap" class="estate-choice-wrap hidden">
+                <div class="estate-unlock">
+                  <div class="estate-unlock-icon">★</div>
+                  <div>
+                    <strong>This home now qualifies for Estate pricing.</strong>
+                    <span>We automatically selected the best-value Estate tier for this appliance mix. You can still choose a different service level.</span>
+                  </div>
+                </div>
+                <div id="estate-plan-options" class="estate-plan-options"></div>
+              </div>
+
+              <div id="large-estate-note" class="callout warning hidden"></div>
+            </section>
+
+            <section class="form-section">
+              <div class="section-heading">
+                <div>
+                  <div class="step-kicker">Step 4</div>
+                  <h2>Tell us where we’re going.</h2>
+                  <p>This becomes the household record used by the appliance and HVAC maintenance teams.</p>
+                </div>
+              </div>
+              <div class="form-grid">
+                <div class="field"><label for="first-name">First name</label><input id="first-name" name="firstName" autocomplete="given-name" required></div>
+                <div class="field"><label for="last-name">Last name</label><input id="last-name" name="lastName" autocomplete="family-name" required></div>
+                <div class="field"><label for="household-label">Household label <span class="hint">Optional</span></label><input id="household-label" name="householdLabel" placeholder="Example: Reynolds Estate"></div>
+                <div class="field"><label for="preferred-contact">Preferred contact</label><select id="preferred-contact" name="preferredContact"><option>Text</option><option>Phone</option><option>Email</option></select></div>
+                <div class="field"><label for="phone">Best phone</label><input id="phone" name="phone" type="tel" autocomplete="tel" required></div>
+                <div class="field"><label for="email">Email</label><input id="email" name="email" type="email" autocomplete="email" required></div>
+                <div class="field full"><label for="address1">Service address</label><input id="address1" name="address1" autocomplete="street-address" required></div>
+                <div class="field"><label for="address2">Apt / suite / gate note</label><input id="address2" name="address2"></div>
+                <div class="field"><label for="city">City</label><input id="city" name="city" autocomplete="address-level2" required></div>
+                <div class="field"><label for="state">State</label><input id="state" name="state" value="TX" maxlength="2" autocomplete="address-level1" required></div>
+                <div class="field"><label for="zip">ZIP</label><input id="zip" name="zip" inputmode="numeric" autocomplete="postal-code" required></div>
+                <div class="field full"><label for="notes">Anything else Wilson should know <span class="hint">Optional</span></label><textarea id="notes" name="notes" placeholder="House manager's name, unusual equipment, or anything about the property that helps us plan."></textarea></div>
+              </div>
+            </section>
+
+            <!--
+              SCHEDULING PREFERENCES, not a calendar.
+
+              ePass owns the schedule and has no open API, so a date chosen here
+              is a date Wilson cannot honour without re-entering it by hand --
+              and the customer would believe it was booked. These are the
+              constraints the office needs in order to place the ticket, and
+              nothing here promises a slot.
+
+              No entry codes are collected: the customer says a gate or alarm
+              EXISTS and Wilson gets the code by phone. A code typed into a web
+              form is a code sitting in a database.
+            -->
+            <section class="form-section" id="scheduling-section">
+              <div class="section-heading">
+                <div>
+                  <h2>When maintenance suits you</h2>
+                  <p>All optional, and none of it books a date &mdash; Wilson will call to arrange each visit. This is what we use to get it right the first time.</p>
+                </div>
+              </div>
+
+              <span class="sched-label">Best months <em>Leave blank for no preference</em></span>
+              <div class="sched-chips" id="sched-months"></div>
+
+              <span class="sched-label">Days that work <em>Leave blank for any day</em></span>
+              <div class="sched-chips" id="sched-days"></div>
+
+              <span class="sched-label">Time of day</span>
+              <div class="sched-chips" id="sched-times"></div>
+
+              <span class="sched-label">Getting in <em>So the technician is not turned away</em></span>
+              <div class="sched-chips" id="sched-access"></div>
+              <p class="sched-privacy">Wilson never asks for gate or alarm codes on this form. If entry needs a code, we will collect it by phone before the first visit.</p>
+
+              <span class="sched-label">Dates you will be away <em>Optional</em></span>
+              <div id="sched-blackouts"></div>
+              <div class="sched-blackout-add">
+                <label>From <input type="date" id="sched-blackout-from"></label>
+                <label>To <input type="date" id="sched-blackout-to"></label>
+                <label class="sched-blackout-why">Reason <input type="text" id="sched-blackout-note" placeholder="Travelling, renovation…" maxlength="60"></label>
+                <button type="button" class="button small secondary" id="sched-blackout-save">Add</button>
+              </div>
+
+              <div class="sched-preview" id="sched-preview" hidden></div>
+            </section>
+
+            <section class="form-section">
+              <div class="section-heading">
+                <div>
+                  <div class="step-kicker">Step 5</div>
+                  <h2>Secure the maintenance schedule.</h2>
+                  <p>The card is stored securely through Stripe and is not charged today. Wilson charges it when scheduled maintenance is ready to proceed.</p>
+                </div>
+              </div>
+              <div class="payment-box">
+                <div class="payment-row">
+                  <div class="payment-status">
+                    <span class="status-dot" id="payment-dot"></span>
+                    <div><strong id="payment-title">No payment method connected</strong><div class="table-sub" id="payment-subtitle">Prototype integration point</div></div>
+                  </div>
+                  <button class="button secondary" id="connect-payment" type="button">Connect demo card</button>
+                </div>
+              </div>
+              <p class="disclaimer">Prototype only: this simulates a successful Stripe SetupIntent. No real card information is requested or stored.</p>
+              <label class="authorization-card enrollment-authorization">
+                <input id="renewal-authorization" name="renewalAuthorization" type="checkbox" required>
+                <span><strong>Annual renewal and scheduled-maintenance charge</strong><small>I understand the plan renews annually until canceled, and I authorize Wilson to charge the card on file when a scheduled maintenance interval is ready to proceed.</small></span>
+              </label>
+            </section>
+          </div>
+
+          <aside class="sticky enrollment-summary-sticky">
+            <div class="summary-card interactive-summary-card">
+              <div class="summary-head">
+                <div class="label">Your maintenance plan</div>
+                <div class="summary-plan-name" id="summary-plan-name">Start by adding appliances</div>
+                <div class="amount" id="summary-total">$0.00 <small>/ year</small></div>
+                <!-- What the card actually sees. "Per year" reads as spread
+                     out, and it is not: on a two-visit plan the whole year
+                     lands at the first visit, and on a one-visit plan with
+                     icemakers it splits unevenly months apart. -->
+                <div class="summary-charge-split" id="summary-charge-split" hidden></div>
+              </div>
+              <div class="summary-body">
+                <div class="summary-mini-stats">
+                  <div><strong id="summary-appliance-count">0</strong><span>Appliances</span></div>
+                  <div><strong id="summary-area-count">1</strong><span>Areas</span></div>
+                  <div><strong id="summary-visit-count">—</strong><span>Visits</span></div>
+                </div>
+                <div class="summary-lines" id="summary-lines"></div>
+                <div id="summary-recommendation"></div>
+                <button class="button wide submit-enrollment-button" type="submit">Submit enrollment</button>
+                <!-- The second exit. Same list, same plan, same price -- the
+                     customer just has not agreed to it yet. type="button" so it
+                     cannot submit the enrollment form by accident. -->
+                <button class="button wide secondary send-quote-button" id="send-quote-button" type="button">Send a quote instead</button>
+                <p class="disclaimer" style="margin-bottom: 0;">A quote needs the name, address, and a way to reach them &mdash; no card and no renewal authorization. Wilson will verify the equipment, scope, and timing before the first charge or service order is created.</p>
+              </div>
+            </div>
+          </aside>
+        </div>
+      </form>
+    </div>
+  </main>
+
+  <footer id="site-footer"></footer>
+  <script src="assets/plan-config.js"></script>
+  <script src="assets/ui.js"></script>
+  <script src="assets/store.js"></script>
+  <script src="assets/scheduling-preference.js"></script>
+  <script src="assets/appliance-builder.js"></script>
+  <script src="assets/offline.js"></script>
+</body>
+</html>

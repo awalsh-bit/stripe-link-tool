@@ -1,0 +1,100 @@
+/* Wilson green defaults for the --primary* tokens. Internal pages get these
+   from internal-shell.css (and a user's red/purple scheme via html[data-theme]
+   outranks them); the customer-facing pages load public-shell.css, which has
+   no scheme tokens, so the same green is declared here for them. */
+:root {
+  --primary: #21692c;
+  --primary-hover: #1a5222;
+  --primary-deep: #1c5c26;
+  --primary-alt: #1f6329;
+  --primary-ink: #143d1a;
+  --primary-bright: #2f7d3b;
+  --primary-soft: #8fc49a;
+  --primary-soft-2: #b9d9bf;
+  --primary-tint: #eaf4ec;
+  --primary-tint-2: #d7ead9;
+  --primary-tint-3: #ddeede;
+  --primary-faint: #fafdfa;
+  --primary-faint-2: #fbfdfb;
+  --primary-wash: #f4f9f5;
+  --primary-wash-2: #f7fbf8;
+  --primary-wash-3: #f5faf5;
+  --primary-wash-4: #f6faf6;
+  --primary-rgb: 33, 105, 44;
+}
+
+/* ---------------------------------------------------------------------------
+   Agility bridge for the Maintenance Plans module.
+
+   The module's own stylesheet (wilson.css) styles everything below the
+   header. This file covers the seam between it and Agility's shells:
+   the host spacing, the module's link row under the shell header, and the
+   few places where the prototype's chrome and the house chrome overlap.
+   Brand colour comes only from the --primary* tokens defined in
+   internal-shell.css / public-shell.css so the user's colour scheme applies.
+--------------------------------------------------------------------------- */
+.site-header { padding: 18px 0 8px; }
+.site-footer { padding: 10px 0 28px; }
+.site-header .page-shell > .internal-shell-header,
+.site-header .page-shell > #internal-shell-header,
+.site-header .page-shell > #public-shell-header { margin-bottom: 12px; }
+
+.module-nav {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 4px 0 10px;
+}
+.module-nav-item {
+  display: inline-flex;
+  align-items: center;
+  min-height: 36px;
+  padding: 0 13px;
+  border-radius: 999px;
+  font-size: 13.5px;
+  font-weight: 700;
+  color: var(--primary-ink, #143d1a);
+  text-decoration: none;
+  border: 1px solid transparent;
+  background: rgba(255, 255, 255, 0.55);
+}
+.module-nav-item:hover { background: rgba(var(--primary-rgb, 33, 105, 44), 0.08); }
+.module-nav-item.current {
+  background: rgba(var(--primary-rgb, 33, 105, 44), 0.12);
+  border-color: rgba(var(--primary-rgb, 33, 105, 44), 0.2);
+}
+.module-nav-cta,
+.module-nav-item.module-nav-cta {
+  margin-left: auto;
+  background: var(--primary, #21692c);
+  color: #fff;
+  border-color: var(--primary, #21692c);
+}
+.module-nav-item.module-nav-cta:hover { background: var(--primary-hover, #1a5222); }
+.module-nav-phone {
+  margin-left: auto;
+  font-size: 13.5px;
+  font-weight: 700;
+  color: var(--primary-ink, #143d1a);
+}
+@media (max-width: 720px) {
+  .module-nav { gap: 4px; }
+  .module-nav-item { min-height: 32px; padding: 0 10px; font-size: 12.5px; }
+  .module-nav-cta, .module-nav-item.module-nav-cta, .module-nav-phone { margin-left: 0; }
+}
+
+/* The field tool lives on a phone: keep the hamburger/logo header, skip the
+   Podium/DispatchTrack tools card (it pushed the work below the fold). */
+body[data-shell-compact="true"] .internal-shell-tools { display: none; }
+
+/* Pages that do not load wilson.css (Filter Finder) still need the shell
+   hosts to sit in the same column as everything else. */
+.site-header .page-shell,
+.site-footer .page-shell { width: min(calc(100% - 44px), 1390px); margin: 0 auto; }
+
+/* On a phone the field tool goes straight to the visit; the hamburger still
+   reaches every other maintenance page. */
+@media (max-width: 720px) {
+  body[data-shell-compact="true"] .module-nav { display: none; }
+}

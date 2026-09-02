@@ -4,7 +4,10 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Enrollment Received | Wilson</title>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <link rel="stylesheet" href="/public-shell.css">
   <link rel="stylesheet" href="assets/wilson.css">
+  <link rel="stylesheet" href="assets/agility-bridge.css">
 </head>
 <body data-mode="public" data-page-title="Enrollment Received">
   <header id="site-header"></header>
@@ -30,7 +33,11 @@
           <div class="card card-pad">
             <span class="eyebrow dark">Customer next step</span>
             <h2>Wilson reviews the details.</h2>
-            <p style="color: var(--muted);">The secure payment method is authorized at enrollment. Wilson does not charge the plan until the scheduled maintenance interval is ready to proceed.</p>
+            <!-- v0.9.48: filled by confirmation.js from the actual payment
+                 profile -- the static copy used to assert the card was
+                 authorized while the tile above said "Pending setup". -->
+            <p style="color: var(--muted);" id="confirmation-payment-copy">Wilson does not charge the plan until the scheduled maintenance interval is ready to proceed.</p>
+            <p style="color: var(--muted);">While you wait: <a class="text-link" href="customer-info.html">how our service works</a> — our principles, what visits do and don't include, Guardian expectations, FAQ, and the plan terms.</p>
           </div>
           <div class="card card-pad">
             <span class="eyebrow dark">Office next step</span>
@@ -47,5 +54,6 @@
   <script src="assets/ui.js"></script>
   <script src="assets/store.js"></script>
   <script src="assets/confirmation.js"></script>
+  <script src="assets/offline.js"></script>
 </body>
 </html>

@@ -3,229 +3,82 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Maintenance Operations | Wilson Internal</title>
+  <title>Today | Wilson Internal</title>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <link rel="stylesheet" href="/internal-shell.css">
   <link rel="stylesheet" href="assets/wilson.css">
+  <link rel="stylesheet" href="assets/agility-bridge.css">
 </head>
-<body data-mode="internal" data-page-title="Maintenance Operations">
+<!--
+  THE WORK QUEUE, AND NOTHING ELSE.  (v0.9.28)
+
+  This page carried eight tabs. Three of them -- Filters, Health, Activity --
+  were global copies of panels the household page already has, and the seed data
+  showed what that cost: the Filters tab was a five-column table of four rows,
+  and Activity was four entries. Plan Setup was reference material with no data
+  on it at all, restating what plan-config.js already says.
+
+  So the tabs are gone and the tool is two screens: this one, which is what needs
+  doing, and customers.html, which is who Wilson serves. Everything a household
+  has -- its filters, its reports, its history, its scheduling constraints --
+  lives on that household's own page, where it is about somebody rather than
+  about everybody.
+-->
+<body data-mode="internal" data-page-title="Today">
   <header id="site-header"></header>
 
   <main>
     <div class="page-shell">
-      <section class="hero">
-        <div class="hero-grid">
-          <div>
-            <span class="eyebrow">Service tools</span>
-            <h1>Maintenance Operations</h1>
-            <p>Start with what needs attention now: fix billing problems, charge due maintenance, verify service orders, and keep every household moving without digging through one giant queue.</p>
-          </div>
-          <div class="hero-stat-grid">
-            <div class="hero-stat"><strong id="hero-due-count">0</strong><span>Items needing attention</span></div>
-            <div class="hero-stat"><strong id="hero-filter-count">0</strong><span>Ready to charge now</span></div>
-            <div class="hero-stat"><strong id="hero-payment-count">0</strong><span>Charged / awaiting ticket</span></div>
-            <div class="hero-stat"><strong id="hero-report-count">0</strong><span>Reports ready to send</span></div>
-          </div>
+      <!-- Compact operating bar. The counts are the only thing here that changes
+           day to day, so they are the only thing given size. They are RENDERED
+           FROM THE STAGE LIST rather than written out here: the previous version
+           hardcoded four buttons whose ids had drifted from their contents
+           (`hero-filter-count` was showing the charge count), and a bar that can
+           disagree with the queue it summarises is worse than no bar. -->
+      <section class="ops-bar">
+        <div class="ops-bar-title">
+          <h1>Today</h1>
+          <span class="ops-bar-sub" id="ops-bar-sub"></span>
         </div>
+        <div class="ops-bar-stats" id="ops-bar-stats" role="group" aria-label="Queue summary"></div>
       </section>
 
-      <section class="section internal-workspace">
-        <div class="internal-nav-shell">
-          <div class="internal-nav-grid" aria-label="Maintenance dashboard sections">
-            <button class="internal-nav-item active" data-tab-target="panel-due"><span class="nav-glyph">◎</span><span><strong>Command Center</strong><small>What needs action now</small></span></button>
-            <button class="internal-nav-item" data-tab-target="panel-households"><span class="nav-glyph">⌂</span><span><strong>Households</strong><small>Master plan list</small></span></button>
-            <button class="internal-nav-item" data-tab-target="panel-imports"><span class="nav-glyph">↥</span><span><strong>Invoice Import</strong><small>Build from Wilson sales</small></span></button>
-            <button class="internal-nav-item" data-tab-target="panel-filters"><span class="nav-glyph">▤</span><span><strong>Filters</strong><small>Parts and due dates</small></span></button>
-            <button class="internal-nav-item" data-tab-target="panel-reports"><span class="nav-glyph">♥</span><span><strong>Health</strong><small>Reports and field tool</small></span></button>
-            <button class="internal-nav-item" data-tab-target="panel-quotes"><span class="nav-glyph">$</span><span><strong>Quotes</strong><small>Custom estate proposals</small></span></button>
-            <button class="internal-nav-item" data-tab-target="panel-plans"><span class="nav-glyph">⚙</span><span><strong>Plan Setup</strong><small>Pricing and rules</small></span></button>
-            <button class="internal-nav-item" data-tab-target="panel-activity"><span class="nav-glyph">↺</span><span><strong>Activity</strong><small>Audit and recent work</small></span></button>
-          </div>
-          <div class="internal-quick-actions">
-            <button class="button" id="choose-field-visit" type="button">Choose field visit</button>
-            <button class="button secondary" id="open-invoice-import" type="button">Import invoice</button>
-            <a class="button secondary" href="quote-builder.html">Custom quote</a>
-            <button class="button ghost" id="reset-demo" type="button">Reset demo</button>
-          </div>
+      <div class="ops-bar-tools no-print">
+        <button class="button ghost small" id="reset-demo" type="button">Reset demo data</button>
+      </div>
+
+      <div class="command-intro">
+        <div><span class="eyebrow dark">Today&apos;s work</span><h2>What needs you next</h2></div>
+        <div class="command-search">
+          <input class="search-input" id="dashboard-search" placeholder="Search household, city, plan...">
+          <button class="button secondary" id="apply-filters" type="button">Search</button>
         </div>
+      </div>
 
-        <section class="tab-panel active" id="panel-due">
-          <div class="command-intro">
-            <div><span class="eyebrow dark">Today&apos;s work</span><h2>Maintenance Command Center</h2><p>Charge window = 14 days before through 14 days after the planned interval. Customer timing preferences remain visible, but the team can work flexibly inside that window.</p></div>
-            <div class="command-search"><input class="search-input" id="dashboard-search" placeholder="Search household, city, plan..."><button class="button secondary" id="apply-filters" type="button">Search</button></div>
-          </div>
+      <!-- One queue, ordered by urgency, with the pipeline stage as a chip.
+           Stage buttons in the operating bar narrow this list. -->
+      <div class="ops-queue-head">
+        <span class="label" id="queue-summary">0 items</span>
+        <button class="button ghost small hidden" id="queue-clear-filter" type="button">Show everything</button>
+      </div>
+      <div class="ops-queue" id="ops-queue"></div>
 
-          <div class="ops-module-grid">
-            <section class="ops-module priority-module">
-              <div class="ops-module-head"><div><span class="ops-kicker danger-text">Work first</span><h3>Action Required</h3></div><span class="module-count danger" id="action-required-count">0</span></div>
-              <p>Payment issues, charged plans without a matching ticket, or anything blocking the next step.</p>
-              <div class="ops-list" id="action-required-list"></div>
-            </section>
-            <section class="ops-module">
-              <div class="ops-module-head"><div><span class="ops-kicker">±14 day window</span><h3>Ready to Charge</h3></div><span class="module-count" id="ready-charge-count">0</span></div>
-              <p>Maintenance intervals inside the flexible charge window with payment ready—or an AR account.</p>
-              <div class="ops-list" id="ready-charge-list"></div>
-            </section>
-            <section class="ops-module">
-              <div class="ops-module-head"><div><span class="ops-kicker">After payment</span><h3>Schedule / Ticket</h3></div><span class="module-count" id="schedule-count">0</span></div>
-              <p>Paid or AR-posted intervals waiting for a service order, ticket match, or scheduling confirmation.</p>
-              <div class="ops-list" id="schedule-list"></div>
-            </section>
-            <section class="ops-module health-module">
-              <div class="ops-module-head"><div><span class="ops-kicker">Field completion</span><h3>Completed & Health</h3></div><span class="module-count success" id="completed-count">0</span></div>
-              <p>Field-completed visits, generated health reports, and anything ready for customer delivery.</p>
-              <div class="ops-list" id="completed-list"></div>
-            </section>
-          </div>
+      <!-- "Appliances trending down" used to render here. Removed at Cayden's
+           call (v0.9.49): there is no office action on a drifting reading —
+           the customer sees the trend in their maintenance report year over
+           year, and that is the product. Decline detection itself is
+           untouched: reports and household files still surface it. -->
 
-          <div class="command-secondary-grid">
-            <div class="table-card">
-              <div class="card-pad"><div class="section-heading"><div><h2>Upcoming maintenance</h2><p>Next intervals outside the immediate ±14-day charge window.</p></div><span class="badge" id="upcoming-count">0 upcoming</span></div></div>
-              <div id="upcoming-list" class="compact-upcoming-list"></div>
-            </div>
-            <div class="card card-pad">
-              <div class="section-heading"><div><h2>EPASS ticket verification</h2><p>Future daily invoice/service-order export match. Charged intervals with no matching ticket will stay red until a service order is found.</p></div><span class="badge warning">Integration placeholder</span></div>
-              <div class="integration-flow"><span>Charge / AR</span><b>→</b><span>EPASS daily export</span><b>→</b><span>Match household + interval</span><b>→</b><span>Clear flag</span></div>
-            </div>
-          </div>
-        </section>
-
-        <section class="tab-panel" id="panel-households">
-          <div class="table-card">
-            <div class="card-pad" style="padding-bottom: 6px;"><div class="section-heading"><div><h2>Plan households</h2><p>Appliance and HVAC subscriptions can coexist under the same address and payment profile.</p></div><span class="badge" id="household-count">0 households</span></div></div>
-            <div class="table-wrap"><table><thead><tr><th>Household</th><th>Plans</th><th>Assets</th><th>Next due</th><th>Payment</th><th>Filters</th><th></th></tr></thead><tbody id="household-table-body"></tbody></table></div>
-          </div>
-        </section>
-
-        <section class="tab-panel" id="panel-imports">
-          <div class="invoice-import-layout">
-            <div class="card card-pad invoice-upload-card">
-              <div class="section-heading">
-                <div>
-                  <h2>Import Wilson sales invoices</h2>
-                  <p>Upload every PDF tied to the sale. Split invoices are combined into one appliance inventory while accessories, installation, payments, and promotional lines are filtered out.</p>
-                </div>
-                <span class="badge success">PDF parser active</span>
-              </div>
-
-              <input id="invoice-files" type="file" accept="application/pdf,.pdf" multiple hidden>
-              <div id="invoice-dropzone" class="invoice-dropzone" tabindex="0" role="button" aria-label="Choose Wilson sales invoice PDFs">
-                <div class="invoice-drop-icon">↥</div>
-                <strong>Drop Wilson invoice PDFs here</strong>
-                <span>For split sales, select the main invoice and every “-1”, “-2”, or related file together.</span>
-                <button class="button secondary" id="choose-invoices" type="button">Choose PDF files</button>
-              </div>
-              <div id="invoice-file-list" class="invoice-file-list"></div>
-              <div class="invoice-import-actions">
-                <button class="button" id="parse-invoices" type="button" disabled>Extract appliance inventory</button>
-                <button class="button ghost" id="clear-invoice-files" type="button">Clear</button>
-              </div>
-              <p class="disclaimer">The prototype reads the Wilson invoice layout locally. Uploaded files are not sent outside this computer.</p>
-            </div>
-
-            <aside class="card card-pad invoice-import-guide">
-              <div class="section-heading"><div><h2>What the importer keeps</h2><p>The office gets detail; the homeowner gets simplicity.</p></div></div>
-              <div class="import-guide-list">
-                <div><span>1</span><p><strong>Exact internal record</strong>Invoice, area heading, brand, model, serial, description, and inferred product type.</p></div>
-                <div><span>2</span><p><strong>Broad customer category</strong>Refrigeration, dishwasher, range, microwave, washer, dryer, and the other simple enrollment buttons.</p></div>
-                <div><span>3</span><p><strong>Review before use</strong>Unassigned areas, laundry centers, and low-confidence matches stay visibly flagged.</p></div>
-              </div>
-            </aside>
-          </div>
-
-          <div id="invoice-import-results" class="stack hidden">
-            <div class="metric-grid invoice-import-metrics" id="invoice-import-metrics"></div>
-
-            <div id="invoice-import-warnings" class="callout warning hidden"></div>
-
-            <div class="card card-pad">
-              <div class="section-heading">
-                <div><h2>Ship-to household</h2><p>The service address is taken from the invoice Ship To section and can be corrected before creating the draft.</p></div>
-                <span class="badge" id="invoice-number-badge">Invoice</span>
-              </div>
-              <div class="form-grid three">
-                <div class="field"><label for="import-household-name">Household / property</label><input id="import-household-name"></div>
-                <div class="field"><label for="import-phone">Phone</label><input id="import-phone"></div>
-                <div class="field"><label for="import-email">Email <span class="hint">Not printed on invoice</span></label><input id="import-email" type="email"></div>
-                <div class="field full"><label for="import-address1">Service address</label><input id="import-address1"></div>
-                <div class="field"><label for="import-city">City</label><input id="import-city"></div>
-                <div class="field"><label for="import-state">State</label><input id="import-state" maxlength="2"></div>
-                <div class="field"><label for="import-zip">ZIP</label><input id="import-zip"></div>
-              </div>
-            </div>
-
-            <div class="table-card">
-              <div class="card-pad" style="padding-bottom: 7px;">
-                <div class="section-heading">
-                  <div><h2>Extracted appliance inventory</h2><p>Confirm quantities, broad categories, and areas. Exact invoice detail remains attached to every record.</p></div>
-                  <span class="badge success" id="invoice-included-count">0 included</span>
-                </div>
-              </div>
-              <div class="table-wrap invoice-review-table-wrap">
-                <table class="invoice-review-table">
-                  <thead><tr><th>Use</th><th>Area</th><th>Qty</th><th>Invoice item</th><th>Exact type</th><th>Customer category</th><th>Review</th></tr></thead>
-                  <tbody id="invoice-review-body"></tbody>
-                </table>
-              </div>
-            </div>
-
-            <details class="card card-pad ignored-lines-card">
-              <summary><strong>Ignored invoice lines</strong><span id="invoice-ignored-count">0 installation, accessory, payment, or credit lines</span></summary>
-              <div class="table-wrap"><table><thead><tr><th>Invoice</th><th>Model</th><th>Description</th><th>Reason</th></tr></thead><tbody id="invoice-ignored-body"></tbody></table></div>
-            </details>
-
-            <div class="card card-pad invoice-draft-actions">
-              <div><strong>Ready to build the maintenance plan?</strong><p>The next button opens the customer-style enrollment with the broad icons already counted and arranged. Brand, model, serial, and exact type remain attached behind the scenes.</p></div>
-              <div class="inline-actions">
-                <button class="button secondary" id="reset-invoice-import" type="button">Start over</button>
-                <button class="button" id="create-maintenance-draft" type="button">Create maintenance draft →</button>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        <section class="tab-panel" id="panel-filters">
-          <div class="table-card">
-            <div class="card-pad" style="padding-bottom: 6px;"><div class="section-heading"><div><h2>Filter management</h2><p>Track refrigerator water, food-preservation, freezer, IMUC, and HVAC media filters by part, quantity, coverage, and next replacement date.</p></div><span class="badge" id="filter-table-count">0 filters</span></div></div>
-            <div class="table-wrap"><table><thead><tr><th>Next due</th><th>Household</th><th>Equipment</th><th>Filter / part</th><th>Qty</th><th>Plan coverage</th><th>Source</th><th>Status</th></tr></thead><tbody id="filter-table-body"></tbody></table></div>
-          </div>
-        </section>
-
-        <section class="tab-panel" id="panel-reports">
-          <div class="table-card">
-            <div class="card-pad" style="padding-bottom: 6px;"><div class="section-heading"><div><h2>Appliance health reports</h2><p>Customer reports are generated only from completed technician field protocols. No separate office-side report builder is used.</p></div><span class="badge success">Field-generated only</span></div></div>
-            <div class="table-wrap"><table><thead><tr><th>Inspection</th><th>Household</th><th>Appliance</th><th>Score</th><th>Condition</th><th>Technician</th><th>Delivery</th><th></th></tr></thead><tbody id="report-table-body"></tbody></table></div>
-          </div>
-        </section>
-
-        <section class="tab-panel" id="panel-quotes">
-          <div class="table-card">
-            <div class="card-pad" style="padding-bottom: 6px;"><div class="section-heading"><div><h2>Custom estate quotes</h2><p>Compile an appliance list from a house manager and return a polished, consistent maintenance proposal.</p></div><a class="button small" href="quote-builder.html">Create quote</a></div></div>
-            <div class="table-wrap"><table><thead><tr><th>Quote</th><th>Property</th><th>Contact</th><th>Plan</th><th>Portfolio</th><th>Annual amount</th><th>Status</th><th></th></tr></thead><tbody id="quote-table-body"></tbody></table></div>
-          </div>
-        </section>
-
-        <section class="tab-panel" id="panel-plans">
-          <div class="stack">
-            <div class="card card-pad">
-              <div class="section-heading"><div><h2>Confirmed program rules</h2><p>These rules drive the enrollment forms, dashboard prompts, and quote calculations in this version.</p></div><span class="badge success">v0.7 decisions applied</span></div>
-              <div id="pricing-rule-grid" class="detail-grid"></div>
-            </div>
-            <div class="card card-pad">
-              <div class="section-heading"><div><h2>Household appliance plans</h2><p>Estate plans automatically become eligible when they are the better value; there is no fixed 10-appliance minimum.</p></div><span class="badge warning">Base-plus model is a draft</span></div>
-              <div id="plan-admin-grid" class="plan-card-grid"></div>
-            </div>
-            <div class="card card-pad">
-              <div class="section-heading"><div><h2>HVAC plans</h2><p>HVAC remains a separate customer enrollment flow but lands in this same internal household and interval queue.</p></div></div>
-              <div id="hvac-plan-admin-grid" class="plan-card-grid"></div>
-            </div>
-          </div>
-        </section>
-        <section class="tab-panel" id="panel-activity">
-          <div class="card card-pad">
-            <div class="section-heading"><div><h2>Recent activity</h2><p>Audit-style history is available when you need it, without competing with today&apos;s operating work.</p></div></div>
-            <div class="activity-list expanded-activity" id="activity-list"></div>
-          </div>
-        </section>
-      </section>
+      <div class="command-secondary-grid">
+        <div class="table-card">
+          <div class="card-pad"><div class="section-heading"><div><h2>Upcoming maintenance</h2><p id="upcoming-note">Next intervals outside the immediate charge window.</p></div><span class="badge" id="upcoming-count">0 upcoming</span></div></div>
+          <div id="upcoming-list" class="compact-upcoming-list"></div>
+        </div>
+        <div class="card card-pad">
+          <div class="section-heading"><div><h2>ePass ticket verification</h2><p>The daily ePass export will be matched against charged intervals here. ePass has no open API, so the tool reads the same dump the main Wilson dashboard already ingests rather than writing schedules back.</p></div><span class="badge warning">Not built yet</span></div>
+          <div class="integration-flow"><span>Charge / AR</span><b>→</b><span>ePass daily export</span><b>→</b><span>Match household + interval</span><b>→</b><span>Clear flag</span></div>
+        </div>
+      </div>
     </div>
   </main>
 
@@ -233,7 +86,8 @@
   <script src="assets/plan-config.js"></script>
   <script src="assets/ui.js"></script>
   <script src="assets/store.js"></script>
+  <script src="assets/trend-analysis.js"></script>
   <script src="assets/admin.js"></script>
-  <script src="assets/invoice-import.js"></script>
+  <script src="assets/offline.js"></script>
 </body>
 </html>

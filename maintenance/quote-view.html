@@ -4,15 +4,22 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Maintenance Proposal | Wilson</title>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <link rel="stylesheet" href="/internal-shell.css">
   <link rel="stylesheet" href="assets/wilson.css">
+  <link rel="stylesheet" href="assets/agility-bridge.css">
 </head>
 <body data-mode="internal" data-page-title="Maintenance Proposal">
   <header id="site-header"></header>
   <main>
     <div class="page-shell">
       <div class="toolbar no-print">
-        <div class="inline-actions"><a class="button ghost" href="admin.html#quotes">← Quotes</a><a class="button secondary" href="quote-builder.html">New quote</a></div>
-        <div class="inline-actions"><button class="button ghost" data-quote-status="Draft" type="button">Mark draft</button><button class="button secondary" data-quote-status="Sent" type="button">Mark sent</button><button class="button secondary" data-quote-status="Accepted" type="button">Mark accepted</button><button class="button" id="print-quote" type="button">Print / Save PDF</button></div>
+        <div class="inline-actions"><a class="button ghost" href="customers.html">← Customers</a><a class="button secondary" href="appliance-signup.html">New quote</a></div>
+        <!-- "Mark accepted" is gone. Acceptance is not a label any more: it
+             creates the enrollment this quote was priced from, so it is one
+             button that does the thing rather than a status somebody sets and
+             then re-enters the household by hand. -->
+        <div class="inline-actions"><button class="button ghost" data-quote-status="Draft" type="button">Mark draft</button><button class="button secondary" data-quote-status="Sent" type="button">Mark sent</button><button class="button" id="accept-quote" type="button">Accept &amp; enroll</button><button class="button secondary" id="print-quote" type="button">Print / Save PDF</button></div>
       </div>
       <article class="quote-sheet" id="quote-sheet"></article>
     </div>
@@ -22,5 +29,6 @@
   <script src="assets/ui.js"></script>
   <script src="assets/store.js"></script>
   <script src="assets/quote-view.js"></script>
+  <script src="assets/offline.js"></script>
 </body>
 </html>

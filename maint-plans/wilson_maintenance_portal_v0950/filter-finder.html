@@ -1,0 +1,900 @@
+<!doctype html>
+<!--
+  FILTER FINDER — Jack Ort's sales tool, dropped in as a portal page.
+
+  Built and maintained by Jack (jort@wilsonappliance.com); the BRANDS data,
+  the confidence flags and the Sub-Zero BI serial logic are his business
+  knowledge — see his handoff doc. Integration choice: option 2 of his
+  handoff (drop the file in as a page), because the tool is a single static
+  file with no dependencies and rebuilding it natively would only create a
+  second copy of his data to keep in sync.
+
+  Portal adaptations, kept deliberately small so Jack's next version drops
+  in the same way:
+    - The Google Fonts @import is gone: this portal works offline (service
+      worker), and a page that needs the network for its fonts is a page
+      that renders differently in a basement. The font stacks fall back to
+      the system face.
+    - Query-param prefill: ?brand=&model=&serial= — the command center's
+      Filter verification queue deep-links each unit here with its identity
+      already filled in, and the search runs itself.
+    - A back link to the command center.
+  Everything else — data, matching logic, confidence badges — is verbatim.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Filter Finder | Wilson AC &amp; Appliance</title>
+<style>
+
+  :root{
+    --bg:#EAF2E6;
+    --card:#FFFFFF;
+    --ink:#182619;
+    --muted:#6B7A70;
+    --muted-2:#8A968C;
+    --accent:#1F5C36;
+    --accent-dark:#153F26;
+    --accent-soft:#DCEAD9;
+    --border:#DCE6D8;
+    --border-soft:#E9F0E6;
+    --warn:#8A6D1D;
+    --warn-soft:#FBF1CE;
+    --bad:#8A3A2E;
+    --bad-soft:#F6DEDA;
+    --none:#5C6B62;
+    --none-soft:#E7ECE5;
+    --shadow: 0 1px 2px rgba(24,38,25,0.04), 0 8px 24px rgba(24,38,25,0.06);
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --bg:#0F1712;
+      --card:#17211A;
+      --ink:#E8F0E6;
+      --muted:#9BAA9C;
+      --muted-2:#7C8A7D;
+      --accent:#5FBE85;
+      --accent-dark:#8FDBAA;
+      --accent-soft:#1E3327;
+      --border:#26362B;
+      --border-soft:#1E2B22;
+      --warn:#E4C767;
+      --warn-soft:#332C15;
+      --bad:#E58A78;
+      --bad-soft:#3A211D;
+      --none:#9BAA9C;
+      --none-soft:#212D24;
+      --shadow: 0 1px 2px rgba(0,0,0,0.3), 0 8px 24px rgba(0,0,0,0.35);
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#0F1712;
+    --card:#17211A;
+    --ink:#E8F0E6;
+    --muted:#9BAA9C;
+    --muted-2:#7C8A7D;
+    --accent:#5FBE85;
+    --accent-dark:#8FDBAA;
+    --accent-soft:#1E3327;
+    --border:#26362B;
+    --border-soft:#1E2B22;
+    --warn:#E4C767;
+    --warn-soft:#332C15;
+    --bad:#E58A78;
+    --bad-soft:#3A211D;
+    --none:#9BAA9C;
+    --none-soft:#212D24;
+    --shadow: 0 1px 2px rgba(0,0,0,0.3), 0 8px 24px rgba(0,0,0,0.35);
+  }
+
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:var(--bg);
+    color:var(--ink);
+    font-family:'Inter',system-ui,sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  h1,h2,h3,.display{
+    font-family:'Poppins',system-ui,sans-serif;
+    text-wrap:balance;
+    margin:0;
+  }
+  .wrap{
+    max-width:1120px;
+    margin:0 auto;
+    padding:20px 20px 64px;
+  }
+
+  /* header */
+  .topbar{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:16px;
+    background:var(--card);
+    border:1px solid var(--border);
+    border-radius:18px;
+    padding:14px 20px;
+    box-shadow:var(--shadow);
+    margin-bottom:22px;
+    flex-wrap:wrap;
+  }
+  .brandmark{
+    display:flex;
+    align-items:center;
+    gap:12px;
+  }
+  .brandmark .logo{
+    font-family:'Poppins',system-ui,sans-serif;
+    font-weight:700;
+    font-size:1.5rem;
+    letter-spacing:-0.02em;
+    color:var(--ink);
+  }
+  .brandmark .logo span{color:var(--accent);}
+  .toolpill{
+    font-family:'Poppins',system-ui,sans-serif;
+    font-weight:600;
+    font-size:0.8rem;
+    letter-spacing:0.02em;
+    background:var(--accent-soft);
+    color:var(--accent-dark);
+    padding:7px 14px;
+    border-radius:999px;
+    white-space:nowrap;
+  }
+  .eyebrow{
+    font-family:'Inter',system-ui,sans-serif;
+    font-weight:600;
+    font-size:0.72rem;
+    letter-spacing:0.09em;
+    text-transform:uppercase;
+    color:var(--muted-2);
+  }
+  .topbar-right{
+    text-align:right;
+  }
+  .topbar-right .eyebrow{margin-bottom:4px;}
+  .topbar-right .sub{
+    font-size:0.85rem;
+    color:var(--muted);
+  }
+
+  /* generic card */
+  .card{
+    background:var(--card);
+    border:1px solid var(--border);
+    border-radius:18px;
+    box-shadow:var(--shadow);
+    padding:22px 24px;
+  }
+  .card + .card{margin-top:18px;}
+
+  .grid-2{
+    display:grid;
+    grid-template-columns:1.05fr 1fr;
+    gap:18px;
+  }
+  @media (max-width:860px){
+    .grid-2{grid-template-columns:1fr;}
+  }
+
+  h2.section-title{
+    font-size:1.15rem;
+    font-weight:700;
+    margin-bottom:4px;
+  }
+  .section-sub{
+    color:var(--muted);
+    font-size:0.88rem;
+    margin-bottom:16px;
+  }
+
+  /* brand picker */
+  .brand-grid{
+    display:grid;
+    grid-template-columns:repeat(auto-fill,minmax(108px,1fr));
+    gap:8px;
+    margin-bottom:18px;
+  }
+  .brand-btn{
+    font-family:'Inter',system-ui,sans-serif;
+    font-weight:600;
+    font-size:0.82rem;
+    color:var(--ink);
+    background:var(--card);
+    border:1px solid var(--border);
+    border-radius:12px;
+    padding:10px 8px;
+    cursor:pointer;
+    text-align:center;
+    transition:border-color .12s ease, background .12s ease, color .12s ease;
+  }
+  .brand-btn:hover{border-color:var(--accent);}
+  .brand-btn.active{
+    background:var(--accent);
+    border-color:var(--accent);
+    color:#fff;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]) .brand-btn.active{ color:#08130C; }
+  }
+  :root[data-theme="dark"] .brand-btn.active{ color:#08130C; }
+
+  label.field-label{
+    display:block;
+    font-size:0.72rem;
+    font-weight:600;
+    letter-spacing:0.07em;
+    text-transform:uppercase;
+    color:var(--muted-2);
+    margin:14px 0 6px;
+  }
+  input[type="text"]{
+    width:100%;
+    font-family:'Inter',system-ui,sans-serif;
+    font-variant-numeric:tabular-nums;
+    font-size:0.95rem;
+    padding:11px 13px;
+    border-radius:10px;
+    border:1px solid var(--border);
+    background:var(--card);
+    color:var(--ink);
+  }
+  input[type="text"]:focus{
+    outline:2px solid var(--accent);
+    outline-offset:1px;
+  }
+  input::placeholder{color:var(--muted-2);}
+
+  .serial-field{
+    display:none;
+  }
+  .serial-field.show{display:block;}
+
+  .btn{
+    font-family:'Poppins',system-ui,sans-serif;
+    font-weight:600;
+    font-size:0.92rem;
+    border-radius:999px;
+    padding:12px 22px;
+    border:1px solid var(--accent);
+    background:var(--accent);
+    color:#fff;
+    cursor:pointer;
+    margin-top:16px;
+  }
+  .btn:hover{background:var(--accent-dark); border-color:var(--accent-dark);}
+  .btn-ghost{
+    background:transparent;
+    color:var(--ink);
+    border:1px solid var(--border);
+  }
+  .btn-ghost:hover{border-color:var(--muted-2); background:transparent;}
+
+  /* result panel */
+  .result-empty{
+    display:flex;
+    flex-direction:column;
+    align-items:flex-start;
+    justify-content:center;
+    height:100%;
+    min-height:220px;
+    color:var(--muted);
+    font-size:0.92rem;
+    gap:8px;
+  }
+  .result-empty .big{font-size:2rem;}
+
+  .badge{
+    display:inline-flex;
+    align-items:center;
+    gap:6px;
+    font-family:'Inter',system-ui,sans-serif;
+    font-weight:700;
+    font-size:0.72rem;
+    letter-spacing:0.04em;
+    text-transform:uppercase;
+    padding:5px 11px;
+    border-radius:999px;
+  }
+  .badge .dot{width:7px;height:7px;border-radius:50%;background:currentColor;}
+  .badge.confirmed{background:var(--accent-soft); color:var(--accent-dark);}
+  .badge.likely{background:var(--accent-soft); color:var(--accent-dark);}
+  .badge.check{background:var(--warn-soft); color:var(--warn);}
+  .badge.none{background:var(--none-soft); color:var(--none);}
+  .badge.bad{background:var(--bad-soft); color:var(--bad);}
+
+  .part-block{margin-top:16px;}
+  .part-label{
+    font-size:0.72rem;
+    font-weight:600;
+    letter-spacing:0.07em;
+    text-transform:uppercase;
+    color:var(--muted-2);
+    margin-bottom:4px;
+  }
+  .part-number{
+    font-family:'Poppins',system-ui,sans-serif;
+    font-variant-numeric:tabular-nums;
+    font-weight:700;
+    font-size:1.5rem;
+    color:var(--ink);
+    line-height:1.2;
+  }
+  .part-alts{
+    font-size:0.82rem;
+    color:var(--muted);
+    margin-top:2px;
+  }
+  .result-note{
+    margin-top:14px;
+    padding:12px 14px;
+    background:var(--border-soft);
+    border-radius:10px;
+    font-size:0.85rem;
+    color:var(--ink);
+    line-height:1.5;
+  }
+  .result-note.warn{background:var(--warn-soft); color:var(--warn);}
+  .result-note a{color:inherit;}
+  .source-line{
+    margin-top:12px;
+    font-size:0.78rem;
+    color:var(--muted-2);
+  }
+  .source-line a{color:var(--accent-dark);}
+
+  /* reference table */
+  .brand-tabs{
+    display:flex;
+    flex-wrap:wrap;
+    gap:6px;
+    margin-bottom:14px;
+  }
+  .tab-btn{
+    font-family:'Inter',system-ui,sans-serif;
+    font-size:0.8rem;
+    font-weight:600;
+    padding:7px 13px;
+    border-radius:999px;
+    border:1px solid var(--border);
+    background:var(--card);
+    color:var(--muted);
+    cursor:pointer;
+  }
+  .tab-btn.active{
+    background:var(--accent-soft);
+    color:var(--accent-dark);
+    border-color:var(--accent-soft);
+  }
+  table{
+    width:100%;
+    border-collapse:collapse;
+    font-size:0.86rem;
+  }
+  thead th{
+    text-align:left;
+    font-size:0.7rem;
+    font-weight:700;
+    letter-spacing:0.07em;
+    text-transform:uppercase;
+    color:var(--muted-2);
+    padding:0 10px 8px;
+    border-bottom:1px solid var(--border);
+  }
+  tbody td{
+    padding:12px 10px;
+    border-bottom:1px solid var(--border-soft);
+    vertical-align:top;
+  }
+  tbody tr:last-child td{border-bottom:none;}
+  td.parts{font-variant-numeric:tabular-nums; font-weight:600;}
+  td.muted{color:var(--muted);}
+  .table-wrap{overflow-x:auto;}
+
+  .footer-note{
+    margin-top:18px;
+    font-size:0.78rem;
+    color:var(--muted-2);
+    line-height:1.6;
+  }
+  .footer-note strong{color:var(--muted);}
+  .backlink{
+    font-family:'Inter',system-ui,sans-serif;
+    font-size:0.82rem;
+    font-weight:600;
+    color:var(--accent-dark);
+    text-decoration:none;
+  }
+  .backlink:hover{text-decoration:underline;}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+
+  <div class="topbar">
+    <div class="brandmark">
+      <div class="logo">wilson<span>.</span></div>
+      <div class="toolpill">FILTER FINDER</div>
+    </div>
+    <div class="topbar-right">
+      <div class="eyebrow">Sales Tools</div>
+      <div class="sub">Water &amp; air filter lookup by model &middot; <a class="backlink" href="admin.html">Back to command center</a></div>
+    </div>
+  </div>
+
+  <div class="grid-2">
+    <div class="card">
+      <h2 class="section-title">Find a filter</h2>
+      <div class="section-sub">Pick the brand, enter the model number (found on the door frame or interior wall sticker), and we'll match it to a filter part number.</div>
+
+      <div class="brand-grid" id="brandGrid"></div>
+
+      <label class="field-label" for="modelInput">Model number</label>
+      <input type="text" id="modelInput" placeholder="e.g. WRF767SDHZ00" autocomplete="off">
+
+      <div class="serial-field" id="serialField">
+        <label class="field-label" for="serialInput">Serial number <span style="text-transform:none;font-weight:400;">(Sub-Zero only &mdash; some models changed filters mid-run)</span></label>
+        <input type="text" id="serialInput" placeholder="e.g. 4116297" autocomplete="off">
+      </div>
+
+      <button class="btn" id="findBtn">Find filter</button>
+    </div>
+
+    <div class="card" id="resultCard">
+      <h2 class="section-title">Result</h2>
+      <div class="section-sub">&nbsp;</div>
+      <div id="resultBody">
+        <div class="result-empty">
+          <div class="big">💧</div>
+          <div>Pick a brand and enter a model number to see the matching filter.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card" id="browseCard">
+    <h2 class="section-title">Browse filters by brand</h2>
+    <div class="section-sub">Didn't get a match, or want to confirm before checkout? Here's every filter we track for each brand.</div>
+    <div class="brand-tabs" id="browseTabs"></div>
+    <div class="table-wrap">
+      <table id="browseTable">
+        <thead>
+          <tr><th>Filter</th><th>Part number(s)</th><th>Typically fits</th><th>Confidence</th></tr>
+        </thead>
+        <tbody id="browseBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="footer-note">
+    <strong>How to read the confidence badge:</strong> Confirmed = sourced directly from the manufacturer's own parts pages. Likely = strong pattern match across multiple sources, but not exhaustively verified for every unit in that range. Verify = the manufacturer itself says model number alone isn't enough, or sources disagreed &mdash; check the old filter's stamped part number, the model/serial sticker, or the manufacturer's own lookup tool before ringing it up. No filter = that model line typically has no user-replaceable water filter.
+    <br><br>
+    Sub-Zero: for Classic BI-series units, enter the serial number &mdash; before #4116297 takes the push-in filter (ordering as 7023812 for now, since that's what's sold through before Great Plains stocks its replacement 7045454), #4134313 and later takes the twist-in filter (4204490), and serials in between need the number stamped on the original filter itself (no way around it, per Sub-Zero).
+  </div>
+
+</div>
+
+<script>
+// ---------- shared filter definitions ----------
+const F = {
+  edr1:  {name:'EveryDrop 1', parts:['EDR1RXD1','W10295370A']},
+  edr2:  {name:'EveryDrop 2', parts:['EDR2RXD1','W10413645A']},
+  edr3:  {name:'EveryDrop 3', parts:['EDR3RXD1','4396841']},
+  edr4:  {name:'EveryDrop 4 (UKF8001)', parts:['EDR4RXD1','UKF8001']},
+  edr5:  {name:'EveryDrop 5', parts:['EDR5RXD1','4396508']},
+  edr6:  {name:'EveryDrop 6', parts:['EDR6D1','4396701']},
+  edr7:  {name:'EveryDrop 7 (grille-mount)', parts:['EDR7D1','UKF7003']},
+  freshflow: {name:'FreshFlow air filter', parts:['W10311524']},
+
+  mwf:   {name:'GE MWF / MWFP', parts:['MWFP','MWF']},
+  mswf:  {name:'GE MSWF', parts:['MSWF']},
+  gswf:  {name:'GE GSWF', parts:['GSWF']},
+  xwfe:  {name:'GE XWFE (current)', parts:['XWFE','XWF']},
+  rpwfe: {name:'GE RPWFE (current)', parts:['RPWFE','RPWF']},
+  odor:  {name:'GE Cafe odor filter', parts:['ODORFILTER']},
+
+  lt1000p: {name:'LG LT1000P', parts:['LT1000P','ADQ74793501']},
+  lt700p:  {name:'LG LT700P', parts:['LT700P','AGF80300702']},
+  lt600p:  {name:'LG LT600P', parts:['LT600P','5231JA2006F']},
+  lt800p:  {name:'LG LT800P', parts:['LT800P','ADQ73613401']},
+  lt120f:  {name:'LG LT120F air filter', parts:['LT120F','ADQ73214404']},
+
+  boschUC:   {name:'Bosch UltraClarity', parts:['BORPLFTR10','BORPLFTR30','644845','11034152','11048053']},
+  boschUCP:  {name:'Bosch UltraClarity Pro', parts:['BORPLFTR50','BORPLFTR55','11032531','11050659']},
+  boschCap:  {name:'Bosch bypass cap (no dispenser)', parts:['SCRNFLTR10','11032252']},
+
+  thermUC:    {name:'Thermador UltraClarity (shared w/ Bosch, older)', parts:['644845','11006598','11028820']},
+  thermUCT10: {name:'Thermador UCTRFLTR10 (current, general)', parts:['UCTRFLTR10','12023312']},
+  thermUCP:   {name:'Thermador UltraClarity Pro (shared w/ Bosch)', parts:['BORPLFTR55','11050659']},
+
+  mieleKWF:  {name:'Miele IntensiveClear', parts:['KWF1000']},
+
+  sksLT700:  {name:'SKS (LG-sourced) filter', parts:['ADQ36006113']},
+
+  liebherrCart: {name:'Liebherr internal cartridge', parts:['7440002','9880980','7731240']},
+
+  fp847200: {name:'F&P 847200', parts:['847200']},
+  fp847201: {name:'F&P 847201', parts:['847201']},
+  fp862285: {name:'F&P 862285', parts:['862285']},
+  fp862288: {name:'F&P 862288', parts:['862288']},
+  fp13040210: {name:'F&P 13040210', parts:['13040210']},
+
+  szTwist: {name:'Sub-Zero twist-in', parts:['4204490','9030868']},
+  szPush:  {name:'Sub-Zero push-in CTO', parts:['7023812','7045454','7009931','7005017']},
+  szIce:   {name:'Sub-Zero undercounter ice maker', parts:['7042803']},
+  szAir:   {name:'Sub-Zero air purification cartridge (not water)', parts:['7042798']},
+};
+
+function norm(s){return (s||'').toUpperCase().replace(/\s+/g,'').trim();}
+
+// Sub-Zero Classic BI-series: filter depends on serial number, per Sub-Zero's own
+// part-number insert for 7045454:
+//   Serial before #4116297            -> 7045454 (supersedes 7023812 / 7009931 / 7005017)
+//   Serial #4116297 through #4134313  -> transition batch, match the number stamped on the ORIGINAL filter
+//   Serial #4134313 and later         -> 4204490 (twist-in)
+function biSerialLookup(serialRaw){
+  const digits = (serialRaw||'').replace(/\D/g,'');
+  if(!digits) return null;
+  const s = parseInt(digits,10);
+  if(isNaN(s)) return null;
+  if(s < 4116297){
+    return {
+      part:{name:'Sub-Zero push-in CTO filter', parts:['7023812','7045454','7009931','7005017']},
+      note:`Serial ${digits} is before #4116297 &mdash; this unit takes the push-in CTO filter. Order <strong>7023812</strong> for now: Sub-Zero's part insert says 7045454 is the long-term replacement, but stock is meant to sell through 7023812 first, and our distributor (Great Plains) isn't carrying 7045454 yet. Switch to 7045454 once that changes.`,
+      confidence:'confirmed',
+    };
+  } else if(s < 4134313){
+    return {
+      part:null,
+      note:`Serial ${digits} falls in the transition range (#4116297&ndash;#4134313). Per Sub-Zero, don't guess from serial alone here &mdash; check the number stamped on the <strong>original filter</strong> in the unit. It will read 7005017, 7009931, 4204490, or 7023812 &mdash; order that same number and disregard any other numbers printed on it.`,
+      confidence:'check',
+    };
+  } else {
+    return {
+      part:{name:'Sub-Zero twist-in filter', parts:['4204490','9030868']},
+      note:`Serial ${digits} is #4134313 or later &mdash; this unit takes the twist-in filter, <strong>4204490</strong>.`,
+      confidence:'confirmed',
+    };
+  }
+}
+function rx(pattern){return new RegExp('^'+pattern,'i');}
+
+// ---------- brand definitions ----------
+// each rule: { test(modelNorm) -> bool, filter, airFilter?, confidence: confirmed|likely|check|none, note, source? }
+const BRANDS = {
+  whirlpool: { label:'Whirlpool', links:[['EveryDrop filter finder','https://www.everydropwater.com/water-filter-finder.html']],
+    rules:[
+      {test:m=>/^WRF56/.test(m), filter:F.edr1, airFilter:F.freshflow, confidence:'confirmed', note:'French door, 560-series.'},
+      {test:m=>/^WRF(73|76)/.test(m), filter:F.edr2, airFilter:F.freshflow, confidence:'confirmed', note:'French door, 736/767-series.'},
+      {test:m=>/^WRS/.test(m), filter:F.edr1, confidence:'confirmed', note:'Side-by-side.'},
+      {test:m=>/^WRX/.test(m), filter:F.edr4, confidence:'confirmed', note:'4-door.'},
+      {test:m=>/^ET\d?[AF]?H?TXM/.test(m), filter:F.edr6, confidence:'likely', note:'Older/basic platform.'},
+    ],
+    browse:[
+      [F.edr1,'Whirlpool side-by-side (WRS...); some French door (WRF560...)','confirmed'],
+      [F.edr2,'Whirlpool French door (WRF736.../WRF767...) &mdash; pairs with FreshFlow air filter','confirmed'],
+      [F.edr4,'Whirlpool 4-door (WRX...)','confirmed'],
+      [F.edr3,'Older/legacy Whirlpool side-by-side &mdash; confirm against current filter housing','check'],
+      [F.edr5,'Older/legacy Whirlpool side-by-side &mdash; confirm against current filter housing','check'],
+      [F.edr6,'Basic/entry platform (older "ET" model prefix)','likely'],
+      [F.freshflow,'Air filter paired with EDR1/EDR2 on FreshFlow-equipped French door models','likely'],
+    ]},
+  kitchenaid: { label:'KitchenAid', links:[['EveryDrop filter finder','https://www.everydropwater.com/water-filter-finder.html']],
+    rules:[
+      {test:m=>/^KRF[FC]/.test(m), filter:F.edr4, confidence:'confirmed', note:'French door.'},
+      {test:m=>/^KFIS/.test(m), filter:F.edr4, confidence:'confirmed', note:'4-door.'},
+    ],
+    browse:[
+      [F.edr4,'French door (KRFF/KRFC...) and 4-door (KFIS...)','confirmed'],
+      [F.edr3,'Older/built-in platforms &mdash; not pinned to a specific current model list, confirm before selling','check'],
+      [F.edr5,'Older/built-in platforms &mdash; not pinned to a specific current model list, confirm before selling','check'],
+      [F.freshflow,'Not confirmed on any current KitchenAid model &mdash; if the unit has a visible air-filter grille, this is the standard Whirlpool-family part','check'],
+    ]},
+  maytag: { label:'Maytag', links:[['EveryDrop filter finder','https://www.everydropwater.com/water-filter-finder.html']],
+    rules:[
+      {test:m=>/^MFI/.test(m), filter:F.edr4, confidence:'confirmed', note:'French door.'},
+      {test:m=>/^(AS|JCD|JSD|MSD|MZD)2/.test(m), filter:F.edr7, confidence:'confirmed', note:'Legacy grille-mounted side-by-side.'},
+    ],
+    browse:[
+      [F.edr4,'French door (MFI...)','confirmed'],
+      [F.edr7,'Legacy side-by-side, grille-mounted (JCD-/JSD-/MSD-/MZD- prefixes)','confirmed'],
+      [F.freshflow,'Not confirmed on any current Maytag model &mdash; if the unit has a visible air-filter grille, this is the standard Whirlpool-family part','check'],
+    ]},
+  amana: { label:'Amana', links:[['EveryDrop filter finder','https://www.everydropwater.com/water-filter-finder.html']],
+    rules:[
+      {test:m=>/^ABC/.test(m), filter:F.edr4, confidence:'confirmed', note:'Bottom-mount.'},
+      {test:m=>/^ASI/.test(m), filter:F.edr1, confidence:'confirmed', note:'Side-by-side.'},
+      {test:m=>/^AS(229|829)/.test(m), filter:F.edr7, confidence:'confirmed', note:'Legacy grille-mounted side-by-side.'},
+    ],
+    browse:[
+      [F.edr4,'Bottom-mount 2-door (ABC...)','confirmed'],
+      [F.edr1,'Side-by-side (ASI...)','confirmed'],
+      [F.edr7,'Legacy side-by-side, grille-mounted (AS229-/AS829-)','confirmed'],
+      [F.freshflow,'Not confirmed on any current Amana model &mdash; if the unit has a visible air-filter grille, this is the standard Whirlpool-family part','check'],
+    ]},
+  jennair: { label:'Jenn-Air', links:[['EveryDrop filter finder','https://www.everydropwater.com/water-filter-finder.html']],
+    rules:[
+      {test:m=>/^JFFCC/.test(m), filter:F.edr2, airFilter:F.freshflow, confidence:'confirmed', note:'French door.'},
+    ],
+    browse:[
+      [F.edr2,'French door (JFFCC...) &mdash; pairs with FreshFlow air filter','confirmed'],
+      [F.edr6,'Claimed compatible by some retailers, no confirmed Jenn-Air model &mdash; verify','check'],
+    ]},
+  ge: { label:'GE', links:[['GE parts &amp; filter lookup','https://www.geapplianceparts.com']],
+    rules:[
+      {test:m=>/^CFE28/.test(m), filter:F.rpwfe, confidence:'confirmed', note:'Cafe French door, electronic dispenser.'},
+      {test:m=>/^CFE29/.test(m), filter:F.mwf, airFilter:F.odor, confidence:'likely', note:'Cafe French door with odor filter.'},
+      {test:m=>/^(GFE28|GFE29|GNE29|GYE22)/.test(m), filter:F.rpwfe, confidence:'likely', note:'French door w/ electronic dispenser era.'},
+      {test:m=>/^(GBE21|GDE21|GDE25|GFE24|GFE26|GNE21|GNE25|GNE27|GWE19|GYE18|CFE26|GSE25|GSS25)/.test(m), filter:F.xwfe, confidence:'check', note:'This series was built across two filter generations (older MWF/MWFP and current XWF/XWFE) without changing the model prefix. Check the sticker/old filter or year of manufacture &mdash; showing the more common current-era match (XWFE).'},
+      {test:m=>/^(GTS|GTH|PDS|PFS|PTS)/.test(m), filter:F.gswf, confidence:'likely', note:'Top-freezer / bottom-freezer.'},
+      {test:m=>/^(CSS|GSS|PSS|PSC|PSH|ESS|DSS)/.test(m), filter:F.mswf, confidence:'likely', note:'Side-by-side (older platform).'},
+    ],
+    browse:[
+      [F.rpwfe,'Cafe French door w/ electronic dispenser (CFE28...) and related GFE28/29, GNE29, GYE22','confirmed/likely'],
+      [F.xwfe,'French door / side-by-side, 2018+ (GBE21, GDE21/25, GFE24/26, GNE21/25/27, GWE19, GYE18, CFE26...)','check &mdash; same prefixes also used pre-2018 with MWF/MWFP'],
+      [F.mwf,'Same series as above, pre-2018 production','check'],
+      [F.gswf,'Top-freezer / bottom-freezer (GTS/GTH/PDS/PFS/PTS)','likely'],
+      [F.mswf,'Older side-by-side platform (CSS/GSS/PSS/PSC/PSH/ESS/DSS)','likely'],
+      [F.odor,'Cafe French door odor/air filter (CFE29...)','likely'],
+    ]},
+  lg: { label:'LG', links:[['LG parts locator','https://www.lg.com/us/support/parts-locator']],
+    rules:[
+      {test:m=>/^(LFXC|LFXS|LFCC|LFCS|LFD|LMXS|LRFVS|LRFDS|LRFXC|LRMDS|LMWS)/.test(m), filter:F.lt1000p, confidence:'likely', note:'Current-generation (2017+) family. If this is an older (2013-2017) unit of the same series, it may instead take LT700P &mdash; check the old filter if unsure.'},
+      {test:m=>/^(LFX|LMX|LSFXC|LSSB|LSFD|LSMX|LPCS|UPSXB)/.test(m), filter:F.lt700p, confidence:'likely', note:'2013-2017 generation family.'},
+    ],
+    browse:[
+      [F.lt1000p,'Current-gen (2017+) French door/4-door/side-by-side (LFXC/LFXS/LFCC/LFCS/LMXS/LRFVS...)','likely, high for confirmed models'],
+      [F.lt700p,'2013-2017 generation (LFX/LMX/LSFXC...)','likely'],
+      [F.lt600p,'Older (~2008-2013) side-by-side','check &mdash; thin model data'],
+      [F.lt800p,'Narrower set of models, some export-market overlap','check &mdash; use exact model lookup'],
+      [F.lt120f,'Fresh air filter on French door/4-door models with the fresh-air feature','likely'],
+    ]},
+  bosch: { label:'Bosch', links:[['Bosch water filters','https://www.bosch-home.com/us/en/category/cleaning-and-care/water-filters/for-refrigerators']],
+    rules:[
+      {test:m=>/^B36C[TL]80/.test(m), filter:F.boschUCP, confidence:'confirmed', note:'500/800 Series counter-depth French door.'},
+      {test:m=>/^B22CS|^B26FT/.test(m), filter:F.boschUC, confidence:'likely', note:'Older French door / side-by-side.'},
+    ],
+    browse:[
+      [F.boschUCP,'Current 500/800 Series counter-depth French door (B36CT80.../B36CL80...)','confirmed'],
+      [F.boschUC,'Pre-~2018 French door / side-by-side','likely'],
+      [F.boschCap,'Models with no water/ice dispenser (bypass cap, not a filter)','likely'],
+    ]},
+  thermador: { label:'Thermador', links:[['Thermador water filters','https://www.thermador.com/us/en/product/refrigeration-wine/for-refrigerators-and-freezers/water-filters']],
+    rules:[
+      {test:m=>/^T(18|24)ID/.test(m), filter:F.thermUCP, confidence:'likely', note:'Current premium column, shares Bosch UltraClarity Pro.'},
+      {test:m=>/^T36(BT|IF)/.test(m), filter:F.thermUC, confidence:'likely', note:'Freedom/Masterpiece French door & bottom-freezer &mdash; same physical cartridge as Bosch’s older UltraClarity (BORPLFTR10/30).'},
+    ],
+    browse:[
+      [F.thermUCP,'Current premium column refrigerators (T18ID.../T24ID.../T30IF...)','likely'],
+      [F.thermUC,'Freedom/Masterpiece French door & bottom-freezer (T36BT.../T36IF...) &mdash; same cartridge as Bosch BORPLFTR10/30','likely, generation cutoff not fully pinned down'],
+      [F.thermUCT10,'Thermador’s own current general-replacement filter per their store page &mdash; exact model range is gated behind their interactive finder, not published as a list','check &mdash; confirm model on Thermador’s own site before selling'],
+    ]},
+  miele: { label:'Miele', links:[['Miele parts','https://www.mieleusa.com']],
+    rules:[
+      {test:m=>/^(F1|F2|KF1|KF2)/.test(m), filter:F.mieleKWF, confidence:'likely', note:'MasterCool line only.'},
+      {test:m=>/^KFN/.test(m), filter:null, confidence:'none', note:'Most Miele built-in units have no water/ice dispenser and no replaceable water filter. Confirm the unit actually has a dispenser before ordering a filter.'},
+    ],
+    browse:[
+      [F.mieleKWF,'MasterCool built-in side-by-side line only','likely'],
+      [null,'Most other Miele built-in fridge/freezer units &mdash; no dispenser, no filter','none'],
+    ]},
+  sks: { label:'SKS', links:[['LG parts locator (SKS is an LG sub-brand)','https://www.lg.com/us/support/parts-locator']],
+    rules:[
+      {test:m=>/^SKSSB4202S$/.test(m), filter:F.sksLT700, confidence:'confirmed', note:'42" built-in side-by-side column.'},
+    ],
+    browse:[
+      [F.sksLT700,'42" built-in side-by-side column (SKSSB4202S) &mdash; confirmed','confirmed'],
+      [null,'Other SKS columns &amp; French door models &mdash; not yet confirmed. SKS is LG\'s Signature Kitchen Suite line, so an LG ADQ-family filter is likely, but check LG\'s parts locator by exact model before selling.','check'],
+    ]},
+  liebherr: { label:'Liebherr', links:[['Liebherr parts store','https://liebherrpartsstore.com/collections/water-filters']],
+    rules:[],
+    browse:[
+      [F.liebherrCart,'Units with an exterior ice/water dispenser, or the InfinitySpring tap','check &mdash; ask whether the unit actually has a dispenser first'],
+      [null,'Most integrated/built-in Liebherr models have no dispenser and no filter','none'],
+    ]},
+  fisherpaykel: { label:'Fisher & Paykel', links:[['F&P water filters','https://www.fisherpaykel.com/us/accessories/cooling-accessories.html']],
+    rules:[
+      {test:m=>/^RF523GDUX$/.test(m), filter:F.fp847201, confidence:'confirmed', note:'Larger-capacity variant.'},
+      {test:m=>/^(RF|RS)(135|170|201|402|522|540|605|610|730|1884|2484|3084|36|4621|6121|7621|90|9120)/.test(m), filter:F.fp847200, confidence:'confirmed', note:'Current ActiveSmart freestanding/column.'},
+      {test:m=>/^(RX|AS|AC)/.test(m), filter:F.fp13040210, confidence:'confirmed', note:'Compact platform, also sold as some GE/Amana rebadges.'},
+      {test:m=>/^E\d/.test(m), filter:F.fp862285, confidence:'confirmed', note:'Legacy freestanding ActiveSmart (superseded 836848).'},
+    ],
+    browse:[
+      [F.fp847200,'Current ActiveSmart freestanding (RF...) and column (RS...)','confirmed, except 847201 split noted below'],
+      [F.fp847201,'RF523GDUX specifically','confirmed'],
+      [F.fp862285,'Legacy freestanding (E-prefix models)','confirmed'],
+      [F.fp862288,'Legacy integrated column (RS90/RS36/RS9120)','confirmed'],
+      [F.fp13040210,'Compact platform (RX/AS/AC prefixes), also used on some GE/Amana-badged units','confirmed'],
+    ]},
+  subzero: { label:'Sub-Zero', links:[['Sub-Zero water filter finder','https://www.subzero-wolf.com/assistance/answers/sub-zero/common/water-filter-part-numbers']],
+    isSubZero:true,
+    rules:[
+      {test:m=>/^(UC-15I|UC15I)/.test(m), filter:F.szIce, confidence:'confirmed', note:'Undercounter ice maker.'},
+      {test:m=>/^\d{3,4}$/.test(m) || /^(IC-27R|IC-27F|UC-24|DEU2450|ID-24FI|ID-30CI|ID-30FI|ID-36CI|DEC|DET)/.test(m), filter:null, confidence:'none', note:'Sub-Zero\'s own compatibility list shows this series has no water filter at all.'},
+      {test:m=>/^BI-?\d/.test(m), isBI:true, filter:F.szTwist, airFilter:F.szAir, confidence:'check', note:'Classic BI-series units use either a twist-in filter (1-prong) or a push-in CTO filter (2-prong), and Sub-Zero says the SERIAL NUMBER determines which. Enter the serial number above.'},
+      {test:m=>/^CL/.test(m), filter:F.szTwist, airFilter:F.szAir, confidence:'confirmed', note:'Classic CL-series, uniformly twist-in.'},
+      {test:m=>/^(IC-|IT-|ID-|IW-)/.test(m), filter:F.szTwist, airFilter:F.szAir, confidence:'likely', note:'Designer/Integrated. Pre-"NGI" units may also be serial-dependent &mdash; verify if the customer\'s unit is several years old.'},
+      {test:m=>/^(648PRO|PRO3650|PRO4850)/.test(m), filter:F.szTwist, airFilter:F.szAir, confidence:'confirmed', note:'PRO series.'},
+    ],
+    browse:[
+      [F.szTwist,'CL-series (always); Designer/Integrated (IC-/IT-/ID-/IW-); PRO series; BI-series with serial #4134313 or later','confirmed/likely'],
+      [F.szPush,'BI-series with serial before #4116297 &mdash; ordering 7023812 for now (sell through existing stock; Great Plains doesn\'t carry replacement 7045454 yet)','confirmed'],
+      [null,'BI-series with serial #4116297&ndash;#4134313: no single answer &mdash; match the number stamped on the original filter (7005017, 7009931, 4204490, or 7023812)','check'],
+      [F.szIce,'Undercounter ice makers (UC-15I/UC-15IO)','confirmed'],
+      [F.szAir,'Air purification cartridge (not a water filter) &mdash; same models as the twist-in water filter, incl. BI-series regardless of serial','confirmed'],
+      [null,'200/300/500/600/700 Series, most Undercounter, Designer Drawer & All-Refrigerator, wine storage (except IW-30CI)','none &mdash; confirmed by Sub-Zero as having no water filter'],
+    ]},
+};
+
+const BRAND_ORDER = ['whirlpool','kitchenaid','maytag','amana','jennair','ge','lg','bosch','thermador','subzero','sks','liebherr','miele','fisherpaykel'];
+
+// ---------- brand picker ----------
+const grid = document.getElementById('brandGrid');
+let activeBrand = null;
+BRAND_ORDER.forEach(key=>{
+  const b = document.createElement('button');
+  b.className = 'brand-btn';
+  b.textContent = BRANDS[key].label;
+  b.dataset.key = key;
+  b.addEventListener('click', ()=>selectBrand(key));
+  grid.appendChild(b);
+});
+
+function selectBrand(key){
+  activeBrand = key;
+  [...grid.children].forEach(c=>c.classList.toggle('active', c.dataset.key===key));
+  document.getElementById('serialField').classList.toggle('show', !!BRANDS[key].isSubZero);
+}
+
+document.getElementById('findBtn').addEventListener('click', runSearch);
+document.getElementById('modelInput').addEventListener('keydown', e=>{ if(e.key==='Enter') runSearch(); });
+document.getElementById('serialInput').addEventListener('keydown', e=>{ if(e.key==='Enter') runSearch(); });
+
+function badgeHtml(conf){
+  const map = {
+    confirmed:['confirmed','Confirmed'],
+    likely:['likely','Likely'],
+    check:['check','Verify'],
+    none:['none','No filter'],
+  };
+  const [cls,label] = map[conf] || map.check;
+  return `<span class="badge ${cls}"><span class="dot"></span>${label}</span>`;
+}
+
+function runSearch(){
+  const resultBody = document.getElementById('resultBody');
+  const modelRaw = document.getElementById('modelInput').value;
+  const model = norm(modelRaw);
+
+  if(!activeBrand){
+    resultBody.innerHTML = `<div class="result-note warn">Pick a brand first, then enter the model number.</div>`;
+    return;
+  }
+  if(!model){
+    resultBody.innerHTML = `<div class="result-note warn">Enter a model number to search.</div>`;
+    return;
+  }
+
+  const brand = BRANDS[activeBrand];
+  const match = brand.rules.find(r=>r.test(model));
+
+  if(!match){
+    resultBody.innerHTML = `
+      <div class="result-note warn">
+        No pattern on file for <strong>${modelRaw}</strong> under ${brand.label}. Browse ${brand.label}'s known filters below, or check the manufacturer's own lookup.
+      </div>
+      ${brand.links.length ? `<div class="source-line">${brand.links.map(l=>`<a href="${l[1]}" target="_blank" rel="noopener">${l[0]}</a>`).join(' &middot; ')}</div>` : ''}
+    `;
+    return;
+  }
+
+  let serialNote = '';
+  let effectiveFilter = match.filter;
+  let effectiveConfidence = match.confidence;
+  let effectiveNote = match.note;
+
+  if(match.isBI){
+    const serialRaw = document.getElementById('serialInput').value;
+    const bi = biSerialLookup(serialRaw);
+    if(!bi){
+      serialNote = `<div class="result-note warn">Enter the serial number above &mdash; for Classic BI-series units, the serial number is what actually determines the filter (see below for the three ranges).</div>`;
+    } else {
+      effectiveFilter = bi.part;
+      effectiveConfidence = bi.confidence;
+      effectiveNote = bi.note;
+    }
+  }
+
+  const filterHtml = effectiveFilter ? `
+    <div class="part-block">
+      <div class="part-label">${effectiveFilter.name}</div>
+      <div class="part-number">${effectiveFilter.parts[0]}</div>
+      ${effectiveFilter.parts.length>1 ? `<div class="part-alts">Also sold/cross-referenced as: ${effectiveFilter.parts.slice(1).join(', ')}</div>` : ''}
+    </div>
+  ` : `
+    <div class="part-block">
+      <div class="part-label">Water filter</div>
+      <div class="part-number" style="color:var(--none);font-size:1.15rem;">${match.isBI ? 'Check original filter (see note)' : 'No filter used on this model'}</div>
+    </div>
+  `;
+
+  const airHtml = match.airFilter ? `
+    <div class="part-block">
+      <div class="part-label">${match.airFilter.name}</div>
+      <div class="part-number" style="font-size:1.15rem;">${match.airFilter.parts[0]}</div>
+      ${match.airFilter.parts.length>1 ? `<div class="part-alts">Also: ${match.airFilter.parts.slice(1).join(', ')}</div>` : ''}
+    </div>
+  ` : '';
+
+  resultBody.innerHTML = `
+    ${badgeHtml(effectiveConfidence)}
+    ${filterHtml}
+    ${airHtml}
+    ${effectiveNote ? `<div class="result-note${effectiveConfidence==='check'?' warn':''}">${effectiveNote}</div>` : ''}
+    ${serialNote}
+    ${brand.links.length ? `<div class="source-line">Double-check: ${brand.links.map(l=>`<a href="${l[1]}" target="_blank" rel="noopener">${l[0]}</a>`).join(' &middot; ')}</div>` : ''}
+  `;
+}
+
+// ---------- browse table ----------
+const tabs = document.getElementById('browseTabs');
+const browseBody = document.getElementById('browseBody');
+BRAND_ORDER.forEach((key,i)=>{
+  const t = document.createElement('button');
+  t.className = 'tab-btn' + (i===0 ? ' active' : '');
+  t.textContent = BRANDS[key].label;
+  t.dataset.key = key;
+  t.addEventListener('click', ()=>renderBrowse(key));
+  tabs.appendChild(t);
+});
+
+function renderBrowse(key){
+  [...tabs.children].forEach(c=>c.classList.toggle('active', c.dataset.key===key));
+  const rows = BRANDS[key].browse;
+  browseBody.innerHTML = rows.map(([filter,fits,conf])=>{
+    const confClass = /none/.test(conf) ? 'none' : /check/.test(conf) ? 'check' : /likely/.test(conf) ? 'likely' : 'confirmed';
+    return `<tr>
+      <td>${filter ? filter.name : '&mdash;'}</td>
+      <td class="parts">${filter ? filter.parts.join(', ') : '&mdash;'}</td>
+      <td class="muted">${fits}</td>
+      <td>${badgeHtml(confClass)}</td>
+    </tr>`;
+  }).join('');
+}
+
+renderBrowse(BRAND_ORDER[0]);
+
+// ---------- deep-link prefill (portal integration) ----------
+// The command center's Filter verification queue links here with the unit's
+// identity: filter-finder.html?brand=Sub-Zero&model=BI-48S&serial=4210001.
+// Brand names on asset records are display strings ("Fisher & Paykel",
+// "Jenn-Air"); BRANDS is keyed by slug — so match on letters only, against
+// both the key and the label.
+(function(){
+  const params = new URLSearchParams(location.search);
+  const brandRaw = params.get('brand') || '';
+  const modelRaw = params.get('model') || '';
+  const serialRaw = params.get('serial') || '';
+  if(!brandRaw && !modelRaw && !serialRaw) return;
+  const slug = s=>(s||'').toLowerCase().replace(/[^a-z]/g,'');
+  const want = slug(brandRaw);
+  const key = want && BRAND_ORDER.find(k=>k===want || slug(BRANDS[k].label)===want);
+  if(key) selectBrand(key);
+  if(modelRaw) document.getElementById('modelInput').value = modelRaw;
+  if(serialRaw) document.getElementById('serialInput').value = serialRaw;
+  if(key && modelRaw){
+    runSearch();
+  } else if(brandRaw && !key){
+    document.getElementById('resultBody').innerHTML =
+      `<div class="result-note warn">No brand data on file yet for <strong>${brandRaw.replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))}</strong>. Adding a brand is a data entry in this tool — ping Jack. Use the manufacturer's own lookup in the meantime.</div>`;
+  }
+})();
+</script>
+</body>
+</html>

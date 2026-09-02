@@ -249,6 +249,7 @@ import {
 } from "./lib/deliveries-postgres.js";
 import {
   saveInstallDamagePhoto,
+  saveMaintenancePhoto,
   getInstallDamagePhoto,
   saveCustomerRequestPhoto,
   claimCustomerRequestPhotos
@@ -298,7 +299,8 @@ import {
   listQuoteSalespeople,
   getLatestQuoteUploadMeta,
   upsertServiceLeadQuote,
-  setServiceLeadQuoteOwner
+  setServiceLeadQuoteOwner,
+  listOpenQuotesForCustomer
 } from "./lib/quote-followup-postgres.js";
 import { parseCommissionGrid } from "./lib/commission-report.js";
 import {
@@ -315,6 +317,7 @@ import {
   listOrderLineDetail,
   listLinesForInvoice,
   listBrandSalesByModel,
+  listOpenOrdersForCustomer,
   listSourceVersions,
   listReturnLines,
   listCommissionLinesForMonths,
@@ -632,12 +635,18 @@ const INTERNAL_PAGE_PATHS = new Set([
   "/maintenance/appliance-signup.html",
   "/maintenance/hvac-signup.html",
   "/maintenance/confirmation.html",
+  "/maintenance/customer-info.html",
   "/maintenance/admin.html",
+  "/maintenance/customers.html",
   "/maintenance/household.html",
-  "/maintenance/quote-builder.html",
+  "/maintenance/equipment.html",
+  "/maintenance/monitoring.html",
+  "/maintenance/invoice-import.html",
   "/maintenance/quote-view.html",
   "/maintenance/tech-maintenance.html",
-  "/maintenance/report-view.html"
+  "/maintenance/report-view.html",
+  "/maintenance/visit-report.html",
+  "/maintenance/filter-finder.html"
 ]);
 
 const UNAUTHENTICATED_INTERNAL_PATHS = new Set([
@@ -691,10 +700,11 @@ const EVERYONE_PAGE_PATHS = new Set([
 ]);
 
 // Executive-only pages: reachable only with is_executive, never grantable.
+// Sales Order Detail left this list 2026-09-02 (Andrew) — it's grantable
+// per user now, like any Sales Tools page.
 const EXECUTIVE_ONLY_PAGE_PATHS = new Set([
   "/user-admin.html",
   "/audit-log.html",
-  "/sales-order-detail.html",
   "/returns-report.html",
   "/commissions.html"
 ]);
@@ -847,16 +857,22 @@ const PAGE_LABELS = {
   "/message-automations.html": "Text Automations",
   "/aging-inventory.html": "Aging Inventory",
   "/my-commissions.html": "My Commission Review",
-  "/maintenance/index.html": "Maintenance Enrollment (Demo)",
-  "/maintenance/appliance-signup.html": "Maintenance Appliance Signup",
+  "/maintenance/index.html": "Maintenance Plans (Customer Landing)",
+  "/maintenance/appliance-signup.html": "Maintenance Appliance Signup / Quote",
   "/maintenance/hvac-signup.html": "Maintenance HVAC Signup",
   "/maintenance/confirmation.html": "Maintenance Enrollment Confirmation",
-  "/maintenance/admin.html": "Maintenance Command Center",
-  "/maintenance/household.html": "Maintenance Household Profile",
-  "/maintenance/quote-builder.html": "Maintenance Quote Builder",
-  "/maintenance/quote-view.html": "Maintenance Quote View",
+  "/maintenance/customer-info.html": "Maintenance Customer Information Page",
+  "/maintenance/admin.html": "Maintenance Today (Command Center)",
+  "/maintenance/customers.html": "Maintenance Customers",
+  "/maintenance/household.html": "Maintenance Household Record",
+  "/maintenance/equipment.html": "Maintenance Equipment Details",
+  "/maintenance/monitoring.html": "Refrigeration Guardian Monitoring",
+  "/maintenance/invoice-import.html": "Maintenance Invoice Import",
+  "/maintenance/quote-view.html": "Maintenance Proposal View",
   "/maintenance/tech-maintenance.html": "Maintenance Field Tool",
-  "/maintenance/report-view.html": "Appliance Health Report View"
+  "/maintenance/report-view.html": "Appliance Health Report View",
+  "/maintenance/visit-report.html": "Maintenance Visit Review",
+  "/maintenance/filter-finder.html": "Filter Finder"
 };
 
 // Category groupings for the User Admin permission UI. A page may appear in
@@ -875,17 +891,29 @@ const PAGE_CATEGORIES = [
       "/satisfaction-survey.html",
       "/satisfaction-results.html",
       "/case-visit-survey.html",
-      "/case-visit-results.html",
+      "/case-visit-results.html"
+    ]
+  },
+  {
+    key: "maintenance",
+    label: "Maintenance Plans",
+    pages: [
       "/maintenance/index.html",
       "/maintenance/appliance-signup.html",
       "/maintenance/hvac-signup.html",
       "/maintenance/confirmation.html",
+      "/maintenance/customer-info.html",
       "/maintenance/admin.html",
+      "/maintenance/customers.html",
       "/maintenance/household.html",
-      "/maintenance/quote-builder.html",
+      "/maintenance/equipment.html",
+      "/maintenance/monitoring.html",
+      "/maintenance/invoice-import.html",
       "/maintenance/quote-view.html",
       "/maintenance/tech-maintenance.html",
-      "/maintenance/report-view.html"
+      "/maintenance/report-view.html",
+      "/maintenance/visit-report.html",
+      "/maintenance/filter-finder.html"
     ]
   },
   {
@@ -950,6 +978,7 @@ const PAGE_CATEGORIES = [
       "/my-commissions.html",
       "/shop-orders.html",
       "/sales-order-health.html",
+      "/sales-order-detail.html",
       "/brand-sales.html",
       "/lead-report.html",
       "/quote-follow-up.html",
@@ -6545,6 +6574,90 @@ app.post("/api/estimate/respond", async (req, res) => {
       }
       try {
         const [directory, notifyNames] = await Promise.all([listEmployeeDirectory(), listNotifyTitleNames()]);
+
+        // Existing-business check (Andrew, 2026-09-02): a client who already
+        // has an open quote or open sales order with us isn't a floor lead —
+        // it's that rep's client. Route the lead straight to them (flag +
+        // email, stamped as theirs on the Quote Follow-Up board) and skip
+        // the DIBS fan-out. If the business exists but its rep can't be
+        // matched to the directory, fall back to fan-out with a warning.
+        let existingOwner = null;
+        let existingRef = "";
+        try {
+          const [openQuotes, openOrders] = await Promise.all([
+            listOpenQuotesForCustomer(estimate.customerNumber),
+            listOpenOrdersForCustomer(estimate.customerNumber)
+          ]);
+          const normName = (n) => String(n || "").toUpperCase().replace(/[\s ]+/g, " ").trim();
+          const active = directory.filter((e) => !e.archived && String(e.email || "").trim());
+          if (openQuotes[0]) {
+            const q = openQuotes[0];
+            existingRef = `open quote ${q.quoteNumber}${q.dateCreated ? ` (${q.dateCreated})` : ""}${q.spCode ? ` — rep ${q.spCode}` : ""}`;
+            existingOwner = active.find((e) => e.code === String(q.spCode || "").toUpperCase()) || null;
+          } else if (openOrders[0]) {
+            const o = openOrders[0];
+            existingRef = `open sales order ${o.invoice}${o.salesperson ? ` — ${o.salesperson}` : ""}`;
+            existingOwner = active.find((e) => normName(e.name) === normName(o.salesperson)) || null;
+          }
+        } catch (checkErr) {
+          console.error("Service lead existing-business check skipped:", checkErr.message);
+        }
+
+        if (existingOwner) {
+          const contactLine = `Contact: ${[estimate.contactPhone, estimate.contactEmail].filter(Boolean).join(" / ") || "see estimate record"}${prefText ? ` — ${prefText}` : ""}.`;
+          await createPushedNotification({
+            severity: "green",
+            typeLabel: "Service Client Lead — Your Client",
+            refId: `svlead:${estimate.token}`,
+            claimable: false,
+            title: `${estimate.customerName} — replacing instead of repairing (${estimate.svNumber || "service"}) · your client`,
+            body: [
+              `Already has ${existingRef} with you, so this came straight to you — no DIBS went to the floor.`,
+              applianceText ? `Replacing: ${applianceText}.` : "",
+              `${detailBits || "No preferences given."}`,
+              contactLine
+            ].filter(Boolean).join(" "),
+            audienceEmail: existingOwner.email,
+            byEmail: "service-estimates",
+            byName: "Estimate Approvals"
+          }).catch(() => {});
+          upsertServiceLeadQuote({
+            token: estimate.token,
+            svNumber: estimate.svNumber,
+            customerName: estimate.customerName,
+            phone: estimate.contactPhone,
+            applianceText,
+            estimateTotal: estimate.summary?.invoiceTotal || 0
+          }).then(() => setServiceLeadQuoteOwner(estimate.token, existingOwner.code))
+            .catch((err) => console.error("Service lead → follow-up board failed:", err.message));
+          if (RESEND_API_KEY) {
+            fetch("https://api.resend.com/emails", {
+              method: "POST",
+              headers: { "Authorization": `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" },
+              body: JSON.stringify({
+                from: AGILITY_ALERTS_FROM,
+                to: [existingOwner.email],
+                subject: `Your client ${estimate.customerName} is shopping for a replacement`,
+                text: [
+                  `${estimate.customerName} declined repair estimate ${estimate.svNumber || ""} and chose to shop for a replacement.`,
+                  `They already have ${existingRef} with you, so this lead is yours — it was NOT sent to the floor as DIBS.`,
+                  applianceText ? `Current appliance: ${applianceText}` : null,
+                  detailBits ? `Their preferences: ${detailBits}` : null,
+                  contactLine,
+                  "",
+                  `It's on your Quote Follow-Up board: https://${DASHBOARD_HOST}/quote-follow-up.html`
+                ].filter((l) => l !== null).join("\n")
+              })
+            }).catch((e) => console.error("Existing-client lead email failed:", e.message));
+          }
+          recordAudit({
+            ip: req.ip, actorUserId: null,
+            action: "service_lead_routed_existing", targetUserId: null,
+            detail: { svNumber: estimate.svNumber, customerName: estimate.customerName, customerNumber: estimate.customerNumber, existingRef, routedTo: existingOwner.email }
+          }).catch(() => {});
+          return res.json({ ok: true, status: estimate.status });
+        }
+
         const notifySet = new Set(notifyNames.map((n) => n.trim().toLowerCase()));
         const consultants = directory.filter((entry) =>
           !entry.archived &&
@@ -6559,6 +6672,7 @@ app.post("/api/estimate/respond", async (req, res) => {
             claimable: true,
             title: `${estimate.customerName} — replacing instead of repairing (${estimate.svNumber || "service"})`,
             body: [
+              existingRef ? `HEADS UP: already has ${existingRef} — check before quoting.` : "",
               applianceText ? `Replacing: ${applianceText}.` : "",
               `${detailBits || "No preferences given."}`,
               `Contact: ${[estimate.contactPhone, estimate.contactEmail].filter(Boolean).join(" / ") || "see estimate record"}${prefText ? ` — ${prefText}` : ""}.`
@@ -8123,7 +8237,7 @@ app.post("/api/epass-uploads/model-catalog", requirePagePermission("/epass-uploa
 
 const maintenanceInvoiceUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 30 * 1024 * 1024, files: 10 } });
 
-app.post("/api/invoice/import", requirePagePermission("/maintenance/admin.html"), (req, res) => {
+app.post("/api/invoice/import", requirePagePermission("/maintenance/invoice-import.html"), (req, res) => {
   maintenanceInvoiceUpload.array("invoices", 10)(req, res, async (err) => {
     if (err) {
       return res.status(400).json({ ok: false, error: err.code === "LIMIT_FILE_SIZE" ? "A file is over the 30 MB limit." : "Upload failed — please try again." });
@@ -10990,7 +11104,7 @@ app.get("/api/revenue-snapshot", requirePagePermission("/dashboard.html", "/targ
   }
 });
 
-// INTERNAL: Sales Order Detail (sales-order-detail.html, Admin/executive).
+// INTERNAL: Sales Order Detail (sales-order-detail.html, grantable per user).
 // The commission report upload adds line items (models / warranty plans with
 // qty, revenue, serial cost); each upload replaces its month. The order rows
 // themselves are fed by the OE-23 upload on the Target Builder.
@@ -12626,12 +12740,77 @@ app.post(
 app.get("/api/install-damage/photo/:id", requirePagePermission("/appliance-service-calls.html"), async (req, res) => {
   try {
     const photo = await getInstallDamagePhoto(req.params.id);
-    if (!photo) return res.status(404).json({ error: "Photo not found." });
+    // Maintenance field photos share the table but have their own route/permission.
+    if (!photo || String(photo.reportRef || "").startsWith("maint:")) return res.status(404).json({ error: "Photo not found." });
     res.setHeader("Content-Type", photo.contentType || "image/jpeg");
     res.setHeader("Cache-Control", "private, max-age=86400");
     return res.send(photo.bytes);
   } catch (err) {
     console.error("Install-damage photo failed:", err.message);
+    return res.status(500).json({ error: "Unable to load the photo." });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Maintenance Plans module (maintenance/*.html) — server touchpoints.
+// The module's operational data is still the prototype's browser demo store;
+// the only server-side pieces are the three that must not live on a phone:
+// identity (/api/auth/session), invoice parsing (/api/invoice/import) and
+// field photographs, which land in the existing install_damage_photos table.
+// ---------------------------------------------------------------------------
+const maintenancePhotoBody = express.raw({ type: ["image/*"], limit: "12mb" });
+
+// assets/photo-sync.js drains the phone's IndexedDB queue here one photo at a
+// time: raw image body, provenance in X-Photo-* headers, {ok:true,id} back.
+app.post("/api/maintenance/photos", requirePagePermission("/maintenance/tech-maintenance.html"), (req, res) => {
+  maintenancePhotoBody(req, res, async (err) => {
+    if (err) {
+      const tooBig = err.type === "entity.too.large";
+      return res.status(tooBig ? 413 : 400).json({ ok: false, error: tooBig ? "Photo is larger than 12 MB." : "Unreadable photo upload." });
+    }
+    const contentType = String(req.headers["content-type"] || "").split(";")[0].trim().toLowerCase();
+    if (!contentType.startsWith("image/")) {
+      return res.status(415).json({ ok: false, error: "Only image uploads are accepted." });
+    }
+    if (!Buffer.isBuffer(req.body) || !req.body.length) {
+      return res.status(400).json({ ok: false, error: "Empty photo." });
+    }
+    const header = (name) => String(req.headers[name] || "").slice(0, 120);
+    try {
+      const id = await saveMaintenancePhoto({
+        visitId: header("x-visit-id"),
+        kind: header("x-photo-kind") || "evidence",
+        contentType,
+        buffer: req.body,
+        meta: {
+          photoId: header("x-photo-id"),
+          assetId: header("x-asset-id"),
+          checkId: header("x-check-id"),
+          capturedAt: header("x-captured-at"),
+          technician: header("x-technician") || req.authUser?.displayName || "",
+          uploadedBy: req.authUser?.email || "",
+          uploadedAt: new Date().toISOString()
+        }
+      });
+      return res.json({ ok: true, id, url: `/api/maintenance/photo/${id}` });
+    } catch (error) {
+      console.error("Maintenance photo save failed:", error.message);
+      return res.status(500).json({ ok: false, error: "Unable to store the photo." });
+    }
+  });
+});
+
+app.get("/api/maintenance/photo/:id", requirePagePermission("/maintenance/tech-maintenance.html"), async (req, res) => {
+  try {
+    const photo = await getInstallDamagePhoto(req.params.id);
+    if (!photo || !String(photo.reportRef || "").startsWith("maint:")) {
+      return res.status(404).json({ error: "Photo not found." });
+    }
+    res.setHeader("Content-Type", photo.contentType || "image/jpeg");
+    res.setHeader("Cache-Control", "private, max-age=86400");
+    return res.send(photo.bytes);
+  } catch (err) {
+    console.error("Maintenance photo load failed:", err.message);
     return res.status(500).json({ error: "Unable to load the photo." });
   }
 });

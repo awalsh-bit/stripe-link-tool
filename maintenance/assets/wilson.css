@@ -1,9 +1,9 @@
 :root {
-  --wilson-green: #155b26;
-  --wilson-green-dark: #0f471d;
-  --wilson-green-soft: #dcecdf;
-  --wilson-green-pale: #eef6f0;
-  --wilson-lime: #72c681;
+  --wilson-green: var(--primary);
+  --wilson-green-dark: var(--primary-ink);
+  --wilson-green-soft: var(--primary-tint-3);
+  --wilson-green-pale: var(--primary-tint);
+  --wilson-lime: var(--primary-soft);
   --ink: #0d1b2a;
   --muted: #64748b;
   --muted-2: #8793a4;
@@ -18,8 +18,8 @@
   --info-bg: #eef5ff;
   --success: #16713a;
   --success-bg: #eaf7ed;
-  --shadow: 0 15px 40px rgba(21, 65, 40, 0.09);
-  --shadow-soft: 0 8px 24px rgba(21, 65, 40, 0.07);
+  --shadow: 0 15px 40px rgba(var(--primary-rgb), 0.09);
+  --shadow-soft: 0 8px 24px rgba(var(--primary-rgb), 0.07);
   --radius-xl: 24px;
   --radius-lg: 18px;
   --radius-md: 13px;
@@ -40,9 +40,9 @@ body {
   min-height: 100vh;
   color: var(--ink);
   background:
-    radial-gradient(circle at 16% 2%, rgba(109, 188, 123, 0.08), transparent 24%),
-    linear-gradient(180deg, #eef7f1 0%, #f6f8f7 60%, #f2f5f4 100%);
-  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    radial-gradient(circle at 16% 2%, rgba(var(--primary-rgb), 0.08), transparent 24%),
+    linear-gradient(180deg, var(--primary-tint) 0%, #f6f8f7 60%, #f2f5f4 100%);
+  font-family: "Roboto", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   line-height: 1.45;
 }
 
@@ -235,7 +235,7 @@ main {
   overflow: hidden;
   padding: 30px 34px;
   border-radius: var(--radius-xl);
-  background: linear-gradient(135deg, var(--wilson-green-dark), #1b6f31);
+  background: linear-gradient(135deg, var(--wilson-green-dark), var(--primary));
   color: white;
   box-shadow: var(--shadow);
 }
@@ -351,6 +351,23 @@ main {
   justify-content: space-between;
   gap: 18px;
   margin-bottom: 14px;
+  flex-wrap: wrap;
+}
+/*
+ * On a phone the count pill drops below the heading instead of squeezing it.
+ *
+ * A flex row with no wrap gave "What should Wilson maintain?" about 190px to
+ * work with next to a "2 SELECTED" pill, so a four-word question set in three
+ * lines and the pill hung off its side. Part of what Cayden meant by headers
+ * getting in the way of the tiles.
+ */
+@media (max-width: 560px) {
+  .section-heading {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+  .section-heading h2 { font-size: 20px; }
 }
 
 .section-heading h2 {
@@ -481,7 +498,7 @@ button.button {
   background: var(--wilson-green);
   color: white;
   font-weight: 800;
-  box-shadow: 0 5px 14px rgba(21, 91, 38, 0.18);
+  box-shadow: 0 5px 14px rgba(var(--primary-rgb), 0.18);
 }
 
 .button:hover,
@@ -498,7 +515,7 @@ button.button:hover {
 }
 
 .button.secondary:hover {
-  background: #e4f1e7;
+  background: var(--primary-tint);
 }
 
 .button.ghost {
@@ -631,7 +648,7 @@ button.button:hover {
 .search-input:focus,
 .filter-select:focus {
   border-color: var(--wilson-green);
-  box-shadow: 0 0 0 3px rgba(21, 91, 38, 0.1);
+  box-shadow: 0 0 0 3px rgba(var(--primary-rgb), 0.1);
 }
 
 .field .hint {
@@ -648,7 +665,7 @@ button.button:hover {
   padding: 16px;
   border: 1px solid var(--line);
   border-radius: 14px;
-  background: #fbfdfc;
+  background: var(--primary-faint);
 }
 
 .asset-card-head {
@@ -784,6 +801,34 @@ button.button:hover {
   font-weight: 700;
 }
 
+/* The charge split, under the annual figure on the green header. Deliberately
+   quiet: the annual total stays the headline and this answers "when does my
+   card get hit", which used to be answered nowhere at all. */
+.summary-charge-split {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(255, 255, 255, 0.22);
+}
+.summary-charge-split span {
+  display: flex;
+  flex-direction: column;
+  font-size: 13.5px;
+  font-weight: 800;
+  color: #fff;
+  font-variant-numeric: tabular-nums;
+}
+.summary-charge-split em {
+  font-style: normal;
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.72);
+}
+
 .summary-body {
   padding: 18px 20px 20px;
 }
@@ -809,9 +854,9 @@ button.button:hover {
 .callout {
   margin: 14px 0;
   padding: 14px;
-  border: 1px solid #b7d9bf;
+  border: 1px solid var(--primary-soft-2);
   border-radius: 12px;
-  color: #175a2c;
+  color: var(--primary-hover);
   background: var(--success-bg);
 }
 
@@ -988,7 +1033,7 @@ td {
 }
 
 tbody tr:hover {
-  background: #fbfdfc;
+  background: var(--primary-faint);
 }
 
 tbody tr:last-child td {
@@ -1021,7 +1066,7 @@ tbody tr:last-child td {
 }
 
 .badge.success {
-  color: #176436;
+  color: var(--primary-deep);
   background: var(--success-bg);
 }
 
@@ -1064,7 +1109,7 @@ tbody tr:last-child td {
   padding: 14px;
   border: 1px solid var(--line);
   border-radius: 13px;
-  background: #fbfdfc;
+  background: var(--primary-faint);
 }
 
 .detail-tile .label {
@@ -1135,7 +1180,7 @@ tbody tr:last-child td {
   padding: 12px;
   border: 1px solid var(--line);
   border-radius: 12px;
-  background: #fbfdfc;
+  background: var(--primary-faint);
 }
 
 .checkpoint-row .checkpoint-name {
@@ -1226,7 +1271,7 @@ tbody tr:last-child td {
 .report-cover {
   padding: 28px 32px;
   color: #fff;
-  background: linear-gradient(135deg, var(--wilson-green-dark), #1f7135);
+  background: linear-gradient(135deg, var(--wilson-green-dark), var(--primary));
 }
 
 .report-cover-row {
@@ -1307,7 +1352,7 @@ tbody tr:last-child td {
   padding: 12px;
   border: 1px solid var(--line);
   border-radius: 12px;
-  background: #fbfdfc;
+  background: var(--primary-faint);
 }
 
 .report-check-head {
@@ -1342,7 +1387,7 @@ tbody tr:last-child td {
   min-width: 280px;
   max-width: 420px;
   padding: 14px 16px;
-  border: 1px solid #b7d9bf;
+  border: 1px solid var(--primary-soft-2);
   border-radius: 12px;
   background: #fff;
   box-shadow: var(--shadow);
@@ -1604,7 +1649,7 @@ tbody tr:last-child td {
   padding: 14px;
   border: 1px solid #bcd7c2;
   border-radius: 13px;
-  background: #f4faf5;
+  background: var(--primary-wash);
   display: grid;
   grid-template-columns: minmax(220px, 1fr) minmax(290px, 0.95fr);
   gap: 16px;
@@ -1645,7 +1690,7 @@ tbody tr:last-child td {
 
 .frequency-option.selected {
   border-color: var(--wilson-green);
-  box-shadow: 0 0 0 2px rgba(21, 91, 38, 0.08);
+  box-shadow: 0 0 0 2px rgba(var(--primary-rgb), 0.08);
 }
 
 .frequency-option input {
@@ -1713,7 +1758,7 @@ tbody tr:last-child td {
   padding: 12px;
   border: 1px solid var(--line);
   border-radius: 11px;
-  background: #fbfdfc;
+  background: var(--primary-faint);
 }
 
 .subscription-mini-card > div {
@@ -1750,7 +1795,7 @@ tbody tr:last-child td {
   padding: 12px;
   border: 1px solid var(--line);
   border-radius: 12px;
-  background: #fbfdfc;
+  background: var(--primary-faint);
   align-items: end;
 }
 
@@ -1872,7 +1917,7 @@ tbody tr:last-child td {
   gap: 24px;
   padding: 22px 34px;
   border-top: 8px solid var(--wilson-green);
-  background: linear-gradient(115deg, #fff 0%, #fff 34%, #eef6f0 34%, #eef6f0 100%);
+  background: linear-gradient(115deg, #fff 0%, #fff 34%, var(--primary-tint) 34%, var(--primary-tint) 100%);
 }
 
 .report-mini-logo {
@@ -1933,9 +1978,14 @@ tbody tr:last-child td {
   width: 620px;
   height: 470px;
   transform: rotate(21deg);
-  background: linear-gradient(135deg, var(--wilson-green), #67af75);
+  background: linear-gradient(135deg, var(--wilson-green), var(--primary-soft));
 }
 
+/* The gray bar sweeps down toward the logo corner, and at full strength it
+   crowded the wordmark (Cayden, v0.9.39: "change the gray colored bar slightly,
+   or add a gradient to it so it obstructs our logo less"). It now fades out as
+   it approaches the logo side and only reaches full weight where it crosses
+   the green — same shape, out of the logo's way. */
 .report-cover-shape::after {
   content: "";
   position: absolute;
@@ -1943,7 +1993,11 @@ tbody tr:last-child td {
   bottom: -125px;
   width: 780px;
   height: 130px;
-  background: #4b5550;
+  background: linear-gradient(90deg,
+    rgba(75, 85, 80, 0) 0%,
+    rgba(75, 85, 80, 0.14) 30%,
+    rgba(75, 85, 80, 0.5) 58%,
+    #4b5550 82%);
 }
 
 .report-cover-brand {
@@ -1987,8 +2041,8 @@ tbody tr:last-child td {
   width: 310px;
   margin: 58px 58px 0 auto;
   padding: 22px;
-  border: 2px solid #b7d7be;
-  background: #f7fbf8;
+  border: 2px solid var(--primary-soft-2);
+  background: var(--primary-wash-2);
   text-align: center;
 }
 
@@ -2090,7 +2144,7 @@ tbody tr:last-child td {
 .report-score-panel {
   padding: 18px;
   border: 2px solid #b8d7bf;
-  background: #f7fbf8;
+  background: var(--primary-wash-2);
   text-align: center;
 }
 
@@ -2187,7 +2241,7 @@ tbody tr:last-child td {
   margin-top: 20px;
   padding: 13px 15px;
   border-left: 5px solid var(--wilson-green);
-  background: #eef6f0;
+  background: var(--primary-tint);
 }
 
 .report-diagnostic-strip strong,
@@ -2247,7 +2301,7 @@ tbody tr:last-child td {
   align-items: center;
   padding: 20px 24px;
   color: #fff;
-  background: linear-gradient(135deg, var(--wilson-green), #5da66c);
+  background: linear-gradient(135deg, var(--wilson-green), var(--primary-soft));
 }
 
 .final-score-band strong {
@@ -2389,7 +2443,7 @@ tbody tr:last-child td {
 .quote-note-box {
   padding: 17px;
   border: 1px solid #bcd9c2;
-  background: #f2f9f3;
+  background: var(--primary-wash);
   color: #31523a;
 }
 
@@ -2491,23 +2545,70 @@ tbody tr:last-child td {
   font-size: 11px !important;
 }
 
-.photo-placeholder {
-  min-height: 180px;
-  margin-top: 25px;
+/* ---------------------------------------------------------------------------
+   Photographic record
+
+   Replaces .photo-placeholder, which was a dashed box announcing a photo count
+   for images that were never kept. These are real photographs, each captioned
+   with the checkpoint it is evidence for.
+   ------------------------------------------------------------------------- */
+.photo-record { margin-top: 25px; }
+.photo-record > strong { display: block; color: var(--wilson-green); font-size: 17px; }
+.photo-record > span { display: block; margin-top: 3px; color: var(--muted); font-size: 13px; }
+
+.photo-record.empty {
+  min-height: 96px;
   display: grid;
   place-items: center;
   align-content: center;
-  gap: 7px;
-  border: 2px dashed #c6d5cb;
+  gap: 5px;
+  border: 1px solid #dbe5dc;
+  border-radius: 12px;
   background: #f8faf9;
-  color: var(--muted);
   text-align: center;
+  padding: 16px;
 }
 
-.photo-placeholder strong {
-  color: var(--wilson-green);
-  font-size: 20px;
+.photo-grid {
+  margin-top: 12px;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+  gap: 12px;
 }
+
+.photo-cell { margin: 0; break-inside: avoid; }
+
+.photo-frame {
+  aspect-ratio: 4 / 3;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border: 1px solid #dbe5dc;
+  border-radius: 10px;
+  background: #f1f5f2;
+}
+
+.photo-frame img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.photo-loading, .photo-missing {
+  padding: 10px; font-size: 11.5px; line-height: 1.4;
+  color: var(--muted); text-align: center;
+}
+.photo-missing { color: #8a6d1e; }
+
+.photo-cell figcaption { margin-top: 5px; font-size: 12px; line-height: 1.4; }
+.photo-cell figcaption strong { display: block; color: #33413a; }
+.photo-cell figcaption span { color: var(--muted); }
+
+/* Field-tool thumbnails: proof of what was actually captured, at a size where a
+   blurred serial plate is obvious before the technician leaves. */
+.tech-photo-thumb {
+  margin-top: 6px; width: 84px; height: 63px;
+  border: 1px solid #dbe5dc; border-radius: 8px; overflow: hidden;
+  background: #f1f5f2; display: grid; place-items: center;
+}
+.tech-photo-thumb.wide { width: 130px; height: 98px; }
+.tech-photo-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.tech-photo-missing { font-size: 10px; line-height: 1.3; color: #8a6d1e; text-align: center; padding: 4px; }
 
 .signature-grid {
   margin-top: 30px;
@@ -2573,7 +2674,7 @@ tbody tr:last-child td {
   padding: 10px;
   border: 1px solid var(--line);
   border-radius: 11px;
-  background: #fbfdfc;
+  background: var(--primary-faint);
 }
 
 .quote-asset-row input,
@@ -2602,7 +2703,7 @@ tbody tr:last-child td {
   overflow: hidden;
   padding: 34px 42px 38px;
   color: #fff;
-  background: linear-gradient(135deg, #0f471d, #1d6b31);
+  background: linear-gradient(135deg, var(--primary-ink), var(--primary));
 }
 
 .quote-cover::after {
@@ -2718,7 +2819,7 @@ tbody tr:last-child td {
 .quote-price-hero > div {
   padding: 20px;
   border: 1px solid var(--line);
-  background: #f7fbf8;
+  background: var(--primary-wash-2);
 }
 
 .quote-price-hero span,
@@ -2793,7 +2894,7 @@ tbody tr:last-child td {
   gap: 8px;
   padding: 11px;
   border: 1px solid var(--line);
-  background: #fbfdfc;
+  background: var(--primary-faint);
   font-size: 12px;
 }
 
@@ -2806,6 +2907,98 @@ tbody tr:last-child td {
 .quote-table th {
   font-size: 11px;
 }
+
+/* The confirmation page's charge schedule -- the fullest version, on the page a
+   customer keeps. Built from the real visits rather than the plan. */
+.confirm-schedule {
+  margin-top: 20px;
+  padding: 18px 20px;
+  border-radius: 14px;
+  background: #f4f8fb;
+  border: 1px solid #dbe7ee;
+}
+.confirm-schedule h3 { margin: 0 0 4px; font-size: 17px; color: #17251d; }
+.confirm-schedule-lede {
+  margin: 0 0 14px; font-size: 13.5px; line-height: 1.55; color: #43535e;
+}
+.confirm-schedule ul { margin: 0; padding: 0; list-style: none; display: grid; gap: 10px; }
+.confirm-schedule li {
+  display: grid; grid-template-columns: 1fr auto; gap: 2px 14px; align-items: baseline;
+  padding: 11px 13px; border-radius: 10px; background: #fff; border: 1px solid #cfdfe8;
+}
+.confirm-schedule li strong { font-size: 14px; color: #17251d; }
+.confirm-schedule li span {
+  font-size: 17px; font-weight: 900; color: #17251d;
+  font-variant-numeric: tabular-nums; text-align: right;
+}
+.confirm-schedule li em {
+  grid-column: 1 / -1; font-style: normal; font-size: 12px; color: #5b6b76;
+}
+.confirm-schedule-total {
+  display: flex; justify-content: space-between; align-items: baseline;
+  margin-top: 12px; padding-top: 11px; border-top: 1px solid #cfdfe8;
+  font-size: 14px;
+}
+.confirm-schedule-total strong {
+  font-size: 19px; color: #17251d; font-variant-numeric: tabular-nums;
+}
+.confirm-schedule-note {
+  margin: 12px 0 0; font-size: 11.5px; line-height: 1.55; color: #5e6c63;
+}
+
+/* The proposal's charge schedule. Sits under the pricing card because it
+   answers the question the pricing card raises: not what it costs, but when. */
+.quote-schedule {
+  margin-top: 12px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: #f4f8fb;
+  border: 1px solid #dbe7ee;
+}
+.quote-schedule h4 {
+  margin: 0 0 8px;
+  font-size: 11.5px;
+  letter-spacing: .05em;
+  text-transform: uppercase;
+  color: #4a564e;
+}
+.quote-schedule ul { margin: 0; padding: 0; list-style: none; display: grid; gap: 8px; }
+.quote-schedule li {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0 12px;
+  align-items: baseline;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #e6eef3;
+}
+.quote-schedule li:last-child { padding-bottom: 0; border-bottom: 0; }
+.quote-schedule li strong { font-size: 12.5px; color: #17251d; }
+.quote-schedule li span {
+  font-size: 13.5px; font-weight: 800; color: #17251d;
+  font-variant-numeric: tabular-nums; text-align: right;
+}
+.quote-schedule li em {
+  grid-column: 1 / -1;
+  font-style: normal; font-size: 11.5px; color: #5b6b76;
+}
+.quote-schedule > p {
+  margin: 10px 0 0; font-size: 11.5px; line-height: 1.5; color: #5e6c63;
+}
+
+/* Area headings inside the portfolio table. The proposal now lists appliances
+   individually and groups them by room, which is how the household is actually
+   organised -- the old type-plus-quantity table read as an order form. */
+.quote-table .quote-area-row th {
+  padding-top: 12px;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: #5b6b76;
+  background: #f4f8fb;
+  border-bottom: 1px solid var(--line);
+}
+.quote-table .quote-area-row:first-child th { padding-top: 6px; }
 
 .quote-pricing-card {
   overflow: hidden;
@@ -2841,7 +3034,7 @@ tbody tr:last-child td {
 .quote-terms-grid > div {
   padding: 14px;
   border: 1px solid var(--line);
-  background: #fbfdfc;
+  background: var(--primary-faint);
 }
 
 .quote-terms-grid p {
@@ -3139,7 +3332,7 @@ tbody tr:last-child td {
   color: #fff;
   border-color: var(--wilson-green);
   background: var(--wilson-green);
-  box-shadow: 0 5px 14px rgba(21, 91, 38, .18);
+  box-shadow: 0 5px 14px rgba(var(--primary-rgb), .18);
 }
 
 .progress-line {
@@ -3155,9 +3348,9 @@ tbody tr:last-child td {
   gap: 14px;
   margin-bottom: 18px;
   padding: 15px 18px;
-  border: 1px solid #abd0b4;
+  border: 1px solid var(--primary-soft-2);
   border-radius: 16px;
-  background: linear-gradient(135deg, #eff9f1, #fff);
+  background: linear-gradient(135deg, var(--primary-wash), #fff);
   box-shadow: var(--shadow-soft);
 }
 
@@ -3183,6 +3376,75 @@ tbody tr:last-child td {
   grid-template-columns: minmax(0, 1fr) minmax(320px, 380px);
   align-items: start;
 }
+/*
+ * ONE COLUMN ON A PHONE -- and this rule has to live HERE, not in the
+ * @media (max-width: 1120px) block a thousand lines above.
+ *
+ * That block sets `.builder-layout { grid-template-columns: 1fr }`, and this
+ * declaration is later in the file with equal specificity, so it won. On a
+ * 390px screen the enrollment layout kept two columns: the appliance column
+ * collapsed to 0px, the summary panel held its 344px, and the tiles spilled out
+ * from underneath it with the submit button floating across them. Cayden saw the
+ * result -- "some of the headers/ hero panel or whatever kind of overlap each
+ * other and get in the way of the tiles of appliances".
+ *
+ * The same trap as the age picker in v0.9.18. Source order beats intent.
+ */
+@media (max-width: 1120px) {
+  .enrollment-builder-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+/*
+ * The running total is the best part of this screen -- it moves while you tap --
+ * so it is not simply pushed to the bottom of a long grid where it cannot be
+ * seen. Above the tiles on a phone, where a thumb scrolling the list keeps it in
+ * view for the first screenful, and never on top of them.
+ */
+@media (max-width: 1120px) {
+  /*
+   * Tiles first, summary after -- reading order on a phone is pick, then price.
+   * An earlier attempt put the summary above the tiles to keep the running total
+   * in view, and it filled the whole first screen with "$0.00" before a single
+   * appliance was visible. The total stays visible another way: the slim bar
+   * below, which is a COPY rather than a repositioning of this panel, so it can
+   * never be the thing covering the grid.
+   */
+  .enrollment-summary-sticky { position: static; top: auto; }
+
+  /* Room for the bar, so it never sits on top of the last tile or the submit. */
+  body.has-total-bar .page-shell { padding-bottom: 78px; }
+}
+
+/*
+ * THE RUNNING TOTAL BAR (phones only).
+ *
+ * Fixed, 56px, and it only exists once at least one appliance is picked -- an
+ * empty bar reading $0.00 is furniture. It mirrors #summary-total rather than
+ * owning the number, so there is one calculation and two places it appears.
+ */
+.total-bar {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 40;
+  display: none; align-items: center; justify-content: space-between; gap: 12px;
+  padding: 10px 16px; min-height: 56px;
+  background: var(--primary-ink); color: #f4f8f5;
+  box-shadow: 0 -6px 18px rgba(0, 0, 0, .18);
+}
+body.has-total-bar .total-bar { display: flex; }
+.total-bar-figure { display: grid; gap: 1px; }
+.total-bar-figure strong { font-size: 19px; font-variant-numeric: tabular-nums; line-height: 1.1; }
+.total-bar-figure span { font-size: 11px; letter-spacing: .05em; text-transform: uppercase; opacity: .8; }
+.total-bar-jump {
+  appearance: none; cursor: pointer; font: inherit; font-size: 14px; font-weight: 700;
+  min-height: 40px; padding: 0 16px; border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, .5); background: transparent; color: #f4f8f5;
+}
+@media (min-width: 1121px) {
+  /* On a desktop the real panel is already beside the grid and always visible. */
+  body.has-total-bar .total-bar { display: none; }
+  body.has-total-bar .page-shell { padding-bottom: 0; }
+}
+@media print { .total-bar { display: none !important; } }
 
 .step-kicker {
   margin-bottom: 5px;
@@ -3230,13 +3492,13 @@ tbody tr:last-child td {
 .appliance-picker-card:hover {
   transform: translateY(-3px);
   border-color: #aacbb3;
-  box-shadow: 0 14px 28px rgba(21, 65, 40, .10);
+  box-shadow: 0 14px 28px rgba(var(--primary-rgb), .10);
 }
 
 .appliance-picker-card.selected {
   border: 2px solid var(--wilson-green);
-  background: linear-gradient(180deg, #fff 0%, #f2f9f4 100%);
-  box-shadow: 0 12px 25px rgba(21, 91, 38, .11);
+  background: linear-gradient(180deg, #fff 0%, var(--primary-wash) 100%);
+  box-shadow: 0 12px 25px rgba(var(--primary-rgb), .11);
 }
 
 .appliance-picker-hit {
@@ -3290,8 +3552,8 @@ tbody tr:last-child td {
   right: 9px;
   padding: 5px 7px;
   border-radius: 999px;
-  color: #14652f;
-  background: #e7f8ea;
+  color: var(--primary-deep);
+  background: var(--primary-tint);
   font-size: 9px;
   font-weight: 900;
 }
@@ -3308,7 +3570,7 @@ tbody tr:last-child td {
   border: 1px solid #b8d3bf;
   border-radius: 999px;
   background: #fff;
-  box-shadow: 0 5px 14px rgba(21, 91, 38, .12);
+  box-shadow: 0 5px 14px rgba(var(--primary-rgb), .12);
 }
 
 .tile-stepper.visible { display: flex; }
@@ -3377,7 +3639,7 @@ tbody tr:last-child td {
   padding: 14px;
   border: 1px solid #b9d5c0;
   border-radius: 14px;
-  background: #f5faf6;
+  background: var(--primary-wash);
 }
 
 .add-area-panel .grow { flex: 1 1 280px; }
@@ -3469,7 +3731,7 @@ tbody tr:last-child td {
 }
 
 .home-area-dropzone.drag-over {
-  background: #eaf7ed;
+  background: var(--primary-tint);
   box-shadow: inset 0 0 0 2px var(--wilson-green);
 }
 
@@ -3492,7 +3754,7 @@ tbody tr:last-child td {
   border: 1px solid #d4e0d7;
   border-radius: 12px;
   background: #fff;
-  box-shadow: 0 4px 12px rgba(21, 65, 40, .05);
+  box-shadow: 0 4px 12px rgba(var(--primary-rgb), .05);
   cursor: grab;
 }
 
@@ -3568,7 +3830,7 @@ tbody tr:last-child td {
   align-items: center;
   gap: 5px;
   margin-top: 5px;
-  color: #326040;
+  color: var(--primary);
   font-size: 9px;
   font-weight: 750;
 }
@@ -3624,7 +3886,7 @@ tbody tr:last-child td {
 .simple-plan-selected p { margin: 3px 0 0; color: var(--muted); font-size: 12px; }
 .simple-plan-selected > div:nth-child(2) { flex: 1; }
 .simple-plan-eyebrow { margin-bottom: 2px; color: var(--wilson-green); font-size: 9px; font-weight: 900; letter-spacing: .09em; text-transform: uppercase; }
-.simple-plan-selected.estate { background: linear-gradient(135deg, #f2faf4, #fff); }
+.simple-plan-selected.estate { background: linear-gradient(135deg, var(--primary-wash), #fff); }
 .simple-plan-price { text-align: right; font-size: 24px; font-weight: 900; letter-spacing: -.03em; }
 .simple-plan-price small { display: block; color: var(--muted); font-size: 9px; font-weight: 700; letter-spacing: 0; }
 
@@ -3636,8 +3898,8 @@ tbody tr:last-child td {
   margin-bottom: 10px;
   padding: 12px 14px;
   border-radius: 13px;
-  color: #174e27;
-  background: #eaf7ed;
+  color: var(--primary-hover);
+  background: var(--primary-tint);
 }
 .estate-unlock-icon {
   width: 34px;
@@ -3698,8 +3960,8 @@ tbody tr:last-child td {
   right: 10px;
   padding: 4px 6px;
   border-radius: 999px;
-  color: #176432;
-  background: #ddf4e2;
+  color: var(--primary-deep);
+  background: var(--primary-tint-3);
   font-size: 8px;
   font-weight: 900;
   text-transform: uppercase;
@@ -3718,7 +3980,7 @@ tbody tr:last-child td {
   margin: -2px 0 16px;
   border: 1px solid var(--line);
   border-radius: 11px;
-  background: #fbfdfc;
+  background: var(--primary-faint);
 }
 .summary-mini-stats > div { padding: 10px 6px; text-align: center; }
 .summary-mini-stats > div + div { border-left: 1px solid var(--line); }
@@ -3728,6 +3990,11 @@ tbody tr:last-child td {
 .summary-mini-stats span { color: var(--muted); font-size: 8px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; }
 .summary-placeholder { padding: 12px; border-radius: 10px; color: var(--muted); background: #f5f7f6; font-size: 12px; text-align: center; }
 .submit-enrollment-button:disabled { opacity: .45; cursor: not-allowed; }
+/* The quote exit sits under the enrollment button as the quieter of the two --
+   it is the same screen reaching a different destination, not a rival call to
+   action competing with it. */
+.send-quote-button { margin-top: 8px; }
+.send-quote-button:disabled { opacity: .45; cursor: not-allowed; }
 .enrollment-authorization { margin-top: 14px; }
 
 @media (max-width: 1180px) {
@@ -3782,7 +4049,7 @@ tbody tr:last-child td {
   border: 2px dashed #b7cbbd;
   border-radius: 17px;
   color: #3f5547;
-  background: linear-gradient(180deg, #fbfdfc, #f2f8f4);
+  background: linear-gradient(180deg, var(--primary-faint), var(--primary-wash));
   text-align: center;
   transition: border-color .16s ease, background .16s ease, transform .16s ease;
 }
@@ -3790,7 +4057,7 @@ tbody tr:last-child td {
 .invoice-dropzone:hover,
 .invoice-dropzone.drag-over {
   border-color: var(--wilson-green);
-  background: #eaf7ed;
+  background: var(--primary-tint);
   transform: translateY(-1px);
 }
 
@@ -3805,7 +4072,7 @@ tbody tr:last-child td {
   background: var(--wilson-green);
   font-size: 28px;
   font-weight: 900;
-  box-shadow: 0 9px 20px rgba(21, 91, 38, .18);
+  box-shadow: 0 9px 20px rgba(var(--primary-rgb), .18);
 }
 
 .invoice-dropzone strong { font-size: 17px; }
@@ -3870,7 +4137,7 @@ tbody tr:last-child td {
   padding: 12px;
   border: 1px solid var(--line);
   border-radius: 12px;
-  background: #fbfdfc;
+  background: var(--primary-faint);
 }
 .import-guide-list > div > span {
   width: 32px;
@@ -3951,9 +4218,9 @@ tbody tr:last-child td {
 .internal-nav-shell { display: flex; gap: 14px; align-items: stretch; margin-bottom: 18px; }
 .internal-nav-grid { flex: 1; display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 8px; padding: 8px; background: rgba(255,255,255,.78); border: 1px solid var(--line); border-radius: 20px; box-shadow: var(--shadow-soft); }
 .internal-nav-item { appearance: none; border: 1px solid transparent; background: transparent; border-radius: 14px; padding: 12px 10px; min-height: 72px; display: flex; gap: 9px; align-items: center; text-align: left; cursor: pointer; color: var(--ink); }
-.internal-nav-item:hover { background: #f5faf6; border-color: #dce8df; }
-.internal-nav-item.active { background: #edf7ef; border-color: #78a980; box-shadow: inset 0 0 0 1px rgba(19,95,46,.08); }
-.internal-nav-item .nav-glyph { width: 30px; height: 30px; border-radius: 9px; display: grid; place-items: center; flex: 0 0 auto; background: #e6f1e8; color: var(--wilson-green); font-weight: 900; }
+.internal-nav-item:hover { background: var(--primary-wash); border-color: #dce8df; }
+.internal-nav-item.active { background: var(--primary-tint); border-color: #78a980; box-shadow: inset 0 0 0 1px rgba(var(--primary-rgb),.08); }
+.internal-nav-item .nav-glyph { width: 30px; height: 30px; border-radius: 9px; display: grid; place-items: center; flex: 0 0 auto; background: var(--primary-tint); color: var(--wilson-green); font-weight: 900; }
 .internal-nav-item strong { display:block; font-size: 12px; line-height:1.2; }
 .internal-nav-item small { display:block; margin-top:4px; color:var(--muted); font-size:10px; line-height:1.2; }
 .internal-quick-actions { width: 190px; display:flex; flex-direction:column; gap:8px; }
@@ -3974,9 +4241,9 @@ tbody tr:last-child td {
 .danger-text { color:#a83c31; }
 .module-count { min-width:32px; height:32px; padding:0 9px; display:grid; place-items:center; border-radius:999px; background:#edf4ee; color:var(--wilson-green); font-weight:900; }
 .module-count.danger { background:#fff0ee; color:#a83c31; }
-.module-count.success { background:#e9f7ec; color:#1a7037; }
+.module-count.success { background:var(--primary-tint); color:var(--primary); }
 .ops-list { display:flex; flex-direction:column; gap:9px; }
-.ops-item { border:1px solid #e1e8e2; border-radius:13px; padding:11px; background:#fbfdfb; }
+.ops-item { border:1px solid #e1e8e2; border-radius:13px; padding:11px; background:var(--primary-faint); }
 .priority-module .ops-item { background:#fffafa; }
 .ops-item-top { display:flex; justify-content:space-between; gap:8px; align-items:baseline; }
 .ops-item-top a { font-weight:800; color:var(--ink); text-decoration:none; }
@@ -4012,7 +4279,7 @@ tbody tr:last-child td {
 .tech-area > h2 { font-size:17px; margin:0 0 8px; }
 .tech-asset-list { display:grid; gap:8px; }
 .tech-asset-card { display:flex; align-items:center; gap:12px; background:white; border:1px solid var(--line); border-radius:15px; padding:12px; box-shadow:var(--shadow-soft); text-decoration:none; color:var(--ink); }
-.tech-asset-card.complete { border-color:#7db58a; background:#f4fbf5; }
+.tech-asset-card.complete { border-color:#7db58a; background:var(--primary-wash); }
 .tech-asset-icon { width:48px; height:48px; border-radius:12px; background:#eff5f0; display:grid; place-items:center; }
 .tech-asset-icon img { max-width:38px; max-height:38px; }
 .tech-asset-copy { flex:1; }
@@ -4030,10 +4297,35 @@ tbody tr:last-child td {
 .tech-rating-value { font-size:22px; font-weight:900; color:var(--wilson-green); text-align:center; }
 .tech-reading-grid { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:8px; }
 .tech-reading-grid .field.full { grid-column:1/-1; }
-.tech-photo-button { display:block; border:1px dashed #9bb5a0; background:#f7fbf8; border-radius:12px; padding:12px; text-align:center; cursor:pointer; font-size:12px; font-weight:800; margin-top:10px; }
+.tech-photo-button { display:block; border:1px dashed #9bb5a0; background:var(--primary-wash-2); border-radius:12px; padding:12px; text-align:center; cursor:pointer; font-size:12px; font-weight:800; margin-top:10px; }
 .tech-photo-button input { display:none; }
 .tech-lifecycle-card { background:#f7faf7; border:1px solid #dbe5dc; border-radius:14px; padding:12px; display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; margin:12px 0; }
-.tech-score-preview { display:grid; grid-template-columns:90px 1fr; gap:12px; align-items:center; background:#eef6ef; border-radius:15px; padding:12px; margin:14px 0; }
+/* Provenance for the age, directly under the field that holds it. Spans the
+   card so it reads as a statement about the number rather than a third column
+   competing with tier and expected life. */
+.tech-age-source { grid-column:1 / -1; font-size:12.5px; line-height:1.5; color:#5d6b60; padding-top:2px; }
+/*
+ * The age picker spans the card, in every layout.
+ *
+ * It is a question with tappable answers, not a field: penned into one column
+ * of a three- or two-column grid it had about 150px to work with on a phone,
+ * which laid seven year buttons out two-per-row and pushed the "Cannot
+ * establish it" escape below the fold. Left as an ID selector deliberately --
+ * this card's column count is set in three separate media queries whose order
+ * does not follow their width, so a class rule here would be silently
+ * overridden by the widest of them.
+ */
+#tech-age-picker { grid-column:1 / -1; }
+.tech-age-source strong { color:#33413a; }
+.tech-age-source .tech-age-said,
+button.tech-age-said {
+  display:inline-block; margin-left:6px; padding:4px 10px; min-height:32px;
+  font-size:12px; font-weight:700; color:#33413a;
+  background:#fff; border:1px solid #cfdad4; border-radius:999px; cursor:pointer;
+}
+button.tech-age-said:active { background:var(--primary-tint); }
+
+.tech-score-preview { display:grid; grid-template-columns:90px 1fr; gap:12px; align-items:center; background:var(--primary-tint); border-radius:15px; padding:12px; margin:14px 0; }
 .tech-score-number { font-size:34px; font-weight:900; color:var(--wilson-green); }
 .tech-score-preview small { color:var(--muted); }
 .tech-bottom-actions { position:sticky; bottom:0; padding:10px 0; background:linear-gradient(transparent,#f4f8f5 22%); display:flex; gap:8px; }
@@ -4074,6 +4366,79 @@ tbody tr:last-child td {
 .filter-mini-toggle small { font-size: 9px; line-height: 1.3; color: var(--muted); }
 .filter-mini-toggle.included strong { color: var(--success); }
 .picker-recommended.filter-available { background: #eaf4ff; color: #285e8d; }
+
+/* A WashTower is one product but two maintained appliances. */
+.picker-recommended.counts-as { background: #efe9fb; color: #4b3a86; }
+
+/* Outdoor grills are inspected for function only; Wilson never cleans them. */
+.picker-recommended.scope-limited { background: #fdf0e3; color: #8a5216; }
+
+/* Scope and billing notes sit in the tile itself so nothing about them is
+   discovered only after the customer has added the appliance. */
+.picker-scope-note {
+  display: block;
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px solid rgba(19, 35, 24, 0.1);
+  color: #5d6b60;
+  font-size: 10px;
+  line-height: 1.35;
+  text-align: left;
+  text-wrap: pretty;
+}
+
+@media (max-width: 720px) {
+  .picker-scope-note { font-size: 9px; }
+}
+
+/* Limited-scope warning in the field tool. Deliberately louder than the filter
+   banner: it exists to stop a technician doing work Wilson has excluded. */
+.tech-scope-banner {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  margin: 12px 0 4px;
+  padding: 12px 14px;
+  border: 1px solid #e6c79a;
+  border-left: 4px solid #c07a1e;
+  border-radius: 12px;
+  background: #fdf6ec;
+}
+
+.tech-scope-banner span {
+  flex: 0 0 auto;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #c07a1e;
+  color: #fff;
+  font-weight: 700;
+  font-size: 13px;
+  line-height: 22px;
+  text-align: center;
+}
+
+.tech-scope-banner strong {
+  display: block;
+  color: #7a4a10;
+  font-size: 13px;
+}
+
+.tech-scope-banner small {
+  display: block;
+  margin-top: 3px;
+  color: #6b533a;
+  font-size: 12px;
+  line-height: 1.4;
+  text-wrap: pretty;
+}
+
+.summary-line.summary-scope-note span {
+  color: #8a5216;
+  font-size: 11px;
+  line-height: 1.4;
+  text-wrap: pretty;
+}
 .summary-line.subline { font-size: 10px; color: var(--muted); padding-top: 0; }
 .tech-guidance { margin-top: 8px; padding: 8px 10px; border-radius: 10px; background: #f4f7f4; color: #496052; font-size: 10px; line-height: 1.45; border-left: 3px solid #9ab59f; }
 .tech-reading-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; grid-column: 1/-1; }
@@ -4083,7 +4448,7 @@ tbody tr:last-child td {
 .tech-derived { grid-column: 1/-1; border-radius: 11px; padding: 9px 10px; display: grid; gap: 2px; font-size: 10px; background: #f4f6f4; border: 1px solid #dfe7e0; }
 .tech-derived strong { font-size: 11px; }
 .tech-derived span { color: var(--muted); line-height: 1.35; }
-.tech-derived.good { background: #eef8f0; border-color: #b8d7bf; }
+.tech-derived.good { background: var(--primary-wash); border-color: #b8d7bf; }
 .tech-derived.good strong { color: var(--success); }
 .tech-derived.warning { background: #fff8e8; border-color: #e9ca84; }
 .tech-derived.warning strong { color: #8b5d00; }
@@ -4092,13 +4457,13 @@ tbody tr:last-child td {
 .tech-filter-status div { display: grid; gap: 1px; }
 .tech-filter-status strong { font-size: 12px; }
 .tech-filter-status small { color: var(--muted); font-size: 10px; }
-.tech-filter-status.active { background: #eef8f0; border-color: #b9d9c0; }
+.tech-filter-status.active { background: var(--primary-wash); border-color: var(--primary-soft-2); }
 .tech-filter-status.active > span { background: var(--wilson-green); color: white; }
 .tech-life-stage { border-left: 1px solid #d7e0d8; padding-left: 10px; display: grid; align-content: center; }
 .tech-life-stage span { color: var(--muted); font-size: 9px; text-transform: uppercase; letter-spacing: .08em; font-weight: 800; }
 .tech-life-stage strong { font-size: 14px; color: var(--wilson-green); }
 .tech-life-stage small { color: var(--muted); font-size: 9px; line-height: 1.3; }
-.tech-photo-button.required-photo { border-style: solid; border-color: #7da487; background: #f1f8f2; }
+.tech-photo-button.required-photo { border-style: solid; border-color: #7da487; background: var(--primary-wash); }
 .tech-photo-button.optional-photo { color: #496052; font-weight: 700; }
 @media (max-width: 680px) {
   .tech-reading-fields { grid-template-columns: 1fr 1fr; }
@@ -4119,7 +4484,7 @@ tbody tr:last-child td {
   justify-content: space-between;
   gap: 16px;
 }
-.report-delivery-strip.ready { border-left-color: #17672d; background: #f0f8f2; }
+.report-delivery-strip.ready { border-left-color: var(--primary-deep); background: var(--primary-wash); }
 .report-delivery-strip.warning { border-left-color: #c88700; background: #fff9ec; }
 .report-delivery-strip > div:first-child { display: grid; gap: 3px; }
 .report-delivery-strip > div:first-child > strong { color: #102033; font-size: 14px; }
@@ -4144,7 +4509,7 @@ body.tech-mode .brand-logo {
   width: 190px;
 }
 body.tech-mode .section-pill {
-  background: #e6f1e8;
+  background: var(--primary-tint);
   color: var(--wilson-green-dark);
 }
 
@@ -4160,7 +4525,7 @@ body.tech-mode .section-pill {
   color: #fff;
   border-radius: 22px;
   padding: 20px 22px;
-  box-shadow: 0 16px 34px rgba(15,71,29,.18);
+  box-shadow: 0 16px 34px rgba(var(--primary-rgb),.18);
   overflow: hidden;
 }
 .tech-visit-head::after {
@@ -4285,7 +4650,7 @@ body.tech-mode .section-pill {
   gap: 14px;
   margin-top: 14px;
   padding: 15px;
-  background: linear-gradient(135deg,#edf7ef,#fff 70%);
+  background: linear-gradient(135deg,var(--primary-tint),#fff 70%);
   border: 1px solid #bcd5c2;
   border-radius: 18px;
   box-shadow: var(--shadow-soft);
@@ -4396,8 +4761,8 @@ body.tech-mode .section-pill {
   margin-top: 14px;
   padding: 18px;
   border-radius: 18px;
-  background: #eef8f0;
-  border: 1px solid #acd2b5;
+  background: var(--primary-wash);
+  border: 1px solid var(--primary-soft-2);
   box-shadow: var(--shadow-soft);
 }
 .tech-finish-check {
@@ -4542,7 +4907,7 @@ body.tech-mode .section-pill {
   font-weight: 750;
   color: var(--muted);
 }
-.tech-quick-rating button.good.selected { border-color: #7fbb8b; background: #edf8ef; color: var(--success); }
+.tech-quick-rating button.good.selected { border-color: var(--primary-soft); background: var(--primary-tint); color: var(--success); }
 .tech-quick-rating button.monitor.selected { border-color: #e7c16a; background: #fff8e7; color: var(--warning); }
 .tech-quick-rating button.poor.selected { border-color: #dfa49d; background: #fff1ef; color: var(--danger); }
 .tech-rating-value { color: var(--wilson-green); }
@@ -4571,7 +4936,7 @@ body.tech-mode .section-pill {
 }
 .tech-readiness strong { display: block; font-size: 11px; }
 .tech-readiness small { display: block; color: var(--muted); font-size: 9px; margin-top: 1px; }
-.tech-readiness.ready { background: var(--success-bg); border-color: #b8d8c0; }
+.tech-readiness.ready { background: var(--success-bg); border-color: var(--primary-soft-2); }
 .tech-readiness.ready > span { background: var(--wilson-green); color: white; }
 .tech-bottom-actions .button:disabled {
   opacity: .45;
@@ -4632,10 +4997,2164 @@ body.tech-mode .section-pill {
 .tech-quick-rating.five button b { display:block; font-size:18px; line-height:1; }
 .tech-quick-rating.five button span { font-size:7px; line-height:1.15; white-space:normal; }
 .tech-quick-rating button.concern.selected { border-color:#e09a8e; background:#fff1ef; color:#9b3027; }
-.tech-quick-rating button.excellent.selected { border-color:#5e9f6c; background:#e8f6eb; color:#0e5c25; }
+.tech-quick-rating button.excellent.selected { border-color:#5e9f6c; background:var(--primary-tint); color:var(--primary-hover); }
 @media (max-width:700px){
   .tech-quick-rating.five { gap:4px; }
   .tech-quick-rating.five button { min-height:56px; border-radius:11px; }
   .tech-quick-rating.five button b { font-size:20px; }
   .maintenance-domain-card .section-heading { gap:10px; }
 }
+
+/* ---- Field protocol: accordion cards -----------------------------------
+   One check open at a time, chosen by the technician. Collapsed cards keep
+   number, name, status and rating visible so the whole protocol stays legible
+   without five screens of scrolling. */
+.tech-check-card .tech-check-head {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  width: 100%;
+  padding: 14px 16px;
+  border: 0;
+  background: none;
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+}
+
+.tech-check-card.collapsed { padding-bottom: 0; }
+.tech-check-card.collapsed .tech-check-head { padding: 12px 16px; }
+
+.tech-check-card .tech-check-title { flex: 1 1 auto; min-width: 0; }
+.tech-check-card .tech-check-title strong { display: block; font-size: 14px; line-height: 1.3; }
+.tech-check-card.collapsed .tech-check-title strong { font-size: 13px; }
+
+.tech-check-body { padding: 0 16px 16px; }
+
+.tech-check-prompt {
+  margin: 0 0 8px;
+  color: #33413a;
+  font-size: 13px;
+  line-height: 1.45;
+  text-wrap: pretty;
+}
+
+.tech-check-body .tech-guidance {
+  margin: 0 0 12px;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+/* Status chip must not be squeezed by a long check name. */
+.tech-check-card .tech-check-status {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+.tech-check-card .tech-check-number { flex: 0 0 auto; }
+
+.tech-check-card .tech-check-status b {
+  display: inline-block;
+  min-width: 22px;
+  font-size: 15px;
+  text-align: center;
+}
+
+/* Not-applicable: a real state, distinct from "not started". */
+.tech-check-card.attention-na { opacity: 0.72; }
+.tech-check-status.attention-na { background: #eceff0; color: #5d6b60; }
+
+.tech-na-button {
+  display: block;
+  width: 100%;
+  margin-top: 8px;
+  padding: 9px 12px;
+  border: 1px dashed #c3cec6;
+  border-radius: 10px;
+  background: none;
+  color: #5d6b60;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.tech-na-button.selected {
+  border-style: solid;
+  border-color: #8d9a91;
+  background: #eceff0;
+  color: #33413a;
+  font-weight: 600;
+}
+
+/* Optional inputs sit behind a tap rather than occupying the card by default.
+   Notes and photos are used on a minority of checks; rendering both inline on
+   every check was most of the page height. */
+.tech-optional-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+
+.tech-optional-toggle {
+  flex: 1 1 0;
+  padding: 10px 12px;
+  border: 1px solid #d7e0da;
+  border-radius: 10px;
+  background: #f7faf8;
+  color: #33413a;
+  font-size: 12px;
+  text-align: center;
+  cursor: pointer;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.tech-optional-toggle input[type="file"] { display: none; }
+.tech-optional-toggle.filled { border-color: #6fa982; background: var(--primary-tint); color: var(--primary-deep); font-weight: 600; }
+
+.tech-note-field { margin-top: 8px; }
+.tech-note-field.hidden { display: none; }
+.tech-note-field input {
+  width: 100%;
+  padding: 11px 12px;
+  border: 1px solid #d7e0da;
+  border-radius: 10px;
+  font-size: 14px;
+}
+
+
+/* ==== Internal dashboard: operating bar, queue, density ====================
+   The dashboard previously spent 595px of a 950px laptop screen on a hero, a
+   paragraph of onboarding prose and an eight-tile nav with permanent
+   explainers, putting the first actionable button at 1015px -- below the fold.
+   Everything here is in service of getting real work onto the first screen. */
+
+.ops-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 18px 28px;
+  margin: 0 0 18px;
+  padding: 18px 22px;
+  border-radius: 16px;
+  background: linear-gradient(135deg, var(--primary-ink), var(--primary-hover));
+  color: var(--primary-tint);
+}
+
+.ops-bar-title { flex: 1 1 260px; min-width: 0; }
+.ops-bar-title h1 { margin: 0; font-size: 26px; line-height: 1.15; color: #fff; }
+.ops-bar-sub { display: block; margin-top: 4px; font-size: 12.5px; color: #a9c9b4; }
+
+.ops-bar-stats { display: flex; flex-wrap: wrap; gap: 10px; }
+
+/* The counts are also the queue filters: a number you can act on rather than
+   one you read and then go hunting for. */
+.ops-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 104px;
+  padding: 9px 14px;
+  border: 1px solid rgba(255,255,255,.16);
+  border-radius: 11px;
+  background: rgba(255,255,255,.07);
+  color: var(--primary-tint);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background .14s ease, border-color .14s ease;
+}
+
+.ops-stat:hover { background: rgba(255,255,255,.13); }
+.ops-stat.active { background: var(--primary-tint); border-color: var(--primary-tint); color: var(--primary-ink); }
+.ops-stat.active span { color: var(--primary); }
+.ops-stat strong { font-size: 24px; line-height: 1; font-variant-numeric: tabular-nums; }
+.ops-stat span { font-size: 11px; letter-spacing: .04em; text-transform: uppercase; color: #a9c9b4; }
+.ops-stat:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+
+/* Nav: one compact row. The two-line descriptions under each tile were
+   onboarding a daily user does not need repeated forever. */
+.internal-nav-grid { display: flex; flex-wrap: wrap; gap: 6px; }
+
+.internal-nav-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 9px 14px;
+  min-height: 40px;
+  border: 1px solid transparent;
+  border-radius: 9px;
+  background: none;
+  color: #33413a;
+  font-size: 13.5px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.internal-nav-item .nav-glyph { font-size: 13px; opacity: .6; }
+.internal-nav-item:hover { background: #eef4f0; }
+.internal-nav-item.active { background: var(--primary-ink); border-color: var(--primary-ink); color: #fff; }
+.internal-nav-item.active .nav-glyph { opacity: .85; }
+.internal-nav-item:focus-visible { outline: 2px solid var(--primary-ink); outline-offset: 2px; }
+
+/* ---- the queue ---- */
+.ops-queue-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 4px 0 10px;
+}
+
+.ops-queue-head .label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: #5d6b60;
+}
+
+.ops-queue { display: flex; flex-direction: column; gap: 8px; }
+
+.ops-queue .ops-row {
+  display: grid;
+  grid-template-columns: 132px 1fr auto;
+  align-items: center;
+  gap: 8px 16px;
+  padding: 14px 18px;
+  border: 1px solid #dfe7e2;
+  border-left: 4px solid #c8d4cd;
+  border-radius: 12px;
+  background: #fff;
+}
+
+/* Severity reads from the stripe before anything is parsed. */
+.ops-queue .stage-blocked { border-left-color: #b3261e; }
+.ops-queue .stage-charge  { border-left-color: var(--primary-ink); }
+.ops-queue .stage-ticket  { border-left-color: #b3701e; }
+.ops-queue .stage-report  { border-left-color: var(--primary-bright); }
+/* v0.9.34. Softer than the stages above it on purpose: an equipment gap never
+   stops money or a truck. */
+.ops-queue .stage-equipment { border-left-color: #5f7f9a; }
+
+.stage-chip {
+  justify-self: start;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .03em;
+  white-space: nowrap;
+}
+
+.stage-chip.danger  { background: #fdeceb; color: #a1201a; }
+.stage-chip.accent  { background: #e8f1ea; color: var(--primary-ink); }
+.stage-chip.warn    { background: #fbf1e3; color: #8a5216; }
+.stage-chip.success { background: var(--primary-tint); color: var(--primary); }
+
+/* Three explicit columns: stage, subject, action. */
+.ops-row-stage { display: flex; flex-direction: column; gap: 5px; align-items: flex-start; }
+.ops-timing { font-size: 11.5px; color: #5d6b60; }
+.ops-row-body { min-width: 0; }
+.ops-row-action { justify-self: end; }
+.ops-item-bottom { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 7px; }
+.ar-chip { padding: 2px 7px; border-radius: 999px; background: #eef2f0; color: #46564d; font-size: 10.5px; font-weight: 700; }
+
+.ops-queue .ops-item-top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: flex-start;   /* was space-between, which flung the AR chip to the far edge */
+  gap: 4px 10px;
+  margin: 0;
+}
+
+.ops-queue .ops-item-bottom {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-start;   /* same: status badges belong together, not at opposite ends */
+  gap: 5px;
+  margin-top: 7px;
+}
+
+.ops-queue .ops-item-top a { font-size: 15px; font-weight: 700; }
+.ops-queue .ops-item-top span { font-size: 12.5px; color: #5d6b60; }
+.ops-queue .ops-item-plan { margin: 3px 0 0; font-size: 12.5px; color: #5d6b60; }
+
+.ops-empty {
+  padding: 22px;
+  border: 1px dashed #cfdad4;
+  border-radius: 12px;
+  background: #f7faf8;
+  color: #5d6b60;
+  text-align: center;
+}
+
+.qty-inline { display: flex; align-items: center; gap: 6px; margin-top: 6px; }
+.qty-inline .compact-number { width: 58px; }
+
+.link-button {
+  border: 0;
+  background: none;
+  padding: 0;
+  color: var(--primary-ink);
+  font: inherit;
+  font-weight: 600;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+@media (max-width: 900px) {
+  .ops-queue .ops-row { grid-template-columns: 1fr; }
+  .ops-bar-stats { width: 100%; }
+  .ops-stat { flex: 1 1 calc(50% - 5px); min-width: 0; }
+}
+
+/* The nav shell stretched a 190px-wide column of four stacked buttons alongside
+   the tabs, so a one-line nav still occupied 205px. Tabs and actions now share a
+   single row. */
+.internal-nav-shell {
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px 14px;
+  padding: 7px 9px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: rgba(255,255,255,.78);
+  box-shadow: var(--shadow-soft);
+}
+
+.internal-nav-grid {
+  flex: 1 1 auto;
+  padding: 0;
+  border: 0;
+  background: none;
+  box-shadow: none;
+  border-radius: 0;
+}
+
+.internal-nav-item {
+  min-height: 38px;
+  padding: 8px 13px;
+  border-radius: 9px;
+}
+
+.internal-nav-item .nav-glyph {
+  width: auto;
+  height: auto;
+  background: none;
+  color: inherit;
+  font-weight: 600;
+}
+
+.internal-nav-item.active .nav-glyph { background: none; color: inherit; }
+
+.internal-quick-actions {
+  width: auto;
+  flex-direction: row;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.internal-quick-actions .button { padding: 8px 14px; font-size: 13px; }
+
+/* The command heading no longer carries a paragraph explaining the charge
+   window -- that moved to the operating bar subtitle, where it is stated once. */
+.command-intro { align-items: center; margin-bottom: 10px; }
+.command-intro h2 { margin: 4px 0 0; font-size: 22px; }
+
+@media (max-width: 1100px) {
+  .internal-quick-actions { width: 100%; }
+}
+
+
+/* ==== Health report: service history =====================================
+   Single-series charts only. Two measures never share a pair of axes; each
+   reading gets its own scale, its own target band and its own endpoint. */
+
+.trend-hero {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 20px 22px;
+  border: 1px solid #dfe7e2;
+  border-radius: 14px;
+  background: #fff;
+}
+
+.trend-hero-label {
+  display: block;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: #6b7a70;
+}
+
+.trend-hero-value {
+  display: block;
+  margin: 4px 0 2px;
+  font-size: 54px;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  color: var(--primary-ink);
+}
+
+.trend-hero-delta { font-size: 13px; color: #6b7a70; }
+.trend-hero-delta.down { color: #a83a20; font-weight: 600; }
+.trend-hero-delta.up { color: var(--primary); font-weight: 600; }
+/* A visit on record that could not be scored. Named beside the trend rather
+   than plotted at zero, which is what it used to be. */
+.trend-hero-note { display: block; margin-top: 4px; font-size: 12px; color: #6b7a70; }
+.not-scored { color: #6b7a70; font-style: italic; }
+/* The hedge that belongs beside a charge, not buried in the config. */
+.quote-line-note { display: block; margin-top: 2px; font-size: 12px; font-style: normal; color: #6b7a70; }
+
+/* The nameplate, on the HVAC report. Two kinds of figure in one grid, so each
+   one says which it is: a target the visit measured against, or a fact about
+   the equipment that is deliberately outside the score. */
+.report-nameplate { margin-bottom: 22px; }
+.report-nameplate h3 { margin: 0 0 6px; font-size: 15px; color: var(--primary-ink); }
+.nameplate-grid {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(168px, 1fr));
+  gap: 1px; margin: 12px 0 0; padding: 0;
+  background: #e4ebe6; border: 1px solid #e4ebe6; border-radius: 10px; overflow: hidden;
+}
+.nameplate-grid > div { background: #fff; padding: 10px 13px; }
+.nameplate-grid dt { font-size: 11px; letter-spacing: .04em; text-transform: uppercase; color: #6b7a70; }
+.nameplate-grid dd {
+  margin: 2px 0 0; font-size: 15px; font-weight: 700; color: #17211b;
+  font-variant-numeric: tabular-nums;
+}
+.nameplate-role {
+  display: block; margin-top: 2px;
+  font-size: 11px; font-weight: 500; letter-spacing: .01em; color: #7b877f; text-transform: none;
+}
+
+.trend-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.trend-figure {
+  margin: 0;
+  padding: 14px 16px 8px;
+  border: 1px solid #e4ebe6;
+  border-radius: 12px;
+  background: #fff;
+}
+
+.trend-figure figcaption {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 8px;
+  margin-bottom: 4px;
+}
+
+/* Text wears ink, never the series colour -- the mark carries identity. */
+.trend-label {
+  flex: 1 1 100%;
+  font-size: 12px;
+  font-weight: 600;
+  color: #33413a;
+}
+
+.trend-now { font-size: 22px; font-weight: 700; color: var(--primary-ink); font-variant-numeric: tabular-nums; }
+.trend-now i { font-style: normal; font-size: 12px; font-weight: 600; color: #6b7a70; margin-left: 1px; }
+.trend-delta { font-size: 11px; color: #6b7a70; }
+/* State, not direction: a rising inlet temperature is good and a rising
+   condenser split is not, so the delta never colours by its own sign. */
+.trend-delta.out { color: #a83a20; font-weight: 600; }
+.trend-delta.flat { color: #6b7a70; }
+
+.trend-figure svg { display: block; width: 100%; height: auto; overflow: visible; }
+.trend-hero .trend-figure { flex: 1 1 300px; border: 0; padding: 0; }
+.trend-hero .trend-figure figcaption { display: none; }
+
+.trend-empty {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 26px;
+  border: 1px dashed #cfdad4;
+  border-radius: 14px;
+  background: #f7faf8;
+}
+
+.trend-empty strong { font-size: 15px; color: #33413a; }
+.trend-empty span { font-size: 13px; color: #6b7a70; max-width: 62ch; }
+
+/* The table is the accessible equivalent of every chart above it. */
+.trend-table { margin-top: 16px; }
+.trend-table summary { cursor: pointer; font-size: 13px; font-weight: 600; color: var(--primary-ink); }
+.trend-table table { width: 100%; margin-top: 10px; border-collapse: collapse; font-size: 13px; }
+.trend-table th, .trend-table td { padding: 7px 10px; text-align: left; border-bottom: 1px solid #eef2f0; font-variant-numeric: tabular-nums; }
+.trend-table th { font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: #6b7a70; }
+
+@media print {
+  .trend-table { display: none; }
+  .trend-figure, .trend-hero { break-inside: avoid; }
+}
+
+
+/* ==== Appliances trending down ==========================================
+   Sits below the visit queue, not inside it. The queue is today's work; this
+   is work to raise before it becomes an emergency call. */
+
+/* An appliance the office should look at, marked in the row rather than only in
+   a badge the eye has to find. */
+tr.row-attention { background: #fdf8f3; }
+tr.row-attention td:first-child { box-shadow: inset 3px 0 0 #b3701e; }
+
+.trend-move { font-weight: 700; font-variant-numeric: tabular-nums; }
+.trend-move.down { color: #a83a20; }
+.trend-move.up { color: var(--primary); }
+.trend-move.flat { color: #6b7a70; }
+
+.decline-block { margin-top: 26px; }
+
+.decline-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  margin-bottom: 12px;
+}
+
+.decline-head h2 { margin: 4px 0 2px; font-size: 20px; }
+.decline-head p { margin: 0; max-width: 68ch; color: #5d6b60; font-size: 13px; }
+.decline-head .badge { margin-left: auto; white-space: nowrap; }
+
+.decline-list { display: flex; flex-direction: column; gap: 8px; }
+
+.decline-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 12px 20px;
+  padding: 14px 18px;
+  border: 1px solid #e6ded2;
+  border-left: 4px solid #b3701e;
+  border-radius: 12px;
+  background: #fff;
+}
+
+/* Severity from the worst signal present: already out of range reads louder
+   than heading that way. */
+.decline-row.severity-danger { border-left-color: #a83a20; }
+.decline-row.severity-warn { border-left-color: #b3701e; }
+.decline-row.severity-info { border-left-color: #8d9a91; }
+
+.decline-row-top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 10px;
+}
+
+.decline-row-top a { font-size: 15px; font-weight: 700; }
+.decline-row-top span { font-size: 13px; color: #5d6b60; }
+
+.decline-signals {
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.decline-signals li {
+  padding-left: 14px;
+  border-left: 2px solid #e4ebe6;
+  font-size: 12.5px;
+  line-height: 1.4;
+}
+
+.decline-signals li.signal-out { border-left-color: #a83a20; }
+.decline-signals li.signal-projected { border-left-color: #b3701e; }
+.decline-signals li.signal-score { border-left-color: #8d9a91; }
+
+.decline-signals strong { display: block; color: #33413a; }
+.decline-signals span { color: #6b7a70; }
+
+.decline-row-side {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.decline-score { text-align: right; }
+.decline-score strong {
+  display: block;
+  font-size: 26px;
+  line-height: 1;
+  color: var(--primary-ink);
+  font-variant-numeric: tabular-nums;
+}
+.decline-score span { font-size: 11px; color: #6b7a70; }
+
+@media (max-width: 900px) {
+  .decline-row { grid-template-columns: 1fr; }
+  .decline-row-side { flex-direction: row; align-items: center; justify-content: space-between; }
+}
+
+
+/* ==== Longevity page =====================================================
+   Wilson sold most of these appliances to these customers. The page is built
+   to say "keep it running" first and to make replacement hard to reach. */
+
+.longevity { display: flex; flex-direction: column; gap: 18px; }
+
+.longevity-empty {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 26px;
+  border: 1px dashed #cfdad4;
+  border-radius: 14px;
+  background: #f7faf8;
+}
+
+.longevity-empty strong { font-size: 15px; color: #33413a; }
+.longevity-empty span { font-size: 13px; color: #6b7a70; max-width: 62ch; }
+
+.longevity-posture {
+  padding: 18px 20px;
+  border-radius: 14px;
+  border-left: 4px solid var(--primary);
+  background: var(--primary-wash);
+}
+
+.longevity-posture.tone-action { border-left-color: #b3701e; background: #fdf6ec; }
+.longevity-posture.tone-watch  { border-left-color: #8d9a91; background: #f4f6f5; }
+.longevity-posture.tone-plan   { border-left-color: #a83a20; background: #fbf1ee; }
+
+.longevity-badge {
+  display: inline-block;
+  margin-bottom: 7px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: #33413a;
+}
+
+.longevity-posture p { margin: 0; max-width: 70ch; color: #33413a; line-height: 1.55; }
+
+.longevity-life {
+  padding: 18px 20px;
+  border: 1px solid #e4ebe6;
+  border-radius: 14px;
+}
+
+.longevity-life-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 14px; margin-bottom: 12px; }
+.longevity-life-head strong { font-size: 22px; color: var(--primary-ink); font-variant-numeric: tabular-nums; }
+.longevity-remaining { font-size: 13px; color: #6b7a70; }
+
+/* What the age rests on. Documented ages read as a quiet fact; undocumented
+   ones are marked, because a lifecycle figure is only as good as its age. */
+.longevity-age-source {
+  display: block; margin-top: 4px;
+  font-size: 12px; line-height: 1.45; color: #8a7a52;
+}
+.longevity-age-source.documented { color: #6b7a70; }
+
+/* The fact-grid tag: which KIND of expected-life figure this is. */
+.life-basis-tag {
+  display: inline-block; margin-left: 6px; padding: 1px 7px;
+  border: 1px solid #d7e2da; border-radius: 999px;
+  font-size: 11px; font-weight: 600; letter-spacing: .01em; color: #6b7a70;
+  white-space: nowrap; vertical-align: 1px;
+}
+
+/* Where the expected-life figure itself came from. Sits on its own line under
+   the age provenance, because they answer two different questions: how old is
+   it, and how long should one of these last. */
+.longevity-life-basis {
+  display: block; flex-basis: 100%; margin-top: 2px;
+  font-size: 12px; line-height: 1.45; color: #6b7a70;
+}
+
+/* A missing install date is a data gap the office can close, so it is marked
+   rather than left to read like any other sub-line. */
+.needs-date { color: #8a6d1e; font-weight: 700; }
+
+/* A single ratio against a limit: a meter, not a chart. */
+.life-meter {
+  height: 12px;
+  border-radius: 999px;
+  background: #eaf0ec;
+  overflow: hidden;
+}
+
+.life-meter-fill { height: 100%; background: var(--primary-ink); border-radius: 999px; }
+
+.life-meter-scale {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 6px;
+  font-size: 11px;
+  color: #6b7a70;
+  font-variant-numeric: tabular-nums;
+}
+
+.longevity-actions h3 { margin: 0 0 8px; font-size: 16px; }
+.longevity-actions ul { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 8px; }
+.longevity-actions li { padding-left: 14px; border-left: 2px solid #b3701e; }
+.longevity-actions li strong { display: block; color: #33413a; font-size: 14px; }
+.longevity-actions li span { color: #6b7a70; font-size: 13px; line-height: 1.45; }
+
+.longevity-note { margin: 10px 0 0; color: #5d6b60; font-size: 13px; max-width: 70ch; }
+
+.longevity-basis {
+  margin: 0;
+  padding-top: 12px;
+  border-top: 1px solid #eef2f0;
+  color: #6b7a70;
+  font-size: 12px;
+  line-height: 1.5;
+  max-width: 76ch;
+}
+
+
+/* ==== Whole-visit maintenance review ====================================
+   Compiles the individual appliance reports from one stop. The lead is a count,
+   never an average -- averaging a Sub-Zero against a microwave produces a number
+   that hides the one appliance that needs someone. */
+
+.visit-cover-score strong { font-size: 62px; }
+
+.portfolio-lead { margin-bottom: 20px; }
+.portfolio-lead strong { display: block; font-size: 22px; color: var(--primary-ink); line-height: 1.3; }
+.portfolio-lead p { margin: 8px 0 0; max-width: 70ch; color: #33413a; line-height: 1.55; }
+
+.portfolio-bands {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 10px;
+  margin-bottom: 20px;
+}
+
+.portfolio-band {
+  padding: 14px 16px;
+  border: 1px solid #e4ebe6;
+  border-radius: 12px;
+}
+
+.portfolio-band strong { display: block; font-size: 30px; line-height: 1; color: var(--primary-ink); font-variant-numeric: tabular-nums; }
+.portfolio-band span { display: block; margin: 4px 0 9px; font-size: 12px; color: #6b7a70; }
+
+.band-meter { height: 6px; border-radius: 999px; background: #eef2f0; overflow: hidden; }
+.band-meter-fill { height: 100%; border-radius: 999px; background: #8d9a91; }
+.portfolio-band.band-good .band-meter-fill { background: var(--primary); }
+.portfolio-band.band-monitor .band-meter-fill { background: #b3701e; }
+.portfolio-band.band-action .band-meter-fill { background: #a83a20; }
+
+.portfolio-mean {
+  padding: 14px 16px;
+  border-left: 3px solid #cfdad4;
+  background: #f7faf8;
+  border-radius: 0 10px 10px 0;
+  margin-bottom: 22px;
+}
+
+.portfolio-mean span { font-size: 12px; letter-spacing: .06em; text-transform: uppercase; color: #6b7a70; }
+.portfolio-mean strong { display: block; font-size: 30px; line-height: 1.1; color: var(--primary-ink); font-variant-numeric: tabular-nums; }
+.portfolio-mean small { display: block; margin-top: 5px; color: #6b7a70; font-size: 12px; line-height: 1.5; max-width: 72ch; }
+
+.portfolio-attention h3, .portfolio-area h3, .portfolio-next h3 { margin: 0 0 10px; font-size: 17px; }
+
+.attention-item {
+  padding: 14px 16px;
+  margin-bottom: 10px;
+  border: 1px solid #e6ded2;
+  border-left: 4px solid #b3701e;
+  border-radius: 12px;
+}
+
+.attention-item.status-action { border-left-color: #a83a20; }
+
+.attention-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; }
+.attention-head strong { font-size: 15px; }
+.attention-head span { font-size: 12.5px; color: #6b7a70; }
+.attention-head b { margin-left: auto; font-size: 18px; color: var(--primary-ink); font-variant-numeric: tabular-nums; }
+
+.attention-item ul { margin: 8px 0 0; padding-left: 18px; }
+.attention-item li { margin: 4px 0; font-size: 13px; color: #6b7a70; line-height: 1.45; }
+.attention-item li strong { color: #33413a; }
+.attention-posture { margin: 9px 0 0; font-size: 12.5px; color: #5d6b60; line-height: 1.5; }
+
+/* Where a category is deliberately inspect-only, the limit of the cover is
+   stated on the finding itself -- a customer should never have to work out
+   whether a marked-down condition was something we skipped. */
+/* Photographs on a finding: small enough that they support the text rather
+   than taking over the page. */
+.attention-photos { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+.attention-photo { margin: 0; width: 132px; }
+.attention-photo .photo-frame { aspect-ratio: 4 / 3; border-radius: 8px; }
+.attention-photo figcaption { margin-top: 4px; font-size: 11px; line-height: 1.35; color: #6b7a70; }
+
+.attention-scope {
+  margin: 9px 0 0;
+  padding: 8px 11px;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: #5d6b60;
+  background: #f6f4ef;
+  border-radius: 8px;
+}
+.attention-scope strong { color: #33413a; }
+
+.portfolio-next h3 + p { margin-top: 0; }
+.portfolio-next h3 ~ h3 { margin-top: 24px; }
+.portfolio-followups { margin: 8px 0 18px; padding-left: 18px; }
+.portfolio-followups li { margin: 6px 0; font-size: 13px; color: #6b7a70; line-height: 1.5; }
+.portfolio-followups li strong { color: #33413a; }
+
+.portfolio-intro { margin: 0 0 18px; color: #5d6b60; max-width: 72ch; }
+.portfolio-area { margin-bottom: 20px; break-inside: avoid; }
+.portfolio-area h3 span { font-weight: 400; font-size: 13px; color: #6b7a70; }
+
+.portfolio-table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+.portfolio-table th, .portfolio-table td { padding: 9px 12px; text-align: left; border-bottom: 1px solid #eef2f0; vertical-align: top; }
+.portfolio-table th { font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: #6b7a70; }
+
+.portfolio-status {
+  display: inline-block;
+  padding: 3px 9px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.portfolio-status.status-good { background: var(--primary-tint); color: var(--primary); }
+.portfolio-status.status-monitor { background: #fbf1e3; color: #8a5216; }
+.portfolio-status.status-action { background: #fdeceb; color: #a1201a; }
+
+.portfolio-next p { max-width: 72ch; color: #33413a; }
+.portfolio-basis {
+  margin-top: 18px;
+  padding-top: 12px;
+  border-top: 1px solid #eef2f0;
+  color: #6b7a70;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+/* ==== Offline banner ======================================================
+   Pinned to the bottom so it never covers the checkpoint being worked on, and
+   above the sticky action bar so it does not hide the Complete button either.
+   Deliberately calm: losing signal is normal on a job site, not an error. */
+.offline-banner {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 60;
+  padding: 10px 14px calc(10px + env(safe-area-inset-bottom));
+  background: #2c3b32;
+  color: #eef4ef;
+  font-size: 13px;
+  line-height: 1.5;
+  text-align: center;
+  box-shadow: 0 -2px 10px rgba(0, 0, 0, .18);
+}
+
+.offline-banner strong { color: #fff; }
+
+/* The field tool's action bar is sticky at the bottom; give it room so the
+   banner never sits on top of Complete. */
+body.is-offline .tech-bottom-actions { padding-bottom: 58px; }
+
+@media print { .offline-banner { display: none !important; } }
+
+/* ==== HVAC nameplate and derived readings ================================
+   The nameplate card is the mechanism behind "scored against its own design",
+   so it sits above the protocol rather than buried in a settings screen. */
+.tech-plate-card {
+  background: #f4f7f4; border: 1px solid #dbe5dc; border-radius: 14px;
+  padding: 12px; margin: 12px 0;
+}
+.tech-plate-head strong { display: block; font-size: 14px; color: var(--wilson-green); }
+.tech-plate-head span { display: block; margin-top: 3px; font-size: 12px; line-height: 1.45; color: var(--muted); }
+.tech-plate-grid {
+  margin-top: 10px; display: grid; gap: 8px;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+}
+.tech-plate-missing, .tech-plate-complete {
+  margin: 10px 0 0; font-size: 12px; line-height: 1.45;
+  padding: 8px 10px; border-radius: 8px;
+}
+.tech-plate-missing { background: #fdf6e8; color: #7a5f16; }
+.tech-plate-missing strong { color: #5d4810; }
+.tech-plate-complete { background: var(--primary-tint); color: var(--primary); }
+
+/* Derived values appear as the readings are entered -- superheat showing up
+   while the gauges are still on the system is how a transposed number gets
+   caught before the technician leaves. */
+.tech-derived-card {
+  background: var(--primary-tint); border: 1px solid #cfe0d5; border-radius: 14px;
+  padding: 10px 12px; margin: 10px 0;
+}
+.tech-derived-label {
+  display: block; font-size: 11px; font-weight: 700; letter-spacing: .08em;
+  text-transform: uppercase; color: #4c6b57;
+}
+.tech-derived-grid {
+  margin-top: 7px; display: grid; gap: 8px;
+  grid-template-columns: repeat(auto-fit, minmax(96px, 1fr));
+}
+.tech-derived-grid div { background: #fff; border-radius: 9px; padding: 7px 9px; }
+.tech-derived-grid strong {
+  display: block; font-size: 18px; line-height: 1.15; color: var(--wilson-green);
+  font-variant-numeric: tabular-nums;
+}
+.tech-derived-grid span { display: block; margin-top: 2px; font-size: 10.5px; line-height: 1.3; color: var(--muted); }
+
+@media (max-width: 480px) {
+  .tech-plate-grid { grid-template-columns: 1fr 1fr; }
+}
+
+/* ==== photographs waiting to upload =====================================
+   In the page, not over it: the field tool's Complete button is sticky at the
+   bottom of the screen, and a fixed status bar covering it would be a worse
+   bug than the one this line exists to report. */
+.photo-sync-chip {
+  margin: 12px 0 0; padding: 10px 12px; border-radius: 12px;
+  background: #f2f6f3; border: 1px solid #cfdfd4; color: #2c3b32;
+  font-size: 13px; line-height: 1.5;
+}
+.photo-sync-chip strong { color: var(--primary-ink); }
+.photo-sync-chip.stuck { background: #fbf3e6; border-color: #e0c48c; }
+.photo-sync-chip.done { background: var(--primary-tint); border-color: var(--primary-soft-2); }
+.photo-sync-chip button {
+  appearance: none; font: inherit; font-size: 12px; font-weight: 700;
+  margin-left: 4px; padding: 5px 10px; border-radius: 8px; cursor: pointer;
+  border: 1px solid var(--primary-ink); background: var(--primary-ink); color: #f4f8f5; min-height: 32px;
+}
+.photo-sync-chip button:disabled { opacity: .55; cursor: default; }
+@media print { .photo-sync-chip { display: none !important; } }
+
+/* ==== v0.9.16 touch targets ==============================================
+   Every rule here fixes a control that measured under 44 x 44 CSS px on a
+   390px viewport, or a pair of targets closer than 8px. The tool is used
+   one-handed, standing in front of an appliance, often in bad light: a
+   mis-tap on the rating row rates a checkpoint "Concern" instead of
+   "Monitor" and the card collapses before the technician sees it, and a
+   mis-tap at the bottom of the screen completes a visit instead of saving
+   it. Both are cheap to prevent and expensive to notice. */
+.footer-nav a { display: inline-flex; align-items: center; min-height: 44px; padding: 0 6px; }
+.icon-button { min-width: 44px; min-height: 44px; }
+@media (max-width: 700px) { .icon-button { width: 44px; height: 44px; } }
+.button { min-height: 44px; }
+.button.small { min-height: 40px; }
+.field input, .field select, .field textarea { min-height: 44px; }
+.tech-back-link { display: inline-flex; align-items: center; min-height: 44px; padding: 6px 0 10px; }
+.tech-photo-button, .tech-optional-toggle { min-height: 44px; display: inline-flex; align-items: center; justify-content: center; }
+.tech-na-button { min-height: 44px; margin-top: 14px; }
+.tech-note-field input { min-height: 44px; }
+button.tech-age-said { min-height: 44px; }
+.tech-attention-list button { min-height: 44px; }
+.tech-attention-list { gap: 10px; }
+.tech-property-note summary { min-height: 44px; display: flex; align-items: center; }
+@media (max-width: 700px) {
+  .tech-quick-rating.five { gap: 8px; }
+  .tech-quick-rating.five button span { font-size: 11px; color: var(--wilson-ink, #17251d); }
+}
+.tech-bottom-actions { gap: 10px; }
+
+/* ==== v0.9.16 contrast ===================================================
+   Measured, not eyeballed. Each of these was a real ratio below 4.5:1 for
+   body text on the tinted surfaces this product uses everywhere -- and the
+   worst offender was the word "Required" on a required field. */
+.field .hint { color: #5b6779; }
+.vital-target span, .tech-autosave, .tech-score-preview small,
+.tech-filter-status small, .tech-readiness small,
+.tech-area-heading p, .tech-protocol-heading p { color: #5b6779; }
+.portfolio-table th, .portfolio-mean span, .portfolio-mean small { color: #5e6c63; }
+.tech-check-status { font-size: 11px; color: #5a6660; }
+
+/* The numbers behind a trend chart belong on the printed report. They were
+   hidden in print, so a customer's Service History sheet carried four line
+   squiggles and one number where the actual four visits of data existed only
+   on screen -- with 2.8 inches of blank paper underneath. */
+@media print {
+  .trend-table { display: block !important; }
+  .trend-table > summary { display: none !important; }
+}
+
+/* The blocking reason, on the button itself. */
+.tech-bottom-actions .button { flex-direction: column; line-height: 1.25; }
+.tech-bottom-actions .button small {
+  display: block; font-size: 11px; font-weight: 600; opacity: .85; margin-top: 2px;
+}
+
+/* Measured at 19px tall: the control that opens the numbers behind a trend
+   chart, on the document a customer reads on a phone. */
+.trend-table > summary { min-height: 44px; display: flex; align-items: center; }
+/* .button.small is the "Report" link repeated once per appliance on the
+   whole-house review -- 40px measured, and the only way into a report. */
+.button.small { min-height: 44px; }
+
+/* The components of a blended score, on the cover beside the total. A single
+   number cannot distinguish a well-kept old appliance from a poorly-performing
+   new one, and those two customers need opposite conversations. */
+.report-cover-parts {
+  display: block; margin-top: 6px; font-size: 11px; font-weight: 600;
+  letter-spacing: .04em; opacity: .85;
+}
+
+/* ==== v0.9.17 tap-only answer controls ==================================
+   Every control here replaced a 1-5 rating that was standing in for
+   something it could not express. They are sized for a thumb first: a
+   technician is holding the phone one-handed with a probe in the other. */
+
+.tech-kind-note {
+  display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap;
+  margin: 10px 0 2px; font-size: 12px; line-height: 1.45; color: #4a564e;
+}
+.tech-kind {
+  flex: none; font-size: 10px; font-weight: 800; letter-spacing: .08em;
+  text-transform: uppercase; padding: 3px 7px; border-radius: 999px;
+  border: 1px solid #cfdfd4; background: #f2f6f3; color: #2c4a37;
+}
+.tech-kind-maintenance { border-color: #cbdcef; background: #eef4fb; color: #24486e; }
+.tech-kind-observed    { border-color: #e0d4bd; background: #fbf6ec; color: #6b5320; }
+.tech-kind-trend       { border-color: #d3d8e4; background: #f3f5fa; color: #3c4557; }
+
+/* Pick one: the label a technician reads and the words the customer will see,
+   in the same button, so nobody has to guess what a choice prints. */
+.tech-opts { display: grid; gap: 8px; margin: 12px 0 0; }
+.tech-opt {
+  appearance: none; text-align: left; cursor: pointer;
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  min-height: 52px; padding: 10px 12px; border-radius: 12px;
+  border: 1px solid #d7e2da; background: #fff; font: inherit;
+}
+.tech-opt .tech-opt-label { font-size: 15px; font-weight: 600; color: #17251d; line-height: 1.3; }
+.tech-opt .tech-opt-result {
+  flex: none; font-size: 11px; font-weight: 700; letter-spacing: .04em;
+  text-transform: uppercase; color: #5b6779;
+}
+.tech-opt.selected { border-color: var(--primary); background: var(--primary-tint); box-shadow: inset 0 0 0 1px var(--primary); }
+.tech-opt.selected .tech-opt-result { color: var(--primary-hover); }
+.tech-opt.attention.selected { border-color: #a8741a; background: #fbf3e6; box-shadow: inset 0 0 0 1px #a8741a; }
+.tech-opt.attention.selected .tech-opt-result { color: #7d5512; }
+
+/* v0.9.19: what the answer is worth, on the button.
+   Stacked under the result word and right-aligned, so a technician scanning the
+   list reads down a column of scores rather than hunting for them. */
+.tech-opt .tech-opt-meta {
+  flex: none; display: grid; gap: 2px; justify-items: end; text-align: right;
+}
+.tech-opt-score {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12px; font-weight: 700; letter-spacing: .02em;
+  padding: 2px 7px; border-radius: 6px; white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+/* The scale reads at a glance without being a traffic light: full marks and a
+   near-miss are quiet, a real deduction is warm, a failure is unmistakable. */
+.tech-opt-score.s5 { background: #e9f1eb; color: var(--primary-hover); }
+.tech-opt-score.s4 { background: #eef4ef; color: var(--primary); }
+.tech-opt-score.s3 { background: #fbf3e6; color: #7d5512; }
+.tech-opt-score.s2 { background: #f9ece2; color: #8a4a17; }
+.tech-opt-score.s1 { background: #f7e4e0; color: #8c2f22; }
+.tech-opt-score.none {
+  background: transparent; color: #6b7a70; font-weight: 600;
+  border: 1px dashed #cfdad4;
+}
+
+/* X of Y. A count a customer can verify by walking to the cooktop. */
+.tech-count { margin: 12px 0 0; }
+.tech-count-ask { display: block; font-size: 13px; font-weight: 600; color: #2c3b32; margin-bottom: 8px; }
+.tech-count-row { display: flex; flex-wrap: wrap; gap: 8px; }
+.tech-count-btn {
+  appearance: none; cursor: pointer; font: inherit; font-size: 16px; font-weight: 700;
+  min-width: 48px; min-height: 48px; border-radius: 12px;
+  border: 1px solid #d7e2da; background: #fff; color: #17251d;
+}
+.tech-count-btn.selected { border-color: var(--primary); background: var(--primary-ink); color: #f4f8f5; }
+.tech-count-reset {
+  appearance: none; border: 0; background: none; font: inherit; font-size: 12px;
+  font-weight: 700; color: var(--primary); text-decoration: underline; cursor: pointer;
+  min-height: 44px; padding: 0 4px;
+}
+.tech-count-result { display: block; margin-top: 8px; font-size: 14px; color: var(--primary-ink); }
+
+/* A reading is a button that opens the number pad. Filled or empty is
+   visible at arm's length, because an empty reading has to look empty. */
+.tech-keypad-fields { display: grid; gap: 8px; margin: 12px 0 0; }
+.tech-keypad-open {
+  appearance: none; cursor: pointer; font: inherit; text-align: left;
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  min-height: 52px; padding: 10px 12px; border-radius: 12px;
+  border: 1px dashed #c8d6cc; background: #f7faf8;
+}
+.tech-keypad-open.filled { border-style: solid; border-color: var(--primary); background: #fff; }
+.tech-keypad-label { font-size: 13px; font-weight: 600; color: #2c3b32; }
+.tech-keypad-label em { font-style: normal; font-size: 10px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: #5b6779; }
+.tech-keypad-value {
+  flex: none; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 17px; font-weight: 600; color: var(--primary-ink);
+}
+.tech-keypad-open:not(.filled) .tech-keypad-value { font-size: 13px; font-weight: 600; color: #6b7a70; font-family: inherit; }
+
+/* The number pad itself. Full-width sheet, keys a thumb cannot miss, and a
+   "Not measured" key because that is a real answer. */
+.tech-keypad-sheet {
+  position: fixed; inset: 0; z-index: 80; display: flex; align-items: flex-end;
+  background: rgba(12, 26, 18, .45); backdrop-filter: blur(2px);
+}
+.tech-keypad-sheet[hidden] { display: none; }
+.tech-keypad-inner {
+  width: 100%; max-width: 30rem; margin: 0 auto; background: #fff;
+  border-radius: 18px 18px 0 0; padding: 14px 14px calc(14px + env(safe-area-inset-bottom));
+  box-shadow: 0 -8px 30px rgba(0, 0, 0, .25);
+}
+.tech-keypad-top { display: flex; flex-direction: column; gap: 2px; margin-bottom: 8px; }
+.tech-keypad-top strong { font-size: 15px; color: var(--primary-ink); }
+.tech-keypad-top small { font-size: 12px; color: #5b6779; }
+.tech-keypad-display {
+  display: flex; align-items: baseline; justify-content: center; gap: 6px;
+  padding: 10px; margin-bottom: 10px; border-radius: 12px; background: #f2f6f3;
+}
+.tech-keypad-display span {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 30px; font-weight: 600; color: var(--primary-ink); font-variant-numeric: tabular-nums;
+}
+.tech-keypad-display em { font-style: normal; font-size: 14px; color: #5b6779; }
+.tech-keypad-keys { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+/*
+ * THE hidden ATTRIBUTE HAS TO WIN.
+ *
+ * `hidden` works by a UA rule of `display: none`, and ANY author rule that sets
+ * `display` beats it. The line above sets `display: grid` on both key blocks, so
+ * `codes.hidden = true` in openKeypad() did nothing to the letter pad: tapping a
+ * refrigerator's temperature opened a pad with the digits AND all 26 letters on
+ * it. The JavaScript was correct and the stylesheet quietly overruled it.
+ *
+ * The sheet itself already carried this guard (.tech-keypad-sheet[hidden]),
+ * which is the tell -- the trap was known in one place and not the other.
+ * Cayden found the result: "when i click on refrigeration bin temp to enter a
+ * value it opens a keyboard with numbers and letters now."
+ */
+.tech-keypad-keys[hidden] { display: none !important; }
+.tech-key {
+  appearance: none; cursor: pointer; font: inherit; font-size: 21px; font-weight: 700;
+  min-height: 56px; border-radius: 12px; border: 1px solid #d7e2da;
+  background: #fff; color: #17251d;
+}
+.tech-key.wide { font-size: 18px; }
+.tech-key.na { font-size: 13px; font-weight: 700; color: #5b6779; }
+.tech-key.done { background: var(--primary-ink); border-color: var(--primary-ink); color: #f4f8f5; font-size: 16px; }
+
+/* The code pad: six narrow columns instead of three wide ones, because a fault
+   code is F21 or 6E and the letters have to be reachable without a mode switch.
+   44px is the floor everything tappable in this tool holds to. */
+.tech-keypad-keys.code { grid-template-columns: repeat(6, 1fr); gap: 6px; }
+.tech-keypad-keys.code .tech-key { min-height: 46px; font-size: 16px; }
+.tech-keypad-keys.code .tech-key.wide,
+.tech-keypad-keys.code .tech-key.done.wide { grid-column: span 3; font-size: 16px; }
+
+/* An answer that owes a follow-up. Marked as owed rather than optional: the
+   check does not count as done until it is filled, and the technician needs to
+   see why before they walk away from the appliance. */
+.tech-detail-ask { margin-top: 10px; }
+.tech-detail-ask.needed { border-left: 3px solid #b4703a; padding-left: 10px; }
+.tech-detail-ask small {
+  display: block; margin-top: 6px; font-size: 12px; line-height: 1.5; color: #6b5340;
+}
+.tech-detail-ask.filled { border-left: 3px solid var(--primary); padding-left: 10px; }
+
+/* The number the tool works out for itself, under the readings it came from. */
+.tech-derived-inline {
+  display: flex; align-items: baseline; justify-content: space-between; gap: 10px;
+  margin: 8px 0 2px; padding: 8px 12px; border-radius: 10px;
+  background: #eef4ef; border: 1px solid #d7e2da;
+}
+.tech-derived-inline span { font-size: 12.5px; font-weight: 700; color: #3c4a42; }
+.tech-derived-inline strong {
+  font-size: 17px; color: var(--primary-ink); font-variant-numeric: tabular-nums;
+}
+
+body.keypad-open { overflow: hidden; }
+
+/* Maintenance performed: what the money bought, tapped not typed, and
+   incapable of moving a health score. */
+.tech-maint-card {
+  margin: 16px 0 0; padding: 12px; border-radius: 14px;
+  border: 1px solid #cbdcef; background: #f6faff;
+}
+.tech-maint-head strong { display: block; font-size: 14px; color: #1c3b5c; }
+.tech-maint-head small { display: block; font-size: 12px; line-height: 1.45; color: #40566d; margin: 2px 0 10px; }
+.tech-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.tech-chip {
+  appearance: none; cursor: pointer; font: inherit; font-size: 13px; font-weight: 600;
+  min-height: 44px; padding: 8px 12px; border-radius: 999px;
+  border: 1px solid #cbdcef; background: #fff; color: #24486e;
+}
+.tech-chip.selected { background: #1c3b5c; border-color: #1c3b5c; color: #f2f7fc; }
+
+@media print { .tech-keypad-sheet, .tech-maint-card { display: none !important; } }
+
+/* ==== v0.9.17 the three report sections =================================
+   Measured performance, what Wilson did, what the technician saw. The
+   separation is the point: it is what stops work performed from reading as
+   appliance health, and it lets the headline be a count rather than a
+   percentage. */
+.report-three { display: grid; gap: 14px; margin: 4px 0 16px; }
+.report-sec {
+  border: 1px solid #dfe8e2; border-left-width: 3px; border-radius: 0 10px 10px 0;
+  padding: 12px 14px; background: #fbfcfb; break-inside: avoid;
+}
+.report-sec h3 { margin: 0 0 6px; font-size: 13px; letter-spacing: .04em; text-transform: uppercase; color: var(--primary-ink); }
+.report-sec-measured { border-left-color: var(--primary); }
+.report-sec-performed { border-left-color: #24486e; }
+.report-sec-observed { border-left-color: #9a6a17; }
+.report-headline-count { margin: 0; font-size: 15px; color: #17251d; }
+.report-headline-count strong { font-size: 19px; color: var(--primary-ink); }
+.report-sec-note { margin: 8px 0 0; font-size: 11.5px; line-height: 1.5; color: #4a564e; }
+.report-empty-line { margin: 0; font-size: 12.5px; color: #5e6c63; }
+.report-did-list { margin: 0; padding-left: 18px; font-size: 13px; line-height: 1.7; color: #17251d; }
+.report-obs-list, .report-trend-list { list-style: none; margin: 0; padding: 0; }
+.report-obs-list li, .report-trend-list li {
+  display: grid; gap: 2px; padding: 7px 0; border-bottom: 1px solid #eef2ef;
+}
+.report-obs-list li:last-child, .report-trend-list li:last-child { border-bottom: 0; }
+.report-obs-list strong, .report-trend-list strong { font-size: 13px; color: #17251d; }
+.report-obs-list span, .report-trend-list span { font-size: 13px; color: #2c3b32; font-weight: 600; }
+.report-obs-list em, .report-trend-list em {
+  font-style: normal; font-size: 11px; letter-spacing: .03em; color: #5e6c63;
+}
+.report-obs-list p { margin: 2px 0 0; font-size: 12px; color: #4a564e; }
+
+/* A measurement of two things, printed as two things and their difference.
+   Wrapping is required here: three values plus a derived one has to hold at a
+   phone's width and inside a print column. */
+.report-trend-values { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-top: 3px; }
+.report-trend-value, .report-trend-derived { display: grid; gap: 0; }
+.report-trend-value em, .report-trend-derived em {
+  font-style: normal; font-size: 10.5px; letter-spacing: .04em;
+  text-transform: uppercase; color: #6b7a70;
+}
+.report-trend-value { font-size: 14px; font-weight: 700; color: #17251d; font-variant-numeric: tabular-nums; }
+.report-trend-derived {
+  font-size: 14px; font-weight: 700; color: var(--primary-ink); font-variant-numeric: tabular-nums;
+  padding-left: 12px; border-left: 2px solid #cfdfd4;
+}
+.report-trend-basis { display: block; margin-top: 3px; }
+
+/* A flagged condition reads as flagged even though it never touched the score. */
+.report-obs-list .obs-worth {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-weight: 700; color: #2c3b32; font-variant-numeric: tabular-nums;
+}
+.report-obs-list li.obs-attention { border-left: 3px solid #b4703a; padding-left: 10px; }
+.report-obs-list li.obs-attention span { color: #8a4f1f; }
+
+/* Stored fault codes: the code large, the check that found it beside it. */
+.report-codes { margin-top: 10px; padding: 10px 12px; border-radius: 10px; background: #f6f8f6; border: 1px solid #e2e9e3; }
+.report-codes h4 { margin: 0 0 6px; font-size: 12px; letter-spacing: .04em; text-transform: uppercase; color: #4a564e; }
+.report-codes ul { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px 18px; }
+.report-codes li { display: grid; }
+.report-codes strong { font-size: 16px; color: #17251d; font-variant-numeric: tabular-nums; letter-spacing: .04em; }
+.report-codes span { font-size: 11.5px; color: #5e6c63; }
+
+/* ==== v0.9.17 the age picker ============================================
+   The last free-text field in the protocol. Decade then year covers a
+   two-year-old dishwasher and a twenty-eight-year-old Sub-Zero in the same
+   two taps, which "0-15 and type if older" does not. */
+/* An unverified age reads differently from a documented one at a glance -- the
+   card is the same shape, the border is not, because "we have a year" and "a
+   document says this year" are different claims. */
+.tech-age-known.unverified { border-style: dashed; }
+.tech-age-known {
+  display: grid; grid-template-columns: auto 1fr auto; align-items: baseline;
+  gap: 4px 10px; padding: 10px 12px; border-radius: 12px;
+  border: 1px solid #cfdfd4; background: #f2f6f3;
+}
+.tech-age-known span { font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: #5b6779; }
+.tech-age-known strong { font-size: 20px; color: var(--primary-ink); font-variant-numeric: tabular-nums; }
+.tech-age-known em { grid-column: 1 / -1; font-style: normal; font-size: 12px; color: #4a564e; }
+.tech-age-known.unknown { border-color: #e0c48c; background: #fbf3e6; }
+.tech-age-known.unknown strong { font-size: 15px; }
+.tech-age-change {
+  appearance: none; border: 1px solid #cfdfd4; background: #fff; font: inherit;
+  font-size: 12px; font-weight: 700; color: var(--primary); border-radius: 999px;
+  min-height: 44px; padding: 0 12px; cursor: pointer;
+}
+.tech-age-pick { padding: 4px 0; }
+.tech-age-ask { display: block; font-size: 13px; font-weight: 700; color: #2c3b32; margin-bottom: 8px; }
+.tech-age-back, .tech-age-unknown {
+  appearance: none; border: 0; background: none; font: inherit; font-size: 12px;
+  font-weight: 700; color: var(--primary); text-decoration: underline; cursor: pointer;
+  min-height: 44px; padding: 0 4px;
+}
+.tech-age-row { display: flex; flex-wrap: wrap; gap: 8px; }
+.tech-age-btn {
+  appearance: none; cursor: pointer; font: inherit; font-size: 15px; font-weight: 700;
+  min-height: 48px; min-width: 68px; padding: 0 12px; border-radius: 12px;
+  border: 1px solid #d7e2da; background: #fff; color: #17251d;
+  font-variant-numeric: tabular-nums;
+}
+.tech-age-btn.older { min-width: 108px; font-size: 13px; }
+.tech-age-btn:hover { border-color: var(--primary); }
+
+/* ==== v0.9.21 the house's water =========================================
+   A residence-level card on the visit screen. Deliberately shaped like the age
+   picker rather than like a checkpoint, because it is the same kind of thing:
+   one fact about the property that several appliances then inherit. */
+.tech-water-card {
+  margin: 16px 0; padding: 16px; border-radius: 16px;
+  background: #f4f8fb; border: 1px solid #d5e2ea;
+}
+.tech-water-head { display: grid; gap: 3px; margin-bottom: 12px; }
+.tech-water-head strong { font-size: 16px; color: #17251d; }
+.tech-water-head small { font-size: 12.5px; line-height: 1.5; color: #5b6b76; }
+.tech-water-ask { margin: 0 0 12px; font-size: 13.5px; line-height: 1.5; color: #43535e; }
+.tech-water-known {
+  display: grid; grid-template-columns: auto 1fr; gap: 2px 10px;
+  align-items: baseline; padding: 10px 12px; margin-bottom: 12px;
+  border-radius: 12px; background: #fff; border: 1px solid #cfdfe8;
+}
+.tech-water-known span {
+  font-size: 11px; font-weight: 700; letter-spacing: .06em;
+  text-transform: uppercase; color: #5b6b76;
+}
+.tech-water-known strong { font-size: 22px; color: #17251d; font-variant-numeric: tabular-nums; }
+.tech-water-known em {
+  grid-column: 1 / -1; font-style: normal; font-size: 12.5px; color: #5b6b76;
+}
+/* v0.9.22: the band and softener pickers are gone -- the card takes one typed
+   reading. This is now the card's only control, so it is a full-width button
+   rather than the underlined afterthought the optional entry used to be. */
+.tech-water-enter {
+  appearance: none; cursor: pointer; font: inherit; font-size: 15px; font-weight: 700;
+  display: block; width: 100%; min-height: 52px; padding: 0 16px;
+  border-radius: 12px; border: 1px solid #2f6d8f;
+  background: #2f6d8f; color: #fff;
+}
+.tech-water-effect {
+  margin: 12px 0 0; font-size: 12.5px; line-height: 1.55; color: #5b6b76;
+  padding-left: 11px; border-left: 2px solid #cfdfe8;
+}
+
+/* The report's water paragraph. */
+.report-water {
+  margin-top: 10px; padding: 11px 13px; border-radius: 10px;
+  background: #f4f8fb; border: 1px solid #dbe7ee;
+}
+.report-water h4 {
+  margin: 0 0 5px; font-size: 12px; letter-spacing: .04em;
+  text-transform: uppercase; color: #4a564e;
+}
+.report-water p { margin: 0; font-size: 12.5px; line-height: 1.6; color: #3c4a42; }
+.report-water .report-water-figure {
+  font-weight: 700; color: #17251d; font-variant-numeric: tabular-nums;
+}
+/* The customer's hardness flag. Warm rather than alarming, and deliberately not
+   the red the report reserves for a fault: this is a property of the house, not
+   a defect in the appliance the customer is reading about. */
+.report-water-flag {
+  display: flex; gap: 10px; align-items: flex-start;
+  margin: 0 0 10px; padding: 10px 12px; border-radius: 9px;
+  background: #fbf3e6; border-left: 3px solid #b4703a;
+}
+.report-water-flag-mark {
+  flex: none; width: 19px; height: 19px; border-radius: 50%;
+  background: #b4703a; color: #fff; font-size: 12.5px; font-weight: 800;
+  line-height: 19px; text-align: center;
+}
+.report-water-flag strong {
+  display: block; font-size: 12.5px; color: #7d4a12; margin-bottom: 3px;
+}
+.report-water-flag span { font-size: 12px; line-height: 1.55; color: #6b5340; }
+.report-water-flag .report-water-figure { color: #7d4a12; }
+@media print {
+  .report-water-flag { break-inside: avoid; }
+}
+@media print { .tech-water-card { display: none !important; } }
+
+/* ==========================================================================
+   SCHEDULING PREFERENCES (v0.9.27)
+
+   Tap-only, like the field tool. Deliberately not a calendar: ePass owns the
+   schedule and cannot be written to, so nothing here reserves a date.
+   ========================================================================== */
+.sched-label {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 8px;
+  margin: 18px 0 8px;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: #5b6b76;
+}
+.sched-label em {
+  font-style: normal;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: none;
+  color: #8b98a1;
+}
+.sched-label:first-of-type { margin-top: 4px; }
+
+.sched-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.sched-chip {
+  appearance: none;
+  cursor: pointer;
+  font: inherit;
+  font-size: 13.5px;
+  font-weight: 700;
+  /* 44px: this is a phone form and these are the smallest targets on it. */
+  min-height: 44px;
+  min-width: 56px;
+  padding: 0 14px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: #fff;
+  color: #33413a;
+}
+.sched-chip:hover { border-color: #9fb3bf; }
+.sched-chip.selected {
+  border-color: var(--wilson-green);
+  background: var(--wilson-green);
+  color: #fff;
+}
+
+/* The one thing on this section that is a statement rather than a control. */
+.sched-privacy {
+  margin: 8px 0 0;
+  padding-left: 11px;
+  border-left: 2px solid #cfdfe8;
+  font-size: 12px;
+  line-height: 1.55;
+  color: #5b6b76;
+}
+
+.sched-blackout {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+  padding: 10px 13px;
+  border-radius: 10px;
+  background: #f7faf8;
+  border: 1px solid var(--line);
+}
+.sched-blackout strong { display: block; font-size: 13.5px; color: #17251d; }
+.sched-blackout small { font-size: 12px; color: #5b6b76; }
+
+.sched-blackout-add {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 10px;
+  margin-top: 4px;
+}
+.sched-blackout-add label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #5b6b76;
+}
+.sched-blackout-add input {
+  min-height: 44px;
+  padding: 0 11px;
+  border-radius: 9px;
+  border: 1px solid var(--line);
+  font: inherit;
+  font-size: 14px;
+  color: #17251d;
+  background: #fff;
+}
+.sched-blackout-why { flex: 1 1 180px; }
+.sched-blackout-why input { width: 100%; }
+
+/* Reads the preference back before they submit, in the customer's own words. */
+.sched-preview {
+  display: grid;
+  gap: 4px;
+  margin-top: 18px;
+  padding: 13px 15px;
+  border-radius: 12px;
+  background: #eef5f0;
+  border: 1px solid #cfe0d5;
+}
+.sched-preview strong {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--primary);
+}
+.sched-preview span { font-size: 13.5px; line-height: 1.55; color: #223b2c; }
+.sched-preview em {
+  font-style: normal;
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: #5c7266;
+}
+
+/* The office-facing version, on the household page and the ops queue. */
+.sched-office { display: grid; gap: 7px; }
+.sched-office-row {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 2px 10px;
+  align-items: baseline;
+  padding: 9px 12px;
+  border-radius: 9px;
+  background: #f7faf8;
+  border: 1px solid var(--line);
+}
+.sched-office-row.attention { background: #fbf3e6; border-color: #e5cfae; }
+.sched-office-row b {
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #5b6b76;
+  white-space: nowrap;
+}
+.sched-office-row span { font-size: 13px; color: #17251d; }
+.sched-office-row small { grid-column: 2; font-size: 12px; color: #5b6b76; }
+.sched-office-empty { font-size: 13px; color: #5b6b76; }
+
+@media (max-width: 560px) {
+  .sched-blackout-add label { flex: 1 1 140px; }
+  .sched-office-row { grid-template-columns: 1fr; }
+  .sched-office-row small { grid-column: 1; }
+}
+
+/* Scheduling constraints on an ops queue row -- present only when the household
+   has any, so an empty line never trains people to skip it. */
+.ops-item-sched {
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+  margin-top: 6px;
+  font-size: 12px;
+  line-height: 1.45;
+  color: #5b6b76;
+}
+.ops-item-sched > span:first-child {
+  flex: none;
+  font-weight: 800;
+  color: #8b98a1;
+}
+.ops-item-sched.has-access { color: #6b5340; }
+.ops-item-sched.has-access > span:first-child {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  background: #b4703a;
+  color: #fff;
+  font-size: 10.5px;
+}
+
+/* ==========================================================================
+   THE CUSTOMER LIST (v0.9.28)
+
+   Rows rather than a table: each customer carries a variable number of flags and
+   a scheduling line, and a five-column table had nowhere to put either without
+   a column that was empty on most rows.
+   ========================================================================== */
+.customer-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+.customer-filter {
+  appearance: none;
+  cursor: pointer;
+  font: inherit;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 40px;
+  padding: 0 13px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: #fff;
+  font-size: 13px;
+  font-weight: 700;
+  color: #33413a;
+}
+.customer-filter b {
+  font-variant-numeric: tabular-nums;
+  font-size: 12px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: #eef2f0;
+  color: #5b6b76;
+}
+.customer-filter:hover { border-color: #9fb3bf; }
+.customer-filter.selected {
+  border-color: var(--wilson-green);
+  background: var(--wilson-green);
+  color: #fff;
+}
+.customer-filter.selected b { background: rgba(255,255,255,.22); color: #fff; }
+/* An empty filter says so before it is clicked. */
+.customer-filter.is-empty { opacity: .55; }
+
+.customer-list { display: grid; gap: 10px; }
+.customer-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 12px 18px;
+  align-items: start;
+  padding: 15px 17px;
+  border-radius: 14px;
+  border: 1px solid var(--line);
+  background: #fff;
+}
+.customer-row.is-quote { background: #f7fafc; border-color: #d8e4ec; }
+.customer-row-name {
+  font-size: 16px;
+  font-weight: 800;
+  color: #17251d;
+  text-decoration: none;
+}
+.customer-row-name:hover { text-decoration: underline; }
+.customer-row-meta {
+  margin-top: 3px;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: #5b6b76;
+}
+.customer-row-flags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+.customer-row-sched {
+  margin-top: 7px;
+  padding-left: 10px;
+  border-left: 2px solid #cfdfe8;
+  font-size: 12px;
+  color: #5b6b76;
+}
+.customer-row-side {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.customer-row-next { text-align: right; }
+.customer-row-next strong {
+  display: block;
+  font-size: 14px;
+  color: #17251d;
+  font-variant-numeric: tabular-nums;
+}
+.customer-row-next span { font-size: 11.5px; color: #5b6b76; }
+/* Two routes off a customer row: the record, and the equipment details. They
+   stack rather than widening the row on a narrow screen. */
+.customer-row-actions { display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end; }
+
+/* An empty stage stays visible -- knowing nothing is blocked is different from
+   not being told whether anything is blocked. */
+.ops-stat.is-empty { opacity: .58; }
+
+@media (max-width: 620px) {
+  .customer-row { grid-template-columns: 1fr; }
+  .customer-row-side { justify-content: space-between; }
+  .customer-row-next { text-align: left; }
+}
+
+/* The internal header's real navigation (v0.9.28). Replaces a "tool rail" of two
+   non-interactive spans that looked like navigation and went nowhere. */
+.header-nav {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.header-nav-item {
+  display: inline-flex;
+  align-items: center;
+  min-height: 38px;
+  padding: 0 13px;
+  border-radius: 999px;
+  font-size: 13.5px;
+  font-weight: 700;
+  color: #2f4738;
+  text-decoration: none;
+  border: 1px solid transparent;
+}
+.header-nav-item:hover { background: rgba(var(--primary-rgb), .06); }
+.header-nav-item.current {
+  background: rgba(var(--primary-rgb), .09);
+  border-color: rgba(var(--primary-rgb), .16);
+  color: var(--primary-ink);
+}
+@media (max-width: 860px) {
+  /* The hamburger covers this on small screens; two links plus a button is more
+     than the header row can hold beside the logo. */
+  .header-nav { display: none; }
+}
+
+.ops-bar-tools { display: flex; justify-content: flex-end; margin: -6px 0 14px; }
+
+/* v0.9.30: where the expected-life figure came from. Sits under the disabled
+   field so the number is never a bare assertion on a technician's screen. */
+.tech-life-source{
+  display:block;
+  margin-top:6px;
+  font-size:12px;
+  line-height:1.35;
+  color:var(--ink-soft, #5c6b60);
+}
+
+/* =========================================================================
+   EQUIPMENT DETAILS  (v0.9.34)
+   Putting names on appliances a customer enrolled anonymously.
+   ====================================================================== */
+.equip-proposal { margin-top: 22px; }
+.equip-warnbar {
+  margin: 0 0 16px;
+  padding: 10px 14px;
+  border-radius: 4px;
+  background: #fbf1e3;
+  color: #8a5216;
+  font-size: 13.5px;
+  font-weight: 600;
+}
+.equip-match-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(310px, 1fr));
+  gap: 14px;
+}
+.equip-match {
+  border: 1px solid #dfe3dc;
+  border-left: 3px solid #c9ccc2;
+  border-radius: 4px;
+  padding: 14px 16px;
+  background: #fff;
+}
+/* Confirmed reads as chosen, not as merely valid -- the office is ticking a
+   decision, and the page should look like it took one. */
+.equip-match.is-confirmed { border-left-color: var(--primary-ink); background: #f7faf7; }
+.equip-match-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }
+.equip-where { display: block; font-size: 12.5px; color: #5d6b60; margin-top: 2px; }
+.equip-proposed { margin: 10px 0 4px; font-weight: 600; font-size: 14.5px; }
+.equip-why { display: block; margin: 2px 0 0; font-size: 12.5px; color: #5d6b60; line-height: 1.45; }
+.equip-guardrail {
+  margin: 8px 0 0;
+  padding: 8px 10px;
+  border-radius: 3px;
+  font-size: 12.5px;
+  line-height: 1.45;
+}
+.equip-guardrail.danger  { background: #fdeceb; color: #a1201a; }
+.equip-guardrail.warning { background: #fbf1e3; color: #8a5216; }
+.equip-confirm {
+  display: flex; align-items: center; gap: 8px;
+  margin-top: 12px; padding-top: 10px;
+  border-top: 1px solid #eceee8;
+  font-size: 13.5px; font-weight: 600; cursor: pointer;
+}
+.equip-confirm input { width: 18px; height: 18px; }
+.equip-block { margin-top: 26px; padding-top: 18px; border-top: 1px solid #eceee8; }
+.equip-block h3 { margin: 0 0 4px; font-size: 15px; }
+.equip-block > p { margin: 0 0 10px; font-size: 13.5px; color: #5d6b60; }
+.equip-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.equip-list li {
+  padding: 9px 12px;
+  border: 1px solid #eceee8;
+  border-radius: 3px;
+  font-size: 13.5px;
+  background: #fbfbf9;
+}
+.equip-manual-row {
+  display: grid;
+  /* v0.9.37: a sixth column for indoor/outdoor. The row was already the widest
+     thing on the page, so the fields narrow rather than the page growing. */
+  grid-template-columns: minmax(140px, 1.1fr) repeat(3, minmax(100px, 1fr)) minmax(84px, .6fr) minmax(120px, .9fr);
+  gap: 12px;
+  align-items: start;
+  padding: 12px 0;
+  border-bottom: 1px solid #eceee8;
+}
+.equip-manual-row:last-child { border-bottom: 0; }
+.equip-manual-row select {
+  padding: 7px 8px; border: 1px solid #d6ded8; border-radius: 6px;
+  font: inherit; font-size: 13px; background: #fff; color: #17211b;
+}
+/* Why this appliance is currently indoor or outdoor. A guess off an area name
+   and a flag somebody set are different grades of fact, so the row says which. */
+.equip-env-note { font-size: 11px; line-height: 1.4; color: #7b877f; }
+.equip-env-fixed span { font-size: 13px; font-weight: 700; color: #17211b; }
+.equip-env-fixed small { font-size: 11px; line-height: 1.4; color: #7b877f; }
+.equip-manual-row label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: #5d6b60; }
+.equip-manual-row input {
+  font: inherit; font-size: 14px; padding: 7px 9px;
+  border: 1px solid #c9ccc2; border-radius: 3px; background: #fff; width: 100%;
+}
+.equip-prov { font-size: 11px; color: #7b877f; }
+.equip-manual-flag { grid-column: 1 / -1; }
+.equip-manual-flag:empty { display: none; }
+@media (max-width: 760px) {
+  .equip-manual-row { grid-template-columns: 1fr 1fr; }
+  .equip-manual-row select { width: 100%; }
+  .equip-manual-row > div:first-child { grid-column: 1 / -1; }
+}
+
+/* =========================================================================
+   THE EQUIPMENT CARD IN THE FIELD  (v0.9.35)
+   Pre-filled details, and the two different things a technician can say
+   about them.
+   ====================================================================== */
+.tech-equip-card {
+  background: #fff;
+  border: 1px solid #dfe3dc;
+  border-radius: 8px;
+  padding: 14px 16px;
+  margin-bottom: 14px;
+}
+.tech-equip-head {
+  display: flex; justify-content: space-between; align-items: baseline; gap: 10px;
+  font-size: 11.5px; letter-spacing: .08em; text-transform: uppercase;
+  font-weight: 700; color: #7b877f; margin-bottom: 10px;
+}
+.tech-equip-empty { text-transform: none; letter-spacing: 0; color: #8a5216; font-weight: 600; }
+.tech-equip-row {
+  display: grid; grid-template-columns: 66px 1fr; gap: 4px 12px;
+  padding: 6px 0; border-bottom: 1px solid #f1f3ef; align-items: baseline;
+}
+.tech-equip-row:last-of-type { border-bottom: 0; }
+.tech-equip-row span { font-size: 12px; color: #5d6b60; }
+.tech-equip-row strong { font-size: 15px; }
+.tech-equip-row em { grid-column: 2; font-style: normal; font-size: 11.5px; color: #7b877f; }
+.tech-equip-retired { margin: 8px 0 0; font-size: 12px; color: #7b877f; }
+.tech-equip-flag {
+  margin: 10px 0 0; padding: 9px 11px; border-radius: 4px;
+  font-size: 13px; line-height: 1.45; font-weight: 600;
+}
+.tech-equip-flag.danger { background: #fdeceb; color: #a1201a; }
+.tech-equip-flag.warn   { background: #fbf1e3; color: #8a5216; }
+
+/* Indoor or outdoor. Sits with the other facts about the machine rather than
+   in the edit form, because it is one tap and the technician can see it. The
+   outdoor state is tinted so a field of appliance cards reads at a glance. */
+.tech-equip-env {
+  display: grid; grid-template-columns: 66px 1fr; gap: 3px 12px;
+  margin-top: 10px; padding: 9px 11px; border-radius: 6px;
+  background: #f4f7f4; border: 1px solid #e4ebe6; align-items: baseline;
+}
+.tech-equip-env.outdoor { background: #f6f2e6; border-color: #e6dcc4; }
+.tech-equip-env span { font-size: 12px; color: #5d6b60; }
+.tech-equip-env strong { font-size: 15px; }
+.tech-equip-env em { grid-column: 2; font-style: normal; font-size: 11.5px; line-height: 1.45; color: #7b877f; }
+.tech-equip-env-actions { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+/* The default case: one more fact row, with the override on the same line. */
+.tech-equip-envrow { grid-template-columns: 66px auto 1fr; align-items: center; }
+.tech-equip-env-link {
+  justify-self: end; min-height: 44px; padding: 0 4px;
+  background: none; border: 0; font: inherit; font-size: 12.5px; font-weight: 600;
+  color: var(--primary); text-decoration: underline; cursor: pointer;
+}
+/* Both actions are quiet and the same size. Making one primary would be the
+   tool having an opinion about which is true, which it cannot have. */
+.tech-equip-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.tech-equip-actions .button { flex: 1 1 auto; min-height: 44px; }
+.tech-equip-form { margin-top: 12px; }
+.tech-equip-editor {
+  border-top: 1px solid #eceee8; padding-top: 12px;
+  display: grid; gap: 10px;
+}
+.tech-equip-lead { margin: 0; font-size: 13px; line-height: 1.5; color: #5d6b60; }
+.tech-equip-editor label { display: flex; flex-direction: column; gap: 5px; font-size: 12px; color: #5d6b60; }
+.tech-equip-editor input {
+  font: inherit; font-size: 16px;   /* 16px stops iOS zooming the page on focus */
+  padding: 11px 12px; min-height: 44px;
+  border: 1px solid #c9ccc2; border-radius: 6px; background: #fff;
+}
+.tech-equip-flag-live:empty { display: none; }
+
+/* =====================================================================
+   THE VERDICT                                                  (v0.9.39)
+   =====================================================================
+   Three buttons, always the same three, big enough for gloves. The score
+   each is worth is printed on its face -- "predefined scores, where its
+   clear to the tech what to click" was Cayden's original condition and it
+   survives the simplification. */
+.tech-verdict-row {
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 10px 0 4px;
+}
+.tech-verdict-btn {
+  min-height: 62px; padding: 8px 6px; border-radius: 10px; cursor: pointer;
+  border: 2px solid #d6ded8; background: #fff; font: inherit;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
+}
+.tech-verdict-btn strong { font-size: 14.5px; line-height: 1.15; text-align: center; }
+.tech-verdict-btn span { font-size: 11px; color: #7b877f; font-variant-numeric: tabular-nums; }
+.tech-verdict-btn.verdict-pass.selected    { border-color: var(--primary); background: #e6f0e8; }
+.tech-verdict-btn.verdict-concern.selected { border-color: #b3701e; background: #f9efe0; }
+.tech-verdict-btn.verdict-fail.selected    { border-color: #a83a20; background: #f9e7e1; }
+.tech-verdict-btn.selected strong { color: #17211b; }
+
+/* The reason a non-pass owes. Amber while owed, quiet once given. */
+.tech-reason-area {
+  margin: 10px 0 2px; padding: 10px 12px; border-radius: 10px;
+  border: 1px solid #e6dcc4; background: #fbf6ea;
+}
+.tech-reason-area.filled { border-color: #dfe5df; background: #f6f8f6; }
+.tech-reason-head { display: flex; flex-direction: column; gap: 2px; margin-bottom: 8px; }
+.tech-reason-head strong { font-size: 13.5px; }
+.tech-reason-head small { font-size: 12px; color: #6b7a70; line-height: 1.4; }
+.tech-reason-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+.tech-reason-chip {
+  min-height: 44px; padding: 6px 12px; border-radius: 999px; cursor: pointer;
+  border: 1px solid #d6ded8; background: #fff; font: inherit; font-size: 13px; text-align: left;
+}
+.tech-reason-chip.selected { border-color: #8a5216; background: #f3e4cd; font-weight: 600; }
+.tech-reason-area .tech-note-field { margin: 0; }
+.tech-reason-area input {
+  width: 100%; min-height: 44px; padding: 8px 10px; border: 1px solid #d6ded8;
+  border-radius: 8px; font: inherit; font-size: 14px; background: #fff;
+}
+
+/* The return-visit flag. It reads as a decision, not a form field. */
+.tech-followup-flag {
+  width: 100%; margin-top: 8px; min-height: 44px; padding: 9px 12px;
+  border-radius: 8px; border: 1.5px dashed #b3701e; background: transparent;
+  font: inherit; font-size: 13px; font-weight: 600; color: #8a5216; cursor: pointer; text-align: left;
+}
+.tech-followup-flag.selected {
+  border-style: solid; background: #f3e4cd; color: #5d3a0e;
+}
+
+/* The fuel toggle sits above the readings it reveals. */
+.tech-fuel-toggle { margin: 8px 0 2px; }
+
+/* The photo a protocol demands, before it has it. */
+.tech-optional-toggle.photo-needed { border-color: #b3701e; color: #8a5216; font-weight: 700; }
+.tech-photo-required-hint { display: block; font-size: 11.5px; color: #8a5216; align-self: center; }
+
+/* The before-you-move-on reminder. */
+.tech-cycle-reminder {
+  display: flex; gap: 10px; align-items: flex-start; margin: 12px 0 0;
+  padding: 11px 13px; border-radius: 10px; border: 1px solid #cfe0d4; background: var(--primary-tint);
+}
+.tech-cycle-reminder span { font-size: 18px; line-height: 1; color: var(--primary); }
+.tech-cycle-reminder strong { font-size: 13.5px; }
+.tech-cycle-reminder small { display: block; font-size: 12px; color: #5d6b60; line-height: 1.45; margin-top: 2px; }
+.tech-cycle-reminder.done { background: #f6f8f6; border-color: #dfe5df; }
+.tech-cycle-reminder.done span { color: #6b7a70; }
+
+/* The one note for the whole appliance. Collapsed until wanted: an optional
+   affordance should cost one line of screen, not a card. */
+.tech-general-note { margin-top: 12px; border-radius: 10px; border: 1px solid #e2e7e2; background: #fff; }
+.tech-general-note-toggle {
+  display: block; width: 100%; min-height: 44px; padding: 10px 13px; text-align: left;
+  background: none; border: 0; font: inherit; font-size: 13.5px; font-weight: 600; color: var(--primary); cursor: pointer;
+}
+.tech-general-note-body { padding: 0 13px 12px; }
+.tech-general-note-body small { display: block; font-size: 12px; color: #6b7a70; line-height: 1.45; }
+.tech-general-note textarea {
+  width: 100%; margin-top: 8px; padding: 9px 10px; border: 1px solid #d6ded8;
+  border-radius: 8px; font: inherit; font-size: 14px; resize: vertical; background: #fff;
+}
+
+/* The technician's one note, and the return-visit promise. */
+.service-summary-box.technician-note em { display: block; margin-top: 6px; font-size: 12px; font-style: normal; color: #6b7a70; }
+.followup-commitment { margin-top: 18px; padding: 14px 16px; border-radius: 10px; border: 1px solid #e6dcc4; background: #fbf6ea; }
+.followup-commitment h3 { margin-top: 0; }
+.stage-followup .ops-row-action, .stage-sendquote .ops-row-action { display: flex; gap: 6px; flex-wrap: wrap; }
+/* v0.9.41: what this row becomes in the merged dashboard -- kept visibly
+   quieter than the work itself. */
+.ops-merge-note { font-style: italic; opacity: 0.75; }
+
+/* =====================================================================
+   WILSON TEMP WATCH                                            (v0.9.39)
+   ===================================================================== */
+.tw-fleet { display: grid; grid-template-columns: repeat(auto-fill, minmax(330px, 1fr)); gap: 14px; }
+.tw-card {
+  border: 1px solid #e2e7e2; border-radius: 12px; background: #fff;
+  padding: 14px 16px; display: flex; flex-direction: column; gap: 10px;
+}
+#tw-flags .tw-card { margin-bottom: 12px; }
+.tw-card.flagged { border-color: #e0b4a5; background: #fdf7f4; }
+.tw-card-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }
+.tw-card-head strong { font-size: 15px; display: block; }
+.tw-card-head span { font-size: 12px; color: #6b7a70; }
+.tw-spark { width: 100%; height: auto; }
+.tw-card-foot { display: flex; gap: 18px; align-items: baseline; flex-wrap: wrap; }
+.tw-card-foot span { display: block; font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: #7b877f; }
+.tw-card-foot strong { font-size: 15px; font-variant-numeric: tabular-nums; }
+/* Simulated data says so on every card -- honesty applies to demos too. */
+.tw-sim { margin-left: auto; font-size: 11px; font-style: normal; color: #9aa69d; align-self: center; }
+.tw-card-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+
+/* The hub's controls: one row, above the content, per the product's own
+   charting rules. Chips filter; they never repaint a card's identity. */
+.tw-controls {
+  display: flex; flex-wrap: wrap; gap: 10px; align-items: center;
+  margin: 0 0 14px; padding: 10px 12px;
+  background: #f6f8f6; border: 1px solid #e2e7e2; border-radius: 10px;
+}
+.tw-controls input[type="search"] {
+  flex: 1 1 240px; min-height: 44px; padding: 8px 12px;
+  border: 1px solid #d6ded8; border-radius: 8px; font: inherit; font-size: 14px; background: #fff;
+}
+.tw-chip-row { display: flex; gap: 6px; flex-wrap: wrap; }
+.tw-chip {
+  min-height: 44px; padding: 6px 12px; border-radius: 999px; cursor: pointer;
+  border: 1px solid #d6ded8; background: #fff; font: inherit; font-size: 13px;
+}
+.tw-chip b { font-weight: 700; color: #6b7a70; margin-left: 2px; }
+.tw-chip.selected { border-color: var(--primary-ink); background: #e6f0e8; font-weight: 600; }
+.tw-controls select {
+  min-height: 44px; padding: 8px 10px; border: 1px solid #d6ded8; border-radius: 8px;
+  font: inherit; font-size: 13.5px; background: #fff;
+}
+
+/* Guardian on the report: the sensor's 48 hours, full width of the sheet. */
+.guardian-lede { max-width: 70ch; }
+.guardian-lede em { color: #7b877f; }
+.guardian-chart { width: 100%; height: auto; margin: 10px 0 14px; }
+.guardian-stats { margin-bottom: 14px; }
+/* The reading the sensor supplied, saying so. */
+.tech-guardian-note {
+  margin: 8px 0 2px; padding: 8px 11px; border-radius: 8px;
+  background: #eef4fa; border: 1px solid #d3e0ec;
+  font-size: 12.5px; line-height: 1.45; color: #3b5f7a;
+}
+
+/* =====================================================================
+   THE ADD-ON SPOTLIGHT                                         (v0.9.40)
+   ===================================================================== */
+.addon-spotlight-backdrop {
+  position: fixed; inset: 0; z-index: 300;
+  background: rgba(18, 33, 23, 0.42);
+  display: flex; align-items: center; justify-content: center; padding: 18px;
+}
+.addon-spotlight {
+  width: min(560px, 100%); max-height: 90vh; overflow-y: auto;
+  background: #fff; border-radius: 16px; padding: 24px 26px;
+  box-shadow: 0 18px 50px -12px rgba(18, 33, 23, 0.45);
+}
+.addon-spotlight h3 { margin: 4px 0 16px; font-size: 21px; line-height: 1.2; }
+.addon-hero {
+  display: flex; gap: 16px; align-items: stretch;
+  border: 2px solid var(--primary-ink); border-radius: 12px; padding: 16px;
+  background: #f2f7f3;
+}
+.addon-hero-copy { flex: 1; }
+.addon-hero-copy strong { font-size: 16px; display: block; margin-bottom: 4px; }
+.addon-hero-copy p { margin: 0 0 8px; font-size: 13.5px; line-height: 1.5; }
+.addon-hero-copy small { font-size: 12px; color: #5d6b60; line-height: 1.45; display: block; }
+.addon-hero-action {
+  display: flex; flex-direction: column; justify-content: center; gap: 10px;
+  align-items: flex-end; flex: 0 0 auto;
+}
+.addon-price { font-size: 19px; font-weight: 700; color: var(--primary-ink); text-align: right; font-variant-numeric: tabular-nums; }
+.addon-price small { display: block; font-size: 11px; font-weight: 500; color: #6b7a70; }
+.addon-secondary {
+  margin-top: 14px; border: 1px solid #e2e7e2; border-radius: 12px; padding: 14px 16px;
+}
+.addon-secondary strong { font-size: 14px; }
+.addon-secondary p { margin: 4px 0 10px; font-size: 12.5px; color: #5d6b60; line-height: 1.5; }
+.addon-secondary-row { display: flex; flex-wrap: wrap; gap: 8px; }
+/* v0.9.49: the spotlight's exit is a real button, not the backdrop. The
+   continue button is full-width and primary so there is never a question of
+   how to get back to registering; it turns green once something was picked,
+   so a tap on "Add Guardian" visibly lands in two places. */
+.addon-spotlight-actions { display: flex; flex-direction: column; align-items: stretch; gap: 4px; margin-top: 18px; }
+.addon-done { width: 100%; justify-content: center; text-align: center; }
+.addon-done.addon-done-selected { background: var(--primary-deep); border-color: var(--primary-deep); color: #fff; }
+.addon-picked { background: var(--primary-tint-2) !important; border-color: var(--primary-deep) !important; color: var(--primary-ink) !important; }
+.addon-later { display: block; margin: 8px auto 0; font-size: 13px; }
+@media (max-width: 620px) {
+  .addon-spotlight-backdrop { align-items: flex-end; padding: 0; }
+  .addon-spotlight { border-radius: 16px 16px 0 0; max-height: 86vh; }
+  .addon-hero { flex-direction: column; }
+  .addon-hero-action { align-items: flex-start; flex-direction: row; justify-content: space-between; width: 100%; }
+}
+
+/* ==== v0.9.41: plan amendment, approved in the field =====================
+   The registration screen reopened over an existing plan. Locked cards are
+   the appliances already covered; the approval panel replaces both exits. */
+.selected-appliance-card.on-plan { background: #f6f8f6; border-style: dashed; }
+.selected-appliance-card.on-plan .selected-appliance-icon { opacity: 0.75; }
+.amend-plan-button { margin-top: 10px; }
+.amend-plan-hint { margin: 6px 0 0; }
+.amend-approve-panel {
+  border-top: 1px solid #dfe7e0; margin-top: 12px; padding-top: 12px;
+  display: grid; gap: 8px;
+}
+.amend-diff-line strong { color: var(--brand, var(--primary-deep)); font-size: 17px; }
+.amend-diff-line.credit strong { color: #8b5d00; }
+.amend-sign-hint { margin: 0; font-size: 11.5px; line-height: 1.45; color: var(--muted); }
+.amend-signature-wrap {
+  position: relative; border: 1px solid #cfd9d1; border-radius: 10px;
+  background: #fff;
+}
+.amend-signature-wrap canvas { display: block; touch-action: none; border-radius: 10px; }
+.amend-signature-baseline {
+  position: absolute; left: 12px; bottom: 14px; right: 12px;
+  border-bottom: 1px dashed #cfd9d1; color: #9aa89e; font-size: 12px;
+  pointer-events: none;
+}
+.amend-signature-clear {
+  position: absolute; top: 6px; right: 6px; border: 0; background: transparent;
+  color: var(--muted); font-size: 11px; cursor: pointer; padding: 4px 6px;
+}
+/* The tech tool's Guardian passthrough reuses the guardian note styling. */
+.tech-guardian-note.passthrough { margin: 0 0 10px; }
+
+/* ==== v0.9.42: removals in the field amendment ========================== */
+.remove-from-plan {
+  border: 1px solid #d9c1c1; background: #fff; color: #8a3d3d;
+  border-radius: 9px; padding: 6px 10px; font-size: 11px; cursor: pointer;
+}
+.amend-removed-list { display: grid; gap: 6px; font-size: 12px; }
+.amend-removed-chip {
+  display: inline-flex; align-items: center; gap: 8px;
+  background: #faf3f3; border: 1px dashed #d9c1c1; border-radius: 9px;
+  padding: 5px 9px; color: #6d4040;
+}
+.amend-removed-chip button {
+  border: 0; background: transparent; color: var(--brand, var(--primary-deep));
+  font-size: 11px; cursor: pointer; text-decoration: underline; padding: 0;
+}
+
+/* v0.9.43: the proration note under the billed-today line. */
+.amend-prorate-note { margin: -2px 0 0; font-size: 11px; line-height: 1.4; color: var(--muted); }
+
+/* ==== v0.9.47: per-compartment Guardian sensors ========================= */
+.tempwatch-compartments { display: grid; gap: 6px; margin: 4px 0 2px 26px; }
+.tempwatch-compartment {
+  display: flex; align-items: center; gap: 8px; font-size: 12px;
+  border: 1px dashed #cfd9d1; border-radius: 9px; padding: 6px 9px; background: var(--primary-faint);
+}
+.tempwatch-compartment small { display: block; color: var(--muted); font-size: 11px; }
+.tw-compartment { font-style: normal; font-size: 11px; font-weight: 600; color: #4a6a56; background: #eef4ef; border-radius: 6px; padding: 1px 6px; margin-left: 4px; }
+.guardian-compartment-head { margin: 14px 0 6px; font-size: 14px; }
+.addon-compartment-hint { display: block; margin-top: 6px; color: #4a6a56; }

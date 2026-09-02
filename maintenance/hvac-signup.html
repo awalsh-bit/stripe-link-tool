@@ -4,7 +4,10 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>HVAC Maintenance | Wilson</title>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <link rel="stylesheet" href="/public-shell.css">
   <link rel="stylesheet" href="assets/wilson.css">
+  <link rel="stylesheet" href="assets/agility-bridge.css">
 </head>
 <body data-mode="public" data-page-title="HVAC Maintenance">
   <header id="site-header"></header>
@@ -48,9 +51,45 @@
                 <div class="field"><label for="city">City</label><input id="city" name="city" required></div>
                 <div class="field"><label for="state">State</label><input id="state" name="state" value="TX" maxlength="2" required></div>
                 <div class="field"><label for="zip">ZIP</label><input id="zip" name="zip" required></div>
-                <div class="field"><label for="preferred-months">Preferred timing</label><input id="preferred-months" name="preferredMonths" value="Spring / Fall"></div>
-                <div class="field full"><label for="notes">Access or scheduling notes</label><textarea id="notes" name="notes"></textarea></div>
+                <div class="field full"><label for="notes">Anything else Wilson should know</label><textarea id="notes" name="notes"></textarea></div>
               </div>
+            </section>
+
+            <!-- The same scheduling control as the appliance form, mounted from
+                 the same module. HVAC is seasonal, so the month chips matter
+                 more here than anywhere. Still not a calendar: ePass owns the
+                 schedule and cannot be written to. -->
+            <section class="form-section" id="scheduling-section">
+              <div class="section-heading">
+                <div>
+                  <h2>When maintenance suits you</h2>
+                  <p>All optional, and none of it books a date &mdash; Wilson will call to arrange each visit. Most HVAC customers prefer spring and fall.</p>
+                </div>
+              </div>
+
+              <span class="sched-label">Best months <em>Leave blank for no preference</em></span>
+              <div class="sched-chips" id="sched-months"></div>
+
+              <span class="sched-label">Days that work <em>Leave blank for any day</em></span>
+              <div class="sched-chips" id="sched-days"></div>
+
+              <span class="sched-label">Time of day</span>
+              <div class="sched-chips" id="sched-times"></div>
+
+              <span class="sched-label">Getting in <em>So the technician is not turned away</em></span>
+              <div class="sched-chips" id="sched-access"></div>
+              <p class="sched-privacy">Wilson never asks for gate or alarm codes on this form. If entry needs a code, we will collect it by phone before the first visit.</p>
+
+              <span class="sched-label">Dates you will be away <em>Optional</em></span>
+              <div id="sched-blackouts"></div>
+              <div class="sched-blackout-add">
+                <label>From <input type="date" id="sched-blackout-from"></label>
+                <label>To <input type="date" id="sched-blackout-to"></label>
+                <label class="sched-blackout-why">Reason <input type="text" id="sched-blackout-note" placeholder="Travelling, renovation…" maxlength="60"></label>
+                <button type="button" class="button small secondary" id="sched-blackout-save">Add</button>
+              </div>
+
+              <div class="sched-preview" id="sched-preview" hidden></div>
             </section>
 
             <section class="form-section">
@@ -100,6 +139,8 @@
   <script src="assets/plan-config.js"></script>
   <script src="assets/ui.js"></script>
   <script src="assets/store.js"></script>
+  <script src="assets/scheduling-preference.js"></script>
   <script src="assets/hvac-builder.js"></script>
+  <script src="assets/offline.js"></script>
 </body>
 </html>

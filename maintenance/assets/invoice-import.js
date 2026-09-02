@@ -55,9 +55,7 @@
     const standard = config.customerApplianceCategories.map(function (category) {
       return `<option value="${category.id}" ${selected === category.id ? "selected" : ""}>${ui.escapeHtml(category.label)}</option>`;
     }).join("");
-    // Wilson decision 2026-08-24 (context §34 item 13): a combined WashTower /
-    // laundry center counts as ONE maintained asset — the split-pair option is gone.
-    return `<option value="review" ${selected === "review" ? "selected" : ""}>Needs classification</option>${standard}`;
+    return `<option value="review" ${selected === "review" ? "selected" : ""}>Needs classification</option><option value="washer_dryer" ${selected === "washer_dryer" ? "selected" : ""}>Washer + Dryer (split pair)</option>${standard}`;
   }
 
   function areaOptions(selected) {
@@ -113,11 +111,9 @@
       return `
         <tr class="${item.needsReview || item.customerCategory === "review" ? "invoice-row-review" : ""}" data-invoice-row="${index}">
           <td><input type="checkbox" data-import-field="include" ${item._include ? "checked" : ""} aria-label="Include ${ui.escapeHtml(item.model || item.description)}"></td>
+          <td><div class="table-title">${ui.escapeHtml(exactDetail || item.description)}</div><div class="table-sub">${ui.escapeHtml(item.description)}</div><div class="table-sub">${ui.escapeHtml(item.exactTypeLabel)} · ${ui.escapeHtml(item.invoiceNumber)}</div></td>
           <td><select class="compact-select" data-import-field="area">${areaOptions(item._area)}</select></td>
-          <td><input class="compact-number" type="number" min="1" max="25" data-import-field="quantity" value="${item._quantity}"></td>
-          <td><div class="table-title">${ui.escapeHtml(exactDetail || item.description)}</div><div class="table-sub">${ui.escapeHtml(item.description)}</div><div class="table-sub">${ui.escapeHtml(item.invoiceNumber)}</div></td>
-          <td><div class="table-title">${ui.escapeHtml(item.exactTypeLabel)}</div><div class="table-sub">${ui.escapeHtml(item.classification || "Invoice description")}</div></td>
-          <td><select class="compact-select category-select" data-import-field="category">${categoryOptions(item._category)}</select></td>
+          <td><select class="compact-select category-select" data-import-field="category">${categoryOptions(item._category)}</select><div class="table-sub qty-inline">Qty <input class="compact-number" type="number" min="1" max="25" data-import-field="quantity" value="${item._quantity}"></div></td>
           <td>${reviewBadge(item)}${(item.notes || []).length ? `<div class="row-note">${ui.escapeHtml(item.notes.join(" "))}</div>` : ""}</td>
         </tr>`;
     }).join("");
@@ -155,7 +151,8 @@
 
   function expandedCount(items) {
     return items.reduce(function (sum, item) {
-      return sum + Number(item._quantity || 1);
+      const multiplier = item._category === "washer_dryer" ? 2 : 1;
+      return sum + (Number(item._quantity || 1) * multiplier);
     }, 0);
   }
 
@@ -180,7 +177,7 @@
       renderResults();
       ui.toast("Invoice inventory extracted", `${payload.expandedAssetCount} maintenance records were found across ${payload.invoiceNumbers.length} invoice file${payload.invoiceNumbers.length === 1 ? "" : "s"}.`);
     } catch (error) {
-      ui.toast("Invoice import failed", error.message || "Open the prototype with OPEN_WILSON_PORTAL.bat and try again.");
+      ui.toast("Invoice import failed", error.message || "Check your connection and try again.");
     } finally {
       parseButton.textContent = previous;
       parseButton.disabled = !selectedFiles.length;
@@ -226,37 +223,68 @@
     const draftAssets = [];
     items.forEach(function (item, lineIndex) {
       const quantity = Math.max(1, Number(item._quantity || 1));
-      // Wilson decision 2026-08-24: a WashTower / laundry center is ONE
-      // maintained asset (exactType laundry_center keeps the combined
-      // `laundry` protocol via exact-type resolution). No pair expansion.
-      const categoryId = item._category;
+      const splitPair = item._category === "washer_dryer";
+      const categoryIds = splitPair ? ["washer", "dryer"] : [item._category];
       for (let unit = 0; unit < quantity; unit += 1) {
         const groupId = `invoice_${lineIndex}_${unit}`;
-        const category = categoryConfig(categoryId);
-        const exact = exactTypeConfig(item.exactType);
-        if (!category) continue;
-        const areaName = item._area || item.area || "Main House";
-        draftAssets.push({
-          id: `import_${lineIndex}_${unit}_${categoryId}`,
-          type: item.exactType || categoryId,
-          typeLabel: item.exactTypeLabel || category.label,
-          exactType: item.exactType || categoryId,
-          exactTypeLabel: item.exactTypeLabel || category.label,
-          customerCategory: categoryId,
-          group: category.group,
-          checkpointSet: (exact && exact.checkpointSet) || category.checkpointSet,
-          filterTypes: (exact && exact.filterTypes) || category.filterTypes || [],
-          imucVisitsPerYear: category.group === "imuc" ? 2 : 1,
-          brand: item.brand || "",
-          model: item.model || "",
-          serial: item.serial || "",
-          description: item.description || "",
-          sourceInvoice: item.invoiceNumber || "",
-          sourceGroupId: groupId,
-          source: "invoice",
-          needsReview: Boolean(item.needsReview),
-          areaId: areaMap[areaName],
-          location: areaName
+        categoryIds.forEach(function (categoryId) {
+          const category = categoryConfig(categoryId);
+          if (!category) return;
+          /*
+           * A WashTower becomes two independent maintained assets, so each half
+           * must carry its OWN appliance type. Both halves previously inherited
+           * the combined `laundry_center` exact type, and because exact type is
+           * the most specific input to protocol resolution, the technician got
+           * the combined `laundry` protocol on both -- instead of the five-check
+           * washer protocol on the washer and the five-check dryer protocol on
+           * the dryer. The split is priced, labelled and scheduled as two
+           * appliances; the protocol has to follow.
+           *
+           * The display label still names the WashTower it came from, so the
+           * office can see the two records are one physical product.
+           */
+          const exactTypeId = splitPair ? categoryId : item.exactType;
+          const exact = exactTypeConfig(exactTypeId);
+          const areaName = item._area || item.area || "Main House";
+          const pairSuffix = splitPair ? ` — ${category.label}` : "";
+          draftAssets.push({
+            id: `import_${lineIndex}_${unit}_${categoryId}`,
+            type: exactTypeId || categoryId,
+            typeLabel: `${item.exactTypeLabel || category.label}${pairSuffix}`,
+            exactType: exactTypeId || categoryId,
+            exactTypeLabel: `${item.exactTypeLabel || category.label}${pairSuffix}`,
+            customerCategory: categoryId,
+            group: category.group,
+            checkpointSet: (exact && exact.checkpointSet) || category.checkpointSet,
+            filterTypes: (exact && exact.filterTypes) || category.filterTypes || [],
+            imucVisitsPerYear: category.group === "imuc" ? 2 : 1,
+            brand: item.brand || "",
+            model: item.model || "",
+            serial: item.serial || "",
+            description: item.description || "",
+            sourceInvoice: item.invoiceNumber || "",
+            sourceGroupId: groupId,
+            source: "invoice",
+            needsReview: Boolean(item.needsReview),
+            areaId: areaMap[areaName],
+            location: areaName,
+            /*
+             * The documented age. Wilson sold this appliance, so the invoice
+             * date is real evidence of how old it is -- and age carries a
+             * quarter of every health score, which until now was a number the
+             * technician typed from memory.
+             *
+             * A low-confidence date is NOT imported as documented. The parser
+             * only reports "high" when it found the date anchored to the
+             * invoice number in the header block; anything looser could be a
+             * ship date or a due date, and a wrong install year moves the score
+             * silently where a missing one is reported as unknown.
+             */
+            installYear: item.invoiceDateConfidence === "high" && item.installYear ? item.installYear : null,
+            installDate: item.invoiceDateConfidence === "high" ? (item.invoiceDate || "") : "",
+            ageSource: item.invoiceDateConfidence === "high" && item.installYear ? "invoice" : "unknown",
+            ageSourceRef: item.invoiceDateConfidence === "high" && item.installYear ? (item.invoiceNumber || "") : ""
+          });
         });
       }
     });
@@ -326,9 +354,7 @@
   document.getElementById("clear-invoice-files").addEventListener("click", clearAll);
   document.getElementById("reset-invoice-import").addEventListener("click", clearAll);
   document.getElementById("create-maintenance-draft").addEventListener("click", createDraft);
-  document.getElementById("open-invoice-import").addEventListener("click", function () {
-    const tab = document.querySelector('[data-tab-target="panel-imports"]');
-    if (tab) tab.click();
-    document.getElementById("panel-imports").scrollIntoView({ behavior: "smooth", block: "start" });
-  });
+  /* `open-invoice-import` is gone with the tab it switched to (v0.9.28). The
+     importer is its own page now, so getting to it is a link, and a button whose
+     whole job was clicking a tab has nothing left to do. */
 })();

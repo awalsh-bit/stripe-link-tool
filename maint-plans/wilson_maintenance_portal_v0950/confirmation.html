@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Enrollment Received | Wilson</title>
+  <link rel="manifest" href="app.webmanifest">
+  <meta name="theme-color" content="#12331f">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link rel="apple-touch-icon" href="assets/icon-192.png">
+  <link rel="stylesheet" href="assets/wilson.css">
+</head>
+<body data-mode="public" data-page-title="Enrollment Received">
+  <header id="site-header"></header>
+  <main>
+    <div class="page-shell">
+      <section class="hero" style="max-width: 960px; margin: 0 auto;">
+        <div class="hero-grid" style="grid-template-columns: 1.25fr 0.75fr;">
+          <div>
+            <span class="eyebrow">Submitted</span>
+            <h1>Wilson has the maintenance enrollment.</h1>
+            <p>The office can now verify the household, equipment list, plan fit, payment authorization, and first maintenance interval before proceeding.</p>
+          </div>
+          <div class="hero-stat"><strong id="confirmation-plan">Plan</strong><span id="confirmation-household">Household</span></div>
+        </div>
+      </section>
+
+      <section class="section" style="max-width: 960px; margin-left: auto; margin-right: auto;">
+        <div class="card card-pad" id="confirmation-details"></div>
+      </section>
+
+      <section class="section" style="max-width: 960px; margin-left: auto; margin-right: auto;">
+        <div class="choice-grid">
+          <div class="card card-pad">
+            <span class="eyebrow dark">Customer next step</span>
+            <h2>Wilson reviews the details.</h2>
+            <!-- v0.9.48: filled by confirmation.js from the actual payment
+                 profile -- the static copy used to assert the card was
+                 authorized while the tile above said "Pending setup". -->
+            <p style="color: var(--muted);" id="confirmation-payment-copy">Wilson does not charge the plan until the scheduled maintenance interval is ready to proceed.</p>
+            <p style="color: var(--muted);">While you wait: <a class="text-link" href="customer-info.html">how our service works</a> — our principles, what visits do and don't include, Guardian expectations, FAQ, and the plan terms.</p>
+          </div>
+          <div class="card card-pad">
+            <span class="eyebrow dark">Office next step</span>
+            <h2>The household appears in the dashboard.</h2>
+            <p style="color: var(--muted);">Review the equipment, renewal authorization, due date, card status, and future NetSuite service-order action from the maintenance queue.</p>
+            <a class="button" href="admin.html" style="margin-top: 12px;">Open maintenance dashboard →</a>
+          </div>
+        </div>
+      </section>
+    </div>
+  </main>
+  <footer id="site-footer"></footer>
+  <script src="assets/plan-config.js"></script>
+  <script src="assets/ui.js"></script>
+  <script src="assets/store.js"></script>
+  <script src="assets/confirmation.js"></script>
+  <script src="assets/offline.js"></script>
+</body>
+</html>

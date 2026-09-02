@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Add equipment details | Wilson Internal</title>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <link rel="stylesheet" href="/internal-shell.css">
+  <link rel="stylesheet" href="assets/wilson.css">
+  <link rel="stylesheet" href="assets/agility-bridge.css">
+</head>
+<!--
+  PUTTING NAMES ON APPLIANCES THE CUSTOMER ENROLLED ANONYMOUSLY.  (v0.9.34)
+
+  Registration deliberately asks for none of this. Cayden: "i don't want to force
+  a customer to enter brand or model number during registration as that will
+  reduce our take rate and the usability of the customer facing registration."
+
+  So every household arrives as a set of SLOTS -- three refrigerators, a
+  dishwasher, a range -- and this is where they get names, before a technician
+  ever opens the appliance.
+
+  Two ways in, and they are the two Cayden described: upload the sales invoice if
+  Wilson has it, or key it by hand. The invoice route proposes; a person
+  confirms. Nothing is written until somebody presses the button at the bottom.
+
+  This is NOT the importer. invoice-import.html CREATES a household from an
+  invoice. This one attaches an invoice to a household that already exists, which
+  is a different job with a different failure mode: there, a wrong line makes a
+  wrong appliance; here, it puts somebody else's serial number on a machine
+  Wilson is about to service.
+-->
+<body data-mode="internal" data-page-title="Equipment details">
+  <header id="site-header"></header>
+
+  <main>
+    <div class="page-shell">
+      <div class="toolbar no-print">
+        <div class="inline-actions">
+          <a class="button ghost" id="back-link" href="admin.html">&larr; Today</a>
+        </div>
+        <div class="inline-actions">
+          <a class="button ghost" id="household-link" href="#">Open household</a>
+        </div>
+      </div>
+
+      <section class="ops-bar">
+        <div class="ops-bar-title">
+          <h1 id="equip-household">Equipment details</h1>
+          <span class="ops-bar-sub" id="equip-sub"></span>
+        </div>
+        <div class="ops-bar-stats" id="equip-stats" role="group" aria-label="What is still missing"></div>
+      </section>
+
+      <!-- Route one: the invoice. The parser is the same one the importer uses;
+           what differs is where the lines land. -->
+      <div class="card card-pad" id="equip-upload-card">
+        <div class="section-heading">
+          <div>
+            <h2>Start from a Wilson sales invoice</h2>
+            <p>Upload every PDF from the sale. Lines are matched onto the appliances this household enrolled &mdash; you confirm each one before anything is written.</p>
+          </div>
+          <span class="badge success">PDF parser active</span>
+        </div>
+        <input id="equip-files" type="file" accept="application/pdf,.pdf" multiple hidden>
+        <div id="equip-dropzone" class="invoice-dropzone" tabindex="0" role="button" aria-label="Choose Wilson sales invoice PDFs">
+          <div class="invoice-drop-icon">&#8613;</div>
+          <strong>Drop this household&rsquo;s invoices here</strong>
+          <span>For split sales, select the main invoice and every related file together.</span>
+          <button class="button secondary" id="equip-choose" type="button">Choose PDF files</button>
+        </div>
+        <div id="equip-file-list" class="invoice-file-list"></div>
+        <div class="invoice-import-actions">
+          <button class="button" id="equip-parse" type="button" disabled>Match against this household</button>
+          <button class="button ghost" id="equip-clear" type="button">Clear</button>
+        </div>
+        <p class="disclaimer">The prototype reads the Wilson invoice layout locally. Uploaded files are not sent outside this computer.</p>
+      </div>
+
+      <div id="equip-results"></div>
+
+      <!-- Route two: no invoice. Always available, never hidden behind a
+           failed upload -- plenty of these households did not buy from Wilson. -->
+      <section class="card card-pad" id="equip-manual-card">
+        <div class="section-heading">
+          <div>
+            <h2>Or key the details in</h2>
+            <p>For a household Wilson did not sell to, or an invoice nobody can find. Anything left blank stays blank &mdash; the technician can capture it on site.</p>
+          </div>
+        </div>
+        <div id="equip-manual"></div>
+        <div class="inline-actions" style="margin-top:14px">
+          <button class="button" id="equip-save-manual" type="button">Save keyed details</button>
+        </div>
+      </section>
+
+      <section class="card card-pad" id="equip-parked-card" hidden>
+        <div class="section-heading">
+          <div>
+            <h2>Sold, not covered</h2>
+            <p>Appliances on this household&rsquo;s invoices that are not on the plan. Kept on the file rather than discarded.</p>
+          </div>
+          <span class="badge" id="equip-parked-count">0</span>
+        </div>
+        <div id="equip-parked"></div>
+      </section>
+    </div>
+  </main>
+
+  <footer id="site-footer"></footer>
+  <script src="assets/plan-config.js"></script>
+  <script src="assets/ui.js"></script>
+  <script src="assets/store.js"></script>
+  <script src="assets/equipment-match.js"></script>
+  <script src="assets/equipment.js"></script>
+  <script src="assets/offline.js"></script>
+</body>
+</html>

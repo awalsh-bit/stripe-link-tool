@@ -8863,10 +8863,29 @@ app.get("/api/brand-sales", requirePagePermission("/brand-sales.html"), async (r
       getModelBrandMap()
     ]);
 
+    // Brand names arrive in two spellings — ePASS's CAPS ("WOLF", "GE
+    // PROFILE") from the inventory feed and NetSuite's proper case ("Wolf",
+    // "GE Profile") — so group on a case/punctuation-insensitive key and
+    // show the nicest spelling seen (proper case wins; CAPS-only gets
+    // title-cased, keeping 1–2 letter tokens like GE / LG upper).
+    const canonKey = (s) => String(s || "").trim().toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+    const titleCase = (s) => String(s || "").trim().replace(/[A-Za-z0-9']+/g, (w) => (w.length <= 2 ? w.toUpperCase() : w[0].toUpperCase() + w.slice(1).toLowerCase()));
+    const UNMATCHED = "— Model not in brand map —";
+    const displayFor = new Map();
+    for (const m of data.models) {
+      const raw = (brandMap[m.model]?.brand || "").trim();
+      if (!raw) continue;
+      const key = canonKey(raw);
+      const cur = displayFor.get(key);
+      const rawHasLower = /[a-z]/.test(raw);
+      if (!cur || (!/[a-z]/.test(cur) && rawHasLower)) displayFor.set(key, rawHasLower ? raw : titleCase(raw));
+    }
+
     const brands = new Map();
     for (const m of data.models) {
       const info = brandMap[m.model];
-      const brand = (info?.brand || "").trim() || "— Model not in brand map —";
+      const raw = (info?.brand || "").trim();
+      const brand = raw ? displayFor.get(canonKey(raw)) : UNMATCHED;
       if (!brands.has(brand)) brands.set(brand, { brand, revenue: 0, units: 0, models: [] });
       const b = brands.get(brand);
       b.revenue = Math.round((b.revenue + m.revenue) * 100) / 100;
@@ -8880,7 +8899,7 @@ app.get("/api/brand-sales", requirePagePermission("/brand-sales.html"), async (r
       revenue: Math.round(brandList.reduce((s, b) => s + b.revenue, 0) * 100) / 100,
       units: Math.round(brandList.reduce((s, b) => s + b.units, 0) * 100) / 100,
       models: data.models.length,
-      unmatchedModels: brands.get("— Model not in brand map —")?.models.length || 0
+      unmatchedModels: brands.get(UNMATCHED)?.models.length || 0
     };
 
     return res.json({ from, to, department, departments: data.departments, coverage: data.coverage, totals, brands: brandList });

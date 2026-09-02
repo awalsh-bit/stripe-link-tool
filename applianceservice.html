@@ -1244,11 +1244,30 @@ function syncPaymentRequirement() {
       return data;
     }
 
-    async function mountPaymentElement(clientSecret) {
+    // Billing fields the FORM already collected are "never" (we pass them at
+    // confirm); anything the client left blank — email and phone are optional
+    // now, depending on contact preference — is "auto" so Stripe collects it
+    // only if the card actually needs it. Stripe rejects confirmSetup when a
+    // "never" field arrives blank, which is exactly the error clients hit
+    // after email became optional (2026-09-02).
+    let mountedBilling = { name: "", email: "", phone: "" };
+    let billingFieldModes = { email: "never", phone: "never" };
+
+    async function mountPaymentElement(clientSecret, payload) {
       if (elements) {
         elements = null;
         document.getElementById("payment-element").innerHTML = "";
       }
+
+      mountedBilling = {
+        name: payload?.nameOnCard || payload?.customerName || "",
+        email: payload?.customerEmail || "",
+        phone: payload?.customerPhone || ""
+      };
+      billingFieldModes = {
+        email: mountedBilling.email ? "never" : "auto",
+        phone: mountedBilling.phone ? "never" : "auto"
+      };
 
       elements = stripe.elements({
         clientSecret,
@@ -1266,8 +1285,8 @@ function syncPaymentRequirement() {
         fields: {
           billingDetails: {
             name: "never",
-            email: "never",
-            phone: "never",
+            email: billingFieldModes.email,
+            phone: billingFieldModes.phone,
             address: "never"
           }
         }
@@ -1471,7 +1490,7 @@ beginBtn.addEventListener("click", async () => {
 
     const data = await createSetupIntent();
     setupIntentId = data.setupIntentId;
-    await mountPaymentElement(data.clientSecret);
+    await mountPaymentElement(data.clientSecret, payload);
     paymentShell.classList.add("show");
     showStatus("success", "Secure card entry is ready below.");
   } catch (err) {
@@ -1533,8 +1552,12 @@ form.addEventListener("submit", async (event) => {
         payment_method_data: {
           billing_details: {
             name: nameOnCard,
-            email: payload.customerEmail || undefined,
-            phone: payload.customerPhone || undefined,
+            // Only fields the element was told we'd supply ("never") may be
+            // passed; "auto" fields are Stripe's to collect. A "never" field
+            // the client blanked after mounting falls back to what it held
+            // at mount time, so confirmSetup never sees an empty value.
+            ...(billingFieldModes.email === "never" ? { email: payload.customerEmail || mountedBilling.email } : {}),
+            ...(billingFieldModes.phone === "never" ? { phone: payload.customerPhone || mountedBilling.phone } : {}),
             address: {
               line1: billing.line1,
               line2: billing.line2,

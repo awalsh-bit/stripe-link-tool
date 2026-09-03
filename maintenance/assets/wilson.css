@@ -24,7 +24,7 @@
   --radius-lg: 18px;
   --radius-md: 13px;
   --radius-sm: 10px;
-  --content: 1390px;
+  --content: 1480px;
 }
 
 * {
@@ -67,8 +67,13 @@ img {
 }
 
 .page-shell {
-  width: min(calc(100% - 44px), var(--content));
+  /* Agility: same column as every other internal tool — 1480px max, 16px
+     gutters on desktop, 8px on a phone. */
+  width: min(calc(100% - 32px), var(--content));
   margin: 0 auto;
+}
+@media (max-width: 720px) {
+  .page-shell { width: calc(100% - 16px); }
 }
 
 .site-header {
@@ -4945,7 +4950,7 @@ body.tech-mode .section-pill {
 }
 
 @media (max-width:700px){
-  body.tech-mode .page-shell { width: min(calc(100% - 20px), var(--content)); }
+  body.tech-mode .page-shell { width: min(calc(100% - 16px), var(--content)); }
   body.tech-mode .brand-logo { width: 145px; }
   body.tech-mode .header-edit, body.tech-mode .section-pill { display:none; }
   .tech-shell { padding-left:0; padding-right:0; padding-top:6px; }

@@ -424,18 +424,6 @@
               </div>
             </div>
           </div>
-          <div class="internal-shell-tools">
-            <div class="internal-shell-tools-top"></div>
-            <div class="internal-shell-tools-row">
-              <div class="internal-shell-tools-label">Internal Tools</div>
-              <a class="internal-shell-tool-link" href="https://app.podium.com/home" target="_blank" rel="noopener noreferrer">
-                <img class="internal-shell-tool-image podium" src="${withRoot("podium-logo.jpg")}" alt="Podium" />
-              </a>
-              <a class="internal-shell-tool-link" href="https://wilsonappliance.dispatchtrack.com/a18/login" target="_blank" rel="noopener noreferrer">
-                <img class="internal-shell-tool-image" src="${withRoot("dispatchtrack-logo.png")}" alt="DispatchTrack" />
-              </a>
-            </div>
-          </div>
         </div>
       </div>
     `;

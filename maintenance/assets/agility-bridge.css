@@ -33,7 +33,8 @@
    Brand colour comes only from the --primary* tokens defined in
    internal-shell.css / public-shell.css so the user's colour scheme applies.
 --------------------------------------------------------------------------- */
-.site-header { padding: 18px 0 8px; }
+.site-header { padding: 32px 0 8px; }
+@media (max-width: 720px) { .site-header { padding: 14px 0 6px; } }
 .site-footer { padding: 10px 0 28px; }
 .site-header .page-shell > .internal-shell-header,
 .site-header .page-shell > #internal-shell-header,
@@ -84,17 +85,21 @@
   .module-nav-cta, .module-nav-item.module-nav-cta, .module-nav-phone { margin-left: 0; }
 }
 
-/* The field tool lives on a phone: keep the hamburger/logo header, skip the
-   Podium/DispatchTrack tools card (it pushed the work below the fold). */
-body[data-shell-compact="true"] .internal-shell-tools { display: none; }
 
 /* Pages that do not load wilson.css (Filter Finder) still need the shell
    hosts to sit in the same column as everything else. */
 .site-header .page-shell,
-.site-footer .page-shell { width: min(calc(100% - 44px), 1390px); margin: 0 auto; }
+.site-footer .page-shell { width: min(calc(100% - 32px), 1480px); margin: 0 auto; }
+@media (max-width: 720px) { .site-header .page-shell, .site-footer .page-shell { width: calc(100% - 16px); } }
 
 /* On a phone the field tool goes straight to the visit; the hamburger still
    reaches every other maintenance page. */
 @media (max-width: 720px) {
   body[data-shell-compact="true"] .module-nav { display: none; }
+}
+
+/* The module lays out its own gutters through .page-shell; keep the shell's
+   phone body padding from doubling them. */
+@media screen and (max-width: 720px) {
+  html body[data-mode] { padding-top: 0; padding-left: 0; padding-right: 0; }
 }

@@ -97,6 +97,29 @@ html[data-theme="red"] {
   --primary-rgb: 163, 34, 34;
 }
 
+/* ---------------------------------------------------------------------------
+   One page width for every internal tool.
+   Desktop: the content column (and the shell header inside it) is at most
+   1480px, centred, with 16px gutters. Phone: 8px gutters, full width. Pages
+   declare their own .wrap, but these rules outrank a page-level `.wrap` /
+   `body` declaration so a new page cannot drift. Print styles are untouched.
+--------------------------------------------------------------------------- */
+@media screen {
+  body > .wrap,
+  body > .shell-wrap {
+    max-width: 1480px;
+    margin-left: auto;
+    margin-right: auto;
+  }
+}
+@media screen and (max-width: 720px) {
+  html body {
+    padding-top: 14px;
+    padding-left: 8px;
+    padding-right: 8px;
+  }
+}
+
 .internal-shell-header {
   margin-bottom: 22px;
 }
@@ -106,7 +129,6 @@ html[data-theme="red"] {
   align-items: center;
   justify-content: space-between;
   gap: 18px;
-  margin-bottom: 14px;
   flex-wrap: wrap;
 }
 
@@ -315,70 +337,13 @@ html[data-theme="red"] {
   background: var(--primary-wash);
 }
 
-.internal-shell-tools {
-  background: rgba(255, 255, 255, 0.92);
-  border: 1px solid rgba(var(--primary-rgb), 0.1);
-  border-radius: 22px;
-  box-shadow: 0 10px 35px rgba(0, 0, 0, 0.08);
-  overflow: hidden;
-  min-width: 420px;
-}
 
-.internal-shell-tools-top {
-  height: 6px;
-  background: linear-gradient(90deg, var(--primary-deep) 0%, var(--primary) 100%);
-}
 
-.internal-shell-tools-row {
-  display: flex;
-  align-items: center;
-  gap: 18px;
-  padding: 16px 20px;
-  flex-wrap: nowrap;
-}
 
-.internal-shell-tools-label {
-  font-size: 12px;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: #64748b;
-  font-weight: 700;
-  min-width: 150px;
-}
 
-.internal-shell-tool-link {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 260px;
-  height: 80px;
-  padding: 12px 18px;
-  border-radius: 18px;
-  background: #ffffff;
-  border: 1px solid #e7ebf4;
-  text-decoration: none;
-  transition: transform 0.12s ease, box-shadow 0.2s ease, border-color 0.2s ease;
-  flex: 0 0 auto;
-}
 
-.internal-shell-tool-link:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 10px 22px rgba(15, 23, 42, 0.08);
-  border-color: rgba(var(--primary-rgb), 0.24);
-}
 
-.internal-shell-tool-image {
-  display: block;
-  max-width: 100%;
-  max-height: 46px;
-  width: 100%;
-  object-fit: contain;
-}
 
-.internal-shell-tool-image.podium {
-  max-height: 36px;
-  width: 82%;
-}
 
 .internal-shell-footer,
 .internal-nav.internal-shell-footer {
@@ -415,21 +380,8 @@ html[data-theme="red"] {
   font-weight: 700;
 }
 
-@media (max-width: 1200px) {
-  .internal-shell-tools {
-    min-width: 0;
-    width: 100%;
-  }
-
-  .internal-shell-tools-row {
-    flex-wrap: wrap;
-  }
-}
 
 @media (max-width: 900px) {
-  .internal-shell-tool-link {
-    width: 100%;
-  }
 
   .internal-shell-submenu-panel {
     left: 0;

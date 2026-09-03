@@ -41,6 +41,7 @@
     color:var(--text);
     font-family:"Roboto", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     min-height:100vh;
+    padding:32px 16px 0;
     -webkit-tap-highlight-color:transparent;
   }
   @media (prefers-reduced-motion: reduce){
@@ -61,15 +62,12 @@
     display:flex;
     flex-direction:column;
   }
+  /* Shell header spans the standard page width like every other tool; the
+     form itself (.app) stays a single narrow column. */
   .shell-wrap{
-    max-width:640px;
+    max-width:1480px;
     margin:0 auto;
-    padding:16px 12px 0;
   }
-  /* Field tool on a phone: keep the hamburger/logo header, skip the
-     Podium/DispatchTrack tools card (it pushed the form below the fold). */
-  .shell-wrap .internal-shell-tools{display:none;}
-
   /* ---------- header: rendered by internal-shell.js ---------- */
 
   .header-strip{

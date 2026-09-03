@@ -229,6 +229,7 @@
           const data = await res.json().catch(() => ({}));
           if (!res.ok) throw new Error(data.error || "Couldn't read that PDF.");
           state.summary = data.summary;
+          state.scanDocId = data.documentId || "";
           fillForm(data.summary, data.knownEmail);
           setStatus(data.summary.warnings?.length ? data.summary.warnings.join(" ") : "Scanned — check the summary and contact info, then create the link.", data.summary.warnings?.length ? "warn" : "ok");
         } catch (err) {
@@ -328,6 +329,7 @@
               contactPhone: $("sePhone").value.trim(),
               contactEmail: $("seEmail").value.trim(),
               contactPref: $("sePref").value,
+              documentId: state.scanDocId || "",
               summary: { ...state.summary, applianceLabel: $("seAppliance").value.trim() }
             })
           });
@@ -342,6 +344,7 @@
           setStatus("Link created — nothing was emailed.", "ok");
           $("seForm").classList.remove("show");
           state.summary = null;
+          state.scanDocId = "";
           ["seSv", "seName", "sePhone", "seEmail", "seLabel", "seAppliance"].forEach((id) => { $(id).value = ""; });
           $("sePref").value = "";
           await load();

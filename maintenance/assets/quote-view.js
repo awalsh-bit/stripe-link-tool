@@ -122,16 +122,19 @@
                   money(b.imucSecondVisitAmount),
                   (config.assumptions || {}).imucGuidance || ""]);
     }
-    if (Number(b.tempMonitoringAmount || 0)) {
+    if (Number(b.tempMonitoringSensors || 0) > 0) {
       /* v0.9.48: the tier arithmetic is stated on the line, so two sensors at
          $298 never reads as $149 each and the third sensor's price is never
-         a surprise. */
+         a surprise. v0.9.51: Concierge carries two sensors; the line says so. */
       const guardianTier = (((config.tempMonitoring || {}).pricing || {}).member) || {};
-      const guardianNote = Number(b.tempMonitoringSensors) > 0 && guardianTier.firstAnnual
-        ? "First sensor " + money(guardianTier.firstAnnual) + " + " + money(guardianTier.additionalAnnual) + " each additional per year. " + ((config.tempMonitoring || {}).responseCopy || "")
-        : (config.tempMonitoring || {}).responseCopy || "";
-      lines.push([`${ui.escapeHtml((config.tempMonitoring || {}).serviceName || "Refrigeration Guardian")} — 24/7 temperature monitoring × ${Number(b.tempMonitoringSensors || 0)} sensor${Number(b.tempMonitoringSensors) === 1 ? "" : "s"}`,
-                  money(b.tempMonitoringAmount),
+      const included = Number(b.tempMonitoringIncluded || 0);
+      const guardianNote = included > 0
+        ? included + " sensor" + (included === 1 ? "" : "s") + " included with this plan" + (Number(b.tempMonitoringSensors) > included ? "; " + money(guardianTier.additionalAnnual) + " each additional per year" : "") + ". " + ((config.tempMonitoring || {}).responseCopy || "")
+        : (Number(b.tempMonitoringSensors) > 0 && guardianTier.firstAnnual
+          ? "First sensor " + money(guardianTier.firstAnnual) + " + " + money(guardianTier.additionalAnnual) + " each additional per year. " + ((config.tempMonitoring || {}).responseCopy || "")
+          : (config.tempMonitoring || {}).responseCopy || "");
+      lines.push([`${ui.escapeHtml((config.tempMonitoring || {}).serviceName || "Temp Monitoring")} × ${Number(b.tempMonitoringSensors || 0)} sensor${Number(b.tempMonitoringSensors) === 1 ? "" : "s"}`,
+                  Number(b.tempMonitoringAmount || 0) ? money(b.tempMonitoringAmount) : "Included",
                   guardianNote]);
     }
     const detail = b.filterServiceDetail || null;

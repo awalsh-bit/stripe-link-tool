@@ -562,6 +562,7 @@
       health:health,
       horizon:horizon,
       derived:window.WILSON_HVAC.derivedFor(readings,design,setKey),
+      vitals:window.WILSON_HVAC.vitals?window.WILSON_HVAC.vitals(readings,design,setKey).rows:[],
       efficiency:window.WILSON_HVAC.efficiencyNote(design),
       missingPlate:window.WILSON_HVAC.missingPlateData(design),
       /* Presented like the appliance score so the shared UI can render either,
@@ -1036,7 +1037,7 @@
       const label=row.compartmentLabel?row.compartmentLabel+" ":"";
       return label+(latest?latest.value+"°F now":"no data")+(row.stats&&row.stats.inBandPct!==null?", "+row.stats.inBandPct+"% in band":"");
     });
-    return `<div class="tech-guardian-note passthrough">◉ <strong>${ui.escapeHtml(tm.serviceName||"Refrigeration Guardian")}</strong> — ${rows.length===1?"compartment temps stream from this unit's sensor":rows.length+" sensors stream this unit's compartment temps"}${bits.length?" ("+ui.escapeHtml(bits.join(" · "))+")":""}. The logged data goes onto the health report automatically — nothing to record here.</div>`;
+    return `<div class="tech-guardian-note passthrough">◉ <strong>${ui.escapeHtml(tm.serviceName||"Wilson Guardian Temp Monitoring")}</strong> — ${rows.length===1?"compartment temps stream from this unit's sensor":rows.length+" sensors stream this unit's compartment temps"}${bits.length?" ("+ui.escapeHtml(bits.join(" · "))+")":""}. The logged data goes onto the health report automatically — nothing to record here.</div>`;
   }
 
   function openAsset(id){
@@ -1336,10 +1337,11 @@
          already has a name for that. It was falling through to "on the appliance
          record, unverified", which understates it -- somebody was standing in
          front of the machine when they entered it. */
+      else if(src==="serial") provenance="verified from the serial tag";
       else if(src==="estimate") provenance="a technician estimate";
       else if(src==="tech") provenance="established in the field";
       else provenance="on the appliance record, unverified";
-      return `<div class="tech-age-known${src==="invoice"?"":" unverified"}">
+      return `<div class="tech-age-known${src==="invoice"||src==="serial"?"":" unverified"}">
         <span>Installed</span><strong>${documented.installYear}</strong>
         <em>${documented.age} year${documented.age===1?"":"s"} old &middot; ${provenance}</em>
         <button type="button" class="tech-age-change" data-age-open="1">Not right?</button>
@@ -1351,7 +1353,7 @@
       const age=Math.max(0,year-picked);
       return `<div class="tech-age-known">
         <span>Installed</span><strong>${picked}</strong>
-        <em>${age} year${age===1?"":"s"} old &middot; ${draft.ageSource==="customer"?"customer stated":"your estimate"}</em>
+        <em>${age} year${age===1?"":"s"} old &middot; ${draft.ageSource==="customer"?"customer stated":draft.ageSource==="serial"?"verified from the serial tag":"your estimate"}</em>
         <button type="button" class="tech-age-change" data-age-open="1">Change</button>
       </div>`;
     }
@@ -1390,12 +1392,14 @@
     const documented=window.WILSON_AGE.resolve(draft.asset,null,null);
     const info=ageInfo();
     const bits=[];
-    if(info.documented && documented.installYear){
+    if(info.documented && info.source.id==="invoice" && documented.installYear){
       bits.push(`<strong>From the Wilson invoice</strong> installed ${documented.installYear}${draft.asset.ageSourceRef?" · "+ui.escapeHtml(draft.asset.ageSourceRef):""}`);
     } else if(info.age===null){
       bits.push(draft.ageUnknownAck
         ? '<strong>Age not established.</strong> The report will score measured condition only and say the age is unknown.'
         : '<strong>No install date on record.</strong> Pick the year above if you can establish one \u2014 otherwise mark it unknown and the report will score condition only.');
+    } else if(info.source.id==="serial"){
+      bits.push('<strong>Verified from the serial tag.</strong> Manufacture date confirmed \u2014 scores and reports as verified.');
     } else if(info.source.id==="customer"){
       bits.push('<strong>Customer stated.</strong> Recorded as unverified.');
     } else {
@@ -1413,8 +1417,15 @@
       }
     }
     let toggle="";
-    if(info.age!==null&&!info.documented){
-      toggle=`<button class="tech-age-said" id="tech-age-said" type="button">${info.source.id==="customer"?"Actually my estimate":"Customer told me this"}</button>`;
+    if(info.age!==null&&(!info.documented||info.source.id==="serial")){
+      /*
+       * v0.9.51 (Cayden): "the tech should also have an option to tell us the
+       * date is verified, because they can check the serial tag for a mfg
+       * date." Three chips, one source: where this year came from.
+       */
+      const src=info.source.id;
+      const chip=(id,label)=>`<button class="tech-age-said${src===id?" selected":""}" type="button" data-age-source="${id}" aria-pressed="${src===id?"true":"false"}">${label}</button>`;
+      toggle=`<div class="tech-age-source-chips">${chip("customer","Customer told me")}${chip("estimate","My estimate")}${chip("serial","\u2713 Verified on serial tag")}</div>`;
     } else if(info.age===null){
       /*
        * Completion used to require a number, which on an undated appliance
@@ -1431,13 +1442,14 @@
     const host=document.getElementById("tech-age-source");
     if(!host) return;
     host.innerHTML=ageSourceLine();
-    const toggle=document.getElementById("tech-age-said");
-    if(toggle) toggle.onclick=()=>{
-      draft.ageSource=draft.ageSource==="customer"?"estimate":"customer";
+    host.querySelectorAll("[data-age-source]").forEach(btn=>btn.onclick=()=>{
+      draft.ageSource=btn.dataset.ageSource;
+      const picker=document.getElementById("tech-age-picker");
+      if(picker) picker.innerHTML=agePicker();
       renderAgeSource();
       refreshLiveMetrics();
       scheduleAutosave();
-    };
+    });
     const unknown=document.getElementById("tech-age-unknown");
     if(unknown) unknown.onclick=()=>{
       draft.ageUnknownAck=!draft.ageUnknownAck;
@@ -1512,13 +1524,13 @@
       const gaps=(score.health.notScored||[]).length;
       const aw=Math.round(Number(config.reportScoring.ageWeight??0.25)*100);
       const vw=100-aw;
-      return "Measured against this system's own nameplate. "+parts
+      return "System vitals, measureQuick-style: "+parts
         +". Coverage "+score.health.coverage+"%"
-        +(gaps?", "+gaps+" dimension"+(gaps===1?"":"s")+" not evaluated":"")
+        +(gaps?", "+gaps+" vital"+(gaps===1?"":"s")+" not evaluated":"")
         +". "+(score.dated&&score.ageScore!==null
-            ? "Overall is "+vw+"% this measured performance ("+score.vital+") + "+aw+"% age ("+score.ageScore+"), on a draft expected life of "+score.expected+" years."
+            ? "Overall is "+vw+"% vitals ("+score.vital+") + "+aw+"% age ("+score.ageScore+"), on a flat expected life of "+score.expected+" years for this system type."
             : "No install date on record, so no age term is applied.")
-        +" The efficiency rating is reported and is not in this number.";
+        +" Efficiency (SEER) is recorded and is not in this number.";
     }
     const vw=Math.round(Number(config.reportScoring.vitalWeight??.75)*100);
     const aw=Math.round(Number(config.reportScoring.ageWeight??.25)*100);
@@ -1615,15 +1627,22 @@
     return `
       <div class="tech-plate-card">
         <div class="tech-plate-head">
-          <strong>Nameplate &mdash; what this system is rated to do</strong>
-          <span>Every target below is read off the plate, so meeting the design is a full score at any efficiency rating. Read once; it carries to the next visit.</span>
+          <strong>System profile &mdash; what measureQuick calls System Info</strong>
+          <span>Refrigerant and metering device set the charge bands; tonnage and filter size feed airflow per ton and filter face velocity. SEER is recorded, never scored. Read once; it carries to the next visit.</span>
         </div>
         <div class="tech-plate-grid">
-          ${relevant.map(f=>`<div class="field"><label>${ui.escapeHtml(f.label)}${f.unit?' <span class="hint">'+ui.escapeHtml(f.unit)+'</span>':''}</label><input data-design="${f.key}" inputmode="${/tons|Cfm|Esp|Rla|Fla|rise|Seer|Afue/i.test(f.key)?"decimal":"text"}" value="${ui.escapeHtml(String(design[f.key]??""))}" placeholder="${f.plate?"From plate":"Select"}"></div>`).join("")}
+          ${relevant.map(f=>{
+            const options=f.select?((config.hvacScoring||{})[f.select]||[]):null;
+            const current=String(design[f.key]??"");
+            const control=options
+              ? `<select data-design="${f.key}"><option value="">Select</option>${options.map(o=>`<option value="${ui.escapeHtml(o)}"${o.toLowerCase()===current.toLowerCase()||o.replace(/-/g,"").toLowerCase()===current.replace(/-/g,"").toLowerCase()?" selected":""}>${ui.escapeHtml(o)}</option>`).join("")}</select>`
+              : `<input data-design="${f.key}" inputmode="${/tons|Cfm|Esp|Rla|Fla|rise|Seer|Afue|filter/i.test(f.key)?"decimal":"text"}" value="${ui.escapeHtml(current)}" placeholder="${f.plate?"From plate":"Enter"}">`;
+            return `<div class="field"><label>${ui.escapeHtml(f.label)}${f.unit?' <span class="hint">'+ui.escapeHtml(f.unit)+'</span>':''}</label>${control}</div>`;
+          }).join("")}
         </div>
         ${missing.length
           ? `<p class="tech-plate-missing"><strong>Not scored without these:</strong> ${ui.escapeHtml(missing.map(f=>f.label+" ("+(config.hvacScoring.dimensions[f.scores]||{label:f.scores}).label.toLowerCase()+")").join(", "))}. Readings are still recorded either way.</p>`
-          : `<p class="tech-plate-complete">Plate data complete. Every dimension can be scored against this system's own design.</p>`}
+          : `<p class="tech-plate-complete">Profile complete. Every vital can be judged against its band.</p>`}
       </div>`;
   }
 
@@ -1635,19 +1654,38 @@
    * while the gauges are still on the system.
    */
   function derivedCard(score){
-    if(!isHvac()||!score.derived||!score.derived.length) return "";
+    if(!isHvac()) return "";
+    const vitals=score.vitals||[];
+    /* The vitals strip already shows these; the derived row keeps only what
+       the strip does not (saturation temps, compression ratio, CFM/ton). */
+    const shown={superheat:1,subcooling:1,approach:1,deltaT:1,totalStatic:1,filterFaceVelocity:1};
+    const derived=(score.derived||[]).filter(d=>!vitals.some(v=>v.id===d.id)&&!(vitals.length&&shown[d.id]));
+    if(!vitals.length&&!derived.length) return "";
+    const fmtBand=b=>!b?"":(b.min!==null&&b.min!==undefined&&b.max!==null&&b.max!==undefined)?`${b.min}\u2013${b.max}`:(b.max!==null&&b.max!==undefined)?`\u2264 ${b.max}`:`\u2265 ${b.min}`;
     return `
       <div class="tech-derived-card">
-        <span class="tech-derived-label">Derived from your readings</span>
-        <div class="tech-derived-grid">
-          ${score.derived.map(d=>`<div><strong>${d.value}${ui.escapeHtml(d.unit||"")}</strong><span>${ui.escapeHtml(d.label)}</span></div>`).join("")}
-        </div>
+        <span class="tech-derived-label">System vitals \u2014 from your readings</span>
+        ${vitals.length?`<div class="tech-vitals-grid">
+          ${vitals.map(v=>`<div class="tech-vital ${v.inRange?"in-range":"out-of-range"}"><strong>${v.value}${ui.escapeHtml((v.unit||"").trim()?" "+(v.unit||"").trim():"")}</strong><span>${ui.escapeHtml(v.label)}</span><em>${v.inRange?"In range":"Out of range \u2014 "+v.direction}${v.band?" \u00b7 "+fmtBand(v.band):""}${v.scored?"":" \u00b7 not scored"}</em></div>`).join("")}
+        </div>`:""}
+        ${derived.length?`<div class="tech-derived-grid">
+          ${derived.map(d=>`<div><strong>${d.value}${ui.escapeHtml(d.unit||"")}</strong><span>${ui.escapeHtml(d.label)}</span></div>`).join("")}
+        </div>`:""}
+        ${score.health&&!score.health.available&&score.health.reason?`<p class="tech-plate-missing">${ui.escapeHtml(score.health.reason)}</p>`:""}
       </div>`;
   }
 
   function refreshLiveMetrics(){
     if(!draft) return;
     const score=scoreDraft();
+    /* HVAC: the vitals strip follows the readings live -- superheat appearing
+       while the gauges are still on is the whole point of it. */
+    if(isHvac()){
+      const existing=document.querySelector(".tech-derived-card");
+      const html=derivedCard(score);
+      if(existing){ if(html){ existing.outerHTML=html; } else { existing.remove(); } }
+      else if(html){ const plate=document.querySelector(".tech-plate-card"); if(plate) plate.insertAdjacentHTML("afterend",html); }
+    }
     const expected=document.getElementById("tech-expected-life"); if(expected) expected.value=score.expected+" years";
     const life=document.getElementById("tech-life-stage-label"); if(life) life.textContent=score.dated?score.lifeStage:"Age unknown";
     const lifeDetail=document.getElementById("tech-life-stage-detail"); if(lifeDetail) lifeDetail.textContent=lifeStageCaption(score);
@@ -1778,6 +1816,14 @@
     draft.ageResolved=score.age;
     draft.vitalScore=score.vital;
     draft.lifeRatio=score.lifeRatio;
+    /* HVAC: the vitals and the loss buckets travel with the inspection so the
+       customer report prints measureQuick-style rows without re-deriving. */
+    if(score.hvac){
+      draft.hvacVitals=(score.vitals||[]).map(v=>({id:v.id,label:v.label,value:v.value,unit:v.unit||"",band:v.band||null,inRange:v.inRange!==false,direction:v.direction||"normal",scored:Boolean(v.scored),basis:v.basis||""}));
+      draft.hvacHealth=score.health?{available:Boolean(score.health.available),score:score.health.available?score.health.score:null,coverage:score.health.coverage||0,reason:score.health.reason||"",
+        scored:(score.health.scored||[]).map(d=>({id:d.id,label:d.label,weight:d.weight,pct:d.pct,basis:d.basis||""})),
+        notScored:(score.health.notScored||[]).map(d=>({id:d.id,label:d.label,reason:d.reason}))}:null;
+    }
     draft.inspectionDate=draft.inspectionDate||new Date().toISOString().slice(0,10);
     draft.technician=technician();
     return draft;
@@ -1900,7 +1946,7 @@
              a concern or fail, which renders inside the verdict control. The
              photo stays, and where the protocol demands one it says so. -->
         <div class="tech-optional-row">
-          <label class="tech-optional-toggle ${c.photo?"filled":""} ${checkPhotoRequired(c)&&!c.photo?"photo-needed":""}"><span id="photo-label-${i}">${c.photo?"✓ Photo saved":(checkPhotoRequired(c)?"＋ Photo — required":"＋ Photo")}</span><input type="file" accept="image/*" capture="environment" data-photo="${i}" aria-label="Photograph for ${ui.escapeHtml(c.name)}"></label>
+          <label class="tech-optional-toggle ${c.photo?"filled":""} ${checkPhotoRequired(c)&&!c.photo?"photo-needed":""}"><span id="photo-label-${i}">${c.photo?"✓ Photo saved":(checkPhotoRequired(c)?"＋ Photo — required":"＋ Photo")}</span><input type="file" accept="image/*" data-photo="${i}" aria-label="Photograph for ${ui.escapeHtml(c.name)}"></label>
           ${checkPhotoRequired(c)&&!c.photo?`<small class="tech-photo-required-hint">Save the IR image to your camera roll, then attach it here.</small>`:""}
         </div>
         ${c.photo?`<div class="tech-photo-thumb" data-photo-thumb="${ui.escapeHtml(c.photo)}"></div>`:""}
@@ -2151,7 +2197,7 @@
       <div class="tech-lifecycle-card"><div id="tech-age-picker">${agePicker()}</div><div class="tech-age-source" id="tech-age-source">${ageSourceLine()}</div><div class="field"><label for="tech-tier">Product tier <span class="hint">Sets how deep the protocol goes</span></label><select id="tech-tier">${Object.values(config.lifecycleTiers).map(t=>`<option value="${t.id}" ${draft.tier===t.id?"selected":""}>${ui.escapeHtml(t.label)}</option>`).join("")}</select></div><div class="field"><label for="tech-expected-life">Expected life</label><input id="tech-expected-life" value="${score.expected} years" disabled><small class="tech-life-source" id="tech-life-source">${ui.escapeHtml(expectedLifeSource(draft.asset,draft.tier))}</small></div><div class="tech-life-stage"><span>Lifecycle</span><strong id="tech-life-stage-label">${ui.escapeHtml(score.dated?score.lifeStage:"Age unknown")}</strong><small id="tech-life-stage-detail">${ui.escapeHtml(lifeStageCaption(score))}</small></div></div>
       ${filterBanner()}
       ${scopeBanner()}
-      <label class="tech-photo-button required-photo"><span id="serial-photo-label">${draft.serialPhoto?"✓ Serial tag saved: "+ui.escapeHtml(draft.serialPhotoName):"▣ Take / upload serial-tag photo (required)"}</span><input id="serial-photo" type="file" accept="image/*" capture="environment"></label>${draft.serialPhoto?`<div class="tech-photo-thumb wide" data-photo-thumb="${ui.escapeHtml(draft.serialPhoto)}"></div>`:""}
+      <label class="tech-photo-button required-photo"><span id="serial-photo-label">${draft.serialPhoto?"✓ Serial tag saved: "+ui.escapeHtml(draft.serialPhotoName):"▣ Serial-tag photo \u2014 camera or camera roll (required)"}</span><input id="serial-photo" type="file" accept="image/*"></label>${draft.serialPhoto?`<div class="tech-photo-thumb wide" data-photo-thumb="${ui.escapeHtml(draft.serialPhoto)}"></div>`:""}
       </section>
       <div class="tech-protocol-heading"><div><span class="eyebrow dark">Short health protocol</span><h2>${draft.checks.length} checks</h2></div><p>Work them in whatever order suits the appliance. Tap a check to open it; rating it 1–5 marks it done and opens the next one you have not finished.</p></div>
       ${guardianPassthroughCard()}
@@ -2172,7 +2218,7 @@
                just the option to take a photo there that isn't tied to a specific
                health check." Stored like every other capture, listed on the
                report as a general photo. -->
-          <label class="tech-photo-button"><span id="general-photo-label">▣ Add a photo — not tied to a check</span><input id="general-photo" type="file" accept="image/*" capture="environment"></label>
+          <label class="tech-photo-button"><span id="general-photo-label">▣ Add a photo — not tied to a check</span><input id="general-photo" type="file" accept="image/*"></label>
           <div id="general-photo-thumbs">${(draft.generalPhotos||[]).map(p=>`<div class="tech-photo-thumb wide" data-photo-thumb="${ui.escapeHtml(p.id)}"></div>`).join("")}</div>
         </div>
       </section>
@@ -2294,7 +2340,7 @@
         const documented=window.WILSON_AGE.resolve(draft.asset,null,null);
         draft.ageSource=(documented.installYear&&Number(documented.installYear)===year)
           ? documented.source.id
-          : (draft.ageSource==="customer"?"customer":"estimate");
+          : (draft.ageSource==="customer"||draft.ageSource==="serial"?draft.ageSource:"estimate");
         repaintAge();
       });
       document.querySelectorAll("[data-age-unknown]").forEach(el=>el.onclick=e=>{
@@ -2323,7 +2369,7 @@
     /* Nameplate edits live on the draft and are merged over the asset record,
        so a correction in the field wins without overwriting the stored plate
        until the inspection is completed. */
-    document.querySelectorAll("[data-design]").forEach(el=>el.oninput=e=>{
+    document.querySelectorAll("[data-design]").forEach(el=>el.oninput=el.onchange=e=>{
       draft.design=draft.design||{};
       draft.design[e.target.dataset.design]=e.target.value;
       refreshLiveMetrics();

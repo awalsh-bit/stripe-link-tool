@@ -298,16 +298,14 @@
         ]
       },
       {
-        title: "Maintenance Plans",
+        /* Cayden, 2026-09-04: four entries only. Customers, invoice import,
+           filter finder and the quote builder are reached inside the tool. */
+        title: "Wilson Guardian",
         children: [
-          { href: "/maintenance/admin.html", title: "Today (Command Center)" },
-          { href: "/maintenance/customers.html", title: "Customers" },
-          { href: "/maintenance/monitoring.html", title: "Refrigeration Guardian" },
-          { href: "/maintenance/tech-maintenance.html", title: "Field Tool" },
-          { href: "/maintenance/appliance-signup.html", title: "New Quote or Enrollment" },
-          { href: "/maintenance/invoice-import.html", title: "Invoice Import" },
-          { href: "/maintenance/filter-finder.html", title: "Filter Finder" },
-          { href: "/maintenance/index.html", title: "Customer-Facing Site (Demo)" }
+          { href: "/maintenance/index.html", title: "Guardian Registration" },
+          { href: "/maintenance/admin.html", title: "Guardian Command Center" },
+          { href: "/maintenance/monitoring.html", title: "Guardian Temp Monitoring" },
+          { href: "/maintenance/tech-maintenance.html", title: "Guardian Field Tool" }
         ]
       }
     ];

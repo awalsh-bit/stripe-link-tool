@@ -48,6 +48,80 @@
      health number is published at all. See the floor check in `scoreHealth`. */
   const MIN_COVERAGE = 60;
 
+  /* ---------------------------------------------------------------------
+   * v0.9.51 -- THE measureQuick VITALS SET
+   *
+   * The technician takes the readings measureQuick takes (both pressures,
+   * both line temperatures, outdoor air, return/supply dry and wet bulb,
+   * statics, airflow) and this file derives the vitals measureQuick prints:
+   * superheat, subcooling, condenser approach, temperature split, total
+   * external static, filter face velocity. Saturation temperature comes off
+   * the gauge pressure through the refrigerant PT table in config, which is
+   * the lookup the gauge itself performs.
+   *
+   * Scoring follows measureQuick's loss buckets minus efficiency: charge,
+   * split, static, approach. Age is blended in by the field tool at 25%,
+   * exactly as for an appliance. See config.hvacScoring for the words.
+   * ------------------------------------------------------------------- */
+
+  function scoringCfg() { return (config.hvacScoring || {}); }
+  function bandsCfg() { return scoringCfg().bands || {}; }
+
+  function normalizeRefrigerant(value) {
+    const raw = String(value || "").toUpperCase().replace(/[\s-]/g, "");
+    if (!raw) return null;
+    const known = Object.keys(scoringCfg().refrigerantPT || {});
+    const hit = known.find(function (k) { return k.toUpperCase().replace(/[\s-]/g, "") === raw; });
+    return hit || null;
+  }
+
+  /* Saturation temperature (\u00b0F) for a gauge pressure (psig), by linear
+     interpolation on the config table. null outside the table or with no
+     refrigerant on record -- never a guess from a different refrigerant. */
+  function saturationTemp(psig, refrigerant) {
+    const key = normalizeRefrigerant(refrigerant);
+    const pressure = num(psig);
+    if (key === null || pressure === null) return null;
+    const pts = ((scoringCfg().refrigerantPT || {})[key] || {}).points || [];
+    for (let i = 0; i < pts.length - 1; i += 1) {
+      const a = pts[i], b = pts[i + 1];
+      if (pressure >= a[1] && pressure <= b[1]) {
+        const t = a[0] + (pressure - a[1]) / (b[1] - a[1]) * (b[0] - a[0]);
+        return round(t, 1);
+      }
+    }
+    return null;
+  }
+
+  function ptVerified(refrigerant) {
+    const key = normalizeRefrigerant(refrigerant);
+    return key ? Boolean(((scoringCfg().refrigerantPT || {})[key] || {}).verified) : false;
+  }
+
+  function meteringKey(design) {
+    const raw = String((design || {}).meteringDevice || "").toLowerCase();
+    if (/piston|orifice|fixed|cap/.test(raw)) return "piston";
+    return "txv";
+  }
+
+  /* Where a value sits against a band, and what that costs. Linear: one full
+     band-width outside the band is the whole dimension. */
+  function bandJudge(value, band) {
+    if (value === null || !band) return null;
+    const min = num(band.min), max = num(band.max);
+    const width = (max !== null && min !== null) ? Math.max(1e-6, max - min) : null;
+    const per = num(bandsCfg().deductionPerBandWidth) || 100;
+    if (min !== null && value < min) {
+      const out = min - value;
+      return { inRange: false, direction: "low", out: round(out, 2), pct: Math.max(0, Math.round(100 - (out / (width || Math.max(1, Math.abs(min)))) * per)) };
+    }
+    if (max !== null && value > max) {
+      const out = value - max;
+      return { inRange: false, direction: "high", out: round(out, 2), pct: Math.max(0, Math.round(100 - (out / (width || Math.max(1, Math.abs(max)))) * per)) };
+    }
+    return { inRange: true, direction: "normal", out: 0, pct: 100 };
+  }
+
   function num(value) {
     if (value === null || value === undefined || value === "") return null;
     const n = Number(value);
@@ -68,15 +142,40 @@
    * same rule as an unestablished appliance age, and for the same reason.
    * ------------------------------------------------------------------- */
 
+  /* Saturation temperatures: from the gauge pressure through the PT table,
+     or entered directly when the technician read them off a digital gauge. */
+  function suctionSatOf(r, design) {
+    const direct = num(r.suctionSat);
+    if (direct !== null) return direct;
+    return saturationTemp(r.lowPressure, (design || {}).refrigerant);
+  }
+  function liquidSatOf(r, design) {
+    const direct = num(r.liquidSat);
+    if (direct !== null) return direct;
+    return saturationTemp(r.highPressure, (design || {}).refrigerant);
+  }
+
   const DERIVED = {
+    suctionSat: {
+      id: "suctionSat", label: "Suction saturation", unit: "°F",
+      needs: ["lowPressure"],
+      compute: function (r, design) { return suctionSatOf(r, design); },
+      targetFrom: null
+    },
+    liquidSat: {
+      id: "liquidSat", label: "Liquid saturation", unit: "°F",
+      needs: ["highPressure"],
+      compute: function (r, design) { return liquidSatOf(r, design); },
+      targetFrom: null
+    },
     /* Superheat = how far above saturation the suction line is. */
     superheat: {
       id: "superheat",
       label: "Superheat",
       unit: "°F",
-      needs: ["suctionLine", "suctionSat"],
-      compute: function (r) {
-        const line = num(r.suctionLine), sat = num(r.suctionSat);
+      needs: ["suctionLine", "lowPressure"],
+      compute: function (r, design) {
+        const line = num(r.suctionLine), sat = suctionSatOf(r, design);
         return line === null || sat === null ? null : round(line - sat, 1);
       },
       /* Band depends on metering device and operating conditions. Wilson's
@@ -90,12 +189,24 @@
       id: "subcooling",
       label: "Subcooling",
       unit: "°F",
-      needs: ["liquidSat", "liquidLine"],
-      compute: function (r) {
-        const sat = num(r.liquidSat), line = num(r.liquidLine);
+      needs: ["highPressure", "liquidLine"],
+      compute: function (r, design) {
+        const sat = liquidSatOf(r, design), line = num(r.liquidLine);
         return sat === null || line === null ? null : round(sat - line, 1);
       },
       targetFrom: "charge"
+    },
+
+    /* Compression ratio = absolute discharge over absolute suction. */
+    compressionRatio: {
+      id: "compressionRatio", label: "Compression ratio", unit: "",
+      needs: ["lowPressure", "highPressure"],
+      compute: function (r) {
+        const low = num(r.lowPressure), high = num(r.highPressure);
+        if (low === null || high === null || low + 14.7 <= 0) return null;
+        return round((high + 14.7) / (low + 14.7), 2);
+      },
+      targetFrom: null
     },
 
     /* Approach = liquid line above outdoor ambient. The clearest single
@@ -109,7 +220,7 @@
         const line = num(r.liquidLine), air = num(r.outdoorAir);
         return line === null || air === null ? null : round(line - air, 1);
       },
-      targetFrom: "charge"
+      targetFrom: "approach"
     },
 
     /* Temperature split across the coil. */
@@ -122,10 +233,7 @@
         const ret = num(r.returnDb), sup = num(r.supplyDb);
         return ret === null || sup === null ? null : round(ret - sup, 1);
       },
-      /* The acceptable band depends on return humidity, so a single number
-         would be wrong most of the time. Recorded and trended; Wilson sets the
-         band, or supplies the table. */
-      targetFrom: null
+      targetFrom: "split"
     },
 
     /* Total external static = what the blower is actually working against. */
@@ -133,12 +241,51 @@
       id: "totalStatic",
       label: "Total external static",
       unit: " in wc",
-      needs: ["supplyStatic", "returnStatic"],
+      needs: ["totalStatic"],
       compute: function (r) {
+        /* Entered directly (measureQuick prints TESP alone when only the
+           total was probed) or summed from the two ports. */
+        const direct = num(r.totalStatic);
+        if (direct !== null) return round(direct, 2);
         const sup = num(r.supplyStatic), ret = num(r.returnStatic);
-        return sup === null || ret === null ? null : round(sup + ret, 2);
+        return sup === null || ret === null ? null : round(Math.abs(sup) + Math.abs(ret), 2);
       },
       targetFrom: "static"
+    },
+
+    /* Airflow per ton. Measured airflow when there is one; otherwise the
+       nominal 400 CFM/ton estimate, flagged as nominal wherever it prints. */
+    cfmPerTon: {
+      id: "cfmPerTon", label: "Airflow per ton", unit: " CFM/ton",
+      needs: ["airflowCfm"],
+      compute: function (r, design) {
+        const cfm = num(r.airflowCfm) !== null ? num(r.airflowCfm) : num((design || {}).ratedCfm);
+        const tons = num((design || {}).ratedTons);
+        if (cfm === null || tons === null || tons <= 0) return null;
+        return round(cfm / tons, 0);
+      },
+      targetFrom: null
+    },
+
+    /* Filter face velocity = airflow over the filter's face area. Over 500 FPM
+       the filter is undersized for the airflow and loads the blower. */
+    filterFaceVelocity: {
+      id: "filterFaceVelocity", label: "Filter face velocity", unit: " FPM",
+      needs: ["airflowCfm"],
+      compute: function (r, design) {
+        const d = design || {};
+        const w = num(d.filterWidth), h = num(d.filterHeight);
+        if (w === null || h === null || w <= 0 || h <= 0) return null;
+        let cfm = num(r.airflowCfm);
+        if (cfm === null) {
+          const tons = num(d.ratedTons);
+          const nominal = num(((scoringCfg().designDefaults || {}).cfmPerTonNominal || {}).value) || 400;
+          if (tons !== null && tons > 0) cfm = tons * nominal;
+        }
+        if (cfm === null) return null;
+        return round(cfm / ((w * h) / 144), 0);
+      },
+      targetFrom: null
     },
 
     /* Furnace temperature rise. The plate states its own range, which makes
@@ -163,7 +310,9 @@
       unit: "% of RLA",
       needs: ["condenserAmps"],
       compute: function (r, design) {
-        const amps = num(r.condenserAmps) !== null ? num(r.condenserAmps) : num(r.blowerAmps);
+        const amps = num(r.condenserAmps) !== null ? num(r.condenserAmps)
+          : num(r.condAmps) !== null ? num(r.condAmps)
+          : num(r.blowerAmps) !== null ? num(r.blowerAmps) : num(r.ahuAmps);
         const rated = num((design || {}).condenserRla) !== null
           ? num((design || {}).condenserRla)
           : num((design || {}).blowerFla);
@@ -262,111 +411,106 @@
 
   function staticScore(readings, design) {
     const total = DERIVED.totalStatic.compute(readings);
-    const rated = num((design || {}).maxEsp);
     if (total === null) return { available: false, reason: "no-reading" };
-    if (rated === null || rated <= 0) return { available: false, reason: "no-plate-max", value: total };
-    const pct = (total / rated) * 100;
-    /* At or under the plate maximum the blower is inside what it was built for.
-       Above it, the deduction is proportional to how far past. */
-    return {
-      available: true,
-      pct: pct <= 100 ? 100 : Math.max(0, Math.round(100 - (pct - 100))),
-      value: total,
-      ratedMax: rated,
-      ofRated: Math.round(pct),
-      basis: "nameplate maximum external static"
-    };
-  }
-
-  function electricalScore(readings, design) {
-    const ofRla = DERIVED.ampsOfRla.compute(readings, design);
-    if (ofRla === null) {
+    const rated = num((design || {}).maxEsp);
+    if (rated !== null && rated > 0) {
+      const pct = (total / rated) * 100;
       return {
-        available: false,
-        reason: num(readings.condenserAmps) === null && num(readings.blowerAmps) === null
-          ? "no-reading" : "no-plate-rla"
+        available: true,
+        pct: pct <= 100 ? 100 : Math.max(0, Math.round(100 - (pct - 100))),
+        value: total, unit: DERIVED.totalStatic.unit,
+        band: { min: null, max: rated },
+        inRange: pct <= 100,
+        direction: pct <= 100 ? "normal" : "high",
+        ratedMax: rated, ofRated: Math.round(pct),
+        basis: "nameplate maximum external static (" + rated + " in wc)"
       };
     }
-    return {
-      available: true,
-      pct: ofRla <= 100 ? 100 : Math.max(0, Math.round(100 - (ofRla - 100) * 2)),
-      value: ofRla,
-      basis: "nameplate rated load amps"
-    };
+    const band = bandsCfg().static || { min: 0.2, max: 0.7 };
+    const j = bandJudge(total, band);
+    return Object.assign({ available: true, value: total, unit: DERIVED.totalStatic.unit, band: band,
+      basis: (band.draft ? "draft " : "") + "Wilson band " + band.min + "-" + band.max + " in wc (no plate maximum on record)" }, j);
+  }
+
+  function splitScore(readings) {
+    const split = DERIVED.deltaT.compute(readings);
+    if (split === null) return { available: false, reason: "no-reading" };
+    const band = bandsCfg().split || { min: 16.5, max: 22.5 };
+    const j = bandJudge(split, band);
+    return Object.assign({ available: true, value: split, unit: "\u00b0F", band: band,
+      basis: (band.draft ? "draft " : "") + "Wilson band " + band.min + "-" + band.max + " \u00b0F" }, j);
+  }
+
+  function approachScore(readings) {
+    const approach = DERIVED.approach.compute(readings);
+    if (approach === null) return { available: false, reason: "no-reading" };
+    const band = bandsCfg().approach || { min: 1.5, max: 13 };
+    const j = bandJudge(approach, band);
+    return Object.assign({ available: true, value: approach, unit: "\u00b0F", band: band,
+      basis: (band.draft ? "draft " : "") + "Wilson band " + band.min + "-" + band.max + " \u00b0F" }, j);
   }
 
   /*
-   * Charge. Superheat and subcooling are computed, but their acceptable bands
-   * depend on the metering device and the day's conditions, and Wilson has not
-   * set them. So charge is scored from the TECHNICIAN'S rating of the
-   * refrigerant-circuit checkpoint, with the readings recorded alongside it and
-   * trended.
-   *
-   * This is stated plainly rather than dressed up: it is the one HVAC dimension
-   * that is currently a judgement rather than a measurement, and it stops being
-   * one the moment the bands are agreed.
+   * Charge: superheat and subcooling, each against the band for this metering
+   * device, averaged. Needs the refrigerant on the plate to turn pressure
+   * into saturation temperature -- without it there is no superheat and the
+   * dimension is not scored, and the report asks for the refrigerant by name.
    */
-  function chargeScore(ratings) {
-    const rating = num((ratings || {}).hvac_refrigerant);
-    if (rating === null) return { available: false, reason: "not-rated" };
+  function chargeScore(readings, design) {
+    const sh = DERIVED.superheat.compute(readings, design);
+    const sc = DERIVED.subcooling.compute(readings, design);
+    if (sh === null && sc === null) {
+      const havePressures = num(readings.lowPressure) !== null || num(readings.highPressure) !== null;
+      return { available: false, reason: havePressures && !normalizeRefrigerant((design || {}).refrigerant) ? "no-refrigerant" : "no-reading" };
+    }
+    const device = meteringKey(design);
+    const shBand = ((bandsCfg().superheat || {})[device]) || { min: 6, max: 24 };
+    const scBand = ((bandsCfg().subcooling || {})[device]) || { min: 7, max: 13 };
+    const parts = [];
+    if (sh !== null) parts.push(Object.assign({ id: "superheat", label: "Superheat", value: sh, unit: "\u00b0F", band: shBand }, bandJudge(sh, shBand)));
+    if (sc !== null) parts.push(Object.assign({ id: "subcooling", label: "Subcooling", value: sc, unit: "\u00b0F", band: scBand }, bandJudge(sc, scBand)));
+    const pct = Math.round(parts.reduce(function (t, p) { return t + p.pct; }, 0) / parts.length);
+    const approx = !ptVerified((design || {}).refrigerant) && num(readings.suctionSat) === null;
     return {
       available: true,
-      pct: Math.round((rating / 5) * 100),
-      basis: "technician rating, pending agreed superheat and subcooling bands",
-      provisional: true
+      pct: pct,
+      inRange: parts.every(function (p) { return p.inRange; }),
+      parts: parts,
+      value: sh !== null ? sh : sc,
+      basis: (device === "txv" ? "TXV" : "fixed-orifice") + " bands: superheat " + shBand.min + "-" + shBand.max + ", subcooling " + scBand.min + "-" + scBand.max + " \u00b0F"
+        + (approx ? " (saturation from an unverified PT table -- approximate)" : ""),
+      approximate: approx,
+      draftBand: Boolean((bandsCfg().superheat || {}).draft)
     };
   }
 
-  function conditionScore(ratings, names) {
-    const values = (names || []).map(function (n) { return num((ratings || {})[n]); }).filter(function (v) { return v !== null; });
-    if (!values.length) return { available: false, reason: "not-rated" };
-    const mean = values.reduce(function (a, b) { return a + b; }, 0) / values.length;
-    return { available: true, pct: Math.round((mean / 5) * 100), basis: "technician ratings" };
-  }
-
   /*
-   * The health score.
-   *
-   * Only the dimensions that could actually be evaluated are scored, and the
-   * weights are renormalised across those. A system missing its plate data
-   * gets a score built from what WAS measurable, plus an explicit list of what
-   * could not be scored and why -- rather than a confident number resting on
-   * defaults.
+   * The health score. Only the dimensions that could be evaluated are scored
+   * and the weights are renormalised across those; a coverage floor keeps a
+   * two-reading visit from publishing a confident number.
    */
   function scoreHealth(input) {
     const readings = input.readings || {};
     const design = input.design || {};
     const ratings = input.ratings || {};
     const setKey = input.checkpointSet || "hvac_cooling";
-    const dims = config.hvacScoring.dimensions;
+    const dims = scoringCfg().dimensions || {};
 
-    const results = {
-      capacity:   capacityProxy(readings, design, setKey),
-      airflow:    (function () {
-        const perTon = cfmPerTon(readings, design);
-        if (perTon === null) {
-          /* No measured airflow. Fall back to the technician's airside rating
-             so the dimension is not silently dropped, and mark it provisional. */
-          const rated = conditionScore(ratings, ["hvac_airside"]);
-          if (!rated.available) return { available: false, reason: "no-airflow-measurement" };
-          return { available: true, pct: rated.pct, basis: "technician airside rating", provisional: true };
-        }
-        const min = (config.hvacScoring.designDefaults.cfmPerTonMin || {}).value || 350;
-        const max = (config.hvacScoring.designDefaults.cfmPerTonMax || {}).value || 450;
-        /* The band itself is a draft (config marks it so), and this is the
-           only scored dimension judged against a number the tech team has not
-           signed off. Nothing read that flag, so it said so nowhere. */
-        const banded = (config.hvacScoring.designDefaults.cfmPerTonMin || {}).draft
-          ? "measured CFM per ton, against a draft " + min + "-" + max + " band"
-          : "measured CFM per ton, " + min + "-" + max;
-        if (perTon >= min && perTon <= max) return { available: true, pct: 100, value: perTon, basis: banded, draftBand: true };
-        const out = perTon < min ? min - perTon : perTon - max;
-        return { available: true, pct: Math.max(0, Math.round(100 - (out / min) * 100)), value: perTon, basis: banded, draftBand: true };
-      })(),
-      charge:     chargeScore(ratings),
-      static:     staticScore(readings, design),
-      electrical: electricalScore(readings, design)
-    };
+    let results;
+    if (setKey === "hvac_furnace") {
+      /* A furnace has no refrigerant circuit: rise against the plate range
+         carries the split weight and static keeps its own. */
+      results = { split: capacityProxy(readings, design, setKey), static: staticScore(readings, design) };
+    } else if (setKey === "hvac_minisplit") {
+      results = { split: splitScore(readings), approach: approachScore(readings) };
+    } else {
+      results = {
+        charge:   chargeScore(readings, design),
+        split:    splitScore(readings),
+        static:   staticScore(readings, design),
+        approach: approachScore(readings)
+      };
+    }
 
     let weighted = 0;
     let weightUsed = 0;
@@ -380,34 +524,18 @@
         weighted += result.pct * dim.weight;
         weightUsed += dim.weight;
         scored.push(Object.assign({ id: key, label: dim.label, weight: dim.weight }, result));
-      } else {
-        notScored.push({ id: key, label: dim.label, reason: (result || {}).reason || "unavailable" });
+      } else if (result) {
+        notScored.push({ id: key, label: dim.label, reason: result.reason || "unavailable" });
       }
     });
 
-    /* Nothing measurable at all is not a score of zero. */
     if (weightUsed === 0) {
       return { available: false, score: null, coverage: 0, scored: [], notScored: notScored,
-               reason: "Nothing on this system could be evaluated against its design." };
+               reason: "Nothing on this system could be evaluated yet. Enter the outdoor and indoor readings." };
     }
 
-    /*
-     * A COVERAGE FLOOR.
-     *
-     * Without one, a system with no nameplate data on record scored 100 -- a
-     * perfect grade earned on two dimensions out of five, presented with the
-     * same confidence as a full assessment. That is the same defect as scoring
-     * an appliance with no established age: the number is not wrong so much as
-     * it is not what it appears to be.
-     *
-     * Below the floor the dimensions are still reported individually, and the
-     * report asks for the plate data by name. There is just no single number,
-     * because there is nothing a single number could honestly mean.
-     *
-     * measureQuick draws this line harder still -- no score at all unless all
-     * nine channels are live -- and they are right to.
-     */
-    const coverage = Math.round(weightUsed * 100);
+    const totalWeight = Object.keys(results).reduce(function (t, k) { return t + ((dims[k] || {}).weight || 0); }, 0) || 1;
+    const coverage = Math.round((weightUsed / totalWeight) * 100);
     if (coverage < MIN_COVERAGE) {
       return {
         available: false,
@@ -415,9 +543,8 @@
         coverage: coverage,
         scored: scored,
         notScored: notScored,
-        reason: "Only " + coverage + "% of this system could be evaluated against its design, "
-          + "which is not enough for a health score. The readings taken are below, and the "
-          + "nameplate data needed to score the rest is listed with them."
+        reason: "Only " + coverage + "% of this system's vitals could be evaluated, which is not enough for a health score. "
+          + "The readings taken are below, with what is still needed to score the rest."
       };
     }
 
@@ -429,6 +556,41 @@
       notScored: notScored,
       provisional: scored.some(function (s) { return s.provisional; })
     };
+  }
+
+  /*
+   * THE VITALS, the way measureQuick prints them: each with its band and
+   * whether it landed inside. Used by the field tool's derived card and by
+   * the customer report's measurement rows. Not-scored vitals (filter face
+   * velocity, amps) ride along flagged rather than graded.
+   */
+  function vitals(readings, design, setKey) {
+    const health = scoreHealth({ readings: readings, design: design, checkpointSet: setKey });
+    const rows = [];
+    (health.scored || []).forEach(function (dim) {
+      if (dim.parts) {
+        dim.parts.forEach(function (p) {
+          rows.push({ id: p.id, label: p.label, value: p.value, unit: p.unit, band: p.band, inRange: p.inRange,
+                      direction: p.direction, scored: true, dimension: dim.id, basis: dim.basis });
+        });
+      } else {
+        rows.push({ id: dim.id, label: dim.label, value: dim.value, unit: dim.unit || "", band: dim.band || null,
+                    inRange: dim.inRange !== false, direction: dim.direction || "normal", scored: true, dimension: dim.id, basis: dim.basis });
+      }
+    });
+    const ffv = DERIVED.filterFaceVelocity.compute(readings, design);
+    if (ffv !== null) {
+      const max = num((bandsCfg().filterFaceVelocity || {}).max) || 500;
+      rows.push({ id: "filterFaceVelocity", label: "Filter face velocity", value: ffv, unit: " FPM", band: { min: null, max: max },
+                  inRange: ffv <= max, direction: ffv <= max ? "normal" : "high", scored: false,
+                  basis: "under " + max + " FPM; " + (num(readings.airflowCfm) === null ? "nominal airflow" : "measured airflow") });
+    }
+    const ofRla = DERIVED.ampsOfRla.compute({ condenserAmps: readings.condAmps, blowerAmps: readings.ahuAmps }, design);
+    if (ofRla !== null) {
+      rows.push({ id: "ampsOfRla", label: "Amp draw vs nameplate", value: ofRla, unit: "% of RLA", band: { min: null, max: 100 },
+                  inRange: ofRla <= 100, direction: ofRla <= 100 ? "normal" : "high", scored: false, basis: "recorded, not scored" });
+    }
+    return { health: health, rows: rows };
   }
 
   /*
@@ -672,7 +834,7 @@
     const wanted = Object.keys(DERIVED).filter(function (id) {
       if (setKey === "hvac_furnace") return ["temperatureRise", "totalStatic", "ampsOfRla"].indexOf(id) >= 0;
       if (setKey === "hvac_minisplit") return ["deltaT", "approach", "ampsOfRla"].indexOf(id) >= 0;
-      return id !== "temperatureRise";
+      return ["suctionSat", "liquidSat", "superheat", "subcooling", "approach", "compressionRatio", "deltaT", "totalStatic", "cfmPerTon", "filterFaceVelocity"].indexOf(id) >= 0;
     });
     return wanted.map(function (id) {
       const spec = DERIVED[id];
@@ -683,6 +845,9 @@
   }
 
   window.WILSON_HVAC = {
+    saturationTemp: saturationTemp,
+    vitals: vitals,
+    bandJudge: bandJudge,
     horizons: HORIZON,
     planningHorizon: planningHorizon,
     derived: DERIVED,

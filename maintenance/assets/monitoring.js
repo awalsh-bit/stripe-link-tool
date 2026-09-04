@@ -30,7 +30,7 @@
      looking, not a fact about the fleet. */
   const view = { q: "", status: "all", kind: "all", sort: "worst" };
 
-  function serviceName() { return (config.tempMonitoring || {}).serviceName || "Refrigeration Guardian"; }
+  function serviceName() { return (config.tempMonitoring || {}).serviceName || "Wilson Guardian Temp Monitoring"; }
 
   /*
    * The hub's three-way read of a sensor: flagged, running warm, or in band.
@@ -214,7 +214,7 @@
 
     document.getElementById("tw-title").innerHTML =
       '<div class="section-heading"><div><span class="eyebrow dark">' + ui.escapeHtml(serviceName()) + "</span>" +
-      "<h1>Refrigeration monitoring</h1>" +
+      "<h1>Temp Monitoring</h1>" +
       "<p>" + ui.escapeHtml(tm.responseCopy || "") + " " + (function () {
         /* v0.9.44: both tiers stated from config -- the hub is the office's
            reference card for quoting the standalone sale by hand. */

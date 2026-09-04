@@ -1,5 +1,10 @@
 (function () {
   const config = {
+    /* THE PROGRAM NAME. Cayden, 2026-09-04: "rebrand the whole maintenance
+       program to be called Wilson Guardian so it's not confusing for the
+       customer." Every surface reads it from here. */
+    programName: "Wilson Guardian",
+    programShortName: "Guardian",
     version: "0.6",
     currency: "USD",
     assumptions: {
@@ -206,9 +211,14 @@
         shortName: "Estate Concierge",
         annualPrice: 2995,
         visitsPerYear: 2,
+        /* v0.9.51 (Cayden): two temp-monitoring sensors ride along on
+           Concierge as a selling point. A third and beyond price at the
+           additional-sensor rate, the same way appliances over 15 do. */
+        includedTempSensors: 2,
         description: "Hands-off appliance portfolio management for larger homes.",
         features: [
           "Two visits per year",
+          "Wilson Guardian Temp Monitoring on two refrigeration sensors included; additional sensors at the member rate",
           "Cleaning included within plan scope; BBQ / grill cleaning excluded",
           "Priority service",
           "Water and air / food-preservation filters included at no extra charge",
@@ -220,7 +230,7 @@
       hvac_maintenance: {
         id: "hvac_maintenance",
         name: "Wilson AC Maintenance",
-        pricePerSystemAnnual: 200,
+        pricePerSystemAnnual: 199,
         visitsPerYear: 2,
         filterManagement: false,
         standardFiltersIncluded: false,
@@ -229,7 +239,7 @@
       hvac_filter_management: {
         id: "hvac_filter_management",
         name: "Wilson AC Maintenance + Filters",
-        pricePerSystemAnnual: 400,
+        pricePerSystemAnnual: 399,
         visitsPerYear: 2,
         filterManagement: true,
         standardFiltersIncluded: false,
@@ -276,10 +286,13 @@
        * report -- reads these two fields, so his final call is a one-line
        * change here.
        */
-      serviceName: "Wilson Refrigeration Guardian",
-      serviceShortName: "Guardian",
-      customerLabel: "Add Refrigeration Guardian — 24/7 temperature monitoring",
-      shortLabel: "Guardian monitoring",
+      /* v0.9.51 (Cayden): the whole program is "Wilson Guardian" now, so the
+         sensor service is "Wilson Guardian Temp Monitoring" -- never bare
+         "Guardian", which would name the program. */
+      serviceName: "Wilson Guardian Temp Monitoring",
+      serviceShortName: "Temp Monitoring",
+      customerLabel: "Add Wilson Guardian Temp Monitoring — 24/7 refrigeration temperature alerts",
+      shortLabel: "Temp monitoring",
       description: "A Wilson wireless sensor lives in this appliance and reports its temperature around the clock. If it drifts out of the safe band, Wilson sees it -- usually before the food does -- and dispatches a technician on priority.",
       /*
        * APPROVED PRICING.                                        (v0.9.44)
@@ -874,61 +887,47 @@
        */
       hvac_cooling: [
         {
-          id: "hvac_airside",
+          id: "hvac_outdoor",
+          subsystem: "temperature",
+          name: "Outdoor measurements",
+          prompt: "Gauges on, system running and stable. Take the outdoor readings the way you take them in measureQuick: both pressures, both line temperatures, outdoor air, and condenser electrical.",
+          guidance: "Saturation temperatures come off the pressure for the refrigerant on the plate; superheat, subcooling, condenser approach and compression ratio are worked out for you and judged against the bands set by Wilson.",
+          readingFields: [
+            { key: "lowPressure",   label: "Low pressure (suction)",  unit: " psig",   required: true,  placeholder: "Gauge" },
+            { key: "highPressure",  label: "High pressure (liquid)",  unit: " psig",   required: true,  placeholder: "Gauge" },
+            { key: "suctionLine",   label: "Suction line temp",       unit: "\u00b0F", required: true,  placeholder: "Clamp" },
+            { key: "liquidLine",    label: "Liquid line temp",        unit: "\u00b0F", required: true,  placeholder: "Clamp" },
+            { key: "dischargeLine", label: "Discharge line temp",     unit: "\u00b0F", required: false, placeholder: "Optional" },
+            { key: "outdoorAir",    label: "Outdoor air temp",        unit: "\u00b0F", required: true,  placeholder: "Shaded" },
+            { key: "condVolts",     label: "Condenser volts",         unit: " V",      required: false, placeholder: "Optional" },
+            { key: "condAmps",      label: "Condenser amps",          unit: " A",      required: false, placeholder: "Optional" },
+            { key: "condPowerFactor", label: "Condenser power factor", unit: "",       required: false, placeholder: "e.g. 0.95" }
+          ],
+          derivedReading: "suctionSat,liquidSat,superheat,subcooling,approach,compressionRatio",
+          photoPrompt: "Gauge set and nameplate"
+        },
+        {
+          id: "hvac_indoor",
           subsystem: "airflow",
-          name: "Airside performance",
-          prompt: "Measure return and supply air temperature at the equipment, and total external static across the air handler. Record the filter condition you found before changing it.",
-          guidance: "Total external static is judged against the maximum on this blower's nameplate, not against a rule of thumb. Temperature split is recorded and trended; its acceptable band depends on return humidity and is set by Wilson.",
+          name: "Indoor measurements",
+          prompt: "At the air handler: return and supply dry bulb and wet bulb, static pressures, and the airflow estimate from your hood or measureQuick. Record the filter condition you found before changing it.",
+          guidance: "Temperature split, total external static and filter face velocity are worked out for you. Enter return and supply static separately when you have both ports; otherwise enter total external static directly.",
           readingFields: [
-            { key: "returnDb",     label: "Return air temperature",  unit: "\u00b0F",  required: true,  placeholder: "Dry bulb" },
-            { key: "supplyDb",     label: "Supply air temperature",  unit: "\u00b0F",  required: true,  placeholder: "Dry bulb" },
-            { key: "returnStatic", label: "Return static pressure",  unit: " in wc", required: true,  placeholder: "e.g. 0.22" },
-            { key: "supplyStatic", label: "Supply static pressure",  unit: " in wc", required: true,  placeholder: "e.g. 0.28" }
+            { key: "returnDb",     label: "Return air dry bulb",     unit: "\u00b0F", required: true,  placeholder: "Return" },
+            { key: "returnWb",     label: "Return air wet bulb",     unit: "\u00b0F", required: true,  placeholder: "Return" },
+            { key: "returnRh",     label: "Return RH",               unit: " %",      required: false, placeholder: "Optional" },
+            { key: "supplyDb",     label: "Supply air dry bulb",     unit: "\u00b0F", required: true,  placeholder: "Supply" },
+            { key: "supplyWb",     label: "Supply air wet bulb",     unit: "\u00b0F", required: false, placeholder: "Optional" },
+            { key: "supplyRh",     label: "Supply RH",               unit: " %",      required: false, placeholder: "Optional" },
+            { key: "returnStatic", label: "Return static (RESP)",    unit: " in wc",  required: false, placeholder: "e.g. 0.15" },
+            { key: "supplyStatic", label: "Supply static (SESP)",    unit: " in wc",  required: false, placeholder: "e.g. 0.16" },
+            { key: "totalStatic",  label: "Total external static (TESP)", unit: " in wc", required: false, placeholder: "If measured directly" },
+            { key: "airflowCfm",   label: "Estimated airflow",       unit: " CFM",    required: false, placeholder: "Hood / measureQuick" },
+            { key: "ahuVolts",     label: "Air handler volts",       unit: " V",      required: false, placeholder: "Optional" },
+            { key: "ahuAmps",      label: "Air handler amps",        unit: " A",      required: false, placeholder: "Optional" }
           ],
-          derivedReading: "deltaT,totalStatic",
-          targetFrom: "maxEsp",
-          photoPrompt: "Filter and static test port photo"
-        },
-        {
-          id: "hvac_refrigerant",
-          subsystem: "temperature",
-          name: "Refrigerant circuit",
-          prompt: "Read saturation temperature for this refrigerant off the gauge set on both sides, and take line temperatures at the same points. Superheat and subcooling are calculated from what you enter.",
-          guidance: "Enter saturation temperature as the gauge reads it for the refrigerant on the plate -- dew point on the suction side, bubble point on the liquid side. Target bands depend on the metering device and are set by Wilson.",
-          readingFields: [
-            { key: "suctionSat",  label: "Suction saturation temp", unit: "\u00b0F", required: true, placeholder: "From gauge" },
-            { key: "suctionLine", label: "Suction line temp",       unit: "\u00b0F", required: true, placeholder: "Clamp" },
-            { key: "liquidSat",   label: "Liquid saturation temp",  unit: "\u00b0F", required: true, placeholder: "From gauge" },
-            { key: "liquidLine",  label: "Liquid line temp",        unit: "\u00b0F", required: true, placeholder: "Clamp" }
-          ],
-          derivedReading: "superheat,subcooling",
-          photoPrompt: "Gauge set reading"
-        },
-        {
-          id: "hvac_condenser",
-          subsystem: "temperature",
-          name: "Condenser & heat rejection",
-          prompt: "Take outdoor ambient and liquid line temperature. Clean the accessible condenser coil, then rate heat rejection and coil condition after service.",
-          guidance: "Approach is the liquid line temperature above outdoor ambient. It is the clearest single indicator of a loaded coil or a charge problem, and it is trended across visits.",
-          readingFields: [
-            { key: "outdoorAir", label: "Outdoor air temperature", unit: "\u00b0F", required: true, placeholder: "Shaded" }
-          ],
-          derivedReading: "approach",
-          photoPrompt: "Coil before and after cleaning"
-        },
-        {
-          id: "hvac_electrical",
-          subsystem: "electrical",
-          name: "Electrical performance",
-          prompt: "Measure running amps on the condenser and the blower, and compare each with the nameplate rating. Inspect contactors, capacitors and connections.",
-          guidance: "Judged as a percentage of the nameplate rated load amps for this equipment. Over 100% of RLA is drawing more than it was built to draw.",
-          readingFields: [
-            { key: "condenserAmps", label: "Condenser running amps", unit: "A", required: true, placeholder: "Clamp" },
-            { key: "blowerAmps",    label: "Blower running amps",    unit: "A", required: false, placeholder: "If accessible" }
-          ],
-          derivedReading: "ampsOfRla",
-          targetFrom: "condenserRla",
-          photoPrompt: "Nameplate and any component found failing"
+          derivedReading: "deltaT,totalStatic,cfmPerTon,filterFaceVelocity",
+          photoPrompt: "Filter as found and static test ports"
         },
         {
           id: "hvac_condensate",
@@ -941,7 +940,7 @@
           id: "hvac_safety",
           subsystem: "safety",
           name: "Controls, safeties & condition",
-          prompt: "Test the thermostat sequence, verify safeties operate, and record the visible condition of cabinet, insulation, line set and disconnect.",
+          prompt: "Test the thermostat sequence, verify safeties operate, and record the visible condition of cabinet, insulation, line set, disconnect, contactor and capacitors.",
           photoPrompt: "Any safety concern"
         }
       ],
@@ -953,104 +952,82 @@
        */
       hvac_heatpump: [
         {
-          id: "hvac_airside",
+          id: "hvac_outdoor",
+          subsystem: "temperature",
+          name: "Outdoor measurements",
+          prompt: "Gauges on, system running and stable in cooling mode. Take both pressures, both line temperatures, outdoor air, and condenser electrical.",
+          guidance: "Saturation temperatures come off the pressure for the refrigerant on the plate; superheat, subcooling, approach and compression ratio are worked out for you.",
+          readingFields: [
+            { key: "lowPressure",   label: "Low pressure (suction)",  unit: " psig",   required: true,  placeholder: "Gauge" },
+            { key: "highPressure",  label: "High pressure (liquid)",  unit: " psig",   required: true,  placeholder: "Gauge" },
+            { key: "suctionLine",   label: "Suction line temp",       unit: "\u00b0F", required: true,  placeholder: "Clamp" },
+            { key: "liquidLine",    label: "Liquid line temp",        unit: "\u00b0F", required: true,  placeholder: "Clamp" },
+            { key: "dischargeLine", label: "Discharge line temp",     unit: "\u00b0F", required: false, placeholder: "Optional" },
+            { key: "outdoorAir",    label: "Outdoor air temp",        unit: "\u00b0F", required: true,  placeholder: "Shaded" },
+            { key: "condVolts",     label: "Condenser volts",         unit: " V",      required: false, placeholder: "Optional" },
+            { key: "condAmps",      label: "Condenser amps",          unit: " A",      required: false, placeholder: "Optional" },
+            { key: "condPowerFactor", label: "Condenser power factor", unit: "",       required: false, placeholder: "e.g. 0.95" }
+          ],
+          derivedReading: "suctionSat,liquidSat,superheat,subcooling,approach,compressionRatio",
+          photoPrompt: "Gauge set and nameplate"
+        },
+        {
+          id: "hvac_indoor",
           subsystem: "airflow",
-          name: "Airside performance",
-          prompt: "Measure return and supply air temperature at the equipment, and total external static across the air handler.",
-          guidance: "Total external static is judged against this blower's nameplate maximum.",
+          name: "Indoor measurements",
+          prompt: "At the air handler: return and supply dry bulb and wet bulb, static pressures, and the airflow estimate. Record the filter condition you found before changing it.",
+          guidance: "Temperature split, total external static and filter face velocity are worked out for you.",
           readingFields: [
-            { key: "returnDb",     label: "Return air temperature",  unit: "\u00b0F",  required: true,  placeholder: "Dry bulb" },
-            { key: "supplyDb",     label: "Supply air temperature",  unit: "\u00b0F",  required: true,  placeholder: "Dry bulb" },
-            { key: "returnStatic", label: "Return static pressure",  unit: " in wc", required: true,  placeholder: "e.g. 0.22" },
-            { key: "supplyStatic", label: "Supply static pressure",  unit: " in wc", required: true,  placeholder: "e.g. 0.28" }
+            { key: "returnDb",     label: "Return air dry bulb",     unit: "\u00b0F", required: true,  placeholder: "Return" },
+            { key: "returnWb",     label: "Return air wet bulb",     unit: "\u00b0F", required: true,  placeholder: "Return" },
+            { key: "returnRh",     label: "Return RH",               unit: " %",      required: false, placeholder: "Optional" },
+            { key: "supplyDb",     label: "Supply air dry bulb",     unit: "\u00b0F", required: true,  placeholder: "Supply" },
+            { key: "supplyWb",     label: "Supply air wet bulb",     unit: "\u00b0F", required: false, placeholder: "Optional" },
+            { key: "supplyRh",     label: "Supply RH",               unit: " %",      required: false, placeholder: "Optional" },
+            { key: "returnStatic", label: "Return static (RESP)",    unit: " in wc",  required: false, placeholder: "e.g. 0.15" },
+            { key: "supplyStatic", label: "Supply static (SESP)",    unit: " in wc",  required: false, placeholder: "e.g. 0.16" },
+            { key: "totalStatic",  label: "Total external static (TESP)", unit: " in wc", required: false, placeholder: "If measured directly" },
+            { key: "airflowCfm",   label: "Estimated airflow",       unit: " CFM",    required: false, placeholder: "Hood / measureQuick" },
+            { key: "ahuVolts",     label: "Air handler volts",       unit: " V",      required: false, placeholder: "Optional" },
+            { key: "ahuAmps",      label: "Air handler amps",        unit: " A",      required: false, placeholder: "Optional" }
           ],
-          derivedReading: "deltaT,totalStatic",
-          targetFrom: "maxEsp",
-          photoPrompt: "Filter and static test port photo"
-        },
-        {
-          id: "hvac_refrigerant",
-          subsystem: "temperature",
-          name: "Refrigerant circuit",
-          prompt: "Saturation temperature both sides from the gauge set, line temperatures at the same points.",
-          guidance: "Enter saturation temperature as the gauge reads it for the refrigerant on the plate. Bands depend on metering device and operating mode.",
-          readingFields: [
-            { key: "suctionSat",  label: "Suction saturation temp", unit: "\u00b0F", required: true, placeholder: "From gauge" },
-            { key: "suctionLine", label: "Suction line temp",       unit: "\u00b0F", required: true, placeholder: "Clamp" },
-            { key: "liquidSat",   label: "Liquid saturation temp",  unit: "\u00b0F", required: true, placeholder: "From gauge" },
-            { key: "liquidLine",  label: "Liquid line temp",        unit: "\u00b0F", required: true, placeholder: "Clamp" }
-          ],
-          derivedReading: "superheat,subcooling",
-          photoPrompt: "Gauge set reading"
-        },
-        {
-          id: "hvac_condenser",
-          subsystem: "temperature",
-          name: "Outdoor coil & heat transfer",
-          prompt: "Outdoor ambient and liquid line temperature. Clean the accessible coil, then rate heat transfer and condition after service.",
-          readingFields: [
-            { key: "outdoorAir", label: "Outdoor air temperature", unit: "\u00b0F", required: true, placeholder: "Shaded" }
-          ],
-          derivedReading: "approach",
-          photoPrompt: "Coil before and after cleaning"
+          derivedReading: "deltaT,totalStatic,cfmPerTon,filterFaceVelocity",
+          photoPrompt: "Filter as found and static test ports"
         },
         {
           id: "hvac_reversing",
-          subsystem: "mechanical",
+          subsystem: "temperature",
           name: "Heating mode & defrost",
-          prompt: "Change over to heating, confirm the reversing valve shifts and the system delivers heat, and verify the defrost cycle initiates and terminates. Record supply air temperature in heating.",
-          guidance: "A heat pump that has only ever been checked in cooling has had half of it checked. Where outdoor conditions make a heating test impossible, mark it not applicable and say so on the report rather than passing it.",
+          prompt: "Switch to heating. Confirm the reversing valve shifts cleanly, supply air warms, and the defrost control initiates and terminates.",
+          guidance: "Recorded for the visit and trended. Not part of the cooling-mode score.",
           readingFields: [
             { key: "heatingSupply", label: "Supply air, heating mode", unit: "\u00b0F", required: false, placeholder: "If testable" }
           ],
-          photoPrompt: "Defrost board or any fault code"
+          photoPrompt: "Defrost board / reversing valve if suspect"
         },
         {
           id: "hvac_backup",
-          subsystem: "temperature",
-          name: "Backup heat & balance point",
-          prompt: "Verify auxiliary or emergency heat operates and staging is correct. Confirm the balance point setting matches what the house needs.",
-          photoPrompt: "Heat kit or control settings"
-        },
-        {
-          id: "hvac_electrical",
           subsystem: "electrical",
-          name: "Electrical performance",
-          prompt: "Running amps on the condenser and blower against nameplate ratings. Inspect contactors, capacitors and connections.",
-          readingFields: [
-            { key: "condenserAmps", label: "Condenser running amps", unit: "A", required: true, placeholder: "Clamp" },
-            { key: "blowerAmps",    label: "Blower running amps",    unit: "A", required: false, placeholder: "If accessible" }
-          ],
-          derivedReading: "ampsOfRla",
-          targetFrom: "condenserRla",
-          photoPrompt: "Nameplate and any component found failing"
+          name: "Backup heat & balance point",
+          prompt: "Verify auxiliary / emergency heat stages energize on demand and the thermostat balance-point setting is sensible for this home.",
+          photoPrompt: "Strip heat or aux stage if suspect"
         },
         {
           id: "hvac_condensate",
           subsystem: "drainage",
           name: "Condensate & drainage",
-          prompt: "Primary drain flows, trap primed, secondary path and float switch work, no standing water or staining.",
-          photoPrompt: "Pan and drain"
+          prompt: "Confirm the primary drain flows, the trap is primed, the secondary path and float switch work, and there is no standing water or staining in the pan.",
+          photoPrompt: "Pan and drain, especially any staining"
         },
         {
           id: "hvac_safety",
           subsystem: "safety",
           name: "Controls, safeties & condition",
-          prompt: "Thermostat sequence in both modes, safeties operate, visible condition of cabinet, insulation, line set and disconnect.",
+          prompt: "Test the thermostat sequence, verify safeties operate, and record the visible condition of cabinet, insulation, line set, disconnect, contactor and capacitors.",
           photoPrompt: "Any safety concern"
         }
       ],
 
-      /*
-       * Gas heating. Temperature rise is the capacity measurement and the plate
-       * states its own acceptable range, which is the cleanest example in the
-       * whole product of a target that is a design spec rather than an opinion.
-       *
-       * Combustion analysis is deliberately NOT in this draft: it needs an
-       * analyzer, it is the one HVAC reading with a genuine safety consequence
-       * if misread, and whether Wilson runs it on a maintenance visit is a
-       * decision for the tech team rather than a default I should set.
-       */
       hvac_furnace: [
         {
           id: "hvac_rise",
@@ -2006,91 +1983,128 @@
      * 14 SEER rating" is useful and true. It never enters the health grade.
      */
     hvacScoring: {
-      /* Weights across the scored dimensions. Deliberately no efficiency term
-         and no age term: age belongs in the planning horizon, where it is
-         stated as age, and efficiency belongs in running cost. */
+      /*
+       * v0.9.51 -- SCORED THE WAY measureQuick SCORES, MINUS EFFICIENCY.
+       *
+       * Cayden: "update HVAC checks to be the same as measureQuick readings,
+       * except we are going to omit the efficiency calculation. We will use age
+       * as a 25% factor like in appliances, but no modifier for efficiency
+       * tier."
+       *
+       * So the measured side is measureQuick's loss buckets -- refrigerant
+       * charge, temperature split, static pressure, condenser approach -- and
+       * it fills the 75% the appliance score gives to vitals. Age fills the
+       * other 25%, exactly as it does for an appliance (the blend happens in the
+       * field tool above scoreHealth, which still never sees age). SEER never
+       * enters the number anywhere: measureQuick's "age & efficiency" bucket is
+       * age alone here, and expected life is a flat figure per system type with
+       * no tier modifier.
+       */
       dimensions: {
-        capacity:  { id: "capacity",  label: "Capacity delivery",   weight: 0.30, note: "Heat actually moved, against the plate rating corrected for the day's conditions." },
-        airflow:   { id: "airflow",   label: "Airflow",             weight: 0.20, note: "Against the equipment's rated airflow, not a rule of thumb." },
-        charge:    { id: "charge",    label: "Refrigerant charge",  weight: 0.20, note: "Superheat and subcooling in the band for this metering device." },
-        static:    { id: "static",    label: "Static pressure",     weight: 0.15, note: "Total external static against the plate maximum." },
-        electrical:{ id: "electrical",label: "Electrical",          weight: 0.15, note: "Amp draw against nameplate rated load amps." }
+        charge:   { id: "charge",   label: "Refrigerant charge",   weight: 0.30, note: "Superheat and subcooling in the band for this metering device." },
+        split:    { id: "split",    label: "Temperature split",    weight: 0.25, note: "Return-to-supply dry-bulb drop, against the Wilson band." },
+        static:   { id: "static",   label: "Static pressure",      weight: 0.25, note: "Total external static against the plate maximum, or the Wilson band when the plate is silent." },
+        approach: { id: "approach", label: "Condenser approach",   weight: 0.20, note: "Liquid line above outdoor ambient -- heat rejection." }
       },
 
-      /*
-       * NOT scored. Kept explicit so nobody adds them back by accident.
-       *
-       * `reason` is the sentence the report uses when it explains why the
-       * number is shown but did not move the grade.
-       */
+      /* Recorded and flagged on the report, never in the number. */
       reportedNotScored: {
         efficiency: {
           label: "Operating efficiency",
-          reason: "Shown against this system's own rating so you can see what it costs to run. A system meeting its rating is healthy at any rating."
+          reason: "Omitted on purpose. A system meeting its own rating is healthy at any rating; SEER is what it costs to run, not a measure of its health."
         },
-        age: {
-          label: "System age",
-          reason: "Shown in the planning section. Age tells you what to expect and when; it is not a fault and does not reduce the health score."
+        electrical: {
+          label: "Electrical draw",
+          reason: "Recorded against the nameplate and trended; not part of the score, matching the measureQuick vitals set."
+        },
+        filterFaceVelocity: {
+          label: "Filter face velocity",
+          reason: "Flagged when over 500 FPM (an undersized filter); recorded, not scored."
         }
       },
 
       /*
-       * Targets that are genuinely universal design values rather than market
-       * comparisons. Everything else comes off the plate.
-       *
-       * Marked as drafts because the tech team has not signed them off. The
-       * airflow scorer reads this flag and says "against a draft 350-450
-       * band" wherever it reports its basis -- the flag used to be read by
-       * nothing at all, so the comment below was describing an intention
-       * rather than the code. Anything added here needs the same treatment.
-       *
-       * Historically: marked as drafts because the tech team has not signed them off, and
-       * every surface that uses a draft target says so.
+       * THE BANDS. These are the measureQuick vitals ranges as they print on a
+       * Wilson report (see FullReport, 4/7/2026, Trane 4TWR6042). Marked draft
+       * until the HVAC team signs them off; every surface that judges against
+       * one says so.
        */
+      bands: {
+        superheat:  { txv: { min: 6, max: 24 }, piston: { min: 8, max: 30 }, unit: "\u00b0F", draft: true,
+                      note: "TXV systems hold superheat in a narrow band; a fixed orifice's target moves with indoor wet bulb and outdoor dry bulb, so its band is wider." },
+        subcooling: { txv: { min: 7, max: 13 }, piston: { min: 5, max: 15 }, unit: "\u00b0F", draft: true },
+        approach:   { min: 1.5, max: 13, unit: "\u00b0F", draft: true, note: "High approach is heat-rejection trouble: a dirty or recirculating condenser." },
+        split:      { min: 16.5, max: 22.5, unit: "\u00b0F", draft: true, note: "Around a 19.5\u00b0F target. Low split points at charge or return-duct leakage; high split at low airflow." },
+        static:     { min: 0.2, max: 0.7, unit: " in wc", draft: true, note: "Used only when the blower's plate maximum is not on record; the plate wins when it is." },
+        filterFaceVelocity: { max: 500, unit: " FPM", draft: false },
+        /* How far outside a band costs how much: each full band-width outside
+           the band is the whole dimension. Linear, capped at zero. */
+        deductionPerBandWidth: 100
+      },
+
+      /*
+       * PRESSURE -> SATURATION TEMPERATURE. measureQuick reads its saturation
+       * temperatures off the probes' pressure; the technician here enters the
+       * gauge pressure and the tool does the same lookup. Tables are psig at
+       * whole-degree steps of 10 \u00b0F and interpolated linearly, which is well
+       * inside gauge precision. R-410A and R-22 are the standard published
+       * charts; R-32 and R-454B are the current published dew-point charts and
+       * are marked so the report can say "approximate" until the HVAC team
+       * confirms them against their gauges.
+       */
+      refrigerantPT: {
+        "R-410A": { verified: true, points: [[-40,10.8],[-30,17.9],[-20,26.7],[-10,36.5],[0,48.6],[10,62.3],[20,78.3],[30,96.8],[40,118.0],[50,142.2],[60,169.6],[70,200.6],[80,235.3],[90,274.1],[100,317.4],[110,365.5],[120,418.8],[130,477.5],[140,542.0],[150,613.0]] },
+        "R-22":   { verified: true, points: [[-40,0.6],[-30,4.9],[-20,10.1],[-10,16.5],[0,24.0],[10,32.8],[20,43.0],[30,54.9],[40,68.5],[50,84.0],[60,101.6],[70,121.4],[80,143.6],[90,168.4],[100,195.9],[110,226.4],[120,259.9],[130,296.8],[140,337.3],[150,381.5]] },
+        "R-32":   { verified: false, points: [[-40,12.9],[-30,20.6],[-20,30.1],[-10,41.6],[0,55.3],[10,71.7],[20,90.9],[30,113.4],[40,139.5],[50,169.5],[60,203.8],[70,242.7],[80,286.6],[90,335.9],[100,391.0],[110,452.4],[120,520.5],[130,596.0],[140,680.0]] },
+        "R-454B": { verified: false, points: [[-40,9.7],[-30,16.4],[-20,24.5],[-10,34.2],[0,45.5],[10,58.9],[20,74.3],[30,92.2],[40,112.7],[50,136.2],[60,162.8],[70,192.9],[80,226.7],[90,264.6],[100,306.6],[110,353.4],[120,405.0],[130,462.0],[140,525.0]] }
+      },
+      refrigerants: ["R-410A", "R-22", "R-32", "R-454B"],
+      meteringDevices: ["TXV", "Piston"],
+
+      /*
+       * AGE: 25%, like an appliance, from a FLAT expected life per system type.
+       * No brand tier and no efficiency tier moves it -- the same 15-year figure
+       * applies to a 13 SEER and a 20 SEER split system.
+       */
+      ageWeight: 0.25,
+      ageTierModifier: false,
+      expectedLifeFlat: {
+        hvac_cooling: 15,
+        hvac_heatpump: 14,
+        hvac_furnace: 18,
+        hvac_minisplit: 12
+      },
+
+      /* Universal design values still used by the furnace / mini-split paths. */
       designDefaults: {
         cfmPerTonMin:   { value: 350, unit: "CFM/ton", draft: true, note: "Standard residential cooling design range is 350-450 CFM per ton, nominal 400." },
         cfmPerTonMax:   { value: 450, unit: "CFM/ton", draft: true },
+        cfmPerTonNominal: { value: 400, unit: "CFM/ton", draft: false, note: "Used to estimate airflow from tonnage when no airflow was measured; the report says the airflow is nominal." },
         ampsOfRlaMax:   { value: 100, unit: "% of RLA", draft: false, note: "Definitional: nameplate rated load amps is the rated maximum." },
         staticOfRatedMax: { value: 100, unit: "% of rated ESP", draft: false, note: "Definitional: the plate states the maximum external static the blower is rated for." }
       },
 
-      /*
-       * The health grade needs no separate band table -- it shares the
-       * appliance grade bands so one score means one thing across the whole
-       * property. What HVAC adds is the planning horizon below.
-       */
       sharesApplianceGradeBands: true
     },
 
     /*
      * THE DESIGN PROFILE - what the nameplate says this system is supposed to do.
-     *
-     * This is the whole mechanism behind "measured against its own design". Each
-     * field is read off the equipment plate once and photographed, and every
-     * scored target is derived from it. A 13-SEER three-ton unit is judged
-     * against three tons and its own rated airflow and static, so meeting its
-     * design is a full score at any rating.
-     *
-     * `scores` marks the fields a health score depends on. If any of them is
-     * missing, that dimension is NOT scored and the report says the plate data
-     * is missing -- it is never scored against a category default, which would
-     * be the market comparison this design exists to avoid.
+     * Read off the plate once and photographed; carried to the next visit.
+     * `scores` names the dimension a field gates.
      */
     hvacDesignProfile: [
-      { key: "ratedTons",      label: "Rated capacity",          unit: "tons",       scores: "capacity",   plate: true,  note: "From the model number or plate. The basis for every capacity figure." },
-      { key: "ratedCfm",       label: "Rated airflow",           unit: "CFM",        scores: "airflow",    plate: true,  note: "Where the plate states it. Otherwise airflow is scored on CFM per ton against the design range." },
-      { key: "maxEsp",         label: "Maximum external static", unit: "in wc",      scores: "static",     plate: true,  note: "The blower's rated maximum. Commonly 0.5 in wc on residential equipment, but read the plate." },
-      { key: "condenserRla",   label: "Condenser rated load amps", unit: "A",        scores: "electrical", plate: true },
-      { key: "blowerFla",      label: "Blower full load amps",   unit: "A",          scores: "electrical", plate: true },
+      { key: "ratedTons",      label: "Nominal tonnage",         unit: "tons",       scores: "split",      plate: true,  note: "From the model number or plate. Airflow per ton and filter face velocity are figured from it when airflow was not measured." },
+      { key: "refrigerant",    label: "Refrigerant",             unit: "",           scores: "charge",     plate: true,  select: "refrigerants", note: "Needed to turn gauge pressure into saturation temperature. R-410A on nearly everything Wilson maintains." },
+      { key: "meteringDevice", label: "Metering device",         unit: "",           scores: "charge",     plate: false, select: "meteringDevices", note: "TXV or piston. Sets which superheat and subcooling bands apply." },
+      { key: "maxEsp",         label: "Maximum external static", unit: "in wc",      scores: "static",     plate: true,  note: "The blower's rated maximum. Commonly 0.5 in wc on residential equipment, but read the plate. The 0.2-0.7 band applies when blank." },
+      { key: "ratedCfm",       label: "Rated airflow",           unit: "CFM",        scores: null,         plate: true,  note: "Where the plate states it. Otherwise nominal 400 CFM per ton is used to estimate." },
+      { key: "filterWidth",    label: "Filter width",            unit: "in",         scores: null,         plate: false, note: "Filter face velocity needs the filter's face area." },
+      { key: "filterHeight",   label: "Filter height",           unit: "in",         scores: null,         plate: false },
+      { key: "condenserRla",   label: "Condenser rated load amps", unit: "A",        scores: null,         plate: true,  note: "Amps are recorded against it and trended; not scored." },
+      { key: "blowerFla",      label: "Blower full load amps",   unit: "A",          scores: null,         plate: true },
       { key: "riseRangeLow",   label: "Temperature rise, low",   unit: "\u00b0F",     scores: "capacity",   plate: true,  note: "Gas furnaces only. The plate states the acceptable rise range; it is the design spec." },
       { key: "riseRangeHigh",  label: "Temperature rise, high",  unit: "\u00b0F",     scores: "capacity",   plate: true },
-      { key: "refrigerant",    label: "Refrigerant",             unit: "",           scores: null,         plate: true,  note: "Needed to read saturation temperature off the gauge set. Not itself scored." },
-      /* `scores` is deliberately empty. This field WILL gate the charge score once
-         the superheat/subcooling bands are set -- the band depends on the metering
-         device -- but scoreHealth does not read it today, and listing it as a
-         blocker told technicians a score was waiting on something it was not. */
-      { key: "meteringDevice", label: "Metering device",         unit: "",           scores: "",            plate: false, note: "TXV or fixed orifice. Will set which superheat band applies once those bands are agreed." },
-      { key: "ratedSeer",      label: "Rated SEER / SEER2",      unit: "",           scores: null,         plate: true,  note: "Reported, never scored. It is what this system was sold as, and the efficiency figure is compared against it rather than against the market." },
+      { key: "ratedSeer",      label: "Rated SEER / SEER2",      unit: "",           scores: null,         plate: true,  note: "Reported, never scored." },
       { key: "ratedAfue",      label: "Rated AFUE",              unit: "%",          scores: null,         plate: true,  note: "Gas furnaces. Reported, never scored." }
     ],
 
@@ -2117,19 +2131,28 @@
         documented: true, rank: 1,
         note: "Install date taken from the Wilson invoice that sold this appliance."
       },
+      /* v0.9.51 (Cayden): the technician can VERIFY a date from the
+         manufacture date on the serial tag. That is a document -- it is on
+         the machine -- so it scores and reports as verified, one rank below
+         the invoice. */
+      serial: {
+        id: "serial", label: "Verified from serial tag", short: "Serial tag verified",
+        documented: true, rank: 2,
+        note: "Manufacture date read off the serial tag and confirmed by the technician at the visit."
+      },
       customer: {
         id: "customer", label: "Customer stated", short: "Customer stated",
-        documented: false, rank: 2,
+        documented: false, rank: 3,
         note: "Install year as given by the customer. Not verified against a document."
       },
       estimate: {
         id: "estimate", label: "Technician estimate", short: "Tech estimate",
-        documented: false, rank: 3,
+        documented: false, rank: 4,
         note: "Age estimated in the field from the appliance itself. Not verified against a document."
       },
       unknown: {
         id: "unknown", label: "Not established", short: "Not established",
-        documented: false, rank: 4,
+        documented: false, rank: 5,
         note: "No install date on record. Lifecycle figures are not calculated without one."
       }
     },
@@ -2895,6 +2918,13 @@
         reasons: ["Light out", "Control damaged", "Rotisserie not turning"] },
 
       /* ---- HVAC: the readings are scored, the eyeballed items are not ---- */
+      /* v0.9.51: the two measurement checks are keypad-only. The numbers ARE
+         the answer; WILSON_HVAC scores them against the Wilson bands. */
+      "hvac_cooling.hvac_outdoor":      { kind: "scored", control: "keypad" },
+      "hvac_cooling.hvac_indoor":       { kind: "scored", control: "keypad" },
+      "hvac_heatpump.hvac_outdoor":     { kind: "scored", control: "keypad" },
+      "hvac_heatpump.hvac_indoor":      { kind: "scored", control: "keypad" },
+      "hvac_heatpump.hvac_reversing":   { kind: "scored", control: "passfail", options: "operating" },
       "hvac_cooling.hvac_condensate":   { kind: "scored", control: "passfail", options: "drain" },
       "hvac_cooling.hvac_safety":       { kind: "scored", control: "passfail", options: "safety" },
       "hvac_heatpump.hvac_condensate":  { kind: "scored", control: "passfail", options: "drain" },
@@ -4091,6 +4121,15 @@
   }
 
   function expectedLife(setKey, tier, water, ident) {
+    /*
+     * v0.9.51: HVAC expected life is a FLAT figure per system type. No brand
+     * tier, no efficiency tier -- Cayden's call. Water hardness does not apply.
+     */
+    const flat = ((config.hvacScoring || {}).expectedLifeFlat || {})[setKey];
+    if (String(setKey || "").indexOf("hvac_") === 0 && Number(flat) > 0 && (config.hvacScoring || {}).ageTierModifier === false) {
+      return { base: Number(flat), adjusted: Number(flat), factor: 1, applied: false, waterBearing: false,
+               basis: { kind: "hvac-flat", set: setKey, tier: null, brand: null, line: null, series: null, environment: "indoor" } };
+    }
     const matrixKey = matrixSetFor(setKey);
     const matrix = config.lifecycleMatrix[matrixKey] || config.lifecycleMatrix.generic;
     const brandRow = brandLifespanFor(ident, setKey);
@@ -4171,6 +4210,15 @@
     const yrs = Number(years);
     const n = isFinite(yrs) && yrs > 0 ? yrs + " year" + (yrs === 1 ? "" : "s") : "This figure";
     const lead = isFinite(yrs) && yrs > 0 ? n + " is " : "This figure is ";
+
+    if (basis.kind === "hvac-flat") {
+      const setSource = (config.lifecycleSources || {})[basis.set] || {};
+      if (who === "tech") {
+        return "Flat expected life for this system type -- no brand or efficiency tier modifier (Wilson HVAC rule)." +
+          (setSource.basis ? " " + setSource.basis + "." : "");
+      }
+      return lead + "the figure we use for every system of this type, whatever its brand or efficiency rating.";
+    }
 
     if (basis.kind !== "brand") {
       const tierLabel = ((config.lifecycleTiers || {})[basis.tier] || {}).label || basis.tier || "";
@@ -4403,13 +4451,29 @@
     return JSON.parse(JSON.stringify(tm.pricing || {}));
   }
 
-  function tempMonitoringTotal(assets, tier) {
-    const pricing = ((config.tempMonitoring || {}).pricing || {})[tier || "member"];
-    if (!pricing) return 0;
-    const sensors = (assets || []).reduce(function (n, asset) {
+  /* Sensors the plan includes outright (Estate Concierge: two). */
+  function tempMonitoringIncluded(planId) {
+    const plan = planId ? (config.appliancePlans[planId] || null) : null;
+    return plan ? Number(plan.includedTempSensors || 0) : 0;
+  }
+
+  function tempMonitoringSensorCount(assets) {
+    return (assets || []).reduce(function (n, asset) {
       return n + tempMonitoringForAsset(asset).sensors;
     }, 0);
+  }
+
+  function tempMonitoringTotal(assets, tier, planId) {
+    const pricing = ((config.tempMonitoring || {}).pricing || {})[tier || "member"];
+    if (!pricing) return 0;
+    const sensors = tempMonitoringSensorCount(assets);
     if (!sensors) return 0;
+    const included = tempMonitoringIncluded(planId);
+    if (included > 0) {
+      /* The plan carries the first sensors; anything past them is an
+         additional sensor at the member rate -- no first-sensor charge. */
+      return Math.max(0, sensors - included) * Number(pricing.additionalAnnual || 0);
+    }
     return Number(pricing.firstAnnual || 0) + (sensors - 1) * Number(pricing.additionalAnnual || 0);
   }
 
@@ -4422,7 +4486,7 @@
        leak 449.84999999999997 into the record. Same rule, one line. */
     const cents = function (n) { return Math.round(Number(n || 0) * 100) / 100; };
     const filterCost = filterServiceTotal(assets, planId);
-    const monitoringCost = tempMonitoringTotal(assets);
+    const monitoringCost = tempMonitoringTotal(assets, "member", planId);
     if (planId === "per_appliance") return cents(perApplianceCost(assets) + filterCost + monitoringCost);
     return cents(planById(planId).annualPrice
       + estateAdjustment(assets, planId).amount
@@ -4457,8 +4521,10 @@
       filterServiceDetail: filterServiceSummary(list, planId),
       filterServiceAmount: cents(filterServiceTotal(list, planId)),
       tempMonitoringCount: list.filter(function (a) { return tempMonitoringForAsset(a).selected; }).length,
-      tempMonitoringSensors: list.reduce(function (n, a) { return n + tempMonitoringForAsset(a).sensors; }, 0),
-      tempMonitoringAmount: tempMonitoringTotal(list),
+      tempMonitoringSensors: tempMonitoringSensorCount(list),
+      tempMonitoringIncluded: Math.min(tempMonitoringSensorCount(list), tempMonitoringIncluded(planId)),
+      tempMonitoringIncludedByPlan: tempMonitoringIncluded(planId),
+      tempMonitoringAmount: tempMonitoringTotal(list, "member", planId),
       customReviewRequired: list.length >= config.estatePricing.customReviewStartsAt
     };
   }
@@ -4740,7 +4806,9 @@
     compartmentsFor: tempMonitoringCompartmentsFor,
     watched: tempMonitoringWatched,
     tiers: tempMonitoringTiers,
-    total: tempMonitoringTotal
+    total: tempMonitoringTotal,
+    included: tempMonitoringIncluded,
+    sensorCount: tempMonitoringSensorCount
   };
 
   window.WILSON_FILTERS = {

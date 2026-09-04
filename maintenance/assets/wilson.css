@@ -5925,6 +5925,22 @@ body.is-offline .tech-bottom-actions { padding-bottom: 58px; }
 }
 .tech-derived-grid span { display: block; margin-top: 2px; font-size: 10.5px; line-height: 1.3; color: var(--muted); }
 
+/* v0.9.51: the vitals strip -- each measureQuick vital with its band and an
+   in-range / out-of-range verdict, so a transposed digit or a real fault is
+   visible while the gauges are still on. Status colours are semantic and do
+   not follow the brand scheme. */
+.tech-vitals-grid {
+  margin-top: 7px; display: grid; gap: 8px;
+  grid-template-columns: repeat(auto-fit, minmax(128px, 1fr));
+}
+.tech-vital { background: #fff; border-radius: 9px; padding: 7px 9px; border-left: 4px solid #16713a; }
+.tech-vital.out-of-range { border-left-color: #b42318; background: #fff6f5; }
+.tech-vital strong { display: block; font-size: 18px; line-height: 1.15; color: var(--ink); font-variant-numeric: tabular-nums; }
+.tech-vital span { display: block; margin-top: 2px; font-size: 10.5px; line-height: 1.3; color: var(--muted); }
+.tech-vital em { display: block; margin-top: 3px; font-size: 10.5px; font-style: normal; font-weight: 700; color: #16713a; }
+.tech-vital.out-of-range em { color: #b42318; }
+.tech-plate-grid select { width: 100%; }
+
 @media (max-width: 480px) {
   .tech-plate-grid { grid-template-columns: 1fr 1fr; }
 }
@@ -7163,3 +7179,11 @@ body.keypad-open { overflow: hidden; }
 .tw-compartment { font-style: normal; font-size: 11px; font-weight: 600; color: #4a6a56; background: #eef4ef; border-radius: 6px; padding: 1px 6px; margin-left: 4px; }
 .guardian-compartment-head { margin: 14px 0 6px; font-size: 14px; }
 .addon-compartment-hint { display: block; margin-top: 6px; color: #4a6a56; }
+
+/* v0.9.51: where the install year came from -- three chips, one selected.
+   "Verified on serial tag" is the documented answer and reads as such. */
+.tech-age-source-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.tech-age-source-chips .tech-age-said { margin: 0; }
+.tech-age-source-chips .tech-age-said.selected {
+  background: var(--primary); color: #fff; border-color: var(--primary);
+}

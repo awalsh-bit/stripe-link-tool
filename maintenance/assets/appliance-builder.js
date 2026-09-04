@@ -203,7 +203,7 @@
     const withoutIt = assets.map(function (a) {
       return a.id === asset.id ? Object.assign({}, a, { tempMonitoringOptIn: false }) : a;
     });
-    return Math.round((tempwatch.total(withIt) - tempwatch.total(withoutIt)) * 100) / 100;
+    return Math.round((tempwatch.total(withIt, "member", selectedPlan) - tempwatch.total(withoutIt, "member", selectedPlan)) * 100) / 100;
   }
 
   function guardianIsFirstSensor(asset) {
@@ -227,7 +227,7 @@
         return Object.assign({}, a, { tempMonitoringOptIn: list.length > 0, tempMonitoringCompartments: list });
       });
     };
-    return Math.round((tempwatch.total(shape(withKey)) - tempwatch.total(shape(withoutKey))) * 100) / 100;
+    return Math.round((tempwatch.total(shape(withKey), "member", selectedPlan) - tempwatch.total(shape(withoutKey), "member", selectedPlan)) * 100) / 100;
   }
 
   function maybeSpotlightAddOns(asset) {
@@ -243,14 +243,14 @@
 
         <div class="addon-hero">
           <div class="addon-hero-copy">
-            <strong>${ui.escapeHtml(tm.serviceName || "Refrigeration Guardian")}</strong>
+            <strong>${ui.escapeHtml(tm.serviceName || "Wilson Guardian Temp Monitoring")}</strong>
             <p>${ui.escapeHtml(tm.description || "")}</p>
             <small>${ui.escapeHtml(tm.responseCopy || "")}</small>
             ${tempwatch.compartmentsFor(asset).allowed.length > 1 ? `<small class="addon-compartment-hint">Separate fresh-food and freezer compartments? Wilson can put a sensor in each — pick both on the appliance card below.</small>` : ""}
           </div>
           <div class="addon-hero-action">
-            <span class="addon-price">${ui.money(guardianMarginalPrice(asset))}<small>/ year — ${guardianIsFirstSensor(asset) ? "first sensor" : "additional sensor"}</small></span>
-            <button class="button" type="button" data-spotlight-guardian="${asset.id}">${asset.tempMonitoringOptIn ? "✓ Added" : "Add Guardian"}</button>
+            <span class="addon-price">${guardianMarginalPrice(asset) === 0 && tempwatch.included && tempwatch.included(selectedPlan) > 0 ? "Included" : ui.money(guardianMarginalPrice(asset))}<small>/ year — ${guardianMarginalPrice(asset) === 0 && tempwatch.included && tempwatch.included(selectedPlan) > 0 ? "with " + ui.escapeHtml(planById(selectedPlan).shortName || planById(selectedPlan).name) : (guardianIsFirstSensor(asset) ? "first sensor" : "additional sensor")}</small></span>
+            <button class="button" type="button" data-spotlight-guardian="${asset.id}">${asset.tempMonitoringOptIn ? "✓ Added" : "Add Temp Monitoring"}</button>
           </div>
         </div>
 
@@ -284,7 +284,7 @@
       if (!done) return;
       const target = assets.find(function (a) { return a.id === asset.id; }) || asset;
       const picked = [];
-      if (target.tempMonitoringOptIn) picked.push(tm.serviceShortName || "Guardian");
+      if (target.tempMonitoringOptIn) picked.push(tm.serviceShortName || "Temp Monitoring");
       if (target.filterServiceOptIn || target.airFilterServiceOptIn) picked.push("filter service");
       done.textContent = picked.length
         ? "Done — " + picked.join(" + ") + " added. Continue registering"
@@ -300,7 +300,7 @@
           target.tempMonitoringOptIn = !target.tempMonitoringOptIn;
           target.tempMonitoringCompartments = target.tempMonitoringOptIn
             ? tempwatch.compartmentsFor(target).defaults.slice() : [];
-          g.textContent = target.tempMonitoringOptIn ? "✓ Added" : "Add Guardian";
+          g.textContent = target.tempMonitoringOptIn ? "✓ Added" : "Add Temp Monitoring";
           g.classList.toggle("ghost", false);
           g.classList.toggle("addon-picked", target.tempMonitoringOptIn);
           restateDone();
@@ -917,9 +917,14 @@
     (function () {
       if (!tempwatch) return;
       const sensors = assets.reduce(function (n, a) { return n + tempwatch.forAsset(a).sensors; }, 0);
-      const amount = tempwatch.total(assets);
-      if (!amount) return;
-      lines += `<div class="summary-line"><span>Guardian monitoring × ${sensors} sensor${sensors === 1 ? "" : "s"}${sensors > 1 ? " <small>(first + additional rate)</small>" : ""}</span><strong>${ui.money(amount)}</strong></div>`;
+      if (!sensors) return;
+      const amount = tempwatch.total(assets, "member", selectedPlan);
+      const included = Math.min(sensors, tempwatch.included ? tempwatch.included(selectedPlan) : 0);
+      const tmName = (config.tempMonitoring || {}).serviceShortName || "Temp Monitoring";
+      const note = included > 0
+        ? ` <small>(${included} included with ${ui.escapeHtml(planById(selectedPlan).shortName || planById(selectedPlan).name)}${sensors > included ? ", " + (sensors - included) + " additional" : ""})</small>`
+        : (sensors > 1 ? " <small>(first + additional rate)</small>" : "");
+      lines += `<div class="summary-line"><span>${ui.escapeHtml(tmName)} × ${sensors} sensor${sensors === 1 ? "" : "s"}${note}</span><strong>${amount ? ui.money(amount) : "Included"}</strong></div>`;
     })();
     /* Priced filter service, one line per kind. Previously this said "Added"
        with no amount and contributed nothing to the total. */
@@ -1607,7 +1612,7 @@
     loadDemoHome();
     document.getElementById("first-name").value = "Ellen";
     document.getElementById("last-name").value = "Reynolds";
-    document.getElementById("household-label").value = "Reynolds Estate";
+    document.getElementById("household-label").value = "Reynolds Household";
     document.getElementById("phone").value = "512-555-0148";
     document.getElementById("email").value = "ellen@example.com";
     document.getElementById("address1").value = "1840 Ridgeview Trail";

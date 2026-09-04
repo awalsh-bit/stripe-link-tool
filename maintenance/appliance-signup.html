@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Household Appliance Maintenance | Wilson</title>
+  <title>Appliance Registration · Wilson Guardian</title>
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <link rel="stylesheet" href="/public-shell.css">
   <link rel="stylesheet" href="assets/wilson.css">
@@ -129,7 +129,7 @@
               <div class="form-grid">
                 <div class="field"><label for="first-name">First name</label><input id="first-name" name="firstName" autocomplete="given-name" required></div>
                 <div class="field"><label for="last-name">Last name</label><input id="last-name" name="lastName" autocomplete="family-name" required></div>
-                <div class="field"><label for="household-label">Household label <span class="hint">Optional</span></label><input id="household-label" name="householdLabel" placeholder="Example: Reynolds Estate"></div>
+                <div class="field"><label for="household-label">Household label <span class="hint">Optional</span></label><input id="household-label" name="householdLabel" placeholder="Example: Reynolds Household"></div>
                 <div class="field"><label for="preferred-contact">Preferred contact</label><select id="preferred-contact" name="preferredContact"><option>Text</option><option>Phone</option><option>Email</option></select></div>
                 <div class="field"><label for="phone">Best phone</label><input id="phone" name="phone" type="tel" autocomplete="tel" required></div>
                 <div class="field"><label for="email">Email</label><input id="email" name="email" type="email" autocomplete="email" required></div>
@@ -138,7 +138,6 @@
                 <div class="field"><label for="city">City</label><input id="city" name="city" autocomplete="address-level2" required></div>
                 <div class="field"><label for="state">State</label><input id="state" name="state" value="TX" maxlength="2" autocomplete="address-level1" required></div>
                 <div class="field"><label for="zip">ZIP</label><input id="zip" name="zip" inputmode="numeric" autocomplete="postal-code" required></div>
-                <div class="field full"><label for="notes">Anything else Wilson should know <span class="hint">Optional</span></label><textarea id="notes" name="notes" placeholder="House manager's name, unusual equipment, or anything about the property that helps us plan."></textarea></div>
               </div>
             </section>
 
@@ -151,34 +150,36 @@
               constraints the office needs in order to place the ticket, and
               nothing here promises a slot.
 
-              No entry codes are collected: the customer says a gate or alarm
-              EXISTS and Wilson gets the code by phone. A code typed into a web
-              form is a code sitting in a database.
+              v0.9.51 (Cayden): only "Getting in" is shown. The month / day /
+              time / away-dates controls stay in the DOM, hidden, because the
+              scheduling control renders into them; the notes box sits under
+              the access chips so a gate code can be typed after "Gated entry".
             -->
             <section class="form-section" id="scheduling-section">
               <div class="section-heading">
                 <div>
-                  <h2>When maintenance suits you</h2>
-                  <p>All optional, and none of it books a date &mdash; Wilson will call to arrange each visit. This is what we use to get it right the first time.</p>
+                  <h2>Getting in</h2>
+                  <p>Nothing here books a date — Wilson will call to arrange each visit. This is what the technician needs to reach your equipment the first time.</p>
                 </div>
               </div>
 
-              <span class="sched-label">Best months <em>Leave blank for no preference</em></span>
-              <div class="sched-chips" id="sched-months"></div>
+              <span class="sched-label" hidden>Best months</span>
+              <div class="sched-chips" id="sched-months" hidden></div>
 
-              <span class="sched-label">Days that work <em>Leave blank for any day</em></span>
-              <div class="sched-chips" id="sched-days"></div>
+              <span class="sched-label" hidden>Days that work</span>
+              <div class="sched-chips" id="sched-days" hidden></div>
 
-              <span class="sched-label">Time of day</span>
-              <div class="sched-chips" id="sched-times"></div>
+              <span class="sched-label" hidden>Time of day</span>
+              <div class="sched-chips" id="sched-times" hidden></div>
 
-              <span class="sched-label">Getting in <em>So the technician is not turned away</em></span>
+              <span class="sched-label">Which of these apply? <em>So the technician is not turned away</em></span>
               <div class="sched-chips" id="sched-access"></div>
-              <p class="sched-privacy">Wilson never asks for gate or alarm codes on this form. If entry needs a code, we will collect it by phone before the first visit.</p>
+              <p class="sched-privacy">If entry needs a gate or alarm code, you can note it below — otherwise we will collect it by phone before the first visit.</p>
+              <div class="form-grid"><div class="field full"><label for="notes">Anything else Wilson should know <span class="hint">Optional</span></label><textarea id="notes" name="notes" placeholder="Gate or alarm code, house manager\'s name, where the equipment is, or anything else that helps"></textarea></div></div>
 
-              <span class="sched-label">Dates you will be away <em>Optional</em></span>
-              <div id="sched-blackouts"></div>
-              <div class="sched-blackout-add">
+              <span class="sched-label" hidden>Dates you will be away</span>
+              <div id="sched-blackouts" hidden></div>
+              <div class="sched-blackout-add" hidden>
                 <label>From <input type="date" id="sched-blackout-from"></label>
                 <label>To <input type="date" id="sched-blackout-to"></label>
                 <label class="sched-blackout-why">Reason <input type="text" id="sched-blackout-note" placeholder="Travelling, renovation…" maxlength="60"></label>
@@ -216,7 +217,7 @@
           <aside class="sticky enrollment-summary-sticky">
             <div class="summary-card interactive-summary-card">
               <div class="summary-head">
-                <div class="label">Your maintenance plan</div>
+                <div class="label">Your Wilson Guardian plan</div>
                 <div class="summary-plan-name" id="summary-plan-name">Start by adding appliances</div>
                 <div class="amount" id="summary-total">$0.00 <small>/ year</small></div>
                 <!-- What the card actually sees. "Per year" reads as spread

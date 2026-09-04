@@ -173,22 +173,65 @@
            key on booleans. */
         uploaded: "no",
         uploadAttempts: 0,
-        uploadError: "",
-        blob: processed.blob
+        uploadError: ""
       };
-      return tx("readwrite").then(function (store) {
-        return wrap(store.put(record)).then(function () {
-          const stored = Object.assign({}, record);
-          delete stored.blob;
-          return stored;
+      /*
+       * v0.9.51 -- BYTES, NOT A BLOB.                            (Cayden)
+       *
+       * "uploading a photo of serial tag on mobile in field tool launches
+       * camera but fails to save the photo. says something about a blob
+       * failing to save." That is iOS Safari: storing a Blob or File --
+       * especially one that just came off the camera -- in IndexedDB fails
+       * with "Error preparing Blob/File data to be stored in object store",
+       * while a desktop browser stores the same record without complaint.
+       *
+       * So the image is stored as an ArrayBuffer, which every browser stores
+       * reliably, and rebuilt into a Blob on the way out. Nothing above this
+       * file changes: `get`/`url`/`pendingUpload` still hand back records
+       * with a `.blob`. If the buffer read itself fails the Blob is stored as
+       * a last resort rather than losing the photograph.
+       */
+      const toBuffer = processed.blob.arrayBuffer
+        ? processed.blob.arrayBuffer()
+        : new Promise(function (resolve, reject) {
+            const reader = new FileReader();
+            reader.onload = function () { resolve(reader.result); };
+            reader.onerror = function () { reject(reader.error); };
+            reader.readAsArrayBuffer(processed.blob);
+          });
+      return toBuffer.then(function (buffer) {
+        record.data = buffer;
+        return record;
+      }, function () {
+        record.blob = processed.blob;
+        return record;
+      }).then(function (toStore) {
+        return tx("readwrite").then(function (store) {
+          return wrap(store.put(toStore)).then(function () {
+            const stored = Object.assign({}, toStore);
+            delete stored.blob;
+            delete stored.data;
+            return stored;
+          });
         });
       });
     });
   }
 
+  /* A stored record, with its image as a Blob whichever way it was stored. */
+  function hydrate(record) {
+    if (!record) return record;
+    if (!record.blob && record.data) {
+      try {
+        record.blob = new Blob([record.data], { type: record.contentType || "image/jpeg" });
+      } catch (err) { /* leave it; the caller treats a missing blob as no image */ }
+    }
+    return record;
+  }
+
   function get(id) {
     if (!id) return Promise.resolve(null);
-    return tx("readonly").then(function (store) { return wrap(store.get(id)); });
+    return tx("readonly").then(function (store) { return wrap(store.get(id)); }).then(hydrate);
   }
 
   /* An object URL for rendering. The caller owns it and should revoke it when
@@ -202,7 +245,7 @@
   function byIndex(indexName, value) {
     return tx("readonly").then(function (store) {
       return wrap(store.index(indexName).getAll(value));
-    });
+    }).then(function (rows) { return (rows || []).map(hydrate); });
   }
 
   function forVisit(visitId) { return byIndex("byVisit", visitId); }

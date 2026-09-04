@@ -235,7 +235,7 @@
       return life.age === null || life.age === undefined || life.age === "" ? " · age not on record" : "";
     }
     const provenance = x.advice.ageDocumented
-      ? "from the invoice"
+      ? (x.advice.ageSource === "serial" ? "serial tag verified" : "from the invoice")
       : (x.advice.ageSource === "customer" ? "customer stated" : "tech estimate");
     return " · " + x.advice.age + " of " + x.advice.expectedYears + " years (" + provenance + ")";
   }

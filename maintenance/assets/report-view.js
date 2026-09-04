@@ -152,7 +152,11 @@
                  loss: round1(map[category] * conditionWeight) };
       });
     }
-    condition = condition.filter(function (row) { return row.loss > 0; })
+    /* HVAC keeps its zero rows: measureQuick's breakdown lists every bucket,
+       "0" included, and a customer reading "Refrigerant Charge Losses 0" learns
+       something a missing row would not tell them. */
+    const keepZeros = Boolean(report.hvacHealth);
+    condition = condition.filter(function (row) { return keepZeros || row.loss > 0; })
       .sort(function (a, b) { return b.loss - a.loss; });
 
     /*
@@ -415,7 +419,9 @@
         "Nothing has been estimated in its place.";
     }
     const provenance = life.ageDocumented
-      ? "The age used is " + life.age + " years, taken from the Wilson invoice that sold this appliance."
+      ? "The age used is " + life.age + " years, " + (life.ageSource === "serial"
+          ? "verified by the technician from the manufacture date on the serial tag."
+          : "taken from the Wilson invoice that sold this appliance.")
       : "The age used is " + life.age + " years, " +
         (life.ageSource === "customer" ? "as stated by the customer" : "estimated by the technician at the visit") +
         " rather than from a document.";
@@ -741,7 +747,7 @@
              that age is off a document or off somebody's recollection. */
           '<span class="longevity-age-source' + (a.ageDocumented ? ' documented' : '') + '">' +
             (a.ageDocumented
-              ? 'Age from the Wilson invoice that sold this appliance' +
+              ? (a.ageSource === "serial" ? 'Age verified from the manufacture date on the serial tag' : 'Age from the Wilson invoice that sold this appliance') +
                 (a.installYear ? ' \u2014 installed ' + a.installYear : '') +
                 (a.ageSourceRef ? ' (' + ui.escapeHtml(a.ageSourceRef) + ')' : '')
               : (a.ageSource === "customer"
@@ -809,7 +815,7 @@
     const line = points.map(function (p, i) { return (i ? "L" : "M") + x(i).toFixed(1) + " " + y(p.value).toFixed(1); }).join(" ");
     const limitY = rule && rule.maxF !== undefined ? y(rule.maxF) : null;
     const dispatchY = rule && rule.dispatchF !== undefined && max >= rule.dispatchF ? y(rule.dispatchF) : null;
-    return '<svg viewBox="0 0 ' + w + ' ' + h + '" class="guardian-chart" role="img" aria-label="48-hour temperature trace from the Guardian sensor">' +
+    return '<svg viewBox="0 0 ' + w + ' ' + h + '" class="guardian-chart" role="img" aria-label="48-hour temperature trace from the Temp Monitoring sensor">' +
       (limitY !== null
         ? '<rect x="' + padL + '" y="' + limitY.toFixed(1) + '" width="' + (w - padL - padR) + '" height="' + Math.max(0, h - padB - limitY).toFixed(1) + '" fill="' + BAND + '"></rect>' +
           '<line x1="' + padL + '" x2="' + (w - padR) + '" y1="' + limitY.toFixed(1) + '" y2="' + limitY.toFixed(1) + '" stroke="#c9b98a" stroke-dasharray="4 3"></line>' +
@@ -870,7 +876,7 @@
     }
     if (!rows || !rows.length) return "";
     return `
-      <p class="guardian-lede">This appliance carries ${rows.length === 1 ? "a " + ui.escapeHtml(tm.serviceName || "Refrigeration Guardian") + " sensor" : rows.length + " " + ui.escapeHtml(tm.serviceName || "Refrigeration Guardian") + " sensors — one per compartment —"} reporting its temperature around the clock. The figures below come from ${rows.length === 1 ? "that sensor" : "those sensors"} — the 48 hours leading up to this report — not from a one-off reading taken at the visit. <em>Prototype note: these readings are simulated.</em></p>
+      <p class="guardian-lede">This appliance carries ${rows.length === 1 ? "a " + ui.escapeHtml(tm.serviceName || "Wilson Guardian Temp Monitoring") + " sensor" : rows.length + " " + ui.escapeHtml(tm.serviceName || "Wilson Guardian Temp Monitoring") + " sensors — one per compartment —"} reporting its temperature around the clock. The figures below come from ${rows.length === 1 ? "that sensor" : "those sensors"} — the 48 hours leading up to this report — not from a one-off reading taken at the visit. <em>Prototype note: these readings are simulated.</em></p>
       ${rows.map(function (row) { return guardianSensorBlock(row, rows.length > 1); }).join("")}
       <p class="report-sec-note">An excursion is a stretch of readings above the safe band — a door held open makes a short one, and that is normal life, not a fault. What Wilson watches for is the excursion that does not end. These thresholds never change this report's health score — the score is what the technician measured; this page is what the sensor saw.</p>`;
   }
@@ -1230,7 +1236,7 @@
       + reportPage("Corrective Measures", report.applianceLabel, correctiveBody, "corrective-page")
       + reportPage("Report Information", report.applianceLabel, informationBody, "information-page")
       + reportPage("Service History", report.applianceLabel, historySection(report), "history-page")
-      + (guardianBody ? reportPage(((window.WILSON_CONFIG.tempMonitoring || {}).serviceName || "Refrigeration Guardian"), report.applianceLabel, guardianBody, "guardian-page") : "")
+      + (guardianBody ? reportPage(((window.WILSON_CONFIG.tempMonitoring || {}).serviceName || "Wilson Guardian Temp Monitoring"), report.applianceLabel, guardianBody, "guardian-page") : "")
       + reportPage("Longevity", report.applianceLabel, longevitySection(report), "longevity-page")
       + reportPage("Service Summary", report.applianceLabel, summaryBody, "summary-page");
 

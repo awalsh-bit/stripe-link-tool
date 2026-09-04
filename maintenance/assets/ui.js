@@ -37,7 +37,7 @@
   }
 
   function sectionTitle() {
-    return pageBody.dataset.pageTitle || (pageBody.dataset.mode === "public" ? "Maintenance Plans" : "Maintenance Operations");
+    return pageBody.dataset.pageTitle || (pageBody.dataset.mode === "public" ? "Wilson Guardian" : "Command Center");
   }
 
   /*
@@ -69,24 +69,24 @@
   }
 
   function internalModuleNav() {
-    const guardian = (window.WILSON_CONFIG && window.WILSON_CONFIG.tempMonitoring && window.WILSON_CONFIG.tempMonitoring.serviceShortName) || "Guardian";
+    const tm = (window.WILSON_CONFIG && window.WILSON_CONFIG.tempMonitoring && window.WILSON_CONFIG.tempMonitoring.serviceShortName) || "Temp Monitoring";
     return `
-      <nav class="module-nav" aria-label="Maintenance navigation">
-        ${moduleLink("admin.html", "Today")}
+      <nav class="module-nav" aria-label="Wilson Guardian navigation">
+        ${moduleLink("admin.html", "Command Center")}
         ${moduleLink("customers.html", "Customers")}
-        ${moduleLink("monitoring.html", guardian)}
-        ${moduleLink("tech-maintenance.html", "Field tool")}
-        ${moduleLink("invoice-import.html", "Invoice import")}
+        ${moduleLink("monitoring.html", tm)}
+        ${moduleLink("tech-maintenance.html", "Field Tool")}
+        ${moduleLink("invoice-import.html", "Invoice Import")}
         ${moduleLink("filter-finder.html", "Filter Finder")}
-        <a class="module-nav-item module-nav-cta" href="appliance-signup.html">New quote or enrollment</a>
+        <a class="module-nav-item module-nav-cta" href="index.html">New Registration</a>
       </nav>`;
   }
 
   function publicModuleNav() {
     return `
       <nav class="module-nav" aria-label="Maintenance plans navigation">
-        ${moduleLink("index.html", "Maintenance home")}
-        ${moduleLink("appliance-signup.html", "Household appliance plans")}
+        ${moduleLink("index.html", "Wilson Guardian")}
+        ${moduleLink("appliance-signup.html", "Appliance plans")}
         ${moduleLink("hvac-signup.html", "HVAC plans")}
         ${moduleLink("customer-info.html", "How our service works")}
         <span class="module-nav-phone">Questions? 512-894-0907</span>
@@ -101,7 +101,7 @@
     host.className = "site-header";
 
     if (internal) {
-      pageBody.dataset.shellLabel = pageBody.dataset.shellLabel || ("Maintenance \u00b7 " + sectionTitle());
+      pageBody.dataset.shellLabel = pageBody.dataset.shellLabel || ("Wilson Guardian \u00b7 " + sectionTitle());
       pageBody.dataset.shellIcon = pageBody.dataset.shellIcon || "service";
       pageBody.dataset.shellRoot = SHELL_ROOT;
       host.innerHTML = `
@@ -111,9 +111,9 @@
         </div>`;
       loadScript(SHELL_ROOT + "internal-shell.js");
     } else {
-      pageBody.dataset.publicShellLabel = pageBody.dataset.publicShellLabel || "Maintenance Plans";
+      pageBody.dataset.publicShellLabel = pageBody.dataset.publicShellLabel || "Wilson Guardian";
       pageBody.dataset.publicShellRoot = SHELL_ROOT;
-      pageBody.dataset.publicShellFooterText = pageBody.dataset.publicShellFooterText || "Wilson AC & Appliance maintenance plans. Trusted since 1949.";
+      pageBody.dataset.publicShellFooterText = pageBody.dataset.publicShellFooterText || "Wilson Guardian by Wilson AC & Appliance. Trusted since 1949.";
       pageBody.dataset.publicShellFooterLinkLabel = pageBody.dataset.publicShellFooterLinkLabel || "How our service works";
       pageBody.dataset.publicShellFooterLinkHref = pageBody.dataset.publicShellFooterLinkHref || "customer-info.html";
       host.innerHTML = `

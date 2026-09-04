@@ -5,7 +5,7 @@
      `parkedEquipment`. A stored state from an older version is reseeded rather
      than migrated -- this is a prototype with demo data, and a half-migrated
      record is a worse thing to debug than a fresh one. */
-  const VERSION = 8;
+  const VERSION = 9;
 
   function isoDate(offsetDays) {
     const date = new Date();
@@ -453,7 +453,7 @@
       { id: "sub_okafor", householdId: "hh_okafor", category: "appliance", planId: "per_appliance", planName: "Per Appliance", annualAmount: OKAFOR_ANNUAL, status: "Active", paymentProfileId: "pay_okafor", startedOn: isoDate(-14), renewalOn: isoDate(351), preferredMonths: "Any", lastChargeStatus: "Charged", autoRenew: true, chargeTiming: "At scheduled maintenance", filterManagement: false },
       { id: "sub_torres", householdId: "hh_torres", category: "appliance", planId: "per_appliance", planName: "IMUC - Per Appliance", annualAmount: TORRES_ANNUAL, status: "Active", paymentProfileId: "pay_torres", startedOn: isoDate(-360), renewalOn: isoDate(5), preferredMonths: "February / August", lastChargeStatus: "Charge due", autoRenew: true, chargeTiming: "At scheduled maintenance", filterManagement: false },
       { id: "sub_mercer_app", householdId: "hh_mercer", category: "appliance", planId: "estate_annual", planName: "Estate Annual", annualAmount: MERCER_APP_ANNUAL, status: "Active", paymentProfileId: "pay_mercer", startedOn: isoDate(-220), renewalOn: isoDate(145), preferredMonths: "March", lastChargeStatus: "Paid", autoRenew: true, chargeTiming: "At scheduled maintenance", filterManagement: false },
-      { id: "sub_mercer_hvac", householdId: "hh_mercer", category: "hvac", planId: "hvac_filter_management", planName: "Wilson AC Maintenance + Filters", annualAmount: 800, status: "Active", paymentProfileId: "pay_mercer", startedOn: isoDate(-210), renewalOn: isoDate(155), preferredMonths: "Spring / Fall", lastChargeStatus: "Paid", autoRenew: true, chargeTiming: "At scheduled maintenance", filterManagement: true, standardFiltersIncluded: false, systemCount: 2 }
+      { id: "sub_mercer_hvac", householdId: "hh_mercer", category: "hvac", planId: "hvac_filter_management", planName: "Wilson AC Maintenance + Filters", annualAmount: 798, status: "Active", paymentProfileId: "pay_mercer", startedOn: isoDate(-210), renewalOn: isoDate(155), preferredMonths: "Spring / Fall", lastChargeStatus: "Paid", autoRenew: true, chargeTiming: "At scheduled maintenance", filterManagement: true, standardFiltersIncluded: false, systemCount: 2 }
     ];
 
     const visits = [
@@ -469,7 +469,7 @@
       { id: "visit_torres", subscriptionId: "sub_torres", householdId: "hh_torres", category: "appliance", dueDate: isoDate(-3), season: "Second icemaker visit", status: "Overdue", paymentStatus: "Charge due", amountToCharge: 249.95, serviceOrderStatus: "Not created", serviceOrderSystem: "NetSuite", reportRequired: false, assetScope: "Icemakers only" },
       { id: "visit_mercer_app", subscriptionId: "sub_mercer_app", householdId: "hh_mercer", category: "appliance", dueDate: isoDate(48), season: "Annual whole-home visit", status: "Upcoming", paymentStatus: "Ready to charge", amountToCharge: 1195, serviceOrderStatus: "Not created", serviceOrderSystem: "NetSuite", reportRequired: false, assetScope: "Appliances" },
       { id: "visit_mercer_imuc", subscriptionId: "sub_mercer_app", householdId: "hh_mercer", category: "appliance", dueDate: isoDate(205), season: "Second icemaker visit", status: "Upcoming", paymentStatus: "Charge due at visit", amountToCharge: 249.95, serviceOrderStatus: "Not created", serviceOrderSystem: "NetSuite", reportRequired: false, assetScope: "Icemakers only" },
-      { id: "visit_mercer_hvac", subscriptionId: "sub_mercer_hvac", householdId: "hh_mercer", category: "hvac", dueDate: isoDate(9), season: "Fall HVAC maintenance", status: "Due soon", paymentStatus: "Ready to charge", amountToCharge: 800, serviceOrderStatus: "Not created", serviceOrderSystem: "NetSuite", reportRequired: false, assetScope: "2 HVAC systems" },
+      { id: "visit_mercer_hvac", subscriptionId: "sub_mercer_hvac", householdId: "hh_mercer", category: "hvac", dueDate: isoDate(9), season: "Fall HVAC maintenance", status: "Due soon", paymentStatus: "Ready to charge", amountToCharge: 798, serviceOrderStatus: "Not created", serviceOrderSystem: "NetSuite", reportRequired: false, assetScope: "2 HVAC systems" },
       { id: "visit_davenport_completed", subscriptionId: "sub_davenport", householdId: "hh_davenport", category: "appliance", dueDate: isoDate(-95), completedOn: isoDate(-93), season: "Spring portfolio visit", status: "Completed", paymentStatus: "Paid", amountToCharge: 0, serviceOrderStatus: "Matched - SV0012844", serviceOrderSystem: "EPASS", reportRequired: false, assetScope: "All appliances" }
     ];
 
@@ -1707,12 +1707,22 @@
     if (!hasAge) return null;
 
     const year = new Date().getFullYear() - Number(resolved);
-    const wasDocumented = String(asset.ageSource || "") === "invoice" && asset.installYear;
+    const wasDocumented = (String(asset.ageSource || "") === "invoice" || String(asset.ageSource || "") === "serial") && asset.installYear;
     /* A technician who did not touch the age carries the asset's own source
        back in; that is not a correction and must not relabel the record. */
     const corrected = wasDocumented && Number(asset.installYear) !== year;
     if (wasDocumented && !corrected) return null;
     if (wasDocumented && corrected && source === "invoice") return null;
+    /* Same year, better provenance: a technician verifying a customer-stated
+       year against the serial tag upgrades the record without a "correction". */
+    if (!wasDocumented && source === "serial" && Number(asset.installYear) === year && asset.ageSource !== "serial") {
+      asset.ageSource = "serial";
+      asset.ageSourceRef = "";
+      asset.ageEstablishedBy = inspection.technician || "Field technician";
+      asset.ageEstablishedAt = isoTime(0);
+      asset.ageEstablishedVisitId = inspection.visitId || "";
+      return "verified";
+    }
 
     const before = asset.installYear;
     asset.installYear = year;
@@ -1854,6 +1864,66 @@
     const scope = String(visit.assetScope || "").toLowerCase();
     if (scope.includes("imuc only") || scope.includes("icemaker only")) rows = rows.filter((item) => item.group === "imuc" || String(item.type || "").toLowerCase().includes("ice"));
     return rows;
+  }
+
+  /*
+   * v0.9.51 -- HVAC vitals as measurement rows: value, band, in/out of range.
+   * The raw readings follow so the customer (and the next technician) can see
+   * the pressures and temperatures the vitals were figured from.
+   */
+  function hvacMeasurementRows(inspection) {
+    const rows = [];
+    const fmtBand = function (b) {
+      if (!b) return "";
+      const has = function (v) { return v !== null && v !== undefined; };
+      if (has(b.min) && has(b.max)) return b.min + "\u2013" + b.max;
+      if (has(b.max)) return "\u2264 " + b.max;
+      if (has(b.min)) return "\u2265 " + b.min;
+      return "";
+    };
+    (inspection.hvacVitals || []).forEach(function (v) {
+      const unit = String(v.unit || "").trim();
+      rows.push({
+        label: v.label,
+        observed: String(v.value),
+        unit: unit,
+        target: (fmtBand(v.band) ? fmtBand(v.band) + (unit ? " " + unit : "") : "Recorded") + (v.scored ? "" : " (not scored)"),
+        result: v.inRange ? "Normal" : (v.scored ? "Action" : "Monitor"),
+        notes: v.inRange ? "" : ("Out of range \u2014 " + (v.direction || "") + (v.basis ? ". " + v.basis : ""))
+      });
+    });
+    (inspection.checks || []).forEach(function (check) {
+      if (!Array.isArray(check.readingFields) || !check.readingFields.length) return;
+      check.readingFields.forEach(function (field) {
+        const observed = check.readings && check.readings[field.key];
+        if (String(observed == null ? "" : observed).trim() === "") return;
+        rows.push({
+          label: check.name + " \u2014 " + field.label,
+          observed: String(observed),
+          unit: String(field.unit || "").trim(),
+          target: "Reading",
+          result: "Recorded",
+          notes: check.note || ""
+        });
+      });
+    });
+    return rows;
+  }
+
+  /* The loss ledger for an HVAC report: each scored dimension's shortfall
+     times its weight, out of the 75% the vitals carry. The age line is added
+     by the report page from the lifecycle record, as for an appliance. */
+  function hvacCategoryLosses(inspection) {
+    const health = inspection.hvacHealth;
+    if (!health || !health.available || !Array.isArray(health.scored)) return [];
+    const weightUsed = health.scored.reduce(function (t, d) { return t + Number(d.weight || 0); }, 0) || 1;
+    return health.scored.map(function (d) {
+      return {
+        category: d.label,
+        explanation: (d.pct >= 100 ? "In range" : (100 - d.pct) + "% short of the band") + (d.basis ? " \u2014 " + d.basis : "") + ".",
+        loss: Math.round(((100 - Number(d.pct || 0)) * (Number(d.weight || 0) / weightUsed)) * 10) / 10
+      };
+    });
   }
 
   function measurementRowsFromInspection(inspection) {
@@ -2185,7 +2255,9 @@
       /* v0.9.39: the one note. Replaces the per-check free notes on Cayden's
          call; reasons on flagged checks still travel per checkpoint. */
       technicianNote: String(inspection.generalNote || "").trim(),
-      measurements: measurementRowsFromInspection(inspection),
+      measurements: (inspection.hvacVitals && inspection.hvacVitals.length)
+        ? hvacMeasurementRows(inspection)
+        : measurementRowsFromInspection(inspection),
       /*
        * Every check, carrying WHAT KIND of answer it is.
        *
@@ -2268,7 +2340,11 @@
           notes: check.note || ""
         };
       })())),
-      categoryLosses: [],
+      /* HVAC: the measureQuick-style loss buckets, straight off the scored
+         dimensions the field tool stored. Appliances build theirs from
+         checkpoint ratings on the report page. */
+      categoryLosses: hvacCategoryLosses(inspection),
+      hvacHealth: inspection.hvacHealth || null,
       tasks: (inspection.checks || []).filter((check) => check.performed).map((check) => check.name),
       /*
        * The photographs themselves, not a tally of them.
@@ -2847,8 +2923,8 @@
     };
     state.tempDispatches.unshift(dispatch);
     state.activity.unshift({
-      id: id("act"), householdId: asset.householdId, type: "Guardian",
-      text: "Priority dispatch opened by " + (((window.WILSON_CONFIG || {}).tempMonitoring || {}).serviceName || "Refrigeration Guardian") + ": " + dispatch.applianceLabel + " — " + dispatch.flagLabel + ".",
+      id: id("act"), householdId: asset.householdId, type: "Temp Monitoring",
+      text: "Priority dispatch opened by " + (((window.WILSON_CONFIG || {}).tempMonitoring || {}).serviceName || "Wilson Guardian Temp Monitoring") + ": " + dispatch.applianceLabel + " — " + dispatch.flagLabel + ".",
       createdAt: isoTime(0)
     });
     save(state);

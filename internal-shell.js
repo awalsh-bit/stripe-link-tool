@@ -249,6 +249,8 @@
           { href: "sales-order-detail.html", title: "Sales Order Detail" },
           { href: "brand-sales.html", title: "Brand Sales" },
           { href: "lead-report.html", title: "DIBS Lead Report" },
+          { href: "builder-prospects.html", title: "Builder Prospect List" },
+          { href: "builder-prospect-manager.html", title: "Builder Prospect Manager" },
           { href: "quote-follow-up.html", title: "Quote Follow-Up" },
           { href: "aging-inventory.html", title: "Aging Inventory" },
           { href: "flag-closures.html", title: "Notification Closure Report" },

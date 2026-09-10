@@ -1,0 +1,478 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="robots" content="noindex,nofollow,noarchive" />
+  <title>Wilson AC & Appliance - Builder Prospect List</title>
+  <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+  <link rel="stylesheet" href="internal-shell.css" />
+  <style>
+    :root {
+      --bg: #f7f8fc; --card: #ffffff; --text: #1f2937; --muted: #6b7280; --border: #dbe1ea;
+      --success-bg: #ecfdf5; --success-text: #065f46; --error-bg: #fef2f2; --error-text: #991b1b; --warn-bg: #fffbeb; --warn-text: #92400e;
+      --shadow: 0 10px 35px rgba(0, 0, 0, 0.08); --radius: 18px;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: "Roboto", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: linear-gradient(180deg, var(--primary-tint) 0%, var(--bg) 100%); color: var(--text); min-height: 100vh; padding: 32px 16px; }
+    .wrap { max-width: 1480px; margin: 0 auto; }
+    .surface { background: var(--card); border: 1px solid rgba(var(--primary-rgb), 0.12); box-shadow: var(--shadow); border-radius: var(--radius); padding: 22px 24px; margin: 0 auto 18px; }
+    h2 { margin: 0 0 4px; font-size: 22px; }
+    h3 { margin: 0 0 10px; font-size: 15px; text-transform: uppercase; letter-spacing: 0.05em; color: #64748b; }
+    .section-note { margin: 0 0 14px; color: var(--muted); font-size: 14px; line-height: 1.5; }
+    label { display: block; margin-bottom: 5px; font-size: 12px; font-weight: 700; color: #475569; }
+    input, select, textarea { width: 100%; border: 1px solid var(--border); border-radius: 10px; padding: 9px 11px; font-size: 14px; background: #fff; color: var(--text); outline: none; font-family: inherit; }
+    textarea { min-height: 70px; resize: vertical; }
+    input:focus, select:focus, textarea:focus { border-color: rgba(var(--primary-rgb), 0.75); box-shadow: 0 0 0 4px rgba(var(--primary-rgb), 0.12); }
+    input:disabled, select:disabled, textarea:disabled { background: #f8fafc; color: #64748b; }
+    button { appearance: none; border: none; background: var(--primary); color: #fff; padding: 9px 14px; border-radius: 10px; font-size: 14px; font-weight: 700; cursor: pointer; white-space: nowrap; font-family: inherit; }
+    button:hover { background: var(--primary-hover); }
+    button:disabled { opacity: 0.6; cursor: wait; }
+    button.secondary { background: var(--primary-tint); color: var(--primary); }
+    button.secondary:hover { background: var(--primary-tint-2); }
+    button.quiet { background: #f1f5f9; color: #334155; }
+    button.quiet:hover { background: #e2e8f0; }
+    button.tiny { padding: 5px 9px; font-size: 12px; border-radius: 8px; }
+    button.danger { background: #fee2e2; color: #991b1b; }
+    .status { display: none; margin: 10px 0 0; border-radius: 12px; padding: 10px 14px; font-size: 14px; line-height: 1.5; }
+    .status.show { display: block; }
+    .status.error { background: var(--error-bg); color: var(--error-text); }
+    .status.ok { background: var(--success-bg); color: var(--success-text); }
+    .status.warn { background: var(--warn-bg); color: var(--warn-text); }
+
+    /* toolbar */
+    .tabs { display: inline-flex; border: 1px solid var(--border); border-radius: 999px; overflow: hidden; background: #fff; margin-bottom: 12px; }
+    .tabs button { background: transparent; color: var(--muted); border-radius: 0; padding: 8px 16px; font-size: 13px; }
+    .tabs button.on { background: var(--primary-tint); color: var(--primary-hover); }
+    .tabs button:hover { background: var(--primary-tint); }
+    .toolbar { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; }
+    .toolbar .field { flex: 0 1 190px; }
+    .toolbar .field.grow { flex: 1 1 240px; }
+    .toolbar .spacer { flex: 1; }
+    .counts { color: var(--muted); font-size: 13px; margin-top: 10px; }
+
+    /* list */
+    table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+    th, td { text-align: left; padding: 9px 8px; border-bottom: 1px solid #eef1f6; vertical-align: top; }
+    th { font-size: 11.5px; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; color: #64748b; white-space: nowrap; cursor: pointer; user-select: none; }
+    th.num, td.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+    tbody tr { cursor: pointer; }
+    tbody tr:hover td { background: var(--primary-faint-2, #f6faf6); }
+    .co { font-weight: 700; }
+    .sub { color: var(--muted); font-size: 12px; margin-top: 2px; }
+    .pill { display: inline-block; padding: 2px 9px; border-radius: 999px; font-size: 11.5px; font-weight: 700; white-space: nowrap; background: #f1f5f9; color: #334155; }
+    .pill.s-open { background: #eef2ff; color: #3730a3; }
+    .pill.s-chase { background: #fef3c7; color: #92400e; }
+    .pill.s-rel { background: #dcfce7; color: #166534; }
+    .pill.s-pricing { background: #cffafe; color: #155e75; }
+    .pill.s-job { background: #dbeafe; color: #1e40af; }
+    .pill.s-dormant { background: #f1f5f9; color: #64748b; }
+    .pill.s-lost, .pill.s-nofit { background: #fee2e2; color: #991b1b; }
+    .pill.s-dup { background: #fae8ff; color: #86198f; }
+    .overdue { color: #b91c1c; font-weight: 700; }
+    .money { font-weight: 700; }
+    .badge { display: inline-block; padding: 1px 7px; border-radius: 6px; font-size: 11px; font-weight: 700; margin-right: 4px; background: #e0f2fe; color: #075985; }
+    .badge.q { background: #fef9c3; color: #854d0e; }
+    .badge.sug { background: #fde68a; color: #78350f; }
+    .empty { padding: 26px 10px; text-align: center; color: var(--muted); }
+    .table-scroll { overflow-x: auto; }
+
+    /* drawer */
+    .drawer-back { position: fixed; inset: 0; background: rgba(15, 23, 42, 0.35); display: none; z-index: 40; }
+    .drawer-back.show { display: block; }
+    .drawer { position: fixed; top: 0; right: 0; bottom: 0; width: min(920px, 100%); background: #fff; z-index: 41; transform: translateX(105%); transition: transform 0.2s ease; overflow-y: auto; box-shadow: -12px 0 40px rgba(0,0,0,0.18); }
+    .drawer.show { transform: translateX(0); }
+    .drawer-head { position: sticky; top: 0; background: #fff; border-bottom: 1px solid var(--border); padding: 14px 20px; display: flex; gap: 12px; align-items: flex-start; z-index: 2; }
+    .drawer-head h2 { font-size: 20px; margin: 0; }
+    .drawer-head .meta { color: var(--muted); font-size: 13px; margin-top: 3px; display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+    .drawer-head .close { margin-left: auto; }
+    .drawer-body { padding: 16px 20px 40px; display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+    .panel { border: 1px solid var(--border); border-radius: 14px; padding: 14px 16px; background: #fff; min-width: 0; overflow: hidden; }
+    .drawer { overflow-x: hidden; }
+    .grid2 > div { min-width: 0; }
+    .tw { overflow-x: auto; }
+    .panel.full { grid-column: span 2; }
+    .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 12px; }
+    .grid2 .full { grid-column: span 2; }
+    .rowline { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 10px; }
+    .own { font-size: 12.5px; color: var(--muted); }
+    .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 8px 0 12px; }
+    .stat { background: var(--primary-faint-2, #f6faf6); border: 1px solid var(--border); border-radius: 10px; padding: 8px 10px; font-size: 11.5px; color: var(--muted); }
+    .stat strong { display: block; font-size: 16px; color: var(--text); font-variant-numeric: tabular-nums; }
+    .link-row { display: flex; justify-content: space-between; gap: 8px; align-items: center; padding: 7px 0; border-bottom: 1px dashed #eef1f6; font-size: 13px; }
+    .link-row .n { color: var(--muted); font-size: 12px; }
+    .sug-row { background: #fffbeb; border: 1px solid #fde68a; border-radius: 10px; padding: 8px 10px; margin-bottom: 6px; font-size: 13px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+    .sug-row .score { font-size: 11px; color: #92400e; font-weight: 700; }
+    .mini { font-size: 12.5px; }
+    .mini th, .mini td { padding: 6px 6px; }
+    .mini tbody tr { cursor: default; }
+    .mini tbody tr:hover td { background: transparent; }
+    .act { border-left: 3px solid var(--primary); padding: 6px 10px; margin: 8px 0; background: var(--primary-faint-2, #f6faf6); border-radius: 0 10px 10px 0; font-size: 13px; }
+    .act .who { color: var(--muted); font-size: 12px; }
+    .contact { display: flex; justify-content: space-between; gap: 8px; padding: 7px 0; border-bottom: 1px dashed #eef1f6; font-size: 13px; align-items: flex-start; }
+    .contact .c-sub { color: var(--muted); font-size: 12px; }
+    .hint { font-size: 12px; color: var(--muted); line-height: 1.4; }
+    .search-results { border: 1px solid var(--border); border-radius: 10px; margin-top: 6px; max-height: 220px; overflow: auto; }
+    .search-results div { padding: 7px 10px; border-bottom: 1px solid #eef1f6; cursor: pointer; font-size: 13px; }
+    .search-results div:hover { background: var(--primary-tint); }
+
+    @media (max-width: 860px) {
+      .drawer-body { grid-template-columns: 1fr; }
+      .panel.full { grid-column: span 1; }
+      .grid2 { grid-template-columns: 1fr; }
+      .grid2 .full { grid-column: span 1; }
+    }
+    @media (max-width: 720px) {
+      body { padding: 14px 8px; }
+      .surface { padding: 14px; }
+      .internal-shell-header-top { flex-wrap: wrap !important; }
+      .toolbar .field, .toolbar .field.grow { flex: 1 1 45%; }
+      .toolbar button { flex: 1 1 100%; }
+      .stats { grid-template-columns: repeat(2, 1fr); }
+      .acct-table thead { display: none; }
+      .acct-table, .acct-table tbody, .acct-table tr, .acct-table td { display: block; width: 100%; }
+      .acct-table tbody tr { border: 1px solid var(--border); border-radius: 14px; padding: 10px 12px; margin-bottom: 10px; background: var(--primary-faint-2, #f6faf6); }
+      .acct-table td { border: none; padding: 3px 0; }
+      .acct-table td.num { text-align: left; }
+      .acct-table td[data-l]::before { content: attr(data-l) ": "; font-size: 11px; font-weight: 800; letter-spacing: 0.04em; text-transform: uppercase; color: #64748b; }
+    }
+  </style>
+</head>
+<body data-shell-label="Builder Prospect List" data-shell-icon="sales">
+  <div class="wrap">
+    <div id="internal-shell-header"></div>
+
+    <div class="surface">
+      <h2>Builder Prospect List</h2>
+      <p class="section-note">Your builder, designer and trade-partner accounts. Open one to log a call or visit, set the next action, and see what they've bought from us in ePASS.</p>
+      <div class="tabs" id="tabs">
+        <button type="button" data-view="mine" class="on">My accounts</button>
+        <button type="button" data-view="pool">Lead Pool</button>
+        <button type="button" data-view="all">All accounts</button>
+      </div>
+      <div class="toolbar">
+        <div class="field grow"><label for="q">Search</label><input id="q" type="search" placeholder="Company, contact or city" autocomplete="off" /></div>
+        <div class="field"><label for="statusFilter">Status</label><select id="statusFilter"><option value="">All statuses</option></select></div>
+        <div class="field" id="assocField" hidden><label for="assocFilter">Sales associate</label><select id="assocFilter"><option value="">Everyone</option></select></div>
+        <div class="spacer"></div>
+        <button type="button" class="secondary" id="addBtn">+ Add account</button>
+      </div>
+      <div class="counts" id="counts"></div>
+      <div id="pageStatus" class="status"></div>
+    </div>
+
+    <div class="surface">
+      <div class="table-scroll">
+        <table class="acct-table">
+          <thead><tr>
+            <th data-sort="companyName">Company</th><th data-sort="status">Status</th><th data-sort="strength">Strength</th><th data-sort="salesAssociate">Associate</th>
+            <th data-sort="lastContactedOn">Last contact</th><th data-sort="nextActionOn">Next action</th><th class="num" data-sort="rev12">ePASS 12-mo</th><th class="num" data-sort="rev">Lifetime</th><th data-sort="lastFinish">Last purchase</th>
+          </tr></thead>
+          <tbody id="rows"><tr><td colspan="9" class="empty">Loading…</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div id="internal-shell-footer"></div>
+  </div>
+
+  <!-- account drawer -->
+  <div class="drawer-back" id="drawerBack"></div>
+  <div class="drawer" id="drawer" aria-hidden="true">
+    <div class="drawer-head">
+      <div>
+        <h2 id="dName">—</h2>
+        <div class="meta" id="dMeta"></div>
+      </div>
+      <button type="button" class="quiet close" id="dClose">Close</button>
+    </div>
+    <div class="drawer-body" id="dBody"></div>
+  </div>
+
+  <script src="internal-shell.js"></script>
+  <script>
+    const $ = (id) => document.getElementById(id);
+    const esc = (v) => String(v ?? "").replace(/[&<>"']/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch]));
+    const money = (n) => n == null ? "—" : "$" + Number(n).toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+    const money2 = (n) => n == null ? "—" : "$" + Number(n).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const fmtDate = (iso) => /^\d{4}-\d{2}-\d{2}/.test(iso || "") ? new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "2-digit", timeZone: "UTC" }).format(new Date(iso.slice(0, 10) + "T12:00:00Z")) : "—";
+    const STATUS_CLASS = { "Open Lead": "s-open", "Chasing": "s-chase", "Active Relationship": "s-rel", "Active Pricing": "s-pricing", "Current Job": "s-job", "Dormant": "s-dormant", "Lost": "s-lost", "Not a Fit": "s-nofit", "Duplicate / Review": "s-dup" };
+    const pill = (s) => `<span class="pill ${STATUS_CLASS[s] || ""}">${esc(s)}</span>`;
+    function setStatus(id, message, kind) { const box = $(id); if (!message) { box.className = "status"; box.textContent = ""; return; } box.className = "status " + kind + " show"; box.textContent = message; }
+    async function api(path, options = {}) {
+      const res = await fetch(path, { credentials: "same-origin", headers: options.body && !(options.body instanceof FormData) ? { "Content-Type": "application/json" } : {}, ...options });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || "Request failed.");
+      return data;
+    }
+    const opts = (list, value, blank) => (blank ? `<option value="">${esc(blank)}</option>` : "") + list.map((x) => `<option value="${esc(x)}"${x === value ? " selected" : ""}>${esc(x)}</option>`).join("");
+
+    let META = null, view = "mine", accounts = [], epass = {}, today = "", sortKey = "companyName", sortDir = 1;
+
+    async function loadMeta() {
+      META = await api("/api/builder-prospects/meta");
+      $("statusFilter").innerHTML = opts(META.picklists.statuses, "", "All statuses");
+      $("assocFilter").innerHTML = opts(META.associates, "", "Everyone");
+      if (!META.me.associateName && !META.me.isManager) {
+        setStatus("pageStatus", `No accounts are assigned to "${META.me.name}" yet — claim from the Lead Pool, or ask a manager to assign your book.`, "warn");
+      }
+      // deep link: ?account=<id>
+      const id = new URLSearchParams(location.search).get("account");
+      if (id) { view = "all"; syncTabs(); openAccount(id); }
+    }
+
+    function syncTabs() {
+      document.querySelectorAll("#tabs button").forEach((b) => b.classList.toggle("on", b.dataset.view === view));
+      $("assocField").hidden = view !== "all";
+    }
+    document.querySelectorAll("#tabs button").forEach((b) => b.addEventListener("click", () => { view = b.dataset.view; syncTabs(); load(); }));
+
+    async function load() {
+      setStatus("pageStatus", "");
+      const p = new URLSearchParams({ view, status: $("statusFilter").value, q: $("q").value.trim() });
+      if (view === "all" && $("assocFilter").value) p.set("associate", $("assocFilter").value);
+      try {
+        const data = await api(`/api/builder-prospects/accounts?${p}`);
+        accounts = data.accounts; epass = data.epass || {}; today = data.today;
+        render();
+      } catch (err) { setStatus("pageStatus", err.message, "error"); }
+    }
+    let qTimer; $("q").addEventListener("input", () => { clearTimeout(qTimer); qTimer = setTimeout(load, 250); });
+    $("statusFilter").addEventListener("change", load); $("assocFilter").addEventListener("change", load);
+
+    function valueFor(a, key) {
+      const s = epass[a.id] || {};
+      if (key === "rev12") return s.revenue12m || 0;
+      if (key === "rev") return s.revenue || 0;
+      if (key === "lastFinish") return s.lastFinish || "";
+      return a[key] || "";
+    }
+    document.querySelectorAll("th[data-sort]").forEach((th) => th.addEventListener("click", () => { const k = th.dataset.sort; if (sortKey === k) sortDir = -sortDir; else { sortKey = k; sortDir = ["rev12", "rev", "lastFinish", "lastContactedOn"].includes(k) ? -1 : 1; } render(); }));
+
+    function render() {
+      const sorted = [...accounts].sort((a, b) => { const x = valueFor(a, sortKey), y = valueFor(b, sortKey); return (x > y ? 1 : x < y ? -1 : 0) * sortDir; });
+      const total12 = accounts.reduce((s, a) => s + ((epass[a.id] || {}).revenue12m || 0), 0);
+      const linked = accounts.filter((a) => a.epassCustomers.length).length;
+      $("counts").textContent = `${accounts.length} account${accounts.length === 1 ? "" : "s"}${linked ? ` · ${linked} linked to ePASS · ${money(total12)} in the last 12 months` : ""}`;
+      if (!sorted.length) { $("rows").innerHTML = `<tr><td colspan="9" class="empty">${view === "mine" ? "Nothing on your book yet — claim accounts from the Lead Pool." : "No accounts match."}</td></tr>`; return; }
+      $("rows").innerHTML = sorted.map((a) => {
+        const s = epass[a.id];
+        const overdue = a.nextActionOn && a.nextActionOn < today;
+        const badges = s ? `${s.openOrders ? `<span class="badge">${s.openOrders} open order${s.openOrders === 1 ? "" : "s"}</span>` : ""}${s.openQuotes ? `<span class="badge q">${s.openQuotes} open quote${s.openQuotes === 1 ? "" : "s"}</span>` : ""}` : (a.epassSuggestions.length ? `<span class="badge sug">ePASS match to confirm</span>` : "");
+        return `<tr data-id="${esc(a.id)}">
+          <td><div class="co">${esc(a.companyName)}</div><div class="sub">${esc([a.tradeType, a.city].filter(Boolean).join(" · "))}${a.primaryContact ? " · " + esc(a.primaryContact) : ""}</div>${badges ? `<div class="sub">${badges}</div>` : ""}</td>
+          <td data-l="Status">${pill(a.status)}</td>
+          <td data-l="Strength">${esc(a.strength)}</td>
+          <td data-l="Associate">${esc(a.salesAssociate || "—")}</td>
+          <td data-l="Last contact">${fmtDate(a.lastContactedOn)}</td>
+          <td data-l="Next action"><div class="${overdue ? "overdue" : ""}">${a.nextActionOn ? fmtDate(a.nextActionOn) : ""}</div><div class="sub">${esc(a.nextAction)}</div></td>
+          <td class="num money" data-l="ePASS 12-mo">${s ? money(s.revenue12m) : "—"}</td>
+          <td class="num" data-l="Lifetime">${s ? money(s.revenue) : "—"}</td>
+          <td data-l="Last purchase">${s && s.lastFinish ? fmtDate(s.lastFinish) : (s ? "—" : "")}</td>
+        </tr>`;
+      }).join("");
+    }
+    $("rows").addEventListener("click", (ev) => { const tr = ev.target.closest("tr[data-id]"); if (tr) openAccount(tr.dataset.id); });
+
+    // ---------------- drawer ----------------
+    let D = null; // {account, contacts, activities, epass, stats, canEdit, canManage, isMine}
+    function closeDrawer() { $("drawer").classList.remove("show"); $("drawerBack").classList.remove("show"); D = null; }
+    $("dClose").addEventListener("click", closeDrawer); $("drawerBack").addEventListener("click", closeDrawer);
+    async function openAccount(id) {
+      $("drawer").classList.add("show"); $("drawerBack").classList.add("show");
+      $("dName").textContent = "Loading…"; $("dMeta").innerHTML = ""; $("dBody").innerHTML = "";
+      try { D = await api(`/api/builder-prospects/accounts/${encodeURIComponent(id)}`); renderDrawer(); }
+      catch (err) { $("dName").textContent = "Couldn't load"; $("dBody").innerHTML = `<div class="status error show">${esc(err.message)}</div>`; }
+    }
+    function renderDrawer() {
+      const a = D.account, s = D.stats, P = META.picklists, ro = !D.canEdit;
+      $("dName").textContent = a.companyName;
+      const assign = D.canManage
+        ? `<select id="dAssign" style="width:auto;padding:4px 8px;font-size:12.5px;">${opts(META.associates, a.salesAssociate, "— Unassigned —")}</select>`
+        : (a.salesAssociate ? `<span>${esc(a.salesAssociate)}</span>${D.isMine ? ` <button type="button" class="tiny quiet" id="dRelease">Release to pool</button>` : ""}` : `<button type="button" class="tiny" id="dClaim">Claim this account</button>`);
+      $("dMeta").innerHTML = `${pill(a.status)} <span>${esc(a.tradeType)}</span> <span>·</span> <span class="own">Associate:</span> ${assign}${ro ? ` <span class="own">(read-only — on ${esc(a.salesAssociate)}'s book)</span>` : ""}`;
+      $("dBody").innerHTML = `
+        <div class="panel">
+          <h3>Account</h3>
+          <div class="grid2">
+            <div class="full"><label>Company</label><input id="f_companyName" value="${esc(a.companyName)}" ${ro ? "disabled" : ""} /></div>
+            <div><label>Trade type</label><select id="f_tradeType" ${ro ? "disabled" : ""}>${opts(P.tradeTypes.includes(a.tradeType) ? P.tradeTypes : [a.tradeType, ...P.tradeTypes], a.tradeType)}</select></div>
+            <div><label>Status</label><select id="f_status" ${ro ? "disabled" : ""}>${opts(P.statuses, a.status)}</select></div>
+            <div><label>Relationship strength</label><select id="f_strength" ${ro ? "disabled" : ""}>${opts(P.strengths, a.strength)}</select></div>
+            <div><label>Priority</label><select id="f_priority" ${ro ? "disabled" : ""}>${opts(P.priorities, a.priority)}</select></div>
+            <div><label>Primary contact</label><input id="f_primaryContact" value="${esc(a.primaryContact)}" ${ro ? "disabled" : ""} /></div>
+            <div><label>Phone</label><input id="f_phone" value="${esc(a.phone)}" ${ro ? "disabled" : ""} /></div>
+            <div><label>Email</label><input id="f_email" value="${esc(a.email)}" ${ro ? "disabled" : ""} /></div>
+            <div><label>Website</label><input id="f_website" value="${esc(a.website)}" ${ro ? "disabled" : ""} /></div>
+            <div class="full"><label>Address</label><input id="f_address1" value="${esc(a.address1)}" ${ro ? "disabled" : ""} /></div>
+            <div><label>City</label><input id="f_city" value="${esc(a.city)}" ${ro ? "disabled" : ""} /></div>
+            <div><label>ZIP</label><input id="f_zip" value="${esc(a.zip)}" ${ro ? "disabled" : ""} /></div>
+            <div><label>Next action</label><input id="f_nextAction" value="${esc(a.nextAction)}" ${ro ? "disabled" : ""} /></div>
+            <div><label>Next action date</label><input id="f_nextActionOn" type="date" value="${esc(a.nextActionOn || "")}" ${ro ? "disabled" : ""} /></div>
+            <div><label>Last contacted</label><input id="f_lastContactedOn" type="date" value="${esc(a.lastContactedOn || "")}" ${ro ? "disabled" : ""} /></div>
+            <div><label>Source</label><input value="${esc(a.source)}" disabled /></div>
+            <div class="full"><label>Notes</label><textarea id="f_notes" ${ro ? "disabled" : ""}>${esc(a.notes)}</textarea></div>
+            ${D.canManage ? `<div class="full"><label>Manager notes</label><textarea id="f_managerNotes">${esc(a.managerNotes)}</textarea></div>` : ""}
+          </div>
+          ${ro ? "" : `<div class="rowline"><button type="button" id="dSave">Save account</button><span class="hint">Last updated ${a.updatedAt ? fmtDate(a.updatedAt) : "—"}${a.updatedBy ? " by " + esc(a.updatedBy) : ""}</span></div>`}
+          <div id="dSaveStatus" class="status"></div>
+        </div>
+
+        <div class="panel">
+          <h3>Log activity</h3>
+          <div class="grid2">
+            <div><label>Date</label><input id="x_activityOn" type="date" value="${esc(today)}" /></div>
+            <div><label>Type</label><select id="x_activityType">${opts(P.activityTypes, "Call")}</select></div>
+            <div><label>Outcome</label><select id="x_outcome">${opts(P.outcomes, "", "—")}</select></div>
+            <div><label>Contact</label><input id="x_contactName" list="contactList" value="${esc(a.primaryContact)}" /><datalist id="contactList">${D.contacts.map((c) => `<option value="${esc(c.fullName)}">`).join("")}</datalist></div>
+            <div class="full"><label>Notes</label><textarea id="x_notes" placeholder="What was said, what they need, what's next"></textarea></div>
+            ${ro ? "" : `
+            <div><label>Move status to</label><select id="x_newStatus">${opts(P.statuses, "", "— keep " + a.status + " —")}</select></div>
+            <div><label>Next action</label><input id="x_nextAction" placeholder="e.g. Send pricing on the Sub-Zero package" /></div>
+            <div><label>Next action date</label><input id="x_nextActionOn" type="date" /></div>`}
+          </div>
+          <div class="rowline"><button type="button" id="dLog">Log it</button><span class="hint">Logging a call, visit or email updates Last contacted automatically.</span></div>
+          <div id="dLogStatus" class="status"></div>
+          <div id="dActivities" style="margin-top:12px;">${activitiesHtml(D.activities)}</div>
+        </div>
+
+        <div class="panel">
+          <h3>Contacts</h3>
+          <div id="dContacts">${contactsHtml(D.contacts, ro)}</div>
+          ${ro ? "" : `
+          <div class="grid2" style="margin-top:10px;">
+            <div><label>Name</label><input id="c_fullName" /></div>
+            <div><label>Role / title</label><input id="c_role" /></div>
+            <div><label>Phone</label><input id="c_phone" /></div>
+            <div><label>Email</label><input id="c_email" /></div>
+            <div class="full"><label style="display:flex;gap:6px;align-items:center;font-weight:600;"><input type="checkbox" id="c_isPrimary" style="width:auto;" /> Primary contact</label></div>
+          </div>
+          <div class="rowline"><button type="button" class="secondary" id="dAddContact">Add contact</button></div>`}
+          <div id="dContactStatus" class="status"></div>
+        </div>
+
+        <div class="panel">
+          <h3>ePASS history</h3>
+          <div id="dEpass">${epassHtml()}</div>
+        </div>`;
+      wireDrawer();
+    }
+    function activitiesHtml(list) {
+      if (!list.length) return `<div class="hint">No activity logged yet.</div>`;
+      return list.map((x) => `<div class="act"><div><strong>${esc(x.activityType)}</strong>${x.outcome ? " · " + esc(x.outcome) : ""}${x.contactName ? " · " + esc(x.contactName) : ""}${x.newStatus ? ` · → ${esc(x.newStatus)}` : ""}</div>${x.notes ? `<div>${esc(x.notes)}</div>` : ""}${x.nextAction ? `<div class="hint">Next: ${esc(x.nextAction)}${x.nextActionOn ? " by " + fmtDate(x.nextActionOn) : ""}</div>` : ""}<div class="who">${fmtDate(x.activityOn)} · ${esc(x.ownerName || x.ownerEmail)}</div></div>`).join("");
+    }
+    function contactsHtml(list, ro) {
+      if (!list.length) return `<div class="hint">No contacts on file.</div>`;
+      return list.map((c) => `<div class="contact"><div><strong>${esc(c.fullName)}</strong>${c.isPrimary ? ' <span class="pill s-rel">primary</span>' : ""}${c.role ? ` <span class="c-sub">${esc(c.role)}</span>` : ""}<div class="c-sub">${[c.phone ? `<a href="tel:${esc(c.phone)}">${esc(c.phone)}</a>` : "", c.email ? `<a href="mailto:${esc(c.email)}">${esc(c.email)}</a>` : ""].filter(Boolean).join(" · ")}</div>${c.notes ? `<div class="c-sub">${esc(c.notes)}</div>` : ""}</div>${ro ? "" : `<button type="button" class="tiny quiet c-del" data-cid="${esc(c.id)}">Remove</button>`}</div>`).join("");
+    }
+    function epassHtml() {
+      const a = D.account, s = D.stats, e = D.epass, ro = !D.canEdit;
+      let html = "";
+      if (a.epassCustomers.length) {
+        html += a.epassCustomers.map((c) => `<div class="link-row"><div><strong>${esc(c.customerName || "ePASS customer")}</strong> <span class="n">#${esc(c.customerNumber)}</span></div>${ro ? "" : `<button type="button" class="tiny quiet e-unlink" data-num="${esc(c.customerNumber)}">Unlink</button>`}</div>`).join("");
+        if (s) html += `<div class="stats">
+          <div class="stat">Last 12 months<strong>${money(s.revenue12m)}</strong>${s.tickets12m} ticket${s.tickets12m === 1 ? "" : "s"}</div>
+          <div class="stat">Lifetime<strong>${money(s.revenue)}</strong>${s.tickets} ticket${s.tickets === 1 ? "" : "s"}</div>
+          <div class="stat">Last purchase<strong>${s.lastFinish ? fmtDate(s.lastFinish) : "—"}</strong></div>
+          <div class="stat">Open orders<strong>${s.openOrders || 0}</strong>${money(s.openTotal || 0)}</div>
+          <div class="stat">Open quotes<strong>${s.openQuotes || 0}</strong>${money(s.quoteTotal || 0)}</div>
+        </div>`;
+        if (e.openOrders.length) html += `<h3 style="margin-top:8px;">In progress</h3><div class="tw"><table class="mini"><thead><tr><th>Order</th><th>Started</th><th>Salesperson</th><th class="num">Total</th></tr></thead><tbody>${e.openOrders.map((o) => `<tr><td>${esc(o.invoice)}</td><td>${fmtDate(o.startDate)}</td><td>${esc(o.salesperson)}</td><td class="num">${money2(o.total)}</td></tr>`).join("")}</tbody></table></div>`;
+        if (e.openQuotes.length) html += `<h3 style="margin-top:8px;">Open quotes</h3><div class="tw"><table class="mini"><thead><tr><th>Quote</th><th>Created</th><th>Status</th><th class="num">Total</th></tr></thead><tbody>${e.openQuotes.map((q) => `<tr><td>${esc(q.quoteNumber)}</td><td>${fmtDate(q.dateCreated)}</td><td>${esc(q.jobStatus)}</td><td class="num">${money2(q.total)}</td></tr>`).join("")}</tbody></table></div>`;
+        html += `<h3 style="margin-top:8px;">Finished tickets</h3>`;
+        html += e.tickets.length
+          ? `<div class="tw"><table class="mini"><thead><tr><th>Ticket</th><th>Finished</th><th>Dept</th><th>Salesperson</th><th class="num">Revenue</th></tr></thead><tbody>${e.tickets.map((t) => `<tr><td>${esc(t.invoice)}</td><td>${fmtDate(t.finishDate)}</td><td>${esc(t.department)}</td><td>${esc(t.salesperson)}</td><td class="num">${money2(t.revenue)}</td></tr>`).join("")}</tbody></table></div>`
+          : `<div class="hint">No finished tickets in the warehouse for this customer number yet.</div>`;
+      } else {
+        html += `<div class="hint">Not linked to an ePASS customer yet. Link it and this panel shows every finished ticket, open order and quote for the account.</div>`;
+        if (a.epassSuggestions.length) {
+          html += `<div style="margin-top:10px;"><strong style="font-size:13px;">Looks like a match:</strong></div>` + a.epassSuggestions.map((c) => `<div class="sug-row"><div><strong>${esc(c.customerName)}</strong> <span class="n hint">#${esc(c.customerNumber)}</span><div class="hint">${c.tickets} finished ticket${c.tickets === 1 ? "" : "s"} · ${money(c.revenue)} lifetime${c.lastFinish ? " · last " + fmtDate(c.lastFinish) : ""}</div></div><span class="score">${Math.round(c.score * 100)}%</span>${ro ? "" : `<button type="button" class="tiny e-link" data-num="${esc(c.customerNumber)}" data-name="${esc(c.customerName)}">This is them</button>`}</div>`).join("") + (ro ? "" : `<button type="button" class="tiny quiet" id="eDismiss">None of these</button>`);
+        }
+      }
+      if (!ro) html += `<div style="margin-top:12px;"><label>Link ${a.epassCustomers.length ? "another" : "an"} ePASS customer</label><input id="eSearch" placeholder="Search by customer name or number" autocomplete="off" /><div class="search-results" id="eResults" hidden></div></div>`;
+      return html;
+    }
+
+    function wireDrawer() {
+      const a = D.account, id = a.id;
+      $("dSave")?.addEventListener("click", async () => {
+        const patch = {};
+        for (const k of ["companyName", "tradeType", "status", "strength", "priority", "primaryContact", "phone", "email", "website", "address1", "city", "zip", "nextAction", "nextActionOn", "lastContactedOn", "notes", "managerNotes"]) { const el = $("f_" + k); if (el) patch[k] = el.value; }
+        const btn = $("dSave"); btn.disabled = true;
+        try { const r = await api(`/api/builder-prospects/accounts/${id}`, { method: "POST", body: JSON.stringify(patch) }); D.account = r.account; setStatus("dSaveStatus", "Saved.", "ok"); $("dName").textContent = r.account.companyName; refreshRow(r.account); }
+        catch (err) { setStatus("dSaveStatus", err.message, "error"); } finally { btn.disabled = false; }
+      });
+      const assignTo = async (associate) => { try { const r = await api(`/api/builder-prospects/accounts/${id}/assign`, { method: "POST", body: JSON.stringify({ associate }) }); D = await api(`/api/builder-prospects/accounts/${id}`); renderDrawer(); refreshRow(r.account, true); } catch (err) { setStatus("dSaveStatus", err.message, "error"); } };
+      $("dAssign")?.addEventListener("change", (ev) => assignTo(ev.target.value));
+      $("dClaim")?.addEventListener("click", () => assignTo(META.me.name));
+      $("dRelease")?.addEventListener("click", () => { if (window.confirm("Release this account back to the Lead Pool?")) assignTo(""); });
+      $("dLog").addEventListener("click", async () => {
+        const body = { activityOn: $("x_activityOn").value, activityType: $("x_activityType").value, outcome: $("x_outcome").value, contactName: $("x_contactName").value, notes: $("x_notes").value };
+        if ($("x_newStatus")) { body.newStatus = $("x_newStatus").value; body.nextAction = $("x_nextAction").value; body.nextActionOn = $("x_nextActionOn").value; }
+        const btn = $("dLog"); btn.disabled = true;
+        try { const r = await api(`/api/builder-prospects/accounts/${id}/activities`, { method: "POST", body: JSON.stringify(body) }); D.account = r.account; D.activities = r.activities; $("dActivities").innerHTML = activitiesHtml(D.activities); ["x_notes", "x_nextAction", "x_nextActionOn"].forEach((k) => { if ($(k)) $(k).value = ""; }); if ($("x_newStatus")) $("x_newStatus").value = ""; setStatus("dLogStatus", "Logged.", "ok"); if ($("f_status")) $("f_status").value = r.account.status; if ($("f_lastContactedOn")) $("f_lastContactedOn").value = r.account.lastContactedOn || ""; if ($("f_nextAction")) $("f_nextAction").value = r.account.nextAction; if ($("f_nextActionOn")) $("f_nextActionOn").value = r.account.nextActionOn || ""; $("dMeta").querySelector(".pill").outerHTML = pill(r.account.status); refreshRow(r.account); }
+        catch (err) { setStatus("dLogStatus", err.message, "error"); } finally { btn.disabled = false; }
+      });
+      $("dAddContact")?.addEventListener("click", async () => {
+        const body = { fullName: $("c_fullName").value, role: $("c_role").value, phone: $("c_phone").value, email: $("c_email").value, isPrimary: $("c_isPrimary").checked };
+        try { const r = await api(`/api/builder-prospects/accounts/${id}/contacts`, { method: "POST", body: JSON.stringify(body) }); D.contacts = r.contacts; D.account = r.account; $("dContacts").innerHTML = contactsHtml(D.contacts, false); ["c_fullName", "c_role", "c_phone", "c_email"].forEach((k) => $(k).value = ""); $("c_isPrimary").checked = false; setStatus("dContactStatus", "Added.", "ok"); if (body.isPrimary && $("f_primaryContact")) $("f_primaryContact").value = r.account.primaryContact; }
+        catch (err) { setStatus("dContactStatus", err.message, "error"); }
+      });
+      $("dContacts").addEventListener("click", async (ev) => { const b = ev.target.closest(".c-del"); if (!b) return; try { const r = await api(`/api/builder-prospects/accounts/${id}/contacts/${b.dataset.cid}/delete`, { method: "POST" }); D.contacts = r.contacts; $("dContacts").innerHTML = contactsHtml(D.contacts, false); } catch (err) { setStatus("dContactStatus", err.message, "error"); } });
+      wireEpass();
+    }
+    function wireEpass() {
+      const id = D.account.id;
+      const box = $("dEpass");
+      box.querySelectorAll(".e-link").forEach((b) => b.addEventListener("click", () => linkCustomer(b.dataset.num, b.dataset.name)));
+      box.querySelectorAll(".e-unlink").forEach((b) => b.addEventListener("click", async () => { try { const r = await api(`/api/builder-prospects/accounts/${id}/epass-unlink`, { method: "POST", body: JSON.stringify({ customerNumber: b.dataset.num }) }); Object.assign(D, { account: r.account, epass: r.epass, stats: r.stats }); box.innerHTML = epassHtml(); wireEpass(); refreshRow(r.account); } catch (err) { alert(err.message); } }));
+      $("eDismiss")?.addEventListener("click", async () => { await api(`/api/builder-prospects/accounts/${id}/epass-dismiss`, { method: "POST" }).catch(() => {}); D.account.epassSuggestions = []; box.innerHTML = epassHtml(); wireEpass(); });
+      const search = $("eSearch"), results = $("eResults");
+      if (search) {
+        let t; search.addEventListener("input", () => { clearTimeout(t); const q = search.value.trim(); if (q.length < 2) { results.hidden = true; return; } t = setTimeout(async () => { try { const r = await api(`/api/builder-prospects/epass-search?q=${encodeURIComponent(q)}`); results.innerHTML = r.customers.length ? r.customers.map((c) => `<div data-num="${esc(c.customerNumber)}" data-name="${esc(c.customerName)}"><strong>${esc(c.customerName)}</strong> <span class="hint">#${esc(c.customerNumber)} · ${c.tickets} ticket${c.tickets === 1 ? "" : "s"} · ${money(c.revenue)}</span></div>`).join("") : `<div class="hint">No ePASS customer matches "${esc(q)}".</div>`; results.hidden = false; } catch (err) { results.innerHTML = `<div class="hint">${esc(err.message)}</div>`; results.hidden = false; } }, 250); });
+        results.addEventListener("click", (ev) => { const d = ev.target.closest("div[data-num]"); if (d) linkCustomer(d.dataset.num, d.dataset.name); });
+      }
+      async function linkCustomer(num, name) {
+        try { const r = await api(`/api/builder-prospects/accounts/${id}/epass-link`, { method: "POST", body: JSON.stringify({ customerNumber: num, customerName: name }) }); Object.assign(D, { account: r.account, epass: r.epass, stats: r.stats }); box.innerHTML = epassHtml(); wireEpass(); epass[r.account.id] = r.stats; refreshRow(r.account); }
+        catch (err) { alert(err.message); }
+      }
+    }
+    function refreshRow(account, reloadList) {
+      const i = accounts.findIndex((x) => x.id === account.id);
+      if (i >= 0) accounts[i] = account; else if (reloadList) return load();
+      if (view === "mine" && reloadList) return load();
+      render();
+    }
+
+    // ---------------- add account ----------------
+    $("addBtn").addEventListener("click", () => {
+      $("drawer").classList.add("show"); $("drawerBack").classList.add("show"); D = null;
+      const P = META.picklists;
+      $("dName").textContent = "New account"; $("dMeta").innerHTML = "";
+      $("dBody").innerHTML = `<div class="panel full">
+        <div class="grid2">
+          <div class="full"><label>Company</label><input id="n_companyName" autofocus /></div>
+          <div><label>Trade type</label><select id="n_tradeType">${opts(P.tradeTypes, "Builder")}</select></div>
+          <div><label>Status</label><select id="n_status">${opts(P.statuses, "Open Lead")}</select></div>
+          <div><label>Primary contact</label><input id="n_primaryContact" /></div>
+          <div><label>Phone</label><input id="n_phone" /></div>
+          <div><label>Email</label><input id="n_email" /></div>
+          <div><label>City</label><input id="n_city" /></div>
+          <div><label>Source</label><select id="n_source">${opts(P.sources, "Manual Staff Add")}</select></div>
+          <div><label>Assign to</label>${META.me.isManager ? `<select id="n_salesAssociate">${opts(META.associates, META.me.associateName, "— Lead Pool —")}</select>` : `<select id="n_salesAssociate"><option value="${esc(META.me.name)}">Me (${esc(META.me.name)})</option><option value="">Lead Pool</option></select>`}</div>
+          <div class="full"><label>Notes</label><textarea id="n_notes"></textarea></div>
+        </div>
+        <div class="rowline"><button type="button" id="nCreate">Add account</button></div>
+        <div id="nStatus" class="status"></div>
+      </div>`;
+      $("nCreate").addEventListener("click", async () => {
+        const body = {}; for (const k of ["companyName", "tradeType", "status", "primaryContact", "phone", "email", "city", "source", "salesAssociate", "notes"]) body[k] = $("n_" + k).value;
+        try { const r = await api("/api/builder-prospects/accounts", { method: "POST", body: JSON.stringify(body) }); await load(); openAccount(r.account.id); }
+        catch (err) { setStatus("nStatus", err.message, "error"); }
+      });
+    });
+
+    loadMeta().then(load).catch((err) => setStatus("pageStatus", err.message, "error"));
+  </script>
+</body>
+</html>

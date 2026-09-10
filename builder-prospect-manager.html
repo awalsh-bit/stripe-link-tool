@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="robots" content="noindex,nofollow,noarchive" />
+  <title>Wilson AC & Appliance - Builder Prospect Manager</title>
+  <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+  <link rel="stylesheet" href="internal-shell.css" />
+  <style>
+    :root {
+      --bg: #f7f8fc; --card: #ffffff; --text: #1f2937; --muted: #6b7280; --border: #dbe1ea;
+      --success-bg: #ecfdf5; --success-text: #065f46; --error-bg: #fef2f2; --error-text: #991b1b; --warn-bg: #fffbeb; --warn-text: #92400e;
+      --shadow: 0 10px 35px rgba(0, 0, 0, 0.08); --radius: 18px;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: "Roboto", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: linear-gradient(180deg, var(--primary-tint) 0%, var(--bg) 100%); color: var(--text); min-height: 100vh; padding: 32px 16px; }
+    .wrap { max-width: 1480px; margin: 0 auto; }
+    .surface { background: var(--card); border: 1px solid rgba(var(--primary-rgb), 0.12); box-shadow: var(--shadow); border-radius: var(--radius); padding: 22px 24px; margin: 0 auto 18px; }
+    h2 { margin: 0 0 4px; font-size: 22px; }
+    h3 { margin: 0 0 10px; font-size: 14px; text-transform: uppercase; letter-spacing: 0.05em; color: #64748b; }
+    .section-note { margin: 0 0 14px; color: var(--muted); font-size: 14px; line-height: 1.5; }
+    button { appearance: none; border: none; background: var(--primary); color: #fff; padding: 9px 14px; border-radius: 10px; font-size: 14px; font-weight: 700; cursor: pointer; white-space: nowrap; font-family: inherit; }
+    button:hover { background: var(--primary-hover); }
+    button:disabled { opacity: 0.6; cursor: wait; }
+    button.secondary { background: var(--primary-tint); color: var(--primary); }
+    button.secondary:hover { background: var(--primary-tint-2); }
+    button.tiny { padding: 5px 9px; font-size: 12px; border-radius: 8px; }
+    .status { display: none; margin: 10px 0 0; border-radius: 12px; padding: 10px 14px; font-size: 14px; line-height: 1.5; }
+    .status.show { display: block; }
+    .status.error { background: var(--error-bg); color: var(--error-text); }
+    .status.ok { background: var(--success-bg); color: var(--success-text); }
+    .status.warn { background: var(--warn-bg); color: var(--warn-text); }
+    .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
+    .tile { background: var(--primary-faint-2, #f6faf6); border: 1px solid var(--border); border-radius: 12px; padding: 10px 14px; font-size: 12.5px; color: var(--muted); }
+    .tile strong { display: block; font-size: 22px; color: var(--text); }
+    .tile.hot { background: #fffbeb; border-color: #fde68a; }
+    .tile.hot strong { color: #92400e; }
+    table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+    th, td { text-align: left; padding: 9px 8px; border-bottom: 1px solid #eef1f6; vertical-align: top; }
+    th { font-size: 11.5px; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; color: #64748b; white-space: nowrap; }
+    th.num, td.num { text-align: right; font-variant-numeric: tabular-nums; }
+    .table-scroll { overflow-x: auto; }
+    .muted { color: var(--muted); }
+    .sub { color: var(--muted); font-size: 12px; }
+    .reason { display: inline-block; background: #fef3c7; color: #92400e; border-radius: 6px; padding: 1px 7px; font-size: 11.5px; font-weight: 700; margin: 2px 4px 2px 0; }
+    .reason.red { background: #fee2e2; color: #991b1b; }
+    a.acct { color: var(--primary); font-weight: 700; text-decoration: none; }
+    .tools { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+    .file { position: relative; display: inline-block; }
+    .file input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+    .empty { padding: 20px 10px; text-align: center; color: var(--muted); }
+    .two { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+    @media (max-width: 900px) { .two { grid-template-columns: 1fr; } }
+    @media (max-width: 720px) {
+      body { padding: 14px 8px; }
+      .surface { padding: 14px; }
+      .internal-shell-header-top { flex-wrap: wrap !important; }
+      .tools button, .tools .file { flex: 1 1 100%; }
+      .flag-table thead { display: none; }
+      .flag-table, .flag-table tbody, .flag-table tr, .flag-table td { display: block; width: 100%; }
+      .flag-table tbody tr { border: 1px solid var(--border); border-radius: 12px; padding: 8px 10px; margin-bottom: 8px; }
+      .flag-table td { border: none; padding: 2px 0; }
+    }
+  </style>
+</head>
+<body data-shell-label="Builder Prospect Manager" data-shell-icon="sales">
+  <div class="wrap">
+    <div id="internal-shell-header"></div>
+
+    <div class="surface">
+      <h2>Builder Prospect Manager</h2>
+      <p class="section-note">The workbook's Dashboard and Manager Activity Review, live. Open any account on the <a href="builder-prospects.html">Builder Prospect List</a> to reassign it or edit it.</p>
+      <div class="tiles" id="tiles"></div>
+      <div id="pageStatus" class="status"></div>
+    </div>
+
+    <div class="two">
+      <div class="surface">
+        <h3>By sales associate</h3>
+        <div class="table-scroll"><table><thead><tr><th>Associate</th><th class="num">Accounts</th><th class="num">Active</th><th class="num">Overdue</th><th class="num">No contact 30d</th><th class="num">Touches 30d</th></tr></thead><tbody id="assocRows"></tbody></table></div>
+      </div>
+      <div class="surface">
+        <h3>Recent activity (30 days)</h3>
+        <div id="recent" style="max-height:420px;overflow:auto;"></div>
+      </div>
+    </div>
+
+    <div class="surface">
+      <h3>Needs a look</h3>
+      <p class="section-note" style="margin-bottom:8px;">Overdue next actions, accounts assigned 7+ days ago with no activity, and active accounts nobody has touched in 45 days.</p>
+      <div class="table-scroll"><table class="flag-table"><thead><tr><th>Company</th><th>Associate</th><th>Status</th><th>Last contact</th><th>Next action</th><th>Why</th></tr></thead><tbody id="flagRows"></tbody></table></div>
+    </div>
+
+    <div class="surface">
+      <h3>Tools</h3>
+      <div class="tools">
+        <span class="file"><button type="button" class="secondary">Import prospect workbook (.xlsx)</button><input type="file" id="wbFile" accept=".xlsx,.xlsm" /></span>
+        <button type="button" class="secondary" id="rematchBtn">Re-run ePASS name matching</button>
+        <a href="/api/builder-prospects/accounts.csv"><button type="button" class="secondary">Export all accounts (CSV)</button></a>
+      </div>
+      <p class="sub" style="margin:10px 0 0;">Import is safe to re-run: new companies are added, existing ones keep what the team has done in Agility and only fill in blank contact fields. Matching proposes ePASS customers by name for unlinked accounts — nobody is linked until a person confirms on the account.</p>
+      <div id="toolStatus" class="status"></div>
+    </div>
+
+    <div id="internal-shell-footer"></div>
+  </div>
+
+  <script src="internal-shell.js"></script>
+  <script>
+    const $ = (id) => document.getElementById(id);
+    const esc = (v) => String(v ?? "").replace(/[&<>"']/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch]));
+    const fmtDate = (iso) => /^\d{4}-\d{2}-\d{2}/.test(iso || "") ? new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "2-digit", timeZone: "UTC" }).format(new Date(iso.slice(0, 10) + "T12:00:00Z")) : "—";
+    function setStatus(id, message, kind) { const box = $(id); if (!message) { box.className = "status"; box.textContent = ""; return; } box.className = "status " + kind + " show"; box.textContent = message; }
+    async function api(path, options = {}) {
+      const res = await fetch(path, { credentials: "same-origin", ...options });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || "Request failed.");
+      return data;
+    }
+    const acctLink = (id, name) => `<a class="acct" href="builder-prospects.html?account=${encodeURIComponent(id)}">${esc(name)}</a>`;
+
+    async function load() {
+      setStatus("pageStatus", "");
+      try {
+        const d = await api("/api/builder-prospects/dashboard");
+        const t = d.totals;
+        $("tiles").innerHTML = [
+          ["Active accounts", t.accounts], ["Open leads", t.openLeads], ["Chasing", t.chasing], ["Active relationships", t.activeRelationships],
+          ["Active pricing", t.activePricing], ["Current jobs", t.currentJobs], ["Dormant", t.dormant], ["Unassigned (Lead Pool)", t.unassigned], ["Needs a look", d.flags.length, "hot"]
+        ].map(([l, v, c]) => `<div class="tile ${c || ""}">${esc(l)}<strong>${v}</strong></div>`).join("");
+        const touches = Object.fromEntries(d.activity30d.map((x) => [x.ownerName, x.count]));
+        $("assocRows").innerHTML = d.byAssociate.length ? d.byAssociate.map((r) => `<tr><td>${esc(r.associate)}</td><td class="num">${r.accounts}</td><td class="num">${r.active}</td><td class="num">${r.overdue ? `<span class="reason red">${r.overdue}</span>` : "0"}</td><td class="num">${r.stale}</td><td class="num">${touches[r.associate] || 0}</td></tr>`).join("") : `<tr><td colspan="6" class="empty">No accounts assigned yet.</td></tr>`;
+        $("recent").innerHTML = d.recentActivities.length ? d.recentActivities.map((x) => `<div style="padding:7px 0;border-bottom:1px dashed #eef1f6;font-size:13px;"><strong>${esc(x.ownerName || x.ownerEmail)}</strong> · ${esc(x.activityType)}${x.outcome ? " · " + esc(x.outcome) : ""} — ${acctLink(x.accountId, x.companyName)}${x.newStatus ? ` <span class="sub">→ ${esc(x.newStatus)}</span>` : ""}<div class="sub">${fmtDate(x.activityOn)}${x.notes ? " · " + esc(x.notes.slice(0, 140)) : ""}</div></div>`).join("") : `<div class="empty">Nothing logged in the last 30 days.</div>`;
+        $("flagRows").innerHTML = d.flags.length ? d.flags.map((f) => `<tr><td>${acctLink(f.id, f.companyName)}</td><td>${esc(f.salesAssociate)}</td><td>${esc(f.status)}${f.baselineStatus && f.baselineStatus !== f.status ? `<div class="sub">was ${esc(f.baselineStatus)}</div>` : ""}</td><td>${fmtDate(f.lastContactedOn)}</td><td>${f.nextActionOn ? fmtDate(f.nextActionOn) : ""}<div class="sub">${esc(f.nextAction)}</div></td><td>${f.reasons.map((r) => `<span class="reason ${/overdue/i.test(r) ? "red" : ""}">${esc(r)}</span>`).join("")}</td></tr>`).join("") : `<tr><td colspan="6" class="empty">Nothing needs a look right now.</td></tr>`;
+      } catch (err) { setStatus("pageStatus", err.message, "error"); }
+    }
+
+    $("wbFile").addEventListener("change", async () => {
+      const f = $("wbFile").files[0]; if (!f) return;
+      setStatus("toolStatus", `Importing ${f.name}…`, "warn");
+      try {
+        const form = new FormData(); form.append("workbook", f);
+        const r = await api("/api/builder-prospects/import", { method: "POST", body: form });
+        const m = r.match;
+        setStatus("toolStatus", `Imported: ${r.inserted} new account${r.inserted === 1 ? "" : "s"}, ${r.updated} already here (blank fields filled), ${r.contactsAdded} contact${r.contactsAdded === 1 ? "" : "s"} added${r.unmatchedContacts ? ` (${r.unmatchedContacts} contacts had no matching company)` : ""}.${m ? ` ePASS matching: ${m.withSuggestions} of ${m.accountsChecked} unlinked accounts have a suggested customer (${m.exact} exact name matches) across ${m.epassCustomers} ePASS customers.` : ""}`, "ok");
+        load();
+      } catch (err) { setStatus("toolStatus", err.message, "error"); }
+      finally { $("wbFile").value = ""; }
+    });
+    $("rematchBtn").addEventListener("click", async () => {
+      $("rematchBtn").disabled = true;
+      try { const m = await api("/api/builder-prospects/rematch", { method: "POST" }); setStatus("toolStatus", `Checked ${m.accountsChecked} unlinked accounts against ${m.epassCustomers} ePASS customers: ${m.withSuggestions} have a suggestion, ${m.exact} exact name matches. Reps confirm them on each account.`, "ok"); }
+      catch (err) { setStatus("toolStatus", err.message, "error"); } finally { $("rematchBtn").disabled = false; }
+    });
+    load();
+  </script>
+</body>
+</html>

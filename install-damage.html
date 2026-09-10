@@ -621,13 +621,14 @@
       <div class="card">
         <label class="field-label">Photo of the damage or issue <span class="req">*</span></label>
         <label class="photo-slot" id="damageSlot0">
-          <input type="file" accept="image/*" id="damageInput0">
+          <input type="file" accept="image/*" multiple id="damageInput0">
           <svg class="cam-icon" width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M4 8a2 2 0 0 1 2-2h1.5l1-1.5h7l1 1.5H18a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8Z"/><circle cx="12" cy="13" r="3.4"/></svg>
           <div class="cam-label">Tap to take a photo or choose from your library</div>
-          <div class="cam-sub">Show what's wrong, even if it's just how the unit looks</div>
+          <div class="cam-sub">Show what's wrong, even if it's just how the unit looks. Up to 3 photos — pick several at once from your library.</div>
         </label>
         <div class="extra-photos" id="extraPhotos"></div>
-        <button class="add-photo-btn" id="addPhotoBtn">+ Add another angle (optional)</button>
+        <input type="file" accept="image/*" multiple id="damageMoreInput" style="display:none;">
+        <button class="add-photo-btn" id="addPhotoBtn" type="button">+ Add another angle (optional)</button>
       </div>
 
       <div class="card">
@@ -1172,6 +1173,9 @@ function renderJobCard(data){
   card.appendChild(el("div", "job-addr", data.address || ""));
   host.appendChild(card);
 
+  // a fresh lookup clears whatever unit was picked on the previous one
+  state.selectedUnit = null;
+  state.applianceType = "";
   const units = data.units || [];
   if(units.length === 0){
     const help = el("div", "field-help", "Which appliance is damaged?");
@@ -1184,9 +1188,12 @@ function renderJobCard(data){
     grid.addEventListener("click", ()=>{ state.applianceType = sel[0] || ""; });
     return;
   }
+  // Units the lookup can't type (no appliance type on the order line) still
+  // need a label — the model number is what the installer recognises.
+  const unitLabel = (u, idx) => u.applianceType || (u.model ? "Model " + u.model : "Unit " + (idx + 1));
   if(units.length === 1){
     const u = units[0];
-    state.applianceType = u.applianceType || "";
+    state.applianceType = unitLabel(u, 0);
     state.selectedUnit = u;
     return;
   }
@@ -1203,7 +1210,7 @@ function renderJobCard(data){
     opt.addEventListener("click", ()=>{
       host.querySelectorAll(".unit-option").forEach(o=>o.classList.remove("selected"));
       opt.classList.add("selected");
-      state.applianceType = u.applianceType || "";
+      state.applianceType = unitLabel(u, idx);
       state.selectedUnit = u;
     });
     host.appendChild(opt);
@@ -1223,7 +1230,7 @@ async function handlePhotoInput(file, targetSlotEl, onDone){
   }
 }
 
-function renderPhotoSlot(slotEl, photo, retakeHandler, badgeText){
+function renderPhotoSlot(slotEl, photo, retakeHandler, badgeText, buttonText = "Retake"){
   slotEl.classList.add("filled");
   slotEl.innerHTML = "";
   const img = document.createElement("img");
@@ -1233,7 +1240,7 @@ function renderPhotoSlot(slotEl, photo, retakeHandler, badgeText){
     const badge = el("div", "photo-badge", badgeText);
     slotEl.appendChild(badge);
   }
-  const retake = el("button", "retake", "Retake");
+  const retake = el("button", "retake", buttonText);
   retake.type = "button";
   retake.addEventListener("click", (e)=>{ e.preventDefault(); e.stopPropagation(); retakeHandler(); });
   slotEl.appendChild(retake);
@@ -1265,62 +1272,68 @@ function resetTagSlot(){
   });
 }
 
-function wireDamageSlot0(){
-  const slot = $("#damageSlot0");
-  const input = $("#damageInput0");
-  input.addEventListener("change", (e)=>{
-    const file = e.target.files[0];
-    handlePhotoInput(file, slot, (photo)=>{
-      state.damagePhotos[0] = photo;
-      renderPhotoSlot(slot, photo, ()=>resetDamageSlot0(), "Main");
-    });
-  });
-}
-function resetDamageSlot0(){
-  state.damagePhotos[0] = undefined;
-  const slot = $("#damageSlot0");
-  slot.classList.remove("filled");
-  slot.innerHTML = `<input type="file" accept="image/*" id="damageInput0">
+// Damage photos: one list (state.damagePhotos), up to MAX_DAMAGE_PHOTOS.
+// Any picker — the main slot, "Add another angle", camera or library —
+// appends to the list, and a library pick can bring several at once.
+const MAX_DAMAGE_PHOTOS = 3;
+const DAMAGE_SLOT_MARKUP = `<input type="file" accept="image/*" multiple id="damageInput0">
     <svg class="cam-icon" width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M4 8a2 2 0 0 1 2-2h1.5l1-1.5h7l1 1.5H18a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8Z"/><circle cx="12" cy="13" r="3.4"/></svg>
     <div class="cam-label">Tap to take a photo or choose from your library</div>
-    <div class="cam-sub">Get close enough to see it clearly</div>`;
-  wireDamageSlot0();
-}
-wireDamageSlot0();
+    <div class="cam-sub">Show what's wrong, even if it's just how the unit looks. Up to 3 photos — pick several at once from your library.</div>`;
 
-const MAX_EXTRA_PHOTOS = 2; // total damage photos = 1 required + this many optional
-$("#addPhotoBtn").addEventListener("click", ()=>{
-  const count = state.damagePhotos.filter(Boolean).length - 1; // extras only
-  if(count >= MAX_EXTRA_PHOTOS){ showToast("Up to 3 damage photos total"); return; }
-  addExtraPhotoSlot();
-});
-function addExtraPhotoSlot(){
-  const idx = state.damagePhotos.length; // next index
+async function addDamageFiles(fileList){
+  const files = Array.from(fileList || []).filter(Boolean);
+  if(!files.length) return;
+  const room = MAX_DAMAGE_PHOTOS - state.damagePhotos.length;
+  if(room <= 0){ showToast("Up to " + MAX_DAMAGE_PHOTOS + " damage photos total"); return; }
+  if(files.length > room) showToast("Up to " + MAX_DAMAGE_PHOTOS + " damage photos — using the first " + room);
+  const slot = $("#damageSlot0");
+  if(!state.damagePhotos.length){
+    slot.classList.add("filled");
+    slot.innerHTML = '<div class="lookup-status loading" style="position:absolute; inset:0; justify-content:center; border-radius:12px;"><span class="spinner"></span> Processing…</div>';
+  }
+  let failed = 0;
+  for(const file of files.slice(0, room)){
+    try{ state.damagePhotos.push(await compressImage(file)); }
+    catch(e){ failed++; }
+  }
+  if(failed) showToast(failed === 1 ? "Couldn't process one photo — try again" : "Couldn't process " + failed + " photos — try again");
+  renderDamagePhotos();
+}
+
+function removeDamagePhoto(i){
+  const gone = state.damagePhotos.splice(i, 1)[0];
+  if(gone && gone.url) { try{ URL.revokeObjectURL(gone.url); } catch(e){} }
+  renderDamagePhotos();
+}
+
+function renderDamagePhotos(){
+  const slot = $("#damageSlot0");
+  const photos = state.damagePhotos;
+  if(photos[0]){
+    renderPhotoSlot(slot, photos[0], ()=>removeDamagePhoto(0), "Main", "Remove");
+  } else {
+    slot.classList.remove("filled");
+    slot.innerHTML = DAMAGE_SLOT_MARKUP;
+    $("#damageInput0").addEventListener("change", (e)=>{ addDamageFiles(e.target.files); e.target.value = ""; });
+  }
   const host = $("#extraPhotos");
-  const slot = el("label", "photo-slot");
-  slot.innerHTML = `<input type="file" accept="image/*">
-    <svg class="cam-icon" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M4 8a2 2 0 0 1 2-2h1.5l1-1.5h7l1 1.5H18a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8Z"/><circle cx="12" cy="13" r="3.4"/></svg>
-    <div class="cam-label" style="font-size:12.5px;">Add photo</div>`;
-  host.appendChild(slot);
-  const input = slot.querySelector("input");
-  input.addEventListener("change", (e)=>{
-    const file = e.target.files[0];
-    handlePhotoInput(file, slot, (photo)=>{
-      state.damagePhotos[idx] = photo;
-      renderPhotoSlot(slot, photo, ()=>{
-        state.damagePhotos[idx] = undefined;
-        slot.remove();
-        compactDamagePhotos();
-      }, null);
-    });
+  host.innerHTML = "";
+  photos.slice(1).forEach((photo, k)=>{
+    const extra = el("label", "photo-slot");
+    renderPhotoSlot(extra, photo, ()=>removeDamagePhoto(k + 1), null, "Remove");
+    host.appendChild(extra);
   });
-  const count = state.damagePhotos.filter(Boolean).length - 1 + 1;
-  if(count >= MAX_EXTRA_PHOTOS) $("#addPhotoBtn").style.display = "none";
+  $("#addPhotoBtn").style.display = photos.length && photos.length < MAX_DAMAGE_PHOTOS ? "block" : "none";
 }
-function compactDamagePhotos(){
-  state.damagePhotos = state.damagePhotos.filter(Boolean);
-  $("#addPhotoBtn").style.display = "block";
-}
+
+$("#damageInput0").addEventListener("change", (e)=>{ addDamageFiles(e.target.files); e.target.value = ""; });
+$("#damageMoreInput").addEventListener("change", (e)=>{ addDamageFiles(e.target.files); e.target.value = ""; });
+$("#addPhotoBtn").addEventListener("click", ()=>{
+  if(state.damagePhotos.length >= MAX_DAMAGE_PHOTOS){ showToast("Up to " + MAX_DAMAGE_PHOTOS + " damage photos total"); return; }
+  $("#damageMoreInput").click();
+});
+renderDamagePhotos();
 
 /* ============================= NAVIGATION ============================= */
 const STEP_META = {
@@ -1333,7 +1346,7 @@ const STEP_META = {
 function validateStep(n){
   if(n === 1){
     if(state.jobSource === "lookup"){
-      if(!state.applianceType){ showToast("Select which unit is damaged"); return false; }
+      if(!state.selectedUnit && !state.applianceType){ showToast("Select which unit is damaged"); return false; }
       return true;
     }
     const cust = $("#manCustomer").value.trim();

@@ -239,6 +239,15 @@ import {
   cardReceiptsCsv
 } from "./lib/card-receipts-postgres.js";
 import {
+  ACCOUNT_STATUSES as BUILDER_STATUSES, TRADE_TYPES as BUILDER_TRADE_TYPES, STRENGTHS as BUILDER_STRENGTHS, PRIORITIES as BUILDER_PRIORITIES,
+  SOURCES as BUILDER_SOURCES, ACTIVITY_TYPES as BUILDER_ACTIVITY_TYPES, OUTCOMES as BUILDER_OUTCOMES,
+  importProspectWorkbook, listBuilderAccounts, getBuilderAccount, listAssociates as listBuilderAssociates, updateBuilderAccount, assignBuilderAccount,
+  createBuilderAccount, listContacts as listBuilderContacts, addContact as addBuilderContact, removeContact as removeBuilderContact,
+  listActivities as listBuilderActivities, logActivity as logBuilderActivity, listRecentActivities as listRecentBuilderActivities,
+  suggestEpassMatches, searchEpassCustomers, linkEpassCustomer, unlinkEpassCustomer, dismissEpassSuggestions,
+  epassStatsForAccounts, epassHistoryForAccount, builderDashboard, countBuilderAccounts, companyKey as builderCompanyKey
+} from "./lib/builder-accounts-postgres.js";
+import {
   createDeliveryRun,
   updateDeliveryRun,
   setDeliveryRunStatus,
@@ -620,6 +629,8 @@ const INTERNAL_PAGE_PATHS = new Set([
   "/mileage-review.html",
   "/receipts.html",
   "/receipt-report.html",
+  "/builder-prospects.html",
+  "/builder-prospect-manager.html",
   "/hr-phone-screen.html",
   "/hr-candidates.html",
   "/uniform-orders.html",
@@ -850,6 +861,8 @@ const PAGE_LABELS = {
   "/mileage-review.html": "Mileage Review",
   "/receipts.html": "Card Receipts",
   "/receipt-report.html": "Card Receipt Report",
+  "/builder-prospects.html": "Builder Prospect List",
+  "/builder-prospect-manager.html": "Builder Prospect Manager",
   "/hr-phone-screen.html": "Phone Screen",
   "/hr-candidates.html": "Candidates",
   "/uniform-orders.html": "Uniform Ordering",
@@ -1004,6 +1017,8 @@ const PAGE_CATEGORIES = [
       "/sales-order-detail.html",
       "/brand-sales.html",
       "/lead-report.html",
+      "/builder-prospects.html",
+      "/builder-prospect-manager.html",
       "/quote-follow-up.html",
       "/epass-uploads.html",
       "/aging-inventory.html",
@@ -4555,6 +4570,302 @@ app.get("/api/card-receipts/report.csv", requirePagePermission("/receipt-report.
   } catch (err) {
     console.error("Card receipt CSV failed:", err.message);
     return res.status(500).json({ error: "Unable to export." });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Builder Prospect List — the WACA prospect master, in Agility.
+// Reps (page grant on /builder-prospects.html) work their own accounts and
+// claim from the Lead Pool; managers (grant on /builder-prospect-manager.html,
+// executives implicitly) reassign, import the workbook, and see the review
+// dashboard. ePASS history rides the finished-ticket warehouse.
+// ---------------------------------------------------------------------------
+const builderWorkbookUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 30 * 1024 * 1024, files: 1 } });
+const requireBuilderPage = requirePagePermission("/builder-prospects.html", "/builder-prospect-manager.html");
+const requireBuilderManager = requirePagePermission("/builder-prospect-manager.html");
+
+function isBuilderManager(user) {
+  return isExecutiveUser(user) || canAccessPathForUser(user, "/builder-prospect-manager.html");
+}
+function builderMe(req) {
+  const u = req.authUser || {};
+  const email = String(u.email || u.username || "").trim().toLowerCase();
+  const name = String(u.displayName || u.username || email).trim();
+  return { email, name, isManager: isBuilderManager(u) };
+}
+// A rep "owns" an account when the Sales Associate name is theirs (case /
+// punctuation-insensitive; "Ray Wilder" = "RAY WILDER").
+function builderRepOwns(account, me) {
+  if (!account?.salesAssociate || !me?.name) return false;
+  return builderCompanyKey(account.salesAssociate) === builderCompanyKey(me.name);
+}
+function canEditBuilderAccount(account, me) {
+  return me.isManager || builderRepOwns(account, me);
+}
+const builderAudit = (req, action, detail) => recordAudit({ ip: req.ip, actorUserId: req.authUser?.kind === "db" ? req.authUser.id : null, action, targetUserId: null, detail }).catch(() => {});
+
+app.get("/api/builder-prospects/meta", requireBuilderPage, async (req, res) => {
+  try {
+    const me = builderMe(req);
+    const [associates, count] = await Promise.all([listBuilderAssociates(), countBuilderAccounts()]);
+    const myAssociate = associates.find((a) => builderCompanyKey(a) === builderCompanyKey(me.name)) || "";
+    return res.json({
+      me: { ...me, associateName: myAssociate },
+      associates,
+      picklists: { statuses: BUILDER_STATUSES, tradeTypes: BUILDER_TRADE_TYPES, strengths: BUILDER_STRENGTHS, priorities: BUILDER_PRIORITIES, sources: BUILDER_SOURCES, activityTypes: BUILDER_ACTIVITY_TYPES, outcomes: BUILDER_OUTCOMES },
+      accountCount: count
+    });
+  } catch (err) {
+    console.error("Builder meta failed:", err.message);
+    return res.status(500).json({ error: "Unable to load the prospect list." });
+  }
+});
+
+// view=mine | pool | all (+ status, associate, q). Stats from ePASS ride along.
+app.get("/api/builder-prospects/accounts", requireBuilderPage, async (req, res) => {
+  try {
+    const me = builderMe(req);
+    const view = String(req.query.view || "mine");
+    const filters = { status: String(req.query.status || "").slice(0, 40), search: String(req.query.q || "").slice(0, 120) };
+    if (view === "mine") filters.associate = me.name;
+    else if (view === "pool") filters.unassigned = true;
+    else if (req.query.associate) filters.associate = String(req.query.associate).slice(0, 120);
+    let accounts = await listBuilderAccounts(filters);
+    if (view === "mine" && !accounts.length) {
+      // displayName may differ in case/spacing from the picklist name
+      const all = await listBuilderAccounts({ status: filters.status, search: filters.search });
+      accounts = all.filter((a) => builderRepOwns(a, me));
+    }
+    const today = new Date().toLocaleDateString("en-CA", { timeZone: APP_TIMEZONE });
+    const epass = await epassStatsForAccounts(accounts, { today }).catch((e) => { console.error("Builder ePASS stats failed:", e.message); return {}; });
+    return res.json({ accounts, epass, today, canManage: me.isManager });
+  } catch (err) {
+    console.error("Builder list failed:", err.message);
+    return res.status(500).json({ error: "Unable to load accounts." });
+  }
+});
+
+app.get("/api/builder-prospects/accounts.csv", requireBuilderManager, async (req, res) => {
+  try {
+    const accounts = await listBuilderAccounts({ associate: String(req.query.associate || ""), status: String(req.query.status || "") });
+    const stats = await epassStatsForAccounts(accounts).catch(() => ({}));
+    const esc = (v) => { const t = String(v ?? ""); return /[",\n\r]/.test(t) ? `"${t.replace(/"/g, '""')}"` : t; };
+    const head = ["Company", "Trade Type", "Status", "Strength", "Sales Associate", "Priority", "Primary Contact", "Phone", "Email", "City", "Last Contacted", "Next Action", "Next Action Date", "ePASS Customer #", "Lifetime Revenue", "12-mo Revenue", "Tickets", "Last Purchase", "Open Orders", "Open Quotes", "Notes"];
+    const lines = [head.join(",")];
+    for (const a of accounts) {
+      const s = stats[a.id] || {};
+      lines.push([a.companyName, a.tradeType, a.status, a.strength, a.salesAssociate, a.priority, a.primaryContact, a.phone, a.email, a.city, a.lastContactedOn || "", a.nextAction, a.nextActionOn || "",
+        a.epassCustomers.map((c) => c.customerNumber).join(" "), s.revenue ?? "", s.revenue12m ?? "", s.tickets ?? "", s.lastFinish || "", s.openOrders ?? "", s.openQuotes ?? "", a.notes].map(esc).join(","));
+    }
+    res.setHeader("Content-Type", "text/csv; charset=utf-8");
+    res.setHeader("Content-Disposition", `attachment; filename="builder-prospects.csv"`);
+    return res.send(lines.join("\r\n") + "\r\n");
+  } catch (err) {
+    console.error("Builder CSV failed:", err.message);
+    return res.status(500).json({ error: "Unable to export." });
+  }
+});
+
+app.post("/api/builder-prospects/accounts", requireBuilderPage, async (req, res) => {
+  try {
+    const me = builderMe(req);
+    const b = req.body || {};
+    // reps create accounts on their own book (or leave them in the pool); managers may name anyone
+    const wanted = String(b.salesAssociate || "").trim();
+    const salesAssociate = me.isManager ? wanted : (wanted ? me.name : "");
+    const account = await createBuilderAccount({ ...b, salesAssociate, source: b.source || "Manual Staff Add" }, { byEmail: me.email });
+    builderAudit(req, "builder_account_created", { id: account.id, company: account.companyName, associate: account.salesAssociate });
+    return res.json({ ok: true, account });
+  } catch (err) {
+    if (err.code === "DUPLICATE") return res.status(409).json({ error: err.message, accountId: err.accountId });
+    console.error("Builder create failed:", err.message);
+    return res.status(500).json({ error: err.message || "Unable to add the account." });
+  }
+});
+
+app.get("/api/builder-prospects/accounts/:id", requireBuilderPage, async (req, res) => {
+  try {
+    const me = builderMe(req);
+    const account = await getBuilderAccount(req.params.id);
+    if (!account) return res.status(404).json({ error: "Account not found." });
+    const [contacts, activities, history, stats] = await Promise.all([
+      listBuilderContacts(account.id), listBuilderActivities(account.id),
+      epassHistoryForAccount(account).catch((e) => { console.error("Builder ePASS history failed:", e.message); return { tickets: [], openOrders: [], openQuotes: [] }; }),
+      epassStatsForAccounts([account]).catch(() => ({}))
+    ]);
+    return res.json({ account, contacts, activities, epass: history, stats: stats[account.id] || null, canEdit: canEditBuilderAccount(account, me), canManage: me.isManager, isMine: builderRepOwns(account, me) });
+  } catch (err) {
+    console.error("Builder account load failed:", err.message);
+    return res.status(500).json({ error: "Unable to load that account." });
+  }
+});
+
+app.post("/api/builder-prospects/accounts/:id", requireBuilderPage, async (req, res) => {
+  try {
+    const me = builderMe(req);
+    const account = await getBuilderAccount(req.params.id);
+    if (!account) return res.status(404).json({ error: "Account not found." });
+    if (!canEditBuilderAccount(account, me)) return res.status(403).json({ error: "This account is on someone else's book — ask a manager to reassign it." });
+    const patch = { ...(req.body || {}) };
+    if (!me.isManager) { delete patch.managerNotes; delete patch.active; }
+    const updated = await updateBuilderAccount(account.id, patch, { byEmail: me.email });
+    const changed = Object.keys(patch).filter((k) => JSON.stringify(account[k]) !== JSON.stringify(updated[k]));
+    if (changed.length) builderAudit(req, "builder_account_updated", { id: account.id, company: account.companyName, changed, status: updated.status });
+    return res.json({ ok: true, account: updated });
+  } catch (err) {
+    console.error("Builder update failed:", err.message);
+    return res.status(500).json({ error: "Unable to save the account." });
+  }
+});
+
+// Assign / claim / release. Reps may claim an unassigned account for
+// themselves or release their own back to the pool; managers assign anyone.
+app.post("/api/builder-prospects/accounts/:id/assign", requireBuilderPage, async (req, res) => {
+  try {
+    const me = builderMe(req);
+    const account = await getBuilderAccount(req.params.id);
+    if (!account) return res.status(404).json({ error: "Account not found." });
+    const associate = String(req.body?.associate ?? "").trim();
+    if (!me.isManager) {
+      const claiming = !account.salesAssociate && builderCompanyKey(associate) === builderCompanyKey(me.name);
+      const releasing = builderRepOwns(account, me) && associate === "";
+      if (!claiming && !releasing) return res.status(403).json({ error: "You can claim unassigned accounts or release your own — a manager handles reassignment." });
+    }
+    const updated = await assignBuilderAccount(account.id, associate, { byEmail: me.email, byName: me.name });
+    builderAudit(req, "builder_account_assigned", { id: account.id, company: account.companyName, from: account.salesAssociate, to: associate });
+    return res.json({ ok: true, account: updated });
+  } catch (err) {
+    console.error("Builder assign failed:", err.message);
+    return res.status(500).json({ error: "Unable to assign the account." });
+  }
+});
+
+app.post("/api/builder-prospects/accounts/:id/contacts", requireBuilderPage, async (req, res) => {
+  try {
+    const me = builderMe(req);
+    const account = await getBuilderAccount(req.params.id);
+    if (!account) return res.status(404).json({ error: "Account not found." });
+    if (!canEditBuilderAccount(account, me)) return res.status(403).json({ error: "This account is on someone else's book." });
+    const contact = await addBuilderContact(account.id, req.body || {});
+    return res.json({ ok: true, contact, contacts: await listBuilderContacts(account.id), account: await getBuilderAccount(account.id) });
+  } catch (err) {
+    return res.status(400).json({ error: err.message || "Unable to add the contact." });
+  }
+});
+app.post("/api/builder-prospects/accounts/:id/contacts/:cid/delete", requireBuilderPage, async (req, res) => {
+  try {
+    const me = builderMe(req);
+    const account = await getBuilderAccount(req.params.id);
+    if (!account) return res.status(404).json({ error: "Account not found." });
+    if (!canEditBuilderAccount(account, me)) return res.status(403).json({ error: "This account is on someone else's book." });
+    await removeBuilderContact(account.id, req.params.cid);
+    return res.json({ ok: true, contacts: await listBuilderContacts(account.id) });
+  } catch (err) {
+    return res.status(500).json({ error: "Unable to remove the contact." });
+  }
+});
+
+app.post("/api/builder-prospects/accounts/:id/activities", requireBuilderPage, async (req, res) => {
+  try {
+    const me = builderMe(req);
+    const account = await getBuilderAccount(req.params.id);
+    if (!account) return res.status(404).json({ error: "Account not found." });
+    // anyone on the page may log a touch (showroom staff meet builders too);
+    // only owners/managers may move the status or next action through it
+    const body = { ...(req.body || {}) };
+    if (!canEditBuilderAccount(account, me)) { delete body.newStatus; delete body.nextAction; delete body.nextActionOn; }
+    const activity = await logBuilderActivity(account.id, body, { byEmail: me.email, byName: me.name });
+    builderAudit(req, "builder_activity_logged", { id: account.id, company: account.companyName, type: activity.activityType, outcome: activity.outcome, newStatus: activity.newStatus });
+    return res.json({ ok: true, activity, account: await getBuilderAccount(account.id), activities: await listBuilderActivities(account.id) });
+  } catch (err) {
+    console.error("Builder activity failed:", err.message);
+    return res.status(500).json({ error: "Unable to log the activity." });
+  }
+});
+
+// ePASS linking
+app.get("/api/builder-prospects/epass-search", requireBuilderPage, async (req, res) => {
+  try {
+    return res.json({ customers: await searchEpassCustomers(String(req.query.q || "").slice(0, 120)) });
+  } catch (err) {
+    console.error("Builder ePASS search failed:", err.message);
+    return res.status(500).json({ error: "Unable to search ePASS customers." });
+  }
+});
+app.post("/api/builder-prospects/accounts/:id/epass-link", requireBuilderPage, async (req, res) => {
+  try {
+    const me = builderMe(req);
+    const account = await getBuilderAccount(req.params.id);
+    if (!account) return res.status(404).json({ error: "Account not found." });
+    if (!canEditBuilderAccount(account, me)) return res.status(403).json({ error: "This account is on someone else's book." });
+    const updated = await linkEpassCustomer(account.id, { customerNumber: req.body?.customerNumber, customerName: req.body?.customerName }, { byEmail: me.email });
+    builderAudit(req, "builder_epass_linked", { id: account.id, company: account.companyName, customerNumber: String(req.body?.customerNumber || ""), customerName: String(req.body?.customerName || "") });
+    return res.json({ ok: true, account: updated, epass: await epassHistoryForAccount(updated), stats: (await epassStatsForAccounts([updated]))[updated.id] || null });
+  } catch (err) {
+    return res.status(400).json({ error: err.message || "Unable to link." });
+  }
+});
+app.post("/api/builder-prospects/accounts/:id/epass-unlink", requireBuilderPage, async (req, res) => {
+  try {
+    const me = builderMe(req);
+    const account = await getBuilderAccount(req.params.id);
+    if (!account) return res.status(404).json({ error: "Account not found." });
+    if (!canEditBuilderAccount(account, me)) return res.status(403).json({ error: "This account is on someone else's book." });
+    const updated = await unlinkEpassCustomer(account.id, req.body?.customerNumber, { byEmail: me.email });
+    builderAudit(req, "builder_epass_unlinked", { id: account.id, company: account.companyName, customerNumber: String(req.body?.customerNumber || "") });
+    return res.json({ ok: true, account: updated, epass: await epassHistoryForAccount(updated), stats: (await epassStatsForAccounts([updated]))[updated.id] || null });
+  } catch (err) {
+    return res.status(400).json({ error: err.message || "Unable to unlink." });
+  }
+});
+app.post("/api/builder-prospects/accounts/:id/epass-dismiss", requireBuilderPage, async (req, res) => {
+  try {
+    const me = builderMe(req);
+    const account = await getBuilderAccount(req.params.id);
+    if (!account) return res.status(404).json({ error: "Account not found." });
+    if (!canEditBuilderAccount(account, me)) return res.status(403).json({ error: "This account is on someone else's book." });
+    await dismissEpassSuggestions(account.id);
+    return res.json({ ok: true });
+  } catch (err) {
+    return res.status(500).json({ error: "Unable to update." });
+  }
+});
+
+// Manager: dashboard, import, re-match, recent activity across reps.
+app.get("/api/builder-prospects/dashboard", requireBuilderManager, async (req, res) => {
+  try {
+    const today = new Date().toLocaleDateString("en-CA", { timeZone: APP_TIMEZONE });
+    const [dash, activities] = await Promise.all([builderDashboard({ today }), listRecentBuilderActivities({ since: new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10), limit: 200 })]);
+    return res.json({ ...dash, recentActivities: activities, today });
+  } catch (err) {
+    console.error("Builder dashboard failed:", err.message);
+    return res.status(500).json({ error: "Unable to load the dashboard." });
+  }
+});
+app.post("/api/builder-prospects/import", requireBuilderManager, (req, res) => {
+  builderWorkbookUpload.single("workbook")(req, res, async (err) => {
+    if (err) return res.status(400).json({ error: "Couldn't read that upload." });
+    try {
+      if (!req.file?.buffer?.length) return res.status(400).json({ error: "Choose the Prospect Master workbook (.xlsx)." });
+      const me = builderMe(req);
+      const result = await importProspectWorkbook(req.file.buffer, { byEmail: me.email, byName: me.name });
+      const match = await suggestEpassMatches().catch((e) => { console.error("Builder match after import failed:", e.message); return null; });
+      builderAudit(req, "builder_prospects_imported", { ...result, filename: String(req.file.originalname || "").slice(0, 120), match });
+      return res.json({ ok: true, ...result, match });
+    } catch (error) {
+      console.error("Builder import failed:", error.message);
+      return res.status(400).json({ error: error.message || "Unable to import that workbook." });
+    }
+  });
+});
+app.post("/api/builder-prospects/rematch", requireBuilderManager, async (req, res) => {
+  try {
+    const result = await suggestEpassMatches();
+    builderAudit(req, "builder_epass_rematched", result);
+    return res.json({ ok: true, ...result });
+  } catch (err) {
+    console.error("Builder rematch failed:", err.message);
+    return res.status(500).json({ error: "Unable to run the match." });
   }
 });
 

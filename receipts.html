@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="robots" content="noindex,nofollow,noarchive" />
+  <title>Wilson AC & Appliance - Card Receipts</title>
+  <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+  <link rel="stylesheet" href="internal-shell.css" />
+  <style>
+    :root {
+      --bg: #f7f8fc; --card: #ffffff; --text: #1f2937; --muted: #6b7280; --border: #dbe1ea;
+      --success-bg: #ecfdf5; --success-text: #065f46; --error-bg: #fef2f2; --error-text: #991b1b;
+      --shadow: 0 10px 35px rgba(0, 0, 0, 0.08); --radius: 18px;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: "Roboto", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: linear-gradient(180deg, var(--primary-tint) 0%, var(--bg) 100%); color: var(--text); min-height: 100vh; padding: 32px 16px; }
+    .wrap { max-width: 1480px; margin: 0 auto; }
+    .surface { background: var(--card); border: 1px solid rgba(var(--primary-rgb), 0.12); box-shadow: var(--shadow); border-radius: var(--radius); padding: 24px; margin: 0 auto 22px; }
+    h2 { margin: 0 0 6px; font-size: 22px; }
+    .section-note { margin: 0 0 16px; color: var(--muted); font-size: 14px; line-height: 1.5; }
+    label { display: block; margin-bottom: 6px; font-size: 13px; font-weight: 700; }
+    input, select, textarea { width: 100%; border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; font-size: 16px; background: #fff; color: var(--text); outline: none; font-family: inherit; }
+    textarea { min-height: 76px; resize: vertical; }
+    input:focus, select:focus, textarea:focus { border-color: rgba(var(--primary-rgb), 0.75); box-shadow: 0 0 0 4px rgba(var(--primary-rgb), 0.12); }
+    button { appearance: none; border: none; background: var(--primary); color: #fff; padding: 12px 18px; border-radius: 10px; font-size: 15px; font-weight: 700; cursor: pointer; white-space: nowrap; font-family: inherit; }
+    button:hover { background: var(--primary-hover); }
+    button:disabled { opacity: 0.6; cursor: wait; }
+    button.secondary { background: var(--primary-tint); color: var(--primary); }
+    button.secondary:hover { background: var(--primary-tint-2); }
+    button.tiny { padding: 6px 10px; font-size: 12px; border-radius: 8px; }
+    button.danger { background: #fee2e2; color: #991b1b; }
+    button.danger:hover { background: #fecaca; }
+
+    .grid { display: grid; grid-template-columns: repeat(12, 1fr); gap: 14px; }
+    .f-photo { grid-column: span 12; }
+    .f-date { grid-column: span 3; }
+    .f-amount { grid-column: span 3; }
+    .f-merchant { grid-column: span 6; }
+    .f-purpose { grid-column: span 12; }
+    .hint { font-size: 12px; color: var(--muted); margin-top: 5px; line-height: 1.4; }
+
+    /* photo picker: a big tap target with the preview inside once chosen */
+    .photo-box { position: relative; border: 2px dashed rgba(var(--primary-rgb), 0.45); border-radius: 14px; background: var(--primary-faint-2, #f6faf6); min-height: 150px; display: flex; align-items: center; justify-content: center; text-align: center; padding: 16px; cursor: pointer; overflow: hidden; }
+    .photo-box:hover { background: var(--primary-tint); }
+    .photo-box input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+    .photo-box .cta { font-weight: 700; color: var(--primary); font-size: 15px; }
+    .photo-box .cta small { display: block; font-weight: 500; color: var(--muted); font-size: 12.5px; margin-top: 4px; }
+    .photo-box img { max-height: 260px; max-width: 100%; border-radius: 10px; box-shadow: 0 4px 16px rgba(0,0,0,0.12); }
+    .photo-box.has-photo { border-style: solid; }
+    .photo-box .change { position: absolute; right: 10px; bottom: 10px; background: rgba(255,255,255,0.95); color: var(--primary); padding: 6px 10px; font-size: 12px; border-radius: 8px; pointer-events: none; }
+
+    .amount-wrap { position: relative; }
+    .amount-wrap span { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--muted); font-weight: 700; }
+    .amount-wrap input { padding-left: 26px; }
+
+    .actions-row { margin-top: 16px; display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+    .status { display: none; margin: 12px 0 0; border-radius: 12px; padding: 12px 14px; font-size: 14px; line-height: 1.5; }
+    .status.show { display: block; }
+    .status.error { background: var(--error-bg); color: var(--error-text); }
+    .status.ok { background: var(--success-bg); color: var(--success-text); }
+
+    .toolbar { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; margin-bottom: 14px; }
+    .toolbar .field { flex: 0 1 160px; }
+    .toolbar .spacer { flex: 1; }
+    .total-box { background: var(--primary-faint-2, #f6faf6); border: 1px solid var(--border); border-radius: 12px; padding: 10px 16px; font-size: 13px; color: var(--muted); }
+    .total-box strong { display: block; font-size: 20px; color: var(--text); }
+
+    table { width: 100%; border-collapse: collapse; font-size: 14px; }
+    th, td { text-align: left; padding: 10px; border-bottom: 1px solid #eef1f6; vertical-align: middle; }
+    th { font-size: 12px; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; color: #64748b; white-space: nowrap; }
+    td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .thumb { width: 54px; height: 54px; object-fit: cover; border-radius: 8px; border: 1px solid var(--border); background: #fff; display: block; }
+    .purpose { color: var(--text); }
+    .merchant { font-weight: 700; }
+    .muted { color: var(--muted); }
+    .empty { padding: 26px 10px; text-align: center; color: var(--muted); }
+    .table-scroll { overflow-x: auto; }
+
+    @media (max-width: 720px) {
+      body { padding: 14px 8px; }
+      .surface { padding: 16px; }
+      .internal-shell-header-top { flex-wrap: wrap !important; }
+      .f-date, .f-amount { grid-column: span 6; }
+      .f-merchant { grid-column: span 12; }
+      .actions-row button { width: 100%; }
+      .toolbar .field { flex: 1 1 40%; }
+      .total-box { flex: 1 1 100%; }
+      /* one card per receipt */
+      .rc-table thead { display: none; }
+      .rc-table, .rc-table tbody, .rc-table tr, .rc-table td { display: block; width: 100%; }
+      .rc-table tbody tr { border: 1px solid var(--border); border-radius: 14px; padding: 10px 12px; margin-bottom: 10px; background: var(--primary-faint-2, #f6faf6); position: relative; display: grid; grid-template-columns: 64px 1fr; gap: 4px 10px; }
+      .rc-table td { border: none; padding: 2px 0; }
+      .rc-table td.c-photo { grid-row: span 3; }
+      .rc-table td.num { text-align: left; font-weight: 800; font-size: 16px; }
+      .rc-table td.c-actions { grid-column: 2; padding-top: 6px; }
+    }
+  </style>
+</head>
+<body data-shell-label="Card Receipts" data-shell-icon="accounting">
+  <div class="wrap">
+    <div id="internal-shell-header"></div>
+
+    <div class="surface">
+      <h2>File a card receipt</h2>
+      <p class="section-note">Snap the receipt, enter the amount and what it was for, and you're done. Everything you file is kept by month for accounting.</p>
+
+      <form id="receiptForm">
+        <div class="grid">
+          <div class="f-photo">
+            <label>Receipt photo</label>
+            <div class="photo-box" id="photoBox">
+              <input type="file" id="photoInput" accept="image/*" />
+              <div class="cta" id="photoCta">Tap to take a photo or choose from your library<small>The whole receipt, flat, with the total readable.</small></div>
+            </div>
+          </div>
+          <div class="f-date">
+            <label for="spentOn">Date on the receipt</label>
+            <input type="date" id="spentOn" required />
+          </div>
+          <div class="f-amount">
+            <label for="amount">Amount</label>
+            <div class="amount-wrap"><span>$</span><input type="number" id="amount" inputmode="decimal" min="0.01" step="0.01" placeholder="0.00" required /></div>
+          </div>
+          <div class="f-merchant">
+            <label for="merchant">Where <span class="muted" style="font-weight:500;">(optional)</span></label>
+            <input type="text" id="merchant" maxlength="120" placeholder="e.g. Home Depot, Shell, Amazon" autocomplete="off" />
+          </div>
+          <div class="f-purpose">
+            <label for="purpose">Business purpose</label>
+            <textarea id="purpose" maxlength="600" placeholder="What it was for — e.g. fuel for the delivery truck, parts for SV00123265, lunch with the Sub-Zero rep" required></textarea>
+          </div>
+        </div>
+        <div class="actions-row">
+          <button type="submit" id="fileBtn">File this receipt</button>
+          <span class="muted" style="font-size:13px;">Filed as <strong id="meName">…</strong></span>
+        </div>
+        <div id="formStatus" class="status"></div>
+      </form>
+    </div>
+
+    <div class="surface">
+      <h2>My receipts</h2>
+      <div class="toolbar">
+        <div class="field">
+          <label for="yearSelect">Year</label>
+          <select id="yearSelect"></select>
+        </div>
+        <div class="field">
+          <label for="monthSelect">Month</label>
+          <select id="monthSelect"></select>
+        </div>
+        <div class="spacer"></div>
+        <div class="total-box">Total for this view<strong id="viewTotal">$0.00</strong></div>
+      </div>
+      <div id="listStatus" class="status"></div>
+      <div class="table-scroll">
+        <table class="rc-table">
+          <thead><tr><th>Photo</th><th>Date</th><th>Where / purpose</th><th class="num">Amount</th><th></th></tr></thead>
+          <tbody id="receiptRows"><tr><td colspan="5" class="empty">Loading…</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div id="internal-shell-footer"></div>
+  </div>
+
+  <script src="internal-shell.js"></script>
+  <script>
+    const MONTH_NAMES = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+    const $ = (id) => document.getElementById(id);
+    const money = (n) => "$" + Number(n || 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const esc = (v) => String(v ?? "").replace(/[&<>"']/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch]));
+    function setStatus(id, message, kind) {
+      const box = $(id);
+      if (!message) { box.className = "status"; box.textContent = ""; return; }
+      box.className = "status " + kind + " show"; box.textContent = message;
+    }
+    function todayCentral() {
+      const parts = new Intl.DateTimeFormat("en-US", { timeZone: "America/Chicago", year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(new Date());
+      const g = (t) => parts.find((p) => p.type === t).value;
+      return `${g("year")}-${g("month")}-${g("day")}`;
+    }
+    function fmtDate(iso) {
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(iso || "")) return iso || "";
+      return new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" }).format(new Date(iso + "T12:00:00Z"));
+    }
+
+    // ---- photo: EXIF-aware downscale to ~1600px JPEG before upload ----
+    async function readExifOrientation(file) {
+      try {
+        const buf = await file.slice(0, 128 * 1024).arrayBuffer();
+        const view = new DataView(buf);
+        if (view.getUint16(0, false) !== 0xFFD8) return 1;
+        let offset = 2; const length = view.byteLength;
+        while (offset + 4 <= length) {
+          const marker = view.getUint16(offset, false); offset += 2;
+          if (marker === 0xFFE1) {
+            if (offset + 8 > length) return 1;
+            if (view.getUint32(offset + 2, false) !== 0x45786966) return 1;
+            const tiffOffset = offset + 8;
+            const little = view.getUint16(tiffOffset, false) === 0x4949;
+            const dirStart = tiffOffset + view.getUint32(tiffOffset + 4, little);
+            if (dirStart + 2 > length) return 1;
+            const entries = view.getUint16(dirStart, little);
+            for (let i = 0; i < entries; i++) {
+              const e = dirStart + 2 + i * 12;
+              if (e + 10 > length) break;
+              if (view.getUint16(e, little) === 0x0112) return view.getUint16(e + 8, little) || 1;
+            }
+            return 1;
+          } else if ((marker & 0xFF00) !== 0xFF00) { break; }
+          else if (marker === 0xFFD8 || marker === 0xFFD9) { continue; }
+          else { if (offset + 2 > length) break; offset += view.getUint16(offset, false); }
+        }
+        return 1;
+      } catch { return 1; }
+    }
+    function applyOrientation(ctx, o, w, h) {
+      switch (o) {
+        case 2: ctx.transform(-1, 0, 0, 1, w, 0); break;
+        case 3: ctx.transform(-1, 0, 0, -1, w, h); break;
+        case 4: ctx.transform(1, 0, 0, -1, 0, h); break;
+        case 5: ctx.transform(0, 1, 1, 0, 0, 0); break;
+        case 6: ctx.transform(0, 1, -1, 0, h, 0); break;
+        case 7: ctx.transform(0, -1, -1, 0, h, w); break;
+        case 8: ctx.transform(0, -1, 1, 0, 0, w); break;
+      }
+    }
+    async function compressImage(file, maxDim = 1600, quality = 0.8) {
+      const orientation = await readExifOrientation(file);
+      const objectUrl = URL.createObjectURL(file);
+      try {
+        const img = await new Promise((resolve, reject) => { const im = new Image(); im.onload = () => resolve(im); im.onerror = () => reject(new Error("Couldn't read that image.")); im.src = objectUrl; });
+        let { width, height } = img;
+        if (width > height && width > maxDim) { height = Math.round(height * (maxDim / width)); width = maxDim; }
+        else if (height > maxDim) { width = Math.round(width * (maxDim / height)); height = maxDim; }
+        const swapped = orientation >= 5 && orientation <= 8;
+        const canvas = document.createElement("canvas");
+        canvas.width = swapped ? height : width; canvas.height = swapped ? width : height;
+        const ctx = canvas.getContext("2d");
+        applyOrientation(ctx, orientation, width, height);
+        ctx.drawImage(img, 0, 0, width, height);
+        const blob = await new Promise((resolve, reject) => canvas.toBlob((b) => b ? resolve(b) : reject(new Error("Couldn't process that image.")), "image/jpeg", quality));
+        return { blob, url: URL.createObjectURL(blob) };
+      } finally { URL.revokeObjectURL(objectUrl); }
+    }
+
+    let photoBlob = null;
+    $("photoInput").addEventListener("change", async () => {
+      const file = $("photoInput").files[0];
+      if (!file) return;
+      setStatus("formStatus", "");
+      try {
+        const { blob, url } = await compressImage(file);
+        photoBlob = blob;
+        $("photoBox").classList.add("has-photo");
+        $("photoCta").innerHTML = `<img src="${url}" alt="Receipt preview" /><div class="change">Change photo</div>`;
+      } catch (err) {
+        photoBlob = null;
+        setStatus("formStatus", err.message, "error");
+      }
+    });
+
+    // ---- file it ----
+    $("receiptForm").addEventListener("submit", async (ev) => {
+      ev.preventDefault();
+      setStatus("formStatus", "");
+      if (!photoBlob) { setStatus("formStatus", "Add a photo of the receipt first.", "error"); return; }
+      const amount = Number($("amount").value);
+      if (!Number.isFinite(amount) || amount <= 0) { setStatus("formStatus", "Enter the receipt amount.", "error"); return; }
+      if (!$("purpose").value.trim()) { setStatus("formStatus", "Enter the business purpose.", "error"); return; }
+      const btn = $("fileBtn"); btn.disabled = true; btn.textContent = "Filing…";
+      try {
+        const form = new FormData();
+        form.append("photo", photoBlob, "receipt.jpg");
+        form.append("spentOn", $("spentOn").value);
+        form.append("amount", amount.toFixed(2));
+        form.append("merchant", $("merchant").value.trim());
+        form.append("purpose", $("purpose").value.trim());
+        const res = await fetch("/api/card-receipts", { method: "POST", credentials: "same-origin", body: form });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error || "Couldn't file the receipt.");
+        setStatus("formStatus", `Filed — ${money(data.receipt.amount)} on ${fmtDate(data.receipt.spentOn)}${data.receipt.merchant ? " at " + data.receipt.merchant : ""}.`, "ok");
+        // reset for the next one, keep the date
+        photoBlob = null; $("photoInput").value = "";
+        $("photoBox").classList.remove("has-photo");
+        $("photoCta").innerHTML = `Tap to take a photo or choose from your library<small>The whole receipt, flat, with the total readable.</small>`;
+        $("amount").value = ""; $("merchant").value = ""; $("purpose").value = "";
+        // show the month it landed in
+        const [y, m] = data.receipt.spentOn.split("-");
+        ensureYearOption(Number(y)); $("yearSelect").value = String(Number(y)); $("monthSelect").value = String(Number(m));
+        await loadMine();
+      } catch (err) {
+        setStatus("formStatus", err.message, "error");
+      } finally { btn.disabled = false; btn.textContent = "File this receipt"; }
+    });
+
+    // ---- my receipts ----
+    function ensureYearOption(y) {
+      const sel = $("yearSelect");
+      if (![...sel.options].some((o) => o.value === String(y))) { const o = document.createElement("option"); o.value = String(y); o.textContent = String(y); sel.prepend(o); }
+    }
+    function buildPickers() {
+      const today = todayCentral(); const y = Number(today.slice(0, 4)), m = Number(today.slice(5, 7));
+      for (let yy = y; yy >= y - 2; yy--) { const o = document.createElement("option"); o.value = String(yy); o.textContent = String(yy); $("yearSelect").appendChild(o); }
+      const all = document.createElement("option"); all.value = ""; all.textContent = "All months"; $("monthSelect").appendChild(all);
+      MONTH_NAMES.forEach((name, i) => { const o = document.createElement("option"); o.value = String(i + 1); o.textContent = name; $("monthSelect").appendChild(o); });
+      $("yearSelect").value = String(y); $("monthSelect").value = String(m);
+      $("spentOn").value = today; $("spentOn").max = today;
+    }
+    async function loadMine() {
+      const year = $("yearSelect").value, month = $("monthSelect").value;
+      setStatus("listStatus", "");
+      try {
+        const res = await fetch(`/api/card-receipts/mine?year=${encodeURIComponent(year)}&month=${encodeURIComponent(month)}`, { credentials: "same-origin" });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error || "Couldn't load your receipts.");
+        if (data.me?.name) $("meName").textContent = data.me.name;
+        renderRows(data.receipts || []);
+      } catch (err) {
+        setStatus("listStatus", err.message, "error");
+        $("receiptRows").innerHTML = "";
+      }
+    }
+    function renderRows(rows) {
+      const total = rows.reduce((s, r) => s + (Number(r.amount) || 0), 0);
+      $("viewTotal").textContent = money(total);
+      if (!rows.length) { $("receiptRows").innerHTML = `<tr><td colspan="5" class="empty">No receipts filed for this month.</td></tr>`; return; }
+      $("receiptRows").innerHTML = rows.map((r) => `
+        <tr data-id="${esc(r.id)}">
+          <td class="c-photo">${r.hasPhoto ? `<a href="/api/card-receipts/${esc(r.id)}/photo" target="_blank" rel="noopener"><img class="thumb" src="/api/card-receipts/${esc(r.id)}/photo" alt="Receipt" loading="lazy" /></a>` : `<span class="muted">—</span>`}</td>
+          <td class="c-date">${esc(fmtDate(r.spentOn))}</td>
+          <td class="c-what">${r.merchant ? `<div class="merchant">${esc(r.merchant)}</div>` : ""}<div class="purpose">${esc(r.purpose)}</div></td>
+          <td class="num">${money(r.amount)}</td>
+          <td class="c-actions"><button type="button" class="tiny danger rc-del" data-id="${esc(r.id)}">Delete</button></td>
+        </tr>`).join("");
+    }
+    $("receiptRows").addEventListener("click", async (ev) => {
+      const btn = ev.target.closest(".rc-del"); if (!btn) return;
+      if (!window.confirm("Delete this receipt? Accounting will no longer see it.")) return;
+      btn.disabled = true;
+      try {
+        const res = await fetch(`/api/card-receipts/${encodeURIComponent(btn.dataset.id)}/delete`, { method: "POST", credentials: "same-origin" });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error || "Couldn't delete that receipt.");
+        await loadMine();
+      } catch (err) { setStatus("listStatus", err.message, "error"); btn.disabled = false; }
+    });
+    $("yearSelect").addEventListener("change", loadMine);
+    $("monthSelect").addEventListener("change", loadMine);
+
+    buildPickers();
+    loadMine();
+  </script>
+</body>
+</html>

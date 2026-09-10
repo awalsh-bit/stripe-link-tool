@@ -230,15 +230,6 @@ import {
 } from "./lib/service-estimates-postgres.js";
 import { extractSalesInvoiceFromPdf } from "./lib/sales-invoice-scan.js";
 import {
-  createCardReceipt,
-  getCardReceipt,
-  listCardReceipts,
-  listCardReceiptFilters,
-  softDeleteCardReceipt,
-  getCardReceiptPhoto,
-  cardReceiptsCsv
-} from "./lib/card-receipts-postgres.js";
-import {
   createDeliveryRun,
   updateDeliveryRun,
   setDeliveryRunStatus,
@@ -618,8 +609,6 @@ const INTERNAL_PAGE_PATHS = new Set([
   "/returns-report.html",
   "/mileage.html",
   "/mileage-review.html",
-  "/receipts.html",
-  "/receipt-report.html",
   "/hr-phone-screen.html",
   "/hr-candidates.html",
   "/uniform-orders.html",
@@ -715,8 +704,7 @@ const AUTH_PAGE_PATHS = new Set([
 // Pages every signed-in user can open — no per-user grant needed, never
 // shown in the User Admin permission editor.
 const EVERYONE_PAGE_PATHS = new Set([
-  "/signature-builder.html",
-  "/receipts.html"
+  "/signature-builder.html"
 ]);
 
 // Executive-only pages: reachable only with is_executive, never grantable.
@@ -848,8 +836,6 @@ const PAGE_LABELS = {
   "/returns-report.html": "Returns Report",
   "/mileage.html": "Mileage",
   "/mileage-review.html": "Mileage Review",
-  "/receipts.html": "Card Receipts",
-  "/receipt-report.html": "Card Receipt Report",
   "/hr-phone-screen.html": "Phone Screen",
   "/hr-candidates.html": "Candidates",
   "/uniform-orders.html": "Uniform Ordering",
@@ -960,8 +946,7 @@ const PAGE_CATEGORIES = [
       "/incoming-payouts.html",
       "/bank-balancing.html",
       "/link-detail-lookup.html",
-      "/credit-applications.html",
-      "/receipt-report.html"
+      "/credit-applications.html"
     ]
   },
   {
@@ -4383,178 +4368,6 @@ app.post("/api/mileage/report/:id/decide", requirePagePermission("/mileage-revie
   } catch (err) {
     console.error("Mileage decide failed:", err.message);
     return res.status(500).json({ error: "Unable to record the decision." });
-  }
-});
-
-// ---------------------------------------------------------------------------
-// Company card receipts. Everyone files their own on /receipts.html (an
-// everyone-page — no grant needed); reviewers pull by person and/or month
-// on /receipt-report.html (page grant; executives implicitly). Photos ride
-// the install_damage_photos store under report_ref 'receipt:<id>'.
-// ---------------------------------------------------------------------------
-const receiptPhotoUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 12 * 1024 * 1024, files: 1 } });
-
-function isReceiptReviewer(user) {
-  return isExecutiveUser(user) || canAccessPathForUser(user, "/receipt-report.html");
-}
-
-function receiptIdentity(req) {
-  const u = req.authUser || {};
-  const email = String(u.email || u.username || "").trim().toLowerCase();
-  const name = String(u.displayName || u.username || email).trim();
-  return { email, name, userId: u.kind === "db" ? u.id : null };
-}
-
-function centralDateToday() {
-  const parts = new Intl.DateTimeFormat("en-US", { timeZone: APP_TIMEZONE, year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(new Date());
-  const get = (t) => parts.find((p) => p.type === t)?.value;
-  return `${get("year")}-${get("month")}-${get("day")}`;
-}
-
-function receiptFilterQuery(q) {
-  const year = Number(q.year) || null;
-  const month = Number(q.month) || null;
-  return {
-    year: year && year >= 2020 && year <= 2100 ? year : null,
-    month: month && month >= 1 && month <= 12 ? month : null
-  };
-}
-
-// Mine: the signed-in user's receipts for a month (or a whole year).
-app.get("/api/card-receipts/mine", requirePagePermission("/receipts.html"), async (req, res) => {
-  try {
-    const me = receiptIdentity(req);
-    if (!me.email) return res.status(400).json({ error: "Sign in with your own account to file receipts." });
-    const receipts = await listCardReceipts({ email: me.email, ...receiptFilterQuery(req.query) });
-    return res.json({ receipts, me: { email: me.email, name: me.name } });
-  } catch (err) {
-    console.error("Card receipts (mine) failed:", err.message);
-    return res.status(500).json({ error: "Unable to load your receipts." });
-  }
-});
-
-// File one: photo + date + amount + purpose (+ merchant).
-app.post("/api/card-receipts", requirePagePermission("/receipts.html"), (req, res) => {
-  receiptPhotoUpload.single("photo")(req, res, async (err) => {
-    if (err) {
-      const tooBig = err.code === "LIMIT_FILE_SIZE";
-      return res.status(tooBig ? 413 : 400).json({ error: tooBig ? "That photo is larger than 12 MB — try again from the camera." : "Unreadable upload." });
-    }
-    try {
-      const me = receiptIdentity(req);
-      if (!me.email) return res.status(400).json({ error: "Sign in with your own account to file receipts." });
-      const b = req.body || {};
-      const amount = Math.round(Number(String(b.amount || "").replace(/[$,\s]/g, "")) * 100) / 100;
-      const purpose = String(b.purpose || "").trim().slice(0, 600);
-      const merchant = String(b.merchant || "").trim().slice(0, 120);
-      const spentOn = /^\d{4}-\d{2}-\d{2}$/.test(String(b.spentOn || "")) ? String(b.spentOn) : centralDateToday();
-      const file = req.file;
-      if (!file || !file.buffer?.length) return res.status(400).json({ error: "Add a photo of the receipt." });
-      if (!String(file.mimetype || "").startsWith("image/")) return res.status(415).json({ error: "The receipt photo must be an image." });
-      if (!Number.isFinite(amount) || amount <= 0 || amount > 100000) return res.status(400).json({ error: "Enter the receipt amount." });
-      if (!purpose) return res.status(400).json({ error: "Enter the business purpose." });
-      if (spentOn > centralDateToday()) return res.status(400).json({ error: "The receipt date can't be in the future." });
-
-      const receipt = await createCardReceipt({
-        userId: me.userId, email: me.email, name: me.name,
-        spentOn, amount, merchant, purpose,
-        photo: { buffer: file.buffer, contentType: file.mimetype || "image/jpeg" }
-      });
-      recordAudit({
-        ip: req.ip, actorUserId: me.userId, action: "card_receipt_filed", targetUserId: null,
-        detail: { receiptId: receipt.id, spentOn, amount, merchant, purpose: purpose.slice(0, 120) }
-      }).catch(() => {});
-      return res.json({ ok: true, receipt });
-    } catch (error) {
-      console.error("Card receipt file failed:", error.message);
-      return res.status(500).json({ error: "Unable to save the receipt right now." });
-    }
-  });
-});
-
-// Photo: the person who filed it, or a reviewer.
-app.get("/api/card-receipts/:id/photo", async (req, res) => {
-  try {
-    if (!req.authUser) return res.status(401).json({ error: "Authentication required." });
-    const receipt = await getCardReceipt(req.params.id);
-    if (!receipt) return res.status(404).json({ error: "Receipt not found." });
-    const me = receiptIdentity(req);
-    if (receipt.filedByEmail !== me.email && !isReceiptReviewer(req.authUser)) return res.status(403).json({ error: "Not your receipt." });
-    const photo = await getCardReceiptPhoto(receipt);
-    if (!photo) return res.status(404).json({ error: "No photo on this receipt." });
-    res.setHeader("Content-Type", photo.contentType || "image/jpeg");
-    res.setHeader("Cache-Control", "private, max-age=86400");
-    return res.send(photo.bytes);
-  } catch (err) {
-    console.error("Card receipt photo failed:", err.message);
-    return res.status(500).json({ error: "Unable to load the photo." });
-  }
-});
-
-// Delete (soft): the filer, or a reviewer. Stays in the table with
-// deleted_at so an audit can still find it.
-app.post("/api/card-receipts/:id/delete", async (req, res) => {
-  try {
-    if (!req.authUser) return res.status(401).json({ error: "Authentication required." });
-    const receipt = await getCardReceipt(req.params.id);
-    if (!receipt || receipt.deletedAt) return res.status(404).json({ error: "Receipt not found." });
-    const me = receiptIdentity(req);
-    const reviewer = isReceiptReviewer(req.authUser);
-    if (receipt.filedByEmail !== me.email && !reviewer) return res.status(403).json({ error: "Not your receipt." });
-    const gone = await softDeleteCardReceipt(receipt.id, me.email);
-    recordAudit({
-      ip: req.ip, actorUserId: me.userId, action: "card_receipt_deleted", targetUserId: receipt.userId || null,
-      detail: { receiptId: receipt.id, filedBy: receipt.filedByEmail, spentOn: receipt.spentOn, amount: receipt.amount, byReviewer: reviewer && receipt.filedByEmail !== me.email }
-    }).catch(() => {});
-    return res.json({ ok: true, receipt: gone });
-  } catch (err) {
-    console.error("Card receipt delete failed:", err.message);
-    return res.status(500).json({ error: "Unable to delete the receipt." });
-  }
-});
-
-// Report: by person and/or month, with the filter menus and per-person /
-// per-month subtotals computed here so the page is one round trip.
-app.get("/api/card-receipts/report", requirePagePermission("/receipt-report.html"), async (req, res) => {
-  try {
-    const email = String(req.query.email || "").trim().toLowerCase().slice(0, 200);
-    const filters = { email, ...receiptFilterQuery(req.query) };
-    const [receipts, menus] = await Promise.all([listCardReceipts(filters), listCardReceiptFilters()]);
-    const byPerson = {}, byMonth = {};
-    let total = 0;
-    for (const r of receipts) {
-      total += r.amount;
-      const p = byPerson[r.filedByEmail] || (byPerson[r.filedByEmail] = { email: r.filedByEmail, name: r.filedByName, count: 0, total: 0 });
-      p.count++; p.total = Math.round((p.total + r.amount) * 100) / 100;
-      const m = byMonth[r.month] || (byMonth[r.month] = { month: r.month, count: 0, total: 0 });
-      m.count++; m.total = Math.round((m.total + r.amount) * 100) / 100;
-    }
-    return res.json({
-      receipts, filters,
-      total: Math.round(total * 100) / 100,
-      byPerson: Object.values(byPerson).sort((a, b) => b.total - a.total),
-      byMonth: Object.values(byMonth).sort((a, b) => (a.month < b.month ? 1 : -1)),
-      filers: menus.filers, months: menus.months
-    });
-  } catch (err) {
-    console.error("Card receipt report failed:", err.message);
-    return res.status(500).json({ error: "Unable to load the receipt report." });
-  }
-});
-
-app.get("/api/card-receipts/report.csv", requirePagePermission("/receipt-report.html"), async (req, res) => {
-  try {
-    const email = String(req.query.email || "").trim().toLowerCase().slice(0, 200);
-    const filters = { email, ...receiptFilterQuery(req.query) };
-    const receipts = await listCardReceipts(filters);
-    const label = ["card-receipts", filters.year || "", filters.month ? String(filters.month).padStart(2, "0") : "", email ? email.split("@")[0] : ""].filter(Boolean).join("-");
-    res.setHeader("Content-Type", "text/csv; charset=utf-8");
-    res.setHeader("Content-Disposition", `attachment; filename="${label}.csv"`);
-    res.setHeader("Cache-Control", "no-store");
-    return res.send(cardReceiptsCsv(receipts));
-  } catch (err) {
-    console.error("Card receipt CSV failed:", err.message);
-    return res.status(500).json({ error: "Unable to export." });
   }
 });
 

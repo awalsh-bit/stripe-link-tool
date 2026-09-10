@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="robots" content="noindex,nofollow,noarchive" />
+  <title>Wilson AC & Appliance - Card Receipt Report</title>
+  <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+  <link rel="stylesheet" href="internal-shell.css" />
+  <style>
+    :root {
+      --bg: #f7f8fc; --card: #ffffff; --text: #1f2937; --muted: #6b7280; --border: #dbe1ea;
+      --error-bg: #fef2f2; --error-text: #991b1b; --shadow: 0 10px 35px rgba(0, 0, 0, 0.08); --radius: 18px;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: "Roboto", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: linear-gradient(180deg, var(--primary-tint) 0%, var(--bg) 100%); color: var(--text); min-height: 100vh; padding: 32px 16px; }
+    .wrap { max-width: 1480px; margin: 0 auto; }
+    .surface { background: var(--card); border: 1px solid rgba(var(--primary-rgb), 0.12); box-shadow: var(--shadow); border-radius: var(--radius); padding: 24px; margin: 0 auto 22px; }
+    h2 { margin: 0 0 6px; font-size: 22px; }
+    .section-note { margin: 0 0 16px; color: var(--muted); font-size: 14px; line-height: 1.5; }
+    label { display: block; margin-bottom: 6px; font-size: 13px; font-weight: 700; }
+    select { width: 100%; border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; font-size: 14px; background: #fff; color: var(--text); font-family: inherit; }
+    button { appearance: none; border: none; background: var(--primary); color: #fff; padding: 10px 16px; border-radius: 10px; font-size: 14px; font-weight: 700; cursor: pointer; white-space: nowrap; font-family: inherit; }
+    button:hover { background: var(--primary-hover); }
+    button:disabled { opacity: 0.6; cursor: wait; }
+    button.secondary { background: var(--primary-tint); color: var(--primary); }
+    button.secondary:hover { background: var(--primary-tint-2); }
+    button.tiny { padding: 6px 10px; font-size: 12px; border-radius: 8px; }
+    button.danger { background: #fee2e2; color: #991b1b; }
+    button.danger:hover { background: #fecaca; }
+
+    .toolbar { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; }
+    .toolbar .field { flex: 0 1 200px; }
+    .toolbar .field.person { flex: 0 1 260px; }
+    .toolbar .spacer { flex: 1; }
+    .status { display: none; margin: 12px 0 0; border-radius: 12px; padding: 12px 14px; font-size: 14px; }
+    .status.show { display: block; }
+    .status.error { background: var(--error-bg); color: var(--error-text); }
+
+    .summary { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 16px; }
+    .box { background: var(--primary-faint-2, #f6faf6); border: 1px solid var(--border); border-radius: 12px; padding: 10px 16px; font-size: 13px; color: var(--muted); min-width: 150px; }
+    .box strong { display: block; font-size: 20px; color: var(--text); font-variant-numeric: tabular-nums; }
+    .box.grand { background: var(--primary-tint); border-color: rgba(var(--primary-rgb), 0.3); }
+    .box.grand strong { color: var(--primary-hover); }
+    .box.click { cursor: pointer; }
+    .box.click:hover { border-color: var(--primary); }
+
+    table { width: 100%; border-collapse: collapse; font-size: 14px; }
+    th, td { text-align: left; padding: 10px; border-bottom: 1px solid #eef1f6; vertical-align: middle; }
+    th { font-size: 12px; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; color: #64748b; white-space: nowrap; }
+    td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+    tr.group td { background: var(--primary-faint-2, #f6faf6); font-weight: 800; border-top: 2px solid var(--border); }
+    .thumb { width: 54px; height: 54px; object-fit: cover; border-radius: 8px; border: 1px solid var(--border); background: #fff; display: block; }
+    .merchant { font-weight: 700; }
+    .muted { color: var(--muted); }
+    .empty { padding: 26px 10px; text-align: center; color: var(--muted); }
+    .table-scroll { overflow-x: auto; }
+    .totals-row td { font-weight: 800; border-top: 2px solid var(--border); font-size: 15px; }
+
+    @media (max-width: 720px) {
+      body { padding: 14px 8px; }
+      .surface { padding: 16px; }
+      .internal-shell-header-top { flex-wrap: wrap !important; }
+      .toolbar .field, .toolbar .field.person { flex: 1 1 45%; }
+      .toolbar button { flex: 1 1 100%; }
+      .box { flex: 1 1 45%; min-width: 0; }
+      .rc-table thead, .rc-table tr.group, .rc-table tr.totals-row { display: none; }
+      .rc-table, .rc-table tbody, .rc-table tr, .rc-table td { display: block; width: 100%; }
+      .rc-table tbody tr { border: 1px solid var(--border); border-radius: 14px; padding: 10px 12px; margin-bottom: 10px; background: var(--primary-faint-2, #f6faf6); display: grid; grid-template-columns: 64px 1fr; gap: 3px 10px; }
+      .rc-table td { border: none; padding: 2px 0; }
+      .rc-table td.c-photo { grid-row: span 4; }
+      .rc-table td.num { text-align: left; font-weight: 800; font-size: 16px; }
+      .rc-table td.c-actions { grid-column: 2; padding-top: 6px; }
+    }
+  </style>
+</head>
+<body data-shell-label="Card Receipt Report" data-shell-icon="accounting">
+  <div class="wrap">
+    <div id="internal-shell-header"></div>
+
+    <div class="surface">
+      <h2>Card receipts</h2>
+      <p class="section-note">Pull receipts for one person, one month, or both. Tap a photo to open it full size; export the current view as CSV for the books.</p>
+      <div class="toolbar">
+        <div class="field person">
+          <label for="personSelect">Person</label>
+          <select id="personSelect"><option value="">Everyone</option></select>
+        </div>
+        <div class="field">
+          <label for="yearSelect">Year</label>
+          <select id="yearSelect"></select>
+        </div>
+        <div class="field">
+          <label for="monthSelect">Month</label>
+          <select id="monthSelect"></select>
+        </div>
+        <div class="spacer"></div>
+        <button type="button" class="secondary" id="csvBtn">Export CSV</button>
+      </div>
+      <div id="pageStatus" class="status"></div>
+      <div class="summary" id="summary"></div>
+    </div>
+
+    <div class="surface">
+      <div class="table-scroll">
+        <table class="rc-table">
+          <thead><tr><th>Photo</th><th>Date</th><th>Filed by</th><th>Where / purpose</th><th class="num">Amount</th><th></th></tr></thead>
+          <tbody id="rows"><tr><td colspan="6" class="empty">Loading…</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div id="internal-shell-footer"></div>
+  </div>
+
+  <script src="internal-shell.js"></script>
+  <script>
+    const MONTH_NAMES = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+    const $ = (id) => document.getElementById(id);
+    const money = (n) => "$" + Number(n || 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const esc = (v) => String(v ?? "").replace(/[&<>"']/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch]));
+    function setStatus(message, kind) {
+      const box = $("pageStatus");
+      if (!message) { box.className = "status"; box.textContent = ""; return; }
+      box.className = "status " + kind + " show"; box.textContent = message;
+    }
+    function todayCentral() {
+      const parts = new Intl.DateTimeFormat("en-US", { timeZone: "America/Chicago", year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(new Date());
+      const g = (t) => parts.find((p) => p.type === t).value;
+      return `${g("year")}-${g("month")}-${g("day")}`;
+    }
+    const fmtDate = (iso) => /^\d{4}-\d{2}-\d{2}$/.test(iso || "") ? new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" }).format(new Date(iso + "T12:00:00Z")) : (iso || "");
+    const fmtMonth = (ym) => { const [y, m] = String(ym).split("-"); return `${MONTH_NAMES[Number(m) - 1] || m} ${y}`; };
+
+    let filersLoaded = false;
+    function buildPickers() {
+      const today = todayCentral(); const y = Number(today.slice(0, 4)), m = Number(today.slice(5, 7));
+      const allY = document.createElement("option"); allY.value = ""; allY.textContent = "All years"; $("yearSelect").appendChild(allY);
+      for (let yy = y; yy >= y - 3; yy--) { const o = document.createElement("option"); o.value = String(yy); o.textContent = String(yy); $("yearSelect").appendChild(o); }
+      const allM = document.createElement("option"); allM.value = ""; allM.textContent = "All months"; $("monthSelect").appendChild(allM);
+      MONTH_NAMES.forEach((name, i) => { const o = document.createElement("option"); o.value = String(i + 1); o.textContent = name; $("monthSelect").appendChild(o); });
+      $("yearSelect").value = String(y); $("monthSelect").value = String(m);
+    }
+    function queryString() {
+      const p = new URLSearchParams();
+      if ($("personSelect").value) p.set("email", $("personSelect").value);
+      if ($("yearSelect").value) p.set("year", $("yearSelect").value);
+      if ($("monthSelect").value) p.set("month", $("monthSelect").value);
+      return p.toString();
+    }
+    function viewLabel() {
+      const who = $("personSelect").selectedOptions[0]?.textContent || "Everyone";
+      const y = $("yearSelect").value, m = $("monthSelect").value;
+      const when = m && y ? `${MONTH_NAMES[Number(m) - 1]} ${y}` : y ? y : m ? `${MONTH_NAMES[Number(m) - 1]} (all years)` : "all time";
+      return `${who.replace(/\s\(\d+\)$/, "")} · ${when}`;
+    }
+
+    async function load() {
+      setStatus("");
+      try {
+        const res = await fetch(`/api/card-receipts/report?${queryString()}`, { credentials: "same-origin" });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error || "Couldn't load the report.");
+        if (!filersLoaded) {
+          const sel = $("personSelect"); const keep = sel.value;
+          sel.innerHTML = `<option value="">Everyone</option>` + (data.filers || []).map((f) => `<option value="${esc(f.email)}">${esc(f.name)} (${f.count})</option>`).join("");
+          sel.value = keep; filersLoaded = true;
+        }
+        renderSummary(data);
+        renderRows(data);
+      } catch (err) {
+        setStatus(err.message, "error");
+        $("rows").innerHTML = ""; $("summary").innerHTML = "";
+      }
+    }
+
+    function renderSummary(data) {
+      const boxes = [`<div class="box grand">${esc(viewLabel())}<strong>${money(data.total)}</strong><span class="muted">${data.receipts.length} receipt${data.receipts.length === 1 ? "" : "s"}</span></div>`];
+      // Everyone → per-person subtotals (click to drill in). One person → per-month subtotals.
+      if (!$("personSelect").value) {
+        for (const p of data.byPerson) boxes.push(`<div class="box click" data-email="${esc(p.email)}" title="Show only ${esc(p.name)}">${esc(p.name)}<strong>${money(p.total)}</strong><span class="muted">${p.count} receipt${p.count === 1 ? "" : "s"}</span></div>`);
+      } else if (!$("monthSelect").value || !$("yearSelect").value) {
+        for (const m of data.byMonth) boxes.push(`<div class="box click" data-month="${esc(m.month)}" title="Show only ${esc(fmtMonth(m.month))}">${esc(fmtMonth(m.month))}<strong>${money(m.total)}</strong><span class="muted">${m.count} receipt${m.count === 1 ? "" : "s"}</span></div>`);
+      }
+      $("summary").innerHTML = boxes.join("");
+    }
+
+    function renderRows(data) {
+      const rows = data.receipts || [];
+      if (!rows.length) { $("rows").innerHTML = `<tr><td colspan="6" class="empty">No receipts for this view.</td></tr>`; return; }
+      // Group by month when the view spans months, by person when it spans people.
+      const spansMonths = !$("monthSelect").value || !$("yearSelect").value;
+      const spansPeople = !$("personSelect").value;
+      const groupKey = spansMonths ? (r) => fmtMonth(r.month) : spansPeople ? (r) => r.filedByName || r.filedByEmail : () => "";
+      const sorted = spansMonths ? rows : [...rows].sort((a, b) => (a.filedByName || a.filedByEmail).localeCompare(b.filedByName || b.filedByEmail) || (a.spentOn < b.spentOn ? 1 : -1));
+      let html = "", lastGroup = null, groupTotal = 0;
+      const flushGroup = () => { if (lastGroup !== null && lastGroup !== "") html += `<tr class="group"><td colspan="4">${esc(lastGroup)} subtotal</td><td class="num">${money(groupTotal)}</td><td></td></tr>`; groupTotal = 0; };
+      for (const r of sorted) {
+        const g = groupKey(r);
+        if (g !== lastGroup) { flushGroup(); lastGroup = g; }
+        groupTotal += r.amount;
+        html += `
+          <tr data-id="${esc(r.id)}">
+            <td class="c-photo">${r.hasPhoto ? `<a href="/api/card-receipts/${esc(r.id)}/photo" target="_blank" rel="noopener"><img class="thumb" src="/api/card-receipts/${esc(r.id)}/photo" alt="Receipt" loading="lazy" /></a>` : `<span class="muted">—</span>`}</td>
+            <td>${esc(fmtDate(r.spentOn))}</td>
+            <td>${esc(r.filedByName || r.filedByEmail)}</td>
+            <td>${r.merchant ? `<div class="merchant">${esc(r.merchant)}</div>` : ""}<div>${esc(r.purpose)}</div></td>
+            <td class="num">${money(r.amount)}</td>
+            <td class="c-actions"><button type="button" class="tiny danger rc-del" data-id="${esc(r.id)}">Delete</button></td>
+          </tr>`;
+      }
+      flushGroup();
+      html += `<tr class="totals-row"><td colspan="4">TOTAL — ${esc(viewLabel())}</td><td class="num">${money(data.total)}</td><td></td></tr>`;
+      $("rows").innerHTML = html;
+    }
+
+    $("summary").addEventListener("click", (ev) => {
+      const box = ev.target.closest(".box.click"); if (!box) return;
+      if (box.dataset.email) { $("personSelect").value = box.dataset.email; }
+      if (box.dataset.month) { const [y, m] = box.dataset.month.split("-"); $("yearSelect").value = String(Number(y)); $("monthSelect").value = String(Number(m)); }
+      load();
+    });
+    $("rows").addEventListener("click", async (ev) => {
+      const btn = ev.target.closest(".rc-del"); if (!btn) return;
+      if (!window.confirm("Delete this receipt? It leaves the report (the audit log keeps a record).")) return;
+      btn.disabled = true;
+      try {
+        const res = await fetch(`/api/card-receipts/${encodeURIComponent(btn.dataset.id)}/delete`, { method: "POST", credentials: "same-origin" });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error || "Couldn't delete that receipt.");
+        filersLoaded = false; await load();
+      } catch (err) { setStatus(err.message, "error"); btn.disabled = false; }
+    });
+    $("csvBtn").addEventListener("click", () => { window.location.href = `/api/card-receipts/report.csv?${queryString()}`; });
+    ["personSelect", "yearSelect", "monthSelect"].forEach((id) => $(id).addEventListener("change", load));
+
+    buildPickers();
+    load();
+  </script>
+</body>
+</html>

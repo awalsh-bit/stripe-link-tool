@@ -642,7 +642,7 @@
       const photos = Array.isArray(d.photos) ? d.photos : [];
       return `
         <div class="small" style="margin-top:10px; padding:10px 12px; border:1px solid #fcd34d; background:#fffbeb; border-radius:10px;">
-          <div class="strong">INSTALL DAMAGE — field report${d.installer ? ` by ${escapeHtml(d.installer)}` : ""}</div>
+          <div class="strong">COSMETIC DAMAGE — field report${d.installer ? ` by ${escapeHtml(d.installer)}` : ""}</div>
           ${d.issueType ? `<div style="margin-top:2px;">Issue: ${escapeHtml(d.issueType)}${d.damageLocation ? ` — ${escapeHtml(d.damageLocation)}` : ""}</div>` : ""}
           ${photos.length ? `
             <div style="display:flex; gap:6px; flex-wrap:wrap; margin-top:8px;">

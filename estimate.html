@@ -31,6 +31,13 @@
     tr:last-child td { border-bottom: none; }
     .amt { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
     .model { color: var(--muted); font-size: 11.5px; }
+    .parts-head td { padding-top: 12px; font-size: 11px; font-weight: 800; letter-spacing: 0.05em; text-transform: uppercase; color: var(--muted); border-bottom: 1px solid var(--border); }
+    .part-line td:first-child { padding-left: 10px; }
+    .part-num { display: block; color: var(--muted); font-size: 11.5px; font-variant-numeric: tabular-nums; margin-top: 1px; }
+    .part-qty { color: var(--muted); font-weight: 700; margin-right: 4px; }
+    .sub td { color: var(--muted); }
+    .next { margin: 16px 0 18px; padding: 12px 14px; background: #f2f8f2; border: 1.5px solid var(--green); border-radius: 12px; font-size: 13.5px; line-height: 1.55; }
+    .next strong { display: block; font-size: 11px; letter-spacing: 0.05em; text-transform: uppercase; color: var(--green); margin-bottom: 4px; }
     .tot td { font-weight: 800; font-size: 16px; border-top: 2px solid var(--border); }
     .btn {
       display: block; width: 100%; border: none; border-radius: 12px; cursor: pointer;
@@ -107,6 +114,18 @@
         window.scrollTo({ top: 0 });
       }
 
+      // Every part on the estimate, with its part number and description —
+      // the client always sees these. Labor-only quotes say so in words
+      // rather than showing an empty table.
+      function partRows(s) {
+        const parts = Array.isArray(s.parts) ? s.parts : [];
+        if (!parts.length) {
+          return s.laborEntries ? `<tr class="parts-head"><td colspan="2">Labor only — no parts required for this repair</td></tr>` : "";
+        }
+        return `<tr class="parts-head"><td>Parts on this estimate</td><td class="amt">${s.noLinePricing ? "" : "Price"}</td></tr>` +
+          parts.map((p) => `<tr class="part-line"><td>${Number(p.qty) > 1 ? `<span class="part-qty">${Number(p.qty)} ×</span>` : ""}${esc(p.description || "Part")}${p.model ? `<span class="part-num">Part # ${esc(p.model)}</span>` : ""}</td><td class="amt">${p.ext == null ? "" : money(p.ext)}</td></tr>`).join("");
+      }
+
       function render() {
         const s = est.summary || {};
         if (est.status === "approved") {
@@ -131,16 +150,17 @@
             how you'd like to move forward — nothing is charged today.
           </p>
           <table>
+            ${partRows(s)}
             ${s.noLinePricing
-              ? `<tr><td>Repair parts &amp; labor</td><td class="amt">${money(s.subTotal)}</td></tr>`
+              ? `<tr class="sub"><td>Repair parts &amp; labor</td><td class="amt">${money(s.subTotal)}</td></tr>`
               : `
-            ${s.partsTotal ? `<tr><td>Parts</td><td class="amt">${money(s.partsTotal)}</td></tr>` : ""}
-            ${s.laborEntries ? `<tr><td>Labor</td><td class="amt">${money(s.laborTotal)}</td></tr>` : ""}
+            ${s.laborEntries ? `<tr><td>Labor${s.laborEntries > 1 ? ` <span class="model">(${s.laborEntries} entries)</span>` : ""}</td><td class="amt">${money(s.laborTotal)}</td></tr>` : ""}
             ${s.shippingTotal ? `<tr><td>Shipping &amp; handling</td><td class="amt">${money(s.shippingTotal)}</td></tr>` : ""}
-            <tr><td>Subtotal</td><td class="amt">${money(s.subTotal)}</td></tr>`}
+            <tr class="sub"><td>Subtotal</td><td class="amt">${money(s.subTotal)}</td></tr>`}
             <tr><td>Sales tax</td><td class="amt">${money(s.tax)}</td></tr>
             <tr class="tot"><td>Estimate total</td><td class="amt">${money(s.invoiceTotal)}</td></tr>
           </table>
+          ${s.etaMessage ? `<div class="next"><strong>What happens next</strong>${esc(s.etaMessage)}</div>` : ""}
 
           <button type="button" class="btn approve" id="approveBtn">Approve this estimate</button>
           <button type="button" class="btn shop" id="shopBtn">I'd rather shop for a replacement</button>

@@ -210,6 +210,10 @@ import {
 } from "./lib/revenue-performance-postgres.js";
 import {
   extractServiceEstimateFromPdf,
+  assessPartsQuality,
+  partsQualityError,
+  normalizeEta,
+  etaMessage,
   createServiceEstimate,
   listServiceEstimates,
   getServiceEstimateByToken,
@@ -853,7 +857,7 @@ const PAGE_LABELS = {
   "/shopper-profiles.html": "Shopper Profiles",
   "/dispatch.html": "Delivery Dispatch",
   "/driver.html": "Driver Run Sheet",
-  "/install-damage.html": "Install Damage Report",
+  "/install-damage.html": "Cosmetic Damage Form",
   "/message-automations.html": "Text Automations",
   "/aging-inventory.html": "Aging Inventory",
   "/my-commissions.html": "My Commission Review",
@@ -5958,8 +5962,20 @@ app.post("/api/service-estimates", requirePagePermission("/service-estimates.htm
     if (!summary || (summary.invoiceTotal == null && summary.subTotal == null)) {
       return res.status(400).json({ error: "Scan the quote PDF first — the summary is missing its totals." });
     }
+    // The client's page always shows part numbers and descriptions, so a
+    // summary that lost them (or never had them) cannot become a link.
+    const quality = assessPartsQuality(summary);
+    if (!quality.ok) return res.status(400).json({ error: partsQualityError(quality).message, quality });
+    // Parts ETA: fixed at creation so the client's dates never drift.
+    let eta;
+    try {
+      eta = normalizeEta(req.body?.eta, { technician: summary.technician || "" });
+    } catch (etaErr) {
+      return res.status(400).json({ error: etaErr.message });
+    }
+    const storedSummary = { ...summary, partsQuality: quality, eta, etaMessage: etaMessage(eta) };
     const estimate = await createServiceEstimate({
-      svNumber, estimateName, customerName, customerNumber, contactPhone, contactEmail, contactPref, summary,
+      svNumber, estimateName, customerName, customerNumber, contactPhone, contactEmail, contactPref, summary: storedSummary,
       byEmail: req.authUser?.email || req.authUser?.username || "",
       byName: req.authUser?.displayName || ""
     });
@@ -5980,7 +5996,7 @@ app.post("/api/service-estimates", requirePagePermission("/service-estimates.htm
     recordAudit({
       ip: req.ip, actorUserId: req.authUser?.id || null,
       action: "service_estimate_created", targetUserId: null,
-      detail: { svNumber: estimate.svNumber, customerName: estimate.customerName, total: summary.invoiceTotal }
+      detail: { svNumber: estimate.svNumber, customerName: estimate.customerName, total: summary.invoiceTotal, eta: eta.mode, etaFrom: eta.from || "", etaTo: eta.to || "", parts: quality.partCount }
     }).catch(() => {});
 
     return res.json({ ok: true, estimate, url });
@@ -12666,7 +12682,7 @@ app.post(
       // (it's our unit), so the row arrives with cardRequired false and the
       // normal "Call Status Pending" status.
       const header = [
-        `INSTALL DAMAGE — reported from the field by ${installer || "an installer"}`,
+        `COSMETIC DAMAGE — reported from the field by ${installer || "an installer"}`,
         issueType ? `Issue: ${issueType}` : "",
         damageLocation ? `Location on unit: ${damageLocation}` : "",
         photoIds.length ? `${photoIds.length} photo${photoIds.length === 1 ? "" : "s"} attached — on the queue card.` : "No photos stored."

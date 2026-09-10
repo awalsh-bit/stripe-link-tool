@@ -268,7 +268,7 @@
       {
         title: "Installation",
         children: [
-          { href: "install-damage.html", title: "Install Damage Report" }
+          { href: "install-damage.html", title: "Cosmetic Damage Form" }
         ]
       },
       {

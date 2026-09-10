@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
-<title>Install Damage Report</title>
+<title>Cosmetic Damage Form</title>
 <link rel="icon" type="image/svg+xml" href="favicon.svg" />
 <link rel="stylesheet" href="internal-shell.css" />
 <style>
@@ -541,16 +541,15 @@
   .toast.show{opacity:1; transform:translateY(0);}
 </style>
 </head>
-<body data-shell-label="Install Damage" data-shell-icon="service">
+<body data-shell-label="Cosmetic Damage Form" data-shell-icon="service">
 <div class="shell-wrap">
   <div id="internal-shell-header"></div>
 </div>
 <div class="app">
 
   <div class="header-strip">
-    <div class="eyebrow">Install Damage Report</div>
     <div class="page-title" id="stepTitle">Find the job</div>
-    <div class="page-sub" id="stepSub">Type the sales invoice number and we'll pull the job details.</div>
+    <div class="page-sub" id="stepSub">Tap your truck, then the stop you're at.</div>
   </div>
 
   <div class="progress" id="progress" aria-hidden="true">
@@ -1325,7 +1324,7 @@ function compactDamagePhotos(){
 
 /* ============================= NAVIGATION ============================= */
 const STEP_META = {
-  1: { title:"Find the job", sub:"Type the sales invoice number and we'll pull the job details." },
+  1: { title:"Find the job", sub:"Tap your truck, then the stop you're at." },
   2: { title:"Model / serial tag", sub:"One clear photo confirms exactly which unit this is." },
   3: { title:"Damage or issue", sub:"Show dispatch what's wrong so they can plan the fix." },
   4: { title:"Review & send", sub:"Double check everything, then send it to dispatch." }
@@ -1492,7 +1491,7 @@ async function submitReport(){
     // TEST MODE — nothing configured yet. Simulate a round trip and log
     // the payload so the rest of the form can still be tried end-to-end.
     const fd = await buildFormData();
-    console.log("[Install Damage Report] TEST MODE submit — payload keys:");
+    console.log("[Cosmetic Damage Form] TEST MODE submit — payload keys:");
     for(const pair of fd.entries()) console.log(" ", pair[0], pair[1]);
     await new Promise(r=>setTimeout(r, 900));
     finishSubmit(true, "TEST-" + Math.floor(Math.random()*90000+10000));

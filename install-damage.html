@@ -608,9 +608,9 @@
         <label class="field-label">Photo of the model / serial tag <span class="req">*</span></label>
         <div class="field-help" style="margin-top:-4px; margin-bottom:12px;">Usually inside the door, on the back, or on the side panel. This confirms the exact unit even if the invoice pulled other details.</div>
         <label class="photo-slot" id="tagSlot">
-          <input type="file" accept="image/*" capture="environment" id="tagInput">
+          <input type="file" accept="image/*" id="tagInput">
           <svg class="cam-icon" width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M4 8a2 2 0 0 1 2-2h1.5l1-1.5h7l1 1.5H18a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8Z"/><circle cx="12" cy="13" r="3.4"/></svg>
-          <div class="cam-label">Tap to take a photo</div>
+          <div class="cam-label">Tap to take a photo or choose from your library</div>
           <div class="cam-sub">Make sure the numbers are readable</div>
         </label>
       </div>
@@ -621,9 +621,9 @@
       <div class="card">
         <label class="field-label">Photo of the damage or issue <span class="req">*</span></label>
         <label class="photo-slot" id="damageSlot0">
-          <input type="file" accept="image/*" capture="environment" id="damageInput0">
+          <input type="file" accept="image/*" id="damageInput0">
           <svg class="cam-icon" width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M4 8a2 2 0 0 1 2-2h1.5l1-1.5h7l1 1.5H18a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8Z"/><circle cx="12" cy="13" r="3.4"/></svg>
-          <div class="cam-label">Tap to take a photo</div>
+          <div class="cam-label">Tap to take a photo or choose from your library</div>
           <div class="cam-sub">Show what's wrong, even if it's just how the unit looks</div>
         </label>
         <div class="extra-photos" id="extraPhotos"></div>
@@ -1252,9 +1252,9 @@ function resetTagSlot(){
   state.tagPhoto = null;
   const slot = $("#tagSlot");
   slot.classList.remove("filled");
-  slot.innerHTML = `<input type="file" accept="image/*" capture="environment" id="tagInput">
+  slot.innerHTML = `<input type="file" accept="image/*" id="tagInput">
     <svg class="cam-icon" width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M4 8a2 2 0 0 1 2-2h1.5l1-1.5h7l1 1.5H18a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8Z"/><circle cx="12" cy="13" r="3.4"/></svg>
-    <div class="cam-label">Tap to take a photo</div>
+    <div class="cam-label">Tap to take a photo or choose from your library</div>
     <div class="cam-sub">Make sure the numbers are readable</div>`;
   $("#tagInput").addEventListener("change", (e)=>{
     const file = e.target.files[0];
@@ -1280,9 +1280,9 @@ function resetDamageSlot0(){
   state.damagePhotos[0] = undefined;
   const slot = $("#damageSlot0");
   slot.classList.remove("filled");
-  slot.innerHTML = `<input type="file" accept="image/*" capture="environment" id="damageInput0">
+  slot.innerHTML = `<input type="file" accept="image/*" id="damageInput0">
     <svg class="cam-icon" width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M4 8a2 2 0 0 1 2-2h1.5l1-1.5h7l1 1.5H18a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8Z"/><circle cx="12" cy="13" r="3.4"/></svg>
-    <div class="cam-label">Tap to take a photo</div>
+    <div class="cam-label">Tap to take a photo or choose from your library</div>
     <div class="cam-sub">Get close enough to see it clearly</div>`;
   wireDamageSlot0();
 }
@@ -1298,7 +1298,7 @@ function addExtraPhotoSlot(){
   const idx = state.damagePhotos.length; // next index
   const host = $("#extraPhotos");
   const slot = el("label", "photo-slot");
-  slot.innerHTML = `<input type="file" accept="image/*" capture="environment">
+  slot.innerHTML = `<input type="file" accept="image/*">
     <svg class="cam-icon" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M4 8a2 2 0 0 1 2-2h1.5l1-1.5h7l1 1.5H18a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8Z"/><circle cx="12" cy="13" r="3.4"/></svg>
     <div class="cam-label" style="font-size:12.5px;">Add photo</div>`;
   host.appendChild(slot);
@@ -1346,7 +1346,7 @@ function validateStep(n){
     return true;
   }
   if(n === 2){
-    if(!state.tagPhoto){ showToast("Take a photo of the model/serial tag"); return false; }
+    if(!state.tagPhoto){ showToast("Add a photo of the model/serial tag"); return false; }
     return true;
   }
   if(n === 3){

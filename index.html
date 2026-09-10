@@ -141,6 +141,24 @@
       background: var(--primary-tint-2);
     }
 
+    .scan-bar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 16px; }
+    .scan-bar .hint { flex: 1 1 260px; margin: 0; }
+    .collect-toggle { display: inline-flex; border: 1px solid var(--border); border-radius: 999px; overflow: hidden; background: #fff; }
+    .collect-toggle label { position: relative; padding: 8px 14px; font-size: 13px; font-weight: 600; color: var(--muted); cursor: pointer; user-select: none; }
+    .collect-toggle input { position: absolute; opacity: 0; pointer-events: none; }
+    .collect-toggle input:checked + span { color: var(--primary-hover); }
+    .collect-toggle label:has(input:checked) { background: var(--primary-tint); }
+    .collect-toggle input:focus-visible + span { outline: 2px solid var(--primary); outline-offset: 2px; border-radius: 6px; }
+    .scan-summary tr.dep td { color: var(--primary-hover); font-weight: 700; border-bottom: none; }
+    .scan-summary { margin: 0 0 18px; padding: 12px 14px; border: 1px solid var(--border); border-radius: 12px; background: #fbfcfe; font-size: 13px; }
+    .scan-summary table { width: 100%; border-collapse: collapse; }
+    .scan-summary td { padding: 4px 2px; border-bottom: 1px dashed #eef1f6; vertical-align: top; }
+    .scan-summary td.amt { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+    .scan-summary tr.tot td { font-weight: 700; border-bottom: none; }
+    .scan-summary .meta { color: var(--muted); font-size: 12px; margin-bottom: 6px; }
+    .scan-summary .model { color: var(--muted); font-size: 11.5px; }
+    .scan-summary .warn { color: #92400e; background: #fef3c7; border-radius: 8px; padding: 6px 10px; margin-top: 8px; font-size: 12px; }
+
     .status {
       margin-top: 18px;
       padding: 14px 16px;
@@ -277,6 +295,16 @@
   <div class="wrap">
     <div id="internal-shell-header"></div>
     <div class="card">
+      <div class="scan-bar">
+        <input type="file" id="orderFile" accept=".pdf" style="display:none;" />
+        <button type="button" id="scanOrderBtn" class="secondary">Scan a sales order PDF</button>
+        <div class="collect-toggle" role="radiogroup" aria-label="Amount to collect">
+          <label><input type="radio" name="collectMode" value="full" checked /><span>Collect in full</span></label>
+          <label><input type="radio" name="collectMode" value="half" /><span>50% deposit</span></label>
+        </div>
+        <span class="hint">Fills the order number, client, phone, amount, description and your code from the ePASS invoice print. 50% deposit = 51% of the amount due, rounded down to the dollar. Review, then create the link — nothing is sent by the scan.</span>
+      </div>
+      <div id="scanSummary" class="scan-summary" hidden></div>
       <form id="paymentForm">
         <div class="grid">
           <div class="field full">
@@ -597,6 +625,107 @@
     }
     descriptionInput.addEventListener('input', updateDescCount);
     updateDescCount();
+
+    // ---- scan a sales order PDF and prefill the form ----
+    const orderFileInput = document.getElementById('orderFile');
+    const scanOrderBtn = document.getElementById('scanOrderBtn');
+    const scanSummaryEl = document.getElementById('scanSummary');
+    const escHtml = (v) => String(v ?? '').replace(/[&<>"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
+    const money2 = (n) => n == null ? '—' : '$' + Number(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+    // The salesperson printed on the order → the employee code, so paid
+    // notifications go to whoever sold it. Matched on the directory name;
+    // the team can still change the code.
+    function codeForSalesperson(name) {
+      const want = String(name || '').trim().toLowerCase().replace(/\s+/g, ' ');
+      if (!want) return '';
+      const hit = Object.keys(TEAM_DIRECTORY).find((code) => String(TEAM_DIRECTORY[code].name || '').trim().toLowerCase().replace(/\s+/g, ' ') === want);
+      if (hit) return hit;
+      const last = want.split(' ').pop();
+      const byLast = Object.keys(TEAM_DIRECTORY).filter((code) => String(TEAM_DIRECTORY[code].name || '').trim().toLowerCase().split(' ').pop() === last);
+      return byLast.length === 1 ? byLast[0] : '';
+    }
+
+    let lastScan = null;
+    const collectMode = () => (document.querySelector('input[name="collectMode"]:checked') || {}).value || 'full';
+    const collectAmount = (s) => collectMode() === 'half' ? s.depositAmount : s.amountDue;
+    function applyCollectAmount() {
+      if (!lastScan) return;
+      const amt = collectAmount(lastScan);
+      if (amt != null) amountInput.value = Number(amt).toFixed(2);
+      amountInput.dispatchEvent(new Event('input', { bubbles: true }));
+      renderScanSummary(lastScan);
+    }
+    document.querySelectorAll('input[name="collectMode"]').forEach((el) => el.addEventListener('change', () => {
+      if (!lastScan) return;
+      applyCollectAmount();
+      showStatus('success', collectMode() === 'half'
+        ? `Amount set to a 50% deposit of ${money2(lastScan.depositAmount)} (51% of ${money2(lastScan.amountDue)}, rounded down).`
+        : `Amount set to the full ${lastScan.amountBasis} of ${money2(lastScan.amountDue)}.`);
+    }));
+
+    function renderScanSummary(s) {
+      const lines = (s.lines || []).map((l) => `<tr><td>${l.qty > 1 ? l.qty + ' × ' : ''}${escHtml(l.description)}${l.model ? ` <span class="model">${escHtml(l.model)}</span>` : ''}</td><td class="amt">${money2(l.ext)}</td></tr>`).join('');
+      scanSummaryEl.innerHTML = `
+        <div class="meta"><strong>${escHtml(s.invoiceNumber || 'Order # not found')}</strong>${s.date ? ' · ' + escHtml(s.date) : ''}${s.invoiceType ? ' · ' + escHtml(s.invoiceType) : ''}${s.paymentType ? ' · ' + escHtml(s.paymentType) : ''}${s.salesperson ? ' · sold by ' + escHtml(s.salesperson) : ''}</div>
+        <table>
+          ${lines}
+          <tr><td>Subtotal</td><td class="amt">${money2(s.subTotal)}</td></tr>
+          <tr><td>Tax</td><td class="amt">${money2(s.tax)}</td></tr>
+          <tr><td>Invoice total</td><td class="amt">${money2(s.invoiceTotal)}</td></tr>
+          ${s.deposits ? `<tr><td>Deposits</td><td class="amt">−${money2(s.deposits)}</td></tr>` : ''}
+          <tr class="tot"><td>Amount due (${escHtml(s.amountBasis)})</td><td class="amt">${money2(s.amountDue)}</td></tr>
+          ${collectMode() === 'half' && s.depositAmount != null ? `<tr class="dep"><td>50% deposit — this link</td><td class="amt">${money2(s.depositAmount)}</td></tr>` : ''}
+        </table>
+        ${(s.warnings || []).length ? `<div class="warn">${escHtml(s.warnings.join(' '))}</div>` : ''}`;
+      scanSummaryEl.hidden = false;
+    }
+
+    scanOrderBtn.addEventListener('click', () => orderFileInput.click());
+    orderFileInput.addEventListener('change', async () => {
+      const file = orderFileInput.files[0];
+      if (!file) return;
+      scanOrderBtn.disabled = true;
+      showStatus('success', 'Scanning ' + file.name + '…');
+      try {
+        const form = new FormData();
+        form.append('order', file);
+        const res = await fetch('/api/payment-links/scan', { method: 'POST', credentials: 'same-origin', body: form });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error || "Couldn't read that PDF.");
+        const s = data.summary;
+        document.getElementById('salesOrder').value = s.invoiceNumber || '';
+        document.getElementById('customerName').value = s.customerName || '';
+        document.getElementById('customerPhone').value = s.phone || '';
+        if (data.knownEmail?.email) customerEmailInput.value = data.knownEmail.email;
+        lastScan = s;
+        const collect = collectAmount(s);
+        if (collect != null) amountInput.value = Number(collect).toFixed(2);
+        descriptionInput.value = (s.suggestedDescription || '').slice(0, 50);
+        updateDescCount();
+        const code = codeForSalesperson(s.salesperson);
+        if (code) {
+          creatorCodeInput.value = code;
+          creatorCodeInput.dispatchEvent(new Event('input', { bubbles: true }));
+        }
+        amountInput.dispatchEvent(new Event('input', { bubbles: true }));
+        renderScanSummary(s);
+        const notes = [];
+        notes.push(collectMode() === 'half'
+          ? `Scanned ${s.invoiceNumber || 'the order'} — amount set to a 50% deposit of ${money2(s.depositAmount)} (51% of the ${s.amountBasis} ${money2(s.amountDue)}, rounded down).`
+          : `Scanned ${s.invoiceNumber || 'the order'} — amount set to the ${s.amountBasis} of ${money2(s.amountDue)}.`);
+        if (!s.phone) notes.push('No phone on the print — add the client\'s number.');
+        if (s.salesperson && !code) notes.push(`Couldn't match "${s.salesperson}" to an employee code — enter it.`);
+        if (data.knownEmail?.email) notes.push(`Email on file: ${data.knownEmail.email}.`);
+        notes.push('Check everything, then create the link.');
+        showStatus('success', notes.join(' '));
+      } catch (err) {
+        showStatus('error', err.message);
+      } finally {
+        scanOrderBtn.disabled = false;
+        orderFileInput.value = '';
+      }
+    });
 
     function applyInitialLinkTypeFromQuery() {
       const params = new URLSearchParams(window.location.search);

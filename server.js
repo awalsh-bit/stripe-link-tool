@@ -214,6 +214,8 @@ import {
   partsQualityError,
   normalizeEta,
   etaMessage,
+  liveEta,
+  centralDateOf,
   createServiceEstimate,
   listServiceEstimates,
   getServiceEstimateByToken,
@@ -225,6 +227,7 @@ import {
   markServiceEstimateStaleFlagged,
   setServiceEstimateClosed
 } from "./lib/service-estimates-postgres.js";
+import { extractSalesInvoiceFromPdf } from "./lib/sales-invoice-scan.js";
 import {
   createDeliveryRun,
   updateDeliveryRun,
@@ -5922,6 +5925,33 @@ async function pushWebOrderFlags({ orderNumber, customerName, total, models, ful
 // same routing as new web orders).
 const estimatePdfUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
 
+// Send a Payment Link: scan the ePASS sales order / invoice print and hand
+// back what the form needs prefilled (order #, client, phone, amount due,
+// salesperson). Nothing is created or sent here — the team reviews the form.
+app.post("/api/payment-links/scan", requirePagePermission("/index.html"), (req, res) => {
+  estimatePdfUpload.single("order")(req, res, async (err) => {
+    if (err) {
+      return res.status(400).json({ error: err.code === "LIMIT_FILE_SIZE" ? "That PDF is over the 10 MB limit." : "Upload failed — please try again." });
+    }
+    try {
+      if (!req.file?.buffer?.length) return res.status(400).json({ error: "Attach the ePASS sales order PDF." });
+      const summary = extractSalesInvoiceFromPdf(req.file.buffer);
+      let knownEmail = null;
+      try {
+        knownEmail = await lookupKnownClientEmail({ phone: summary.phone, customerNumber: summary.customerNumber });
+      } catch { /* prefill is best-effort */ }
+      recordAudit({
+        ip: req.ip, actorUserId: req.authUser?.id || null,
+        action: "payment_link_order_scanned", targetUserId: null,
+        detail: { order: summary.invoiceNumber, amountDue: summary.amountDue, lines: summary.lines.length }
+      }).catch(() => {});
+      return res.json({ ok: true, summary, knownEmail });
+    } catch (scanErr) {
+      return res.status(400).json({ error: scanErr.message || "Couldn't read that PDF." });
+    }
+  });
+});
+
 app.post("/api/service-estimates/scan", requirePagePermission("/service-estimates.html"), (req, res) => {
   estimatePdfUpload.single("quote")(req, res, async (err) => {
     if (err) {
@@ -6376,9 +6406,19 @@ app.post("/api/service-estimates/close", requirePagePermission("/service-estimat
   }
 });
 
+// The parts-ETA range is live: re-based on today's Central date each time
+// it's read, and frozen on the day the client responded once they have.
+function withLiveEta(estimate) {
+  const eta = estimate?.summary?.eta;
+  if (!eta || !eta.mode) return estimate;
+  const responded = ["approved", "shopping", "elsewhere"].includes(estimate.status) && estimate.respondedAt ? centralDateOf(estimate.respondedAt) : "";
+  const live = liveEta(eta, responded || undefined);
+  return { ...estimate, summary: { ...estimate.summary, eta: live, etaMessage: etaMessage(live) } };
+}
+
 app.get("/api/service-estimates", requirePagePermission("/service-estimates.html"), async (req, res) => {
   try {
-    return res.json({ estimates: await listServiceEstimates(), publicHost: SERVICE_PUBLIC_HOST });
+    return res.json({ estimates: (await listServiceEstimates()).map(withLiveEta), publicHost: SERVICE_PUBLIC_HOST });
   } catch (err) {
     console.error("Service estimate list failed:", err.message);
     return res.status(500).json({ error: "Unable to load estimates." });
@@ -6389,7 +6429,7 @@ app.get("/api/service-estimates", requirePagePermission("/service-estimates.html
 app.post("/api/estimate/view", async (req, res) => {
   try {
     const token = String(req.body?.token || "").slice(0, 60);
-    const estimate = await getServiceEstimateByToken(token);
+    const estimate = withLiveEta(await getServiceEstimateByToken(token));
     if (!estimate) return res.status(404).json({ error: "This estimate link isn't valid — call us at 512-894-0907 and we'll get you a fresh one." });
     if (estimate.closedAt && !["approved", "shopping", "elsewhere"].includes(estimate.status)) {
       return res.status(410).json({ error: "This estimate is no longer active — call or text us at 512-894-0907 and we'll get you a current one." });

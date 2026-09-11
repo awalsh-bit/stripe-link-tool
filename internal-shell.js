@@ -266,7 +266,8 @@
         title: "Delivery",
         children: [
           { href: "dispatch.html", title: "Delivery Dispatch" },
-          { href: "driver.html", title: "Driver Run Sheet" }
+          { href: "driver.html", title: "Driver Run Sheet" },
+          { href: "dispatch-work.html", title: "Dispatch Work" }
         ]
       },
       {

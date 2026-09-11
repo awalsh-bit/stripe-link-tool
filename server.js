@@ -248,6 +248,10 @@ import {
   epassStatsForAccounts, epassHistoryForAccount, builderDashboard, countBuilderAccounts, companyKey as builderCompanyKey
 } from "./lib/builder-accounts-postgres.js";
 import {
+  DEFAULT_CONFIG as DISPATCH_DEFAULT_CONFIG, getDispatchConfig, saveDispatchConfig, resetDispatchConfig,
+  importDispatchTrack, listDispatchWork, getDispatchWork, updateDispatchWork, updateServiceLocation, dispatchSummary
+} from "./lib/dispatch-postgres.js";
+import {
   createDeliveryRun,
   updateDeliveryRun,
   setDeliveryRunStatus,
@@ -631,6 +635,7 @@ const INTERNAL_PAGE_PATHS = new Set([
   "/receipt-report.html",
   "/builder-prospects.html",
   "/builder-prospect-manager.html",
+  "/dispatch-work.html",
   "/hr-phone-screen.html",
   "/hr-candidates.html",
   "/uniform-orders.html",
@@ -863,6 +868,7 @@ const PAGE_LABELS = {
   "/receipt-report.html": "Card Receipt Report",
   "/builder-prospects.html": "Builder Prospect List",
   "/builder-prospect-manager.html": "Builder Prospect Manager",
+  "/dispatch-work.html": "Dispatch Work",
   "/hr-phone-screen.html": "Phone Screen",
   "/hr-candidates.html": "Candidates",
   "/uniform-orders.html": "Uniform Ordering",
@@ -994,7 +1000,7 @@ const PAGE_CATEGORIES = [
   {
     key: "delivery",
     label: "Delivery",
-    pages: ["/dispatch.html", "/driver.html"]
+    pages: ["/dispatch-work.html", "/dispatch.html", "/driver.html"]
   },
   {
     key: "installation",
@@ -4869,6 +4875,115 @@ app.post("/api/builder-prospects/rematch", requireBuilderManager, async (req, re
   }
 });
 
+// ---------------------------------------------------------------------------
+// Dispatch import spine (dispatch-work.html) — the demand picture for the
+// scheduling model in Agility_Scheduling_Model_Context.md. Imports the
+// DispatchTrack export (by upload here, or nightly from the ePASS agent as
+// kind "dispatch"), derives DELIVERY / INSTALL work, and lets dispatch assert
+// readiness, mobility and duration overrides. No routing yet.
+// ---------------------------------------------------------------------------
+const dispatchCsvUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 40 * 1024 * 1024, files: 1 } });
+const requireDispatchPage = requirePagePermission("/dispatch-work.html");
+const dispatchMe = (req) => ({ email: String(req.authUser?.email || req.authUser?.username || "").toLowerCase(), name: String(req.authUser?.displayName || "") });
+const dispatchAudit = (req, action, detail) => recordAudit({ ip: req.ip, actorUserId: req.authUser?.kind === "db" ? req.authUser.id : null, action, targetUserId: null, detail }).catch(() => {});
+
+app.get("/api/dispatch/summary", requireDispatchPage, async (req, res) => {
+  try {
+    const today = new Date().toLocaleDateString("en-CA", { timeZone: APP_TIMEZONE });
+    const from = /^\d{4}-\d{2}-\d{2}$/.test(String(req.query.from || "")) ? String(req.query.from) : today;
+    const to = /^\d{4}-\d{2}-\d{2}$/.test(String(req.query.to || "")) ? String(req.query.to) : new Date(Date.now() + 14 * 86400000).toLocaleDateString("en-CA", { timeZone: APP_TIMEZONE });
+    const [summary, config] = await Promise.all([dispatchSummary({ from, to }), getDispatchConfig()]);
+    return res.json({ ...summary, from, to, today, config: { departments: config.departments, status_map: config.status_map } });
+  } catch (err) {
+    console.error("Dispatch summary failed:", err.message);
+    return res.status(500).json({ error: "Unable to load the dispatch summary." });
+  }
+});
+
+app.get("/api/dispatch/work", requireDispatchPage, async (req, res) => {
+  try {
+    const q = req.query;
+    const work = await listDispatchWork({
+      from: /^\d{4}-\d{2}-\d{2}$/.test(String(q.from || "")) ? String(q.from) : null,
+      to: /^\d{4}-\d{2}-\d{2}$/.test(String(q.to || "")) ? String(q.to) : null,
+      department: String(q.department || "").slice(0, 10), workType: String(q.workType || "").slice(0, 20), readiness: String(q.readiness || "").slice(0, 20),
+      search: String(q.q || "").slice(0, 80), includeInactive: q.inactive === "1"
+    });
+    return res.json({ work });
+  } catch (err) {
+    console.error("Dispatch work list failed:", err.message);
+    return res.status(500).json({ error: "Unable to load dispatch work." });
+  }
+});
+
+app.get("/api/dispatch/work/:id", requireDispatchPage, async (req, res) => {
+  try {
+    const detail = await getDispatchWork(req.params.id);
+    if (!detail) return res.status(404).json({ error: "Work not found." });
+    return res.json(detail);
+  } catch (err) {
+    console.error("Dispatch work load failed:", err.message);
+    return res.status(500).json({ error: "Unable to load that work." });
+  }
+});
+
+// Human inputs: readiness, mobility, scheduled date, duration override, notes.
+app.post("/api/dispatch/work/:id", requireDispatchPage, async (req, res) => {
+  try {
+    const me = dispatchMe(req);
+    const detail = await updateDispatchWork(req.params.id, req.body || {}, { byEmail: me.email });
+    if (!detail) return res.status(404).json({ error: "Work not found." });
+    dispatchAudit(req, "dispatch_work_updated", { id: req.params.id, invoice: detail.work.invoice, workType: detail.work.workType, fields: Object.keys(req.body || {}) });
+    return res.json(detail);
+  } catch (err) {
+    return res.status(400).json({ error: err.message || "Unable to save." });
+  }
+});
+
+app.post("/api/dispatch/location/:id", requireDispatchPage, async (req, res) => {
+  try {
+    const me = dispatchMe(req);
+    const ok = await updateServiceLocation(req.params.id, req.body || {}, { byEmail: me.email });
+    if (!ok) return res.status(400).json({ error: "Nothing to change." });
+    dispatchAudit(req, "dispatch_location_updated", { id: req.params.id, extraMinutes: req.body?.extraMinutes, modifiers: req.body?.modifiers });
+    return res.json({ ok: true });
+  } catch (err) {
+    return res.status(400).json({ error: err.message || "Unable to save the location." });
+  }
+});
+
+app.post("/api/dispatch/import", requireDispatchPage, (req, res) => {
+  dispatchCsvUpload.single("export")(req, res, async (err) => {
+    if (err) return res.status(400).json({ error: "Couldn't read that upload." });
+    try {
+      if (!req.file?.buffer?.length) return res.status(400).json({ error: "Choose the DispatchTrack export (.csv)." });
+      const me = dispatchMe(req);
+      const result = await importDispatchTrack(req.file.buffer.toString("utf8"), { filename: String(req.file.originalname || "").slice(0, 120), byEmail: me.email });
+      dispatchAudit(req, "dispatch_export_imported", result);
+      return res.json({ ok: true, ...result });
+    } catch (error) {
+      console.error("Dispatch import failed:", error.message);
+      return res.status(400).json({ error: error.message || "Unable to import that file." });
+    }
+  });
+});
+
+// Standards (configuration, not code): executives edit the JSON per key.
+app.get("/api/dispatch/config", requireDispatchPage, async (req, res) => {
+  try { return res.json({ config: await getDispatchConfig(), defaults: DISPATCH_DEFAULT_CONFIG, canEdit: isExecutiveUser(req.authUser) }); }
+  catch (err) { return res.status(500).json({ error: "Unable to load configuration." }); }
+});
+app.post("/api/dispatch/config/:key", requireExecutiveApi, async (req, res) => {
+  try {
+    const me = dispatchMe(req);
+    const config = req.body?.reset ? await resetDispatchConfig(req.params.key) : await saveDispatchConfig(req.params.key, req.body?.value, me.email);
+    dispatchAudit(req, "dispatch_config_saved", { key: req.params.key, reset: !!req.body?.reset });
+    return res.json({ ok: true, config });
+  } catch (err) {
+    return res.status(400).json({ error: err.message || "Unable to save configuration." });
+  }
+});
+
 // Serve the employee directory from Postgres (editable in User Admin).
 // Registered BEFORE express.static so it shadows the legacy static file,
 // which remains the fallback when the database is unreachable.
@@ -8681,7 +8796,13 @@ app.post("/api/epass-agent/upload", express.raw({ type: () => true, limit: "60mb
       return res.json({ ok: true, kind, tickets: saved.count, periodFrom: parsed.periodFrom, periodTo: parsed.periodTo });
     }
 
-    return res.status(400).json({ error: `Unknown upload kind "${kind}" — expected inventory, quotes, or open-orders.` });
+    if (kind === "dispatch") {
+      const result = await importDispatchTrack(req.body.toString("utf8"), { filename: sourceFile, byEmail: "epass-agent" });
+      recordAudit({ ip: req.ip, actorUserId: null, action: "dispatch_export_imported", targetUserId: null, detail: { ...result, via: "epass-agent", filename: sourceFile.slice(0, 120) } }).catch(() => {});
+      return res.json({ ok: true, kind, orders: result.orders, work: result.workDerived + result.workUpdated });
+    }
+
+    return res.status(400).json({ error: `Unknown upload kind "${kind}" — expected inventory, quotes, open-orders, or dispatch.` });
   } catch (err) {
     console.error("ePASS agent upload failed:", err.message);
     return res.status(400).json({ error: err.message || "Unable to process that file." });

@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="robots" content="noindex,nofollow,noarchive" />
+  <title>Wilson AC & Appliance - Dispatch Work</title>
+  <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+  <link rel="stylesheet" href="internal-shell.css" />
+  <style>
+    :root {
+      --bg: #f7f8fc; --card: #ffffff; --text: #1f2937; --muted: #6b7280; --border: #dbe1ea;
+      --success-bg: #ecfdf5; --success-text: #065f46; --error-bg: #fef2f2; --error-text: #991b1b; --warn-bg: #fffbeb; --warn-text: #92400e;
+      --shadow: 0 10px 35px rgba(0, 0, 0, 0.08); --radius: 18px;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: "Roboto", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: linear-gradient(180deg, var(--primary-tint) 0%, var(--bg) 100%); color: var(--text); min-height: 100vh; padding: 32px 16px; }
+    .wrap { max-width: 1480px; margin: 0 auto; }
+    .surface { background: var(--card); border: 1px solid rgba(var(--primary-rgb), 0.12); box-shadow: var(--shadow); border-radius: var(--radius); padding: 22px 24px; margin: 0 auto 18px; }
+    h2 { margin: 0 0 4px; font-size: 22px; }
+    h3 { margin: 0 0 10px; font-size: 13px; text-transform: uppercase; letter-spacing: 0.05em; color: #64748b; }
+    .section-note { margin: 0 0 14px; color: var(--muted); font-size: 14px; line-height: 1.5; }
+    label { display: block; margin-bottom: 5px; font-size: 12px; font-weight: 700; color: #475569; }
+    input, select, textarea { width: 100%; border: 1px solid var(--border); border-radius: 10px; padding: 9px 11px; font-size: 14px; background: #fff; color: var(--text); outline: none; font-family: inherit; }
+    textarea { min-height: 70px; resize: vertical; }
+    textarea.code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12.5px; min-height: 260px; }
+    input:focus, select:focus, textarea:focus { border-color: rgba(var(--primary-rgb), 0.75); box-shadow: 0 0 0 4px rgba(var(--primary-rgb), 0.12); }
+    button { appearance: none; border: none; background: var(--primary); color: #fff; padding: 9px 14px; border-radius: 10px; font-size: 14px; font-weight: 700; cursor: pointer; white-space: nowrap; font-family: inherit; }
+    button:hover { background: var(--primary-hover); }
+    button:disabled { opacity: 0.6; cursor: wait; }
+    button.secondary { background: var(--primary-tint); color: var(--primary); }
+    button.quiet { background: #f1f5f9; color: #334155; }
+    button.tiny { padding: 5px 9px; font-size: 12px; border-radius: 8px; }
+    .status { display: none; margin: 10px 0 0; border-radius: 12px; padding: 10px 14px; font-size: 14px; line-height: 1.5; }
+    .status.show { display: block; }
+    .status.error { background: var(--error-bg); color: var(--error-text); }
+    .status.ok { background: var(--success-bg); color: var(--success-text); }
+    .status.warn { background: var(--warn-bg); color: var(--warn-text); }
+    .tabs { display: inline-flex; border: 1px solid var(--border); border-radius: 999px; overflow: hidden; background: #fff; margin-bottom: 12px; }
+    .tabs button { background: transparent; color: var(--muted); border-radius: 0; padding: 8px 16px; font-size: 13px; }
+    .tabs button.on { background: var(--primary-tint); color: var(--primary-hover); }
+    .toolbar { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; }
+    .toolbar .field { flex: 0 1 170px; }
+    .toolbar .field.grow { flex: 1 1 220px; }
+    .toolbar .spacer { flex: 1; }
+    .file { position: relative; display: inline-block; }
+    .file input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+    .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin-top: 12px; }
+    .tile { background: var(--primary-faint-2, #f6faf6); border: 1px solid var(--border); border-radius: 12px; padding: 10px 14px; font-size: 12px; color: var(--muted); }
+    .tile strong { display: block; font-size: 20px; color: var(--text); font-variant-numeric: tabular-nums; }
+    table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+    th, td { text-align: left; padding: 8px; border-bottom: 1px solid #eef1f6; vertical-align: top; }
+    th { font-size: 11.5px; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; color: #64748b; white-space: nowrap; }
+    th.num, td.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+    tbody tr.w { cursor: pointer; }
+    tbody tr.w:hover td { background: var(--primary-faint-2, #f6faf6); }
+    tr.day td { background: #f8fafc; font-weight: 800; border-top: 2px solid var(--border); }
+    .pill { display: inline-block; padding: 2px 9px; border-radius: 999px; font-size: 11.5px; font-weight: 700; white-space: nowrap; background: #f1f5f9; color: #334155; }
+    .pill.DELIVERY { background: #dbeafe; color: #1e40af; }
+    .pill.INSTALL { background: #ede9fe; color: #5b21b6; }
+    .pill.ready { background: #dcfce7; color: #166534; }
+    .pill.scheduled { background: #cffafe; color: #155e75; }
+    .pill.not_ready { background: #fef3c7; color: #92400e; }
+    .pill.completed { background: #e2e8f0; color: #334155; }
+    .pill.on_hold { background: #fee2e2; color: #991b1b; }
+    .pill.COMMITTED { background: #fee2e2; color: #991b1b; }
+    .pill.PREFERRED { background: #fef3c7; color: #92400e; }
+    .pill.FLEXIBLE { background: #ecfdf5; color: #065f46; }
+    .sub { color: var(--muted); font-size: 12px; }
+    .warn-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #f59e0b; margin-right: 4px; }
+    .empty { padding: 24px 10px; text-align: center; color: var(--muted); }
+    .table-scroll { overflow-x: auto; }
+    /* drawer */
+    .drawer-back { position: fixed; inset: 0; background: rgba(15, 23, 42, 0.35); display: none; z-index: 40; }
+    .drawer-back.show { display: block; }
+    .drawer { position: fixed; top: 0; right: 0; bottom: 0; width: min(900px, 100%); background: #fff; z-index: 41; transform: translateX(105%); transition: transform 0.2s ease; overflow-y: auto; overflow-x: hidden; box-shadow: -12px 0 40px rgba(0,0,0,0.18); }
+    .drawer.show { transform: translateX(0); }
+    .drawer-head { position: sticky; top: 0; background: #fff; border-bottom: 1px solid var(--border); padding: 14px 20px; display: flex; gap: 12px; align-items: flex-start; z-index: 2; }
+    .drawer-head h2 { font-size: 19px; margin: 0; }
+    .drawer-head .close { margin-left: auto; }
+    .drawer-body { padding: 16px 20px 40px; display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .panel { border: 1px solid var(--border); border-radius: 14px; padding: 14px 16px; min-width: 0; overflow: hidden; }
+    .panel.full { grid-column: span 2; }
+    .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 12px; }
+    .grid2 > div { min-width: 0; }
+    .grid2 .full { grid-column: span 2; }
+    .rowline { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 10px; }
+    .mini { font-size: 12.5px; }
+    .mini th, .mini td { padding: 5px 6px; }
+    .warnbox { background: var(--warn-bg); color: var(--warn-text); border-radius: 10px; padding: 8px 10px; font-size: 12.5px; margin-top: 8px; }
+    .stat-row { display: flex; gap: 8px; flex-wrap: wrap; margin: 6px 0 10px; }
+    .stat { background: var(--primary-faint-2, #f6faf6); border: 1px solid var(--border); border-radius: 10px; padding: 6px 10px; font-size: 11.5px; color: var(--muted); }
+    .stat strong { display: block; font-size: 15px; color: var(--text); }
+    .cap { display: inline-block; background: #f1f5f9; border-radius: 6px; padding: 1px 7px; font-size: 11px; font-weight: 700; margin: 2px 4px 2px 0; }
+    .hist { font-size: 12px; color: var(--muted); padding: 4px 0; border-bottom: 1px dashed #eef1f6; }
+    .cfgkeys { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+    .cfgkeys button.on { background: var(--primary); color: #fff; }
+    @media (max-width: 860px) { .drawer-body { grid-template-columns: 1fr; } .panel.full { grid-column: span 1; } .grid2 { grid-template-columns: 1fr; } .grid2 .full { grid-column: span 1; } }
+    @media (max-width: 720px) {
+      body { padding: 14px 8px; } .surface { padding: 14px; } .internal-shell-header-top { flex-wrap: wrap !important; }
+      .toolbar .field, .toolbar .field.grow { flex: 1 1 45%; } .toolbar button, .toolbar .file { flex: 1 1 100%; }
+      .work-table thead, .work-table tr.day { display: none; }
+      .work-table, .work-table tbody, .work-table tr, .work-table td { display: block; width: 100%; }
+      .work-table tbody tr.w { border: 1px solid var(--border); border-radius: 12px; padding: 8px 10px; margin-bottom: 8px; }
+      .work-table td { border: none; padding: 2px 0; } .work-table td.num { text-align: left; }
+      .work-table td[data-l]::before { content: attr(data-l) ": "; font-size: 11px; font-weight: 800; text-transform: uppercase; color: #64748b; }
+    }
+  </style>
+</head>
+<body data-shell-label="Dispatch Work" data-shell-icon="delivery">
+  <div class="wrap">
+    <div id="internal-shell-header"></div>
+
+    <div class="surface">
+      <h2>Dispatch Work</h2>
+      <p class="section-note">The demand picture: every delivery and installation obligation derived from the ePASS export, with revenue, standard minutes, truck points and crew requirements. Readiness, mobility and duration overrides are yours to set — the import never overwrites them.</p>
+      <div class="tabs" id="tabs"><button type="button" data-tab="work" class="on">Work</button><button type="button" data-tab="days">By day</button><button type="button" data-tab="standards">Standards</button><button type="button" data-tab="imports">Imports</button></div>
+
+      <div id="tab-work">
+        <div class="toolbar">
+          <div class="field"><label for="from">From</label><input id="from" type="date" /></div>
+          <div class="field"><label for="to">To</label><input id="to" type="date" /></div>
+          <div class="field"><label for="dept">Department</label><select id="dept"><option value="">All</option></select></div>
+          <div class="field"><label for="wtype">Work</label><select id="wtype"><option value="">Delivery + install</option><option value="DELIVERY">Delivery</option><option value="INSTALL">Install</option></select></div>
+          <div class="field"><label for="ready">Readiness</label><select id="ready"><option value="">Any</option><option value="not_ready">Not ready</option><option value="ready">Ready</option><option value="scheduled">Scheduled</option><option value="completed">Completed</option><option value="on_hold">On hold</option></select></div>
+          <div class="field grow"><label for="q">Search</label><input id="q" type="search" placeholder="Invoice, customer or address" autocomplete="off" /></div>
+        </div>
+        <div class="tiles" id="tiles"></div>
+        <div id="pageStatus" class="status"></div>
+      </div>
+
+      <div id="tab-days" hidden>
+        <div class="table-scroll"><table><thead><tr><th>Date</th><th>Dept</th><th>Work</th><th>Readiness</th><th class="num">Jobs</th><th class="num">Locations</th><th class="num">Minutes</th><th class="num">Points out</th><th class="num">Revenue</th><th class="num">Warnings</th></tr></thead><tbody id="dayRows"></tbody></table></div>
+        <h3 style="margin-top:16px;">Delivery + installation consolidation</h3>
+        <div class="table-scroll"><table><thead><tr><th>Date</th><th class="num">Invoices</th><th class="num">Unique locations</th><th class="num">Installs</th><th class="num">Install with delivery same day</th><th class="num">Consolidation rate</th></tr></thead><tbody id="consRows"></tbody></table></div>
+      </div>
+
+      <div id="tab-standards" hidden>
+        <p class="section-note">Operating values live here, not in code: departments, status → readiness map, line classification rules, delivery base minutes, product handling minutes and points, install minutes, capability rules, packaging factor. Edit the JSON and save; the next import applies it. Reset returns a key to the shipped default.</p>
+        <div class="cfgkeys" id="cfgKeys"></div>
+        <textarea id="cfgEditor" class="code" spellcheck="false"></textarea>
+        <div class="rowline"><button type="button" id="cfgSave">Save</button><button type="button" class="quiet" id="cfgReset">Reset to default</button><span class="sub" id="cfgHint"></span></div>
+        <div id="cfgStatus" class="status"></div>
+      </div>
+
+      <div id="tab-imports" hidden>
+        <div class="rowline"><span class="file"><button type="button" class="secondary">Import DispatchTrack export (.csv)</button><input type="file" id="csvFile" accept=".csv,text/csv" /></span><span class="sub">The ePASS agent can push this nightly as kind <code>dispatch</code>.</span></div>
+        <div id="importStatus" class="status"></div>
+        <div class="table-scroll" style="margin-top:12px;"><table><thead><tr><th>When</th><th>File</th><th>By</th><th class="num">Rows</th><th class="num">Orders</th><th class="num">Work</th><th>Summary</th></tr></thead><tbody id="importRows"></tbody></table></div>
+      </div>
+    </div>
+
+    <div class="surface" id="workSurface">
+      <div class="table-scroll">
+        <table class="work-table">
+          <thead><tr><th>Date</th><th>Invoice</th><th>Work</th><th>Customer / location</th><th>Readiness</th><th>Mobility</th><th class="num">Minutes</th><th class="num">Points</th><th class="num">Revenue</th><th>Crew</th></tr></thead>
+          <tbody id="rows"><tr><td colspan="10" class="empty">Loading…</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div id="internal-shell-footer"></div>
+  </div>
+
+  <div class="drawer-back" id="drawerBack"></div>
+  <div class="drawer" id="drawer">
+    <div class="drawer-head"><div><h2 id="dTitle">—</h2><div class="sub" id="dSub"></div></div><button type="button" class="quiet close" id="dClose">Close</button></div>
+    <div class="drawer-body" id="dBody"></div>
+  </div>
+
+  <script src="internal-shell.js"></script>
+  <script>
+    const $ = (id) => document.getElementById(id);
+    const esc = (v) => String(v ?? "").replace(/[&<>"']/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch]));
+    const money = (n) => "$" + Number(n || 0).toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+    const money2 = (n) => "$" + Number(n || 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const fmtDate = (iso) => /^\d{4}-\d{2}-\d{2}/.test(iso || "") ? new Intl.DateTimeFormat("en-US", { weekday: "short", month: "short", day: "numeric", timeZone: "UTC" }).format(new Date(iso.slice(0, 10) + "T12:00:00Z")) : "—";
+    const hrs = (m) => m >= 60 ? `${Math.floor(m / 60)}h ${String(m % 60).padStart(2, "0")}m` : `${m}m`;
+    const pill = (v) => `<span class="pill ${esc(v)}">${esc(String(v || "").replace(/_/g, " "))}</span>`;
+    function setStatus(id, message, kind) { const box = $(id); if (!message) { box.className = "status"; box.textContent = ""; return; } box.className = "status " + kind + " show"; box.textContent = message; }
+    async function api(path, options = {}) {
+      const res = await fetch(path, { credentials: "same-origin", headers: options.body && !(options.body instanceof FormData) ? { "Content-Type": "application/json" } : {}, ...options });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || "Request failed.");
+      return data;
+    }
+    let SUMMARY = null, WORK = [], CONFIG = null;
+
+    // ---- tabs
+    document.querySelectorAll("#tabs button").forEach((b) => b.addEventListener("click", () => {
+      document.querySelectorAll("#tabs button").forEach((x) => x.classList.toggle("on", x === b));
+      ["work", "days", "standards", "imports"].forEach((t) => { $("tab-" + t).hidden = t !== b.dataset.tab; });
+      $("workSurface").hidden = b.dataset.tab !== "work";
+      if (b.dataset.tab === "standards" && !CONFIG) loadConfig();
+    }));
+
+    // ---- summary + list
+    async function loadSummary() {
+      SUMMARY = await api(`/api/dispatch/summary?from=${$("from").value}&to=${$("to").value}`);
+      const depts = SUMMARY.config.departments;
+      if ($("dept").options.length === 1) for (const [k, v] of Object.entries(depts)) if (v.deriveWork) { const o = document.createElement("option"); o.value = k; o.textContent = `${k} — ${v.label}`; $("dept").appendChild(o); }
+      const rows = SUMMARY.rows;
+      const tot = rows.reduce((a, r) => ({ jobs: a.jobs + r.count, minutes: a.minutes + r.minutes, revenue: a.revenue + r.revenue, points: a.points + r.pointsOut, warn: a.warn + r.withWarnings }), { jobs: 0, minutes: 0, revenue: 0, points: 0, warn: 0 });
+      const ready = rows.filter((r) => r.readiness === "ready").reduce((a, r) => a + r.count, 0);
+      const notReady = rows.filter((r) => r.readiness === "not_ready").reduce((a, r) => a + r.count, 0);
+      const cons = SUMMARY.consolidation.reduce((a, c) => ({ i: a.i + c.installs, s: a.s + c.installWithDeliverySameDay }), { i: 0, s: 0 });
+      $("tiles").innerHTML = [["Work headers", tot.jobs], ["Ready to schedule", ready], ["Not ready", notReady], ["Planned work", hrs(tot.minutes)], ["Truck points out", tot.points.toFixed(0)], ["Scheduled revenue", money(tot.revenue)], ["Install with delivery same day", cons.i ? `${Math.round(100 * cons.s / cons.i)}%` : "—"], ["With warnings", tot.warn]]
+        .map(([l, v]) => `<div class="tile">${esc(l)}<strong>${esc(v)}</strong></div>`).join("");
+      $("dayRows").innerHTML = rows.length ? rows.map((r) => `<tr><td>${fmtDate(r.date)}</td><td>${esc(r.department)}</td><td>${pill(r.workType)}</td><td>${pill(r.readiness)}</td><td class="num">${r.count}</td><td class="num">${r.locations}</td><td class="num">${hrs(r.minutes)}</td><td class="num">${r.pointsOut.toFixed(0)}</td><td class="num">${money(r.revenue)}</td><td class="num">${r.withWarnings || ""}</td></tr>`).join("") : `<tr><td colspan="10" class="empty">No work in this window.</td></tr>`;
+      $("consRows").innerHTML = SUMMARY.consolidation.map((c) => `<tr><td>${fmtDate(c.date)}</td><td class="num">${c.invoices}</td><td class="num">${c.locations}</td><td class="num">${c.installs}</td><td class="num">${c.installWithDeliverySameDay}</td><td class="num">${c.installs ? Math.round(100 * c.installWithDeliverySameDay / c.installs) + "%" : "—"}</td></tr>`).join("");
+      $("importRows").innerHTML = SUMMARY.imports.length ? SUMMARY.imports.map((i) => `<tr><td>${new Date(i.at).toLocaleString("en-US", { timeZone: "America/Chicago" })}</td><td>${esc(i.filename)}</td><td>${esc(i.uploadedBy)}</td><td class="num">${i.rows}</td><td class="num">${i.orders}</td><td class="num">${i.work}</td><td class="sub">${esc(summaryText(i.summary))}</td></tr>`).join("") : `<tr><td colspan="7" class="empty">Nothing imported yet.</td></tr>`;
+    }
+    const summaryText = (s) => s && s.departments ? `${s.newTransactions || 0} new · ${s.updatedTransactions || 0} changed · ${s.deactivated || 0} dropped out · ${s.workDerived || 0} work derived · ${s.unclassified || 0} unclassified lines · ${s.noGeocode || 0} without coordinates` : "";
+    async function loadWork() {
+      setStatus("pageStatus", "");
+      try {
+        const p = new URLSearchParams({ from: $("from").value, to: $("to").value, department: $("dept").value, workType: $("wtype").value, readiness: $("ready").value, q: $("q").value.trim() });
+        WORK = (await api(`/api/dispatch/work?${p}`)).work;
+        renderWork();
+      } catch (err) { setStatus("pageStatus", err.message, "error"); }
+    }
+    function renderWork() {
+      if (!WORK.length) { $("rows").innerHTML = `<tr><td colspan="10" class="empty">No work matches. Import the DispatchTrack export on the Imports tab if this is the first run.</td></tr>`; return; }
+      let html = "", last = null, dayTot = null;
+      const flush = () => { if (dayTot) html += `<tr class="day"><td colspan="6">${fmtDate(last)} — ${dayTot.n} jobs · ${dayTot.loc.size} locations</td><td class="num">${hrs(dayTot.min)}</td><td class="num">${dayTot.pts.toFixed(0)}</td><td class="num">${money(dayTot.rev)}</td><td></td></tr>`; };
+      for (const w of WORK) {
+        if (w.requestedDate !== last) { flush(); last = w.requestedDate; dayTot = { n: 0, min: 0, pts: 0, rev: 0, loc: new Set() }; }
+        dayTot.n++; dayTot.min += w.effectiveMinutes; dayTot.pts += w.pointsOut; dayTot.rev += w.revenue; dayTot.loc.add(w.serviceLocationId);
+        html += `<tr class="w" data-id="${esc(w.id)}">
+          <td data-l="Date">${fmtDate(w.requestedDate)}</td>
+          <td data-l="Invoice"><strong>${esc(w.invoice)}</strong><div class="sub">${esc(w.transaction?.jobStatus || "")}${w.transaction?.truck ? " · " + esc(w.transaction.truck) : ""}</div></td>
+          <td data-l="Work">${pill(w.workType)}</td>
+          <td data-l="Customer">${w.warnings.length ? '<span class="warn-dot" title="' + esc(w.warnings.join("; ")) + '"></span>' : ""}${esc(w.customerName)}<div class="sub">${esc([w.location?.address1, w.location?.city].filter(Boolean).join(", "))}${w.location?.mapZone ? " · " + esc(w.location.mapZone) : ""}</div></td>
+          <td data-l="Readiness">${pill(w.readiness)}</td>
+          <td data-l="Mobility">${pill(w.mobility)}</td>
+          <td class="num" data-l="Minutes">${w.effectiveMinutes}${w.overrideMinutes != null ? '<span class="sub"> (o)</span>' : ""}</td>
+          <td class="num" data-l="Points">${w.pointsOut ? w.pointsOut.toFixed(0) : ""}${w.pointsReturn ? `<span class="sub"> / ${w.pointsReturn.toFixed(0)} back</span>` : ""}</td>
+          <td class="num" data-l="Revenue">${money(w.revenue)}</td>
+          <td data-l="Crew"><span class="sub">${w.requirements?.minPeople || ""}p · ${(w.requirements?.capabilities || []).map((c) => c.replace(/_/g, " ").toLowerCase()).join(", ")}</span></td>
+        </tr>`;
+      }
+      flush();
+      $("rows").innerHTML = html;
+    }
+    $("rows").addEventListener("click", (ev) => { const tr = ev.target.closest("tr.w"); if (tr) openWork(tr.dataset.id); });
+    ["from", "to", "dept", "wtype", "ready"].forEach((id) => $(id).addEventListener("change", () => { loadSummary().catch(() => {}); loadWork(); }));
+    let qt; $("q").addEventListener("input", () => { clearTimeout(qt); qt = setTimeout(loadWork, 250); });
+
+    // ---- drawer
+    let D = null;
+    const closeDrawer = () => { $("drawer").classList.remove("show"); $("drawerBack").classList.remove("show"); };
+    $("dClose").addEventListener("click", closeDrawer); $("drawerBack").addEventListener("click", closeDrawer);
+    async function openWork(id) {
+      $("drawer").classList.add("show"); $("drawerBack").classList.add("show"); $("dTitle").textContent = "Loading…"; $("dBody").innerHTML = "";
+      try { D = await api(`/api/dispatch/work/${id}`); renderDrawer(); } catch (err) { $("dTitle").textContent = "Couldn't load"; $("dBody").innerHTML = `<div class="status error show">${esc(err.message)}</div>`; }
+    }
+    function renderDrawer() {
+      const w = D.work, t = w.transaction || {}, loc = w.location || {};
+      $("dTitle").textContent = `${w.invoice} · ${w.workType === "DELIVERY" ? "Delivery" : "Installation"} — ${w.customerName}`;
+      $("dSub").innerHTML = `${esc([loc.address1, loc.address2, loc.city, loc.zip].filter(Boolean).join(", "))} · ${esc(w.department)} · ePASS ${esc(t.jobStatus)}${t.truck ? " on " + esc(t.truck) : ""} · ${esc(t.salesperson || "")}`;
+      const comps = (w.durationBreakdown?.components || []);
+      $("dBody").innerHTML = `
+        <div class="panel">
+          <h3>Dispatch inputs</h3>
+          <div class="grid2">
+            <div><label>Readiness</label><select id="f_readiness">${["not_ready", "ready", "scheduled", "completed", "on_hold"].map((v) => `<option value="${v}"${v === w.readiness ? " selected" : ""}>${v.replace(/_/g, " ")}</option>`).join("")}</select><div class="sub">${w.readinessBy ? "Set by " + esc(w.readinessBy) : "Following ePASS status " + esc(w.sourceStatus)}</div></div>
+            <div><label>Mobility</label><select id="f_mobility">${["FLEXIBLE", "PREFERRED", "COMMITTED"].map((v) => `<option value="${v}"${v === w.mobility ? " selected" : ""}>${v}</option>`).join("")}</select></div>
+            <div><label>Requested date (ePASS)</label><input value="${esc(w.requestedDate || "")}" disabled /></div>
+            <div><label>Scheduled date</label><input id="f_scheduledDate" type="date" value="${esc(w.scheduledDate || "")}" /></div>
+            <div><label>Duration override (minutes)</label><input id="f_override" type="number" min="0" value="${w.overrideMinutes ?? ""}" placeholder="standard: ${w.estimatedMinutes}" /></div>
+            <div><label>Reason</label><input id="f_reason" value="${esc(w.overrideReason || "")}" placeholder="Required for an override" /></div>
+            <div class="full"><label>Dispatch notes</label><textarea id="f_notes">${esc(w.notes)}</textarea></div>
+          </div>
+          <div class="rowline"><button type="button" id="dSave">Save</button><span class="sub">Every change is kept in the history below.</span></div>
+          <div id="dStatus" class="status"></div>
+          <h3 style="margin-top:14px;">History</h3>
+          <div id="dHist">${D.history.length ? D.history.map((h) => `<div class="hist">${esc(h.field.replace(/_/g, " "))}: ${esc(h.prior || "—")} → ${esc(h.next || "—")}${h.reason ? " (" + esc(h.reason) + ")" : ""} · ${esc(h.by)} · ${new Date(h.at).toLocaleString("en-US", { timeZone: "America/Chicago" })}</div>`).join("") : '<div class="sub">No changes yet.</div>'}</div>
+        </div>
+        <div class="panel">
+          <h3>Duration, load, requirements</h3>
+          <div class="stat-row"><div class="stat">Standard<strong>${w.estimatedMinutes} min</strong></div><div class="stat">Effective<strong>${w.effectiveMinutes} min</strong></div><div class="stat">Revenue<strong>${money2(w.revenue)}</strong></div><div class="stat">Points out<strong>${w.pointsOut.toFixed(1)}</strong></div><div class="stat">Points back<strong>${w.pointsReturn.toFixed(1)}</strong></div></div>
+          <table class="mini"><tbody>${comps.map((c) => `<tr><td>${esc(c.label)}${c.source ? ` <span class="sub">(${esc(c.source)})</span>` : ""}</td><td class="num">${c.minutes} min</td></tr>`).join("")}<tr><td><strong>Total standard</strong></td><td class="num"><strong>${w.estimatedMinutes} min</strong></td></tr></tbody></table>
+          <div style="margin-top:8px;"><span class="sub">Needs:</span> <span class="cap">${w.requirements?.minPeople || "?"} people</span>${(w.requirements?.capabilities || []).map((c) => `<span class="cap">${esc(c.replace(/_/g, " ").toLowerCase())}</span>`).join("")}${w.requirements?.vehicleClass ? `<span class="cap">${esc(w.requirements.vehicleClass.replace(/_/g, " ").toLowerCase())}</span>` : ""}</div>
+          ${w.warnings.length ? `<div class="warnbox">${w.warnings.map((x) => "• " + esc(x)).join("<br>")}</div>` : ""}
+          <h3 style="margin-top:14px;">Service location</h3>
+          <div class="grid2">
+            <div><label>Access minutes (persists for future visits)</label><input id="l_extra" type="number" min="0" value="${loc.extraMinutes || 0}" /></div>
+            <div><label>Modifiers (comma separated)</label><input id="l_mods" value="${esc((loc.modifiers || []).join(", "))}" placeholder="stairs, long carry, gate code" /></div>
+          </div>
+          <div class="rowline"><button type="button" class="secondary" id="lSave">Save location</button><span class="sub">${loc.lat && loc.lng ? `${Number(loc.lat).toFixed(5)}, ${Number(loc.lng).toFixed(5)}` : "No coordinates from ePASS"}</span></div>
+          ${D.sameLocation.length ? `<h3 style="margin-top:14px;">Other work at this location</h3>${D.sameLocation.map((s) => `<div class="hist">${esc(s.invoice)} · ${esc(s.workType)} · ${fmtDate(s.requestedDate)} · ${esc(s.readiness)} · ${s.minutes} min · ${money(s.revenue)}</div>`).join("")}` : ""}
+          ${D.related.length ? `<h3 style="margin-top:14px;">Related work</h3>${D.related.map((r) => `<div class="hist">${esc(r.type)} → ${esc(r.invoice)} ${esc(r.workType)} · ${fmtDate(r.requestedDate)} · ${esc(r.readiness)}</div>`).join("")}` : ""}
+        </div>
+        <div class="panel full">
+          <h3>Invoice lines (${D.invoiceLines.length}) — this header carries the highlighted ones</h3>
+          <div class="table-scroll"><table class="mini"><thead><tr><th>#</th><th>Model</th><th>Description</th><th>Class</th><th class="num">Qty</th><th class="num">Ext</th><th>Code</th></tr></thead><tbody>
+            ${D.invoiceLines.map((l) => { const mine = D.lines.some((x) => x.id === l.id); return `<tr style="${mine ? "" : "opacity:0.55;"}"><td>${l.lineNo}</td><td>${esc(l.model)}</td><td>${esc(l.description.slice(0, 80))}</td><td><span class="pill">${esc(l.lineClass)}</span> <span class="sub">${esc(l.classSource)}</span></td><td class="num">${l.qty}</td><td class="num">${l.ext ? money2(l.ext) : ""}</td><td>${esc(l.productCode)}</td></tr>`; }).join("")}
+          </tbody></table></div>
+          ${t.comment1 ? `<div class="sub" style="margin-top:8px;">ePASS comment: ${esc(t.comment1)}</div>` : ""}
+          <div class="sub">Contact: ${esc([t.phone1, t.email].filter(Boolean).join(" · ") || "—")}${t.balance ? ` · Balance ${money2(t.balance)}` : ""}</div>
+        </div>`;
+      $("dSave").addEventListener("click", async () => {
+        const body = { readiness: $("f_readiness").value, mobility: $("f_mobility").value, scheduledDate: $("f_scheduledDate").value, overrideMinutes: $("f_override").value === "" ? null : Number($("f_override").value), reason: $("f_reason").value, notes: $("f_notes").value };
+        try { D = await api(`/api/dispatch/work/${w.id}`, { method: "POST", body: JSON.stringify(body) }); renderDrawer(); setStatus("dStatus", "Saved.", "ok"); const i = WORK.findIndex((x) => x.id === w.id); if (i >= 0) { WORK[i] = D.work; renderWork(); } }
+        catch (err) { setStatus("dStatus", err.message, "error"); }
+      });
+      $("lSave").addEventListener("click", async () => {
+        try { await api(`/api/dispatch/location/${w.serviceLocationId}`, { method: "POST", body: JSON.stringify({ extraMinutes: Number($("l_extra").value || 0), modifiers: $("l_mods").value.split(",").map((s) => s.trim()).filter(Boolean) }) }); D = await api(`/api/dispatch/work/${w.id}`); renderDrawer(); setStatus("dStatus", "Location saved — durations at this address updated.", "ok"); loadWork(); }
+        catch (err) { setStatus("dStatus", err.message, "error"); }
+      });
+    }
+
+    // ---- standards
+    let cfgKey = "";
+    async function loadConfig() {
+      const r = await api("/api/dispatch/config"); CONFIG = r;
+      $("cfgKeys").innerHTML = Object.keys(r.defaults).map((k) => `<button type="button" class="tiny quiet" data-k="${esc(k)}">${esc(k)}</button>`).join("");
+      $("cfgKeys").querySelectorAll("button").forEach((b) => b.addEventListener("click", () => showKey(b.dataset.k)));
+      $("cfgSave").disabled = !r.canEdit; $("cfgReset").disabled = !r.canEdit; $("cfgHint").textContent = r.canEdit ? "" : "Executives can edit standards.";
+      showKey(cfgKey || Object.keys(r.defaults)[0]);
+    }
+    function showKey(k) { cfgKey = k; $("cfgKeys").querySelectorAll("button").forEach((b) => b.classList.toggle("on", b.dataset.k === k)); $("cfgEditor").value = JSON.stringify(CONFIG.config[k], null, 2); setStatus("cfgStatus", ""); }
+    $("cfgSave").addEventListener("click", async () => {
+      let value; try { value = JSON.parse($("cfgEditor").value); } catch { setStatus("cfgStatus", "That isn't valid JSON.", "error"); return; }
+      try { const r = await api(`/api/dispatch/config/${cfgKey}`, { method: "POST", body: JSON.stringify({ value }) }); CONFIG.config = r.config; setStatus("cfgStatus", `Saved ${cfgKey}. Re-import the export to apply it to existing work.`, "ok"); } catch (err) { setStatus("cfgStatus", err.message, "error"); }
+    });
+    $("cfgReset").addEventListener("click", async () => { try { const r = await api(`/api/dispatch/config/${cfgKey}`, { method: "POST", body: JSON.stringify({ reset: true }) }); CONFIG.config = r.config; showKey(cfgKey); setStatus("cfgStatus", `${cfgKey} reset to the shipped default.`, "ok"); } catch (err) { setStatus("cfgStatus", err.message, "error"); } });
+
+    // ---- import
+    $("csvFile").addEventListener("change", async () => {
+      const f = $("csvFile").files[0]; if (!f) return;
+      setStatus("importStatus", `Importing ${f.name}…`, "warn");
+      try { const form = new FormData(); form.append("export", f); const r = await api("/api/dispatch/import", { method: "POST", body: form }); setStatus("importStatus", `Imported ${r.rows} rows / ${r.orders} orders: ${summaryText(r)}.`, "ok"); await loadSummary(); await loadWork(); }
+      catch (err) { setStatus("importStatus", err.message, "error"); } finally { $("csvFile").value = ""; }
+    });
+
+    (async () => {
+      const today = new Date().toLocaleDateString("en-CA", { timeZone: "America/Chicago" });
+      $("from").value = today; $("to").value = new Date(Date.now() + 14 * 86400000).toLocaleDateString("en-CA", { timeZone: "America/Chicago" });
+      try { await loadSummary(); } catch (err) { setStatus("pageStatus", err.message, "error"); }
+      await loadWork();
+    })();
+  </script>
+</body>
+</html>

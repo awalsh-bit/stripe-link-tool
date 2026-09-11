@@ -474,6 +474,17 @@
       const h = normalizeHeaderText(header);
       if (!h) return null;
       if (h.includes("inv type")) return "invType";
+      // Service-journey mirror columns (Test Modules → Service Journey).
+      if (h.includes("finish date")) return "finishDate";
+      if (h.includes("map zone")) return "mapZone";
+      if (h.includes("service model")) return "serviceModel";
+      if (h.includes("service serial")) return "serviceSerial";
+      if (h.includes("service brand")) return "serviceBrand";
+      if (h.includes("bill to email")) return "billToEmail";
+      if (h.includes("bill to customer name")) return "customerName";
+      if (h === "units") return "units";
+      if (h.includes("qualification")) return "qualification";
+      if (h.includes("priorit")) return "priorities";
       if (h.includes("user created")) return "userCreated";
       if (h === "sp") return "sp";
       if (h.includes("date created")) return "dateCreated";
@@ -688,7 +699,17 @@
           address: String(row.address || "").trim(),
           zip: String(row.zip || "").trim(),
           po: String(row.po || "").trim(),
-          reference: String(row.reference || "").trim()
+          reference: String(row.reference || "").trim(),
+          finishDate: toDateStr(row.finishDate),
+          mapZone: String(row.mapZone || "").trim(),
+          serviceModel: String(row.serviceModel || "").trim(),
+          serviceSerial: String(row.serviceSerial || "").trim(),
+          serviceBrand: String(row.serviceBrand || "").trim(),
+          billToEmail: String(row.billToEmail || "").trim(),
+          customerName: String(row.customerName || "").trim(),
+          units: Number.isFinite(Number(row.units)) && row.units !== null && row.units !== "" ? Number(row.units) : null,
+          qualification: String(row.qualification || "").trim(),
+          priorities: String(row.priorities || "").trim()
         });
       }
       return rows;

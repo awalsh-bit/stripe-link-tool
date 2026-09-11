@@ -1,0 +1,355 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"></head><body style="margin:0">
+<div id="sjProtoBar" style="position:sticky;top:0;z-index:99999;background:#111827;color:#f9fafb;font:600 12.5px/1.4 system-ui,Segoe UI,sans-serif;padding:5px 12px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+  <span style="background:#f59e0b;color:#111827;border-radius:999px;padding:2px 9px;font-size:11px;letter-spacing:.05em;">PROTOTYPE · SAMPLE DATA</span>
+  <span style="opacity:.9;">Parts verify / order / receiving + ePASS sync queue + search · nothing is saved · live mirror: <a href="service-journey.html" style="color:#93c5fd;">Service Journey</a></span>
+  <span style="flex:1;"></span>
+  <a href="dashboard.html" style="color:#93c5fd;">Dashboard</a>
+  <a href="service-proto-board.html" style="color:#93c5fd;">Board</a>
+  <a href="service-proto-field.html" style="color:#93c5fd;">Field tool</a>
+  <a href="service-proto-office.html" style="color:#93c5fd;">Office queues</a>
+</div>
+
+<title>Wilson Parts & Sync Queues</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+:root{--bg:#f3f6f3;--surface:#ffffff;--surface2:#eaf0ea;--ink:#1b241f;--muted:#5d6b62;--line:#d7dfd8;--accent:#1f6b35;--accent-ink:#fff;--soft:#e3eee5;
+--diag:#2f6fb3;--diag-bg:#e7eff9;--inst:#1f8a48;--inst-bg:#e3f3e8;--held:#0f8a8a;--held-bg:#e0f3f3;--wait:#b8770f;--wait-bg:#fbf0d9;--bad:#b3362f;--bad-bg:#fbe4e2;--war:#7a4fb3;--war-bg:#efe8f8}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--bg:#111714;--surface:#1a221d;--surface2:#212b25;--ink:#e6ece7;--muted:#9aa89e;--line:#2c372f;--accent:#5fb87a;--accent-ink:#0f1a13;--soft:#1f2c23;
+--diag:#7fb0e6;--diag-bg:#1c2a3a;--inst:#6ccb8a;--inst-bg:#1a3324;--held:#5fc9c9;--held-bg:#173232;--wait:#e2b25a;--wait-bg:#3a2e14;--bad:#ef8b84;--bad-bg:#3d1f1d;--war:#b596e6;--war-bg:#2a2138}}
+:root[data-theme="dark"]{--bg:#111714;--surface:#1a221d;--surface2:#212b25;--ink:#e6ece7;--muted:#9aa89e;--line:#2c372f;--accent:#5fb87a;--accent-ink:#0f1a13;--soft:#1f2c23;
+--diag:#7fb0e6;--diag-bg:#1c2a3a;--inst:#6ccb8a;--inst-bg:#1a3324;--held:#5fc9c9;--held-bg:#173232;--wait:#e2b25a;--wait-bg:#3a2e14;--bad:#ef8b84;--bad-bg:#3d1f1d;--war:#b596e6;--war-bg:#2a2138}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.45 "IBM Plex Sans",system-ui,sans-serif;padding-inline:16px;padding-block:0 3rem}
+.mono{font-family:"IBM Plex Mono",monospace;font-variant-numeric:tabular-nums}
+button{font:inherit;color:inherit;background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:.4rem .75rem;cursor:pointer}
+button:hover{border-color:var(--accent)}button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+button.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);font-weight:600}button[disabled]{opacity:.45;cursor:not-allowed}
+button.sm{padding:.2rem .5rem;font-size:.75rem}
+select,input{font:inherit;color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:.35rem .5rem}
+input.num{width:84px;text-align:right;font-family:"IBM Plex Mono",monospace}
+.top{display:flex;align-items:center;gap:1.25rem;flex-wrap:wrap;padding-block:.9rem;border-bottom:1px solid var(--line);max-width:1400px;margin:0 auto}
+.brand{font-weight:600}.brand small{display:block;font-size:.7rem;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);font-weight:500}
+.tabs{display:flex;gap:.25rem;background:var(--surface2);padding:.25rem;border-radius:8px;flex-wrap:wrap}
+.tabs button{border:0;background:transparent;padding:.4rem .9rem;border-radius:6px;color:var(--muted);display:flex;gap:.4rem;align-items:center}
+.tabs button[aria-selected="true"]{background:var(--surface);color:var(--ink);font-weight:600;box-shadow:0 1px 2px rgba(0,0,0,.08)}
+.tabs .n{background:var(--soft);color:var(--accent);border-radius:10px;padding:0 .45rem;font-size:.72rem;font-weight:600}
+.tabs .n.hot{background:var(--bad-bg);color:var(--bad)}
+.proto{margin-left:auto;font-size:.75rem;color:var(--muted)}.proto b{color:var(--wait);font-weight:600}
+main{max-width:1400px;margin:0 auto}
+.view[hidden]{display:none}
+.intro{display:flex;gap:1rem;align-items:baseline;flex-wrap:wrap;margin-block:1rem .75rem}
+.intro h2{margin:0;font-size:1.1rem;font-weight:600}.intro p{margin:0;color:var(--muted);max-width:70ch}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(560px,1fr));gap:.9rem;align-items:start}
+.tw{overflow-x:auto}
+@media (max-width:480px){.grid{grid-template-columns:1fr}}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:8px;border-left:4px solid var(--diag);padding:.8rem .9rem;display:flex;flex-direction:column;gap:.55rem}
+.card.field{border-left-color:var(--inst)}.card.war{border-left-color:var(--war)}.card.done{opacity:.55}
+.hd{display:flex;justify-content:space-between;gap:.6rem;align-items:start}
+.hd b{font-weight:600;font-size:.98rem}.hd .sub{color:var(--muted);font-size:.8rem}
+.age{font-size:.75rem;color:var(--muted);white-space:nowrap;text-align:right}.age b{display:block;color:var(--ink);font-size:.9rem}.age.old b{color:var(--bad)}
+.chips{display:flex;gap:.3rem;flex-wrap:wrap}
+.chip{font-size:.68rem;padding:.05rem .45rem;border-radius:10px;background:var(--surface2);color:var(--muted);font-weight:500}
+.chip.st{font-family:"IBM Plex Mono",monospace}.chip.SO2,.chip.SO1{background:var(--diag-bg);color:var(--diag)}.chip.SO3,.chip.SO5,.chip.SO6,.chip.ok{background:var(--inst-bg);color:var(--inst)}.chip.SO4,.chip.SO4PRE,.chip.SO2\.1{background:var(--held-bg);color:var(--held)}.chip.warn{background:var(--wait-bg);color:var(--wait)}.chip.bad{background:var(--bad-bg);color:var(--bad)}.chip.WAR{background:var(--war-bg);color:var(--war)}
+table{border-collapse:collapse;width:100%;font-size:.82rem}
+th{text-align:left;font-family:"IBM Plex Mono",monospace;font-size:.66rem;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:500;padding:.3rem .4rem;border-bottom:1px solid var(--line)}
+td{padding:.35rem .4rem;border-bottom:1px solid var(--line);vertical-align:middle}td:first-child{min-width:150px}tr:last-child td{border-bottom:0}
+td.r,th.r{text-align:right;font-variant-numeric:tabular-nums}
+.pn{font-family:"IBM Plex Mono",monospace;font-size:.75rem;color:var(--muted)}
+.avail{display:flex;gap:.25rem}.avail button{padding:.1rem .4rem;font-size:.68rem;border-radius:10px;white-space:nowrap}.avail button[aria-pressed="true"]{background:var(--held-bg);color:var(--held);border-color:var(--held)}
+.banner{padding:.5rem .7rem;border-radius:6px;font-size:.82rem;background:var(--soft)}
+.banner.warn{background:var(--wait-bg);color:var(--wait)}.banner.bad{background:var(--bad-bg);color:var(--bad)}.banner.ok{background:var(--inst-bg);color:var(--inst)}
+.acts{display:flex;gap:.4rem;flex-wrap:wrap;align-items:center}
+.tot{display:flex;gap:1rem;font-size:.8rem;color:var(--muted);flex-wrap:wrap}.tot b{color:var(--ink);font-weight:600}
+/* order */
+.supplier{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:.8rem .9rem;display:flex;flex-direction:column;gap:.5rem}
+.supplier h3{margin:0;font-size:.95rem;font-weight:600;display:flex;justify-content:space-between;align-items:center}
+.po{border:1px dashed var(--line);border-radius:6px;padding:.6rem .7rem;display:grid;grid-template-columns:1fr 1fr;gap:.4rem .6rem;font-size:.82rem;background:var(--surface2)}
+.po label{display:flex;flex-direction:column;gap:.15rem;font-size:.72rem;color:var(--muted)}.po .full{grid-column:1/-1}
+/* receiving */
+.scan{display:flex;gap:.5rem;margin-bottom:.75rem}.scan input{flex:1;min-height:40px;font-family:"IBM Plex Mono",monospace}
+.bin{font-family:"IBM Plex Mono",monospace;background:var(--held-bg);color:var(--held);border-radius:4px;padding:.05rem .4rem;font-size:.75rem}
+/* sync */
+.synchead{display:flex;gap:1rem;align-items:center;flex-wrap:wrap;background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:.7rem .9rem;margin-bottom:.9rem;font-size:.85rem}
+.synchead b{font-weight:600}
+.packet{background:var(--surface2);border-radius:6px;padding:.5rem .6rem;font-family:"IBM Plex Mono",monospace;font-size:.75rem;white-space:pre-wrap;line-height:1.5;position:relative}
+.kv{display:grid;grid-template-columns:auto 1fr auto;gap:.25rem .6rem;font-size:.82rem;align-items:center}
+.kv dt{color:var(--muted)}.kv dd{margin:0;font-family:"IBM Plex Mono",monospace}
+.state{font-size:.72rem;font-weight:600;padding:.1rem .5rem;border-radius:10px}
+.state.pending{background:var(--wait-bg);color:var(--wait)}.state.keyed{background:var(--held-bg);color:var(--held)}.state.confirmed{background:var(--inst-bg);color:var(--inst)}.state.disc{background:var(--bad-bg);color:var(--bad)}
+.disc{display:grid;grid-template-columns:auto 1fr 1fr;gap:.2rem .6rem;font-size:.8rem;background:var(--bad-bg);border-radius:6px;padding:.5rem .6rem}
+.disc .h{font-size:.66rem;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+.toasts{position:fixed;bottom:1rem;left:50%;transform:translateX(-50%);display:flex;flex-direction:column;gap:.4rem;z-index:9}
+.toast{background:var(--ink);color:var(--bg);padding:.5rem .9rem;border-radius:6px;font-size:.82rem;box-shadow:0 4px 14px rgba(0,0,0,.2);max-width:90vw}
+.toast.warn{background:var(--wait)}.toast.bad{background:var(--bad);color:#fff}
+.empty{color:var(--muted);padding:2rem;text-align:center;border:1px dashed var(--line);border-radius:8px}
+/* 9/11: search + history, hold-at-risk task */
+.gsearch{position:relative}.gsearch input{min-width:260px;padding-left:1.9rem}.gsearch::before{content:"⌕";position:absolute;left:.6rem;top:.3rem;color:var(--muted);font-size:1rem}
+.results{position:absolute;top:100%;left:0;right:0;z-index:20;background:var(--surface);border:1px solid var(--line);border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.15);margin-top:.25rem;max-height:420px;overflow:auto;font-size:.82rem}
+.results h5{margin:0;padding:.4rem .7rem .2rem;font-size:.66rem;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+.results button{display:grid;grid-template-columns:1fr auto;gap:0 .6rem;width:100%;text-align:left;border:0;border-radius:0;padding:.4rem .7rem;background:none}.results button:hover,.results button:focus{background:var(--soft)}
+.results .sub{grid-column:1/-1;color:var(--muted);font-size:.75rem}.results mark{background:var(--wait-bg);color:inherit;border-radius:2px}
+.bigsearch{display:flex;gap:.5rem;margin:1rem 0 .9rem}.bigsearch input{flex:1;min-height:44px;font-size:1rem;padding:.5rem .9rem}
+.custhead{display:grid;grid-template-columns:1fr auto;gap:.5rem 1rem;background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:.9rem 1rem;margin-bottom:.9rem}
+.custhead h2{margin:0;font-size:1.15rem;font-weight:600}.custhead .meta{color:var(--muted);font-size:.85rem;display:flex;gap:1rem;flex-wrap:wrap;margin-top:.25rem}
+.custhead .kpis{display:flex;gap:.9rem;font-size:.78rem;color:var(--muted);text-align:right}.custhead .kpis b{display:block;color:var(--ink);font-size:1rem;font-variant-numeric:tabular-nums}
+.recall{background:var(--bad-bg);border:1px solid var(--bad);color:var(--bad);border-radius:8px;padding:.6rem .9rem;margin-bottom:.9rem;display:flex;gap:.8rem;align-items:center;flex-wrap:wrap;font-size:.85rem}.recall b{font-weight:600}
+.recall .acts{margin-left:auto}
+.units{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:.6rem;margin-bottom:.9rem}
+.unitc{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:.6rem .8rem;font-size:.82rem}.unitc b{display:block;font-weight:600}.unitc .pn{display:block}
+.hist td.what{max-width:420px}.hist tr.open td{background:var(--soft)}
+.task{background:var(--surface);border:1px solid var(--wait);border-left:4px solid var(--wait);border-radius:8px;padding:.7rem .9rem;margin-bottom:.9rem;display:grid;grid-template-columns:1fr auto;gap:.4rem 1rem;align-items:center}
+.task h4{margin:0;font-size:.95rem;font-weight:600}.task p{margin:.15rem 0 0;color:var(--muted);font-size:.82rem}
+.task .acts{justify-content:flex-end}
+</style>
+
+<div class="top">
+  <div class="brand">Wilson AC &amp; Appliance<small>Service dashboard · office</small></div>
+  <div class="tabs" role="tablist" id="tabs"></div>
+  <div class="gsearch"><input id="gq" placeholder="Search name, phone, SV, serial, address…" autocomplete="off" aria-label="Search customers and jobs"><div class="results" id="gres" hidden></div></div>
+  <div class="proto"><b>Prototype</b> · sample data · nothing is saved</div>
+</div>
+<main>
+  <section class="view" id="v-verify"></section>
+  <section class="view" id="v-order" hidden></section>
+  <section class="view" id="v-receive" hidden></section>
+  <section class="view" id="v-sync" hidden></section>
+  <section class="view" id="v-find" hidden></section>
+</main>
+<div class="toasts" id="toasts"></div>
+
+<script>
+/* ---------- helpers ---------- */
+const $=s=>document.querySelector(s);const money=n=>'$'+(+n).toFixed(2);
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+function toast(m,c=''){const t=document.createElement('div');t.className='toast '+c;t.textContent=m;$('#toasts').append(t);setTimeout(()=>t.remove(),4200)}
+const NOW=new Date('2026-09-14T09:40:00');
+const ago=iso=>{const h=(NOW-new Date(iso))/36e5;return h<1?`${Math.round(h*60)} min`:h<48?`${Math.round(h)} h`:`${Math.round(h/24)} d`};
+const hrs=iso=>(NOW-new Date(iso))/36e5;
+const TECH={DLA:'Diogo',AJH:'Andrew',TDP:'Trevor',JRC:'Josh',KJB:'Kyle',CIT:'Chris',CEM:'Connor',BLL:'Brady',JHM:'John'};
+const SUPPLIERS=['Marcone','Reliable Parts','Encompass','Sub-Zero Direct','Miele Direct'];
+const TAX=0.0825;
+/* ---------- jobs (continuous with the field tool sample) ---------- */
+let J=[
+ {sv:'SV00123290',cust:'Gary & Karen Jones',unit:'Bosch dishwasher SHPM88Z75N',zip:78737,tech:'DLA',st:'SO2',src:'field',fieldTotalParts:148,signedAt:'2026-09-14T08:52:00',submitted:'2026-09-14T08:55:00',notes:'Standing water · Failed component · drain pump seized, impeller cracked. Customer approved in field, signed.',labor:[['Drain Pump Replacement',1.5]],
+  parts:[{pn:'W10348269',name:'Drain pump',qty:1,techPrice:148,lastVerified:'9/4',verified:null,avail:null,supplier:'Marcone'}]},
+ {sv:'SV00123365',cust:'Maria Ortega',unit:'KitchenAid wall oven KOSE500ESS',zip:78620,tech:'DLA',st:'SO2',src:'office',submitted:'2026-09-14T09:10:00',notes:'No heat · Failed component · bake element open, control shows no fault. Customer not home for quote — send link.',labor:[['Bake Element Replacement - Hidden (Single Oven)',2]],
+  parts:[{pn:'W10779716',name:'Bake element',qty:1,techPrice:112,lastVerified:'9/2',verified:null,avail:null,supplier:'Marcone'},{pn:'W10131825',name:'Temperature sensor',qty:1,techPrice:47,lastVerified:'9/9',verified:null,avail:null,supplier:'Marcone'}]},
+ {sv:'SV00123160',cust:'Nina Chodniewicz',unit:'Thermador range PRG366WH',zip:78620,tech:'TDP',st:'SO2',src:'warranty',submitted:'2026-09-14T09:05:00',notes:'Igniter glows, no flame · Failed component · oven igniter weak (2.1A). In warranty — no quote, straight to order.',labor:[['Oven Ignitor (HSI) Replacement',.75]],
+  parts:[{pn:'00492431',name:'Oven igniter',qty:1,techPrice:96,lastVerified:'8/12',verified:null,avail:null,supplier:'Encompass'}]},
+ {sv:'SV00123401',cust:'Ana Reyes',unit:'Samsung range NE63T8711SS',zip:78620,tech:'TDP',st:'SO2',src:'field',fieldTotalParts:284,signedAt:'2026-09-13T15:10:00',submitted:'2026-09-13T15:12:00',notes:'Error code C-F1 · Failed component · main control board. Field-approved, signed.',labor:[['Electronic Control/Module Replacement',1]],
+  parts:[{pn:'DG94-01441A',name:'Main control board',qty:1,techPrice:284,lastVerified:'7/30',verified:null,avail:null,supplier:'Reliable Parts'}]},
+ // already verified / approved → to order
+ {sv:'SV00123265',cust:'Dennis Caldwell',unit:'Maytag washer MVW6500MW',zip:78620,tech:'DLA',st:'SO3',src:'office',approvedAt:'2026-09-12T10:20:00',submitted:'2026-09-10T15:41:00',notes:'Won\'t fill · inlet valve',labor:[['Water Valve Replacement',.75]],
+  parts:[{pn:'W11614515',name:'Water inlet valve',qty:1,techPrice:88,lastVerified:'9/10',verified:88,avail:'stock',supplier:'Marcone'},{pn:'DW435-MTAG',name:'Valve mounting kit',qty:1,techPrice:14,lastVerified:'9/10',verified:14,avail:'2-3d',supplier:'Marcone'}]},
+ {sv:'SV00123070',cust:'Ryan Mcdonald',unit:'Sub-Zero BI-36U',zip:78701,tech:'JRC',st:'SO3',src:'office',approvedAt:'2026-09-13T09:02:00',submitted:'2026-09-11T14:00:00',notes:'Sealed system · evaporator + filter drier',labor:[['Sealed System - Evaporator Coil, Filter Drier',5]],
+  parts:[{pn:'4204380',name:'Evaporator assembly',qty:1,techPrice:612,lastVerified:'9/11',verified:612,avail:'2-3d',supplier:'Sub-Zero Direct'},{pn:'4201820',name:'Filter drier',qty:1,techPrice:38,lastVerified:'9/11',verified:38,avail:'stock',supplier:'Sub-Zero Direct'}]},
+ // on order → receiving
+ {sv:'SV00123318',cust:'Erik Jennings',unit:'GE front-load washer GFW510SCV0WW',zip:78734,tech:'TDP',st:'SO4PRE',held:'Tue 9/15 · 12–5',po:'PO-4471',eta:'2026-09-14',submitted:'2026-09-08T11:00:00',notes:'water valve',labor:[['Water Valve Replacement',.75]],
+  parts:[{pn:'WH23X29541',name:'Water valve',qty:1,verified:58,avail:'2-3d',supplier:'Marcone',received:false}]},
+ {sv:'SV00123179',cust:'Jeff McCollum',unit:'Sub-Zero BI-36U/S',zip:78737,tech:'DLA',st:'SO4',po:'PO-4468',eta:'2026-09-14',submitted:'2026-09-03T10:00:00',notes:'evap fan',labor:[['Evaporator Fan Motor/Blade Replacement',1]],
+  parts:[{pn:'4200500',name:'Evaporator fan motor',qty:1,verified:189,avail:'2-3d',supplier:'Sub-Zero Direct',received:false}]},
+ {sv:'SV00123116',cust:'James Kubenka',unit:'Whirlpool dryer WED5620HW',zip:78737,tech:'DLA',st:'SO4',po:'PO-4466',eta:'2026-09-14',submitted:'2026-09-01T09:00:00',notes:'heating element + thermal fuse',labor:[['Heating Element Replacement',.75]],
+  parts:[{pn:'279838',name:'Heating element',qty:1,verified:64,avail:'stock',supplier:'Reliable Parts',received:true,bin:'SV04'},{pn:'3392519',name:'Thermal fuse',qty:1,verified:18,avail:'2-3d',supplier:'Reliable Parts',received:false}]},
+ {sv:'SV00122562',cust:'Donna Day',unit:'Miele dishwasher G7566',zip:78738,tech:'TDP',st:'SO4B',po:'PO-4452',eta:'2026-09-26',submitted:'2026-08-20T09:00:00',notes:'circulation pump — backordered',labor:[['Pump and/or Motor Assembly Replacement',2]],
+  parts:[{pn:'11002742',name:'Circulation pump',qty:1,verified:412,avail:'backorder',supplier:'Miele Direct',received:false}]},
+];
+const FRESH=['9/9','9/10','9/11'];J.forEach(j=>j.parts.forEach(p=>{if(p.verified==null&&FRESH.includes(p.lastVerified)){p.verified=p.techPrice;p.avail=p.avail||'stock'}}));
+let POSEQ=4472;
+/* ---------- sync items ---------- */
+let SYNC=[
+ {id:1,sv:'SV00123388',cust:'Brandon Cox',fields:{status:'SO1',date:'9/14/2026',tech:'TDP',window:'8–12'},created:'2026-09-10T15:30:00',state:'confirmed',confirmedAt:'2026-09-10T15:45:00',note:'Customer picked window on web form.'},
+ {id:2,sv:'SV00123290',cust:'Gary & Karen Jones',fields:{status:'SO3',date:'',tech:'DLA'},lines:[['W10348269','Drain pump',1,148],['LAB','Drain Pump Replacement 1.5h',1,195]],summary:'FIELD-APPROVED $382.27 signed 9/14 8:52a. Standing water; drain pump seized, impeller cracked. Labor tax-exempt (built-in). Full findings + 3 photos: dashboard SV00123290.',created:'2026-09-14T08:55:00',state:'pending'},
+ {id:3,sv:'SV00123365',cust:'Maria Ortega',fields:{status:'SO2',date:'',tech:'DLA'},lines:[['W10779716','Bake element',1,112],['W10131825','Temperature sensor',1,47],['LAB','Bake Element Replacement - Hidden 2h',1,260]],summary:'No heat; bake element open. Quote to customer pending parts verify. Findings + 2 photos: dashboard SV00123365.',created:'2026-09-14T09:10:00',state:'pending'},
+ {id:4,sv:'SV00123179',cust:'Jeff McCollum',fields:{status:'SO6',date:'9/15/2026',tech:'DLA',window:'8–12'},created:'2026-09-13T16:02:00',state:'keyed',keyedAt:'2026-09-13T16:30:00',keyedBy:'Michael D.'},
+ {id:5,sv:'SV00123302',cust:'Nick & Sharon Hippe',fields:{status:'SO6',date:'9/14/2026',tech:'DLA'},created:'2026-09-12T09:00:00',state:'disc',epass:{status:'SO4PRE',date:'9/14/2026',tech:'DLA'},detected:'2026-09-14T09:15:00',note:'Part checked in 9/12 → dashboard auto-confirmed the held date. ePASS still shows SO4PRE.'},
+ {sv:'SV00123383',id:6,cust:'Lynn Osler',fields:{status:'SO6',date:'9/16/2026',tech:'DLA',window:'8–12'},created:'2026-09-13T17:20:00',state:'pending',note:'Customer picked install window from text link.'},
+ {id:7,sv:'SV00123400',cust:'Kim Cline',fields:{status:'SO7',date:'',tech:'CIT'},lines:[['LAB','Diagnostic fee',1,169.95]],summary:'Quote declined 9/13 via link (customer shopping — showroom lead created). Diag fee $169.95 charged to card ••7194, receipt sent.',created:'2026-09-13T14:11:00',state:'pending'},
+];
+let lastImport='2026-09-14T09:15:00';
+/* ---------- 9/11: customers, units and closed-job history (back-filled from the 2026 invoice exports in the real build) ---------- */
+const CUST=[
+ {id:1,name:'Gary & Karen Jones',phones:['(512) 555-0142'],email:'gkjones@example.com',pref:'Text',card:'Visa ••4242',addr:'5701 Fort Benton Dr, Austin 78735',zone:'LOCAL',
+  units:[{serial:'FD0101 (tag photo 9/14)',model:'SHPM88Z75N',brand:'Bosch',cat:'dishwasher',install:'built-in'},{serial:'M91127765',model:'WED4815EW',brand:'Whirlpool',cat:'dryer',install:'freestanding'}]},
+ {id:2,name:'Jeff McCollum',phones:['(512) 555-0187','(512) 555-0188'],email:'jmccollum@example.com',pref:'Call',card:'Amex ••1004',addr:'1221 Kemp Hills Dr, Austin 78737',zone:'LOCAL',
+  units:[{serial:'S2107441',model:'BI-36U/S',brand:'Sub-Zero',cat:'refrigerator',install:'built-in'},{serial:'K4471002',model:'KDTE334GPS',brand:'KitchenAid',cat:'dishwasher',install:'built-in'}]},
+ {id:3,name:'Nick & Sharon Hippe',phones:['(512) 555-0110'],email:'',pref:'Text',card:'Visa ••8811',addr:'10008 Hillside North, Austin 78736',zone:'OAKHL',
+  units:[{serial:'ZV184220G',model:'GFW550SSNWW',brand:'GE',cat:'washer',install:'freestanding'}]},
+ {id:4,name:'Lynn Osler',phones:['(512) 555-0161'],email:'lynn.osler@example.com',pref:'Text',card:'MC ••3390',addr:'13401 Evergreen Way, Austin 78737',zone:'LOCAL',
+  units:[{serial:'RV532110A',model:'GTW720BSNWS',brand:'GE',cat:'washer',install:'freestanding'}]},
+ {id:5,name:'Maria Ortega',phones:['(512) 555-0199'],email:'mortega@example.com',pref:'Call',card:'Visa ••0071',addr:'7412 Escarpment Blvd, Austin 78749',zone:'OAKHL',
+  units:[{serial:'—',model:'KOSE500ESS',brand:'KitchenAid',cat:'wall oven',install:'built-in'}]},
+ {id:6,name:'Rosa Delgado',phones:['(512) 555-0233'],email:'rdelgado@example.com',pref:'Text',card:'Visa ••5520',addr:'7900 Lynnwood Trl, Austin 78735',zone:'LOST',
+  units:[{serial:'HG0311882',model:'GTD72EBSNWS',brand:'GE',cat:'dryer',install:'freestanding'}]},
+];
+/* closed + open jobs per customer. $ = delivered dollars (labor incl. diag/zone + parts profit; warranty = labor only) */
+const HIST=[
+ {c:1,sv:'SV00123290',date:'2026-09-14',unit:'SHPM88Z75N',tech:'DLA',st:'SO2',what:'Standing water · drain pump seized (field-approved $382.27, signed) · parts verify',amt:null,open:true},
+ {c:1,sv:'SV00118211',date:'2026-02-03',unit:'WED4815EW',tech:'AJH',st:'SO8',what:'No heat · heating element + thermal fuse replaced',amt:281,lab:157+98,pp:26},
+ {c:1,sv:'SV00114990',date:'2025-06-19',unit:'SHPM88Z75N',tech:'DLA',st:'SO7',what:'Not cleaning · customer declined ($469 quote for circulation pump) · diag fee',amt:157},
+ {c:2,sv:'SV00123179',date:'2026-09-14',unit:'BI-36U/S',tech:'DLA',st:'SO6',what:'Fridge side warm · evaporator fan motor · install today',amt:null,open:true},
+ {c:2,sv:'SV00121377',date:'2026-06-30',unit:'KDTE334GPS',tech:'DLA',st:'SO8',what:'Won\'t drain · debris removal from sump, quick fix',amt:157},
+ {c:2,sv:'SV00109120',date:'2024-11-08',unit:'BI-36U/S',tech:'DLA',st:'SO8',what:'Not cooling · sealed system — compressor + filter drier',amt:1840,lab:780+157,pp:903},
+ {c:2,sv:'SV00104833',date:'2024-03-22',unit:'BI-36U/S',tech:'AJH',st:'SO8',what:'Ice maker · ice maker assembly replaced',amt:409,lab:157+98,pp:154},
+ {c:3,sv:'SV00123302',date:'2026-09-14',unit:'GFW550SSNWW',tech:'DLA',st:'SO4PRE',what:'Won\'t drain · drain pump, impeller cracked · install held today 12–5',amt:null,open:true},
+ {c:3,sv:'SV00122731',date:'2026-08-12',unit:'GFW550SSNWW',tech:'DLA',st:'SO8',what:'Door won\'t lock · door lock assembly replaced',amt:345,lab:157+130,pp:58,recallOf:true},
+ {c:4,sv:'SV00123383',date:'2026-09-11',unit:'GTW720BSNWS',tech:'DLA',st:'SO5',what:'Not draining · drain pump · part arrived 9/11, waiting on customer to pick a time',amt:null,open:true},
+ {c:4,sv:'SV00116002',date:'2025-09-30',unit:'GTW720BSNWS',tech:'KJB',st:'SO8',what:'Noise on spin · suspension rod kit',amt:339,lab:157+130,pp:52},
+ {c:5,sv:'SV00123365',date:'2026-09-14',unit:'KOSE500ESS',tech:'DLA',st:'SO2',what:'No heat · bake element + temp sensor · office quote pending verify',amt:null,open:true},
+ {c:6,sv:'SV00123433',date:'2026-09-09',unit:'GTD72EBSNWS',tech:'AJH',st:'SO4H',what:'Won\'t start · control board · GE shipping direct to customer, expected 9/15',amt:null,open:true},
+ {c:6,sv:'SV00119877',date:'2026-04-14',unit:'GTD72EBSNWS',tech:'AJH',st:'SO8',what:'Takes too long · vent cleared, quick fix',amt:157},
+];
+const RECALLS=[{sv:'SV00123302',orig:'SV00122731',c:3,days:23,tech:'DLA',basis:'same serial ZV184220G',state:'candidate'}];
+const dig=s=>String(s||'').replace(/\D/g,'');
+function search(q){q=(q||'').trim();if(q.length<2)return {custs:[],jobs:[],units:[]};const ql=q.toLowerCase(),qd=dig(q);const words=ql.split(/\s+/).filter(Boolean);
+  const custs=CUST.filter(c=>words.every(w=>c.name.toLowerCase().includes(w))||(qd.length>=4&&c.phones.some(p=>dig(p).includes(qd)))||c.addr.toLowerCase().includes(ql)||c.email.toLowerCase().includes(ql));
+  const jobs=HIST.filter(h=>h.sv.toLowerCase().includes(ql)||('sv00'+ql).includes(h.sv.toLowerCase().slice(0,4))&&h.sv.toLowerCase().endsWith(ql)||h.what.toLowerCase().includes(ql));
+  const units=[];CUST.forEach(c=>c.units.forEach(u=>{if(u.serial.toLowerCase().includes(ql)||u.model.toLowerCase().includes(ql)||(u.brand+' '+u.cat).toLowerCase().includes(ql))units.push({c,u})}));
+  return {custs,jobs:jobs.slice(0,8),units:units.slice(0,6)}}
+const hl=(t,q)=>esc(t).replace(new RegExp('('+q.trim().split(/\s+/).filter(Boolean).map(w=>w.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')).join('|')+')','ig'),'<mark>$1</mark>');
+let findQ='',findCust=null;
+function resultsHTML(q){const r=search(q);if(!r.custs.length&&!r.jobs.length&&!r.units.length)return `<div style="padding:.6rem .7rem;color:var(--muted)">Nothing matches “${esc(q)}” — try last name, phone digits, the SV number or a serial.</div>`;
+  let h='';if(r.custs.length){h+='<h5>Customers</h5>'+r.custs.map(c=>`<button data-cust="${c.id}"><span>${hl(c.name,q)}</span><span class="mono" style="color:var(--muted)">${c.phones[0]}</span><span class="sub">${hl(c.addr,q)} · ${HIST.filter(x=>x.c===c.id).length} calls · ${c.units.length} unit(s)</span></button>`).join('')}
+  if(r.jobs.length){h+='<h5>Service orders</h5>'+r.jobs.map(j=>{const c=CUST.find(x=>x.id===j.c);return `<button data-cust="${j.c}" data-sv="${j.sv}"><span><span class="mono">${hl(j.sv,q)}</span> · ${esc(c.name)}</span><span class="chip st ${j.st}">${j.st}</span><span class="sub">${j.date} · ${hl(j.what,q)}</span></button>`}).join('')}
+  if(r.units.length){h+='<h5>Units</h5>'+r.units.map(({c,u})=>`<button data-cust="${c.id}"><span>${esc(u.brand)} ${esc(u.cat)} <span class="mono">${hl(u.model,q)}</span></span><span class="mono" style="color:var(--muted)">${hl(u.serial,q)}</span><span class="sub">${esc(c.name)} · ${esc(c.addr)}</span></button>`).join('')}
+  return h}
+function wireResults(root,onPick){root.querySelectorAll('[data-cust]').forEach(b=>b.onclick=()=>onPick(+b.dataset.cust,b.dataset.sv))}
+$('#gq').oninput=e=>{const q=e.target.value;const box=$('#gres');if(q.trim().length<2){box.hidden=true;return}box.hidden=false;box.innerHTML=resultsHTML(q);wireResults(box,(id,sv)=>{box.hidden=true;$('#gq').value='';openCustomer(id,sv)})};
+$('#gq').onkeydown=e=>{if(e.key==='Enter'){findQ=e.target.value;findCust=null;tab='find';$('#gres').hidden=true;render()}if(e.key==='Escape'){$('#gres').hidden=true}};
+document.addEventListener('click',e=>{if(!e.target.closest('.gsearch'))$('#gres').hidden=true});
+function openCustomer(id,sv){findCust=id;findSv=sv||null;tab='find';render()}
+let findSv=null;
+function renderFind(){const v=$('#v-find');
+  if(!findCust){v.innerHTML=`<div class="intro"><h2>Search & history</h2><p>One box for the office: customer name in any order, phone digits, SV number, serial, model or street. Every prior call, what was found and what was done — closed 2026 jobs back-filled from the invoice exports.</p></div>
+    <div class="bigsearch"><input id="fq" value="${esc(findQ)}" placeholder="e.g. mccollum · 555-0187 · SV00123179 · S2107441 · Kemp Hills" autocomplete="off"></div><div id="fres" class="results" style="position:static;max-height:none;box-shadow:none"></div>
+    <div class="intro" style="margin-top:1.5rem"><h2>Recall candidates <span class="chip bad">${RECALLS.filter(r=>r.state==='candidate').length}</span></h2><p>A new call on a unit repaired in the last 30 days (same serial, or same model at the same address). Mark confirms or dismisses; unreviewed after 7 days it counts anyway.</p></div>
+    ${RECALLS.map(r=>{const c=CUST.find(x=>x.id===r.c);const o=HIST.find(h=>h.sv===r.orig);return `<div class="recall"><span>⚠</span><span><b>${esc(c.name)}</b> · <span class="mono">${r.sv}</span> opened ${r.days} days after <span class="mono">${r.orig}</span> (${o.date}, ${TECH[r.tech]}: ${esc(o.what)}) · ${r.basis}</span><span class="acts">${r.state==='candidate'?`<button class="sm" data-rc="${r.sv}:confirmed">Confirm recall</button><button class="sm" data-rc="${r.sv}:dismissed">Dismiss — unrelated</button>`:`<span class="chip ${r.state==='confirmed'?'bad':''}">${r.state}</span>`}<button class="sm" data-cust="${r.c}">Open customer</button></span></div>`}).join('')}`;
+    const fq=$('#fq'),fr=$('#fres');const run=()=>{findQ=fq.value;fr.innerHTML=findQ.trim().length<2?'':resultsHTML(findQ);wireResults(fr,(id,sv)=>openCustomer(id,sv))};fq.oninput=run;run();fq.focus();
+    v.querySelectorAll('[data-rc]').forEach(b=>b.onclick=()=>{const [sv,st]=b.dataset.rc.split(':');const r=RECALLS.find(x=>x.sv===sv);r.state=st;toast(st==='confirmed'?`${sv} confirmed as a recall against ${TECH[r.tech]} — no diagnostic fee, counts in his recall rate`:`${sv} dismissed — unrelated failure, noted`);render()});
+    wireResults(v.querySelector('.intro')?.parentElement||v,(id)=>openCustomer(id));v.querySelectorAll('.recall [data-cust]').forEach(b=>b.onclick=()=>openCustomer(+b.dataset.cust));return}
+  const c=CUST.find(x=>x.id===findCust);const jobs=HIST.filter(h=>h.c===c.id).sort((a,b)=>b.date.localeCompare(a.date));const closed=jobs.filter(j=>!j.open);const spent=closed.reduce((a,j)=>a+(j.amt||0),0);
+  const rc=RECALLS.filter(r=>r.c===c.id&&r.state!=='dismissed');
+  v.innerHTML=`<div class="intro"><button class="sm" id="backFind">← Search</button><h2>${esc(c.name)}</h2></div>
+  <div class="custhead"><div><h2>${esc(c.name)}</h2><div class="meta"><span class="mono">${c.phones.join(' · ')}</span><span>${esc(c.email)||'no email'}</span><span>prefers <b>${c.pref}</b></span><span>card on file ${c.card}</span></div><div class="meta"><span>${esc(c.addr)}</span><span class="chip">${c.zone}</span><span>ePASS customer ${dig(c.phones[0])}</span></div></div>
+    <div class="kpis"><span>calls<b>${jobs.length}</b></span><span>open<b>${jobs.filter(j=>j.open).length}</b></span><span>delivered (closed)<b>$${spent.toLocaleString()}</b></span><span>customer since<b>${jobs.at(-1).date.slice(0,4)}</b></span></div></div>
+  ${rc.map(r=>{const o=HIST.find(h=>h.sv===r.orig);return `<div class="recall"><span>⚠</span><span><b>Recall ${r.state==='confirmed'?'confirmed':'candidate'}:</b> <span class="mono">${r.sv}</span> is ${r.days} days after <span class="mono">${r.orig}</span> on the same unit (${o.date} · ${TECH[r.tech]} · ${esc(o.what)}). ${r.state==='confirmed'?'No diagnostic fee; stays with '+TECH[r.tech]+'.':'Mark decides in the Recalls queue.'}</span></div>`}).join('')}
+  <div class="units">${c.units.map(u=>{const uj=jobs.filter(j=>j.unit===u.model);return `<div class="unitc"><b>${esc(u.brand)} ${esc(u.cat)}</b><span class="pn">${esc(u.model)} · S/N ${esc(u.serial)}</span><span class="pn">${u.install} ${u.install==='built-in'?'· labor tax-exempt':''} · ${uj.length} call(s) · last ${uj[0]?uj[0].date:'—'}</span></div>`}).join('')}</div>
+  <div class="tw hist"><table><thead><tr><th>Date</th><th>SV</th><th>Unit</th><th>Tech</th><th>Status</th><th>What was found / done</th><th class="r">Delivered $</th><th></th></tr></thead><tbody>
+  ${jobs.map(j=>`<tr class="${j.open?'open':''} ${j.sv===findSv?'hit':''}"><td class="mono">${j.date}</td><td class="mono">${j.sv}</td><td>${esc(j.unit)}</td><td>${TECH[j.tech]}</td><td><span class="chip st ${j.st}">${j.st}</span>${j.recallOf?' <span class="chip bad" title="a later call on this unit is a recall candidate">recalled</span>':''}</td><td class="what">${esc(j.what)}</td><td class="r mono">${j.amt==null?'—':'$'+j.amt.toLocaleString()}${j.pp?`<div class="pn">labor $${j.lab} · parts profit $${j.pp}</div>`:j.amt===157?'<div class="pn">diag fee only</div>':''}</td><td><button class="sm">Open</button></td></tr>`).join('')}
+  </tbody></table></div>
+  <p style="color:var(--muted);font-size:.8rem;margin-top:.6rem">History by unit follows the serial, not the address — a resold appliance keeps its record. Amounts are delivered dollars (labor incl. diag/zone fees + parts profit); the office sees the split, the customer never does.</p>`;
+  $('#backFind').onclick=()=>{findCust=null;render()};
+  const hit=v.querySelector('tr.hit');if(hit)hit.style.outline='2px solid var(--accent)';
+}
+/* ---------- tabs ---------- */
+const TABS=[['find','Search & history',()=>RECALLS.filter(r=>r.state==='candidate').length],['verify','Parts verify',()=>J.filter(j=>j.st==='SO2').length],['order','Parts order',()=>J.filter(j=>j.st==='SO3').length],['receive','Receiving',()=>J.filter(j=>['SO4','SO4PRE','SO4B'].includes(j.st)).length],['sync','ePASS sync',()=>SYNC.filter(s=>s.state==='pending'||s.state==='disc').length]];
+let tab='verify';
+function renderTabs(){$('#tabs').innerHTML=TABS.map(([k,l,n])=>`<button role="tab" aria-selected="${tab===k}" data-tab="${k}">${l}<span class="n ${(k==='sync'&&SYNC.some(s=>s.state==='disc'))||(k==='find'&&n())?'hot':''}">${n()}</span></button>`).join('');
+  document.querySelectorAll('[data-tab]').forEach(b=>b.onclick=()=>{tab=b.dataset.tab;render()})}
+function render(){renderTabs();for(const [k] of TABS)$('#v-'+k).hidden=k!==tab;({find:renderFind,verify:renderVerify,order:renderOrder,receive:renderReceive,sync:renderSync})[tab]()}
+/* ---------- VERIFY ---------- */
+function partsTotal(j,key){return j.parts.reduce((a,p)=>a+(p[key]??0)*p.qty,0)}
+function requote(j){if(j.src!=='field')return null;const v=partsTotal(j,'verified'),f=j.fieldTotalParts;const anyPart=j.parts.some(p=>p.verified!=null&&p.verified>p.techPrice*1.1&&p.verified-p.techPrice>10);if(j.parts.some(p=>p.verified==null))return {c:'',t:'Verify every line to check the field price'};
+  if(v>f*1.1||anyPart)return {c:'bad',t:`Verified parts ${money(v)} vs field ${money(f)} (+${Math.round((v/f-1)*100)}%) — customer will be texted the new total and must re-approve before ordering`};
+  if(v<f)return {c:'ok',t:`Verified parts ${money(v)} — ${money(f-v)} less than quoted. Proceeds; customer told the total went down.`};
+  return {c:'ok',t:`Within 10% of the field price (${money(v)} vs ${money(f)}). Proceeds to order, no re-approval.`}}
+function renderVerify(){
+  const list=J.filter(j=>j.st==='SO2').sort((a,b)=>new Date(a.submitted)-new Date(b.submitted));
+  $('#v-verify').innerHTML=`<div class="intro"><h2>Parts verify</h2><p>Every tech submission with parts lands here the moment it's submitted — no SO2 report to run. Confirm price and availability; prices verified in the last 7 days are pre-accepted. Field-approved quotes go straight to order if they're within 10%.</p></div>
+  <div class="grid">${list.map(j=>{const rq=requote(j);const allV=j.parts.every(p=>p.verified!=null&&p.avail);
+    return `<div class="card ${j.src==='field'?'field':j.src==='warranty'?'war':''}"><div class="hd"><div><b>${esc(j.cust)}</b><div class="sub">${esc(j.unit)} · ${TECH[j.tech]} · <span class="mono">${j.sv}</span></div></div><div class="age ${hrs(j.submitted)>24?'old':''}"><b>${ago(j.submitted)}</b>since submit</div></div>
+    <div class="chips"><span class="chip st SO2">SO2</span>${j.src==='field'?`<span class="chip ok">Field-approved · signed ${new Date(j.signedAt).toLocaleTimeString([],{hour:'numeric',minute:'2-digit'})}</span>`:j.src==='warranty'?'<span class="chip WAR">Warranty · no quote · → SO3</span>':'<span class="chip">Office quote · → SO2.1 → auto-send</span>'}<span class="chip">${j.labor.map(l=>l[0]).join(' · ')}</span></div>
+    <div class="banner" style="font-size:.8rem">${esc(j.notes)}</div>
+    <div class="tw"><table><thead><tr><th>Part</th><th class="r">Tech price</th><th class="r">Verified</th><th>Availability</th><th>Supplier</th></tr></thead><tbody>
+    ${j.parts.map((p,i)=>{const fresh=FRESH.includes(p.lastVerified);return `<tr><td>${esc(p.name)}<div class="pn">${p.pn} · ×${p.qty} · last verified ${p.lastVerified}${fresh?' <span class="chip ok" style="font-size:.6rem">≤7 d · pre-accepted</span>':hrs(j.submitted)>0&&['7/30','8/12'].includes(p.lastVerified)?' <span class="chip warn" style="font-size:.6rem">stale</span>':''}</div></td>
+      <td class="r mono">${money(p.techPrice)}</td><td class="r"><input class="num" value="${p.verified??(fresh?p.techPrice:'')}" placeholder="${p.techPrice}" data-vp="${j.sv}:${i}"></td>
+      <td><div class="avail">${[['stock','In stock'],['2-3d','2–3 d'],['5-7d','5–7 d'],['backorder','B/O']].map(a=>`<button data-av="${j.sv}:${i}:${a[0]}" aria-pressed="${p.avail===a[0]}">${a[1]}</button>`).join('')}</div></td>
+      <td><select data-sup="${j.sv}:${i}">${SUPPLIERS.map(s=>`<option ${s===p.supplier?'selected':''}>${s}</option>`).join('')}</select></td></tr>`}).join('')}</tbody></table></div>
+    ${rq?`<div class="banner ${rq.c}">${rq.t}</div>`:''}
+    <div class="acts"><button class="sm" data-lookup="${j.sv}">Look up at supplier</button><span style="flex:1"></span>
+      <button class="primary" data-verify="${j.sv}" ${allV?'':'disabled'}>${j.src==='field'?(rq&&rq.c==='bad'?'Verified → text customer to re-approve':'Verified → order parts (SO3)'):j.src==='warranty'?'Verified → order parts (SO3)':'Verified → build & send quote (SO2.1)'}</button></div></div>`}).join('')||'<div class="empty">Nothing to verify. New submissions appear here the moment a tech taps Submit.</div>'}</div>`;
+  wireVerify();
+}
+function findPart(key){const [sv,i]=key.split(':');const j=J.find(x=>x.sv===sv);return [j,j.parts[+i]]}
+function wireVerify(){
+  document.querySelectorAll('[data-vp]').forEach(inp=>{const [j,p]=findPart(inp.dataset.vp);if(inp.value!==''&&p.verified==null)p.verified=+inp.value;inp.onchange=()=>{p.verified=inp.value===''?null:+inp.value;renderVerify()}});
+  document.querySelectorAll('[data-av]').forEach(b=>b.onclick=()=>{const [sv,i,a]=b.dataset.av.split(':');const j=J.find(x=>x.sv===sv);j.parts[+i].avail=a;renderVerify()});
+  document.querySelectorAll('[data-sup]').forEach(s=>s.onchange=()=>{const [j,p]=findPart(s.dataset.sup);p.supplier=s.value});
+  document.querySelectorAll('[data-lookup]').forEach(b=>b.onclick=()=>{const j=J.find(x=>x.sv===b.dataset.lookup);j.parts.forEach(p=>{if(p.verified==null){p.verified=Math.round(p.techPrice*(p.pn==='DG94-01441A'?1.34:p.pn==='00492431'?1.06:0.98));p.avail=p.avail||'2-3d'}});toast(`${j.parts[0].supplier}: current price and availability filled in — confirm and verify`);renderVerify()});
+  document.querySelectorAll('[data-verify]').forEach(b=>b.onclick=()=>{const j=J.find(x=>x.sv===b.dataset.verify);const rq=requote(j);
+    if(j.src==='field'&&rq.c==='bad'){j.st='SO2.2';toast(`${j.cust}: new total texted for re-approval (parts ${money(partsTotal(j,'verified'))}). Order holds until they tap Approve.`,'warn')}
+    else if(j.src==='office'){j.st='SO2.2';SYNC.push({id:SYNC.length+1,sv:j.sv,cust:j.cust,fields:{status:'SO2.2',date:'',tech:j.tech},created:NOW.toISOString(),state:'pending',note:'Quote auto-sent by text (customer pref). Reminders 48 h / 5 d.'});toast(`${j.cust}: quote built from lines and sent by text → SO2.2`)}
+    else{j.st='SO3';j.approvedAt=NOW.toISOString();SYNC.push({id:SYNC.length+1,sv:j.sv,cust:j.cust,fields:{status:'SO3',date:'',tech:j.tech},created:NOW.toISOString(),state:'pending'});toast(`${j.cust} → SO3, now in Parts order`)}
+    render()});
+}
+/* ---------- ORDER ---------- */
+let sel=new Set();let poDraft=null;
+function renderOrder(){
+  const jobs=J.filter(j=>j.st==='SO3');const bySup={};jobs.forEach(j=>j.parts.forEach((p,i)=>{(bySup[p.supplier]??=[]).push({j,p,i,key:j.sv+':'+i})}));
+  $('#v-order').innerHTML=`<div class="intro"><h2>Parts order</h2><p>Approved and warranty jobs, grouped by supplier. Tick lines, create the PO, enter the supplier's expected date — that date drives the customer's tracker, the install picker and the route builder. Placing the PO moves every job on it to SO4 (SO4B if the ETA is more than 10 days out).</p></div>
+  <div class="grid">${Object.entries(bySup).map(([sup,lines])=>`<div class="supplier"><h3>${sup}<span class="tot"><b>${lines.length}</b> lines · <b>${money(lines.reduce((a,l)=>a+l.p.verified*l.p.qty,0))}</b></span></h3>
+    <div class="tw"><table><thead><tr><th></th><th>Part</th><th>Job</th><th class="r">Qty</th><th class="r">Price</th><th>Avail</th></tr></thead><tbody>${lines.map(l=>`<tr><td><input type="checkbox" data-sel="${l.key}" ${sel.has(l.key)?'checked':''}></td><td>${esc(l.p.name)}<div class="pn">${l.p.pn}</div></td><td>${esc(l.j.cust)}<div class="pn">${l.j.sv} · ${TECH[l.j.tech]} · approved ${ago(l.j.approvedAt)} ago</div></td><td class="r mono">${l.p.qty}</td><td class="r mono">${money(l.p.verified)}</td><td><span class="chip ${l.p.avail==='backorder'?'bad':l.p.avail==='stock'?'ok':''}">${l.p.avail}</span></td></tr>`).join('')}</tbody></table></div>
+    <div class="acts"><button class="sm" data-selall="${sup}">Select all ${sup}</button><span style="flex:1"></span><button class="primary" data-po="${sup}" ${lines.some(l=>sel.has(l.key))?'':'disabled'}>Create PO for ${lines.filter(l=>sel.has(l.key)).length} line(s)</button></div>
+    ${poDraft&&poDraft.sup===sup?poHTML(poDraft):''}</div>`).join('')||'<div class="empty">No approved jobs waiting for parts.</div>'}</div>`;
+  document.querySelectorAll('[data-sel]').forEach(c=>c.onchange=()=>{c.checked?sel.add(c.dataset.sel):sel.delete(c.dataset.sel);renderOrder()});
+  document.querySelectorAll('[data-selall]').forEach(b=>b.onclick=()=>{bySup[b.dataset.selall].forEach(l=>sel.add(l.key));renderOrder()});
+  document.querySelectorAll('[data-po]').forEach(b=>b.onclick=()=>{const sup=b.dataset.po;poDraft={sup,lines:bySup[sup].filter(l=>sel.has(l.key)),num:'PO-'+POSEQ,eta:'2026-09-18',shipTo:'shop'};renderOrder()});
+  const place=$('#place');if(place){place.onclick=()=>{const d=poDraft;const late=(new Date(d.eta)-NOW)/864e5>10;const affected=new Set();d.lines.forEach(l=>{l.j.po=d.num;l.j.eta=d.eta;l.p.received=false;affected.add(l.j)});affected.forEach(j=>{if(j.parts.every(p=>p.po||d.lines.some(l=>l.j===j)))j.st=late?'SO4B':(d.shipTo==='customer'?'SO4H':'SO4');SYNC.push({id:SYNC.length+1,sv:j.sv,cust:j.cust,fields:{status:j.st,date:'',tech:j.tech},summary:`${d.num} ${d.sup} · ETA ${d.eta} · ship to ${d.shipTo}`,created:NOW.toISOString(),state:'pending'})});
+    d.lines.forEach(l=>sel.delete(l.key));POSEQ++;toast(`${d.num} placed with ${d.sup} · ${affected.size} job(s) → ${late?'SO4B (backorder)':'SO4'} · customers texted "parts ordered, expected ${d.eta.slice(5).replace('-','/')}"`);poDraft=null;render()};
+    $('#poeta').onchange=e=>poDraft.eta=e.target.value;$('#poship').onchange=e=>poDraft.shipTo=e.target.value;$('#pocancel').onclick=()=>{poDraft=null;renderOrder()};$('#poexport').onclick=()=>toast(`${poDraft.sup} order sheet downloaded in their upload format (${poDraft.lines.length} lines)`)}
+}
+function poHTML(d){const late=(new Date(d.eta)-NOW)/864e5>10;return `<div class="po"><label>PO number<b class="mono">${d.num}</b></label><label>Order date<b>${NOW.toLocaleDateString()}</b></label>
+  <label>Expected arrival<input type="date" id="poeta" value="${d.eta}"></label><label>Ship to<select id="poship"><option value="shop" ${d.shipTo==='shop'?'selected':''}>Shop (Dripping Springs)</option><option value="customer" ${d.shipTo==='customer'?'selected':''}>Customer (SO4H)</option></select></label>
+  <div class="full" style="font-size:.78rem;color:var(--muted)">${d.lines.map(l=>`${l.p.pn} ×${l.p.qty} · ${esc(l.j.cust)}`).join(' · ')}</div>
+  ${late?'<div class="full banner warn">ETA is more than 10 days out — jobs will be set to SO4B and customers get a delay notice.</div>':''}
+  <div class="full acts"><button class="sm" id="poexport">Export supplier order sheet</button><span style="flex:1"></span><button class="sm" id="pocancel">Cancel</button><button class="primary" id="place">Place PO → ${late?'SO4B':'SO4'}</button></div></div>`}
+/* ---------- RECEIVING ---------- */
+const BINS=['SV02','SV03','SV05','SV06','SV07','SV08','SV09','SV10'];let binI=0;
+function renderReceive(){
+  const jobs=J.filter(j=>['SO4','SO4PRE','SO4B','SO4H'].includes(j.st)).sort((a,b)=>new Date(a.eta)-new Date(b.eta));
+  $('#v-receive').innerHTML=`<div class="intro"><h2>Receiving</h2><p>Scan or type a part number or PO as boxes come in. When every part for a job is in, the job moves to SO5 and the customer is texted to pick an install time with their tech. A held SO4PRE date confirms itself if the part beat it.</p></div>
+  <div class="scan"><input id="scan" placeholder="Scan part number or PO…  (try 4200500 or PO-4471)" autocomplete="off"><button class="primary" id="scanbtn">Check in</button></div>
+  ${J.filter(j=>j.st==='SO4PRE'&&j.parts.some(p=>!p.received)&&!j.holdWait).map(j=>`<div class="task"><div><h4>Held install ${esc(j.held)} · part not in — check ETA</h4><p>${esc(j.cust)} · <span class="mono">${j.sv}</span> · ${j.parts.filter(p=>!p.received).map(p=>esc(p.name)+' ('+p.supplier+', '+j.po+')').join(', ')} was expected ${j.eta.slice(5).replace('-','/')}. Two-day check for Kezia: the auto-confirm text will <b>not</b> go out while this is open. If nothing changes by 2 pm today the hold releases itself and the customer gets the apology text.</p></div>
+    <div class="acts"><button class="sm" data-hold="${j.sv}:here">Part is here</button><button class="sm" data-hold="${j.sv}:eta">New ETA — release hold</button><button class="sm" data-hold="${j.sv}:wait">Wait</button></div></div>`).join('')}
+  <div class="grid">${jobs.map(j=>{const got=j.parts.filter(p=>p.received).length,n=j.parts.length;const due=new Date(j.eta)<=NOW;
+    return `<div class="card ${j.st==='SO4PRE'?'field':''}"><div class="hd"><div><b>${esc(j.cust)}</b><div class="sub">${esc(j.unit)} · ${TECH[j.tech]} · <span class="mono">${j.sv}</span></div></div><div class="age ${j.st==='SO4B'?'old':''}"><b>${j.eta.slice(5).replace('-','/')}</b>${due?'expected today':'expected'}</div></div>
+    <div class="chips"><span class="chip st ${j.st}">${j.st}</span><span class="chip">${j.po}</span><span class="chip ${got===n?'ok':got?'warn':''}">${got} of ${n} received</span>${j.st==='SO4PRE'?`<span class="chip SO4PRE">Install held ${j.held} — confirms on check-in</span>`:''}${j.st==='SO4B'?'<span class="chip bad">Backorder — customer notified</span>':''}</div>
+    <div class="tw"><table><tbody>${j.parts.map((p,i)=>`<tr><td>${esc(p.name)}<div class="pn">${p.pn} · ${p.supplier}</div></td><td class="r">${p.received?`<span class="chip ok">✓ in</span> <span class="bin">${p.bin}</span>`:`<button class="sm" data-rcv="${j.sv}:${i}">Check in</button>`}</td></tr>`).join('')}</tbody></table></div></div>`}).join('')||'<div class="empty">Nothing on order.</div>'}</div>`;
+  document.querySelectorAll('[data-rcv]').forEach(b=>b.onclick=()=>{const [sv,i]=b.dataset.rcv.split(':');receive(J.find(x=>x.sv===sv),+i)});
+  $('#scanbtn').onclick=doScan;$('#scan').onkeydown=e=>{if(e.key==='Enter')doScan()};
+  document.querySelectorAll('[data-hold]').forEach(b=>b.onclick=()=>{const [sv,act]=b.dataset.hold.split(':');const j=J.find(x=>x.sv===sv);
+    if(act==='here'){j.parts.forEach((p,i)=>{if(!p.received)receive(j,i)});return}
+    if(act==='wait'){j.holdWait=true;toast(`${j.cust}: waiting — Kezia rechecks at 2 pm; the hold releases itself if the part still isn't in`,'warn');render();return}
+    const held=j.held;j.st='SO4';j.eta='2026-09-18';delete j.held;
+    SYNC.unshift({id:SYNC.length+1,sv:j.sv,cust:j.cust,fields:{status:'SO4',date:'',tech:j.tech},created:NOW.toISOString(),state:'pending',note:`Hold ${held} released — part not in (ePASS "time out"). New ETA 9/18. Customer texted apology + re-pick link.`});
+    toast(`${j.cust}: hold ${held} released → SO4. Text sent: "We're sorry — the part for your washer hasn't arrived in time for Tuesday, so we've released that appointment… now expected Fri 9/18. Pick a new install time: {link}" · Demitrius's Tue route loses the stop · packet queued for ePASS`,'warn');render()});
+}
+function doScan(){const q=$('#scan').value.trim().toUpperCase();if(!q)return;let hit=false;J.forEach(j=>{if(!['SO4','SO4PRE','SO4B','SO4H'].includes(j.st))return;j.parts.forEach((p,i)=>{if(!p.received&&(p.pn.toUpperCase()===q||(j.po||'').toUpperCase()===q)){receive(j,i);hit=true}})});if(!hit)toast('No open PO line matches that — check the label','warn');$('#scan').value=''}
+function receive(j,i){const p=j.parts[i];p.received=true;p.bin=j.parts.find(x=>x.bin)?.bin||BINS[binI++%BINS.length];
+  if(j.parts.every(x=>x.received)){if(j.st==='SO4PRE'){j.st='SO6';toast(`${j.cust}: all parts in · held ${j.held} confirmed → SO6 · customer texted "your part arrived, ${j.held} is confirmed" · bin ${p.bin}`);SYNC.push({id:SYNC.length+1,sv:j.sv,cust:j.cust,fields:{status:'SO6',date:'9/15/2026',tech:j.tech},created:NOW.toISOString(),state:'pending',summary:`Parts in bin ${p.bin}`})}
+    else{j.st='SO5';toast(`${j.cust}: all parts in → SO5 · customer texted "pick your install time" (${TECH[j.tech]}'s openings) · bin ${p.bin}`);SYNC.push({id:SYNC.length+1,sv:j.sv,cust:j.cust,fields:{status:'SO5',date:'',tech:j.tech},created:NOW.toISOString(),state:'pending',summary:`Parts in bin ${p.bin}`})}}
+  else toast(`${j.cust}: ${p.name} checked in to ${p.bin} · ${j.parts.filter(x=>x.received).length} of ${j.parts.length}`);render()}
+/* ---------- SYNC ---------- */
+function packet(s){const f=s.fields;let t=`${s.sv}  ${s.cust}\nSTATUS: ${f.status}${f.date?`   DATE: ${f.date}`:''}${f.window?`   WINDOW: ${f.window}`:''}   TECH: ${f.tech}`;if(s.lines){t+='\nLINES:';s.lines.forEach(l=>t+=`\n  ${l[0].padEnd(12)} ${l[1]}  x${l[2]}  ${money(l[3])}`)}if(s.summary)t+=`\nNOTE: ${s.summary}`;if(s.note&&!s.summary)t+=`\nNOTE: ${s.note}`;return t}
+function renderSync(){
+  const order={disc:0,pending:1,keyed:2,confirmed:3};const list=[...SYNC].sort((a,b)=>order[a.state]-order[b.state]||new Date(a.created)-new Date(b.created));
+  const c=s=>SYNC.filter(x=>x.state===s).length;
+  $('#v-sync').innerHTML=`<div class="intro"><h2>ePASS sync queue</h2><p>Every dashboard transition writes a paste-ready packet here. Key it into ePASS, tap <i>Keyed</i>, and the next DispatchTrack import (every 15 min) confirms it automatically. If ePASS disagrees two imports in a row, it becomes a discrepancy. Techs never touch ePASS; nobody re-types notes.</p></div>
+  <div class="synchead"><span>Last import <b>${new Date(lastImport).toLocaleTimeString([],{hour:'numeric',minute:'2-digit'})}</b> · DispatchTrackDetail_20260914_091502.csv</span><span><b>${c('pending')}</b> to key</span><span><b>${c('keyed')}</b> awaiting confirmation</span><span style="color:var(--bad)"><b>${c('disc')}</b> discrepancies</span><span><b>${c('confirmed')}</b> confirmed today</span><span style="flex:1"></span><button class="sm" id="runimport">Simulate next import</button></div>
+  <div class="grid">${list.map(s=>`<div class="card ${s.state==='confirmed'?'done':''}" style="border-left-color:${s.state==='disc'?'var(--bad)':s.state==='confirmed'?'var(--inst)':s.state==='keyed'?'var(--held)':'var(--wait)'}">
+    <div class="hd"><div><b>${esc(s.cust)}</b> <span class="mono" style="color:var(--muted);font-size:.8rem">${s.sv}</span><div class="sub">created ${ago(s.created)} ago${s.keyedAt?` · keyed ${ago(s.keyedAt)} ago by ${s.keyedBy}`:''}${s.confirmedAt?` · confirmed by import ${new Date(s.confirmedAt).toLocaleTimeString([],{hour:'numeric',minute:'2-digit'})}`:''}</div></div><span class="state ${s.state}">${{pending:'To key',keyed:'Keyed · awaiting import',confirmed:'Confirmed',disc:'Discrepancy'}[s.state]}</span></div>
+    ${s.state==='disc'?`<div class="disc"><span class="h"></span><span class="h">Dashboard</span><span class="h">ePASS (import ${new Date(s.detected).toLocaleTimeString([],{hour:'numeric',minute:'2-digit'})})</span>${Object.keys(s.fields).filter(k=>s.fields[k]).map(k=>`<span style="color:var(--muted)">${k}</span><span class="mono" style="${s.fields[k]!==s.epass[k]?'font-weight:600':''}">${s.fields[k]}</span><span class="mono" style="${s.fields[k]!==s.epass[k]?'font-weight:600':''}">${s.epass[k]||'—'}</span>`).join('')}</div><div class="banner" style="font-size:.8rem">${esc(s.note||'')}</div>
+      <div class="acts"><button class="sm" data-reissue="${s.id}">Re-issue — dashboard is right, key it again</button><button class="sm" data-accept="${s.id}">Accept ePASS value into dashboard</button></div>`:
+    `<div class="packet">${esc(packet(s))}</div>
+     <div class="acts">${Object.entries(s.fields).filter(([k,v])=>v).map(([k,v])=>`<button class="sm" data-copy="${esc(v)}">Copy ${k}</button>`).join('')}${s.lines?`<button class="sm" data-copy="${esc(s.lines.map(l=>l.join('\t')).join('\n'))}">Copy lines</button>`:''}<button class="sm" data-copy="${esc(packet(s))}">Copy packet</button><span style="flex:1"></span>${s.state==='pending'?`<button class="primary" data-keyed="${s.id}">Keyed in ePASS</button>`:''}${s.state==='keyed'?'<span style="font-size:.75rem;color:var(--muted)">auto-closes when the import shows it</span>':''}</div>`}</div>`).join('')}</div>`;
+  document.querySelectorAll('[data-copy]').forEach(b=>b.onclick=()=>{navigator.clipboard?.writeText(b.dataset.copy).catch(()=>{});toast('Copied')});
+  document.querySelectorAll('[data-keyed]').forEach(b=>b.onclick=()=>{const s=SYNC.find(x=>x.id==b.dataset.keyed);s.state='keyed';s.keyedAt=NOW.toISOString();s.keyedBy='You';renderSync();renderTabs()});
+  document.querySelectorAll('[data-reissue]').forEach(b=>b.onclick=()=>{const s=SYNC.find(x=>x.id==b.dataset.reissue);s.state='pending';delete s.epass;toast(`${s.cust}: sync item re-issued`);render()});
+  document.querySelectorAll('[data-accept]').forEach(b=>b.onclick=()=>{const s=SYNC.find(x=>x.id==b.dataset.accept);Object.assign(s.fields,s.epass);s.state='confirmed';s.confirmedAt=NOW.toISOString();const j=J.find(x=>x.sv===s.sv);if(j)j.st=s.epass.status;toast(`${s.cust}: dashboard now matches ePASS (${s.epass.status}) — logged as manual override`,'warn');render()});
+  $('#runimport').onclick=()=>{lastImport=new Date(NOW.getTime()+15*6e4).toISOString();let n=0;SYNC.forEach(s=>{if(s.state==='keyed'){s.state='confirmed';s.confirmedAt=lastImport;n++}});
+    const stray=SYNC.find(s=>s.sv==='SV00123388'&&s.state==='confirmed'&&!s.strayed);if(stray){stray.strayed=true;SYNC.push({id:SYNC.length+1,sv:'SV00123388',cust:'Brandon Cox',fields:{status:'SO1',date:'9/14/2026',tech:'TDP'},epass:{status:'SO1',date:'9/16/2026',tech:'TDP'},created:lastImport,detected:lastImport,state:'disc',note:'Changed in ePASS without a dashboard event — someone moved the date directly in Routing. Accept it, or re-issue so ePASS is put back.'})}
+    toast(`Import processed: ${n} keyed item(s) confirmed${stray?' · 1 reverse discrepancy detected (ePASS changed on its own)':''}`);render()};
+}
+render();
+</script>
+
+</body></html>

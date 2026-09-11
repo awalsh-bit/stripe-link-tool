@@ -8,3 +8,15 @@ service-cards.json
 extra data.txt
 # Original camera files - not needed by the app (web copies live in subzero-photos/)
 showroom-photos/
+
+# Service Call Journey (Cayden, 9/11/2026): docs, prototypes, phase0 code and
+# the roster/zone tables stay; real customer exports and packaging never
+# leave this machine.
+service_call_journey/reference/data/
+service_call_journey/reference/*.zip
+service_call_journey/reference/*.xlsx
+service_call_journey/Claude outputs/
+service_call_journey/meeting/
+service_call_journey/phase0/*.db
+service_call_journey/phase0/__pycache__/
+service_call_journey/phase0/**/__pycache__/

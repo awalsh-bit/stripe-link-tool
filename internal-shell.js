@@ -298,6 +298,10 @@
       {
         title: "Test Modules",
         children: [
+          { href: "service-journey.html", title: "Service Journey (ePASS mirror)" },
+          { href: "service-proto-board.html", title: "Service Journey — Board prototype" },
+          { href: "service-proto-field.html", title: "Service Journey — Field Tool prototype" },
+          { href: "service-proto-office.html", title: "Service Journey — Office Queues prototype" },
           { href: "satisfaction-survey.html", title: "Client Satisfaction Survey" },
           { href: "satisfaction-results.html", title: "Satisfaction Results" },
           { href: "case-visit-survey.html", title: "Case Visit Survey" },
@@ -331,6 +335,7 @@
         title: "Admin",
         children: [
           { href: "user-admin.html", title: "User Admin" },
+          { href: "send-notification.html", title: "Send a Notification" },
           { href: "audit-log.html", title: "User Activity Audit" },
           { href: "returns-report.html", title: "Returns Report" }
         ]

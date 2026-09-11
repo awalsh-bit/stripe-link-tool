@@ -1,0 +1,8 @@
+modifier_id,name,hours,price_at_130,applies_to,epass_code_stems
+MOD-COMP,"Additional component, same visit",0.5,65.0,any,AC100|CE600|CF600|CG600|CO600|DI600|DR600|DW600|GR600|IM600|MW600|RE600|SO600|VH600|WA600|WD600
+MOD-ACCESS,Difficult access,0.5,65.0,any,AC106|CE608|CF608|CG608|CO608|DI608|DR608|DW608|GR608|IM608|MW608|RE608|SO608|VH608|WA608|WD608
+MOD-TECH1,Additional technician (1),0.5,65.0,L,L1
+MOD-TECH3,Additional technicians (3),1.0,130.0,L,L3
+MOD-TECH2,Additional technicians (2),0.75,97.5,L,L2
+MOD-RECOV,Refrigerant recovery,0.5,65.0,RE,RE424
+MOD-STACK,Stacked / built-in access,0.35,45.5,WA,WA613

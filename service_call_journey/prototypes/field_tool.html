@@ -1,0 +1,300 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"></head><body style="margin:0">
+<title>Wilson Service Field Tool</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@500&display=swap">
+<style>
+:root{--wilson-green:#155b26;--wilson-green-dark:#0f471d;--wilson-green-soft:#dcecdf;--wilson-green-pale:#eef6f0;--wilson-lime:#72c681;--ink:#0d1b2a;--muted:#64748b;--muted-2:#8793a4;--line:#d9e3df;--line-strong:#cbd8d1;--card:#ffffff;--bg:#f4f7f5;--danger:#b42318;--danger-bg:#fff0ef;--warning:#9a5b00;--warning-bg:#fff7e7;--info:#245ea8;--info-bg:#eef5ff;--success:#16713a;--success-bg:#eaf7ed;--shadow:0 15px 40px rgba(21,65,40,.09);--shadow-soft:0 8px 24px rgba(21,65,40,.07);--radius-lg:18px;--radius-md:13px;--radius-sm:10px;--sel:#1c3b5c;--sel-bg:#e4edf7;--sel-line:#cbdcef}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--wilson-green:#3f9a57;--wilson-green-dark:#1d5a2e;--wilson-green-soft:#1f3a27;--wilson-green-pale:#182a1d;--ink:#e8eef0;--muted:#9fb0bd;--muted-2:#7d8c98;--line:#2a3a31;--line-strong:#37483e;--card:#151f19;--bg:#0f1712;--danger:#f08b82;--danger-bg:#3a1c19;--warning:#e2b25a;--warning-bg:#3a2e14;--info:#8db5ec;--info-bg:#1b2a3d;--success:#6ccb8a;--success-bg:#1a3324;--shadow:0 15px 40px rgba(0,0,0,.4);--shadow-soft:0 8px 24px rgba(0,0,0,.3);--sel:#b9d3f2;--sel-bg:#1c2c40;--sel-line:#2f4a6b}}
+:root[data-theme="dark"]{--wilson-green:#3f9a57;--wilson-green-dark:#1d5a2e;--wilson-green-soft:#1f3a27;--wilson-green-pale:#182a1d;--ink:#e8eef0;--muted:#9fb0bd;--muted-2:#7d8c98;--line:#2a3a31;--line-strong:#37483e;--card:#151f19;--bg:#0f1712;--danger:#f08b82;--danger-bg:#3a1c19;--warning:#e2b25a;--warning-bg:#3a2e14;--info:#8db5ec;--info-bg:#1b2a3d;--success:#6ccb8a;--success-bg:#1a3324;--shadow:0 15px 40px rgba(0,0,0,.4);--shadow-soft:0 8px 24px rgba(0,0,0,.3);--sel:#b9d3f2;--sel-bg:#1c2c40;--sel-line:#2f4a6b}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.45 Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;padding-inline:16px;padding-block:12px 110px;-webkit-tap-highlight-color:transparent}
+.mono{font-family:"IBM Plex Mono",ui-monospace,monospace;font-variant-numeric:tabular-nums}
+.app{max-width:480px;margin:0 auto;display:flex;flex-direction:column;gap:14px}
+.proto{font-size:12px;color:var(--muted);text-align:center}.proto b{color:var(--warning)}
+button{font:inherit;color:inherit;cursor:pointer}
+.button{min-height:48px;border-radius:11px;border:0;background:var(--wilson-green);color:#fff;font-weight:800;padding:0 18px;box-shadow:0 5px 14px rgba(21,91,38,.18);width:100%}
+.button.secondary{background:var(--wilson-green-pale);color:var(--wilson-green);border:1px solid var(--wilson-green-soft);box-shadow:none}
+.button.ghost{background:var(--card);color:var(--ink);border:1px solid var(--line);box-shadow:none}
+.button.danger{background:var(--danger-bg);color:var(--danger);border:1px solid #f3c2bd;box-shadow:none}
+.button[disabled]{opacity:.45;cursor:not-allowed}
+.button small{display:block;font-weight:600;font-size:12px;opacity:.85}
+button:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px solid var(--wilson-green);outline-offset:2px}
+/* banner */
+.head{position:relative;background:linear-gradient(135deg,var(--wilson-green-dark),var(--wilson-green));color:#fff;border-radius:22px;padding:18px 20px;box-shadow:0 16px 34px rgba(15,71,29,.18);overflow:hidden}
+.head::after{content:"";position:absolute;width:220px;height:220px;border-radius:50%;right:-90px;top:-105px;background:rgba(255,255,255,.06)}
+.kicker{font-size:10px;font-weight:900;text-transform:uppercase;letter-spacing:.1em;opacity:.85}
+.head h1{margin:2px 0 4px;font-size:clamp(22px,6vw,28px);line-height:1.1;font-weight:800;text-wrap:balance}
+.head .sub{font-size:14px;opacity:.9}
+.pills{display:flex;gap:6px;flex-wrap:wrap;margin-top:12px}
+.pills span{background:rgba(255,255,255,.12);border-radius:999px;padding:4px 10px;font-size:12px;font-weight:700}
+.pills span.att{background:rgba(255,196,80,.28)}
+.prog{height:8px;border-radius:999px;background:rgba(255,255,255,.18);margin-top:12px;overflow:hidden}.prog span{display:block;height:100%;background:#fff;transition:width .25s ease}
+.chipuser{position:absolute;right:16px;top:16px;background:rgba(255,255,255,.16);border-radius:999px;padding:4px 10px;font-size:12px;font-weight:700}
+/* cards */
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius-lg);box-shadow:var(--shadow-soft);padding:16px}
+.card h2{margin:0 0 4px;font-size:17px;font-weight:800}.card h3{margin:0 0 10px;font-size:13px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+.card p{margin:0;color:var(--muted);font-size:14px}
+.card.next{border:2px solid var(--wilson-green);padding-top:14px}
+.eyebrow{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:var(--wilson-green)}
+.row{display:flex;gap:8px}.row>*{flex:1}
+.stop{display:grid;grid-template-columns:34px 1fr auto;gap:2px 12px;align-items:center;width:100%;text-align:left;background:var(--card);border:1px solid var(--line);border-radius:15px;padding:12px 14px;box-shadow:var(--shadow-soft)}
+.stop .n{width:34px;height:34px;border-radius:50%;background:var(--wilson-green-pale);color:var(--wilson-green);display:grid;place-items:center;font-weight:800;grid-row:1/3}
+.stop.done .n{background:var(--success);color:#fff}
+.stop .who{font-weight:800}.stop .sub{font-size:13px;color:var(--muted);grid-column:2}
+.stop .eta{font-size:13px;color:var(--muted);text-align:right}.stop .eta b{display:block;color:var(--ink);font-size:15px}
+.pill{display:inline-block;border-radius:999px;padding:2px 9px;font-size:11px;font-weight:800;margin-top:2px}
+.pill.SO1{background:var(--info-bg);color:var(--info)}.pill.SO6{background:var(--success-bg);color:var(--success)}.pill.WAR{background:#efe8f8;color:#7a4fb3}.pill.done{background:var(--success-bg);color:var(--success)}.pill.warn{background:var(--warning-bg);color:var(--warning)}.pill.bad{background:var(--danger-bg);color:var(--danger)}
+/* job */
+.back{border:0;background:none;color:var(--wilson-green);font-weight:700;padding:0;text-align:left}
+.hero{display:flex;flex-direction:column;gap:6px}
+.hero .addr{color:var(--muted);font-size:14px}
+.acts{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:8px}
+.acts .button{min-height:44px;font-size:14px}
+.timer{display:inline-flex;align-items:center;gap:6px;white-space:nowrap;flex-shrink:0;background:var(--wilson-green-pale);color:var(--wilson-green);border-radius:999px;padding:6px 12px;font-size:13px;font-weight:700}
+.timer i{width:8px;height:8px;border-radius:50%;background:var(--wilson-lime);display:inline-block}
+.problem{background:var(--warning-bg);border-radius:var(--radius-md);padding:10px 12px;font-size:14px;color:var(--ink)}
+.problem b{display:block;font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--warning);margin-bottom:2px}
+.thumbs{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}.thumbs img,.thumbs .ph{width:64px;height:64px;border-radius:10px;object-fit:cover;background:var(--wilson-green-soft);display:grid;place-items:center;font-size:11px;color:var(--muted);text-align:center}
+.kv{display:grid;grid-template-columns:auto 1fr;gap:4px 12px;font-size:14px}.kv dt{color:var(--muted)}.kv dd{margin:0;font-weight:600}
+/* answers */
+.opts{display:flex;flex-direction:column;gap:8px}
+.opt{min-height:52px;border-radius:12px;border:1px solid var(--line);background:var(--card);text-align:left;padding:10px 14px;display:flex;justify-content:space-between;align-items:center;gap:10px;font-weight:600}
+.opt .res{font-size:12px;color:var(--muted);font-weight:600;white-space:nowrap}
+.opt[aria-pressed="true"]{background:var(--sel-bg);border-color:var(--sel);color:var(--sel);box-shadow:inset 0 0 0 1px var(--sel)}
+.opt[aria-pressed="true"] .res{color:var(--sel)}
+.opt.att[aria-pressed="true"]{background:var(--warning-bg);border-color:var(--warning);color:var(--warning);box-shadow:inset 0 0 0 1px var(--warning)}
+.chips{display:flex;gap:8px;flex-wrap:wrap}
+.chip{min-height:44px;border-radius:999px;border:1px solid var(--sel-line);background:var(--card);color:var(--sel);padding:0 14px;font-weight:700;font-size:14px}
+.chip[aria-pressed="true"]{background:var(--sel);color:#fff;border-color:var(--sel)}
+.chip.na{border-color:var(--line);color:var(--muted)}
+.photo{display:flex;align-items:center;justify-content:space-between;gap:10px;min-height:52px;border-radius:12px;border:1px dashed var(--line-strong);padding:8px 14px;font-weight:700;cursor:pointer;background:var(--card)}
+.photo.need{border-color:var(--warning);background:var(--warning-bg);color:var(--warning)}
+.photo.filled{border-style:solid;border-color:var(--success);background:var(--success-bg);color:var(--success)}
+.photo input{display:none}.photo img{width:44px;height:44px;border-radius:8px;object-fit:cover}
+.parts{display:flex;flex-direction:column;gap:8px}
+.part{display:grid;grid-template-columns:1fr auto;gap:2px 10px;align-items:center;border:1px solid var(--line);border-radius:12px;padding:10px 12px}
+.part .pn{font-size:12px;color:var(--muted)}.part .q{display:flex;align-items:center;gap:6px}.part .q button{width:36px;height:36px;border-radius:50%;border:1px solid var(--line);background:var(--card);font-weight:800}
+.part .q b{min-width:18px;text-align:center}
+.part.st{grid-template-columns:1fr auto}.part .status{display:flex;gap:6px}.part .status button{min-height:36px;border-radius:999px;border:1px solid var(--line);background:var(--card);padding:0 10px;font-size:12px;font-weight:700}
+.part .status button[aria-pressed="true"]{background:var(--sel);color:#fff;border-color:var(--sel)}
+.search{display:flex;gap:8px}.search input{flex:1;min-height:44px;border:1px solid var(--line);border-radius:11px;padding:0 12px;font:inherit;background:var(--card);color:var(--ink)}
+.sugg{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}.sugg button{min-height:40px;border-radius:999px;border:1px solid var(--line);background:var(--wilson-green-pale);color:var(--wilson-green);padding:0 12px;font-size:13px;font-weight:700}
+textarea{width:100%;min-height:88px;border:1px solid var(--line);border-radius:11px;padding:10px 12px;font:inherit;background:var(--card);color:var(--ink);resize:vertical}
+.ready{display:flex;align-items:center;gap:10px;font-size:13px;color:var(--muted);padding:10px 12px;background:var(--wilson-green-pale);border-radius:var(--radius-md)}
+.ready.ok{color:var(--success);background:var(--success-bg)}
+.save{font-size:12px;color:var(--muted);text-align:right}
+.bar{position:fixed;left:0;right:0;bottom:0;background:var(--card);border-top:1px solid var(--line);padding:10px 16px calc(10px + env(safe-area-inset-bottom));box-shadow:0 -8px 24px rgba(0,0,0,.06);z-index:5}
+.bar .in{max-width:480px;margin:0 auto;display:flex;gap:8px}
+.bar .in .button{flex:2}.bar .in .button.ghost{flex:1}
+.bar small{display:block;text-align:center;color:var(--muted);font-size:12px;margin-top:6px;max-width:480px;margin-inline:auto}
+.toast{position:fixed;left:50%;bottom:120px;transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:12px;font-size:14px;font-weight:600;z-index:9;box-shadow:0 8px 24px rgba(0,0,0,.25);max-width:90vw;text-align:center}
+[hidden]{display:none!important}
+@media (prefers-reduced-motion:no-preference){.opt,.chip{transition:background .1s,color .1s}}
+/* 9/11 feedback: money strip, blocks, error code, custom note, quick-pick labor */
+.money{margin-top:12px;background:rgba(255,255,255,.12);border-radius:14px;padding:10px 12px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;text-align:left;cursor:pointer;border:0;color:#fff;width:100%;font:inherit}
+.money span{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;opacity:.8;display:block}.money b{font-size:19px;font-weight:800;font-variant-numeric:tabular-nums;display:block;line-height:1.15}.money small{font-size:11px;opacity:.85;font-weight:600}
+.money .bar2{grid-column:1/-1;height:6px;border-radius:999px;background:rgba(255,255,255,.18);overflow:hidden;margin-top:2px}.money .bar2 i{display:block;height:100%;background:#fff}
+.moneylist{display:flex;flex-direction:column;gap:6px}.moneylist div{display:grid;grid-template-columns:1fr auto;gap:2px 10px;font-size:14px;padding:8px 0;border-bottom:1px solid var(--line)}.moneylist div:last-child{border:0}.moneylist .d{color:var(--muted);font-size:12px;grid-column:1}.moneylist b{font-variant-numeric:tabular-nums}.moneylist .pend{color:var(--muted)}
+.blockrow{display:grid;grid-template-columns:34px 1fr auto;gap:2px 12px;align-items:center;border:1px dashed var(--line-strong);border-radius:15px;padding:10px 14px;color:var(--muted);background:var(--bg)}
+.blockrow .n{width:34px;height:34px;border-radius:50%;background:var(--card);display:grid;place-items:center;grid-row:1/3;border:1px solid var(--line)}.blockrow .who{font-weight:700;color:var(--ink);font-size:15px}.blockrow .sub{font-size:13px;grid-column:2}.blockrow .eta{font-size:13px;text-align:right}.blockrow .eta b{display:block;color:var(--ink);font-size:15px}
+.codebox{display:flex;gap:8px;align-items:center;margin-top:10px;padding:10px 12px;border:1px solid var(--warning);background:var(--warning-bg);border-radius:12px}
+.codebox input{flex:1;min-width:0;min-height:44px;border:1px solid var(--line);border-radius:10px;padding:0 12px;font:inherit;font-family:"IBM Plex Mono",monospace;font-weight:700;font-size:18px;text-transform:uppercase;background:var(--card);color:var(--ink)}
+.codebox label{font-size:12px;font-weight:800;color:var(--warning);text-transform:uppercase;letter-spacing:.06em;white-space:nowrap}
+.chip.quick{border-color:var(--wilson-green);color:var(--wilson-green);background:var(--wilson-green-pale)}.chip.quick[aria-pressed="true"]{background:var(--wilson-green);color:#fff}
+.custombtn{min-height:44px;border-radius:999px;border:1px dashed var(--line-strong);background:var(--card);color:var(--muted);padding:0 14px;font-weight:700;font-size:14px}
+</style>
+
+<div class="app" id="app"></div>
+<div class="bar" id="bar" hidden></div>
+
+<script>
+/* ---------- sample data ---------- */
+const TECH='Diogo Assis';
+const CATALOG={ /* [part#, name, last verified price, verified date] */
+ dishwasher:[['W10348269','Drain pump',148,'9/4'],['W10510667','Circulation pump & motor',312,'8/28'],['W10804120','Electronic control board',236,'9/9'],['W10619006','Door latch assembly',96,'9/2'],['W10872131','Water inlet valve',74,'9/9'],['W10518394','Heating element',129,'8/21']],
+ refrigerator:[['4200500','Evaporator fan motor',189,'9/3'],['W10189190','Compressor start relay',58,'9/8'],['WR51X10055','Defrost heater',84,'8/30'],['WR55X10025','Thermistor',31,'9/8'],['W10408179','Water inlet valve',92,'9/1'],['W10882923','Ice maker assembly',214,'8/26']],
+ washer:[['W10730972','Drain pump',132,'9/2'],['W11614515','Water inlet valve',88,'9/10'],['W10404050','Door lock assembly',118,'9/5'],['W10780048','Suspension rod kit',76,'8/29'],['W11116590','Control board',284,'9/6']],
+ dryer:[['279838','Heating element',64,'9/1'],['3392519','Thermal fuse',18,'9/1'],['349241T','Drum roller kit',42,'8/27'],['341241','Drive belt',22,'9/7'],['279311','Igniter',58,'9/3']],
+ oven:[['W10918546','Oven igniter',86,'9/9'],['W10779716','Bake element',112,'9/2'],['W11122558','Control board',341,'8/30'],['W10131825','Temperature sensor',47,'9/9'],['W10120838','Spark module',128,'8/25'],['W10195934','Door lock motor',97,'9/4']]};
+/* Flat-rate tasks: from the 2025.6.21 rate book. Price = hours × $130 (HVAC $150). Brand suffixes dropped — see blueprint §5.6. */
+const RATE=130,TAX=0.0825;
+const TASKS={
+ dishwasher:[['Drain Pump Replacement',1.5],['Pump and/or Motor Assembly Replacement',2],['Water Valve Replacement',.75],['Heating Element Replacement',1],['Electronic Control/Timer/Pad Replacement',1],['Door Spring/Balance Kit Replacement',1],['Door Seal Replacement',.5],['Float Switch Replacement',.75],['Drain Hose Replacement',.75],['Debris Removal from Sump/Impeller/Drain',.5],['Address Water Leak (Tub-Door-Etc.)',.75],['Reinstallation of Unit',.75],['Repair Burnt Wire(s) or Loose Connection(s)',.75]],
+ refrigerator:[['Evaporator Fan Motor/Blade Replacement',1],['Condenser Fan Motor/Blade Replacement',1],['Relay/Start Device Replacement',.75],['Defrost Heater/Drain Heater Replacement',1],['Defrost Bimetal Replacement',1],['Thermistor/Sensor Replacement',.75],['Electronic Control/Module Replacement',1],['Double/Single Water Valve Replacement',.5],['Ice Maker Kit/Component Replacement',.75],['Door Gasket Replacement (Push-In Type)',.75],['Clear Debris/Ice From Defrost Drain',.5],['Vacuum and/or Clean Condenser Coils',.5],['Sealed System - Compressor, Filter Drier Replacement',6],['Sealed System - Refrigerant Leak Repair',2]],
+ washer:[['Pump/Pump Motor Replacement',1],['Water Valve Replacement',.75],['Door/Lid Switch Assembly Replacement',.5],['Door Assembly Replacement',1],['Gasket Replacement (Bellows or Regular)',1.5],['Suspension Component(s) Replacement',1.25],['Drive Motor Replacement',1.25],['Electronic Control/Timer/Pad Replacement',1],['Belt(s) Replacement',.75],['Inner/Outer Tub/Bearing Replacement - Front Load',3],['Remove Debris From Pin Trap',.5],['Hose(s) or Clamp(s) Replacement',.5]],
+ dryer:[['Heating Element Replacement',.75],['Hi-Limit/Thermal Fuse Replacement',.5],['Igniter (HSI) Replacement',.5],['Gas Valve Assembly Replacement',1],['Belt Replacement',.75],['Tub Roller/Idler Pulley/Belt Kit Replacement',1],['Motor Replacement - Drum/Drive',1.25],['Blower Wheel Replacement',1],['Electronic Control/Timer/Pad Replacement',.75],['Door Switch Replacement',.75],['Thermostat Replacement',.5],['Clear Lint/Debris From Venting',.5]],
+ oven:[['Bake Element Replacement (Exposed)',1],['Bake Element Replacement - Hidden (Single Oven)',2],['Bake Element Replacement - Hidden (Double Oven) - Two Technicians',2.5],['Broil Element Replacement (Concealed)',1.5],['Oven Ignitor (HSI) Replacement',.75],['Oven Temp Sensor (Thermistor) Replacement',.75],['Electronic Control/Module Replacement',1],['Convection Fan Motor/Blade Replacement',1.5],['Cooling Fan Motor/Blade Replacement',1.5],['Door Lock/Latch Assembly Replacement',1],['Door Hinge Assembly Replacement',1],['Calibrate Oven Temperature',.75],['Switch Replacement - Burner/Selector',1]]};
+const MODS=[['Difficult Access Fee',.5],['Stacked / Built-in Access Fee',.35],['Additional One Tech Labor',.5],['Additional Component Replacement',.5]];
+const SYMPTOMS={
+ dishwasher:['Standing water','Won\'t start','No heat / not drying','Leaking','Error code','Noise','Not cleaning'],
+ refrigerator:['Not cooling','Freezer OK, fridge warm','Ice maker','Water leak','Noise / fan','Frost build-up','Compressor not running'],
+ washer:['Won\'t drain','Won\'t spin','Won\'t fill','Leaking','Noise','Error code','Door won\'t lock'],
+ dryer:['No heat','Won\'t start','Noise','Not tumbling','Takes too long','Shuts off early'],
+ oven:['No heat','Uneven heat','Igniter glows, no flame','Door locked','Error code','Control unresponsive']};
+const CAUSES=['Failed component','Clogged / blocked','Wiring / connection','Installation issue','Customer use / education','Cosmetic only','Undetermined — needs research'];
+const LABOR=[['0.5','30 min'],['1','1 hr'],['1.5','1.5 hr'],['2','2 hr'],['3','3 hr'],['4','Half day'],['8','Full day']];
+let stops=[
+ {sv:'SV00123290',st:'SO1',cust:'Gary & Karen Jones',addr:'5701 Fort Benton Dr, Austin 78735',phone:'(512) 555-0142',gate:'—',eta:'8:34 AM',win:'8–12',builtin:true,cat:'dishwasher',brand:'Bosch',model:'SHPM88Z75N',serial:'',problem:'Dishwasher not draining. Standing water after every cycle. Customer has cleaned the filter twice.',photos:2,pref:'Text'},
+ {sv:'SV00123179',st:'SO6',cust:'Jeff McCollum',addr:'1221 Kemp Hills Dr, Austin 78737',phone:'(512) 555-0187',gate:'4471',eta:'9:56 AM',win:'8–12',builtin:true,cat:'refrigerator',brand:'Sub-Zero',model:'BI-36U/S',serial:'S2107441',problem:'Fridge side warming. Diag 9/3: evaporator fan seized. Approved 9/4.',pref:'Call',photos:1,bal:'COD balance $423.18',parts:[['4200500','Evaporator fan motor',1,98]],diagBy:'Diogo · 9/3',labor:'1 hr approved',lab:130},
+ {sv:'SV00123302',st:'SO6',cust:'Nick & Sharon Hippe',addr:'10008 Hillside North, Austin 78736',phone:'(512) 555-0110',gate:'—',eta:'12:00 PM',win:'12–5',builtin:false,cat:'washer',brand:'GE',model:'GFW550SSNWW',serial:'ZV184220G',problem:'Won\'t drain. Diag 9/2: drain pump failed, impeller cracked. Approved 9/3. Part arrived 9/12.',pref:'Text',photos:0,bal:'A/R overdue',parts:[['W10730972','Drain pump',1,71]],diagBy:'Diogo · 9/2',labor:'1 hr approved',lab:130},
+ {sv:'SV00123365',st:'SO1',cust:'Maria Ortega',addr:'7412 Escarpment Blvd, Austin 78749',phone:'(512) 555-0199',gate:'2290',eta:'1:18 PM',win:'12–5',builtin:true,cat:'oven',brand:'KitchenAid',model:'KOSE500ESS',serial:'',problem:'Wall oven won\'t heat. Display works, fan runs, no bake or broil.',pref:'Call',photos:1},
+ {sv:'SV00123116',st:'SO6',cust:'James Kubenka',addr:'10100 Wildwood Hills, Austin 78737',phone:'(512) 555-0176',gate:'—',eta:'2:39 PM',win:'12–5',builtin:false,cat:'dryer',brand:'Whirlpool',model:'WED5620HW',serial:'M84503345',problem:'No heat. Diag 9/1: heating element open, thermal fuse also failed. Approved 9/1.',pref:'Text',photos:0,bal:'COD balance $423.51',parts:[['279838','Heating element',1,29],['3392519','Thermal fuse',1,7]],diagBy:'Diogo · 9/1',labor:'1 hr approved',lab:130}];
+/* 9/11: not-a-call block on today's route, tech's weekly target and last week's actual (OE-23 basis) */
+const BLOCKS=[{after:'SV00123179',label:'Van maintenance · tire rotation',time:'11:15 AM',dur:'45 min'}];
+const DIAG_LABOR=157,TARGET=1700,LASTWEEK=1650,MARGIN=.45;
+const LABOR_QUICK=[['Half-day labor',4],['Full-day labor',8]];
+stops.forEach(s=>{s.done=false;s.phase='pending';s.f={outcome:null,symptoms:[],cause:null,parts:[],labor:null,flags:[],note:'',serialPhoto:null,photos:[],partStatus:{},result:null,arrived:null,tasks:[],ship:false,decision:null,signed:false,agree:false,errorCode:'',custom:'',showCustom:false}});
+let view='route',cur=null,timerIv=null;
+const $=s=>document.querySelector(s);
+function toast(m){const t=document.createElement('div');t.className='toast';t.textContent=m;document.body.append(t);setTimeout(()=>t.remove(),3200)}
+function saved(){const el=$('#saved');if(!el)return;el.textContent='Saving…';setTimeout(()=>{el.textContent='Saved · '+new Date().toLocaleTimeString([],{hour:'numeric',minute:'2-digit'})},450)}
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+/* ---------- delivered dollars (§5.6): labor incl. diag/zone fees + parts profit; warranty = labor only; estimated cost when no PO ---------- */
+function stopDollars(s){const f=s.f;const r=f.result||'';
+  if(!s.done)return null;
+  if(s.st==='SO6'){if(!r.startsWith('SO8'))return {lab:0,pp:0,pending:'not completed — '+r};const pp=s.parts.reduce((a,p)=>a+(CATALOG[s.cat].find(c=>c[0]===p[0])?.[2]||0)*p[2]-(p[3]||0)*p[2],0);return {lab:s.lab||130,pp:Math.round(pp),est:false}}
+  if(r.startsWith('SO8')){const lab=f.outcome==='onsite'?DIAG_LABOR:f.tasks.reduce((a,t)=>a+t[1]*RATE,0);const parts=f.parts.reduce((a,p)=>a+(p[3]||0)*p[2],0);return {lab,pp:Math.round(parts*MARGIN),est:parts>0}}
+  if(r.startsWith('SO7'))return {lab:DIAG_LABOR,pp:0};
+  if(r.startsWith('SO3')){const t=totals(s);return {lab:0,pp:0,pending:`approved ${money(t.total)} — counts on install day`}}
+  if(r.startsWith('SO2'))return {lab:0,pp:0,pending:'quote out — counts when installed'};
+  return {lab:0,pp:0,pending:r}}
+function moneyToday(){let lab=0,pp=0,est=false;for(const s of stops){const m=stopDollars(s);if(!m)continue;lab+=m.lab;pp+=m.pp;est=est||!!m.est}return {lab,pp,total:lab+pp,est}}
+const usd=n=>'$'+Math.round(n).toLocaleString('en-US');
+let showMoney=false;
+/* ---------- route ---------- */
+function render(){$('#bar').hidden=true;view==='route'?renderRoute():renderJob()}
+function renderRoute(){
+  const done=stops.filter(s=>s.done).length,next=stops.find(s=>s.phase!=='pending'&&!s.done)||stops.find(s=>!s.done);
+  const att=stops.filter(s=>s.bal&&!s.done).length;
+  $('#app').innerHTML=`<div class="proto"><b>Prototype</b> · sample route · nothing is sent anywhere</div>
+  <div class="head"><span class="chipuser">${TECH.split(' ')[0]}</span><div class="kicker">Today's route</div><h1>Mon, Sep 14</h1><div class="sub">Leaves shop 8:00 AM · back at shop ~3:58 PM</div>
+    <div class="pills"><span>${done} of ${stops.length} done</span><span>${stops.filter(s=>s.st==='SO1'&&!s.done).length} diagnostics</span><span>${stops.filter(s=>s.st==='SO6'&&!s.done).length} installs</span>${att?`<span class="att">${att} to collect balance</span>`:''}</div>
+    <div class="prog"><span style="width:${done/stops.length*100}%"></span></div>
+    ${(()=>{const m=moneyToday();const pace=m.total*5;return `<button class="money" id="moneyBtn" aria-expanded="${showMoney}" title="Your number: labor (incl. diagnostic and zone fees) + parts profit. Warranty jobs count labor only."><div><span>Today</span><b>${usd(m.total)}</b><small>labor ${usd(m.lab)} · parts ${usd(m.pp)}${m.est?'*':''}</small></div><div><span>This week</span><b>${usd(m.total)}</b><small>Mon so far · last wk ${usd(LASTWEEK)}</small></div><div><span>Target</span><b>${usd(TARGET)}</b><small>${done?`pace ${usd(pace)}/wk`:'per week'}</small></div><div class="bar2"><i style="width:${Math.min(100,m.total/TARGET*100)}%"></i></div></button>`})()}</div>
+  ${showMoney?`<div class="card"><h3>Your number today</h3><div class="moneylist">${stops.map(s=>{const m=stopDollars(s);return `<div><span>${esc(s.cust)}</span><b class="${m&&!m.pending&&(m.lab+m.pp)?'':'pend'}">${!m?'—':m.pending?'pending':usd(m.lab+m.pp)}</b><span class="d">${!m?'not done yet':m.pending?m.pending:`labor ${usd(m.lab)}${m.pp?` · parts profit ${usd(m.pp)}${m.est?' (est. cost — office confirms)':''}`:s.st==='SO6'&&m.pp===0?' · warranty parts: a wash':''}`}</span></div>`}).join('')}</div><p style="margin-top:10px">Labor includes diagnostic and zone fees. Parts profit is sell minus our cost — zero on warranty tickets. Numbers are provisional at your tap and reconciled with the invoice overnight; only you and the office see yours.</p></div>`:''}
+  ${next?`<div class="card next"><div class="eyebrow">${next.phase==='arrived'?'In progress':next.phase==='enroute'?'On the way':'Up next'}</div><h2>${esc(next.cust)}</h2><p>${esc(next.addr)} · ${next.win} window · ETA ${next.eta}</p>
+    <p style="margin-top:6px"><span class="pill ${next.st}">${next.st==='SO1'?'New diagnostic':'Part install'}</span> ${next.bal?`<span class="pill warn">${next.bal}</span>`:''}</p>
+    <div class="row" style="margin-top:12px">${next.phase==='pending'?`<button class="button secondary" data-enroute="${next.sv}">On my way<small>${next.pref==='Call'?'calls via Podium — customer prefers a call':'texts the customer'}</small></button>`:''}<button class="button" data-open="${next.sv}">${next.phase==='arrived'?'Continue':'Arrived — open job'}</button></div></div>`:
+    `<div class="card next"><div class="eyebrow">Route complete</div><h2>All ${stops.length} stops done</h2><p>Head back to the shop. Findings are already with the office.</p></div>`}
+  <h3 style="margin:4px 0 -6px;font-size:13px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)">All stops</h3>
+  ${stops.map((s,i)=>`<button class="stop ${s.done?'done':''}" data-open="${s.sv}"><span class="n">${s.done?'✓':i+1}</span><span class="who">${esc(s.cust)}</span><span class="eta">${s.done?'':`<b>${s.eta}</b>`}${s.done?`<span class="pill done">${s.f.result||'Done'}</span>`:s.win}</span><span class="sub">${esc(s.addr.split(',')[0])} · ${s.brand} ${s.cat} · <span class="mono">${s.sv}</span></span></button>`+BLOCKS.filter(b=>b.after===s.sv).map(b=>`<div class="blockrow"><span class="n">⏸</span><span class="who">${esc(b.label)}</span><span class="eta"><b>${b.time}</b>${b.dur}</span><span class="sub">blocked by the office · not a call</span></div>`).join('')).join('')}`;
+  const mb=$('#moneyBtn');if(mb)mb.onclick=()=>{showMoney=!showMoney;render()};
+  document.querySelectorAll('[data-enroute]').forEach(b=>b.onclick=()=>{const s=stops.find(x=>x.sv===b.dataset.enroute);s.phase='enroute';toast(s.pref==='Call'?`Podium call placed to ${s.phone} — customer prefers a call`:`Text sent: "Diogo from Wilson is on the way, arriving about ${s.eta}"`);render()});
+  document.querySelectorAll('[data-open]').forEach(b=>b.onclick=()=>{cur=stops.find(x=>x.sv===b.dataset.open);if(!cur.done&&cur.phase!=='arrived'){cur.phase='arrived';cur.f.arrived=Date.now()}view='job';render();window.scrollTo(0,0)});
+}
+/* ---------- job ---------- */
+function renderJob(){
+  const s=cur,f=s.f,isDiag=s.st==='SO1';
+  const elapsed=()=>f.arrived?Math.max(0,Math.round((Date.now()-f.arrived)/60000)):0;
+  $('#app').innerHTML=`<button class="back" id="back">← Today's route</button>
+  <div class="card hero"><div style="display:flex;justify-content:space-between;align-items:start;gap:8px"><div><span class="pill ${s.st}">${isDiag?'New diagnostic · SO1':'Part install · SO6'}</span> ${s.bal?`<span class="pill warn">${s.bal}</span>`:''}<h2 style="margin-top:6px">${esc(s.cust)}</h2><div class="addr">${esc(s.addr)}${s.gate!=='—'?` · Gate ${s.gate}`:''}</div></div>
+    ${s.done?`<span class="pill done">Submitted</span>`:`<span class="timer"><i></i>on site <b id="elapsed">${elapsed()}</b> min</span>`}</div>
+    <div class="acts"><button class="button ghost">Navigate</button><button class="button ${s.pref==='Call'?'secondary':'ghost'}">Call${s.pref==='Call'?'<small>preferred</small>':''}</button><button class="button ${s.pref!=='Call'?'secondary':'ghost'}">Text${s.pref!=='Call'?'<small>preferred</small>':''}</button></div></div>
+  <div class="card"><div class="problem"><b>Customer reported</b>${esc(s.problem)}</div>${s.photos?`<div class="thumbs">${Array.from({length:s.photos}).map((_,i)=>`<div class="ph">customer photo ${i+1}</div>`).join('')}</div>`:''}
+    <dl class="kv" style="margin:12px 0 0"><dt>Unit</dt><dd>${s.brand} ${s.cat} · ${s.builtin?'built-in (labor tax-exempt)':'freestanding'}</dd><dt>Model</dt><dd class="mono">${s.model}</dd><dt>Serial</dt><dd class="mono">${s.serial||'<span style="color:var(--warning)">not on file — tag photo required</span>'}</dd>${s.diagBy?`<dt>Diagnosed</dt><dd>${s.diagBy}</dd><dt>Labor</dt><dd>${s.labor}</dd>`:''}<dt>Order</dt><dd class="mono">${s.sv}</dd></dl></div>
+  ${isDiag?diagHTML(s):installHTML(s)}
+  <div class="card"><h3>Note for the office <span style="font-weight:600;text-transform:none;letter-spacing:0">(one per visit, optional${f.outcome&&/research|access|declined|replace/.test(f.outcome)?' — <b style="color:var(--warning)">required for this outcome</b>':''})</span></h3>
+    <textarea id="note" placeholder="Anything the parts manager or Noell needs to know. Lives on the service order — no ePASS re-typing.">${esc(f.note)}</textarea><div class="save" id="saved">Saved</div></div>`;
+  $('#back').onclick=()=>{view='route';render()};
+  $('#note').oninput=e=>{f.note=e.target.value;saved();readiness()};
+  wireAnswers();readiness();
+  clearInterval(timerIv);if(!s.done)timerIv=setInterval(()=>{const e=$('#elapsed');if(e)e.textContent=elapsed()},15000);
+}
+function photoHTML(id,label,required,val){return `<label class="photo ${val?'filled':required?'need':''}" id="ph-${id}">${val?`<img src="${val}" alt="">`:''}<span>${val?'✓ Photo saved':(required?'＋ '+label+' — required':'＋ '+label)}</span><input type="file" accept="image/*" capture="environment" data-photo="${id}"></label>`}
+function diagHTML(s){const f=s.f;
+  const outcomes=[['field','Quote the repair now, in the field','customer signs · card on file'],['parts','Needs parts — office sends quote','→ SO2'],['onsite','Quick fix within the diag hour','→ SO8 · diag fee'],['research','Needs research / call back','stays SO1'],['replace','Not worth repairing — recommend replacement','→ SO7 · sales lead'],['declined','Customer declined diagnostic fee / walked','→ SO7 · diag fee'],['access','Could not access unit','reschedule']];
+  return `<div class="card"><h3>Serial tag</h3>${photoHTML('serial','Serial tag photo',true,f.serialPhoto)}<p style="margin-top:8px">Required on a new diagnostic. It fills model and serial on the order and the quote.</p></div>
+  <div class="card"><h3>Outcome</h3><div class="opts">${outcomes.map(o=>`<button class="opt ${/replace|declined|access/.test(o[0])?'att':''}" data-outcome="${o[0]}" aria-pressed="${f.outcome===o[0]}"><span>${o[1]}</span><span class="res">${o[2]}</span></button>`).join('')}</div></div>
+  <div class="card"><h3>What you found</h3><div class="chips">${SYMPTOMS[s.cat].map(x=>`<button class="chip" data-sym="${esc(x)}" aria-pressed="${f.symptoms.includes(x)}">${x}</button>`).join('')}<button class="custombtn" data-custom aria-pressed="${f.showCustom||!!f.custom}">${f.showCustom||f.custom?'✎ Custom note':'＋ Custom note'}</button></div>
+    ${f.symptoms.includes('Error code')?`<div class="codebox"><label for="errcode">Code shown</label><input id="errcode" value="${esc(f.errorCode)}" placeholder="E24" maxlength="12" autocapitalize="characters" autocomplete="off" inputmode="text"></div>`:''}
+    ${f.showCustom||f.custom?`<textarea id="custom" style="margin-top:10px;min-height:72px" placeholder="What you found, in your words — use the mic on the keyboard. Only for what the buttons can't say.">${esc(f.custom)}</textarea>`:''}
+    <h3 style="margin-top:14px">Cause</h3><div class="chips">${CAUSES.map(x=>`<button class="chip" data-cause="${esc(x)}" aria-pressed="${f.cause===x}">${x}</button>`).join('')}</div>
+    <h3 style="margin-top:14px">Problem photo</h3>${photoHTML('problem','Photo of the fault',false,f.photos[0])}</div>
+  ${f.outcome==='field'?quoteHTML(s):''}
+  <div class="card" id="partsCard" ${f.outcome!=='parts'&&f.outcome!=='research'?'hidden':''}><h3>Parts needed</h3>
+    <div class="search"><input id="partq" placeholder="Part number or name" autocomplete="off"></div>
+    <div class="sugg">${CATALOG[s.cat].filter(p=>!f.parts.find(x=>x[0]===p[0])).map(p=>`<button data-addpart="${p[0]}">${p[1]}</button>`).join('')}<button data-addpart="UNKNOWN" style="border-style:dashed">Number unknown — describe</button></div>
+    <div class="parts" style="margin-top:10px">${f.parts.map((p,i)=>`<div class="part"><div><div>${esc(p[1])}</div><div class="pn mono">${p[0]}</div></div><div class="q"><button data-q="${i}:-1" aria-label="fewer">−</button><b>${p[2]}</b><button data-q="${i}:1" aria-label="more">+</button></div></div>`).join('')||'<p>No parts yet — tap a common part above or search.</p>'}</div></div>
+  <div class="card" id="laborCard" ${f.outcome!=='parts'?'hidden':''}><h3>Labor estimate for the office quote</h3><div class="chips">${LABOR.map(l=>`<button class="chip" data-labor="${l[0]}" aria-pressed="${f.labor===l[0]}">${l[1]}</button>`).join('')}</div>
+    <div class="chips" style="margin-top:10px">${['Second tech needed','Return trip required','Sealed-system work','Parts ship to customer'].map(x=>`<button class="chip na" data-flag="${esc(x)}" aria-pressed="${f.flags.includes(x)}">${x}</button>`).join('')}</div></div>`}
+function totals(s){const f=s.f;const labor=f.tasks.reduce((a,t)=>a+t[1]*RATE,0),parts=f.parts.reduce((a,p)=>a+(p[3]||0)*p[2],0),ship=f.parts.length&&f.ship?25:0,taxParts=(parts+ship)*TAX,taxLabor=s.builtin?0:labor*TAX,tax=taxParts+taxLabor;return{labor,parts,ship,taxParts,taxLabor,tax,total:labor+parts+ship+tax}}
+const money=n=>'$'+n.toFixed(2);
+function quoteHTML(s){const f=s.f,t=totals(s);const hasParts=f.parts.length>0;
+  return `<div class="card" style="border:2px solid var(--wilson-green)"><div class="eyebrow">Field quote</div><h2>Labor</h2><p>Flat-rate book tasks for a ${s.brand} ${s.cat}. Price is hours × $${RATE}.</p>
+    <div class="search" style="margin-top:10px"><input id="taskq" placeholder="Search tasks" autocomplete="off"></div>
+    <div class="chips" style="margin-top:10px">${LABOR_QUICK.map(q=>`<button class="chip quick" data-quick="${esc(q[0])}" aria-pressed="${!!f.tasks.find(y=>y[0]===q[0])}">${q[0]==='Half-day labor'?'Half day · 4h':'Full day · 8h'} · ${money(q[1]*RATE)}</button>`).join('')}</div>
+    <p style="margin-top:6px;font-size:12px">Quick picks for sealed-system and other long jobs — they also block that much of your day for the install.</p>
+    <div class="sugg" id="tasksugg">${TASKS[s.cat].filter(x=>!f.tasks.find(y=>y[0]===x[0])).map((x,i)=>`<button data-addtask="${esc(x[0])}" ${i>=6&&!f.allTasks?'hidden':''}>${x[0]} <span style="opacity:.7">· ${x[1]}h</span></button>`).join('')}${!f.allTasks&&TASKS[s.cat].length>6?`<button id="moreTasks" style="border-style:dashed;background:var(--card)">All ${TASKS[s.cat].length} ${s.cat} tasks…</button>`:''}</div>
+    <p style="margin-top:6px;font-size:12px">Most common first. Symptoms you tapped move matching tasks up.</p>
+    <div class="chips" style="margin-top:10px">${MODS.map(m=>`<button class="chip na" data-mod="${esc(m[0])}" aria-pressed="${!!f.tasks.find(y=>y[0]===m[0])}">${m[0]} · ${m[1]}h</button>`).join('')}</div>
+    <div class="parts" style="margin-top:10px">${f.tasks.map((x,i)=>`<div class="part"><div><div>${esc(x[0])}</div><div class="pn">${x[1]} h</div></div><div class="q"><b class="mono">${money(x[1]*RATE)}</b><button data-rmtask="${i}" aria-label="remove">×</button></div></div>`).join('')||'<p>Tap the tasks this repair needs.</p>'}</div>
+    <h2 style="margin-top:16px">Parts</h2><p>Last verified prices. The parts manager re-verifies before ordering; the customer is told if a price moves more than $25.</p>
+    <div class="sugg">${CATALOG[s.cat].filter(p=>!f.parts.find(x=>x[0]===p[0])).map(p=>`<button data-addpart="${p[0]}">${p[1]} <span style="opacity:.7">· ${money(p[2])}</span></button>`).join('')}<button data-addpart="UNKNOWN" style="border-style:dashed">Number unknown</button></div>
+    <div class="parts" style="margin-top:10px">${f.parts.map((p,i)=>`<div class="part"><div><div>${esc(p[1])}</div><div class="pn mono">${p[0]} · ${p[3]?money(p[3])+' · verified '+p[4]:'price TBD'}</div></div><div class="q"><button data-q="${i}:-1">−</button><b>${p[2]}</b><button data-q="${i}:1">+</button></div></div>`).join('')||'<p>No parts — labor-only repair.</p>'}</div>
+    ${hasParts?`<div class="chips" style="margin-top:10px"><button class="chip na" data-ship aria-pressed="${f.ship}">Shipping & handling $25</button><button class="chip na" data-flag="Parts ship to customer" aria-pressed="${f.flags.includes('Parts ship to customer')}">Ship parts to customer</button></div>`:''}
+    <dl class="kv" style="margin-top:16px;grid-template-columns:1fr auto"><dt>Diagnostic</dt><dd class="mono" style="color:var(--muted)">included</dd><dt>Labor (${f.tasks.reduce((a,x)=>a+x[1],0)} h)</dt><dd class="mono">${money(t.labor)}</dd><dt>Parts</dt><dd class="mono">${money(t.parts)}</dd>${t.ship?`<dt>Shipping & handling</dt><dd class="mono">${money(t.ship)}</dd>`:''}<dt>Sales tax — parts${t.ship?' & S&H':''}</dt><dd class="mono">${money(t.taxParts)}</dd><dt>Sales tax — labor</dt><dd class="mono">${s.builtin?'<span style="color:var(--muted);font-weight:500">exempt · built-in</span>':money(t.taxLabor)}</dd><dt style="font-weight:800;color:var(--ink);border-top:1px solid var(--line);padding-top:6px">Total charged to card on file</dt><dd class="mono" style="font-size:18px;border-top:1px solid var(--line);padding-top:6px">${money(t.total)}</dd></dl>
+    <p style="margin-top:6px">${hasParts?'Charged after the part is installed and the unit is tested.':'Charged when the repair is complete today.'} If declined, the $169.95 diagnostic is charged instead.</p></div>
+  <div class="card"><h3>Customer decision</h3><div class="opts">
+    <button class="opt" data-decision="approve" aria-pressed="${f.decision==='approve'}"><span>Approves now — signs on this phone</span><span class="res">${hasParts?'→ SO3 · order parts':'→ start work'}</span></button>
+    <button class="opt" data-decision="later" aria-pressed="${f.decision==='later'}"><span>Wants to think about it — send the link</span><span class="res">→ SO2.2</span></button>
+    <button class="opt att" data-decision="decline" aria-pressed="${f.decision==='decline'}"><span>Declines the repair</span><span class="res">→ SO7 · diag fee</span></button></div>
+    ${f.decision==='approve'?`<div style="margin-top:14px;padding:12px;border:1px solid var(--line);border-radius:12px;background:var(--wilson-green-pale)"><p style="color:var(--ink);font-size:13px">I approve the work above for <b>${money(t.total)}</b> and authorize Wilson AC &amp; Appliance to charge the card I saved with my service request${hasParts?' once the repair is complete':''}. I understand the diagnostic fee applies if I cancel.</p>
+      <label style="display:flex;gap:10px;align-items:center;margin:10px 0;font-size:14px;font-weight:600"><input type="checkbox" id="agree" ${f.agree?'checked':''} style="width:22px;height:22px">Customer read and agrees</label>
+      <div style="font-size:12px;color:var(--muted);margin-bottom:4px">Customer signature</div><canvas id="sig" width="600" height="180" style="width:100%;height:120px;background:var(--card);border:1px dashed var(--line-strong);border-radius:10px;touch-action:none"></canvas>
+      <div class="row" style="margin-top:8px"><button class="button ghost" id="sigclear" style="min-height:40px">Clear</button><span style="flex:2;font-size:12px;color:var(--muted);align-self:center">${f.signed?'✓ Signed':'Sign with a finger'}</span></div></div>`:''}</div>`}
+function installHTML(s){const f=s.f;
+  const outcomes=[['complete','Repair complete — unit tested','→ SO8 · card charged'],['moreparts','Additional parts needed','→ SO2 · new quote'],['partissue','Part wrong, damaged or missing','→ SO3 · reorder'],['notfixed','Installed but problem persists','→ SO1 · needs research'],['access','Could not access unit','reschedule']];
+  return `<div class="card"><h3>Parts on this truck for this job</h3><div class="parts">${s.parts.map(p=>`<div class="part st"><div><div>${esc(p[1])} <span class="pn">×${p[2]}</span></div><div class="pn mono">${p[0]}</div></div><div class="status">${['Installed','Wrong','Damaged'].map(x=>`<button data-ps="${p[0]}:${x}" aria-pressed="${f.partStatus[p[0]]===x}">${x}</button>`).join('')}</div></div>`).join('')}</div></div>
+  <div class="card"><h3>Serial tag</h3><div class="photo filled" style="cursor:default"><span>✓ On file from diagnostic · <span class="mono">${s.serial}</span></span></div></div>
+  <div class="card"><h3>Outcome</h3><div class="opts">${outcomes.map(o=>`<button class="opt ${o[0]==='complete'?'':'att'}" data-outcome="${o[0]}" aria-pressed="${f.outcome===o[0]}"><span>${o[1]}</span><span class="res">${o[2]}</span></button>`).join('')}</div></div>
+  <div class="card" id="partsCard" ${f.outcome==='moreparts'?'':'hidden'}><h3>Additional parts</h3><div class="sugg">${CATALOG[s.cat].filter(p=>!f.parts.find(x=>x[0]===p[0])).map(p=>`<button data-addpart="${p[0]}">${p[1]}</button>`).join('')}</div>
+    <div class="parts" style="margin-top:10px">${f.parts.map((p,i)=>`<div class="part"><div><div>${esc(p[1])}</div><div class="pn mono">${p[0]}</div></div><div class="q"><button data-q="${i}:-1">−</button><b>${p[2]}</b><button data-q="${i}:1">+</button></div></div>`).join('')}</div></div>
+  <div class="card"><h3>Completed work photo</h3>${photoHTML('problem','Photo of finished repair',false,f.photos[0])}</div>`}
+function wireAnswers(){const f=cur.f;
+  document.querySelectorAll('[data-outcome]').forEach(b=>b.onclick=()=>{f.outcome=f.outcome===b.dataset.outcome?null:b.dataset.outcome;saved();renderJob()});
+  document.querySelectorAll('[data-sym]').forEach(b=>b.onclick=()=>{const v=b.dataset.sym;f.symptoms=f.symptoms.includes(v)?f.symptoms.filter(x=>x!==v):[...f.symptoms,v];b.setAttribute('aria-pressed',f.symptoms.includes(v));saved();if(v==='Error code'){renderJob();if(f.symptoms.includes(v))setTimeout(()=>$('#errcode')?.focus(),30);return}readiness()});
+  const ec=$('#errcode');if(ec)ec.oninput=e=>{f.errorCode=e.target.value.toUpperCase();saved();readiness()};
+  const cb=document.querySelector('[data-custom]');if(cb)cb.onclick=()=>{f.showCustom=!f.showCustom;if(!f.showCustom)f.custom='';renderJob();if(f.showCustom)setTimeout(()=>$('#custom')?.focus(),30)};
+  const cu=$('#custom');if(cu)cu.oninput=e=>{f.custom=e.target.value;saved()};
+  document.querySelectorAll('[data-quick]').forEach(b=>b.onclick=()=>{const q=LABOR_QUICK.find(x=>x[0]===b.dataset.quick);const i=f.tasks.findIndex(x=>x[0]===q[0]);if(i>=0)f.tasks.splice(i,1);else{f.tasks=f.tasks.filter(x=>!LABOR_QUICK.find(y=>y[0]===x[0]));f.tasks.push([...q])}saved();renderJob()});
+  document.querySelectorAll('[data-cause]').forEach(b=>b.onclick=()=>{f.cause=f.cause===b.dataset.cause?null:b.dataset.cause;document.querySelectorAll('[data-cause]').forEach(x=>x.setAttribute('aria-pressed',x.dataset.cause===f.cause));saved();readiness()});
+  document.querySelectorAll('[data-labor]').forEach(b=>b.onclick=()=>{f.labor=f.labor===b.dataset.labor?null:b.dataset.labor;document.querySelectorAll('[data-labor]').forEach(x=>x.setAttribute('aria-pressed',x.dataset.labor===f.labor));saved();readiness()});
+  document.querySelectorAll('[data-flag]').forEach(b=>b.onclick=()=>{const v=b.dataset.flag;f.flags=f.flags.includes(v)?f.flags.filter(x=>x!==v):[...f.flags,v];b.setAttribute('aria-pressed',f.flags.includes(v));saved()});
+  document.querySelectorAll('[data-addpart]').forEach(b=>b.onclick=()=>{const pn=b.dataset.addpart;const c=CATALOG[cur.cat].find(x=>x[0]===pn);const p=pn==='UNKNOWN'?['TBD','Part — describe in note',1,0,'']:[c[0],c[1],1,c[2],c[3]];f.parts.push(p);saved();renderJob();if(pn==='UNKNOWN'){$('#note').focus()}});
+  document.querySelectorAll('[data-q]').forEach(b=>b.onclick=()=>{const [i,d]=b.dataset.q.split(':').map(Number);f.parts[i][2]+=d;if(f.parts[i][2]<=0)f.parts.splice(i,1);saved();renderJob()});
+  document.querySelectorAll('[data-ps]').forEach(b=>b.onclick=()=>{const [pn,st]=b.dataset.ps.split(':');f.partStatus[pn]=f.partStatus[pn]===st?null:st;saved();renderJob()});
+  document.querySelectorAll('[data-addtask]').forEach(b=>b.onclick=()=>{const t=TASKS[cur.cat].find(x=>x[0]===b.dataset.addtask);f.tasks.push([...t]);saved();renderJob()});
+  document.querySelectorAll('[data-rmtask]').forEach(b=>b.onclick=()=>{f.tasks.splice(+b.dataset.rmtask,1);saved();renderJob()});
+  document.querySelectorAll('[data-mod]').forEach(b=>b.onclick=()=>{const m=MODS.find(x=>x[0]===b.dataset.mod);const i=f.tasks.findIndex(x=>x[0]===m[0]);i>=0?f.tasks.splice(i,1):f.tasks.push([...m]);saved();renderJob()});
+  document.querySelectorAll('[data-ship]').forEach(b=>b.onclick=()=>{f.ship=!f.ship;saved();renderJob()});
+  document.querySelectorAll('[data-decision]').forEach(b=>b.onclick=()=>{f.decision=f.decision===b.dataset.decision?null:b.dataset.decision;f.signed=false;f.agree=false;saved();renderJob();if(f.decision==='approve')setTimeout(()=>$('#sig')?.scrollIntoView({block:'center'}),50)});
+  const ag=$('#agree');if(ag)ag.onchange=()=>{f.agree=ag.checked;readiness()};
+  const tq=$('#taskq');if(tq)tq.oninput=e=>{const v=e.target.value.toLowerCase();const m=$('#moreTasks');if(m)m.hidden=!!v;document.querySelectorAll('[data-addtask]').forEach((b,i)=>{b.hidden=v?!b.dataset.addtask.toLowerCase().includes(v):(i>=6&&!f.allTasks)})};const mt=$('#moreTasks');if(mt)mt.onclick=()=>{f.allTasks=true;renderJob()};
+  const sig=$('#sig');if(sig){const ctx=sig.getContext('2d');ctx.lineWidth=3;ctx.lineCap='round';ctx.strokeStyle=getComputedStyle(document.documentElement).getPropertyValue('--ink');let drawing=false;const pos=e=>{const r=sig.getBoundingClientRect();return[(e.clientX-r.left)*sig.width/r.width,(e.clientY-r.top)*sig.height/r.height]};
+    sig.onpointerdown=e=>{drawing=true;ctx.beginPath();ctx.moveTo(...pos(e));sig.setPointerCapture(e.pointerId)};sig.onpointermove=e=>{if(!drawing)return;ctx.lineTo(...pos(e));ctx.stroke()};sig.onpointerup=sig.onpointercancel=()=>{if(drawing){drawing=false;if(!f.signed){f.signed=true;saved();readiness();const l=sig.parentElement.querySelector('.row span');if(l)l.textContent='✓ Signed'}}};
+    $('#sigclear').onclick=()=>{ctx.clearRect(0,0,sig.width,sig.height);f.signed=false;readiness();sig.parentElement.querySelector('.row span').textContent='Sign with a finger'}}
+  const q=$('#partq');if(q)q.oninput=e=>{const v=e.target.value.toLowerCase();document.querySelectorAll('[data-addpart]').forEach(b=>{if(b.dataset.addpart==='UNKNOWN')return;b.hidden=v&&!(b.textContent.toLowerCase().includes(v)||b.dataset.addpart.toLowerCase().includes(v))})};
+  document.querySelectorAll('[data-photo]').forEach(inp=>inp.onchange=()=>{const file=inp.files[0];if(!file)return;const lab=inp.closest('label');lab.querySelector('span').textContent='Saving photo…';
+    const r=new FileReader();r.onload=()=>{/* real build: downscale to 1600px and write Blob to IndexedDB before flipping the label */if(inp.dataset.photo==='serial')f.serialPhoto=r.result;else f.photos[0]=r.result;saved();renderJob();toast('Photo saved on this phone — uploads when there\'s signal')};r.readAsDataURL(file)});
+}
+function missing(){const s=cur,f=s.f,m=[];
+  if(s.st==='SO1'){if(!f.serialPhoto)m.push('serial tag photo');if(!f.outcome)m.push('outcome');if(f.outcome&&!/access|declined/.test(f.outcome)&&!f.symptoms.length)m.push('what you found');if(f.symptoms.includes('Error code')&&!f.errorCode.trim())m.push('the error code shown');
+    if(f.outcome==='parts'){if(!f.parts.length)m.push('at least one part');if(!f.labor)m.push('labor');}
+    if(f.outcome==='field'){if(!f.tasks.length)m.push('at least one labor task');if(!f.decision)m.push('customer decision');if(f.decision==='approve'){if(!f.agree)m.push('customer agreement');if(!f.signed)m.push('signature')}}
+    if(f.outcome&&/research|access|declined|replace/.test(f.outcome)&&!f.note.trim())m.push('a note explaining');if(f.parts.some(p=>p[0]==='TBD')&&!f.note.trim())m.push('describe the unknown part in the note')}
+  else{if(!f.outcome)m.push('outcome');const un=s.parts.filter(p=>!f.partStatus[p[0]]);if(un.length)m.push(`status for ${un.length} part${un.length>1?'s':''}`);if(f.outcome==='moreparts'&&!f.parts.length)m.push('the additional part');if(f.outcome&&f.outcome!=='complete'&&!f.note.trim())m.push('a note explaining')}
+  return m}
+function readiness(){const s=cur,f=s.f,m=missing(),bar=$('#bar');
+  if(s.done){bar.hidden=false;bar.innerHTML=`<div class="in"><button class="button ghost" id="reopen">Reopen</button><button class="button" disabled>Submitted · ${f.result}</button></div>`;$('#reopen').onclick=()=>{s.done=false;render()};return}
+  const fq=f.decision==='approve'?(f.parts.length?'Approved → order parts':'Approved → start the repair'):f.decision==='later'?'Send quote link to customer':f.decision==='decline'?'Submit — declined':'Field quote';const label=s.st==='SO1'?({field:fq,parts:'Submit findings → office quote',onsite:'Complete — quick fix, diag fee',research:'Save — needs research',replace:'Submit — recommend replacement',declined:'Submit — customer declined',access:'Could not access — reschedule'}[f.outcome]||'Submit findings'):({complete:'Repair complete → charge card',moreparts:'Submit → new quote',partissue:'Submit → reorder part',notfixed:'Submit → needs research',access:'Could not access — reschedule'}[f.outcome]||'Complete job');
+  bar.hidden=false;bar.innerHTML=`<div class="in"><button class="button ghost" id="savenow">Save</button><button class="button" id="submit" ${m.length?'disabled':''}>${label}</button></div><small>${m.length?'Still needed: '+m.join(' · '):'Everything the office needs is here.'}</small>`;
+  $('#savenow').onclick=()=>{saved();toast('Saved on this phone')};
+  $('#submit').onclick=submit;
+  const ins=document.querySelector('.card:last-of-type');
+}
+function submit(){const s=cur,f=s.f;const fqr=f.decision==='approve'?(f.parts.length?'SO3 · field-approved, order parts':'SO8 · field-approved, charged'):f.decision==='later'?'SO2.2 · link sent':'SO7 · diag fee charged';const map=s.st==='SO1'?{field:fqr,parts:'SO2 · quote to parts verify',onsite:'SO8 · diag fee billed',research:'SO1 · research',replace:'SO7 · sales lead',declined:'SO7 · diag fee charged',access:'Reschedule'}:{complete:'SO8 · card charged',moreparts:'SO2 · new quote',partissue:'SO3 · reorder',notfixed:'SO1 · research',access:'Reschedule'};
+  f.result=map[f.outcome];s.done=true;s.phase='done';const mins=f.arrived?Math.max(1,Math.round((Date.now()-f.arrived)/60000)):0;
+  const m=stopDollars(s);toast(`${s.cust.split(' ').pop()} → ${f.result}. On-site ${mins} min.${m&&!m.pending&&(m.lab+m.pp)?` +${usd(m.lab+m.pp)} to your day.`:m&&m.pending?` ${m.pending}.`:''}`);view='route';render();window.scrollTo(0,0)}
+render();
+</script>
+
+</body></html>

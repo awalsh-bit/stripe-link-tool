@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="robots" content="noindex,nofollow,noarchive" />
+  <title>Wilson AC & Appliance - Service Journey</title>
+  <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+  <link rel="stylesheet" href="internal-shell.css" />
+  <style>
+    :root { --bg: #f7f8fc; --card: #fff; --text: #1f2937; --muted: #6b7280; --border: #dbe1ea; --shadow: 0 10px 35px rgba(0,0,0,0.08); --radius: 18px; }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: "Roboto", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: linear-gradient(180deg, var(--primary-tint) 0%, var(--bg) 100%); color: var(--text); min-height: 100vh; padding: 32px 16px; }
+    .wrap { max-width: 1520px; margin: 0 auto; }
+    .surface { background: var(--card); border: 1px solid rgba(var(--primary-rgb), 0.12); box-shadow: var(--shadow); border-radius: var(--radius); padding: 22px; margin: 0 auto 20px; }
+    h2 { margin: 0 0 6px; font-size: 21px; }
+    h3 { margin: 0 0 8px; font-size: 15px; }
+    .section-note { margin: 0 0 14px; color: var(--muted); font-size: 13.5px; line-height: 1.5; }
+    .section-note a { color: var(--primary); font-weight: 700; }
+    code { word-break: break-all; }
+    .beta { display: inline-block; background: #fef3c7; color: #92400e; border-radius: 999px; padding: 2px 10px; font-size: 11px; font-weight: 800; letter-spacing: .05em; vertical-align: middle; margin-left: 8px; }
+    button { appearance: none; border: none; background: var(--primary); color: #fff; padding: 9px 14px; border-radius: 10px; font-size: 13px; font-weight: 700; cursor: pointer; white-space: nowrap; font-family: inherit; }
+    button:hover { background: var(--primary-hover); }
+    button:disabled { opacity: .6; cursor: wait; }
+    button.quiet { background: #fff; color: #374151; border: 1px solid var(--border); }
+    button.quiet:hover { background: #f8fafc; }
+    button.tiny { padding: 5px 10px; font-size: 12px; border-radius: 8px; }
+    button.danger { background: #fee2e2; color: #991b1b; }
+    button.warn { background: #fef3c7; color: #92400e; }
+    input[type=text], input[type=date], select, textarea { border: 1px solid var(--border); border-radius: 10px; padding: 9px 11px; font-size: 13.5px; font-family: inherit; background: #fff; color: var(--text); }
+    input:focus, select:focus, textarea:focus { outline: none; border-color: rgba(var(--primary-rgb), .75); box-shadow: 0 0 0 4px rgba(var(--primary-rgb), .12); }
+    textarea { width: 100%; min-height: 64px; resize: vertical; }
+    label.f { display: block; font-size: 11.5px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; color: #64748b; margin-bottom: 5px; }
+
+    .stats { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 10px; }
+    .stat { background: var(--primary-faint-2, #f6faf6); border: 1px solid var(--border); border-radius: 12px; padding: 9px 14px; font-size: 12.5px; color: var(--muted); min-width: 120px; cursor: pointer; }
+    .stat strong { display: block; font-size: 20px; color: var(--text); font-variant-numeric: tabular-nums; }
+    .stat.warn strong { color: #b45309; } .stat.bad strong { color: #b91c1c; }
+    .stat:hover { border-color: var(--primary); }
+    .feeds { font-size: 12.5px; color: var(--muted); margin-top: 12px; line-height: 1.6; }
+    .feeds b { color: var(--text); }
+
+    .tabs { display: flex; gap: 6px; flex-wrap: wrap; border-bottom: 1px solid var(--border); margin-bottom: 16px; }
+    .tab { background: none; color: var(--muted); border: none; border-bottom: 3px solid transparent; border-radius: 0; padding: 10px 14px; font-weight: 700; font-size: 13.5px; }
+    .tab:hover { background: none; color: var(--text); }
+    .tab.on { color: var(--primary); border-bottom-color: var(--primary); }
+    .tab .n { display: inline-block; margin-left: 6px; background: #eef2f7; color: #374151; border-radius: 999px; padding: 1px 8px; font-size: 11px; }
+    .pane[hidden] { display: none; }
+
+    .toolbar { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; margin-bottom: 12px; }
+    .toolbar .field { flex: 0 1 200px; min-width: 0; }
+    .toolbar .field.wide { flex: 1 1 260px; }
+    .toolbar input, .toolbar select { width: 100%; }
+    .toolbar .chk { display: inline-flex; gap: 6px; align-items: center; font-size: 13px; font-weight: 600; padding-bottom: 9px; }
+    .count { font-size: 12.5px; color: var(--muted); padding-bottom: 9px; }
+
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th, td { text-align: left; padding: 8px 9px; border-bottom: 1px solid #eef1f6; vertical-align: top; }
+    th { font-size: 11px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: #64748b; white-space: nowrap; }
+    tr.r { cursor: pointer; } tr.r:hover td { background: #f8fafc; }
+    td.nw { white-space: nowrap; }
+    .who { color: var(--muted); font-size: 12px; }
+    .muted { color: var(--muted); }
+    .empty { padding: 26px 10px; text-align: center; color: var(--muted); }
+    .table-scroll { overflow-x: auto; }
+    .pill { display: inline-block; border-radius: 999px; font-size: 10.5px; font-weight: 800; padding: 3px 9px; letter-spacing: .04em; white-space: nowrap; background: #eef2f7; color: #374151; }
+    .pill.so1 { background: #e0f2fe; color: #075985; } .pill.so2 { background: #fef3c7; color: #92400e; } .pill.so3 { background: #ede9fe; color: #5b21b6; } .pill.so4 { background: #fce7f3; color: #9d174d; } .pill.so5 { background: #dcfce7; color: #166534; } .pill.so6 { background: rgba(var(--primary-rgb), .14); color: var(--primary); } .pill.so7 { background: #f3f4f6; color: #374151; } .pill.so8 { background: #d1fae5; color: #065f46; } .pill.so9 { background: #fee2e2; color: #991b1b; } .pill.war { background: #ffedd5; color: #9a3412; } .pill.si { background: #e0e7ff; color: #3730a3; }
+    .flag { display: inline-block; border-radius: 6px; padding: 1px 6px; font-size: 10.5px; font-weight: 800; margin-left: 4px; }
+    .flag.stale { background: #fee2e2; color: #991b1b; } .flag.review { background: #fef3c7; color: #92400e; } .flag.feed { background: #e0f2fe; color: #075985; } .flag.wty { background: #ffedd5; color: #9a3412; } .flag.recall { background: #fce7f3; color: #9d174d; } .flag.diff { background: #fef9c3; color: #854d0e; }
+
+    /* drawer */
+    .drawer-bg { display: none; position: fixed; inset: 0; background: rgba(15,23,42,.45); z-index: 60; }
+    .drawer-bg.show { display: block; }
+    .drawer { position: fixed; top: 0; right: 0; bottom: 0; width: min(720px, 100%); background: #fff; z-index: 61; transform: translateX(105%); transition: transform .2s; overflow: auto; padding: 22px; box-shadow: -20px 0 60px rgba(0,0,0,.2); }
+    .drawer.show { transform: none; }
+    .kv { display: grid; grid-template-columns: 130px 1fr; gap: 4px 10px; font-size: 13px; padding: 5px 0; border-bottom: 1px dashed #eef1f6; }
+    .kv .k { font-size: 11px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; color: #64748b; padding-top: 2px; }
+    .block { border: 1px solid var(--border); border-radius: 12px; padding: 12px 14px; margin-top: 14px; background: #fbfcfe; }
+    .block h3 { font-size: 13px; letter-spacing: .04em; text-transform: uppercase; color: #64748b; }
+    .hist { font-size: 12.5px; padding: 5px 0; border-bottom: 1px dashed #eef1f6; }
+    .hist b { font-variant-numeric: tabular-nums; }
+    .grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 10px; }
+    .grid2 select, .grid2 input { width: 100%; }
+    .status-msg { display: none; border-radius: 10px; padding: 9px 12px; font-size: 13px; margin-top: 10px; }
+    .status-msg.show { display: block; } .status-msg.ok { background: rgba(var(--primary-rgb), .1); color: var(--primary); } .status-msg.error { background: #fee2e2; color: #991b1b; }
+
+    /* sync cards */
+    .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(360px, 1fr)); gap: 12px; }
+    .card { border: 1px solid var(--border); border-radius: 14px; padding: 12px 14px; background: #fff; }
+    .card.disc { border-color: #fca5a5; background: #fff7f7; }
+    .card.keyed { border-color: #fcd34d; background: #fffdf5; }
+    .card .top { display: flex; justify-content: space-between; gap: 10px; align-items: flex-start; margin-bottom: 8px; }
+    pre.packet { background: #0f172a; color: #e2e8f0; border-radius: 10px; padding: 10px 12px; font: 12.5px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; white-space: pre-wrap; margin: 0 0 8px; }
+    .card .btns { display: flex; gap: 8px; flex-wrap: wrap; }
+    .ev { font-size: 12.5px; background: #fef2f2; border-radius: 8px; padding: 6px 10px; margin-bottom: 8px; }
+    .ev b { color: #991b1b; }
+
+    @media (max-width: 720px) {
+      body { padding: 14px 8px; } .surface { padding: 16px; }
+      .internal-shell-header-top { flex-wrap: wrap !important; }
+      .toolbar .field, .toolbar .field.wide { flex: 1 1 100%; }
+      .stat { flex: 1 1 45%; min-width: 0; }
+      .drawer { width: 100%; padding: 16px; }
+      .kv { grid-template-columns: 1fr; }
+      .jobs thead { display: none; }
+      .jobs, .jobs tbody, .jobs tr, .jobs td { display: block; width: 100%; }
+      .jobs tbody tr { border: 1px solid var(--border); border-radius: 14px; padding: 10px 12px; margin-bottom: 10px; background: var(--primary-faint-2, #f6faf6); }
+      .jobs td { border: none; padding: 2px 0; white-space: normal; }
+      .jobs td[data-l]::before { content: attr(data-l) " "; font-size: 11px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; color: #64748b; }
+    }
+  </style>
+</head>
+<body data-shell-label="Service Journey" data-shell-icon="service">
+  <div class="wrap">
+    <div id="internal-shell-header"></div>
+
+    <div class="surface">
+      <h2>Service Journey <span class="beta">TEST MODULE · PHASE 0</span></h2>
+      <p class="section-note">Every open SV ticket mirrored from ePASS — the DispatchTrack export the agent ships every 15 minutes (SV rows) plus the ExportInvoice upload on <a href="service-order-health.html">Service Order Health</a> — with status history, a Sync Queue of paste-ready packets for anything Agility changes, stale and stuck flags, recall candidates, and first KPIs. Cayden's target-state mocks are the three prototype pages under Test Modules. Spec: <code>service_call_journey/docs/07_Developer_Spec.md</code>.</p>
+      <div class="stats" id="stats"></div>
+      <div class="feeds" id="feeds"></div>
+    </div>
+
+    <div class="surface">
+      <div class="tabs" id="tabs">
+        <button type="button" class="tab on" data-tab="jobs">Jobs</button>
+        <button type="button" class="tab" data-tab="stuck">Stuck &amp; stale<span class="n" id="nStuck">0</span></button>
+        <button type="button" class="tab" data-tab="sync">Sync queue<span class="n" id="nSync">0</span></button>
+        <button type="button" class="tab" data-tab="recalls">Recalls<span class="n" id="nRecalls">0</span></button>
+        <button type="button" class="tab" data-tab="kpi">KPIs</button>
+        <button type="button" class="tab" data-tab="imports">Imports &amp; setup</button>
+      </div>
+
+      <div class="pane" id="pane-jobs">
+        <div class="toolbar">
+          <div class="field wide"><label class="f" for="q">Search</label><input type="text" id="q" placeholder="Name, phone, SV, serial, model, address" /></div>
+          <div class="field"><label class="f" for="fStatus">Status</label><select id="fStatus"><option value="">All open</option></select></div>
+          <div class="field"><label class="f" for="fTech">Tech</label><select id="fTech"><option value="">Any tech</option></select></div>
+          <div class="field"><label class="f" for="fZone">Zone</label><select id="fZone"><option value="">Any zone</option></select></div>
+          <label class="chk"><input type="checkbox" id="fStale" /> Stale only</label>
+          <label class="chk"><input type="checkbox" id="fReview" /> Needs intake review</label>
+          <label class="chk"><input type="checkbox" id="fAll" /> Include closed</label>
+          <span class="count" id="jobCount"></span>
+        </div>
+        <div class="table-scroll">
+          <table class="jobs">
+            <thead><tr><th>SV #</th><th>Client</th><th>Unit</th><th>Status</th><th>Date</th><th>Tech</th><th>Zone</th><th>In status</th><th>Balance</th></tr></thead>
+            <tbody id="jobRows"><tr><td colspan="9" class="empty">Loading…</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="pane" id="pane-stuck" hidden>
+        <p class="section-note">Stuck = sat in its status longer than the threshold (SO2 24 h · SO2.1 4 h · SO2.2 5 d · SO3 48 h · SO5 48 h · REQ 24 h). Stale = an SO1 / SO6 whose visit date has passed and ePASS still shows it open — a ticket somebody needs to close out or re-date in ePASS. For import-created jobs the clock starts at the first import Agility saw.</p>
+        <h3>Stuck</h3>
+        <div class="table-scroll"><table class="jobs"><thead><tr><th>SV #</th><th>Client</th><th>Status</th><th>Hours in status</th><th>Threshold</th><th>Tech</th></tr></thead><tbody id="stuckRows"></tbody></table></div>
+        <h3 style="margin-top:18px;">Stale visits</h3>
+        <div class="table-scroll"><table class="jobs"><thead><tr><th>SV #</th><th>Client</th><th>ePASS status</th><th>Visit date</th><th>Truck</th><th>Agility status</th></tr></thead><tbody id="staleRows"></tbody></table></div>
+      </div>
+
+      <div class="pane" id="pane-sync" hidden>
+        <p class="section-note">Whatever Agility changes that ePASS still needs to know shows up here as a packet. Key it into ePASS, tap <strong>Keyed</strong>, and the next import confirms it without anyone touching it. Two imports in a row that still disagree flip it to a <strong>discrepancy</strong>; so does ePASS changing a job Agility owns without a packet explaining it. Resolve with <strong>Re-issue</strong> (key it again) or <strong>Accept ePASS</strong> (Agility takes the ePASS values).</p>
+        <div class="toolbar">
+          <div class="field"><label class="f" for="syncState">Show</label><select id="syncState"><option value="">Open (discrepancy · pending · keyed)</option><option value="pending">Pending</option><option value="keyed">Keyed — awaiting import</option><option value="discrepancy">Discrepancies</option><option value="confirmed">Confirmed</option><option value="resolved">Resolved</option></select></div>
+        </div>
+        <div class="cards" id="syncCards"></div>
+      </div>
+
+      <div class="pane" id="pane-recalls" hidden>
+        <p class="section-note">A new ticket on the same serial (or the same model at the same address) within 30 days of a completed repair is a recall <em>candidate</em> against the tech who did the original repair; an ePASS RCALL priority is a confirmed recall. Confirm or dismiss with a note — a candidate left unreviewed for 7 days counts in the KPI so it can't be hidden by ignoring it.</p>
+        <div class="table-scroll"><table class="jobs"><thead><tr><th>New SV</th><th>Client</th><th>Unit</th><th>Original</th><th>Days</th><th>Basis</th><th>Tech</th><th>State</th><th></th></tr></thead><tbody id="recallRows"></tbody></table></div>
+      </div>
+
+      <div class="pane" id="pane-kpi" hidden>
+        <div class="toolbar">
+          <div class="field"><label class="f" for="kFrom">From</label><input type="date" id="kFrom" /></div>
+          <div class="field"><label class="f" for="kTo">To</label><input type="date" id="kTo" /></div>
+          <button type="button" class="quiet" id="kRun">Run</button>
+        </div>
+        <p class="section-note" id="kNote"></p>
+        <div class="table-scroll"><table><thead><tr><th>Tech</th><th>Visits</th><th>Completed</th><th>Working days</th><th>Calls / day</th><th>Median turnaround (d)</th><th>Diag-only</th><th>Recalls</th></tr></thead><tbody id="kpiRows"></tbody></table></div>
+      </div>
+
+      <div class="pane" id="pane-imports" hidden>
+        <div class="grid2" style="grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px;">
+          <div class="block" style="margin-top:0;">
+            <h3>Feeds</h3>
+            <div id="feedDetail" style="font-size:13px; line-height:1.6;"></div>
+            <div style="margin-top:10px; display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
+              <input type="file" id="dtFile" accept=".csv,text/csv" style="display:none;" />
+              <button type="button" class="quiet" id="dtUpload">Import a DispatchTrack CSV by hand</button>
+              <span class="who">The agent does this automatically; use this if you're testing with a file.</span>
+            </div>
+          </div>
+          <div class="block" style="margin-top:0;">
+            <h3>Zones</h3>
+            <div id="zoneDetail" style="font-size:13px; line-height:1.6;"></div>
+          </div>
+          <div class="block" style="margin-top:0;" id="settingsBlock">
+            <h3>Settings</h3>
+            <div id="settingsDetail" style="font-size:13px; line-height:1.6;"></div>
+          </div>
+        </div>
+        <h3 style="margin-top:18px;">Import log</h3>
+        <div class="table-scroll"><table><thead><tr><th>When</th><th>Source</th><th>File</th><th>By</th><th>Result</th></tr></thead><tbody id="importRows"></tbody></table></div>
+      </div>
+      <div id="pageStatus" class="status-msg"></div>
+    </div>
+
+    <div id="internal-shell-footer"></div>
+  </div>
+
+  <div class="drawer-bg" id="drawerBg"></div>
+  <div class="drawer" id="drawer"></div>
+
+  <script src="internal-shell.js"></script>
+  <script>
+    const $ = (id) => document.getElementById(id);
+    const esc = (v) => String(v ?? "").replace(/[&<>"']/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch]));
+    const money = (n) => n == null ? "—" : "$" + Number(n).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const when = (iso) => iso ? new Date(iso).toLocaleString("en-US", { timeZone: "America/Chicago", month: "2-digit", day: "2-digit", hour: "numeric", minute: "2-digit" }) : "—";
+    const day = (d) => d ? `${Number(d.slice(5, 7))}/${Number(d.slice(8, 10))}/${d.slice(2, 4)}` : "—";
+    const title = (s) => String(s || "").toLowerCase().replace(/\b[a-z]/g, (c) => c.toUpperCase()).replace(/\bLlc\b/, "LLC");
+    const hours = (h) => h == null ? "—" : h < 48 ? `${Math.round(h)} h` : `${Math.round(h / 24)} d`;
+    const state = { overview: null, jobs: [], open: null, syncItems: [] };
+    function setStatus(message, kind) { const b = $("pageStatus"); if (!message) { b.className = "status-msg"; b.textContent = ""; return; } b.className = "status-msg " + kind + " show"; b.textContent = message; setTimeout(() => { if (b.textContent === message) b.className = "status-msg"; }, 8000); }
+    async function api(path, opts = {}) {
+      const res = await fetch(path, { credentials: "same-origin", headers: opts.body && !(opts.body instanceof FormData) ? { "Content-Type": "application/json" } : {}, ...opts });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || "Request failed.");
+      return data;
+    }
+    function pillClass(status) { const s = String(status || "").toUpperCase(); if (s.startsWith("WAR")) return "war"; if (s.startsWith("SI")) return "si"; const m = s.match(/^SO(\d)/); return m ? "so" + m[1] : ""; }
+    const pill = (status) => `<span class="pill ${pillClass(status)}">${esc(status || "—")}</span>`;
+    function flags(j) {
+      const out = [];
+      if (j.stale) out.push(`<span class="flag stale" title="Visit date passed; ePASS still open">STALE</span>`);
+      if (j.needsIntakeReview) out.push(`<span class="flag review" title="Created from an ePASS export — no card / contact preference attached yet">REVIEW</span>`);
+      if (j.inFeed) out.push(`<span class="flag feed" title="Present in the latest DispatchTrack export">DT</span>`);
+      if (j.isWarranty) out.push(`<span class="flag wty">WTY</span>`);
+      if ((j.flags || []).includes("recall")) out.push(`<span class="flag recall">RECALL</span>`);
+      if ((j.flags || []).includes("recall_candidate")) out.push(`<span class="flag recall">RECALL?</span>`);
+      if (j.epassStatus && j.epassStatus !== j.status) out.push(`<span class="flag diff" title="ePASS shows ${esc(j.epassStatus)}">ePASS ${esc(j.epassStatus)}</span>`);
+      return out.join("");
+    }
+    const unitText = (u) => [u?.brand, u?.category || u?.model].filter(Boolean).join(" ") || "—";
+
+    // ---- overview ----
+    async function loadOverview() {
+      const o = await api("/api/service-journey/overview");
+      state.overview = o;
+      const st = [
+        ["Open SV tickets", o.openJobs, ""],
+        ["In DT feed", o.statuses.reduce((s, x) => s + (x.inFeed || 0), 0), ""],
+        ["Stuck", o.stuck, o.stuck ? "warn" : ""],
+        ["Stale visits", o.stale, o.stale ? "warn" : ""],
+        ["Sync pending", o.sync.pending, o.sync.pending ? "warn" : ""],
+        ["Awaiting import", o.sync.keyed, ""],
+        ["Discrepancies", o.sync.discrepancy, o.sync.discrepancy ? "bad" : ""],
+        ["Recall candidates", o.recallCandidates, o.recallCandidates ? "warn" : ""],
+        ["Needs intake review", o.needsReview, ""]
+      ];
+      $("stats").innerHTML = st.map(([l, n, c], i) => `<div class="stat ${c}" data-i="${i}">${esc(l)}<strong>${n}</strong></div>`).join("");
+      const dt = o.lastImports.find((x) => x.source === "dispatchtrack"), ei = o.lastImports.find((x) => x.source === "exportinvoice");
+      $("feeds").innerHTML = `DispatchTrack export: ${dt ? `<b>${when(dt.importedAt)}</b> · ${esc(dt.fileName)} · ${dt.summary?.svOrders ?? "?"} SV orders` : "<b>not received yet</b> — the epass-agent's <code>dispatch</code> upload feeds this"} ${o.dtComplete ? `<span class="flag feed">ALL STATUSES</span>` : `<span class="flag review" title="ePASS filters this export to routing statuses; SO2–SO5, SO7+ come from ExportInvoice">SO1 · SO4PRE · SO5 · SO6 only</span>`}<br>ExportInvoice: ${ei ? `<b>${when(ei.importedAt)}</b> · ${esc(ei.fileName)} · ${ei.summary?.rows ?? "?"} tickets` : "<b>not uploaded yet</b> — upload it on Service Order Health"}`;
+      $("nStuck").textContent = o.stuck + o.stale; $("nSync").textContent = o.sync.pending + o.sync.keyed + o.sync.discrepancy; $("nRecalls").textContent = o.recallCandidates;
+      // filters
+      const fs = $("fStatus"); const keep = fs.value;
+      fs.innerHTML = `<option value="">All open</option>` + o.statuses.map((s) => `<option value="${esc(s.status)}">${esc(s.status)} — ${esc(s.name)} (${s.count})</option>`).join("");
+      fs.value = keep;
+      const ft = $("fTech"); const keepT = ft.value;
+      ft.innerHTML = `<option value="">Any tech</option>` + o.techs.map((t) => `<option value="${esc(t.code)}">${esc(t.code)} — ${esc(t.name)}</option>`).join(""); ft.value = keepT;
+      const fz = $("fZone"); const keepZ = fz.value;
+      fz.innerHTML = `<option value="">Any zone</option>` + o.zones.filter((z) => z.openJobs).map((z) => `<option value="${esc(z.code)}">${esc(z.code)} · ${esc(z.group)} (${z.openJobs})</option>`).join(""); fz.value = keepZ;
+      renderSetup();
+    }
+    $("stats").addEventListener("click", (ev) => {
+      const s = ev.target.closest(".stat"); if (!s) return;
+      const i = Number(s.dataset.i);
+      if (i === 2 || i === 3) showTab("stuck");
+      else if (i >= 4 && i <= 6) { $("syncState").value = i === 4 ? "pending" : i === 5 ? "keyed" : "discrepancy"; showTab("sync"); }
+      else if (i === 7) showTab("recalls");
+      else if (i === 8) { $("fReview").checked = true; showTab("jobs"); loadJobs(); }
+      else if (i === 1) { showTab("jobs"); }
+    });
+
+    // ---- tabs ----
+    const loaders = { jobs: loadJobs, stuck: loadStuck, sync: loadSync, recalls: loadRecalls, kpi: null, imports: loadImports };
+    function showTab(name) {
+      document.querySelectorAll(".tab").forEach((t) => t.classList.toggle("on", t.dataset.tab === name));
+      document.querySelectorAll(".pane").forEach((p) => { p.hidden = p.id !== "pane-" + name; });
+      if (loaders[name]) loaders[name]().catch((e) => setStatus(e.message, "error"));
+    }
+    $("tabs").addEventListener("click", (ev) => { const t = ev.target.closest(".tab"); if (t) showTab(t.dataset.tab); });
+
+    // ---- jobs ----
+    let qTimer = null;
+    async function loadJobs() {
+      const p = new URLSearchParams();
+      if ($("q").value.trim()) p.set("q", $("q").value.trim());
+      if ($("fStatus").value) p.set("status", $("fStatus").value);
+      if ($("fTech").value) p.set("tech", $("fTech").value);
+      if ($("fZone").value) p.set("zone", $("fZone").value);
+      if ($("fStale").checked) p.set("stale", "1");
+      if ($("fReview").checked) p.set("review", "1");
+      if ($("fAll").checked) p.set("all", "1");
+      const data = await api("/api/service-journey/jobs?" + p.toString());
+      state.jobs = data.jobs;
+      $("jobCount").textContent = `${data.jobs.length} ticket${data.jobs.length === 1 ? "" : "s"}`;
+      if (!data.jobs.length) { $("jobRows").innerHTML = `<tr><td colspan="9" class="empty">Nothing matches.</td></tr>`; return; }
+      $("jobRows").innerHTML = data.jobs.map((j) => `
+        <tr class="r" data-sv="${esc(j.svNumber)}">
+          <td class="nw" data-l="SV"><strong>${esc(j.svNumber)}</strong>${flags(j)}</td>
+          <td data-l="Client">${esc(title(j.customerName))}<div class="who">${esc(j.phone ? j.phone.replace(/(\d{3})(\d{3})(\d{4})/, "$1-$2-$3") : "")}${j.city ? " · " + esc(title(j.city)) : ""}</div></td>
+          <td data-l="Unit">${esc(unitText(j.unit))}<div class="who">${esc(j.unit.model || "")}</div></td>
+          <td data-l="Status">${pill(j.status)}<div class="who">${esc(j.statusName)}</div></td>
+          <td class="nw" data-l="Date">${day(j.routeDate || j.epassRouteDate)}</td>
+          <td class="nw" data-l="Tech">${esc(j.assignedTech || j.epassTechCode || "—")}${j.ownerTech && j.ownerTech !== (j.assignedTech || j.epassTechCode) ? `<div class="who">owner ${esc(j.ownerTech)}</div>` : ""}</td>
+          <td class="nw" data-l="Zone">${esc(j.zoneCode || "—")}</td>
+          <td class="nw" data-l="In status">${hours(j.hoursInStatus)}${j.stuckAfterHours && j.hoursInStatus > j.stuckAfterHours ? ` <span class="flag stale">STUCK</span>` : ""}</td>
+          <td class="nw" data-l="Balance">${money(j.balance)}</td>
+        </tr>`).join("");
+    }
+    $("q").addEventListener("input", () => { clearTimeout(qTimer); qTimer = setTimeout(() => loadJobs().catch((e) => setStatus(e.message, "error")), 250); });
+    ["fStatus", "fTech", "fZone", "fStale", "fReview", "fAll"].forEach((id) => $(id).addEventListener("change", () => loadJobs().catch((e) => setStatus(e.message, "error"))));
+    $("jobRows").addEventListener("click", (ev) => { const tr = ev.target.closest("tr.r"); if (tr) openJob(tr.dataset.sv); });
+    document.addEventListener("click", (ev) => { const a = ev.target.closest("[data-open-sv]"); if (a) { ev.preventDefault(); openJob(a.dataset.openSv); } });
+
+    // ---- drawer ----
+    function closeDrawer() { $("drawer").classList.remove("show"); $("drawerBg").classList.remove("show"); state.open = null; }
+    $("drawerBg").addEventListener("click", closeDrawer);
+    async function openJob(sv) {
+      try {
+        const d = await api("/api/service-journey/jobs/" + encodeURIComponent(sv));
+        state.open = d;
+        renderDrawer(d);
+        $("drawer").classList.add("show"); $("drawerBg").classList.add("show");
+        $("drawer").scrollTop = 0;
+      } catch (e) { setStatus(e.message, "error"); }
+    }
+    function renderDrawer(d) {
+      const j = d.job; const o = state.overview;
+      const statusOpts = Object.entries(o.statusDefs).sort((a, b) => a[1].sort - b[1].sort).map(([k, v]) => `<option value="${esc(k)}" ${k === j.status ? "selected" : ""}>${esc(k)} — ${esc(v.name)}</option>`).join("");
+      const techOpts = `<option value="">— none —</option>` + o.techs.map((t) => `<option value="${esc(t.code)}">${esc(t.code)} — ${esc(t.name)}</option>`).join("");
+      $("drawer").innerHTML = `
+        <div style="display:flex; gap:10px; align-items:flex-start;">
+          <div style="flex:1;"><h2 style="margin:0;">${esc(j.svNumber)} ${pill(j.status)} ${flags(j)}</h2><div class="who">${esc(j.statusName)} · ${esc(j.stage)} · in status ${hours(j.hoursInStatus)} · ${j.source === "dashboard" ? "Agility-owned" : "following ePASS"}</div></div>
+          <button type="button" class="quiet tiny" id="dClose">Close</button>
+        </div>
+        <div class="kv"><div class="k">Client</div><div><strong>${esc(title(j.customerName))}</strong>${j.customerCode ? ` <span class="who">#${esc(j.customerCode)}</span>` : ""}<br>${esc(j.phone || "")}${j.phoneAlt && j.phoneAlt !== j.phone ? " · " + esc(j.phoneAlt) : ""}${j.email ? " · " + esc(j.email) : ""}</div></div>
+        <div class="kv"><div class="k">Address</div><div>${esc([j.address1, j.address2].filter(Boolean).join(", "))}${j.city ? `, ${esc(title(j.city))}` : ""} ${esc(j.state)} ${esc(j.zip)}${j.zoneCode ? ` · zone <strong>${esc(j.zoneCode)}</strong>` : ""}${j.lat ? ` · <a href="https://maps.google.com/?q=${j.lat},${j.lng}" target="_blank" rel="noopener">map</a>` : ""}${j.accessNotes ? `<div class="who">${esc(j.accessNotes)}</div>` : ""}</div></div>
+        <div class="kv"><div class="k">Unit</div><div>${esc(unitText(j.unit))}${j.unit.model ? ` · model ${esc(j.unit.model)}` : ""}${j.unit.serial ? ` · serial ${esc(j.unit.serial)}` : ""}${j.unit.installType ? ` <span class="who">(${esc(j.unit.installType.replace("_", "-"))})</span>` : ""}${j.qualification ? ` · ${esc(j.qualification)}` : ""}</div></div>
+        ${j.problemText ? `<div class="kv"><div class="k">Problem</div><div>${esc(j.problemText)}</div></div>` : ""}
+        <div class="kv"><div class="k">Money</div><div>${j.total != null ? `total ${money(j.total)} · ` : ""}balance ${money(j.balance)} · ${esc(j.paymentType || "—")}${j.warrantyFlags ? ` · priorities ${esc(j.warrantyFlags)}` : ""}${j.binLocation ? ` · bin ${esc(j.binLocation)}` : ""}</div></div>
+        <div class="kv"><div class="k">Schedule</div><div>date <strong>${day(j.routeDate)}</strong> · tech <strong>${esc(j.assignedTech || "—")}</strong> · owner <strong>${esc(j.ownerTech || "—")}</strong></div></div>
+        <div class="kv"><div class="k">ePASS says</div><div>${pill(j.epassStatus)} date ${day(j.epassRouteDate)} · truck ${esc(j.epassTechCode || "—")} · seen ${when(j.epassSeenAt)} via ${esc(j.epassSource || "—")}${j.inFeed ? " · in DT feed" : " · not in DT feed"}${j.epassCreatedAt ? ` · created ${day(j.epassCreatedAt)}` : ""}${j.epassFinishDate ? ` · finish ${day(j.epassFinishDate)}` : ""}</div></div>
+
+        <div class="block">
+          <h3>Change status</h3>
+          <div class="grid2">
+            <div><label class="f">To</label><select id="dStatus">${statusOpts}</select></div>
+            <div><label class="f">Reason</label><select id="dReason"><option value="">— required —</option>${o.reasonCodes.map((r) => `<option value="${esc(r)}">${esc(r.replace(/_/g, " "))}</option>`).join("")}</select></div>
+            <div><label class="f">Date (optional)</label><input type="date" id="dDate" value="${esc(j.routeDate || "")}" /></div>
+            <div><label class="f">Tech (optional)</label><select id="dTech">${techOpts}</select></div>
+          </div>
+          <textarea id="dNote" placeholder="Note — goes on the ePASS packet (first 200 chars) and the history" style="margin-top:8px;"></textarea>
+          <div style="display:flex; gap:8px; margin-top:8px; flex-wrap:wrap; align-items:center;">
+            <button type="button" id="dSave">Save &amp; queue packet</button>
+            ${j.needsIntakeReview ? `<button type="button" class="quiet" id="dReviewed">Mark intake reviewed</button>` : ""}
+            <span class="who">"keyed in ePASS" = you already changed it there; no packet, the next import just confirms.</span>
+          </div>
+          <div style="display:flex; gap:8px; margin-top:8px; align-items:center;"><label class="f" style="margin:0;">Owner tech</label><select id="dOwner">${techOpts}</select><button type="button" class="quiet tiny" id="dOwnerSave">Set owner</button><span class="who">The diagnosing tech owns every later visit.</span></div>
+          <div id="dMsg" class="status-msg"></div>
+        </div>
+
+        ${d.lines.length ? `<div class="block"><h3>Lines in ePASS (${d.lines.length})</h3><table><thead><tr><th>Model / part</th><th>Description</th><th>Qty</th><th>Amount</th></tr></thead><tbody>${d.lines.map((l) => `<tr><td>${esc(l.model)}</td><td>${esc(l.description)}</td><td>${l.qty ?? ""}</td><td>${l.amount == null ? "" : money(l.amount)}</td></tr>`).join("")}</tbody></table></div>` : ""}
+
+        ${d.sync.length ? `<div class="block"><h3>Sync items</h3>${d.sync.map((s) => `<div class="hist"><b>${esc(s.state)}</b> · ${esc(s.kind)} · ${when(s.createdAt)}${s.keyedBy ? ` · keyed by ${esc(s.keyedBy)}` : ""}${s.resolution ? ` · ${esc(s.resolution)}` : ""}<pre class="packet" style="margin-top:6px;">${esc(s.packetText)}</pre></div>`).join("")}</div>` : ""}
+
+        <div class="block"><h3>History</h3>${d.history.map((h) => `<div class="hist"><b>${when(h.at)}</b> · ${esc(h.from || "—")} → ${esc(h.to)} · ${esc(h.trigger)} · ${esc(h.actorType)}${h.actorId ? ` ${esc(h.actorId)}` : ""}${h.reasonCode ? ` · <em>${esc(h.reasonCode)}</em>` : ""}${h.note ? `<div class="who">${esc(h.note)}</div>` : ""}</div>`).join("") || `<div class="who">No history yet.</div>`}</div>
+
+        ${d.recalls.length ? `<div class="block"><h3>Recall</h3>${d.recalls.map((r) => `<div class="hist">${r.svNumber === j.svNumber ? `This ticket is a recall <b>${esc(r.state)}</b> of ${r.originalSv ? `<a href="#" data-open-sv="${esc(r.originalSv)}">${esc(r.originalSv)}</a>` : "an ePASS-flagged RCALL"} (${esc(r.basis)}${r.daysBetween != null ? `, ${r.daysBetween} days` : ""}) against ${esc(r.tech || "—")}` : `Recalled by <a href="#" data-open-sv="${esc(r.svNumber)}">${esc(r.svNumber)}</a> (${esc(r.state)})`}</div>`).join("")}</div>` : ""}
+
+        <div class="block"><h3>Other tickets — same customer / unit / address (${d.related.length})</h3>${d.related.length ? `<table><thead><tr><th>SV</th><th>Unit</th><th>Status</th><th>Created</th><th>Finish</th><th>Tech</th><th>Total</th></tr></thead><tbody>${d.related.map((r) => `<tr class="r" data-sv="${esc(r.svNumber)}"><td><a href="#" data-open-sv="${esc(r.svNumber)}">${esc(r.svNumber)}</a>${r.sameUnit ? ` <span class="flag recall">SAME UNIT</span>` : ""}</td><td>${esc(unitText(r.unit))}<div class="who">${esc(r.unit.model || "")}</div></td><td>${pill(r.status)}</td><td>${day(r.epassCreatedAt || (r.firstSeenAt || "").slice(0, 10))}</td><td>${day(r.epassFinishDate)}</td><td>${esc(r.ownerTech || r.assignedTech || r.epassTechCode || "—")}</td><td>${money(r.total)}</td></tr>`).join("")}</tbody></table>` : `<div class="who">Nothing else on file — history fills in as the mirror accumulates closed tickets.</div>`}</div>`;
+      $("dClose").addEventListener("click", closeDrawer);
+      $("dOwner").value = j.ownerTech || "";
+      $("dTech").value = j.assignedTech || "";
+      $("dSave").addEventListener("click", async () => {
+        const msg = $("dMsg");
+        const body = { status: $("dStatus").value, reasonCode: $("dReason").value, note: $("dNote").value.trim() };
+        if (!body.reasonCode) { msg.className = "status-msg error show"; msg.textContent = "Pick a reason code — every manual status change needs one."; return; }
+        if ($("dDate").value !== (j.routeDate || "")) body.routeDate = $("dDate").value;
+        if ($("dTech").value !== (j.assignedTech || "")) body.tech = $("dTech").value;
+        $("dSave").disabled = true;
+        try {
+          const r = await api(`/api/service-journey/jobs/${encodeURIComponent(j.svNumber)}/status`, { method: "POST", body: JSON.stringify(body) });
+          msg.className = "status-msg ok show"; msg.textContent = r.syncId ? `Saved — packet #${r.syncId} is in the Sync queue.` : "Saved.";
+          await Promise.all([loadOverview(), loadJobs()]);
+          openJob(j.svNumber);
+        } catch (e) { msg.className = "status-msg error show"; msg.textContent = e.message; $("dSave").disabled = false; }
+      });
+      $("dReviewed")?.addEventListener("click", async () => { try { await api(`/api/service-journey/jobs/${encodeURIComponent(j.svNumber)}/reviewed`, { method: "POST", body: "{}" }); await loadOverview(); await loadJobs(); openJob(j.svNumber); } catch (e) { setStatus(e.message, "error"); } });
+      $("dOwnerSave").addEventListener("click", async () => { try { await api(`/api/service-journey/jobs/${encodeURIComponent(j.svNumber)}/owner`, { method: "POST", body: JSON.stringify({ tech: $("dOwner").value }) }); await loadJobs(); openJob(j.svNumber); } catch (e) { setStatus(e.message, "error"); } });
+    }
+
+    // ---- stuck ----
+    async function loadStuck() {
+      const d = await api("/api/service-journey/stuck");
+      $("stuckRows").innerHTML = d.stuck.length ? d.stuck.map((j) => `<tr class="r" data-sv="${esc(j.svNumber)}"><td data-l="SV"><strong>${esc(j.svNumber)}</strong></td><td data-l="Client">${esc(title(j.customerName))}</td><td data-l="Status">${pill(j.status)} <span class="who">${esc(j.statusName)}</span></td><td data-l="Hours">${hours(j.hoursInStatus)}</td><td data-l="Threshold">${hours(j.thresholdHours)}</td><td data-l="Tech">${esc(j.assignedTech || j.epassTechCode || "—")}</td></tr>`).join("") : `<tr><td colspan="6" class="empty">Nothing stuck.</td></tr>`;
+      $("staleRows").innerHTML = d.stale.length ? d.stale.map((j) => `<tr class="r" data-sv="${esc(j.svNumber)}"><td data-l="SV"><strong>${esc(j.svNumber)}</strong></td><td data-l="Client">${esc(title(j.customerName))}</td><td data-l="ePASS">${pill(j.epassStatus)}</td><td data-l="Visit">${day(j.epassRouteDate || j.routeDate)}</td><td data-l="Truck">${esc(j.epassTechCode || "—")}</td><td data-l="Agility">${pill(j.status)}</td></tr>`).join("") : `<tr><td colspan="6" class="empty">No stale visits.</td></tr>`;
+    }
+    ["stuckRows", "staleRows", "recallRows"].forEach((id) => $(id).addEventListener("click", (ev) => { if (ev.target.closest("button")) return; const tr = ev.target.closest("tr.r"); if (tr) openJob(tr.dataset.sv); }));
+
+    // ---- sync ----
+    async function loadSync() {
+      const d = await api("/api/service-journey/sync?state=" + encodeURIComponent($("syncState").value));
+      state.syncItems = d.items;
+      if (!d.items.length) { $("syncCards").innerHTML = `<div class="empty">Nothing here.</div>`; return; }
+      $("syncCards").innerHTML = d.items.map((s) => `
+        <div class="card ${s.state === "discrepancy" ? "disc" : s.state === "keyed" ? "keyed" : ""}" data-id="${s.id}">
+          <div class="top"><div><strong><a href="#" data-open-sv="${esc(s.svNumber)}">${esc(s.svNumber)}</a></strong> · ${esc(title(s.customerName))}<div class="who">${esc(s.kind)} · ${when(s.createdAt)}${s.createdBy ? ` · ${esc(s.createdBy)}` : ""}${s.keyedBy ? ` · keyed by ${esc(s.keyedBy)} ${when(s.keyedAt)}` : ""}${s.mismatchCount ? ` · ${s.mismatchCount} mismatch${s.mismatchCount === 1 ? "" : "es"}` : ""}</div></div><span class="pill ${s.state === "discrepancy" ? "so9" : s.state === "keyed" ? "so2" : s.state === "confirmed" || s.state === "resolved" ? "so8" : "so1"}">${esc(s.state)}</span></div>
+          ${s.state === "discrepancy" && s.epassValues ? `<div class="ev"><b>ePASS shows:</b> ${esc(s.epassValues.status || "—")} · ${day(s.epassValues.route_date)} · ${esc(s.epassValues.tech || "—")} &nbsp; <b>Agility wants:</b> ${esc(s.payload.status || "—")} · ${day(s.payload.route_date)} · ${esc(s.payload.tech || "—")}</div>` : ""}
+          <pre class="packet">${esc(s.packetText)}</pre>
+          <div class="btns">
+            <button type="button" class="quiet tiny sy-copy">Copy packet</button>
+            ${s.state === "pending" ? `<button type="button" class="tiny sy-keyed">Keyed in ePASS</button>` : ""}
+            ${s.state === "discrepancy" ? `<button type="button" class="tiny warn sy-reissue">Re-issue</button><button type="button" class="tiny danger sy-accept">Accept ePASS</button>` : ""}
+          </div>
+        </div>`).join("");
+    }
+    $("syncState").addEventListener("change", () => loadSync().catch((e) => setStatus(e.message, "error")));
+    $("syncCards").addEventListener("click", async (ev) => {
+      const card = ev.target.closest(".card"); if (!card) return;
+      const id = card.dataset.id; const btn = ev.target.closest("button"); if (!btn) return;
+      try {
+        if (btn.classList.contains("sy-copy")) { await navigator.clipboard.writeText(card.querySelector("pre").textContent); btn.textContent = "Copied"; setTimeout(() => { btn.textContent = "Copy packet"; }, 1500); return; }
+        btn.disabled = true;
+        if (btn.classList.contains("sy-keyed")) await api(`/api/service-journey/sync/${id}/keyed`, { method: "POST", body: "{}" });
+        if (btn.classList.contains("sy-reissue")) await api(`/api/service-journey/sync/${id}/resolve`, { method: "POST", body: JSON.stringify({ resolution: "reissue" }) });
+        if (btn.classList.contains("sy-accept")) { if (!window.confirm("Agility takes the ePASS status / date / tech for this ticket. Continue?")) { btn.disabled = false; return; } await api(`/api/service-journey/sync/${id}/resolve`, { method: "POST", body: JSON.stringify({ resolution: "accept_epass" }) }); }
+        await Promise.all([loadOverview(), loadSync()]);
+      } catch (e) { setStatus(e.message, "error"); btn.disabled = false; }
+    });
+
+    // ---- recalls ----
+    async function loadRecalls() {
+      const d = await api("/api/service-journey/recalls");
+      $("recallRows").innerHTML = d.recalls.length ? d.recalls.map((r) => `<tr class="r" data-sv="${esc(r.svNumber)}"><td data-l="New"><strong>${esc(r.svNumber)}</strong><div class="who">${pill(r.jobStatus)} ${day(r.jobCreated)}</div></td><td data-l="Client">${esc(title(r.customerName))}</td><td data-l="Unit">${esc(r.unit || "—")}<div class="who">${esc(r.serial || "")}</div></td><td data-l="Original">${r.originalSv ? `<a href="#" data-open-sv="${esc(r.originalSv)}">${esc(r.originalSv)}</a><div class="who">${pill(r.originalStatus)} ${day(r.originalFinish)}</div>` : `<span class="who">ePASS RCALL flag</span>`}</td><td data-l="Days">${r.daysBetween ?? "—"}</td><td data-l="Basis">${esc(r.basis.replace(/_/g, " "))}</td><td data-l="Tech">${esc(r.tech || "—")}</td><td data-l="State"><span class="pill ${r.state === "candidate" ? "so2" : r.state === "confirmed" ? "so9" : "so7"}">${esc(r.state)}</span>${r.reviewedBy ? `<div class="who">${esc(r.reviewedBy)}${r.note ? " — " + esc(r.note) : ""}</div>` : ""}</td><td>${r.state === "candidate" ? `<button type="button" class="tiny rc-confirm" data-id="${r.id}">Confirm</button> <button type="button" class="tiny quiet rc-dismiss" data-id="${r.id}">Dismiss</button>` : ""}</td></tr>`).join("") : `<tr><td colspan="9" class="empty">No recalls detected yet.</td></tr>`;
+    }
+    $("recallRows").addEventListener("click", async (ev) => {
+      const btn = ev.target.closest("button"); if (!btn) return;
+      ev.stopPropagation();
+      const state = btn.classList.contains("rc-confirm") ? "confirmed" : "dismissed";
+      const note = window.prompt(state === "confirmed" ? "Confirm as a recall — note (optional):" : "Dismiss — why isn't this a recall?") ;
+      if (note === null) return;
+      btn.disabled = true;
+      try { await api(`/api/service-journey/recalls/${btn.dataset.id}/review`, { method: "POST", body: JSON.stringify({ state, note }) }); await Promise.all([loadOverview(), loadRecalls()]); }
+      catch (e) { setStatus(e.message, "error"); btn.disabled = false; }
+    });
+
+    // ---- KPIs ----
+    async function loadKpi() {
+      const d = await api(`/api/service-journey/kpi?from=${$("kFrom").value}&to=${$("kTo").value}`);
+      $("kNote").textContent = d.note;
+      $("kpiRows").innerHTML = d.rows.length ? d.rows.map((r) => `<tr><td><strong>${esc(r.tech)}</strong> <span class="who">${esc(r.name)}</span></td><td>${r.visits}</td><td>${r.completed}</td><td>${r.workingDays}</td><td>${r.callsPerDay ?? "—"}</td><td>${r.medianTurnaroundDays ?? "—"}</td><td>${r.diagOnly}${r.diagOnlyRate != null ? ` <span class="who">(${r.diagOnlyRate}%)</span>` : ""}</td><td>${r.recalls}${r.recallRate != null ? ` <span class="who">(${r.recallRate}%)</span>` : ""}</td></tr>`).join("") : `<tr><td colspan="8" class="empty">No activity in that range.</td></tr>`;
+    }
+    $("kRun").addEventListener("click", () => loadKpi().catch((e) => setStatus(e.message, "error")));
+    (function initKpiDates() { const t = new Date(); const f = new Date(t.getTime() - 30 * 864e5); $("kTo").value = t.toISOString().slice(0, 10); $("kFrom").value = f.toISOString().slice(0, 10); })();
+    loaders.kpi = loadKpi;
+
+    // ---- imports & setup ----
+    async function loadImports() {
+      const d = await api("/api/service-journey/imports");
+      $("importRows").innerHTML = d.imports.length ? d.imports.map((b) => `<tr><td class="nw">${when(b.importedAt)}</td><td>${esc(b.source)}</td><td>${esc(b.fileName)}</td><td>${esc(b.importedBy || "—")}</td><td>${b.status === "ok" ? `created ${b.summary.created} · updated ${b.summary.updated} · unchanged ${b.summary.unchanged}${b.summary.sync ? ` · sync ${Object.entries(b.summary.sync).filter(([, v]) => v).map(([k, v]) => `${k} ${v}`).join(", ") || "—"}` : ""}${b.summary.stale ? ` · stale ${b.summary.stale}` : ""}` : `<span style="color:#991b1b;">${esc(b.status)} — ${esc(b.message)}</span>`}</td></tr>`).join("") : `<tr><td colspan="5" class="empty">No imports yet.</td></tr>`;
+      renderSetup();
+    }
+    function renderSetup() {
+      const o = state.overview; if (!o) return;
+      const dt = o.lastImports.find((x) => x.source === "dispatchtrack"), ei = o.lastImports.find((x) => x.source === "exportinvoice");
+      $("feedDetail").innerHTML = `<div><b>DispatchTrack export</b> (ePASS → agent, every 15 min): ${dt ? `last ${when(dt.importedAt)}` : "nothing received yet"}. ${o.dtComplete ? "Carries every SV status — it's the whole mirror." : "Carries routing statuses only (SO1 · SO4PRE · SO5 · SO6); Agility detects automatically if ePASS widens it."}</div><div><b>ExportInvoice</b> (Invoice Maintenance, upload on Service Order Health): ${ei ? `last ${when(ei.importedAt)}` : "not uploaded yet"}. Source of SO2–SO5, SO7+, warranty and in-shop statuses, totals, finish dates.</div>`;
+      const review = o.zones.filter((z) => z.needsReview);
+      $("zoneDetail").innerHTML = `${o.zones.length} zones from Cayden's zone table${review.length ? `; <b>${review.length} seen in ePASS but not in the table</b> (booked office-only until mapped): ${review.map((z) => esc(z.code)).join(", ")}` : "; every ePASS Map Zone seen so far is mapped."}<div class="who" style="margin-top:6px;">${o.techs.filter((t) => t.autoRoute).map((t) => t.code).join(" · ")} auto-route; ${o.techs.filter((t) => !t.autoRoute).map((t) => t.code).join(" · ")} office-routed.</div>`;
+      const s = o.settings;
+      $("settingsDetail").innerHTML = `stale grace <b>${esc(s["stale.grace_hours"])} h</b> · discrepancy after <b>${esc(s["sync.mismatch_cycles_before_discrepancy"])}</b> mismatching imports · import-created jobs follow ePASS: <b>${s["sync.follow_epass_for_import_jobs"] ? "yes" : "no"}</b> · recall window <b>${esc(s["recall.window_days"])} d</b> · diagnostic fee <b>${money(s["fee.diagnostic"])}</b><div class="who" style="margin-top:6px;">Tunables live in <code>sj_settings</code> (spec §11); ask to expose more here.</div>`;
+    }
+    $("dtUpload").addEventListener("click", () => $("dtFile").click());
+    $("dtFile").addEventListener("change", async () => {
+      const f = $("dtFile").files[0]; if (!f) return;
+      const fd = new FormData(); fd.append("export", f);
+      $("dtUpload").disabled = true;
+      try { const r = await api("/api/service-journey/import/dispatch", { method: "POST", body: fd }); setStatus(r.skipped ? `${f.name} was already imported.` : `${f.name}: ${r.svOrders} SV orders → created ${r.created}, updated ${r.updated}, unchanged ${r.unchanged}.`, "ok"); await Promise.all([loadOverview(), loadImports(), loadJobs()]); }
+      catch (e) { setStatus(e.message, "error"); }
+      finally { $("dtUpload").disabled = false; $("dtFile").value = ""; }
+    });
+
+    (async function init() {
+      try { await loadOverview(); await loadJobs(); } catch (e) { setStatus(e.message, "error"); $("jobRows").innerHTML = `<tr><td colspan="9" class="empty">${esc(e.message)}</td></tr>`; }
+      const sv = new URLSearchParams(location.search).get("sv"); if (sv) openJob(sv);
+    })();
+  </script>
+</body>
+</html>

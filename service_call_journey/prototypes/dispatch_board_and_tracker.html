@@ -1,0 +1,629 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"></head><body style="margin:0">
+<title>Wilson Dispatch Prototype</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+:root{--bg:#f3f6f3;--surface:#ffffff;--surface2:#eaf0ea;--ink:#1b241f;--muted:#5d6b62;--line:#d7dfd8;--accent:#1f6b35;--accent-ink:#fff;--soft:#e3eee5;
+--diag:#2f6fb3;--diag-bg:#e7eff9;--inst:#1f8a48;--inst-bg:#e3f3e8;--held:#0f8a8a;--held-bg:#e0f3f3;--war:#7a4fb3;--war-bg:#efe8f8;--wait:#b8770f;--wait-bg:#fbf0d9;--bad:#b3362f;--bad-bg:#fbe4e2;--colA:#1f6b35;--colB:#2f6fb3}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--bg:#111714;--surface:#1a221d;--surface2:#212b25;--ink:#e6ece7;--muted:#9aa89e;--line:#2c372f;--accent:#5fb87a;--accent-ink:#0f1a13;--soft:#1f2c23;
+--diag:#7fb0e6;--diag-bg:#1c2a3a;--inst:#6ccb8a;--inst-bg:#1a3324;--held:#5fc9c9;--held-bg:#173232;--war:#b596e6;--war-bg:#2a2138;--wait:#e2b25a;--wait-bg:#3a2e14;--bad:#ef8b84;--bad-bg:#3d1f1d;--colA:#5fb87a;--colB:#7fb0e6}}
+:root[data-theme="dark"]{--bg:#111714;--surface:#1a221d;--surface2:#212b25;--ink:#e6ece7;--muted:#9aa89e;--line:#2c372f;--accent:#5fb87a;--accent-ink:#0f1a13;--soft:#1f2c23;
+--diag:#7fb0e6;--diag-bg:#1c2a3a;--inst:#6ccb8a;--inst-bg:#1a3324;--held:#5fc9c9;--held-bg:#173232;--war:#b596e6;--war-bg:#2a2138;--wait:#e2b25a;--wait-bg:#3a2e14;--bad:#ef8b84;--bad-bg:#3d1f1d;--colA:#5fb87a;--colB:#7fb0e6}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.45 "IBM Plex Sans",system-ui,sans-serif;padding-inline:16px;padding-block:0 3rem}
+.mono{font-family:"IBM Plex Mono",monospace}
+button{font:inherit;color:inherit;background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:.4rem .75rem;cursor:pointer}
+button:hover{border-color:var(--accent)}button:focus-visible,select:focus-visible,input:focus-visible,[tabindex]:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+button.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);font-weight:600}
+select,input{font:inherit;color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:.4rem .6rem}
+.top{display:flex;align-items:center;gap:1.25rem;flex-wrap:wrap;padding-block:.9rem;border-bottom:1px solid var(--line);max-width:1400px;margin:0 auto}
+.brand{font-weight:600;letter-spacing:.01em}.brand small{display:block;font-size:.7rem;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);font-weight:500}
+.tabs{display:flex;gap:.25rem;background:var(--surface2);padding:.25rem;border-radius:8px}
+.tabs button{border:0;background:transparent;padding:.4rem .9rem;border-radius:6px;color:var(--muted)}
+.tabs button[aria-selected="true"]{background:var(--surface);color:var(--ink);font-weight:600;box-shadow:0 1px 2px rgba(0,0,0,.08)}
+.proto{margin-left:auto;font-size:.75rem;color:var(--muted)}.proto b{color:var(--wait);font-weight:600}
+main{max-width:1400px;margin:0 auto}
+.view[hidden]{display:none}
+/* ---------- board ---------- */
+.strip{display:grid;grid-template-columns:150px repeat(5,1fr) auto;gap:4px;align-items:center;margin-block:1rem .75rem;font-size:.78rem}
+.strip .h{color:var(--muted);text-transform:uppercase;letter-spacing:.06em;font-size:.68rem}
+.strip .name{font-weight:500}
+.cell{height:26px;border-radius:4px;background:var(--surface2);position:relative;overflow:hidden;cursor:pointer;border:1px solid transparent}
+.cell i{position:absolute;inset:0 auto 0 0;background:var(--inst);opacity:.55}
+.cell.hot i{background:var(--bad)}.cell.warm i{background:var(--wait)}
+.cell span{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:.72rem;font-weight:500}
+.cell.onA{border-color:var(--colA);box-shadow:inset 0 0 0 1px var(--colA)}.cell.onB{border-color:var(--colB);box-shadow:inset 0 0 0 1px var(--colB)}
+.striptools{display:flex;gap:.4rem;align-items:center;color:var(--muted)}
+.striptools button{padding:.2rem .5rem;font-size:.75rem}.striptools button[aria-pressed="true"]{border-color:var(--accent);color:var(--accent);font-weight:600}
+.board{display:grid;grid-template-columns:1fr 1fr 320px;gap:.9rem;align-items:start}
+@media (max-width:1100px){.board{grid-template-columns:1fr 1fr}.side{grid-column:1/-1}}
+@media (max-width:720px){.board{grid-template-columns:1fr}.strip{grid-template-columns:90px repeat(5,1fr)}.striptools{grid-column:1/-1}}
+.col{background:var(--surface);border:1px solid var(--line);border-radius:8px;border-top:3px solid var(--colA);min-height:400px;display:flex;flex-direction:column}
+.col.b{border-top-color:var(--colB)}
+.colhead{padding:.7rem .8rem;border-bottom:1px solid var(--line);display:flex;flex-direction:column;gap:.5rem}
+.colhead .row{display:flex;gap:.4rem;flex-wrap:wrap;align-items:center}
+.colhead select{flex:1;min-width:120px}
+.stats{display:flex;gap:1rem;font-size:.78rem;color:var(--muted);flex-wrap:wrap}.stats b{color:var(--ink);font-weight:600;font-variant-numeric:tabular-nums}
+.cap{height:8px;background:var(--surface2);border-radius:4px;overflow:hidden;display:flex}
+.cap i{display:block;height:100%}.cap .w{background:var(--accent)}.cap .d{background:var(--muted);opacity:.5}
+.stops{padding:.5rem;display:flex;flex-direction:column;gap:.4rem;flex:1;min-height:120px}
+.stops.over{background:var(--soft)}
+.leg{font-size:.72rem;color:var(--muted);display:flex;align-items:center;gap:.4rem;padding:0 .4rem}.leg::before,.leg::after{content:"";flex:1;border-top:1px dashed var(--line)}
+.card{border:1px solid var(--line);border-left:4px solid var(--diag);border-radius:6px;padding:.5rem .6rem;background:var(--surface);cursor:grab;display:grid;grid-template-columns:auto 1fr auto;gap:.15rem .6rem;align-items:start;position:relative}
+.card:active{cursor:grabbing}.card.dragging{opacity:.4}
+.card.SO6{border-left-color:var(--inst)}.card.SO4PRE{border-left-color:var(--held);border-left-style:dashed}.card.WAR{border-left-color:var(--war)}.card.SO5,.card.REQ{border-left-color:var(--wait)}
+.card .seq{font-weight:600;font-variant-numeric:tabular-nums;color:var(--muted);grid-row:1/3;padding-top:.1rem}
+.card .who{font-weight:600}.card .sub{color:var(--muted);font-size:.78rem;grid-column:2}
+.card .time{font-variant-numeric:tabular-nums;font-size:.78rem;text-align:right;color:var(--muted);white-space:nowrap}.card .time b{display:block;color:var(--ink);font-size:.85rem}
+.card .time.late b{color:var(--bad)}
+.chips{grid-column:2/4;display:flex;gap:.3rem;flex-wrap:wrap;margin-top:.2rem}
+.chip{font-size:.68rem;padding:.05rem .4rem;border-radius:10px;background:var(--surface2);color:var(--muted);font-weight:500;letter-spacing:.02em}
+.chip.st{font-family:"IBM Plex Mono",monospace}
+.chip.SO1{background:var(--diag-bg);color:var(--diag)}.chip.SO6{background:var(--inst-bg);color:var(--inst)}.chip.SO4PRE{background:var(--held-bg);color:var(--held)}.chip.WAR{background:var(--war-bg);color:var(--war)}.chip.SO5,.chip.REQ{background:var(--wait-bg);color:var(--wait)}
+.chip.bad{background:var(--bad-bg);color:var(--bad)}.chip.warn{background:var(--wait-bg);color:var(--wait)}.chip.ok{background:var(--inst-bg);color:var(--inst)}
+.pin{grid-column:3;grid-row:2;justify-self:end;border:0;background:transparent;padding:0 .2rem;font-size:.85rem;color:var(--muted);line-height:1}.pin[aria-pressed="true"]{color:var(--accent)}
+.card .more{grid-column:1/4;display:none;font-size:.78rem;color:var(--muted);border-top:1px dashed var(--line);margin-top:.35rem;padding-top:.35rem}
+.card.open .more{display:block}.more .acts{display:flex;gap:.3rem;margin-top:.35rem;flex-wrap:wrap}.more button{padding:.2rem .5rem;font-size:.75rem}
+.ph{height:3px;background:var(--accent);border-radius:2px;margin:.1rem .3rem}
+.side{display:flex;flex-direction:column;gap:.9rem}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:8px}
+.panel h3{margin:0;padding:.65rem .8rem;border-bottom:1px solid var(--line);font-size:.78rem;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);font-weight:600;display:flex;justify-content:space-between}
+.panel h3 span{font-variant-numeric:tabular-nums}
+.unsched .stops{max-height:360px;overflow:auto}
+.map svg{display:block;width:100%;height:auto}
+.maplegend{display:flex;gap:.9rem;padding:.4rem .8rem .6rem;font-size:.72rem;color:var(--muted)}.maplegend i{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:.3rem;vertical-align:-1px}
+.toasts{position:fixed;bottom:1rem;left:50%;transform:translateX(-50%);display:flex;flex-direction:column;gap:.4rem;z-index:9}
+.toast{background:var(--ink);color:var(--bg);padding:.5rem .9rem;border-radius:6px;font-size:.82rem;box-shadow:0 4px 14px rgba(0,0,0,.2)}
+.toast.warn{background:var(--wait)}.toast.bad{background:var(--bad);color:#fff}
+/* ---------- tracker ---------- */
+.trk{max-width:560px;margin:1.5rem auto 0}
+.look{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:1.25rem}
+.look h2,.job h2{margin:0 0 .25rem;font-size:1.3rem;font-weight:600;text-wrap:balance}
+.look p{color:var(--muted);margin:.25rem 0 1rem}
+.look form{display:grid;gap:.6rem}.look label{font-size:.8rem;font-weight:500;color:var(--muted);display:block;margin-bottom:.2rem}.look select{width:100%;padding:.6rem .7rem}.look input{width:100%;padding:.6rem .7rem}
+.samples{font-size:.78rem;color:var(--muted);margin-top:.9rem}.samples button{padding:.15rem .5rem;font-size:.75rem;margin:.15rem .15rem 0 0}
+.job{background:var(--surface);border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.jobhead{padding:1.1rem 1.25rem .9rem;border-bottom:1px solid var(--line)}
+.jobhead .sv{color:var(--muted);font-size:.8rem}.jobhead .unit{color:var(--muted);margin-top:.2rem}
+.now{margin:1rem 1.25rem;padding:.9rem 1rem;border-radius:8px;background:var(--soft);border-left:4px solid var(--accent)}
+.now .lbl{font-size:.7rem;text-transform:uppercase;letter-spacing:.08em;color:var(--accent);font-weight:600}
+.now .big{font-size:1.1rem;font-weight:600;margin:.15rem 0}.now p{margin:.3rem 0 0;color:var(--muted);font-size:.9rem}
+.stages{list-style:none;margin:0;padding:.25rem 1.25rem 1rem}
+.stages li{display:grid;grid-template-columns:22px 1fr auto;gap:0 .7rem;align-items:start;padding:.45rem 0;position:relative}
+.stages li::before{content:"";position:absolute;left:10px;top:28px;bottom:-6px;border-left:2px solid var(--line)}
+.stages li:last-child::before{display:none}
+.dot{width:22px;height:22px;border-radius:50%;border:2px solid var(--line);background:var(--surface);display:grid;place-items:center;font-size:.7rem;font-weight:600;color:var(--muted)}
+li.done .dot{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+li.cur .dot{border-color:var(--accent);color:var(--accent);box-shadow:0 0 0 4px var(--soft)}
+li.done::before{border-color:var(--accent)!important}
+.stages .t{font-weight:500}.stages li:not(.done):not(.cur) .t{color:var(--muted)}
+.stages .d{font-size:.78rem;color:var(--muted);font-variant-numeric:tabular-nums;text-align:right}
+.stages .note{grid-column:2/4;font-size:.82rem;color:var(--muted)}
+.acts2{display:flex;gap:.5rem;flex-wrap:wrap;padding:0 1.25rem 1.25rem}
+.picker{margin:0 1.25rem 1.25rem;border:1px solid var(--line);border-radius:8px;padding:.9rem 1rem}
+.picker h4{margin:0 0 .2rem;font-size:.95rem}.picker p{margin:0 0 .7rem;color:var(--muted);font-size:.85rem}
+.days{display:grid;grid-template-columns:repeat(5,1fr);gap:.4rem}
+.day{font-size:.72rem;color:var(--muted);text-align:center;text-transform:uppercase;letter-spacing:.05em}
+.day b{display:block;color:var(--ink);font-size:.9rem}
+.slot{width:100%;padding:.45rem .2rem;font-size:.78rem;margin-top:.3rem}
+.slot[disabled]{opacity:.4;cursor:not-allowed;text-decoration:line-through}
+.slot.sel{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.faq{margin:1rem 1.25rem 1.25rem;font-size:.85rem;color:var(--muted)}.faq b{color:var(--ink)}
+.back{margin:.75rem 0;font-size:.85rem}
+.back button{border:0;background:none;color:var(--accent);padding:0;font-weight:500}
+@media (prefers-reduced-motion:no-preference){.card,.cell{transition:box-shadow .12s,opacity .12s}}
+/* ---------- 9/11 feedback additions ---------- */
+.strip .name button{border:0;background:none;padding:0;color:var(--ink);font-weight:500;text-align:left;cursor:pointer;text-decoration:underline dotted var(--line);text-underline-offset:3px}
+.strip .name button:hover{color:var(--accent)}
+.cell.closed{background:repeating-linear-gradient(45deg,var(--surface2),var(--surface2) 4px,var(--bg) 4px,var(--bg) 8px)}.cell.closed span{color:var(--muted);font-weight:400}
+.cell.over i{background:var(--bad)}.cell .menu{position:absolute;right:2px;top:1px;font-size:.8rem;line-height:1;color:var(--muted);opacity:0;padding:0 .15rem;border-radius:3px}
+.cell:hover .menu,.cell:focus-within .menu{opacity:1}.cell .menu:hover{background:var(--surface);color:var(--ink)}
+.pop{position:absolute;z-index:20;background:var(--surface);border:1px solid var(--line);border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.18);padding:.6rem .7rem;min-width:250px;font-size:.82rem}
+.pop h4{margin:0 0 .4rem;font-size:.8rem}.pop h4 small{display:block;color:var(--muted);font-weight:400}
+.pop .grp{display:flex;gap:.3rem;flex-wrap:wrap;margin:.3rem 0}.pop button{padding:.3rem .55rem;font-size:.78rem}.pop .lbl{font-size:.68rem;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-top:.5rem}
+.pop select,.pop input{padding:.3rem .4rem;font-size:.78rem}.pop .x{position:absolute;right:.4rem;top:.3rem;border:0;background:none;color:var(--muted);font-size:1rem;padding:0 .2rem}
+.cal{width:252px}.cal .calhead{display:flex;justify-content:space-between;align-items:center;font-weight:600;margin-bottom:.3rem}.cal .calhead button{padding:.1rem .45rem}
+.cal .grid{display:grid;grid-template-columns:repeat(7,1fr);gap:2px}.cal .dow{font-size:.62rem;color:var(--muted);text-align:center;text-transform:uppercase}
+.cal .d{height:30px;border:1px solid transparent;border-radius:4px;background:var(--surface2);font-size:.72rem;position:relative;padding:0;color:var(--ink)}
+.cal .d i{position:absolute;left:0;bottom:0;height:4px;background:var(--inst);opacity:.7;border-radius:0 0 4px 4px}.cal .d.hot i{background:var(--bad)}.cal .d.warm i{background:var(--wait)}
+.cal .d.closed{background:repeating-linear-gradient(45deg,var(--surface2),var(--surface2) 3px,var(--bg) 3px,var(--bg) 6px);color:var(--muted)}
+.cal .d.today{border-color:var(--accent)}.cal .d.sel{background:var(--accent);color:var(--accent-ink)}.cal .d.wkend{opacity:.35}.cal .d.trip::after{content:"";position:absolute;right:3px;top:3px;width:5px;height:5px;border-radius:50%;background:var(--held)}
+.cal .d.pad{visibility:hidden}
+.daybtn{flex:1;min-width:120px;text-align:left;display:flex;justify-content:space-between;align-items:center}
+.block{border:1px dashed var(--line);border-radius:6px;padding:.4rem .6rem;background:var(--surface2);color:var(--muted);font-size:.8rem;display:flex;justify-content:space-between;align-items:center;gap:.5rem}
+.block b{color:var(--ink);font-weight:500}.block button{border:0;background:none;padding:0 .2rem;color:var(--muted)}
+.money{padding:.5rem .8rem;border-top:1px solid var(--line);font-size:.78rem;color:var(--muted);display:flex;justify-content:space-between;flex-wrap:wrap;gap:.3rem}.money b{color:var(--ink);font-variant-numeric:tabular-nums}
+.overcap{color:var(--bad);font-weight:600}
+.chip.forced{background:var(--bad-bg);color:var(--bad)}.chip.SO4H{background:var(--held-bg);color:var(--held)}.card.SO4H{border-left-color:var(--held)}
+.toast .acts{display:inline-flex;gap:.4rem;margin-left:.7rem}.toast .acts button{padding:.1rem .5rem;font-size:.75rem;background:var(--surface);color:var(--ink);border-color:transparent}
+.toast.sticky{pointer-events:auto}
+.maplegend button{border:1px solid var(--line);background:var(--surface);border-radius:12px;padding:.05rem .5rem;font-size:.7rem;color:var(--muted)}.maplegend button[aria-pressed="true"]{color:var(--ink);border-color:var(--accent)}.maplegend button[aria-pressed="false"]{opacity:.55;text-decoration:line-through}
+.maplegend{flex-wrap:wrap;gap:.35rem}
+.prod{margin-top:.9rem}.prod h3 button{border:0;background:none;color:var(--accent);font-weight:600;padding:0}
+.prod table{width:100%;border-collapse:collapse;font-size:.8rem}.prod th,.prod td{padding:.35rem .6rem;border-bottom:1px solid var(--line);text-align:right;font-variant-numeric:tabular-nums}.prod th:first-child,.prod td:first-child{text-align:left}
+.prod th{font-size:.68rem;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);font-weight:600}.prod tr.total td{font-weight:600;border-top:2px solid var(--line)}.prod .note{padding:.5rem .8rem;font-size:.78rem;color:var(--muted)}
+.tw{overflow-x:auto}
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:30;display:flex;justify-content:flex-end}
+.drawer{width:min(560px,100%);background:var(--surface);height:100%;overflow:auto;padding:1rem 1.1rem 2rem;border-left:1px solid var(--line)}
+.drawer h2{margin:0;font-size:1.15rem}.drawer .sub{color:var(--muted);font-size:.82rem;margin:.15rem 0 .8rem}
+.drawer .stat{display:grid;grid-template-columns:repeat(3,1fr);gap:.5rem;margin-bottom:.8rem}.drawer .stat div{background:var(--surface2);border-radius:6px;padding:.45rem .6rem;font-size:.75rem;color:var(--muted)}.drawer .stat b{display:block;color:var(--ink);font-size:1rem;font-variant-numeric:tabular-nums}
+.drawer ol{list-style:none;margin:0;padding:0}.drawer li{display:grid;grid-template-columns:64px 1fr auto;gap:.2rem .6rem;padding:.45rem 0;border-bottom:1px solid var(--line);font-size:.85rem}
+.drawer li .eta{font-variant-numeric:tabular-nums;font-weight:600}.drawer li .d{color:var(--muted);font-size:.76rem;grid-column:2/4}.drawer li .amt{font-variant-numeric:tabular-nums;color:var(--muted);font-size:.8rem}
+.drawer .legrow{font-size:.72rem;color:var(--muted);padding:.15rem 0 .15rem 64px}
+.drawer .alerts{display:flex;gap:.3rem;flex-wrap:wrap;margin:.6rem 0}
+.drawer .acts{display:flex;gap:.4rem;margin:.8rem 0}
+</style>
+
+<div class="top">
+  <div class="brand">Wilson AC &amp; Appliance<small>Service dashboard</small></div>
+  <div class="tabs" role="tablist">
+    <button role="tab" aria-selected="true" id="tabBoard" data-view="board">Dispatch board</button>
+    <button role="tab" aria-selected="false" id="tabTrack" data-view="track">Customer tracker</button>
+  </div>
+  <div class="proto"><b>Prototype</b> · sample data · changes are not saved</div>
+</div>
+
+<main>
+<!-- ================= BOARD ================= -->
+<section class="view" id="board">
+  <div class="strip" id="strip"></div>
+  <div class="board">
+    <div class="col a" id="colA"></div>
+    <div class="col b" id="colB"></div>
+    <div class="side">
+      <div class="panel unsched"><h3>Unscheduled <span id="unCount"></span></h3><div class="stops" id="unsched" data-drop="un"></div></div>
+      <div class="panel map"><h3>Map <span style="font-weight:400;text-transform:none;letter-spacing:0">click a truck to hide/show it</span></h3><div id="map"></div>
+        <div class="maplegend" id="maplegend"></div></div>
+    </div>
+  </div>
+  <div class="panel prod" id="prod"><h3><span>Productivity · department</span><button id="prodToggle" aria-expanded="false">Show ▾</button></h3><div id="prodBody" hidden></div></div>
+</section>
+
+<!-- ================= TRACKER ================= -->
+<section class="view" id="track" hidden>
+  <div class="trk" id="trk"></div>
+</section>
+</main>
+<div class="toasts" id="toasts"></div>
+
+<script>
+/* ---------- reference data ---------- */
+const ZONE={"78620":{"zone":"DS","group":"Core Hill Country","mode":"open","p":"DLA","s":["AJH","BLL","CIT"],"trip":null},"78737":{"zone":"LOCAL","group":"Core Hill Country","mode":"open","p":"DLA","s":["AJH","CIT","CEM"],"trip":null},"78746":{"zone":"AUS W","group":"Austin Metro","mode":"open","p":"AJH","s":["CEM","JRC"],"trip":null},"78619":{"zone":"DRIFT","group":"Core Hill Country","mode":"open","p":"KJB","s":["DLA","CEM"],"trip":null},"78703":{"zone":"AUS C","group":"Austin Metro","mode":"open","p":"JRC","s":[],"trip":null},"78676":{"zone":"WIMB","group":"South Corridor","mode":"open","p":"KJB","s":[],"trip":null},"78738":{"zone":"BCAVE","group":"Austin Metro","mode":"open","p":"TDP","s":["AJH"],"trip":null},"78701":{"zone":"AUS C","group":"Austin Metro","mode":"open","p":"JRC","s":[],"trip":null},"78669":{"zone":"SPICE","group":"Austin Metro","mode":"open","p":"TDP","s":[],"trip":null},"78735":{"zone":"LOST","group":"Austin Metro","mode":"open","p":"AJH","s":["TDP","CIT"],"trip":null},"78624":{"zone":"FBURG","group":"West","mode":"designated_days","p":"JHM","s":[],"trip":["Wed","JHM"]},"78704":{"zone":"AUS S","group":"Austin Metro","mode":"open","p":"JRC","s":["CEM"],"trip":null},"78731":{"zone":"AUS C","group":"Austin Metro","mode":"open","p":"JRC","s":[],"trip":null},"78739":{"zone":"AUS S","group":"Austin Metro","mode":"open","p":"AJH","s":["KJB","TDP","DLA"],"trip":null},"78733":{"zone":"LOST","group":"Austin Metro","mode":"open","p":"TDP","s":["AJH"],"trip":null},"78606":{"zone":"BLANC","group":"West","mode":"designated_days","p":"JHM","s":["DLA"],"trip":["Wed","JHM"]},"78734":{"zone":"LAKE","group":"Austin Metro","mode":"open","p":"TDP","s":["AJH"],"trip":null},"78636":{"zone":"JC","group":"West","mode":"designated_days","p":"JHM","s":["DLA","BLL"],"trip":["Wed","JHM"]},"78736":{"zone":"OAKHL","group":"Core Hill Country","mode":"open","p":"AJH","s":["DLA","CEM","KJB"],"trip":null},"78666":{"zone":"SANMA","group":"South Corridor","mode":"open","p":"KJB","s":[],"trip":null},"78749":{"zone":"OAKHL","group":"Core Hill Country","mode":"open","p":"AJH","s":["CEM"],"trip":null},"78610":{"zone":"BUDA","group":"South Corridor","mode":"open","p":"KJB","s":[],"trip":null},"78657":{"zone":"HORSE","group":"Northwest Lakes","mode":"designated_days","p":"TDP","s":[],"trip":["Thu","TDP"]},"78705":{"zone":"AUS C","group":"Austin Metro","mode":"open","p":"JRC","s":["CEM"],"trip":null},"78732":{"zone":"LAKE","group":"Austin Metro","mode":"open","p":"CIT","s":["TDP","BLL"],"trip":null},"78756":{"zone":"AUS N","group":"Austin Metro","mode":"open","p":"JRC","s":["CIT"],"trip":null},"78745":{"zone":"AUS S","group":"Austin Metro","mode":"open","p":"KJB","s":["AJH","CEM","JRC"],"trip":null},"78748":{"zone":"AUS S","group":"Austin Metro","mode":"open","p":"CEM","s":["KJB","BLL"],"trip":null},"78730":{"zone":"LAKE","group":"Austin Metro","mode":"open","p":"CIT","s":["TDP"],"trip":null},"78757":{"zone":"AUS N","group":"Austin Metro","mode":"open","p":"JRC","s":[],"trip":null},"78663":{"zone":"ROUND","group":"Northwest Lakes","mode":"designated_days","p":"JHM","s":["CEM","DLA"],"trip":["Thu","TDP"]},"78759":{"zone":"AUS N","group":"Austin Metro","mode":"open","p":"JRC","s":["BLL","CEM"],"trip":null},"78751":{"zone":"AUS N","group":"Austin Metro","mode":"open","p":"JRC","s":["CEM"],"trip":null},"78006":{"zone":"BOERN","group":"West","mode":"designated_days","p":"JHM","s":["CEM"],"trip":["Wed","JHM"]},"78613":{"zone":"CEDAR","group":"North","mode":"office_only","p":"CIT","s":["TDP","BLL","JRC"],"trip":null},"78640":{"zone":"KYLE","group":"South Corridor","mode":"open","p":"KJB","s":["TDP"],"trip":null},"78130":{"zone":"BRAUN","group":"Far South","mode":"designated_days","p":"CEM","s":["KJB","BLL"],"trip":["Tue","CEM"]},"78747":{"zone":"AUS S","group":"Austin Metro","mode":"open","p":"KJB","s":["BLL"],"trip":null},"78643":{"zone":"HORSE","group":"Northwest Lakes","mode":"designated_days","p":"TDP","s":[],"trip":["Thu","TDP"]},"78133":{"zone":"CANYO","group":"Far South","mode":"designated_days","p":"BLL","s":["JHM"],"trip":["Tue","CEM"]},"78654":{"zone":"MFALL","group":"Northwest Lakes","mode":"designated_days","p":"TDP","s":["JHM"],"trip":["Thu","TDP"]},"78671":{"zone":"STONE","group":"West","mode":"designated_days","p":"JHM","s":["DLA"],"trip":["Wed","JHM"]},"78723":{"zone":"AUS E","group":"Austin Metro","mode":"open","p":"JRC","s":[],"trip":null},"78722":{"zone":"AUS E","group":"Austin Metro","mode":"open","p":"JRC","s":[],"trip":null},"78750":{"zone":"AUS N","group":"Austin Metro","mode":"open","p":"JRC","s":["CIT"],"trip":null},"78830":{"zone":"R2222","group":"Austin Metro","mode":"open","p":"CIT","s":[],"trip":null},"78717":{"zone":"AUS N","group":"Austin Metro","mode":"open","p":"CIT","s":[],"trip":null},"78623":{"zone":"FISCH","group":"Far South","mode":"designated_days","p":"KJB","s":[],"trip":["Tue","CEM"]},"78702":{"zone":"AUS C","group":"Austin Metro","mode":"open","p":"JRC","s":[],"trip":null},"78729":{"zone":"AUS W","group":"Austin Metro","mode":"open","p":"AJH","s":[],"trip":null},"78635":{"zone":"JC","group":"West","mode":"designated_days","p":"JHM","s":[],"trip":["Wed","JHM"]},"78644":{"zone":"OUT","group":"Out of area","mode":"office_only","p":"BLL","s":["KJB"],"trip":null},"78727":{"zone":"AUS N","group":"Austin Metro","mode":"open","p":"JRC","s":[],"trip":null},"78626":{"zone":"GEORG","group":"North","mode":"office_only","p":"CIT","s":["CEM"],"trip":null},"78776":{"zone":"WIMB","group":"South Corridor","mode":"open","p":"KJB","s":[],"trip":null},"78628":{"zone":"GEORG","group":"North","mode":"office_only","p":"JRC","s":["CIT"],"trip":null},"78163":{"zone":"BOERN","group":"West","mode":"designated_days","p":"JHM","s":[],"trip":["Wed","JHM"]},"78631":{"zone":"OUT","group":"Out of area","mode":"office_only","p":"JHM","s":[],"trip":null},"78070":{"zone":"BOERN","group":"West","mode":"designated_days","p":"JHM","s":[],"trip":["Wed","JHM"]},"78642":{"zone":"GEORG","group":"North","mode":"office_only","p":"CIT","s":[],"trip":null},"78724":{"zone":"AUS E","group":"Austin Metro","mode":"open","p":"JRC","s":[],"trip":null},"78645":{"zone":"LAGO","group":"Austin Metro","mode":"open","p":"CIT","s":[],"trip":null},"78641":{"zone":"AUS N","group":"Austin Metro","mode":"open","p":"CIT","s":[],"trip":null},"78028":{"zone":"OUT","group":"Out of area","mode":"office_only","p":"JHM","s":[],"trip":null},"78010":{"zone":"KERR","group":"Out of area","mode":"office_only","p":"JHM","s":[],"trip":null},"78744":{"zone":"AUS S","group":"Austin Metro","mode":"open","p":"KJB","s":[],"trip":null},"78675":{"zone":"OUT","group":"Out of area","mode":"office_only","p":"JHM","s":[],"trip":null},"78639":{"zone":"SHOP","group":"Core Hill Country","mode":"open","p":"TDP","s":[],"trip":null},"78957":{"zone":"OUT","group":"Out of area","mode":"office_only","p":"JRC","s":[],"trip":null},"78257":{"zone":"SA","group":"Out of area","mode":"office_only","p":"JHM","s":[],"trip":null},"78015":{"zone":"BOERN","group":"West","mode":"designated_days","p":"JHM","s":[],"trip":["Wed","JHM"]},"78132":{"zone":"BRAUN","group":"Far South","mode":"designated_days","p":"CEM","s":[],"trip":["Tue","CEM"]},"78655":{"zone":"SANMA","group":"South Corridor","mode":"open","p":"KJB","s":[],"trip":null},"76832":{"zone":"OUT","group":"Out of area","mode":"office_only","p":"CEM","s":[],"trip":null},"78753":{"zone":"AUS N","group":"Austin Metro","mode":"open","p":"CIT","s":[],"trip":null},"78681":{"zone":"ROUND","group":"Northwest Lakes","mode":"designated_days","p":"CIT","s":[],"trip":["Thu","TDP"]}};
+const ZIP={"78620":[30.195,-98.084],"78737":[30.189,-97.96],"78746":[30.301,-97.804],"78619":[30.126,-98.028],"78703":[30.288,-97.764],"78676":[29.996,-98.107],"78738":[30.336,-97.986],"78701":[30.266,-97.748],"78669":[30.406,-98.058],"78735":[30.273,-97.873],"78624":[30.277,-98.849],"78704":[30.249,-97.76],"78731":[30.367,-97.779],"78739":[30.195,-97.892],"78733":[30.31,-97.87],"78606":[30.098,-98.439],"78734":[30.386,-97.93],"78636":[30.285,-98.41],"78736":[30.254,-97.909],"78666":[29.894,-98.009],"78749":[30.226,-97.872],"78657":[30.551,-98.385],"78705":[30.297,-97.736],"78732":[30.376,-97.98],"78756":[30.351,-97.781],"78745":[30.204,-97.805],"78748":[30.159,-97.842],"78730":[30.373,-97.845],"78757":[30.333,-97.746],"78663":[30.346,-98.246],"78759":[30.351,-97.781],"78751":[30.306,-97.731],"78006":[29.935,-98.798],"78640":[29.97,-97.901],"78130":[29.787,-98.241],"78747":[30.233,-97.79],"78643":[30.613,-98.52],"78671":[30.173,-98.625],"78723":[30.308,-97.695],"78722":[30.308,-97.695],"78750":[30.425,-97.79],"78830":[30.366,-97.863],"78717":[30.351,-97.781],"78623":[30.0,-98.262],"78702":[30.297,-97.747],"78729":[30.304,-97.833],"78635":[30.285,-98.409],"78644":[30.3,-99.244],"78727":[30.351,-97.781],"78776":[30.005,-98.107],"78163":[29.773,-98.447],"78631":[30.226,-99.214],"78070":[29.934,-98.385],"78724":[30.308,-97.695],"78641":[30.351,-97.781],"78028":[29.913,-99.169],"78010":[30.226,-99.214],"78744":[30.233,-97.79],"78675":[30.3,-99.244],"78639":[30.185,-98.003],"78957":[30.3,-99.244],"78257":[29.657,-98.611],"78015":[29.733,-98.636],"78132":[29.787,-98.241],"78655":[29.839,-97.86],"76832":[30.981,-98.708],"78753":[30.351,-97.781],"78681":[30.346,-98.246],"78626":[30.615,-97.635],"78610":[30.071,-97.919],"78613":[30.54,-97.791],"78654":[30.48,-98.297]};
+ZIP['78671']=[30.23,-98.66];ZIP['78624']=ZIP['78624']||[30.284,-98.874];ZIP['78606']=ZIP['78606']||[30.098,-98.439];ZIP['78613']=ZIP['78613']||[30.50,-97.83];
+const SHOP={name:'Shop',zip:78620,ll:[30.2054,-98.0605]};
+/* Open trips: proposed by the engine on volume/age, confirmed by Demitrius. No standing days. */
+const TRIPS=[{group:'West',day:'2026-09-16',tech:'JHM',reason:'4 stops in bucket · oldest request 6 business days',confirmed:true}];
+const BUCKET={'Northwest Lakes':1,'Far South':0,'West':1};
+function openTrip(group){return TRIPS.find(t=>t.group===group)}
+/* Real roster (reference/tech_roster.csv). zone/zone2 derive from 2026 completions via ZONE. */
+const TECHS=[
+ {id:'DLA',name:'Diogo Assis',skills:['appliance','sealed'],start:'shop',end:'shop',home:[30.20,-98.10],auto:true},
+ {id:'AJH',name:'Andrew Horst',skills:['appliance','sealed'],start:'shop',end:'shop',home:[30.21,-98.05],auto:true},
+ {id:'TDP',name:'Trevor Pate',skills:['appliance','sealed','hvac-backup'],start:'shop',end:'home',home:[30.00,-98.10],auto:true},
+ {id:'JRC',name:'Josh Chappell',skills:['appliance','sealed'],start:'home',end:'home',home:[30.17,-97.82],auto:true,workDays:['Mon','Tue','Wed','Thu']},
+ {id:'KJB',name:'Kyle Bisson',skills:['appliance','sealed'],start:'home',end:'home',home:[30.00,-97.88],auto:true},
+ {id:'CIT',name:'Chris Turner',skills:['appliance','sealed'],start:'shop',end:'home',home:[30.37,-97.97],auto:true},
+ {id:'CEM',name:'Connor Montgomery',skills:['appliance','sealed'],start:'home',end:'home',home:[29.70,-98.12],auto:true},
+ {id:'BLL',name:'Brady Langley',skills:['hvac'],start:'shop',end:'home',home:[29.70,-98.12],auto:true},
+ {id:'JHM',name:'John Merz',skills:['appliance','sealed'],start:'home',end:'home',home:[30.27,-98.87],auto:false,loadedPrev:true,note:'Builds his own west route — office assigns'},
+ {id:'MAP',name:'Mark Perks',skills:['appliance','sealed','hvac'],start:'shop',end:'home',home:[30.00,-98.10],auto:false,note:'Service manager — Demitrius only'},
+];
+/* 9/11: working days (default Mon–Fri), weekly delivered-dollar targets and last week's actuals — calibrated from OE-23 Jan–Sep 2026 (parts profit + labor) */
+const WEEK_TARGET={JRC:2600,TDP:2500,AJH:2200,CEM:2150,KJB:1900,DLA:1700,BLL:1700,CIT:1450,JHM:null,MAP:null};
+const LASTWEEK={JRC:{d:2735,calls:14,lab:2290,pp:445},TDP:{d:2410,calls:12,lab:1980,pp:430},AJH:{d:2380,calls:11,lab:1760,pp:620},CEM:{d:1990,calls:10,lab:1640,pp:350},KJB:{d:1815,calls:11,lab:1580,pp:235},DLA:{d:1650,calls:11,lab:1420,pp:230},BLL:{d:1725,calls:6,lab:1590,pp:135},CIT:{d:1390,calls:8,lab:1220,pp:170},JHM:{d:610,calls:3,lab:480,pp:130},MAP:{d:0,calls:0,lab:0,pp:0}};
+TECHS.forEach(t=>{t.workDays=t.workDays||['Mon','Tue','Wed','Thu','Fri'];t.target=WEEK_TARGET[t.id]});
+/* per tech-day overrides written by the dispatcher's capacity controls (tech_day) */
+const TD={};function td(tech,day){return (TD[tech]=TD[tech]||{})[day]=(TD[tech]||{})[day]||{adjust:0,forced:0}}
+function dow(k){return ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][new Date(k+'T12:00').getDay()]}
+function isOpen(tech,day){const o=(TD[tech]||{})[day]||{};if(o.closed)return false;if(o.open)return true;return techById(tech).workDays.includes(dow(day))}
+function closedWhy(tech,day){const o=(TD[tech]||{})[day]||{};if(o.closed)return o.reason||'closed';if(!techById(tech).workDays.includes(dow(day))&&!o.open)return 'works '+techById(tech).workDays[0]+'–'+techById(tech).workDays.at(-1);return ''}
+/* route blocks: time on a route that is not a call */
+let BLOCKS=[
+ {id:1,tech:'JRC',day:'2026-09-14',start:12*60,end:12*60+45,label:'Van maintenance · oil change'},
+ {id:2,tech:'AJH',day:'2026-09-15',start:15*60+30,end:16*60+30,label:'Haircut'},
+ {id:3,tech:'TDP',day:'2026-09-17',start:8*60,end:9*60,label:'Trane training call'},
+];
+let blockSeq=10;
+const BLOCK_LABELS=['Haircut','Van maintenance','Training','Lunch','DMV / errand','Doctor','Other'];
+TECHS.forEach(t=>{t.zone=Object.keys(ZONE).filter(z=>ZONE[z].p===t.id).map(Number);t.zone2=Object.keys(ZONE).filter(z=>ZONE[z].s.includes(t.id)).map(Number);if(t.id==='BLL')t.zone=Object.keys(ZIP).map(Number)});
+const DAYS=[{k:'2026-09-14',s:'Mon',n:'Sep 14'},{k:'2026-09-15',s:'Tue',n:'Sep 15'},{k:'2026-09-16',s:'Wed',n:'Sep 16'},{k:'2026-09-17',s:'Thu',n:'Sep 17'},{k:'2026-09-18',s:'Fri',n:'Sep 18'}];
+const STATUS={SO1:'Diagnostic',SO6:'Part install',SO4PRE:'Install held · part on order',WAR:'Warranty diagnostic',SO5:'Parts in · pick a time',REQ:'New request · no time picked',SO4H:'Part shipping to customer'};
+/* delivered dollars (§5.6): labor incl. diag/zone fees + parts profit (0 on warranty). Projected from the job until the tech taps complete. */
+const RATE=130,HVAC_RATE=150,DIAG=157;
+function dollars(j){if(j.$)return j.$;const far=['FBURG','BOERN','JC','BLANC','STONE','HORSE','KERR','SA'].includes(zinfo(j.zip).zone);const zone=far?85:0;
+  if(j.st==='SO1'||j.st==='REQ')return {lab:DIAG+zone,pp:0,est:true};if(j.st==='WAR')return {lab:DIAG,pp:0,wty:true};
+  const rate=j.type==='hvac'?HVAC_RATE:RATE;const lab=Math.round(Math.max(1,j.dur/60)*2)/2*rate+zone;return {lab,pp:j.unit.includes('WTY')?0:Math.round(j.dur*1.6),wty:j.unit.includes('WTY')}}
+const usd=n=>'$'+Math.round(n).toLocaleString('en-US');
+const SHIFT={start:8*60,end:17*60};
+/* Job: sv, cust, addr, zip, st, type(appliance|hvac|sealed), unit, dur(min), win(AM|PM), bal, tech, day, seq, lock, eta(parts) */
+let J=[
+ // Diogo Mon
+ {sv:'SV00123290',cust:'Jones, Gary & Karen',addr:'5701 Fort Benton Dr',zip:78737,st:'SO1',type:'appliance',unit:'Bosch dishwasher · not draining',dur:60,win:'AM',bal:'',tech:'DLA',day:'2026-09-14',seq:1},
+ {sv:'SV00123179',cust:'McCollum, Jeff',addr:'1221 Kemp Hills Dr',zip:78737,st:'SO6',type:'appliance',unit:'Sub-Zero fridge · evaporator fan',dur:90,win:'AM',bal:'COD',tech:'DLA',day:'2026-09-14',seq:2,$:{lab:285,pp:168}},
+ {sv:'SV00123302',cust:'Hippe, Nick & Sharon',addr:'10008 Hillside North',zip:78736,st:'SO4PRE',type:'appliance',unit:'GE washer · drain pump',dur:60,win:'PM',bal:'A/R',tech:'DLA',day:'2026-09-14',seq:3,eta:'2026-09-12'},
+ {sv:'SV00123365',cust:'Ortega, Maria',addr:'7412 Escarpment Blvd',zip:78620,st:'SO1',type:'appliance',unit:'KitchenAid oven · no heat',dur:60,win:'PM',bal:'',tech:'DLA',day:'2026-09-14',seq:4},
+ {sv:'SV00123116',cust:'Kubenka, James',addr:'10100 Wildwood Hills',zip:78737,st:'SO6',type:'appliance',unit:'Whirlpool dryer · heating element',dur:60,win:'PM',bal:'COD',tech:'DLA',day:'2026-09-14',seq:5},
+ // Trevor Mon
+ {sv:'SV00123160',cust:'Chodniewicz, Nina',addr:'424 Reata Way',zip:78620,st:'WAR',type:'appliance',unit:'Thermador range · igniter (warranty)',dur:75,win:'AM',bal:'',tech:'TDP',day:'2026-09-14',seq:1},
+ {sv:'SV00123388',cust:'Cox, Brandon',addr:'128 Deerfield Cv',zip:78734,st:'SO1',type:'sealed',unit:'KitchenAid built-in fridge · not cooling',dur:75,win:'AM',bal:'',tech:'TDP',day:'2026-09-14',seq:2},
+ {sv:'SV00122562',cust:'Day, Donna',addr:'260 Mallet Ct',zip:78738,st:'SO6',type:'appliance',unit:'Miele dishwasher · circulation pump',dur:90,win:'PM',bal:'A/R',tech:'TDP',day:'2026-09-14',seq:3},
+ {sv:'SV00123371',cust:'Young, Mark',addr:'6400 Zadock Woods Dr',zip:78738,st:'SO1',type:'appliance',unit:'LG washer · leaking',dur:60,win:'PM',bal:'',tech:'TDP',day:'2026-09-14',seq:4},
+ // Diogo Tue
+ {sv:'SV00123269',cust:'Smith, Casey',addr:'7504 Robert Kleburg Ln',zip:78737,st:'SO6',type:'appliance',unit:'Maytag washer · inlet valve',dur:60,win:'AM',bal:'COD',tech:'DLA',day:'2026-09-15',seq:1},
+ {sv:'SV00123357',cust:'Tipps, Lisa',addr:'6415 Old Harbor Ln',zip:78619,st:'SO1',type:'appliance',unit:'Frigidaire fridge · ice maker',dur:60,win:'AM',bal:'A/R',tech:'DLA',day:'2026-09-15',seq:2},
+ {sv:'SV00123057',cust:'Branson, Connie',addr:'910 Kemp Hills Dr',zip:78737,st:'SO6',type:'appliance',unit:'Bosch oven · control board',dur:75,win:'PM',bal:'',tech:'DLA',day:'2026-09-15',seq:3},
+ // Trevor Tue
+ {sv:'SV00123401',cust:'Reyes, Ana',addr:'1802 Mystic Ridge',zip:78620,st:'SO1',type:'appliance',unit:'Samsung range · error code',dur:60,win:'AM',bal:'',tech:'TDP',day:'2026-09-15',seq:1},
+ {sv:'SV00123318',cust:'Jennings, Erik',addr:'305 Lakeway Dr',zip:78734,st:'SO4PRE',type:'appliance',unit:'GE front-load washer · water valve',dur:60,win:'PM',bal:'',tech:'TDP',day:'2026-09-15',seq:2,eta:'2026-09-16'},
+ // Diogo Wed/Thu/Fri
+ {sv:'SV00123265',cust:'Caldwell, Dennis',addr:'9812 Brentwood Cir',zip:78620,st:'SO4PRE',type:'appliance',unit:'Maytag top-load washer · water valve',dur:60,win:'AM',bal:'',tech:'DLA',day:'2026-09-17',seq:1,eta:'2026-09-16'},
+ {sv:'SV00123410',cust:'Nguyen, Linh',addr:'6300 Convict Hill Rd',zip:78619,st:'SO1',type:'appliance',unit:'Whirlpool fridge · warm',dur:60,win:'PM',bal:'',tech:'DLA',day:'2026-09-16',seq:1},
+ {sv:'SV00123412',cust:'Patel, Ravi',addr:'8100 Silver Ridge Dr',zip:78737,st:'SO1',type:'appliance',unit:'GE dishwasher · won\'t start',dur:60,win:'AM',bal:'',tech:'DLA',day:'2026-09-16',seq:2},
+ {sv:'SV00123390',cust:'Herzog, Kristen',addr:'370 Quinn Dr',zip:78620,st:'SO1',type:'appliance',unit:'Maytag washer · grinding on spin',dur:60,win:'AM',bal:'',tech:'TDP',day:'2026-09-16',seq:1},
+ {sv:'SV00123309',cust:'Whitfield, Dana',addr:'122 Hazeltine Dr',zip:78738,st:'SO6',type:'appliance',unit:'Wolf range · spark module',dur:90,win:'PM',bal:'COD',tech:'TDP',day:'2026-09-16',seq:2},
+ {sv:'SV00123298',cust:'Okafor, Chidi',addr:'4501 Twin Valley Cv',zip:78737,st:'SO6',type:'appliance',unit:'Speed Queen washer · belt',dur:60,win:'AM',bal:'',tech:'DLA',day:'2026-09-18',seq:1},
+ // Andrew Mon
+ {sv:'SV00123380',cust:'Larson, Kim',addr:'2100 Westlake Dr',zip:78746,st:'SO1',type:'appliance',unit:'LG dryer · no heat',dur:60,win:'AM',bal:'',tech:'AJH',day:'2026-09-14',seq:1},
+ {sv:'SV00123344',cust:'Brooks, Terry',addr:'3800 Bee Caves Rd',zip:78746,st:'SO6',type:'appliance',unit:'Bosch dishwasher · heat pump',dur:75,win:'AM',bal:'COD',tech:'AJH',day:'2026-09-14',seq:2},
+ {sv:'SV00122386',cust:'Nayak, Susan',addr:'6800 Convict Hill',zip:78749,st:'SO1',type:'appliance',unit:'Viking range · 3 units',dur:120,win:'PM',bal:'A/R',tech:'AJH',day:'2026-09-14',seq:3},
+ {sv:'SV00123399',cust:'Gomez, Luis',addr:'9412 Shady Oaks',zip:78735,st:'SO1',type:'appliance',unit:'Samsung fridge · noisy',dur:60,win:'PM',bal:'',tech:'AJH',day:'2026-09-14',seq:4},
+ {sv:'SV00123402',cust:'Fischer, Rob',addr:'12300 Shadow Creek',zip:78739,st:'SO6',type:'appliance',unit:'GE washer · suspension rods',dur:60,win:'PM',bal:'',tech:'AJH',day:'2026-09-14',seq:5},
+ {sv:'SV00123407',cust:'Kaplan, Judy',addr:'4110 Westbank Dr',zip:78746,st:'SO1',type:'appliance',unit:'Miele oven · door lock',dur:60,win:'AM',bal:'',tech:'AJH',day:'2026-09-15',seq:1},
+ // Kyle Mon
+ {sv:'SV00120670',cust:'Bojar, Mike',addr:'800 River Rd',zip:78676,st:'SO6',type:'appliance',unit:'Whirlpool fridge · compressor start relay',dur:60,win:'AM',bal:'COD',tech:'KJB',day:'2026-09-14',seq:1},
+ {sv:'SV00123073',cust:'Cruz, Ryan',addr:'1400 Flite Acres',zip:78676,st:'SO1',type:'appliance',unit:'Bosch dishwasher · E24',dur:60,win:'AM',bal:'COD',tech:'KJB',day:'2026-09-14',seq:2},
+ {sv:'SV00123408',cust:'Stromberg, Eric',addr:'2200 Post Rd',zip:78666,st:'SO1',type:'appliance',unit:'Monogram built-in fridge · warm',dur:75,win:'PM',bal:'',tech:'KJB',day:'2026-09-14',seq:3},
+ // Josh Mon
+ {sv:'SV00122903',cust:'Caver, Fred & Linda',addr:'1507 Windsor Rd',zip:78703,st:'SO6',type:'appliance',unit:'Maytag dryer · drum roller',dur:60,win:'AM',bal:'COD',tech:'JRC',day:'2026-09-14',seq:1},
+ {sv:'SV00123174',cust:'Rivera, Karen',addr:'3002 Reunion Blvd',zip:78704,st:'SO1',type:'appliance',unit:'Fisher & Paykel drawer DW',dur:60,win:'AM',bal:'',tech:'JRC',day:'2026-09-14',seq:2},
+ {sv:'SV00123147',cust:'Cothern, Steve',addr:'4500 Shoal Creek',zip:78731,st:'SO6',type:'appliance',unit:'LG washer · door lock',dur:60,win:'PM',bal:'COD',tech:'JRC',day:'2026-09-14',seq:3},
+ // Mark HVAC Mon
+ {sv:'SV00123361',cust:'Peveto, Bill & Kathy',addr:'510 Golden Bear Dr',zip:78738,st:'SO1',type:'hvac',unit:'Trane 4-ton · not cooling',dur:90,win:'AM',bal:'',tech:'BLL',day:'2026-09-14',seq:1},
+ {sv:'SV00123377',cust:'Adair, Pam',addr:'2811 Barton Skyway',zip:78704,st:'SO6',type:'hvac',unit:'Carrier · blower motor',dur:120,win:'PM',bal:'COD',tech:'BLL',day:'2026-09-14',seq:2},
+ // John Merz west trip · Wed Sep 16 (office-built, JHM sequences)
+ {sv:'SV00109783',cust:'Lassiter, Kelli & Kevin',addr:'1304 Pike Ln',zip:78624,st:'SO6',type:'appliance',unit:'LG fridge · freezer door (WTY)',dur:60,win:'AM',bal:'',tech:'JHM',day:'2026-09-16',seq:1,owner:'JHM'},
+ {sv:'SV00123320',cust:'Weber, Hans',addr:'510 W Main St',zip:78624,st:'SO1',type:'appliance',unit:'Bosch dishwasher · leaking',dur:60,win:'AM',bal:'',tech:'JHM',day:'2026-09-16',seq:2},
+ {sv:'SV00123331',cust:'Klein, Rosa',addr:'204 Peach St',zip:78671,st:'SO1',type:'appliance',unit:'GE range · igniter',dur:60,win:'PM',bal:'',tech:'JHM',day:'2026-09-16',seq:3},
+ {sv:'SV00123344',cust:'Ahrens, Bill',addr:'1120 Ranch Rd 1',zip:78606,st:'SO6',type:'appliance',unit:'Whirlpool washer · pump',dur:60,win:'PM',bal:'COD',tech:'JHM',day:'2026-09-16',seq:4,owner:'JHM'},
+ // Unscheduled
+ {sv:'SV00123383',owner:'DLA',cust:'Osler, Lynn',addr:'13401 Evergreen Way',zip:78737,st:'SO5',type:'appliance',unit:'GE washer · drain pump (part arrived 9/11)',dur:60,win:null,bal:'',tech:null,day:null,seq:0},
+ {sv:'SV00123243',owner:'JRC',cust:'Oatis, Shawn & Shira',addr:'4819 Spicewood Springs',zip:78731,st:'SO5',type:'appliance',unit:'Whirlpool dryer · control (part arrived 9/10)',dur:60,win:null,bal:'',tech:null,day:null,seq:0},
+ {sv:'SV00123070',owner:'JRC',cust:'Mcdonald, Ryan',addr:'2100 Rio Grande',zip:78701,st:'SO5',type:'appliance',unit:'Sub-Zero · sealed system (2 parts in)',dur:150,win:null,bal:'',tech:null,day:null,seq:0},
+ {sv:'SV00123420',cust:'Hartmann, Greta',addr:'318 E Austin St',zip:78624,st:'REQ',type:'appliance',unit:'Miele dishwasher · not draining (form submitted — in the West trip bucket)',dur:60,win:null,bal:'',tech:null,day:null,seq:0},
+ {sv:'SV00123415',cust:'Bennett, Mary',addr:'9010 Anderson Mill',zip:78613,st:'REQ',type:'appliance',unit:'Frigidaire range · burner (form submitted — Cedar Park is office-only)',dur:60,win:null,bal:'',tech:null,day:null,seq:0},
+ {sv:'SV00123416',owner:'BLL',cust:'Buerk, Shannon',addr:'3500 Jefferson St',zip:78731,st:'SO5',type:'hvac',unit:'Lennox · capacitor + contactor',dur:90,win:null,bal:'',tech:null,day:null,seq:0,$:{lab:300,pp:96}},
+ {sv:'SV00123433',owner:'AJH',cust:'Delgado, Rosa',addr:'7900 Lynnwood Trl',zip:78735,st:'SO4H',type:'appliance',unit:'GE dryer · control board (GE ships direct to customer · expected 9/15)',dur:60,win:null,bal:'',tech:null,day:null,seq:0,$:{lab:195,pp:0}},
+];
+J.forEach(j=>{if(!j.owner&&j.tech&&(j.st==='SO6'||j.st==='SO4PRE'))j.owner=j.tech});
+/* ---------- helpers ---------- */
+const $=s=>document.querySelector(s);
+const techById=id=>TECHS.find(t=>t.id===id);
+const MON=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const mkDay=k=>{const d=new Date(k+'T12:00');return {k,s:['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][d.getDay()],n:MON[d.getMonth()]+' '+d.getDate()}};
+const dayObj=k=>DAYS.find(d=>d.k===k)||mkDay(k);
+function ll(zip){return ZIP[String(zip)]||SHOP.ll}
+function zinfo(zip){return ZONE[String(zip)]||{zone:'?',group:'Unclassified',mode:'office_only',p:null,s:[],trip:null}}
+function driveMin(a,b){const R=6371,dLat=(b[0]-a[0])*Math.PI/180,dLng=(b[1]-a[1])*Math.PI/180,la=a[0]*Math.PI/180,lb=b[0]*Math.PI/180;const h=Math.sin(dLat/2)**2+Math.cos(la)*Math.cos(lb)*Math.sin(dLng/2)**2;const km=2*R*Math.asin(Math.sqrt(h));return Math.round(4+km*1.55)}
+const fmt=m=>{let h=Math.floor(m/60),mm=m%60;const ap=h>=12?'PM':'AM';h=((h+11)%12)+1;return `${h}:${String(mm).padStart(2,'0')} ${ap}`}
+const hm=m=>m>=60?`${Math.floor(m/60)}h ${m%60?m%60+'m':''}`.trim():`${m}m`;
+function jobsFor(tech,day){return J.filter(j=>j.tech===tech&&j.day===day).sort((a,b)=>a.seq-b.seq)}
+function startPt(t){return t.start==='shop'?SHOP.ll:t.home}function endPt(t){return t.end==='shop'?SHOP.ll:t.home}
+function blocksFor(tech,day){return BLOCKS.filter(b=>b.tech===tech&&b.day===day).sort((a,b)=>a.start-b.start)}
+function timeline(tech,day){
+  const t=techById(tech),stops=jobsFor(tech,day);let cur=startPt(t),clock=SHIFT.start,drive=0,work=0,blocked=0,out=[];const blocks=[...blocksFor(tech,day)];
+  const needsShop=t.start!=='shop'&&stops.some(j=>j.st==='SO6'||j.st==='SO4PRE')&&!t.loadedPrev;let shopDone=t.start==='shop'||!needsShop;
+  const placeBlocks=(until)=>{while(blocks.length&&blocks[0].start<until){const b=blocks.shift();if(clock<b.start)clock=b.start;out.push({block:b,arr:clock,dep:clock+(b.end-b.start)});clock+=b.end-b.start;blocked+=b.end-b.start}};
+  for(const j of stops){
+    if(!shopDone&&(j.st==='SO6'||j.st==='SO4PRE')){const d=driveMin(cur,SHOP.ll);drive+=d;clock+=d;out.push({shop:true,drive:d,arr:clock,dep:clock+10});clock+=10;cur=SHOP.ll;shopDone=true}
+    const d=driveMin(cur,ll(j.zip));placeBlocks(clock+d);drive+=d;let arr=clock+d;const ws=j.win==='PM'?12*60:8*60,we=j.win==='PM'?17*60:12*60;let wait=0;if(arr<ws){wait=ws-arr;arr=ws}const late=arr>we;out.push({j,drive:d,arr,wait,late,dep:arr+j.dur});clock=arr+j.dur;work+=j.dur;cur=ll(j.zip)}
+  placeBlocks(Infinity);
+  const back=driveMin(cur,endPt(t));drive+=back;const o=td(tech,day);const cap=(SHIFT.end-SHIFT.start)+(o.adjust||0);const open=isOpen(tech,day);
+  const money=stops.reduce((a,j)=>{const m=dollars(j);a.lab+=m.lab;a.pp+=m.pp;return a},{lab:0,pp:0});money.total=money.lab+money.pp;
+  const planned=stops.length||blocked;return{t,stops:out,drive:planned?drive:0,work,blocked,back,ret:clock+back,fill:planned?(drive+work+blocked)/cap:0,cap,open,adjust:o.adjust||0,forced:stops.filter(j=>j.forced).length,over:planned&&(drive+work+blocked)>cap,needsShop,money}
+}
+function halfDayLoad(tech,day,win){if(!isOpen(tech,day))return 999;const tl=timeline(tech,day);let m=0;for(const s of tl.stops){if(s.j&&s.j.win===win)m+=s.j.dur+s.drive;if(s.block){const b=s.block;const ws=win==='PM'?12*60:8*60,we=win==='PM'?17*60:12*60;m+=Math.max(0,Math.min(b.end,we)-Math.max(b.start,ws))}}return m-Math.round((td(tech,day).adjust||0)/2)}
+function eligible(j){if(j.owner)return [techById(j.owner)];const zi=zinfo(j.zip);return TECHS.filter(t=>{const sk=j.type==='sealed'?'sealed':j.type;if(!t.skills.includes(sk))return false;if(zi.trip)return t.id===zi.trip[1];return t.auto&&(t.zone.includes(j.zip)||t.zone2.includes(j.zip))})}
+function validate(j,tech,day){const t=techById(tech),out=[];const sk=j.type==='sealed'?'sealed':j.type;const zi=zinfo(j.zip);
+  if(j.owner&&j.owner!==tech){out.push({c:'bad',t:`${techById(j.owner).name.split(' ')[0]} owns this call — ran the diag`});return out}
+  if(!t.auto)out.push({c:'warn',t:t.note});
+  if(!t.skills.includes(sk))out.push({c:'bad',t:sk==='hvac'?'Needs HVAC tech (Brady)':sk==='sealed'?'Needs sealed-system tech':'Appliance tech needed'});
+  else if(zi.trip){const tr=openTrip(zi.group);if(t.id!==zi.trip[1])out.push({c:'warn',t:`${zi.group} — ${zi.trip[1]} usually runs this`});if(!tr)out.push({c:'warn',t:`No ${zi.group} trip open — this starts one`});else if(tr.day!==day)out.push({c:'warn',t:`${zi.group} trip is ${dayObj(tr.day).s} ${dayObj(tr.day).n.slice(4)}`})}
+  else if(zi.mode==='office_only')out.push({c:'warn',t:`${zi.group} — office decides`});
+  else if(t.auto&&!t.zone.includes(j.zip)){out.push(t.zone2.includes(j.zip)?{c:'warn',t:`Secondary zone (${zi.zone})`}:{c:'bad',t:`Out of zone (${zi.zone} · ${zi.p||'?'})`})}
+  if(j.eta&&j.eta>=day)out.push({c:'bad',t:`Part not due until ${j.eta.slice(5).replace('-','/')}`});
+  if(!isOpen(tech,day))out.push({c:'bad',t:`${t.name.split(' ')[0]}'s ${dow(day)} is closed · ${closedWhy(tech,day)}`});
+  if(j.forced)out.push({c:'forced',t:'forced onto a full day'});
+  return out}
+function toast(msg,cls='',acts){const t=document.createElement('div');t.className='toast '+cls+(acts?' sticky':'');t.textContent=msg;if(acts){const a=document.createElement('span');a.className='acts';for(const k in acts){const b=document.createElement('button');b.textContent=k;b.onclick=()=>{acts[k]();t.remove()};a.append(b)}t.append(a)}$('#toasts').append(t);if(!acts)setTimeout(()=>t.remove(),3800);else setTimeout(()=>t.remove(),12000);return t}
+/* ---------- board state ---------- */
+const col={A:{tech:'DLA',day:'2026-09-14'},B:{tech:'DLA',day:'2026-09-15'}};let stripTarget='A';
+function renderAll(){renderStrip();renderCol('A');renderCol('B');renderUnsched();renderMap();renderProd()}
+function renderStrip(){
+  const s=$('#strip');let h=`<div class="h">Fill · Sep 14–18</div>`+DAYS.map(d=>`<div class="h">${d.s} <span class="mono">${d.n.slice(4)}</span></div>`).join('')+
+  `<div class="striptools">load into <button aria-pressed="${stripTarget==='A'}" data-t="A">Left</button><button aria-pressed="${stripTarget==='B'}" data-t="B">Right</button></div>`;
+  for(const t of TECHS){h+=`<div class="name"><button data-techview="${t.id}" title="Open ${t.name.split(' ')[0]}'s route overview">${t.name}</button></div>`;for(const d of DAYS){const tl=timeline(t.id,d.k);const p=Math.round(tl.fill*100);const on=(col.A.tech===t.id&&col.A.day===d.k)?'onA':(col.B.tech===t.id&&col.B.day===d.k)?'onB':'';
+    const ns=tl.stops.filter(x=>x.j).length;const trip=!t.auto&&ns?'trip · ':'';const closed=!tl.open;const why=closedWhy(t.id,d.k);const o=td(t.id,d.k);
+    h+=`<div class="cell ${tl.over?'over':p>95?'hot':p>80?'warm':''} ${on} ${closed?'closed':''}" data-tech="${t.id}" data-day="${d.k}" title="${t.name} ${d.s}: ${closed?'closed · '+why:ns+' stops, '+p+'% of '+hm(tl.cap)+(o.adjust?' (adjusted '+(o.adjust>0?'+':'')+o.adjust+'m)':'')}${tl.forced?' · '+tl.forced+' forced':''}${t.auto?'':' · '+t.note}" ${t.auto&&!closed?'':'style="background:repeating-linear-gradient(45deg,var(--surface2),var(--surface2) 4px,var(--bg) 4px,var(--bg) 8px)"'}><i style="width:${closed?0:Math.min(p,100)}%"></i><span>${closed?(ns?ns+' on closed day':why.startsWith('works')?'closed':why):ns?trip+p+'%'+(o.adjust?'*':''):'—'}</span><b class="menu" data-menu="${t.id}|${d.k}" title="Day controls">⋯</b></div>`}
+    h+=`<div></div>`}
+  s.innerHTML=h;
+  s.querySelectorAll('.cell').forEach(c=>{c.onclick=e=>{if(e.target.dataset.menu){e.stopPropagation();openDayPop(c.dataset.tech,c.dataset.day,c);return}col[stripTarget]={tech:c.dataset.tech,day:c.dataset.day};renderAll()};c.oncontextmenu=e=>{e.preventDefault();openDayPop(c.dataset.tech,c.dataset.day,c)}});
+  s.querySelectorAll('[data-techview]').forEach(b=>b.onclick=()=>openTechView(b.dataset.techview,col[stripTarget].day));
+  s.querySelectorAll('.striptools button').forEach(b=>b.onclick=()=>{stripTarget=b.dataset.t;renderStrip()});
+}
+function renderCol(k){
+  const c=col[k],tl=timeline(c.tech,c.day),t=tl.t,el=$('#col'+k);const p=Math.round(tl.fill*100);
+  const late=tl.stops.filter(s=>s.late).length;const nstops=tl.stops.filter(s=>s.j).length;const dps=nstops?Math.round(tl.drive/nstops):0;const unprofitable=nstops&&dps>35;
+  el.innerHTML=`<div class="colhead">
+    <div class="row"><select id="tech${k}" aria-label="Technician">${TECHS.map(x=>`<option value="${x.id}" ${x.id===c.tech?'selected':''}>${x.name}</option>`).join('')}</select>
+    <button class="daybtn" id="day${k}" aria-label="Pick a day" title="Pick a day from the calendar"><span>${dayObj(c.day).s} ${dayObj(c.day).n}${tl.open?'':' · closed'}</span><span>📅</span></button>
+    <button data-dayctl="${k}" title="Day controls: close/open, PTO, ±60 min, blocks" style="padding:.4rem .5rem">⋯</button><button data-techview2="${k}" title="Route overview" style="padding:.4rem .5rem">👁</button></div>
+    ${tl.open?'':`<div class="leg" style="justify-content:flex-start;color:var(--bad)">day closed · ${closedWhy(c.tech,c.day)} · open it from ⋯ if ${t.name.split(' ')[0]} is working</div>`}${tl.adjust?`<div class="leg" style="justify-content:flex-start;color:var(--wait)">capacity ${tl.adjust>0?'+':''}${tl.adjust} min today (${td(c.tech,c.day).by||'dispatcher'})</div>`:''}
+    ${(()=>{const tr=TRIPS.find(x=>x.tech===c.tech&&x.day===c.day);return tr?`<div class="leg" style="justify-content:flex-start;color:var(--held)">${tr.group} trip · ${tr.confirmed?'confirmed by Demitrius':'proposed'} · ${tr.reason}</div>`:''})()}<div class="stats"><span><b>${nstops}</b> stops</span><span><b>${hm(tl.work)}</b> on site</span><span><b>${hm(tl.drive)}</b> driving</span><span>back at <b>${fmt(tl.ret)}</b> ${t.end==='shop'?'(shop)':'(home)'}</span>${late?`<span style="color:var(--bad)"><b style="color:inherit">${late}</b> late</span>`:''}${nstops?`<span style="${unprofitable?'color:var(--bad)':''}" title="drive minutes per stop · guard at 35"><b style="color:inherit">${dps}</b> min drive/stop${unprofitable?' ⚠':''}</span>`:''}${tl.blocked?`<span title="non-call blocks"><b>${hm(tl.blocked)}</b> blocked</span>`:''}${tl.over?`<span class="overcap" title="planned minutes exceed the day's capacity">over capacity${tl.forced?' · '+tl.forced+' forced':''}</span>`:''}</div>
+    <div class="cap" title="${p}% of ${hm(tl.cap)} day"><i class="w" style="width:${Math.min(100,tl.work/tl.cap*100)}%"></i><i class="d" style="width:${Math.min(100,tl.drive/tl.cap*100)}%"></i><i style="background:var(--line);width:${Math.min(100,tl.blocked/tl.cap*100)}%"></i></div>
+    <div class="row"><button data-opt="${k}" ${t.auto?'':'disabled title="'+t.note+'"'}>Re-optimize this day</button>${t.start!=='shop'?`<button data-loaded="${k}" aria-pressed="${!!t.loadedPrev}" style="font-size:.75rem">${t.loadedPrev?'Parts loaded last night ✓':'Loaded parts last night?'}</button>`:''}<span style="font-size:.75rem;color:var(--muted)">${t.start}→${t.end} · ${t.skills.join(', ')}${t.auto?'':' · <b>not auto-routed</b>'}</span></div>
+  </div>
+  <div class="stops" data-drop="${k}">
+    <div class="leg">leaves ${t.start} ${fmt(SHIFT.start)}${t.start==='shop'?' · parts loaded':tl.needsShop?' · installs after shop touch':t.loadedPrev?' · parts loaded last night':''}</div>
+    ${(()=>{let n=0;return tl.stops.map((s,i)=>{if(s.shop)return `<div class="leg">shop touch · load parts · ${fmt(s.arr)} (${s.drive}m)</div>`;if(s.block)return `<div class="block"><span>⏸ <b>${s.block.label}</b> · ${fmt(s.arr)}–${fmt(s.dep)} · not a call</span><button data-delblock="${s.block.id}" title="Remove block">✕</button></div>`;n++;const prev=tl.stops.slice(0,i).reverse().find(x=>x.j);const nextAM=prev&&prev.j.win==='AM'&&s.j.win==='PM'?'<div class="leg">afternoon window</div>':'';return nextAM+cardHTML(s.j,n,s,k)}).join('')})()}
+    ${nstops?'':'<div class="leg">no stops — drag jobs here</div>'}
+    <div class="leg">drive ${tl.back}m · back ${fmt(tl.ret)}</div>
+  </div>
+  <div class="money" title="Delivered dollars: labor incl. diag/zone fees + parts profit (warranty = labor only). Projected until the tech taps complete."><span>projected <b>${usd(tl.money.total)}</b></span><span>labor <b>${usd(tl.money.lab)}</b> · parts profit <b>${usd(tl.money.pp)}</b></span></div>`;
+  $('#tech'+k).onchange=e=>{col[k].tech=e.target.value;renderAll()};$('#day'+k).onclick=e=>openCal(k,e.currentTarget);
+  el.querySelector('[data-dayctl]').onclick=e=>openDayPop(c.tech,c.day,e.currentTarget);el.querySelector('[data-techview2]').onclick=()=>openTechView(c.tech,c.day);
+  el.querySelectorAll('[data-delblock]').forEach(b=>b.onclick=()=>{const bl=BLOCKS.find(x=>x.id==b.dataset.delblock);BLOCKS=BLOCKS.filter(x=>x.id!=b.dataset.delblock);toast(`Removed block "${bl.label}"`);renderAll()});
+  el.querySelector('[data-opt]').onclick=()=>optimize(k);const lb=el.querySelector('[data-loaded]');if(lb)lb.onclick=()=>{t.loadedPrev=!t.loadedPrev;renderAll()};
+  wireCards(el);
+}
+function cardHTML(j,seq,s,k){
+  const stCls=j.st,v=(j.tech?validate(j,j.tech,j.day):[]);
+  const zi=zinfo(j.zip);const chips=[`<span class="chip st ${stCls}">${j.st==='WAR'?'WAR · SO1':j.st}</span>`,`<span class="chip" title="${zi.group} · ${zi.mode}">${zi.zone}</span>`,`<span class="chip">${STATUS[j.st]}</span>`,j.win?`<span class="chip">${j.win==='AM'?'8–12':'12–5'}</span>`:'',j.bal?`<span class="chip bad">${j.bal==='COD'?'COD balance':'A/R overdue'}</span>`:'',j.type==='hvac'?'<span class="chip">HVAC</span>':'',j.type==='sealed'?'<span class="chip">Sealed system</span>':'',j.owner?`<span class="chip">${techById(j.owner).name.split(' ')[0]}'s call</span>`:'',...v.map(x=>`<span class="chip ${x.c}">${x.t}</span>`)].join('');
+  const time=s?`<div class="time ${s.late?'late':''}"><b>${fmt(s.arr)}</b>${s.drive}m drive${s.wait?` · waits ${s.wait}m`:''}</div>`:`<div class="time">${hm(j.dur)}</div>`;
+  const el=(j.owner?`${techById(j.owner).name} owns this call (ran the diagnostic) — installs stay with the diagnosing tech`:('Eligible techs: '+(eligible(j).map(t=>t.name.split(' ')[0]).join(', ')||'none — office assigns')))+`<br>Zone ${zi.zone} · ${zi.group} · booking: ${zi.mode.replace('_',' ')}${zi.trip?(openTrip(zi.group)?` · open trip ${dayObj(openTrip(zi.group).day).s} (${openTrip(zi.group).tech})`:` · trip bucket: ${BUCKET[zi.group]||0} waiting, none open`):''}${zi.p?` · primary ${zi.p}`:''}`;
+  return `<div class="card ${stCls}" draggable="true" data-sv="${j.sv}" tabindex="0">
+    <div class="seq">${seq||'·'}</div><div class="who">${j.cust}</div>${time}
+    <div class="sub">${j.addr}, ${j.zip} · ${j.unit}</div>
+    ${j.tech?`<button class="pin" aria-pressed="${!!j.lock}" title="Pin to this truck and sequence" data-pin="${j.sv}">${j.lock?'📌':'📍'}</button>`:''}
+    <div class="chips">${chips}</div>
+    <div class="more"><span class="mono">${j.sv}</span> · ${hm(j.dur)} planned${j.eta?` · parts ETA ${j.eta.slice(5).replace('-','/')}`:''} · ${(()=>{const m=dollars(j);return `${usd(m.lab+m.pp)} projected (labor ${usd(m.lab)}${m.pp?` + parts profit ${usd(m.pp)}`:m.wty?' · warranty: parts a wash':''})`})()}<br>${el}
+      <div class="acts">${j.tech?`<button data-un="${j.sv}">Send to unscheduled</button>`:''}<button data-view-trk="${j.sv}">Open customer view</button></div></div>
+  </div>`}
+function wireCards(root){
+  root.querySelectorAll('.card').forEach(c=>{
+    c.addEventListener('dragstart',e=>{e.dataTransfer.setData('text/plain',c.dataset.sv);c.classList.add('dragging');dragging=c.dataset.sv});
+    c.addEventListener('dragend',()=>{c.classList.remove('dragging');dragging=null;document.querySelectorAll('.ph').forEach(p=>p.remove())});
+    c.addEventListener('click',e=>{if(e.target.closest('button'))return;c.classList.toggle('open')});
+    c.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();c.classList.toggle('open')}});
+  });
+  root.querAll=1;
+  root.querySelectorAll('[data-pin]').forEach(b=>b.onclick=()=>{const j=J.find(x=>x.sv===b.dataset.pin);j.lock=!j.lock;toast(j.lock?`${j.cust} pinned — the optimizer won't move it`:`${j.cust} unpinned`);renderAll()});
+  root.querySelectorAll('[data-un]').forEach(b=>b.onclick=()=>{const j=J.find(x=>x.sv===b.dataset.un);j.tech=null;j.day=null;j.seq=0;j.win=null;j.st=j.st==='SO6'?'SO5':j.st;toast(`${j.cust} moved to Unscheduled — customer would be offered new windows`,'warn');renderAll()});
+  root.querySelectorAll('[data-view-trk]').forEach(b=>b.onclick=()=>{openTracker(b.dataset.viewTrk)});
+}
+let dragging=null;
+function setupDrops(){
+  document.addEventListener('dragover',e=>{const z=e.target.closest('[data-drop]');if(!z)return;e.preventDefault();z.classList.add('over');
+    document.querySelectorAll('.ph').forEach(p=>p.remove());if(z.dataset.drop==='un')return;
+    const cards=[...z.querySelectorAll('.card:not(.dragging)')];let before=cards.find(c=>e.clientY<c.getBoundingClientRect().top+c.offsetHeight/2);const ph=document.createElement('div');ph.className='ph';if(before)before.before(ph);else z.lastElementChild.before(ph)});
+  document.addEventListener('dragleave',e=>{const z=e.target.closest('[data-drop]');if(z&&!z.contains(e.relatedTarget))z.classList.remove('over')});
+  document.addEventListener('drop',e=>{const z=e.target.closest('[data-drop]');if(!z)return;e.preventDefault();z.classList.remove('over');const sv=e.dataTransfer.getData('text/plain');const j=J.find(x=>x.sv===sv);if(!j)return;
+    if(z.dataset.drop==='un'){if(!j.tech)return;j.tech=null;j.day=null;j.seq=0;j.win=null;if(j.st==='SO6')j.st='SO5';toast(`${j.cust} unscheduled`,'warn');renderAll();return}
+    const k=z.dataset.drop,c=col[k];const cards=[...z.querySelectorAll('.card:not(.dragging)')];let idx=cards.findIndex(cd=>e.clientY<cd.getBoundingClientRect().top+cd.offsetHeight/2);if(idx<0)idx=cards.length;
+    const before=timeline(c.tech,c.day).drive;const wasUn=!j.tech;const fromTech=j.tech,fromDay=j.day;
+    // remove from old, insert into new
+    const target=jobsFor(c.tech,c.day).filter(x=>x.sv!==sv);j.tech=c.tech;j.day=c.day;if(!j.win)j.win=idx<=Math.floor(target.length/2)?'AM':'PM';if(j.st==='SO5')j.st='SO6';if(j.st==='REQ')j.st='SO1';
+    target.splice(idx,0,j);target.forEach((x,i)=>x.seq=i+1);if(fromTech&&(fromTech!==c.tech||fromDay!==c.day))jobsFor(fromTech,fromDay).forEach((x,i)=>x.seq=i+1);
+    const tlAfter=timeline(c.tech,c.day);const after=tlAfter.drive,v=validate(j,c.tech,c.day),d=after-before;
+    const who=techById(c.tech).name.split(' ')[0],dd=dayObj(c.day).s;
+    const undo=()=>{j.tech=fromTech;j.day=fromDay;if(!fromTech){j.seq=0;j.win=null;if(j.st==='SO6')j.st='SO5';if(j.st==='SO1'&&wasUn)j.st='REQ'}jobsFor(c.tech,c.day).forEach((x,i)=>x.seq=i+1);if(fromTech)jobsFor(fromTech,fromDay).forEach((x,i)=>x.seq=i+1);renderAll()};
+    if(!tlAfter.open){toast(`${who}'s ${dd} is closed (${closedWhy(c.tech,c.day)}).`,'bad',{'Open the day & keep it':()=>{td(c.tech,c.day).open=true;delete td(c.tech,c.day).closed;td(c.tech,c.day).reason='open_day';toast(`${who} ${dd} opened · ${j.cust} placed`);renderAll()},'Undo':undo});renderAll();return}
+    if(tlAfter.over&&!j.forced){toast(`${who} ${dd} is over capacity with ${j.cust} (${Math.round(tlAfter.fill*100)}%).`,'bad',{'Force it':()=>{j.forced=true;td(c.tech,c.day).forced++;toast(`${j.cust} forced onto ${who} ${dd} — logged`,'warn');renderAll()},'Undo':undo});renderAll();return}
+    if(v.some(x=>x.c==='bad'))toast(`${j.cust} → ${who} ${dd}: ${v.filter(x=>x.c==='bad').map(x=>x.t).join(', ')} — placed anyway, flagged`,'bad');
+    else toast(`${j.cust} → ${who} ${dd} · drive ${d>=0?'+':''}${d} min${wasUn?' · customer gets a confirmation text':''}${v.length?' · '+v[0].t:''}`,d>15?'warn':'');
+    renderAll()});
+}
+function optimize(k){
+  const c=col[k],t=techById(c.tech),stops=jobsFor(c.tech,c.day);if(!t.auto){toast(t.note,'warn');return}const before=timeline(c.tech,c.day).drive;
+  const locked=stops.filter(j=>j.lock),free=stops.filter(j=>!j.lock);
+  const order=[];let cur=startPt(t);
+  for(const win of['AM','PM']){let pool=free.filter(j=>j.win===win);while(pool.length){pool.sort((a,b)=>driveMin(cur,ll(a.zip))-driveMin(cur,ll(b.zip)));const n=pool.shift();order.push(n);cur=ll(n.zip)}}
+  // reinsert locked at their original positions
+  locked.sort((a,b)=>a.seq-b.seq).forEach(j=>order.splice(Math.min(j.seq-1,order.length),0,j));
+  order.forEach((j,i)=>j.seq=i+1);const after=timeline(c.tech,c.day).drive;
+  toast(`${t.name.split(' ')[0]} ${dayObj(c.day).s} re-sequenced: drive ${before}m → ${after}m${locked.length?` · ${locked.length} pinned kept in place`:''}`);renderAll()
+}
+function renderUnsched(){const un=J.filter(j=>!j.tech);$('#unCount').textContent=un.length;$('#unsched').innerHTML=un.map(j=>cardHTML(j,0,null,'un')).join('')||'<div class="leg">nothing waiting</div>';wireCards($('#unsched'))}
+const mapShow={A:true,B:true,un:true,others:{}};
+function renderMap(){
+  const W=300,H=250;const shown=[SHOP.ll];for(const k of['A','B']){if(!mapShow[k])continue;const c=col[k];jobsFor(c.tech,c.day).forEach(j=>shown.push(ll(j.zip)));shown.push(startPt(techById(c.tech)),endPt(techById(c.tech)))}if(mapShow.un)J.filter(j=>!j.tech).forEach(j=>shown.push(ll(j.zip)));
+  const othersDay=col.A.day;const others=TECHS.filter(t=>!(col.A.tech===t.id&&col.A.day===othersDay)&&!(col.B.tech===t.id&&col.B.day===othersDay)&&jobsFor(t.id,othersDay).length);
+  others.forEach(t=>{if(mapShow.others[t.id])jobsFor(t.id,othersDay).forEach(j=>shown.push(ll(j.zip)))});
+  if(shown.length<2)shown.push([30.1,-98.0],[30.3,-97.9]);
+  const lats=shown.map(p=>p[0]),lngs=shown.map(p=>p[1]);const padLa=Math.max(.03,(Math.max(...lats)-Math.min(...lats))*.1),padLo=Math.max(.04,(Math.max(...lngs)-Math.min(...lngs))*.1);
+  const minLa=Math.min(...lats)-padLa,maxLa=Math.max(...lats)+padLa,minLo=Math.min(...lngs)-padLo,maxLo=Math.max(...lngs)+padLo;
+  const X=lo=>12+(lo-minLo)/(maxLo-minLo)*(W-24),Y=la=>H-12-(la-minLa)/(maxLa-minLa)*(H-24);
+  let svg=`<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Schematic map of stops">`;
+  for(const z in ZIP){const p=ZIP[z];if(p[0]<minLa||p[0]>maxLa||p[1]<minLo||p[1]>maxLo)continue;svg+=`<circle cx="${X(p[1])}" cy="${Y(p[0])}" r="1.5" fill="var(--line)"/>`}
+  svg+=`<rect x="${X(SHOP.ll[1])-4}" y="${Y(SHOP.ll[0])-4}" width="8" height="8" fill="var(--muted)"/>`;
+  others.forEach(t=>{if(!mapShow.others[t.id])return;jobsFor(t.id,othersDay).forEach(j=>{const p=ll(j.zip);svg+=`<circle cx="${X(p[1])}" cy="${Y(p[0])}" r="4" fill="var(--muted)" opacity=".55"/><text x="${X(p[1])+6}" y="${Y(p[0])+3}" font-size="6.5" fill="var(--muted)" font-family="IBM Plex Mono,monospace">${t.id}</text>`})});
+  for(const k of['A','B']){if(!mapShow[k])continue;const c=col[k],tl=timeline(c.tech,c.day),colr=`var(--col${k})`;let path=[startPt(tl.t),...tl.stops.filter(s=>!s.block).map(s=>s.shop?SHOP.ll:ll(s.j.zip)),endPt(tl.t)];
+    svg+=`<polyline points="${path.map(p=>X(p[1])+','+Y(p[0])).join(' ')}" fill="none" stroke="${colr}" stroke-width="1.5" stroke-dasharray="${k==='B'?'4 3':'0'}" opacity=".8"/>`;
+    tl.stops.filter(s=>s.j).forEach((s,i)=>{const p=ll(s.j.zip),x=X(p[1])+(k==='B'?4:-4),y=Y(p[0]);svg+=`<circle cx="${x}" cy="${y}" r="7" fill="${colr}"/><text x="${x}" y="${y+3}" font-size="8" text-anchor="middle" fill="var(--surface)" font-family="IBM Plex Mono,monospace" font-weight="600">${i+1}</text>`})}
+  // unscheduled as hollow amber
+  if(mapShow.un)J.filter(j=>!j.tech).forEach(j=>{const p=ll(j.zip);svg+=`<circle cx="${X(p[1])}" cy="${Y(p[0])}" r="4" fill="none" stroke="var(--wait)" stroke-width="1.5"/>`});
+  svg+=`<text x="${W-8}" y="12" font-size="8" text-anchor="end" fill="var(--muted)" font-family="IBM Plex Sans,sans-serif">N ↑ · schematic, not to scale</text></svg>`;
+  $('#map').innerHTML=svg;
+  const lg=$('#maplegend');lg.innerHTML=[['A',`<i style="background:var(--colA)"></i>${techById(col.A.tech).name.split(' ')[0]} ${dayObj(col.A.day).s}`],['B',`<i style="background:var(--colB)"></i>${techById(col.B.tech).name.split(' ')[0]} ${dayObj(col.B.day).s}`],['un','<i style="background:none;border:1.5px solid var(--wait)"></i>Unscheduled']].map(([k,l])=>`<button aria-pressed="${mapShow[k]}" data-mk="${k}">${l}</button>`).join('')+
+    others.map(t=>`<button aria-pressed="${!!mapShow.others[t.id]}" data-mo="${t.id}" title="${t.name} on ${dayObj(othersDay).s}"><i style="background:var(--muted)"></i>${t.id} ${dayObj(othersDay).s}</button>`).join('')+`<span style="align-self:center"><i style="background:var(--muted);border-radius:2px"></i>Shop</span>`;
+  lg.querySelectorAll('[data-mk]').forEach(b=>b.onclick=()=>{mapShow[b.dataset.mk]=!mapShow[b.dataset.mk];renderMap()});
+  lg.querySelectorAll('[data-mo]').forEach(b=>{b.onclick=()=>{mapShow.others[b.dataset.mo]=!mapShow.others[b.dataset.mo];renderMap()};b.ondblclick=()=>openTechView(b.dataset.mo,othersDay)});
+}
+/* ---------- 9/11: day controls popover, calendar, tech overview, productivity ---------- */
+function closePops(){document.querySelectorAll('.pop').forEach(p=>p.remove())}
+document.addEventListener('click',e=>{if(!e.target.closest('.pop')&&!e.target.closest('[data-menu],[data-dayctl],.daybtn'))closePops()});
+function popAt(anchor,html,cls=''){closePops();const p=document.createElement('div');p.className='pop '+cls;p.innerHTML=`<button class="x" aria-label="Close">×</button>`+html;document.body.append(p);const r=anchor.getBoundingClientRect();let left=r.left+window.scrollX,top=r.bottom+window.scrollY+4;if(left+p.offsetWidth>window.scrollX+document.documentElement.clientWidth-8)left=window.scrollX+document.documentElement.clientWidth-p.offsetWidth-8;p.style.left=left+'px';p.style.top=top+'px';p.querySelector('.x').onclick=closePops;return p}
+function openDayPop(tech,day,anchor){
+  const t=techById(tech),d=dayObj(day),o=td(tech,day),open=isOpen(tech,day),tl=timeline(tech,day),ns=tl.stops.filter(x=>x.j).length;
+  const h=`<h4>${t.name} · ${d.s} ${d.n}<small>${open?`${ns} stops · ${Math.round(tl.fill*100)}% of ${hm(tl.cap)}${o.adjust?' (adjusted '+(o.adjust>0?'+':'')+o.adjust+'m)':''}`:'closed · '+closedWhy(tech,day)}${closedWhy(tech,day).startsWith('works')?'':' · works '+t.workDays.join(' ')}</small></h4>
+  <div class="lbl">Day</div><div class="grp">${open?`<button data-close="pto">Close · PTO</button><button data-close="sick">Sick</button><button data-close="training">Training</button><button data-close="other">Other</button>`:`<button class="primary" data-open="1">Open this day</button>`}${ns&&!open?`<span style="color:var(--bad);align-self:center">${ns} stop(s) sit on a closed day</span>`:''}</div>
+  ${DAYS.some(x=>x.k>day)?`<div class="lbl">Range</div><div class="grp"><span style="align-self:center">PTO through</span><select data-range>${DAYS.filter(x=>x.k>day).map(x=>`<option value="${x.k}">${x.s} ${x.n.slice(4)}</option>`).join('')}</select><button data-rangego>Close range</button></div>`:''}
+  <div class="lbl">Capacity today</div><div class="grp"><button data-adj="60">+1 stop (+60 min)</button><button data-adj="-60">−60 min</button>${o.adjust?`<button data-adj="reset">reset (${o.adjust>0?'+':''}${o.adjust})</button>`:''}</div>
+  <div class="lbl">Add a block (not a call)</div><div class="grp"><select data-bl>${BLOCK_LABELS.map(l=>`<option>${l}</option>`).join('')}</select><select data-bs>${Array.from({length:19},(_,i)=>8*60+i*30).map(m=>`<option value="${m}">${fmt(m)}</option>`).join('')}</select><select data-bd><option value="30">30 min</option><option value="45">45 min</option><option value="60" selected>1 h</option><option value="90">1.5 h</option><option value="120">2 h</option><option value="240">half day</option></select><button data-addblock>Add</button></div>
+  <div class="grp" style="margin-top:.5rem;border-top:1px solid var(--line);padding-top:.5rem"><button data-load="A">Load left</button><button data-load="B">Load right</button><button data-tv>Route overview</button></div>`;
+  const p=popAt(anchor,h);const first=t.name.split(' ')[0];
+  p.querySelectorAll('[data-close]').forEach(b=>b.onclick=()=>{o.closed=true;o.reason=b.dataset.close;delete o.open;o.by='Demitrius';closePops();toast(`${first} ${d.s} ${d.n.slice(4)} closed · ${b.dataset.close}${ns?` · ${ns} stop(s) need a new home — they're flagged`:''} · customers won't be offered it`,ns?'warn':'');renderAll()});
+  const ob=p.querySelector('[data-open]');if(ob)ob.onclick=()=>{delete o.closed;o.open=true;o.reason='open_day';o.by='Demitrius';closePops();toast(`${first} ${d.s} ${d.n.slice(4)} opened — behaves like any other day now (logged: Demitrius, per management)`);renderAll()};
+  const rg=p.querySelector('[data-rangego]');if(rg)rg.onclick=()=>{const to=p.querySelector('[data-range]').value;let n=0;for(const x of DAYS){if(x.k>=day&&x.k<=to){const oo=td(tech,x.k);oo.closed=true;oo.reason='pto';delete oo.open;oo.by='Demitrius';n++}}closePops();toast(`${first}: ${n} day(s) closed for PTO through ${dayObj(to).s} ${dayObj(to).n.slice(4)}`);renderAll()};
+  p.querySelectorAll('[data-adj]').forEach(b=>b.onclick=()=>{if(b.dataset.adj==='reset')o.adjust=0;else o.adjust=(o.adjust||0)+ +b.dataset.adj;o.by='Demitrius';closePops();toast(`${first} ${d.s}: capacity ${o.adjust>0?'+':''}${o.adjust} min ${o.adjust>0?'— one more stop can be booked':''}`);renderAll()});
+  p.querySelector('[data-addblock]').onclick=()=>{const label=p.querySelector('[data-bl]').value,st=+p.querySelector('[data-bs]').value,du=+p.querySelector('[data-bd]').value;BLOCKS.push({id:blockSeq++,tech,day,start:st,end:st+du,label});closePops();toast(`${label} · ${fmt(st)}–${fmt(st+du)} blocked on ${first} ${d.s} — counts against capacity, never goes to ePASS`);renderAll()};
+  p.querySelectorAll('[data-load]').forEach(b=>b.onclick=()=>{col[b.dataset.load]={tech,day};closePops();renderAll()});
+  p.querySelector('[data-tv]').onclick=()=>{closePops();openTechView(tech,day)};
+}
+let calMonth='2026-09';
+function openCal(k,anchor){
+  const c=col[k];const [yy,mm]=calMonth.split('-').map(Number);const first=new Date(yy,mm-1,1);const pad=first.getDay();const days=new Date(yy,mm,0).getDate();
+  let h=`<div class="calhead"><button data-cm="-1">‹</button><span>${MON[mm-1]} ${yy} · ${techById(c.tech).name.split(' ')[0]}</span><button data-cm="1">›</button></div><div class="grid">${['Su','Mo','Tu','We','Th','Fr','Sa'].map(x=>`<div class="dow">${x}</div>`).join('')}`;
+  for(let i=0;i<pad;i++)h+=`<button class="d pad"></button>`;
+  for(let dd=1;dd<=days;dd++){const key=`${yy}-${String(mm).padStart(2,'0')}-${String(dd).padStart(2,'0')}`;const wk=[0,6].includes(new Date(key+'T12:00').getDay());const open=isOpen(c.tech,key);const tl=open?timeline(c.tech,key):null;const p=tl?Math.round(tl.fill*100):0;const trip=TRIPS.some(x=>x.tech===c.tech&&x.day===key);
+    h+=`<button class="d ${wk?'wkend':''} ${!wk&&!open?'closed':''} ${key===c.day?'sel':''} ${key===TODAY?'today':''} ${p>95?'hot':p>80?'warm':''} ${trip?'trip':''}" data-k="${key}" title="${dayObj(key).s} ${dayObj(key).n}${!wk&&!open?' · closed · '+closedWhy(c.tech,key):tl&&tl.stops.some(x=>x.j)?' · '+p+'% full':''}${trip?' · trip':''}">${dd}${p?`<i style="width:${Math.min(100,p)}%"></i>`:''}</button>`}
+  h+=`</div><div style="font-size:.68rem;color:var(--muted);margin-top:.4rem">bar = fill · hatched = closed · dot = trip · outlined = today</div>`;
+  const p=popAt(anchor,h,'cal');
+  p.querySelectorAll('[data-cm]').forEach(b=>b.onclick=()=>{let m=mm+ +b.dataset.cm,y=yy;if(m<1){m=12;y--}if(m>12){m=1;y++}calMonth=`${y}-${String(m).padStart(2,'0')}`;openCal(k,anchor)});
+  p.querySelectorAll('.d[data-k]').forEach(b=>b.onclick=()=>{col[k].day=b.dataset.k;closePops();renderAll()});
+}
+function openTechView(tech,day){
+  if(!jobsFor(tech,day).length){const alt=DAYS.find(x=>jobsFor(tech,x.k).length);if(alt)day=alt.k}
+  const t=techById(tech),d=dayObj(day),tl=timeline(tech,day),ns=tl.stops.filter(x=>x.j).length;const dps=ns?Math.round(tl.drive/ns):0;
+  const alerts=[];if(!tl.open)alerts.push(['bad','day closed · '+closedWhy(tech,day)]);if(tl.over)alerts.push(['bad','over capacity']);if(tl.forced)alerts.push(['forced',tl.forced+' forced stop(s)']);if(ns&&dps>35)alerts.push(['warn',dps+' min drive/stop']);if(tl.stops.some(s=>s.late))alerts.push(['bad','late arrivals']);if(tl.needsShop)alerts.push(['','shop touch before installs']);
+  let n=0;const items=tl.stops.map(s=>{if(s.shop)return `<div class="legrow">↳ ${s.drive}m · shop touch · load parts · ${fmt(s.arr)}</div>`;if(s.block)return `<li><span class="eta">${fmt(s.arr)}</span><span>⏸ ${s.block.label}</span><span class="amt">${hm(s.block.end-s.block.start)}</span><span class="d">block · not a call · not sent to ePASS</span></li>`;n++;const j=s.j,m=dollars(j),v=validate(j,tech,day);
+    return `<div class="legrow">↳ ${s.drive}m drive${s.wait?` · waits ${s.wait}m`:''}</div><li><span class="eta" style="${s.late?'color:var(--bad)':''}">${fmt(s.arr)}</span><span><b>${n}. ${j.cust}</b> <span class="chip st ${j.st}">${j.st}</span>${j.bal?` <span class="chip bad">${j.bal}</span>`:''}${j.forced?' <span class="chip forced">forced</span>':''}</span><span class="amt">${usd(m.lab+m.pp)}</span><span class="d">${j.addr}, ${j.zip} · ${zinfo(j.zip).zone} · ${j.unit} · ${hm(j.dur)} · ${j.win==='AM'?'8–12':'12–5'}${j.bin?' · bin '+j.bin:''}${v.filter(x=>x.c==='bad').map(x=>' · ⚠ '+x.t).join('')}</span></li>`}).join('');
+  const W=300,H=180;let mini='';{const pts=[startPt(t),...tl.stops.filter(s=>!s.block).map(s=>s.shop?SHOP.ll:ll(s.j.zip)),endPt(t),SHOP.ll];const lats=pts.map(p=>p[0]),lngs=pts.map(p=>p[1]);const pa=Math.max(.02,(Math.max(...lats)-Math.min(...lats))*.15),po=Math.max(.03,(Math.max(...lngs)-Math.min(...lngs))*.15);const mnLa=Math.min(...lats)-pa,mxLa=Math.max(...lats)+pa,mnLo=Math.min(...lngs)-po,mxLo=Math.max(...lngs)+po;const X=lo=>10+(lo-mnLo)/(mxLo-mnLo)*(W-20),Y=la=>H-10-(la-mnLa)/(mxLa-mnLa)*(H-20);
+    mini=`<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;background:var(--surface2);border-radius:6px"><rect x="${X(SHOP.ll[1])-4}" y="${Y(SHOP.ll[0])-4}" width="8" height="8" fill="var(--muted)"/><polyline points="${pts.slice(0,-1).map(p=>X(p[1])+','+Y(p[0])).join(' ')}" fill="none" stroke="var(--accent)" stroke-width="1.5"/>${tl.stops.filter(s=>s.j).map((s,i)=>{const p=ll(s.j.zip);return `<circle cx="${X(p[1])}" cy="${Y(p[0])}" r="7" fill="var(--accent)"/><text x="${X(p[1])}" y="${Y(p[0])+3}" font-size="8" text-anchor="middle" fill="var(--accent-ink)" font-family="IBM Plex Mono,monospace" font-weight="600">${i+1}</text>`}).join('')}</svg>`}
+  const lw=LASTWEEK[tech]||{d:0,calls:0};
+  const ov=document.createElement('div');ov.className='overlay';ov.innerHTML=`<div class="drawer" role="dialog" aria-label="Route overview">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start"><div><h2>${t.name} · ${d.s} ${d.n}</h2><div class="sub">${t.start}→${t.end} · works ${t.workDays.join(' ')} · ${t.skills.join(', ')}${t.auto?'':' · <b>not auto-routed</b>'}</div></div><button data-x>Close</button></div>
+    <div class="alerts">${alerts.map(([c,x])=>`<span class="chip ${c}">${x}</span>`).join('')||'<span class="chip ok">no alerts</span>'}</div>
+    <div class="stat"><div>stops<b>${ns}</b></div><div>on site<b>${hm(tl.work)}</b></div><div>driving<b>${hm(tl.drive)}</b></div><div>fill<b style="${tl.over?'color:var(--bad)':''}">${Math.round(tl.fill*100)}%</b></div><div>back<b>${fmt(tl.ret)}</b></div><div>drive/stop<b style="${dps>35?'color:var(--bad)':''}">${dps}m</b></div></div>
+    <div class="stat" title="Delivered dollars: labor incl. diag/zone fees + parts profit (warranty = labor only)"><div>projected this day<b>${usd(tl.money.total)}</b></div><div>labor<b>${usd(tl.money.lab)}</b></div><div>parts profit<b>${usd(tl.money.pp)}</b></div><div>last week delivered<b>${usd(lw.d)}</b></div><div>last week calls<b>${lw.calls}</b></div><div>weekly target<b>${t.target?usd(t.target):'— (own avg)'}</b></div></div>
+    ${ns?mini:`<div class="legrow" style="padding:.6rem 0;color:var(--muted)">No stops on this day${tl.open?'':' (closed · '+closedWhy(tech,day)+')'} — pick another day from the fill strip.</div>`}
+    ${ns?`<div class="legrow" style="padding-left:0;margin-top:.6rem">leaves ${t.start} ${fmt(SHIFT.start)}</div>`:''}<ol>${items}</ol>${ns?`<div class="legrow">↳ ${tl.back}m · back at ${t.end} ${fmt(tl.ret)}</div>`:''}
+    <div class="acts"><button data-load="A">Load into left column</button><button data-load="B">Load into right column</button><button data-dc>Day controls</button></div>
+    <div style="font-size:.75rem;color:var(--muted)">Read-only view of what the field tool shows ${t.name.split(' ')[0]}. Blocks and forced stops are visible here and on the board only — nothing about them goes to ePASS.</div></div>`;
+  document.body.append(ov);const close=()=>ov.remove();ov.onclick=e=>{if(e.target===ov)close()};ov.querySelector('[data-x]').onclick=close;
+  ov.querySelectorAll('[data-load]').forEach(b=>b.onclick=()=>{col[b.dataset.load]={tech,day};close();renderAll()});
+  ov.querySelector('[data-dc]').onclick=e=>{close();openDayPop(tech,day,$('#colA .daybtn')||document.body)};
+  document.addEventListener('keydown',function esc(e){if(e.key==='Escape'){close();document.removeEventListener('keydown',esc)}});
+}
+function renderProd(){
+  const body=$('#prodBody');if(body.hidden)return;
+  const weekTechs=TECHS.filter(t=>t.id!=='MAP');
+  const rows=weekTechs.map(t=>{const lw=LASTWEEK[t.id];let proj=0,calls=0,lab=0,pp=0;for(const d of DAYS){const tl=timeline(t.id,d.k);proj+=tl.money.total;lab+=tl.money.lab;pp+=tl.money.pp;calls+=tl.stops.filter(x=>x.j).length}
+    const pace=t.target?Math.round(lw.d/t.target*100):null;return {t,lw,proj,calls,lab,pp,pace}});
+  const tot=rows.reduce((a,r)=>{a.d+=r.lw.d;a.c+=r.lw.calls;a.lab+=r.lw.lab;a.pp+=r.lw.pp;a.proj+=r.proj;a.pc+=r.calls;return a},{d:0,c:0,lab:0,pp:0,proj:0,pc:0});
+  body.innerHTML=`<div class="tw"><table><thead><tr><th>Tech</th><th>Last week delivered<br><span style="font-weight:400">Sep 7–11</span></th><th>Labor</th><th>Parts profit</th><th>Calls</th><th>$ / call</th><th>vs target</th><th>Next week on the board<br><span style="font-weight:400">Sep 14–18 · projected</span></th><th>Calls</th></tr></thead><tbody>
+  ${rows.map(r=>`<tr><td><button style="border:0;background:none;padding:0;color:var(--accent);font-weight:500" data-tvp="${r.t.id}">${r.t.name}</button></td><td><b>${usd(r.lw.d)}</b></td><td>${usd(r.lw.lab)}</td><td>${usd(r.lw.pp)}</td><td>${r.lw.calls}</td><td>${r.lw.calls?usd(r.lw.d/r.lw.calls):'—'}</td><td style="${r.pace!==null&&r.pace<90?'color:var(--bad)':r.pace!==null&&r.pace>=100?'color:var(--inst)':''}">${r.pace===null?'—':r.pace+'%'}</td><td>${usd(r.proj)}</td><td>${r.calls}</td></tr>`).join('')}
+  <tr class="total"><td>Department</td><td>${usd(tot.d)}</td><td>${usd(tot.lab)}</td><td>${usd(tot.pp)}</td><td>${tot.c}</td><td>${usd(tot.d/tot.c)}</td><td></td><td>${usd(tot.proj)}</td><td>${tot.pc}</td></tr></tbody></table></div>
+  <div class="note">Delivered dollars = labor (including diagnostic and zone fees) + parts profit; warranty tickets count labor only (parts are a wash). Last week is the ePASS actual (OE-23 basis); next week is projected from the stops on the board and updates as jobs are dragged. Techs see only their own line in the field tool. Sample numbers.</div>`;
+  body.querySelectorAll('[data-tvp]').forEach(b=>b.onclick=()=>openTechView(b.dataset.tvp,col.A.day));
+}
+$('#prodToggle').onclick=()=>{const b=$('#prodBody');b.hidden=!b.hidden;$('#prodToggle').textContent=b.hidden?'Show ▾':'Hide ▴';$('#prodToggle').setAttribute('aria-expanded',!b.hidden);renderProd()};
+/* ---------- tracker ---------- */
+const STAGES=['Request received','Diagnostic scheduled','Diagnosed','Estimate ready','Approved','Parts ordered','Part arrived','Install scheduled','Repair complete'];
+const TRK={
+ SV00123388:{first:'Brandon',unit:'KitchenAid built-in refrigerator',prob:'Freezer and refrigerator quit cooling',stage:1,dates:['Sep 10','Sep 10'],detail:'so1'},
+ SV00123265:{first:'Dennis',unit:'Maytag top-load washer · MVW6500MW',prob:'Won\'t fill — inlet valve',stage:5,dates:['Aug 31','Sep 2','Sep 4','Sep 4','Sep 10','Sep 10'],detail:'so4',eta:'Wed, Sep 16',po:'Marcone · shipped 9/11'},
+ SV00123420:{first:'Greta',unit:'Miele dishwasher',prob:'Not draining',stage:0,dates:['Sep 11'],detail:'so1'},
+ SV00123415:{first:'Mary',unit:'Frigidaire range',prob:'Front burner won\'t light',stage:0,dates:['Sep 11'],detail:'so1'},
+ SV00123383:{first:'Lynn',unit:'GE washer',prob:'Not draining — drain pump',stage:6,dates:['Sep 1','Sep 2','Sep 3','Sep 3','Sep 4','Sep 4','Sep 11'],detail:'so5'},
+ SV00123433:{first:'Rosa',unit:'GE dryer · GTD72EBSNWS',prob:'Won\'t start — control board',stage:5,dates:['Sep 3','Sep 4','Sep 8','Sep 8','Sep 9','Sep 9'],detail:'so4h',eta:'Tue, Sep 15',carrier:'GE Appliances · UPS 1Z…4471'},
+};
+let trkSelected=null;
+function openTracker(sv){document.querySelectorAll('[role=tab]').forEach(b=>b.setAttribute('aria-selected',b.dataset.view==='track'));$('#board').hidden=true;$('#track').hidden=false;renderJob(sv);window.scrollTo(0,0)}
+function renderLookup(){
+  $('#trk').innerHTML=`<div class="look"><h2>Where's my repair?</h2><p>Enter the service order number from your confirmation text or email and the phone number on the request.</p>
+   <form id="lookup"><div><label for="svIn">Service order number</label><input id="svIn" placeholder="SV00123388" autocomplete="off"></div>
+   <div><label for="phIn">Phone number</label><input id="phIn" placeholder="(512) 555-1234" inputmode="tel"></div><button class="primary" type="submit">Show my status</button></form>
+   <div class="samples">Prototype samples: ${Object.keys(TRK).map(s=>`<button type="button" data-sample="${s}">${s} · ${TRK[s].first}</button>`).join('')}<br>Any phone number works in the prototype.</div></div>
+   <div class="look" style="margin-top:1rem"><h2>New repair request</h2><p>The last step of the existing web form: after the card is saved, the customer picks a time — or is told how their area is scheduled.</p><button class="primary" id="newreq">Start a new request</button></div>`;
+  $('#newreq').onclick=renderIntake;
+  $('#lookup').onsubmit=e=>{e.preventDefault();const sv=$('#svIn').value.trim().toUpperCase();if(TRK[sv])renderJob(sv);else toast('No job found for that number — in the real build this would offer a callback','warn')};
+  document.querySelectorAll('[data-sample]').forEach(b=>b.onclick=()=>renderJob(b.dataset.sample));
+}
+let seq=421;
+function renderIntake(){
+  const zips=Object.keys(ZONE).sort((a,b)=>ZONE[a].group.localeCompare(ZONE[b].group)||a.localeCompare(b));
+  $('#trk').innerHTML=`<div class="back"><button id="backLk">← Back</button></div><div class="look"><div class="eyebrow" style="font-size:.7rem;text-transform:uppercase;letter-spacing:.08em;color:var(--accent);font-weight:600">Appliance repair request · step 2 of 2</div><h2>Almost done — when should we come?</h2>
+    <p>Step 1 (the current form) collected the details below and saved the card. This step is new.</p>
+    <form id="intake"><div class="row"><div style="flex:1"><label for="fn">First name</label><input id="fn" value="Sam"></div><div style="flex:1"><label for="ln">Last name</label><input id="ln" value="Rivera"></div></div>
+    <div><label for="zipSel">ZIP code <span style="font-weight:400">(pick one to see how the area schedules)</span></label><select id="zipSel">${zips.map(z=>`<option value="${z}">${z} · ${ZONE[z].zone} · ${ZONE[z].group}</option>`).join('')}<option value="78130">78130 · BRAUN · Far South</option></select></div>
+    <div class="row"><div style="flex:1"><label for="appl">Appliance</label><select id="appl"><option>Dishwasher</option><option>Refrigerator (built-in)</option><option>Refrigerator</option><option>Washer</option><option>Dryer</option><option>Range / oven</option><option>HVAC</option></select></div><div style="flex:1"><label for="pref">Best way to reach you</label><select id="pref"><option>Text</option><option>Email</option><option>Phone call</option></select></div></div>
+    <div><label for="prob">Problem</label><input id="prob" value="Won't drain, standing water after the cycle"></div>
+    <div class="banner" style="background:var(--soft);padding:.5rem .7rem;border-radius:6px;font-size:.85rem">✓ Card saved securely (Visa ····4242) — nothing is charged today.</div></form>
+    <div id="intakePick" style="margin-top:.75rem"></div></div>`;
+  $('#backLk').onclick=renderLookup;
+  const draw=()=>{const zip=$('#zipSel').value;const hvac=$('#appl').value==='HVAC';const j={sv:'NEW',zip:+zip,type:hvac?'hvac':'appliance',dur:hvac?90:60,st:'REQ',win:null,day:null,tech:null};const zi=zinfo(zip);
+    let h=`<div style="font-size:.8rem;color:var(--muted);margin-bottom:.4rem">Zone <b class="mono">${zi.zone}</b> · ${zi.group} · booking: <b>${zi.mode.replace('_',' ')}</b></div>`;
+    if(zi.mode==='office_only')h+=`<div class="picker"><h4>Thanks, ${esc($('#fn').value)} — we'll call you to schedule</h4><p>${zi.group==='Unclassified'?'Your address':zi.group} is outside our regular routes. Client Care will call within one business day to set a time. You'll get a text confirmation now with your request number.</p><button class="primary" id="finishReq">Finish request</button></div>`;
+    else if(zi.trip&&!openTrip(zi.group))h+=`<div class="picker"><h4>We group visits in your area</h4><p>We run ${zi.group==='West'?'the Hill Country west of Dripping Springs':'your area'} in grouped trips so we can get to you efficiently. We'll text you a date within a few days — most customers hear from us inside a week. Need it sooner? Message Client Care.</p><button class="primary" id="finishReq">Finish request — text me a date</button></div>`;
+    else{h+=pickerHTML(j).replace('id="picker"','id="picker" data-intake="1"');}
+    $('#intakePick').innerHTML=h;
+    const fin=$('#finishReq');if(fin)fin.onclick=()=>createRequest(j,null);
+    document.querySelectorAll('#intakePick .slot:not([disabled])').forEach(b=>b.onclick=()=>createRequest(j,b));};
+  ['zipSel','appl'].forEach(id=>$('#'+id).onchange=draw);draw();
+}
+function createRequest(j,slot){const sv='SV00123'+(seq++);const first=$('#fn').value||'Customer',last=$('#ln').value||'';const zi=zinfo(j.zip);
+  const job={sv,cust:`${last}, ${first}`,addr:'(new request)',zip:j.zip,st:'REQ',type:j.type,unit:`${$('#appl').value} · ${$('#prob').value}`,dur:j.dur,win:null,bal:'',tech:null,day:null,seq:0,pref:$('#pref').value};
+  if(slot){job.tech=slot.dataset.tech;job.day=slot.dataset.day;job.win=slot.dataset.win;job.st='SO1';const list=jobsFor(job.tech,job.day);const ins=job.win==='AM'?list.filter(x=>x.win==='AM').length:list.length;list.splice(ins,0,job);list.forEach((x,i)=>x.seq=i+1)}
+  J.push(job);TRK[sv]={first,unit:$('#appl').value,prob:$('#prob').value,stage:slot?1:0,dates:['Sep 11',slot?'Sep 11':''],detail:'so1'};
+  toast(slot?`${first}: diagnostic booked ${dayObj(job.day).s} ${job.win} with ${techById(job.tech).name.split(' ')[0]} — confirmation text sent, it's on the board`:zi.mode==='office_only'?`${first}: request ${sv} created · Client Care task opened · confirmation text sent`:`${first}: request ${sv} added to the ${zi.group} trip bucket · confirmation text sent`);
+  renderAll();renderJob(sv)}
+function renderJob(sv){
+  const t=TRK[sv],j=J.find(x=>x.sv===sv);if(!t){toast('That job has no customer view in the prototype','warn');return}
+  const tech=j&&j.tech?techById(j.tech):null;
+  let now='',picker='',acts='';
+  if(t.detail==='so1'){now=`<div class="lbl">Next up</div><div class="big">${j.tech?`Diagnostic visit ${dayObj(j.day).s}, ${dayObj(j.day).n} · ${j.win==='AM'?'8 AM – 12 PM':'12 – 5 PM'}`:'Request received — pick your diagnostic time'}</div><p>${tech?`${tech.name.split(' ')[0]} is your technician. You'll get a text when he's on the way.`:'Pick a window below and we\'ll confirm by text.'} Please clear access to the unit and have the model tag visible.</p>`;
+    if(j&&!j.tech)picker=pickerHTML(j);acts=j&&j.tech?`<button data-act="resched">Reschedule</button><button>Add gate code or note</button><button>Cancel request</button>`:`<button>Add gate code or note</button><button>Cancel request</button>`}
+  if(t.detail==='so4'){now=`<div class="lbl">Right now</div><div class="big">Your part is on order · expected ${t.eta}</div><p>${t.po}. ${j&&j.st==='SO4PRE'?`Your install is held for <b>${dayObj(j.day).s}, ${dayObj(j.day).n} · ${j.win==='AM'?'8 AM – 12 PM':'12 – 5 PM'}</b> and confirms automatically when the part checks in.`:'You can hold an install time now, or wait and pick one when the part arrives.'}</p>`;
+    acts=j&&j.st==='SO4PRE'?`<button data-act="resched">Change held time</button>`:`<button class="primary" data-act="hold">Hold an install time now</button>`}
+  if(t.detail==='so4h'){now=`<div class="lbl">Right now</div><div class="big">Your part is shipping straight to you · expected ${t.eta}</div><p>${t.carrier}. GE ships this part to your door instead of our shop. <b>Tap the button below the moment it arrives</b> and you'll pick an install time with ${j&&j.owner?techById(j.owner).name.split(' ')[0]:'your technician'} right away. If we haven't heard from you the day after it's due, we'll text to check.</p>`;
+    acts=`<button class="primary" data-act="received">📦 My part arrived</button>`}
+  if(t.detail==='so5'){if(j&&j.tech){now=`<div class="lbl">Confirmed</div><div class="big">Install ${dayObj(j.day).s}, ${dayObj(j.day).n} · ${j.win==='AM'?'8 AM – 12 PM':'12 – 5 PM'}</div><p>${tech.name.split(' ')[0]} will bring your drain pump and finish the repair. Your card on file is charged only after the work is complete.</p>`;acts=`<button data-act="resched">Reschedule</button>`}
+    else{const atHome=j&&j.unit.includes('received by customer');now=`<div class="lbl">Action needed</div><div class="big">${atHome?'Great — your part is there. Pick an install time':'Your part arrived — pick an install time'}</div><p>${atHome?`${techById(j.owner).name.split(' ')[0]} will bring the tools and finish the repair; please keep the part boxed until he arrives.`:'The drain pump checked in at our shop on Sep 11.'} Choose a window below and it's confirmed instantly.</p>`;picker=pickerHTML(j)}}
+  const stageIdx=(t.detail==='so5'&&j&&j.tech)?7:(t.detail==='so4'&&j&&j.st==='SO4PRE')?5:t.stage;
+  const stages=STAGES.map((s,i)=>{const cls=i<stageIdx?'done':i===stageIdx?'cur':'';let note='';
+    if(i===5&&t.detail==='so4')note=`<div class="note">Expected ${t.eta}</div>`;if(i===5&&t.detail==='so4h')note=`<div class="note">Shipping to you · expected ${t.eta} · tap “My part arrived” when it's there</div>`;if(i===7&&t.detail==='so4'&&j&&j.st==='SO4PRE')note=`<div class="note">Held for ${dayObj(j.day).s}, ${dayObj(j.day).n} — confirms when part arrives</div>`;
+    if(i===3&&t.detail!=='so1')note=`<div class="note">Approved online ${t.dates[4]||''}</div>`;
+    return `<li class="${cls}"><div class="dot">${cls==='done'?'✓':i+1}</div><div class="t">${s}</div><div class="d">${t.dates[i]||''}</div>${note}</li>`}).join('');
+  $('#trk').innerHTML=`<div class="back"><button id="backLk">← Look up a different order</button></div>
+  <div class="job"><div class="jobhead"><div class="sv mono">${sv}</div><h2>Hi ${t.first}, here's your repair</h2><div class="unit">${t.unit} · ${t.prob}</div></div>
+  <div class="now">${now}</div>${picker}<ol class="stages">${stages}</ol><div class="acts2">${acts}<button>Message Client Care</button></div>
+  <div class="faq"><b>Why does a part take a week?</b> Most parts ship from regional warehouses in 2–5 business days. We text you the moment it checks in so you can pick your install time.</div></div>`;
+  $('#backLk').onclick=renderLookup;
+  document.querySelectorAll('[data-act="hold"],[data-act="resched"]').forEach(b=>b.onclick=()=>{$('.now').insertAdjacentHTML('afterend',pickerHTML(j));wirePicker(j,sv)});
+  const rc=document.querySelector('[data-act="received"]');if(rc)rc.onclick=()=>{t.detail='so5';t.stage=6;t.dates[6]='Sep 11';if(j){j.st='SO5';j.unit=j.unit.replace(/\(GE ships.*\)/,'(part received by customer 9/11)')}toast(`${t.first} confirmed the part arrived — SO4H → SO5, install picker opened with ${j&&j.owner?techById(j.owner).name.split(' ')[0]:'the owning tech'}'s openings · office sees it in the bucket`);renderJob(sv);renderAll()};
+  wirePicker(j,sv);
+}
+const TODAY='2026-09-11';
+function pickerHTML(j){
+  const el=eligible(j);const resched=!!j.day;const zi=zinfo(j.zip);
+  if(zi.mode==='office_only'&&!j.owner)return `<div class="picker" id="picker"><h4>We'll call you to schedule</h4><p>${zi.group==='Unclassified'?'Your area':zi.group} is outside our regular routes, so Client Care will call within one business day to find a time that works. Nothing else is needed from you right now.</p></div>`;
+  const near=resched&&((new Date(j.day+'T08:00')-new Date(TODAY+'T17:00'))/36e5<48);
+  let h=`<div class="picker" id="picker"><h4>${resched?(near?'Change within 48 hours':'Pick a new day'):'Pick an arrival window'}</h4><p>${zi.trip?(openTrip(zi.group)?`We group visits in ${zi.group==='West'?'the Hill Country west of us':'your area'} so we can get to you efficiently. Our next trip is <b>${dayObj(openTrip(zi.group).day).s}, ${dayObj(openTrip(zi.group).day).n}</b> — pick a window that day.`:`We group visits in your area so we can get to you efficiently. <b>We'll text you a date within a few days.</b> Need it sooner? Message Client Care.`):j.owner?`Showing ${techById(j.owner).name.split(' ')[0]}'s openings — he diagnosed your unit and will finish the repair.`:`Showing openings for technicians who cover ${j.zip}${el.length?` (${el.map(t=>t.name.split(' ')[0]).join(', ')})`:''}.`}${near?' Your visit is soon, so only windows that fit a route already near you are shown.':''} Grey windows are full.</p><div class="days">`;
+  for(const d of DAYS){h+=`<div><div class="day">${d.s}<b>${d.n.slice(4)}</b></div>`;for(const w of['AM','PM']){
+    let room=el.filter(t=>isOpen(t.id,d.k)&&halfDayLoad(t.id,d.k,w)+j.dur+25<=240).sort((a,b)=>(a.id===zi.p?0:zi.s.includes(a.id)?1:2)-(b.id===zi.p?0:zi.s.includes(b.id)?1:2)||halfDayLoad(a.id,d.k,w)-halfDayLoad(b.id,d.k,w));
+    if(near){room=room.filter(t=>jobsFor(t.id,d.k).some(x=>x.sv!==j.sv&&zinfo(x.zip).group===zi.group))}
+    const tr=zi.trip?openTrip(zi.group):null;const tripBlock=zi.trip&&(!tr||tr.day!==d.k);const held=(j.eta&&j.eta>=d.k)||(resched&&!near&&j.win&&w!==j.win)||(resched&&d.k===j.day&&w===j.win)||tripBlock;
+    h+=`<button class="slot" data-day="${d.k}" data-win="${w}" data-tech="${room[0]?room[0].id:''}" ${room.length&&!held?'':'disabled'} title="${tripBlock?(tr?'not the trip day':'no trip open yet'):held?'part not here yet':room.length?room.length+' tech(s) open':near?'no route near you':el.length&&el.every(t=>!isOpen(t.id,d.k))?'not a working day for your technician':'full'}">${w==='AM'?'8–12':'12–5'}</button>`}h+=`</div>`}
+  return h+`</div><p style="margin-top:.6rem">${resched&&!near&&j.win?`Same-week changes keep your ${j.win==='AM'?'8–12':'12–5'} window — pick a different day. `:''}${near?'Nothing fit? <button style="padding:.15rem .5rem;font-size:.8rem">Message Client Care</button> ':''}${j.eta?`Windows before your part's arrival (${j.eta.slice(5).replace('-','/')}) are unavailable. `:''}Confirmation is instant — no call needed.</p></div>`}
+function wirePicker(j,sv){document.querySelectorAll('.slot:not([disabled])').forEach(b=>b.onclick=()=>{
+  const wasHeld=j.st==='SO4PRE'||(TRK[sv].detail==='so4');
+  if(j.tech){jobsFor(j.tech,j.day).filter(x=>x.sv!==sv).forEach((x,i)=>x.seq=i+1)}
+  j.tech=b.dataset.tech;j.day=b.dataset.day;j.win=b.dataset.win;const list=jobsFor(j.tech,j.day).filter(x=>x.sv!==sv);const ins=j.win==='AM'?list.filter(x=>x.win==='AM').length:list.length;list.splice(ins,0,j);list.forEach((x,i)=>x.seq=i+1);
+  if(TRK[sv].detail==='so4')j.st='SO4PRE';else if(j.st==='SO5'||j.st==='SO6')j.st='SO6';else if(j.st==='REQ')j.st='SO1';
+  toast(`${j.cust.split(',')[0]} ${wasHeld?'held':'booked'} ${dayObj(j.day).s} ${j.win} with ${techById(j.tech).name.split(' ')[0]} — it's now on the dispatch board`);renderJob(sv);renderAll()})}
+/* ---------- tabs ---------- */
+document.querySelectorAll('[role=tab]').forEach(b=>b.onclick=()=>{document.querySelectorAll('[role=tab]').forEach(x=>x.setAttribute('aria-selected',x===b));$('#board').hidden=b.dataset.view!=='board';$('#track').hidden=b.dataset.view!=='track'});
+setupDrops();renderAll();renderLookup();
+</script>
+
+</body></html>

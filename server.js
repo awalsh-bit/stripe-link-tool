@@ -414,6 +414,11 @@ import {
 } from "./lib/subzero-appointments-postgres.js";
 import { extractRetailDeckFloors } from "./lib/retaildeck-prices.js";
 import {
+  importServiceDispatchTrack, importServiceInvoiceRows, serviceJourneyOverview, listServiceJobs, getServiceJob, setJobStatus, setIntakeReviewed, setOwnerTech,
+  listStuckJobs, listStaleJobs, listSyncItems, markSyncKeyed, resolveSyncItem, listRecalls, reviewRecall, listImportBatches, serviceKpis, listTechs as listServiceTechs,
+  listZones as listServiceZones, getSettings as getServiceSettings, setSetting as setServiceSetting, STATUS_DEFS as SERVICE_STATUS_DEFS, REASON_CODES as SERVICE_REASON_CODES
+} from "./lib/service-journey-postgres.js";
+import {
   getSalesOrderSnapshot,
   saveSalesOrderSnapshot,
   listOrderFlagDismissals,
@@ -428,7 +433,10 @@ import {
   claimPushedNotificationsByRef,
   unclaimPushedNotificationsByRef,
   pushedNotificationRefExists,
-  listClaimableLeadReport
+  listClaimableLeadReport,
+  listPushedCampaigns,
+  closeActionNotificationsForUser,
+  NOTIFICATION_ACTIONS
 } from "./lib/sales-orders-postgres.js";
 import {
   getServiceOrderSnapshot,
@@ -641,6 +649,7 @@ const INTERNAL_PAGE_PATHS = new Set([
   "/register.html",
   "/set-password.html",
   "/user-admin.html",
+  "/send-notification.html",
   "/audit-log.html",
   "/sales-order-detail.html",
   "/returns-report.html",
@@ -657,6 +666,10 @@ const INTERNAL_PAGE_PATHS = new Set([
   "/uniform-orders.html",
   "/spec-packages.html",
   "/satisfaction-survey.html",
+  "/service-journey.html",
+  "/service-proto-board.html",
+  "/service-proto-field.html",
+  "/service-proto-office.html",
   "/satisfaction-results.html",
   "/case-visit-survey.html",
   "/case-visit-results.html",
@@ -717,7 +730,7 @@ const ACCESS_GROUPS = {
   leader: {
     label: "Leader",
     pages: ["*"],
-    excludedPages: ["/commissions.html", "/user-admin.html"]
+    excludedPages: ["/commissions.html", "/user-admin.html", "/send-notification.html"]
   },
   executive: {
     label: "Executive",
@@ -757,6 +770,7 @@ const EVERYONE_PAGE_PATHS = new Set([
 // per user now, like any Sales Tools page.
 const EXECUTIVE_ONLY_PAGE_PATHS = new Set([
   "/user-admin.html",
+  "/send-notification.html",
   "/audit-log.html",
   "/returns-report.html",
   "/commissions.html"
@@ -877,6 +891,7 @@ const PAGE_LABELS = {
   "/spec-packages.html": "Spec Packages",
   "/commissions.html": "Sales Commissions",
   "/user-admin.html": "User Admin",
+  "/send-notification.html": "Send a Notification",
   "/audit-log.html": "User Activity Audit",
   "/sales-order-detail.html": "Sales Order Detail",
   "/returns-report.html": "Returns Report",
@@ -892,6 +907,10 @@ const PAGE_LABELS = {
   "/hr-candidates.html": "Candidates",
   "/uniform-orders.html": "Uniform Ordering",
   "/satisfaction-survey.html": "Client Satisfaction Survey",
+  "/service-journey.html": "Service Journey (ePASS mirror)",
+  "/service-proto-board.html": "Service Journey — Dispatch Board prototype",
+  "/service-proto-field.html": "Service Journey — Field Tool prototype",
+  "/service-proto-office.html": "Service Journey — Office Queues prototype",
   "/satisfaction-results.html": "Satisfaction Results",
   "/case-visit-survey.html": "Case Visit Survey",
   "/case-visit-results.html": "Case Visit Results",
@@ -949,6 +968,10 @@ const PAGE_CATEGORIES = [
     key: "test_modules",
     label: "Test Modules",
     pages: [
+      "/service-journey.html",
+      "/service-proto-board.html",
+      "/service-proto-field.html",
+      "/service-proto-office.html",
       "/satisfaction-survey.html",
       "/satisfaction-results.html",
       "/case-visit-survey.html",
@@ -1318,7 +1341,10 @@ function buildSessionUser(user) {
 // Pages that ride on another page's grant: anyone who can work the active
 // estimate list can see the closed ones (still grantable on its own).
 const PAGE_IMPLIED_BY = {
-  "/closed-estimates.html": "/service-estimates.html"
+  "/closed-estimates.html": "/service-estimates.html",
+  "/service-proto-board.html": "/service-journey.html",
+  "/service-proto-field.html": "/service-journey.html",
+  "/service-proto-office.html": "/service-journey.html"
 };
 
 function canAccessPathForUser(user, pathname) {
@@ -2151,6 +2177,8 @@ app.post("/api/me/sizes", async (req, res) => {
       action: "employee_sizes_self_saved", targetUserId: null,
       detail: { code: entry.code, shirtSize: entry.shirtSize, shoeSize: entry.shoeSize }
     }).catch(() => {});
+    // Any "update your sizes" notification on their dashboard is done now.
+    closeActionNotificationsForUser("sizes", email, req.authUser.displayName || "").catch((e) => console.error("Sizes action close failed:", e.message));
     return res.json({ success: true, shirtSize: entry.shirtSize, shoeSize: entry.shoeSize });
   } catch (err) {
     console.error("Save my sizes failed:", err.message);
@@ -4991,7 +5019,8 @@ app.post("/api/dispatch/import", requireDispatchPage, (req, res) => {
       const me = dispatchMe(req);
       const result = await importDispatchTrack(req.file.buffer.toString("utf8"), { filename: String(req.file.originalname || "").slice(0, 120), byEmail: me.email });
       dispatchAudit(req, "dispatch_export_imported", result);
-      return res.json({ ok: true, ...result });
+      const service = await serviceMirrorFromDispatch(req.file.buffer, String(req.file.originalname || "").slice(0, 120), me.email);
+      return res.json({ ok: true, ...result, service });
     } catch (error) {
       console.error("Dispatch import failed:", error.message);
       return res.status(400).json({ error: error.message || "Unable to import that file." });
@@ -9043,7 +9072,9 @@ app.post("/api/epass-agent/upload", express.raw({ type: () => true, limit: "60mb
     if (kind === "dispatch") {
       const result = await importDispatchTrack(req.body.toString("utf8"), { filename: sourceFile, byEmail: "epass-agent" });
       recordAudit({ ip: req.ip, actorUserId: null, action: "dispatch_export_imported", targetUserId: null, detail: { ...result, via: "epass-agent", filename: sourceFile.slice(0, 120) } }).catch(() => {});
-      return res.json({ ok: true, kind, orders: result.orders, work: result.workDerived + result.workUpdated });
+      // Same file, service side: the SV rows feed the Service Journey mirror (Test Modules).
+      const service = await serviceMirrorFromDispatch(req.body, sourceFile, "epass-agent");
+      return res.json({ ok: true, kind, orders: result.orders, work: result.workDerived + result.workUpdated, service });
     }
 
     return res.status(400).json({ error: `Unknown upload kind "${kind}" — expected inventory, quotes, open-orders, or dispatch.` });
@@ -9051,6 +9082,133 @@ app.post("/api/epass-agent/upload", express.raw({ type: () => true, limit: "60mb
     console.error("ePASS agent upload failed:", err.message);
     return res.status(400).json({ error: err.message || "Unable to process that file." });
   }
+});
+
+// ---------------------------------------------------------------------------
+// Service Journey (Test Modules) — Cayden's service dispatch revamp, Phase 0:
+// the ePASS mirror (DispatchTrack SV rows + ExportInvoice), status history,
+// sync queue with paste-ready packets, stale/stuck, recalls, KPIs, search.
+// Spec: service_call_journey/docs/07_Developer_Spec.md. Page grant on
+// /service-journey.html (executives implicitly); the three prototype pages
+// ride the same grant.
+// ---------------------------------------------------------------------------
+const requireServiceJourney = requirePagePermission("/service-journey.html");
+const sjMe = (req) => ({ email: String(req.authUser?.email || req.authUser?.username || "").toLowerCase(), name: req.authUser?.displayName || "" });
+const sjAudit = (req, action, detail) => recordAudit({ ip: req.ip, actorUserId: req.authUser?.kind === "db" ? req.authUser.id : null, action, targetUserId: null, detail }).catch(() => {});
+async function serviceMirrorFromDispatch(buffer, sourceFile, byEmail) {
+  try {
+    const r = await importServiceDispatchTrack(buffer, { filename: sourceFile, byEmail });
+    return { svOrders: r.svOrders, created: r.created, updated: r.updated, unchanged: r.unchanged, skipped: r.skipped, sync: r.sync, stale: r.stale, dtComplete: r.dtComplete };
+  } catch (err) {
+    console.error("Service journey mirror (DispatchTrack) failed:", err.message);
+    return { error: err.message };
+  }
+}
+const serviceCsvUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 60 * 1024 * 1024, files: 1 } });
+
+app.get("/api/service-journey/overview", requireServiceJourney, async (req, res) => {
+  try {
+    const [overview, techs, zones, settings] = await Promise.all([serviceJourneyOverview(), listServiceTechs(), listServiceZones(), getServiceSettings()]);
+    return res.json({ ...overview, techs, zones, settings, statusDefs: Object.fromEntries(Object.entries(SERVICE_STATUS_DEFS).map(([k, v]) => [k, { name: v[0], track: v[1], stage: v[2], sort: v[3], stuckAfterHours: v[4] }])), reasonCodes: SERVICE_REASON_CODES, canEdit: true });
+  } catch (err) {
+    console.error("Service journey overview failed:", err.message);
+    return res.status(500).json({ error: "Unable to load the service journey." });
+  }
+});
+app.get("/api/service-journey/jobs", requireServiceJourney, async (req, res) => {
+  try {
+    const q = req.query || {};
+    const jobs = await listServiceJobs({ q: String(q.q || "").slice(0, 80), status: String(q.status || "").slice(0, 12), tech: String(q.tech || "").slice(0, 8), zone: String(q.zone || "").slice(0, 8), onlyOpen: q.all !== "1", stale: q.stale === "1", review: q.review === "1", limit: Number(q.limit) || 500 });
+    return res.json({ jobs });
+  } catch (err) { console.error("Service journey jobs failed:", err.message); return res.status(500).json({ error: "Unable to load jobs." }); }
+});
+app.get("/api/service-journey/jobs/:sv", requireServiceJourney, async (req, res) => {
+  try {
+    const detail = await getServiceJob(String(req.params.sv || "").toUpperCase().slice(0, 20));
+    if (!detail) return res.status(404).json({ error: "Job not found." });
+    return res.json(detail);
+  } catch (err) { console.error("Service journey job failed:", err.message); return res.status(500).json({ error: "Unable to load the job." }); }
+});
+app.post("/api/service-journey/jobs/:sv/status", requireServiceJourney, async (req, res) => {
+  try {
+    const me = sjMe(req);
+    const sv = String(req.params.sv || "").toUpperCase().slice(0, 20);
+    const result = await setJobStatus(sv, { status: req.body?.status, reasonCode: String(req.body?.reasonCode || ""), note: String(req.body?.note || "").slice(0, 500), routeDate: req.body?.routeDate === undefined ? undefined : (String(req.body.routeDate || "").slice(0, 10) || null), tech: req.body?.tech === undefined ? undefined : String(req.body.tech || "").slice(0, 8), byEmail: me.email, byName: me.name });
+    sjAudit(req, "service_journey_status_set", { sv, status: req.body?.status, reasonCode: req.body?.reasonCode, syncId: result.syncId });
+    return res.json({ ok: true, ...result });
+  } catch (err) { return res.status(400).json({ error: err.message || "Unable to change the status." }); }
+});
+app.post("/api/service-journey/jobs/:sv/reviewed", requireServiceJourney, async (req, res) => {
+  try { return res.json({ ok: true, job: await setIntakeReviewed(String(req.params.sv || "").toUpperCase().slice(0, 20), sjMe(req).email) }); }
+  catch (err) { return res.status(400).json({ error: err.message }); }
+});
+app.post("/api/service-journey/jobs/:sv/owner", requireServiceJourney, async (req, res) => {
+  try {
+    const sv = String(req.params.sv || "").toUpperCase().slice(0, 20);
+    const job = await setOwnerTech(sv, String(req.body?.tech || "").slice(0, 8), sjMe(req).email);
+    sjAudit(req, "service_journey_owner_set", { sv, tech: req.body?.tech });
+    return res.json({ ok: true, job });
+  } catch (err) { return res.status(400).json({ error: err.message }); }
+});
+app.get("/api/service-journey/stuck", requireServiceJourney, async (req, res) => {
+  try { const [stuck, stale] = await Promise.all([listStuckJobs(), listStaleJobs()]); return res.json({ stuck, stale }); }
+  catch (err) { console.error("Service journey stuck failed:", err.message); return res.status(500).json({ error: "Unable to load stuck jobs." }); }
+});
+app.get("/api/service-journey/sync", requireServiceJourney, async (req, res) => {
+  try { return res.json({ items: await listSyncItems(String(req.query.state || "").slice(0, 12)) }); }
+  catch (err) { console.error("Service journey sync failed:", err.message); return res.status(500).json({ error: "Unable to load the sync queue." }); }
+});
+app.post("/api/service-journey/sync/:id/keyed", requireServiceJourney, async (req, res) => {
+  try { const item = await markSyncKeyed(Number(req.params.id), sjMe(req).email); sjAudit(req, "service_journey_sync_keyed", { id: item.id, sv: item.svNumber }); return res.json({ ok: true, item }); }
+  catch (err) { return res.status(400).json({ error: err.message }); }
+});
+app.post("/api/service-journey/sync/:id/resolve", requireServiceJourney, async (req, res) => {
+  try {
+    const item = await resolveSyncItem(Number(req.params.id), String(req.body?.resolution || ""), sjMe(req).email);
+    sjAudit(req, "service_journey_sync_resolved", { id: item.id, sv: item.svNumber, resolution: req.body?.resolution });
+    return res.json({ ok: true, item });
+  } catch (err) { return res.status(400).json({ error: err.message }); }
+});
+app.get("/api/service-journey/recalls", requireServiceJourney, async (req, res) => {
+  try { return res.json({ recalls: await listRecalls(String(req.query.state || "").slice(0, 12)) }); }
+  catch (err) { console.error("Service journey recalls failed:", err.message); return res.status(500).json({ error: "Unable to load recalls." }); }
+});
+app.post("/api/service-journey/recalls/:id/review", requireServiceJourney, async (req, res) => {
+  try {
+    await reviewRecall(Number(req.params.id), String(req.body?.state || ""), sjMe(req).email, String(req.body?.note || ""));
+    sjAudit(req, "service_journey_recall_reviewed", { id: Number(req.params.id), state: req.body?.state });
+    return res.json({ ok: true });
+  } catch (err) { return res.status(400).json({ error: err.message }); }
+});
+app.get("/api/service-journey/kpi", requireServiceJourney, async (req, res) => {
+  try { return res.json(await serviceKpis({ from: String(req.query.from || ""), to: String(req.query.to || "") })); }
+  catch (err) { console.error("Service journey KPI failed:", err.message); return res.status(500).json({ error: "Unable to compute KPIs." }); }
+});
+app.get("/api/service-journey/imports", requireServiceJourney, async (req, res) => {
+  try { return res.json({ imports: await listImportBatches(40) }); }
+  catch (err) { return res.status(500).json({ error: "Unable to load imports." }); }
+});
+// Manual DispatchTrack drop (the agent normally does this every 15 minutes).
+app.post("/api/service-journey/import/dispatch", requireServiceJourney, (req, res) => {
+  serviceCsvUpload.single("export")(req, res, async (err) => {
+    if (err) return res.status(400).json({ error: "Couldn't read that upload." });
+    try {
+      if (!req.file?.buffer?.length) return res.status(400).json({ error: "Choose the DispatchTrack export (.csv)." });
+      const result = await importServiceDispatchTrack(req.file.buffer, { filename: String(req.file.originalname || "").slice(0, 120), byEmail: sjMe(req).email });
+      sjAudit(req, "service_journey_dispatch_imported", { fileName: result.fileName, svOrders: result.svOrders, created: result.created, updated: result.updated, skipped: result.skipped });
+      return res.json({ ok: true, ...result });
+    } catch (error) { console.error("Service journey import failed:", error.message); return res.status(400).json({ error: error.message || "Unable to import that file." }); }
+  });
+});
+app.post("/api/service-journey/settings", requireServiceJourney, async (req, res) => {
+  try {
+    if (!isExecutiveUser(req.authUser)) return res.status(403).json({ error: "Executives only." });
+    const key = String(req.body?.key || "").slice(0, 60);
+    if (!key) return res.status(400).json({ error: "key required" });
+    await setServiceSetting(key, req.body?.value);
+    sjAudit(req, "service_journey_setting_set", { key, value: req.body?.value });
+    return res.json({ ok: true, settings: await getServiceSettings() });
+  } catch (err) { return res.status(400).json({ error: err.message }); }
 });
 
 // INTERNAL: ePASS Upload Center (epass-uploads.html) — one page where the
@@ -12540,6 +12698,23 @@ app.post("/api/service-orders", requirePagePermission("/service-order-health.htm
       byName: req.authUser?.displayName || ""
     });
 
+    // Service Journey mirror (Test Modules): the same ticket list, with the
+    // service columns the page now passes through, keeps sj_jobs current.
+    let serviceMirror = null;
+    try {
+      const mirrorRows = rows.map((row) => ({
+        invoice: cleanText(row.invoice, 40), sp: cleanText(row.sp, 20), route: cleanText(row.route, 20), dateCreated: cleanDate(row.dateCreated), paymentType: cleanText(row.paymentType, 20),
+        balance: cleanNumber(row.balance), total: cleanNumber(row.total), status: cleanText(row.status, 40), schedDate: cleanDate(row.schedDate), jobStatus: cleanText(row.jobStatus, 30),
+        customerNumber: cleanText(row.customerNumber, 40), name: cleanText(row.name, 120), address: cleanText(row.address, 160), zip: cleanText(row.zip, 20),
+        finishDate: cleanDate(row.finishDate), mapZone: cleanText(row.mapZone, 20), serviceModel: cleanText(row.serviceModel, 60), serviceSerial: cleanText(row.serviceSerial, 60), serviceBrand: cleanText(row.serviceBrand, 40),
+        billToEmail: cleanText(row.billToEmail, 120), units: cleanNumber(row.units), qualification: cleanText(row.qualification, 10), priorities: cleanText(row.priorities, 40)
+      })).filter((r) => r.invoice);
+      serviceMirror = await importServiceInvoiceRows(mirrorRows, { filename: String(req.body?.filename || "").slice(0, 200), byEmail: req.authUser?.email || req.authUser?.username || "" });
+    } catch (mirrorErr) {
+      console.error("Service journey mirror (ExportInvoice) failed:", mirrorErr.message);
+      serviceMirror = { error: mirrorErr.message };
+    }
+
     let flagCounts = null;
     try {
       flagCounts = await pushServiceOrderHealthFlags(normalized);
@@ -12553,7 +12728,7 @@ app.post("/api/service-orders", requirePagePermission("/service-order-health.htm
       detail: { rows: normalized.length, filename: snapshot.filename, flags: flagCounts }
     }).catch(() => {});
 
-    return res.json({ ok: true, snapshot, flags: flagCounts });
+    return res.json({ ok: true, snapshot, flags: flagCounts, serviceMirror });
   } catch (err) {
     console.error("Service orders upload failed:", err.message);
     return res.status(500).json({ error: "Unable to store the service order snapshot." });
@@ -12851,8 +13026,12 @@ app.post("/api/notifications/:id/unclaim", requirePagePermission("/dashboard.htm
   }
 });
 
-// Executives can push a notification to one user or everyone. (Management UI
-// comes later; this endpoint is the foundation.)
+// Send a Notification (send-notification.html, executives only). Everyone,
+// or a picked set of people — one row per recipient sharing a "push:" ref so
+// the log can show who has closed it. An optional action (e.g. "update your
+// uniform sizes") puts a button on the dashboard row and closes it for the
+// person when they complete the task. Nothing leaves Agility: no email, no
+// text — it's the dashboard only.
 app.post("/api/notifications", requireExecutiveApi, async (req, res) => {
   try {
     const title = String(req.body?.title || "").trim();
@@ -12861,27 +13040,81 @@ app.post("/api/notifications", requireExecutiveApi, async (req, res) => {
     if (!["neutral", "green", "yellow", "red"].includes(severity)) {
       return res.status(400).json({ error: "Severity must be neutral, green, yellow, or red." });
     }
-
-    const notification = await createPushedNotification({
-      severity,
-      typeLabel: req.body?.typeLabel,
-      title,
-      body: req.body?.body,
-      audienceEmail: req.body?.audienceEmail,
-      byEmail: req.authUser?.email || req.authUser?.username || "",
-      byName: req.authUser?.displayName || ""
-    });
-
+    const actionKey = String(req.body?.actionKey || "").trim();
+    if (actionKey && !NOTIFICATION_ACTIONS[actionKey]) return res.status(400).json({ error: "Unknown action." });
+    const audience = String(req.body?.audience || (req.body?.audienceEmail ? "users" : "all"));
+    let emails = [];
+    if (audience === "users") {
+      const raw = Array.isArray(req.body?.emails) ? req.body.emails : [req.body?.audienceEmail].filter(Boolean);
+      emails = [...new Set(raw.map((e) => String(e || "").trim().toLowerCase()).filter((e) => /^[^@\s]+@[^@\s]+$/.test(e)))].slice(0, 500);
+      if (!emails.length) return res.status(400).json({ error: "Pick at least one person, or send to everyone." });
+    }
+    const refId = `push:${crypto.randomUUID()}`;
+    const base = {
+      severity, typeLabel: req.body?.typeLabel, title, body: req.body?.body, refId, actionKey,
+      byEmail: req.authUser?.email || req.authUser?.username || "", byName: req.authUser?.displayName || ""
+    };
+    const created = [];
+    if (audience === "users") {
+      for (const email of emails) created.push(await createPushedNotification({ ...base, audienceEmail: email }));
+    } else {
+      created.push(await createPushedNotification({ ...base, audienceEmail: "" }));
+    }
     recordAudit({
       ip: req.ip, actorUserId: req.authUser?.id || null,
       action: "notification_pushed", targetUserId: null,
-      detail: { id: notification.id, severity, title, audience: notification.audienceEmail || "all" }
+      detail: { refId, severity, title, actionKey, audience: audience === "users" ? emails : "all", count: created.length }
     }).catch(() => {});
-
-    return res.json({ ok: true, notification });
+    return res.json({ ok: true, refId, count: created.length, notification: created[0] });
   } catch (err) {
     console.error("Notification push failed:", err.message);
     return res.status(500).json({ error: "Unable to push the notification." });
+  }
+});
+
+// Compose helpers: who can be picked (active app users, with department
+// from the directory when their email is linked), and the action list.
+app.get("/api/notifications/audience", requireExecutiveApi, async (req, res) => {
+  try {
+    const [users, directory] = await Promise.all([listUsersWithAccess(), listEmployeeDirectory().catch(() => [])]);
+    const byEmail = new Map(directory.filter((d) => !d.archived).map((d) => [String(d.email || "").trim().toLowerCase(), d]));
+    const people = users
+      .filter((u) => u.status === "active" && u.email)
+      .map((u) => {
+        const d = byEmail.get(String(u.email).toLowerCase());
+        return { email: String(u.email).toLowerCase(), name: u.displayName || d?.name || u.email, department: d?.department || "", isExecutive: u.isExecutive === true };
+      })
+      .sort((a, b) => (a.department || "zzz").localeCompare(b.department || "zzz") || a.name.localeCompare(b.name));
+    const actions = Object.entries(NOTIFICATION_ACTIONS).map(([key, a]) => ({ key, ...a }));
+    return res.json({ people, actions });
+  } catch (err) {
+    console.error("Notification audience failed:", err.message);
+    return res.status(500).json({ error: "Unable to load the team list." });
+  }
+});
+
+// The log: every manual send, newest first, with read receipts.
+app.get("/api/notifications/pushed", requireExecutiveApi, async (req, res) => {
+  try {
+    return res.json({ campaigns: await listPushedCampaigns({ limit: 100 }) });
+  } catch (err) {
+    console.error("Notification log failed:", err.message);
+    return res.status(500).json({ error: "Unable to load sent notifications." });
+  }
+});
+
+// Retire pulls a send off every remaining dashboard (closures already
+// logged stay as they are).
+app.post("/api/notifications/pushed/retire", requireExecutiveApi, async (req, res) => {
+  try {
+    const refId = String(req.body?.refId || "");
+    if (!refId.startsWith("push:")) return res.status(400).json({ error: "Not a sent notification." });
+    const count = await retirePushedNotificationsByRef(refId);
+    recordAudit({ ip: req.ip, actorUserId: req.authUser?.id || null, action: "notification_retired", targetUserId: null, detail: { refId, count } }).catch(() => {});
+    return res.json({ ok: true, count });
+  } catch (err) {
+    console.error("Notification retire failed:", err.message);
+    return res.status(500).json({ error: "Unable to retire that notification." });
   }
 });
 

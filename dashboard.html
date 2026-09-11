@@ -3237,17 +3237,25 @@
                 ? `<button type="button" class="oflag-claim unclaim" data-claim="${index}">Undo DIBS</button>`
                 : `<button type="button" class="oflag-claim" data-claim="${index}">DIBS</button>`)
             : "";
+          // A requested action ("update your uniform sizes"): the button opens
+          // the matching card; finishing the task closes the notification.
+          const actionButton = item.kind === "pushed" && item.actionKey === "sizes"
+            ? `<button type="button" class="oflag-claim" data-action="sizes" data-index="${index}">Update my sizes</button>`
+            : "";
           return `
           <tr class="oflag-${item.severity}">
             <td>${badges}</td>
             <td>${main}</td>
             <td style="white-space: nowrap;">${esc(itemDate(item) === "9999" ? "" : itemDate(item))}</td>
             <td>${details}</td>
-            <td style="white-space: nowrap;">${claimButton}<button type="button" class="oflag-close" data-index="${index}">Close</button></td>
+            <td style="white-space: nowrap;">${actionButton}${claimButton}<button type="button" class="oflag-close" data-index="${index}">Close</button></td>
           </tr>`;
         }).join("");
 
-        body.querySelectorAll(".oflag-claim").forEach((button) => {
+        body.querySelectorAll("[data-action='sizes']").forEach((button) => {
+          button.addEventListener("click", () => { if (window.showSizesCard) window.showSizesCard(); });
+        });
+        body.querySelectorAll(".oflag-claim[data-claim]").forEach((button) => {
           button.addEventListener("click", async () => {
             const item = items[Number(button.dataset.claim)];
             if (!item) return;
@@ -3327,6 +3335,14 @@
         });
       }
 
+      // Saving sizes closes any "update your sizes" request server-side —
+      // mirror that on screen without a reload.
+      window.addEventListener("sizes-saved", () => {
+        const before = items.length;
+        items = items.filter((it) => !(it.kind === "pushed" && it.actionKey === "sizes"));
+        if (items.length !== before) { if (!items.length) emptyMessage = "No notifications — all clear."; renderOrderFlags(); }
+      });
+
       (async function initOrderFlags() {
         const collected = [];
         let hadError = false;
@@ -3391,16 +3407,31 @@
       const shirtSel = document.getElementById("sizesShirt");
       const shoeInput = document.getElementById("sizesShoe");
       const msg = document.getElementById("sizesMsg");
+      function fill(me) {
+        shirtSel.innerHTML = '<option value="">— Pick —</option>' +
+          (me.shirtSizes || []).map((s) => `<option value="${s}" ${s === me.shirtSize ? "selected" : ""}>${s}</option>`).join("");
+        shoeInput.value = me.shoeSize || "";
+      }
       fetch("/api/me/sizes", { credentials: "same-origin" })
         .then((r) => (r.ok ? r.json() : null))
         .then((me) => {
           if (!me || !me.found || (me.shirtSize && me.shoeSize)) return;
-          shirtSel.innerHTML = '<option value="">— Pick —</option>' +
-            (me.shirtSizes || []).map((s) => `<option value="${s}" ${s === me.shirtSize ? "selected" : ""}>${s}</option>`).join("");
-          shoeInput.value = me.shoeSize || "";
+          fill(me);
           card.hidden = false;
         })
         .catch(() => {});
+      // A "please update your sizes" notification opens the card even when
+      // sizes are already on file, prefilled so they can confirm or change.
+      window.showSizesCard = async function () {
+        try {
+          const r = await fetch("/api/me/sizes", { credentials: "same-origin" });
+          const me = r.ok ? await r.json() : null;
+          if (me && me.found) { fill(me); msg.textContent = me.shirtSize || me.shoeSize ? "Confirm or update, then save." : ""; }
+          else { fill({ shirtSizes: (me && me.shirtSizes) || [] }); msg.textContent = "Your account isn't linked to a directory profile — ask an executive to set your sizes."; }
+        } catch { fill({ shirtSizes: [] }); }
+        card.hidden = false;
+        card.scrollIntoView({ behavior: "smooth", block: "center" });
+      };
       document.getElementById("sizesSave").addEventListener("click", async () => {
         msg.textContent = "Saving…";
         try {
@@ -3413,6 +3444,7 @@
           const body = await res.json();
           if (!res.ok) throw new Error(body.error || "Unable to save.");
           msg.textContent = "Saved — thanks!";
+          window.dispatchEvent(new CustomEvent("sizes-saved"));
           setTimeout(() => { card.hidden = true; }, 1600);
         } catch (err) {
           msg.textContent = err.message;

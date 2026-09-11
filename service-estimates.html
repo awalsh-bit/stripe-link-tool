@@ -64,6 +64,16 @@
     .pill.approved { background: rgba(var(--primary-rgb), 0.12); color: var(--primary); }
     .pill.shopping { background: #eef2ff; color: #3730a3; }
     .pill.elsewhere { background: #fef3c7; color: #92400e; }
+    .pill.diagnostic { background: #f3f4f6; color: #374151; }
+    .pill.comped { background: #fce7f3; color: #9d174d; }
+    .se-overlay.top { z-index: 70; }
+    .se-choice { display: flex; gap: 10px; align-items: flex-start; padding: 10px 12px; border: 1px solid #e2e8f0; border-radius: 10px; cursor: pointer; margin-top: 8px; }
+    .se-choice:has(input:checked) { border-color: var(--primary); background: rgba(var(--primary-rgb), 0.06); }
+    .se-choice input { margin-top: 3px; }
+    .se-choice strong { display: block; font-size: 14px; }
+    .se-choice span { font-size: 12px; color: var(--muted); }
+    #srNotes { width: 100%; box-sizing: border-box; margin-top: 12px; min-height: 76px; border: 1px solid #cbd5e1; border-radius: 10px; padding: 10px 12px; font: inherit; font-size: 14px; resize: vertical; }
+    #srNotes:focus { outline: none; border-color: var(--primary); }
 
     .se-overlay { display: none; position: fixed; inset: 0; background: rgba(15,23,42,0.45); z-index: 60; align-items: center; justify-content: center; padding: 18px; }
     .se-overlay.show { display: flex; }
@@ -188,9 +198,7 @@
           <tbody id="seBody"><tr><td colspan="8" class="section-note">Loading…</td></tr></tbody>
         </table>
       </div>
-      <div style="margin-top:10px;">
-        <button type="button" class="se-btn quiet" id="seClosedToggle" style="display:none;"></button>
-      </div>
+      <div style="margin-top:12px;" class="se-hint">Closed estimates — and the approved / comped / shopping mix by month — live on <a href="closed-estimates.html" style="color:var(--primary); font-weight:700;">Closed Service Estimates</a>.</div>
     </div>
 
     <div id="internal-shell-footer"></div>
@@ -220,6 +228,25 @@
     </div>
   </div>
 
+  <!-- Closing an estimate the client never answered: record how it actually ended. -->
+  <div class="se-overlay top" id="seResolve">
+    <div class="se-panel" style="max-width: 480px;">
+      <h3 id="srTitle">Close estimate</h3>
+      <div class="se-hint" style="margin-bottom: 4px;">The client hasn't responded through the link. How did this one end up?</div>
+      <label class="se-choice"><input type="radio" name="srStatus" value="approved" /><div><strong>Approved</strong><span>Client OK'd the repair — the estimate is marked approved and a note goes on the Podium conversation.</span></div></label>
+      <label class="se-choice"><input type="radio" name="srStatus" value="comped" /><div><strong>Comped</strong><span>Wilson is covering the repair / fee — no charge to the client.</span></div></label>
+      <label class="se-choice"><input type="radio" name="srStatus" value="shopping" /><div><strong>Shopping for a replacement</strong><span>Client is replacing instead of repairing — the showroom team gets the lead, same as if the client had picked it on the link.</span></div></label>
+      <label class="se-choice"><input type="radio" name="srStatus" value="diagnostic" /><div><strong>Diagnostic only</strong><span>Client is stopping at the diagnostic visit — no repair.</span></div></label>
+      <textarea id="srNotes" placeholder="How was it confirmed? e.g. Client confirmed via Podium text / phone call" maxlength="600"></textarea>
+      <div class="se-hint" id="srError" style="display:none; color:#b91c1c;"></div>
+      <div style="display:flex; gap:10px; margin-top:14px;">
+        <button type="button" class="se-btn primary" id="srSave">Resolve &amp; close</button>
+        <span style="flex:1;"></span>
+        <button type="button" class="se-btn quiet" id="srCancel">Cancel</button>
+      </div>
+    </div>
+  </div>
+
   <script src="internal-shell.js"></script>
   <script>
     (function () {
@@ -228,7 +255,7 @@
       const money = (n) => "$" + Number(n || 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
       const when = (iso) => iso ? new Date(iso).toLocaleString("en-US", { month: "2-digit", day: "2-digit", year: "2-digit", hour: "numeric", minute: "2-digit" }) : "—";
 
-      const state = { summary: null, estimates: [], publicHost: "", open: null, created: null, showClosed: false };
+      const state = { summary: null, estimates: [], publicHost: "", open: null, created: null };
 
       function setStatus(message, kind) {
         const box = $("seStatus");
@@ -468,7 +495,63 @@
       }
 
       // ---- list ----
-      const PILL = { sent: "Sent", viewed: "Viewed", approved: "Approved", shopping: "Shopping", elsewhere: "Went elsewhere" };
+      const PILL = { sent: "Sent", viewed: "Viewed", approved: "Approved", comped: "Comped", shopping: "Shopping", elsewhere: "Went elsewhere", diagnostic: "Diagnostic only" };
+      const needsResolution = (e) => !e.closedAt && ["sent", "viewed"].includes(e.status);
+
+      // ---- close / resolve ----
+      // Closing an estimate the client already answered is a plain close.
+      // Closing one still in Sent/Viewed asks how it ended (approved /
+      // shopping / diagnostic only) plus a note on how that was confirmed.
+      let resolveTarget = null; // { estimate, done }
+      function openResolve(estimate, done) {
+        resolveTarget = { estimate, done };
+        $("srTitle").textContent = `Close ${estimate.svNumber || "estimate"} — ${estimate.customerName || ""}`;
+        document.querySelectorAll('input[name="srStatus"]').forEach((r) => { r.checked = false; });
+        $("srNotes").value = "";
+        $("srError").style.display = "none";
+        $("srSave").disabled = false;
+        $("srSave").textContent = "Resolve & close";
+        $("seResolve").classList.add("show");
+        setTimeout(() => $("srNotes").focus(), 50);
+      }
+      function closeResolve() {
+        $("seResolve").classList.remove("show");
+        resolveTarget = null;
+      }
+      $("srCancel").addEventListener("click", closeResolve);
+      $("seResolve").addEventListener("click", (ev) => { if (ev.target === $("seResolve")) closeResolve(); });
+      $("srSave").addEventListener("click", async () => {
+        if (!resolveTarget) return;
+        const status = document.querySelector('input[name="srStatus"]:checked')?.value || "";
+        const notes = $("srNotes").value.trim();
+        const err = $("srError");
+        if (!status) { err.textContent = "Pick how the estimate was resolved."; err.style.display = ""; return; }
+        if (!notes) { err.textContent = "Add a note on how the client confirmed (e.g. Podium text, phone call)."; err.style.display = ""; $("srNotes").focus(); return; }
+        err.style.display = "none";
+        const btn = $("srSave");
+        btn.disabled = true;
+        btn.textContent = "Saving…";
+        try {
+          await api("/api/service-estimates/resolve", { method: "POST", body: JSON.stringify({ token: resolveTarget.estimate.token, status, notes }) });
+          const { done, estimate } = resolveTarget;
+          closeResolve();
+          setStatus(`${estimate.svNumber || "Estimate"} resolved as ${PILL[status]} and closed.`, "ok");
+          if (done) await done();
+          await load();
+        } catch (e) {
+          err.textContent = e.message || "Couldn't resolve the estimate.";
+          err.style.display = "";
+          btn.disabled = false;
+          btn.textContent = "Resolve & close";
+        }
+      });
+
+      async function closeOrResolve(estimate, done) {
+        if (needsResolution(estimate)) { openResolve(estimate, done); return; }
+        await api("/api/service-estimates/close", { method: "POST", body: JSON.stringify({ token: estimate.token, closed: !estimate.closedAt }) });
+        if (done) await done();
+        await load();
+      }
       function rowHtml(e, i, isClosed) {
         return `
           <tr data-idx="${i}"${isClosed ? ` style="opacity:0.55;"` : ""}>
@@ -485,40 +568,32 @@
 
       function render() {
         const body = $("seBody");
+        // The list route only returns open estimates; closed ones have their own page.
         const active = state.estimates.filter((e) => !e.closedAt);
-        const closed = state.estimates.filter((e) => e.closedAt);
-        const toggle = $("seClosedToggle");
-        toggle.style.display = closed.length ? "" : "none";
-        toggle.textContent = state.showClosed ? `Hide closed (${closed.length})` : `Show closed (${closed.length})`;
-        if (!active.length && !(state.showClosed && closed.length)) {
-          body.innerHTML = `<tr><td colspan="8" class="section-note">${state.estimates.length ? "No open estimates — everything's closed out." : "No estimates yet — scan a quote above to send the first one."}</td></tr>`;
+        if (!active.length) {
+          body.innerHTML = `<tr><td colspan="8" class="section-note">No open estimates — scan a quote above to send one, or see <a href="closed-estimates.html">closed estimates</a>.</td></tr>`;
           return;
         }
-        body.innerHTML =
-          active.map((e) => rowHtml(e, state.estimates.indexOf(e), false)).join("") +
-          (state.showClosed ? closed.map((e) => rowHtml(e, state.estimates.indexOf(e), true)).join("") : "");
+        body.innerHTML = active.map((e) => rowHtml(e, state.estimates.indexOf(e), false)).join("");
         body.querySelectorAll("tr[data-idx]").forEach((tr) => {
           tr.addEventListener("click", () => openDetail(state.estimates[Number(tr.dataset.idx)]));
         });
         body.querySelectorAll(".se-row-close").forEach((btn) => {
           btn.addEventListener("click", async (ev) => {
             ev.stopPropagation();
+            const estimate = state.estimates.find((x) => x.token === btn.dataset.tok);
+            if (!estimate) return;
             btn.disabled = true;
             try {
-              await api("/api/service-estimates/close", { method: "POST", body: JSON.stringify({ token: btn.dataset.tok, closed: !btn.dataset.reopen }) });
-              await load();
+              await closeOrResolve(estimate);
             } catch (err) {
               setStatus(err.message, "error");
+            } finally {
               btn.disabled = false;
             }
           });
         });
       }
-
-      $("seClosedToggle").addEventListener("click", () => {
-        state.showClosed = !state.showClosed;
-        render();
-      });
 
       function openDetail(e) {
         state.open = e;
@@ -537,6 +612,9 @@
           <div class="se-summary" style="margin-top:12px;">${summaryHtml(e.summary || {})}</div>
           ${e.status === "shopping" ? `<div class="se-resp"><strong>Shopping for a replacement.</strong><br>${[directionText, visitText].filter(Boolean).map(esc).join("<br>")}${r.notes ? `<br>“${esc(r.notes)}”` : ""}<br><span style="color:var(--muted); font-size:12px;">Showroom team was notified — lead is up for grabs.</span></div>` : ""}
           ${e.status === "approved" ? `<div class="se-resp" style="background: rgba(var(--primary-rgb), 0.1);"><strong>Approved.</strong> Schedule the repair.</div>` : ""}
+          ${e.status === "diagnostic" ? `<div class="se-resp" style="background:#f3f4f6;"><strong>Diagnostic only.</strong> Client stopped at the diagnostic visit — no repair.</div>` : ""}
+          ${e.status === "comped" ? `<div class="se-resp" style="background:#fce7f3;"><strong>Comped.</strong> Wilson covered this one — no charge to the client.</div>` : ""}
+          ${r.resolvedByStaff ? `<div class="se-resp" style="background:#f8fafc; border:1px solid #e2e8f0;"><strong>Resolved by ${esc(r.staffName || r.staffEmail || "the team")}</strong>${r.resolvedAt ? " · " + when(r.resolvedAt) : ""}<br>“${esc(r.staffNotes || "")}”</div>` : ""}
           ${e.status === "elsewhere" ? `<div class="se-resp" style="background:#fef3c7;"><strong>Starting their search elsewhere.</strong>${r.notes ? `<br>Their feedback: “${esc(r.notes)}”` : "<br>No feedback left."}<br><span style="color:var(--muted); font-size:12px;">They were reminded of the $100 service-client discount toward a purchase over $999.</span></div>` : ""}`;
         const emailRow = $("soEmailRow");
         const canEmail = ["sent", "viewed"].includes(e.status);
@@ -562,9 +640,7 @@
         const btn = $("soCloseEst");
         btn.disabled = true;
         try {
-          await api("/api/service-estimates/close", { method: "POST", body: JSON.stringify({ token: state.open.token, closed: !state.open.closedAt }) });
-          $("seOverlay").classList.remove("show");
-          await load();
+          await closeOrResolve(state.open, async () => $("seOverlay").classList.remove("show"));
         } catch (err) {
           setStatus(err.message, "error");
         } finally {

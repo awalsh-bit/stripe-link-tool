@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="robots" content="noindex,nofollow,noarchive" />
+  <title>Wilson AC & Appliance - Fleet Management</title>
+  <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+  <link rel="stylesheet" href="internal-shell.css" />
+  <style>
+    :root {
+      --bg: #f7f8fc; --card: #ffffff; --text: #1f2937; --muted: #6b7280; --border: #dbe1ea;
+      --success-bg: #ecfdf5; --success-text: #065f46; --error-bg: #fef2f2; --error-text: #991b1b; --warn-bg: #fffbeb; --warn-text: #92400e;
+      --shadow: 0 10px 35px rgba(0, 0, 0, 0.08); --radius: 18px;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: "Roboto", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: linear-gradient(180deg, var(--primary-tint) 0%, var(--bg) 100%); color: var(--text); min-height: 100vh; padding: 32px 16px; }
+    .wrap { max-width: 1480px; margin: 0 auto; }
+    .surface { background: var(--card); border: 1px solid rgba(var(--primary-rgb), 0.12); box-shadow: var(--shadow); border-radius: var(--radius); padding: 22px 24px; margin: 0 auto 18px; }
+    h2 { margin: 0 0 4px; font-size: 22px; }
+    h3 { margin: 0 0 10px; font-size: 13px; text-transform: uppercase; letter-spacing: 0.05em; color: #64748b; }
+    .section-note { margin: 0 0 14px; color: var(--muted); font-size: 14px; line-height: 1.5; }
+    label { display: block; margin-bottom: 5px; font-size: 12px; font-weight: 700; color: #475569; }
+    input, select, textarea { width: 100%; border: 1px solid var(--border); border-radius: 10px; padding: 9px 11px; font-size: 14px; background: #fff; color: var(--text); outline: none; font-family: inherit; }
+    textarea { min-height: 64px; resize: vertical; }
+    input:focus, select:focus, textarea:focus { border-color: rgba(var(--primary-rgb), 0.75); box-shadow: 0 0 0 4px rgba(var(--primary-rgb), 0.12); }
+    button { appearance: none; border: none; background: var(--primary); color: #fff; padding: 9px 14px; border-radius: 10px; font-size: 14px; font-weight: 700; cursor: pointer; white-space: nowrap; font-family: inherit; }
+    button:hover { background: var(--primary-hover); }
+    button:disabled { opacity: 0.6; cursor: wait; }
+    button.secondary { background: var(--primary-tint); color: var(--primary); }
+    button.quiet { background: #f1f5f9; color: #334155; }
+    button.tiny { padding: 5px 9px; font-size: 12px; border-radius: 8px; }
+    button.danger { background: #fee2e2; color: #991b1b; }
+    .status { display: none; margin: 10px 0 0; border-radius: 12px; padding: 10px 14px; font-size: 14px; line-height: 1.5; }
+    .status.show { display: block; }
+    .status.error { background: var(--error-bg); color: var(--error-text); }
+    .status.ok { background: var(--success-bg); color: var(--success-text); }
+    .status.warn { background: var(--warn-bg); color: var(--warn-text); }
+    .rowline { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 10px; }
+    .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; margin-top: 12px; }
+    .tile { background: var(--primary-faint-2, #f6faf6); border: 1px solid var(--border); border-radius: 12px; padding: 10px 14px; font-size: 12px; color: var(--muted); }
+    .tile strong { display: block; font-size: 22px; color: var(--text); }
+    .tile.hot { background: #fef2f2; border-color: #fecaca; } .tile.hot strong { color: #991b1b; }
+    .tile.warm { background: #fffbeb; border-color: #fde68a; } .tile.warm strong { color: #92400e; }
+    /* vehicle cards */
+    .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 12px; }
+    .vcard { border: 1px solid var(--border); border-radius: 14px; padding: 12px 14px; cursor: pointer; background: #fff; position: relative; }
+    .vcard:hover { border-color: var(--primary); }
+    .vcard.hard { border-color: #fca5a5; background: #fff7f7; }
+    .vcard.warn { border-color: #fcd34d; }
+    .vcard .code { font-size: 18px; font-weight: 800; }
+    .vcard .name { color: var(--muted); font-size: 12.5px; }
+    .vcard .kv { display: grid; grid-template-columns: 1fr 1fr; gap: 2px 10px; margin-top: 8px; font-size: 12.5px; }
+    .vcard .kv span { color: var(--muted); }
+    .att { margin-top: 8px; font-size: 12.5px; }
+    .att div { padding: 2px 0; }
+    .att .hard { color: #991b1b; font-weight: 700; } .att .warn { color: #92400e; } .att .soon { color: #475569; }
+    .pill { display: inline-block; padding: 2px 9px; border-radius: 999px; font-size: 11px; font-weight: 700; white-space: nowrap; background: #f1f5f9; color: #334155; }
+    .pill.available { background: #dcfce7; color: #166534; } .pill.in_shop { background: #fef3c7; color: #92400e; } .pill.out_of_service { background: #fee2e2; color: #991b1b; } .pill.spare { background: #e0e7ff; color: #3730a3; }
+    .pill.ok { background: #dcfce7; color: #166534; } .pill.soon { background: #fef3c7; color: #92400e; } .pill.overdue { background: #fee2e2; color: #991b1b; } .pill.never_logged { background: #f1f5f9; color: #64748b; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th, td { text-align: left; padding: 7px 8px; border-bottom: 1px solid #eef1f6; vertical-align: top; }
+    th { font-size: 11px; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; color: #64748b; white-space: nowrap; }
+    th.num, td.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .table-scroll { overflow-x: auto; }
+    .sub { color: var(--muted); font-size: 12px; }
+    .empty { padding: 20px 10px; text-align: center; color: var(--muted); }
+    /* drawer */
+    .drawer-back { position: fixed; inset: 0; background: rgba(15, 23, 42, 0.35); display: none; z-index: 40; }
+    .drawer-back.show { display: block; }
+    .drawer { position: fixed; top: 0; right: 0; bottom: 0; width: min(940px, 100%); background: #fff; z-index: 41; transform: translateX(105%); transition: transform 0.2s ease; overflow-y: auto; overflow-x: hidden; box-shadow: -12px 0 40px rgba(0,0,0,0.18); }
+    .drawer.show { transform: translateX(0); }
+    .drawer-head { position: sticky; top: 0; background: #fff; border-bottom: 1px solid var(--border); padding: 14px 20px; display: flex; gap: 12px; align-items: flex-start; z-index: 2; }
+    .drawer-head h2 { font-size: 19px; margin: 0; }
+    .drawer-head .close { margin-left: auto; }
+    .drawer-body { padding: 16px 20px 40px; display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .panel { border: 1px solid var(--border); border-radius: 14px; padding: 14px 16px; min-width: 0; overflow: hidden; }
+    .panel.full { grid-column: span 2; }
+    .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 12px; }
+    .grid2 > div { min-width: 0; }
+    .grid2 .full { grid-column: span 2; }
+    .grid3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px 12px; }
+    .grid3 > div { min-width: 0; }
+    .file { position: relative; display: inline-block; }
+    .file input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+    .rc-results { border: 1px solid var(--border); border-radius: 10px; max-height: 180px; overflow: auto; margin-top: 6px; }
+    .rc-results div { padding: 6px 10px; border-bottom: 1px solid #eef1f6; cursor: pointer; font-size: 12.5px; }
+    .rc-results div:hover { background: var(--primary-tint); }
+    .thumb { width: 44px; height: 44px; object-fit: cover; border-radius: 6px; border: 1px solid var(--border); }
+    .bar { height: 8px; background: #e2e8f0; border-radius: 4px; overflow: hidden; }
+    .bar i { display: block; height: 100%; background: var(--primary); }
+    @media (max-width: 860px) { .drawer-body { grid-template-columns: 1fr; } .panel.full { grid-column: span 1; } .grid2, .grid3 { grid-template-columns: 1fr; } .grid2 .full { grid-column: span 1; } }
+    @media (max-width: 720px) { body { padding: 14px 8px; } .surface { padding: 14px; } .internal-shell-header-top { flex-wrap: wrap !important; } .cards { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body data-shell-label="Fleet Management" data-shell-icon="delivery">
+  <div class="wrap">
+    <div id="internal-shell-header"></div>
+
+    <div class="surface">
+      <h2>Fleet Management</h2>
+      <p class="section-note">Every truck and van in one place: where it is, what it's telling us, what's due, and what's been done. Agility keeps the service record; Samsara feeds odometer, hours, fuel, position, drivers, defects and fault codes.</p>
+      <div class="rowline">
+        <button type="button" id="syncBtn">Sync from Samsara</button>
+        <button type="button" class="secondary" id="addBtn">+ Add vehicle</button>
+        <button type="button" class="quiet" id="plansBtn">Service intervals</button>
+        <span class="sub" id="syncNote"></span>
+      </div>
+      <div class="tiles" id="tiles"></div>
+      <div id="pageStatus" class="status"></div>
+    </div>
+
+    <div class="surface">
+      <h3>Needs attention</h3>
+      <div id="attention" class="sub">Loading…</div>
+    </div>
+
+    <div class="surface">
+      <h3>Fleet</h3>
+      <div class="cards" id="cards"></div>
+    </div>
+
+    <div class="surface">
+      <h3>Cost — last 6 months (fuel from Samsara, service from the log)</h3>
+      <div class="table-scroll"><table><thead id="costHead"></thead><tbody id="costRows"></tbody></table></div>
+    </div>
+
+    <div id="internal-shell-footer"></div>
+  </div>
+
+  <div class="drawer-back" id="drawerBack"></div>
+  <div class="drawer" id="drawer"><div class="drawer-head"><div><h2 id="dTitle">—</h2><div class="sub" id="dSub"></div></div><button type="button" class="quiet close" id="dClose">Close</button></div><div class="drawer-body" id="dBody"></div></div>
+
+  <script src="internal-shell.js"></script>
+  <script>
+    const $ = (id) => document.getElementById(id);
+    const esc = (v) => String(v ?? "").replace(/[&<>"']/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch]));
+    const money = (n) => n == null ? "—" : "$" + Number(n).toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+    const money2 = (n) => "$" + Number(n || 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const num = (n) => n == null ? "—" : Number(n).toLocaleString("en-US");
+    const fmtDate = (iso) => /^\d{4}-\d{2}-\d{2}/.test(iso || "") ? new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" }).format(new Date(iso.slice(0, 10) + "T12:00:00Z")) : "—";
+    const ago = (iso) => { if (!iso) return "never"; const m = Math.round((Date.now() - new Date(iso)) / 60000); return m < 2 ? "just now" : m < 60 ? m + " min ago" : m < 1440 ? Math.round(m / 60) + " h ago" : Math.round(m / 1440) + " d ago"; };
+    const pill = (v) => `<span class="pill ${esc(v)}">${esc(String(v || "").replace(/_/g, " "))}</span>`;
+    const opts = (list, value, blank) => (blank ? `<option value="">${esc(blank)}</option>` : "") + list.map((x) => `<option value="${esc(x)}"${x === value ? " selected" : ""}>${esc(String(x).replace(/_/g, " "))}</option>`).join("");
+    function setStatus(id, message, kind) { const box = $(id); if (!box) return; if (!message) { box.className = "status"; box.textContent = ""; return; } box.className = "status " + kind + " show"; box.textContent = message; }
+    async function api(path, options = {}) {
+      const res = await fetch(path, { credentials: "same-origin", headers: options.body && !(options.body instanceof FormData) ? { "Content-Type": "application/json" } : {}, ...options });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || "Request failed.");
+      return data;
+    }
+    let O = null;
+
+    async function load() {
+      setStatus("pageStatus", "");
+      try { O = await api("/api/fleet/overview"); render(); } catch (err) { setStatus("pageStatus", err.message, "error"); }
+    }
+    function render() {
+      const t = O.totals;
+      $("tiles").innerHTML = [["Vehicles", t.vehicles], ["Assignable today", t.assignable], ["Needs attention", t.needsAttention, t.needsAttention ? "hot" : ""], ["Open DVIR defects", t.openDefects, t.openDefects ? "hot" : ""], ["Service overdue", t.overdueService, t.overdueService ? "warm" : ""], ["Due soon", t.dueSoon, t.dueSoon ? "warm" : ""]].map(([l, v, c]) => `<div class="tile ${c || ""}">${esc(l)}<strong>${v}</strong></div>`).join("");
+      $("syncNote").textContent = O.samsara ? `Samsara sync: ${O.lastSyncedAt ? ago(O.lastSyncedAt) : "never"}` : "Samsara isn't connected — add SAMSARA_API_TOKEN in Render to pull telemetry.";
+      const att = O.vehicles.filter((v) => v.attention.length);
+      $("attention").innerHTML = att.length ? att.map((v) => `<div style="padding:6px 0;border-bottom:1px dashed #eef1f6;"><strong style="cursor:pointer;" data-open="${esc(v.id)}">${esc(v.epassCode || v.name)}</strong> <span class="sub">${esc(v.name)}</span><div class="att">${v.attention.map((a) => `<div class="${a.level}">${esc(a.text)}</div>`).join("")}</div></div>`).join("") : `<div class="sub">Nothing needs attention.</div>`;
+      $("attention").querySelectorAll("[data-open]").forEach((el) => el.addEventListener("click", () => openVehicle(el.dataset.open)));
+      $("cards").innerHTML = O.vehicles.length ? O.vehicles.map((v) => {
+        const hard = v.attention.some((a) => a.level === "hard"), warn = v.attention.some((a) => a.level !== "hard");
+        const tele = v.telemetry || {};
+        return `<div class="vcard ${hard ? "hard" : warn ? "warn" : ""}" data-id="${esc(v.id)}">
+          <div style="display:flex;justify-content:space-between;gap:8px;align-items:flex-start;"><div><div class="code">${esc(v.epassCode || "—")}</div><div class="name">${esc([v.year, v.make, v.model].filter(Boolean).join(" ") || v.name)}${v.plate ? " · " + esc(v.plate) : ""}</div></div>${pill(v.availability)}</div>
+          <div class="kv">
+            <div><span>Odometer</span><br>${v.odometerMi != null ? num(v.odometerMi) + " mi" : "—"}</div>
+            <div><span>Engine</span><br>${v.engineHours != null ? num(v.engineHours) + " h" : "—"}</div>
+            <div><span>Fuel</span><br>${v.fuelPct != null ? Math.round(v.fuelPct) + "%" : "—"}</div>
+            <div><span>Driver</span><br>${esc(tele.driver?.driverName || "—")}</div>
+            <div style="grid-column:span 2;"><span>Where</span><br>${esc(tele.address || (tele.lat ? tele.lat.toFixed(4) + ", " + tele.lng.toFixed(4) : "—"))}${tele.gpsAt ? ` <span class="sub">(${ago(tele.gpsAt)}${tele.engineState ? ", " + esc(tele.engineState.toLowerCase()) : ""})</span>` : ""}</div>
+          </div>
+          ${v.attention.length ? `<div class="att">${v.attention.slice(0, 3).map((a) => `<div class="${a.level}">${esc(a.text)}</div>`).join("")}${v.attention.length > 3 ? `<div class="sub">+${v.attention.length - 3} more</div>` : ""}</div>` : ""}
+        </div>`;
+      }).join("") : `<div class="empty">No vehicles yet — sync from Samsara or add one.</div>`;
+      $("cards").querySelectorAll(".vcard").forEach((c) => c.addEventListener("click", () => openVehicle(c.dataset.id)));
+      // cost table
+      const months = [...new Set(O.vehicles.flatMap((v) => [...v.fuel.map((f) => f.month), ...v.spend.map((s) => s.month)]))].sort().slice(-6);
+      $("costHead").innerHTML = `<tr><th>Vehicle</th>${months.map((m) => `<th class="num">${esc(m)}</th>`).join("")}<th class="num">6-mo total</th><th class="num">Cost / mile</th></tr>`;
+      $("costRows").innerHTML = O.vehicles.map((v) => {
+        let total = 0, miles = 0;
+        const cells = months.map((m) => { const f = v.fuel.find((x) => x.month === m), s = v.spend.find((x) => x.month === m); const c = (f?.fuelCost || 0) + (s?.cost || 0); total += c; miles += f?.distanceMi || 0; return `<td class="num">${c ? money(c) : ""}${f?.fuelCost && s?.cost ? `<div class="sub">${money(f.fuelCost)} fuel · ${money(s.cost)} svc</div>` : f?.fuelCost ? `<div class="sub">fuel</div>` : s?.cost ? `<div class="sub">service</div>` : ""}</td>`; }).join("");
+        return `<tr><td><strong>${esc(v.epassCode || v.name)}</strong></td>${cells}<td class="num"><strong>${money(total)}</strong></td><td class="num">${miles ? "$" + (total / miles).toFixed(2) : "—"}</td></tr>`;
+      }).join("") || `<tr><td class="empty">No cost data yet.</td></tr>`;
+    }
+
+    $("syncBtn").addEventListener("click", async () => {
+      $("syncBtn").disabled = true; setStatus("pageStatus", "Syncing from Samsara…", "warn");
+      try { const r = await api("/api/fleet/sync", { method: "POST" }); setStatus("pageStatus", `Synced ${r.vehicles} vehicles (${r.newVehicles} new), telemetry for ${r.telemetry}, ${r.drivers} driver assignments, ${r.defects == null ? "defects not available" : r.defects + " open defects"}, ${r.fuelRows == null ? "fuel report not available" : r.fuelRows + " fuel rows"}.${r.errors.length ? " Problems: " + r.errors.join("; ") : ""}`, r.errors.length ? "warn" : "ok"); await load(); }
+      catch (err) { setStatus("pageStatus", err.message, "error"); } finally { $("syncBtn").disabled = false; }
+    });
+
+    // ---- drawer
+    let D = null;
+    const closeDrawer = () => { $("drawer").classList.remove("show"); $("drawerBack").classList.remove("show"); };
+    $("dClose").addEventListener("click", closeDrawer); $("drawerBack").addEventListener("click", closeDrawer);
+    const openDrawer = () => { $("drawer").classList.add("show"); $("drawerBack").classList.add("show"); };
+    async function openVehicle(id) {
+      openDrawer(); $("dTitle").textContent = "Loading…"; $("dBody").innerHTML = "";
+      try { D = await api(`/api/fleet/vehicles/${id}`); renderVehicle(); } catch (err) { $("dTitle").textContent = "Couldn't load"; $("dBody").innerHTML = `<div class="status error show">${esc(err.message)}</div>`; }
+    }
+    function renderVehicle() {
+      const v = D.vehicle, ov = O.vehicles.find((x) => x.id === v.id) || { due: [], renewals: [], defects: [], attention: [] }, P = O.picklists, tele = v.telemetry || {};
+      $("dTitle").textContent = `${v.epassCode || v.name} — ${[v.year, v.make, v.model].filter(Boolean).join(" ") || "vehicle"}`;
+      $("dSub").innerHTML = `${esc(v.name)}${v.plate ? " · " + esc(v.plate) : ""}${v.vin ? " · VIN " + esc(v.vin) : ""}${v.samsaraId ? " · Samsara " + esc(v.samsaraId) : " · not in Samsara"}`;
+      $("dBody").innerHTML = `
+        <div class="panel">
+          <h3>Vehicle</h3>
+          <div class="grid2">
+            <div><label>ePASS / truck code</label><input id="v_epassCode" value="${esc(v.epassCode)}" placeholder="D03" /></div>
+            <div><label>Class</label><select id="v_vehicleClass">${opts(P.classes, v.vehicleClass)}</select></div>
+            <div><label>Capacity points</label><input id="v_capacityPoints" type="number" min="0" step="0.5" value="${v.capacityPoints}" /></div>
+            <div><label>Max crew</label><input id="v_maxCrew" type="number" min="1" value="${v.maxCrew}" /></div>
+            <div><label>Department</label><input id="v_department" value="${esc(v.department)}" placeholder="Delivery / Service / HVAC" /></div>
+            <div><label>Odometer (mi)</label><input id="v_odometerMi" type="number" min="0" value="${v.odometerMi ?? ""}" /><div class="sub">${v.odometerAt ? "read " + ago(v.odometerAt) : "no reading"}</div></div>
+            <div><label>Availability</label><select id="v_availability">${opts(P.availability, v.availability)}</select></div>
+            <div><label>Availability note</label><input id="v_availabilityNote" value="${esc(v.availabilityNote)}" placeholder="At Rush Truck Center until Thu" /></div>
+            <div class="full"><label>Notes</label><textarea id="v_notes">${esc(v.notes)}</textarea></div>
+          </div>
+          <div class="rowline"><button type="button" id="vSave">Save vehicle</button><label style="margin:0;display:flex;gap:6px;align-items:center;font-weight:600;"><input type="checkbox" id="v_active" style="width:auto;" ${v.active ? "checked" : ""}/> Active</label></div>
+          <div id="vStatus" class="status"></div>
+          <h3 style="margin-top:14px;">Live from Samsara</h3>
+          <div class="grid2">
+            <div><span class="sub">Position</span><br>${esc(tele.address || "—")}${tele.gpsAt ? `<div class="sub">${ago(tele.gpsAt)}${tele.speedMph != null ? " · " + Math.round(tele.speedMph) + " mph" : ""}${tele.engineState ? " · " + esc(tele.engineState.toLowerCase()) : ""}</div>` : ""}</div>
+            <div><span class="sub">Driver now</span><br>${esc(tele.driver?.driverName || "—")}</div>
+            <div><span class="sub">Engine hours</span><br>${v.engineHours != null ? num(v.engineHours) : "—"}</div>
+            <div><span class="sub">Fuel</span><br>${v.fuelPct != null ? `<div class="bar" style="margin-top:6px;"><i style="width:${Math.max(2, Math.min(100, v.fuelPct))}%"></i></div>${Math.round(v.fuelPct)}%` : "—"}</div>
+            <div class="full"><span class="sub">Faults</span><br>${tele.checkEngine ? '<span class="pill overdue">check engine on</span> ' : ""}${(tele.faults || []).length ? tele.faults.map((f) => `<div>${esc(f.code)} <span class="sub">${esc(f.description)}</span></div>`).join("") : '<span class="sub">none reported</span>'}</div>
+            <div class="full"><span class="sub">Open DVIR defects</span><br>${ov.defects.length ? ov.defects.map((d) => `<div class="att"><div class="hard">${esc(d.type)}${d.comment ? " — " + esc(d.comment) : ""} <span class="sub">${d.createdAt ? ago(d.createdAt) : ""}</span></div></div>`).join("") : '<span class="sub">none</span>'}</div>
+          </div>
+        </div>
+        <div class="panel">
+          <h3>Service due</h3>
+          <div class="table-scroll"><table><thead><tr><th>Task</th><th>Last</th><th>Next</th><th></th></tr></thead><tbody>
+            ${ov.due.map((d) => `<tr><td>${esc(d.task)}<div class="sub">${[d.intervalMiles ? "every " + num(d.intervalMiles) + " mi" : "", d.intervalMonths ? "every " + d.intervalMonths + " mo" : ""].filter(Boolean).join(" / ")}${d.scope === "vehicle" ? " · this vehicle" : ""}</div></td><td>${d.lastOn ? fmtDate(d.lastOn) : "—"}${d.lastMi != null ? `<div class="sub">${num(d.lastMi)} mi</div>` : ""}</td><td>${d.dueOn ? fmtDate(d.dueOn) : ""}${d.dueMi != null ? `<div class="sub">${num(d.dueMi)} mi${d.milesLeft != null ? " (" + (d.milesLeft >= 0 ? d.milesLeft + " left" : Math.abs(d.milesLeft) + " over") + ")" : ""}</div>` : ""}</td><td>${pill(d.state)}</td></tr>`).join("") || `<tr><td colspan="4" class="empty">No intervals set.</td></tr>`}
+          </tbody></table></div>
+          <h3 style="margin-top:14px;">Renewals</h3>
+          ${ov.renewals.map((r) => `<div style="display:flex;justify-content:space-between;gap:8px;padding:5px 0;border-bottom:1px dashed #eef1f6;font-size:13px;"><div><strong>${esc(r.kind)}</strong> ${fmtDate(r.dueOn)} ${pill(r.state)}${r.notes ? `<div class="sub">${esc(r.notes)}</div>` : ""}</div><button type="button" class="tiny quiet r-del" data-rid="${esc(r.id)}">Remove</button></div>`).join("") || '<div class="sub">No renewals tracked.</div>'}
+          <div class="grid3" style="margin-top:8px;">
+            <div><label>Kind</label><select id="r_kind">${opts(P.renewalKinds, "Registration")}</select></div>
+            <div><label>Due</label><input id="r_dueOn" type="date" /></div>
+            <div><label>Note</label><input id="r_notes" placeholder="policy #, county…" /></div>
+          </div>
+          <div class="rowline"><button type="button" class="secondary" id="rAdd">Add renewal</button></div>
+          <div id="rStatus" class="status"></div>
+          <h3 style="margin-top:14px;">Intervals for this vehicle only</h3>
+          <div class="sub">Fleet-wide intervals apply unless overridden here.</div>
+          ${D.plans.map((p) => `<div style="display:flex;justify-content:space-between;gap:8px;padding:5px 0;border-bottom:1px dashed #eef1f6;font-size:13px;"><div>${esc(p.task)} <span class="sub">${[p.intervalMiles ? num(p.intervalMiles) + " mi" : "", p.intervalMonths ? p.intervalMonths + " mo" : ""].filter(Boolean).join(" / ")}</span></div><button type="button" class="tiny quiet p-del" data-pid="${esc(p.id)}">Remove</button></div>`).join("")}
+          <div class="grid3" style="margin-top:8px;"><div><label>Task</label><input id="p_task" /></div><div><label>Miles</label><input id="p_miles" type="number" min="0" /></div><div><label>Months</label><input id="p_months" type="number" min="0" /></div></div>
+          <div class="rowline"><button type="button" class="secondary" id="pAdd">Add interval</button></div>
+        </div>
+        <div class="panel full">
+          <h3>Log service</h3>
+          <div class="grid3">
+            <div><label>Date</label><input id="s_performedOn" type="date" value="${esc(O.today)}" /></div>
+            <div><label>What was done</label><input id="s_task" list="taskList" placeholder="Oil & filter change" /><datalist id="taskList">${[...new Set([...ov.due.map((d) => d.task), ...O.plans.map((p) => p.task), "Tires", "Brakes", "Battery", "Windshield", "Body repair", "Liftgate", "Inspection", "Registration", "Tow", "Other repair"])].map((t) => `<option value="${esc(t)}">`).join("")}</datalist></div>
+            <div><label>Odometer at service</label><input id="s_odometerMi" type="number" min="0" value="${v.odometerMi ?? ""}" /></div>
+            <div><label>Shop / vendor</label><input id="s_vendor" placeholder="Rush Truck Center" /></div>
+            <div><label>Cost</label><input id="s_cost" type="number" min="0" step="0.01" placeholder="0.00" /></div>
+            <div><label>Paid via</label><select id="s_paidVia">${opts(P.paidVia, "Company card")}</select></div>
+            <div class="full" style="grid-column:span 3;"><label>Scope of work / notes</label><textarea id="s_description" placeholder="What the shop did, parts replaced, anything to watch"></textarea></div>
+            <div><label>Shop invoice (photo)</label><span class="file"><button type="button" class="secondary tiny" id="s_invoiceBtn">Attach invoice image</button><input type="file" id="s_invoice" accept="image/*" /></span><div class="sub" id="s_invoiceName"></div></div>
+            <div style="grid-column:span 2;"><label>Tie to a filed card receipt</label><input id="s_rcq" placeholder="Search by merchant or amount" autocomplete="off" /><div class="rc-results" id="s_rcResults" hidden></div><div class="sub" id="s_rcPicked"></div><input type="hidden" id="s_receiptId" /></div>
+          </div>
+          <div class="rowline"><button type="button" id="sLog">Log it</button></div>
+          <div id="sStatus" class="status"></div>
+          <h3 style="margin-top:14px;">Service history</h3>
+          <div class="table-scroll"><table><thead><tr><th>Date</th><th>Task</th><th>Vendor / scope</th><th class="num">Odometer</th><th class="num">Cost</th><th>Paid</th><th>Docs</th><th></th></tr></thead><tbody>
+            ${D.log.map((l) => `<tr><td>${fmtDate(l.performedOn)}<div class="sub">${esc(l.loggedBy)}</div></td><td><strong>${esc(l.task)}</strong></td><td>${esc(l.vendor)}${l.description ? `<div class="sub">${esc(l.description)}</div>` : ""}</td><td class="num">${l.odometerMi != null ? num(l.odometerMi) : ""}</td><td class="num">${l.cost ? money2(l.cost) : ""}</td><td>${esc(l.paidVia)}${l.receipt ? `<div class="sub">receipt ${money2(l.receipt.amount)} ${esc(l.receipt.merchant)}</div>` : ""}</td><td>${l.invoicePhotoId ? `<a href="/api/fleet/service/${esc(l.id)}/invoice" target="_blank" rel="noopener"><img class="thumb" src="/api/fleet/service/${esc(l.id)}/invoice" alt="Invoice" loading="lazy" /></a>` : ""}${l.receiptId ? ` <a href="/api/card-receipts/${esc(l.receiptId)}/photo" target="_blank" rel="noopener" class="sub">receipt photo</a>` : ""}</td><td><button type="button" class="tiny quiet s-del" data-eid="${esc(l.id)}">Delete</button></td></tr>`).join("") || `<tr><td colspan="8" class="empty">Nothing logged yet.</td></tr>`}
+          </tbody></table></div>
+        </div>`;
+      wireVehicle();
+    }
+    function wireVehicle() {
+      const v = D.vehicle;
+      $("vSave").addEventListener("click", async () => {
+        const body = {}; for (const k of ["epassCode", "vehicleClass", "capacityPoints", "maxCrew", "department", "odometerMi", "availability", "availabilityNote", "notes"]) body[k] = $("v_" + k).value; body.active = $("v_active").checked;
+        try { D = await api(`/api/fleet/vehicles/${v.id}`, { method: "POST", body: JSON.stringify(body) }); await load(); renderVehicle(); setStatus("vStatus", "Saved.", "ok"); } catch (err) { setStatus("vStatus", err.message, "error"); }
+      });
+      $("rAdd").addEventListener("click", async () => { try { await api(`/api/fleet/vehicles/${v.id}/renewals`, { method: "POST", body: JSON.stringify({ kind: $("r_kind").value, dueOn: $("r_dueOn").value, notes: $("r_notes").value }) }); await load(); D = await api(`/api/fleet/vehicles/${v.id}`); renderVehicle(); } catch (err) { setStatus("rStatus", err.message, "error"); } });
+      document.querySelectorAll(".r-del").forEach((b) => b.addEventListener("click", async () => { await api(`/api/fleet/vehicles/${v.id}/renewals/${b.dataset.rid}/delete`, { method: "POST" }); await load(); D = await api(`/api/fleet/vehicles/${v.id}`); renderVehicle(); }));
+      $("pAdd").addEventListener("click", async () => { try { await api(`/api/fleet/plans`, { method: "POST", body: JSON.stringify({ vehicleId: v.id, task: $("p_task").value, intervalMiles: $("p_miles").value, intervalMonths: $("p_months").value }) }); await load(); D = await api(`/api/fleet/vehicles/${v.id}`); renderVehicle(); } catch (err) { setStatus("rStatus", err.message, "error"); } });
+      document.querySelectorAll(".p-del").forEach((b) => b.addEventListener("click", async () => { await api(`/api/fleet/plans/${b.dataset.pid}/delete`, { method: "POST" }); await load(); D = await api(`/api/fleet/vehicles/${v.id}`); renderVehicle(); }));
+      $("s_invoiceBtn").addEventListener("click", () => $("s_invoice").click());
+      $("s_invoice").addEventListener("change", () => { $("s_invoiceName").textContent = $("s_invoice").files[0]?.name || ""; });
+      let rt; $("s_rcq").addEventListener("input", () => { clearTimeout(rt); rt = setTimeout(async () => { const q = $("s_rcq").value.trim(); if (q.length < 2) { $("s_rcResults").hidden = true; return; } const r = await api(`/api/fleet/receipts?q=${encodeURIComponent(q)}`); $("s_rcResults").innerHTML = r.receipts.length ? r.receipts.map((x) => `<div data-id="${esc(x.id)}" data-label="${esc(fmtDate(x.spentOn) + " · " + money2(x.amount) + " · " + (x.merchant || x.purpose))}">${fmtDate(x.spentOn)} · <strong>${money2(x.amount)}</strong> · ${esc(x.merchant || "")} <span class="sub">${esc(x.purpose)} — ${esc(x.filedBy)}</span></div>`).join("") : `<div class="sub">No receipts match.</div>`; $("s_rcResults").hidden = false; }, 250); });
+      $("s_rcResults").addEventListener("click", (ev) => { const d = ev.target.closest("div[data-id]"); if (!d) return; $("s_receiptId").value = d.dataset.id; $("s_rcPicked").textContent = "Tied to: " + d.dataset.label; $("s_rcResults").hidden = true; if (!$("s_cost").value) { const m = /\$([\d,]+\.\d{2})/.exec(d.dataset.label); if (m) $("s_cost").value = m[1].replace(/,/g, ""); } });
+      $("sLog").addEventListener("click", async () => {
+        const form = new FormData();
+        for (const k of ["performedOn", "task", "odometerMi", "vendor", "cost", "paidVia", "description", "receiptId"]) form.append(k, $("s_" + k).value);
+        if ($("s_invoice").files[0]) form.append("invoice", $("s_invoice").files[0]);
+        $("sLog").disabled = true;
+        try { D = await api(`/api/fleet/vehicles/${v.id}/service`, { method: "POST", body: form }); await load(); renderVehicle(); setStatus("sStatus", "Logged.", "ok"); } catch (err) { setStatus("sStatus", err.message, "error"); } finally { $("sLog").disabled = false; }
+      });
+      document.querySelectorAll(".s-del").forEach((b) => b.addEventListener("click", async () => { if (!window.confirm("Delete this service entry?")) return; D = await api(`/api/fleet/vehicles/${v.id}/service/${b.dataset.eid}/delete`, { method: "POST" }); await load(); renderVehicle(); }));
+    }
+
+    // ---- add vehicle / fleet-wide intervals
+    $("addBtn").addEventListener("click", () => {
+      openDrawer(); $("dTitle").textContent = "Add a vehicle"; $("dSub").textContent = "For a truck that isn't in Samsara yet (a trailer, a loaner)."; const P = O.picklists;
+      $("dBody").innerHTML = `<div class="panel full"><div class="grid3">
+        <div><label>Name</label><input id="n_name" placeholder="D07 box truck" /></div><div><label>ePASS code</label><input id="n_epassCode" placeholder="D07" /></div><div><label>Class</label><select id="n_vehicleClass">${opts(P.classes, "BOX_TRUCK")}</select></div>
+        <div><label>Year</label><input id="n_year" /></div><div><label>Make</label><input id="n_make" /></div><div><label>Model</label><input id="n_model" /></div>
+        <div><label>Plate</label><input id="n_plate" /></div><div><label>VIN</label><input id="n_vin" /></div><div><label>Capacity points</label><input id="n_capacityPoints" type="number" min="0" step="0.5" value="0" /></div>
+        <div><label>Max crew</label><input id="n_maxCrew" type="number" min="1" value="2" /></div><div><label>Department</label><input id="n_department" /></div>
+      </div><div class="rowline"><button type="button" id="nCreate">Add vehicle</button></div><div id="nStatus" class="status"></div></div>`;
+      $("nCreate").addEventListener("click", async () => { const b = {}; for (const k of ["name", "epassCode", "vehicleClass", "year", "make", "model", "plate", "vin", "capacityPoints", "maxCrew", "department"]) b[k] = $("n_" + k).value; try { const r = await api("/api/fleet/vehicles", { method: "POST", body: JSON.stringify(b) }); await load(); openVehicle(r.vehicle.id); } catch (err) { setStatus("nStatus", err.message, "error"); } });
+    });
+    $("plansBtn").addEventListener("click", () => {
+      openDrawer(); $("dTitle").textContent = "Fleet-wide service intervals"; $("dSub").textContent = "Apply to every vehicle unless a vehicle has its own interval for the same task.";
+      $("dBody").innerHTML = `<div class="panel full"><div class="table-scroll"><table><thead><tr><th>Task</th><th class="num">Every (mi)</th><th class="num">Every (months)</th><th></th></tr></thead><tbody>${O.plans.map((p) => `<tr><td>${esc(p.task)}</td><td class="num">${p.intervalMiles ? num(p.intervalMiles) : ""}</td><td class="num">${p.intervalMonths || ""}</td><td><button type="button" class="tiny quiet fp-del" data-pid="${esc(p.id)}">Remove</button></td></tr>`).join("")}</tbody></table></div>
+        <div class="grid3" style="margin-top:10px;"><div><label>Task</label><input id="fp_task" /></div><div><label>Miles</label><input id="fp_miles" type="number" min="0" /></div><div><label>Months</label><input id="fp_months" type="number" min="0" /></div></div>
+        <div class="rowline"><button type="button" id="fpAdd">Add interval</button></div><div id="fpStatus" class="status"></div></div>`;
+      $("fpAdd").addEventListener("click", async () => { try { await api("/api/fleet/plans", { method: "POST", body: JSON.stringify({ task: $("fp_task").value, intervalMiles: $("fp_miles").value, intervalMonths: $("fp_months").value }) }); await load(); $("plansBtn").click(); } catch (err) { setStatus("fpStatus", err.message, "error"); } });
+      document.querySelectorAll(".fp-del").forEach((b) => b.addEventListener("click", async () => { await api(`/api/fleet/plans/${b.dataset.pid}/delete`, { method: "POST" }); await load(); $("plansBtn").click(); }));
+    });
+
+    load();
+  </script>
+</body>
+</html>

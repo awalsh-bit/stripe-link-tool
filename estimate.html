@@ -138,8 +138,14 @@
         if (est.status === "shopping") {
           return doneCard("We're on it", "Thanks for letting us know — a Wilson consultant will reach out shortly to talk replacement options.");
         }
+        if (est.status === "comped") {
+          return doneCard("This one's on us", "This estimate is closed — Wilson has taken care of it at no charge.");
+        }
+        if (est.status === "diagnostic") {
+          return doneCard("Thanks for having us out", "This estimate is closed — you chose the diagnostic visit only. If you decide to move forward with the repair, give us a call and we'll pick it right back up.");
+        }
         if (est.status === "elsewhere") {
-          return doneCard("Thanks for letting us know", "We appreciate the feedback. If you change your mind, your <strong>$100 discount toward any purchase over $999</strong> is waiting for you at Wilson — in the showroom or online.");
+          return doneCard("Thanks for letting us know","We appreciate the feedback. If you change your mind, your <strong>$100 discount toward any purchase over $999</strong> is waiting for you at Wilson — in the showroom or online.");
         }
         // What the estimate is FOR — the team's free-text appliance label
         // when present, else the appliance details the work-order scan found.

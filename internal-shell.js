@@ -237,6 +237,7 @@
           { href: "appliance-service-calls.html", title: "Service Request Queue" },
           { href: "service-order-health.html", title: "Service Order Health" },
           { href: "service-estimates.html", title: "Service Estimate Approvals" },
+          { href: "closed-estimates.html", title: "Closed Service Estimates" },
           { href: "shopper-profiles.html", title: "Shopper Profiles" }
         ]
       },
@@ -267,7 +268,8 @@
         children: [
           { href: "dispatch.html", title: "Delivery Dispatch" },
           { href: "driver.html", title: "Driver Run Sheet" },
-          { href: "dispatch-work.html", title: "Dispatch Work" }
+          { href: "dispatch-work.html", title: "Dispatch Work" },
+          { href: "fleet.html", title: "Fleet Management" }
         ]
       },
       {

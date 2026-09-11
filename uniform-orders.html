@@ -59,6 +59,13 @@
       background: #fff; color: var(--text); font-family: inherit;
     }
     td input[type="number"].qty { width: 64px; text-align: center; }
+    .items { display: flex; flex-direction: column; gap: 6px; }
+    .item-row { display: flex; gap: 6px; align-items: center; }
+    .item-row select.type { width: 110px; }
+    .item-row .rm-item { border: none; background: none; color: #94a3b8; cursor: pointer; font-size: 14px; padding: 2px 6px; border-radius: 6px; font-family: inherit; }
+    .item-row .rm-item:hover { background: #f1f5f9; color: #b91c1c; }
+    .add-item { border: none; background: none; color: var(--primary); font-weight: 700; font-size: 12px; cursor: pointer; padding: 2px 0; font-family: inherit; text-align: left; }
+    .add-item:hover { text-decoration: underline; }
     td input[type="text"].shoe { width: 110px; }
     td .blank { border-color: #fcd34d; background: #fffbeb; }
     td .overridden { border-color: var(--primary); box-shadow: 0 0 0 2px rgba(var(--primary-rgb), 0.12); }
@@ -141,8 +148,21 @@
         return {
           code: e.code, name: e.name, department: e.department || "",
           profShirt: e.shirtSize || "", profShoe: e.shoeSize || "",
-          shirt: e.shirtSize || "", shoe: e.shoeSize || "", qty: 1
+          shirt: e.shirtSize || "", shoe: e.shoeSize || "",
+          items: [{ type: "T-Shirt", qty: 1 }]   // up to MAX_ITEMS type/qty pairs
         };
+      }
+      const ITEM_TYPES = ["T-Shirt", "Polo", "Jacket", "Other"];
+      const MAX_ITEMS = 3;
+      const lineQty = (l) => l.items.reduce((sum, it) => sum + (it.qty || 0), 0);
+      function itemsCell(l) {
+        const rows = l.items.map((it, i) => `<div class="item-row">
+            <select class="type" data-type="${esc(l.code)}" data-i="${i}">${ITEM_TYPES.map((t) => `<option value="${esc(t)}"${t === it.type ? " selected" : ""}>${esc(t)}</option>`).join("")}</select>
+            <input type="number" class="qty" min="1" max="99" step="1" data-qty="${esc(l.code)}" data-i="${i}" value="${it.qty}" />
+            ${l.items.length > 1 ? `<button class="rm-item" data-rmitem="${esc(l.code)}" data-i="${i}" title="Remove this item">&times;</button>` : ""}
+          </div>`).join("");
+        const add = l.items.length < MAX_ITEMS ? `<button class="add-item" data-additem="${esc(l.code)}">+ add another type</button>` : "";
+        return `<td><div class="items">${rows}${add}</div></td>`;
       }
       function addEntry(e) {
         if (!order.has(e.code)) order.set(e.code, makeLine(e));
@@ -199,7 +219,7 @@
         if (showShirt) {
           const counts = {};
           let missing = 0;
-          rows.forEach((l) => { l.shirt ? counts[l.shirt] = (counts[l.shirt] || 0) + l.qty : missing++; });
+          rows.forEach((l) => { l.shirt ? counts[l.shirt] = (counts[l.shirt] || 0) + lineQty(l) : missing++; });
           const parts = Object.entries(counts).map(([s, n]) => `<b>${esc(s)}</b>&times;${n}`).join(" &nbsp;");
           if (parts) chips.push(`<span class="tally-chip">Shirts: ${parts}</span>`);
           if (missing) chips.push(`<span class="tally-chip warn">${missing} shirt size${missing === 1 ? "" : "s"} missing</span>`);
@@ -208,8 +228,12 @@
           const missing = rows.filter((l) => !l.shoe).length;
           if (missing) chips.push(`<span class="tally-chip warn">${missing} shoe size${missing === 1 ? "" : "s"} missing</span>`);
         }
-        const pieces = rows.reduce((sum, l) => sum + l.qty, 0);
-        if (rows.length && pieces !== rows.length) chips.unshift(`<span class="tally-chip"><b>${pieces}</b> total sets</span>`);
+        const byType = {};
+        rows.forEach((l) => l.items.forEach((it) => { if (it.type) byType[it.type] = (byType[it.type] || 0) + (it.qty || 0); }));
+        const typeParts = ITEM_TYPES.filter((t) => byType[t]).map((t) => `<b>${esc(t)}</b>&times;${byType[t]}`).join(" &nbsp;");
+        if (typeParts) chips.unshift(`<span class="tally-chip">${typeParts}</span>`);
+        const pieces = rows.reduce((sum, l) => sum + lineQty(l), 0);
+        if (rows.length && pieces !== rows.length) chips.unshift(`<span class="tally-chip"><b>${pieces}</b> total items</span>`);
         $("tally").innerHTML = chips.join("");
         $("missingHint").hidden = !rows.some((l) => ($("showShirt").checked && !l.shirt) || ($("showShoe").checked && !l.shoe));
       }
@@ -232,7 +256,7 @@
         $("orderHost").innerHTML = `
         <table>
           <thead><tr>
-            <th>Name</th><th>Department</th><th>Qty</th>
+            <th>Name</th><th>Department</th><th>Items</th>
             ${showShirt ? "<th>Shirt</th>" : ""}
             ${showShoe ? "<th>Shoe</th>" : ""}
             <th style="width:40px;"></th>
@@ -241,7 +265,7 @@
             ${rows.map((l) => `<tr>
               <td class="who">${esc(l.name)}</td>
               <td class="dept-cell">${esc(l.department || "—")}</td>
-              <td><input type="number" class="qty" min="1" max="99" step="1" data-qty="${esc(l.code)}" value="${l.qty}" /></td>
+              ${itemsCell(l)}
               ${showShirt ? shirtCell(l) : ""}
               ${showShoe ? shoeCell(l) : ""}
               <td><button class="rm-btn" data-rm="${esc(l.code)}" title="Remove from this order">&times;</button></td>
@@ -266,6 +290,22 @@
         if (entry) { addEntry(entry); renderAll(); }
       });
       $("orderHost").addEventListener("click", (ev) => {
+        const add = ev.target.closest("[data-additem]");
+        if (add) {
+          const l = order.get(add.dataset.additem);
+          if (l && l.items.length < MAX_ITEMS) {
+            const used = new Set(l.items.map((it) => it.type));
+            l.items.push({ type: ITEM_TYPES.find((t) => !used.has(t)) || "Other", qty: 1 });
+            renderOrder();
+          }
+          return;
+        }
+        const rmItem = ev.target.closest("[data-rmitem]");
+        if (rmItem) {
+          const l = order.get(rmItem.dataset.rmitem);
+          if (l && l.items.length > 1) { l.items.splice(Number(rmItem.dataset.i), 1); renderOrder(); }
+          return;
+        }
         const btn = ev.target.closest("[data-rm]");
         if (!btn) return;
         order.delete(btn.dataset.rm);
@@ -279,7 +319,8 @@
         const t = ev.target;
         if (t.dataset.qty) {
           const l = order.get(t.dataset.qty);
-          if (l) { l.qty = Math.min(Math.max(Math.round(Number(t.value) || 1), 1), 99); renderTally(); }
+          const it = l && l.items[Number(t.dataset.i)];
+          if (it) { it.qty = Math.min(Math.max(Math.round(Number(t.value) || 1), 1), 99); renderTally(); }
         } else if (t.dataset.shoe) {
           const l = order.get(t.dataset.shoe);
           if (l) {
@@ -295,8 +336,27 @@
         if (t.dataset.shirt) {
           const l = order.get(t.dataset.shirt);
           if (l) { l.shirt = t.value; renderOrder(); }
-        } else if (t.dataset.qty || t.dataset.shoe) {
-          renderOrder(); // normalize the cell + refresh profile hints
+        } else if (t.dataset.type) {
+          const l = order.get(t.dataset.type);
+          const it = l && l.items[Number(t.dataset.i)];
+          if (it) { it.type = t.value; renderTally(); }
+        } else if (t.dataset.qty) {
+          // normalize in place — a full re-render here would swallow the click
+          // the user is making on the next control (blur → change → render)
+          const l = order.get(t.dataset.qty);
+          const it = l && l.items[Number(t.dataset.i)];
+          if (it) t.value = it.qty;
+        } else if (t.dataset.shoe) {
+          const l = order.get(t.dataset.shoe);
+          if (!l) return;
+          t.value = l.shoe;
+          const overridden = Boolean(l.shoe) && l.shoe !== l.profShoe;
+          t.title = overridden ? "Profile: " + (l.profShoe || "not set") : "";
+          let hint = t.parentElement.querySelector(".prof-hint");
+          if (overridden) {
+            if (!hint) { hint = document.createElement("span"); hint.className = "prof-hint"; t.parentElement.appendChild(hint); }
+            hint.textContent = "profile: " + (l.profShoe || "not set");
+          } else if (hint) hint.remove();
         }
       });
       $("clearOrder").addEventListener("click", () => { order.clear(); renderAll(); });
@@ -310,13 +370,14 @@
         const showShirt = $("showShirt").checked;
         const showShoe = $("showShoe").checked;
         const q = (v) => '"' + String(v ?? "").replace(/"/g, '""') + '"';
-        const header = ["Name", "Department", "Qty", ...(showShirt ? ["Shirt Size"] : []), ...(showShoe ? ["Shoe Size"] : [])];
+        // one row per item type so the vendor can pivot by type and size
+        const header = ["Name", "Department", "Type", "Qty", ...(showShirt ? ["Shirt Size"] : []), ...(showShoe ? ["Shoe Size"] : [])];
         const lines = [header.map(q).join(",")];
-        rows.forEach((l) => lines.push([
-          l.name, l.department || "", l.qty,
+        rows.forEach((l) => l.items.forEach((it) => lines.push([
+          l.name, l.department || "", it.type || "", it.qty,
           ...(showShirt ? [l.shirt || ""] : []),
           ...(showShoe ? [l.shoe || ""] : [])
-        ].map(q).join(",")));
+        ].map(q).join(","))));
         const stamp = new Date().toISOString().slice(0, 10);
         const blob = new Blob(["﻿" + lines.join("\r\n")], { type: "text/csv;charset=utf-8;" });
         const a = document.createElement("a");

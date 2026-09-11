@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="robots" content="noindex,nofollow,noarchive" />
+  <title>Wilson AC & Appliance - Closed Service Estimates</title>
+  <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+  <link rel="stylesheet" href="internal-shell.css" />
+  <style>
+    :root {
+      --bg: #f7f8fc; --card: #ffffff; --text: #1f2937; --muted: #6b7280; --border: #dbe1ea;
+      --error-bg: #fef2f2; --error-text: #991b1b; --shadow: 0 10px 35px rgba(0, 0, 0, 0.08); --radius: 18px;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: "Roboto", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: linear-gradient(180deg, var(--primary-tint) 0%, var(--bg) 100%); color: var(--text); min-height: 100vh; padding: 32px 16px; }
+    .wrap { max-width: 1480px; margin: 0 auto; }
+    .surface { background: var(--card); border: 1px solid rgba(var(--primary-rgb), 0.12); box-shadow: var(--shadow); border-radius: var(--radius); padding: 24px; margin: 0 auto 22px; }
+    h2 { margin: 0 0 6px; font-size: 22px; }
+    .section-note { margin: 0 0 16px; color: var(--muted); font-size: 14px; line-height: 1.5; }
+    .section-note a { color: var(--primary); font-weight: 700; }
+    label { display: block; margin-bottom: 6px; font-size: 13px; font-weight: 700; }
+    select { width: 100%; border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; font-size: 14px; background: #fff; color: var(--text); font-family: inherit; }
+    button { appearance: none; border: none; background: var(--primary); color: #fff; padding: 10px 16px; border-radius: 10px; font-size: 14px; font-weight: 700; cursor: pointer; white-space: nowrap; font-family: inherit; }
+    button:hover { background: var(--primary-hover); }
+    button:disabled { opacity: 0.6; cursor: wait; }
+    button.secondary { background: var(--primary-tint); color: var(--primary); }
+    button.secondary:hover { background: var(--primary-tint-2); }
+    button.tiny { padding: 6px 10px; font-size: 12px; border-radius: 8px; }
+    button.quiet { background: #fff; color: #374151; border: 1px solid var(--border); }
+    button.quiet:hover { background: #f8fafc; }
+
+    .toolbar { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; }
+    .toolbar .field { flex: 0 1 240px; }
+    .toolbar .spacer { flex: 1; }
+    .status { display: none; margin: 12px 0 0; border-radius: 12px; padding: 12px 14px; font-size: 14px; }
+    .status.show { display: block; }
+    .status.error { background: var(--error-bg); color: var(--error-text); }
+    .status.ok { background: rgba(var(--primary-rgb), 0.1); color: var(--primary); }
+
+    .summary { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 16px; }
+    .box { background: var(--primary-faint-2, #f6faf6); border: 1px solid var(--border); border-radius: 12px; padding: 10px 16px; font-size: 13px; color: var(--muted); min-width: 150px; cursor: pointer; }
+    .box strong { display: block; font-size: 20px; color: var(--text); font-variant-numeric: tabular-nums; }
+    .box strong small { font-size: 12px; color: var(--muted); font-weight: 700; margin-left: 4px; }
+    .box.grand { background: var(--primary-tint); border-color: rgba(var(--primary-rgb), 0.3); }
+    .box.grand strong { color: var(--primary-hover); }
+    .box:hover { border-color: var(--primary); }
+    .box.on { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(var(--primary-rgb), 0.15); }
+    .box .pct { font-weight: 800; color: var(--text); }
+
+    table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+    th, td { text-align: left; padding: 9px 10px; border-bottom: 1px solid #eef1f6; vertical-align: top; }
+    th { font-size: 11.5px; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; color: #64748b; white-space: nowrap; }
+    td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+    td.nw { white-space: nowrap; }
+    td.notes { max-width: 360px; color: #374151; }
+    .who { color: var(--muted); font-size: 12px; }
+    .muted { color: var(--muted); }
+    .empty { padding: 26px 10px; text-align: center; color: var(--muted); }
+    .table-scroll { overflow-x: auto; }
+    .pill { display: inline-block; border-radius: 999px; font-size: 10.5px; font-weight: 800; padding: 3px 10px; letter-spacing: 0.04em; white-space: nowrap; }
+    .pill.approved { background: rgba(var(--primary-rgb), 0.12); color: var(--primary); }
+    .pill.comped { background: #fce7f3; color: #9d174d; }
+    .pill.shopping { background: #eef2ff; color: #3730a3; }
+    .pill.elsewhere { background: #fef3c7; color: #92400e; }
+    .pill.diagnostic { background: #f3f4f6; color: #374151; }
+    .pill.none { background: #f1f5f9; color: #64748b; }
+
+    @media (max-width: 720px) {
+      body { padding: 14px 8px; }
+      .surface { padding: 16px; }
+      .internal-shell-header-top { flex-wrap: wrap !important; }
+      .toolbar .field { flex: 1 1 100%; }
+      .toolbar button { flex: 1 1 100%; }
+      .box { flex: 1 1 45%; min-width: 0; }
+      .ce-table thead { display: none; }
+      .ce-table, .ce-table tbody, .ce-table tr, .ce-table td { display: block; width: 100%; }
+      .ce-table tbody tr { border: 1px solid var(--border); border-radius: 14px; padding: 10px 12px; margin-bottom: 10px; background: var(--primary-faint-2, #f6faf6); }
+      .ce-table td { border: none; padding: 2px 0; white-space: normal; }
+      .ce-table td.num { text-align: left; }
+      .ce-table td.notes { max-width: none; }
+      .ce-table td[data-l]::before { content: attr(data-l) " "; font-size: 11px; font-weight: 800; letter-spacing: 0.05em; text-transform: uppercase; color: #64748b; }
+    }
+  </style>
+</head>
+<body data-shell-label="Closed Service Estimates" data-shell-icon="service">
+  <div class="wrap">
+    <div id="internal-shell-header"></div>
+
+    <div class="surface">
+      <h2>Closed service estimates</h2>
+      <p class="section-note">Every estimate that's been closed, by the month it was closed, with how it ended — approved, comped, shopping, went elsewhere, diagnostic only, or closed with no response. Click an outcome box to filter the list; Export CSV takes the current month (or everything) for analysis. Open estimates are on <a href="service-estimates.html">Service Estimate Approvals</a>.</p>
+      <div class="toolbar">
+        <div class="field">
+          <label for="monthSelect">Month closed</label>
+          <select id="monthSelect"></select>
+        </div>
+        <div class="spacer"></div>
+        <button type="button" class="secondary" id="csvBtn">Export CSV</button>
+      </div>
+      <div id="pageStatus" class="status"></div>
+      <div class="summary" id="summary"></div>
+    </div>
+
+    <div class="surface">
+      <div class="table-scroll">
+        <table class="ce-table">
+          <thead><tr><th>Closed</th><th>SV #</th><th>Client</th><th class="num">Estimate</th><th>Outcome</th><th>Confirmed</th><th>Notes</th><th>Sent by</th><th class="num">Days open</th><th></th></tr></thead>
+          <tbody id="rows"><tr><td colspan="10" class="empty">Loading…</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div id="internal-shell-footer"></div>
+  </div>
+
+  <script src="internal-shell.js"></script>
+  <script>
+    const MONTH_NAMES = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+    const OUTCOMES = [
+      { key: "approved", label: "Approved" },
+      { key: "comped", label: "Comped" },
+      { key: "shopping", label: "Shopping" },
+      { key: "elsewhere", label: "Went elsewhere" },
+      { key: "diagnostic", label: "Diagnostic only" },
+      { key: "none", label: "No response" }
+    ];
+    const $ = (id) => document.getElementById(id);
+    const money = (n) => "$" + Number(n || 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const esc = (v) => String(v ?? "").replace(/[&<>"']/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch]));
+    const when = (iso) => iso ? new Date(iso).toLocaleString("en-US", { timeZone: "America/Chicago", month: "2-digit", day: "2-digit", year: "2-digit" }) : "—";
+    const fmtMonth = (ym) => { const [y, m] = String(ym).split("-"); return `${MONTH_NAMES[Number(m) - 1] || m} ${y}`; };
+    function setStatus(message, kind) {
+      const box = $("pageStatus");
+      if (!message) { box.className = "status"; box.textContent = ""; return; }
+      box.className = "status " + kind + " show"; box.textContent = message;
+    }
+    function currentMonthCentral() {
+      const parts = new Intl.DateTimeFormat("en-US", { timeZone: "America/Chicago", year: "numeric", month: "2-digit" }).formatToParts(new Date());
+      const g = (t) => parts.find((p) => p.type === t).value;
+      return `${g("year")}-${g("month")}`;
+    }
+
+    const state = { month: new URLSearchParams(location.search).get("month") ?? currentMonthCentral(), data: null, filter: "" };
+
+    function buildMonthPicker(months) {
+      const sel = $("monthSelect");
+      const known = new Map((months || []).map((m) => [m.month, m.count]));
+      if (!known.has(state.month) && /^\d{4}-\d{2}$/.test(state.month)) known.set(state.month, 0);
+      const list = [...known.keys()].sort().reverse();
+      sel.innerHTML = list.map((m) => `<option value="${esc(m)}">${esc(fmtMonth(m))}${known.get(m) ? ` (${known.get(m)})` : ""}</option>`).join("") + `<option value="">All months</option>`;
+      sel.value = state.month;
+    }
+
+    async function load() {
+      setStatus("");
+      try {
+        const res = await fetch(`/api/service-estimates/closed?month=${encodeURIComponent(state.month)}`, { credentials: "same-origin" });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error || "Couldn't load closed estimates.");
+        state.data = data;
+        buildMonthPicker(data.months);
+        renderSummary();
+        renderRows();
+      } catch (err) {
+        setStatus(err.message, "error");
+        $("rows").innerHTML = ""; $("summary").innerHTML = "";
+      }
+    }
+
+    function renderSummary() {
+      const d = state.data; const s = d.summary || { total: 0, counts: {}, dollars: {} };
+      const label = state.month ? fmtMonth(state.month) : "All months";
+      const pct = (n) => s.total ? Math.round((n / s.total) * 1000) / 10 + "%" : "—";
+      const boxes = [`<div class="box grand${state.filter === "" ? " on" : ""}" data-outcome="">${esc(label)}<strong>${s.total}</strong><span class="muted">closed estimate${s.total === 1 ? "" : "s"}</span></div>`];
+      for (const o of OUTCOMES) {
+        const n = s.counts[o.key] || 0;
+        boxes.push(`<div class="box${state.filter === o.key ? " on" : ""}" data-outcome="${o.key}" title="Show only ${esc(o.label)}"><span class="pill ${o.key}">${esc(o.label)}</span><strong>${n}<small class="pct">${pct(n)}</small></strong><span class="muted">${money(s.dollars[o.key] || 0)} estimated</span></div>`);
+      }
+      $("summary").innerHTML = boxes.join("");
+    }
+
+    function confirmedText(r) {
+      if (r.resolvedBy === "staff") return `<div>Staff</div><div class="who">${esc(r.resolverName || "")}</div>`;
+      if (r.resolvedBy === "client") return `<div>Client via link</div><div class="who">${esc(when(r.respondedAt))}</div>`;
+      return `<div class="muted">Closed without a response</div><div class="who">${esc(r.closedByEmail || "")}</div>`;
+    }
+
+    function renderRows() {
+      const all = state.data.estimates || [];
+      const rows = state.filter ? all.filter((r) => r.outcome === state.filter) : all;
+      if (!rows.length) { $("rows").innerHTML = `<tr><td colspan="10" class="empty">${all.length ? "Nothing with that outcome this month." : "No estimates were closed in this month."}</td></tr>`; return; }
+      $("rows").innerHTML = rows.map((r) => {
+        const days = r.createdAt && r.closedAt ? Math.round((new Date(r.closedAt) - new Date(r.createdAt)) / 864e5) : "";
+        return `
+          <tr data-tok="${esc(r.token)}">
+            <td class="nw" data-l="Closed">${esc(when(r.closedAt))}</td>
+            <td class="nw" data-l="SV #"><strong>${esc(r.svNumber || "—")}</strong></td>
+            <td data-l="Client">${esc(r.customerName)}<div class="who">${esc([r.contactPhone, r.contactEmail].filter(Boolean).join(" · "))}</div></td>
+            <td class="num" data-l="Estimate">${r.invoiceTotal == null ? "—" : money(r.invoiceTotal)}${r.paid > 0 ? `<div class="who">${money(r.paid)} paid · ${money(r.amountDue)} due</div>` : ""}</td>
+            <td data-l="Outcome"><span class="pill ${esc(r.outcome)}">${esc(r.outcomeLabel)}</span></td>
+            <td data-l="Confirmed">${confirmedText(r)}</td>
+            <td class="notes" data-l="Notes">${r.notes ? esc(r.notes) : `<span class="muted">—</span>`}</td>
+            <td data-l="Sent by">${esc(r.createdByName || r.createdByEmail || "—")}<div class="who">${esc(when(r.createdAt))}</div></td>
+            <td class="num" data-l="Days open">${days === "" ? "—" : days}</td>
+            <td><button type="button" class="tiny quiet ce-reopen" data-tok="${esc(r.token)}" title="Put it back on the active list — the client link works again">Reopen</button></td>
+          </tr>`;
+      }).join("");
+    }
+
+    $("summary").addEventListener("click", (ev) => {
+      const box = ev.target.closest(".box"); if (!box) return;
+      state.filter = box.dataset.outcome || "";
+      renderSummary(); renderRows();
+    });
+    $("rows").addEventListener("click", async (ev) => {
+      const btn = ev.target.closest(".ce-reopen"); if (!btn) return;
+      btn.disabled = true;
+      try {
+        const res = await fetch("/api/service-estimates/close", { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ token: btn.dataset.tok, closed: false }) });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error || "Couldn't reopen that estimate.");
+        await load();
+        setStatus("Reopened — it's back on Service Estimate Approvals.", "ok");
+      } catch (err) { setStatus(err.message, "error"); btn.disabled = false; }
+    });
+    $("csvBtn").addEventListener("click", () => { window.location.href = `/api/service-estimates/closed.csv?month=${encodeURIComponent(state.month)}`; });
+    $("monthSelect").addEventListener("change", () => {
+      state.month = $("monthSelect").value;
+      state.filter = "";
+      const url = new URL(location.href); url.searchParams.set("month", state.month); history.replaceState(null, "", url);
+      load();
+    });
+
+    $("monthSelect").innerHTML = `<option value="${esc(state.month)}">${state.month ? esc(fmtMonth(state.month)) : "All months"}</option>`;
+    load();
+  </script>
+</body>
+</html>

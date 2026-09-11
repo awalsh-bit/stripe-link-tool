@@ -226,7 +226,12 @@ import {
   lookupKnownClientEmail,
   listStaleSentEstimates,
   markServiceEstimateStaleFlagged,
-  setServiceEstimateClosed
+  setServiceEstimateClosed,
+  resolveServiceEstimate,
+  STAFF_RESOLUTIONS,
+  listClosedServiceEstimates,
+  listClosedEstimateMonths,
+  estimateOutcome
 } from "./lib/service-estimates-postgres.js";
 import { extractSalesInvoiceFromPdf } from "./lib/sales-invoice-scan.js";
 import {
@@ -251,6 +256,11 @@ import {
   DEFAULT_CONFIG as DISPATCH_DEFAULT_CONFIG, getDispatchConfig, saveDispatchConfig, resetDispatchConfig,
   importDispatchTrack, listDispatchWork, getDispatchWork, updateDispatchWork, updateServiceLocation, dispatchSummary
 } from "./lib/dispatch-postgres.js";
+import {
+  AVAILABILITY as FLEET_AVAILABILITY, VEHICLE_CLASSES as FLEET_VEHICLE_CLASSES, RENEWAL_KINDS as FLEET_RENEWAL_KINDS, PAID_VIA as FLEET_PAID_VIA,
+  syncFleetFromSamsara, fleetOverview, getFleetVehicle, createFleetVehicle, updateFleetVehicle, addServiceEntry, deleteServiceEntry, getServiceInvoicePhoto,
+  savePlan, deletePlan, seedDefaultPlansIfEmpty, saveRenewal, deleteRenewal, searchReceiptsForFleet
+} from "./lib/fleet-postgres.js";
 import {
   createDeliveryRun,
   updateDeliveryRun,
@@ -287,6 +297,11 @@ import {
 import {
   samsaraConfigured,
   listVehicles as listSamsaraVehicles,
+  listVehiclesDetailed,
+  getVehicleStatsSnapshot,
+  currentDriverAssignments,
+  listOpenDefects,
+  fuelEnergyByVehicle,
   getVehicleLocation,
   createStopGeofence,
   deleteStopGeofence,
@@ -636,6 +651,7 @@ const INTERNAL_PAGE_PATHS = new Set([
   "/builder-prospects.html",
   "/builder-prospect-manager.html",
   "/dispatch-work.html",
+  "/fleet.html",
   "/hr-phone-screen.html",
   "/hr-candidates.html",
   "/uniform-orders.html",
@@ -654,6 +670,7 @@ const INTERNAL_PAGE_PATHS = new Set([
   "/quote-follow-up.html",
   "/epass-uploads.html",
   "/service-estimates.html",
+  "/closed-estimates.html",
   "/service-order-health.html",
   "/terms-signatures.html",
   "/flag-closures.html",
@@ -785,6 +802,7 @@ const JOB_CODE_PRESETS = {
       "/appliance-service-calls.html",
       "/archive-service-calls.html",
       "/service-estimates.html",
+      "/closed-estimates.html",
       "/service-order-health.html",
       "/shopper-profiles.html",
       "/intent-lookup.html",
@@ -869,6 +887,7 @@ const PAGE_LABELS = {
   "/builder-prospects.html": "Builder Prospect List",
   "/builder-prospect-manager.html": "Builder Prospect Manager",
   "/dispatch-work.html": "Dispatch Work",
+  "/fleet.html": "Fleet Management",
   "/hr-phone-screen.html": "Phone Screen",
   "/hr-candidates.html": "Candidates",
   "/uniform-orders.html": "Uniform Ordering",
@@ -886,6 +905,7 @@ const PAGE_LABELS = {
   "/quote-follow-up.html": "Quote Follow-Up",
   "/epass-uploads.html": "ePASS Upload Center",
   "/service-estimates.html": "Service Estimate Approvals",
+  "/closed-estimates.html": "Closed Service Estimates",
   "/terms-signatures.html": "Terms & Conditions Signatures",
   "/service-order-health.html": "Service Order Health",
   "/flag-closures.html": "Notification Closure Report",
@@ -990,6 +1010,7 @@ const PAGE_CATEGORIES = [
       "/appliance-service-calls.html",
       "/archive-service-calls.html",
       "/service-estimates.html",
+      "/closed-estimates.html",
       "/service-order-health.html",
       "/shopper-profiles.html",
       "/intent-lookup.html",
@@ -1000,7 +1021,7 @@ const PAGE_CATEGORIES = [
   {
     key: "delivery",
     label: "Delivery",
-    pages: ["/dispatch-work.html", "/dispatch.html", "/driver.html"]
+    pages: ["/dispatch-work.html", "/fleet.html", "/dispatch.html", "/driver.html"]
   },
   {
     key: "installation",
@@ -1294,9 +1315,19 @@ function buildSessionUser(user) {
 //   accessGroup: legacy group key, or "executive"/"member" for db users
 //   grantedPages: string[] — effective page grants (db users; empty until an
 //                 executive assigns pages)
+// Pages that ride on another page's grant: anyone who can work the active
+// estimate list can see the closed ones (still grantable on its own).
+const PAGE_IMPLIED_BY = {
+  "/closed-estimates.html": "/service-estimates.html"
+};
+
 function canAccessPathForUser(user, pathname) {
   if (!user) {
     return false;
+  }
+
+  if (PAGE_IMPLIED_BY[pathname] && canAccessPathForUser(user, PAGE_IMPLIED_BY[pathname])) {
+    return true;
   }
 
   if (AUTH_PAGE_PATHS.has(pathname)) {
@@ -4984,6 +5015,104 @@ app.post("/api/dispatch/config/:key", requireExecutiveApi, async (req, res) => {
   }
 });
 
+// ---------------------------------------------------------------------------
+// Fleet Management (fleet.html). Agility keeps the maintenance record;
+// Samsara supplies odometer, hours, fuel, position, drivers, defects and
+// fault codes. Page grant = the fleet owner; executives implicitly.
+// ---------------------------------------------------------------------------
+const fleetInvoiceUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 12 * 1024 * 1024, files: 1 } });
+const requireFleet = requirePagePermission("/fleet.html");
+const fleetMe = (req) => String(req.authUser?.email || req.authUser?.username || "").toLowerCase();
+const fleetAudit = (req, action, detail) => recordAudit({ ip: req.ip, actorUserId: req.authUser?.kind === "db" ? req.authUser.id : null, action, targetUserId: null, detail }).catch(() => {});
+const fleetSamsara = { listVehiclesDetailed, getVehicleStatsSnapshot, currentDriverAssignments, listOpenDefects, fuelEnergyByVehicle };
+
+app.get("/api/fleet/overview", requireFleet, async (req, res) => {
+  try {
+    await seedDefaultPlansIfEmpty();
+    const today = new Date().toLocaleDateString("en-CA", { timeZone: APP_TIMEZONE });
+    const overview = await fleetOverview({ today });
+    return res.json({ ...overview, samsara: samsaraConfigured(), picklists: { availability: FLEET_AVAILABILITY, classes: FLEET_VEHICLE_CLASSES, renewalKinds: FLEET_RENEWAL_KINDS, paidVia: FLEET_PAID_VIA }, canEdit: true });
+  } catch (err) {
+    console.error("Fleet overview failed:", err.message);
+    return res.status(500).json({ error: "Unable to load the fleet." });
+  }
+});
+
+app.post("/api/fleet/sync", requireFleet, async (req, res) => {
+  try {
+    if (!samsaraConfigured()) return res.status(400).json({ error: "Samsara isn't connected yet (SAMSARA_API_TOKEN)." });
+    const result = await syncFleetFromSamsara(fleetSamsara);
+    fleetAudit(req, "fleet_synced", result);
+    return res.json({ ok: true, ...result });
+  } catch (err) {
+    console.error("Fleet sync failed:", err.message);
+    return res.status(500).json({ error: `Sync failed: ${err.message}` });
+  }
+});
+
+app.post("/api/fleet/vehicles", requireFleet, async (req, res) => {
+  try {
+    const v = await createFleetVehicle(req.body || {}, fleetMe(req));
+    fleetAudit(req, "fleet_vehicle_added", { id: v.vehicle.id, name: v.vehicle.name });
+    return res.json({ ok: true, ...v });
+  } catch (err) { return res.status(400).json({ error: err.message || "Unable to add the vehicle." }); }
+});
+app.get("/api/fleet/vehicles/:id", requireFleet, async (req, res) => {
+  try { const v = await getFleetVehicle(req.params.id); if (!v) return res.status(404).json({ error: "Vehicle not found." }); return res.json(v); }
+  catch (err) { return res.status(500).json({ error: "Unable to load the vehicle." }); }
+});
+app.post("/api/fleet/vehicles/:id", requireFleet, async (req, res) => {
+  try {
+    const v = await updateFleetVehicle(req.params.id, req.body || {}, fleetMe(req));
+    if (!v) return res.status(404).json({ error: "Vehicle not found." });
+    fleetAudit(req, "fleet_vehicle_updated", { id: req.params.id, fields: Object.keys(req.body || {}), availability: req.body?.availability });
+    return res.json({ ok: true, ...v });
+  } catch (err) { return res.status(400).json({ error: err.message || "Unable to save." }); }
+});
+
+// Service log: multipart (fields + optional "invoice" image).
+app.post("/api/fleet/vehicles/:id/service", requireFleet, (req, res) => {
+  fleetInvoiceUpload.single("invoice")(req, res, async (err) => {
+    if (err) return res.status(400).json({ error: err.code === "LIMIT_FILE_SIZE" ? "That invoice image is larger than 12 MB." : "Couldn't read the upload." });
+    try {
+      const file = req.file && String(req.file.mimetype || "").startsWith("image/") ? { buffer: req.file.buffer, contentType: req.file.mimetype } : null;
+      if (req.file && !file) return res.status(415).json({ error: "The invoice must be an image (photo or screenshot)." });
+      const v = await addServiceEntry(req.params.id, req.body || {}, { byEmail: fleetMe(req), invoice: file });
+      fleetAudit(req, "fleet_service_logged", { vehicleId: req.params.id, task: req.body?.task, cost: req.body?.cost, paidVia: req.body?.paidVia, receiptId: req.body?.receiptId || "" });
+      return res.json({ ok: true, ...v });
+    } catch (error) { return res.status(400).json({ error: error.message || "Unable to log the service." }); }
+  });
+});
+app.post("/api/fleet/vehicles/:id/service/:entryId/delete", requireFleet, async (req, res) => {
+  try { const v = await deleteServiceEntry(req.params.id, req.params.entryId); fleetAudit(req, "fleet_service_deleted", { vehicleId: req.params.id, entryId: req.params.entryId }); return res.json({ ok: true, ...v }); }
+  catch (err) { return res.status(500).json({ error: "Unable to delete." }); }
+});
+app.get("/api/fleet/service/:entryId/invoice", requireFleet, async (req, res) => {
+  try {
+    const photo = await getServiceInvoicePhoto(req.params.entryId);
+    if (!photo) return res.status(404).json({ error: "No invoice on this entry." });
+    res.setHeader("Content-Type", photo.contentType || "image/jpeg");
+    res.setHeader("Cache-Control", "private, max-age=86400");
+    return res.send(photo.bytes);
+  } catch (err) { return res.status(500).json({ error: "Unable to load the invoice." }); }
+});
+
+app.post("/api/fleet/plans", requireFleet, async (req, res) => {
+  try { await savePlan(req.body || {}); return res.json({ ok: true }); } catch (err) { return res.status(400).json({ error: err.message }); }
+});
+app.post("/api/fleet/plans/:id/delete", requireFleet, async (req, res) => {
+  try { await deletePlan(req.params.id); return res.json({ ok: true }); } catch (err) { return res.status(500).json({ error: "Unable to delete." }); }
+});
+app.post("/api/fleet/vehicles/:id/renewals", requireFleet, async (req, res) => {
+  try { await saveRenewal({ ...(req.body || {}), vehicleId: req.params.id }); return res.json({ ok: true }); } catch (err) { return res.status(400).json({ error: err.message }); }
+});
+app.post("/api/fleet/vehicles/:id/renewals/:rid/delete", requireFleet, async (req, res) => {
+  try { await deleteRenewal(req.params.id, req.params.rid); return res.json({ ok: true }); } catch (err) { return res.status(500).json({ error: "Unable to delete." }); }
+});
+app.get("/api/fleet/receipts", requireFleet, async (req, res) => {
+  try { return res.json({ receipts: await searchReceiptsForFleet(String(req.query.q || "").slice(0, 80)) }); } catch (err) { return res.status(500).json({ error: "Unable to search receipts." }); }
+});
+
 // Serve the employee directory from Postgres (editable in User Admin).
 // Registered BEFORE express.static so it shadows the legacy static file,
 // which remains the fallback when the database is unreachable.
@@ -6549,7 +6678,7 @@ app.post("/api/payment-links/scan", requirePagePermission("/index.html"), (req, 
     }
     try {
       if (!req.file?.buffer?.length) return res.status(400).json({ error: "Attach the ePASS sales order PDF." });
-      const summary = extractSalesInvoiceFromPdf(req.file.buffer);
+      const summary = await extractSalesInvoiceFromPdf(req.file.buffer);
       let knownEmail = null;
       try {
         knownEmail = await lookupKnownClientEmail({ phone: summary.phone, customerNumber: summary.customerNumber });
@@ -6573,7 +6702,7 @@ app.post("/api/service-estimates/scan", requirePagePermission("/service-estimate
     }
     try {
       if (!req.file?.buffer?.length) return res.status(400).json({ error: "Attach the ePASS service quote PDF." });
-      const summary = extractServiceEstimateFromPdf(req.file.buffer);
+      const summary = await extractServiceEstimateFromPdf(req.file.buffer);
       // If the phone (or account number) matches a shopper we already know,
       // offer the email as a prefill — never auto-sent, always editable.
       let knownEmail = null;
@@ -7001,7 +7130,7 @@ function retireEstimateFlags(token) {
 // Close (or reopen) an estimate from the internal list. Closed estimates
 // leave the active table, stop accepting client responses, are skipped
 // by the not-viewed sweep — and their dashboard flags retire with them.
-app.post("/api/service-estimates/close", requirePagePermission("/service-estimates.html"), async (req, res) => {
+app.post("/api/service-estimates/close", requirePagePermission("/service-estimates.html", "/closed-estimates.html"), async (req, res) => {
   try {
     const token = String(req.body?.token || "").slice(0, 60);
     const closed = req.body?.closed !== false;
@@ -7017,6 +7146,50 @@ app.post("/api/service-estimates/close", requirePagePermission("/service-estimat
   } catch (err) {
     console.error("Service estimate close failed:", err.message);
     return res.status(500).json({ error: "Unable to update that estimate." });
+  }
+});
+
+// Resolve a Sent / Viewed estimate from the office: the client answered by
+// phone or Podium text. Final status + a required note, then closed. An
+// approval leaves the same internal Podium note the client path leaves, so
+// the thread reads the same either way; no customer contact is sent.
+app.post("/api/service-estimates/resolve", requirePagePermission("/service-estimates.html"), async (req, res) => {
+  try {
+    const token = String(req.body?.token || "").slice(0, 60);
+    const status = String(req.body?.status || "");
+    if (!STAFF_RESOLUTIONS.includes(status)) return res.status(400).json({ error: "Choose Approved, Comped, Shopping, or Diagnostic only." });
+    const existing = await getServiceEstimateByToken(token);
+    if (!existing) return res.status(404).json({ error: "Estimate not found." });
+    if (!["sent", "viewed"].includes(existing.status)) return res.status(409).json({ error: `This estimate is already ${existing.status} — close it directly.` });
+    const estimate = await resolveServiceEstimate(token, { status, notes: req.body?.notes, byEmail: req.authUser?.email || req.authUser?.username || "", byName: req.authUser?.displayName || "" });
+    if (!estimate) return res.status(409).json({ error: "This estimate was answered while you were looking at it — reload the list." });
+    retireEstimateFlags(token);
+    recordAudit({
+      ip: req.ip, actorUserId: req.authUser?.id || null,
+      action: `service_estimate_resolved_${status}`, targetUserId: null,
+      detail: { svNumber: estimate.svNumber, customerName: estimate.customerName, notes: String(req.body?.notes || "").slice(0, 300), total: estimate.summary?.invoiceTotal }
+    }).catch(() => {});
+    if (status === "approved") {
+      (async () => {
+        if (!podiumOAuthConfigured() || !(await podiumConnected())) return;
+        const digits = String(estimate.contactPhone || "").replace(/\D/g, "");
+        if (!(digits.length === 10 || (digits.length === 11 && digits.startsWith("1")))) return;
+        const convo = await podiumFindConversationByPhone(digits.length === 11 ? digits.slice(1) : digits);
+        if (!convo) return;
+        await podiumAddConversationNote(
+          convo.uid,
+          `${estimate.customerName || "Client"} approved repair estimate${estimate.svNumber ? ` ${estimate.svNumber}` : ""} — ${estimateMoneyText(estimate.summary)} (confirmed by ${req.authUser?.displayName || "the office"}: ${String(req.body?.notes || "").slice(0, 200)}). Schedule the repair.`,
+          "Agility"
+        );
+      })().catch((noteErr) => console.error("Estimate-resolved Podium note failed:", noteErr.message));
+    } else if (status === "shopping") {
+      // Same showroom lead as when the client picks "shopping" on the link —
+      // consultants get the DIBS flag and it lands on the Quote Follow-Up board.
+      fanOutServiceShoppingLead(estimate, { ip: req.ip }).catch((e) => console.error("Resolved-shopping lead fan-out failed:", e.message));
+    }
+    return res.json({ ok: true, estimate });
+  } catch (err) {
+    return res.status(400).json({ error: err.message || "Unable to resolve that estimate." });
   }
 });
 
@@ -7037,7 +7210,7 @@ function withLiveEta(estimate) {
   if (estimate.summary.amountDue == null) estimate = { ...estimate, summary: settleBalance({ ...estimate.summary }) };
   const eta = estimate.summary.eta;
   if (!eta || !eta.mode) return estimate;
-  const responded = ["approved", "shopping", "elsewhere"].includes(estimate.status) && estimate.respondedAt ? centralDateOf(estimate.respondedAt) : "";
+  const responded = estimate.respondedAt ? centralDateOf(estimate.respondedAt) : "";
   const live = liveEta(eta, responded || undefined);
   return { ...estimate, summary: { ...estimate.summary, eta: live, etaMessage: etaMessage(live) } };
 }
@@ -7051,13 +7224,72 @@ app.get("/api/service-estimates", requirePagePermission("/service-estimates.html
   }
 });
 
+// Closed estimates (closed-estimates.html): one month at a time or all,
+// with outcome counts for the approve / comp / shop mix, plus a CSV.
+const ESTIMATE_OUTCOME_ORDER = ["approved", "comped", "shopping", "elsewhere", "diagnostic", "none"];
+function closedEstimateRow(estimate) {
+  const o = estimateOutcome(estimate);
+  const sm = estimate.summary || {};
+  const s = settleBalance({ ...sm });
+  // Stored paid/amountDue win (set at scan time); settleBalance fills older rows.
+  return { ...estimate, ...o, invoiceTotal: s.invoiceTotal ?? null, paid: sm.paid != null ? Number(sm.paid) : (s.paid || 0), amountDue: sm.amountDue != null ? Number(sm.amountDue) : (s.amountDue ?? null) };
+}
+function closedEstimatesCsv(rows) {
+  const cell = (v) => { const t = v == null ? "" : String(v); return /[",\r\n]/.test(t) ? `"${t.replace(/"/g, '""')}"` : t; };
+  const local = (iso) => iso ? new Date(iso).toLocaleString("en-US", { timeZone: APP_TIMEZONE, year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false }) : "";
+  const monthOf = (iso) => iso ? new Date(iso).toLocaleDateString("en-CA", { timeZone: APP_TIMEZONE }).slice(0, 7) : "";
+  const days = (a, b) => a && b ? Math.round((new Date(b) - new Date(a)) / 864e5 * 10) / 10 : "";
+  const head = ["closed_month", "closed_at", "sv_number", "customer_name", "customer_number", "phone", "email", "brand", "product", "model", "invoice_total", "already_paid", "amount_due", "outcome", "resolved_by", "resolver", "notes", "created_at", "created_by", "emailed_at", "viewed_at", "responded_at", "days_open", "closed_by"];
+  const lines = [head.join(",")];
+  for (const r of rows) {
+    const sm = r.summary || {};
+    lines.push([
+      monthOf(r.closedAt), local(r.closedAt), r.svNumber, r.customerName, r.customerNumber, r.contactPhone, r.contactEmail,
+      sm.brand || "", sm.product || "", sm.model || "",
+      r.invoiceTotal == null ? "" : Number(r.invoiceTotal).toFixed(2), Number(r.paid || 0).toFixed(2), r.amountDue == null ? "" : Number(r.amountDue).toFixed(2),
+      r.outcomeLabel, r.resolvedBy, r.resolverName, r.notes,
+      local(r.createdAt), r.createdByName || r.createdByEmail || "", local(r.emailedAt), local(r.viewedAt), local(r.respondedAt), days(r.createdAt, r.closedAt), r.closedByEmail || ""
+    ].map(cell).join(","));
+  }
+  return "\uFEFF" + lines.join("\r\n") + "\r\n";
+}
+const closedMonthParam = (req) => (/^\d{4}-\d{2}$/.test(String(req.query.month || "")) ? String(req.query.month) : "");
+
+app.get("/api/service-estimates/closed", requirePagePermission("/closed-estimates.html"), async (req, res) => {
+  try {
+    const month = closedMonthParam(req);
+    const [estimates, months] = await Promise.all([listClosedServiceEstimates({ month, timeZone: APP_TIMEZONE }), listClosedEstimateMonths(APP_TIMEZONE)]);
+    const rows = estimates.map(closedEstimateRow);
+    const counts = Object.fromEntries(ESTIMATE_OUTCOME_ORDER.map((k) => [k, 0]));
+    const dollars = Object.fromEntries(ESTIMATE_OUTCOME_ORDER.map((k) => [k, 0]));
+    for (const r of rows) { counts[r.outcome] = (counts[r.outcome] || 0) + 1; dollars[r.outcome] = (dollars[r.outcome] || 0) + Number(r.invoiceTotal || 0); }
+    return res.json({ month, months, estimates: rows, summary: { total: rows.length, counts, dollars }, publicHost: SERVICE_PUBLIC_HOST });
+  } catch (err) {
+    console.error("Closed estimate list failed:", err.message);
+    return res.status(500).json({ error: "Unable to load closed estimates." });
+  }
+});
+app.get("/api/service-estimates/closed.csv", requirePagePermission("/closed-estimates.html"), async (req, res) => {
+  try {
+    const month = closedMonthParam(req);
+    const rows = (await listClosedServiceEstimates({ month, timeZone: APP_TIMEZONE })).map(closedEstimateRow);
+    res.setHeader("Content-Type", "text/csv; charset=utf-8");
+    res.setHeader("Content-Disposition", `attachment; filename="closed-estimates-${month || "all"}.csv"`);
+    res.setHeader("Cache-Control", "no-store");
+    return res.send(closedEstimatesCsv(rows));
+  } catch (err) {
+    console.error("Closed estimate CSV failed:", err.message);
+    return res.status(500).json({ error: "Unable to export." });
+  }
+});
+
 // PUBLIC: the client's view of one estimate (marks it viewed).
 app.post("/api/estimate/view", async (req, res) => {
   try {
     const token = String(req.body?.token || "").slice(0, 60);
     const estimate = withLiveEta(await getServiceEstimateByToken(token));
     if (!estimate) return res.status(404).json({ error: "This estimate link isn't valid — call us at 512-894-0907 and we'll get you a fresh one." });
-    if (estimate.closedAt && !["approved", "shopping", "elsewhere"].includes(estimate.status)) {
+    if (estimate.closedAt && !["approved", "shopping", "elsewhere", "diagnostic", "comped"].includes(estimate.status)) {
       return res.status(410).json({ error: "This estimate is no longer active — call or text us at 512-894-0907 and we'll get you a current one." });
     }
     if (estimate.status === "sent") await markServiceEstimateViewed(token);
@@ -7113,7 +7345,7 @@ app.post("/api/estimate/respond", async (req, res) => {
     if (!["approve", "shop", "elsewhere"].includes(choice)) return res.status(400).json({ error: "Choose an option." });
     const existing = await getServiceEstimateByToken(token);
     if (!existing) return res.status(404).json({ error: "This estimate link isn't valid." });
-    if (["approved", "shopping", "elsewhere"].includes(existing.status)) {
+    if (["approved", "shopping", "elsewhere", "diagnostic", "comped"].includes(existing.status)) {
       return res.json({ ok: true, status: existing.status, alreadyResponded: true });
     }
     if (existing.closedAt) {
@@ -7214,203 +7446,7 @@ app.post("/api/estimate/respond", async (req, res) => {
         }
       }
     } else {
-      // Showroom lead — same fan-out as new web orders (notify-title
-      // consultants get the green flag + a claim email with the details).
-      const r = estimate.response || {};
-      const s = estimate.summary || {};
-      const directionText = { similar: "wants something similar to their current unit", new: "open to trying something new", unsure: "not sure yet — wants help deciding" }[r.productDirection] || "";
-      const visitText = { visit: "wants to schedule a showroom visit", contact: "wants a call/text first", info: "just wants info sent over" }[r.visit] || "";
-      const prefText = { call: "PREFERS A CALL", text: "PREFERS TEXT", email: "PREFERS EMAIL" }[estimate.contactPref] || "";
-      const applianceText = [[s.brand, s.product].filter(Boolean).join(" "), s.model ? `Model ${s.model}` : "", s.serial ? `Serial ${s.serial}` : ""].filter(Boolean).join(" · ");
-      const detailBits = [directionText, visitText, r.notes ? `Notes: ${r.notes}` : ""].filter(Boolean).join(" · ");
-
-      // Tell the Client Care rep who sent the estimate (flag + email) —
-      // their repair isn't happening; the client elected to go shopping.
-      if (estimate.createdByEmail) {
-        createPushedNotification({
-          severity: "green",
-          typeLabel: "Estimate — Client Shopping",
-          refId: `svshop:${estimate.token}`,
-          title: `${estimate.customerName} elected to shop for a replacement (${estimate.svNumber || "service"})`,
-          body: `The repair estimate wasn't approved — the showroom team has the lead. ${detailBits || "No preferences given."}`,
-          audienceEmail: estimate.createdByEmail,
-          byEmail: "service-estimates",
-          byName: "Estimate Approvals"
-        }).catch(() => {});
-        if (RESEND_API_KEY) {
-          fetch("https://api.resend.com/emails", {
-            method: "POST",
-            headers: { "Authorization": `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" },
-            body: JSON.stringify({
-              from: AGILITY_ALERTS_FROM,
-              to: [estimate.createdByEmail],
-              subject: `Client shopping instead — ${estimate.customerName} (${estimate.svNumber || "service"})`,
-              text: [
-                `${estimate.customerName} elected to shop for a replacement instead of approving service estimate ${estimate.svNumber || ""} ($${Number(estimate.summary?.invoiceTotal || 0).toFixed(2)} repair).`,
-                detailBits ? `Their preferences: ${detailBits}` : "",
-                "The showroom team has been notified and will claim the lead — no action needed on the repair."
-              ].filter(Boolean).join("\n")
-            })
-          }).catch((e) => console.error("Estimate-shopping creator email failed:", e.message));
-        }
-      }
-      try {
-        const [directory, notifyNames] = await Promise.all([listEmployeeDirectory(), listNotifyTitleNames()]);
-
-        // Existing-business check (Andrew, 2026-09-02): a client who already
-        // has an open quote or open sales order with us isn't a floor lead —
-        // it's that rep's client. Route the lead straight to them (flag +
-        // email, stamped as theirs on the Quote Follow-Up board) and skip
-        // the DIBS fan-out. If the business exists but its rep can't be
-        // matched to the directory, fall back to fan-out with a warning.
-        let existingOwner = null;
-        let existingRef = "";
-        try {
-          const [openQuotes, openOrders] = await Promise.all([
-            listOpenQuotesForCustomer(estimate.customerNumber),
-            listOpenOrdersForCustomer(estimate.customerNumber)
-          ]);
-          const normName = (n) => String(n || "").toUpperCase().replace(/[\s ]+/g, " ").trim();
-          const active = directory.filter((e) => !e.archived && String(e.email || "").trim());
-          if (openQuotes[0]) {
-            const q = openQuotes[0];
-            existingRef = `open quote ${q.quoteNumber}${q.dateCreated ? ` (${q.dateCreated})` : ""}${q.spCode ? ` — rep ${q.spCode}` : ""}`;
-            existingOwner = active.find((e) => e.code === String(q.spCode || "").toUpperCase()) || null;
-          } else if (openOrders[0]) {
-            const o = openOrders[0];
-            existingRef = `open sales order ${o.invoice}${o.salesperson ? ` — ${o.salesperson}` : ""}`;
-            existingOwner = active.find((e) => normName(e.name) === normName(o.salesperson)) || null;
-          }
-        } catch (checkErr) {
-          console.error("Service lead existing-business check skipped:", checkErr.message);
-        }
-
-        if (existingOwner) {
-          const contactLine = `Contact: ${[estimate.contactPhone, estimate.contactEmail].filter(Boolean).join(" / ") || "see estimate record"}${prefText ? ` — ${prefText}` : ""}.`;
-          await createPushedNotification({
-            severity: "green",
-            typeLabel: "Service Client Lead — Your Client",
-            refId: `svlead:${estimate.token}`,
-            claimable: false,
-            title: `${estimate.customerName} — replacing instead of repairing (${estimate.svNumber || "service"}) · your client`,
-            body: [
-              `Already has ${existingRef} with you, so this came straight to you — no DIBS went to the floor.`,
-              applianceText ? `Replacing: ${applianceText}.` : "",
-              `${detailBits || "No preferences given."}`,
-              contactLine
-            ].filter(Boolean).join(" "),
-            audienceEmail: existingOwner.email,
-            byEmail: "service-estimates",
-            byName: "Estimate Approvals"
-          }).catch(() => {});
-          upsertServiceLeadQuote({
-            token: estimate.token,
-            svNumber: estimate.svNumber,
-            customerName: estimate.customerName,
-            phone: estimate.contactPhone,
-            applianceText,
-            estimateTotal: estimate.summary?.invoiceTotal || 0
-          }).then(() => setServiceLeadQuoteOwner(estimate.token, existingOwner.code))
-            .catch((err) => console.error("Service lead → follow-up board failed:", err.message));
-          if (RESEND_API_KEY) {
-            fetch("https://api.resend.com/emails", {
-              method: "POST",
-              headers: { "Authorization": `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" },
-              body: JSON.stringify({
-                from: AGILITY_ALERTS_FROM,
-                to: [existingOwner.email],
-                subject: `Your client ${estimate.customerName} is shopping for a replacement`,
-                text: [
-                  `${estimate.customerName} declined repair estimate ${estimate.svNumber || ""} and chose to shop for a replacement.`,
-                  `They already have ${existingRef} with you, so this lead is yours — it was NOT sent to the floor as DIBS.`,
-                  applianceText ? `Current appliance: ${applianceText}` : null,
-                  detailBits ? `Their preferences: ${detailBits}` : null,
-                  contactLine,
-                  "",
-                  `It's on your Quote Follow-Up board: https://${DASHBOARD_HOST}/quote-follow-up.html`
-                ].filter((l) => l !== null).join("\n")
-              })
-            }).catch((e) => console.error("Existing-client lead email failed:", e.message));
-          }
-          recordAudit({
-            ip: req.ip, actorUserId: null,
-            action: "service_lead_routed_existing", targetUserId: null,
-            detail: { svNumber: estimate.svNumber, customerName: estimate.customerName, customerNumber: estimate.customerNumber, existingRef, routedTo: existingOwner.email }
-          }).catch(() => {});
-          return res.json({ ok: true, status: estimate.status });
-        }
-
-        const notifySet = new Set(notifyNames.map((n) => n.trim().toLowerCase()));
-        const consultants = directory.filter((entry) =>
-          !entry.archived &&
-          notifySet.has(String(entry.commissionPlan || "").trim().toLowerCase()) &&
-          String(entry.email || "").trim()
-        );
-        for (const consultant of consultants) {
-          await createPushedNotification({
-            severity: "green",
-            typeLabel: "Service Client Lead",
-            refId: `svlead:${estimate.token}`,
-            claimable: true,
-            title: `${estimate.customerName} — replacing instead of repairing (${estimate.svNumber || "service"})`,
-            body: [
-              existingRef ? `HEADS UP: already has ${existingRef} — check before quoting.` : "",
-              applianceText ? `Replacing: ${applianceText}.` : "",
-              `${detailBits || "No preferences given."}`,
-              `Contact: ${[estimate.contactPhone, estimate.contactEmail].filter(Boolean).join(" / ") || "see estimate record"}${prefText ? ` — ${prefText}` : ""}.`
-            ].filter(Boolean).join(" "),
-            audienceEmail: consultant.email,
-            byEmail: "service-estimates",
-            byName: "Estimate Approvals"
-          }).catch(() => {});
-        }
-
-        // Every service lead is an opportunity on the Quote Follow-Up board
-        // (Andrew, 2026-08-27) — the flag is just the doorbell. Ownership is
-        // stamped at DIBS; conversion is any sales order for the same
-        // customer name within 30 days.
-        upsertServiceLeadQuote({
-          token: estimate.token,
-          svNumber: estimate.svNumber,
-          customerName: estimate.customerName,
-          phone: estimate.contactPhone,
-          applianceText,
-          estimateTotal: estimate.summary?.invoiceTotal || 0
-        }).catch((err) => console.error("Service lead → follow-up board failed:", err.message));
-        if (RESEND_API_KEY && consultants.length) {
-          // From-name per the sales team's ask; same verified send address.
-          const notifyAddr = (AGILITY_ALERTS_FROM.match(/<([^>]+)>/) || [null, AGILITY_ALERTS_FROM])[1];
-          const leadFrom = `New Lead Available on Your Dash <${notifyAddr}>`;
-          const subject = `Service client lead — ${estimate.customerName}`;
-          const applianceShort = [[s.brand, s.product].filter(Boolean).join(" "), s.model ? `Model ${s.model}` : ""].filter(Boolean).join(" · ");
-          const text = [
-            "Sales Team,",
-            "",
-            "A repair service client has chosen to shop instead of proceeding with repair. View the details below and claim the lead on your Dash.",
-            "",
-            `Client: ${estimate.customerName}`,
-            applianceShort ? `Current appliance: ${applianceShort}` : null,
-            [directionText, visitText].filter(Boolean).length ? `Direction & visit: ${[directionText, visitText].filter(Boolean).join(" · ")}` : null,
-            r.notes ? `Notes: ${r.notes}` : null,
-            `Contact: ${[estimate.contactPhone, estimate.contactEmail].filter(Boolean).join(" / ") || "on the estimate record"}`,
-            prefText ? `Contact preference: ${prefText}` : null,
-            "",
-            `Claim the lead: https://${DASHBOARD_HOST}/dashboard.html`
-          ].filter((line) => line !== null).join("\n");
-          Promise.allSettled(consultants.map((consultant) =>
-            fetch("https://api.resend.com/emails", {
-              method: "POST",
-              headers: { "Authorization": `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" },
-              body: JSON.stringify({ from: leadFrom, to: [consultant.email], subject, text })
-            })
-          )).then((results) => {
-            const failed = results.filter((x) => x.status === "rejected");
-            if (failed.length) console.error(`Service-lead email failed for ${failed.length}/${consultants.length}:`, failed[0].reason?.message);
-          });
-        }
-      } catch (leadErr) {
-        console.error("Service lead fan-out failed:", leadErr.message);
-      }
+      await fanOutServiceShoppingLead(estimate, { ip: req.ip });
     }
 
     return res.json({ ok: true, status: estimate.status });
@@ -7419,6 +7455,214 @@ app.post("/api/estimate/respond", async (req, res) => {
     return res.status(500).json({ error: "Unable to record your choice — please call 512-894-0907." });
   }
 });
+
+// Showroom lead fan-out for an estimate resolved as "shopping" — used both
+// when the client picks it on the estimate page and when the team resolves
+// a Sent/Viewed estimate that way from the Close prompt. Internal notices
+// only (flags, consultant emails, Quote Follow-Up board) — nothing goes to
+// the client.
+async function fanOutServiceShoppingLead(estimate, { ip } = {}) {
+  // Showroom lead — same fan-out as new web orders (notify-title
+  // consultants get the green flag + a claim email with the details).
+  const r = estimate.response || {};
+  const s = estimate.summary || {};
+  const directionText = { similar: "wants something similar to their current unit", new: "open to trying something new", unsure: "not sure yet — wants help deciding" }[r.productDirection] || "";
+  const visitText = { visit: "wants to schedule a showroom visit", contact: "wants a call/text first", info: "just wants info sent over" }[r.visit] || "";
+  const prefText = { call: "PREFERS A CALL", text: "PREFERS TEXT", email: "PREFERS EMAIL" }[estimate.contactPref] || "";
+  const applianceText = [[s.brand, s.product].filter(Boolean).join(" "), s.model ? `Model ${s.model}` : "", s.serial ? `Serial ${s.serial}` : ""].filter(Boolean).join(" · ");
+  // Client-typed notes from the estimate page, or — when the office resolved
+  // it from the Close prompt — who confirmed it and how.
+  const leadNotes = String(r.notes || "").trim() || (r.resolvedByStaff ? `${r.staffName || "Office"} — ${String(r.staffNotes || "").trim()}` : "");
+  const detailBits = [directionText, visitText, leadNotes ? `Notes: ${leadNotes}` : ""].filter(Boolean).join(" · ");
+
+  // Tell the Client Care rep who sent the estimate (flag + email) —
+  // their repair isn't happening; the client elected to go shopping.
+  if (estimate.createdByEmail) {
+    createPushedNotification({
+      severity: "green",
+      typeLabel: "Estimate — Client Shopping",
+      refId: `svshop:${estimate.token}`,
+      title: `${estimate.customerName} elected to shop for a replacement (${estimate.svNumber || "service"})`,
+      body: `The repair estimate wasn't approved — the showroom team has the lead. ${detailBits || "No preferences given."}`,
+      audienceEmail: estimate.createdByEmail,
+      byEmail: "service-estimates",
+      byName: "Estimate Approvals"
+    }).catch(() => {});
+    if (RESEND_API_KEY) {
+      fetch("https://api.resend.com/emails", {
+        method: "POST",
+        headers: { "Authorization": `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          from: AGILITY_ALERTS_FROM,
+          to: [estimate.createdByEmail],
+          subject: `Client shopping instead — ${estimate.customerName} (${estimate.svNumber || "service"})`,
+          text: [
+            `${estimate.customerName} elected to shop for a replacement instead of approving service estimate ${estimate.svNumber || ""} ($${Number(estimate.summary?.invoiceTotal || 0).toFixed(2)} repair).`,
+            detailBits ? `Their preferences: ${detailBits}` : "",
+            "The showroom team has been notified and will claim the lead — no action needed on the repair."
+          ].filter(Boolean).join("\n")
+        })
+      }).catch((e) => console.error("Estimate-shopping creator email failed:", e.message));
+    }
+  }
+  try {
+    const [directory, notifyNames] = await Promise.all([listEmployeeDirectory(), listNotifyTitleNames()]);
+
+    // Existing-business check (Andrew, 2026-09-02): a client who already
+    // has an open quote or open sales order with us isn't a floor lead —
+    // it's that rep's client. Route the lead straight to them (flag +
+    // email, stamped as theirs on the Quote Follow-Up board) and skip
+    // the DIBS fan-out. If the business exists but its rep can't be
+    // matched to the directory, fall back to fan-out with a warning.
+    let existingOwner = null;
+    let existingRef = "";
+    try {
+      const [openQuotes, openOrders] = await Promise.all([
+        listOpenQuotesForCustomer(estimate.customerNumber),
+        listOpenOrdersForCustomer(estimate.customerNumber)
+      ]);
+      const normName = (n) => String(n || "").toUpperCase().replace(/[\s ]+/g, " ").trim();
+      const active = directory.filter((e) => !e.archived && String(e.email || "").trim());
+      if (openQuotes[0]) {
+        const q = openQuotes[0];
+        existingRef = `open quote ${q.quoteNumber}${q.dateCreated ? ` (${q.dateCreated})` : ""}${q.spCode ? ` — rep ${q.spCode}` : ""}`;
+        existingOwner = active.find((e) => e.code === String(q.spCode || "").toUpperCase()) || null;
+      } else if (openOrders[0]) {
+        const o = openOrders[0];
+        existingRef = `open sales order ${o.invoice}${o.salesperson ? ` — ${o.salesperson}` : ""}`;
+        existingOwner = active.find((e) => normName(e.name) === normName(o.salesperson)) || null;
+      }
+    } catch (checkErr) {
+      console.error("Service lead existing-business check skipped:", checkErr.message);
+    }
+
+    if (existingOwner) {
+      const contactLine = `Contact: ${[estimate.contactPhone, estimate.contactEmail].filter(Boolean).join(" / ") || "see estimate record"}${prefText ? ` — ${prefText}` : ""}.`;
+      await createPushedNotification({
+        severity: "green",
+        typeLabel: "Service Client Lead — Your Client",
+        refId: `svlead:${estimate.token}`,
+        claimable: false,
+        title: `${estimate.customerName} — replacing instead of repairing (${estimate.svNumber || "service"}) · your client`,
+        body: [
+          `Already has ${existingRef} with you, so this came straight to you — no DIBS went to the floor.`,
+          applianceText ? `Replacing: ${applianceText}.` : "",
+          `${detailBits || "No preferences given."}`,
+          contactLine
+        ].filter(Boolean).join(" "),
+        audienceEmail: existingOwner.email,
+        byEmail: "service-estimates",
+        byName: "Estimate Approvals"
+      }).catch(() => {});
+      upsertServiceLeadQuote({
+        token: estimate.token,
+        svNumber: estimate.svNumber,
+        customerName: estimate.customerName,
+        phone: estimate.contactPhone,
+        applianceText,
+        estimateTotal: estimate.summary?.invoiceTotal || 0
+      }).then(() => setServiceLeadQuoteOwner(estimate.token, existingOwner.code))
+        .catch((err) => console.error("Service lead → follow-up board failed:", err.message));
+      if (RESEND_API_KEY) {
+        fetch("https://api.resend.com/emails", {
+          method: "POST",
+          headers: { "Authorization": `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" },
+          body: JSON.stringify({
+            from: AGILITY_ALERTS_FROM,
+            to: [existingOwner.email],
+            subject: `Your client ${estimate.customerName} is shopping for a replacement`,
+            text: [
+              `${estimate.customerName} declined repair estimate ${estimate.svNumber || ""} and chose to shop for a replacement.`,
+              `They already have ${existingRef} with you, so this lead is yours — it was NOT sent to the floor as DIBS.`,
+              applianceText ? `Current appliance: ${applianceText}` : null,
+              detailBits ? `Their preferences: ${detailBits}` : null,
+              contactLine,
+              "",
+              `It's on your Quote Follow-Up board: https://${DASHBOARD_HOST}/quote-follow-up.html`
+            ].filter((l) => l !== null).join("\n")
+          })
+        }).catch((e) => console.error("Existing-client lead email failed:", e.message));
+      }
+      recordAudit({
+        ip, actorUserId: null,
+        action: "service_lead_routed_existing", targetUserId: null,
+        detail: { svNumber: estimate.svNumber, customerName: estimate.customerName, customerNumber: estimate.customerNumber, existingRef, routedTo: existingOwner.email }
+      }).catch(() => {});
+      return;
+    }
+
+    const notifySet = new Set(notifyNames.map((n) => n.trim().toLowerCase()));
+    const consultants = directory.filter((entry) =>
+      !entry.archived &&
+      notifySet.has(String(entry.commissionPlan || "").trim().toLowerCase()) &&
+      String(entry.email || "").trim()
+    );
+    for (const consultant of consultants) {
+      await createPushedNotification({
+        severity: "green",
+        typeLabel: "Service Client Lead",
+        refId: `svlead:${estimate.token}`,
+        claimable: true,
+        title: `${estimate.customerName} — replacing instead of repairing (${estimate.svNumber || "service"})`,
+        body: [
+          existingRef ? `HEADS UP: already has ${existingRef} — check before quoting.` : "",
+          applianceText ? `Replacing: ${applianceText}.` : "",
+          `${detailBits || "No preferences given."}`,
+          `Contact: ${[estimate.contactPhone, estimate.contactEmail].filter(Boolean).join(" / ") || "see estimate record"}${prefText ? ` — ${prefText}` : ""}.`
+        ].filter(Boolean).join(" "),
+        audienceEmail: consultant.email,
+        byEmail: "service-estimates",
+        byName: "Estimate Approvals"
+      }).catch(() => {});
+    }
+
+    // Every service lead is an opportunity on the Quote Follow-Up board
+    // (Andrew, 2026-08-27) — the flag is just the doorbell. Ownership is
+    // stamped at DIBS; conversion is any sales order for the same
+    // customer name within 30 days.
+    upsertServiceLeadQuote({
+      token: estimate.token,
+      svNumber: estimate.svNumber,
+      customerName: estimate.customerName,
+      phone: estimate.contactPhone,
+      applianceText,
+      estimateTotal: estimate.summary?.invoiceTotal || 0
+    }).catch((err) => console.error("Service lead → follow-up board failed:", err.message));
+    if (RESEND_API_KEY && consultants.length) {
+      // From-name per the sales team's ask; same verified send address.
+      const notifyAddr = (AGILITY_ALERTS_FROM.match(/<([^>]+)>/) || [null, AGILITY_ALERTS_FROM])[1];
+      const leadFrom = `New Lead Available on Your Dash <${notifyAddr}>`;
+      const subject = `Service client lead — ${estimate.customerName}`;
+      const applianceShort = [[s.brand, s.product].filter(Boolean).join(" "), s.model ? `Model ${s.model}` : ""].filter(Boolean).join(" · ");
+      const text = [
+        "Sales Team,",
+        "",
+        "A repair service client has chosen to shop instead of proceeding with repair. View the details below and claim the lead on your Dash.",
+        "",
+        `Client: ${estimate.customerName}`,
+        applianceShort ? `Current appliance: ${applianceShort}` : null,
+        [directionText, visitText].filter(Boolean).length ? `Direction & visit: ${[directionText, visitText].filter(Boolean).join(" · ")}` : null,
+        leadNotes ? `Notes: ${leadNotes}` : null,
+        `Contact: ${[estimate.contactPhone, estimate.contactEmail].filter(Boolean).join(" / ") || "on the estimate record"}`,
+        prefText ? `Contact preference: ${prefText}` : null,
+        "",
+        `Claim the lead: https://${DASHBOARD_HOST}/dashboard.html`
+      ].filter((line) => line !== null).join("\n");
+      Promise.allSettled(consultants.map((consultant) =>
+        fetch("https://api.resend.com/emails", {
+          method: "POST",
+          headers: { "Authorization": `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" },
+          body: JSON.stringify({ from: leadFrom, to: [consultant.email], subject, text })
+        })
+      )).then((results) => {
+        const failed = results.filter((x) => x.status === "rejected");
+        if (failed.length) console.error(`Service-lead email failed for ${failed.length}/${consultants.length}:`, failed[0].reason?.message);
+      });
+    }
+  } catch (leadErr) {
+    console.error("Service lead fan-out failed:", leadErr.message);
+  }
+}
 
 // ===========================================================================
 // Podium OAuth — one org-level connection made by an exec. Tokens live in

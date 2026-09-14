@@ -512,6 +512,7 @@ const SERVICE_PUBLIC_PATHS = new Set([
   "/",
   "/fireflavor",
   "/applianceservice.html",
+  "/hvacservice.html",
   "/builder-credit.html",
   "/builder-credit-terms.pdf",
   "/fireflavor.html",
@@ -13422,7 +13423,8 @@ app.post("/api/service/request-photo", customerPhotoUpload.single("photo"), asyn
     const file = req.file;
     if (!file || !file.buffer?.length) return res.status(400).json({ error: "No photo received." });
     if (!/^image\//.test(String(file.mimetype || ""))) return res.status(400).json({ error: "Photos only, please." });
-    const saved = await saveCustomerRequestPhoto({ contentType: file.mimetype, buffer: file.buffer });
+    const kind = String(req.body?.kind || "") === "signature" ? "signature" : "customer";
+    const saved = await saveCustomerRequestPhoto({ contentType: file.mimetype, buffer: file.buffer, kind });
     return res.json({ ok: true, id: saved.id, token: saved.token });
   } catch (err) {
     console.error("Service request photo upload failed:", err.message);
@@ -13481,12 +13483,19 @@ app.post("/api/service/submit-request", async (req, res) => {
     // Optional customer photos: claim the pre-uploaded {id, token} pairs
     // onto this card and record them so the queue card can render them.
     const photoRefs = Array.isArray(serviceRequest.photoRefs) ? serviceRequest.photoRefs.slice(0, 6) : [];
+    // The HVAC form's signed agreement rides the same claim path, kind "signature".
+    if (serviceRequest.signatureRef && serviceRequest.signatureRef.id) photoRefs.push(serviceRequest.signatureRef);
+    // HVAC requests (hvacservice.html, 2026-09-14): no card step — the
+    // Formsite form they replace never took one; the $99.95 diagnostic is
+    // collected at the visit. Everything else lands in the same queue.
+    const requestType = serviceRequest.requestType === "hvac" ? "hvac" : "appliance";
+    const extendedWarranty = requestType === "hvac" ? (["Yes", "No"].includes(serviceRequest.extendedWarranty) ? serviceRequest.extendedWarranty : "") : "";
     const attachRequestPhotos = async (row) => {
       if (!photoRefs.length || !row) return;
       try {
-        const ids = await claimCustomerRequestPhotos(photoRefs, row.id);
-        if (ids.length) {
-          row.photos = [...(Array.isArray(row.photos) ? row.photos : []), ...ids.map((id) => ({ id, kind: "customer" }))];
+        const claimed = await claimCustomerRequestPhotos(photoRefs, row.id);
+        if (claimed.length) {
+          row.photos = [...(Array.isArray(row.photos) ? row.photos : []), ...claimed.map((c) => ({ id: c.id, kind: c.kind || "customer" }))];
         }
       } catch (err) {
         console.error("Attach request photos failed:", err.message);
@@ -13521,7 +13530,10 @@ app.post("/api/service/submit-request", async (req, res) => {
           onBehalfManagement: !!serviceRequest.onBehalfManagement,
           managerIsPrimaryContact,
           managerContact,
-          cardRequired: serviceRequest.purchasedWithin12Months !== "Yes",
+          requestType,
+          extendedWarranty,
+          termsVersion: String(serviceRequest.termsVersion || ""),
+          cardRequired: requestType === "hvac" ? false : serviceRequest.purchasedWithin12Months !== "Yes",
           gateCode: serviceRequest.gateCode || "",
           contactMethod: serviceRequest.contactMethod || "",
           purchaseDate: serviceRequest.purchaseDate || "",
@@ -13570,7 +13582,10 @@ app.post("/api/service/submit-request", async (req, res) => {
           onBehalfManagement: !!serviceRequest.onBehalfManagement,
           managerIsPrimaryContact,
           managerContact,
-          cardRequired: serviceRequest.purchasedWithin12Months !== "Yes",
+          requestType,
+          extendedWarranty,
+          termsVersion: String(serviceRequest.termsVersion || ""),
+          cardRequired: requestType === "hvac" ? false : serviceRequest.purchasedWithin12Months !== "Yes",
           gateCode: serviceRequest.gateCode || "",
           contactMethod: serviceRequest.contactMethod || "",
           purchaseDate: serviceRequest.purchaseDate || "",
@@ -13619,7 +13634,10 @@ app.post("/api/service/submit-request", async (req, res) => {
       onBehalfManagement: !!serviceRequest.onBehalfManagement,
       managerIsPrimaryContact,
       managerContact,
-      cardRequired: serviceRequest.purchasedWithin12Months !== "Yes",
+      requestType,
+      extendedWarranty,
+      termsVersion: String(serviceRequest.termsVersion || ""),
+      cardRequired: requestType === "hvac" ? false : serviceRequest.purchasedWithin12Months !== "Yes",
       gateCode: serviceRequest.gateCode || "",
       contactMethod: serviceRequest.contactMethod || "",
       purchaseDate: serviceRequest.purchaseDate || "",

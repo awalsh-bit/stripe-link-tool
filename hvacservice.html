@@ -1,0 +1,624 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="robots" content="noindex,nofollow,noarchive" />
+  <title>Wilson AC & Appliance - HVAC Service Request</title>
+  <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+  <link rel="stylesheet" href="public-shell.css" />
+  <style>
+    :root {
+      --bg: #f7f8fc;
+      --card: #ffffff;
+      --text: #1f2937;
+      --muted: #6b7280;
+      --border: #dbe1ea;
+      --primary: #21692c;
+      --primary-hover: #1a5222;
+      --success-bg: #ecfdf5;
+      --success-text: #065f46;
+      --error-bg: #fef2f2;
+      --error-text: #991b1b;
+      --shadow: 0 10px 35px rgba(0, 0, 0, 0.08);
+      --radius: 18px;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: "Roboto", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: linear-gradient(180deg, #eaf4ec 0%, var(--bg) 100%);
+      color: var(--text);
+      min-height: 100vh;
+      padding: 32px 16px;
+    }
+
+    .wrap {
+      max-width: 980px;
+      margin: 0 auto;
+    }
+
+    .hero { margin-bottom: 22px; }
+
+    .sub {
+      margin: 0;
+      color: var(--muted);
+      font-size: 16px;
+      line-height: 1.6;
+      max-width: 780px;
+    }
+
+    .card {
+      background: var(--card);
+      border: 1px solid rgba(33, 105, 44, 0.12);
+      box-shadow: var(--shadow);
+      border-radius: var(--radius);
+      padding: 24px;
+    }
+
+    h2 {
+      margin: 28px 0 12px;
+      font-size: 20px;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 16px;
+    }
+
+    .field {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .field.full { grid-column: 1 / -1; }
+
+    label {
+      font-size: 14px;
+      font-weight: 600;
+    }
+
+    input, textarea, select {
+      width: 100%;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 13px 14px;
+      font-size: 15px;
+      background: #fff;
+      color: var(--text);
+      outline: none;
+      transition: border-color 0.2s ease, box-shadow 0.2s ease;
+    }
+
+    input:focus, textarea:focus, select:focus {
+      border-color: rgba(33, 105, 44, 0.75);
+      box-shadow: 0 0 0 4px rgba(33, 105, 44, 0.12);
+    }
+
+    textarea {
+      min-height: 90px;
+      resize: vertical;
+    }
+
+    input[readonly] {
+      background: #f8fafc;
+      color: var(--muted);
+    }
+
+    .choice-row {
+      display: flex;
+      gap: 16px;
+      align-items: center;
+      padding: 12px 14px;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: #fff;
+      flex-wrap: wrap;
+      min-height: 48px;
+    }
+
+    .choice {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      font-weight: 500;
+    }
+
+    .choice input {
+      width: auto;
+      margin: 0;
+      accent-color: var(--primary);
+    }
+
+    .checkbox-row {
+      display: flex;
+      gap: 10px;
+      align-items: flex-start;
+      padding: 12px 14px;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: #fafdfa;
+    }
+
+    .checkbox-row input {
+      width: auto;
+      margin-top: 4px;
+      accent-color: var(--primary);
+    }
+
+    .hint {
+      margin-top: -2px;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.5;
+    }
+
+    .actions {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-top: 22px;
+      flex-wrap: wrap;
+    }
+
+    button {
+      appearance: none;
+      border: none;
+      background: var(--primary);
+      color: white;
+      padding: 14px 18px;
+      border-radius: 12px;
+      font-size: 15px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: background 0.2s ease, transform 0.04s ease;
+    }
+
+    button:hover { background: var(--primary-hover); }
+    button:active { transform: translateY(1px); }
+    button:disabled { opacity: 0.65; cursor: wait; }
+
+    .secondary {
+      background: #eaf4ec;
+      color: #1a5222;
+    }
+
+    .secondary:hover { background: #d7ead9; }
+
+    .photo-strip { display: flex; gap: 8px; flex-wrap: wrap; }
+    .photo-strip:empty { display: none; }
+    .photo-thumb { position: relative; width: 84px; height: 84px; border-radius: 10px; overflow: hidden; border: 1px solid #d8e2da; background: #f2f6f2; }
+    .photo-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .photo-thumb .ph-x { position: absolute; top: 4px; right: 4px; width: 22px; height: 22px; border-radius: 50%; background: rgba(0,0,0,0.55); color: #fff; border: none; padding: 0; font-size: 13px; line-height: 22px; cursor: pointer; }
+    .photo-thumb .ph-x:hover { background: rgba(0,0,0,0.75); }
+    .photo-thumb .ph-state { position: absolute; left: 0; right: 0; bottom: 0; font-size: 10px; text-align: center; padding: 2px 0; color: #fff; background: rgba(0,0,0,0.45); }
+    .photo-thumb.failed { border-color: #e3b04a; cursor: pointer; }
+
+    .status {
+      margin-top: 18px;
+      padding: 14px 16px;
+      border-radius: 12px;
+      font-size: 14px;
+      display: none;
+      line-height: 1.5;
+      white-space: pre-wrap;
+    }
+
+    .status.success {
+      display: block;
+      background: var(--success-bg);
+      color: var(--success-text);
+    }
+
+    .status.error {
+      display: block;
+      background: var(--error-bg);
+      color: var(--error-text);
+    }
+
+    .payment-shell {
+      margin-top: 24px;
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 18px;
+      background: #fafdfa;
+      display: none;
+    }
+
+    .payment-shell.show { display: block; }
+
+    .payment-shell h2 {
+      margin: 0 0 10px;
+      font-size: 20px;
+    }
+
+    .payment-shell p {
+      margin: 0 0 16px;
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.6;
+    }
+
+    #payment-element {
+      margin-bottom: 14px;
+    }
+
+    .result {
+      margin-top: 22px;
+      border: 1px solid rgba(6, 95, 70, 0.18);
+      border-radius: 18px;
+      padding: 22px;
+      background: linear-gradient(180deg, #f0fdf4 0%, #ecfdf5 100%);
+      box-shadow: 0 14px 34px rgba(6, 95, 70, 0.08);
+      display: none;
+    }
+
+    .result.show { display: block; }
+
+    /* Submitted state: the confirmation replaces the form entirely, so
+       there's no live submit button (or blank re-validated fields) left on
+       screen to double-tap or mistake for a failed submit. */
+    form#serviceForm.submitted > :not(#result) { display: none !important; }
+    form#serviceForm.submitted #result { margin-top: 0; }
+
+    .result-title {
+      margin: 0 0 10px;
+      font-size: clamp(24px, 3.2vw, 32px);
+      line-height: 1.1;
+      font-weight: 900;
+      color: #064e3b;
+    }
+
+    .result-text {
+      margin: 0;
+      font-size: 16px;
+      line-height: 1.7;
+      color: #065f46;
+      font-weight: 600;
+    }
+
+    .result-note {
+      margin: 12px 0 0;
+      font-size: 13px;
+      line-height: 1.6;
+      color: #3f6656;
+      opacity: 0.9;
+    }
+
+    .footer-note {
+      margin-top: 18px;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.6;
+    }
+
+    .hidden { display: none !important; }
+
+    @media (max-width: 720px) {
+      .grid { grid-template-columns: 1fr; }
+      .card { padding: 18px; }
+    }
+  </style>
+  <style>
+    /* HVAC form additions: terms box + signature pad */
+    input, textarea, select, button { font-family: inherit; }
+    .terms { border: 1px solid var(--border); border-radius: 12px; background: #fafdfa; padding: 14px 16px; font-size: 13.5px; line-height: 1.6; color: #374151; max-height: 320px; overflow: auto; }
+    .terms h3 { margin: 12px 0 6px; font-size: 14px; }
+    .terms h3:first-child { margin-top: 0; }
+    .terms p { margin: 0 0 8px; }
+    .terms u { text-decoration: underline; }
+    .sig-wrap { border: 1px solid var(--border); border-radius: 12px; background: #fff; padding: 10px; }
+    .sig-wrap canvas { display: block; width: 100%; height: 160px; border-bottom: 2px solid #94a3b8; touch-action: none; cursor: crosshair; border-radius: 8px 8px 0 0; background: #fff; }
+    .sig-row { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-top: 8px; }
+    .sig-row .hint { margin: 0; }
+    .sig-row button { padding: 8px 12px; font-size: 13px; }
+    .req::after { content: " *"; color: #b91c1c; font-weight: 700; }
+    .note-box { border-left: 3px solid var(--primary); background: #f2f8f2; padding: 10px 14px; border-radius: 0 10px 10px 0; font-size: 14px; line-height: 1.55; }
+  </style>
+</head>
+<body data-public-shell-label="HVAC Service Request">
+  <div class="wrap">
+    <div class="hero">
+      <div id="public-shell-header"></div>
+      <p class="sub">Please complete the fields below. You will be contacted shortly after completing this form with our next available date.</p>
+    </div>
+    <div class="card">
+      <form id="serviceForm" novalidate>
+        <div class="grid">
+          <div class="field full">
+            <label class="req">Is your system covered by an extended warranty sold by Wilson AC &amp; Appliance?</label>
+            <div class="choice-row">
+              <label class="choice"><input type="radio" name="extendedWarranty" value="Yes"> Yes</label>
+              <label class="choice"><input type="radio" name="extendedWarranty" value="No"> No</label>
+            </div>
+          </div>
+
+          <div class="field"><label class="req" for="firstName">First Name</label><input id="firstName" required autocomplete="given-name" placeholder="Jane" /></div>
+          <div class="field"><label class="req" for="lastName">Last Name</label><input id="lastName" required autocomplete="family-name" placeholder="Smith" /></div>
+          <div class="field full"><label class="req" for="serviceAddress1">Street Address</label><input id="serviceAddress1" required autocomplete="address-line1" placeholder="123 Main St" /></div>
+          <div class="field full"><label for="serviceAddress2">Address Line 2</label><input id="serviceAddress2" autocomplete="address-line2" placeholder="Apt, suite, gate, etc. (optional)" /></div>
+          <div class="field"><label class="req" for="serviceCity">City</label><input id="serviceCity" required autocomplete="address-level2" placeholder="Dripping Springs" /></div>
+          <div class="field"><label class="req" for="serviceState">State</label><select id="serviceState" required></select></div>
+          <div class="field"><label class="req" for="serviceZip">Zip Code</label><input id="serviceZip" required inputmode="numeric" autocomplete="postal-code" maxlength="10" placeholder="78620" /></div>
+          <div class="field"><label class="req" for="customerPhone">Phone Number</label><input id="customerPhone" type="tel" required autocomplete="tel" placeholder="512-555-1234" /></div>
+          <div class="field"><label class="req" for="customerEmail">Email Address</label><input id="customerEmail" type="email" required autocomplete="email" placeholder="jane@example.com" /></div>
+          <div class="field"><label for="gateCode">Gate Code (If Applicable)</label><input id="gateCode" placeholder="Optional" /></div>
+
+          <div class="field full">
+            <label class="req">What is the best way to communicate with you during your service call?</label>
+            <div class="choice-row">
+              <label class="choice"><input type="radio" name="contactMethod" value="Text"> Text</label>
+              <label class="choice"><input type="radio" name="contactMethod" value="Email"> Email</label>
+              <label class="choice"><input type="radio" name="contactMethod" value="Phone Call"> Phone Call</label>
+            </div>
+          </div>
+
+          <div class="field full">
+            <label>How many HVAC systems do you need serviced?</label>
+            <div class="choice-row">
+              <label class="choice"><input type="radio" name="unitCount" value="One" checked> One</label>
+              <label class="choice"><input type="radio" name="unitCount" value="Multiple"> Multiple</label>
+            </div>
+          </div>
+
+          <div class="field full"><div class="note-box">If your system is comprised of multiple brands, please list all of them! Be aware that more obscure brands may be harder for us to procure parts for!</div></div>
+
+          <div class="field"><label class="req" for="brand1">HVAC Manufacturer (Brand)</label><input id="brand1" required placeholder="Trane, Carrier, Lennox…" /></div>
+          <div class="field"><label for="model1">Model Number</label><input id="model1" placeholder="From the data plate on the unit" /></div>
+          <div class="field"><label for="serial1">Serial Number</label><input id="serial1" placeholder="Optional" /></div>
+          <div class="field"><label class="req" for="age1">Age of Unit</label><input id="age1" required placeholder="e.g. 8 years, installed 2018" /></div>
+          <div class="field full">
+            <label class="req">Was this unit purchased from us?</label>
+            <div class="choice-row">
+              <label class="choice"><input type="radio" name="purchasedFromUs1" value="Yes"> Yes</label>
+              <label class="choice"><input type="radio" name="purchasedFromUs1" value="No"> No</label>
+              <label class="choice"><input type="radio" name="purchasedFromUs1" value="Not sure"> Not sure</label>
+            </div>
+          </div>
+          <div class="field full"><label class="req" for="problem1">Problem Description</label><textarea id="problem1" required placeholder="What is the system doing (or not doing)? When did it start? Any error codes on the thermostat?"></textarea></div>
+
+          <div id="secondUnitSection" class="field full hidden">
+            <h2 style="margin-top:8px;">Second System</h2>
+            <div class="grid">
+              <div class="field"><label for="brand2">HVAC Manufacturer (Brand)</label><input id="brand2" placeholder="Brand" /></div>
+              <div class="field"><label for="model2">Model Number</label><input id="model2" /></div>
+              <div class="field"><label for="serial2">Serial Number</label><input id="serial2" /></div>
+              <div class="field"><label for="age2">Age of Unit</label><input id="age2" /></div>
+              <div class="field full"><label for="problem2">Problem Description</label><textarea id="problem2"></textarea></div>
+            </div>
+          </div>
+
+          <div class="field full">
+            <label>Photos</label>
+            <p class="hint" style="margin:0;">If you have photos that are relevant to your service — the unit, the data plate, the thermostat — please add them below (up to 6).</p>
+            <div class="photo-strip" id="photoStrip"></div>
+            <div>
+              <button type="button" id="addPhotosBtn" class="secondary">Add photos</button>
+              <input id="photoInput" type="file" accept="image/*" multiple class="hidden" />
+            </div>
+          </div>
+
+          <div class="field full">
+            <h2 style="margin:8px 0 4px;">Terms and Conditions</h2>
+            <div class="terms" id="termsBox">
+              <h3>For service calls not covered by warranty:</h3>
+              <p>- We will send a technician to perform an on-site diagnostic of your appliance. <u>The diagnostic fee is $99.95 (after tax). This fee only applies should you choose not to have the appliance repaired once given a quote. Should you approve the quote, you simply pay parts and labor.</u></p>
+              <p>- <u>If you are reaching out for a second opinion, the technician will waive the diagnostic fee and only charge when the repair is done.</u></p>
+              <p>- If you are located outside of our service area, we recommend that you schedule with your manufacturer's factory service. Most brands can be scheduled online.</p>
+              <p>- The technician will diagnose the problem, and build you a quote for parts and labor required to complete the repair.</p>
+              <p>- You have the option to either proceed with the quoted amount and complete the repair, or you may decline further service and only be charged the initial diagnostic fee.</p>
+              <p>- If you decline further service, you will be charged the diagnostic fee at that time. Quotes are valid for 14 days. If you don't respond to your repair quote in this time frame, we will collect the diagnostic fee and close the ticket under the assumption you do not wish to proceed.</p>
+              <p>- If you proceed with the quoted service, we will order the required parts upon approval of the repair quote.</p>
+              <p>- Once parts for your service arrive, we will contact you to confirm a date to have parts installed.</p>
+              <p>- Once parts have been installed and the repair is complete, you will be charged the amount you previously approved during the quoting process.</p>
+              <p>In the event the issue with your appliance persists after service completion, we will provide a no charge "recall" trip within 30 days of initial service completion. This will allow us to ensure that your issue is fully and properly resolved.</p>
+              <h3>For service calls that are covered by the manufacturer warranty:</h3>
+              <p>Functional issues caused by defects in materials or workmanship are generally covered by the warranty. Please keep in mind that warranty does not cover cleaning, maintenance, incorrect application or customer education/misuse of product.</p>
+              <p>Wilson AC &amp; Appliance is a Trane Dealer, so completing repairs in warranty for other brands or for an aftermarket/home warranty may not be possible. If you still have a different manufacturer or home warranty, we recommend you reach out to the warranty provider for a servicer in your area.</p>
+              <p>The statements about warranty listed above are to provide a general guideline and are not absolute. You must refer to your specific product's user guide for exact details on the warranty.</p>
+            </div>
+          </div>
+
+          <div class="field full">
+            <label class="req">I understand and agree to the terms of this service call, including the diagnostic fee if not covered by warranty.</label>
+            <div class="sig-wrap">
+              <canvas id="sigPad" aria-label="Signature pad"></canvas>
+              <div class="sig-row">
+                <p class="hint">Sign above with your finger or mouse.</p>
+                <button type="button" class="secondary" id="sigClear">Clear</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="actions">
+          <button id="submitBtn" type="submit">Submit request</button>
+        </div>
+        <div id="status" class="status"></div>
+
+        <div id="result" class="result" role="status" aria-live="polite">
+          <div class="result-title">&#10003; HVAC Service Request Submitted</div>
+          <p class="result-text">Thank you! Your request has been received and we will follow up with our next available date for a technician visit.</p>
+          <p class="result-note" id="resultMeta"></p>
+          <p class="result-note">Please note the service department that processes these requests is staffed Monday through Friday from 8:30am - 5pm.</p>
+          <div class="actions" style="margin-top: 16px;">
+            <button type="button" id="newRequestBtn" class="secondary">Submit another request</button>
+          </div>
+        </div>
+      </form>
+
+      <p class="footer-note">Need appliance service instead? <a href="applianceservice.html" style="color:var(--primary); font-weight:700;">Use the appliance repair request form.</a></p>
+    </div>
+  </div>
+
+  <script>
+    const $ = (id) => document.getElementById(id);
+    const getRadioValue = (name) => document.querySelector(`input[name="${name}"]:checked`)?.value || "";
+    const STATES = ["Alabama","Alaska","Arizona","Arkansas","California","Colorado","Connecticut","Delaware","Florida","Georgia","Hawaii","Idaho","Illinois","Indiana","Iowa","Kansas","Kentucky","Louisiana","Maine","Maryland","Massachusetts","Michigan","Minnesota","Mississippi","Missouri","Montana","Nebraska","Nevada","New Hampshire","New Jersey","New Mexico","New York","North Carolina","North Dakota","Ohio","Oklahoma","Oregon","Pennsylvania","Rhode Island","South Carolina","South Dakota","Tennessee","Texas","Utah","Vermont","Virginia","Washington","West Virginia","Wisconsin","Wyoming","Washington DC"];
+    $("serviceState").innerHTML = STATES.map((s) => `<option value="${s}" ${s === "Texas" ? "selected" : ""}>${s}</option>`).join("");
+
+    document.querySelectorAll('input[name="unitCount"]').forEach((el) => el.addEventListener("change", () => { $("secondUnitSection").classList.toggle("hidden", getRadioValue("unitCount") !== "Multiple"); }));
+
+    function setStatus(message, kind) {
+      const box = $("status");
+      box.className = "status" + (kind ? " " + kind : "");
+      box.textContent = message || "";
+    }
+
+    // ---- photos (same flow as the appliance form: downsized, uploaded on pick, claimed at submit) ----
+    const photoState = [];
+    $("addPhotosBtn").addEventListener("click", () => $("photoInput").click());
+    $("photoInput").addEventListener("change", async () => {
+      const files = [...$("photoInput").files].slice(0, 6 - photoState.length);
+      $("photoInput").value = "";
+      for (const file of files) {
+        const entry = { status: "compressing", url: "", blob: null, id: null, token: null };
+        photoState.push(entry);
+        renderPhotoStrip();
+        try {
+          entry.blob = await compressPhoto(file);
+          entry.url = URL.createObjectURL(entry.blob);
+          renderPhotoStrip();
+          await uploadPhoto(entry);
+        } catch (e) { entry.status = "failed"; }
+        renderPhotoStrip();
+      }
+    });
+    async function compressPhoto(file) {
+      try {
+        const bmp = await createImageBitmap(file, { imageOrientation: "from-image" });
+        const scale = Math.min(1, 1600 / Math.max(bmp.width, bmp.height));
+        const canvas = document.createElement("canvas");
+        canvas.width = Math.max(1, Math.round(bmp.width * scale));
+        canvas.height = Math.max(1, Math.round(bmp.height * scale));
+        canvas.getContext("2d").drawImage(bmp, 0, 0, canvas.width, canvas.height);
+        if (bmp.close) bmp.close();
+        const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.72));
+        if (blob && blob.size) return blob;
+      } catch (e) { /* older browser — send the original as-is */ }
+      return file;
+    }
+    async function uploadPhoto(entry, kind) {
+      entry.status = "uploading";
+      const fd = new FormData();
+      fd.append("photo", entry.blob, kind === "signature" ? "signature.png" : "photo.jpg");
+      if (kind) fd.append("kind", kind);
+      try {
+        const res = await fetch("/api/service/request-photo", { method: "POST", body: fd });
+        const data = await res.json();
+        if (!res.ok || !data.id) throw new Error(data.error || "Upload failed");
+        entry.id = data.id; entry.token = data.token; entry.status = "done";
+      } catch (e) { entry.status = "failed"; }
+    }
+    function renderPhotoStrip() {
+      const host = $("photoStrip");
+      host.innerHTML = "";
+      photoState.forEach((p, i) => {
+        const d = document.createElement("div");
+        d.className = "photo-thumb" + (p.status === "failed" ? " failed" : "");
+        d.innerHTML = `${p.url ? `<img src="${p.url}" alt="photo">` : ""}<button type="button" class="ph-x" aria-label="Remove photo">&times;</button>${p.status === "uploading" ? '<div class="ph-state">Uploading…</div>' : ""}${p.status === "failed" ? '<div class="ph-state">Tap to retry</div>' : ""}`;
+        d.querySelector(".ph-x").addEventListener("click", (ev) => { ev.stopPropagation(); photoState.splice(i, 1); renderPhotoStrip(); });
+        if (p.status === "failed") d.addEventListener("click", async () => { if (p.blob) { await uploadPhoto(p); renderPhotoStrip(); } });
+        host.appendChild(d);
+      });
+      $("addPhotosBtn").disabled = photoState.length >= 6;
+      $("addPhotosBtn").textContent = photoState.length ? "Add more photos" : "Add photos";
+    }
+
+    // ---- signature pad ----
+    const sig = { canvas: $("sigPad"), ctx: null, drawing: false, strokes: 0, last: null };
+    function sizeSig() {
+      const c = sig.canvas; const rect = c.getBoundingClientRect(); const dpr = window.devicePixelRatio || 1;
+      const snapshot = sig.strokes ? c.toDataURL() : null;
+      c.width = Math.round(rect.width * dpr); c.height = Math.round(160 * dpr);
+      sig.ctx = c.getContext("2d"); sig.ctx.scale(dpr, dpr); sig.ctx.lineWidth = 2.2; sig.ctx.lineCap = "round"; sig.ctx.lineJoin = "round"; sig.ctx.strokeStyle = "#111827";
+      if (snapshot) { const img = new Image(); img.onload = () => sig.ctx.drawImage(img, 0, 0, rect.width, 160); img.src = snapshot; }
+    }
+    function sigPoint(ev) { const r = sig.canvas.getBoundingClientRect(); const p = ev.touches ? ev.touches[0] : ev; return { x: p.clientX - r.left, y: p.clientY - r.top }; }
+    function sigStart(ev) { ev.preventDefault(); sig.drawing = true; sig.last = sigPoint(ev); sig.ctx.beginPath(); sig.ctx.moveTo(sig.last.x, sig.last.y); sig.ctx.lineTo(sig.last.x + 0.1, sig.last.y + 0.1); sig.ctx.stroke(); sig.strokes += 1; }
+    function sigMove(ev) { if (!sig.drawing) return; ev.preventDefault(); const p = sigPoint(ev); sig.ctx.beginPath(); sig.ctx.moveTo(sig.last.x, sig.last.y); sig.ctx.lineTo(p.x, p.y); sig.ctx.stroke(); sig.last = p; }
+    function sigEnd() { sig.drawing = false; }
+    sig.canvas.addEventListener("pointerdown", sigStart); sig.canvas.addEventListener("pointermove", sigMove);
+    window.addEventListener("pointerup", sigEnd); sig.canvas.addEventListener("pointerleave", sigEnd);
+    $("sigClear").addEventListener("click", () => { sig.strokes = 0; sizeSig(); sig.ctx.clearRect(0, 0, 4000, 4000); });
+    window.addEventListener("resize", sizeSig);
+    sizeSig();
+    async function signatureBlob() {
+      return new Promise((resolve) => sig.canvas.toBlob(resolve, "image/png"));
+    }
+
+    // ---- validation + submit ----
+    function buildPayload() {
+      const first = $("firstName").value.trim(), last = $("lastName").value.trim();
+      const payload = {
+        requestType: "hvac",
+        extendedWarranty: getRadioValue("extendedWarranty"),
+        customerName: `${first} ${last}`.trim(),
+        firstName: first, lastName: last,
+        customerEmail: $("customerEmail").value.trim(),
+        customerPhone: $("customerPhone").value.trim(),
+        serviceAddress: { line1: $("serviceAddress1").value.trim(), line2: $("serviceAddress2").value.trim(), city: $("serviceCity").value.trim(), state: $("serviceState").value, zip: $("serviceZip").value.trim() },
+        gateCode: $("gateCode").value.trim(),
+        contactMethod: getRadioValue("contactMethod"),
+        unitCount: getRadioValue("unitCount") || "One",
+        units: [{ applianceType: "HVAC", brand: $("brand1").value.trim(), model: $("model1").value.trim(), serial: $("serial1").value.trim(), ageOfUnit: $("age1").value.trim(), purchasedFromUs: getRadioValue("purchasedFromUs1"), problemDescription: $("problem1").value.trim() }],
+        problemDescription: $("problem1").value.trim(),
+        photoRefs: photoState.filter((p) => p.status === "done" && p.id).map((p) => ({ id: p.id, token: p.token })),
+        consent: sig.strokes > 0,
+        termsVersion: "hvac-2026-09"
+      };
+      if (payload.unitCount === "Multiple") {
+        payload.units.push({ applianceType: "HVAC", brand: $("brand2").value.trim(), model: $("model2").value.trim(), serial: $("serial2").value.trim(), ageOfUnit: $("age2").value.trim(), problemDescription: $("problem2").value.trim() });
+      }
+      return payload;
+    }
+    function validationError(p) {
+      if (!p.extendedWarranty) return "Please tell us whether your system is covered by a Wilson extended warranty.";
+      if (!p.firstName || !p.lastName) return "Please enter your first and last name.";
+      if (!p.serviceAddress.line1 || !p.serviceAddress.city || !p.serviceAddress.zip) return "Please enter the service address, city, and zip code.";
+      if (String(p.customerPhone).replace(/\D/g, "").length < 10) return "Please enter a phone number we can reach you at.";
+      if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(p.customerEmail)) return "Please enter a valid email address.";
+      if (!p.contactMethod) return "Please select how you'd like us to contact you (text, email, or phone call).";
+      if (!p.units[0].brand) return "Please enter the HVAC manufacturer (brand).";
+      if (!p.units[0].ageOfUnit) return "Please enter the approximate age of the unit.";
+      if (!p.units[0].purchasedFromUs) return "Please tell us whether the unit was purchased from us.";
+      if (!p.problemDescription) return "Please describe the problem.";
+      if (!p.consent) return "Please sign in the box to agree to the service terms.";
+      return "";
+    }
+    $("serviceForm").addEventListener("submit", async (ev) => {
+      ev.preventDefault();
+      setStatus("");
+      const payload = buildPayload();
+      const err = validationError(payload);
+      if (err) { setStatus(err, "error"); return; }
+      if (photoState.some((p) => p.status === "uploading" || p.status === "compressing")) { setStatus("One of your photos is still uploading — give it a second and try again.", "error"); return; }
+      const btn = $("submitBtn"); btn.disabled = true; btn.textContent = "Submitting…";
+      try {
+        // The signature travels like a photo: uploaded, then claimed onto the request.
+        const blob = await signatureBlob();
+        const sigEntry = { blob };
+        await uploadPhoto(sigEntry, "signature");
+        if (sigEntry.status !== "done") throw new Error("We couldn't save your signature — please try again.");
+        payload.signatureRef = { id: sigEntry.id, token: sigEntry.token };
+        const res = await fetch("/api/service/submit-request", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ serviceRequest: payload }) });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok || !data.success) throw new Error(data.error || "Unable to submit your request right now.");
+        $("resultMeta").textContent = `Reference: ${data.requestId}. A copy of what you sent stays with our Client Care team; we'll reach out by ${payload.contactMethod.toLowerCase()}.`;
+        $("serviceForm").classList.add("submitted");
+        $("result").classList.add("show");
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      } catch (e) {
+        setStatus(e.message, "error");
+        btn.disabled = false; btn.textContent = "Submit request";
+      }
+    });
+    $("newRequestBtn").addEventListener("click", () => window.location.reload());
+  </script>
+  <script src="public-shell.js"></script>
+</body>
+</html>

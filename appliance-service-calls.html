@@ -206,6 +206,7 @@
       color: #3730a3;
     }
 
+    .badge-hvac { background: #e0f2fe; color: #075985; margin-left: 6px; }
     .badge-neutral {
       background: var(--primary-tint);
       color: var(--primary-deep);
@@ -619,8 +620,8 @@
           <div class="small">
             Model: ${escapeHtml(unit.model || "-")}<br>
             Serial: ${escapeHtml(unit.serial || "-")}<br>
-            Purchased from us: ${escapeHtml(unit.purchasedFromUs || "-")}<br>
-            Merged: ${escapeHtml(unit.stacked || "-")}
+            ${unit.ageOfUnit ? `Age of unit: ${escapeHtml(unit.ageOfUnit)}<br>` : ""}Purchased from us: ${escapeHtml(unit.purchasedFromUs || "-")}<br>
+            ${unit.applianceType === "HVAC" ? "" : `Merged: ${escapeHtml(unit.stacked || "-")}`}
           </div>
           <div class="small"><span class="strong">Problem:</span> ${escapeHtml(unit.problemDescription || "-")}</div>
           <button
@@ -658,9 +659,18 @@
     // Optional photos the customer attached on the public request form —
     // stored in Agility, rendered as thumbnails on the card.
     function renderRequestPhotos(row) {
-      const photos = (Array.isArray(row.photos) ? row.photos : []).filter((p) => p && p.id);
-      if (!photos.length) return "";
-      return `
+      const all = (Array.isArray(row.photos) ? row.photos : []).filter((p) => p && p.id);
+      const signature = all.find((p) => p.kind === "signature");
+      const photos = all.filter((p) => p.kind !== "signature");
+      const sigHtml = signature ? `
+        <div class="small" style="margin-top:10px;">
+          <span class="strong">Signed service terms</span>${row.termsVersion ? ` <span class="muted">(${escapeHtml(row.termsVersion)})</span>` : ""}
+          <a href="/api/install-damage/photo/${encodeURIComponent(signature.id)}" target="_blank" rel="noopener" title="Customer signature — click for full size" style="display:block; margin-top:6px; width:200px; border:1px solid #e5e7eb; border-radius:8px; background:#fff; padding:4px;">
+            <img src="/api/install-damage/photo/${encodeURIComponent(signature.id)}" alt="signature" style="width:100%; display:block;" loading="lazy">
+          </a>
+        </div>` : "";
+      if (!photos.length) return sigHtml;
+      return sigHtml + `
         <div class="small" style="margin-top:10px;">
           <span class="strong">Customer photos (${photos.length})</span>
           <div style="display:flex; gap:6px; flex-wrap:wrap; margin-top:6px;">
@@ -887,7 +897,7 @@ function attachPrefillActions() {
 
           <td>
             <div class="customer-block">
-              <div class="strong">${escapeHtml(row.customerName || "-")}</div>
+              <div class="strong">${escapeHtml(row.customerName || "-")}${row.requestType === "hvac" ? ` <span class="badge badge-hvac" title="Submitted on the HVAC Service Request form">HVAC</span>` : ""}</div>
               <div>${escapeHtml(row.customerEmail || "-")}</div>
               <div>${escapeHtml(row.customerPhone || "-")}</div>
             </div>
@@ -900,7 +910,7 @@ function attachPrefillActions() {
                 Gate code: ${escapeHtml(row.gateCode || "-")}<br>
                 Contact method: ${escapeHtml(row.contactMethod || "-")}<br>
                 Purchase date: ${escapeHtml(row.purchaseDate || "-")}<br>
-                Purchased within 12 months: ${escapeHtml(row.purchasedWithin12Months || "-")}${formatOnBehalf(row)}
+                ${row.requestType === "hvac" ? `Wilson extended warranty: ${escapeHtml(row.extendedWarranty || "-")}` : `Purchased within 12 months: ${escapeHtml(row.purchasedWithin12Months || "-")}`}${formatOnBehalf(row)}
               </div>
             </div>
           </td>

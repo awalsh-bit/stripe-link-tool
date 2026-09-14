@@ -1,0 +1,217 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"></head><body style="margin:0">
+<title>Wilson Parts Pipeline — AJH Pilot</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+:root{--bg:#f3f6f3;--surface:#ffffff;--surface2:#eaf0ea;--ink:#1b241f;--muted:#5d6b62;--line:#d7dfd8;--accent:#1f6b35;--accent-ink:#fff;--soft:#e3eee5;
+--diag:#2f6fb3;--diag-bg:#e7eff9;--inst:#1f8a48;--inst-bg:#e3f3e8;--held:#0f8a8a;--held-bg:#e0f3f3;--wait:#b8770f;--wait-bg:#fbf0d9;--bad:#b3362f;--bad-bg:#fbe4e2;--war:#7a4fb3;--war-bg:#efe8f8}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--bg:#111714;--surface:#1a221d;--surface2:#212b25;--ink:#e6ece7;--muted:#9aa89e;--line:#2c372f;--accent:#5fb87a;--accent-ink:#0f1a13;--soft:#1f2c23;
+--diag:#7fb0e6;--diag-bg:#1c2a3a;--inst:#6ccb8a;--inst-bg:#1a3324;--held:#5fc9c9;--held-bg:#173232;--wait:#e2b25a;--wait-bg:#3a2e14;--bad:#ef8b84;--bad-bg:#3d1f1d;--war:#b596e6;--war-bg:#2a2138}}
+:root[data-theme="dark"]{--bg:#111714;--surface:#1a221d;--surface2:#212b25;--ink:#e6ece7;--muted:#9aa89e;--line:#2c372f;--accent:#5fb87a;--accent-ink:#0f1a13;--soft:#1f2c23;
+--diag:#7fb0e6;--diag-bg:#1c2a3a;--inst:#6ccb8a;--inst-bg:#1a3324;--held:#5fc9c9;--held-bg:#173232;--wait:#e2b25a;--wait-bg:#3a2e14;--bad:#ef8b84;--bad-bg:#3d1f1d;--war:#b596e6;--war-bg:#2a2138}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.45 "IBM Plex Sans",system-ui,sans-serif;padding-inline:16px;padding-block:0 3rem}
+.mono{font-family:"IBM Plex Mono",monospace;font-variant-numeric:tabular-nums}
+button{font:inherit;color:inherit;background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:.4rem .75rem;cursor:pointer}
+button:hover{border-color:var(--accent)}button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+button.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);font-weight:600}button[disabled]{opacity:.45;cursor:not-allowed}
+button.sm{padding:.2rem .5rem;font-size:.75rem}
+select,input{font:inherit;color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:.35rem .5rem}
+input.num{width:84px;text-align:right;font-family:"IBM Plex Mono",monospace}
+.top{display:flex;align-items:center;gap:1.25rem;flex-wrap:wrap;padding-block:.9rem;border-bottom:1px solid var(--line);max-width:1400px;margin:0 auto}
+.brand{font-weight:600}.brand small{display:block;font-size:.7rem;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);font-weight:500}
+.tabs{display:flex;gap:.25rem;background:var(--surface2);padding:.25rem;border-radius:8px;flex-wrap:wrap}
+.tabs button{border:0;background:transparent;padding:.4rem .9rem;border-radius:6px;color:var(--muted);display:flex;gap:.4rem;align-items:center}
+.tabs button[aria-selected="true"]{background:var(--surface);color:var(--ink);font-weight:600;box-shadow:0 1px 2px rgba(0,0,0,.08)}
+.tabs .n{background:var(--soft);color:var(--accent);border-radius:10px;padding:0 .45rem;font-size:.72rem;font-weight:600}
+.tabs .n.hot{background:var(--bad-bg);color:var(--bad)}
+.proto{margin-left:auto;font-size:.75rem;color:var(--muted);max-width:340px;text-align:right}.proto b{color:var(--wait);font-weight:600}
+main{max-width:1400px;margin:0 auto}
+.view[hidden]{display:none}
+.intro{margin-block:1rem .9rem;color:var(--muted);max-width:80ch}
+.intro b{color:var(--ink)}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(520px,1fr));gap:.9rem;align-items:start}
+.tw{overflow-x:auto}
+@media (max-width:480px){.grid{grid-template-columns:1fr}}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:8px;border-left:4px solid var(--diag);padding:.8rem .9rem;display:flex;flex-direction:column;gap:.55rem}
+.card.field{border-left-color:var(--inst)}.card.war{border-left-color:var(--war)}.card.ready{border-left-color:var(--wait)}
+.hd{display:flex;justify-content:space-between;gap:.6rem;align-items:start}
+.hd b{font-weight:600;font-size:.98rem}.hd .sub{color:var(--muted);font-size:.8rem}
+.chips{display:flex;gap:.3rem;flex-wrap:wrap}
+.chip{font-size:.68rem;padding:.05rem .45rem;border-radius:10px;background:var(--surface2);color:var(--muted);font-weight:500}
+.chip.st{font-family:"IBM Plex Mono",monospace}
+.chip.SO1,.chip.SO2,.chip.SO2\.2{background:var(--diag-bg);color:var(--diag)}
+.chip.SO3,.chip.SO5,.chip.SO6,.chip.ok{background:var(--inst-bg);color:var(--inst)}
+.chip.SO4,.chip.SO4PRE,.chip.SO4H,.chip.SO4B{background:var(--held-bg);color:var(--held)}
+.chip.WAR,.chip.WARPROBLEM,.chip.WARADMIN,.chip.WARPART,.chip.WARPARTORDERED{background:var(--war-bg);color:var(--war)}
+.chip.warn{background:var(--wait-bg);color:var(--wait)}.chip.bad{background:var(--bad-bg);color:var(--bad)}
+table{border-collapse:collapse;width:100%;font-size:.82rem}
+th{text-align:left;font-family:"IBM Plex Mono",monospace;font-size:.66rem;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:500;padding:.3rem .4rem;border-bottom:1px solid var(--line)}
+td{padding:.35rem .4rem;border-bottom:1px solid var(--line);vertical-align:middle}td:first-child{min-width:150px}tr:last-child td{border-bottom:0}
+td.r,th.r{text-align:right;font-variant-numeric:tabular-nums}
+.pn{font-family:"IBM Plex Mono",monospace;font-size:.75rem;color:var(--muted)}
+.avail{display:flex;gap:.25rem}.avail button{padding:.1rem .4rem;font-size:.68rem;border-radius:10px;white-space:nowrap}.avail button[aria-pressed="true"]{background:var(--held-bg);color:var(--held);border-color:var(--held)}
+.banner{padding:.5rem .7rem;border-radius:6px;font-size:.82rem;background:var(--soft)}
+.banner.warn{background:var(--wait-bg);color:var(--wait)}.banner.bad{background:var(--bad-bg);color:var(--bad)}.banner.ok{background:var(--inst-bg);color:var(--inst)}
+.acts{display:flex;gap:.4rem;flex-wrap:wrap;align-items:center}
+.empty{color:var(--muted);padding:2rem;text-align:center;border:1px dashed var(--line);border-radius:8px}
+.toasts{position:fixed;bottom:1rem;left:50%;transform:translateX(-50%);display:flex;flex-direction:column;gap:.4rem;z-index:9}
+.toast{background:var(--ink);color:var(--bg);padding:.5rem .9rem;border-radius:6px;font-size:.82rem;box-shadow:0 4px 14px rgba(0,0,0,.2);max-width:90vw}
+.toast.warn{background:var(--wait)}.toast.ok{background:var(--accent)}
+.log{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:.6rem .8rem;margin-top:1.2rem;font-size:.78rem;color:var(--muted)}
+.log h4{margin:0 0 .4rem;font-size:.72rem;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+.log div.row{display:flex;gap:.5rem;padding:.15rem 0;border-bottom:1px dashed var(--line)}
+.log div.row:last-child{border-bottom:0}
+.log .who{font-weight:600;color:var(--ink);white-space:nowrap}
+.log .when{color:var(--muted);white-space:nowrap;margin-left:auto;font-family:"IBM Plex Mono",monospace;font-size:.72rem}
+</style>
+
+<div class="top">
+  <div class="brand">Wilson AC &amp; Appliance<small>Parts pipeline · office</small></div>
+  <div class="tabs" role="tablist" id="tabs"></div>
+  <div class="proto"><b>Pilot module</b> · Andrew Horst's tickets only · shares live data with the routing &amp; field pilot tools</div>
+</div>
+<main>
+  <p class="intro">This previews what the <b>parts manager / office staff</b> would do for Andrew's tickets while he's on pilot: verify a quoted or warranty part before it's ordered, place the order, then check parts in when they arrive. Checking a job's last part in here sends it straight to the routing tool's "Needs a day" queue, the same as the routing tool's own "Mark received" button — either place can do it, and both stay in sync. Exact part numbers for these real tickets weren't captured in this export, so the line items below are the common parts for that appliance type — confirm the real one against the SO's notes in ePASS before ordering.</p>
+  <section class="view" id="v-order"></section>
+  <section class="view" id="v-receive" hidden></section>
+  <div class="log" id="activity"></div>
+</main>
+<div class="toasts" id="toasts"></div>
+
+<script>
+const $=s=>document.querySelector(s);
+const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const money=n=>n==null?'':'$'+(+n).toFixed(2);
+function toast(m,c=''){const t=document.createElement('div');t.className='toast '+c;t.textContent=m;$('#toasts').append(t);setTimeout(()=>t.remove(),4200)}
+
+/* ---------- shared pilot store — lives in Agility (Postgres) so Andrew's phone, the routing tool and the parts tool all see one record. Pages diff what they changed and post just that; a 15-second poll picks up everyone else's changes. ---------- */
+const PILOT_API='/api/pilot/store';
+let STORE={v:1,jobs:[],log:[],updated:0};
+let LAST_SNAPSHOT=new Map();
+const jobKey=j=>j.sv||j._id;
+function snapshotOf(store){const m=new Map();for(const j of (store.jobs||[]))m.set(jobKey(j),JSON.stringify(j));return m}
+function assignIds(store){for(const j of (store.jobs||[]))if(!j.sv){j.sv='NEW-'+Date.now().toString(36).toUpperCase()+Math.random().toString(36).slice(2,5).toUpperCase()}}
+async function fetchStore(){const r=await fetch(PILOT_API,{credentials:'same-origin'});if(!r.ok)throw new Error('Could not load the pilot data');const d=await r.json();STORE=d;LAST_SNAPSHOT=snapshotOf(STORE);return STORE}
+function loadStore(){return STORE}
+function ensureStore(){return STORE}
+function logEvent(store,who,msg){store.log=store.log||[];store.log.unshift({ts:Date.now(),who,msg,_new:true});if(store.log.length>40)store.log.length=40}
+let saveChain=Promise.resolve();
+function saveStore(store){
+  assignIds(store);
+  const cur=snapshotOf(store);const upserts=[],deletes=[];
+  for(const [k,v] of cur){if(LAST_SNAPSHOT.get(k)!==v)upserts.push(JSON.parse(v))}
+  for(const k of LAST_SNAPSHOT.keys())if(!cur.has(k))deletes.push(k);
+  const log=(store.log||[]).filter(e=>e._new).map(e=>{delete e._new;return {ts:e.ts,who:e.who,msg:e.msg}});
+  LAST_SNAPSHOT=cur;store.updated=Date.now();
+  if(!upserts.length&&!deletes.length&&!log.length)return store;
+  saveChain=saveChain.then(()=>fetch(PILOT_API,{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({upserts,deletes,log})})
+    .then(r=>r.ok?r.json():Promise.reject(new Error('save')))
+    .then(d=>{if(d&&d.updated)STORE.updated=d.updated})
+    .catch(()=>toast('Could not save to Agility — check your connection and try again','warn')));
+  return store;
+}
+async function pollStore(){try{const r=await fetch(PILOT_API+'?since='+encodeURIComponent(STORE.updated||0),{credentials:'same-origin'});if(!r.ok)return;const d=await r.json();if(d.changed){STORE=d;LAST_SNAPSHOT=snapshotOf(STORE);onRemoteChange()}}catch(e){}}
+setInterval(pollStore,15000);
+document.addEventListener('visibilitychange',()=>{if(!document.hidden)pollStore()});
+
+function onRemoteChange(){render()}
+
+/* Category → the flat-rate catalog's most common part for that appliance, reused from the field tool's part list so the line item at least looks like a real one. */
+const PART_CATALOG={
+  dishwasher:['W10348269','Drain pump',148],
+  refrigerator:['4200500','Evaporator fan motor',189],
+  washer:['W10730972','Drain pump',132],
+  dryer:['279838','Heating element',64],
+  oven:['W10918546','Oven igniter',86],
+  other:['GEN-CTRL','Control board',180]
+};
+const VERIFY_STATUSES=['SO2','SO2.2','WARPROBLEM','WARADMIN'];
+const ORDER_STATUSES=['SO3'];
+const RECEIVE_STATUSES=['SO4','SO4H','SO4PRE','SO4B','WARPART','WARPARTORDERED'];
+
+const TABS=[
+  ['order','Verify & order',()=>partsJobs().filter(j=>VERIFY_STATUSES.includes(j.status)||ORDER_STATUSES.includes(j.status)).length],
+  ['receive','Receiving',()=>partsJobs().filter(j=>RECEIVE_STATUSES.includes(j.status)).length]
+];
+let tab='order';
+function partsJobs(){return STORE.jobs.filter(j=>j.bucket==='parts')}
+function renderTabs(){
+  $('#tabs').innerHTML=TABS.map(([k,l,n])=>`<button role="tab" aria-selected="${tab===k}" data-tab="${k}">${l}<span class="n">${n()}</span></button>`).join('');
+  document.querySelectorAll('[data-tab]').forEach(b=>b.onclick=()=>{tab=b.dataset.tab;render()});
+}
+function render(){
+  renderTabs();
+  for(const [k] of TABS)$('#v-'+k).hidden=k!==tab;
+  ({order:renderOrder,receive:renderReceive})[tab]();
+  renderActivity();
+}
+function renderActivity(){
+  const log=(STORE.log||[]).slice(0,10);
+  $('#activity').innerHTML=`<h4>Recent pilot activity — across all three tools</h4>${log.length?log.map(l=>`<div class="row"><span class="who">${esc(l.who)}</span><span>${esc(l.msg)}</span><span class="when">${new Date(l.ts).toLocaleTimeString([],{hour:'numeric',minute:'2-digit'})}</span></div>`).join(''):'<div class="row">Nothing yet this session.</div>'}`;
+}
+
+/* ---------- Verify & order ---------- */
+function renderOrder(){
+  const jobs=partsJobs().filter(j=>VERIFY_STATUSES.includes(j.status)||ORDER_STATUSES.includes(j.status));
+  const needsVerify=jobs.filter(j=>VERIFY_STATUSES.includes(j.status));
+  const readyToOrder=jobs.filter(j=>ORDER_STATUSES.includes(j.status));
+  $('#v-order').innerHTML=`<div class="grid">
+    ${needsVerify.map(orderCard).join('')}
+    ${readyToOrder.map(orderCard).join('')}
+    </div>${jobs.length?'':'<div class="empty">Nothing waiting on parts review for Andrew right now.</div>'}`;
+  document.querySelectorAll('[data-verify]').forEach(b=>b.onclick=()=>{
+    const job=partsJobs().find(j=>j.sv===b.dataset.verify);if(!job)return;
+    job.status='SO3';
+    logEvent(STORE,'Parts tool',esc(job.cust)+' ('+job.sv+') — part verified, ready to order');
+    saveStore(STORE);
+    toast(`${job.cust}: verified — moved to ready-to-order (SO3)`);render();
+  });
+  document.querySelectorAll('[data-order]').forEach(b=>b.onclick=()=>{
+    const job=partsJobs().find(j=>j.sv===b.dataset.order);if(!job)return;
+    job.status='SO4';
+    logEvent(STORE,'Parts tool',esc(job.cust)+' ('+job.sv+') — order placed with supplier');
+    saveStore(STORE);
+    toast(`${job.cust}: order placed — moved to Receiving (SO4)`);render();
+  });
+}
+function orderCard(j){
+  const part=PART_CATALOG[j.cat]||PART_CATALOG.other;
+  const isVerify=VERIFY_STATUSES.includes(j.status);
+  const cls=j.status.startsWith('WAR')?'war':isVerify?'':'ready';
+  return `<div class="card ${cls}"><div class="hd"><div><b>${esc(j.cust)}</b><div class="sub">${esc((j.addr||'').split(',')[0])} · ${esc(j.unit||'')} · <span class="mono">${j.sv}</span></div></div></div>
+    <div class="chips"><span class="chip st ${j.status}">${j.status}</span>${j.wty?'<span class="chip">Warranty</span>':j.bal?`<span class="chip bad">${money(j.bal)} due</span>`:''}</div>
+    <div class="tw"><table><thead><tr><th>Part</th><th class="r">Catalog price</th><th>Availability</th><th>Supplier</th></tr></thead><tbody>
+    <tr><td>${esc(part[1])}<div class="pn">${part[0]} · common part for this appliance — confirm against ePASS notes</div></td>
+      <td class="r mono">${money(part[2])}</td>
+      <td><span class="chip ok">In stock (typical)</span></td>
+      <td>Marcone</td></tr>
+    </tbody></table></div>
+    ${isVerify?`<div class="banner">${j.status.startsWith('WAR')?'Warranty claim — no customer quote needed, straight to order once the part is confirmed.':'Quote already sent to the customer — confirm the part before ordering.'}</div>
+    <div class="acts"><button class="primary" data-verify="${j.sv}">Verified — ready to order (→ SO3)</button></div>`:
+    `<div class="banner ok">Approved. Ready to place with the supplier.</div>
+    <div class="acts"><button class="primary" data-order="${j.sv}">Place order (→ SO4)</button></div>`}
+    </div>`;
+}
+
+/* ---------- Receiving ---------- */
+function renderReceive(){
+  const jobs=partsJobs().filter(j=>RECEIVE_STATUSES.includes(j.status));
+  $('#v-receive').innerHTML=`<div class="grid">${jobs.map(j=>`<div class="card field"><div class="hd"><div><b>${esc(j.cust)}</b><div class="sub">${esc((j.addr||'').split(',')[0])} · ${esc(j.unit||'')} · <span class="mono">${j.sv}</span></div></div></div>
+    <div class="chips"><span class="chip st ${j.status}">${j.status}</span>${j.wty?'<span class="chip">Warranty</span>':j.bal?`<span class="chip bad">${money(j.bal)} due</span>`:''}<span class="chip warn">On order</span></div>
+    <div class="acts"><button class="sm" data-lookup="${j.sv}">Check supplier status</button><span style="flex:1"></span><button class="primary" data-received="${j.sv}">All parts checked in (→ SO5, needs a day)</button></div>
+    </div>`).join('')||'<div class="empty">Nothing on order for Andrew right now.</div>'}</div>`;
+  document.querySelectorAll('[data-lookup]').forEach(b=>b.onclick=()=>toast('Supplier portal: on schedule, no change — nothing to check in yet'));
+  document.querySelectorAll('[data-received]').forEach(b=>b.onclick=()=>{
+    const job=partsJobs().find(j=>j.sv===b.dataset.received);if(!job)return;
+    job.bucket='backlog';job.status='SO5';job.day=null;job.reason='Parts marked in by office — needs a day';
+    logEvent(STORE,'Parts tool',esc(job.cust)+' ('+job.sv+') — all parts received, needs a day');
+    saveStore(STORE);
+    toast(`${job.cust}: all parts in — moved to the routing tool's "Needs a day" queue`);render();
+  });
+}
+
+render();
+fetchStore().then(()=>onRemoteChange()).catch(e=>toast(e.message,'warn'));
+</script>
+
+</body></html>

@@ -1,0 +1,303 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"></head><body style="margin:0">
+<title>Wilson AJH Routing Pilot</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+:root{--bg:#f3f6f3;--surface:#ffffff;--surface2:#eaf0ea;--ink:#1b241f;--muted:#5d6b62;--line:#d7dfd8;--accent:#1f6b35;--accent-ink:#fff;--soft:#e3eee5;
+--diag:#2f6fb3;--diag-bg:#e7eff9;--inst:#1f8a48;--inst-bg:#e3f3e8;--held:#0f8a8a;--held-bg:#e0f3f3;--war:#7a4fb3;--war-bg:#efe8f8;--wait:#b8770f;--wait-bg:#fbf0d9;--bad:#b3362f;--bad-bg:#fbe4e2}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--bg:#111714;--surface:#1a221d;--surface2:#212b25;--ink:#e6ece7;--muted:#9aa89e;--line:#2c372f;--accent:#5fb87a;--accent-ink:#0f1a13;--soft:#1f2c23;
+--diag:#7fb0e6;--diag-bg:#1c2a3a;--inst:#6ccb8a;--inst-bg:#1a3324;--held:#5fc9c9;--held-bg:#173232;--war:#b596e6;--war-bg:#2a2138;--wait:#e2b25a;--wait-bg:#3a2e14;--bad:#ef8b84;--bad-bg:#3d1f1d}}
+:root[data-theme="dark"]{--bg:#111714;--surface:#1a221d;--surface2:#212b25;--ink:#e6ece7;--muted:#9aa89e;--line:#2c372f;--accent:#5fb87a;--accent-ink:#0f1a13;--soft:#1f2c23;
+--diag:#7fb0e6;--diag-bg:#1c2a3a;--inst:#6ccb8a;--inst-bg:#1a3324;--held:#5fc9c9;--held-bg:#173232;--war:#b596e6;--war-bg:#2a2138;--wait:#e2b25a;--wait-bg:#3a2e14;--bad:#ef8b84;--bad-bg:#3d1f1d}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.45 "IBM Plex Sans",system-ui,sans-serif;padding-inline:16px;padding-block:0 3rem}
+.mono{font-family:"IBM Plex Mono",monospace}
+button{font:inherit;color:inherit;background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:.4rem .75rem;cursor:pointer}
+button:hover{border-color:var(--accent)}button:focus-visible,select:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+button.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);font-weight:600}
+button.danger{background:var(--bad-bg);color:var(--bad);border-color:#e4b9b4}
+button.sm{padding:.2rem .5rem;font-size:.72rem}
+button[disabled]{opacity:.45;cursor:not-allowed}
+select,input,textarea{font:inherit;color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:.4rem .6rem}
+textarea{width:100%;resize:vertical}
+.top{display:flex;align-items:center;gap:1.25rem;flex-wrap:wrap;padding-block:.9rem;border-bottom:1px solid var(--line);max-width:1400px;margin:0 auto}
+.brand{font-weight:600;letter-spacing:.01em}.brand small{display:block;font-size:.7rem;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);font-weight:500}
+.proto{margin-left:auto;font-size:.75rem;color:var(--muted);max-width:360px;text-align:right}.proto b{color:var(--wait);font-weight:600}
+main{max-width:1400px;margin:0 auto}
+.intro{margin-block:1rem .9rem;color:var(--muted);max-width:80ch}
+.intro b{color:var(--ink)}
+.layout{display:grid;grid-template-columns:1fr 360px;gap:1rem;align-items:start}
+@media (max-width:1000px){.layout{grid-template-columns:1fr}}
+.week{display:grid;grid-template-columns:repeat(5,1fr);gap:.6rem}
+@media (max-width:820px){.week{grid-template-columns:repeat(2,1fr)}}
+.daycard{background:var(--surface);border:1px solid var(--line);border-radius:8px;display:flex;flex-direction:column;min-height:220px}
+.daycard .hd{padding:.6rem .7rem;border-bottom:1px solid var(--line)}
+.daycard .hd .dn{font-weight:600;font-size:.95rem}
+.daycard .hd .dd{font-size:.72rem;color:var(--muted)}
+.fillbar{height:6px;border-radius:4px;background:var(--surface2);overflow:hidden;margin-top:.4rem}
+.fillbar i{display:block;height:100%;background:var(--inst)}
+.fillbar.warm i{background:var(--wait)}.fillbar.hot i{background:var(--bad)}
+.daystops{padding:.5rem;display:flex;flex-direction:column;gap:.4rem;flex:1}
+.jcard{border:1px solid var(--line);border-left:4px solid var(--diag);border-radius:6px;padding:.45rem .55rem;background:var(--surface);position:relative}
+.jcard.SO6{border-left-color:var(--inst)}.jcard.SO5{border-left-color:var(--wait)}.jcard.WAR{border-left-color:var(--war)}
+.jcard .who{font-weight:600;font-size:.85rem}
+.jcard .sub{font-size:.72rem;color:var(--muted);margin-top:.1rem}
+.jcard .row2{display:flex;justify-content:space-between;align-items:center;margin-top:.3rem;gap:.3rem}
+.chip{font-size:.66rem;padding:.05rem .4rem;border-radius:10px;background:var(--surface2);color:var(--muted);font-weight:600;letter-spacing:.02em;white-space:nowrap}
+.chip.st{font-family:"IBM Plex Mono",monospace}
+.chip.SO1{background:var(--diag-bg);color:var(--diag)}.chip.SO6{background:var(--inst-bg);color:var(--inst)}.chip.SO5{background:var(--wait-bg);color:var(--wait)}.chip.WAR{background:var(--war-bg);color:var(--war)}
+.chip.bad{background:var(--bad-bg);color:var(--bad)}.chip.ok{background:var(--inst-bg);color:var(--inst)}
+.del{border:0;background:transparent;color:var(--muted);padding:0 .2rem;font-size:.85rem;line-height:1;position:absolute;top:.3rem;right:.3rem}
+.del:hover{color:var(--bad)}
+.empty{color:var(--muted);padding:1.5rem 1rem;text-align:center;font-size:.82rem}
+.side{display:flex;flex-direction:column;gap:.9rem}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:8px}
+.panel h3{margin:0;padding:.65rem .8rem;border-bottom:1px solid var(--line);font-size:.78rem;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);font-weight:600;display:flex;justify-content:space-between;align-items:center}
+.panel h3 span{font-variant-numeric:tabular-nums;font-weight:600}
+.panel .body{padding:.6rem .7rem;display:flex;flex-direction:column;gap:.5rem;max-height:520px;overflow:auto}
+.backcard{border:1px solid var(--line);border-radius:8px;padding:.55rem .65rem;position:relative;background:var(--surface2)}
+.backcard .who{font-weight:600;font-size:.85rem}
+.backcard .sub{font-size:.72rem;color:var(--muted);margin-top:.1rem}
+.backcard .reason{font-size:.72rem;color:var(--wait);margin-top:.3rem}
+.advisor{margin-top:.5rem;border-top:1px dashed var(--line);padding-top:.5rem;display:none}
+.backcard.open .advisor{display:block}
+.advrow{display:flex;justify-content:space-between;align-items:center;gap:.4rem;padding:.3rem 0;font-size:.78rem;border-bottom:1px solid var(--line)}
+.advrow:last-child{border-bottom:0}
+.advrow .best{color:var(--accent);font-weight:600}
+.advrow .rationale{color:var(--muted);font-size:.72rem}
+.backcard .acts{display:flex;gap:.3rem;margin-top:.4rem;flex-wrap:wrap}
+.formgrid{display:grid;grid-template-columns:1fr 1fr;gap:.5rem;padding:.7rem}
+.formgrid label{font-size:.72rem;color:var(--muted);display:flex;flex-direction:column;gap:.2rem}
+.formgrid .full{grid-column:1/-1}
+.formgrid select,.formgrid input,.formgrid textarea{width:100%}
+.formgrid .chkrow{flex-direction:row;align-items:center;gap:.4rem}
+.toasts{position:fixed;bottom:1rem;left:50%;transform:translateX(-50%);display:flex;flex-direction:column;gap:.4rem;z-index:9}
+.toast{background:var(--ink);color:var(--bg);padding:.5rem .9rem;border-radius:6px;font-size:.82rem;box-shadow:0 4px 14px rgba(0,0,0,.2);max-width:90vw}
+.toast.warn{background:var(--wait)}.toast.ok{background:var(--accent)}
+</style>
+
+<div class="top">
+  <div class="brand">Wilson AC &amp; Appliance<small>AJH routing pilot</small></div>
+  <div class="proto"><b>Pilot module</b> · Andrew Horst only · seeded from ExportInvoice_2026-09-14 · shares live data with the field &amp; parts pilot tools · nothing here writes back to ePASS yet</div>
+</div>
+<main>
+  <p class="intro">This is a <b>practice copy</b> of Andrew's open tickets for the week of Sep 14&ndash;18, so the office can test routing decisions for him specifically before this touches the real dispatch board. Nothing you do here changes ePASS or the live Service Request Queue. Assigning a day here shows up on Andrew's phone right away, and anything he submits in the field flows back here and to the parts tool — the pilot's records live in Agility, so his phone and the office computers see the same thing within a few seconds. Use <b>Add a service request</b> below to bring in a new lead by hand — that part stays manual for the pilot (the original request stays right where it is in the real queue), but once it's added it moves through the pipeline like any other ticket.</p>
+  <div class="layout">
+    <div>
+      <div class="week" id="week"></div>
+    </div>
+    <div class="side">
+      <div class="panel">
+        <h3>Needs a day <span id="backlogCount"></span></h3>
+        <div class="body" id="backlogBody"></div>
+      </div>
+      <div class="panel">
+        <h3>Add a service request</h3>
+        <form id="addForm" class="formgrid">
+          <label>Customer name<input required id="f_cust" placeholder="Jane Smith"></label>
+          <label>Phone<input id="f_phone" placeholder="(512) 555-0100"></label>
+          <label class="full">Address<input required id="f_addr" placeholder="123 Main St, Austin"></label>
+          <label>ZIP<input required id="f_zip" placeholder="78620" maxlength="5"></label>
+          <label>Appliance<select id="f_cat"><option value="dishwasher">Dishwasher</option><option value="refrigerator">Refrigerator</option><option value="washer">Washer</option><option value="dryer">Dryer</option><option value="oven">Oven / Range</option><option value="other">Other</option></select></label>
+          <label>Brand<input id="f_brand" placeholder="GE"></label>
+          <label>Status<select id="f_status"><option value="SO1">SO1 — needs a diagnostic</option><option value="SO6">SO6 — install / repair scheduled</option><option value="SO5">SO5 — parts in hand</option></select></label>
+          <label class="full">Problem / notes<textarea id="f_note" rows="2" placeholder="What the customer described"></textarea></label>
+          <label class="chkrow full"><input type="checkbox" id="f_wty" style="width:auto"> Warranty claim (billed to manufacturer, not customer)</label>
+          <div class="full" style="display:flex;justify-content:flex-end"><button class="primary" type="submit">Add to Andrew's backlog</button></div>
+        </form>
+      </div>
+      <div class="panel">
+        <h3>Parts pipeline <span id="partsCount"></span><span style="font-weight:400;font-size:.68rem;color:var(--muted);text-transform:none;letter-spacing:0">not ready to route</span></h3>
+        <div class="body" id="partsBody"></div>
+      </div>
+    </div>
+  </div>
+</main>
+<div class="toasts" id="toasts"></div>
+
+<script>
+const $=s=>document.querySelector(s);
+const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const money=n=>n==null?'':'$'+(+n).toFixed(2);
+function toast(m,c=''){const t=document.createElement('div');t.className='toast '+c;t.textContent=m;$('#toasts').append(t);setTimeout(()=>t.remove(),4200)}
+
+const ZONE={"78620":{"zone":"DS","group":"Core Hill Country","mode":"open","p":"DLA","s":["AJH","BLL","CIT"],"trip":null},"78737":{"zone":"LOCAL","group":"Core Hill Country","mode":"open","p":"DLA","s":["AJH","CIT","CEM"],"trip":null},"78746":{"zone":"AUS W","group":"Austin Metro","mode":"open","p":"AJH","s":["CEM","JRC"],"trip":null},"78619":{"zone":"DRIFT","group":"Core Hill Country","mode":"open","p":"KJB","s":["DLA","CEM"],"trip":null},"78703":{"zone":"AUS C","group":"Austin Metro","mode":"open","p":"JRC","s":[],"trip":null},"78676":{"zone":"WIMB","group":"South Corridor","mode":"open","p":"KJB","s":[],"trip":null},"78738":{"zone":"BCAVE","group":"Austin Metro","mode":"open","p":"TDP","s":["AJH"],"trip":null},"78701":{"zone":"AUS C","group":"Austin Metro","mode":"open","p":"JRC","s":[],"trip":null},"78669":{"zone":"SPICE","group":"Austin Metro","mode":"open","p":"TDP","s":[],"trip":null},"78735":{"zone":"LOST","group":"Austin Metro","mode":"open","p":"AJH","s":["TDP","CIT"],"trip":null},"78624":{"zone":"FBURG","group":"West","mode":"designated_days","p":"JHM","s":[],"trip":["Wed","JHM"]},"78704":{"zone":"AUS S","group":"Austin Metro","mode":"open","p":"JRC","s":["CEM"],"trip":null},"78731":{"zone":"AUS C","group":"Austin Metro","mode":"open","p":"JRC","s":[],"trip":null},"78739":{"zone":"AUS S","group":"Austin Metro","mode":"open","p":"AJH","s":["KJB","TDP","DLA"],"trip":null},"78733":{"zone":"LOST","group":"Austin Metro","mode":"open","p":"TDP","s":["AJH"],"trip":null},"78606":{"zone":"BLANC","group":"West","mode":"designated_days","p":"JHM","s":["DLA"],"trip":["Wed","JHM"]},"78734":{"zone":"LAKE","group":"Austin Metro","mode":"open","p":"TDP","s":["AJH"],"trip":null},"78636":{"zone":"JC","group":"West","mode":"designated_days","p":"JHM","s":["DLA","BLL"],"trip":["Wed","JHM"]},"78736":{"zone":"OAKHL","group":"Core Hill Country","mode":"open","p":"AJH","s":["DLA","CEM","KJB"],"trip":null},"78666":{"zone":"SANMA","group":"South Corridor","mode":"open","p":"KJB","s":[],"trip":null},"78749":{"zone":"OAKHL","group":"Core Hill Country","mode":"open","p":"AJH","s":["CEM"],"trip":null},"78610":{"zone":"BUDA","group":"South Corridor","mode":"open","p":"KJB","s":[],"trip":null},"78657":{"zone":"HORSE","group":"Northwest Lakes","mode":"designated_days","p":"TDP","s":[],"trip":["Thu","TDP"]},"78705":{"zone":"AUS C","group":"Austin Metro","mode":"open","p":"JRC","s":["CEM"],"trip":null},"78732":{"zone":"LAKE","group":"Austin Metro","mode":"open","p":"CIT","s":["TDP","BLL"],"trip":null},"78756":{"zone":"AUS N","group":"Austin Metro","mode":"open","p":"JRC","s":["CIT"],"trip":null},"78745":{"zone":"AUS S","group":"Austin Metro","mode":"open","p":"KJB","s":["AJH","CEM","JRC"],"trip":null},"78748":{"zone":"AUS S","group":"Austin Metro","mode":"open","p":"CEM","s":["KJB","BLL"],"trip":null},"78730":{"zone":"LAKE","group":"Austin Metro","mode":"open","p":"CIT","s":["TDP"],"trip":null},"78757":{"zone":"AUS N","group":"Austin Metro","mode":"open","p":"JRC","s":[],"trip":null},"78663":{"zone":"ROUND","group":"Northwest Lakes","mode":"designated_days","p":"JHM","s":["CEM","DLA"],"trip":["Thu","TDP"]},"78759":{"zone":"AUS N","group":"Austin Metro","mode":"open","p":"JRC","s":["BLL","CEM"],"trip":null},"78751":{"zone":"AUS N","group":"Austin Metro","mode":"open","p":"JRC","s":["CEM"],"trip":null},"78006":{"zone":"BOERN","group":"West","mode":"designated_days","p":"JHM","s":["CEM"],"trip":["Wed","JHM"]},"78613":{"zone":"CEDAR","group":"North","mode":"office_only","p":"CIT","s":["TDP","BLL","JRC"],"trip":null},"78640":{"zone":"KYLE","group":"South Corridor","mode":"open","p":"KJB","s":["TDP"],"trip":null},"78130":{"zone":"BRAUN","group":"Far South","mode":"designated_days","p":"CEM","s":["KJB","BLL"],"trip":["Tue","CEM"]},"78747":{"zone":"AUS S","group":"Austin Metro","mode":"open","p":"KJB","s":["BLL"],"trip":null},"78643":{"zone":"HORSE","group":"Northwest Lakes","mode":"designated_days","p":"TDP","s":[],"trip":["Thu","TDP"]},"78133":{"zone":"CANYO","group":"Far South","mode":"designated_days","p":"BLL","s":["JHM"],"trip":["Tue","CEM"]},"78654":{"zone":"MFALL","group":"Northwest Lakes","mode":"designated_days","p":"TDP","s":["JHM"],"trip":["Thu","TDP"]},"78671":{"zone":"STONE","group":"West","mode":"designated_days","p":"JHM","s":["DLA"],"trip":["Wed","JHM"]},"78723":{"zone":"AUS E","group":"Austin Metro","mode":"open","p":"JRC","s":[],"trip":null},"78722":{"zone":"AUS E","group":"Austin Metro","mode":"open","p":"JRC","s":[],"trip":null},"78750":{"zone":"AUS N","group":"Austin Metro","mode":"open","p":"JRC","s":["CIT"],"trip":null},"78830":{"zone":"R2222","group":"Austin Metro","mode":"open","p":"CIT","s":[],"trip":null},"78717":{"zone":"AUS N","group":"Austin Metro","mode":"open","p":"CIT","s":[],"trip":null},"78623":{"zone":"FISCH","group":"Far South","mode":"designated_days","p":"KJB","s":[],"trip":["Tue","CEM"]},"78702":{"zone":"AUS C","group":"Austin Metro","mode":"open","p":"JRC","s":[],"trip":null},"78729":{"zone":"AUS W","group":"Austin Metro","mode":"open","p":"AJH","s":[],"trip":null},"78635":{"zone":"JC","group":"West","mode":"designated_days","p":"JHM","s":[],"trip":["Wed","JHM"]},"78644":{"zone":"OUT","group":"Out of area","mode":"office_only","p":"BLL","s":["KJB"],"trip":null},"78727":{"zone":"AUS N","group":"Austin Metro","mode":"open","p":"JRC","s":[],"trip":null},"78626":{"zone":"GEORG","group":"North","mode":"office_only","p":"CIT","s":["CEM"],"trip":null},"78776":{"zone":"WIMB","group":"South Corridor","mode":"open","p":"KJB","s":[],"trip":null},"78628":{"zone":"GEORG","group":"North","mode":"office_only","p":"JRC","s":["CIT"],"trip":null},"78163":{"zone":"BOERN","group":"West","mode":"designated_days","p":"JHM","s":[],"trip":["Wed","JHM"]},"78631":{"zone":"OUT","group":"Out of area","mode":"office_only","p":"JHM","s":[],"trip":null},"78070":{"zone":"BOERN","group":"West","mode":"designated_days","p":"JHM","s":[],"trip":["Wed","JHM"]},"78642":{"zone":"GEORG","group":"North","mode":"office_only","p":"CIT","s":[],"trip":null},"78724":{"zone":"AUS E","group":"Austin Metro","mode":"open","p":"JRC","s":[],"trip":null},"78645":{"zone":"LAGO","group":"Austin Metro","mode":"open","p":"CIT","s":[],"trip":null},"78641":{"zone":"AUS N","group":"Austin Metro","mode":"open","p":"CIT","s":[],"trip":null},"78028":{"zone":"OUT","group":"Out of area","mode":"office_only","p":"JHM","s":[],"trip":null},"78010":{"zone":"KERR","group":"Out of area","mode":"office_only","p":"JHM","s":[],"trip":null},"78744":{"zone":"AUS S","group":"Austin Metro","mode":"open","p":"KJB","s":[],"trip":null},"78675":{"zone":"OUT","group":"Out of area","mode":"office_only","p":"JHM","s":[],"trip":null},"78639":{"zone":"SHOP","group":"Core Hill Country","mode":"open","p":"TDP","s":[],"trip":null},"78957":{"zone":"OUT","group":"Out of area","mode":"office_only","p":"JRC","s":[],"trip":null},"78257":{"zone":"SA","group":"Out of area","mode":"office_only","p":"JHM","s":[],"trip":null},"78015":{"zone":"BOERN","group":"West","mode":"designated_days","p":"JHM","s":[],"trip":["Wed","JHM"]},"78132":{"zone":"BRAUN","group":"Far South","mode":"designated_days","p":"CEM","s":[],"trip":["Tue","CEM"]},"78655":{"zone":"SANMA","group":"South Corridor","mode":"open","p":"KJB","s":[],"trip":null},"76832":{"zone":"OUT","group":"Out of area","mode":"office_only","p":"CEM","s":[],"trip":null},"78753":{"zone":"AUS N","group":"Austin Metro","mode":"open","p":"CIT","s":[],"trip":null},"78681":{"zone":"ROUND","group":"Northwest Lakes","mode":"designated_days","p":"CIT","s":[],"trip":["Thu","TDP"]}};
+const ZIP={"78620":[30.195,-98.084],"78737":[30.189,-97.96],"78746":[30.301,-97.804],"78619":[30.126,-98.028],"78703":[30.288,-97.764],"78676":[29.996,-98.107],"78738":[30.336,-97.986],"78701":[30.266,-97.748],"78669":[30.406,-98.058],"78735":[30.273,-97.873],"78624":[30.277,-98.849],"78704":[30.249,-97.76],"78731":[30.367,-97.779],"78739":[30.195,-97.892],"78733":[30.31,-97.87],"78606":[30.098,-98.439],"78734":[30.386,-97.93],"78636":[30.285,-98.41],"78736":[30.254,-97.909],"78666":[29.894,-98.009],"78749":[30.226,-97.872],"78657":[30.551,-98.385],"78705":[30.297,-97.736],"78732":[30.376,-97.98],"78756":[30.351,-97.781],"78745":[30.204,-97.805],"78748":[30.159,-97.842],"78730":[30.373,-97.845],"78757":[30.333,-97.746],"78663":[30.346,-98.246],"78759":[30.351,-97.781],"78751":[30.306,-97.731],"78006":[29.935,-98.798],"78640":[29.97,-97.901],"78130":[29.787,-98.241],"78747":[30.233,-97.79],"78643":[30.613,-98.52],"78671":[30.173,-98.625],"78723":[30.308,-97.695],"78722":[30.308,-97.695],"78750":[30.425,-97.79],"78830":[30.366,-97.863],"78717":[30.351,-97.781],"78623":[30.0,-98.262],"78702":[30.297,-97.747],"78729":[30.304,-97.833],"78635":[30.285,-98.409],"78644":[30.3,-99.244],"78727":[30.351,-97.781],"78776":[30.005,-98.107],"78163":[29.773,-98.447],"78631":[30.226,-99.214],"78070":[29.934,-98.385],"78724":[30.308,-97.695],"78641":[30.351,-97.781],"78028":[29.913,-99.169],"78010":[30.226,-99.214],"78744":[30.233,-97.79],"78675":[30.3,-99.244],"78639":[30.185,-98.003],"78957":[30.3,-99.244],"78257":[29.657,-98.611],"78015":[29.733,-98.636],"78132":[29.787,-98.241],"78655":[29.839,-97.86],"76832":[30.981,-98.708],"78753":[30.351,-97.781],"78681":[30.346,-98.246],"78626":[30.615,-97.635],"78610":[30.071,-97.919],"78613":[30.54,-97.791],"78654":[30.48,-98.297]};
+ZIP['78671']=[30.23,-98.66];ZIP['78624']=ZIP['78624']||[30.284,-98.874];ZIP['78606']=ZIP['78606']||[30.098,-98.439];ZIP['78613']=ZIP['78613']||[30.50,-97.83];
+
+const SHOP={name:'Shop',zip:78620,ll:[30.2054,-98.0605]};
+const AJH={id:'AJH',name:'Andrew Horst',skills:['appliance','sealed'],start:'shop',end:'shop',home:[30.21,-98.05],auto:true};
+AJH.zone=Object.keys(ZONE).filter(z=>ZONE[z].p==='AJH').map(Number);
+AJH.zone2=Object.keys(ZONE).filter(z=>ZONE[z].s.includes('AJH')).map(Number);
+const DAYS=[{k:'2026-09-14',s:'Mon',n:'Sep 14'},{k:'2026-09-15',s:'Tue',n:'Sep 15'},{k:'2026-09-16',s:'Wed',n:'Sep 16'},{k:'2026-09-17',s:'Thu',n:'Sep 17'},{k:'2026-09-18',s:'Fri',n:'Sep 18'}];
+const SHIFT={start:8*60,end:17*60};
+const STATUS_LABEL={SO1:'Diagnostic needed',SO6:'Install / repair',SO5:'Parts in hand — needs a day',WAR1:'Warranty visit',WAR3:'Warranty visit',WAR4:'Warranty visit','WAR4.1':'Warranty visit',SO4:'Parts on order',SO3:'Approved — ordering parts','SO2.2':'Quote sent, awaiting approval',WARADMIN:'Warranty admin review',WARPROBLEM:'Warranty — escalated',WARPART:'Warranty — parts pipeline',WARPARTORDERED:'Warranty parts on order'};
+function chipClass(st){if(st==='SO6')return 'SO6';if(st==='SO5')return 'SO5';if(st&&st.startsWith('WAR'))return 'WAR';if(st&&/^SO[234]/.test(st))return 'SO5';return 'SO1'}
+
+/* ---------- shared pilot store — lives in Agility (Postgres) so Andrew's phone, the routing tool and the parts tool all see one record. Pages diff what they changed and post just that; a 15-second poll picks up everyone else's changes. ---------- */
+const PILOT_API='/api/pilot/store';
+let STORE={v:1,jobs:[],log:[],updated:0};
+let LAST_SNAPSHOT=new Map();
+const jobKey=j=>j.sv||j._id;
+function snapshotOf(store){const m=new Map();for(const j of (store.jobs||[]))m.set(jobKey(j),JSON.stringify(j));return m}
+function assignIds(store){for(const j of (store.jobs||[]))if(!j.sv){j.sv='NEW-'+Date.now().toString(36).toUpperCase()+Math.random().toString(36).slice(2,5).toUpperCase()}}
+async function fetchStore(){const r=await fetch(PILOT_API,{credentials:'same-origin'});if(!r.ok)throw new Error('Could not load the pilot data');const d=await r.json();STORE=d;LAST_SNAPSHOT=snapshotOf(STORE);return STORE}
+function loadStore(){return STORE}
+function ensureStore(){return STORE}
+function logEvent(store,who,msg){store.log=store.log||[];store.log.unshift({ts:Date.now(),who,msg,_new:true});if(store.log.length>40)store.log.length=40}
+let saveChain=Promise.resolve();
+function saveStore(store){
+  assignIds(store);
+  const cur=snapshotOf(store);const upserts=[],deletes=[];
+  for(const [k,v] of cur){if(LAST_SNAPSHOT.get(k)!==v)upserts.push(JSON.parse(v))}
+  for(const k of LAST_SNAPSHOT.keys())if(!cur.has(k))deletes.push(k);
+  const log=(store.log||[]).filter(e=>e._new).map(e=>{delete e._new;return {ts:e.ts,who:e.who,msg:e.msg}});
+  LAST_SNAPSHOT=cur;store.updated=Date.now();
+  if(!upserts.length&&!deletes.length&&!log.length)return store;
+  saveChain=saveChain.then(()=>fetch(PILOT_API,{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({upserts,deletes,log})})
+    .then(r=>r.ok?r.json():Promise.reject(new Error('save')))
+    .then(d=>{if(d&&d.updated)STORE.updated=d.updated})
+    .catch(()=>toast('Could not save to Agility — check your connection and try again','warn')));
+  return store;
+}
+async function pollStore(){try{const r=await fetch(PILOT_API+'?since='+encodeURIComponent(STORE.updated||0),{credentials:'same-origin'});if(!r.ok)return;const d=await r.json();if(d.changed){STORE=d;LAST_SNAPSHOT=snapshotOf(STORE);onRemoteChange()}}catch(e){}}
+setInterval(pollStore,15000);
+document.addEventListener('visibilitychange',()=>{if(!document.hidden)pollStore()});
+
+function onRemoteChange(){render()}
+let nextSeq=1000;
+
+function ll(zip){return ZIP[String(zip)]||SHOP.ll}
+function zinfo(zip){return ZONE[String(zip)]||{zone:'?',group:'Unclassified',mode:'office_only',p:null,s:[],trip:null}}
+function driveMin(a,b){const R=6371,dLat=(b[0]-a[0])*Math.PI/180,dLng=(b[1]-a[1])*Math.PI/180,la=a[0]*Math.PI/180,lb=b[0]*Math.PI/180;const h=Math.sin(dLat/2)**2+Math.cos(la)*Math.cos(lb)*Math.sin(dLng/2)**2;const km=2*R*Math.asin(Math.sqrt(h));return Math.round(4+km*1.55)}
+function jobsFor(day){return STORE.jobs.filter(j=>j.bucket==='routed'&&j.day===day).sort((a,b)=>(a.seq||0)-(b.seq||0))}
+function timelineFor(day,extra){
+  const stops=jobsFor(day).concat(extra?[extra]:[]);
+  let cur=SHOP.ll,clock=SHIFT.start,drive=0,work=0,late=0;
+  for(const j of stops){const d=driveMin(cur,ll(j.zip));drive+=d;let arr=clock+d;const ws=j.win==='PM'?12*60:8*60,we=j.win==='PM'?17*60:12*60;if(arr<ws)arr=ws;if(arr>we)late++;clock=arr+j.dur;work+=j.dur;cur=ll(j.zip)}
+  const back=driveMin(cur,SHOP.ll);
+  return {drive,work,back,late,fill:Math.min(1,(drive+work)/(SHIFT.end-SHIFT.start)),n:stops.length}
+}
+function zoneNote(zip){const zi=zinfo(zip);if(AJH.zone.includes(+zip))return {c:'ok',t:`${zi.zone} — Andrew's primary zone`};if(AJH.zone2.includes(+zip))return {c:'',t:`${zi.zone} — Andrew's secondary zone`};return {c:'bad',t:`${zi.zone} — outside Andrew's usual zones (normally ${zi.p||'unassigned'})`}}
+
+function recommend(job){
+  const zn=zoneNote(job.zip);
+  return DAYS.map(d=>{
+    const before=timelineFor(d.k);
+    const after=timelineFor(d.k,{zip:job.zip,dur:job.dur,win:job.win||'AM'});
+    const pct=Math.round(after.fill*100);
+    let score=pct + (zn.c==='bad'?40:zn.c==='ok'?0:15) + (after.late>before.late?25:0);
+    return {day:d,pct,before:Math.round(before.fill*100),late:after.late>before.late,score,zn};
+  }).sort((a,b)=>a.score-b.score);
+}
+
+function render(){renderWeek();renderBacklog();renderParts()}
+
+function renderWeek(){
+  $('#week').innerHTML=DAYS.map(d=>{
+    const stops=jobsFor(d.k);
+    const tl=timelineFor(d.k);
+    const pct=Math.round(tl.fill*100);
+    const warmth=pct>95?'hot':pct>75?'warm':'';
+    return `<div class="daycard"><div class="hd"><div class="dn">${d.s} <span class="mono" style="color:var(--muted);font-weight:400">${d.n}</span></div><div class="dd">${stops.length} stop${stops.length===1?'':'s'} · ${pct}% of the day${tl.late?` · <span style=\"color:var(--bad)\">${tl.late} outside window</span>`:''}</div><div class="fillbar ${warmth}"><i style="width:${Math.min(pct,100)}%"></i></div></div>
+    <div class="daystops">${stops.length?stops.map(j=>jcardHTML(j,d.k)).join(''):'<div class="empty">Nothing routed to this day yet</div>'}</div></div>`;
+  }).join('');
+  document.querySelectorAll('[data-deljob]').forEach(b=>b.onclick=()=>{
+    const sv=b.dataset.deljob;if(!confirm('Remove this stop from the pilot board?'))return;
+    const i=STORE.jobs.findIndex(j=>j.sv===sv);
+    if(i>=0){const job=STORE.jobs[i];STORE.jobs.splice(i,1);logEvent(STORE,'Routing tool',esc(job.cust)+' ('+sv+') removed from the board');saveStore(STORE)}
+    toast('Removed from the board');render();
+  });
+}
+function jcardHTML(j,day){
+  return `<div class="jcard ${chipClass(j.status)}"><button class="del" data-deljob="${j.sv}" title="Remove">×</button>
+    <div class="who">${esc(j.cust)}</div>
+    <div class="sub">${esc(j.addr.split(',')[0])} · ${esc(j.unit)} · <span class="mono">${j.sv}</span></div>
+    <div class="row2"><span class="chip st ${chipClass(j.status)}">${j.status}</span>${j.wty?'<span class="chip">Warranty</span>':j.bal?`<span class="chip bad">${money(j.bal)} due</span>`:''}<span class="chip">${j.win||''}</span></div></div>`;
+}
+
+function renderBacklog(){
+  const BACKLOG=STORE.jobs.filter(j=>j.bucket==='backlog');
+  $('#backlogCount').textContent=BACKLOG.length;
+  $('#backlogBody').innerHTML=BACKLOG.length?BACKLOG.map((b,i)=>`<div class="backcard" data-bi="${i}"><button class="del" data-delback="${i}" title="Remove">×</button>
+    <div class="who">${esc(b.cust)}</div>
+    <div class="sub">${esc((b.addr||'').split(',')[0])} · ${esc(b.unit||'')} · <span class="mono">${b.sv||'new'}</span></div>
+    <div class="row2" style="margin-top:.3rem"><span class="chip st ${chipClass(b.status)}">${b.status}</span>${b.wty?'<span class="chip">Warranty</span>':b.bal?`<span class="chip bad">${money(b.bal)} due</span>`:''}</div>
+    ${b.reason?`<div class="reason">${esc(b.reason)}</div>`:''}
+    <div class="acts"><button class="sm" data-advise="${i}">Get a day recommendation</button></div>
+    <div class="advisor" id="adv-${i}"></div>
+    </div>`).join(''):'<div class="empty">Nothing waiting to be routed right now.</div>';
+  document.querySelectorAll('[data-delback]').forEach(b=>b.onclick=()=>{
+    const i=+b.dataset.delback;const job=BACKLOG[i];if(!job||!confirm('Remove this request?'))return;
+    const si=STORE.jobs.indexOf(job);
+    if(si>=0){STORE.jobs.splice(si,1);logEvent(STORE,'Routing tool',esc(job.cust||'Request')+' removed from the backlog');saveStore(STORE)}
+    toast('Removed');render();
+  });
+  document.querySelectorAll('[data-advise]').forEach(b=>b.onclick=()=>{
+    const i=+b.dataset.advise, card=document.querySelector(`[data-bi="${i}"]`), box=$('#adv-'+i);
+    const open=card.classList.toggle('open');
+    if(!open)return;
+    const job=BACKLOG[i], recs=recommend(job);
+    box.innerHTML=recs.map((r,ri)=>`<div class="advrow"><span class="${ri===0?'best':''}">${ri===0?'Best — ':''}${r.day.s} ${r.day.n}</span><span class="rationale">${r.pct}% full after adding it · ${r.zn.t}${r.late?' · pushes a stop past its window':''}</span>${DAYS.some(d=>d.k===r.day.k)?`<button class="sm primary" data-assign="${i}:${r.day.k}">Put here</button>`:''}</div>`).join('');
+    document.querySelectorAll('[data-assign]').forEach(ab=>ab.onclick=()=>{
+      const [bi,dk]=ab.dataset.assign.split(':');const bidx=+bi;const job=BACKLOG[bidx];if(!job)return;
+      const seq=jobsFor(dk).length+1;
+      job.bucket='routed';job.day=dk;job.seq=seq;job.win=job.win||'AM';job.eta=null;
+      if(!job.sv)job.sv='NEW-'+(nextSeq++);
+      const dobj=DAYS.find(d=>d.k===dk);
+      logEvent(STORE,'Routing tool',esc(job.cust)+' ('+job.sv+') → '+dobj.s+' '+dobj.n);
+      saveStore(STORE);
+      toast(`${job.cust} → ${dobj.s} ${dobj.n}`);render();
+    });
+  });
+}
+
+function renderParts(){
+  const PARTS=STORE.jobs.filter(j=>j.bucket==='parts');
+  $('#partsCount').textContent=PARTS.length;
+  $('#partsBody').innerHTML=PARTS.length?PARTS.map((p,i)=>`<div class="backcard">
+    <div class="who">${esc(p.cust)}</div>
+    <div class="sub">${esc((p.addr||'').split(',')[0])} · ${esc(p.unit||'')} · <span class="mono">${p.sv}</span></div>
+    <div class="row2" style="margin-top:.3rem"><span class="chip st ${chipClass(p.status)}">${p.status}</span>${p.wty?'<span class="chip">Warranty</span>':p.bal?`<span class="chip bad">${money(p.bal)} due</span>`:''}</div>
+    <div class="acts"><button class="sm" data-promote="${i}">Mark received — needs a day</button></div>
+    </div>`).join(''):'<div class="empty">Nothing waiting on parts. Check the parts tool — Verify &amp; order / Receiving handle this pipeline in more detail.</div>';
+  document.querySelectorAll('[data-promote]').forEach(b=>b.onclick=()=>{
+    const i=+b.dataset.promote;const p=PARTS[i];if(!p)return;
+    p.bucket='backlog';p.status='SO5';p.reason='Parts marked in by office — needs a day';p.day=null;
+    logEvent(STORE,'Routing tool',esc(p.cust)+' ('+p.sv+') — parts received, needs a day');
+    saveStore(STORE);
+    toast(`${p.cust} moved to Andrew's backlog`);render();
+  });
+}
+
+(function prefillFromUrl(){const q=new URLSearchParams(location.search);if(!q.get('cust')&&!q.get('phone'))return;const set=(id,v)=>{const el=document.querySelector(id);if(el&&v!=null)el.value=v};set('#f_cust',q.get('cust'));set('#f_phone',q.get('phone'));set('#f_addr',q.get('addr'));set('#f_zip',q.get('zip'));set('#f_brand',q.get('brand'));set('#f_note',q.get('note'));if(q.get('cat')){const el=document.querySelector('#f_cat');if(el&&[...el.options].some(o=>o.value===q.get('cat')))el.value=q.get('cat')}toast('Prefilled from the Service Request Queue — review and click Add');history.replaceState(null,'',location.pathname)})();
+$('#addForm').addEventListener('submit',e=>{
+  e.preventDefault();
+  const zip=$('#f_zip').value.trim();
+  if(!/^\d{5}$/.test(zip)){toast('Enter a 5-digit ZIP','warn');return}
+  const cat=$('#f_cat').value;
+  const DUR={dishwasher:75,refrigerator:90,washer:75,dryer:60,oven:90,other:60};
+  const status=$('#f_status').value;
+  const job={
+    sv:null,cust:$('#f_cust').value.trim()||'New customer',
+    addr:($('#f_addr').value.trim()||'—')+', '+zip, zip,
+    phone:$('#f_phone').value.trim()||null,pref:'Call',gate:'—',builtin:false,photos:0,
+    status, bucket:'backlog', day:null, cat, brand:$('#f_brand').value.trim()||'',
+    unit:($('#f_brand').value.trim()||'')+' '+cat.charAt(0).toUpperCase()+cat.slice(1),
+    problem:$('#f_note').value.trim()||null,
+    dur:DUR[cat]||60, bal:null, wty:$('#f_wty').checked, parts:[], partsNeeded:[],
+    reason:'Imported by hand from the Service Request Queue — original request untouched there. '+($('#f_phone').value.trim()?('Phone '+$('#f_phone').value.trim()+'. '):'')+($('#f_note').value.trim()||''),
+    source:'manual'
+  };
+  STORE.jobs.push(job);
+  logEvent(STORE,'Routing tool',esc(job.cust)+' added by hand to Andrew\'s backlog');
+  saveStore(STORE);
+  e.target.reset();
+  toast('Added to Andrew\'s backlog — nothing changed in the real queue');
+  render();
+});
+
+render();
+fetchStore().then(()=>onRemoteChange()).catch(e=>toast(e.message,'warn'));
+</script>
+
+</body></html>

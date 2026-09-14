@@ -298,6 +298,9 @@
       {
         title: "Test Modules",
         children: [
+          { href: "pilot-routing.html", title: "AJH Pilot — Routing" },
+          { href: "pilot-field.html", title: "AJH Pilot — Field Tool" },
+          { href: "pilot-parts.html", title: "AJH Pilot — Parts Pipeline" },
           { href: "service-journey.html", title: "Service Journey (ePASS mirror)" },
           { href: "service-proto-board.html", title: "Service Journey — Board prototype" },
           { href: "service-proto-field.html", title: "Service Journey — Field Tool prototype" },

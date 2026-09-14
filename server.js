@@ -418,6 +418,7 @@ import {
   listStuckJobs, listStaleJobs, listSyncItems, markSyncKeyed, resolveSyncItem, listRecalls, reviewRecall, listImportBatches, serviceKpis, listTechs as listServiceTechs,
   listZones as listServiceZones, getSettings as getServiceSettings, setSetting as setServiceSetting, STATUS_DEFS as SERVICE_STATUS_DEFS, REASON_CODES as SERVICE_REASON_CODES
 } from "./lib/service-journey-postgres.js";
+import { getPilotStore, applyPilotChanges, addPilotJobFromCard, resetPilot, listPilotLog } from "./lib/pilot-postgres.js";
 import {
   getSalesOrderSnapshot,
   saveSalesOrderSnapshot,
@@ -667,6 +668,9 @@ const INTERNAL_PAGE_PATHS = new Set([
   "/uniform-orders.html",
   "/spec-packages.html",
   "/satisfaction-survey.html",
+  "/pilot-routing.html",
+  "/pilot-field.html",
+  "/pilot-parts.html",
   "/service-journey.html",
   "/service-proto-board.html",
   "/service-proto-field.html",
@@ -908,6 +912,9 @@ const PAGE_LABELS = {
   "/hr-candidates.html": "Candidates",
   "/uniform-orders.html": "Uniform Ordering",
   "/satisfaction-survey.html": "Client Satisfaction Survey",
+  "/pilot-routing.html": "AJH Pilot — Routing",
+  "/pilot-field.html": "AJH Pilot — Field Tool",
+  "/pilot-parts.html": "AJH Pilot — Parts Pipeline",
   "/service-journey.html": "Service Journey (ePASS mirror)",
   "/service-proto-board.html": "Service Journey — Dispatch Board prototype",
   "/service-proto-field.html": "Service Journey — Field Tool prototype",
@@ -969,6 +976,9 @@ const PAGE_CATEGORIES = [
     key: "test_modules",
     label: "Test Modules",
     pages: [
+      "/pilot-routing.html",
+      "/pilot-field.html",
+      "/pilot-parts.html",
       "/service-journey.html",
       "/service-proto-board.html",
       "/service-proto-field.html",
@@ -9210,6 +9220,77 @@ app.post("/api/service-journey/settings", requireServiceJourney, async (req, res
     sjAudit(req, "service_journey_setting_set", { key, value: req.body?.value });
     return res.json({ ok: true, settings: await getServiceSettings() });
   } catch (err) { return res.status(400).json({ error: err.message }); }
+});
+
+// ---------------------------------------------------------------------------
+// AJH Pilot (Test Modules, 2026-09-14) — Jack's one-week test of a field
+// tool, routing tool and parts pipeline for Andrew Horst. The three pages
+// share one job store here instead of a browser's localStorage, so the
+// phone and the office see the same record (AJH_pilot_developer_handoff.md).
+// Any of the three page grants unlocks the store; executives implicitly.
+// ---------------------------------------------------------------------------
+const requirePilot = requirePagePermission("/pilot-routing.html", "/pilot-field.html", "/pilot-parts.html");
+const pilotMe = (req) => String(req.authUser?.email || req.authUser?.username || "").toLowerCase();
+app.get("/api/pilot/store", requirePilot, async (req, res) => {
+  try {
+    const since = req.query.since != null && req.query.since !== "" ? Number(req.query.since) : null;
+    return res.json(await getPilotStore({ since: Number.isFinite(since) ? since : null }));
+  } catch (err) { console.error("Pilot store load failed:", err.message); return res.status(500).json({ error: "Unable to load the pilot data." }); }
+});
+app.post("/api/pilot/store", requirePilot, async (req, res) => {
+  try {
+    const result = await applyPilotChanges({ upserts: req.body?.upserts, deletes: req.body?.deletes, log: req.body?.log }, pilotMe(req));
+    return res.json(result);
+  } catch (err) { console.error("Pilot store save failed:", err.message); return res.status(500).json({ error: "Unable to save the pilot data." }); }
+});
+app.get("/api/pilot/log", requirePilot, async (req, res) => {
+  try { return res.json({ log: await listPilotLog(100) }); } catch (err) { return res.status(500).json({ error: "Unable to load the pilot log." }); }
+});
+app.post("/api/pilot/reset", requireExecutiveApi, async (req, res) => {
+  try {
+    const r = await resetPilot(pilotMe(req));
+    recordAudit({ ip: req.ip, actorUserId: req.authUser?.id || null, action: "pilot_reset", targetUserId: null, detail: r }).catch(() => {});
+    return res.json({ ok: true, ...r });
+  } catch (err) { return res.status(500).json({ error: "Unable to reset the pilot data." }); }
+});
+// "Copy to AJH test module" on the Service Request Queue (handoff §3):
+// additive — the queue card itself is never changed.
+app.post("/api/pilot/jobs/from-queue", requirePagePermission("/appliance-service-calls.html", "/pilot-routing.html"), async (req, res) => {
+  try {
+    const id = String(req.body?.serviceCardId || "").slice(0, 60);
+    const cards = await readServiceCards();
+    const card = cards.find((row) => row.id === id);
+    if (!card) return res.status(404).json({ error: "Request not found." });
+    const result = await addPilotJobFromCard(card, pilotMe(req));
+    recordAudit({ ip: req.ip, actorUserId: req.authUser?.id || null, action: "pilot_job_copied_from_queue", targetUserId: null, detail: { serviceCardId: id, sv: result.job.sv, existed: result.existed } }).catch(() => {});
+    return res.json({ ok: true, ...result });
+  } catch (err) { console.error("Pilot copy failed:", err.message); return res.status(400).json({ error: err.message || "Unable to copy that request." }); }
+});
+// "On my way" from the field tool (handoff §2). Explicit tap by the tech,
+// never automatic. Text preference → a Podium text through the same
+// connection the estimate tool uses; Call preference → hand back a tel:
+// link for the tech's phone (Podium can't place a call from the API).
+app.post("/api/pilot/notify", requirePilot, async (req, res) => {
+  try {
+    const digits = String(req.body?.phone || "").replace(/\D/g, "");
+    const phone = digits.length === 11 && digits.startsWith("1") ? digits.slice(1) : digits;
+    const name = String(req.body?.name || "").slice(0, 80);
+    const eta = String(req.body?.eta || "").slice(0, 20);
+    const pref = String(req.body?.pref || "Text");
+    const sv = String(req.body?.sv || "").slice(0, 40);
+    const techFirst = String(req.authUser?.displayName || "Andrew").split(/\s+/)[0] || "Andrew";
+    if (phone.length !== 10) return res.status(400).json({ error: "No 10-digit phone number on this stop — confirm with the customer or ePASS." });
+    if (pref === "Call") {
+      recordAudit({ ip: req.ip, actorUserId: req.authUser?.id || null, action: "pilot_on_my_way_call", targetUserId: null, detail: { sv, name, phone } }).catch(() => {});
+      return res.json({ ok: true, action: "call", tel: `tel:${phone}` });
+    }
+    if (!podiumSendConfigured()) return res.status(503).json({ error: "Texting isn't connected — connect Podium in Text Automations first." });
+    const body = `${techFirst} from Wilson AC & Appliance is on the way${eta ? `, arriving about ${eta}` : ""}. Reply here if anything's changed.`;
+    const result = await sendCustomerText({ phone, body });
+    if (!result.ok) return res.status(502).json({ error: "The text didn't go through — try again or call the customer." });
+    recordAudit({ ip: req.ip, actorUserId: req.authUser?.id || null, action: "pilot_on_my_way_texted", targetUserId: null, detail: { sv, name, to: phone, transport: result.transport } }).catch(() => {});
+    return res.json({ ok: true, action: "text", to: phone, body });
+  } catch (err) { console.error("Pilot notify failed:", err.message); return res.status(500).json({ error: "Unable to notify the customer right now." }); }
 });
 
 // INTERNAL: ePASS Upload Center (epass-uploads.html) — one page where the

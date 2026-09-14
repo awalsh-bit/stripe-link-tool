@@ -754,6 +754,23 @@ function attachCopyActions() {
 }
 
 function attachPrefillActions() {
+  // Copy into the AJH pilot backlog (Test Modules) — additive; the queue card is untouched.
+  document.querySelectorAll("[data-pilot-copy]").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      const originalText = btn.textContent;
+      btn.disabled = true; btn.textContent = "Copying…";
+      try {
+        const res = await fetch("/api/pilot/jobs/from-queue", { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ serviceCardId: btn.getAttribute("data-pilot-copy") }) });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error || "Couldn't copy that request.");
+        btn.textContent = data.existed ? "Already in the pilot" : "Copied to AJH backlog";
+        setTimeout(() => { btn.textContent = originalText; btn.disabled = false; }, 4000);
+      } catch (err) {
+        btn.textContent = err.message;
+        setTimeout(() => { btn.textContent = originalText; btn.disabled = false; }, 4000);
+      }
+    });
+  });
   document.querySelectorAll("[data-prefill-id]").forEach((btn) => {
     btn.addEventListener("click", async () => {
       const id = btn.getAttribute("data-prefill-id");
@@ -938,6 +955,9 @@ function attachPrefillActions() {
                 <button class="copy-ref-btn" type="button" data-prefill-id="${escapeHtml(row.id)}">Copy secure card link</button>
               </div>
             ` : ""}
+            <div style="margin-top:10px;">
+              <button class="copy-ref-btn" type="button" data-pilot-copy="${escapeHtml(row.id)}" title="Adds a copy of this request to Andrew Horst's pilot backlog (Test Modules). Nothing about this request changes.">Copy to AJH test module</button>
+            </div>
           </td>
 
           <td>

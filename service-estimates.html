@@ -98,6 +98,13 @@
     .se-eta-dates input { display: block; margin-top: 4px; border: 1px solid var(--border); border-radius: 10px; padding: 8px 10px; font-family: inherit; font-size: 13px; }
     .se-eta-preview { margin-top: 10px; font-size: 13px; line-height: 1.5; color: #1f2937; background: #fff; border-left: 3px solid var(--primary); padding: 8px 12px; border-radius: 0 10px 10px 0; }
     .se-parts-ok { font-size: 11.5px; color: #166534; margin-top: 6px; }
+    .se-notrec { border: 1.5px solid #fcd34d; background: #fffbeb; border-radius: 12px; padding: 12px 14px; margin: 14px 0; }
+    .se-notrec-check { display: flex; gap: 10px; align-items: flex-start; cursor: pointer; font-size: 13px; line-height: 1.45; }
+    .se-notrec-check input { margin-top: 3px; width: 16px; height: 16px; accent-color: #b45309; flex: none; }
+    .se-notrec-detail { margin-top: 10px; }
+    .se-notrec-detail input { width: 100%; border: 1px solid var(--border); border-radius: 10px; padding: 9px 12px; font-size: 13px; font-family: inherit; }
+    .se-chip.warn { background: #fef3c7; color: #92400e; }
+    .se-refrig td:first-child { color: #0f766e; }
     .se-result { border: 1.5px solid rgba(var(--primary-rgb), 0.35); background: rgba(var(--primary-rgb), 0.05); border-radius: 12px; padding: 14px 16px; margin-top: 14px; display: none; }
     .se-result.show { display: block; }
     .se-result .lnk { font-size: 12.5px; word-break: break-all; margin-bottom: 10px; }
@@ -115,8 +122,9 @@
         <h2>Send an estimate for approval</h2>
         <p class="section-note">
           Upload the ePASS <strong>Work Order</strong> print (preferred — it carries the model, serial, phone,
-          and CALL&nbsp;PREF/TEXT&nbsp;PREF) or the plain quote print. The scanner builds a client-friendly summary of
-          parts, labor, and sales tax; the client's link lets them <strong>approve the repair</strong> or
+          and CALL&nbsp;PREF/TEXT&nbsp;PREF), the <strong>Quote</strong> print (<em>--Estimate--</em>, Q-number — for
+          quotes that aren't a service ticket yet), or the plain invoice print. The scanner builds a client-friendly summary of
+          parts, refrigerant, labor, and sales tax; the client's link lets them <strong>approve the repair</strong> or
           <strong>shop for a replacement</strong> — a shopping answer notifies the showroom team like a new web
           order, and an approval flags whoever sent it. Nothing emails automatically: copy the link to call or
           text, or click <strong>Email the link</strong> when that's what the client wants.
@@ -129,7 +137,8 @@
 
       <div class="se-form" id="seForm">
         <div class="se-grid">
-          <div class="se-field"><label>SV number</label><input id="seSv" readonly style="background:#f3f4f6;" /></div>
+          <div class="se-field"><label id="seSvLabel">SV number</label><input id="seSv" readonly style="background:#f3f4f6;" />
+            <div class="se-hint" id="seSvNote" style="display:none;"></div></div>
           <div class="se-field"><label>Client name</label><input id="seName" /></div>
           <div class="se-field"><label>Phone</label><input id="sePhone" type="tel" placeholder="512-555-0100" /></div>
           <div class="se-field">
@@ -165,6 +174,13 @@
             <label>To <span class="se-hint" style="display:inline; margin:0;">(optional)</span> <input type="date" id="seEtaTo"></label>
           </div>
           <div class="se-eta-preview" id="seEtaPreview"></div>
+        </div>
+        <div class="se-notrec" id="seNotRecBox">
+          <label class="se-notrec-check"><input type="checkbox" id="seNotRec"><span><strong>Repair not recommended</strong> — the technician advises replacing this unit instead of repairing it.</span></label>
+          <div class="se-notrec-detail" id="seNotRecDetail" hidden>
+            <input id="seNotRecNote" maxlength="400" placeholder="Optional — why, in one line the client will read (e.g. 14-year-old sealed system; a second failure is likely)">
+            <div class="se-hint">The client's page shows a "note from your technician" above the buttons, and tapping <strong>Approve</strong> asks: “Your technician notes that this repair is not recommended and to proceed with shopping for a replacement. Proceed with repair anyway?” — with a one-tap path to the replacement options.</div>
+          </div>
         </div>
         <div class="se-summary" id="seSummary"></div>
         <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
@@ -308,6 +324,7 @@
           ${applianceLine(s)}
           <table>
             ${(s.parts || []).map((p) => `<tr><td>${p.qty > 1 ? p.qty + " × " : ""}${esc(p.description)}${p.model ? ` <span style="color:var(--muted); font-size:11px;">${esc(p.model)}</span>` : ""}</td><td class="se-amt">${p.ext == null ? "—" : money(p.ext)}</td></tr>`).join("")}
+            ${(s.refrigerant || []).map((r) => `<tr class="se-refrig"><td>${Number(r.qty) > 1 ? Number(r.qty) + " × " : ""}${esc(r.description)}${r.unit != null && Number(r.qty) > 1 ? ` <span style="color:var(--muted); font-size:11px;">${money(r.unit)} each</span>` : ""} <span style="color:var(--muted); font-size:11px;">refrigerant</span></td><td class="se-amt">${r.ext == null ? "—" : money(r.ext)}</td></tr>`).join("")}
             ${s.laborEntries ? `<tr><td>Labor (${s.laborEntries} ${s.laborEntries === 1 ? "entry" : "entries"})</td><td class="se-amt">${s.noLinePricing ? "—" : money(s.laborTotal)}</td></tr>` : ""}
             ${s.shippingTotal ? `<tr><td>Shipping &amp; handling</td><td class="se-amt">${money(s.shippingTotal)}</td></tr>` : ""}
             <tr><td>Subtotal</td><td class="se-amt">${money(s.subTotal)}</td></tr>
@@ -319,11 +336,23 @@
               : `<tr class="se-tot"><td>Estimate total</td><td class="se-amt">${money(s.invoiceTotal)}</td></tr>`}
           </table>
           ${s.noLinePricing ? `<div class="se-hint">This print doesn't itemize prices — the client sees each part with its number and description, and one "Repair parts &amp; labor" line for the subtotal.</div>` : ""}
-          <div class="se-parts-ok">${(s.parts || []).length ? `✓ ${(s.parts || []).length} part${(s.parts || []).length === 1 ? "" : "s"} with part number and description — these show on the client's page.` : "Labor only — no parts on this quote; the client's page says so."}</div>`;
+          <div class="se-parts-ok">${(s.parts || []).length ? `✓ ${(s.parts || []).length} part${(s.parts || []).length === 1 ? "" : "s"} with part number and description — these show on the client's page.` : (s.refrigerant || []).length ? "Refrigerant and labor — no parts on this quote; the client's page shows the refrigerant charge in its own section." : "Labor only — no parts on this quote; the client's page says so."}${(s.refrigerant || []).length && (s.parts || []).length ? ` Plus ${(s.refrigerant || []).length} refrigerant line${(s.refrigerant || []).length === 1 ? "" : "s"} in its own section.` : ""}</div>
+          ${s.notRecommended ? `<div class="se-hint" style="color:#92400e; font-weight:700; margin-top:8px;">⚠ Repair not recommended — the client reads the technician's note${s.notRecommendedNote ? `: “${esc(s.notRecommendedNote)}”` : ""} and Approve asks them to confirm.</div>` : ""}`;
       }
 
       function fillForm(s, knownEmail) {
         $("seSv").value = s.svNumber || "";
+        // A Quote print has no service ticket yet: the Q number stands in and
+        // the field opens up so the office can type the SV once it exists.
+        const isQuote = s.format === "quote";
+        $("seSvLabel").textContent = isQuote ? "Quote / SV number" : "SV number";
+        $("seSv").readOnly = !isQuote;
+        $("seSv").style.background = isQuote ? "#fff" : "#f3f4f6";
+        $("seSvNote").style.display = isQuote ? "block" : "none";
+        $("seSvNote").textContent = isQuote ? `Scanned from the ePASS Quote print (${s.quoteNumber || s.svNumber}). Replace it with the SV number if the ticket already exists.` : "";
+        $("seNotRec").checked = false;
+        $("seNotRecNote").value = "";
+        $("seNotRecDetail").hidden = true;
         $("seName").value = s.customerName || "";
         $("sePhone").value = s.phone || "";
         const PREF_CHIP = { call: "CALL PREF", text: "TEXT PREF", email: "EMAIL PREF" };
@@ -342,7 +371,8 @@
           $("seEmail").value = "";
           emailNote.style.display = "none";
         }
-        $("seAppliance").value = [[s.brand, s.product].filter(Boolean).join(" "), s.model ? "model " + s.model : ""].filter(Boolean).join(", ");
+        $("seAppliance").value = [[s.brand, s.product].filter(Boolean).join(" "), s.model ? "model " + s.model : ""].filter(Boolean).join(", ")
+          || ((s.refrigerant || []).length ? "HVAC system" : "");
         $("seTech").value = s.technician || "";
         document.querySelector('input[name="seEtaMode"][value="stock"]').checked = true;
         $("seEtaFrom").value = ""; $("seEtaTo").value = "";
@@ -386,6 +416,7 @@
         $("seEtaDates").hidden = eta.mode !== "date";
         $("seEtaPreview").textContent = "Client reads: " + etaPreviewText(eta);
       }
+      $("seNotRec").addEventListener("change", () => { $("seNotRecDetail").hidden = !$("seNotRec").checked; if ($("seNotRec").checked) $("seNotRecNote").focus(); });
       document.querySelectorAll('input[name="seEtaMode"]').forEach((r) => r.addEventListener("change", renderEtaPreview));
       ["seEtaFrom", "seEtaTo", "seTech"].forEach((id) => $(id).addEventListener("input", renderEtaPreview));
 
@@ -435,7 +466,8 @@
               contactPref: $("sePref").value,
               documentId: state.scanDocId || "",
               eta: etaSelection(),
-              summary: { ...state.summary, applianceLabel: $("seAppliance").value.trim(), technician: $("seTech").value.trim() || state.summary?.technician || "" }
+              summary: { ...state.summary, applianceLabel: $("seAppliance").value.trim(), technician: $("seTech").value.trim() || state.summary?.technician || "",
+                notRecommended: $("seNotRec").checked, notRecommendedNote: $("seNotRec").checked ? $("seNotRecNote").value.trim() : "" }
             })
           });
           state.created = { token: data.estimate.token, url: data.url };
@@ -450,7 +482,8 @@
           $("seForm").classList.remove("show");
           state.summary = null;
           state.scanDocId = "";
-          ["seSv", "seName", "sePhone", "seEmail", "seLabel", "seAppliance", "seTech", "seEtaFrom", "seEtaTo"].forEach((id) => { $(id).value = ""; });
+          ["seSv", "seName", "sePhone", "seEmail", "seLabel", "seAppliance", "seTech", "seEtaFrom", "seEtaTo", "seNotRecNote"].forEach((id) => { $(id).value = ""; });
+          $("seNotRec").checked = false; $("seNotRecDetail").hidden = true;
           $("sePref").value = "";
           await load();
         } catch (err) {
@@ -556,7 +589,7 @@
         return `
           <tr data-idx="${i}"${isClosed ? ` style="opacity:0.55;"` : ""}>
             <td>${when(e.createdAt)}</td>
-            <td><strong>${esc(e.svNumber || "—")}</strong></td>
+            <td><strong>${esc(e.svNumber || "—")}</strong>${e.summary?.notRecommended ? ` <span class="se-chip warn" title="Technician does not recommend this repair">NOT REC</span>` : ""}</td>
             <td>${esc(e.customerName)}</td>
             <td>${money(dueOf(e.summary || {}))}${paidOf(e.summary || {}) > 0 ? `<div class="se-hint">of ${money(e.summary?.invoiceTotal)} · ${money(paidOf(e.summary || {}))} paid</div>` : ""}</td>
             <td>${esc([e.contactPhone, e.contactEmail].filter(Boolean).join(" / ") || "—")}</td>
@@ -611,7 +644,7 @@
           ${e.closedAt ? `<div class="se-kv"><div class="k">Closed</div><div>${when(e.closedAt)} — hidden from the active list; the client link is inactive.</div></div>` : ""}
           <div class="se-summary" style="margin-top:12px;">${summaryHtml(e.summary || {})}</div>
           ${e.status === "shopping" ? `<div class="se-resp"><strong>Shopping for a replacement.</strong><br>${[directionText, visitText].filter(Boolean).map(esc).join("<br>")}${r.notes ? `<br>“${esc(r.notes)}”` : ""}<br><span style="color:var(--muted); font-size:12px;">Showroom team was notified — lead is up for grabs.</span></div>` : ""}
-          ${e.status === "approved" ? `<div class="se-resp" style="background: rgba(var(--primary-rgb), 0.1);"><strong>Approved.</strong> Schedule the repair.</div>` : ""}
+          ${e.status === "approved" ? `<div class="se-resp" style="background: rgba(var(--primary-rgb), 0.1);"><strong>Approved.</strong> Schedule the repair.${r.proceededAnyway ? `<br><span style="color:#92400e;">⚠ The client saw the technician's <strong>not recommended</strong> note and chose the repair anyway.</span>` : ""}</div>` : ""}
           ${e.status === "diagnostic" ? `<div class="se-resp" style="background:#f3f4f6;"><strong>Diagnostic only.</strong> Client stopped at the diagnostic visit — no repair.</div>` : ""}
           ${e.status === "comped" ? `<div class="se-resp" style="background:#fce7f3;"><strong>Comped.</strong> Wilson covered this one — no charge to the client.</div>` : ""}
           ${r.resolvedByStaff ? `<div class="se-resp" style="background:#f8fafc; border:1px solid #e2e8f0;"><strong>Resolved by ${esc(r.staffName || r.staffEmail || "the team")}</strong>${r.resolvedAt ? " · " + when(r.resolvedAt) : ""}<br>“${esc(r.staffNotes || "")}”</div>` : ""}

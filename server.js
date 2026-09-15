@@ -6876,7 +6876,12 @@ app.post("/api/service-estimates", requirePagePermission("/service-estimates.htm
     } catch (etaErr) {
       return res.status(400).json({ error: etaErr.message });
     }
-    const storedSummary = { ...summary, partsQuality: quality, eta, etaMessage: etaMessage(eta) };
+    // "Not recommended" (Andrew, 2026-09-15): the tech's call that the unit
+    // should be replaced rather than repaired. Shows as a note on the
+    // client's page and makes Approve ask "proceed with repair anyway?".
+    const notRecommended = summary.notRecommended === true || summary.notRecommended === "true";
+    const notRecommendedNote = notRecommended ? String(summary.notRecommendedNote || "").trim().slice(0, 400) : "";
+    const storedSummary = { ...summary, notRecommended, notRecommendedNote, partsQuality: quality, eta, etaMessage: etaMessage(eta) };
     const estimate = await createServiceEstimate({
       svNumber, estimateName, customerName, customerNumber, contactPhone, contactEmail, contactPref, summary: storedSummary,
       byEmail: req.authUser?.email || req.authUser?.username || "",
@@ -6899,7 +6904,7 @@ app.post("/api/service-estimates", requirePagePermission("/service-estimates.htm
     recordAudit({
       ip: req.ip, actorUserId: req.authUser?.id || null,
       action: "service_estimate_created", targetUserId: null,
-      detail: { svNumber: estimate.svNumber, customerName: estimate.customerName, total: summary.invoiceTotal, paid: storedSummary.paid || 0, amountDue: storedSummary.amountDue, eta: eta.mode, etaFrom: eta.from || "", etaTo: eta.to || "", parts: quality.partCount }
+      detail: { svNumber: estimate.svNumber, customerName: estimate.customerName, total: summary.invoiceTotal, paid: storedSummary.paid || 0, amountDue: storedSummary.amountDue, eta: eta.mode, etaFrom: eta.from || "", etaTo: eta.to || "", parts: quality.partCount, refrigerant: (summary.refrigerant || []).length, format: summary.format || "", notRecommended }
     }).catch(() => {});
 
     return res.json({ ok: true, estimate, url });
@@ -7369,7 +7374,7 @@ function closedEstimatesCsv(rows) {
   const local = (iso) => iso ? new Date(iso).toLocaleString("en-US", { timeZone: APP_TIMEZONE, year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false }) : "";
   const monthOf = (iso) => iso ? new Date(iso).toLocaleDateString("en-CA", { timeZone: APP_TIMEZONE }).slice(0, 7) : "";
   const days = (a, b) => a && b ? Math.round((new Date(b) - new Date(a)) / 864e5 * 10) / 10 : "";
-  const head = ["closed_month", "closed_at", "sv_number", "customer_name", "customer_number", "phone", "email", "brand", "product", "model", "invoice_total", "already_paid", "amount_due", "outcome", "resolved_by", "resolver", "notes", "created_at", "created_by", "emailed_at", "viewed_at", "responded_at", "days_open", "closed_by"];
+  const head = ["closed_month", "closed_at", "sv_number", "customer_name", "customer_number", "phone", "email", "brand", "product", "model", "invoice_total", "already_paid", "amount_due", "parts_total", "labor_total", "refrigerant_total", "tech_recommendation", "proceeded_anyway", "outcome", "resolved_by", "resolver", "notes", "created_at", "created_by", "emailed_at", "viewed_at", "responded_at", "days_open", "closed_by"];
   const lines = [head.join(",")];
   for (const r of rows) {
     const sm = r.summary || {};
@@ -7377,6 +7382,8 @@ function closedEstimatesCsv(rows) {
       monthOf(r.closedAt), local(r.closedAt), r.svNumber, r.customerName, r.customerNumber, r.contactPhone, r.contactEmail,
       sm.brand || "", sm.product || "", sm.model || "",
       r.invoiceTotal == null ? "" : Number(r.invoiceTotal).toFixed(2), Number(r.paid || 0).toFixed(2), r.amountDue == null ? "" : Number(r.amountDue).toFixed(2),
+      sm.partsTotal == null ? "" : Number(sm.partsTotal).toFixed(2), Number(sm.laborTotal || 0).toFixed(2), Number(sm.refrigerantTotal || 0).toFixed(2),
+      sm.notRecommended ? "not recommended" : "", r.response?.proceededAnyway ? "yes" : "",
       r.outcomeLabel, r.resolvedBy, r.resolverName, r.notes,
       local(r.createdAt), r.createdByName || r.createdByEmail || "", local(r.emailedAt), local(r.viewedAt), local(r.respondedAt), days(r.createdAt, r.closedAt), r.closedByEmail || ""
     ].map(cell).join(","));
@@ -7481,11 +7488,19 @@ app.post("/api/estimate/respond", async (req, res) => {
     if (existing.closedAt) {
       return res.status(410).json({ error: "This estimate is no longer active — call or text us at 512-894-0907." });
     }
+    // A "not recommended" estimate only approves once the client has seen
+    // the tech's note and confirmed — the page sends proceedAnyway after the
+    // "Proceed with repair anyway?" prompt.
+    const notRecommended = existing.summary?.notRecommended === true;
+    if (choice === "approve" && notRecommended && req.body?.proceedAnyway !== true) {
+      return res.status(400).json({ error: "Please confirm you'd like to proceed with the repair.", needsConfirm: true });
+    }
     const estimate = await saveServiceEstimateResponse(token, {
       choice,
       productDirection: req.body?.productDirection,
       visit: req.body?.visit,
-      notes: req.body?.notes
+      notes: req.body?.notes,
+      proceededAnyway: choice === "approve" && notRecommended
     });
     if (!estimate) return res.status(409).json({ error: "This estimate was already answered." });
 
@@ -7543,9 +7558,10 @@ app.post("/api/estimate/respond", async (req, res) => {
         const convo = await podiumFindConversationByPhone(digits.length === 11 ? digits.slice(1) : digits);
         if (!convo) return;
         const total = estimateMoneyText(estimate.summary);
+        const anyway = estimate.response?.proceededAnyway ? " The tech had marked this repair NOT RECOMMENDED; the client chose to proceed with the repair over a replacement." : "";
         await podiumAddConversationNote(
           convo.uid,
-          `${estimate.customerName || "Client"} approved repair estimate${estimate.svNumber ? ` ${estimate.svNumber}` : ""} — ${total}. Schedule the repair.`,
+          `${estimate.customerName || "Client"} approved repair estimate${estimate.svNumber ? ` ${estimate.svNumber}` : ""} — ${total}. Schedule the repair.${anyway}`,
           "Agility"
         );
       })().catch((noteErr) => console.error("Estimate-approved Podium note failed:", noteErr.message));
@@ -7557,7 +7573,7 @@ app.post("/api/estimate/respond", async (req, res) => {
           typeLabel: "Estimate Approved",
           refId: `svest:${estimate.token}`,
           title: `${estimate.customerName} approved ${estimate.svNumber || "their estimate"} — ${estimateMoneyText(estimate.summary)}`,
-          body: "Schedule the repair.",
+          body: estimate.response?.proceededAnyway ? "Schedule the repair. They saw the tech's not-recommended note and chose the repair anyway." : "Schedule the repair.",
           audienceEmail: estimate.createdByEmail,
           byEmail: "service-estimates",
           byName: "Estimate Approvals"

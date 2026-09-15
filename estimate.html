@@ -36,6 +36,14 @@
     .part-num { display: block; color: var(--muted); font-size: 11.5px; font-variant-numeric: tabular-nums; margin-top: 1px; }
     .part-qty { color: var(--muted); font-weight: 700; margin-right: 4px; }
     .sub td { color: var(--muted); }
+    .warn { margin: 16px 0 18px; padding: 12px 14px; background: #fffbeb; border: 1.5px solid #f59e0b; border-radius: 12px; font-size: 13.5px; line-height: 1.55; color: #78350f; }
+    .warn strong { display: block; font-size: 11px; letter-spacing: 0.05em; text-transform: uppercase; color: #b45309; margin-bottom: 4px; }
+    .confirm { display: none; margin: 14px 0 4px; padding: 14px; background: #fffbeb; border: 1.5px solid #f59e0b; border-radius: 12px; }
+    .confirm.show { display: block; }
+    .confirm p { margin: 0 0 12px; font-size: 14.5px; line-height: 1.5; color: #78350f; font-weight: 600; }
+    .confirm .btn { margin-top: 8px; }
+    .btn.plain { background: #fff; color: #374151; border: 1.5px solid var(--border); }
+    .refrig-line td:first-child { padding-left: 10px; }
     .next { margin: 16px 0 18px; padding: 12px 14px; background: #f2f8f2; border: 1.5px solid var(--green); border-radius: 12px; font-size: 13.5px; line-height: 1.55; }
     .next strong { display: block; font-size: 11px; letter-spacing: 0.05em; text-transform: uppercase; color: var(--green); margin-bottom: 4px; }
     .tot td { font-weight: 800; font-size: 16px; border-top: 2px solid var(--border); }
@@ -130,6 +138,14 @@
           parts.map((p) => `<tr class="part-line"><td>${Number(p.qty) > 1 ? `<span class="part-qty">${Number(p.qty)} ×</span>` : ""}${esc(p.description || "Part")}${p.model ? `<span class="part-num">Part # ${esc(p.model)}</span>` : ""}</td><td class="amt">${p.ext == null ? "" : money(p.ext)}</td></tr>`).join("");
       }
 
+      // Refrigerant is its own section — sold by the pound, no part number.
+      function refrigerantRows(s) {
+        const lines = Array.isArray(s.refrigerant) ? s.refrigerant : [];
+        if (!lines.length) return "";
+        return `<tr class="parts-head"><td>Refrigerant</td><td class="amt">${s.noLinePricing ? "" : "Price"}</td></tr>` +
+          lines.map((r) => `<tr class="refrig-line"><td>${Number(r.qty) > 1 ? `<span class="part-qty">${Number(r.qty)} ×</span>` : ""}${esc(r.description || "Refrigerant")}${r.unit != null && Number(r.qty) > 1 ? `<span class="part-num">${money(r.unit)} per lb</span>` : ""}</td><td class="amt">${r.ext == null ? "" : money(r.ext)}</td></tr>`).join("");
+      }
+
       function render() {
         const s = est.summary || {};
         if (est.status === "approved") {
@@ -156,11 +172,12 @@
           ${appliance ? `<p style="margin:0 0 10px; font-size:14px; font-weight:700; color:#475569;">For your ${esc(appliance)}</p>` : ""}
           <p class="lead">
             Here's the ${appliance ? "repair estimate" : "summary"} for ${est.estimateName ? `<strong>${esc(est.estimateName)}</strong> (` : ""}service
-            ticket <strong>${esc(est.svNumber || "—")}</strong>${est.estimateName ? ")" : ""}. Review it, then choose
+            ${/^Q\d{6,}$/i.test(String(est.svNumber || "")) ? "quote" : "ticket"} <strong>${esc(est.svNumber || "—")}</strong>${est.estimateName ? ")" : ""}. Review it, then choose
             how you'd like to move forward — nothing is charged today.
           </p>
           <table>
             ${partRows(s)}
+            ${refrigerantRows(s)}
             ${s.noLinePricing
               ? `<tr class="sub"><td>Repair parts &amp; labor</td><td class="amt">${money(s.subTotal)}</td></tr>`
               : `
@@ -176,8 +193,14 @@
           </table>
           ${paidOf(s) > 0 ? `<p class="paid-note">You've already paid ${money(paidOf(s))}. If you approve, the repair adds ${money(dueOf(s))} — that's the only amount still owed.</p>` : ""}
           ${s.etaMessage ? `<div class="next"><strong>What happens next</strong>${esc(s.etaMessage)}</div>` : ""}
+          ${s.notRecommended ? `<div class="warn"><strong>A note from your technician</strong>This repair is <b>not recommended</b>. Based on what they found, your technician suggests shopping for a replacement rather than repairing this unit.${s.notRecommendedNote ? ` <i>“${esc(s.notRecommendedNote)}”</i>` : ""}</div>` : ""}
 
           <button type="button" class="btn approve" id="approveBtn">Approve this estimate</button>
+          <div class="confirm" id="approveConfirm">
+            <p>Your technician notes that this repair is not recommended and to proceed with shopping for a replacement. Proceed with repair anyway?</p>
+            <button type="button" class="btn approve" id="approveAnyway">Yes — proceed with the repair</button>
+            <button type="button" class="btn plain" id="approveShopInstead">Show me replacement options instead</button>
+          </div>
           <button type="button" class="btn shop" id="shopBtn">I'd rather shop for a replacement</button>
 
           <div class="shop-form" id="shopForm">
@@ -225,12 +248,23 @@
         document.querySelectorAll(".opt input").forEach((r) => r.addEventListener("change", () => {
           document.querySelectorAll(`.opt input[name='${r.name}']`).forEach((o) => o.closest(".opt").classList.toggle("on", o.checked));
         }));
-        $("approveBtn").addEventListener("click", () => respond({ choice: "approve" }, $("approveBtn")));
-        $("shopBtn").addEventListener("click", () => {
+        const openShop = () => {
           $("shopForm").classList.add("show");
           $("shopBtn").style.display = "none";
+          $("approveConfirm").classList.remove("show");
           $("shopForm").scrollIntoView({ behavior: "smooth", block: "start" });
+        };
+        // "Not recommended" estimates approve in two taps: the tech's note
+        // is repeated as a question, with the replacement path one tap away.
+        $("approveBtn").addEventListener("click", () => {
+          if (!s.notRecommended) return respond({ choice: "approve" }, $("approveBtn"));
+          $("approveConfirm").classList.add("show");
+          $("approveBtn").style.display = "none";
+          $("approveConfirm").scrollIntoView({ behavior: "smooth", block: "center" });
         });
+        $("approveAnyway").addEventListener("click", () => respond({ choice: "approve", proceedAnyway: true }, $("approveAnyway")));
+        $("approveShopInstead").addEventListener("click", openShop);
+        $("shopBtn").addEventListener("click", openShop);
         $("shopSubmit").addEventListener("click", () => {
           const direction = document.querySelector(".opt input[name='direction']:checked")?.value || "";
           const visit = document.querySelector(".opt input[name='visit']:checked")?.value || "";

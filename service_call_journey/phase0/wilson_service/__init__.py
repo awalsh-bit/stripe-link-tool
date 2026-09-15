@@ -3,4 +3,4 @@
 Standard-library Python. SQLite for local runs and tests; SQL Server (pyodbc) in production.
 See README.md and docs/07_Developer_Spec.md.
 """
-__version__ = "0.1.0"
+__version__ = "0.3.0"

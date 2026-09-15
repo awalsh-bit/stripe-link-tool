@@ -50,7 +50,9 @@ main{max-width:1400px;margin:0 auto}
 .leg{font-size:.72rem;color:var(--muted);display:flex;align-items:center;gap:.4rem;padding:0 .4rem}.leg::before,.leg::after{content:"";flex:1;border-top:1px dashed var(--line)}
 .card{border:1px solid var(--line);border-left:4px solid var(--diag);border-radius:6px;padding:.5rem .6rem;background:var(--surface);cursor:grab;display:grid;grid-template-columns:auto 1fr auto;gap:.15rem .6rem;align-items:start;position:relative}
 .card:active{cursor:grabbing}.card.dragging{opacity:.4}
-.card.SO6{border-left-color:var(--inst)}.card.SO4PRE{border-left-color:var(--held);border-left-style:dashed}.card.WAR{border-left-color:var(--war)}.card.SO5,.card.REQ{border-left-color:var(--wait)}
+.card.SO6{border-left-color:var(--inst)}.card.SO4{border-left-color:var(--held);border-style:dashed;background:var(--held-bg)}.chip.SO4,.chip.pencil{background:var(--held-bg);color:var(--held)}
+.suggest{grid-column:1/-1;display:flex;gap:.5rem;align-items:center;flex-wrap:wrap;font-size:.75rem;color:var(--ink);background:var(--soft);border-radius:6px;padding:.35rem .5rem;margin-top:.2rem}.suggest b{color:var(--accent)}.suggest .why{color:var(--muted)}.suggest button{padding:.15rem .5rem;font-size:.72rem;margin-left:auto}
+.rec{display:flex;gap:.75rem;align-items:center;flex-wrap:wrap;border:1.5px solid var(--accent);background:var(--soft);border-radius:8px;padding:.6rem .8rem;margin-bottom:.7rem}.rec .lbl{font-size:.7rem;text-transform:uppercase;letter-spacing:.08em;color:var(--accent);font-weight:600}.rec .d{font-weight:600}.rec .why{font-size:.78rem;color:var(--muted);flex:1 1 100%}.rec .slot{width:auto;margin:0;padding:.4rem .9rem;font-weight:600;background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}.card.SO4PRE{border-left-color:var(--held);border-left-style:dashed}.card.WAR{border-left-color:var(--war)}.card.SO5,.card.REQ{border-left-color:var(--wait)}
 .card .seq{font-weight:600;font-variant-numeric:tabular-nums;color:var(--muted);grid-row:1/3;padding-top:.1rem}
 .card .who{font-weight:600}.card .sub{color:var(--muted);font-size:.78rem;grid-column:2}
 .card .time{font-variant-numeric:tabular-nums;font-size:.78rem;text-align:right;color:var(--muted);white-space:nowrap}.card .time b{display:block;color:var(--ink);font-size:.85rem}
@@ -227,7 +229,7 @@ let blockSeq=10;
 const BLOCK_LABELS=['Haircut','Van maintenance','Training','Lunch','DMV / errand','Doctor','Other'];
 TECHS.forEach(t=>{t.zone=Object.keys(ZONE).filter(z=>ZONE[z].p===t.id).map(Number);t.zone2=Object.keys(ZONE).filter(z=>ZONE[z].s.includes(t.id)).map(Number);if(t.id==='BLL')t.zone=Object.keys(ZIP).map(Number)});
 const DAYS=[{k:'2026-09-14',s:'Mon',n:'Sep 14'},{k:'2026-09-15',s:'Tue',n:'Sep 15'},{k:'2026-09-16',s:'Wed',n:'Sep 16'},{k:'2026-09-17',s:'Thu',n:'Sep 17'},{k:'2026-09-18',s:'Fri',n:'Sep 18'}];
-const STATUS={SO1:'Diagnostic',SO6:'Part install',SO4PRE:'Install held · part on order',WAR:'Warranty diagnostic',SO5:'Parts in · pick a time',REQ:'New request · no time picked',SO4H:'Part shipping to customer'};
+const STATUS={SO1:'Diagnostic',SO6:'Part install',SO4PRE:'Install held · part on order',WAR:'Warranty diagnostic',SO5:'Parts in · pick a time',REQ:'New request · no time picked',SO4H:'Part shipping to customer',SO4:'Parts on order · penciled'};
 /* delivered dollars (§5.6): labor incl. diag/zone fees + parts profit (0 on warranty). Projected from the job until the tech taps complete. */
 const RATE=130,HVAC_RATE=150,DIAG=157;
 function dollars(j){if(j.$)return j.$;const far=['FBURG','BOERN','JC','BLANC','STONE','HORSE','KERR','SA'].includes(zinfo(j.zip).zone);const zone=far?85:0;
@@ -285,6 +287,9 @@ let J=[
  {sv:'SV00123320',cust:'Weber, Hans',addr:'510 W Main St',zip:78624,st:'SO1',type:'appliance',unit:'Bosch dishwasher · leaking',dur:60,win:'AM',bal:'',tech:'JHM',day:'2026-09-16',seq:2},
  {sv:'SV00123331',cust:'Klein, Rosa',addr:'204 Peach St',zip:78671,st:'SO1',type:'appliance',unit:'GE range · igniter',dur:60,win:'PM',bal:'',tech:'JHM',day:'2026-09-16',seq:3},
  {sv:'SV00123344',cust:'Ahrens, Bill',addr:'1120 Ranch Rd 1',zip:78606,st:'SO6',type:'appliance',unit:'Whirlpool washer · pump',dur:60,win:'PM',bal:'COD',tech:'JHM',day:'2026-09-16',seq:4,owner:'JHM'},
+ // Parts on order — auto-penciled by the engine (ETA + 2 business days, best-fit day, dashboard-only; ePASS still says SO4)
+ {sv:'SV00123271',owner:'DLA',cust:'Alvarez, Tomas',addr:'2117 Wildwood Hills',zip:78737,st:'SO4',type:'appliance',unit:'Maytag washer · inlet valve (Marcone, expected Wed 9/16)',dur:60,win:'AM',bal:'',tech:'DLA',day:'2026-09-18',seq:9,eta:'2026-09-16',pencil:{why:'DLA has 2 stops in LOCAL that day · +6 min drive · ETA Wed 9/16 + 2 business days'}},
+ {sv:'SV00123199',owner:'TDP',cust:'Nguyen, Linh',addr:'3312 Ranch Rd 620',zip:78734,st:'SO4',type:'appliance',unit:'Bosch dishwasher · circulation pump (expected Mon 9/14)',dur:75,win:'PM',bal:'',tech:'TDP',day:'2026-09-16',seq:9,eta:'2026-09-14',pencil:{why:'TDP has 3 stops in LAKE that day · +4 min drive · ETA Mon 9/14 + 2 business days'}},
  // Unscheduled
  {sv:'SV00123383',owner:'DLA',cust:'Osler, Lynn',addr:'13401 Evergreen Way',zip:78737,st:'SO5',type:'appliance',unit:'GE washer · drain pump (part arrived 9/11)',dur:60,win:null,bal:'',tech:null,day:null,seq:0},
  {sv:'SV00123243',owner:'JRC',cust:'Oatis, Shawn & Shira',addr:'4819 Spicewood Springs',zip:78731,st:'SO5',type:'appliance',unit:'Whirlpool dryer · control (part arrived 9/10)',dur:60,win:null,bal:'',tech:null,day:null,seq:0},
@@ -337,6 +342,17 @@ function validate(j,tech,day){const t=techById(tech),out=[];const sk=j.type==='s
 function toast(msg,cls='',acts){const t=document.createElement('div');t.className='toast '+cls+(acts?' sticky':'');t.textContent=msg;if(acts){const a=document.createElement('span');a.className='acts';for(const k in acts){const b=document.createElement('button');b.textContent=k;b.onclick=()=>{acts[k]();t.remove()};a.append(b)}t.append(a)}$('#toasts').append(t);if(!acts)setTimeout(()=>t.remove(),3800);else setTimeout(()=>t.remove(),12000);return t}
 /* ---------- board state ---------- */
 const col={A:{tech:'DLA',day:'2026-09-14'},B:{tech:'DLA',day:'2026-09-15'}};let stripTarget='A';
+/* ---------- placement (mirror of phase0/placement.py): marginal drive to join that day's route − same-zone credit + wait ramp ---------- */
+function marginalDrive(stops,pt,t){const a0=t?startPt(t):SHOP.ll,z0=t?endPt(t):SHOP.ll;const route=[a0,...stops.map(x=>ll(x.zip)),z0];if(route.length===2)return driveMin(a0,pt)+driveMin(pt,z0)-driveMin(a0,z0);let best=1e9;for(let i=0;i<route.length-1;i++){const a=route[i],b=route[i+1];best=Math.min(best,driveMin(a,pt)+driveMin(pt,b)-driveMin(a,b))}return Math.max(0,best)}
+function suggestFor(j,earliest){const el=eligible(j);if(!el.length)return [];const zi=zinfo(j.zip),pt=ll(j.zip);const out=[];let wait=0;
+  for(const d of DAYS){if(earliest&&d.k<earliest)continue;for(const t of el){if(!isOpen(t.id,d.k))continue;const stops=jobsFor(t.id,d.k).filter(x=>x.sv!==j.sv);const win=['AM','PM'].find(w=>halfDayLoad(t.id,d.k,w)+j.dur+25<=240);if(!win)continue;
+    const added=marginalDrive(stops,pt,t),same=stops.filter(x=>zinfo(x.zip).zone===zi.zone).length,rank=t.id===zi.p?0:zi.s.includes(t.id)?1:2;
+    const cost=added-6*Math.min(same,3)+(8*Math.min(wait,2)+20*Math.max(wait-2,0))+[0,10,40][rank];
+    const why=(same?`${t.name.split(' ')[0]} already has ${same} stop${same>1?'s':''} in ${zi.zone} that day`:stops.length?`${t.name.split(' ')[0]} has ${stops.length} stop${stops.length>1?'s':''} that day`:`${t.name.split(' ')[0]}'s day is empty`)+` · +${added} min drive`+(rank===0?' · primary tech':rank===1?' · secondary':'');
+    out.push({tech:t.id,day:d.k,win,cost,added,same,why})}wait++}
+  return out.sort((a,b)=>a.cost-b.cost||a.day.localeCompare(b.day))}
+function bestFit(j,earliest){const c=suggestFor(j,earliest);if(!c.length)return null;const first=c.slice().sort((a,b)=>a.day.localeCompare(b.day))[0];const within=c.filter(x=>(new Date(x.day)-new Date(first.day))/864e5<=5);const pick=within[0]||c[0];pick.earliest=first.day;return pick}
+function placeSuggested(j,sg){const list=jobsFor(sg.tech,sg.day).filter(x=>x.sv!==j.sv);j.tech=sg.tech;j.day=sg.day;j.win=sg.win;if(j.st==='SO5')j.st='SO6';if(j.st==='REQ')j.st='SO1';const ins=sg.win==='AM'?list.filter(x=>x.win==='AM').length:list.length;list.splice(ins,0,j);list.forEach((x,i)=>x.seq=i+1)}
 function renderAll(){renderStrip();renderCol('A');renderCol('B');renderUnsched();renderMap();renderProd()}
 function renderStrip(){
   const s=$('#strip');let h=`<div class="h">Fill · Sep 14–18</div>`+DAYS.map(d=>`<div class="h">${d.s} <span class="mono">${d.n.slice(4)}</span></div>`).join('')+
@@ -377,7 +393,7 @@ function renderCol(k){
 }
 function cardHTML(j,seq,s,k){
   const stCls=j.st,v=(j.tech?validate(j,j.tech,j.day):[]);
-  const zi=zinfo(j.zip);const chips=[`<span class="chip st ${stCls}">${j.st==='WAR'?'WAR · SO1':j.st}</span>`,`<span class="chip" title="${zi.group} · ${zi.mode}">${zi.zone}</span>`,`<span class="chip">${STATUS[j.st]}</span>`,j.win?`<span class="chip">${j.win==='AM'?'8–12':'12–5'}</span>`:'',j.bal?`<span class="chip bad">${j.bal==='COD'?'COD balance':'A/R overdue'}</span>`:'',j.type==='hvac'?'<span class="chip">HVAC</span>':'',j.type==='sealed'?'<span class="chip">Sealed system</span>':'',j.owner?`<span class="chip">${techById(j.owner).name.split(' ')[0]}'s call</span>`:'',...v.map(x=>`<span class="chip ${x.c}">${x.t}</span>`)].join('');
+  const zi=zinfo(j.zip);const chips=[`<span class="chip st ${stCls}">${j.st==='WAR'?'WAR · SO1':j.st}</span>`,`<span class="chip" title="${zi.group} · ${zi.mode}">${zi.zone}</span>`,`<span class="chip">${STATUS[j.st]}</span>`,j.win?`<span class="chip">${j.win==='AM'?'8–12':'12–5'}</span>`:'',j.bal?`<span class="chip bad">${j.bal==='COD'?'COD balance':'A/R overdue'}</span>`:'',j.type==='hvac'?'<span class="chip">HVAC</span>':'',j.type==='sealed'?'<span class="chip">Sealed system</span>':'',j.owner?`<span class="chip">${techById(j.owner).name.split(' ')[0]}'s call</span>`:'',j.pencil?`<span class="chip pencil" title="${j.pencil.why}">✎ penciled · ETA ${j.eta.slice(5).replace('-','/')}</span>`:'',...v.map(x=>`<span class="chip ${x.c}">${x.t}</span>`)].join('');
   const time=s?`<div class="time ${s.late?'late':''}"><b>${fmt(s.arr)}</b>${s.drive}m drive${s.wait?` · waits ${s.wait}m`:''}</div>`:`<div class="time">${hm(j.dur)}</div>`;
   const el=(j.owner?`${techById(j.owner).name} owns this call (ran the diagnostic) — installs stay with the diagnosing tech`:('Eligible techs: '+(eligible(j).map(t=>t.name.split(' ')[0]).join(', ')||'none — office assigns')))+`<br>Zone ${zi.zone} · ${zi.group} · booking: ${zi.mode.replace('_',' ')}${zi.trip?(openTrip(zi.group)?` · open trip ${dayObj(openTrip(zi.group).day).s} (${openTrip(zi.group).tech})`:` · trip bucket: ${BUCKET[zi.group]||0} waiting, none open`):''}${zi.p?` · primary ${zi.p}`:''}`;
   return `<div class="card ${stCls}" draggable="true" data-sv="${j.sv}" tabindex="0">
@@ -387,7 +403,9 @@ function cardHTML(j,seq,s,k){
     <div class="chips">${chips}</div>
     <div class="more"><span class="mono">${j.sv}</span> · ${hm(j.dur)} planned${j.eta?` · parts ETA ${j.eta.slice(5).replace('-','/')}`:''} · ${(()=>{const m=dollars(j);return `${usd(m.lab+m.pp)} projected (labor ${usd(m.lab)}${m.pp?` + parts profit ${usd(m.pp)}`:m.wty?' · warranty: parts a wash':''})`})()}<br>${el}
       <div class="acts">${j.tech?`<button data-un="${j.sv}">Send to unscheduled</button>`:''}<button data-view-trk="${j.sv}">Open customer view</button></div></div>
+    ${!j.tech?(()=>{const zi2=zinfo(j.zip);if(zi2.mode==='office_only'&&!j.owner)return `<div class="suggest">No auto-suggestion — ${zi2.group} is office-booked</div>`;if(zi2.trip&&!openTrip(zi2.group)&&!j.owner)return `<div class="suggest">Waits for the next ${zi2.group} trip · ${BUCKET[zi2.group]||0} in the bucket</div>`;const sg=bestFit(j,j.eta?addBD(j.eta,2):null);return sg?`<div class="suggest">💡 <b>${dayObj(sg.day).s} ${dayObj(sg.day).n} · ${techById(sg.tech).name.split(' ')[0]} · ${sg.win==='AM'?'8–12':'12–5'}</b><span class="why">${sg.why}${sg.day!==sg.earliest?` · earliest open is ${dayObj(sg.earliest).s}`:''}</span><button data-place="${j.sv}" data-t="${sg.tech}" data-d="${sg.day}" data-w="${sg.win}">Place there</button></div>`:'<div class="suggest">Nothing fits this week — office places it</div>'})():''}
   </div>`}
+function addBD(k,n){const d=new Date(k+'T12:00');while(n>0){d.setDate(d.getDate()+1);if(d.getDay()>0&&d.getDay()<6)n--}return d.toISOString().slice(0,10)}
 function wireCards(root){
   root.querySelectorAll('.card').forEach(c=>{
     c.addEventListener('dragstart',e=>{e.dataTransfer.setData('text/plain',c.dataset.sv);c.classList.add('dragging');dragging=c.dataset.sv});
@@ -399,6 +417,7 @@ function wireCards(root){
   root.querySelectorAll('[data-pin]').forEach(b=>b.onclick=()=>{const j=J.find(x=>x.sv===b.dataset.pin);j.lock=!j.lock;toast(j.lock?`${j.cust} pinned — the optimizer won't move it`:`${j.cust} unpinned`);renderAll()});
   root.querySelectorAll('[data-un]').forEach(b=>b.onclick=()=>{const j=J.find(x=>x.sv===b.dataset.un);j.tech=null;j.day=null;j.seq=0;j.win=null;j.st=j.st==='SO6'?'SO5':j.st;toast(`${j.cust} moved to Unscheduled — customer would be offered new windows`,'warn');renderAll()});
   root.querySelectorAll('[data-view-trk]').forEach(b=>b.onclick=()=>{openTracker(b.dataset.viewTrk)});
+  root.querySelectorAll('[data-place]').forEach(b=>b.onclick=()=>{const j=J.find(x=>x.sv===b.dataset.place);placeSuggested(j,{tech:b.dataset.t,day:b.dataset.d,win:b.dataset.w});toast(`${j.cust} placed on ${techById(j.tech).name.split(' ')[0]} ${dayObj(j.day).s} ${j.win} — where the engine suggested${j.st==='SO1'||j.st==='SO6'?' · customer gets a confirmation text':''}`);renderAll()});
 }
 let dragging=null;
 function setupDrops(){
@@ -411,7 +430,7 @@ function setupDrops(){
     const k=z.dataset.drop,c=col[k];const cards=[...z.querySelectorAll('.card:not(.dragging)')];let idx=cards.findIndex(cd=>e.clientY<cd.getBoundingClientRect().top+cd.offsetHeight/2);if(idx<0)idx=cards.length;
     const before=timeline(c.tech,c.day).drive;const wasUn=!j.tech;const fromTech=j.tech,fromDay=j.day;
     // remove from old, insert into new
-    const target=jobsFor(c.tech,c.day).filter(x=>x.sv!==sv);j.tech=c.tech;j.day=c.day;if(!j.win)j.win=idx<=Math.floor(target.length/2)?'AM':'PM';if(j.st==='SO5')j.st='SO6';if(j.st==='REQ')j.st='SO1';
+    const target=jobsFor(c.tech,c.day).filter(x=>x.sv!==sv);j.tech=c.tech;j.day=c.day;if(!j.win)j.win=idx<=Math.floor(target.length/2)?'AM':'PM';if(j.st==='SO5')j.st='SO6';if(j.st==='REQ')j.st='SO1';if(j.pencil)j.pencil={why:'moved by dispatcher — holds here until the part lands'};
     target.splice(idx,0,j);target.forEach((x,i)=>x.seq=i+1);if(fromTech&&(fromTech!==c.tech||fromDay!==c.day))jobsFor(fromTech,fromDay).forEach((x,i)=>x.seq=i+1);
     const tlAfter=timeline(c.tech,c.day);const after=tlAfter.drive,v=validate(j,c.tech,c.day),d=after-before;
     const who=techById(c.tech).name.split(' ')[0],dd=dayObj(c.day).s;
@@ -532,6 +551,7 @@ const STAGES=['Request received','Diagnostic scheduled','Diagnosed','Estimate re
 const TRK={
  SV00123388:{first:'Brandon',unit:'KitchenAid built-in refrigerator',prob:'Freezer and refrigerator quit cooling',stage:1,dates:['Sep 10','Sep 10'],detail:'so1'},
  SV00123265:{first:'Dennis',unit:'Maytag top-load washer · MVW6500MW',prob:'Won\'t fill — inlet valve',stage:5,dates:['Aug 31','Sep 2','Sep 4','Sep 4','Sep 10','Sep 10'],detail:'so4',eta:'Wed, Sep 16',po:'Marcone · shipped 9/11'},
+ SV00123271:{first:'Tomas',unit:'Maytag top-load washer · MVW6500MW',prob:'Won\'t fill — inlet valve',stage:5,dates:['Sep 2','Sep 3','Sep 8','Sep 8','Sep 10','Sep 11'],detail:'so4',eta:'Wed, Sep 16',po:'Marcone · shipped 9/11'},
  SV00123420:{first:'Greta',unit:'Miele dishwasher',prob:'Not draining',stage:0,dates:['Sep 11'],detail:'so1'},
  SV00123415:{first:'Mary',unit:'Frigidaire range',prob:'Front burner won\'t light',stage:0,dates:['Sep 11'],detail:'so1'},
  SV00123383:{first:'Lynn',unit:'GE washer',prob:'Not draining — drain pump',stage:6,dates:['Sep 1','Sep 2','Sep 3','Sep 3','Sep 4','Sep 4','Sep 11'],detail:'so5'},
@@ -583,11 +603,11 @@ function renderJob(sv){
   let now='',picker='',acts='';
   if(t.detail==='so1'){now=`<div class="lbl">Next up</div><div class="big">${j.tech?`Diagnostic visit ${dayObj(j.day).s}, ${dayObj(j.day).n} · ${j.win==='AM'?'8 AM – 12 PM':'12 – 5 PM'}`:'Request received — pick your diagnostic time'}</div><p>${tech?`${tech.name.split(' ')[0]} is your technician. You'll get a text when he's on the way.`:'Pick a window below and we\'ll confirm by text.'} Please clear access to the unit and have the model tag visible.</p>`;
     if(j&&!j.tech)picker=pickerHTML(j);acts=j&&j.tech?`<button data-act="resched">Reschedule</button><button>Add gate code or note</button><button>Cancel request</button>`:`<button>Add gate code or note</button><button>Cancel request</button>`}
-  if(t.detail==='so4'){now=`<div class="lbl">Right now</div><div class="big">Your part is on order · expected ${t.eta}</div><p>${t.po}. ${j&&j.st==='SO4PRE'?`Your install is held for <b>${dayObj(j.day).s}, ${dayObj(j.day).n} · ${j.win==='AM'?'8 AM – 12 PM':'12 – 5 PM'}</b> and confirms automatically when the part checks in.`:'You can hold an install time now, or wait and pick one when the part arrives.'}</p>`;
+  if(t.detail==='so4'){now=`<div class="lbl">Right now</div><div class="big">Your part is on order · expected ${t.eta}</div><p>${t.po}. ${j&&j.st==='SO4PRE'?`Your install is held for <b>${dayObj(j.day).s}, ${dayObj(j.day).n} · ${j.win==='AM'?'8 AM – 12 PM':'12 – 5 PM'}</b> and confirms automatically when the part checks in.`:(j&&j.pencil?`We've already lined up a spot with ${techById(j.owner||j.tech).name.split(' ')[0]} for a couple of days after it lands — you'll see it first when we text you. You can also hold a time now.`:'You can hold an install time now, or wait and pick one when the part arrives.')}</p>`;
     acts=j&&j.st==='SO4PRE'?`<button data-act="resched">Change held time</button>`:`<button class="primary" data-act="hold">Hold an install time now</button>`}
   if(t.detail==='so4h'){now=`<div class="lbl">Right now</div><div class="big">Your part is shipping straight to you · expected ${t.eta}</div><p>${t.carrier}. GE ships this part to your door instead of our shop. <b>Tap the button below the moment it arrives</b> and you'll pick an install time with ${j&&j.owner?techById(j.owner).name.split(' ')[0]:'your technician'} right away. If we haven't heard from you the day after it's due, we'll text to check.</p>`;
     acts=`<button class="primary" data-act="received">📦 My part arrived</button>`}
-  if(t.detail==='so5'){if(j&&j.tech){now=`<div class="lbl">Confirmed</div><div class="big">Install ${dayObj(j.day).s}, ${dayObj(j.day).n} · ${j.win==='AM'?'8 AM – 12 PM':'12 – 5 PM'}</div><p>${tech.name.split(' ')[0]} will bring your drain pump and finish the repair. Your card on file is charged only after the work is complete.</p>`;acts=`<button data-act="resched">Reschedule</button>`}
+  if(t.detail==='so5'){if(j&&j.tech&&!j.pencil){now=`<div class="lbl">Confirmed</div><div class="big">Install ${dayObj(j.day).s}, ${dayObj(j.day).n} · ${j.win==='AM'?'8 AM – 12 PM':'12 – 5 PM'}</div><p>${tech.name.split(' ')[0]} will bring your drain pump and finish the repair. Your card on file is charged only after the work is complete.</p>`;acts=`<button data-act="resched">Reschedule</button>`}
     else{const atHome=j&&j.unit.includes('received by customer');now=`<div class="lbl">Action needed</div><div class="big">${atHome?'Great — your part is there. Pick an install time':'Your part arrived — pick an install time'}</div><p>${atHome?`${techById(j.owner).name.split(' ')[0]} will bring the tools and finish the repair; please keep the part boxed until he arrives.`:'The drain pump checked in at our shop on Sep 11.'} Choose a window below and it's confirmed instantly.</p>`;picker=pickerHTML(j)}}
   const stageIdx=(t.detail==='so5'&&j&&j.tech)?7:(t.detail==='so4'&&j&&j.st==='SO4PRE')?5:t.stage;
   const stages=STAGES.map((s,i)=>{const cls=i<stageIdx?'done':i===stageIdx?'cur':'';let note='';
@@ -605,10 +625,11 @@ function renderJob(sv){
 }
 const TODAY='2026-09-11';
 function pickerHTML(j){
-  const el=eligible(j);const resched=!!j.day;const zi=zinfo(j.zip);
+  const el=eligible(j);const resched=!!j.day&&!j.pencil;const zi=zinfo(j.zip);
   if(zi.mode==='office_only'&&!j.owner)return `<div class="picker" id="picker"><h4>We'll call you to schedule</h4><p>${zi.group==='Unclassified'?'Your area':zi.group} is outside our regular routes, so Client Care will call within one business day to find a time that works. Nothing else is needed from you right now.</p></div>`;
   const near=resched&&((new Date(j.day+'T08:00')-new Date(TODAY+'T17:00'))/36e5<48);
-  let h=`<div class="picker" id="picker"><h4>${resched?(near?'Change within 48 hours':'Pick a new day'):'Pick an arrival window'}</h4><p>${zi.trip?(openTrip(zi.group)?`We group visits in ${zi.group==='West'?'the Hill Country west of us':'your area'} so we can get to you efficiently. Our next trip is <b>${dayObj(openTrip(zi.group).day).s}, ${dayObj(openTrip(zi.group).day).n}</b> — pick a window that day.`:`We group visits in your area so we can get to you efficiently. <b>We'll text you a date within a few days.</b> Need it sooner? Message Client Care.`):j.owner?`Showing ${techById(j.owner).name.split(' ')[0]}'s openings — he diagnosed your unit and will finish the repair.`:`Showing openings for technicians who cover ${j.zip}${el.length?` (${el.map(t=>t.name.split(' ')[0]).join(', ')})`:''}.`}${near?' Your visit is soon, so only windows that fit a route already near you are shown.':''} Grey windows are full.</p><div class="days">`;
+  const rec=(!resched&&!zi.trip)?bestFit(j,j.eta?addBD(j.eta,1):null):null;const pen=j.pencil&&j.tech?{tech:j.tech,day:j.day,win:j.win,why:'we already have your installer nearby that day'}:null;const top=pen||rec;
+  let h=`<div class="picker" id="picker"><h4>${resched?(near?'Change within 48 hours':'Pick a new day'):'Pick an arrival window'}</h4>${top&&isOpen(top.tech,top.day)?`<div class="rec"><span class="lbl">${pen?'Best fit — installer already nearby':top.day===top.earliest?(top.same?'Earliest available — and our route is already in your area':'Earliest available'):top.same?'Best fit — our route is already in your area':'Best fit — closest to our route'}</span><span class="d">${dayObj(top.day).s}, ${dayObj(top.day).n} · ${top.win==='AM'?'8 AM – 12 PM':'12 – 5 PM'}</span><button class="slot" data-day="${top.day}" data-win="${top.win}" data-tech="${top.tech}">Take this window</button><span class="why">${pen?`${techById(top.tech).name.split(' ')[0]} is already working near you that day, so this is the quickest we can get your part installed.`:top.same?`Our technician is already in your area that day — picking it means less driving for us and a tighter arrival window for you.`:`Closest fit to our routes this week.`} All other openings are below.</span></div>`:''}<p>${zi.trip?(openTrip(zi.group)?`We group visits in ${zi.group==='West'?'the Hill Country west of us':'your area'} so we can get to you efficiently. Our next trip is <b>${dayObj(openTrip(zi.group).day).s}, ${dayObj(openTrip(zi.group).day).n}</b> — pick a window that day.`:`We group visits in your area so we can get to you efficiently. <b>We'll text you a date within a few days.</b> Need it sooner? Message Client Care.`):j.owner?`Showing ${techById(j.owner).name.split(' ')[0]}'s openings — he diagnosed your unit and will finish the repair.`:`Showing openings for technicians who cover ${j.zip}${el.length?` (${el.map(t=>t.name.split(' ')[0]).join(', ')})`:''}.`}${near?' Your visit is soon, so only windows that fit a route already near you are shown.':''} Grey windows are full.</p><div class="days">`;
   for(const d of DAYS){h+=`<div><div class="day">${d.s}<b>${d.n.slice(4)}</b></div>`;for(const w of['AM','PM']){
     let room=el.filter(t=>isOpen(t.id,d.k)&&halfDayLoad(t.id,d.k,w)+j.dur+25<=240).sort((a,b)=>(a.id===zi.p?0:zi.s.includes(a.id)?1:2)-(b.id===zi.p?0:zi.s.includes(b.id)?1:2)||halfDayLoad(a.id,d.k,w)-halfDayLoad(b.id,d.k,w));
     if(near){room=room.filter(t=>jobsFor(t.id,d.k).some(x=>x.sv!==j.sv&&zinfo(x.zip).group===zi.group))}
@@ -619,7 +640,7 @@ function wirePicker(j,sv){document.querySelectorAll('.slot:not([disabled])').for
   const wasHeld=j.st==='SO4PRE'||(TRK[sv].detail==='so4');
   if(j.tech){jobsFor(j.tech,j.day).filter(x=>x.sv!==sv).forEach((x,i)=>x.seq=i+1)}
   j.tech=b.dataset.tech;j.day=b.dataset.day;j.win=b.dataset.win;const list=jobsFor(j.tech,j.day).filter(x=>x.sv!==sv);const ins=j.win==='AM'?list.filter(x=>x.win==='AM').length:list.length;list.splice(ins,0,j);list.forEach((x,i)=>x.seq=i+1);
-  if(TRK[sv].detail==='so4')j.st='SO4PRE';else if(j.st==='SO5'||j.st==='SO6')j.st='SO6';else if(j.st==='REQ')j.st='SO1';
+  if(TRK[sv].detail==='so4')j.st='SO4PRE';else if(j.st==='SO5'||j.st==='SO6')j.st='SO6';else if(j.st==='REQ')j.st='SO1';delete j.pencil;
   toast(`${j.cust.split(',')[0]} ${wasHeld?'held':'booked'} ${dayObj(j.day).s} ${j.win} with ${techById(j.tech).name.split(' ')[0]} — it's now on the dispatch board`);renderJob(sv);renderAll()})}
 /* ---------- tabs ---------- */
 document.querySelectorAll('[role=tab]').forEach(b=>b.onclick=()=>{document.querySelectorAll('[role=tab]').forEach(x=>x.setAttribute('aria-selected',x===b));$('#board').hidden=b.dataset.view!=='board';$('#track').hidden=b.dataset.view!=='track'});

@@ -78,6 +78,12 @@
 
   function iconSvg(name) {
     const icons = {
+      person: `
+        <svg viewBox="0 0 24 24" fill="none">
+          <circle cx="12" cy="8" r="4" stroke="currentColor" stroke-width="2"></circle>
+          <path d="M4 20c0-3.5 3.6-6 8-6s8 2.5 8 6" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path>
+        </svg>
+      `,
       payments: `
         <svg viewBox="0 0 24 24" fill="none">
           <rect x="3" y="6" width="18" height="12" rx="3" fill="currentColor" opacity="0.18"></rect>
@@ -345,12 +351,8 @@
       });
     }
 
-    links.push({
-      href: "logout.html",
-      title: "Sign Out",
-      text: "End the current dashboard session."
-    });
-
+    // Sign Out and the color scheme live in Personal Settings (header, top
+    // right) since 2026-09-15 — the hamburger is tools only.
     return filterLinksForSession(links, session).map((link) => {
       if (Array.isArray(link.children) && link.children.length) {
         return `
@@ -426,7 +428,6 @@
               <div class="internal-shell-menu-panel">
                 <div class="internal-shell-menu-title">Dashboards</div>
                 ${buildMenuLinks(user)}
-                ${buildThemePicker()}
               </div>
             </div>
             <img class="internal-shell-logo" src="${withRoot("logo-black.png")}" alt="Wilson AC & Appliance" />
@@ -437,6 +438,46 @@
               </div>
             </div>
           </div>
+          ${buildPersonalSettings(user)}
+        </div>
+      </div>
+    `;
+  }
+
+  // Personal Settings (top right): who's signed in, color scheme, sign out.
+  // Everything about the person rather than the business lives here so the
+  // hamburger stays a tool list (Andrew, 2026-09-15).
+  function buildPersonalSettings(session) {
+    const user = session?.user || session || {};
+    const name = String(user.displayName || user.name || "").trim();
+    const email = String(user.email || user.username || "").trim();
+    const initials = name ? name.split(/\s+/).slice(0, 2).map((w) => w.charAt(0).toUpperCase()).join("") : "";
+    const avatar = initials
+      ? `<span class="internal-shell-avatar">${initials}</span>`
+      : `<span class="internal-shell-avatar internal-shell-avatar-icon" aria-hidden="true">${iconSvg("person")}</span>`;
+    return `
+      <div class="internal-shell-personal-wrap">
+        <button class="internal-shell-personal-trigger" type="button" aria-label="Personal settings" aria-haspopup="true">
+          <span class="internal-shell-personal-label">Personal Settings</span>
+          ${avatar}
+        </button>
+        <div class="internal-shell-personal-panel">
+          <div class="internal-shell-personal-who">
+            ${avatar}
+            <div>
+              <div class="internal-shell-personal-name">${name || "Signed in"}</div>
+              ${email ? `<div class="internal-shell-personal-email">${email}</div>` : ""}
+            </div>
+          </div>
+          <button type="button" class="internal-shell-personal-item" data-open-profile>
+            <span class="internal-shell-personal-item-title">Edit my profile</span>
+            <span class="internal-shell-personal-item-text">Uniform sizes, commute, birthday.</span>
+          </button>
+          ${buildThemePicker()}
+          <a class="internal-shell-personal-signout" href="${withRoot("logout.html")}">
+            <span class="internal-shell-personal-signout-title">Sign Out</span>
+            <span class="internal-shell-personal-signout-text">End the current dashboard session.</span>
+          </a>
         </div>
       </div>
     `;
@@ -497,6 +538,110 @@
       }
     }
   }
+
+  // ---- Edit my profile (modal) ----------------------------------------
+  // The person's own directory record: sizes, commute and birthday are
+  // theirs to edit; name, code, department, title and hire date are shown
+  // read-only (User Admin / PEO records own those).
+  function ensureProfileModal() {
+    let modal = document.getElementById("internal-shell-profile");
+    if (modal) return modal;
+    modal = document.createElement("div");
+    modal.id = "internal-shell-profile";
+    modal.className = "internal-shell-profile-bg";
+    modal.innerHTML = `
+      <div class="internal-shell-profile" role="dialog" aria-modal="true" aria-labelledby="ispTitle">
+        <div class="internal-shell-profile-head">
+          <div>
+            <div class="internal-shell-profile-title" id="ispTitle">My profile</div>
+            <div class="internal-shell-profile-sub" id="ispSub"></div>
+          </div>
+          <button type="button" class="internal-shell-profile-close" data-close-profile aria-label="Close">&times;</button>
+        </div>
+        <div class="internal-shell-profile-body" id="ispBody"><div class="internal-shell-profile-note">Loading…</div></div>
+        <div class="internal-shell-profile-foot">
+          <div class="internal-shell-profile-msg" id="ispMsg"></div>
+          <button type="button" class="internal-shell-profile-btn quiet" data-close-profile>Cancel</button>
+          <button type="button" class="internal-shell-profile-btn" id="ispSave" disabled>Save</button>
+        </div>
+      </div>`;
+    document.body.appendChild(modal);
+    modal.addEventListener("click", (ev) => { if (ev.target === modal || ev.target.closest("[data-close-profile]")) closeProfileModal(); });
+    document.addEventListener("keydown", (ev) => { if (ev.key === "Escape" && modal.classList.contains("show")) closeProfileModal(); });
+    document.getElementById("ispSave").addEventListener("click", saveProfile);
+    return modal;
+  }
+  function closeProfileModal() { document.getElementById("internal-shell-profile")?.classList.remove("show"); }
+  const escHtml = (v) => String(v ?? "").replace(/[&<>"']/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch]));
+  const fmtDate = (iso) => iso ? new Date(iso + "T12:00:00Z").toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }) : "";
+  let profileState = null;
+  async function openProfileModal() {
+    const modal = ensureProfileModal();
+    modal.classList.add("show");
+    const body = document.getElementById("ispBody");
+    const msg = document.getElementById("ispMsg");
+    msg.textContent = ""; msg.className = "internal-shell-profile-msg";
+    document.getElementById("ispSave").disabled = true;
+    body.innerHTML = `<div class="internal-shell-profile-note">Loading…</div>`;
+    try {
+      const res = await fetch(withRoot("api/me/profile"), { credentials: "same-origin" });
+      const me = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(me.error || "Couldn't load your profile.");
+      profileState = me;
+      document.getElementById("ispSub").textContent = [me.name, me.email].filter(Boolean).join(" · ");
+      if (!me.found) {
+        body.innerHTML = `<div class="internal-shell-profile-note">Your login isn't linked to a directory profile yet, so there's nothing to edit here. Ask an executive to link your email to your employee record in User Admin.</div>`;
+        return;
+      }
+      const shirtOpts = `<option value="">— Pick —</option>` + (me.shirtSizes || []).map((sz) => `<option value="${escHtml(sz)}" ${sz === me.shirtSize ? "selected" : ""}>${escHtml(sz)}</option>`).join("");
+      body.innerHTML = `
+        <div class="internal-shell-profile-grid">
+          <div class="internal-shell-profile-ro"><span>Employee code</span><strong>${escHtml(me.code || "—")}</strong></div>
+          <div class="internal-shell-profile-ro"><span>Department</span><strong>${escHtml(me.department || "—")}</strong></div>
+          <div class="internal-shell-profile-ro"><span>Title</span><strong>${escHtml(me.commissionPlan || "—")}</strong></div>
+          <div class="internal-shell-profile-ro"><span>Hire date</span><strong>${escHtml(fmtDate(me.hireDate) || "Not on file")}</strong><small>From HR's records — ask HR if it's wrong.</small></div>
+        </div>
+        <div class="internal-shell-profile-sec">Uniforms</div>
+        <div class="internal-shell-profile-grid">
+          <label class="internal-shell-profile-field"><span>Shirt size</span><select id="ispShirt">${shirtOpts}</select></label>
+          <label class="internal-shell-profile-field"><span>Shoe size</span><input id="ispShoe" type="text" maxlength="20" placeholder="10.5 · W 8 · 11 wide" value="${escHtml(me.shoeSize || "")}" /></label>
+        </div>
+        <div class="internal-shell-profile-sec">Commute &amp; celebrations</div>
+        <div class="internal-shell-profile-grid">
+          <label class="internal-shell-profile-field"><span>Commute (miles, round trip)</span><input id="ispCommute" type="number" min="0" max="500" step="0.1" value="${escHtml(me.commuteMiles ?? "")}" /></label>
+          <label class="internal-shell-profile-field"><span>Birthday</span><input id="ispBirthday" type="date" value="${escHtml(me.birthday || "")}" /><small>Used for a birthday flag on the team's dashboards — the year is never shown.</small></label>
+        </div>`;
+      document.getElementById("ispSave").disabled = false;
+    } catch (err) {
+      body.innerHTML = `<div class="internal-shell-profile-note">${escHtml(err.message)}</div>`;
+    }
+  }
+  async function saveProfile() {
+    const btn = document.getElementById("ispSave");
+    const msg = document.getElementById("ispMsg");
+    const payload = {
+      shirtSize: document.getElementById("ispShirt")?.value ?? "",
+      shoeSize: (document.getElementById("ispShoe")?.value || "").trim(),
+      commuteMiles: document.getElementById("ispCommute")?.value === "" ? 0 : Number(document.getElementById("ispCommute")?.value),
+      birthday: document.getElementById("ispBirthday")?.value || ""
+    };
+    btn.disabled = true; msg.textContent = "Saving…"; msg.className = "internal-shell-profile-msg";
+    try {
+      const res = await fetch(withRoot("api/me/profile"), { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || "Couldn't save.");
+      msg.textContent = "Saved."; msg.className = "internal-shell-profile-msg ok";
+      window.dispatchEvent(new CustomEvent("sizes-saved"));
+      setTimeout(closeProfileModal, 900);
+    } catch (err) {
+      msg.textContent = err.message; msg.className = "internal-shell-profile-msg error";
+    } finally { btn.disabled = false; }
+  }
+  document.addEventListener("click", (event) => {
+    if (event.target.closest?.("[data-open-profile]")) { event.preventDefault(); openProfileModal(); }
+  });
+  // Other pages (e.g. the dashboard's sizes card) can open it too.
+  window.openMyProfile = openProfileModal;
 
   loadSessionUser().then((session) => {
     renderShell(session);

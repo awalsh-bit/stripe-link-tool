@@ -24,10 +24,13 @@ phase0/
     stuck.py            stale visit tickets + stuck-jobs thresholds
     capacity.py         9/11: working days (JRC Mon–Thu), open/close a day, PTO ranges, ±minutes, non-call blocks, "Force it" — all audited
     kpi.py              9/11: recall detection on every new job (same unit ≤ 30 d, or ePASS RCALL), Recalls review, first KPIs per tech
-    watcher.py          watched-folder runner (Task Scheduler every 5 min)
+    placement.py        9/14: where a call should land judged against the real route (suggest), the SO4 auto-pencil, route-first offers, the scorecard
+    intake.py           9/14: "Copy to service dashboard test module" — one live queue row -> REQ + first suggestion; SV attach/merge
+    serve.py            9/14: stdlib HTTP shim for that button and for suggest/offer/board/shadow reads
+    watcher.py          watched-folder runner (Task Scheduler every 5 min); re-scores pencils after each import
     cli.py              python -m wilson_service ...
-  schema/schema_mssql.sql, schema/schema_sqlite.sql   generated, idempotent
-  tests/test_phase0.py  31 tests, runs in ~2 s
+  schema/schema_mssql.sql, schema/schema_sqlite.sql   generated, idempotent, self-migrating (adds new columns to an existing DB)
+  tests/test_phase0.py  37 tests, runs in ~3 s
 ```
 
 ## Run it
@@ -49,6 +52,12 @@ python -m wilson_service --db sqlite:dev.db day close JRC 2026-09-21 --through 2
 python -m wilson_service --db sqlite:dev.db day open JRC 2026-09-18       :: Josh's Friday, per management
 python -m wilson_service --db sqlite:dev.db day adjust DLA 2026-09-14 60  :: one more stop
 python -m wilson_service --db sqlite:dev.db day block DLA 2026-09-14 11:30 12:15 "Van maintenance"
+python -m wilson_service --db sqlite:dev.db intake request.json          :: 9/14: one live-queue row in -> REQ + where it would land, and why
+python -m wilson_service --db sqlite:dev.db suggest 664                  :: ranked tech/day candidates against the real route
+python -m wilson_service --db sqlite:dev.db offer 664                    :: the dates the customer would see, best fit first
+python -m wilson_service --db sqlite:dev.db set-eta 349 2026-09-16       :: Kezia's ETA -> SO4 -> auto-penciled ETA + 2 business days
+python -m wilson_service --db sqlite:dev.db shadow-report                :: the morning check for the shadow test
+python -m wilson_service --db sqlite:dev.db serve                        :: HTTP shim the "Copy to service dashboard test module" button posts to
 ```
 
 Expected on the 9/10 files: DT `2164 rows, 236 SV orders -> created 236`; EI `657 tickets -> created 427, updated 230`;
@@ -124,6 +133,54 @@ watched folder (`import.ei_folder`) or upload it once a day until then.
 - Rules **22.1** (`timer.hold_check`, T−2: flag `hold_at_risk`, task `hold_eta_check` for Kezia), **22.2** (`timer.hold_release` / `staff.hold_time_out`, T−1: SO4PRE → SO4, date released, `notify:hold_released_apology`, packet) and **24.1** (`customer.part_received` / `carrier.delivered`: SO4H → SO5, `bin_location='CUST'`). The timers themselves are a scheduler job (Phase 3); the transitions and their tests exist now.
 - `kpi.detect_recall` runs on every job creation (both importers and `create_request`): same serial, or same model at the same address, with an SO8/SO8I within `recall.window_days` → `recall(candidate)` against the original owner; `warranty_flags` containing RCALL → `recall(confirmed, epass_rcall)`. `review_recall` confirms/dismisses. `kpi.kpis(from, to)` gives visits, calls per working day (respects work_days and closed days), median turnaround, diag-only share and recalls per tech — thin until the completed-invoice back-fill (spec Phase 0.5) lands, because the open-ticket export only carries this month's SO8s.
 - `delivered` table exists (per-job labor / parts sell / cost / profit); nothing writes it yet — it needs quote lines (Phase 2) or an ePASS invoice-line feed with cost (spec §12 item 9).
+
+## Added 9/14 — placement, the SO4 pencil, the queue-copy button, the shadow test (spec v1.3 §13.17–19, §14)
+
+Upgrading an existing database: pull, then `python -m wilson_service init-db` again. `init_schema` now adds any column the
+code knows and the database lacks (`job.parts_eta, est_minutes, penciled_*, source_ref, card_ref`, table `placement_log`);
+the generated `schema_mssql.sql` carries the same `IF COL_LENGTH(...) IS NULL ALTER TABLE ... ADD` guards for SSMS.
+
+**`placement.suggest(job)`** ranks (tech, day) pairs over the next `placement.horizon_business_days` against the stops
+DispatchTrack actually shows for that tech/day (plus pencils). Cost, in minutes: marginal drive to insert the stop into
+that day's route (nearest insertion; shop → stops → shop) − `same_zone_bonus_min` per stop already in the job's zone (max 3)
++ waiting cost (`defer_min_per_day` for the first `defer_soft_days`, `defer_min_per_day_late` after — so a Round Rock day
+two days out beats an empty day tomorrow, but nothing gets pushed a week) + a penalty when the tech is not the zone's
+primary. Hard filters: tech open (`capacity.is_open`), skill (`tech.skills`: appliance / HVAC), `auto_schedule`, and the
+day must keep `min_slack_min` after the job. Owner tech installs only consider the owner. A job with no geocode is placed
+at the average of DispatchTrack-geocoded addresses in its ZIP, else the zone centroid, else the zone's address average,
+else geo-neutral — so web requests place sensibly and get better with every import. `why` is the sentence the board shows:
+`DLA has 3 stops in LOCAL that day · +9 min drive · 2h 40m left · primary tech`.
+
+**`placement.pencil(job)`** — the SO4 auto-pencil (Cayden 9/14). When Kezia's ETA lands on the job (`po.placed` /
+`po.eta_changed` now write `job.parts_eta`), an SO4/SO4B/SO4H job is soft-held on the best-fit day
+`pencil.business_days_after_eta` (2) business days after the ETA: `penciled_tech_id/date`, flag `penciled`, audit
+`placement.penciled`. Pencils count against that day's capacity in every later suggestion, are re-scored after each import
+(`watcher`) and move only when another day is `pencil.move_threshold_min` cheaper. Nothing is sent to ePASS — the ticket
+stays SO4 there; SO4PRE (a date the *customer* holds) is a different thing and unchanged. When the part checks in (SO5)
+`placement.offer()` puts the penciled day first, labelled; booking it (rule 25) clears the pencil; cancel clears it.
+
+**`placement.offer(job)`** — customer picker order. With `offer.route_first`: the cheapest day within
+`offer.max_defer_days` of the earliest open day comes first with a label ("Best fit — our route is already in your area
+that day"), then dates in order; the earliest open day is always in the list. `booking.max_offers` caps it.
+
+**`intake.from_queue(payload)`** — the receiving side of the **"Copy to service dashboard test module"** button on the
+live Service Request Queue (field mapping in `intake.py`'s docstring; it is the queue row as shown on screen: customer,
+address, contact method, units with type/model/serial/problem, photos, card-on-file + SetupIntent, ERP order number).
+Creates the REQ through rule 1 (`source='dashboard'`, `source_ref='queue:<request_id>'`, `card_ref`), logs the first
+suggestion in `placement_log(kind='intake')`, and is idempotent on `request_id`. When the dispatcher books the call in
+ePASS as today, the next DispatchTrack snapshot **attaches** the new SV to the request (phone, or a name token + zip,
+within `intake.match_window_days`), adopts the ePASS booking (`status_history.trigger_event='epass_attach_booked'`) and
+fills `placement_log.actual_*` — no duplicate job, and the suggestion is scored automatically. If ePASS was keyed first
+and the SV arrives later via the queue's ERP field, `intake.attach_sv` merges the import-created job into the request.
+
+**`serve`** — `python -m wilson_service serve` (port `serve.port` 8765, optional `serve.token` → `X-Token`, CORS
+`serve.cors_origin`): `POST /api/requests` (the button), `POST /api/requests/<id>/sv`, `GET /api/jobs/<id>/suggest|offer`,
+`POST /api/jobs/<id>/pencil`, `GET /api/board?date=`, `GET /api/shadow`, `GET /health`. It is a shim for the demo
+instance, not the Phase 1 API (spec §7) — single process, one DB connection behind a lock.
+
+**Shadow test**: `python -m wilson_service shadow-report` is the morning check — last import, in-feed counts by status,
+discrepancies / pending packets / stale, requests copied from the queue and which still have no SV, suggested-vs-actual
+agreement (same day, same tech, both) with the misses listed, and every penciled install. Tests: `T08Placement0914`.
 
 ## Open items for the dev
 

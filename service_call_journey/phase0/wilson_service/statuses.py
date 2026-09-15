@@ -169,6 +169,7 @@ def transition(db: DB, job_id: int, event: str, actor_type: str, actor_id: str, 
     ctx = dict(ctx)
     ctx["reason_code"] = reason_code
     ctx["_backorder_days"] = db.setting("parts.backorder_days", 10)
+    ctx["_actor_id"] = actor_id
     job = db.fetchone("SELECT * FROM job WHERE job_id=?", (job_id,))
     if not job:
         raise TransitionError(f"job {job_id} not found")
@@ -265,6 +266,10 @@ def _run_effect(db: DB, eff: str, job: dict, ctx: dict, ts: str, frm: str, to: s
                                            "route_sequence": None, "job_type": job.get("job_type")})
         job.update(route_date=ctx["route_date"], assigned_tech_id=tid, promised_window_start=start, promised_window_end=end)
         ctx["_tech_code"] = _sp(db, tid)
+        from . import placement  # 9/14: a real booking closes out any suggestion/pencil for this job
+        placement.record_actual(db, jid, tid, ctx["route_date"], "dashboard", now=_dt.datetime.fromisoformat(ts))
+        if job.get("penciled_date"):
+            placement.unpencil(db, jid, ctx.get("_actor_id") or "engine", "booked", now=_dt.datetime.fromisoformat(ts))
         return
     if eff == "unbook":
         db.update("job", {"job_id": jid}, {"route_date": None, "route_sequence": None, "promised_window_start": None, "promised_window_end": None})
@@ -320,7 +325,18 @@ def _run_effect(db: DB, eff: str, job: dict, ctx: dict, ts: str, frm: str, to: s
             _outbox(db, job, "notify:approved_ordering", {"status": "SO3"}, ts)
         return
     if eff == "set_eta":
-        _outbox(db, job, "po.eta", {"eta_days": ctx.get("eta_days"), "eta": ctx.get("eta")}, ts)
+        # 9/14: the ETA lives on the job (Kezia keys it on the PO); the auto-pencil runs off it (spec v1.3 §13.18)
+        eta = ctx.get("eta")
+        if not eta and ctx.get("eta_days") is not None:
+            eta = (_dt.datetime.fromisoformat(ts).date() + _dt.timedelta(days=int(ctx["eta_days"]))).isoformat()
+        if eta:
+            db.update("job", {"job_id": jid}, {"parts_eta": str(eta)[:10]})
+            job["parts_eta"] = str(eta)[:10]
+        _outbox(db, job, "po.eta", {"eta_days": ctx.get("eta_days"), "eta": eta}, ts)
+        if eta and to in ("SO4", "SO4B", "SO4H"):
+            from . import placement
+            job["status"] = to
+            placement.pencil(db, jid, ctx.get("_actor_id") or "engine", now=_dt.datetime.fromisoformat(ts))
         return
     if eff == "maybe_unhold":
         if frm == "SO4PRE" and to == "SO4":
@@ -350,6 +366,9 @@ def _run_effect(db: DB, eff: str, job: dict, ctx: dict, ts: str, frm: str, to: s
     if eff == "cancel":
         db.update("job", {"job_id": jid}, {"cancel_reason": (ctx.get("reason") or ctx.get("note") or "cancelled")[:60], "route_date": None,
                                            "promised_window_start": None, "promised_window_end": None})
+        if job.get("penciled_date"):
+            from . import placement
+            placement.unpencil(db, jid, ctx.get("_actor_id") or "engine", "cancelled", now=_dt.datetime.fromisoformat(ts))
         if ctx.get("diag_was_run"):
             _outbox(db, job, "payment:diag_fee", {"amount": db.setting(DIAG_FEE_KEY, 169.95)}, ts)
         return

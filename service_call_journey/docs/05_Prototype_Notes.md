@@ -63,3 +63,18 @@
 - Receiving tab: **Held install · part not in — check ETA** task for Kezia (SV00123318, held Tue 12–5, valve expected today): *Part is here* (receives → hold confirms), *New ETA — release hold* (→ SO4, apology text, ePASS "time out" packet queued, route loses the stop), *Wait*.
 
 Sample-data notes: delivered dollars in all three files use the OE-23 definition (labor incl. diag/zone fees + parts profit; warranty = labor only); weekly targets are placeholders calibrated to Jan–Sep 2026 actuals (JRC 2,600 · TDP 2,500 · AJH 2,200 · CEM 2,150 · KJB 1,900 · DLA 1,700 · BLL 1,700 · CIT 1,450) until Cayden supplies real quotas.
+
+## Added 9/14 (Cayden's three prompts + the shadow test)
+
+**dispatch_board_and_tracker.html**
+- **Suggested day on every Unscheduled card** — `💡 Tue Sep 15 · Diogo · 12–5 · Diogo already has 2 stops in LOCAL that day · +4 min drive · primary tech` with a **Place there** button. Same score as `phase0/placement.py` (marginal drive to join the day's route − same-zone credit + a wait ramp + zone-standing penalty); office-only zones and trip buckets say so instead of suggesting.
+- **Penciled SO4 installs** on the board: dashed teal cards (`SO4 · Parts on order · penciled · ✎ ETA 9/16`) placed ETA + 2 business days on the owning tech's best-fit day — Alvarez (DLA Fri 9/18) and Nguyen (TDP Wed 9/16). They count against the day, drag like any card (a manual move holds until the part lands) and are dashboard-only.
+- **Customer picker leads with our best fit**: a highlighted *Recommended* block above the grid — *Best fit — our route is already in your area that day* / *Earliest available — and our route is already in your area* / *Best fit — installer already nearby* (penciled) — with a one-line reason and *Take this window*; the full grid stays underneath. SO4 tracker (Tomas, SV00123271) explains the pencil without promising it.
+
+**field_tool.html**
+- **Parts needed / field-quote Parts / Additional parts**: component chips only (Drain pump, Evaporator fan motor…, *Other component*); tapping one adds a line with an **empty part-number field the tech keys** — no number or price is pre-filled any more. Field-quote lines take an optional price (blank = *TBD, office prices before ordering*). Readiness: a part number on every line (UNKNOWN + note allowed).
+
+**office_queues.html**
+- Parts order: placing the PO now also **auto-pencils** each job (toast says where); Receiving cards show `✎ penciled Wed 9/16 · Diogo — first date the customer will see`; intro copy explains the pencil vs the customer-held SO4PRE.
+
+Retired: the `ajh_*` pilot files (one tech, `localStorage` sync). Their copy-button idea is now the Phase 0 intake endpoint (`docs/11_Shadow_Test_and_Dev_Handoff.md`).

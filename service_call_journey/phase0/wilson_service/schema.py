@@ -36,7 +36,14 @@ TABLES: dict[str, list[tuple]] = {
         ("epass_status", "str(16)"), ("epass_route_date", "date"), ("epass_tech_code", "str(8)"), ("epass_seen_at", "ts"), ("epass_source", "str(4)"),
         ("epass_invoice_status", "str(12)"), ("epass_finish_date", "date"), ("epass_created_at", "date"), ("in_feed", "bit"),
         ("stale", "bit"), ("needs_intake_review", "bit"), ("closed_at", "ts"), ("cancel_reason", "str(60)"), ("created_at", "ts"), ("updated_at", "ts"),
+        # 9/14: parts ETA (Kezia), planned minutes, the auto-pencil (soft hold, dashboard-only), and where a copied request came from
+        ("parts_eta", "date"), ("est_minutes", "int"), ("penciled_date", "date"), ("penciled_tech_id", "int"), ("pencil_reason", "str(200)"), ("pencil_set_at", "ts"),
+        ("source_ref", "str(60)"), ("card_ref", "str(60)"),
     ],
+    # 9/14: what the engine suggested vs what actually happened — the shadow-test scorecard
+    "placement_log": [("placement_id", "id"), ("job_id", "int"), ("kind", "str(10)"), ("suggested_at", "ts"), ("suggested_tech_id", "int"), ("suggested_date", "date"),
+                      ("suggested_window", "str(2)"), ("cost_min", "int"), ("why", "str(240)"), ("candidates_json", "text"), ("actual_tech_id", "int"), ("actual_date", "date"),
+                      ("actual_at", "ts"), ("actual_source", "str(10)"), ("agree_day", "bit"), ("agree_tech", "bit"), ("note", "str(200)")],
     "unit": [("unit_id", "id"), ("job_id", "int"), ("category", "str(40)"), ("install_type", "str(12)"), ("brand", "str(40)"), ("model", "str(60)"), ("serial", "str(60)"), ("problem_text", "text"), ("raw_detail", "text")],
     "status_history": [("history_id", "id"), ("job_id", "int"), ("from_status", "str(16)"), ("to_status", "str(16)"), ("changed_at", "ts"), ("actor_type", "str(10)"), ("actor_id", "str(40)"), ("trigger_event", "str(60)"), ("reason_code", "str(40)"), ("note", "text")],
     "import_batch": [("import_batch_id", "id"), ("source", "str(16)"), ("file_name", "str(255)", "UNIQUE"), ("file_path", "text"), ("file_modified_at", "ts"), ("imported_at", "ts"), ("row_count", "int"), ("sv_count", "int"), ("created_count", "int"), ("updated_count", "int"), ("status", "str(12)"), ("message", "text")],
@@ -64,6 +71,9 @@ INDEXES = [
     ("ix_recall_job", "recall", "job_id"),
     ("ix_delivered_tech_date", "delivered", "tech_id, visit_date"),
     ("ix_unit_serial", "unit", "serial"),
+    ("ix_job_penciled", "job", "penciled_tech_id, penciled_date"),
+    ("ix_job_source_ref", "job", "source_ref"),
+    ("ix_placement_job", "placement_log", "job_id, kind"),
 ]
 
 _SQLITE = {"id": "INTEGER PRIMARY KEY AUTOINCREMENT", "text": "TEXT", "int": "INTEGER", "bit": "INTEGER", "money": "NUMERIC", "date": "TEXT", "ts": "TEXT"}
@@ -85,7 +95,13 @@ def columns(table: str) -> list[str]:
 
 def ddl(dialect: str = "sqlite") -> str:
     """Return the full schema as idempotent DDL (safe to run more than once)."""
-    out = []
+    tables, indexes = ddl_parts(dialect)
+    return "\n\n".join(tables + indexes) + "\n"
+
+
+def ddl_parts(dialect: str = "sqlite") -> tuple[list[str], list[str]]:
+    """(table statements, index statements) — db.init_schema runs the column migration between the two."""
+    out, idx = [], []
     for name, cols in TABLES.items():
         parts = []
         for c in cols:
@@ -101,15 +117,19 @@ def ddl(dialect: str = "sqlite") -> str:
             out.append(f"CREATE TABLE IF NOT EXISTS {name} (\n" + ",\n".join(parts) + "\n);")
         else:
             out.append(f"IF OBJECT_ID('dbo.{name}','U') IS NULL\nCREATE TABLE dbo.{name} (\n" + ",\n".join(parts) + "\n);")
+            # columns added after a database was created: the script migrates itself (sqlite does this in db.migrate_columns)
+            for c in cols:
+                if c[1] != "id" and not (len(c) > 2 and c[2] == "PK"):
+                    out.append(f"IF COL_LENGTH('dbo.{name}','{c[0]}') IS NULL ALTER TABLE dbo.{name} ADD {c[0]} {_coltype(c[1], dialect)};")
             for c in cols:
                 if len(c) > 2 and c[2] == "UNIQUE":  # nullable unique -> filtered unique index
                     out.append(f"IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name='ux_{name}_{c[0]}')\nCREATE UNIQUE INDEX ux_{name}_{c[0]} ON dbo.{name}({c[0]}) WHERE {c[0]} IS NOT NULL;")
     for ix, tbl, cols in INDEXES:
         if dialect == "sqlite":
-            out.append(f"CREATE INDEX IF NOT EXISTS {ix} ON {tbl}({cols});")
+            idx.append(f"CREATE INDEX IF NOT EXISTS {ix} ON {tbl}({cols});")
         else:
-            out.append(f"IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name='{ix}')\nCREATE INDEX {ix} ON dbo.{tbl}({cols});")
-    return "\n\n".join(out) + "\n"
+            idx.append(f"IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name='{ix}')\nCREATE INDEX {ix} ON dbo.{tbl}({cols});")
+    return out, idx
 
 
 if __name__ == "__main__":

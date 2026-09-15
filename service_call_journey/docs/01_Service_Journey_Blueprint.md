@@ -1,6 +1,6 @@
 # Wilson AC & Appliance — Service Order Journey: Target-State Blueprint
 
-Version 0.11 · September 11, 2026 (replay adjustments; **service-team feedback from the 9/11 demo folded in — see §13 and the ⟨9/11⟩ marks**) · Prepared for Cayden Mayfield and the dashboard dev team
+Version 0.12 · September 14, 2026 (replay adjustments; service-team feedback from the 9/11 demo folded in — §13 and the ⟨9/11⟩ marks; **9/14: placement against the real route, the SO4 auto-pencil, route-first dates for customers, and the shadow test instance that replaces the AJH pilot — §6a and §11a, marked ⟨9/14⟩**) · Prepared for Cayden Mayfield and the dashboard dev team
 
 ## 1. What this document is
 
@@ -255,6 +255,16 @@ Every tech picks parts up at the shop, so an install stop is only feasible if th
 - Output to ePASS until NetSuite: a per-tech daily route export that mirrors what Routing shows today, plus sync items for date/tech changes.
 - ⟨9/11⟩ From the team's demo feedback: a **tech's name is a link** everywhere it appears (column header, fill strip, map legend) to a one-page **route overview** for that tech-day — stops in order with ETAs, the drive legs between them, blocks, that tech's map, dollars delivered so far and alerts; the **map legend** has a toggle per tech so one truck can be shown or hidden; the day-of-week dropdown becomes a **month calendar** tinted by fill, closed days hatched, trips marked, so picking a day is point-and-click; each column's footer shows **delivered dollars** for that route (recognised and projected) and a **Productivity** drawer at the bottom shows the department's day, week and month per tech.
 
+## 6a. Placement: where a call lands, and the SO4 pencil ⟨9/14⟩
+
+Three requests from Cayden on 9/14 turn out to be one mechanism. Every time the dashboard has to decide *where a call should go* — the dispatcher's suggestion on an Unscheduled card, the day an SO4 is penciled onto once the part has an ETA, the order of dates a customer sees — it asks the same question of the route ePASS actually shows: **which tech-day can absorb this stop for the least extra driving, without making the customer wait much longer?**
+
+- The score is in minutes: the extra drive to slot the stop into that day's existing route, minus a credit for every stop already in the same zone, plus a small cost for each business day of waiting (cheap for the first two days, steep after — so a Round Rock request goes onto the Round Rock day two days out rather than an empty truck tomorrow, but nobody is pushed a week for our convenience), plus a penalty when the tech is not that zone's usual one. Every suggestion carries its reason in plain words: *Diogo already has 3 stops in LOCAL that day · +6 min drive · primary tech*.
+- **Unscheduled cards** show the suggested day and a *Place there* button; the dispatcher stays in charge and the suggestion is just the engine's opening bid — and, in the shadow test (§11a), what we grade the engine on.
+- **The SO4 pencil.** When Kezia keys the part's expected date and the customer has approved (the call is SO4 in ePASS), the engine pencils the install onto the owning tech's best-fit day two business days after the part is due. The pencil blocks that time on the board (a dashed teal card), moves when the ETA moves, and is re-checked after every import as routes fill. It is dashboard-only — ePASS still says SO4; it is not the customer-held SO4PRE date, which keeps its own two-day check. When the part checks in and the customer gets the *your part is here* text, the first date they see is the penciled one: *Best fit — we already have your installer nearby that day.*
+- **Route-first dates.** The customer's picker leads with our best-fit day (labelled honestly — *our route is already in your area that day*), then lists the rest in calendar order; the earliest open day is always visible. This is not a Phase 4 luxury: it is the same score as the pencil with a different label, so it ships with it.
+- Field tool, parts needed: the component buttons stay, but **the tech keys the part number** — nothing is pre-filled from a catalog any more, and *UNKNOWN + a note* is allowed. The price is optional in a field quote; the parts manager prices anything left as TBD before ordering.
+
 ## 7. Customer portal ("Is my repair ready yet?")
 
 - Entry: SV number + phone number or zip to verify (also reachable via the unique link in every text/email, which skips lookup). No account needed.
@@ -341,6 +351,17 @@ Ordered by call-volume relief per unit of build effort, and so each phase is use
 
 **Phase 7 — NetSuite two-way (aligned to migration).** Replace human sync with API apply; keep Discrepancy engine.
 
+## 11a. The shadow test instance ⟨9/14⟩
+
+The AJH pilot (three files, one technician, three browser tabs sharing a `localStorage` store) is retired; its two good ideas — a copy button on the live Service Request Queue and a suggested day for everything unscheduled — are kept and applied to the whole crew on the real Phase 0 database.
+
+- **What runs.** One Phase 0 database fed read-only by the DispatchTrack export ePASS already writes every 15 minutes, plus the ExportInvoice file once or twice a day. The three *Service Journey* pages read it. Nothing writes back to ePASS: packets pile up as *pending* and are never keyed, no texts or charges go out.
+- **The button.** *Copy to service dashboard test module* on every live request row posts the row (customer, address, contact method, units, photos, card on file, ERP order number) to the instance. It becomes a REQ with a suggested tech-day and the reason. Pressing it twice does nothing new. The live row is untouched — a copy, not a move.
+- **No double entry.** The dispatcher keeps booking in ePASS as today. When the SV appears in the next snapshot the instance attaches it to the request (phone, or name + ZIP), adopts the ePASS booking, and scores its own suggestion against what the dispatcher did. Typing the SV into the row's ERP field does the same immediately.
+- **The morning check** (`shadow-report`, ten minutes): mirror health against the CSV; requests copied and which still lack an SV; suggested-vs-actual agreement (same day, same tech, both) with every miss listed for the dispatcher to judge — *who was right?*; where the pencils landed and whether they moved sensibly when an ETA changed; whether PTO, blocks and forced calls showed up within a refresh.
+- **Done when** the mirror has been clean for three straight days, roughly fifty requests have been scored with ≥ 80 % same-day-or-better and every miss explained by a rule we added or a difference we accept, and the dispatchers have used the day controls on real events. Then customers pick dates for one zone or one tech, with a dispatcher-approves gate in front of the confirmation text for two weeks.
+- "Break it" testing (closed days, full days, past dates, double bookings) happens on a separate copy seeded from the latest snapshot, never on the shadow instance.
+
 ## 12. Measures of success
 
 Baselines from the Sep 2026 data (docs/06): median created→finished **15 days** (mean 22, p90 46); **33% of billed COD invoices are the $169.95 diagnostic only**; core techs bill 2–2.5 COD jobs per working day; west work is 6% of jobs; 657 open tickets of which ~23% are warranty statuses.
@@ -349,7 +370,7 @@ Track from day one so the before/after is real (⟨9/11⟩ the team's own three 
 
 ## 13. Decisions log
 
-Settled 9/11/2026 with Cayden:
+Settled 9/11/2026 with Cayden (9/14 additions at the end, marked ⟨9/14⟩):
 
 | Topic | Decision |
 |---|---|
@@ -380,6 +401,10 @@ Settled 9/11/2026 with Cayden:
 | Recalls ⟨9/11⟩ | Auto-detected: same unit (serial, or model at the same address) with a completed repair in the last 30 days; manager confirms/dismisses; unreviewed after 7 days counts. |
 | Field tool inputs ⟨9/11⟩ | Two typing exceptions to tap-only — the error code (prompted when that symptom is tapped) and an optional custom note behind a button. Half-day / full-day labor quick picks. |
 | Held installs ⟨9/11⟩ | T−2 business days: Kezia checks ETA if parts aren't in; T−1 2 pm: hold released to SO4 with an apology text and re-pick link. Direct-ship (SO4H): customer taps *My part arrived* → SO5 → picker. |
+| ⟨9/14⟩ Part numbers in the field tool | Tech taps the failed component, then keys the part number. Nothing pre-filled from a catalog; UNKNOWN + note allowed; price optional, office prices TBD lines. |
+| ⟨9/14⟩ SO4 auto-pencil | Once Kezia's ETA is set, pencil the install ETA + 2 business days on the owning tech's best-fit day; blocks time; dashboard-only; moves with the ETA; first date the customer sees on SO5. |
+| ⟨9/14⟩ Route-first dates | Offer the best-fit day first (labelled), earliest always visible, within 5 days of the earliest. Same scoring as the pencil, so it ships now. |
+| ⟨9/14⟩ Testing approach | Shadow instance for all techs fed by the existing DT export; *Copy to service dashboard test module* button; AJH pilot retired. |
 
 ## 14. Decisions still needed from Wilson
 

@@ -193,7 +193,35 @@ CREATE TABLE IF NOT EXISTS job (
     closed_at TEXT,
     cancel_reason TEXT,
     created_at TEXT,
-    updated_at TEXT
+    updated_at TEXT,
+    parts_eta TEXT,
+    est_minutes INTEGER,
+    penciled_date TEXT,
+    penciled_tech_id INTEGER,
+    pencil_reason TEXT,
+    pencil_set_at TEXT,
+    source_ref TEXT,
+    card_ref TEXT
+);
+
+CREATE TABLE IF NOT EXISTS placement_log (
+    placement_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    job_id INTEGER,
+    kind TEXT,
+    suggested_at TEXT,
+    suggested_tech_id INTEGER,
+    suggested_date TEXT,
+    suggested_window TEXT,
+    cost_min INTEGER,
+    why TEXT,
+    candidates_json TEXT,
+    actual_tech_id INTEGER,
+    actual_date TEXT,
+    actual_at TEXT,
+    actual_source TEXT,
+    agree_day INTEGER,
+    agree_tech INTEGER,
+    note TEXT
 );
 
 CREATE TABLE IF NOT EXISTS unit (
@@ -326,4 +354,10 @@ CREATE INDEX IF NOT EXISTS ix_recall_job ON recall(job_id);
 CREATE INDEX IF NOT EXISTS ix_delivered_tech_date ON delivered(tech_id, visit_date);
 
 CREATE INDEX IF NOT EXISTS ix_unit_serial ON unit(serial);
+
+CREATE INDEX IF NOT EXISTS ix_job_penciled ON job(penciled_tech_id, penciled_date);
+
+CREATE INDEX IF NOT EXISTS ix_job_source_ref ON job(source_ref);
+
+CREATE INDEX IF NOT EXISTS ix_placement_job ON placement_log(job_id, kind);
 

@@ -257,20 +257,32 @@ def _sp_code(db: DB, tech_id) -> Optional[str]:
 
 
 def match_create_ticket(db: DB, sv: str, *, phone, last_name, zip_code, now: str) -> Optional[dict]:
-    """An SV appeared in ePASS that the dashboard does not know. If a create_ticket item is open for a job whose
-    customer phone (or last name + zip) matches, this is that ticket: set job.sv_number and confirm the item."""
-    items = db.fetchall("SELECT s.*, c.phone_primary, c.phone_alt, c.last_name, a.zip FROM sync_item s JOIN job j ON j.job_id=s.job_id "
-                        "LEFT JOIN customer c ON c.customer_id=j.customer_id LEFT JOIN address a ON a.address_id=j.address_id "
-                        "WHERE s.kind='create_ticket' AND s.state IN ('pending','keyed') AND j.sv_number IS NULL")
-    if not items:
+    """An SV appeared in ePASS that the dashboard does not know. It is attached to a dashboard job (sv_number set) when
+    the customer phone, or a name token + zip, matches either (a) a job with an open create_ticket item, or (b) — 9/14,
+    the shadow test — a dashboard-created request (REQ/SO1.AUTH/SO1, no SV yet) newer than intake.match_window_days.
+    Open create_ticket items are confirmed; otherwise a status_history row 'epass_attach' records the match."""
+    window = db.setting("intake.match_window_days", 14)
+    since = (_dt.datetime.fromisoformat(now.replace("T", " ")[:19]) - _dt.timedelta(days=window)).strftime("%Y-%m-%d %H:%M:%S")
+    rows = db.fetchall("SELECT j.job_id, j.status, j.created_at, c.phone_primary, c.phone_alt, c.last_name, c.display_name, a.zip, "
+                       "(SELECT MIN(s.sync_id) FROM sync_item s WHERE s.job_id=j.job_id AND s.kind='create_ticket' AND s.state IN ('pending','keyed')) AS sync_id "
+                       "FROM job j LEFT JOIN customer c ON c.customer_id=j.customer_id LEFT JOIN address a ON a.address_id=j.address_id "
+                       "WHERE j.sv_number IS NULL AND j.source<>'import' AND j.closed_at IS NULL AND j.status NOT IN ('SO9') ORDER BY j.created_at DESC")
+    cands = [r for r in rows if r.get("sync_id") or (r["status"] in ("REQ", "SO1.AUTH", "SO1") and str(r.get("created_at") or "") >= since)]
+    if not cands:
         return None
     pd = digits(phone)[-10:] if phone else ""
-    ln = (str(last_name or "").strip().split(" ") or [""])[-1].upper()
+    tokens = {t.upper() for t in str(last_name or "").replace("&", " ").replace(",", " ").split() if len(t) > 1}
     z = str(zip_code or "").strip()[:5]
-    for it in items:
+    for it in cands:
         phones = {digits(it.get("phone_primary"))[-10:], digits(it.get("phone_alt"))[-10:]} - {""}
-        if (pd and pd in phones) or (ln and it.get("last_name") and it["last_name"].upper() == ln and z and it.get("zip") == z):
+        name_ok = bool(tokens and it.get("last_name") and it["last_name"].upper() in tokens and z and it.get("zip") == z)
+        if (pd and pd in phones) or name_ok:
             db.update("job", {"job_id": it["job_id"]}, {"sv_number": sv, "updated_at": now})
-            db.update("sync_item", {"sync_id": it["sync_id"]}, {"state": "confirmed", "confirmed_at": now, "sv_number": sv, "note": f"matched ePASS ticket {sv}"})
+            if it.get("sync_id"):
+                db.update("sync_item", {"sync_id": it["sync_id"]}, {"state": "confirmed", "confirmed_at": now, "sv_number": sv, "note": f"matched ePASS ticket {sv}"})
+            else:
+                db.insert("status_history", {"job_id": it["job_id"], "from_status": it["status"], "to_status": it["status"], "changed_at": now, "actor_type": "import",
+                                             "actor_id": "epass", "trigger_event": "epass_attach", "reason_code": None,
+                                             "note": f"{sv} keyed in ePASS matched this request by {'phone' if pd and pd in phones else 'name + zip'}"})
             return db.fetchone("SELECT * FROM job WHERE job_id=?", (it["job_id"],))
     return None

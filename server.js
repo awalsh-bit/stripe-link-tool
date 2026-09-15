@@ -101,7 +101,10 @@ import {
   updateDepartment,
   deleteDepartment,
   SHIRT_SIZES,
-  setEmployeeSizesByEmail
+  setEmployeeSizesByEmail,
+  updateEmployeeProfileByEmail,
+  listCelebrations,
+  normalizeProfileDate
 } from "./lib/employee-directory.js";
 import {
   isSteelCodConfigured,
@@ -2139,6 +2142,88 @@ app.post("/api/me/theme", async (req, res) => {
     return res.status(500).json({ error: "Unable to save your color scheme." });
   }
 });
+
+// --- Edit My Profile (Personal Settings, 2026-09-15) -----------------------
+// The person's own directory profile: sizes, commute, birthday. Name, code,
+// department and title are shown read-only (User Admin owns those); hire
+// date is read-only too — it comes from the PEO records.
+app.get("/api/me/profile", async (req, res) => {
+  if (!req.authUser) return res.status(401).json({ error: "Authentication required." });
+  try {
+    const email = String(req.authUser.email || "").trim().toLowerCase();
+    const entry = email ? await findEmployeeDirectoryEntryByEmail(email) : null;
+    const base = { name: req.authUser.displayName || "", email, shirtSizes: SHIRT_SIZES };
+    if (!entry || entry.archived) return res.json({ ...base, found: false });
+    return res.json({
+      ...base, found: true, name: entry.name || base.name, code: entry.code, department: entry.department, commissionPlan: entry.commissionPlan,
+      shirtSize: entry.shirtSize, shoeSize: entry.shoeSize, commuteMiles: entry.commuteMiles, hireDate: entry.hireDate, birthday: entry.birthday
+    });
+  } catch (err) {
+    console.error("Load my profile failed:", err.message);
+    return res.status(500).json({ error: "Unable to load your profile." });
+  }
+});
+
+app.post("/api/me/profile", async (req, res) => {
+  if (!req.authUser) return res.status(401).json({ error: "Authentication required." });
+  try {
+    const body = req.body || {};
+    const sizes = readUniformSizeFields(body);
+    if (sizes.error) return res.status(400).json({ error: sizes.error });
+    const commuteMiles = Object.prototype.hasOwnProperty.call(body, "commuteMiles") ? Number(body.commuteMiles) : null;
+    if (commuteMiles != null && !(Number.isFinite(commuteMiles) && commuteMiles >= 0 && commuteMiles <= 500)) return res.status(400).json({ error: "Commute miles should be a number between 0 and 500 (round trip)." });
+    const birthday = Object.prototype.hasOwnProperty.call(body, "birthday") ? normalizeProfileDate(body.birthday) : null;
+    if (birthday === undefined) return res.status(400).json({ error: "Birthday must be a valid date or blank." });
+    const email = String(req.authUser.email || "").trim().toLowerCase();
+    const entry = email ? await updateEmployeeProfileByEmail(email, { shirtSize: sizes.shirtSize, shoeSize: sizes.shoeSize, commuteMiles, birthday }) : null;
+    if (!entry) return res.status(404).json({ error: "Your account isn't linked to a directory profile — ask an executive to link it in User Admin." });
+    recordAudit({
+      ip: req.ip, actorUserId: req.authUser.id || null,
+      action: "employee_profile_self_saved", targetUserId: null,
+      detail: { code: entry.code, shirtSize: entry.shirtSize, shoeSize: entry.shoeSize, commuteMiles: entry.commuteMiles, birthday: entry.birthday }
+    }).catch(() => {});
+    if (sizes.shirtSize != null || sizes.shoeSize != null) {
+      closeActionNotificationsForUser("sizes", email, req.authUser.displayName || "").catch((e) => console.error("Sizes action close failed:", e.message));
+    }
+    return res.json({ success: true, shirtSize: entry.shirtSize, shoeSize: entry.shoeSize, commuteMiles: entry.commuteMiles, birthday: entry.birthday, hireDate: entry.hireDate });
+  } catch (err) {
+    console.error("Save my profile failed:", err.message);
+    return res.status(500).json({ error: "Unable to save your profile." });
+  }
+});
+
+// Birthday and work-anniversary flags: once a day (Central), every active
+// directory entry with a matching date gets one company-wide notification
+// on My Notifications. The ref makes it idempotent across restarts.
+let lastCelebrationDay = "";
+async function sweepCelebrations() {
+  try {
+    const today = new Date().toLocaleDateString("en-CA", { timeZone: APP_TIMEZONE });
+    if (today === lastCelebrationDay) return;
+    const items = await listCelebrations(today);
+    for (const item of items) {
+      const refId = `celebrate:${item.kind}:${item.entry.code}:${today.slice(0, 4)}`;
+      if (await pushedNotificationRefExists(refId)) continue;
+      const first = String(item.entry.name || "").trim().split(/\s+/)[0] || item.entry.name;
+      const isBirthday = item.kind === "birthday";
+      await createPushedNotification({
+        severity: "green",
+        typeLabel: "Celebrate",
+        refId,
+        title: isBirthday ? `Happy birthday, ${first}!` : `${item.entry.name} — ${item.years} year${item.years === 1 ? "" : "s"} at Wilson today`,
+        body: isBirthday ? `It's ${item.entry.name}'s birthday today.` : `Work anniversary — hired ${new Date(item.entry.hireDate + "T12:00:00Z").toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}. Say congrats.`,
+        audienceEmail: "",
+        byEmail: "agility",
+        byName: "Agility"
+      });
+    }
+    lastCelebrationDay = today;
+  } catch (err) {
+    console.error("Celebration sweep failed:", err.message);
+  }
+}
+setTimeout(sweepCelebrations, 15 * 1000);
+setInterval(sweepCelebrations, 30 * 60 * 1000).unref?.();
 
 // --- Self-serve uniform sizes (HR uniform ordering) ------------------------
 // The dashboard prompts anyone whose directory entry is missing a shirt or
@@ -5270,9 +5355,14 @@ app.post("/api/admin/employee-directory", requireExecutiveApi, async (req, res) 
     if (sizes.error) {
       return res.status(400).json({ error: sizes.error });
     }
+    // Profile dates (PEO records): only touched when the field is present.
+    const hireDate = Object.prototype.hasOwnProperty.call(req.body || {}, "hireDate") ? normalizeProfileDate(req.body.hireDate) : null;
+    const birthday = Object.prototype.hasOwnProperty.call(req.body || {}, "birthday") ? normalizeProfileDate(req.body.birthday) : null;
+    if (hireDate === undefined) return res.status(400).json({ error: "Hire date must be a valid date (YYYY-MM-DD) or blank." });
+    if (birthday === undefined) return res.status(400).json({ error: "Birthday must be a valid date (YYYY-MM-DD) or blank." });
 
     const entry = await upsertEmployeeDirectoryEntry(
-      { code, name, email: trimmedEmail, department: normalizedDepartment, commuteMiles: commute, commissionPlan: plan, shirtSize: sizes.shirtSize, shoeSize: sizes.shoeSize },
+      { code, name, email: trimmedEmail, department: normalizedDepartment, commuteMiles: commute, commissionPlan: plan, shirtSize: sizes.shirtSize, shoeSize: sizes.shoeSize, hireDate, birthday },
       req.authUser.id || null
     );
 
@@ -5296,7 +5386,7 @@ app.post("/api/admin/employee-directory", requireExecutiveApi, async (req, res) 
       actorUserId: req.authUser.id || null,
       action: "employee_directory_saved",
       targetUserId: syncedUserId,
-      detail: { code: entry.code, name: entry.name, email: entry.email, department: entry.department, commuteMiles: entry.commuteMiles, commissionPlan: entry.commissionPlan, shirtSize: entry.shirtSize, shoeSize: entry.shoeSize, nameSynced: Boolean(syncedUserId) }
+      detail: { code: entry.code, name: entry.name, email: entry.email, department: entry.department, commuteMiles: entry.commuteMiles, commissionPlan: entry.commissionPlan, shirtSize: entry.shirtSize, shoeSize: entry.shoeSize, hireDate: entry.hireDate, birthday: entry.birthday, nameSynced: Boolean(syncedUserId) }
     }).catch(() => {});
 
     return res.json({ success: true, entry });

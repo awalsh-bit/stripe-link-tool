@@ -30,7 +30,7 @@ class DB:
     # ---- construction
     @classmethod
     def sqlite(cls, path: str = ":memory:") -> "DB":
-        conn = sqlite3.connect(path)
+        conn = sqlite3.connect(path, check_same_thread=False)  # serve.py hands one connection to request threads behind a lock
         conn.row_factory = sqlite3.Row
         conn.execute("PRAGMA journal_mode=WAL") if path != ":memory:" else None
         return cls(conn, "sqlite")
@@ -53,11 +53,41 @@ class DB:
 
     # ---- schema
     def init_schema(self) -> None:
-        for stmt in schema.ddl(self.dialect).split(";\n"):
-            s = stmt.strip()
-            if s:
-                self.conn.execute(s)
+        tables, indexes = schema.ddl_parts(self.dialect)
+        self._run_ddl(tables)
+        self.migrate_columns()          # columns added since this database was created
+        self._run_ddl(indexes)
+
+    def _run_ddl(self, statements: list[str]) -> None:
+        for block in statements:
+            for stmt in block.split(";\n"):
+                s = stmt.strip().rstrip(";")
+                if s:
+                    self.conn.execute(s)
         self.conn.commit()
+
+    def existing_columns(self, table: str) -> list[str]:
+        if self.dialect == "sqlite":
+            return [r[1] for r in self.conn.execute(f"PRAGMA table_info({table})").fetchall()]
+        return [r[0] for r in self.conn.execute("SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME=?", (table,)).fetchall()]
+
+    def migrate_columns(self) -> list[str]:
+        """Add any column schema.py knows that the database does not (a later version pulled onto an existing DB).
+        Never drops or retypes anything. Returns 'table.column' for each column added."""
+        added = []
+        for table, cols in schema.TABLES.items():
+            have = {c.lower() for c in self.existing_columns(table)}
+            if not have:
+                continue
+            for c in cols:
+                if c[0].lower() in have or c[1] == "id" or (len(c) > 2 and c[2] == "PK"):
+                    continue
+                prefix = "" if self.dialect == "sqlite" else "dbo."
+                self.conn.execute(f"ALTER TABLE {prefix}{table} ADD {'COLUMN ' if self.dialect == 'sqlite' else ''}{c[0]} {schema._coltype(c[1], self.dialect)}")
+                added.append(f"{table}.{c[0]}")
+        if added:
+            self.conn.commit()
+        return added
 
     # ---- helpers
     def execute(self, sql: str, params: Iterable[Any] = ()) -> Any:

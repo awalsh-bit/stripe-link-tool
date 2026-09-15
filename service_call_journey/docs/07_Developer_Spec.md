@@ -1,6 +1,6 @@
-# Wilson Service Journey — Developer Specification v1.2
+# Wilson Service Journey — Developer Specification v1.3
 
-September 11, 2026 (v1.1 folded in the Sep 10 replay, `08_Replay_Sep2026.md`; **v1.2 folds in the service team's feedback from the 9/11 demo — every item is placed in §13 and the rules it needs are written into the sections below, marked ⟨9/11⟩**). Phase 0 of this spec exists as working code in `phase0/` · For the dashboard developer · Companion to `01_Service_Journey_Blueprint.md` (v0.9), the three prototypes, and the reference tables in `reference/`.
+September 14, 2026 (v1.1 folded in the Sep 10 replay, `08_Replay_Sep2026.md`; v1.2 folded in the service team's feedback from the 9/11 demo — §13, marked ⟨9/11⟩; **v1.3 adds Cayden's 9/14 items — manual part numbers, the SO4 auto-pencil, route-first slot offering (§4.3, §13.17–19) — and §14, the shadow test instance fed by the "Copy to service dashboard test module" button, which replaces the AJH pilot files** ⟨9/14⟩). Phase 0 of this spec exists as working code in `phase0/` · For the dashboard developer · Companion to `01_Service_Journey_Blueprint.md` (v0.9), the three prototypes, and the reference tables in `reference/`.
 
 This document is the build spec. The blueprint says *why*; this says *what to build*, with every field traced to where it comes from and every rule written so it can be coded without re-deriving it from conversation. Where a number is a tunable it is named in §11 and should live in a settings table, not in code.
 
@@ -46,6 +46,11 @@ Primary keys are `INT IDENTITY` unless noted; every table has `created_at DATETI
 
 **job** (one per service order / SV)
 `job_id`, `sv_number VARCHAR(20) UNIQUE NULL` (null until ePASS ticket exists; filled from sync or import), `customer_id` FK, `address_id` FK, `status VARCHAR(12)` FK→status_def, `status_changed_at`, `job_type` ENUM('appliance','hvac','in_shop'), `qualification` ENUM('APPL','HVAC'), `is_warranty BIT`, `warranty_flags` (DT `Priorites`), `payment_type` ENUM('COD','AR'), `source` ENUM('web_form','phone','walk_in','import'), `owner_tech_id` FK→tech NULL (set when findings are submitted; never changed by system), `promised_window_start/end DATETIME2 NULL` (customer-facing), `planned_slot_start/end DATETIME2 NULL` (internal), `assigned_tech_id` FK NULL, `route_date DATE NULL`, `route_sequence INT NULL`, `route_locked BIT`, `trip_id` FK NULL, `booking_mode` ENUM('open','designated_days','office_only') (copied from zone at creation), `problem_text`, `balance DECIMAL(10,2)`, `bin_location VARCHAR(10)`, `epass_status VARCHAR(12)`, `epass_route_date DATE`, `epass_tech_code VARCHAR(8)`, `epass_seen_at DATETIME2`, `closed_at`, `cancel_reason`.
+
+⟨9/14⟩ Added to **job**: `parts_eta DATE NULL` (Kezia's ETA, written by `po.placed` / `po.eta_changed`), `est_minutes INT NULL` (planned visit minutes; defaults from `duration.defaults`), `penciled_tech_id`, `penciled_date`, `pencil_reason VARCHAR(200)`, `pencil_set_at` (the SO4 auto-pencil, §4.3a — a soft hold, never sent to ePASS), `source_ref VARCHAR(60)` (`queue:<request_id>` for requests copied from the live Service Request Queue, §14), `card_ref VARCHAR(60)` (card brand · last4 · SetupIntent).
+
+**placement_log** ⟨9/14⟩ (what the engine suggested vs what actually happened — the shadow-test scorecard)
+`placement_id`, `job_id`, `kind ENUM('intake','pencil','offer')`, `suggested_at`, `suggested_tech_id`, `suggested_date`, `suggested_window`, `cost_min`, `why VARCHAR(240)`, `candidates_json`, `actual_tech_id`, `actual_date`, `actual_at`, `actual_source ENUM('epass','dashboard')`, `agree_day BIT`, `agree_tech BIT`, `note`. Filled by the DispatchTrack import when the SV is attached or its route changes, and by rule 2/21/25 bookings.
 
 **unit** (appliance or HVAC unit on a job; 1..n)
 `unit_id`, `job_id` FK, `category` (dishwasher, refrigerator, …), `install_type` ENUM('built_in','freestanding','hvac') — **drives labor tax**, `brand`, `model`, `serial`, `purchase_date`, `purchased_from_us` ENUM('yes','no','unsure'), `merged_with_unit_id` NULL, `serial_tag_photo_id` FK→photo NULL, `problem_text`.
@@ -245,11 +250,29 @@ Materialised table `ledger(tech_id, date, half_day, committed_min, owed_min, dri
 - `drive_est_min` = 15 × stops (until a route exists) or actual planned drive.
 - `available_min` = 240 − buffer − committed − owed − drive_est ⟨9/11⟩ + `tech_day.capacity_adjust_min` (split AM/PM by where the dispatcher clicked; a **forced** stop is allowed to drive `available_min` negative and is shown as overage).
 
-### 4.3 Slot offering (what the picker shows)
-For a job and each date in the next `booking_horizon_days` (default 10 business days), each half-day is **offered** if ∃ eligible tech with `available_min ≥ duration + 25`, and the tech has no `tech_day.available=0`, and (for installs) `ETA ≤ date − 1`, and the shop-touch guard (§4.5) passes. Offer at most `max_offers` (7) half-days, preferring days where the eligible tech already has ≥1 stop in the same zone group (fills routes), then earliest. Booking picks the tech with the most slack among eligible techs preferring primary over secondary. Booking writes `promised_window`, `planned_slot`, `assigned_tech_id`, `route_date`, `route_sequence = end`, and a sync item.
+### 4.3 Slot offering (what the picker shows) — and placement in general ⟨9/14⟩
+For a job and each date in the next `booking_horizon_days` (default 10 business days), each half-day is **offered** if ∃ eligible tech with `available_min ≥ duration + 25`, and the tech has no `tech_day.available=0`, and (for installs) `ETA ≤ date − 1`, and the shop-touch guard (§4.5) passes. Booking writes `promised_window`, `planned_slot`, `assigned_tech_id`, `route_date`, `route_sequence = end`, and a sync item.
+
+**Placement score** (Phase 0 `placement.suggest`, the same function behind the dispatcher's suggestion, the SO4 pencil and the customer's order of dates). For each eligible (tech, day) — tech open, has the skill, `auto_schedule`, owner-only for installs, day keeps `placement.min_slack_min` after the job — the cost in minutes is
+
+`cost = marginal_drive − same_zone_bonus × min(same_zone_stops, 3) + wait_cost + zone_penalty`
+
+where `marginal_drive` is the cheapest nearest-insertion of the stop into that day's route as ePASS actually shows it (start → stops in `route_sequence` → end; an empty day costs the whole out-and-back) plus any pencils; `same_zone_stops` counts stops already in the job's `zone_code` that day; `wait_cost = defer_min_per_day × min(wait, defer_soft_days) + defer_min_per_day_late × max(wait − defer_soft_days, 0)` in business days after the earliest allowed day — so a day two days out with our truck already in Round Rock beats an empty day tomorrow, but nothing is pushed a week for consolidation; `zone_penalty` is 0 / `zone_secondary_penalty_min` / `zone_other_penalty_min` by the tech's standing in `zone.primary_tech / secondary_techs`. Location for a job with no geocode: average of DispatchTrack-geocoded addresses in its ZIP → zone centroid → zone address average → geo-neutral. Every candidate carries a one-line `why` for the UI (`DLA has 3 stops in LOCAL that day · +9 min drive · 2h 40m left · primary tech`).
+
+**Order of dates for the customer** (`offer.route_first`, Cayden 9/14: *"offer the Round Rock date first"*): the cheapest day within `offer.max_defer_days` (5) of the earliest open day is shown first, labelled *Best fit — our route is already in your area that day* (or *Earliest available* when they coincide); the remaining dates follow in calendar order and the earliest open day is always in the list. The picker never hides earlier dates — it leads with ours. If the job carries a pencil (§4.3a) that day is the recommendation, labelled *installer already nearby*.
+
+#### 4.3a The SO4 auto-pencil ⟨9/14⟩
+Cayden: *"when KKD sets the part ETA … and the call is floating as an SO4, the tool should automatically start sorting the call onto a day roughly 2 business days after we expect the part to land and blocking time on the schedule … so that when the customer gets the 'your part is here' text, the first available date is already the best day for us."*
+
+- Trigger: `po.placed` / `po.eta_changed` write `job.parts_eta`; for status SO4 / SO4B / SO4H the engine runs `placement.pencil`: earliest = `parts_eta + pencil.business_days_after_eta` (2) business days; pick the cheapest (tech, day) by the score above (owner tech only); write `job.penciled_tech_id / penciled_date / pencil_reason / pencil_set_at`, flag `penciled`, audit `placement.penciled`. If nothing fits: flag `pencil_failed`, task `dispatcher_place`.
+- A pencil **blocks time**: it is a stop in every later `day_load` (suggestions, offers, the fill strip) but is **dashboard-only** — nothing is sent to ePASS, the ticket stays SO4 there. It is not SO4PRE: SO4PRE is a date the *customer* holds (rule 21) and keeps its own T−2 / T−1 rules (22.1 / 22.2).
+- It **moves with the ETA** (re-run on `po.eta_changed`) and is re-scored after every import (`watcher`) since routes change all day; hysteresis `pencil.move_threshold_min` (15) stops it flapping. The dispatcher can drag it like any card; a manual move holds until the part lands.
+- On `receiving.all_parts_in` (→ SO5) the pencil is the first date offered (label above). Booking (rule 25) or cancel clears it. `timer.unpicked` (rule 26) is unchanged.
+- Board: dashed teal card `SO4 · Parts on order · penciled · ETA m/d`, hover shows `pencil_reason`. Office → Receiving shows `✎ penciled Wed 9/16 · Diogo — first date the customer will see`. Tracker (SO4): *"We've already lined up a spot with Diogo for a couple of days after it lands — you'll see it first when we text you."*
 
 ### 4.4 Booking modes and trip buckets
 `zone.booking_mode`:
+
 - `open` → §4.3 as-is.
 - `designated_days` → the job enters the group's bucket (`trip_id NULL`, `status REQ/SO5`, `zone_group` known). Picker shows only dates of `trip` rows in state `confirmed` for that group with `capacity_minutes ≥ duration`. If none: bucket message. **Proposal job** (every 30 min): for each group with bucket items, propose a trip when `Σ duration ≥ trip_min_minutes` (default 240) **or** oldest item age > 5 business days **or** any SO5 item age > 3 days. Choose date = the trip tech's earliest day in the next 10 with `available_min ≥ Σ duration + drive` (drive = 2 × drive(shop→group centroid) + 15 × stops), skipping days with confirmed trips for another group. Create `trip(state=proposed)` and notify Demitrius. Automatic proposals are capped at `trip.max_auto_per_week` (2) per group; beyond that a manager opens the trip. On **confirm**: attach bucket items (`trip_id`), create appointments with windows assigned by sequence, send `notify:trip_date_offered` with one-tap confirm; items that decline stay in bucket. Trip stops are `route_locked` as a block; the optimiser may sequence within the block and add local stops before/after in travel direction.
 - `office_only` → no picker; Client Care task; staff can book manually with any tech (`staff.booked`).
@@ -489,6 +512,8 @@ Internal network / VPN or authenticated hosting only; production server (waitres
 
 ---
 
+**Placement, pencil, offers, intake ⟨9/14⟩** — `placement.shift_min` 540 · `placement.drive_base_min` 4 · `placement.drive_min_per_km` 1.55 · `placement.defer_min_per_day` 8 · `placement.defer_soft_days` 2 · `placement.defer_min_per_day_late` 20 · `placement.same_zone_bonus_min` 6 · `placement.zone_secondary_penalty_min` 10 · `placement.zone_other_penalty_min` 40 · `placement.horizon_business_days` 10 · `placement.min_slack_min` 25 · `pencil.enabled` 1 · `pencil.business_days_after_eta` 2 · `pencil.move_threshold_min` 15 · `offer.route_first` 1 · `offer.max_defer_days` 5 · `intake.match_window_days` 14 · `serve.port` 8765 · `serve.token` '' · `serve.cors_origin` *
+
 ## 12. Open items for the dev to confirm with Cayden
 1. ePASS DT export widened to all SV statuses? (changes §3.1; removes ExportInvoice dependency)
 2. Labor itemised or single line on the customer quote page (setting).
@@ -501,6 +526,8 @@ Internal network / VPN or authenticated hosting only; production server (waitres
 9. ⟨9/11⟩ A cost feed for parts before the PO builder exists: can ePASS schedule the OE-23 (or an invoice-line export with *Serial Cost*) nightly like the DispatchTrack file? Without it the office reconciliation uses `Total` only and parts profit stays estimated until Phase 3.
 10. ⟨9/11⟩ Confirm roles: Kezia = parts/receiving (owner of the T−2 ETA check); who "DAH" is for the open-day approvals (the control itself is dispatcher-level).
 11. ⟨9/11⟩ Whether techs should see their recall rate in the field tool (default: managers only).
+12. ⟨9/14⟩ The live queue's request id and photo URLs: confirm the field names the button will post (§14.2) and whether photos can be fetched by URL from the dashboard host.
+13. ⟨9/14⟩ Tech start/end points for the drive model (home vs shop per `tech_roster`): Phase 0 scores from the shop for everyone; the board prototype already uses home/shop.
 
 ---
 
@@ -524,3 +551,54 @@ Internal network / VPN or authenticated hosting only; production server (waitres
 | 14 | Quick half-day / all-day labor (sealed system) | `LAB-HALF` 4 h / `LAB-FULL` 8 h chips; sets install duration 240/480 | §5.1, §1.2 findings.labor_block | 2 (prototype now) |
 | 15 | "What you found" needs a box to type when the options don't fit | *Custom note* button reveals a text box; stays on the dashboard, ≤ 200 chars ever reach ePASS | §1.2 findings.custom_note, §8 | 2 (prototype now) |
 | 16 | (Cayden) Capacity must be quick to change from the capacity dashboard: force an extra call, block PTO days | Fill-strip popover: Close day / Open day / ±60 min / +1 stop / Add block; range PTO; **Force it** on an over-capacity drop, no reason code, logged | §4.1, §4.2, §4.8 | 4 (prototype now) |
+| 17 ⟨9/14⟩ | Field tool, parts needed: keep the component buttons, but the tech keys the part number — stop auto-populating any part number | Component chips (Drain pump, Evaporator fan…) add a line with an **empty part-number field** the tech must fill (UNKNOWN + note allowed); field quote lines take an optional price, else *TBD — office prices before ordering*. No catalog number or price is ever pre-filled | §5.4, §8, field tool prototype | 2 (prototype now) |
+| 18 ⟨9/14⟩ | Once Kezia sets the ETA and the customer has approved (SO4), auto-sort the call onto a day ~2 business days after the part lands, geographically with the SO1/SO6s already there, block the time, and make that the first date the customer sees | The **SO4 auto-pencil** — dashboard-only soft hold on the best-fit day, moves with the ETA, re-scored per import, first offer on SO5 | §4.3a, `placement.pencil`, `job.penciled_*` | 0 (code now) / 4 (board) |
+| 19 ⟨9/14⟩ | Offer customers the dates most advantageous to our routes (a Round Rock request gets the Round Rock day first) | Same placement score orders the picker: best fit within 5 days first, labelled; earliest always visible. Not too much for now — it is the same function as #18 with a different label | §4.3, `placement.offer`, `offer.route_first` | 0 (code now) / 1 (picker) |
+
+---
+
+## 14. The shadow test instance ⟨9/14⟩
+
+Replaces the AJH pilot files (`ajh_routing_tool.html`, `ajh_field_tool.html`, `ajh_office_parts_tool.html`, `AJH_pilot_developer_handoff.md`, the `WILSON_AJH_PILOT_V2` localStorage store and the three *AJH Pilot* menu entries). Their idea is kept — a copy button on the live queue, a board that mirrors the real ePASS route, and a suggested day for everything unscheduled — and applied to **every tech**, on the Phase 0 database, so nothing depends on three tabs of one browser.
+
+### 14.1 What the instance is
+- One Phase 0 database (`WilsonService_Test` or `sqlite:shadow.db`) fed by the **existing** DispatchTrack export (`\\WILSON-EPASS01\Updates\ePASSScheduler\DispDataExport`, every 15 min, read-only) through `watch`, plus the ExportInvoice xlsx dropped in once or twice a day. Nothing in it writes to ePASS: packets accumulate as `pending` and are never keyed; `outbox` is not drained (no texts, no charges).
+- The three *Service Journey* pages in the dashboard menu (Board, Field Tool, Office Queues) read it through `serve` (§14.3) or the dev's port of the same calls.
+- The live Service Request Queue gets one button per row: **Copy to service dashboard test module** (rename of "Copy to AJH test module").
+
+### 14.2 The button
+`POST /api/requests` with the row as shown on screen — nothing about the live row changes (it is a copy, not a move):
+
+```json
+{"request_id":"sr_4821","submitted_at":"2026-09-14T16:32:00",
+ "customer":{"name":"Thomas Meyer","email":"tm101352@gmail.com","phone":"5125579882"},
+ "address":{"line1":"1714 Cielo Ranch rd.","city":"San Marcos","state":"TX","zip":"78666","gate_code":""},
+ "contact_method":"Text","purchase_date":"2011","purchased_within_12_months":false,
+ "units":[{"type":"Sub-Zero Refrigerator (Built-in)","model":"BI42SD/O","serial":"F4139786","purchased_from_us":true,
+           "problem":"I notice a small puddle of water at base of refrigerator door"}],
+ "photos":["https://…/1.jpg","https://…/2.jpg"],
+ "card":{"saved":true,"brand":"VISA","last4":"8241","setup_intent":"seti_1UFhRX8Mxpn8XucSe8t2KIe3"},
+ "erp_order_number":""}
+```
+
+Response: `{job_id, created, status:"REQ", zone, booking_mode, suggestions:[{rank, sp_code, date, window, cost, why}]}`. Idempotent on `request_id` (`job.source_ref = 'queue:sr_4821'`) — pressing twice returns the same job. The request becomes a REQ through rule 1 (`source='dashboard'`, `card_ref`, photos queued as `photos.attach`), and the first suggestion is written to `placement_log(kind='intake')`.
+
+**Attaching the ePASS ticket.** The dispatcher keeps booking in ePASS exactly as today. When the SV shows up in the next DispatchTrack snapshot, the import attaches it to the request — phone match, or a name token + ZIP, for requests newer than `intake.match_window_days` — adopts the ePASS booking (`status_history.trigger_event='epass_attach_booked'`) and fills `placement_log.actual_*`. No duplicate job. If the dispatcher types the SV into the queue row's **ERP order number** field, the dashboard posts `POST /api/requests/<job_id>/sv {"sv_number"}` (or re-posts the row with `erp_order_number` set) and `intake.attach_sv` attaches it directly — merging an import-created job for that SV into the request if the snapshot got there first.
+
+### 14.3 Endpoints the pages use (`python -m wilson_service serve`)
+`GET /api/board?date=` (stops + pencils per tech, with `why`), `GET /api/jobs/<id>/suggest`, `GET /api/jobs/<id>/offer`, `POST /api/jobs/<id>/pencil`, `GET /api/shadow?since=`, `GET /health`. Header `X-Token` when `serve.token` is set. These are a shim for the test instance; the Phase 1 API (§7) supersedes them with the same shapes.
+
+### 14.4 What we watch, and when it is done
+Morning, ten minutes, `python -m wilson_service shadow-report`:
+1. Mirror health — last import, in-feed counts by status equal the CSV, `discrepancies = 0` (every one is either an ePASS quirk to normalise or a bug), stale tickets actually stale, aliases right.
+2. Requests copied from the queue, and which still have no SV (a request without an SV after a day means the match rule missed or the call was never booked).
+3. **Suggested vs actual** — `placement_log`: same day %, same tech %, both %, with every miss listed (`suggested DLA 09-16 · actual KJB 09-17 · why`). The dispatcher judges each miss: who was right? A rule we add, or a difference we accept. Target before anything customer-facing: ≥ 80 % same-day-or-better over ~50 requests, every miss explained.
+4. Penciled installs — do they land where a dispatcher would have put them, and do they move sensibly when Kezia changes an ETA?
+5. Dispatcher controls used on real events (PTO, van appointment, Josh's Friday, a forced call) and reflected within one refresh.
+
+Random "break it" testing (closed days, full days, past dates, SO4 with no part, double-booking) runs on a **separate** copy seeded from the latest snapshot, never on the shadow instance: test customers there would sit in Michael's queue forever and skew the scorecard.
+
+Exit → first customer-facing step: one zone or one tech, `offer.route_first` on, and a dispatcher-approves-slot gate in front of the confirmation text for two weeks.
+
+### 14.5 What carries over from the AJH files, and what does not
+Keep: the copy button (renamed, posts to §14.2 instead of URL parameters), *suggested day + why* on every unscheduled card (now `placement.suggest`), the activity log idea (`audit_log` + `status_history` already are it), the Podium relay shape (browser → small server endpoint holding the key; §6), the two clearly-labelled TEST stops for reviewing on-my-way wording (recreate them on the "break it" copy, never on the shadow instance). Drop: the `localStorage` store and `storage`-event sync, the per-file seed data (`ExportInvoice_2026-09-14` AJH tickets — the shadow instance has every ticket from the import), the category → part-number catalog in the parts tool (item 17: no part number is ever pre-filled), the `bucket` field (Phase 0 statuses + `route_date`/`penciled_date` say what shows where), and anything scoped to one technician.

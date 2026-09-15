@@ -13,10 +13,12 @@ docs/
   04_ePASS_DispatchTrack_Feed.md    Where the ePASS auto-export lives and how the service side reuses it
   05_Prototype_Notes.md             What each prototype demonstrates and the sample-data assumptions to replace
   06_Data_Findings_Sep2026.md       What the Sep 10 ePASS pulls say: volumes, revenue, cycle time, zones per tech, the west
-  07_Developer_Spec.md              THE HANDOFF (v1.1): schema, transition table, import/sync algorithm, capacity & trips, pricing/tax, Podium templates, API, build order, tunables
+  07_Developer_Spec.md              THE HANDOFF (v1.3): schema, transition table, import/sync algorithm, capacity & trips, pricing/tax, Podium templates, API, build order, tunables
   08_Replay_Sep2026.md              The real Sep 10 schedule scored against the spec rules; tunable changes that came out of it
   09_Customer_Copy.md               Every customer-facing sentence (texts, emails, tracker, field-tool authorization, intake) for review
   10_Demo_Script.md                 Click-by-click script for the team meeting: two demos, sample customers, recovery steps, likely questions
+  11_Shadow_Test_and_Dev_Handoff.md 9/14: the shadow test instance (all techs, real DT feed), the "Copy to service dashboard test module" button contract, retiring the AJH pilot
+  12_Agility_Platform_Notes.md      9/15: Agility runs on Node + Postgres (Render), Phase 0 is already ported (lib/service-journey-postgres.js), live sj_* DDL, conventions, §14 mapped onto Agility
 meeting/
   Wilson_Service_Journey_Team_Deck.pptx   Six slides with speaker notes for the service team meeting
   deck_preview.jpg                        Thumbnail grid of the deck
@@ -56,4 +58,4 @@ Prototypes are single self-contained HTML files — open them directly in a brow
 
 ## Status
 
-Blueprint v0.11, Developer Spec v1.2 (9/11 team feedback folded in — spec §13 maps every ask), **Phase 0 built and green** (`phase0/`, 31 tests on the real 9/10 exports: 236 DT orders, 657 invoice tickets, idempotent re-import, dashboard-owned fields preserved, sync confirm/discrepancy/reverse, stale rule, 9/11 capacity controls, hold/direct-ship rules, recall detection). Decisions settled are in docs/01 §13; open questions in docs/07 §12 and phase0/README "Open items". Next for the dev: point `phase0` at SQL Server and the live export folder, then Phase 1 (tracker + Podium texts off the mirrored data).
+Blueprint v0.12, Developer Spec v1.3, **Phase 0 v0.3.0 built and green** (`phase0/`, 37 tests on the real 9/10 exports: 236 DT orders, 657 invoice tickets, idempotent re-import, dashboard-owned fields preserved, sync confirm/discrepancy/reverse, stale rule, 9/11 capacity controls, hold/direct-ship rules, recall detection). Decisions settled are in docs/01 §13; open questions in docs/07 §12 and phase0/README "Open items". 9/14: placement against the real route (`placement.suggest`), the **SO4 auto-pencil** (ETA + 2 business days on the owning tech's best-fit day, dashboard-only, first date the customer sees), **route-first dates** in the picker, the **queue-copy intake** (`intake.from_queue` + `serve`) with automatic SV attach and a suggested-vs-actual scorecard (`shadow-report`), and manual part numbers in the field tool. The AJH pilot files are retired; the shadow test runs for all techs on this code — `docs/11_Shadow_Test_and_Dev_Handoff.md`.

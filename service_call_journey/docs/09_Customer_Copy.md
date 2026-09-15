@@ -146,6 +146,13 @@ Notes: fires at most once per status; not sent while a quote is awaiting the cus
 - Declined (SO7): "Diagnostic complete. Receipt below. If you'd like replacement options, our showroom team can help."
 - Cancelled (SO9): "This request was cancelled on {date}. Need us again? Start a new request."
 
+**Recommended window (9/14 — route-first dates; sits above the grid, all other openings stay below):**
+- Label when our best-fit day is later than the earliest open day: **"Best fit — our route is already in your area that day"**; body: "Our technician is already in your area that day — picking it means less driving for us and a tighter arrival window for you. All other openings are below." Button: "Take this window".
+- Label when best fit and earliest coincide: **"Earliest available — and our route is already in your area"** (or just "Earliest available" when there is no route nearby).
+- Label after a penciled install (SO5 with a pencil): **"Best fit — installer already nearby"**; body: "{tech_first} is already working near you that day, so this is the quickest we can get your part installed."
+- Never hide earlier dates; never say "only" or "must". The customer is choosing; we are leading.
+- Parts ordered (SO4) with a pencil on the board: "We've already lined up a spot with {tech_first} for a couple of days after it lands — you'll see it first when we text you. You can also hold a time now."
+
 **Picker copy:** "Pick an arrival window" / "Showing openings for technicians who cover {zip}" / "Showing {tech_first}'s openings — he diagnosed your unit and will finish the repair" / "Grey windows are full" / "Confirmation is instant — no call needed." Inside 48 h: "Your visit is soon, so only windows that fit a route already near you are shown." Nothing fits: "Nothing fit? Message Client Care."
 
 **Footer FAQ (three items, expandable):**

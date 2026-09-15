@@ -81,6 +81,27 @@ SETTINGS = [
     ("hold.release_business_days_before", "1", "int", "SO4PRE: release the hold if parts are still not in (14:00 the day before)"),
     ("pay.parts_margin_default", "0.45", "float", "Estimated parts margin when no PO or catalog cost exists"),
     ("pay.day_review_threshold", "2000", "float", "A tech day over this delivered-dollar figure gets a review flag"),
+    # 9/14 — placement against the real route, the SO4 auto-pencil, route-first offers, the queue-copy intake and the shadow test
+    ("placement.shift_min", "540", "int", "Minutes in a tech day before adjustments/blocks (8–5)"),
+    ("placement.drive_base_min", "4", "int", "Drive-time model: base minutes per leg"),
+    ("placement.drive_min_per_km", "1.55", "float", "Drive-time model: minutes per straight-line km"),
+    ("placement.defer_min_per_day", "8", "int", "Cost (in drive-minute equivalents) of making the customer wait one more business day"),
+    ("placement.defer_soft_days", "2", "int", "Business days of waiting charged at the low rate"),
+    ("placement.defer_min_per_day_late", "20", "int", "Per business day beyond the soft days — keeps consolidation from pushing customers a week out"),
+    ("placement.same_zone_bonus_min", "6", "int", "Credit per stop already in the job's zone that day (max 3 stops)"),
+    ("placement.zone_secondary_penalty_min", "10", "int", "Tech is a secondary for the zone"),
+    ("placement.zone_other_penalty_min", "40", "int", "Tech is neither primary nor secondary for the zone"),
+    ("placement.horizon_business_days", "10", "int", "How far ahead suggest/pencil looks"),
+    ("placement.min_slack_min", "25", "int", "Minutes that must remain in the day after the job is placed"),
+    ("pencil.enabled", "1", "bool", "Auto-pencil SO4/SO4B/SO4H onto the best-fit day once the part ETA is known"),
+    ("pencil.business_days_after_eta", "2", "int", "Pencil lands this many business days after the part is expected"),
+    ("pencil.move_threshold_min", "15", "int", "A pencil only moves when another day is at least this much cheaper"),
+    ("offer.route_first", "1", "bool", "Customer picker: best-fit day first (labelled), then the rest in date order"),
+    ("offer.max_defer_days", "5", "int", "A best-fit day may be at most this many days after the earliest open day to be recommended"),
+    ("intake.match_window_days", "14", "int", "An unknown ePASS SV attaches to a dashboard request created within this many days (phone or last name + zip)"),
+    ("serve.port", "8765", "int", "python -m wilson_service serve — port for the queue-copy / suggest endpoints"),
+    ("serve.token", "", "str", "If set, requests must carry X-Token"),
+    ("serve.cors_origin", "*", "str", "Access-Control-Allow-Origin for the live dashboard"),
 ]
 
 

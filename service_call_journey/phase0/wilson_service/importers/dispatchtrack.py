@@ -18,7 +18,7 @@ from collections import OrderedDict
 from typing import Optional
 
 from ..db import DB, now_iso
-from .. import seed, sync, stuck, kpi
+from .. import seed, sync, stuck, kpi, placement
 from .common import (canonical_code, compact_json, ensure_zone, find_or_create_address, find_or_create_customer, parse_date, parse_float,
                      parse_money, parse_order_detail, tech_id_for, upsert_unit, warranty_flags, zone_for_zip)
 
@@ -201,6 +201,14 @@ def _upsert_order(db: DB, sv: str, grp: list[dict], ts: str) -> tuple[int, str]:
             if fill:
                 db.update("address", {"address_id": addr["address_id"]}, fill)
     upsert_unit(db, job["job_id"], detail)
+    if attached and job.get("status") in ("REQ", "SO1.AUTH") and epass_status and route_date:
+        # 9/14 shadow test: the office booked this request in ePASS — the dashboard adopts that booking and scores its own suggestion against it
+        db.update("job", {"job_id": job["job_id"]}, {"status": epass_status, "status_changed_at": ts, "route_date": route_date, "assigned_tech_id": tech_id,
+                                                      "needs_intake_review": 0, "updated_at": ts})
+        db.insert("status_history", {"job_id": job["job_id"], "from_status": job["status"], "to_status": epass_status, "changed_at": ts, "actor_type": "import",
+                                     "actor_id": "DT", "trigger_event": "epass_attach_booked", "reason_code": None, "note": f"booked in ePASS: {truck or '-'} {route_date}"})
+    if attached or "epass_route_date" in changes or "epass_tech_code" in changes:
+        placement.record_actual(db, job["job_id"], tech_id, route_date, "epass", now=_dt.datetime.fromisoformat(ts))
     if attached:
         return job["job_id"], "attached"
     return job["job_id"], ("updated" if substantive else "unchanged")

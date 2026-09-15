@@ -446,3 +446,205 @@ html[data-theme="red"] {
   flex: 0 0 auto;
   border: 1px solid rgba(0, 0, 0, 0.18);
 }
+
+/* ---------------------------------------------------------------------------
+   Personal Settings (header, top right): the signed-in person, their color
+   scheme, and Sign Out. Opens on hover / focus like the hamburger.
+--------------------------------------------------------------------------- */
+.internal-shell-personal-wrap {
+  position: relative;
+  margin-left: auto;
+  flex: 0 0 auto;
+}
+
+.internal-shell-personal-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  height: 42px;
+  padding: 0 6px 0 16px;
+  border-radius: 999px;
+  border: 1px solid rgba(var(--primary-rgb), 0.16);
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 10px 35px rgba(0, 0, 0, 0.08);
+  color: var(--primary-deep);
+  font: 700 12.5px/1 inherit;
+  font-family: inherit;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: background 0.2s ease, border-color 0.2s ease, transform 0.12s ease;
+}
+
+.internal-shell-personal-trigger:hover {
+  background: var(--primary-tint);
+  border-color: rgba(var(--primary-rgb), 0.32);
+  transform: translateY(-1px);
+}
+
+.internal-shell-avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--primary);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  flex: 0 0 auto;
+}
+
+.internal-shell-avatar-icon svg {
+  width: 20px;
+  height: 20px;
+  display: block;
+}
+
+.internal-shell-personal-panel {
+  position: absolute;
+  top: calc(100% - 2px);
+  right: 0;
+  min-width: 300px;
+  background: rgba(255, 255, 255, 0.98);
+  border: 1px solid rgba(var(--primary-rgb), 0.14);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.12);
+  border-radius: 18px;
+  padding: 12px;
+  display: none;
+  z-index: 30;
+}
+
+.internal-shell-personal-wrap:hover .internal-shell-personal-panel,
+.internal-shell-personal-wrap:focus-within .internal-shell-personal-panel {
+  display: block;
+}
+
+.internal-shell-personal-who {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 6px 6px 12px;
+  border-bottom: 1px solid #eef1f6;
+  margin-bottom: 4px;
+}
+
+.internal-shell-personal-who .internal-shell-avatar {
+  width: 40px;
+  height: 40px;
+  font-size: 14px;
+}
+
+.internal-shell-personal-name {
+  font-weight: 800;
+  font-size: 15px;
+  color: #1f2937;
+}
+
+.internal-shell-personal-email {
+  font-size: 12.5px;
+  color: #6b7280;
+  word-break: break-all;
+}
+
+.internal-shell-personal-signout {
+  display: block;
+  margin-top: 6px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  text-decoration: none;
+  color: #1f2937;
+  border-top: 1px solid #eef1f6;
+}
+
+.internal-shell-personal-signout:hover {
+  background: var(--primary-tint);
+}
+
+.internal-shell-personal-signout-title {
+  display: block;
+  font-weight: 800;
+  font-size: 15px;
+}
+
+.internal-shell-personal-signout-text {
+  display: block;
+  font-size: 12.5px;
+  color: #6b7280;
+  margin-top: 2px;
+}
+
+@media (max-width: 720px) {
+  /* On a phone the avatar pins to the top-right corner, level with the
+     hamburger, instead of wrapping under the logo. */
+  .internal-shell-header {
+    position: relative;
+  }
+  .internal-shell-header-top {
+    padding-right: 52px;
+  }
+  .internal-shell-personal-wrap {
+    position: absolute;
+    top: 0;
+    right: 0;
+    margin-left: 0;
+  }
+  .internal-shell-personal-label {
+    display: none;
+  }
+  .internal-shell-personal-trigger {
+    padding: 0 5px;
+    width: 42px;
+    justify-content: center;
+  }
+  .internal-shell-personal-panel {
+    min-width: min(300px, calc(100vw - 32px));
+  }
+}
+
+/* Personal Settings → Edit my profile */
+.internal-shell-personal-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  appearance: none;
+  border: none;
+  background: none;
+  font-family: inherit;
+  padding: 12px 14px;
+  border-radius: 12px;
+  color: #1f2937;
+  cursor: pointer;
+}
+.internal-shell-personal-item:hover { background: var(--primary-tint); }
+.internal-shell-personal-item-title { display: block; font-weight: 800; font-size: 15px; }
+.internal-shell-personal-item-text { display: block; font-size: 12.5px; color: #6b7280; margin-top: 2px; }
+
+.internal-shell-profile-bg { display: none; position: fixed; inset: 0; background: rgba(15, 23, 42, 0.45); z-index: 80; align-items: center; justify-content: center; padding: 18px; }
+.internal-shell-profile-bg.show { display: flex; }
+.internal-shell-profile { background: #fff; border-radius: 18px; box-shadow: 0 24px 60px rgba(0, 0, 0, 0.25); width: 100%; max-width: 620px; max-height: 90vh; overflow: auto; font-family: "Roboto", system-ui, -apple-system, "Segoe UI", sans-serif; color: #1f2937; }
+.internal-shell-profile-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; padding: 20px 22px 12px; border-bottom: 1px solid #eef1f6; }
+.internal-shell-profile-title { font-size: 19px; font-weight: 800; }
+.internal-shell-profile-sub { font-size: 13px; color: #6b7280; margin-top: 2px; }
+.internal-shell-profile-close { appearance: none; border: 1px solid #dbe1ea; background: #fff; width: 34px; height: 34px; border-radius: 10px; font-size: 20px; line-height: 1; cursor: pointer; color: #374151; }
+.internal-shell-profile-body { padding: 14px 22px 6px; }
+.internal-shell-profile-sec { font-size: 11.5px; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; color: #64748b; margin: 16px 0 8px; }
+.internal-shell-profile-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
+.internal-shell-profile-ro { background: #f8fafc; border: 1px solid #eef1f6; border-radius: 12px; padding: 10px 12px; }
+.internal-shell-profile-ro span { display: block; font-size: 11.5px; font-weight: 800; letter-spacing: 0.05em; text-transform: uppercase; color: #64748b; }
+.internal-shell-profile-ro strong { display: block; font-size: 15px; margin-top: 2px; }
+.internal-shell-profile-ro small { display: block; font-size: 11.5px; color: #6b7280; margin-top: 3px; }
+.internal-shell-profile-field span { display: block; font-size: 11.5px; font-weight: 800; letter-spacing: 0.05em; text-transform: uppercase; color: #64748b; margin-bottom: 5px; }
+.internal-shell-profile-field small { display: block; font-size: 11.5px; color: #6b7280; margin-top: 4px; line-height: 1.4; }
+.internal-shell-profile-field input, .internal-shell-profile-field select { width: 100%; box-sizing: border-box; border: 1px solid #dbe1ea; border-radius: 10px; padding: 10px 12px; font-size: 14px; font-family: inherit; background: #fff; color: #1f2937; }
+.internal-shell-profile-field input:focus, .internal-shell-profile-field select:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 4px rgba(var(--primary-rgb), 0.12); }
+.internal-shell-profile-note { font-size: 14px; color: #374151; line-height: 1.6; padding: 10px 0 14px; }
+.internal-shell-profile-foot { display: flex; gap: 10px; align-items: center; padding: 14px 22px 20px; }
+.internal-shell-profile-msg { flex: 1; font-size: 13px; color: #6b7280; }
+.internal-shell-profile-msg.ok { color: var(--primary); font-weight: 700; }
+.internal-shell-profile-msg.error { color: #991b1b; font-weight: 700; }
+.internal-shell-profile-btn { appearance: none; border: none; background: var(--primary); color: #fff; padding: 10px 16px; border-radius: 10px; font-size: 14px; font-weight: 700; cursor: pointer; font-family: inherit; }
+.internal-shell-profile-btn:disabled { opacity: 0.6; cursor: wait; }
+.internal-shell-profile-btn.quiet { background: #fff; color: #374151; border: 1px solid #dbe1ea; }

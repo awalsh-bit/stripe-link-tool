@@ -647,3 +647,185 @@ class T07Feedback0911(unittest.TestCase):
         self.assertTrue(all(r["working_days"] >= 24 for r in rows if r["sp_code"] != "JRC"))
         # the import created RCALL-flagged jobs -> confirmed recalls exist without anyone reviewing
         self.assertGreater(self.db.scalar("SELECT COUNT(*) FROM recall WHERE basis='epass_rcall'"), 0)
+
+
+class T08Placement0914(unittest.TestCase):
+    """9/14: placement against the mirrored route, the SO4 auto-pencil, route-first offers, the queue-copy intake, the shadow scorecard."""
+
+    def setUp(self):
+        self.db = fresh_db()
+        self.now = _dt.datetime(2026, 9, 14, 9, 0)          # Monday
+        self.tmp = tempfile.mkdtemp()
+        self.dla = self.db.fetchone("SELECT tech_id FROM tech WHERE sp_code='DLA'")["tech_id"]
+
+    def tearDown(self):
+        shutil.rmtree(self.tmp, ignore_errors=True)
+
+    def _route_day(self, tech, day, n, zone="LOCAL", zip_code="78737", lat=30.19, lng=-97.99, prefix="SV0012399"):
+        """A DispatchTrack snapshot with n SO1 stops for one tech on one day in one zone."""
+        orders = [{"Order Number": f"{prefix}{i}", "Job Status": "SO1", "Delivery Date": day, "Truck": tech, "Ship Name": f"ROUTE STOP{i}", "Ship Address1": f"{i} Oak Hill Dr",
+                   "Ship City": "Austin", "Ship Zip": zip_code, "Phone1": f"512555{1000 + i:04d}", "Map Zone": zone, "Latitude": str(lat + i * 0.002), "Longitude": str(lng),
+                   "Order Detail": "DISHW BOSCH SHX SER1 SV leaks"} for i in range(n)]
+        p = os.path.join(self.tmp, f"DispatchTrackDetail_20260914_09{n}500.csv")
+        write_dt(p, orders)
+        return dispatchtrack.import_file(self.db, p, now=self.now)
+
+    def test_migration_adds_new_columns_to_an_existing_db(self):
+        db = DB.sqlite(":memory:")
+        db.conn.execute("CREATE TABLE job (job_id INTEGER PRIMARY KEY AUTOINCREMENT, sv_number TEXT UNIQUE, status TEXT)")
+        db.init_schema()
+        cols = db.existing_columns("job")
+        for c in ("parts_eta", "penciled_date", "penciled_tech_id", "source_ref", "card_ref", "est_minutes"):
+            self.assertIn(c, cols)
+        self.assertIn("IF COL_LENGTH('dbo.job','parts_eta') IS NULL ALTER TABLE dbo.job ADD parts_eta DATE;", schema.ddl("mssql"))
+        self.assertIn("placement_log", schema.TABLES)
+
+    def test_suggest_prefers_the_day_our_route_is_already_there(self):
+        """The Round Rock example: Tue is empty, Wed already has three LOCAL stops -> a new LOCAL request should land Wed."""
+        from wilson_service import placement
+        self._route_day("DLA", "9/16/2026", 3)
+        j = statuses.create_request(self.db, customer={"name": "Round Rock Customer", "phone": "5125550707"}, address={"line1": "700 Oak Hill Dr", "city": "Austin", "zip": "78737"},
+                                    card_saved=True, now=self.now)
+        cands = placement.suggest(self.db, j, now=self.now)
+        self.assertTrue(cands)
+        best = cands[0]
+        self.assertEqual((best["sp_code"], best["date"]), ("DLA", "2026-09-16"))
+        self.assertIn("3 stops in LOCAL", best["why"])
+        self.assertLess(best["cost"], next(c["cost"] for c in cands if c["date"] == "2026-09-15"))
+        # the day the office would actually see first is still offered, just not first
+        offers = placement.offer(self.db, j, now=self.now)
+        self.assertTrue(offers[0]["recommended"] and offers[0]["date"] == "2026-09-16" and offers[0]["label"].startswith("Best fit"))
+        self.assertIn("2026-09-15", [o["date"] for o in offers])
+        # a full day is skipped: 9 stops of 60 min + drive leaves no room
+        self._route_day("DLA", "9/17/2026", 9, prefix="SV0012388")
+        self.assertNotIn(("DLA", "2026-09-17"), [(c["sp_code"], c["date"]) for c in placement.suggest(self.db, j, now=self.now, limit=100)])
+
+    def test_pencil_follows_the_eta_and_becomes_the_first_offer(self):
+        from wilson_service import placement
+        j = statuses.create_request(self.db, customer={"name": "Jeff McCollum", "phone": "5125550808"}, address={"line1": "12 Sage Hollow", "city": "Austin", "zip": "78737"}, card_saved=True, now=self.now)
+        for ev, kw in (("staff.booked", dict(route_date="2026-09-08", window="AM", tech_id=self.dla)),
+                       ("tech.findings_submitted", dict(outcome="office_quote", tech_id=self.dla, lines=[{"code": "4200500", "desc": "Evap fan", "qty": 1, "price": 189}])),
+                       ("parts.verified", dict(quote_kind="office")), ("customer.approved", dict(total=340.0))):
+            statuses.transition(self.db, j, ev, "staff", "x", now=self.now, **kw)
+        self.assertEqual(self.db.fetchone("SELECT status FROM job WHERE job_id=?", (j,))["status"], "SO3")
+        # Kezia places the PO with a Wednesday ETA -> SO4 -> penciled Friday (ETA + 2 business days), on the owning tech
+        statuses.transition(self.db, j, "po.placed", "staff", "KKD", now=self.now, eta="2026-09-16")
+        job = self.db.fetchone("SELECT * FROM job WHERE job_id=?", (j,))
+        self.assertEqual((job["status"], job["parts_eta"], job["penciled_date"], job["penciled_tech_id"]), ("SO4", "2026-09-16", "2026-09-18", self.dla))
+        self.assertIn("penciled", job["flags"])
+        self.assertTrue(self.db.fetchone("SELECT 1 FROM audit_log WHERE action='placement.penciled' AND entity_id=?", (str(j),)))
+        # the pencil counts against that day
+        load = placement.day_load(self.db, self.dla, "2026-09-18")
+        self.assertEqual((len(load["stops"]), load["stops"][0]["penciled"]), (1, 1))
+        # ETA slips a week -> the pencil moves out with it
+        statuses.transition(self.db, j, "po.eta_changed", "staff", "KKD", now=self.now, eta="2026-09-21")
+        job = self.db.fetchone("SELECT * FROM job WHERE job_id=?", (j,))
+        self.assertGreaterEqual(job["penciled_date"], "2026-09-23")
+        penciled = job["penciled_date"]
+        # part checks in -> SO5; the customer's first offer is the penciled day
+        statuses.transition(self.db, j, "receiving.all_parts_in", "staff", "receiving", now=self.now, bin_location="B7")
+        offers = placement.offer(self.db, j, now=self.now)
+        self.assertEqual((offers[0]["date"], offers[0]["sp_code"], offers[0]["recommended"]), (penciled, "DLA", True))
+        self.assertIn("installer nearby", offers[0]["label"])
+        # customer takes it -> SO6, pencil cleared, scorecard says we agreed with ourselves
+        statuses.transition(self.db, j, "customer.picked_window", "customer", "web", now=self.now, route_date=penciled, window=offers[0]["window"], tech_id=self.dla)
+        job = self.db.fetchone("SELECT * FROM job WHERE job_id=?", (j,))
+        self.assertEqual((job["status"], job["route_date"], job["penciled_date"]), ("SO6", penciled, None))
+        self.assertNotIn("penciled", job["flags"] or "")
+        rows = self.db.fetchall("SELECT * FROM placement_log WHERE job_id=? AND kind='pencil'", (j,))
+        self.assertTrue(rows and all(r["actual_at"] and r["actual_source"] == "dashboard" for r in rows))
+        self.assertEqual(rows[-1]["agree_day"], 1)
+
+    def test_queue_copy_intake_then_epass_keys_the_ticket(self):
+        """The 'Copy to service dashboard test module' button, then the dispatcher books it in ePASS as today."""
+        from wilson_service import intake, placement
+        payload = {"request_id": "sr_4821", "submitted_at": "2026-09-14T16:32:00",
+                   "customer": {"name": "Thomas Meyer", "email": "tm101352@gmail.com", "phone": "5125579882"},
+                   "address": {"line1": "1714 Cielo Ranch rd.", "city": "San Marcos", "state": "TX", "zip": "78666"}, "contact_method": "Text",
+                   "purchase_date": "2011", "purchased_within_12_months": False,
+                   "units": [{"type": "Sub-Zero Refrigerator (Built-in)", "model": "BI42SD/O", "serial": "F4139786", "purchased_from_us": True,
+                              "problem": "I notice a small puddle of water at base of refrigerator door"}],
+                   "photos": ["https://x/1.jpg", "https://x/2.jpg"], "card": {"saved": True, "brand": "VISA", "last4": "8241", "setup_intent": "seti_1UFhRX8Mxpn8XucSe8t2KIe3"}}
+        res = intake.from_queue(self.db, payload, now=self.now)
+        self.assertTrue(res["created"]); self.assertEqual(res["status"], "REQ"); self.assertTrue(res["suggestions"])
+        j = res["job_id"]
+        job = self.db.fetchone("SELECT * FROM job WHERE job_id=?", (j,))
+        self.assertEqual((job["source"], job["source_ref"], job["est_minutes"]), ("dashboard", "queue:sr_4821", 60))
+        self.assertTrue(job["card_ref"].startswith("VISA 8241 seti_"))
+        u = self.db.fetchone("SELECT * FROM unit WHERE job_id=?", (j,))
+        self.assertEqual((u["category"], u["install_type"], u["brand"], u["model"]), ("refrigerator", "built_in", "Sub-Zero", "BI42SD/O"))
+        self.assertEqual(self.db.fetchone("SELECT contact_pref FROM customer WHERE customer_id=?", (job["customer_id"],))["contact_pref"], "text")
+        self.assertTrue(self.db.fetchone("SELECT 1 FROM outbox WHERE job_id=? AND effect='photos.attach'", (j,)))
+        self.assertTrue(self.db.fetchone("SELECT 1 FROM placement_log WHERE job_id=? AND kind='intake' AND actual_at IS NULL", (j,)))
+        # pressing the button twice does not make two requests
+        again = intake.from_queue(self.db, payload, now=self.now)
+        self.assertEqual((again["created"], again["job_id"]), (False, j))
+        # the dispatcher books it in ePASS as they do today; the next snapshot attaches the SV, adopts the booking and scores our suggestion
+        p = os.path.join(self.tmp, "DispatchTrackDetail_20260914_101500.csv")
+        write_dt(p, [{"Order Number": "SV00124001", "Job Status": "SO1", "Delivery Date": "9/16/2026", "Truck": "DLA", "Ship Name": "MEYER THOMAS", "Ship Address1": "1714 Cielo Ranch Rd",
+                      "Ship City": "San Marcos", "Ship Zip": "78666", "Phone1": "(512) 557-9882", "Map Zone": "SANMA", "Order Detail": "REBIS SUB-ZERO BI42SD/O F4139786 SV puddle"}])
+        r = dispatchtrack.import_file(self.db, p, now=self.now + _dt.timedelta(hours=1))
+        self.assertEqual((r.attached, r.created), (1, 0))
+        job = self.db.fetchone("SELECT * FROM job WHERE job_id=?", (j,))
+        self.assertEqual((job["sv_number"], job["status"], job["route_date"], job["assigned_tech_id"]), ("SV00124001", "SO1", "2026-09-16", self.dla))
+        self.assertEqual(self.db.scalar("SELECT COUNT(*) FROM job WHERE customer_id=?", (job["customer_id"],)), 1)
+        log = self.db.fetchone("SELECT * FROM placement_log WHERE job_id=? AND kind='intake'", (j,))
+        self.assertEqual((log["actual_source"], log["actual_date"], log["actual_tech_id"]), ("epass", "2026-09-16", self.dla))
+        sc = placement.scorecard(self.db)
+        self.assertEqual((sc["suggested"], sc["decided"]), (1, 1))
+        self.assertTrue(self.db.fetchone("SELECT 1 FROM status_history WHERE job_id=? AND trigger_event='epass_attach_booked'", (j,)))
+
+    def test_epass_first_then_erp_number_merges_the_duplicate(self):
+        from wilson_service import intake
+        p = os.path.join(self.tmp, "DispatchTrackDetail_20260914_083000.csv")
+        write_dt(p, [{"Order Number": "SV00124002", "Job Status": "SO1", "Delivery Date": "9/15/2026", "Truck": "CIT", "Ship Name": "ELLIS FRANCOIS", "Ship Address1": "218 Carpenter Hill Dr",
+                      "Ship City": "Buda", "Ship Zip": "78610", "Phone1": "6127024026", "Map Zone": "BUDA", "Order Detail": "DISHW KITCHENAID KDTM SER SV noisy"}])
+        dispatchtrack.import_file(self.db, p, now=self.now)
+        dup = self.db.fetchone("SELECT * FROM job WHERE sv_number='SV00124002'")
+        self.assertEqual(dup["source"], "import")
+        res = intake.from_queue(self.db, {"request_id": "sr_4822", "customer": {"name": "Francois Ellis", "phone": "6127024026", "email": "arnoldusellis@gmail.com"},
+                                          "address": {"line1": "218 carpenter hill dr", "city": "Buda", "zip": "78610"}, "contact_method": "Text",
+                                          "units": [{"type": "KitchenAid Dishwasher", "problem": "loud grinding"}], "card": {"saved": True}, "erp_order_number": "SV00124002"}, now=self.now)
+        self.assertTrue(res["created"]); self.assertEqual(res["sv_number"], "SV00124002"); self.assertTrue(res["merged"])
+        self.assertIsNone(self.db.fetchone("SELECT 1 FROM job WHERE job_id=?", (dup["job_id"],)))
+        job = self.db.fetchone("SELECT * FROM job WHERE job_id=?", (res["job_id"],))
+        self.assertEqual((job["status"], job["route_date"], job["epass_status"], job["in_feed"], job["source"]), ("SO1", "2026-09-15", "SO1", 1, "dashboard"))
+        self.assertEqual(self.db.scalar("SELECT COUNT(*) FROM job WHERE sv_number='SV00124002'"), 1)
+        # the next snapshot updates the merged job in place — no new job
+        p2 = os.path.join(self.tmp, "DispatchTrackDetail_20260914_084500.csv")
+        write_dt(p2, [{"Order Number": "SV00124002", "Job Status": "SO1", "Delivery Date": "9/15/2026", "Truck": "CIT", "Ship Name": "ELLIS FRANCOIS", "Ship Address1": "218 Carpenter Hill Dr",
+                       "Ship City": "Buda", "Ship Zip": "78610", "Phone1": "6127024026", "Map Zone": "BUDA", "Order Detail": "DISHW KITCHENAID KDTM SER SV noisy"}])
+        r = dispatchtrack.import_file(self.db, p2, now=self.now + _dt.timedelta(minutes=15))
+        self.assertEqual((r.created, r.unchanged + r.updated), (0, 1))
+
+    def test_serve_shim_roundtrip(self):
+        import threading, urllib.request
+        from http.server import ThreadingHTTPServer
+        from wilson_service import serve
+        httpd = ThreadingHTTPServer(("127.0.0.1", 0), serve.make_handler(self.db, "", "*"))
+        port = httpd.server_address[1]
+        th = threading.Thread(target=httpd.serve_forever, daemon=True); th.start()
+        try:
+            def call(method, path, body=None):
+                req = urllib.request.Request(f"http://127.0.0.1:{port}{path}", data=json.dumps(body).encode() if body is not None else None, method=method,
+                                             headers={"Content-Type": "application/json"})
+                try:
+                    with urllib.request.urlopen(req, timeout=5) as r:
+                        return r.status, json.loads(r.read() or b"{}")
+                except urllib.error.HTTPError as e:
+                    return e.code, json.loads(e.read() or b"{}")
+            code, h = call("GET", "/health")
+            self.assertEqual((code, h["ok"]), (200, True))
+            code, res = call("POST", "/api/requests", {"request_id": "sr_9", "customer": {"name": "Shim Test", "phone": "5125550909"},
+                                                       "address": {"line1": "1 Test", "zip": "78620"}, "units": [{"type": "GE Dryer", "problem": "no heat"}], "card": {"saved": True}})
+            self.assertEqual((code, res["status"]), (201, "REQ"))
+            code, s = call("GET", f"/api/jobs/{res['job_id']}/suggest")
+            self.assertEqual(code, 200); self.assertTrue(s["suggest"])
+            code, b = call("GET", "/api/board?date=2026-09-16")
+            self.assertEqual(code, 200); self.assertTrue(any(t["sp_code"] == "DLA" for t in b["techs"]))
+            code, sc = call("GET", "/api/shadow")
+            self.assertEqual((code, sc["suggested"]), (200, 1))
+            code, err = call("POST", "/api/requests", {"request_id": "bad", "customer": {"name": "No Phone"}, "address": {"zip": "78620"}})
+            self.assertEqual(code, 400); self.assertIn("phone", err["error"])
+        finally:
+            httpd.shutdown(); httpd.server_close()

@@ -1138,6 +1138,8 @@
       grid.appendChild(fieldWrap("Commute (mi, round trip)", el("input", { id: "upCommute", type: "number", min: "0", step: "0.1", value: String(entry?.commuteMiles ?? "") })));
       grid.appendChild(fieldWrap("Shirt size (uniforms)", shirtSelectFor(entry?.shirtSize)));
       grid.appendChild(fieldWrap("Shoe size (uniforms)", el("input", { id: "upShoe", type: "text", maxlength: "20", placeholder: "10.5 · W 8 · 11 wide", value: entry?.shoeSize || "" })));
+      grid.appendChild(fieldWrap("Hire date (PEO record)", el("input", { id: "upHireDate", type: "date", value: entry?.hireDate || "" })));
+      grid.appendChild(fieldWrap("Birthday (PEO record)", el("input", { id: "upBirthday", type: "date", value: entry?.birthday || "" })));
       body.appendChild(grid);
       body.appendChild(el("div", { class: "up-note", text: codeLocked
         ? "The code is permanent — payment and commission records link on it. The email ties this directory entry to the matching login account."
@@ -1269,6 +1271,8 @@
       const commuteMiles = Number(document.getElementById("upCommute").value) || 0;
       const shirtSize = document.getElementById("upShirt").value;
       const shoeSize = document.getElementById("upShoe").value.trim();
+      const hireDate = document.getElementById("upHireDate").value;
+      const birthday = document.getElementById("upBirthday").value;
 
       const wantsDirectory = up.entry || code || name;
       btn.disabled = true;
@@ -1284,7 +1288,7 @@
           }
           await api("/api/admin/employee-directory", {
             method: "POST",
-            body: JSON.stringify({ code, name, email, department, commissionPlan, commuteMiles, shirtSize, shoeSize })
+            body: JSON.stringify({ code, name, email, department, commissionPlan, commuteMiles, shirtSize, shoeSize, hireDate, birthday })
           });
         }
         if (up.account && pendingCount(up.account)) {

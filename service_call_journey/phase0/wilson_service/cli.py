@@ -18,7 +18,7 @@ import logging
 import os
 import sys
 
-from . import __version__, capacity, kpi, schema, seed, stuck, sync, watcher
+from . import __version__, capacity, intake, kpi, placement, schema, seed, serve, statuses, stuck, sync, watcher
 from .db import DB
 from .importers import dispatchtrack, exportinvoice
 
@@ -62,6 +62,15 @@ def main(argv=None) -> int:
     for name in ("confirm", "dismiss"):
         q = pr.add_parser(name); q.add_argument("recall_id", type=int); q.add_argument("--note"); q.add_argument("--user", default=os.environ.get("USERNAME") or "manager")
     p = sub.add_parser("kpi", help="per-tech KPIs for a date range"); p.add_argument("from_date"); p.add_argument("to_date")
+    # 9/14 — placement, pencil, queue-copy intake, shadow test
+    p = sub.add_parser("intake", help="copy one live Service Request Queue row in (JSON file, or - for stdin)"); p.add_argument("path"); p.add_argument("--user", default="queue_copy")
+    p = sub.add_parser("attach", help="attach/merge an ePASS SV onto a request"); p.add_argument("job_id", type=int); p.add_argument("sv_number"); p.add_argument("--user", default=os.environ.get("USERNAME") or "office")
+    p = sub.add_parser("suggest", help="where the engine would place a job, and why"); p.add_argument("job_id", type=int); p.add_argument("--earliest")
+    p = sub.add_parser("offer", help="the dates the customer would be shown, best fit first"); p.add_argument("job_id", type=int)
+    p = sub.add_parser("pencil", help="(re)run the SO4 auto-pencil for one job or --all"); p.add_argument("job_id", type=int, nargs="?"); p.add_argument("--all", action="store_true"); p.add_argument("--user", default="engine")
+    p = sub.add_parser("set-eta", help="Kezia: record the part ETA on a job (runs the pencil)"); p.add_argument("job_id", type=int); p.add_argument("eta", help="yyyy-mm-dd"); p.add_argument("--user", default="KKD")
+    p = sub.add_parser("shadow-report", help="suggested vs actual placement, mirror health, what to look at this morning"); p.add_argument("--since")
+    p = sub.add_parser("serve", help="HTTP shim for the queue-copy button and suggest/offer/board reads"); p.add_argument("--port", type=int); p.add_argument("--host", default="127.0.0.1")
 
     a = ap.parse_args(argv)
     logging.basicConfig(level=logging.DEBUG if a.verbose else logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
@@ -121,7 +130,81 @@ def _dispatch(db: DB, a, now) -> int:
         for b in db.fetchall("SELECT * FROM import_batch ORDER BY import_batch_id"):
             print(f"  #{b['import_batch_id']:<4} {b['source']:<3} {b['status']:<7} {b['imported_at']}  {b['file_name']}  rows={b['row_count']} sv={b['sv_count']} +{b['created_count']} ~{b['updated_count']}")
         return 0
+    if a.cmd == "intake":
+        payload = json.load(sys.stdin if a.path == "-" else open(a.path, encoding="utf-8"))
+        res = intake.from_queue(db, payload, now=now, actor_id=a.user); db.commit()
+        print(json.dumps(res, indent=1, default=str)); return 0
+    if a.cmd == "attach":
+        res = intake.attach_sv(db, a.job_id, a.sv_number, a.user, now=now); db.commit()
+        print(json.dumps(res)); return 0
+    if a.cmd == "suggest":
+        _print_cands(placement.suggest(db, a.job_id, earliest=a.earliest, now=now)); return 0
+    if a.cmd == "offer":
+        for c in placement.offer(db, a.job_id, now=now):
+            print(f"  {'★ ' if c['recommended'] else '  '}{c['date']} {c['window']}  {c['sp_code']:<4} cost {c['cost']:>4}  {c['label'] or ''}  — {c['why']}")
+        return 0
+    if a.cmd == "pencil":
+        if a.all:
+            n = placement.repencil_all(db, a.user, now=now); db.commit(); print(f"{n} job(s) penciled"); return 0
+        res = placement.pencil(db, a.job_id, a.user, now=now); db.commit()
+        print(json.dumps(res, indent=1, default=str) if res else "no pencil (status not SO4/SO4B/SO4H, no ETA, or nothing fits)"); return 0
+    if a.cmd == "set-eta":
+        job = db.fetchone("SELECT status FROM job WHERE job_id=?", (a.job_id,))
+        if not job:
+            print("no such job"); return 1
+        if job["status"] in ("SO3", "SO3PRE"):
+            statuses.transition(db, a.job_id, "po.placed", "staff", a.user, now=now, eta=a.eta)
+        elif job["status"] in ("SO4", "SO4B", "SO4H", "SO4PRE"):
+            statuses.transition(db, a.job_id, "po.eta_changed", "staff", a.user, now=now, eta=a.eta)
+        else:
+            print(f"job is {job['status']} — ETA applies to SO3/SO4 jobs"); return 1
+        db.commit(); j = db.fetchone("SELECT status, parts_eta, penciled_date, penciled_tech_id, pencil_reason FROM job WHERE job_id=?", (a.job_id,))
+        print(json.dumps(j, default=str)); return 0
+    if a.cmd == "shadow-report":
+        _shadow_report(db, a.since, now); return 0
+    if a.cmd == "serve":
+        serve.run(db, a.port, a.host); return 0
     return 1
+
+
+def _print_cands(cands):
+    if not cands:
+        print("  nothing fits in the horizon"); return
+    for c in cands:
+        print(f"  {c['rank']}. {c['date']} {c['window']}  {c['sp_code']:<4} cost {c['cost']:>4}  — {c['why']}")
+
+
+def _shadow_report(db, since, now):
+    """The morning check for the shadow test (spec v1.3 §14.4)."""
+    last = db.fetchone("SELECT imported_at, file_name, sv_count, created_count, updated_count FROM import_batch WHERE status='ok' ORDER BY imported_at DESC")
+    print(f"Shadow report · {now:%a %b %d %H:%M}")
+    print(f"  last good import: {last['imported_at'] if last else '—'}  {last['file_name'] if last else ''}  (sv {last['sv_count'] if last else 0}, +{last['created_count'] if last else 0}, ~{last['updated_count'] if last else 0})")
+    rows = db.fetchall("SELECT status, COUNT(*) AS n FROM job WHERE in_feed=1 GROUP BY status ORDER BY status")
+    print("  in feed by status: " + ", ".join(f"{r['status']} {r['n']}" for r in rows))
+    disc = db.scalar("SELECT COUNT(*) FROM sync_item WHERE state='discrepancy'")
+    pend = db.scalar("SELECT COUNT(*) FROM sync_item WHERE state='pending'")
+    st = db.scalar("SELECT COUNT(*) FROM job WHERE stale=1 AND closed_at IS NULL")
+    since24 = (now - _dt.timedelta(hours=24)).strftime("%Y-%m-%d %H:%M:%S")
+    rev = db.scalar("SELECT COUNT(*) FROM job WHERE needs_intake_review=1 AND closed_at IS NULL AND created_at>=?", (since24,))
+    print(f"  discrepancies {disc} · packets pending {pend} · stale visit tickets {st} · new SVs from ePASS in the last 24h awaiting intake review {rev}")
+    reqs = db.fetchall("SELECT j.job_id, j.status, j.sv_number, j.created_at, c.display_name FROM job j LEFT JOIN customer c ON c.customer_id=j.customer_id "
+                       "WHERE j.source_ref LIKE 'queue:%' AND j.closed_at IS NULL ORDER BY j.created_at DESC")
+    print(f"  copied from the live queue: {len(reqs)} · still without an SV: {sum(1 for r in reqs if not r['sv_number'])}")
+    for r in reqs[:8]:
+        print(f"     #{r['job_id']:<5} {r['status']:<8} {r['sv_number'] or '(no SV yet)':<14} {str(r['created_at'])[:16]}  {r['display_name'] or ''}")
+    sc = placement.scorecard(db, since)
+    if sc["decided"]:
+        print(f"  placement: {sc['decided']} decided of {sc['suggested']} suggested · same day {sc['agree_day']} ({sc['agree_day'] * 100 // sc['decided']}%) · "
+              f"same tech {sc['agree_tech']} ({sc['agree_tech'] * 100 // sc['decided']}%) · both {sc['agree_both']}")
+        for m in sc["misses"][:10]:
+            print(f"     miss  {m['sv'] or '(no SV)':<14} {m['kind']:<7} suggested {m['suggested']:<16} actual {m['actual']:<16} — {m['why']}")
+    else:
+        print(f"  placement: {sc['suggested']} suggested, none decided yet")
+    pen = db.fetchall("SELECT j.sv_number, j.penciled_date, j.parts_eta, t.sp_code, c.display_name FROM job j JOIN tech t ON t.tech_id=j.penciled_tech_id "
+                      "LEFT JOIN customer c ON c.customer_id=j.customer_id WHERE j.penciled_date IS NOT NULL AND j.closed_at IS NULL ORDER BY j.penciled_date")
+    print(f"  penciled installs: {len(pen)}")
+    for r in pen[:8]:
+        print(f"     {r['sv_number'] or '(no SV)':<14} ETA {r['parts_eta']} → penciled {r['penciled_date']} {r['sp_code']}  {r['display_name'] or ''}")
 
 
 def _run_import(mod, db, path, now, **kw) -> int:

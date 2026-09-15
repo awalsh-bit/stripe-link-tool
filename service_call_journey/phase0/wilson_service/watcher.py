@@ -52,6 +52,17 @@ def run_once(db: DB, *, dt_folder: Optional[str] = None, dt_pattern: Optional[st
             out.append(_import(db, exportinvoice, p, now))
     if not out:
         out.append("nothing new")
+    else:
+        # 9/14: routes just changed — re-score every penciled install (moves only when clearly better, pencil.move_threshold_min)
+        from . import placement
+        try:
+            n = placement.repencil_all(db, "watcher", now=now)
+            db.commit()
+            out.append(f"PENCIL {n} install(s) re-scored")
+        except Exception as e:  # never let the pencil break the import loop
+            db.rollback()
+            log.exception("repencil failed")
+            out.append(f"PENCIL failed: {type(e).__name__}: {e}")
     for line in out:
         log.info(line)
     return out

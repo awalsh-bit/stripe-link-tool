@@ -1,0 +1,409 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="robots" content="noindex,nofollow,noarchive" />
+  <title>Wilson AC & Appliance - Speed Queen Truckload Builder</title>
+  <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+  <link rel="stylesheet" href="internal-shell.css" />
+  <style>
+    :root {
+      --bg: #f7f8fc; --card: #ffffff; --text: #1f2937; --muted: #6b7280; --border: #dbe1ea;
+      --error-bg: #fef2f2; --error-text: #991b1b; --shadow: 0 10px 35px rgba(0, 0, 0, 0.08); --radius: 18px;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: "Roboto", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: linear-gradient(180deg, var(--primary-tint) 0%, var(--bg) 100%); color: var(--text); min-height: 100vh; padding: 32px 16px; }
+    .wrap { max-width: 1480px; margin: 0 auto; }
+    .surface { background: var(--card); border: 1px solid rgba(var(--primary-rgb), 0.12); box-shadow: var(--shadow); border-radius: var(--radius); padding: 24px; margin: 0 auto 22px; }
+    h2 { margin: 0 0 6px; font-size: 20px; }
+    .section-note { margin: 0 0 16px; color: var(--muted); font-size: 14px; line-height: 1.5; }
+    .section-note a { color: var(--primary); font-weight: 700; }
+    button { appearance: none; border: none; background: var(--primary); color: #fff; padding: 10px 16px; border-radius: 10px; font-size: 14px; font-weight: 700; cursor: pointer; white-space: nowrap; font-family: inherit; }
+    button:hover { background: var(--primary-hover); }
+    button:disabled { opacity: 0.6; cursor: wait; }
+    button.secondary { background: var(--primary-tint); color: var(--primary); }
+    button.quiet { background: #fff; color: #374151; border: 1px solid var(--border); }
+    button.danger { background: #fee2e2; color: #991b1b; }
+    input[type="text"], input[type="number"], textarea { border: 1px solid var(--border); border-radius: 10px; padding: 9px 11px; font-size: 14px; font-family: inherit; color: var(--text); background: #fff; }
+    .status { display: none; margin: 0 0 14px; padding: 10px 14px; border-radius: 10px; font-size: 13.5px; }
+    .status.show { display: block; }
+    .status.error { background: var(--error-bg); color: var(--error-text); }
+    .status.ok { background: rgba(var(--primary-rgb), 0.1); color: var(--primary); }
+
+    .top { display: flex; gap: 14px; flex-wrap: wrap; align-items: flex-end; }
+    .top .grow { flex: 1 1 260px; }
+    .lbl { display: block; font-size: 11.5px; font-weight: 800; letter-spacing: 0.05em; text-transform: uppercase; color: #64748b; margin-bottom: 5px; }
+    .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin: 14px 0 0; }
+    .tile { background: var(--primary-faint-2, #f6faf6); border: 1px solid var(--border); border-radius: 12px; padding: 10px 14px; font-size: 12.5px; color: var(--muted); }
+    .tile strong { display: block; font-size: 21px; color: var(--text); font-variant-numeric: tabular-nums; }
+    .tile strong small { font-size: 12px; color: var(--muted); font-weight: 700; margin-left: 4px; }
+    .tile.warn strong { color: #b45309; }
+    .tile.over strong { color: #b91c1c; }
+    .truck { height: 10px; background: #e5e7eb; border-radius: 999px; overflow: hidden; margin-top: 6px; }
+    .truck > span { display: block; height: 100%; background: var(--primary); border-radius: 999px; transition: width 0.2s ease; }
+    .truck.over > span { background: #b91c1c; }
+
+    .sources { display: flex; gap: 14px; flex-wrap: wrap; font-size: 12px; color: var(--muted); margin-top: 12px; }
+    .sources span b { color: var(--text); }
+
+    .tools { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin: 0 0 12px; }
+    .tools .spacer { flex: 1; }
+    .settings { display: flex; gap: 12px; flex-wrap: wrap; align-items: end; }
+    .settings label { font-size: 12px; color: var(--muted); display: flex; flex-direction: column; gap: 4px; }
+    .settings input { width: 90px; }
+
+    table.tl { width: 100%; border-collapse: collapse; font-size: 13px; }
+    table.tl th { text-align: right; font-size: 10.5px; letter-spacing: 0.06em; text-transform: uppercase; color: #64748b; padding: 8px 8px; border-bottom: 2px solid var(--border); white-space: nowrap; position: sticky; top: 0; background: #fff; z-index: 1; }
+    table.tl th.l, table.tl td.l { text-align: left; }
+    table.tl td { padding: 6px 8px; border-bottom: 1px solid #eef1f6; text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+    table.tl tr.fam td { background: var(--primary-tint); color: var(--primary); font-weight: 800; letter-spacing: 0.05em; text-transform: uppercase; font-size: 11.5px; padding: 9px 8px; text-align: left; }
+    table.tl td.model { font-weight: 700; }
+    table.tl td.note { color: var(--muted); }
+    table.tl td.muted { color: #9ca3af; }
+    table.tl td.short { color: #b45309; font-weight: 700; }
+    table.tl td.over { color: #6b7280; }
+    table.tl input.qty { width: 66px; text-align: right; padding: 5px 7px; font-weight: 800; border-radius: 8px; }
+    table.tl input.qty.has { border-color: var(--primary); background: rgba(var(--primary-rgb), 0.06); }
+    table.tl input.qoo { width: 58px; text-align: right; padding: 4px 6px; border-radius: 8px; color: var(--muted); }
+    table.tl tr.inactive td { opacity: 0.45; }
+    table.tl tfoot td { font-weight: 800; border-top: 2px solid var(--border); background: #fafbfc; }
+    .hint { font-size: 11px; color: var(--muted); display: block; font-weight: 500; }
+    .scroll { overflow-x: auto; }
+    .cash { font-size: 11px; color: #92400e; background: #fef3c7; border-radius: 999px; padding: 1px 7px; display: inline-block; }
+
+    /* catalog editor */
+    .cat table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+    .cat th { text-align: left; font-size: 10.5px; letter-spacing: 0.05em; text-transform: uppercase; color: #64748b; padding: 6px; border-bottom: 1px solid var(--border); }
+    .cat td { padding: 4px 6px; border-bottom: 1px solid #eef1f6; }
+    .cat input, .cat select { width: 100%; padding: 5px 7px; font-size: 12.5px; border: 1px solid var(--border); border-radius: 8px; font-family: inherit; }
+    .cat input.n { width: 84px; text-align: right; }
+    .cat input.s { width: 60px; text-align: right; }
+
+    /* history */
+    table.hist { width: 100%; border-collapse: collapse; font-size: 13px; }
+    table.hist th { text-align: left; font-size: 10.5px; letter-spacing: 0.06em; text-transform: uppercase; color: #64748b; padding: 8px; border-bottom: 2px solid var(--border); }
+    table.hist td { padding: 8px; border-bottom: 1px solid #eef1f6; }
+    .pill { display: inline-block; border-radius: 999px; padding: 2px 9px; font-size: 11px; font-weight: 800; }
+    .pill.draft { background: #fef3c7; color: #92400e; }
+    .pill.submitted { background: rgba(var(--primary-rgb), 0.12); color: var(--primary); }
+    @media (max-width: 720px) { body { padding: 16px 10px; } .surface { padding: 16px; } }
+  </style>
+</head>
+<body data-shell-label="Speed Queen Truckload Builder" data-shell-icon="sales">
+  <div class="wrap">
+    <div id="internal-shell-header"></div>
+
+    <div class="surface">
+      <h2>Speed Queen truckload builder</h2>
+      <p class="section-note">
+        The SQ truckload template, live. <strong>TTM</strong> is trailing-twelve-month unit sales from the Sales Order Detail
+        warehouse (predecessor model numbers folded in); <strong>Stock plan</strong> is TTM × the stock-plan months ÷ 12, rounded up;
+        <strong>QOH</strong> is on-hand units from the serial inventory feed; <strong>QOO</strong> is on order — type it, or upload the ePASS
+        Model Maintenance export to fill it; <strong>Forecast</strong> is plan − QOH − QOO. Type order quantities (or press
+        <em>Fill from forecast</em>) and the truck fills up below. Laundry centers count as two truck units.
+      </p>
+      <div id="status" class="status"></div>
+
+      <div class="top">
+        <div class="grow">
+          <span class="lbl">Order name</span>
+          <input type="text" id="orderName" style="width:100%; max-width:420px;" />
+        </div>
+        <div class="settings" id="settingsBox">
+          <label>Stock plan (months) <input type="number" id="setMonths" min="1" max="24" step="1" /></label>
+          <label>Truck size (units) <input type="number" id="setTruck" min="1" max="999" step="1" /></label>
+          <label>TTM window (months) <input type="number" id="setTtm" min="1" max="36" step="1" /></label>
+          <button type="button" class="quiet" id="saveSettings">Save settings</button>
+        </div>
+      </div>
+
+      <div class="tiles" id="tiles"></div>
+      <div class="sources" id="sources"></div>
+    </div>
+
+    <div class="surface">
+      <div class="tools">
+        <button type="button" class="secondary" id="fillForecast">Fill from forecast</button>
+        <button type="button" class="quiet" id="clearQty">Clear quantities</button>
+        <button type="button" class="quiet" id="qooBtn">Upload Model Maintenance (fills QOO)</button>
+        <input type="file" id="qooFile" accept=".xlsx,.xls" hidden />
+        <span class="spacer"></span>
+        <a id="csvLink" class="quiet" style="display:inline-block; padding:10px 16px; border:1px solid var(--border); border-radius:10px; font-weight:700; font-size:14px; color:#374151; text-decoration:none;" href="#">Download CSV</a>
+        <button type="button" id="submitBtn">Submit truckload</button>
+      </div>
+      <div class="scroll">
+        <table class="tl" id="board">
+          <thead>
+            <tr>
+              <th class="l">Note</th><th class="l">Model</th>
+              <th title="Trailing-twelve-month unit sales">TTM</th><th id="thLastYear">Last yr</th>
+              <th>Stock plan</th><th title="On hand (written to a ticket)">QOH</th><th>QOO</th><th>Forecast</th>
+              <th>Order</th><th>TL cost</th><th>Line cost</th><th title="Cash program: qty / $">Cash</th>
+            </tr>
+          </thead>
+          <tbody id="rows"><tr><td colspan="12" class="l" style="color:var(--muted); padding:18px;">Loading…</td></tr></tbody>
+          <tfoot id="foot"></tfoot>
+        </table>
+      </div>
+      <p class="section-note" style="margin:12px 0 0; font-size:12.5px;">Quantities save as you type. Submitting freezes the numbers as they stand and starts a fresh draft; the CSV is what you send the Speed Queen rep.</p>
+      <div style="margin-top:12px;">
+        <span class="lbl">Notes for this order</span>
+        <textarea id="orderNotes" style="width:100%; min-height:64px;" placeholder="Promo terms, ship window, anything the rep should know…"></textarea>
+      </div>
+    </div>
+
+    <div class="surface cat" id="catalogBox" style="display:none;">
+      <h2>Catalog &amp; TL pricing <span class="hint" style="display:inline; margin-left:8px;">executives · the template's TL PRICING tab</span></h2>
+      <p class="section-note">One row per model. <strong>Aliases</strong> are older model numbers whose sales count toward this one (TR7003WN → TR7006WN). <strong>Regular cost</strong> is optional — when filled, the board shows truckload savings. Untick <strong>Active</strong> to hide a model without losing its history.</p>
+      <div class="scroll"><table id="catTable"></table></div>
+      <div style="display:flex; gap:8px; margin-top:12px; flex-wrap:wrap;">
+        <button type="button" class="secondary" id="catAdd">Add a model</button>
+      </div>
+    </div>
+
+    <div class="surface">
+      <h2>Truckload history</h2>
+      <p class="section-note">Submitted truckloads keep the board as it stood on the day, so next year's comparison is honest.</p>
+      <div class="scroll"><table class="hist"><thead><tr><th>Order</th><th>Status</th><th>Units</th><th>TL cost</th><th>By</th><th>When</th><th></th></tr></thead><tbody id="hist"></tbody></table></div>
+    </div>
+
+    <div id="internal-shell-footer"></div>
+  </div>
+
+  <script src="internal-shell.js"></script>
+  <script>
+    (function () {
+      const $ = (id) => document.getElementById(id);
+      const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch]));
+      const money = (n) => n == null ? "—" : "$" + Number(n).toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+      const money2 = (n) => n == null ? "—" : "$" + Number(n).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      const when = (iso) => iso ? new Date(iso).toLocaleString("en-US", { month: "2-digit", day: "2-digit", year: "2-digit", hour: "numeric", minute: "2-digit" }) : "—";
+      const state = { board: null, lines: {}, saveTimer: null, dirty: false };
+
+      function setStatus(msg, kind) {
+        const b = $("status");
+        if (!msg) { b.className = "status"; b.textContent = ""; return; }
+        b.className = "status show " + kind; b.textContent = msg;
+      }
+      async function api(path, options) {
+        const res = await fetch(path, { credentials: "same-origin", headers: { "Content-Type": "application/json" }, ...options });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error || "Request failed.");
+        return data;
+      }
+
+      // ---- board ----
+      function calcRow(r, qty) {
+        const q = Math.max(0, Math.round(Number(qty) || 0));
+        const units = r.kind === "stacked" ? q * 2 : q;
+        const lineCost = r.tlCost != null ? r.tlCost * q : null;
+        const savings = r.tlCost != null && r.regularCost != null ? (r.regularCost - r.tlCost) * q : null;
+        return { qty: q, units, lineCost, savings };
+      }
+      function totals() {
+        const b = state.board; const s = b.settings;
+        const t = { orderQty: 0, units: 0, washers: 0, dryers: 0, cost: 0, savings: 0, hasSavings: false, short: 0 };
+        for (const r of b.rows) {
+          if (!r.active) continue;
+          const c = calcRow(r, state.lines[r.model]);
+          t.orderQty += c.qty; t.units += c.units; t.cost += c.lineCost || 0;
+          if (c.savings != null) { t.savings += c.savings; t.hasSavings = true; }
+          if (r.kind === "washer" || r.kind === "stacked") t.washers += c.qty;
+          if (r.kind === "dryer" || r.kind === "stacked") t.dryers += c.qty;
+          t.short += Math.max(0, r.forecast);
+        }
+        t.truck = Number(s.truck_units) || 126;
+        t.remaining = t.truck - t.units;
+        t.attach = t.washers ? t.dryers / t.washers : null;
+        return t;
+      }
+      function renderTiles() {
+        const t = totals();
+        const pct = Math.min(100, Math.round((t.units / t.truck) * 100));
+        const overCls = t.units > t.truck ? " over" : t.units === t.truck ? "" : "";
+        $("tiles").innerHTML = `
+          <div class="tile${t.units > t.truck ? " over" : ""}">Truck units<strong>${t.units}<small>of ${t.truck}</small></strong><div class="truck${overCls}"><span style="width:${pct}%"></span></div></div>
+          <div class="tile${t.remaining < 0 ? " over" : ""}">${t.remaining < 0 ? "Over by" : "Room left"}<strong>${Math.abs(t.remaining)}<small>units</small></strong></div>
+          <div class="tile">Washers / dryers<strong>${t.washers} / ${t.dryers}<small>${t.attach == null ? "" : "attach " + t.attach.toFixed(2)}</small></strong></div>
+          <div class="tile">TL total cost<strong>${money(t.cost)}</strong></div>
+          ${t.hasSavings ? `<div class="tile">Savings vs regular<strong>${money(t.savings)}<small>${t.units ? money2(t.savings / t.units) + "/unit" : ""}</small></strong></div>` : ""}
+          <div class="tile warn">Forecast shortfall<strong>${t.short}<small>units</small></strong></div>`;
+        $("foot").innerHTML = `<tr><td class="l" colspan="8">Totals — ${t.orderQty} pieces, ${t.units} truck units</td><td>${t.orderQty}</td><td></td><td>${money(t.cost)}</td><td></td></tr>`;
+      }
+      function renderRows() {
+        const b = state.board;
+        let fam = null; const out = [];
+        for (const r of b.rows) {
+          if (r.family !== fam) { fam = r.family; out.push(`<tr class="fam"><td colspan="12">${esc(fam || "Other")}</td></tr>`); }
+          const c = calcRow(r, state.lines[r.model]);
+          const fc = r.forecast > 0 ? "short" : r.forecast < 0 ? "over" : "";
+          out.push(`<tr data-model="${esc(r.model)}" class="${r.active ? "" : "inactive"}">
+            <td class="l note">${esc(r.note)}</td>
+            <td class="l model">${esc(r.model)}${r.aliases.length ? `<span class="hint">+ ${esc(r.aliases.join(", "))}</span>` : ""}</td>
+            <td>${r.ttm}</td><td class="muted">${r.lastYear}</td>
+            <td>${r.stockPlan}</td>
+            <td>${r.qoh}${r.written ? `<span class="hint">${r.written} written</span>` : ""}</td>
+            <td><input class="qoo" type="number" min="0" step="1" value="${r.qoo}" data-qoo="${esc(r.model)}" title="${esc(r.qooNote || "On order")}"></td>
+            <td class="${fc}">${r.forecast}</td>
+            <td><input class="qty${c.qty ? " has" : ""}" type="number" min="0" step="1" value="${c.qty || ""}" data-qty="${esc(r.model)}" ${r.active ? "" : "disabled"}></td>
+            <td class="${r.tlCost == null ? "muted" : ""}">${money(r.tlCost)}</td>
+            <td data-line="${esc(r.model)}">${c.qty && r.tlCost != null ? money(c.lineCost) : ""}</td>
+            <td>${r.cashQty != null || r.cashDollars != null ? `<span class="cash">${r.cashQty ?? "—"} / ${r.cashDollars != null ? "$" + r.cashDollars : "—"}</span>` : ""}</td>
+          </tr>`);
+        }
+        $("rows").innerHTML = out.join("");
+        $("rows").querySelectorAll("input[data-qty]").forEach((inp) => inp.addEventListener("input", () => {
+          const model = inp.dataset.qty; const q = Math.max(0, Math.round(Number(inp.value) || 0));
+          if (q) state.lines[model] = q; else delete state.lines[model];
+          inp.classList.toggle("has", q > 0);
+          const r = state.board.rows.find((x) => x.model === model);
+          const c = calcRow(r, q);
+          const cell = $("rows").querySelector(`[data-line="${CSS.escape(model)}"]`); if (cell) cell.textContent = q && r.tlCost != null ? money(c.lineCost) : "";
+          renderTiles(); scheduleSave();
+        }));
+        $("rows").querySelectorAll("input[data-qoo]").forEach((inp) => inp.addEventListener("change", async () => {
+          try {
+            await api("/api/sq-truckload/qoo", { method: "POST", body: JSON.stringify({ model: inp.dataset.qoo, qoo: inp.value }) });
+            await load(true);
+          } catch (err) { setStatus(err.message, "error"); }
+        }));
+      }
+      function renderSources() {
+        const s = state.board.sources; const o = state.board.order;
+        $("sources").innerHTML = `
+          <span>Sales: <b>${s.sales.latestMonth ? `${s.sales.windowFrom} → ${s.sales.latestMonth}` : "no Sales Order Detail uploads yet"}</b>${s.sales.error ? " · " + esc(s.sales.error) : ""}</span>
+          <span>Inventory: <b>${s.inventory.uploadedAt ? when(s.inventory.uploadedAt) : "no serial snapshot yet"}</b>${s.inventory.sourceFile ? " · " + esc(s.inventory.sourceFile) : ""}</span>
+          <span>Draft: <b>${esc(o.name)}</b>${o.updatedAt ? " · saved " + when(o.updatedAt) + (o.updatedBy ? " by " + esc(o.updatedBy) : "") : ""}</span>`;
+        $("thLastYear").textContent = s.sales.lastYear ? `${s.sales.lastYear} sales` : "Last yr";
+      }
+      function scheduleSave() {
+        state.dirty = true;
+        clearTimeout(state.saveTimer);
+        state.saveTimer = setTimeout(saveLines, 700);
+      }
+      async function saveLines() {
+        if (!state.dirty || !state.board) return;
+        state.dirty = false;
+        try {
+          await api("/api/sq-truckload/order/lines", { method: "POST", body: JSON.stringify({ id: state.board.order.id, lines: state.lines }) });
+        } catch (err) { setStatus(err.message, "error"); state.dirty = true; }
+      }
+      async function load(keepLines = false) {
+        const data = await api("/api/sq-truckload/board");
+        state.board = data;
+        if (!keepLines) state.lines = {};
+        for (const r of data.rows) if (r.qty && !(keepLines && state.dirty)) state.lines[r.model] = r.qty;
+        $("orderName").value = data.order.name || "";
+        $("orderNotes").value = data.order.notes || "";
+        $("setMonths").value = data.settings.stock_plan_months; $("setTruck").value = data.settings.truck_units; $("setTtm").value = data.settings.ttm_months;
+        $("settingsBox").style.display = data.canEditCatalog ? "" : "none";
+        $("csvLink").href = `/api/sq-truckload/orders/${data.order.id}/csv`;
+        renderRows(); renderTiles(); renderSources();
+        if (data.canEditCatalog) { $("catalogBox").style.display = ""; renderCatalog(); }
+        await loadHistory();
+      }
+
+      // ---- tools ----
+      $("fillForecast").addEventListener("click", () => {
+        for (const r of state.board.rows) { if (!r.active) continue; if (r.forecast > 0) state.lines[r.model] = r.forecast; else delete state.lines[r.model]; }
+        renderRows(); renderTiles(); scheduleSave();
+        setStatus("Quantities set from the forecast — adjust anything, then submit.", "ok");
+      });
+      $("clearQty").addEventListener("click", () => { state.lines = {}; renderRows(); renderTiles(); scheduleSave(); });
+      $("qooBtn").addEventListener("click", () => $("qooFile").click());
+      $("qooFile").addEventListener("change", async () => {
+        const f = $("qooFile").files[0]; $("qooFile").value = ""; if (!f) return;
+        $("qooBtn").disabled = true;
+        try {
+          const form = new FormData(); form.append("file", f, f.name);
+          const res = await fetch("/api/sq-truckload/qoo/upload", { method: "POST", credentials: "same-origin", body: form });
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok) throw new Error(data.error || "Upload failed.");
+          setStatus(`QOO filled for ${data.updated} catalog models from ${f.name}.`, "ok");
+          await load(true);
+        } catch (err) { setStatus(err.message, "error"); } finally { $("qooBtn").disabled = false; }
+      });
+      let metaTimer = null;
+      const saveMeta = () => { clearTimeout(metaTimer); metaTimer = setTimeout(async () => {
+        try { await api("/api/sq-truckload/order/meta", { method: "POST", body: JSON.stringify({ id: state.board.order.id, name: $("orderName").value.trim(), notes: $("orderNotes").value }) }); }
+        catch (err) { setStatus(err.message, "error"); }
+      }, 600); };
+      $("orderName").addEventListener("input", saveMeta);
+      $("orderNotes").addEventListener("input", saveMeta);
+      $("saveSettings").addEventListener("click", async () => {
+        try {
+          await api("/api/sq-truckload/settings", { method: "POST", body: JSON.stringify({ stock_plan_months: $("setMonths").value, truck_units: $("setTruck").value, ttm_months: $("setTtm").value }) });
+          setStatus("Settings saved — stock plans recalculated.", "ok"); await load(true);
+        } catch (err) { setStatus(err.message, "error"); }
+      });
+      $("submitBtn").addEventListener("click", async () => {
+        const t = totals();
+        if (!t.orderQty) { setStatus("Nothing on the order yet.", "error"); return; }
+        if (!confirm(`Submit ${esc(state.board.order.name)} — ${t.units} truck units, ${money(t.cost)}? The numbers freeze and a new draft opens.`)) return;
+        $("submitBtn").disabled = true;
+        try {
+          await saveLines();
+          const data = await api("/api/sq-truckload/order/submit", { method: "POST", body: JSON.stringify({ id: state.board.order.id }) });
+          setStatus(`Submitted ${data.order.name}. Download the CSV from the history below.`, "ok");
+          await load();
+        } catch (err) { setStatus(err.message, "error"); } finally { $("submitBtn").disabled = false; }
+      });
+
+      // ---- history ----
+      async function loadHistory() {
+        try {
+          const data = await api("/api/sq-truckload/orders");
+          const rows = data.orders || [];
+          $("hist").innerHTML = rows.length ? rows.map((o) => {
+            const units = o.totals ? o.totals.truckUnits : (o.id === state.board.order.id ? totals().units : Object.values(o.lines || {}).reduce((a, b) => a + Number(b || 0), 0));
+            const cost = o.totals ? o.totals.tlCost : (o.id === state.board.order.id ? totals().cost : null);
+            return `<tr><td>${esc(o.name)}</td><td><span class="pill ${esc(o.status)}">${o.status}</span></td><td>${units ?? "—"}</td><td>${cost != null ? money(cost) : "—"}</td><td>${esc(o.updatedBy || o.createdBy || "—")}</td><td>${when(o.submittedAt || o.updatedAt)}</td><td><a href="/api/sq-truckload/orders/${o.id}/csv" style="color:var(--primary); font-weight:700;">CSV</a></td></tr>`;
+          }).join("") : `<tr><td colspan="7" style="color:var(--muted);">No truckloads yet.</td></tr>`;
+        } catch { $("hist").innerHTML = ""; }
+      }
+
+      // ---- catalog editor (exec) ----
+      function renderCatalog() {
+        const kinds = state.board.kinds;
+        const rows = state.board.rows;
+        $("catTable").innerHTML = `<thead><tr><th>Sort</th><th>Family</th><th>Note</th><th>Model</th><th>Kind</th><th>TL cost</th><th>Regular</th><th>Cash qty</th><th>Cash $</th><th>Aliases</th><th>Active</th><th></th></tr></thead>
+          <tbody>${rows.map((r) => catRow(r, kinds)).join("")}</tbody>`;
+        $("catTable").querySelectorAll("[data-cat-save]").forEach((btn) => btn.addEventListener("click", () => saveCatRow(btn.closest("tr"))));
+      }
+      function catRow(r, kinds) {
+        return `<tr data-model="${esc(r.model || "")}">
+          <td><input class="s" name="sort" type="number" value="${r.sort ?? ""}"></td>
+          <td><input name="family" value="${esc(r.family)}"></td>
+          <td><input name="note" value="${esc(r.note)}"></td>
+          <td><input name="model" value="${esc(r.model)}" ${r.model ? "readonly style='background:#f3f4f6'" : ""}></td>
+          <td><select name="kind">${kinds.map((k) => `<option value="${k}" ${k === r.kind ? "selected" : ""}>${k}</option>`).join("")}</select></td>
+          <td><input class="n" name="tlCost" type="number" step="0.01" value="${r.tlCost ?? ""}"></td>
+          <td><input class="n" name="regularCost" type="number" step="0.01" value="${r.regularCost ?? ""}"></td>
+          <td><input class="s" name="cashQty" type="number" step="1" value="${r.cashQty ?? ""}"></td>
+          <td><input class="n" name="cashDollars" type="number" step="0.01" value="${r.cashDollars ?? ""}"></td>
+          <td><input name="aliases" value="${esc((r.aliases || []).join(", "))}" placeholder="older model #s"></td>
+          <td style="text-align:center;"><input name="active" type="checkbox" ${r.active !== false ? "checked" : ""}></td>
+          <td><button type="button" class="quiet" data-cat-save style="padding:5px 10px; font-size:12px;">Save</button></td>
+        </tr>`;
+      }
+      async function saveCatRow(tr) {
+        const v = (n) => tr.querySelector(`[name="${n}"]`).value;
+        const payload = { sort: v("sort"), family: v("family"), note: v("note"), model: v("model"), kind: v("kind"), tlCost: v("tlCost"), regularCost: v("regularCost"), cashQty: v("cashQty"), cashDollars: v("cashDollars"), aliases: v("aliases"), active: tr.querySelector('[name="active"]').checked };
+        try {
+          await api("/api/sq-truckload/models", { method: "POST", body: JSON.stringify(payload) });
+          setStatus(`Saved ${payload.model.toUpperCase()}.`, "ok"); await load(true);
+        } catch (err) { setStatus(err.message, "error"); }
+      }
+      $("catAdd").addEventListener("click", () => {
+        const tb = $("catTable").querySelector("tbody"); if (!tb) return;
+        tb.insertAdjacentHTML("beforeend", catRow({ model: "", family: "", note: "", kind: "washer", aliases: [], active: true, sort: state.board.rows.length }, state.board.kinds));
+        const tr = tb.lastElementChild; tr.querySelector("[data-cat-save]").addEventListener("click", () => saveCatRow(tr)); tr.querySelector('[name="model"]').focus();
+      });
+
+      window.addEventListener("beforeunload", () => { if (state.dirty) saveLines(); });
+      load().catch((err) => setStatus(err.message, "error"));
+    })();
+  </script>
+</body>
+</html>

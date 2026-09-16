@@ -270,6 +270,12 @@
         ]
       },
       {
+        title: "Purchasing",
+        children: [
+          { href: "speedqueen-truckload.html", title: "Speed Queen Truckload Builder" }
+        ]
+      },
+      {
         title: "Delivery",
         children: [
           { href: "dispatch.html", title: "Delivery Dispatch" },

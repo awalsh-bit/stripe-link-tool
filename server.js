@@ -346,6 +346,9 @@ import {
   listQuoteOwners,
   getQuoteFollowupBoard,
   listQuoteSalespeople,
+  refreshQuoteConversions,
+  splitQuotesToProject,
+  unsplitQuotes,
   getLatestQuoteUploadMeta,
   upsertServiceLeadQuote,
   setServiceLeadQuoteOwner,
@@ -391,6 +394,10 @@ import {
 } from "./lib/field-sales-commissions.js";
 import { buildCommissionStatementPdf } from "./lib/commission-statement-pdf.js";
 import { parseInvoiceMaintenanceWorkbook, splitInvoiceRows } from "./lib/epass-invoices.js";
+import {
+  buildSqBoard, getSqSettings, setSqSetting, upsertSqModel, setSqQoo, applyModelMaintenanceQoo,
+  getCurrentSqOrder, setSqOrderLines, patchSqOrder, submitSqOrder, listSqOrders, getSqOrder, normModel as sqNormModel
+} from "./lib/speedqueen-truckload-postgres.js";
 import {
   upsertCommissionPost,
   deleteCommissionPost,
@@ -689,6 +696,7 @@ const INTERNAL_PAGE_PATHS = new Set([
   "/pilot-routing.html",
   "/pilot-field.html",
   "/pilot-parts.html",
+  "/speedqueen-truckload.html",
   "/service-journey.html",
   "/service-proto-board.html",
   "/service-proto-field.html",
@@ -962,6 +970,7 @@ const PAGE_LABELS = {
   "/install-damage.html": "Cosmetic Damage Form",
   "/message-automations.html": "Text Automations",
   "/aging-inventory.html": "Aging Inventory",
+  "/speedqueen-truckload.html": "Speed Queen Truckload Builder",
   "/my-commissions.html": "My Commission Review",
   "/maintenance/index.html": "Guardian Registration (Customer Landing)",
   "/maintenance/appliance-signup.html": "Guardian Appliance Registration / Quote",
@@ -985,6 +994,11 @@ const PAGE_LABELS = {
 // multiple categories (it is still one underlying permission); any manageable
 // page not listed here lands in an automatic "Other" bucket in the UI.
 const PAGE_CATEGORIES = [
+  {
+    key: "purchasing",
+    label: "Purchasing",
+    pages: ["/speedqueen-truckload.html"]
+  },
   {
     key: "hr",
     label: "HR",
@@ -12023,6 +12037,9 @@ app.post("/api/revenue-performance", requirePagePermission("/target-builder.html
       } catch (detailErr) {
         console.error("Sales order detail upsert failed:", detailErr.message);
       }
+      // New finished orders can convert quotes of any age — re-match the
+      // whole quote table once here rather than on every board load.
+      if (ordersUpserted) refreshQuoteConversions("all").catch((e) => console.error("Quote conversion refresh failed:", e.message));
 
       recordAudit({
         ip: req.ip, actorUserId: req.authUser?.id || null,
@@ -12205,6 +12222,44 @@ app.post("/api/quote-followup/disposition", requirePagePermission("/quote-follow
   } catch (err) {
     console.error("Quote disposition failed:", err.message);
     return res.status(400).json({ error: err.message || "Unable to save that update." });
+  }
+});
+
+// Force a split on an opportunity card (Andrew, 2026-09-16): a builder or
+// designer with several projects quoted inside 30 days gets one card per
+// project. Same ownership rule as dispositions — reps split their own.
+async function quoteSplitGuard(req, res, quoteNumbers) {
+  const viewer = await quoteFollowupViewer(req);
+  if (!quoteNumbers.length) { res.status(400).json({ error: "No quote numbers provided." }); return false; }
+  if (!viewer.exec) {
+    const owners = await listQuoteOwners(quoteNumbers);
+    const foreign = quoteNumbers.filter((n) => (owners[n] || "") !== viewer.code);
+    if (!viewer.code || foreign.length) { res.status(403).json({ error: "You can only split your own quotes." }); return false; }
+  }
+  return true;
+}
+app.post("/api/quote-followup/split", requirePagePermission("/quote-follow-up.html"), async (req, res) => {
+  try {
+    const quoteNumbers = (Array.isArray(req.body?.quoteNumbers) ? req.body.quoteNumbers : []).map((n) => String(n).trim().toUpperCase()).filter(Boolean);
+    if (!(await quoteSplitGuard(req, res, quoteNumbers))) return;
+    const result = await splitQuotesToProject({ quoteNumbers, label: req.body?.label || "", byEmail: req.authUser?.email || req.authUser?.username || "", byName: req.authUser?.displayName || "" });
+    recordAudit({ ip: req.ip, actorUserId: req.authUser?.id || null, action: "quote_card_split", targetUserId: null, detail: { quotes: quoteNumbers, label: result.label } }).catch(() => {});
+    return res.json({ ok: true, ...result });
+  } catch (err) {
+    console.error("Quote split failed:", err.message);
+    return res.status(400).json({ error: err.message || "Unable to split that card." });
+  }
+});
+app.post("/api/quote-followup/unsplit", requirePagePermission("/quote-follow-up.html"), async (req, res) => {
+  try {
+    const quoteNumbers = (Array.isArray(req.body?.quoteNumbers) ? req.body.quoteNumbers : []).map((n) => String(n).trim().toUpperCase()).filter(Boolean);
+    if (!(await quoteSplitGuard(req, res, quoteNumbers))) return;
+    const result = await unsplitQuotes(quoteNumbers);
+    recordAudit({ ip: req.ip, actorUserId: req.authUser?.id || null, action: "quote_card_unsplit", targetUserId: null, detail: { quotes: quoteNumbers } }).catch(() => {});
+    return res.json({ ok: true, ...result });
+  } catch (err) {
+    console.error("Quote unsplit failed:", err.message);
+    return res.status(400).json({ error: err.message || "Unable to merge that card back." });
   }
 });
 
@@ -12677,6 +12732,124 @@ app.post("/api/epass/open-invoices", requirePagePermission("/sales-order-health.
       return res.status(ingestErr.code === "NOT_INVOICE_EXPORT" ? 400 : 500).json({ error: ingestErr.message || "Unable to process that export." });
     }
   });
+});
+
+// ---------------------------------------------------------------------------
+// PURCHASING — Speed Queen Truckload Builder (speedqueen-truckload.html,
+// Andrew 2026-09-16). The SQ TL Template workbook, live: catalog + TL pricing
+// in Postgres, TTM sales from the Sales Order Detail warehouse, QOH from the
+// serial inventory snapshot, QOO typed or filled from a Model Maintenance
+// export, and the order worksheet saved as a draft that can be submitted.
+// Page grant for the board and order; catalog/pricing/settings exec-only.
+// ---------------------------------------------------------------------------
+const requireSqTruckload = requirePagePermission("/speedqueen-truckload.html");
+const sqBy = (req) => String(req.authUser?.email || req.authUser?.username || "").toLowerCase();
+const sqAudit = (req, action, detail) => recordAudit({ ip: req.ip, actorUserId: req.authUser?.kind === "db" ? req.authUser.id : null, action, targetUserId: null, detail }).catch(() => {});
+const sqUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024, files: 1 } });
+
+app.get("/api/sq-truckload/board", requireSqTruckload, async (req, res) => {
+  try {
+    const board = await buildSqBoard();
+    return res.json({ ...board, canEditCatalog: isExecutiveUser(req.authUser) });
+  } catch (err) {
+    console.error("SQ truckload board failed:", err.message);
+    return res.status(500).json({ error: "Unable to build the truckload board." });
+  }
+});
+app.post("/api/sq-truckload/order/lines", requireSqTruckload, async (req, res) => {
+  try {
+    const order = await setSqOrderLines(Number(req.body?.id), req.body?.lines || {}, sqBy(req));
+    return res.json({ ok: true, order: { id: order.id, updatedAt: order.updatedAt, lines: order.lines } });
+  } catch (err) { return res.status(400).json({ error: err.message }); }
+});
+app.post("/api/sq-truckload/order/meta", requireSqTruckload, async (req, res) => {
+  try {
+    const order = await patchSqOrder(Number(req.body?.id), { name: req.body?.name, notes: req.body?.notes }, sqBy(req));
+    return res.json({ ok: true, order: { id: order.id, name: order.name, notes: order.notes } });
+  } catch (err) { return res.status(400).json({ error: err.message }); }
+});
+app.post("/api/sq-truckload/order/submit", requireSqTruckload, async (req, res) => {
+  try {
+    const board = await buildSqBoard();
+    if (Number(req.body?.id) !== board.order.id) return res.status(409).json({ error: "The draft changed — reload and try again." });
+    if (!board.totals.orderQty) return res.status(400).json({ error: "Nothing on the order yet." });
+    const snapshot = { rows: board.rows.filter((r) => r.qty > 0).map((r) => ({ model: r.model, family: r.family, note: r.note, kind: r.kind, qty: r.qty, tlCost: r.tlCost, lineCost: r.lineCost, ttm: r.ttm, qoh: r.qoh, qoo: r.qoo, stockPlan: r.stockPlan, forecast: r.forecast })), totals: board.totals, settings: board.settings, sources: board.sources };
+    const order = await submitSqOrder(board.order.id, snapshot, sqBy(req));
+    sqAudit(req, "sq_truckload_submitted", { id: order.id, name: order.name, units: board.totals.truckUnits, cost: board.totals.tlCost });
+    return res.json({ ok: true, order: { id: order.id, name: order.name, submittedAt: order.submittedAt } });
+  } catch (err) { return res.status(400).json({ error: err.message }); }
+});
+app.get("/api/sq-truckload/orders", requireSqTruckload, async (req, res) => {
+  try { return res.json({ orders: await listSqOrders() }); } catch (err) { return res.status(500).json({ error: "Unable to list orders." }); }
+});
+app.get("/api/sq-truckload/orders/:id", requireSqTruckload, async (req, res) => {
+  try {
+    const order = await getSqOrder(Number(req.params.id));
+    if (!order) return res.status(404).json({ error: "Order not found." });
+    return res.json({ order });
+  } catch (err) { return res.status(500).json({ error: "Unable to load that order." }); }
+});
+// CSV of a submitted order (or the live draft) for the Speed Queen rep.
+app.get("/api/sq-truckload/orders/:id/csv", requireSqTruckload, async (req, res) => {
+  try {
+    const order = await getSqOrder(Number(req.params.id));
+    if (!order) return res.status(404).json({ error: "Order not found." });
+    let rows;
+    if (order.snapshot?.rows) rows = order.snapshot.rows;
+    else { const board = await buildSqBoard(); rows = board.rows.filter((r) => r.qty > 0); }
+    const cell = (v) => { const t = v == null ? "" : String(v); return /[",\r\n]/.test(t) ? `"${t.replace(/"/g, '""')}"` : t; };
+    const lines = [["family", "note", "model", "qty", "tl_cost", "line_cost", "ttm_sales", "qoh", "qoo", "stock_plan", "forecast"].join(",")];
+    for (const r of rows) lines.push([r.family, r.note, r.model, r.qty, r.tlCost ?? "", r.lineCost ?? "", r.ttm, r.qoh, r.qoo, r.stockPlan, r.forecast].map(cell).join(","));
+    res.setHeader("Content-Type", "text/csv; charset=utf-8");
+    res.setHeader("Content-Disposition", `attachment; filename="${(order.name || "truckload").replace(/[^A-Za-z0-9 _-]/g, "")}.csv"`);
+    return res.send("﻿" + lines.join("\r\n") + "\r\n");
+  } catch (err) { return res.status(500).json({ error: "Unable to export that order." }); }
+});
+app.post("/api/sq-truckload/qoo", requireSqTruckload, async (req, res) => {
+  try { return res.json({ ok: true, ...(await setSqQoo(req.body?.model, req.body?.qoo, `typed by ${req.authUser?.displayName || sqBy(req)}`)) }); }
+  catch (err) { return res.status(400).json({ error: err.message }); }
+});
+// Model Maintenance export → QOO per model (the template's paste tab).
+app.post("/api/sq-truckload/qoo/upload", requireSqTruckload, (req, res) => {
+  sqUpload.single("file")(req, res, async (err) => {
+    if (err) return res.status(400).json({ error: "Upload failed — please try again." });
+    try {
+      if (!req.file?.buffer?.length) return res.status(400).json({ error: "Attach the Model Maintenance export (.xlsx)." });
+      const wb = readWorkbook(req.file.buffer, { type: "buffer", raw: true });
+      const norm = (v) => String(v == null ? "" : v).replace(/[\s *]+/g, " ").trim().toLowerCase();
+      let rows = null;
+      for (const name of wb.SheetNames) {
+        const grid = xlsxUtils.sheet_to_json(wb.Sheets[name], { header: 1, raw: true, defval: null });
+        const hi = grid.findIndex((r) => r && r.map(norm).includes("model") && r.map(norm).includes("qoo"));
+        if (hi < 0) continue;
+        const h = grid[hi].map(norm); const mc = h.indexOf("model"), qc = h.indexOf("qoo");
+        rows = grid.slice(hi + 1).filter((r) => r && r[mc]).map((r) => ({ model: r[mc], qoo: r[qc] }));
+        break;
+      }
+      if (!rows) return res.status(400).json({ error: "Couldn't find Model and QOO columns — is this the ePASS Model Maintenance export?" });
+      const result = await applyModelMaintenanceQoo(rows, req.file.originalname || "");
+      sqAudit(req, "sq_truckload_qoo_uploaded", { rows: rows.length, updated: result.updated, filename: req.file.originalname || "" });
+      return res.json({ ok: true, rows: rows.length, ...result });
+    } catch (uploadErr) {
+      console.error("SQ QOO upload failed:", uploadErr.message);
+      return res.status(400).json({ error: uploadErr.message || "Unable to read that export." });
+    }
+  });
+});
+app.post("/api/sq-truckload/models", requireSqTruckload, requireExecutiveApi, async (req, res) => {
+  try {
+    const model = await upsertSqModel(req.body || {});
+    sqAudit(req, "sq_truckload_model_saved", { model: model.model, tlCost: model.tlCost, active: model.active });
+    return res.json({ ok: true, model });
+  } catch (err) { return res.status(400).json({ error: err.message }); }
+});
+app.post("/api/sq-truckload/settings", requireSqTruckload, requireExecutiveApi, async (req, res) => {
+  try {
+    const out = {};
+    for (const key of ["stock_plan_months", "truck_units", "ttm_months"]) if (req.body?.[key] != null) Object.assign(out, await setSqSetting(key, req.body[key]));
+    sqAudit(req, "sq_truckload_settings_saved", out);
+    return res.json({ ok: true, settings: await getSqSettings() });
+  } catch (err) { return res.status(400).json({ error: err.message }); }
 });
 
 // INTERNAL: Sales Order Health Report (sales-order-health.html). The page

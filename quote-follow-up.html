@@ -74,6 +74,17 @@
       background: rgba(22, 101, 52, 0.12); color: #166534; border-radius: 999px;
       font-size: 10.5px; font-weight: 800; padding: 3px 9px; letter-spacing: 0.04em;
     }
+    .qf-proj-chip {
+      background: #fef3c7; color: #92400e; border-radius: 999px;
+      font-size: 10.5px; font-weight: 800; padding: 3px 9px; letter-spacing: 0.04em; max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    .qf-split-list { display: flex; flex-direction: column; gap: 6px; margin: 0 0 14px; max-height: 260px; overflow: auto; }
+    .qf-panel .qf-split-list label { display: flex; align-items: center; gap: 10px; text-transform: none; letter-spacing: 0; font-size: 13px; font-weight: 600; color: var(--text); border: 1px solid var(--border); border-radius: 10px; padding: 8px 10px; cursor: pointer; margin: 0; }
+    .qf-panel .qf-split-list label input { accent-color: var(--primary); width: 16px; height: 16px; }
+    .qf-panel .qf-split-list label .m { color: var(--muted); font-weight: 500; font-size: 12px; margin-left: auto; white-space: nowrap; }
+    .qf-tools { display: flex; gap: 10px; justify-content: flex-end; margin-top: 6px; }
+    .qf-tools button { background: none; border: none; cursor: pointer; font-family: inherit; font-size: 11.5px; color: var(--muted); text-decoration: underline; padding: 2px 0; }
+    .qf-tools button:hover { color: var(--primary); }
     .qf-other {
       background: #fffbeb; color: #92400e; border-radius: 10px; padding: 7px 10px;
       font-size: 12px; line-height: 1.45;
@@ -171,7 +182,7 @@
         <h2>Quote Follow-Up</h2>
         <p class="section-note">
           Open ePASS quotes that haven't turned into a sale yet, for Showroom and Field Sales Consultants.
-          Quotes for the same client written within 30 days share one opportunity card. A finished order for the
+          Quotes for the same client written within 30 days share one opportunity card — if a builder or designer has several projects going, <strong>Split card</strong> gives each project its own. A finished order for the
           same customer number and salesperson (from the OE-23 feed) automatically moves the card to
           <strong>Converted</strong>; QUOTE 2s resolve themselves (converted with an order, lost without one) and
           never need work. For everything else, work the card: record a missing conversion, queue a follow-up,
@@ -229,6 +240,12 @@
       <div id="qfCommentField">
         <label for="qfComment">Comment <span style="font-weight:600; text-transform:none; letter-spacing:0;">(optional)</span></label>
         <textarea id="qfComment" placeholder="Why was this opportunity lost?"></textarea>
+      </div>
+      <div id="qfSplitField" style="display:none;">
+        <label>Quotes to move to their own card</label>
+        <div class="qf-split-list" id="qfSplitList"></div>
+        <label for="qfSplitLabel">Project name <span style="font-weight:600; text-transform:none; letter-spacing:0;">(shows on the new card)</span></label>
+        <input type="text" id="qfSplitLabel" placeholder="e.g. Lot 14 — Ridgeview, or Kitchen remodel" maxlength="80" autocomplete="off" />
       </div>
       <div class="qf-panel-actions">
         <button type="button" class="qf-btn quiet" id="qfPanelCancel">Cancel</button>
@@ -412,6 +429,7 @@
               ${g.source === "service_lead"
                 ? `<span class="qf-lead-chip">SERVICE LEAD${g.spCode ? "" : " — unclaimed"}</span>`
                 : `<span class="qf-cust">#${esc(g.customerNumber || "—")}${g.zip ? " · " + esc(g.zip) : ""}</span>`}
+              ${g.projectKey ? `<span class="qf-proj-chip" title="Split off as its own project${g.projectBy ? " by " + esc(g.projectBy) : ""}">${esc(g.projectLabel || "Separate project")}</span>` : ""}
               ${exec ? `<span class="qf-sp-chip">${esc(spLabel(g.spCode) || (g.source === "service_lead" ? "Unclaimed" : ""))}</span>` : ""}
             </div>
             ${g.source === "service_lead" && g.leadNote ? `<div class="qf-note">${esc(g.leadNote)}${g.address ? " · " + esc(g.address) : ""}</div>` : ""}
@@ -426,6 +444,10 @@
                 : `<button type="button" class="qf-btn quiet" data-act="followup">Follow-Up Required</button>`}
               <button type="button" class="qf-btn danger" data-act="lost">Opportunity Lost</button>
             </div>
+            ${g.quotes.length > 1 || g.projectKey ? `<div class="qf-tools">
+              ${g.quotes.length > 1 ? `<button type="button" data-act="split" title="These quotes are different projects — give some of them their own card">Split card</button>` : ""}
+              ${g.projectKey ? `<button type="button" data-act="unsplit" title="Put these quotes back under the normal grouping">Merge back</button>` : ""}
+            </div>` : ""}
           </div>`).join("");
 
         grid.querySelectorAll(".qf-card").forEach((card) => {
@@ -710,6 +732,36 @@
         if (act === "requeue") return sendDisposition(g, "reopen", {}, btn);
         if (act === "so") return openOverlay("so", g);
         if (act === "lost") return openOverlay("lost", g);
+        if (act === "split") return openOverlay("split", g);
+        if (act === "unsplit") return unsplit(g, btn);
+      }
+
+      // ---- forced splits ----
+      async function unsplit(g, btn) {
+        if (btn) btn.disabled = true;
+        try {
+          await api("/api/quote-followup/unsplit", { method: "POST", body: JSON.stringify({ quoteNumbers: g.quotes.map((q) => q.quoteNumber) }) });
+          setStatus(`Merged back under the normal grouping — ${g.customerName}.`, "ok");
+          await load();
+        } catch (err) {
+          setStatus(err.message, "error");
+          if (btn) btn.disabled = false;
+        }
+      }
+      async function submitSplit(g) {
+        const picked = [...document.querySelectorAll("#qfSplitList input:checked")].map((i) => i.value);
+        const e = $("qfPanelErr");
+        if (!picked.length) { e.textContent = "Tick the quotes that belong to the other project."; e.classList.add("show"); return; }
+        if (picked.length === g.quotes.length && !g.projectKey) { e.textContent = "That's every quote on the card — untick the ones that stay."; e.classList.add("show"); return; }
+        $("qfPanelSave").disabled = true;
+        try {
+          await api("/api/quote-followup/split", { method: "POST", body: JSON.stringify({ quoteNumbers: picked, label: $("qfSplitLabel").value.trim() }) });
+          setStatus(`Split — ${picked.length} quote${picked.length === 1 ? "" : "s"} moved to ${$("qfSplitLabel").value.trim() || "their own card"}.`, "ok");
+          closeOverlay();
+          await load();
+        } catch (err) {
+          e.textContent = err.message; e.classList.add("show");
+        } finally { $("qfPanelSave").disabled = false; }
       }
 
       async function reopen(quoteNumbers, btn) {
@@ -731,7 +783,19 @@
         $("qfPanelErr").classList.remove("show");
         $("qfSo").value = "";
         $("qfComment").value = "";
-        if (mode === "so") {
+        $("qfSplitField").style.display = "none";
+        $("qfPanelSave").disabled = false;
+        if (mode === "split") {
+          $("qfPanelTitle").textContent = "Split this card";
+          $("qfPanelSub").textContent = `${g.customerName} — ${g.quotes.length} quotes grouped as one opportunity. Tick the quotes that are a different project; they move to their own card and stay separate from now on.`;
+          $("qfSoField").style.display = "none";
+          $("qfCommentField").style.display = "none";
+          $("qfSplitField").style.display = "";
+          $("qfSplitLabel").value = "";
+          $("qfSplitList").innerHTML = g.quotes.map((q) => `
+            <label><input type="checkbox" value="${esc(q.quoteNumber)}"><span>${esc(q.quoteNumber)}</span><span class="m">${day(q.dateCreated)} · ${money(q.total)}${q.reference ? " · " + esc(q.reference) : ""}</span></label>`).join("");
+          $("qfPanelSave").textContent = "Move to new card";
+        } else if (mode === "so") {
           $("qfPanelTitle").textContent = "Missing conversion";
           $("qfPanelSub").textContent = `${g.customerName} — ${qn}. Enter the sales order number this quote actually converted to; the card moves to Converted.`;
           $("qfSoField").style.display = "";
@@ -745,7 +809,7 @@
           $("qfPanelSave").textContent = "Mark lost";
         }
         $("qfOverlay").classList.add("show");
-        setTimeout(() => (mode === "so" ? $("qfSo") : $("qfComment")).focus(), 40);
+        setTimeout(() => (mode === "so" ? $("qfSo") : mode === "split" ? $("qfSplitLabel") : $("qfComment")).focus(), 40);
       }
 
       function closeOverlay() {
@@ -760,6 +824,7 @@
       $("qfPanelSave").addEventListener("click", () => {
         const o = state.overlay;
         if (!o) return;
+        if (o.mode === "split") return submitSplit(o.group);
         if (o.mode === "so") {
           const so = $("qfSo").value.trim();
           if (!so) {

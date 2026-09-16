@@ -207,6 +207,7 @@
     }
 
     .badge-hvac { background: #e0f2fe; color: #075985; margin-left: 6px; }
+    .badge-quote { background: #fef3c7; color: #92400e; margin-left: 6px; }
     .badge-neutral {
       background: var(--primary-tint);
       color: var(--primary-deep);
@@ -661,7 +662,8 @@
     function renderRequestPhotos(row) {
       const all = (Array.isArray(row.photos) ? row.photos : []).filter((p) => p && p.id);
       const signature = all.find((p) => p.kind === "signature");
-      const photos = all.filter((p) => p.kind !== "signature");
+      const videos = all.filter((p) => p.kind === "video");
+      const photos = all.filter((p) => p.kind !== "signature" && p.kind !== "video");
       const sigHtml = signature ? `
         <div class="small" style="margin-top:10px;">
           <span class="strong">Signed service terms</span>${row.termsVersion ? ` <span class="muted">(${escapeHtml(row.termsVersion)})</span>` : ""}
@@ -669,8 +671,18 @@
             <img src="/api/install-damage/photo/${encodeURIComponent(signature.id)}" alt="signature" style="width:100%; display:block;" loading="lazy">
           </a>
         </div>` : "";
-      if (!photos.length) return sigHtml;
-      return sigHtml + `
+      const videoHtml = videos.length ? `
+        <div class="small" style="margin-top:10px;">
+          <span class="strong">Customer videos (${videos.length})</span>
+          <div style="display:flex; gap:6px; flex-wrap:wrap; margin-top:6px;">
+            ${videos.map((v, i) => `
+              <a href="/api/install-damage/photo/${encodeURIComponent(v.id)}" target="_blank" rel="noopener" title="Customer video — opens in a new tab" style="display:inline-flex; align-items:center; gap:6px; padding:6px 10px; border:1px solid #e5e7eb; border-radius:8px; background:#fff; text-decoration:none; color:#1f2937;">
+                <span aria-hidden="true">&#127909;</span> Video ${i + 1}
+              </a>`).join("")}
+          </div>
+        </div>` : "";
+      if (!photos.length) return sigHtml + videoHtml;
+      return sigHtml + videoHtml + `
         <div class="small" style="margin-top:10px;">
           <span class="strong">Customer photos (${photos.length})</span>
           <div style="display:flex; gap:6px; flex-wrap:wrap; margin-top:6px;">
@@ -914,7 +926,7 @@ function attachPrefillActions() {
 
           <td>
             <div class="customer-block">
-              <div class="strong">${escapeHtml(row.customerName || "-")}${row.requestType === "hvac" ? ` <span class="badge badge-hvac" title="Submitted on the HVAC Service Request form">HVAC</span>` : ""}</div>
+              <div class="strong">${escapeHtml(row.customerName || "-")}${row.requestType === "hvac" ? ` <span class="badge badge-hvac" title="Submitted on the HVAC Service Request form">HVAC</span>` : ""}${row.requestType === "hvac-quote" ? ` <span class="badge badge-quote" title="Submitted on the HVAC Quote Request form — a replacement quote lead, not a service call">HVAC QUOTE</span>` : ""}</div>
               <div>${escapeHtml(row.customerEmail || "-")}</div>
               <div>${escapeHtml(row.customerPhone || "-")}</div>
             </div>
@@ -927,7 +939,7 @@ function attachPrefillActions() {
                 Gate code: ${escapeHtml(row.gateCode || "-")}<br>
                 Contact method: ${escapeHtml(row.contactMethod || "-")}<br>
                 Purchase date: ${escapeHtml(row.purchaseDate || "-")}<br>
-                ${row.requestType === "hvac" ? `Wilson extended warranty: ${escapeHtml(row.extendedWarranty || "-")}` : `Purchased within 12 months: ${escapeHtml(row.purchasedWithin12Months || "-")}`}${formatOnBehalf(row)}
+                ${row.requestType === "hvac" ? `Wilson extended warranty: ${escapeHtml(row.extendedWarranty || "-")}` : row.requestType === "hvac-quote" ? `Promo code: ${escapeHtml(row.promoCode || "-")}` : `Purchased within 12 months: ${escapeHtml(row.purchasedWithin12Months || "-")}`}${formatOnBehalf(row)}
               </div>
             </div>
           </td>
@@ -935,10 +947,10 @@ function attachPrefillActions() {
           <td>
             <div class="request-block">
               <div class="small">
-                <span class="strong">Unit count:</span> ${escapeHtml(row.unitCount || (row.units?.length > 1 ? "Multiple" : "One"))}
+                <span class="strong">${row.requestType === "hvac-quote" ? "Systems to quote:" : "Unit count:"}</span> ${escapeHtml(row.unitCount || (row.units?.length > 1 ? "Multiple" : "One"))}
               </div>
               <div style="margin-top:10px;">
-                ${formatUnits(row.units || [])}
+                ${row.requestType === "hvac-quote" ? `<div class="request-unit"><div class="strong">HVAC replacement quote</div><div class="small">${escapeHtml(row.problemDescription || "")}</div></div>` : formatUnits(row.units || [])}
               </div>
               ${renderInstallDamage(row)}
               ${renderRequestPhotos(row)}
@@ -950,14 +962,15 @@ function attachPrefillActions() {
             <div class="small muted" style="margin-top:8px;">
               Setup status: ${escapeHtml(row.setupIntentStatus || "-")}
             </div>
-            ${!hasSavedCard(row) ? `
+            ${!hasSavedCard(row) && row.requestType !== "hvac-quote" ? `
               <div style="margin-top:10px;">
                 <button class="copy-ref-btn" type="button" data-prefill-id="${escapeHtml(row.id)}">Copy secure card link</button>
               </div>
             ` : ""}
+            ${row.requestType !== "hvac-quote" ? `
             <div style="margin-top:10px;">
               <button class="copy-ref-btn" type="button" data-pilot-copy="${escapeHtml(row.id)}" title="Adds a copy of this request to Andrew Horst's pilot backlog (Test Modules). Nothing about this request changes.">Copy to AJH test module</button>
-            </div>
+            </div>` : ""}
           </td>
 
           <td>

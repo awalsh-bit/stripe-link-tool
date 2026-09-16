@@ -1,0 +1,471 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="robots" content="noindex,nofollow,noarchive">
+  <title>Wilson AC &amp; Appliance - HVAC Quote Request</title>
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
+  <link rel="stylesheet" href="public-shell.css">
+  <style>
+    :root {
+      --bg: #f7f8fc;
+      --card: #ffffff;
+      --text: #1f2937;
+      --muted: #6b7280;
+      --border: #dbe1ea;
+      --primary: #21692c;
+      --primary-hover: #1a5222;
+      --success-bg: #ecfdf5;
+      --success-text: #065f46;
+      --error-bg: #fef2f2;
+      --error-text: #991b1b;
+      --shadow: 0 10px 35px rgba(0, 0, 0, 0.08);
+      --radius: 18px;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: "Roboto", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: linear-gradient(180deg, #eaf4ec 0%, var(--bg) 100%);
+      color: var(--text);
+      min-height: 100vh;
+      padding: 32px 16px;
+    }
+
+    .wrap {
+      max-width: 980px;
+      margin: 0 auto;
+    }
+
+    .hero { margin-bottom: 22px; }
+
+    .sub {
+      margin: 0;
+      color: var(--muted);
+      font-size: 16px;
+      line-height: 1.6;
+      max-width: 780px;
+    }
+
+    .card {
+      background: var(--card);
+      border: 1px solid rgba(33, 105, 44, 0.12);
+      box-shadow: var(--shadow);
+      border-radius: var(--radius);
+      padding: 24px;
+    }
+
+    h2 {
+      margin: 28px 0 12px;
+      font-size: 20px;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 16px;
+    }
+
+    .field {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .field.full { grid-column: 1 / -1; }
+
+    label {
+      font-size: 14px;
+      font-weight: 600;
+    }
+
+    input, textarea, select {
+      width: 100%;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 13px 14px;
+      font-size: 15px;
+      background: #fff;
+      color: var(--text);
+      outline: none;
+      transition: border-color 0.2s ease, box-shadow 0.2s ease;
+    }
+
+    input:focus, textarea:focus, select:focus {
+      border-color: rgba(33, 105, 44, 0.75);
+      box-shadow: 0 0 0 4px rgba(33, 105, 44, 0.12);
+    }
+
+    textarea {
+      min-height: 90px;
+      resize: vertical;
+    }
+
+    input[readonly] {
+      background: #f8fafc;
+      color: var(--muted);
+    }
+
+    .choice-row {
+      display: flex;
+      gap: 16px;
+      align-items: center;
+      padding: 12px 14px;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: #fff;
+      flex-wrap: wrap;
+      min-height: 48px;
+    }
+
+    .choice {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      font-weight: 500;
+    }
+
+    .choice input {
+      width: auto;
+      margin: 0;
+      accent-color: var(--primary);
+    }
+
+    .hint {
+      margin-top: -2px;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.5;
+    }
+
+    .actions {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-top: 22px;
+      flex-wrap: wrap;
+    }
+
+    button {
+      appearance: none;
+      border: none;
+      background: var(--primary);
+      color: white;
+      padding: 14px 18px;
+      border-radius: 12px;
+      font-size: 15px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: background 0.2s ease, transform 0.04s ease;
+    }
+
+    button:hover { background: var(--primary-hover); }
+    button:active { transform: translateY(1px); }
+    button:disabled { opacity: 0.65; cursor: wait; }
+
+    .secondary {
+      background: #eaf4ec;
+      color: #1a5222;
+    }
+
+    .secondary:hover { background: #d7ead9; }
+
+    .photo-strip { display: flex; gap: 8px; flex-wrap: wrap; }
+    .photo-strip:empty { display: none; }
+    .photo-thumb { position: relative; width: 84px; height: 84px; border-radius: 10px; overflow: hidden; border: 1px solid #d8e2da; background: #f2f6f2; }
+    .photo-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .photo-thumb.file-chip { display: flex; align-items: center; justify-content: center; text-align: center; padding: 6px; }
+    .photo-thumb.file-chip .chip-label { font-size: 10px; line-height: 1.3; color: var(--muted); word-break: break-word; overflow: hidden; max-height: 100%; }
+    .photo-thumb.file-chip .chip-icon { font-size: 22px; display: block; margin-bottom: 2px; }
+    .photo-thumb .ph-x { position: absolute; top: 4px; right: 4px; width: 22px; height: 22px; border-radius: 50%; background: rgba(0,0,0,0.55); color: #fff; border: none; padding: 0; font-size: 13px; line-height: 22px; cursor: pointer; }
+    .photo-thumb .ph-x:hover { background: rgba(0,0,0,0.75); }
+    .photo-thumb .ph-state { position: absolute; left: 0; right: 0; bottom: 0; font-size: 10px; text-align: center; padding: 2px 0; color: #fff; background: rgba(0,0,0,0.45); }
+    .photo-thumb.failed { border-color: #e3b04a; cursor: pointer; }
+
+    .status {
+      margin-top: 18px;
+      padding: 14px 16px;
+      border-radius: 12px;
+      font-size: 14px;
+      display: none;
+      line-height: 1.5;
+      white-space: pre-wrap;
+    }
+
+    .status.success {
+      display: block;
+      background: var(--success-bg);
+      color: var(--success-text);
+    }
+
+    .status.error {
+      display: block;
+      background: var(--error-bg);
+      color: var(--error-text);
+    }
+
+    .result {
+      margin-top: 22px;
+      border: 1px solid rgba(6, 95, 70, 0.18);
+      border-radius: 18px;
+      padding: 22px;
+      background: linear-gradient(180deg, #f0fdf4 0%, #ecfdf5 100%);
+      box-shadow: 0 14px 34px rgba(6, 95, 70, 0.08);
+      display: none;
+    }
+
+    .result.show { display: block; }
+
+    /* Submitted state: the confirmation replaces the form entirely, so
+       there's no live submit button (or blank re-validated fields) left on
+       screen to double-tap or mistake for a failed submit. */
+    form#quoteForm.submitted > :not(#result) { display: none !important; }
+    form#quoteForm.submitted #result { margin-top: 0; }
+
+    .result-title {
+      margin: 0 0 10px;
+      font-size: clamp(24px, 3.2vw, 32px);
+      line-height: 1.1;
+      font-weight: 900;
+      color: #064e3b;
+    }
+
+    .result-text {
+      margin: 0;
+      font-size: 16px;
+      line-height: 1.7;
+      color: #065f46;
+      font-weight: 600;
+    }
+
+    .result-note {
+      margin: 12px 0 0;
+      font-size: 13px;
+      line-height: 1.6;
+      color: #3f6656;
+      opacity: 0.9;
+    }
+
+    .footer-note {
+      margin-top: 18px;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.6;
+    }
+
+    .hidden { display: none !important; }
+
+    @media (max-width: 720px) {
+      .grid { grid-template-columns: 1fr; }
+      .card { padding: 18px; }
+    }
+  </style>
+  <style>
+    input, textarea, select, button { font-family: inherit; }
+    .req::after { content: " *"; color: #b91c1c; font-weight: 700; }
+  </style>
+</head>
+<body data-public-shell-label="HVAC Quote Request">
+  <div class="wrap">
+    <div class="hero">
+      <div id="public-shell-header"></div>
+      <h1 style="font-size:26px; margin:18px 0 8px;">HVAC Replacement Quote Request</h1>
+      <p class="sub">Please complete the fields below. You will be contacted shortly after completing this form by one of our HVAC experts!</p>
+    </div>
+    <div class="card">
+      <form id="quoteForm" novalidate>
+        <div class="grid">
+          <div class="field"><label class="req" for="firstName">First Name</label><input id="firstName" required autocomplete="given-name" placeholder="Jane"></div>
+          <div class="field"><label class="req" for="lastName">Last Name</label><input id="lastName" required autocomplete="family-name" placeholder="Smith"></div>
+          <div class="field full"><label class="req" for="leadAddress1">Street Address</label><input id="leadAddress1" required autocomplete="address-line1" placeholder="123 Main St"></div>
+          <div class="field full"><label for="leadAddress2">Address Line 2</label><input id="leadAddress2" autocomplete="address-line2" placeholder="Apt, suite, gate, etc. (optional)"></div>
+          <div class="field"><label class="req" for="leadCity">City</label><input id="leadCity" required autocomplete="address-level2" placeholder="Dripping Springs"></div>
+          <div class="field"><label class="req" for="leadState">State</label><select id="leadState" required></select></div>
+          <div class="field"><label class="req" for="leadZip">Zip Code</label><input id="leadZip" required inputmode="numeric" autocomplete="postal-code" maxlength="10" placeholder="78620"></div>
+          <div class="field"><label class="req" for="customerPhone">Phone Number</label><input id="customerPhone" type="tel" required autocomplete="tel" placeholder="512-555-1234"></div>
+          <div class="field"><label class="req" for="customerEmail">Email Address</label><input id="customerEmail" type="email" required autocomplete="email" placeholder="jane@example.com"></div>
+          <div class="field"><label for="gateCode">Gate Code (If Applicable)</label><input id="gateCode" placeholder="Optional"></div>
+
+          <div class="field full">
+            <label class="req">What is the best way to communicate with you?</label>
+            <div class="choice-row">
+              <label class="choice"><input type="radio" name="contactMethod" value="Text"> Text</label>
+              <label class="choice"><input type="radio" name="contactMethod" value="Email"> Email</label>
+              <label class="choice"><input type="radio" name="contactMethod" value="Phone Call"> Phone Call</label>
+            </div>
+          </div>
+
+          <div class="field full">
+            <label>How many HVAC systems do you need quoted?</label>
+            <div class="choice-row">
+              <label class="choice"><input type="radio" name="unitCount" value="One" checked> One</label>
+              <label class="choice"><input type="radio" name="unitCount" value="Multiple"> Multiple</label>
+            </div>
+          </div>
+
+          <div class="field full">
+            <label>Photos &amp; Videos</label>
+            <p class="hint" style="margin:0;">If you have photos or videos that are relevant to your request, please upload them below.</p>
+          </div>
+
+          <div class="field full"><label for="promoCode">Promo Code</label><input id="promoCode" placeholder="Optional"></div>
+
+          <div class="field full">
+            <div class="photo-strip" id="photoStrip"></div>
+            <div>
+              <button type="button" id="addPhotosBtn" class="secondary">Add photos or videos</button>
+              <input id="photoInput" type="file" accept="image/*,video/*" multiple class="hidden">
+            </div>
+          </div>
+        </div>
+
+        <div class="actions">
+          <button id="submitBtn" type="submit">Submit Request</button>
+        </div>
+        <div id="status" class="status"></div>
+
+        <div id="result" class="result" role="status" aria-live="polite">
+          <div class="result-title">&#10003; Quote Request Submitted</div>
+          <p class="result-text">Thank you! Your request has been received and one of our HVAC experts will be in touch shortly.</p>
+          <p class="result-note" id="resultMeta"></p>
+          <div class="actions" style="margin-top: 16px;">
+            <button type="button" id="newRequestBtn" class="secondary">Submit another request</button>
+          </div>
+        </div>
+      </form>
+
+      <p class="footer-note">Need a service call instead of a quote? <a href="hvacservice.html" style="color:var(--primary); font-weight:700;">Use the HVAC service request form.</a></p>
+    </div>
+  </div>
+
+  <script>
+    const $ = (id) => document.getElementById(id);
+    const getRadioValue = (name) => document.querySelector(`input[name="${name}"]:checked`)?.value || "";
+    const STATES = ["Alabama","Alaska","Arizona","Arkansas","California","Colorado","Connecticut","Delaware","Florida","Georgia","Hawaii","Idaho","Illinois","Indiana","Iowa","Kansas","Kentucky","Louisiana","Maine","Maryland","Massachusetts","Michigan","Minnesota","Mississippi","Missouri","Montana","Nebraska","Nevada","New Hampshire","New Jersey","New Mexico","New York","North Carolina","North Dakota","Ohio","Oklahoma","Oregon","Pennsylvania","Rhode Island","South Carolina","South Dakota","Tennessee","Texas","Utah","Vermont","Virginia","Washington","West Virginia","Wisconsin","Wyoming","Washington DC"];
+    $("leadState").innerHTML = STATES.map((s) => `<option value="${s}" ${s === "Texas" ? "selected" : ""}>${s}</option>`).join("");
+
+    function setStatus(message, kind) {
+      const box = $("status");
+      box.className = "status" + (kind ? " " + kind : "");
+      box.textContent = message || "";
+    }
+
+    // ---- photos / videos (images are downsized client-side like the service form; video files upload as-is) ----
+    const MAX_FILES = 6;
+    const fileState = [];
+    $("addPhotosBtn").addEventListener("click", () => $("photoInput").click());
+    $("photoInput").addEventListener("change", async () => {
+      const files = [...$("photoInput").files].slice(0, MAX_FILES - fileState.length);
+      $("photoInput").value = "";
+      for (const file of files) {
+        const isImage = file.type.startsWith("image/");
+        if (!isImage && file.size > 25 * 1024 * 1024) { setStatus(`"${file.name}" is over the 25 MB video limit — a shorter clip works best.`, "error"); continue; }
+        const entry = { status: "compressing", url: "", blob: null, id: null, token: null, isImage, name: file.name };
+        fileState.push(entry);
+        renderFileStrip();
+        try {
+          entry.blob = isImage ? await compressPhoto(file) : file;
+          if (isImage) entry.url = URL.createObjectURL(entry.blob);
+          renderFileStrip();
+          await uploadFile(entry);
+        } catch (e) { entry.status = "failed"; }
+        renderFileStrip();
+      }
+    });
+    async function compressPhoto(file) {
+      try {
+        const bmp = await createImageBitmap(file, { imageOrientation: "from-image" });
+        const scale = Math.min(1, 1600 / Math.max(bmp.width, bmp.height));
+        const canvas = document.createElement("canvas");
+        canvas.width = Math.max(1, Math.round(bmp.width * scale));
+        canvas.height = Math.max(1, Math.round(bmp.height * scale));
+        canvas.getContext("2d").drawImage(bmp, 0, 0, canvas.width, canvas.height);
+        if (bmp.close) bmp.close();
+        const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.72));
+        if (blob && blob.size) return blob;
+      } catch (e) { /* older browser or non-image — send the original as-is */ }
+      return file;
+    }
+    async function uploadFile(entry) {
+      entry.status = "uploading";
+      const fd = new FormData();
+      fd.append("media", entry.blob, entry.name || (entry.isImage ? "photo.jpg" : "video.mp4"));
+      try {
+        const res = await fetch("/api/quote/request-media", { method: "POST", body: fd });
+        const data = await res.json();
+        if (!res.ok || !data.id) throw new Error(data.error || "Upload failed");
+        entry.id = data.id; entry.token = data.token; entry.status = "done";
+      } catch (e) { entry.status = "failed"; }
+    }
+    function renderFileStrip() {
+      const host = $("photoStrip");
+      host.innerHTML = "";
+      fileState.forEach((p, i) => {
+        const d = document.createElement("div");
+        d.className = "photo-thumb" + (p.status === "failed" ? " failed" : "") + (!p.isImage ? " file-chip" : "");
+        const inner = p.isImage
+          ? (p.url ? `<img src="${p.url}" alt="photo">` : "")
+          : `<span class="chip-label"><span class="chip-icon">&#127909;</span>${(p.name || "video").slice(0, 22)}</span>`;
+        d.innerHTML = `${inner}<button type="button" class="ph-x" aria-label="Remove file">&times;</button>${p.status === "uploading" ? '<div class="ph-state">Uploading&hellip;</div>' : ""}${p.status === "failed" ? '<div class="ph-state">Tap to retry</div>' : ""}`;
+        d.querySelector(".ph-x").addEventListener("click", (ev) => { ev.stopPropagation(); fileState.splice(i, 1); renderFileStrip(); });
+        if (p.status === "failed") d.addEventListener("click", async () => { if (p.blob) { await uploadFile(p); renderFileStrip(); } });
+        host.appendChild(d);
+      });
+      $("addPhotosBtn").disabled = fileState.length >= MAX_FILES;
+      $("addPhotosBtn").textContent = fileState.length ? "Add more files" : "Add photos or videos";
+    }
+
+    // ---- validation + submit ----
+    function buildPayload() {
+      const first = $("firstName").value.trim(), last = $("lastName").value.trim();
+      return {
+        requestType: "hvac-quote",
+        customerName: `${first} ${last}`.trim(),
+        firstName: first, lastName: last,
+        customerEmail: $("customerEmail").value.trim(),
+        customerPhone: $("customerPhone").value.trim(),
+        serviceAddress: { line1: $("leadAddress1").value.trim(), line2: $("leadAddress2").value.trim(), city: $("leadCity").value.trim(), state: $("leadState").value, zip: $("leadZip").value.trim() },
+        gateCode: $("gateCode").value.trim(),
+        contactMethod: getRadioValue("contactMethod"),
+        unitCount: getRadioValue("unitCount") || "One",
+        promoCode: $("promoCode").value.trim(),
+        mediaRefs: fileState.filter((p) => p.status === "done" && p.id).map((p) => ({ id: p.id, token: p.token }))
+      };
+    }
+    function validationError(p) {
+      if (!p.firstName || !p.lastName) return "Please enter your first and last name.";
+      if (!p.serviceAddress.line1 || !p.serviceAddress.city || !p.serviceAddress.zip) return "Please enter the street address, city, and zip code.";
+      if (String(p.customerPhone).replace(/\D/g, "").length < 10) return "Please enter a phone number we can reach you at.";
+      if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(p.customerEmail)) return "Please enter a valid email address.";
+      if (!p.contactMethod) return "Please select how you'd like us to contact you (text, email, or phone call).";
+      return "";
+    }
+    $("quoteForm").addEventListener("submit", async (ev) => {
+      ev.preventDefault();
+      setStatus("");
+      const payload = buildPayload();
+      const err = validationError(payload);
+      if (err) { setStatus(err, "error"); return; }
+      if (fileState.some((p) => p.status === "uploading" || p.status === "compressing")) { setStatus("One of your files is still uploading — give it a second and try again.", "error"); return; }
+      const btn = $("submitBtn"); btn.disabled = true; btn.textContent = "Submitting…";
+      try {
+        const res = await fetch("/api/quote/submit-request", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ quoteRequest: payload }) });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok || !data.success) throw new Error(data.error || "Unable to submit your request right now.");
+        $("resultMeta").textContent = `Reference: ${data.requestId}.`;
+        $("quoteForm").classList.add("submitted");
+        $("result").classList.add("show");
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      } catch (e) {
+        setStatus(e.message, "error");
+        btn.disabled = false; btn.textContent = "Submit Request";
+      }
+    });
+    $("newRequestBtn").addEventListener("click", () => window.location.reload());
+  </script>
+  <script src="public-shell.js"></script>
+</body>
+</html>

@@ -39,6 +39,7 @@
                 <a class="public-shell-menu-link" href="https://www.wilsonappliance.com" target="_blank" rel="noopener noreferrer">Home</a>
                 <a class="public-shell-menu-link" href="${shellRoot}applianceservice.html">Request Appliance Service</a>
                 <a class="public-shell-menu-link" href="${shellRoot}hvacservice.html">Request HVAC Service</a>
+                <a class="public-shell-menu-link" href="${shellRoot}hvacquote.html">Request HVAC Quote</a>
                 <a class="public-shell-menu-link" href="${shellRoot}builder-credit.html">Builder Credit Application</a>
               </div>
             </div>

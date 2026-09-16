@@ -481,6 +481,15 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const DASHBOARD_HOST = (process.env.DASHBOARD_HOST || "dashboards.wilsonappliance.com").toLowerCase();
+// Former dashboard hostnames (Andrew, 2026-09-16: dashboards.* → agility.*).
+// An alias still answers API calls from tabs that were open before the
+// cutover, but every page navigation on it is a permanent redirect to
+// DASHBOARD_HOST so bookmarks and emailed links migrate on first click.
+const DASHBOARD_HOST_ALIASES = new Set(
+  String(process.env.DASHBOARD_HOST_ALIASES || "dashboards.wilsonappliance.com")
+    .split(",").map((h) => h.trim().toLowerCase()).filter((h) => h && h !== DASHBOARD_HOST)
+);
+const isDashboardHost = (host) => host === DASHBOARD_HOST || DASHBOARD_HOST_ALIASES.has(host);
 const SERVICE_PUBLIC_HOST = (process.env.SERVICE_PUBLIC_HOST || "service.wilsonappliance.com").toLowerCase();
 const SHOP_PUBLIC_HOST = (process.env.SHOP_PUBLIC_HOST || "shop.wilsonappliance.com").toLowerCase();
 // MAP compliance: the shop only serves (and prices) deliveries inside this
@@ -517,6 +526,7 @@ const SERVICE_PUBLIC_PATHS = new Set([
   "/fireflavor",
   "/applianceservice.html",
   "/hvacservice.html",
+  "/hvacquote.html",
   "/builder-credit.html",
   "/builder-credit-terms.pdf",
   "/fireflavor.html",
@@ -574,7 +584,9 @@ const SERVICE_PUBLIC_API_PREFIXES = [
   "/api/service/submit-request",
   "/api/service/request-photo",
   "/api/service/setup-intent-result/",
-  "/api/service/prefill/"
+  "/api/service/prefill/",
+  "/api/quote/request-media",
+  "/api/quote/submit-request"
 ];
 
 // Online clearance shop (shop.wilsonappliance.com). shop.html is served at
@@ -1554,6 +1566,10 @@ app.use((req, res, next) => {
     return next();
   }
 
+  if (DASHBOARD_HOST_ALIASES.has(host) && (req.method === "GET" || req.method === "HEAD") && !req.path.startsWith("/api/")) {
+    return res.redirect(301, buildHostUrl(req, DASHBOARD_HOST));
+  }
+
   if (host === SERVICE_PUBLIC_HOST && INTERNAL_PAGE_PATHS.has(req.path)) {
     return res.redirect(302, buildHostUrl(req, DASHBOARD_HOST));
   }
@@ -1562,7 +1578,7 @@ app.use((req, res, next) => {
     return res.redirect(302, buildHostUrl(req, DASHBOARD_HOST));
   }
 
-  if (host === DASHBOARD_HOST && req.path !== "/" && SERVICE_PUBLIC_PATHS.has(req.path)) {
+  if (isDashboardHost(host) && req.path !== "/" && SERVICE_PUBLIC_PATHS.has(req.path)) {
     return res.redirect(302, buildHostUrl(req, SERVICE_PUBLIC_HOST));
   }
 
@@ -1656,10 +1672,10 @@ app.use(async (req, res, next) => {
     (host === SHOP_PUBLIC_HOST || isLocalHost(host)) &&
     isShopPublicPath(req.path);
   const isUnauthenticatedInternalPage =
-    (host === DASHBOARD_HOST || isLocalHost(host)) &&
+    (isDashboardHost(host) || isLocalHost(host)) &&
     UNAUTHENTICATED_INTERNAL_PATHS.has(req.path);
   const isPublicAuthRequest =
-    (host === DASHBOARD_HOST || isLocalHost(host)) &&
+    (isDashboardHost(host) || isLocalHost(host)) &&
     isPublicAuthPath(req.path);
 
   if (isWebhookRequest || isPublicServiceRequest || isPublicShopRequest || isUnauthenticatedInternalPage || isPublicAuthRequest) {
@@ -1677,9 +1693,9 @@ app.use(async (req, res, next) => {
   if (authUser) {
     req.authUser = authUser;
 
-    if (host === DASHBOARD_HOST || isLocalHost(host)) {
+    if (isDashboardHost(host) || isLocalHost(host)) {
       const effectivePath =
-        host === DASHBOARD_HOST || req.path !== "/"
+        isDashboardHost(host) || req.path !== "/"
           ? resolveDashboardPagePath(req.path)
           : req.path;
 
@@ -1700,7 +1716,7 @@ app.use(async (req, res, next) => {
     !req.path.startsWith("/api/") &&
     (req.accepts("html") || req.path.endsWith(".html") || req.path === "/");
 
-  if ((host === DASHBOARD_HOST || isLocalHost(host)) && wantsHtml) {
+  if ((isDashboardHost(host) || isLocalHost(host)) && wantsHtml) {
     return res.redirect(302, "/login.html");
   }
 
@@ -13855,6 +13871,170 @@ app.post("/api/service/submit-request", async (req, res) => {
   }
 });
 
+
+// =====================  HVAC QUOTE REQUEST (public)  =======================
+// hvacquote.html (Cayden & Jack, 2026-09-15) replaces the Formsite HVAC
+// quote form embedded at wilsonappliance.com/hvac_quote_request. A quote
+// request is a sales lead, not a service call, but it lands on the same
+// Service Request Queue as an "HVAC QUOTE" card (no card step, no units)
+// so every inbound request has one home. On submit the HVAC sales team is
+// told two ways: a green flag on their dashboards and a plain email
+// (HVAC_QUOTE_NOTIFY_EMAILS, env-overridable). Recipients are decided
+// HERE — the browser never picks who gets notified.
+const HVAC_QUOTE_NOTIFY_EMAILS = String(process.env.HVAC_QUOTE_NOTIFY_EMAILS || "cmayfield@wilsonappliance.com,vjones@wilsonappliance.com")
+  .split(/[,;\s]+/).map((e) => e.trim().toLowerCase()).filter((e) => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(e));
+// Photos are downsized in the browser; short videos come through as-is.
+const customerMediaUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 25 * 1024 * 1024, files: 1 } });
+
+app.post("/api/quote/request-media", (req, res) => {
+  customerMediaUpload.single("media")(req, res, async (err) => {
+    if (err) return res.status(400).json({ error: err.code === "LIMIT_FILE_SIZE" ? "That file is over the 25 MB limit — a shorter clip works best." : "Upload failed — please try again." });
+    try {
+      const now = Date.now();
+      const key = "quotemedia:" + String(req.ip || "");
+      const attempts = (shopLookupAttempts.get(key) || []).filter((t) => now - t < 60 * 60 * 1000);
+      if (attempts.length >= 40) return res.status(429).json({ error: "Too many uploads — please try again later." });
+      attempts.push(now);
+      shopLookupAttempts.set(key, attempts);
+      const file = req.file;
+      if (!file || !file.buffer?.length) return res.status(400).json({ error: "No file received." });
+      const mime = String(file.mimetype || "");
+      const isImage = /^image\//.test(mime);
+      const isVideo = /^video\//.test(mime);
+      if (!isImage && !isVideo) return res.status(400).json({ error: "Photos and videos only, please." });
+      const saved = await saveCustomerRequestPhoto({ contentType: mime, buffer: file.buffer, kind: isVideo ? "video" : "customer" });
+      return res.json({ ok: true, id: saved.id, token: saved.token });
+    } catch (mediaErr) {
+      console.error("Quote request media upload failed:", mediaErr.message);
+      return res.status(500).json({ error: "Unable to save the file." });
+    }
+  });
+});
+
+app.post("/api/quote/submit-request", async (req, res) => {
+  try {
+    const now = Date.now();
+    const key = "quotesubmit:" + String(req.ip || "");
+    const attempts = (shopLookupAttempts.get(key) || []).filter((t) => now - t < 60 * 60 * 1000);
+    if (attempts.length >= 10) return res.status(429).json({ success: false, error: "Too many requests — please call us at 512-894-0907." });
+    attempts.push(now);
+    shopLookupAttempts.set(key, attempts);
+
+    const q = req.body?.quoteRequest;
+    if (!q || typeof q !== "object") return res.status(400).json({ success: false, error: "Missing quote request data." });
+    const str = (v, n = 200) => String(v ?? "").trim().slice(0, n);
+    const firstName = str(q.firstName, 80), lastName = str(q.lastName, 80);
+    const customerName = str(q.customerName, 160) || `${firstName} ${lastName}`.trim();
+    const customerPhone = str(q.customerPhone, 40), customerEmail = str(q.customerEmail, 160);
+    const addr = q.serviceAddress && typeof q.serviceAddress === "object" ? q.serviceAddress : {};
+    const serviceAddress = { line1: str(addr.line1), line2: str(addr.line2), city: str(addr.city, 80), state: str(addr.state, 40) || "Texas", zip: str(addr.zip, 12) };
+    if (!firstName || !lastName) return res.status(400).json({ success: false, error: "Please enter your first and last name." });
+    if (!serviceAddress.line1 || !serviceAddress.city || !serviceAddress.zip) return res.status(400).json({ success: false, error: "Please enter the street address, city, and zip code." });
+    if (customerPhone.replace(/\D/g, "").length < 10) return res.status(400).json({ success: false, error: "Please enter a phone number we can reach you at." });
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(customerEmail)) return res.status(400).json({ success: false, error: "Please enter a valid email address." });
+    const contactMethod = ["Text", "Email", "Phone Call"].includes(q.contactMethod) ? q.contactMethod : "";
+    if (!contactMethod) return res.status(400).json({ success: false, error: "Please select how you'd like us to contact you." });
+    const unitCount = q.unitCount === "Multiple" ? "Multiple" : "One";
+    const promoCode = str(q.promoCode, 60);
+    const gateCode = str(q.gateCode, 60);
+    const mediaRefs = Array.isArray(q.mediaRefs) ? q.mediaRefs.slice(0, 6) : [];
+
+    const serviceCards = await readServiceCards();
+    const row = {
+      id: `svc_${Date.now()}`,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      queueStatus: "Call Status Pending",
+      queueStatusNotes: "",
+      erpOrderNumber: "",
+      setupIntentId: "",
+      setupIntentStatus: "not_required",
+      customerId: "",
+      paymentMethodId: "",
+      customerName, firstName, lastName, customerEmail, customerPhone,
+      purchasedWithin12Months: "",
+      onBehalfOfTenant: false, tenantIsPrimaryContact: "", repairContact: null,
+      onBehalfManagement: false, managerIsPrimaryContact: "", managerContact: null,
+      requestType: "hvac-quote",
+      extendedWarranty: "",
+      termsVersion: "",
+      cardRequired: false,
+      gateCode, contactMethod,
+      purchaseDate: "",
+      serviceAddress,
+      billingAddress: {},
+      billingSameAsService: true,
+      unitCount,
+      units: [],
+      promoCode,
+      problemDescription: `HVAC replacement quote — ${unitCount === "Multiple" ? "multiple systems" : "one system"}${promoCode ? ` · promo code ${promoCode}` : ""}`,
+      consent: true,
+      cardBrand: "",
+      last4: "",
+      photos: []
+    };
+    try {
+      const claimed = await claimCustomerRequestPhotos(mediaRefs, row.id);
+      row.photos = claimed.map((c) => ({ id: c.id, kind: c.kind || "customer" }));
+    } catch (claimErr) {
+      console.error("Attach quote media failed:", claimErr.message);
+    }
+    serviceCards.unshift(row);
+    await writeServiceCards(serviceCards);
+    recordAudit({ ip: req.ip, actorUserId: null, action: "hvac_quote_request_submitted", targetUserId: null, detail: { serviceCardId: row.id, customerName, customerPhone, unitCount, promoCode, media: row.photos.length } }).catch(() => {});
+
+    // Tell the HVAC sales team — dashboard flag per recipient + one plain email.
+    const addressText = [serviceAddress.line1, serviceAddress.line2].filter(Boolean).join(" ") + `, ${serviceAddress.city}, ${serviceAddress.state} ${serviceAddress.zip}`;
+    const videoCount = row.photos.filter((p) => p.kind === "video").length;
+    const photoCount = row.photos.length - videoCount;
+    const mediaText = row.photos.length ? `${photoCount} photo${photoCount === 1 ? "" : "s"}${videoCount ? `, ${videoCount} video${videoCount === 1 ? "" : "s"}` : ""} — on the queue card` : "none";
+    for (const email of HVAC_QUOTE_NOTIFY_EMAILS) {
+      createPushedNotification({
+        severity: "green",
+        typeLabel: "HVAC Quote Request",
+        refId: `hvacquote:${row.id}`,
+        title: `New HVAC quote request — ${customerName} (${unitCount === "Multiple" ? "multiple systems" : "one system"})`,
+        body: `${customerPhone} · ${customerEmail} · prefers ${contactMethod}. ${addressText}.${promoCode ? ` Promo code ${promoCode}.` : ""} Details and any photos/videos are on the Service Request Queue.`,
+        audienceEmail: email,
+        byEmail: "hvac-quote-form",
+        byName: "HVAC Quote Request"
+      }).catch((e) => console.error("HVAC quote flag failed:", e.message));
+    }
+    if (RESEND_API_KEY && HVAC_QUOTE_NOTIFY_EMAILS.length) {
+      fetch("https://api.resend.com/emails", {
+        method: "POST",
+        headers: { "Authorization": `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          from: AGILITY_ALERTS_FROM,
+          to: HVAC_QUOTE_NOTIFY_EMAILS,
+          reply_to: customerEmail,
+          subject: `New HVAC Quote Request — ${firstName} ${lastName}`,
+          text: [
+            "New HVAC quote request submitted via wilsonappliance.com:",
+            "",
+            `Name: ${firstName} ${lastName}`,
+            `Phone: ${customerPhone}`,
+            `Email: ${customerEmail}`,
+            `Address: ${addressText}`,
+            `Gate code: ${gateCode || "—"}`,
+            `Preferred contact method: ${contactMethod}`,
+            `Systems needed: ${unitCount}`,
+            `Promo code: ${promoCode || "—"}`,
+            `Photos/videos attached: ${mediaText}`,
+            "",
+            `Reference: ${row.id}`,
+            `Queue: https://${DASHBOARD_HOST}/appliance-service-calls.html`
+          ].join("\n")
+        })
+      }).catch((e) => console.error("HVAC quote email failed:", e.message));
+    }
+
+    return res.json({ success: true, requestId: row.id });
+  } catch (err) {
+    console.error("HVAC quote submit failed:", err.message);
+    return res.status(400).json({ success: false, error: err.message || "Unable to submit your quote request." });
+  }
+});
 
 // =====================  INSTALL DAMAGE REPORT (Installation)  ==============
 // Installers file damage from the field via install-damage.html (the mobile

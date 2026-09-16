@@ -104,7 +104,8 @@ import {
   setEmployeeSizesByEmail,
   updateEmployeeProfileByEmail,
   listCelebrations,
-  normalizeProfileDate
+  normalizeProfileDate,
+  COMMISSION_PLANS
 } from "./lib/employee-directory.js";
 import {
   isSteelCodConfigured,
@@ -633,6 +634,7 @@ const ALWAYS_PUBLIC_PATHS = new Set([
 
 const PUBLIC_AUTH_PATHS = new Set([
   "/logo-black.png",
+  "/logo-agility.png",
   "/favicon.svg",
   "/api/login",
   "/api/logout",
@@ -2727,6 +2729,7 @@ app.get("/api/admin/users", requireExecutiveApi, async (req, res) => {
       categories: buildCategoriesPayload(),
       presets: await buildPresetsPayload(),
       jobTitles: await listJobTitles(),
+      commissionPlans: COMMISSION_PLANS,
       departments: await listDepartments(),
       allowedDomain: getAllowedSignupDomain(),
       legacyLoginEnabled: LEGACY_SHARED_LOGIN_ENABLED
@@ -2859,12 +2862,12 @@ app.post("/api/admin/job-titles", requireExecutiveApi, async (req, res) => {
   try {
     const nameError = validateJobTitleName(req.body?.name);
     if (nameError) return res.status(400).json({ error: nameError });
-    const result = await createJobTitle({ name: req.body.name, code: req.body?.code, notifyWebOrders: Boolean(req.body?.notifyWebOrders) });
+    const result = await createJobTitle({ name: req.body.name, code: req.body?.code, notifyWebOrders: Boolean(req.body?.notifyWebOrders), commissionPlan: req.body?.commissionPlan });
     if (!result.ok) return res.status(400).json({ error: result.error });
     recordAudit({
       ip: req.ip, actorUserId: req.authUser.id || null,
       action: "job_title_created", targetUserId: null,
-      detail: { name: result.title.name, code: result.title.code, notifyWebOrders: result.title.notifyWebOrders }
+      detail: { name: result.title.name, code: result.title.code, notifyWebOrders: result.title.notifyWebOrders, commissionPlan: result.title.commissionPlan }
     }).catch(() => {});
     return res.json({ ok: true, title: result.title });
   } catch (err) {
@@ -2881,13 +2884,14 @@ app.patch("/api/admin/job-titles/:id", requireExecutiveApi, async (req, res) => 
       id: Number(req.params.id),
       name: req.body.name,
       code: req.body?.code,
-      notifyWebOrders: Boolean(req.body?.notifyWebOrders)
+      notifyWebOrders: Boolean(req.body?.notifyWebOrders),
+      commissionPlan: req.body?.commissionPlan === undefined ? undefined : String(req.body.commissionPlan || "")
     });
     if (!result.ok) return res.status(400).json({ error: result.error });
     recordAudit({
       ip: req.ip, actorUserId: req.authUser.id || null,
       action: "job_title_updated", targetUserId: null,
-      detail: { name: result.title.name, code: result.title.code, oldName: result.oldName, migrated: result.migrated, notifyWebOrders: result.title.notifyWebOrders }
+      detail: { name: result.title.name, code: result.title.code, oldName: result.oldName, migrated: result.migrated, notifyWebOrders: result.title.notifyWebOrders, commissionPlan: result.title.commissionPlan }
     }).catch(() => {});
     return res.json({ ok: true, title: result.title, migrated: result.migrated });
   } catch (err) {
@@ -9922,12 +9926,16 @@ async function computeFieldCommissionMonth(requestedMonth) {
 
   // The whole window feeds the engine: current-month rows make the
   // statement; prior-month rows drive the unpaid hold / release cycle.
+  // The engine keys on commissionPlan; feed it the plan each title PAYS
+  // under (payPlan), so a Showroom Sales Manager (E50) computes on the
+  // Showroom Consultant plan. jobTitle keeps the person's actual title.
+  const payDirectory = directory.map((e) => ({ ...e, jobTitle: e.commissionPlan, commissionPlan: e.payPlan ?? e.commissionPlan }));
   const statements = computeFieldSalesStatements({
     monthLines: windowLines,
     month,
     balanceChecks,
     trailingByCode: serialRevenueByCode(windowLines, overrides),
-    directory,
+    directory: payDirectory,
     properNames,
     overrides
   });

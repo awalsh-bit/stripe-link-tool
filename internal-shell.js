@@ -430,7 +430,7 @@
                 ${buildMenuLinks(user)}
               </div>
             </div>
-            <img class="internal-shell-logo" src="${withRoot("logo-black.png")}" alt="Wilson AC & Appliance" />
+            <img class="internal-shell-logo" src="${withRoot("logo-agility.png")}" alt="Wilson AC & Appliance — Agility" />
             <div class="internal-shell-labels">
               <div class="internal-shell-badge-wrap">
                 <span class="internal-shell-badge-icon" aria-hidden="true">${iconSvg(icon)}</span>

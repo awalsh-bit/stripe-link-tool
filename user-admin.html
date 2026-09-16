@@ -224,6 +224,7 @@
     .jt-group-label { font-size: 10.5px; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted, #6b7280); margin: 10px 2px 4px; }
     .jt-group-label:first-child { margin-top: 2px; }
     .jt-chip.route { background: var(--success-bg); color: var(--success-text); }
+    .jt-chip.plan { background: #fef3c7; color: #92400e; }
     .jt-chip.count { background: #f3f4f6; color: var(--muted); font-weight: 600; }
     .jt-chip.pages { background: var(--primary-tint); color: var(--primary); }
     .jt-chip.jobcode { background: #1f2937; color: #f9fafb; letter-spacing: 0.05em; }
@@ -618,6 +619,7 @@
         state.categories = data.categories || [];
         state.presets = data.presets || {};
         state.jobTitles = data.jobTitles || [];
+        state.commissionPlans = data.commissionPlans || [];
         state.departments = data.departments || [];
         state.allowedDomain = data.allowedDomain || state.allowedDomain;
         renderUsers();
@@ -1349,6 +1351,7 @@
               : el("span", { class: "jt-chip nocode", text: "no code yet" }),
             el("span", { text: title.name }),
             title.notifyWebOrders ? el("span", { class: "jt-chip route", text: "web-order alerts" }) : null,
+            title.commissionPlan ? el("span", { class: "jt-chip plan", text: `${title.commissionPlan} plan` }) : null,
             el("span", { class: "jt-chip count", text: `${titleHolderCount(title.name)} on team` })
           ].filter(Boolean));
           row.addEventListener("click", () => openTitleEditor(title));
@@ -1419,6 +1422,14 @@
           <div class="small-text muted" style="margin-top:5px;">${hasCode
             ? "This code is the key data links on — it can't change. If the classification changed, create a new title."
             : "Letters + level number (E = exempt, NE = non-exempt; e.g. E10, NE20, NE21 for sub-codes). Data links on this key, so relabeling the title later never breaks anything. Assigning it backfills everyone currently holding the title."}</div>
+        </div>
+        <div class="jt-field">
+          <label for="jtPlan">Commission plan — how holders of this title are paid</label>
+          <select id="jtPlan">
+            <option value="">— Not commissioned —</option>
+            ${(state.commissionPlans || []).map((p) => `<option value="${escapeAttr(p)}" ${(title?.commissionPlan || "") === p ? "selected" : ""}>${escapeAttr(p)} plan</option>`).join("")}
+          </select>
+          <div class="small-text muted" style="margin-top:5px;">The title is the job; the plan is the commission math. A Showroom Sales Manager on the <strong>Showroom Consultant plan</strong> gets the same statement as the consultants — only the salary differs, and that isn't tracked here.</div>
         </div>
         <label class="jt-toggle">
           <input type="checkbox" id="jtNotify" ${title?.notifyWebOrders ? "checked" : ""}>
@@ -1535,7 +1546,8 @@
           const payload = {
             name: document.getElementById("jtName").value.trim(),
             code: document.getElementById("jtCode").value.trim().toUpperCase(),
-            notifyWebOrders: document.getElementById("jtNotify").checked
+            notifyWebOrders: document.getElementById("jtNotify").checked,
+            commissionPlan: document.getElementById("jtPlan").value
           };
           const result = jt.item
             ? await api(`/api/admin/job-titles/${jt.item.id}`, { method: "PATCH", body: JSON.stringify(payload) })

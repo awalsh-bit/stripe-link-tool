@@ -452,13 +452,16 @@
     const name = String(user.displayName || user.name || "").trim();
     const email = String(user.email || user.username || "").trim();
     const initials = name ? name.split(/\s+/).slice(0, 2).map((w) => w.charAt(0).toUpperCase()).join("") : "";
+    // Profile photo (the email-signature headshot) when one is on file —
+    // session.avatar is its updated-at stamp, which doubles as the cache key.
+    // The initials stay underneath, so a failed image load falls back cleanly.
+    const photo = session?.avatar ? `<img class="internal-shell-avatar-photo" src="${withRoot("api/me/avatar")}?v=${encodeURIComponent(String(session.avatar))}" alt="" onerror="this.remove()" />` : "";
     const avatar = initials
-      ? `<span class="internal-shell-avatar">${initials}</span>`
-      : `<span class="internal-shell-avatar internal-shell-avatar-icon" aria-hidden="true">${iconSvg("person")}</span>`;
+      ? `<span class="internal-shell-avatar">${initials}${photo}</span>`
+      : `<span class="internal-shell-avatar internal-shell-avatar-icon" aria-hidden="true">${iconSvg("person")}${photo}</span>`;
     return `
       <div class="internal-shell-personal-wrap">
-        <button class="internal-shell-personal-trigger" type="button" aria-label="Personal settings" aria-haspopup="true">
-          <span class="internal-shell-personal-label">Personal Settings</span>
+        <button class="internal-shell-personal-trigger" type="button" aria-label="Personal settings" title="Personal settings" aria-haspopup="true">
           ${avatar}
         </button>
         <div class="internal-shell-personal-panel">
@@ -471,7 +474,7 @@
           </div>
           <button type="button" class="internal-shell-personal-item" data-open-profile>
             <span class="internal-shell-personal-item-title">Edit my profile</span>
-            <span class="internal-shell-personal-item-text">Uniform sizes, commute, birthday.</span>
+            <span class="internal-shell-personal-item-text">Photo, uniform sizes, commute, birthday.</span>
           </button>
           ${buildThemePicker()}
           <a class="internal-shell-personal-signout" href="${withRoot("logout.html")}">
@@ -594,7 +597,20 @@
         return;
       }
       const shirtOpts = `<option value="">— Pick —</option>` + (me.shirtSizes || []).map((sz) => `<option value="${escHtml(sz)}" ${sz === me.shirtSize ? "selected" : ""}>${escHtml(sz)}</option>`).join("");
+      const photoSrc = me.avatar ? `${withRoot("api/me/avatar")}?v=${encodeURIComponent(String(me.avatar))}` : "";
       body.innerHTML = `
+        <div class="internal-shell-profile-photo">
+          <div class="internal-shell-profile-photo-frame" id="ispPhotoFrame">${photoSrc ? `<img id="ispPhotoImg" src="${photoSrc}" alt="Your profile photo" />` : `<span id="ispPhotoImg" class="internal-shell-profile-photo-empty">${escHtml((me.name || "").split(/\s+/).slice(0, 2).map((w) => w.charAt(0).toUpperCase()).join("") || "?")}</span>`}</div>
+          <div class="internal-shell-profile-photo-text">
+            <strong>Profile photo</strong>
+            <span>This is your <a href="${withRoot("signature-builder.html")}">email signature</a> headshot — one picture for both. Changing it here updates signatures already installed in Outlook too. Square crop, resized in your browser before upload.</span>
+            <div class="internal-shell-profile-photo-btns">
+              <button type="button" class="internal-shell-profile-btn quiet" id="ispPhotoPick">${photoSrc ? "Change photo" : "Add photo"}</button>
+              <input type="file" id="ispPhotoFile" accept="image/*" hidden />
+            </div>
+            <span class="internal-shell-profile-photo-msg" id="ispPhotoMsg"></span>
+          </div>
+        </div>
         <div class="internal-shell-profile-grid">
           <div class="internal-shell-profile-ro"><span>Employee code</span><strong>${escHtml(me.code || "—")}</strong></div>
           <div class="internal-shell-profile-ro"><span>Department</span><strong>${escHtml(me.department || "—")}</strong></div>
@@ -612,9 +628,58 @@
           <label class="internal-shell-profile-field"><span>Birthday</span><input id="ispBirthday" type="date" value="${escHtml(me.birthday || "")}" /><small>Used for a birthday flag on the team's dashboards — the year is never shown.</small></label>
         </div>`;
       document.getElementById("ispSave").disabled = false;
+      wirePhotoControls();
     } catch (err) {
       body.innerHTML = `<div class="internal-shell-profile-note">${escHtml(err.message)}</div>`;
     }
+  }
+  // ---- profile photo: pick → square-crop + downsize to 256px JPEG in the
+  // browser → POST as multipart. Saves immediately (independent of the
+  // Save button) and refreshes the header avatar in place.
+  async function squareJpeg(file, size = 512) {
+    const bmp = await createImageBitmap(file, { imageOrientation: "from-image" });
+    const side = Math.min(bmp.width, bmp.height);
+    const sx = Math.round((bmp.width - side) / 2), sy = Math.round((bmp.height - side) / 2);
+    const canvas = document.createElement("canvas");
+    canvas.width = size; canvas.height = size;
+    const ctx = canvas.getContext("2d");
+    ctx.drawImage(bmp, sx, sy, side, side, 0, 0, size, size);
+    if (bmp.close) bmp.close();
+    return new Promise((resolve, reject) => canvas.toBlob((b) => (b ? resolve(b) : reject(new Error("Couldn't read that image."))), "image/jpeg", 0.86));
+  }
+  function refreshHeaderAvatar(stamp) {
+    document.querySelectorAll(".internal-shell-avatar").forEach((el) => {
+      el.querySelector(".internal-shell-avatar-photo")?.remove();
+      if (!stamp) return;
+      const img = document.createElement("img");
+      img.className = "internal-shell-avatar-photo"; img.alt = "";
+      img.src = `${withRoot("api/me/avatar")}?v=${encodeURIComponent(String(stamp))}`;
+      img.onerror = () => img.remove();
+      el.appendChild(img);
+    });
+  }
+  function wirePhotoControls() {
+    const pick = document.getElementById("ispPhotoPick"), file = document.getElementById("ispPhotoFile"), msg = document.getElementById("ispPhotoMsg");
+    if (!pick || !file) return;
+    pick.addEventListener("click", () => file.click());
+    file.addEventListener("change", async () => {
+      const f = file.files[0]; file.value = "";
+      if (!f) return;
+      if (!/^image\//.test(f.type)) { msg.textContent = "Pick an image file."; return; }
+      msg.textContent = "Uploading…";
+      try {
+        const blob = await squareJpeg(f);
+        const form = new FormData(); form.append("photo", blob, "avatar.jpg");
+        const res = await fetch(withRoot("api/me/avatar"), { method: "POST", credentials: "same-origin", body: form });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error || "Couldn't save the photo.");
+        const frame = document.getElementById("ispPhotoFrame");
+        if (frame) frame.innerHTML = `<img id="ispPhotoImg" src="${URL.createObjectURL(blob)}" alt="Your profile photo" />`;
+        pick.textContent = "Change photo";
+        refreshHeaderAvatar(data.updatedAt || Date.now());
+        msg.textContent = "Photo saved.";
+      } catch (err) { msg.textContent = err.message; }
+    });
   }
   async function saveProfile() {
     const btn = document.getElementById("ispSave");
@@ -643,6 +708,10 @@
   // Other pages (e.g. the dashboard's sizes card) can open it too.
   window.openMyProfile = openProfileModal;
 
+  // Paint the shell right away (logo, menu, badge, a blank avatar) so the
+  // page never shows a stale static header while the session request is in
+  // flight; the personal settings fill in when it resolves.
+  try { renderShell(null); } catch (e) { console.warn("Shell pre-render skipped:", e.message); }
   loadSessionUser().then((session) => {
     renderShell(session);
     // The profile's saved scheme wins over the local cache (covers a new

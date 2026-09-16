@@ -183,7 +183,8 @@
       <p class="section-note">
         Open service tickets (SV and WTY invoice types) from the ExportInvoice report.
         Each SV ticket's Invoice # is matched to the Service Request Queue's ERP Order Number
-        to check whether a secure card is on file. Upload the latest export to refresh;
+        to check whether a secure card is on file. Upload the latest export to refresh — the combined
+        open-orders pull works here too, and refreshes Sales Order Health in the same step;
         everyone sees the same snapshot.
       </p>
       <div class="toolbar">
@@ -717,6 +718,10 @@
 
     el("uploadBtn").addEventListener("click", () => el("fileInput").click());
 
+    // Upload — the workbook goes to the server as-is; one parse feeds the
+    // Sales Order Health report, the Service Order Health report (plus the
+    // Service Journey mirror and flag routing) and, when the file carries
+    // finished invoices, the commission balance check (2026-09-16).
     el("fileInput").addEventListener("change", async () => {
       const file = el("fileInput").files[0];
       if (!file) return;
@@ -724,22 +729,17 @@
       el("uploadBtn").disabled = true;
       el("uploadBtn").textContent = "Uploading…";
       try {
-        const buffer = await file.arrayBuffer();
-        const grids = await workbookToGrids(buffer);
-        const rows = parseWorkbook(grids);
-        if (!rows.length) throw new Error("No ticket rows found in that file.");
-
-        const res = await fetch("/api/service-orders", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          credentials: "same-origin",
-          body: JSON.stringify({ filename: file.name, rows })
-        });
+        const form = new FormData();
+        form.append("file", file, file.name);
+        const res = await fetch("/api/epass/open-invoices", { method: "POST", credentials: "same-origin", body: form });
         const data = await res.json().catch(() => ({}));
         if (!res.ok) throw new Error(data.error || "Upload failed.");
-        // Re-fetch so the card-on-file join reflects the new snapshot.
         await loadSnapshot();
-        setBanner(`Loaded ${rows.length} tickets from ${file.name}.`, "ok");
+        const bits = [];
+        if (data.sales) bits.push(`${data.sales.rows} sales orders`);
+        if (data.service) bits.push(`${data.service.rows} service tickets`);
+        if (data.balanceCheck && !data.balanceCheck.skipped) bits.push(`balance check refreshed for ${data.balanceCheck.month} (${data.balanceCheck.unpaidCount} unpaid)`);
+        setBanner(`Loaded ${data.rows} rows from ${file.name} — ${bits.join(", ") || "nothing recognized"}.${data.balanceCheck?.skipped ? " Balance check untouched (open orders only)." : ""}`, "ok");
       } catch (err) {
         setBanner(err.message, "error");
       } finally {

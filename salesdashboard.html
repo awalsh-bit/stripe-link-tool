@@ -328,58 +328,12 @@
 </head>
 <body data-shell-label="Sales Tools Dashboard" data-shell-icon="sales" data-shell-replace-hero="true">
   <div class="wrap">
-    <div class="hero">
-      <div class="hero-top">
-        <div class="hero-brand">
-          <div class="menu-wrap">
-            <button class="menu-trigger" type="button" aria-label="Dashboard menu">
-              <span class="menu-bars">
-                <span></span>
-                <span></span>
-                <span></span>
-              </span>
-            </button>
-            <div class="menu-panel">
-              <div class="menu-panel-title">Dashboards</div>
-              <a class="menu-link" href="dashboard.html">
-                <div class="menu-link-title">Payments</div>
-                <div class="menu-link-text">Payment queue, paid history, and balancing tools.</div>
-              </a>
-              <a class="menu-link" href="salesdashboard.html">
-                <div class="menu-link-title">Sales Tools</div>
-                <div class="menu-link-text">Open the sales tools workspace.</div>
-              </a>
-            </div>
-          </div>
-          <img class="brand-logo" src="logo-agility.png" alt="Wilson AC & Appliance — Agility" />
-          <div class="hero-labels">
-            <div class="eyebrow-wrap">
-              <span class="eyebrow-icon" aria-hidden="true">
-                <svg viewBox="0 0 24 24" fill="none">
-                  <path d="M14.7 6.3a4.2 4.2 0 0 0-5.92 5.92L4.8 16.2a1.4 1.4 0 1 0 1.98 1.98l3.98-3.98a4.2 4.2 0 0 0 5.92-5.92l-2.06 2.06-2.12-.47-.47-2.12L14.7 6.3Z" fill="currentColor"></path>
-                </svg>
-              </span>
-              <div class="eyebrow">
-                <span>Sales Tools Dashboard</span>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div class="tools-strip">
-          <div class="tools-strip-top"></div>
-          <div class="tools-strip-row">
-            <div class="tools-strip-label">Internal Tools</div>
-            <a class="tool-logo-link" href="https://app.podium.com/home" target="_blank" rel="noopener noreferrer">
-              <img class="tool-logo-image podium" src="podium-logo.jpg" alt="Podium" />
-            </a>
-            <a class="tool-logo-link" href="https://wilsonappliance.dispatchtrack.com/a18/login" target="_blank" rel="noopener noreferrer">
-              <img class="tool-logo-image" src="dispatchtrack-logo.png" alt="DispatchTrack" />
-            </a>
-          </div>
-        </div>
-      </div>
-    </div>
+    <!-- The shell (internal-shell.js) draws the header here: it renders
+         immediately with the logo/menu, then again once the session loads
+         with the personal settings. Nothing static lives in the hero any
+         more — the old Podium/DispatchTrack strip flashed before the shell
+         replaced it. -->
+    <div class="hero"></div>
 
     <div class="tools-grid">
       <div class="placeholder-card">

@@ -390,6 +390,7 @@ import {
   computeFieldSalesStatements
 } from "./lib/field-sales-commissions.js";
 import { buildCommissionStatementPdf } from "./lib/commission-statement-pdf.js";
+import { parseInvoiceMaintenanceWorkbook, splitInvoiceRows } from "./lib/epass-invoices.js";
 import {
   upsertCommissionPost,
   deleteCommissionPost,
@@ -2101,15 +2102,20 @@ app.post("/api/logout", async (req, res) => {
   return res.json({ success: true });
 });
 
-app.get("/api/auth/session", (req, res) => {
+app.get("/api/auth/session", async (req, res) => {
   if (!req.authUser) {
     return res.status(401).json({
       error: "Authentication required."
     });
   }
 
+  // Profile photo stamp (or false) so the shell only requests an image
+  // that exists — and busts its cache when the photo changes.
+  const avatar = await signatureStampFor(req.authUser.email || req.authUser.username || "");
+
   return res.json({
     user: req.authUser,
+    avatar,
     grantedPages: getEffectivePagesForUser(req.authUser),
     canManageUsers: isExecutiveUser(req.authUser),
     legacyLoginEnabled: LEGACY_SHARED_LOGIN_ENABLED,
@@ -2170,7 +2176,8 @@ app.get("/api/me/profile", async (req, res) => {
   try {
     const email = String(req.authUser.email || "").trim().toLowerCase();
     const entry = email ? await findEmployeeDirectoryEntryByEmail(email) : null;
-    const base = { name: req.authUser.displayName || "", email, shirtSizes: SHIRT_SIZES };
+    const avatar = await signatureStampFor(email);
+    const base = { name: req.authUser.displayName || "", email, shirtSizes: SHIRT_SIZES, avatar };
     if (!entry || entry.archived) return res.json({ ...base, found: false });
     return res.json({
       ...base, found: true, name: entry.name || base.name, code: entry.code, department: entry.department, commissionPlan: entry.commissionPlan,
@@ -2179,6 +2186,56 @@ app.get("/api/me/profile", async (req, res) => {
   } catch (err) {
     console.error("Load my profile failed:", err.message);
     return res.status(500).json({ error: "Unable to load your profile." });
+  }
+});
+
+// ---- profile photo = the email-signature headshot --------------------------
+// One picture, two places (Andrew, 2026-09-16): the Personal Settings avatar
+// IS the signature_photos row the Email Signature page maintains. Uploading
+// from Edit My Profile replaces that row (same id, so signatures already
+// installed in Outlook pick up the new picture too). No delete here — a
+// removed photo would 404 in every installed signature; the Email Signature
+// page owns that decision.
+const profilePhotoUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 2 * 1024 * 1024, files: 1 } });
+async function signatureStampFor(email) {
+  const key = String(email || "").trim().toLowerCase();
+  if (!key.includes("@")) return false;
+  try { const p = await getSignaturePhotoByEmail(key); return p ? (p.updatedAt || p.id) : false; } catch { return false; }
+}
+app.post("/api/me/avatar", (req, res) => {
+  if (!req.authUser) return res.status(401).json({ error: "Authentication required." });
+  profilePhotoUpload.single("photo")(req, res, async (err) => {
+    if (err) return res.status(400).json({ error: err.code === "LIMIT_FILE_SIZE" ? "That image is over 2 MB — try a smaller photo." : "Upload failed — please try again." });
+    try {
+      const userEmail = req.authUser?.kind === "db" ? String(req.authUser.email || "").trim().toLowerCase() : "";
+      if (!userEmail.includes("@")) return res.status(400).json({ error: "Sign in with your individual account to set a photo." });
+      const bytes = req.file?.buffer;
+      const contentType = detectImageType(bytes);
+      if (!contentType) return res.status(400).json({ error: "JPG or PNG photos only." });
+      const saved = await saveSignaturePhoto({ userEmail, contentType, bytes });
+      recordAudit({ ip: req.ip, actorUserId: req.authUser.id || null, action: "signature_photo_updated", targetUserId: null, detail: { email: userEmail, bytes: bytes.length, via: "profile" } }).catch(() => {});
+      return res.json({ ok: true, updatedAt: saved.updatedAt || new Date().toISOString(), signatureUrl: buildSignaturePhotoUrl(req, saved.id) });
+    } catch (photoErr) {
+      console.error("Profile photo save failed:", photoErr.message);
+      return res.status(500).json({ error: "Unable to save the photo." });
+    }
+  });
+});
+// Any signed-in person can see any teammate's headshot (it's on their
+// outgoing email already); ?email= picks one, default is the viewer's own.
+app.get("/api/me/avatar", async (req, res) => {
+  if (!req.authUser) return res.status(401).json({ error: "Authentication required." });
+  try {
+    const email = String(req.query.email || req.authUser.email || req.authUser.username || "").trim().toLowerCase();
+    const meta = email.includes("@") ? await getSignaturePhotoByEmail(email) : null;
+    const photo = meta ? await getSignaturePhoto(meta.id) : null;
+    if (!photo) return res.status(404).json({ error: "No photo on file." });
+    res.setHeader("Content-Type", photo.contentType || "image/jpeg");
+    res.setHeader("Cache-Control", "private, max-age=3600");
+    return res.send(Buffer.from(photo.bytes));
+  } catch (err) {
+    console.error("Profile photo load failed:", err.message);
+    return res.status(500).json({ error: "Unable to load the photo." });
   }
 });
 
@@ -9214,7 +9271,12 @@ app.post("/api/epass-agent/upload", express.raw({ type: () => true, limit: "60mb
       return res.json({ ok: true, kind, orders: result.orders, work: result.workDerived + result.workUpdated, service });
     }
 
-    return res.status(400).json({ error: `Unknown upload kind "${kind}" — expected inventory, quotes, open-orders, or dispatch.` });
+    if (kind === "invoices") {
+      const result = await ingestOpenInvoices(req.body, { filename: sourceFile, ip: req.ip, via: "epass-agent", byEmail: agentBy.byEmail, byName: agentBy.byName });
+      return res.json({ ok: true, kind, ...result });
+    }
+
+    return res.status(400).json({ error: `Unknown upload kind "${kind}" — expected inventory, quotes, open-orders, dispatch, or invoices.` });
   } catch (err) {
     console.error("ePASS agent upload failed:", err.message);
     return res.status(400).json({ error: err.message || "Unable to process that file." });
@@ -12536,6 +12598,85 @@ app.get("/api/sales-order-detail/lines", requirePagePermission("/sales-order-det
     console.error("Sales order lines load failed:", err.message);
     return res.status(500).json({ error: "Unable to load line items." });
   }
+});
+
+// ---------------------------------------------------------------------------
+// ONE ePASS OPEN-INVOICE PULL (Andrew, 2026-09-16). A single Invoice
+// Maintenance filter now exports every open sales AND service invoice, so
+// one upload replaces three: the Sales Order Health report gets the sales
+// rows (S/R/CB/AC/MD…), the Service Order Health report gets SV/WTY (plus
+// the Service Journey mirror and the flag routing it already does), and —
+// only when the file also carries FINISHED invoices — the commission
+// balance check for the latest statement month is refreshed. An open-orders
+// pull has no finished invoices, so that step is skipped and reported
+// rather than silently clearing every hold.
+// Reached two ways: the pages' Upload buttons (POST /api/epass/open-invoices)
+// and the on-prem agent (kind "invoices").
+// ---------------------------------------------------------------------------
+const openInvoiceUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 30 * 1024 * 1024, files: 1 } });
+
+async function ingestOpenInvoices(buffer, { filename = "", byEmail = "", byName = "", ip = "", via = "page" } = {}) {
+  const parsed = parseInvoiceMaintenanceWorkbook(buffer);
+  const split = splitInvoiceRows(parsed.rows);
+  const file = String(filename || "").slice(0, 200);
+  const out = { rows: parsed.rows.length, types: split.types, sales: null, service: null, balanceCheck: null };
+
+  if (split.sales.length) {
+    const snapshot = await saveSalesOrderSnapshot({ rows: split.sales, filename: file, byEmail, byName });
+    out.sales = { rows: split.sales.length, uploadedAt: snapshot?.uploadedAt || null };
+    recordAudit({ ip, actorUserId: null, action: "sales_orders_uploaded", targetUserId: null, detail: { rows: split.sales.length, filename: file, via } }).catch(() => {});
+  }
+
+  if (split.service.length) {
+    const snapshot = await saveServiceOrderSnapshot({ rows: split.service, filename: file, byEmail, byName });
+    let serviceMirror = null;
+    try {
+      serviceMirror = await importServiceInvoiceRows(split.service, { filename: file, byEmail });
+    } catch (mirrorErr) {
+      console.error("Service journey mirror (open invoices) failed:", mirrorErr.message);
+      serviceMirror = { error: mirrorErr.message };
+    }
+    let flagCounts = null;
+    try {
+      flagCounts = await pushServiceOrderHealthFlags(split.service);
+    } catch (flagErr) {
+      console.error("Service order flag routing failed:", flagErr.message);
+    }
+    out.service = { rows: split.service.length, uploadedAt: snapshot?.uploadedAt || null, serviceMirror, flags: flagCounts };
+    recordAudit({ ip, actorUserId: null, action: "service_orders_uploaded", targetUserId: null, detail: { rows: split.service.length, filename: file, flags: flagCounts, via } }).catch(() => {});
+  }
+
+  if (split.finished.length) {
+    const months = await listCommissionMonths().catch(() => []);
+    const month = months[0] || null;
+    if (month) {
+      const result = await saveCommissionBalanceCheck({ month, rows: parsed.rows.map((r) => ({ invoice: r.invoice, balance: r.balance || 0 })), filename: file, byEmail });
+      out.balanceCheck = { month, finishedRows: split.finished.length, ...result };
+      recordAudit({ ip, actorUserId: null, action: "commission_balance_check_uploaded", targetUserId: null, detail: { month, invoices: result.invoiceCount, unpaid: result.unpaidCount, via } }).catch(() => {});
+    } else {
+      out.balanceCheck = { skipped: "no commission statement month to attach the balance check to" };
+    }
+  } else {
+    out.balanceCheck = { skipped: "no finished invoices in this file — open orders only, so the commission balance check was left as is" };
+  }
+  return out;
+}
+
+app.post("/api/epass/open-invoices", requirePagePermission("/sales-order-health.html", "/service-order-health.html"), (req, res) => {
+  openInvoiceUpload.single("file")(req, res, async (err) => {
+    if (err) return res.status(400).json({ error: err.code === "LIMIT_FILE_SIZE" ? "That export is over the 30 MB limit." : "Upload failed — please try again." });
+    try {
+      if (!req.file?.buffer?.length) return res.status(400).json({ error: "Attach the ExportInvoice .xlsx." });
+      const result = await ingestOpenInvoices(req.file.buffer, {
+        filename: req.file.originalname || "", ip: req.ip, via: "page",
+        byEmail: req.authUser?.email || req.authUser?.username || "", byName: req.authUser?.displayName || ""
+      });
+      return res.json({ ok: true, ...result });
+    } catch (ingestErr) {
+      console.error("Open invoice ingest failed:", ingestErr.message);
+      return res.status(ingestErr.code === "NOT_INVOICE_EXPORT" ? 400 : 500).json({ error: ingestErr.message || "Unable to process that export." });
+    }
+  });
 });
 
 // INTERNAL: Sales Order Health Report (sales-order-health.html). The page

@@ -61,12 +61,14 @@
       padding: 28px;
     }
 
+    /* The Agility mark is wide, so the badge sits on its own line under
+       the logo instead of beside it — nothing overflows the card. */
     .header-row {
       display: flex;
+      flex-direction: column;
       align-items: center;
       justify-content: center;
-      gap: 14px;
-      flex-wrap: nowrap;
+      gap: 12px;
       margin-bottom: 22px;
     }
 
@@ -94,9 +96,6 @@
       white-space: nowrap;
     }
 
-    @media (max-width: 520px) {
-      .header-row { flex-wrap: wrap; }
-    }
 
     .field + .field { margin-top: 14px; }
 

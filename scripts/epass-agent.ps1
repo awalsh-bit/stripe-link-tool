@@ -8,6 +8,10 @@
 #   W:\Agility\outbox\inventory     <- ExportModel .xlsx (serial inventory)
 #   W:\Agility\outbox\quotes        <- Invoice Maintenance quote export .xlsx
 #   W:\Agility\outbox\open-orders   <- OE-23 open-orders export .xls/.xlsx
+#   W:\Agility\outbox\dispatch      <- DispatchTrack-format export .csv (sales + service)
+#   W:\Agility\outbox\invoices      <- Invoice Maintenance open-invoice pull .xlsx (sales + service):
+#                                       feeds Sales Order Health, Service Order Health and the
+#                                       Service Journey mirror in one step
 #   W:\Agility\processed\<kind>\    <- files Agility accepted (kept 60 days)
 #   W:\Agility\failed\<kind>\       <- files Agility rejected (bad export?)
 #   W:\Agility\agent.log            <- what happened, when
@@ -24,13 +28,13 @@
 # =============================================================================
 
 # ---- CONFIG ----------------------------------------------------------------
-$BaseUrl  = "https://dashboards.wilsonappliance.com"
+$BaseUrl  = "https://agility.wilsonappliance.com"
 $AgentKey = "PASTE-EPASS_AGENT_KEY-HERE"   # must match Render env EPASS_AGENT_KEY
 $Root     = "W:\Agility"
 $KeepProcessedDays = 60
 # ----------------------------------------------------------------------------
 
-$Kinds = @("inventory", "quotes", "open-orders")
+$Kinds = @("inventory", "quotes", "open-orders", "dispatch", "invoices")
 $LogFile = Join-Path $Root "agent.log"
 
 function Log([string]$msg) {
@@ -48,7 +52,7 @@ foreach ($kind in $Kinds) {
 
 foreach ($kind in $Kinds) {
   $outbox = Join-Path $Root (Join-Path "outbox" $kind)
-  $files = Get-ChildItem -Path $outbox -File -Include *.xlsx, *.xls -Recurse:$false |
+  $files = Get-ChildItem -Path $outbox -File -Include *.xlsx, *.xls, *.csv -Recurse:$false |
            Where-Object { $_.Name -notlike "~$*" } | Sort-Object LastWriteTime
   foreach ($file in $files) {
     # Skip files still being written (modified in the last 30 seconds).

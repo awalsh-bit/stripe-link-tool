@@ -701,10 +701,11 @@
   window.openMyProfile = openProfileModal;
 
   // "Transition to Podium Conversation" — any page that shows a customer
-  // phone can render <button data-podium-phone="512…">. Tap → Agility finds
-  // the thread by phone (read-only) → the Podium inbox link opens in a new
-  // tab, which the Podium app claims on a phone. The tab is opened
-  // synchronously in the tap so mobile popup rules don't swallow it.
+  // phone can render <button data-podium-phone="512…">. Tap → the Podium
+  // inbox opens in a new tab already searched for that number (Podium has no
+  // per-thread deep link; see lib/podium.js), and the Podium app claims the
+  // link on a phone. The tab is opened synchronously in the tap so mobile
+  // popup rules don't swallow it.
   async function openPodiumConversation(phone, button) {
     const digits = String(phone || "").replace(/\D/g, "").slice(-10);
     const label = button ? button.textContent : "";
@@ -722,7 +723,7 @@
         return;
       }
       if (win) win.location = url; else window.location.href = url;
-      say(label);
+      say(data.found === false ? "No Podium thread yet — inbox search opened" : label);
     } catch (err) {
       say("Podium unreachable");
       if (win) win.close();

@@ -7985,9 +7985,10 @@ app.get("/api/podium/oauth/callback", requireExecutiveApi, async (req, res) => {
   }
 });
 
-// "Transition to Podium Conversation": look the customer's thread up by phone
-// and hand back the inbox link. Read-only — no message, note or assignment
-// is created, and nothing about the thread's open/closed state changes.
+// "Transition to Podium Conversation": hand back the Podium inbox link for a
+// phone number (the inbox searched for that number — Podium has no per-thread
+// deep link an outside system can build). Read-only: the existence check
+// creates no message, note or assignment and leaves open/closed alone.
 // Open to whoever holds one of the pages that carry the button.
 app.get("/api/podium/conversation-link", requirePagePermission("/appliance-service-calls.html", "/service-estimates.html", "/quote-follow-up.html", "/dispatch.html"), async (req, res) => {
   const phone = String(req.query.phone || "").replace(/\D/g, "").slice(-10);
@@ -7995,7 +7996,6 @@ app.get("/api/podium/conversation-link", requirePagePermission("/appliance-servi
   if (!(await podiumConnected().catch(() => false))) return res.status(503).json({ error: "Podium isn't connected — connect it in Text Automations first.", inboxUrl: podiumInboxBaseUrl() });
   try {
     const link = await podiumFindConversationInboxLink(phone);
-    if (!link) return res.status(404).json({ error: "Podium has no conversation with that number yet.", inboxUrl: podiumInboxBaseUrl() });
     return res.json({ ok: true, ...link, inboxUrl: podiumInboxBaseUrl() });
   } catch (err) {
     console.error("Podium conversation link failed:", err.message);

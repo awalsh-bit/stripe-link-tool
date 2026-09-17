@@ -263,6 +263,7 @@ import {
 import {
   AVAILABILITY as FLEET_AVAILABILITY, VEHICLE_CLASSES as FLEET_VEHICLE_CLASSES, RENEWAL_KINDS as FLEET_RENEWAL_KINDS, PAID_VIA as FLEET_PAID_VIA,
   syncFleetFromSamsara, fleetOverview, getFleetVehicle, createFleetVehicle, updateFleetVehicle, addServiceEntry, deleteServiceEntry, getServiceInvoicePhoto,
+  setRenewalDocument, removeRenewalDocument, getRenewalDocument, isRenewalDocType,
   savePlan, deletePlan, seedDefaultPlansIfEmpty, saveRenewal, deleteRenewal, searchReceiptsForFleet
 } from "./lib/fleet-postgres.js";
 import {
@@ -324,6 +325,8 @@ import {
   exchangeOAuthCode,
   noteAndAssign as podiumNoteAndAssign,
   findConversationByPhone as podiumFindConversationByPhone,
+  findConversationInboxLink as podiumFindConversationInboxLink,
+  podiumInboxBaseUrl,
   addConversationNote as podiumAddConversationNote,
   sendPodiumTemplateText,
   listMessageTemplates
@@ -798,13 +801,14 @@ const EVERYONE_PAGE_PATHS = new Set([
 
 // Executive-only pages: reachable only with is_executive, never grantable.
 // Sales Order Detail left this list 2026-09-02 (Andrew) — it's grantable
-// per user now, like any Sales Tools page.
+// per user now, like any Sales Tools page. Sales Commissions followed on
+// 2026-09-17: the whole tool (statements, posting, overrides, balance
+// check) rides on the /commissions.html page grant; executives still pass.
 const EXECUTIVE_ONLY_PAGE_PATHS = new Set([
   "/user-admin.html",
   "/send-notification.html",
   "/audit-log.html",
-  "/returns-report.html",
-  "/commissions.html"
+  "/returns-report.html"
 ]);
 
 // Canonical list of pages an executive can grant/deny per user. Derived from
@@ -1105,6 +1109,7 @@ const PAGE_CATEGORIES = [
     pages: [
       "/salesdashboard.html",
       "/my-commissions.html",
+      "/commissions.html",
       "/shop-orders.html",
       "/sales-order-health.html",
       "/sales-order-detail.html",
@@ -5319,8 +5324,49 @@ app.post("/api/fleet/plans", requireFleet, async (req, res) => {
 app.post("/api/fleet/plans/:id/delete", requireFleet, async (req, res) => {
   try { await deletePlan(req.params.id); return res.json({ ok: true }); } catch (err) { return res.status(500).json({ error: "Unable to delete." }); }
 });
-app.post("/api/fleet/vehicles/:id/renewals", requireFleet, async (req, res) => {
-  try { await saveRenewal({ ...(req.body || {}), vehicleId: req.params.id }); return res.json({ ok: true }); } catch (err) { return res.status(400).json({ error: err.message }); }
+// Renewals: multipart (fields + optional "document" — PDF or image, 12 MB).
+// A plain JSON body still works for callers without a file.
+const fleetRenewalDoc = (req) => {
+  if (!req.file) return null;
+  if (!isRenewalDocType(req.file.mimetype)) { const e = new Error("The document must be a PDF or an image."); e.status = 415; throw e; }
+  return { buffer: req.file.buffer, contentType: req.file.mimetype, name: req.file.originalname };
+};
+app.post("/api/fleet/vehicles/:id/renewals", requireFleet, (req, res) => {
+  fleetInvoiceUpload.single("document")(req, res, async (err) => {
+    if (err) return res.status(400).json({ error: err.code === "LIMIT_FILE_SIZE" ? "That document is larger than 12 MB." : "Couldn't read the upload." });
+    try {
+      const document = fleetRenewalDoc(req);
+      const rid = await saveRenewal({ ...(req.body || {}), vehicleId: req.params.id, document });
+      fleetAudit(req, "fleet_renewal_saved", { vehicleId: req.params.id, renewalId: rid, kind: req.body?.kind, dueOn: req.body?.dueOn, document: document ? document.name : "" });
+      return res.json({ ok: true, id: rid });
+    } catch (error) { return res.status(error.status || 400).json({ error: error.message }); }
+  });
+});
+app.post("/api/fleet/vehicles/:id/renewals/:rid/document", requireFleet, (req, res) => {
+  fleetInvoiceUpload.single("document")(req, res, async (err) => {
+    if (err) return res.status(400).json({ error: err.code === "LIMIT_FILE_SIZE" ? "That document is larger than 12 MB." : "Couldn't read the upload." });
+    try {
+      const document = fleetRenewalDoc(req);
+      if (!document) return res.status(400).json({ error: "Choose a PDF or image to attach." });
+      const out = await setRenewalDocument(req.params.id, req.params.rid, document);
+      fleetAudit(req, "fleet_renewal_document_attached", { vehicleId: req.params.id, renewalId: req.params.rid, document: document.name });
+      return res.json({ ok: true, ...out });
+    } catch (error) { return res.status(error.status || 400).json({ error: error.message }); }
+  });
+});
+app.post("/api/fleet/vehicles/:id/renewals/:rid/document/delete", requireFleet, async (req, res) => {
+  try { await removeRenewalDocument(req.params.id, req.params.rid); fleetAudit(req, "fleet_renewal_document_removed", { vehicleId: req.params.id, renewalId: req.params.rid }); return res.json({ ok: true }); }
+  catch (err) { return res.status(500).json({ error: "Unable to remove the document." }); }
+});
+app.get("/api/fleet/renewals/:rid/document", requireFleet, async (req, res) => {
+  try {
+    const doc = await getRenewalDocument(req.params.rid);
+    if (!doc) return res.status(404).json({ error: "No document on this renewal." });
+    res.setHeader("Content-Type", doc.contentType || "application/octet-stream");
+    res.setHeader("Content-Disposition", `inline; filename="${String(doc.name || "document").replace(/["\r\n]/g, "")}"`);
+    res.setHeader("Cache-Control", "private, max-age=86400");
+    return res.send(doc.bytes);
+  } catch (err) { return res.status(500).json({ error: "Unable to load the document." }); }
 });
 app.post("/api/fleet/vehicles/:id/renewals/:rid/delete", requireFleet, async (req, res) => {
   try { await deleteRenewal(req.params.id, req.params.rid); return res.json({ ok: true }); } catch (err) { return res.status(500).json({ error: "Unable to delete." }); }
@@ -7939,6 +7985,24 @@ app.get("/api/podium/oauth/callback", requireExecutiveApi, async (req, res) => {
   }
 });
 
+// "Transition to Podium Conversation": look the customer's thread up by phone
+// and hand back the inbox link. Read-only — no message, note or assignment
+// is created, and nothing about the thread's open/closed state changes.
+// Open to whoever holds one of the pages that carry the button.
+app.get("/api/podium/conversation-link", requirePagePermission("/appliance-service-calls.html", "/service-estimates.html", "/quote-follow-up.html", "/dispatch.html"), async (req, res) => {
+  const phone = String(req.query.phone || "").replace(/\D/g, "").slice(-10);
+  if (phone.length !== 10) return res.status(400).json({ error: "Give a 10-digit phone number." });
+  if (!(await podiumConnected().catch(() => false))) return res.status(503).json({ error: "Podium isn't connected — connect it in Text Automations first.", inboxUrl: podiumInboxBaseUrl() });
+  try {
+    const link = await podiumFindConversationInboxLink(phone);
+    if (!link) return res.status(404).json({ error: "Podium has no conversation with that number yet.", inboxUrl: podiumInboxBaseUrl() });
+    return res.json({ ok: true, ...link, inboxUrl: podiumInboxBaseUrl() });
+  } catch (err) {
+    console.error("Podium conversation link failed:", err.message);
+    return res.status(502).json({ error: "Couldn't reach Podium just now.", inboxUrl: podiumInboxBaseUrl() });
+  }
+});
+
 app.get("/api/podium/status", requireExecutiveApi, async (req, res) => {
   try {
     return res.json({ configured: podiumOAuthConfigured(), connection: await getPodiumConnection() });
@@ -9966,7 +10030,9 @@ app.post("/api/shop-shoppers/:id/temp-password", requirePagePermission("/shopper
   }
 });
 
-// INTERNAL (exec): Field Sales Commissions (commissions.html) — live monthly
+const requireCommissionsPage = requirePagePermission("/commissions.html");
+// INTERNAL: Field Sales Commissions (commissions.html — grantable page
+// since 2026-09-17; executives implicitly) — live monthly
 // statements computed from the Sales Order Detail warehouse (Crystal upload
 // feeds sales_order_lines). No import runs, no locks: re-uploading a month's
 // reports on Sales Order Detail refreshes the statements. Plan math lives in
@@ -10025,7 +10091,7 @@ function commissionMonthLabel(month) {
   return `${["January","February","March","April","May","June","July","August","September","October","November","December"][m - 1]} ${y}`;
 }
 
-app.get("/api/field-commissions", requireExecutiveApi, async (req, res) => {
+app.get("/api/field-commissions", requireCommissionsPage, async (req, res) => {
   try {
     const { months, month, windowMonths, statements, balanceChecks } = await computeFieldCommissionMonth(req.query.month);
     const balanceMeta = {};
@@ -10071,7 +10137,7 @@ async function buildStatementPdfFor(month, code) {
   return { pdfBytes, fileLabel, statement };
 }
 
-app.get("/api/field-commissions/statement-pdf", requireExecutiveApi, async (req, res) => {
+app.get("/api/field-commissions/statement-pdf", requireCommissionsPage, async (req, res) => {
   try {
     const month = String(req.query.month || "");
     const code = String(req.query.code || "");
@@ -10094,7 +10160,7 @@ app.get("/api/field-commissions/statement-pdf", requireExecutiveApi, async (req,
 
 // Email the statement PDF straight to the salesperson (user directory email,
 // or an explicit override address).
-app.post("/api/field-commissions/statement-email", requireExecutiveApi, async (req, res) => {
+app.post("/api/field-commissions/statement-email", requireCommissionsPage, async (req, res) => {
   try {
     const month = String(req.body?.month || "");
     const code = String(req.body?.code || "").toUpperCase();
@@ -10182,7 +10248,7 @@ app.post("/api/field-commissions/statement-email", requireExecutiveApi, async (r
 // ---------------------------------------------------------------------------
 
 // Exec: post (or re-post) one rep's statement for a month.
-app.post("/api/field-commissions/post", requireExecutiveApi, async (req, res) => {
+app.post("/api/field-commissions/post", requireCommissionsPage, async (req, res) => {
   try {
     const month = String(req.body?.month || "");
     const code = String(req.body?.code || "").trim().toUpperCase();
@@ -10265,7 +10331,7 @@ app.post("/api/field-commissions/post", requireExecutiveApi, async (req, res) =>
 });
 
 // Exec: retract a posted statement.
-app.post("/api/field-commissions/unpost", requireExecutiveApi, async (req, res) => {
+app.post("/api/field-commissions/unpost", requireCommissionsPage, async (req, res) => {
   try {
     const month = String(req.body?.month || "");
     const code = String(req.body?.code || "").trim().toUpperCase();
@@ -10287,7 +10353,7 @@ app.post("/api/field-commissions/unpost", requireExecutiveApi, async (req, res) 
 
 // Exec: posting + exception status for a month (drives the commissions.html
 // Post buttons and the exceptions panel).
-app.get("/api/field-commissions/review-status", requireExecutiveApi, async (req, res) => {
+app.get("/api/field-commissions/review-status", requireCommissionsPage, async (req, res) => {
   try {
     const month = String(req.query.month || "");
     if (!/^\d{4}-\d{2}$/.test(month)) return res.status(400).json({ error: "Missing statement month." });
@@ -10309,7 +10375,7 @@ app.get("/api/field-commissions/review-status", requireExecutiveApi, async (req,
 });
 
 // Exec: resolve an exception request with a response the rep can read.
-app.post("/api/field-commissions/exceptions/:id/resolve", requireExecutiveApi, async (req, res) => {
+app.post("/api/field-commissions/exceptions/:id/resolve", requireCommissionsPage, async (req, res) => {
   try {
     const resolved = await resolveCommissionException(req.params.id, {
       byEmail: req.authUser?.email || "",
@@ -10553,7 +10619,7 @@ app.post("/api/my-commissions/exception", requirePagePermission("/my-commissions
 // Maintenance export, parsed in the browser to { invoice, balance } rows.
 // Unpaid invoices (balance > 0) hold their commission lines that month;
 // later months' checks release them once paid.
-app.post("/api/field-commissions/balance-check", requireExecutiveApi, async (req, res) => {
+app.post("/api/field-commissions/balance-check", requireCommissionsPage, async (req, res) => {
   try {
     const month = String(req.body?.month || "");
     const rows = req.body?.rows;
@@ -10590,7 +10656,7 @@ app.post("/api/field-commissions/balance-check", requireExecutiveApi, async (req
 // Save (or clear) an exec override on one commission line: list price, cost,
 // payout rate, and/or 100%-credit reassignment of a split. Overrides key on
 // a stable line fingerprint, so they survive re-uploads of the same report.
-app.post("/api/field-commissions/override", requireExecutiveApi, async (req, res) => {
+app.post("/api/field-commissions/override", requireCommissionsPage, async (req, res) => {
   try {
     const b = req.body || {};
     const lineKey = String(b.lineKey || "");
@@ -12773,7 +12839,7 @@ app.post("/api/sq-truckload/order/submit", requireSqTruckload, async (req, res) 
     const board = await buildSqBoard();
     if (Number(req.body?.id) !== board.order.id) return res.status(409).json({ error: "The draft changed — reload and try again." });
     if (!board.totals.orderQty) return res.status(400).json({ error: "Nothing on the order yet." });
-    const snapshot = { rows: board.rows.filter((r) => r.qty > 0).map((r) => ({ model: r.model, family: r.family, note: r.note, kind: r.kind, qty: r.qty, tlCost: r.tlCost, lineCost: r.lineCost, ttm: r.ttm, qoh: r.qoh, qoo: r.qoo, stockPlan: r.stockPlan, forecast: r.forecast })), totals: board.totals, settings: board.settings, sources: board.sources };
+    const snapshot = { rows: board.rows.filter((r) => r.qty > 0).map((r) => ({ model: r.model, family: r.family, note: r.note, kind: r.kind, qty: r.qty, tlCost: r.tlCost, lineCost: r.lineCost, regularCost: r.regularCost, regularDerived: r.regularDerived, regularLineCost: r.regularLineCost, savings: r.savings, ttm: r.ttm, qoh: r.qoh, qoo: r.qoo, stockPlan: r.stockPlan, forecast: r.forecast })), totals: board.totals, settings: board.settings, sources: board.sources };
     const order = await submitSqOrder(board.order.id, snapshot, sqBy(req));
     sqAudit(req, "sq_truckload_submitted", { id: order.id, name: order.name, units: board.totals.truckUnits, cost: board.totals.tlCost });
     return res.json({ ok: true, order: { id: order.id, name: order.name, submittedAt: order.submittedAt } });
@@ -12798,8 +12864,8 @@ app.get("/api/sq-truckload/orders/:id/csv", requireSqTruckload, async (req, res)
     if (order.snapshot?.rows) rows = order.snapshot.rows;
     else { const board = await buildSqBoard(); rows = board.rows.filter((r) => r.qty > 0); }
     const cell = (v) => { const t = v == null ? "" : String(v); return /[",\r\n]/.test(t) ? `"${t.replace(/"/g, '""')}"` : t; };
-    const lines = [["family", "note", "model", "qty", "tl_cost", "line_cost", "ttm_sales", "qoh", "qoo", "stock_plan", "forecast"].join(",")];
-    for (const r of rows) lines.push([r.family, r.note, r.model, r.qty, r.tlCost ?? "", r.lineCost ?? "", r.ttm, r.qoh, r.qoo, r.stockPlan, r.forecast].map(cell).join(","));
+    const lines = [["family", "note", "model", "qty", "regular_cost", "tl_cost", "line_cost", "savings", "ttm_sales", "qoh", "qoo", "stock_plan", "forecast"].join(",")];
+    for (const r of rows) lines.push([r.family, r.note, r.model, r.qty, r.regularCost ?? "", r.tlCost ?? "", r.lineCost ?? "", r.savings ?? "", r.ttm, r.qoh, r.qoo, r.stockPlan, r.forecast].map(cell).join(","));
     res.setHeader("Content-Type", "text/csv; charset=utf-8");
     res.setHeader("Content-Disposition", `attachment; filename="${(order.name || "truckload").replace(/[^A-Za-z0-9 _-]/g, "")}.csv"`);
     return res.send("﻿" + lines.join("\r\n") + "\r\n");
@@ -12847,7 +12913,7 @@ app.post("/api/sq-truckload/models", requireSqTruckload, requireExecutiveApi, as
 app.post("/api/sq-truckload/settings", requireSqTruckload, requireExecutiveApi, async (req, res) => {
   try {
     const out = {};
-    for (const key of ["stock_plan_months", "truck_units", "ttm_months"]) if (req.body?.[key] != null) Object.assign(out, await setSqSetting(key, req.body[key]));
+    for (const key of ["stock_plan_months", "truck_units", "ttm_months", "tl_discount_pct"]) if (req.body?.[key] != null) Object.assign(out, await setSqSetting(key, req.body[key]));
     sqAudit(req, "sq_truckload_settings_saved", out);
     return res.json({ ok: true, settings: await getSqSettings() });
   } catch (err) { return res.status(400).json({ error: err.message }); }

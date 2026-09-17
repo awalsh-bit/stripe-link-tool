@@ -206,7 +206,6 @@
   }
 
   function buildMenuLinks(session) {
-    const user = session?.user || session;
     const links = [
       {
         href: "dashboard.html",
@@ -252,6 +251,7 @@
         children: [
           { href: "salesdashboard.html", title: "Sales Dashboard" },
           { href: "my-commissions.html", title: "My Commission Review" },
+          { href: "commissions.html", title: "Sales Commissions" },
           { href: "sales-order-health.html", title: "Sales Order Health Report" },
           { href: "sales-order-detail.html", title: "Sales Order Detail" },
           { href: "brand-sales.html", title: "Brand Sales" },
@@ -336,15 +336,6 @@
       }
     ];
 
-    if (user?.accessGroup === "executive" || user?.isExecutive) {
-      links.push({
-        title: "Commissions",
-        children: [
-          { href: "commissions.html", title: "Sales Commissions" }
-        ]
-      });
-    }
-
     if (session?.canManageUsers) {
       links.push({
         title: "Admin",
@@ -389,7 +380,6 @@
   }
 
   function buildFooterLinks(session) {
-    const user = session?.user || session;
     const candidates = [
       { href: "dashboard.html", title: "Home" },
       { href: "paid-order-detail.html", title: "Accounting" },
@@ -400,10 +390,6 @@
     const links = candidates
       .filter((link) => canSeePage(session, link.href))
       .map((link) => `<a class="internal-shell-footer-link" href="${withRoot(link.href)}">${link.title}</a>`);
-
-    if (user?.accessGroup === "executive" || user?.isExecutive) {
-      links.push(`<a class="internal-shell-footer-link" href="${withRoot("commissions.html")}">Commissions</a>`);
-    }
 
     if (session?.canManageUsers) {
       links.push(`<a class="internal-shell-footer-link" href="${withRoot("user-admin.html")}">User Admin</a>`);
@@ -713,6 +699,40 @@
   });
   // Other pages (e.g. the dashboard's sizes card) can open it too.
   window.openMyProfile = openProfileModal;
+
+  // "Transition to Podium Conversation" — any page that shows a customer
+  // phone can render <button data-podium-phone="512…">. Tap → Agility finds
+  // the thread by phone (read-only) → the Podium inbox link opens in a new
+  // tab, which the Podium app claims on a phone. The tab is opened
+  // synchronously in the tap so mobile popup rules don't swallow it.
+  async function openPodiumConversation(phone, button) {
+    const digits = String(phone || "").replace(/\D/g, "").slice(-10);
+    const label = button ? button.textContent : "";
+    const say = (text, keep) => { if (!button) return; button.textContent = text; button.disabled = !!keep; if (!keep) setTimeout(() => { button.textContent = label; button.disabled = false; }, 3500); };
+    if (digits.length !== 10) { say("No phone on file"); return; }
+    const win = window.open("", "_blank");
+    say("Finding conversation…", true);
+    try {
+      const res = await fetch(`/api/podium/conversation-link?phone=${encodeURIComponent(digits)}`, { credentials: "same-origin" });
+      const data = await res.json().catch(() => ({}));
+      const url = data.url || data.inboxUrl;
+      if (!res.ok) {
+        say(data.error || "Couldn't find it");
+        if (win) { if (data.inboxUrl) win.location = data.inboxUrl; else win.close(); }
+        return;
+      }
+      if (win) win.location = url; else window.location.href = url;
+      say(label);
+    } catch (err) {
+      say("Podium unreachable");
+      if (win) win.close();
+    }
+  }
+  document.addEventListener("click", (event) => {
+    const btn = event.target.closest?.("[data-podium-phone]");
+    if (btn) { event.preventDefault(); openPodiumConversation(btn.dataset.podiumPhone, btn); }
+  });
+  window.openPodiumConversation = openPodiumConversation;
 
   // Paint the shell right away (logo, menu, badge, a blank avatar) so the
   // page never shows a stale static header while the session request is in

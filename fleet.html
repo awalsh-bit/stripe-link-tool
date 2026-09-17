@@ -239,13 +239,13 @@
             ${ov.due.map((d) => `<tr><td>${esc(d.task)}<div class="sub">${[d.intervalMiles ? "every " + num(d.intervalMiles) + " mi" : "", d.intervalMonths ? "every " + d.intervalMonths + " mo" : ""].filter(Boolean).join(" / ")}${d.scope === "vehicle" ? " · this vehicle" : ""}</div></td><td>${d.lastOn ? fmtDate(d.lastOn) : "—"}${d.lastMi != null ? `<div class="sub">${num(d.lastMi)} mi</div>` : ""}</td><td>${d.dueOn ? fmtDate(d.dueOn) : ""}${d.dueMi != null ? `<div class="sub">${num(d.dueMi)} mi${d.milesLeft != null ? " (" + (d.milesLeft >= 0 ? d.milesLeft + " left" : Math.abs(d.milesLeft) + " over") + ")" : ""}</div>` : ""}</td><td>${pill(d.state)}</td></tr>`).join("") || `<tr><td colspan="4" class="empty">No intervals set.</td></tr>`}
           </tbody></table></div>
           <h3 style="margin-top:14px;">Renewals</h3>
-          ${ov.renewals.map((r) => `<div style="display:flex;justify-content:space-between;gap:8px;padding:5px 0;border-bottom:1px dashed #eef1f6;font-size:13px;"><div><strong>${esc(r.kind)}</strong> ${fmtDate(r.dueOn)} ${pill(r.state)}${r.notes ? `<div class="sub">${esc(r.notes)}</div>` : ""}</div><button type="button" class="tiny quiet r-del" data-rid="${esc(r.id)}">Remove</button></div>`).join("") || '<div class="sub">No renewals tracked.</div>'}
+          ${ov.renewals.map((r) => `<div style="display:flex;justify-content:space-between;gap:8px;padding:5px 0;border-bottom:1px dashed #eef1f6;font-size:13px;align-items:flex-start;"><div><strong>${esc(r.kind)}</strong> ${fmtDate(r.dueOn)} ${pill(r.state)}${r.notes ? `<div class="sub">${esc(r.notes)}</div>` : ""}${r.documentId ? `<div class="sub">📄 <a href="/api/fleet/renewals/${esc(r.id)}/document" target="_blank" rel="noopener">${esc(r.documentName || "Document")}</a></div>` : ""}</div><div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;"><span class="file"><button type="button" class="tiny secondary">${r.documentId ? "Replace document" : "Attach document"}</button><input type="file" class="r-doc" data-rid="${esc(r.id)}" accept="image/*,application/pdf" /></span>${r.documentId ? `<button type="button" class="tiny quiet r-doc-del" data-rid="${esc(r.id)}">Remove document</button>` : ""}<button type="button" class="tiny quiet r-del" data-rid="${esc(r.id)}">Remove</button></div></div>`).join("") || '<div class="sub">No renewals tracked.</div>'}
           <div class="grid3" style="margin-top:8px;">
             <div><label>Kind</label><select id="r_kind">${opts(P.renewalKinds, "Registration")}</select></div>
             <div><label>Due</label><input id="r_dueOn" type="date" /></div>
             <div><label>Note</label><input id="r_notes" placeholder="policy #, county…" /></div>
           </div>
-          <div class="rowline"><button type="button" class="secondary" id="rAdd">Add renewal</button></div>
+          <div class="rowline" style="align-items:center;flex-wrap:wrap;"><button type="button" class="secondary" id="rAdd">Add renewal</button><span class="file"><button type="button" class="secondary tiny" id="r_docBtn">Attach document (PDF or photo)</button><input type="file" id="r_doc" accept="image/*,application/pdf" /></span><span class="sub" id="r_docName"></span></div>
           <div id="rStatus" class="status"></div>
           <h3 style="margin-top:14px;">Intervals for this vehicle only</h3>
           <div class="sub">Fleet-wide intervals apply unless overridden here.</div>
@@ -281,7 +281,27 @@
         const body = {}; for (const k of ["epassCode", "vehicleClass", "capacityPoints", "maxCrew", "department", "odometerMi", "availability", "availabilityNote", "notes"]) body[k] = $("v_" + k).value; body.active = $("v_active").checked;
         try { D = await api(`/api/fleet/vehicles/${v.id}`, { method: "POST", body: JSON.stringify(body) }); await load(); renderVehicle(); setStatus("vStatus", "Saved.", "ok"); } catch (err) { setStatus("vStatus", err.message, "error"); }
       });
-      $("rAdd").addEventListener("click", async () => { try { await api(`/api/fleet/vehicles/${v.id}/renewals`, { method: "POST", body: JSON.stringify({ kind: $("r_kind").value, dueOn: $("r_dueOn").value, notes: $("r_notes").value }) }); await load(); D = await api(`/api/fleet/vehicles/${v.id}`); renderVehicle(); } catch (err) { setStatus("rStatus", err.message, "error"); } });
+      const reloadVehicle = async () => { await load(); D = await api(`/api/fleet/vehicles/${v.id}`); renderVehicle(); };
+      $("r_docBtn").addEventListener("click", () => $("r_doc").click());
+      $("r_doc").addEventListener("change", () => { $("r_docName").textContent = $("r_doc").files[0]?.name || ""; });
+      $("rAdd").addEventListener("click", async () => {
+        try {
+          const form = new FormData();
+          form.append("kind", $("r_kind").value); form.append("dueOn", $("r_dueOn").value); form.append("notes", $("r_notes").value);
+          if ($("r_doc").files[0]) form.append("document", $("r_doc").files[0]);
+          await api(`/api/fleet/vehicles/${v.id}/renewals`, { method: "POST", body: form });
+          await reloadVehicle();
+        } catch (err) { setStatus("rStatus", err.message, "error"); }
+      });
+      document.querySelectorAll(".r-doc").forEach((inp) => inp.addEventListener("change", async () => {
+        const f = inp.files[0]; if (!f) return;
+        try { const form = new FormData(); form.append("document", f); await api(`/api/fleet/vehicles/${v.id}/renewals/${inp.dataset.rid}/document`, { method: "POST", body: form }); await reloadVehicle(); }
+        catch (err) { setStatus("rStatus", err.message, "error"); }
+      }));
+      document.querySelectorAll(".r-doc-del").forEach((b) => b.addEventListener("click", async () => {
+        try { await api(`/api/fleet/vehicles/${v.id}/renewals/${b.dataset.rid}/document/delete`, { method: "POST" }); await reloadVehicle(); }
+        catch (err) { setStatus("rStatus", err.message, "error"); }
+      }));
       document.querySelectorAll(".r-del").forEach((b) => b.addEventListener("click", async () => { await api(`/api/fleet/vehicles/${v.id}/renewals/${b.dataset.rid}/delete`, { method: "POST" }); await load(); D = await api(`/api/fleet/vehicles/${v.id}`); renderVehicle(); }));
       $("pAdd").addEventListener("click", async () => { try { await api(`/api/fleet/plans`, { method: "POST", body: JSON.stringify({ vehicleId: v.id, task: $("p_task").value, intervalMiles: $("p_miles").value, intervalMonths: $("p_months").value }) }); await load(); D = await api(`/api/fleet/vehicles/${v.id}`); renderVehicle(); } catch (err) { setStatus("rStatus", err.message, "error"); } });
       document.querySelectorAll(".p-del").forEach((b) => b.addEventListener("click", async () => { await api(`/api/fleet/plans/${b.dataset.pid}/delete`, { method: "POST" }); await load(); D = await api(`/api/fleet/vehicles/${v.id}`); renderVehicle(); }));

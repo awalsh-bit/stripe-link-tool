@@ -929,6 +929,7 @@ function attachPrefillActions() {
               <div class="strong">${escapeHtml(row.customerName || "-")}${row.requestType === "hvac" ? ` <span class="badge badge-hvac" title="Submitted on the HVAC Service Request form">HVAC</span>` : ""}${row.requestType === "hvac-quote" ? ` <span class="badge badge-quote" title="Submitted on the HVAC Quote Request form — a replacement quote lead, not a service call">HVAC QUOTE</span>` : ""}</div>
               <div>${escapeHtml(row.customerEmail || "-")}</div>
               <div>${escapeHtml(row.customerPhone || "-")}</div>
+              ${String(row.customerPhone || "").replace(/\D/g, "").length >= 10 ? `<button type="button" class="podium-convo-btn" data-podium-phone="${escapeHtml(row.customerPhone)}" title="Open this customer's Podium thread (opens the Podium app on a phone)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg> Transition to Podium Conversation</button>` : ""}
             </div>
           </td>
 

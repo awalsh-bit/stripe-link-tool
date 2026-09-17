@@ -115,6 +115,7 @@
           <label>Stock plan (months) <input type="number" id="setMonths" min="1" max="24" step="1" /></label>
           <label>Truck size (units) <input type="number" id="setTruck" min="1" max="999" step="1" /></label>
           <label>Sales window (months) <input type="number" id="setTtm" min="1" max="36" step="1" /></label>
+          <label title="FTL 126 price is wholesale less this percent; regular cost = TL cost ÷ (1 − %)">TL discount (%) <input type="number" id="setDisc" min="0.1" max="99" step="0.1" /></label>
           <button type="button" class="quiet" id="saveSettings">Save settings</button>
         </div>
       </div>
@@ -140,10 +141,10 @@
               <th class="l">Note</th><th class="l">Model</th>
               <th id="thTtm" title="Delivered units over the trailing sales window">T6M</th><th id="thLastYear">Last yr</th>
               <th>Stock plan</th><th title="On hand (written to a ticket)">QOH</th><th>QOO</th><th>Forecast</th>
-              <th>Order</th><th>TL cost</th><th>Line cost</th>
+              <th>Order</th><th id="thRegular" title="Wholesale (regular) cost — TL cost ÷ (1 − discount) unless the catalog carries an explicit regular cost">Regular</th><th>TL cost</th><th>Line cost</th>
             </tr>
           </thead>
-          <tbody id="rows"><tr><td colspan="11" class="l" style="color:var(--muted); padding:18px;">Loading…</td></tr></tbody>
+          <tbody id="rows"><tr><td colspan="12" class="l" style="color:var(--muted); padding:18px;">Loading…</td></tr></tbody>
           <tfoot id="foot"></tfoot>
         </table>
       </div>
@@ -156,7 +157,7 @@
 
     <div class="surface cat" id="catalogBox" style="display:none;">
       <h2>Catalog &amp; TL pricing <span class="hint" style="display:inline; margin-left:8px;">executives · the template's TL PRICING tab</span></h2>
-      <p class="section-note">One row per model. <strong>Aliases</strong> are older model numbers whose sales count toward this one (TR7003WN → TR7006WN). <strong>Regular cost</strong> is optional — when filled, the board shows truckload savings. Untick <strong>Active</strong> to hide a model without losing its history.</p>
+      <p class="section-note">One row per model. <strong>Aliases</strong> are older model numbers whose sales count toward this one (TR7003WN → TR7006WN). <strong>Regular cost</strong> is derived from the TL cost and the truckload discount setting (TL ÷ (1 − 3%)) — the greyed value is the derived number; only type one to override it for that model. Untick <strong>Active</strong> to hide a model without losing its history.</p>
       <div class="scroll"><table id="catTable"></table></div>
       <div style="display:flex; gap:8px; margin-top:12px; flex-wrap:wrap;">
         <button type="button" class="secondary" id="catAdd">Add a model</button>
@@ -200,16 +201,18 @@
         const units = r.kind === "stacked" ? q * 2 : q;
         const lineCost = r.tlCost != null ? r.tlCost * q : null;
         const savings = r.tlCost != null && r.regularCost != null ? (r.regularCost - r.tlCost) * q : null;
-        return { qty: q, units, lineCost, savings };
+        const regularLineCost = r.regularCost != null ? r.regularCost * q : null;
+        return { qty: q, units, lineCost, savings, regularLineCost };
       }
       function totals() {
         const b = state.board; const s = b.settings;
-        const t = { orderQty: 0, units: 0, washers: 0, dryers: 0, cost: 0, savings: 0, hasSavings: false, short: 0 };
+        const t = { orderQty: 0, units: 0, washers: 0, dryers: 0, cost: 0, regular: 0, savings: 0, hasSavings: false, short: 0 };
         for (const r of b.rows) {
           if (!r.active) continue;
           const c = calcRow(r, state.lines[r.model]);
           t.orderQty += c.qty; t.units += c.units; t.cost += c.lineCost || 0;
           if (c.savings != null) { t.savings += c.savings; t.hasSavings = true; }
+          t.regular += c.regularLineCost || 0;
           if (r.kind === "washer" || r.kind === "stacked") t.washers += c.qty;
           if (r.kind === "dryer" || r.kind === "stacked") t.dryers += c.qty;
           t.short += Math.max(0, r.forecast);
@@ -217,6 +220,7 @@
         t.truck = Number(s.truck_units) || 126;
         t.remaining = t.truck - t.units;
         t.attach = t.washers ? t.dryers / t.washers : null;
+        t.discountPct = Number(s.tl_discount_pct) || 3;
         return t;
       }
       function renderTiles() {
@@ -227,16 +231,16 @@
           <div class="tile${t.units > t.truck ? " over" : ""}">Truck units<strong>${t.units}<small>of ${t.truck}</small></strong><div class="truck${overCls}"><span style="width:${pct}%"></span></div></div>
           <div class="tile${t.remaining < 0 ? " over" : ""}">${t.remaining < 0 ? "Over by" : "Room left"}<strong>${Math.abs(t.remaining)}<small>units</small></strong></div>
           <div class="tile">Washers / dryers<strong>${t.washers} / ${t.dryers}<small>${t.attach == null ? "" : "attach " + t.attach.toFixed(2)}</small></strong></div>
-          <div class="tile">TL total cost<strong>${money(t.cost)}</strong></div>
-          ${t.hasSavings ? `<div class="tile">Savings vs regular<strong>${money(t.savings)}<small>${t.units ? money2(t.savings / t.units) + "/unit" : ""}</small></strong></div>` : ""}
+          <div class="tile">TL total cost<strong>${money(t.cost)}<small>${t.regular ? "regular " + money(t.regular) : ""}</small></strong></div>
+          ${t.hasSavings ? `<div class="tile">Savings vs regular<strong>${money(t.savings)}<small>${t.units ? money2(t.savings / t.units) + "/unit · " : ""}${t.discountPct}% TL discount</small></strong></div>` : ""}
           <div class="tile warn">Forecast shortfall<strong>${t.short}<small>units</small></strong></div>`;
-        $("foot").innerHTML = `<tr><td class="l" colspan="8">Totals — ${t.orderQty} pieces, ${t.units} truck units</td><td>${t.orderQty}</td><td></td><td>${money(t.cost)}</td></tr>`;
+        $("foot").innerHTML = `<tr><td class="l" colspan="8">Totals — ${t.orderQty} pieces, ${t.units} truck units</td><td>${t.orderQty}</td><td class="muted">${t.regular ? money(t.regular) : ""}</td><td></td><td>${money(t.cost)}</td></tr>`;
       }
       function renderRows() {
         const b = state.board;
         let fam = null; const out = [];
         for (const r of b.rows) {
-          if (r.family !== fam) { fam = r.family; out.push(`<tr class="fam"><td colspan="11">${esc(fam || "Other")}</td></tr>`); }
+          if (r.family !== fam) { fam = r.family; out.push(`<tr class="fam"><td colspan="12">${esc(fam || "Other")}</td></tr>`); }
           const c = calcRow(r, state.lines[r.model]);
           const fc = r.forecast > 0 ? "short" : r.forecast < 0 ? "over" : "";
           out.push(`<tr data-model="${esc(r.model)}" class="${r.active ? "" : "inactive"}">
@@ -248,6 +252,7 @@
             <td><input class="qoo" type="number" min="0" step="1" value="${r.qoo}" data-qoo="${esc(r.model)}" title="${esc(r.qooNote || "On order")}"></td>
             <td class="${fc}">${r.forecast}</td>
             <td><input class="qty${c.qty ? " has" : ""}" type="number" min="0" step="1" value="${c.qty || ""}" data-qty="${esc(r.model)}" ${r.active ? "" : "disabled"}></td>
+            <td class="muted" title="${r.regularDerived ? "Derived from TL cost and the discount setting" : "Explicit regular cost from the catalog"}">${money(r.regularCost)}</td>
             <td class="${r.tlCost == null ? "muted" : ""}">${money(r.tlCost)}</td>
             <td data-line="${esc(r.model)}">${c.qty && r.tlCost != null ? money(c.lineCost) : ""}</td>
           </tr>`);
@@ -299,7 +304,7 @@
         for (const r of data.rows) if (r.qty && !(keepLines && state.dirty)) state.lines[r.model] = r.qty;
         $("orderName").value = data.order.name || "";
         $("orderNotes").value = data.order.notes || "";
-        $("setMonths").value = data.settings.stock_plan_months; $("setTruck").value = data.settings.truck_units; $("setTtm").value = data.settings.ttm_months;
+        $("setMonths").value = data.settings.stock_plan_months; $("setTruck").value = data.settings.truck_units; $("setTtm").value = data.settings.ttm_months; $("setDisc").value = data.settings.tl_discount_pct;
         $("settingsBox").style.display = data.canEditCatalog ? "" : "none";
         $("csvLink").href = `/api/sq-truckload/orders/${data.order.id}/csv`;
         renderRows(); renderTiles(); renderSources();
@@ -336,7 +341,7 @@
       $("orderNotes").addEventListener("input", saveMeta);
       $("saveSettings").addEventListener("click", async () => {
         try {
-          await api("/api/sq-truckload/settings", { method: "POST", body: JSON.stringify({ stock_plan_months: $("setMonths").value, truck_units: $("setTruck").value, ttm_months: $("setTtm").value }) });
+          await api("/api/sq-truckload/settings", { method: "POST", body: JSON.stringify({ stock_plan_months: $("setMonths").value, truck_units: $("setTruck").value, ttm_months: $("setTtm").value, tl_discount_pct: $("setDisc").value }) });
           setStatus("Settings saved — stock plans recalculated.", "ok"); await load(true);
         } catch (err) { setStatus(err.message, "error"); }
       });
@@ -382,7 +387,7 @@
           <td><input name="model" value="${esc(r.model)}" ${r.model ? "readonly style='background:#f3f4f6'" : ""}></td>
           <td><select name="kind">${kinds.map((k) => `<option value="${k}" ${k === r.kind ? "selected" : ""}>${k}</option>`).join("")}</select></td>
           <td><input class="n" name="tlCost" type="number" step="0.01" value="${r.tlCost ?? ""}"></td>
-          <td><input class="n" name="regularCost" type="number" step="0.01" value="${r.regularCost ?? ""}"></td>
+          <td><input class="n" name="regularCost" type="number" step="0.01" value="${r.regularDerived ? "" : (r.regularCost ?? "")}" placeholder="${r.regularDerived && r.regularCost != null ? r.regularCost.toFixed(2) : ""}" title="Leave blank to derive from TL cost and the discount setting"></td>
           <td><input name="aliases" value="${esc((r.aliases || []).join(", "))}" placeholder="older model #s"></td>
           <td style="text-align:center;"><input name="active" type="checkbox" ${r.active !== false ? "checked" : ""}></td>
           <td><button type="button" class="quiet" data-cat-save style="padding:5px 10px; font-size:12px;">Save</button></td>

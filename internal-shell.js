@@ -711,8 +711,13 @@
     const label = button ? button.textContent : "";
     const say = (text, keep) => { if (!button) return; button.textContent = text; button.disabled = !!keep; if (!keep) setTimeout(() => { button.textContent = label; button.disabled = false; }, 3500); };
     if (digits.length !== 10) { say("No phone on file"); return; }
+    // The link carries the number the way Podium's own CRM does (phoneNumber=);
+    // the clipboard copy (must happen inside the tap) is a fallback for the
+    // inbox search box should Podium ever stop honoring it.
     const win = window.open("", "_blank");
-    say("Finding conversation…", true);
+    let copied = false;
+    try { await navigator.clipboard.writeText(digits); copied = true; } catch {}
+    say("Opening Podium…", true);
     try {
       const res = await fetch(`/api/podium/conversation-link?phone=${encodeURIComponent(digits)}`, { credentials: "same-origin" });
       const data = await res.json().catch(() => ({}));
@@ -723,7 +728,7 @@
         return;
       }
       if (win) win.location = url; else window.location.href = url;
-      say(data.found === false ? "No Podium thread yet — inbox search opened" : label);
+      say(data.found === false ? "No Podium thread with this number yet" : copied ? "Opening the conversation… (number copied too)" : label);
     } catch (err) {
       say("Podium unreachable");
       if (win) win.close();

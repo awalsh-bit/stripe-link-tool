@@ -66,6 +66,13 @@
     .pill.elsewhere { background: #fef3c7; color: #92400e; }
     .pill.diagnostic { background: #f3f4f6; color: #374151; }
     .pill.comped { background: #fce7f3; color: #9d174d; }
+    /* Communication status (what we've done) — distinct from the client pills above. */
+    .pill.unsent { background: #fee2e2; color: #991b1b; }
+    .pill.sentc { background: #dbeafe; color: #1e40af; }
+    .pill.reminded { background: #ffedd5; color: #9a3412; }
+    .pill.unseen { background: #f1f5f9; color: #64748b; }
+    .se-sends { margin: 4px 0 0; padding: 0; list-style: none; font-size: 12px; color: var(--muted); }
+    .se-sends li { padding: 1px 0; }
     .se-overlay.top { z-index: 70; }
     .se-choice { display: flex; gap: 10px; align-items: flex-start; padding: 10px 12px; border: 1px solid #e2e8f0; border-radius: 10px; cursor: pointer; margin-top: 8px; }
     .se-choice:has(input:checked) { border-color: var(--primary); background: rgba(var(--primary-rgb), 0.06); }
@@ -210,7 +217,7 @@
       <p class="section-note">Newest first. Click a row for the client's response and the link.</p>
       <div style="overflow-x:auto;">
         <table class="se-list">
-          <thead><tr><th>Created</th><th>SV #</th><th>Client</th><th>Due</th><th>Contact</th><th>Status</th><th>Sent by</th><th></th></tr></thead>
+          <thead><tr><th>Created</th><th>SV #</th><th>Client</th><th>Due</th><th>Contact</th><th title="What we've done: unsent, sent, reminder sent">Communication</th><th title="What the client has done: unseen, viewed, approved, shopping">Client</th><th>Sent by</th><th></th></tr></thead>
           <tbody id="seBody"><tr><td colspan="8" class="section-note">Loading…</td></tr></tbody>
         </table>
       </div>
@@ -517,6 +524,7 @@
           const data = await api("/api/service-estimates/send-text", { method: "POST", body: JSON.stringify({ token, phone: to, variant }) });
           btn.textContent = variant === "reminder" ? "Reminded ✓" : "Texted ✓";
           if (noteEl) { noteEl.textContent = `${variant === "reminder" ? "Reminder texted" : "Texted"} to ${data.to} from the showroom number — replies land in Podium.`; noteEl.style.display = "block"; }
+          await load();
           setTimeout(() => { btn.textContent = original; btn.disabled = false; }, 2500);
           return true;
         } catch (err) {
@@ -529,6 +537,12 @@
 
       // ---- list ----
       const PILL = { sent: "Sent", viewed: "Viewed", approved: "Approved", comped: "Comped", shopping: "Shopping", elsewhere: "Went elsewhere", diagnostic: "Diagnostic only" };
+      // Two statuses, side by side (Andrew, 2026-09-17): COMMUNICATION is
+      // ours (unsent / sent / reminder sent ×N), CLIENT is theirs (unseen /
+      // viewed / approved / shopping …). Both come precomputed from the API.
+      const commPill = (e) => { const c = e.communication || { state: "unsent", label: "Unsent" }; const cls = c.state === "sent" ? "sentc" : c.state; const tip = c.lastSentAt ? `Last ${c.lastChannel === "text" ? "texted" : "emailed"} ${when(c.lastSentAt)}` : "Nothing sent yet — email or text the link"; return `<span class="pill ${esc(cls)}" title="${esc(tip)}">${esc(c.label)}</span>`; };
+      const clientPill = (e) => { const c = e.client || { state: e.status === "sent" ? "unseen" : e.status, label: PILL[e.status] || e.status }; const tip = c.respondedAt ? `Responded ${when(c.respondedAt)}${c.byStaff ? " (confirmed by staff)" : ""}` : c.viewedAt ? `Viewed ${when(c.viewedAt)}` : "Hasn't opened the link yet"; return `<span class="pill ${esc(c.state)}" title="${esc(tip)}">${esc(c.label)}</span>`; };
+      const sendsHtml = (e) => { const sends = Array.isArray(e.sends) ? e.sends : []; if (!sends.length) return `<div class="se-hint">Nothing sent yet — copy the link, or email / text it below.</div>`; return `<ul class="se-sends">${sends.slice().reverse().map((x) => `<li>${when(x.at)} · ${x.variant === "reminder" ? "Reminder " : ""}${x.channel === "text" ? "texted" : "emailed"}${x.to ? " to " + esc(x.to) : ""}${x.by ? " · " + esc(x.by) : ""}</li>`).join("")}</ul>`; };
       const needsResolution = (e) => !e.closedAt && ["sent", "viewed"].includes(e.status);
 
       // ---- close / resolve ----
@@ -593,7 +607,8 @@
             <td>${esc(e.customerName)}</td>
             <td>${money(dueOf(e.summary || {}))}${paidOf(e.summary || {}) > 0 ? `<div class="se-hint">of ${money(e.summary?.invoiceTotal)} · ${money(paidOf(e.summary || {}))} paid</div>` : ""}</td>
             <td>${esc([e.contactPhone, e.contactEmail].filter(Boolean).join(" / ") || "—")}</td>
-            <td><span class="pill ${esc(e.status)}">${PILL[e.status] || esc(e.status)}</span></td>
+            <td>${commPill(e)}</td>
+            <td>${clientPill(e)}</td>
             <td>${esc(e.createdByName || e.createdByEmail || "—")}</td>
             <td><button type="button" class="se-btn quiet se-row-close" data-tok="${esc(e.token)}" data-reopen="${isClosed ? "1" : ""}">${isClosed ? "Reopen" : "Close"}</button></td>
           </tr>`;
@@ -604,7 +619,7 @@
         // The list route only returns open estimates; closed ones have their own page.
         const active = state.estimates.filter((e) => !e.closedAt);
         if (!active.length) {
-          body.innerHTML = `<tr><td colspan="8" class="section-note">No open estimates — scan a quote above to send one, or see <a href="closed-estimates.html">closed estimates</a>.</td></tr>`;
+          body.innerHTML = `<tr><td colspan="9" class="section-note">No open estimates — scan a quote above to send one, or see <a href="closed-estimates.html">closed estimates</a>.</td></tr>`;
           return;
         }
         body.innerHTML = active.map((e) => rowHtml(e, state.estimates.indexOf(e), false)).join("");
@@ -628,18 +643,16 @@
         });
       }
 
-      function openDetail(e) {
-        state.open = e;
-        $("soTitle").textContent = `${e.customerName} — ${e.svNumber || "service estimate"}`;
+      function renderDetailBody(e) {
         const r = e.response || {};
         const directionText = { similar: "Something similar to the current unit", new: "Open to trying something new", unsure: "Not sure — wants help deciding" }[r.productDirection] || "";
         const visitText = { visit: "Wants to schedule a showroom visit", contact: "Wants a call/text first", info: "Just send information" }[r.visit] || "";
         const prefChip = { call: "CALL PREF", text: "TEXT PREF", email: "EMAIL PREF" }[e.contactPref] || "";
         $("soBody").innerHTML = `
-          <div class="se-kv"><div class="k">Status</div><div><span class="pill ${esc(e.status)}">${PILL[e.status] || esc(e.status)}</span>${e.respondedAt ? " · " + when(e.respondedAt) : e.viewedAt ? " · viewed " + when(e.viewedAt) : ""}</div></div>
+          <div class="se-kv"><div class="k">Communication</div><div>${commPill(e)}${sendsHtml(e)}</div></div>
+          <div class="se-kv"><div class="k">Client</div><div>${clientPill(e)}${e.respondedAt ? " · responded " + when(e.respondedAt) + (e.client?.byStaff ? " (confirmed by staff)" : "") : e.viewedAt ? " · viewed " + when(e.viewedAt) : " · hasn't opened the link yet"}</div></div>
           <div class="se-kv"><div class="k">Contact</div><div>${esc([e.contactPhone, e.contactEmail].filter(Boolean).join(" · ") || "—")}${prefChip ? ` <span class="se-chip">${prefChip}</span>` : ""}${String(e.contactPhone || "").replace(/\D/g, "").length >= 10 ? `<br><button type="button" class="podium-convo-btn" data-podium-phone="${esc(e.contactPhone)}" title="Open this client's Podium thread (opens the Podium app on a phone)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg> Transition to Podium Conversation</button>` : ""}</div></div>
           <div class="se-kv"><div class="k">Created</div><div>${when(e.createdAt)} by ${esc(e.createdByName || e.createdByEmail || "—")}</div></div>
-          <div class="se-kv"><div class="k">Emailed</div><div>${e.emailedAt ? when(e.emailedAt) : "Not emailed — copy the link or use the button below."}</div></div>
           ${e.summary?.eta ? `<div class="se-kv"><div class="k">Parts ETA</div><div>${({ stock: "In stock", backorder: "Backorder", date: "Specific date" })[e.summary.eta.mode] || esc(e.summary.eta.mode)}${e.summary.eta.from ? " · " + fmtEta(e.summary.eta.from) + (e.summary.eta.to && e.summary.eta.to !== e.summary.eta.from ? " – " + fmtEta(e.summary.eta.to) : "") : ""}<div class="se-hint">${esc(e.summary.etaMessage || "")}</div></div></div>` : ""}
           ${e.closedAt ? `<div class="se-kv"><div class="k">Closed</div><div>${when(e.closedAt)} — hidden from the active list; the client link is inactive.</div></div>` : ""}
           <div class="se-summary" style="margin-top:12px;">${summaryHtml(e.summary || {})}</div>
@@ -649,6 +662,11 @@
           ${e.status === "comped" ? `<div class="se-resp" style="background:#fce7f3;"><strong>Comped.</strong> Wilson covered this one — no charge to the client.</div>` : ""}
           ${r.resolvedByStaff ? `<div class="se-resp" style="background:#f8fafc; border:1px solid #e2e8f0;"><strong>Resolved by ${esc(r.staffName || r.staffEmail || "the team")}</strong>${r.resolvedAt ? " · " + when(r.resolvedAt) : ""}<br>“${esc(r.staffNotes || "")}”</div>` : ""}
           ${e.status === "elsewhere" ? `<div class="se-resp" style="background:#fef3c7;"><strong>Starting their search elsewhere.</strong>${r.notes ? `<br>Their feedback: “${esc(r.notes)}”` : "<br>No feedback left."}<br><span style="color:var(--muted); font-size:12px;">They were reminded of the $100 service-client discount toward a purchase over $999.</span></div>` : ""}`;
+      }
+      function openDetail(e) {
+        state.open = e;
+        $("soTitle").textContent = `${e.customerName} — ${e.svNumber || "service estimate"}`;
+        renderDetailBody(e);
         const emailRow = $("soEmailRow");
         const canEmail = ["sent", "viewed"].includes(e.status);
         emailRow.style.display = canEmail ? "flex" : "none";
@@ -711,6 +729,9 @@
           state.estimates = data.estimates || [];
           state.publicHost = data.publicHost || location.host;
           render();
+          // Keep an open detail panel's statuses current (after a send, a
+          // client response arriving, …) without resetting its inputs.
+          if (state.open) { const fresh = state.estimates.find((x) => x.token === state.open.token); if (fresh) { state.open = fresh; renderDetailBody(fresh); } }
         } catch (err) {
           setStatus(err.message, "error");
         }

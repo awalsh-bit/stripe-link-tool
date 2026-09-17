@@ -226,6 +226,7 @@ import {
   getServiceEstimateByToken,
   markServiceEstimateViewed,
   markServiceEstimateEmailed,
+  recordServiceEstimateSend,
   saveServiceEstimateResponse,
   lookupKnownClientEmail,
   listStaleSentEstimates,
@@ -7130,7 +7131,7 @@ app.post("/api/service-estimates/send-email", requirePagePermission("/service-es
       console.error("Estimate email failed:", r.status, (await r.text()).slice(0, 200));
       return res.status(502).json({ error: "The email didn't go through — try again or copy the link instead." });
     }
-    const updated = await markServiceEstimateEmailed(token, overrideEmail || "");
+    const updated = await recordServiceEstimateSend(token, { channel: "email", variant, to, by: req.authUser?.displayName || req.authUser?.email || "" });
 
     recordAudit({
       ip: req.ip, actorUserId: req.authUser?.id || null,
@@ -7186,13 +7187,15 @@ app.post("/api/service-estimates/send-text", requirePagePermission("/service-est
       return res.status(502).json({ error: "The text didn't go through — try again or copy the link instead." });
     }
 
+    const updated = await recordServiceEstimateSend(token, { channel: "text", variant, to: phone, by: req.authUser?.displayName || req.authUser?.email || "" });
+
     recordAudit({
       ip: req.ip, actorUserId: req.authUser?.id || null,
       action: "service_estimate_texted", targetUserId: null,
       detail: { svNumber: estimate.svNumber, customerName: estimate.customerName, to: phone, variant, transport: result.transport }
     }).catch(() => {});
 
-    return res.json({ ok: true, to: phone });
+    return res.json({ ok: true, to: phone, estimate: updated || estimate });
   } catch (err) {
     console.error("Estimate send-text failed:", err.message);
     return res.status(500).json({ error: "Unable to send the text right now." });

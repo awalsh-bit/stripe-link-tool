@@ -12838,7 +12838,8 @@ app.post("/api/sq-truckload/qoo/upload", requireSqTruckload, (req, res) => {
 });
 app.post("/api/sq-truckload/models", requireSqTruckload, requireExecutiveApi, async (req, res) => {
   try {
-    const model = await upsertSqModel(req.body || {});
+    const { cashQty, cashDollars, ...fields } = req.body || {}; // cash program parked for now
+    const model = await upsertSqModel(fields);
     sqAudit(req, "sq_truckload_model_saved", { model: model.model, tlCost: model.tlCost, active: model.active });
     return res.json({ ok: true, model });
   } catch (err) { return res.status(400).json({ error: err.message }); }

@@ -99,7 +99,7 @@
       <h2>Proposed Orders — Written Models</h2>
       <p class="section-note">
         Upload the ePASS <strong>Written Models Report (OE-04)</strong> export and the <strong>NetSuite items</strong> CSV. Every written, undelivered unit is grouped by
-        <strong>supplier</strong> (NetSuite brand → supplier map), filtered by <strong>delivery month</strong>, with the sell price, ePASS standard cost and the
+        <strong>supplier</strong> (NetSuite's Primary Supplier for the item; brand → supplier map as the fallback), filtered by <strong>delivery month</strong>, with the sell price, ePASS standard cost and the
         surface margin rate (sell − STD) ÷ sell. <strong>Proposed</strong> per model = written − on hand − on order. Only the latest report is kept; upload a fresh one whenever you pull it.
       </p>
       <div id="pageStatus" class="status"></div>
@@ -114,7 +114,7 @@
           </div>
         </div>
         <div class="upload">
-          <span class="lbl">2 · NetSuite items (.csv)</span>
+          <span class="lbl">2 · NetSuite items &amp; suppliers (.csv)</span>
           <div class="src" id="srcItems">No items uploaded yet.</div>
           <div class="row">
             <span class="file"><button type="button" class="secondary">Choose CSV…</button><input type="file" id="fileItems" accept=".csv,.txt" /></span>
@@ -136,8 +136,8 @@
       <div class="tiles" id="tiles"></div>
       <div id="board"><div class="empty">Loading…</div></div>
       <details class="map" id="mapBox" style="display:none;">
-        <summary>Supplier mapping (brand → supplier) and per-model overrides</summary>
-        <p class="section-note" style="margin:8px 0;">Brands roll up to the supplier you order from. Leave a brand blank to use the brand name itself. Models NetSuite doesn't carry (HVAC, parts) can be assigned directly in their row.</p>
+        <summary>Fallback supplier mapping (brand → supplier) and per-model overrides</summary>
+        <p class="section-note" style="margin:8px 0;">NetSuite's Primary Supplier wins when the item has one. This map only fills in for items without a supplier (leave a brand blank to use the brand name itself). Models NetSuite doesn't carry (HVAC, parts) can be assigned directly in their row — that override beats everything.</p>
         <div class="map-grid" id="mapGrid"></div>
         <button type="button" id="btnMapSave">Save supplier map</button>
       </details>
@@ -176,7 +176,7 @@
             const data = await api(url, { method: "POST", body: form });
             setStatus(label === "report"
               ? `Report loaded: ${data.lines} written lines across ${data.models} models (report date ${data.reportDate || "?"}, window ${data.startDate || "?"} → ${data.endDate || "?"}).${data.warnings?.length ? "\n" + data.warnings.join("\n") : ""}`
-              : `Items loaded: ${data.items} NetSuite models with brand and base price.`, "ok");
+              : `Items loaded: ${data.items} NetSuite models, ${data.withSupplier ?? 0} with a Primary Supplier.`, "ok");
             $(fileId).value = ""; $(nameId).textContent = "";
             await load();
           } catch (err) { setStatus(err.message, "error"); }
@@ -252,12 +252,13 @@
           m.stockClass && m.stockClass !== "Non-Stock" ? `<span class="badge stock">${esc(m.stockClass)}</span>` : "",
           m.spokenFor?.length ? `<span class="badge spoken" title="${esc(m.spokenFor.map((s) => `${s.invoice} ${s.customer} ×${s.qty} ${s.status} ${day(s.deliveryDate)}`).join("\n"))}">Spoken for ${m.spokenFor.reduce((a, s) => a + (s.qty || 0), 0)}</span>` : "",
           !m.item ? `<span class="badge unmatched" title="Not in the NetSuite items export">Not in NetSuite</span>` : "",
-          m.supplierSource === "override" ? `<span class="badge override" title="Supplier set by hand for this model">Override</span>` : ""
+          m.supplierSource === "override" ? `<span class="badge override" title="Supplier set by hand for this model">Override</span>` : "",
+          m.supplierSource === "brand" ? `<span class="badge unmatched" title="NetSuite has no Primary Supplier for this item — supplier comes from the brand map">By brand</span>` : ""
         ].filter(Boolean).join(" ");
-        const supIn = canEdit ? `<span class="hint">Supplier: <input class="sup-in" data-model-sup="${esc(m.key)}" value="${esc(m.supplierSource === "override" ? m.supplier : "")}" placeholder="${esc(m.supplierSource === "brand" ? m.supplier + " (by brand)" : "assign…")}" /></span>` : "";
+        const supIn = canEdit ? `<span class="hint">Supplier: <input class="sup-in" data-model-sup="${esc(m.key)}" value="${esc(m.supplierSource === "override" ? m.supplier : "")}" placeholder="${esc(m.supplierSource === "netsuite" ? m.supplier : m.supplierSource === "brand" ? m.supplier + " (by brand)" : "assign…")}" /></span>` : "";
         const mSell = m.lines.reduce((a, l) => a + (l.sellPrice || 0) * (l.qty || 1), 0), mCost = m.lines.reduce((a, l) => a + (l.stdCost || 0) * (l.qty || 1), 0);
         const mm = mSell > 0 ? (mSell - mCost) / mSell : null;
-        const head = `<tr class="model"><td class="l"><strong>${esc(m.model)}</strong> ${badges}<span class="desc">${esc([m.item?.brand, m.item?.description || m.item?.displayName].filter(Boolean).join(" · ") || "")}${m.item?.basePrice != null ? ` · base ${money(m.item.basePrice)}` : ""}${m.locations ? ` · on hand: ${esc(m.locations)}` : ""}</span>${supIn}</td>
+        const head = `<tr class="model"><td class="l"><strong>${esc(m.model)}</strong> ${badges}<span class="desc">${esc([m.item?.brand, m.item?.description || (m.item?.displayName && m.item.displayName !== m.model ? m.item.displayName : "")].filter(Boolean).join(" · ") || "")}${m.item?.basePrice != null ? ` · base ${money(m.item.basePrice)}` : ""}${m.locations ? ` · on hand: ${esc(m.locations)}` : ""}</span>${supIn}</td>
           <td class="l"><span class="hint">${m.lines.length} line${m.lines.length === 1 ? "" : "s"}</span></td>
           <td>${m.written}</td><td>${m.qoh ?? "—"}</td><td>${m.qoo ?? "—"}${m.stockQoo ? ` <span class="hint">stock ${m.stockQoo}</span>` : ""}</td>
           <td class="${m.proposed > 0 ? "short" : "ok"}">${m.proposed}</td>

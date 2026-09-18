@@ -255,6 +255,25 @@ html[data-theme="red"] {
   margin: 2px 4px 10px;
 }
 
+.internal-shell-menu-search {
+  width: 100%;
+  box-sizing: border-box;
+  margin: 0 0 10px;
+  padding: 10px 12px;
+  border: 1px solid rgba(var(--primary-rgb), 0.25);
+  border-radius: 12px;
+  font: inherit;
+  font-size: 14px;
+  background: #fff;
+  color: #1f2937;
+}
+.internal-shell-menu-search:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px rgba(var(--primary-rgb), 0.15); }
+.internal-shell-menu-results { max-height: 60vh; overflow-y: auto; }
+.internal-shell-menu-hit { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+.internal-shell-menu-hit.is-first { background: var(--primary-wash); }
+.internal-shell-menu-hit-group { margin-left: auto; padding-left: 12px; font-size: 11px; color: #6b7280; font-weight: 600; white-space: nowrap; flex: none; }
+.internal-shell-menu-hit-none { padding: 12px 14px; color: #6b7280; font-size: 13px; }
+
 .internal-shell-menu-link {
   display: block;
   padding: 12px 14px;

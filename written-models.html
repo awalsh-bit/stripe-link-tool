@@ -69,9 +69,11 @@
     table.wm td:last-child { width: 34px; }
     table.wm td { padding: 6px 8px; border-bottom: 1px solid #eef1f6; text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; vertical-align: top; }
     table.wm tr.model td { background: #fafbfd; font-weight: 700; }
-    table.wm tr.model td.l .desc { display: block; font-weight: 500; color: var(--muted); font-size: 11.5px; white-space: normal; max-width: 360px; }
+    table.wm tr.model td.l .desc, table.wm tr.line td.l .desc { display: block; font-weight: 500; color: var(--muted); font-size: 11.5px; white-space: normal; max-width: 380px; }
+    table.wm tr.order td { background: var(--primary-faint-2, #f6faf6); border-top: 2px solid var(--border); }
+    table.wm tr.order td.l strong { font-size: 13.5px; }
     table.wm tr.line td { color: #374151; }
-    table.wm tr.line td.l { padding-left: 22px; }
+    table.wm tr.line td.l:first-child { padding-left: 22px; }
     table.wm td.short { color: #b91c1c; }
     table.wm td.ok { color: var(--primary); }
     .hint { font-size: 11px; color: var(--muted); display: block; font-weight: 500; }
@@ -162,7 +164,7 @@
       <div class="filters">
         <div class="chips" id="monthChips"></div>
         <select id="supplierSel"><option value="">All suppliers</option></select>
-        <input type="search" id="q" placeholder="Model, customer, invoice, SP…" style="min-width:220px;" />
+        <input type="search" id="q" placeholder="Sales order, customer, model, SP…" style="min-width:220px;" />
         <button type="button" class="chip" id="codToggle" title="Lines whose deposit reads 0% paid on COD terms — ePASS shows 0% when a return line is funding the sale">Hide 0%-paid COD</button>
         <button type="button" class="chip" id="doneToggle" title="Lines ticked off with the red ⓧ (ordered, or assigned from stock)">Show handled</button>
         <span class="spacer"></span>
@@ -300,47 +302,72 @@
         }));
         renderMap();
       }
+      // Supplier → sales order (soonest schedule date first) → the items on
+      // that order this supplier has to fill (Andrew, 2026-09-18: orders are
+      // filled item by item off the schedule date, so the order is the header
+      // and the model + its inventory position sit on the item rows).
+      function ordersFor(g) {
+        const byInv = new Map();
+        for (const m of g.models) for (const l of m.lines) {
+          const k = l.invoice;
+          if (!byInv.has(k)) byInv.set(k, { invoice: l.invoice, customer: l.customerName, billTo: l.billTo, sp: l.sp, status: l.status, deposit: l.deposit, reference: l.reference, invoiceDate: l.invoiceDate, delDate: l.delDate, items: [] });
+          const o = byInv.get(k);
+          o.items.push({ line: l, model: m });
+          if (l.delDate && (!o.delDate || l.delDate < o.delDate)) o.delDate = l.delDate;
+          if (!o.reference && l.reference) o.reference = l.reference;
+        }
+        return [...byInv.values()].sort((a, b) => (a.delDate || "9").localeCompare(b.delDate || "9") || a.invoice.localeCompare(b.invoice));
+      }
       function supplierHtml(g) {
         const closed = state.closed.has(g.supplier);
+        const orders = ordersFor(g);
         const units = g.models.reduce((a, m) => a + m.lines.reduce((x, l) => x + (l.qty || 0), 0), 0);
         const sell = g.models.reduce((a, m) => a + m.lines.reduce((x, l) => x + (l.sellPrice || 0) * (l.qty || 1), 0), 0);
         const cost = g.models.reduce((a, m) => a + m.lines.reduce((x, l) => x + (l.stdCost || 0) * (l.qty || 1), 0), 0);
         const proposed = g.models.reduce((a, m) => a + Math.min(m.proposed, m.lines.reduce((x, l) => x + (l.qty || 0), 0)), 0);
-        const earliest = g.models.map((m) => m.lines.map((l) => l.delDate).filter(Boolean).sort()[0]).filter(Boolean).sort()[0] || "";
+        const earliest = orders[0]?.delDate || "";
         return `<div class="sup${closed ? " closed" : ""}" data-sup="${esc(g.supplier)}">
           <div class="sup-h"><h3>${esc(g.supplier)}</h3>
-            <div class="meta"><span><b>${units}</b> written</span><span><b>${proposed}</b> to order</span><span>sell <b>${money(sell)}</b></span><span>STD <b>${money(cost)}</b></span><span>margin <b class="${mcls(sell > 0 ? (sell - cost) / sell : null)}">${pct(sell > 0 ? (sell - cost) / sell : null)}</b></span><span>first delivery <b>${day(earliest)}</b></span></div>
+            <div class="meta"><span><b>${orders.length}</b> orders</span><span><b>${units}</b> written</span><span><b>${proposed}</b> to order</span><span>sell <b>${money(sell)}</b></span><span>STD <b>${money(cost)}</b></span><span>margin <b class="${mcls(sell > 0 ? (sell - cost) / sell : null)}">${pct(sell > 0 ? (sell - cost) / sell : null)}</b></span><span>first delivery <b>${day(earliest)}</b></span></div>
             <span class="caret">⌄</span></div>
           <div class="sup-b scroll"><table class="wm">
-            <thead><tr><th class="l">Model</th><th class="l">Invoice · customer</th><th>Written</th><th title="On hand">QOH</th><th title="On order / stock on order">QOO</th><th title="written − QOH − QOO">Proposed</th><th>Delivery</th><th>Sell</th><th>STD cost</th><th>Margin</th><th title="Tick off — ordered, or assigned from stock"></th></tr></thead>
-            <tbody>${g.models.map(modelHtml).join("")}</tbody></table></div></div>`;
+            <thead><tr><th class="l">Sales order · item</th><th class="l">Details</th><th>Qty</th><th>Written</th><th title="On hand">QOH</th><th title="On order / stock on order">QOO</th><th title="written − QOH − QOO">Proposed</th><th>Delivery</th><th>Sell</th><th>STD cost</th><th>Margin</th><th title="Tick off — ordered, or assigned from stock"></th></tr></thead>
+            <tbody>${orders.map(orderHtml).join("")}</tbody></table></div></div>`;
       }
-      function modelHtml(m) {
+      function orderHtml(o) {
+        const qty = o.items.reduce((a, it) => a + (it.line.qty || 0), 0);
+        const sell = o.items.reduce((a, it) => a + (it.line.sellPrice || 0) * (it.line.qty || 1), 0);
+        const cost = o.items.reduce((a, it) => a + (it.line.stdCost || 0) * (it.line.qty || 1), 0);
+        const mm = sell > 0 ? (sell - cost) / sell : null;
+        const anyCod = o.items.some((it) => isUnpaidCod(it.line)), anyRet = o.items.some((it) => isReturn(it.line));
+        const head = `<tr class="model order"><td class="l"><strong class="copy-model" data-copy="${esc(o.invoice)}" title="Click to copy the sales order number">${esc(o.invoice)}</strong> ${esc(o.customer)}${anyRet ? ` <span class="badge ret">Return</span>` : ""}${anyCod ? ` <span class="badge cod" title="0% paid on COD terms">0% COD</span>` : ""}${o.billTo && !o.billTo.includes(o.customer) ? `<span class="hint">bill to ${esc(o.billTo)}</span>` : ""}</td>
+          <td class="l"><span class="hint">${esc(o.sp || "")}${o.status ? " · " + esc(o.status) : ""}${o.deposit ? ` · ${o.deposit.pct}% paid · ${esc(o.deposit.terms)}` : ""}${o.reference ? " · " + esc(o.reference) : ""}<br>${o.items.length} item${o.items.length === 1 ? "" : "s"} · written ${day(o.invoiceDate)}</span></td>
+          <td>${qty}</td><td></td><td></td><td></td><td></td>
+          <td>${day(o.delDate)}</td>
+          <td>${money(sell)}</td><td>${money(cost)}</td><td class="${mcls(mm)}">${pct(mm)}</td><td></td></tr>`;
+        return head + o.items.map(itemHtml).join("");
+      }
+      function itemHtml({ line: l, model: m }) {
         const canEdit = !!state.board.canEdit;
         const badges = [
+          `<button type="button" class="pos-btn" data-pos="${esc(m.key)}" title="Current inventory position — on hand, on order, written, and every unit with its receive date and ticket">Inventory position${m.qoh ? ` · ${m.qoh} on hand` : ""}${m.spokenFor?.length ? ` · ${m.spokenFor.reduce((a, s) => a + (s.qty || 0), 0)} spoken for` : ""}</button>`,
           m.proposed > 0 ? `<span class="badge short">Short ${m.proposed}</span>` : "",
           m.stockClass && m.stockClass !== "Non-Stock" ? `<span class="badge stock">${esc(m.stockClass)}</span>` : "",
-          `<button type="button" class="pos-btn" data-pos="${esc(m.key)}" title="Current inventory position — on hand, on order, written, and every unit with its receive date and ticket">Inventory position${m.qoh ? ` · ${m.qoh} on hand` : ""}${m.spokenFor?.length ? ` · ${m.spokenFor.reduce((a, s) => a + (s.qty || 0), 0)} spoken for` : ""}</button>`,
+          isReturn(l) ? `<span class="badge ret">Return</span>` : "",
+          isUnpaidCod(l) ? `<span class="badge cod" title="0% paid on COD terms">0% COD</span>` : "",
           !m.item ? `<span class="badge unmatched" title="Not in the NetSuite items export">Not in NetSuite</span>` : "",
           m.supplierSource === "override" ? `<span class="badge override" title="Supplier set by hand for this model">Override</span>` : "",
           m.supplierSource === "brand" ? `<span class="badge unmatched" title="NetSuite has no Primary Supplier for this item — supplier comes from the brand map">By brand</span>` : ""
         ].filter(Boolean).join(" ");
-        const supIn = canEdit ? `<span class="hint">Supplier: <input class="sup-in" data-model-sup="${esc(m.key)}" value="${esc(m.supplierSource === "override" ? m.supplier : "")}" placeholder="${esc(m.supplierSource === "netsuite" ? m.supplier : m.supplierSource === "brand" ? m.supplier + " (by brand)" : "assign…")}" /></span>` : "";
-        const mSell = m.lines.reduce((a, l) => a + (l.sellPrice || 0) * (l.qty || 1), 0), mCost = m.lines.reduce((a, l) => a + (l.stdCost || 0) * (l.qty || 1), 0);
-        const mm = mSell > 0 ? (mSell - mCost) / mSell : null;
-        const head = `<tr class="model"><td class="l"><strong class="copy-model" data-copy="${esc(m.model)}" title="Click to copy the model number">${esc(m.model)}</strong> ${badges}<span class="desc">${esc([m.item?.brand, m.item?.description || (m.item?.displayName && m.item.displayName !== m.model ? m.item.displayName : "")].filter(Boolean).join(" · ") || "")}${m.item?.basePrice != null ? ` · base ${money(m.item.basePrice)}` : ""}${m.locations ? ` · on hand: ${esc(m.locations)}` : ""}</span>${supIn}</td>
-          <td class="l"><span class="hint">${m.lines.length} line${m.lines.length === 1 ? "" : "s"}</span></td>
-          <td>${m.written}</td><td>${m.qoh ?? "—"}</td><td>${m.qoo ?? "—"}${m.stockQoo ? ` <span class="hint">stock ${m.stockQoo}</span>` : ""}</td>
+        const supIn = canEdit ? `<span class="hint">Supplier: <input class="sup-in" data-model-sup="${esc(m.key)}" value="${esc(m.supplierSource === "override" ? m.supplier : "")}" placeholder="${esc(m.supplierSource === "netsuite" ? m.supplier : m.supplierSource === "brand" ? m.supplier + " (by brand)" : "assign…")}" title="Leave blank to use NetSuite's supplier; type one to override for this model" /></span>` : "";
+        return `<tr class="line${isReturn(l) ? " ret" : ""}${l.handled ? " done" : ""}">
+          <td class="l"><strong class="copy-model" data-copy="${esc(m.model)}" title="Click to copy the model number">${esc(m.model)}</strong> ${badges}<span class="desc">${esc([m.item?.brand, m.item?.description || (m.item?.displayName && m.item.displayName !== m.model ? m.item.displayName : "")].filter(Boolean).join(" · ") || "")}${m.locations ? ` · on hand: ${esc(m.locations)}` : ""}</span>${supIn}</td>
+          <td class="l"><span class="hint">${esc(l.sp || "")}${l.status ? " · " + esc(l.status) : ""}${l.deposit ? ` · ${l.deposit.pct}% paid · ${esc(l.deposit.terms)}` : ""}${l.reference ? " · " + esc(l.reference) : ""}</span></td>
+          <td>${l.qty}</td><td>${m.written}</td><td>${m.qoh ?? "—"}</td><td>${m.qoo ?? "—"}${m.stockQoo ? ` <span class="hint">stock ${m.stockQoo}</span>` : ""}</td>
           <td class="${m.proposed > 0 ? "short" : "ok"}">${m.proposed}</td>
-          <td>${day(m.lines.map((l) => l.delDate).filter(Boolean).sort()[0])}</td>
-          <td>${money(mSell)}</td><td>${money(mCost)}</td><td class="${mcls(mm)}">${pct(mm)}</td><td></td></tr>`;
-        const lines = m.lines.map((l) => `<tr class="line${isReturn(l) ? " ret" : ""}${l.handled ? " done" : ""}"><td class="l"><span class="hint">${esc(l.sp || "")}${l.status ? " · " + esc(l.status) : ""}${l.deposit ? ` · ${l.deposit.pct}% paid · ${esc(l.deposit.terms)}` : ""}</span>${isReturn(l) ? ` <span class="badge ret">Return</span>` : ""}${isUnpaidCod(l) ? ` <span class="badge cod" title="0% paid on COD terms">0% COD</span>` : ""}</td>
-          <td class="l"><strong>${esc(l.invoice)}</strong> ${esc(l.customerName)}${l.reference ? ` <span class="hint">${esc(l.reference)}</span>` : ""}${l.billTo && !l.billTo.includes(l.customerName) ? `<span class="hint">bill to ${esc(l.billTo)}</span>` : ""}</td>
-          <td>${l.qty}</td><td></td><td></td><td></td>
-          <td>${day(l.delDate)}<span class="hint">written ${day(l.invoiceDate)}</span></td>
+          <td>${day(l.delDate)}</td>
           <td>${money2(l.sellPrice)}</td><td>${money2(l.stdCost)}</td><td class="${mcls(l.marginRate)}">${pct(l.marginRate)}${l.marginDollars != null ? `<span class="hint">${money2(l.marginDollars)}/unit</span>` : ""}</td>
-          <td>${l.handled ? `<button type="button" class="xbtn undo" data-undo="${esc(l.id)}" title="Handled ${when(l.handled.at)}${l.handled.by ? " by " + esc(l.handled.by) : ""} — click to put it back">↺</button>` : `<button type="button" class="xbtn" data-done="${esc(l.id)}" title="Ordered / assigned from stock — take it off the report">✕</button>`}</td></tr>`).join("");
-        return head + lines;
+          <td>${l.handled ? `<button type="button" class="xbtn undo" data-undo="${esc(l.id)}" title="Handled ${when(l.handled.at)}${l.handled.by ? " by " + esc(l.handled.by) : ""} — click to put it back">↺</button>` : `<button type="button" class="xbtn" data-done="${esc(l.id)}" title="Ordered / assigned from stock — take it off the report">✕</button>`}</td></tr>`;
       }
       function renderMap() {
         const b = state.board;

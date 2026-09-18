@@ -205,6 +205,7 @@
       .filter(Boolean);
   }
 
+  let menuIndex = [];
   function buildMenuLinks(session) {
     const links = [
       {
@@ -351,7 +352,15 @@
 
     // Sign Out and the color scheme live in Personal Settings (header, top
     // right) since 2026-09-15 — the hamburger is tools only.
-    return filterLinksForSession(links, session).map((link) => {
+    const visible = filterLinksForSession(links, session);
+    // Flat index for the type-to-filter box (Andrew, 2026-09-18: ~85 pages
+    // for an exec — typing beats scrolling).
+    menuIndex = [];
+    for (const link of visible) {
+      if (Array.isArray(link.children) && link.children.length) for (const c of link.children) menuIndex.push({ href: c.href, title: c.title, group: link.title });
+      else if (link.href) menuIndex.push({ href: link.href, title: link.title, group: "" });
+    }
+    return visible.map((link) => {
       if (Array.isArray(link.children) && link.children.length) {
         return `
           <div class="internal-shell-menu-group">
@@ -420,7 +429,9 @@
               </button>
               <div class="internal-shell-menu-panel">
                 <div class="internal-shell-menu-title">Dashboards</div>
-                ${buildMenuLinks(user)}
+                <input class="internal-shell-menu-search" type="search" placeholder="Find a page… (type to filter)" autocomplete="off" aria-label="Find a page" />
+                <div class="internal-shell-menu-results" hidden></div>
+                <div class="internal-shell-menu-groups">${buildMenuLinks(user)}</div>
               </div>
             </div>
             <img class="internal-shell-logo" src="${withRoot("logo-agility.png")}" alt="Wilson AC & Appliance — Agility" />
@@ -522,6 +533,8 @@
       }
     }
 
+    wireMenuSearch();
+
     const navFooter = document.querySelector(".internal-nav");
     if (navFooter) {
       navFooter.classList.add("internal-shell-footer");
@@ -532,6 +545,49 @@
         footerHost.classList.add("internal-shell-footer");
         footerHost.innerHTML = buildFooter(user);
       }
+    }
+  }
+
+  // ---- Type-to-filter in the hamburger --------------------------------
+  // Typing replaces the group list with matching pages (every word typed
+  // must appear in the page title or its group); Enter opens the first
+  // match, ↑/↓ move through them, Esc clears. The input holding focus is
+  // what keeps the hover panel open on desktop.
+  function wireMenuSearch() {
+    const input = document.querySelector(".internal-shell-menu-search");
+    const results = document.querySelector(".internal-shell-menu-results");
+    const groups = document.querySelector(".internal-shell-menu-groups");
+    if (!input || !results || !groups) return;
+    const esc = (v) => String(v == null ? "" : v).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+    const run = () => {
+      const words = input.value.trim().toLowerCase().split(/\s+/).filter(Boolean);
+      if (!words.length) { results.hidden = true; results.innerHTML = ""; groups.hidden = false; return; }
+      const hits = menuIndex.filter((p) => { const hay = `${p.title} ${p.group}`.toLowerCase(); return words.every((w) => hay.includes(w)); })
+        .sort((a, b) => { const aw = a.title.toLowerCase().startsWith(words[0]) ? 0 : 1, bw = b.title.toLowerCase().startsWith(words[0]) ? 0 : 1; return aw - bw || a.title.localeCompare(b.title); })
+        .slice(0, 14);
+      results.innerHTML = hits.length
+        ? hits.map((p, i) => `<a class="internal-shell-submenu-link internal-shell-menu-hit${i === 0 ? " is-first" : ""}" href="${withRoot(p.href)}">${esc(p.title)}${p.group ? `<span class="internal-shell-menu-hit-group">${esc(p.group)}</span>` : ""}</a>`).join("")
+        : `<div class="internal-shell-menu-hit-none">No page matches “${esc(input.value.trim())}”.</div>`;
+      results.hidden = false; groups.hidden = true;
+    };
+    input.addEventListener("input", run);
+    input.addEventListener("keydown", (ev) => {
+      const hits = [...results.querySelectorAll(".internal-shell-menu-hit")];
+      if (ev.key === "Enter") { const first = hits.find((h) => h.classList.contains("is-first")) || hits[0]; if (first) { ev.preventDefault(); window.location.href = first.href; } }
+      else if (ev.key === "ArrowDown" && hits[0]) { ev.preventDefault(); hits[0].focus(); }
+      else if (ev.key === "Escape") { input.value = ""; run(); }
+    });
+    results.addEventListener("keydown", (ev) => {
+      const hits = [...results.querySelectorAll(".internal-shell-menu-hit")]; const i = hits.indexOf(document.activeElement);
+      if (ev.key === "ArrowDown" && hits[i + 1]) { ev.preventDefault(); hits[i + 1].focus(); }
+      else if (ev.key === "ArrowUp") { ev.preventDefault(); (hits[i - 1] || input).focus(); }
+      else if (ev.key === "Escape") { input.value = ""; run(); input.focus(); }
+    });
+    // Focus the box as soon as the panel opens (desktop hover / mobile tap).
+    const wrap = input.closest(".internal-shell-menu-wrap");
+    if (wrap) {
+      wrap.addEventListener("mouseenter", () => { if (window.matchMedia("(hover: hover)").matches) setTimeout(() => { if (wrap.matches(":hover")) input.focus({ preventScroll: true }); }, 120); });
+      wrap.querySelector(".internal-shell-menu-trigger")?.addEventListener("click", () => setTimeout(() => input.focus({ preventScroll: true }), 50));
     }
   }
 

@@ -65,6 +65,8 @@
     table.wm { width: 100%; border-collapse: collapse; font-size: 12.5px; }
     table.wm th { text-align: right; font-size: 10.5px; letter-spacing: 0.06em; text-transform: uppercase; color: #64748b; padding: 8px 8px; border-bottom: 2px solid var(--border); white-space: nowrap; }
     table.wm th.l, table.wm td.l { text-align: left; }
+    table.wm td.l { white-space: normal; min-width: 170px; }
+    table.wm td:last-child { width: 34px; }
     table.wm td { padding: 6px 8px; border-bottom: 1px solid #eef1f6; text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; vertical-align: top; }
     table.wm tr.model td { background: #fafbfd; font-weight: 700; }
     table.wm tr.model td.l .desc { display: block; font-weight: 500; color: var(--muted); font-size: 11.5px; white-space: normal; max-width: 360px; }
@@ -111,6 +113,15 @@
     table.pos-d td { padding: 6px 8px; border-bottom: 1px solid #eef1f6; white-space: nowrap; font-variant-numeric: tabular-nums; }
     table.pos-d tr.free td { background: #f0fdf4; }
     .pos-note { font-size: 12px; color: var(--muted); margin-top: 10px; }
+    .xbtn { width: 22px; height: 22px; border-radius: 50%; border: 2px solid #dc2626; background: #fff; color: #dc2626; font-size: 13px; font-weight: 900; line-height: 1; padding: 0; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; vertical-align: middle; }
+    .xbtn:hover { background: #dc2626; color: #fff; }
+    .xbtn.undo { border-color: #64748b; color: #64748b; font-size: 12px; }
+    .xbtn.undo:hover { background: #64748b; color: #fff; }
+    table.wm tr.line.done td { opacity: 0.45; text-decoration: line-through; }
+    table.wm tr.line.done td:last-child, table.wm tr.line.done td.l:first-child { text-decoration: none; }
+    .copy-model { cursor: copy; border-bottom: 1px dashed rgba(var(--primary-rgb), 0.5); }
+    .copy-model:hover { color: var(--primary); }
+    .copied { color: var(--primary); font-size: 10.5px; font-weight: 800; margin-left: 6px; }
     @media (max-width: 720px) { body { padding: 14px 12px 40px; } .surface { padding: 16px; } }
   </style>
 </head>
@@ -153,6 +164,7 @@
         <select id="supplierSel"><option value="">All suppliers</option></select>
         <input type="search" id="q" placeholder="Model, customer, invoice, SP…" style="min-width:220px;" />
         <button type="button" class="chip" id="codToggle" title="Lines whose deposit reads 0% paid on COD terms — ePASS shows 0% when a return line is funding the sale">Hide 0%-paid COD</button>
+        <button type="button" class="chip" id="doneToggle" title="Lines ticked off with the red ⓧ (ordered, or assigned from stock)">Show handled</button>
         <span class="spacer"></span>
         <button type="button" class="quiet" id="btnCsv">Download CSV</button>
       </div>
@@ -194,7 +206,14 @@
         if (!res.ok) throw new Error(data.error || "Request failed.");
         return data;
       }
-      const state = { board: null, month: "", supplier: "", q: "", closed: new Set(), hideCod: false };
+      const state = { board: null, month: "", supplier: "", q: "", closed: new Set(), hideCod: false, showDone: false };
+      async function copyText(text, el) {
+        try { await navigator.clipboard.writeText(text); } catch { return; }
+        if (!el) return;
+        let tag = el.nextElementSibling && el.nextElementSibling.classList?.contains("copied") ? el.nextElementSibling : null;
+        if (!tag) { tag = document.createElement("span"); tag.className = "copied"; el.after(tag); }
+        tag.textContent = "copied"; setTimeout(() => tag.remove(), 1200);
+      }
       const isReturn = (l) => (l.qty || 0) < 0;
       const isUnpaidCod = (l) => !!l.deposit && (l.deposit.pct || 0) <= 0 && String(l.deposit.terms || "").toUpperCase() === "COD";
 
@@ -240,11 +259,14 @@
         sel.innerHTML = `<option value="">All suppliers</option>` + (b.suppliers || []).map((g) => `<option value="${esc(g.supplier)}"${cur === g.supplier ? " selected" : ""}>${esc(g.supplier)} (${g.units})</option>`).join("");
 
         const q = state.q.trim().toLowerCase();
-        const groups = (b.suppliers || []).filter((g) => !state.supplier || g.supplier === state.supplier).map((g) => ({ ...g, models: g.models.map((m) => ({ ...m, lines: m.lines.filter((l) => (!state.hideCod || !isUnpaidCod(l)) && (!q || [m.model, m.item?.description, m.item?.brand, l.customerName, l.invoice, l.sp, l.billTo].join(" ").toLowerCase().includes(q))) })).filter((m) => m.lines.length) })).filter((g) => g.models.length);
+        const groups = (b.suppliers || []).filter((g) => !state.supplier || g.supplier === state.supplier).map((g) => ({ ...g, models: g.models.map((m) => ({ ...m, lines: m.lines.filter((l) => (state.showDone || !l.handled) && (!state.hideCod || !isUnpaidCod(l)) && (!q || [m.model, m.item?.description, m.item?.brand, l.customerName, l.invoice, l.sp, l.billTo].join(" ").toLowerCase().includes(q))) })).filter((m) => m.lines.length) })).filter((g) => g.models.length);
 
         const t = { units: 0, proposed: 0, sell: 0, cost: 0, models: 0, unmatched: 0, returns: 0, cod: 0 };
         for (const g of groups) for (const m of g.models) { t.models++; if (!m.item) t.unmatched++; for (const l of m.lines) { t.units += l.qty || 0; t.sell += (l.sellPrice || 0) * (l.qty || 1); t.cost += (l.stdCost || 0) * (l.qty || 1); if (isReturn(l)) t.returns++; if (isUnpaidCod(l)) t.cod++; } t.proposed += Math.min(m.proposed, m.lines.reduce((a, l) => a + (l.qty || 0), 0)); }
         const codAll = (b.suppliers || []).reduce((a, g) => a + g.models.reduce((x, m) => x + m.lines.filter(isUnpaidCod).length, 0), 0);
+        const doneAll = (b.suppliers || []).reduce((a, g) => a + g.models.reduce((x, m) => x + m.lines.filter((l) => l.handled).length, 0), 0);
+        $("doneToggle").textContent = state.showDone ? `Hide handled (${doneAll})` : `Show handled (${doneAll})`;
+        $("doneToggle").classList.toggle("on", state.showDone);
         $("codToggle").textContent = state.hideCod ? `Show 0%-paid COD (${codAll} hidden)` : `Hide 0%-paid COD (${codAll})`;
         $("codToggle").classList.toggle("on", state.hideCod);
         const margin = t.sell > 0 ? (t.sell - t.cost) / t.sell : null;
@@ -262,6 +284,16 @@
         else $("board").innerHTML = groups.map(supplierHtml).join("");
         $("board").querySelectorAll(".sup-h").forEach((h) => h.addEventListener("click", (ev) => { if (ev.target.closest("input,button,a")) return; const s = h.closest(".sup"); s.classList.toggle("closed"); const k = s.dataset.sup; if (s.classList.contains("closed")) state.closed.add(k); else state.closed.delete(k); }));
         $("board").querySelectorAll("[data-pos]").forEach((btn) => btn.addEventListener("click", () => openPosition(btn.dataset.pos)));
+        $("board").querySelectorAll(".copy-model").forEach((el) => el.addEventListener("click", () => copyText(el.dataset.copy, el)));
+        const markLine = async (id, handled) => {
+          try {
+            await api("/api/written-models/lines/handled", { method: "POST", body: JSON.stringify({ id, handled }) });
+            for (const g of state.board.suppliers) for (const m of g.models) for (const l of m.lines) if (l.id === id) l.handled = handled ? { at: new Date().toISOString(), by: "" } : null;
+            render();
+          } catch (err) { setStatus(err.message, "error"); }
+        };
+        $("board").querySelectorAll("[data-done]").forEach((btn) => btn.addEventListener("click", () => markLine(btn.dataset.done, true)));
+        $("board").querySelectorAll("[data-undo]").forEach((btn) => btn.addEventListener("click", () => markLine(btn.dataset.undo, false)));
         $("board").querySelectorAll("input[data-model-sup]").forEach((inp) => inp.addEventListener("change", async () => {
           try { const modelSupplier = { ...(b.settings?.modelSupplier || {}) }; if (inp.value.trim()) modelSupplier[inp.dataset.modelSup] = inp.value.trim(); else delete modelSupplier[inp.dataset.modelSup]; await api("/api/written-models/settings", { method: "POST", body: JSON.stringify({ modelSupplier }) }); await load(); }
           catch (err) { setStatus(err.message, "error"); }
@@ -280,7 +312,7 @@
             <div class="meta"><span><b>${units}</b> written</span><span><b>${proposed}</b> to order</span><span>sell <b>${money(sell)}</b></span><span>STD <b>${money(cost)}</b></span><span>margin <b class="${mcls(sell > 0 ? (sell - cost) / sell : null)}">${pct(sell > 0 ? (sell - cost) / sell : null)}</b></span><span>first delivery <b>${day(earliest)}</b></span></div>
             <span class="caret">⌄</span></div>
           <div class="sup-b scroll"><table class="wm">
-            <thead><tr><th class="l">Model</th><th class="l">Invoice · customer</th><th>Written</th><th title="On hand">QOH</th><th title="On order / stock on order">QOO</th><th title="written − QOH − QOO">Proposed</th><th>Delivery</th><th>Sell</th><th>STD cost</th><th>Margin</th></tr></thead>
+            <thead><tr><th class="l">Model</th><th class="l">Invoice · customer</th><th>Written</th><th title="On hand">QOH</th><th title="On order / stock on order">QOO</th><th title="written − QOH − QOO">Proposed</th><th>Delivery</th><th>Sell</th><th>STD cost</th><th>Margin</th><th title="Tick off — ordered, or assigned from stock"></th></tr></thead>
             <tbody>${g.models.map(modelHtml).join("")}</tbody></table></div></div>`;
       }
       function modelHtml(m) {
@@ -296,17 +328,18 @@
         const supIn = canEdit ? `<span class="hint">Supplier: <input class="sup-in" data-model-sup="${esc(m.key)}" value="${esc(m.supplierSource === "override" ? m.supplier : "")}" placeholder="${esc(m.supplierSource === "netsuite" ? m.supplier : m.supplierSource === "brand" ? m.supplier + " (by brand)" : "assign…")}" /></span>` : "";
         const mSell = m.lines.reduce((a, l) => a + (l.sellPrice || 0) * (l.qty || 1), 0), mCost = m.lines.reduce((a, l) => a + (l.stdCost || 0) * (l.qty || 1), 0);
         const mm = mSell > 0 ? (mSell - mCost) / mSell : null;
-        const head = `<tr class="model"><td class="l"><strong>${esc(m.model)}</strong> ${badges}<span class="desc">${esc([m.item?.brand, m.item?.description || (m.item?.displayName && m.item.displayName !== m.model ? m.item.displayName : "")].filter(Boolean).join(" · ") || "")}${m.item?.basePrice != null ? ` · base ${money(m.item.basePrice)}` : ""}${m.locations ? ` · on hand: ${esc(m.locations)}` : ""}</span>${supIn}</td>
+        const head = `<tr class="model"><td class="l"><strong class="copy-model" data-copy="${esc(m.model)}" title="Click to copy the model number">${esc(m.model)}</strong> ${badges}<span class="desc">${esc([m.item?.brand, m.item?.description || (m.item?.displayName && m.item.displayName !== m.model ? m.item.displayName : "")].filter(Boolean).join(" · ") || "")}${m.item?.basePrice != null ? ` · base ${money(m.item.basePrice)}` : ""}${m.locations ? ` · on hand: ${esc(m.locations)}` : ""}</span>${supIn}</td>
           <td class="l"><span class="hint">${m.lines.length} line${m.lines.length === 1 ? "" : "s"}</span></td>
           <td>${m.written}</td><td>${m.qoh ?? "—"}</td><td>${m.qoo ?? "—"}${m.stockQoo ? ` <span class="hint">stock ${m.stockQoo}</span>` : ""}</td>
           <td class="${m.proposed > 0 ? "short" : "ok"}">${m.proposed}</td>
           <td>${day(m.lines.map((l) => l.delDate).filter(Boolean).sort()[0])}</td>
-          <td>${money(mSell)}</td><td>${money(mCost)}</td><td class="${mcls(mm)}">${pct(mm)}</td></tr>`;
-        const lines = m.lines.map((l) => `<tr class="line${isReturn(l) ? " ret" : ""}"><td class="l"><span class="hint">${esc(l.sp || "")}${l.status ? " · " + esc(l.status) : ""}${l.deposit ? ` · ${l.deposit.pct}% paid · ${esc(l.deposit.terms)}` : ""}</span>${isReturn(l) ? ` <span class="badge ret">Return</span>` : ""}${isUnpaidCod(l) ? ` <span class="badge cod" title="0% paid on COD terms">0% COD</span>` : ""}</td>
+          <td>${money(mSell)}</td><td>${money(mCost)}</td><td class="${mcls(mm)}">${pct(mm)}</td><td></td></tr>`;
+        const lines = m.lines.map((l) => `<tr class="line${isReturn(l) ? " ret" : ""}${l.handled ? " done" : ""}"><td class="l"><span class="hint">${esc(l.sp || "")}${l.status ? " · " + esc(l.status) : ""}${l.deposit ? ` · ${l.deposit.pct}% paid · ${esc(l.deposit.terms)}` : ""}</span>${isReturn(l) ? ` <span class="badge ret">Return</span>` : ""}${isUnpaidCod(l) ? ` <span class="badge cod" title="0% paid on COD terms">0% COD</span>` : ""}</td>
           <td class="l"><strong>${esc(l.invoice)}</strong> ${esc(l.customerName)}${l.reference ? ` <span class="hint">${esc(l.reference)}</span>` : ""}${l.billTo && !l.billTo.includes(l.customerName) ? `<span class="hint">bill to ${esc(l.billTo)}</span>` : ""}</td>
           <td>${l.qty}</td><td></td><td></td><td></td>
           <td>${day(l.delDate)}<span class="hint">written ${day(l.invoiceDate)}</span></td>
-          <td>${money2(l.sellPrice)}</td><td>${money2(l.stdCost)}</td><td class="${mcls(l.marginRate)}">${pct(l.marginRate)}${l.marginDollars != null ? `<span class="hint">${money2(l.marginDollars)}/unit</span>` : ""}</td></tr>`).join("");
+          <td>${money2(l.sellPrice)}</td><td>${money2(l.stdCost)}</td><td class="${mcls(l.marginRate)}">${pct(l.marginRate)}${l.marginDollars != null ? `<span class="hint">${money2(l.marginDollars)}/unit</span>` : ""}</td>
+          <td>${l.handled ? `<button type="button" class="xbtn undo" data-undo="${esc(l.id)}" title="Handled ${when(l.handled.at)}${l.handled.by ? " by " + esc(l.handled.by) : ""} — click to put it back">↺</button>` : `<button type="button" class="xbtn" data-done="${esc(l.id)}" title="Ordered / assigned from stock — take it off the report">✕</button>`}</td></tr>`).join("");
         return head + lines;
       }
       function renderMap() {
@@ -330,7 +363,8 @@
         try {
           const p = await api(`/api/written-models/position?model=${encodeURIComponent(key)}`);
           const s = p.summary;
-          $("posTitle").textContent = `${p.model}${p.description ? " — " + p.description : ""}`;
+          $("posTitle").innerHTML = `<span class="copy-model" title="Click to copy the model number">${esc(p.model)}</span>${p.description ? " — " + esc(p.description) : ""}`;
+          $("posTitle").querySelector(".copy-model").addEventListener("click", (ev) => copyText(p.model, ev.currentTarget));
           $("posSub").textContent = [p.brand, p.supplier, s.stockClass].filter(Boolean).join(" · ");
           const monthName = (m) => new Date(m + "-15T12:00:00Z").toLocaleDateString("en-US", { month: "short", timeZone: "UTC" });
           const summary = `<table class="pos-sum"><thead><tr><th>Loc</th><th>QOH</th><th>QOO</th><th>WRI</th><th>Spoken for</th><th>Free</th>${p.months.map((m) => `<th>${esc(monthName(m.month))}</th>`).join("")}</tr></thead>
@@ -349,6 +383,7 @@
       $("posOverlay").addEventListener("click", (ev) => { if (ev.target === $("posOverlay")) $("posOverlay").classList.remove("show"); });
       document.addEventListener("keydown", (ev) => { if (ev.key === "Escape") $("posOverlay").classList.remove("show"); });
       $("codToggle").addEventListener("click", () => { state.hideCod = !state.hideCod; render(); });
+      $("doneToggle").addEventListener("click", () => { state.showDone = !state.showDone; render(); });
       $("supplierSel").addEventListener("change", () => { state.supplier = $("supplierSel").value; render(); });
       $("q").addEventListener("input", () => { state.q = $("q").value; render(); });
       $("btnCsv").addEventListener("click", () => { window.location.href = `/api/written-models/csv?month=${encodeURIComponent(state.month)}&supplier=${encodeURIComponent(state.supplier)}`; });

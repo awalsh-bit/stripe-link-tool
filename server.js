@@ -404,7 +404,7 @@ import {
 } from "./lib/speedqueen-truckload-postgres.js";
 import {
   parseWrittenModelsWorkbook, parseNetsuiteItemsCsv, saveWrittenModelsSnapshot, replaceNetsuiteItems,
-  buildWrittenModelsBoard, getWrittenModelsSettings, setWrittenModelsSetting, getInventoryPosition
+  buildWrittenModelsBoard, getWrittenModelsSettings, setWrittenModelsSetting, getInventoryPosition, setWrittenLineHandled
 } from "./lib/written-models.js";
 import {
   upsertCommissionPost,
@@ -12978,6 +12978,14 @@ app.post("/api/written-models/items", requireWrittenModels, (req, res) => {
       return res.status(400).json({ error: uploadErr.message || "Unable to read that CSV." });
     }
   });
+});
+// Tick a line off (ordered / assigned from stock) or put it back.
+app.post("/api/written-models/lines/handled", requireWrittenModels, async (req, res) => {
+  try {
+    const out = await setWrittenLineHandled(req.body?.id, req.body?.handled !== false, wmBy(req));
+    wmAudit(req, out.handled ? "written_line_handled" : "written_line_reopened", { id: out.id });
+    return res.json({ ok: true, ...out });
+  } catch (err) { return res.status(400).json({ error: err.message }); }
 });
 // Inventory position for one model (the ePASS "Serial # for Model" view).
 app.get("/api/written-models/position", requireWrittenModels, async (req, res) => {

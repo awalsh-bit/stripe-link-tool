@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="robots" content="noindex,nofollow,noarchive" />
+  <title>Wilson AC & Appliance - Repair Service Commissions</title>
+  <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+  <link rel="stylesheet" href="internal-shell.css" />
+  <style>
+    :root { --bg: #f7f8fc; --card: #ffffff; --text: #1f2937; --muted: #6b7280; --border: #dbe1ea; --error-bg: #fef2f2; --error-text: #991b1b; --shadow: 0 10px 35px rgba(0, 0, 0, 0.08); --radius: 18px; }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: "Roboto", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: linear-gradient(180deg, var(--primary-tint) 0%, var(--bg) 100%); color: var(--text); min-height: 100vh; padding: 24px 24px 60px; }
+    .wrap { max-width: 1520px; margin: 0 auto; }
+    .surface { background: var(--card); border: 1px solid rgba(var(--primary-rgb), 0.12); box-shadow: var(--shadow); border-radius: var(--radius); padding: 24px; margin-bottom: 18px; }
+    h2 { margin: 0 0 6px; font-size: 20px; }
+    h3 { margin: 0 0 8px; font-size: 15px; }
+    .section-note { margin: 0 0 16px; color: var(--muted); font-size: 14px; line-height: 1.5; }
+    button { appearance: none; border: none; background: var(--primary); color: #fff; padding: 10px 16px; border-radius: 10px; font-size: 14px; font-weight: 700; cursor: pointer; font-family: inherit; }
+    button:hover { background: var(--primary-hover); }
+    button:disabled { opacity: 0.6; cursor: wait; }
+    button.secondary { background: var(--primary-tint); color: var(--primary); }
+    button.quiet { background: #fff; color: #374151; border: 1px solid var(--border); }
+    button.tiny { padding: 5px 10px; font-size: 12px; border-radius: 8px; }
+    input, select { border: 1px solid var(--border); border-radius: 10px; padding: 8px 10px; font-size: 13.5px; font-family: inherit; background: #fff; }
+    .status { display: none; margin: 0 0 14px; padding: 10px 14px; border-radius: 10px; font-size: 13.5px; }
+    .status.show { display: block; }
+    .status.error { background: var(--error-bg); color: var(--error-text); }
+    .status.ok { background: rgba(var(--primary-rgb), 0.1); color: var(--primary); }
+    .filters { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin: 0 0 14px; }
+    .chips { display: flex; gap: 6px; flex-wrap: wrap; }
+    .chip { border: 1px solid var(--border); background: #fff; color: #374151; border-radius: 999px; padding: 6px 12px; font-size: 12.5px; font-weight: 700; cursor: pointer; }
+    .chip.on { background: var(--primary); border-color: var(--primary); color: #fff; }
+    .filters .spacer { flex: 1; }
+    .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin: 0 0 16px; }
+    .tile { background: var(--primary-faint-2, #f6faf6); border: 1px solid var(--border); border-radius: 12px; padding: 10px 14px; font-size: 12.5px; color: var(--muted); }
+    .tile strong { display: block; font-size: 21px; color: var(--text); font-variant-numeric: tabular-nums; }
+    .tile strong small { font-size: 12px; color: var(--muted); font-weight: 700; margin-left: 4px; }
+    .scroll { overflow-x: auto; }
+    table.g { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+    table.g th { text-align: right; font-size: 10.5px; letter-spacing: 0.06em; text-transform: uppercase; color: #64748b; padding: 8px 6px; border-bottom: 2px solid var(--border); white-space: nowrap; }
+    table.g th.l, table.g td.l { text-align: left; }
+    table.g td { padding: 6px 6px; border-bottom: 1px solid #eef1f6; text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+    table.g td.wk { min-width: 62px; }
+    table.g td.cur { background: rgba(var(--primary-rgb), 0.06); }
+    table.g td.fut { color: #b8bec8; }
+    .pct { font-weight: 800; }
+    .good { color: var(--primary); } .mid { color: #b45309; } .bad { color: #b91c1c; }
+    .mini { display: block; font-size: 10.5px; color: var(--muted); font-weight: 500; }
+    .tech { font-weight: 800; }
+    .tech a { color: var(--primary); text-decoration: none; font-size: 11px; font-weight: 700; margin-left: 6px; }
+    .bar { height: 6px; background: #e5e7eb; border-radius: 999px; overflow: hidden; margin-top: 4px; min-width: 90px; }
+    .bar > span { display: block; height: 100%; border-radius: 999px; }
+    .plans { display: grid; grid-template-columns: 1fr; gap: 6px; }
+    table.p { width: 100%; border-collapse: collapse; font-size: 13px; }
+    table.p th { text-align: left; font-size: 10.5px; letter-spacing: 0.06em; text-transform: uppercase; color: #64748b; padding: 6px; border-bottom: 2px solid var(--border); }
+    table.p td { padding: 5px 6px; border-bottom: 1px solid #eef1f6; }
+    table.p input { width: 120px; padding: 5px 8px; font-size: 13px; }
+    table.p input.code { width: 80px; text-transform: uppercase; }
+    table.p input.name { width: 180px; }
+    .credit-row { display: flex; gap: 8px; flex-wrap: wrap; align-items: end; margin-top: 10px; }
+    .credit-row label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--muted); }
+    .hint { font-size: 12px; color: var(--muted); }
+    details { margin-top: 8px; }
+    summary { cursor: pointer; font-weight: 700; color: var(--primary); font-size: 13.5px; }
+    .empty { padding: 30px; text-align: center; color: var(--muted); }
+    @media (max-width: 720px) { body { padding: 14px 12px 40px; } .surface { padding: 16px; } }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div id="internal-shell-header"></div>
+
+    <section class="surface">
+      <h2>Repair Service Commissions</h2>
+      <p class="section-note">
+        Every tech's weekly attainment — <strong>COD labor + COD parts margin + warranty labor</strong> (+ any quota credit) from finished SV tickets in the Sales Order Detail feed — against their weekly quota, and where the quarter's
+        commission is trending: <strong>target × (weeks ÷ 52) × attainment% − base × (weeks ÷ 52)</strong>, never below $0. Quarters run 12 / 14 / 12 / 14 fiscal weeks; the commission lands on the paycheck 20 days after the quarter's last Saturday.
+      </p>
+      <div id="pageStatus" class="status"></div>
+      <div class="filters">
+        <select id="yearSel"></select>
+        <div class="chips" id="qChips"></div>
+        <span class="spacer"></span>
+        <span class="hint" id="dataThrough"></span>
+      </div>
+      <div class="tiles" id="tiles"></div>
+      <div class="scroll"><table class="g"><thead id="gHead"></thead><tbody id="gBody"></tbody></table></div>
+      <div class="hint" id="unplanned" style="margin-top:10px;"></div>
+    </section>
+
+    <section class="surface">
+      <h3>Quota credits</h3>
+      <p class="section-note" style="margin-bottom:8px;">Wilson quota credit — install fixes, client-sat visits, anything that should count toward a tech's week but isn't on a billable ticket.</p>
+      <div class="credit-row">
+        <label>Tech <select id="crTech"></select></label>
+        <label>Week <select id="crWeek"></select></label>
+        <label>Amount <input id="crAmount" type="number" step="0.01" placeholder="110.00" style="width:110px;" /></label>
+        <label>Note <input id="crNote" type="text" placeholder="what it was for" style="width:260px;" /></label>
+        <button type="button" id="crAdd">Add credit</button>
+      </div>
+      <div id="crList" class="hint" style="margin-top:10px;"></div>
+    </section>
+
+    <section class="surface" id="planBox">
+      <h3>Plans <span class="hint" id="planYearLbl"></span></h3>
+      <p class="section-note" style="margin-bottom:8px;">One row per tech per year, straight from the Service Dept Quota tab: weekly quota $, target annual compensation, and the base-pay guarantee (blank = 60% of target). Tech code is the ePASS salesperson code on their SV tickets.</p>
+      <div class="scroll"><table class="p"><thead><tr><th>Code</th><th>Name</th><th>Weekly quota</th><th>Target annual</th><th>Base (guarantee)</th><th>Active</th><th></th></tr></thead><tbody id="planBody"></tbody></table></div>
+      <div style="margin-top:8px;"><button type="button" class="quiet tiny" id="planAddRow">+ Add tech</button></div>
+      <details id="calBox">
+        <summary>Fiscal calendar</summary>
+        <p class="hint" style="margin:8px 0;">Week 1 starts the Sunday on or before Jan 1 unless overridden. Quarter lengths in weeks and the pay lag after the quarter's last Saturday.</p>
+        <div class="credit-row" style="margin-top:4px;">
+          <label>Week 1 start (<span id="calYear"></span>) <input id="calW1" type="date" /></label>
+          <label>Q1 weeks <input id="calQ1" type="number" min="1" max="20" style="width:70px;" /></label>
+          <label>Q2 weeks <input id="calQ2" type="number" min="1" max="20" style="width:70px;" /></label>
+          <label>Q3 weeks <input id="calQ3" type="number" min="1" max="20" style="width:70px;" /></label>
+          <label>Q4 weeks <input id="calQ4" type="number" min="1" max="20" style="width:70px;" /></label>
+          <label>Pay lag (days) <input id="calLag" type="number" min="0" max="60" style="width:80px;" /></label>
+          <button type="button" class="quiet" id="calSave">Save calendar</button>
+        </div>
+      </details>
+    </section>
+
+    <div id="internal-shell-footer"></div>
+  </div>
+
+  <script src="internal-shell.js"></script>
+  <script>
+    (() => {
+      const $ = (id) => document.getElementById(id);
+      const esc = (v) => String(v == null ? "" : v).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+      const money = (n) => n == null ? "—" : Number(n).toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 });
+      const pct = (r) => r == null ? "—" : Math.round(r * 100) + "%";
+      const pcls = (r) => r == null ? "" : r >= 1 ? "good" : r >= 0.6 ? "mid" : "bad";
+      const day = (iso) => /^\d{4}-\d{2}-\d{2}/.test(iso || "") ? `${iso.slice(5, 7)}/${iso.slice(8, 10)}/${iso.slice(0, 4)}` : "—";
+      const md = (iso) => /^\d{4}-\d{2}-\d{2}/.test(iso || "") ? `${Number(iso.slice(5, 7))}/${Number(iso.slice(8, 10))}` : "";
+      function setStatus(msg, kind) { const b = $("pageStatus"); if (!msg) { b.className = "status"; b.textContent = ""; return; } b.className = "status show " + kind; b.textContent = msg; }
+      async function api(path, options = {}) { const res = await fetch(path, { credentials: "same-origin", headers: options.body ? { "Content-Type": "application/json" } : {}, ...options }); const data = await res.json().catch(() => ({})); if (!res.ok) throw new Error(data.error || "Request failed."); return data; }
+      const state = { year: "", quarter: "", board: null };
+
+      async function load() {
+        try { state.board = await api(`/api/service-commissions/board?year=${encodeURIComponent(state.year)}&quarter=${encodeURIComponent(state.quarter)}`); render(); }
+        catch (err) { setStatus(err.message, "error"); }
+      }
+      function render() {
+        const b = state.board; const q = b.quarter;
+        state.year = String(b.year); state.quarter = String(q.q);
+        const years = [b.year - 1, b.year, b.year + 1];
+        $("yearSel").innerHTML = years.map((y) => `<option value="${y}"${y === b.year ? " selected" : ""}>${y}</option>`).join("");
+        $("qChips").innerHTML = b.quarters.map((x) => `<button type="button" class="chip${x.q === q.q ? " on" : ""}" data-q="${x.q}">Q${x.q} <small style="opacity:.75;margin-left:4px;">${md(x.start)}–${md(x.end)} · pays ${md(x.payDate)}</small></button>`).join("");
+        $("qChips").querySelectorAll(".chip").forEach((c) => c.addEventListener("click", () => { state.quarter = c.dataset.q; load(); }));
+        $("dataThrough").textContent = b.dataThrough ? `SV tickets through ${day(b.dataThrough)} · ${b.ticketCount} tickets this quarter` : "No finished SV tickets in this quarter yet — upload the Sales Order Detail feed.";
+        const techs = b.techs;
+        const tot = { att: 0, quota: 0, proj: 0, at100: 0, cod: 0, parts: 0, wty: 0 };
+        for (const t of techs) { tot.att += t.summary.attainmentToDate; tot.quota += t.summary.quotaToDate; tot.proj += t.summary.projectedCommission || 0; tot.at100 += t.summary.commissionAt100; tot.cod += t.summary.codLabor; tot.parts += t.summary.codPartsMargin; tot.wty += t.summary.wtyLabor; }
+        const deptPct = tot.quota > 0 ? tot.att / tot.quota : null;
+        $("tiles").innerHTML = `
+          <div class="tile">Dept attainment<strong class="${pcls(deptPct)}">${pct(deptPct)}<small>${money(tot.att)} of ${money(tot.quota)}</small></strong></div>
+          <div class="tile">Trending commissions<strong>${money(tot.proj)}<small>${money(tot.at100)} at 100%</small></strong></div>
+          <div class="tile">COD labor<strong>${money(tot.cod)}</strong></div>
+          <div class="tile">COD parts margin<strong>${money(tot.parts)}</strong></div>
+          <div class="tile">Warranty labor<strong>${money(tot.wty)}</strong></div>
+          <div class="tile">Techs on plan<strong>${techs.length}</strong></div>`;
+        const weeks = techs[0]?.weeks || [];
+        $("gHead").innerHTML = `<tr><th class="l">Tech</th><th>Quota / wk</th>${weeks.map((w) => `<th title="${day(w.start)} – ${day(w.end)}">W${w.n}<span class="mini">${md(w.start)}</span></th>`).join("")}<th>To date</th><th>Attain.</th><th>Trending</th><th>At 100%</th></tr>`;
+        $("gBody").innerHTML = techs.length ? techs.map((t) => { const s = t.summary; return `<tr>
+          <td class="l tech">${esc(t.plan.displayName || t.plan.techCode)}<span class="mini">${esc(t.plan.techCode)} · target ${money(t.plan.targetAnnual)} · base ${money(t.plan.baseAnnual)}</span><a href="my-service-commissions.html?tech=${encodeURIComponent(t.plan.techCode)}&year=${b.year}&quarter=${q.q}">tech view →</a></td>
+          <td>${money(t.plan.weeklyQuota)}</td>
+          ${t.weeks.map((w) => `<td class="wk ${w.status === "current" ? "cur" : w.status === "future" ? "fut" : ""}" title="COD labor ${money(w.codLabor)} · parts margin ${money(w.codPartsMargin)} · warranty ${money(w.wtyLabor)}${w.credit ? " · credit " + money(w.credit) : ""} · ${w.tickets} tickets">${w.status === "future" ? "" : `<span class="pct ${pcls(w.pct)}">${pct(w.pct)}</span><span class="mini">${money(w.attainment)}</span>`}</td>`).join("")}
+          <td>${money(s.attainmentToDate)}<span class="mini">of ${money(s.quotaToDate)}</span></td>
+          <td><span class="pct ${pcls(s.pct)}">${pct(s.pct)}</span><div class="bar"><span style="width:${Math.min(100, Math.round((s.pct || 0) * 100))}%;background:${s.pct == null ? "#9ca3af" : s.pct >= 1 ? "var(--primary)" : s.pct >= 0.6 ? "#f59e0b" : "#dc2626"}"></span></div></td>
+          <td><b>${s.projectedCommission == null ? "—" : money(s.projectedCommission)}</b>${s.neededPerWeek != null && s.pct != null && s.pct < 1 ? `<span class="mini">needs ${money(s.neededPerWeek)}/wk</span>` : ""}</td>
+          <td>${money(s.commissionAt100)}</td></tr>`; }).join("") : `<tr><td colspan="${weeks.length + 6}" class="empty">No plans for ${b.year} yet — add the techs below.</td></tr>`;
+        $("unplanned").innerHTML = b.unplanned.length ? `Techs with SV tickets this quarter but no plan: ${b.unplanned.map((u) => `<b>${esc(u.techCode)}</b> (${esc(u.techName || "?")}, ${u.tickets} tickets)`).join(", ")}.` : "";
+        // credits
+        $("crTech").innerHTML = techs.map((t) => `<option value="${esc(t.plan.techCode)}">${esc(t.plan.displayName || t.plan.techCode)}</option>`).join("");
+        $("crWeek").innerHTML = weeks.map((w) => `<option value="${w.start}"${w.status === "current" ? " selected" : ""}>W${w.n} · ${day(w.start)}</option>`).join("");
+        const credits = techs.flatMap((t) => t.weeks.flatMap((w) => w.credits.map((c) => ({ ...c, tech: t.plan.displayName || t.plan.techCode, week: w.n }))));
+        $("crList").innerHTML = credits.length ? credits.map((c) => `<div>W${c.week} · ${esc(c.tech)} · <b>${money(c.amount)}</b>${c.note ? " — " + esc(c.note) : ""}${c.by ? ` <span style="opacity:.7">(${esc(c.by)})</span>` : ""} <button type="button" class="quiet tiny" data-cr-del="${c.id}">remove</button></div>`).join("") : "No credits this quarter.";
+        $("crList").querySelectorAll("[data-cr-del]").forEach((btn) => btn.addEventListener("click", async () => { try { await api(`/api/service-commissions/credits/${btn.dataset.crDel}/delete`, { method: "POST" }); await load(); } catch (err) { setStatus(err.message, "error"); } }));
+        renderPlans();
+      }
+      function planRow(p) {
+        return `<tr data-plan>
+          <td><input class="code" name="techCode" value="${esc(p.techCode || "")}" ${p.techCode ? "readonly" : ""} placeholder="CODE" /></td>
+          <td><input class="name" name="displayName" value="${esc(p.displayName || "")}" placeholder="Name" /></td>
+          <td><input name="weeklyQuota" type="number" step="1" value="${p.weeklyQuota ?? ""}" placeholder="2600" /></td>
+          <td><input name="targetAnnual" type="number" step="100" value="${p.targetAnnual ?? ""}" placeholder="75000" /></td>
+          <td><input name="baseAnnual" type="number" step="100" value="${p.baseIsDefault || p.baseAnnual == null ? "" : p.baseAnnual}" placeholder="${p.targetAnnual ? Math.round(p.targetAnnual * 0.6) : "60% of target"}" /></td>
+          <td style="text-align:center;"><input name="active" type="checkbox" ${p.active !== false ? "checked" : ""} /></td>
+          <td><button type="button" class="secondary tiny" data-plan-save>Save</button></td></tr>`;
+      }
+      function renderPlans() {
+        const b = state.board;
+        $("planYearLbl").textContent = `· ${b.year}`;
+        if (!b.canEdit) { $("planBox").style.display = "none"; return; }
+        $("planBox").style.display = "";
+        const plans = b.techs.map((t) => t.plan);
+        $("planBody").innerHTML = plans.map(planRow).join("") + b.unplanned.map((u) => planRow({ techCode: u.techCode, displayName: u.techName || "" })).join("");
+        wirePlanRows();
+        $("calYear").textContent = b.year; $("calW1").value = b.settings.weekOneStart; [1, 2, 3, 4].forEach((i) => { $("calQ" + i).value = b.settings.quarterWeeks[i - 1]; }); $("calLag").value = b.settings.payLagDays;
+      }
+      function wirePlanRows() {
+        $("planBody").querySelectorAll("[data-plan-save]").forEach((btn) => btn.addEventListener("click", async () => {
+          const tr = btn.closest("tr"); const v = (n) => tr.querySelector(`[name="${n}"]`).value;
+          try {
+            await api("/api/service-commissions/plans", { method: "POST", body: JSON.stringify({ techCode: v("techCode"), year: state.board.year, displayName: v("displayName"), weeklyQuota: v("weeklyQuota"), targetAnnual: v("targetAnnual"), baseAnnual: v("baseAnnual"), active: tr.querySelector('[name="active"]').checked }) });
+            setStatus(`Plan saved for ${v("techCode").toUpperCase()}.`, "ok"); await load();
+          } catch (err) { setStatus(err.message, "error"); }
+        }));
+      }
+      $("planAddRow").addEventListener("click", () => { $("planBody").insertAdjacentHTML("beforeend", planRow({})); wirePlanRows(); });
+      $("calSave").addEventListener("click", async () => {
+        try {
+          const weekOne = {}; weekOne[state.board.year] = $("calW1").value;
+          await api("/api/service-commissions/settings", { method: "POST", body: JSON.stringify({ week_one_start: { ...(state.board.settings.weekOneStartAll || {}), ...weekOne }, quarter_weeks: [1, 2, 3, 4].map((i) => Number($("calQ" + i).value)), pay_lag_days: Number($("calLag").value) }) });
+          setStatus("Calendar saved.", "ok"); await load();
+        } catch (err) { setStatus(err.message, "error"); }
+      });
+      $("crAdd").addEventListener("click", async () => {
+        try { await api("/api/service-commissions/credits", { method: "POST", body: JSON.stringify({ techCode: $("crTech").value, weekStart: $("crWeek").value, amount: $("crAmount").value, note: $("crNote").value }) }); $("crAmount").value = ""; $("crNote").value = ""; await load(); }
+        catch (err) { setStatus(err.message, "error"); }
+      });
+      $("yearSel").addEventListener("change", () => { state.year = $("yearSel").value; state.quarter = ""; load(); });
+      load();
+    })();
+  </script>
+</body>
+</html>

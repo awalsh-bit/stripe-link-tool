@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="robots" content="noindex,nofollow,noarchive" />
+  <title>Wilson AC & Appliance - My Service Commission</title>
+  <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+  <link rel="stylesheet" href="internal-shell.css" />
+  <style>
+    :root { --bg: #f7f8fc; --card: #ffffff; --text: #1f2937; --muted: #6b7280; --border: #dbe1ea; --error-bg: #fef2f2; --error-text: #991b1b; --shadow: 0 10px 35px rgba(0, 0, 0, 0.08); --radius: 18px; }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: "Roboto", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: linear-gradient(180deg, var(--primary-tint) 0%, var(--bg) 100%); color: var(--text); min-height: 100vh; padding: 24px 24px 60px; }
+    .wrap { max-width: 980px; margin: 0 auto; }
+    .surface { background: var(--card); border: 1px solid rgba(var(--primary-rgb), 0.12); box-shadow: var(--shadow); border-radius: var(--radius); padding: 22px; margin-bottom: 16px; }
+    h2 { margin: 0 0 4px; font-size: 20px; }
+    .sub { color: var(--muted); font-size: 13.5px; margin: 0 0 14px; line-height: 1.5; }
+    .status { display: none; margin: 0 0 14px; padding: 10px 14px; border-radius: 10px; font-size: 13.5px; }
+    .status.show { display: block; }
+    .status.error { background: var(--error-bg); color: var(--error-text); }
+    .chips { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 14px; }
+    .chip { border: 1px solid var(--border); background: #fff; color: #374151; border-radius: 999px; padding: 6px 12px; font-size: 12.5px; font-weight: 700; cursor: pointer; }
+    .chip.on { background: var(--primary); border-color: var(--primary); color: #fff; }
+    select { border: 1px solid var(--border); border-radius: 10px; padding: 8px 10px; font-size: 13.5px; font-family: inherit; background: #fff; }
+
+    .hero { display: grid; grid-template-columns: 1.2fr 1fr; gap: 18px; align-items: stretch; }
+    @media (max-width: 720px) { .hero { grid-template-columns: 1fr; } body { padding: 14px 12px 40px; } .surface { padding: 16px; } }
+    .gauge { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 8px 0 0; }
+    .gauge svg { width: 100%; max-width: 360px; height: auto; display: block; }
+    .gauge .big { font-size: 40px; font-weight: 900; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; line-height: 1; }
+    .gauge .lbl { font-size: 12px; color: var(--muted); font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; margin-top: 4px; }
+    .money { display: flex; flex-direction: column; justify-content: center; gap: 10px; }
+    .money .amt { font-size: 38px; font-weight: 900; letter-spacing: -0.02em; color: var(--primary); font-variant-numeric: tabular-nums; line-height: 1; }
+    .money .amt.zero { color: #b45309; }
+    .money .cap { font-size: 12px; color: var(--muted); font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; }
+    .money .row { font-size: 13.5px; color: #374151; line-height: 1.5; }
+    .money .row b { font-variant-numeric: tabular-nums; }
+    .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; margin-top: 16px; }
+    .tile { background: var(--primary-faint-2, #f6faf6); border: 1px solid var(--border); border-radius: 12px; padding: 10px 12px; font-size: 12px; color: var(--muted); }
+    .tile strong { display: block; font-size: 19px; color: var(--text); font-variant-numeric: tabular-nums; }
+    .tile strong small { font-size: 11px; color: var(--muted); font-weight: 700; margin-left: 3px; }
+
+    .bars { display: grid; grid-template-columns: repeat(var(--n, 12), 1fr); gap: 6px; align-items: end; height: 190px; padding: 14px 0 0; border-bottom: 2px solid var(--border); }
+    @media (max-width: 720px) { .bars { gap: 3px; } .bar .v { display: none; } .xlab { gap: 3px; font-size: 9px; } }
+    .bar { position: relative; display: flex; flex-direction: column; justify-content: flex-end; height: 100%; }
+    .bar .fill { background: var(--primary); border-radius: 6px 6px 0 0; min-height: 2px; position: relative; }
+    .bar.under .fill { background: #f59e0b; }
+    .bar.low .fill { background: #dc2626; }
+    .bar.current .fill { background: repeating-linear-gradient(135deg, var(--primary) 0 6px, rgba(var(--primary-rgb), 0.55) 6px 12px); }
+    .bar.future .fill { background: #e5e7eb; }
+    .bar .v { position: absolute; left: 0; right: 0; bottom: 100%; text-align: center; font-size: 10.5px; font-weight: 700; color: #374151; padding-bottom: 2px; white-space: nowrap; }
+    .quota-line { position: absolute; left: 0; right: 0; border-top: 2px dashed #64748b; pointer-events: none; }
+    .barwrap { position: relative; }
+    .xlab { display: grid; grid-template-columns: repeat(var(--n, 12), 1fr); gap: 6px; font-size: 10.5px; color: var(--muted); text-align: center; margin-top: 6px; }
+    .xlab span b { display: block; color: var(--text); }
+    .legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 12px; color: var(--muted); margin-top: 10px; }
+    .legend i { display: inline-block; width: 12px; height: 12px; border-radius: 3px; vertical-align: -2px; margin-right: 5px; }
+
+    table.wk { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 6px; }
+    table.wk th { text-align: right; font-size: 10.5px; letter-spacing: 0.06em; text-transform: uppercase; color: #64748b; padding: 8px 8px; border-bottom: 2px solid var(--border); white-space: nowrap; }
+    table.wk th.l, table.wk td.l { text-align: left; }
+    table.wk td { padding: 7px 8px; border-bottom: 1px solid #eef1f6; text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+    table.wk tr.current td { background: rgba(var(--primary-rgb), 0.06); }
+    table.wk tr.future td { color: #9ca3af; }
+    .pct { font-weight: 800; }
+    .pct.good { color: var(--primary); } .pct.mid { color: #b45309; } .pct.bad { color: #b91c1c; }
+    .note { font-size: 12px; color: var(--muted); margin-top: 10px; line-height: 1.5; }
+    .empty { padding: 30px; text-align: center; color: var(--muted); }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div id="internal-shell-header"></div>
+
+    <section class="surface">
+      <h2 id="title">My Service Commission</h2>
+      <p class="sub" id="subtitle">Where you're trending for your next commission check.</p>
+      <div id="pageStatus" class="status"></div>
+      <div class="chips" id="qChips"></div>
+      <div id="hero" class="hero"></div>
+      <div id="tiles" class="tiles"></div>
+    </section>
+
+    <section class="surface">
+      <h2 style="font-size:16px;">Week by week</h2>
+      <p class="sub">Each bar is a fiscal week's attainment — COD labor + COD parts margin + warranty labor (+ any quota credit). The dashed line is your weekly quota.</p>
+      <div class="barwrap"><div class="bars" id="bars"></div><div class="xlab" id="xlab"></div></div>
+      <div class="legend"><span><i style="background:var(--primary)"></i>At or over quota</span><span><i style="background:#f59e0b"></i>Under quota</span><span><i style="background:#dc2626"></i>Under half</span><span><i style="background:repeating-linear-gradient(135deg,var(--primary) 0 4px,rgba(0,0,0,0.15) 4px 8px)"></i>This week (in progress)</span><span><i style="background:#e5e7eb"></i>Coming up</span></div>
+      <div style="overflow-x:auto;"><table class="wk"><thead><tr><th class="l">Week</th><th>COD labor</th><th>COD parts margin</th><th>Warranty labor</th><th>Credit</th><th>Attainment</th><th>Quota</th><th>%</th></tr></thead><tbody id="wkBody"></tbody></table></div>
+      <div class="note" id="note"></div>
+    </section>
+
+    <div id="internal-shell-footer"></div>
+  </div>
+
+  <script src="internal-shell.js"></script>
+  <script>
+    (() => {
+      const $ = (id) => document.getElementById(id);
+      const esc = (v) => String(v == null ? "" : v).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+      const money = (n) => n == null ? "—" : Number(n).toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 });
+      const pct = (r) => r == null ? "—" : Math.round(r * 100) + "%";
+      const pcls = (r) => r == null ? "" : r >= 1 ? "good" : r >= 0.6 ? "mid" : "bad";
+      const day = (iso) => /^\d{4}-\d{2}-\d{2}/.test(iso || "") ? `${iso.slice(5, 7)}/${iso.slice(8, 10)}/${iso.slice(0, 4)}` : "—";
+      const md = (iso) => /^\d{4}-\d{2}-\d{2}/.test(iso || "") ? `${Number(iso.slice(5, 7))}/${Number(iso.slice(8, 10))}` : "";
+      function setStatus(msg, kind) { const b = $("pageStatus"); if (!msg) { b.className = "status"; b.textContent = ""; return; } b.className = "status show " + kind; b.textContent = msg; }
+      async function api(path) { const res = await fetch(path, { credentials: "same-origin" }); const data = await res.json().catch(() => ({})); if (!res.ok) throw new Error(data.error || "Request failed."); return data; }
+      const params = new URLSearchParams(location.search);
+      const state = { year: params.get("year") || "", quarter: params.get("quarter") || "", tech: params.get("tech") || "" };
+
+      async function load() {
+        try {
+          const d = await api(`/api/my-service-commissions?year=${encodeURIComponent(state.year)}&quarter=${encodeURIComponent(state.quarter)}${state.tech ? "&tech=" + encodeURIComponent(state.tech) : ""}`);
+          render(d);
+        } catch (err) { setStatus(err.message, "error"); $("hero").innerHTML = ""; $("tiles").innerHTML = ""; $("bars").innerHTML = ""; $("wkBody").innerHTML = ""; }
+      }
+      function gaugeSvg(r) {
+        const v = Math.max(0, Math.min(1.3, r == null ? 0 : r));
+        const a0 = Math.PI, a1 = Math.PI - (v / 1.3) * Math.PI;
+        const R = 120, cx = 150, cy = 152;
+        const pt = (a) => [cx + R * Math.cos(a), cy - R * Math.sin(a)];
+        const arc = (from, to, color, w) => { const [x0, y0] = pt(from), [x1, y1] = pt(to); const large = from - to > Math.PI ? 1 : 0; return `<path d="M${x0.toFixed(1)} ${y0.toFixed(1)} A${R} ${R} 0 ${large} 1 ${x1.toFixed(1)} ${y1.toFixed(1)}" fill="none" stroke="${color}" stroke-width="${w}" stroke-linecap="round"/>`; };
+        const tick = (val, label) => { const a = Math.PI - (val / 1.3) * Math.PI; const [x, y] = pt(a); const [tx, ty] = [cx + (R + 22) * Math.cos(a), cy - (R + 22) * Math.sin(a)]; return `<line x1="${(cx + (R - 12) * Math.cos(a)).toFixed(1)}" y1="${(cy - (R - 12) * Math.sin(a)).toFixed(1)}" x2="${(cx + (R + 12) * Math.cos(a)).toFixed(1)}" y2="${(cy - (R + 12) * Math.sin(a)).toFixed(1)}" stroke="#64748b" stroke-width="2"/><text x="${tx.toFixed(1)}" y="${(ty + 4).toFixed(1)}" font-size="11" font-weight="700" fill="#64748b" text-anchor="middle">${label}</text>`; };
+        const color = r == null ? "#9ca3af" : r >= 1 ? "var(--primary)" : r >= 0.6 ? "#f59e0b" : "#dc2626";
+        return `<svg viewBox="0 0 300 172" aria-label="Attainment gauge">${arc(a0, 0, "#e5e7eb", 18)}${v > 0 ? arc(a0, a1, color, 18) : ""}${tick(0.6, "60%")}${tick(1, "100%")}<text x="150" y="140" text-anchor="middle" font-size="38" font-weight="900" fill="#1f2937">${esc(pct(r))}</text><text x="150" y="162" text-anchor="middle" font-size="11" font-weight="700" fill="#6b7280" letter-spacing="1">ATTAINMENT TO DATE</text></svg>`;
+      }
+      function render(d) {
+        setStatus("", "");
+        const t = d.tech, s = t.summary, p = t.plan, q = d.quarter;
+        $("title").textContent = `${p.displayName || p.techCode} — Q${q.q} ${d.year}`;
+        $("subtitle").textContent = `Fiscal weeks ${q.firstWeek}–${q.lastWeek} (${day(q.start)} → ${day(q.end)}) · commission check ${day(s.payDate)} · weekly quota ${money(p.weeklyQuota)}`;
+        $("qChips").innerHTML = d.quarters.map((x) => `<button type="button" class="chip${x.q === q.q ? " on" : ""}" data-q="${x.q}">Q${x.q}<small style="opacity:.75;margin-left:5px;">${md(x.start)}–${md(x.end)}</small></button>`).join("");
+        $("qChips").querySelectorAll(".chip").forEach((c) => c.addEventListener("click", () => { state.quarter = c.dataset.q; state.year = String(d.year); load(); }));
+        const proj = s.projectedCommission;
+        $("hero").innerHTML = `
+          <div class="gauge">${gaugeSvg(s.pct)}</div>
+          <div class="money">
+            <div class="cap">Trending commission for the ${day(s.payDate)} check</div>
+            <div class="amt${proj === 0 ? " zero" : ""}">${proj == null ? "—" : money(proj)}</div>
+            <div class="row">At 100% of quota this quarter pays <b>${money(s.commissionAt100)}</b> · every point of attainment is worth about <b>${money(s.perAttainmentPoint)}</b>.</div>
+            ${s.pct != null && s.pct < 1 && s.neededPerWeek != null && s.remainingWeeks > 0 ? `<div class="row">To finish at 100% you need <b>${money(s.neededPerWeek)}</b> a week for the remaining <b>${s.remainingWeeks}</b> week${s.remainingWeeks === 1 ? "" : "s"}.</div>` : ""}
+            ${s.pct != null && s.pct < s.breakEvenPct ? `<div class="row">Commission starts above <b>${pct(s.breakEvenPct)}</b> attainment — you're <b>${money(Math.max(0, s.quotaToDate * s.breakEvenPct - s.attainmentToDate))}</b> short of that line so far.</div>` : ""}
+            ${s.pct == null ? `<div class="row">No completed weeks in this quarter yet — the projection appears after the first full week.</div>` : ""}
+          </div>`;
+        $("tiles").innerHTML = `
+          <div class="tile">Attainment to date<strong>${money(s.attainmentToDate)}<small>of ${money(s.quotaToDate)}</small></strong></div>
+          <div class="tile">Weeks complete<strong>${s.completedWeeks}<small>of ${s.quarterWeeks}</small></strong></div>
+          <div class="tile">COD labor<strong>${money(s.codLabor)}</strong></div>
+          <div class="tile">COD parts margin<strong>${money(s.codPartsMargin)}</strong></div>
+          <div class="tile">Warranty labor<strong>${money(s.wtyLabor)}</strong></div>
+          ${s.credit ? `<div class="tile">Quota credit<strong>${money(s.credit)}</strong></div>` : ""}
+          ${s.currentWeek ? `<div class="tile">This week so far<strong>${money(s.currentWeek.attainment)}<small>${pct(s.currentWeek.pct)}</small></strong></div>` : ""}`;
+        // bars
+        const max = Math.max(p.weeklyQuota * 1.25, ...t.weeks.map((w) => w.attainment), 1);
+        $("bars").style.setProperty("--n", t.weeks.length); $("xlab").style.setProperty("--n", t.weeks.length);
+        $("bars").innerHTML = t.weeks.map((w) => { const h = Math.max(0, Math.min(100, (w.attainment / max) * 100)); const cls = w.status === "future" ? "future" : w.status === "current" ? "current" : w.pct == null ? "" : w.pct >= 1 ? "" : w.pct >= 0.5 ? "under" : "low"; return `<div class="bar ${cls}" title="Week ${w.n} (${day(w.start)} – ${day(w.end)}): ${money(w.attainment)} · ${pct(w.pct)}"><div class="fill" style="height:${w.status === "future" ? 2 : h}%"><span class="v">${w.status === "future" ? "" : money(w.attainment)}</span></div></div>`; }).join("");
+        const qline = document.createElement("div"); qline.className = "quota-line"; qline.style.bottom = `${Math.min(100, (p.weeklyQuota / max) * 100)}%`; qline.title = `Weekly quota ${money(p.weeklyQuota)}`; $("bars").appendChild(qline);
+        $("xlab").innerHTML = t.weeks.map((w) => `<span><b>W${w.n}</b>${md(w.start)}</span>`).join("");
+        $("wkBody").innerHTML = t.weeks.map((w) => `<tr class="${w.status}"><td class="l"><b>Week ${w.n}</b> <span style="color:var(--muted);font-size:12px;">${day(w.start)} – ${day(w.end)}${w.status === "current" ? " · in progress" : ""}</span>${w.credits.length ? `<div style="font-size:11.5px;color:var(--muted);">${w.credits.map((c) => `credit ${money(c.amount)}${c.note ? " — " + esc(c.note) : ""}`).join("; ")}</div>` : ""}</td>
+          <td>${w.status === "future" ? "" : money(w.codLabor)}</td><td>${w.status === "future" ? "" : money(w.codPartsMargin)}</td><td>${w.status === "future" ? "" : money(w.wtyLabor)}</td><td>${w.credit ? money(w.credit) : ""}</td>
+          <td><b>${w.status === "future" ? "" : money(w.attainment)}</b></td><td>${money(w.quota)}</td><td class="pct ${w.status === "future" ? "" : pcls(w.pct)}">${w.status === "future" ? "" : pct(w.pct)}</td></tr>`).join("");
+        $("note").textContent = `Numbers come from finished SV tickets in the Sales Order Detail feed${d.dataThrough ? ` (data through ${day(d.dataThrough)})` : ""}. COD tickets count labor plus parts margin; manufacturer and WACA warranty tickets count labor only. Only completed weeks count toward the attainment %; the current week shows separately until it closes.`;
+      }
+      load();
+    })();
+  </script>
+</body>
+</html>

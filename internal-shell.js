@@ -251,8 +251,6 @@
         title: "Sales Tools",
         children: [
           { href: "salesdashboard.html", title: "Sales Dashboard" },
-          { href: "my-commissions.html", title: "My Commission Review" },
-          { href: "commissions.html", title: "Sales Commissions" },
           { href: "sales-order-health.html", title: "Sales Order Health Report" },
           { href: "sales-order-detail.html", title: "Sales Order Detail" },
           { href: "brand-sales.html", title: "Brand Sales" },
@@ -271,10 +269,19 @@
         ]
       },
       {
+        title: "Commissions",
+        children: [
+          { href: "commissions.html", title: "Sales Commissions" },
+          { href: "my-commissions.html", title: "My Commission Review" },
+          { href: "service-commissions.html", title: "Repair Service Commissions" },
+          { href: "my-service-commissions.html", title: "My Service Commission" }
+        ]
+      },
+      {
         title: "Purchasing",
         children: [
           { href: "speedqueen-truckload.html", title: "Speed Queen Truckload Builder" },
-          { href: "written-models.html", title: "Proposed Orders (Written Models)" }
+          { href: "written-models.html", title: "Ordering Report" }
         ]
       },
       {

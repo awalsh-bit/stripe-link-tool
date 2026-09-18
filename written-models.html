@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="robots" content="noindex,nofollow,noarchive" />
-  <title>Wilson AC & Appliance - Proposed Orders (Written Models)</title>
+  <title>Wilson AC & Appliance - Ordering Report</title>
   <link rel="icon" type="image/svg+xml" href="favicon.svg" />
   <link rel="stylesheet" href="internal-shell.css" />
   <style>
@@ -13,7 +13,7 @@
       --error-bg: #fef2f2; --error-text: #991b1b; --shadow: 0 10px 35px rgba(0, 0, 0, 0.08); --radius: 18px;
     }
     * { box-sizing: border-box; }
-    body { margin: 0; font-family: "Roboto", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: linear-gradient(180deg, var(--primary-faint, #f2f7f2) 0%, var(--bg) 220px); color: var(--text); padding: 24px 24px 60px; }
+    body { margin: 0; font-family: "Roboto", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: linear-gradient(180deg, var(--primary-tint) 0%, var(--bg) 100%); color: var(--text); min-height: 100vh; padding: 24px 24px 60px; }
     .wrap { max-width: 1520px; margin: 0 auto; }
     .surface { background: var(--card); border: 1px solid rgba(var(--primary-rgb), 0.12); box-shadow: var(--shadow); border-radius: var(--radius); padding: 24px; margin-bottom: 18px; }
     h2 { margin: 0 0 6px; font-size: 20px; }
@@ -84,7 +84,7 @@
     .badge.spoken { background: #ecfccb; color: #3f6212; }
     .badge.unmatched { background: #f3f4f6; color: #374151; }
     .badge.override { background: #ede9fe; color: #5b21b6; }
-    .sup-in { width: 130px; padding: 4px 8px; font-size: 12px; border-radius: 8px; border: 1px solid var(--border); font-family: inherit; }
+    .sup-in { max-width: 260px; padding: 3px 6px; font-size: 12px; border-radius: 8px; border: 1px solid var(--border); font-family: inherit; background: #fff; }
 
     details.map { margin-top: 6px; }
     details.map summary { cursor: pointer; font-weight: 700; color: var(--primary); font-size: 13.5px; }
@@ -131,7 +131,7 @@
   <div class="wrap">
     <div id="internal-shell-header"></div>
     <section class="surface">
-      <h2>Proposed Orders — Written Models</h2>
+      <h2>Ordering Report</h2>
       <p class="section-note">
         Upload the ePASS <strong>Written Models Report (OE-04)</strong> export and the <strong>NetSuite items</strong> CSV. Every written, undelivered unit is grouped by
         <strong>supplier</strong> (NetSuite's Primary Supplier for the item; brand → supplier map as the fallback), filtered by <strong>delivery month</strong>, with the sell price, ePASS standard cost and the
@@ -296,7 +296,7 @@
         };
         $("board").querySelectorAll("[data-done]").forEach((btn) => btn.addEventListener("click", () => markLine(btn.dataset.done, true)));
         $("board").querySelectorAll("[data-undo]").forEach((btn) => btn.addEventListener("click", () => markLine(btn.dataset.undo, false)));
-        $("board").querySelectorAll("input[data-model-sup]").forEach((inp) => inp.addEventListener("change", async () => {
+        $("board").querySelectorAll("[data-model-sup]").forEach((inp) => inp.addEventListener("change", async () => {
           try { const modelSupplier = { ...(b.settings?.modelSupplier || {}) }; if (inp.value.trim()) modelSupplier[inp.dataset.modelSup] = inp.value.trim(); else delete modelSupplier[inp.dataset.modelSup]; await api("/api/written-models/settings", { method: "POST", body: JSON.stringify({ modelSupplier }) }); await load(); }
           catch (err) { setStatus(err.message, "error"); }
         }));
@@ -359,9 +359,12 @@
           m.supplierSource === "override" ? `<span class="badge override" title="Supplier set by hand for this model">Override</span>` : "",
           m.supplierSource === "brand" ? `<span class="badge unmatched" title="NetSuite has no Primary Supplier for this item — supplier comes from the brand map">By brand</span>` : ""
         ].filter(Boolean).join(" ");
-        const supIn = canEdit ? `<span class="hint">Supplier: <input class="sup-in" data-model-sup="${esc(m.key)}" value="${esc(m.supplierSource === "override" ? m.supplier : "")}" placeholder="${esc(m.supplierSource === "netsuite" ? m.supplier : m.supplierSource === "brand" ? m.supplier + " (by brand)" : "assign…")}" title="Leave blank to use NetSuite's supplier; type one to override for this model" /></span>` : "";
+        const opts = state.board.supplierOptions || [];
+        const cur = m.supplierSource === "override" ? m.supplier : "";
+        const dflt = m.supplierSource === "netsuite" ? `${m.supplier} (NetSuite)` : m.supplierSource === "brand" ? `${m.supplier} (by brand)` : "Unassigned — pick a supplier";
+        const supIn = canEdit ? `<span class="hint">Supplier: <select class="sup-in" data-model-sup="${esc(m.key)}" title="NetSuite's supplier applies unless you pick one here"><option value="">${esc(dflt)}</option>${opts.map((o) => `<option value="${esc(o)}"${o === cur ? " selected" : ""}>${esc(o)}</option>`).join("")}</select></span>` : "";
         return `<tr class="line${isReturn(l) ? " ret" : ""}${l.handled ? " done" : ""}">
-          <td class="l"><strong class="copy-model" data-copy="${esc(m.model)}" title="Click to copy the model number">${esc(m.model)}</strong> ${badges}<span class="desc">${esc([m.item?.brand, m.item?.description || (m.item?.displayName && m.item.displayName !== m.model ? m.item.displayName : "")].filter(Boolean).join(" · ") || "")}${m.locations ? ` · on hand: ${esc(m.locations)}` : ""}</span>${supIn}</td>
+          <td class="l"><strong class="copy-model" data-copy="${esc(m.model)}" title="Click to copy the model number">${esc(m.model)}</strong> ${badges}<span class="desc">${esc([m.item?.brand, m.item?.description || (m.item?.displayName && m.item.displayName !== m.model ? m.item.displayName : "")].filter(Boolean).join(" · ") || "")}</span>${supIn}</td>
           <td class="l"><span class="hint">${esc(l.sp || "")}${l.status ? " · " + esc(l.status) : ""}${l.deposit ? ` · ${l.deposit.pct}% paid · ${esc(l.deposit.terms)}` : ""}${l.reference ? " · " + esc(l.reference) : ""}</span></td>
           <td>${l.qty}</td><td>${m.written}</td><td>${m.qoh ?? "—"}</td><td>${m.qoo ?? "—"}${m.stockQoo ? ` <span class="hint">stock ${m.stockQoo}</span>` : ""}</td>
           <td class="${m.proposed > 0 ? "short" : "ok"}">${m.proposed}</td>

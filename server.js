@@ -407,6 +407,10 @@ import {
   buildWrittenModelsBoard, getWrittenModelsSettings, setWrittenModelsSetting, getInventoryPosition, setWrittenLineHandled
 } from "./lib/written-models.js";
 import {
+  buildServiceCommissionBoard, listServiceCompPlans, upsertServiceCompPlan, addServiceCompCredit, deleteServiceCompCredit,
+  getServiceCompSettings, setServiceCompSetting, fiscalCalendar as serviceFiscalCalendar
+} from "./lib/service-commissions-postgres.js";
+import {
   upsertCommissionPost,
   deleteCommissionPost,
   listCommissionPostsForMonth,
@@ -736,6 +740,8 @@ const INTERNAL_PAGE_PATHS = new Set([
   "/message-automations.html",
   "/aging-inventory.html",
   "/my-commissions.html",
+  "/service-commissions.html",
+  "/my-service-commissions.html",
   "/maintenance/index.html",
   "/maintenance/appliance-signup.html",
   "/maintenance/hvac-signup.html",
@@ -981,8 +987,10 @@ const PAGE_LABELS = {
   "/message-automations.html": "Text Automations",
   "/aging-inventory.html": "Aging Inventory",
   "/speedqueen-truckload.html": "Speed Queen Truckload Builder",
-  "/written-models.html": "Proposed Orders (Written Models)",
+  "/written-models.html": "Ordering Report",
   "/my-commissions.html": "My Commission Review",
+  "/service-commissions.html": "Repair Service Commissions",
+  "/my-service-commissions.html": "My Service Commission",
   "/maintenance/index.html": "Guardian Registration (Customer Landing)",
   "/maintenance/appliance-signup.html": "Guardian Appliance Registration / Quote",
   "/maintenance/hvac-signup.html": "Guardian HVAC Registration",
@@ -1111,12 +1119,15 @@ const PAGE_CATEGORIES = [
     pages: ["/message-automations.html"]
   },
   {
+    key: "commissions",
+    label: "Commissions",
+    pages: ["/commissions.html", "/my-commissions.html", "/service-commissions.html", "/my-service-commissions.html"]
+  },
+  {
     key: "sales",
     label: "Sales",
     pages: [
       "/salesdashboard.html",
-      "/my-commissions.html",
-      "/commissions.html",
       "/shop-orders.html",
       "/sales-order-health.html",
       "/sales-order-detail.html",
@@ -13018,6 +13029,61 @@ app.get("/api/written-models/csv", requireWrittenModels, async (req, res) => {
     res.setHeader("Content-Disposition", `attachment; filename="proposed-orders${board.month ? "-" + board.month : ""}${only ? "-" + only.replace(/[^A-Za-z0-9 _-]/g, "") : ""}.csv"`);
     return res.send("\ufeff" + lines.join("\r\n") + "\r\n");
   } catch (err) { return res.status(500).json({ error: "Unable to export." }); }
+});
+
+// ---------------------------------------------------------------------------
+// REPAIR SERVICE COMMISSIONS (service-commissions.html — manager view, page
+// grant; my-service-commissions.html — each tech's own trend, resolved by
+// directory email → tech code). Math and calendar in
+// lib/service-commissions-postgres.js (ported from the 2025 calculator).
+// ---------------------------------------------------------------------------
+const requireServiceComp = requirePagePermission("/service-commissions.html");
+const requireMyServiceComp = requirePagePermission("/my-service-commissions.html", "/service-commissions.html");
+const scBy = (req) => String(req.authUser?.displayName || req.authUser?.email || "").slice(0, 120);
+const scAudit = (req, action, detail) => recordAudit({ ip: req.ip, actorUserId: req.authUser?.kind === "db" ? req.authUser.id : null, action, targetUserId: null, detail }).catch(() => {});
+
+app.get("/api/service-commissions/board", requireServiceComp, async (req, res) => {
+  try {
+    const today = new Date().toLocaleDateString("en-CA", { timeZone: APP_TIMEZONE });
+    const board = await buildServiceCommissionBoard({ year: req.query.year, quarter: req.query.quarter, today });
+    return res.json({ ...board, canEdit: isExecutiveUser(req.authUser) });
+  } catch (err) { console.error("Service commissions board failed:", err.message); return res.status(500).json({ error: "Unable to build the service commission board." }); }
+});
+app.get("/api/service-commissions/plans", requireServiceComp, async (req, res) => {
+  try { return res.json({ plans: await listServiceCompPlans(Number(req.query.year) || new Date().getFullYear()) }); } catch (err) { return res.status(500).json({ error: "Unable to load plans." }); }
+});
+app.post("/api/service-commissions/plans", requireServiceComp, requireExecutiveApi, async (req, res) => {
+  try { const plan = await upsertServiceCompPlan(req.body || {}); scAudit(req, "service_comp_plan_saved", { techCode: plan.techCode, year: plan.year, weeklyQuota: plan.weeklyQuota, targetAnnual: plan.targetAnnual, baseAnnual: plan.baseAnnual }); return res.json({ ok: true, plan }); }
+  catch (err) { return res.status(400).json({ error: err.message }); }
+});
+app.post("/api/service-commissions/credits", requireServiceComp, async (req, res) => {
+  try { const row = await addServiceCompCredit({ ...(req.body || {}), by: scBy(req) }); scAudit(req, "service_comp_credit_added", { techCode: req.body?.techCode, weekStart: req.body?.weekStart, amount: req.body?.amount, note: req.body?.note }); return res.json({ ok: true, id: Number(row.id) }); }
+  catch (err) { return res.status(400).json({ error: err.message }); }
+});
+app.post("/api/service-commissions/credits/:id/delete", requireServiceComp, async (req, res) => {
+  try { await deleteServiceCompCredit(req.params.id); scAudit(req, "service_comp_credit_removed", { id: req.params.id }); return res.json({ ok: true }); }
+  catch (err) { return res.status(500).json({ error: "Unable to remove the credit." }); }
+});
+app.post("/api/service-commissions/settings", requireServiceComp, requireExecutiveApi, async (req, res) => {
+  try {
+    const out = {};
+    for (const key of ["week_one_start", "quarter_weeks", "pay_lag_days"]) if (req.body?.[key] != null) out[key] = await setServiceCompSetting(key, req.body[key]);
+    scAudit(req, "service_comp_settings_saved", { keys: Object.keys(out) });
+    return res.json({ ok: true, settings: await getServiceCompSettings() });
+  } catch (err) { return res.status(400).json({ error: err.message }); }
+});
+// A tech's own view: the directory entry for the login email gives the code.
+app.get("/api/my-service-commissions", requireMyServiceComp, async (req, res) => {
+  try {
+    const email = String(req.authUser?.email || "").toLowerCase();
+    const entry = email ? await findEmployeeDirectoryEntryByEmail(email) : null;
+    const code = String(req.query.tech && isExecutiveUser(req.authUser) ? req.query.tech : entry?.code || "").toUpperCase();
+    if (!code) return res.status(404).json({ error: "Your login isn't tied to an employee code yet — ask Client Care to set your directory email." });
+    const today = new Date().toLocaleDateString("en-CA", { timeZone: APP_TIMEZONE });
+    const board = await buildServiceCommissionBoard({ year: req.query.year, quarter: req.query.quarter, today, techCode: code });
+    if (!board.techs.length) return res.status(404).json({ error: "No service commission plan is set up for you this year.", techCode: code, year: board.year });
+    return res.json({ year: board.year, quarter: board.quarter, quarters: board.quarters, current: board.current, today, dataThrough: board.dataThrough, tech: board.techs[0] });
+  } catch (err) { console.error("My service commissions failed:", err.message); return res.status(500).json({ error: "Unable to load your commission trend." }); }
 });
 
 // INTERNAL: Sales Order Health Report (sales-order-health.html). The page

@@ -403,6 +403,10 @@ import {
   getCurrentSqOrder, setSqOrderLines, patchSqOrder, submitSqOrder, listSqOrders, getSqOrder, normModel as sqNormModel
 } from "./lib/speedqueen-truckload-postgres.js";
 import {
+  parseWrittenModelsWorkbook, parseNetsuiteItemsCsv, saveWrittenModelsSnapshot, replaceNetsuiteItems,
+  buildWrittenModelsBoard, getWrittenModelsSettings, setWrittenModelsSetting
+} from "./lib/written-models.js";
+import {
   upsertCommissionPost,
   deleteCommissionPost,
   listCommissionPostsForMonth,
@@ -701,6 +705,7 @@ const INTERNAL_PAGE_PATHS = new Set([
   "/pilot-field.html",
   "/pilot-parts.html",
   "/speedqueen-truckload.html",
+  "/written-models.html",
   "/service-journey.html",
   "/service-proto-board.html",
   "/service-proto-field.html",
@@ -976,6 +981,7 @@ const PAGE_LABELS = {
   "/message-automations.html": "Text Automations",
   "/aging-inventory.html": "Aging Inventory",
   "/speedqueen-truckload.html": "Speed Queen Truckload Builder",
+  "/written-models.html": "Proposed Orders (Written Models)",
   "/my-commissions.html": "My Commission Review",
   "/maintenance/index.html": "Guardian Registration (Customer Landing)",
   "/maintenance/appliance-signup.html": "Guardian Appliance Registration / Quote",
@@ -1002,7 +1008,7 @@ const PAGE_CATEGORIES = [
   {
     key: "purchasing",
     label: "Purchasing",
-    pages: ["/speedqueen-truckload.html"]
+    pages: ["/speedqueen-truckload.html", "/written-models.html"]
   },
   {
     key: "hr",
@@ -12920,6 +12926,85 @@ app.post("/api/sq-truckload/settings", requireSqTruckload, requireExecutiveApi, 
     sqAudit(req, "sq_truckload_settings_saved", out);
     return res.json({ ok: true, settings: await getSqSettings() });
   } catch (err) { return res.status(400).json({ error: err.message }); }
+});
+
+// ---------------------------------------------------------------------------
+// PURCHASING — Proposed Orders from the ePASS Written Models Report
+// (written-models.html, Andrew 2026-09-18). Upload the OE-04 export and the
+// NetSuite items CSV; the board groups every written unit by supplier
+// (brand → supplier map), filters by delivery month, and shows sell price,
+// ePASS standard cost and the surface margin. Page grant; settings exec-only.
+// ---------------------------------------------------------------------------
+const requireWrittenModels = requirePagePermission("/written-models.html");
+const wmUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 25 * 1024 * 1024, files: 1 } });
+const wmBy = (req) => String(req.authUser?.displayName || req.authUser?.email || req.authUser?.username || "").slice(0, 120);
+const wmAudit = (req, action, detail) => recordAudit({ ip: req.ip, actorUserId: req.authUser?.kind === "db" ? req.authUser.id : null, action, targetUserId: null, detail }).catch(() => {});
+
+app.get("/api/written-models/board", requireWrittenModels, async (req, res) => {
+  try {
+    const board = await buildWrittenModelsBoard({ month: String(req.query.month || "") });
+    return res.json({ ...board, canEdit: isExecutiveUser(req.authUser) });
+  } catch (err) {
+    console.error("Written models board failed:", err.message);
+    return res.status(500).json({ error: "Unable to build the proposed-orders board." });
+  }
+});
+app.post("/api/written-models/upload", requireWrittenModels, (req, res) => {
+  wmUpload.single("file")(req, res, async (err) => {
+    if (err) return res.status(400).json({ error: err.code === "LIMIT_FILE_SIZE" ? "That file is larger than 25 MB." : "Upload failed — please try again." });
+    try {
+      if (!req.file?.buffer?.length) return res.status(400).json({ error: "Attach the Written Models Report export (.xls)." });
+      const parsed = parseWrittenModelsWorkbook(req.file.buffer);
+      const out = await saveWrittenModelsSnapshot(parsed, { by: wmBy(req), sourceFile: req.file.originalname || "" });
+      wmAudit(req, "written_models_uploaded", { ...out, reportDate: parsed.reportDate, filename: req.file.originalname || "" });
+      return res.json({ ok: true, ...out, reportDate: parsed.reportDate, startDate: parsed.startDate, endDate: parsed.endDate, warnings: parsed.warnings.slice(0, 20) });
+    } catch (uploadErr) {
+      console.error("Written models upload failed:", uploadErr.message);
+      return res.status(400).json({ error: uploadErr.message || "Unable to read that report." });
+    }
+  });
+});
+app.post("/api/written-models/items", requireWrittenModels, (req, res) => {
+  wmUpload.single("file")(req, res, async (err) => {
+    if (err) return res.status(400).json({ error: err.code === "LIMIT_FILE_SIZE" ? "That file is larger than 25 MB." : "Upload failed — please try again." });
+    try {
+      if (!req.file?.buffer?.length) return res.status(400).json({ error: "Attach the NetSuite items export (.csv)." });
+      const items = parseNetsuiteItemsCsv(req.file.buffer);
+      const out = await replaceNetsuiteItems(items, { by: wmBy(req), sourceFile: req.file.originalname || "" });
+      wmAudit(req, "netsuite_items_uploaded", { ...out, filename: req.file.originalname || "" });
+      return res.json({ ok: true, ...out });
+    } catch (uploadErr) {
+      console.error("NetSuite items upload failed:", uploadErr.message);
+      return res.status(400).json({ error: uploadErr.message || "Unable to read that CSV." });
+    }
+  });
+});
+app.get("/api/written-models/settings", requireWrittenModels, async (req, res) => {
+  try { return res.json(await getWrittenModelsSettings()); } catch (err) { return res.status(500).json({ error: "Unable to load settings." }); }
+});
+app.post("/api/written-models/settings", requireWrittenModels, requireExecutiveApi, async (req, res) => {
+  try {
+    const out = {};
+    if (req.body?.supplierMap) out.supplierMap = await setWrittenModelsSetting("supplier_map", req.body.supplierMap);
+    if (req.body?.modelSupplier) out.modelSupplier = await setWrittenModelsSetting("model_supplier", req.body.modelSupplier);
+    wmAudit(req, "written_models_settings_saved", { keys: Object.keys(out) });
+    return res.json({ ok: true, ...(await getWrittenModelsSettings()) });
+  } catch (err) { return res.status(400).json({ error: err.message }); }
+});
+app.get("/api/written-models/csv", requireWrittenModels, async (req, res) => {
+  try {
+    const board = await buildWrittenModelsBoard({ month: String(req.query.month || "") });
+    const only = String(req.query.supplier || "");
+    const cell = (v) => { const t = v == null ? "" : String(v); return /[",\r\n]/.test(t) ? `"${t.replace(/"/g, '""')}"` : t; };
+    const lines = [["supplier", "brand", "model", "description", "stock_class", "written", "qoh", "qoo", "proposed", "invoice", "invoice_date", "customer", "salesperson", "status", "delivery_date", "qty", "sell_price", "std_cost", "margin_rate", "deposit_paid", "deposit_total", "terms"].join(",")];
+    for (const g of board.suppliers) {
+      if (only && g.supplier !== only) continue;
+      for (const m of g.models) for (const l of m.lines) lines.push([g.supplier, m.item?.brand || "", m.model, m.item?.description || "", m.stockClass, m.written, m.qoh, m.qoo, m.proposed, l.invoice, l.invoiceDate, l.customerName, l.sp, l.status, l.delDate, l.qty, l.sellPrice, l.stdCost, l.marginRate == null ? "" : (l.marginRate * 100).toFixed(1) + "%", l.deposit?.paid ?? "", l.deposit?.total ?? "", l.deposit?.terms || ""].map(cell).join(","));
+    }
+    res.setHeader("Content-Type", "text/csv; charset=utf-8");
+    res.setHeader("Content-Disposition", `attachment; filename="proposed-orders${board.month ? "-" + board.month : ""}${only ? "-" + only.replace(/[^A-Za-z0-9 _-]/g, "") : ""}.csv"`);
+    return res.send("\ufeff" + lines.join("\r\n") + "\r\n");
+  } catch (err) { return res.status(500).json({ error: "Unable to export." }); }
 });
 
 // INTERNAL: Sales Order Health Report (sales-order-health.html). The page

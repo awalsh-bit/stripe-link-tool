@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="robots" content="noindex,nofollow,noarchive" />
+  <title>Wilson AC & Appliance - Proposed Orders (Written Models)</title>
+  <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+  <link rel="stylesheet" href="internal-shell.css" />
+  <style>
+    :root {
+      --bg: #f7f8fc; --card: #ffffff; --text: #1f2937; --muted: #6b7280; --border: #dbe1ea;
+      --error-bg: #fef2f2; --error-text: #991b1b; --shadow: 0 10px 35px rgba(0, 0, 0, 0.08); --radius: 18px;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: "Roboto", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: linear-gradient(180deg, var(--primary-faint, #f2f7f2) 0%, var(--bg) 220px); color: var(--text); padding: 24px 24px 60px; }
+    .wrap { max-width: 1520px; margin: 0 auto; }
+    .surface { background: var(--card); border: 1px solid rgba(var(--primary-rgb), 0.12); box-shadow: var(--shadow); border-radius: var(--radius); padding: 24px; margin-bottom: 18px; }
+    h2 { margin: 0 0 6px; font-size: 20px; }
+    h3 { margin: 0; font-size: 15px; }
+    .section-note { margin: 0 0 16px; color: var(--muted); font-size: 14px; line-height: 1.5; }
+    .section-note a { color: var(--primary); font-weight: 700; }
+    button { appearance: none; border: none; background: var(--primary); color: #fff; padding: 10px 16px; border-radius: 10px; font-size: 14px; font-weight: 700; cursor: pointer; font-family: inherit; }
+    button:hover { background: var(--primary-hover); }
+    button:disabled { opacity: 0.6; cursor: wait; }
+    button.secondary { background: var(--primary-tint); color: var(--primary); }
+    button.quiet { background: #fff; color: #374151; border: 1px solid var(--border); }
+    button.tiny { padding: 5px 10px; font-size: 12px; border-radius: 8px; }
+    input[type="text"], input[type="search"], select { border: 1px solid var(--border); border-radius: 10px; padding: 9px 11px; font-size: 14px; font-family: inherit; background: #fff; }
+    .status { display: none; margin: 0 0 14px; padding: 10px 14px; border-radius: 10px; font-size: 13.5px; white-space: pre-line; }
+    .status.show { display: block; }
+    .status.error { background: var(--error-bg); color: var(--error-text); }
+    .status.ok { background: rgba(var(--primary-rgb), 0.1); color: var(--primary); }
+
+    .uploads { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 14px; }
+    .upload { border: 1px dashed var(--border); border-radius: 14px; padding: 14px 16px; display: flex; flex-direction: column; gap: 8px; }
+    .upload .lbl { font-size: 11.5px; font-weight: 800; letter-spacing: 0.05em; text-transform: uppercase; color: #64748b; }
+    .upload .src { font-size: 12.5px; color: var(--muted); }
+    .upload .src b { color: var(--text); }
+    .upload .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+    .file { position: relative; display: inline-block; }
+    .file input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+    .fname { font-size: 12.5px; color: var(--muted); }
+
+    .filters { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin: 0 0 14px; }
+    .chips { display: flex; gap: 6px; flex-wrap: wrap; }
+    .chip { border: 1px solid var(--border); background: #fff; color: #374151; border-radius: 999px; padding: 6px 12px; font-size: 12.5px; font-weight: 700; cursor: pointer; }
+    .chip.on { background: var(--primary); border-color: var(--primary); color: #fff; }
+    .chip small { font-weight: 600; opacity: 0.75; margin-left: 4px; }
+    .filters .spacer { flex: 1; }
+    .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin: 0 0 16px; }
+    .tile { background: var(--primary-faint-2, #f6faf6); border: 1px solid var(--border); border-radius: 12px; padding: 10px 14px; font-size: 12.5px; color: var(--muted); }
+    .tile strong { display: block; font-size: 21px; color: var(--text); font-variant-numeric: tabular-nums; }
+    .tile strong small { font-size: 12px; color: var(--muted); font-weight: 700; margin-left: 4px; }
+
+    .sup { border: 1px solid var(--border); border-radius: 14px; margin-bottom: 14px; overflow: hidden; }
+    .sup-h { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; padding: 12px 16px; background: var(--primary-tint); cursor: pointer; }
+    .sup-h h3 { color: var(--primary); letter-spacing: 0.03em; }
+    .sup-h .meta { display: flex; gap: 16px; flex-wrap: wrap; font-size: 12.5px; color: var(--muted); }
+    .sup-h .meta b { color: var(--text); font-variant-numeric: tabular-nums; }
+    .sup-h .caret { margin-left: auto; color: var(--primary); font-size: 18px; transition: transform 0.15s; }
+    .sup.closed .caret { transform: rotate(-90deg); }
+    .sup.closed .sup-b { display: none; }
+    .scroll { overflow-x: auto; }
+    table.wm { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+    table.wm th { text-align: right; font-size: 10.5px; letter-spacing: 0.06em; text-transform: uppercase; color: #64748b; padding: 8px 8px; border-bottom: 2px solid var(--border); white-space: nowrap; }
+    table.wm th.l, table.wm td.l { text-align: left; }
+    table.wm td { padding: 6px 8px; border-bottom: 1px solid #eef1f6; text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; vertical-align: top; }
+    table.wm tr.model td { background: #fafbfd; font-weight: 700; }
+    table.wm tr.model td.l .desc { display: block; font-weight: 500; color: var(--muted); font-size: 11.5px; white-space: normal; max-width: 360px; }
+    table.wm tr.line td { color: #374151; }
+    table.wm tr.line td.l { padding-left: 22px; }
+    table.wm td.short { color: #b91c1c; }
+    table.wm td.ok { color: var(--primary); }
+    .hint { font-size: 11px; color: var(--muted); display: block; font-weight: 500; }
+    .m-good { color: var(--primary); } .m-mid { color: #b45309; } .m-bad { color: #b91c1c; font-weight: 800; }
+    .badge { display: inline-block; border-radius: 999px; padding: 2px 8px; font-size: 10px; font-weight: 800; letter-spacing: 0.04em; text-transform: uppercase; }
+    .badge.short { background: #fee2e2; color: #991b1b; }
+    .badge.stock { background: #dbeafe; color: #1e40af; }
+    .badge.spoken { background: #ecfccb; color: #3f6212; }
+    .badge.unmatched { background: #f3f4f6; color: #374151; }
+    .badge.override { background: #ede9fe; color: #5b21b6; }
+    .sup-in { width: 130px; padding: 4px 8px; font-size: 12px; border-radius: 8px; border: 1px solid var(--border); font-family: inherit; }
+
+    details.map { margin-top: 6px; }
+    details.map summary { cursor: pointer; font-weight: 700; color: var(--primary); font-size: 13.5px; }
+    .map-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 6px 14px; margin: 10px 0; }
+    .map-grid label { display: flex; align-items: center; gap: 8px; font-size: 12.5px; }
+    .map-grid label span { flex: 1; color: var(--muted); }
+    .map-grid input { width: 160px; padding: 5px 8px; font-size: 12.5px; border-radius: 8px; border: 1px solid var(--border); font-family: inherit; }
+    .empty { padding: 30px; text-align: center; color: var(--muted); }
+    @media (max-width: 720px) { body { padding: 14px 12px 40px; } .surface { padding: 16px; } }
+  </style>
+</head>
+<body>
+  <div class="internal-shell-header" id="internalShellHeader"></div>
+  <div class="wrap">
+    <section class="surface">
+      <h2>Proposed Orders — Written Models</h2>
+      <p class="section-note">
+        Upload the ePASS <strong>Written Models Report (OE-04)</strong> export and the <strong>NetSuite items</strong> CSV. Every written, undelivered unit is grouped by
+        <strong>supplier</strong> (NetSuite brand → supplier map), filtered by <strong>delivery month</strong>, with the sell price, ePASS standard cost and the
+        surface margin rate (sell − STD) ÷ sell. <strong>Proposed</strong> per model = written − on hand − on order. Only the latest report is kept; upload a fresh one whenever you pull it.
+      </p>
+      <div id="pageStatus" class="status"></div>
+      <div class="uploads">
+        <div class="upload">
+          <span class="lbl">1 · Written Models Report (.xls)</span>
+          <div class="src" id="srcReport">No report uploaded yet.</div>
+          <div class="row">
+            <span class="file"><button type="button" class="secondary">Choose report…</button><input type="file" id="fileReport" accept=".xls,.xlsx" /></span>
+            <span class="fname" id="nameReport"></span>
+            <button type="button" id="btnReport" disabled>Upload report</button>
+          </div>
+        </div>
+        <div class="upload">
+          <span class="lbl">2 · NetSuite items (.csv)</span>
+          <div class="src" id="srcItems">No items uploaded yet.</div>
+          <div class="row">
+            <span class="file"><button type="button" class="secondary">Choose CSV…</button><input type="file" id="fileItems" accept=".csv,.txt" /></span>
+            <span class="fname" id="nameItems"></span>
+            <button type="button" id="btnItems" disabled>Upload items</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="surface">
+      <div class="filters">
+        <div class="chips" id="monthChips"></div>
+        <select id="supplierSel"><option value="">All suppliers</option></select>
+        <input type="search" id="q" placeholder="Model, customer, invoice, SP…" style="min-width:220px;" />
+        <span class="spacer"></span>
+        <button type="button" class="quiet" id="btnCsv">Download CSV</button>
+      </div>
+      <div class="tiles" id="tiles"></div>
+      <div id="board"><div class="empty">Loading…</div></div>
+      <details class="map" id="mapBox" style="display:none;">
+        <summary>Supplier mapping (brand → supplier) and per-model overrides</summary>
+        <p class="section-note" style="margin:8px 0;">Brands roll up to the supplier you order from. Leave a brand blank to use the brand name itself. Models NetSuite doesn't carry (HVAC, parts) can be assigned directly in their row.</p>
+        <div class="map-grid" id="mapGrid"></div>
+        <button type="button" id="btnMapSave">Save supplier map</button>
+      </details>
+    </section>
+  </div>
+
+  <script src="internal-shell.js"></script>
+  <script>
+    (() => {
+      const $ = (id) => document.getElementById(id);
+      const esc = (v) => String(v == null ? "" : v).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+      const money = (n) => n == null || Number.isNaN(Number(n)) ? "—" : Number(n).toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 });
+      const money2 = (n) => n == null || Number.isNaN(Number(n)) ? "—" : Number(n).toLocaleString("en-US", { style: "currency", currency: "USD" });
+      const pct = (r) => r == null ? "—" : (r * 100).toFixed(1) + "%";
+      const mcls = (r) => r == null ? "" : r >= 0.3 ? "m-good" : r >= 0.15 ? "m-mid" : "m-bad";
+      const day = (iso) => iso ? new Date(iso + "T12:00:00Z").toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" }) : "—";
+      const monthLabel = (m) => m === "none" ? "No date" : new Date(m + "-15T12:00:00Z").toLocaleDateString("en-US", { month: "short", year: "numeric", timeZone: "UTC" });
+      const when = (iso) => iso ? new Date(iso).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) : "";
+      function setStatus(msg, kind) { const b = $("pageStatus"); if (!msg) { b.className = "status"; b.textContent = ""; return; } b.className = "status show " + kind; b.textContent = msg; }
+      async function api(path, options = {}) {
+        const res = await fetch(path, { credentials: "same-origin", headers: options.body && !(options.body instanceof FormData) ? { "Content-Type": "application/json" } : {}, ...options });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error || "Request failed.");
+        return data;
+      }
+      const state = { board: null, month: "", supplier: "", q: "", closed: new Set() };
+
+      // ---- uploads ----
+      function wireUpload(fileId, nameId, btnId, url, label) {
+        $(fileId).addEventListener("change", () => { const f = $(fileId).files[0]; $(nameId).textContent = f ? f.name : ""; $(btnId).disabled = !f; });
+        $(btnId).addEventListener("click", async () => {
+          const f = $(fileId).files[0]; if (!f) return;
+          const btn = $(btnId); btn.disabled = true; btn.textContent = "Uploading…";
+          try {
+            const form = new FormData(); form.append("file", f);
+            const data = await api(url, { method: "POST", body: form });
+            setStatus(label === "report"
+              ? `Report loaded: ${data.lines} written lines across ${data.models} models (report date ${data.reportDate || "?"}, window ${data.startDate || "?"} → ${data.endDate || "?"}).${data.warnings?.length ? "\n" + data.warnings.join("\n") : ""}`
+              : `Items loaded: ${data.items} NetSuite models with brand and base price.`, "ok");
+            $(fileId).value = ""; $(nameId).textContent = "";
+            await load();
+          } catch (err) { setStatus(err.message, "error"); }
+          finally { btn.textContent = label === "report" ? "Upload report" : "Upload items"; btn.disabled = !$(fileId).files[0]; }
+        });
+      }
+      wireUpload("fileReport", "nameReport", "btnReport", "/api/written-models/upload", "report");
+      wireUpload("fileItems", "nameItems", "btnItems", "/api/written-models/items", "items");
+
+      // ---- board ----
+      async function load() {
+        try {
+          state.board = await api(`/api/written-models/board?month=${encodeURIComponent(state.month)}`);
+          render();
+        } catch (err) { setStatus(err.message, "error"); }
+      }
+      function render() {
+        const b = state.board; const src = b.sources || {};
+        $("srcReport").innerHTML = src.report ? `Latest: <b>${esc(src.report.sourceFile || "report")}</b> · report date <b>${esc(src.report.reportDate || "?")}</b> · uploaded ${esc(when(src.report.uploadedAt))}${src.report.uploadedBy ? " by " + esc(src.report.uploadedBy) : ""}` : "No report uploaded yet.";
+        $("srcItems").innerHTML = src.items ? `Latest: <b>${esc(src.items.sourceFile || "items")}</b> · <b>${src.items.count}</b> models · uploaded ${esc(when(src.items.uploadedAt))}${src.items.uploadedBy ? " by " + esc(src.items.uploadedBy) : ""}` : "No items uploaded yet — models will show as Unassigned until the brand list is loaded.";
+
+        // month chips: All, each delivery month in the report, No date
+        const months = b.months || [];
+        $("monthChips").innerHTML = [["", "All months"], ...months.map((m) => [m, monthLabel(m)])].map(([v, l]) => `<button type="button" class="chip${state.month === v ? " on" : ""}" data-m="${esc(v)}">${esc(l)}</button>`).join("");
+        $("monthChips").querySelectorAll(".chip").forEach((c) => c.addEventListener("click", async () => { state.month = c.dataset.m; await load(); }));
+
+        const sel = $("supplierSel"); const cur = state.supplier;
+        sel.innerHTML = `<option value="">All suppliers</option>` + (b.suppliers || []).map((g) => `<option value="${esc(g.supplier)}"${cur === g.supplier ? " selected" : ""}>${esc(g.supplier)} (${g.units})</option>`).join("");
+
+        const q = state.q.trim().toLowerCase();
+        const groups = (b.suppliers || []).filter((g) => !state.supplier || g.supplier === state.supplier).map((g) => ({ ...g, models: g.models.map((m) => ({ ...m, lines: m.lines.filter((l) => !q || [m.model, m.item?.description, m.item?.brand, l.customerName, l.invoice, l.sp, l.billTo].join(" ").toLowerCase().includes(q)) })).filter((m) => m.lines.length) })).filter((g) => g.models.length);
+
+        const t = { units: 0, proposed: 0, sell: 0, cost: 0, models: 0, unmatched: 0 };
+        for (const g of groups) for (const m of g.models) { t.models++; if (!m.item) t.unmatched++; for (const l of m.lines) { t.units += l.qty || 0; t.sell += (l.sellPrice || 0) * (l.qty || 1); t.cost += (l.stdCost || 0) * (l.qty || 1); } t.proposed += Math.min(m.proposed, m.lines.reduce((a, l) => a + (l.qty || 0), 0)); }
+        const margin = t.sell > 0 ? (t.sell - t.cost) / t.sell : null;
+        $("tiles").innerHTML = `
+          <div class="tile">Written units<strong>${t.units}<small>${t.models} models</small></strong></div>
+          <div class="tile">Proposed to order<strong>${t.proposed}<small>units short</small></strong></div>
+          <div class="tile">Sell (employee price)<strong>${money(t.sell)}</strong></div>
+          <div class="tile">ePASS STD cost<strong>${money(t.cost)}</strong></div>
+          <div class="tile">Surface margin<strong class="${mcls(margin)}">${pct(margin)}<small>${money(t.sell - t.cost)}</small></strong></div>
+          <div class="tile">Not in NetSuite<strong>${t.unmatched}<small>models</small></strong></div>`;
+
+        if (!src.report) { $("board").innerHTML = `<div class="empty">Upload the Written Models Report to build the board.</div>`; $("mapBox").style.display = "none"; return; }
+        if (!groups.length) { $("board").innerHTML = `<div class="empty">Nothing written for this filter.</div>`; }
+        else $("board").innerHTML = groups.map(supplierHtml).join("");
+        $("board").querySelectorAll(".sup-h").forEach((h) => h.addEventListener("click", (ev) => { if (ev.target.closest("input,button,a")) return; const s = h.closest(".sup"); s.classList.toggle("closed"); const k = s.dataset.sup; if (s.classList.contains("closed")) state.closed.add(k); else state.closed.delete(k); }));
+        $("board").querySelectorAll("input[data-model-sup]").forEach((inp) => inp.addEventListener("change", async () => {
+          try { const modelSupplier = { ...(b.settings?.modelSupplier || {}) }; if (inp.value.trim()) modelSupplier[inp.dataset.modelSup] = inp.value.trim(); else delete modelSupplier[inp.dataset.modelSup]; await api("/api/written-models/settings", { method: "POST", body: JSON.stringify({ modelSupplier }) }); await load(); }
+          catch (err) { setStatus(err.message, "error"); }
+        }));
+        renderMap();
+      }
+      function supplierHtml(g) {
+        const closed = state.closed.has(g.supplier);
+        const units = g.models.reduce((a, m) => a + m.lines.reduce((x, l) => x + (l.qty || 0), 0), 0);
+        const sell = g.models.reduce((a, m) => a + m.lines.reduce((x, l) => x + (l.sellPrice || 0) * (l.qty || 1), 0), 0);
+        const cost = g.models.reduce((a, m) => a + m.lines.reduce((x, l) => x + (l.stdCost || 0) * (l.qty || 1), 0), 0);
+        const proposed = g.models.reduce((a, m) => a + Math.min(m.proposed, m.lines.reduce((x, l) => x + (l.qty || 0), 0)), 0);
+        const earliest = g.models.map((m) => m.lines.map((l) => l.delDate).filter(Boolean).sort()[0]).filter(Boolean).sort()[0] || "";
+        return `<div class="sup${closed ? " closed" : ""}" data-sup="${esc(g.supplier)}">
+          <div class="sup-h"><h3>${esc(g.supplier)}</h3>
+            <div class="meta"><span><b>${units}</b> written</span><span><b>${proposed}</b> to order</span><span>sell <b>${money(sell)}</b></span><span>STD <b>${money(cost)}</b></span><span>margin <b class="${mcls(sell > 0 ? (sell - cost) / sell : null)}">${pct(sell > 0 ? (sell - cost) / sell : null)}</b></span><span>first delivery <b>${day(earliest)}</b></span></div>
+            <span class="caret">⌄</span></div>
+          <div class="sup-b scroll"><table class="wm">
+            <thead><tr><th class="l">Model</th><th class="l">Invoice · customer</th><th>Written</th><th title="On hand">QOH</th><th title="On order / stock on order">QOO</th><th title="written − QOH − QOO">Proposed</th><th>Delivery</th><th>Sell</th><th>STD cost</th><th>Margin</th></tr></thead>
+            <tbody>${g.models.map(modelHtml).join("")}</tbody></table></div></div>`;
+      }
+      function modelHtml(m) {
+        const canEdit = !!state.board.canEdit;
+        const badges = [
+          m.proposed > 0 ? `<span class="badge short">Short ${m.proposed}</span>` : "",
+          m.stockClass && m.stockClass !== "Non-Stock" ? `<span class="badge stock">${esc(m.stockClass)}</span>` : "",
+          m.spokenFor?.length ? `<span class="badge spoken" title="${esc(m.spokenFor.map((s) => `${s.invoice} ${s.customer} ×${s.qty} ${s.status} ${day(s.deliveryDate)}`).join("\n"))}">Spoken for ${m.spokenFor.reduce((a, s) => a + (s.qty || 0), 0)}</span>` : "",
+          !m.item ? `<span class="badge unmatched" title="Not in the NetSuite items export">Not in NetSuite</span>` : "",
+          m.supplierSource === "override" ? `<span class="badge override" title="Supplier set by hand for this model">Override</span>` : ""
+        ].filter(Boolean).join(" ");
+        const supIn = canEdit ? `<span class="hint">Supplier: <input class="sup-in" data-model-sup="${esc(m.key)}" value="${esc(m.supplierSource === "override" ? m.supplier : "")}" placeholder="${esc(m.supplierSource === "brand" ? m.supplier + " (by brand)" : "assign…")}" /></span>` : "";
+        const mSell = m.lines.reduce((a, l) => a + (l.sellPrice || 0) * (l.qty || 1), 0), mCost = m.lines.reduce((a, l) => a + (l.stdCost || 0) * (l.qty || 1), 0);
+        const mm = mSell > 0 ? (mSell - mCost) / mSell : null;
+        const head = `<tr class="model"><td class="l"><strong>${esc(m.model)}</strong> ${badges}<span class="desc">${esc([m.item?.brand, m.item?.description || m.item?.displayName].filter(Boolean).join(" · ") || "")}${m.item?.basePrice != null ? ` · base ${money(m.item.basePrice)}` : ""}${m.locations ? ` · on hand: ${esc(m.locations)}` : ""}</span>${supIn}</td>
+          <td class="l"><span class="hint">${m.lines.length} line${m.lines.length === 1 ? "" : "s"}</span></td>
+          <td>${m.written}</td><td>${m.qoh ?? "—"}</td><td>${m.qoo ?? "—"}${m.stockQoo ? ` <span class="hint">stock ${m.stockQoo}</span>` : ""}</td>
+          <td class="${m.proposed > 0 ? "short" : "ok"}">${m.proposed}</td>
+          <td>${day(m.lines.map((l) => l.delDate).filter(Boolean).sort()[0])}</td>
+          <td>${money(mSell)}</td><td>${money(mCost)}</td><td class="${mcls(mm)}">${pct(mm)}</td></tr>`;
+        const lines = m.lines.map((l) => `<tr class="line"><td class="l"><span class="hint">${esc(l.sp || "")}${l.status ? " · " + esc(l.status) : ""}${l.deposit ? ` · ${l.deposit.pct}% paid · ${esc(l.deposit.terms)}` : ""}</span></td>
+          <td class="l"><strong>${esc(l.invoice)}</strong> ${esc(l.customerName)}${l.reference ? ` <span class="hint">${esc(l.reference)}</span>` : ""}${l.billTo && !l.billTo.includes(l.customerName) ? `<span class="hint">bill to ${esc(l.billTo)}</span>` : ""}</td>
+          <td>${l.qty}</td><td></td><td></td><td></td>
+          <td>${day(l.delDate)}<span class="hint">written ${day(l.invoiceDate)}</span></td>
+          <td>${money2(l.sellPrice)}</td><td>${money2(l.stdCost)}</td><td class="${mcls(l.marginRate)}">${pct(l.marginRate)}${l.marginDollars != null ? `<span class="hint">${money2(l.marginDollars)}/unit</span>` : ""}</td></tr>`).join("");
+        return head + lines;
+      }
+      function renderMap() {
+        const b = state.board;
+        if (!b.canEdit) { $("mapBox").style.display = "none"; return; }
+        $("mapBox").style.display = "";
+        const brands = new Set(Object.keys(b.settings?.supplierMap || {}));
+        for (const g of b.suppliers || []) for (const m of g.models) if (m.item?.brand) brands.add(m.item.brand);
+        const map = b.settings?.supplierMap || {};
+        $("mapGrid").innerHTML = [...brands].sort((a, c) => a.localeCompare(c)).map((br) => `<label><span>${esc(br)}</span><input data-brand="${esc(br)}" value="${esc(map[br] && map[br] !== br ? map[br] : "")}" placeholder="${esc(br)}" /></label>`).join("");
+      }
+      $("btnMapSave").addEventListener("click", async () => {
+        const supplierMap = {};
+        $("mapGrid").querySelectorAll("input[data-brand]").forEach((i) => { supplierMap[i.dataset.brand] = i.value.trim() || i.dataset.brand; });
+        try { await api("/api/written-models/settings", { method: "POST", body: JSON.stringify({ supplierMap }) }); setStatus("Supplier map saved.", "ok"); await load(); } catch (err) { setStatus(err.message, "error"); }
+      });
+      $("supplierSel").addEventListener("change", () => { state.supplier = $("supplierSel").value; render(); });
+      $("q").addEventListener("input", () => { state.q = $("q").value; render(); });
+      $("btnCsv").addEventListener("click", () => { window.location.href = `/api/written-models/csv?month=${encodeURIComponent(state.month)}&supplier=${encodeURIComponent(state.supplier)}`; });
+      load();
+    })();
+  </script>
+</body>
+</html>

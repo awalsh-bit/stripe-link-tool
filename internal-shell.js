@@ -272,7 +272,8 @@
       {
         title: "Purchasing",
         children: [
-          { href: "speedqueen-truckload.html", title: "Speed Queen Truckload Builder" }
+          { href: "speedqueen-truckload.html", title: "Speed Queen Truckload Builder" },
+          { href: "written-models.html", title: "Proposed Orders (Written Models)" }
         ]
       },
       {

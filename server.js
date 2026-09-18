@@ -404,7 +404,7 @@ import {
 } from "./lib/speedqueen-truckload-postgres.js";
 import {
   parseWrittenModelsWorkbook, parseNetsuiteItemsCsv, saveWrittenModelsSnapshot, replaceNetsuiteItems,
-  buildWrittenModelsBoard, getWrittenModelsSettings, setWrittenModelsSetting
+  buildWrittenModelsBoard, getWrittenModelsSettings, setWrittenModelsSetting, getInventoryPosition
 } from "./lib/written-models.js";
 import {
   upsertCommissionPost,
@@ -12978,6 +12978,11 @@ app.post("/api/written-models/items", requireWrittenModels, (req, res) => {
       return res.status(400).json({ error: uploadErr.message || "Unable to read that CSV." });
     }
   });
+});
+// Inventory position for one model (the ePASS "Serial # for Model" view).
+app.get("/api/written-models/position", requireWrittenModels, async (req, res) => {
+  try { return res.json(await getInventoryPosition(String(req.query.model || ""))); }
+  catch (err) { return res.status(400).json({ error: err.message || "Unable to load that model." }); }
 });
 app.get("/api/written-models/settings", requireWrittenModels, async (req, res) => {
   try { return res.json(await getWrittenModelsSettings()); } catch (err) { return res.status(500).json({ error: "Unable to load settings." }); }

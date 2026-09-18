@@ -89,12 +89,34 @@
     .map-grid label span { flex: 1; color: var(--muted); }
     .map-grid input { width: 160px; padding: 5px 8px; font-size: 12.5px; border-radius: 8px; border: 1px solid var(--border); font-family: inherit; }
     .empty { padding: 30px; text-align: center; color: var(--muted); }
+    table.wm tr.line.ret td { background: #fef2f2; }
+    table.wm tr.line.ret td.l strong { color: #991b1b; }
+    .badge.ret { background: #fecaca; color: #991b1b; }
+    .badge.cod { background: #fef3c7; color: #92400e; }
+    .pos-btn { display: inline-flex; align-items: center; gap: 5px; margin-left: 6px; padding: 2px 9px; border-radius: 999px; border: 1px solid rgba(var(--primary-rgb), 0.35); background: rgba(var(--primary-rgb), 0.08); color: var(--primary); font: inherit; font-size: 10.5px; font-weight: 800; letter-spacing: 0.03em; text-transform: uppercase; cursor: pointer; }
+    .pos-btn:hover { background: rgba(var(--primary-rgb), 0.16); }
+    .pos-overlay { display: none; position: fixed; inset: 0; background: rgba(15, 23, 42, 0.45); z-index: 60; padding: 30px 16px; overflow: auto; }
+    .pos-overlay.show { display: block; }
+    .pos { background: #fff; border-radius: 16px; max-width: 1100px; margin: 0 auto; box-shadow: 0 20px 60px rgba(0,0,0,0.25); }
+    .pos-h { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; padding: 16px 20px; border-bottom: 1px solid var(--border); }
+    .pos-h h3 { font-size: 17px; }
+    .pos-b { padding: 16px 20px 20px; }
+    .pos-sum { display: inline-block; border-collapse: collapse; font-size: 13px; margin-bottom: 14px; }
+    .pos-sum th { border: 1px solid #cbd5e1; background: #f1f5f9; padding: 6px 14px; font-size: 11px; letter-spacing: 0.05em; text-transform: uppercase; color: #475569; }
+    .pos-sum td { border: 1px solid #cbd5e1; padding: 8px 14px; text-align: center; font-variant-numeric: tabular-nums; font-weight: 700; }
+    .pos-sum td.dim { color: var(--muted); font-weight: 500; }
+    .pos-sec { font-size: 11.5px; font-weight: 800; letter-spacing: 0.05em; text-transform: uppercase; color: #64748b; margin: 12px 0 6px; }
+    table.pos-d { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+    table.pos-d th { text-align: left; font-size: 10.5px; letter-spacing: 0.05em; text-transform: uppercase; color: #64748b; padding: 6px 8px; border-bottom: 2px solid var(--border); white-space: nowrap; }
+    table.pos-d td { padding: 6px 8px; border-bottom: 1px solid #eef1f6; white-space: nowrap; font-variant-numeric: tabular-nums; }
+    table.pos-d tr.free td { background: #f0fdf4; }
+    .pos-note { font-size: 12px; color: var(--muted); margin-top: 10px; }
     @media (max-width: 720px) { body { padding: 14px 12px 40px; } .surface { padding: 16px; } }
   </style>
 </head>
 <body>
-  <div class="internal-shell-header" id="internalShellHeader"></div>
   <div class="wrap">
+    <div id="internal-shell-header"></div>
     <section class="surface">
       <h2>Proposed Orders — Written Models</h2>
       <p class="section-note">
@@ -130,6 +152,7 @@
         <div class="chips" id="monthChips"></div>
         <select id="supplierSel"><option value="">All suppliers</option></select>
         <input type="search" id="q" placeholder="Model, customer, invoice, SP…" style="min-width:220px;" />
+        <button type="button" class="chip" id="codToggle" title="Lines whose deposit reads 0% paid on COD terms — ePASS shows 0% when a return line is funding the sale">Hide 0%-paid COD</button>
         <span class="spacer"></span>
         <button type="button" class="quiet" id="btnCsv">Download CSV</button>
       </div>
@@ -142,6 +165,14 @@
         <button type="button" id="btnMapSave">Save supplier map</button>
       </details>
     </section>
+    <div id="internal-shell-footer"></div>
+  </div>
+
+  <div class="pos-overlay" id="posOverlay">
+    <div class="pos">
+      <div class="pos-h"><div><h3 id="posTitle">Inventory position</h3><div class="hint" id="posSub"></div></div><button type="button" class="quiet tiny" id="posClose">Close</button></div>
+      <div id="posBody" class="pos-b"><div class="empty">Loading…</div></div>
+    </div>
   </div>
 
   <script src="internal-shell.js"></script>
@@ -153,9 +184,9 @@
       const money2 = (n) => n == null || Number.isNaN(Number(n)) ? "—" : Number(n).toLocaleString("en-US", { style: "currency", currency: "USD" });
       const pct = (r) => r == null ? "—" : (r * 100).toFixed(1) + "%";
       const mcls = (r) => r == null ? "" : r >= 0.3 ? "m-good" : r >= 0.15 ? "m-mid" : "m-bad";
-      const day = (iso) => iso ? new Date(iso + "T12:00:00Z").toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" }) : "—";
+      const day = (iso) => /^\d{4}-\d{2}-\d{2}/.test(iso || "") ? `${iso.slice(5, 7)}/${iso.slice(8, 10)}/${iso.slice(0, 4)}` : "—";
       const monthLabel = (m) => m === "none" ? "No date" : new Date(m + "-15T12:00:00Z").toLocaleDateString("en-US", { month: "short", year: "numeric", timeZone: "UTC" });
-      const when = (iso) => iso ? new Date(iso).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) : "";
+      const when = (iso) => iso ? new Date(iso).toLocaleString("en-US", { month: "2-digit", day: "2-digit", year: "numeric", hour: "numeric", minute: "2-digit" }) : "";
       function setStatus(msg, kind) { const b = $("pageStatus"); if (!msg) { b.className = "status"; b.textContent = ""; return; } b.className = "status show " + kind; b.textContent = msg; }
       async function api(path, options = {}) {
         const res = await fetch(path, { credentials: "same-origin", headers: options.body && !(options.body instanceof FormData) ? { "Content-Type": "application/json" } : {}, ...options });
@@ -163,7 +194,9 @@
         if (!res.ok) throw new Error(data.error || "Request failed.");
         return data;
       }
-      const state = { board: null, month: "", supplier: "", q: "", closed: new Set() };
+      const state = { board: null, month: "", supplier: "", q: "", closed: new Set(), hideCod: false };
+      const isReturn = (l) => (l.qty || 0) < 0;
+      const isUnpaidCod = (l) => !!l.deposit && (l.deposit.pct || 0) <= 0 && String(l.deposit.terms || "").toUpperCase() === "COD";
 
       // ---- uploads ----
       function wireUpload(fileId, nameId, btnId, url, label) {
@@ -175,7 +208,7 @@
             const form = new FormData(); form.append("file", f);
             const data = await api(url, { method: "POST", body: form });
             setStatus(label === "report"
-              ? `Report loaded: ${data.lines} written lines across ${data.models} models (report date ${data.reportDate || "?"}, window ${data.startDate || "?"} → ${data.endDate || "?"}).${data.warnings?.length ? "\n" + data.warnings.join("\n") : ""}`
+              ? `Report loaded: ${data.lines} written lines across ${data.models} models (report date ${day(data.reportDate)}, window ${day(data.startDate)} → ${day(data.endDate)}).${data.warnings?.length ? "\n" + data.warnings.join("\n") : ""}`
               : `Items loaded: ${data.items} NetSuite models, ${data.withSupplier ?? 0} with a Primary Supplier.`, "ok");
             $(fileId).value = ""; $(nameId).textContent = "";
             await load();
@@ -195,7 +228,7 @@
       }
       function render() {
         const b = state.board; const src = b.sources || {};
-        $("srcReport").innerHTML = src.report ? `Latest: <b>${esc(src.report.sourceFile || "report")}</b> · report date <b>${esc(src.report.reportDate || "?")}</b> · uploaded ${esc(when(src.report.uploadedAt))}${src.report.uploadedBy ? " by " + esc(src.report.uploadedBy) : ""}` : "No report uploaded yet.";
+        $("srcReport").innerHTML = src.report ? `Latest: <b>${esc(src.report.sourceFile || "report")}</b> · report date <b>${day(src.report.reportDate)}</b> · uploaded ${esc(when(src.report.uploadedAt))}${src.report.uploadedBy ? " by " + esc(src.report.uploadedBy) : ""}` : "No report uploaded yet.";
         $("srcItems").innerHTML = src.items ? `Latest: <b>${esc(src.items.sourceFile || "items")}</b> · <b>${src.items.count}</b> models · uploaded ${esc(when(src.items.uploadedAt))}${src.items.uploadedBy ? " by " + esc(src.items.uploadedBy) : ""}` : "No items uploaded yet — models will show as Unassigned until the brand list is loaded.";
 
         // month chips: All, each delivery month in the report, No date
@@ -207,10 +240,13 @@
         sel.innerHTML = `<option value="">All suppliers</option>` + (b.suppliers || []).map((g) => `<option value="${esc(g.supplier)}"${cur === g.supplier ? " selected" : ""}>${esc(g.supplier)} (${g.units})</option>`).join("");
 
         const q = state.q.trim().toLowerCase();
-        const groups = (b.suppliers || []).filter((g) => !state.supplier || g.supplier === state.supplier).map((g) => ({ ...g, models: g.models.map((m) => ({ ...m, lines: m.lines.filter((l) => !q || [m.model, m.item?.description, m.item?.brand, l.customerName, l.invoice, l.sp, l.billTo].join(" ").toLowerCase().includes(q)) })).filter((m) => m.lines.length) })).filter((g) => g.models.length);
+        const groups = (b.suppliers || []).filter((g) => !state.supplier || g.supplier === state.supplier).map((g) => ({ ...g, models: g.models.map((m) => ({ ...m, lines: m.lines.filter((l) => (!state.hideCod || !isUnpaidCod(l)) && (!q || [m.model, m.item?.description, m.item?.brand, l.customerName, l.invoice, l.sp, l.billTo].join(" ").toLowerCase().includes(q))) })).filter((m) => m.lines.length) })).filter((g) => g.models.length);
 
-        const t = { units: 0, proposed: 0, sell: 0, cost: 0, models: 0, unmatched: 0 };
-        for (const g of groups) for (const m of g.models) { t.models++; if (!m.item) t.unmatched++; for (const l of m.lines) { t.units += l.qty || 0; t.sell += (l.sellPrice || 0) * (l.qty || 1); t.cost += (l.stdCost || 0) * (l.qty || 1); } t.proposed += Math.min(m.proposed, m.lines.reduce((a, l) => a + (l.qty || 0), 0)); }
+        const t = { units: 0, proposed: 0, sell: 0, cost: 0, models: 0, unmatched: 0, returns: 0, cod: 0 };
+        for (const g of groups) for (const m of g.models) { t.models++; if (!m.item) t.unmatched++; for (const l of m.lines) { t.units += l.qty || 0; t.sell += (l.sellPrice || 0) * (l.qty || 1); t.cost += (l.stdCost || 0) * (l.qty || 1); if (isReturn(l)) t.returns++; if (isUnpaidCod(l)) t.cod++; } t.proposed += Math.min(m.proposed, m.lines.reduce((a, l) => a + (l.qty || 0), 0)); }
+        const codAll = (b.suppliers || []).reduce((a, g) => a + g.models.reduce((x, m) => x + m.lines.filter(isUnpaidCod).length, 0), 0);
+        $("codToggle").textContent = state.hideCod ? `Show 0%-paid COD (${codAll} hidden)` : `Hide 0%-paid COD (${codAll})`;
+        $("codToggle").classList.toggle("on", state.hideCod);
         const margin = t.sell > 0 ? (t.sell - t.cost) / t.sell : null;
         $("tiles").innerHTML = `
           <div class="tile">Written units<strong>${t.units}<small>${t.models} models</small></strong></div>
@@ -218,12 +254,14 @@
           <div class="tile">Sell (employee price)<strong>${money(t.sell)}</strong></div>
           <div class="tile">ePASS STD cost<strong>${money(t.cost)}</strong></div>
           <div class="tile">Surface margin<strong class="${mcls(margin)}">${pct(margin)}<small>${money(t.sell - t.cost)}</small></strong></div>
-          <div class="tile">Not in NetSuite<strong>${t.unmatched}<small>models</small></strong></div>`;
+          <div class="tile">Not in NetSuite<strong>${t.unmatched}<small>models</small></strong></div>
+          <div class="tile">Return lines<strong>${t.returns}<small>${t.cod} unpaid COD</small></strong></div>`;
 
         if (!src.report) { $("board").innerHTML = `<div class="empty">Upload the Written Models Report to build the board.</div>`; $("mapBox").style.display = "none"; return; }
         if (!groups.length) { $("board").innerHTML = `<div class="empty">Nothing written for this filter.</div>`; }
         else $("board").innerHTML = groups.map(supplierHtml).join("");
         $("board").querySelectorAll(".sup-h").forEach((h) => h.addEventListener("click", (ev) => { if (ev.target.closest("input,button,a")) return; const s = h.closest(".sup"); s.classList.toggle("closed"); const k = s.dataset.sup; if (s.classList.contains("closed")) state.closed.add(k); else state.closed.delete(k); }));
+        $("board").querySelectorAll("[data-pos]").forEach((btn) => btn.addEventListener("click", () => openPosition(btn.dataset.pos)));
         $("board").querySelectorAll("input[data-model-sup]").forEach((inp) => inp.addEventListener("change", async () => {
           try { const modelSupplier = { ...(b.settings?.modelSupplier || {}) }; if (inp.value.trim()) modelSupplier[inp.dataset.modelSup] = inp.value.trim(); else delete modelSupplier[inp.dataset.modelSup]; await api("/api/written-models/settings", { method: "POST", body: JSON.stringify({ modelSupplier }) }); await load(); }
           catch (err) { setStatus(err.message, "error"); }
@@ -250,7 +288,7 @@
         const badges = [
           m.proposed > 0 ? `<span class="badge short">Short ${m.proposed}</span>` : "",
           m.stockClass && m.stockClass !== "Non-Stock" ? `<span class="badge stock">${esc(m.stockClass)}</span>` : "",
-          m.spokenFor?.length ? `<span class="badge spoken" title="${esc(m.spokenFor.map((s) => `${s.invoice} ${s.customer} ×${s.qty} ${s.status} ${day(s.deliveryDate)}`).join("\n"))}">Spoken for ${m.spokenFor.reduce((a, s) => a + (s.qty || 0), 0)}</span>` : "",
+          `<button type="button" class="pos-btn" data-pos="${esc(m.key)}" title="Current inventory position — on hand, on order, written, and every unit with its receive date and ticket">Inventory position${m.qoh ? ` · ${m.qoh} on hand` : ""}${m.spokenFor?.length ? ` · ${m.spokenFor.reduce((a, s) => a + (s.qty || 0), 0)} spoken for` : ""}</button>`,
           !m.item ? `<span class="badge unmatched" title="Not in the NetSuite items export">Not in NetSuite</span>` : "",
           m.supplierSource === "override" ? `<span class="badge override" title="Supplier set by hand for this model">Override</span>` : "",
           m.supplierSource === "brand" ? `<span class="badge unmatched" title="NetSuite has no Primary Supplier for this item — supplier comes from the brand map">By brand</span>` : ""
@@ -264,7 +302,7 @@
           <td class="${m.proposed > 0 ? "short" : "ok"}">${m.proposed}</td>
           <td>${day(m.lines.map((l) => l.delDate).filter(Boolean).sort()[0])}</td>
           <td>${money(mSell)}</td><td>${money(mCost)}</td><td class="${mcls(mm)}">${pct(mm)}</td></tr>`;
-        const lines = m.lines.map((l) => `<tr class="line"><td class="l"><span class="hint">${esc(l.sp || "")}${l.status ? " · " + esc(l.status) : ""}${l.deposit ? ` · ${l.deposit.pct}% paid · ${esc(l.deposit.terms)}` : ""}</span></td>
+        const lines = m.lines.map((l) => `<tr class="line${isReturn(l) ? " ret" : ""}"><td class="l"><span class="hint">${esc(l.sp || "")}${l.status ? " · " + esc(l.status) : ""}${l.deposit ? ` · ${l.deposit.pct}% paid · ${esc(l.deposit.terms)}` : ""}</span>${isReturn(l) ? ` <span class="badge ret">Return</span>` : ""}${isUnpaidCod(l) ? ` <span class="badge cod" title="0% paid on COD terms">0% COD</span>` : ""}</td>
           <td class="l"><strong>${esc(l.invoice)}</strong> ${esc(l.customerName)}${l.reference ? ` <span class="hint">${esc(l.reference)}</span>` : ""}${l.billTo && !l.billTo.includes(l.customerName) ? `<span class="hint">bill to ${esc(l.billTo)}</span>` : ""}</td>
           <td>${l.qty}</td><td></td><td></td><td></td>
           <td>${day(l.delDate)}<span class="hint">written ${day(l.invoiceDate)}</span></td>
@@ -285,6 +323,32 @@
         $("mapGrid").querySelectorAll("input[data-brand]").forEach((i) => { supplierMap[i.dataset.brand] = i.value.trim() || i.dataset.brand; });
         try { await api("/api/written-models/settings", { method: "POST", body: JSON.stringify({ supplierMap }) }); setStatus("Supplier map saved.", "ok"); await load(); } catch (err) { setStatus(err.message, "error"); }
       });
+      // ---- inventory position (the ePASS "Serial # for Model" view) ----
+      async function openPosition(key) {
+        $("posOverlay").classList.add("show");
+        $("posTitle").textContent = "Inventory position"; $("posSub").textContent = ""; $("posBody").innerHTML = `<div class="empty">Loading…</div>`;
+        try {
+          const p = await api(`/api/written-models/position?model=${encodeURIComponent(key)}`);
+          const s = p.summary;
+          $("posTitle").textContent = `${p.model}${p.description ? " — " + p.description : ""}`;
+          $("posSub").textContent = [p.brand, p.supplier, s.stockClass].filter(Boolean).join(" · ");
+          const monthName = (m) => new Date(m + "-15T12:00:00Z").toLocaleDateString("en-US", { month: "short", timeZone: "UTC" });
+          const summary = `<table class="pos-sum"><thead><tr><th>Loc</th><th>QOH</th><th>QOO</th><th>WRI</th><th>Spoken for</th><th>Free</th>${p.months.map((m) => `<th>${esc(monthName(m.month))}</th>`).join("")}</tr></thead>
+            <tbody><tr><td class="dim">${esc(s.locations || "—")}</td><td>${s.qoh ?? "—"}</td><td>${s.qoo ?? "—"}${s.stockQoo ? `<span class="hint">stock ${s.stockQoo}</span>` : ""}</td><td>${s.written ?? "—"}</td><td>${s.spokenFor}</td><td>${s.free ?? "—"}</td>${p.months.map((m) => `<td>${m.units}</td>`).join("")}</tr></tbody></table>`;
+          const units = p.units.length
+            ? `<div class="pos-sec">Details — every unit on hand (serial inventory snapshot)</div><table class="pos-d"><thead><tr><th>Ordered for invoice</th><th>Customer</th><th>Schedule / pickup</th><th>Status</th><th>Received</th><th>Age</th><th>Serial type</th><th>Serial #</th><th>Cost</th></tr></thead>
+               <tbody>${p.units.map((u) => `<tr class="${u.writtenTo ? "" : "free"}"><td>${u.writtenTo ? `<strong>${esc(u.writtenTo)}</strong>` : `<span class="hint">free to rotate</span>`}</td><td>${esc(u.customer)}</td><td>${day(u.scheduleDate)}</td><td>${esc(u.status)}</td><td>${day(u.received)}</td><td>${u.ageDays == null ? "—" : u.ageDays + " d"}</td><td>${esc(u.serialType)}</td><td>${esc(u.serial)}</td><td>${u.cost ? money2(u.cost) : "—"}</td></tr>`).join("")}</tbody></table>`
+            : `<div class="pos-sec">Details — spoken for (from the written models report)</div>${p.spokenFor.length ? `<table class="pos-d"><thead><tr><th>Ordered for invoice</th><th>Customer</th><th>Qty</th><th>Status</th><th>Delivery</th><th>Days in inventory</th></tr></thead><tbody>${p.spokenFor.map((x) => `<tr><td><strong>${esc(x.invoice)}</strong></td><td>${esc(x.customer)}</td><td>${x.qty}</td><td>${esc(x.status)}</td><td>${day(x.deliveryDate)}</td><td>${x.daysInInventory ?? "—"}</td></tr>`).join("")}</tbody></table>` : `<div class="pos-note">No serial snapshot loaded and nothing spoken for — upload the ExportModel serial report (Shop Inventory) to see units.</div>`}`;
+          const written = `<div class="pos-sec">Written, not delivered</div><table class="pos-d"><thead><tr><th>Invoice</th><th>Customer</th><th>Qty</th><th>SP</th><th>Status</th><th>Written</th><th>Delivery</th></tr></thead>
+            <tbody>${p.writtenLines.map((l) => `<tr class="${l.qty < 0 ? "ret" : ""}"><td><strong>${esc(l.invoice)}</strong>${l.qty < 0 ? ` <span class="badge ret">Return</span>` : ""}</td><td>${esc(l.customer)}</td><td>${l.qty}</td><td>${esc(l.sp)}</td><td>${esc(l.status)}</td><td>${day(l.invoiceDate)}</td><td>${day(l.delDate)}</td></tr>`).join("") || `<tr><td colspan="7" class="hint">Nothing written.</td></tr>`}</tbody></table>`;
+          const note = `<div class="pos-note">Serial snapshot: ${p.sources.serials?.uploadedAt ? `${esc(p.sources.serials.sourceFile || "")} uploaded ${when(p.sources.serials.uploadedAt)}` : "none loaded"} · report uploaded ${when(p.sources.report?.uploadedAt)}${p.months.length ? " · month columns are delivered units from Sales Order Detail" : ""}</div>`;
+          $("posBody").innerHTML = summary + units + written + note;
+        } catch (err) { $("posBody").innerHTML = `<div class="empty">${esc(err.message)}</div>`; }
+      }
+      $("posClose").addEventListener("click", () => $("posOverlay").classList.remove("show"));
+      $("posOverlay").addEventListener("click", (ev) => { if (ev.target === $("posOverlay")) $("posOverlay").classList.remove("show"); });
+      document.addEventListener("keydown", (ev) => { if (ev.key === "Escape") $("posOverlay").classList.remove("show"); });
+      $("codToggle").addEventListener("click", () => { state.hideCod = !state.hideCod; render(); });
       $("supplierSel").addEventListener("change", () => { state.supplier = $("supplierSel").value; render(); });
       $("q").addEventListener("input", () => { state.q = $("q").value; render(); });
       $("btnCsv").addEventListener("click", () => { window.location.href = `/api/written-models/csv?month=${encodeURIComponent(state.month)}&supplier=${encodeURIComponent(state.supplier)}`; });

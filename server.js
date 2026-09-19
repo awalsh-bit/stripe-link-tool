@@ -403,7 +403,7 @@ import {
   getCurrentSqOrder, setSqOrderLines, patchSqOrder, submitSqOrder, listSqOrders, getSqOrder, normModel as sqNormModel
 } from "./lib/speedqueen-truckload-postgres.js";
 import {
-  parseWrittenModelsWorkbook, parseNetsuiteItemsCsv, saveWrittenModelsSnapshot, replaceNetsuiteItems,
+  parseWrittenModelsWorkbook, parseWrittenModelsFromEpass, parseNetsuiteItemsCsv, saveWrittenModelsSnapshot, replaceNetsuiteItems,
   buildWrittenModelsBoard, getWrittenModelsSettings, setWrittenModelsSetting, getInventoryPosition, setWrittenLineHandled
 } from "./lib/written-models.js";
 import {
@@ -443,6 +443,10 @@ import {
   listZones as listServiceZones, getSettings as getServiceSettings, setSetting as setServiceSetting, STATUS_DEFS as SERVICE_STATUS_DEFS, REASON_CODES as SERVICE_REASON_CODES
 } from "./lib/service-journey-postgres.js";
 import { getPilotStore, applyPilotChanges, addPilotJobFromCard, resetPilot, listPilotLog } from "./lib/pilot-postgres.js";
+import {
+  parseOpenOrdersBundle, replaceEpassOpenOrders, getEpassOpenOrdersMeta, getEpassOpenOrder, listEpassOpenOrders,
+  parseOpenServiceBundle, replaceEpassOpenService, getEpassOpenServiceMeta, getEpassOpenService, listEpassOpenService
+} from "./lib/epass-open-orders-postgres.js";
 import {
   createSelfSchedule, getSelfScheduleByToken, buildClientOffer, pickSelfSchedule, preferSelfSchedule, releaseSelfSchedule,
   listOpenSelfHolds, setTechDay as setServiceTechDay, listTechDays as listServiceTechDays, offerForRequest as offerServiceDates, zoneInfoForZip
@@ -9380,11 +9384,68 @@ app.post("/api/epass-agent/upload", express.raw({ type: () => true, limit: "60mb
       return res.json({ ok: true, kind, ...result });
     }
 
-    return res.status(400).json({ error: `Unknown upload kind "${kind}" — expected inventory, quotes, open-orders, dispatch, or invoices.` });
+    // Straight from the ePASS database via ODBC (scripts/epass-odbc-pull.ps1):
+    // open sales invoices + model lines + serials + misc, one JSON bundle.
+    if (kind === "epass-open-orders") {
+      const bundle = parseOpenOrdersBundle(req.body);
+      const counts = await replaceEpassOpenOrders(bundle, { filename: sourceFile });
+      // The Ordering Report reads this feed now — the OE-04 upload is optional.
+      let orderingReport = null;
+      try {
+        orderingReport = await saveWrittenModelsSnapshot(parseWrittenModelsFromEpass(bundle), { by: "epass-agent", sourceFile: `ePASS feed ${bundle.pulledAt || ""}`.trim() });
+      } catch (err) {
+        console.error("Ordering Report refresh from ePASS feed failed:", err.message);
+        orderingReport = { error: err.message };
+      }
+      counts.orderingReport = orderingReport;
+      recordAudit({ ip: req.ip, actorUserId: null, action: "epass_open_orders_received", targetUserId: null,
+        detail: { ...counts, pulledAt: bundle.pulledAt || "", machine: bundle.machine || "", filename: sourceFile.slice(0, 120), via: "epass-agent" } }).catch(() => {});
+      return res.json({ ok: true, kind, ...counts, pulledAt: bundle.pulledAt || "" });
+    }
+
+    // Same feed, service side: open SV/WTY tickets + labor + parts + comments + notes.
+    if (kind === "epass-open-service") {
+      const bundle = parseOpenServiceBundle(req.body);
+      const counts = await replaceEpassOpenService(bundle, { filename: sourceFile });
+      recordAudit({ ip: req.ip, actorUserId: null, action: "epass_open_service_received", targetUserId: null,
+        detail: { ...counts, pulledAt: bundle.pulledAt || "", machine: bundle.machine || "", filename: sourceFile.slice(0, 120), via: "epass-agent" } }).catch(() => {});
+      return res.json({ ok: true, kind, ...counts, pulledAt: bundle.pulledAt || "" });
+    }
+
+    return res.status(400).json({ error: `Unknown upload kind "${kind}" — expected inventory, quotes, open-orders, dispatch, invoices, epass-open-orders, or epass-open-service.` });
   } catch (err) {
     console.error("ePASS agent upload failed:", err.message);
     return res.status(400).json({ error: err.message || "Unable to process that file." });
   }
+});
+
+// What the ODBC feed last delivered (executives; the CSVs themselves are on
+// W:\Agility\epass\ for everyone in the building).
+app.get("/api/epass/open-orders/status", requireExecutiveApi, async (req, res) => {
+  try { return res.json(await getEpassOpenOrdersMeta()); } catch (err) { return res.status(400).json({ error: err.message }); }
+});
+app.get("/api/epass/open-orders", requireExecutiveApi, async (req, res) => {
+  try { return res.json({ rows: await listEpassOpenOrders({ type: String(req.query.type || ""), q: String(req.query.q || ""), limit: Number(req.query.limit) || 500 }) }); } catch (err) { return res.status(400).json({ error: err.message }); }
+});
+app.get("/api/epass/open-service/status", requireExecutiveApi, async (req, res) => {
+  try { return res.json(await getEpassOpenServiceMeta()); } catch (err) { return res.status(400).json({ error: err.message }); }
+});
+app.get("/api/epass/open-service", requireExecutiveApi, async (req, res) => {
+  try { return res.json({ rows: await listEpassOpenService({ type: String(req.query.type || ""), status: String(req.query.status || ""), q: String(req.query.q || ""), limit: Number(req.query.limit) || 500 }) }); } catch (err) { return res.status(400).json({ error: err.message }); }
+});
+app.get("/api/epass/open-service/:code", requireExecutiveApi, async (req, res) => {
+  try {
+    const t = await getEpassOpenService(req.params.code);
+    if (!t) return res.status(404).json({ error: "Not an open ePASS service ticket (or the feed hasn't run yet)." });
+    return res.json(t);
+  } catch (err) { return res.status(400).json({ error: err.message }); }
+});
+app.get("/api/epass/open-orders/:code", requireExecutiveApi, async (req, res) => {
+  try {
+    const order = await getEpassOpenOrder(req.params.code);
+    if (!order) return res.status(404).json({ error: "Not an open ePASS invoice (or the feed hasn't run yet)." });
+    return res.json(order);
+  } catch (err) { return res.status(400).json({ error: err.message }); }
 });
 
 // ---------------------------------------------------------------------------

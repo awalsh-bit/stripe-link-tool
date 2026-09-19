@@ -1,0 +1,42 @@
+epass_map_zone,zone_group,booking_mode,km_from_shop,primary_tech,secondary_techs,centroid_lat,centroid_lng,sample_n,notes
+DS,Core Hill Country,open,2.2,DLA,AJH BLL CEM CIT KJB TDP,30.1993,-98.0826,72,"Daily, every tech passes through."
+SHOP,Core Hill Country,open,6.0,DLA,AJH BLL CEM CIT KJB TDP,30.1852,-98.0031,44,"Daily, every tech passes through."
+DRIFT,Core Hill Country,open,7.6,KJB,AJH BLL CEM CIT DLA TDP,30.1394,-98.0814,19,"Daily, every tech passes through."
+LOCAL,Core Hill Country,open,11.4,DLA,AJH BLL CEM CIT KJB TDP,30.1827,-97.9449,121,"Daily, every tech passes through."
+OAKHL,Core Hill Country,open,14.8,AJH,BLL CEM CIT DLA KJB TDP,30.2311,-97.909,52,"Daily, every tech passes through."
+HENLY,Core Hill Country,open,,DLA,AJH BLL CEM CIT JHM KJB TDP,,,,"Daily, every tech passes through."
+AUS W,Austin Metro,open,24.4,AJH,CEM JRC,30.3044,-97.8334,83,Daily.
+AUS C,Austin Metro,open,31.8,JRC,CEM,30.2966,-97.7466,70,Daily.
+AUS S,Austin Metro,open,26.2,AJH,CEM KJB,30.2332,-97.7896,14,Daily.
+AUS N,Austin Metro,open,31.4,JRC,CIT,30.3508,-97.7807,6,Daily.
+AUS E,Austin Metro,open,36.9,JRC,—,30.3082,-97.6948,2,Daily.
+LOST,Austin Metro,open,20.7,TDP,AJH CIT,30.2893,-97.8684,32,Daily.
+BCAVE,Austin Metro,open,15.0,TDP,AJH CIT,30.3123,-97.9648,4,Daily.
+LAKE,Austin Metro,open,20.5,TDP,CIT AJH,30.3763,-97.9796,1,Daily.
+SPICE,Austin Metro,open,22.0,TDP,CIT,30.3988,-98.0116,14,Daily.
+R2222,Austin Metro,open,26.1,CIT,TDP,30.366,-97.8625,5,Daily.
+WIMB,South Corridor,open,22.7,KJB,TDP,30.0055,-98.107,39,Daily via KJB from Kyle.
+KYLE,South Corridor,open,27.8,KJB,—,30.0,-97.8951,2,Daily via KJB from Kyle.
+BUDA,South Corridor,open,,KJB,—,,,,Daily via KJB from Kyle.
+SANMA,South Corridor,open,38.5,KJB,—,29.8652,-97.988,1,Daily via KJB from Kyle.
+FISCH,Far South,designated_days,30.0,KJB,—,29.9995,-98.2624,1,Trip bucket; CEM/KJB/BLL from the NB/Kyle side.
+CANYO,Far South,designated_days,,CEM,BLL,,,,Trip bucket; CEM/KJB/BLL from the NB/Kyle side.
+BRAUN,Far South,designated_days,49.7,CEM,KJB,29.7867,-98.2406,5,Trip bucket; CEM/KJB/BLL from the NB/Kyle side.
+HORSE,Northwest Lakes,designated_days,47.3,TDP,—,30.5261,-98.385,6,Trip bucket; TDP.
+MFALL,Northwest Lakes,designated_days,,TDP,—,,,,Trip bucket; TDP.
+LLANO,Northwest Lakes,designated_days,,TDP,—,,,,Trip bucket; TDP.
+ROUND,Northwest Lakes,designated_days,23.7,JHM,CEM TDP,30.3456,-98.2461,13,Trip bucket; TDP.
+JC,West,designated_days,34.7,JHM,DLA CEM,30.2854,-98.4094,33,"Trip bucket: proposed on volume/age, Demitrius confirms. JHM primary; CEM/DLA/TDP overflow."
+BLANC,West,designated_days,38.3,JHM,DLA,30.098,-98.4389,7,"Trip bucket: proposed on volume/age, Demitrius confirms. JHM primary; CEM/DLA/TDP overflow."
+STONE,West,designated_days,54.4,JHM,—,30.1726,-98.6254,1,"Trip bucket: proposed on volume/age, Demitrius confirms. JHM primary; CEM/DLA/TDP overflow."
+FBURG,West,designated_days,78.7,JHM,TDP DLA,30.2839,-98.8742,61,"Trip bucket: proposed on volume/age, Demitrius confirms. JHM primary; CEM/DLA/TDP overflow."
+BOERN,West,designated_days,60.8,JHM,CEM MAP,29.7729,-98.4468,24,"Trip bucket: proposed on volume/age, Demitrius confirms. JHM primary; CEM/DLA/TDP overflow."
+KERR,Out of area,office_only,110.9,JHM,—,30.2263,-99.2141,5,Office decides; no self-scheduling.
+OUT,Out of area,office_only,114.2,JHM,CEM,30.2999,-99.2442,6,Office decides; no self-scheduling.
+SA,Out of area,office_only,80.8,JHM,—,29.6567,-98.6107,1,Office decides; no self-scheduling.
+CEDAR,North,office_only,,CIT,TDP,,,,Rare; office decides.
+GEORG,North,office_only,,JRC,—,,,,Rare; office decides.
+LAGO,Austin Metro,open,,CIT,—,,,,Daily.
+HPOOL,Austin Metro,open,,TDP,—,,,,Daily.
+MANCH,Austin Metro,open,,TDP,—,,,,Daily.
+BRIAR,Austin Metro,open,,TDP,—,,,,Daily.

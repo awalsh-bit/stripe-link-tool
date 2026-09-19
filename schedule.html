@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="robots" content="noindex,nofollow,noarchive" />
+  <title>Wilson AC & Appliance - Schedule Your Visit</title>
+  <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+  <link rel="stylesheet" href="public-shell.css" />
+  <style>
+    :root {
+      --bg: #f7f8fc;
+      --card: #ffffff;
+      --text: #1f2937;
+      --muted: #6b7280;
+      --border: #dbe1ea;
+      --primary: #21692c;
+      --primary-hover: #1a5222;
+      --primary-soft: #eaf4ec;
+      --success-bg: #ecfdf5;
+      --success-text: #065f46;
+      --error-bg: #fef2f2;
+      --error-text: #991b1b;
+      --shadow: 0 10px 35px rgba(0, 0, 0, 0.08);
+      --radius: 18px;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Roboto", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: linear-gradient(180deg, #eaf4ec 0%, var(--bg) 100%);
+      color: var(--text);
+      min-height: 100vh;
+      padding: 32px 16px;
+    }
+    .wrap { max-width: 760px; margin: 0 auto; }
+    .hero { margin-bottom: 22px; }
+    .eyebrow { margin: 14px 0 4px; font-size: 13px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--primary); }
+    h1 { margin: 0 0 8px; font-size: 26px; line-height: 1.25; }
+    .sub { margin: 0; color: var(--muted); font-size: 16px; line-height: 1.6; }
+    .card {
+      background: var(--card);
+      border: 1px solid rgba(33, 105, 44, 0.12);
+      box-shadow: var(--shadow);
+      border-radius: var(--radius);
+      padding: 24px;
+      margin-bottom: 18px;
+    }
+    .cardline { display: inline-flex; align-items: center; gap: 8px; background: var(--success-bg); color: var(--success-text); border-radius: 999px; padding: 6px 14px; font-size: 14px; font-weight: 600; margin-bottom: 16px; }
+    .picker-title { margin: 0 0 4px; font-size: 18px; font-weight: 700; }
+    .picker-sub { margin: 0 0 16px; color: var(--muted); font-size: 14px; line-height: 1.5; }
+    .offer {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 12px;
+      align-items: center;
+      width: 100%;
+      text-align: left;
+      border: 1.5px solid var(--border);
+      border-radius: 14px;
+      padding: 14px 16px;
+      background: #fff;
+      margin-bottom: 10px;
+      cursor: pointer;
+      font: inherit;
+      color: var(--text);
+      transition: border-color .15s, box-shadow .15s;
+    }
+    .offer:hover, .offer:focus-visible { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(33,105,44,.12); outline: none; }
+    .offer.top { border-color: var(--primary); background: var(--primary-soft); }
+    .offer .day { font-size: 17px; font-weight: 700; }
+    .offer .win { font-size: 14px; color: var(--muted); margin-top: 2px; }
+    .offer .tag { display: inline-block; font-size: 12px; font-weight: 700; color: var(--primary); text-transform: uppercase; letter-spacing: .04em; margin-bottom: 4px; }
+    .offer .body { font-size: 13px; color: var(--text); margin-top: 6px; line-height: 1.45; }
+    .offer .go { border: none; background: var(--primary); color: #fff; font-weight: 700; padding: 10px 14px; border-radius: 10px; font-size: 14px; white-space: nowrap; }
+    .offer:not(.top) .go { background: #fff; color: var(--primary); border: 1.5px solid var(--primary); }
+    .others { margin: 18px 0 8px; font-size: 13px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; }
+    button.primary, button.secondary { font: inherit; font-weight: 700; border-radius: 12px; padding: 13px 18px; cursor: pointer; font-size: 15px; }
+    button.primary { background: var(--primary); color: #fff; border: none; }
+    button.primary:hover { background: var(--primary-hover); }
+    button.primary:disabled { opacity: .6; cursor: default; }
+    button.secondary { background: #fff; color: var(--primary); border: 1.5px solid var(--primary); }
+    .actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 16px; }
+    .status { margin-top: 12px; font-size: 14px; border-radius: 10px; padding: 10px 12px; display: none; }
+    .status.error { display: block; background: var(--error-bg); color: var(--error-text); }
+    .status.info { display: block; background: var(--primary-soft); color: var(--primary); }
+    .done .tick { width: 54px; height: 54px; border-radius: 50%; background: var(--success-bg); color: var(--success-text); display: flex; align-items: center; justify-content: center; font-size: 28px; margin-bottom: 12px; }
+    .done h2 { margin: 0 0 4px; font-size: 24px; }
+    .done .line2 { margin: 0 0 6px; font-size: 18px; font-weight: 600; }
+    .done .under { margin: 0; color: var(--muted); line-height: 1.55; }
+    .ref { margin-top: 16px; font-size: 13px; color: var(--muted); }
+    .confirm-box { border: 1.5px solid var(--primary); background: var(--primary-soft); border-radius: 14px; padding: 16px; margin-top: 8px; }
+    .confirm-box .day { font-size: 18px; font-weight: 700; }
+    .win-choice { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+    .win-choice label { display: inline-flex; align-items: center; gap: 6px; border: 1.5px solid var(--border); background: #fff; border-radius: 999px; padding: 7px 12px; font-size: 14px; cursor: pointer; }
+    .win-choice label:has(input:checked) { border-color: var(--primary); color: var(--primary); font-weight: 600; }
+    details { border-top: 1px solid var(--border); padding: 12px 0; }
+    details summary { cursor: pointer; font-weight: 600; }
+    details p { margin: 8px 0 0; color: var(--muted); line-height: 1.55; font-size: 14px; }
+    .hidden { display: none !important; }
+    .footer-note { color: var(--muted); font-size: 13px; text-align: center; margin: 16px 0 0; }
+    @media (max-width: 520px) { .offer { grid-template-columns: 1fr; } .offer .go { width: 100%; } h1 { font-size: 22px; } }
+  </style>
+</head>
+<body data-public-shell-label="Schedule Your Visit">
+  <div class="wrap">
+    <div class="hero">
+      <div id="public-shell-header"></div>
+      <div class="eyebrow" id="eyebrow">Repair request · step 2 of 2</div>
+      <h1 id="heading">Loading your request…</h1>
+      <p class="sub" id="subline"></p>
+    </div>
+
+    <div class="card hidden" id="pickerCard">
+      <div class="cardline hidden" id="cardline"></div>
+      <p class="picker-title">Pick a day</p>
+      <p class="picker-sub" id="pickerSub">Showing days when a technician who covers your ZIP has room. Confirmation is instant — no call needed.</p>
+      <div id="offers"></div>
+      <div id="status" class="status"></div>
+      <div class="actions">
+        <button type="button" class="secondary" id="noneFitBtn">None of these work — text me other dates</button>
+      </div>
+    </div>
+
+    <div class="card hidden" id="confirmCard">
+      <p class="picker-title">Take this day?</p>
+      <div class="confirm-box">
+        <div class="day" id="confirmDay"></div>
+        <div style="color:var(--muted); margin-top:2px;">Arrival is between 8 am and 5 pm. Prefer a part of the day?</div>
+        <div class="win-choice" id="winChoice">
+          <label><input type="radio" name="win" value="ANY" checked /> Any time</label>
+          <label><input type="radio" name="win" value="AM" /> Morning</label>
+          <label><input type="radio" name="win" value="PM" /> Afternoon</label>
+        </div>
+        <div class="picker-sub" style="margin:8px 0 0;">We'll do our best — the route decides the exact arrival time, and Client Care will reach out if your preference can't be met.</div>
+      </div>
+      <div id="confirmStatus" class="status"></div>
+      <div class="actions">
+        <button type="button" class="primary" id="confirmBtn">Yes, book this day</button>
+        <button type="button" class="secondary" id="backBtn">Show the other openings</button>
+      </div>
+    </div>
+
+    <div class="card hidden" id="bucketCard">
+      <p class="sub" id="bucketText"></p>
+      <div id="bucketStatus" class="status"></div>
+      <div class="actions"><button type="button" class="primary" id="bucketBtn">Finish request</button></div>
+    </div>
+
+    <div class="card hidden done" id="doneCard">
+      <div class="tick">&#10003;</div>
+      <h2 id="doneHeading"></h2>
+      <p class="line2" id="doneLine2"></p>
+      <p class="under" id="doneUnder"></p>
+      <div class="ref" id="doneRef"></div>
+    </div>
+
+    <div class="card hidden" id="faqCard">
+      <details><summary>Why the same technician?</summary><p>The technician who diagnoses your unit knows exactly what he found and what he needs. Any follow-up install stays with him so nothing gets lost in translation.</p></details>
+      <details id="faqCharge"><summary>What am I charged and when?</summary><p>Nothing today. If you approve a repair, the diagnostic is included and the total is charged after the work is complete and tested. If you decline, only the diagnostic fee is charged.</p></details>
+      <details><summary>Need to change something later?</summary><p>Reply to any message from Wilson AC &amp; Appliance or call Client Care and we'll move your visit. The service department is staffed Monday through Friday, 8:30 am – 5 pm.</p></details>
+    </div>
+
+    <p class="footer-note">Wilson AC &amp; Appliance · Dripping Springs, Texas</p>
+    <div id="public-shell-footer"></div>
+  </div>
+
+  <script>
+    const $ = (id) => document.getElementById(id);
+    const token = new URLSearchParams(location.search).get("r") || "";
+    const api = (path, opts) => fetch(`/api/service/schedule/${encodeURIComponent(token)}${path || ""}`, opts).then(async (r) => { const d = await r.json().catch(() => ({})); if (!r.ok) throw new Error(d.error || "Something went wrong."); return d; });
+    const longDay = (iso) => new Date(`${iso}T12:00:00`).toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" });
+    const cap = (s) => s ? s.charAt(0).toUpperCase() + s.slice(1) : s;
+    let state = null;
+    let chosen = null;
+
+    function show(ids) { ["pickerCard", "confirmCard", "bucketCard", "doneCard", "faqCard"].forEach((id) => $(id).classList.toggle("hidden", !ids.includes(id))); }
+    function setStatus(el, msg, kind) { el.className = "status" + (msg ? ` ${kind || "info"}` : ""); el.textContent = msg || ""; }
+    const greet = () => state.firstName ? `, ${state.firstName}` : "";
+    const refLine = () => `Reference ${state.reference} · ${state.unitWord}`;
+    // "Out of area is outside…" reads badly; so does a zone we can't name.
+    const areaPhrase = () => (!state.area || /out of area|your area/i.test(state.area)) ? "Your address is" : `${cap(state.area)} is`;
+    const officeWhy = () => state.requestType === "hvac" ? "HVAC visits are set up by our HVAC team" : `${areaPhrase()} outside our regular routes`;
+
+    function renderDone(kind) {
+      show(["doneCard", "faqCard"]);
+      if (kind === "picked" && state.picked) {
+        $("heading").textContent = "All set";
+        $("subline").textContent = "";
+        $("doneHeading").textContent = `You're booked${greet()}`;
+        $("doneLine2").textContent = `Visit ${longDay(state.picked.date)} · ${state.picked.windowLabel || "Any time · 8 am – 5 pm"}`;
+        $("doneUnder").textContent = `Your visit is on our calendar. Please make sure we can reach the unit. If anything about the visit needs to change, Client Care will reach out — otherwise there's nothing else to do.`;
+      } else if (kind === "text_me") {
+        $("heading").textContent = "All set";
+        $("subline").textContent = "";
+        $("doneHeading").textContent = `Request received${greet()}`;
+        $("doneLine2").textContent = "We'll text you a date within a few days";
+        $("doneUnder").textContent = `We run ${state.area} in grouped trips so a technician can spend the day near you. Most customers hear from us inside a week.`;
+      } else if (kind === "released") {
+        $("heading").textContent = "All set";
+        $("subline").textContent = "";
+        $("doneHeading").textContent = `Client Care has your request`;
+        $("doneLine2").textContent = "Your visit is being handled by our team";
+        $("doneUnder").textContent = `This link has done its job — call or text Client Care to change anything about the visit.`;
+      } else {
+        $("heading").textContent = "All set";
+        $("subline").textContent = "";
+        $("doneHeading").textContent = `Request received${greet()}`;
+        $("doneLine2").textContent = "We'll call you within one business day";
+        $("doneUnder").textContent = `${officeWhy()}, so Client Care will find a time with you directly. Nothing else is needed right now.`;
+      }
+      $("doneRef").textContent = refLine();
+      $("faqCharge").classList.toggle("hidden", state.requestType === "hvac" || !state.cardSaved);
+      window.scrollTo({ top: 0, behavior: "auto" });
+    }
+
+    function renderOffers() {
+      const box = $("offers");
+      box.innerHTML = "";
+      const offers = state.offers || [];
+      if (!offers.length) {
+        box.innerHTML = `<p class="picker-sub">We don't have an opening to show right now. Tap the button below and Client Care will text you dates.</p>`;
+        return;
+      }
+      offers.forEach((o, i) => {
+        const b = document.createElement("button");
+        b.type = "button";
+        b.className = "offer" + (i === 0 ? " top" : "");
+        const body = i === 0
+          ? (o.label && /route/.test(o.label)
+              ? "Our technician is already in your area that day — picking it means less driving for us and a tighter arrival window for you. All other openings are below."
+              : "A technician who covers your area is available that day. All other openings are below.")
+          : "";
+        b.innerHTML = `<div>${i === 0 ? `<div class="tag">${o.label || "Earliest available"}</div>` : ""}<div class="day">${longDay(o.date)}</div><div class="win">Arrival between 8 am and 5 pm</div>${body ? `<div class="body">${body}</div>` : ""}</div><span class="go">${i === 0 ? "Take this day" : "Choose"}</span>`;
+        b.addEventListener("click", () => { chosen = o; $("confirmDay").textContent = longDay(o.date); setStatus($("confirmStatus"), ""); show(["confirmCard", "faqCard"]); window.scrollTo({ top: 0, behavior: "smooth" }); });
+        box.appendChild(b);
+        if (i === 0 && offers.length > 1) { const h = document.createElement("div"); h.className = "others"; h.textContent = "All other openings"; box.appendChild(h); }
+      });
+    }
+
+    function render() {
+      const stepWord = state.requestType === "hvac" ? "HVAC service request" : "Appliance repair request";
+      $("eyebrow").textContent = `${stepWord} · step 2 of 2`;
+      if (state.released) return renderDone("released");
+      if (state.kind === "picked") return renderDone("picked");
+      if (state.kind === "text_me") return renderDone("text_me");
+      if (state.kind === "office_call") return renderDone("office_call");
+      if (state.mode === "open" && !state.disabled) {
+        $("heading").textContent = "Almost done — when should we come?";
+        $("subline").textContent = `Your request is saved (${state.reference}). Pick the day that works for you and it's on our calendar.`;
+        if (state.cardSaved) { $("cardline").textContent = `✓ Card saved securely (${state.cardSaved.brand ? cap(state.cardSaved.brand) + " " : ""}····${state.cardSaved.last4}) — nothing is charged today.`; $("cardline").classList.remove("hidden"); }
+        $("faqCharge").classList.toggle("hidden", state.requestType === "hvac" || !state.cardSaved);
+        renderOffers();
+        show(["pickerCard", "faqCard"]);
+        return;
+      }
+      if (state.mode === "designated_days") {
+        $("heading").textContent = `Almost done${greet()} — we'll text you a date`;
+        $("subline").textContent = `Your request is saved (${state.reference}).`;
+        $("bucketText").textContent = `We group visits in your area. We run ${state.area} in grouped trips so we can get to you efficiently. We'll text you a date within a few days — most customers hear from us inside a week. Need it sooner? Call or text Client Care.`;
+        $("bucketBtn").textContent = "Finish request — text me a date";
+        $("bucketBtn").dataset.kind = "text_me";
+        show(["bucketCard", "faqCard"]);
+        return;
+      }
+      $("heading").textContent = `Thanks${greet()} — we'll call you to schedule`;
+      $("subline").textContent = `Your request is saved (${state.reference}).`;
+      $("bucketText").textContent = `${officeWhy()}, so a person will find a time that works with you. Client Care will call within one business day.`;
+      $("bucketBtn").textContent = "Finish request";
+      $("bucketBtn").dataset.kind = "office_call";
+      show(["bucketCard", "faqCard"]);
+    }
+
+    $("confirmBtn").addEventListener("click", async () => {
+      if (!chosen) return;
+      const btn = $("confirmBtn"); btn.disabled = true; btn.textContent = "Booking…";
+      try {
+        const d = await api("", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ date: chosen.date, window: (document.querySelector('input[name="win"]:checked') || {}).value || "ANY" }) });
+        state.kind = "picked"; state.picked = d.picked;
+        renderDone("picked");
+      } catch (e) {
+        setStatus($("confirmStatus"), e.message, "error");
+        btn.disabled = false; btn.textContent = "Yes, book this day";
+        if (/filled up|another/.test(e.message)) { try { state = await api(""); renderOffers(); show(["pickerCard", "faqCard"]); setStatus($("status"), e.message, "error"); } catch {} }
+      }
+    });
+    $("backBtn").addEventListener("click", () => { show(["pickerCard", "faqCard"]); });
+    async function sendPreference(kind, statusEl, btn) {
+      btn.disabled = true;
+      try { const d = await api("/preference", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ kind }) }); state.kind = d.kind; renderDone(d.kind); }
+      catch (e) { setStatus(statusEl, e.message, "error"); btn.disabled = false; }
+    }
+    $("noneFitBtn").addEventListener("click", () => sendPreference("text_me", $("status"), $("noneFitBtn")));
+    $("bucketBtn").addEventListener("click", () => sendPreference($("bucketBtn").dataset.kind || "office_call", $("bucketStatus"), $("bucketBtn")));
+
+    (async () => {
+      if (!token) { $("heading").textContent = "This scheduling link isn't valid."; $("subline").textContent = "Please use the link from your request, or call Client Care and we'll set up your visit."; return; }
+      try { state = await api(""); render(); }
+      catch (e) { $("heading").textContent = "We couldn't open your request."; $("subline").textContent = e.message + " Call Client Care and we'll set up your visit."; }
+    })();
+  </script>
+  <script src="public-shell.js"></script>
+</body>
+</html>

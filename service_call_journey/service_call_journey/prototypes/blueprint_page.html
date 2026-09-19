@@ -1,0 +1,1251 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Wilson service dashboard · blueprint</title></head><body style="margin:0">
+
+<title>Service Order Journey Blueprint</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Serif:wght@500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+:root{--bg:#f5f7f4;--surface:#ffffff;--ink:#1b241f;--muted:#5d6b62;--line:#d9e1da;--accent:#1f6b35;--accent-ink:#ffffff;--soft:#e6efe7;--warn:#a86f12;--code-bg:#eef2ee;--code-ink:#174a27}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--bg:#121815;--surface:#1a221d;--ink:#e6ece7;--muted:#9aa89e;--line:#2c372f;--accent:#5fb87a;--accent-ink:#0f1a13;--soft:#1f2c23;--warn:#e0a93f;--code-bg:#22302a;--code-ink:#9fdcb0}}
+:root[data-theme="dark"]{--bg:#121815;--surface:#1a221d;--ink:#e6ece7;--muted:#9aa89e;--line:#2c372f;--accent:#5fb87a;--accent-ink:#0f1a13;--soft:#1f2c23;--warn:#e0a93f;--code-bg:#22302a;--code-ink:#9fdcb0}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font:16px/1.6 "IBM Plex Sans",system-ui,sans-serif;padding-block:0 4rem;padding-inline:16px}
+.wrap{max-width:860px;margin:0 auto}
+header{padding-block:2.5rem 1.5rem;border-bottom:1px solid var(--line)}
+.eyebrow{font-family:"IBM Plex Mono",monospace;font-size:.75rem;letter-spacing:.08em;text-transform:uppercase;color:var(--accent);font-weight:500}
+h1{font-family:"IBM Plex Serif",Georgia,serif;font-weight:600;font-size:clamp(1.9rem,4vw,2.6rem);line-height:1.15;margin:.5rem 0 .75rem;text-wrap:balance}
+.meta{color:var(--muted);font-size:.9rem}
+nav.toc{display:flex;flex-wrap:wrap;gap:.4rem .9rem;padding-block:1rem;border-bottom:1px solid var(--line);font-size:.85rem}
+nav.toc a{color:var(--muted);text-decoration:none;border-bottom:1px solid transparent}
+nav.toc a:hover,nav.toc a:focus-visible{color:var(--accent);border-color:var(--accent);outline:none}
+h2{font-family:"IBM Plex Serif",Georgia,serif;font-weight:600;font-size:1.45rem;margin:2.75rem 0 .75rem;text-wrap:balance;scroll-margin-top:1rem}
+h3{font-size:1.05rem;font-weight:600;margin:1.75rem 0 .5rem}
+p,li{max-width:68ch}
+ol,ul{padding-left:1.4rem}li{margin:.3rem 0}
+strong{font-weight:600}
+code{font-family:"IBM Plex Mono",monospace;font-size:.85em;background:var(--code-bg);color:var(--code-ink);padding:.05em .35em;border-radius:3px;white-space:nowrap}
+.tw{overflow-x:auto;margin:1rem 0;border:1px solid var(--line);border-radius:6px;background:var(--surface)}
+table{border-collapse:collapse;width:100%;font-size:.9rem;min-width:560px}
+th{text-align:left;font-family:"IBM Plex Mono",monospace;font-size:.72rem;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:500;padding:.65rem .8rem;border-bottom:1px solid var(--line);background:var(--soft)}
+td{padding:.6rem .8rem;border-bottom:1px solid var(--line);vertical-align:top;line-height:1.45}
+tr:last-child td{border-bottom:0}
+td strong{font-family:"IBM Plex Mono",monospace;font-weight:500;color:var(--code-ink)}
+.flow{border:1px solid var(--line);border-radius:6px;overflow:hidden;margin:1rem 0;background:var(--surface);font-size:.88rem}
+.lane-head,.step{display:grid;grid-template-columns:1.1fr 2fr 1fr 1fr;gap:0}
+.lane-head span{font-family:"IBM Plex Mono",monospace;font-size:.72rem;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);padding:.6rem .8rem;background:var(--soft);border-bottom:1px solid var(--line)}
+.step span{padding:.6rem .8rem;border-bottom:1px solid var(--line);border-left:1px solid var(--line);line-height:1.45}
+.step span:first-child{border-left:0;color:var(--accent);font-weight:500}
+.step:last-child span{border-bottom:0}
+.step .none{color:var(--muted)}
+.step span:nth-child(4){font-size:.82rem;color:var(--muted)}
+@media (max-width:640px){.lane-head{display:none}.step{grid-template-columns:1fr}.step span{border-left:0;border-bottom:0;padding-block:.25rem}.step span:first-child{padding-top:.7rem}.step span:last-child{padding-bottom:.7rem;border-bottom:1px solid var(--line)}.step span:first-child::before{content:"Customer · ";color:var(--muted);font-weight:400}.step span:nth-child(3)::before{content:"Staff · ";color:var(--muted)}.step span:nth-child(4)::before{content:"ePASS · "}}
+</style>
+<div class="wrap"><header><div class="eyebrow">Wilson AC &amp; Appliance · Service department</div><h1>Service Order Journey Blueprint</h1><div class="meta">Version 0.24 · September 19, 2026 (night) · the audit round — the tech&#x27;s findings as history, anyone in the office can fix a ticket, the damage report read off the queue that already exists, and what we got wrong (§5.10, §5.13–5.15, §6.5, §14)</div></header><nav class="toc"><a href="#1-what-this-document-is">What this document is</a><a href="#2-current-state-as-described-and-as-seen-in-the-screenshots">Current state (as described and as seen in the screenshots)</a><a href="#3-target-state-flow-one-job-start-to-finish">Target-state flow (one job, start to finish)</a><a href="#4-status-engine">Status engine</a><a href="#5-automation-rules-step-by-step">Automation rules, step by step</a><a href="#6-capacity-engine-and-route-builder">Capacity engine and route builder</a><a href="#6a-placement-where-a-call-lands-and-the-so4-pencil-9-14">Placement: where a call lands, and the SO4 pencil ⟨9/14⟩</a><a href="#6b-one-household-one-visit-and-an-honest-capacity-number-9-15">One household, one visit — and an honest capacity number ⟨9/15⟩</a><a href="#6c-the-collector-lane-tracking-john-not-routing-to-him-9-15-pm-corrected-9-15-late">The collector lane — tracking John, not routing to him ⟨9/15 pm, corrected 9/15 late⟩</a><a href="#6d-twenty-years-of-history-and-who-the-customer-actually-is-9-15-late">Twenty years of history, and who the customer actually is ⟨9/15 late⟩</a><a href="#6e-the-address-is-the-identity-and-the-other-things-the-second-day-of-real-data-taught-9-17">The address is the identity — and the other things the second day of real data taught ⟨9/17⟩</a><a href="#7-customer-portal-is-my-repair-ready-yet">Customer portal (&quot;Is my repair ready yet?&quot;)</a><a href="#59-closing-a-call-out-9-19">9 Closing a call out ⟨9/19⟩</a><a href="#510-the-installers-damage-report-9-19">10 The installer&#x27;s damage report ⟨9/19⟩</a><a href="#511-in-the-shop-9-19-pm">11 In the shop ⟨9/19 pm⟩</a><a href="#512-the-quote-that-survives-being-closed-9-19-pm">12 The quote that survives being closed ⟨9/19 pm⟩</a><a href="#513-where-the-techs-findings-go-9-19-late">13 Where the tech&#x27;s findings go ⟨9/19 late⟩</a><a href="#514-anyone-in-the-office-can-fix-a-ticket-9-19-late">14 Anyone in the office can fix a ticket ⟨9/19 late⟩</a><a href="#515-what-we-got-wrong-and-how-it-was-found-9-19-late">15 What we got wrong, and how it was found ⟨9/19 late⟩</a><a href="#8-notification-matrix">Notification matrix</a><a href="#6f-confirming-a-route-9-19-pm">Confirming a route ⟨9/19 pm⟩</a><a href="#9-epass-mirroring-until-netsuite-revised-9-18">ePASS mirroring until NetSuite ⟨revised 9/18⟩</a><a href="#9a-office-search-history-and-kpis-9-11">Office search, history and KPIs ⟨9/11⟩</a><a href="#10-data-model-developer-summary">Data model (developer summary)</a><a href="#11-phased-rollout">Phased rollout</a><a href="#11a-the-shadow-test-instance-9-14">The shadow test instance ⟨9/14⟩</a><a href="#12-measures-of-success">Measures of success</a><a href="#13-decisions-log">Decisions log</a><a href="#14a-answered-by-cayden-9-19-pm">Answered by Cayden ⟨9/19 pm⟩</a><a href="#14-decisions-still-needed-from-wilson">Decisions still needed from Wilson</a></nav><p>Version 0.23 · September 19, 2026, late (<strong>9/19 late: the round Cayden's answers unlocked — the warranty rate card with real numbers and real ePASS codes, freight at $20 under the FREIGHT code and off the tech's screen entirely, damage reports as warranty by default, parts ETAs by where they ship from, in-shop tickets with their own lane and a tattle when one floats, a quote that survives being closed, and a confirmed route that texts everyone on it — §5.9a, §5.11, §5.12, §6f, §7, §14; 9/19 pm: the other eight — the three tracker buttons that did nothing, closing a call out from the board, Kezia's shipping override, warranty on the office side, a quote the office draws up itself, and the installer's cosmetic damage report from the truck to the customer picking an install time — §5.9, §5.10, §7, decisions log; 9/19: the field tool rebuilt around one estimate flow the tech builds and prices — §5.2a, decisions log; 9/18 late: the confirmation page after a customer books, built around saving the private tracker link — §7, decisions log; 9/18 pm: the diagnostic on a discontinued part — it stands, with a one-click logged waive on the way to the showroom (§5.3); add and remove ZIPs in the zone editor, with randymajors.org as the list source — §6.3; a discontinued part ends the call through the estimate page as a parts-unavailable notice — §5.3; decisions log and §14 extended.</strong> 9/18: ePASS stays the source of truth for the interim — §5.3, §5.4 and §9 rewritten, purchasing moved to the NetSuite phase in §11; the zone map editor in §6.1 and §6.3; the two-line labor rule; the decisions log and §14 extended<strong>; 9/17: the address is the identity — §6e; replay adjustments; service-team feedback from the 9/11 demo folded in — §13 and the ⟨9/11⟩ marks; 9/14: placement against the real route, the SO4 auto-pencil, route-first dates for customers, and the shadow test instance that replaces the AJH pilot — §6a and §11a, marked ⟨9/14⟩; </strong>9/15: the visit group, per-job contacts, honest capacity, and the tech notification loop from the team's test — §6b, marked ⟨9/15⟩; 9/15 pm: the collector lane for John's Fredericksburg route, and the hand-off text — §6c**) · Prepared for Cayden Mayfield and the dashboard dev team</p>
+<h2 id="1-what-this-document-is">1. What this document is</h2>
+<p>This is the working spec for moving the service repair workflow — from the customer's first contact to the final card charge — into the Wilson dashboard, with the dashboard as the source of truth and ePASS kept in step by a background reconciliation tool until NetSuite arrives with a two-way API. It covers the target flow, the status engine, the automation rules that replace today's manual report-pulling, the capacity and route builder, the customer portal and self-scheduling, notifications, the ePASS mirroring strategy, a data model, and a phased rollout. ⟨9/18⟩ For the interim, until NetSuite, the first sentence is qualified by §9: ePASS remains the source of truth for ticket data, ordering, receiving, accounting and billing, and the dashboard works beside it with the least double work the team will accept.</p>
+<p>Design principles that drove every decision below:</p>
+<ol>
+<li><strong>Status changes are earned, not typed.</strong> In the target state, almost no status is set by a person picking from a dropdown. Statuses move because an event happened (customer clicked approve, PO was placed, part was received, tech tapped "complete").</li>
+<li><strong>Every hand-off today is a report someone remembers to run.</strong> SO2 → parts manager, SO2.1 → Noell, SO3 → parts manager, SO5 → dispatcher. Each of those becomes a live work queue that fills itself, and most of them shrink to a review step or disappear.</li>
+<li><strong>The customer should be able to answer their own question.</strong> "Where's my part?" and "When are you coming?" become a page, not a phone call.</li>
+<li><strong>Capacity is data.</strong> Tech zones, shift hours, start/end points, job durations, and parts ETAs are all inputs; the route is an output the dispatcher supervises rather than builds.</li>
+<li><strong>ePASS stays correct without anyone hunting.</strong> The dashboard generates the list of exactly what needs to be keyed into ePASS and confirms it happened from the next export.</li>
+</ol>
+<h2 id="2-current-state-as-described-and-as-seen-in-the-screenshots">2. Current state (as described and as seen in the screenshots)</h2>
+<div class="tw"><table>
+<thead>
+<tr>
+<th>Step</th>
+<th>Who</th>
+<th>Tool today</th>
+<th>Friction</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Customer calls/texts, is sent to the web form</td>
+<td>Client Care</td>
+<td>Phone → web form</td>
+<td>The call itself is the waste; form already collects what ePASS needs plus a card on file</td>
+</tr>
+<tr>
+<td>Form lands in Service Requests queue; ticket keyed into ePASS; ERP # and "TICKET MADE. MSD" typed back</td>
+<td>Michael Davidson</td>
+<td>Dashboard + ePASS</td>
+<td>Double entry, status set by hand ("Call Status Pending" → "Call Scheduled")</td>
+</tr>
+<tr>
+<td>Scheduler picks date by maps + capacity feel</td>
+<td>Dispatcher</td>
+<td>ePASS Routing (tech tree, 2-pane day view)</td>
+<td>Human optimisation, no customer choice</td>
+</tr>
+<tr>
+<td>Tech runs diag, moves on; writes notes <em>next morning</em>, adds parts/labor, sets SO2</td>
+<td>Tech</td>
+<td>ePASS</td>
+<td>12–24 h dead time before anything can happen</td>
+</tr>
+<tr>
+<td>Parts manager runs SO2 report, price-checks every part, sets SO2.1</td>
+<td>Parts</td>
+<td>ePASS report</td>
+<td>Daily report pull; prices change daily so it has to be re-done if quote sits</td>
+</tr>
+<tr>
+<td>Noell runs SO2.1 report, exports quote PDF, uploads to Estimate Approvals tool, emails/texts link</td>
+<td>CX (Noell)</td>
+<td>ePASS → PDF → Dashboard</td>
+<td>PDF scan is a workaround for data that already exists as line items; two report pulls between tech and customer</td>
+</tr>
+<tr>
+<td>Customer approves / shops via link</td>
+<td>Customer</td>
+<td>Dashboard estimate page</td>
+<td>Works well — keep</td>
+</tr>
+<tr>
+<td>Approved → Noell sets SO3 (warranty goes SO1 → SO3 directly)</td>
+<td>Noell</td>
+<td>ePASS</td>
+<td>Manual status flip after a digital event</td>
+</tr>
+<tr>
+<td>Parts manager runs SO3 report, builds POs, orders, sets SO4</td>
+<td>Parts</td>
+<td>ePASS report + supplier sites</td>
+<td>Daily report pull; ETA not captured in a usable field</td>
+</tr>
+<tr>
+<td>SO4 tickets parked on "next Saturday" as a dump day</td>
+<td>Dispatcher</td>
+<td>ePASS routing</td>
+<td>Fake dates pollute the calendar (Service Order Health shows 95% of open tickets have dates in the past)</td>
+</tr>
+<tr>
+<td>Parts arrive → dispatcher pulls SO5, marries installs with routed SO1s, confirms → SO6</td>
+<td>Dispatcher</td>
+<td>ePASS</td>
+<td>Manual matching; customer called for a date</td>
+</tr>
+<tr>
+<td>SO4PRE: customer given a firm date before part arrives; jumps to SO6 when part lands</td>
+<td>Dispatcher</td>
+<td>ePASS</td>
+<td>Good idea, manual to track</td>
+</tr>
+<tr>
+<td>Tech installs, ticket → SO8; Noell charges card, closes in ePASS</td>
+<td>Tech, Noell</td>
+<td>ePASS + Stripe</td>
+<td>Card and approval already exist — charge is a manual last mile</td>
+</tr>
+</tbody>
+</table></div>
+<p>Screens already in the dashboard that this plan builds on: <strong>Appliance Repair Request Form</strong> (intake + Stripe SetupIntent), <strong>Service Requests queue</strong> (status, ERP #, notes, card status, field damage reports), <strong>Service Estimate Approvals</strong> (quote link, approve/shop, reminders, parts ETA text), and <strong>Service Order Health</strong> (ExportInvoice import matched to queue by ERP order number — this is the seed of the reconciliation engine).</p>
+<p>Status codes in use today (from the ePASS list): QUOTE, SI1–SI9 and SI-TEST (in-shop), SO1, SO1.AUTH, SO2, SO2.1, SO2.2, SO3, SO3PRE, SO4, SO4B, SO4H, SO4PRE, SO5, SO6, SO7, SO8, SO8I, SO9, plus WAR3/WAR4/WARADMIN/WARPART/WARPROBLEM on the warranty side and CPU2.</p>
+<h2 id="3-target-state-flow-one-job-start-to-finish">3. Target-state flow (one job, start to finish)</h2>
+<pre><code>Customer                Dashboard (source of truth)                 Staff touch            ePASS mirror
+────────                ───────────────────────────                 ───────────            ────────────
+Submits form  ───────▶  Job created · zone from zip · card saved
+Picks SO1 window ─────▶ Tentative appointment on capacity engine     —                      Sync item: create ticket, set SO1 + date
+                        Warranty? → flag, skip quote path
+                        Confirmation text/email + portal link
+                        Route builder places job on a truck           Dispatcher glances
+Day before: reminder ◀─ Auto-notify (window + tech name)
+Tech en route text   ◀─ Tech taps &quot;On my way&quot; in tech view
+                        Tech completes diag ON SITE in tech view:
+                        notes, photos, parts, labor → SO2             Tech (on phone)         Sync: SO2 + notes
+                        Parts Verify queue: price check → SO2.1       Parts mgr (review)      Sync: SO2.1
+                        Quote auto-built from lines, auto-sent by
+Gets quote link      ◀─ contact preference → SO2.2                    — (Noell reviews only   Sync: SO2.2
+                                                                        flagged quotes)
+Approves ─────────────▶ SO3 automatically. Declines → SO7 + sales
+                        lead (existing Shopping flow)                  —                       Sync: SO3 / SO7
+                        Warranty jobs: SO1 → SO3 when tech submits parts
+                        Parts Order queue → PO builder → PO placed
+                        with supplier ETA → SO4 (SO4B if backordered)  Parts mgr               Sync: SO4 + ETA
+Sees ETA in portal   ◀─ &quot;Parts ordered, expected Sep 18&quot;
+Optionally picks     ──▶ SO4PRE with date held on capacity engine
+install window now
+                        Receiving: scan/check-in part → SO5            Parts mgr / warehouse   Sync: SO5
+Gets &quot;part is in,    ◀─ Auto-offer install windows (SO4PRE: auto-
+pick a time&quot; text        confirm held date if part arrived in time)
+Picks window ─────────▶ SO6 · route builder places install next to
+                        nearby SO1s                                   Dispatcher supervises   Sync: SO6 + date
+Reminder / en route  ◀─ Auto
+                        Tech taps &quot;Repair complete&quot; → SO8              Tech                    Sync: SO8
+                        Auto-charge card for approved remaining
+                        balance → receipt → job closed                Noell reviews exceptions Sync: payment posted
+Receipt + review ask ◀─
+</code></pre>
+<p>Where a human is still in the loop, it is a <strong>review</strong> of something the system already did, not a data-entry step. The exception list is deliberately short: parts manager verifies prices and places POs, dispatcher supervises the board, Noell handles quote and payment exceptions, and until NetSuite someone works the ePASS sync list.</p>
+<h2 id="4-status-engine">4. Status engine</h2>
+<p>Keep the ePASS codes as the canonical status vocabulary so the mirror is one-to-one, but attach the trigger, the customer-facing stage, and who can move it.</p>
+<div class="tw"><table>
+<thead>
+<tr>
+<th>Status</th>
+<th>Meaning</th>
+<th>Entered by (target)</th>
+<th>Exit trigger</th>
+<th>Customer tracker stage</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>REQ</strong> <em>(dashboard only)</em></td>
+<td>Form submitted, no appointment yet</td>
+<td>Form</td>
+<td>Customer or staff picks window</td>
+<td>Request received</td>
+</tr>
+<tr>
+<td><strong>SO1</strong></td>
+<td>Diagnostic scheduled</td>
+<td>Customer picks window / dispatcher</td>
+<td>Tech submits diag</td>
+<td>Diagnostic scheduled</td>
+</tr>
+<tr>
+<td><strong>SO1.AUTH</strong></td>
+<td>New call awaiting authorization (e.g. landlord/PM approval, no card yet)</td>
+<td>Rule: card not saved or PM checkbox ticked with no auth</td>
+<td>Auth received</td>
+<td>Waiting on authorization</td>
+</tr>
+<tr>
+<td><strong>SO2</strong></td>
+<td>Tech quote submitted, unverified</td>
+<td>Tech view "Submit findings"</td>
+<td>Parts manager verifies</td>
+<td>Diagnosed — preparing estimate</td>
+</tr>
+<tr>
+<td><strong>SO2.1</strong></td>
+<td>Prices verified</td>
+<td>Parts Verify queue "Verified"</td>
+<td>Auto quote build (instant)</td>
+<td>Diagnosed — preparing estimate</td>
+</tr>
+<tr>
+<td><strong>SO2.2</strong></td>
+<td>Quote sent, awaiting approval</td>
+<td>Auto-send</td>
+<td>Customer approves/declines; auto-reminders at 48h/5d</td>
+<td>Estimate ready — awaiting your approval</td>
+</tr>
+<tr>
+<td><strong>SO3</strong></td>
+<td>Approved (or warranty) — order parts</td>
+<td>Customer approve click; warranty rule</td>
+<td>PO placed</td>
+<td>Approved — ordering parts</td>
+</tr>
+<tr>
+<td><strong>SO3PRE</strong></td>
+<td>Pre-schedule parts (order before approval, high-confidence fixes)</td>
+<td>Parts manager override</td>
+<td>PO placed</td>
+<td>Approved — ordering parts</td>
+</tr>
+<tr>
+<td><strong>SO4</strong></td>
+<td>Parts on order</td>
+<td>PO placed, ETA captured</td>
+<td>Part received</td>
+<td>Parts ordered — arriving ~date</td>
+</tr>
+<tr>
+<td><strong>SO4B</strong></td>
+<td>Backordered</td>
+<td>Supplier ETA &gt; threshold or backorder flag</td>
+<td>Part received / re-source</td>
+<td>Parts delayed — new estimate date</td>
+</tr>
+<tr>
+<td><strong>SO4H</strong></td>
+<td>Parts shipped direct to customer</td>
+<td>PO ship-to = customer</td>
+<td>Customer confirms delivery (portal button) or tracking delivered</td>
+<td>Part shipping to you</td>
+</tr>
+<tr>
+<td><strong>SO4PRE</strong></td>
+<td>Install date held, part not here yet</td>
+<td>Customer/dispatcher picks date while SO4</td>
+<td>Part received → auto SO6 (if ETA ≤ date−1) else re-offer</td>
+<td>Install scheduled — awaiting part</td>
+</tr>
+<tr>
+<td><strong>SO5</strong></td>
+<td>Parts in, needs scheduling</td>
+<td>Receiving</td>
+<td>Customer picks window / dispatcher</td>
+<td>Part arrived — pick your install time</td>
+</tr>
+<tr>
+<td><strong>SO6</strong></td>
+<td>Install scheduled</td>
+<td>Window confirmed</td>
+<td>Tech completes</td>
+<td>Install scheduled</td>
+</tr>
+<tr>
+<td><strong>SO7</strong></td>
+<td>Customer declined repair</td>
+<td>Decline click / no response after N days</td>
+<td>Sales lead created</td>
+<td>Estimate declined</td>
+</tr>
+<tr>
+<td><strong>SO8 / SO8I</strong></td>
+<td>Complete (SO8I = WACA install)</td>
+<td>Tech "Repair complete"</td>
+<td>Auto-charge success → Closed</td>
+<td>Repair complete</td>
+</tr>
+<tr>
+<td><strong>SO9</strong></td>
+<td>Cancelled</td>
+<td>Customer cancel / staff</td>
+<td>—</td>
+<td>Cancelled</td>
+</tr>
+<tr>
+<td><strong>SI1–SI9</strong></td>
+<td>In-shop path</td>
+<td>Same engine, no routing; uses shop drop-off/pickup windows</td>
+<td>—</td>
+<td>Mirrors SO stages with "at our shop" wording</td>
+</tr>
+<tr>
+<td><strong>WAR*</strong></td>
+<td>Warranty admin statuses</td>
+<td>Kept as a parallel track; SO1 → SO3 skip rule; claims handled by warranty admin queue</td>
+<td>—</td>
+<td>Same stages; no estimate stage</td>
+</tr>
+</tbody>
+</table></div>
+<p>Rules the engine enforces:</p>
+<ul>
+<li>A job in SO4/SO4B/SO4H/SO4PRE/SO5 never has a fake routing date. "Saturday dump day" is replaced by an <strong>Unscheduled</strong> bucket on the board. Every job carries a <em>promised window</em> (customer-facing) and a <em>planned slot</em> (internal) as separate fields.</li>
+<li>Timestamps are recorded on every transition, with actor (customer / tech / staff name / system). This alone gives you cycle-time per stage, which you cannot get from ePASS today.</li>
+<li>Any status a human sets manually requires a reason code, so the automation gaps become visible.</li>
+<li>Aging thresholds per status (e.g. SO2 &gt; 24 h, SO2.2 &gt; 5 days, SO4 past ETA + 2 days, SO5 &gt; 2 days) surface on a <strong>Stuck Jobs</strong> panel — this replaces the "dates in the past" metric on Service Order Health with something actionable.</li>
+</ul>
+<h2 id="5-automation-rules-step-by-step">5. Automation rules, step by step</h2>
+<h3>5.1 Intake and SO1 self-scheduling</h3>
+<ul>
+<li>Form submission creates the Job with units, contact preference, gate code, photos, and card SetupIntent (already done). New: zip → zone lookup → eligible techs; skill filter (HVAC vs appliance, brand certifications, built-in/plumbed coffee, etc.); job type → default duration (diagnostic 60 min, HVAC diagnostic 90 min, multi-unit +30 min each — tunable table).</li>
+<li>After card save, the customer is shown <strong>the next 5–7 available arrival windows</strong> from the capacity engine (see §6) and picks one. Windows are half-day (8–12 / 12–5) by default with an option to offer 2-hour windows later once the engine's accuracy is proven.</li>
+<li>"Purchased within 12 months = Yes" + purchased from us = Yes → warranty flag; the card is still saved but the customer sees "no charge expected for covered repairs" wording and the job later skips SO2–SO2.2.</li>
+<li>Landlord / property-manager checkboxes with no card → SO1.AUTH and a text to the authorizer with a secure card link (the "Copy secure card link" already exists).</li>
+<li>If the customer doesn't pick a window (abandons), the job sits in REQ and Client Care gets a callback task with the same window picker — one click to book.</li>
+<li>ePASS sync item generated: "Create SV ticket for Herzog · SO1 · 9/14 AM · tech Diogo". Staff keys it, enters the SV# (or NetSuite does it automatically later).</li>
+</ul>
+<h3>5.2 Diagnostic and tech submission (kills the next-morning write-up)</h3>
+<ul>
+<li>
+<p>Field tool decisions (9/11): techs use their own phones on a stipend, so this is a <strong>mobile web app</strong>, not an installable app; it replaces Dispatch Track over time (photos and notes move here). It should replicate the maintenance field tool Wilson already built, which Cayden will share. From day one it records <strong>arrive / complete taps</strong> per stop so job durations and tech speed are learned from real data — ePASS has no on-site time history.</p>
+</li>
+<li>
+<p>Tech view on phone: today's route in order, one tap "On my way" (sends the customer a text with ETA), job card with the customer's problem text, photos, model/serial, gate code, prior history at that address.</p>
+</li>
+<li>"Submit findings" form: findings notes (voice-to-text), photos, parts (search by part number, description; pulls last known price), labor entries, flags (cosmetic damage report already exists — fold it in), recommend replace vs repair, "no parts needed — completed on site" shortcut (→ SO8 directly with a diag/labor charge).</li>
+<li>Submission → SO2 instantly, same visit. Parts Verify queue gets the job while the tech is driving to the next call.</li>
+<li>If the tech genuinely can't finish the write-up on site, the job shows on their <strong>Unsubmitted findings</strong> list and nags at 6 pm and 7 am.</li>
+<li>⟨9/11⟩ Three things the techs asked for at the demo, all in the findings screen: tapping the <strong>Error code</strong> symptom prompts for the code as displayed on the unit (short typed field — one of two deliberate typing exceptions); the labor picker has <strong>Half day · 4h</strong> and <strong>Full day · 8h</strong> chips at the top for sealed-system and other long jobs, which also block that much of the tech's capacity for the install; and <em>What you found</em> has a <strong>Custom note</strong> button that opens a text box (voice-to-text friendly) when the tap options don't describe it. The custom note lives on the dashboard job; at most 200 characters of it ever reach an ePASS packet.</li>
+<li>⟨9/11⟩ <strong>The tech's number, live.</strong> Techs are on commission on parts profit plus labor — the weekly figure from the OE-23 report. The route screen header shows <em>Today $X · This week $Y · pace $Z/wk</em> against the tech's weekly target (or their own four-week average when no target is set), ticking up as each stop is completed: labor including the diagnostic and zone fees, plus parts sell minus cost (zero on warranty tickets, where parts are a wash). It's provisional at the tap and reconciled against the closed invoice overnight; nothing about other techs is shown. Office sees the same numbers per route on the board and department totals in a Productivity drawer.</li>
+</ul>
+<p><strong>Where notes live (decided 9/11).</strong> Findings, photos, parts and labor are entered once, in the field tool, and live on the dashboard Service Order. Techs never open ePASS again. Until NetSuite, ePASS still needs two things for invoicing and for the report exports the rest of the shop relies on: the <strong>status</strong> and the <strong>billable lines</strong> (parts, labor, S&amp;H). Those are keyed by the office from the Sync Queue (§9), which renders each job as a ready-to-paste packet: status, one-paragraph auto-summary of the findings (outcome · symptoms · cause · tech's note), and the line items with part numbers, quantities and verified prices. The full notes and photos are referenced by a one-line pointer ("Full findings + 4 photos: dashboard SV00123290") rather than copied. Nobody re-types tech prose.</p>
+<p><strong>New tech workflow, stop by stop.</strong> Open today's route → tap <em>On my way</em> (customer texted with ETA) → arrive (timestamp) → job card shows the customer's own problem description and photos, unit, gate code, balance to collect → on a new diagnostic: serial-tag photo (required, fills model/serial), tap an <em>Outcome</em>, tap symptoms and cause, tap parts from the appliance's common-parts list or search, tap labor, optional fault photo, one optional note (required only for research / declined / not-worth-repairing / could-not-access outcomes) → <em>Submit findings</em> moves the job to SO2 (or SO8 for repaired-on-site, SO7 for declined/replace) and records on-site minutes → back to route, next stop suggested. On an install: parts on the truck are listed with Installed / Wrong / Damaged per line, the serial tag is shown from the diagnostic and not re-required, outcome is one tap (complete → SO8 and the card is charged; additional parts → SO2; wrong/damaged part → SO3 reorder; problem persists → SO1 research), optional finished-work photo, note required for anything but complete. Nothing on this screen requires typing except the note.</p>
+<h3>5.2a The tech builds and prices every repair ⟨rewritten 9/19⟩</h3>
+<p>Cayden, 9/19: <em>even if office is sending quote, we need the tech to be the one to really build and price
+it … theyre the only ones that know exactly what theyre going to have to do during the repair trip.</em>
+There is now <strong>one</strong> flow out of a diagnostic that needs parts — parts, then labor, then a total — and
+what differs at the end is only who presses send.</p>
+<ul>
+<li><strong>Labor:</strong> the flat-rate book's hours are hidden. The tech picks the line, then picks how long it will
+  take him (30 min through full day), and the price follows his number. A line the book does not have he
+  types in, and it is priced the same way.</li>
+<li><strong>The total is his to move.</strong> The labor figure is editable, with the book's number beside it. Cayden's
+  reasoning is the point: a customer who has already spent money twice, a house he knows, a job he can
+  see will run short or long. It is a commission role; this is the part of it that is his. We log it and
+  report on it rather than gate it.</li>
+<li><strong>Part numbers</strong> are keyed on the part line itself, and a component we stock brings its number with it.
+  Nothing on the screen suggests the office will look it up. On Kezia's side the number arrives
+  copyable and correctable, and her card remembers what he sent.</li>
+<li><strong>Warranty:</strong> True, Scotsman, Zephyr and BlueStar pay our COD rate, so the tech quotes those normally.
+  Every other warranty brand shows no labor at all — the flat rate is the warranty admin's to add when
+  the claim is filed. Warranty work carries no zone fee and is tax exempt.</li>
+</ul>
+<p><strong>Field quoting — the customer signing on the tech's phone — is switched off for now</strong>, at Cayden's call,
+until a part price can be verified at the door instead of guessed. Nothing was deleted. The likely way
+back: ePASS already has a Marcone integration that returns live price, stock and a <em>discontinued</em> flag,
+which is also the signal the parts-unavailable notice (§5.3) currently waits on Kezia to spot.</p>
+<h3>5.3 Parts verification → the estimate ⟨rewritten 9/18⟩</h3>
+<p>Cayden, 9/18: <em>we still have to use ePASS for storing ticket data, ordering parts, receiving parts, accounting and billing. It needs to remain the source of truth … minimal double work.</em> So for the interim, verification is a short step and the estimate goes out through the tool Noell already uses.</p>
+<ul>
+<li><strong>Parts Verify</strong> shows each new SO2 with the tech's lines. Kezia's only job here is to verify each part's price and put an expected date (ETA) on it, and to finish any line the tech left incomplete. A part line always carries a description — the failed component the tech tapped, or his own words — but the part number is optional in the field (<em>leave blank if you can't find it — the office adds it from your description</em>), and a blank is highlighted for her: <em>tech left this blank — add the number</em>. She can add a part or a labor line the tech missed (labor from the task list or free text, at hours × $130), remove one, and override the zone-fee band. She does not order anything here. <strong>Verified</strong> completes the quote.</li>
+<li><strong>Two labor lines.</strong> Every quote carries a zone fee (<code>ZN1</code>–<code>ZN4</code>, assigned automatically from the call's distance from the shop, with a per-ZIP override the office sets on the zone map — downtown 78701 is ZN3) and the component replacement task. The tech cannot remove the zone fee; the office can change its band. Diagnostics are zoned the same way: <code>DZ1</code> $157 + tax is the $169.95 the customer sees. The evidence and the fitted bands are in the spec, §5.1a.</li>
+<li><strong>Verified → the existing Agility Service Estimate Approvals workflow.</strong> Today Noell scans the ePASS work-order PDF to build the estimate; with structured lines the estimate row is created directly, no PDF. Her list (Created · SV # · Client · Due · Contact · Status · Sent by), the drawer (status, contact with text or call preference, <em>Not emailed — copy the link or use the button</em>, the Parts ETA — <em>In stock · Tue, Sep 22 – Fri, Sep 25</em> — with the sentence <em>Once approved, we will order the parts listed to complete the repair and schedule your technician {tech} to return between … and …</em>, the unit line, the lines including <em>Labor (2 entries)</em>, S&amp;H, subtotal, tax, total, Copy client link / Close estimate) and the closed-outcome summary (approved / comped / shopping / went elsewhere / diagnostic only / no response) are reused as-is. Statuses run sent → viewed → approved | declined | comped | shopping | diagnostic. Nothing emails on its own — she copies the link or presses the button.</li>
+<li>A quote the customer already approved in the field, where the verified total is within 10% of the field price, skips the estimate; so does a warranty job (the manufacturer pays).</li>
+<li>⟨9/18 pm⟩ <strong>A discontinued part.</strong> Cayden: <em>Kezia needs a toggle to confirm a part is available. We occasionally run into discontinued parts. If we do, we need to inform the customer, and then likely terminate the call and move it into a sales workflow — right back into our estimates tool.</em> The availability row on Parts Verify has a fifth state, <strong>Discontinued</strong>. Such a line needs only its description — no price, no date — and the card says plainly what happens next. If a substitute exists Kezia adds it as a new line and drops the old one, and the call is an ordinary quote again. Otherwise Verified hands Noell a <strong>parts-unavailable notice</strong> rather than a quote: the row reads <em>part discontinued · no quote</em>, the drawer shows the customer wording (<em>the {part} for your {unit} has been discontinued by the manufacturer and we can't source it, so the repair can't go ahead; if you'd like help choosing a replacement, our showroom team can take it from here</em>), sent on a click like every other message, and the same estimate link carries the one choice the customer has. Two exits, both SO7 in ePASS through a packet that names the part: <strong>shop for a replacement</strong> — the showroom lead Cayden described, the same <em>shopping</em> outcome a quote can end in — or <strong>informed · close the call</strong>, a new closed outcome, <em>parts unavailable</em>. A notice can never be approved. Warranty tickets take the same path with a note that the manufacturer decides on replacement or prorate.</li>
+<li>⟨9/18 pm⟩ <strong>The diagnostic on one of these.</strong> Cayden: <em>standard process, we still charge diag if we can't get a part. This does become a point of contention, since they are usually upset. We frequently waive it as we pass them over to sales to keep them happy and keep the sale in house, even though we truly have no control over what the manufacturers do with replacement parts.</em> The notice therefore carries the decision: <strong>charge</strong> (the default), <strong>waive</strong> (one click, no permission gate, logged with who and when) or <strong>credit it against a replacement</strong> (built, but labelled a proposal until Cayden says otherwise). It changes the sentence the customer reads, the billing line on the SO7 packet so ePASS bills correctly, and the sales lead; the Estimates header shows how often it is waived. The history backs the standard up: of <strong>248 COD discontinued-part calls since January 2024</strong> — about eight a month — <strong>56% were billed the diagnostic and 19% billed nothing</strong>. It also shows what the hand-off is worth: <strong>24% of those customers bought from us within 90 days, $187,004 of showroom sales</strong>, roughly <strong>$754 a call</strong>, which is why waiving should take one click rather than an approval. Waived calls converted at 17% against 27% for billed ones — almost certainly because the waive goes to the angriest customers rather than because it costs sales, but ePASS records no reason for a zero, so from now on we log it and stop guessing.</li>
+<li>Reminders at 48 h and 5 days, the call task at 10 days and SO7 at 14 stand as before, under the same explicit-send rule.</li>
+</ul>
+<p><strong>Later, when purchasing returns.</strong> The original design stays on the shelf, not deleted: supplier pricing and availability pre-filled from Marcone, Reliable, Encompass and similar; prices verified within the last 7 days on the same part number auto-accepted; the estimate built from the lines and sent by the customer's contact preference with a call task for "Phone Call", Noell reviewing only a <strong>Needs review</strong> subset (a dollar threshold, zero-priced lines, repair cost against replacement value, anything the tech flagged). It comes back when NetSuite gives us an API and the tool owns ordering.</p>
+<h3>5.4 Approval → ePASS order → parts arrival ⟨rewritten 9/18⟩</h3>
+<p>The interim flow keeps ordering and receiving in ePASS and reads them back; what we key is the minimum the team accepts.</p>
+<ul>
+<li><strong>Self-booked requests have no ePASS ticket.</strong> When a customer picks a window on the web form (or the test bench does), the office admins get a pushed notification — <em>New self-booked request — create the ePASS ticket on {date} · {window} · {tech}</em> — carrying name, address, phone, unit, problem, date, window and tech. The admin creates the ticket in ePASS and types the SV into the notification to link it; the next DispatchTrack import matches it. Until then the card wears an <em>ePASS ticket needed</em> chip.</li>
+<li><strong>Approved → Noell adds the parts and labor lines to the ePASS ticket</strong> so it matches the approved quote, and sets SO3. This is the one piece of re-keying the team accepts, and the sync queue hands her the packet: every part with its number, every labor line with its ePASS code (<code>ZN1</code> …, the task), the total, <em>set SO3</em>. Shopping / decline → SO7 and the showroom lead, as before. Warranty jobs: tech <em>Submit findings</em> → SO3 directly, warranty admin queue notified for claim filing (WAR statuses continue on their own track).</li>
+<li><strong>Kezia orders in ePASS as normal and moves the ticket to SO4 there.</strong> Our tool learns SO4 from the next import (every 15 minutes) and pencils the install onto the owning tech's route two business days after the ETA she verified — a held block on the board, dashboard-only (§6a).</li>
+<li><strong>She receives the part and sets SO5 in ePASS.</strong> The next import shows SO5 and the customer's <em>your part is in — pick your install time</em> text becomes ready. It goes out on an explicit click, or automatically only if that template's toggle is on — default off, the standing rule: no automated customer contact without a click or an explicitly enabled toggle.</li>
+<li>Customer picks → SO6, with a packet to key the date and tech into ePASS, as today. Constrained to <strong>the tech who ran the diagnostic</strong> (call ownership) and the install duration from the labor lines; unpicked after 2 days → dispatcher/Client Care callback task with the picker — unchanged.</li>
+<li>SO4PRE holds still work on dates (portal shows both "part expected Sep 16" and "install held Sep 18"; part in ≥ 1 day before the held date → SO6 and a confirmation text; a slip past the held date → "we need to move your appointment" with new windows and a Stuck Jobs flag). The two-day-out check ⟨9/11⟩ — Kezia's task at T−2 with <strong>Part is here</strong> / <strong>New ETA</strong> / <strong>Wait</strong>, the release at 2 pm the day before with the apology text and re-pick link, no auto-confirm for a hold at risk — stands, but "is the part here" is answered by ePASS showing SO5, not by our receiving screen. Direct-ship (SO4H) and the tracker's <strong>My part arrived</strong> button ⟨9/11⟩ are unchanged: tapping it moves the job to SO5 and opens the owning tech's picker; a check-in text asks the day after the expected date if nobody has tapped.</li>
+</ul>
+<p>What we key into ePASS: new tickets for self-booked requests; approved lines + SO3; dates and tech changes (the SO1 booking, the SO6 pick, moves). What we only read back: SO4, SO5, everything Kezia does in ePASS, and anything changed there directly — reverse discrepancies stay (§9).</p>
+<p><strong>Later, when purchasing returns.</strong> The Parts Order queue with all SO3/SO3PRE lines grouped by supplier; the PO builder producing the supplier order sheet in the supplier's format and recording PO #, order date, expected arrival and ship-to; placing the PO → SO4 (SO4H direct-ship, SO4B past the backorder threshold); receiving by PO/part number or barcode scan → SO5 with "2 of 3 received" partials and tracking-number polling — all of it is built and hidden behind <code>purchasing.enabled = false</code>. Cayden: <em>we will bring this back when we are on NetSuite and can open an API.</em></p>
+<h3>5.5 Completion and payment</h3>
+<ul>
+<li>Tech "Repair complete" → SO8 (or SO8I). Photos of completed work optional; "additional parts needed" branch → back to SO2 with the new lines (the second-visit quote path).</li>
+<li>Billing rule (confirmed by Cayden 9/11): <strong>nothing is charged at the diagnostic visit.</strong> If the customer approves, the diagnostic is rolled into the quote and the full approved total is charged once the tech marks the repair complete per their notes (SO8). If the customer declines or goes silent to SO7, the $169.95 diagnostic fee is charged to the card on file at that moment, with a receipt.</li>
+<li>Auto-charge rule at SO8: charge the card on file for the <strong>approved estimate total</strong>. Charge exactly matches an approved amount → post payment, send receipt with the itemized lines and a review link, mark Closed. Anything else (tech changed lines, discount applied, warranty portion, partial completion) → <strong>Payment review</strong> queue for Noell. Failed charge → retry schedule + text with a secure pay link.</li>
+<li>Sync item: "Post payment $375.22 to SV00123265 and close" until NetSuite does it.</li>
+</ul>
+<h3>5.6 The flat-rate book: what's actually in it and how to restructure it</h3>
+<p>The 2025.6.21 ePASS import has <strong>13,646 labor lines</strong>, but they collapse to <strong>~460 distinct tasks</strong> (about 750 task × family combinations) repeated across <strong>64 brand suffixes</strong>. Findings from the file:</p>
+<ul>
+<li>Price is simply <strong>time allowance × hourly rate</strong> ($130 appliance, $150 HVAC) in 13,621 of 13,646 rows. There is no independent price data to preserve.</li>
+<li>The "Premium / Standard" rate type is tied to brand but <strong>does not change the price</strong> — both are $130/hr. It's a label, not a rate.</li>
+<li>The time allowance <strong>varies by brand for only 46 of ~750 task-family combinations</strong>, and in nearly every case it's a single-brand outlier (28 brands at 0.75 h, one at 1 h), which looks like data drift rather than a deliberate difficulty judgement. The real difficulty differences are already encoded in the task <em>names</em> ("Hidden (Double Oven) — Two Technicians" vs "(Exposed)", "Pro Range" vs "Standard Range", "Front Service" vs "Rear Service", "Built-in" vs "Freestanding").</li>
+<li>There are duplicate tasks differing only by typo or wording (two "Belt Replacement" rows, two LP conversion rows, four near-identical sealed-system compressor rows, two door-gasket wording variants).</li>
+</ul>
+<p>Proposed structure (dashboard-native, exported to ePASS/NetSuite codes on demand):</p>
+<ol>
+<li><strong>Task catalog</strong> (~450 rows after de-duplication): family, task name, base hours, tags (pro, hidden, built-in, two-tech, sealed-system), and a customer-facing plain-English description.</li>
+<li><strong>Modifiers</strong> as separate lines, not baked into the task: difficult access (+0.5 h), stacked/built-in access (+0.35 h), additional tech (+0.5 h), second component (+0.5 h). The book already has these as tasks; making them modifiers removes hundreds of "(Pro Range)" / "(Standard Range)" duplicates.</li>
+<li><strong>Rate table</strong>: one hourly rate per department (appliance, HVAC, in-shop), editable without touching tasks. A <strong>brand factor</strong> table (brand × family → multiplier, default 1.0) exists for the genuine cases where a brand really is harder — used sparingly and justified, so the 64-way duplication disappears while the ability to charge more for a Sub-Zero sealed system survives.</li>
+<li><strong>Learned times</strong>: because the field tool records arrive/complete per job and the quote records which tasks were sold, the dashboard can show actual vs allowed hours per task per tech. That turns the rate book from a guess into a measured table and is what eventually justifies (or removes) brand factors.</li>
+<li><strong>Tax flag from the unit, not the brand.</strong> Texas rule as Wilson applies it: labor is taxable unless the work is on the home itself, so labor on built-in appliances and HVAC is tax-exempt; parts, diagnostic and zone fees are always taxed. The rate book's "Tax 2" column already encodes this, but by <em>brand</em>: whole families are N (dishwashers, vent hoods, ice makers, coffee, wall ovens, warming drawers, cooktops, AC) or Y (washers, dryers), and the mixed families — refrigeration, ranges, microwaves, grills — flip to N only for brands assumed to be built-in (Sub-Zero, Miele, Gaggenau, Thermador, Monogram, BlueStar, True). That taxes a Bosch built-in column and exempts a Miele freestanding fridge. In the catalog the taxable flag comes from the <strong>unit's install type</strong> (built-in / freestanding, which the intake form and tech's serial-tag step already capture) plus a family default, and the field quote shows parts tax and labor tax as separate lines with "exempt · built-in" when it applies.</li>
+<li><strong>Export</strong>: the ePASS-ready sheet (code-BRAND, description, price) is generated from the catalog whenever it's needed, so ePASS keeps importing exactly what it imports today and nobody maintains 13,646 rows by hand.</li>
+</ol>
+<h2 id="6-capacity-engine-and-route-builder">6. Capacity engine and route builder</h2>
+<h3>6.1 Inputs (all tables editable in the dashboard, no code changes)</h3>
+<ul>
+<li><strong>Techs</strong> (real roster in <code>reference/tech_roster.csv</code>, confirmed 9/11): DLA Diogo (Dripping Springs, shop→shop), AJH Andrew (Dripping Springs, ends at shop), TDP Trevor (Wimberley, HVAC backup by office decision only), JRC Josh (South Austin, routes to/from home), KJB Kyle (Kyle TX, home→home), CIT Chris (Lakeway 78734), CEM Connor (New Braunfels, master tech, west/far-south overflow), BLL Brady (New Braunfels, the HVAC tech). All techs are sealed-system qualified. Three people are <strong>not auto-routed and not customer-schedulable</strong>: JHM John Merz (near Fredericksburg, builds his own west route, not on commission — the office assigns him work), MAP Mark Perks (service manager — fires, training, Demitrius-only), VJ Vince Jones (HVAC sales — office routes his handful of odd HVAC jobs). Each tech record carries home address, start/end default, shift, skills, <code>auto_route</code> and <code>auto_schedule</code> flags, max stops/day and <strong>working days</strong> ⟨9/11⟩ (Josh JRC works Mon–Thu and runs more calls on those days; his Friday is closed by default and Demitrius opens a specific Friday with one click when management wants it).</li>
+<li>⟨9/11⟩ <strong>Capacity is the dispatcher's to bend, quickly.</strong> Cayden's rule from the demo: anything capacity-related has to be quick and easy from the capacity view. Clicking a tech-day cell on the fill strip opens a small popover — <em>Close day</em> (PTO, sick, training, other), <em>Open day</em> (a normally closed day), <em>+1 stop / +60 min / −60 min</em>, <em>Add block…</em> for time that isn't a call (haircut, van maintenance, training). Dragging across cells sets a PTO range. Dropping a job on a full column shows <em>Over capacity</em> with a <strong>Force it</strong> button — one click, no reason code, just logged with who did it — and the column shows the overage in red rather than refusing the drop. Blocks show as grey cards on the board and in the tech's route, count against capacity, and never go to ePASS.</li>
+<li><strong>Zones</strong>: use ePASS's existing <code>Map Zone</code> codes (DS, LOCAL, AUS C, WIMB, FBURG …) — they are on every ticket and every DispatchTrack row. <code>reference/zone_table.csv</code> gives each zone its group, booking mode, distance from shop and primary/secondary tech derived from 2026 completions (e.g. AUS C → JRC, WIMB → KJB, BCAVE/SPICE/LAKE → TDP, DS/LOCAL → DLA with AJH/CIT/CEM secondary); <code>reference/zip_zone_tech.csv</code> maps 79 zips the same way. New-request zips resolve to a zone through that table; an unknown zip falls to <code>office_only</code>.</li>
+<li>⟨9/18⟩ <strong>The zone map is edited by painting.</strong> Cayden asked for <em>a zip code map with clickable or drawable zones</em>. The board's <strong>Zones</strong> view is a paint-by-ZIP map: pick a tech, click a ZIP to make him its primary (the old primary stays as a secondary so nothing loses coverage), Shift-click for a secondary, and a side panel for the ZIP's booking mode, trip and zone-fee band. The ZIP is the atom because that is what a customer gives us. Dispatchers draft, with Undo; publishing needs an owner or manager, because it changes where every new call goes, and on publish every tech's zone list is recomputed, every unscheduled call is re-suggested, and every change is logged per ZIP. Free-drawn polygons were considered and set aside — they have to become a ZIP list anyway; street-level splits inside a big ZIP like 78620 are for later, once addresses are geocoded.</li>
+<li><strong>Job duration model</strong>: seeded by job type and status, then calibrated from the field tool's arrive/complete taps per appliance category and per tech (tech speed factor) — (SO1 diag by appliance category; SO6 install from labor lines; multi-unit adders), with a learned correction from actual on-site times once the tech view records arrive/complete taps.</li>
+<li><strong>Drive time</strong>: Google Maps Distance Matrix / Routes API (or Mapbox) with departure-time traffic; cached per address pair per time bucket to control cost.</li>
+<li><strong>Constraints</strong>: promised window must be honoured; skills must match; <strong>the tech who ran the diagnostic owns the call</strong> — every later visit (SO6 install, SO4PRE hold, revisits) is offered and routed only to that tech, and the board flags any attempt to move it to another truck. If the owner is out, the install waits (it is rare for a tech to miss more than a week); past roughly a week Demitrius reassigns manually with a reason code, and the customer is told by text either way; parts must be in (SO6) or in-transit with ETA before date (SO4PRE); customer blackout notes; tech lunch; hard-locked jobs (dispatcher pin).</li>
+<li><strong>Objective</strong> (weighted, tunable): minimise total drive time; maximise jobs completed; keep techs in primary zone;  balance load across trucks; end-of-day return preference; penalise slack.</li>
+</ul>
+<h3>6.2 How slots are offered to customers</h3>
+<p>The engine keeps a rolling 10–14 day <strong>capacity ledger</strong> per tech per day: committed minutes (jobs + estimated drive) vs available minutes. A window is offered to a customer when at least one eligible tech in that zone has room in that half-day <em>after</em> accounting for a conservative drive estimate from the zone centroid. Booking creates a tentative assignment. Nightly (and on every change), the optimiser re-solves the next N days holding every promised window fixed but freely reassigning techs and sequence — so customer promises never move, but the route keeps improving as new jobs arrive. Offer fewer windows on days that are already dense so the customer is nudged toward where you have room.</p>
+<p><strong>Owed installs count against diagnostic capacity.</strong> Because the diagnosing tech owns the call, every job a tech has in SO2–SO5 is an install that tech will have to run in roughly 7–14 days. The ledger therefore carries two lines per tech per day: <em>committed</em> (booked SO1/SO6 minutes plus drive) and <em>owed</em> (the tech's open SO2–SO5 jobs, spread across the days their parts ETAs point to, at the install duration from the quote lines). New SO1 windows are offered only where committed + owed leaves room, so a tech who runs a heavy diagnostic week is automatically offered fewer new diagnostics the following week instead of ending up with installs nobody can fit. The board's fill strip shows owed minutes as a hatched segment so the dispatcher can see it coming; a tunable <em>owed-conversion rate</em> (share of SO2.2 quotes that historically get approved, per tech or company-wide) keeps unapproved quotes from over-reserving.</p>
+<h3>6.3 Zone groups, booking modes and trip consolidation</h3>
+<p>Every zone belongs to a group with a <strong>booking mode</strong> (the "customer qualification by zip" Cayden asked for):</p>
+<div class="tw"><table>
+<thead>
+<tr>
+<th>Group</th>
+<th>Zones</th>
+<th>Booking mode</th>
+<th>Cadence</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Core Hill Country</td>
+<td>DS, SHOP, DRIFT, LOCAL, OAKHL, HENLY</td>
+<td><code>open</code></td>
+<td>daily</td>
+</tr>
+<tr>
+<td>Austin Metro</td>
+<td>AUS C/W/S/N/E, LOST, BCAVE, LAKE, SPICE, R2222</td>
+<td><code>open</code></td>
+<td>daily</td>
+</tr>
+<tr>
+<td>South Corridor</td>
+<td>WIMB, KYLE, BUDA, SANMA</td>
+<td><code>open</code></td>
+<td>daily (KJB from Kyle)</td>
+</tr>
+<tr>
+<td>Northwest Lakes</td>
+<td>HORSE, MFALL, LLANO, ROUND</td>
+<td><code>designated_days</code></td>
+<td>trips form on volume/age; TDP</td>
+</tr>
+<tr>
+<td>West</td>
+<td>JC, BLANC, STONE, FBURG, BOERN</td>
+<td><code>designated_days</code></td>
+<td>trips form on volume/age (~weekly at today's volume); JHM</td>
+</tr>
+<tr>
+<td>Far South</td>
+<td>BRAUN, CANYO, FISCH</td>
+<td><code>designated_days</code></td>
+<td>trips form on volume/age; CEM/KJB/BLL from the NB/Kyle side</td>
+</tr>
+<tr>
+<td>Out of area / North</td>
+<td>KERR, OUT, SA, CEDAR, GEORG, NOR E</td>
+<td><code>office_only</code></td>
+<td>office decides</td>
+</tr>
+</tbody>
+</table></div>
+<p><code>open</code>: the customer sees normal windows. <code>designated_days</code>: the customer is told visits in their area are grouped and sees only an <strong>open trip date</strong> for that group once one exists. <code>office_only</code>: the form says "we'll call you within one business day" and drops a Client Care task; nothing is auto-scheduled.</p>
+<p><strong>Trip consolidation (corrected 9/11: there are no standing days).</strong> The Wednesday west pattern in the data is Demitrius's habit and John's schedule, not a rule. What Wilson actually coaches is: <em>don't run one San Antonio call and four local calls in a day; group the far ones so the day pays.</em> The engine recreates that judgement instead of a calendar:</p>
+<ol>
+<li>Every <code>designated_days</code> group has a <strong>trip bucket</strong>. A request from the group lands in the bucket, not on a route. The customer sees: "We group visits in your area so we can get to you efficiently — we'll text you a date within a few days. Need it sooner? Message Client Care." (Warranty and parts-in installs enter the same bucket.)</li>
+<li>The engine <strong>proposes a trip</strong> when any of these is true: the bucket's on-site time reaches a profitability floor (default: enough stops that drive time is under ~45% of the day — for FBURG that's about 4 stops; tunable per group); the oldest request is older than <strong>5 business days</strong>; or an SO5 install in the bucket is aging past 3 days. It picks the day by looking at the trip tech's next 10 days (JHM for West, TDP for Lakes, CEM for Far South, or any tech with a home on that side) and choosing the day that displaces the least local work, then <strong>Demitrius confirms or moves it</strong>. That confirmation is the human touch; nothing goes to customers until he taps it.</li>
+<li>On confirmation every customer in the bucket gets the date by text with a one-tap confirm; anyone who can't make it stays in the bucket for the next trip. New requests arriving after a trip is open are offered that trip's date first if it still has room, so the trip fills itself.</li>
+<li>The trip tech's route that day is <strong>bookended with local work</strong> in the direction of travel (e.g. DS → JC → BLANC → FBURG and back through JC), and the optimiser treats the trip as one block with a fixed date rather than movable stops.</li>
+<li>A <strong>profitability guard</strong> on every route, trip or not: if a day's <strong>inter-stop</strong> drive per stop exceeds 35 minutes (commute legs shown separately, confirmed trips exempt) or a single stop adds more than 60 minutes of out-and-back drive on its own, the board flags the column and the drop toast says so. That is the coaching rule made visible — it catches the lone San Antonio call before it costs a day.</li>
+<li><code>office_only</code> zones (KERR, SA, OUT and unknown zips) never auto-bucket; they create a Client Care task and the office decides whether to attach them to a trip.</li>
+<li>John's work: his trips are built by the office and sequenced by him; the optimiser never moves his stops; the field tool gives him on-my-way, findings and field quotes like everyone else.</li>
+<li>Core and Metro stay daily; the optimiser's zone objective keeps techs in their primary zones and treats a cross-zone stop as a cost, not a rule.</li>
+</ol>
+<p>⟨9/18⟩ The table above is the starting map, not the maintained one. Booking mode, trip day and tech, primary and secondary techs and the zone-fee band are now set per ZIP on the zone map editor (§6.1) and published in one step, in two framings — the whole service area within 60 miles of the shop, and the Austin metro. The prototype draws ZIP cells around centroids; Agility will draw the real Census ZCTA outlines for the ~150 ZIPs we serve on Google Maps, which also fixes the handful of Austin ZIPs that share one centroid in our table today and are assigned from a list until then.</p>
+<p>⟨9/18 pm⟩ <strong>Adding and removing ZIPs — and randymajors.org.</strong> Cayden asked whether the map can simply add and remove ZIPs, and pointed at randymajors.org, which he has used to draw ZIP maps of the area and pull lists of ZIPs. Both are in. <strong>Add ZIPs</strong> is a paste box: any text with five-digit Texas ZIPs in it — a spreadsheet column, a text from a tech, or the <em>Results from Map</em> box randymajors fills when you draw a radius or a shape on its ZIP-boundary layer — becomes rows painted with the selected tech, drawn where we know the centroid and parked in an <em>unplaced</em> list (paste a <code>lat, lng</code>) where we do not. Next to it, chips list the ZIPs Wilson has actually worked since 2025 that the zone table never had — 26 of them, 78741 (29 tickets since 2025) at the top — so the map is completed from the company's own history rather than from memory; PO Box ZIPs are explained rather than drawn. <strong>Remove from the service area</strong> sits on each ZIP's panel: open calls keep their tech, new requests there get "we'll call you", Undo restores it, and the publish log counts added and removed ZIPs separately. randymajors itself stays a selection and checking tool — its <em>Custom Area Maps</em> are a good look at a draft before publishing — not a data feed: it has no API, its licence forbids embedding (screenshots are fine), and its free tier caps the size of a selection. It draws Census ZCTA boundaries, the same source Agility will use, so what is selected there is what our outlines will show.</p>
+<h3>6.4 Parts pickup and the shop touch</h3>
+<p>Every tech picks parts up at the shop, so an install stop is only feasible if the part is on the truck. Modelled as a per-tech-day <strong>"parts loaded" event</strong>:</p>
+<ul>
+<li>A tech-day with any SO6/SO4PRE stop needs a shop touch <strong>before the first install stop</strong>. The route builder inserts the shop as a stop (with a fixed 10-minute dwell) and sequences installs after it.</li>
+<li>Techs who end at the shop (AJH, DLA, TDP on shop-end days, CIT) can <strong>load tomorrow's parts tonight</strong>: the parts manager stages each tech's next-day parts in their bin by 3 pm from the board's next-day route; the tech taps <em>Loaded for tomorrow</em> in the field tool at end of day, which flips the "parts loaded" flag for the next day and lets installs sit anywhere in the route, including a home-side install first thing.</li>
+<li>Techs who start from home (JRC, KJB, CEM, BLL) get <strong>wave logic</strong>: Wave 1 is diagnostics between home and the shop (only SO1s, or installs whose parts were loaded the previous evening); shop touch; Wave 2 is everything else, working outward and back to the end point. If a tech has no installs that day, no shop touch is required.</li>
+<li>Simplest fallback, available as a per-tech setting: <strong>"always start at the shop"</strong> — the builder then works away from the shop and back. Cayden is fine with this as the default; the wave logic is the optimisation on top.</li>
+<li>The receiving step (§5.4) writes the bin location (ePASS <code>Location</code> field SV02–SV10 / HVAC1 today) to the job, and the field tool's route card shows "Bin SV07" beside each install so pickup is a glance.</li>
+<li>Guard rail: if a customer picks an install window on a day where the owning tech's route can't include a shop touch before it (e.g. a JRC home-side 8 am install without prior-evening loading), the picker simply doesn't offer that window.</li>
+</ul>
+<h3>6.5 Dispatcher board</h3>
+<ul>
+<li><strong>Two-truck view kept</strong> as requested: two side-by-side columns, defaulting to the same tech on consecutive days (Diogo Sep 14 next to Diogo Sep 15), with either column switchable to any tech or date. A full-week fill strip sits above the columns. Drag a job between columns to reassign tech and/or date; the engine re-validates instantly (skill, zone, window, parts ETA) and shows the drive-time delta before you drop. A third strip along the bottom or side is the <strong>Unscheduled</strong> bucket (SO5 waiting on customer, REQ abandoned, SO4PRE holds).</li>
+<li>Each column: sequenced stops with arrival estimates, job status colour, balance flags (COD / A/R overdue — these matter to the tech), parts-in indicator, a mini map. Header shows committed vs capacity, total drive, return-to-base time.</li>
+<li>Locks: dispatcher can pin a job to a tech/sequence; the optimiser respects pins. "Re-optimise this day" and "Accept suggested changes" buttons rather than the engine moving things silently during the day.</li>
+<li>A day/week heat strip above shows fill % per tech per day so the dispatcher sees where to steer customer picks or open capacity.</li>
+<li>Output to ePASS until NetSuite: a per-tech daily route export that mirrors what Routing shows today, plus sync items for date/tech changes.</li>
+<li>⟨9/11⟩ From the team's demo feedback: a <strong>tech's name is a link</strong> everywhere it appears (column header, fill strip, map legend) to a one-page <strong>route overview</strong> for that tech-day — stops in order with ETAs, the drive legs between them, blocks, that tech's map, dollars delivered so far and alerts; the <strong>map legend</strong> has a toggle per tech so one truck can be shown or hidden; the day-of-week dropdown becomes a <strong>month calendar</strong> tinted by fill, closed days hatched, trips marked, so picking a day is point-and-click; each column's footer shows <strong>delivered dollars</strong> for that route (recognised and projected) and a <strong>Productivity</strong> drawer at the bottom shows the department's day, week and month per tech.</li>
+</ul>
+<p>⟨9/19 late⟩ <strong>Opening a day is a drag, not a click-then-click.</strong> Cayden: <em>"i click on Josh's 9/18 capacity bar and just drag it into the expanded area i want to see it. i drag to right or left depending on what i want."</em> Every capacity cell on the strip can be picked up and dropped on either board; the board under the pointer lights up and says what a drop will do; a plain click still opens the day on the left. The Left / Right buttons are gone.</p>
+<h2 id="6a-placement-where-a-call-lands-and-the-so4-pencil-9-14">6a. Placement: where a call lands, and the SO4 pencil ⟨9/14⟩</h2>
+<p>Three requests from Cayden on 9/14 turn out to be one mechanism. Every time the dashboard has to decide <em>where a call should go</em> — the dispatcher's suggestion on an Unscheduled card, the day an SO4 is penciled onto once the part has an ETA, the order of dates a customer sees — it asks the same question of the route ePASS actually shows: <strong>which tech-day can absorb this stop for the least extra driving, without making the customer wait much longer?</strong></p>
+<ul>
+<li>The score is in minutes: the extra drive to slot the stop into that day's existing route, minus a credit for every stop already in the same zone, plus a small cost for each business day of waiting (cheap for the first two days, steep after — so a Round Rock request goes onto the Round Rock day two days out rather than an empty truck tomorrow, but nobody is pushed a week for our convenience), plus a penalty when the tech is not that zone's usual one. Every suggestion carries its reason in plain words: <em>Diogo already has 3 stops in LOCAL that day · +6 min drive · primary tech</em>.</li>
+<li><strong>Unscheduled cards</strong> show the suggested day and a <em>Place there</em> button; the dispatcher stays in charge and the suggestion is just the engine's opening bid — and, in the shadow test (§11a), what we grade the engine on.</li>
+<li><strong>The SO4 pencil.</strong> When Kezia keys the part's expected date and the customer has approved (the call is SO4 in ePASS), the engine pencils the install onto the owning tech's best-fit day two business days after the part is due. The pencil blocks that time on the board (a dashed teal card), moves when the ETA moves, and is re-checked after every import as routes fill. It is dashboard-only — ePASS still says SO4; it is not the customer-held SO4PRE date, which keeps its own two-day check. When the part checks in and the customer gets the <em>your part is here</em> text, the first date they see is the penciled one: <em>Best fit — we already have your installer nearby that day.</em></li>
+<li><strong>Route-first dates — revised 9/17 pm.</strong> The first version led with our best-fit day, labelled as such,
+  with the earliest open day still visible below. The test bench showed within an hour why that cannot
+  work: shown an "earliest" and a "best fit", a customer takes the earliest every time. Cayden's rule
+  replaces it — <em>the first date the customer can choose is the best date for Wilson, unless that is more
+  than three business days past the first open capacity; and it is always presented as the earliest
+  available.</em> So the calendar simply starts on our day. Nothing before it is offered, nothing is called
+  "best fit", and when our route is already in the area the customer reads the line Cayden liked: <em>our
+  technician is already in your area that day — picking it means less driving for us and a tighter
+  arrival window for you.</em> The wait ramp in the score decides whether waiting is worth anything; the
+  three-day hold decides how long we may ever wait. Same score as the pencil, so it ships with it.</li>
+<li>Field tool, parts needed: the component buttons stay, but <strong>the tech keys the part number</strong> — nothing is pre-filled from a catalog any more, and <em>UNKNOWN + a note</em> is allowed. The price is optional in a field quote; the parts manager prices anything left as TBD before ordering.</li>
+</ul>
+<h2 id="6b-one-household-one-visit-and-an-honest-capacity-number-9-15">6b. One household, one visit — and an honest capacity number ⟨9/15⟩</h2>
+<p>Four things the team found while testing turn out to be closely related, and they all come back to the same idea: the unit of work is <em>a visit to a house</em>, not <em>a ticket</em>.</p>
+<p><strong>Two calls at one address should be one visit.</strong> A quarter of the open book — 107 of 443 tickets across 47 addresses — sits at a house that has another open ticket, and seven of those houses are already booked on different days. Diana Preston has two diagnostics with John a week apart. David Worley has an approved repair on the 16th and a parts-in install on the 23rd, same tech, same driveway. Blake Tartt has two installs on one day and a third a month later. Each of those is a second trip we pay for and a second morning the customer has to stay home.</p>
+<p>So a <strong>visit group</strong> becomes a real object: one arrival at one address, holding several jobs. Booking any member books every member that is ready. A member still waiting on a part cannot be given a different day — it waits for the group's next visit, and the group's held date follows the <em>latest</em> part, not the earliest. When one part is genuinely far out, the office splits that job out on purpose and the customer is told a second visit is coming. Grouping is suggested, never automatic, and it respects skills: the house with an HVAC call and two appliance calls produces two groups, side by side, so the dispatcher can still choose to send both trucks the same morning.</p>
+<p>The same object answers the billing ask. When the last unit is finished, the customer gets <strong>one charge and one receipt listing each unit</strong>, instead of three separate card charges the same afternoon. ePASS still gets its per-ticket amounts — the packet carries the split — and each tech's delivered dollars are still counted per job, so grouping changes what the customer sees without moving anyone's number.</p>
+<p><strong>"Whoever is going to be home" needs a phone number.</strong> Contacts move onto the job: the account holder from ePASS, plus any number the office adds for this visit — a tenant, a spouse, a property manager — each with its own "text this one" switch. Adding a number for Tuesday no longer means editing the customer record forever.</p>
+<p><strong>The capacity number was lying, and it was our fault.</strong> The fill bar counted a home-based tech's drive to the first call and home from the last as route time. That is commute. Once it comes out, days over 100% drop from 19 of 38 to 9 — Connor's Tuesday goes from 156% to 99%. In practice we cap how much commute a tech absorbs (45 minutes each way to start), which puts it at 15, and that is the honest answer: Connor's Tuesday still reads 134% — he absorbs an hour each way — because it contains a four-hour round trip to Cherokee. What is left over is real, and it is <em>on-site minutes</em>, not driving: Josh and Andrew have days with seven or eight calls and almost no driving between them. (John's Wednesday west list — 14 stops and fourteen and a half hours — has left this count altogether; it was never a route, and §6c says what it is instead.) Those are conversations to have, not a display to fix. Alongside that, each tech gets a settings page — working days, shift, most stops in a day, most on-site minutes, how much commute they absorb, and whether the engine may go past a limit or only a person can.</p>
+<p><strong>And the small one that matters daily:</strong> the number of units on a call is already in ePASS, already drives how long we allow, and now shows on the card. Sixty-nine open tickets have more than one unit; three have eight.</p>
+<p><strong>When a call is stuck waiting on the tech</strong>, the office can mark it <em>needs tech input</em> with a one-line question, and it pins to the top of that tech's notifications and comes back every day until he answers — escalating to the service manager after three rounds. Research tickets the tech asked to keep do the same to themselves. It clears when the tech submits, not when someone remembers to tick it off.</p>
+<h2 id="6c-the-collector-lane-tracking-john-not-routing-to-him-9-15-pm-corrected-9-15-late">6c. The collector lane — tracking John, not routing to him ⟨9/15 pm, corrected 9/15 late⟩</h2>
+<p>One of the eleven names on the board is not a route. John Merz runs the Fredericksburg side on his own clock: we send him a call, he runs it when he runs it, and the ticket gets updated the next time he is at the shop picking up parts. He is grandfathered in, he is not in the long-term plan, and the referrals he brings in are why he is still here. None of that is a scheduling problem — but the board was showing him at <strong>225% on a Wednesday</strong>, because the office had dated fifteen of his tickets to that Wednesday and eighteen more to the one after. That is a pile with a date on it, not a route.</p>
+<p><strong>What this is not.</strong> My first pass had the west zones routing to John and no dates offered there. Cayden corrected it: Fredericksburg customers should still be routed the standard way, and the west ultimately needs a route that can be auto-scheduled. Most of John's customers text him directly at this point; anyone coming through the journey we are building gets scheduled through it. <strong>The lane exists so the office can see what is going on with the work that is already his</strong> — nothing enters it because of a ZIP code. A call reaches the lane only when someone puts it there.</p>
+<p>That distinction has a consequence worth naming: the zone table currently makes John the primary <em>and</em> the trip tech for all five west zones, which is exactly why "route Fredericksburg normally" cannot happen today — normal routing there resolves to a man with no schedule. The west needs a routed owner, the way Horseshoe Bay has Trevor. Who that is, is a decision for Cayden, and it is the one thing standing between us and an auto-scheduled west route.</p>
+<p><strong>The lane itself.</strong> His column stops being a week of fill bars: no capacity, no dates, no place in the productivity table. The only measure that means anything is <strong>age</strong>, so the row shows how many calls are open, how old the median one is, how many have crossed the line, and what they are worth, over a bar that splits the book into age bands. Opening it sorts the whole book by who it is waiting on — him, us, or the customer.</p>
+<p>What that view showed on its first run is the part worth attention. John has <strong>42 open calls with a median age of 85 days</strong>, against 10 to 26 days for the routed techs. <strong>Thirty-one are more than 30 days old; the oldest is 739.</strong> Twenty-one are diagnostics he ran with nothing written up. And <strong>nine are parts that arrived and were never installed — $2,989 of them</strong>, the oldest landing 739 days ago. A part that old is not in a bin; it is almost certainly in his van. Nobody records what leaves the shop with him, which is why it can happen at all.</p>
+<p><strong>Two buttons, and they are the whole feature.</strong> <em>Took the part</em>, on the shop-visit screen, writes a part against its order when he carries it out — the one new keystroke this asks anyone to learn. And <em>Text him the call</em>, which is the copy-and-paste the office does by hand today: it opens the message with the customer's name, address, numbers, email, gate code, what they said is wrong, and a box for anything on our end, and sends it to his mobile through Podium when someone presses send. It is logged against the ticket, so "did anyone actually send this to John" becomes a question with an answer.</p>
+<p>The reverse direction stays manual on purpose. His replies land in the Podium inbox — that thread is where his notes really live — and reading them back into the job is its own piece of work, not something a send button should half-do.</p>
+<p>Anything past <strong>30 days</strong> raises a single decision: call the customer, put it on the next west trip, or close it. Once, not every morning.</p>
+<p>The lane is deliberately a dead end in the design: no scheduling machinery hangs off it, and because new west work never enters it, it shrinks on its own as the old book closes. When John's arrangement ends, retiring it is deleting a row.</p>
+<h2 id="6d-twenty-years-of-history-and-who-the-customer-actually-is-9-15-late">6d. Twenty years of history, and who the customer actually is ⟨9/15 late⟩</h2>
+<p>Cayden handed over the two files that matter: every ePASS service ticket since 2006 — <strong>117,594 of them</strong> — and the 45,239-row customer list being migrated to NetSuite. They join at <strong>98.9%</strong>, and the ePASS customer code turns out to be the customer's phone number, which settles a question the team had been circling: the account number is the identifier, and the phone is what it is made of.</p>
+<p>Loading it exposed something that would have quietly ruined the feature. <strong>ePASS bills warranty work to the manufacturer</strong>, so one ticket in five — 25,148 of them — has Whirlpool, Sub-Zero, GE, Bosch or Trane in the customer field instead of the homeowner. Key the history on that column and a fifth of twenty years of work collapses into a dozen accounts named after appliance brands, and a customer's warranty visits vanish from their own record. Which is exactly the call the office is trying to answer: <em>have you been out here before?</em> So the household and the payer are now two different things, and warranty tickets are matched back to the house by address and then by surname. Ninety-nine percent of the catalogue lands on a real household, and every ticket records <strong>which way it got there</strong>, so any of it can be re-decided later without a re-import.</p>
+<p>What that unlocks is worth more than the lookup itself. <strong>18,682 appliances have been serviced more than once, and 4,361 of them four times or more</strong> — one Sub-Zero at a Westlake address has been visited 26 times between 2009 and 2024. That is the repair-or-replace conversation with evidence behind it, and it is the same record the recall rule needs to know what was done to a serial before. A unit is followed by its serial, not the address, so it keeps its record even when the house changes hands.</p>
+<p>Two things are deliberately <em>not</em> done. Duplicate accounts — 3,461 addresses carry more than one ePASS code, usually the same house re-entered after a phone change — are shown side by side rather than merged, because merging is a decision the NetSuite model should make, not an importer. And where one appliance appears under two spellings of its serial, the tool says "probably the same unit" and leaves it to a person.</p>
+<p><strong>None of it assumes ePASS is forever.</strong> Every customer, appliance and payer has an id of our own; the ePASS code sits in a table of external references alongside whatever NetSuite eventually issues, and switching which system is authoritative means changing which row is marked primary. Whether NetSuite will hold service history too is still open, and the design works either way.</p>
+<p>The last piece is the one the team asked for by name: <strong>212 households are flagged Do Not Service</strong>, and that flag now blocks placement and date offers outright. The request lands in the office queue with the flag showing, and only a named person can override it, with a reason, on the record.</p>
+<h2 id="6e-the-address-is-the-identity-and-the-other-things-the-second-day-of-real-data-taught-9-17">6e. The address is the identity — and the other things the second day of real data taught ⟨9/17⟩</h2>
+<p>The first day the office tested against real history produced one wrong answer that mattered: a
+<strong>Do Not Service</strong> banner on Leah Baird, because Sammie Baird — same last name, same ZIP, a different
+house with no connection — carries the flag. The rule that produced it, surname + ZIP, had felt safe on
+paper. Measured, it was wrong more often than right: of the 4,264 historical tickets it had attached to
+a household, 2,222 sat at a different house number from the household they were attached to. So the
+rule is now the one Cayden gave: <strong>the address, and only the address</strong> — street, unit and ZIP, or the
+same surname at the same house number, which is what a spelling variant of one address looks like. A
+namesake elsewhere in the ZIP is <em>offered</em> to the office as a possibility, never linked, and never
+carries a flag. A Do-Not-Service flag needs the address <em>and</em> the last name to match.</p>
+<p>Two more things fell out of looking closely. <strong>Condo towers were one household.</strong> 210 Lavaca St has
+245 ePASS accounts and, without the unit number, they had all become one address with one history;
+the unit is on the customer file and inline on the tickets, and now it is part of the key. And
+<strong>"Ort" and "Palomino" did not come up in search</strong> because the office screen only carried sixty
+households — it now searches every customer on file and groups what it finds <strong>by address</strong>, because,
+as Cayden put it, appliances don't move: 1509 Palomino Ridge Dr is five ePASS accounts across twenty
+years and one kitchen, and the office wants the house, not whichever name was typed on the last ticket.</p>
+<p>The rest of the round is the office and the trucks asking the history to say more. Every past visit
+opens to what the customer said, what we did and what went in. "This unit has been in before" is a
+button to that visit. <strong>Model Insight</strong> works in three tiers because SHV78 and SHP78 are one
+dishwasher with two handles: this exact model (22 calls), its <em>family</em> (107), the brand's whole
+product type (2,713) — with the parts we actually installed and the recent calls as typed, and a
+tech can flag a watch-out for the family that goes to the service manager before anyone else sees it.</p>
+<p>The dispatch board learned what ePASS Routing actually holds. Every tech-day there is a sequence with a
+comment row in it — literally "routed" — and everything under that row is a ticket dated today that
+nobody is driving to. The stop order above the row is the dispatchers' own and the board now honours it;
+the rows under it were modelled for an afternoon and then, at Cayden's direction, left behind: they are
+clutter ePASS creates because it cannot be updated from the field, and with techs closing tickets in real
+time and the office's questions already bouncing back to the tech as notifications, they go away on their
+own. A test bench now sits under the board: generate a customer, see the exact schedule screen they would
+get, tap a window as them, and watch the call land on the board — the fastest way to argue with the
+engine. Route settings moved off the day and onto the tech — a weekday pattern, so Diogo's Thursdays
+and Fridays end at three every week without anyone re-entering it — and a tech calling in sick opens a
+walk-through: the engine's suggested slot for each customer, a click to move, and a <em>separate</em> click to
+text them, with the message shown first. Office notes and dated reminders are internal only. The map
+gained a roads view and a full screen; the Google key stays on the server.</p>
+<h2 id="7-customer-portal-is-my-repair-ready-yet">7. Customer portal ("Is my repair ready yet?")</h2>
+<ul>
+<li><strong>Entry is the link, and the link is the portal ⟨9/18 late⟩.</strong> <code>wilsonappliance.com/t/{token}</code> opens the customer's repair with no order number, no phone and no password — the way a parcel tracker works. The SV-plus-phone lookup stays as the way back in for someone who has lost it. No account, and no account to forget.</li>
+<li><strong>The confirmation page ⟨9/18 late⟩.</strong> Cayden: <em>a landing or success page after a customer selects a date and completes the registration that makes clear the functionality of saving the customer portal link to monitor their service.</em> Until now the flow dropped the customer on the tracker with a toast, which hands someone a key without mentioning it is a key. The page now says what was booked, then spends its main section on the link: the URL with a Copy button, what the link actually does in their terms (see where the repair stands, change the appointment, read and approve the estimate, track the part and pick the install time, message Client Care), and one honest line — <em>anyone with this link can see your repair</em>. Then three ways to keep it (home screen, with the steps for iPhone and Android; email it to yourself; bookmark), what happens next, and what they'll be charged. Three variants — booked, grouped-trip bucket, office-only callback — off one template. The tracker itself repeats the offer once, quietly. Detail in the spec §6b.</li>
+<li><strong>We will know whether it worked.</strong> The measure is the share of jobs whose customer opens the link on a <em>different day</em> from the one they booked — not page views. Today that number is zero, because there is nothing to come back to.</li>
+<li>Progress tracker with the stages in §4: Request received → Diagnostic scheduled → Diagnosed → Estimate ready → Approved → Parts ordered → Part arrived → Install scheduled → Repair complete. Each stage shows its date; the active stage shows the estimate (e.g. "Part expected Thu Sep 18 · we'll text you to pick a time").</li>
+<li>Reschedule rules (revised 9/11): 48 hours or more out, the customer may change date and window freely among offered slots. <strong>Inside 48 hours a change is still allowed if it makes geographic sense</strong>: the picker only shows windows where the job fits an existing route — for an SO1, any eligible tech (primary or cross-zone secondary) who already has a stop in that zone group that day, so the tech may change; for an SO6/SO4PRE install the owning tech's availability only, since installs follow the diagnosing tech. If nothing fits, the portal offers Message Client Care rather than a bad move. Cancellations inside 48 hours go to Client Care.</li>
+<li>Actions available inline depending on stage: pick/reschedule window, view/approve estimate, <strong>My part arrived</strong> on direct-ship parts (→ SO5 and the install picker, ⟨9/11⟩), cancel request, update gate code/contact preference, message Client Care.</li>
+<li><strong>The three buttons now work ⟨9/19⟩.</strong> Cayden: <em>the buttons other than reschedule dont currently work.</em> They do now, and each one is the same shape — the customer acting on their own repair, through their own link, with nothing sent on their behalf.
+  <strong>Message Client Care</strong> opens their messaging app to 512-894-0907 with the first line already written: <em>Hi Wilson AC &amp; Appliance — this is Linda, about my repair SV00123373 (GE front-load washer).</em> Then it stops and gives them the cursor. What wastes Client Care's time is not the question, it is working out whose repair it is about, and that is now answered before anyone types. Nothing is sent until the customer presses send on their own phone.
+  <strong>Add gate code or note</strong> opens a box for a gate, callbox or lockbox code and anything else the technician should know — where to park, the dog, call first. It reaches his phone and shows on the job before he sets off, so he is not standing at a gate ringing them. It writes those two fields and nothing else: a customer may tell us how to get in, not change where they live.
+  <strong>Cancel request</strong> asks once, offers the reasons people actually give, and then shows a success page that leads with the thing they are worried about — <em>you haven't been charged</em> — says which window went back to the route, and offers to put it straight back. Cancelling stops being self-service the moment we have bought a part: from SO3 the page says so and offers Client Care, because somebody now has to decide what happens to the part.</li>
+<li>Multi-unit jobs show one tracker per unit under the same SV.</li>
+<li>Warranty jobs hide dollar amounts and show "covered under warranty" where relevant.</li>
+<li>A short FAQ under the tracker ("Why is my part taking a week?") absorbs the second most common call.</li>
+</ul>
+<h2 id="59-closing-a-call-out-9-19">5.9 Closing a call out ⟨9/19⟩</h2>
+<blockquote>
+<p>Cayden: <em>"we need a way to cancel a customer submitted service request … we just need it as an option to close out a call for whatever reason."</em></p>
+</blockquote>
+<p>There was no way to end a call except by finishing it, which meant dead tickets sat on the board holding half-days that could have gone to someone else. Now there is one cancel with two doors — the customer's own tracker and the dispatcher's card — and both land in the same place: SO9, the half-day back on the route, the reason on the record, one packet for whoever keys ePASS, and Undo for the rest of the day, because the commonest thing that happens after a cancel is finding out it was the wrong ticket.</p>
+<p>The dispatcher gets the reasons a customer would never pick — duplicate, could not reach them, no authorization, do not service, office error — and a <strong>Text the customer</strong> box that is off unless ticked. Cancelled calls leave the route without falling into Unscheduled; they sit in their own short list with who did it and why. A ticket that already has parts against it says so plainly: the call can be closed, but the part is still someone's decision.</p>
+<h2 id="510-the-installers-damage-report-9-19">5.10 The installer's damage report ⟨9/19⟩</h2>
+<blockquote>
+<p>Cayden, with the form's screenshots: <em>"see screenshots of field/install damage report that funnels directly into our existing service request queue … we will need to grab the info from the service request queue, move it into unassigned and have it send to Mark Perks for review/part number add … holds time at so4, when part arrives at so5, customer is prompted to schedule."</em></p>
+</blockquote>
+<p>Every other ticket in this system starts with a customer asking for help. This one starts with an installer finding a dent on something we have just delivered, and it still has to end up in the same place — a technician at the house with the right part in his hand.</p>
+<p>⟨9/19 late⟩ Cayden: <em>"you built the damage report into this tool, which isn't needed. it already exists, we just need to read the incoming data in the service request queue that already exists as well."</em> Quite right. The form the delivery crews use lives in Agility and keeps writing into Agility's <strong>Service Request Queue</strong> exactly as it does today — the customer, the address, the ERP invoice number, the model and serial, <em>COSMETIC DAMAGE — field report by Foster Anzaldua</em>, the line <em>Issue: Other — Right side — Bottom Right</em> that the queue has printed for years, and the photos. We built a copy of that form on 9/19 and it is gone. What we build is the <strong>read</strong>: that queue row appears on the dispatch board in the queue's own shape, on a real delivery, with the one thing the queue never had — a button that turns it into a service order.</p>
+<p>What is new, then, is everything after that button, and the shape of it comes from two facts about this kind of call.</p>
+<p><strong>There is no diagnostic.</strong> Somebody has already stood in front of the unit and photographed the damage. Putting a technician in a van to go and look at it is exactly the waste this project exists to remove, so the ticket is created at SO2 with the photos standing in for the findings, and never touches SO1.</p>
+<p><strong>The only missing piece is a part number</strong>, and one person in the building supplies it. So the ticket is born unassigned and belongs to Mark until he has chosen the part; his review is the part number, what the part is, when it lands, and who fits it. That is a two-minute job that currently happens in somebody's inbox, and it is the single step the whole thing waits on.</p>
+<p>From there it is an ordinary ticket and uses machinery that already exists: SO4 holds a fitting slot on that technician's route two business days after the expected date, the part checks in as SO5, and the customer picks their install window on the same tracker as everyone else. The customer's first contact about a repair they never asked for is a text telling them their part is in and offering them times — which is roughly the opposite of how that conversation goes today.</p>
+<p>One thing worth saying plainly: the customer is never sent an estimate for this. We damaged it, we pay for it, and the ticket goes straight to <em>order the part</em> rather than through the quote stages. Routing it the normal way would email somebody a price for a repair they are not being charged for.</p>
+<h2 id="511-in-the-shop-9-19-pm">5.11 In the shop ⟨9/19 pm⟩</h2>
+<blockquote>
+<p>Cayden: <em>"SI jobs live in their own section of unassigned and can be used to fill in days that are lighter … si jobs historically get moved a lot if the tech falls behind and doesnt make it back to work on the unit, so they can float for days at a time before being addressed."</em></p>
+</blockquote>
+<p>Everything strange about an in-shop ticket comes from one fact: the unit is here and nobody is waiting at home for anybody. There is no arrival window to miss, no drive time, no customer who will ring at 4pm asking where the van is. That is exactly why these float — and it is why they cannot simply live at the bottom of Unscheduled, sorted by an urgency they do not have.</p>
+<p>So they get their own lane, and the lane counts something nothing else in the system counts: <strong>how many times a unit has been given a bench day and still not been touched.</strong> Twice is bad luck. On the third, Mark is told, by name, because there is genuinely nobody else who is going to notice. Placement stays manual for now, as Cayden asked — "a light day" is a judgement nobody has written down, and the engine should not pretend otherwise.</p>
+<p>The notification rules are muted on purpose. Telling somebody whose washing machine is on our bench that "your part has arrived" is noise, so the part texts do not go. The tracker still shows them everything, because a page they choose to open is not an interruption.</p>
+<p>There are two ways a unit gets here and two ways it leaves, and the tool has to keep them straight. A tech who takes something off a customer's floor mid-call creates a debt: we owe them a delivery, and the trip that takes it back has to remember to load it — which is a line on the board card and a line on the tech's job screen, not a note in somebody's head. A unit the customer carried in themselves ends with them carrying it out. The customer's page tells those two stories differently: one asks them to pick a window, the other says come any time we're open.</p>
+<h2 id="512-the-quote-that-survives-being-closed-9-19-pm">5.12 The quote that survives being closed ⟨9/19 pm⟩</h2>
+<p>Three of Cayden's answers land here, and the third changes how the office thinks about a dead quote.</p>
+<p><strong>Every quote is reviewed.</strong> No dollar threshold, no amount below which one sends itself. <strong>Three days</strong> of silence, not fourteen — an unanswered quote at three days is a phone call.</p>
+<p>And then: <em>"we need to save a historical quote so that we can reopen it if the customer calls back after a week and wants to move forward. if a call gets reopened, there needs to be a button the office admin hits to credit the diag to the repair."</em></p>
+<p>A closed quote is not a dead one. The lines are kept, the row says it can come back, and reopening it puts it in front of the customer again with the closure it had before preserved rather than overwritten. The button Cayden asked for puts the $169.95 they already paid on the quote as a credit, so somebody who thought about it for a week and said yes is not charged twice for the same visit. It is ticked by default and it is still a choice.</p>
+<p>The same thinking finishes the discontinued-part argument from 9/18. The three-way charge / waive / credit decision collapses into two, because charging now <em>means</em> charging-and-crediting: every customer whose part is discontinued is told, in the message we send them, that the fee comes off a replacement bought from us. That is the version that keeps the fee and the goodwill, and it stops the office having to weigh it up one call at a time.</p>
+<h2 id="513-where-the-techs-findings-go-9-19-late">5.13 Where the tech's findings go ⟨9/19 late⟩</h2>
+<blockquote>
+<p>Cayden: <em>"where are tech notes stored for current jobs? where do their findings recorded in field tool end up? we do need this to record their notes into history."</em></p>
+</blockquote>
+<p>The honest answer had three parts. In ePASS today, the tech tells the office and the office re-types it into the ticket's <em>Work Performed</em> box — and that box is the whole reason twenty years of history reads as well as it does; every "read the last visit" in the field tool is that box. In the prototype until this round, the findings lived in the phone's memory and a toast, which is to say nowhere. That was a gap.</p>
+<p>Now every Submit writes the visit the way the history has always been written — what the customer said, what was found, the cause, the parts and the labor, the tech's note, the outcome — and it lands at the top of that unit's history at once, in the same panel the next technician reads before he knocks, marked as this visit. The office sees it on the ticket and in the customer's record, in one list with the twenty years before it: a call closed in 2019 and a call submitted ten minutes ago read the same way, side by side. ePASS keeps getting the first two hundred characters as the ticket note, so nothing is re-typed and nothing is lost when the ticket closes. At NetSuite the record simply becomes the service order's history.</p>
+<h2 id="514-anyone-in-the-office-can-fix-a-ticket-9-19-late">5.14 Anyone in the office can fix a ticket ⟨9/19 late⟩</h2>
+<blockquote>
+<p>Cayden: <em>"i guess we need to add the ability for anyone in the office to be able to edit customer, unit, tech notes any info."</em></p>
+</blockquote>
+<p>Kelli Kenney's built-in refrigerator read <em>speed oven</em> for a day, and nobody who saw it could fix it where they saw it. So every ticket card has an Edit, every field on it is editable — the customer's name, phone, email and preference; the appliance, model, serial and whether it is built in; the tech's note and the problem as reported — and any office role can do it. Two things keep that from being loose. Every change is written to the ticket's activity log as <em>was → is</em>, with who, when and a <strong>required one-line reason</strong>; the sheet will not save without one, because a change with no reason is the thing nobody can untangle a year later. And because ePASS is still the source of truth for ticket data until NetSuite, the same save puts a paste-ready correction packet on the sync queue, so the ticket in ePASS says the same thing by the end of the day. The dashboard never writes into ePASS; the office keys it, and the next import confirms it.</p>
+<h2 id="515-what-we-got-wrong-and-how-it-was-found-9-19-late">5.15 What we got wrong, and how it was found ⟨9/19 late⟩</h2>
+<p>Cayden asked for a full pass — <em>check for issues, find broken links and logic</em> — and the pass found no broken links and five pieces of bad data that were ours, not ePASS's. They are worth listing because each is a habit, not a typo.</p>
+<p><strong>A rule that knew less than the history did.</strong> Kelli Kenney's <em>speed oven</em> came from a model-prefix rule of ours — Profile's PSB9 is a speed oven, PSB4 is a built-in fridge, and the rule stopped at three letters. The fix is not a better prefix; it is asking what ePASS's own product code has said this model was, every time it has been in before, and only guessing when the history is silent. 337 of the 615 open tickets now take their category from history, 175 changed, and hers reads <em>built-in refrigerator</em>.</p>
+<p><strong>A flag set by hand for a demo.</strong> Her ticket is COD in ePASS. The warranty flag the field tool showed on it was put there on the morning of 9/19 so the warranty screen could be shown. It is gone; the warranty demo now runs on Diogo's real Friday warranty call, and the tool carries every one of his real days so a story never has to be invented on a real ticket again.</p>
+<p><strong>The office-side twin of the wrong part number.</strong> While the field tool was offering a Whirlpool drain-pump number on a GE washer, the office tool was carrying a Whirlpool bake-element number on a Vent-A-Hood — a hand edit — and its sample-part table gave every hood a bake element. Both gone. No line anywhere arrives with a number nobody keyed.</p>
+<p><strong>Invented people on real ticket numbers.</strong> The office's sync-queue seeds had "Maria Ortega" on William Blocker's SV, "Kim Cline" on Suzanne Colonna's, "Brandon Cox" on Lindsay Chang's; the field tool's notifications had "Ed Taylor" and "Mary Dietz" on tickets that were neither's. Every seed row is now the real customer, unit, technician and status on that SV, and where the <em>content</em> is still illustrative — a question Noell might ask, a van-maintenance block, a unit coming back from the bench — the screen says <em>sample</em>.</p>
+<p><strong>A rate claimed on the wrong evidence.</strong> Two ways: the sealed-system test matched the word <em>condenser</em>, so replacing a condenser <strong>fan</strong> motor claimed the sealed-system rate; and the field tool read a ticket's duration class — built-in refrigeration takes longer — as sealed-system work, so every built-in fridge warranty call would have claimed $237.74 instead of $113.68. Sealed is now decided only by what the technician recorded. Both tools and the reference code share the same rule, and each has a test that fails if it drifts.</p>
+<p>The common thread is the one the whole project is about: data that looks right and is not is more expensive than a blank. Every one of these now has a check that would catch it coming back.</p>
+<h2 id="8-notification-matrix">8. Notification matrix</h2>
+<p>Channel follows the customer's stated preference (text default; email if chosen; both for estimates). All texts go out through <strong>Podium</strong> (dev API access is in hand), which is already how the estimate tool texts links, so the matrix is a template and trigger build rather than a new integration. All templates editable in the dashboard.</p>
+<div class="tw"><table>
+<thead>
+<tr>
+<th>Trigger</th>
+<th>Message intent</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Form submitted</td>
+<td>Confirmation, SV/ref number, portal link, what happens next</td>
+</tr>
+<tr>
+<td>SO1 booked</td>
+<td>Date, window, tech first name, prep tips (clear access, model tag photo)</td>
+</tr>
+<tr>
+<td>Day before SO1 / SO6</td>
+<td>Reminder + one-tap reschedule</td>
+</tr>
+<tr>
+<td>Tech "On my way"</td>
+<td>ETA text</td>
+</tr>
+<tr>
+<td>SO2.2</td>
+<td>Estimate link (existing)</td>
+</tr>
+<tr>
+<td>48 h / 5 d in SO2.2</td>
+<td>Reminder (existing buttons, automated)</td>
+</tr>
+<tr>
+<td>SO3</td>
+<td>"Approved — ordering your parts"</td>
+</tr>
+<tr>
+<td>SO4 / SO4B / SO4H</td>
+<td>Parts ordered + expected date; delay notice on ETA change &gt; 2 days; shipping tracking for direct-ship</td>
+</tr>
+<tr>
+<td>SO5</td>
+<td>"Part is in — pick your install time" with picker link</td>
+</tr>
+<tr>
+<td>SO6</td>
+<td>Install confirmed</td>
+</tr>
+<tr>
+<td>SO4PRE → SO6</td>
+<td>"Your part arrived; your Sep 18 appointment is confirmed"</td>
+</tr>
+<tr>
+<td>SO8 + payment</td>
+<td>Receipt with itemization, review request</td>
+</tr>
+<tr>
+<td>Failed charge</td>
+<td>Secure pay link</td>
+</tr>
+<tr>
+<td>Quiet period</td>
+<td>Any job with no status change for 7 days and no customer action pending gets a "still working on it" note — silence is what generates calls</td>
+</tr>
+</tbody>
+</table></div>
+<p>Internal notifications: Stuck Jobs digest each morning to Cayden/leads; Needs-review quote and Payment-review items to Noell; new SO2 count to the parts manager; ePASS sync backlog count to whoever owns it.</p>
+<h2 id="6f-confirming-a-route-9-19-pm">6f. Confirming a route ⟨9/19 pm⟩</h2>
+<blockquote>
+<p>Cayden: <em>"keep half day, until day is closed and we hit confirm route. closing and confirming a route should auto send customers a confirmation text with date and time frame."</em></p>
+</blockquote>
+<p>Half-day windows stay. What changes is when the customer hears about theirs. Until a day is settled, half of it will still move, and texting people a window that is about to change is worse than not texting them at all. So the dispatcher presses <strong>Confirm route</strong> and that is the moment: every customer on that day gets the date and the window, the stops are pinned, and the day is closed.</p>
+<p>It is the only place in this system where a batch of customer texts is the right thing, and it is right precisely because it is a deliberate act with a button on it. Every message is shown before any of them goes — all of them, on one screen — so a wrong name is caught by the person pressing the button rather than by the customer. A stop moved after that is an ordinary reschedule and gets its own text.</p>
+<p>Booking runs <strong>two calendar weeks</strong> out, not ten business days: the two are nearly the same thing until a holiday week, when they are not.</p>
+<h2 id="9-epass-mirroring-until-netsuite-revised-9-18">9. ePASS mirroring until NetSuite ⟨revised 9/18⟩</h2>
+<p>Cayden, 9/18: <em>we still have to use ePASS for storing ticket data, ordering parts, receiving parts, accounting and billing. It needs to remain the source of truth … minimal double work.</em> So, plainly: <strong>until NetSuite, ePASS is the source of truth for ticket data, ordering, receiving, accounting and billing.</strong> The dashboard owns what it alone produces — requests, placement and the board, findings and photos, quotes and the estimate hand-off, notifications — and keeps ePASS in step with the smallest set of keyed entries the team will accept, confirming each one from the next export. (This section opened until 9/18 with the dashboard as the source of truth and staff making ePASS match; the mechanics below are unchanged, the direction of truth is not.)</p>
+<div class="tw"><table>
+<thead>
+<tr>
+<th>What we key into ePASS</th>
+<th>What we only read back from ePASS</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>A new ticket for a self-booked request — a pushed notification to the office admins; the SV typed back links it</td>
+<td>SO4 — Kezia ordered</td>
+</tr>
+<tr>
+<td>The approved parts and labor lines, and SO3 — Noell, one packet per approved estimate</td>
+<td>SO5 — the part is received</td>
+</tr>
+<tr>
+<td>Dates and tech: the SO1 booking, the SO6 pick, any move</td>
+<td>Everything Kezia does in ePASS</td>
+</tr>
+<tr>
+<td></td>
+<td>Anything changed in ePASS directly — a reverse discrepancy, item 4 below</td>
+</tr>
+</tbody>
+</table></div>
+<p>Purchasing — the Parts Order tab, PO builder, supplier sheets, Receiving, bin scanning — is hidden behind a flag until NetSuite opens an API (§5.4). The mechanics:</p>
+<ol>
+<li><strong>Imports</strong>: ePASS writes <code>DispatchTrackDetail_*.csv</code> to <code>\\WILSON-EPASS01\Updates\ePASSScheduler\DispDataExport</code> every 15 minutes (full snapshot, cp1252). Confirmed 9/10: SV rows carry <code>Truck</code> = tech SP code, <code>Delivery Date</code>, <code>Job Status</code> (currently SO1/SO4PRE/SO5/SO6 only — Cayden is asking ePASS to export all service statuses), <code>Map Zone</code>, <code>Latitude/Longitude</code>, <code>Balance</code>, <code>Priorites</code> (WTY/RCALL), <code>Location</code> (parts bin), <code>Directions</code>, <code>Qualifications</code>. See docs/04 and docs/06. A push script that already sends ePASS data to Dispatch Track exists on the server; reuse it to push the ExportInvoice (and routing) data to the dashboard on a schedule. Fallback: schedule the ExportInvoice report (and the routing/schedule export if one exists) into the dashboard as often as ePASS allows — hourly if it can be automated from a workstation with a small watcher script that pushes the file, otherwise at least morning and mid-day by a person (the Service Order Health upload button already does the ingest).</li>
+<li><strong>Matching</strong>: SV # ⇄ Job ERP order number (already done in Service Order Health). Add: job status, scheduled date, assigned tech (SP code), balance, units.</li>
+<li><strong>Sync queue</strong>: every dashboard transition writes a <strong>Sync Item</strong> ("Set SV00123388 to SO4, date blank, note PO 4471 ETA 9/18"). Items are grouped by ticket, oldest first, with copy buttons for each field so keying takes seconds. An item is <strong>auto-closed when the next import shows ePASS matching</strong>; if the import still disagrees after two cycles it becomes a <strong>Discrepancy</strong> with both values shown.</li>
+<li><strong>Reverse discrepancies</strong>: if ePASS changes without a dashboard event (someone edits in ePASS directly), the dashboard flags it and asks: accept into dashboard, or re-issue sync item. This keeps the two from silently diverging.</li>
+<li><strong>NetSuite readiness</strong>: model the Job, Unit, Quote, PO and Payment entities now so that NetSuite's SuiteTalk/REST records map field-for-field; the sync queue's "apply" step then becomes an API call instead of a human, and the discrepancy engine stays as a safety net.</li>
+</ol>
+<h2 id="9a-office-search-history-and-kpis-9-11">9a. Office search, history and KPIs ⟨9/11⟩</h2>
+<ul>
+<li><strong>One search box</strong> on the service dashboard: customer name in any word order, phone digits, SV number (with or without the <code>SV000</code> prefix), serial, model or street address. Results list customers and jobs, open jobs first; one click opens the job or the customer's page.</li>
+<li><strong>Customer and unit history</strong>: every prior call at that customer (and, separately, on that serial — appliances change hands), with dates, tech, what was found and what was done (quote lines / findings), amounts and links to the receipts. Closed 2026 jobs are back-filled from the completed-invoice exports so the history is useful on day one, before the dashboard has closed a job itself.</li>
+<li><strong>Recalls, auto-tracked</strong>: when a new call is created on a unit that had a completed repair within the last 30 days (same serial, or same model at the same address), it is flagged as a recall candidate against the original tech; the service manager confirms or dismisses it in a Recalls queue, and a candidate left unreviewed for a week counts anyway. Anything the office already marks RCALL in ePASS is a recall too. A confirmed recall keeps the original owner and is not charged a diagnostic.</li>
+<li><strong>KPIs</strong> per tech (week, 30 days, 90 days): recall rate, call turnaround (created → complete, split diag-only vs repair), calls per day (completed visits ÷ working days), diag-only rate, quote approval rate, delivered dollars per call/day/week, days part-in → install, plus whatever the team adds later — definitions are data, not code, so the list can change. Techs see their own delivered dollars and calls per day in the field tool; the rest is manager-facing by default.</li>
+</ul>
+<h2 id="10-data-model-developer-summary">10. Data model (developer summary)</h2>
+<ul>
+<li><strong>Customer</strong> (id, name, phones, emails, contact_pref, addresses[], stripe_customer, tags: landlord/PM)</li>
+<li><strong>Job</strong> (id, sv_number, customer, address, zone, status, status_history[], type: appliance/HVAC/in-shop, warranty_flag, promised_window, planned_slot, tech, priority, source, created_at)</li>
+<li><strong>Unit</strong> (job, appliance_type, brand, model, serial, purchase_date, purchased_from_us, merged, problem_text, photos[])</li>
+<li><strong>Appointment</strong> (job, kind: diag/install/revisit, window_start/end, planned_arrival, tech, sequence, locked, actuals: on_my_way/arrive/complete)</li>
+<li><strong>Findings</strong> (job, tech, notes, photos, recommend, submitted_at)</li>
+<li><strong>Quote</strong> (job, version, lines[], subtotal, tax, deposit_applied, remaining, sent_at, viewed_at, decision, decided_at, sent_by, needs_review_reason)</li>
+<li><strong>QuoteLine</strong> (quote, kind: part/labor/shipping, part_number, description, qty, unit_price, verified_at, verified_by, availability, supplier)</li>
+<li><strong>PurchaseOrder</strong> (supplier, po_number, lines[], ordered_at, expected_at, ship_to, tracking, received_at per line)</li>
+<li><strong>Tech</strong> (name, sp_code, home, start_pref, end_pref, shift, skills[], max_jobs, days_off)</li>
+<li><strong>Zone</strong> (zip, primary_techs[], secondary_techs[], centroid)</li>
+<li><strong>Notification</strong> (job, trigger, channel, template, sent_at, delivered/opened)</li>
+<li><strong>SyncItem / Discrepancy</strong> (job, field, dashboard_value, epass_value, created_at, closed_at, closed_by: import/human)</li>
+<li><strong>Payment</strong> (job, amount, stripe_payment_intent, status, posted_to_erp)</li>
+</ul>
+<h2 id="11-phased-rollout">11. Phased rollout</h2>
+<p>Ordered by call-volume relief per unit of build effort, and so each phase is useful on its own.</p>
+<p><strong>Phase 0 — Foundations (weeks 1–3).</strong> Job record with full status engine and status_history; convert the Service Requests queue to it; scheduled ExportInvoice import; Sync Items + Discrepancy view replacing free-text "TICKET MADE. MSD". No process change for staff yet except keying from the sync list.</p>
+<p><strong>Phase 1 — Customer visibility (weeks 3–6).</strong> Portal tracker keyed off imported ePASS status, notification matrix for status changes. This is the biggest call reducer and needs nothing from techs or parts yet — status can still be flowing from ePASS imports at this stage.</p>
+<p><strong>Phase 2 — Quote automation (weeks 5–9).</strong> Tech findings form (mobile web), Parts Verify queue, structured quote replacing PDF scan, auto-send, auto SO3/SO7, scheduled reminders, Needs-review rules for Noell. ⟨9/18⟩ For the interim the estimate is created in the existing Agility module from the verified lines and sent by Noell's click, not auto-sent (§5.3); approval → the <code>lines</code> packet she keys into ePASS with SO3 (§5.4).</p>
+<p><strong>Phase 3 — Parts pipeline (weeks 8–12).</strong> ⟨9/18⟩ <strong>Purchasing moves to Phase 7.</strong> For the interim, ordering and receiving stay in ePASS: Kezia verifies price and ETA in our tool, orders and receives in ePASS, and the import reads SO4 and SO5 back (§5.4). What remains in this phase is the read-back, the pencil off the verified ETA, the SO4PRE date logic and the <code>lines</code> / <code>new_ticket</code> packets — small, and mostly Phase 0 code already. The Parts Order queue, PO builder with supplier export, receiving → SO5 and partial-receipt handling are built and hidden behind <code>purchasing.enabled</code>.</p>
+<p><strong>Phase 4 — Capacity engine and SO1 self-scheduling (weeks 11–16).</strong> Tech/zone/duration tables, drive-time API, capacity ledger, window picker on the form and in Client Care. Run shadow mode first: engine proposes, dispatcher compares against what they'd have done.</p>
+<p><strong>Phase 5 — Route builder and two-truck board (weeks 15–20).</strong> Optimiser, board with drag/drop, pins, re-optimise controls, per-tech route export to ePASS. Dispatcher moves from building to supervising.</p>
+<p><strong>Phase 6 — Install self-scheduling and auto-charge (weeks 19–23).</strong> SO5 → customer picker → SO6; SO8 → auto-charge with Payment-review exceptions.</p>
+<p><strong>Phase 7 — NetSuite two-way (aligned to migration).</strong> Replace human sync with API apply; keep Discrepancy engine. ⟨9/18⟩ Purchasing returns here — the Parts Order queue, PO builder with supplier order sheets, ETA capture from the PO, receiving → SO5 and partial receipts — <em>when we are on NetSuite and can open an API.</em></p>
+<h2 id="11a-the-shadow-test-instance-9-14">11a. The shadow test instance ⟨9/14⟩</h2>
+<p>The AJH pilot (three files, one technician, three browser tabs sharing a <code>localStorage</code> store) is retired; its two good ideas — a copy button on the live Service Request Queue and a suggested day for everything unscheduled — are kept and applied to the whole crew on the real Phase 0 database.</p>
+<ul>
+<li><strong>What runs.</strong> One Phase 0 database fed read-only by the DispatchTrack export ePASS already writes every 15 minutes, plus the ExportInvoice file once or twice a day. The three <em>Service Journey</em> pages read it. Nothing writes back to ePASS: packets pile up as <em>pending</em> and are never keyed, no texts or charges go out.</li>
+<li><strong>The button.</strong> <em>Copy to service dashboard test module</em> on every live request row posts the row (customer, address, contact method, units, photos, card on file, ERP order number) to the instance. It becomes a REQ with a suggested tech-day and the reason. Pressing it twice does nothing new. The live row is untouched — a copy, not a move.</li>
+<li><strong>No double entry.</strong> The dispatcher keeps booking in ePASS as today. When the SV appears in the next snapshot the instance attaches it to the request (phone, or name + ZIP), adopts the ePASS booking, and scores its own suggestion against what the dispatcher did. Typing the SV into the row's ERP field does the same immediately.</li>
+<li><strong>The morning check</strong> (<code>shadow-report</code>, ten minutes): mirror health against the CSV; requests copied and which still lack an SV; suggested-vs-actual agreement (same day, same tech, both) with every miss listed for the dispatcher to judge — <em>who was right?</em>; where the pencils landed and whether they moved sensibly when an ETA changed; whether PTO, blocks and forced calls showed up within a refresh.</li>
+<li><strong>Done when</strong> the mirror has been clean for three straight days, roughly fifty requests have been scored with ≥ 80 % same-day-or-better and every miss explained by a rule we added or a difference we accept, and the dispatchers have used the day controls on real events. Then customers pick dates for one zone or one tech, with a dispatcher-approves gate in front of the confirmation text for two weeks.</li>
+<li>"Break it" testing (closed days, full days, past dates, double bookings) happens on a separate copy seeded from the latest snapshot, never on the shadow instance.</li>
+</ul>
+<h2 id="12-measures-of-success">12. Measures of success</h2>
+<p>Baselines from the Sep 2026 data (docs/06): median created→finished <strong>15 days</strong> (mean 22, p90 46); <strong>33% of billed COD invoices are the $169.95 diagnostic only</strong>; core techs bill 2–2.5 COD jobs per working day; west work is 6% of jobs; 657 open tickets of which ~23% are warranty statuses.</p>
+<p>Track from day one so the before/after is real (⟨9/11⟩ the team's own three — recall rate, call turnaround, calls per day — lead the KPI page, §9a): inbound calls per open job per week; hours between diag visit and quote sent (today 24–72 h, target &lt; 4 h); quote approval rate and time-to-decision; days from approval to parts ordered (target same day); days from part received to install (target ≤ 3); % of appointments self-scheduled by customers; drive minutes per completed job; % of jobs with a fake or past date (target 0); ePASS discrepancies open &gt; 1 day; manual status changes with reason codes per week (should trend to near zero).</p>
+<h2 id="13-decisions-log">13. Decisions log</h2>
+<p><strong>Settled 9/19 pm with Cayden:</strong></p>
+<div class="tw"><table>
+<thead>
+<tr>
+<th>Topic</th>
+<th>Decision</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Client Care from the tracker</td>
+<td>One tap opens the customer's own messaging app to 512-894-0907 with their name, SV and unit already written. Nothing is sent on their behalf.</td>
+</tr>
+<tr>
+<td>Cancelling</td>
+<td>The customer may cancel their own visit up to the point where we have bought a part; from SO3 it is a conversation with Client Care. A cancel — theirs or the office's — frees the half-day, records a reason and sends one packet to ePASS. Undo stays available.</td>
+</tr>
+<tr>
+<td>Gate codes</td>
+<td>The customer can add or clear a gate code and an access note from their link. They cannot change anything else about the address from there.</td>
+</tr>
+<tr>
+<td>Shipping</td>
+<td>$25 is a default, not a constant. Kezia sets it per quote for freight or a special order, with who and why recorded.</td>
+</tr>
+<tr>
+<td>Warranty</td>
+<td>No zone fee, tax exempt throughout. True, Scotsman, Zephyr and BlueStar pay our COD rate and quote labor normally; every other brand's labor is the warranty admin's flat rate on the claim — and the tool shows no figure at all until we have a rate card per manufacturer.</td>
+</tr>
+<tr>
+<td>Quotes the office writes</td>
+<td>Live in Estimates, built from the same lines and rules as a tech's. <em>Send to the tech</em> hands the pricing back to the person who saw the machine, and the row waits in Noell's own list rather than a queue she does not watch.</td>
+</tr>
+<tr>
+<td>Damage reports</td>
+<td>No diagnostic, no customer estimate: the photos are the findings, Mark's part number is the approval, and Wilson pays. The ticket is unassigned and Mark's until he supplies the number.</td>
+</tr>
+</tbody>
+</table></div>
+<p>Settled 9/11/2026 with Cayden (9/14 additions at the end, marked ⟨9/14⟩):</p>
+<div class="tw"><table>
+<thead>
+<tr>
+<th>Topic</th>
+<th>Decision</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Call ownership</td>
+<td>The tech who runs the diagnostic owns every later visit. Board flags cross-truck moves; installs wait for an absent owner up to ~1 week, then Demitrius reassigns manually.</td>
+</tr>
+<tr>
+<td>Board defaults</td>
+<td>Full-week fill strip; two columns default to the same tech on consecutive days.</td>
+</tr>
+<tr>
+<td>Owed installs</td>
+<td>Count a tech's open SO2–SO5 jobs against their future diagnostic capacity (discounted by quote approval rate).</td>
+</tr>
+<tr>
+<td>Billing</td>
+<td>No charge at diag. Approve → diag rolled into quote, full total charged at SO8. Decline/SO7 → $169.95 diag fee charged then.</td>
+</tr>
+<tr>
+<td>Reschedule</td>
+<td>Self-service only ≥48 h out; inside that, Message Client Care. Same-week reschedules keep the AM/PM window, change day only.</td>
+</tr>
+<tr>
+<td>Texting</td>
+<td>Podium, via its API (dev access exists).</td>
+</tr>
+<tr>
+<td>Field tool</td>
+<td>Mobile web on techs' own phones; replaces Dispatch Track; modelled on the existing maintenance field tool (tap-only, 44–52px targets, autosave, photos stored locally before upload); captures arrive/complete times from day one. Serial-tag photo required on SO1 only.</td>
+</tr>
+<tr>
+<td>Field quoting</td>
+<td>Techs quote in the field from flat-rate tasks + catalog parts; customer signs on the phone; card on file is charged at completion. Approve → SO3 (or SO8 for labor-only). Quick fixes within the diag hour are not upsold.</td>
+</tr>
+<tr>
+<td>Contact preference</td>
+<td>Passes through to route and job cards; it just defaults the tech's button — Call (via Podium) or Text. No other UI.</td>
+</tr>
+<tr>
+<td>Rate book</td>
+<td>Restructure to task catalog + modifiers + rate table (+ optional brand factor); generate the ePASS import from it.</td>
+</tr>
+<tr>
+<td>Sales tax</td>
+<td>Labor taxed unless the unit is built-in or HVAC; parts, diagnostic and zone fees always taxed. Flag driven by the unit's install type, not brand.</td>
+</tr>
+<tr>
+<td>Roster &amp; zones</td>
+<td>Real roster in <code>tech_roster.csv</code>; ePASS <code>Map Zone</code> is the zone vocabulary; primary/secondary techs derived from 2026 completions. JHM, MAP, VJ not auto-routed or customer-schedulable. All techs sealed-system; BLL is HVAC, TDP backup only by office decision.</td>
+</tr>
+<tr>
+<td>Booking modes</td>
+<td>Zone groups carry <code>open</code> / <code>designated_days</code> / <code>office_only</code>. No standing trip days — far groups accumulate in a trip bucket and a trip is proposed on volume, age or an aging install; Demitrius confirms; a drive-per-stop guard flags unprofitable days.</td>
+</tr>
+<tr>
+<td>Parts / shop touch</td>
+<td>Install days require a shop touch before the first install unless parts were loaded the prior evening; home-start techs get wave logic; per-tech "always start at shop" fallback.</td>
+</tr>
+<tr>
+<td>Reschedule &lt;48h</td>
+<td>Allowed when it fits an existing route: SO1 may change to any eligible tech already in that zone group that day; SO6 follows the owning tech only.</td>
+</tr>
+<tr>
+<td>Requote</td>
+<td>Re-approve if verified parts total &gt; 10% above field quote (or a part &gt; 10% and &gt; $10); decreases auto-apply.</td>
+</tr>
+<tr>
+<td>Notes</td>
+<td>Live on the dashboard Service Order. Techs never enter ePASS. Office keys status + billable lines from the Sync Queue packet until NetSuite; prose is never re-typed.</td>
+</tr>
+<tr>
+<td>HVAC</td>
+<td>Brady is the dedicated HVAC tech on the same flow; Vince (HVAC sales) runs a handful of odd jobs and can appear as a tech with limited capacity.</td>
+</tr>
+<tr>
+<td>In-shop (SI)</td>
+<td>Stays on today's process for now.</td>
+</tr>
+<tr>
+<td>ePASS import</td>
+<td>Reuse the existing server script that pushes ePASS data to Dispatch Track.</td>
+</tr>
+<tr>
+<td>Roles</td>
+<td>Demitrius is the service router; Michael Davidson creates tickets; Noell owns quotes and billing; ⟨9/11⟩ Kezia (parts/receiving) owns the two-day-out part check on held installs.</td>
+</tr>
+<tr>
+<td>Tech's number ⟨9/11⟩</td>
+<td>Delivered dollars = parts profit + all labor including diagnostic and zone fees, exactly as OE-23 reports it; warranty tickets count labor only. Live in the field tool with week pace; per route and department for the office.</td>
+</tr>
+<tr>
+<td>Working days ⟨9/11⟩</td>
+<td>Josh (JRC) is Mon–Thu; his Friday is closed by default and opened per day with one click. Every tech has working days on the roster.</td>
+</tr>
+<tr>
+<td>Capacity controls ⟨9/11⟩</td>
+<td>Dispatcher changes capacity from the fill strip in one or two clicks: close/open a day, PTO ranges, ±60 min, +1 stop, non-call blocks (haircut, van maintenance), and <em>Force it</em> on an over-capacity drop with no reason code, logged.</td>
+</tr>
+<tr>
+<td>Recalls ⟨9/11⟩</td>
+<td>Auto-detected: same unit (serial, or model at the same address) with a completed repair in the last 30 days; manager confirms/dismisses; unreviewed after 7 days counts.</td>
+</tr>
+<tr>
+<td>Field tool inputs ⟨9/11⟩</td>
+<td>Two typing exceptions to tap-only — the error code (prompted when that symptom is tapped) and an optional custom note behind a button. Half-day / full-day labor quick picks.</td>
+</tr>
+<tr>
+<td>Held installs ⟨9/11⟩</td>
+<td>T−2 business days: Kezia checks ETA if parts aren't in; T−1 2 pm: hold released to SO4 with an apology text and re-pick link. Direct-ship (SO4H): customer taps <em>My part arrived</em> → SO5 → picker.</td>
+</tr>
+<tr>
+<td>⟨9/14⟩ Part numbers in the field tool</td>
+<td>Tech taps the failed component, then keys the part number. Nothing pre-filled from a catalog; UNKNOWN + note allowed; price optional, office prices TBD lines.</td>
+</tr>
+<tr>
+<td>⟨9/14⟩ SO4 auto-pencil</td>
+<td>Once Kezia's ETA is set, pencil the install ETA + 2 business days on the owning tech's best-fit day; blocks time; dashboard-only; moves with the ETA; first date the customer sees on SO5.</td>
+</tr>
+<tr>
+<td>⟨9/14⟩ Route-first dates</td>
+<td>~~Offer the best-fit day first (labelled), earliest always visible, within 5 days of the earliest.~~ <strong>Superseded 9/17 pm</strong> — see the offer window below.</td>
+</tr>
+<tr>
+<td>⟨9/14⟩ Testing approach</td>
+<td>Shadow instance for all techs fed by the existing DT export; <em>Copy to service dashboard test module</em> button; AJH pilot retired.</td>
+</tr>
+<tr>
+<td>⟨9/15⟩ Visit group</td>
+<td>One arrival at one address is the scheduling, capacity and billing unit. Booking a member books every ready member; an unready member waits for the group rather than taking its own date; the held date follows the latest part ETA; the office splits on purpose.</td>
+</tr>
+<tr>
+<td>⟨9/15⟩ One charge per visit</td>
+<td>The customer is charged once for a grouped visit, with a receipt itemised by unit; ePASS still gets per-ticket amounts via an allocation in the packet.</td>
+</tr>
+<tr>
+<td>⟨9/15⟩ Contacts</td>
+<td>Per-job contacts with their own notify switch; office can add a number for one visit without changing the customer record.</td>
+</tr>
+<tr>
+<td>⟨9/15⟩ Capacity</td>
+<td>Commute (home→first, last→home) is excluded from the route day and shown separately; per-tech limits live in a settings page; durations stay assumptions until the field tool's on-site timer has 20 samples.</td>
+</tr>
+<tr>
+<td>⟨9/17⟩ Identity</td>
+<td>The address is the link between an open call and its history: street + unit + ZIP, or surname at the same house number. Surname alone is offered, never linked. A DNS flag needs address and last name.</td>
+</tr>
+<tr>
+<td>⟨9/17⟩ Model families</td>
+<td>Model Insight in three tiers — exact model, family (brand · product type · stem, rule table seeded with Bosch's handle rule), brand product type. No inference in v1. Watch-out flags go to Mark first.</td>
+</tr>
+<tr>
+<td>⟨9/17⟩ Route settings</td>
+<td>Live on the tech with a weekday pattern; the day menu is for one day. Tech name on the board opens them.</td>
+</tr>
+<tr>
+<td>⟨9/17⟩ Sick day</td>
+<td>Engine suggests per customer; CSR moves and texts one at a time, message shown before sending.</td>
+</tr>
+<tr>
+<td>⟨9/17⟩ Reminders</td>
+<td>Internal only — a dated office note on someone's list; never a customer contact.</td>
+</tr>
+<tr>
+<td>⟨9/17 pm⟩ ePASS "routed" rows</td>
+<td>Not modelled. Stops are stops; anything needing the tech goes through his notifications.</td>
+</tr>
+<tr>
+<td>⟨9/17 pm⟩ The offer window</td>
+<td>The customer's calendar starts on Wilson's best slot within 3 business days of first open capacity; earlier windows are not offered; it is labelled "earliest available", never "best fit". Hold limit is a tunable.</td>
+</tr>
+<tr>
+<td>⟨9/17 pm⟩ Test bench</td>
+<td>A test-only panel under the board: random call → the customer's schedule screen → tap → live on the board. Test calls flagged, never synced, cleared in one click.</td>
+</tr>
+<tr>
+<td>⟨9/15⟩ Tech notifications</td>
+<td>"Needs tech input" and research tickets pin to the tech's notifications and re-raise daily in his working hours, escalating to the manager after three rounds; cleared only by the tech's own submission.</td>
+</tr>
+<tr>
+<td>⟨9/18⟩ ePASS stays the source of truth</td>
+<td>Until NetSuite, ePASS holds ticket data, ordering, receiving, accounting and billing. We key new tickets for self-booked requests, approved lines + SO3, and dates/tech; we read back SO4, SO5 and anything else done in ePASS. Purchasing screens stay in the code, hidden behind <code>purchasing.enabled = false</code>.</td>
+</tr>
+<tr>
+<td>⟨9/18⟩ Kezia's verify</td>
+<td>Price and an expected date per part, and finishing lines the tech left incomplete. No ordering in our tool.</td>
+</tr>
+<tr>
+<td>⟨9/18⟩ Estimates</td>
+<td>Through the existing Agility Service Estimate Approvals module, created from the structured lines (no PDF scan); its statuses and closed-outcome summary reused as-is; nothing emails on its own. Field-approved within 10% and warranty jobs skip it.</td>
+</tr>
+<tr>
+<td>⟨9/18⟩ Noell keys approved lines</td>
+<td>On approval Noell adds the parts and labor lines to the ePASS ticket and sets SO3, from a <code>lines</code> packet — the one re-keying step the team accepts.</td>
+</tr>
+<tr>
+<td>⟨9/18⟩ SO4 / SO5 read back</td>
+<td>Kezia orders and receives in ePASS; the import brings SO4 (→ pencil two business days after the verified ETA) and SO5 (→ the part-arrived text is ready; sent on a click, or by its toggle, default off).</td>
+</tr>
+<tr>
+<td>⟨9/18⟩ Two labor lines</td>
+<td>Every job carries a zone fee — <code>ZN1</code> ≤ 7 mi, <code>ZN2</code> 7–26, <code>ZN3</code> 26–47, <code>ZN4</code> 47+ straight-line from the shop, fitted at 81% to 3,807 tickets; per-ZIP override, 78701 → ZN3; <code>ZNADD</code> per extra unit — and the component replacement. Auto-added in the field, not removable by the tech, band overridable by the office. <code>DZ1</code> $157 + tax is the $169.95 diagnostic.</td>
+</tr>
+<tr>
+<td>⟨9/18⟩ Part numbers</td>
+<td>Description required on every part line (component chip or the tech's words); part number optional — the office adds it at verify. The UNKNOWN convention is retired. The office can add parts and labor at verify.</td>
+</tr>
+<tr>
+<td>⟨9/18⟩ Retire a tech</td>
+<td>Owner or manager only (<code>roster.retire</code>), with type-RETIRE-to-confirm; a dispatcher sees who can. Roles are a permission matrix; a signed-in-as switcher drives the prototype.</td>
+</tr>
+<tr>
+<td>⟨9/18⟩ Start and end by day</td>
+<td>The broad default lives on the tech; the weekly pattern may override From / To per weekday (Josh: shop→shop Mon and Wed for parts, home→home Tue and Thu). Every drive calculation uses the day's endpoints.</td>
+</tr>
+<tr>
+<td>⟨9/18⟩ Zone editor</td>
+<td>Paint-by-ZIP on the board; click = primary (old primary kept as secondary), Shift-click = secondary; mode, trip and fee band per ZIP; dispatchers draft, owner/manager publishes; every change logged per ZIP. ZCTA outlines on Google Maps in Agility.</td>
+</tr>
+<tr>
+<td>⟨9/18 pm⟩ Add and remove ZIPs</td>
+<td>The editor takes a pasted ZIP list (randymajors.org's <em>Results from Map</em> pastes straight in), paints the new ZIPs with the selected tech, lists the ZIPs Wilson has served since 2025 that were never on the map as one-click chips, takes a <code>lat, lng</code> for a ZIP it cannot place, and removes a ZIP from the service area from its panel (new calls there become "we'll call you"). randymajors is the selection tool, not a data feed: no API, no embedding by licence; it draws the same Census ZCTA boundaries Agility will.</td>
+</tr>
+<tr>
+<td>⟨9/18 pm⟩ Discontinued parts</td>
+<td>A <strong>Discontinued</strong> state on Kezia's availability row; the call goes to Noell as a parts-unavailable notice, not a quote, and ends at SO7 through the estimate page — showroom lead (<em>shopping</em>) or <em>parts unavailable</em> (closed). Every estimate close now sends ePASS its SO7 packet.</td>
+</tr>
+<tr>
+<td>⟨9/18 pm⟩ The diagnostic when we can't get the part</td>
+<td>It stands — standard process. The office may <strong>waive</strong> it in one click while moving the customer to the showroom, with no permission gate and a log of who and when; the choice drives the customer's wording, the SO7 packet's billing line and the sales lead. A <strong>credit against a replacement</strong> is built and labelled a proposal. Default <code>billing.diag_on_nla = charge</code>. Measured 2024–26: billed 56%, waived 19%; those calls were followed by $187k of showroom sales inside 90 days.</td>
+</tr>
+<tr>
+<td>⟨9/18 late⟩ The confirmation page and the saved link</td>
+<td>After a customer picks a date (or is bucketed, or is told we'll call), a confirmation page whose main job is getting them to save their tracker link: the URL with a Copy button, what the link does, the honest line that anyone holding it can see the repair, then home screen / email / bookmark. The link becomes a one-tap <code>/t/{token}</code> — no order number, no phone — issued at intake, reissuable by the office when it is lost, expiring 90 days after the job closes.</td>
+</tr>
+<tr>
+<td>⟨9/19⟩ The tech prices the job</td>
+<td>One estimate flow for both paths. The book's hours are hidden; the tech picks the time and may move the labor total, logged as his. Lines the book lacks are typed in. Field quoting is off until a distributor price feed exists. The outcome is a defaulted dropdown; every free-text box suggests what that model family has actually needed. A read-only look-ahead shows him his own next few days.</td>
+</tr>
+</tbody>
+</table></div>
+<h2 id="14a-answered-by-cayden-9-19-pm">14a. Answered by Cayden ⟨9/19 pm⟩</h2>
+<div class="tw"><table>
+<thead>
+<tr>
+<th>Question</th>
+<th>Answer</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Arrival-window size and how far out to book</td>
+<td>Half-day stays. The customer is texted their date and window when the dispatcher <strong>confirms the route</strong>, not before. Booking runs two calendar weeks out.</td>
+</tr>
+<tr>
+<td>Dollar thresholds for needs-review and auto-charge</td>
+<td><strong>Every quote needs review.</strong> No threshold.</td>
+</tr>
+<tr>
+<td>Backorder threshold</td>
+<td><strong>10 days</strong> — beyond that it is SO4B and the customer gets a delay notice.</td>
+</tr>
+<tr>
+<td>Days of silence before SO7</td>
+<td><strong>3.</strong> And the quote is kept: if they ring back a week later the office reopens it and credits the diagnostic into the repair.</td>
+</tr>
+<tr>
+<td>Are in-shop jobs in scope</td>
+<td>Yes — their own section of Unassigned, placed manually to fill light days, customer notifications muted, and a tattle to Mark when one has been scheduled twice without being touched. Techs can bring a unit in off an SO1; the tool remembers to take it back on the install trip.</td>
+</tr>
+<tr>
+<td>Suppliers to integrate first</td>
+<td>Reliable, Marcone, Encompass and Great Plains are the bulk — but this waits.</td>
+</tr>
+<tr>
+<td>Zone fee by straight-line or drive miles</td>
+<td>Either; whichever is cleaner.</td>
+</tr>
+<tr>
+<td>Band vs ePASS zone disagreement</td>
+<td><strong>Per-ZIP overrides win.</strong> The higher central-Austin fees are Josh charging for parking in condo buildings, which is a real cost and should stay.</td>
+</tr>
+<tr>
+<td>Census ZCTA5 outlines</td>
+<td>Yes.</td>
+</tr>
+<tr>
+<td>Who publishes zone changes</td>
+<td><strong>Mark.</strong></td>
+</tr>
+<tr>
+<td>Kezia's ETA: date or bucket</td>
+<td><strong>Bucket</strong> — and rename "in stock" to <strong>in state</strong> (1–2 days), with out of state (2–3) and cross country (5–7).</td>
+</tr>
+<tr>
+<td>Repainting a ZIP</td>
+<td><strong>Ask each time</strong> whether the old primary stays on as a secondary.</td>
+</tr>
+<tr>
+<td>The diagnostic on a discontinued part</td>
+<td>Charged as standard, <strong>and the customer is told we credit it in full against a replacement bought from us.</strong></td>
+</tr>
+<tr>
+<td>The 26 unmapped ZIPs</td>
+<td>78741 and 78652 to Josh, 78726 to Chris, 78611 to Trevor, 78209 office-booked unless the day already has a call on the 281 corridor; the rest to whoever covers the nearest area.</td>
+</tr>
+<tr>
+<td>Tracker link on paper</td>
+<td>Not applicable — techs leave no paper.</td>
+</tr>
+<tr>
+<td>One link per job or per household</td>
+<td><strong>Per household.</strong> The landlord case is deferred, deliberately.</td>
+</tr>
+<tr>
+<td>The measure that matters</td>
+<td><strong>Inbound "where's my repair?" call volume</strong>, not link opens.</td>
+</tr>
+<tr>
+<td>S&amp;H</td>
+<td>ePASS code <code>FREIGHT</code>, <strong>taxed</strong>, default <strong>$20</strong>, Kezia's to change in Parts Verify, <strong>none on warranty</strong>, and the tech never touches it.</td>
+</tr>
+<tr>
+<td>Install damage reports</td>
+<td><strong>Warranty by default</strong> — almost always concealed shipping damage.</td>
+</tr>
+<tr>
+<td>Warranty rates</td>
+<td>The full card, thirty brands with sealed-system rates for fourteen.</td>
+</tr>
+</tbody>
+</table></div>
+<h2 id="14-decisions-still-needed-from-wilson">14. Decisions still needed from Wilson</h2>
+<p>⟨9/19 late⟩ Items 1–6, 12–20 and 21–23 were answered on 9/19 (§14a) and are struck through here rather than deleted, so the numbering other documents refer to still holds. What remains open is short.</p>
+<ol>
+<li>~~Arrival-window size and how far out to book~~ — §14a.</li>
+<li>~~Dollar thresholds for review / auto-charge~~ — §14a: every quote is reviewed.</li>
+<li>~~Backorder threshold~~ — §14a: 10 days.</li>
+<li>~~Days of silence before SO7~~ — §14a: 3, and the quote is kept.</li>
+<li>~~In-shop jobs in scope~~ — §14a: yes, their own lane.</li>
+<li>~~Which suppliers first~~ — §14a: Reliable, Marcone, Encompass, Great Plains — later.</li>
+<li>Confirm <code>reference/zone_table.csv</code> primary/secondary assignments (the 9/19 ZIP answers are in), the profitability floor per far group, the drive-per-stop guard, and each tech's shift hours and days off — the route settings now carry a weekday pattern per tech and need a pass from Mark.</li>
+<li>Who owns the ePASS sync list day to day until NetSuite — including, since 9/19 late, the <strong>correction packets</strong> the office edit produces (spec item 55): same day, same person who made the change, is the assumed default.</li>
+<li>~~Link the existing maintenance field tool and the ePASS→DispatchTrack push script~~ — both are in the project (doc 14 conventions; Andrew's platform notes).</li>
+<li>~~Confirm the dashboard stack~~ — Agility: Node + Postgres on Render (Andrew, doc 12).</li>
+<li>~~Zone fee by straight-line or drive miles~~ — §14a: either.</li>
+<li>~~Band vs ePASS zone disagreement~~ — §14a: per-ZIP overrides win.</li>
+<li>~~Census ZCTA5 outlines~~ — §14a: yes.</li>
+<li>~~Who publishes zone changes~~ — §14a: Mark.</li>
+<li>~~Kezia's ETA: date or bucket~~ — §14a: bucket, in state / out of state / cross country.</li>
+<li>~~Noell keys first, or Kezia orders first~~ — Noell keys ePASS first, then Kezia orders. Next round: make the wait visible on Kezia's side.</li>
+<li>~~Repainting a ZIP~~ — §14a: ask each time.</li>
+<li>~~The diagnostic on a discontinued part~~ — answered 9/18 pm and again 9/19: charged, credited in full against a replacement from us.</li>
+<li>~~The 26 unmapped ZIPs~~ — §14a. Six of the 47 are billing addresses, not places (spec item 53) — is intake capturing a <em>service</em> address separately from the account address?</li>
+<li>~~Tracker link on paper~~ — §14a: techs leave no paper.</li>
+<li>~~One link per job or per household~~ — §14a: per household; the landlord case is spec item 54.</li>
+<li>~~The measure that matters~~ — §14a: inbound "where's my repair?" calls.</li>
+<li>⟨9/19 pm⟩ <strong>La Cornue and AGA</strong> — the card says $150; the history says $702.50 and $314. And sealed-system rates for <strong>DCS, Hotpoint and Amana</strong> (spec item 52).</li>
+<li>⟨9/19 pm⟩ <strong>Damage reports</strong> — is converting one into a service order Mark's alone, and does one ever bill anybody (a freight claim, the manufacturer) or is it always ours (spec item 51)? Warranty-by-default is in; the exception path is a tick box on Mark's review.</li>
+<li>⟨9/19 late⟩ <strong>Who may edit what</strong> — any office role for everything (as built), or customer-record changes reserved to Client Care (spec item 55)?</li>
+</ol></div>
+
+</body></html>

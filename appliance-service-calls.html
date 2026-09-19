@@ -208,6 +208,15 @@
 
     .badge-hvac { background: #e0f2fe; color: #075985; margin-left: 6px; }
     .badge-quote { background: #fef3c7; color: #92400e; margin-left: 6px; }
+    /* Client self-scheduling (schedule.html step 2) */
+    .self-sched { margin-top: 8px; border-radius: 10px; padding: 8px 10px; font-size: 12px; line-height: 1.45; border: 1px solid var(--border, #dbe1ea); background: var(--surface-2, #f8fafc); }
+    .self-sched.picked { background: #ecfdf5; border-color: #a7f3d0; color: #065f46; }
+    .self-sched.waiting { background: #fffbeb; border-color: #fde68a; color: #92400e; }
+    .self-sched.text_me { background: #eff6ff; border-color: #bfdbfe; color: #1e40af; }
+    .self-sched.released { opacity: .75; }
+    .self-sched .ss-title { font-weight: 700; font-size: 12px; }
+    .self-sched .ss-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+    .self-sched .copy-ref-btn { font-size: 11px; padding: 3px 8px; }
     .badge-neutral {
       background: var(--primary-tint);
       color: var(--primary-deep);
@@ -482,6 +491,44 @@
     const archiveTableBody = document.getElementById("archiveTableBody");
 
     let allRows = [];
+    let scheduleUrlBase = "";
+
+    // What the client did on schedule.html (step 2 of the request form).
+    function renderSelfSchedule(row) {
+      const ss = row.selfSchedule;
+      if (!ss || !ss.token || row.requestType === "hvac-quote") return "";
+      const fmtDay = (iso) => iso ? new Date(`${iso}T12:00:00`).toLocaleDateString("en-US", { weekday: "short", month: "2-digit", day: "2-digit", year: "numeric" }) : "";
+      const win = ss.window === "AM" ? "Morning" : ss.window === "PM" ? "Afternoon" : (ss.windowLabel || "");
+      const link = scheduleUrlBase ? `<button class="copy-ref-btn" type="button" data-copy-value="${escapeHtml(scheduleUrlBase + ss.token)}" title="Copy the client's scheduling link (send it from Podium if they never picked)">Copy scheduling link</button>` : "";
+      const release = !ss.released && ss.kind === "picked" ? `<button class="copy-ref-btn" type="button" data-release-hold="${escapeHtml(row.id)}" title="Clear the client's pick / hold so it stops counting against the tech's day (they changed their mind, or you booked something else)">Clear pick</button>` : "";
+      let cls = "waiting", title = "", body = "";
+      if (ss.kind === "picked") {
+        cls = "picked";
+        title = `Client picked ${fmtDay(ss.date)} · ${win}`;
+        body = `Suggested tech ${escapeHtml(ss.tech || "—")} (${escapeHtml(ss.zone || "no zone")}). Book it in ePASS, then set Call Scheduled.`;
+      } else if (ss.kind === "text_me") {
+        cls = "text_me";
+        title = ss.mode === "open" ? "Client: none of the offered days fit — text other dates" : "Client expects a text with a date (grouped-trip area)";
+        body = `Zone ${escapeHtml(ss.zone || "—")} · ${escapeHtml(ss.mode || "")}.`;
+      } else if (ss.kind === "office_call") {
+        cls = "";
+        title = "Client expects a call to schedule (outside regular routes)";
+        body = `Zone ${escapeHtml(ss.zone || "—")}.`;
+      } else if (ss.mode === "open") {
+        title = "Self-schedule: waiting on the client";
+        body = `The date picker was offered for ZIP zone ${escapeHtml(ss.zone || "—")} but nothing was picked yet.`;
+      } else if (row.requestType === "hvac") {
+        cls = "";
+        title = "HVAC: scheduled by the office (no self-schedule picker)";
+        body = `Zone ${escapeHtml(ss.zone || "—")}.`;
+      } else {
+        cls = "";
+        title = `Scheduled by the office — ${escapeHtml(ss.mode === "designated_days" ? "grouped-trip area" : "outside regular routes")}`;
+        body = `Zone ${escapeHtml(ss.zone || "—")}. The client hasn't finished step 2 yet.`;
+      }
+      if (ss.released) { cls += " released"; body += ` Hold cleared${ss.releasedFor ? ` (${escapeHtml(ss.releasedFor)})` : ""}.`; }
+      return `<div class="self-sched ${cls}"><div class="ss-title">${title}</div><div>${body}</div><div class="ss-actions">${link}${release}</div></div>`;
+    }
     let showArchive = false;
 
     function formatDate(value) {
@@ -783,6 +830,24 @@ function attachPrefillActions() {
       }
     });
   });
+  document.querySelectorAll("[data-release-hold]").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      const id = btn.getAttribute("data-release-hold");
+      if (!window.confirm("Clear this client's pick? Their day stops counting against the tech's capacity. (Nothing is sent to the client.)")) return;
+      btn.disabled = true;
+      try {
+        const res = await fetch(`/api/service-cards/${encodeURIComponent(id)}/self-schedule/release`, { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Unable to clear the pick.");
+        const i = allRows.findIndex((r) => r.id === id);
+        if (i >= 0) allRows[i] = data.row;
+        render();
+      } catch (err) {
+        btn.textContent = err.message;
+        btn.disabled = false;
+      }
+    });
+  });
   document.querySelectorAll("[data-prefill-id]").forEach((btn) => {
     btn.addEventListener("click", async () => {
       const id = btn.getAttribute("data-prefill-id");
@@ -848,7 +913,8 @@ function attachPrefillActions() {
             queueStatusNotes: data.row.queueStatusNotes,
             erpOrderNumber: data.row.erpOrderNumber,
             updatedAt: data.row.updatedAt,
-            updatedBy: data.row.updatedBy || allRows[rowIndex].updatedBy || ""
+            updatedBy: data.row.updatedBy || allRows[rowIndex].updatedBy || "",
+            selfSchedule: data.row.selfSchedule || allRows[rowIndex].selfSchedule
           };
         }
 
@@ -897,6 +963,7 @@ function attachPrefillActions() {
           <td class="status-cell">
             <div class="status-stack">
               <div>${queueBadge(queueStatus)}</div>
+              ${renderSelfSchedule(row)}
 
               <select class="status-select" data-status-id="${escapeHtml(row.id)}">
                 <option value="Call Status Pending" ${queueStatus === "Call Status Pending" ? "selected" : ""}>Call Status Pending</option>
@@ -1037,6 +1104,7 @@ function attachPrefillActions() {
         }
 
         allRows = Array.isArray(data.rows) ? data.rows : [];
+        scheduleUrlBase = data.scheduleUrlBase || "";
         render();
       } catch (err) {
         tableBody.innerHTML = `<tr><td colspan="7" class="empty">Error loading service requests: ${err.message}</td></tr>`;

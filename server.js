@@ -444,6 +444,10 @@ import {
 } from "./lib/service-journey-postgres.js";
 import { getPilotStore, applyPilotChanges, addPilotJobFromCard, resetPilot, listPilotLog } from "./lib/pilot-postgres.js";
 import {
+  createSelfSchedule, getSelfScheduleByToken, buildClientOffer, pickSelfSchedule, preferSelfSchedule, releaseSelfSchedule,
+  listOpenSelfHolds, setTechDay as setServiceTechDay, listTechDays as listServiceTechDays, offerForRequest as offerServiceDates, zoneInfoForZip
+} from "./lib/service-scheduling-postgres.js";
+import {
   getSalesOrderSnapshot,
   saveSalesOrderSnapshot,
   listOrderFlagDismissals,
@@ -554,6 +558,7 @@ const SERVICE_PUBLIC_PATHS = new Set([
   "/terms.html",
   "/terms-sign.html",
   "/card-saved.html",
+  "/schedule.html",
   "/estimate.html",
   "/estimate-doc.pdf",
   "/api/estimate/view",
@@ -606,6 +611,7 @@ const SERVICE_PUBLIC_API_PREFIXES = [
   "/api/service/request-photo",
   "/api/service/setup-intent-result/",
   "/api/service/prefill/",
+  "/api/service/schedule/",
   "/api/quote/request-media",
   "/api/quote/submit-request"
 ];
@@ -9509,6 +9515,129 @@ app.post("/api/service-journey/settings", requireServiceJourney, async (req, res
 });
 
 // ---------------------------------------------------------------------------
+// CLIENT SELF-SCHEDULING (schedule.html, 2026-09-19). Step 2 of the service
+// request: the client with an OPEN-zone ZIP picks an arrival day from the
+// dates the placement engine offers (lib/service-scheduling-postgres.js);
+// designated-day and office-only ZIPs get the matching "we'll reach out"
+// copy. The pick lands on the queue card (`selfSchedule`) — nothing is
+// texted or emailed by this code. The token is the only key: 144 random
+// bits, one per card, minted in /api/service/submit-request.
+// ---------------------------------------------------------------------------
+async function scheduleCardForHold(hold) {
+  const cards = await readServiceCards();
+  const index = cards.findIndex((row) => row.id === hold.card_id);
+  return { cards, index, row: index >= 0 ? cards[index] : null };
+}
+const unitWordFor = (row) => {
+  const first = Array.isArray(row?.units) ? row.units[0] : null;
+  const type = String(first?.applianceType || first?.type || first?.systemType || "").trim();
+  if (row?.requestType === "hvac") return type && type !== "Other" ? `your ${type.toLowerCase()}` : "your HVAC system";
+  return type && type !== "Other" ? `your ${type.toLowerCase()}` : "your appliance";
+};
+app.get("/api/service/schedule/:token", async (req, res) => {
+  try {
+    const hold = await getSelfScheduleByToken(req.params.token);
+    if (!hold) return res.status(404).json({ error: "This scheduling link isn't valid." });
+    const { row } = await scheduleCardForHold(hold);
+    const offer = await buildClientOffer(hold);
+    const zone = hold.zone_code ? await zoneInfoForZip(hold.zip) : null;
+    return res.json({
+      reference: String(hold.card_id).replace(/^svc_/, "SR-"),
+      firstName: row?.firstName || String(row?.customerName || "").split(/\s+/)[0] || "",
+      requestType: row?.requestType || "appliance",
+      unitWord: unitWordFor(row),
+      area: zone?.zone?.zone_group || row?.serviceAddress?.city || "your area",
+      cardSaved: row?.last4 ? { brand: row.cardBrand || "", last4: row.last4 } : null,
+      released: !!hold.released_at,
+      mode: offer.mode,
+      kind: offer.kind,
+      disabled: !!offer.disabled,
+      picked: offer.picked,
+      offers: offer.offers
+    });
+  } catch (err) {
+    return res.status(400).json({ error: err.message || "Unable to load scheduling options." });
+  }
+});
+app.post("/api/service/schedule/:token", async (req, res) => {
+  try {
+    const date = String(req.body?.date || "").slice(0, 10);
+    const window = ["AM", "PM"].includes(req.body?.window) ? req.body.window : "ANY";
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return res.status(400).json({ error: "Pick a day first." });
+    const { hold, chosen } = await pickSelfSchedule(req.params.token, { date, window, by: "client" });
+    const { cards, index } = await scheduleCardForHold(hold);
+    if (index >= 0) {
+      cards[index] = {
+        ...cards[index],
+        updatedAt: new Date().toISOString(),
+        selfSchedule: { ...(cards[index].selfSchedule || {}), token: hold.token, mode: hold.booking_mode, zone: hold.zone_code || "", kind: "picked", date: chosen.date, window: chosen.window, windowLabel: chosen.windowLabel, tech: chosen.tech, pickedAt: new Date().toISOString(), updatedAt: new Date().toISOString() }
+      };
+      await writeServiceCards(cards);
+      recordAudit({ ip: req.ip, actorUserId: null, action: "service_request_self_scheduled", targetUserId: null, detail: { serviceCardId: hold.card_id, customerName: cards[index].customerName || "", date: chosen.date, window: chosen.window, tech: chosen.tech, recommended: chosen.recommended } }).catch(() => {});
+    }
+    return res.json({ ok: true, picked: { date: chosen.date, window: chosen.window, windowLabel: chosen.windowLabel, dayLabel: chosen.dayLabel } });
+  } catch (err) {
+    return res.status(400).json({ error: err.message || "Unable to save that day." });
+  }
+});
+app.post("/api/service/schedule/:token/preference", async (req, res) => {
+  try {
+    const kind = req.body?.kind === "text_me" ? "text_me" : "office_call";
+    const hold = await preferSelfSchedule(req.params.token, kind);
+    const { cards, index } = await scheduleCardForHold(hold);
+    if (index >= 0) {
+      cards[index] = { ...cards[index], updatedAt: new Date().toISOString(), selfSchedule: { ...(cards[index].selfSchedule || {}), token: hold.token, mode: hold.booking_mode, zone: hold.zone_code || "", kind: hold.kind, updatedAt: new Date().toISOString() } };
+      await writeServiceCards(cards);
+      recordAudit({ ip: req.ip, actorUserId: null, action: "service_request_schedule_preference", targetUserId: null, detail: { serviceCardId: hold.card_id, customerName: cards[index].customerName || "", kind: hold.kind } }).catch(() => {});
+    }
+    return res.json({ ok: true, kind: hold.kind });
+  } catch (err) {
+    return res.status(400).json({ error: err.message || "Unable to save that." });
+  }
+});
+// Office side: clear a client's pick (they changed their mind on the phone),
+// see every open hold, and open/close a tech's day for the engine.
+app.post("/api/service-cards/:id/self-schedule/release", requirePagePermission("/appliance-service-calls.html", "/archive-service-calls.html"), async (req, res) => {
+  try {
+    const cards = await readServiceCards();
+    const index = cards.findIndex((row) => row.id === req.params.id);
+    if (index < 0) return res.status(404).json({ error: "Service request not found." });
+    const released = await releaseSelfSchedule(req.params.id, { svNumber: String(req.body?.svNumber || ""), by: req.authUser?.email || "" });
+    cards[index] = { ...cards[index], updatedAt: new Date().toISOString(), updatedBy: req.authUser?.displayName || req.authUser?.email || "", selfSchedule: { ...(cards[index].selfSchedule || {}), released: true, releasedAt: new Date().toISOString(), releasedBy: req.authUser?.email || "", releasedFor: "office" } };
+    await writeServiceCards(cards);
+    sjAudit(req, "service_request_self_schedule_released", { serviceCardId: req.params.id, holds: released.length });
+    return res.json({ ok: true, row: cards[index] });
+  } catch (err) {
+    return res.status(400).json({ error: err.message || "Unable to release that hold." });
+  }
+});
+app.get("/api/service-journey/self-holds", requireServiceJourney, async (req, res) => {
+  try { return res.json({ holds: await listOpenSelfHolds() }); } catch (err) { return res.status(400).json({ error: err.message }); }
+});
+// What the engine would offer a ZIP right now (internal view, every field).
+app.get("/api/service-journey/offer", requireServiceJourney, async (req, res) => {
+  try {
+    const r = await offerServiceDates({ zip: String(req.query.zip || ""), skill: req.query.skill === "hvac" ? "hvac" : "appliance", units: Math.max(1, Number(req.query.units) || 1) });
+    return res.json({ zone: { code: r.zone.zoneCode, mode: r.zone.bookingMode }, need: r.need, techCount: r.techCount, firstOpen: r.firstOpen || null, offers: r.offers, candidates: r.candidates.slice(0, 60) });
+  } catch (err) { return res.status(400).json({ error: err.message }); }
+});
+app.get("/api/service-journey/tech-days", requireServiceJourney, async (req, res) => {
+  try {
+    const from = /^\d{4}-\d{2}-\d{2}$/.test(String(req.query.from || "")) ? String(req.query.from) : new Date().toISOString().slice(0, 10);
+    const to = /^\d{4}-\d{2}-\d{2}$/.test(String(req.query.to || "")) ? String(req.query.to) : new Date(Date.now() + 45 * 864e5).toISOString().slice(0, 10);
+    return res.json({ days: await listServiceTechDays({ from, to }) });
+  } catch (err) { return res.status(400).json({ error: err.message }); }
+});
+app.post("/api/service-journey/techs/:code/day", requireServiceJourney, async (req, res) => {
+  try {
+    const b = req.body || {};
+    const day = await setServiceTechDay({ techCode: req.params.code, date: String(b.date || ""), available: b.available === true ? true : b.available === false ? false : null, reason: b.reason, adjustMin: b.adjustMin, note: b.note, by: sjMe(req).email });
+    sjAudit(req, "service_journey_tech_day_set", { tech: req.params.code, date: b.date, available: day.available, adjustMin: day.capacity_adjust_min });
+    return res.json({ ok: true, day });
+  } catch (err) { return res.status(400).json({ error: err.message }); }
+});
+
+// ---------------------------------------------------------------------------
 // AJH Pilot (Test Modules, 2026-09-14) — Jack's one-week test of a field
 // tool, routing tool and parts pipeline for Andrew Horst. The three pages
 // share one job store here instead of a browser's localStorage, so the
@@ -14261,6 +14390,24 @@ app.post("/api/service/submit-request", async (req, res) => {
       }
     };
 
+    // Step 2 (schedule.html): a self-schedule hold keyed to this card. The
+    // ZIP's booking mode decides what the client sees next — open zones get
+    // the date picker, everything else gets the "we'll reach out" copy. A
+    // missing database never blocks the request itself.
+    const attachSelfSchedule = async (row) => {
+      if (!row || row.requestType === "hvac-quote") return;
+      try {
+        const units = Array.isArray(row.units) && row.units.length ? row.units.length : row.unitCount === "Multiple" ? 2 : 1;
+        const hold = await createSelfSchedule({ cardId: row.id, zip: row.serviceAddress?.zip || "", skill: row.requestType === "hvac" ? "hvac" : "appliance", units });
+        const prior = row.selfSchedule && typeof row.selfSchedule === "object" ? row.selfSchedule : {};
+        row.selfSchedule = { ...prior, token: hold.token, mode: hold.booking_mode, zone: hold.zone_code || "", kind: hold.kind, updatedAt: new Date().toISOString() };
+        if (hold.kind === "picked") Object.assign(row.selfSchedule, { date: String(hold.picked_date || "").slice(0, 10), window: hold.picked_window, tech: hold.tech_code });
+      } catch (err) {
+        console.error("Self-schedule hold failed:", err.message);
+      }
+    };
+    const scheduleFields = (row) => (row?.selfSchedule?.token ? { scheduleToken: row.selfSchedule.token, scheduleMode: row.selfSchedule.mode } : {});
+
     if (setupIntentId) {
       const existingIndex = serviceCards.findIndex(
         (row) => row.setupIntentId === setupIntentId
@@ -14306,6 +14453,7 @@ app.post("/api/service/submit-request", async (req, res) => {
         };
 
         await attachRequestPhotos(serviceCards[existingByIdIndex]);
+        await attachSelfSchedule(serviceCards[existingByIdIndex]);
         await writeServiceCards(serviceCards);
 
         auditServiceSubmit("service_request_resubmitted", serviceCards[existingByIdIndex]);
@@ -14313,7 +14461,8 @@ app.post("/api/service/submit-request", async (req, res) => {
         return res.json({
           success: true,
           updatedExisting: true,
-          requestId: serviceCards[existingByIdIndex].id
+          requestId: serviceCards[existingByIdIndex].id,
+          ...scheduleFields(serviceCards[existingByIdIndex])
         });
       }
     }
@@ -14358,6 +14507,7 @@ app.post("/api/service/submit-request", async (req, res) => {
         };
 
         await attachRequestPhotos(serviceCards[existingByIdIndex]);
+        await attachSelfSchedule(serviceCards[existingByIdIndex]);
         await writeServiceCards(serviceCards);
 
         auditServiceSubmit("service_request_resubmitted", serviceCards[existingByIdIndex]);
@@ -14365,7 +14515,8 @@ app.post("/api/service/submit-request", async (req, res) => {
         return res.json({
           success: true,
           updatedExisting: true,
-          requestId: serviceCards[existingByIdIndex].id
+          requestId: serviceCards[existingByIdIndex].id,
+          ...scheduleFields(serviceCards[existingByIdIndex])
         });
       }
     }
@@ -14412,13 +14563,15 @@ app.post("/api/service/submit-request", async (req, res) => {
     });
 
     await attachRequestPhotos(serviceCards[0]);
+    await attachSelfSchedule(serviceCards[0]);
     await writeServiceCards(serviceCards);
 
     auditServiceSubmit("service_request_submitted", serviceCards[0]);
 
     res.json({
       success: true,
-      requestId: serviceCards[0].id
+      requestId: serviceCards[0].id,
+      ...scheduleFields(serviceCards[0])
     });
   } catch (err) {
     res.status(400).json({
@@ -15077,7 +15230,8 @@ app.post("/api/card-on-file/charge", requirePagePermission("/charge-saved-card.h
 app.get("/api/service-cards", requirePagePermission("/appliance-service-calls.html", "/archive-service-calls.html"), async (req, res) => {
   try {
     const serviceCards = await readServiceCards();
-    res.json({ rows: serviceCards });
+    // scheduleUrlBase: where a client's step-2 link (schedule.html?r=token) lives.
+    res.json({ rows: serviceCards, scheduleUrlBase: `${getServiceBaseUrl(req)}/schedule.html?r=` });
   } catch (err) {
     res.status(400).json({
       error: err.message || "Unable to load service cards."
@@ -15446,6 +15600,17 @@ app.post("/api/service-cards/:id/status", requirePagePermission("/appliance-serv
       updatedBy: req.authUser?.displayName || req.authUser?.email || "",
       updatedByEmail: req.authUser?.email || ""
     };
+
+    // Booked in ePASS or cancelled: the self-schedule hold stops counting
+    // against capacity (the ePASS mirror carries the real stop from here).
+    if (changes.queueStatus && ["Call Scheduled", "Call Cancelled"].includes(queueStatus) && before.selfSchedule?.token && !before.selfSchedule.released) {
+      try {
+        await releaseSelfSchedule(id, { svNumber: erpOrderNumber || "", by: req.authUser?.email || "" });
+        serviceCards[index].selfSchedule = { ...before.selfSchedule, released: true, releasedAt: new Date().toISOString(), releasedBy: req.authUser?.email || "", releasedFor: queueStatus };
+      } catch (err) {
+        console.error("Self-schedule release failed:", err.message);
+      }
+    }
 
     await writeServiceCards(serviceCards);
 

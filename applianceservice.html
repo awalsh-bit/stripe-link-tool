@@ -1295,6 +1295,16 @@ function syncPaymentRequirement() {
       paymentElement.mount("#payment-element");
     }
 
+// Step 2 of 2 (2026-09-19): when the server minted a scheduling token the
+// client continues to schedule.html — the date picker for open zones, the
+// "we'll reach out" copy for everyone else. Without a token (database
+// unavailable) the classic confirmation panel still shows.
+function goToScheduleStep(submitted) {
+  if (!submitted?.scheduleToken) return false;
+  window.location.href = `schedule.html?r=${encodeURIComponent(submitted.scheduleToken)}`;
+  return true;
+}
+
 async function submitRequestRecord(payload) {
   const res = await fetch("/api/service/submit-request", {
     method: "POST",
@@ -1462,6 +1472,7 @@ beginBtn.addEventListener("click", async () => {
 
     try {
       const submitted = await submitRequestRecord(payload);
+      if (goToScheduleStep(submitted)) return;
       resetServiceForm();
       showSubmittedView(payload, submitted?.requestId);
     } catch (err) {
@@ -1589,6 +1600,7 @@ form.addEventListener("submit", async (event) => {
       throw new Error(resultData.error || "Card was saved, but the saved card details could not be finalized.");
     }
 
+    if (goToScheduleStep(submitted)) return;
     resetServiceForm();
     showSubmittedView(payload, submitted?.requestId);
   } catch (err) {

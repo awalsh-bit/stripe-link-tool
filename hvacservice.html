@@ -608,6 +608,8 @@
         const res = await fetch("/api/service/submit-request", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ serviceRequest: payload }) });
         const data = await res.json().catch(() => ({}));
         if (!res.ok || !data.success) throw new Error(data.error || "Unable to submit your request right now.");
+        // Step 2 of 2: schedule.html (date picker for open zones, "we'll reach out" copy otherwise).
+        if (data.scheduleToken) { window.location.href = `schedule.html?r=${encodeURIComponent(data.scheduleToken)}`; return; }
         $("resultMeta").textContent = `Reference: ${data.requestId}. A copy of what you sent stays with our Client Care team; we'll reach out by ${payload.contactMethod.toLowerCase()}.`;
         $("serviceForm").classList.add("submitted");
         $("result").classList.add("show");

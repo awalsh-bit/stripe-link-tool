@@ -792,7 +792,10 @@
         return;
       }
       if (win) win.location = url; else window.location.href = url;
-      say(data.found === false ? "No Podium thread with this number yet" : copied ? "Opening the conversation… (number copied too)" : label);
+      if (data.kind === "contact") say(`Opening ${data.contactName || "the contact"} in Podium — the conversation is one tap away`);
+      else if (data.needsReconnect) say("Reconnect Podium (Text Automations) to jump to contacts — opening the inbox" + (copied ? ", number copied" : ""));
+      else if (data.found === false) say("Not a Podium contact yet — opening the inbox" + (copied ? ", number copied" : ""));
+      else say(copied ? "Opening the Podium inbox (number copied)" : label);
     } catch (err) {
       say("Podium unreachable");
       if (win) win.close();

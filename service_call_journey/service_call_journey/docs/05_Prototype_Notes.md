@@ -1,0 +1,92 @@
+# Prototype notes
+
+## prototypes/dispatch_board_and_tracker.html (published as "Wilson Dispatch Prototype")
+- Week fill strip (6 techs × Mon–Fri Sep 14–18); click a cell to load it into the left or right truck column. Defaults to the same tech on consecutive days.
+- Two-truck view: drag cards between columns, reorder, or drop to Unscheduled. Re-validates on drop: call ownership (diagnosing tech owns installs — hard flag), skill, primary/secondary zone, parts ETA vs date. Shows drive-time delta.
+- Timeline per column: leaves shop/home 8:00, drive minutes, arrival, waits for AM/PM window, late flag, return time; capacity bar (work vs drive of 9h shift).
+- Pin locks a stop; "Re-optimize this day" nearest-neighbour re-sequences unpinned stops within AM then PM windows.
+- Unscheduled bucket replaces the Saturday dump day.
+- Schematic map (no tiles).
+- Customer tracker: SV lookup, 9-stage progress list, "right now" card, window picker driven by the same capacity data and restricted to the owning tech. 48-hour reschedule rule; same-week reschedule keeps AM/PM window. Picking a slot books the job onto the board.
+
+## prototypes/field_tool.html (published as "Wilson Service Field Tool")
+- Route: next stop with On my way (Call via Podium or Text per customer preference) and Arrived (starts on-site timer). All stops with ETA/status.
+- SO1 job: customer's problem + photos, unit, gate, balance flag; required serial-tag photo; one-tap Outcome (field quote / office quote / quick fix / research / replace / declined / no access) with the resulting status shown on each option; symptom + cause chips per appliance; parts and labor; one note (required only for outcomes the office must understand); readiness strip; submit records on-site minutes.
+- Field quote: flat-rate tasks (6 common, searchable, show all), modifiers, catalog parts with last-verified price, S&H, tax split parts vs labor (labor exempt when built-in), totals, customer decision, agreement + signature canvas. Approve → SO3 (parts) or start work (labor-only); think → SO2.2; decline → SO7.
+- SO6 job: parts on truck with Installed / Wrong / Damaged, serial tag from diag (not re-required), outcome → SO8 charge / SO2 more parts / SO3 reorder / SO1 research.
+
+## Added 9/11 (v3 of the board)
+- Real roster (DLA, AJH, TDP, JRC, KJB, CIT, CEM, BLL + JHM and MAP as not-auto-routed, hatched in the fill strip). Zones and primary/secondary techs come from `reference/zip_zone_tech.csv`; every card shows its ePASS Map Zone chip.
+- Booking modes in the tracker: Greta Hartmann (Fredericksburg, SV00123420) sees only the open West trip date (Wed 9/16, proposed on volume and confirmed by Demitrius); with no open trip she would see "we will text you a date"; Mary Bennett (Cedar Park, SV00123415) sees "we'll call you" because the zone is office-only.
+- Shop touch: home-start techs (Josh, Kyle, Connor, Brady) get a "shop touch · load parts" leg inserted before their first install unless "Loaded parts last night" is toggled on the column header. Shop-start techs show "parts loaded".
+- Inside-48h reschedule shows only windows where a route is already in the customer's zone group that day; SO6 stays with the owner.
+- Dropping a job on John or Mark flags "office assigns"; dropping a West-zone job on a day with no open trip flags "this starts a trip"; every column shows drive minutes per stop with a ⚠ over 35; Re-optimize is disabled for John.
+
+## Sample data assumptions to replace
+- Tech home coordinates are approximate (city-level); shop at 4205 E Hwy 290 Dripping Springs; drive time = 4 min + 1.55 min/km straight-line. Zone→tech mapping is real (2026 completions); the sample jobs are invented.
+- Half-day windows 8–12 / 12–5, 240 min per half day, 9h shift.
+- Durations: diag 60, HVAC diag 90, installs 60–150.
+- Parts prices, verified dates and flat-rate tasks are samples drawn from the real rate book families.
+- Tax 8.25%.
+
+## prototypes/office_queues.html (published as "Wilson Parts & Sync Queues") — added 9/11
+- Parts verify: every SO2 submission as a card with age, source (field-approved / office quote / warranty), tech's parts with last-verified date; prices ≤7 days pre-accepted; "Look up at supplier" simulates a price/availability pull; the requote banner applies the 10% / $10 rule live (Ana Reyes' control board comes back +34% → "text customer to re-approve"); verify routes to SO3 / SO2.1 / re-approval.
+- Parts order: SO3 lines grouped by supplier; select → Create PO → expected date, ship-to, export sheet → Place moves jobs to SO4 (SO4B if ETA > 10 days) and writes sync items.
+- Receiving: scan part number or PO; per-line check-in with auto bin; all-in → SO5 with "pick your time" text, or SO4PRE → SO6 auto-confirm (try scanning PO-4471).
+- ePASS sync: packets with copy buttons per field; Keyed → awaiting import; "Simulate next import" confirms keyed items and injects a reverse discrepancy (someone moved a date in ePASS); discrepancy cards offer Re-issue or Accept ePASS.
+
+## Intake step 2 (in dispatch_board_and_tracker.html → Customer tracker → "Start a new request") — added 9/11
+- Picks a ZIP from the real list and shows the zone, group and booking mode; `open` shows the picker (primary tech preferred, secondary when full), `designated_days` with no open trip shows the bucket message, `office_only` shows "we'll call you". Booking creates the job on the board and opens its tracker page.
+
+## Added 9/11 evening — from the service team's demo feedback (v4 of all three)
+
+**dispatch_board_and_tracker.html**
+- Every tech name is a link (fill strip, column 👁 button, map legend double-click) → **route overview drawer**: stops in order with ETAs and drive legs, blocks, that tech's own map, projected/last-week dollars, alerts. Read-only mirror of what the field tool shows the tech.
+- Fill-strip cell **⋯** (or right-click) → **day controls** popover: Close day (PTO / sick / training / other), Open day (Josh's Friday — `workDays` Mon–Thu, closed by default, hatched, never offered to customers), PTO range through a day, +1 stop / ±60 min (`capacity_adjust_min`), Add a block (haircut, van maintenance, training…). Closed days are hatched; adjusted days show `*`.
+- Dropping onto a **closed day** or over capacity does not refuse: a sticky toast offers **Open the day & keep it** / **Force it** / **Undo**. Forced stops carry a red `forced` chip and the column header says *over capacity · n forced*.
+- **Blocks** show as grey ⏸ cards in sequence (removable), count against the fill bar (grey segment) and the picker, never appear in a packet.
+- Day dropdown → **calendar button** (📅): month grid tinted by fill, hatched closed days, trip dot, today outline; any weekday is selectable (empty days just show no stops).
+- **Map legend** chips toggle each truck, Unscheduled, and every other tech with stops on the left column's day (grey dots).
+- Column footer: **projected $** for the route with labor / parts-profit split; **Productivity · department** panel at the bottom: last week actual per tech (OE-23 basis, sample), calls, $/call, vs target, next week projected from the board.
+- Tracker: new sample **SV00123433 · Rosa** (SO4H, GE ships direct) with the **📦 My part arrived** button → SO5 → picker with Andrew's windows.
+- Picker never offers a tech's closed day (`isOpen`).
+
+**field_tool.html**
+- Route header carries the **delivered-dollars strip**: Today / This week / Target with a pace line and a progress bar; tap → per-stop list with labor and parts-profit split, "pending" for field-approved jobs that count on install day, "est. cost" when no PO cost. Warranty installs show *parts: a wash*. Sample: McCollum install = $130 labor + $91 parts profit.
+- **Blocks** appear in the stop list as grey ⏸ rows (Van maintenance · 11:15).
+- *What you found*: tapping **Error code** opens a required **Code shown** field (the typing exception); **＋ Custom note** button reveals a text box (voice-to-text friendly).
+- Field quote labor: **Half day · 4h** and **Full day · 8h** quick-pick chips above the task list (also added to the office-quote labor estimate).
+- Submit toast adds "+$X to your day".
+
+**office_queues.html**
+- New first tab **Search & history** + a global search box in the header: name (any order), phone digits, SV, serial, model, address → customers / service orders / units. Customer page: contact + card + zone, units with serial and per-unit call count, full history table (date, SV, unit, tech, status, what was found/done, delivered $ with labor/parts split), **recall candidate** banner. Sample: Hippe washer — SV00123302 is 23 days after SV00122731 on the same serial → candidate; Recalls queue with Confirm / Dismiss.
+- Receiving tab: **Held install · part not in — check ETA** task for Kezia (SV00123318, held Tue 12–5, valve expected today): *Part is here* (receives → hold confirms), *New ETA — release hold* (→ SO4, apology text, ePASS "time out" packet queued, route loses the stop), *Wait*.
+
+Sample-data notes: delivered dollars in all three files use the OE-23 definition (labor incl. diag/zone fees + parts profit; warranty = labor only); weekly targets are placeholders calibrated to Jan–Sep 2026 actuals (JRC 2,600 · TDP 2,500 · AJH 2,200 · CEM 2,150 · KJB 1,900 · DLA 1,700 · BLL 1,700 · CIT 1,450) until Cayden supplies real quotas.
+
+## Added 9/14 (Cayden's three prompts + the shadow test)
+
+**dispatch_board_and_tracker.html**
+- **Suggested day on every Unscheduled card** — `💡 Tue Sep 15 · Diogo · 12–5 · Diogo already has 2 stops in LOCAL that day · +4 min drive · primary tech` with a **Place there** button. Same score as `phase0/placement.py` (marginal drive to join the day's route − same-zone credit + a wait ramp + zone-standing penalty); office-only zones and trip buckets say so instead of suggesting.
+- **Penciled SO4 installs** on the board: dashed teal cards (`SO4 · Parts on order · penciled · ✎ ETA 9/16`) placed ETA + 2 business days on the owning tech's best-fit day — Alvarez (DLA Fri 9/18) and Nguyen (TDP Wed 9/16). They count against the day, drag like any card (a manual move holds until the part lands) and are dashboard-only.
+- **Customer picker leads with our best fit**: a highlighted *Recommended* block above the grid — *Best fit — our route is already in your area that day* / *Earliest available — and our route is already in your area* / *Best fit — installer already nearby* (penciled) — with a one-line reason and *Take this window*; the full grid stays underneath. SO4 tracker (Tomas, SV00123271) explains the pencil without promising it.
+
+**field_tool.html**
+- **Parts needed / field-quote Parts / Additional parts**: component chips only (Drain pump, Evaporator fan motor…, *Other component*); tapping one adds a line with an **empty part-number field the tech keys** — no number or price is pre-filled any more. Field-quote lines take an optional price (blank = *TBD, office prices before ordering*). Readiness: a part number on every line (UNKNOWN + note allowed).
+
+**office_queues.html**
+- Parts order: placing the PO now also **auto-pencils** each job (toast says where); Receiving cards show `✎ penciled Wed 9/16 · Diogo — first date the customer will see`; intro copy explains the pencil vs the customer-held SO4PRE.
+
+Retired: the `ajh_*` pilot files (one tech, `localStorage` sync). Their copy-button idea is now the Phase 0 intake endpoint (`docs/11_Shadow_Test_and_Dev_Handoff.md`).
+
+## Rebuilt on real data 9/15
+
+All three prototypes now run on `reference/data/ExportInvoice_20260915_current_sv.xlsx` — 460 open SV tickets as of 9/15 — joined on SV to the 9/10 DispatchTrack snapshot for the ePASS category code, the customer's problem text and per-address geocodes (170 of the 460 appear in both). `scratchpad/realdata.py` reads the two files and writes `realdata.json`; `buildproto.py` turns that into the three data blocks. Re-run both after dropping in a newer export.
+
+**Real in the prototypes:** SV, status, tech (SP), scheduled date, customer name, street address, zip, map zone, balance and payment type, brand/model/serial, unit count, warranty and RCALL flags, warranty payer, contact preference (ePASS's `Reference` column is where "text pref" / "call pref" lives), created and finish dates, and — for the 170 joined tickets — the ePASS category, the problem text and the address geocode.
+
+**Derived, because no export carries it:** route sequence and AM/PM window (nearest-neighbour from each tech's start point, split at the half-day), visit duration (spec §11 `duration.defaults` by category and unit count), and projected dollars.
+
+**Still sample, and labelled as such on screen:** part numbers, prices, suppliers and part ETAs (they come from the field quote and the PO builder — the invoice export has none), the ePASS sync queue (those are dashboard-generated), and the tracker's intermediate stage dates (the two ends, request and finish, are real). Customer emails are masked; the export has no phone numbers.
+
+What the real week looks like on the board: 171 routed stops Mon 9/14 – Fri 9/18, 9 parts-in jobs with no date in Unscheduled, 3 SO4s penciled live by the board's own scoring, one real trip (JHM, Wed 9/16, 14 stops in FBURG/BOERN/JC), and 19 tickets ePASS has flagged RCALL in the Recalls queue. Several days come out over 100% against a 9-hour day — that is the real schedule measured against the spec's durations and drive model, not a rendering bug.

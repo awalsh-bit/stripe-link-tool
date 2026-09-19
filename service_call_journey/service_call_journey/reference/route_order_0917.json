@@ -1,0 +1,51 @@
+{
+  "_about": [
+    "Stop order as the dispatchers actually left it in ePASS Routing, transcribed from Cayden's 9/17 screenshots.",
+    "Each tech-day in ePASS is a sequence with a comment row in it — usually literally 'routed', once 'routed?',",
+    "once 'keep at 5'. Everything ABOVE the comment is the route, in driving order. Everything BELOW it is a",
+    "ticket dated that day that is not being driven to: the tech has to go back into it and update the status",
+    "(a part that came in, an SO6 that needs re-booking, an SO8 waiting to post). That divider is the field",
+    "reality behind spec item 'needs tech input'. A day can also be blocked with a 24-unit comment ('BLL is off').",
+    "The invoice export carries no sequence, so this file is the only source of order; days without a",
+    "screenshot fall back to the engine's ZIP order and say so."
+  ],
+  "days": {
+    "2026-09-17": {
+      "KJB": {"routed": ["SV00122723", "SV00123414", "SV00122890", "SV00123365"],
+              "divider": "keep at 5",
+              "below": ["SV00123441", "SV00123427", "SV00123401", "SV00123405", "SV00122864", "SV00122227", "SV00120544"]},
+      "TDP": {"routed": ["SV00123377", "SV00123369", "SV00123393", "SV00123456", "SV00123403", "SV00123268", "SV00123489"],
+              "divider": "routed", "below": []},
+      "CIT": {"routed": ["SV00123429", "SV00123484", "SV00120017", "SV00123415", "SV00123416", "SV00123493"],
+              "divider": "routed", "below": []},
+      "CEM": {"routed": ["SV00123197", "SV00122845", "SV00122596", "SV00122833"],
+              "divider": "routed?",
+              "below": ["SV00123048", "SV00120392", "SV00122318", "SV00123431", "SV00123506", "SV00123532"]},
+      "DLA": {"routed": ["SV00123478", "SV00122907", "SV00122957", "SV00123482"],
+              "divider": "routed", "below": ["SV00123530"]},
+      "JRC": {"routed": ["SV00123471", "SV00123299", "SV00123479", "SV00121635", "SV00122485"],
+              "divider": "routed", "below": ["SV00123536"]},
+      "AJH": {"routed": ["SV00122057", "SV00123477", "SV00123499", "SV00123497", "SV00123430", "SV00123504"],
+              "divider": "routed", "below": ["SV00123290", "SV00123085"]},
+      "BLL": {"routed": ["SV00123454", "SV00123485", "SV00123450"], "divider": "routed", "below": []}
+    },
+    "2026-09-18": {
+      "AJH": {"routed": ["SV00123492", "SV00123495", "SV00123526", "SV00123473", "SV00123490", "SV00123491", "SV00123512"],
+              "divider": "routed", "below": []},
+      "CIT": {"routed": ["SV00123453", "SV00123458", "SV00123459", "SV00123498", "SV00123129"],
+              "divider": "ROUTED", "below": []},
+      "CEM": {"routed": ["SV00123464", "SV00123463", "SV00123462", "SV00123219", "SV00123170"],
+              "divider": "routed", "below": []},
+      "BLL": {"off": "BLL is off", "routed": [], "below": []}
+    }
+  },
+  "epass_map_summary_2026-09-18": {
+    "_note": "ePASS Dispatching Map route table for 9/18 — its 'Job' column is a flat 30 minutes per UNIT, not a per-job estimate: CEM has 5 stops but two of them are 2-unit tickets, 7 units = 3:30. Units is the only duration signal ePASS has; our duration table (§4.4) is per category and install type.",
+    "AJH": {"stops": 7, "miles": 56.4, "drive": "1:32", "job": "3:30", "total": "5:02"},
+    "CEM": {"stops": 5, "miles": 29.8, "drive": "0:48", "job": "3:30", "total": "4:18"},
+    "CIT": {"stops": 5, "miles": 28.5, "drive": "0:54", "job": "2:30", "total": "3:24"},
+    "DLA": {"stops": 4, "miles": 26.5, "drive": "0:44", "job": "2:00", "total": "2:44"},
+    "KJB": {"stops": 6, "miles": 50.0, "drive": "1:27", "job": "3:00", "total": "4:27"},
+    "TDP": {"stops": 5, "miles": 40.8, "drive": "1:07", "job": "3:30", "total": "4:37"}
+  }
+}

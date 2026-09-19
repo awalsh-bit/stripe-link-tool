@@ -1,0 +1,503 @@
+task_id,family_code,family,task,base_hours,department,hourly_rate,price,labor_taxable_default,family_tax_rule,tags,epass_code_stems,source_rows,hours_vary_by_brand,review_flag
+AC-001,AC,HVAC,Charge Unit with Refrigerant Per Manufacturer Specifications,1.5,hvac,150,225.0,N,N,,AC101,1,no,
+AC-002,AC,HVAC,Condensate Drain Cleaning/Clear Debris,0.75,hvac,150,112.5,N,N,,AC102,1,no,
+AC-003,AC,HVAC,Condensate Drain Repair/Replacement PVC Fittings - Major,1.25,hvac,150,187.5,N,N,,AC103,1,no,
+AC-004,AC,HVAC,Condensate Drain Repair/Replacement PVC Fittings - Minor,1.25,hvac,150,187.5,N,N,,AC104,1,no,
+AC-005,AC,HVAC,Cosmetic Part Replacement,0.5,hvac,150,75.0,N,N,,AC105,1,no,
+AC-006,AC,HVAC,Fire Ant Treatment at Outdoor Unit,0.5,hvac,150,75.0,N,N,,AC109,1,no,
+AC-007,AC,HVAC,Flex Duct Replacement Per Duct Run - 10-inch Diameter - Over 25 Feet - Materials NOT Included,1.5,hvac,150,225.0,N,N,,AC110,1,no,
+AC-008,AC,HVAC,Flex Duct Replacement Per Duct Run - 10-inch Diameter - Under 25 Feet - Materials NOT Included,1.25,hvac,150,187.5,N,N,,AC111,1,no,
+AC-009,AC,HVAC,Flex Duct Replacement Per Duct Run - 12-inch Diameter - Over 25 Feet - Materials NOT Included,1.75,hvac,150,262.5,N,N,,AC112,1,no,
+AC-010,AC,HVAC,Flex Duct Replacement Per Duct Run - 12-inch Diameter - Under 25 Feet - Materials NOT Included,1.25,hvac,150,187.5,N,N,,AC113,1,no,
+AC-011,AC,HVAC,Flex Duct Replacement Per Duct Run - 14-inch Diameter - Over 25 Feet - Materials NOT Included,1.75,hvac,150,262.5,N,N,,AC114,1,no,
+AC-012,AC,HVAC,Flex Duct Replacement Per Duct Run - 14-inch Diameter - Under 25 Feet - Materials NOT Included,1.25,hvac,150,187.5,N,N,,AC115,1,no,
+AC-013,AC,HVAC,Flex Duct Replacement Per Duct Run - 16-inch Diameter - Over 25 Feet - Materials NOT Included,2.0,hvac,150,300.0,N,N,,AC116,1,no,
+AC-014,AC,HVAC,Flex Duct Replacement Per Duct Run - 16-inch Diameter - Under 25 Feet - Materials NOT Included,1.5,hvac,150,225.0,N,N,,AC117,1,no,
+AC-015,AC,HVAC,Flex Duct Replacement Per Duct Run - 18-inch Diameter - Over 25 Feet - Materials NOT Included,2.25,hvac,150,337.5,N,N,,AC118,1,no,
+AC-016,AC,HVAC,Flex Duct Replacement Per Duct Run - 18-inch Diameter - Under 25 Feet - Materials NOT Included,1.75,hvac,150,262.5,N,N,,AC119,1,no,
+AC-017,AC,HVAC,Flex Duct Replacement Per Duct Run - 20-inch Diameter - Over 25 Feet - Materials NOT Included,2.5,hvac,150,375.0,N,N,,AC120,1,no,
+AC-018,AC,HVAC,Flex Duct Replacement Per Duct Run - 20-inch Diameter - Under 25 Feet - Materials NOT Included,2.0,hvac,150,300.0,N,N,,AC121,1,no,
+AC-019,AC,HVAC,Flex Duct Replacement Per Duct Run - 4-inch Diameter - Over 25 Feet - Materials NOT Included,1.5,hvac,150,225.0,N,N,,AC122,1,no,
+AC-020,AC,HVAC,Flex Duct Replacement Per Duct Run - 4-inch Diameter - Under 25 Feet - Materials NOT Included,1.0,hvac,150,150.0,N,N,,AC123,1,no,
+AC-021,AC,HVAC,Flex Duct Replacement Per Duct Run - 5-inch Diameter - Over 25 Feet - Materials NOT Included,1.5,hvac,150,225.0,N,N,,AC124,1,no,
+AC-022,AC,HVAC,Flex Duct Replacement Per Duct Run - 5-inch Diameter - Under 25 Feet - Materials NOT Included,1.0,hvac,150,150.0,N,N,,AC125,1,no,
+AC-023,AC,HVAC,Flex Duct Replacement Per Duct Run - 6-inch Diameter - Over 25 Feet - Materials NOT Included,1.5,hvac,150,225.0,N,N,,AC126,1,no,
+AC-024,AC,HVAC,Flex Duct Replacement Per Duct Run - 6-inch Diameter - Under 25 Feet - Materials NOT Included,1.0,hvac,150,150.0,N,N,,AC127,1,no,
+AC-025,AC,HVAC,Flex Duct Replacement Per Duct Run - 7-inch Diameter - Over 25 Feet - Materials NOT Included,1.5,hvac,150,225.0,N,N,,AC128,1,no,
+AC-026,AC,HVAC,Flex Duct Replacement Per Duct Run - 7-inch Diameter - Under 25 Feet - Materials NOT Included,1.0,hvac,150,150.0,N,N,,AC129,1,no,
+AC-027,AC,HVAC,Flex Duct Replacement Per Duct Run - 8-inch Diameter - Over 25 Feet - Materials NOT Included,1.5,hvac,150,225.0,N,N,,AC130,1,no,
+AC-028,AC,HVAC,Flex Duct Replacement Per Duct Run - 8-inch Diameter - Under 25 Feet - Materials NOT Included,1.0,hvac,150,150.0,N,N,,AC131,1,no,
+AC-029,AC,HVAC,Flex Duct Replacement Per Duct Run - 9-inch Diameter - Over 25 Feet - Materials NOT Included,1.5,hvac,150,225.0,N,N,,AC132,1,no,
+AC-030,AC,HVAC,Flex Duct Replacement Per Duct Run - 9-inch Diameter - Under 25 Feet - Materials NOT Included,1.0,hvac,150,150.0,N,N,,AC133,1,no,
+AC-031,AC,HVAC,"Inspect Indoor Unit, Outdoor Unit, Refrigerant Lines",1.25,hvac,150,187.5,N,N,,AC134,1,no,
+AC-032,AC,HVAC,Major Cabinet Component,4.0,hvac,150,600.0,N,N,,AC135,1,no,
+AC-033,AC,HVAC,Major Component,4.0,hvac,150,600.0,N,N,,AC136,1,no,
+AC-034,AC,HVAC,Minor Cabinet Component,1.0,hvac,150,150.0,N,N,,AC137,1,no,
+AC-035,AC,HVAC,Minor Component,1.0,hvac,150,150.0,N,N,,AC138,1,no,
+AC-036,AC,HVAC,Minor Duct Repair,1.0,hvac,150,150.0,N,N,,AC139,1,no,
+AC-037,AC,HVAC,"Perform HVAC System Maintenance (Additional Unit) - Includes visual inspection of indoor/outdoor units, check and record refrigerant levels, clean filters, check and record temperature differential, inspect drain.",0.6,hvac,150,90.0,N,N,,AC141,1,no,
+AC-038,AC,HVAC,"Perform HVAC System Maintenance - Includes visual inspection of indoor/outdoor units, check and record refrigerant levels, clean filters, check and record temperature differential, inspect drain.",1.0,hvac,150,150.0,N,N,,AC140,1,no,
+AC-039,AC,HVAC,Perform Maintenance on Electronic Air Cleaner,0.75,hvac,150,112.5,N,N,,AC142,1,no,
+AC-040,AC,HVAC,Problem Could Not Be Not Reproduced,0.5,hvac,150,75.0,N,N,,AC144,1,no,
+AC-041,AC,HVAC,Refrigerant Leak Repair Minor,2.0,hvac,150,300.0,N,N,,AC145,1,no,
+AC-042,AC,HVAC,Refrigerant Recovery,1.0,hvac,150,150.0,N,N,,AC146,1,no,
+AC-043,AC,HVAC,Repair Burnt Wire(s) or Loose Connection - Outdoor/Indoor Unit,0.75,hvac,150,112.5,N,N,,AC147,1,no,
+AC-044,AC,HVAC,Replace Air Filter(s),0.4,hvac,150,60.0,N,N,,AC148,1,no,
+AC-045,AC,HVAC,Return Air Grill Replacement,0.5,hvac,150,75.0,N,N,,AC149,1,no,
+AC-046,AC,HVAC,Supply Grill Replacement,0.25,hvac,150,37.5,N,N,,AC150,1,no,
+AC-047,AC,HVAC,Thermostat/Control Replacement,1.0,hvac,150,150.0,N,N,,AC151,1,no,
+CE-001,CE,Cooking - Electric,Bake Element Replacement (Exposed),1.0,appliance,130,130.0,by_install_type,by_install_type,exposed,CE402,1,no,
+CE-002,CE,Cooking - Electric,Bake Element Replacement - Hidden (Double Oven) - Typically Two Technicians,2.5,appliance,130,325.0,by_install_type,by_install_type,two-tech hidden double,CE400,1,no,
+CE-003,CE,Cooking - Electric,Bake Element Replacement - Hidden (Single Oven),2.0,appliance,130,260.0,by_install_type,by_install_type,hidden single,CE401,1,no,
+CE-004,CE,Cooking - Electric,Broil Element Replacement (Concealed),1.5,appliance,130,195.0,by_install_type,by_install_type,hidden,CE403,1,no,
+CE-005,CE,Cooking - Electric,Broil Element Replacement (Exposed),1.0,appliance,130,130.0,by_install_type,by_install_type,exposed,CE404,1,no,
+CE-006,CE,Cooking - Electric,Calibrate Oven Temperature Calibration,0.75,appliance,130,97.5,by_install_type,by_install_type,,CE405,1,no,
+CE-007,CE,Cooking - Electric,Ceran Glass Cooktop Replacement,1.5,appliance,130,195.0,by_install_type,by_install_type,,CE406,1,no,
+CE-008,CE,Cooking - Electric,Coil Element Burner Receptacle Replacement,0.5,appliance,130,65.0,by_install_type,by_install_type,,CE407,1,no,
+CE-009,CE,Cooking - Electric,Convect Element Replacement (Front Service),1.0,appliance,130,130.0,by_install_type,by_install_type,front-service,CE410,1,no,
+CE-010,CE,Cooking - Electric,Convect Element Replacement - Double Oven (Requires Oven Removal) - Two Technicians,2.5,appliance,130,325.0,by_install_type,by_install_type,two-tech unit-removal double,CE408,1,no,
+CE-011,CE,Cooking - Electric,Convect Element Replacement - Single Oven (Requires Oven Removal),2.0,appliance,130,260.0,by_install_type,by_install_type,unit-removal single,CE409,1,no,
+CE-012,CE,Cooking - Electric,Convection Fan Motor/Blade Replacement,1.5,appliance,130,195.0,by_install_type,by_install_type,,CE411,1,no,
+CE-013,CE,Cooking - Electric,Cooling Fan Motor/Blade Replacement,1.5,appliance,130,195.0,by_install_type,by_install_type,,CE412,1,no,
+CE-014,CE,Cooking - Electric,Door Component Replacement - Oven Glass-Liner-Handle-etc.,0.75,appliance,130,97.5,by_install_type,by_install_type,,CE413,1,yes,hours varied by brand in old book
+CE-015,CE,Cooking - Electric,Door Hinge Assembly Replacement,1.0,appliance,130,130.0,by_install_type,by_install_type,,CE414,1,no,
+CE-016,CE,Cooking - Electric,Door Hinge Receiver Replacement (Double Wall Oven) - Typically Two Technicians,2.0,appliance,130,260.0,by_install_type,by_install_type,two-tech double,CE415,1,no,
+CE-017,CE,Cooking - Electric,Door Hinge Receiver Replacement (Pro Range),2.0,appliance,130,260.0,by_install_type,by_install_type,pro,CE416,1,no,pro/standard pair — consider one task + pro tag
+CE-018,CE,Cooking - Electric,Door Hinge Receiver Replacement (Single Wall Oven),1.25,appliance,130,162.5,by_install_type,by_install_type,single,CE417,1,no,
+CE-019,CE,Cooking - Electric,Door Hinge Receiver Replacement (Standard Freestanding Range),1.0,appliance,130,130.0,by_install_type,by_install_type,standard freestanding,CE418,1,no,pro/standard pair — consider one task + pro tag
+CE-020,CE,Cooking - Electric,Door Lock/Latch Assembly Replacement,1.0,appliance,130,130.0,by_install_type,by_install_type,,CE419,1,no,
+CE-021,CE,Cooking - Electric,Door/Window Cleaning Double Oven,1.0,appliance,130,130.0,by_install_type,by_install_type,double,CE420,1,no,
+CE-022,CE,Cooking - Electric,Door/Window Cleaning Single Oven,0.75,appliance,130,97.5,by_install_type,by_install_type,single,CE421,1,no,
+CE-023,CE,Cooking - Electric,Drip Bowl Replacement - Coil Element,0.2,appliance,130,26.0,by_install_type,by_install_type,,CE422,1,no,
+CE-024,CE,Cooking - Electric,Griddle/Grill Component Replacement,0.5,appliance,130,65.0,by_install_type,by_install_type,,CE424,1,no,
+CE-025,CE,Cooking - Electric,Grill/Griddle Thermostat Replacement,1.0,appliance,130,130.0,by_install_type,by_install_type,,CE425,1,no,
+CE-026,CE,Cooking - Electric,Hi-Limit Thermal Cutout Replacement (Front Service),0.75,appliance,130,97.5,by_install_type,by_install_type,front-service,CE426,1,no,
+CE-027,CE,Cooking - Electric,Hi-Limit Thermal Cutout Replacement (Rear Service),1.0,appliance,130,130.0,by_install_type,by_install_type,rear-service,CE427,1,yes,hours varied by brand in old book
+CE-028,CE,Cooking - Electric,Leveling Legs/Wheel Replacement (Pro Range),1.0,appliance,130,130.0,by_install_type,by_install_type,pro,CE428,1,yes,hours varied by brand in old book; pro/standard pair — consider one task + pro tag
+CE-029,CE,Cooking - Electric,Leveling Legs/Wheel Replacement (Standard Range),0.5,appliance,130,65.0,by_install_type,by_install_type,standard,CE429,1,yes,hours varied by brand in old book; pro/standard pair — consider one task + pro tag
+CE-030,CE,Cooking - Electric,Oven Temp Sensor (Thermistor) Replacement,0.75,appliance,130,97.5,by_install_type,by_install_type,,CE432,1,yes,hours varied by brand in old book
+CE-031,CE,Cooking - Electric,Oven Thermostat Replacement,2.0,appliance,130,260.0,by_install_type,by_install_type,,CE433,1,no,
+CE-032,CE,Cooking - Electric,Probe Jack Replacement,1.0,appliance,130,130.0,by_install_type,by_install_type,,CE435,1,no,
+CE-033,CE,Cooking - Electric,Rack Replacement - Oven,0.15,appliance,130,19.5,by_install_type,by_install_type,,CE436,1,no,
+CE-034,CE,Cooking - Electric,Surface Element Replacement - Ceran Glass Top,1.5,appliance,130,195.0,by_install_type,by_install_type,,CE437,1,no,
+CE-035,CE,Cooking - Electric,Surface Element Replacement - Coil Top,0.35,appliance,130,45.5,by_install_type,by_install_type,,CE438,1,no,
+CE-036,CE,Cooking - Electric,Switch Replacement - Burner/Selector,1.0,appliance,130,130.0,by_install_type,by_install_type,,CE439,1,no,
+CF-001,CF,Coffee,Brew Unit Replacement,0.25,appliance,130,32.5,N,N,,CF400,1,no,
+CF-002,CF,Coffee,Cleaning & Maintenance,1.5,appliance,130,195.0,N,N,,CF401,1,no,
+CF-003,CF,Coffee,Coffee Bean Storage Bin Replacement,0.25,appliance,130,32.5,N,N,,CF402,1,no,
+CF-004,CF,Coffee,Component Sensing Device Replacement,1.0,appliance,130,130.0,N,N,,CF403,1,no,
+CF-005,CF,Coffee,Connecting Tube(s)-Clamp(s) Replacement,0.75,appliance,130,97.5,N,N,,CF404,1,no,
+CF-006,CF,Coffee,Descale Unit Only,0.75,appliance,130,97.5,N,N,,CF405,1,no,
+CF-007,CF,Coffee,Drive Motor Replacement,1.5,appliance,130,195.0,N,N,,CF406,1,no,
+CF-008,CF,Coffee,Flow Meter Replacement,1.0,appliance,130,130.0,N,N,,CF408,1,no,
+CF-009,CF,Coffee,Grind Chamber Replacement,1.5,appliance,130,195.0,N,N,,CF409,1,no,
+CF-010,CF,Coffee,Heater Assembly Replacement,1.5,appliance,130,195.0,N,N,,CF410,1,no,
+CF-011,CF,Coffee,Interference Limiter Replacement,1.0,appliance,130,130.0,N,N,,CF411,1,no,
+CF-012,CF,Coffee,Microswitch Replacement,1.0,appliance,130,130.0,N,N,,CF413,1,no,
+CF-013,CF,Coffee,Pressure Relief Valve Replacement,1.25,appliance,130,162.5,N,N,,CF415,1,no,
+CF-014,CF,Coffee,Refuse Bin Replacement,0.25,appliance,130,32.5,N,N,,CF416,1,no,
+CF-015,CF,Coffee,Solenoid Replacement,1.0,appliance,130,130.0,N,N,,CF417,1,no,
+CF-016,CF,Coffee,Steam Generator Replacement,1.25,appliance,130,162.5,N,N,,CF418,1,no,
+CF-017,CF,Coffee,Temp Sensor Replacement,1.0,appliance,130,130.0,N,N,,CF419,1,no,
+CF-018,CF,Coffee,Thermal Limiter Replacement,1.0,appliance,130,130.0,N,N,,CF420,1,no,
+CF-019,CF,Coffee,Water Pump Replacement,1.25,appliance,130,162.5,N,N,,CF421,1,no,
+CF-020,CF,Coffee,Water Reservoir Replacement,0.25,appliance,130,32.5,N,N,,CF422,1,no,
+CF-021,CF,Coffee,Water Valve Replacement,1.0,appliance,130,130.0,N,N,,CF423,1,no,
+CG-001,CG,Cooking - Gas,Bake Burner Assembly Replacement (Pro Oven/Range),1.0,appliance,130,130.0,by_install_type,by_install_type,pro,CG400,1,yes,hours varied by brand in old book; pro/standard pair — consider one task + pro tag
+CG-002,CG,Cooking - Gas,Bake Burner Assembly Replacement (Standard Oven/Range),0.75,appliance,130,97.5,by_install_type,by_install_type,standard,CG401,1,yes,hours varied by brand in old book; pro/standard pair — consider one task + pro tag
+CG-003,CG,Cooking - Gas,Broil Burner Assembly Replacement (Pro Oven/Range),1.0,appliance,130,130.0,by_install_type,by_install_type,pro,CG402,1,yes,hours varied by brand in old book; pro/standard pair — consider one task + pro tag
+CG-004,CG,Cooking - Gas,Broil Burner Assembly Replacement (Standard Oven/Range),0.75,appliance,130,97.5,by_install_type,by_install_type,standard,CG403,1,yes,hours varied by brand in old book; pro/standard pair — consider one task + pro tag
+CG-005,CG,Cooking - Gas,Burner Grate(s)/Cap(s) Replacement,0.15,appliance,130,19.5,by_install_type,by_install_type,,CG404,1,yes,hours varied by brand in old book
+CG-006,CG,Cooking - Gas,Burner Ignition Component Replacement,0.75,appliance,130,97.5,by_install_type,by_install_type,,CG405,1,no,
+CG-007,CG,Cooking - Gas,Burner Valve Replacement - Surface Burner,1.5,appliance,130,195.0,by_install_type,by_install_type,,CG406,1,no,
+CG-008,CG,Cooking - Gas,Convection Fan Motor/Blade Replacement (Pro Oven/Range),1.5,appliance,130,195.0,by_install_type,by_install_type,pro,CG407,1,yes,hours varied by brand in old book; pro/standard pair — consider one task + pro tag
+CG-009,CG,Cooking - Gas,Convection Fan Motor/Blade Replacement (Standard Oven/Range),1.0,appliance,130,130.0,by_install_type,by_install_type,standard,CG408,1,yes,hours varied by brand in old book; pro/standard pair — consider one task + pro tag
+CG-010,CG,Cooking - Gas,Cooktop Burner Assembly Replacement,0.75,appliance,130,97.5,by_install_type,by_install_type,,CG409,1,yes,hours varied by brand in old book
+CG-011,CG,Cooking - Gas,Cooling Fan Motor/Blade Replacement (Pro Oven/Range),1.5,appliance,130,195.0,by_install_type,by_install_type,pro,CG410,1,yes,hours varied by brand in old book; pro/standard pair — consider one task + pro tag
+CG-012,CG,Cooking - Gas,Cooling Fan Motor/Blade Replacement (Standard Oven/Range),0.75,appliance,130,97.5,by_install_type,by_install_type,standard,CG411,1,yes,hours varied by brand in old book; pro/standard pair — consider one task + pro tag
+CG-013,CG,Cooking - Gas,Door Component Replacement - Oven Glass-Liner-Handle-etc.,0.75,appliance,130,97.5,by_install_type,by_install_type,,CG412,1,yes,hours varied by brand in old book
+CG-014,CG,Cooking - Gas,Door Hinge Assembly Replacement,1.0,appliance,130,130.0,by_install_type,by_install_type,,CG413,1,no,
+CG-015,CG,Cooking - Gas,Door Hinge Receiver Replacement (Double Wall Oven),1.75,appliance,130,227.5,by_install_type,by_install_type,double,CG414,1,yes,hours varied by brand in old book
+CG-016,CG,Cooking - Gas,Door Hinge Receiver Replacement (Pro Range),1.75,appliance,130,227.5,by_install_type,by_install_type,pro,CG415,1,yes,hours varied by brand in old book; pro/standard pair — consider one task + pro tag
+CG-017,CG,Cooking - Gas,Door Hinge Receiver Replacement (Single Wall Oven),1.0,appliance,130,130.0,by_install_type,by_install_type,single,CG416,1,yes,hours varied by brand in old book
+CG-018,CG,Cooking - Gas,Door Hinge Receiver Replacement (Standard Range),1.0,appliance,130,130.0,by_install_type,by_install_type,standard,CG417,1,yes,hours varied by brand in old book; pro/standard pair — consider one task + pro tag
+CG-019,CG,Cooking - Gas,Door Lock/Latch Assembly Replacement,1.0,appliance,130,130.0,by_install_type,by_install_type,,CG418,1,no,
+CG-020,CG,Cooking - Gas,Door/Window Cleaning (Double Oven),1.0,appliance,130,130.0,by_install_type,by_install_type,double,CG419,1,no,
+CG-021,CG,Cooking - Gas,Door/Window Cleaning (Single Oven),0.75,appliance,130,97.5,by_install_type,by_install_type,single,CG420,1,no,
+CG-022,CG,Cooking - Gas,Gas Supply Flex Line Replacement,0.5,appliance,130,65.0,by_install_type,by_install_type,,CG422,1,yes,hours varied by brand in old book
+CG-023,CG,Cooking - Gas,Griddle/Grill Component Replacement,0.5,appliance,130,65.0,by_install_type,by_install_type,,CG423,1,no,
+CG-024,CG,Cooking - Gas,Griddle/Grill Thermostat Replacement,1.25,appliance,130,162.5,by_install_type,by_install_type,,CG424,1,yes,hours varied by brand in old book
+CG-025,CG,Cooking - Gas,Hi-Limit Thermal Cutout Replacement - Front Service,0.75,appliance,130,97.5,by_install_type,by_install_type,front-service,CG425,1,no,
+CG-026,CG,Cooking - Gas,Hi-Limit Thermal Cutout Replacement - Rear Service,1.0,appliance,130,130.0,by_install_type,by_install_type,rear-service,CG426,1,yes,hours varied by brand in old book
+CG-027,CG,Cooking - Gas,Leveling Legs/Wheel Replacement - Pro Range,1.0,appliance,130,130.0,by_install_type,by_install_type,pro,CG427,1,yes,hours varied by brand in old book; pro/standard pair — consider one task + pro tag
+CG-028,CG,Cooking - Gas,Leveling Legs/Wheel Replacement - Standard Range,0.5,appliance,130,65.0,by_install_type,by_install_type,standard,CG428,1,yes,hours varied by brand in old book; pro/standard pair — consider one task + pro tag
+CG-029,CG,Cooking - Gas,Locate and Repair Gas Leak Locate and Repair (Difficult Access),1.0,appliance,130,130.0,by_install_type,by_install_type,,CG431,1,yes,hours varied by brand in old book
+CG-030,CG,Cooking - Gas,Locate and Repair Gas Leak Locate and Repair (Readily Accessible),0.5,appliance,130,65.0,by_install_type,by_install_type,,CG432,1,yes,hours varied by brand in old book
+CG-031,CG,Cooking - Gas,Orifice(s) Replacement (Cooktop),0.5,appliance,130,65.0,by_install_type,by_install_type,,CG433,1,yes,hours varied by brand in old book
+CG-032,CG,Cooking - Gas,Orifice(s) Replacement (Oven),0.75,appliance,130,97.5,by_install_type,by_install_type,,CG434,1,yes,hours varied by brand in old book
+CG-033,CG,Cooking - Gas,Oven Igniter (HSI) Replacement,0.75,appliance,130,97.5,by_install_type,by_install_type,,CG435,1,yes,hours varied by brand in old book
+CG-034,CG,Cooking - Gas,Oven Temp Sensor (Thermistor) Replacement,0.75,appliance,130,97.5,by_install_type,by_install_type,,CG436,1,no,
+CG-035,CG,Cooking - Gas,Oven Temperature Calibration,0.75,appliance,130,97.5,by_install_type,by_install_type,,CG437,1,no,
+CG-036,CG,Cooking - Gas,Oven Thermostat Replacement,2.0,appliance,130,260.0,by_install_type,by_install_type,,CG438,1,no,
+CG-037,CG,Cooking - Gas,Probe Jack Replacement,0.75,appliance,130,97.5,by_install_type,by_install_type,,CG440,1,no,
+CG-038,CG,Cooking - Gas,Rack Replacement - Oven,0.15,appliance,130,19.5,by_install_type,by_install_type,,CG441,1,no,
+CG-039,CG,Cooking - Gas,Regulator Replacement (Standard Access),0.75,appliance,130,97.5,by_install_type,by_install_type,standard,CG442,1,yes,hours varied by brand in old book; pro/standard pair — consider one task + pro tag
+CG-040,CG,Cooking - Gas,Regulator Replacement Pro Range (Difficult Access),1.5,appliance,130,195.0,by_install_type,by_install_type,pro,CG443,1,yes,hours varied by brand in old book; pro/standard pair — consider one task + pro tag
+CG-041,CG,Cooking - Gas,Safety Valve Replacement,1.0,appliance,130,130.0,by_install_type,by_install_type,,CG444,1,no,
+CG-042,CG,Cooking - Gas,Simmer Setting Adjustment - Gas Burner,0.3,appliance,130,39.0,by_install_type,by_install_type,,CG445,1,no,
+CG-043,CG,Cooking - Gas,Solenoid Replacement,0.75,appliance,130,97.5,by_install_type,by_install_type,,CG446,1,no,
+CG-044,CG,Cooking - Gas,Switch Assembly Replacement,0.75,appliance,130,97.5,by_install_type,by_install_type,,CG447,1,no,
+CG-045,CG,Cooking - Gas,Thermocouple Replacement,0.75,appliance,130,97.5,by_install_type,by_install_type,,CG449,1,no,
+CO-001,CO,Cooktop,Bin Replacement,0.25,appliance,130,32.5,N,N,,CO400,1,no,
+CO-002,CO,Cooktop,Bin Roller Replacement,0.75,appliance,130,97.5,N,N,,CO401,1,no,
+CO-003,CO,Cooktop,Clear Debris from Drawer Mechanism,0.35,appliance,130,45.5,N,N,,CO402,1,no,
+CO-004,CO,Cooktop,Drive Chain Replacement,0.75,appliance,130,97.5,N,N,,CO403,1,no,
+CO-005,CO,Cooktop,Drive Motor Replacement,1.0,appliance,130,130.0,N,N,,CO404,1,no,
+CO-006,CO,Cooktop,Fan Motor/Blade Replacement,0.75,appliance,130,97.5,N,N,,CO406,1,no,
+CO-007,CO,Cooktop,Foot Pedal/Actuator Replacement,0.75,appliance,130,97.5,N,N,,CO407,1,no,
+CO-008,CO,Cooktop,Gear(s) Replacement,0.75,appliance,130,97.5,N,N,,CO408,1,no,
+CO-009,CO,Cooktop,Lubricate Power Nuts/Screws,0.5,appliance,130,65.0,N,N,,CO409,1,no,
+CO-010,CO,Cooktop,Microswitch Replacement,0.75,appliance,130,97.5,N,N,,CO410,1,no,
+CO-011,CO,Cooktop,Power Nut(s) Replacement,1.0,appliance,130,130.0,N,N,,CO412,1,no,
+CO-012,CO,Cooktop,Power Screw Assembly Replacement,1.0,appliance,130,130.0,N,N,,CO413,1,no,
+CO-013,CO,Cooktop,Ram Assembly Components Replacement,1.0,appliance,130,130.0,N,N,,CO414,1,no,
+CO-014,CO,Cooktop,Reinstallation of Unit,0.5,appliance,130,65.0,N,N,,CO415,1,no,
+CO-015,CO,Cooktop,Start Switch Replacement,0.75,appliance,130,97.5,N,N,,CO416,1,no,
+DI-001,DI,(unknown DI),Clear Debris From Disposal Mechanism,0.25,appliance,130,32.5,N,N,,DI400,1,no,family code unidentified
+DI-002,DI,(unknown DI),Remove Knock-Out for DW Connection,0.25,appliance,130,32.5,N,N,,DI402,1,no,family code unidentified
+DI-003,DI,(unknown DI),Replace Disposal (Exact Match Replacement Only) - NO PLUMBING,2.0,appliance,130,260.0,N,N,,DI403,1,no,family code unidentified
+DI-004,DI,(unknown DI),Reset Motor Overload,0.25,appliance,130,32.5,N,N,,DI404,1,no,family code unidentified
+DISL-001,DISL,Discount Labor,Discounted Courtesy Labor,0.25,appliance,130,32.5,N,N,,DISL1,1,no,
+DR-001,DR,Dryer,Belt Replacement,0.75,appliance,130,97.5,Y,Y,,DR401,1,yes,hours varied by brand in old book
+DR-002,DR,Dryer,Blower Wheel Replacement,1.0,appliance,130,130.0,Y,Y,,DR402,1,yes,hours varied by brand in old book
+DR-003,DR,Dryer,Burner Tube Assembly,0.75,appliance,130,97.5,Y,Y,,DR403,1,no,
+DR-004,DR,Dryer,Clear Lint/Debris From Venting,0.5,appliance,130,65.0,Y,Y,,DR404,1,no,
+DR-005,DR,Dryer,Door Switch Replacement,0.75,appliance,130,97.5,Y,Y,,DR405,1,no,
+DR-006,DR,Dryer,Drum Replacement,1.25,appliance,130,162.5,Y,Y,,DR406,1,no,
+DR-007,DR,Dryer,Gas Valve Assembly Replacement,1.0,appliance,130,130.0,Y,Y,,DR408,1,no,
+DR-008,DR,Dryer,Heating Element Replacement,0.75,appliance,130,97.5,Y,Y,,DR409,1,no,
+DR-009,DR,Dryer,Hi-Limit/Thermal Fuse Replacement,0.5,appliance,130,65.0,Y,Y,,DR410,1,no,
+DR-010,DR,Dryer,Igniter (HSI) Replacement,0.5,appliance,130,65.0,Y,Y,,DR411,1,no,
+DR-011,DR,Dryer,LP or Nat Gas Conversion,0.75,appliance,130,97.5,Y,Y,,DR415,1,no,
+DR-012,DR,Dryer,LP or Natural Gas Conversion,0.75,appliance,130,97.5,Y,Y,,DR415,1,no,
+DR-013,DR,Dryer,Motor Replacement - Drum/Drive,1.25,appliance,130,162.5,Y,Y,,DR416,1,yes,hours varied by brand in old book
+DR-014,DR,Dryer,Thermostat Replacement,0.5,appliance,130,65.0,Y,Y,,DR419,1,yes,hours varied by brand in old book
+DR-015,DR,Dryer,Tub Roller/Idler Pulley/Belt Kit Replacement,1.0,appliance,130,130.0,Y,Y,,DR420,1,yes,hours varied by brand in old book
+DR-016,DR,Dryer,Vent Hose & Clamp(s) Replacement,0.5,appliance,130,65.0,Y,Y,,DR421,1,no,
+DW-001,DW,Dishwasher,Address Washability Concerns,0.25,appliance,130,32.5,N,N,,DW400,1,no,
+DW-002,DW,Dishwasher,Address Water Leak (Tub-Door-Etc.),0.75,appliance,130,97.5,N,N,,DW401,1,no,
+DW-003,DW,Dishwasher,Debris Removal & Cleaning From Drain/Sink Connection,0.5,appliance,130,65.0,N,N,,DW402,1,no,
+DW-004,DW,Dishwasher,Debris Removal from Sump/Impeller/Drain,0.5,appliance,130,65.0,N,N,,DW403,1,no,
+DW-005,DW,Dishwasher,Detergent Cup Assembly Replacement,0.75,appliance,130,97.5,N,N,,DW404,1,no,
+DW-006,DW,Dishwasher,Door Panel/Console Replacement (Outer),0.5,appliance,130,65.0,N,N,,DW405,1,no,
+DW-007,DW,Dishwasher,Door Replacement (Inner),0.75,appliance,130,97.5,N,N,,DW406,1,no,
+DW-008,DW,Dishwasher,Door Seal Replacement,0.5,appliance,130,65.0,N,N,,DW407,1,no,
+DW-009,DW,Dishwasher,Door Spring Tension/Balance Adjustment (Front Accessible),0.25,appliance,130,32.5,N,N,,DW408,1,no,
+DW-010,DW,Dishwasher,Door Spring Tension/Balance Adjustment (Unit Removed For Access),0.5,appliance,130,65.0,N,N,,DW409,1,no,
+DW-011,DW,Dishwasher,Door Spring/Balance Kit Replacement,1.0,appliance,130,130.0,N,N,,DW410,1,no,
+DW-012,DW,Dishwasher,Door Switch Replacement,0.75,appliance,130,97.5,N,N,,DW411,1,no,
+DW-013,DW,Dishwasher,Drain Hose Replacement,0.75,appliance,130,97.5,N,N,,DW412,1,yes,hours varied by brand in old book
+DW-014,DW,Dishwasher,Drain Pump Replacement,1.5,appliance,130,195.0,N,N,,DW413,1,no,
+DW-015,DW,Dishwasher,Drying Fan Motor/Blade Replacement,1.0,appliance,130,130.0,N,N,,DW414,1,no,
+DW-016,DW,Dishwasher,Electrical Disconnect was Turned Off (Light Switch),0.15,appliance,130,19.5,N,N,,DW415,1,no,
+DW-017,DW,Dishwasher,Float Switch Replacement,0.75,appliance,130,97.5,N,N,,DW417,1,no,
+DW-018,DW,Dishwasher,Flow Meter Replacement,1.0,appliance,130,130.0,N,N,,DW418,1,no,
+DW-019,DW,Dishwasher,Heating Element Replacement,1.0,appliance,130,130.0,N,N,,DW419,1,no,
+DW-020,DW,Dishwasher,No Water at Supply,0.25,appliance,130,32.5,N,N,,DW423,1,no,
+DW-021,DW,Dishwasher,Pressure Switch Replacement,1.0,appliance,130,130.0,N,N,,DW425,1,no,
+DW-022,DW,Dishwasher,Pump and/or Motor Assembly Replacement,2.0,appliance,130,260.0,N,N,,DW426,1,no,
+DW-023,DW,Dishwasher,Rack or Rack Component Replacement,0.5,appliance,130,65.0,N,N,,DW427,1,no,
+DW-024,DW,Dishwasher,Reinstallation of Unit,0.75,appliance,130,97.5,N,N,,DW428,1,no,
+DW-025,DW,Dishwasher,Salt Reservoir Replacement,2.0,appliance,130,260.0,N,N,,DW429,1,no,
+DW-026,DW,Dishwasher,Tub/Tank Replacement,3.0,appliance,130,390.0,N,N,,DW430,1,no,
+DW-027,DW,Dishwasher,Turbidity Sensor Replacement,1.0,appliance,130,130.0,N,N,,DW431,1,no,
+DW-028,DW,Dishwasher,Wash Arm/Water Feed Tube Clean/Replace,0.5,appliance,130,65.0,N,N,,DW432,1,no,
+DW-029,DW,Dishwasher,Water Intake Assembly Replacement,2.0,appliance,130,260.0,N,N,,DW433,1,no,
+DW-030,DW,Dishwasher,Water Supply Line Replacement,0.5,appliance,130,65.0,N,N,,DW434,1,no,
+DW-031,DW,Dishwasher,Water Valve Replacement,0.75,appliance,130,97.5,N,N,,DW435,1,no,
+GR-001,GR,Grill,Battery Replacement,0.25,appliance,130,32.5,by_install_type,by_install_type,,GR400,1,no,
+GR-002,GR,Grill,Burner Assembly Replacement - Infrared,1.0,appliance,130,130.0,by_install_type,by_install_type,,GR401,1,no,
+GR-003,GR,Grill,Burner Grate(s)/Cap(s) Replacement,0.25,appliance,130,32.5,by_install_type,by_install_type,,GR402,1,no,
+GR-004,GR,Grill,Burner Ignition Component Replacement,0.75,appliance,130,97.5,by_install_type,by_install_type,,GR403,1,no,
+GR-005,GR,Grill,Burner Valve Replacement,1.0,appliance,130,130.0,by_install_type,by_install_type,,GR404,1,no,
+GR-006,GR,Grill,Burner(s) Adjustment,0.25,appliance,130,32.5,by_install_type,by_install_type,,GR405,1,no,
+GR-007,GR,Grill,Burner(s) Assembly Replacement,0.75,appliance,130,97.5,by_install_type,by_install_type,,GR406,1,no,
+GR-008,GR,Grill,Gas Supply Flex Line Replacement,0.5,appliance,130,65.0,by_install_type,by_install_type,,GR408,1,no,
+GR-009,GR,Grill,Griddle/Grill Grate Component Replacement,0.25,appliance,130,32.5,by_install_type,by_install_type,,GR409,1,no,
+GR-010,GR,Grill,Igniter (HSI) Replacement,0.75,appliance,130,97.5,by_install_type,by_install_type,,GR410,1,no,
+GR-011,GR,Grill,Lava Rock/Ceramic Heat Deflector Replacement,0.5,appliance,130,65.0,by_install_type,by_install_type,,GR411,1,no,
+GR-012,GR,Grill,Locate and Repair Gas Leak Locate and Repair (Difficult Access),1.0,appliance,130,130.0,by_install_type,by_install_type,,GR413,1,no,
+GR-013,GR,Grill,Locate and Repair Gas Leak Locate and Repair (Readily Accessible),0.5,appliance,130,65.0,by_install_type,by_install_type,,GR414,1,no,
+GR-014,GR,Grill,Orifice(s) Replacement,0.75,appliance,130,97.5,by_install_type,by_install_type,,GR415,1,no,
+GR-015,GR,Grill,Outdoor Grill Cleaning (In Place),2.0,appliance,130,260.0,by_install_type,by_install_type,,GR416,1,no,
+GR-016,GR,Grill,Outdoor Grill Cleaning (Removed from Installation),3.0,appliance,130,390.0,by_install_type,by_install_type,,GR417,1,no,
+GR-017,GR,Grill,Regulator Replacement (Difficult Access),1.5,appliance,130,195.0,by_install_type,by_install_type,,GR419,1,no,
+GR-018,GR,Grill,Regulator Replacement (Standard Access),0.75,appliance,130,97.5,by_install_type,by_install_type,standard,GR420,1,no,pro/standard pair — consider one task + pro tag
+GR-019,GR,Grill,Safety Valve Replacement,1.0,appliance,130,130.0,by_install_type,by_install_type,,GR421,1,no,
+GR-020,GR,Grill,Solenoid Replacement,1.0,appliance,130,130.0,by_install_type,by_install_type,,GR422,1,no,
+GR-021,GR,Grill,Switch Assembly Replacement,0.75,appliance,130,97.5,by_install_type,by_install_type,,GR423,1,no,
+GR-022,GR,Grill,Thermocouple Replacement,1.0,appliance,130,130.0,by_install_type,by_install_type,,GR424,1,no,
+ID-001,ID,(unknown ID),Address Noise Complaint - Indoor Unit,0.4,appliance,130,52.0,Y,Y,,ID100,1,no,family code unidentified
+ID-002,ID,(unknown ID),Armaflex Replacement Where Accessible - Indoor Unit,1.0,appliance,130,130.0,Y,Y,,ID101,1,no,family code unidentified
+ID-003,ID,(unknown ID),Blower Wheel Replacement Indoor Unit,2.5,appliance,130,325.0,Y,Y,,ID102,1,no,family code unidentified
+ID-004,ID,(unknown ID),Capacitor (Run) Replacement Indoor Unit,0.75,appliance,130,97.5,Y,Y,,ID103,1,no,family code unidentified
+ID-005,ID,(unknown ID),Circuit Breaker Reset - Indoor Unit,0.24642857142857144,appliance,130,32.04,Y,Y,,ID104,1,no,family code unidentified
+ID-006,ID,(unknown ID),"Coil Cleaning - Indoor Unit (Attic Application), In Place Cleaning",3.0,appliance,130,390.0,Y,Y,,ID106,1,no,family code unidentified
+ID-007,ID,(unknown ID),"Coil Cleaning - Indoor Unit (Closet Application), In Place Cleaning",2.0,appliance,130,260.0,Y,Y,,ID107,1,no,family code unidentified
+ID-008,ID,(unknown ID),Coil Cleaning - Indoor Unit - In Place with No Return Duct,1.5,appliance,130,195.0,Y,Y,,ID105,1,no,family code unidentified
+ID-009,ID,(unknown ID),"Coil Replacement - Indoor Unit (Attic Application), Remove Coil, May Require Refrigerant Removal",6.0,appliance,130,780.0,Y,Y,,ID109,1,no,family code unidentified
+ID-010,ID,(unknown ID),"Coil Replacement - Indoor Unit (Closet Application), Remove Coil, May Require Refrigerant Removal",5.0,appliance,130,650.0,Y,Y,,ID108,1,no,family code unidentified
+ID-011,ID,(unknown ID),Defrost Control Replacement - Indoor Unit,1.0,appliance,130,130.0,Y,Y,,ID110,1,no,family code unidentified
+ID-012,ID,(unknown ID),Drain Pan Replacement (Primary) - Indoor Unit,4.0,appliance,130,520.0,Y,Y,,ID111,1,no,family code unidentified
+ID-013,ID,(unknown ID),Electrical Disconnect Replacement - Indoor Unit,1.5,appliance,130,195.0,Y,Y,,ID112,1,no,family code unidentified
+ID-014,ID,(unknown ID),Gas Burner(s) Flame Adjustment - Indoor Unit,1.0,appliance,130,130.0,Y,Y,,ID113,1,no,family code unidentified
+ID-015,ID,(unknown ID),Gas Burner(s) Replacement - Indoor Unit,2.0,appliance,130,260.0,Y,Y,,ID114,1,no,family code unidentified
+ID-016,ID,(unknown ID),Gas Valve Replacement - Indoor Unit,2.0,appliance,130,260.0,Y,Y,,ID115,1,no,family code unidentified
+ID-017,ID,(unknown ID),Heat Strip (Assembly) Replacement - Indoor Unit,2.0,appliance,130,260.0,Y,Y,,ID116,1,no,family code unidentified
+ID-018,ID,(unknown ID),Heat Strip (Per Strip) Restring Kit Per Strip - Indoor Unit,2.0,appliance,130,260.0,Y,Y,,ID117,1,no,family code unidentified
+ID-019,ID,(unknown ID),Hi-Limit/Thermal Cutout Replacement - Indoor Unit,1.0,appliance,130,130.0,Y,Y,,ID118,1,no,family code unidentified
+ID-020,ID,(unknown ID),Igniter/Hot Surface Ignition Replacement - Indoor Unit,1.0,appliance,130,130.0,Y,Y,,ID119,1,no,family code unidentified
+ID-021,ID,(unknown ID),Low Voltage Fuse Replacement - Indoor Unit,0.5,appliance,130,65.0,Y,Y,,ID120|ID121,1,no,family code unidentified
+ID-022,ID,(unknown ID),Motor Mount Replacement - Indoor Unit,2.0,appliance,130,260.0,Y,Y,,ID122,1,no,family code unidentified
+ID-023,ID,(unknown ID),Motor Replacement Standard - Indoor Unit - Includes Capacitor,2.25,appliance,130,292.5,Y,Y,standard,ID123,1,no,family code unidentified; pro/standard pair — consider one task + pro tag
+ID-024,ID,(unknown ID),Motor Replacement Variable Speed - Indoor Unit,2.25,appliance,130,292.5,Y,Y,,ID124,1,no,family code unidentified
+ID-025,ID,(unknown ID),Refrigerant Leak Repair Indoor Coil (Attic Unit),3.5,appliance,130,455.0,Y,Y,,ID125,1,no,family code unidentified
+ID-026,ID,(unknown ID),Refrigerant Leak Repair Indoor Coil (Closet Unit),2.5,appliance,130,325.0,Y,Y,,ID126,1,no,family code unidentified
+ID-027,ID,(unknown ID),Relay/Control/Sequencer/Contactor Replacement - Indoor Unit,1.0,appliance,130,130.0,Y,Y,,ID127,1,no,family code unidentified
+ID-028,ID,(unknown ID),Repair Burnt Wire(s) or Loose Connection - Indoor Unit,0.75,appliance,130,97.5,Y,Y,,ID128,1,no,family code unidentified
+ID-029,ID,(unknown ID),Safety Drain Kill Switch Replacement,1.0,appliance,130,130.0,Y,Y,,ID129,1,no,family code unidentified
+ID-030,ID,(unknown ID),Safety Drain Pan Replacement,2.5,appliance,130,325.0,Y,Y,,ID130,1,no,family code unidentified
+ID-031,ID,(unknown ID),Sensor/Thermistor Replacement - Indoor Unit,1.0,appliance,130,130.0,Y,Y,,ID131,1,no,family code unidentified
+ID-032,ID,(unknown ID),Set Control Dip Switches - Indoor Unit,0.75,appliance,130,97.5,Y,Y,,ID132,1,no,family code unidentified
+ID-033,ID,(unknown ID),Stepper Motor Replacement for Electronic Expansion Valve,1.5,appliance,130,195.0,Y,Y,,ID133,1,no,family code unidentified
+ID-034,ID,(unknown ID),Thermal Fuse Replacement - Indoor Unit,0.6,appliance,130,78.0,Y,Y,,ID134,1,no,family code unidentified
+ID-035,ID,(unknown ID),Thermostatic/Electronic Expansion Valve Replacement,5.0,appliance,130,650.0,Y,Y,,ID135,1,no,family code unidentified
+IM-001,IM,Ice Maker,Circulation Pump Replacement,1.0,appliance,130,130.0,N,N,,IM400,1,no,
+IM-002,IM,Ice Maker,Cleaning & Maintenance (Cleaning Solution Only) - No Disassembly Included,0.25,appliance,130,32.5,N,N,,IM402,1,no,
+IM-003,IM,Ice Maker,Cleaning & Maintenance - Complete cleaning including disassembly of water circulation components to allow for access. Reassembly of all components. Run clean cycle with cleaning solution.,1.5,appliance,130,195.0,N,N,,IM401,1,no,
+IM-004,IM,Ice Maker,Clear Debris From Drain Hose,0.75,appliance,130,97.5,N,N,,IM403,1,no,
+IM-005,IM,Ice Maker,Condensate Pump Filter Screen Cleaning,1.5,appliance,130,195.0,N,N,,IM404,1,no,
+IM-006,IM,Ice Maker,Condenser Fan Motor / Blade Replacement,1.5,appliance,130,195.0,N,N,,IM405,1,no,
+IM-007,IM,Ice Maker,Cutter Grid Replacement,0.75,appliance,130,97.5,N,N,,IM406,1,no,
+IM-008,IM,Ice Maker,Descale (Cleaning Solution Only) - No Disassembly Included,0.25,appliance,130,32.5,N,N,,IM402,1,no,
+IM-009,IM,Ice Maker,Door Adjustment,0.25,appliance,130,32.5,N,N,,IM407,1,no,
+IM-010,IM,Ice Maker,Door Gasket Replacement,0.5,appliance,130,65.0,N,N,,IM408,1,no,
+IM-011,IM,Ice Maker,Door Replacement,0.75,appliance,130,97.5,N,N,,IM409,1,no,
+IM-012,IM,Ice Maker,Drain Hose Replacement,0.75,appliance,130,97.5,N,N,,IM410,1,no,
+IM-013,IM,Ice Maker,Drain Pump Complete or Component Replacement,1.0,appliance,130,130.0,N,N,,IM411,1,no,
+IM-014,IM,Ice Maker,Drain Pump Replacement (Rear Access),1.25,appliance,130,162.5,N,N,,IM412,1,no,
+IM-015,IM,Ice Maker,Electronic Control/ Module/ Pad Replacement,1.0,appliance,130,130.0,N,N,,IM413,1,no,
+IM-016,IM,Ice Maker,Evaporator Fan Motor / Blade Replacement,1.0,appliance,130,130.0,N,N,,IM414,1,yes,hours varied by brand in old book
+IM-017,IM,Ice Maker,Fan/ Light Switch Replacement,0.5,appliance,130,65.0,N,N,,IM415,1,no,
+IM-018,IM,Ice Maker,Hot Gas Valve Electrical Coil Replacement,0.75,appliance,130,97.5,N,N,,IM416,1,no,
+IM-019,IM,Ice Maker,Ice Thickness Control Replacement,1.0,appliance,130,130.0,N,N,,IM417,1,no,
+IM-020,IM,Ice Maker,Recover Refrigerant,0.25,appliance,130,32.5,N,N,,IM420,1,no,
+IM-021,IM,Ice Maker,Relay/ Start Device Replacement,1.0,appliance,130,130.0,N,N,,IM421,1,no,
+IM-022,IM,Ice Maker,Sealed System - Coil Replacement - Condenser,3.0,appliance,130,390.0,N,N,sealed-system,IM500,1,no,
+IM-023,IM,Ice Maker,Sealed System - Coil Replacement - Evaporator,3.0,appliance,130,390.0,N,N,sealed-system,IM501,1,no,
+IM-024,IM,Ice Maker,Sealed System - Compressor/Filter Drier Replacement,3.0,appliance,130,390.0,N,N,sealed-system,IM502,1,no,
+IM-025,IM,Ice Maker,Sealed System - Filter Drier Replacement,2.0,appliance,130,260.0,N,N,sealed-system,IM503,1,no,
+IM-026,IM,Ice Maker,Sealed System - Heat Exchanger/Filter Drier Replacement,3.0,appliance,130,390.0,N,N,sealed-system,IM504,1,no,
+IM-027,IM,Ice Maker,Sealed System - Hot Gas Valve/Filter Drier Replacement,2.0,appliance,130,260.0,N,N,sealed-system,IM505,1,no,
+IM-028,IM,Ice Maker,"Sealed System - Repair Refrigerant Leak, Replace Filter Drier If Needed. Includes materials & supplies necessary to braze new components in place. Includes system evacuation & charging. Refrigerant not included.",2.0,appliance,130,260.0,N,N,sealed-system,IM506,1,no,
+IM-029,IM,Ice Maker,"Sealed System 1-Replace Compressor, Evaporator, & Filter Drier",3.5,appliance,130,455.0,N,N,sealed-system,IM507,1,no,
+IM-030,IM,Ice Maker,"Sealed System 2 - Compressor, Evaporator, Condenser, Heat Exchanger, and Filter Drier",4.5,appliance,130,585.0,N,N,sealed-system,IM508,1,no,
+IM-031,IM,Ice Maker,Sensor Replacement - Bin Level,0.5,appliance,130,65.0,N,N,,IM422,1,no,
+IM-032,IM,Ice Maker,Sensor Replacement - Water Level,0.5,appliance,130,65.0,N,N,,IM423,1,no,
+IM-033,IM,Ice Maker,Sensor/Thermistor Replacement,0.5,appliance,130,65.0,N,N,,IM424,1,no,
+IM-034,IM,Ice Maker,Technician Install of Ice Maker,0.25,appliance,130,32.5,N,N,,IM613,1,no,
+IM-035,IM,Ice Maker,Water Filter Replacement,0.25,appliance,130,32.5,N,N,,IM426,1,no,
+IM-036,IM,Ice Maker,Water Line Replacement,0.75,appliance,130,97.5,N,N,,IM427,1,no,
+IM-037,IM,Ice Maker,Water Valve Replacement,0.75,appliance,130,97.5,N,N,,IM428,1,no,
+INSHP-001,INSHP,In Shop,In Shop Repairs,0.25,in_shop,130,32.5,Y,Y,,INSHP,1,yes,hours varied by brand in old book
+MS-001,MS,Misc,Miscellaneous Labor,0.25,appliance,130,32.5,by_install_type,by_install_type,,MS1,1,no,
+MW-001,MW,Microwave,Bake Element Replacement,0.75,appliance,130,97.5,by_install_type,by_install_type,,MW400,1,no,
+MW-002,MW,Microwave,Broil Element Replacement,0.75,appliance,130,97.5,by_install_type,by_install_type,,MW401,1,no,
+MW-003,MW,Microwave,Capacitor Replacement,0.5,appliance,130,65.0,by_install_type,by_install_type,,MW402,1,no,
+MW-004,MW,Microwave,Convect Element Replacement,0.75,appliance,130,97.5,by_install_type,by_install_type,,MW403,1,no,
+MW-005,MW,Microwave,Convect Fan Motor/Blade Replacement,1.0,appliance,130,130.0,by_install_type,by_install_type,,MW404,1,no,
+MW-006,MW,Microwave,Cook/Humidity Sensor Replacement,0.75,appliance,130,97.5,by_install_type,by_install_type,,MW405,1,no,
+MW-007,MW,Microwave,Cooling Fan Motor/Blade Replacement,0.75,appliance,130,97.5,by_install_type,by_install_type,,MW406,1,no,
+MW-008,MW,Microwave,Door Component Replacement,0.5,appliance,130,65.0,by_install_type,by_install_type,,MW407,1,no,
+MW-009,MW,Microwave,Hi-Voltage Diode Replacement,0.5,appliance,130,65.0,by_install_type,by_install_type,,MW409,1,no,
+MW-010,MW,Microwave,Interlock Switch Replacement/Adjustment,1.0,appliance,130,130.0,by_install_type,by_install_type,,MW410,1,no,
+MW-011,MW,Microwave,Magnetron Tube Replacement,0.75,appliance,130,97.5,by_install_type,by_install_type,,MW412,1,no,
+MW-012,MW,Microwave,Probe Jack Replacement,0.75,appliance,130,97.5,by_install_type,by_install_type,,MW414,1,no,
+MW-013,MW,Microwave,Quartz Halogen Heating Bulb Replacement,0.75,appliance,130,97.5,by_install_type,by_install_type,,MW415,1,no,
+MW-014,MW,Microwave,Rack Replacement - Oven,0.15,appliance,130,19.5,by_install_type,by_install_type,,MW416,1,no,
+MW-015,MW,Microwave,Thermal/Line Fuse Replacement,0.25,appliance,130,32.5,by_install_type,by_install_type,,MW418,1,no,
+MW-016,MW,Microwave,Torsion Spring Replacement,0.5,appliance,130,65.0,by_install_type,by_install_type,,MW419,1,no,
+MW-017,MW,Microwave,Turntable Motor Replacement,0.5,appliance,130,65.0,by_install_type,by_install_type,,MW421,1,no,
+MW-018,MW,Microwave,Ventilation Fan Motor/Blade (OTR) Replacement,1.0,appliance,130,130.0,by_install_type,by_install_type,,MW422,1,no,
+MW-019,MW,Microwave,Waveguide Shield Replacement,0.25,appliance,130,32.5,by_install_type,by_install_type,,MW423,1,no,
+OD-001,OD,(unknown OD),Address Noise Complaint - Outdoor Unit,0.5,appliance,130,65.0,Y,Y,,OD100,1,no,family code unidentified
+OD-002,OD,(unknown OD),Armaflex Replacement Where Accessible - Outdoor Unit,0.8,appliance,130,104.0,Y,Y,,OD101,1,no,family code unidentified
+OD-003,OD,(unknown OD),Capacitor (Run) Replacement - Outdoor Unit,0.75,appliance,130,97.5,Y,Y,,OD102,1,no,family code unidentified
+OD-004,OD,(unknown OD),"Capacitor Start Kit Replacement - Includes Start Capacitor/Relay, Wiring",1.0,appliance,130,130.0,Y,Y,,OD103,1,no,family code unidentified
+OD-005,OD,(unknown OD),Circuit Breaker Reset - Outdoor Unit,0.35,appliance,130,45.5,Y,Y,,OD104,1,no,family code unidentified
+OD-006,OD,(unknown OD),Coil Repair - Outdoor Unit - Install Coupling Repair Kit,6.0,appliance,130,780.0,Y,Y,,OD105,1,no,family code unidentified
+OD-007,OD,(unknown OD),Coil Replacement - Outdoor Unit,7.0,appliance,130,910.0,Y,Y,,OD106,1,no,family code unidentified
+OD-008,OD,(unknown OD),Compressor Replacement - Outdoor Unit,7.0,appliance,130,910.0,Y,Y,,OD107,1,no,family code unidentified
+OD-009,OD,(unknown OD),Contactor/Relay Replacement - Outdoor Unit,1.0,appliance,130,130.0,Y,Y,,OD108,1,no,family code unidentified
+OD-010,OD,(unknown OD),Defrost Control Replacement - Outdoor Unit,1.0,appliance,130,130.0,Y,Y,,OD109,1,no,family code unidentified
+OD-011,OD,(unknown OD),Electrical Disconnect Replacement - Outdoor Unit,2.0,appliance,130,260.0,Y,Y,,OD111,1,no,family code unidentified
+OD-012,OD,(unknown OD),Electronic Control Replacement - Outdoor Unit,1.0,appliance,130,130.0,Y,Y,,OD110,1,no,family code unidentified
+OD-013,OD,(unknown OD),Fan Blade Replacement - Outdoor Unit,1.5,appliance,130,195.0,Y,Y,,OD112,1,no,family code unidentified
+OD-014,OD,(unknown OD),Filter Drier Replacement - Outdoor Unit,3.0,appliance,130,390.0,Y,Y,,OD113,1,no,family code unidentified
+OD-015,OD,(unknown OD),Low Voltage Fuse Replacement - Outdoor Unit,0.4,appliance,130,52.0,Y,Y,,OD114,1,no,family code unidentified
+OD-016,OD,(unknown OD),Motor Replacement - Outdoor Unit -Includes Capacitor,2.5,appliance,130,325.0,Y,Y,,OD115,1,no,family code unidentified
+OD-017,OD,(unknown OD),Muffler Replacement - Outdoor Unit,4.0,appliance,130,520.0,Y,Y,,OD116,1,no,family code unidentified
+OD-018,OD,(unknown OD),Outdoor Unit Pad Replacement,2.5,appliance,130,325.0,Y,Y,,OD117,1,no,family code unidentified
+OD-019,OD,(unknown OD),Refrigerant Leak Repair - Outdoor Unit,3.0,appliance,130,390.0,Y,Y,,OD118,1,no,family code unidentified
+OD-020,OD,(unknown OD),Refrigerant Service Valve Replacement - Outdoor Unit,3.0,appliance,130,390.0,Y,Y,,OD119,1,no,family code unidentified
+OD-021,OD,(unknown OD),Reversing Valve Coil Replacement - Outdoor Unit,0.8,appliance,130,104.0,Y,Y,,OD120,1,no,family code unidentified
+OD-022,OD,(unknown OD),Reversing Valve Replacement - Outdoor Unit,7.0,appliance,130,910.0,Y,Y,,OD121,1,no,family code unidentified
+OD-023,OD,(unknown OD),Sensor/Thermistor Replacement - Outdoor Unit,1.0,appliance,130,130.0,Y,Y,,OD122,1,no,family code unidentified
+OD-024,OD,(unknown OD),Set Control Dip Switches - Outdoor Unit,0.75,appliance,130,97.5,Y,Y,,OD123,1,no,family code unidentified
+OD-025,OD,(unknown OD),Stepper Motor Replacement for Electronic Expansion Valve,1.5,appliance,130,195.0,Y,Y,,OD124,1,no,family code unidentified
+OD-026,OD,(unknown OD),Thermal Fuse Replacement - Outdoor Unit,0.6,appliance,130,78.0,Y,Y,,OD125,1,no,family code unidentified
+OD-027,OD,(unknown OD),Thermostatic/Electronic Expansion Valve Replacement - Outdoor Unit,5.0,appliance,130,650.0,Y,Y,,OD126,1,no,family code unidentified
+OD-028,OD,(unknown OD),Valve Core Replacement - Refrigerant Valve - Outdoor Unit,0.8,appliance,130,104.0,Y,Y,,OD127,1,no,family code unidentified
+OD-029,OD,(unknown OD),Variable Speed Drive Replacement - Outdoor Unit,2.0,appliance,130,260.0,Y,Y,,OD128,1,no,family code unidentified
+RE-001,RE,Refrigeration,Auger Motor/Cubed-Crushed Solenoid Replacement,0.75,appliance,130,97.5,by_install_type,by_install_type,,RE400,1,no,
+RE-002,RE,Refrigeration,Clear Debris/Ice From Defrost Drain,0.5,appliance,130,65.0,by_install_type,by_install_type,,RE401,1,no,
+RE-003,RE,Refrigeration,Cold Control (Thermostat) Replacement,0.75,appliance,130,97.5,by_install_type,by_install_type,,RE402,1,no,
+RE-004,RE,Refrigeration,Condensate Drain Pan Replacement,0.25,appliance,130,32.5,by_install_type,by_install_type,,RE403,1,no,
+RE-005,RE,Refrigeration,Condenser Fan Motor/Blade Replacement,1.0,appliance,130,130.0,by_install_type,by_install_type,,RE404,1,no,
+RE-006,RE,Refrigeration,Damper/Damper Control Replacement,1.0,appliance,130,130.0,by_install_type,by_install_type,,RE405,1,no,
+RE-007,RE,Refrigeration,Defrost Bimetal Replacement,1.0,appliance,130,130.0,by_install_type,by_install_type,,RE406,1,no,
+RE-008,RE,Refrigeration,Defrost Evaporator Manually,0.5,appliance,130,65.0,by_install_type,by_install_type,,RE407,1,no,
+RE-009,RE,Refrigeration,Defrost Heater/Drain Heater Replacement,1.0,appliance,130,130.0,by_install_type,by_install_type,,RE408,1,no,
+RE-010,RE,Refrigeration,Defrost Timer/Adaptive Control Replacement,0.75,appliance,130,97.5,by_install_type,by_install_type,,RE409,1,no,
+RE-011,RE,Refrigeration,Deice Fill Tube Manually,0.5,appliance,130,65.0,by_install_type,by_install_type,,RE410,1,no,
+RE-012,RE,Refrigeration,Door Adjustment/Realign,0.5,appliance,130,65.0,by_install_type,by_install_type,,RE412,1,no,
+RE-013,RE,Refrigeration,Door Gasket Replacement (Bracketed Retainer Type),1.25,appliance,130,162.5,by_install_type,by_install_type,,RE413,2,no,
+RE-014,RE,Refrigeration,Door Gasket Replacement (Push-In Type),0.75,appliance,130,97.5,by_install_type,by_install_type,,RE414,2,no,
+RE-015,RE,Refrigeration,Door Replacement,1.5,appliance,130,195.0,by_install_type,by_install_type,,RE411,1,no,
+RE-016,RE,Refrigeration,Double/Single Water Valve Replacement,0.5,appliance,130,65.0,by_install_type,by_install_type,double single,RE415,1,no,
+RE-017,RE,Refrigeration,Evaporator Fan Motor/Blade Replacement,1.0,appliance,130,130.0,by_install_type,by_install_type,,RE417,1,no,
+RE-018,RE,Refrigeration,Fan/Light Switch Replacement,0.5,appliance,130,65.0,by_install_type,by_install_type,,RE418,1,no,
+RE-019,RE,Refrigeration,Ice Maker Kit/Component Replacement,0.75,appliance,130,97.5,by_install_type,by_install_type,,RE419,1,no,
+RE-020,RE,Refrigeration,Ice Storage Bin Replacement,0.25,appliance,130,32.5,by_install_type,by_install_type,,RE420,1,no,
+RE-021,RE,Refrigeration,Ice/Water Dispenser Component Replacement,1.0,appliance,130,130.0,by_install_type,by_install_type,,RE421,1,no,
+RE-022,RE,Refrigeration,Level-Adjust Built-in Unit,1.0,appliance,130,130.0,by_install_type,by_install_type,built-in,RE609,1,no,
+RE-023,RE,Refrigeration,Level-Adjust Freestanding Unit,0.5,appliance,130,65.0,by_install_type,by_install_type,freestanding,RE610,1,no,
+RE-024,RE,Refrigeration,Relay/Start Device Replacement,0.75,appliance,130,97.5,by_install_type,by_install_type,,RE425,1,no,
+RE-025,RE,Refrigeration,Replace Leveling Legs/Wheels - Built-in Refrigeration,1.5,appliance,130,195.0,by_install_type,by_install_type,built-in,RE426,1,no,
+RE-026,RE,Refrigeration,Replace Leveling Legs/Wheels - Freestanding Refrigeration,0.5,appliance,130,65.0,by_install_type,by_install_type,freestanding,RE427,1,no,
+RE-027,RE,Refrigeration,"Sealed System - COMPRESSOR, FILTER DRIER Replacement",6.0,appliance,130,780.0,by_install_type,by_install_type,sealed-system,RE500,2,no,
+RE-028,RE,Refrigeration,"Sealed System - CONDENSER COIL, FILTER DRIER Replacement",5.0,appliance,130,650.0,by_install_type,by_install_type,sealed-system,RE501,1,no,
+RE-029,RE,Refrigeration,"Sealed System - EVAPORATOR COIL, FILTER DRIER Replacement",5.0,appliance,130,650.0,by_install_type,by_install_type,sealed-system,RE502,1,no,
+RE-030,RE,Refrigeration,Sealed System - FILTER DRIER Replacement,2.5,appliance,130,325.0,by_install_type,by_install_type,sealed-system,RE503,1,no,
+RE-031,RE,Refrigeration,Sealed System - HEAT EXCHANGER & FILTER DRIER Replacement,6.0,appliance,130,780.0,by_install_type,by_install_type,sealed-system,RE504,1,no,
+RE-032,RE,Refrigeration,Sealed System - REFRIGERANT LEAK REPAIR. Replace filter drier if needed. Includes materials & supplies necessary to repair. System evacuation & charging. Refrigerant not included.,2.0,appliance,130,260.0,by_install_type,by_install_type,sealed-system,RE505,1,no,
+RE-033,RE,Refrigeration,"Sealed System 1- Replace COMPRESSOR, EVAPORATOR, & FILTER DRIER",5.5,appliance,130,715.0,by_install_type,by_install_type,sealed-system,RE506,1,no,
+RE-034,RE,Refrigeration,"Sealed System 1-Replace COMPRESSOR, EVAPORATOR, & FILTER DRIER",5.5,appliance,130,715.0,by_install_type,by_install_type,sealed-system,RE506,2,no,
+RE-035,RE,Refrigeration,"Sealed System 2 - Compressor, Evaporator, Condenser, Heat Exchanger, and Filter Drier",6.5,appliance,130,845.0,by_install_type,by_install_type,sealed-system,RE507,1,no,
+RE-036,RE,Refrigeration,Shelf/Storage Bin Replacement,0.25,appliance,130,32.5,by_install_type,by_install_type,,RE428,1,no,
+RE-037,RE,Refrigeration,Thermistor/Sensor Replacement,0.75,appliance,130,97.5,by_install_type,by_install_type,,RE429,1,no,
+RE-038,RE,Refrigeration,Vacuum and/or Clean Condenser Coils,0.5,appliance,130,65.0,by_install_type,by_install_type,,RE431,1,no,
+RE-039,RE,Refrigeration,WLAN WIFI Card Replacement - Includes de-installation and re-installation of unit to allow access to component.,1.5,appliance,130,195.0,by_install_type,by_install_type,unit-removal,RE435,1,no,
+RE-040,RE,Refrigeration,Water Filter Replacement,0.25,appliance,130,32.5,by_install_type,by_install_type,,RE432,1,no,
+RE-041,RE,Refrigeration,Water Line Replacement,0.25,appliance,130,32.5,by_install_type,by_install_type,,RE433,1,no,
+RE-042,RE,Refrigeration,Water Reservoir Replacement,0.5,appliance,130,65.0,by_install_type,by_install_type,,RE434,1,no,
+SO-001,SO,Wall Oven,Bake Element Replacement,0.75,appliance,130,97.5,N,N,,SO400,1,no,
+SO-002,SO,Wall Oven,Broil Element Replacement,0.75,appliance,130,97.5,N,N,,SO401,1,no,
+SO-003,SO,Wall Oven,Capacitor Replacement,0.5,appliance,130,65.0,N,N,,SO402,1,no,
+SO-004,SO,Wall Oven,Connecting Tube(s)/Clamp(s) Replacement,0.5,appliance,130,65.0,N,N,,SO403,1,no,
+SO-005,SO,Wall Oven,Convect Element Replacement,0.75,appliance,130,97.5,N,N,,SO404,1,no,
+SO-006,SO,Wall Oven,Convect Fan Motor/Blade Replacement,1.0,appliance,130,130.0,N,N,,SO405,1,no,
+SO-007,SO,Wall Oven,Cooling Fan Motor/Blade Replacement,0.75,appliance,130,97.5,N,N,,SO406,1,no,
+SO-008,SO,Wall Oven,Descale & Clean Unit,0.75,appliance,130,97.5,N,N,,SO407,1,no,
+SO-009,SO,Wall Oven,Door Component Replacement,0.5,appliance,130,65.0,N,N,,SO408,1,no,
+SO-010,SO,Wall Oven,Door Interlock Switch Replacement/Adjustment,1.0,appliance,130,130.0,N,N,,SO409,1,no,
+SO-011,SO,Wall Oven,Flow Meter Replacement - Water,1.0,appliance,130,130.0,N,N,,SO411,1,no,
+SO-012,SO,Wall Oven,Heater Assembly Replacement,1.5,appliance,130,195.0,N,N,,SO412,1,no,
+SO-013,SO,Wall Oven,Interference Limiter Replacement,1.0,appliance,130,130.0,N,N,,SO413,1,no,
+SO-014,SO,Wall Oven,Pressure Relief Valve Replacement,1.0,appliance,130,130.0,N,N,,SO417,1,no,
+SO-015,SO,Wall Oven,Probe Jack Replacement,0.75,appliance,130,97.5,N,N,,SO418,1,no,
+SO-016,SO,Wall Oven,Rack Replacement - Oven,0.15,appliance,130,19.5,N,N,,SO419,1,no,
+SO-017,SO,Wall Oven,Sensor Replacement - Cook/Humidity,0.75,appliance,130,97.5,N,N,,SO420,1,no,
+SO-018,SO,Wall Oven,Sensor/Thermistor Replacement,0.75,appliance,130,97.5,N,N,,SO421,1,no,
+SO-019,SO,Wall Oven,Solenoid Replacement,1.0,appliance,130,130.0,N,N,,SO422,1,no,
+SO-020,SO,Wall Oven,Steam Generator Replacement,1.0,appliance,130,130.0,N,N,,SO423,1,no,
+SO-021,SO,Wall Oven,Temp Sensor Replacement,1.0,appliance,130,130.0,N,N,,SO424,1,no,
+SO-022,SO,Wall Oven,Thermal Limiter Replacement,1.0,appliance,130,130.0,N,N,,SO426,1,no,
+SO-023,SO,Wall Oven,Thermal/Line Fuse Replacement,0.25,appliance,130,32.5,N,N,,SO427,1,no,
+SO-024,SO,Wall Oven,Water Leak Repair,0.75,appliance,130,97.5,N,N,,SO429,1,no,
+SO-025,SO,Wall Oven,Water Pump Replacement,1.0,appliance,130,130.0,N,N,,SO430,1,no,
+SO-026,SO,Wall Oven,Water Reservoir Replacement,0.25,appliance,130,32.5,N,N,,SO431,1,no,
+VA-001,VA,(unknown VA),Disassemble Unit and Clean Components,0.5,appliance,130,65.0,Y,Y,,VA401,1,no,family code unidentified
+VA-002,VA,(unknown VA),Repair Burnt Wire/Loose Connection,0.5,appliance,130,65.0,Y,Y,,VA403,1,no,family code unidentified
+VA-003,VA,(unknown VA),Repair or Replace Major Chassis Component,0.75,appliance,130,97.5,Y,Y,,VA404,1,no,family code unidentified
+VA-004,VA,(unknown VA),Repair or Replace Minor Chassis Component,0.3,appliance,130,39.0,Y,Y,,VA405,1,no,family code unidentified
+VA-005,VA,(unknown VA),Replace Bag and/or Filter,0.2,appliance,130,26.0,Y,Y,,VA406,1,no,family code unidentified
+VA-006,VA,(unknown VA),Replace Belt,0.35,appliance,130,45.5,Y,Y,,VA407,1,no,family code unidentified
+VA-007,VA,(unknown VA),Replace Blower Assembly,0.8,appliance,130,104.0,Y,Y,,VA408,1,no,family code unidentified
+VA-008,VA,(unknown VA),Replace Hose,0.35,appliance,130,45.5,Y,Y,,VA409,1,no,family code unidentified
+VA-009,VA,(unknown VA),Replace Motor,0.8,appliance,130,104.0,Y,Y,,VA410,1,no,family code unidentified
+VA-010,VA,(unknown VA),Replace Roller Brush Assembly,0.35,appliance,130,45.5,Y,Y,,VA411,1,no,family code unidentified
+VA-011,VA,(unknown VA),Replace Switch/Switch Assembly,0.5,appliance,130,65.0,Y,Y,,VA412,1,no,family code unidentified
+VA-012,VA,(unknown VA),Replace Thermal Limiter/Fuse Assembly,0.5,appliance,130,65.0,Y,Y,,VA413,1,no,family code unidentified
+VA-013,VA,(unknown VA),Replace Wiring Harness,0.8,appliance,130,104.0,Y,Y,,VA414,1,no,family code unidentified
+VH-001,VH,Vent Hood,Blower Motor Replacement (Pro Hood),1.25,appliance,130,162.5,N,N,pro,VH400,1,yes,hours varied by brand in old book; pro/standard pair — consider one task + pro tag
+VH-002,VH,Vent Hood,Blower Motor Replacement (Standard Hood),0.5,appliance,130,65.0,N,N,standard,VH401,1,yes,hours varied by brand in old book; pro/standard pair — consider one task + pro tag
+VH-003,VH,Vent Hood,Correct Electrical Wiring at Hood Connection,0.75,appliance,130,97.5,N,N,,VH402,1,no,
+VH-004,VH,Vent Hood,Correct Electrical Wiring at Remote/Inline Blower Connection,1.0,appliance,130,130.0,N,N,,VH403,1,no,
+VH-005,VH,Vent Hood,Duct Connection Repair/Seal,0.5,appliance,130,65.0,N,N,,VH404,1,no,
+VH-006,VH,Vent Hood,Electronic Control Replacement,0.75,appliance,130,97.5,N,N,,VH405,1,yes,hours varied by brand in old book
+VH-007,VH,Vent Hood,Filter Cleaning - Baffle/Mesh (Pro Hood),0.5,appliance,130,65.0,N,N,pro,VH406,1,no,pro/standard pair — consider one task + pro tag
+VH-008,VH,Vent Hood,Filter Cleaning - Baffle/Mesh (Standard Hood),0.35,appliance,130,45.5,N,N,standard,VH407,1,no,pro/standard pair — consider one task + pro tag
+VH-009,VH,Vent Hood,Filter Replacement - Baffle/Mesh,0.35,appliance,130,45.5,N,N,,VH408,1,no,
+VH-010,VH,Vent Hood,Light Bulb Receptacle Replacement (Pro Hood),0.5,appliance,130,65.0,N,N,pro,VH409,1,yes,hours varied by brand in old book; pro/standard pair — consider one task + pro tag
+VH-011,VH,Vent Hood,Light Bulb Receptacle Replacement (Standard Hood),0.5,appliance,130,65.0,N,N,standard,VH410,1,no,pro/standard pair — consider one task + pro tag
+VH-012,VH,Vent Hood,Switch Replacement - Light/Fan,0.75,appliance,130,97.5,N,N,,VH413,1,yes,hours varied by brand in old book
+WA-001,WA,Washer,Belt(s) Replacement,0.75,appliance,130,97.5,Y,Y,,WA400,1,no,
+WA-002,WA,Washer,Detergent Dispenser Replacement,0.75,appliance,130,97.5,Y,Y,,WA401,1,no,
+WA-003,WA,Washer,Door Assembly Replacement,1.0,appliance,130,130.0,Y,Y,,WA402,1,no,
+WA-004,WA,Washer,Door/Lid Switch Assembly Replacement,0.5,appliance,130,65.0,Y,Y,,WA403,1,no,
+WA-005,WA,Washer,Drive Motor Replacement,1.25,appliance,130,162.5,Y,Y,,WA404,1,no,
+WA-006,WA,Washer,Gasket Replacement (Bellows or Regular),1.5,appliance,130,195.0,Y,Y,,WA406,1,no,
+WA-007,WA,Washer,Heating Element Replacement,1.5,appliance,130,195.0,Y,Y,,WA407,1,no,
+WA-008,WA,Washer,Hose(s) or Clamp(s) Replacement,0.5,appliance,130,65.0,Y,Y,,WA408,1,no,
+WA-009,WA,Washer,Inner/Outer Tub/Bearing Replacement -Front Load Washer,3.0,appliance,130,390.0,Y,Y,,WA409,1,no,
+WA-010,WA,Washer,Inner/Outer Tub/Bearing Replacement -Top Load Washer,2.5,appliance,130,325.0,Y,Y,,WA410,1,no,
+WA-011,WA,Washer,Motor Coupling/Link Replacement,0.5,appliance,130,65.0,Y,Y,,WA413,1,no,
+WA-012,WA,Washer,Pump/Pump Motor Replacement,1.0,appliance,130,130.0,Y,Y,,WA415,1,no,
+WA-013,WA,Washer,Remove Debris From Pin Trap,0.5,appliance,130,65.0,Y,Y,,WA416,1,no,
+WA-014,WA,Washer,Replace Leveling Legs/Wheels- Built-in Under Counter or Stacked,1.0,appliance,130,130.0,Y,Y,built-in,WA417,1,no,
+WA-015,WA,Washer,Replace Leveling Legs/Wheels- Freestanding (non built-in and not stacked),0.5,appliance,130,65.0,Y,Y,built-in freestanding,WA418,1,no,
+WA-016,WA,Washer,Suspension Component(s) Replacement,1.25,appliance,130,162.5,Y,Y,,WA419,1,no,
+WA-017,WA,Washer,Transmission/Clutch Assembly Replacement,2.5,appliance,130,325.0,Y,Y,,WA420,1,no,
+WA-018,WA,Washer,Water Valve Replacement,0.75,appliance,130,97.5,Y,Y,,WA421,1,no,
+WD-001,WD,Warming Drawer,Convection Element Replacement,1.0,appliance,130,130.0,N,N,,WD400,1,no,
+WD-002,WD,Warming Drawer,Convection Fan Motor/Blade Replacement,1.0,appliance,130,130.0,N,N,,WD401,1,no,
+WD-003,WD,Warming Drawer,Cooling Fan Motor/Blade Replacement,1.0,appliance,130,130.0,N,N,,WD402,1,no,
+WD-004,WD,Warming Drawer,Drawer Panel Alignment/Adjustment,0.5,appliance,130,65.0,N,N,,WD403,1,no,
+WD-005,WD,Warming Drawer,Drawer Rail Component(s) Replacement,0.75,appliance,130,97.5,N,N,,WD404,1,no,
+WD-006,WD,Warming Drawer,HI-Limit Thermal Cutout Replacement,1.0,appliance,130,130.0,N,N,,WD407,1,no,
+WD-007,WD,Warming Drawer,Heat Element Replacement,1.0,appliance,130,130.0,N,N,,WD406,1,no,
+GEN-001,GEN,Any appliance,Address Noise Complaint,0.5,appliance,130,65.0,by_install_type,by_install_type,generic,CE601|CF601|CG601|CO601|DI601|DR601|DW601|GR601|IM601|MW601|RE601|SO601|VH601|WA601|WD601,15,no,
+GEN-002,GEN,Any appliance,Cabinet Component Repair - Major,3.0,appliance,130,390.0,by_install_type,by_install_type,generic,CE602|CF602|CG602|CO602|DI602|DR602|DW602|GR602|IM602|MW602|RE602|SO602|VH602|WA602|WD602,15,no,
+GEN-003,GEN,Any appliance,Cabinet Component Repair - Minor,1.0,appliance,130,130.0,by_install_type,by_install_type,generic,CE603|CF603|CG603|CO603|DI603|DR603|DW603|GR603|IM603|MW603|RE603|SO603|VH603|WA603|WD603,15,no,
+GEN-004,GEN,Any appliance,Component Replacement/Repair - Major,3.0,appliance,130,390.0,by_install_type,by_install_type,generic,CE604|CF604|CG604|CO604|DI604|DR604|DW604|GR604|IM604|MW604|RE604|SO604|VH604|WA604|WD604,15,no,
+GEN-005,GEN,Any appliance,Component Replacement/Repair - Minor,1.0,appliance,130,130.0,by_install_type,by_install_type,generic,CE605|CF605|CG605|CO605|DI605|DR605|DW605|GR605|IM605|MW605|RE605|SO605|VH605|WA605|WD605,15,no,
+GEN-006,GEN,Any appliance,Cosmetic Part Replacement - Major,0.75,appliance,130,97.5,by_install_type,by_install_type,generic,CE606|CF606|CG606|DR606|DW606|GR606|IM606|MW606|RE606|SO606|VH606|WA606|WD606,13,no,
+GEN-007,GEN,Any appliance,Cosmetic Part Replacement - Minor,0.25,appliance,130,32.5,by_install_type,by_install_type,generic,CE607|CF607|CG607|CO606|CO607|DI606|DI607|DR607|DW607|GR607|IM607|MW607|RE607|SO607|VH607|WA607|WD607,15,yes,"generic task — applies to every family; hours were 0.25h×13, 0.75h×2"
+GEN-008,GEN,Any appliance,Electronic Control/Module Replacement,1.0,appliance,130,130.0,by_install_type,by_install_type,generic,CE423|CF407|CG421|CO405|GR407|MW408|RE416|SO410|WD405,9,yes,"generic task — applies to every family; hours were 1.0h×5, 1.5h×2, 0.75h×2"
+GEN-009,GEN,Any appliance,Electronic Control/Timer/Pad Replacement,1.0,appliance,130,130.0,by_install_type,by_install_type,generic,DR407|DW416|WA405,3,yes,"generic task — applies to every family; hours were 1.0h×2, 0.75h×1"
+GEN-010,GEN,Any appliance,Interference Suppressor Replacement,0.5,appliance,130,65.0,by_install_type,by_install_type,generic,DR412|DW420|WA411,3,no,
+GEN-011,GEN,Any appliance,Level Unit/Adjust Unit,0.5,appliance,130,65.0,by_install_type,by_install_type,generic,CE609|CF609|CG609|CO609|DI609|DR413|DR609|DW609|GR609|IM609|MW609|SO609|VH609|WA609|WD609,14,yes,"generic task — applies to every family; hours were 0.5h×13, 0.25h×1"
+GEN-012,GEN,Any appliance,Light Bulb Replacement,0.25,appliance,130,32.5,by_install_type,by_install_type,generic,CF412|DR414|GR412|IM418|MW411|RE422|VH411|WA412|WD408,9,yes,"generic task — applies to every family; hours were 0.25h×7, 0.5h×2"
+GEN-013,GEN,Any appliance,Light Bulb Replacement (Front Access),0.25,appliance,130,32.5,by_install_type,by_install_type,generic,DW421|SO414,2,no,
+GEN-014,GEN,Any appliance,Light Bulb Replacement (Front Service),0.2,appliance,130,26.0,by_install_type,by_install_type,generic,CE430|CG429,2,no,
+GEN-015,GEN,Any appliance,"Light Bulb Replacement (Rear Access - Unit De-installation, Re-install)",1.0,appliance,130,130.0,by_install_type,by_install_type,generic,DW422,1,no,
+GEN-016,GEN,Any appliance,Light Bulb Replacement (Rear Access),0.5,appliance,130,65.0,by_install_type,by_install_type,generic,SO415,1,no,
+GEN-017,GEN,Any appliance,Light Bulb Replacement (Rear Service),0.5,appliance,130,65.0,by_install_type,by_install_type,generic,CE431|CG430,2,no,
+GEN-018,GEN,Any appliance,Power Cord/Electrical Conduit Replacement,0.5,appliance,130,65.0,by_install_type,by_install_type,generic,CE434|CF414|CG439|CO411|DI401|DR417|DW424|GR418|IM419|MW413|RE423|SO416|VA402|VH412|WA414|WD409,16,no,
+GEN-019,GEN,Any appliance,Problem Could Not Be Reproduced,0.5,appliance,130,65.0,by_install_type,by_install_type,generic,CE610|CF610|CG610|CO610|DI610|DR610|DW610|GR610|IM610|MW610|RE611|SO610|VH610|WA610|WD610,15,no,
+GEN-020,GEN,Any appliance,Repair Burnt Wire(s) or Loose Connection(s),0.75,appliance,130,97.5,by_install_type,by_install_type,generic,CE611|CF611|CG611|CO611|DI611|DR611|DW611|GR611|IM611|MW611|RE612|SO611|VH611|WA611|WD611,15,no,
+GEN-021,GEN,Any appliance,Reset Home Circuit Breaker,0.25,appliance,130,32.5,by_install_type,by_install_type,generic,CE612|CF612|CG612|CO612|DI612|DR612|DW612|GR612|IM612|MW612|RE613|SO612|VH612|WA612|WD612,15,no,
+GEN-022,GEN,Any appliance,Terminal Block Replacement - Electrical Connection,0.5,appliance,130,65.0,by_install_type,by_install_type,generic,CE440|CG448|DR418|MW417|SO425,5,yes,"generic task — applies to every family; hours were 0.5h×4, 0.75h×1"
+GEN-023,GEN,Any appliance,Transformer Replacement,0.75,appliance,130,97.5,by_install_type,by_install_type,generic,CE441|CG450|GR425|IM425|MW420|RE430|SO428,7,yes,"generic task — applies to every family; hours were 0.75h×3, 1.0h×3, 0.5h×1"
+GEN-024,GEN,Any appliance,WLAN WIFI Card Replacement,1.0,appliance,130,130.0,by_install_type,by_install_type,generic,DW436|WA422,2,yes,"generic task — applies to every family; hours were 1.0h×1, 0.25h×1"

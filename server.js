@@ -4738,7 +4738,7 @@ app.post("/api/card-receipts", requirePagePermission("/receipts.html"), (req, re
   receiptPhotoUpload.single("photo")(req, res, async (err) => {
     if (err) {
       const tooBig = err.code === "LIMIT_FILE_SIZE";
-      return res.status(tooBig ? 413 : 400).json({ error: tooBig ? "That photo is larger than 12 MB — try again from the camera." : "Unreadable upload." });
+      return res.status(tooBig ? 413 : 400).json({ error: tooBig ? "That file is larger than 12 MB — try a smaller photo or PDF." : "Unreadable upload." });
     }
     try {
       const me = receiptIdentity(req);
@@ -4749,16 +4749,20 @@ app.post("/api/card-receipts", requirePagePermission("/receipts.html"), (req, re
       const merchant = String(b.merchant || "").trim().slice(0, 120);
       const spentOn = /^\d{4}-\d{2}-\d{2}$/.test(String(b.spentOn || "")) ? String(b.spentOn) : centralDateToday();
       const file = req.file;
-      if (!file || !file.buffer?.length) return res.status(400).json({ error: "Add a photo of the receipt." });
-      if (!String(file.mimetype || "").startsWith("image/")) return res.status(415).json({ error: "The receipt photo must be an image." });
-      if (!Number.isFinite(amount) || amount <= 0 || amount > 100000) return res.status(400).json({ error: "Enter the receipt amount." });
+      if (!file || !file.buffer?.length) return res.status(400).json({ error: "Add a photo or PDF of the receipt." });
+      // Photos from a phone, or a PDF from the desktop (emailed receipts,
+      // vendor portals). A PDF is recognised by its bytes, not just its type.
+      const isPdf = String(file.mimetype || "").toLowerCase() === "application/pdf" || file.buffer.subarray(0, 5).toString("latin1") === "%PDF-";
+      if (!isPdf && !String(file.mimetype || "").startsWith("image/")) return res.status(415).json({ error: "The receipt must be a photo or a PDF." });
+      // Negative = a return / credit back to the card; zero is never a receipt.
+      if (!Number.isFinite(amount) || amount === 0 || Math.abs(amount) > 100000) return res.status(400).json({ error: "Enter the receipt amount (negative for a return or credit)." });
       if (!purpose) return res.status(400).json({ error: "Enter the business purpose." });
       if (spentOn > centralDateToday()) return res.status(400).json({ error: "The receipt date can't be in the future." });
 
       const receipt = await createCardReceipt({
         userId: me.userId, email: me.email, name: me.name,
         spentOn, amount, merchant, purpose,
-        photo: { buffer: file.buffer, contentType: file.mimetype || "image/jpeg" }
+        photo: { buffer: file.buffer, contentType: isPdf ? "application/pdf" : (file.mimetype || "image/jpeg") }
       });
       recordAudit({
         ip: req.ip, actorUserId: me.userId, action: "card_receipt_filed", targetUserId: null,
@@ -4783,6 +4787,7 @@ app.get("/api/card-receipts/:id/photo", async (req, res) => {
     const photo = await getCardReceiptPhoto(receipt);
     if (!photo) return res.status(404).json({ error: "No photo on this receipt." });
     res.setHeader("Content-Type", photo.contentType || "image/jpeg");
+    if (String(photo.contentType || "").toLowerCase() === "application/pdf") res.setHeader("Content-Disposition", `inline; filename="receipt-${receipt.spentOn || "file"}.pdf"`);
     res.setHeader("Cache-Control", "private, max-age=86400");
     return res.send(photo.bytes);
   } catch (err) {

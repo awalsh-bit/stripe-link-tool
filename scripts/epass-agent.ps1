@@ -56,7 +56,9 @@ foreach ($kind in $Kinds) {
 
 foreach ($kind in $Kinds) {
   $outbox = Join-Path $Root (Join-Path "outbox" $kind)
-  $files = Get-ChildItem -Path $outbox -File -Include *.xlsx, *.xls, *.csv, *.json -Recurse:$false |
+  # -Include only applies when the path ends in a wildcard (or -Recurse is on);
+  # with a bare folder path Get-ChildItem returns nothing at all.
+  $files = Get-ChildItem -Path (Join-Path $outbox "*") -File -Include *.xlsx, *.xls, *.csv, *.json |
            Where-Object { $_.Name -notlike "~$*" } | Sort-Object LastWriteTime
   foreach ($file in $files) {
     # Skip files still being written (modified in the last 30 seconds).

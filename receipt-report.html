@@ -51,6 +51,9 @@
     td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
     tr.group td { background: var(--primary-faint-2, #f6faf6); font-weight: 800; border-top: 2px solid var(--border); }
     .thumb { width: 54px; height: 54px; object-fit: cover; border-radius: 8px; border: 1px solid var(--border); background: #fff; display: block; }
+    .thumb-pdf { display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 12px; letter-spacing: .04em; color: #b91c1c; background: #fef2f2; border-color: #fecaca; text-decoration: none; }
+    .num.neg { color: #b91c1c; }
+    .pill-return { display: inline-block; font-size: 11px; font-weight: 700; color: #b91c1c; background: #fef2f2; border: 1px solid #fecaca; border-radius: 999px; padding: 1px 7px; margin-left: 6px; vertical-align: middle; }
     .merchant { font-weight: 700; }
     .muted { color: var(--muted); }
     .empty { padding: 26px 10px; text-align: center; color: var(--muted); }
@@ -117,7 +120,10 @@
   <script>
     const MONTH_NAMES = ["January","February","March","April","May","June","July","August","September","October","November","December"];
     const $ = (id) => document.getElementById(id);
-    const money = (n) => "$" + Number(n || 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const money = (n) => { const v = Number(n || 0); const s = "$" + Math.abs(v).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }); return v < 0 ? "−" + s : s; };
+    const attachmentCell = (r) => !r.hasPhoto ? `<span class="muted">—</span>` : r.isPdf
+      ? `<a class="thumb thumb-pdf" href="/api/card-receipts/${esc(r.id)}/photo" target="_blank" rel="noopener" title="Open the PDF receipt">PDF</a>`
+      : `<a href="/api/card-receipts/${esc(r.id)}/photo" target="_blank" rel="noopener"><img class="thumb" src="/api/card-receipts/${esc(r.id)}/photo" alt="Receipt" loading="lazy" /></a>`;
     const esc = (v) => String(v ?? "").replace(/[&<>"']/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch]));
     function setStatus(message, kind) {
       const box = $("pageStatus");
@@ -201,11 +207,11 @@
         groupTotal += r.amount;
         html += `
           <tr data-id="${esc(r.id)}">
-            <td class="c-photo">${r.hasPhoto ? `<a href="/api/card-receipts/${esc(r.id)}/photo" target="_blank" rel="noopener"><img class="thumb" src="/api/card-receipts/${esc(r.id)}/photo" alt="Receipt" loading="lazy" /></a>` : `<span class="muted">—</span>`}</td>
+            <td class="c-photo">${attachmentCell(r)}</td>
             <td>${esc(fmtDate(r.spentOn))}</td>
             <td>${esc(r.filedByName || r.filedByEmail)}</td>
             <td>${r.merchant ? `<div class="merchant">${esc(r.merchant)}</div>` : ""}<div>${esc(r.purpose)}</div></td>
-            <td class="num">${money(r.amount)}</td>
+            <td class="num${r.amount < 0 ? " neg" : ""}">${money(r.amount)}${r.amount < 0 ? `<span class="pill-return">RETURN</span>` : ""}</td>
             <td class="c-actions"><button type="button" class="tiny danger rc-del" data-id="${esc(r.id)}">Delete</button></td>
           </tr>`;
       }

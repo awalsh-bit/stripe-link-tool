@@ -71,6 +71,13 @@
     th { font-size: 12px; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; color: #64748b; white-space: nowrap; }
     td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
     .thumb { width: 54px; height: 54px; object-fit: cover; border-radius: 8px; border: 1px solid var(--border); background: #fff; display: block; }
+    .thumb-pdf { display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 12px; letter-spacing: .04em; color: #b91c1c; background: #fef2f2; border-color: #fecaca; text-decoration: none; }
+    .num.neg { color: #b91c1c; }
+    .pill-return { display: inline-block; font-size: 11px; font-weight: 700; color: #b91c1c; background: #fef2f2; border: 1px solid #fecaca; border-radius: 999px; padding: 1px 7px; margin-left: 6px; vertical-align: middle; }
+    .return-row { display: flex; align-items: center; gap: 8px; margin-top: 8px; font-size: 13px; color: var(--muted); }
+    .return-row input { width: auto; margin: 0; }
+    .photo-box .pdf-preview { display: flex; flex-direction: column; align-items: center; gap: 6px; color: #b91c1c; font-weight: 700; }
+    .photo-box .pdf-preview small { color: var(--muted); font-weight: 500; }
     .purpose { color: var(--text); }
     .merchant { font-weight: 700; }
     .muted { color: var(--muted); }
@@ -103,15 +110,15 @@
 
     <div class="surface">
       <h2>File a card receipt</h2>
-      <p class="section-note">Snap the receipt, enter the amount and what it was for, and you're done. Everything you file is kept by month for accounting.</p>
+      <p class="section-note">Snap the receipt (or attach the PDF), enter the amount and what it was for, and you're done. Tick the return box for a credit back to the card. Everything you file is kept by month for accounting.</p>
 
       <form id="receiptForm">
         <div class="grid">
           <div class="f-photo">
-            <label>Receipt photo</label>
+            <label>Receipt photo or PDF</label>
             <div class="photo-box" id="photoBox">
-              <input type="file" id="photoInput" accept="image/*" />
-              <div class="cta" id="photoCta">Tap to take a photo or choose from your library<small>The whole receipt, flat, with the total readable.</small></div>
+              <input type="file" id="photoInput" accept="image/*,application/pdf,.pdf" />
+              <div class="cta" id="photoCta">Tap to take a photo, choose from your library, or pick a PDF<small>The whole receipt, flat, with the total readable — or the PDF a vendor emailed you.</small></div>
             </div>
           </div>
           <div class="f-date">
@@ -121,6 +128,7 @@
           <div class="f-amount">
             <label for="amount">Amount</label>
             <div class="amount-wrap"><span>$</span><input type="number" id="amount" inputmode="decimal" min="0.01" step="0.01" placeholder="0.00" required /></div>
+            <label class="return-row" for="isReturn"><input type="checkbox" id="isReturn" /> Return / credit (negative)</label>
           </div>
           <div class="f-merchant">
             <label for="merchant">Where <span class="muted" style="font-weight:500;">(optional)</span></label>
@@ -169,7 +177,10 @@
   <script>
     const MONTH_NAMES = ["January","February","March","April","May","June","July","August","September","October","November","December"];
     const $ = (id) => document.getElementById(id);
-    const money = (n) => "$" + Number(n || 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const money = (n) => { const v = Number(n || 0); const s = "$" + Math.abs(v).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }); return v < 0 ? "−" + s : s; };
+    const attachmentCell = (r) => !r.hasPhoto ? `<span class="muted">—</span>` : r.isPdf
+      ? `<a class="thumb thumb-pdf" href="/api/card-receipts/${esc(r.id)}/photo" target="_blank" rel="noopener" title="Open the PDF receipt">PDF</a>`
+      : `<a href="/api/card-receipts/${esc(r.id)}/photo" target="_blank" rel="noopener"><img class="thumb" src="/api/card-receipts/${esc(r.id)}/photo" alt="Receipt" loading="lazy" /></a>`;
     const esc = (v) => String(v ?? "").replace(/[&<>"']/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch]));
     function setStatus(id, message, kind) {
       const box = $(id);
@@ -246,14 +257,23 @@
       } finally { URL.revokeObjectURL(objectUrl); }
     }
 
-    let photoBlob = null;
+    let photoBlob = null, photoName = "receipt.jpg";
     $("photoInput").addEventListener("change", async () => {
       const file = $("photoInput").files[0];
       if (!file) return;
       setStatus("formStatus", "");
       try {
+        const isPdf = String(file.type || "").toLowerCase() === "application/pdf" || /\.pdf$/i.test(file.name || "");
+        if (isPdf) {
+          // PDFs go up as-is (no downscale); the server keeps the 12 MB cap.
+          if (file.size > 12 * 1024 * 1024) throw new Error("That PDF is larger than 12 MB.");
+          photoBlob = file; photoName = "receipt.pdf";
+          $("photoBox").classList.add("has-photo");
+          $("photoCta").innerHTML = `<div class="pdf-preview">PDF receipt<small>${esc(file.name)} · ${(file.size / 1024).toFixed(0)} KB</small></div><div class="change">Change file</div>`;
+          return;
+        }
         const { blob, url } = await compressImage(file);
-        photoBlob = blob;
+        photoBlob = blob; photoName = "receipt.jpg";
         $("photoBox").classList.add("has-photo");
         $("photoCta").innerHTML = `<img src="${url}" alt="Receipt preview" /><div class="change">Change photo</div>`;
       } catch (err) {
@@ -266,14 +286,16 @@
     $("receiptForm").addEventListener("submit", async (ev) => {
       ev.preventDefault();
       setStatus("formStatus", "");
-      if (!photoBlob) { setStatus("formStatus", "Add a photo of the receipt first.", "error"); return; }
-      const amount = Number($("amount").value);
+      if (!photoBlob) { setStatus("formStatus", "Add a photo or PDF of the receipt first.", "error"); return; }
+      // The amount is typed as a positive number; the return box flips the sign.
+      let amount = Math.abs(Number($("amount").value));
       if (!Number.isFinite(amount) || amount <= 0) { setStatus("formStatus", "Enter the receipt amount.", "error"); return; }
+      if ($("isReturn").checked) amount = -amount;
       if (!$("purpose").value.trim()) { setStatus("formStatus", "Enter the business purpose.", "error"); return; }
       const btn = $("fileBtn"); btn.disabled = true; btn.textContent = "Filing…";
       try {
         const form = new FormData();
-        form.append("photo", photoBlob, "receipt.jpg");
+        form.append("photo", photoBlob, photoName);
         form.append("spentOn", $("spentOn").value);
         form.append("amount", amount.toFixed(2));
         form.append("merchant", $("merchant").value.trim());
@@ -281,12 +303,12 @@
         const res = await fetch("/api/card-receipts", { method: "POST", credentials: "same-origin", body: form });
         const data = await res.json().catch(() => ({}));
         if (!res.ok) throw new Error(data.error || "Couldn't file the receipt.");
-        setStatus("formStatus", `Filed — ${money(data.receipt.amount)} on ${fmtDate(data.receipt.spentOn)}${data.receipt.merchant ? " at " + data.receipt.merchant : ""}.`, "ok");
+        setStatus("formStatus", `Filed — ${data.receipt.amount < 0 ? "return / credit of " : ""}${money(data.receipt.amount)} on ${fmtDate(data.receipt.spentOn)}${data.receipt.merchant ? " at " + data.receipt.merchant : ""}.`, "ok");
         // reset for the next one, keep the date
-        photoBlob = null; $("photoInput").value = "";
+        photoBlob = null; photoName = "receipt.jpg"; $("photoInput").value = "";
         $("photoBox").classList.remove("has-photo");
-        $("photoCta").innerHTML = `Tap to take a photo or choose from your library<small>The whole receipt, flat, with the total readable.</small>`;
-        $("amount").value = ""; $("merchant").value = ""; $("purpose").value = "";
+        $("photoCta").innerHTML = `Tap to take a photo, choose from your library, or pick a PDF<small>The whole receipt, flat, with the total readable — or the PDF a vendor emailed you.</small>`;
+        $("amount").value = ""; $("merchant").value = ""; $("purpose").value = ""; $("isReturn").checked = false;
         // show the month it landed in
         const [y, m] = data.receipt.spentOn.split("-");
         ensureYearOption(Number(y)); $("yearSelect").value = String(Number(y)); $("monthSelect").value = String(Number(m));
@@ -329,10 +351,10 @@
       if (!rows.length) { $("receiptRows").innerHTML = `<tr><td colspan="5" class="empty">No receipts filed for this month.</td></tr>`; return; }
       $("receiptRows").innerHTML = rows.map((r) => `
         <tr data-id="${esc(r.id)}">
-          <td class="c-photo">${r.hasPhoto ? `<a href="/api/card-receipts/${esc(r.id)}/photo" target="_blank" rel="noopener"><img class="thumb" src="/api/card-receipts/${esc(r.id)}/photo" alt="Receipt" loading="lazy" /></a>` : `<span class="muted">—</span>`}</td>
+          <td class="c-photo">${attachmentCell(r)}</td>
           <td class="c-date">${esc(fmtDate(r.spentOn))}</td>
-          <td class="c-what">${r.merchant ? `<div class="merchant">${esc(r.merchant)}</div>` : ""}<div class="purpose">${esc(r.purpose)}</div></td>
-          <td class="num">${money(r.amount)}</td>
+          <td class="c-what">${r.merchant ? `<div class="merchant">${esc(r.merchant)}${r.amount < 0 ? `<span class="pill-return">RETURN</span>` : ""}</div>` : (r.amount < 0 ? `<span class="pill-return">RETURN</span>` : "")}<div class="purpose">${esc(r.purpose)}</div></td>
+          <td class="num${r.amount < 0 ? " neg" : ""}">${money(r.amount)}</td>
           <td class="c-actions"><button type="button" class="tiny danger rc-del" data-id="${esc(r.id)}">Delete</button></td>
         </tr>`).join("");
     }

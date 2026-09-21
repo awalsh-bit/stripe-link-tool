@@ -758,7 +758,12 @@
       const todayDay = new Date(today.getFullYear(), today.getMonth(), today.getDate());
 
       const ageDays = Math.floor((todayDay.getTime() - rowDay.getTime()) / 86400000);
-      return ageDays >= 1 && ageDays <= 30;
+      // No upper bound: the server sweep archives scheduled/cancelled calls
+      // at 31+ days by ITS calendar (UTC), which runs up to a day behind
+      // Central for evening submissions. With a "<= 30" cap here, day 31
+      // (browser) / day 30 (server) put old calls back on the live queue
+      // for a day (seen 2026-09-21 with three 08/21 calls).
+      return ageDays >= 1;
     }
 
     function buildSearchHaystack(row) {

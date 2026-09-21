@@ -14458,6 +14458,11 @@ app.post("/api/service/submit-request", async (req, res) => {
     const attachSelfSchedule = async (row) => {
       if (!row || row.requestType === "hvac-quote") return;
       try {
+        // Kill switch: with self-scheduling off no token is minted, so the
+        // forms show their classic confirmation and nothing about step 2
+        // reaches the client or the queue card.
+        const sjSettings = await getServiceSettings().catch(() => ({}));
+        if (sjSettings["booking.self_schedule_enabled"] !== true) return;
         const units = Array.isArray(row.units) && row.units.length ? row.units.length : row.unitCount === "Multiple" ? 2 : 1;
         const hold = await createSelfSchedule({ cardId: row.id, zip: row.serviceAddress?.zip || "", skill: row.requestType === "hvac" ? "hvac" : "appliance", units });
         const prior = row.selfSchedule && typeof row.selfSchedule === "object" ? row.selfSchedule : {};

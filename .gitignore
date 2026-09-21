@@ -20,3 +20,7 @@ service_call_journey/meeting/
 service_call_journey/phase0/*.db
 service_call_journey/phase0/__pycache__/
 service_call_journey/phase0/**/__pycache__/
+
+# ePASS ODBC feed: schema listings in odbc/ are fine; real exports (customer data) never leave this machine.
+odbc/data/
+odbc/*.json

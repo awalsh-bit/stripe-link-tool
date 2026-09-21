@@ -19,7 +19,9 @@
 #   open-order-serials   InvoiceSerial for those invoices
 #   open-order-misc      InvoiceMisc for those invoices
 #   open-order-models    Model master (+ Supplier name) for every model on those lines
-#   open-service         Invoice header, InvTypeCode SV/WTY, Status not FINISHED, not void
+#   on-hand-serials      Serial master, every unit in stock (Status blank) with the invoice it is promised to
+#   open-po-lines        POModel lines not yet received (+ PO supplier/dates/ETA) for models on open lines
+#   open-service        Invoice header, InvTypeCode SV/WTY, Status not FINISHED, not void
 #   open-service-labor   InvoiceLabor (+ LaborRate description) for those tickets
 #   open-service-items   InvoiceItem (parts) for those tickets
 #   open-service-comments / open-service-notes
@@ -47,13 +49,18 @@ $LatestDir = Join-Path $Root "epass"
 $SchemaDir = Join-Path $LatestDir "schema"
 $Outbox    = Join-Path $Root "outbox\epass-open-orders"
 $SvcOutbox = Join-Path $Root "outbox\epass-open-service"
-$LogFile   = Join-Path $Root "agent.log"
+# Own log file: the agent's 10-minute task writes agent.log and Add-Content
+# fails when both hold it (seen 2026-09-21: "being used by another process").
+$LogFile   = Join-Path $Root "odbc.log"
 foreach ($d in @($LatestDir, $SchemaDir, $Outbox, $SvcOutbox)) { if (-not (Test-Path $d)) { New-Item -ItemType Directory -Path $d -Force | Out-Null } }
 
 function Log([string]$msg) {
   $line = "{0}  [odbc] {1}" -f (Get-Date -Format "yyyy-MM-dd HH:mm:ss"), $msg
-  Add-Content -Path $LogFile -Value $line
   Write-Host $line
+  # Never let logging kill the pull: retry a few times, then carry on without it.
+  for ($try = 0; $try -lt 5; $try++) {
+    try { Add-Content -Path $LogFile -Value $line -ErrorAction Stop; return } catch { Start-Sleep -Milliseconds (150 * ($try + 1)) }
+  }
 }
 
 # Columns that must never leave ePASS, matched case-insensitively against
@@ -149,7 +156,14 @@ WHERE i.InvTypeCode IN ('R','S','AC','CAB','MOD') AND UPPER(i.Status) <> 'FINISH
     }
     $columns = $null
     Step "columns" { $script:columns = $conn.GetSchema("Columns") }
-    foreach ($t in @("Invoice", "InvoiceModel", "InvoiceSerial", "InvoiceMisc", "InvoiceItem", "InvoiceLabor", "InvoiceComment", "InvoiceNote", "Model", "Customer", "LaborRate", "PurchaseOrder", "PurchaseOrderModel", "Supplier", "Location", "Salesperson", "Technician")) {
+    # Names from Crystal's Database Expert (Andrew, 2026-09-21): the Serial
+    # master (reserved-but-not-taken units), PO tables, the status/type
+    # lookups, zones, routes, techs, returns.
+    foreach ($t in @("Invoice", "InvoiceModel", "InvoiceSerial", "InvoiceMisc", "InvoiceItem", "InvoiceLabor", "InvoiceComment", "InvoiceNote", "InvoiceReturns", "InvoiceWarranty",
+                     "Model", "ModelMinMax", "ModelSupplierQOH", "ModelListPrice", "Customer", "LaborRate", "Supplier", "Location", "Salesperson", "Technician",
+                     "Serial", "SerialType", "SerialSales", "PO", "POModel", "POSerial", "POItem", "POComment", "POCancelledOrders",
+                     "JobStatus", "JobStatusDepartment", "InvType", "Priority", "MapZone", "MapZoneDelivery", "Route", "RouteDepartment", "Brand", "Product", "ProductMajor", "ProductMinor",
+                     "Repair", "Symptom", "ServiceRequest", "ServicePerformed", "ReturnReason", "ReturnOutcome", "ReturnInitiatedBy", "Item", "ItemLocation", "Branch", "Qualification")) {
       Step "schema $t" {
         $rows = @($script:columns | Where-Object { $_.TABLE_NAME -eq $t } | Sort-Object { [int]$_.ORDINAL_POSITION } |
           Select-Object COLUMN_NAME, TYPE_NAME, COLUMN_SIZE, ORDINAL_POSITION, @{ n = "Denied"; e = { Is-Denied $_.COLUMN_NAME } })
@@ -157,6 +171,37 @@ WHERE i.InvTypeCode IN ('R','S','AC','CAB','MOD') AND UPPER(i.Status) <> 'FINISH
         $rows | Export-Csv (Join-Path $SchemaDir "$t.csv") -NoTypeInformation
       }
     }
+    # Small lookup tables in full (no customer data in any of them) — the
+    # meanings behind the codes the invoices carry.
+    foreach ($t in @("JobStatus", "JobStatusDepartment", "InvType", "Priority", "MapZone", "MapZoneDelivery", "Route", "RouteDepartment", "Brand", "Product", "ProductMajor", "ProductMinor", "Location", "Salesperson", "Technician", "SerialType", "ReturnReason", "ReturnOutcome", "ReturnInitiatedBy", "Symptom", "Repair", "ServicePerformed", "Qualification", "Branch", "LaborRate")) {
+      Step "lookup $t" { [void](Export-Query $conn "SELECT TOP 2000 * FROM $t" (Join-Path $SchemaDir "lookup-$t.csv") "lookup $t") }
+    }
+    # Where do reserved-but-not-taken units live? Probe the Serial master for
+    # anything pointing at an open invoice, and the PO side for open lines.
+    Step "serial reservations" { [void](Export-Query $conn @"
+SELECT TOP 500 s.* FROM Serial s INNER JOIN Invoice i ON s.InvoiceCode = i.Code
+WHERE i.InvTypeCode IN ('R','S','AC','CAB','MOD') AND UPPER(i.Status) <> 'FINISHED'
+"@ (Join-Path $SchemaDir "probe-serial-reserved.csv") "serial reservations") }
+    Step "serial status mix" { [void](Export-Query $conn @"
+SELECT Status, COUNT(*) AS Serials, SUM(CASE WHEN InvoiceCode IS NULL OR InvoiceCode = '' THEN 0 ELSE 1 END) AS WithInvoice
+FROM Serial GROUP BY Status ORDER BY Status
+"@ (Join-Path $SchemaDir "probe-serial-status-mix.csv") "serial status mix") }
+    # POModel has no DateCreated (the 2026-09-21 run failed on it): DateStamp is the line date.
+    Step "open PO lines" { [void](Export-Query $conn @"
+SELECT TOP 300 pm.* FROM POModel pm ORDER BY pm.DateStamp DESC
+"@ (Join-Path $SchemaDir "probe-po-model.csv") "open PO lines") }
+    # Units in stock that are already promised: on hand (Status blank) and
+    # pointing at an invoice through OrderedForInvoiceCode — the 9/18 OE-04's
+    # "Quantity Spoken For" rows all matched lines with a PO that had arrived.
+    Step "serials on hand for open invoices" { [void](Export-Query $conn @"
+SELECT TOP 500 s.Code, s.ModelCode, s.Status, s.InvoiceCode, s.OrderedForInvoiceCode, s.OrderedForInvoiceDateStamp, s.DateReserved, s.ReserveExclusive, s.Available,
+       s.POCode, s.PODateStamp, s.LocationCode, s.BinLocationCode, s.DateReceived, s.SerialTypeCode, s.Cost
+FROM Serial s INNER JOIN Invoice i ON s.OrderedForInvoiceCode = i.Code
+WHERE (s.Status IS NULL OR s.Status = '') AND i.InvTypeCode IN ('R','S','AC','CAB','MOD') AND UPPER(i.Status) <> 'FINISHED'
+"@ (Join-Path $SchemaDir "probe-serial-onhand-for-invoice.csv") "serials on hand for open invoices") }
+    Step "PO headers" { [void](Export-Query $conn @"
+SELECT TOP 200 * FROM PO ORDER BY DateCreated DESC
+"@ (Join-Path $SchemaDir "probe-po.csv") "PO headers") }
     Log "discovery complete -> $SchemaDir"
     return
   }
@@ -215,6 +260,41 @@ LEFT JOIN Supplier s ON m.SupplierCode = s.Code
 WHERE m.Code IN (SELECT im.ModelCode FROM InvoiceModel im INNER JOIN Invoice i ON im.InvoiceCode = i.Code WHERE $openWhere)
 ORDER BY m.Code
 "@ (Join-Path $LatestDir "open-order-models.csv") "open-order-models"
+
+  # Two more views the Ordering Report needs (2026-09-21), each guarded so a
+  # column ePASS doesn't have can't take the bundle down with it:
+  #  on-hand-serials  every unit in stock (Serial.Status blank) — with the invoice
+  #                   it was ordered for / reserved to, receive date, bin, cost.
+  #                   This is the "Serial # for Model" screen and the OE-04's
+  #                   "Quantity Spoken For" in one (4,391 units on 9/21).
+  #  open-po-lines    POModel lines not yet received for any model on an open
+  #                   line, with the PO's supplier, dates and ETA, and the invoice
+  #                   the line was special-ordered for (BackOrderInvoiceCode).
+  $openModels = "SELECT im.ModelCode FROM InvoiceModel im INNER JOIN Invoice i ON im.InvoiceCode = i.Code WHERE $openWhere"
+  try {
+    $bundle.datasets["on-hand-serials"] = Export-Query $conn @"
+SELECT s.Code, s.ModelCode, s.Status, s.InvoiceCode, s.OrderedForInvoiceCode, s.OrderedForInvoiceDateStamp, s.DateReserved, s.ReserveExclusive, s.Available,
+       s.POCode, s.PODateStamp, s.LocationCode, s.BinLocationCode, s.DateReceived, s.SerialTypeCode, s.SupplierCode, s.Cost, s.StandardCost, s.FloorPlan, s.FloorPlanDueDate
+FROM Serial s
+WHERE (s.Status IS NULL OR s.Status = '')
+ORDER BY s.ModelCode, s.DateReceived, s.Code
+"@ (Join-Path $LatestDir "on-hand-serials.csv") "on-hand-serials"
+  } catch { Log ("on-hand-serials FAILED (bundle continues without it): {0}" -f $_.Exception.Message); if ($conn.State -ne [System.Data.ConnectionState]::Open) { $conn.Open() } }
+
+  try {
+    $bundle.datasets["open-po-lines"] = Export-Query $conn @"
+SELECT pm.POCode, pm.ModelCode, pm.QtyOrdered, pm.QtyReceived, pm.QtyPrevReceived, pm.ETADate, pm.ETADateMostUpdated, pm.RequestedDeliveryDate, pm.RSDConfirmed, pm.RSDMostUpdated,
+       pm.DateReceived, pm.Received, pm.Ordered, pm.Unreleased, pm.BackOrderInvoiceCode, pm.BackOrderInvoiceDateStamp, pm.UnitCost, pm.StandardCost, pm.DateStamp, pm.LineTimeStamp,
+       pm.LocationCode, pm.SerialTypeCode, pm.Reference,
+       p.SupplierCode, p.SupplierDescription, p.DateCreated AS PO_DateCreated, p.DateOrdered AS PO_DateOrdered, p.DateConfirmed AS PO_DateConfirmed, p.Confirmed AS PO_Confirmed,
+       p.Buyer AS PO_Buyer, p.RequestedDeliveryDate AS PO_RequestedDeliveryDate, p.DateReceived AS PO_DateReceived, p.Unreleased AS PO_Unreleased
+FROM POModel pm
+INNER JOIN PO p ON pm.POCode = p.Code
+WHERE (pm.Received IS NULL OR pm.Received = 0)
+  AND pm.ModelCode IN ($openModels)
+ORDER BY pm.ModelCode, pm.POCode
+"@ (Join-Path $LatestDir "open-po-lines.csv") "open-po-lines"
+  } catch { Log ("open-po-lines FAILED (bundle continues without it): {0}" -f $_.Exception.Message); if ($conn.State -ne [System.Data.ConnectionState]::Open) { $conn.Open() } }
 
   $json = $bundle | ConvertTo-Json -Depth 6 -Compress
   $path = Join-Path $Outbox "epass-open-orders-$stamp.json"

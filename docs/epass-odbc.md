@@ -762,6 +762,38 @@ InvoiceModel.ModelCode
     -> Model.Code
 ```
 
+Added from the 2026-09-21 discovery run (`-Discover`, files in `odbc/`):
+
+```text
+Serial (the serial master — one row per physical unit, ~122k)
+    Status                 '' = on hand (4,391), SOLD, TAKEN, RETURNED
+    ModelCode              -> Model.Code
+    OrderedForInvoiceCode  -> Invoice.Code   the invoice the unit was special-ordered / reserved for
+    InvoiceCode            -> Invoice.Code   set once the unit is taken/sold on that invoice
+    POCode, PODateStamp    -> PO.Code        how it arrived
+    DateReceived, DateReserved, ReserveExclusive, LocationCode, BinLocationCode, Cost
+
+InvoiceSerial only holds TAKEN units (97 rows on 622 open tickets) — it is not
+where "reserved" lives. A unit promised to an open order is a Serial row with
+Status blank and OrderedForInvoiceCode = that invoice. Every one of the 244
+"Quantity Spoken For" rows on the 9/18 OE-04 matched an InvoiceModel line whose
+POCode was set and whose unit had arrived.
+
+PO.Code
+    -> POModel.POCode      (line: ModelCode, QtyOrdered, QtyReceived, QtyPrevReceived,
+                            ETADate, ETADateMostUpdated, RequestedDeliveryDate, RSDConfirmed,
+                            Received (BIT), DateStamp — there is NO DateCreated on POModel)
+POModel.BackOrderInvoiceCode
+    -> Invoice.Code        the invoice a PO line was cut for (special order)
+PO.SupplierCode / SupplierDescription, DateOrdered, DateConfirmed, Confirmed (a confirmation
+number, not a flag), Buyer, RequestedDeliveryDate
+
+InvoiceModel.POCode        set = already on a purchase order (the Ordering Report drops it)
+Invoice.JobStatusCode      D1 "Waiting to Order", D2 "Procurement", D2R "Routed Before Prod Arrival",
+                           D3 "Serials Reserved; Unassigned", D4 "Models Reserved Date Confirmed",
+                           D5/D6 delivery, D7 complete, D8 cancelled — full list in odbc/lookup-JobStatus.csv
+```
+
 ---
 
 ## 18. Important ePASS behavior / lessons learned

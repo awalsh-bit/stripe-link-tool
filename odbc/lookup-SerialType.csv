@@ -1,0 +1,6 @@
+﻿"Code","Description","ReserveExclusiveCommentCode","AllowSellExclusiveBelowUMRP","ImmediateShip","PromptforLocExclusiveReserve","InventoryDivisionCode","SpecialSerialType","GLRevenue","GLCostDebit","GLCostCredit","AddBranchToGL","AddBranchToGLCostDb","AddBranchToGLCostCr"
+"DISPLAY","Showroom Inventory","","False","False","True","","True","40100","","","False","False","False"
+"OPEN","Out of Box Inventory","","True","False","True","","True","40100","","","False","False","False"
+"SPECIAL","Manager Special","","False","False","False","","True","40100","","","False","False","False"
+"SVC","In/Awaiting Repair","","False","False","True","","False","","","","False","False","False"
+"RTV","Awaiting Return to Vendor","","False","False","True","","False","","","","False","False","False"

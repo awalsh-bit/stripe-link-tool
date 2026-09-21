@@ -13148,7 +13148,7 @@ const wmAudit = (req, action, detail) => recordAudit({ ip: req.ip, actorUserId: 
 
 app.get("/api/written-models/board", requireWrittenModels, async (req, res) => {
   try {
-    const board = await buildWrittenModelsBoard({ month: String(req.query.month || "") });
+    const board = await buildWrittenModelsBoard({ month: String(req.query.month || ""), through: String(req.query.through || "") });
     return res.json({ ...board, canEdit: isExecutiveUser(req.authUser) });
   } catch (err) {
     console.error("Written models board failed:", err.message);
@@ -13212,7 +13212,7 @@ app.post("/api/written-models/settings", requireWrittenModels, requireExecutiveA
 });
 app.get("/api/written-models/csv", requireWrittenModels, async (req, res) => {
   try {
-    const board = await buildWrittenModelsBoard({ month: String(req.query.month || "") });
+    const board = await buildWrittenModelsBoard({ month: String(req.query.month || ""), through: String(req.query.through || "") });
     const only = String(req.query.supplier || "");
     const cell = (v) => { const t = v == null ? "" : String(v); return /[",\r\n]/.test(t) ? `"${t.replace(/"/g, '""')}"` : t; };
     const lines = [["supplier", "brand", "model", "description", "stock_class", "written", "qoh", "qoo", "proposed", "invoice", "invoice_date", "customer", "salesperson", "status", "delivery_date", "qty", "sell_price", "std_cost", "margin_rate", "deposit_paid", "deposit_total", "terms"].join(",")];

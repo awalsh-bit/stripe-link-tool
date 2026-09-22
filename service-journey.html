@@ -491,7 +491,18 @@
       const review = o.zones.filter((z) => z.needsReview);
       $("zoneDetail").innerHTML = `${o.zones.length} zones from Cayden's zone table${review.length ? `; <b>${review.length} seen in ePASS but not in the table</b> (booked office-only until mapped): ${review.map((z) => esc(z.code)).join(", ")}` : "; every ePASS Map Zone seen so far is mapped."}<div class="who" style="margin-top:6px;">${o.techs.filter((t) => t.autoRoute).map((t) => t.code).join(" · ")} auto-route; ${o.techs.filter((t) => !t.autoRoute).map((t) => t.code).join(" · ")} office-routed.</div>`;
       const s = o.settings;
-      $("settingsDetail").innerHTML = `stale grace <b>${esc(s["stale.grace_hours"])} h</b> · discrepancy after <b>${esc(s["sync.mismatch_cycles_before_discrepancy"])}</b> mismatching imports · import-created jobs follow ePASS: <b>${s["sync.follow_epass_for_import_jobs"] ? "yes" : "no"}</b> · recall window <b>${esc(s["recall.window_days"])} d</b> · diagnostic fee <b>${money(s["fee.diagnostic"])}</b><div class="who" style="margin-top:6px;">Tunables live in <code>sj_settings</code> (spec §11); ask to expose more here.</div>`;
+      const sw = (key, label, help) => `<div style="display:flex;gap:8px;align-items:center;margin-top:6px;"><button type="button" data-sw="${key}" aria-pressed="${s[key] === true}" style="min-width:52px;">${s[key] === true ? "ON" : "OFF"}</button><span><b>${label}</b> <span class="who">${help}</span></span></div>`;
+      $("settingsDetail").innerHTML = `stale grace <b>${esc(s["stale.grace_hours"])} h</b> · discrepancy after <b>${esc(s["sync.mismatch_cycles_before_discrepancy"])}</b> mismatching imports · import-created jobs follow ePASS: <b>${s["sync.follow_epass_for_import_jobs"] ? "yes" : "no"}</b> · recall window <b>${esc(s["recall.window_days"])} d</b> · diagnostic fee <b>${money(s["fee.diagnostic"])}</b>
+        ${sw("booking.self_schedule_enabled", "Customer self-scheduling", "— the request forms offer a date picker in open zones; picks land on the dispatch board as HOLD cards. Off = classic confirmation, nothing about step 2 reaches the customer.")}
+        ${sw("notify.route_confirm.enabled", "Text customers on Confirm route", "— off: confirming only locks the day and shows the wording for the office to send by hand.")}
+        ${sw("notify.reschedule.enabled", "Text customers on reschedule", "— off: moving a call queues the packet; the office tells the customer.")}
+        <div class="who" style="margin-top:6px;">Switches are executive-only and audited. Other tunables live in <code>sj_settings</code> (spec §11).</div>`;
+      $("settingsDetail").querySelectorAll("[data-sw]").forEach((b) => (b.onclick = async () => {
+        const key = b.dataset.sw, next = b.getAttribute("aria-pressed") !== "true";
+        if (!confirm(`${next ? "Turn ON" : "Turn OFF"}: ${b.nextElementSibling.querySelector("b").textContent}?`)) return;
+        try { await api("/api/service-journey/settings", { method: "POST", body: JSON.stringify({ key, value: next }) }); setStatus(`${key} → ${next ? "on" : "off"}`); await loadOverview(); }
+        catch (e) { setStatus(e.message, "error"); }
+      }));
     }
     $("dtUpload").addEventListener("click", () => $("dtFile").click());
     $("dtFile").addEventListener("change", async () => {

@@ -299,6 +299,20 @@ WHERE (InvTypeCode = 'SV' OR InvTypeCode = 'WTY')
 
 Keep `JobStatusCode` as a field for analysis rather than using it as the primary inclusion filter.
 
+### In the feed (2026-09-22): `service-history`
+
+`scripts/epass-odbc-pull.ps1` now adds a `service-history` dataset to the
+service bundle: the finished SV/WTY invoices of the last three years for
+every customer who currently has an open ticket (`SoldToCode IN (open
+tickets)`), header columns only — dates, tech (`Salesperson1Code`), brand /
+model / serial, complaint and performed descriptions, totals. It lands in
+`epass_service_history` (keyed by invoice, indexed by customer code, phone,
+address+zip and serial) and is what the dispatch board's **Service history**
+drawer shows under "Other visits", alongside the tickets Agility itself has
+tracked. It is scoped to open-ticket customers on purpose: a full history
+pull is tens of thousands of rows every 15 minutes for no benefit; when a
+customer calls, their ticket is open and their history is already there.
+
 Example:
 
 ```powershell

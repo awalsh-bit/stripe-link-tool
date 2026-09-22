@@ -181,11 +181,11 @@
       <h2>Sales Order Health Report</h2>
       <p class="section-note">
         Open orders checked against our job status rules — dates, routing, and COD balances.
-        Upload the latest ExportInvoice report to refresh; everyone sees the same snapshot. One upload of the
-        combined open-orders pull (sales + service invoice types) refreshes this report <strong>and</strong> Service Order Health in the same step.
+        The data comes straight from the ePASS feed, refreshed every 15 minutes with the rest of Agility;
+        everyone sees the same snapshot. The ExportInvoice upload still works as a fallback if the feed is down.
       </p>
       <div class="toolbar">
-        <button type="button" class="primary-btn" id="uploadBtn">Upload open order report</button>
+        <button type="button" class="primary-btn" id="uploadBtn" title="Fallback: upload an ExportInvoice report if the feed is down">Upload open order report</button>
         <input type="file" id="fileInput" accept=".xlsx,.xls" style="display: none;" />
         <span class="asof" id="asofLine">No data uploaded yet.</span>
       </div>
@@ -303,14 +303,14 @@
     // ------------------------------------------------------------------
     function renderAsOf() {
       if (!snapshot) {
-        el("asofLine").textContent = "No data uploaded yet — upload the ExportInvoice report to begin.";
+        el("asofLine").textContent = "No data yet — the ePASS feed fills this in on its next 15-minute pull (or upload an ExportInvoice report).";
         return;
       }
       const when = snapshot.uploadedAt
         ? new Date(snapshot.uploadedAt).toLocaleString("en-US", { timeZone: "America/Chicago", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })
         : "";
       el("asofLine").innerHTML = `Data as of <strong>${escapeHtml(when)}</strong>` +
-        (snapshot.uploadedByName ? ` — uploaded by ${escapeHtml(snapshot.uploadedByName)}` : "") +
+        (snapshot.uploadedByName ? (snapshot.uploadedByName === "ePASS feed" ? " — from the ePASS feed" : ` — uploaded by ${escapeHtml(snapshot.uploadedByName)}`) : "") +
         ` (${snapshot.rowCount} orders)`;
     }
 

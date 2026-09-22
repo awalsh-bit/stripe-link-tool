@@ -68,16 +68,31 @@ foreach ($kind in $Kinds) {
   # -Include only applies when the path ends in a wildcard (or -Recurse is on);
   # with a bare folder path Get-ChildItem returns nothing at all.
   $files = Get-ChildItem -Path (Join-Path $outbox "*") -File -Include *.xlsx, *.xls, *.csv, *.json |
-           Where-Object { $_.Name -notlike "~$*" } | Sort-Object LastWriteTime
+           Where-Object { $_.Name -notlike "~$*" } |
+           Where-Object { ((Get-Date) - $_.LastWriteTime).TotalSeconds -ge 30 } |   # still being written
+           Sort-Object LastWriteTime
+  # The ODBC feed bundles are full snapshots — only the newest one matters.
+  # If earlier ones piled up (a slow VPN upload, the laptop asleep), park them
+  # in processed\ as superseded instead of pushing stale data ahead of fresh.
+  if ($kind -like "epass-*" -and $files.Count -gt 1) {
+    $stale = $files | Select-Object -First ($files.Count - 1)
+    foreach ($old in $stale) {
+      $dest = Join-Path $Root (Join-Path "processed" (Join-Path $kind ("superseded-" + $old.Name)))
+      Move-Item -Path $old.FullName -Destination $dest -Force
+      Log "SKIP  [$kind] $($old.Name) superseded by a newer bundle"
+    }
+    $files = $files | Select-Object -Last 1
+  }
+  # A service bundle can run to several MB and Agility mirrors every ticket
+  # before answering; over the VPN that can take well past three minutes.
+  $timeout = if ($kind -like "epass-*") { 900 } else { 180 }
   foreach ($file in $files) {
-    # Skip files still being written (modified in the last 30 seconds).
-    if (((Get-Date) - $file.LastWriteTime).TotalSeconds -lt 30) { continue }
     $stamp = Get-Date -Format "yyyyMMdd-HHmmss"
     try {
       $resp = Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/epass-agent/upload" `
         -InFile $file.FullName -ContentType "application/octet-stream" `
         -Headers @{ "x-agent-key" = $AgentKey; "x-upload-kind" = $kind; "x-source-file" = $file.Name } `
-        -TimeoutSec 180
+        -TimeoutSec $timeout
       $dest = Join-Path $Root (Join-Path "processed" (Join-Path $kind ("$stamp-" + $file.Name)))
       Move-Item -Path $file.FullName -Destination $dest -Force
       Log "OK    [$kind] $($file.Name) -> $((($resp | ConvertTo-Json -Compress -Depth 3)))"

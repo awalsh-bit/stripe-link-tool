@@ -58,6 +58,13 @@
     li.lanejob{display:grid;grid-template-columns:1fr auto;gap:.15rem .6rem;padding:.45rem 0;border-bottom:1px solid var(--line);font-size:.84rem}li.lanejob.stale{background:var(--bad-bg)}li.lanejob .sub{grid-column:1/-1;color:var(--muted);font-size:.76rem}
     .maptools{display:flex;gap:.3rem;align-items:center}.maptools button{padding:.05rem .45rem;font-size:.7rem;border-radius:12px}.maptools button[aria-pressed="true"]{border-color:var(--accent);color:var(--accent);font-weight:600}
     .panel.map.full{position:fixed;inset:1rem;z-index:25;overflow:auto;box-shadow:0 20px 60px rgba(0,0,0,.3)}.panel.map.full svg{max-height:70vh}
+    .panel.full{position:fixed;inset:1rem;z-index:25;overflow:auto;box-shadow:0 20px 60px rgba(0,0,0,.3)}.panel.full .stops{display:grid;grid-template-columns:repeat(auto-fill,minmax(360px,1fr));gap:.5rem;align-content:start;max-height:none}.panel h3 .ptools{display:flex;gap:.3rem;align-items:center;margin-left:auto}.panel h3 .ptools button{padding:.1rem .4rem;font-size:.75rem;text-transform:none;letter-spacing:0}
+    .card .who{font-weight:600;background:none;border:0;padding:0;font:inherit;font-weight:600;color:var(--ink);text-align:left;cursor:pointer;text-decoration:underline dotted transparent;text-underline-offset:3px}.card .who:hover{text-decoration-color:var(--accent);color:var(--accent)}
+    .card.hold{border-left-color:var(--wait);border-left-style:dotted;background:linear-gradient(90deg,var(--soft),var(--surface) 40%)}.card.hold .seq{color:var(--wait)}.chip.holdchip{background:var(--wait);color:#fff}
+    .pop.mappop{max-width:440px}.pop.mappop h4 small{white-space:normal;display:block;line-height:1.35}
+    .maptools .mapnav{display:inline-flex;gap:.15rem;align-items:center}.maptools .mapnav b{font-size:.72rem;font-weight:600;color:var(--ink);min-width:60px;text-align:center}
+    #map svg [data-msv],#map svg [data-mun]{cursor:pointer}#map svg [data-msv]:hover circle,#map svg [data-mun]:hover circle{stroke:var(--ink);stroke-width:2}
+    .hist .visit{display:grid;grid-template-columns:78px 1fr auto;gap:.15rem .6rem;padding:.45rem 0;border-bottom:1px solid var(--line);font-size:.82rem}.hist .visit .d{grid-column:2/4;color:var(--muted);font-size:.76rem}.hist .visit .when{font-variant-numeric:tabular-nums;color:var(--muted);font-size:.76rem}.hist .visit.open{background:var(--soft);border-radius:6px;padding:.45rem .5rem}.hist .tl{font-size:.76rem;color:var(--muted);padding:.2rem 0;border-bottom:1px dashed var(--line)}.hist .tl b{color:var(--ink)}
     .routesum table{width:100%;border-collapse:collapse;font-size:.76rem}.routesum th,.routesum td{padding:.25rem .5rem;border-bottom:1px solid var(--line);text-align:right}.routesum th:first-child,.routesum td:first-child,.routesum th:nth-child(2),.routesum td:nth-child(2){text-align:left}.routesum th{font-size:.66rem;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
     .bnote{padding:.4rem .8rem;font-size:.74rem;color:var(--bad);border-top:1px solid var(--line)}
     .col.b{border-top-color:var(--colB)}
@@ -160,10 +167,10 @@
       <div class="col a" id="colA"><div class="empty">Loading…</div></div>
       <div class="col b" id="colB"></div>
       <div class="side">
-        <div class="panel unsched"><h3>Unscheduled <span id="unCount"></span><input id="unQ" placeholder="filter…" aria-label="Filter unscheduled" /></h3><div class="stops" id="unsched" data-drop="un"></div></div>
-        <div class="panel unsched" id="shoppanel" hidden><h3>In the shop <span id="shopCount"></span></h3><div class="stops" id="shoplist" data-drop="shop"></div><div class="bnote" id="shopnote" hidden></div></div>
+        <div class="panel unsched" id="unpanel"><h3>Unscheduled <span id="unCount"></span><span class="ptools"><input id="unQ" placeholder="filter…" aria-label="Filter unscheduled" /><button data-pfull="unpanel" title="Larger view">⛶</button></span></h3><div class="stops" id="unsched" data-drop="un"></div></div>
+        <div class="panel unsched" id="shoppanel" hidden><h3>In the shop <span id="shopCount"></span><span class="ptools"><input id="shopQ" placeholder="filter…" aria-label="Filter in-shop" /><button data-pfull="shoppanel" title="Larger view">⛶</button></span></h3><div class="stops" id="shoplist" data-drop="shop"></div><div class="bnote" id="shopnote" hidden></div></div>
         <div class="panel" id="cxpanel" hidden><h3>Cancelled — last 3 days <span id="cxCount"></span></h3><div id="cxlist"></div></div>
-        <div class="panel map" id="mappanel"><h3>Map <span class="maptools"><button id="mapsum" aria-pressed="false" title="Stops, units, drive and on-site per route for the left column's day">routes</button><button id="mapfull" title="Full screen">⛶</button></span></h3><div id="map"></div><div class="maplegend" id="maplegend"></div><div class="routesum" id="routesum" hidden></div></div>
+        <div class="panel map" id="mappanel"><h3>Map <span class="maptools"><span class="mapnav"><button data-mapday="-1" title="Previous day — moves both boards">‹</button><b id="mapday"></b><button data-mapday="1" title="Next day — moves both boards">›</button></span><button id="mapsum" aria-pressed="false" title="Stops, units, drive and on-site per route for the left column's day">routes</button><button id="mapfull" title="Full screen">⛶</button></span></h3><div id="map"></div><div class="maplegend" id="maplegend"></div><div class="routesum" id="routesum" hidden></div></div>
       </div>
     </div>
     <div id="internal-shell-footer"></div>
@@ -186,7 +193,7 @@
     let B = null;                 // the board payload
     let J = [], TECHS = [], DAYS = [], TD = {}, BLOCKS = [], ZONE = {}, ZIPZONE = {}, ZIP = {}, SHOP = { ll: [30.1852, -98.0031] }, S = {};
     const col = { A: { tech: null, day: null }, B: { tech: null, day: null } };
-    let from = "", unFilter = "", CONFIRMED = {}, NOTIFY = {}, draggingCell = null, mapSum = false;
+    let from = "", unFilter = "", shopFilter = "", CONFIRMED = {}, NOTIFY = {}, draggingCell = null, mapSum = false;
     const mapShow = { A: true, B: true, un: true, others: {} };
     const MON = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
     const mkDay = (k) => { const d = new Date(k + "T12:00:00Z"); return { k, s: ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][d.getUTCDay()], n: MON[d.getUTCMonth()] + " " + d.getUTCDate() }; };
@@ -218,7 +225,7 @@
     const startPt = (t, day) => (startAt(t, day) === "shop" ? SHOP.ll : t.home || SHOP.ll), endPt = (t, day) => (endAt(t, day) === "shop" ? SHOP.ll : t.home || SHOP.ll);
     // Visit groups: open calls at the same address are one arrival.
     const grpKey = (j) => (j.addr && j.zip ? (j.addr + "|" + j.zip).toUpperCase().replace(/\s+/g, " ") : "");
-    const groupMembers = (j) => { const k = grpKey(j); return k ? J.filter((x) => grpKey(x) === k && x.st !== "SO9" && !x.si) : [j]; };
+    const groupMembers = (j) => { const k = grpKey(j); return k && !j.hold ? J.filter((x) => grpKey(x) === k && x.st !== "SO9" && !x.si && !x.hold) : [j]; };
     function limitCheck(t, stops, work, interDrive) { const out = []; if (t.maxStops && stops > t.maxStops) out.push(`over ${t.maxStops} stops`); if (t.maxOnsite && work > t.maxOnsite) out.push(`over ${hm(t.maxOnsite)} on site`); if (t.maxDrive && interDrive > t.maxDrive) out.push(`over ${hm(t.maxDrive)} driving`); return out; }
     const blocksFor = (tech, day) => BLOCKS.filter((b) => b.tech === tech && b.day === day).sort((a, b) => a.start - b.start);
     const STATUS = { SI1: "In the shop · bench work", SI5: "Repaired · owed back", SI6: "Going back to the customer", REQ: "New request · no time picked", SO1: "Diagnostic", "SO1.AUTH": "Awaiting authorization", SO2: "Quote", "SO2.1": "Quote", "SO2.2": "Quote sent", SO3: "Approved · order parts", SO3PRE: "Preschedule parts", SO4: "Parts on order", SO4B: "Backordered", SO4H: "Part shipping to customer", SO4PRE: "Install held · part on order", SO5: "Parts in · pick a time", SO6: "Part install" };
@@ -296,8 +303,16 @@
     function renderAll() { renderStrip(); renderNav(); renderCol("A"); renderCol("B"); renderUnsched(); renderShop(); renderCancelled(); renderMap(); renderFeed(); }
     function renderFeed() {
       const f = B.feed; const el = $("#feed"); if (!f || !f.receivedAt) { el.textContent = "No ePASS feed yet — the mirror is empty"; el.className = "feed old"; return; }
-      const age = Math.round((Date.now() - new Date(f.receivedAt).getTime()) / 60000); el.className = "feed" + (age > 45 ? " old" : "");
-      el.innerHTML = `ePASS feed <b>${age < 1 ? "just now" : age + " min ago"}</b> · ${f.tickets ?? "?"} open tickets`;
+      const age = Math.round((Date.now() - new Date(f.receivedAt).getTime()) / 60000);
+      // The pull runs every 15 minutes from 7am to 8pm (Task Scheduler on the
+      // office laptop); overnight the feed sleeps, so an old stamp then is
+      // normal — only flag it as stale inside the window.
+      const hr = Number(new Date().toLocaleString("en-US", { timeZone: "America/Chicago", hour: "numeric", hour12: false }));
+      const inWindow = hr >= 7 && hr < 20;
+      const stale = inWindow && age > 45;
+      const when = new Date(f.receivedAt).toLocaleString("en-US", { timeZone: "America/Chicago", weekday: "short", hour: "numeric", minute: "2-digit" });
+      el.className = "feed" + (stale ? " old" : "");
+      el.innerHTML = `ePASS feed <b>${age < 1 ? "just now" : age < 90 ? age + " min ago" : when}</b> · ${f.tickets ?? "?"} open tickets${!inWindow && age > 45 ? " · <span class=\"hint\">pulls resume 7 AM</span>" : stale ? " · <span class=\"hint\">check the pull task on the office laptop</span>" : ""}`;
     }
     const mq = window.matchMedia("(max-width:720px)"); const isMobile = () => mq.matches; let stripDay = "";
     mq.addEventListener("change", () => { if (B) renderAll(); });
@@ -379,17 +394,27 @@
       wireCards(el);
     }
     function cardHTML(j, seq, s, k) {
+      if (j.hold) {
+        const h = j.hold; const time = s ? `<div class="time ${s.late ? "late" : ""}"><b>${fmt(s.arr)}</b>${s.drive}m drive</div>` : `<div class="time">${hm(j.dur)}<br>${esc(j.tech || "")} ${j.day ? md(j.day) : ""}</div>`;
+        return `<div class="card hold REQ" draggable="true" data-sv="${j.sv}" tabindex="0" title="Self-scheduled request — the customer picked this day; book it in ePASS from the queue card">
+          <div class="seq">${seq || "·"}</div><div class="who" style="cursor:default">${esc(j.cust)}</div>${time}
+          <div class="sub">${esc([j.addr, j.zip].filter(Boolean).join(", "))}${j.unit ? " · " + esc(j.unit) : ""}${j.problem ? " · " + esc(j.problem.slice(0, 90)) : ""}</div>
+          <div class="chips"><span class="chip holdchip">HOLD · customer picked ${j.win ? (j.win === "AM" ? "8–12" : "12–5") : "this day"}</span><span class="chip">${j.type === "hvac" ? "HVAC" : "appliance"} · ${j.units} unit${j.units === 1 ? "" : "s"}</span>${h.queueStatus ? `<span class="chip">${esc(h.queueStatus)}</span>` : ""}${h.sv ? `<span class="chip">${esc(h.sv)} keyed — waiting for the feed</span>` : '<span class="chip warn">not in ePASS yet</span>'}</div>
+          <div class="more">${h.why ? esc(h.why) + "<br>" : ""}${h.pickedAt ? `picked ${when(h.pickedAt)} by ${esc(h.by || "client")}` : ""}${j.phone ? ` · ${esc(j.phone)}` : ""}<br>Drag to another tech or day if the customer changes their mind on the phone; the queue card follows.
+            <div class="acts"><a class="btn" href="appliance-service-calls.html?card=${encodeURIComponent(h.cardId)}">Open the request card</a></div></div>
+        </div>`;
+      }
       const v = j.tech ? validate(j, j.tech, j.day) : []; const zi = zinfo(j);
       const members = groupMembers(j); const gDays = new Set(members.map((x) => x.day || "")); const split = members.length > 1 && gDays.size > 1;
       const grpChip = members.length > 1 ? `<span class="chip grp ${split ? "bad" : ""}" title="${split ? "open calls at this address are booked on different days" : "open calls at this address — one arrival"}">⌂ ${members.length} at this house${split ? " · split" : ""}</span>` : "";
-      const chips = [`<span class="chip st ${esc(j.st)}">${esc(j.st)}</span>`, zi.zone !== "?" ? `<span class="chip" title="${esc(zi.group)} · ${esc(zi.mode)}">${esc(zi.zone)}</span>` : "", `<span class="chip">${esc(stLabel(j))}</span>`, j.win ? `<span class="chip">${j.win === "AM" ? "8–12" : "12–5"}</span>` : "", j.wty ? '<span class="chip wty">Warranty</span>' : "", j.bal ? `<span class="chip bad">${j.bal === "COD" ? "COD balance" : "A/R"}</span>` : "", j.type === "hvac" ? '<span class="chip">HVAC</span>' : "", j.type === "sealed" ? '<span class="chip">Sealed system</span>' : "", j.owner ? `<span class="chip">${esc(first(techById(j.owner)))}'s call</span>` : "", (j.units || 1) > 1 ? `<span class="chip" title="${j.units} unit(s) × 60 min">${j.units} units</span>` : "", grpChip, ...v.map((x) => `<span class="chip ${x.c}">${esc(x.t)}</span>`)].join("");
+      const chips = [`<span class="chip st ${esc(j.st)}">${esc(j.st)}</span>`, j.tech && !TECHS.some((t) => t.id === j.tech) ? `<span class="chip bad" title="ePASS has this tech code on the ticket but nobody in the roster carries it — add it as an alias in the tech's route settings, or add the tech">ePASS tech ${esc(j.tech)} not in roster</span>` : "", zi.zone !== "?" ? `<span class="chip" title="${esc(zi.group)} · ${esc(zi.mode)}">${esc(zi.zone)}</span>` : "", `<span class="chip">${esc(stLabel(j))}</span>`, j.win ? `<span class="chip">${j.win === "AM" ? "8–12" : "12–5"}</span>` : "", j.wty ? '<span class="chip wty">Warranty</span>' : "", j.bal ? `<span class="chip bad">${j.bal === "COD" ? "COD balance" : "A/R"}</span>` : "", j.type === "hvac" ? '<span class="chip">HVAC</span>' : "", j.type === "sealed" ? '<span class="chip">Sealed system</span>' : "", j.owner ? `<span class="chip">${esc(first(techById(j.owner)))}'s call</span>` : "", (j.units || 1) > 1 ? `<span class="chip" title="${j.units} unit(s) × 60 min">${j.units} units</span>` : "", grpChip, ...v.map((x) => `<span class="chip ${x.c}">${esc(x.t)}</span>`)].join("");
       const time = s ? `<div class="time ${s.late ? "late" : ""}"><b>${fmt(s.arr)}</b>${s.drive}m drive${s.wait ? ` · waits ${s.wait}m` : ""}</div>` : `<div class="time">${hm(j.dur)}${j.day ? `<br>${esc(j.tech || "")} ${md(j.day)}` : ""}</div>`;
       const elig = j.owner && TECHS.some((x) => x.id === j.owner) ? `${esc(techById(j.owner).name)} owns this call (ran the diagnostic) — installs stay with the diagnosing tech` : "Eligible techs: " + (eligible(j).map((t) => first(t)).join(", ") || "none — office assigns");
       const others = members.filter((x) => x.sv !== j.sv);
       const grpMore = others.length ? `<div class="suggest" style="display:block">${members.map((m) => `<div>${m.sv === j.sv ? "<b>this call</b>" : esc(m.sv)} · ${esc(m.st)} ${esc((m.unit || "").split("·")[0].trim())} · ${m.day ? dayObj(m.day).s + " " + md(m.day) + " " + esc(m.tech || "") : "unscheduled"}</div>`).join("")}${j.tech && others.some((m) => m.day !== j.day || m.tech !== j.tech) ? `<button data-together="${j.sv}" style="margin-top:.3rem">Bring the other ${others.length} here — one arrival, one charge</button>` : ""}</div>` : "";
       const suggest = !j.tech ? (() => { if (zi.mode === "office_only" && !j.owner && zi.zone !== "?") return `<div class="suggest">No auto-suggestion — ${esc(zi.group || zi.zone)} is office-booked</div>`; const sg = bestFit(j, j.eta ? addBD(j.eta, 2) : null); return sg ? `<div class="suggest">💡 <b>${dayObj(sg.day).s} ${dayObj(sg.day).n} · ${esc(first(techById(sg.tech)))} · ${sg.win === "AM" ? "8–12" : "12–5"}</b><span class="why">${esc(sg.why)}${sg.day !== sg.earliest ? ` · earliest open is ${dayObj(sg.earliest).s}` : ""}</span><button data-place="${j.sv}" data-t="${sg.tech}" data-d="${sg.day}" data-w="${sg.win}">Place there</button></div>` : '<div class="suggest">Nothing fits this week — office places it</div>'; })() : "";
       return `<div class="card ${esc(j.st)}${j.wty ? " wty" : ""}${j.stale ? " stale" : ""}${members.length > 1 ? " ingrp" : ""}" draggable="true" data-sv="${j.sv}" tabindex="0">
-        <div class="seq">${seq || "·"}</div><div class="who">${esc(j.cust || j.sv)}</div>${time}
+        <div class="seq">${seq || "·"}</div><button class="who" data-hist="${j.sv}" title="Service history for this customer">${esc(j.cust || j.sv)}</button>${time}
         <div class="sub">${esc([j.addr, j.zip].filter(Boolean).join(", "))}${j.unit ? " · " + esc(j.unit) : ""}</div>
         ${j.tech ? `<button class="pin" aria-pressed="${!!j.lock}" title="Pin to this truck and sequence" data-pin="${j.sv}">${j.lock ? "📌" : "📍"}</button>` : ""}
         <div class="chips">${chips}</div>
@@ -408,6 +433,7 @@
       root.querySelectorAll("[data-pin]").forEach((b) => (b.onclick = guard(async () => { const j = J.find((x) => x.sv === b.dataset.pin); await api(`/api/service-board/jobs/${j.sv}/flags`, { method: "POST", body: JSON.stringify({ locked: !j.lock }) }); toast(j.lock ? `${j.cust} unpinned` : `${j.cust} pinned — re-optimize won't move it`); await load(); })));
       root.querySelectorAll("[data-un]").forEach((b) => (b.onclick = guard(async () => { const j = J.find((x) => x.sv === b.dataset.un); await unscheduleJob(j); toast(`${j.cust} moved to Unscheduled — packet queued for the office`, "warn"); })));
       root.querySelectorAll("[data-cx]").forEach((b) => (b.onclick = () => openCancel(b.dataset.cx)));
+      root.querySelectorAll("[data-hist]").forEach((b) => (b.onclick = (e) => { e.stopPropagation(); openHistory(b.dataset.hist); }));
       root.querySelectorAll("[data-together]").forEach((b) => (b.onclick = guard(async () => { const j = J.find((x) => x.sv === b.dataset.together); const others = groupMembers(j).filter((x) => x.sv !== j.sv); let held = 0; for (const m of others) { if (m.day === j.day && m.tech === j.tech) continue; if (m.eta && m.eta > j.day) { held++; continue; } await api("/api/service-board/move", { method: "POST", body: JSON.stringify({ sv: m.sv, tech: j.tech, date: j.day, window: j.win || "" }) }); } await load(); toast(`${others.length - held} call${others.length - held === 1 ? "" : "s"} brought to ${first(techById(j.tech))} ${dayObj(j.day).s} — one arrival, one charge${held ? ` · ${held} held for parts` : ""}`); })));
       root.querySelectorAll("[data-sirepaired]").forEach((b) => (b.onclick = guard(async () => { await api("/api/service-board/shop/repaired", { method: "POST", body: JSON.stringify({ sv: b.dataset.sirepaired }) }); await load(); toast("Marked repaired — owed back to the customer; schedule the return"); })));
       root.querySelectorAll("[data-place]").forEach((b) => (b.onclick = guard(async () => { const j = J.find((x) => x.sv === b.dataset.place); const list = jobsFor(b.dataset.t, b.dataset.d).filter((x) => x.sv !== j.sv); const ins = b.dataset.w === "AM" ? list.filter((x) => x.win === "AM").length : list.length; const order = list.map((x) => x.sv); order.splice(ins, 0, j.sv); await moveJob(j, b.dataset.t, b.dataset.d, b.dataset.w, order); toast(`${j.cust} placed on ${first(techById(b.dataset.t))} ${dayObj(b.dataset.d).s} ${b.dataset.w} — packet queued`); })));
@@ -422,6 +448,14 @@
       document.addEventListener("drop", guard(async (e) => {
         const z = e.target.closest("[data-drop]"); if (!z) return; e.preventDefault(); z.classList.remove("over"); const sv = e.dataTransfer.getData("text/plain"); const j = J.find((x) => x.sv === sv); if (!j) return;
         if (z.dataset.drop === "shop") { toast("A call goes to the shop from the field tool, not the board", "warn"); return; }
+        if (j.hold) {
+          if (z.dataset.drop === "un") { toast("A hold can't be unscheduled here — clear the pick on the request card", "warn"); return; }
+          const c = col[z.dataset.drop]; const cards = [...z.querySelectorAll(".card:not(.dragging)")]; let idx = cards.findIndex((cd) => e.clientY < cd.getBoundingClientRect().top + cd.offsetHeight / 2); if (idx < 0) idx = cards.length;
+          const win = j.win || (idx <= Math.floor(cards.length / 2) ? "AM" : "PM"); const fromTech = j.tech, fromDay = j.day, fromWin = j.win;
+          await api(`/api/service-board/holds/${j.holdId}/move`, { method: "POST", body: JSON.stringify({ tech: c.tech, date: c.day, window: win }) }); await load();
+          toast(`${j.cust}'s hold moved to ${first(techById(c.tech))} ${dayObj(c.day).s} — tell the customer if the day changed`, "warn", { Undo: guard(async () => { await api(`/api/service-board/holds/${j.holdId}/move`, { method: "POST", body: JSON.stringify({ tech: fromTech, date: fromDay, window: fromWin }) }); await load(); toast("Undone"); }) });
+          return;
+        }
         if (z.dataset.drop === "un") { if (!j.tech) return; await unscheduleJob(j); toast(`${j.cust} unscheduled — packet queued`, "warn"); return; }
         const k = z.dataset.drop, c = col[k]; const cards = [...z.querySelectorAll(".card:not(.dragging)")]; let idx = cards.findIndex((cd) => e.clientY < cd.getBoundingClientRect().top + cd.offsetHeight / 2); if (idx < 0) idx = cards.length;
         const target = jobsFor(c.tech, c.day).filter((x) => x.sv !== sv); const win = j.win || (idx <= Math.floor(target.length / 2) ? "AM" : "PM");
@@ -451,7 +485,7 @@
     });
     function renderUnsched() {
       const q = unFilter.trim().toLowerCase();
-      const un = J.filter((j) => !j.si && j.st !== "SO9" && (!j.tech || !j.day || j.day < B.today)).filter((j) => !q || [j.sv, j.cust, j.addr, j.zip, j.unit, j.st, j.zone].join(" ").toLowerCase().includes(q)).sort((a, b) => (a.day || "9").localeCompare(b.day || "9") || a.sv.localeCompare(b.sv));
+      const un = J.filter((j) => !j.si && j.st !== "SO9" && (!j.tech || !TECHS.some((t) => t.id === j.tech) || !j.day || j.day < B.today)).filter((j) => !q || [j.sv, j.cust, j.addr, j.zip, j.unit, j.st, j.zone].join(" ").toLowerCase().includes(q)).sort((a, b) => (a.day || "9").localeCompare(b.day || "9") || a.sv.localeCompare(b.sv));
       $("#unCount").textContent = un.length;
       $("#unsched").innerHTML = un.map((j) => cardHTML(j, 0, null, "un")).join("") || '<div class="leg">nothing waiting</div>';
       wireCards($("#unsched"));
@@ -459,10 +493,11 @@
     // In the shop: SI1 bench work (drag onto a day to schedule the return
     // once repaired), SI5 owed back, SI6 going back.
     function renderShop() {
-      const list = J.filter((j) => j.si && j.st !== "SO9"); const panel = $("#shoppanel"); panel.hidden = !list.length; if (!list.length) return;
+      const all = J.filter((j) => j.si && j.st !== "SO9"); const panel = $("#shoppanel"); panel.hidden = !all.length; if (!all.length) return;
+      const sq = shopFilter.trim().toLowerCase(); const list = all.filter((j) => !sq || [j.sv, j.cust, j.addr, j.zip, j.unit, j.st, j.owner, j.tech].join(" ").toLowerCase().includes(sq));
       const age = (j) => (j.si.in ? Math.max(0, Math.round((new Date(B.today) - new Date(j.si.in)) / 864e5)) : 0);
-      $("#shopCount").textContent = list.length;
-      $("#shoplist").innerHTML = list.map((j) => `<div class="card ${esc(j.st)}" draggable="${j.st !== "SI1" ? "false" : "true"}" data-sv="${j.sv}" tabindex="0"><div class="seq">SI</div><div class="who">${esc(j.cust || j.sv)}</div><div class="time">${age(j)} days</div><div class="sub">${esc([j.addr, j.zip].filter(Boolean).join(", "))}${j.unit ? " · " + esc(j.unit) : ""}</div><div class="chips"><span class="chip st ${esc(j.st)}">${esc(j.st)}</span><span class="chip">${esc(stLabel(j))}</span>${j.owner ? `<span class="chip">${esc(first(techById(j.owner)))}'s</span>` : ""}${j.day ? `<span class="chip">return ${dayObj(j.day).s} ${md(j.day)} · ${esc(j.tech || "")}</span>` : ""}</div><div class="more"><span class="mono">${esc(j.sv)}</span>${j.phone ? " · " + esc(j.phone) : ""}<div class="acts">${j.st === "SI1" ? `<button data-sirepaired="${j.sv}">Repaired — ready to go back</button>` : ""}<a class="btn" href="service-journey.html?sv=${encodeURIComponent(j.sv)}">Service history</a><button data-cx="${j.sv}">Cancel call…</button></div></div></div>`).join("");
+      $("#shopCount").textContent = sq ? `${list.length} of ${all.length}` : all.length;
+      $("#shoplist").innerHTML = list.map((j) => `<div class="card ${esc(j.st)}" draggable="${j.st !== "SI1" ? "false" : "true"}" data-sv="${j.sv}" tabindex="0"><div class="seq">SI</div><button class="who" data-hist="${j.sv}" title="Service history for this customer">${esc(j.cust || j.sv)}</button><div class="time">${age(j)} days</div><div class="sub">${esc([j.addr, j.zip].filter(Boolean).join(", "))}${j.unit ? " · " + esc(j.unit) : ""}</div><div class="chips"><span class="chip st ${esc(j.st)}">${esc(j.st)}</span><span class="chip">${esc(stLabel(j))}</span>${j.owner ? `<span class="chip">${esc(first(techById(j.owner)))}'s</span>` : ""}${j.day ? `<span class="chip">return ${dayObj(j.day).s} ${md(j.day)} · ${esc(j.tech || "")}</span>` : ""}</div><div class="more"><span class="mono">${esc(j.sv)}</span>${j.phone ? " · " + esc(j.phone) : ""}<div class="acts">${j.st === "SI1" ? `<button data-sirepaired="${j.sv}">Repaired — ready to go back</button>` : ""}<a class="btn" href="service-journey.html?sv=${encodeURIComponent(j.sv)}">Service history</a><button data-cx="${j.sv}">Cancel call…</button></div></div></div>`).join("");
       wireCards($("#shoplist"));
     }
     function renderCancelled() {
@@ -506,19 +541,77 @@
       let svg = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Schematic map of stops">`;
       for (const z in ZIP) { const p = ZIP[z]; if (p[0] < minLa || p[0] > maxLa || p[1] < minLo || p[1] > maxLo) continue; svg += `<circle cx="${X(p[1])}" cy="${Y(p[0])}" r="1.5" fill="var(--line)"/>`; }
       svg += `<rect x="${X(SHOP.ll[1]) - 4}" y="${Y(SHOP.ll[0]) - 4}" width="8" height="8" fill="var(--muted)"/>`;
-      others.forEach((t) => { if (!mapShow.others[t.id]) return; jobsFor(t.id, othersDay).forEach((j) => { const p = ll(j); svg += `<circle cx="${X(p[1])}" cy="${Y(p[0])}" r="4" fill="var(--muted)" opacity=".55"/><text x="${X(p[1]) + 6}" y="${Y(p[0]) + 3}" font-size="6.5" fill="var(--muted)">${esc(t.id)}</text>`; }); });
+      others.forEach((t) => { if (!mapShow.others[t.id]) return; jobsFor(t.id, othersDay).forEach((j) => { const p = ll(j); svg += `<g data-msv="${j.sv}" tabindex="0" role="button" aria-label="${esc(j.cust || j.sv)}"><title>${esc(j.cust || j.sv)} · ${esc(t.name)}</title><circle cx="${X(p[1])}" cy="${Y(p[0])}" r="4" fill="var(--muted)" opacity=".55"/><text x="${X(p[1]) + 6}" y="${Y(p[0]) + 3}" font-size="6.5" fill="var(--muted)">${esc(t.id)}</text></g>`; }); });
       const full = $("#mappanel").classList.contains("full");
       for (const k of ["A", "B"]) { if (!mapShow[k]) continue; const c = col[k], tl = timeline(c.tech, c.day), colr = `var(--col${k})`; const path = [startPt(tl.t, c.day), ...tl.stops.filter((s) => !s.block).map((s) => (s.shop ? SHOP.ll : ll(s.j))), endPt(tl.t, c.day)];
         svg += `<polyline points="${path.map((p) => X(p[1]) + "," + Y(p[0])).join(" ")}" fill="none" stroke="${colr}" stroke-width="1.5" stroke-dasharray="${k === "B" ? "4 3" : "0"}" opacity=".8"/>`;
-        const tot = tl.stopCount; tl.stops.filter((s) => s.j).forEach((s, i) => { const p = ll(s.j), x = X(p[1]) + (k === "B" ? 4 : -4), y = Y(p[0]); svg += `<circle cx="${x}" cy="${y}" r="7" fill="${colr}"/><text x="${x}" y="${y + 3}" font-size="8" text-anchor="middle" fill="var(--surface)" font-weight="600">${i + 1}</text>`; if (full) svg += `<text x="${x + 9}" y="${y + 3}" font-size="8" fill="var(--ink)">${esc(c.tech)} #${i + 1}/${tot} · ${esc((s.j.cust || "").split(/\s+/).pop())}</text>`; }); }
-      if (mapShow.un) unJobs.forEach((j) => { const p = ll(j); svg += `<circle cx="${X(p[1])}" cy="${Y(p[0])}" r="4" fill="none" stroke="var(--wait)" stroke-width="1.5"/>`; });
+        const tot = tl.stopCount; tl.stops.filter((s) => s.j).forEach((s, i) => { const p = ll(s.j), x = X(p[1]) + (k === "B" ? 4 : -4), y = Y(p[0]); svg += `<g data-msv="${s.j.sv}" tabindex="0" role="button" aria-label="${esc(s.j.cust || s.j.sv)}"><title>${esc(s.j.cust || s.j.sv)} · ${esc(s.j.addr || "")} · stop ${i + 1}</title><circle cx="${x}" cy="${y}" r="7" fill="${colr}"/><text x="${x}" y="${y + 3}" font-size="8" text-anchor="middle" fill="var(--surface)" font-weight="600">${i + 1}</text></g>`; if (full) svg += `<text x="${x + 9}" y="${y + 3}" font-size="8" fill="var(--ink)">${esc(c.tech)} #${i + 1}/${tot} · ${esc((s.j.cust || "").split(/\s+/).pop())}</text>`; }); }
+      if (mapShow.un) unJobs.forEach((j) => { const p = ll(j); svg += `<g data-mun="${j.sv}" tabindex="0" role="button" aria-label="${esc(j.cust || j.sv)}"><title>${esc(j.cust || j.sv)} · ${esc(j.addr || "")} · unscheduled</title><circle cx="${X(p[1])}" cy="${Y(p[0])}" r="5" fill="var(--surface)" stroke="var(--wait)" stroke-width="1.5"/></g>`; });
       svg += `<text x="${W - 8}" y="12" font-size="8" text-anchor="end" fill="var(--muted)">N ↑ · schematic, not to scale</text></svg>`;
       $("#map").innerHTML = svg;
+      $("#mapday").textContent = `${dayObj(col.A.day).s} ${md(col.A.day)}`;
+      $("#map").querySelectorAll("[data-msv]").forEach((g) => (g.onclick = (e) => { e.stopPropagation(); openMapStop(g.dataset.msv, g); }));
+      $("#map").querySelectorAll("[data-mun]").forEach((g) => (g.onclick = (e) => { e.stopPropagation(); openMapStop(g.dataset.mun, g); }));
       const lg = $("#maplegend"); lg.innerHTML = [["A", `<i style="background:var(--colA)"></i>${esc(first(techById(col.A.tech)))} ${dayObj(col.A.day).s}`], ["B", `<i style="background:var(--colB)"></i>${esc(first(techById(col.B.tech)))} ${dayObj(col.B.day).s}`], ["un", '<i style="background:none;border:1.5px solid var(--wait)"></i>Unscheduled']].map(([k, l]) => `<button aria-pressed="${mapShow[k]}" data-mk="${k}">${l}</button>`).join("") +
         others.map((t) => `<button aria-pressed="${!!mapShow.others[t.id]}" data-mo="${t.id}" title="${esc(t.name)} on ${dayObj(othersDay).s}"><i style="background:var(--muted)"></i>${esc(t.id)} ${dayObj(othersDay).s}</button>`).join("") + `<span style="align-self:center"><i style="background:var(--muted);border-radius:2px"></i>Shop</span>`;
       lg.querySelectorAll("[data-mk]").forEach((b) => (b.onclick = () => { mapShow[b.dataset.mk] = !mapShow[b.dataset.mk]; renderMap(); }));
-      lg.querySelectorAll("[data-mo]").forEach((b) => { b.onclick = () => { mapShow.others[b.dataset.mo] = !mapShow.others[b.dataset.mo]; renderMap(); }; b.ondblclick = () => openTechView(b.dataset.mo, othersDay); });
+      lg.querySelectorAll("[data-mo]").forEach((b) => { b.onclick = (e) => { e.stopPropagation(); openMapTech(b.dataset.mo, othersDay, b); }; });
+      lg.querySelectorAll("[data-mk]").forEach((b) => { if (b.dataset.mk === "A" || b.dataset.mk === "B") { b.onclick = (e) => { e.stopPropagation(); openMapTech(col[b.dataset.mk].tech, col[b.dataset.mk].day, b, b.dataset.mk); }; } });
     }
+    // ---------- map: click a stop or a tech ----------
+    function openMapStop(sv, anchor) {
+      const j = J.find((x) => x.sv === sv); if (!j) return;
+      if (j.hold) {
+        const opts = TECHS.filter((t) => t.active !== false && t.mode !== "collector").map((t) => `<option value="${t.id}" ${t.id === j.tech ? "selected" : ""}>${esc(t.name)}</option>`).join("");
+        const days = DAYS.map((d) => `<option value="${d.k}" ${d.k === j.day ? "selected" : ""}>${d.s} ${d.n}</option>`).join("");
+        const p = popAt(anchor, `<h4>${esc(j.cust)}<small>self-scheduled hold · ${esc([j.addr, j.zip].filter(Boolean).join(", "))} · ${esc(first(techById(j.tech)))} ${dayObj(j.day).s} ${md(j.day)}${j.win ? " · " + (j.win === "AM" ? "8–12" : "12–5") : ""}</small></h4>
+          <div class="lbl">Move the hold</div><div class="grp"><select data-mt>${opts}</select><select data-md>${days}</select><button class="primary" data-go>Move</button></div>
+          <div class="grp" style="margin-top:.5rem;border-top:1px solid var(--line);padding-top:.5rem"><a class="btn" href="appliance-service-calls.html?card=${encodeURIComponent(j.hold.cardId)}">Open the request card</a></div>`, "mappop");
+        p.querySelector("[data-go]").addEventListener("click", guard(async () => { const tech = p.querySelector("[data-mt]").value, date = p.querySelector("[data-md]").value; closePops(); await api(`/api/service-board/holds/${j.holdId}/move`, { method: "POST", body: JSON.stringify({ tech, date, window: j.win }) }); await load(); toast(`${j.cust}'s hold moved to ${first(techById(tech))} ${dayObj(date).s}`, "warn"); }));
+        return;
+      }
+      const onBoard = ["A", "B"].find((k) => col[k].tech === j.tech && col[k].day === j.day);
+      const fit = !j.tech || !j.day ? bestFit(j) : null;
+      const opts = TECHS.filter((t) => t.active !== false && t.mode !== "collector").map((t) => `<option value="${t.id}" ${t.id === j.tech ? "selected" : ""}>${esc(t.name)}</option>`).join("");
+      const days = DAYS.map((d) => `<option value="${d.k}" ${d.k === (j.day || col.A.day) ? "selected" : ""}>${d.s} ${d.n}</option>`).join("");
+      const h = `<h4>${esc(j.cust || j.sv)}<small>${esc(j.sv)} · ${esc(j.st)} · ${esc([j.addr, j.zip].filter(Boolean).join(", "))}${j.unit ? " · " + esc(j.unit) : ""}</small></h4>
+        <div class="lbl">Now</div><div class="grp"><span style="align-self:center">${j.tech && j.day ? `${esc(first(techById(j.tech)))} · ${dayObj(j.day).s} ${md(j.day)}${j.win ? " · " + (j.win === "AM" ? "8–12" : "12–5") : ""}` : "unscheduled"}${j.lock ? " · pinned" : ""}</span>${onBoard ? `<button data-show="${onBoard}">Show card</button>` : j.tech && j.day ? `<button data-loadcol="A">Load ${esc(first(techById(j.tech)))} ${dayObj(j.day).s} on the left</button>` : ""}</div>
+        ${fit ? `<div class="sugg" style="margin:.3rem 0">💡 ${esc(first(techById(fit.tech)))} ${dayObj(fit.day).s} ${fit.win} — ${esc(fit.why)} <button class="mini" data-fit>Place there</button></div>` : ""}
+        <div class="lbl">Move</div><div class="grp"><select data-mt>${opts}</select><select data-md>${days}</select><select data-mw><option value="">any time</option><option value="AM" ${j.win === "AM" ? "selected" : ""}>8–12</option><option value="PM" ${j.win === "PM" ? "selected" : ""}>12–5</option></select><button class="primary" data-go>Move</button></div>
+        <div class="grp" style="margin-top:.5rem;border-top:1px solid var(--line);padding-top:.5rem">${j.tech ? `<button data-un>Send to unscheduled</button>` : ""}<button data-hist>Service history</button><button data-cx>Cancel call…</button></div>`;
+      const p = popAt(anchor, h, "mappop");
+      p.querySelector("[data-show]")?.addEventListener("click", () => { closePops(); const c = document.querySelector(`#col${onBoard} .card[data-sv="${j.sv}"]`); if (c) { c.classList.add("open"); c.scrollIntoView({ behavior: "smooth", block: "center" }); c.focus(); } });
+      p.querySelector("[data-loadcol]")?.addEventListener("click", () => { closePops(); loadCol("A", j.tech, j.day, "click"); });
+      p.querySelector("[data-fit]")?.addEventListener("click", guard(async () => { closePops(); await api("/api/service-board/move", { method: "POST", body: JSON.stringify({ sv: j.sv, tech: fit.tech, date: fit.day, window: fit.win }) }); await load(); toast(`${j.cust} placed with ${first(techById(fit.tech))} ${dayObj(fit.day).s} — packet queued`); }));
+      p.querySelector("[data-go]").addEventListener("click", guard(async () => { const tech = p.querySelector("[data-mt]").value, date = p.querySelector("[data-md]").value, win = p.querySelector("[data-mw]").value; closePops(); const r = await api("/api/service-board/move", { method: "POST", body: JSON.stringify({ sv: j.sv, tech, date, window: win }) }); await load(); toast(`${j.cust} → ${first(techById(tech))} ${dayObj(date).s}${r.forced ? " (forced)" : ""} — packet queued`); }));
+      p.querySelector("[data-un]")?.addEventListener("click", guard(async () => { closePops(); await unscheduleJob(j); toast(`${j.cust} moved to Unscheduled — packet queued`, "warn"); }));
+      p.querySelector("[data-hist]").addEventListener("click", () => { closePops(); openHistory(j.sv); });
+      p.querySelector("[data-cx]").addEventListener("click", () => { closePops(); openCancel(j.sv); });
+    }
+    function openMapTech(tech, day, anchor, k) {
+      const t = techById(tech), d = dayObj(day), tl = timeline(tech, day), ns = tl.stops.filter((x) => x.j).length;
+      const shown = k ? mapShow[k] : !!mapShow.others[tech];
+      const h = `<h4>${esc(t.name)} · ${d.s} ${d.n}<small>${ns} stop${ns === 1 ? "" : "s"} · ${Math.round(tl.fill * 100)}% of ${hm(tl.cap)}${tl.open ? "" : " · closed"}</small></h4>
+        <div class="grp"><button data-tog>${shown ? "Hide on map" : "Show on map"}</button><button data-load="A">Load left</button><button data-load="B">Load right</button></div>
+        <div class="grp" style="margin-top:.5rem;border-top:1px solid var(--line);padding-top:.5rem"><button data-tv>Route overview</button><button data-ts>Route settings</button><button data-dp>Day controls…</button></div>`;
+      const p = popAt(anchor, h, "mappop");
+      p.querySelector("[data-tog]").onclick = () => { closePops(); if (k) mapShow[k] = !mapShow[k]; else mapShow.others[tech] = !mapShow.others[tech]; renderMap(); };
+      p.querySelectorAll("[data-load]").forEach((b) => (b.onclick = () => { closePops(); loadCol(b.dataset.load, tech, day, "click"); }));
+      p.querySelector("[data-tv]").onclick = () => { closePops(); openTechView(tech, day); };
+      p.querySelector("[data-ts]").onclick = () => { closePops(); openTechSettings(tech); };
+      p.querySelector("[data-dp]").onclick = () => { closePops(); openDayPop(tech, day, anchor); };
+    }
+    // ‹ › on the map move both boards a day (across weeks when needed).
+    async function stepBoards(n) {
+      const i = DAYS.findIndex((d) => d.k === col.A.day); const j = i + n;
+      if (j < 0) { const keepA = col.A.tech, keepB = col.B.tech; from = addDays(DAYS[0].k, -7); await load(); col.A = { tech: keepA, day: DAYS[DAYS.length - 1].k }; col.B = { tech: keepB, day: DAYS[DAYS.length - 1].k }; }
+      else if (j >= DAYS.length) { const keepA = col.A.tech, keepB = col.B.tech; from = addDays(DAYS[0].k, 7); await load(); col.A = { tech: keepA, day: DAYS[0].k }; col.B = { tech: keepB, day: DAYS[0].k }; }
+      else { col.A.day = DAYS[j].k; col.B.day = DAYS[j].k; }
+      if (isMobile()) stripDay = col.A.day;
+      renderAll();
+    }
+    document.querySelectorAll("[data-mapday]").forEach((b) => (b.onclick = guard(() => stepBoards(Number(b.dataset.mapday)))));
+
     // ---------- popovers ----------
     function closePops() { document.querySelectorAll(".pop").forEach((p) => p.remove()); }
     document.addEventListener("click", (e) => { if (!e.target.closest(".pop") && !e.target.closest("[data-menu],[data-dayctl],.daybtn")) closePops(); });
@@ -582,7 +675,7 @@
     const longDay = (k) => new Date(k + "T12:00:00Z").toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", timeZone: "UTC" });
     const routeText = (j) => `Wilson Appliance: you're booked for ${longDay(j.day)} between ${winWords(j.win)}. ${first(techById(j.tech))} is your technician and will text when he's on the way. Reply to this message if you need to change it. — ${j.sv}`;
     function confirmRoute(k) {
-      const c = col[k], t = techById(c.tech), d = dayObj(c.day), stops = jobsFor(c.tech, c.day).filter((j) => !j.si); const conf = CONFIRMED[c.tech + "|" + c.day];
+      const c = col[k], t = techById(c.tech), d = dayObj(c.day), stops = jobsFor(c.tech, c.day).filter((j) => !j.si && !j.hold); const conf = CONFIRMED[c.tech + "|" + c.day];
       if (!stops.length) { toast("Nothing on this day to confirm", "warn"); return; }
       const ov = document.createElement("div"); ov.className = "overlay"; ov.innerHTML = `<div class="drawer" role="dialog" aria-label="Confirm route" style="width:min(620px,100%)">
         <div style="display:flex;justify-content:space-between;align-items:flex-start"><div><h2>Confirm ${esc(first(t))} · ${d.s} ${d.n}</h2><div class="sub">${stops.length} stop${stops.length === 1 ? "" : "s"} · locks the order and the windows${conf ? ` · already confirmed ${when(conf.at)} by ${esc(conf.by)}` : ""}</div></div><button data-x>Close</button></div>
@@ -593,10 +686,29 @@
       ov.querySelector("[data-go]").onclick = guard(async () => { close(); const r = await api("/api/service-board/confirm", { method: "POST", body: JSON.stringify({ tech: c.tech, date: c.day }) }); await load(); const okN = (r.texts || []).filter((x) => x.ok).length; toast(`${first(t)} ${d.s} confirmed · ${r.n} stop${r.n === 1 ? "" : "s"} locked${r.textingOn ? ` · ${okN} text${okN === 1 ? "" : "s"} sent` : " · texting off, nothing sent"}`); });
     }
 
+    // ---------- service history: click a customer's name ----------
+    async function openHistory(sv) {
+      const ov = document.createElement("div"); ov.className = "overlay"; ov.innerHTML = `<div class="drawer hist" role="dialog" aria-label="Service history" style="width:min(640px,100%)"><div style="display:flex;justify-content:space-between;align-items:flex-start"><div><h2>Service history</h2><div class="sub">loading ${esc(sv)}…</div></div><button data-x>Close</button></div></div>`;
+      document.body.append(ov); const close = () => ov.remove(); ov.onclick = (e) => { if (e.target === ov) close(); }; ov.querySelector("[data-x]").onclick = close;
+      let h; try { h = await api(`/api/service-board/history/${encodeURIComponent(sv)}`); } catch (e) { ov.querySelector(".sub").textContent = e.message; return; }
+      const j = J.find((x) => x.sv === sv);
+      const stChip = (st) => `<span class="chip st ${esc(st)}">${esc(st || "—")}</span>`;
+      const visit = (v) => `<div class="visit ${v.open ? "open" : ""}"><span class="when">${esc(v.created || "")}${v.finished ? `<br>→ ${esc(v.finished)}` : v.day ? `<br>${esc(dayObj(v.day).s)} ${md(v.day)}` : ""}</span><span><b>${esc(v.sv)}</b> ${stChip(v.st)}${v.wty ? ' <span class="chip wty">Warranty</span>' : ""}${v.sameUnit ? ' <span class="chip">same unit</span>' : ""}${v.open ? ' <span class="chip confirmed">open</span>' : ""}${v.source === "epass" ? "" : ' <span class="chip" title="a ticket Agility has tracked">board</span>'}</span><span class="mono" style="font-size:.76rem">${v.tech ? esc(first(techById(v.tech))) : ""}${v.total ? ` · $${Number(v.total).toFixed(0)}` : ""}</span><span class="d">${esc(v.unit || "")}${v.serial ? " · " + esc(v.serial) : ""}${v.problem ? "<br>" + esc(v.problem) : ""}${v.performed ? "<br><i>Done: " + esc(v.performed) + "</i>" : ""}</span></div>`;
+      const visits = h.visits || [];
+      ov.querySelector(".drawer").innerHTML = `<div style="display:flex;justify-content:space-between;align-items:flex-start"><div><h2>${esc(h.cust || sv)}</h2><div class="sub">${esc([h.addr, h.zip].filter(Boolean).join(", "))}${h.phone ? " · " + esc(h.phone) : ""}${h.customerCode ? " · cust " + esc(h.customerCode) : ""}${h.unit ? " · " + esc(h.unit) : ""}${h.serial ? " · " + esc(h.serial) : ""}</div></div><button data-x>Close</button></div>
+        ${j ? `<div class="visit open"><span class="when">this call</span><span><b>${esc(j.sv)}</b> ${stChip(j.st)} ${j.wty ? '<span class="chip wty">Warranty</span>' : ""}</span><span class="mono" style="font-size:.76rem">${j.tech ? esc(first(techById(j.tech))) : "unassigned"}${j.day ? ` · ${dayObj(j.day).s} ${md(j.day)}` : ""}</span><span class="d">${esc(j.unit || "")}${j.problem ? "<br>" + esc(j.problem) : ""}</span></div>` : ""}
+        <div class="lbl">Other visits (${visits.length})${h.historyFeedLoaded ? "" : ' <span class="hint">· finished ePASS tickets arrive with the next feed after the pull script is updated</span>'}</div>
+        ${visits.length ? visits.map(visit).join("") : `<div class="hint" style="padding:.5rem 0">No other tickets for this customer, phone, address or unit${h.historyFeedLoaded ? "" : " on the board yet"}.</div>`}
+        <div class="lbl">This ticket's timeline</div>
+        ${(h.timeline || []).length ? h.timeline.map((t) => `<div class="tl">${esc(when(t.at))} · <b>${esc(t.from || "—")} → ${esc(t.to || "—")}</b>${t.by ? " · " + esc(t.by) : ""}${t.note ? " · " + esc(t.note) : ""}</div>`).join("") : '<div class="hint">Nothing recorded yet.</div>'}
+        <div class="acts"><a class="btn" href="service-journey.html?sv=${encodeURIComponent(sv)}">Open in Service Journey</a><button data-x2>Close</button></div>`;
+      ov.querySelector("[data-x]").onclick = close; ov.querySelector("[data-x2]").onclick = close;
+    }
+
     // ---------- tech out: reschedule a closed day's stops ----------
     const reschedText = (j, sg, fromDay) => `Wilson Appliance: ${first(techById(j.tech))} was scheduled to see you ${dayObj(fromDay).s} ${dayObj(fromDay).n} and is out. We can come ${dayObj(sg.day).s} ${dayObj(sg.day).n} between ${sg.win === "PM" ? "12 and 5" : "8 and 12"} with ${first(techById(sg.tech))}. Reply YES to confirm, or call (512) 894-0907 to pick another time. — ${j.sv}`;
     function openReschedule(tech, day) {
-      const t = techById(tech), d = dayObj(day); const stops = jobsFor(tech, day);
+      const t = techById(tech), d = dayObj(day); const stops = jobsFor(tech, day).filter((j) => !j.hold);
       const ov = document.createElement("div"); ov.className = "overlay"; ov.innerHTML = `<div class="drawer" role="dialog" aria-label="Reschedule" style="width:min(640px,100%)">
         <div style="display:flex;justify-content:space-between;align-items:flex-start"><div><h2>${esc(first(t))} is out ${d.s} ${d.n}</h2><div class="sub">${stops.length} stop${stops.length === 1 ? "" : "s"} to re-home · the engine's best day for each, one click to move it</div></div><button data-x>Close</button></div>
         ${NOTIFY.reschedule ? "" : `<div class="lanenote">Texting is off — moving a call queues the packet; tell the customer by hand with the wording under each stop.</div>`}
@@ -616,7 +728,7 @@
         <div style="display:flex;justify-content:space-between;align-items:flex-start"><div><h2>${isNew ? "New tech" : esc(t.name) + " · route settings"}</h2><div class="sub">The tech, not the day. Day-by-day changes live in the ⋯ menu on the board.</div></div><button data-x>Close</button></div>
         <div class="grid2"><label>Code <input id="tsId" value="${esc(t.id)}" ${isNew ? "" : "readonly"} maxlength="10" placeholder="SP code, e.g. DLA" /></label><label>Name <input id="tsName" value="${esc(t.name)}" /></label>
         <label>Mode <select id="tsMode"><option value="route" ${t.mode === "route" ? "selected" : ""}>route — auto-routed, on the board</option><option value="office" ${t.mode === "office" ? "selected" : ""}>office assigns — no auto placement</option><option value="collector" ${t.mode === "collector" ? "selected" : ""}>collector lane — builds his own route</option></select></label><label>Note <input id="tsNote" value="${esc(t.note || "")}" maxlength="200" placeholder="shown on the board when not auto-routed" /></label>
-        <label>Usual start <select id="tsStart"><option value="shop" ${t.start === "shop" ? "selected" : ""}>shop</option><option value="home" ${t.start === "home" ? "selected" : ""}>home</option></select></label><label>Usual end <select id="tsEnd"><option value="shop" ${t.end === "shop" ? "selected" : ""}>shop</option><option value="home" ${t.end === "home" ? "selected" : ""}>home</option></select></label></div>
+        <label>ePASS codes for this tech <input id="tsAliases" value="${esc((t.aliases || []).join(", "))}" placeholder="e.g. KJB2 — Salesperson codes ePASS uses besides ${esc(t.id || "the code")}" /></label><label>Usual start <select id="tsStart"><option value="shop" ${t.start === "shop" ? "selected" : ""}>shop</option><option value="home" ${t.start === "home" ? "selected" : ""}>home</option></select></label><label>Usual end <select id="tsEnd"><option value="shop" ${t.end === "shop" ? "selected" : ""}>shop</option><option value="home" ${t.end === "home" ? "selected" : ""}>home</option></select></label></div>
         <div class="lbl">Skills</div><div class="ck">${SKILLS.map((k) => `<label><input type="checkbox" data-skill="${k}" ${t.skills.includes(k) ? "checked" : ""}/> ${k}</label>`).join("")}</div>
         <div class="lbl">Week — start, end, where the day begins and ends</div>
         <table class="pattern"><thead><tr><th>Day</th><th>Works</th><th>Start</th><th>End</th><th>From</th><th>To</th><th>Why</th></tr></thead><tbody>${wd.map((dName) => { const p = (t.pattern || {})[dName] || {}; return `<tr data-dow="${dName}"><td>${dName}</td><td><input type="checkbox" data-work ${t.workDays.includes(dName) ? "checked" : ""}/></td><td><select data-ps>${opt(MINS(420, 600), p.start ?? usual.start, fmt)}</select></td><td><select data-pe>${opt(MINS(780, 1080), p.end ?? usual.end, fmt)}</select></td><td><select data-pf><option value="">as usual</option><option value="shop" ${p.startAt === "shop" ? "selected" : ""}>shop</option><option value="home" ${p.startAt === "home" ? "selected" : ""}>home</option></select></td><td><select data-pt><option value="">as usual</option><option value="shop" ${p.endAt === "shop" ? "selected" : ""}>shop</option><option value="home" ${p.endAt === "home" ? "selected" : ""}>home</option></select></td><td><input data-pw value="${esc(p.why || "")}" maxlength="80" placeholder="" style="width:110px"/></td></tr>`; }).join("")}</tbody></table>
@@ -628,7 +740,7 @@
         const g = (sel) => ov.querySelector(sel); const num = (sel) => (g(sel).value === "" ? null : Number(g(sel).value));
         const pattern = {}, workDays = [];
         ov.querySelectorAll("tr[data-dow]").forEach((r) => { const dName = r.dataset.dow; if (r.querySelector("[data-work]").checked) workDays.push(dName); const st = Number(r.querySelector("[data-ps]").value), en = Number(r.querySelector("[data-pe]").value), f = r.querySelector("[data-pf]").value, to = r.querySelector("[data-pt]").value, why = r.querySelector("[data-pw]").value.trim(); if (st !== usual.start || en !== usual.end || f || to || why) pattern[dName] = { ...(st !== usual.start ? { start: st } : {}), ...(en !== usual.end ? { end: en } : {}), ...(f ? { startAt: f } : {}), ...(to ? { endAt: to } : {}), ...(why ? { why } : {}) }; });
-        const body = { name: g("#tsName").value.trim(), mode: g("#tsMode").value, note: g("#tsNote").value.trim(), start: g("#tsStart").value, end: g("#tsEnd").value, skills: [...ov.querySelectorAll("[data-skill]:checked")].map((x) => x.dataset.skill), workDays, pattern, commuteAllow: num("#tsCommute"), maxStops: num("#tsStops"), maxOnsite: num("#tsOnsite"), maxDrive: num("#tsDrive"), overflow: g("#tsOvf").checked };
+        const body = { name: g("#tsName").value.trim(), mode: g("#tsMode").value, note: g("#tsNote").value.trim(), aliases: g("#tsAliases").value.split(/[,\s]+/).map((x) => x.trim().toUpperCase()).filter(Boolean), start: g("#tsStart").value, end: g("#tsEnd").value, skills: [...ov.querySelectorAll("[data-skill]:checked")].map((x) => x.dataset.skill), workDays, pattern, commuteAllow: num("#tsCommute"), maxStops: num("#tsStops"), maxOnsite: num("#tsOnsite"), maxDrive: num("#tsDrive"), overflow: g("#tsOvf").checked };
         if (!isNew) body.retireOn = g("#tsRetire").value || null;
         const code = isNew ? g("#tsId").value.trim().toUpperCase() : t.id; if (!code) throw new Error("A tech code is required.");
         await api(`/api/service-board/techs/${encodeURIComponent(code)}/settings`, { method: "POST", body: JSON.stringify(body) }); close(); await load(); toast(`${body.name || code} saved`);
@@ -658,7 +770,11 @@
     // ---------- load ----------
     async function load({ keepCols = true } = {}) {
       const data = await api(`/api/service-board?from=${encodeURIComponent(from)}&days=5`);
-      B = data; J = data.jobs; TECHS = data.techs; DAYS = data.days; TD = data.td || {}; BLOCKS = data.blocks || []; ZONE = data.zones || {}; ZIPZONE = data.zipZone || {}; ZIP = data.zipPts || {}; SHOP = data.shop || SHOP; S = data.settings || {}; CONFIRMED = data.confirmed || {}; NOTIFY = data.notify || {};
+      // Self-schedule holds ride along as HOLD cards: the customer picked the
+      // day, the engine picked the tech; the office books it in ePASS from the
+      // queue card and the SV takes the hold's place on the board when it lands.
+      const holdJobs = (data.holds || []).map((h) => ({ sv: `HOLD#${h.id}`, hold: h, holdId: h.id, cust: h.cust || `Request ${String(h.cardId || "").slice(-6)}`, addr: h.addr || "", zip: h.zip, zone: h.zone || "", ll: null, st: "REQ", epassSt: "", type: h.skill === "hvac" ? "hvac" : "appliance", unit: h.unit || "", dur: h.est, durSource: "units", units: h.units, phone: h.phone || "", problem: h.problem || "", wty: false, bal: "", owner: null, eta: "", lock: false, forced: false, note: "", confirmed: false, cx: null, si: null, tech: h.tech, day: h.day, seq: 900 + h.id, win: h.win, stale: false, epass: { st: "", day: "", tech: "", seenAt: null, inFeed: false }, group: "" }));
+      B = data; J = data.jobs.concat(holdJobs); TECHS = data.techs; DAYS = data.days; TD = data.td || {}; BLOCKS = data.blocks || []; ZONE = data.zones || {}; ZIPZONE = data.zipZone || {}; ZIP = data.zipPts || {}; SHOP = data.shop || SHOP; S = data.settings || {}; CONFIRMED = data.confirmed || {}; NOTIFY = data.notify || {};
       for (const t of TECHS) { t.zone = Object.values(ZONE).filter((z) => z.p === t.id).map((z) => z.zone); t.zone2 = Object.values(ZONE).filter((z) => z.s.includes(t.id)).map((z) => z.zone); }
       if (!TECHS.length) { $("#colA").innerHTML = '<div class="empty">No techs in the roster yet — seed sj_techs first.</div>'; $("#colB").innerHTML = ""; return; }
       const firstAuto = TECHS.find((t) => t.auto) || TECHS[0];
@@ -686,6 +802,9 @@
     $("#thisWeek").onclick = guard(async () => { from = ""; stripDay = ""; await load({ keepCols: false }); });
     $("#reload").onclick = guard(async () => { await load(); toast("Reloaded"); });
     $("#unQ").addEventListener("input", () => { unFilter = $("#unQ").value; renderUnsched(); });
+    $("#shopQ").addEventListener("input", () => { shopFilter = $("#shopQ").value; renderShop(); });
+    document.querySelectorAll("[data-pfull]").forEach((b) => (b.onclick = () => { const p = $("#" + b.dataset.pfull); const f = p.classList.toggle("full"); b.textContent = f ? "✕" : "⛶"; b.title = f ? "Back to the side panel" : "Larger view"; }));
+    document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !document.querySelector(".overlay")) document.querySelectorAll(".panel.full:not(.map)").forEach((p) => p.querySelector("[data-pfull]")?.click()); });
     setupDrops();
     $("#mapfull").onclick = () => { const f = $("#mappanel").classList.toggle("full"); $("#mapfull").textContent = f ? "✕" : "⛶"; renderMap(); };
     $("#mapsum").onclick = () => { mapSum = !mapSum; $("#mapsum").setAttribute("aria-pressed", mapSum); renderMap(); };

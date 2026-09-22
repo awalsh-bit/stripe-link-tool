@@ -441,9 +441,9 @@ import {
   importServiceDispatchTrack, importServiceInvoiceRows, serviceJourneyOverview, listServiceJobs, getServiceJob, setJobStatus, setIntakeReviewed, setOwnerTech,
   listStuckJobs, listStaleJobs, listSyncItems, markSyncKeyed, resolveSyncItem, listRecalls, reviewRecall, listImportBatches, serviceKpis, listTechs as listServiceTechs,
   listZones as listServiceZones, getSettings as getServiceSettings, setSetting as setServiceSetting, STATUS_DEFS as SERVICE_STATUS_DEFS, REASON_CODES as SERVICE_REASON_CODES,
-  importServiceFromEpassFeed
+  importServiceFromEpassFeed, applySelfHoldForSv
 } from "./lib/service-journey-postgres.js";
-import { getServiceBoard, moveServiceJob, unscheduleServiceJob, sequenceTechDay, setJobDispatchFlags, addRouteBlock, removeRouteBlock, saveTechSettings, setPartsLoaded, confirmRouteDay, cancelServiceJob, uncancelServiceJob, markShopRepaired, CANCEL_REASONS } from "./lib/service-board-postgres.js";
+import { getServiceBoard, moveServiceJob, unscheduleServiceJob, sequenceTechDay, setJobDispatchFlags, addRouteBlock, removeRouteBlock, saveTechSettings, setPartsLoaded, confirmRouteDay, cancelServiceJob, uncancelServiceJob, markShopRepaired, CANCEL_REASONS, diagnoseServiceBoard, getServiceHistory, moveSelfHold } from "./lib/service-board-postgres.js";
 import { getPilotStore, applyPilotChanges, addPilotJobFromCard, resetPilot, listPilotLog } from "./lib/pilot-postgres.js";
 import {
   parseOpenOrdersBundle, replaceEpassOpenOrders, getEpassOpenOrdersMeta, getEpassOpenOrder, listEpassOpenOrders,
@@ -456,6 +456,9 @@ import {
 import {
   getSalesOrderSnapshot,
   saveSalesOrderSnapshot,
+  keepLastSalesUploadCopy,
+  getLastSalesUploadSnapshot,
+  getActivePushedNotificationByRef,
   listOrderFlagDismissals,
   dismissOrderFlag,
   recordFlagClosure,
@@ -475,8 +478,11 @@ import {
 } from "./lib/sales-orders-postgres.js";
 import {
   getServiceOrderSnapshot,
-  saveServiceOrderSnapshot
+  saveServiceOrderSnapshot,
+  keepLastServiceUploadCopy,
+  getLastServiceUploadSnapshot
 } from "./lib/service-orders-postgres.js";
+import { salesOrderRowsFromFeed, serviceOrderRowsFromFeed, compareOrderRows } from "./lib/epass-feed-orders.js";
 import { extractQuoteDataFromPdfBuffer } from "./lib/spec-scan.js";
 import { parseMaintenanceInvoices } from "./lib/maintenance-invoice-parser.js";
 import {
@@ -9325,6 +9331,7 @@ function epassAgentKeyOk(provided) {
   return a.length === b.length && crypto.timingSafeEqual(a, b);
 }
 
+let epassServiceMirrorChain = Promise.resolve(); // feed mirrors run one after another, off the request
 app.post("/api/epass-agent/upload", express.raw({ type: () => true, limit: "60mb" }), async (req, res) => {
   try {
     if (!EPASS_AGENT_KEY) return res.status(503).json({ error: "Agent uploads are not configured (EPASS_AGENT_KEY)." });
@@ -9409,6 +9416,19 @@ app.post("/api/epass-agent/upload", express.raw({ type: () => true, limit: "60mb
         orderingReport = { error: err.message };
       }
       counts.orderingReport = orderingReport;
+      // Sales Order Health reads this feed now too (Andrew, 9/22) — the
+      // Invoice Maintenance upload is the fallback, not the source.
+      try {
+        const rows = await salesOrderRowsFromFeed();
+        if (rows.length) {
+          await keepLastSalesUploadCopy();
+          const snap = await saveSalesOrderSnapshot({ rows, filename: `ePASS feed ${bundle.pulledAt || ""}`.trim(), byEmail: "epass-agent", byName: "ePASS feed" });
+          counts.salesOrderHealth = { rows: rows.length, uploadedAt: snap?.uploadedAt || null };
+        } else counts.salesOrderHealth = { rows: 0, skipped: "no sales invoices in the feed" };
+      } catch (err) {
+        console.error("Sales Order Health refresh from ePASS feed failed:", err.message);
+        counts.salesOrderHealth = { error: err.message };
+      }
       recordAudit({ ip: req.ip, actorUserId: null, action: "epass_open_orders_received", targetUserId: null,
         detail: { ...counts, pulledAt: bundle.pulledAt || "", machine: bundle.machine || "", filename: sourceFile.slice(0, 120), via: "epass-agent" } }).catch(() => {});
       return res.json({ ok: true, kind, ...counts, pulledAt: bundle.pulledAt || "" });
@@ -9420,12 +9440,30 @@ app.post("/api/epass-agent/upload", express.raw({ type: () => true, limit: "60mb
       const counts = await replaceEpassOpenService(bundle, { filename: sourceFile });
       // The service journey mirror (sj_jobs) now follows this feed instead of
       // the DispatchTrack export — same upsert rules, fifteen minutes fresh.
-      let mirror = null;
-      try { const m = await importServiceFromEpassFeed({ byEmail: "epass-agent", pulledAt: bundle.pulledAt || "" }); mirror = { created: m.created, updated: m.updated, unchanged: m.unchanged, attached: m.attached, dropped: m.droppedFromFeed, stale: m.stale, skipped: !!m.skipped }; }
-      catch (err) { console.error("Service mirror from feed failed:", err.message); mirror = { error: err.message }; }
-      recordAudit({ ip: req.ip, actorUserId: null, action: "epass_open_service_received", targetUserId: null,
-        detail: { ...counts, mirror, pulledAt: bundle.pulledAt || "", machine: bundle.machine || "", filename: sourceFile.slice(0, 120), via: "epass-agent" } }).catch(() => {});
-      return res.json({ ok: true, kind, ...counts, mirror, pulledAt: bundle.pulledAt || "" });
+      // The bundle is stored and acknowledged first; the mirror runs right
+      // after, one at a time, so a slow upload (VPN) never times the agent out
+      // and leaves the same bundle to be pushed again next run.
+      const ip = req.ip, pulledAt = bundle.pulledAt || "", machine = bundle.machine || "";
+      epassServiceMirrorChain = epassServiceMirrorChain.catch(() => {}).then(async () => {
+        let mirror = null;
+        try { const m = await importServiceFromEpassFeed({ byEmail: "epass-agent", pulledAt }); mirror = { created: m.created, updated: m.updated, unchanged: m.unchanged, attached: m.attached, dropped: m.droppedFromFeed, stale: m.stale, skipped: !!m.skipped }; }
+        catch (err) { console.error("Service mirror from feed failed:", err.message); mirror = { error: err.message }; }
+        // Service Order Health + its flag routing read this feed now too.
+        let health = null;
+        try {
+          const rows = await serviceOrderRowsFromFeed();
+          if (rows.length) {
+            await keepLastServiceUploadCopy();
+            const snap = await saveServiceOrderSnapshot({ rows, filename: `ePASS feed ${pulledAt}`.trim(), byEmail: "epass-agent", byName: "ePASS feed" });
+            let flags = null;
+            try { flags = await pushServiceOrderHealthFlags(rows); } catch (err) { console.error("Service order flag routing (feed) failed:", err.message); flags = { error: err.message }; }
+            health = { rows: rows.length, uploadedAt: snap?.uploadedAt || null, flags };
+          } else health = { rows: 0, skipped: "no service tickets in the feed" };
+        } catch (err) { console.error("Service Order Health refresh from ePASS feed failed:", err.message); health = { error: err.message }; }
+        await recordAudit({ ip, actorUserId: null, action: "epass_open_service_received", targetUserId: null,
+          detail: { ...counts, mirror, health, pulledAt, machine, filename: sourceFile.slice(0, 120), via: "epass-agent" } }).catch(() => {});
+      });
+      return res.json({ ok: true, kind, ...counts, mirror: "running", pulledAt });
     }
 
     return res.status(400).json({ error: `Unknown upload kind "${kind}" — expected inventory, quotes, open-orders, dispatch, invoices, epass-open-orders, or epass-open-service.` });
@@ -9680,6 +9718,7 @@ app.post("/api/service-cards/:id/self-schedule/release", requirePagePermission("
     const index = cards.findIndex((row) => row.id === req.params.id);
     if (index < 0) return res.status(404).json({ error: "Service request not found." });
     const released = await releaseSelfSchedule(req.params.id, { svNumber: String(req.body?.svNumber || ""), by: req.authUser?.email || "" });
+    if (req.body?.svNumber) applySelfHoldForSv(String(req.body.svNumber), req.authUser?.email || "").catch((err) => console.error("Self-hold → board failed:", err.message));
     cards[index] = { ...cards[index], updatedAt: new Date().toISOString(), updatedBy: req.authUser?.displayName || req.authUser?.email || "", selfSchedule: { ...(cards[index].selfSchedule || {}), released: true, releasedAt: new Date().toISOString(), releasedBy: req.authUser?.email || "", releasedFor: "office" } };
     await writeServiceCards(cards);
     sjAudit(req, "service_request_self_schedule_released", { serviceCardId: req.params.id, holds: released.length });
@@ -9722,8 +9761,37 @@ const requireServiceBoard = requirePagePermission("/service-board.html", "/servi
 app.get("/api/service-board", requireServiceBoard, async (req, res) => {
   try {
     const board = await getServiceBoard({ from: String(req.query.from || ""), days: Number(req.query.days) || 5 });
+    // Self-schedule holds carry only the card id; put the customer on them.
+    if (board.holds?.length) {
+      try {
+        const cards = await readServiceCards(); const byId = new Map(cards.map((c) => [c.id, c]));
+        for (const h of board.holds) {
+          const c = byId.get(h.cardId); if (!c) continue;
+          const u = Array.isArray(c.units) && c.units[0] ? c.units[0] : {};
+          Object.assign(h, { cust: c.customerName || "", phone: String(c.customerPhone || "").replace(/\D/g, "").slice(-10), addr: [c.serviceAddress?.line1, c.serviceAddress?.city].filter(Boolean).join(", "), unit: [u.brand, u.applianceType || u.type || u.systemType].filter(Boolean).join(" "), problem: String(c.problemDescription || "").slice(0, 300), type: c.requestType || "appliance", queueStatus: c.queueStatus || "", sv: c.erpOrderNumber || "" });
+        }
+      } catch (err) { console.error("Board holds: card lookup failed:", err.message); }
+    }
     return res.json({ ...board, me: sjMe(req), canEdit: true });
   } catch (err) { console.error("Service board failed:", err.message); return res.status(500).json({ error: "Unable to load the board." }); }
+});
+app.post("/api/service-board/holds/:id/move", requireServiceBoard, async (req, res) => {
+  try {
+    const b = req.body || {};
+    const moved = await moveSelfHold({ id: req.params.id, tech: b.tech, date: b.date, window: b.window, by: sjMe(req).email });
+    // keep the queue card's copy of the pick in step
+    try { const cards = await readServiceCards(); const i = cards.findIndex((c) => c.id === moved.cardId); if (i >= 0) { cards[i] = { ...cards[i], updatedAt: new Date().toISOString(), selfSchedule: { ...(cards[i].selfSchedule || {}), date: moved.day, window: moved.win, tech: moved.tech, movedBy: sjMe(req).email } }; await writeServiceCards(cards); } } catch (err) { console.error("Hold move: card update failed:", err.message); }
+    sjAudit(req, "service_board_hold_moved", moved);
+    return res.json({ ok: true, ...moved });
+  } catch (err) { return res.status(400).json({ error: err.message }); }
+});
+app.get("/api/service-board/history/:sv", requireServiceBoard, async (req, res) => {
+  try { return res.json(await getServiceHistory(req.params.sv)); }
+  catch (err) { return res.status(400).json({ error: err.message }); }
+});
+app.get("/api/service-board/diagnose", requireServiceBoard, async (req, res) => {
+  try { return res.json(await diagnoseServiceBoard()); }
+  catch (err) { console.error("Service board diagnose failed:", err.message); return res.status(500).json({ error: err.message }); }
 });
 app.post("/api/service-board/move", requireServiceBoard, async (req, res) => {
   try {
@@ -13394,6 +13462,20 @@ app.get("/api/sales-orders", requirePagePermission("/sales-order-health.html"), 
   }
 });
 
+// One-time check after switching the health reports to the feed: how the
+// feed-built rows line up, field by field, against the last spreadsheet
+// upload of each report (kept at snapshot id 2 the first time the feed
+// overwrote it). Differences in Total/Balance/Route show up here, with samples.
+app.get("/api/epass/feed-vs-upload", requirePagePermission("/sales-order-health.html", "/service-order-health.html"), async (req, res) => {
+  try {
+    const [salesFeed, salesUp, svcFeed, svcUp] = await Promise.all([salesOrderRowsFromFeed(), getLastSalesUploadSnapshot(), serviceOrderRowsFromFeed(), getLastServiceUploadSnapshot()]);
+    return res.json({
+      sales: { lastUpload: salesUp ? { filename: salesUp.filename, uploadedAt: salesUp.uploadedAt, rows: salesUp.rowCount } : null, ...compareOrderRows(salesFeed, salesUp?.rows || []) },
+      service: { lastUpload: svcUp ? { filename: svcUp.filename, uploadedAt: svcUp.uploadedAt, rows: svcUp.rowCount } : null, ...compareOrderRows(svcFeed, svcUp?.rows || []) }
+    });
+  } catch (err) { return res.status(500).json({ error: err.message }); }
+});
+
 app.post("/api/sales-orders", requirePagePermission("/sales-order-health.html"), async (req, res) => {
   try {
     const rows = req.body?.rows;
@@ -13576,6 +13658,14 @@ async function pushServiceOrderHealthFlags(rows) {
   const pastCount = flagged.filter((r) => isPast(r)).length;
   const noCardCount = flagged.filter((r) => !hasCard(r)).length;
 
+  const summaryTitle = `${flagged.length} SV/COD service ticket${flagged.length === 1 ? "" : "s"} need attention`;
+  const summaryBody = `${pastCount} past-date · ${noCardCount} without a secure card on file. The full list is on Service Order Health — this flag refreshes with each feed.`;
+  // The feed refreshes this every 15 minutes: only re-issue the card when its
+  // numbers changed, so it doesn't look brand new on every pull.
+  const live = await getActivePushedNotificationByRef(SVH_SV_COD_SUMMARY_REF).catch(() => null);
+  if (live && flagged.length && live.title === summaryTitle && live.body === summaryBody) {
+    return { wty: rows.filter((r) => r.invType === "WTY" && isPast(r)).length, svCod: flagged.length, unchanged: true };
+  }
   await retirePushedNotificationsByRef(SVH_SV_COD_SUMMARY_REF).catch(() => {});
   if (flagged.length) {
     const seniors = await jobCodeHolders(SENIOR_CS_JOB_CODE);
@@ -13584,8 +13674,8 @@ async function pushServiceOrderHealthFlags(rows) {
         severity: "yellow",
         typeLabel: "SV/COD Tickets",
         refId: SVH_SV_COD_SUMMARY_REF,
-        title: `${flagged.length} SV/COD service ticket${flagged.length === 1 ? "" : "s"} need attention`,
-        body: `${pastCount} past-date · ${noCardCount} without a secure card on file. The full list is on Service Order Health — this flag refreshes with each upload.`,
+        title: summaryTitle,
+        body: summaryBody,
         audienceEmail: senior.email,
         byEmail: "service-order-health",
         byName: "Service Order Health"
@@ -15777,6 +15867,7 @@ app.post("/api/service-cards/:id/status", requirePagePermission("/appliance-serv
     if (changes.queueStatus && ["Call Scheduled", "Call Cancelled"].includes(queueStatus) && before.selfSchedule?.token && !before.selfSchedule.released) {
       try {
         await releaseSelfSchedule(id, { svNumber: erpOrderNumber || "", by: req.authUser?.email || "" });
+        if (erpOrderNumber) applySelfHoldForSv(String(erpOrderNumber), req.authUser?.email || "").catch((err) => console.error("Self-hold → board failed:", err.message));
         serviceCards[index].selfSchedule = { ...before.selfSchedule, released: true, releasedAt: new Date().toISOString(), releasedBy: req.authUser?.email || "", releasedFor: queueStatus };
       } catch (err) {
         console.error("Self-schedule release failed:", err.message);

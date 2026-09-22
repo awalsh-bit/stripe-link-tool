@@ -25,6 +25,7 @@
 #   open-service-labor   InvoiceLabor (+ LaborRate description) for those tickets
 #   open-service-items   InvoiceItem (parts) for those tickets
 #   open-service-comments / open-service-notes
+#   service-history     finished SV/WTY invoices, last 3 years, for customers with an open ticket
 #
 # Sensitive columns never leave ePASS: anything whose name matches the
 # deny-list below is dropped from every dataset (see Data minimization in
@@ -384,6 +385,26 @@ INNER JOIN Invoice i ON n.Code = i.Code
 WHERE $svcWhere
 ORDER BY n.Code, n.CreateDate, n.CreateTime
 "@ (Join-Path $LatestDir "open-service-notes.csv") "open-service-notes"
+
+  # Service history (2026-09-22): the finished SV/WTY invoices of the last
+  # three years for every customer who has an open ticket — what the board's
+  # "Service history" drawer shows. Header columns only (no line detail);
+  # guarded so the bundle survives without it.
+  $histSince = (Get-Date).AddYears(-3).ToString("yyyy-MM-dd")
+  try {
+    $svc.datasets["service-history"] = Export-Query $conn @"
+SELECT h.Code, h.InvTypeCode, h.Status, h.JobStatusCode, h.DateCreated, h.DateFinished, h.SvcScheduleDate, h.Salesperson1Code, h.SoldToCode,
+       h.SoldToLastName, h.SoldToFirstName, h.SoldToAddress1, h.SoldToZipCode, h.SoldToPhone1,
+       h.SvcBrandCode, h.SvcModel, h.SvcSerial, h.SvcProductCode, h.SvcComplaintDesc, h.SvcPerformedDesc, h.SvcRepairCode, h.PaymentTypeCode,
+       h.SerialTotal, h.ItemTotal, h.LaborTotal, h.MiscTotal, h.WtyTotal, h.Tax1Total, h.Tax2Total, h.Tax3Total, h.DispatchUnits
+FROM Invoice h
+WHERE h.InvTypeCode IN ('SV','WTY') AND (h.Void IS NULL OR h.Void = 0)
+  AND h.DateCreated >= '$histSince'
+  AND UPPER(h.Status) = 'FINISHED'
+  AND h.SoldToCode IN (SELECT i.SoldToCode FROM Invoice i WHERE $svcWhere)
+ORDER BY h.SoldToCode, h.DateCreated DESC
+"@ (Join-Path $LatestDir "service-history.csv") "service-history"
+  } catch { Log ("service-history FAILED (bundle continues without it): {0}" -f $_.Exception.Message); if ($conn.State -ne [System.Data.ConnectionState]::Open) { $conn.Open() } }
 
   $json = $svc | ConvertTo-Json -Depth 6 -Compress
   $path = Join-Path $SvcOutbox "epass-open-service-$stamp.json"

@@ -181,14 +181,13 @@
     <div class="surface">
       <h2>Service Order Health</h2>
       <p class="section-note">
-        Open service tickets (SV and WTY invoice types) from the ExportInvoice report.
-        Each SV ticket's Invoice # is matched to the Service Request Queue's ERP Order Number
-        to check whether a secure card is on file. Upload the latest export to refresh — the combined
-        open-orders pull works here too, and refreshes Sales Order Health in the same step;
-        everyone sees the same snapshot.
+        Open service tickets (SV and WTY invoice types) straight from the ePASS feed, refreshed every
+        15 minutes. Each SV ticket's Invoice # is matched to the Service Request Queue's ERP Order Number
+        to check whether a secure card is on file; everyone sees the same snapshot. The ExportInvoice
+        upload still works as a fallback if the feed is down.
       </p>
       <div class="toolbar">
-        <button type="button" class="primary-btn" id="uploadBtn">Upload service ticket report</button>
+        <button type="button" class="primary-btn" id="uploadBtn" title="Fallback: upload an ExportInvoice report if the feed is down">Upload service ticket report</button>
         <input type="file" id="fileInput" accept=".xlsx,.xls" style="display: none;" />
         <span class="asof" id="asofLine">No data uploaded yet.</span>
       </div>
@@ -253,7 +252,7 @@
         Invoice # ↔ ERP Order Number (tolerant of leading zeros and spacing; archived requests
         count too). "No request found" means the ticket never came through the request form —
         those SV tickets have no way to have a card on file. WTY tickets are not checked.
-        <br><strong>Flag routing:</strong> each upload pushes dashboard flags — WTY tickets with
+        <br><strong>Flag routing:</strong> each feed refresh pushes dashboard flags — WTY tickets with
         past dates go to the Warranty Analyst (one flag per ticket), and flagged SV/COD tickets
         (past-date or no card on file) roll up into a single refreshed flag for the Senior
         Client Care Specialists.
@@ -314,14 +313,14 @@
     // ------------------------------------------------------------------
     function renderAsOf() {
       if (!snapshot) {
-        el("asofLine").textContent = "No data uploaded yet — upload the ExportInvoice service report to begin.";
+        el("asofLine").textContent = "No data yet — the ePASS feed fills this in on its next 15-minute pull (or upload an ExportInvoice report).";
         return;
       }
       const when = snapshot.uploadedAt
         ? new Date(snapshot.uploadedAt).toLocaleString("en-US", { timeZone: "America/Chicago", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })
         : "";
       el("asofLine").innerHTML = `Data as of <strong>${escapeHtml(when)}</strong>` +
-        (snapshot.uploadedByName ? ` — uploaded by ${escapeHtml(snapshot.uploadedByName)}` : "") +
+        (snapshot.uploadedByName ? (snapshot.uploadedByName === "ePASS feed" ? " — from the ePASS feed" : ` — uploaded by ${escapeHtml(snapshot.uploadedByName)}`) : "") +
         ` (${snapshot.rowCount} tickets)`;
     }
 

@@ -13401,9 +13401,43 @@ app.post("/api/written-models/items", requireWrittenModels, (req, res) => {
 // Tick a line off (ordered / assigned from stock) or put it back.
 app.post("/api/written-models/lines/handled", requireWrittenModels, async (req, res) => {
   try {
-    const out = await setWrittenLineHandled(req.body?.id, req.body?.handled !== false, wmBy(req));
-    wmAudit(req, out.handled ? "written_line_handled" : "written_line_reopened", { id: out.id });
-    return res.json({ ok: true, ...out });
+    const kind = ["ordered", "later", "rejected"].includes(req.body?.kind) ? req.body.kind : "ordered";
+    const note = String(req.body?.note || "").trim().slice(0, 600);
+    if (kind === "rejected" && !note) return res.status(400).json({ error: "Tell the salesperson what has to change before this line can be ordered." });
+    const out = await setWrittenLineHandled(req.body?.id, req.body?.handled !== false, wmBy(req), { kind, note });
+    wmAudit(req, out.handled ? `written_line_${kind}` : "written_line_reopened", { id: out.id, note });
+
+    // Rejected: the salesperson gets a dashboard flag and an email saying an
+    // order line came back and to log in — the note itself lives on the flag,
+    // not in the email (recipients decided here, from the directory).
+    let notified = null;
+    if (out.handled && kind === "rejected") {
+      const b = req.body || {};
+      const sp = String(b.sp || "").trim().toUpperCase(), invoice = String(b.invoice || "").trim().toUpperCase(), model = String(b.model || "").trim(), customer = String(b.customer || "").trim();
+      const directory = await getEmployeeDirectoryObject().catch(() => ({}));
+      const who = sp ? directory[sp] : null;
+      const email = String(who?.email || "").trim().toLowerCase();
+      const title = `Order line sent back: ${invoice} · ${model}`;
+      const body = `${customer ? customer + " · " : ""}Purchasing (${wmBy(req)}) can't order this line as written: ${note}`;
+      // No directory email for the SP code → nothing is pushed (a blank
+      // audience would flag the whole company); the response says so.
+      if (email) {
+        try {
+          await createPushedNotification({ severity: "red", typeLabel: "Order line rejected", refId: `wmreject:${out.id}`, title, body, audienceEmail: email, byEmail: req.authUser?.email || "", byName: wmBy(req) });
+        } catch (err) { console.error("Reject flag failed:", err.message); }
+      }
+      let emailed = false;
+      if (email) {
+        try {
+          const url = `${buildDashboardBaseUrl(req)}/dashboard.html`;
+          const lines = [`An order line on ${invoice}${customer ? ` (${customer})` : ""} — ${model} — has been sent back by purchasing.`, "Log into Agility and open the alert on your dashboard to see what needs to happen before it can be ordered."];
+          await sendAuthEmail(email, `Order line sent back — ${invoice} ${model}`, [...lines, "", `Your dashboard: ${url}`].join("\n"), buildAuthEmailHtml("An order line was sent back", lines, "Open my dashboard", url, "Sent by the Ordering Report in Wilson internal tools."));
+          emailed = true;
+        } catch (err) { console.error("Reject email failed:", err.message); }
+      }
+      notified = { sp, name: who?.name || "", email: email || "", emailed, flagged: !!email };
+    }
+    return res.json({ ok: true, ...out, notified });
   } catch (err) { return res.status(400).json({ error: err.message }); }
 });
 // Inventory position for one model (the ePASS "Serial # for Model" view).

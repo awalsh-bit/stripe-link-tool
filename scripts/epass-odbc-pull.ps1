@@ -31,10 +31,16 @@
 # deny-list below is dropped from every dataset (see Data minimization in
 # docs/epass-odbc.md). Add names there, never remove them.
 #
-# SCHEDULE (Task Scheduler, every 15 minutes — client self-scheduling reads
-# this data — 6am–8pm; run as the Windows account that owns the COMPANY1 DSN):
-#   schtasks /Create /TN "Agility ePASS pull" /SC MINUTE /MO 15 /ST 06:00 /ET 20:00 /K /F `
-#     /TR "C:\Windows\SysWOW64\WindowsPowerShell\v1.0\powershell.exe -NoProfile -ExecutionPolicy Bypass -File ""W:\Agility\epass-odbc-pull.ps1"""
+# WHERE IT RUNS (2026-09-22): on the ePASS server itself, from C:\Agility
+# (this script + epass-agent.ps1 with the real key, copied from the share),
+# as a Task Scheduler task "Agility ePASS pull": daily 6:00 AM, repeat every
+# 15 minutes for 14 hours, "run whether user is logged on or not", "do not
+# start a new instance". A full pull takes about five minutes there (it took
+# twenty on a laptop over the VPN). The laptop task is disabled, kept as a
+# fallback. Elevated prompt needed to create it:
+#   schtasks /Create /TN "Agility ePASS pull" /SC DAILY /ST 06:00 /RU "DOMAIN\user" /RP * /RL HIGHEST /F `
+#     /TR "C:\Windows\SysWOW64\WindowsPowerShell\v1.0\powershell.exe -NoProfile -ExecutionPolicy Bypass -File \"C:\Agility\epass-odbc-pull.ps1\" -Root \"C:\Agility\""
+#   (then set the 15-minute repeat and the run-as options in the Task Scheduler UI)
 # The script calls epass-agent.ps1 itself when it finishes, so the upload
 # doesn't wait for the agent's own 10-minute task.
 # One-off discovery (column lists for the tables we care about):

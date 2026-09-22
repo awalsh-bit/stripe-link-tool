@@ -9,11 +9,12 @@ feed), doc 19 (launch plan: self-scheduling, capacity, routing), and
 
 ## 1. Source of truth
 
-**The feed, not uploads.** `epass-odbc-pull.ps1` runs every 15 minutes
-(Task Scheduler on `AWalsh2026ThkPad`, 7 AM–8 PM, UNC path on
-`WILSON-FS02`; to move to the server when convenient) and writes two
-bundles; `epass-agent.ps1` pushes them to Agility. Everything below reads
-those tables. The Invoice Maintenance / DispatchTrack / OE-04 uploads still
+**The feed, not uploads.** `epass-odbc-pull.ps1` runs every 15 minutes on
+the ePASS server itself (Task Scheduler, `C:\Agility`, 6 AM–8 PM, about
+five minutes per pull since 9/22 — it started life on Andrew's laptop over
+the VPN, where a pull took twenty) and writes two bundles;
+`epass-agent.ps1` pushes them to Agility. The laptop task stays disabled as
+a fallback. Everything below reads those tables. The Invoice Maintenance / DispatchTrack / OE-04 uploads still
 work but are fallbacks.
 
 | Bundle | Tables | Feeds |
@@ -142,5 +143,4 @@ yellow as "Exclusive Reserve Available" when unreserved.
   run and copy `schema\` into `odbc\`).
 * Mapbox account + `MAPBOX_TOKEN` in Render; `lib/routing.js` wrapper.
 * Samsara vehicle ↔ `Route.LocationCode` mapping; stop matcher.
-* Move the two scheduled tasks to WILSON-FS02.
 * Delivery-side capacity/routing: the planned "smash and redo".

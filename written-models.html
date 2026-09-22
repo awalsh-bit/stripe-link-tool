@@ -66,7 +66,7 @@
     table.wm th { text-align: right; font-size: 11.5px; letter-spacing: 0.06em; text-transform: uppercase; color: #64748b; padding: 8px 8px; border-bottom: 2px solid var(--border); white-space: nowrap; }
     table.wm th.l, table.wm td.l { text-align: left; }
     table.wm td.l { white-space: normal; min-width: 150px; } table.wm td.l + td.l { min-width: 120px; width: 24%; } table.wm th.l:first-child { width: 36%; }
-    table.wm td:last-child, table.wm td.cogc { width: 30px; padding-left: 2px; padding-right: 2px; }
+    table.wm td:last-child { width: 92px; padding-left: 2px; padding-right: 2px; }
     table.wm td { padding: 6px 5px; border-bottom: 1px solid #eef1f6; text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; vertical-align: top; }
     table.wm tr.model td { background: #fafbfd; font-weight: 700; }
     table.wm tr.model td.l .desc, table.wm tr.line td.l .desc { display: block; font-weight: 500; color: var(--muted); font-size: 12.5px; white-space: normal; max-width: 520px; }
@@ -129,12 +129,26 @@
     table.pos-d tr.excl td { background: #fefce8; }
     table.pos-d tr.excl td:first-child { color: #854d0e; font-weight: 700; font-size: 11px; }
     .pos-note { font-size: 12px; color: var(--muted); margin-top: 10px; }
-    .xbtn { width: 22px; height: 22px; border-radius: 50%; border: 2px solid #dc2626; background: #fff; color: #dc2626; font-size: 13px; font-weight: 900; line-height: 1; padding: 0; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; vertical-align: middle; }
+    .xbtn { width: 24px; height: 24px; border-radius: 50%; border: 2px solid #dc2626; background: #fff; color: #dc2626; font-size: 13px; font-weight: 900; line-height: 1; padding: 0; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; vertical-align: middle; }
+    .acts3 { display: inline-flex; gap: 4px; white-space: nowrap; }
+    .xbtn.cart { border-color: #16a34a; color: #16a34a; } .xbtn.cart:hover { background: #16a34a; color: #fff; }
+    .xbtn.later { border-color: #d97706; color: #b45309; } .xbtn.later:hover { background: #d97706; color: #fff; }
+    .xbtn.rej { border-color: #dc2626; color: #dc2626; } .xbtn.rej:hover { background: #dc2626; color: #fff; }
+    .xbtn svg { width: 13px; height: 13px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+    table.wm tr.line.later td { background: #fffbeb; } table.wm tr.line.later td.l:first-child::before { content: "later"; display: inline-block; margin-right: 6px; padding: 1px 6px; border-radius: 999px; background: #fde68a; color: #92400e; font-size: 10px; font-weight: 800; text-transform: uppercase; vertical-align: 2px; }
+    table.wm tr.line.rejected td { background: #fef2f2; } table.wm tr.line.rejected td.l:first-child::before { content: "sent back"; display: inline-block; margin-right: 6px; padding: 1px 6px; border-radius: 999px; background: #fecaca; color: #991b1b; font-size: 10px; font-weight: 800; text-transform: uppercase; vertical-align: 2px; }
+    .rejnote { display: block; margin-top: 4px; font-size: 12px; color: #991b1b; white-space: normal; max-width: 520px; }
+    .rej-overlay { position: fixed; inset: 0; background: rgba(15,23,42,.45); z-index: 60; display: none; align-items: center; justify-content: center; padding: 16px; } .rej-overlay.show { display: flex; }
+    .rej-box { background: #fff; border-radius: 14px; width: min(560px, 100%); padding: 18px 20px; box-shadow: 0 20px 60px rgba(0,0,0,.3); }
+    .rej-box h3 { margin: 0 0 4px; font-size: 17px; } .rej-box .sub { color: var(--muted); font-size: 13px; margin-bottom: 12px; }
+    .rej-box textarea { width: 100%; min-height: 110px; font: inherit; font-size: 14px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px; resize: vertical; }
+    .rej-box .who { font-size: 12.5px; color: var(--muted); margin: 8px 0 12px; } .rej-box .btns { display: flex; gap: 8px; justify-content: flex-end; }
+    button.danger { background: #dc2626; } button.quiet { background: #fff; color: var(--text); border: 1px solid var(--border); }
     .xbtn:hover { background: #dc2626; color: #fff; }
     .xbtn.undo { border-color: #64748b; color: #64748b; font-size: 12px; }
     .xbtn.undo:hover { background: #64748b; color: #fff; }
-    table.wm tr.line.done td { opacity: 0.45; text-decoration: line-through; }
-    table.wm tr.line.done td:last-child, table.wm tr.line.done td.l:first-child { text-decoration: none; }
+    table.wm tr.line.done.ordered td { opacity: 0.45; text-decoration: line-through; }
+    table.wm tr.line.done.ordered td:last-child, table.wm tr.line.done.ordered td.l:first-child { text-decoration: none; }
     .copy-model { cursor: copy; border-bottom: 1px dashed rgba(var(--primary-rgb), 0.5); }
     .copy-model:hover { color: var(--primary); }
     .copied { color: var(--primary); font-size: 10.5px; font-weight: 800; margin-left: 6px; }
@@ -200,6 +214,15 @@
     <div id="internal-shell-footer"></div>
   </div>
 
+  <div class="rej-overlay" id="rejOverlay" role="dialog" aria-label="Send an order line back">
+    <div class="rej-box">
+      <h3>Send this line back to the salesperson</h3>
+      <div class="sub"><span id="rejTitle"></span><br><span id="rejSub"></span></div>
+      <textarea id="rejNote" placeholder="What has to happen before purchasing can order this — e.g. deposit not collected, model discontinued (pick DEU2450BG/R instead), delivery date too soon for the lead time, missing finish/hinge…"></textarea>
+      <div class="who">They get a red flag on their dashboard with this note, and an email saying an order line was sent back and to log in. The line stays on the report, marked "sent back", until it's cleared or ordered.</div>
+      <div class="btns"><button type="button" class="quiet" id="rejClear" style="display:none">Clear — no longer sent back</button><button type="button" class="quiet" id="rejCancel">Cancel</button><button type="button" class="danger" id="rejSend">Send back &amp; notify</button></div>
+    </div>
+  </div>
   <div class="pos-overlay" id="posOverlay">
     <div class="pos">
       <div class="pos-h"><div><h3 id="posTitle">Inventory position</h3><div class="hint" id="posSub"></div></div><button type="button" class="quiet tiny" id="posClose">Close</button></div>
@@ -282,12 +305,12 @@
         sel.innerHTML = `<option value="">All suppliers</option>` + (b.suppliers || []).map((g) => `<option value="${esc(g.supplier)}"${cur === g.supplier ? " selected" : ""}>${esc(g.supplier)} (${g.units})</option>`).join("");
 
         const q = state.q.trim().toLowerCase();
-        const groups = (b.suppliers || []).filter((g) => !state.supplier || g.supplier === state.supplier).map((g) => ({ ...g, models: g.models.map((m) => ({ ...m, lines: m.lines.filter((l) => (state.showDone || !l.handled) && (!state.hideCod || !isUnpaidCod(l)) && (!q || [m.model, m.item?.description, m.item?.brand, l.customerName, l.invoice, l.sp, l.billTo].join(" ").toLowerCase().includes(q))) })).filter((m) => m.lines.length) })).filter((g) => g.models.length);
+        const groups = (b.suppliers || []).filter((g) => !state.supplier || g.supplier === state.supplier).map((g) => ({ ...g, models: g.models.map((m) => ({ ...m, lines: m.lines.filter((l) => (state.showDone || !l.handled || l.handled.kind === "later" || l.handled.kind === "rejected") && (!state.hideCod || !isUnpaidCod(l)) && (!q || [m.model, m.item?.description, m.item?.brand, l.customerName, l.invoice, l.sp, l.billTo].join(" ").toLowerCase().includes(q))) })).filter((m) => m.lines.length) })).filter((g) => g.models.length);
 
         const t = { units: 0, proposed: 0, sell: 0, cost: 0, models: 0, unmatched: 0, returns: 0, cod: 0 };
         for (const g of groups) for (const m of g.models) { t.models++; if (!m.item) t.unmatched++; for (const l of m.lines) { t.units += l.qty || 0; t.sell += (l.sellPrice || 0) * (l.qty || 1); t.cost += (l.stdCost || 0) * (l.qty || 1); if (isReturn(l)) t.returns++; if (isUnpaidCod(l)) t.cod++; } t.proposed += Math.min(m.proposed, m.lines.reduce((a, l) => a + (l.qty || 0), 0)); }
         const codAll = (b.suppliers || []).reduce((a, g) => a + g.models.reduce((x, m) => x + m.lines.filter(isUnpaidCod).length, 0), 0);
-        const doneAll = (b.suppliers || []).reduce((a, g) => a + g.models.reduce((x, m) => x + m.lines.filter((l) => l.handled).length, 0), 0);
+        const doneAll = (b.suppliers || []).reduce((a, g) => a + g.models.reduce((x, m) => x + m.lines.filter((l) => l.handled && (l.handled.kind || "ordered") === "ordered").length, 0), 0);
         $("doneToggle").textContent = state.showDone ? `Hide handled (${doneAll})` : `Show handled (${doneAll})`;
         $("doneToggle").classList.toggle("on", state.showDone);
         $("codToggle").textContent = state.hideCod ? `Show 0%-paid COD (${codAll} hidden)` : `Hide 0%-paid COD (${codAll})`;
@@ -308,15 +331,29 @@
         $("board").querySelectorAll(".sup-h").forEach((h) => h.addEventListener("click", (ev) => { if (ev.target.closest("input,button,a")) return; const s = h.closest(".sup"); s.classList.toggle("closed"); const k = s.dataset.sup; if (s.classList.contains("closed")) state.closed.add(k); else state.closed.delete(k); }));
         $("board").querySelectorAll("[data-pos]").forEach((btn) => btn.addEventListener("click", () => openPosition(btn.dataset.pos, btn.dataset.line)));
         $("board").querySelectorAll(".copy-model").forEach((el) => el.addEventListener("click", () => copyText(el.dataset.copy, el)));
-        const markLine = async (id, handled) => {
+        const lineById = (id) => { for (const g of state.board.suppliers) for (const m of g.models) for (const l of m.lines) if (l.id === id) return { l, m }; return null; };
+        const markLine = async (id, handled, kind = "ordered", note = "") => {
+          const hit = lineById(id); const l = hit?.l, m = hit?.m;
           try {
-            await api("/api/written-models/lines/handled", { method: "POST", body: JSON.stringify({ id, handled }) });
-            for (const g of state.board.suppliers) for (const m of g.models) for (const l of m.lines) if (l.id === id) l.handled = handled ? { at: new Date().toISOString(), by: "" } : null;
+            const r = await api("/api/written-models/lines/handled", { method: "POST", body: JSON.stringify({ id, handled, kind, note, sp: l?.sp || "", invoice: l?.invoice || "", model: m?.model || "", customer: l?.customerName || "" }) });
+            if (l) l.handled = handled ? { at: new Date().toISOString(), by: "", kind, ...(note ? { note } : {}) } : null;
             render();
+            if (handled && kind === "rejected") setStatus(r.notified?.email ? `Sent back to ${r.notified.name || r.notified.sp} — dashboard flag${r.notified.emailed ? " and email" : ""} sent.` : `Marked sent back, but ${l?.sp || "the SP code"} has no email in the employee directory — nobody was notified. Add it in User Admin.`, r.notified?.email ? "ok" : "error");
           } catch (err) { setStatus(err.message, "error"); }
         };
-        $("board").querySelectorAll("[data-done]").forEach((btn) => btn.addEventListener("click", () => markLine(btn.dataset.done, true)));
+        $("board").querySelectorAll("[data-done]").forEach((btn) => btn.addEventListener("click", () => markLine(btn.dataset.done, true, "ordered")));
         $("board").querySelectorAll("[data-undo]").forEach((btn) => btn.addEventListener("click", () => markLine(btn.dataset.undo, false)));
+        $("board").querySelectorAll("[data-later]").forEach((btn) => btn.addEventListener("click", () => { const h = lineById(btn.dataset.later)?.l?.handled; markLine(btn.dataset.later, !(h && h.kind === "later"), "later"); }));
+        $("board").querySelectorAll("[data-reject]").forEach((btn) => btn.addEventListener("click", () => openReject(btn.dataset.reject)));
+        function openReject(id) {
+          const hit = lineById(id); if (!hit) return; const { l, m } = hit;
+          const ov = $("rejOverlay"); $("rejTitle").textContent = `${m.model} on ${l.invoice}`; $("rejSub").textContent = `${l.customerName || ""}${l.sp ? ` · salesperson ${l.sp}` : " · no salesperson code on the line"}`;
+          $("rejNote").value = l.handled?.kind === "rejected" ? (l.handled.note || "") : ""; $("rejClear").style.display = l.handled?.kind === "rejected" ? "" : "none";
+          ov.classList.add("show"); $("rejNote").focus();
+          $("rejSend").onclick = async () => { const note = $("rejNote").value.trim(); if (!note) { $("rejNote").focus(); return; } ov.classList.remove("show"); await markLine(id, true, "rejected", note); };
+          $("rejClear").onclick = async () => { ov.classList.remove("show"); await markLine(id, false); };
+          $("rejCancel").onclick = () => ov.classList.remove("show");
+        }
         $("board").querySelectorAll("[data-model-sup]").forEach((inp) => inp.addEventListener("change", async () => {
           try { const modelSupplier = { ...(b.settings?.modelSupplier || {}) }; if (inp.value.trim()) modelSupplier[inp.dataset.modelSup] = inp.value.trim(); else delete modelSupplier[inp.dataset.modelSup]; await api("/api/written-models/settings", { method: "POST", body: JSON.stringify({ modelSupplier }) }); await load(); }
           catch (err) { setStatus(err.message, "error"); }
@@ -352,7 +389,7 @@
             <div class="meta"><span><b>${orders.length}</b> orders</span><span><b>${units}</b> written</span><span><b>${proposed}</b> to order</span><span>sell <b>${money(sell)}</b></span><span>STD <b>${money(cost)}</b></span><span>margin <b class="${mcls(sell > 0 ? (sell - cost) / sell : null)}">${pct(sell > 0 ? (sell - cost) / sell : null)}</b></span><span>first delivery <b>${day(earliest)}</b></span></div>
             <span class="caret">⌄</span></div>
           <div class="sup-b scroll"><table class="wm">
-            <thead><tr><th class="l">Sales order · item</th><th class="l">Details</th><th>Delivery</th><th>Sell</th><th>STD cost</th><th>Margin</th><th title="Tick off — ordered, or assigned from stock"></th></tr></thead>
+            <thead><tr><th class="l">Sales order · item</th><th class="l">Details</th><th>Delivery</th><th>Sell</th><th>STD cost</th><th>Margin</th><th title="Ordered · order later · send back to the salesperson" style="min-width:92px"></th></tr></thead>
             <tbody>${orders.map(orderHtml).join("")}</tbody></table></div></div>`;
       }
       function orderHtml(o) {
@@ -398,12 +435,17 @@
           isReturn(l) ? `<span class="badge ret">Return</span>` : "",
           isUnpaidCod(l) ? `<span class="badge cod" title="0% paid on COD terms">0% COD</span>` : ""
         ].filter(Boolean).join(" ");
-        return `<tr class="line${isReturn(l) ? " ret" : ""}${l.handled ? " done" : ""}">
-          <td class="l"><strong class="copy-model" data-copy="${esc(m.model)}" title="Click to copy the model number">${esc(m.model)}</strong>${m.item?.brand ? `<span class="brand">${esc(m.item.brand)}</span>` : ""} ${rowBadges}<span class="desc">${esc(m.item?.description || (m.item?.displayName && m.item.displayName !== m.model ? m.item.displayName : "") || "")}</span></td>
+        const hk = l.handled ? (l.handled.kind || "ordered") : "";
+        const ICON = { cart: '<svg viewBox="0 0 24 24"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.7 13.4a2 2 0 0 0 2 1.6h9.7a2 2 0 0 0 2-1.6L23 6H6"/></svg>', arrow: '<svg viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></svg>', msg: '<svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>', undo: "↺" };
+        const acts = hk === "ordered"
+          ? `<button type="button" class="xbtn undo" data-undo="${esc(l.id)}" title="Ordered ${when(l.handled.at)}${l.handled.by ? " by " + esc(l.handled.by) : ""} — click to put it back">↺</button>`
+          : `<span class="acts3"><button type="button" class="xbtn cart" data-done="${esc(l.id)}" title="Ordered — take it off the report">${ICON.cart}</button><button type="button" class="xbtn later" data-later="${esc(l.id)}" title="${hk === "later" ? `Deferred ${when(l.handled.at)}${l.handled.by ? " by " + esc(l.handled.by) : ""} — click to clear` : "Order it later — stays on the report, marked"}" aria-pressed="${hk === "later"}">${ICON.arrow}</button><button type="button" class="xbtn rej" data-reject="${esc(l.id)}" title="${hk === "rejected" ? "Sent back to the salesperson — click to edit or clear" : "Can't order it as written — tell the salesperson what has to change"}" aria-pressed="${hk === "rejected"}">${ICON.msg}</button></span>`;
+        return `<tr class="line${isReturn(l) ? " ret" : ""}${l.handled ? " done " + hk : ""}" data-line="${esc(l.id)}">
+          <td class="l"><strong class="copy-model" data-copy="${esc(m.model)}" title="Click to copy the model number">${esc(m.model)}</strong>${m.item?.brand ? `<span class="brand">${esc(m.item.brand)}</span>` : ""} ${rowBadges}<span class="desc">${esc(m.item?.description || (m.item?.displayName && m.item.displayName !== m.model ? m.item.displayName : "") || "")}</span>${hk === "rejected" && l.handled.note ? `<span class="rejnote">→ ${esc(l.handled.note)}${l.handled.by ? ` <span class="hint" style="display:inline">(${esc(l.handled.by)}, ${when(l.handled.at)})</span>` : ""}</span>` : ""}</td>
           <td class="l"><span class="hint">${esc(l.sp || "")}${l.status ? " · " + esc(l.status) : ""}${l.deposit ? ` · ${l.deposit.pct}% paid · ${esc(l.deposit.terms)}` : ""}${l.reference ? " · " + esc(l.reference) : ""}${l.qty !== 1 ? ` · qty ${l.qty}` : ""}</span></td>
           <td>${day(l.delDate)}</td>
           <td>${money2(l.sellPrice)}</td><td>${money2(l.stdCost)}</td><td class="${mcls(l.marginRate)}">${pct(l.marginRate)}${l.marginDollars != null ? `<span class="hint">${money2(l.marginDollars)}/unit</span>` : ""}</td>
-          <td>${l.handled ? `<button type="button" class="xbtn undo" data-undo="${esc(l.id)}" title="Handled ${when(l.handled.at)}${l.handled.by ? " by " + esc(l.handled.by) : ""} — click to put it back">↺</button>` : `<button type="button" class="xbtn" data-done="${esc(l.id)}" title="Ordered / assigned from stock — take it off the report">✕</button>`}</td></tr>`;
+          <td>${acts}</td></tr>`;
       }
       function renderMap() {
         const b = state.board;
@@ -471,7 +513,7 @@
       }
       $("posClose").addEventListener("click", () => $("posOverlay").classList.remove("show"));
       $("posOverlay").addEventListener("click", (ev) => { if (ev.target === $("posOverlay")) $("posOverlay").classList.remove("show"); });
-      document.addEventListener("keydown", (ev) => { if (ev.key === "Escape") $("posOverlay").classList.remove("show"); });
+      document.addEventListener("keydown", (ev) => { if (ev.key === "Escape") { $("posOverlay").classList.remove("show"); $("rejOverlay").classList.remove("show"); } });
       $("codToggle").addEventListener("click", () => { state.hideCod = !state.hideCod; render(); });
       $("doneToggle").addEventListener("click", () => { state.showDone = !state.showDone; render(); });
       $("supplierSel").addEventListener("change", () => { state.supplier = $("supplierSel").value; render(); });

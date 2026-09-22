@@ -62,21 +62,27 @@
     .sup.closed .caret { transform: rotate(-90deg); }
     .sup.closed .sup-b { display: none; }
     .scroll { overflow-x: auto; }
-    table.wm { width: 100%; border-collapse: collapse; font-size: 12.5px; }
-    table.wm th { text-align: right; font-size: 10.5px; letter-spacing: 0.06em; text-transform: uppercase; color: #64748b; padding: 8px 8px; border-bottom: 2px solid var(--border); white-space: nowrap; }
+    table.wm { width: 100%; border-collapse: collapse; font-size: 14.5px; }
+    table.wm th { text-align: right; font-size: 11.5px; letter-spacing: 0.06em; text-transform: uppercase; color: #64748b; padding: 8px 8px; border-bottom: 2px solid var(--border); white-space: nowrap; }
     table.wm th.l, table.wm td.l { text-align: left; }
-    table.wm td.l { white-space: normal; min-width: 170px; }
-    table.wm td:last-child { width: 34px; }
-    table.wm td { padding: 6px 8px; border-bottom: 1px solid #eef1f6; text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; vertical-align: top; }
+    table.wm td.l { white-space: normal; min-width: 150px; } table.wm td.l + td.l { min-width: 110px; }
+    table.wm td:last-child, table.wm td.cogc { width: 30px; padding-left: 2px; padding-right: 2px; }
+    table.wm td { padding: 6px 5px; border-bottom: 1px solid #eef1f6; text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; vertical-align: top; }
     table.wm tr.model td { background: #fafbfd; font-weight: 700; }
-    table.wm tr.model td.l .desc, table.wm tr.line td.l .desc { display: block; font-weight: 500; color: var(--muted); font-size: 11.5px; white-space: normal; max-width: 380px; }
+    table.wm tr.model td.l .desc, table.wm tr.line td.l .desc { display: block; font-weight: 500; color: var(--muted); font-size: 12.5px; white-space: normal; max-width: 520px; }
+    table.wm tr.line td.l .brand { color: #1d4ed8; font-weight: 700; margin-left: 6px; }
+    table.wm tr.line td.l strong { font-size: 15.5px; }
+    .cog { width: 26px; height: 26px; border-radius: 50%; border: 1px solid var(--border); background: #fff; color: #374151; font-size: 15px; line-height: 1; padding: 0; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; } .cog:hover { border-color: var(--primary); color: var(--primary); }
+    .cog.short { border-color: #dc2626; color: #b91c1c; background: #fef2f2; }
+    .pos-line { display: flex; flex-wrap: wrap; gap: 10px 22px; align-items: center; margin: 0 0 12px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px; background: #fafbfd; font-size: 13.5px; }
+    .pos-line b { font-size: 17px; font-variant-numeric: tabular-nums; } .pos-line .k { display: block; font-size: 11px; letter-spacing: .05em; text-transform: uppercase; color: #64748b; font-weight: 700; } .pos-line .short b { color: #b91c1c; } .pos-line .sup { flex-basis: 100%; } .pos-line .sup .hint { font-size: 13px; } .pos-line .sup-in { font-size: 14px; max-width: 460px; padding: 6px 8px; }
     table.wm tr.order td { background: var(--primary-faint-2, #f6faf6); border-top: 2px solid var(--border); }
-    table.wm tr.order td.l strong { font-size: 13.5px; }
+    table.wm tr.order td.l strong { font-size: 15.5px; }
     table.wm tr.line td { color: #374151; }
     table.wm tr.line td.l:first-child { padding-left: 22px; }
     table.wm td.short { color: #b91c1c; }
     table.wm td.ok { color: var(--primary); }
-    .hint { font-size: 11px; color: var(--muted); display: block; font-weight: 500; }
+    .hint { font-size: 12px; color: var(--muted); display: block; font-weight: 500; }
     .m-good { color: var(--primary); } .m-mid { color: #b45309; } .m-bad { color: #b91c1c; font-weight: 800; }
     .badge { display: inline-block; border-radius: 999px; padding: 2px 8px; font-size: 10px; font-weight: 800; letter-spacing: 0.04em; text-transform: uppercase; }
     .badge.short { background: #fee2e2; color: #991b1b; }
@@ -299,7 +305,7 @@
         if (!groups.length) { $("board").innerHTML = `<div class="empty">Nothing written for this filter.</div>`; }
         else $("board").innerHTML = groups.map(supplierHtml).join("");
         $("board").querySelectorAll(".sup-h").forEach((h) => h.addEventListener("click", (ev) => { if (ev.target.closest("input,button,a")) return; const s = h.closest(".sup"); s.classList.toggle("closed"); const k = s.dataset.sup; if (s.classList.contains("closed")) state.closed.add(k); else state.closed.delete(k); }));
-        $("board").querySelectorAll("[data-pos]").forEach((btn) => btn.addEventListener("click", () => openPosition(btn.dataset.pos)));
+        $("board").querySelectorAll("[data-pos]").forEach((btn) => btn.addEventListener("click", () => openPosition(btn.dataset.pos, btn.dataset.line)));
         $("board").querySelectorAll(".copy-model").forEach((el) => el.addEventListener("click", () => copyText(el.dataset.copy, el)));
         const markLine = async (id, handled) => {
           try {
@@ -345,7 +351,7 @@
             <div class="meta"><span><b>${orders.length}</b> orders</span><span><b>${units}</b> written</span><span><b>${proposed}</b> to order</span><span>sell <b>${money(sell)}</b></span><span>STD <b>${money(cost)}</b></span><span>margin <b class="${mcls(sell > 0 ? (sell - cost) / sell : null)}">${pct(sell > 0 ? (sell - cost) / sell : null)}</b></span><span>first delivery <b>${day(earliest)}</b></span></div>
             <span class="caret">⌄</span></div>
           <div class="sup-b scroll"><table class="wm">
-            <thead><tr><th class="l">Sales order · item</th><th class="l">Details</th><th>Qty</th><th>Written</th><th title="On hand">QOH</th><th title="On order / stock on order">QOO</th><th title="written − QOH − QOO">Proposed</th><th>Delivery</th><th>Sell</th><th>STD cost</th><th>Margin</th><th title="Tick off — ordered, or assigned from stock"></th></tr></thead>
+            <thead><tr><th class="l">Sales order · item</th><th class="l">Details</th><th>Delivery</th><th>Sell</th><th>STD cost</th><th>Margin</th><th title="Numbers, stock class and supplier for this line"></th><th title="Tick off — ordered, or assigned from stock"></th></tr></thead>
             <tbody>${orders.map(orderHtml).join("")}</tbody></table></div></div>`;
       }
       function orderHtml(o) {
@@ -355,12 +361,12 @@
         const mm = sell > 0 ? (sell - cost) / sell : null;
         const anyCod = o.items.some((it) => isUnpaidCod(it.line)), anyRet = o.items.some((it) => isReturn(it.line));
         const head = `<tr class="model order"><td class="l"><strong class="copy-model" data-copy="${esc(o.invoice)}" title="Click to copy the sales order number">${esc(o.invoice)}</strong> ${esc(o.customer)}${anyRet ? ` <span class="badge ret">Return</span>` : ""}${anyCod ? ` <span class="badge cod" title="0% paid on COD terms">0% COD</span>` : ""}${o.billTo && !o.billTo.includes(o.customer) ? `<span class="hint">bill to ${esc(o.billTo)}</span>` : ""}</td>
-          <td class="l"><span class="hint">${esc(o.sp || "")}${o.status ? " · " + esc(o.status) : ""}${o.deposit ? ` · ${o.deposit.pct}% paid · ${esc(o.deposit.terms)}` : ""}${o.reference ? " · " + esc(o.reference) : ""}<br>${o.items.length} item${o.items.length === 1 ? "" : "s"} · written ${day(o.invoiceDate)}</span></td>
-          <td>${qty}</td><td></td><td></td><td></td><td></td>
+          <td class="l"><span class="hint">${esc(o.sp || "")}${o.status ? " · " + esc(o.status) : ""}${o.deposit ? ` · ${o.deposit.pct}% paid · ${esc(o.deposit.terms)}` : ""}${o.reference ? " · " + esc(o.reference) : ""}<br>${o.items.length} item${o.items.length === 1 ? "" : "s"} · ${qty} unit${qty === 1 ? "" : "s"} · written ${day(o.invoiceDate)}</span></td>
           <td>${day(o.delDate)}</td>
-          <td>${money(sell)}</td><td>${money(cost)}</td><td class="${mcls(mm)}">${pct(mm)}</td><td></td></tr>`;
+          <td>${money(sell)}</td><td>${money(cost)}</td><td class="${mcls(mm)}">${pct(mm)}</td><td class="cogc"></td><td></td></tr>`;
         return head + o.items.map(itemHtml).join("");
       }
+      const LINE_UI = {}; // per line: the chips and supplier picker the ⚙ shows in the popup
       function itemHtml({ line: l, model: m }) {
         const canEdit = !!state.board.canEdit;
         const badges = [
@@ -379,13 +385,23 @@
         const cur = m.supplierSource === "override" ? m.supplier : "";
         const dflt = m.supplierSource === "netsuite" ? `${m.supplier} (NetSuite)` : m.supplierSource === "brand" ? `${m.supplier} (by brand)` : m.supplierSource === "epass-map" ? `${m.supplier} (ePASS ${m.epass?.supplierCode || ""} → NetSuite)` : m.supplierSource === "epass" ? `${m.supplier} (ePASS, unmapped)` : "Unassigned — pick a supplier";
         const supIn = canEdit ? `<span class="hint">Supplier: <select class="sup-in" data-model-sup="${esc(m.key)}" title="NetSuite's supplier applies unless you pick one here"><option value="">${esc(dflt)}</option>${opts.map((o) => `<option value="${esc(o)}"${o === cur ? " selected" : ""}>${esc(o)}</option>`).join("")}</select></span>` : "";
+        LINE_UI[l.id] = { badges: badges.replace(/<button[^>]*pos-btn[\s\S]*?<\/button>\s*/, ""), supIn, qty: l.qty, m };
+        // On the row: model, brand, inventory position, the order-level
+        // warnings, description. Everything else (qty / written / QOH / QOO /
+        // short, stock class, supplier source, the supplier picker) sits behind
+        // the ⚙ so the page fits half a screen next to the vendor portal.
+        const rowBadges = [
+          `<button type="button" class="pos-btn" data-pos="${esc(m.key)}" data-line="${esc(l.id)}" title="Inventory position — on hand, on order, written, every unit with its receive date and ticket">Inv${m.qoh ? ` · ${m.qoh} on hand` : " · none on hand"}${m.spokenFor?.length ? ` · ${m.spokenFor.reduce((a, s) => a + (s.qty || 0), 0)} spoken for` : ""}</button>`,
+          isReturn(l) ? `<span class="badge ret">Return</span>` : "",
+          isUnpaidCod(l) ? `<span class="badge cod" title="0% paid on COD terms">0% COD</span>` : ""
+        ].filter(Boolean).join(" ");
+        const cogTitle = `Qty ${l.qty} · written ${m.written} · on hand ${m.qoh ?? "—"} · on order ${m.qoo ?? "—"} · short ${m.proposed}${m.stockClass ? " · " + m.stockClass : ""} · supplier ${m.supplier || "unassigned"}`;
         return `<tr class="line${isReturn(l) ? " ret" : ""}${l.handled ? " done" : ""}">
-          <td class="l"><strong class="copy-model" data-copy="${esc(m.model)}" title="Click to copy the model number">${esc(m.model)}</strong> ${badges}<span class="desc">${esc([m.item?.brand, m.item?.description || (m.item?.displayName && m.item.displayName !== m.model ? m.item.displayName : "")].filter(Boolean).join(" · ") || "")}</span>${supIn}</td>
-          <td class="l"><span class="hint">${esc(l.sp || "")}${l.status ? " · " + esc(l.status) : ""}${l.deposit ? ` · ${l.deposit.pct}% paid · ${esc(l.deposit.terms)}` : ""}${l.reference ? " · " + esc(l.reference) : ""}</span></td>
-          <td>${l.qty}</td><td>${m.written}</td><td>${m.qoh ?? "—"}${m.freeQoh != null && m.freeQoh !== m.qoh ? ` <span class="hint" title="Not promised to another invoice">free ${m.freeQoh}</span>` : ""}</td><td>${m.qoo ?? "—"}${m.stockQoo != null && m.stockQoo !== m.qoo ? ` <span class="hint" title="On order for stock (the rest is on POs cut for other invoices)">stock ${m.stockQoo}</span>` : ""}</td>
-          <td class="${m.proposed > 0 ? "short" : "ok"}">${m.proposed}</td>
+          <td class="l"><strong class="copy-model" data-copy="${esc(m.model)}" title="Click to copy the model number">${esc(m.model)}</strong>${m.item?.brand ? `<span class="brand">${esc(m.item.brand)}</span>` : ""} ${rowBadges}<span class="desc">${esc(m.item?.description || (m.item?.displayName && m.item.displayName !== m.model ? m.item.displayName : "") || "")}</span></td>
+          <td class="l"><span class="hint">${esc(l.sp || "")}${l.status ? " · " + esc(l.status) : ""}${l.deposit ? ` · ${l.deposit.pct}% paid · ${esc(l.deposit.terms)}` : ""}${l.reference ? " · " + esc(l.reference) : ""}${l.qty !== 1 ? ` · qty ${l.qty}` : ""}</span></td>
           <td>${day(l.delDate)}</td>
           <td>${money2(l.sellPrice)}</td><td>${money2(l.stdCost)}</td><td class="${mcls(l.marginRate)}">${pct(l.marginRate)}${l.marginDollars != null ? `<span class="hint">${money2(l.marginDollars)}/unit</span>` : ""}</td>
+          <td class="cogc"><button type="button" class="cog${m.proposed > 0 ? " short" : ""}" data-pos="${esc(m.key)}" data-line="${esc(l.id)}" title="${esc(cogTitle)}">⚙</button></td>
           <td>${l.handled ? `<button type="button" class="xbtn undo" data-undo="${esc(l.id)}" title="Handled ${when(l.handled.at)}${l.handled.by ? " by " + esc(l.handled.by) : ""} — click to put it back">↺</button>` : `<button type="button" class="xbtn" data-done="${esc(l.id)}" title="Ordered / assigned from stock — take it off the report">✕</button>`}</td></tr>`;
       }
       function renderMap() {
@@ -411,9 +427,18 @@
         try { await api("/api/written-models/settings", { method: "POST", body: JSON.stringify({ supplierMap }) }); setStatus("Supplier map saved.", "ok"); await load(); } catch (err) { setStatus(err.message, "error"); }
       });
       // ---- inventory position (the ePASS "Serial # for Model" view) ----
-      async function openPosition(key) {
+      async function openPosition(key, lineId) {
         $("posOverlay").classList.add("show");
-        $("posTitle").textContent = "Inventory position"; $("posSub").textContent = ""; $("posBody").innerHTML = `<div class="empty">Loading…</div>`;
+        const ui = lineId ? LINE_UI[lineId] : null;
+        const lineBlock = ui ? `<div class="pos-line" id="posLine">
+            <span><span class="k">Qty</span><b>${ui.qty}</b></span><span><span class="k">Written</span><b>${ui.m.written}</b></span>
+            <span><span class="k">On hand</span><b>${ui.m.qoh ?? "—"}</b>${ui.m.freeQoh != null && ui.m.freeQoh !== ui.m.qoh ? `<span class="hint">free ${ui.m.freeQoh}</span>` : ""}</span>
+            <span><span class="k">On order</span><b>${ui.m.qoo ?? "—"}</b>${ui.m.stockQoo != null && ui.m.stockQoo !== ui.m.qoo ? `<span class="hint">stock ${ui.m.stockQoo}</span>` : ""}</span>
+            <span class="${ui.m.proposed > 0 ? "short" : ""}"><span class="k">Short</span><b>${ui.m.proposed}</b></span>
+            <span>${ui.badges}</span>${ui.supIn ? `<span class="sup">${ui.supIn}</span>` : ""}</div>` : "";
+        $("posTitle").textContent = "Inventory position"; $("posSub").textContent = ""; $("posBody").innerHTML = lineBlock + `<div class="empty">Loading…</div>`;
+        const wireSup = () => { const sel = $("posBody").querySelector("[data-model-sup]"); if (!sel) return; sel.addEventListener("change", async () => { try { const b = state.board; const modelSupplier = { ...(b.settings?.modelSupplier || {}) }; if (sel.value.trim()) modelSupplier[sel.dataset.modelSup] = sel.value.trim(); else delete modelSupplier[sel.dataset.modelSup]; await api("/api/written-models/settings", { method: "POST", body: JSON.stringify({ modelSupplier }) }); setStatus("Supplier saved for this model.", "ok"); await load(); $("posOverlay").classList.remove("show"); } catch (err) { setStatus(err.message, "error"); } }); };
+        wireSup();
         try {
           const p = await api(`/api/written-models/position?model=${encodeURIComponent(key)}`);
           const s = p.summary;
@@ -435,8 +460,8 @@
           const written = `<div class="pos-sec">Written, not delivered</div><table class="pos-d"><thead><tr><th>Invoice</th><th>Customer</th><th>Qty</th><th>SP</th><th>Status</th><th>PO</th><th>Written</th><th>Delivery</th><th>To order</th></tr></thead>
             <tbody>${p.writtenLines.map((l) => `<tr class="${l.qty < 0 ? "ret" : ""}"><td><strong>${esc(l.invoice)}</strong>${l.qty < 0 ? ` <span class="badge ret">Return</span>` : ""}</td><td>${esc(l.customer)}</td><td>${l.qty}</td><td>${esc(l.sp)}</td><td>${esc(l.status)}</td><td>${l.po ? `<strong>${esc(l.po)}</strong>${l.poDate ? ` <span class="hint">${day(l.poDate)}</span>` : ""}` : "—"}</td><td>${day(l.invoiceDate)}</td><td>${day(l.delDate)}</td><td>${lineNote(l)}</td></tr>`).join("") || `<tr><td colspan="9" class="hint">Nothing written.</td></tr>`}</tbody></table>`;
           const note = `<div class="pos-note">Serial snapshot: ${p.sources.serials?.uploadedAt ? `${esc(p.sources.serials.sourceFile || "")} uploaded ${when(p.sources.serials.uploadedAt)}` : "none loaded"} · report uploaded ${when(p.sources.report?.uploadedAt)}${p.months.length ? " · month columns are delivered units from Sales Order Detail" : ""}</div>`;
-          $("posBody").innerHTML = summary + units + onOrder + written + note;
-        } catch (err) { $("posBody").innerHTML = `<div class="empty">${esc(err.message)}</div>`; }
+          $("posBody").innerHTML = lineBlock + summary + units + onOrder + written + note; wireSup();
+        } catch (err) { $("posBody").innerHTML = lineBlock + `<div class="empty">${esc(err.message)}</div>`; wireSup(); }
       }
       $("posClose").addEventListener("click", () => $("posOverlay").classList.remove("show"));
       $("posOverlay").addEventListener("click", (ev) => { if (ev.target === $("posOverlay")) $("posOverlay").classList.remove("show"); });

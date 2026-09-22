@@ -693,7 +693,7 @@
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || "Upload failed.");
         const p = data.performance;
-        setStatus("oe23Status", `Loaded ${p.ticketCount.toLocaleString("en-US")} orders for ${p.periodFrom} to ${p.periodTo} (${data.ordersUpserted.toLocaleString("en-US")} written to the detail table).${p.warnings?.length ? ` ${p.warnings.length} checksum warning(s).` : ""}${data.note ? " " + data.note : ""}`, "ok");
+        setStatus("oe23Status", `Loaded ${p.ticketCount.toLocaleString("en-US")} orders for ${p.periodFrom} to ${p.periodTo} (${data.ordersUpserted.toLocaleString("en-US")} written to the detail table${p.partial ? ", by finish date" : ""}).${p.warnings?.length ? ` ${p.warnings.length} checksum warning(s).` : ""}${data.note ? " " + data.note : ""}`, "ok");
         lineRowsLoadedFor = "";
         linesCache.clear();
         loadSourceVersions();

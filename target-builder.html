@@ -584,6 +584,10 @@
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || "Upload failed.");
         const saved = data.performance;
+        if (saved.partial) {
+          setPerfStatus(`Loaded ${saved.ticketCount} tickets for ${saved.periodFrom} to ${saved.periodTo} into the order warehouse by finish date. That period is not a whole calendar month, so no month's Performance vs Target snapshot changed — upload a full-month OE-23 for that.`, "ok");
+          return;
+        }
         if (saved.month !== el("monthInput").value) {
           el("monthInput").value = saved.month;
           await loadMonth();

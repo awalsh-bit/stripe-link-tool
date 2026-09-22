@@ -9361,6 +9361,8 @@ function epassAgentKeyOk(provided) {
 }
 
 let lastFinishedOrdersSig = "";
+let epassSalesChain = Promise.resolve(); // sales-bundle extras run one after another, off the request
+let lastSalesPostProcessing = null; // what the last sales bundle's extras produced (/api/epass/open-orders/status)
 let epassServiceMirrorChain = Promise.resolve(); // feed mirrors run one after another, off the request
 app.post("/api/epass-agent/upload", express.raw({ type: () => true, limit: "60mb" }), async (req, res) => {
   try {
@@ -9437,98 +9439,111 @@ app.post("/api/epass-agent/upload", express.raw({ type: () => true, limit: "60mb
     if (kind === "epass-open-orders") {
       const bundle = parseOpenOrdersBundle(req.body);
       const counts = await replaceEpassOpenOrders(bundle, { filename: sourceFile });
-      // The Ordering Report reads this feed now — the OE-04 upload is optional.
-      let orderingReport = null;
-      try {
-        orderingReport = await saveWrittenModelsSnapshot(parseWrittenModelsFromEpass(bundle), { by: "epass-agent", sourceFile: `ePASS feed ${bundle.pulledAt || ""}`.trim() });
-      } catch (err) {
-        console.error("Ordering Report refresh from ePASS feed failed:", err.message);
-        orderingReport = { error: err.message };
-      }
-      counts.orderingReport = orderingReport;
-      // Quote Follow-Up reads the feed's open quotes (Andrew, 9/22) — the
-      // Invoice Maintenance quote export is the fallback, not the source.
-      try {
-        const qrows = Array.isArray(bundle.datasets?.["open-quotes"]) ? bundle.datasets["open-quotes"].filter((r) => r && typeof r === "object") : [];
-        if (qrows.length) {
-          const cal = await calibrateQuoteCustomerField(qrows);
-          const quotes = quotesFromFeedRows(qrows, { customerField: cal.field });
-          const n = await replaceOpenQuotes(quotes, { filename: `ePASS feed ${bundle.pulledAt || ""}`.trim(), byEmail: "epass-agent", byName: "ePASS feed" });
-          counts.quotes = { rows: qrows.length, open: n, customerField: cal.field, calibrated: cal.compared };
-        } else counts.quotes = { rows: 0, skipped: "no open-quotes dataset in this bundle (older pull script?)" };
-      } catch (err) {
-        console.error("Quote Follow-Up refresh from ePASS feed failed:", err.message);
-        counts.quotes = { error: err.message };
-      }
-      // Finished orders (Andrew, 9/22: "replace the OE-23 warehouse too"):
-      // the bundle's finished-* datasets become the same tickets the OE-23
-      // parser produced → sales_order_detail + Performance vs Target, one
-      // month at a time; the OE-23 "open orders" run is rebuilt from the
-      // open-orders feed. Off switch: setting feed.finished_orders_enabled =
-      // false (then a person's OE-23 upload is the source again).
-      try {
-        const fin = bundle.datasets?.["finished-orders"];
-        const sjSettings = await getServiceSettings().catch(() => ({}));
-        if (sjSettings["feed.finished_orders_enabled"] === false) {
-          counts.finishedOrders = { skipped: "feed.finished_orders_enabled is off — OE-23 uploads are the source" };
-        } else if (!Array.isArray(fin)) {
-          counts.finishedOrders = { skipped: "no finished-orders dataset in this bundle (older pull script?)" };
-        } else {
-          const names = salespersonNamesFromFeed(bundle.datasets?.salespeople);
-          const since = /^\d{4}-\d{2}-\d{2}$/.test(String(bundle.finishedSince || "")) ? String(bundle.finishedSince) : "";
-          const tickets = finishedTicketsFromFeed(bundle.datasets, { names, since });
-          const label = `ePASS feed ${bundle.pulledAt || ""}`.trim();
-          // Finished orders barely move between pulls — skip the rewrite when
-          // nothing changed (a restart simply reprocesses once).
-          const sig = crypto.createHash("sha1").update(JSON.stringify(tickets)).digest("hex");
-          if (sig === lastFinishedOrdersSig) { counts.finishedOrders = { rows: fin.length, tickets: tickets.length, since, unchanged: true }; throw { unchanged: true }; }
-          lastFinishedOrdersSig = sig;
-          const today = new Date().toLocaleDateString("en-CA", { timeZone: APP_TIMEZONE });
-          const byMonth = ticketsByMonth(tickets);
-          const months = {};
-          for (const [month, list] of Object.entries(byMonth)) {
-            const monthStart = `${month}-01`, monthEnd = new Date(Date.UTC(Number(month.slice(0, 4)), Number(month.slice(5, 7)), 0)).toISOString().slice(0, 10);
-            await keepLastRevenueUploadCopy(month);
-            await saveRevenuePerformance({
-              month, periodFrom: since && since > monthStart ? since : monthStart, periodTo: monthEnd < today ? monthEnd : today,
-              filename: label, byEmail: "epass-agent", byName: "ePASS feed",
-              ticketCount: list.length, totals: list.reduce((acc, t) => { for (const k of Object.keys(t.list)) acc[k] = Math.round(((acc[k] || 0) + t.list[k]) * 100) / 100; return acc; }, {}),
-              byDepartment: rollupByDepartment(list), bySalesperson: rollupBySalesperson(list), warnings: [], tickets: list
-            });
-            months[month] = { tickets: list.length, upserted: await upsertOrdersFromActivity(list, { sourceMonth: month, filename: label }) };
+      // Stored and acknowledged; the Ordering Report, quotes, finished orders
+      // and Sales Order Health run right after, one bundle at a time — the
+      // same ack-then-process pattern as the service bundle, so the agent
+      // never times out on a big bundle and re-pushes it (9/22, 15:41).
+      const ip = req.ip, pulledAt = bundle.pulledAt || "", machine = bundle.machine || "";
+      epassSalesChain = epassSalesChain.catch(() => {}).then(async () => {
+        try {
+        // The Ordering Report reads this feed now — the OE-04 upload is optional.
+        let orderingReport = null;
+        try {
+          orderingReport = await saveWrittenModelsSnapshot(parseWrittenModelsFromEpass(bundle), { by: "epass-agent", sourceFile: `ePASS feed ${bundle.pulledAt || ""}`.trim() });
+        } catch (err) {
+          console.error("Ordering Report refresh from ePASS feed failed:", err.message);
+          orderingReport = { error: err.message };
+        }
+        counts.orderingReport = orderingReport;
+        // Quote Follow-Up reads the feed's open quotes (Andrew, 9/22) — the
+        // Invoice Maintenance quote export is the fallback, not the source.
+        try {
+          const qrows = Array.isArray(bundle.datasets?.["open-quotes"]) ? bundle.datasets["open-quotes"].filter((r) => r && typeof r === "object") : [];
+          if (qrows.length) {
+            const cal = await calibrateQuoteCustomerField(qrows);
+            const quotes = quotesFromFeedRows(qrows, { customerField: cal.field });
+            const n = await replaceOpenQuotes(quotes, { filename: `ePASS feed ${bundle.pulledAt || ""}`.trim(), byEmail: "epass-agent", byName: "ePASS feed" });
+            counts.quotes = { rows: qrows.length, open: n, customerField: cal.field, calibrated: cal.compared };
+          } else counts.quotes = { rows: 0, skipped: "no open-quotes dataset in this bundle (older pull script?)" };
+        } catch (err) {
+          console.error("Quote Follow-Up refresh from ePASS feed failed:", err.message);
+          counts.quotes = { error: err.message };
+        }
+        // Finished orders (Andrew, 9/22: "replace the OE-23 warehouse too"):
+        // the bundle's finished-* datasets become the same tickets the OE-23
+        // parser produced → sales_order_detail + Performance vs Target, one
+        // month at a time; the OE-23 "open orders" run is rebuilt from the
+        // open-orders feed. Off switch: setting feed.finished_orders_enabled =
+        // false (then a person's OE-23 upload is the source again).
+        try {
+          const fin = bundle.datasets?.["finished-orders"];
+          const sjSettings = await getServiceSettings().catch(() => ({}));
+          if (sjSettings["feed.finished_orders_enabled"] === false) {
+            counts.finishedOrders = { skipped: "feed.finished_orders_enabled is off — OE-23 uploads are the source" };
+          } else if (!Array.isArray(fin)) {
+            counts.finishedOrders = { skipped: "no finished-orders dataset in this bundle (older pull script?)" };
+          } else {
+            const names = salespersonNamesFromFeed(bundle.datasets?.salespeople);
+            const since = /^\d{4}-\d{2}-\d{2}$/.test(String(bundle.finishedSince || "")) ? String(bundle.finishedSince) : "";
+            const tickets = finishedTicketsFromFeed(bundle.datasets, { names, since });
+            const label = `ePASS feed ${bundle.pulledAt || ""}`.trim();
+            // Finished orders barely move between pulls — skip the rewrite when
+            // nothing changed (a restart simply reprocesses once).
+            const sig = crypto.createHash("sha1").update(JSON.stringify(tickets)).digest("hex");
+            if (sig === lastFinishedOrdersSig) { counts.finishedOrders = { rows: fin.length, tickets: tickets.length, since, unchanged: true }; throw { unchanged: true }; }
+            lastFinishedOrdersSig = sig;
+            const today = new Date().toLocaleDateString("en-CA", { timeZone: APP_TIMEZONE });
+            const byMonth = ticketsByMonth(tickets);
+            const months = {};
+            for (const [month, list] of Object.entries(byMonth)) {
+              const monthStart = `${month}-01`, monthEnd = new Date(Date.UTC(Number(month.slice(0, 4)), Number(month.slice(5, 7)), 0)).toISOString().slice(0, 10);
+              await keepLastRevenueUploadCopy(month);
+              await saveRevenuePerformance({
+                month, periodFrom: since && since > monthStart ? since : monthStart, periodTo: monthEnd < today ? monthEnd : today,
+                filename: label, byEmail: "epass-agent", byName: "ePASS feed",
+                ticketCount: list.length, totals: list.reduce((acc, t) => { for (const k of Object.keys(t.list)) acc[k] = Math.round(((acc[k] || 0) + t.list[k]) * 100) / 100; return acc; }, {}),
+                byDepartment: rollupByDepartment(list), bySalesperson: rollupBySalesperson(list), warnings: [], tickets: list
+              });
+              months[month] = { tickets: list.length, upserted: await upsertOrdersFromActivity(list, { sourceMonth: month, filename: label }) };
+            }
+            const pruned = since ? await pruneFeedOrders({ since, keepInvoices: tickets.map((t) => t.invoice) }) : 0;
+            if (tickets.length) refreshQuoteConversions("all").catch((e) => console.error("Quote conversion refresh failed:", e.message));
+            let openOrders = null;
+            try {
+              const oo = await openOrderTicketsFromFeed({ names });
+              const saved = await replaceOpenOrders(oo.tickets, { filename: label, byEmail: "epass-agent", periodFrom: oo.periodFrom, periodTo: oo.periodTo });
+              openOrders = saved.count;
+            } catch (err) { console.error("Open orders from ePASS feed failed:", err.message); openOrders = { error: err.message }; }
+            counts.finishedOrders = { rows: fin.length, tickets: tickets.length, since, months, pruned, salespeople: Object.keys(names).length, openOrders };
           }
-          const pruned = since ? await pruneFeedOrders({ since, keepInvoices: tickets.map((t) => t.invoice) }) : 0;
-          if (tickets.length) refreshQuoteConversions("all").catch((e) => console.error("Quote conversion refresh failed:", e.message));
-          let openOrders = null;
-          try {
-            const oo = await openOrderTicketsFromFeed({ names });
-            const saved = await replaceOpenOrders(oo.tickets, { filename: label, byEmail: "epass-agent", periodFrom: oo.periodFrom, periodTo: oo.periodTo });
-            openOrders = saved.count;
-          } catch (err) { console.error("Open orders from ePASS feed failed:", err.message); openOrders = { error: err.message }; }
-          counts.finishedOrders = { rows: fin.length, tickets: tickets.length, since, months, pruned, salespeople: Object.keys(names).length, openOrders };
+        } catch (err) {
+          if (!err?.unchanged) {
+            console.error("Finished orders from ePASS feed failed:", err.message);
+            counts.finishedOrders = { error: err.message };
+          }
         }
-      } catch (err) {
-        if (!err?.unchanged) {
-          console.error("Finished orders from ePASS feed failed:", err.message);
-          counts.finishedOrders = { error: err.message };
+        // Sales Order Health reads this feed now too (Andrew, 9/22) — the
+        // Invoice Maintenance upload is the fallback, not the source.
+        try {
+          const rows = await salesOrderRowsFromFeed();
+          if (rows.length) {
+            await keepLastSalesUploadCopy();
+            const snap = await saveSalesOrderSnapshot({ rows, filename: `ePASS feed ${bundle.pulledAt || ""}`.trim(), byEmail: "epass-agent", byName: "ePASS feed" });
+            counts.salesOrderHealth = { rows: rows.length, uploadedAt: snap?.uploadedAt || null };
+          } else counts.salesOrderHealth = { rows: 0, skipped: "no sales invoices in the feed" };
+        } catch (err) {
+          console.error("Sales Order Health refresh from ePASS feed failed:", err.message);
+          counts.salesOrderHealth = { error: err.message };
         }
-      }
-      // Sales Order Health reads this feed now too (Andrew, 9/22) — the
-      // Invoice Maintenance upload is the fallback, not the source.
-      try {
-        const rows = await salesOrderRowsFromFeed();
-        if (rows.length) {
-          await keepLastSalesUploadCopy();
-          const snap = await saveSalesOrderSnapshot({ rows, filename: `ePASS feed ${bundle.pulledAt || ""}`.trim(), byEmail: "epass-agent", byName: "ePASS feed" });
-          counts.salesOrderHealth = { rows: rows.length, uploadedAt: snap?.uploadedAt || null };
-        } else counts.salesOrderHealth = { rows: 0, skipped: "no sales invoices in the feed" };
-      } catch (err) {
-        console.error("Sales Order Health refresh from ePASS feed failed:", err.message);
-        counts.salesOrderHealth = { error: err.message };
-      }
-      recordAudit({ ip: req.ip, actorUserId: null, action: "epass_open_orders_received", targetUserId: null,
-        detail: { ...counts, pulledAt: bundle.pulledAt || "", machine: bundle.machine || "", filename: sourceFile.slice(0, 120), via: "epass-agent" } }).catch(() => {});
-      return res.json({ ok: true, kind, ...counts, pulledAt: bundle.pulledAt || "" });
+        } catch (err) {
+          console.error("Sales bundle post-processing failed:", err.message);
+          counts.postProcessing = { error: err.message };
+        }
+        lastSalesPostProcessing = { finishedAt: new Date().toISOString(), pulledAt, filename: sourceFile.slice(0, 120), ...counts };
+        await recordAudit({ ip, actorUserId: null, action: "epass_open_orders_received", targetUserId: null,
+          detail: { ...counts, pulledAt, machine, filename: sourceFile.slice(0, 120), via: "epass-agent" } }).catch(() => {});
+      });
+      return res.json({ ok: true, kind, ...counts, postProcessing: "running", pulledAt });
     }
 
     // Same feed, service side: open SV/WTY tickets + labor + parts + comments + notes.
@@ -9573,7 +9588,7 @@ app.post("/api/epass-agent/upload", express.raw({ type: () => true, limit: "60mb
 // What the ODBC feed last delivered (executives; the CSVs themselves are on
 // W:\Agility\epass\ for everyone in the building).
 app.get("/api/epass/open-orders/status", requireExecutiveApi, async (req, res) => {
-  try { return res.json(await getEpassOpenOrdersMeta()); } catch (err) { return res.status(400).json({ error: err.message }); }
+  try { return res.json({ ...(await getEpassOpenOrdersMeta() || {}), postProcessing: lastSalesPostProcessing }); } catch (err) { return res.status(400).json({ error: err.message }); }
 });
 app.get("/api/epass/open-orders", requireExecutiveApi, async (req, res) => {
   try { return res.json({ rows: await listEpassOpenOrders({ type: String(req.query.type || ""), q: String(req.query.q || ""), limit: Number(req.query.limit) || 500 }) }); } catch (err) { return res.status(400).json({ error: err.message }); }
@@ -12580,28 +12595,40 @@ app.post("/api/revenue-performance", requirePagePermission("/target-builder.html
       }
 
       const month = parsed.periodFrom.slice(0, 7);
-      const saved = await saveRevenuePerformance({
-        month,
-        periodFrom: parsed.periodFrom,
-        periodTo: parsed.periodTo,
-        filename: req.file.originalname || "",
-        byEmail: req.authUser?.email || req.authUser?.username || "",
-        byName: req.authUser?.displayName || "",
-        ticketCount: parsed.tickets.length,
-        totals: parsed.grandListTotals,
-        byDepartment: rollupByDepartment(parsed.tickets),
-        bySalesperson: rollupBySalesperson(parsed.tickets),
-        warnings: parsed.warnings,
-        tickets: parsed.tickets
-      });
+      // Only a report that starts on the 1st and stays inside one month is a
+      // month's Performance vs Target snapshot. Any other period (a fiscal
+      // week, a quarter, a catch-up range — Andrew, 9/22) still feeds the
+      // warehouse by finish date but leaves the monthly snapshot alone.
+      const wholeMonth = /-01$/.test(parsed.periodFrom) && (!parsed.periodTo || parsed.periodTo.slice(0, 7) === month);
+      let saved = null;
+      if (wholeMonth) {
+        saved = await saveRevenuePerformance({
+          month,
+          periodFrom: parsed.periodFrom,
+          periodTo: parsed.periodTo,
+          filename: req.file.originalname || "",
+          byEmail: req.authUser?.email || req.authUser?.username || "",
+          byName: req.authUser?.displayName || "",
+          ticketCount: parsed.tickets.length,
+          totals: parsed.grandListTotals,
+          byDepartment: rollupByDepartment(parsed.tickets),
+          bySalesperson: rollupBySalesperson(parsed.tickets),
+          warnings: parsed.warnings,
+          tickets: parsed.tickets
+        });
+      } else {
+        saved = { month: null, periodFrom: parsed.periodFrom, periodTo: parsed.periodTo, ticketCount: parsed.tickets.length, warnings: parsed.warnings, partial: true };
+      }
 
-      // Feed the durable per-order warehouse (sales-order-detail.html).
+      // Feed the durable per-order warehouse (sales-order-detail.html) —
+      // each ticket under the month it actually finished in.
       let ordersUpserted = 0;
       try {
-        ordersUpserted = await upsertOrdersFromActivity(parsed.tickets, {
-          sourceMonth: month,
-          filename: req.file.originalname || ""
-        });
+        const byMonth = {};
+        for (const t of parsed.tickets) (byMonth[String(t.finishDate || parsed.periodFrom).slice(0, 7)] ||= []).push(t);
+        for (const [m, list] of Object.entries(byMonth)) {
+          ordersUpserted += await upsertOrdersFromActivity(list, { sourceMonth: m, filename: req.file.originalname || "" });
+        }
       } catch (detailErr) {
         console.error("Sales order detail upsert failed:", detailErr.message);
       }
@@ -12615,8 +12642,8 @@ app.post("/api/revenue-performance", requirePagePermission("/target-builder.html
         detail: { month, periodFrom: parsed.periodFrom, periodTo: parsed.periodTo, tickets: parsed.tickets.length, ordersUpserted, filename: req.file.originalname || "", warnings: parsed.warnings.length }
       }).catch(() => {});
 
-      let note = "";
-      try { const sjs = await getServiceSettings(); if (sjs["feed.finished_orders_enabled"] !== false) note = "The ePASS feed is on — its next pull replaces this month's rows if the month is inside the feed window (this month and last)."; } catch {}
+      let note = wholeMonth ? "" : `Period ${parsed.periodFrom} → ${parsed.periodTo} is not a whole calendar month, so the orders were written by finish date and no month's Performance vs Target snapshot was replaced.`;
+      try { const sjs = await getServiceSettings(); if (sjs["feed.finished_orders_enabled"] !== false) note += " The ePASS feed is on — its next pull replaces rows inside the feed window (this month and last)."; } catch {}
       return res.json({ ok: true, performance: saved, ordersUpserted, note });
     } catch (parseErr) {
       console.error("Activity report parse failed:", parseErr.message);

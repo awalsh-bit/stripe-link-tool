@@ -1288,10 +1288,12 @@
               return;
             }
           }
-          await api("/api/admin/employee-directory", {
+          const saved = await api("/api/admin/employee-directory", {
             method: "POST",
             body: JSON.stringify({ code, name, email, department, commissionPlan, commuteMiles, shirtSize, shoeSize, hireDate, birthday })
           });
+          if (saved?.accountMoved) window.alert(`Login account moved from ${saved.accountMoved.from} to ${saved.accountMoved.to}${saved.accountMoved.status === "invited" ? " — use Resend invite so the new address gets the link." : "."}`);
+          else if (saved?.note) window.alert(saved.note);
         }
         if (up.account && pendingCount(up.account)) {
           const changes = [...state.pending.get(up.account.id)].map(([pagePath, granted]) => ({ pagePath, granted }));

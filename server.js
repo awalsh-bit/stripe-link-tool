@@ -56,6 +56,7 @@ import {
   setUserStatus,
   setUserExecutive,
   updateUserProfile,
+  updateUserEmail,
   listUsersWithAccess,
   createAuthToken,
   consumeAuthToken,
@@ -2909,7 +2910,7 @@ app.post("/api/admin/users/invite", requireExecutiveApi, async (req, res) => {
     return res.json({ success: true });
   } catch (err) {
     console.error("Invite failed:", err.message);
-    return res.status(500).json({ error: "Unable to send the invitation." });
+    return res.status(500).json({ error: `Unable to send the invitation — ${String(err.message || err).slice(0, 200)}` });
   }
 });
 
@@ -2941,7 +2942,7 @@ app.post("/api/admin/users/:userId/resend-invite", requireExecutiveApi, async (r
     return res.json({ success: true });
   } catch (err) {
     console.error("Resend invite failed:", err.message);
-    return res.status(500).json({ error: "Unable to resend the invitation." });
+    return res.status(500).json({ error: `Unable to resend the invitation — ${String(err.message || err).slice(0, 200)}` });
   }
 });
 
@@ -5548,6 +5549,23 @@ app.post("/api/admin/employee-directory", requireExecutiveApi, async (req, res) 
     if (hireDate === undefined) return res.status(400).json({ error: "Hire date must be a valid date (YYYY-MM-DD) or blank." });
     if (birthday === undefined) return res.status(400).json({ error: "Birthday must be a valid date (YYYY-MM-DD) or blank." });
 
+    // The email is the link between the directory entry and the login
+    // account. When it changes on an entry that already had one, move the
+    // account to the new address too (Oscar / Kezia, 9/22: the directory
+    // showed the corrected email while the account — and its invites — sat
+    // on the old one). An account already on the new address wins; the old
+    // one is then left alone and reported.
+    const previous = (await listEmployeeDirectory().catch(() => [])).find((e) => normalizeEmployeeCode(e.code) === normalizeEmployeeCode(code));
+    const previousEmail = String(previous?.email || "").trim().toLowerCase();
+    let movedAccount = null, moveNote = "";
+    if (previousEmail && trimmedEmail && previousEmail !== trimmedEmail) {
+      try {
+        const [oldAccount, newAccount] = await Promise.all([findUserByEmail(previousEmail), findUserByEmail(trimmedEmail)]);
+        if (oldAccount && !newAccount) { movedAccount = await updateUserEmail(oldAccount.id, trimmedEmail); }
+        else if (oldAccount && newAccount) { moveNote = `Two login accounts exist (${previousEmail} and ${trimmedEmail}); the entry now links to ${trimmedEmail} — delete the old account from its row below when you're sure.`; }
+      } catch (err) { console.error("Directory email → account move failed:", err.message); moveNote = err.message; }
+    }
+
     const entry = await upsertEmployeeDirectoryEntry(
       { code, name, email: trimmedEmail, department: normalizedDepartment, commuteMiles: commute, commissionPlan: plan, shirtSize: sizes.shirtSize, shoeSize: sizes.shoeSize, hireDate, birthday },
       req.authUser.id || null
@@ -5555,7 +5573,7 @@ app.post("/api/admin/employee-directory", requireExecutiveApi, async (req, res) 
 
     // Names are joined: saving a directory entry updates the matching
     // account's display name so the two can never drift apart.
-    let syncedUserId = null;
+    let syncedUserId = movedAccount ? movedAccount.id : null;
     if (entry.email) {
       try {
         const account = await findUserByEmail(entry.email);
@@ -5576,7 +5594,7 @@ app.post("/api/admin/employee-directory", requireExecutiveApi, async (req, res) 
       detail: { code: entry.code, name: entry.name, email: entry.email, department: entry.department, commuteMiles: entry.commuteMiles, commissionPlan: entry.commissionPlan, shirtSize: entry.shirtSize, shoeSize: entry.shoeSize, hireDate: entry.hireDate, birthday: entry.birthday, nameSynced: Boolean(syncedUserId) }
     }).catch(() => {});
 
-    return res.json({ success: true, entry });
+    return res.json({ success: true, entry, accountMoved: movedAccount ? { id: movedAccount.id, from: previousEmail, to: trimmedEmail, status: movedAccount.status } : null, note: moveNote || "" });
   } catch (err) {
     console.error("Save employee directory entry failed:", err.message);
     return res.status(500).json({ error: "Unable to save the directory entry." });
@@ -9690,6 +9708,7 @@ app.post("/api/service/schedule/:token", async (req, res) => {
       cards[index] = {
         ...cards[index],
         updatedAt: new Date().toISOString(),
+        updatedBy: "client picked a date",
         selfSchedule: { ...(cards[index].selfSchedule || {}), token: hold.token, mode: hold.booking_mode, zone: hold.zone_code || "", kind: "picked", date: chosen.date, window: chosen.window, windowLabel: chosen.windowLabel, tech: chosen.tech, pickedAt: new Date().toISOString(), updatedAt: new Date().toISOString() }
       };
       await writeServiceCards(cards);
@@ -9706,7 +9725,7 @@ app.post("/api/service/schedule/:token/preference", async (req, res) => {
     const hold = await preferSelfSchedule(req.params.token, kind);
     const { cards, index } = await scheduleCardForHold(hold);
     if (index >= 0) {
-      cards[index] = { ...cards[index], updatedAt: new Date().toISOString(), selfSchedule: { ...(cards[index].selfSchedule || {}), token: hold.token, mode: hold.booking_mode, zone: hold.zone_code || "", kind: hold.kind, updatedAt: new Date().toISOString() } };
+      cards[index] = { ...cards[index], updatedAt: new Date().toISOString(), updatedBy: "client asked to be contacted", selfSchedule: { ...(cards[index].selfSchedule || {}), token: hold.token, mode: hold.booking_mode, zone: hold.zone_code || "", kind: hold.kind, updatedAt: new Date().toISOString() } };
       await writeServiceCards(cards);
       recordAudit({ ip: req.ip, actorUserId: null, action: "service_request_schedule_preference", targetUserId: null, detail: { serviceCardId: hold.card_id, customerName: cards[index].customerName || "", kind: hold.kind } }).catch(() => {});
     }
@@ -9724,7 +9743,7 @@ app.post("/api/service-cards/:id/self-schedule/release", requirePagePermission("
     if (index < 0) return res.status(404).json({ error: "Service request not found." });
     const released = await releaseSelfSchedule(req.params.id, { svNumber: String(req.body?.svNumber || ""), by: req.authUser?.email || "" });
     if (req.body?.svNumber) applySelfHoldForSv(String(req.body.svNumber), req.authUser?.email || "").catch((err) => console.error("Self-hold → board failed:", err.message));
-    cards[index] = { ...cards[index], updatedAt: new Date().toISOString(), updatedBy: req.authUser?.displayName || req.authUser?.email || "", selfSchedule: { ...(cards[index].selfSchedule || {}), released: true, releasedAt: new Date().toISOString(), releasedBy: req.authUser?.email || "", releasedFor: "office" } };
+    cards[index] = { ...cards[index], updatedAt: new Date().toISOString(), updatedBy: `${req.authUser?.displayName || req.authUser?.email || ""} · hold released`, selfSchedule: { ...(cards[index].selfSchedule || {}), released: true, releasedAt: new Date().toISOString(), releasedBy: req.authUser?.email || "", releasedFor: "office" } };
     await writeServiceCards(cards);
     sjAudit(req, "service_request_self_schedule_released", { serviceCardId: req.params.id, holds: released.length });
     return res.json({ ok: true, row: cards[index] });
@@ -9785,7 +9804,7 @@ app.post("/api/service-board/holds/:id/move", requireServiceBoard, async (req, r
     const b = req.body || {};
     const moved = await moveSelfHold({ id: req.params.id, tech: b.tech, date: b.date, window: b.window, by: sjMe(req).email });
     // keep the queue card's copy of the pick in step
-    try { const cards = await readServiceCards(); const i = cards.findIndex((c) => c.id === moved.cardId); if (i >= 0) { cards[i] = { ...cards[i], updatedAt: new Date().toISOString(), selfSchedule: { ...(cards[i].selfSchedule || {}), date: moved.day, window: moved.win, tech: moved.tech, movedBy: sjMe(req).email } }; await writeServiceCards(cards); } } catch (err) { console.error("Hold move: card update failed:", err.message); }
+    try { const cards = await readServiceCards(); const i = cards.findIndex((c) => c.id === moved.cardId); if (i >= 0) { cards[i] = { ...cards[i], updatedAt: new Date().toISOString(), updatedBy: `${sjMe(req).email} · hold moved on the board`, selfSchedule: { ...(cards[i].selfSchedule || {}), date: moved.day, window: moved.win, tech: moved.tech, movedBy: sjMe(req).email } }; await writeServiceCards(cards); } } catch (err) { console.error("Hold move: card update failed:", err.message); }
     sjAudit(req, "service_board_hold_moved", moved);
     return res.json({ ok: true, ...moved });
   } catch (err) { return res.status(400).json({ error: err.message }); }
@@ -11987,7 +12006,8 @@ app.get("/api/service/setup-intent-result/:setupIntentId", async (req, res) => {
         serviceCards[existingCardIdIndex] = {
           ...beforeRow,
           setupIntentId: setupIntent.id,
-          ...stripeFields
+          ...stripeFields,
+          updatedBy: `card saved (${brand ? brand + " " : ""}${last4 ? "•••• " + last4 : "Stripe"})`
         };
         cardAuditRowId = beforeRow.id;
       }
@@ -14710,6 +14730,7 @@ app.post("/api/service/submit-request", async (req, res) => {
         serviceCards[existingByIdIndex] = {
           ...serviceCards[existingByIdIndex],
           updatedAt: new Date().toISOString(),
+          updatedBy: "request form resubmitted by the client",
           setupIntentId: setupIntentId || serviceCards[existingByIdIndex].setupIntentId || "",
           customerName: serviceRequest.customerName || "",
           firstName: serviceRequest.firstName || "",
@@ -14761,6 +14782,7 @@ app.post("/api/service/submit-request", async (req, res) => {
         serviceCards[existingByIdIndex] = {
           ...serviceCards[existingByIdIndex],
           updatedAt: new Date().toISOString(),
+          updatedBy: "request form resubmitted by the client",
           setupIntentId: setupIntentId || serviceCards[existingByIdIndex].setupIntentId || "",
           setupIntentStatus: setupIntentId
             ? serviceCards[existingByIdIndex].setupIntentStatus || "submitted_not_completed"

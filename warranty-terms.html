@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="robots" content="noindex,nofollow,noarchive" />
+  <title>Wilson AC & Appliance - Warranty Terms Reference</title>
+  <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+  <link rel="stylesheet" href="internal-shell.css" />
+  <style>
+    :root{--bg:#f3f6f3;--surface:#ffffff;--surface2:#eaf0ea;--ink:#1b241f;--muted:#5d6b62;--line:#d7dfd8;--accent:#1f6b35;--accent-ink:#fff;--soft:#e3eee5;--wait:#b8770f;--wait-bg:#fbf0d9;--bad:#b3362f;--bad-bg:#fbe4e2;--good:#1f8a48;--good-bg:#e3f3e8;--info:#2f6fb3;--info-bg:#e7eff9;--pre:#8a3d12;--pre-bg:#fbe4d2}
+    *{box-sizing:border-box}
+    body{margin:0;background:linear-gradient(180deg,var(--primary-tint,#eaf4ec) 0%,var(--bg) 100%);color:var(--ink);font:14.5px/1.45 "Roboto",system-ui,-apple-system,"Segoe UI",sans-serif;min-height:100vh;padding:20px 16px 60px}
+    .wrap{max-width:1480px;margin:0 auto}
+    @media (max-width:720px){body{padding:14px 8px 40px}}
+    .mono{font-family:"IBM Plex Mono",ui-monospace,Menlo,monospace}
+    button{font:inherit;color:inherit;background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:.4rem .75rem;cursor:pointer}
+    button:hover{border-color:var(--accent)}button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+    button.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);font-weight:600}
+    select,input{font:inherit;color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:.4rem .6rem}
+    .top{display:flex;align-items:flex-start;gap:1rem;flex-wrap:wrap;padding:.9rem 0 .6rem;border-bottom:1px solid var(--line)}
+    .top h2{margin:0;font-size:20px}.top .note{color:var(--muted);font-size:.8rem;max-width:80ch}
+    .top .tools{margin-left:auto;display:flex;gap:.4rem;align-items:center;flex-wrap:wrap}
+    .tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:.6rem;margin:.9rem 0}
+    .tile{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:.6rem .8rem;cursor:pointer;text-align:left}.tile b{display:block;font-size:1.5rem;font-variant-numeric:tabular-nums}.tile span{color:var(--muted);font-size:.8rem}.tile[aria-pressed="true"]{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent)}
+    .tile.warn b{color:var(--wait)}.tile.good b{color:var(--good)}.tile.pre b{color:var(--pre)}
+    .sec{background:var(--surface);border:1px solid var(--line);border-radius:12px;margin:.8rem 0;overflow:hidden}
+    .sec h3{margin:0;padding:.65rem .9rem;border-bottom:1px solid var(--line);font-size:.78rem;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);font-weight:600;display:flex;gap:.6rem;align-items:center}
+    .sec h3 .n{font-variant-numeric:tabular-nums;color:var(--ink)}.sec h3 .hint{margin-left:auto;text-transform:none;letter-spacing:0;font-weight:500}
+    .lookup{display:flex;flex-wrap:wrap;gap:.5rem;padding:.8rem .9rem;align-items:flex-end}
+    .lookup label{flex:1 1 180px;display:flex;flex-direction:column;gap:.2rem;font-size:.78rem;color:var(--muted)}.lookup label input{width:100%}.lookup button{flex:0 0 auto}
+    .result{padding:.6rem .9rem .9rem;border-top:1px solid var(--line)}
+    .result .head{display:flex;gap:.6rem;align-items:center;flex-wrap:wrap;margin-bottom:.4rem}.result .head b{font-size:1.05rem}
+    .chip{display:inline-block;border-radius:999px;padding:.1rem .5rem;font-size:.7rem;font-weight:600;background:var(--surface2);color:var(--muted);text-transform:uppercase;letter-spacing:.04em;white-space:nowrap}
+    .chip.good{background:var(--good-bg);color:var(--good)}.chip.bad{background:var(--bad-bg);color:var(--bad)}.chip.warn{background:var(--wait-bg);color:var(--wait)}.chip.info{background:var(--info-bg);color:var(--info)}.chip.pre{background:var(--pre-bg);color:var(--pre)}
+    table{width:100%;border-collapse:collapse;font-size:.86rem}th,td{padding:.45rem .7rem;border-bottom:1px solid var(--line);vertical-align:top;text-align:left}th{font-size:.72rem;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);font-weight:600;background:var(--surface2);position:sticky;top:0}
+    td.num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}tr.exp td{color:var(--muted)}
+    .brand{cursor:pointer}.brand td:first-child{font-weight:600}.brand.open{background:#f7faf7}
+    .detail td{background:#fbfcfb;padding:.5rem .9rem .8rem 1.6rem}
+    .detail table{font-size:.82rem;margin:.3rem 0 .5rem}.detail table th{position:static;background:transparent}
+    .notes{color:var(--muted);font-size:.82rem;margin:.2rem 0}.notes a{color:var(--accent)}
+    .callout{border-left:3px solid var(--pre);background:var(--pre-bg);padding:.4rem .7rem;border-radius:0 6px 6px 0;margin:.3rem 0;font-size:.82rem}.callout.bonus{border-color:var(--info);background:var(--info-bg)}
+    .empty{padding:1rem .9rem;color:var(--muted);font-size:.9rem}
+    a{color:var(--accent)}
+    .status{display:none;margin:.6rem 0 0;padding:.5rem .8rem;border-radius:8px;font-size:.85rem}.status.show{display:block}.status.error{background:var(--bad-bg);color:#7a1f1a}
+    @media print{body{background:#fff;padding:0}.tools,.tile,#internal-shell-header,#internal-shell-footer,.lookup{display:none!important}.detail{display:table-row!important}.sec{break-inside:avoid}}
+  </style>
+</head>
+<body data-shell-label="Warranty Terms Reference" data-shell-icon="service">
+  <div class="wrap">
+    <div id="internal-shell-header"></div>
+    <div class="top">
+      <div><h2>Warranty Terms Reference</h2><div class="note">Manufacturer warranty terms by brand, with model and family exceptions, pre-authorization rules and Wilson's installer bonus. Check a WTY ticket here before it is booked: brand + model + purchase date tells you which coverage is still in force. <span id="snap"></span> Internal reference — not for customer distribution.</div></div>
+      <div class="tools"><input id="q" placeholder="filter — brand, model, product…" aria-label="Filter" /><select id="cat"><option value="">All categories</option></select><button id="expand">Expand all</button><button id="print">Print</button></div>
+    </div>
+    <div class="status" id="pageStatus"></div>
+    <div class="tiles" id="tiles"></div>
+
+    <div class="sec">
+      <h3>Check a ticket <span class="hint">brand + model + purchase date → what is covered as of today</span></h3>
+      <form class="lookup" id="lk">
+        <label>Brand <input id="lkBrand" list="brandList" placeholder="Sub-Zero" required /></label>
+        <label>Model <input id="lkModel" placeholder="BI-36U/S" /></label>
+        <label>Purchase / install date <input id="lkDate" type="date" /></label>
+        <label>Product type <input id="lkProduct" placeholder="Refrigerator (Built-in)" /></label>
+        <button class="primary" type="submit">Check</button>
+      </form>
+      <datalist id="brandList"></datalist>
+      <div class="result" id="lkOut" hidden></div>
+    </div>
+
+    <div class="sec">
+      <h3>Brands <span class="n" id="brandN"></span><span class="hint">click a brand for its tiers, notes and source</span></h3>
+      <div style="overflow:auto"><table id="brands"><thead><tr><th>Brand</th><th>Categories</th><th>Standard coverage</th><th>Longest coverage</th><th>Flags</th><th>Confidence</th></tr></thead><tbody></tbody></table></div>
+    </div>
+
+    <div class="sec">
+      <h3>Model &amp; family exceptions <span class="n" id="modelN"></span><span class="hint">these replace the brand's standard tiers for matching models</span></h3>
+      <div style="overflow:auto"><table id="models"><thead><tr><th>Brand</th><th>Model / family</th><th>Coverage</th><th>Verified</th><th>Notes</th></tr></thead><tbody></tbody></table></div>
+    </div>
+    <div id="internal-shell-footer"></div>
+  </div>
+  <script src="internal-shell.js"></script>
+  <script>
+    const $ = (s) => document.querySelector(s);
+    const esc = (v) => String(v ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+    async function api(path) { const res = await fetch(path, { credentials: "same-origin" }); const data = await res.json().catch(() => ({})); if (!res.ok) throw new Error(data.error || "Request failed."); return data; }
+    function setStatus(msg, kind) { const b = $("#pageStatus"); if (!msg) { b.className = "status"; b.textContent = ""; return; } b.className = "status show " + kind; b.textContent = msg; }
+    const yrs = (m) => (m >= 600 ? "lifetime" : m % 12 === 0 ? `${m / 12} yr` : `${m} mo`);
+    const cap = (s) => String(s || "").replace(/^\w/, (c) => c.toUpperCase());
+    const md = (d) => (d ? new Date(d + "T12:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "");
+
+    let DATA = null, filter = "", cat = "", only = "", allOpen = false;
+    const open = new Set();
+
+    function tierLine(t) {
+      const bits = [`<b>${yrs(t.months)}</b> ${esc(t.label)}`];
+      if (t.partsOnly) bits.push('<span class="chip warn">parts only</span>');
+      if (t.requiresRegistration) bits.push(`<span class="chip info">registration${t.registrationWindowDays ? " within " + t.registrationWindowDays + " days" : ""}</span>`);
+      if (t.appliesTo?.length) bits.push(`<span class="notes">${esc(t.appliesTo.join(", "))}</span>`);
+      return bits.join(" ");
+    }
+    function standardOf(b) { return b.tiers.find((t) => !t.partsOnly && !(t.appliesTo?.length)) || b.tiers[0] || null; }
+    function longestOf(b) { return b.tiers.reduce((a, t) => (!a || t.months > a.months ? t : a), null); }
+
+    function visibleBrands() {
+      const q = filter.toLowerCase();
+      return DATA.brands.filter((b) => {
+        if (cat && !b.categories.includes(cat)) return false;
+        if (only === "verified" && b.confidence !== "verified") return false;
+        if (only === "estimate" && b.confidence === "verified") return false;
+        if (only === "preauth" && !b.preAuth) return false;
+        if (only === "bonus" && !b.installerBonus) return false;
+        if (!q) return true;
+        const models = DATA.models.filter((m) => m.brand.toLowerCase() === b.brand.toLowerCase()).map((m) => `${m.model} ${m.pattern} ${m.label}`).join(" ");
+        return `${b.brand} ${b.categories.join(" ")} ${b.notes} ${b.tiers.map((t) => t.label + " " + (t.appliesTo || []).join(" ")).join(" ")} ${models}`.toLowerCase().includes(q);
+      });
+    }
+
+    function renderTiles() {
+      const s = DATA.summary;
+      const t = (k, n, label, cls) => `<button class="tile ${cls || ""}" data-only="${k}" aria-pressed="${only === k}"><b>${n}</b><span>${label}</span></button>`;
+      $("#tiles").innerHTML = t("", s.brands, "brands tracked") + t("verified", s.verified, "verified against source", "good") + t("estimate", s.estimates, "estimates to confirm", "warn") + t("preauth", s.preAuth, "require pre-authorization", "pre") + t("bonus", DATA.brands.filter((b) => b.installerBonus).length, "installer bonus may apply") + `<button class="tile" data-only="" aria-pressed="false"><b>${s.models}</b><span>model / family exceptions</span></button>`;
+      $("#tiles").querySelectorAll("[data-only]").forEach((b) => (b.onclick = () => { only = only === b.dataset.only ? "" : b.dataset.only; renderTiles(); renderBrands(); }));
+    }
+
+    function renderBrands() {
+      const rows = visibleBrands();
+      $("#brandN").textContent = rows.length;
+      $("#brands tbody").innerHTML = rows.map((b) => {
+        const std = standardOf(b), lng = longestOf(b);
+        const flags = [b.preAuth ? '<span class="chip pre">pre-auth</span>' : "", b.installerBonus ? '<span class="chip info">installer +1 yr</span>' : "", b.externalLookupUrl ? '<span class="chip">lookup site</span>' : "", DATA.models.some((m) => m.brand.toLowerCase() === b.brand.toLowerCase()) ? '<span class="chip">model exceptions</span>' : ""].filter(Boolean).join(" ");
+        const isOpen = allOpen || open.has(b.id);
+        return `<tr class="brand ${isOpen ? "open" : ""}" data-id="${esc(b.id)}"><td>${esc(b.brand)}</td><td>${b.categories.map(cap).join(", ")}</td><td>${std ? `${yrs(std.months)} ${std.partsOnly ? "parts" : "parts &amp; labor"}` : "—"}</td><td>${lng ? `${yrs(lng.months)} <span class="notes">${esc(lng.label)}</span>` : "—"}</td><td>${flags}</td><td><span class="chip ${b.confidence === "verified" ? "good" : "warn"}">${esc(b.confidence)}</span></td></tr>
+          <tr class="detail" data-for="${esc(b.id)}" ${isOpen ? "" : "hidden"}><td colspan="6">
+            <table><thead><tr><th>Coverage</th><th style="text-align:right">Length</th><th>Applies to</th><th>Conditions</th></tr></thead><tbody>
+              ${b.tiers.map((t) => `<tr><td>${esc(t.label)}${t.partsOnly ? ' <span class="chip warn">parts only</span>' : ""}</td><td class="num">${yrs(t.months)}</td><td>${t.appliesTo?.length ? esc(t.appliesTo.join(", ")) : '<span class="notes">every product</span>'}</td><td>${t.requiresRegistration ? `Registration required${t.registrationWindowDays ? " within " + t.registrationWindowDays + " days of install" : ""}` : ""}</td></tr>`).join("")}
+            </tbody></table>
+            ${b.preAuth ? `<div class="callout"><b>Pre-authorization:</b> ${esc(b.preAuth.note)}</div>` : ""}
+            ${b.installerBonus ? `<div class="callout bonus"><b>Installer bonus (+${yrs(b.installerBonus.months)}${b.installerBonus.beforeDate ? ", sold and installed before " + md(b.installerBonus.beforeDate) : ""}):</b> ${esc(b.installerBonus.note)}</div>` : ""}
+            ${DATA.models.filter((m) => m.brand.toLowerCase() === b.brand.toLowerCase()).map((m) => `<div class="callout bonus"><b>${esc(m.label || m.model)}${m.pattern ? " (" + esc(m.pattern) + ")" : ""}:</b> ${m.tiers.map((t) => `${yrs(t.months)} ${t.partsOnly ? "parts only" : "parts &amp; labor"}`).join(", ")} — ${esc(m.notes)}</div>`).join("")}
+            ${b.notes ? `<p class="notes">${esc(b.notes)}</p>` : ""}
+            <p class="notes">${b.sourceUrl ? `Source: <a href="${esc(b.sourceUrl)}" target="_blank" rel="noopener">${esc(b.sourceUrl.replace(/^https?:\/\//, "").slice(0, 80))}</a>` : "No source link on file."}${b.externalLookupUrl ? ` · <a href="${esc(b.externalLookupUrl)}" target="_blank" rel="noopener">Manufacturer unit lookup</a>` : ""}</p>
+          </td></tr>`;
+      }).join("") || '<tr><td colspan="6" class="empty">No brands match.</td></tr>';
+      $("#brands tbody").querySelectorAll("tr.brand").forEach((tr) => (tr.onclick = () => { const id = tr.dataset.id; if (open.has(id)) open.delete(id); else open.add(id); allOpen = false; renderBrands(); }));
+    }
+
+    function renderModels() {
+      const q = filter.toLowerCase();
+      const rows = DATA.models.filter((m) => !q || `${m.brand} ${m.model} ${m.pattern} ${m.label} ${m.notes}`.toLowerCase().includes(q));
+      $("#modelN").textContent = rows.length;
+      $("#models tbody").innerHTML = rows.map((m) => `<tr><td><b>${esc(m.brand)}</b></td><td>${m.kind === "single" ? `<span class="mono">${esc(m.model)}</span>` : `${esc(m.label)} <span class="mono notes">${esc(m.pattern)}</span>`}</td><td>${m.tiers.map(tierLine).join("<br>")}</td><td>${m.verifiedAt ? `${esc(md(m.verifiedAt))}${m.verifiedBy ? " · " + esc(m.verifiedBy) : ""}` : '<span class="chip warn">unverified</span>'}</td><td class="notes">${esc(m.notes)}${m.sourceUrl ? ` <a href="${esc(m.sourceUrl)}" target="_blank" rel="noopener">source</a>` : ""}</td></tr>`).join("") || '<tr><td colspan="5" class="empty">No exceptions match.</td></tr>';
+    }
+
+    async function runLookup(e) {
+      e?.preventDefault();
+      const p = new URLSearchParams({ brand: $("#lkBrand").value.trim(), model: $("#lkModel").value.trim(), purchased: $("#lkDate").value, product: $("#lkProduct").value.trim() });
+      const out = $("#lkOut"); out.hidden = false; out.innerHTML = '<span class="notes">Checking…</span>';
+      try {
+        const r = await api(`/api/warranty-terms/lookup?${p}`);
+        if (!r.found) { out.innerHTML = `<div class="head"><b>${esc(r.brand || "?")}</b><span class="chip bad">not in the reference</span></div><p class="notes">${esc(r.note)} Add the brand to data/warranty-terms.json (or ask Jack) and it will show here.</p>`; return; }
+        const verdict = r.anyInForce === null ? '<span class="chip">enter a purchase date for in-force status</span>' : r.anyInForce ? '<span class="chip good">coverage in force</span>' : '<span class="chip bad">all coverage expired</span>';
+        out.innerHTML = `
+          <div class="head"><b>${esc(r.brand)}</b>${r.override ? `<span class="chip info">exception: ${esc(r.override.label)}</span>` : ""}<span class="chip ${r.confidence === "verified" ? "good" : "warn"}">${esc(r.confidence)}</span>${verdict}${r.preAuth ? '<span class="chip pre">pre-auth required</span>' : ""}<span class="notes">as of ${esc(md(r.asOf))}${r.purchaseDate ? " · purchased " + esc(md(r.purchaseDate)) : ""}</span></div>
+          <table><thead><tr><th>Coverage</th><th style="text-align:right">Length</th><th>Ends</th><th>Status</th><th>Applies to</th><th>Conditions</th></tr></thead><tbody>
+            ${r.tiers.map((t) => `<tr class="${t.inForce === false ? "exp" : ""}"><td>${esc(t.label)}${t.partsOnly ? ' <span class="chip warn">parts only</span>' : ""}</td><td class="num">${yrs(t.months)}</td><td class="num">${t.endsOn ? esc(md(t.endsOn)) : "—"}</td><td>${t.inForce === null ? "" : t.inForce ? `<span class="chip good">in force</span> <span class="notes">${t.daysLeft} days left</span>` : `<span class="chip bad">expired</span> <span class="notes">${-t.daysLeft} days ago</span>`}${t.productMatch === false ? ' <span class="chip">not this product</span>' : ""}</td><td>${t.appliesTo?.length ? esc(t.appliesTo.join(", ")) : '<span class="notes">every product</span>'}</td><td>${t.requiresRegistration ? `Registration${t.registrationWindowDays ? " within " + t.registrationWindowDays + " days" : ""}` : ""}</td></tr>`).join("")}
+          </tbody></table>
+          ${r.preAuth ? `<div class="callout"><b>Pre-authorization:</b> ${esc(r.preAuth.note)}</div>` : ""}
+          ${r.installerBonus ? `<div class="callout bonus"><b>Installer bonus may add ${yrs(r.installerBonus.months)}:</b> ${esc(r.installerBonus.note)}</div>` : ""}
+          ${r.override?.notes ? `<p class="notes">${esc(r.override.notes)}</p>` : ""}
+          <p class="notes">${r.externalLookupUrl ? `<a href="${esc(r.externalLookupUrl)}" target="_blank" rel="noopener">Check the unit on the manufacturer's site</a> · ` : ""}${r.sourceUrl ? `<a href="${esc(r.sourceUrl)}" target="_blank" rel="noopener">Published terms</a>` : ""}</p>`;
+      } catch (err) { out.innerHTML = `<span class="chip bad">${esc(err.message)}</span>`; }
+    }
+
+    async function load() {
+      try {
+        DATA = await api("/api/warranty-terms");
+        $("#snap").textContent = DATA.meta?.snapshotDate ? `Reference snapshot ${md(DATA.meta.snapshotDate)}.` : "";
+        const cats = [...new Set(DATA.brands.flatMap((b) => b.categories))].sort();
+        $("#cat").innerHTML = '<option value="">All categories</option>' + cats.map((c) => `<option value="${esc(c)}">${esc(cap(c))}</option>`).join("");
+        $("#brandList").innerHTML = DATA.brands.map((b) => `<option value="${esc(b.brand)}"></option>`).join("");
+        renderTiles(); renderBrands(); renderModels();
+        const u = new URLSearchParams(location.search);
+        if (u.get("brand")) { $("#lkBrand").value = u.get("brand"); $("#lkModel").value = u.get("model") || ""; $("#lkDate").value = u.get("purchased") || ""; $("#lkProduct").value = u.get("product") || ""; runLookup(); }
+      } catch (err) { setStatus(err.message, "error"); }
+    }
+    $("#q").addEventListener("input", () => { filter = $("#q").value.trim(); renderBrands(); renderModels(); });
+    $("#cat").addEventListener("change", () => { cat = $("#cat").value; renderBrands(); });
+    $("#expand").addEventListener("click", () => { allOpen = !allOpen; if (!allOpen) open.clear(); $("#expand").textContent = allOpen ? "Collapse all" : "Expand all"; renderBrands(); });
+    $("#print").addEventListener("click", () => { allOpen = true; renderBrands(); setTimeout(() => window.print(), 100); });
+    $("#lk").addEventListener("submit", runLookup);
+    load();
+  </script>
+</body>
+</html>

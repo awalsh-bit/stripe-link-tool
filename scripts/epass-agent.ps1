@@ -16,6 +16,7 @@
 #                                       (open sales invoices + lines + serials + misc straight
 #                                       from ePASS via ODBC — no report export needed)
 #   W:\Agility\outbox\epass-open-service <- same, for open SV/WTY tickets (+ labor, parts, comments, notes)
+#   W:\Agility\outbox\epass-finished-orders <- same, finished orders (OE-23 replacement), hourly
 #   W:\Agility\processed\<kind>\    <- files Agility accepted (kept 60 days)
 #   W:\Agility\failed\<kind>\       <- files Agility rejected (bad export?)
 #   W:\Agility\agent.log            <- what happened, when
@@ -35,19 +36,24 @@
 # ---- CONFIG ----------------------------------------------------------------
 $BaseUrl  = "https://agility.wilsonappliance.com"
 $AgentKey = "PASTE-EPASS_AGENT_KEY-HERE"   # must match Render env EPASS_AGENT_KEY
+# Or keep the key OUT of this file: put it alone in epass-agent.key next to
+# this script (one line, no quotes) and this script can be replaced by a
+# straight copy from the repo from then on (2026-09-22).
 # Root is the folder this script lives in. A scheduled task running "whether
 # user is logged on or not" has no mapped drives, so a hard-coded W:\Agility
 # made the agent do nothing for months; launched as
 # \\WILSON-FS02\SharedDrive\Agility\epass-agent.ps1 it now finds its outbox
 # either way (2026-09-21).
 $Root     = Split-Path -Parent $MyInvocation.MyCommand.Path
+$keyFile  = Join-Path $Root "epass-agent.key"
+if (Test-Path $keyFile) { $k = (Get-Content -Path $keyFile -Raw).Trim(); if ($k) { $AgentKey = $k } }
 $KeepProcessedDays = 60
 # The ODBC bundles arrive every 15 minutes (96 a day, the service one is big);
 # keeping two days of those is plenty — Agility holds the latest anyway.
 $KeepBundleDays = 2
 # ----------------------------------------------------------------------------
 
-$Kinds = @("inventory", "quotes", "open-orders", "dispatch", "invoices", "epass-open-orders", "epass-open-service")
+$Kinds = @("inventory", "quotes", "open-orders", "dispatch", "invoices", "epass-open-orders", "epass-open-service", "epass-finished-orders")
 $LogFile = Join-Path $Root "agent.log"
 
 function Log([string]$msg) {
@@ -88,6 +94,7 @@ foreach ($kind in $Kinds) {
   $timeout = if ($kind -like "epass-*") { 900 } else { 180 }
   foreach ($file in $files) {
     $stamp = Get-Date -Format "yyyyMMdd-HHmmss"
+    $sw = [System.Diagnostics.Stopwatch]::StartNew()
     try {
       $resp = Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/epass-agent/upload" `
         -InFile $file.FullName -ContentType "application/octet-stream" `
@@ -95,7 +102,7 @@ foreach ($kind in $Kinds) {
         -TimeoutSec $timeout
       $dest = Join-Path $Root (Join-Path "processed" (Join-Path $kind ("$stamp-" + $file.Name)))
       Move-Item -Path $file.FullName -Destination $dest -Force
-      Log "OK    [$kind] $($file.Name) -> $((($resp | ConvertTo-Json -Compress -Depth 3)))"
+      Log ("OK    [{0}] {1} ({2:n0} KB, {3:n0}s) -> {4}" -f $kind, $file.Name, ($file.Length / 1024), $sw.Elapsed.TotalSeconds, (($resp | ConvertTo-Json -Compress -Depth 3)))
     } catch {
       $status = $null
       try { $status = [int]$_.Exception.Response.StatusCode } catch {}
@@ -107,7 +114,7 @@ foreach ($kind in $Kinds) {
         Log "FAIL  [$kind] $($file.Name) HTTP $status $($_.ErrorDetails.Message)"
       } else {
         # Network / server hiccup — leave in the outbox, retry next run.
-        Log "RETRY [$kind] $($file.Name) $($_.Exception.Message)"
+        Log ("RETRY [{0}] {1} ({2:n0} KB, after {3:n0}s) {4}" -f $kind, $file.Name, ($file.Length / 1024), $sw.Elapsed.TotalSeconds, $_.Exception.Message)
       }
     }
   }

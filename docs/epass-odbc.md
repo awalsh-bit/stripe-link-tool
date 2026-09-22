@@ -286,7 +286,8 @@ For service, the **invoice number remains SV00...**, while `InvTypeCode` disting
 
 ## 8b. Finished orders (OE-23 replacement) and open quotes (2026-09-22)
 
-The sales bundle also carries `open-quotes` (Quote Follow-Up) and
+The sales bundle also carries `open-quotes` (Quote Follow-Up). A third
+bundle, `epass-finished-orders` (own outbox, first pull of each hour), carries
 `finished-orders` + `finished-serials/items/labor/misc/warranty` +
 `salespeople`: every invoice finished since the 1st of the previous month
 (`UPPER(Status) IN ('FINISHED','NOT POSTED')`, not void,

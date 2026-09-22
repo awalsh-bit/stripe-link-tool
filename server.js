@@ -217,6 +217,7 @@ import {
   listRevenuePerformanceSources
 } from "./lib/revenue-performance-postgres.js";
 import { finishedTicketsFromFeed, salespersonNamesFromFeed, ticketsByMonth, openOrderTicketsFromFeed, compareTickets } from "./lib/epass-feed-finished.js";
+import { loadWarrantyTerms, lookupWarranty, warrantyTermsSummary } from "./lib/warranty-terms.js";
 import {
   extractServiceEstimateFromPdf,
   assessPartsQuality,
@@ -739,6 +740,7 @@ const INTERNAL_PAGE_PATHS = new Set([
   "/service-journey.html",
   "/service-board.html",
   "/service-office.html",
+  "/warranty-terms.html",
   "/service-proto-board.html",
   "/service-proto-field.html",
   "/service-proto-office.html",
@@ -891,6 +893,7 @@ const JOB_CODE_PRESETS = {
       "/appliance-service-calls.html",
       "/service-board.html",
       "/service-office.html",
+      "/warranty-terms.html",
       "/archive-service-calls.html",
       "/service-estimates.html",
       "/closed-estimates.html",
@@ -990,6 +993,7 @@ const PAGE_LABELS = {
   "/service-journey.html": "Service Journey (ePASS mirror)",
   "/service-board.html": "Service Dispatch Board",
   "/service-office.html": "Service Office Queues",
+  "/warranty-terms.html": "Warranty Terms Reference",
   "/service-proto-board.html": "Service Journey — Dispatch Board prototype",
   "/service-proto-field.html": "Service Journey — Field Tool prototype",
   "/service-proto-office.html": "Service Journey — Office Queues prototype",
@@ -1127,6 +1131,7 @@ const PAGE_CATEGORIES = [
       "/appliance-service-calls.html",
       "/service-board.html",
       "/service-office.html",
+      "/warranty-terms.html",
       "/archive-service-calls.html",
       "/service-estimates.html",
       "/closed-estimates.html",
@@ -9363,6 +9368,65 @@ function epassAgentKeyOk(provided) {
 let lastFinishedOrdersSig = "";
 let epassSalesChain = Promise.resolve(); // sales-bundle extras run one after another, off the request
 let lastSalesPostProcessing = null; // what the last sales bundle's extras produced (/api/epass/open-orders/status)
+let epassFinishedChain = Promise.resolve();
+let lastFinishedPostProcessing = null;
+// Finished orders (Andrew, 9/22: "replace the OE-23 warehouse too"): the
+// epass-finished-orders bundle (hourly, own outbox since the 16:30 timeout)
+// becomes the same tickets the OE-23 parser produced → sales_order_detail +
+// Performance vs Target, one month at a time; the OE-23 "open orders" run is
+// rebuilt from the open-orders feed. Off switch: setting
+// feed.finished_orders_enabled = false (then a person's OE-23 upload is the
+// source again). Returns the counts for the audit log / status endpoint.
+async function processFinishedOrdersBundle(bundle) {
+  const counts = {};
+  try {
+    const fin = bundle.datasets?.["finished-orders"];
+    const sjSettings = await getServiceSettings().catch(() => ({}));
+    if (sjSettings["feed.finished_orders_enabled"] === false) {
+      counts.finishedOrders = { skipped: "feed.finished_orders_enabled is off — OE-23 uploads are the source" };
+    } else if (!Array.isArray(fin)) {
+      counts.finishedOrders = { skipped: "no finished-orders dataset in this bundle" };
+    } else {
+      const names = salespersonNamesFromFeed(bundle.datasets?.salespeople);
+      const since = /^\d{4}-\d{2}-\d{2}$/.test(String(bundle.finishedSince || "")) ? String(bundle.finishedSince) : "";
+      const tickets = finishedTicketsFromFeed(bundle.datasets, { names, since });
+      const label = `ePASS feed ${bundle.pulledAt || ""}`.trim();
+      // Finished orders barely move between pulls — skip the rewrite when
+      // nothing changed (a restart simply reprocesses once).
+      const sig = crypto.createHash("sha1").update(JSON.stringify(tickets)).digest("hex");
+      if (sig === lastFinishedOrdersSig) { counts.finishedOrders = { rows: fin.length, tickets: tickets.length, since, unchanged: true }; return counts; }
+      lastFinishedOrdersSig = sig;
+      const today = new Date().toLocaleDateString("en-CA", { timeZone: APP_TIMEZONE });
+      const byMonth = ticketsByMonth(tickets);
+      const months = {};
+      for (const [month, list] of Object.entries(byMonth)) {
+        const monthStart = `${month}-01`, monthEnd = new Date(Date.UTC(Number(month.slice(0, 4)), Number(month.slice(5, 7)), 0)).toISOString().slice(0, 10);
+        await keepLastRevenueUploadCopy(month);
+        await saveRevenuePerformance({
+          month, periodFrom: since && since > monthStart ? since : monthStart, periodTo: monthEnd < today ? monthEnd : today,
+          filename: label, byEmail: "epass-agent", byName: "ePASS feed",
+          ticketCount: list.length, totals: list.reduce((acc, t) => { for (const k of Object.keys(t.list)) acc[k] = Math.round(((acc[k] || 0) + t.list[k]) * 100) / 100; return acc; }, {}),
+          byDepartment: rollupByDepartment(list), bySalesperson: rollupBySalesperson(list), warnings: [], tickets: list
+        });
+        months[month] = { tickets: list.length, upserted: await upsertOrdersFromActivity(list, { sourceMonth: month, filename: label }) };
+      }
+      const pruned = since ? await pruneFeedOrders({ since, keepInvoices: tickets.map((t) => t.invoice) }) : 0;
+      if (tickets.length) refreshQuoteConversions("all").catch((e) => console.error("Quote conversion refresh failed:", e.message));
+      let openOrders = null;
+      try {
+        const oo = await openOrderTicketsFromFeed({ names });
+        const saved = await replaceOpenOrders(oo.tickets, { filename: label, byEmail: "epass-agent", periodFrom: oo.periodFrom, periodTo: oo.periodTo });
+        openOrders = saved.count;
+      } catch (err) { console.error("Open orders from ePASS feed failed:", err.message); openOrders = { error: err.message }; }
+      counts.finishedOrders = { rows: fin.length, tickets: tickets.length, since, months, pruned, salespeople: Object.keys(names).length, openOrders };
+    }
+  } catch (err) {
+    console.error("Finished orders from ePASS feed failed:", err.message);
+    counts.finishedOrders = { error: err.message };
+  }
+  return counts;
+}
+
 let epassServiceMirrorChain = Promise.resolve(); // feed mirrors run one after another, off the request
 app.post("/api/epass-agent/upload", express.raw({ type: () => true, limit: "60mb" }), async (req, res) => {
   try {
@@ -9469,59 +9533,6 @@ app.post("/api/epass-agent/upload", express.raw({ type: () => true, limit: "60mb
           console.error("Quote Follow-Up refresh from ePASS feed failed:", err.message);
           counts.quotes = { error: err.message };
         }
-        // Finished orders (Andrew, 9/22: "replace the OE-23 warehouse too"):
-        // the bundle's finished-* datasets become the same tickets the OE-23
-        // parser produced → sales_order_detail + Performance vs Target, one
-        // month at a time; the OE-23 "open orders" run is rebuilt from the
-        // open-orders feed. Off switch: setting feed.finished_orders_enabled =
-        // false (then a person's OE-23 upload is the source again).
-        try {
-          const fin = bundle.datasets?.["finished-orders"];
-          const sjSettings = await getServiceSettings().catch(() => ({}));
-          if (sjSettings["feed.finished_orders_enabled"] === false) {
-            counts.finishedOrders = { skipped: "feed.finished_orders_enabled is off — OE-23 uploads are the source" };
-          } else if (!Array.isArray(fin)) {
-            counts.finishedOrders = { skipped: "no finished-orders dataset in this bundle (older pull script?)" };
-          } else {
-            const names = salespersonNamesFromFeed(bundle.datasets?.salespeople);
-            const since = /^\d{4}-\d{2}-\d{2}$/.test(String(bundle.finishedSince || "")) ? String(bundle.finishedSince) : "";
-            const tickets = finishedTicketsFromFeed(bundle.datasets, { names, since });
-            const label = `ePASS feed ${bundle.pulledAt || ""}`.trim();
-            // Finished orders barely move between pulls — skip the rewrite when
-            // nothing changed (a restart simply reprocesses once).
-            const sig = crypto.createHash("sha1").update(JSON.stringify(tickets)).digest("hex");
-            if (sig === lastFinishedOrdersSig) { counts.finishedOrders = { rows: fin.length, tickets: tickets.length, since, unchanged: true }; throw { unchanged: true }; }
-            lastFinishedOrdersSig = sig;
-            const today = new Date().toLocaleDateString("en-CA", { timeZone: APP_TIMEZONE });
-            const byMonth = ticketsByMonth(tickets);
-            const months = {};
-            for (const [month, list] of Object.entries(byMonth)) {
-              const monthStart = `${month}-01`, monthEnd = new Date(Date.UTC(Number(month.slice(0, 4)), Number(month.slice(5, 7)), 0)).toISOString().slice(0, 10);
-              await keepLastRevenueUploadCopy(month);
-              await saveRevenuePerformance({
-                month, periodFrom: since && since > monthStart ? since : monthStart, periodTo: monthEnd < today ? monthEnd : today,
-                filename: label, byEmail: "epass-agent", byName: "ePASS feed",
-                ticketCount: list.length, totals: list.reduce((acc, t) => { for (const k of Object.keys(t.list)) acc[k] = Math.round(((acc[k] || 0) + t.list[k]) * 100) / 100; return acc; }, {}),
-                byDepartment: rollupByDepartment(list), bySalesperson: rollupBySalesperson(list), warnings: [], tickets: list
-              });
-              months[month] = { tickets: list.length, upserted: await upsertOrdersFromActivity(list, { sourceMonth: month, filename: label }) };
-            }
-            const pruned = since ? await pruneFeedOrders({ since, keepInvoices: tickets.map((t) => t.invoice) }) : 0;
-            if (tickets.length) refreshQuoteConversions("all").catch((e) => console.error("Quote conversion refresh failed:", e.message));
-            let openOrders = null;
-            try {
-              const oo = await openOrderTicketsFromFeed({ names });
-              const saved = await replaceOpenOrders(oo.tickets, { filename: label, byEmail: "epass-agent", periodFrom: oo.periodFrom, periodTo: oo.periodTo });
-              openOrders = saved.count;
-            } catch (err) { console.error("Open orders from ePASS feed failed:", err.message); openOrders = { error: err.message }; }
-            counts.finishedOrders = { rows: fin.length, tickets: tickets.length, since, months, pruned, salespeople: Object.keys(names).length, openOrders };
-          }
-        } catch (err) {
-          if (!err?.unchanged) {
-            console.error("Finished orders from ePASS feed failed:", err.message);
-            counts.finishedOrders = { error: err.message };
-          }
-        }
         // Sales Order Health reads this feed now too (Andrew, 9/22) — the
         // Invoice Maintenance upload is the fallback, not the source.
         try {
@@ -9544,6 +9555,23 @@ app.post("/api/epass-agent/upload", express.raw({ type: () => true, limit: "60mb
           detail: { ...counts, pulledAt, machine, filename: sourceFile.slice(0, 120), via: "epass-agent" } }).catch(() => {});
       });
       return res.json({ ok: true, kind, ...counts, postProcessing: "running", pulledAt });
+    }
+
+    // Third bundle: finished orders (hourly). Parsed and acknowledged, then
+    // processed one bundle at a time like the others.
+    if (kind === "epass-finished-orders") {
+      let bundle;
+      try { bundle = JSON.parse(req.body.toString("utf8").replace(/^\uFEFF/, "")); } catch { return res.status(400).json({ error: "Not a JSON bundle from epass-odbc-pull.ps1." }); }
+      if (!bundle || typeof bundle !== "object" || !bundle.datasets) return res.status(400).json({ error: "Bundle has no datasets." });
+      const rows = Array.isArray(bundle.datasets["finished-orders"]) ? bundle.datasets["finished-orders"].length : 0;
+      const ip = req.ip, pulledAt = bundle.pulledAt || "", machine = bundle.machine || "";
+      epassFinishedChain = epassFinishedChain.catch(() => {}).then(async () => {
+        const counts = await processFinishedOrdersBundle(bundle);
+        lastFinishedPostProcessing = { finishedAt: new Date().toISOString(), pulledAt, filename: sourceFile.slice(0, 120), ...counts };
+        await recordAudit({ ip, actorUserId: null, action: "epass_finished_orders_received", targetUserId: null,
+          detail: { ...counts, pulledAt, machine, filename: sourceFile.slice(0, 120), via: "epass-agent" } }).catch(() => {});
+      });
+      return res.json({ ok: true, kind, rows, finishedSince: bundle.finishedSince || "", postProcessing: "running", pulledAt });
     }
 
     // Same feed, service side: open SV/WTY tickets + labor + parts + comments + notes.
@@ -9578,7 +9606,7 @@ app.post("/api/epass-agent/upload", express.raw({ type: () => true, limit: "60mb
       return res.json({ ok: true, kind, ...counts, mirror: "running", pulledAt });
     }
 
-    return res.status(400).json({ error: `Unknown upload kind "${kind}" — expected inventory, quotes, open-orders, dispatch, invoices, epass-open-orders, or epass-open-service.` });
+    return res.status(400).json({ error: `Unknown upload kind "${kind}" — expected inventory, quotes, open-orders, dispatch, invoices, epass-open-orders, epass-open-service, or epass-finished-orders.` });
   } catch (err) {
     console.error("ePASS agent upload failed:", err.message);
     return res.status(400).json({ error: err.message || "Unable to process that file." });
@@ -9588,7 +9616,7 @@ app.post("/api/epass-agent/upload", express.raw({ type: () => true, limit: "60mb
 // What the ODBC feed last delivered (executives; the CSVs themselves are on
 // W:\Agility\epass\ for everyone in the building).
 app.get("/api/epass/open-orders/status", requireExecutiveApi, async (req, res) => {
-  try { return res.json({ ...(await getEpassOpenOrdersMeta() || {}), postProcessing: lastSalesPostProcessing }); } catch (err) { return res.status(400).json({ error: err.message }); }
+  try { return res.json({ ...(await getEpassOpenOrdersMeta() || {}), postProcessing: lastSalesPostProcessing, finishedOrders: lastFinishedPostProcessing }); } catch (err) { return res.status(400).json({ error: err.message }); }
 });
 app.get("/api/epass/open-orders", requireExecutiveApi, async (req, res) => {
   try { return res.json({ rows: await listEpassOpenOrders({ type: String(req.query.type || ""), q: String(req.query.q || ""), limit: Number(req.query.limit) || 500 }) }); } catch (err) { return res.status(400).json({ error: err.message }); }
@@ -9902,6 +9930,21 @@ app.get("/api/service-board/history/:sv", requireServiceBoard, async (req, res) 
   try { return res.json(await getServiceHistory(req.params.sv)); }
   catch (err) { return res.status(400).json({ error: err.message }); }
 });
+// ---- Warranty terms reference (Client Care) — warranty-terms.html ---------
+// data/warranty-terms.json (Jack's snapshot, 9/22) served whole for the page,
+// plus a lookup for WTY-ticket checks: brand + model + purchase date → the
+// tiers that apply and whether each is still in force.
+const requireWarrantyTerms = requirePagePermission("/warranty-terms.html", "/service-board.html", "/service-office.html", "/service-journey.html", "/appliance-service-calls.html", "/service-estimates.html");
+app.get("/api/warranty-terms", requireWarrantyTerms, (req, res) => {
+  try { return res.json({ ...loadWarrantyTerms(), summary: warrantyTermsSummary() }); } catch (err) { return res.status(500).json({ error: err.message }); }
+});
+app.get("/api/warranty-terms/lookup", requireWarrantyTerms, (req, res) => {
+  try {
+    const q = req.query || {};
+    return res.json(lookupWarranty({ brand: String(q.brand || ""), model: String(q.model || ""), purchaseDate: String(q.purchased || q.purchaseDate || ""), product: String(q.product || ""), asOf: /^\d{4}-\d{2}-\d{2}$/.test(String(q.asOf || "")) ? String(q.asOf) : "" }));
+  } catch (err) { return res.status(400).json({ error: err.message }); }
+});
+
 // ---- Office queues (Client Care) — service-office.html: parts ETAs --------
 const requireServiceOffice = requirePagePermission("/service-office.html", "/service-board.html", "/service-journey.html");
 app.get("/api/service-office/parts", requireServiceOffice, async (req, res) => {

@@ -135,7 +135,9 @@ next pull. The board matches conversions on the customer code, and the
 export's "Customer #" could be SoldTo or BillTo, so the server calibrates
 against the quotes already stored and logs `customerField` in agent.log.
 
-**The OE-23 warehouse is on the feed too.** The sales bundle carries every
+**The OE-23 warehouse is on the feed too.** A third bundle,
+`epass-finished-orders` (its own outbox; the first pull of each hour, since
+folding it into the sales bundle made the 16:30 upload time out), carries every
 invoice of any type finished since the 1st of the previous month
 (`finished-orders` header + `finished-serials/items/labor/misc/warranty`
 cost columns + the `salespeople` master), and

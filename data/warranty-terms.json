@@ -1,0 +1,2587 @@
+{
+ "meta": {
+  "title": "Wilson warranty terms reference",
+  "snapshotDate": "2026-09-22",
+  "source": "docs/wilson-warranty-terms-reference.html (Jack, Warranty Terms tool snapshot)",
+  "notes": "Manufacturer warranty terms by brand, plus model/family overrides. months = coverage length from purchase (or install) date; partsOnly = labor not covered; appliesTo = product types the tier is limited to (null = every product of the brand); requiresRegistration/registrationWindowDays = the tier only applies if the unit was registered within that many days. confidence: verified = checked against the manufacturer's published terms (sourceUrl); estimate = to confirm before relying on it. preAuth = manufacturer must authorize before Wilson starts warranty work. installerBonus = extra months Wilson's certified-installer status may add (conditions in note)."
+ },
+ "brands": [
+  {
+   "id": "aga-only-if-we-sold-the-unit",
+   "brand": "AGA (only if we sold the unit)",
+   "categories": [
+    "kitchen"
+   ],
+   "confidence": "verified",
+   "tiers": [
+    {
+     "label": "AGA Classic Cast Iron — standard warranty (parts & labor)",
+     "months": 12,
+     "partsOnly": false,
+     "appliesTo": null,
+     "requiresRegistration": false,
+     "registrationWindowDays": null
+    },
+    {
+     "label": "AGA Classic Cast Iron — extended component coverage (parts only)",
+     "months": 60,
+     "partsOnly": true,
+     "appliesTo": null,
+     "requiresRegistration": false,
+     "registrationWindowDays": null
+    },
+    {
+     "label": "AGA Elise (parts & labor)",
+     "months": 24,
+     "partsOnly": false,
+     "appliesTo": null,
+     "requiresRegistration": false,
+     "registrationWindowDays": null
+    },
+    {
+     "label": "AGA Mercury (parts & labor, excl. cosmetic)",
+     "months": 24,
+     "partsOnly": false,
+     "appliesTo": null,
+     "requiresRegistration": false,
+     "registrationWindowDays": null
+    }
+   ],
+   "preAuth": {
+    "note": "AGA is a Composition Brands product — requires manufacturer pre-authorization before Wilson can begin warranty work. Contact Composition Brands for authorization first, then schedule service."
+   },
+   "installerBonus": null,
+   "externalLookupUrl": null,
+   "sourceUrl": "https://www.agarangeusa.com/resources/product-warranty-registration",
+   "notes": "Verified from AGA's product registration page — coverage differs by range line: Classic Cast Iron is 1yr full + 4 more years parts-only; Elise and Mercury are 2yr full. Wilson only services AGA units it sold directly — confirm eligibility before quoting a warranty status."
+  },
+  {
+   "id": "alfresco",
+   "brand": "Alfresco",
+   "categories": [
+    "outdoor",
+    "refrigeration"
+   ],
+   "confidence": "verified",
+   "tiers": [
+    {
+     "label": "Standard warranty — grills & grill components (parts & labor)",
+     "months": 24,
+     "partsOnly": false,
+     "appliesTo": [
+      "Range",
+      "Cooktop",
+      "Other"
+     ],
+     "requiresRegistration": false,
+     "registrationWindowDays": null
+    },
+    {
+     "label": "Structural stainless — briquette trays, grill grates, drip pans (parts only)",
+     "months": 60,
+     "partsOnly": true,
+     "appliesTo": [
+      "Range",
+      "Cooktop",
+      "Other"
+     ],
+     "requiresRegistration": false,
+     "registrationWindowDays": null
+    },
+    {
+     "label": "Stainless grill burners & body (parts only, lifetime)",
+     "months": 1200,
+     "partsOnly": true,
+     "appliesTo": [
+      "Range",
+      "Cooktop",
+      "Other"
+     ],
+     "requiresRegistration": false,
+     "registrationWindowDays": null
+    },
+    {
+     "label": "Standard warranty — outdoor refrigerators (parts & labor)",
+     "months": 12,
+     "partsOnly": false,
+     "appliesTo": [
+      "Refrigerator (Free Standing)",
+      "Refrigerator (Built-in)",
+      "Icemaker"
+     ],
+     "requiresRegistration": false,
+     "registrationWindowDays": null
+    },
+    {
+     "label": "Structural stainless — outdoor refrigerators (parts only)",
+     "months": 60,
+     "partsOnly": true,
+     "appliesTo": [
+      "Refrigerator (Free Standing)",
+      "Refrigerator (Built-in)",
+      "Icemaker"
+     ],
+     "requiresRegistration": false,
+     "registrationWindowDays": null
+    }
+   ],
+   "preAuth": null,
+   "installerBonus": null,
+   "externalLookupUrl": null,
+   "sourceUrl": "https://alfrescogrills.com/customer-care/warranty-services/",
+   "notes": "Verified from Alfresco's published warranty page: grills get 2yr full, then 5yr parts-only on trays/grates/drip pans, then lifetime parts-only on stainless burners and body. Alfresco also makes outdoor refrigerators (1yr full + 5yr parts-only structural stainless + 1yr sealed system, all shorter than the grill terms). Alfresco's separate Artisan grill line runs longer (15yr burners, 10yr stainless, 3yr trays, 1yr full) — not modeled here, check the specific line if it says Artisan."
+  },
+  {
+   "id": "amana",
+   "brand": "Amana",
+   "categories": [
+    "kitchen",
+    "refrigeration"
+   ],
+   "confidence": "verified",
+   "tiers": [
+    {
+     "label": "Standard warranty (parts & labor)",
+     "months": 12,
+     "partsOnly": false,
+     "appliesTo": null,
+     "requiresRegistration": false,
+     "registrationWindowDays": null
+    }
+   ],
+   "preAuth": null,
+   "installerBonus": null,
+   "externalLookupUrl": null,
+   "sourceUrl": "https://www.amana.com/content/dam/global/documents/201803/warranty-page-w11105281-w.pdf",
+   "notes": "Verified from Amana's published Major Appliance Limited Warranty (Jack has the current PDF on file, W11105281A): a single 1yr full (parts & labor) tier — no longer component-specific coverage found in the current published warranty, unlike sibling Whirlpool-family brands. Wilson does not work on Amana HVAC."
+  },
+  {
+   "id": "american-standard",
+   "brand": "American Standard",
+   "categories": [
+    "hvac"
+   ],
+   "confidence": "estimate",
+   "tiers": [
+    {
+     "label": "Base warranty (parts only, no labor)",
+     "months": 60,
+     "partsOnly": true,
+     "appliesTo": [
+      "HVAC"
+     ],
+     "requiresRegistration": false,
+     "registrationWindowDays": null
+    },
+    {
+     "label": "Registered extended warranty (parts only, no labor)",
+     "months": 120,
+     "partsOnly": true,
+     "appliesTo": [
+      "HVAC"
+     ],
+     "requiresRegistration": true,
+     "registrationWindowDays": 60
+    }
+   ],
+   "preAuth": null,
+   "installerBonus": null,
+   "externalLookupUrl": null,
+   "sourceUrl": null,
+   "notes": "HVAC estimate modeled on the verified Trane pattern (same parent company, Trane Technologies) — confirm current American Standard terms and registration window. OPERATIONAL: Wilson is not an American Standard dealer and cannot perform warranty repairs for this brand — explain that to the customer and refer them to American Standard directly."
+  },
+  {
+   "id": "asko",
+   "brand": "ASKO",
+   "categories": [
+    "kitchen"
+   ],
+   "confidence": "verified",
+   "tiers": [
+    {
+     "label": "Standard warranty (parts & labor)",
+     "months": 24,
+     "partsOnly": false,
+     "appliesTo": null,
+     "requiresRegistration": false,
+     "registrationWindowDays": null
+    },
+    {
+     "label": "Promotional extended warranty — dishwashers registered under the 2025-2026 warranty promotion (parts & labor)",
+     "months": 60,
+     "partsOnly": false,
+     "appliesTo": [
+      "Dishwasher"
+     ],
+     "requiresRegistration": true,
+     "registrationWindowDays": 90
+    }
+   ],
+   "preAuth": {
+    "note": "ASKO requires manufacturer pre-authorization before Wilson can begin warranty work — contact ASKO for authorization first, then schedule service."
+   },
+   "installerBonus": null,
+   "externalLookupUrl": null,
+   "sourceUrl": "https://us.asko.com/customer-care-support/warranty",
+   "notes": "Verified from ASKO's published US warranty page: 2yr full standard for residential use. ASKO is currently (2025-2026) running a dishwasher promotion extending to 5yr full if registered within 90 days of purchase at us.asko.com — confirm the promo is still live before quoting it."
+  },
+  {
+   "id": "best",
+   "brand": "Best",
+   "categories": [
+    "ventilation"
+   ],
+   "confidence": "verified",
+   "tiers": [
+    {
+     "label": "Standard warranty (parts & labor)",
+     "months": 24,
+     "partsOnly": false,
+     "appliesTo": [
+      "Ventilation"
+     ],
+     "requiresRegistration": false,
+     "registrationWindowDays": null
+    },
+    {
+     "label": "Extended parts coverage (parts only)",
+     "months": 60,
+     "partsOnly": true,
+     "appliesTo": [
+      "Ventilation"
+     ],
+     "requiresRegistration": false,
+     "registrationWindowDays": null
+    }
+   ],
+   "preAuth": null,
+   "installerBonus": null,
+   "externalLookupUrl": null,
+   "sourceUrl": "https://bestrangehoods.com/warranty",
+   "notes": "Verified from Best's (Broan-NuTone) published warranty page: parts are covered for 5yr from purchase; labor is covered for 2yr from the date of any given service visit. Modeled here as a straightforward 2yr full / 5yr parts-only pair — check the source for the exact labor-window wording on an older unit."
+  },
+  {
+   "id": "bluestar",
+   "brand": "BlueStar",
+   "categories": [
+    "kitchen"
+   ],
+   "confidence": "verified",
+   "tiers": [
+    {
+     "label": "Standard warranty, registered within 90 days of install (parts & labor)",
+     "months": 24,
+     "partsOnly": false,
+     "appliesTo": null,
+     "requiresRegistration": true,
+     "registrationWindowDays": 90
+    },
+    {
+     "label": "Standard warranty, not registered (parts & labor)",
+     "months": 12,
+     "partsOnly": false,
+     "appliesTo": null,
+     "requiresRegistration": false,
+     "registrationWindowDays": null
+    }
+   ],
+   "preAuth": null,
+   "installerBonus": null,
+   "externalLookupUrl": null,
+   "sourceUrl": "https://www.bluestarcooking.com/wp-content/uploads/2016/02/BlueStar-Warranty-4.1.19.pdf",
+   "notes": "Verified from BlueStar's published warranty PDF: 2yr full if the product is registered within 90 days of install; 1yr full if it isn't registered. Registration also affects which remedies are available, not just length."
+  },
+  {
+   "id": "bosch",
+   "brand": "Bosch",
+   "categories": [
+    "kitchen",
+    "refrigeration"
+   ],
+   "confidence": "verified",
+   "tiers": [
+    {
+     "label": "Standard warranty (parts & labor)",
+     "months": 12,
+     "partsOnly": false,
+     "appliesTo": null,
+     "requiresRegistration": false,
+     "registrationWindowDays": null
+    },
+    {
+     "label": "Electronics — microprocessor/circuit board (parts only)",
+     "months": 60,
+     "partsOnly": true,
+     "appliesTo": [
+      "Dishwasher"
+     ],
+     "requiresRegistration": false,
+     "registrationWindowDays": null
+    },
+    {
+     "label": "Racks (parts only)",
+     "months": 60,
+     "partsOnly": true,
+     "appliesTo": [
+      "Dishwasher"
+     ],
+     "requiresRegistration": false,
+     "registrationWindowDays": null
+    },
+    {
+     "label": "Built-in refrigerator, entire appliance year 2 (parts only)",
+     "months": 24,
+     "partsOnly": true,
+     "appliesTo": [
+      "Refrigerator (Built-in)"
+     ],
+     "requiresRegistration": false,
+     "registrationWindowDays": null
+    },
+    {
+     "label": "Built-in refrigerator electronics (parts only)",
+     "months": 60,
+     "partsOnly": true,
+     "appliesTo": [
+      "Refrigerator (Built-in)"
+     ],
+     "requiresRegistration": false,
+     "registrationWindowDays": null
+    }
+   ],
+   "preAuth": null,
+   "installerBonus": null,
+   "externalLookupUrl": null,
+   "sourceUrl": "https://www.bosch-home.com/us/owner-support/cleaners-accessories/warranty-information",
+   "notes": "Verified from Bosch's published US warranty page: 1yr full across the line; dishwashers get 5yr parts-only on electronics and racks; built-in refrigerators get parts-only coverage on the whole unit through year 2 and electronics through year 5."
+  },
+  {
+   "id": "broan",
+   "brand": "Broan",
+   "categories": [
+    "ventilation"
+   ],
+   "confidence": "verified",
+   "tiers": [
+    {
+     "label": "Standard warranty — range hoods (parts & labor)",
+     "months": 12,
+     "partsOnly": false,
+     "appliesTo": [
+      "Ventilation"
+     ],
+     "requiresRegistration": false,
+     "registrationWindowDays": null
+    }
+   ],
+   "preAuth": null,
+   "installerBonus": null,
+   "externalLookupUrl": null,
+   "sourceUrl": "https://broan-nutone.com/en-us/home/customer-service/warranty",
+   "notes": "Verified from Broan-NuTone's published warranty page: 1yr limited warranty on range hoods."
+  },
+  {
+   "id": "caf",
+   "brand": "Café",
+   "categories": [
+    "kitchen",
+    "refrigeration"
+   ],
+   "confidence": "estimate",
+   "tiers": [
+    {
+     "label": "Standard warranty (parts & labor)",
+     "months": 12,
+     "partsOnly": false,
+     "appliesTo": null,
+     "requiresRegistration": false,
+     "registrationWindowDays": null
+    },
+    {
+     "label": "Refrigerating system (parts only)",
+     "months": 60,
+     "partsOnly": true,
+     "appliesTo": [
+      "Refrigerator (Free Standing)",
+      "Refrigerator (Built-in)",
+      "Icemaker"
+     ],
+     "requiresRegistration": false,
+     "registrationWindowDays": null
+    }
+   ],
+   "preAuth": null,
+   "installerBonus": null,
+   "externalLookupUrl": null,
+   "sourceUrl": "https://www.consumeraffairs.com/homeowners/ge-appliance-warranty.html",
+   "notes": "Sourced from a third-party GE-appliance-warranty summary (consumeraffairs.com), not GE's own warranty page directly — still flagged for confirmation. Café is GE's premium line: 1yr full across the line; Café/Profile refrigerator models add a 5yr parts-only warranty on the sealed refrigerating system, and some Profile models may add a lifetime warranty on full-extension slides (not modeled)."
+  },
+  {
+   "id": "carrier",
+   "brand": "Carrier",
+   "categories": [
+    "hvac"
+   ],
+   "confidence": "verified",
+   "tiers": [
+    {
+     "label": "Base warranty (parts only, no labor)",
+     "months": 60,
+     "partsOnly": true,
+     "appliesTo": [
+      "HVAC"
+     ],
+     "requiresRegistration": false,
+     "registrationWindowDays": null
+    },
+    {
+     "label": "Registered extended warranty (parts only, no labor)",
+     "months": 120,
+     "partsOnly": true,
+     "appliesTo": [
+      "HVAC"
+     ],
+     "requiresRegistration": true,
+     "registrationWindowDays": 90
+    }
+   ],
+   "preAuth": null,
+   "installerBonus": null,
+   "externalLookupUrl": null,
+   "sourceUrl": "https://www.carrier.com/us/en/residential/homeowner-resources/warranty/",
+   "notes": "Verified from Carrier's published homeowner warranty page: 5yr base parts warranty with no registration; 10yr parts if registered within 90 days of install (Carrier also offers a 5yr-parts + 3yr-labor alternative under its Consumer Choice program if the installing dealer participates — not modeled here, ask about it directly). OPERATIONAL: Wilson is not a Carrier dealer, but will attempt warranty repairs and submit for parts reimbursement through Insco."
+  },
+  {
+   "id": "cove",
+   "brand": "Cove",
+   "categories": [
+    "kitchen"
+   ],
+   "confidence": "verified",
+   "tiers": [
+    {
+     "label": "Standard warranty (parts & labor)",
+     "months": 24,
+     "partsOnly": false,
+     "appliesTo": [
+      "Dishwasher"
+     ],
+     "requiresRegistration": false,
+     "registrationWindowDays": null
+    },
+    {
+     "label": "Control board, diverter valve, pump, racks (parts only)",
+     "months": 60,
+     "partsOnly": true,
+     "appliesTo": [
+      "Dishwasher"
+     ],
+     "requiresRegistration": false,
+     "registrationWindowDays": null
+    },
+    {
+     "label": "Stainless tub and door liner — rust-through (parts only, lifetime)",
+     "months": 1200,
+     "partsOnly": true,
+     "appliesTo": [
+      "Dishwasher"
+     ],
+     "requiresRegistration": false,
+     "registrationWindowDays": null
+    }
+   ],
+   "preAuth": null,
+   "installerBonus": {
+    "months": 12,
+    "beforeDate": "2026-05-01",
+    "requiresFromUs": true,
+    "note": "Wilson is a Sub-Zero/Wolf/Cove Factory Certified Installer. Units Wilson sold AND installed before May 2026 may qualify for an extra year added to the standard warranty through that program (registration-dependent, not automatic) — confirm the unit was registered under the program before relying on this."
+   },
+   "externalLookupUrl": "https://service.subzero.com/Tools/UnitHistory",
+   "sourceUrl": "https://haven.subzero.com/AssetLink/t7v1tx47i2bb7246u6p3d3263d0j7ex0.pdf",
+   "notes": "Cove is Sub-Zero/Wolf's dishwasher-only brand — corrected from an earlier draft that used generic refrigeration terms. Verified from Cove's published Residential Limited Warranty: 2yr full; control board/diverter valve/pump/racks 5yr parts-only; stainless tub and door liner rust-through is lifetime, parts only. \"Lifetime\" is modeled here as 100 years so it never shows as expired."
+  },
+  {
+   "id": "coyote",
+   "brand": "Coyote",
+   "categories": [
+    "outdoor"
+   ],
+   "confidence": "verified",
+   "tiers": [
+    {
+     "label": "Ignition systems / valves (parts only, no labor)",
+     "months": 12,
+     "partsOnly": true,
+     "appliesTo": [
+      "Range",
+      "Cooktop",
+      "Other"
+     ],
+     "requiresRegistration": false,
+     "registrationWindowDays": null
+    },
+    {
+     "label": "Electric / plastic components (parts only, no labor)",
+     "months": 24,
+     "partsOnly": true,
+     "appliesTo": [
+      "Range",
+      "Cooktop",
+      "Other"
+     ],
+     "requiresRegistration": false,
+     "registrationWindowDays": null
+    },
+    {
+     "label": "Heat control grid (parts only, no labor)",
+     "months": 24,
+     "partsOnly": true,
+     "appliesTo": [
+      "Range",
+      "Cooktop",
+      "Other"
+     ],
+     "requiresRegistration": false,
+     "registrationWindowDays": null
+    },
+    {
+     "label": "Cooking grids (parts only, no labor)",
+     "months": 60,
+     "partsOnly": true,
+     "appliesTo": [
+      "Range",
+      "Cooktop",
+      "Other"
+     ],
+     "requiresRegistration": false,
+     "registrationWindowDays": null
+    },
+    {
+     "label": "Stainless steel burners & frame/housing (parts only, no labor, lifetime)",
+     "months": 1200,
+     "partsOnly": true,
+     "appliesTo": [
+      "Range",
+      "Cooktop",
+      "Other"
+     ],
+     "requiresRegistration": false,
+     "registrationWindowDays": null
+    }
+   ],
+   "preAuth": null,
+   "installerBonus": null,
+   "externalLookupUrl": null,
+   "sourceUrl": "https://coyoteoutdoor.com/warranty",
+   "notes": "Verified from Coyote Outdoor's published warranty page: this is a parts-only warranty across every component — labor is never covered. Terms vary sharply by component, from 1yr on ignition/valves up to lifetime on stainless burners and frame/housing."
+  },
+  {
+   "id": "dcs-appliances",
+   "brand": "DCS Appliances",
+   "categories": [
+    "kitchen",
+    "outdoor"
+   ],
+   "confidence": "verified",
+   "tiers": [
+    {
+     "label": "Standard warranty (parts & labor)",
+     "months": 24,
+     "partsOnly": false,
+     "appliesTo": null,
+     "requiresRegistration": false,
+     "registrationWindowDays": null
+    },
+    {
+     "label": "Stainless steel components — grills, carts, storage, warming drawers, side burners, patio heaters (parts only)",
+     "months": 60,
+     "partsOnly": true,
+     "appliesTo": [
+      "Range",
+      "Cooktop",
+      "Other"
+     ],
+     "requiresRegistration": false,
+     "registrationWindowDays": null
+    },
+    {
+     "label": "Stainless burners, cover, burner box, grates, racks — grills (parts only, lifetime)",
+     "months": 1200,
+     "partsOnly": true,
+     "appliesTo": [
+      "Range",
+      "Cooktop",
+      "Other"
+     ],
+     "requiresRegistration": false,
+     "registrationWindowDays": null
+    },
+    {
+     "label": "Outdoor refrigeration — sealed system (parts only)",
+     "months": 60,
+     "partsOnly": true,
+     "appliesTo": [
+      "Refrigerator (Free Standing)",
+      "Refrigerator (Built-in)",
+      "Icemaker"
+     ],
+     "requiresRegistration": false,
+     "registrationWindowDays": null
+    }
+   ],
+   "preAuth": null,
+   "installerBonus": null,
+   "externalLookupUrl": null,
+   "sourceUrl": "https://www.dcsappliances.com/us/help-and-support/warranty-information",
+   "notes": "Verified from DCS's published warranty page (outdoor product table): 2yr full is the base across grills, carts, storage, refrigeration, warming drawers, side burners and patio heaters; most product lines then add a 5yr parts-only tier on stainless assemblies, and grills specifically add a lifetime parts-only tier on burners/cover/burner box/grates/racks. Fisher & Paykel's premium cooking/outdoor line — indoor cooking/dishwasher terms aren't covered by this source, treated as the 2yr full default until confirmed."
+  },
+  {
+   "id": "faber",
+   "brand": "Faber",
+   "categories": [
+    "ventilation"
+   ],
+   "confidence": "verified",
+   "tiers": [
+    {
+     "label": "Standard warranty (parts & labor)",
+     "months": 24,
+     "partsOnly": false,
+     "appliesTo": [
+      "Ventilation"
+     ],
+     "requiresRegistration": false,
+     "registrationWindowDays": null
+    }
+   ],
+   "preAuth": null,
+   "installerBonus": null,
+   "externalLookupUrl": null,
+   "sourceUrl": "https://faberonline.com/pages/product-warranty",
+   "notes": "Verified from Faber's (Franke) published warranty page: 2yr full on range hoods for standard residential indoor use."
+  },
+  {
+   "id": "fisher-paykel",
+   "brand": "Fisher & Paykel",
+   "categories": [
+    "refrigeration",
+    "kitchen"
+   ],
+   "confidence": "verified",
+   "tiers": [
+    {
+     "label": "Standard warranty (parts & labor)",
+     "months": 24,
+     "partsOnly": false,
+     "appliesTo": null,
+     "requiresRegistration": false,
+     "registrationWindowDays": null
+    },
+    {
+     "label": "Refrigeration sealed system (parts & labor)",
+     "months": 60,
+     "partsOnly": false,
+     "appliesTo": [
+      "Refrigerator (Free Standing)",
+      "Refrigerator (Built-in)",
+      "Icemaker"
+     ],
+     "requiresRegistration": false,
+     "registrationWindowDays": null
+    }
+   ],
+   "preAuth": null,
+   "installerBonus": null,
+   "externalLookupUrl": null,
+   "sourceUrl": "https://www.fisherpaykel.com/us/help-and-support/warranty-information/#LimitedWarranty",
+   "notes": "Verified from Fisher & Paykel's published US warranty page: 2yr full across the whole line; refrigeration product specifically gets an additional 3yr (5yr total) full parts & labor on the sealed system (compressor, evaporator, condenser, filter dryer, connecting tubing) — no separate parts-only tail beyond that per this source."
+  },
+  {
+   "id": "fulgor-milano",
+   "brand": "Fulgor Milano",
+   "categories": [
+    "kitchen",
+    "refrigeration",
+    "ventilation"
+   ],
+   "confidence": "verified",
+   "tiers": [
+    {
+     "label": "Standard warranty — cooking, dishwashers (600 series), ventilation (parts & labor)",
+     "months": 24,
+     "partsOnly": false,
+     "appliesTo": [
+      "Range",
+      "Cooktop",
+      "Dishwasher",
+      "Ventilation"
+     ],
+     "requiresRegistration": false,
+     "registrationWindowDays": null
+    },
+    {
+     "label": "Standard warranty — microwaves, dishwashers (400 series) (parts & labor)",
+     "months": 12,
+     "partsOnly": false,
+     "appliesTo": [
+      "Microwave",
+      "Dishwasher"
+     ],
+     "requiresRegistration": false,
+     "registrationWindowDays": null
+    },
+    {
+     "label": "Refrigeration standard warranty (parts & labor)",
+     "months": 24,
+     "partsOnly": false,
+     "appliesTo": [
+      "Refrigerator (Free Standing)",
+      "Refrigerator (Built-in)",
+      "Icemaker"
+     ],
+     "requiresRegistration": false,
+     "registrationWindowDays": null
+    },
+    {
+     "label": "Refrigeration sealed system, 700 series (parts & labor)",
+     "months": 60,
+     "partsOnly": false,
+     "appliesTo": [
+      "Refrigerator (Free Standing)",
+      "Refrigerator (Built-in)",
+      "Icemaker"
+     ],
+     "requiresRegistration": false,
+     "registrationWindowDays": null
+    },
+    {
+     "label": "Refrigeration sealed system, 700 series, years 6-12 (parts only)",
+     "months": 144,
+     "partsOnly": true,
+     "appliesTo": [
+      "Refrigerator (Free Standing)",
+      "Refrigerator (Built-in)",
+      "Icemaker"
+     ],
+     "requiresRegistration": false,
+     "registrationWindowDays": null
+    }
+   ],
+   "preAuth": null,
+   "installerBonus": null,
+   "externalLookupUrl": null,
+   "sourceUrl": "https://www.fulgor-milano.com/sites/default/files/2021-01/Fulgor%20Milano%20Comprehensive%20Warranty%20Statement%202021-rev20210125.pdf",
+   "notes": "Verified from Fulgor Milano's published Comprehensive Warranty Statement (warranty-class table): most cooking, the 600-series dishwasher, and ventilation are 2yr full; microwaves and the 400-series dishwasher are 1yr full. Refrigeration is 2yr full across the board, with the 700 series adding 5yr full + 12yr parts-only on the sealed system (600 series gets a shorter parts-only sealed-system add-on, 400 series gets none — not separately modeled, check the series if it matters)."
+  },
+  {
+   "id": "gaggenau",
+   "brand": "Gaggenau",
+   "categories": [
+    "refrigeration",
+    "kitchen"
+   ],
+   "confidence": "verified",
+   "tiers": [
+    {
+     "label": "Standard warranty (parts & labor)",
+     "months": 60,
+     "partsOnly": false,
+     "appliesTo": null,
+     "requiresRegistration": false,
+     "registrationWindowDays": null
+    }
+   ],
+   "preAuth": null,
+   "installerBonus": null,
+   "externalLookupUrl": null,
+   "sourceUrl": "https://media3.gaggenau.com/Documents/18216668_Gaggenau_US_Warranty.pdf",
+   "notes": "Verified from Gaggenau's published US warranty PDF: a single 5yr full (parts & labor) warranty applies across the line — Gaggenau doesn't split cooking vs. refrigeration terms the way some siblings do. There's also a 60-day cosmetic-defect warranty (scratches, finish, etc.) not modeled as a separate tier here."
+  },
+  {
+   "id": "ge",
+   "brand": "GE",
+   "categories": [
+    "kitchen",
+    "refrigeration"
+   ],
+   "confidence": "estimate",
+   "tiers": [
+    {
+     "label": "Standard warranty (parts & labor)",
+     "months": 12,
+     "partsOnly": false,
+     "appliesTo": null,
+     "requiresRegistration": false,
+     "registrationWindowDays": null
+    },
+    {
+     "label": "Refrigerating system (parts only)",
+     "months": 60,
+     "partsOnly": true,
+     "appliesTo": [
+      "Refrigerator (Free Standing)",
+      "Refrigerator (Built-in)",
+      "Icemaker"
+     ],
+     "requiresRegistration": false,
+     "registrationWindowDays": null
+    }
+   ],
+   "preAuth": null,
+   "installerBonus": null,
+   "externalLookupUrl": null,
+   "sourceUrl": "https://www.consumeraffairs.com/homeowners/ge-appliance-warranty.html",
+   "notes": "Sourced from a third-party GE-appliance-warranty summary (consumeraffairs.com), not GE's own warranty page directly — still flagged for confirmation. 1yr full across washers/dryers/refrigerators/dishwashers/microwaves/ranges/ovens; refrigerator sealed system adds up to 5yr parts-only; Wi-Fi-enabled ranges/ovens may add ~90 days on connectivity components (not modeled)."
+  },
+  {
+   "id": "ge-profile",
+   "brand": "GE Profile",
+   "categories": [
+    "kitchen",
+    "refrigeration"
+   ],
+   "confidence": "estimate",
+   "tiers": [
+    {
+     "label": "Standard warranty (parts & labor)",
+     "months": 12,
+     "partsOnly": false,
+     "appliesTo": null,
+     "requiresRegistration": false,
+     "registrationWindowDays": null
+    },
+    {
+     "label": "Refrigerating system (parts only)",
+     "months": 60,
+     "partsOnly": true,
+     "appliesTo": [
+      "Refrigerator (Free Standing)",
+      "Refrigerator (Built-in)",
+      "Icemaker"
+     ],
+     "requiresRegistration": false,
+     "registrationWindowDays": null
+    }
+   ],
+   "preAuth": null,
+   "installerBonus": null,
+   "externalLookupUrl": null,
+   "sourceUrl": "https://www.consumeraffairs.com/homeowners/ge-appliance-warranty.html",
+   "notes": "Sourced from a third-party GE-appliance-warranty summary (consumeraffairs.com), not GE's own warranty page directly — still flagged for confirmation. Same base structure as GE: 1yr full, refrigerator sealed system adds up to 5yr parts-only. GE Profile occasionally runs promotions with longer terms and some Profile models add a lifetime warranty on full-extension slides — confirm by model/purchase date."
+  },
+  {
+   "id": "haier",
+   "brand": "Haier",
+   "categories": [
+    "kitchen",
+    "refrigeration"
+   ],
+   "confidence": "estimate",
+   "tiers": [
+    {
+     "label": "Standard warranty (parts & labor)",
+     "months": 12,
+     "partsOnly": false,
+     "appliesTo": null,
+     "requiresRegistration": false,
+     "registrationWindowDays": null
+    }
+   ],
+   "preAuth": null,
+   "installerBonus": null,
+   "externalLookupUrl": null,
+   "sourceUrl": "https://images.thdstatic.com/catalog/pdfImages/d8/d8d08a60-a039-4118-9b73-291bbc327617.pdf",
+   "notes": "Source is a Home Depot-hosted Haier warranty card stating a flat 1yr parts & labor warranty with no further detail on component extensions — worth cross-checking against Haier's own site for the specific model/category before relying on it."
+  },
+  {
+   "id": "janitrol-goodman",
+   "brand": "Janitrol / Goodman",
+   "categories": [
+    "hvac"
+   ],
+   "confidence": "verified",
+   "tiers": [
+    {
+     "label": "Base warranty (parts only, no labor)",
+     "months": 60,
+     "partsOnly": true,
+     "appliesTo": [
+      "HVAC"
+     ],
+     "requiresRegistration": false,
+     "registrationWindowDays": null
+    },
+    {
+     "label": "Registered extended warranty (parts only, no labor)",
+     "months": 120,
+     "partsOnly": true,
+     "appliesTo": [
+      "HVAC"
+     ],
+     "requiresRegistration": true,
+     "registrationWindowDays": 60
+    },
+    {
+     "label": "Compressor, select high-efficiency models only (parts only, lifetime to original registered owner)",
+     "months": 1200,
+     "partsOnly": true,
+     "appliesTo": [
+      "HVAC"
+     ],
+     "requiresRegistration": true,
+     "registrationWindowDays": 60
+    }
+   ],
+   "preAuth": null,
+   "installerBonus": null,
+   "externalLookupUrl": null,
+   "sourceUrl": "https://www.goodmanmfg.com/resources/hvac-learning-center/warranty/the-air-conditioner-limited-warranty---the-why-when-how",
+   "notes": "Verified from Goodman's published warranty page: 5yr base parts; 10yr parts if registered within 60 days (lasts as long as the original registered owner/spouse owns and lives in the home). Select higher-efficiency models add a lifetime compressor warranty to the original registered owner — modeled here as 100 years; confirm the specific model qualifies before relying on this tier. OPERATIONAL: Wilson is not a Janitrol/Goodman dealer and cannot perform warranty repairs for this brand — explain that to the customer."
+  },
+  {
+   "id": "jennair",
+   "brand": "JennAir",
+   "categories": [
+    "kitchen",
+    "refrigeration"
+   ],
+   "confidence": "verified",
+   "tiers": [
+    {
+     "label": "Standard warranty (parts & labor)",
+     "months": 24,
+     "partsOnly": false,
+     "appliesTo": null,
+     "requiresRegistration": false,
+     "registrationWindowDays": null
+    },
+    {
+     "label": "Named cooking components — element, touchpad/microprocessor, glass ceramic cooktop (thermal breakage), electronic controls, magnetron, sealed gas burners (parts only)",
+     "months": 60,
+     "partsOnly": true,
+     "appliesTo": [
+      "Range",
+      "Cooktop",
+      "Microwave"
+     ],
+     "requiresRegistration": false,
+     "registrationWindowDays": null
+    },
+    {
+     "label": "Refrigerator/freezer cavity liner crack & sealed refrigeration system (parts & labor)",
+     "months": 60,
+     "partsOnly": false,
+     "appliesTo": [
+      "Refrigerator (Free Standing)",
+      "Refrigerator (Built-in)",
+      "Icemaker"
+     ],
+     "requiresRegistration": false,
+     "registrationWindowDays": null
+    },
+    {
+     "label": "Sealed refrigeration system, years 6-10 (parts only)",
+     "months": 120,
+     "partsOnly": true,
+     "appliesTo": [
+      "Refrigerator (Free Standing)",
+      "Refrigerator (Built-in)",
+      "Icemaker"
+     ],
+     "requiresRegistration": false,
+     "registrationWindowDays": null
+    }
+   ],
+   "preAuth": null,
+   "installerBonus": null,
+   "externalLookupUrl": null,
+   "sourceUrl": "https://www.jennair.com/content/dam/global/documents/201710/WarrantyPage-W11170798A-W.pdf",
+   "notes": "Verified from two JennAir warranty PDFs (cooking and refrigeration): 2yr full across the line. Cooking gets a 3rd-5th year parts-only tier on named components. Refrigeration gets the cavity liner + sealed system covered full (parts & labor) through year 5, then sealed-system parts-only through year 10."
+  },
+  {
+   "id": "kalamazoo-outdoor-gourmet",
+   "brand": "Kalamazoo Outdoor Gourmet",
+   "categories": [
+    "outdoor"
+   ],
+   "confidence": "verified",
+   "tiers": [
+    {
+     "label": "Standard warranty (parts & labor)",
+     "months": 24,
+     "partsOnly": false,
+     "appliesTo": [
+      "Range",
+      "Cooktop",
+      "Other"
+     ],
+     "requiresRegistration": false,
+     "registrationWindowDays": null
+    },
+    {
+     "label": "Burners, valves, manifold pipes, electronic control boards (parts only)",
+     "months": 60,
+     "partsOnly": true,
+     "appliesTo": [
+      "Range",
+      "Cooktop",
+      "Other"
+     ],
+     "requiresRegistration": false,
+     "registrationWindowDays": null
+    },
+    {
+     "label": "Dragon Burners, cooking grates, fabricated stainless structure (parts only)",
+     "months": 300,
+     "partsOnly": true,
+     "appliesTo": [
+      "Range",
+      "Cooktop",
+      "Other"
+     ],
+     "requiresRegistration": false,
+     "registrationWindowDays": null
+    }
+   ],
+   "preAuth": null,
+   "installerBonus": null,
+   "externalLookupUrl": null,
+   "sourceUrl": "https://kalamazoogourmet.com/pages/warranty-information",
+   "notes": "Verified from Kalamazoo's published warranty page: 2yr full on grills, pizza ovens and cooktops; 5yr parts-only on burners/valves/manifolds/control boards; 25yr parts-only on the Dragon Burners, cooking grates and fabricated stainless structure."
+  },
+  {
+   "id": "kenmore",
+   "brand": "Kenmore",
+   "categories": [
+    "kitchen",
+    "refrigeration"
+   ],
+   "confidence": "estimate",
+   "tiers": [
+    {
+     "label": "Standard warranty (parts & labor)",
+     "months": 12,
+     "partsOnly": false,
+     "appliesTo": null,
+     "requiresRegistration": false,
+     "registrationWindowDays": null
+    },
+    {
+     "label": "Extended component coverage — sealed system, control board, or drive component (parts only)",
+     "months": 84,
+     "partsOnly": true,
+     "appliesTo": null,
+     "requiresRegistration": false,
+     "registrationWindowDays": null
+    }
+   ],
+   "preAuth": null,
+   "installerBonus": null,
+   "externalLookupUrl": null,
+   "sourceUrl": null,
+   "notes": "OPERATIONAL: Wilson does not work on Kenmore under warranty — this is a hard stop regardless of term, explain that to the customer before quoting anything. Term estimate left as-is only for reference; Kenmore units are manufactured by various OEMs (Whirlpool, LG, etc.), so actual coverage would depend on who made the specific unit even if Wilson did take the work."
+  },
+  {
+   "id": "kitchenaid",
+   "brand": "KitchenAid",
+   "categories": [
+    "refrigeration",
+    "kitchen"
+   ],
+   "confidence": "verified",
+   "tiers": [
+    {
+     "label": "Standard warranty (parts & labor)",
+     "months": 12,
+     "partsOnly": false,
+     "appliesTo": null,
+     "requiresRegistration": false,
+     "registrationWindowDays": null
+    },
+    {
+     "label": "Commercial-style range, built-in refrigerator, built-in icemaker — year 2 (parts & labor)",
+     "months": 24,
+     "partsOnly": false,
+     "appliesTo": [
+      "Range",
+      "Refrigerator (Built-in)",
+      "Icemaker"
+     ],
+     "requiresRegistration": false,
+     "registrationWindowDays": null
+    },
+    {
+     "label": "Sealed refrigeration system — refrigerator, built-in icemaker, specialty/undercounter refrigerator, years 2-5 (parts & labor)",
+     "months": 60,
+     "partsOnly": false,
+     "appliesTo": [
+      "Refrigerator (Built-in)",
+      "Refrigerator (Free Standing)",
+      "Icemaker"
+     ],
+     "requiresRegistration": false,
+     "registrationWindowDays": null
+    }
+   ],
+   "preAuth": null,
+   "installerBonus": null,
+   "externalLookupUrl": null,
+   "sourceUrl": "https://www.kitchenaid.com/content/dam/global/documents/201606/warranty-W10790750-W.pdf",
+   "notes": "Verified against KitchenAid's current Major Appliance Limited Warranty PDF (Jack has W11655295A on file): 1yr full across the line; commercial-style ranges, built-in refrigerators and built-in icemakers get a 2nd year fully covered (parts & labor, whole unit); the sealed refrigeration system (compressor, evaporator, condenser, dryer, connecting tubing) on refrigerators and built-in icemakers is covered full parts & labor through year 5 — this specific document doesn't show a further parts-only tail past year 5, unlike an older revision previously on file, so the old 10yr parts-only tier was dropped. Built-in refrigeration model numbers typically start with \"KB\", icemakers with \"KUI\"."
+  },
+  {
+   "id": "la-cornue",
+   "brand": "La Cornue",
+   "categories": [
+    "kitchen"
+   ],
+   "confidence": "estimate",
+   "tiers": [
+    {
+     "label": "Standard warranty (parts & labor)",
+     "months": 60,
+     "partsOnly": false,
+     "appliesTo": null,
+     "requiresRegistration": false,
+     "registrationWindowDays": null
+    }
+   ],
+   "preAuth": {
+    "note": "La Cornue is a Composition Brands product — requires manufacturer pre-authorization before Wilson can begin warranty work. Contact Composition Brands for authorization first, then schedule service."
+   },
+   "installerBonus": null,
+   "externalLookupUrl": null,
+   "sourceUrl": "https://www.lacornueappliance.support/guides/la-cornue-warranty-5-year-explained/",
+   "notes": "Sourced from a third-party La Cornue support/reseller site describing a 5yr full parts & labor warranty — broader than most range warranties. Not La Cornue's own published page, so still flagged for confirmation; French import, high-end range specialist, confirm exact terms and US service network for the specific model."
+  },
+  {
+   "id": "lg",
+   "brand": "LG",
+   "categories": [
+    "refrigeration",
+    "kitchen"
+   ],
+   "confidence": "verified",
+   "tiers": [
+    {
+     "label": "Standard warranty (parts & labor)",
+     "months": 12,
+     "partsOnly": false,
+     "appliesTo": null,
+     "requiresRegistration": false,
+     "registrationWindowDays": null
+    },
+    {
+     "label": "Refrigeration sealed system — condenser, dryer, tube, evaporator (parts & labor)",
+     "months": 60,
+     "partsOnly": false,
+     "appliesTo": [
+      "Refrigerator (Free Standing)",
+      "Refrigerator (Built-in)",
+      "Icemaker"
+     ],
+     "requiresRegistration": false,
+     "registrationWindowDays": null
+    },
+    {
+     "label": "Refrigeration linear/inverter compressor (parts & labor)",
+     "months": 60,
+     "partsOnly": false,
+     "appliesTo": [
+      "Refrigerator (Free Standing)",
+      "Refrigerator (Built-in)",
+      "Icemaker"
+     ],
+     "requiresRegistration": false,
+     "registrationWindowDays": null
+    },
+    {
+     "label": "Refrigeration linear/inverter compressor, years 6-10 (parts only)",
+     "months": 120,
+     "partsOnly": true,
+     "appliesTo": [
+      "Refrigerator (Free Standing)",
+      "Refrigerator (Built-in)",
+      "Icemaker"
+     ],
+     "requiresRegistration": false,
+     "registrationWindowDays": null
+    },
+    {
+     "label": "Laundry — stainless steel washer tub (parts only)",
+     "months": 36,
+     "partsOnly": true,
+     "appliesTo": [
+      "Washer"
+     ],
+     "requiresRegistration": false,
+     "registrationWindowDays": null
+    },
+    {
+     "label": "Laundry — direct drive motor, washer & dryer (parts only)",
+     "months": 120,
+     "partsOnly": true,
+     "appliesTo": [
+      "Washer",
+      "Dryer"
+     ],
+     "requiresRegistration": false,
+     "registrationWindowDays": null
+    },
+    {
+     "label": "Dishwasher — main control board, racks, stainless door liner, tub (parts only)",
+     "months": 24,
+     "partsOnly": true,
+     "appliesTo": [
+      "Dishwasher"
+     ],
+     "requiresRegistration": false,
+     "registrationWindowDays": null
+    },
+    {
+     "label": "Dishwasher — direct drive motor (parts only)",
+     "months": 120,
+     "partsOnly": true,
+     "appliesTo": [
+      "Dishwasher"
+     ],
+     "requiresRegistration": false,
+     "registrationWindowDays": null
+    },
+    {
+     "label": "Microwave — magnetron (parts only)",
+     "months": 120,
+     "partsOnly": true,
+     "appliesTo": [
+      "Microwave"
+     ],
+     "requiresRegistration": false,
+     "registrationWindowDays": null
+    }
+   ],
+   "preAuth": null,
+   "installerBonus": null,
+   "externalLookupUrl": null,
+   "sourceUrl": "https://www.lg.com/us/support/warranty-information",
+   "notes": "Verified from LG's published US warranty-information page: 1yr full across every category. Refrigeration adds a 5yr full sealed-system and compressor tier (compressor parts-only through year 10). Laundry adds a 3yr parts-only stainless tub (washer) and a notable 10yr parts-only direct-drive motor (washer & dryer). Dishwashers add 2yr parts-only on control board/racks/liner/tub and 10yr parts-only on the direct-drive motor. Microwaves add 10yr parts-only on the magnetron. LG Studio WashTowers get a 2yr full standard warranty instead of 1yr — not modeled as a separate LG Studio-only tier here since it's brand-specific, see the LG Studio entry."
+  },
+  {
+   "id": "lg-studio",
+   "brand": "LG Studio",
+   "categories": [
+    "kitchen",
+    "refrigeration"
+   ],
+   "confidence": "estimate",
+   "tiers": [
+    {
+     "label": "Standard warranty (parts & labor)",
+     "months": 24,
+     "partsOnly": false,
+     "appliesTo": null,
+     "requiresRegistration": false,
+     "registrationWindowDays": null
+    }
+   ],
+   "preAuth": null,
+   "installerBonus": null,
+   "externalLookupUrl": null,
+   "sourceUrl": "https://www.lgproductguide.ca/resources/warranties",
+   "notes": "Sourced from LG's Canadian product-guide page (lgproductguide.ca), not the US warranty page — still flagged for confirmation on the US side. States 2yr parts & labor for LG Studio, LG's premium built-in line."
+  },
+  {
+   "id": "liebherr",
+   "brand": "Liebherr",
+   "categories": [
+    "refrigeration"
+   ],
+   "confidence": "verified",
+   "tiers": [
+    {
+     "label": "Standard warranty (parts & labor)",
+     "months": 24,
+     "partsOnly": false,
+     "appliesTo": null,
+     "requiresRegistration": false,
+     "registrationWindowDays": null
+    },
+    {
+     "label": "Sealed system (parts & labor)",
+     "months": 60,
+     "partsOnly": false,
+     "appliesTo": [
+      "Refrigerator (Free Standing)",
+      "Refrigerator (Built-in)",
+      "Icemaker"
+     ],
+     "requiresRegistration": false,
+     "registrationWindowDays": null
+    },
+    {
+     "label": "Sealed system (parts only)",
+     "months": 144,
+     "partsOnly": true,
+     "appliesTo": [
+      "Refrigerator (Free Standing)",
+      "Refrigerator (Built-in)",
+      "Icemaker"
+     ],
+     "requiresRegistration": false,
+     "registrationWindowDays": null
+    }
+   ],
+   "preAuth": {
+    "note": "Liebherr requires manufacturer pre-authorization before Wilson can begin warranty work — contact Liebherr for authorization first, then schedule service."
+   },
+   "installerBonus": null,
+   "externalLookupUrl": null,
+   "sourceUrl": "https://www.liebherr.com/en-us/refrigerators-freezers/guarantee-7150900",
+   "notes": "German refrigeration specialist — estimate; confirm against current published US warranty."
+  },
+  {
+   "id": "marvel",
+   "brand": "Marvel",
+   "categories": [
+    "refrigeration"
+   ],
+   "confidence": "verified",
+   "tiers": [
+    {
+     "label": "Standard warranty (parts & labor)",
+     "months": 12,
+     "partsOnly": false,
+     "appliesTo": null,
+     "requiresRegistration": false,
+     "registrationWindowDays": null
+    },
+    {
+     "label": "Sealed system — compressor, condenser, evaporator, drier, connecting tubing (parts only)",
+     "months": 60,
+     "partsOnly": true,
+     "appliesTo": null,
+     "requiresRegistration": false,
+     "registrationWindowDays": null
+    }
+   ],
+   "preAuth": {
+    "note": "Marvel is a Composition Brands product — requires manufacturer pre-authorization before Wilson can begin warranty work. Contact Composition Brands for authorization first, then schedule service."
+   },
+   "installerBonus": null,
+   "externalLookupUrl": null,
+   "sourceUrl": "https://www.marvelrefrigeration.com/pub/media/marvel/warranty_compliance/MARVEL-WARRANTY.PDF",
+   "notes": "Verified from Marvel's published warranty PDF: 1yr full on standard residential Marvel; Marvel Professional products get 2yr full instead, plus an optional registered 3rd year (register within 60 days at marvelrefrigeration.com) — not modeled as separate tiers since our schema doesn't distinguish Marvel's product lines, check which line this is. Sealed system (compressor, condenser, evaporator, drier, connecting tubing) is 5yr parts-only, labor not included, across all Marvel lines."
+  },
+  {
+   "id": "maytag",
+   "brand": "Maytag",
+   "categories": [
+    "kitchen",
+    "refrigeration"
+   ],
+   "confidence": "verified",
+   "tiers": [
+    {
+     "label": "Standard warranty (parts & labor)",
+     "months": 12,
+     "partsOnly": false,
+     "appliesTo": null,
+     "requiresRegistration": false,
+     "registrationWindowDays": null
+    },
+    {
+     "label": "Drive motor, wash basket, dryer drum — laundry (parts only)",
+     "months": 120,
+     "partsOnly": true,
+     "appliesTo": [
+      "Washer",
+      "Dryer"
+     ],
+     "requiresRegistration": false,
+     "registrationWindowDays": null
+    },
+    {
+     "label": "Stainless tub, nylon racks, chopper — dishwashers (parts only)",
+     "months": 120,
+     "partsOnly": true,
+     "appliesTo": [
+      "Dishwasher"
+     ],
+     "requiresRegistration": false,
+     "registrationWindowDays": null
+    },
+    {
+     "label": "Cooktop burners/elements, ceramic top & grates, bake/broil elements, cavity — cooking (parts only)",
+     "months": 120,
+     "partsOnly": true,
+     "appliesTo": [
+      "Range",
+      "Cooktop"
+     ],
+     "requiresRegistration": false,
+     "registrationWindowDays": null
+    },
+    {
+     "label": "Compressor — refrigerators (parts only)",
+     "months": 120,
+     "partsOnly": true,
+     "appliesTo": [
+      "Refrigerator (Free Standing)",
+      "Refrigerator (Built-in)"
+     ],
+     "requiresRegistration": false,
+     "registrationWindowDays": null
+    },
+    {
+     "label": "Magnetron, cavity — microwaves (parts only)",
+     "months": 120,
+     "partsOnly": true,
+     "appliesTo": [
+      "Microwave"
+     ],
+     "requiresRegistration": false,
+     "registrationWindowDays": null
+    }
+   ],
+   "preAuth": null,
+   "installerBonus": null,
+   "externalLookupUrl": null,
+   "sourceUrl": "https://www.maytag.com/services/limited-10-year-warranty.html",
+   "notes": "Verified from Maytag's published 10-Year Limited Warranty page: 1yr full across the line, plus a 10yr parts-only tier on named components by category (laundry: drive motor/wash basket/dryer drum; dishwashers: stainless tub/nylon racks/chopper; cooking: burners/elements/ceramic top/cavity; refrigerators: compressor; microwaves: magnetron/cavity). Two bonus tiers exist for specific commercial-grade laundry pairs, not modeled as brand-wide tiers — log any matching model as its own override: MVW6230RH/MED6230RH/MGD6230RH add labor coverage for the first 5yr on top of the 10yr parts; MVWP586GW/MEDP586KW/MGDP586KW add full parts+labor for the first 5yr. NOTE: the model already logged as a 5yr-full override is MVWP575GW, not MVWP586GW named in this source — worth double-checking with Jack whether that's the same commercial-technology pair under an older model number or a different unit before relying on it."
+  },
+  {
+   "id": "miele",
+   "brand": "Miele",
+   "categories": [
+    "refrigeration",
+    "kitchen"
+   ],
+   "confidence": "verified",
+   "tiers": [
+    {
+     "label": "Standard warranty (parts & labor)",
+     "months": 24,
+     "partsOnly": false,
+     "appliesTo": null,
+     "requiresRegistration": false,
+     "registrationWindowDays": null
+    },
+    {
+     "label": "Sealed refrigeration system (parts & labor)",
+     "months": 60,
+     "partsOnly": false,
+     "appliesTo": [
+      "Refrigerator (Free Standing)",
+      "Refrigerator (Built-in)",
+      "Icemaker"
+     ],
+     "requiresRegistration": false,
+     "registrationWindowDays": null
+    },
+    {
+     "label": "Sealed refrigeration system (parts only)",
+     "months": 120,
+     "partsOnly": true,
+     "appliesTo": [
+      "Refrigerator (Free Standing)",
+      "Refrigerator (Built-in)",
+      "Icemaker"
+     ],
+     "requiresRegistration": false,
+     "registrationWindowDays": null
+    }
+   ],
+   "preAuth": {
+    "note": "Miele requires manufacturer pre-authorization before Wilson can begin warranty work — contact Miele for authorization first, then schedule service."
+   },
+   "installerBonus": null,
+   "externalLookupUrl": null,
+   "sourceUrl": "https://www.mieleusa.com/cs/legal/miele-warranties-131",
+   "notes": "Verified from Miele USA's published Limited Warranty for Domestic Appliances: 2yr full warranty on major residential appliances; sealed refrigeration system gets 5yr full + an additional 5yr parts-only (10yr total)."
+  },
+  {
+   "id": "mitsubishi",
+   "brand": "Mitsubishi",
+   "categories": [
+    "hvac"
+   ],
+   "confidence": "verified",
+   "tiers": [
+    {
+     "label": "Base warranty (parts only, no labor)",
+     "months": 60,
+     "partsOnly": true,
+     "appliesTo": [
+      "HVAC"
+     ],
+     "requiresRegistration": false,
+     "registrationWindowDays": null
+    },
+    {
+     "label": "Compressor (parts only, no labor)",
+     "months": 84,
+     "partsOnly": true,
+     "appliesTo": [
+      "HVAC"
+     ],
+     "requiresRegistration": false,
+     "registrationWindowDays": null
+    },
+    {
+     "label": "Registered extended warranty (parts only, no labor)",
+     "months": 120,
+     "partsOnly": true,
+     "appliesTo": [
+      "HVAC"
+     ],
+     "requiresRegistration": true,
+     "registrationWindowDays": 90
+    }
+   ],
+   "preAuth": null,
+   "installerBonus": null,
+   "externalLookupUrl": "https://registermehvac.com/WarrantyLookup_88973.aspx",
+   "sourceUrl": "https://dunckleeinc.com/mitsubishi-warranty/",
+   "notes": "Verified: ductless mini-split systems get a 5yr base parts warranty, 7yr on the compressor specifically, extending to 10yr parts if registered within 90 days (single-family residential). Registering through a Diamond Contractor can push this to 12yr — not modeled as a separate tier since it depends on installer status; note it when relevant."
+  },
+  {
+   "id": "monogram",
+   "brand": "Monogram",
+   "categories": [
+    "kitchen",
+    "refrigeration"
+   ],
+   "confidence": "verified",
+   "tiers": [
+    {
+     "label": "Standard warranty (parts & labor)",
+     "months": 24,
+     "partsOnly": false,
+     "appliesTo": null,
+     "requiresRegistration": false,
+     "registrationWindowDays": null
+    },
+    {
+     "label": "Sealed refrigeration system, integrated/column units (parts & labor)",
+     "months": 60,
+     "partsOnly": false,
+     "appliesTo": [
+      "Refrigerator (Free Standing)",
+      "Refrigerator (Built-in)",
+      "Icemaker"
+     ],
+     "requiresRegistration": false,
+     "registrationWindowDays": null
+    },
+    {
+     "label": "Sealed refrigeration system, integrated/column units, years 6-12 (parts only)",
+     "months": 144,
+     "partsOnly": true,
+     "appliesTo": [
+      "Refrigerator (Free Standing)",
+      "Refrigerator (Built-in)",
+      "Icemaker"
+     ],
+     "requiresRegistration": false,
+     "registrationWindowDays": null
+    }
+   ],
+   "preAuth": null,
+   "installerBonus": null,
+   "externalLookupUrl": null,
+   "sourceUrl": "https://products.geappliances.com/appliance/gea-support-search-content?contentId=38462",
+   "notes": "Verified from GE Appliances' published Monogram warranty page: 2yr full across the line (refrigerators, wine/beverage/bar units, icemakers, cooking, dishwashers/compactors). Integrated and column refrigerators additionally get the sealed system covered full through year 5, then parts-only through year 12."
+  },
+  {
+   "id": "perlick",
+   "brand": "Perlick",
+   "categories": [
+    "refrigeration"
+   ],
+   "confidence": "verified",
+   "tiers": [
+    {
+     "label": "Standard warranty — undercounter refrigeration, produced 1/4/21 or later (parts & labor)",
+     "months": 72,
+     "partsOnly": false,
+     "appliesTo": [
+      "Refrigerator (Free Standing)",
+      "Refrigerator (Built-in)",
+      "Icemaker"
+     ],
+     "requiresRegistration": false,
+     "registrationWindowDays": null
+    },
+    {
+     "label": "Standard warranty — ice makers (parts & labor)",
+     "months": 24,
+     "partsOnly": false,
+     "appliesTo": [
+      "Icemaker"
+     ],
+     "requiresRegistration": false,
+     "registrationWindowDays": null
+    },
+    {
+     "label": "Standard warranty — column refrigeration (parts & labor)",
+     "months": 36,
+     "partsOnly": false,
+     "appliesTo": [
+      "Refrigerator (Free Standing)",
+      "Refrigerator (Built-in)",
+      "Icemaker"
+     ],
+     "requiresRegistration": false,
+     "registrationWindowDays": null
+    },
+    {
+     "label": "Sealed system — column refrigeration (parts & labor)",
+     "months": 72,
+     "partsOnly": false,
+     "appliesTo": [
+      "Refrigerator (Free Standing)",
+      "Refrigerator (Built-in)",
+      "Icemaker"
+     ],
+     "requiresRegistration": false,
+     "registrationWindowDays": null
+    },
+    {
+     "label": "Sealed system — column refrigeration, years 7-12 (parts only)",
+     "months": 144,
+     "partsOnly": true,
+     "appliesTo": [
+      "Refrigerator (Free Standing)",
+      "Refrigerator (Built-in)",
+      "Icemaker"
+     ],
+     "requiresRegistration": false,
+     "registrationWindowDays": null
+    }
+   ],
+   "preAuth": null,
+   "installerBonus": null,
+   "externalLookupUrl": null,
+   "sourceUrl": "https://cdn.prod.website-files.com/65b96d44a15b3d7627ae6487/67da58496051a4818b4f32d5_Residential%20Warranty%20April%202025.pdf",
+   "notes": "Verified from Perlick's published Residential Warranty PDF: coverage varies significantly by product line — undercounter refrigeration (2021+) 6yr full; ice makers 2yr full; column refrigeration 3yr full on the cabinet plus a separate 6yr full / 12yr parts-only sealed-system tier; beverage/bar dispensing equipment is 1yr full (not modeled, uncommon for residential intake). Registration at perlick.com is required to validate."
+  },
+  {
+   "id": "rheem",
+   "brand": "Rheem",
+   "categories": [
+    "hvac"
+   ],
+   "confidence": "estimate",
+   "tiers": [
+    {
+     "label": "Base warranty (parts only, no labor)",
+     "months": 60,
+     "partsOnly": true,
+     "appliesTo": [
+      "HVAC"
+     ],
+     "requiresRegistration": false,
+     "registrationWindowDays": null
+    },
+    {
+     "label": "Registered extended warranty (parts only, no labor)",
+     "months": 120,
+     "partsOnly": true,
+     "appliesTo": [
+      "HVAC"
+     ],
+     "requiresRegistration": true,
+     "registrationWindowDays": 60
+    }
+   ],
+   "preAuth": null,
+   "installerBonus": null,
+   "externalLookupUrl": null,
+   "sourceUrl": null,
+   "notes": "HVAC estimate modeled on the verified Trane pattern — confirm current Rheem terms and registration window. OPERATIONAL: Wilson is not a Rheem dealer and cannot perform warranty repairs for this brand — explain that to the customer."
+  },
+  {
+   "id": "ruud",
+   "brand": "Ruud",
+   "categories": [
+    "hvac"
+   ],
+   "confidence": "estimate",
+   "tiers": [
+    {
+     "label": "Base warranty (parts only, no labor)",
+     "months": 60,
+     "partsOnly": true,
+     "appliesTo": [
+      "HVAC"
+     ],
+     "requiresRegistration": false,
+     "registrationWindowDays": null
+    },
+    {
+     "label": "Registered extended warranty (parts only, no labor)",
+     "months": 120,
+     "partsOnly": true,
+     "appliesTo": [
+      "HVAC"
+     ],
+     "requiresRegistration": true,
+     "registrationWindowDays": 60
+    }
+   ],
+   "preAuth": null,
+   "installerBonus": null,
+   "externalLookupUrl": null,
+   "sourceUrl": null,
+   "notes": "Rheem-family HVAC brand — estimate modeled on the verified Trane pattern. Confirm current terms. OPERATIONAL: same as Rheem — Wilson is not a Ruud dealer and cannot perform warranty repairs for this brand; explain that to the customer."
+  },
+  {
+   "id": "scotsman",
+   "brand": "Scotsman",
+   "categories": [
+    "refrigeration"
+   ],
+   "confidence": "verified",
+   "tiers": [
+    {
+     "label": "Standard warranty — DRC/SRC/DCE/SCC models (parts & labor)",
+     "months": 12,
+     "partsOnly": false,
+     "appliesTo": [
+      "Icemaker"
+     ],
+     "requiresRegistration": false,
+     "registrationWindowDays": null
+    },
+    {
+     "label": "Compressor — DRC/SRC/DCE/SCC models, years 2-5 (parts only, labor not included)",
+     "months": 60,
+     "partsOnly": true,
+     "appliesTo": [
+      "Icemaker"
+     ],
+     "requiresRegistration": false,
+     "registrationWindowDays": null
+    },
+    {
+     "label": "Standard warranty — SRN/SCN models (parts & labor)",
+     "months": 24,
+     "partsOnly": false,
+     "appliesTo": [
+      "Icemaker"
+     ],
+     "requiresRegistration": false,
+     "registrationWindowDays": null
+    },
+    {
+     "label": "Compressor — SRN/SCN models, years 3-5 (parts only, labor not included)",
+     "months": 60,
+     "partsOnly": true,
+     "appliesTo": [
+      "Icemaker"
+     ],
+     "requiresRegistration": false,
+     "registrationWindowDays": null
+    }
+   ],
+   "preAuth": null,
+   "installerBonus": null,
+   "externalLookupUrl": "https://www.smartlink.scotsman-ice.com/wssctguestp_sw.html",
+   "sourceUrl": "https://scotsmanhomeice.com/warranty/",
+   "notes": "Verified from Scotsman's own published residential warranty page: coverage depends on model family — DRC/SRC/DCE/SCC get 1yr full + an additional 4yr parts-only on the compressor (5yr total); SRN/SCN get 2yr full + an additional 3yr parts-only on the compressor (5yr total). Confirm which model family this unit is before quoting — Scotsman also publishes its own serial-number warranty lookup tool, worth cross-checking (smartlink.scotsman-ice.com)."
+  },
+  {
+   "id": "signature-kitchen-suite",
+   "brand": "Signature Kitchen Suite",
+   "categories": [
+    "kitchen",
+    "refrigeration"
+   ],
+   "confidence": "verified",
+   "tiers": [
+    {
+     "label": "Standard warranty (parts & labor)",
+     "months": 36,
+     "partsOnly": false,
+     "appliesTo": null,
+     "requiresRegistration": false,
+     "registrationWindowDays": null
+    }
+   ],
+   "preAuth": null,
+   "installerBonus": null,
+   "externalLookupUrl": null,
+   "sourceUrl": "https://www.sksappliances.com/en-us/customer-care/",
+   "notes": "Verified from Signature Kitchen Suite's published customer-care page: a comprehensive 3yr full (parts & labor) warranty across the line, with a 5-business-day repair commitment. LG's luxury built-in brand."
+  },
+  {
+   "id": "speed-queen",
+   "brand": "Speed Queen",
+   "categories": [
+    "kitchen"
+   ],
+   "confidence": "verified",
+   "tiers": [
+    {
+     "label": "Standard warranty — 3000-series TR3/DR3/FR3 (parts & labor)",
+     "months": 36,
+     "partsOnly": false,
+     "appliesTo": [
+      "Washer",
+      "Dryer"
+     ],
+     "requiresRegistration": false,
+     "registrationWindowDays": null
+    },
+    {
+     "label": "Cabinet assembly rust — 3000-series (parts only)",
+     "months": 60,
+     "partsOnly": true,
+     "appliesTo": [
+      "Washer",
+      "Dryer"
+     ],
+     "requiresRegistration": false,
+     "registrationWindowDays": null
+    },
+    {
+     "label": "Motor — 3000-series washer (parts only)",
+     "months": 60,
+     "partsOnly": true,
+     "appliesTo": [
+      "Washer"
+     ],
+     "requiresRegistration": false,
+     "registrationWindowDays": null
+    },
+    {
+     "label": "Stainless tub/basket/cylinder rust or corrosion — 3000-series (parts only, lifetime)",
+     "months": 1200,
+     "partsOnly": true,
+     "appliesTo": [
+      "Washer",
+      "Dryer"
+     ],
+     "requiresRegistration": false,
+     "registrationWindowDays": null
+    }
+   ],
+   "preAuth": null,
+   "installerBonus": null,
+   "externalLookupUrl": null,
+   "sourceUrl": "https://speedqueen.com/wp-content/uploads/2020/02/ConsumerWarrantyBond.2.19.20.pdf",
+   "notes": "Verified from Speed Queen's published Consumer Warranty Bond PDF, which breaks residential coverage out by exact model line: 3000-series (TR3/DR3/FR3) is 3yr full + 5yr parts-only on cabinet rust + 5yr parts-only on the washer motor + lifetime parts-only on the stainless tub/cylinder — modeled here as the brand-level default. 5000-series TC5/DC5 and TR5/DR5, and 7000-series TR7/DR7/FF7/DF7/SF7, all run longer (5-7yr full) and are already logged as separate model families that override this default — log any other Speed Queen model the same way rather than trusting the 3yr fallback for it."
+  },
+  {
+   "id": "sub-zero",
+   "brand": "Sub-Zero",
+   "categories": [
+    "refrigeration"
+   ],
+   "confidence": "verified",
+   "tiers": [
+    {
+     "label": "Standard warranty (parts & labor)",
+     "months": 24,
+     "partsOnly": false,
+     "appliesTo": null,
+     "requiresRegistration": false,
+     "registrationWindowDays": null
+    },
+    {
+     "label": "Sealed system (parts & labor)",
+     "months": 60,
+     "partsOnly": false,
+     "appliesTo": [
+      "Refrigerator (Free Standing)",
+      "Refrigerator (Built-in)",
+      "Icemaker"
+     ],
+     "requiresRegistration": false,
+     "registrationWindowDays": null
+    },
+    {
+     "label": "Sealed system (parts only)",
+     "months": 144,
+     "partsOnly": true,
+     "appliesTo": [
+      "Refrigerator (Free Standing)",
+      "Refrigerator (Built-in)",
+      "Icemaker"
+     ],
+     "requiresRegistration": false,
+     "registrationWindowDays": null
+    }
+   ],
+   "preAuth": null,
+   "installerBonus": {
+    "months": 12,
+    "beforeDate": "2026-05-01",
+    "requiresFromUs": true,
+    "note": "Wilson is a Sub-Zero/Wolf/Cove Factory Certified Installer. Units Wilson sold AND installed before May 2026 may qualify for an extra year added to the standard warranty through that program (registration-dependent, not automatic) — confirm the unit was registered under the program before relying on this."
+   },
+   "externalLookupUrl": "https://service.subzero.com/Tools/UnitHistory",
+   "sourceUrl": "https://haven.subzero.com/AssetLink/a77c3xbbh73i33od17n43r0mo07l0537.pdf",
+   "notes": "Verified from Sub-Zero's published warranty PDFs (indoor and outdoor): 2yr full coverage; sealed system 5yr full + 12yr limited parts-only."
+  },
+  {
+   "id": "sunstone-metal-products",
+   "brand": "Sunstone Metal Products",
+   "categories": [
+    "outdoor"
+   ],
+   "confidence": "verified",
+   "tiers": [
+    {
+     "label": "Standard warranty — general grill components (parts & labor)",
+     "months": 12,
+     "partsOnly": false,
+     "appliesTo": [
+      "Range",
+      "Cooktop",
+      "Other"
+     ],
+     "requiresRegistration": false,
+     "registrationWindowDays": null
+    },
+    {
+     "label": "Side burners, doors, drawers, cocktail station, ice chest (parts & labor)",
+     "months": 36,
+     "partsOnly": false,
+     "appliesTo": [
+      "Range",
+      "Cooktop",
+      "Other"
+     ],
+     "requiresRegistration": false,
+     "registrationWindowDays": null
+    },
+    {
+     "label": "Stainless burners & brass burners, cooking grids, stainless housings (parts only, lifetime)",
+     "months": 1200,
+     "partsOnly": true,
+     "appliesTo": [
+      "Range",
+      "Cooktop",
+      "Other"
+     ],
+     "requiresRegistration": false,
+     "registrationWindowDays": null
+    }
+   ],
+   "preAuth": null,
+   "installerBonus": null,
+   "externalLookupUrl": null,
+   "sourceUrl": "https://images.webfronts.com/cache/frakafihhshn.pdf",
+   "notes": "Verified from Sunstone's published warranty PDF: burners (stainless & brass) and cooking grids/housings are covered for the lifetime of the original purchaser (parts only, against burn-through/defects — not surface corrosion or discoloration); side burners and cabinet components (doors, drawers, cocktail station, ice chest) get 3yr; all other grill components (igniters, knobs, valves, tubing, rotisserie motor, light, covers) get 1yr."
+  },
+  {
+   "id": "thermador",
+   "brand": "Thermador",
+   "categories": [
+    "kitchen",
+    "refrigeration"
+   ],
+   "confidence": "verified",
+   "tiers": [
+    {
+     "label": "Standard warranty (parts & labor)",
+     "months": 24,
+     "partsOnly": false,
+     "appliesTo": null,
+     "requiresRegistration": false,
+     "registrationWindowDays": null
+    },
+    {
+     "label": "Refrigeration sealed system (parts & labor)",
+     "months": 72,
+     "partsOnly": false,
+     "appliesTo": [
+      "Refrigerator (Free Standing)",
+      "Refrigerator (Built-in)",
+      "Icemaker"
+     ],
+     "requiresRegistration": false,
+     "registrationWindowDays": null
+    },
+    {
+     "label": "Refrigeration sealed system (parts only)",
+     "months": 144,
+     "partsOnly": true,
+     "appliesTo": [
+      "Refrigerator (Free Standing)",
+      "Refrigerator (Built-in)",
+      "Icemaker"
+     ],
+     "requiresRegistration": false,
+     "registrationWindowDays": null
+    }
+   ],
+   "preAuth": null,
+   "installerBonus": null,
+   "externalLookupUrl": null,
+   "sourceUrl": "https://www.thermador.com/us/support/warranties",
+   "notes": "Verified from Thermador's published warranty page: 2yr full on all categories; refrigeration sealed system adds parts+labor through year 6 and parts-only through year 12."
+  },
+  {
+   "id": "trane",
+   "brand": "Trane",
+   "categories": [
+    "hvac"
+   ],
+   "confidence": "verified",
+   "tiers": [
+    {
+     "label": "Base warranty (parts only, no labor)",
+     "months": 60,
+     "partsOnly": true,
+     "appliesTo": [
+      "HVAC"
+     ],
+     "requiresRegistration": false,
+     "registrationWindowDays": null
+    },
+    {
+     "label": "Registered extended warranty (parts only, no labor)",
+     "months": 120,
+     "partsOnly": true,
+     "appliesTo": [
+      "HVAC"
+     ],
+     "requiresRegistration": true,
+     "registrationWindowDays": 60
+    }
+   ],
+   "preAuth": null,
+   "installerBonus": null,
+   "externalLookupUrl": null,
+   "sourceUrl": "https://www.trane.com/residential/en/resources/warranty-and-registration/",
+   "notes": "Verified from Trane's published residential warranty page: 5yr base parts warranty with no registration required; extends to 10yr parts if registered within 60 days of install (10yr overall; some components run to 12yr — confirm by part). Labor is never included by Trane — only through a separately purchased extended plan. OPERATIONAL: Wilson can cover the labor if the customer purchased a JB warranty from us — check for one before telling a customer labor isn't covered."
+  },
+  {
+   "id": "true-manufacturing",
+   "brand": "True Manufacturing",
+   "categories": [
+    "refrigeration"
+   ],
+   "confidence": "verified",
+   "tiers": [
+    {
+     "label": "Standard warranty (parts & labor)",
+     "months": 36,
+     "partsOnly": false,
+     "appliesTo": null,
+     "requiresRegistration": false,
+     "registrationWindowDays": null
+    },
+    {
+     "label": "Sealed system (parts & labor)",
+     "months": 72,
+     "partsOnly": false,
+     "appliesTo": [
+      "Refrigerator (Free Standing)",
+      "Refrigerator (Built-in)",
+      "Icemaker"
+     ],
+     "requiresRegistration": false,
+     "registrationWindowDays": null
+    }
+   ],
+   "preAuth": null,
+   "installerBonus": null,
+   "externalLookupUrl": null,
+   "sourceUrl": "https://true-caliber.com/wp-content/uploads/2020/01/2016_True_Residential_Warranty_Updated_12-5-16.pdf",
+   "notes": "Verified against True's published Residential Warranty PDF: 3yr full across the line; sealed system (compressor, evaporator, condenser, drier, connecting tubing) gets 6yr full parts & labor. True's commercial-grade units can carry different, shorter, or parts-only terms — confirm against the unit's specific warranty card if it looks like a commercial model."
+  },
+  {
+   "id": "u-line",
+   "brand": "U-Line",
+   "categories": [
+    "refrigeration"
+   ],
+   "confidence": "verified",
+   "tiers": [
+    {
+     "label": "Standard warranty (parts & labor)",
+     "months": 12,
+     "partsOnly": false,
+     "appliesTo": null,
+     "requiresRegistration": false,
+     "registrationWindowDays": null
+    },
+    {
+     "label": "Standard warranty — 5-Class product (parts & labor)",
+     "months": 24,
+     "partsOnly": false,
+     "appliesTo": null,
+     "requiresRegistration": false,
+     "registrationWindowDays": null
+    },
+    {
+     "label": "Registered extension, up to 2 more years with on-time registration (parts & labor)",
+     "months": 36,
+     "partsOnly": false,
+     "appliesTo": null,
+     "requiresRegistration": true,
+     "registrationWindowDays": 60
+    },
+    {
+     "label": "Sealed system — compressor, condenser, evaporator, drier, connecting tubing (parts only)",
+     "months": 60,
+     "partsOnly": true,
+     "appliesTo": null,
+     "requiresRegistration": false,
+     "registrationWindowDays": null
+    }
+   ],
+   "preAuth": {
+    "note": "U-Line is a Composition Brands product — requires manufacturer pre-authorization before Wilson can begin warranty work. Contact Composition Brands for authorization first, then schedule service."
+   },
+   "installerBonus": null,
+   "externalLookupUrl": null,
+   "sourceUrl": "https://www.u-line.com/media/u-line/warranty_compliance/30379.PDF",
+   "notes": "Verified from U-Line's published warranty PDF: 1yr full standard, 2yr full on 5-Class product; either can be extended by 1 more year (register at u-line.com within 60 days of purchase) — modeled here as a combined registered-extension tier up to 3yr total, confirm exactly which base tier applies before relying on the extended figure. Sealed system is 5yr parts-only, labor not included, across all U-Line lines."
+  },
+  {
+   "id": "viking",
+   "brand": "Viking",
+   "categories": [
+    "kitchen",
+    "refrigeration"
+   ],
+   "confidence": "verified",
+   "tiers": [
+    {
+     "label": "Standard warranty — indoor cooking/ventilation/refrigeration/dishwashing (parts & labor)",
+     "months": 24,
+     "partsOnly": false,
+     "appliesTo": null,
+     "requiresRegistration": false,
+     "registrationWindowDays": null
+    },
+    {
+     "label": "Select components — burners, elements, dishwasher parts (parts only, through year 5)",
+     "months": 60,
+     "partsOnly": true,
+     "appliesTo": null,
+     "requiresRegistration": false,
+     "registrationWindowDays": null
+    },
+    {
+     "label": "Refrigeration sealed system (parts & labor)",
+     "months": 72,
+     "partsOnly": false,
+     "appliesTo": [
+      "Refrigerator (Free Standing)",
+      "Refrigerator (Built-in)",
+      "Icemaker"
+     ],
+     "requiresRegistration": false,
+     "registrationWindowDays": null
+    },
+    {
+     "label": "Refrigeration sealed system, years 7-12 (parts only)",
+     "months": 144,
+     "partsOnly": true,
+     "appliesTo": [
+      "Refrigerator (Free Standing)",
+      "Refrigerator (Built-in)",
+      "Icemaker"
+     ],
+     "requiresRegistration": false,
+     "registrationWindowDays": null
+    }
+   ],
+   "preAuth": {
+    "note": "Viking is a Composition Brands product — requires manufacturer pre-authorization before Wilson can begin warranty work. Contact Composition Brands for authorization first, then schedule service."
+   },
+   "installerBonus": null,
+   "externalLookupUrl": null,
+   "sourceUrl": "https://vikingrange.com/support-and-documentation/warranty",
+   "notes": "Verified from Viking's published warranty page: 2yr full on all indoor categories; select components (burners, elements, dishwasher parts) parts-only through year 5; refrigeration sealed system 6yr full then parts-only through year 12. Viking also sells outdoor appliances (1yr full, different limited-parts schedule) — not modeled here since Wilson's intake form doesn't distinguish indoor/outdoor Viking units; flag it if one comes up."
+  },
+  {
+   "id": "whirlpool",
+   "brand": "Whirlpool",
+   "categories": [
+    "kitchen",
+    "refrigeration"
+   ],
+   "confidence": "verified",
+   "tiers": [
+    {
+     "label": "Standard warranty (parts & labor)",
+     "months": 12,
+     "partsOnly": false,
+     "appliesTo": null,
+     "requiresRegistration": false,
+     "registrationWindowDays": null
+    },
+    {
+     "label": "Select components — e.g. washer/dryer direct-drive motor, stainless drum (parts only)",
+     "months": 120,
+     "partsOnly": true,
+     "appliesTo": [
+      "Washer",
+      "Dryer"
+     ],
+     "requiresRegistration": false,
+     "registrationWindowDays": null
+    },
+    {
+     "label": "Extended component coverage on other categories, incl. refrigeration sealed system (parts only, varies by product)",
+     "months": 84,
+     "partsOnly": true,
+     "appliesTo": null,
+     "requiresRegistration": false,
+     "registrationWindowDays": null
+    }
+   ],
+   "preAuth": null,
+   "installerBonus": null,
+   "externalLookupUrl": null,
+   "sourceUrl": "https://theproperkitchen.com/does-whirlpool-have-10-year-warranty/",
+   "notes": "Verified from Whirlpool's published warranty materials: 1yr full warranty across the line; laundry gets a notable 10yr parts-only warranty on the direct-drive motor and stainless drum. Other categories' extended component terms vary by product — the parts-only tier shown for those is an estimate, confirm by model."
+  },
+  {
+   "id": "wolf",
+   "brand": "Wolf",
+   "categories": [
+    "kitchen"
+   ],
+   "confidence": "verified",
+   "tiers": [
+    {
+     "label": "Standard warranty (parts & labor)",
+     "months": 24,
+     "partsOnly": false,
+     "appliesTo": null,
+     "requiresRegistration": false,
+     "registrationWindowDays": null
+    },
+    {
+     "label": "Select components — burners, elements, blower motors, control boards (parts only)",
+     "months": 60,
+     "partsOnly": true,
+     "appliesTo": null,
+     "requiresRegistration": false,
+     "registrationWindowDays": null
+    }
+   ],
+   "preAuth": null,
+   "installerBonus": {
+    "months": 12,
+    "beforeDate": "2026-05-01",
+    "requiresFromUs": true,
+    "note": "Wilson is a Sub-Zero/Wolf/Cove Factory Certified Installer. Units Wilson sold AND installed before May 2026 may qualify for an extra year added to the standard warranty through that program (registration-dependent, not automatic) — confirm the unit was registered under the program before relying on this."
+   },
+   "externalLookupUrl": "https://service.subzero.com/Tools/UnitHistory",
+   "sourceUrl": "https://haven.subzero.com/AssetLink/a40gaq4v8seh8o36k5mrh6hmxuuj1m24.pdf",
+   "notes": "Verified from Sub-Zero/Wolf's published warranty PDFs (indoor and outdoor): 2yr full coverage; 5yr limited parts-only on named components (gas burners, electric elements, blower motors, control boards, magnetron tubes, induction generators)."
+  },
+  {
+   "id": "york",
+   "brand": "York",
+   "categories": [
+    "hvac"
+   ],
+   "confidence": "estimate",
+   "tiers": [
+    {
+     "label": "Base warranty (parts only, no labor)",
+     "months": 60,
+     "partsOnly": true,
+     "appliesTo": [
+      "HVAC"
+     ],
+     "requiresRegistration": false,
+     "registrationWindowDays": null
+    },
+    {
+     "label": "Registered extended warranty (parts only, no labor)",
+     "months": 120,
+     "partsOnly": true,
+     "appliesTo": [
+      "HVAC"
+     ],
+     "requiresRegistration": true,
+     "registrationWindowDays": 60
+    }
+   ],
+   "preAuth": null,
+   "installerBonus": null,
+   "externalLookupUrl": null,
+   "sourceUrl": null,
+   "notes": "HVAC estimate modeled on the verified Trane pattern — confirm current York terms and registration window. OPERATIONAL: Wilson is not a York dealer and cannot perform warranty repairs for this brand — explain that to the customer."
+  },
+  {
+   "id": "zephyr",
+   "brand": "Zephyr",
+   "categories": [
+    "ventilation",
+    "refrigeration",
+    "kitchen"
+   ],
+   "confidence": "verified",
+   "tiers": [
+    {
+     "label": "Standard warranty — range hoods (parts & labor)",
+     "months": 12,
+     "partsOnly": false,
+     "appliesTo": [
+      "Ventilation"
+     ],
+     "requiresRegistration": false,
+     "registrationWindowDays": null
+    },
+    {
+     "label": "Extended parts coverage — range hoods (parts only)",
+     "months": 36,
+     "partsOnly": true,
+     "appliesTo": [
+      "Ventilation"
+     ],
+     "requiresRegistration": false,
+     "registrationWindowDays": null
+    },
+    {
+     "label": "Standard warranty — Brisas/Preserv refrigeration (parts & labor)",
+     "months": 24,
+     "partsOnly": false,
+     "appliesTo": [
+      "Refrigerator (Free Standing)",
+      "Refrigerator (Built-in)",
+      "Icemaker"
+     ],
+     "requiresRegistration": false,
+     "registrationWindowDays": null
+    },
+    {
+     "label": "Compressor — Brisas/Preserv refrigeration (parts only)",
+     "months": 60,
+     "partsOnly": true,
+     "appliesTo": [
+      "Refrigerator (Free Standing)",
+      "Refrigerator (Built-in)",
+      "Icemaker"
+     ],
+     "requiresRegistration": false,
+     "registrationWindowDays": null
+    },
+    {
+     "label": "Standard warranty — icemakers (parts & labor)",
+     "months": 12,
+     "partsOnly": false,
+     "appliesTo": [
+      "Icemaker"
+     ],
+     "requiresRegistration": false,
+     "registrationWindowDays": null
+    },
+    {
+     "label": "Standard warranty — cooktops (parts & labor)",
+     "months": 24,
+     "partsOnly": false,
+     "appliesTo": [
+      "Cooktop"
+     ],
+     "requiresRegistration": false,
+     "registrationWindowDays": null
+    },
+    {
+     "label": "Extended parts coverage — cooktops (parts only)",
+     "months": 36,
+     "partsOnly": true,
+     "appliesTo": [
+      "Cooktop"
+     ],
+     "requiresRegistration": false,
+     "registrationWindowDays": null
+    },
+    {
+     "label": "Standard warranty — microwave drawers (parts & labor)",
+     "months": 12,
+     "partsOnly": false,
+     "appliesTo": [
+      "Microwave"
+     ],
+     "requiresRegistration": false,
+     "registrationWindowDays": null
+    },
+    {
+     "label": "Magnetron — microwave drawers (parts only)",
+     "months": 60,
+     "partsOnly": true,
+     "appliesTo": [
+      "Microwave"
+     ],
+     "requiresRegistration": false,
+     "registrationWindowDays": null
+    }
+   ],
+   "preAuth": null,
+   "installerBonus": null,
+   "externalLookupUrl": null,
+   "sourceUrl": "https://s1.img-b.com/build.com/mediabase/specifications/zephyr/1846321/zephyr-zsl-e42c-warranty.pdf",
+   "notes": "Verified from several of Zephyr's own published product manuals: Zephyr is not ventilation-only — it also sells refrigeration (Brisas/Preserv lines), icemakers, cooktops and microwave drawers, so it's now filed under Ventilation, Refrigeration & Ice, and Cooking/Dishwashers/Laundry. Ventilation hoods get 1yr full + 3yr parts-only. Refrigeration gets 2yr full + 5yr parts-only compressor. Icemakers get 1yr full. Cooktops get 2yr full + 3yr parts-only. Microwave drawers get 1yr full + 5yr parts-only magnetron. Each line has its own manual — the primary hood warranty PDF is linked here, ask Jack for the others (Brisas/Preserv/icemaker/cooktop/microwave manuals) if a non-hood Zephyr product comes up."
+  }
+ ],
+ "models": [
+  {
+   "id": "mvwp575gw",
+   "brand": "Maytag",
+   "kind": "single",
+   "model": "MVWP575GW",
+   "pattern": "",
+   "label": "",
+   "tiers": [
+    {
+     "appliesTo": null,
+     "label": "Standard warranty (parts & labor)",
+     "months": 60,
+     "partsOnly": false,
+     "requiresRegistration": false
+    }
+   ],
+   "confidence": "verified",
+   "verifiedAt": "2026-09-15",
+   "verifiedBy": "Jack",
+   "sourceUrl": "https://www.maytag.com/content/dam/global/documents/201809/warranty-w11123642-revC.pdf",
+   "notes": "Confirmed by Jack: this model specifically carries a 5-year full (parts & labor) warranty. This matches Maytag's verified laundry-line warranty tier, logged here as a named example so it's never second-guessed against a shorter default."
+  },
+  {
+   "id": "wux18azeo8tuiphjux3z",
+   "brand": "Speed Queen",
+   "kind": "family",
+   "model": "",
+   "pattern": "DR5*****",
+   "label": "DR5 Series",
+   "tiers": [
+    {
+     "appliesTo": null,
+     "label": "Standard warranty (parts & labor)",
+     "months": 60,
+     "partsOnly": false,
+     "requiresRegistration": false
+    }
+   ],
+   "confidence": "verified",
+   "verifiedAt": "2026-09-15",
+   "verifiedBy": "Wilson team",
+   "sourceUrl": "",
+   "notes": "DR5 series comes with 5 year warranty."
+  },
+  {
+   "id": "8scbmb6y8uznbw44goyf",
+   "brand": "Speed Queen",
+   "kind": "family",
+   "model": "",
+   "pattern": "TR7*****",
+   "label": "TR7 Series",
+   "tiers": [
+    {
+     "appliesTo": null,
+     "label": "Standard warranty (parts & labor)",
+     "months": 84,
+     "partsOnly": false,
+     "requiresRegistration": false
+    }
+   ],
+   "confidence": "verified",
+   "verifiedAt": "2026-09-15",
+   "verifiedBy": "Wilson team",
+   "sourceUrl": "",
+   "notes": "TR7 and DR7 models come with a default 7 year parts and labor warranty"
+  },
+  {
+   "id": "edxpm21h4nkofob62taq",
+   "brand": "Speed Queen",
+   "kind": "family",
+   "model": "",
+   "pattern": "DR7*****",
+   "label": "DR7 Series",
+   "tiers": [
+    {
+     "appliesTo": null,
+     "label": "Standard warranty (parts & labor)",
+     "months": 84,
+     "partsOnly": false,
+     "requiresRegistration": false
+    }
+   ],
+   "confidence": "verified",
+   "verifiedAt": "2026-09-15",
+   "verifiedBy": "Wilson team",
+   "sourceUrl": "",
+   "notes": ""
+  },
+  {
+   "id": "sq-dc5-family",
+   "brand": "Speed Queen",
+   "kind": "family",
+   "model": "",
+   "pattern": "DC5*W*",
+   "label": "DC5 series dryers (companion to TC5 washers)",
+   "tiers": [
+    {
+     "appliesTo": null,
+     "label": "Standard warranty (parts & labor)",
+     "months": 60,
+     "partsOnly": false,
+     "requiresRegistration": false
+    }
+   ],
+   "confidence": "verified",
+   "verifiedAt": "2026-09-15",
+   "verifiedBy": "Wilson team",
+   "sourceUrl": "",
+   "notes": "Confirmed by Jack: the companion DC5 dryer series carries the same 5-year full parts & labor warranty as the TC5 washers. Pattern assumes the same \"WN\" suffix convention as TC5 — adjust the pattern here if an actual DC5 model number doesn't match."
+  },
+  {
+   "id": "qlqvcnfpy9bylxo8cyla",
+   "brand": "Speed Queen",
+   "kind": "family",
+   "model": "",
+   "pattern": "TR5*****",
+   "label": "TR5 Series",
+   "tiers": [
+    {
+     "appliesTo": null,
+     "label": "Standard warranty (parts & labor)",
+     "months": 60,
+     "partsOnly": false,
+     "requiresRegistration": false
+    }
+   ],
+   "confidence": "verified",
+   "verifiedAt": "2026-09-15",
+   "verifiedBy": "Wilson team",
+   "sourceUrl": "",
+   "notes": "TR5s and DR5s all come with a 5 year warranty"
+  },
+  {
+   "id": "sq-tc5-family",
+   "brand": "Speed Queen",
+   "kind": "family",
+   "model": null,
+   "pattern": "TC5*WN",
+   "label": "TC5 series washers (TC5000WN–TC5004WN)",
+   "tiers": [
+    {
+     "appliesTo": [
+      "Washer"
+     ],
+     "label": "Standard warranty (parts & labor)",
+     "months": 60,
+     "partsOnly": false,
+     "requiresRegistration": false
+    }
+   ],
+   "confidence": "verified",
+   "verifiedAt": "2026-09-15",
+   "verifiedBy": "Jack",
+   "sourceUrl": "",
+   "notes": "Confirmed by Jack: the entire TC5 washer line (TC5000WN through the current TC5004WN) carries a 5-year full parts & labor warranty — supersedes the conservative brand-level entry-tier estimate for any model matching this pattern."
+  }
+ ]
+}

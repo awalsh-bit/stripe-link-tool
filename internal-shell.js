@@ -243,6 +243,7 @@
           { href: "appliance-service-calls.html", title: "Service Request Queue" },
           { href: "service-board.html", title: "Service Dispatch Board" },
           { href: "service-office.html", title: "Service Office Queues" },
+          { href: "warranty-terms.html", title: "Warranty Terms Reference" },
           { href: "service-order-health.html", title: "Service Order Health" },
           { href: "service-estimates.html", title: "Service Estimate Approvals" },
           { href: "closed-estimates.html", title: "Closed Service Estimates" },

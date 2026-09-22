@@ -28,3 +28,6 @@ odbc/*.json
 # ePASS agent key lives next to the agent on the ePASS server / W: drive, never here
 epass-agent.key
 *.key
+
+# retired pages parked here until git rm
+_to_delete/

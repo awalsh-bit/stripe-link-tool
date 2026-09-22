@@ -164,7 +164,7 @@
     <div id="internal-shell-header"></div>
     <div class="top">
       <div><h2>Service Dispatch Board</h2><div class="note">Drag a call onto a tech's day. Every move becomes a packet for the office to key into ePASS; the next feed confirms it. ePASS drives each ticket's status; the tech, the day, stop order, windows, pins and blocks live here.</div>
-        <div class="pagenav"><a class="btn cur" href="service-board.html">Dispatch Board</a><a class="btn" href="service-office.html">Service Office Queues</a><a class="btn" href="appliance-service-calls.html">Service Request Queue</a><a class="btn" href="service-estimates.html">Service Estimates</a></div></div>
+        <div class="pagenav"><a class="btn cur" href="service-board.html">Dispatch Board</a><a class="btn" href="service-office.html">Service Office Queues</a><a class="btn" href="appliance-service-calls.html">Service Request Queue</a><a class="btn" href="service-estimates.html">Service Estimates</a><a class="btn" href="service-field.html">Field Tool</a></div></div>
       <div class="weeknav"><span class="gsearch"><input id="gsearch" placeholder="search every open call — name, SV, phone, address, model…" aria-label="Search all open calls" autocomplete="off" /><div class="gresults" id="gresults" hidden></div></span><span class="feed" id="feed"></span><span id="mobnav" style="display:contents"><button id="prevWeek" title="Previous day">‹</button><button id="thisWeek">Today</button><button id="nextWeek" title="Next day">›</button></span><button id="reload" title="Reload from the mirror">↻</button></div>
     </div>
     <div class="status" id="pageStatus"></div>
@@ -550,8 +550,11 @@
       // Unscheduled (Andrew, 9/22 late): SO1s where nobody picked a day, SO5s
       // not yet placed, and parts tickets with no ETA / an ETA to place after.
       // A dated call whose day has passed is "Past dated", not unscheduled.
-      const isPast = (j) => !!j.day && j.day < B.today && !!j.tech && TECHS.some((t) => t.id === j.tech);
-      const un = J.filter((j) => !j.si && !j.hold && j.st !== "SO9" && !isLaneJob(j) && !isPast(j) && (PARTS_ST.includes(j.st) ? !j.day : (!j.tech || !TECHS.some((t) => t.id === j.tech) || !j.day)))
+      // Only visit statuses can be "past dated" — a quote-stage or parts-stage
+      // ticket keeps its visit date as history, it isn't waiting on a day.
+      const VISIT_ST = ["REQ", "SO1", "SO1.AUTH", "SO4PRE", "SO5", "SO6"];
+      const isPast = (j) => !!j.day && j.day < B.today && !!j.tech && TECHS.some((t) => t.id === j.tech) && VISIT_ST.includes(j.st);
+      const un = J.filter((j) => !j.si && !j.hold && j.st !== "SO9" && !isLaneJob(j) && !isPast(j) && (PARTS_ST.includes(j.st) ? !j.day : (VISIT_ST.includes(j.st) && (!j.tech || !TECHS.some((t) => t.id === j.tech) || !j.day))))
         .filter((j) => !q || [j.sv, j.cust, j.addr, j.zip, j.unit, j.st, j.zone, j.po].join(" ").toLowerCase().includes(q))
         .sort((a, b) => (a.eta || a.day || "9").localeCompare(b.eta || b.day || "9") || a.sv.localeCompare(b.sv));
       $("#unCount").textContent = un.length;
@@ -780,8 +783,10 @@
         ${visits.length ? visits.map(visit).join("") : `<div class="hint" style="padding:.5rem 0">No other tickets for this customer, phone, address or unit${h.historyFeedLoaded ? "" : " on the board yet"}.</div>`}
         <div class="lbl">This ticket's timeline</div>
         ${(h.timeline || []).length ? h.timeline.map((t) => `<div class="tl">${esc(when(t.at))} · <b>${esc(t.from || "—")} → ${esc(t.to || "—")}</b>${t.by ? " · " + esc(t.by) : ""}${t.note ? " · " + esc(t.note) : ""}</div>`).join("") : '<div class="hint">Nothing recorded yet.</div>'}
-        <div class="acts"><a class="btn" href="service-journey.html?sv=${encodeURIComponent(sv)}">Open in Service Journey</a><button data-x2>Close</button></div>`;
+        <div class="acts"><a class="btn" href="service-journey.html?sv=${encodeURIComponent(sv)}">Open in Service Journey</a>${j ? `<button data-journey title="Customer-facing tracker page for this call (journey.html)">Copy journey link</button>` : ""}<button data-x2>Close</button></div>`;
       ov.querySelector("[data-x]").onclick = close; ov.querySelector("[data-x2]").onclick = close;
+      const jb = ov.querySelector("[data-journey]");
+      if (jb) jb.onclick = async () => { const t0 = jb.textContent; jb.disabled = true; jb.textContent = "building…"; try { const r = await api(`/api/service-board/jobs/${encodeURIComponent(sv)}/journey-link`, { method: "POST", body: "{}" }); await navigator.clipboard.writeText(r.url); jb.textContent = "Copied"; } catch (e) { jb.textContent = "Failed"; } finally { setTimeout(() => { jb.disabled = false; jb.textContent = t0; }, 1400); } };
     }
 
     // ---------- tech out: reschedule a closed day's stops ----------

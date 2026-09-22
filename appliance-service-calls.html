@@ -393,7 +393,7 @@
 <body data-shell-label="Service Requests" data-shell-icon="service">
   <div class="wrap">
     <div id="internal-shell-header"></div>
-    <style>.pagenav{display:flex;gap:.35rem;flex-wrap:wrap;margin:.5rem 0 .6rem}.pagenav a{font-size:.74rem;padding:.2rem .55rem;border:1px solid #d7dfd8;border-radius:999px;background:#fff;color:#1b241f;text-decoration:none}.pagenav a.cur{background:#1f6b35;color:#fff;border-color:#1f6b35}</style><div class="pagenav"><a href="service-board.html">Dispatch Board</a><a href="service-office.html">Service Office Queues</a><a href="appliance-service-calls.html" class="cur">Service Request Queue</a><a href="service-estimates.html">Service Estimates</a></div>
+    <style>.pagenav{display:flex;gap:.35rem;flex-wrap:wrap;margin:.5rem 0 .6rem}.pagenav a{font-size:.74rem;padding:.2rem .55rem;border:1px solid #d7dfd8;border-radius:999px;background:#fff;color:#1b241f;text-decoration:none}.pagenav a.cur{background:#1f6b35;color:#fff;border-color:#1f6b35}</style><div class="pagenav"><a href="service-board.html">Dispatch Board</a><a href="service-office.html">Service Office Queues</a><a href="appliance-service-calls.html" class="cur">Service Request Queue</a><a href="service-estimates.html">Service Estimates</a><a href="service-field.html">Field Tool</a></div>
     <div class="card">
       <div class="toolbar">
         <input
@@ -819,23 +819,6 @@ function attachCopyActions() {
 }
 
 function attachPrefillActions() {
-  // Copy into the AJH pilot backlog (Test Modules) — additive; the queue card is untouched.
-  document.querySelectorAll("[data-pilot-copy]").forEach((btn) => {
-    btn.addEventListener("click", async () => {
-      const originalText = btn.textContent;
-      btn.disabled = true; btn.textContent = "Copying…";
-      try {
-        const res = await fetch("/api/pilot/jobs/from-queue", { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ serviceCardId: btn.getAttribute("data-pilot-copy") }) });
-        const data = await res.json().catch(() => ({}));
-        if (!res.ok) throw new Error(data.error || "Couldn't copy that request.");
-        btn.textContent = data.existed ? "Already in the pilot" : "Copied to AJH backlog";
-        setTimeout(() => { btn.textContent = originalText; btn.disabled = false; }, 4000);
-      } catch (err) {
-        btn.textContent = err.message;
-        setTimeout(() => { btn.textContent = originalText; btn.disabled = false; }, 4000);
-      }
-    });
-  });
   document.querySelectorAll("[data-release-hold]").forEach((btn) => {
     btn.addEventListener("click", async () => {
       const id = btn.getAttribute("data-release-hold");
@@ -883,6 +866,28 @@ function attachPrefillActions() {
           btn.disabled = false;
           btn.textContent = originalText;
         }, 1400);
+      }
+    });
+  });
+  // Customer journey tracker link (journey.html?j=…). Minted when the request
+  // landed on this queue; this button is the only place a customer would get
+  // it from unless someone pastes it into a text or email by hand.
+  document.querySelectorAll("[data-journey-id]").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      const id = btn.getAttribute("data-journey-id");
+      const originalText = btn.textContent;
+      btn.disabled = true;
+      btn.textContent = "Building...";
+      try {
+        const res = await fetch(`/api/service-cards/${encodeURIComponent(id)}/journey-link`, { method: "POST", headers: { "Content-Type": "application/json" } });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Unable to build journey link.");
+        await navigator.clipboard.writeText(data.url);
+        btn.textContent = "Copied";
+      } catch {
+        btn.textContent = "Failed";
+      } finally {
+        setTimeout(() => { btn.disabled = false; btn.textContent = originalText; }, 1400);
       }
     });
   });
@@ -1039,11 +1044,11 @@ function attachPrefillActions() {
             ${!hasSavedCard(row) && row.requestType !== "hvac-quote" ? `
               <div style="margin-top:10px;">
                 <button class="copy-ref-btn" type="button" data-prefill-id="${escapeHtml(row.id)}">Copy secure card link</button>
+                <button class="copy-ref-btn" type="button" data-journey-id="${escapeHtml(row.id)}" title="Customer-facing tracker page for this request (journey.html)">Copy journey link</button>
               </div>
             ` : ""}
             ${row.requestType !== "hvac-quote" ? `
             <div style="margin-top:10px;">
-              <button class="copy-ref-btn" type="button" data-pilot-copy="${escapeHtml(row.id)}" title="Adds a copy of this request to Andrew Horst's pilot backlog (Test Modules). Nothing about this request changes.">Copy to AJH test module</button>
             </div>` : ""}
           </td>
 

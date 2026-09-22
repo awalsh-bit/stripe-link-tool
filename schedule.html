@@ -89,6 +89,9 @@
     .done .line2 { margin: 0 0 6px; font-size: 18px; font-weight: 600; }
     .done .under { margin: 0; color: var(--muted); line-height: 1.55; }
     .ref { margin-top: 16px; font-size: 13px; color: var(--muted); }
+    .track { margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--border, #e5e7eb); }
+    .track a.primary { display: inline-block; text-decoration: none; background: var(--primary); color: #fff; font-weight: 700; border-radius: 12px; padding: 13px 18px; font-size: 15px; }
+    .track .under { margin-top: 10px; font-size: 13px; }
     .confirm-box { border: 1.5px solid var(--primary); background: var(--primary-soft); border-radius: 14px; padding: 16px; margin-top: 8px; }
     .confirm-box .day { font-size: 18px; font-weight: 700; }
     .win-choice { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
@@ -153,6 +156,10 @@
       <p class="line2" id="doneLine2"></p>
       <p class="under" id="doneUnder"></p>
       <div class="ref" id="doneRef"></div>
+      <div class="track hidden" id="doneTrack">
+        <a class="primary" id="doneTrackLink" href="#">Track your repair</a>
+        <p class="under">Every step — the visit, the estimate, parts on the way — lives on this page. Save the link; it's private to you.</p>
+      </div>
     </div>
 
     <div class="card hidden" id="faqCard">
@@ -210,6 +217,8 @@
         $("doneUnder").textContent = `${officeWhy()}, so Client Care will find a time with you directly. Nothing else is needed right now.`;
       }
       $("doneRef").textContent = refLine();
+      $("doneTrack").classList.toggle("hidden", !state.journeyUrl);
+      if (state.journeyUrl) $("doneTrackLink").href = state.journeyUrl;
       $("faqCharge").classList.toggle("hidden", state.requestType === "hvac" || !state.cardSaved);
       window.scrollTo({ top: 0, behavior: "auto" });
     }

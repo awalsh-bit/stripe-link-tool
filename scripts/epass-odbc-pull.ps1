@@ -34,6 +34,7 @@
 #   open-service-items   InvoiceItem (parts) for those tickets
 #   open-service-comments / open-service-notes
 #   open-service-po-items POItem + PO for parts back-ordered against those tickets (PO, supplier, ETA)
+#   open-service-po-items-by-stamp  the same via InvoiceItem.PODateStamp/POLineTimeStamp (second link path)
 #   service-history     finished SV/WTY invoices, last 3 years, for customers with an open ticket
 #
 # Sensitive columns never leave ePASS: anything whose name matches the
@@ -432,6 +433,19 @@ INNER JOIN PO p ON pi.POCode = p.Code
 WHERE pi.BackOrderInvoiceCode IN (SELECT i.Code FROM Invoice i WHERE $svcWhere)
 ORDER BY pi.BackOrderInvoiceCode, pi.POCode
 "@ (Join-Path $LatestDir "open-service-po-items.csv") "open-service-po-items"
+    # Second link path: a service part's InvoiceItem row carries the PO line's
+    # stamps (PODateStamp / POLineTimeStamp) even when the PO line has no
+    # BackOrderInvoiceCode. Same columns, the ticket as BackOrderInvoiceCode.
+    $svc.datasets["open-service-po-items-by-stamp"] = Export-Query $conn @"
+SELECT pi.POCode, pi.ItemCode, pi.QtyOrdered, pi.QtyReceived, pi.QtyPrevReceived, pi.Ordered, pi.Received, pi.ETADate, pi.DateReceived, ii.InvoiceCode AS BackOrderInvoiceCode, pi.SupplierInvoice, pi.Reference,
+       p.SupplierCode, p.SupplierDescription, p.DateCreated AS PO_DateCreated, p.DateOrdered AS PO_DateOrdered, p.DateConfirmed AS PO_DateConfirmed, p.Confirmed AS PO_Confirmed, p.Received AS PO_Received, p.RequestedDeliveryDate AS PO_RequestedDeliveryDate, p.ShipToType, p.Buyer
+FROM InvoiceItem ii
+INNER JOIN Invoice i ON ii.InvoiceCode = i.Code
+INNER JOIN POItem pi ON pi.DateStamp = ii.PODateStamp AND pi.LineTimeStamp = ii.POLineTimeStamp
+INNER JOIN PO p ON pi.POCode = p.Code
+WHERE $svcWhere AND ii.PODateStamp IS NOT NULL
+ORDER BY ii.InvoiceCode, pi.POCode
+"@ (Join-Path $LatestDir "open-service-po-items-by-stamp.csv") "open-service-po-items-by-stamp"
   } catch { Log ("open-service-po-items FAILED (bundle continues without it): {0}" -f $_.Exception.Message); if ($conn.State -ne [System.Data.ConnectionState]::Open) { $conn.Open() } }
 
   # Service history (2026-09-22): the finished SV/WTY invoices of the last

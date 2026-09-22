@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="robots" content="noindex,nofollow,noarchive" />
+  <title>Wilson AC & Appliance - Tech Field Tool</title>
+  <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+  <link rel="stylesheet" href="internal-shell.css" />
+  <style>
+    :root{--bg:#f3f6f3;--surface:#ffffff;--surface2:#eaf0ea;--ink:#1b241f;--muted:#5d6b62;--line:#d7dfd8;--accent:#1f6b35;--accent-ink:#fff;--wait:#b8770f;--wait-bg:#fbf0d9;--bad:#b3362f;--bad-bg:#fbe4e2;--good:#1f8a48;--good-bg:#e3f3e8;--info:#2f6fb3;--info-bg:#e7eff9}
+    *{box-sizing:border-box}
+    body{margin:0;background:linear-gradient(180deg,var(--primary-tint,#eaf4ec) 0%,var(--bg) 100%);color:var(--ink);font:16px/1.4 "Roboto",system-ui,-apple-system,"Segoe UI",sans-serif;min-height:100vh;padding:16px 12px 80px}
+    .wrap{max-width:720px;margin:0 auto}
+    .mono{font-family:"IBM Plex Mono",ui-monospace,Menlo,monospace}
+    button{font:inherit;color:inherit;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:.7rem 1rem;cursor:pointer;min-height:48px}
+    button.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);font-weight:600}
+    button.warn{background:var(--wait-bg);border-color:var(--wait);color:#6b4500}button.bad{background:var(--bad-bg);border-color:var(--bad);color:#7a1f1a}
+    button[disabled]{opacity:.5;cursor:not-allowed}
+    select,input,textarea{font:inherit;color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:.6rem .7rem;min-height:44px;width:100%}
+    textarea{min-height:90px}
+    .top{display:flex;align-items:center;gap:.6rem;flex-wrap:wrap;padding:.6rem 0}
+    .top h2{margin:0;font-size:20px;flex:1}
+    .daynav{display:flex;gap:.3rem;align-items:center}.daynav button{min-height:40px;padding:.4rem .8rem}
+    .pagenav{display:flex;gap:.35rem;flex-wrap:wrap;margin:.2rem 0 .6rem}.pagenav a{font-size:.74rem;padding:.2rem .55rem;border:1px solid var(--line);border-radius:999px;background:var(--surface);color:var(--ink);text-decoration:none}.pagenav a.cur{background:var(--accent);color:#fff;border-color:var(--accent)}
+    .status{display:none;margin:.5rem 0;padding:.6rem .8rem;border-radius:10px;font-size:.92rem}.status.show{display:block}.status.ok{background:var(--good-bg);color:#155a2e}.status.error{background:var(--bad-bg);color:#7a1f1a}
+    .stop{background:var(--surface);border:1px solid var(--line);border-radius:14px;margin:.7rem 0;overflow:hidden}
+    .stop.done{opacity:.6}.stop.active{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent)}
+    .stop .head{display:grid;grid-template-columns:auto 1fr auto;gap:.6rem;padding:.8rem .9rem;align-items:start;cursor:pointer}
+    .stop .n{width:34px;height:34px;border-radius:50%;background:var(--surface2);display:grid;place-items:center;font-weight:700}
+    .stop.done .n{background:var(--good-bg);color:var(--good)}
+    .stop .who{font-weight:700;font-size:1.05rem}.stop .sub{color:var(--muted);font-size:.86rem;margin-top:.15rem}
+    .chip{display:inline-block;border-radius:999px;padding:.12rem .55rem;font-size:.72rem;font-weight:600;background:var(--surface2);color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-right:.25rem}
+    .chip.st{background:var(--info-bg);color:var(--info)}.chip.wty{background:#efe8f8;color:#7a4fb3}.chip.bad{background:var(--bad-bg);color:var(--bad)}.chip.good{background:var(--good-bg);color:var(--good)}.chip.warn{background:var(--wait-bg);color:var(--wait)}
+    .body{padding:0 .9rem .9rem;border-top:1px solid var(--line);display:none}.stop.open .body{display:block}
+    .row{display:flex;gap:.5rem;flex-wrap:wrap;margin:.6rem 0}.row button{flex:1 1 140px}
+    .kv{font-size:.92rem;margin:.4rem 0}.kv b{color:var(--muted);font-weight:600;font-size:.78rem;text-transform:uppercase;letter-spacing:.04em;display:block}
+    .kv a{color:var(--accent)}
+    .outcome{display:grid;grid-template-columns:1fr 1fr;gap:.5rem;margin:.6rem 0}.outcome button{min-height:56px;text-align:left;padding:.6rem .8rem}.outcome button[aria-pressed="true"]{border-color:var(--accent);box-shadow:inset 0 0 0 2px var(--accent);background:var(--good-bg)}
+    .outcome button small{display:block;color:var(--muted);font-weight:400;font-size:.78rem}
+    .parts .line{display:grid;grid-template-columns:1.1fr 1.6fr 60px auto;gap:.4rem;margin:.35rem 0;align-items:center}.parts .line input{min-height:40px;padding:.4rem .5rem}.parts .line button{min-height:40px;padding:.3rem .6rem}
+    .form{display:none;margin-top:.4rem}.form.show{display:block}
+    .empty{padding:1.2rem .9rem;color:var(--muted)}
+    .stamp{font-size:.8rem;color:var(--muted)}
+    @media (max-width:480px){.parts .line{grid-template-columns:1fr 1fr}.outcome{grid-template-columns:1fr}}
+  </style>
+</head>
+<body data-shell-label="Tech Field Tool" data-shell-icon="service">
+  <div class="wrap">
+    <div id="internal-shell-header"></div>
+    <div class="pagenav"><a href="service-board.html">Dispatch Board</a><a href="service-office.html">Service Office Queues</a><a href="appliance-service-calls.html">Service Request Queue</a><a href="service-estimates.html">Service Estimates</a><a class="cur" href="service-field.html">Field Tool</a></div>
+    <div class="top">
+      <h2 id="title">My day</h2>
+      <select id="techPick" hidden aria-label="Tech"></select>
+      <div class="daynav"><button data-day="-1" aria-label="Previous day">‹</button><button id="todayBtn">Today</button><button data-day="1" aria-label="Next day">›</button><button id="reload" aria-label="Reload">↻</button></div>
+    </div>
+    <div class="status" id="pageStatus"></div>
+    <div id="stops"><div class="empty">Loading…</div></div>
+    <div id="internal-shell-footer"></div>
+  </div>
+  <script src="internal-shell.js"></script>
+  <script>
+    const $ = (s) => document.querySelector(s);
+    const esc = (v) => String(v ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+    async function api(path, options = {}) { const res = await fetch(path, { credentials: "same-origin", headers: options.body ? { "Content-Type": "application/json" } : {}, ...options }); const data = await res.json().catch(() => ({})); if (!res.ok) throw new Error(data.error || "Request failed."); return data; }
+    function setStatus(msg, kind) { const b = $("#pageStatus"); if (!msg) { b.className = "status"; b.textContent = ""; return; } b.className = "status show " + kind; b.textContent = msg; window.scrollTo({ top: 0, behavior: "smooth" }); }
+    const today = () => new Date().toLocaleDateString("en-CA", { timeZone: "America/Chicago" });
+    const addDays = (d, n) => { const x = new Date(d + "T12:00:00Z"); x.setUTCDate(x.getUTCDate() + n); return x.toISOString().slice(0, 10); };
+    const fmtDay = (d) => new Date(d + "T12:00:00").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
+    const tm = (iso) => (iso ? new Date(iso).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }) : "");
+    const STL = { SO1: "Diagnostic", SO4PRE: "Install — part on order", SO5: "Install — part is in", SO6: "Install", SO2: "Quote pending", SO8: "Complete", SO7: "Declined", SO3: "Reorder part", SI1: "In shop" };
+    const OUT = {
+      diagnostic: [["onsite", "Fixed on site", "within the diagnostic hour — no parts"], ["parts", "Needs parts — quote", "list the parts; the office verifies prices"], ["research", "Needs research", "note what you need to look into"], ["declined", "Customer declined", "diag fee applies"], ["replace", "Not worth repairing", "recommend replacement — showroom lead"], ["access", "Could not access", "nobody home / no entry"]],
+      install: [["complete", "Install complete", "the card on file is charged for the approved total"], ["moreparts", "Additional parts needed", "second quote"], ["partissue", "Wrong or damaged part", "reorder"], ["notfixed", "Problem persists", "back to diagnostic"]]
+    };
+    let R = null, day = today(), tech = new URLSearchParams(location.search).get("tech") || "", openSv = "", picked = {};
+
+    function partsRows(lines) { return lines.map((l, i) => `<div class="line"><input data-p="part" placeholder="part #" value="${esc(l.part || "")}" /><input data-p="desc" placeholder="description" value="${esc(l.desc || "")}" /><input data-p="qty" type="number" min="1" value="${esc(l.qty || 1)}" aria-label="qty" /><button type="button" data-rm="${i}" aria-label="Remove">✕</button></div>`).join(""); }
+    function render() {
+      const list = R?.stops || [];
+      $("#title").textContent = `${R?.techName || R?.tech || "My day"} · ${fmtDay(day)}${day === today() ? " (today)" : ""}`;
+      if (R?.canPick) { const sel = $("#techPick"); sel.hidden = false; sel.innerHTML = (R.techs || []).map((t) => `<option value="${esc(t.code)}" ${t.code === R.tech ? "selected" : ""}>${esc(t.name || t.code)}</option>`).join(""); }
+      if (R?.note) { $("#stops").innerHTML = `<div class="empty">${esc(R.note)}</div>`; return; }
+      if (!list.length) { $("#stops").innerHTML = `<div class="empty">Nothing on the board for ${esc(R?.techName || R?.tech || "you")} on ${esc(fmtDay(day))}.</div>`; return; }
+      $("#stops").innerHTML = list.map((s, i) => {
+        const done = s.closed || s.doneAt; const active = !done && s.arrivedAt; const kind = s.kind; const outs = OUT[kind];
+        const pk = picked[s.sv] || {};
+        return `<div class="stop ${done ? "done" : ""} ${active ? "active" : ""} ${openSv === s.sv ? "open" : ""}" data-sv="${esc(s.sv)}">
+          <div class="head" data-toggle="${esc(s.sv)}"><div class="n">${done ? "✓" : i + 1}</div>
+            <div><div class="who">${esc(s.customer || s.sv)}</div><div class="sub">${esc([s.address, s.city, s.zip].filter(Boolean).join(", "))}</div>
+              <div class="sub"><span class="chip st">${esc(s.status)}</span>${s.warranty ? '<span class="chip wty">Warranty</span>' : ""}${s.balance > 0 && s.paymentType !== "WTY" ? `<span class="chip bad">collect $${s.balance.toFixed(2)}</span>` : ""}<span class="chip">${esc(STL[s.status] || kind)}</span>${s.window ? `<span class="chip">${s.window === "AM" ? "8–12" : "12–5"}</span>` : ""}${s.units > 1 ? `<span class="chip">${s.units} units</span>` : ""}${s.lastOutcome ? `<span class="chip good">${esc(s.lastOutcome)}</span>` : ""}</div>
+              <div class="stamp">${s.enrouteAt ? "on my way " + tm(s.enrouteAt) : ""}${s.arrivedAt ? " · arrived " + tm(s.arrivedAt) : ""}${s.doneAt ? " · done " + tm(s.doneAt) : ""}</div></div>
+            <div>${s.phone ? `<a href="tel:${esc(s.phone)}" aria-label="Call" style="font-size:1.4rem;text-decoration:none">📞</a>` : ""}</div></div>
+          <div class="body">
+            <div class="kv"><b>Problem</b>${esc(s.problem || "—")}</div>
+            <div class="kv"><b>Unit</b>${esc([s.unit.brand, s.unit.category, s.unit.model].filter(Boolean).join(" ") || "—")}${s.unit.serial ? ` · <span class="mono">${esc(s.unit.serial)}</span>` : ""}</div>
+            ${s.access ? `<div class="kv"><b>Access</b>${esc(s.access)}</div>` : ""}${s.note ? `<div class="kv"><b>Dispatch note</b>${esc(s.note)}</div>` : ""}${s.partsNote ? `<div class="kv"><b>Parts</b>${esc(s.partsNote)}</div>` : ""}
+            <div class="kv"><b>Directions</b><a target="_blank" rel="noopener" href="https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent([s.address, s.city, s.zip].filter(Boolean).join(", "))}">Open in Maps</a>${s.phone ? ` · <a href="tel:${esc(s.phone)}">${esc(s.phone)}</a>` : ""}${s.phoneAlt ? ` · <a href="tel:${esc(s.phoneAlt)}">${esc(s.phoneAlt)}</a>` : ""} · <span class="mono">${esc(s.sv)}</span></div>
+            ${done ? `<div class="kv"><b>Done</b>${esc(s.lastOutcome || s.status)} ${tm(s.doneAt)}</div>` : `
+            <div class="row">${s.enrouteAt ? "" : `<button data-enroute="${esc(s.sv)}">On my way</button>`}${s.arrivedAt ? "" : `<button class="primary" data-arrived="${esc(s.sv)}">Arrived</button>`}${s.arrivedAt ? `<button class="primary" data-finish="${esc(s.sv)}">${pk.show ? "Hide outcome" : "Finish this stop"}</button>` : ""}</div>
+            <div class="form ${pk.show ? "show" : ""}" data-form="${esc(s.sv)}">
+              <div class="outcome">${outs.map(([k, l, h]) => `<button type="button" data-out="${k}" aria-pressed="${pk.outcome === k}"><span>${esc(l)}</span><small>${esc(h)}</small></button>`).join("")}</div>
+              ${pk.outcome === "parts" || pk.outcome === "moreparts" ? `<div class="parts"><div class="kv"><b>Parts needed</b></div><div data-lines>${partsRows(pk.parts && pk.parts.length ? pk.parts : [{ part: "", desc: "", qty: 1 }])}</div><button type="button" data-addline>+ another part</button><div class="kv" style="margin-top:.5rem"><b>Labor</b><input data-labor placeholder="labor you expect (e.g. compressor R&R, 2 h)" value="${esc(pk.laborNote || "")}" /></div></div>` : ""}
+              <div class="kv"><b>${pk.outcome === "onsite" || pk.outcome === "complete" ? "Note (optional)" : "Findings / note"}</b><textarea data-findings placeholder="what you found, what you did, what the customer said">${esc(pk.findings || "")}</textarea></div>
+              <div class="row"><button class="primary" data-submit="${esc(s.sv)}" ${pk.outcome ? "" : "disabled"}>Submit${pk.outcome ? " — " + esc((outs.find((o) => o[0] === pk.outcome) || [])[1] || "") : ""}</button></div>
+            </div>`}
+          </div></div>`;
+      }).join("");
+      wire();
+    }
+    function readForm(sv) {
+      const f = document.querySelector(`[data-form="${sv}"]`); if (!f) return;
+      const pk = picked[sv] || (picked[sv] = {});
+      pk.findings = f.querySelector("[data-findings]")?.value || ""; pk.laborNote = f.querySelector("[data-labor]")?.value || "";
+      const lines = [...f.querySelectorAll("[data-lines] .line")].map((l) => ({ part: l.querySelector('[data-p="part"]').value, desc: l.querySelector('[data-p="desc"]').value, qty: Number(l.querySelector('[data-p="qty"]').value) || 1 }));
+      if (lines.length) pk.parts = lines;
+    }
+    function wire() {
+      document.querySelectorAll("[data-toggle]").forEach((h) => (h.onclick = () => { const sv = h.dataset.toggle; readForm(openSv); openSv = openSv === sv ? "" : sv; render(); }));
+      document.querySelectorAll("[data-enroute]").forEach((b) => (b.onclick = async () => { b.disabled = true; try { await api(`/api/service-field/${b.dataset.enroute}/enroute`, { method: "POST", body: "{}" }); await load(); } catch (e) { setStatus(e.message, "error"); } }));
+      document.querySelectorAll("[data-arrived]").forEach((b) => (b.onclick = async () => { b.disabled = true; try { await api(`/api/service-field/${b.dataset.arrived}/arrived`, { method: "POST", body: "{}" }); openSv = b.dataset.arrived; picked[openSv] = { ...(picked[openSv] || {}), show: true }; await load(); } catch (e) { setStatus(e.message, "error"); } }));
+      document.querySelectorAll("[data-finish]").forEach((b) => (b.onclick = () => { const sv = b.dataset.finish; readForm(sv); picked[sv] = { ...(picked[sv] || {}), show: !(picked[sv] || {}).show }; render(); }));
+      document.querySelectorAll("[data-out]").forEach((b) => (b.onclick = () => { const sv = b.closest(".stop").dataset.sv; readForm(sv); picked[sv] = { ...(picked[sv] || {}), show: true, outcome: b.dataset.out }; render(); }));
+      document.querySelectorAll("[data-addline]").forEach((b) => (b.onclick = () => { const sv = b.closest(".stop").dataset.sv; readForm(sv); picked[sv].parts = [...(picked[sv].parts || []), { part: "", desc: "", qty: 1 }]; render(); }));
+      document.querySelectorAll("[data-rm]").forEach((b) => (b.onclick = () => { const sv = b.closest(".stop").dataset.sv; readForm(sv); picked[sv].parts.splice(Number(b.dataset.rm), 1); if (!picked[sv].parts.length) picked[sv].parts = [{ part: "", desc: "", qty: 1 }]; render(); }));
+      document.querySelectorAll("[data-submit]").forEach((b) => (b.onclick = async () => {
+        const sv = b.dataset.submit; readForm(sv); const pk = picked[sv] || {};
+        const label = (OUT[R.stops.find((s) => s.sv === sv)?.kind || "diagnostic"].find((o) => o[0] === pk.outcome) || [])[1] || pk.outcome;
+        if (!confirm(`${label} for ${R.stops.find((s) => s.sv === sv)?.customer || sv}?\n\nThe ticket's status changes and the office gets the packet for ePASS.`)) return;
+        b.disabled = true;
+        try {
+          const out = await api(`/api/service-field/${sv}/outcome`, { method: "POST", body: JSON.stringify({ tech: R.tech, outcome: pk.outcome, findings: pk.findings || "", parts: (pk.parts || []).filter((l) => l.part || l.desc), laborNote: pk.laborNote || "" }) });
+          delete picked[sv]; openSv = "";
+          setStatus(`${sv} → ${out.status}${out.minutesOnSite ? ` · ${out.minutesOnSite} min on site` : ""}${pk.outcome === "parts" || pk.outcome === "moreparts" ? " · parts sent to the office to verify" : ""}.`, "ok");
+          await load();
+        } catch (e) { setStatus(e.message, "error"); b.disabled = false; }
+      }));
+    }
+    async function load() {
+      try { R = await api(`/api/service-field/route?date=${encodeURIComponent(day)}&tech=${encodeURIComponent(tech)}`); if (R.tech) tech = R.tech; render(); }
+      catch (e) { setStatus(e.message, "error"); $("#stops").innerHTML = `<div class="empty">${esc(e.message)}</div>`; }
+    }
+    document.querySelectorAll("[data-day]").forEach((b) => (b.onclick = () => { day = addDays(day, Number(b.dataset.day)); openSv = ""; load(); }));
+    $("#todayBtn").onclick = () => { day = today(); openSv = ""; load(); };
+    $("#reload").onclick = () => load();
+    $("#techPick").addEventListener("change", () => { tech = $("#techPick").value; openSv = ""; load(); });
+    load();
+    setInterval(() => { if (!openSv) load(); }, 3 * 60 * 1000);
+  </script>
+</body>
+</html>

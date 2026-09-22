@@ -37,6 +37,8 @@
     .chip{display:inline-block;border-radius:999px;padding:.1rem .5rem;font-size:.7rem;font-weight:600;background:var(--surface2);color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
     .chip.st{background:var(--diag-bg);color:var(--diag)}.chip.wait{background:var(--wait-bg);color:var(--wait)}.chip.bad{background:var(--bad-bg);color:var(--bad)}.chip.good{background:var(--inst-bg);color:var(--inst)}.chip.wty{background:#efe8f8;color:#7a4fb3}
     .age{font-variant-numeric:tabular-nums}
+    .vlines{display:grid;gap:.3rem;margin:.3rem 0}.vline{display:grid;grid-template-columns:1.1fr 1.7fr 56px 100px 1.2fr auto;gap:.35rem;align-items:center}.vline input{min-height:34px;padding:.25rem .45rem;font-size:.85rem}.vline .h{font-size:.7rem;text-transform:uppercase;letter-spacing:.05em;color:var(--muted)}
+    @media (max-width:820px){.vline{grid-template-columns:1fr 1fr}}
     .empty{padding:1rem .9rem;color:var(--muted);font-size:.9rem}
     a{color:var(--accent)}
     @media (max-width:820px){.row{grid-template-columns:1fr}.row .acts{flex-direction:row;align-items:center;justify-content:flex-start}}
@@ -45,13 +47,15 @@
 <body data-shell-label="Service Office Queues" data-shell-icon="service">
   <div class="wrap">
     <div id="internal-shell-header"></div>
-    <style>.pagenav{display:flex;gap:.35rem;flex-wrap:wrap;margin:.5rem 0 .6rem}.pagenav a{font-size:.74rem;padding:.2rem .55rem;border:1px solid #d7dfd8;border-radius:999px;background:#fff;color:#1b241f;text-decoration:none}.pagenav a.cur{background:#1f6b35;color:#fff;border-color:#1f6b35}</style><div class="pagenav"><a href="service-board.html">Dispatch Board</a><a href="service-office.html" class="cur">Service Office Queues</a><a href="appliance-service-calls.html">Service Request Queue</a><a href="service-estimates.html">Service Estimates</a></div>
+    <style>.pagenav{display:flex;gap:.35rem;flex-wrap:wrap;margin:.5rem 0 .6rem}.pagenav a{font-size:.74rem;padding:.2rem .55rem;border:1px solid #d7dfd8;border-radius:999px;background:#fff;color:#1b241f;text-decoration:none}.pagenav a.cur{background:#1f6b35;color:#fff;border-color:#1f6b35}</style><div class="pagenav"><a href="service-board.html">Dispatch Board</a><a href="service-office.html" class="cur">Service Office Queues</a><a href="appliance-service-calls.html">Service Request Queue</a><a href="service-estimates.html">Service Estimates</a><a href="service-field.html">Field Tool</a></div>
     <div class="top">
       <div><h2>Service Office Queues</h2><div class="note">Parts first: every ticket waiting on a part, oldest first. Enter the PO and the supplier's ETA — the <a href="service-board.html">dispatch board</a> places an SO4 from the ETA plus two business days, and shows the ones without an ETA under "waiting on part ETA". "Part is here" moves the ticket to SO5 and queues the packet for ePASS.</div></div>
       <div class="tools"><input id="q" placeholder="filter — customer, SV, model…" aria-label="Filter" /><button id="reload" title="Reload">↻</button></div>
     </div>
     <div class="status" id="pageStatus"></div>
+    <div class="note" id="poFeed" style="font-size:.78rem;color:var(--muted);margin:.4rem 0 0"></div>
     <div class="tiles" id="tiles"></div>
+    <div class="sec" id="verifysec"><h3><span>Parts verify — tech quotes waiting (SO2)</span><span class="n" id="verifyN">0</span><span class="hint">The tech's parts from the field tool: confirm each price and availability → SO2.1; Noell builds the estimate from there.</span></h3><div id="verify"><div class="empty">Loading…</div></div></div>
     <div id="queues"><div class="empty">Loading…</div></div>
     <div id="internal-shell-footer"></div>
   </div>
@@ -86,7 +90,7 @@
         <div><div class="who"><a href="service-journey.html?sv=${encodeURIComponent(r.sv)}" title="Open in Service Journey">${esc(r.cust || r.sv)}</a><span class="chip st">${esc(r.st)}</span>${r.wty ? ' <span class="chip wty">Warranty</span>' : ""}${overdue ? ` <span class="chip bad">${overdue} day${overdue === 1 ? "" : "s"} past ETA</span>` : ""}</div>
           <div class="sub"><span class="mono">${esc(r.sv)}</span> · ${esc(STL[r.st] || r.st)} for <span class="age">${age} day${age === 1 ? "" : "s"}</span> · ${esc(r.unit || "")}${r.serial ? " · " + esc(r.serial) : ""}<br>${esc([r.addr, r.zip].filter(Boolean).join(", "))}${r.phone ? " · " + esc(r.phone) : ""}${r.ownerName ? ` · ${esc(r.ownerName)}'s call` : r.techName ? ` · ${esc(r.techName)}` : ""}${r.day ? ` · on the board ${md(r.day)}${r.win ? " " + r.win : ""}` : ""}</div>
           ${lines ? `<ul class="lines">${lines}</ul>` : r.problem ? `<div class="sub">${esc(r.problem.slice(0, 160))}</div>` : ""}
-          ${r.poLines?.length ? `<div class="sub" style="margin-top:.25rem"><b>ePASS PO:</b> ${r.poLines.map((p) => `${esc(p.po)}${p.supplier ? " · " + esc(p.supplier) : ""}${p.item ? " · " + esc(p.item) : ""}${p.qty != null ? " ×" + esc(p.qty) : ""}${p.ordered ? " · ordered " + md(p.ordered) : ""}${p.eta ? ` · <b>ePASS ETA ${md(p.eta)}</b>` : ""}${p.done ? " · received" : ""}`).join("<br>")}</div>` : ""}</div>
+          ${r.poLines?.length ? `<div class="sub" style="margin-top:.25rem"><b>ePASS PO:</b> ${r.poLines.map((p) => `${esc(p.po)}${p.supplier ? " · " + esc(p.supplier) : ""}${p.item ? " · " + esc(p.item) : ""}${p.qty != null ? " ×" + esc(p.qty) : ""}${p.ordered ? " · ordered " + md(p.ordered) : ""}${p.eta ? ` · <b>ePASS ETA ${md(p.eta)}</b>` : ""}${p.done ? " · received" : ""}`).join("<br>")}</div>` : r.itemPos?.length ? `<div class="sub" style="margin-top:.25rem"><b>ePASS part lines:</b> ${r.itemPos.map((p) => `${esc(p.item || "")}${p.supplier ? " · " + esc(p.supplier) : ""}${p.poDated ? " · PO raised " + md(p.poDated) : " · no PO yet"}${p.status ? " · " + esc(p.status) : ""}`).join("<br>")}</div>` : ""}</div>
         <div class="form">
           <label>PO <input type="text" data-po value="${esc(r.po || r.epassPo)}" placeholder="PO #" ${!r.po && r.epassPo ? 'title="from ePASS"' : ""} /></label>
           <label>ETA <input type="date" data-eta value="${esc(r.eta || "")}" />${!r.eta && r.epassEta ? `<button type="button" data-useeta="${esc(r.epassEta)}" title="Use the ETA the buyer keyed on the PO">use ${md(r.epassEta)}</button>` : ""}</label>
@@ -113,8 +117,52 @@
         b.disabled = true; try { const res = await api(`/api/service-office/parts/${encodeURIComponent(b.dataset.here)}/received`, { method: "POST", body: JSON.stringify({}) }); const p = res.placement; const k = res.rules || ""; setStatus(k === "parts_in_text" ? `${r.sv} → SO5 — customer texted that the part is in; it is in Unscheduled until they pick a day${p?.owner ? " (" + (p.techName || p.owner) + "'s call)" : ""}.` : k === "parts_in_email" ? `${r.sv} → SO5 — customer emailed that the part is in; it is in Unscheduled until they pick a day.` : k === "parts_in_call" ? `${r.sv} → SO5 — customer prefers a phone call (or notices are off): it is in Unscheduled with the pill; call them and place the install${p?.owner ? " with " + (p.techName || p.owner) : ""}.` : p?.date ? `${r.sv} → SO5 — placed with ${p.techName || p.tech} on ${md(p.date)}${p.window ? " " + p.window : ""}.` : `${r.sv} → SO5 — packet queued; place it on the board.`, k === "parts_in_call" ? "error" : "ok"); await load(); } catch (e) { setStatus(e.message, "error"); b.disabled = false; }
       }));
     }
-    async function load() { try { const d = await api("/api/service-office/parts"); ROWS = d.rows || []; render(); } catch (e) { setStatus(e.message, "error"); $("#queues").innerHTML = `<div class="empty">${esc(e.message)}</div>`; } }
-    $("#q").addEventListener("input", () => { filter = $("#q").value; render(); });
+    let VROWS = [];
+    function vrow(r) {
+      const f = r.finding; const lines = f?.parts?.length ? f.parts : [{ part: "", desc: "", qty: 1 }];
+      const age = days(r.since);
+      return `<div class="row" data-vsv="${esc(r.sv)}">
+        <div><div class="who"><a href="service-journey.html?sv=${encodeURIComponent(r.sv)}">${esc(r.cust || r.sv)}</a><span class="chip st">${esc(r.st)}</span>${r.wty ? ' <span class="chip wty">Warranty</span>' : ""}</div>
+          <div class="sub"><span class="mono">${esc(r.sv)}</span> · quote pending <span class="age">${age} day${age === 1 ? "" : "s"}</span> · ${esc(r.unit || "")}${r.serial ? " · " + esc(r.serial) : ""}<br>${esc([r.addr, r.zip].filter(Boolean).join(", "))}${r.phone ? " · " + esc(r.phone) : ""}${r.techName ? ` · ${esc(r.techName)}` : r.tech ? ` · ${esc(r.tech)}` : ""}</div>
+          ${f ? `<div class="sub" style="margin-top:.25rem"><b>Tech's findings</b> (${esc(f.outcome)}${f.minutes ? `, ${f.minutes} min on site` : ""}, ${when(f.at)}): ${esc(f.findings || "—")}${f.laborNote ? `<br><b>Labor:</b> ${esc(f.laborNote)}` : ""}</div>` : `<div class="sub" style="margin-top:.25rem">No field findings on file — the ticket went to SO2 in ePASS; add the parts below.</div>`}</div>
+        <div class="form" style="display:block">
+          <div class="vlines" data-vlines>
+            <div class="vline"><span class="h">Part #</span><span class="h">Description</span><span class="h">Qty</span><span class="h">Price</span><span class="h">Availability</span><span></span></div>
+            ${lines.map((l) => `<div class="vline"><input data-v="part" value="${esc(l.part || "")}" placeholder="part #" /><input data-v="desc" value="${esc(l.desc || "")}" placeholder="description" /><input data-v="qty" type="number" min="1" value="${esc(l.qty || 1)}" /><input data-v="price" type="number" step="0.01" min="0" value="${l.price != null ? esc(l.price) : ""}" placeholder="0.00" /><input data-v="availability" value="${esc(l.availability || "")}" placeholder="in stock / 3 days / backorder" /><button type="button" data-vrm aria-label="Remove">✕</button></div>`).join("")}
+          </div>
+          <button type="button" data-vadd>+ line</button>
+          <input type="text" class="note" data-vnote placeholder="note for Noell (supplier, lead time…)" style="width:100%;margin-top:.35rem" />
+        </div>
+        <div class="acts"><button class="primary" data-verify="${esc(r.sv)}" title="Prices confirmed — the ticket goes to SO2.1 and Noell builds the estimate">Verified → SO2.1</button></div>
+      </div>`;
+    }
+    function renderVerify() {
+      const q = filter.trim().toLowerCase();
+      const vis = VROWS.filter((r) => !q || [r.sv, r.cust, r.unit, r.serial, r.techName, r.zip, ...((r.finding?.parts) || []).map((l) => l.part + " " + l.desc)].join(" ").toLowerCase().includes(q));
+      $("#verifyN").textContent = VROWS.length; $("#verifysec").hidden = !VROWS.length && !q;
+      $("#verify").innerHTML = vis.length ? vis.map(vrow).join("") : `<div class="empty">No tech quotes waiting.</div>`;
+      const lineHtml = () => `<div class="vline"><input data-v="part" placeholder="part #" /><input data-v="desc" placeholder="description" /><input data-v="qty" type="number" min="1" value="1" /><input data-v="price" type="number" step="0.01" min="0" placeholder="0.00" /><input data-v="availability" placeholder="in stock / 3 days / backorder" /><button type="button" data-vrm aria-label="Remove">✕</button></div>`;
+      $("#verify").querySelectorAll("[data-vadd]").forEach((b) => (b.onclick = () => { b.previousElementSibling.insertAdjacentHTML("beforeend", lineHtml()); wireRm(); }));
+      const wireRm = () => $("#verify").querySelectorAll("[data-vrm]").forEach((x) => (x.onclick = () => x.closest(".vline").remove()));
+      wireRm();
+      $("#verify").querySelectorAll("[data-verify]").forEach((b) => (b.onclick = async () => {
+        const rowEl = b.closest(".row"); const lines = [...rowEl.querySelectorAll("[data-vlines] .vline")].slice(1).map((l) => ({ part: l.querySelector('[data-v="part"]').value, desc: l.querySelector('[data-v="desc"]').value, qty: l.querySelector('[data-v="qty"]').value, price: l.querySelector('[data-v="price"]').value, availability: l.querySelector('[data-v="availability"]').value })).filter((l) => l.part || l.desc);
+        if (!lines.length) return setStatus("Keep at least one part line.", "error");
+        if (lines.some((l) => l.price === "")) { if (!confirm("Some lines have no price. Verify anyway?")) return; }
+        if (!confirm(`${b.dataset.verify}: prices verified?
+
+The ticket goes to SO2.1 and a packet is queued for ePASS; Noell builds the estimate next.`)) return;
+        b.disabled = true;
+        try { const out = await api(`/api/service-office/verify/${encodeURIComponent(b.dataset.verify)}`, { method: "POST", body: JSON.stringify({ lines, note: rowEl.querySelector("[data-vnote]").value }) }); setStatus(`${b.dataset.verify} → SO2.1 · ${out.lines.length} line${out.lines.length === 1 ? "" : "s"}${out.partsTotal ? ` · parts $${out.partsTotal.toFixed(2)}` : ""} — over to Noell for the estimate.`, "ok"); await load(); }
+        catch (e) { setStatus(e.message, "error"); b.disabled = false; }
+      }));
+    }
+    function renderFeed(f) {
+      const el = $("#poFeed"); if (!f) { el.textContent = ""; return; }
+      el.innerHTML = f.lines ? `ePASS PO lines on file: <b>${f.lines}</b> across ${f.tickets} ticket${f.tickets === 1 ? "" : "s"} · feed pulled ${esc(f.pulledAt || "?")}` : `<span style="color:var(--bad)">No ePASS PO lines on file yet</span> — the last service pull (${esc(f.pulledAt || "?")}) did not carry the <span class="mono">open-service-po-items</span> dataset, or no open ticket's part is linked to a PO line in ePASS. Copy the current <span class="mono">scripts\epass-odbc-pull.ps1</span> to the ePASS server and check its odbc.log for that line.`;
+    }
+    async function load() { try { const [d, v] = await Promise.all([api("/api/service-office/parts"), api("/api/service-office/verify").catch(() => ({ rows: [] }))]); ROWS = d.rows || []; VROWS = v.rows || []; renderFeed(d.poFeed); render(); renderVerify(); } catch (e) { setStatus(e.message, "error"); $("#queues").innerHTML = `<div class="empty">${esc(e.message)}</div>`; } }
+    $("#q").addEventListener("input", () => { filter = $("#q").value; render(); renderVerify(); });
     $("#reload").onclick = () => load();
     load();
     setInterval(load, 5 * 60 * 1000);

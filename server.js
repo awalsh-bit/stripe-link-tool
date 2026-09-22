@@ -218,6 +218,8 @@ import {
 } from "./lib/revenue-performance-postgres.js";
 import { finishedTicketsFromFeed, salespersonNamesFromFeed, ticketsByMonth, openOrderTicketsFromFeed, compareTickets } from "./lib/epass-feed-finished.js";
 import { loadWarrantyTerms, lookupWarranty, warrantyTermsSummary } from "./lib/warranty-terms.js";
+import { getFieldRoute, markEnroute, markArrived, submitOutcome, listVerifyQueue, verifyParts, getFindingsForSv } from "./lib/service-field-postgres.js";
+import { ensureJourneyToken, resolveJourney, journeyTokenFor } from "./lib/journey-tracker-postgres.js";
 import {
   extractServiceEstimateFromPdf,
   assessPartsQuality,
@@ -452,7 +454,6 @@ import {
   importServiceFromEpassFeed, applySelfHoldForSv, onStatusSet as onServiceStatusSet, onPartsIn as onServicePartsIn
 } from "./lib/service-journey-postgres.js";
 import { getServiceBoard, moveServiceJob, unscheduleServiceJob, sequenceTechDay, setJobDispatchFlags, addRouteBlock, removeRouteBlock, saveTechSettings, setPartsLoaded, confirmRouteDay, cancelServiceJob, uncancelServiceJob, markShopRepaired, CANCEL_REASONS, diagnoseServiceBoard, getServiceHistory, moveSelfHold, searchBoardJobs } from "./lib/service-board-postgres.js";
-import { getPilotStore, applyPilotChanges, addPilotJobFromCard, resetPilot, listPilotLog } from "./lib/pilot-postgres.js";
 import {
   parseOpenOrdersBundle, replaceEpassOpenOrders, getEpassOpenOrdersMeta, getEpassOpenOrder, listEpassOpenOrders,
   parseOpenServiceBundle, replaceEpassOpenService, getEpassOpenServiceMeta, getEpassOpenService, listEpassOpenService
@@ -603,6 +604,8 @@ const SERVICE_PUBLIC_PATHS = new Set([
   "/subzero-photos/thumb-3.jpg",
   "/track.html",
   "/api/track",
+  "/journey.html",
+  "/api/journey",
   "/card-confirm.html",
   "/receipt.pdf",
   "/api/card-confirm/view",
@@ -732,18 +735,13 @@ const INTERNAL_PAGE_PATHS = new Set([
   "/uniform-orders.html",
   "/spec-packages.html",
   "/satisfaction-survey.html",
-  "/pilot-routing.html",
-  "/pilot-field.html",
-  "/pilot-parts.html",
   "/speedqueen-truckload.html",
   "/written-models.html",
   "/service-journey.html",
   "/service-board.html",
   "/service-office.html",
   "/warranty-terms.html",
-  "/service-proto-board.html",
-  "/service-proto-field.html",
-  "/service-proto-office.html",
+  "/service-field.html",
   "/satisfaction-results.html",
   "/case-visit-survey.html",
   "/case-visit-results.html",
@@ -894,6 +892,7 @@ const JOB_CODE_PRESETS = {
       "/service-board.html",
       "/service-office.html",
       "/warranty-terms.html",
+      "/service-field.html",
       "/archive-service-calls.html",
       "/service-estimates.html",
       "/closed-estimates.html",
@@ -987,16 +986,11 @@ const PAGE_LABELS = {
   "/hr-candidates.html": "Candidates",
   "/uniform-orders.html": "Uniform Ordering",
   "/satisfaction-survey.html": "Client Satisfaction Survey",
-  "/pilot-routing.html": "AJH Pilot — Routing",
-  "/pilot-field.html": "AJH Pilot — Field Tool",
-  "/pilot-parts.html": "AJH Pilot — Parts Pipeline",
   "/service-journey.html": "Service Journey (ePASS mirror)",
   "/service-board.html": "Service Dispatch Board",
   "/service-office.html": "Service Office Queues",
   "/warranty-terms.html": "Warranty Terms Reference",
-  "/service-proto-board.html": "Service Journey — Dispatch Board prototype",
-  "/service-proto-field.html": "Service Journey — Field Tool prototype",
-  "/service-proto-office.html": "Service Journey — Office Queues prototype",
+  "/service-field.html": "Tech Field Tool",
   "/satisfaction-results.html": "Satisfaction Results",
   "/case-visit-survey.html": "Case Visit Survey",
   "/case-visit-results.html": "Case Visit Results",
@@ -1063,13 +1057,7 @@ const PAGE_CATEGORIES = [
     key: "test_modules",
     label: "Test Modules",
     pages: [
-      "/pilot-routing.html",
-      "/pilot-field.html",
-      "/pilot-parts.html",
       "/service-journey.html",
-      "/service-proto-board.html",
-      "/service-proto-field.html",
-      "/service-proto-office.html",
       "/satisfaction-survey.html",
       "/satisfaction-results.html",
       "/case-visit-survey.html",
@@ -1132,6 +1120,7 @@ const PAGE_CATEGORIES = [
       "/service-board.html",
       "/service-office.html",
       "/warranty-terms.html",
+      "/service-field.html",
       "/archive-service-calls.html",
       "/service-estimates.html",
       "/closed-estimates.html",
@@ -1446,10 +1435,7 @@ function buildSessionUser(user) {
 // Pages that ride on another page's grant: anyone who can work the active
 // estimate list can see the closed ones (still grantable on its own).
 const PAGE_IMPLIED_BY = {
-  "/closed-estimates.html": "/service-estimates.html",
-  "/service-proto-board.html": "/service-journey.html",
-  "/service-proto-field.html": "/service-journey.html",
-  "/service-proto-office.html": "/service-journey.html"
+  "/closed-estimates.html": "/service-estimates.html"
 };
 
 function canAccessPathForUser(user, pathname) {
@@ -8561,6 +8547,35 @@ app.post("/api/deliveries/stops/:id/signature", requireDriver, async (req, res) 
   }
 });
 
+// ---- PUBLIC: customer journey tracker (service) ---------------------------
+// journey.html?j=TOKEN — stage, day/window, tech's first name, parts ETA,
+// their estimate link. Minted on the Service Request Queue; "Copy journey
+// link" on the queue card and the board.
+const journeyUrl = (token) => `https://${SERVICE_PUBLIC_HOST}/journey.html?j=${token}`;
+app.post("/api/journey", async (req, res) => {
+  try {
+    const data = await resolveJourney(String(req.body?.token || ""), {
+      cardById: async (id) => (await readServiceCards()).find((c) => c.id === id) || null,
+      estimateForSv: async (sv) => {
+        const all = await listServiceEstimates().catch(() => []);
+        const e = (all || []).filter((x) => String(x.svNumber || "").toUpperCase() === sv && !x.closedAt).sort((a, b) => String(b.createdAt || "").localeCompare(String(a.createdAt || "")))[0];
+        return e ? { url: `https://${SERVICE_PUBLIC_HOST}/estimate.html?e=${e.token}`, status: e.status || "" } : null;
+      },
+      techName: async (code) => (await listServiceTechs().catch(() => [])).find((t) => t.code === code)?.name || ""
+    });
+    if (!data) return res.status(404).json({ error: "This link isn't valid." });
+    return res.json(data);
+  } catch (err) { console.error("Journey load failed:", err.message); return res.status(500).json({ error: "Unable to load your repair right now." }); }
+});
+app.post("/api/service-cards/:id/journey-link", requirePagePermission("/appliance-service-calls.html", "/archive-service-calls.html"), async (req, res) => {
+  try {
+    const cards = await readServiceCards(); const row = cards.find((c) => c.id === req.params.id);
+    if (!row) return res.status(404).json({ error: "Service request not found." });
+    const j = await ensureJourneyToken({ cardId: row.id, sv: /^SV/i.test(String(row.erpOrderNumber || "")) ? row.erpOrderNumber : "", by: req.authUser?.email || "" });
+    return res.json({ url: journeyUrl(j.token), token: j.token, created: j.created });
+  } catch (err) { return res.status(400).json({ error: err.message }); }
+});
+
 // ---- PUBLIC: customer tracking page ---------------------------------------
 
 app.post("/api/track", async (req, res) => {
@@ -9366,6 +9381,7 @@ function epassAgentKeyOk(provided) {
 }
 
 let lastFinishedOrdersSig = "";
+let lastQuotesSig = "";
 let epassSalesChain = Promise.resolve(); // sales-bundle extras run one after another, off the request
 let lastSalesPostProcessing = null; // what the last sales bundle's extras produced (/api/epass/open-orders/status)
 let epassFinishedChain = Promise.resolve();
@@ -9523,7 +9539,12 @@ app.post("/api/epass-agent/upload", express.raw({ type: () => true, limit: "60mb
         // Invoice Maintenance quote export is the fallback, not the source.
         try {
           const qrows = Array.isArray(bundle.datasets?.["open-quotes"]) ? bundle.datasets["open-quotes"].filter((r) => r && typeof r === "object") : [];
-          if (qrows.length) {
+          // Quotes barely move between pulls — skip the rewrite when the set
+          // is identical to the last one processed (a restart reprocesses once).
+          const qsig = qrows.length ? crypto.createHash("sha1").update(JSON.stringify(qrows)).digest("hex") : "";
+          if (qrows.length && qsig === lastQuotesSig) counts.quotes = { rows: qrows.length, unchanged: true };
+          else if (qrows.length) {
+            lastQuotesSig = qsig;
             const cal = await calibrateQuoteCustomerField(qrows);
             const quotes = quotesFromFeedRows(qrows, { customerField: cal.field });
             const n = await replaceOpenQuotes(quotes, { filename: `ePASS feed ${bundle.pulledAt || ""}`.trim(), byEmail: "epass-agent", byName: "ePASS feed" });
@@ -9855,8 +9876,12 @@ app.get("/api/service/schedule/:token", async (req, res) => {
     const { row } = await scheduleCardForHold(hold);
     const offer = await buildClientOffer(hold);
     const zone = hold.zone_code ? await zoneInfoForZip(hold.zip) : null;
+    // the customer's journey page — shown on the thank-you card (step 2 done)
+    let journeyLink = "";
+    try { journeyLink = journeyUrl((await ensureJourneyToken({ cardId: hold.card_id, by: "schedule-page" })).token); } catch {}
     return res.json({
       reference: String(hold.card_id).replace(/^svc_/, "SR-"),
+      journeyUrl: journeyLink,
       firstName: row?.firstName || String(row?.customerName || "").split(/\s+/)[0] || "",
       requestType: row?.requestType || "appliance",
       unitWord: unitWordFor(row),
@@ -10004,10 +10029,61 @@ app.get("/api/warranty-terms/lookup", requireWarrantyTerms, (req, res) => {
   } catch (err) { return res.status(400).json({ error: err.message }); }
 });
 
+// ---- Tech field tool (Client Care) — service-field.html -------------------
+// The tech's own day from the board; outcomes move the ticket through
+// setJobStatus (packet queued) and feed the Parts Verify queue.
+const requireServiceField = requirePagePermission("/service-field.html", "/service-board.html", "/service-office.html", "/service-journey.html");
+async function fieldTechFor(req, wanted) {
+  const me = sjMe(req);
+  let mine = "";
+  try { const entry = await findEmployeeDirectoryEntryByEmail(me.email); mine = String(entry?.code || "").trim().toUpperCase(); } catch {}
+  const techs = await listServiceTechs().catch(() => []);
+  const canPick = isExecutiveUser(req.authUser) || !mine || !techs.some((t) => t.code === mine);
+  const want = String(wanted || "").trim().toUpperCase();
+  const tech = canPick ? (want || mine || (techs[0]?.code || "")) : mine;
+  return { tech, mine, canPick, techs: techs.filter((t) => t.active !== false).map((t) => ({ code: t.code, name: t.name })) };
+}
+app.get("/api/service-field/route", requireServiceField, async (req, res) => {
+  try {
+    const who = await fieldTechFor(req, req.query.tech);
+    if (!who.tech) return res.json({ ...who, stops: [], date: String(req.query.date || ""), note: "Your login is not linked to a tech code in the directory." });
+    const route = await getFieldRoute({ tech: who.tech, date: String(req.query.date || "") });
+    return res.json({ ...route, mine: who.mine, canPick: who.canPick, techs: who.techs });
+  } catch (err) { return res.status(400).json({ error: err.message }); }
+});
+app.post("/api/service-field/:sv/enroute", requireServiceField, async (req, res) => {
+  try { return res.json(await markEnroute({ sv: req.params.sv, by: sjMe(req).email })); } catch (err) { return res.status(400).json({ error: err.message }); }
+});
+app.post("/api/service-field/:sv/arrived", requireServiceField, async (req, res) => {
+  try { return res.json(await markArrived({ sv: req.params.sv, by: sjMe(req).email })); } catch (err) { return res.status(400).json({ error: err.message }); }
+});
+app.post("/api/service-field/:sv/outcome", requireServiceField, async (req, res) => {
+  try {
+    const me = sjMe(req); const b = req.body || {};
+    const out = await submitOutcome({ sv: req.params.sv, tech: String(b.tech || ""), outcome: String(b.outcome || ""), findings: String(b.findings || ""), parts: b.parts, laborNote: String(b.laborNote || ""), by: me.email, byName: me.name });
+    sjAudit(req, "service_field_outcome", { sv: req.params.sv, outcome: b.outcome, status: out.status, parts: Array.isArray(b.parts) ? b.parts.length : 0 });
+    return res.json(out);
+  } catch (err) { return res.status(400).json({ error: err.message }); }
+});
+app.get("/api/service-field/:sv/findings", requireServiceField, async (req, res) => {
+  try { return res.json({ findings: await getFindingsForSv(req.params.sv) }); } catch (err) { return res.status(400).json({ error: err.message }); }
+});
+
 // ---- Office queues (Client Care) — service-office.html: parts ETAs --------
 const requireServiceOffice = requirePagePermission("/service-office.html", "/service-board.html", "/service-journey.html");
+app.get("/api/service-office/verify", requireServiceOffice, async (req, res) => {
+  try { return res.json({ rows: await listVerifyQueue() }); } catch (err) { console.error("Verify queue failed:", err.message); return res.status(500).json({ error: "Unable to load the parts verify queue." }); }
+});
+app.post("/api/service-office/verify/:sv", requireServiceOffice, async (req, res) => {
+  try {
+    const me = sjMe(req);
+    const out = await verifyParts({ sv: req.params.sv, lines: req.body?.lines, note: String(req.body?.note || ""), by: me.email, byName: me.name });
+    sjAudit(req, "service_office_parts_verified", { sv: req.params.sv, lines: out.lines.length, partsTotal: out.partsTotal });
+    return res.json(out);
+  } catch (err) { return res.status(400).json({ error: err.message }); }
+});
 app.get("/api/service-office/parts", requireServiceOffice, async (req, res) => {
-  try { return res.json({ rows: await listPartsQueue(), me: sjMe(req) }); }
+  try { const rows = await listPartsQueue(); return res.json({ rows, poFeed: rows.poFeed || null, me: sjMe(req) }); }
   catch (err) { console.error("Parts queue failed:", err.message); return res.status(500).json({ error: "Unable to load the parts queue." }); }
 });
 app.post("/api/service-office/parts/:sv", requireServiceOffice, async (req, res) => {
@@ -10023,6 +10099,13 @@ app.post("/api/service-office/parts/:sv/received", requireServiceOffice, async (
     const r = await markPartsReceived({ sv: req.params.sv, by: sjMe(req).email, note: String(req.body?.note || "") });
     sjAudit(req, "service_office_parts_received", { sv: req.params.sv });
     return res.json({ ok: true, ...r });
+  } catch (err) { return res.status(400).json({ error: err.message }); }
+});
+app.post("/api/service-board/jobs/:sv/journey-link", requireServiceBoard, async (req, res) => {
+  try {
+    const sv = String(req.params.sv || "").toUpperCase(); if (!/^SV/.test(sv)) return res.status(400).json({ error: "An SV number is required." });
+    const j = await ensureJourneyToken({ sv, by: sjMe(req).email });
+    return res.json({ url: journeyUrl(j.token), token: j.token, created: j.created });
   } catch (err) { return res.status(400).json({ error: err.message }); }
 });
 app.get("/api/service-board/search", requireServiceBoard, async (req, res) => {
@@ -10107,77 +10190,6 @@ app.post("/api/service-board/techs/:code/day", requireServiceBoard, async (req, 
     sjAudit(req, "service_journey_tech_day_set", { tech: req.params.code, date: b.date, available: day.available, adjustMin: day.capacity_adjust_min, via: "board" });
     return res.json({ ok: true, day });
   } catch (err) { return res.status(400).json({ error: err.message }); }
-});
-
-// ---------------------------------------------------------------------------
-// AJH Pilot (Test Modules, 2026-09-14) — Jack's one-week test of a field
-// tool, routing tool and parts pipeline for Andrew Horst. The three pages
-// share one job store here instead of a browser's localStorage, so the
-// phone and the office see the same record (AJH_pilot_developer_handoff.md).
-// Any of the three page grants unlocks the store; executives implicitly.
-// ---------------------------------------------------------------------------
-const requirePilot = requirePagePermission("/pilot-routing.html", "/pilot-field.html", "/pilot-parts.html");
-const pilotMe = (req) => String(req.authUser?.email || req.authUser?.username || "").toLowerCase();
-app.get("/api/pilot/store", requirePilot, async (req, res) => {
-  try {
-    const since = req.query.since != null && req.query.since !== "" ? Number(req.query.since) : null;
-    return res.json(await getPilotStore({ since: Number.isFinite(since) ? since : null }));
-  } catch (err) { console.error("Pilot store load failed:", err.message); return res.status(500).json({ error: "Unable to load the pilot data." }); }
-});
-app.post("/api/pilot/store", requirePilot, async (req, res) => {
-  try {
-    const result = await applyPilotChanges({ upserts: req.body?.upserts, deletes: req.body?.deletes, log: req.body?.log }, pilotMe(req));
-    return res.json(result);
-  } catch (err) { console.error("Pilot store save failed:", err.message); return res.status(500).json({ error: "Unable to save the pilot data." }); }
-});
-app.get("/api/pilot/log", requirePilot, async (req, res) => {
-  try { return res.json({ log: await listPilotLog(100) }); } catch (err) { return res.status(500).json({ error: "Unable to load the pilot log." }); }
-});
-app.post("/api/pilot/reset", requireExecutiveApi, async (req, res) => {
-  try {
-    const r = await resetPilot(pilotMe(req));
-    recordAudit({ ip: req.ip, actorUserId: req.authUser?.id || null, action: "pilot_reset", targetUserId: null, detail: r }).catch(() => {});
-    return res.json({ ok: true, ...r });
-  } catch (err) { return res.status(500).json({ error: "Unable to reset the pilot data." }); }
-});
-// "Copy to AJH test module" on the Service Request Queue (handoff §3):
-// additive — the queue card itself is never changed.
-app.post("/api/pilot/jobs/from-queue", requirePagePermission("/appliance-service-calls.html", "/pilot-routing.html"), async (req, res) => {
-  try {
-    const id = String(req.body?.serviceCardId || "").slice(0, 60);
-    const cards = await readServiceCards();
-    const card = cards.find((row) => row.id === id);
-    if (!card) return res.status(404).json({ error: "Request not found." });
-    const result = await addPilotJobFromCard(card, pilotMe(req));
-    recordAudit({ ip: req.ip, actorUserId: req.authUser?.id || null, action: "pilot_job_copied_from_queue", targetUserId: null, detail: { serviceCardId: id, sv: result.job.sv, existed: result.existed } }).catch(() => {});
-    return res.json({ ok: true, ...result });
-  } catch (err) { console.error("Pilot copy failed:", err.message); return res.status(400).json({ error: err.message || "Unable to copy that request." }); }
-});
-// "On my way" from the field tool (handoff §2). Explicit tap by the tech,
-// never automatic. Text preference → a Podium text through the same
-// connection the estimate tool uses; Call preference → hand back a tel:
-// link for the tech's phone (Podium can't place a call from the API).
-app.post("/api/pilot/notify", requirePilot, async (req, res) => {
-  try {
-    const digits = String(req.body?.phone || "").replace(/\D/g, "");
-    const phone = digits.length === 11 && digits.startsWith("1") ? digits.slice(1) : digits;
-    const name = String(req.body?.name || "").slice(0, 80);
-    const eta = String(req.body?.eta || "").slice(0, 20);
-    const pref = String(req.body?.pref || "Text");
-    const sv = String(req.body?.sv || "").slice(0, 40);
-    const techFirst = String(req.authUser?.displayName || "Andrew").split(/\s+/)[0] || "Andrew";
-    if (phone.length !== 10) return res.status(400).json({ error: "No 10-digit phone number on this stop — confirm with the customer or ePASS." });
-    if (pref === "Call") {
-      recordAudit({ ip: req.ip, actorUserId: req.authUser?.id || null, action: "pilot_on_my_way_call", targetUserId: null, detail: { sv, name, phone } }).catch(() => {});
-      return res.json({ ok: true, action: "call", tel: `tel:${phone}` });
-    }
-    if (!podiumSendConfigured()) return res.status(503).json({ error: "Texting isn't connected — connect Podium in Text Automations first." });
-    const body = `${techFirst} from Wilson AC & Appliance is on the way${eta ? `, arriving about ${eta}` : ""}. Reply here if anything's changed.`;
-    const result = await sendCustomerText({ phone, body });
-    if (!result.ok) return res.status(502).json({ error: "The text didn't go through — try again or call the customer." });
-    recordAudit({ ip: req.ip, actorUserId: req.authUser?.id || null, action: "pilot_on_my_way_texted", targetUserId: null, detail: { sv, name, to: phone, transport: result.transport } }).catch(() => {});
-    return res.json({ ok: true, action: "text", to: phone, body });
-  } catch (err) { console.error("Pilot notify failed:", err.message); return res.status(500).json({ error: "Unable to notify the customer right now." }); }
 });
 
 // INTERNAL: ePASS Upload Center (epass-uploads.html) — one page where the
@@ -15142,6 +15154,10 @@ app.post("/api/service/submit-request", async (req, res) => {
 
     await attachRequestPhotos(serviceCards[0]);
     await attachSelfSchedule(serviceCards[0]);
+    // The customer's journey link is minted the moment the request lands on
+    // the queue; it follows the ticket once the office books it in ePASS.
+    let journeyUrl = "";
+    try { const j = await ensureJourneyToken({ cardId: serviceCards[0].id, by: "request-form" }); serviceCards[0].journeyToken = j.token; journeyUrl = `https://${SERVICE_PUBLIC_HOST}/journey.html?j=${j.token}`; } catch (err) { console.error("Journey token failed:", err.message); }
     await writeServiceCards(serviceCards);
 
     auditServiceSubmit("service_request_submitted", serviceCards[0]);
@@ -15149,6 +15165,7 @@ app.post("/api/service/submit-request", async (req, res) => {
     res.json({
       success: true,
       requestId: serviceCards[0].id,
+      journeyUrl,
       ...scheduleFields(serviceCards[0])
     });
   } catch (err) {
@@ -16181,6 +16198,7 @@ app.post("/api/service-cards/:id/status", requirePagePermission("/appliance-serv
 
     // Booked in ePASS or cancelled: the self-schedule hold stops counting
     // against capacity (the ePASS mirror carries the real stop from here).
+    if (changes.erpOrderNumber && /^SV/i.test(String(erpOrderNumber || ""))) ensureJourneyToken({ cardId: id, sv: erpOrderNumber, by: req.authUser?.email || "" }).catch(() => {});
     if (changes.queueStatus && ["Call Scheduled", "Call Cancelled"].includes(queueStatus) && before.selfSchedule?.token && !before.selfSchedule.released) {
       try {
         await releaseSelfSchedule(id, { svNumber: erpOrderNumber || "", by: req.authUser?.email || "" });

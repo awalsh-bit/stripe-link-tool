@@ -106,3 +106,102 @@ History triggers to look for: `epass_status`, `board.auto_place`,
   `notify.warranty_so3.emails`, so the ePASS ticket gets updated.
 * **Service Journey is admin-only** (page grant + executive); the board,
   office queues, request queue and estimates link to each other at the top.
+
+## 6. The tech field tool and Parts Verify (9/22, night)
+
+The AJH pilot (`pilot-routing/field/parts.html`, `/api/pilot/*`,
+`lib/pilot-postgres.js`) and the three `service-proto-*.html` prototypes are
+gone — too many versions were live at once. What is in Client Care is the
+product: Service Request Queue, Dispatch Board, Service Office Queues, Tech
+Field Tool, Service Estimates, Warranty Terms; Service Journey is admin-only.
+
+**Tech Field Tool** (`service-field.html`, phone-first). A tech's login maps
+to his SP code through the directory; executives pick any tech. The page is
+the board's stop order for the day: customer, address (Maps link), phone
+(tap to call), problem, unit, access notes, balance to collect. Per stop:
+*On my way* → *Arrived* (timestamps on the job, on-site minutes measured) →
+*Finish this stop* with one outcome:
+
+| Visit | Outcome | Ticket |
+|---|---|---|
+| Diagnostic (SO1) | Fixed on site | SO8 |
+| | Needs parts — quote (part #, description, qty; labor expected; findings) | **SO2** → Parts Verify |
+| | Needs research / Could not access (note required) | stays SO1, note in history |
+| | Customer declined / Not worth repairing (note) | SO7 |
+| Install (SO4PRE / SO5 / SO6) | Install complete | SO8 |
+| | Additional parts needed | SO2 → Parts Verify |
+| | Wrong or damaged part (note) | SO3 (reorder) |
+| | Problem persists (note) | SO1 |
+
+Every outcome goes through `setJobStatus` (reason `tech_update`), so the
+packet for ePASS is queued and the status rules run (leaving SO1 makes the
+tech the owner). Findings live in `sj_field_findings`.
+
+**Parts Verify** (top of Service Office Queues): every SO2 with the tech's
+lines. Kezia confirms price and availability per line (add/remove lines),
+adds a note for Noell, *Verified → SO2.1* (reason `parts_verified`, packet
+queued). Noell builds the customer estimate from there in Service Estimate
+Approvals as today; the auto-built quote (blueprint §5.3, SO2.2 with
+reminders) is the next step and is not wired yet.
+
+**ePASS PO / supplier on the queue.** The service pull now carries two link
+paths from a ticket's parts to PO lines (`POItem.BackOrderInvoiceCode`, and
+`InvoiceItem.PODateStamp/POLineTimeStamp` → `POItem.DateStamp/LineTimeStamp`);
+when neither matches, the ticket's own part lines show the supplier code and
+the date the PO was raised. The page's top line says how many PO lines the
+last pull carried, so "nothing populating" is diagnosable at a glance.
+
+## 7. The customer's journey page (9/22, night)
+
+Andrew: *"do we have the client journey token created? Cayden's version had
+a client-facing page where they could track the service call through each
+step. I'd assume we'd create the token at the successful entry into the
+service request queue and a copy link to the token would exist there."*
+
+**`journey.html?j=TOKEN`** (public, `https://service.wilsonappliance.com/…`)
+is the customer's page. It shows the nine stages from 09_Customer_Copy §2
+(Request received → Diagnostic scheduled → Diagnosed → Estimate ready →
+Approved → Parts ordered → Part arrived → Install scheduled → Repair
+complete) with the current one lit, and one box that says what is
+happening now in the customer's words: the day and window, the tech's first
+name, the part's expected date, "Pick a time" while a self-schedule hold is
+still open, "Review your estimate" when an estimate is out for them, "My
+part arrived" (a pre-filled text to Client Care) on SO4H, and Text / Call
+buttons everywhere else. Warranty, shop (SI*) and manufacturer (WAR*)
+tickets get their own wording; SO7 / SO9 close the page out politely. The
+page refreshes itself every five minutes and never shows a balance, notes,
+or anything about another call.
+
+**The token.** One per request, minted **the moment the request lands on
+the Service Request Queue** (`POST /api/service/submit-request` stores it
+on the card as `journeyToken` and returns `journeyUrl`). When the office
+books the ticket and keys the SV on the card, the same token learns the SV
+and follows the ticket through the mirror (`sj_jobs`) — nothing is
+re-issued. A ticket that never had a request card (walk-in, phoned in and
+keyed straight into ePASS) can be given a token from the board.
+
+**Where "Copy journey link" lives.** On every Service Request Queue card,
+next to "Copy secure card link" (`POST /api/service-cards/:id/journey-link`),
+and in the Dispatch Board's history drawer for the current call
+(`POST /api/service-board/jobs/:sv/journey-link`). Both are idempotent —
+clicking twice copies the same link.
+
+**The customer gets the link on the thank-you page** (Andrew, 9/22 late:
+*"this should be the thank you page on service request or HVAC service
+request the client sees when they complete the form"*). Step 2 of 2
+(`schedule.html`) shows a **Track your repair** button on every finished
+state — booked, "we'll text you a date", "we'll call you", and a released
+hold — with "save the link; it's private to you". The classic confirmation
+panels on `applianceservice.html` and `hvacservice.html` (the path taken
+when no scheduling token was minted) show the same link. `GET
+/api/service/schedule/:token` returns `journeyUrl` for this.
+
+**Nothing is sent automatically.** The doc 09 "request received" text that
+would carry this link stays behind the no-surprise-contact rule; beyond
+the thank-you page the link reaches the customer only when someone pastes
+it into a text or email. The page's own wording promises "we'll let you
+know", not "we'll text you", for the same reason.
+
+Code: `lib/journey-tracker-postgres.js` (`sj_journey_tokens`,
+`ensureJourneyToken`, `resolveJourney`, `STAGES`), `journey.html`,
+`schedule.html` (`#doneTrack`), the routes above in `server.js`.

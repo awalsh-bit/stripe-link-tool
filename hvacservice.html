@@ -444,6 +444,7 @@
           <div class="result-title">&#10003; HVAC Service Request Submitted</div>
           <p class="result-text">Thank you! Your request has been received and we will follow up with our next available date for a technician visit.</p>
           <p class="result-note" id="resultMeta"></p>
+          <p class="result-note" id="resultTrack" style="display:none;"><a id="resultTrackLink" href="#" style="font-weight:700;">Track your service call &rarr;</a> Every step lives on that page. Save the link; it's private to you.</p>
           <p class="result-note">Please note the service department that processes these requests is staffed Monday through Friday from 8:30am - 5pm.</p>
           <div class="actions" style="margin-top: 16px;">
             <button type="button" id="newRequestBtn" class="secondary">Submit another request</button>
@@ -611,6 +612,7 @@
         // Step 2 of 2: schedule.html (date picker for open zones, "we'll reach out" copy otherwise).
         if (data.scheduleToken) { window.location.href = `schedule.html?r=${encodeURIComponent(data.scheduleToken)}`; return; }
         $("resultMeta").textContent = `Reference: ${data.requestId}. A copy of what you sent stays with our Client Care team; we'll reach out by ${payload.contactMethod.toLowerCase()}.`;
+        if (data.journeyUrl) { $("resultTrackLink").href = data.journeyUrl; $("resultTrack").style.display = ""; }
         $("serviceForm").classList.add("submitted");
         $("result").classList.add("show");
         window.scrollTo({ top: 0, behavior: "smooth" });

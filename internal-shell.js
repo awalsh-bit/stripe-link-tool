@@ -244,6 +244,7 @@
           { href: "service-board.html", title: "Service Dispatch Board" },
           { href: "service-office.html", title: "Service Office Queues" },
           { href: "warranty-terms.html", title: "Warranty Terms Reference" },
+          { href: "service-field.html", title: "Tech Field Tool" },
           { href: "service-order-health.html", title: "Service Order Health" },
           { href: "service-estimates.html", title: "Service Estimate Approvals" },
           { href: "closed-estimates.html", title: "Closed Service Estimates" },
@@ -322,13 +323,7 @@
       {
         title: "Test Modules",
         children: [
-          { href: "pilot-routing.html", title: "AJH Pilot — Routing" },
-          { href: "pilot-field.html", title: "AJH Pilot — Field Tool" },
-          { href: "pilot-parts.html", title: "AJH Pilot — Parts Pipeline" },
           { href: "service-journey.html", title: "Service Journey (ePASS mirror)" },
-          { href: "service-proto-board.html", title: "Service Journey — Board prototype" },
-          { href: "service-proto-field.html", title: "Service Journey — Field Tool prototype" },
-          { href: "service-proto-office.html", title: "Service Journey — Office Queues prototype" },
           { href: "satisfaction-survey.html", title: "Client Satisfaction Survey" },
           { href: "satisfaction-results.html", title: "Satisfaction Results" },
           { href: "case-visit-survey.html", title: "Case Visit Survey" },

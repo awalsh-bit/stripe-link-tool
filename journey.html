@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="robots" content="noindex,nofollow,noarchive" />
+  <title>Your Repair — Wilson AC &amp; Appliance</title>
+  <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+  <style>
+    :root { --green: #21692c; --text: #1f2937; --muted: #6b7280; --border: #dbe1ea; --soft: #eef5ee; --amber: #92400e; --amber-bg: #fffbeb; }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: "Roboto", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: linear-gradient(180deg, #eef5ee 0%, #f7f8fc 100%); color: var(--text); min-height: 100vh; padding: 26px 16px 50px; }
+    .wrap { max-width: 520px; margin: 0 auto; }
+    .brand { text-align: center; margin-bottom: 18px; }
+    .brand img { height: 46px; }
+    .brand .sub { font-size: 12px; color: var(--muted); margin-top: 4px; }
+    .card { background: #fff; border-radius: 18px; box-shadow: 0 14px 45px rgba(0,0,0,0.1); padding: 24px 22px; }
+    h1 { font-size: 21px; margin: 0 0 4px; }
+    .lead { color: var(--muted); font-size: 14px; line-height: 1.5; margin: 0 0 14px; }
+    .ref { font-family: ui-monospace, Menlo, monospace; font-size: 12px; color: var(--muted); }
+    .steps { list-style: none; margin: 18px 0 8px; padding: 0; }
+    .steps li { display: grid; grid-template-columns: 26px 1fr; gap: 10px; align-items: start; padding: 6px 0; font-size: 14px; color: var(--muted); position: relative; }
+    .steps li::before { content: ""; position: absolute; left: 12px; top: 26px; bottom: -6px; width: 2px; background: #e5e7eb; }
+    .steps li:last-child::before { display: none; }
+    .steps .dot { width: 26px; height: 26px; border-radius: 50%; border: 2px solid #e5e7eb; background: #fff; display: grid; place-items: center; font-size: 12px; font-weight: 700; color: var(--muted); position: relative; z-index: 1; }
+    .steps li.done .dot { background: var(--green); border-color: var(--green); color: #fff; }
+    .steps li.done { color: var(--text); }
+    .steps li.now { color: var(--text); font-weight: 700; }
+    .steps li.now .dot { border-color: var(--green); color: var(--green); box-shadow: 0 0 0 4px #dcefdf; }
+    .steps li.done::before { background: var(--green); }
+    .box { border-radius: 14px; padding: 14px 16px; margin: 14px 0 6px; background: var(--soft); border: 1px solid #d7e6d8; }
+    .box .k { font-size: 11px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; color: var(--green); }
+    .box.action { background: var(--amber-bg); border-color: #f3dfa5; } .box.action .k { color: var(--amber); }
+    .box .t { font-size: 17px; font-weight: 700; margin: 4px 0 2px; }
+    .box .d { font-size: 14px; line-height: 1.55; color: #374151; }
+    .btn { display: inline-block; margin-top: 10px; background: var(--green); color: #fff; text-decoration: none; padding: 12px 18px; border-radius: 12px; font-weight: 700; font-size: 15px; }
+    .btn.alt { background: #fff; color: var(--green); border: 2px solid var(--green); }
+    .row { display: flex; gap: 8px; flex-wrap: wrap; }
+    .fine { font-size: 12px; color: var(--muted); margin-top: 16px; line-height: 1.5; }
+    details { margin-top: 8px; font-size: 13px; } summary { cursor: pointer; font-weight: 600; padding: 6px 0; } details p { margin: 4px 0 10px; color: #374151; line-height: 1.5; }
+    .err { text-align: center; color: var(--muted); }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="brand"><img src="logo.png" alt="Wilson AC &amp; Appliance" onerror="this.style.display='none'" /><div class="sub">Repair service</div></div>
+    <div class="card" id="card"><p class="err">Loading your repair…</p></div>
+    <div class="fine">Questions? Call or text Wilson AC &amp; Appliance at <a href="tel:5128940907">512-894-0907</a>. This page is private to you — please don't share the link.</div>
+  </div>
+  <script>
+    const esc = (v) => String(v ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+    const dayLong = (d) => (d ? new Date(d + "T12:00:00").toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" }) : "");
+    function detail(j) {
+      const tech = j.techFirst || "your technician";
+      const when = j.day ? `${dayLong(j.day)}${j.window ? " · " + j.window : ""}` : "";
+      const sms = `sms:${j.contact.sms}`; const tel = `tel:${j.contact.phone}`;
+      const contact = `<div class="row"><a class="btn alt" href="${sms}">Text Client Care</a><a class="btn alt" href="${tel}">Call us</a></div>`;
+      switch (j.stageKey) {
+        case "request":
+          if (j.selfSchedule) return { k: "Action needed", t: "Pick your diagnostic time", d: "Choose an arrival window that works for you — confirmation is instant.", a: `<a class="btn" href="schedule.html?r=${esc(j.selfSchedule.token)}">Pick a time</a>` };
+          if (j.day) return { k: "Next up", t: `Diagnostic ${when}`, d: `You picked this window. ${tech === "your technician" ? "We'll confirm your technician shortly." : tech + " is your technician."} We'll let you know when he's on the way.`, a: contact };
+          return { k: "Right now", t: "We have your request", d: "Client Care will reach out to set up your visit. Nothing is charged today — the card you saved is used only for approved work.", a: contact };
+        case "diag":
+          if (j.selfSchedule && !j.day) return { k: "Action needed", t: "Pick your diagnostic time", d: "Choose an arrival window that works for you — confirmation is instant.", a: `<a class="btn" href="schedule.html?r=${esc(j.selfSchedule.token)}">Pick a time</a>` };
+          return { k: "Next up", t: when ? `Diagnostic visit ${when}` : "Diagnostic visit — date coming", d: `${j.techFirst ? j.techFirst + " is your technician. " : ""}We'll let you know when he's on the way. Please clear access to the unit.`, a: contact };
+        case "diagnosed":
+          return { k: "Right now", t: "Diagnosed — pricing your parts", d: `${tech.charAt(0).toUpperCase() + tech.slice(1)} has looked at ${j.unit}. We're confirming part prices and availability; your estimate will be here shortly.`, a: contact };
+        case "shop":
+          return { k: "Right now", t: "In our shop", d: `${j.unit} is being repaired at our shop. We'll let you know when it's ready to come back.`, a: contact };
+        case "estimate":
+          return { k: "Action needed", t: "Your estimate is ready", d: "Approve online and we'll order parts right away; the diagnostic you've already had is included in the price.", a: j.estimate ? `<a class="btn" href="${esc(j.estimate.url)}">Review your estimate</a>` : contact };
+        case "approved":
+          return { k: "Right now", t: "Ordering your parts", d: "We'll show the expected date here as soon as the supplier confirms it.", a: contact };
+        case "warranty_admin":
+          return { k: "Right now", t: "Working with the manufacturer", d: "This repair is covered under warranty. We're handling the claim and parts with the manufacturer and will update you here.", a: contact };
+        case "parts":
+          if (j.variant === "SO4B") return { k: "Right now", t: `Your part is backordered${j.partsEta ? " · now expected " + dayLong(j.partsEta) : ""}`, d: "We're sorry for the wait — we check with the supplier daily and will let you know the moment it checks in.", a: contact };
+          if (j.variant === "SO4H") return { k: "Right now", t: `Your part is shipping straight to you${j.partsEta ? " · expected " + dayLong(j.partsEta) : ""}`, d: `Text us the moment it arrives and we'll set up your install with ${tech}.`, a: `<a class="btn" href="${sms}?&body=${encodeURIComponent("My part arrived — " + j.ref)}">📦 My part arrived</a>` };
+          return { k: "Right now", t: `Your part is on order${j.partsEta ? " · expected " + dayLong(j.partsEta) : ""}`, d: "We'll let you know the moment it checks in so we can set up your install time.", a: contact };
+        case "arrived":
+          return { k: "Action needed", t: "Your part arrived — let's set up the install", d: `${j.techFirst ? j.techFirst + ", who diagnosed it, will do the install. " : ""}Text or call us to pick a day.`, a: contact };
+        case "install":
+          if (j.variant === "SO4PRE") return { k: "Next up", t: when ? `Install held for ${when}` : "Install date held", d: `Your part is${j.partsEta ? " expected " + dayLong(j.partsEta) : " on its way"}; your appointment confirms automatically when it checks in.`, a: contact };
+          return { k: "Next up", t: when ? `Install ${when}` : "Install scheduled", d: `${tech.charAt(0).toUpperCase() + tech.slice(1)} will bring the part and finish the repair. Your card is charged only after the work is complete.`, a: contact };
+        case "complete":
+          return { k: "Done", t: `Repaired${j.completedOn ? " " + dayLong(j.completedOn) : ""}${j.techFirst ? " by " + j.techFirst : ""}`, d: "Thank you for choosing Wilson. Your receipt is sent separately.", a: contact };
+        case "declined":
+          return { k: "Done", t: "Diagnostic complete", d: "If you'd like replacement options, our showroom team can help.", a: contact };
+        case "cancelled":
+          return { k: "Closed", t: "This request was cancelled", d: "Need us again? Start a new request any time.", a: contact };
+        default:
+          return { k: "Right now", t: "In progress", d: "We'll update this page as your repair moves along.", a: contact };
+      }
+    }
+    async function load() {
+      const token = new URLSearchParams(location.search).get("j") || "";
+      const card = document.getElementById("card");
+      try {
+        const res = await fetch("/api/journey", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ token }) });
+        const j = await res.json();
+        if (!res.ok) throw new Error(j.error || "This link isn't valid.");
+        const d = detail(j);
+        card.innerHTML = `<h1>${j.first ? `Hi ${esc(j.first)}, here's your repair` : "Here's your repair"}</h1>
+          <p class="lead">${esc(j.unit)}${j.problem ? " · " + esc(j.problem) : ""}${j.warranty ? " · covered under warranty" : ""}</p>
+          <div class="ref">Reference ${esc(j.ref)}</div>
+          <div class="box ${d.k === "Action needed" ? "action" : ""}"><div class="k">${esc(d.k)}</div><div class="t">${esc(d.t)}</div><div class="d">${esc(d.d)}</div>${d.a || ""}</div>
+          <ol class="steps">${j.stages.map((s, i) => `<li class="${j.stageIndex < 0 ? "" : i < j.stageIndex ? "done" : i === j.stageIndex ? "now" : ""}"><span class="dot">${i < j.stageIndex ? "✓" : i + 1}</span><span>${esc(s)}</span></li>`).join("")}</ol>
+          <details><summary>Why does a part take a week?</summary><p>Most parts ship from regional warehouses in 2–5 business days; some brands ship from the manufacturer and take longer. We let you know the moment it checks in.</p></details>
+          <details><summary>Why the same technician?</summary><p>The tech who diagnosed your unit knows exactly what he found and what he needs. Installs stay with him so nothing gets lost in translation.</p></details>
+          <details><summary>What am I charged and when?</summary><p>Nothing at the diagnostic visit. If you approve a repair, the diagnostic is included and the total is charged after the work is complete and tested. If you decline, the diagnostic fee of $169.95 is charged.</p></details>`;
+      } catch (err) { card.innerHTML = `<p class="err">${esc(err.message)}</p>`; }
+    }
+    load();
+    setInterval(load, 5 * 60 * 1000);
+  </script>
+</body>
+</html>

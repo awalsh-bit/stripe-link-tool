@@ -440,8 +440,10 @@ import { extractRetailDeckFloors } from "./lib/retaildeck-prices.js";
 import {
   importServiceDispatchTrack, importServiceInvoiceRows, serviceJourneyOverview, listServiceJobs, getServiceJob, setJobStatus, setIntakeReviewed, setOwnerTech,
   listStuckJobs, listStaleJobs, listSyncItems, markSyncKeyed, resolveSyncItem, listRecalls, reviewRecall, listImportBatches, serviceKpis, listTechs as listServiceTechs,
-  listZones as listServiceZones, getSettings as getServiceSettings, setSetting as setServiceSetting, STATUS_DEFS as SERVICE_STATUS_DEFS, REASON_CODES as SERVICE_REASON_CODES
+  listZones as listServiceZones, getSettings as getServiceSettings, setSetting as setServiceSetting, STATUS_DEFS as SERVICE_STATUS_DEFS, REASON_CODES as SERVICE_REASON_CODES,
+  importServiceFromEpassFeed
 } from "./lib/service-journey-postgres.js";
+import { getServiceBoard, moveServiceJob, unscheduleServiceJob, sequenceTechDay, setJobDispatchFlags, addRouteBlock, removeRouteBlock } from "./lib/service-board-postgres.js";
 import { getPilotStore, applyPilotChanges, addPilotJobFromCard, resetPilot, listPilotLog } from "./lib/pilot-postgres.js";
 import {
   parseOpenOrdersBundle, replaceEpassOpenOrders, getEpassOpenOrdersMeta, getEpassOpenOrder, listEpassOpenOrders,
@@ -721,6 +723,7 @@ const INTERNAL_PAGE_PATHS = new Set([
   "/speedqueen-truckload.html",
   "/written-models.html",
   "/service-journey.html",
+  "/service-board.html",
   "/service-proto-board.html",
   "/service-proto-field.html",
   "/service-proto-office.html",
@@ -871,6 +874,7 @@ const JOB_CODE_PRESETS = {
     label: "Client Care",
     pages: [
       "/appliance-service-calls.html",
+      "/service-board.html",
       "/archive-service-calls.html",
       "/service-estimates.html",
       "/closed-estimates.html",
@@ -968,6 +972,7 @@ const PAGE_LABELS = {
   "/pilot-field.html": "AJH Pilot — Field Tool",
   "/pilot-parts.html": "AJH Pilot — Parts Pipeline",
   "/service-journey.html": "Service Journey (ePASS mirror)",
+  "/service-board.html": "Service Dispatch Board",
   "/service-proto-board.html": "Service Journey — Dispatch Board prototype",
   "/service-proto-field.html": "Service Journey — Field Tool prototype",
   "/service-proto-office.html": "Service Journey — Office Queues prototype",
@@ -1103,6 +1108,7 @@ const PAGE_CATEGORIES = [
     label: "Client Care",
     pages: [
       "/appliance-service-calls.html",
+      "/service-board.html",
       "/archive-service-calls.html",
       "/service-estimates.html",
       "/closed-estimates.html",
@@ -9412,9 +9418,14 @@ app.post("/api/epass-agent/upload", express.raw({ type: () => true, limit: "60mb
     if (kind === "epass-open-service") {
       const bundle = parseOpenServiceBundle(req.body);
       const counts = await replaceEpassOpenService(bundle, { filename: sourceFile });
+      // The service journey mirror (sj_jobs) now follows this feed instead of
+      // the DispatchTrack export — same upsert rules, fifteen minutes fresh.
+      let mirror = null;
+      try { const m = await importServiceFromEpassFeed({ byEmail: "epass-agent", pulledAt: bundle.pulledAt || "" }); mirror = { created: m.created, updated: m.updated, unchanged: m.unchanged, attached: m.attached, dropped: m.droppedFromFeed, stale: m.stale, skipped: !!m.skipped }; }
+      catch (err) { console.error("Service mirror from feed failed:", err.message); mirror = { error: err.message }; }
       recordAudit({ ip: req.ip, actorUserId: null, action: "epass_open_service_received", targetUserId: null,
-        detail: { ...counts, pulledAt: bundle.pulledAt || "", machine: bundle.machine || "", filename: sourceFile.slice(0, 120), via: "epass-agent" } }).catch(() => {});
-      return res.json({ ok: true, kind, ...counts, pulledAt: bundle.pulledAt || "" });
+        detail: { ...counts, mirror, pulledAt: bundle.pulledAt || "", machine: bundle.machine || "", filename: sourceFile.slice(0, 120), via: "epass-agent" } }).catch(() => {});
+      return res.json({ ok: true, kind, ...counts, mirror, pulledAt: bundle.pulledAt || "" });
     }
 
     return res.status(400).json({ error: `Unknown upload kind "${kind}" — expected inventory, quotes, open-orders, dispatch, invoices, epass-open-orders, or epass-open-service.` });
@@ -9699,6 +9710,66 @@ app.post("/api/service-journey/techs/:code/day", requireServiceJourney, async (r
     const b = req.body || {};
     const day = await setServiceTechDay({ techCode: req.params.code, date: String(b.date || ""), available: b.available === true ? true : b.available === false ? false : null, reason: b.reason, adjustMin: b.adjustMin, note: b.note, by: sjMe(req).email });
     sjAudit(req, "service_journey_tech_day_set", { tech: req.params.code, date: b.date, available: day.available, adjustMin: day.capacity_adjust_min });
+    return res.json({ ok: true, day });
+  } catch (err) { return res.status(400).json({ error: err.message }); }
+});
+
+// ---- Dispatch board (Client Care, 2026-09-22) — service-board.html ----------
+// The live version of the prototype: reads the mirror the ODBC feed keeps,
+// writes stop order / window / pin / blocks, and turns a drag onto a tech-day
+// into a sync packet for the office to key into ePASS. Never writes to ePASS.
+const requireServiceBoard = requirePagePermission("/service-board.html", "/service-journey.html");
+app.get("/api/service-board", requireServiceBoard, async (req, res) => {
+  try {
+    const board = await getServiceBoard({ from: String(req.query.from || ""), days: Number(req.query.days) || 5 });
+    return res.json({ ...board, me: sjMe(req), canEdit: true });
+  } catch (err) { console.error("Service board failed:", err.message); return res.status(500).json({ error: "Unable to load the board." }); }
+});
+app.post("/api/service-board/move", requireServiceBoard, async (req, res) => {
+  try {
+    const b = req.body || {};
+    const out = await moveServiceJob({ sv: b.sv, tech: b.tech, date: b.date, window: b.window || "", order: Array.isArray(b.order) ? b.order : null, forced: !!b.forced, note: b.note || "", by: sjMe(req).email });
+    sjAudit(req, "service_board_move", out);
+    return res.json({ ok: true, ...out });
+  } catch (err) { return res.status(400).json({ error: err.message }); }
+});
+app.post("/api/service-board/unschedule", requireServiceBoard, async (req, res) => {
+  try {
+    const out = await unscheduleServiceJob({ sv: req.body?.sv, note: req.body?.note || "", by: sjMe(req).email });
+    sjAudit(req, "service_board_unschedule", out);
+    return res.json({ ok: true, ...out });
+  } catch (err) { return res.status(400).json({ error: err.message }); }
+});
+app.post("/api/service-board/sequence", requireServiceBoard, async (req, res) => {
+  try {
+    const b = req.body || {};
+    const out = await sequenceTechDay({ tech: b.tech, date: b.date, order: Array.isArray(b.order) ? b.order : [], windows: b.windows && typeof b.windows === "object" ? b.windows : null, by: sjMe(req).email });
+    return res.json({ ok: true, ...out });
+  } catch (err) { return res.status(400).json({ error: err.message }); }
+});
+app.post("/api/service-board/jobs/:sv/flags", requireServiceBoard, async (req, res) => {
+  try {
+    const b = req.body || {};
+    const out = await setJobDispatchFlags({ sv: req.params.sv, locked: b.locked, note: b.note, partsEta: b.partsEta, by: sjMe(req).email });
+    return res.json({ ok: true, ...out });
+  } catch (err) { return res.status(400).json({ error: err.message }); }
+});
+app.post("/api/service-board/blocks", requireServiceBoard, async (req, res) => {
+  try {
+    const b = req.body || {};
+    const out = await addRouteBlock({ tech: b.tech, date: b.date, startMin: b.startMin, endMin: b.endMin, label: b.label || "", by: sjMe(req).email });
+    sjAudit(req, "service_board_block_added", out);
+    return res.json({ ok: true, block: out });
+  } catch (err) { return res.status(400).json({ error: err.message }); }
+});
+app.delete("/api/service-board/blocks/:id", requireServiceBoard, async (req, res) => {
+  try { return res.json({ ok: true, ...(await removeRouteBlock(req.params.id)) }); } catch (err) { return res.status(400).json({ error: err.message }); }
+});
+app.post("/api/service-board/techs/:code/day", requireServiceBoard, async (req, res) => {
+  try {
+    const b = req.body || {};
+    const day = await setServiceTechDay({ techCode: req.params.code, date: String(b.date || ""), available: b.available === true ? true : b.available === false ? false : null, reason: b.reason, adjustMin: b.adjustMin, note: b.note, by: sjMe(req).email });
+    sjAudit(req, "service_journey_tech_day_set", { tech: req.params.code, date: b.date, available: day.available, adjustMin: day.capacity_adjust_min, via: "board" });
     return res.json({ ok: true, day });
   } catch (err) { return res.status(400).json({ error: err.message }); }
 });
@@ -13206,6 +13277,7 @@ app.post("/api/written-models/settings", requireWrittenModels, requireExecutiveA
     const out = {};
     if (req.body?.supplierMap) out.supplierMap = await setWrittenModelsSetting("supplier_map", req.body.supplierMap);
     if (req.body?.modelSupplier) out.modelSupplier = await setWrittenModelsSetting("model_supplier", req.body.modelSupplier);
+    if (req.body?.epassSupplierMap) out.epassSupplierMap = await setWrittenModelsSetting("epass_supplier_map", req.body.epassSupplierMap);
     wmAudit(req, "written_models_settings_saved", { keys: Object.keys(out) });
     return res.json({ ok: true, ...(await getWrittenModelsSettings()) });
   } catch (err) { return res.status(400).json({ error: err.message }); }

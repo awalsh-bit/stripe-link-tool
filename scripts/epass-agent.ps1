@@ -27,15 +27,24 @@
 #
 # SCHEDULE (Windows Task Scheduler, run every 10 minutes):
 #   Program:  powershell.exe
-#   Args:     -NoProfile -ExecutionPolicy Bypass -File "W:\Agility\epass-agent.ps1"
-#   Run whether user is logged on or not; use an account that can read W:.
+#   Args:     -NoProfile -ExecutionPolicy Bypass -File "\\WILSON-FS02\SharedDrive\Agility\epass-agent.ps1"
+#   Run whether user is logged on or not. Use the UNC path, not W:\ — a
+#   background task has no mapped drives, so a W:\ path silently never runs.
 # =============================================================================
 
 # ---- CONFIG ----------------------------------------------------------------
 $BaseUrl  = "https://agility.wilsonappliance.com"
 $AgentKey = "PASTE-EPASS_AGENT_KEY-HERE"   # must match Render env EPASS_AGENT_KEY
-$Root     = "W:\Agility"
+# Root is the folder this script lives in. A scheduled task running "whether
+# user is logged on or not" has no mapped drives, so a hard-coded W:\Agility
+# made the agent do nothing for months; launched as
+# \\WILSON-FS02\SharedDrive\Agility\epass-agent.ps1 it now finds its outbox
+# either way (2026-09-21).
+$Root     = Split-Path -Parent $MyInvocation.MyCommand.Path
 $KeepProcessedDays = 60
+# The ODBC bundles arrive every 15 minutes (96 a day, the service one is big);
+# keeping two days of those is plenty — Agility holds the latest anyway.
+$KeepBundleDays = 2
 # ----------------------------------------------------------------------------
 
 $Kinds = @("inventory", "quotes", "open-orders", "dispatch", "invoices", "epass-open-orders", "epass-open-service")
@@ -92,6 +101,7 @@ foreach ($kind in $Kinds) {
 # Tidy old processed files
 foreach ($kind in $Kinds) {
   $dir = Join-Path $Root (Join-Path "processed" $kind)
-  Get-ChildItem -Path $dir -File | Where-Object { $_.LastWriteTime -lt (Get-Date).AddDays(-$KeepProcessedDays) } |
+  $keep = if ($kind -like "epass-*") { $KeepBundleDays } else { $KeepProcessedDays }
+  Get-ChildItem -Path $dir -File -ErrorAction SilentlyContinue | Where-Object { $_.LastWriteTime -lt (Get-Date).AddDays(-$keep) } |
     Remove-Item -Force -ErrorAction SilentlyContinue
 }

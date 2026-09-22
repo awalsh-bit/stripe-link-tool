@@ -30,9 +30,12 @@
 # deny-list below is dropped from every dataset (see Data minimization in
 # docs/epass-odbc.md). Add names there, never remove them.
 #
-# SCHEDULE (Task Scheduler, e.g. every 30 minutes, 6am–8pm):
-#   Program:  C:\Windows\SysWOW64\WindowsPowerShell\v1.0\powershell.exe
-#   Args:     -NoProfile -ExecutionPolicy Bypass -File "W:\Agility\epass-odbc-pull.ps1"
+# SCHEDULE (Task Scheduler, every 15 minutes — client self-scheduling reads
+# this data — 6am–8pm; run as the Windows account that owns the COMPANY1 DSN):
+#   schtasks /Create /TN "Agility ePASS pull" /SC MINUTE /MO 15 /ST 06:00 /ET 20:00 /K /F `
+#     /TR "C:\Windows\SysWOW64\WindowsPowerShell\v1.0\powershell.exe -NoProfile -ExecutionPolicy Bypass -File ""W:\Agility\epass-odbc-pull.ps1"""
+# The script calls epass-agent.ps1 itself when it finishes, so the upload
+# doesn't wait for the agent's own 10-minute task.
 # One-off discovery (column lists for the tables we care about):
 #   ... -File "W:\Agility\epass-odbc-pull.ps1" -Discover
 # =============================================================================
@@ -163,7 +166,10 @@ WHERE i.InvTypeCode IN ('R','S','AC','CAB','MOD') AND UPPER(i.Status) <> 'FINISH
                      "Model", "ModelMinMax", "ModelSupplierQOH", "ModelListPrice", "Customer", "LaborRate", "Supplier", "Location", "Salesperson", "Technician",
                      "Serial", "SerialType", "SerialSales", "PO", "POModel", "POSerial", "POItem", "POComment", "POCancelledOrders",
                      "JobStatus", "JobStatusDepartment", "InvType", "Priority", "MapZone", "MapZoneDelivery", "Route", "RouteDepartment", "Brand", "Product", "ProductMajor", "ProductMinor",
-                     "Repair", "Symptom", "ServiceRequest", "ServicePerformed", "ReturnReason", "ReturnOutcome", "ReturnInitiatedBy", "Item", "ItemLocation", "Branch", "Qualification")) {
+                     "Repair", "Symptom", "ServiceRequest", "ServicePerformed", "ReturnReason", "ReturnOutcome", "ReturnInitiatedBy", "Item", "ItemLocation", "Branch", "Qualification",
+                     # Dispatch side (seen in tables.csv 2026-09-21, never described): ePASS's own
+                     # routing table, zone polygons, tech qualifications, the scheduler.
+                     "DispRoute", "DispatchMeJob", "DispatchMeError", "MapZoneCoordinates", "MapZoneVertices", "MapZoneDepartment", "RouteQualifications", "Scheduler", "ScheduleTaskHist")) {
       Step "schema $t" {
         $rows = @($script:columns | Where-Object { $_.TABLE_NAME -eq $t } | Sort-Object { [int]$_.ORDINAL_POSITION } |
           Select-Object COLUMN_NAME, TYPE_NAME, COLUMN_SIZE, ORDINAL_POSITION, @{ n = "Denied"; e = { Is-Denied $_.COLUMN_NAME } })
@@ -173,7 +179,8 @@ WHERE i.InvTypeCode IN ('R','S','AC','CAB','MOD') AND UPPER(i.Status) <> 'FINISH
     }
     # Small lookup tables in full (no customer data in any of them) — the
     # meanings behind the codes the invoices carry.
-    foreach ($t in @("JobStatus", "JobStatusDepartment", "InvType", "Priority", "MapZone", "MapZoneDelivery", "Route", "RouteDepartment", "Brand", "Product", "ProductMajor", "ProductMinor", "Location", "Salesperson", "Technician", "SerialType", "ReturnReason", "ReturnOutcome", "ReturnInitiatedBy", "Symptom", "Repair", "ServicePerformed", "Qualification", "Branch", "LaborRate")) {
+    foreach ($t in @("JobStatus", "JobStatusDepartment", "InvType", "Priority", "MapZone", "MapZoneDelivery", "Route", "RouteDepartment", "Brand", "Product", "ProductMajor", "ProductMinor", "Location", "Salesperson", "Technician", "SerialType", "ReturnReason", "ReturnOutcome", "ReturnInitiatedBy", "Symptom", "Repair", "ServicePerformed", "Qualification", "Branch", "LaborRate",
+                     "RouteQualifications", "MapZoneCoordinates", "MapZoneVertices", "MapZoneDepartment")) {
       Step "lookup $t" { [void](Export-Query $conn "SELECT TOP 2000 * FROM $t" (Join-Path $SchemaDir "lookup-$t.csv") "lookup $t") }
     }
     # Where do reserved-but-not-taken units live? Probe the Serial master for
@@ -202,6 +209,37 @@ WHERE (s.Status IS NULL OR s.Status = '') AND i.InvTypeCode IN ('R','S','AC','CA
     Step "PO headers" { [void](Export-Query $conn @"
 SELECT TOP 200 * FROM PO ORDER BY DateCreated DESC
 "@ (Join-Path $SchemaDir "probe-po.csv") "PO headers") }
+    # ---- service / dispatch probes (2026-09-21, for the service journey) ----
+    # Which of the fields the placement engine wants does ePASS actually fill
+    # on open service tickets? (Invoice already carries SoldToLatitude /
+    # SoldToLongitude on 612 of 612 open sales orders — ePASS geocodes.)
+    Step "service field population" { [void](Export-Query $conn @"
+SELECT InvTypeCode, JobStatusCode, COUNT(*) AS Tickets,
+       SUM(CASE WHEN SvcScheduleDate IS NULL THEN 0 ELSE 1 END) AS WithSvcScheduleDate,
+       SUM(CASE WHEN ScheduleDate IS NULL THEN 0 ELSE 1 END) AS WithScheduleDate,
+       SUM(CASE WHEN SoldToLatitude IS NULL OR SoldToLatitude = 0 THEN 0 ELSE 1 END) AS WithLatLng,
+       SUM(CASE WHEN MapZoneCode IS NULL OR MapZoneCode = '' THEN 0 ELSE 1 END) AS WithZone,
+       SUM(CASE WHEN DispatchRequestedRouteCode IS NULL OR DispatchRequestedRouteCode = '' THEN 0 ELSE 1 END) AS WithRoute,
+       SUM(CASE WHEN Qualification IS NULL OR Qualification = '' THEN 0 ELSE 1 END) AS WithQualification,
+       SUM(CASE WHEN DispatchTimeAM IS NULL OR DispatchTimeAM = '' THEN 0 ELSE 1 END) AS WithTimeAM,
+       SUM(CASE WHEN DispatchUnits IS NULL THEN 0 ELSE 1 END) AS WithUnits,
+       SUM(CASE WHEN Priority IS NULL OR Priority = '' THEN 0 ELSE 1 END) AS WithPriority
+FROM Invoice
+WHERE InvTypeCode IN ('SV','WTY') AND UPPER(Status) <> 'FINISHED'
+GROUP BY InvTypeCode, JobStatusCode ORDER BY InvTypeCode, JobStatusCode
+"@ (Join-Path $SchemaDir "probe-service-fields.csv") "service field population") }
+    # Labor lines carry the tech, the trip number and the clock times — the
+    # learned on-site durations the engine wants (duration.learn_after_days).
+    Step "labor trips" { [void](Export-Query $conn @"
+SELECT TOP 500 l.InvoiceCode, l.TripNo, l.TechnicianCode, l.ServiceDate, l.TimeIn, l.TimeInAM, l.TimeOut, l.TimeOutAM, l.HdthsMin, l.TimeCharged, l.LaborRateCode, l.JobStatus, l.Warranty, l.TripCharge
+FROM InvoiceLabor l ORDER BY l.ServiceDate DESC
+"@ (Join-Path $SchemaDir "probe-labor-trips.csv") "labor trips") }
+    # ePASS's own routing tables: stop order per route/day (open item 32) and
+    # the DispatchMe job feed.
+    Step "DispRoute sample" { [void](Export-Query $conn "SELECT TOP 500 * FROM DispRoute" (Join-Path $SchemaDir "probe-disproute.csv") "DispRoute sample") }
+    Step "DispRoute count" { [void](Export-Query $conn "SELECT COUNT(*) AS Rows FROM DispRoute" (Join-Path $SchemaDir "probe-disproute-count.csv") "DispRoute count") }
+    Step "DispatchMeJob sample" { [void](Export-Query $conn "SELECT TOP 300 * FROM DispatchMeJob" (Join-Path $SchemaDir "probe-dispatchmejob.csv") "DispatchMeJob sample") }
+    Step "Scheduler sample" { [void](Export-Query $conn "SELECT TOP 200 * FROM Scheduler" (Join-Path $SchemaDir "probe-scheduler.csv") "Scheduler sample") }
     Log "discovery complete -> $SchemaDir"
     return
   }
@@ -350,8 +388,18 @@ ORDER BY n.Code, n.CreateDate, n.CreateTime
   $json = $svc | ConvertTo-Json -Depth 6 -Compress
   $path = Join-Path $SvcOutbox "epass-open-service-$stamp.json"
   [System.IO.File]::WriteAllText($path, $json, (New-Object System.Text.UTF8Encoding($false)))
-  Log ("bundle -> {0} ({1:n0} KB); epass-agent.ps1 will push it" -f $path, ($json.Length / 1024))
+  Log ("bundle -> {0} ({1:n0} KB)" -f $path, ($json.Length / 1024))
 }
 finally {
   $conn.Close()
+}
+
+# Hand the bundles to the agent right away instead of waiting for its own
+# 10-minute task (self-scheduling reads this data, so freshness matters:
+# pull every 15 minutes + push at once ≈ 2 minutes old, not 25). The agent
+# skips files younger than 30 s, so give the last write a moment to settle.
+$agent = Join-Path $Root "epass-agent.ps1"
+if (-not $Discover -and (Test-Path $agent)) {
+  Start-Sleep -Seconds 31
+  try { & $agent; Log "epass-agent.ps1 ran" } catch { Log ("epass-agent.ps1 FAILED (its own task will retry): {0}" -f $_.Exception.Message) }
 }

@@ -241,6 +241,7 @@
         title: "Client Care",
         children: [
           { href: "appliance-service-calls.html", title: "Service Request Queue" },
+          { href: "service-board.html", title: "Service Dispatch Board" },
           { href: "service-order-health.html", title: "Service Order Health" },
           { href: "service-estimates.html", title: "Service Estimate Approvals" },
           { href: "closed-estimates.html", title: "Closed Service Estimates" },

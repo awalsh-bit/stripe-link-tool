@@ -183,6 +183,7 @@
               : `
             ${s.laborEntries ? `<tr><td>Labor${s.laborEntries > 1 ? ` <span class="model">(${s.laborEntries} entries)</span>` : ""}</td><td class="amt">${money(s.laborTotal)}</td></tr>` : ""}
             ${s.shippingTotal ? `<tr><td>Shipping &amp; handling</td><td class="amt">${money(s.shippingTotal)}</td></tr>` : ""}
+            ${s.coreTotal ? `<tr><td>Core charge <span class="model">(refunded when the old part comes back)</span></td><td class="amt">${money(s.coreTotal)}</td></tr>` : ""}
             <tr class="sub"><td>Subtotal</td><td class="amt">${money(s.subTotal)}</td></tr>`}
             <tr><td>Sales tax</td><td class="amt">${money(s.tax)}</td></tr>
             ${paidOf(s) > 0 ? `

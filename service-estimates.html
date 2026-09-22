@@ -334,6 +334,7 @@
             ${(s.refrigerant || []).map((r) => `<tr class="se-refrig"><td>${Number(r.qty) > 1 ? Number(r.qty) + " × " : ""}${esc(r.description)}${r.unit != null && Number(r.qty) > 1 ? ` <span style="color:var(--muted); font-size:11px;">${money(r.unit)} each</span>` : ""} <span style="color:var(--muted); font-size:11px;">refrigerant</span></td><td class="se-amt">${r.ext == null ? "—" : money(r.ext)}</td></tr>`).join("")}
             ${s.laborEntries ? `<tr><td>Labor (${s.laborEntries} ${s.laborEntries === 1 ? "entry" : "entries"})</td><td class="se-amt">${s.noLinePricing ? "—" : money(s.laborTotal)}</td></tr>` : ""}
             ${s.shippingTotal ? `<tr><td>Shipping &amp; handling</td><td class="se-amt">${money(s.shippingTotal)}</td></tr>` : ""}
+            ${(s.coreCharges || []).length ? `<tr><td>Core charge${s.coreTotal ? "" : " <span style=\"color:var(--muted); font-size:11px;\">(charged and returned — nets to zero, hidden from the client)</span>"}</td><td class="se-amt">${money(s.coreTotal || 0)}</td></tr>` : ""}
             <tr><td>Subtotal</td><td class="se-amt">${money(s.subTotal)}</td></tr>
             <tr><td>Sales tax</td><td class="se-amt">${money(s.tax)}</td></tr>
             ${paidOf(s) > 0 ? `

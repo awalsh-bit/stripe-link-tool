@@ -65,7 +65,7 @@
     table.wm { width: 100%; border-collapse: collapse; font-size: 14.5px; }
     table.wm th { text-align: right; font-size: 11.5px; letter-spacing: 0.06em; text-transform: uppercase; color: #64748b; padding: 8px 8px; border-bottom: 2px solid var(--border); white-space: nowrap; }
     table.wm th.l, table.wm td.l { text-align: left; }
-    table.wm td.l { white-space: normal; min-width: 150px; } table.wm td.l + td.l { min-width: 110px; }
+    table.wm td.l { white-space: normal; min-width: 150px; } table.wm td.l + td.l { min-width: 120px; width: 24%; } table.wm th.l:first-child { width: 36%; }
     table.wm td:last-child, table.wm td.cogc { width: 30px; padding-left: 2px; padding-right: 2px; }
     table.wm td { padding: 6px 5px; border-bottom: 1px solid #eef1f6; text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; vertical-align: top; }
     table.wm tr.model td { background: #fafbfd; font-weight: 700; }
@@ -74,6 +74,7 @@
     table.wm tr.line td.l strong { font-size: 15.5px; }
     .cog { width: 26px; height: 26px; border-radius: 50%; border: 1px solid var(--border); background: #fff; color: #374151; font-size: 15px; line-height: 1; padding: 0; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; } .cog:hover { border-color: var(--primary); color: var(--primary); }
     .cog.short { border-color: #dc2626; color: #b91c1c; background: #fef2f2; }
+    .pos-btn.short { border-color: rgba(220,38,38,.45); background: #fef2f2; color: #b91c1c; }
     .pos-line { display: flex; flex-wrap: wrap; gap: 10px 22px; align-items: center; margin: 0 0 12px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px; background: #fafbfd; font-size: 13.5px; }
     .pos-line b { font-size: 17px; font-variant-numeric: tabular-nums; } .pos-line .k { display: block; font-size: 11px; letter-spacing: .05em; text-transform: uppercase; color: #64748b; font-weight: 700; } .pos-line .short b { color: #b91c1c; } .pos-line .sup { flex-basis: 100%; } .pos-line .sup .hint { font-size: 13px; } .pos-line .sup-in { font-size: 14px; max-width: 460px; padding: 6px 8px; }
     table.wm tr.order td { background: var(--primary-faint-2, #f6faf6); border-top: 2px solid var(--border); }
@@ -108,7 +109,7 @@
     table.wm tr.line.ret td.l strong { color: #991b1b; }
     .badge.ret { background: #fecaca; color: #991b1b; }
     .badge.cod { background: #fef3c7; color: #92400e; }
-    .pos-btn { display: inline-flex; align-items: center; gap: 5px; margin-left: 6px; padding: 2px 9px; border-radius: 999px; border: 1px solid rgba(var(--primary-rgb), 0.35); background: rgba(var(--primary-rgb), 0.08); color: var(--primary); font: inherit; font-size: 10.5px; font-weight: 800; letter-spacing: 0.03em; text-transform: uppercase; cursor: pointer; }
+    .pos-btn { display: inline-flex; align-items: center; gap: 5px; margin-left: 8px; padding: 2px 9px; border-radius: 999px; border: 1px solid rgba(var(--primary-rgb), 0.35); background: rgba(var(--primary-rgb), 0.08); color: var(--primary); font: inherit; font-size: 12px; font-weight: 700; white-space: nowrap; cursor: pointer; vertical-align: 2px; } .pos-btn:hover { background: rgba(var(--primary-rgb), 0.16); }
     .pos-btn:hover { background: rgba(var(--primary-rgb), 0.16); }
     .pos-overlay { display: none; position: fixed; inset: 0; background: rgba(15, 23, 42, 0.45); z-index: 60; padding: 30px 16px; overflow: auto; }
     .pos-overlay.show { display: block; }
@@ -351,7 +352,7 @@
             <div class="meta"><span><b>${orders.length}</b> orders</span><span><b>${units}</b> written</span><span><b>${proposed}</b> to order</span><span>sell <b>${money(sell)}</b></span><span>STD <b>${money(cost)}</b></span><span>margin <b class="${mcls(sell > 0 ? (sell - cost) / sell : null)}">${pct(sell > 0 ? (sell - cost) / sell : null)}</b></span><span>first delivery <b>${day(earliest)}</b></span></div>
             <span class="caret">⌄</span></div>
           <div class="sup-b scroll"><table class="wm">
-            <thead><tr><th class="l">Sales order · item</th><th class="l">Details</th><th>Delivery</th><th>Sell</th><th>STD cost</th><th>Margin</th><th title="Numbers, stock class and supplier for this line"></th><th title="Tick off — ordered, or assigned from stock"></th></tr></thead>
+            <thead><tr><th class="l">Sales order · item</th><th class="l">Details</th><th>Delivery</th><th>Sell</th><th>STD cost</th><th>Margin</th><th title="Tick off — ordered, or assigned from stock"></th></tr></thead>
             <tbody>${orders.map(orderHtml).join("")}</tbody></table></div></div>`;
       }
       function orderHtml(o) {
@@ -363,7 +364,7 @@
         const head = `<tr class="model order"><td class="l"><strong class="copy-model" data-copy="${esc(o.invoice)}" title="Click to copy the sales order number">${esc(o.invoice)}</strong> ${esc(o.customer)}${anyRet ? ` <span class="badge ret">Return</span>` : ""}${anyCod ? ` <span class="badge cod" title="0% paid on COD terms">0% COD</span>` : ""}${o.billTo && !o.billTo.includes(o.customer) ? `<span class="hint">bill to ${esc(o.billTo)}</span>` : ""}</td>
           <td class="l"><span class="hint">${esc(o.sp || "")}${o.status ? " · " + esc(o.status) : ""}${o.deposit ? ` · ${o.deposit.pct}% paid · ${esc(o.deposit.terms)}` : ""}${o.reference ? " · " + esc(o.reference) : ""}<br>${o.items.length} item${o.items.length === 1 ? "" : "s"} · ${qty} unit${qty === 1 ? "" : "s"} · written ${day(o.invoiceDate)}</span></td>
           <td>${day(o.delDate)}</td>
-          <td>${money(sell)}</td><td>${money(cost)}</td><td class="${mcls(mm)}">${pct(mm)}</td><td class="cogc"></td><td></td></tr>`;
+          <td>${money(sell)}</td><td>${money(cost)}</td><td class="${mcls(mm)}">${pct(mm)}</td><td></td></tr>`;
         return head + o.items.map(itemHtml).join("");
       }
       const LINE_UI = {}; // per line: the chips and supplier picker the ⚙ shows in the popup
@@ -386,22 +387,22 @@
         const dflt = m.supplierSource === "netsuite" ? `${m.supplier} (NetSuite)` : m.supplierSource === "brand" ? `${m.supplier} (by brand)` : m.supplierSource === "epass-map" ? `${m.supplier} (ePASS ${m.epass?.supplierCode || ""} → NetSuite)` : m.supplierSource === "epass" ? `${m.supplier} (ePASS, unmapped)` : "Unassigned — pick a supplier";
         const supIn = canEdit ? `<span class="hint">Supplier: <select class="sup-in" data-model-sup="${esc(m.key)}" title="NetSuite's supplier applies unless you pick one here"><option value="">${esc(dflt)}</option>${opts.map((o) => `<option value="${esc(o)}"${o === cur ? " selected" : ""}>${esc(o)}</option>`).join("")}</select></span>` : "";
         LINE_UI[l.id] = { badges: badges.replace(/<button[^>]*pos-btn[\s\S]*?<\/button>\s*/, ""), supIn, qty: l.qty, m };
+        const cogTitle = `Qty ${l.qty} · written ${m.written} · on hand ${m.qoh ?? "—"} · on order ${m.qoo ?? "—"} · short ${m.proposed}${m.stockClass ? " · " + m.stockClass : ""} · supplier ${m.supplier || "unassigned"} — click for the full position`;
         // On the row: model, brand, inventory position, the order-level
         // warnings, description. Everything else (qty / written / QOH / QOO /
         // short, stock class, supplier source, the supplier picker) sits behind
         // the ⚙ so the page fits half a screen next to the vendor portal.
+        const spoken = m.spokenFor?.length ? m.spokenFor.reduce((a, s) => a + (s.qty || 0), 0) : 0;
         const rowBadges = [
-          `<button type="button" class="pos-btn" data-pos="${esc(m.key)}" data-line="${esc(l.id)}" title="Inventory position — on hand, on order, written, every unit with its receive date and ticket">Inv${m.qoh ? ` · ${m.qoh} on hand` : " · none on hand"}${m.spokenFor?.length ? ` · ${m.spokenFor.reduce((a, s) => a + (s.qty || 0), 0)} spoken for` : ""}</button>`,
+          `<button type="button" class="pos-btn${m.proposed > 0 ? " short" : ""}" data-pos="${esc(m.key)}" data-line="${esc(l.id)}" title="${esc(cogTitle)}">⚙ ${m.qoh ? `${m.qoh} on hand` : "none on hand"}${spoken ? ` · ${spoken} spoken for` : ""}${m.proposed > 0 ? ` · short ${m.proposed}` : ""}</button>`,
           isReturn(l) ? `<span class="badge ret">Return</span>` : "",
           isUnpaidCod(l) ? `<span class="badge cod" title="0% paid on COD terms">0% COD</span>` : ""
         ].filter(Boolean).join(" ");
-        const cogTitle = `Qty ${l.qty} · written ${m.written} · on hand ${m.qoh ?? "—"} · on order ${m.qoo ?? "—"} · short ${m.proposed}${m.stockClass ? " · " + m.stockClass : ""} · supplier ${m.supplier || "unassigned"}`;
         return `<tr class="line${isReturn(l) ? " ret" : ""}${l.handled ? " done" : ""}">
           <td class="l"><strong class="copy-model" data-copy="${esc(m.model)}" title="Click to copy the model number">${esc(m.model)}</strong>${m.item?.brand ? `<span class="brand">${esc(m.item.brand)}</span>` : ""} ${rowBadges}<span class="desc">${esc(m.item?.description || (m.item?.displayName && m.item.displayName !== m.model ? m.item.displayName : "") || "")}</span></td>
           <td class="l"><span class="hint">${esc(l.sp || "")}${l.status ? " · " + esc(l.status) : ""}${l.deposit ? ` · ${l.deposit.pct}% paid · ${esc(l.deposit.terms)}` : ""}${l.reference ? " · " + esc(l.reference) : ""}${l.qty !== 1 ? ` · qty ${l.qty}` : ""}</span></td>
           <td>${day(l.delDate)}</td>
           <td>${money2(l.sellPrice)}</td><td>${money2(l.stdCost)}</td><td class="${mcls(l.marginRate)}">${pct(l.marginRate)}${l.marginDollars != null ? `<span class="hint">${money2(l.marginDollars)}/unit</span>` : ""}</td>
-          <td class="cogc"><button type="button" class="cog${m.proposed > 0 ? " short" : ""}" data-pos="${esc(m.key)}" data-line="${esc(l.id)}" title="${esc(cogTitle)}">⚙</button></td>
           <td>${l.handled ? `<button type="button" class="xbtn undo" data-undo="${esc(l.id)}" title="Handled ${when(l.handled.at)}${l.handled.by ? " by " + esc(l.handled.by) : ""} — click to put it back">↺</button>` : `<button type="button" class="xbtn" data-done="${esc(l.id)}" title="Ordered / assigned from stock — take it off the report">✕</button>`}</td></tr>`;
       }
       function renderMap() {
@@ -449,16 +450,17 @@
           const summary = `<table class="pos-sum"><thead><tr><th>Loc</th><th>QOH</th><th>QOO</th><th>WRI</th><th>Spoken for</th><th>Free</th>${p.months.map((m) => `<th>${esc(monthName(m.month))}</th>`).join("")}</tr></thead>
             <tbody><tr><td class="dim">${esc(s.locations || "—")}</td><td>${s.qoh ?? "—"}</td><td>${s.qoo ?? "—"}${s.stockQoo ? `<span class="hint">stock ${s.stockQoo}</span>` : ""}</td><td>${s.written ?? "—"}</td><td>${s.spokenFor}</td><td>${s.free ?? "—"}${s.exclusive ? `<span class="hint" title="Showroom / open-box / special / service units not promised to an order — sellable by choice, not counted as free">+${s.exclusive} exclusive</span>` : ""}</td>${p.months.map((m) => `<td>${m.units}</td>`).join("")}</tr></tbody></table>`;
           const units = p.units.length
-            ? `<div class="pos-sec">Details — every unit on hand (${p.sources.serials?.feed ? "ePASS feed" : "serial inventory snapshot"})</div><table class="pos-d"><thead><tr><th>Ordered for invoice</th><th>Customer</th><th>Schedule / pickup</th><th>Status</th><th>Received</th><th>Age</th><th>Loc / bin</th><th>Serial type</th><th>Serial #</th><th>Cost</th></tr></thead>
+            ? `<div class="pos-sec">Inventory on hand <span class="hint" style="display:inline;font-weight:500;text-transform:none;letter-spacing:0">(${p.sources.serials?.feed ? "ePASS feed" : "serial inventory snapshot"})</span></div><table class="pos-d"><thead><tr><th>Ordered for invoice</th><th>Customer</th><th>Schedule / pickup</th><th>Status</th><th>Received</th><th>Age</th><th>Loc / bin</th><th>Serial type</th><th>Serial #</th><th>Cost</th></tr></thead>
                <tbody>${p.units.map((u) => `<tr class="${u.writtenTo ? "" : u.exclusive ? "excl" : "free"}"><td>${u.writtenTo ? `<strong>${esc(u.writtenTo)}</strong>` : u.exclusive ? `Exclusive Reserve Available` : `<span class="hint">free to rotate</span>`}</td><td>${esc(u.customer)}</td><td>${day(u.scheduleDate)}</td><td>${esc(u.status)}</td><td>${day(u.received)}</td><td>${u.ageDays == null ? "—" : u.ageDays + " d"}</td><td class="dim">${esc([u.location, u.bin].filter(Boolean).join(" / ") || "—")}</td><td>${esc(u.serialType)}</td><td>${esc(u.serial)}</td><td>${u.cost ? money2(u.cost) : "—"}</td></tr>`).join("")}</tbody></table>`
-            : `<div class="pos-sec">Details — spoken for (from the written models report)</div>${p.spokenFor.length ? `<table class="pos-d"><thead><tr><th>Ordered for invoice</th><th>Customer</th><th>Qty</th><th>Status</th><th>Delivery</th><th>Days in inventory</th></tr></thead><tbody>${p.spokenFor.map((x) => `<tr><td><strong>${esc(x.invoice)}</strong></td><td>${esc(x.customer)}</td><td>${x.qty}</td><td>${esc(x.status)}</td><td>${day(x.deliveryDate)}</td><td>${x.daysInInventory ?? "—"}</td></tr>`).join("")}</tbody></table>` : `<div class="pos-note">No serial snapshot loaded and nothing spoken for — upload the ExportModel serial report (Shop Inventory) to see units.</div>`}`;
+            : `<div class="pos-sec">Inventory on hand</div>${p.spokenFor.length ? `<table class="pos-d"><thead><tr><th>Ordered for invoice</th><th>Customer</th><th>Qty</th><th>Status</th><th>Delivery</th><th>Days in inventory</th></tr></thead><tbody>${p.spokenFor.map((x) => `<tr><td><strong>${esc(x.invoice)}</strong></td><td>${esc(x.customer)}</td><td>${x.qty}</td><td>${esc(x.status)}</td><td>${day(x.deliveryDate)}</td><td>${x.daysInInventory ?? "—"}</td></tr>`).join("")}</tbody></table>` : `<div class="pos-note">No serial snapshot loaded and nothing spoken for — upload the ExportModel serial report (Shop Inventory) to see units.</div>`}`;
           const onOrder = p.onOrder?.length
-            ? `<div class="pos-sec">On order — purchase-order lines not yet received</div><table class="pos-d"><thead><tr><th>PO</th><th>Supplier</th><th>Qty</th><th>For invoice</th><th>Customer</th><th>Ordered</th></tr></thead>
+            ? `<div class="pos-sec">On order</div><table class="pos-d"><thead><tr><th>PO</th><th>Supplier</th><th>Qty</th><th>For invoice</th><th>Customer</th><th>Ordered</th></tr></thead>
                <tbody>${p.onOrder.map((o) => `<tr class="${o.forInvoice ? "" : "free"}"><td><strong>${esc(o.po)}</strong>${o.released === false ? ` <span class="hint">unreleased</span>` : ""}</td><td>${esc(o.supplier)}</td><td>${o.qty}</td><td>${o.forInvoice ? `<strong>${esc(o.forInvoice)}</strong>` : `<span class="hint">stock</span>`}</td><td>${esc(o.customer || "")}</td><td>${day(o.ordered)}</td></tr>`).join("")}</tbody></table>`
             : "";
           const lineNote = (l) => l.qty < 0 ? "" : l.ordered ? `<span class="hint">on PO</span>` : l.d1 ? `<span class="hint">D1 · waiting to order</span>` : l.covered ? `<span class="hint">${l.covered} on hand for it</span>` : l.needed ? `<span class="badge short">order ${l.needed}</span>` : "";
-          const written = `<div class="pos-sec">Written, not delivered</div><table class="pos-d"><thead><tr><th>Invoice</th><th>Customer</th><th>Qty</th><th>SP</th><th>Status</th><th>PO</th><th>Written</th><th>Delivery</th><th>To order</th></tr></thead>
-            <tbody>${p.writtenLines.map((l) => `<tr class="${l.qty < 0 ? "ret" : ""}"><td><strong>${esc(l.invoice)}</strong>${l.qty < 0 ? ` <span class="badge ret">Return</span>` : ""}</td><td>${esc(l.customer)}</td><td>${l.qty}</td><td>${esc(l.sp)}</td><td>${esc(l.status)}</td><td>${l.po ? `<strong>${esc(l.po)}</strong>${l.poDate ? ` <span class="hint">${day(l.poDate)}</span>` : ""}` : "—"}</td><td>${day(l.invoiceDate)}</td><td>${day(l.delDate)}</td><td>${lineNote(l)}</td></tr>`).join("") || `<tr><td colspan="9" class="hint">Nothing written.</td></tr>`}</tbody></table>`;
+          const need = p.writtenLines.filter((l) => !l.ordered);
+          const written = `<div class="pos-sec">Need to order${need.length !== p.writtenLines.length ? ` <span class="hint" style="display:inline;font-weight:500;text-transform:none;letter-spacing:0">(${p.writtenLines.length - need.length} more written line${p.writtenLines.length - need.length === 1 ? "" : "s"} already on a PO — see On order)</span>` : ""}</div><table class="pos-d"><thead><tr><th>Invoice</th><th>Customer</th><th>Qty</th><th>SP</th><th>Status</th><th>PO</th><th>Written</th><th>Delivery</th><th>To order</th></tr></thead>
+            <tbody>${need.map((l) => `<tr class="${l.qty < 0 ? "ret" : ""}"><td><strong>${esc(l.invoice)}</strong>${l.qty < 0 ? ` <span class="badge ret">Return</span>` : ""}</td><td>${esc(l.customer)}</td><td>${l.qty}</td><td>${esc(l.sp)}</td><td>${esc(l.status)}</td><td>${l.po ? `<strong>${esc(l.po)}</strong>${l.poDate ? ` <span class="hint">${day(l.poDate)}</span>` : ""}` : "—"}</td><td>${day(l.invoiceDate)}</td><td>${day(l.delDate)}</td><td>${lineNote(l)}</td></tr>`).join("") || `<tr><td colspan="9" class="hint">Nothing written.</td></tr>`}</tbody></table>`;
           const note = `<div class="pos-note">Serial snapshot: ${p.sources.serials?.uploadedAt ? `${esc(p.sources.serials.sourceFile || "")} uploaded ${when(p.sources.serials.uploadedAt)}` : "none loaded"} · report uploaded ${when(p.sources.report?.uploadedAt)}${p.months.length ? " · month columns are delivered units from Sales Order Detail" : ""}</div>`;
           $("posBody").innerHTML = lineBlock + summary + units + onOrder + written + note; wireSup();
         } catch (err) { $("posBody").innerHTML = lineBlock + `<div class="empty">${esc(err.message)}</div>`; wireSup(); }

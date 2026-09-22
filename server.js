@@ -483,6 +483,7 @@ import {
   getLastServiceUploadSnapshot
 } from "./lib/service-orders-postgres.js";
 import { salesOrderRowsFromFeed, serviceOrderRowsFromFeed, compareOrderRows } from "./lib/epass-feed-orders.js";
+import { listPartsQueue, setPartsEta, markPartsReceived } from "./lib/service-office-postgres.js";
 import { extractQuoteDataFromPdfBuffer } from "./lib/spec-scan.js";
 import { parseMaintenanceInvoices } from "./lib/maintenance-invoice-parser.js";
 import {
@@ -730,6 +731,7 @@ const INTERNAL_PAGE_PATHS = new Set([
   "/written-models.html",
   "/service-journey.html",
   "/service-board.html",
+  "/service-office.html",
   "/service-proto-board.html",
   "/service-proto-field.html",
   "/service-proto-office.html",
@@ -881,6 +883,7 @@ const JOB_CODE_PRESETS = {
     pages: [
       "/appliance-service-calls.html",
       "/service-board.html",
+      "/service-office.html",
       "/archive-service-calls.html",
       "/service-estimates.html",
       "/closed-estimates.html",
@@ -979,6 +982,7 @@ const PAGE_LABELS = {
   "/pilot-parts.html": "AJH Pilot — Parts Pipeline",
   "/service-journey.html": "Service Journey (ePASS mirror)",
   "/service-board.html": "Service Dispatch Board",
+  "/service-office.html": "Service Office Queues",
   "/service-proto-board.html": "Service Journey — Dispatch Board prototype",
   "/service-proto-field.html": "Service Journey — Field Tool prototype",
   "/service-proto-office.html": "Service Journey — Office Queues prototype",
@@ -1115,6 +1119,7 @@ const PAGE_CATEGORIES = [
     pages: [
       "/appliance-service-calls.html",
       "/service-board.html",
+      "/service-office.html",
       "/archive-service-calls.html",
       "/service-estimates.html",
       "/closed-estimates.html",
@@ -9788,6 +9793,27 @@ app.post("/api/service-board/holds/:id/move", requireServiceBoard, async (req, r
 app.get("/api/service-board/history/:sv", requireServiceBoard, async (req, res) => {
   try { return res.json(await getServiceHistory(req.params.sv)); }
   catch (err) { return res.status(400).json({ error: err.message }); }
+});
+// ---- Office queues (Client Care) — service-office.html: parts ETAs --------
+const requireServiceOffice = requirePagePermission("/service-office.html", "/service-board.html", "/service-journey.html");
+app.get("/api/service-office/parts", requireServiceOffice, async (req, res) => {
+  try { return res.json({ rows: await listPartsQueue(), me: sjMe(req) }); }
+  catch (err) { console.error("Parts queue failed:", err.message); return res.status(500).json({ error: "Unable to load the parts queue." }); }
+});
+app.post("/api/service-office/parts/:sv", requireServiceOffice, async (req, res) => {
+  try {
+    const b = req.body || {};
+    const r = await setPartsEta({ sv: req.params.sv, eta: b.eta, po: b.po, note: b.note, by: sjMe(req).email });
+    sjAudit(req, "service_office_parts_eta", r);
+    return res.json({ ok: true, ...r });
+  } catch (err) { return res.status(400).json({ error: err.message }); }
+});
+app.post("/api/service-office/parts/:sv/received", requireServiceOffice, async (req, res) => {
+  try {
+    const r = await markPartsReceived({ sv: req.params.sv, by: sjMe(req).email, note: String(req.body?.note || "") });
+    sjAudit(req, "service_office_parts_received", { sv: req.params.sv });
+    return res.json({ ok: true, ...r });
+  } catch (err) { return res.status(400).json({ error: err.message }); }
 });
 app.get("/api/service-board/diagnose", requireServiceBoard, async (req, res) => {
   try { return res.json(await diagnoseServiceBoard()); }

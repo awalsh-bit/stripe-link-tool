@@ -498,6 +498,7 @@
         ${sw("booking.self_schedule_enabled", "Customer self-scheduling", "— the request forms offer a date picker in open zones; picks land on the dispatch board as HOLD cards. Off = classic confirmation, nothing about step 2 reaches the customer.")}
         ${sw("notify.route_confirm.enabled", "Text customers on Confirm route", "— off: confirming only locks the day and shows the wording for the office to send by hand.")}
         ${sw("notify.reschedule.enabled", "Text customers on reschedule", "— off: moving a call queues the packet; the office tells the customer.")}
+        ${sw("notify.parts_in.enabled", "Text / email customers when their part is in (SO5)", "— by the customer's contact preference; a phone-call preference always goes to Unscheduled with a 'prefers phone call' pill for the office. Off = every SO5 goes to Unscheduled with the pill.")}
         <div class="who" style="margin-top:6px;">Switches are executive-only and audited. Other tunables live in <code>sj_settings</code> (spec §11).</div>`;
       $("settingsDetail").querySelectorAll("[data-sw]").forEach((b) => (b.onclick = async () => {
         const key = b.dataset.sw, next = b.getAttribute("aria-pressed") !== "true";

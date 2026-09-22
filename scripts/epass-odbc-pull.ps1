@@ -33,6 +33,7 @@
 #   open-service-labor   InvoiceLabor (+ LaborRate description) for those tickets
 #   open-service-items   InvoiceItem (parts) for those tickets
 #   open-service-comments / open-service-notes
+#   open-service-po-items POItem + PO for parts back-ordered against those tickets (PO, supplier, ETA)
 #   service-history     finished SV/WTY invoices, last 3 years, for customers with an open ticket
 #
 # Sensitive columns never leave ePASS: anything whose name matches the
@@ -417,6 +418,21 @@ INNER JOIN Invoice i ON n.Code = i.Code
 WHERE $svcWhere
 ORDER BY n.Code, n.CreateDate, n.CreateTime
 "@ (Join-Path $LatestDir "open-service-notes.csv") "open-service-notes"
+
+  # Parts on order for open tickets (2026-09-22 late): the PO line each part
+  # was back-ordered against, with the supplier and ePASS's ETA if the buyer
+  # keyed one — Service Office Queues shows PO + supplier so Kezia only types
+  # the ETA. Guarded.
+  try {
+    $svc.datasets["open-service-po-items"] = Export-Query $conn @"
+SELECT pi.POCode, pi.ItemCode, pi.QtyOrdered, pi.QtyReceived, pi.QtyPrevReceived, pi.Ordered, pi.Received, pi.ETADate, pi.DateReceived, pi.BackOrderInvoiceCode, pi.SupplierInvoice, pi.Reference,
+       p.SupplierCode, p.SupplierDescription, p.DateCreated AS PO_DateCreated, p.DateOrdered AS PO_DateOrdered, p.DateConfirmed AS PO_DateConfirmed, p.Confirmed AS PO_Confirmed, p.Received AS PO_Received, p.RequestedDeliveryDate AS PO_RequestedDeliveryDate, p.ShipToType, p.Buyer
+FROM POItem pi
+INNER JOIN PO p ON pi.POCode = p.Code
+WHERE pi.BackOrderInvoiceCode IN (SELECT i.Code FROM Invoice i WHERE $svcWhere)
+ORDER BY pi.BackOrderInvoiceCode, pi.POCode
+"@ (Join-Path $LatestDir "open-service-po-items.csv") "open-service-po-items"
+  } catch { Log ("open-service-po-items FAILED (bundle continues without it): {0}" -f $_.Exception.Message); if ($conn.State -ne [System.Data.ConnectionState]::Open) { $conn.Open() } }
 
   # Service history (2026-09-22): the finished SV/WTY invoices of the last
   # three years for every customer who has an open ticket — what the board's

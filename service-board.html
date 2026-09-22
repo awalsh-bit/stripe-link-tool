@@ -30,6 +30,10 @@
     .feed{font-size:.75rem;color:var(--muted)}.feed b{color:var(--ink);font-weight:600}.feed.old b{color:var(--bad)}
     .status{display:none;margin:.6rem 0;padding:.5rem .8rem;border-radius:8px;font-size:.85rem}.status.show{display:block}.status.error{background:var(--bad-bg);color:var(--bad)}.status.ok{background:var(--inst-bg);color:var(--inst)}
     /* strip */
+    .pagenav{display:flex;gap:.35rem;flex-wrap:wrap;margin-top:.4rem}.pagenav .btn{font-size:.74rem;padding:.2rem .55rem;border:1px solid var(--line);border-radius:999px;background:var(--surface);color:var(--ink);text-decoration:none}.pagenav .btn.cur{background:var(--accent);color:#fff;border-color:var(--accent)}
+    .gsearch{position:relative}.gsearch input{width:300px;max-width:60vw}.gresults{position:absolute;top:100%;left:0;z-index:60;min-width:380px;max-width:92vw;max-height:60vh;overflow:auto;background:var(--surface);border:1px solid var(--line);border-radius:10px;box-shadow:0 12px 30px rgba(0,0,0,.14);margin-top:4px;padding:.25rem}
+    .gresults .gr{display:grid;grid-template-columns:1fr auto;gap:.15rem .6rem;padding:.4rem .6rem;border-radius:6px;cursor:pointer;font-size:.82rem}.gresults .gr:hover,.gresults .gr:focus{background:var(--surface2);outline:none}.gresults .gr .w{color:var(--muted);font-size:.74rem;white-space:nowrap}.gresults .gr .sub{grid-column:1/-1;color:var(--muted);font-size:.74rem}.gresults .gempty{padding:.5rem .6rem;color:var(--muted);font-size:.82rem}
+    .card.flash{animation:flash 1.6s ease-out 2}@keyframes flash{0%{box-shadow:0 0 0 3px var(--accent)}100%{box-shadow:0 0 0 0 transparent}}
     .strip{display:grid;grid-template-columns:150px repeat(var(--ndays,5),1fr) auto;gap:4px;align-items:center;margin:1rem 0 .75rem;font-size:.78rem}
     .strip .h{color:var(--muted);text-transform:uppercase;letter-spacing:.06em;font-size:.68rem}
     .strip .name{font-weight:500}.strip .name button{border:0;background:none;padding:0;color:var(--ink);font-weight:500;text-align:left;cursor:pointer;text-decoration:underline dotted var(--line);text-underline-offset:3px}
@@ -159,8 +163,9 @@
   <div class="wrap">
     <div id="internal-shell-header"></div>
     <div class="top">
-      <div><h2>Service Dispatch Board</h2><div class="note">Drag a call onto a tech's day. Every move becomes a packet in <a href="service-journey.html">Service Journey</a> for the office to key into ePASS; the next feed confirms it. Stop order, windows, pins and blocks live here only.</div></div>
-      <div class="weeknav"><span class="feed" id="feed"></span><span id="mobnav" style="display:contents"><button id="prevWeek" title="Previous day">‹</button><button id="thisWeek">Today</button><button id="nextWeek" title="Next day">›</button></span><button id="reload" title="Reload from the mirror">↻</button></div>
+      <div><h2>Service Dispatch Board</h2><div class="note">Drag a call onto a tech's day. Every move becomes a packet for the office to key into ePASS; the next feed confirms it. ePASS drives each ticket's status; the tech, the day, stop order, windows, pins and blocks live here.</div>
+        <div class="pagenav"><a class="btn cur" href="service-board.html">Dispatch Board</a><a class="btn" href="service-office.html">Service Office Queues</a><a class="btn" href="appliance-service-calls.html">Service Request Queue</a><a class="btn" href="service-estimates.html">Service Estimates</a></div></div>
+      <div class="weeknav"><span class="gsearch"><input id="gsearch" placeholder="search every open call — name, SV, phone, address, model…" aria-label="Search all open calls" autocomplete="off" /><div class="gresults" id="gresults" hidden></div></span><span class="feed" id="feed"></span><span id="mobnav" style="display:contents"><button id="prevWeek" title="Previous day">‹</button><button id="thisWeek">Today</button><button id="nextWeek" title="Next day">›</button></span><button id="reload" title="Reload from the mirror">↻</button></div>
     </div>
     <div class="status" id="pageStatus"></div>
     <div class="strip" id="strip"></div>
@@ -169,6 +174,7 @@
       <div class="col b" id="colB"></div>
       <div class="side">
         <div class="panel unsched" id="unpanel"><h3>Unscheduled <span id="unCount"></span><span class="ptools"><input id="unQ" placeholder="filter…" aria-label="Filter unscheduled" /><button data-pfull="unpanel" title="Larger view">⛶</button></span></h3><div class="stops" id="unsched" data-drop="un"></div></div>
+        <div class="panel unsched" id="pastpanel" hidden><h3>Past dated <span id="pastCount"></span><span class="ptools"><input id="pastQ" placeholder="filter…" aria-label="Filter past dated" /><button data-pfull="pastpanel" title="Larger view">⛶</button></span></h3><div class="bnote">The day passed and ePASS hasn't finished the ticket — drag it onto a new day, or it closes when ePASS does. This column goes away once the feed and the board agree.</div><div class="stops" id="pastlist" data-drop="past"></div></div>
         <div class="panel unsched" id="shoppanel" hidden><h3>In the shop <span id="shopCount"></span><span class="ptools"><input id="shopQ" placeholder="filter…" aria-label="Filter in-shop" /><button data-pfull="shoppanel" title="Larger view">⛶</button></span></h3><div class="stops" id="shoplist" data-drop="shop"></div><div class="bnote" id="shopnote" hidden></div></div>
         <div class="panel" id="cxpanel" hidden><h3>Cancelled — last 3 days <span id="cxCount"></span></h3><div id="cxlist"></div></div>
         <div class="panel map" id="mappanel"><h3>Map <span class="maptools"><span class="mapnav"><button data-mapday="-1" title="Previous day — moves both boards">‹</button><b id="mapday"></b><button data-mapday="1" title="Next day — moves both boards">›</button></span><button id="mapsum" aria-pressed="false" title="Stops, units, drive and on-site per route for the left column's day">routes</button><button id="mapfull" title="Full screen">⛶</button></span></h3><div id="map"></div><div class="maplegend" id="maplegend"></div><div class="routesum" id="routesum" hidden></div></div>
@@ -233,8 +239,14 @@
     const stLabel = (j) => STATUS[j.st] || j.st;
     const winBounds = (w) => (w === "PM" ? [AM_END(), SHIFT().end] : w === "AM" ? [SHIFT().start, AM_END()] : [SHIFT().start, SHIFT().end]);
 
+    // Efficiency (Andrew, 9/22 late): a tech's "max stops per day" is how many
+    // ePASS dispatch units fill his day — one unit is 1/12 of Josh's day and
+    // 1/6 of DLA's. A job's planned minutes on a given tech-day are its units
+    // × (that day's shift ÷ max stops); techs without a max keep 1 unit = 1 h.
+    function unitMin(t, day) { if (!t || !t.maxStops) return null; const sh = shiftFor(t, day); return Math.max(10, Math.round((sh.end - sh.start) / Number(t.maxStops))); }
+    function durFor(j, tech, day) { const t = techById(tech); const um = unitMin(t, day); return um ? Math.round((j.units || 1) * um) : j.dur; }
     function timeline(tech, day) {
-      const t = techById(tech), sh = shiftFor(t, day), sAt = startAt(t, day), eAt = endAt(t, day), stops = jobsFor(tech, day); let cur = startPt(t, day), clock = sh.start, drive = 0, work = 0, blocked = 0, out = []; const blocks = [...blocksFor(tech, day)];
+      const t = techById(tech), sh = shiftFor(t, day), sAt = startAt(t, day), eAt = endAt(t, day), stops = jobsFor(tech, day).map((j) => ({ ...j, dur: durFor(j, tech, day) })); let cur = startPt(t, day), clock = sh.start, drive = 0, work = 0, blocked = 0, out = []; const blocks = [...blocksFor(tech, day)];
       const o = td(tech, day);
       const needsShop = sAt !== "shop" && stops.some((j) => j.st === "SO6" || j.st === "SO4PRE") && !o.loadedPrev; let shopDone = sAt === "shop" || !needsShop; const touch = S["board.shop_touch_min"] ?? 10;
       const placeBlocks = (until) => { while (blocks.length && blocks[0].start < until) { const b = blocks.shift(); if (clock < b.start) clock = b.start; out.push({ block: b, arr: clock, dep: clock + (b.end - b.start) }); clock += b.end - b.start; blocked += b.end - b.start; } };
@@ -273,12 +285,46 @@
     }
     function toast(msg, cls = "", acts) { const t = document.createElement("div"); t.className = "toast " + cls + (acts ? " sticky" : ""); t.textContent = msg; if (acts) { const a = document.createElement("span"); a.className = "acts"; for (const k in acts) { const b = document.createElement("button"); b.textContent = k; b.onclick = () => { acts[k](); t.remove(); }; a.append(b); } t.append(a); } $("#toasts").append(t); setTimeout(() => t.remove(), acts ? 14000 : 3800); return t; }
 
+    // ---------- master search: every open call, wherever it is ----------
+    let gTimer = null;
+    function whereIs(j) {
+      if (j.closed) return { k: "closed", t: `closed · ${j.st}` };
+      if (j.si) return { k: "shop", t: "in the shop" };
+      if (j.tech && TECHS.some((t) => t.id === j.tech) && techById(j.tech).mode === "collector") return { k: "lane", t: `${first(techById(j.tech))}'s lane` };
+      if (j.tech && j.day && TECHS.some((t) => t.id === j.tech)) return { k: j.day < B.today ? "past" : "board", t: `${first(techById(j.tech))} · ${dayObj(j.day).s || j.day} ${md(j.day)}${j.win ? " " + j.win : ""}${j.day < B.today ? " — passed" : ""}` };
+      return { k: "un", t: PARTS_ST.includes(j.st) ? (j.eta ? "unscheduled · parts due " + md(j.eta) : "unscheduled · waiting on part ETA") : "unscheduled" };
+    }
+    async function gsearch(q) {
+      const box = $("#gresults"); q = q.trim(); if (q.length < 2) { box.hidden = true; return; }
+      let rows = [];
+      try { rows = (await api(`/api/service-board/search?q=${encodeURIComponent(q)}`)).jobs || []; } catch (e) { box.innerHTML = `<div class="gempty">${esc(e.message)}</div>`; box.hidden = false; return; }
+      box.innerHTML = rows.length ? rows.map((j) => { const w = whereIs(j); return `<div class="gr" tabindex="0" data-gsv="${esc(j.sv)}" data-gk="${w.k}" data-gtech="${esc(j.tech || "")}" data-gday="${esc(j.day || "")}"><span><b>${esc(j.cust || j.sv)}</span><span class="w">${esc(w.t)}</span><span class="sub"><span class="mono">${esc(j.sv)}</span> · ${esc(j.st)}${j.unit ? " · " + esc(j.unit.slice(0, 60)) : ""}${j.addr ? " · " + esc(j.addr) : ""}${j.phone ? " · " + esc(j.phone) : ""}</span></div>`; }).join("") : '<div class="gempty">No open call matches.</div>';
+      box.hidden = false;
+      box.querySelectorAll(".gr").forEach((r) => { const go = () => goTo(r.dataset.gsv, r.dataset.gk, r.dataset.gtech, r.dataset.gday); r.onclick = go; r.onkeydown = (e) => { if (e.key === "Enter") go(); }; });
+    }
+    async function goTo(sv, k, tech, day) {
+      $("#gresults").hidden = true;
+      const flash = (sel) => { const c = document.querySelector(sel); if (!c) return false; c.classList.add("open", "flash"); c.scrollIntoView({ behavior: "smooth", block: "center" }); c.focus?.(); setTimeout(() => c.classList.remove("flash"), 3500); return true; };
+      if (k === "board" || k === "past") {
+        if (k === "board") { if (!DAYS.some((d) => d.k === day)) { from = day; stripDay = ""; await load({ keepCols: true }); } col.A = { tech, day }; renderAll(); if (flash(`#colA .card[data-sv="${sv}"]`)) return; }
+        if (k === "past" && flash(`#pastlist .card[data-sv="${sv}"]`)) return;
+      }
+      if (k === "un" && flash(`#unsched .card[data-sv="${sv}"]`)) return;
+      if (k === "shop" && flash(`#shoplist .card[data-sv="${sv}"]`)) return;
+      if (k === "lane") { const b = document.querySelector(`#strip [data-lane="${tech}"]`); if (b) { b.click(); setTimeout(() => flash(`.overlay [data-sv="${sv}"], .overlay li[data-lsv="${sv}"]`), 400); return; } }
+      openHistory(sv);
+    }
+    $("#gsearch").addEventListener("input", () => { clearTimeout(gTimer); gTimer = setTimeout(() => gsearch($("#gsearch").value), 220); });
+    $("#gsearch").addEventListener("focus", () => { if ($("#gresults").innerHTML && $("#gsearch").value.trim().length >= 2) $("#gresults").hidden = false; });
+    $("#gsearch").addEventListener("keydown", (e) => { if (e.key === "Escape") { $("#gresults").hidden = true; $("#gsearch").blur(); } if (e.key === "ArrowDown") { $("#gresults .gr")?.focus(); e.preventDefault(); } });
+    document.addEventListener("click", (e) => { if (!e.target.closest(".gsearch")) $("#gresults").hidden = true; });
+
     // ---------- placement (mirror of the server engine) ----------
     function marginalDrive(stops, pt, t, day) { const a0 = startPt(t, day), z0 = endPt(t, day); const route = [a0, ...stops.map((x) => ll(x)), z0]; if (route.length === 2) return Math.max(0, driveMin(a0, pt) + driveMin(pt, z0) - driveMin(a0, z0)); let best = 1e9; for (let i = 0; i < route.length - 1; i++) { const a = route[i], b = route[i + 1]; best = Math.min(best, driveMin(a, pt) + driveMin(pt, b) - driveMin(a, b)); } return Math.max(0, best); }
     function suggestFor(j, earliest) {
       const el = eligible(j); if (!el.length) return []; const zi = zinfo(j), pt = ll(j); const out = []; let wait = 0;
       const slack = S["placement.min_slack_min"] ?? 25, half = S["board.half_day_min"] ?? 240, bonus = S["placement.same_zone_bonus_min"] ?? 6, pen = [0, S["placement.zone_secondary_penalty_min"] ?? 10, S["placement.zone_other_penalty_min"] ?? 40];
-      for (const d of DAYS) { if (d.k < B.today) continue; if (earliest && d.k < earliest) continue; for (const t of el) { if (!isOpen(t.id, d.k)) continue; const stops = jobsFor(t.id, d.k).filter((x) => x.sv !== j.sv); const win = ["AM", "PM"].find((w) => halfDayLoad(t.id, d.k, w) + j.dur + slack <= half); if (!win) continue;
+      for (const d of DAYS) { if (d.k < B.today) continue; if (earliest && d.k < earliest) continue; for (const t of el) { if (!isOpen(t.id, d.k)) continue; const stops = jobsFor(t.id, d.k).filter((x) => x.sv !== j.sv); const win = ["AM", "PM"].find((w) => halfDayLoad(t.id, d.k, w) + durFor(j, t.id, d.k) + slack <= half); if (!win) continue;
         const added = marginalDrive(stops, pt, t, d.k), same = stops.filter((x) => zinfo(x).zone === zi.zone).length, rank = t.id === zi.p ? 0 : zi.s.includes(t.id) ? 1 : 2;
         const cost = added - bonus * Math.min(same, 3) + ((S["placement.defer_min_per_day"] ?? 8) * Math.min(wait, 2) + (S["placement.defer_min_per_day_late"] ?? 20) * Math.max(wait - 2, 0)) + pen[rank];
         const why = (same ? `${first(t)} already has ${same} stop${same > 1 ? "s" : ""} in ${zi.zone} that day` : stops.length ? `${first(t)} has ${stops.length} stop${stops.length > 1 ? "s" : ""} that day` : `${first(t)}'s day is empty`) + ` · +${added} min drive` + (rank === 0 ? " · primary tech" : rank === 1 ? " · secondary" : "");
@@ -408,7 +454,8 @@
       const v = j.tech ? validate(j, j.tech, j.day) : []; const zi = zinfo(j);
       const members = groupMembers(j); const gDays = new Set(members.map((x) => x.day || "")); const split = members.length > 1 && gDays.size > 1;
       const grpChip = members.length > 1 ? `<span class="chip grp ${split ? "bad" : ""}" title="${split ? "open calls at this address are booked on different days" : "open calls at this address — one arrival"}">⌂ ${members.length} at this house${split ? " · split" : ""}</span>` : "";
-      const chips = [`<span class="chip st ${esc(j.st)}">${esc(j.st)}</span>`, j.tech && !TECHS.some((t) => t.id === j.tech) ? `<span class="chip bad" title="This tech code came from ePASS when the ticket was first seen, but nobody in the roster carries it — add it as an alias in the tech's route settings, or drag the call onto a tech">tech ${esc(j.tech)} not in roster</span>` : "", zi.zone !== "?" ? `<span class="chip" title="${esc(zi.group)} · ${esc(zi.mode)}">${esc(zi.zone)}</span>` : "", `<span class="chip">${esc(stLabel(j))}</span>`, j.win ? `<span class="chip">${j.win === "AM" ? "8–12" : "12–5"}</span>` : "", j.wty ? '<span class="chip wty">Warranty</span>' : "", j.bal ? `<span class="chip bad">${j.bal === "COD" ? "COD balance" : "A/R"}</span>` : "", PARTS_ST.includes(j.st) ? (j.eta ? `<span class="chip ${j.eta <= B.today ? "confirmed" : ""}" title="Parts ETA${j.po ? " · PO " + esc(j.po) : ""}">parts ${j.eta <= B.today ? "due " : "ETA "}${md(j.eta)}</span>` : `<span class="chip warn" title="Enter the ETA on Service Office Queues">no parts ETA</span>`) : "", j.type === "hvac" ? '<span class="chip">HVAC</span>' : "", j.type === "sealed" ? '<span class="chip">Sealed system</span>' : "", j.owner ? `<span class="chip">${esc(first(techById(j.owner)))}'s call</span>` : "", (j.units || 1) > 1 ? `<span class="chip" title="${j.units} unit(s) × 60 min">${j.units} units</span>` : "", grpChip, ...v.map((x) => `<span class="chip ${x.c}">${esc(x.t)}</span>`)].join("");
+      const chips = [`<span class="chip st ${esc(j.st)}">${esc(j.st)}</span>`, j.tech && !TECHS.some((t) => t.id === j.tech) ? `<span class="chip bad" title="This tech code came from ePASS when the ticket was first seen, but nobody in the roster carries it — add it as an alias in the tech's route settings, or drag the call onto a tech">tech ${esc(j.tech)} not in roster</span>` : "", zi.zone !== "?" ? `<span class="chip" title="${esc(zi.group)} · ${esc(zi.mode)}">${esc(zi.zone)}</span>` : "", `<span class="chip">${esc(stLabel(j))}</span>`, j.win ? `<span class="chip">${j.win === "AM" ? "8–12" : "12–5"}</span>` : "", j.wty ? '<span class="chip wty">Warranty</span>' : "", j.bal ? `<span class="chip bad">${j.bal === "COD" ? "COD balance" : "A/R"}</span>` : "", PARTS_ST.includes(j.st) ? (j.eta ? `<span class="chip ${j.eta <= B.today ? "confirmed" : ""}" title="Parts ETA${j.po ? " · PO " + esc(j.po) : ""}">parts ${j.eta <= B.today ? "due " : "ETA "}${md(j.eta)}</span>` : `<span class="chip warn" title="Enter the ETA on Service Office Queues">no parts ETA</span>`) : "",
+        j.st === "SO5" && j.partsIn ? (j.partsIn.sent ? `<span class="chip confirmed" title="Part-is-in notice sent ${when(j.partsIn.at)} — waiting for the customer to pick a day">${j.partsIn.channel === "email" ? "emailed" : "texted"} ${md(j.partsIn.at.slice(0, 10))} · awaiting pick</span>` : `<span class="chip warn" title="${esc(j.contactPref || "no preference on file")} — reach out and place the install">prefers ${j.partsIn.channel === "call" ? "phone call" : j.partsIn.channel} — call to schedule</span>`) : j.st === "SO5" && j.contactPref ? `<span class="chip">prefers ${esc(j.contactPref)}</span>` : "", j.type === "hvac" ? '<span class="chip">HVAC</span>' : "", j.type === "sealed" ? '<span class="chip">Sealed system</span>' : "", j.owner ? `<span class="chip">${esc(first(techById(j.owner)))}'s call</span>` : "", (j.units || 1) > 1 ? `<span class="chip" title="${j.units} unit(s) × 60 min">${j.units} units</span>` : "", grpChip, ...v.map((x) => `<span class="chip ${x.c}">${esc(x.t)}</span>`)].join("");
       const time = s ? `<div class="time ${s.late ? "late" : ""}"><b>${fmt(s.arr)}</b>${s.drive}m drive${s.wait ? ` · waits ${s.wait}m` : ""}</div>` : `<div class="time">${hm(j.dur)}${j.day ? `<br>${esc(j.tech || "")} ${md(j.day)}` : ""}</div>`;
       const elig = j.owner && TECHS.some((x) => x.id === j.owner) ? `${esc(techById(j.owner).name)} owns this call (ran the diagnostic) — installs stay with the diagnosing tech` : "Eligible techs: " + (eligible(j).map((t) => first(t)).join(", ") || "none — office assigns");
       const others = members.filter((x) => x.sv !== j.sv);
@@ -420,7 +467,7 @@
         <div class="sub">${esc([j.addr, j.zip].filter(Boolean).join(", "))}${j.unit ? " · " + esc(j.unit) : ""}</div>
         ${j.tech ? `<button class="pin" aria-pressed="${!!j.lock}" title="Pin to this truck and sequence" data-pin="${j.sv}">${j.lock ? "📌" : "📍"}</button>` : ""}
         <div class="chips">${chips}</div>
-        <div class="more"><span class="mono">${esc(j.sv)}</span> · ${hm(j.dur)} planned${j.eta ? ` · parts ETA ${md(j.eta)}` : ""}${j.phone ? ` · ${esc(j.phone)}` : ""}${j.epass.st ? ` · ePASS ${esc(j.epass.st)}${j.epass.day ? " " + md(j.epass.day) : ""}${j.epass.tech ? " " + esc(j.epass.tech) : ""}` : ""}<br>${elig}<br>Zone ${esc(zi.zone)} · ${esc(zi.group)} · booking: ${esc(String(zi.mode).replace("_", " "))}${zi.p ? ` · primary ${esc(zi.p)}` : ""}${j.access ? `<br>Access: ${esc(j.access)}` : ""}${j.note ? `<br>Note: ${esc(j.note)}` : ""}
+        <div class="more"><span class="mono">${esc(j.sv)}</span> · ${hm(j.tech && j.day ? durFor(j, j.tech, j.day) : j.dur)} planned${j.units && j.tech && unitMin(techById(j.tech), j.day) ? ` (${j.units} unit${j.units === 1 ? "" : "s"} of ${techById(j.tech).maxStops})` : ""}${j.eta ? ` · parts ETA ${md(j.eta)}` : ""}${j.phone ? ` · ${esc(j.phone)}` : ""}${j.epass.st ? ` · ePASS ${esc(j.epass.st)}${j.epass.day ? " " + md(j.epass.day) : ""}${j.epass.tech ? " " + esc(j.epass.tech) : ""}` : ""}<br>${elig}<br>Zone ${esc(zi.zone)} · ${esc(zi.group)} · booking: ${esc(String(zi.mode).replace("_", " "))}${zi.p ? ` · primary ${esc(zi.p)}` : ""}${j.access ? `<br>Access: ${esc(j.access)}` : ""}${j.note ? `<br>Note: ${esc(j.note)}` : ""}
           <div class="acts">${j.tech ? `<button data-un="${j.sv}">Send to unscheduled</button>` : ""}<a class="btn" href="service-journey.html?sv=${encodeURIComponent(j.sv)}">Service history</a><button data-cx="${j.sv}">Cancel call…</button></div>${grpMore}</div>
         ${suggest}
       </div>`;
@@ -450,6 +497,7 @@
       document.addEventListener("drop", guard(async (e) => {
         const z = e.target.closest("[data-drop]"); if (!z) return; e.preventDefault(); z.classList.remove("over"); const sv = e.dataTransfer.getData("text/plain"); const j = J.find((x) => x.sv === sv); if (!j) return;
         if (z.dataset.drop === "shop") { toast("A call goes to the shop from the field tool, not the board", "warn"); return; }
+        if (z.dataset.drop === "past") { toast("Past dated is where a call ends up, not where it goes — drag it onto a day", "warn"); return; }
         if (j.hold) {
           if (z.dataset.drop === "un") { toast("A hold can't be unscheduled here — clear the pick on the request card", "warn"); return; }
           const c = col[z.dataset.drop]; const cards = [...z.querySelectorAll(".card:not(.dragging)")]; let idx = cards.findIndex((cd) => e.clientY < cd.getBoundingClientRect().top + cd.offsetHeight / 2); if (idx < 0) idx = cards.length;
@@ -478,12 +526,13 @@
     }
     const optimize = guard(async (k) => {
       const c = col[k], t = techById(c.tech), stops = jobsFor(c.tech, c.day); if (!t.auto) { toast("Not auto-routed", "warn"); return; } const before = timeline(c.tech, c.day).drive;
+      const previous = stops.map((j) => j.sv); // for Undo
       const locked = stops.filter((j) => j.lock), free = stops.filter((j) => !j.lock); const order = []; let cur = startPt(t, c.day);
       for (const win of ["AM", "PM"]) { let pool = free.filter((j) => (j.win || "AM") === win); while (pool.length) { pool.sort((a, b) => driveMin(cur, ll(a)) - driveMin(cur, ll(b))); const n = pool.shift(); order.push(n); cur = ll(n); } }
       locked.sort((a, b) => a.seq - b.seq).forEach((j) => order.splice(Math.min(j.seq - 1, order.length), 0, j));
       await api("/api/service-board/sequence", { method: "POST", body: JSON.stringify({ tech: c.tech, date: c.day, order: order.map((j) => j.sv) }) });
       await load(); const after = timeline(c.tech, c.day).drive;
-      toast(`${first(t)} ${dayObj(c.day).s} re-sequenced: drive ${before}m → ${after}m${locked.length ? ` · ${locked.length} pinned kept in place` : ""}`);
+      toast(`${first(t)} ${dayObj(c.day).s} re-sequenced: drive ${before}m → ${after}m${locked.length ? ` · ${locked.length} pinned kept in place` : ""}`, "", { Undo: guard(async () => { await api("/api/service-board/sequence", { method: "POST", body: JSON.stringify({ tech: c.tech, date: c.day, order: previous }) }); await load(); toast(`${first(t)} ${dayObj(c.day).s} back to the previous order`); }) });
     });
     // Unscheduled (Andrew, 9/22): what the office still has to place —
     //   · needs a date: SO1 / SO5 / SO6 / SO4PRE / REQ with no tech or day (or a day
@@ -498,22 +547,36 @@
     const unBucket = (j) => { if (PARTS_ST.includes(j.st)) return j.eta ? "parts" : "eta"; return "date"; };
     function renderUnsched() {
       const q = unFilter.trim().toLowerCase();
-      const un = J.filter((j) => !j.si && !j.hold && j.st !== "SO9" && !isLaneJob(j) && (PARTS_ST.includes(j.st) ? (!j.day || j.day < B.today) : (!j.tech || !TECHS.some((t) => t.id === j.tech) || !j.day || j.day < B.today)))
+      // Unscheduled (Andrew, 9/22 late): SO1s where nobody picked a day, SO5s
+      // not yet placed, and parts tickets with no ETA / an ETA to place after.
+      // A dated call whose day has passed is "Past dated", not unscheduled.
+      const isPast = (j) => !!j.day && j.day < B.today && !!j.tech && TECHS.some((t) => t.id === j.tech);
+      const un = J.filter((j) => !j.si && !j.hold && j.st !== "SO9" && !isLaneJob(j) && !isPast(j) && (PARTS_ST.includes(j.st) ? !j.day : (!j.tech || !TECHS.some((t) => t.id === j.tech) || !j.day)))
         .filter((j) => !q || [j.sv, j.cust, j.addr, j.zip, j.unit, j.st, j.zone, j.po].join(" ").toLowerCase().includes(q))
         .sort((a, b) => (a.eta || a.day || "9").localeCompare(b.eta || b.day || "9") || a.sv.localeCompare(b.sv));
       $("#unCount").textContent = un.length;
       const groups = [["date", "Needs a date", "drag onto a tech's day, or use the suggestion"], ["parts", "Parts due — place after the ETA", "SO4 with an ETA: place from ETA + 2 business days"], ["eta", "Waiting on a part ETA", "not placeable yet — the office enters the ETA on Service Office Queues"]];
       $("#unsched").innerHTML = groups.map(([k, label, help]) => { const rs = un.filter((j) => unBucket(j) === k); if (!rs.length) return ""; return `<div class="leg ungrp" data-grp="${k}"><b>${label}</b> · ${rs.length}<span class="hint">${help}</span></div>` + rs.map((j) => cardHTML(j, 0, null, "un")).join(""); }).join("") || '<div class="leg">nothing waiting</div>';
       wireCards($("#unsched"));
+      renderPast(isPast);
     }
     // In the shop: SI1 bench work (drag onto a day to schedule the return
     // once repaired), SI5 owed back, SI6 going back.
+    let pastFilter = "";
+    function renderPast(isPast) {
+      const all = J.filter((j) => !j.si && !j.hold && j.st !== "SO9" && !isLaneJob(j) && isPast(j)).sort((a, b) => a.day.localeCompare(b.day) || a.sv.localeCompare(b.sv));
+      const panel = $("#pastpanel"); panel.hidden = !all.length; if (!all.length) return;
+      const q = pastFilter.trim().toLowerCase(); const list = all.filter((j) => !q || [j.sv, j.cust, j.addr, j.zip, j.unit, j.st, j.tech].join(" ").toLowerCase().includes(q));
+      $("#pastCount").textContent = q ? `${list.length} of ${all.length}` : all.length;
+      $("#pastlist").innerHTML = list.map((j) => cardHTML(j, 0, null, "past").replace('<div class="chips">', `<div class="chips"><span class="chip bad">${esc(first(techById(j.tech)))} ${md(j.day)} — passed</span>`)).join("");
+      wireCards($("#pastlist"));
+    }
     function renderShop() {
       const all = J.filter((j) => j.si && j.st !== "SO9"); const panel = $("#shoppanel"); panel.hidden = !all.length; if (!all.length) return;
       const sq = shopFilter.trim().toLowerCase(); const list = all.filter((j) => !sq || [j.sv, j.cust, j.addr, j.zip, j.unit, j.st, j.owner, j.tech].join(" ").toLowerCase().includes(sq));
       const age = (j) => (j.si.in ? Math.max(0, Math.round((new Date(B.today) - new Date(j.si.in)) / 864e5)) : 0);
       $("#shopCount").textContent = sq ? `${list.length} of ${all.length}` : all.length;
-      $("#shoplist").innerHTML = list.map((j) => `<div class="card ${esc(j.st)}" draggable="${j.st !== "SI1" ? "false" : "true"}" data-sv="${j.sv}" tabindex="0"><div class="seq">SI</div><button class="who" data-hist="${j.sv}" title="Service history for this customer">${esc(j.cust || j.sv)}</button><div class="time">${age(j)} days</div><div class="sub">${esc([j.addr, j.zip].filter(Boolean).join(", "))}${j.unit ? " · " + esc(j.unit) : ""}</div><div class="chips"><span class="chip st ${esc(j.st)}">${esc(j.st)}</span><span class="chip">${esc(stLabel(j))}</span>${j.owner ? `<span class="chip">${esc(first(techById(j.owner)))}'s</span>` : ""}${j.day ? `<span class="chip">return ${dayObj(j.day).s} ${md(j.day)} · ${esc(j.tech || "")}</span>` : ""}</div><div class="more"><span class="mono">${esc(j.sv)}</span>${j.phone ? " · " + esc(j.phone) : ""}<div class="acts">${j.st === "SI1" ? `<button data-sirepaired="${j.sv}">Repaired — ready to go back</button>` : ""}<a class="btn" href="service-journey.html?sv=${encodeURIComponent(j.sv)}">Service history</a><button data-cx="${j.sv}">Cancel call…</button></div></div></div>`).join("");
+      $("#shoplist").innerHTML = list.map((j) => `<div class="card ${esc(j.st)}" draggable="true" data-sv="${j.sv}" tabindex="0" title="Drag onto a tech's day to route the return trip"><div class="seq">SI</div><button class="who" data-hist="${j.sv}" title="Service history for this customer">${esc(j.cust || j.sv)}</button><div class="time">${age(j)} days</div><div class="sub">${esc([j.addr, j.zip].filter(Boolean).join(", "))}${j.unit ? " · " + esc(j.unit) : ""}</div><div class="chips"><span class="chip st ${esc(j.st)}">${esc(j.st)}</span><span class="chip">${esc(stLabel(j))}</span>${j.owner ? `<span class="chip">${esc(first(techById(j.owner)))}'s</span>` : ""}${j.day ? `<span class="chip">return ${dayObj(j.day).s} ${md(j.day)} · ${esc(j.tech || "")}</span>` : ""}</div><div class="more"><span class="mono">${esc(j.sv)}</span>${j.phone ? " · " + esc(j.phone) : ""}<div class="acts">${j.st === "SI1" ? `<button data-sirepaired="${j.sv}">Repaired — ready to go back</button>` : ""}<a class="btn" href="service-journey.html?sv=${encodeURIComponent(j.sv)}">Service history</a><button data-cx="${j.sv}">Cancel call…</button></div></div></div>`).join("");
       wireCards($("#shoplist"));
     }
     function renderCancelled() {
@@ -777,13 +840,21 @@
         <div style="display:flex;justify-content:space-between;align-items:flex-start"><div><h2>${esc(t.name)} · lane</h2><div class="sub">${t.note || "builds his own route — the office hands calls over, he books them"}</div></div><button data-x>Close</button></div>
         <div class="stat"><div>in the lane<b>${st.n}</b></div><div>dated<b>${st.dated}</b></div><div>oldest<b>${st.oldest} d</b></div></div>
         ${st.stale ? `<div class="lanenote">${st.stale} call${st.stale === 1 ? "" : "s"} past ${LANE_ESCALATE} days — wants a decision.</div>` : ""}
-        <ol class="rlist">${js.map((j) => `<li class="lanejob ${j.day && j.day < B.today && (new Date(B.today) - new Date(j.day)) / 864e5 > LANE_ESCALATE ? "stale" : ""}"><span><b>${esc(j.cust || j.sv)}</b> <span class="chip st ${esc(j.st)}">${esc(j.st)}</span>${j.day ? ` <span class="chip">${dayObj(j.day).s} ${md(j.day)}</span>` : ' <span class="chip warn">no date</span>'}</span><span><button class="mini" data-hand="${j.sv}" title="Copy the hand-off text">Copy hand-off</button></span><span class="sub">${esc([j.addr, j.zip].filter(Boolean).join(", "))} · ${esc(j.unit || "")}${j.phone ? " · " + esc(j.phone) : ""}</span></li>`).join("") || "<li class='lanejob'>Nothing in the lane.</li>"}</ol>
+        <ol class="rlist">${js.map((j) => `<li data-lsv="${esc(j.sv)}" class="lanejob ${j.day && j.day < B.today && (new Date(B.today) - new Date(j.day)) / 864e5 > LANE_ESCALATE ? "stale" : ""}"><span><b>${esc(j.cust || j.sv)}</b> <span class="chip st ${esc(j.st)}">${esc(j.st)}</span>${j.day ? ` <span class="chip">${dayObj(j.day).s} ${md(j.day)}</span>` : ' <span class="chip warn">no date</span>'}</span><span><button class="mini" data-hand="${j.sv}" title="Copy the hand-off text">Copy hand-off</button></span><span class="sub">${esc([j.addr, j.zip].filter(Boolean).join(", "))} · ${esc(j.unit || "")}${j.phone ? " · " + esc(j.phone) : ""}</span></li>`).join("") || "<li class='lanejob'>Nothing in the lane.</li>"}</ol>
         <div style="font-size:.75rem;color:var(--muted);margin-top:.6rem">Hand-off is a text the office sends from Podium — copy it here; nothing is sent from the board.</div></div>`;
       document.body.append(ov); const close = () => ov.remove(); ov.onclick = (e) => { if (e.target === ov) close(); }; ov.querySelector("[data-x]").onclick = close;
       ov.querySelectorAll("[data-hand]").forEach((b) => (b.onclick = async () => { const j = J.find((x) => x.sv === b.dataset.hand); try { await navigator.clipboard.writeText(handoffText(j)); b.textContent = "✓ copied"; } catch { toast(handoffText(j)); } }));
     }
 
     // ---------- load ----------
+    $("#pastQ").addEventListener("input", () => { pastFilter = $("#pastQ").value; renderUnsched(); });
+    let deepLinked = false;
+    function applyDeepLink() {
+      if (deepLinked) return; deepLinked = true;
+      const u = new URLSearchParams(location.search); const sv = u.get("sv"); if (!sv) return;
+      const j = J.find((x) => x.sv === sv); const w = j ? whereIs(j) : { k: "un" };
+      goTo(sv, w.k, j?.tech || u.get("tech") || "", j?.day || u.get("day") || "");
+    }
     async function load({ keepCols = true } = {}) {
       const data = await api(`/api/service-board?from=${encodeURIComponent(from)}&days=5`);
       // Self-schedule holds ride along as HOLD cards: the customer picked the
@@ -799,6 +870,7 @@
       if (!keepCols || !col.B.tech || !TECHS.some((t) => t.id === col.B.tech)) col.B = { tech: firstAuto.id, day: DAYS.find((d) => d.k > todayK)?.k || todayK };
       if (!DAYS.some((d) => d.k === col.A.day)) col.A.day = DAYS[0].k; if (!DAYS.some((d) => d.k === col.B.day)) col.B.day = DAYS[Math.min(1, DAYS.length - 1)].k;
       renderAll();
+      setTimeout(applyDeepLink, 50);
     }
     // Header navigation: a week at a time on desktop; on a phone the same three
     // buttons step a day at a time, the middle one shows the day and returns to today.

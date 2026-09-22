@@ -45,6 +45,7 @@
 <body data-shell-label="Service Office Queues" data-shell-icon="service">
   <div class="wrap">
     <div id="internal-shell-header"></div>
+    <style>.pagenav{display:flex;gap:.35rem;flex-wrap:wrap;margin:.5rem 0 .6rem}.pagenav a{font-size:.74rem;padding:.2rem .55rem;border:1px solid #d7dfd8;border-radius:999px;background:#fff;color:#1b241f;text-decoration:none}.pagenav a.cur{background:#1f6b35;color:#fff;border-color:#1f6b35}</style><div class="pagenav"><a href="service-board.html">Dispatch Board</a><a href="service-office.html" class="cur">Service Office Queues</a><a href="appliance-service-calls.html">Service Request Queue</a><a href="service-estimates.html">Service Estimates</a></div>
     <div class="top">
       <div><h2>Service Office Queues</h2><div class="note">Parts first: every ticket waiting on a part, oldest first. Enter the PO and the supplier's ETA — the <a href="service-board.html">dispatch board</a> places an SO4 from the ETA plus two business days, and shows the ones without an ETA under "waiting on part ETA". "Part is here" moves the ticket to SO5 and queues the packet for ePASS.</div></div>
       <div class="tools"><input id="q" placeholder="filter — customer, SV, model…" aria-label="Filter" /><button id="reload" title="Reload">↻</button></div>
@@ -84,15 +85,16 @@
       return `<div class="row" data-sv="${esc(r.sv)}">
         <div><div class="who"><a href="service-journey.html?sv=${encodeURIComponent(r.sv)}" title="Open in Service Journey">${esc(r.cust || r.sv)}</a><span class="chip st">${esc(r.st)}</span>${r.wty ? ' <span class="chip wty">Warranty</span>' : ""}${overdue ? ` <span class="chip bad">${overdue} day${overdue === 1 ? "" : "s"} past ETA</span>` : ""}</div>
           <div class="sub"><span class="mono">${esc(r.sv)}</span> · ${esc(STL[r.st] || r.st)} for <span class="age">${age} day${age === 1 ? "" : "s"}</span> · ${esc(r.unit || "")}${r.serial ? " · " + esc(r.serial) : ""}<br>${esc([r.addr, r.zip].filter(Boolean).join(", "))}${r.phone ? " · " + esc(r.phone) : ""}${r.ownerName ? ` · ${esc(r.ownerName)}'s call` : r.techName ? ` · ${esc(r.techName)}` : ""}${r.day ? ` · on the board ${md(r.day)}${r.win ? " " + r.win : ""}` : ""}</div>
-          ${lines ? `<ul class="lines">${lines}</ul>` : r.problem ? `<div class="sub">${esc(r.problem.slice(0, 160))}</div>` : ""}</div>
+          ${lines ? `<ul class="lines">${lines}</ul>` : r.problem ? `<div class="sub">${esc(r.problem.slice(0, 160))}</div>` : ""}
+          ${r.poLines?.length ? `<div class="sub" style="margin-top:.25rem"><b>ePASS PO:</b> ${r.poLines.map((p) => `${esc(p.po)}${p.supplier ? " · " + esc(p.supplier) : ""}${p.item ? " · " + esc(p.item) : ""}${p.qty != null ? " ×" + esc(p.qty) : ""}${p.ordered ? " · ordered " + md(p.ordered) : ""}${p.eta ? ` · <b>ePASS ETA ${md(p.eta)}</b>` : ""}${p.done ? " · received" : ""}`).join("<br>")}</div>` : ""}</div>
         <div class="form">
-          <label>PO <input type="text" data-po value="${esc(r.po)}" placeholder="PO #" /></label>
-          <label>ETA <input type="date" data-eta value="${esc(r.eta || "")}" /></label>
+          <label>PO <input type="text" data-po value="${esc(r.po || r.epassPo)}" placeholder="PO #" ${!r.po && r.epassPo ? 'title="from ePASS"' : ""} /></label>
+          <label>ETA <input type="date" data-eta value="${esc(r.eta || "")}" />${!r.eta && r.epassEta ? `<button type="button" data-useeta="${esc(r.epassEta)}" title="Use the ETA the buyer keyed on the PO">use ${md(r.epassEta)}</button>` : ""}</label>
           <input type="text" class="note" data-note value="${esc(r.note)}" placeholder="note (supplier, tracking…)" />
           <button data-save="${esc(r.sv)}">Save</button>
           ${r.etaAt ? `<span class="sub">ETA set ${when(r.etaAt)}${r.etaBy ? " by " + esc(r.etaBy.split("@")[0]) : ""}</span>` : ""}
         </div>
-        <div class="acts">${r.st === "SO5" ? `<a href="service-board.html">Place on the board →</a>` : `<button class="primary" data-here="${esc(r.sv)}" title="The part is at the shop — ticket goes to SO5 and the office keys it into ePASS">Part is here</button>`}</div>
+        <div class="acts">${r.st === "SO5" ? (r.day ? `<a href="service-board.html?day=${esc(r.day)}&tech=${encodeURIComponent(r.tech)}&sv=${encodeURIComponent(r.sv)}">On the board: ${esc(r.techName)} ${md(r.day)}${r.win ? " " + esc(r.win) : ""} →</a>` : `<a href="service-board.html?sv=${encodeURIComponent(r.sv)}">Unscheduled — place on the board →</a>`) : `<button class="primary" data-here="${esc(r.sv)}" title="The part is at the shop — ticket goes to SO5 and is placed on the diagnosing tech's first open day">Part is here</button>`}</div>
       </div>`;
     }
     function render() {
@@ -101,13 +103,14 @@
       $("#tiles").innerHTML = BUCKETS.map(([k, label, cls]) => `<button class="tile ${cls}" data-only="${k}" aria-pressed="${only === k}"><b>${ROWS.filter((r) => r.bucket === k).length}</b><span>${esc(label)}</span></button>`).join("");
       $("#tiles").querySelectorAll("[data-only]").forEach((b) => (b.onclick = () => { only = only === b.dataset.only ? "" : b.dataset.only; render(); }));
       $("#queues").innerHTML = BUCKETS.filter(([k]) => !only || only === k).map(([k, label, cls, help]) => { const rs = vis.filter((r) => r.bucket === k); return `<div class="sec"><h3><span>${esc(label)}</span><span class="n">${rs.length}</span><span class="hint">${esc(help)}</span></h3>${rs.length ? rs.map(row).join("") : `<div class="empty">Nothing here.</div>`}</div>`; }).join("");
+      $("#queues").querySelectorAll("[data-useeta]").forEach((b) => (b.onclick = () => { b.closest(".form").querySelector("[data-eta]").value = b.dataset.useeta; b.remove(); }));
       $("#queues").querySelectorAll("[data-save]").forEach((b) => (b.onclick = async () => {
         const rowEl = b.closest(".row"); const body = { po: rowEl.querySelector("[data-po]").value, eta: rowEl.querySelector("[data-eta]").value, note: rowEl.querySelector("[data-note]").value };
         b.disabled = true; try { await api(`/api/service-office/parts/${encodeURIComponent(b.dataset.save)}`, { method: "POST", body: JSON.stringify(body) }); setStatus(`${b.dataset.save} saved${body.eta ? " · ETA " + md(body.eta) : ""}.`, "ok"); await load(); } catch (e) { setStatus(e.message, "error"); b.disabled = false; }
       }));
       $("#queues").querySelectorAll("[data-here]").forEach((b) => (b.onclick = async () => {
         const r = ROWS.find((x) => x.sv === b.dataset.here); if (!confirm(`${r.cust || r.sv}: the part is at the shop?\n\nThe ticket goes to SO5 (parts in, schedule install) and a packet is queued for the office to key into ePASS.`)) return;
-        b.disabled = true; try { await api(`/api/service-office/parts/${encodeURIComponent(b.dataset.here)}/received`, { method: "POST", body: JSON.stringify({}) }); setStatus(`${r.sv} → SO5 — packet queued; place it on the board.`, "ok"); await load(); } catch (e) { setStatus(e.message, "error"); b.disabled = false; }
+        b.disabled = true; try { const res = await api(`/api/service-office/parts/${encodeURIComponent(b.dataset.here)}/received`, { method: "POST", body: JSON.stringify({}) }); const p = res.placement; const k = res.rules || ""; setStatus(k === "parts_in_text" ? `${r.sv} → SO5 — customer texted that the part is in; it is in Unscheduled until they pick a day${p?.owner ? " (" + (p.techName || p.owner) + "'s call)" : ""}.` : k === "parts_in_email" ? `${r.sv} → SO5 — customer emailed that the part is in; it is in Unscheduled until they pick a day.` : k === "parts_in_call" ? `${r.sv} → SO5 — customer prefers a phone call (or notices are off): it is in Unscheduled with the pill; call them and place the install${p?.owner ? " with " + (p.techName || p.owner) : ""}.` : p?.date ? `${r.sv} → SO5 — placed with ${p.techName || p.tech} on ${md(p.date)}${p.window ? " " + p.window : ""}.` : `${r.sv} → SO5 — packet queued; place it on the board.`, k === "parts_in_call" ? "error" : "ok"); await load(); } catch (e) { setStatus(e.message, "error"); b.disabled = false; }
       }));
     }
     async function load() { try { const d = await api("/api/service-office/parts"); ROWS = d.rows || []; render(); } catch (e) { setStatus(e.message, "error"); $("#queues").innerHTML = `<div class="empty">${esc(e.message)}</div>`; } }

@@ -449,9 +449,9 @@ import {
   importServiceDispatchTrack, importServiceInvoiceRows, serviceJourneyOverview, listServiceJobs, getServiceJob, setJobStatus, setIntakeReviewed, setOwnerTech,
   listStuckJobs, listStaleJobs, listSyncItems, markSyncKeyed, resolveSyncItem, listRecalls, reviewRecall, listImportBatches, serviceKpis, listTechs as listServiceTechs,
   listZones as listServiceZones, getSettings as getServiceSettings, setSetting as setServiceSetting, STATUS_DEFS as SERVICE_STATUS_DEFS, REASON_CODES as SERVICE_REASON_CODES,
-  importServiceFromEpassFeed, applySelfHoldForSv
+  importServiceFromEpassFeed, applySelfHoldForSv, onStatusSet as onServiceStatusSet, onPartsIn as onServicePartsIn
 } from "./lib/service-journey-postgres.js";
-import { getServiceBoard, moveServiceJob, unscheduleServiceJob, sequenceTechDay, setJobDispatchFlags, addRouteBlock, removeRouteBlock, saveTechSettings, setPartsLoaded, confirmRouteDay, cancelServiceJob, uncancelServiceJob, markShopRepaired, CANCEL_REASONS, diagnoseServiceBoard, getServiceHistory, moveSelfHold } from "./lib/service-board-postgres.js";
+import { getServiceBoard, moveServiceJob, unscheduleServiceJob, sequenceTechDay, setJobDispatchFlags, addRouteBlock, removeRouteBlock, saveTechSettings, setPartsLoaded, confirmRouteDay, cancelServiceJob, uncancelServiceJob, markShopRepaired, CANCEL_REASONS, diagnoseServiceBoard, getServiceHistory, moveSelfHold, searchBoardJobs } from "./lib/service-board-postgres.js";
 import { getPilotStore, applyPilotChanges, addPilotJobFromCard, resetPilot, listPilotLog } from "./lib/pilot-postgres.js";
 import {
   parseOpenOrdersBundle, replaceEpassOpenOrders, getEpassOpenOrdersMeta, getEpassOpenOrder, listEpassOpenOrders,
@@ -9650,8 +9650,67 @@ app.get("/api/epass/open-orders/:code", requireExecutiveApi, async (req, res) =>
 // /service-journey.html (executives implicitly); the three prototype pages
 // ride the same grant.
 // ---------------------------------------------------------------------------
-const requireServiceJourney = requirePagePermission("/service-journey.html");
+// Service Journey is admin-only (Andrew, 9/22 late): the page grant AND an
+// executive login. The board, office queues, request queue and estimates
+// have their own gates and link to each other instead.
+const requireServiceJourneyPage = requirePagePermission("/service-journey.html");
+const requireServiceJourney = (req, res, next) => requireServiceJourneyPage(req, res, () => (isExecutiveUser(req.authUser) ? next() : res.status(403).json({ error: "Service Journey is admin-only." })));
 const sjMe = (req) => ({ email: String(req.authUser?.email || req.authUser?.username || "").toLowerCase(), name: req.authUser?.displayName || "" });
+// SO5 — "your part is in" (Andrew, 9/22 late). The customer's preference
+// comes from their request card (Call / Text / Email) when one matches the
+// ticket, else ePASS's preferred-contact field. Text or email goes out only
+// when notify.parts_in.enabled is on; otherwise, and for a phone preference,
+// the call sits in Unscheduled with a "prefers …" pill for the office.
+onServicePartsIn(async ({ job, settings }) => {
+  const digitsOf = (v) => String(v || "").replace(/\D/g, "").slice(-10);
+  let pref = "", card = null;
+  try {
+    const cards = await readServiceCards();
+    const phones = new Set([digitsOf(job.phone), digitsOf(job.phoneAlt)].filter(Boolean));
+    card = cards.find((c) => c.svNumber && String(c.svNumber).toUpperCase() === job.svNumber) || cards.find((c) => phones.size && (phones.has(digitsOf(c.customerPhone || c.phone)) )) || null;
+    pref = String(card?.contactMethod || "").trim();
+  } catch {}
+  const raw = pref || String(job.contactPref || "");
+  const channel = /text|sms/i.test(raw) ? "text" : /mail/i.test(raw) ? "email" : "call";
+  const enabled = settings?.["notify.parts_in.enabled"] === true;
+  if (!enabled) return { channel, sent: false, note: "parts-in notices are switched off" };
+  if (channel === "call") return { channel, sent: false, note: "prefers a phone call" };
+  const unit = [job.unit?.brand, job.unit?.category].filter(Boolean).join(" ").trim() || "appliance";
+  const who = job.ownerTech ? (await listServiceTechs().catch(() => [])).find((t) => t.code === job.ownerTech)?.name?.split(" ")[0] : "";
+  const body = `Wilson AC & Appliance: the part for your ${unit} repair (${job.svNumber}) has arrived. Reply to this message or call 512-894-0907 and we'll set up your install day${who ? ` with ${who}` : ""}.`;
+  if (channel === "text") {
+    const phone = digitsOf(job.phone) || digitsOf(job.phoneAlt);
+    if (!phone) return { channel: "call", sent: false, note: "no phone on the ticket" };
+    if (!podiumSendConfigured()) return { channel: "text", sent: false, note: "texting is not configured" };
+    await sendCustomerText({ phone, body });
+    return { channel: "text", sent: true };
+  }
+  const email = String(card?.customerEmail || job.email || "").trim();
+  if (!email) return { channel: "call", sent: false, note: "no email on the ticket" };
+  if (!RESEND_API_KEY) return { channel: "email", sent: false, note: "email is not configured" };
+  const r = await fetch("https://api.resend.com/emails", { method: "POST", headers: { "Authorization": `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ from: AGILITY_ALERTS_FROM, to: [email], subject: `Your part is in — Wilson AC & Appliance (${job.svNumber})`, text: body }) });
+  if (!r.ok) throw new Error(`Resend ${r.status}`);
+  return { channel: "email", sent: true };
+});
+
+// Warranty ticket approved for parts in Agility (SO3, not keyed in ePASS yet):
+// the same flag + email the estimate approvals use, to the people who key
+// ePASS (setting notify.warranty_so3.emails), so the ticket gets updated.
+onServiceStatusSet(async ({ job, from, to, reasonCode, byName, byEmail }) => {
+  if (to !== "SO3" || from === "SO3" || !job?.isWarranty || reasonCode === "keyed_in_epass") return;
+  let emails = [];
+  try { const sjs = await getServiceSettings(); emails = Array.isArray(sjs["notify.warranty_so3.emails"]) ? sjs["notify.warranty_so3.emails"].map((e) => String(e || "").trim().toLowerCase()).filter(Boolean) : []; } catch {}
+  const title = `Warranty ${job.svNumber} — ${job.customerName || "customer"} approved for parts (SO3): set SO3 in ePASS`;
+  const body = `${byName || byEmail || "Agility"} moved the warranty ticket to SO3 in Agility. Key SO3 (and the parts) into ePASS; the next feed confirms it.`;
+  for (const email of emails) {
+    createPushedNotification({ severity: "green", typeLabel: "Warranty SO3", refId: `wtyso3:${job.svNumber}`, title, body, audienceEmail: email, byEmail: "service-journey", byName: "Service Journey" }).catch(() => {});
+  }
+  if (emails.length && RESEND_API_KEY) {
+    fetch("https://api.resend.com/emails", { method: "POST", headers: { "Authorization": `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ from: AGILITY_ALERTS_FROM, to: emails, subject: title, text: `${body}\n\nhttps://agility.wilsonappliance.com/service-office.html` }) }).catch((e) => console.error("Warranty SO3 email failed:", e.message));
+  }
+});
 const sjAudit = (req, action, detail) => recordAudit({ ip: req.ip, actorUserId: req.authUser?.kind === "db" ? req.authUser.id : null, action, targetUserId: null, detail }).catch(() => {});
 async function serviceMirrorFromDispatch(buffer, sourceFile, byEmail) {
   try {
@@ -9965,6 +10024,9 @@ app.post("/api/service-office/parts/:sv/received", requireServiceOffice, async (
     sjAudit(req, "service_office_parts_received", { sv: req.params.sv });
     return res.json({ ok: true, ...r });
   } catch (err) { return res.status(400).json({ error: err.message }); }
+});
+app.get("/api/service-board/search", requireServiceBoard, async (req, res) => {
+  try { return res.json({ jobs: await searchBoardJobs(String(req.query.q || "").slice(0, 80)) }); } catch (err) { return res.status(400).json({ error: err.message }); }
 });
 app.get("/api/service-board/diagnose", requireServiceBoard, async (req, res) => {
   try { return res.json(await diagnoseServiceBoard()); }

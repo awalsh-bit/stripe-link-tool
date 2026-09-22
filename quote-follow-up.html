@@ -374,10 +374,12 @@
 
         // Meta line
         const metaBits = [];
-        if (b.lastUpload) {
-          metaBits.push(`Quote export: <strong>${esc(b.lastUpload.filename)}</strong> — ${Number(b.lastUpload.quoteCount).toLocaleString()} open quotes, uploaded ${when(b.lastUpload.at)}${b.lastUpload.byName ? " by " + esc(b.lastUpload.byName) : ""}.`);
+        if (b.lastUpload && /^ePASS feed/i.test(String(b.lastUpload.filename || ""))) {
+          metaBits.push(`Open quotes from the <strong>ePASS feed</strong> — ${Number(b.lastUpload.quoteCount).toLocaleString()} open quotes, last read ${when(b.lastUpload.at)}. Refreshes with every pull; the Invoice Maintenance upload below is only a fallback.`);
+        } else if (b.lastUpload) {
+          metaBits.push(`Quote export: <strong>${esc(b.lastUpload.filename)}</strong> — ${Number(b.lastUpload.quoteCount).toLocaleString()} open quotes, uploaded ${when(b.lastUpload.at)}${b.lastUpload.byName ? " by " + esc(b.lastUpload.byName) : ""}. The ePASS feed will replace this on its next pull.`);
         } else {
-          metaBits.push(`<span class="warn">No quote export uploaded yet.</span> Upload the ePASS Invoice Maintenance export (quotes, Open) to build the board.`);
+          metaBits.push(`<span class="warn">No quotes yet.</span> The ePASS feed fills this board on its next pull; the Invoice Maintenance export (quotes, Open) can be uploaded as a fallback.`);
         }
         if (b.range?.from || b.range?.to) {
           metaBits.push(`Showing quotes created ${b.range.from ? day(b.range.from) : "…"} – ${b.range.to ? day(b.range.to) : "…"}.`);

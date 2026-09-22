@@ -284,6 +284,18 @@ For service, the **invoice number remains SV00...**, while `InvTypeCode` disting
 
 ---
 
+## 8b. Finished orders (OE-23 replacement) and open quotes (2026-09-22)
+
+The sales bundle also carries `open-quotes` (Quote Follow-Up) and
+`finished-orders` + `finished-serials/items/labor/misc/warranty` +
+`salespeople`: every invoice finished since the 1st of the previous month
+(`UPPER(Status) IN ('FINISHED','NOT POSTED')`, not void,
+`InvFinishDate >= since OR DateFinished >= since`), with the cost columns of
+its lines. `-FinishedSince yyyy-MM-dd` widens the window for a one-time
+backfill. The server rebuilds the OE-23 tickets from these
+(`lib/epass-feed-finished.js`); doc 20 §7b has the column mapping and the
+compare tool for checking it against a real OE-23.
+
 ## 9. Service history logic
 
 Do not filter finished service history based only on `JobStatusCode`.

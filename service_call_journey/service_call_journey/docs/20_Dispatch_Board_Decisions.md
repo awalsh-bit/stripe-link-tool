@@ -126,6 +126,38 @@ spreadsheet upload field by field; if Total/Balance show a systematic gap,
 the formula is the thing to adjust. The SV/COD summary flag is re-issued
 only when its numbers change.
 
+## 7b. Quotes and finished orders on the feed (9/22, evening)
+
+**Quote Follow-Up** reads the sales bundle's `open-quotes` dataset (type Q,
+Open, not void) through the same `replaceOpenQuotes` the Invoice Maintenance
+export used; the export upload stays as a fallback and is replaced on the
+next pull. The board matches conversions on the customer code, and the
+export's "Customer #" could be SoldTo or BillTo, so the server calibrates
+against the quotes already stored and logs `customerField` in agent.log.
+
+**The OE-23 warehouse is on the feed too.** The sales bundle carries every
+invoice of any type finished since the 1st of the previous month
+(`finished-orders` header + `finished-serials/items/labor/misc/warranty`
+cost columns + the `salespeople` master), and
+`lib/epass-feed-finished.js` turns it into the exact tickets
+`parseActivityGrid` produced: list columns from the header totals, cost
+columns summed from the lines (serial `UnitCost` not returned, item
+`UnitCost × QtyShipped`, labor `Cost`, misc `UnitCost × Qty`, warranty
+`UnitCost`), salesperson = the master's name for `Salesperson1Code`,
+customer = BillTo (the maker on warranty tickets) else SoldTo. Each month in
+the window is written to `revenue_performance` (Performance vs Target) and
+upserted into `sales_order_detail` (commissions, quote conversions, builder
+accounts, aging inventory); feed rows that leave the window's feed are
+pruned; the OE-23 "open orders" run is rebuilt from `epass_open_orders`.
+Before the feed first overwrites a month a person uploaded, that upload is
+parked in `revenue_performance_uploads`, and **Sales Order Detail →
+Sources → Compare** (`/api/epass/feed-vs-oe23?month=`) shows field by field
+how the two agree — if a cost column is systematically off, the formula in
+`epass-feed-finished.js` is what to adjust, not the pages. The switch
+`feed.finished_orders_enabled` (Sales Order Detail, executives) turns the
+feed off, after which OE-23 uploads are the source again. One-time history:
+run the pull with `-FinishedSince 2025-01-01` once.
+
 ## 8. Ordering Report decisions (9/21) — for completeness
 
 Reserved units live in the `Serial` master (`Status` blank +

@@ -21,6 +21,12 @@
 #   open-order-models    Model master (+ Supplier name) for every model on those lines
 #   on-hand-serials      Serial master, every unit in stock (Status blank) with the invoice it is promised to
 #   open-po-lines        POModel lines not yet received (+ PO supplier/dates/ETA) for models on open lines
+#   open-quotes          Invoice header, InvTypeCode Q, Status Open (Quote Follow-Up board)
+#   finished-orders      Invoice header, every type, Status FINISHED / NOT POSTED, finished since the
+#                        1st of last month (or -FinishedSince) — the OE-23 Salesperson Activity Report
+#   finished-serials / finished-items / finished-labor / finished-misc / finished-warranty
+#                        the cost columns of those invoices' lines (OE-23's C: row)
+#   salespeople          Salesperson master (code -> name) so the feed prints the same names OE-23 did
 #   open-service        Invoice header, InvTypeCode SV/WTY, Status not FINISHED, not void
 #   open-service-labor   InvoiceLabor (+ LaborRate description) for those tickets
 #   open-service-items   InvoiceItem (parts) for those tickets
@@ -49,7 +55,10 @@
 param(
   [switch]$Discover,
   [string]$Dsn  = "COMPANY1",
-  [string]$Root = "W:\Agility"
+  [string]$Root = "W:\Agility",
+  # Finished orders normally cover the current + previous month. Pass a date
+  # (yyyy-MM-dd) once to backfill history, e.g. -FinishedSince 2025-01-01.
+  [string]$FinishedSince = ""
 )
 
 $ErrorActionPreference = "Stop"
@@ -340,6 +349,87 @@ WHERE (pm.Received IS NULL OR pm.Received = 0)
 ORDER BY pm.ModelCode, pm.POCode
 "@ (Join-Path $LatestDir "open-po-lines.csv") "open-po-lines"
   } catch { Log ("open-po-lines FAILED (bundle continues without it): {0}" -f $_.Exception.Message); if ($conn.State -ne [System.Data.ConnectionState]::Open) { $conn.Open() } }
+
+  # Open quotes (2026-09-22): what the Quote Follow-Up board used to get from
+  # the Invoice Maintenance quote export. Header columns only; guarded.
+  try {
+    $bundle.datasets["open-quotes"] = Export-Query $conn @"
+SELECT i.Code, i.InvTypeCode, i.Status, i.JobStatusCode, i.DateCreated, i.DateModified, i.Salesperson1Code, i.SoldToCode, i.BillToCode,
+       i.SoldToLastName, i.SoldToFirstName, i.SoldToAddress1, i.SoldToCity, i.SoldToZipCode, i.PaymentTypeCode, i.Reference, i.PONumber,
+       i.SerialTotal, i.ItemTotal, i.LaborTotal, i.MiscTotal, i.WtyTotal, i.Tax1Total, i.Tax2Total, i.Tax3Total, i.CommittedPaymentTotal, i.OpenPaymentTotal
+FROM Invoice i
+WHERE i.InvTypeCode IN ('Q','QUOTE') AND UPPER(i.Status) = 'OPEN' AND (i.Void IS NULL OR i.Void = 0)
+ORDER BY i.DateCreated DESC
+"@ (Join-Path $LatestDir "open-quotes.csv") "open-quotes"
+  } catch { Log ("open-quotes FAILED (bundle continues without it): {0}" -f $_.Exception.Message); if ($conn.State -ne [System.Data.ConnectionState]::Open) { $conn.Open() } }
+
+  # Finished orders (2026-09-22): what the OE-23 Salesperson Activity Report
+  # gave the Sales Order Detail warehouse, Performance vs Target and the
+  # commission reports. Header + the cost columns of every line, for invoices
+  # of any type finished since the 1st of the previous month (so a month that
+  # just closed keeps refreshing until its books settle). -FinishedSince moves
+  # the window back for a one-time backfill. Guarded like the other extras.
+  $finSince = if ($FinishedSince -match '^\d{4}-\d{2}-\d{2}$') { $FinishedSince } else { (Get-Date -Day 1).AddMonths(-1).ToString("yyyy-MM-dd") }
+  $finWhere = "UPPER(i.Status) IN ('FINISHED','NOT POSTED') AND (i.Void IS NULL OR i.Void = 0) AND (i.InvFinishDate >= '$finSince' OR i.DateFinished >= '$finSince')"
+  $bundle.finishedSince = $finSince
+  try {
+    $bundle.datasets["finished-orders"] = Export-Query $conn @"
+SELECT i.Code, i.InvTypeCode, i.Status, i.JobStatusCode, i.Department, i.BranchCode, i.DateCreated, i.InvStartDate, i.InvFinishDate, i.DateFinished, i.DatePosted,
+       i.Salesperson1Code, i.Salesperson2Code, i.Salesperson2Percentage, i.SoldToCode, i.BillToCode,
+       i.SoldToLastName, i.SoldToFirstName, i.BillToLastName, i.BillToFirstName, i.PaymentTypeCode, i.Reference, i.PONumber,
+       i.SerialTotal, i.ItemTotal, i.LaborTotal, i.MiscTotal, i.WtyTotal, i.Tax1Total, i.Tax2Total, i.Tax3Total, i.Tax1Exempt, i.Tax2Exempt, i.Tax3Exempt,
+       i.CommittedPaymentTotal, i.OpenPaymentTotal, i.COGSPosted, i.UserCreated, i.UserFinished
+FROM Invoice i
+WHERE $finWhere
+ORDER BY i.InvFinishDate, i.Code
+"@ (Join-Path $LatestDir "finished-orders.csv") "finished-orders"
+
+    $bundle.datasets["finished-serials"] = Export-Query $conn @"
+SELECT s.InvoiceCode, s.ModelCode, s.SerialCode, s.UnitCost, s.Returned, s.Status
+FROM InvoiceSerial s
+INNER JOIN Invoice i ON s.InvoiceCode = i.Code
+WHERE $finWhere
+ORDER BY s.InvoiceCode
+"@ (Join-Path $LatestDir "finished-serials.csv") "finished-serials"
+
+    $bundle.datasets["finished-items"] = Export-Query $conn @"
+SELECT p.InvoiceCode, p.ItemCode, p.QtyOrdered, p.QtyShipped, p.SellingPrice, p.UnitCost, p.Total, p.Warranty, p.Status
+FROM InvoiceItem p
+INNER JOIN Invoice i ON p.InvoiceCode = i.Code
+WHERE $finWhere
+ORDER BY p.InvoiceCode
+"@ (Join-Path $LatestDir "finished-items.csv") "finished-items"
+
+    $bundle.datasets["finished-labor"] = Export-Query $conn @"
+SELECT l.InvoiceCode, l.LaborRateCode, l.TechnicianCode, l.Total, l.Cost, l.ActualCost, l.StandardCost, l.Warranty, l.TripCharge, l.TripChargeAmt
+FROM InvoiceLabor l
+INNER JOIN Invoice i ON l.InvoiceCode = i.Code
+WHERE $finWhere
+ORDER BY l.InvoiceCode
+"@ (Join-Path $LatestDir "finished-labor.csv") "finished-labor"
+
+    $bundle.datasets["finished-misc"] = Export-Query $conn @"
+SELECT x.InvoiceCode, x.MiscCode, x.Qty, x.SellingPrice, x.UnitCost, x.Total, x.Warranty
+FROM InvoiceMisc x
+INNER JOIN Invoice i ON x.InvoiceCode = i.Code
+WHERE $finWhere
+ORDER BY x.InvoiceCode
+"@ (Join-Path $LatestDir "finished-misc.csv") "finished-misc"
+
+    $bundle.datasets["finished-warranty"] = Export-Query $conn @"
+SELECT w.InvoiceCode, w.ExtWarrantyCode, w.Model, w.SellingPrice, w.UnitCost
+FROM InvoiceWarranty w
+INNER JOIN Invoice i ON w.InvoiceCode = i.Code
+WHERE $finWhere
+ORDER BY w.InvoiceCode
+"@ (Join-Path $LatestDir "finished-warranty.csv") "finished-warranty"
+
+    $bundle.datasets["salespeople"] = Export-Query $conn @"
+SELECT sp.Code, sp.Description, sp.Obsolete, sp.SalesGroup, sp.BranchCode, sp.CurrentSales
+FROM Salesperson sp
+ORDER BY sp.Code
+"@ (Join-Path $LatestDir "salespeople.csv") "salespeople"
+  } catch { Log ("finished-orders FAILED (bundle continues without it): {0}" -f $_.Exception.Message); if ($conn.State -ne [System.Data.ConnectionState]::Open) { $conn.Open() } }
 
   $json = $bundle | ConvertTo-Json -Depth 6 -Compress
   $path = Join-Path $Outbox "epass-open-orders-$stamp.json"

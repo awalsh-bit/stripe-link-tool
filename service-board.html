@@ -25,7 +25,8 @@
     .top{display:flex;align-items:center;gap:1rem;flex-wrap:wrap;padding:.9rem 0 .6rem;border-bottom:1px solid var(--line)}
     .top h2{margin:0;font-size:20px}.top .note{color:var(--muted);font-size:.8rem}
     .top .weeknav{display:flex;gap:.3rem;align-items:center;margin-left:auto}.top .weeknav button{padding:.3rem .6rem}
-    @media (max-width:720px){.top .weeknav{margin-left:0;width:100%}.top .weeknav .feed{flex:1 1 100%;order:-1}#thisWeek{flex:1;font-weight:600;white-space:nowrap}}
+    @media (max-width:720px){.top .weeknav{margin-left:0;width:100%;flex-wrap:wrap}.top .weeknav .feed{flex:1 1 100%;order:-1}#thisWeek{flex:1;font-weight:600;white-space:nowrap}}
+    @media (min-width:721px){#mobnav{display:none !important}}
     .feed{font-size:.75rem;color:var(--muted)}.feed b{color:var(--ink);font-weight:600}.feed.old b{color:var(--bad)}
     .status{display:none;margin:.6rem 0;padding:.5rem .8rem;border-radius:8px;font-size:.85rem}.status.show{display:block}.status.error{background:var(--bad-bg);color:var(--bad)}.status.ok{background:var(--inst-bg);color:var(--inst)}
     /* strip */
@@ -33,7 +34,33 @@
     .strip .h{color:var(--muted);text-transform:uppercase;letter-spacing:.06em;font-size:.68rem}
     .strip .name{font-weight:500}.strip .name button{border:0;background:none;padding:0;color:var(--ink);font-weight:500;text-align:left;cursor:pointer;text-decoration:underline dotted var(--line);text-underline-offset:3px}
     .strip .name button:hover{color:var(--accent)}
-    .cell{height:26px;border-radius:4px;background:var(--surface2);position:relative;overflow:hidden;cursor:pointer;border:1px solid transparent}
+    .cell{height:26px;border-radius:4px;background:var(--surface2);position:relative;overflow:hidden;cursor:grab;border:1px solid transparent}
+    .cell:active{cursor:grabbing}.cell.dragging{opacity:.45}
+    .col.celldrop{outline:3px dashed var(--accent);outline-offset:-3px;background:var(--soft)}.col.celldrop .colhead::after{content:attr(data-dropmsg);display:block;font-size:.8rem;font-weight:600;color:var(--accent)}
+    .strip .h.wknav{display:flex;align-items:center;gap:.3rem;text-transform:none;letter-spacing:0;font-size:.78rem;color:var(--ink)}.strip .h.wknav button{padding:.1rem .45rem;font-size:.75rem}.strip .h.wknav span{flex:1;text-align:center;font-weight:600}
+    .strip .name button em{font-style:normal;font-size:.7em;opacity:.6;margin-left:.2em}
+    .lanecell{grid-column:span var(--ndays,5);height:26px;border-radius:4px;border:1px solid var(--line);background:var(--surface);display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:.5rem;padding:0 .5rem;font-size:.72rem;color:var(--muted);cursor:pointer;text-align:left}
+    .lanecell .lanebar{height:8px;border-radius:4px;overflow:hidden;display:flex;background:var(--surface2)}.lanecell .lanebar i{display:block;height:100%}
+    .cap i.c{background:repeating-linear-gradient(45deg,var(--muted),var(--muted) 3px,transparent 3px,transparent 6px);opacity:.5}
+    .chip.grp{background:var(--soft);color:var(--accent)}.chip.grp.bad{background:var(--bad-bg);color:var(--bad)}.card.ingrp{border-left-style:double}
+    .chip.SI1,.chip.SI5,.chip.SI6{background:var(--held-bg);color:var(--held)}.card.SI1,.card.SI5,.card.SI6{border-left-color:var(--held)}
+    .chip.confirmed{background:var(--inst-bg);color:var(--inst)}
+    .limits{display:grid;grid-template-columns:1fr auto;gap:.25rem .5rem;align-items:center;font-size:.78rem}.limits input{width:64px;padding:.2rem .35rem;font-size:.78rem}
+    .cxpick{display:flex;gap:.3rem;flex-wrap:wrap;margin:.4rem 0}.cxpick button[aria-pressed="true"]{border-color:var(--accent);background:var(--soft);font-weight:600}
+    .cxrow{display:grid;grid-template-columns:1fr auto;gap:.2rem .6rem;padding:.45rem .6rem;border-bottom:1px solid var(--line);font-size:.8rem}.cxrow .d{color:var(--muted);font-size:.74rem;grid-column:1/-1}
+    button.mini{padding:.15rem .5rem;font-size:.72rem}
+    .rlist{list-style:none;margin:0;padding:0}.drawer li.rrow,.rrow{display:grid;grid-template-columns:1fr auto;gap:.2rem .6rem;padding:.5rem 0;border-bottom:1px solid var(--line);font-size:.85rem}.drawer li.rrow .d,.rrow .d{color:var(--muted);font-size:.76rem;grid-column:1/-1}.rrow .sugg{grid-column:1/-1;background:var(--soft);border-radius:6px;padding:.35rem .5rem;font-size:.78rem}.rrow pre{grid-column:1/-1;white-space:pre-wrap;font:inherit;background:var(--surface2);border-radius:6px;padding:.4rem .5rem;margin:.2rem 0 0;font-size:.78rem}
+    .drawer .acts button[data-send],.drawer .acts button[data-go]{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);font-weight:600}
+    .drawer .foot{position:sticky;bottom:0;background:var(--surface);padding:.6rem 0 0;border-top:1px solid var(--line);display:flex;gap:.4rem;margin-top:.8rem}
+    .settings .lbl{font-size:.68rem;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin:.7rem 0 .25rem}.settings .grid2{display:grid;grid-template-columns:1fr 1fr;gap:.4rem .8rem}.settings label{font-size:.8rem;display:block}.settings input,.settings select{width:100%;padding:.35rem .5rem;font-size:.82rem;box-sizing:border-box}.settings .ck{display:flex;gap:.8rem;flex-wrap:wrap;font-size:.82rem}.settings .ck label{display:inline-flex;align-items:center;gap:.3rem}
+    .pattern{width:100%;border-collapse:collapse;font-size:.78rem}.pattern th,.pattern td{padding:.2rem .3rem;border-bottom:1px solid var(--line);text-align:left}.pattern select,.pattern input{padding:.2rem .3rem;font-size:.76rem;width:auto}
+    .lanenote{background:var(--wait-bg);color:var(--wait);border-radius:6px;padding:.4rem .6rem;font-size:.8rem;margin:.5rem 0}
+    li.lanejob{display:grid;grid-template-columns:1fr auto;gap:.15rem .6rem;padding:.45rem 0;border-bottom:1px solid var(--line);font-size:.84rem}li.lanejob.stale{background:var(--bad-bg)}li.lanejob .sub{grid-column:1/-1;color:var(--muted);font-size:.76rem}
+    .maptools{display:flex;gap:.3rem;align-items:center}.maptools button{padding:.05rem .45rem;font-size:.7rem;border-radius:12px}.maptools button[aria-pressed="true"]{border-color:var(--accent);color:var(--accent);font-weight:600}
+    .panel.map.full{position:fixed;inset:1rem;z-index:25;overflow:auto;box-shadow:0 20px 60px rgba(0,0,0,.3)}.panel.map.full svg{max-height:70vh}
+    .routesum table{width:100%;border-collapse:collapse;font-size:.76rem}.routesum th,.routesum td{padding:.25rem .5rem;border-bottom:1px solid var(--line);text-align:right}.routesum th:first-child,.routesum td:first-child,.routesum th:nth-child(2),.routesum td:nth-child(2){text-align:left}.routesum th{font-size:.66rem;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+    .bnote{padding:.4rem .8rem;font-size:.74rem;color:var(--bad);border-top:1px solid var(--line)}
+    .col.b{border-top-color:var(--colB)}
     .cell i{position:absolute;inset:0 auto 0 0;background:var(--inst);opacity:.55}
     .cell.hot i{background:var(--bad)}.cell.warm i{background:var(--wait)}.cell.over i{background:var(--bad)}
     .cell span{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:.72rem;font-weight:500}
@@ -125,7 +152,7 @@
     <div id="internal-shell-header"></div>
     <div class="top">
       <div><h2>Service Dispatch Board</h2><div class="note">Drag a call onto a tech's day. Every move becomes a packet in <a href="service-journey.html">Service Journey</a> for the office to key into ePASS; the next feed confirms it. Stop order, windows, pins and blocks live here only.</div></div>
-      <div class="weeknav"><span class="feed" id="feed"></span><button id="prevWeek" title="Previous week">‹</button><button id="thisWeek">This week</button><button id="nextWeek" title="Next week">›</button><button id="reload" title="Reload from the mirror">↻</button></div>
+      <div class="weeknav"><span class="feed" id="feed"></span><span id="mobnav" style="display:contents"><button id="prevWeek" title="Previous day">‹</button><button id="thisWeek">Today</button><button id="nextWeek" title="Next day">›</button></span><button id="reload" title="Reload from the mirror">↻</button></div>
     </div>
     <div class="status" id="pageStatus"></div>
     <div class="strip" id="strip"></div>
@@ -134,7 +161,9 @@
       <div class="col b" id="colB"></div>
       <div class="side">
         <div class="panel unsched"><h3>Unscheduled <span id="unCount"></span><input id="unQ" placeholder="filter…" aria-label="Filter unscheduled" /></h3><div class="stops" id="unsched" data-drop="un"></div></div>
-        <div class="panel map"><h3>Map <span style="font-weight:400;text-transform:none;letter-spacing:0">click a truck to hide/show it</span></h3><div id="map"></div><div class="maplegend" id="maplegend"></div></div>
+        <div class="panel unsched" id="shoppanel" hidden><h3>In the shop <span id="shopCount"></span></h3><div class="stops" id="shoplist" data-drop="shop"></div><div class="bnote" id="shopnote" hidden></div></div>
+        <div class="panel" id="cxpanel" hidden><h3>Cancelled — last 3 days <span id="cxCount"></span></h3><div id="cxlist"></div></div>
+        <div class="panel map" id="mappanel"><h3>Map <span class="maptools"><button id="mapsum" aria-pressed="false" title="Stops, units, drive and on-site per route for the left column's day">routes</button><button id="mapfull" title="Full screen">⛶</button></span></h3><div id="map"></div><div class="maplegend" id="maplegend"></div><div class="routesum" id="routesum" hidden></div></div>
       </div>
     </div>
     <div id="internal-shell-footer"></div>
@@ -157,7 +186,7 @@
     let B = null;                 // the board payload
     let J = [], TECHS = [], DAYS = [], TD = {}, BLOCKS = [], ZONE = {}, ZIPZONE = {}, ZIP = {}, SHOP = { ll: [30.1852, -98.0031] }, S = {};
     const col = { A: { tech: null, day: null }, B: { tech: null, day: null } };
-    let stripTarget = "A", from = "", unFilter = "";
+    let from = "", unFilter = "", CONFIRMED = {}, NOTIFY = {}, draggingCell = null, mapSum = false;
     const mapShow = { A: true, B: true, un: true, others: {} };
     const MON = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
     const mkDay = (k) => { const d = new Date(k + "T12:00:00Z"); return { k, s: ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][d.getUTCDay()], n: MON[d.getUTCMonth()] + " " + d.getUTCDate() }; };
@@ -167,9 +196,15 @@
     const addDays = (k, n) => { const d = new Date(k + "T12:00:00Z"); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
     const addBD = (k, n) => { let d = k; while (n > 0) { d = addDays(d, 1); if (!["Sat", "Sun"].includes(dow(d))) n--; } return d; };
     const md = (k) => (k ? `${Number(k.slice(5, 7))}/${Number(k.slice(8, 10))}` : "");
-    const techById = (id) => TECHS.find((t) => t.id === id) || { id, name: id || "—", skills: [], start: "shop", end: "shop", auto: false, workDays: ["Mon", "Tue", "Wed", "Thu", "Fri"], home: null, zone: [], zone2: [] };
+    const when = (iso) => (iso ? new Date(iso).toLocaleString("en-US", { month: "numeric", day: "numeric", hour: "numeric", minute: "2-digit" }) : "");
+    const techById = (id) => TECHS.find((t) => t.id === id) || { id, name: id || "—", skills: [], start: "shop", end: "shop", auto: false, mode: "office", workDays: ["Mon", "Tue", "Wed", "Thu", "Fri"], home: null, zone: [], zone2: [], pattern: {}, overflow: true };
     const first = (t) => (t.name || t.id || "").split(" ")[0];
     const SHIFT = () => ({ start: S["board.shift_start_min"] ?? 480, end: S["board.pm_end_min"] ?? 1020 });
+    // Per-tech weekday pattern (route settings): shift and where the day starts/ends.
+    const pat = (t, day) => (day && t.pattern && t.pattern[dow(day)]) || {};
+    const shiftFor = (t, day) => { const sh = SHIFT(), p = pat(t, day); return { start: p.start ?? sh.start, end: p.end ?? (t.dayEnd ?? sh.end) }; };
+    const startAt = (t, day) => pat(t, day).startAt || t.start, endAt = (t, day) => pat(t, day).endAt || t.end;
+    const usualShift = (t) => { const sh = SHIFT(); return { start: sh.start, end: t.dayEnd ?? sh.end }; };
     const AM_END = () => S["board.am_end_min"] ?? 720;
     const td = (tech, day) => ((TD[tech] ||= {})[day] ||= { adjust: 0 });
     const isOpen = (tech, day) => { const o = td(tech, day); if (o.closed) return false; if (o.open) return true; return techById(tech).workDays.includes(dow(day)); };
@@ -180,33 +215,45 @@
     const fmt = (m) => { let h = Math.floor(m / 60), mm = m % 60; const ap = h >= 12 ? "PM" : "AM"; h = ((h + 11) % 12) + 1; return `${h}:${String(mm).padStart(2, "0")} ${ap}`; };
     const hm = (m) => (m >= 60 ? `${Math.floor(m / 60)}h ${m % 60 ? (m % 60) + "m" : ""}`.trim() : `${m}m`);
     const jobsFor = (tech, day) => J.filter((j) => j.tech === tech && j.day === day).sort((a, b) => a.seq - b.seq || a.sv.localeCompare(b.sv));
-    const startPt = (t) => (t.start === "shop" ? SHOP.ll : t.home || SHOP.ll), endPt = (t) => (t.end === "shop" ? SHOP.ll : t.home || SHOP.ll);
+    const startPt = (t, day) => (startAt(t, day) === "shop" ? SHOP.ll : t.home || SHOP.ll), endPt = (t, day) => (endAt(t, day) === "shop" ? SHOP.ll : t.home || SHOP.ll);
+    // Visit groups: open calls at the same address are one arrival.
+    const grpKey = (j) => (j.addr && j.zip ? (j.addr + "|" + j.zip).toUpperCase().replace(/\s+/g, " ") : "");
+    const groupMembers = (j) => { const k = grpKey(j); return k ? J.filter((x) => grpKey(x) === k && x.st !== "SO9" && !x.si) : [j]; };
+    function limitCheck(t, stops, work, interDrive) { const out = []; if (t.maxStops && stops > t.maxStops) out.push(`over ${t.maxStops} stops`); if (t.maxOnsite && work > t.maxOnsite) out.push(`over ${hm(t.maxOnsite)} on site`); if (t.maxDrive && interDrive > t.maxDrive) out.push(`over ${hm(t.maxDrive)} driving`); return out; }
     const blocksFor = (tech, day) => BLOCKS.filter((b) => b.tech === tech && b.day === day).sort((a, b) => a.start - b.start);
-    const STATUS = { REQ: "New request · no time picked", SO1: "Diagnostic", "SO1.AUTH": "Awaiting authorization", SO2: "Quote", "SO2.1": "Quote", "SO2.2": "Quote sent", SO3: "Approved · order parts", SO3PRE: "Preschedule parts", SO4: "Parts on order", SO4B: "Backordered", SO4H: "Part shipping to customer", SO4PRE: "Install held · part on order", SO5: "Parts in · pick a time", SO6: "Part install" };
+    const STATUS = { SI1: "In the shop · bench work", SI5: "Repaired · owed back", SI6: "Going back to the customer", REQ: "New request · no time picked", SO1: "Diagnostic", "SO1.AUTH": "Awaiting authorization", SO2: "Quote", "SO2.1": "Quote", "SO2.2": "Quote sent", SO3: "Approved · order parts", SO3PRE: "Preschedule parts", SO4: "Parts on order", SO4B: "Backordered", SO4H: "Part shipping to customer", SO4PRE: "Install held · part on order", SO5: "Parts in · pick a time", SO6: "Part install" };
     const stLabel = (j) => STATUS[j.st] || j.st;
     const winBounds = (w) => (w === "PM" ? [AM_END(), SHIFT().end] : w === "AM" ? [SHIFT().start, AM_END()] : [SHIFT().start, SHIFT().end]);
 
     function timeline(tech, day) {
-      const sh = SHIFT(), t = techById(tech), stops = jobsFor(tech, day); let cur = startPt(t), clock = sh.start, drive = 0, work = 0, blocked = 0, out = []; const blocks = [...blocksFor(tech, day)];
-      const needsShop = t.start !== "shop" && stops.some((j) => j.st === "SO6" || j.st === "SO4PRE"); let shopDone = !needsShop; const touch = S["board.shop_touch_min"] ?? 10;
+      const t = techById(tech), sh = shiftFor(t, day), sAt = startAt(t, day), eAt = endAt(t, day), stops = jobsFor(tech, day); let cur = startPt(t, day), clock = sh.start, drive = 0, work = 0, blocked = 0, out = []; const blocks = [...blocksFor(tech, day)];
+      const o = td(tech, day);
+      const needsShop = sAt !== "shop" && stops.some((j) => j.st === "SO6" || j.st === "SO4PRE") && !o.loadedPrev; let shopDone = sAt === "shop" || !needsShop; const touch = S["board.shop_touch_min"] ?? 10;
       const placeBlocks = (until) => { while (blocks.length && blocks[0].start < until) { const b = blocks.shift(); if (clock < b.start) clock = b.start; out.push({ block: b, arr: clock, dep: clock + (b.end - b.start) }); clock += b.end - b.start; blocked += b.end - b.start; } };
       for (const j of stops) {
         if (!shopDone && (j.st === "SO6" || j.st === "SO4PRE")) { const d = driveMin(cur, SHOP.ll); drive += d; clock += d; out.push({ shop: true, drive: d, arr: clock, dep: clock + touch }); clock += touch; cur = SHOP.ll; shopDone = true; }
         const d = driveMin(cur, ll(j)); placeBlocks(clock + d); drive += d; let arr = clock + d; const [ws, we] = winBounds(j.win); let wait = 0; if (arr < ws) { wait = ws - arr; arr = ws; } const late = arr > we; out.push({ j, drive: d, arr, wait, late, dep: arr + j.dur }); clock = arr + j.dur; work += j.dur; cur = ll(j);
       }
       placeBlocks(Infinity);
-      const back = driveMin(cur, endPt(t)); drive += back; const o = td(tech, day); const cap = (S["placement.shift_min"] ?? (sh.end - sh.start)) + (o.adjust || 0); const open = isOpen(tech, day);
+      const back = driveMin(cur, endPt(t, day)); drive += back; const cap = (sh.end - sh.start) + (o.adjust || 0); const open = isOpen(tech, day);
       const planned = stops.length || blocked;
-      return { t, stops: out, drive: planned ? drive : 0, work, blocked, back, ret: clock + back, fill: planned ? (drive + work + blocked) / cap : 0, cap, open, adjust: o.adjust || 0, forced: stops.filter((j) => j.forced).length, over: planned && drive + work + blocked > cap, needsShop };
+      // Commute exclusion (item 23): a home-start / home-end tech's first and
+      // last legs are commute up to the allowance; only the excess is route time.
+      const firstLeg = (out.find((x) => x.j) || {}).drive || 0; const allow = t.commuteAllow ?? (S["board.commute_allow_min"] ?? 45);
+      const rawCommute = planned ? (sAt === "home" ? firstLeg : 0) + (eAt === "home" ? back : 0) : 0; const commute = Math.min(rawCommute, allow * 2); const overCommute = rawCommute - commute;
+      const routeDrive = planned ? drive - commute : 0;
+      const limits = limitCheck(t, stops.length, work, routeDrive - (sAt === "home" ? 0 : (planned ? firstLeg : 0)));
+      return { t, day, stops: out, drive: routeDrive, rawDrive: planned ? drive : 0, commute, overCommute, work, blocked, back, ret: clock + back, fill: planned ? (routeDrive + work + blocked) / cap : 0, cap, sh, startAt: sAt, endAt: eAt, open, adjust: o.adjust || 0, forced: stops.filter((j) => j.forced).length, over: planned && routeDrive + work + blocked > cap, needsShop, limits, stopCount: stops.length };
     }
     function halfDayLoad(tech, day, win) { if (!isOpen(tech, day)) return 999; const tl = timeline(tech, day); let m = 0; const [ws, we] = winBounds(win); for (const s of tl.stops) { if (s.j && (s.j.win === win || !s.j.win)) m += s.j.dur + s.drive; if (s.block) m += Math.max(0, Math.min(s.block.end, we) - Math.max(s.block.start, ws)); } return m - Math.round((td(tech, day).adjust || 0) / 2); }
     const skillOf = (j) => (j.type === "sealed" ? "sealed" : j.type);
-    function eligible(j) { if (j.owner && techById(j.owner).id === j.owner && TECHS.some((t) => t.id === j.owner)) return [techById(j.owner)]; const zi = zinfo(j); return TECHS.filter((t) => { const sk = skillOf(j); if (!t.skills.includes(sk) && !(sk === "sealed" && t.skills.includes("appliance"))) return false; return t.auto && (zi.p === t.id || zi.s.includes(t.id)); }); }
+    function eligible(j) { if (j.owner && TECHS.some((t) => t.id === j.owner)) return [techById(j.owner)]; const zi = zinfo(j); return TECHS.filter((t) => { if (t.active === false) return false; const sk = skillOf(j); if (!t.skills.includes(sk) && !(sk === "sealed" && t.skills.includes("appliance"))) return false; return t.auto && (zi.p === t.id || zi.s.includes(t.id)); }); }
     function validate(j, tech, day) {
       const t = techById(tech), out = [], sk = skillOf(j), zi = zinfo(j);
       if (j.forced) out.push({ c: "forced", t: "forced onto a full day" });
       if (j.epass.day && j.day && (j.epass.day !== j.day || (j.epass.tech && j.epass.tech !== j.tech))) out.push({ c: "epass", t: `ePASS still says ${j.epass.tech || "—"} ${md(j.epass.day)} · packet pending` });
       if (j.stale) out.push({ c: "warn", t: "stale · date passed without completion" });
+      if (j.confirmed) { const cf = CONFIRMED[tech + "|" + day]; out.push({ c: "confirmed", t: cf && cf.sent ? "confirmed · customer texted" : "confirmed · route locked" }); }
       if (j.owner && j.owner !== tech && TECHS.some((x) => x.id === j.owner)) { out.push({ c: "bad", t: `${first(techById(j.owner))} owns this call — ran the diag` }); return out; }
       if (!t.auto && t.note) out.push({ c: "warn", t: t.note });
       if (!t.skills.includes(sk) && !(sk === "sealed" && t.skills.includes("appliance"))) out.push({ c: "bad", t: sk === "hvac" ? "Needs HVAC tech" : sk === "sealed" ? "Needs sealed-system tech" : "Appliance tech needed" });
@@ -219,18 +266,21 @@
     function toast(msg, cls = "", acts) { const t = document.createElement("div"); t.className = "toast " + cls + (acts ? " sticky" : ""); t.textContent = msg; if (acts) { const a = document.createElement("span"); a.className = "acts"; for (const k in acts) { const b = document.createElement("button"); b.textContent = k; b.onclick = () => { acts[k](); t.remove(); }; a.append(b); } t.append(a); } $("#toasts").append(t); setTimeout(() => t.remove(), acts ? 14000 : 3800); return t; }
 
     // ---------- placement (mirror of the server engine) ----------
-    function marginalDrive(stops, pt, t) { const a0 = startPt(t), z0 = endPt(t); const route = [a0, ...stops.map((x) => ll(x)), z0]; if (route.length === 2) return Math.max(0, driveMin(a0, pt) + driveMin(pt, z0) - driveMin(a0, z0)); let best = 1e9; for (let i = 0; i < route.length - 1; i++) { const a = route[i], b = route[i + 1]; best = Math.min(best, driveMin(a, pt) + driveMin(pt, b) - driveMin(a, b)); } return Math.max(0, best); }
+    function marginalDrive(stops, pt, t, day) { const a0 = startPt(t, day), z0 = endPt(t, day); const route = [a0, ...stops.map((x) => ll(x)), z0]; if (route.length === 2) return Math.max(0, driveMin(a0, pt) + driveMin(pt, z0) - driveMin(a0, z0)); let best = 1e9; for (let i = 0; i < route.length - 1; i++) { const a = route[i], b = route[i + 1]; best = Math.min(best, driveMin(a, pt) + driveMin(pt, b) - driveMin(a, b)); } return Math.max(0, best); }
     function suggestFor(j, earliest) {
       const el = eligible(j); if (!el.length) return []; const zi = zinfo(j), pt = ll(j); const out = []; let wait = 0;
       const slack = S["placement.min_slack_min"] ?? 25, half = S["board.half_day_min"] ?? 240, bonus = S["placement.same_zone_bonus_min"] ?? 6, pen = [0, S["placement.zone_secondary_penalty_min"] ?? 10, S["placement.zone_other_penalty_min"] ?? 40];
       for (const d of DAYS) { if (d.k < B.today) continue; if (earliest && d.k < earliest) continue; for (const t of el) { if (!isOpen(t.id, d.k)) continue; const stops = jobsFor(t.id, d.k).filter((x) => x.sv !== j.sv); const win = ["AM", "PM"].find((w) => halfDayLoad(t.id, d.k, w) + j.dur + slack <= half); if (!win) continue;
-        const added = marginalDrive(stops, pt, t), same = stops.filter((x) => zinfo(x).zone === zi.zone).length, rank = t.id === zi.p ? 0 : zi.s.includes(t.id) ? 1 : 2;
+        const added = marginalDrive(stops, pt, t, d.k), same = stops.filter((x) => zinfo(x).zone === zi.zone).length, rank = t.id === zi.p ? 0 : zi.s.includes(t.id) ? 1 : 2;
         const cost = added - bonus * Math.min(same, 3) + ((S["placement.defer_min_per_day"] ?? 8) * Math.min(wait, 2) + (S["placement.defer_min_per_day_late"] ?? 20) * Math.max(wait - 2, 0)) + pen[rank];
         const why = (same ? `${first(t)} already has ${same} stop${same > 1 ? "s" : ""} in ${zi.zone} that day` : stops.length ? `${first(t)} has ${stops.length} stop${stops.length > 1 ? "s" : ""} that day` : `${first(t)}'s day is empty`) + ` · +${added} min drive` + (rank === 0 ? " · primary tech" : rank === 1 ? " · secondary" : "");
         out.push({ tech: t.id, day: d.k, win, cost, added, same, why }); } wait++; }
       return out.sort((a, b) => a.cost - b.cost || a.day.localeCompare(b.day));
     }
-    function bestFit(j, earliest) { const c = suggestFor(j, earliest); if (!c.length) return null; const firstDay = c.slice().sort((a, b) => a.day.localeCompare(b.day))[0]; const within = c.filter((x) => (new Date(x.day) - new Date(firstDay.day)) / 864e5 <= 5); const pick = within[0] || c[0]; pick.earliest = firstDay.day; return pick; }
+    const bdBetween = (a, b) => { let n = 0, d = a; while (d < b) { d = addDays(d, 1); if (!["Sat", "Sun"].includes(dow(d))) n++; } return n; };
+    // The offer window (Cayden 9/17 pm): the earliest open day first, and the
+    // cheapest day within offer.hold_max_business_days of it wins.
+    function bestFit(j, earliest) { const c = suggestFor(j, earliest); if (!c.length) return null; const firstDay = c.slice().sort((a, b) => a.day.localeCompare(b.day) || (a.win === "AM" ? -1 : 1))[0]; const hold = S["offer.hold_max_business_days"] ?? 3; const within = c.filter((x) => bdBetween(firstDay.day, x.day) <= hold); const pick = within[0] || c[0]; pick.earliest = firstDay.day; return pick; }
 
     // ---------- writes ----------
     async function moveJob(j, tech, day, win, order, opts = {}) {
@@ -238,11 +288,12 @@
       await load(); return r;
     }
     async function unscheduleJob(j) { await api("/api/service-board/unschedule", { method: "POST", body: JSON.stringify({ sv: j.sv }) }); await load(); }
-    async function setDay(tech, day, body) { await api(`/api/service-board/techs/${encodeURIComponent(tech)}/day`, { method: "POST", body: JSON.stringify({ date: day, ...body }) }); await load(); }
+    async function setDay(tech, day, body) { const o = td(tech, day); const cur = o.closed ? false : o.open ? true : null; await api(`/api/service-board/techs/${encodeURIComponent(tech)}/day`, { method: "POST", body: JSON.stringify({ date: day, available: cur, reason: o.reason || "", note: o.note || "", ...body }) }); await load(); }
+    async function loadCol(k, tech, day, how) { col[k] = { tech, day }; renderAll(); if (how === "drop") toast(`${first(techById(tech))} ${dayObj(day).s} ${dayObj(day).n} opened on the ${k === "A" ? "left" : "right"} board`); }
     function guard(fn) { return async (...a) => { try { await fn(...a); } catch (err) { toast(err.message, "bad"); } }; }
 
     // ---------- render ----------
-    function renderAll() { renderStrip(); renderNav(); renderCol("A"); renderCol("B"); renderUnsched(); renderMap(); renderFeed(); }
+    function renderAll() { renderStrip(); renderNav(); renderCol("A"); renderCol("B"); renderUnsched(); renderShop(); renderCancelled(); renderMap(); renderFeed(); }
     function renderFeed() {
       const f = B.feed; const el = $("#feed"); if (!f || !f.receivedAt) { el.textContent = "No ePASS feed yet — the mirror is empty"; el.className = "feed old"; return; }
       const age = Math.round((Date.now() - new Date(f.receivedAt).getTime()) / 60000); el.className = "feed" + (age > 45 ? " old" : "");
@@ -257,69 +308,93 @@
       let h = "";
       for (const t of TECHS) {
         const tl = timeline(t.id, d.k); const p = Math.round(tl.fill * 100); const ns = tl.stops.filter((x) => x.j).length; const closed = !tl.open; const why = closedWhy(t.id, d.k); const on = col.A.tech === t.id && col.A.day === d.k ? "onA" : "";
+        if (t.mode === "collector") { h += `<div class="name"><button data-techview="${t.id}">${esc(t.name)}</button></div><div class="cell" data-lane="${t.id}"><span>${laneStats(t.id).n} in the lane</span></div>`; continue; }
         h += `<div class="name"><button data-techview="${t.id}">${esc(t.name)}</button></div><div class="cell ${tl.over ? "over" : p > 95 ? "hot" : p > 80 ? "warm" : ""} ${on} ${closed ? "closed" : ""} ${t.auto || closed ? "" : "noauto"}" data-tech="${t.id}" data-day="${d.k}"><i style="width:${closed ? 0 : Math.min(p, 100)}%"></i><span>${closed ? (ns ? ns + " on closed day" : why.startsWith("works") ? "closed" : why) : ns ? `${ns} stop${ns === 1 ? "" : "s"} · ${p}%` : "—"}</span><b class="menu" data-menu="1">⋯</b></div>`;
       }
       s.innerHTML = h;
       renderNav();
-      s.querySelectorAll(".cell").forEach((c) => { c.onclick = (e) => { if (e.target.dataset.menu) { e.stopPropagation(); openDayPop(c.dataset.tech, c.dataset.day, c); return; } col.A = { tech: c.dataset.tech, day: c.dataset.day }; renderAll(); document.getElementById("colA").scrollIntoView({ behavior: "smooth", block: "start" }); }; });
+      s.querySelectorAll(".cell").forEach((c) => { c.onclick = (e) => { if (c.dataset.lane) { openLane(c.dataset.lane); return; } if (e.target.dataset.menu) { e.stopPropagation(); openDayPop(c.dataset.tech, c.dataset.day, c); return; } col.A = { tech: c.dataset.tech, day: c.dataset.day }; renderAll(); document.getElementById("colA").scrollIntoView({ behavior: "smooth", block: "start" }); }; });
       s.querySelectorAll("[data-techview]").forEach((b) => (b.onclick = () => openTechView(b.dataset.techview, d.k)));
     }
     function renderStrip() {
       if (isMobile()) return renderStripMobile();
       const s = $("#strip"); s.className = "strip"; s.style.setProperty("--ndays", DAYS.length);
-      let h = `<div class="h">Fill · ${DAYS[0].n}–${DAYS[DAYS.length - 1].n}</div>` + DAYS.map((d) => `<div class="h">${d.s} <span class="mono">${d.n.replace(/^\w+ /, "")}</span>${d.k === B.today ? " · today" : ""}</div>`).join("") +
-        `<div class="striptools">load into <button aria-pressed="${stripTarget === "A"}" data-t="A">Left</button><button aria-pressed="${stripTarget === "B"}" data-t="B">Right</button></div>`;
+      const a = DAYS[0], z = DAYS[DAYS.length - 1]; const thisWeek = DAYS.some((d) => d.k === B.today);
+      let h = `<div class="h wknav"><button data-wk="-1" title="Previous week">‹</button><span>${a.n} – ${z.n.split(" ")[0] === a.n.split(" ")[0] ? z.n.split(" ")[1] : z.n}${thisWeek ? " · this week" : ""}</span><button data-wk="1" title="Next week">›</button></div>` + DAYS.map((d) => `<div class="h">${d.s} <span class="mono">${d.n.replace(/^\w+ /, "")}</span>${d.k === B.today ? " · today" : ""}</div>`).join("") +
+        `<div class="striptools"><span title="Drag a tech's day onto the left or right board to open it there; a plain click opens it on the left">⇲ drag a day onto a board · click = left</span><button data-addtech title="Add a tech to the roster">+ tech</button></div>`;
       for (const t of TECHS) {
-        h += `<div class="name"><button data-techview="${t.id}" title="Open ${first(t)}'s route overview">${esc(t.name)}</button></div>`;
+        h += `<div class="name"><button data-techset="${t.id}" title="${esc(first(t))}'s route settings — pattern, start/end, capacity, limits">${esc(t.name)}${Object.keys(t.pattern || {}).length ? '<em title="has a weekday pattern">⚙</em>' : ""}${t.active === false ? ' <em title="retired">(retired)</em>' : ""}</button></div>`;
+        if (t.mode === "collector") { h += laneCell(t) + `<div></div>`; continue; }
         for (const d of DAYS) {
           const tl = timeline(t.id, d.k); const p = Math.round(tl.fill * 100); const on = col.A.tech === t.id && col.A.day === d.k ? "onA" : col.B.tech === t.id && col.B.day === d.k ? "onB" : "";
-          const ns = tl.stops.filter((x) => x.j).length; const closed = !tl.open; const why = closedWhy(t.id, d.k); const o = td(t.id, d.k);
-          h += `<div class="cell ${tl.over ? "over" : p > 95 ? "hot" : p > 80 ? "warm" : ""} ${on} ${closed ? "closed" : ""} ${t.auto || closed ? "" : "noauto"}" data-tech="${t.id}" data-day="${d.k}" title="${esc(t.name)} ${d.s}: ${closed ? "closed · " + why : ns + " stops, " + p + "% of " + hm(tl.cap) + (o.adjust ? " (adjusted " + (o.adjust > 0 ? "+" : "") + o.adjust + "m)" : "")}${tl.forced ? " · " + tl.forced + " forced" : ""}${t.auto ? "" : " · not auto-routed"}"><i style="width:${closed ? 0 : Math.min(p, 100)}%"></i><span>${closed ? (ns ? ns + " on closed day" : why.startsWith("works") ? "closed" : why) : ns ? p + "%" + (o.adjust ? "*" : "") : "—"}</span><b class="menu" data-menu="1" title="Day controls">⋯</b></div>`;
+          const ns = tl.stopCount; const closed = !tl.open; const why = closedWhy(t.id, d.k); const o = td(t.id, d.k); const conf = CONFIRMED[t.id + "|" + d.k];
+          h += `<div class="cell ${tl.over ? "over" : p > 95 ? "hot" : p > 80 ? "warm" : ""} ${on} ${closed ? "closed" : ""} ${t.auto || closed ? "" : "noauto"}" draggable="true" data-tech="${t.id}" data-day="${d.k}" title="${esc(t.name)} ${d.s}: ${closed ? "closed · " + why : ns + " stops, " + p + "% of " + hm(tl.cap) + (o.adjust ? " (adjusted " + (o.adjust > 0 ? "+" : "") + o.adjust + "m)" : "")}${tl.forced ? " · " + tl.forced + " forced" : ""}${tl.limits.length ? " · " + tl.limits.join(", ") : ""}${conf ? " · confirmed" : ""}${t.auto ? "" : " · not auto-routed"}"><i style="width:${closed ? 0 : Math.min(p, 100)}%"></i><span>${closed ? (ns ? ns + " on closed day" : why.startsWith("works") ? "closed" : why) : ns ? (t.auto ? "" : "trip · ") + p + "%" + (o.adjust ? "*" : "") + (conf ? " ✓" : "") : "—"}</span><b class="menu" data-menu="1" title="Day controls">⋯</b></div>`;
         }
         h += `<div></div>`;
       }
       s.innerHTML = h;
-      s.querySelectorAll(".cell").forEach((c) => { c.onclick = (e) => { if (e.target.dataset.menu) { e.stopPropagation(); openDayPop(c.dataset.tech, c.dataset.day, c); return; } col[stripTarget] = { tech: c.dataset.tech, day: c.dataset.day }; renderAll(); }; c.oncontextmenu = (e) => { e.preventDefault(); openDayPop(c.dataset.tech, c.dataset.day, c); }; });
-      s.querySelectorAll("[data-techview]").forEach((b) => (b.onclick = () => openTechView(b.dataset.techview, col[stripTarget].day)));
-      s.querySelectorAll(".striptools button").forEach((b) => (b.onclick = () => { stripTarget = b.dataset.t; renderStrip(); }));
+      s.querySelectorAll("[data-wk]").forEach((b) => (b.onclick = guard(async () => { from = addDays(DAYS[0].k, 7 * Number(b.dataset.wk)); const idxA = DAYS.findIndex((d) => d.k === col.A.day), idxB = DAYS.findIndex((d) => d.k === col.B.day); await load(); col.A.day = DAYS[Math.max(0, idxA)].k; col.B.day = DAYS[Math.max(0, idxB)].k; renderAll(); })));
+      s.querySelectorAll(".cell").forEach((c) => {
+        c.onclick = (e) => { if (e.target.dataset.menu) { e.stopPropagation(); openDayPop(c.dataset.tech, c.dataset.day, c); return; } loadCol("A", c.dataset.tech, c.dataset.day, "click"); };
+        c.oncontextmenu = (e) => { e.preventDefault(); openDayPop(c.dataset.tech, c.dataset.day, c); };
+        // A day is a thing you pick up (Josh 9/18): drop it on a board to open it there.
+        c.addEventListener("dragstart", (e) => { draggingCell = { tech: c.dataset.tech, day: c.dataset.day }; e.dataTransfer.setData("text/plain", "cell:" + c.dataset.tech + "|" + c.dataset.day); e.dataTransfer.effectAllowed = "move"; c.classList.add("dragging"); const t = techById(c.dataset.tech), d = dayObj(c.dataset.day); document.querySelectorAll(".col .colhead").forEach((el) => (el.dataset.dropmsg = `Drop to open ${first(t)} ${d.s} ${d.n} here`)); });
+        c.addEventListener("dragend", () => { c.classList.remove("dragging"); draggingCell = null; document.querySelectorAll(".col.celldrop").forEach((el) => el.classList.remove("celldrop")); });
+      });
+      s.querySelectorAll("[data-techset]").forEach((b) => (b.onclick = () => openTechSettings(b.dataset.techset)));
+      s.querySelectorAll("[data-lane]").forEach((b) => (b.onclick = () => openLane(b.dataset.lane)));
+      const add = s.querySelector("[data-addtech]"); if (add) add.onclick = () => openTechSettings(null);
     }
+    function orderSource(tech, day) { const js = jobsFor(tech, day); if (!js.length) return ""; return js.every((j) => j.seq > 0) ? "dispatcher" : "engine"; }
     function renderCol(k) {
-      const c = col[k], tl = timeline(c.tech, c.day), t = tl.t, el = $("#col" + k); const p = Math.round(tl.fill * 100);
-      const late = tl.stops.filter((s) => s.late).length; const nstops = tl.stops.filter((s) => s.j).length; const dps = nstops ? Math.round(tl.drive / nstops) : 0; const unprofitable = nstops && dps > (S["board.drive_per_stop_guard_min"] ?? 35);
+      const c = col[k], tl = timeline(c.tech, c.day), t = tl.t, el = $("#col" + k); const p = Math.round(tl.fill * 100); const o = td(c.tech, c.day);
+      const late = tl.stops.filter((s) => s.late).length; const nstops = tl.stopCount; const dps = nstops ? Math.round(tl.drive / nstops) : 0; const unprofitable = nstops && dps > (S["board.drive_per_stop_guard_min"] ?? 35);
+      const usual = usualShift(t); const patDay = pat(t, c.day); const shiftDiff = tl.sh.start !== usual.start || tl.sh.end !== usual.end || patDay.why;
+      const conf = CONFIRMED[c.tech + "|" + c.day]; const os = orderSource(c.tech, c.day);
       el.innerHTML = `<div class="colhead">
-        <div class="row"><select id="tech${k}" aria-label="Technician">${TECHS.map((x) => `<option value="${x.id}" ${x.id === c.tech ? "selected" : ""}>${esc(x.name)}</option>`).join("")}</select>
+        <div class="row"><select id="tech${k}" aria-label="Technician">${TECHS.filter((x) => x.active !== false || x.id === c.tech).map((x) => `<option value="${x.id}" ${x.id === c.tech ? "selected" : ""}>${esc(x.name)}${x.active === false ? " (retired)" : ""}</option>`).join("")}</select>
         <button class="daybtn" id="day${k}" title="Pick a day from the calendar"><span>${dayObj(c.day).s} ${dayObj(c.day).n}${tl.open ? "" : " · closed"}</span><span>📅</span></button>
-        <button data-dayctl="${k}" title="Day controls: close/open, PTO, ±60 min, blocks" style="padding:.4rem .5rem">⋯</button><button data-techview2="${k}" title="Route overview" style="padding:.4rem .5rem">👁</button></div>
-        ${tl.open ? "" : `<div class="leg" style="justify-content:flex-start;color:var(--bad)">day closed · ${esc(closedWhy(c.tech, c.day))} · open it from ⋯ if ${first(t)} is working</div>`}${tl.adjust ? `<div class="leg" style="justify-content:flex-start;color:var(--wait)">capacity ${tl.adjust > 0 ? "+" : ""}${tl.adjust} min today (${esc(td(c.tech, c.day).by || "dispatcher")})</div>` : ""}
-        <div class="stats"><span><b>${nstops}</b> stops</span><span><b>${hm(tl.work)}</b> on site</span><span><b>${hm(tl.drive)}</b> driving</span><span>back at <b>${fmt(tl.ret)}</b> ${t.end === "shop" ? "(shop)" : "(home)"}</span>${late ? `<span style="color:var(--bad)"><b style="color:inherit">${late}</b> late</span>` : ""}${nstops ? `<span style="${unprofitable ? "color:var(--bad)" : ""}" title="drive minutes per stop"><b style="color:inherit">${dps}</b> min drive/stop${unprofitable ? " ⚠" : ""}</span>` : ""}${tl.blocked ? `<span title="non-call blocks"><b>${hm(tl.blocked)}</b> blocked</span>` : ""}${tl.over ? `<span class="overcap">over capacity${tl.forced ? " · " + tl.forced + " forced" : ""}</span>` : ""}</div>
-        <div class="cap" title="${p}% of ${hm(tl.cap)} day"><i class="w" style="width:${Math.min(100, tl.work / tl.cap * 100)}%"></i><i class="d" style="width:${Math.min(100, tl.drive / tl.cap * 100)}%"></i><i style="background:var(--line);width:${Math.min(100, tl.blocked / tl.cap * 100)}%"></i></div>
-        <div class="row"><button data-opt="${k}" ${t.auto && nstops > 1 ? "" : "disabled"} title="${t.auto ? "Nearest-neighbour within each window; pinned stops stay put" : "Not auto-routed — the office orders this route"}">Re-optimize this day</button><span style="font-size:.75rem;color:var(--muted)">${t.start}→${t.end} · ${t.skills.join(", ") || "—"}${t.auto ? "" : " · <b>not auto-routed</b>"}</span></div>
+        <button data-dayctl="${k}" title="Day controls: close/open, PTO, ±60 min, blocks, limits" style="padding:.4rem .5rem">⋯</button><button data-techview2="${k}" title="Route overview" style="padding:.4rem .5rem">👁</button></div>
+        ${tl.open ? "" : `<div class="leg" style="justify-content:flex-start;color:var(--bad)">day closed · ${esc(closedWhy(c.tech, c.day))} · open it from ⋯ if ${first(t)} is working${nstops ? ` · <button class="mini" data-resched="${k}">Reschedule the ${nstops} stop${nstops === 1 ? "" : "s"}</button>` : ""}</div>`}${tl.adjust ? `<div class="leg" style="justify-content:flex-start;color:var(--wait)">capacity ${tl.adjust > 0 ? "+" : ""}${tl.adjust} min today (${esc(o.by || "dispatcher")})</div>` : ""}
+        ${shiftDiff ? `<div class="leg" style="justify-content:flex-start;color:var(--inst)">${dow(c.day)}s ${first(t)} works ${fmt(tl.sh.start)}–${fmt(tl.sh.end)}${patDay.why ? " · " + esc(patDay.why) : ""} · <button class="mini" data-settings="${c.tech}">route settings</button></div>` : ""}
+        <div class="stats"><span><b>${nstops}</b> stops</span><span><b>${hm(tl.work)}</b> on site</span><span><b>${hm(tl.drive)}</b> driving</span>${tl.commute ? `<span title="first/last leg to and from home, up to the allowance — not route time"><b>${hm(tl.commute)}</b> commute</span>` : ""}${tl.overCommute ? `<span style="color:var(--wait)" title="commute beyond the allowance counts as route time">+${hm(tl.overCommute)} over allowance</span>` : ""}<span>back at <b>${fmt(tl.ret)}</b> ${tl.endAt === "shop" ? "(shop)" : "(home)"}</span>${late ? `<span style="color:var(--bad)"><b style="color:inherit">${late}</b> late</span>` : ""}${nstops ? `<span style="${unprofitable ? "color:var(--bad)" : ""}" title="drive minutes per stop"><b style="color:inherit">${dps}</b> min drive/stop${unprofitable ? " ⚠" : ""}</span>` : ""}${tl.blocked ? `<span title="non-call blocks"><b>${hm(tl.blocked)}</b> blocked</span>` : ""}${tl.over ? `<span class="overcap">over capacity${tl.forced ? " · " + tl.forced + " forced" : ""}</span>` : ""}${tl.limits.map((x) => `<span class="overcap">${esc(x)}</span>`).join("")}</div>
+        <div class="cap" title="${p}% of ${hm(tl.cap)} day${tl.commute ? " · hatched = commute" : ""}"><i class="w" style="width:${Math.min(100, tl.work / tl.cap * 100)}%"></i><i class="d" style="width:${Math.min(100, tl.drive / tl.cap * 100)}%"></i><i style="background:var(--line);width:${Math.min(100, tl.blocked / tl.cap * 100)}%"></i><i class="c" style="width:${Math.min(40, tl.commute / tl.cap * 100)}%"></i></div>
+        ${nstops ? `<div class="leg" style="justify-content:flex-start;color:${os === "dispatcher" ? "var(--inst)" : "var(--muted)"}">${os === "dispatcher" ? "stop order as set here on the board" : "stop order: nearest-neighbour from " + tl.startAt + " — not sequenced yet"}</div>` : ""}
+        <div class="row"><button data-opt="${k}" ${t.auto && nstops > 1 ? "" : "disabled"} title="${t.auto ? "Nearest-neighbour within each window; pinned stops stay put" : "Not auto-routed — the office orders this route"}">Re-optimize this day</button><button data-confirmroute="${k}" class="${conf ? "" : "primary"}" ${nstops ? "" : "disabled"} title="${conf ? `Confirmed ${when(conf.at)} by ${esc(conf.by)}` : "Lock the day's stops and show each customer's confirmation text"}">${conf ? `✓ Confirmed · ${conf.n} stop${conf.n === 1 ? "" : "s"}${conf.sent ? " texted" : ""}` : "Confirm route"}</button>${tl.startAt !== "shop" ? `<button data-loaded="${k}" aria-pressed="${!!o.loadedPrev}" style="font-size:.75rem" title="Skips the morning shop touch for installs">${o.loadedPrev ? "Parts loaded last night ✓" : "Loaded parts last night?"}</button>` : ""}<span style="font-size:.75rem;color:var(--muted)">${tl.startAt}→${tl.endAt}${tl.startAt !== t.start || tl.endAt !== t.end ? ` <em>(${dow(c.day)})</em>` : ""} · ${t.skills.join(", ") || "—"}${t.auto ? "" : " · <b>not auto-routed</b>"}</span></div>
       </div>
       <div class="stops" data-drop="${k}">
-        <div class="leg">leaves ${t.start} ${fmt(SHIFT().start)}${t.start === "shop" ? " · parts loaded" : tl.needsShop ? " · installs after shop touch" : ""}</div>
+        <div class="leg">leaves ${tl.startAt} ${fmt(tl.sh.start)}${tl.startAt === "shop" ? " · parts loaded" : tl.needsShop ? " · installs after shop touch" : o.loadedPrev ? " · parts loaded last night" : ""}</div>
         ${(() => { let n = 0; return tl.stops.map((s, i) => { if (s.shop) return `<div class="leg">shop touch · load parts · ${fmt(s.arr)} (${s.drive}m)</div>`; if (s.block) return `<div class="block"><span>⏸ <b>${esc(s.block.label)}</b> · ${fmt(s.arr)}–${fmt(s.dep)} · not a call</span><button data-delblock="${s.block.id}" title="Remove block">✕</button></div>`; n++; const prev = tl.stops.slice(0, i).reverse().find((x) => x.j); const nextAM = prev && prev.j.win === "AM" && s.j.win === "PM" ? '<div class="leg">afternoon window</div>' : ""; return nextAM + cardHTML(s.j, n, s, k); }).join(""); })()}
-        ${nstops ? "" : '<div class="leg">no stops — drag jobs here</div>'}
+        ${nstops ? "" : (c.day < B.today ? '<div class="leg">closed out — nothing left open from this day</div>' : '<div class="leg">no stops — drag jobs here</div>')}
         <div class="leg">drive ${tl.back}m · back ${fmt(tl.ret)}</div>
       </div>`;
       $("#tech" + k).onchange = (e) => { col[k].tech = e.target.value; renderAll(); }; $("#day" + k).onclick = (e) => openCal(k, e.currentTarget);
       el.querySelector("[data-dayctl]").onclick = (e) => openDayPop(c.tech, c.day, e.currentTarget); el.querySelector("[data-techview2]").onclick = () => openTechView(c.tech, c.day);
       el.querySelectorAll("[data-delblock]").forEach((b) => (b.onclick = guard(async () => { await api(`/api/service-board/blocks/${b.dataset.delblock}`, { method: "DELETE" }); toast("Block removed"); await load(); })));
       el.querySelector("[data-opt]").onclick = () => optimize(k);
+      el.querySelector("[data-confirmroute]").onclick = () => confirmRoute(k);
+      const rs = el.querySelector("[data-resched]"); if (rs) rs.onclick = () => openReschedule(c.tech, c.day);
+      const st = el.querySelector("[data-settings]"); if (st) st.onclick = () => openTechSettings(st.dataset.settings);
+      const lb = el.querySelector("[data-loaded]"); if (lb) lb.onclick = guard(async () => { await api(`/api/service-board/techs/${encodeURIComponent(c.tech)}/parts-loaded`, { method: "POST", body: JSON.stringify({ date: c.day, loaded: !o.loadedPrev }) }); await load(); });
       wireCards(el);
     }
     function cardHTML(j, seq, s, k) {
       const v = j.tech ? validate(j, j.tech, j.day) : []; const zi = zinfo(j);
-      const chips = [`<span class="chip st ${esc(j.st)}">${esc(j.st)}</span>`, zi.zone !== "?" ? `<span class="chip" title="${esc(zi.group)} · ${esc(zi.mode)}">${esc(zi.zone)}</span>` : "", `<span class="chip">${esc(stLabel(j))}</span>`, j.win ? `<span class="chip">${j.win === "AM" ? "8–12" : "12–5"}</span>` : "", j.wty ? '<span class="chip wty">Warranty</span>' : "", j.bal ? `<span class="chip bad">${j.bal === "COD" ? "COD balance" : "A/R"}</span>` : "", j.type === "hvac" ? '<span class="chip">HVAC</span>' : "", j.type === "sealed" ? '<span class="chip">Sealed system</span>' : "", j.owner ? `<span class="chip">${esc(first(techById(j.owner)))}'s call</span>` : "", j.durSource === "units" ? `<span class="chip" title="${j.units} unit(s) × 60 min">${j.units}u</span>` : "", ...v.map((x) => `<span class="chip ${x.c}">${esc(x.t)}</span>`)].join("");
+      const members = groupMembers(j); const gDays = new Set(members.map((x) => x.day || "")); const split = members.length > 1 && gDays.size > 1;
+      const grpChip = members.length > 1 ? `<span class="chip grp ${split ? "bad" : ""}" title="${split ? "open calls at this address are booked on different days" : "open calls at this address — one arrival"}">⌂ ${members.length} at this house${split ? " · split" : ""}</span>` : "";
+      const chips = [`<span class="chip st ${esc(j.st)}">${esc(j.st)}</span>`, zi.zone !== "?" ? `<span class="chip" title="${esc(zi.group)} · ${esc(zi.mode)}">${esc(zi.zone)}</span>` : "", `<span class="chip">${esc(stLabel(j))}</span>`, j.win ? `<span class="chip">${j.win === "AM" ? "8–12" : "12–5"}</span>` : "", j.wty ? '<span class="chip wty">Warranty</span>' : "", j.bal ? `<span class="chip bad">${j.bal === "COD" ? "COD balance" : "A/R"}</span>` : "", j.type === "hvac" ? '<span class="chip">HVAC</span>' : "", j.type === "sealed" ? '<span class="chip">Sealed system</span>' : "", j.owner ? `<span class="chip">${esc(first(techById(j.owner)))}'s call</span>` : "", (j.units || 1) > 1 ? `<span class="chip" title="${j.units} unit(s) × 60 min">${j.units} units</span>` : "", grpChip, ...v.map((x) => `<span class="chip ${x.c}">${esc(x.t)}</span>`)].join("");
       const time = s ? `<div class="time ${s.late ? "late" : ""}"><b>${fmt(s.arr)}</b>${s.drive}m drive${s.wait ? ` · waits ${s.wait}m` : ""}</div>` : `<div class="time">${hm(j.dur)}${j.day ? `<br>${esc(j.tech || "")} ${md(j.day)}` : ""}</div>`;
       const elig = j.owner && TECHS.some((x) => x.id === j.owner) ? `${esc(techById(j.owner).name)} owns this call (ran the diagnostic) — installs stay with the diagnosing tech` : "Eligible techs: " + (eligible(j).map((t) => first(t)).join(", ") || "none — office assigns");
+      const others = members.filter((x) => x.sv !== j.sv);
+      const grpMore = others.length ? `<div class="suggest" style="display:block">${members.map((m) => `<div>${m.sv === j.sv ? "<b>this call</b>" : esc(m.sv)} · ${esc(m.st)} ${esc((m.unit || "").split("·")[0].trim())} · ${m.day ? dayObj(m.day).s + " " + md(m.day) + " " + esc(m.tech || "") : "unscheduled"}</div>`).join("")}${j.tech && others.some((m) => m.day !== j.day || m.tech !== j.tech) ? `<button data-together="${j.sv}" style="margin-top:.3rem">Bring the other ${others.length} here — one arrival, one charge</button>` : ""}</div>` : "";
       const suggest = !j.tech ? (() => { if (zi.mode === "office_only" && !j.owner && zi.zone !== "?") return `<div class="suggest">No auto-suggestion — ${esc(zi.group || zi.zone)} is office-booked</div>`; const sg = bestFit(j, j.eta ? addBD(j.eta, 2) : null); return sg ? `<div class="suggest">💡 <b>${dayObj(sg.day).s} ${dayObj(sg.day).n} · ${esc(first(techById(sg.tech)))} · ${sg.win === "AM" ? "8–12" : "12–5"}</b><span class="why">${esc(sg.why)}${sg.day !== sg.earliest ? ` · earliest open is ${dayObj(sg.earliest).s}` : ""}</span><button data-place="${j.sv}" data-t="${sg.tech}" data-d="${sg.day}" data-w="${sg.win}">Place there</button></div>` : '<div class="suggest">Nothing fits this week — office places it</div>'; })() : "";
-      return `<div class="card ${esc(j.st)}${j.wty ? " wty" : ""}${j.stale ? " stale" : ""}" draggable="true" data-sv="${j.sv}" tabindex="0">
+      return `<div class="card ${esc(j.st)}${j.wty ? " wty" : ""}${j.stale ? " stale" : ""}${members.length > 1 ? " ingrp" : ""}" draggable="true" data-sv="${j.sv}" tabindex="0">
         <div class="seq">${seq || "·"}</div><div class="who">${esc(j.cust || j.sv)}</div>${time}
         <div class="sub">${esc([j.addr, j.zip].filter(Boolean).join(", "))}${j.unit ? " · " + esc(j.unit) : ""}</div>
         ${j.tech ? `<button class="pin" aria-pressed="${!!j.lock}" title="Pin to this truck and sequence" data-pin="${j.sv}">${j.lock ? "📌" : "📍"}</button>` : ""}
         <div class="chips">${chips}</div>
         <div class="more"><span class="mono">${esc(j.sv)}</span> · ${hm(j.dur)} planned${j.eta ? ` · parts ETA ${md(j.eta)}` : ""}${j.phone ? ` · ${esc(j.phone)}` : ""}${j.epass.st ? ` · ePASS ${esc(j.epass.st)}${j.epass.day ? " " + md(j.epass.day) : ""}${j.epass.tech ? " " + esc(j.epass.tech) : ""}` : ""}<br>${elig}<br>Zone ${esc(zi.zone)} · ${esc(zi.group)} · booking: ${esc(String(zi.mode).replace("_", " "))}${zi.p ? ` · primary ${esc(zi.p)}` : ""}${j.access ? `<br>Access: ${esc(j.access)}` : ""}${j.note ? `<br>Note: ${esc(j.note)}` : ""}
-          <div class="acts">${j.tech ? `<button data-un="${j.sv}">Send to unscheduled</button>` : ""}<a class="btn" href="service-journey.html?sv=${encodeURIComponent(j.sv)}">Open in Service Journey</a></div></div>
+          <div class="acts">${j.tech ? `<button data-un="${j.sv}">Send to unscheduled</button>` : ""}<a class="btn" href="service-journey.html?sv=${encodeURIComponent(j.sv)}">Service history</a><button data-cx="${j.sv}">Cancel call…</button></div>${grpMore}</div>
         ${suggest}
       </div>`;
     }
@@ -332,13 +407,21 @@
       });
       root.querySelectorAll("[data-pin]").forEach((b) => (b.onclick = guard(async () => { const j = J.find((x) => x.sv === b.dataset.pin); await api(`/api/service-board/jobs/${j.sv}/flags`, { method: "POST", body: JSON.stringify({ locked: !j.lock }) }); toast(j.lock ? `${j.cust} unpinned` : `${j.cust} pinned — re-optimize won't move it`); await load(); })));
       root.querySelectorAll("[data-un]").forEach((b) => (b.onclick = guard(async () => { const j = J.find((x) => x.sv === b.dataset.un); await unscheduleJob(j); toast(`${j.cust} moved to Unscheduled — packet queued for the office`, "warn"); })));
+      root.querySelectorAll("[data-cx]").forEach((b) => (b.onclick = () => openCancel(b.dataset.cx)));
+      root.querySelectorAll("[data-together]").forEach((b) => (b.onclick = guard(async () => { const j = J.find((x) => x.sv === b.dataset.together); const others = groupMembers(j).filter((x) => x.sv !== j.sv); let held = 0; for (const m of others) { if (m.day === j.day && m.tech === j.tech) continue; if (m.eta && m.eta > j.day) { held++; continue; } await api("/api/service-board/move", { method: "POST", body: JSON.stringify({ sv: m.sv, tech: j.tech, date: j.day, window: j.win || "" }) }); } await load(); toast(`${others.length - held} call${others.length - held === 1 ? "" : "s"} brought to ${first(techById(j.tech))} ${dayObj(j.day).s} — one arrival, one charge${held ? ` · ${held} held for parts` : ""}`); })));
+      root.querySelectorAll("[data-sirepaired]").forEach((b) => (b.onclick = guard(async () => { await api("/api/service-board/shop/repaired", { method: "POST", body: JSON.stringify({ sv: b.dataset.sirepaired }) }); await load(); toast("Marked repaired — owed back to the customer; schedule the return"); })));
       root.querySelectorAll("[data-place]").forEach((b) => (b.onclick = guard(async () => { const j = J.find((x) => x.sv === b.dataset.place); const list = jobsFor(b.dataset.t, b.dataset.d).filter((x) => x.sv !== j.sv); const ins = b.dataset.w === "AM" ? list.filter((x) => x.win === "AM").length : list.length; const order = list.map((x) => x.sv); order.splice(ins, 0, j.sv); await moveJob(j, b.dataset.t, b.dataset.d, b.dataset.w, order); toast(`${j.cust} placed on ${first(techById(b.dataset.t))} ${dayObj(b.dataset.d).s} ${b.dataset.w} — packet queued`); })));
     }
     function setupDrops() {
-      document.addEventListener("dragover", (e) => { const z = e.target.closest("[data-drop]"); if (!z) return; e.preventDefault(); z.classList.add("over"); document.querySelectorAll(".ph").forEach((p) => p.remove()); if (z.dataset.drop === "un") return; const cards = [...z.querySelectorAll(".card:not(.dragging)")]; const before = cards.find((c) => e.clientY < c.getBoundingClientRect().top + c.offsetHeight / 2); const ph = document.createElement("div"); ph.className = "ph"; if (before) before.before(ph); else z.lastElementChild.before(ph); });
+      // A strip cell dragged over a column: the whole column is the target.
+      const cellOver = (e) => { if (!draggingCell) return; const c = e.target.closest(".col"); document.querySelectorAll(".col.celldrop").forEach((el) => { if (el !== c) el.classList.remove("celldrop"); }); if (!c) return; e.preventDefault(); e.dataTransfer.dropEffect = "move"; c.classList.add("celldrop"); };
+      document.addEventListener("dragenter", cellOver); document.addEventListener("dragover", cellOver);
+      document.addEventListener("drop", (e) => { if (!draggingCell) return; const c = e.target.closest(".col"); if (!c) return; e.preventDefault(); e.stopImmediatePropagation(); const { tech, day } = draggingCell; draggingCell = null; document.querySelectorAll(".col.celldrop").forEach((el) => el.classList.remove("celldrop")); loadCol(c.id === "colA" ? "A" : "B", tech, day, "drop"); }, true);
+      document.addEventListener("dragover", (e) => { if (draggingCell) return; const z = e.target.closest("[data-drop]"); if (!z) return; e.preventDefault(); z.classList.add("over"); document.querySelectorAll(".ph").forEach((p) => p.remove()); if (z.dataset.drop === "un") return; const cards = [...z.querySelectorAll(".card:not(.dragging)")]; const before = cards.find((c) => e.clientY < c.getBoundingClientRect().top + c.offsetHeight / 2); const ph = document.createElement("div"); ph.className = "ph"; if (before) before.before(ph); else z.lastElementChild.before(ph); });
       document.addEventListener("dragleave", (e) => { const z = e.target.closest("[data-drop]"); if (z && !z.contains(e.relatedTarget)) z.classList.remove("over"); });
       document.addEventListener("drop", guard(async (e) => {
         const z = e.target.closest("[data-drop]"); if (!z) return; e.preventDefault(); z.classList.remove("over"); const sv = e.dataTransfer.getData("text/plain"); const j = J.find((x) => x.sv === sv); if (!j) return;
+        if (z.dataset.drop === "shop") { toast("A call goes to the shop from the field tool, not the board", "warn"); return; }
         if (z.dataset.drop === "un") { if (!j.tech) return; await unscheduleJob(j); toast(`${j.cust} unscheduled — packet queued`, "warn"); return; }
         const k = z.dataset.drop, c = col[k]; const cards = [...z.querySelectorAll(".card:not(.dragging)")]; let idx = cards.findIndex((cd) => e.clientY < cd.getBoundingClientRect().top + cd.offsetHeight / 2); if (idx < 0) idx = cards.length;
         const target = jobsFor(c.tech, c.day).filter((x) => x.sv !== sv); const win = j.win || (idx <= Math.floor(target.length / 2) ? "AM" : "PM");
@@ -359,7 +442,7 @@
     }
     const optimize = guard(async (k) => {
       const c = col[k], t = techById(c.tech), stops = jobsFor(c.tech, c.day); if (!t.auto) { toast("Not auto-routed", "warn"); return; } const before = timeline(c.tech, c.day).drive;
-      const locked = stops.filter((j) => j.lock), free = stops.filter((j) => !j.lock); const order = []; let cur = startPt(t);
+      const locked = stops.filter((j) => j.lock), free = stops.filter((j) => !j.lock); const order = []; let cur = startPt(t, c.day);
       for (const win of ["AM", "PM"]) { let pool = free.filter((j) => (j.win || "AM") === win); while (pool.length) { pool.sort((a, b) => driveMin(cur, ll(a)) - driveMin(cur, ll(b))); const n = pool.shift(); order.push(n); cur = ll(n); } }
       locked.sort((a, b) => a.seq - b.seq).forEach((j) => order.splice(Math.min(j.seq - 1, order.length), 0, j));
       await api("/api/service-board/sequence", { method: "POST", body: JSON.stringify({ tech: c.tech, date: c.day, order: order.map((j) => j.sv) }) });
@@ -368,14 +451,51 @@
     });
     function renderUnsched() {
       const q = unFilter.trim().toLowerCase();
-      const un = J.filter((j) => !j.tech || !j.day || j.day < B.today).filter((j) => !q || [j.sv, j.cust, j.addr, j.zip, j.unit, j.st, j.zone].join(" ").toLowerCase().includes(q)).sort((a, b) => (a.day || "9").localeCompare(b.day || "9") || a.sv.localeCompare(b.sv));
+      const un = J.filter((j) => !j.si && j.st !== "SO9" && (!j.tech || !j.day || j.day < B.today)).filter((j) => !q || [j.sv, j.cust, j.addr, j.zip, j.unit, j.st, j.zone].join(" ").toLowerCase().includes(q)).sort((a, b) => (a.day || "9").localeCompare(b.day || "9") || a.sv.localeCompare(b.sv));
       $("#unCount").textContent = un.length;
       $("#unsched").innerHTML = un.map((j) => cardHTML(j, 0, null, "un")).join("") || '<div class="leg">nothing waiting</div>';
       wireCards($("#unsched"));
     }
+    // In the shop: SI1 bench work (drag onto a day to schedule the return
+    // once repaired), SI5 owed back, SI6 going back.
+    function renderShop() {
+      const list = J.filter((j) => j.si && j.st !== "SO9"); const panel = $("#shoppanel"); panel.hidden = !list.length; if (!list.length) return;
+      const age = (j) => (j.si.in ? Math.max(0, Math.round((new Date(B.today) - new Date(j.si.in)) / 864e5)) : 0);
+      $("#shopCount").textContent = list.length;
+      $("#shoplist").innerHTML = list.map((j) => `<div class="card ${esc(j.st)}" draggable="${j.st !== "SI1" ? "false" : "true"}" data-sv="${j.sv}" tabindex="0"><div class="seq">SI</div><div class="who">${esc(j.cust || j.sv)}</div><div class="time">${age(j)} days</div><div class="sub">${esc([j.addr, j.zip].filter(Boolean).join(", "))}${j.unit ? " · " + esc(j.unit) : ""}</div><div class="chips"><span class="chip st ${esc(j.st)}">${esc(j.st)}</span><span class="chip">${esc(stLabel(j))}</span>${j.owner ? `<span class="chip">${esc(first(techById(j.owner)))}'s</span>` : ""}${j.day ? `<span class="chip">return ${dayObj(j.day).s} ${md(j.day)} · ${esc(j.tech || "")}</span>` : ""}</div><div class="more"><span class="mono">${esc(j.sv)}</span>${j.phone ? " · " + esc(j.phone) : ""}<div class="acts">${j.st === "SI1" ? `<button data-sirepaired="${j.sv}">Repaired — ready to go back</button>` : ""}<a class="btn" href="service-journey.html?sv=${encodeURIComponent(j.sv)}">Service history</a><button data-cx="${j.sv}">Cancel call…</button></div></div></div>`).join("");
+      wireCards($("#shoplist"));
+    }
+    function renderCancelled() {
+      const list = J.filter((j) => j.st === "SO9" && j.cx).sort((a, b) => (b.cx.at || "").localeCompare(a.cx.at || "")); const panel = $("#cxpanel"); panel.hidden = !list.length; if (!list.length) return;
+      $("#cxCount").textContent = list.length;
+      $("#cxlist").innerHTML = list.map((j) => { const r = CX_REASONS.find(([k]) => k === j.cx.reason); const sn = j.cx.snap || {}; return `<div class="cxrow"><span><b>${esc(j.cust || j.sv)}</b> · ${esc(r ? r[1] : j.cx.reason)}</span><button class="mini" data-uncx="${j.sv}">Undo</button><span class="d">${esc(j.sv)} · ${when(j.cx.at)}${sn.tech && sn.day ? ` · gave back ${esc(sn.tech)} ${dayObj(sn.day).s} ${md(sn.day)}${sn.win ? " " + sn.win : ""}` : ""} · ePASS packet queued: set SO9</span></div>`; }).join("");
+      $("#cxlist").querySelectorAll("[data-uncx]").forEach((b) => (b.onclick = guard(async () => { await api("/api/service-board/uncancel", { method: "POST", body: JSON.stringify({ sv: b.dataset.uncx }) }); await load(); toast("Cancellation undone — the call is back where it was"); })));
+    }
+    const CX_REASONS = [["fixed", "It started working again"], ["cost", "Too expensive"], ["elsewhere", "Going with someone else"], ["timing", "Couldn't wait"], ["replace", "Replacing the unit instead"], ["other", "Other (customer)"], ["dup", "Duplicate ticket"], ["noreach", "Couldn't reach the customer"], ["nocard", "No card / no way to pay"], ["dns", "Do not service"], ["office", "Office error"]];
+    const CX_PARTS = ["SO3", "SO4", "SO4B", "SO4H", "SO4PRE", "SO5", "SO6"];
+    function openCancel(sv) {
+      const j = J.find((x) => x.sv === sv); if (!j) return; let reason = "dup";
+      const ov = document.createElement("div"); ov.className = "overlay"; ov.innerHTML = `<div class="drawer settings" role="dialog" aria-label="Cancel call" style="width:min(520px,100%)">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start"><div><h2>Cancel ${esc(j.cust || j.sv)}</h2><div class="sub">${esc(j.sv)} · ${esc(j.st)} ${esc(stLabel(j))}${j.tech && j.day ? ` · on ${esc(j.tech)} ${dayObj(j.day).s} ${md(j.day)}` : ""}</div></div><button data-x>Close</button></div>
+        ${CX_PARTS.includes(j.st) ? `<div class="lanenote">Parts are on this ticket — check whether they were ordered before you close it.</div>` : ""}
+        <div class="lbl">Why</div><div class="cxpick">${CX_REASONS.map(([k, l]) => `<button data-r="${k}" aria-pressed="${k === reason}">${esc(l)}</button>`).join("")}</div>
+        <div class="lbl">Note (goes on the ePASS packet)</div><input id="cxNote" maxlength="200" placeholder="optional" />
+        <div class="acts"><button data-go>Cancel this call</button><button data-keep>Not yet</button></div>
+        <div style="font-size:.75rem;color:var(--muted)">Sets SO9 here, frees the day, and queues a packet for the office to key into ePASS. Undo is in the Cancelled panel for three days.</div></div>`;
+      document.body.append(ov); const close = () => ov.remove(); ov.onclick = (e) => { if (e.target === ov) close(); }; ov.querySelector("[data-x]").onclick = close; ov.querySelector("[data-keep]").onclick = close;
+      ov.querySelectorAll("[data-r]").forEach((b) => (b.onclick = () => { reason = b.dataset.r; ov.querySelectorAll("[data-r]").forEach((x) => x.setAttribute("aria-pressed", x.dataset.r === reason)); }));
+      ov.querySelector("[data-go]").onclick = guard(async () => { const note = ov.querySelector("#cxNote").value; close(); await api("/api/service-board/cancel", { method: "POST", body: JSON.stringify({ sv, reason, note }) }); await load(); toast(`${j.cust || j.sv} cancelled · ${CX_REASONS.find(([k]) => k === reason)[1]} — packet queued`, "warn", { Undo: guard(async () => { await api("/api/service-board/uncancel", { method: "POST", body: JSON.stringify({ sv }) }); await load(); toast("Undone"); }) }); });
+    }
+    function routeSummary() {
+      const day = col.A.day; const rows = TECHS.filter((t) => t.active !== false && t.mode !== "collector" && jobsFor(t.id, day).length).map((t) => { const tl = timeline(t.id, day); return { t, tl, units: jobsFor(t.id, day).reduce((a, j) => a + (j.units || 1), 0) }; });
+      if (!rows.length) return `<div class="leg" style="padding:.6rem">no routes on ${dayObj(day).s} ${md(day)}</div>`;
+      const tot = rows.reduce((a, r) => ({ stops: a.stops + r.tl.stopCount, units: a.units + r.units, drive: a.drive + r.tl.drive, work: a.work + r.tl.work }), { stops: 0, units: 0, drive: 0, work: 0 });
+      return `<table><thead><tr><th>Route</th><th>Tech</th><th>Stops</th><th>Units</th><th>Drive</th><th>On site</th><th>Total</th><th></th></tr></thead><tbody>${rows.map((r) => `<tr><td>${esc(r.t.id)}</td><td>${esc(first(r.t))}</td><td>${r.tl.stopCount}</td><td>${r.units}</td><td>${hm(r.tl.drive)}</td><td>${hm(r.tl.work)}</td><td>${hm(r.tl.drive + r.tl.work + r.tl.blocked)}</td><td><button class="mini" data-rs="${r.t.id}">left</button></td></tr>`).join("")}<tr style="font-weight:600"><td colspan="2">${dayObj(day).s} ${md(day)}</td><td>${tot.stops}</td><td>${tot.units}</td><td>${hm(tot.drive)}</td><td>${hm(tot.work)}</td><td>${hm(tot.drive + tot.work)}</td><td></td></tr></tbody></table>`;
+    }
     function renderMap() {
-      const W = 300, H = 250; const shown = [SHOP.ll];
-      for (const k of ["A", "B"]) { if (!mapShow[k]) continue; const c = col[k]; jobsFor(c.tech, c.day).forEach((j) => shown.push(ll(j))); shown.push(startPt(techById(c.tech)), endPt(techById(c.tech))); }
+      $("#routesum").hidden = !mapSum; if (mapSum) { $("#routesum").innerHTML = routeSummary(); $("#routesum").querySelectorAll("[data-rs]").forEach((b) => (b.onclick = () => loadCol("A", b.dataset.rs, col.A.day, "click"))); }
+      const W = $("#mappanel").classList.contains("full") ? 900 : 300, H = $("#mappanel").classList.contains("full") ? 560 : 250; const shown = [SHOP.ll];
+      for (const k of ["A", "B"]) { if (!mapShow[k]) continue; const c = col[k]; jobsFor(c.tech, c.day).forEach((j) => shown.push(ll(j))); shown.push(startPt(techById(c.tech), c.day), endPt(techById(c.tech), c.day)); }
       const unJobs = J.filter((j) => !j.tech); if (mapShow.un) unJobs.forEach((j) => shown.push(ll(j)));
       const othersDay = col.A.day; const others = TECHS.filter((t) => !(col.A.tech === t.id && col.A.day === othersDay) && !(col.B.tech === t.id && col.B.day === othersDay) && jobsFor(t.id, othersDay).length);
       others.forEach((t) => { if (mapShow.others[t.id]) jobsFor(t.id, othersDay).forEach((j) => shown.push(ll(j))); });
@@ -387,9 +507,10 @@
       for (const z in ZIP) { const p = ZIP[z]; if (p[0] < minLa || p[0] > maxLa || p[1] < minLo || p[1] > maxLo) continue; svg += `<circle cx="${X(p[1])}" cy="${Y(p[0])}" r="1.5" fill="var(--line)"/>`; }
       svg += `<rect x="${X(SHOP.ll[1]) - 4}" y="${Y(SHOP.ll[0]) - 4}" width="8" height="8" fill="var(--muted)"/>`;
       others.forEach((t) => { if (!mapShow.others[t.id]) return; jobsFor(t.id, othersDay).forEach((j) => { const p = ll(j); svg += `<circle cx="${X(p[1])}" cy="${Y(p[0])}" r="4" fill="var(--muted)" opacity=".55"/><text x="${X(p[1]) + 6}" y="${Y(p[0]) + 3}" font-size="6.5" fill="var(--muted)">${esc(t.id)}</text>`; }); });
-      for (const k of ["A", "B"]) { if (!mapShow[k]) continue; const c = col[k], tl = timeline(c.tech, c.day), colr = `var(--col${k})`; const path = [startPt(tl.t), ...tl.stops.filter((s) => !s.block).map((s) => (s.shop ? SHOP.ll : ll(s.j))), endPt(tl.t)];
+      const full = $("#mappanel").classList.contains("full");
+      for (const k of ["A", "B"]) { if (!mapShow[k]) continue; const c = col[k], tl = timeline(c.tech, c.day), colr = `var(--col${k})`; const path = [startPt(tl.t, c.day), ...tl.stops.filter((s) => !s.block).map((s) => (s.shop ? SHOP.ll : ll(s.j))), endPt(tl.t, c.day)];
         svg += `<polyline points="${path.map((p) => X(p[1]) + "," + Y(p[0])).join(" ")}" fill="none" stroke="${colr}" stroke-width="1.5" stroke-dasharray="${k === "B" ? "4 3" : "0"}" opacity=".8"/>`;
-        tl.stops.filter((s) => s.j).forEach((s, i) => { const p = ll(s.j), x = X(p[1]) + (k === "B" ? 4 : -4), y = Y(p[0]); svg += `<circle cx="${x}" cy="${y}" r="7" fill="${colr}"/><text x="${x}" y="${y + 3}" font-size="8" text-anchor="middle" fill="var(--surface)" font-weight="600">${i + 1}</text>`; }); }
+        const tot = tl.stopCount; tl.stops.filter((s) => s.j).forEach((s, i) => { const p = ll(s.j), x = X(p[1]) + (k === "B" ? 4 : -4), y = Y(p[0]); svg += `<circle cx="${x}" cy="${y}" r="7" fill="${colr}"/><text x="${x}" y="${y + 3}" font-size="8" text-anchor="middle" fill="var(--surface)" font-weight="600">${i + 1}</text>`; if (full) svg += `<text x="${x + 9}" y="${y + 3}" font-size="8" fill="var(--ink)">${esc(c.tech)} #${i + 1}/${tot} · ${esc((s.j.cust || "").split(/\s+/).pop())}</text>`; }); }
       if (mapShow.un) unJobs.forEach((j) => { const p = ll(j); svg += `<circle cx="${X(p[1])}" cy="${Y(p[0])}" r="4" fill="none" stroke="var(--wait)" stroke-width="1.5"/>`; });
       svg += `<text x="${W - 8}" y="12" font-size="8" text-anchor="end" fill="var(--muted)">N ↑ · schematic, not to scale</text></svg>`;
       $("#map").innerHTML = svg;
@@ -408,10 +529,13 @@
       <div class="lbl">Day</div><div class="grp">${open ? `<button data-close="pto">Close · PTO</button><button data-close="sick">Sick</button><button data-close="training">Training</button><button data-close="other">Other</button>` : `<button class="primary" data-open="1">Open this day</button>`}${ns && !open ? `<span style="color:var(--bad);align-self:center">${ns} stop(s) sit on a closed day</span>` : ""}</div>
       ${DAYS.some((x) => x.k > day) ? `<div class="lbl">Range</div><div class="grp"><span style="align-self:center">PTO through</span><select data-range>${DAYS.filter((x) => x.k > day).map((x) => `<option value="${x.k}">${x.s} ${x.n.replace(/^\w+ /, "")}</option>`).join("")}</select><button data-rangego>Close range</button></div>` : ""}
       <div class="lbl">Capacity today</div><div class="grp"><button data-adj="60">+1 stop (+60 min)</button><button data-adj="-60">−60 min</button>${o.adjust ? `<button data-adj="reset">reset (${o.adjust > 0 ? "+" : ""}${o.adjust})</button>` : ""}</div>
+      <div class="lbl">${esc(first(t))}'s limits (every day)</div><div class="limits"><span>max stops</span><input data-lim="maxStops" type="number" min="1" value="${t.maxStops ?? ""}" placeholder="—" /><span>max on site (min)</span><input data-lim="maxOnsite" type="number" min="30" step="30" value="${t.maxOnsite ?? ""}" placeholder="—" /><span>max driving (min)</span><input data-lim="maxDrive" type="number" min="30" step="30" value="${t.maxDrive ?? ""}" placeholder="—" /><span>commute allowance (min, each way)</span><input data-lim="commuteAllow" type="number" min="0" step="5" value="${t.commuteAllow ?? ""}" placeholder="${S["board.commute_allow_min"] ?? 45}" /><span>takes overflow when the day is full</span><button data-ovf aria-pressed="${t.overflow !== false}">${t.overflow !== false ? "yes" : "no — Force it only"}</button></div>
       <div class="lbl">Add a block (not a call)</div><div class="grp"><select data-bl>${labels.map((l) => `<option>${esc(l)}</option>`).join("")}</select><select data-bs>${Array.from({ length: 19 }, (_, i) => 8 * 60 + i * 30).map((m) => `<option value="${m}">${fmt(m)}</option>`).join("")}</select><select data-bd><option value="30">30 min</option><option value="45">45 min</option><option value="60" selected>1 h</option><option value="90">1.5 h</option><option value="120">2 h</option><option value="240">half day</option></select><button data-addblock>Add</button></div>
       <div class="grp" style="margin-top:.5rem;border-top:1px solid var(--line);padding-top:.5rem"><button data-load="A">Load left</button><button data-load="B">Load right</button><button data-tv>Route overview</button></div>`;
       const p = popAt(anchor, h); const fn = first(t);
-      p.querySelectorAll("[data-close]").forEach((b) => (b.onclick = guard(async () => { closePops(); await setDay(tech, day, { available: false, reason: b.dataset.close }); toast(`${fn} ${d.s} ${md(day)} closed · ${b.dataset.close}${ns ? ` · ${ns} stop(s) need a new home — flagged` : ""}`, ns ? "warn" : ""); })));
+      p.querySelectorAll("[data-close]").forEach((b) => (b.onclick = guard(async () => { closePops(); await setDay(tech, day, { available: false, reason: b.dataset.close }); if (ns) toast(`${fn} ${d.s} ${md(day)} closed · ${b.dataset.close} · ${ns} stop(s) need a new home`, "warn", { "Reschedule them": () => openReschedule(tech, day) }); else toast(`${fn} ${d.s} ${md(day)} closed · ${b.dataset.close}`); if (b.dataset.close === "sick" && ns) openReschedule(tech, day); })));
+      p.querySelectorAll("[data-lim]").forEach((inp) => (inp.onchange = guard(async () => { await api(`/api/service-board/techs/${encodeURIComponent(tech)}/settings`, { method: "POST", body: JSON.stringify({ [inp.dataset.lim]: inp.value === "" ? null : Number(inp.value) }) }); await load(); toast(`${fn}: ${inp.dataset.lim} ${inp.value === "" ? "cleared" : "= " + inp.value}`); })));
+      const ovf = p.querySelector("[data-ovf]"); if (ovf) ovf.onclick = guard(async () => { await api(`/api/service-board/techs/${encodeURIComponent(tech)}/settings`, { method: "POST", body: JSON.stringify({ overflow: t.overflow === false }) }); closePops(); await load(); });
       const ob = p.querySelector("[data-open]"); if (ob) ob.onclick = guard(async () => { closePops(); await setDay(tech, day, { available: true, reason: "open_day" }); toast(`${fn} ${d.s} ${md(day)} opened — behaves like any other day now`); });
       const rg = p.querySelector("[data-rangego]"); if (rg) rg.onclick = guard(async () => { const to = p.querySelector("[data-range]").value; closePops(); let n = 0; for (const x of DAYS) if (x.k >= day && x.k <= to) { await api(`/api/service-board/techs/${encodeURIComponent(tech)}/day`, { method: "POST", body: JSON.stringify({ date: x.k, available: false, reason: "pto" }) }); n++; } await load(); toast(`${fn}: ${n} day(s) closed for PTO through ${dayObj(to).s} ${md(to)}`); });
       p.querySelectorAll("[data-adj]").forEach((b) => (b.onclick = guard(async () => { const adj = b.dataset.adj === "reset" ? 0 : (o.adjust || 0) + Number(b.dataset.adj); closePops(); await setDay(tech, day, { adjustMin: adj }); toast(`${fn} ${d.s}: capacity ${adj > 0 ? "+" : ""}${adj} min`); })));
@@ -437,14 +561,14 @@
       const alerts = []; if (!tl.open) alerts.push(["bad", "day closed · " + closedWhy(tech, day)]); if (tl.over) alerts.push(["bad", "over capacity"]); if (tl.forced) alerts.push(["forced", tl.forced + " forced stop(s)"]); if (ns && dps > 35) alerts.push(["warn", dps + " min drive/stop"]); if (tl.stops.some((s) => s.late)) alerts.push(["bad", "late arrivals"]); if (tl.needsShop) alerts.push(["", "shop touch before installs"]);
       let n = 0; const items = tl.stops.map((s) => { if (s.shop) return `<div class="legrow">↳ ${s.drive}m · shop touch · load parts · ${fmt(s.arr)}</div>`; if (s.block) return `<li><span class="eta">${fmt(s.arr)}</span><span>⏸ ${esc(s.block.label)}</span><span></span><span class="d">block · not a call · not sent to ePASS</span></li>`; n++; const j = s.j, v = validate(j, tech, day);
         return `<div class="legrow">↳ ${s.drive}m drive${s.wait ? ` · waits ${s.wait}m` : ""}</div><li><span class="eta" style="${s.late ? "color:var(--bad)" : ""}">${fmt(s.arr)}</span><span><b>${n}. ${esc(j.cust)}</b> <span class="chip st ${esc(j.st)}">${esc(j.st)}</span>${j.bal ? ` <span class="chip bad">${j.bal}</span>` : ""}${j.forced ? ' <span class="chip forced">forced</span>' : ""}</span><span></span><span class="d">${esc(j.addr)}, ${esc(j.zip)} · ${esc(zinfo(j).zone)} · ${esc(j.unit)} · ${hm(j.dur)} · ${j.win === "PM" ? "12–5" : j.win === "AM" ? "8–12" : "any"}${v.filter((x) => x.c === "bad").map((x) => " · ⚠ " + esc(x.t)).join("")}</span></li>`; }).join("");
-      const W = 300, H = 180; let mini = ""; { const pts = [startPt(t), ...tl.stops.filter((s) => !s.block).map((s) => (s.shop ? SHOP.ll : ll(s.j))), endPt(t), SHOP.ll]; const lats = pts.map((p) => p[0]), lngs = pts.map((p) => p[1]); const pa = Math.max(0.02, (Math.max(...lats) - Math.min(...lats)) * 0.15), po = Math.max(0.03, (Math.max(...lngs) - Math.min(...lngs)) * 0.15); const mnLa = Math.min(...lats) - pa, mxLa = Math.max(...lats) + pa, mnLo = Math.min(...lngs) - po, mxLo = Math.max(...lngs) + po; const X = (lo) => 10 + (lo - mnLo) / (mxLo - mnLo) * (W - 20), Y = (la) => H - 10 - (la - mnLa) / (mxLa - mnLa) * (H - 20);
+      const W = 300, H = 180; let mini = ""; { const pts = [startPt(t, day), ...tl.stops.filter((s) => !s.block).map((s) => (s.shop ? SHOP.ll : ll(s.j))), endPt(t, day), SHOP.ll]; const lats = pts.map((p) => p[0]), lngs = pts.map((p) => p[1]); const pa = Math.max(0.02, (Math.max(...lats) - Math.min(...lats)) * 0.15), po = Math.max(0.03, (Math.max(...lngs) - Math.min(...lngs)) * 0.15); const mnLa = Math.min(...lats) - pa, mxLa = Math.max(...lats) + pa, mnLo = Math.min(...lngs) - po, mxLo = Math.max(...lngs) + po; const X = (lo) => 10 + (lo - mnLo) / (mxLo - mnLo) * (W - 20), Y = (la) => H - 10 - (la - mnLa) / (mxLa - mnLa) * (H - 20);
         mini = `<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;background:var(--surface2);border-radius:6px"><rect x="${X(SHOP.ll[1]) - 4}" y="${Y(SHOP.ll[0]) - 4}" width="8" height="8" fill="var(--muted)"/><polyline points="${pts.slice(0, -1).map((p) => X(p[1]) + "," + Y(p[0])).join(" ")}" fill="none" stroke="var(--accent)" stroke-width="1.5"/>${tl.stops.filter((s) => s.j).map((s, i) => { const p = ll(s.j); return `<circle cx="${X(p[1])}" cy="${Y(p[0])}" r="7" fill="var(--accent)"/><text x="${X(p[1])}" y="${Y(p[0]) + 3}" font-size="8" text-anchor="middle" fill="var(--accent-ink)" font-weight="600">${i + 1}</text>`; }).join("")}</svg>`; }
       const ov = document.createElement("div"); ov.className = "overlay"; ov.innerHTML = `<div class="drawer" role="dialog" aria-label="Route overview">
         <div style="display:flex;justify-content:space-between;align-items:flex-start"><div><h2>${esc(t.name)} · ${d.s} ${d.n}</h2><div class="sub">${t.start}→${t.end} · works ${t.workDays.join(" ")} · ${t.skills.join(", ")}${t.auto ? "" : " · <b>not auto-routed</b>"}</div></div><button data-x>Close</button></div>
         <div class="alerts">${alerts.map(([c, x]) => `<span class="chip ${c}">${esc(x)}</span>`).join("") || '<span class="chip ok">no alerts</span>'}</div>
         <div class="stat"><div>stops<b>${ns}</b></div><div>on site<b>${hm(tl.work)}</b></div><div>driving<b>${hm(tl.drive)}</b></div><div>fill<b style="${tl.over ? "color:var(--bad)" : ""}">${Math.round(tl.fill * 100)}%</b></div><div>back<b>${fmt(tl.ret)}</b></div><div>drive/stop<b style="${dps > 35 ? "color:var(--bad)" : ""}">${dps}m</b></div></div>
         ${ns ? mini : `<div class="legrow" style="padding:.6rem 0;color:var(--muted)">No stops on this day${tl.open ? "" : " (closed · " + esc(closedWhy(tech, day)) + ")"} — pick another day from the fill strip.</div>`}
-        ${ns ? `<div class="legrow" style="padding-left:0;margin-top:.6rem">leaves ${t.start} ${fmt(SHIFT().start)}</div>` : ""}<ol>${items}</ol>${ns ? `<div class="legrow">↳ ${tl.back}m · back at ${t.end} ${fmt(tl.ret)}</div>` : ""}
+        ${ns ? `<div class="legrow" style="padding-left:0;margin-top:.6rem">leaves ${tl.startAt} ${fmt(tl.sh.start)}</div>` : ""}<ol>${items}</ol>${ns ? `<div class="legrow">↳ ${tl.back}m · back at ${tl.endAt} ${fmt(tl.ret)}</div>` : ""}
         <div class="acts"><button data-load="A">Load into left column</button><button data-load="B">Load into right column</button><button data-dc>Day controls</button></div>
         <div style="font-size:.75rem;color:var(--muted)">Blocks and forced stops are visible here and on the board only — nothing about them goes to ePASS.</div></div>`;
       document.body.append(ov); const close = () => ov.remove(); ov.onclick = (e) => { if (e.target === ov) close(); }; ov.querySelector("[data-x]").onclick = close;
@@ -453,10 +577,88 @@
       document.addEventListener("keydown", function escK(e) { if (e.key === "Escape") { close(); document.removeEventListener("keydown", escK); } });
     }
 
+    // ---------- confirm a day's route ----------
+    const winWords = (w) => (w === "PM" ? "12 and 5 PM" : w === "AM" ? "8 AM and 12 PM" : "8 AM and 5 PM");
+    const longDay = (k) => new Date(k + "T12:00:00Z").toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", timeZone: "UTC" });
+    const routeText = (j) => `Wilson Appliance: you're booked for ${longDay(j.day)} between ${winWords(j.win)}. ${first(techById(j.tech))} is your technician and will text when he's on the way. Reply to this message if you need to change it. — ${j.sv}`;
+    function confirmRoute(k) {
+      const c = col[k], t = techById(c.tech), d = dayObj(c.day), stops = jobsFor(c.tech, c.day).filter((j) => !j.si); const conf = CONFIRMED[c.tech + "|" + c.day];
+      if (!stops.length) { toast("Nothing on this day to confirm", "warn"); return; }
+      const ov = document.createElement("div"); ov.className = "overlay"; ov.innerHTML = `<div class="drawer" role="dialog" aria-label="Confirm route" style="width:min(620px,100%)">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start"><div><h2>Confirm ${esc(first(t))} · ${d.s} ${d.n}</h2><div class="sub">${stops.length} stop${stops.length === 1 ? "" : "s"} · locks the order and the windows${conf ? ` · already confirmed ${when(conf.at)} by ${esc(conf.by)}` : ""}</div></div><button data-x>Close</button></div>
+        ${NOTIFY.routeConfirm ? `<div class="lanenote">Texting is ON — each customer below gets this exact message when you confirm.</div>` : `<div class="lanenote">Texting is off (setting <span class="mono">notify.route_confirm.enabled</span>). Confirming records the day and locks the stops; the messages below are what the office sends by hand, or what goes out automatically once texting is switched on.</div>`}
+        <ol class="rlist">${stops.map((j) => `<li class="rrow"><span><b>${esc(j.cust || j.sv)}</b> <span class="chip st ${esc(j.st)}">${esc(j.st)}</span>${j.confirmed ? ' <span class="chip confirmed">confirmed</span>' : ""}</span><span class="mono" style="font-size:.78rem">${esc(j.phone || "no number on the ticket")}</span><span class="d">${esc([j.addr, j.zip].filter(Boolean).join(", "))} · ${j.win === "PM" ? "12–5" : j.win === "AM" ? "8–12" : "any time"}</span><pre>${esc(routeText(j))}</pre></li>`).join("")}</ol>
+        <div class="acts"><button data-go>${conf ? "Re-confirm the day" : "Confirm the day"}${NOTIFY.routeConfirm ? ` & send ${stops.length} text${stops.length === 1 ? "" : "s"}` : ""}</button><button data-keep>Not yet</button></div></div>`;
+      document.body.append(ov); const close = () => ov.remove(); ov.onclick = (e) => { if (e.target === ov) close(); }; ov.querySelector("[data-x]").onclick = close; ov.querySelector("[data-keep]").onclick = close;
+      ov.querySelector("[data-go]").onclick = guard(async () => { close(); const r = await api("/api/service-board/confirm", { method: "POST", body: JSON.stringify({ tech: c.tech, date: c.day }) }); await load(); const okN = (r.texts || []).filter((x) => x.ok).length; toast(`${first(t)} ${d.s} confirmed · ${r.n} stop${r.n === 1 ? "" : "s"} locked${r.textingOn ? ` · ${okN} text${okN === 1 ? "" : "s"} sent` : " · texting off, nothing sent"}`); });
+    }
+
+    // ---------- tech out: reschedule a closed day's stops ----------
+    const reschedText = (j, sg, fromDay) => `Wilson Appliance: ${first(techById(j.tech))} was scheduled to see you ${dayObj(fromDay).s} ${dayObj(fromDay).n} and is out. We can come ${dayObj(sg.day).s} ${dayObj(sg.day).n} between ${sg.win === "PM" ? "12 and 5" : "8 and 12"} with ${first(techById(sg.tech))}. Reply YES to confirm, or call (512) 894-0907 to pick another time. — ${j.sv}`;
+    function openReschedule(tech, day) {
+      const t = techById(tech), d = dayObj(day); const stops = jobsFor(tech, day);
+      const ov = document.createElement("div"); ov.className = "overlay"; ov.innerHTML = `<div class="drawer" role="dialog" aria-label="Reschedule" style="width:min(640px,100%)">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start"><div><h2>${esc(first(t))} is out ${d.s} ${d.n}</h2><div class="sub">${stops.length} stop${stops.length === 1 ? "" : "s"} to re-home · the engine's best day for each, one click to move it</div></div><button data-x>Close</button></div>
+        ${NOTIFY.reschedule ? "" : `<div class="lanenote">Texting is off — moving a call queues the packet; tell the customer by hand with the wording under each stop.</div>`}
+        <ol class="rlist">${stops.map((j) => { const sg = bestFit(j, day); return `<li class="rrow" data-sv="${j.sv}"><span><b>${esc(j.cust || j.sv)}</b> <span class="chip st ${esc(j.st)}">${esc(j.st)}</span> ${j.win ? `<span class="chip">${j.win === "AM" ? "8–12" : "12–5"}</span>` : ""}</span><span>${sg ? `<button class="mini" data-move="${j.sv}" data-t="${sg.tech}" data-d="${sg.day}" data-w="${sg.win}">Move → ${esc(first(techById(sg.tech)))} ${dayObj(sg.day).s} ${sg.win}</button>` : `<span class="hint">nothing fits — office places it</span>`}</span><span class="d">${esc([j.addr, j.zip].filter(Boolean).join(", "))} · ${esc(j.unit || "")}</span>${sg ? `<div class="sugg">💡 ${esc(sg.why)}${sg.day !== sg.earliest ? ` · earliest open is ${dayObj(sg.earliest).s}` : ""}</div><pre>${esc(reschedText(j, sg, day))}</pre>` : ""}</li>`; }).join("") || `<li class="rrow">Nothing on this day.</li>`}</ol>
+        <div class="acts"><button data-x2>Done</button></div></div>`;
+      document.body.append(ov); const close = () => ov.remove(); ov.onclick = (e) => { if (e.target === ov) close(); }; ov.querySelector("[data-x]").onclick = close; ov.querySelector("[data-x2]").onclick = close;
+      ov.querySelectorAll("[data-move]").forEach((b) => (b.onclick = guard(async () => { const j = J.find((x) => x.sv === b.dataset.move); b.disabled = true; b.textContent = "moving…"; await api("/api/service-board/move", { method: "POST", body: JSON.stringify({ sv: j.sv, tech: b.dataset.t, date: b.dataset.d, window: b.dataset.w, note: `moved: ${tech} out ${day}` }) }); await load(); const row = ov.querySelector(`[data-sv="${j.sv}"]`); if (row) { row.style.opacity = ".55"; b.textContent = `✓ moved to ${first(techById(b.dataset.t))} ${dayObj(b.dataset.d).s}`; } })));
+    }
+
+    // ---------- route settings: the tech, not the day ----------
+    const SKILLS = ["appliance", "sealed", "hvac", "hvac-backup"]; const MINS = (from, to) => Array.from({ length: (to - from) / 30 + 1 }, (_, i) => from + i * 30);
+    function openTechSettings(id) {
+      const isNew = !id; const t = isNew ? { id: "", name: "", skills: ["appliance"], start: "shop", end: "shop", workDays: ["Mon", "Tue", "Wed", "Thu", "Fri"], pattern: {}, mode: "route", overflow: true, commuteAllow: null, maxStops: null, maxOnsite: null, maxDrive: null, note: "", active: true } : techById(id);
+      const usual = usualShift(t); const wd = ["Mon", "Tue", "Wed", "Thu", "Fri"];
+      const opt = (vals, cur, fmtv) => vals.map((v) => `<option value="${v}" ${v === cur ? "selected" : ""}>${fmtv(v)}</option>`).join("");
+      const ov = document.createElement("div"); ov.className = "overlay"; ov.innerHTML = `<div class="drawer settings" role="dialog" aria-label="Route settings" style="width:min(640px,100%)">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start"><div><h2>${isNew ? "New tech" : esc(t.name) + " · route settings"}</h2><div class="sub">The tech, not the day. Day-by-day changes live in the ⋯ menu on the board.</div></div><button data-x>Close</button></div>
+        <div class="grid2"><label>Code <input id="tsId" value="${esc(t.id)}" ${isNew ? "" : "readonly"} maxlength="10" placeholder="SP code, e.g. DLA" /></label><label>Name <input id="tsName" value="${esc(t.name)}" /></label>
+        <label>Mode <select id="tsMode"><option value="route" ${t.mode === "route" ? "selected" : ""}>route — auto-routed, on the board</option><option value="office" ${t.mode === "office" ? "selected" : ""}>office assigns — no auto placement</option><option value="collector" ${t.mode === "collector" ? "selected" : ""}>collector lane — builds his own route</option></select></label><label>Note <input id="tsNote" value="${esc(t.note || "")}" maxlength="200" placeholder="shown on the board when not auto-routed" /></label>
+        <label>Usual start <select id="tsStart"><option value="shop" ${t.start === "shop" ? "selected" : ""}>shop</option><option value="home" ${t.start === "home" ? "selected" : ""}>home</option></select></label><label>Usual end <select id="tsEnd"><option value="shop" ${t.end === "shop" ? "selected" : ""}>shop</option><option value="home" ${t.end === "home" ? "selected" : ""}>home</option></select></label></div>
+        <div class="lbl">Skills</div><div class="ck">${SKILLS.map((k) => `<label><input type="checkbox" data-skill="${k}" ${t.skills.includes(k) ? "checked" : ""}/> ${k}</label>`).join("")}</div>
+        <div class="lbl">Week — start, end, where the day begins and ends</div>
+        <table class="pattern"><thead><tr><th>Day</th><th>Works</th><th>Start</th><th>End</th><th>From</th><th>To</th><th>Why</th></tr></thead><tbody>${wd.map((dName) => { const p = (t.pattern || {})[dName] || {}; return `<tr data-dow="${dName}"><td>${dName}</td><td><input type="checkbox" data-work ${t.workDays.includes(dName) ? "checked" : ""}/></td><td><select data-ps>${opt(MINS(420, 600), p.start ?? usual.start, fmt)}</select></td><td><select data-pe>${opt(MINS(780, 1080), p.end ?? usual.end, fmt)}</select></td><td><select data-pf><option value="">as usual</option><option value="shop" ${p.startAt === "shop" ? "selected" : ""}>shop</option><option value="home" ${p.startAt === "home" ? "selected" : ""}>home</option></select></td><td><select data-pt><option value="">as usual</option><option value="shop" ${p.endAt === "shop" ? "selected" : ""}>shop</option><option value="home" ${p.endAt === "home" ? "selected" : ""}>home</option></select></td><td><input data-pw value="${esc(p.why || "")}" maxlength="80" placeholder="" style="width:110px"/></td></tr>`; }).join("")}</tbody></table>
+        <div class="lbl">Limits (blank = none)</div><div class="grid2"><label>Commute allowance, min each way <input id="tsCommute" type="number" min="0" step="5" value="${t.commuteAllow ?? ""}" placeholder="${S["board.commute_allow_min"] ?? 45}" /></label><label>Max stops / day <input id="tsStops" type="number" min="1" value="${t.maxStops ?? ""}" /></label><label>Max on-site min / day <input id="tsOnsite" type="number" min="30" step="30" value="${t.maxOnsite ?? ""}" /></label><label>Max driving min / day <input id="tsDrive" type="number" min="30" step="30" value="${t.maxDrive ?? ""}" /></label><label><input type="checkbox" id="tsOvf" ${t.overflow !== false ? "checked" : ""}/> takes overflow when the day is full</label></div>
+        ${isNew ? "" : `<div class="lbl">Roster</div><div class="grid2"><label>Retire on <input id="tsRetire" type="date" value="${esc(t.retireOn || "")}" /></label><span style="font-size:.78rem;color:var(--muted);align-self:end">${t.active === false ? "Retired — clear the date to bring back." : "A retire date takes the tech off the board from that day."}</span></div>`}
+        <div class="foot"><button class="primary" data-save>Save</button><button data-x2>Cancel</button></div></div>`;
+      document.body.append(ov); const close = () => ov.remove(); ov.onclick = (e) => { if (e.target === ov) close(); }; ov.querySelector("[data-x]").onclick = close; ov.querySelector("[data-x2]").onclick = close;
+      ov.querySelector("[data-save]").onclick = guard(async () => {
+        const g = (sel) => ov.querySelector(sel); const num = (sel) => (g(sel).value === "" ? null : Number(g(sel).value));
+        const pattern = {}, workDays = [];
+        ov.querySelectorAll("tr[data-dow]").forEach((r) => { const dName = r.dataset.dow; if (r.querySelector("[data-work]").checked) workDays.push(dName); const st = Number(r.querySelector("[data-ps]").value), en = Number(r.querySelector("[data-pe]").value), f = r.querySelector("[data-pf]").value, to = r.querySelector("[data-pt]").value, why = r.querySelector("[data-pw]").value.trim(); if (st !== usual.start || en !== usual.end || f || to || why) pattern[dName] = { ...(st !== usual.start ? { start: st } : {}), ...(en !== usual.end ? { end: en } : {}), ...(f ? { startAt: f } : {}), ...(to ? { endAt: to } : {}), ...(why ? { why } : {}) }; });
+        const body = { name: g("#tsName").value.trim(), mode: g("#tsMode").value, note: g("#tsNote").value.trim(), start: g("#tsStart").value, end: g("#tsEnd").value, skills: [...ov.querySelectorAll("[data-skill]:checked")].map((x) => x.dataset.skill), workDays, pattern, commuteAllow: num("#tsCommute"), maxStops: num("#tsStops"), maxOnsite: num("#tsOnsite"), maxDrive: num("#tsDrive"), overflow: g("#tsOvf").checked };
+        if (!isNew) body.retireOn = g("#tsRetire").value || null;
+        const code = isNew ? g("#tsId").value.trim().toUpperCase() : t.id; if (!code) throw new Error("A tech code is required.");
+        await api(`/api/service-board/techs/${encodeURIComponent(code)}/settings`, { method: "POST", body: JSON.stringify(body) }); close(); await load(); toast(`${body.name || code} saved`);
+      });
+    }
+
+    // ---------- collector lane (a tech who builds his own route) ----------
+    const AGEB = [["0–7", 0, 7, "var(--inst)"], ["8–14", 8, 14, "var(--accent)"], ["15–30", 15, 30, "var(--wait)"], ["31–60", 31, 60, "var(--bad)"], ["60+", 61, 1e5, "var(--bad)"]];
+    const LANE_ESCALATE = 30;
+    const laneJobs = (id) => J.filter((j) => j.tech === id && j.st !== "SO9" && !j.si);
+    const laneAge = (j) => Math.max(0, Math.round((new Date(B.today) - new Date(j.epass.seenAt ? j.epass.seenAt.slice(0, 10) : B.today)) / 864e5));
+    function laneStats(id) { const js = laneJobs(id); const ages = js.map((j) => (j.day && j.day < B.today ? Math.round((new Date(B.today) - new Date(j.day)) / 864e5) : 0)); const buckets = AGEB.map(([l, a, b, c]) => ({ l, c, n: ages.filter((x) => x >= a && x <= b).length })); return { n: js.length, stale: ages.filter((x) => x > LANE_ESCALATE).length, oldest: ages.length ? Math.max(...ages) : 0, buckets, dated: js.filter((j) => j.day && j.day >= B.today).length }; }
+    function laneCell(t) { const st = laneStats(t.id); return `<button class="lanecell" data-lane="${t.id}" title="${esc(t.name)} builds his own route — ${st.n} open calls"><span><b>${st.n}</b> in the lane${st.dated ? ` · ${st.dated} dated` : ""}</span><span class="lanebar">${st.buckets.map((b) => (st.n ? `<i style="width:${(b.n / st.n) * 100}%;background:${b.c}" title="${b.l} days: ${b.n}"></i>` : "")).join("")}</span><span>${st.stale ? `<span style="color:var(--bad)">${st.stale} over ${LANE_ESCALATE} d</span>` : "oldest " + st.oldest + " d"}</span></button>`; }
+    const handoffText = (j) => [`Wilson — ${j.sv} ${j.st}`, j.cust, [j.addr, j.zip].filter(Boolean).join(", "), j.phone || "(no number on the ticket)", `Gate/access: ${j.access || "—"}`, `Unit: ${j.unit || "—"}${(j.units || 1) > 1 ? " · " + j.units + " units" : ""}`, `Our notes: ${j.note || "—"}`].join("\n");
+    function openLane(id) {
+      const t = techById(id), st = laneStats(id), js = laneJobs(id).sort((a, b) => (a.day || "9").localeCompare(b.day || "9"));
+      const ov = document.createElement("div"); ov.className = "overlay"; ov.innerHTML = `<div class="drawer" role="dialog" aria-label="Collector lane" style="width:min(640px,100%)">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start"><div><h2>${esc(t.name)} · lane</h2><div class="sub">${t.note || "builds his own route — the office hands calls over, he books them"}</div></div><button data-x>Close</button></div>
+        <div class="stat"><div>in the lane<b>${st.n}</b></div><div>dated<b>${st.dated}</b></div><div>oldest<b>${st.oldest} d</b></div></div>
+        ${st.stale ? `<div class="lanenote">${st.stale} call${st.stale === 1 ? "" : "s"} past ${LANE_ESCALATE} days — wants a decision.</div>` : ""}
+        <ol class="rlist">${js.map((j) => `<li class="lanejob ${j.day && j.day < B.today && (new Date(B.today) - new Date(j.day)) / 864e5 > LANE_ESCALATE ? "stale" : ""}"><span><b>${esc(j.cust || j.sv)}</b> <span class="chip st ${esc(j.st)}">${esc(j.st)}</span>${j.day ? ` <span class="chip">${dayObj(j.day).s} ${md(j.day)}</span>` : ' <span class="chip warn">no date</span>'}</span><span><button class="mini" data-hand="${j.sv}" title="Copy the hand-off text">Copy hand-off</button></span><span class="sub">${esc([j.addr, j.zip].filter(Boolean).join(", "))} · ${esc(j.unit || "")}${j.phone ? " · " + esc(j.phone) : ""}</span></li>`).join("") || "<li class='lanejob'>Nothing in the lane.</li>"}</ol>
+        <div style="font-size:.75rem;color:var(--muted);margin-top:.6rem">Hand-off is a text the office sends from Podium — copy it here; nothing is sent from the board.</div></div>`;
+      document.body.append(ov); const close = () => ov.remove(); ov.onclick = (e) => { if (e.target === ov) close(); }; ov.querySelector("[data-x]").onclick = close;
+      ov.querySelectorAll("[data-hand]").forEach((b) => (b.onclick = async () => { const j = J.find((x) => x.sv === b.dataset.hand); try { await navigator.clipboard.writeText(handoffText(j)); b.textContent = "✓ copied"; } catch { toast(handoffText(j)); } }));
+    }
+
     // ---------- load ----------
     async function load({ keepCols = true } = {}) {
       const data = await api(`/api/service-board?from=${encodeURIComponent(from)}&days=5`);
-      B = data; J = data.jobs; TECHS = data.techs; DAYS = data.days; TD = data.td || {}; BLOCKS = data.blocks || []; ZONE = data.zones || {}; ZIPZONE = data.zipZone || {}; ZIP = data.zipPts || {}; SHOP = data.shop || SHOP; S = data.settings || {};
+      B = data; J = data.jobs; TECHS = data.techs; DAYS = data.days; TD = data.td || {}; BLOCKS = data.blocks || []; ZONE = data.zones || {}; ZIPZONE = data.zipZone || {}; ZIP = data.zipPts || {}; SHOP = data.shop || SHOP; S = data.settings || {}; CONFIRMED = data.confirmed || {}; NOTIFY = data.notify || {};
       for (const t of TECHS) { t.zone = Object.values(ZONE).filter((z) => z.p === t.id).map((z) => z.zone); t.zone2 = Object.values(ZONE).filter((z) => z.s.includes(t.id)).map((z) => z.zone); }
       if (!TECHS.length) { $("#colA").innerHTML = '<div class="empty">No techs in the roster yet — seed sj_techs first.</div>'; $("#colB").innerHTML = ""; return; }
       const firstAuto = TECHS.find((t) => t.auto) || TECHS[0];
@@ -485,6 +687,9 @@
     $("#reload").onclick = guard(async () => { await load(); toast("Reloaded"); });
     $("#unQ").addEventListener("input", () => { unFilter = $("#unQ").value; renderUnsched(); });
     setupDrops();
+    $("#mapfull").onclick = () => { const f = $("#mappanel").classList.toggle("full"); $("#mapfull").textContent = f ? "✕" : "⛶"; renderMap(); };
+    $("#mapsum").onclick = () => { mapSum = !mapSum; $("#mapsum").setAttribute("aria-pressed", mapSum); renderMap(); };
+    document.addEventListener("keydown", (e) => { if (e.key === "Escape" && $("#mappanel").classList.contains("full") && !document.querySelector(".overlay")) $("#mapfull").click(); });
     load({ keepCols: false }).catch((err) => { setStatus(err.message, "error"); $("#colA").innerHTML = `<div class="empty">${esc(err.message)}</div>`; });
     setInterval(() => { if (!document.querySelector(".pop,.overlay,.dragging")) load().catch(() => {}); }, 5 * 60 * 1000);
   })();

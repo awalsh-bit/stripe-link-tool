@@ -443,7 +443,7 @@ import {
   listZones as listServiceZones, getSettings as getServiceSettings, setSetting as setServiceSetting, STATUS_DEFS as SERVICE_STATUS_DEFS, REASON_CODES as SERVICE_REASON_CODES,
   importServiceFromEpassFeed
 } from "./lib/service-journey-postgres.js";
-import { getServiceBoard, moveServiceJob, unscheduleServiceJob, sequenceTechDay, setJobDispatchFlags, addRouteBlock, removeRouteBlock } from "./lib/service-board-postgres.js";
+import { getServiceBoard, moveServiceJob, unscheduleServiceJob, sequenceTechDay, setJobDispatchFlags, addRouteBlock, removeRouteBlock, saveTechSettings, setPartsLoaded, confirmRouteDay, cancelServiceJob, uncancelServiceJob, markShopRepaired, CANCEL_REASONS } from "./lib/service-board-postgres.js";
 import { getPilotStore, applyPilotChanges, addPilotJobFromCard, resetPilot, listPilotLog } from "./lib/pilot-postgres.js";
 import {
   parseOpenOrdersBundle, replaceEpassOpenOrders, getEpassOpenOrdersMeta, getEpassOpenOrder, listEpassOpenOrders,
@@ -9764,6 +9764,34 @@ app.post("/api/service-board/blocks", requireServiceBoard, async (req, res) => {
 });
 app.delete("/api/service-board/blocks/:id", requireServiceBoard, async (req, res) => {
   try { return res.json({ ok: true, ...(await removeRouteBlock(req.params.id)) }); } catch (err) { return res.status(400).json({ error: err.message }); }
+});
+app.post("/api/service-board/techs/:code/settings", requireServiceBoard, async (req, res) => {
+  try {
+    const tech = await saveTechSettings(req.params.code, req.body || {}, sjMe(req).email);
+    sjAudit(req, "service_board_tech_settings", { tech: tech.id, keys: Object.keys(req.body || {}) });
+    return res.json({ ok: true, tech });
+  } catch (err) { return res.status(400).json({ error: err.message }); }
+});
+app.post("/api/service-board/techs/:code/parts-loaded", requireServiceBoard, async (req, res) => {
+  try { return res.json({ ok: true, ...(await setPartsLoaded({ tech: req.params.code, date: req.body?.date, loaded: !!req.body?.loaded, by: sjMe(req).email })) }); } catch (err) { return res.status(400).json({ error: err.message }); }
+});
+// Confirm a day: locks the stops, records it, texts customers ONLY when
+// notify.route_confirm.enabled is on (off by default — standing rule).
+app.post("/api/service-board/confirm", requireServiceBoard, async (req, res) => {
+  try {
+    const out = await confirmRouteDay({ tech: req.body?.tech, date: req.body?.date, by: sjMe(req).email, sender: async ({ phone, body }) => sendCustomerText({ phone, body }) });
+    sjAudit(req, "service_board_route_confirmed", { tech: out.tech, date: out.date, stops: out.n, sent: out.sent, textingOn: out.textingOn });
+    return res.json({ ok: true, ...out });
+  } catch (err) { return res.status(400).json({ error: err.message }); }
+});
+app.post("/api/service-board/cancel", requireServiceBoard, async (req, res) => {
+  try { const out = await cancelServiceJob({ sv: req.body?.sv, reason: req.body?.reason, note: req.body?.note || "", by: sjMe(req).email }); sjAudit(req, "service_board_cancel", out); return res.json({ ok: true, ...out, reasons: CANCEL_REASONS }); } catch (err) { return res.status(400).json({ error: err.message }); }
+});
+app.post("/api/service-board/uncancel", requireServiceBoard, async (req, res) => {
+  try { const out = await uncancelServiceJob({ sv: req.body?.sv, by: sjMe(req).email }); sjAudit(req, "service_board_uncancel", out); return res.json({ ok: true, ...out }); } catch (err) { return res.status(400).json({ error: err.message }); }
+});
+app.post("/api/service-board/shop/repaired", requireServiceBoard, async (req, res) => {
+  try { return res.json({ ok: true, ...(await markShopRepaired({ sv: req.body?.sv, by: sjMe(req).email })) }); } catch (err) { return res.status(400).json({ error: err.message }); }
 });
 app.post("/api/service-board/techs/:code/day", requireServiceBoard, async (req, res) => {
   try {

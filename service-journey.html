@@ -95,8 +95,18 @@
     .ev { font-size: 12.5px; background: #fef2f2; border-radius: 8px; padding: 6px 10px; margin-bottom: 8px; }
     .ev b { color: #991b1b; }
 
+    .ownerrow { display: flex; gap: 8px; margin-top: 8px; align-items: center; flex-wrap: wrap; }
+    .ownerrow select { flex: 1 1 160px; min-width: 0; }
+    .ownerrow .who { flex: 1 1 100%; }
+    .grid2 input, .grid2 select, .ownerrow select { width: 100%; max-width: 100%; box-sizing: border-box; }
     @media (max-width: 720px) {
       body { padding: 14px 8px; } .surface { padding: 16px; }
+      /* Phone: the change-status form stacks one field per row — a date input
+         and a select side by side overflowed the drawer (Andrew, 9/22). */
+      .drawer .grid2 { grid-template-columns: 1fr; gap: 8px; }
+      .drawer input[type="date"] { min-height: 40px; }
+      .ownerrow label.f { flex: 1 1 100%; }
+      .ownerrow select { flex: 1 1 auto; }
       .internal-shell-header-top { flex-wrap: wrap !important; }
       .toolbar .field, .toolbar .field.wide { flex: 1 1 100%; }
       .stat { flex: 1 1 45%; min-width: 0; }
@@ -369,7 +379,7 @@
             ${j.needsIntakeReview ? `<button type="button" class="quiet" id="dReviewed">Mark intake reviewed</button>` : ""}
             <span class="who">"keyed in ePASS" = you already changed it there; no packet, the next import just confirms.</span>
           </div>
-          <div style="display:flex; gap:8px; margin-top:8px; align-items:center;"><label class="f" style="margin:0;">Owner tech</label><select id="dOwner">${techOpts}</select><button type="button" class="quiet tiny" id="dOwnerSave">Set owner</button><span class="who">The diagnosing tech owns every later visit.</span></div>
+          <div class="ownerrow"><label class="f" style="margin:0;">Owner tech</label><select id="dOwner">${techOpts}</select><button type="button" class="quiet tiny" id="dOwnerSave">Set owner</button><span class="who">The diagnosing tech owns every later visit.</span></div>
           <div id="dMsg" class="status-msg"></div>
         </div>
 

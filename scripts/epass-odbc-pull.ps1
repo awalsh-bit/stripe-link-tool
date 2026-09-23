@@ -38,8 +38,8 @@
 #                        pre-tax totals and Tax1/2/3 collected — the Crystal TAX REPORT, without Crystal
 #   tax-models / tax-items / tax-misc / tax-labor   those invoices' lines with their Tax1/2/3 flags, so the
 #                        report can split taxable from exempt dollars per invoice and per city
-#                        Runs on the 6:00 pull (last 3 posted months) — or -TaxBackfill (one bundle per year
-#                        from -TaxBackfillFrom, default 2022) / -TaxSince yyyy-MM-dd [-TaxUntil yyyy-MM-dd]
+#                        Runs on the 6:00 pull (last 3 posted months) — or -TaxBackfill (one bundle per quarter
+#                        from -TaxBackfillFrom, default 2022; fine to run during the day) / -TaxSince yyyy-MM-dd [-TaxUntil yyyy-MM-dd]
 #   labor-rates          the whole LaborRate table (the flat-rate book as ePASS holds it) — the field
 #                        tool's component labor picker, priced as ePASS prices it
 #                        Runs daily on the 6:00 pull (tickets finished in the last 21 days) — or, once,
@@ -92,7 +92,7 @@ param(
   # Sales tax bundle (fifth): every POSTED invoice of every type in a
   # posted-date slice, header + every line with its Tax1/2/3 flags — the
   # Tax Report page (Accounting, executives). -TaxBackfill writes one bundle
-  # per year from -TaxBackfillFrom (default 2022, the audit window);
+  # per quarter from -TaxBackfillFrom (default 2022, the audit window);
   # -TaxSince / -TaxUntil one slice. Otherwise the 6:00 run refreshes the
   # last three posted months by itself.
   [switch]$TaxBackfill,
@@ -716,7 +716,17 @@ SELECT lr.* FROM LaborRate lr ORDER BY lr.Code
   # "epass-tax"; Agility upserts by invoice, so a slice can be pulled again.
   $taxSlices = @()
   if ($TaxBackfill) {
-    for ($y = $TaxBackfillFrom; $y -le (Get-Date).Year; $y++) { $taxSlices += ,@("$y-01-01", "$y-12-31") }
+    # One bundle per QUARTER (not per year): every invoice type with all its
+    # lines for a whole year could pass the server's 60 MB upload limit and
+    # ties up ePASS for a long query — a quarter stays small, each query is
+    # short, and a failure costs three months, so this can run during the day.
+    $qStart = Get-Date -Year $TaxBackfillFrom -Month 1 -Day 1
+    while ($qStart -le (Get-Date)) {
+      $qEnd = $qStart.AddMonths(3).AddDays(-1)
+      if ($qEnd -gt (Get-Date)) { $qEnd = Get-Date }
+      $taxSlices += ,@($qStart.ToString("yyyy-MM-dd"), $qEnd.ToString("yyyy-MM-dd"))
+      $qStart = $qStart.AddMonths(3)
+    }
   } elseif ($TaxSince -match '^\d{4}-\d{2}-\d{2}$') {
     $u = if ($TaxUntil -match '^\d{4}-\d{2}-\d{2}$') { $TaxUntil } else { $today }
     $taxSlices += ,@($TaxSince, $u)

@@ -350,8 +350,9 @@ five pre-tax totals and `Tax1/2/3Total` — plus `tax-models`, `tax-items`,
 flags, `LineCode` / `LineDesc` / `Qty` / `SellingPrice` / `Total`).
 
 When it runs: by itself on the 6:00 pull (the last three posted months), or
-`-TaxBackfill` (one bundle per year from `-TaxBackfillFrom`, default 2022 —
-the audit window) or `-TaxSince yyyy-MM-dd [-TaxUntil yyyy-MM-dd]`. Agility
+`-TaxBackfill` (one bundle per **quarter** from `-TaxBackfillFrom`, default
+2022 — the audit window; quarter-sized so each bundle stays well under the
+60 MB upload limit and each query is short enough to run during the day) or `-TaxSince yyyy-MM-dd [-TaxUntil yyyy-MM-dd]`. Agility
 (`lib/tax-report-postgres.js`) upserts by invoice code, derives
 `gross` = Serial + Item + Labor + Misc + Wty totals (Crystal's GrossTotal —
 a $157 diagnostic carries $12.95, 8.25%), and the **taxable / exempt base**

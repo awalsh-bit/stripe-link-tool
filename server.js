@@ -400,7 +400,9 @@ import {
   getOrdersByInvoices,
   replaceOpenOrders,
   getOpenOrdersMeta,
-  getOpenOrdersByInvoices
+  getOpenOrdersByInvoices,
+  listHvacJobsForMonths,
+  listHvacJobMonths
 } from "./lib/sales-order-detail-postgres.js";
 import {
   FIELD_SALES_PLAN,

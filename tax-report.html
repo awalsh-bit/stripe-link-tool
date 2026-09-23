@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="robots" content="noindex,nofollow,noarchive" />
+  <title>Wilson AC & Appliance - Sales Tax Report</title>
+  <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+  <link rel="stylesheet" href="internal-shell.css" />
+  <style>
+    :root{--bg:#f3f6f3;--surface:#ffffff;--surface2:#eaf0ea;--ink:#1b241f;--muted:#5d6b62;--line:#d7dfd8;--accent:#1f6b35;--accent-ink:#fff;--wait:#b8770f;--wait-bg:#fbf0d9;--bad:#b3362f;--bad-bg:#fbe4e2;--good:#1f8a48;--good-bg:#e3f3e8;--info:#2f6fb3;--info-bg:#e7eff9}
+    *{box-sizing:border-box}
+    body{margin:0;background:linear-gradient(180deg,var(--primary-tint,#eaf4ec) 0%,var(--bg) 100%);color:var(--ink);font:14.5px/1.45 "Roboto",system-ui,-apple-system,"Segoe UI",sans-serif;min-height:100vh;padding:20px 16px 60px}
+    .wrap{max-width:1480px;margin:0 auto}
+    @media (max-width:720px){body{padding:14px 8px 40px}}
+    .mono{font-family:"IBM Plex Mono",ui-monospace,Menlo,monospace}
+    .num{font-variant-numeric:tabular-nums;text-align:right}
+    button{font:inherit;color:inherit;background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:.4rem .75rem;cursor:pointer}
+    button:hover{border-color:var(--accent)}button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+    button.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);font-weight:600}
+    button[disabled]{opacity:.5;cursor:not-allowed}
+    select,input{font:inherit;color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:.4rem .6rem}
+    .top{display:flex;align-items:flex-start;gap:1rem;flex-wrap:wrap;padding:.9rem 0 .6rem;border-bottom:1px solid var(--line)}
+    .top h2{margin:0;font-size:20px}.top .note{color:var(--muted);font-size:.8rem;max-width:70ch}
+    .bar{display:flex;gap:.5rem;flex-wrap:wrap;align-items:flex-end;margin:.8rem 0}
+    .bar label{display:flex;flex-direction:column;gap:.15rem;font-size:.72rem;text-transform:uppercase;letter-spacing:.05em;color:var(--muted)}
+    .bar input,.bar select{min-height:36px}
+    .quick{display:flex;gap:.3rem;flex-wrap:wrap}.quick button{font-size:.78rem;padding:.25rem .55rem;border-radius:999px}
+    .status{display:none;margin:.6rem 0 0;padding:.5rem .8rem;border-radius:8px;font-size:.85rem}.status.show{display:block}.status.ok{background:var(--good-bg);color:#155a2e}.status.error{background:var(--bad-bg);color:#7a1f1a}.status.warn{background:var(--wait-bg);color:#6b4500}
+    .tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:.6rem;margin:.9rem 0}
+    .tile{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:.6rem .8rem}.tile b{display:block;font-size:1.35rem;font-variant-numeric:tabular-nums}.tile span{color:var(--muted);font-size:.78rem}.tile small{display:block;color:var(--muted);font-size:.72rem;margin-top:.1rem}
+    .sec{background:var(--surface);border:1px solid var(--line);border-radius:12px;margin:.8rem 0;overflow:hidden}
+    .sec h3{margin:0;padding:.65rem .9rem;border-bottom:1px solid var(--line);font-size:.78rem;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);font-weight:600;display:flex;gap:.6rem;align-items:center}
+    .sec h3 .n{font-variant-numeric:tabular-nums;color:var(--ink)}.sec h3 .hint{margin-left:auto;text-transform:none;letter-spacing:0;font-weight:500}
+    .scroll{overflow-x:auto}
+    table{border-collapse:collapse;width:100%;font-size:.84rem}th,td{padding:.4rem .6rem;border-bottom:1px solid var(--line);white-space:nowrap;text-align:left}th{font-size:.7rem;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);position:sticky;top:0;background:var(--surface)}
+    th.num,td.num{text-align:right}
+    tr.tot td{font-weight:700;border-top:2px solid var(--line)}
+    tr[data-inv]{cursor:pointer}tr[data-inv]:hover td{background:#f7faf7}
+    .chip{display:inline-block;border-radius:999px;padding:.1rem .5rem;font-size:.7rem;font-weight:600;background:var(--surface2);color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
+    .chip.ex{background:var(--wait-bg);color:var(--wait)}
+    .grid2{display:grid;grid-template-columns:1fr 1fr;gap:.8rem}@media (max-width:900px){.grid2{grid-template-columns:1fr}}
+    .empty{padding:1rem .9rem;color:var(--muted);font-size:.9rem}
+    .cover{font-size:.78rem;color:var(--muted);margin:.3rem 0}
+    .overlay{position:fixed;inset:0;background:rgba(20,30,24,.45);display:flex;justify-content:flex-end;z-index:50}
+    .drawer{background:var(--surface);width:min(640px,100%);height:100%;overflow:auto;padding:1rem 1.1rem;box-shadow:-8px 0 30px rgba(0,0,0,.2)}
+    .drawer h2{margin:0 0 .2rem;font-size:1.1rem}.drawer .sub{color:var(--muted);font-size:.82rem;margin-bottom:.6rem}
+    a{color:var(--accent)}
+  </style>
+</head>
+<body data-shell-label="Sales Tax Report" data-shell-icon="accounting">
+  <div class="wrap">
+    <div id="internal-shell-header"></div>
+    <div class="top">
+      <div><h2>Sales Tax Report</h2><div class="note">The audit report, without Crystal: every invoice ePASS <b>posted</b> in the range — ship-to and bill-to name, sold-to city and state, tax code, tax collected and the pre-tax gross, exactly the columns the Crystal TAX REPORT gave — plus the taxable and exempt base from each invoice's lines, all three tax totals, and totals by city. Executives only; every run and export is audited.</div></div>
+    </div>
+    <div class="bar">
+      <label>Posted from<input type="date" id="from" /></label>
+      <label>Posted to<input type="date" id="to" /></label>
+      <label>Invoice type<select id="type"><option value="">All types</option><option value="S">S — sales</option><option value="R">R — retail</option><option value="SV">SV — service</option><option value="WTY">WTY — warranty</option><option value="AC">AC</option><option value="MD">MD</option><option value="CAB">CAB</option></select></label>
+      <label>Tax code<select id="taxCode"><option value="">All</option><option value="TAX">TAX</option><option value="EX">EX</option></select></label>
+      <label>City<input id="city" placeholder="any" style="width:150px" /></label>
+      <label>State<input id="state" placeholder="TX" style="width:70px" maxlength="2" /></label>
+      <label>Find<input id="q" placeholder="invoice, ship-to or bill-to name" style="width:170px" /></label>
+      <button class="primary" id="run">Run report</button>
+      <button id="export" disabled>Export .xlsx</button>
+    </div>
+    <div class="quick" id="quick"></div>
+    <div class="status" id="pageStatus"></div>
+    <div class="cover" id="cover"></div>
+    <div class="tiles" id="tiles" hidden></div>
+    <div class="grid2" id="groups" hidden>
+      <div class="sec"><h3><span>By city</span><span class="hint">sold-to city · tax collected</span></h3><div class="scroll"><table id="byCity"></table></div></div>
+      <div class="sec"><h3><span>By invoice type · tax code</span></h3><div class="scroll"><table id="byType"></table></div></div>
+    </div>
+    <div class="sec" id="rowsec" hidden><h3><span>Invoices</span><span class="n" id="rowN">0</span><span class="hint">Crystal's seven columns first, then the split. Click a row for its lines.</span></h3><div class="scroll"><table id="rows"></table></div></div>
+    <div id="internal-shell-footer"></div>
+  </div>
+  <script src="internal-shell.js"></script>
+  <script>
+    const $ = (s) => document.querySelector(s);
+    const esc = (v) => String(v ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+    async function api(path) { const res = await fetch(path, { credentials: "same-origin" }); const data = await res.json().catch(() => ({})); if (!res.ok) throw new Error(data.error || "Request failed."); return data; }
+    function setStatus(msg, kind) { const b = $("#pageStatus"); if (!msg) { b.className = "status"; b.textContent = ""; return; } b.className = "status show " + kind; b.textContent = msg; }
+    const money = (n) => (Number(n) || 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const pct = (n) => (n == null ? "—" : `${Number(n).toFixed(2)}%`);
+    const mmddyy = (iso) => (iso ? `${iso.slice(5, 7)}-${iso.slice(8, 10)}-${iso.slice(2, 4)}` : "");
+    const today = () => new Date().toLocaleDateString("en-CA", { timeZone: "America/Chicago" });
+    const monthRange = (offset) => { const d = new Date(today() + "T12:00:00Z"); d.setUTCDate(1); d.setUTCMonth(d.getUTCMonth() + offset); const from = d.toISOString().slice(0, 10); d.setUTCMonth(d.getUTCMonth() + 1); d.setUTCDate(0); return [from, d.toISOString().slice(0, 10)]; };
+    const quarterRange = (offset) => { const d = new Date(today() + "T12:00:00Z"); const q = Math.floor(d.getUTCMonth() / 3) + offset; const y = d.getUTCFullYear() + Math.floor(q / 3); const qq = ((q % 4) + 4) % 4; const from = `${y}-${String(qq * 3 + 1).padStart(2, "0")}-01`; const e = new Date(Date.UTC(y, qq * 3 + 3, 0)); return [from, e.toISOString().slice(0, 10)]; };
+    let R = null;
+    const params = () => new URLSearchParams({ from: $("#from").value, to: $("#to").value, type: $("#type").value, taxCode: $("#taxCode").value, city: $("#city").value.trim(), state: $("#state").value.trim(), q: $("#q").value.trim() }).toString();
+
+    function renderQuick() {
+      const picks = [["This month", monthRange(0)], ["Last month", monthRange(-1)], ["This quarter", quarterRange(0)], ["Last quarter", quarterRange(-1)], ["Year to date", [today().slice(0, 4) + "-01-01", today()]], ["Last year", [`${Number(today().slice(0, 4)) - 1}-01-01`, `${Number(today().slice(0, 4)) - 1}-12-31`]]];
+      $("#quick").innerHTML = picks.map(([l, [a, b]]) => `<button type="button" data-from="${a}" data-to="${b}">${l}</button>`).join("");
+      $("#quick").querySelectorAll("button").forEach((b) => (b.onclick = () => { $("#from").value = b.dataset.from; $("#to").value = b.dataset.to; run(); }));
+    }
+    async function renderCoverage() {
+      try {
+        const s = await api("/api/tax-report/status");
+        $("#cover").innerHTML = s.invoices ? `Posted invoices on file: <b>${s.invoices.toLocaleString()}</b> from ${esc(s.firstPosted)} to ${esc(s.lastPosted)} · ${s.months.length} months · last feed ${esc(s.lastReceivedAt ? new Date(s.lastReceivedAt).toLocaleString("en-US") : "—")}${s.last?.error ? ` · <span style="color:var(--bad)">last bundle failed: ${esc(s.last.error)}</span>` : ""}` : `<span style="color:var(--bad)">No posted invoices on file yet</span> — the ePASS pull needs to run with <span class="mono">-TaxBackfill</span> once (then the 6:00 pull keeps the last three months fresh).`;
+      } catch (e) { $("#cover").textContent = e.message; }
+    }
+    function tile(label, value, sub, cls = "") { return `<div class="tile ${cls}"><span>${esc(label)}</span><b>${value}</b>${sub ? `<small>${sub}</small>` : ""}</div>`; }
+    function render() {
+      const t = R.totals;
+      $("#tiles").hidden = false; $("#groups").hidden = false; $("#rowsec").hidden = false; $("#export").disabled = !R.rows.length;
+      $("#tiles").innerHTML = tile("Invoices posted", t.invoices.toLocaleString()) + tile("Gross (pre-tax)", "$" + money(t.gross), `serial ${money(t.serial)} · items ${money(t.item)} · labor ${money(t.labor)} · misc ${money(t.misc)}`) +
+        tile("Taxable base", "$" + money(t.taxableBase), "lines flagged Tax2") + tile("Exempt base", "$" + money(t.exemptBase), "lines not flagged") +
+        tile("Tax2 collected", "$" + money(t.tax2), `rate on taxable ${pct(t.rateOnTaxable)}`) + tile("All tax collected", "$" + money(t.taxTotal), `tax1 ${money(t.tax1)} · tax3 ${money(t.tax3)} · ${pct(t.effectiveRate)} of gross`);
+      const missing = R.coverage.filter((c) => !c.invoices); const months = new Set(R.coverage.map((c) => c.month));
+      const want = []; { const d = new Date(R.from + "T12:00:00Z"); while (d.toISOString().slice(0, 10) <= R.to) { want.push(d.toISOString().slice(0, 7)); d.setUTCMonth(d.getUTCMonth() + 1); } }
+      const gaps = want.filter((m) => !months.has(m));
+      setStatus(gaps.length ? `No posted invoices on file for ${gaps.join(", ")} — the tax feed has not covered ${gaps.length === 1 ? "that month" : "those months"}; run the pull with -TaxSince for the range before using these totals.` : `${t.invoices.toLocaleString()} invoices posted ${R.from} → ${R.to}.`, gaps.length ? "warn" : "ok");
+      const gtable = (rows, label) => `<thead><tr><th>${esc(label)}</th><th class="num">Invoices</th><th class="num">Gross</th><th class="num">Taxable</th><th class="num">Tax2</th><th class="num">All tax</th></tr></thead><tbody>${rows.map((g) => `<tr><td>${esc(g.key)}</td><td class="num">${g.invoices}</td><td class="num">${money(g.gross)}</td><td class="num">${money(g.taxableBase)}</td><td class="num">${money(g.tax2)}</td><td class="num">${money(g.taxTotal)}</td></tr>`).join("")}</tbody>`;
+      $("#byCity").innerHTML = gtable(R.byCity, "City");
+      $("#byType").innerHTML = gtable([...R.byType.map((g) => ({ ...g, key: "type " + g.key })), ...R.byTaxCode.map((g) => ({ ...g, key: "code " + g.key }))], "Group");
+      $("#rowN").textContent = R.rows.length.toLocaleString();
+      $("#rows").innerHTML = `<thead><tr><th>DatePosted</th><th>Sales Invoice</th><th>Ship-to first</th><th>Ship-to last</th><th>Bill-to first</th><th>Bill-to last</th><th>SoldToCity</th><th>SoldToState</th><th>Tax2Code</th><th class="num">Tax2Total</th><th class="num">GrossTotal</th><th>Type</th><th class="num">Taxable</th><th class="num">Exempt</th><th class="num">Tax1</th><th class="num">Tax3</th><th class="num">Rate</th><th>Bill-to</th></tr></thead>
+        <tbody>${R.rows.map((r) => `<tr data-inv="${esc(r.invoice)}"><td class="mono">${mmddyy(r.datePosted)}</td><td class="mono">${esc(r.invoice)}</td><td>${esc(r.shipFirst)}</td><td>${esc(r.shipLast)}</td><td>${esc(r.billFirst)}</td><td>${esc(r.billLast)}</td><td>${esc(r.city)}</td><td>${esc(r.state)}</td><td>${esc(r.tax2Code)}${r.exempt.tax2 ? ' <span class="chip ex">exempt</span>' : ""}</td><td class="num">${money(r.tax2)}</td><td class="num">${money(r.gross)}</td><td>${esc(r.type)}</td><td class="num">${r.taxableBase == null ? "—" : money(r.taxableBase)}</td><td class="num">${r.exemptBase == null ? "—" : money(r.exemptBase)}</td><td class="num">${money(r.tax1)}</td><td class="num">${money(r.tax3)}</td><td class="num">${pct(r.effectiveRate)}</td><td>${esc([r.billCity, r.billState].filter(Boolean).join(", "))}</td></tr>`).join("")}
+        <tr class="tot"><td colspan="9">Totals</td><td class="num">${money(t.tax2)}</td><td class="num">${money(t.gross)}</td><td></td><td class="num">${money(t.taxableBase)}</td><td class="num">${money(t.exemptBase)}</td><td class="num">${money(t.tax1)}</td><td class="num">${money(t.tax3)}</td><td class="num">${pct(t.effectiveRate)}</td><td></td></tr></tbody>`;
+      $("#rows").querySelectorAll("tr[data-inv]").forEach((tr) => (tr.onclick = () => openInvoice(tr.dataset.inv)));
+    }
+    async function openInvoice(code) {
+      const ov = document.createElement("div"); ov.className = "overlay"; ov.innerHTML = `<div class="drawer" role="dialog"><h2>${esc(code)}</h2><div class="sub">loading…</div></div>`;
+      document.body.append(ov); ov.onclick = (e) => { if (e.target === ov) ov.remove(); };
+      try {
+        const inv = await api(`/api/tax-report/invoice/${encodeURIComponent(code)}`);
+        ov.querySelector(".drawer").innerHTML = `<div style="display:flex;justify-content:space-between;align-items:flex-start"><div><h2>${esc(inv.invoice)} <span class="chip">${esc(inv.type)}</span></h2><div class="sub">Ship-to ${esc(inv.shipName || "—")} · ${esc([inv.city, inv.state, inv.zip].filter(Boolean).join(" "))}${inv.billName && inv.billName !== inv.shipName ? ` · Bill-to ${esc(inv.billName)}` : ""} · posted ${esc(inv.datePosted)} · ${esc(inv.tax2Code)}${inv.tax2Pct != null ? ` ${inv.tax2Pct}%` : ""}${inv.jurisdiction ? " · " + esc(inv.jurisdiction) : ""}</div></div><button data-x>Close</button></div>
+          <div class="tiles" style="grid-template-columns:repeat(3,1fr)">${tile("Gross", "$" + money(inv.gross))}${tile("Taxable base", "$" + money(inv.taxableBase))}${tile("Tax2", "$" + money(inv.tax2), `rate ${pct(inv.effectiveRate)}`)}</div>
+          <div class="scroll"><table><thead><tr><th>Kind</th><th>Code</th><th>Description</th><th class="num">Qty</th><th class="num">Total</th><th>Tax1</th><th>Tax2</th><th>Tax3</th></tr></thead><tbody>${inv.lineItems.map((l) => `<tr><td>${esc(l.kind)}</td><td class="mono">${esc(l.code)}</td><td>${esc(l.desc)}${l.warranty ? ' <span class="chip">wty</span>' : ""}</td><td class="num">${l.qty}</td><td class="num">${money(l.total)}</td><td>${l.tax1 ? "✓" : ""}</td><td>${l.tax2 ? "✓" : ""}</td><td>${l.tax3 ? "✓" : ""}</td></tr>`).join("") || `<tr><td colspan="8" class="empty">No lines in the feed for this invoice.</td></tr>`}</tbody></table></div>`;
+        ov.querySelector("[data-x]").onclick = () => ov.remove();
+      } catch (e) { ov.querySelector(".sub").textContent = e.message; }
+    }
+    async function run() {
+      if (!$("#from").value || !$("#to").value) return setStatus("Pick a posted-date range.", "error");
+      $("#run").disabled = true; setStatus("Running…", "ok");
+      try { R = await api(`/api/tax-report?${params()}`); render(); } catch (e) { setStatus(e.message, "error"); } finally { $("#run").disabled = false; }
+    }
+    $("#run").onclick = run;
+    $("#export").onclick = () => { window.location.href = `/api/tax-report/export.xlsx?${params()}`; };
+    ["#from", "#to", "#type", "#taxCode", "#city", "#state", "#q"].forEach((s) => $(s).addEventListener("keydown", (e) => { if (e.key === "Enter") run(); }));
+    (function init() { const [a, b] = monthRange(-1); $("#from").value = a; $("#to").value = b; renderQuick(); renderCoverage(); run(); })();
+  </script>
+</body>
+</html>

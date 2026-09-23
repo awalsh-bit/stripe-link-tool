@@ -121,7 +121,7 @@ import {
 } from "./lib/steelcod.js";
 import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
 import multer from "multer";
-import { read as readWorkbook, utils as xlsxUtils } from "xlsx";
+import { read as readWorkbook, utils as xlsxUtils, write as writeWorkbook } from "xlsx";
 import {
   findOrCreateCandidate,
   createPhoneScreen,
@@ -220,6 +220,7 @@ import { finishedTicketsFromFeed, salespersonNamesFromFeed, ticketsByMonth, open
 import { loadWarrantyTerms, lookupWarranty, warrantyTermsSummary } from "./lib/warranty-terms.js";
 import { getFieldRoute, markEnroute, markArrived, submitOutcome, listVerifyQueue, verifyParts, getFindingsForSv, stopContext, addFieldNote, savePhoto as saveFieldPhoto, getPhoto as getFieldPhoto, flagModel, listModelFlags, reviewModelFlag, dayDollars, autoLaborLines } from "./lib/service-field-postgres.js";
 import { ensureJourneyToken, resolveJourney, journeyTokenFor } from "./lib/journey-tracker-postgres.js";
+import { processTaxBundle, taxStatus, taxReport, taxInvoiceLines } from "./lib/tax-report-postgres.js";
 import { resolveRole, roleEmails, hasRole, listRoles as listServiceRoles, setRole as setServiceRole, ROLES as SERVICE_ROLES } from "./lib/service-roles.js";
 import { processCatalogueBundle, catalogueStatus, customerHistory as catalogueCustomerHistory, callDetail as catalogueCallDetail, modelInsight as catalogueModelInsight, laborRateOptions } from "./lib/epass-catalogue-postgres.js";
 import {
@@ -744,6 +745,7 @@ const INTERNAL_PAGE_PATHS = new Set([
   "/service-office.html",
   "/warranty-terms.html",
   "/service-field.html",
+  "/tax-report.html",
   "/satisfaction-results.html",
   "/case-visit-survey.html",
   "/case-visit-results.html",
@@ -847,6 +849,7 @@ const EVERYONE_PAGE_PATHS = new Set([
 // 2026-09-17: the whole tool (statements, posting, overrides, balance
 // check) rides on the /commissions.html page grant; executives still pass.
 const EXECUTIVE_ONLY_PAGE_PATHS = new Set([
+  "/tax-report.html", // sales tax audit report (Andrew 9/23: executives only)
   "/user-admin.html",
   "/send-notification.html",
   "/audit-log.html",
@@ -993,6 +996,7 @@ const PAGE_LABELS = {
   "/service-office.html": "Service Office Queues",
   "/warranty-terms.html": "Warranty Terms Reference",
   "/service-field.html": "Tech Field Tool",
+  "/tax-report.html": "Sales Tax Report",
   "/satisfaction-results.html": "Satisfaction Results",
   "/case-visit-survey.html": "Case Visit Survey",
   "/case-visit-results.html": "Case Visit Results",
@@ -9391,6 +9395,9 @@ let lastFinishedPostProcessing = null;
 // epass-service-catalogue bundle (daily 6:00 top-up + one-time backfill)
 let epassCatalogueChain = Promise.resolve();
 let lastCataloguePostProcessing = null;
+// epass-tax bundle (posted invoices + lines with tax flags; Tax Report)
+let epassTaxChain = Promise.resolve();
+let lastTaxPostProcessing = null;
 // Finished orders (Andrew, 9/22: "replace the OE-23 warehouse too"): the
 // epass-finished-orders bundle (hourly, own outbox since the 16:30 timeout)
 // becomes the same tickets the OE-23 parser produced → sales_order_detail +
@@ -9620,6 +9627,23 @@ app.post("/api/epass-agent/upload", express.raw({ type: () => true, limit: "60mb
       return res.json({ ok: true, kind, rows, since: bundle.catalogueSince || "", until: bundle.catalogueUntil || "", postProcessing: "running", pulledAt });
     }
 
+    // Fifth bundle: posted invoices + lines with tax flags (the Tax Report).
+    if (kind === "epass-tax") {
+      let bundle;
+      try { bundle = JSON.parse(req.body.toString("utf8").replace(/^\uFEFF/, "")); } catch { return res.status(400).json({ error: "Not a JSON bundle from epass-odbc-pull.ps1." }); }
+      if (!bundle || typeof bundle !== "object" || !bundle.datasets) return res.status(400).json({ error: "Bundle has no datasets." });
+      const rows = Array.isArray(bundle.datasets["tax-invoices"]) ? bundle.datasets["tax-invoices"].length : 0;
+      const ip = req.ip, pulledAt = bundle.pulledAt || "", machine = bundle.machine || "";
+      epassTaxChain = epassTaxChain.catch(() => {}).then(async () => {
+        try {
+          const counts = await processTaxBundle(bundle, { filename: sourceFile });
+          lastTaxPostProcessing = { finishedAt: new Date().toISOString(), pulledAt, filename: sourceFile.slice(0, 120), since: bundle.taxSince || "", until: bundle.taxUntil || "", ...counts };
+          await recordAudit({ ip, actorUserId: null, action: "epass_tax_received", targetUserId: null, detail: { ...counts, since: bundle.taxSince || "", until: bundle.taxUntil || "", pulledAt, machine, filename: sourceFile.slice(0, 120), via: "epass-agent" } }).catch(() => {});
+        } catch (err) { console.error("Tax bundle failed:", err.message); lastTaxPostProcessing = { finishedAt: new Date().toISOString(), pulledAt, filename: sourceFile.slice(0, 120), error: err.message }; }
+      });
+      return res.json({ ok: true, kind, rows, since: bundle.taxSince || "", until: bundle.taxUntil || "", postProcessing: "running", pulledAt });
+    }
+
     // Same feed, service side: open SV/WTY tickets + labor + parts + comments + notes.
     if (kind === "epass-open-service") {
       const bundle = parseOpenServiceBundle(req.body);
@@ -9652,7 +9676,7 @@ app.post("/api/epass-agent/upload", express.raw({ type: () => true, limit: "60mb
       return res.json({ ok: true, kind, ...counts, mirror: "running", pulledAt });
     }
 
-    return res.status(400).json({ error: `Unknown upload kind "${kind}" — expected inventory, quotes, open-orders, dispatch, invoices, epass-open-orders, epass-open-service, epass-finished-orders, or epass-service-catalogue.` });
+    return res.status(400).json({ error: `Unknown upload kind "${kind}" — expected inventory, quotes, open-orders, dispatch, invoices, epass-open-orders, epass-open-service, epass-finished-orders, epass-service-catalogue, or epass-tax.` });
   } catch (err) {
     console.error("ePASS agent upload failed:", err.message);
     return res.status(400).json({ error: err.message || "Unable to process that file." });
@@ -9662,7 +9686,7 @@ app.post("/api/epass-agent/upload", express.raw({ type: () => true, limit: "60mb
 // What the ODBC feed last delivered (executives; the CSVs themselves are on
 // W:\Agility\epass\ for everyone in the building).
 app.get("/api/epass/open-orders/status", requireExecutiveApi, async (req, res) => {
-  try { return res.json({ ...(await getEpassOpenOrdersMeta() || {}), postProcessing: lastSalesPostProcessing, finishedOrders: lastFinishedPostProcessing, catalogue: { ...(await catalogueStatus().catch(() => ({}))), last: lastCataloguePostProcessing } }); } catch (err) { return res.status(400).json({ error: err.message }); }
+  try { return res.json({ ...(await getEpassOpenOrdersMeta() || {}), postProcessing: lastSalesPostProcessing, finishedOrders: lastFinishedPostProcessing, catalogue: { ...(await catalogueStatus().catch(() => ({}))), last: lastCataloguePostProcessing }, tax: { ...(await taxStatus().catch(() => ({}))), last: lastTaxPostProcessing } }); } catch (err) { return res.status(400).json({ error: err.message }); }
 });
 app.get("/api/epass/open-orders", requireExecutiveApi, async (req, res) => {
   try { return res.json({ rows: await listEpassOpenOrders({ type: String(req.query.type || ""), q: String(req.query.q || ""), limit: Number(req.query.limit) || 500 }) }); } catch (err) { return res.status(400).json({ error: err.message }); }
@@ -10067,6 +10091,41 @@ app.get("/api/warranty-terms/lookup", requireWarrantyTerms, (req, res) => {
   try {
     const q = req.query || {};
     return res.json(lookupWarranty({ brand: String(q.brand || ""), model: String(q.model || ""), purchaseDate: String(q.purchased || q.purchaseDate || ""), product: String(q.product || ""), asOf: /^\d{4}-\d{2}-\d{2}$/.test(String(q.asOf || "")) ? String(q.asOf) : "" }));
+  } catch (err) { return res.status(400).json({ error: err.message }); }
+});
+
+// ---- Sales Tax Report (Accounting, executives) — tax-report.html ----------
+// The Crystal TAX REPORT rebuilt on the epass-tax bundle (lib/tax-report-postgres.js).
+const requireTaxReport = [requirePagePermission("/tax-report.html"), requireExecutiveApi];
+app.get("/api/tax-report/status", requireTaxReport, async (req, res) => {
+  try { return res.json({ ...(await taxStatus()), last: lastTaxPostProcessing }); } catch (err) { return res.status(400).json({ error: err.message }); }
+});
+app.get("/api/tax-report", requireTaxReport, async (req, res) => {
+  try {
+    const out = await taxReport({ from: String(req.query.from || ""), to: String(req.query.to || ""), type: String(req.query.type || ""), city: String(req.query.city || ""), state: String(req.query.state || ""), taxCode: String(req.query.taxCode || ""), q: String(req.query.q || "") });
+    sjAudit(req, "tax_report_run", { from: out.from, to: out.to, invoices: out.totals.invoices, tax2: out.totals.tax2 });
+    return res.json(out);
+  } catch (err) { return res.status(400).json({ error: err.message }); }
+});
+app.get("/api/tax-report/invoice/:code", requireTaxReport, async (req, res) => {
+  try { const inv = await taxInvoiceLines(req.params.code); if (!inv) return res.status(404).json({ error: "Not in the tax feed." }); return res.json(inv); } catch (err) { return res.status(400).json({ error: err.message }); }
+});
+// Excel export: sheet 1 is Crystal's seven columns in Crystal's order (so
+// it drops into the audit workbook as before), sheet 2 the full detail,
+// sheet 3 totals by city.
+app.get("/api/tax-report/export.xlsx", requireTaxReport, async (req, res) => {
+  try {
+    const out = await taxReport({ from: String(req.query.from || ""), to: String(req.query.to || ""), type: String(req.query.type || ""), city: String(req.query.city || ""), state: String(req.query.state || ""), taxCode: String(req.query.taxCode || ""), q: String(req.query.q || "") });
+    const wb = xlsxUtils.book_new();
+    xlsxUtils.book_append_sheet(wb, xlsxUtils.json_to_sheet(out.rows.map((r) => ({ DatePosted: r.datePosted, "Sales Invoice": r.invoice, ShipToFirstName: r.shipFirst, ShipToLastName: r.shipLast, BillToFirstName: r.billFirst, BillToLastName: r.billLast, SoldToCity: r.city, SoldToState: r.state, Tax2Code: r.tax2Code, Tax2Total: r.tax2, GrossTotal: r.gross }))), "TAX REPORT");
+    xlsxUtils.book_append_sheet(wb, xlsxUtils.json_to_sheet(out.rows.map((r) => ({ DatePosted: r.datePosted, Invoice: r.invoice, Type: r.type, ShipToFirstName: r.shipFirst, ShipToLastName: r.shipLast, BillToFirstName: r.billFirst, BillToLastName: r.billLast, CustomerCode: r.customerCode, SoldToCity: r.city, SoldToState: r.state, SoldToZip: r.zip, BillToCity: r.billCity, BillToState: r.billState, BillToZip: r.billZip, Jurisdiction: r.jurisdiction, Tax2Code: r.tax2Code, Tax2Pct: r.tax2Pct, Tax2Exempt: r.exempt.tax2 ? "Y" : "", Serial: r.serial, Items: r.item, Labor: r.labor, Misc: r.misc, Warranty: r.wty, GrossTotal: r.gross, TaxableBase: r.taxableBase, ExemptBase: r.exemptBase, Tax1Total: r.tax1, Tax2Total: r.tax2, Tax3Total: r.tax3, TaxTotal: r.taxTotal, EffectiveRatePct: r.effectiveRate, PaymentType: r.paymentType, Salesperson: r.salesperson, Department: r.department, Lines: r.lines }))), "Detail");
+    xlsxUtils.book_append_sheet(wb, xlsxUtils.json_to_sheet(out.byCity.map((c) => ({ City: c.key, Invoices: c.invoices, GrossTotal: c.gross, TaxableBase: c.taxableBase, Tax2Total: c.tax2, TaxTotal: c.taxTotal }))), "By city");
+    xlsxUtils.book_append_sheet(wb, xlsxUtils.json_to_sheet([{ From: out.from, To: out.to, Invoices: out.totals.invoices, GrossTotal: out.totals.gross, TaxableBase: out.totals.taxableBase, ExemptBase: out.totals.exemptBase, Tax1Total: out.totals.tax1, Tax2Total: out.totals.tax2, Tax3Total: out.totals.tax3, TaxTotal: out.totals.taxTotal, EffectiveRatePct: out.totals.effectiveRate, RateOnTaxablePct: out.totals.rateOnTaxable, RunAt: new Date().toISOString(), RunBy: sjMe(req).email }]), "Totals");
+    const buf = writeWorkbook(wb, { type: "buffer", bookType: "xlsx" });
+    sjAudit(req, "tax_report_exported", { from: out.from, to: out.to, invoices: out.totals.invoices });
+    res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+    res.setHeader("Content-Disposition", `attachment; filename="tax-report_${out.from}_${out.to}.xlsx"`);
+    return res.end(buf);
   } catch (err) { return res.status(400).json({ error: err.message }); }
 });
 
@@ -13884,7 +13943,7 @@ app.get("/api/service-commissions/plans", requireServiceComp, async (req, res) =
   try { return res.json({ plans: await listServiceCompPlans(Number(req.query.year) || new Date().getFullYear()) }); } catch (err) { return res.status(500).json({ error: "Unable to load plans." }); }
 });
 app.post("/api/service-commissions/plans", requireServiceComp, requireExecutiveApi, async (req, res) => {
-  try { const plan = await upsertServiceCompPlan(req.body || {}); scAudit(req, "service_comp_plan_saved", { techCode: plan.techCode, year: plan.year, weeklyQuota: plan.weeklyQuota, targetAnnual: plan.targetAnnual, baseAnnual: plan.baseAnnual }); return res.json({ ok: true, plan }); }
+  try { const plan = await upsertServiceCompPlan(req.body || {}); scAudit(req, "service_comp_plan_saved", { techCode: plan.techCode, year: plan.year, weeklyQuota: plan.weeklyQuota, quarterQuotas: plan.quarterQuotas, targetAnnual: plan.targetAnnual, baseAnnual: plan.baseAnnual }); return res.json({ ok: true, plan }); }
   catch (err) { return res.status(400).json({ error: err.message }); }
 });
 app.post("/api/service-commissions/credits", requireServiceComp, async (req, res) => {

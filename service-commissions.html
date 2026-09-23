@@ -105,7 +105,7 @@
     <section class="surface" id="planBox">
       <h3>Plans <span class="hint" id="planYearLbl"></span></h3>
       <p class="section-note" style="margin-bottom:8px;">One row per tech per year, straight from the Service Dept Quota tab: weekly quota $, target annual compensation, and the base-pay guarantee (blank = 60% of target). Tech code is the ePASS salesperson code on their SV tickets.</p>
-      <div class="scroll"><table class="p"><thead><tr><th>Code</th><th>Name</th><th>Weekly quota</th><th>Target annual</th><th>Base (guarantee)</th><th>Active</th><th></th></tr></thead><tbody id="planBody"></tbody></table></div>
+      <div class="scroll"><table class="p"><thead><tr><th>Code</th><th>Name</th><th>Weekly quota Q1</th><th>Q2</th><th>Q3</th><th>Q4</th><th>Target annual</th><th>Base (guarantee)</th><th>Active</th><th></th></tr></thead><tbody id="planBody"></tbody></table></div>
       <div style="margin-top:8px;"><button type="button" class="quiet tiny" id="planAddRow">+ Add tech</button></div>
       <details id="calBox">
         <summary>Fiscal calendar</summary>
@@ -166,7 +166,7 @@
         $("gHead").innerHTML = `<tr><th class="l">Tech</th><th>Quota / wk</th>${weeks.map((w) => `<th title="${day(w.start)} – ${day(w.end)}">W${w.n}<span class="mini">${md(w.start)}</span></th>`).join("")}<th>To date</th><th>Attain.</th><th>Trending</th><th>At 100%</th></tr>`;
         $("gBody").innerHTML = techs.length ? techs.map((t) => { const s = t.summary; return `<tr>
           <td class="l tech">${esc(t.plan.displayName || t.plan.techCode)}<span class="mini">${esc(t.plan.techCode)} · target ${money(t.plan.targetAnnual)} · base ${money(t.plan.baseAnnual)}</span><a href="my-service-commissions.html?tech=${encodeURIComponent(t.plan.techCode)}&year=${b.year}&quarter=${q.q}">tech view →</a></td>
-          <td>${money(t.plan.weeklyQuota)}</td>
+          <td>${money(t.plan.weeklyQuota)}<span class="mini">Q${q.q}</span></td>
           ${t.weeks.map((w) => `<td class="wk ${w.status === "current" ? "cur" : w.status === "future" ? "fut" : ""}" title="COD labor ${money(w.codLabor)} · parts margin ${money(w.codPartsMargin)} · warranty ${money(w.wtyLabor)}${w.credit ? " · credit " + money(w.credit) : ""} · ${w.tickets} tickets">${w.status === "future" ? "" : `<span class="pct ${pcls(w.pct)}">${pct(w.pct)}</span><span class="mini">${money(w.attainment)}</span>`}</td>`).join("")}
           <td>${money(s.attainmentToDate)}<span class="mini">of ${money(s.quotaToDate)}</span></td>
           <td><span class="pct ${pcls(s.pct)}">${pct(s.pct)}</span><div class="bar"><span style="width:${Math.min(100, Math.round((s.pct || 0) * 100))}%;background:${s.pct == null ? "#9ca3af" : s.pct >= 1 ? "var(--primary)" : s.pct >= 0.6 ? "#f59e0b" : "#dc2626"}"></span></div></td>
@@ -185,7 +185,7 @@
         return `<tr data-plan>
           <td><input class="code" name="techCode" value="${esc(p.techCode || "")}" ${p.techCode ? "readonly" : ""} placeholder="CODE" /></td>
           <td><input class="name" name="displayName" value="${esc(p.displayName || "")}" placeholder="Name" /></td>
-          <td><input name="weeklyQuota" type="number" step="1" value="${p.weeklyQuota ?? ""}" placeholder="2600" /></td>
+          ${[1, 2, 3, 4].map((q) => `<td><input name="q${q}" type="number" step="1" value="${p.quarterQuotas?.[q] ?? ""}" placeholder="${p.weeklyQuota || 2600}" title="Weekly quota for Q${q} (blank = ${p.weeklyQuota ? money(p.weeklyQuota) + " year default" : "no quota"})" style="width:88px" /></td>`).join("")}
           <td><input name="targetAnnual" type="number" step="100" value="${p.targetAnnual ?? ""}" placeholder="75000" /></td>
           <td><input name="baseAnnual" type="number" step="100" value="${p.baseIsDefault || p.baseAnnual == null ? "" : p.baseAnnual}" placeholder="${p.targetAnnual ? Math.round(p.targetAnnual * 0.6) : "60% of target"}" /></td>
           <td style="text-align:center;"><input name="active" type="checkbox" ${p.active !== false ? "checked" : ""} /></td>
@@ -205,7 +205,7 @@
         $("planBody").querySelectorAll("[data-plan-save]").forEach((btn) => btn.addEventListener("click", async () => {
           const tr = btn.closest("tr"); const v = (n) => tr.querySelector(`[name="${n}"]`).value;
           try {
-            await api("/api/service-commissions/plans", { method: "POST", body: JSON.stringify({ techCode: v("techCode"), year: state.board.year, displayName: v("displayName"), weeklyQuota: v("weeklyQuota"), targetAnnual: v("targetAnnual"), baseAnnual: v("baseAnnual"), active: tr.querySelector('[name="active"]').checked }) });
+            await api("/api/service-commissions/plans", { method: "POST", body: JSON.stringify({ techCode: v("techCode"), year: state.board.year, displayName: v("displayName"), quarterQuotas: { 1: v("q1"), 2: v("q2"), 3: v("q3"), 4: v("q4") }, targetAnnual: v("targetAnnual"), baseAnnual: v("baseAnnual"), active: tr.querySelector('[name="active"]').checked }) });
             setStatus(`Plan saved for ${v("techCode").toUpperCase()}.`, "ok"); await load();
           } catch (err) { setStatus(err.message, "error"); }
         }));

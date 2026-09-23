@@ -201,7 +201,7 @@ finished-ticket feed (the same math as the Service Commissions board:
 `svTicketsBetween`) plus today's provisional stops, minus any the feed
 already finished; pace = week-to-date ÷ working days elapsed × working days
 in the week (the tech's `work_days`). The target is the tech's weekly quota
-from Service Commissions, else his 4-week average. Nothing about other techs
+for the current quarter from Service Commissions, else his 4-week average. Nothing about other techs
 is shown. `dayDollars()`.
 
 ## 6. Going back into a finished stop
@@ -249,8 +249,11 @@ placed first whatever the saved layout. `GET /api/service-field/summary`.
    code(s) for `service_manager`, `service_estimator`, `parts_buyer`
    (and `field_tech` if any tech is not on the roster by SP code). Then
    empty the legacy `notify.warranty_so3.emails` list.
-4. Weekly quotas on the Service Commissions page give the techs a target;
-   without one the strip uses their 4-week average.
+4. Weekly quotas on the Service Commissions page give the techs a target —
+   **set by quarter** (Andrew 9/23: "not permanent"): the plan row has a
+   Q1–Q4 weekly quota each; a blank quarter falls back to the year number.
+   The board, the tech view and the field tool all read the current
+   quarter's. Without one the strip uses the 4-week average.
 5. The LaborRate price column is picked by name (`Rate`, `Price`,
    `SellingPrice`, …). If the component list shows *no price* after the
    first catalogue bundle, the column has another name — the raw row is kept

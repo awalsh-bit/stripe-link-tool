@@ -33,6 +33,13 @@
 #                        slice: header + complaint + work performed + unit — the customer history and
 #                        Model Insight behind the tech field tool, the board and the office queues
 #   catalogue-parts / catalogue-labor   those tickets' part lines (price, cost) and labor lines (+ LaborRate description)
+#   tax-invoices         (fifth bundle, epass-tax) every posted invoice, any type, in a DatePosted slice:
+#                        sold-to / bill-to city-state-zip, tax codes, percentages, exempt flags, the five
+#                        pre-tax totals and Tax1/2/3 collected — the Crystal TAX REPORT, without Crystal
+#   tax-models / tax-items / tax-misc / tax-labor   those invoices' lines with their Tax1/2/3 flags, so the
+#                        report can split taxable from exempt dollars per invoice and per city
+#                        Runs on the 6:00 pull (last 3 posted months) — or -TaxBackfill (one bundle per year
+#                        from -TaxBackfillFrom, default 2022) / -TaxSince yyyy-MM-dd [-TaxUntil yyyy-MM-dd]
 #   labor-rates          the whole LaborRate table (the flat-rate book as ePASS holds it) — the field
 #                        tool's component labor picker, priced as ePASS prices it
 #                        Runs daily on the 6:00 pull (tickets finished in the last 21 days) — or, once,
@@ -43,6 +50,9 @@
 #   open-service-comments / open-service-notes
 #   open-service-po-items POItem + PO for parts back-ordered against those tickets (PO, supplier, ETA)
 #   open-service-po-items-by-stamp  the same via InvoiceItem.PODateStamp/POLineTimeStamp (second link path)
+#   open-service-po-items-by-ref / -by-shipto  the same via POItem.Reference and PO.ShipToCode (third/fourth)
+#   open-service-po-items-unreceived  every unreceived PO line with a BO invoice, no Invoice join (fifth)
+#   open-service-parts-pending  every part line on an open ticket still on order, with its link columns (the probe)
 #   service-history     finished SV/WTY invoices, last 3 years, for customers with an open ticket
 #
 # Sensitive columns never leave ePASS: anything whose name matches the
@@ -78,7 +88,17 @@ param(
   # three weeks by itself.
   [switch]$CatalogueBackfill,
   [string]$CatalogueSince = "",
-  [string]$CatalogueUntil = ""
+  [string]$CatalogueUntil = "",
+  # Sales tax bundle (fifth): every POSTED invoice of every type in a
+  # posted-date slice, header + every line with its Tax1/2/3 flags — the
+  # Tax Report page (Accounting, executives). -TaxBackfill writes one bundle
+  # per year from -TaxBackfillFrom (default 2022, the audit window);
+  # -TaxSince / -TaxUntil one slice. Otherwise the 6:00 run refreshes the
+  # last three posted months by itself.
+  [switch]$TaxBackfill,
+  [int]$TaxBackfillFrom = 2022,
+  [string]$TaxSince = "",
+  [string]$TaxUntil = ""
 )
 
 $ErrorActionPreference = "Stop"
@@ -90,10 +110,11 @@ $Outbox    = Join-Path $Root "outbox\epass-open-orders"
 $SvcOutbox = Join-Path $Root "outbox\epass-open-service"
 $FinOutbox = Join-Path $Root "outbox\epass-finished-orders"
 $CatOutbox = Join-Path $Root "outbox\epass-service-catalogue"
+$TaxOutbox = Join-Path $Root "outbox\epass-tax"
 # Own log file: the agent's 10-minute task writes agent.log and Add-Content
 # fails when both hold it (seen 2026-09-21: "being used by another process").
 $LogFile   = Join-Path $Root "odbc.log"
-foreach ($d in @($LatestDir, $SchemaDir, $Outbox, $SvcOutbox, $FinOutbox, $CatOutbox)) { if (-not (Test-Path $d)) { New-Item -ItemType Directory -Path $d -Force | Out-Null } }
+foreach ($d in @($LatestDir, $SchemaDir, $Outbox, $SvcOutbox, $FinOutbox, $CatOutbox, $TaxOutbox)) { if (-not (Test-Path $d)) { New-Item -ItemType Directory -Path $d -Force | Out-Null } }
 
 function Log([string]$msg) {
   $line = "{0}  [odbc] {1}" -f (Get-Date -Format "yyyy-MM-dd HH:mm:ss"), $msg
@@ -463,6 +484,52 @@ INNER JOIN PO p ON pi.POCode = p.Code
 WHERE $svcWhere AND ii.PODateStamp IS NOT NULL
 ORDER BY ii.InvoiceCode, pi.POCode
 "@ (Join-Path $LatestDir "open-service-po-items-by-stamp.csv") "open-service-po-items-by-stamp"
+    # Third and fourth link paths (2026-09-23, after the first two carried
+    # only 21 lines): the buyer's Reference on the PO line, and a PO shipped
+    # to the ticket (PO.ShipToType / ShipToCode). Same columns; the ticket
+    # comes out as BackOrderInvoiceCode so the server treats all four alike.
+    $svcCodes = "SELECT i.Code FROM Invoice i WHERE $svcWhere"
+    $svc.datasets["open-service-po-items-by-ref"] = Export-Query $conn @"
+SELECT pi.POCode, pi.ItemCode, pi.QtyOrdered, pi.QtyReceived, pi.QtyPrevReceived, pi.Ordered, pi.Received, pi.ETADate, pi.DateReceived, pi.Reference AS BackOrderInvoiceCode, pi.SupplierInvoice, pi.Reference,
+       p.SupplierCode, p.SupplierDescription, p.DateCreated AS PO_DateCreated, p.DateOrdered AS PO_DateOrdered, p.DateConfirmed AS PO_DateConfirmed, p.Confirmed AS PO_Confirmed, p.Received AS PO_Received, p.RequestedDeliveryDate AS PO_RequestedDeliveryDate, p.ShipToType, p.Buyer
+FROM POItem pi
+INNER JOIN PO p ON pi.POCode = p.Code
+WHERE pi.Reference IN ($svcCodes)
+ORDER BY pi.Reference, pi.POCode
+"@ (Join-Path $LatestDir "open-service-po-items-by-ref.csv") "open-service-po-items-by-ref"
+    $svc.datasets["open-service-po-items-by-shipto"] = Export-Query $conn @"
+SELECT pi.POCode, pi.ItemCode, pi.QtyOrdered, pi.QtyReceived, pi.QtyPrevReceived, pi.Ordered, pi.Received, pi.ETADate, pi.DateReceived, p.ShipToCode AS BackOrderInvoiceCode, pi.SupplierInvoice, pi.Reference,
+       p.SupplierCode, p.SupplierDescription, p.DateCreated AS PO_DateCreated, p.DateOrdered AS PO_DateOrdered, p.DateConfirmed AS PO_DateConfirmed, p.Confirmed AS PO_Confirmed, p.Received AS PO_Received, p.RequestedDeliveryDate AS PO_RequestedDeliveryDate, p.ShipToType, p.Buyer
+FROM POItem pi
+INNER JOIN PO p ON pi.POCode = p.Code
+WHERE p.ShipToCode IN ($svcCodes)
+ORDER BY p.ShipToCode, pi.POCode
+"@ (Join-Path $LatestDir "open-service-po-items-by-shipto.csv") "open-service-po-items-by-shipto"
+    # Fifth path (2026-09-23, Andrew's PO 39390 screenshot: BO Invoice #
+    # filled, Received 0, ETA 10/1 — yet the first path found 21 lines): every
+    # PO line with a BO invoice that is not received yet, with NO join back to
+    # the Invoice table at all, so a subquery quirk cannot drop rows. Agility
+    # dedupes on ticket|PO|item and only shows lines for tickets on the board.
+    $svc.datasets["open-service-po-items-unreceived"] = Export-Query $conn @"
+SELECT pi.POCode, pi.ItemCode, pi.QtyOrdered, pi.QtyReceived, pi.QtyPrevReceived, pi.Ordered, pi.Received, pi.ETADate, pi.DateReceived, pi.BackOrderInvoiceCode, pi.SupplierInvoice, pi.Reference,
+       p.SupplierCode, p.SupplierDescription, p.DateCreated AS PO_DateCreated, p.DateOrdered AS PO_DateOrdered, p.DateConfirmed AS PO_DateConfirmed, p.Confirmed AS PO_Confirmed, p.Received AS PO_Received, p.RequestedDeliveryDate AS PO_RequestedDeliveryDate, p.ShipToType, p.Buyer
+FROM POItem pi
+INNER JOIN PO p ON pi.POCode = p.Code
+WHERE (pi.BackOrderInvoiceCode LIKE 'SV%' OR pi.BackOrderInvoiceCode LIKE 'WTY%')
+  AND (pi.Received IS NULL OR pi.Received = 0 OR pi.QtyReceived < pi.QtyOrdered)
+ORDER BY pi.BackOrderInvoiceCode, pi.POCode
+"@ (Join-Path $LatestDir "open-service-po-items-unreceived.csv") "open-service-po-items-unreceived"
+    # The probe: every part line on an open ticket that is still on order
+    # (ordered more than shipped), with the columns that could carry its PO
+    # link — so "21 PO lines" can be judged against how many parts are
+    # actually pending, and the missing link path found from the data.
+    $svc.datasets["open-service-parts-pending"] = Export-Query $conn @"
+SELECT ii.InvoiceCode, ii.ItemCode, ii.ItemDesc, ii.QtyOrdered, ii.QtyShipped, ii.QtyReserved, ii.Status, ii.SupplierCode, ii.OrderFromSupplierCode, ii.SupplierInvoice, ii.AutoBackorder, ii.Reference, ii.PODateStamp, ii.POLineTimeStamp, ii.DateCommitted, ii.DateCreated, ii.LocationCode, ii.Installed
+FROM InvoiceItem ii
+INNER JOIN Invoice i ON ii.InvoiceCode = i.Code
+WHERE $svcWhere AND ii.QtyOrdered > ii.QtyShipped
+ORDER BY ii.InvoiceCode
+"@ (Join-Path $LatestDir "open-service-parts-pending.csv") "open-service-parts-pending"
   } catch { Log ("open-service-po-items FAILED (bundle continues without it): {0}" -f $_.Exception.Message); if ($conn.State -ne [System.Data.ConnectionState]::Open) { $conn.Open() } }
 
   # Service history (2026-09-22): the finished SV/WTY invoices of the last
@@ -613,7 +680,7 @@ WHERE $catWhere
 ORDER BY i.DateFinished, i.Code
 "@ (Join-Path $LatestDir "catalogue-history.csv") "catalogue-history $cSince..$cUntil"
       $cat.datasets["catalogue-parts"] = Export-Query $conn @"
-SELECT p.InvoiceCode, p.ItemCode, p.Description, p.QtyOrdered, p.QtyShipped, p.SellingPrice, p.UnitCost, p.Total, p.Warranty, p.Status
+SELECT p.InvoiceCode, p.ItemCode, p.ItemDesc AS Description, p.QtyOrdered, p.QtyShipped, p.SellingPrice, p.UnitCost, p.Total, p.Warranty, p.Status
 FROM InvoiceItem p
 INNER JOIN Invoice i ON p.InvoiceCode = i.Code
 WHERE $catWhere
@@ -639,6 +706,76 @@ SELECT lr.* FROM LaborRate lr ORDER BY lr.Code
       [System.IO.File]::WriteAllText($path, $json, (New-Object System.Text.UTF8Encoding($false)))
       Log ("bundle -> {0} ({1:n0} KB; catalogue {2}..{3})" -f $path, ($json.Length / 1024), $cSince, $cUntil)
     } catch { Log ("service-catalogue {0}..{1} FAILED (the other bundles are unaffected): {2}" -f $cSince, $cUntil, $_.Exception.Message); if ($conn.State -ne [System.Data.ConnectionState]::Open) { $conn.Open() } }
+  }
+
+  # ---- SALES TAX (fifth bundle) -------------------------------------------
+  # Andrew 9/23: the Crystal TAX REPORT (DatePosted, invoice, SoldToCity,
+  # SoldToState, Tax2Code, Tax2Total, GrossTotal) for the sales tax audit,
+  # rebuilt in Agility so accounting can run it. Every POSTED invoice of any
+  # type in a DatePosted slice, with every line and its tax flags. Kind
+  # "epass-tax"; Agility upserts by invoice, so a slice can be pulled again.
+  $taxSlices = @()
+  if ($TaxBackfill) {
+    for ($y = $TaxBackfillFrom; $y -le (Get-Date).Year; $y++) { $taxSlices += ,@("$y-01-01", "$y-12-31") }
+  } elseif ($TaxSince -match '^\d{4}-\d{2}-\d{2}$') {
+    $u = if ($TaxUntil -match '^\d{4}-\d{2}-\d{2}$') { $TaxUntil } else { $today }
+    $taxSlices += ,@($TaxSince, $u)
+  } elseif ((Get-Date).Hour -eq 6 -and (Get-Date).Minute -lt 15) {
+    $taxSlices += ,@((Get-Date -Day 1).AddMonths(-2).ToString("yyyy-MM-dd"), $today)
+  }
+  foreach ($slice in $taxSlices) {
+    $tSince = $slice[0]; $tUntil = $slice[1]
+    $taxWhere = "(i.Void IS NULL OR i.Void = 0) AND i.DatePosted >= '$tSince' AND i.DatePosted <= '$tUntil'"
+    $tax = [ordered]@{
+      pulledAt = (Get-Date).ToString("s")
+      source   = $Dsn
+      machine  = $env:COMPUTERNAME
+      taxSince = $tSince
+      taxUntil = $tUntil
+      datasets = [ordered]@{}
+    }
+    try {
+      $tax.datasets["tax-invoices"] = Export-Query $conn @"
+SELECT i.Code, i.InvTypeCode, i.Status, i.JobStatusCode, i.Department, i.BranchCode, i.DateCreated, i.DateFinished, i.InvFinishDate, i.DatePosted,
+       i.Salesperson1Code, i.PaymentTypeCode, i.Reference, i.PONumber, i.ShipMethod,
+       i.SoldToCode, i.SoldToLastName, i.SoldToFirstName, i.SoldToAddress1, i.SoldToCity, i.SoldToState, i.SoldToZipCode,
+       i.BillToCode, i.BillToLastName, i.BillToFirstName, i.BillToCity, i.BillToState, i.BillToZipCode,
+       i.Tax1Exempt, i.Tax2Exempt, i.Tax3Exempt, i.Tax2Code, i.Tax2Percentage, i.Tax3Percentage, i.TTRJurisdictionCode, i.TTRTaxCalculated, i.OverrideTTR,
+       i.SerialTotal, i.ItemTotal, i.LaborTotal, i.MiscTotal, i.WtyTotal, i.Tax1Total, i.Tax2Total, i.Tax3Total, i.CommittedPaymentTotal
+FROM Invoice i
+WHERE $taxWhere
+ORDER BY i.DatePosted, i.Code
+"@ (Join-Path $LatestDir "tax-invoices.csv") "tax-invoices $tSince..$tUntil"
+      $tax.datasets["tax-models"] = Export-Query $conn @"
+SELECT m.InvoiceCode, m.ModelCode AS LineCode, m.ModelDesc AS LineDesc, m.QtyShipped AS Qty, m.SellingPrice, m.Total, m.Tax1, m.Tax2, m.Tax3, m.Status
+FROM InvoiceModel m INNER JOIN Invoice i ON m.InvoiceCode = i.Code
+WHERE $taxWhere
+ORDER BY m.InvoiceCode
+"@ (Join-Path $LatestDir "tax-models.csv") "tax-models"
+      $tax.datasets["tax-items"] = Export-Query $conn @"
+SELECT p.InvoiceCode, p.ItemCode AS LineCode, p.ItemDesc AS LineDesc, p.QtyShipped AS Qty, p.SellingPrice, p.Total, p.Tax1, p.Tax2, p.Tax3, p.Warranty, p.Status
+FROM InvoiceItem p INNER JOIN Invoice i ON p.InvoiceCode = i.Code
+WHERE $taxWhere
+ORDER BY p.InvoiceCode
+"@ (Join-Path $LatestDir "tax-items.csv") "tax-items"
+      $tax.datasets["tax-misc"] = Export-Query $conn @"
+SELECT x.InvoiceCode, x.MiscCode AS LineCode, x.MiscDesc AS LineDesc, x.Qty, x.SellingPrice, x.Total, x.Tax1, x.Tax2, x.Tax3, x.Warranty
+FROM InvoiceMisc x INNER JOIN Invoice i ON x.InvoiceCode = i.Code
+WHERE $taxWhere
+ORDER BY x.InvoiceCode
+"@ (Join-Path $LatestDir "tax-misc.csv") "tax-misc"
+      $tax.datasets["tax-labor"] = Export-Query $conn @"
+SELECT l.InvoiceCode, l.LaborRateCode AS LineCode, lr.Description AS LineDesc, 1 AS Qty, l.Rate AS SellingPrice, l.Total, l.Tax1, l.Tax2, l.Tax3, l.Warranty, l.TechnicianCode
+FROM InvoiceLabor l INNER JOIN Invoice i ON l.InvoiceCode = i.Code
+LEFT JOIN LaborRate lr ON l.LaborRateCode = lr.Code
+WHERE $taxWhere
+ORDER BY l.InvoiceCode
+"@ (Join-Path $LatestDir "tax-labor.csv") "tax-labor"
+      $json = $tax | ConvertTo-Json -Depth 6 -Compress
+      $path = Join-Path $TaxOutbox ("epass-tax-{0}-{1}.json" -f ($tSince -replace '-', ''), $stamp)
+      [System.IO.File]::WriteAllText($path, $json, (New-Object System.Text.UTF8Encoding($false)))
+      Log ("bundle -> {0} ({1:n0} KB; posted {2}..{3})" -f $path, ($json.Length / 1024), $tSince, $tUntil)
+    } catch { Log ("tax {0}..{1} FAILED (the other bundles are unaffected): {2}" -f $tSince, $tUntil, $_.Exception.Message); if ($conn.State -ne [System.Data.ConnectionState]::Open) { $conn.Open() } }
   }
 }
 finally {

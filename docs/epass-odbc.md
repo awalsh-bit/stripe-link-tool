@@ -297,6 +297,25 @@ backfill. The server rebuilds the OE-23 tickets from these
 (`lib/epass-feed-finished.js`); doc 20 §7b has the column mapping and the
 compare tool for checking it against a real OE-23.
 
+## 8b2. PO link paths for open service tickets (2026-09-23)
+
+The first pull with `open-service-po-items` carried 21 lines against ~90
+open office items, so the service bundle now tries four link paths from a
+ticket's part to a PO line — `POItem.BackOrderInvoiceCode`, the
+`InvoiceItem.PODateStamp/POLineTimeStamp` = `POItem.DateStamp/LineTimeStamp`
+stamps, `POItem.Reference` = ticket, and `PO.ShipToCode` = ticket — all
+shaped alike (the ticket as `BackOrderInvoiceCode`), deduplicated on
+ticket|PO|item, each row tagged with the path that found it. And a probe,
+`open-service-parts-pending`: every part line on an open ticket with
+`QtyOrdered > QtyShipped`, with its link columns (`SupplierCode`,
+`OrderFromSupplierCode`, `AutoBackorder`, `Reference`, `PODateStamp`,
+`DateCommitted`). Service Office Queues' top line reads both: "parts still
+on order: N on M tickets, K linked to a PO line" — if K stays far below N
+after this pull, the pending lines' raw columns (`epass_open_service_parts_pending.raw`)
+show what ePASS actually stores for an ordered part. Column lists came from
+`odbc/PO.csv`, `odbc/POItem.csv`, `odbc/InvoiceItem.csv` (the `-Discover`
+output); `LaborRate`'s price column is `List`.
+
 ## 8c. The service catalogue (2026-09-23)
 
 A fourth bundle, `epass-service-catalogue` (own outbox), carries every
@@ -316,6 +335,33 @@ yyyy-MM-dd]` one slice. Agility upserts by invoice number
 (`lib/epass-catalogue-postgres.js`), so a slice can be pulled again at any
 time. This is what the tech field tool's customer history, Model Insight and
 component labor picker read, and the board's history drawer (doc 22).
+
+## 8d. The sales tax bundle (2026-09-23)
+
+The Crystal TAX REPORT (DatePosted · Sales Invoice · SoldToCity · SoldToState
+· Tax2Code · Tax2Total · GrossTotal, one row per invoice posted in the
+month) rebuilt as Agility's **Sales Tax Report** (Accounting, executives
+only). A sixth bundle, `epass-tax` (own outbox): `tax-invoices` — every
+invoice of any type with `DatePosted` inside the slice, not void, with
+sold-to / bill-to city-state-zip, `Tax2Code`, `Tax2Percentage`,
+`Tax3Percentage`, the three `TaxNExempt` flags, `TTRJurisdictionCode`, the
+five pre-tax totals and `Tax1/2/3Total` — plus `tax-models`, `tax-items`,
+`tax-misc`, `tax-labor` (those invoices' lines, each with its `Tax1/2/3`
+flags, `LineCode` / `LineDesc` / `Qty` / `SellingPrice` / `Total`).
+
+When it runs: by itself on the 6:00 pull (the last three posted months), or
+`-TaxBackfill` (one bundle per year from `-TaxBackfillFrom`, default 2022 —
+the audit window) or `-TaxSince yyyy-MM-dd [-TaxUntil yyyy-MM-dd]`. Agility
+(`lib/tax-report-postgres.js`) upserts by invoice code, derives
+`gross` = Serial + Item + Labor + Misc + Wty totals (Crystal's GrossTotal —
+a $157 diagnostic carries $12.95, 8.25%), and the **taxable / exempt base**
+per invoice from the lines' `Tax2` flag. `/api/tax-report?from&to` and the
+Excel export (`/api/tax-report/export.xlsx`: sheet 1 is Crystal's seven
+columns in Crystal's order — with the auditor's later ask, **ship-to and
+bill-to first and last name** (ePASS `SoldToFirstName/LastName`,
+`BillToFirstName/LastName`, already in the bundle), slotted after the
+invoice number as four separate columns — then Detail, By city, Totals). Every run and
+export is audited (`tax_report_run`, `tax_report_exported`).
 
 ## 9. Service history logic
 

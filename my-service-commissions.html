@@ -128,7 +128,7 @@
         setStatus("", "");
         const t = d.tech, s = t.summary, p = t.plan, q = d.quarter;
         $("title").textContent = `${p.displayName || p.techCode} — Q${q.q} ${d.year}`;
-        $("subtitle").textContent = `Fiscal weeks ${q.firstWeek}–${q.lastWeek} (${day(q.start)} → ${day(q.end)}) · commission check ${day(s.payDate)} · weekly quota ${money(p.weeklyQuota)}`;
+        $("subtitle").textContent = `Fiscal weeks ${q.firstWeek}–${q.lastWeek} (${day(q.start)} → ${day(q.end)}) · commission check ${day(s.payDate)} · Q${q.q} weekly quota ${money(p.weeklyQuota)}`;
         $("qChips").innerHTML = d.quarters.map((x) => `<button type="button" class="chip${x.q === q.q ? " on" : ""}" data-q="${x.q}">Q${x.q}<small style="opacity:.75;margin-left:5px;">${md(x.start)}–${md(x.end)}</small></button>`).join("");
         $("qChips").querySelectorAll(".chip").forEach((c) => c.addEventListener("click", () => { state.quarter = c.dataset.q; state.year = String(d.year); load(); }));
         const proj = s.projectedCommission;

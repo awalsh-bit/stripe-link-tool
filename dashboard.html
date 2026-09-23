@@ -1425,6 +1425,36 @@
         </div>
         <div class="bonus-panels" id="bonusPanels"></div>
       </div>
+      <!-- Tech Field Tool module (Andrew 9/23): the main thing on a tech's
+           dashboard — today's stops, delivered dollars, one tap into the tool. -->
+      <style>
+        .field-hero { display: flex; gap: 18px; flex-wrap: wrap; align-items: flex-start; }
+        .field-hero .metric-value { font-size: 30px; }
+        .field-next { flex: 1 1 220px; background: #f3f6f3; border-radius: 12px; padding: 12px 14px; font-size: 14px; }
+        .field-next b { display: block; font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: #6b7280; margin-bottom: 4px; }
+        .field-bar { height: 8px; border-radius: 999px; background: #eaf0ea; margin: 8px 0 4px; overflow: hidden; max-width: 420px; }
+        .field-bar i { display: block; height: 100%; background: #1f6b35; border-radius: 999px; }
+        .field-open { display: inline-block; margin-top: 12px; background: #1f6b35; color: #fff; text-decoration: none; padding: 12px 20px; border-radius: 10px; font-weight: 700; font-size: 15px; }
+        .field-stops { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; font-size: 13px; color: #374151; }
+        .field-stops span { background: #f3f4f6; border-radius: 999px; padding: 4px 10px; }
+      </style>
+      <div class="card module-card" data-module="field">
+        <div class="module-header">
+          <select class="module-select" aria-label="Module shown in this position"></select>
+          <p class="module-desc" id="fieldDesc">Your route today and how the day is trending in delivered dollars.</p>
+        </div>
+        <div class="field-hero">
+          <div>
+            <div class="metric-label">Delivered today</div>
+            <div class="metric-value" id="fieldToday">—</div>
+            <div class="metric-sub" id="fieldWeek">&nbsp;</div>
+            <div class="field-bar" id="fieldBarWrap" hidden><i id="fieldBar" style="width:0"></i></div>
+            <div class="metric-sub" id="fieldPace">&nbsp;</div>
+          </div>
+          <div class="field-next"><b>Next stop</b><div id="fieldNext">Loading…</div><div class="field-stops" id="fieldStops"></div></div>
+        </div>
+        <a class="field-open" id="fieldOpen" href="service-field.html">Open the Field Tool →</a>
+      </div>
     <div id="internal-shell-footer"></div>
   </div>
 
@@ -2655,6 +2685,7 @@
     // ------------------------------------------------------------------
     (function () {
       const MODULES = {
+        field: "Tech Field Tool",
         queue: "Open Payment Links",
         paid: "Paid History",
         revenue: "Revenue Snapshot",
@@ -2824,6 +2855,16 @@
       }
 
       (async function initModules() {
+        // The field tool module only exists for people who can open the tool;
+        // a service tech gets it first on the dashboard whatever the layout
+        // (Andrew 9/23: "the main thing on their dashboard, or at least easy
+        // to get to").
+        let fieldInfo = null;
+        try {
+          const fr = await fetch("/api/service-field/summary", { credentials: "same-origin" });
+          if (fr.ok) fieldInfo = await fr.json(); else { delete cards.field; document.querySelector('.module-card[data-module="field"]')?.remove(); }
+        } catch { delete cards.field; document.querySelector('.module-card[data-module="field"]')?.remove(); }
+        slots = slots.filter((id) => cards[id]);
         render(); // paint defaults immediately
         try {
           const res = await fetch("/api/auth/session", { credentials: "same-origin" });
@@ -2834,9 +2875,30 @@
             if (saved) slots = [...new Set(saved.filter((id) => cards[id]))].slice(0, MAX_SLOTS);
           }
         } catch {}
+        if (cards.field && fieldInfo?.isTech && !slots.includes("field")) slots = ["field", ...slots].slice(0, MAX_SLOTS);
         render();
+        if (cards.field) window.__renderFieldModule?.(fieldInfo);
       })();
     })();
+  </script>
+  <script>
+    // Tech Field Tool module — filled from /api/service-field/summary
+    window.__renderFieldModule = function (info) {
+      const card = document.querySelector('.module-card[data-module="field"]');
+      if (!card || !info) return;
+      const money = (n) => "$" + (Number(n) || 0).toLocaleString("en-US", { maximumFractionDigits: 0 });
+      const d = info.dollars && !info.dollars.error ? info.dollars : null;
+      if (info.note) { document.getElementById("fieldNext").textContent = info.note; document.getElementById("fieldToday").textContent = "—"; return; }
+      document.getElementById("fieldDesc").textContent = `${info.techName || info.tech} · ${new Date(info.date + "T12:00:00").toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })} · ${info.done} of ${info.stops} stop${info.stops === 1 ? "" : "s"} done`;
+      document.getElementById("fieldToday").textContent = d ? money(d.today) : "—";
+      document.getElementById("fieldWeek").textContent = d ? `${money(d.week.toDate)} this week${d.quota ? ` of ${money(d.quota)} (${Math.round((d.pct || 0) * 100)}%)` : ""}${d.pipeline ? ` · ${money(d.pipeline)} quoted` : ""}` : "";
+      if (d && d.quota) { document.getElementById("fieldBarWrap").hidden = false; document.getElementById("fieldBar").style.width = Math.min(100, Math.round((d.pct || 0) * 100)) + "%"; }
+      document.getElementById("fieldPace").textContent = d ? `Pace ${money(d.pace)}/wk${d.quota ? ` · ${Math.round((d.pacePct || 0) * 100)}% of ${d.quotaSource}` : ""}` : "";
+      const nx = info.next;
+      document.getElementById("fieldNext").innerHTML = nx ? `<strong>${nx.customer || nx.sv}</strong>${nx.city ? " · " + nx.city : ""}${nx.window ? " · " + (nx.window === "AM" ? "8–12" : "12–5") : ""} <span style="color:#6b7280">${nx.status}</span>` : info.stops ? "All stops finished — nice work." : "Nothing on the board for you today.";
+      if (nx) document.getElementById("fieldOpen").href = `service-field.html?sv=${encodeURIComponent(nx.sv)}`;
+      document.getElementById("fieldStops").innerHTML = (d?.stops || []).map((s) => `<span>${s.customer || s.sv}${s.total ? " · " + money(s.total) : s.pipeline ? " · " + money(s.pipeline) + " quoted" : ""}</span>`).join("");
+    };
   </script>
   <script>
     // ------------------------------------------------------------------

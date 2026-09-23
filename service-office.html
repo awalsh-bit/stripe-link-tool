@@ -38,6 +38,8 @@
     .chip.st{background:var(--diag-bg);color:var(--diag)}.chip.wait{background:var(--wait-bg);color:var(--wait)}.chip.bad{background:var(--bad-bg);color:var(--bad)}.chip.good{background:var(--inst-bg);color:var(--inst)}.chip.wty{background:#efe8f8;color:#7a4fb3}
     .age{font-variant-numeric:tabular-nums}
     .vlines{display:grid;gap:.3rem;margin:.3rem 0}.vline{display:grid;grid-template-columns:1.1fr 1.7fr 56px 100px 1.2fr auto;gap:.35rem;align-items:center}.vline input{min-height:34px;padding:.25rem .45rem;font-size:.85rem}.vline .h{font-size:.7rem;text-transform:uppercase;letter-spacing:.05em;color:var(--muted)}
+    .vline.lab{grid-template-columns:110px 1.7fr 100px 1.2fr auto}
+    .flag{border:1px solid var(--line);border-radius:12px;padding:.6rem .8rem;margin:.4rem 0;background:var(--surface)}.flag .why{white-space:pre-wrap;margin:.3rem 0}.flag textarea{width:100%;min-height:70px;font:inherit;border:1px solid var(--line);border-radius:8px;padding:.4rem .6rem}
     @media (max-width:820px){.vline{grid-template-columns:1fr 1fr}}
     .empty{padding:1rem .9rem;color:var(--muted);font-size:.9rem}
     a{color:var(--accent)}
@@ -55,7 +57,8 @@
     <div class="status" id="pageStatus"></div>
     <div class="note" id="poFeed" style="font-size:.78rem;color:var(--muted);margin:.4rem 0 0"></div>
     <div class="tiles" id="tiles"></div>
-    <div class="sec" id="verifysec"><h3><span>Parts verify — tech quotes waiting (SO2)</span><span class="n" id="verifyN">0</span><span class="hint">The tech's parts from the field tool: confirm each price and availability → SO2.1; Noell builds the estimate from there.</span></h3><div id="verify"><div class="empty">Loading…</div></div></div>
+    <div class="sec" id="flagsec" hidden><h3><span>Model flags — from the techs, for the service manager</span><span class="n" id="flagN">0</span><span class="hint">A tech flagged something every tech should know about a model. Publish it as a service bulletin (it shows in the field tool for every call on that model family) or dismiss it.</span></h3><div id="flags"></div></div>
+    <div class="sec" id="verifysec"><h3><span>Parts verify — tech quotes waiting (SO2)</span><span class="n" id="verifyN">0</span><span class="hint">The tech's parts and labor lines from the field tool: confirm each price and availability → SO2.1; the estimator builds the estimate from there.</span></h3><div id="verify"><div class="empty">Loading…</div></div></div>
     <div id="queues"><div class="empty">Loading…</div></div>
     <div id="internal-shell-footer"></div>
   </div>
@@ -131,9 +134,13 @@
             ${lines.map((l) => `<div class="vline"><input data-v="part" value="${esc(l.part || "")}" placeholder="part #" /><input data-v="desc" value="${esc(l.desc || "")}" placeholder="description" /><input data-v="qty" type="number" min="1" value="${esc(l.qty || 1)}" /><input data-v="price" type="number" step="0.01" min="0" value="${l.price != null ? esc(l.price) : ""}" placeholder="0.00" /><input data-v="availability" value="${esc(l.availability || "")}" placeholder="in stock / 3 days / backorder" /><button type="button" data-vrm aria-label="Remove">✕</button></div>`).join("")}
           </div>
           <button type="button" data-vadd>+ line</button>
-          <input type="text" class="note" data-vnote placeholder="note for Noell (supplier, lead time…)" style="width:100%;margin-top:.35rem" />
+          <div class="vlabor" data-vlabor style="margin-top:.5rem">
+            <div class="sub" style="margin-bottom:.2rem"><b>Labor lines</b> from the tech${f?.estMinutes || r.estMinutes ? ` · repair time ${esc(String(f?.estMinutes || r.estMinutes))} min` : ""}${f?.zoneBand ? ` · ${esc(f.zoneBand)}` : ""} — freight is yours to set; the rest is what he quoted</div>
+            ${(f?.labor || []).map((l) => `<div class="vline lab"><input data-l="code" value="${esc(l.code || "")}" placeholder="code" style="max-width:110px" /><input data-l="desc" value="${esc(l.desc || "")}" placeholder="description" /><input data-l="amount" type="number" step="0.01" min="0" value="${l.amount != null ? esc(Number(l.amount).toFixed(2)) : ""}" placeholder="0.00" /><span class="hint">${esc(l.kind)}${l.hours != null ? ` · ${l.hours}h` : ""}${l.book != null ? ` · book $${Number(l.book).toFixed(2)}` : ""}${l.edited ? " · tech edited" : ""}</span><button type="button" data-lrm aria-label="Remove">✕</button></div>`).join("") || `<div class="hint">No labor lines from the field tool.</div>`}
+          </div>
+          <input type="text" class="note" data-vnote placeholder="note for the estimator (supplier, lead time…)" style="width:100%;margin-top:.35rem" />
         </div>
-        <div class="acts"><button class="primary" data-verify="${esc(r.sv)}" title="Prices confirmed — the ticket goes to SO2.1 and Noell builds the estimate">Verified → SO2.1</button></div>
+        <div class="acts"><button class="primary" data-verify="${esc(r.sv)}" title="Prices confirmed — the ticket goes to SO2.1 and the estimator builds the estimate">Verified → SO2.1</button></div>
       </div>`;
     }
     function renderVerify() {
@@ -143,7 +150,7 @@
       $("#verify").innerHTML = vis.length ? vis.map(vrow).join("") : `<div class="empty">No tech quotes waiting.</div>`;
       const lineHtml = () => `<div class="vline"><input data-v="part" placeholder="part #" /><input data-v="desc" placeholder="description" /><input data-v="qty" type="number" min="1" value="1" /><input data-v="price" type="number" step="0.01" min="0" placeholder="0.00" /><input data-v="availability" placeholder="in stock / 3 days / backorder" /><button type="button" data-vrm aria-label="Remove">✕</button></div>`;
       $("#verify").querySelectorAll("[data-vadd]").forEach((b) => (b.onclick = () => { b.previousElementSibling.insertAdjacentHTML("beforeend", lineHtml()); wireRm(); }));
-      const wireRm = () => $("#verify").querySelectorAll("[data-vrm]").forEach((x) => (x.onclick = () => x.closest(".vline").remove()));
+      const wireRm = () => $("#verify").querySelectorAll("[data-vrm], [data-lrm]").forEach((x) => (x.onclick = () => x.closest(".vline").remove()));
       wireRm();
       $("#verify").querySelectorAll("[data-verify]").forEach((b) => (b.onclick = async () => {
         const rowEl = b.closest(".row"); const lines = [...rowEl.querySelectorAll("[data-vlines] .vline")].slice(1).map((l) => ({ part: l.querySelector('[data-v="part"]').value, desc: l.querySelector('[data-v="desc"]').value, qty: l.querySelector('[data-v="qty"]').value, price: l.querySelector('[data-v="price"]').value, availability: l.querySelector('[data-v="availability"]').value })).filter((l) => l.part || l.desc);
@@ -151,17 +158,34 @@
         if (lines.some((l) => l.price === "")) { if (!confirm("Some lines have no price. Verify anyway?")) return; }
         if (!confirm(`${b.dataset.verify}: prices verified?
 
-The ticket goes to SO2.1 and a packet is queued for ePASS; Noell builds the estimate next.`)) return;
+The ticket goes to SO2.1 and a packet is queued for ePASS; the estimator builds the estimate next.`)) return;
         b.disabled = true;
-        try { const out = await api(`/api/service-office/verify/${encodeURIComponent(b.dataset.verify)}`, { method: "POST", body: JSON.stringify({ lines, note: rowEl.querySelector("[data-vnote]").value }) }); setStatus(`${b.dataset.verify} → SO2.1 · ${out.lines.length} line${out.lines.length === 1 ? "" : "s"}${out.partsTotal ? ` · parts $${out.partsTotal.toFixed(2)}` : ""} — over to Noell for the estimate.`, "ok"); await load(); }
+        const row = VROWS.find((x) => x.sv === b.dataset.verify); const orig = row?.finding?.labor || [];
+        const labor = [...rowEl.querySelectorAll("[data-vlabor] .vline.lab")].map((l, i) => ({ ...(orig[i] || {}), code: l.querySelector('[data-l="code"]').value, desc: l.querySelector('[data-l="desc"]').value, amount: l.querySelector('[data-l="amount"]').value }));
+        try { const out = await api(`/api/service-office/verify/${encodeURIComponent(b.dataset.verify)}`, { method: "POST", body: JSON.stringify({ lines, labor, note: rowEl.querySelector("[data-vnote]").value }) }); setStatus(`${b.dataset.verify} → SO2.1 · ${out.lines.length} line${out.lines.length === 1 ? "" : "s"}${out.partsTotal ? ` · parts $${out.partsTotal.toFixed(2)}` : ""}${out.laborTotal ? ` · labor $${out.laborTotal.toFixed(2)}` : ""} — over to the estimator.`, "ok"); await load(); }
         catch (e) { setStatus(e.message, "error"); b.disabled = false; }
+      }));
+    }
+    let FLAGS = { flags: [], canReview: false };
+    function renderFlags() {
+      const pend = FLAGS.flags.filter((f) => f.status === "pending"); const pub = FLAGS.flags.filter((f) => f.status === "published");
+      $("#flagsec").hidden = !pend.length && !pub.length; $("#flagN").textContent = pend.length;
+      const card = (f) => `<div class="flag" data-flag="${f.id}"><div class="who">${esc([f.brand, f.model].filter(Boolean).join(" "))} <span class="chip">${esc(f.familyStem || f.productCode || "family")}</span><span class="chip ${f.status === "published" ? "good" : ""}">${esc(f.status)}</span></div>
+        <div class="sub">${esc(f.techName || f.tech)}${f.sv ? ` · <span class="mono">${esc(f.sv)}</span>` : ""} · ${when(f.at)}${f.reviewedBy ? ` · ${esc(f.status)} by ${esc(f.reviewedBy)}` : ""}</div>
+        <div class="why">${esc(f.why)}</div>${f.bulletin && f.status === "published" ? `<div class="sub"><b>Bulletin:</b> ${esc(f.bulletin)}</div>` : ""}
+        ${FLAGS.canReview ? (f.status === "pending" ? `<textarea data-bulletin placeholder="the bulletin the techs will read (leave blank to publish the tech's words as written)"></textarea><div class="acts" style="margin-top:.3rem"><button class="primary" data-review="publish">Publish bulletin</button><button data-review="dismiss">Dismiss</button></div>` : f.status === "published" ? `<div class="acts" style="margin-top:.3rem"><button data-review="retire">Retire bulletin</button></div>` : "") : ""}</div>`;
+      $("#flags").innerHTML = [...pend, ...pub].map(card).join("");
+      $("#flags").querySelectorAll("[data-review]").forEach((b) => (b.onclick = async () => {
+        const el = b.closest(".flag"); const id = el.dataset.flag; const bulletin = el.querySelector("[data-bulletin]")?.value || "";
+        if (!confirm(`${b.dataset.review} this flag?`)) return; b.disabled = true;
+        try { await api(`/api/service-field/model-flags/${id}/review`, { method: "POST", body: JSON.stringify({ action: b.dataset.review, bulletin }) }); setStatus(`Flag ${b.dataset.review}ed.`, "ok"); FLAGS = await api("/api/service-field/model-flags"); renderFlags(); } catch (e) { setStatus(e.message, "error"); b.disabled = false; }
       }));
     }
     function renderFeed(f) {
       const el = $("#poFeed"); if (!f) { el.textContent = ""; return; }
       el.innerHTML = f.lines ? `ePASS PO lines on file: <b>${f.lines}</b> across ${f.tickets} ticket${f.tickets === 1 ? "" : "s"} · feed pulled ${esc(f.pulledAt || "?")}` : `<span style="color:var(--bad)">No ePASS PO lines on file yet</span> — the last service pull (${esc(f.pulledAt || "?")}) did not carry the <span class="mono">open-service-po-items</span> dataset, or no open ticket's part is linked to a PO line in ePASS. Copy the current <span class="mono">scripts\epass-odbc-pull.ps1</span> to the ePASS server and check its odbc.log for that line.`;
     }
-    async function load() { try { const [d, v] = await Promise.all([api("/api/service-office/parts"), api("/api/service-office/verify").catch(() => ({ rows: [] }))]); ROWS = d.rows || []; VROWS = v.rows || []; renderFeed(d.poFeed); render(); renderVerify(); } catch (e) { setStatus(e.message, "error"); $("#queues").innerHTML = `<div class="empty">${esc(e.message)}</div>`; } }
+    async function load() { try { const [d, v, fl] = await Promise.all([api("/api/service-office/parts"), api("/api/service-office/verify").catch(() => ({ rows: [] })), api("/api/service-field/model-flags").catch(() => ({ flags: [], canReview: false }))]); ROWS = d.rows || []; VROWS = v.rows || []; FLAGS = fl; renderFeed(d.poFeed); render(); renderVerify(); renderFlags(); } catch (e) { setStatus(e.message, "error"); $("#queues").innerHTML = `<div class="empty">${esc(e.message)}</div>`; } }
     $("#q").addEventListener("input", () => { filter = $("#q").value; render(); renderVerify(); });
     $("#reload").onclick = () => load();
     load();

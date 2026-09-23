@@ -297,6 +297,26 @@ backfill. The server rebuilds the OE-23 tickets from these
 (`lib/epass-feed-finished.js`); doc 20 §7b has the column mapping and the
 compare tool for checking it against a real OE-23.
 
+## 8c. The service catalogue (2026-09-23)
+
+A fourth bundle, `epass-service-catalogue` (own outbox), carries every
+finished SV/WTY ticket in a date slice — `catalogue-history` (header +
+`SvcComplaintDesc` + `SvcPerformedDesc` + unit + payer + totals),
+`catalogue-parts` (`InvoiceItem` with `SellingPrice` / `UnitCost`),
+`catalogue-labor` (`InvoiceLabor` + `LaborRate.Description`) — and, on the
+last slice, `labor-rates` (`SELECT lr.* FROM LaborRate`, the flat-rate book
+as ePASS holds it). The slice filter is `InvTypeCode IN ('SV','WTY')`,
+`UPPER(Status) = 'FINISHED'`, not void, `DateFinished` or `InvFinishDate`
+inside the slice.
+
+When it runs: by itself on the 6:00 pull (the last 21 days), or by hand —
+`-CatalogueBackfill` writes one bundle per year since 2005 (run it once,
+off-hours, from `C:\Agility`), `-CatalogueSince yyyy-MM-dd [-CatalogueUntil
+yyyy-MM-dd]` one slice. Agility upserts by invoice number
+(`lib/epass-catalogue-postgres.js`), so a slice can be pulled again at any
+time. This is what the tech field tool's customer history, Model Insight and
+component labor picker read, and the board's history drawer (doc 22).
+
 ## 9. Service history logic
 
 Do not filter finished service history based only on `JobStatusCode`.

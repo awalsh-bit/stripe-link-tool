@@ -499,12 +499,33 @@
         ${sw("notify.route_confirm.enabled", "Text customers on Confirm route", "— off: confirming only locks the day and shows the wording for the office to send by hand.")}
         ${sw("notify.reschedule.enabled", "Text customers on reschedule", "— off: moving a call queues the packet; the office tells the customer.")}
         ${sw("notify.parts_in.enabled", "Text / email customers when their part is in (SO5)", "— by the customer's contact preference; a phone-call preference always goes to Unscheduled with a 'prefers phone call' pill for the office. Off = every SO5 goes to Unscheduled with the pill.")}
-        <div class="who" style="margin-top:6px;">Switches are executive-only and audited. Other tunables live in <code>sj_settings</code> (spec §11).</div>`;
+        <div class="who" style="margin-top:6px;">Switches are executive-only and audited. Other tunables live in <code>sj_settings</code> (spec §11).</div>
+        <div id="rolesDetail" style="margin-top:12px;"><b>Roles by job code</b> <span class="who">— who is the service manager, estimator, parts buyer… is a directory <em>job title code</em>, never a name. Swap the person in User Admin; nothing here changes.</span><div id="rolesBody" class="who">loading…</div></div>`;
+      renderRoles();
       $("settingsDetail").querySelectorAll("[data-sw]").forEach((b) => (b.onclick = async () => {
         const key = b.dataset.sw, next = b.getAttribute("aria-pressed") !== "true";
         if (!confirm(`${next ? "Turn ON" : "Turn OFF"}: ${b.nextElementSibling.querySelector("b").textContent}?`)) return;
         try { await api("/api/service-journey/settings", { method: "POST", body: JSON.stringify({ key, value: next }) }); setStatus(`${key} → ${next ? "on" : "off"}`); await loadOverview(); }
         catch (e) { setStatus(e.message, "error"); }
+      }));
+    }
+    async function renderRoles() {
+      const body = $("rolesBody"); if (!body) return;
+      let d; try { d = await api("/api/service-journey/roles"); } catch (e) { body.textContent = e.message; return; }
+      const titles = d.jobTitles || [];
+      const titleOpts = (sel) => titles.filter((t) => t.code).map((t) => `<option value="${esc(t.code)}" ${sel.includes(String(t.code).toUpperCase()) ? "selected" : ""}>${esc(t.code)} · ${esc(t.name)}</option>`).join("");
+      body.innerHTML = `<table style="width:100%;border-collapse:collapse;margin-top:6px;font-size:13px;"><thead><tr><th style="text-align:left">Role</th><th style="text-align:left">Job codes</th><th style="text-align:left">Holds it now</th><th style="text-align:left">Extra emails (stop-gap)</th><th></th></tr></thead><tbody>
+        ${d.roles.map((r) => `<tr data-role="${esc(r.role)}" style="border-top:1px solid #e5e7eb;vertical-align:top"><td style="padding:6px 4px"><b>${esc(r.label)}</b><div class="who">${esc(r.does)}</div></td>
+          <td style="padding:6px 4px"><select multiple size="3" data-codes style="min-width:170px">${titleOpts(r.jobCodes)}</select></td>
+          <td style="padding:6px 4px">${r.people.length ? r.people.map((p) => `${esc(p.name)} <span class="who">(${esc(p.jobTitleCode)})</span>`).join("<br>") : `<span class="who">nobody by job code</span>`}${r.explicit.length ? `<div class="who">+ ${r.explicit.map(esc).join(", ")}</div>` : ""}</td>
+          <td style="padding:6px 4px"><input data-emails value="${esc(r.explicit.join(", "))}" placeholder="a@… (until the job code is set)" style="min-width:170px" /></td>
+          <td style="padding:6px 4px"><button type="button" class="quiet" data-saverole>Save</button></td></tr>`).join("")}</tbody></table>`;
+      body.querySelectorAll("[data-saverole]").forEach((b) => (b.onclick = async () => {
+        const tr = b.closest("tr"); const role = tr.dataset.role;
+        const jobCodes = [...tr.querySelector("[data-codes]").selectedOptions].map((o) => o.value); const emails = tr.querySelector("[data-emails]").value.split(/[,\s]+/).filter(Boolean);
+        b.disabled = true;
+        try { await api(`/api/service-journey/roles/${role}`, { method: "POST", body: JSON.stringify({ jobCodes, emails }) }); setStatus(`${role}: ${jobCodes.join(", ") || "no job codes"}${emails.length ? " + " + emails.length + " email(s)" : ""}`); await renderRoles(); }
+        catch (e) { setStatus(e.message, "error"); b.disabled = false; }
       }));
     }
     $("dtUpload").addEventListener("click", () => $("dtFile").click());

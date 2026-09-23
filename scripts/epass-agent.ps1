@@ -17,6 +17,7 @@
 #                                       from ePASS via ODBC — no report export needed)
 #   W:\Agility\outbox\epass-open-service <- same, for open SV/WTY tickets (+ labor, parts, comments, notes)
 #   W:\Agility\outbox\epass-finished-orders <- same, finished orders (OE-23 replacement), hourly
+#   W:\Agility\outbox\epass-service-catalogue <- same, finished service tickets + labor rates (history / Model Insight), daily + one-time backfill
 #   W:\Agility\processed\<kind>\    <- files Agility accepted (kept 60 days)
 #   W:\Agility\failed\<kind>\       <- files Agility rejected (bad export?)
 #   W:\Agility\agent.log            <- what happened, when
@@ -53,7 +54,7 @@ $KeepProcessedDays = 60
 $KeepBundleDays = 2
 # ----------------------------------------------------------------------------
 
-$Kinds = @("inventory", "quotes", "open-orders", "dispatch", "invoices", "epass-open-orders", "epass-open-service", "epass-finished-orders")
+$Kinds = @("inventory", "quotes", "open-orders", "dispatch", "invoices", "epass-open-orders", "epass-open-service", "epass-finished-orders", "epass-service-catalogue")
 $LogFile = Join-Path $Root "agent.log"
 
 function Log([string]$msg) {

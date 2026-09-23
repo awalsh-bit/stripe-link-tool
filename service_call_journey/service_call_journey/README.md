@@ -63,3 +63,8 @@ The prototypes open directly in a browser. Nothing is saved between reloads (rou
 ## Status
 
 Blueprint v0.24, Developer Spec v1.17, Phase 0 (Python reference implementation, 89 tests on the real exports), 15 Playwright suites / 499 checks on the prototypes. **The build lives in Agility** — Node + Postgres on Render — where Phase 0 is already ported as `lib/service-journey-postgres.js` (docs 12 and 13). Docs 07 and 11 are the source of truth for intent; doc 12 for where it runs; doc 13 reconciles them; docs 14–17 are the 9/19 testing rounds. Open questions for Wilson are blueprint §14 and spec §12 (items 50–55).
+
+**Standing rule (Andrew, 9/23) — roles by job code, never a person.** Nothing in
+the Agility service journey routes a notification, grants a right, or reads a
+line of copy to a named person. It names a role (`lib/service-roles.js`) and a
+role is a list of directory job title codes. Doc 22 §0.

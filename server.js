@@ -218,8 +218,10 @@ import {
 } from "./lib/revenue-performance-postgres.js";
 import { finishedTicketsFromFeed, salespersonNamesFromFeed, ticketsByMonth, openOrderTicketsFromFeed, compareTickets } from "./lib/epass-feed-finished.js";
 import { loadWarrantyTerms, lookupWarranty, warrantyTermsSummary } from "./lib/warranty-terms.js";
-import { getFieldRoute, markEnroute, markArrived, submitOutcome, listVerifyQueue, verifyParts, getFindingsForSv } from "./lib/service-field-postgres.js";
+import { getFieldRoute, markEnroute, markArrived, submitOutcome, listVerifyQueue, verifyParts, getFindingsForSv, stopContext, addFieldNote, savePhoto as saveFieldPhoto, getPhoto as getFieldPhoto, flagModel, listModelFlags, reviewModelFlag, dayDollars, autoLaborLines } from "./lib/service-field-postgres.js";
 import { ensureJourneyToken, resolveJourney, journeyTokenFor } from "./lib/journey-tracker-postgres.js";
+import { resolveRole, roleEmails, hasRole, listRoles as listServiceRoles, setRole as setServiceRole, ROLES as SERVICE_ROLES } from "./lib/service-roles.js";
+import { processCatalogueBundle, catalogueStatus, customerHistory as catalogueCustomerHistory, callDetail as catalogueCallDetail, modelInsight as catalogueModelInsight, laborRateOptions } from "./lib/epass-catalogue-postgres.js";
 import {
   extractServiceEstimateFromPdf,
   assessPartsQuality,
@@ -9386,6 +9388,9 @@ let epassSalesChain = Promise.resolve(); // sales-bundle extras run one after an
 let lastSalesPostProcessing = null; // what the last sales bundle's extras produced (/api/epass/open-orders/status)
 let epassFinishedChain = Promise.resolve();
 let lastFinishedPostProcessing = null;
+// epass-service-catalogue bundle (daily 6:00 top-up + one-time backfill)
+let epassCatalogueChain = Promise.resolve();
+let lastCataloguePostProcessing = null;
 // Finished orders (Andrew, 9/22: "replace the OE-23 warehouse too"): the
 // epass-finished-orders bundle (hourly, own outbox since the 16:30 timeout)
 // becomes the same tickets the OE-23 parser produced → sales_order_detail +
@@ -9595,6 +9600,26 @@ app.post("/api/epass-agent/upload", express.raw({ type: () => true, limit: "60mb
       return res.json({ ok: true, kind, rows, finishedSince: bundle.finishedSince || "", postProcessing: "running", pulledAt });
     }
 
+    // Fourth bundle: the service catalogue (finished tickets + parts + labor,
+    // and the LaborRate table). Daily top-up or a one-time year-by-year
+    // backfill; upserted by invoice, one bundle at a time.
+    if (kind === "epass-service-catalogue") {
+      let bundle;
+      try { bundle = JSON.parse(req.body.toString("utf8").replace(/^\uFEFF/, "")); } catch { return res.status(400).json({ error: "Not a JSON bundle from epass-odbc-pull.ps1." }); }
+      if (!bundle || typeof bundle !== "object" || !bundle.datasets) return res.status(400).json({ error: "Bundle has no datasets." });
+      const rows = Array.isArray(bundle.datasets["catalogue-history"]) ? bundle.datasets["catalogue-history"].length : 0;
+      const ip = req.ip, pulledAt = bundle.pulledAt || "", machine = bundle.machine || "";
+      epassCatalogueChain = epassCatalogueChain.catch(() => {}).then(async () => {
+        try {
+          const counts = await processCatalogueBundle(bundle, { filename: sourceFile });
+          lastCataloguePostProcessing = { finishedAt: new Date().toISOString(), pulledAt, filename: sourceFile.slice(0, 120), since: bundle.catalogueSince || "", until: bundle.catalogueUntil || "", ...counts };
+          await recordAudit({ ip, actorUserId: null, action: "epass_service_catalogue_received", targetUserId: null,
+            detail: { ...counts, since: bundle.catalogueSince || "", until: bundle.catalogueUntil || "", pulledAt, machine, filename: sourceFile.slice(0, 120), via: "epass-agent" } }).catch(() => {});
+        } catch (err) { console.error("Service catalogue bundle failed:", err.message); lastCataloguePostProcessing = { finishedAt: new Date().toISOString(), pulledAt, filename: sourceFile.slice(0, 120), error: err.message }; }
+      });
+      return res.json({ ok: true, kind, rows, since: bundle.catalogueSince || "", until: bundle.catalogueUntil || "", postProcessing: "running", pulledAt });
+    }
+
     // Same feed, service side: open SV/WTY tickets + labor + parts + comments + notes.
     if (kind === "epass-open-service") {
       const bundle = parseOpenServiceBundle(req.body);
@@ -9627,7 +9652,7 @@ app.post("/api/epass-agent/upload", express.raw({ type: () => true, limit: "60mb
       return res.json({ ok: true, kind, ...counts, mirror: "running", pulledAt });
     }
 
-    return res.status(400).json({ error: `Unknown upload kind "${kind}" — expected inventory, quotes, open-orders, dispatch, invoices, epass-open-orders, epass-open-service, or epass-finished-orders.` });
+    return res.status(400).json({ error: `Unknown upload kind "${kind}" — expected inventory, quotes, open-orders, dispatch, invoices, epass-open-orders, epass-open-service, epass-finished-orders, or epass-service-catalogue.` });
   } catch (err) {
     console.error("ePASS agent upload failed:", err.message);
     return res.status(400).json({ error: err.message || "Unable to process that file." });
@@ -9637,7 +9662,7 @@ app.post("/api/epass-agent/upload", express.raw({ type: () => true, limit: "60mb
 // What the ODBC feed last delivered (executives; the CSVs themselves are on
 // W:\Agility\epass\ for everyone in the building).
 app.get("/api/epass/open-orders/status", requireExecutiveApi, async (req, res) => {
-  try { return res.json({ ...(await getEpassOpenOrdersMeta() || {}), postProcessing: lastSalesPostProcessing, finishedOrders: lastFinishedPostProcessing }); } catch (err) { return res.status(400).json({ error: err.message }); }
+  try { return res.json({ ...(await getEpassOpenOrdersMeta() || {}), postProcessing: lastSalesPostProcessing, finishedOrders: lastFinishedPostProcessing, catalogue: { ...(await catalogueStatus().catch(() => ({}))), last: lastCataloguePostProcessing } }); } catch (err) { return res.status(400).json({ error: err.message }); }
 });
 app.get("/api/epass/open-orders", requireExecutiveApi, async (req, res) => {
   try { return res.json({ rows: await listEpassOpenOrders({ type: String(req.query.type || ""), q: String(req.query.q || ""), limit: Number(req.query.limit) || 500 }) }); } catch (err) { return res.status(400).json({ error: err.message }); }
@@ -9716,12 +9741,14 @@ onServicePartsIn(async ({ job, settings }) => {
 });
 
 // Warranty ticket approved for parts in Agility (SO3, not keyed in ePASS yet):
-// the same flag + email the estimate approvals use, to the people who key
-// ePASS (setting notify.warranty_so3.emails), so the ticket gets updated.
+// the same flag + email the estimate approvals use, to the SERVICE ESTIMATOR
+// role (job code → directory; lib/service-roles.js), so the ticket gets
+// updated. Hard rule (Andrew 9/23): route by job code, never by person.
 onServiceStatusSet(async ({ job, from, to, reasonCode, byName, byEmail }) => {
   if (to !== "SO3" || from === "SO3" || !job?.isWarranty || reasonCode === "keyed_in_epass") return;
   let emails = [];
-  try { const sjs = await getServiceSettings(); emails = Array.isArray(sjs["notify.warranty_so3.emails"]) ? sjs["notify.warranty_so3.emails"].map((e) => String(e || "").trim().toLowerCase()).filter(Boolean) : []; } catch {}
+  try { emails = await roleEmails("service_estimator"); } catch (err) { console.error("service_estimator role failed:", err.message); }
+  if (!emails.length) console.warn("Warranty SO3 flag: nobody holds the service_estimator role — set roles.service_estimator.job_codes.");
   const title = `Warranty ${job.svNumber} — ${job.customerName || "customer"} approved for parts (SO3): set SO3 in ePASS`;
   const body = `${byName || byEmail || "Agility"} moved the warranty ticket to SO3 in Agility. Key SO3 (and the parts) into ePASS; the next feed confirms it.`;
   for (const email of emails) {
@@ -9837,6 +9864,20 @@ app.post("/api/service-journey/import/dispatch", requireServiceJourney, (req, re
       return res.json({ ok: true, ...result });
     } catch (error) { console.error("Service journey import failed:", error.message); return res.status(400).json({ error: error.message || "Unable to import that file." }); }
   });
+});
+// Roles by JOB CODE (lib/service-roles.js): who is the service manager /
+// estimator / parts buyer … is a directory job code, never a name.
+app.get("/api/service-journey/roles", requireServiceJourney, async (req, res) => {
+  try { return res.json({ roles: await listServiceRoles(), jobTitles: await listJobTitles().catch(() => []) }); } catch (err) { return res.status(400).json({ error: err.message }); }
+});
+app.post("/api/service-journey/roles/:role", requireServiceJourney, async (req, res) => {
+  try {
+    if (!isExecutiveUser(req.authUser)) return res.status(403).json({ error: "Executives only." });
+    if (!SERVICE_ROLES[req.params.role]) return res.status(400).json({ error: "Unknown role." });
+    const out = await setServiceRole(req.params.role, { jobCodes: Array.isArray(req.body?.jobCodes) ? req.body.jobCodes : null, emails: Array.isArray(req.body?.emails) ? req.body.emails : null });
+    sjAudit(req, "service_role_set", { role: req.params.role, jobCodes: out.jobCodes, emails: out.explicit });
+    return res.json(out);
+  } catch (err) { return res.status(400).json({ error: err.message }); }
 });
 app.post("/api/service-journey/settings", requireServiceJourney, async (req, res) => {
   try {
@@ -10038,10 +10079,14 @@ async function fieldTechFor(req, wanted) {
   let mine = "";
   try { const entry = await findEmployeeDirectoryEntryByEmail(me.email); mine = String(entry?.code || "").trim().toUpperCase(); } catch {}
   const techs = await listServiceTechs().catch(() => []);
-  const canPick = isExecutiveUser(req.authUser) || !mine || !techs.some((t) => t.code === mine);
+  const onRoster = !!mine && techs.some((t) => t.code === mine);
+  // a field tech is someone on the tech roster, or anyone holding the
+  // field_tech role (job code) — never a named person
+  const isTech = onRoster || await hasRole(me.email, "field_tech").catch(() => false);
+  const canPick = isExecutiveUser(req.authUser) || !onRoster;
   const want = String(wanted || "").trim().toUpperCase();
   const tech = canPick ? (want || mine || (techs[0]?.code || "")) : mine;
-  return { tech, mine, canPick, techs: techs.filter((t) => t.active !== false).map((t) => ({ code: t.code, name: t.name })) };
+  return { tech, mine, isTech, canPick, techs: techs.filter((t) => t.active !== false).map((t) => ({ code: t.code, name: t.name })) };
 }
 app.get("/api/service-field/route", requireServiceField, async (req, res) => {
   try {
@@ -10060,13 +10105,109 @@ app.post("/api/service-field/:sv/arrived", requireServiceField, async (req, res)
 app.post("/api/service-field/:sv/outcome", requireServiceField, async (req, res) => {
   try {
     const me = sjMe(req); const b = req.body || {};
-    const out = await submitOutcome({ sv: req.params.sv, tech: String(b.tech || ""), outcome: String(b.outcome || ""), findings: String(b.findings || ""), parts: b.parts, laborNote: String(b.laborNote || ""), by: me.email, byName: me.name });
-    sjAudit(req, "service_field_outcome", { sv: req.params.sv, outcome: b.outcome, status: out.status, parts: Array.isArray(b.parts) ? b.parts.length : 0 });
+    const out = await submitOutcome({ sv: req.params.sv, tech: String(b.tech || ""), outcome: String(b.outcome || ""), findings: String(b.findings || ""), parts: b.parts, labor: b.labor, laborNote: String(b.laborNote || ""), minutes: b.minutes, photos: b.photos, serialTagPhotoId: b.serialTagPhotoId || null, amend: !!b.amend, by: me.email, byName: me.name });
+    sjAudit(req, "service_field_outcome", { sv: req.params.sv, outcome: b.outcome, status: out.status, parts: Array.isArray(b.parts) ? b.parts.length : 0, labor: Array.isArray(b.labor) ? b.labor.length : 0, estMinutes: out.estMinutes, amend: !!b.amend });
+    return res.json(out);
+  } catch (err) { return res.status(400).json({ error: err.message }); }
+});
+// Going back into a finished stop: a note (any time) — a changed outcome goes
+// through /outcome with amend:true.
+app.post("/api/service-field/:sv/note", requireServiceField, async (req, res) => {
+  try {
+    const me = sjMe(req); const b = req.body || {};
+    const out = await addFieldNote({ sv: req.params.sv, tech: String(b.tech || ""), note: String(b.note || ""), photos: b.photos, by: me.email });
+    sjAudit(req, "service_field_note", { sv: req.params.sv });
     return res.json(out);
   } catch (err) { return res.status(400).json({ error: err.message }); }
 });
 app.get("/api/service-field/:sv/findings", requireServiceField, async (req, res) => {
   try { return res.json({ findings: await getFindingsForSv(req.params.sv) }); } catch (err) { return res.status(400).json({ error: err.message }); }
+});
+// Everything behind a stop: past calls here, Model Insight, bulletins, the
+// serial-tag status, the auto labor lines and the pricing constants.
+app.get("/api/service-field/:sv/context", requireServiceField, async (req, res) => {
+  try { return res.json(await stopContext(req.params.sv)); } catch (err) { return res.status(400).json({ error: err.message }); }
+});
+app.get("/api/service-field/:sv/labor", requireServiceField, async (req, res) => {
+  try { return res.json(await autoLaborLines(req.params.sv)); } catch (err) { return res.status(400).json({ error: err.message }); }
+});
+// Photos from the truck (serial tag, anything relevant): Postgres bytea like
+// the request-form photos; the page shrinks them to ≤1600px JPEG first.
+const fieldPhotoUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 8 * 1024 * 1024, files: 1 } });
+app.post("/api/service-field/photo", requireServiceField, fieldPhotoUpload.single("photo"), async (req, res) => {
+  try {
+    const file = req.file;
+    if (!file || !file.buffer?.length) return res.status(400).json({ error: "No photo received." });
+    if (!/^image\//.test(String(file.mimetype || ""))) return res.status(400).json({ error: "Photos only." });
+    const me = sjMe(req);
+    const saved = await saveFieldPhoto({ sv: String(req.body?.sv || ""), serial: String(req.body?.serial || ""), kind: String(req.body?.kind || "photo"), contentType: file.mimetype, buffer: file.buffer, tech: String(req.body?.tech || ""), by: me.email });
+    return res.json({ ok: true, ...saved });
+  } catch (err) { return res.status(400).json({ error: err.message }); }
+});
+app.get("/api/service-field/photo/:id", requireServiceField, async (req, res) => {
+  try {
+    const ph = await getFieldPhoto(req.params.id);
+    if (!ph) return res.status(404).json({ error: "No photo." });
+    res.setHeader("Content-Type", ph.contentType || "image/jpeg"); res.setHeader("Cache-Control", "private, max-age=3600");
+    return res.end(ph.bytes);
+  } catch (err) { return res.status(400).json({ error: err.message }); }
+});
+// The component labor picker: ePASS's LaborRate table, priced as ePASS
+// prices it (brand variant first).
+app.get("/api/service-field/labor-rates", requireServiceField, async (req, res) => {
+  try { return res.json({ rates: await laborRateOptions({ q: String(req.query.q || ""), brand: String(req.query.brand || ""), limit: Number(req.query.limit) || 30 }) }); } catch (err) { return res.status(400).json({ error: err.message }); }
+});
+// One past call from the catalogue, opened.
+app.get("/api/service-field/call/:code", requireServiceField, async (req, res) => {
+  try { const c = await catalogueCallDetail(req.params.code); if (!c) return res.status(404).json({ error: "Not in the catalogue (yet)." }); return res.json(c); } catch (err) { return res.status(400).json({ error: err.message }); }
+});
+// History and Model Insight for the office / the board (same reads as a stop's context).
+app.get("/api/service-field/history", requireServiceField, async (req, res) => {
+  try { return res.json(await catalogueCustomerHistory({ customerCode: String(req.query.customerCode || ""), phone: String(req.query.phone || ""), address1: String(req.query.address1 || ""), zip: String(req.query.zip || ""), serial: String(req.query.serial || ""), limit: Number(req.query.limit) || 40 })); } catch (err) { return res.status(400).json({ error: err.message }); }
+});
+app.get("/api/service-field/insight", requireServiceField, async (req, res) => {
+  try { return res.json(await catalogueModelInsight({ brand: String(req.query.brand || ""), model: String(req.query.model || ""), productCode: String(req.query.productCode || "") })); } catch (err) { return res.status(400).json({ error: err.message }); }
+});
+// "Send my findings to the service manager" (role, by job code): a model flag, pending until that role
+// publishes it as a bulletin (every tech on that family sees it) or retires it.
+app.post("/api/service-field/:sv/flag-model", requireServiceField, async (req, res) => {
+  try {
+    const me = sjMe(req); const b = req.body || {};
+    const out = await flagModel({ sv: req.params.sv, brand: String(b.brand || ""), model: String(b.model || ""), productCode: String(b.productCode || ""), why: String(b.why || ""), tech: String(b.tech || ""), by: me.email });
+    const emails = await roleEmails("service_manager").catch(() => []);
+    if (!emails.length) console.warn("Model flag: nobody holds the service_manager role — set roles.service_manager.job_codes.");
+    const title = `Model flag: ${[b.brand, b.model].filter(Boolean).join(" ")} (${out.family.split("|")[2] || "family"})`;
+    const body = `${me.name || me.email} on ${req.params.sv}: ${String(b.why || "").slice(0, 400)} — review it on Service Office Queues → Model flags.`;
+    for (const email of emails) createPushedNotification({ severity: "blue", typeLabel: "Model flag", refId: `modelflag:${out.id}`, title, body, audienceEmail: email, byEmail: me.email, byName: me.name }).catch(() => {});
+    sjAudit(req, "service_field_model_flag", { sv: req.params.sv, id: out.id, family: out.family });
+    return res.json(out);
+  } catch (err) { return res.status(400).json({ error: err.message }); }
+});
+app.get("/api/service-field/model-flags", requireServiceField, async (req, res) => {
+  try {
+    const flags = await listModelFlags({ status: String(req.query.status || "") });
+    const me = sjMe(req);
+    return res.json({ flags, canReview: isExecutiveUser(req.authUser) || await hasRole(me.email, "service_manager").catch(() => false) });
+  } catch (err) { return res.status(400).json({ error: err.message }); }
+});
+app.post("/api/service-field/model-flags/:id/review", requireServiceField, async (req, res) => {
+  try {
+    const me = sjMe(req);
+    if (!(isExecutiveUser(req.authUser) || await hasRole(me.email, "service_manager").catch(() => false))) return res.status(403).json({ error: "Only the service manager role (or an executive) publishes bulletins." });
+    const out = await reviewModelFlag({ id: req.params.id, action: String(req.body?.action || ""), bulletin: String(req.body?.bulletin || ""), by: me.email });
+    sjAudit(req, "service_field_model_flag_reviewed", { id: out.id, status: out.status });
+    return res.json(out);
+  } catch (err) { return res.status(400).json({ error: err.message }); }
+});
+// Dashboard module: the tech's day at a glance.
+app.get("/api/service-field/summary", requireServiceField, async (req, res) => {
+  try {
+    const who = await fieldTechFor(req, req.query.tech);
+    if (!who.tech) return res.json({ ...who, stops: [], note: "Your login is not linked to a tech code in the directory." });
+    const route = await getFieldRoute({ tech: who.tech, date: "" });
+    const next = route.stops.find((s) => !s.closed && !s.doneAt) || null;
+    return res.json({ tech: route.tech, techName: route.techName, date: route.date, isTech: who.isTech, stops: route.stops.length, done: route.stops.filter((s) => s.closed || s.doneAt).length, next: next ? { sv: next.sv, customer: next.customer, city: next.city, window: next.window, status: next.status } : null, dollars: route.dollars });
+  } catch (err) { return res.status(400).json({ error: err.message }); }
 });
 
 // ---- Office queues (Client Care) — service-office.html: parts ETAs --------
@@ -10077,7 +10218,7 @@ app.get("/api/service-office/verify", requireServiceOffice, async (req, res) => 
 app.post("/api/service-office/verify/:sv", requireServiceOffice, async (req, res) => {
   try {
     const me = sjMe(req);
-    const out = await verifyParts({ sv: req.params.sv, lines: req.body?.lines, note: String(req.body?.note || ""), by: me.email, byName: me.name });
+    const out = await verifyParts({ sv: req.params.sv, lines: req.body?.lines, labor: Array.isArray(req.body?.labor) ? req.body.labor : null, note: String(req.body?.note || ""), by: me.email, byName: me.name });
     sjAudit(req, "service_office_parts_verified", { sv: req.params.sv, lines: out.lines.length, partsTotal: out.partsTotal });
     return res.json(out);
   } catch (err) { return res.status(400).json({ error: err.message }); }

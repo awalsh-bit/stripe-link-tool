@@ -29,6 +29,14 @@
 #   finished-serials / finished-items / finished-labor / finished-misc / finished-warranty
 #                        the cost columns of those invoices' lines (OE-23's C: row)
 #   salespeople          Salesperson master (code -> name) so the feed prints the same names OE-23 did
+#   catalogue-history    (fourth bundle, epass-service-catalogue) every finished SV/WTY ticket in a date
+#                        slice: header + complaint + work performed + unit — the customer history and
+#                        Model Insight behind the tech field tool, the board and the office queues
+#   catalogue-parts / catalogue-labor   those tickets' part lines (price, cost) and labor lines (+ LaborRate description)
+#   labor-rates          the whole LaborRate table (the flat-rate book as ePASS holds it) — the field
+#                        tool's component labor picker, priced as ePASS prices it
+#                        Runs daily on the 6:00 pull (tickets finished in the last 21 days) — or, once,
+#                        -CatalogueBackfill (one bundle per year since 2005) / -CatalogueSince yyyy-MM-dd
 #   open-service        Invoice header, InvTypeCode SV/WTY, Status not FINISHED, not void
 #   open-service-labor   InvoiceLabor (+ LaborRate description) for those tickets
 #   open-service-items   InvoiceItem (parts) for those tickets
@@ -62,7 +70,15 @@ param(
   [string]$Root = "W:\Agility",
   # Finished orders normally cover the current + previous month. Pass a date
   # (yyyy-MM-dd) once to backfill history, e.g. -FinishedSince 2025-01-01.
-  [string]$FinishedSince = ""
+  [string]$FinishedSince = "",
+  # Service catalogue (fourth bundle). -CatalogueBackfill writes one bundle per
+  # year since 2005 (run it once, from the ePASS server, off-hours: ~20 files,
+  # a few MB each, the agent pushes them one by one). -CatalogueSince /
+  # -CatalogueUntil pull one slice. Otherwise the 6:00 run tops up the last
+  # three weeks by itself.
+  [switch]$CatalogueBackfill,
+  [string]$CatalogueSince = "",
+  [string]$CatalogueUntil = ""
 )
 
 $ErrorActionPreference = "Stop"
@@ -73,10 +89,11 @@ $SchemaDir = Join-Path $LatestDir "schema"
 $Outbox    = Join-Path $Root "outbox\epass-open-orders"
 $SvcOutbox = Join-Path $Root "outbox\epass-open-service"
 $FinOutbox = Join-Path $Root "outbox\epass-finished-orders"
+$CatOutbox = Join-Path $Root "outbox\epass-service-catalogue"
 # Own log file: the agent's 10-minute task writes agent.log and Add-Content
 # fails when both hold it (seen 2026-09-21: "being used by another process").
 $LogFile   = Join-Path $Root "odbc.log"
-foreach ($d in @($LatestDir, $SchemaDir, $Outbox, $SvcOutbox, $FinOutbox)) { if (-not (Test-Path $d)) { New-Item -ItemType Directory -Path $d -Force | Out-Null } }
+foreach ($d in @($LatestDir, $SchemaDir, $Outbox, $SvcOutbox, $FinOutbox, $CatOutbox)) { if (-not (Test-Path $d)) { New-Item -ItemType Directory -Path $d -Force | Out-Null } }
 
 function Log([string]$msg) {
   $line = "{0}  [odbc] {1}" -f (Get-Date -Format "yyyy-MM-dd HH:mm:ss"), $msg
@@ -556,6 +573,73 @@ ORDER BY sp.Code
     Log ("bundle -> {0} ({1:n0} KB; finished since {2})" -f $path, ($json.Length / 1024), $finSince)
   } catch { Log ("finished-orders FAILED (the other bundles are unaffected): {0}" -f $_.Exception.Message); if ($conn.State -ne [System.Data.ConnectionState]::Open) { $conn.Open() } }
   } else { Log "finished-orders: skipped this run (first run of each hour only)" }
+
+  # ---- SERVICE CATALOGUE (fourth bundle) ---------------------------------
+  # Every finished SV/WTY ticket with its complaint, work performed, unit,
+  # parts and labor: the customer history and Model Insight the tech field
+  # tool, the dispatch board and the office queues read. Plus the LaborRate
+  # table for the component labor picker. One bundle per date slice, kind
+  # "epass-service-catalogue"; Agility upserts by invoice number so a slice
+  # can be pulled again at any time.
+  $catSlices = @()
+  $today = (Get-Date).ToString("yyyy-MM-dd")
+  if ($CatalogueBackfill) {
+    for ($y = 2005; $y -le (Get-Date).Year; $y++) { $catSlices += ,@("$y-01-01", "$y-12-31", ($y -eq (Get-Date).Year)) }
+  } elseif ($CatalogueSince -match '^\d{4}-\d{2}-\d{2}$') {
+    $u = if ($CatalogueUntil -match '^\d{4}-\d{2}-\d{2}$') { $CatalogueUntil } else { $today }
+    $catSlices += ,@($CatalogueSince, $u, $true)
+  } elseif ((Get-Date).Hour -eq 6 -and (Get-Date).Minute -lt 15) {
+    $catSlices += ,@((Get-Date).AddDays(-21).ToString("yyyy-MM-dd"), $today, $true)
+  }
+  foreach ($slice in $catSlices) {
+    $cSince = $slice[0]; $cUntil = $slice[1]; $withRates = $slice[2]
+    $catWhere = "i.InvTypeCode IN ('SV','WTY') AND UPPER(i.Status) = 'FINISHED' AND (i.Void IS NULL OR i.Void = 0) AND ((i.DateFinished >= '$cSince' AND i.DateFinished <= '$cUntil') OR (i.InvFinishDate >= '$cSince' AND i.InvFinishDate <= '$cUntil'))"
+    $cat = [ordered]@{
+      pulledAt       = (Get-Date).ToString("s")
+      source         = $Dsn
+      machine        = $env:COMPUTERNAME
+      catalogueSince = $cSince
+      catalogueUntil = $cUntil
+      datasets       = [ordered]@{}
+    }
+    try {
+      $cat.datasets["catalogue-history"] = Export-Query $conn @"
+SELECT i.Code, i.InvTypeCode, i.Status, i.JobStatusCode, i.DateCreated, i.DateFinished, i.InvFinishDate, i.Salesperson1Code, i.SoldToCode, i.BillToCode,
+       i.SoldToLastName, i.SoldToFirstName, i.SoldToAddress1, i.SoldToZipCode, i.SoldToPhone1,
+       i.SvcBrandCode, i.SvcModel, i.SvcSerial, i.SvcProductCode, i.SvcComplaintDesc, i.SvcPerformedDesc, i.SvcRepairCode, i.PaymentTypeCode,
+       i.SerialTotal, i.ItemTotal, i.LaborTotal, i.MiscTotal, i.WtyTotal, i.Tax1Total, i.Tax2Total, i.Tax3Total, i.DispatchUnits
+FROM Invoice i
+WHERE $catWhere
+ORDER BY i.DateFinished, i.Code
+"@ (Join-Path $LatestDir "catalogue-history.csv") "catalogue-history $cSince..$cUntil"
+      $cat.datasets["catalogue-parts"] = Export-Query $conn @"
+SELECT p.InvoiceCode, p.ItemCode, p.Description, p.QtyOrdered, p.QtyShipped, p.SellingPrice, p.UnitCost, p.Total, p.Warranty, p.Status
+FROM InvoiceItem p
+INNER JOIN Invoice i ON p.InvoiceCode = i.Code
+WHERE $catWhere
+ORDER BY p.InvoiceCode
+"@ (Join-Path $LatestDir "catalogue-parts.csv") "catalogue-parts"
+      $cat.datasets["catalogue-labor"] = Export-Query $conn @"
+SELECT l.InvoiceCode, l.LaborRateCode, l.TechnicianCode, l.ServiceDate, l.Rate, l.Total, l.Warranty, lr.Description AS Labor_Description
+FROM InvoiceLabor l
+INNER JOIN Invoice i ON l.InvoiceCode = i.Code
+LEFT JOIN LaborRate lr ON l.LaborRateCode = lr.Code
+WHERE $catWhere
+ORDER BY l.InvoiceCode
+"@ (Join-Path $LatestDir "catalogue-labor.csv") "catalogue-labor"
+      if ($withRates) {
+        try {
+          $cat.datasets["labor-rates"] = Export-Query $conn @"
+SELECT lr.* FROM LaborRate lr ORDER BY lr.Code
+"@ (Join-Path $LatestDir "labor-rates.csv") "labor-rates"
+        } catch { Log ("labor-rates FAILED (catalogue continues without it): {0}" -f $_.Exception.Message); if ($conn.State -ne [System.Data.ConnectionState]::Open) { $conn.Open() } }
+      }
+      $json = $cat | ConvertTo-Json -Depth 6 -Compress
+      $path = Join-Path $CatOutbox ("epass-service-catalogue-{0}-{1}.json" -f ($cSince -replace '-', ''), $stamp)
+      [System.IO.File]::WriteAllText($path, $json, (New-Object System.Text.UTF8Encoding($false)))
+      Log ("bundle -> {0} ({1:n0} KB; catalogue {2}..{3})" -f $path, ($json.Length / 1024), $cSince, $cUntil)
+    } catch { Log ("service-catalogue {0}..{1} FAILED (the other bundles are unaffected): {2}" -f $cSince, $cUntil, $_.Exception.Message); if ($conn.State -ne [System.Data.ConnectionState]::Open) { $conn.Open() } }
+  }
 }
 finally {
   $conn.Close()

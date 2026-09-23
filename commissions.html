@@ -249,8 +249,9 @@
       <h2>Sales Commissions</h2>
       <p class="section-note">
         Live statements computed from the <a href="sales-order-detail.html">Sales Order Detail</a> warehouse —
-        no import runs, no locks. Each rep computes under their directory commission plan (Field Sales or
-        Showroom); re-uploading a month's Crystal report refreshes everything. Split sales are credited half
+        no import runs, no locks. Each rep computes under their directory commission plan (Field Sales,
+        Showroom, or HVAC Selling Tech — job code E25, paid on whole-job margin straight from the ePASS feed);
+        re-uploading a month's Crystal report refreshes the appliance statements. Split sales are credited half
         to each partner and badged.
       </p>
       <div class="toolbar">
@@ -340,7 +341,22 @@
     function renderPlan(plans) {
       const html = [];
       for (const plan of plans) {
-        html.push(`<div style="grid-column: 1 / -1; font-weight: 800; font-size: 13px; color: var(--text); margin-top: ${html.length ? "8px" : "0"};">${escapeHtml(plan.label)}</div>`);
+        html.push(`<div style="grid-column: 1 / -1; font-weight: 800; font-size: 13px; color: var(--text); margin-top: ${html.length ? "8px" : "0"};">${escapeHtml(plan.label)}${plan.jobCodes?.length ? ` <span class="asof">job code ${escapeHtml(plan.jobCodes.join(", "))} · pay plan "${escapeHtml(plan.planName)}"</span>` : ""}</div>`);
+        if (plan.key === "hvac") {
+          const tiers = plan.marginTiers.slice().reverse(); // ascending
+          const rows = tiers.map((t, i) => {
+            const next = tiers[i + 1];
+            const range = next ? `${t.minGm}% – ${(next.minGm - 0.01).toFixed(2)}% GM` : `${t.minGm}%+ GM`;
+            return `<tr><td>${range} <span class="asof">${escapeHtml(t.name)}</span></td><td>${pctText(t.rate, 0)} of margin $</td></tr>`;
+          }).join("");
+          html.push(`
+            <div class="plan-box" style="grid-column: 1 / -1;">
+              <div class="pb-title">HVAC jobs — % of the job's MARGIN DOLLARS (not list) by whole-job GM</div>
+              <table><tr><td>Below ${tiers[0].minGm}% GM <span class="asof">${escapeHtml(plan.belowFloor.name)}</span></td><td>No commission</td></tr>${rows}</table>
+              <div class="plan-note">One row per AC invoice finished in the month, straight from the ePASS feed — no upload. Gross = invoice before tax; cost = equipment, parts, labor, misc and warranty cost as ePASS books them. Unpaid invoices hold and release the same way as appliance lines. No rolling-revenue requirement, no Protect.</div>
+            </div>`);
+          continue;
+        }
         if (plan.manualSelect) {
           const brandRows = (plan.selectBrands || []).map((b) =>
             `<tr><td>${escapeHtml(b.brand)} — ${b.minGm}%+ margin</td><td>${pctText(b.rate, 1)} of list</td></tr>`).join("");
@@ -369,7 +385,7 @@
       el("planGrid").innerHTML = html.join("");
     }
 
-    const COLS = { new: 10, closeout: 9, protect: 8, excluded: 8 };
+    const COLS = { new: 10, closeout: 9, protect: 8, excluded: 8, jobs: 11, jobsx: 9 };
     let editorKey = null; // lineKey of the open editor
 
     function splitBadge(l) {
@@ -393,7 +409,7 @@
         <tr class="editor-row" data-editor="${escapeHtml(l.lineKey)}">
           <td colspan="${COLS[kind]}">
             <div class="editor-grid">
-              <div class="ef"><label>List $ override</label>
+              <div class="ef"><label>${kind === "jobs" ? "Gross $ override" : "List $ override"}</label>
                 <input type="number" step="0.01" class="ov-list" value="${ov.listPrice ?? ""}" placeholder="${l.original.revenue}"></div>
               ${kind === "protect" ? "" : `
               <div class="ef"><label>Cost $ override</label>
@@ -514,7 +530,102 @@
       } catch { review = null; }
     }
 
+    function tierBadge(j) {
+      if (j.noMarginData) return '<span class="badge floor">no cost data</span>';
+      if (j.belowFloor) return '<span class="badge floor" title="Below 22% GM — base only">base only</span>';
+      if (j.negativeMargin) return '<span class="badge floor">negative margin</span>';
+      return `<span class="badge heldmonth" title="${escapeHtml(j.tier)}">${escapeHtml(j.tier)}</span>`;
+    }
+    function costTitle(j) {
+      const c = j.costs || {}; const l = j.list || {};
+      const parts = [["equipment", "product"], ["parts", "parts"], ["labor", "labor"], ["misc", "misc"], ["warranty", "wty"]]
+        .map(([n, k]) => `${n} ${money(l[k] || 0)} / cost ${money(c[k] || 0)}`);
+      return parts.join(" · ");
+    }
+    function jobRows(jobs, kind) {
+      const editable = kind === "jobs" || kind === "jobsx";
+      return jobs.map((j) => `
+        <tr class="${j.held ? "held-row" : ""}">
+          <td style="white-space: nowrap; font-weight: 600;">${escapeHtml(j.invoice)}${adjBadge(j)}${heldBadge(j)}${releasedBadge(j)}${j.heldFrom && !j.released ? ` <span class="badge heldmonth">held ${escapeHtml(monthLabel(j.heldFrom))}</span>` : ""}${j.omitted ? ' <span class="badge adjusted">omitted</span>' : ""}</td>
+          <td>${escapeHtml(j.customer)}${j.reference ? `<div class="asof">${escapeHtml(j.reference)}</div>` : ""}${j.reason ? `<div class="asof">${escapeHtml(j.reason)}</div>` : ""}</td>
+          <td class="mono">${escapeHtml(j.finishDate || "")}</td>
+          <td class="num" title="${escapeHtml(costTitle(j))}">${money(j.gross)}</td>
+          <td class="num" title="${escapeHtml(costTitle(j))}">${money(j.cost)}</td>
+          <td class="num">${money(j.margin)}</td>
+          <td class="num">${j.gmPercent == null ? "—" : j.gmPercent.toFixed(1) + "%"}</td>
+          <td>${tierBadge(j)}</td>
+          <td class="num">${pctText(j.rate, 0)}</td>
+          <td class="num" style="font-weight: 700;">${j.held ? `<span class="held-commission">${money(j.commission)}</span>` : money(j.commission)}</td>
+          <td class="num no-print">${editable ? `<button type="button" class="edit-btn" data-edit="${escapeHtml(j.lineKey)}" data-kind="jobs" title="Override gross, cost, payout, or omit the job">✎</button>` : ""}</td>
+        </tr>${editorKey === j.lineKey && editable ? editorHtml(j, "jobs") : ""}`).join("");
+    }
+    const JOB_HEAD = `<thead><tr><th>Invoice</th><th>Customer</th><th>Finished</th><th class="num">Gross</th><th class="num">Cost</th><th class="num">Margin $</th><th class="num">GM</th><th>Tier</th><th class="num">Rate</th><th class="num">Commission</th><th class="no-print"></th></tr></thead>`;
+
+    function hvacStatementHtml(st) {
+      const t = st.totals;
+      const isOpen = expandedCodes.has(st.code);
+      const tierStrip = t.byTier.filter((b) => b.jobs).map((b) => `<span>${escapeHtml(b.name)} <strong>${b.jobs} job${b.jobs === 1 ? "" : "s"} · ${money(b.commission)}</strong></span>`).join("");
+      return `
+      <div class="surface statement ${isOpen ? "" : "collapsed"}" data-code="${escapeHtml(st.code)}">
+        <div class="st-head" title="Click to ${isOpen ? "fold" : "unfold"} this statement">
+          <span class="st-caret no-print">▾</span>
+          <span class="st-name">${escapeHtml(st.name)}</span>
+          <span class="st-code">${escapeHtml(st.code)}</span>
+          <span class="badge plan">${escapeHtml(st.planLabel)}</span>
+          <span class="badge heldmonth" title="Whole-job margin across this month's paid jobs">${t.paidJobs} job${t.paidJobs === 1 ? "" : "s"} · ${money(t.margin, 0)} margin${t.gmPercent != null ? ` · ${t.gmPercent.toFixed(1)}% GM` : ""}</span>
+          <span style="flex: 1;"></span>
+          ${postBadgeHtml(st)}
+          <a class="ghost-btn no-print" style="text-decoration: none;" href="/api/field-commissions/statement-pdf?month=${encodeURIComponent(data.month)}&code=${encodeURIComponent(st.code)}" download>Download PDF</a>
+          ${postButtonsHtml(st)}
+          <button type="button" class="ghost-btn no-print" data-email-statement="${escapeHtml(st.code)}"
+            ${st.email ? "" : 'disabled title="No email on file — add one in the User Admin directory"'}>
+            ${st.email ? `Email to ${escapeHtml(st.email)}` : "No directory email"}
+          </button>
+          <button type="button" class="ghost-btn no-print" data-print="${escapeHtml(st.code)}">Print</button>
+        </div>
+
+        <div class="totals-strip">
+          <div class="tot"><div class="t-label">Gross (before tax)</div><div class="t-value">${money(t.gross)}</div></div>
+          <div class="tot"><div class="t-label">Job cost</div><div class="t-value">${money(t.cost)}</div></div>
+          <div class="tot"><div class="t-label">Margin $</div><div class="t-value">${money(t.margin)}</div></div>
+          <div class="tot"><div class="t-label">HVAC job commission</div><div class="t-value">${money(t.jobCommission)}</div></div>
+          ${t.releasedCount ? `<div class="tot"><div class="t-label">Released holds</div><div class="t-value" style="color: #166534;">${money(t.releasedCommission)}</div></div>` : ""}
+          ${t.heldCount ? `<div class="tot" title="Held jobs are left OUT of every tile on this strip — this is what will pay once the invoice clears."><div class="t-label">Held — unpaid · not in total</div><div class="t-value" style="color: #991b1b;">${money(t.heldCommission)}</div></div>` : ""}
+          <div class="tot grand"><div class="t-label">Total commission</div><div class="t-value">${money(t.commission)}</div></div>
+        </div>
+
+        <div class="st-body">
+        <div class="sec-title">HVAC Jobs<span class="sec-sub">finished this month · % of job margin $ by whole-job GM</span></div>
+        ${tierStrip ? `<div class="protect-summary">${tierStrip}</div>` : ""}
+        ${st.jobs.length ? `
+        <table class="lines">${JOB_HEAD}
+          <tbody>${jobRows(st.jobs, "jobs")}
+            <tr class="total-row"><td colspan="3">Total</td><td class="num">${money(t.gross)}</td><td class="num">${money(t.cost)}</td><td class="num">${money(t.margin)}</td><td class="num">${t.gmPercent == null ? "" : t.gmPercent.toFixed(1) + "%"}</td><td></td><td></td><td class="num">${money(t.jobCommission)}</td><td class="no-print"></td></tr>
+          </tbody>
+        </table>` : '<div class="empty-sec">No HVAC jobs finished this month.</div>'}
+
+        ${st.releasedJobs.length ? `
+        <div class="sec-title">Released Holds<span class="sec-sub">invoices now paid — commission from earlier held months pays this month</span></div>
+        <table class="lines">${JOB_HEAD}<tbody>${jobRows(st.releasedJobs, "released")}
+          <tr class="total-row"><td colspan="9">Total released</td><td class="num">${money(t.releasedCommission)}</td><td class="no-print"></td></tr></tbody></table>` : ""}
+
+        ${st.stillHeldJobs.length ? `
+        <div class="sec-title" style="color: #991b1b;">Still Unpaid — Check Next Balance Upload<span class="sec-sub">held from earlier months; pays automatically once a balance check shows the invoice paid</span></div>
+        <table class="lines">${JOB_HEAD}<tbody>${jobRows(st.stillHeldJobs, "held")}</tbody></table>` : ""}
+
+        ${st.excludedJobs.length ? `
+        <details class="excluded no-print" ${st.excludedJobs.some((j) => editorKey === j.lineKey) ? "open" : ""}>
+          <summary>${st.excludedJobs.length} omitted job(s) — clearing the override restores the job</summary>
+          <table class="lines" style="margin-top: 8px;">${JOB_HEAD}<tbody>${jobRows(st.excludedJobs, "jobsx")}</tbody></table>
+        </details>` : ""}
+
+        <div class="print-only">Wilson AC &amp; Appliance — HVAC Selling Tech commission statement. Computed from the ePASS finished-orders feed.</div>
+        </div>
+      </div>`;
+    }
+
     function statementHtml(st) {
+      if (st.planKey === "hvac") return hvacStatementHtml(st);
       const t = st.totals;
       const e = st.eligibility;
       const isOpen = expandedCodes.has(st.code);
@@ -657,12 +768,16 @@
         : "";
       renderBalanceLine();
       if (!data?.months?.length) {
-        el("statements").innerHTML = '<div class="surface"><div class="empty">No commission data yet — upload a Crystal Commissions report on the Sales Order Detail page to begin.</div></div>';
+        el("statements").innerHTML = '<div class="surface"><div class="empty">No commission data yet — appliance statements need a Crystal Commissions report on the Sales Order Detail page; HVAC statements appear once the ePASS feed has finished AC jobs.</div></div>';
         return;
       }
-      el("statements").innerHTML = rows.length
+      const un = data?.hvacUnassigned || [];
+      const unNote = un.length
+        ? `<div class="balance-line warn" style="margin-bottom: 14px;">${un.length} salesperson code(s) finished HVAC jobs this month without the HVAC Selling Tech plan — ${un.map((u) => `${escapeHtml(u.name)} (${escapeHtml(u.code)}: ${u.jobs} job${u.jobs === 1 ? "" : "s"}, ${money(u.gross, 0)})`).join(", ")}. Give their title job code E25 (or the "HVAC Selling Technician" pay plan) in User Admin and the statement appears here.</div>`
+        : "";
+      el("statements").innerHTML = unNote + (rows.length
         ? rows.map(statementHtml).join("")
-        : '<div class="surface"><div class="empty">No Field Sales Consultant statements this month. Assign commission plans in User Admin, or check "Show all salespeople".</div></div>';
+        : '<div class="surface"><div class="empty">No commissioned statements this month. Assign commission plans in User Admin (HVAC Selling Techs: job code E25), or check "Show all salespeople".</div></div>');
       el("excPanel").innerHTML = excPanelHtml();
       el("foldAll").textContent = rows.length && rows.every((s) => expandedCodes.has(s.code)) ? "Collapse all" : "Expand all";
     }

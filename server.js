@@ -405,9 +405,11 @@ import {
 import {
   FIELD_SALES_PLAN,
   SHOWROOM_PLAN,
+  HVAC_PLAN,
   COMMISSION_PAGE_PLANS,
   serialRevenueByCode,
-  computeFieldSalesStatements
+  computeFieldSalesStatements,
+  computeHvacStatements
 } from "./lib/field-sales-commissions.js";
 import { buildCommissionStatementPdf } from "./lib/commission-statement-pdf.js";
 import { parseInvoiceMaintenanceWorkbook, splitInvoiceRows } from "./lib/epass-invoices.js";
@@ -10263,6 +10265,13 @@ app.get("/api/service-field/summary", requireServiceField, async (req, res) => {
   try {
     const who = await fieldTechFor(req, req.query.tech);
     if (!who.tech) return res.json({ ...who, stops: [], note: "Your login is not linked to a tech code in the directory." });
+    // Not a tech and didn't ask for one: the dashboard card gets a light
+    // answer instead of a full route build for whoever is first on the roster
+    // (that build — stops, parts, findings, dollars — was costing every
+    // office dashboard load 2–3 s; Andrew 9/23).
+    if (!who.isTech && !String(req.query.tech || "").trim()) {
+      return res.json({ tech: who.tech, techName: "", date: new Date().toLocaleDateString("en-CA"), isTech: false, stops: 0, done: 0, next: null, dollars: null, techs: who.techs, note: "Open the field tool to pick a tech's route." });
+    }
     const route = await getFieldRoute({ tech: who.tech, date: "" });
     const next = route.stops.find((s) => !s.closed && !s.doneAt) || null;
     return res.json({ tech: route.tech, techName: route.techName, date: route.date, isTech: who.isTech, stops: route.stops.length, done: route.stops.filter((s) => s.closed || s.doneAt).length, next: next ? { sv: next.sv, customer: next.customer, city: next.city, window: next.window, status: next.status } : null, dollars: route.dollars });
@@ -10873,9 +10882,13 @@ const requireCommissionsPage = requirePagePermission("/commissions.html");
 // revenue ending at the statement month.
 // Shared by the statements API and the PDF download/email routes.
 async function computeFieldCommissionMonth(requestedMonth) {
-  const months = await listCommissionMonths();
+  // Statement months: Crystal-upload months (appliance lines) ∪ months with
+  // HVAC jobs from the ePASS finished feed (Andrew 9/23: the HVAC plan pays
+  // on the job straight from the feed — no upload).
+  const [lineMonths, hvacMonths] = await Promise.all([listCommissionMonths(), listHvacJobMonths().catch(() => [])]);
+  const months = [...new Set([...lineMonths, ...hvacMonths])].sort().reverse();
   if (!months.length) {
-    return { months: [], month: null, windowMonths: [], statements: [], balanceChecks: {} };
+    return { months: [], month: null, windowMonths: [], statements: [], balanceChecks: {}, hvacUnassigned: [] };
   }
   const month = /^\d{4}-\d{2}$/.test(String(requestedMonth || "")) && months.includes(requestedMonth)
     ? String(requestedMonth)
@@ -10891,12 +10904,13 @@ async function computeFieldCommissionMonth(requestedMonth) {
     m--; if (m < 1) { m = 12; y--; }
   }
 
-  const [windowLines, properNames, directory, overrides, balanceChecks] = await Promise.all([
+  const [windowLines, properNames, directory, overrides, balanceChecks, hvacJobs] = await Promise.all([
     listCommissionLinesForMonths(windowMonths),
     listSalespersonNames(),
     listEmployeeDirectory().catch(() => []),
     listCommissionOverrides(windowMonths),
-    listCommissionBalanceChecks(windowMonths)
+    listCommissionBalanceChecks(windowMonths),
+    listHvacJobsForMonths(windowMonths).catch(() => [])
   ]);
 
   // The whole window feeds the engine: current-month rows make the
@@ -10905,7 +10919,7 @@ async function computeFieldCommissionMonth(requestedMonth) {
   // under (payPlan), so a Showroom Sales Manager (E50) computes on the
   // Showroom Consultant plan. jobTitle keeps the person's actual title.
   const payDirectory = directory.map((e) => ({ ...e, jobTitle: e.commissionPlan, commissionPlan: e.payPlan ?? e.commissionPlan }));
-  const statements = computeFieldSalesStatements({
+  const lineStatements = computeFieldSalesStatements({
     monthLines: windowLines,
     month,
     balanceChecks,
@@ -10914,8 +10928,13 @@ async function computeFieldCommissionMonth(requestedMonth) {
     properNames,
     overrides
   });
+  // HVAC Selling Techs (job code E25 / the HVAC pay plan): one statement per
+  // tech from the month's finished AC jobs, whole-job margin tiers.
+  const hvac = computeHvacStatements({ jobs: hvacJobs, month, balanceChecks, directory: payDirectory, properNames, overrides });
+  const statements = [...lineStatements, ...hvac.statements]
+    .sort((a, b) => b.totals.commission - a.totals.commission || a.name.localeCompare(b.name));
 
-  return { months, month, windowMonths, statements, balanceChecks };
+  return { months, month, windowMonths, statements, balanceChecks, hvacUnassigned: hvac.unassigned };
 }
 
 function commissionMonthLabel(month) {
@@ -10926,7 +10945,7 @@ function commissionMonthLabel(month) {
 
 app.get("/api/field-commissions", requireCommissionsPage, async (req, res) => {
   try {
-    const { months, month, windowMonths, statements, balanceChecks } = await computeFieldCommissionMonth(req.query.month);
+    const { months, month, windowMonths, statements, balanceChecks, hvacUnassigned } = await computeFieldCommissionMonth(req.query.month);
     const balanceMeta = {};
     for (const [m, check] of Object.entries(balanceChecks)) {
       balanceMeta[m] = {
@@ -10936,8 +10955,9 @@ app.get("/api/field-commissions", requireCommissionsPage, async (req, res) => {
     }
     return res.json({
       months, month, windowMonths, statements, balanceChecks: balanceMeta,
+      hvacUnassigned: hvacUnassigned || [],
       plan: FIELD_SALES_PLAN,
-      plans: [FIELD_SALES_PLAN, SHOWROOM_PLAN],
+      plans: [FIELD_SALES_PLAN, SHOWROOM_PLAN, HVAC_PLAN],
       pagePlans: COMMISSION_PAGE_PLANS
     });
   } catch (err) {
@@ -11382,7 +11402,9 @@ app.post("/api/my-commissions/exception", requirePagePermission("/my-commissions
     const st = post.statement || {};
     const sections = [
       ["new", st.newLines], ["closeout", st.closeoutLines], ["protect", st.protectLines],
-      ["released", st.releasedLines], ["held", st.stillHeldLines], ["excluded", st.excludedLines]
+      ["released", st.releasedLines], ["held", st.stillHeldLines], ["excluded", st.excludedLines],
+      // HVAC job statements
+      ["jobs", st.jobs], ["released", st.releasedJobs], ["held", st.stillHeldJobs], ["excluded", st.excludedJobs]
     ];
     const byKey = new Map();
     for (const [section, lines] of sections) {

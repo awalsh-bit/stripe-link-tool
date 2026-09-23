@@ -2855,28 +2855,30 @@
       }
 
       (async function initModules() {
-        // The field tool module only exists for people who can open the tool;
-        // a service tech gets it first on the dashboard whatever the layout
-        // (Andrew 9/23: "the main thing on their dashboard, or at least easy
-        // to get to").
-        let fieldInfo = null;
-        try {
-          const fr = await fetch("/api/service-field/summary", { credentials: "same-origin" });
-          if (fr.ok) fieldInfo = await fr.json(); else { delete cards.field; document.querySelector('.module-card[data-module="field"]')?.remove(); }
-        } catch { delete cards.field; document.querySelector('.module-card[data-module="field"]')?.remove(); }
+        // Paint the layout at once — never hold the grid on the network.
+        // (Andrew 9/23: Paid History looked slow because the whole grid was
+        // waiting on the field-tool summary.) The field card only exists for
+        // people who can open the tool, and a service tech gets it first on
+        // the dashboard whatever the layout; both are settled when the
+        // summary arrives, in the background.
         slots = slots.filter((id) => cards[id]);
-        render(); // paint defaults immediately
-        try {
-          const res = await fetch("/api/auth/session", { credentials: "same-origin" });
-          if (res.ok) {
-            const session = await res.json();
-            const saved = Array.isArray(session?.dashboardModules) ? session.dashboardModules : null;
-            // A saved layout is authoritative — including an empty one.
-            if (saved) slots = [...new Set(saved.filter((id) => cards[id]))].slice(0, MAX_SLOTS);
-          }
-        } catch {}
-        if (cards.field && fieldInfo?.isTech && !slots.includes("field")) slots = ["field", ...slots].slice(0, MAX_SLOTS);
         render();
+        const sessionP = fetch("/api/auth/session", { credentials: "same-origin" })
+          .then((res) => (res.ok ? res.json() : null)).catch(() => null);
+        const fieldP = cards.field
+          ? fetch("/api/service-field/summary", { credentials: "same-origin" }).then((fr) => (fr.ok ? fr.json() : null)).catch(() => null)
+          : Promise.resolve(null);
+        const session = await sessionP;
+        const saved = Array.isArray(session?.dashboardModules) ? session.dashboardModules : null;
+        // A saved layout is authoritative — including an empty one.
+        if (saved) { slots = [...new Set(saved.filter((id) => cards[id]))].slice(0, MAX_SLOTS); render(); }
+        const fieldInfo = await fieldP;
+        if (cards.field && !fieldInfo) {
+          delete cards.field; document.querySelector('.module-card[data-module="field"]')?.remove();
+          if (slots.includes("field")) { slots = slots.filter((id) => cards[id]); render(); }
+          return;
+        }
+        if (cards.field && fieldInfo?.isTech && !slots.includes("field")) { slots = ["field", ...slots].slice(0, MAX_SLOTS); render(); }
         if (cards.field) window.__renderFieldModule?.(fieldInfo);
       })();
     })();

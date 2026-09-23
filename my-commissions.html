@@ -186,6 +186,81 @@
           </table>`;
       }
 
+      // HVAC Selling Tech statements: one row per finished AC job, paid on
+      // whole-job margin. Same exception checkboxes, keyed by section|lineKey.
+      function jobRows(jobs, section) {
+        return (jobs || []).map((j) => {
+          const key = section + "|" + (j.lineKey || "");
+          const checkbox = excMode && j.lineKey
+            ? `<td class="exc-col"><input type="checkbox" data-exc-line="${esc(key)}" data-product="${esc(j.invoice || "")}" ${selected.has(key) ? "checked" : ""}></td>`
+            : (excMode ? '<td class="exc-col"></td>' : "");
+          const tier = j.noMarginData ? "no cost data" : j.belowFloor ? "base only" : j.negativeMargin ? "negative margin" : (j.tier || "");
+          return `<tr>
+            ${checkbox}
+            <td><span class="model">${esc(j.invoice || "")}</span>${j.held ? '<span class="heldtag">HELD — unpaid</span>' : ""}${j.released ? '<span class="reltag">RELEASED</span>' : ""}<div class="cust">${esc(j.customer || "")}${j.reference ? " · " + esc(j.reference) : ""}</div>${j.reason ? `<div class="cust">${esc(j.reason)}</div>` : ""}</td>
+            <td>${esc(j.finishDate || "")}</td>
+            <td class="num">${money(j.gross)}</td>
+            <td class="num">${money(j.cost)}</td>
+            <td class="num">${money(j.margin)}</td>
+            <td class="num">${j.gmPercent == null ? "—" : j.gmPercent.toFixed(1) + "%"}<div class="cust">${esc(tier)}</div></td>
+            <td class="num">${j.rate != null ? (j.rate * 100).toFixed(0) + "%" : ""}</td>
+            <td class="num">${j.commission == null ? "—" : money(j.commission)}</td>
+          </tr>`;
+        }).join("");
+      }
+      function jobTable(title, sub, jobs, section) {
+        if (!jobs || !jobs.length) return "";
+        return `
+          <div class="sec-title">${esc(title)}<span class="sec-sub">${esc(sub || "")}</span></div>
+          <table class="lines">
+            <thead><tr>
+              ${excMode ? '<th class="exc-col"></th>' : ""}
+              <th>Invoice</th><th>Finished</th><th class="num">Gross</th><th class="num">Cost</th><th class="num">Margin $</th><th class="num">GM · tier</th><th class="num">Rate</th><th class="num">Commission</th>
+            </tr></thead>
+            <tbody>${jobRows(jobs, section)}</tbody>
+          </table>`;
+      }
+      function hvacBody(st, t) {
+        return `
+          <div class="totals-strip">
+            <div class="tot"><div class="t-label">Gross (before tax)</div><div class="t-value">${money(t.gross)}</div></div>
+            <div class="tot"><div class="t-label">Margin $</div><div class="t-value">${money(t.margin)}${t.gmPercent != null ? ` <span style="font-size:12px; color:#6b7280;">${t.gmPercent.toFixed(1)}% GM</span>` : ""}</div></div>
+            <div class="tot"><div class="t-label">HVAC job commission</div><div class="t-value">${money(t.jobCommission)}</div></div>
+            ${t.releasedCount ? `<div class="tot"><div class="t-label">Released holds</div><div class="t-value" style="color:#166534;">${money(t.releasedCommission)}</div></div>` : ""}
+            ${t.heldCount ? `<div class="tot" title="Held jobs are not in any total on this page — this amount pays automatically once the invoice clears."><div class="t-label">Held — unpaid · not in total</div><div class="t-value" style="color:#991b1b;">${money(t.heldCommission)}</div></div>` : ""}
+            <div class="tot grand"><div class="t-label">Total commission</div><div class="t-value">${money(t.commission)}</div></div>
+          </div>
+
+          <div style="display:flex; gap:10px; margin-top:10px;">
+            ${data.windowOpen
+              ? (excMode
+                ? '<button type="button" class="ghost-btn" id="cancelExc">Cancel exception request</button>'
+                : '<button type="button" class="primary-btn" id="startExc">Request exception</button>')
+              : ""}
+          </div>
+
+          ${jobTable("HVAC jobs", "finished this month — % of the job's margin $ by whole-job GM", st.jobs, "jobs")}
+          ${jobTable("Released holds", "paid this month after their invoice cleared", st.releasedJobs, "released")}
+          ${jobTable("Still held", "unpaid invoices — pays when the balance clears", st.stillHeldJobs, "held")}
+          ${jobTable("Omitted jobs", "left out by your manager — the note says why", st.excludedJobs, "excluded")}
+          <div class="cust" style="margin-top:12px;">Tiers by whole-job GM: below 22% base only · 22–30.99% 6% · 31–37.99% 8% · 38–44.99% 10% · 45%+ 12% — of the margin dollars, not the list.</div>`;
+      }
+
+      function excBarHtml() {
+        return `
+          <div class="exc-bar">
+            <div class="bar-row">
+              <span class="count" id="excCount">0 line(s) checked</span>
+              <span style="flex:1;"></span>
+              <span style="font-size:12px; opacity:0.8;">Window closes ${dayLabel(data.windowCloses)}</span>
+            </div>
+            <textarea id="excNote" placeholder="What's wrong and why? (e.g. 'Model DF48450 shows the wrong sell price — the signed order was $14,999.')"></textarea>
+            <div class="bar-row">
+              <button type="button" class="primary-btn" id="submitExc">Submit exception request</button>
+            </div>
+          </div>`;
+      }
+
       function render() {
         const host = $("statementHost");
         const reqHost = $("requestsHost");
@@ -224,7 +299,7 @@
         const visibleNew = (st.newLines || []).filter((l) => !(l.notSelect && !l.commission));
         const spiffList = spiffNew.reduce((s, l) => s + (Number(l.revenue) || 0), 0);
 
-        host.innerHTML = `
+        host.innerHTML = st.planKey === "hvac" ? `<div class="surface">${hvacBody(st, t)}${excMode ? excBarHtml() : ""}</div>` : `
         <div class="surface">
           <div class="totals-strip">
             <div class="tot"><div class="t-label">New serial</div><div class="t-value">${money(t.newCommission)}</div></div>
@@ -256,18 +331,7 @@
           ${sectionTable("Still held", "unpaid invoices — pays when the balance clears", st.stillHeldLines, "held", {})}
           ${sectionTable("Excluded lines", excludedSub, st.excludedLines, "excluded", {})}
 
-          ${excMode ? `
-          <div class="exc-bar">
-            <div class="bar-row">
-              <span class="count" id="excCount">0 line(s) checked</span>
-              <span style="flex:1;"></span>
-              <span style="font-size:12px; opacity:0.8;">Window closes ${dayLabel(data.windowCloses)}</span>
-            </div>
-            <textarea id="excNote" placeholder="What's wrong and why? (e.g. 'Model DF48450 shows the wrong sell price — the signed order was $14,999.')"></textarea>
-            <div class="bar-row">
-              <button type="button" class="primary-btn" id="submitExc">Submit exception request</button>
-            </div>
-          </div>` : ""}
+          ${excMode ? excBarHtml() : ""}
         </div>`;
 
         const reqs = data.exceptions || [];

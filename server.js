@@ -10961,8 +10961,9 @@ app.get("/api/field-commissions", requireCommissionsPage, async (req, res) => {
       pagePlans: COMMISSION_PAGE_PLANS
     });
   } catch (err) {
-    console.error("Field commissions failed:", err.message);
-    return res.status(500).json({ error: "Unable to compute commission statements." });
+    console.error("Field commissions failed:", err.stack || err.message);
+    // Exec-only page: the underlying message is more useful than a shrug.
+    return res.status(500).json({ error: `Unable to compute commission statements — ${err.message}` });
   }
 });
 

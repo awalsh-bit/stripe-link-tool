@@ -43,11 +43,13 @@
     .tile span { display: block; font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); font-weight: 700; margin-bottom: 6px; }
     .tile b { display: block; font-size: clamp(22px, 2.4vw, 32px); font-weight: 800; line-height: 1; font-variant-numeric: tabular-nums; }
     .tile small { display: block; margin-top: 8px; color: var(--muted); font-size: 13px; }
-    .sec { margin-bottom: 18px; }
+    .sec { margin-bottom: 18px; min-width: 0; }
+    .card { overflow: hidden; }
+    .grid2 > * { min-width: 0; }
     .sec h3 { margin: 0; padding: 6px 10px 10px; font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); font-weight: 700; display: flex; gap: 10px; align-items: center; }
     .sec h3 .n { font-variant-numeric: tabular-nums; color: var(--text); }
     .sec h3 .hint { margin-left: auto; text-transform: none; letter-spacing: 0; font-weight: 500; }
-    .scroll { overflow-x: auto; }
+    .scroll { overflow-x: auto; max-width: 100%; -webkit-overflow-scrolling: touch; }
     table { width: 100%; border-collapse: collapse; }
     th, td { text-align: left; padding: 14px 10px; border-bottom: 1px solid #edf1f7; vertical-align: middle; font-size: 14px; white-space: nowrap; }
     th { font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); }
@@ -67,7 +69,22 @@
     .internal-nav a { color: var(--primary); text-decoration: none; font-weight: 700; }
     a { color: var(--primary); }
     @media (max-width: 1100px) { .tiles { grid-template-columns: repeat(3, minmax(0, 1fr)); } .grid2 { grid-template-columns: 1fr; } }
-    @media (max-width: 700px) { body { padding: 16px 8px; } .card { padding: 16px; } .tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); } .bar label { flex: 1 1 140px; } .bar input, .bar select { width: 100% !important; } }
+    @media (max-width: 700px) {
+      body { padding: 12px 8px; } .card { padding: 14px; }
+      .intro h1 { font-size: 20px; } .intro p { font-size: 13px; }
+      .tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; } .tile { padding: 12px; } .tile b { font-size: 20px; } .tile small { font-size: 12px; }
+      .bar { gap: 8px; } .bar label { flex: 1 1 calc(50% - 8px); } .bar input, .bar select { width: 100% !important; min-width: 0; padding: 10px 12px; } .bar button { flex: 1 1 calc(50% - 8px); padding: 10px 12px; }
+      .quick button { font-size: 12px; padding: 7px 11px; }
+      th, td { padding: 10px 8px; font-size: 13px; } th { font-size: 11px; }
+      .sec h3 { flex-wrap: wrap; } .sec h3 .hint { margin-left: 0; flex-basis: 100%; }
+      .m-hide { display: none; }
+      #byCity td:first-child, #byType td:first-child { white-space: normal; }
+      /* invoice table: the invoice column stays put while the rest scrolls */
+      #rows th:first-child, #rows td:first-child { position: sticky; left: 0; background: var(--card); z-index: 1; box-shadow: 2px 0 0 #edf1f7; }
+      #rows th:nth-child(2), #rows td:nth-child(2) { position: sticky; left: var(--c1w, 78px); background: var(--card); z-index: 1; box-shadow: 2px 0 0 #edf1f7; }
+      tr.tot td { position: static !important; }
+      .drawer { width: 100%; padding: 14px; }
+    }
   </style>
 </head>
 <body data-shell-label="Sales Tax Report" data-shell-icon="accounting">
@@ -137,13 +154,14 @@
       const want = []; { const d = new Date(R.from + "T12:00:00Z"); while (d.toISOString().slice(0, 10) <= R.to) { want.push(d.toISOString().slice(0, 7)); d.setUTCMonth(d.getUTCMonth() + 1); } }
       const gaps = want.filter((m) => !months.has(m));
       setStatus(gaps.length ? `No posted invoices on file for ${gaps.join(", ")} — the tax feed has not covered ${gaps.length === 1 ? "that month" : "those months"}; run the pull with -TaxSince for the range before using these totals.` : `${t.invoices.toLocaleString()} invoices posted ${R.from} → ${R.to}.`, gaps.length ? "warn" : "ok");
-      const gtable = (rows, label) => `<thead><tr><th>${esc(label)}</th><th class="num">Invoices</th><th class="num">Gross</th><th class="num">Taxable</th><th class="num">Tax2</th><th class="num">All tax</th></tr></thead><tbody>${rows.map((g) => `<tr><td>${esc(g.key)}</td><td class="num">${g.invoices}</td><td class="num">${money(g.gross)}</td><td class="num">${money(g.taxableBase)}</td><td class="num">${money(g.tax2)}</td><td class="num">${money(g.taxTotal)}</td></tr>`).join("")}</tbody>`;
+      const gtable = (rows, label) => `<thead><tr><th>${esc(label)}</th><th class="num m-hide">Invoices</th><th class="num">Gross</th><th class="num m-hide">Taxable</th><th class="num">Tax2</th><th class="num m-hide">All tax</th></tr></thead><tbody>${rows.map((g) => `<tr><td>${esc(g.key)}</td><td class="num m-hide">${g.invoices}</td><td class="num">${money(g.gross)}</td><td class="num m-hide">${money(g.taxableBase)}</td><td class="num">${money(g.tax2)}</td><td class="num m-hide">${money(g.taxTotal)}</td></tr>`).join("")}</tbody>`;
       $("#byCity").innerHTML = gtable(R.byCity, "City");
       $("#byType").innerHTML = gtable([...R.byType.map((g) => ({ ...g, key: "type " + g.key })), ...R.byTaxCode.map((g) => ({ ...g, key: "code " + g.key }))], "Group");
       $("#rowN").textContent = R.rows.length.toLocaleString();
       $("#rows").innerHTML = `<thead><tr><th>DatePosted</th><th>Sales Invoice</th><th>Ship-to first</th><th>Ship-to last</th><th>Bill-to first</th><th>Bill-to last</th><th>SoldToCity</th><th>SoldToState</th><th>Tax2Code</th><th class="num">Tax2Total</th><th class="num">GrossTotal</th><th>Type</th><th class="num">Taxable</th><th class="num">Exempt</th><th class="num">Tax1</th><th class="num">Tax3</th><th class="num">Rate</th><th>Bill-to</th></tr></thead>
         <tbody>${R.rows.map((r) => `<tr data-inv="${esc(r.invoice)}"><td class="mono">${mmddyy(r.datePosted)}</td><td class="mono">${esc(r.invoice)}</td><td>${esc(r.shipFirst)}</td><td>${esc(r.shipLast)}</td><td>${esc(r.billFirst)}</td><td>${esc(r.billLast)}</td><td>${esc(r.city)}</td><td>${esc(r.state)}</td><td>${esc(r.tax2Code)}${r.exempt.tax2 ? ' <span class="chip ex">exempt</span>' : ""}</td><td class="num">${money(r.tax2)}</td><td class="num">${money(r.gross)}</td><td>${esc(r.type)}</td><td class="num">${r.taxableBase == null ? "—" : money(r.taxableBase)}</td><td class="num">${r.exemptBase == null ? "—" : money(r.exemptBase)}</td><td class="num">${money(r.tax1)}</td><td class="num">${money(r.tax3)}</td><td class="num">${pct(r.effectiveRate)}</td><td>${esc([r.billCity, r.billState].filter(Boolean).join(", "))}</td></tr>`).join("")}
         <tr class="tot"><td colspan="9">Totals</td><td class="num">${money(t.tax2)}</td><td class="num">${money(t.gross)}</td><td></td><td class="num">${money(t.taxableBase)}</td><td class="num">${money(t.exemptBase)}</td><td class="num">${money(t.tax1)}</td><td class="num">${money(t.tax3)}</td><td class="num">${pct(t.effectiveRate)}</td><td></td></tr></tbody>`;
+      { const th = $("#rows th"); if (th) $("#rows").style.setProperty("--c1w", Math.ceil(th.getBoundingClientRect().width) + "px"); }
       $("#rows").querySelectorAll("tr[data-inv]").forEach((tr) => (tr.onclick = () => openInvoice(tr.dataset.inv)));
     }
     async function openInvoice(code) {

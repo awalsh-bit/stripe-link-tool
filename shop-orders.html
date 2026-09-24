@@ -112,6 +112,7 @@
           <div class="ws-chips" id="wsChips"></div>
           <div class="ws-snap">
             <span class="ws-snap-meta" id="wsSnapMeta">No availability snapshot yet — the shop shows the full clearance list.</span>
+            <button type="button" class="ws-btn" id="wsSnapRebuild" title="Rebuild the availability snapshot from the last ePASS feed (every 15 minutes) — reopens a paused shop">Rebuild from ePASS feed</button>
             <label class="ws-file">Upload ExportModel .xlsx
               <input type="file" id="wsSnapFile" accept=".xlsx" />
             </label>
@@ -231,7 +232,7 @@
           : " · ⚠ NO condition flags — re-upload the newer ExportModel (with the Serial Type column)";
         meta.textContent = `Snapshot: ${state.snapshot.sourceFile || "ExportModel"} · ${Number(state.snapshot.count).toLocaleString()} serials${typeBit}${writtenBit} · ${when(state.snapshot.uploadedAt)}`;
         if (state.snapshot.stale) {
-          meta.innerHTML = `<span style="color:#b91c1c; font-weight:700;">⚠ FEED STALE — the storefront is PAUSED (snapshot older than ${state.snapshot.maxAgeHours}h). Check the nightly upload on the store server PC, or upload a fresh ExportModel here to reopen.</span><br>` + meta.textContent;
+          meta.innerHTML = `<span style="color:#b91c1c; font-weight:700;">⚠ SNAPSHOT STALE — the storefront is PAUSED (older than ${state.snapshot.maxAgeHours}h). Click <b>Rebuild from ePASS feed</b> to reopen; if that fails, the ePASS feed itself has stopped.</span><br>` + meta.textContent;
         }
       }
 
@@ -605,6 +606,17 @@
         throw new Error("Couldn't find a Serial column — is this the ExportModel (Model Maintenance) export?");
       }
 
+      document.getElementById("wsSnapRebuild").addEventListener("click", async () => {
+        const btn = document.getElementById("wsSnapRebuild");
+        btn.disabled = true; btn.textContent = "Rebuilding…";
+        try {
+          const out = await api("/api/shop/inventory-snapshot/rebuild", { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
+          if (out.skipped) setWsStatus(`Not rebuilt: ${out.skipped}.`, "error");
+          else setWsStatus(`Snapshot rebuilt from the ePASS feed${out.feedPulledAt ? " pulled " + out.feedPulledAt.replace("T", " ") : ""}: ${Number(out.units).toLocaleString()} units${out.withModel ? ` (${Number(out.withModel).toLocaleString()} with brand/description)` : " — ⚠ no Model columns in the feed; product codes come from the model map"}. The shop reads it immediately.`, "ok");
+          await load();
+        } catch (err) { setWsStatus(err.message, "error"); }
+        finally { btn.disabled = false; btn.textContent = "Rebuild from ePASS feed"; }
+      });
       document.getElementById("wsSnapFile").addEventListener("change", async (event) => {
         const file = event.target.files?.[0];
         event.target.value = "";

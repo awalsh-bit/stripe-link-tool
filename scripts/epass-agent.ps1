@@ -68,6 +68,14 @@ function Log([string]$msg) {
   Add-Content -Path $LogFile -Value $line
 }
 
+# One agent at a time (9/24): the pull script launches this after every pull
+# and it also has its own scheduled task — two runs pushing the same outbox
+# at once doubled the load on Agility. The second one simply steps aside.
+$agentMutex = New-Object System.Threading.Mutex($false, "Global\AgilityEpassAgent")
+$haveLock = $false
+try { $haveLock = $agentMutex.WaitOne(0) } catch [System.Threading.AbandonedMutexException] { $haveLock = $true }
+if (-not $haveLock) { Log "SKIP  another agent run is still active — this one exits"; exit 0 }
+
 # Folder skeleton
 foreach ($kind in $Kinds) {
   foreach ($sub in @("outbox", "processed", "failed")) {
@@ -99,7 +107,10 @@ foreach ($kind in $Kinds) {
   }
   # A service bundle can run to several MB and Agility mirrors every ticket
   # before answering; over the VPN that can take well past three minutes.
-  $timeout = if ($kind -like "epass-*") { 900 } else { 180 }
+  # Agility acknowledges a bundle as soon as it is stored (processing runs
+  # after the reply), so a healthy upload answers in well under 5 minutes even
+  # at 47 MB over the VPN. Waiting longer only ever meant the server was down.
+  $timeout = if ($kind -like "epass-*") { 300 } else { 180 }
   foreach ($file in $files) {
     $stamp = Get-Date -Format "yyyyMMdd-HHmmss"
     $sw = [System.Diagnostics.Stopwatch]::StartNew()
@@ -135,3 +146,5 @@ foreach ($kind in $Kinds) {
   Get-ChildItem -Path $dir -File -ErrorAction SilentlyContinue | Where-Object { $_.LastWriteTime -lt (Get-Date).AddDays(-$keep) } |
     Remove-Item -Force -ErrorAction SilentlyContinue
 }
+
+try { if ($haveLock) { $agentMutex.ReleaseMutex() } } catch {}

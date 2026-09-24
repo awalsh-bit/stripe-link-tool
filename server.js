@@ -465,7 +465,7 @@ import {
 } from "./lib/service-journey-postgres.js";
 import { getServiceBoard, moveServiceJob, unscheduleServiceJob, sequenceTechDay, setJobDispatchFlags, addRouteBlock, removeRouteBlock, saveTechSettings, setPartsLoaded, confirmRouteDay, cancelServiceJob, uncancelServiceJob, markShopRepaired, CANCEL_REASONS, diagnoseServiceBoard, getServiceHistory, moveSelfHold, searchBoardJobs } from "./lib/service-board-postgres.js";
 import {
-  parseOpenOrdersBundle, replaceEpassOpenOrders, getEpassOpenOrdersMeta, getEpassOpenOrder, listEpassOpenOrders,
+  parseOpenOrdersBundle, replaceEpassOpenOrders, getEpassOpenOrdersMeta, getEpassOpenOrder, listEpassOpenOrders, feedInventoryRows,
   parseOpenServiceBundle, replaceEpassOpenService, getEpassOpenServiceMeta, getEpassOpenService, listEpassOpenService
 } from "./lib/epass-open-orders-postgres.js";
 import {
@@ -6290,10 +6290,14 @@ function shopStockItems({ snapshot, settings, brandMap, brandNames, images, mapP
     if (!model || !serial) continue;
     const key = normalizeModelKey(model);
     if (clearanceUnitKeys.has(key + "|" + serial)) continue; // the clearance list prices this one
-    const category = SHOP_STOCK_CATEGORY_BY_PRODUCT[String(u.prod || "").toUpperCase()];
+    // product code: the feed's, else the model map the old ExportModel
+    // uploads and the NetSuite catalog built up (covers nearly every model)
+    const known = brandMap[model.toUpperCase()] || {};
+    const prod = String(u.prod || known.prod || "").toUpperCase();
+    const category = SHOP_STOCK_CATEGORY_BY_PRODUCT[prod];
     if (!category) continue; // accessories / unmapped product codes stay off the stock listings
     let g = byModel.get(key);
-    if (!g) { g = { key, model, category, prod: String(u.prod || "").toUpperCase(), units: [], brandCode: String(u.brand || "").trim(), description: String(u.description || "").trim(), list: 0 }; byModel.set(key, g); }
+    if (!g) { g = { key, model, category, prod, units: [], brandCode: String(u.brand || "").trim(), description: String(u.description || known.description || "").trim(), list: 0 }; byModel.set(key, g); }
     g.units.push({ serial, id: `${model}|${serial}#S` });
     if (!g.list && Number(u.list) > 0) g.list = Number(u.list);
     if (!g.description && u.description) g.description = String(u.description).trim();
@@ -9397,6 +9401,17 @@ app.post("/api/shop-orders/:id/cancel", requirePagePermission("/shop-orders.html
 
 // INTERNAL: refresh the availability snapshot from the latest ePASS
 // ExportModel export (parsed in the browser; serials only travel here).
+// Rebuild the shop snapshot from the last ePASS feed now (Shop Orders button).
+app.post("/api/shop/inventory-snapshot/rebuild", requirePagePermission("/shop-orders.html"), async (req, res) => {
+  try {
+    const out = await rebuildShopSnapshotFromFeed({ why: `manual · ${req.authUser?.email || ""}` });
+    recordAudit({ ip: req.ip, actorUserId: req.authUser?.id || null, action: "shop_snapshot_rebuilt", targetUserId: null, detail: out }).catch(() => {});
+    return res.json({ ok: !out.skipped, ...out });
+  } catch (err) {
+    console.error("Shop snapshot rebuild failed:", err.message);
+    return res.status(500).json({ error: err.message || "Unable to rebuild the snapshot." });
+  }
+});
 app.post("/api/shop/inventory-snapshot", requirePagePermission("/shop-orders.html"), async (req, res) => {
   try {
     const serials = Array.isArray(req.body?.serials) ? req.body.serials : [];
@@ -9541,16 +9556,22 @@ function extractSerialsFromWorkbook(buffer) {
 // shape as extractSerialsFromWorkbook, so the shop, the damage form and the
 // written-to history read it unchanged: unit identity is model|serial,
 // "written to" is Serial.InvoiceCode, type is SerialTypeCode.
-function serialSnapshotFromFeed(rows) {
+function serialSnapshotFromFeed(rows, modelRows = []) {
   const normModel = (v) => String(v ?? "").toUpperCase().replace(/[^0-9A-Z]/g, "");
   const pick = (r, ...names) => { for (const n of names) { const k = Object.keys(r || {}).find((x) => x.toLowerCase() === n.toLowerCase()); if (k != null && r[k] != null && String(r[k]).trim() !== "") return r[k]; } return ""; };
   const isoDate = (v) => { const str = String(v ?? "").trim(); let m = str.match(/^(\d{4})-(\d{2})-(\d{2})/); if (m) return m[0]; m = str.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/); return m ? `${m[3]}-${m[1].padStart(2, "0")}-${m[2].padStart(2, "0")}` : ""; };
   const serials = new Set(); const types = {}; const written = {}; const seen = new Set(); const units = [];
+  // The bundle's own Model master rows fill brand / description / product /
+  // list whenever the Model join didn't ride along (older pull script, or
+  // the join fell back) — the shop's categories come from the product code.
+  const master = new Map();
+  for (const m of Array.isArray(modelRows) ? modelRows : []) { const k = String(pick(m, "Code") || "").trim().toUpperCase(); if (k) master.set(k, m); }
   for (const r of Array.isArray(rows) ? rows : []) {
     const serial = String(pick(r, "Code") ?? "").trim().toUpperCase();
     if (!serial) continue;
     const model = String(pick(r, "ModelCode") ?? "").trim();
-    const sku = String(pick(r, "Model_SKU") ?? "").trim();
+    const mm = master.get(model.toUpperCase()) || {};
+    const sku = String(pick(r, "Model_SKU") || pick(mm, "SKU") || "").trim();
     const type = String(pick(r, "SerialTypeCode") ?? "").trim();
     const writtenTo = String(pick(r, "InvoiceCode") ?? "").trim();
     const unitKey = (normModel(model) || normModel(sku) || "?") + "|" + serial;
@@ -9558,13 +9579,13 @@ function serialSnapshotFromFeed(rows) {
       seen.add(unitKey);
       units.push({
         serial, model, sku,
-        brand: String(pick(r, "Model_BrandCode") ?? "").trim(),
-        description: String(pick(r, "Model_Description") ?? "").trim(),
-        prod: String(pick(r, "Model_ProductCode") ?? "").trim(),
+        brand: String(pick(r, "Model_BrandCode") || pick(mm, "BrandCode") || "").trim(),
+        description: String(pick(r, "Model_Description") || pick(mm, "Description") || "").trim(),
+        prod: String(pick(r, "Model_ProductCode") || pick(mm, "ProductCode") || "").trim(),
         serialType: type, writtenTo,
         received: isoDate(pick(r, "DateReceived")),
         cost: Number(pick(r, "Cost")) || 0,
-        list: Number(pick(r, "Model_ListPrice")) || 0
+        list: Number(pick(r, "Model_ListPrice") || pick(mm, "ListPrice")) || 0
       });
     }
     const keys = new Set();
@@ -9574,6 +9595,41 @@ function serialSnapshotFromFeed(rows) {
   }
   return { serials: [...serials], types, written, units, unitCount: units.length, withModel: units.filter((u) => u.description || u.brand).length };
 }
+
+// Build and save the shop snapshot from what the last feed stored in the
+// database (epass_on_hand_serials + epass_open_order_models). Runs first in
+// every sales bundle's post-processing, at boot when the snapshot is older
+// than the feed, and from Shop Orders on demand — so a deploy or a slow
+// queue can never leave the shop paused on a stale snapshot (Andrew 9/24).
+let shopSnapshotRebuild = null;
+async function rebuildShopSnapshotFromFeed({ why = "feed" } = {}) {
+  if (shopSnapshotRebuild) return shopSnapshotRebuild; // one at a time
+  shopSnapshotRebuild = (async () => {
+    const sjSettings = await getServiceSettings().catch(() => ({}));
+    if (sjSettings["feed.inventory_enabled"] === false) return { skipped: "feed.inventory_enabled is off — ExportModel uploads are the source" };
+    const feed = await feedInventoryRows();
+    if (!feed.onHand.length) return { skipped: "no on-hand serials stored from the ePASS feed yet" };
+    const snap = serialSnapshotFromFeed(feed.onHand, feed.models);
+    const saved = await saveShopInventorySnapshot({ serials: snap.serials, types: snap.types, written: snap.written, units: snap.units, sourceFile: `ePASS feed ${feed.pulledAt || ""}`.trim(), uploadedBy: "epass-agent" });
+    const out = { why, rows: feed.onHand.length, units: snap.unitCount, withModel: snap.withModel, saved: saved?.count ?? null, typed: saved?.typedCount ?? null, written: saved?.writtenCount ?? null, feedPulledAt: feed.pulledAt, at: new Date().toISOString() };
+    lastShopSnapshotRebuild = out;
+    return out;
+  })().finally(() => { shopSnapshotRebuild = null; });
+  return shopSnapshotRebuild;
+}
+let lastShopSnapshotRebuild = null;
+// At boot: if the shop's snapshot is older than the last feed, rebuild it.
+setTimeout(async () => {
+  try {
+    const [snap, feed] = await Promise.all([getShopInventorySnapshot().catch(() => null), getEpassOpenOrdersMeta().catch(() => null)]);
+    const feedAt = feed?.meta?.received_at ? Date.parse(feed.meta.received_at) : 0;
+    const snapAt = snap?.uploadedAt ? Date.parse(snap.uploadedAt) : 0;
+    if (feedAt && feedAt > snapAt) {
+      const out = await rebuildShopSnapshotFromFeed({ why: "boot" });
+      console.log("Shop snapshot rebuilt at boot:", JSON.stringify(out));
+    }
+  } catch (err) { console.error("Boot shop snapshot rebuild failed:", err.message); }
+}, 20 * 1000).unref?.();
 
 function snapshotKeyOk(provided) {
   if (!SHOP_SNAPSHOT_KEY || !provided) return false;
@@ -9748,12 +9804,27 @@ app.post("/api/epass-agent/upload", express.raw({ type: () => true, limit: "60mb
       // same ack-then-process pattern as the service bundle, so the agent
       // never times out on a big bundle and re-pushes it (9/22, 15:41).
       const ip = req.ip, pulledAt = bundle.pulledAt || "", machine = bundle.machine || "";
+      // Memory (Andrew 9/24, 09:21 crash): the parsed bundle is ~47 MB of JSON,
+      // hundreds of MB as objects. The post-processing queue runs for minutes
+      // and used to hold ALL of it while the next bundles arrived. Take the two
+      // things the queue needs now and let the rest go — everything else it
+      // reads comes from the tables replaceEpassOpenOrders just wrote.
+      let wmParsed = null, wmError = null;
+      try { wmParsed = parseWrittenModelsFromEpass(bundle); } catch (err) { wmError = err; }
+      const quoteRowsAll = Array.isArray(bundle.datasets?.["open-quotes"]) ? bundle.datasets["open-quotes"] : [];
+      bundle.datasets = null;
       epassSalesChain = epassSalesChain.catch(() => {}).then(async () => {
         try {
+        // FIRST: the shop / cosmetic-damage serial snapshot — seconds, and the
+        // shop pauses without it, so it never waits behind the slow steps.
+        try { counts.inventory = await rebuildShopSnapshotFromFeed({ why: "bundle" }); }
+        catch (err) { console.error("Serial inventory snapshot from ePASS feed failed:", err.message); counts.inventory = { error: err.message }; }
         // The Ordering Report reads this feed now — the OE-04 upload is optional.
         let orderingReport = null;
         try {
-          orderingReport = await saveWrittenModelsSnapshot(parseWrittenModelsFromEpass(bundle), { by: "epass-agent", sourceFile: `ePASS feed ${bundle.pulledAt || ""}`.trim() });
+          if (wmError) throw wmError;
+          orderingReport = await saveWrittenModelsSnapshot(wmParsed, { by: "epass-agent", sourceFile: `ePASS feed ${pulledAt}`.trim() });
+          wmParsed = null;
         } catch (err) {
           console.error("Ordering Report refresh from ePASS feed failed:", err.message);
           orderingReport = { error: err.message };
@@ -9762,7 +9833,7 @@ app.post("/api/epass-agent/upload", express.raw({ type: () => true, limit: "60mb
         // Quote Follow-Up reads the feed's open quotes (Andrew, 9/22) — the
         // Invoice Maintenance quote export is the fallback, not the source.
         try {
-          const qrows = Array.isArray(bundle.datasets?.["open-quotes"]) ? bundle.datasets["open-quotes"].filter((r) => r && typeof r === "object") : [];
+          const qrows = quoteRowsAll.filter((r) => r && typeof r === "object");
           // Quotes barely move between pulls — skip the rewrite when the set
           // is identical to the last one processed (a restart reprocesses once).
           const qsig = qrows.length ? crypto.createHash("sha1").update(JSON.stringify(qrows)).digest("hex") : "";
@@ -9771,30 +9842,12 @@ app.post("/api/epass-agent/upload", express.raw({ type: () => true, limit: "60mb
             lastQuotesSig = qsig;
             const cal = await calibrateQuoteCustomerField(qrows);
             const quotes = quotesFromFeedRows(qrows, { customerField: cal.field });
-            const n = await replaceOpenQuotes(quotes, { filename: `ePASS feed ${bundle.pulledAt || ""}`.trim(), byEmail: "epass-agent", byName: "ePASS feed" });
+            const n = await replaceOpenQuotes(quotes, { filename: `ePASS feed ${pulledAt}`.trim(), byEmail: "epass-agent", byName: "ePASS feed" });
             counts.quotes = { rows: qrows.length, open: n, customerField: cal.field, calibrated: cal.compared };
           } else counts.quotes = { rows: 0, skipped: "no open-quotes dataset in this bundle (older pull script?)" };
         } catch (err) {
           console.error("Quote Follow-Up refresh from ePASS feed failed:", err.message);
           counts.quotes = { error: err.message };
-        }
-        // Serial inventory snapshot (shop availability, cosmetic-damage form,
-        // written-to history) from on-hand-serials — replaces the ExportModel
-        // upload (Andrew 9/24). Off switch: setting feed.inventory_enabled =
-        // false puts the ExportModel workbook back as the source.
-        try {
-          const onHand = bundle.datasets?.["on-hand-serials"];
-          const sjSettings = await getServiceSettings().catch(() => ({}));
-          if (sjSettings["feed.inventory_enabled"] === false) counts.inventory = { skipped: "feed.inventory_enabled is off — ExportModel uploads are the source" };
-          else if (!Array.isArray(onHand) || !onHand.length) counts.inventory = { skipped: "no on-hand-serials dataset in this bundle" };
-          else {
-            const snap = serialSnapshotFromFeed(onHand);
-            const saved = await saveShopInventorySnapshot({ serials: snap.serials, types: snap.types, written: snap.written, units: snap.units, sourceFile: `ePASS feed ${bundle.pulledAt || ""}`.trim(), uploadedBy: "epass-agent" });
-            counts.inventory = { rows: onHand.length, units: snap.unitCount, withModel: snap.withModel, saved: saved?.count ?? null, typed: saved?.typedCount ?? null, written: saved?.writtenCount ?? null };
-          }
-        } catch (err) {
-          console.error("Serial inventory snapshot from ePASS feed failed:", err.message);
-          counts.inventory = { error: err.message };
         }
         // Sales Order Health reads this feed now too (Andrew, 9/22) — the
         // Invoice Maintenance upload is the fallback, not the source.
@@ -9802,7 +9855,7 @@ app.post("/api/epass-agent/upload", express.raw({ type: () => true, limit: "60mb
           const rows = await salesOrderRowsFromFeed();
           if (rows.length) {
             await keepLastSalesUploadCopy();
-            const snap = await saveSalesOrderSnapshot({ rows, filename: `ePASS feed ${bundle.pulledAt || ""}`.trim(), byEmail: "epass-agent", byName: "ePASS feed" });
+            const snap = await saveSalesOrderSnapshot({ rows, filename: `ePASS feed ${pulledAt}`.trim(), byEmail: "epass-agent", byName: "ePASS feed" });
             counts.salesOrderHealth = { rows: rows.length, uploadedAt: snap?.uploadedAt || null };
           } else counts.salesOrderHealth = { rows: 0, skipped: "no sales invoices in the feed" };
         } catch (err) {
@@ -9916,7 +9969,18 @@ app.post("/api/epass-agent/upload", express.raw({ type: () => true, limit: "60mb
 // What the ODBC feed last delivered (executives; the CSVs themselves are on
 // W:\Agility\epass\ for everyone in the building).
 app.get("/api/epass/open-orders/status", requireExecutiveApi, async (req, res) => {
-  try { return res.json({ ...(await getEpassOpenOrdersMeta() || {}), postProcessing: lastSalesPostProcessing, finishedOrders: lastFinishedPostProcessing, catalogue: { ...(await catalogueStatus().catch(() => ({}))), last: lastCataloguePostProcessing }, tax: { ...(await taxStatus().catch(() => ({}))), last: lastTaxPostProcessing } }); } catch (err) { return res.status(400).json({ error: err.message }); }
+  // The online shop's inventory, first — is it open, how old is the
+  // snapshot, did the last bundle carry the Model columns (Andrew 9/24).
+  let shop = null;
+  try {
+    const cat = await computeShopCatalog();
+    const meta = await getEpassOpenOrdersMeta().catch(() => null);
+    const cols = meta?.meta?.columns?.["on-hand-serials"] || [];
+    shop = { paused: cat.paused, snapshotAt: cat.snapshot?.uploadedAt || null, snapshotAgeHours: cat.snapshotAgeHours == null ? null : Math.round(cat.snapshotAgeHours * 10) / 10, pausesAfterHours: SHOP_SNAPSHOT_MAX_AGE_HOURS, snapshotSource: cat.snapshot?.sourceFile || "", snapshotSerials: cat.snapshot?.count ?? 0,
+      stockModels: (cat.stockModels || []).length, stockModelsListed: (cat.stockModels || []).filter((m) => m.listed).length, itemsForSale: cat.items.length,
+      lastBundleHasModelColumns: cols.includes("Model_Description"), lastSalesBundleProcessed: lastSalesPostProcessing?.finishedAt || null, lastRebuild: lastShopSnapshotRebuild };
+  } catch (err) { shop = { error: err.message }; }
+  try { return res.json({ shop, ...(await getEpassOpenOrdersMeta() || {}), postProcessing: lastSalesPostProcessing, finishedOrders: lastFinishedPostProcessing, catalogue: { ...(await catalogueStatus().catch(() => ({}))), last: lastCataloguePostProcessing }, tax: { ...(await taxStatus().catch(() => ({}))), last: lastTaxPostProcessing } }); } catch (err) { return res.status(400).json({ error: err.message }); }
 });
 app.get("/api/epass/open-orders", requireExecutiveApi, async (req, res) => {
   try { return res.json({ rows: await listEpassOpenOrders({ type: String(req.query.type || ""), q: String(req.query.q || ""), limit: Number(req.query.limit) || 500 }) }); } catch (err) { return res.status(400).json({ error: err.message }); }

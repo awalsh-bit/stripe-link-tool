@@ -816,8 +816,26 @@ finally {
 # 10-minute task (self-scheduling reads this data, so freshness matters:
 # pull every 15 minutes + push at once ≈ 2 minutes old, not 25). The agent
 # skips files younger than 30 s, so give the last write a moment to settle.
+#
+# 9/24: the agent runs as its OWN process with a time limit. Run in-process,
+# one hung upload kept this pull "running" in Task Scheduler, and Task
+# Scheduler skips every later trigger while an instance is running — the
+# whole feed stopped at 09:15. Now a stuck agent is stopped after
+# $AgentTimeoutMinutes, the pull finishes, and the next quarter-hour runs.
+# Files still in the outbox are simply pushed next time.
 $agent = Join-Path $Root "epass-agent.ps1"
 if (-not $Discover -and (Test-Path $agent)) {
   Start-Sleep -Seconds 31
-  try { & $agent; Log "epass-agent.ps1 ran" } catch { Log ("epass-agent.ps1 FAILED (its own task will retry): {0}" -f $_.Exception.Message) }
+  $AgentTimeoutMinutes = 12
+  try {
+    $ps = Join-Path $env:WINDIR "SysWOW64\WindowsPowerShell\v1.0\powershell.exe"
+    if (-not (Test-Path $ps)) { $ps = "powershell.exe" }
+    $proc = Start-Process -FilePath $ps -ArgumentList @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "`"$agent`"") -WorkingDirectory $Root -WindowStyle Hidden -PassThru
+    if ($proc.WaitForExit($AgentTimeoutMinutes * 60 * 1000)) {
+      Log ("epass-agent.ps1 ran (exit {0})" -f $proc.ExitCode)
+    } else {
+      try { $proc.Kill() } catch {}
+      Log ("epass-agent.ps1 STOPPED after {0} min (still running) — unsent files stay in the outbox for the next run" -f $AgentTimeoutMinutes)
+    }
+  } catch { Log ("epass-agent.ps1 FAILED to start (its own task will retry): {0}" -f $_.Exception.Message) }
 }

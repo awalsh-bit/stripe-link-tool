@@ -316,6 +316,27 @@ show what ePASS actually stores for an ordered part. Column lists came from
 `odbc/PO.csv`, `odbc/POItem.csv`, `odbc/InvoiceItem.csv` (the `-Discover`
 output); `LaborRate`'s price column is `List`.
 
+### 8b4. Keeping the feed alive (2026-09-24)
+
+At 09:21 on 9/24 the Agility server fell over while it post-processed a
+47 MB sales bundle and a 15 MB service bundle arrived — and the pull's
+in-process agent call left the 09:15 run "running", so Task Scheduler
+skipped every later trigger and the feed stopped. Since then:
+
+- The pull starts `epass-agent.ps1` as its **own process with a 12-minute
+  cap**; a stuck agent is stopped, the pull finishes, the next quarter-hour
+  runs, and unsent files wait in the outbox.
+- The agent holds a **single-run lock** (`Global\AgilityEpassAgent`); the
+  pull-launched run and the agent's own task never push at the same time.
+- Upload timeout is **5 minutes** (was 15): Agility acknowledges a bundle
+  as soon as it is stored and processes afterwards.
+- Agility keeps only what the post-processing queue needs from a sales
+  bundle (Ordering Report rows, open quotes) and drops the rest before the
+  queue runs; the shop snapshot is built first, from the stored tables, and
+  again at boot when it is older than the feed.
+- Belt and braces on the ePASS server: Task Scheduler → the pull task →
+  Settings → **"Stop the task if it runs longer than 30 minutes"**.
+
 ### 8b3. Serial inventory from the feed (2026-09-24)
 
 The `on-hand-serials` view (every `Serial` with a blank Status, joined to

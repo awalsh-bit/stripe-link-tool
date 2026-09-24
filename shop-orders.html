@@ -31,6 +31,12 @@
     .exp-sub { color: #6b7280; font-size: 12.5px; font-weight: 400; }
     .exp-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin: 10px 0 14px; }
     .exp-row select { border: 1.5px solid var(--border, #dbe1ea); border-radius: 10px; padding: 7px 10px; font-size: 13px; background: #fff; font-family: inherit; }
+    .zip-list { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+    .zip-chip { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--border); border-radius: 999px; padding: 5px 6px 5px 12px; font-size: 13px; background: #fff; }
+    .zip-chip b { font-variant-numeric: tabular-nums; }
+    .zip-chip span { color: var(--muted); font-size: 12px; }
+    .zip-chip button { border: none; background: #f1f5f9; color: #475569; border-radius: 999px; width: 22px; height: 22px; cursor: pointer; font-size: 12px; line-height: 1; }
+    .zip-chip button:hover { background: #fee2e2; color: #991b1b; }
     .stock-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
     .stock-table th, .stock-table td { padding: 7px 8px; border-bottom: 1px solid #edf1f7; text-align: left; vertical-align: middle; white-space: nowrap; }
     .stock-table th { font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
@@ -154,8 +160,9 @@
         <p class="section-note" style="margin-top:10px;">
           The store posts every in-stock model automatically (new ALL-type units, from the feed's serial snapshot).
           <b>2–3 units</b> show <b>Low Stock</b>, <b>4 or more</b> show <b>In Stock</b>; a model with a <b>single</b> unit stays
-          off until you turn on <i>Show when only one</i> for it. Price defaults to the ePASS list price — set an
-          override to sharpen it, or hide a model entirely. Prices are revealed in the cart, not on the listing.
+          off until you turn on <i>Show when only one</i> for it. Price defaults to the model's
+          <b>RETAIL</b> price in ePASS (the retail deck — MAP/PMAP), then a brand UMRP/MAP code, then L1; at or above MAP the
+          price shows right on the card. Set an override to sharpen it (below MAP it shows in the cart only), or hide a model.
         </p>
         <div class="exp-row">
           <input type="search" id="stockFind" placeholder="Find model, brand, description…" style="flex:1; min-width:220px; border:1px solid var(--border); border-radius:10px; padding:8px 10px; font-size:13px;">
@@ -165,6 +172,25 @@
         <div style="overflow:auto;">
           <table class="stock-table" id="stockTable"></table>
         </div>
+      </details>
+
+      <details class="surface" id="zipCard">
+        <summary class="exp-summary">
+          <strong>Delivery ZIP codes</strong>
+          <span class="exp-sub" id="zipSummaryLine">Which ZIPs can enter the online shop and order.</span>
+        </summary>
+        <p class="section-note" style="margin-top:10px;">
+          A shopper has to enter one of these ZIPs to come in, and a profile's delivery address has to be in one to check out.
+          Add several at once (commas or spaces); the label is optional (city, route…). Changes are live immediately.
+          Removing a ZIP doesn't touch existing orders or profiles — it just stops new visitors and checkouts from that ZIP.
+        </p>
+        <div class="exp-row">
+          <input type="text" id="zipAdd" placeholder="78620, 78737…" inputmode="numeric" style="flex:1; min-width:160px; border:1px solid var(--border); border-radius:10px; padding:8px 10px; font-size:13px;">
+          <input type="text" id="zipLabel" placeholder="label (optional)" maxlength="60" style="width:180px; border:1px solid var(--border); border-radius:10px; padding:8px 10px; font-size:13px;">
+          <button type="button" class="ws-btn" id="zipAddBtn">Add ZIPs</button>
+          <span class="ws-snap-meta" id="zipStatus"></span>
+        </div>
+        <div id="zipList" class="zip-list">Loading…</div>
       </details>
       <div id="internal-shell-footer"></div>
     </div>
@@ -688,6 +714,43 @@
           if (e.target.open && !expLoaded) { expLoaded = true; loadExpress(); }
         });
 
+        // ---- Delivery ZIP codes ----
+        let zipLoaded = false;
+        const escZ = (v) => String(v ?? "").replace(/[&<>"']/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch]));
+        function renderZips(zips) {
+          document.getElementById("zipSummaryLine").textContent = `${zips.length} ZIP${zips.length === 1 ? "" : "s"} can order online.`;
+          document.getElementById("zipList").innerHTML = zips.length
+            ? zips.map((z) => `<span class="zip-chip" title="${escZ(z.addedBy ? "added by " + z.addedBy : "")}"><b>${escZ(z.zip)}</b>${z.label ? `<span>${escZ(z.label)}</span>` : ""}<button type="button" data-zip-rm="${escZ(z.zip)}" aria-label="Remove ${escZ(z.zip)}">✕</button></span>`).join("")
+            : '<span class="ws-snap-meta">No ZIPs — nobody can enter the shop right now.</span>';
+        }
+        async function loadZips() {
+          try { const out = await api("/api/shop/allowed-zips"); renderZips(out.zips || []); }
+          catch (err) { document.getElementById("zipStatus").textContent = err.message; }
+        }
+        document.getElementById("zipCard").addEventListener("toggle", (e) => { if (e.target.open && !zipLoaded) { zipLoaded = true; loadZips(); } });
+        document.getElementById("zipAddBtn").addEventListener("click", async () => {
+          const status = document.getElementById("zipStatus"); const btn = document.getElementById("zipAddBtn");
+          const zips = document.getElementById("zipAdd").value.trim();
+          if (!zips) { status.textContent = "Enter a ZIP first."; return; }
+          btn.disabled = true; status.textContent = "Saving…";
+          try {
+            const out = await api("/api/shop/allowed-zips", { method: "POST", body: JSON.stringify({ zips, label: document.getElementById("zipLabel").value }) });
+            renderZips(out.zips || []);
+            document.getElementById("zipAdd").value = ""; document.getElementById("zipLabel").value = "";
+            status.textContent = out.added.length ? `Added ${out.added.join(", ")} — live now.` : "Already on the list — nothing changed.";
+          } catch (err) { status.textContent = err.message; }
+          finally { btn.disabled = false; }
+        });
+        document.getElementById("zipAdd").addEventListener("keydown", (e) => { if (e.key === "Enter") document.getElementById("zipAddBtn").click(); });
+        document.getElementById("zipList").addEventListener("click", async (e) => {
+          const b = e.target.closest("[data-zip-rm]"); if (!b) return;
+          const zip = b.dataset.zipRm;
+          if (!confirm(`Remove ${zip}? New visitors from ${zip} won't be able to enter the shop or check out.`)) return;
+          const status = document.getElementById("zipStatus");
+          try { const out = await api(`/api/shop/allowed-zips/${encodeURIComponent(zip)}`, { method: "DELETE" }); renderZips(out.zips || []); status.textContent = `Removed ${zip}.`; }
+          catch (err) { status.textContent = err.message; }
+        });
+
         // ---- Express Assortment: in-stock models ----
         let stockLoaded = false;
         let stockData = null;
@@ -701,17 +764,18 @@
           const rows = (stockData.models || []).filter((m) => (!onlyOff || !m.listed) && (!q || `${m.model} ${m.brand} ${m.description} ${m.categoryLabel}`.toUpperCase().includes(q)));
           const listed = (stockData.models || []).filter((m) => m.listed).length;
           document.getElementById("stockSummaryLine").textContent = `${(stockData.models || []).length} models in stock · ${listed} on the store` + (stockData.snapshot?.uploadedAt ? ` · snapshot ${new Date(stockData.snapshot.uploadedAt).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}` : "");
-          table.innerHTML = `<thead><tr><th>Model</th><th>Brand</th><th>Description</th><th>Category</th><th>Units</th><th>Store</th><th>List</th><th>Override $</th><th>Show when only one</th><th>Hidden</th><th></th></tr></thead>
+          table.innerHTML = `<thead><tr><th>Model</th><th>Brand</th><th>Description</th><th>Category</th><th>Units</th><th>Store</th><th title="The ePASS price level the shop sells at: RETAIL (retail deck — MAP/PMAP), a brand UMRP/MAP code, else L1">ePASS price</th><th title="Advertise floor from ePASS (RETAIL or brand UMRP/MAP). At or above it the price shows on the card; below it, in the cart only.">MAP</th><th>Override $</th><th>Show when only one</th><th>Hidden</th><th></th></tr></thead>
             <tbody>${rows.map((m) => `<tr data-model="${escS(m.key)}">
               <td><b>${escS(m.model)}</b></td><td>${escS(m.brand)}</td><td class="desc">${escS(m.description)}</td><td>${escS(m.categoryLabel)}</td>
               <td>${m.available}${m.inStock !== m.available ? ` <span class="ws-snap-meta">of ${m.inStock}</span>` : ""}</td>
               <td>${m.listed ? (m.available > stockData.lowMax ? '<span class="pill in">In Stock</span>' : '<span class="pill low">Low Stock</span>') : `<span class="pill off">off — ${escS(m.reason)}</span>`}</td>
-              <td>${moneyS(m.listPrice)}</td>
+              <td>${moneyS(m.listPrice)}${m.listCode ? ` <span class="ws-snap-meta">${escS(m.listCode)}</span>` : ""}</td>
+              <td>${moneyS(m.map)}${m.mapCode && m.mapCode !== "RETAIL" ? ` <span class="ws-snap-meta">${escS(m.mapCode)}</span>` : ""}${m.settings.price != null && m.map && m.settings.price < m.map ? ' <span class="pill low" title="Override is below MAP — the price shows in the cart only">below MAP</span>' : ""}</td>
               <td><input type="number" step="0.01" min="0" class="st-price" value="${m.settings.price ?? ""}" placeholder="${m.listPrice ?? "list"}"></td>
               <td><input type="checkbox" class="st-single" ${m.settings.showSingle ? "checked" : ""}></td>
               <td><input type="checkbox" class="st-hidden" ${m.settings.hidden ? "checked" : ""}></td>
               <td><button type="button" class="ws-btn st-save" style="background:#fff; color:#374151; border:1px solid var(--border);">Save</button></td>
-            </tr>`).join("") || '<tr><td colspan="11" class="ws-snap-meta">Nothing matches.</td></tr>'}</tbody>`;
+            </tr>`).join("") || '<tr><td colspan="12" class="ws-snap-meta">Nothing matches.</td></tr>'}</tbody>`;
         }
         async function loadStock() {
           const status = document.getElementById("stockStatus");

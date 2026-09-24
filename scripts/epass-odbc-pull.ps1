@@ -23,6 +23,7 @@
 #   on-hand-serials      Serial master, every unit in stock (Status blank) with the invoice it is promised to
 #                        + Model brand/description/product/list — replaces the ExportModel serial-inventory
 #                        upload (shop availability, cosmetic-damage form) since 9/24
+#   model-list-prices    ModelListPrice for every model in stock: L1 / RETAIL (MAP, PMAP) / brand UMRP codes
 #   open-po-lines        POModel lines not yet received (+ PO supplier/dates/ETA) for models on open lines
 #   open-quotes          Invoice header, InvTypeCode Q, Status Open (Quote Follow-Up board)
 #   finished-orders      (third bundle, epass-finished-orders, first run of each hour or -FinishedSince)
@@ -398,6 +399,20 @@ ORDER BY s.ModelCode, s.DateReceived, s.Code
 "@ (Join-Path $LatestDir "on-hand-serials.csv") "on-hand-serials"
     } catch { Log ("on-hand-serials FAILED (bundle continues without it): {0}" -f $_.Exception.Message); if ($conn.State -ne [System.Data.ConnectionState]::Open) { $conn.Open() } }
   }
+
+  # Andrew 9/24: every price level ePASS holds for the models in stock —
+  # ModelListPrice, one row per model per ListPriceCode (L1, L2, L3, RETAIL,
+  # SZ-UMRP, WOLF-UMRP, BESTMAP, SCOTMAP, LOWES …). RETAIL is the retail deck
+  # (MAP / PMAP); the brand *-UMRP / *MAP codes are the makers' floors. The
+  # online shop prices in-stock models from these (Model.ListPrice is empty).
+  try {
+    $bundle.datasets["model-list-prices"] = Export-Query $conn @"
+SELECT lp.ModelCode, lp.ListPriceCode, lp.ListPriceSequence, lp.ListPrice
+FROM ModelListPrice lp
+WHERE lp.ModelCode IN (SELECT s.ModelCode FROM Serial s WHERE (s.Status IS NULL OR s.Status = ''))
+ORDER BY lp.ModelCode, lp.ListPriceCode, lp.ListPriceSequence
+"@ (Join-Path $LatestDir "model-list-prices.csv") "model-list-prices"
+  } catch { Log ("model-list-prices FAILED (bundle continues without it): {0}" -f $_.Exception.Message); if ($conn.State -ne [System.Data.ConnectionState]::Open) { $conn.Open() } }
 
   try {
     $bundle.datasets["open-po-lines"] = Export-Query $conn @"

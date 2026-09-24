@@ -182,6 +182,10 @@ import {
   getModelBrandMap,
   listShopModelSettings,
   saveShopModelSetting,
+  seedShopAllowedZips,
+  listShopAllowedZips,
+  addShopAllowedZips,
+  removeShopAllowedZip,
   importModelBrandCatalog,
   getModelBrandStats,
   saveShopMapPrices,
@@ -550,8 +554,9 @@ const isDashboardHost = (host) => host === DASHBOARD_HOST || DASHBOARD_HOST_ALIA
 const SERVICE_PUBLIC_HOST = (process.env.SERVICE_PUBLIC_HOST || "service.wilsonappliance.com").toLowerCase();
 const SHOP_PUBLIC_HOST = (process.env.SHOP_PUBLIC_HOST || "shop.wilsonappliance.com").toLowerCase();
 // MAP compliance: the shop only serves (and prices) deliveries inside this
-// ZIP list — like an age gate on an alcohol site. Override with a
-// comma-separated SHOP_ALLOWED_ZIPS env var.
+// ZIP list — like an age gate on an alcohol site. This env list only SEEDS
+// the database list (shop_allowed_zips) the first time; after that the list
+// is edited on Shop Orders → Delivery ZIP codes.
 const SHOP_ALLOWED_ZIPS = new Set(
   String(process.env.SHOP_ALLOWED_ZIPS || "78620,78737,78746,78749,78739,78738,78676,78703,78704,78748")
     .split(",").map((z) => z.trim()).filter(Boolean)
@@ -6177,8 +6182,21 @@ function shopExpressDateChoices(express) {
   return choices;
 }
 
+// The delivery ZIPs live in the database now (Shop Orders → Delivery ZIP
+// codes). SHOP_ALLOWED_ZIPS only seeds the table the first time and stands in
+// until the table is read. Checked from memory; refreshed on every change and
+// every 5 minutes.
+let shopZipSet = new Set(SHOP_ALLOWED_ZIPS);
+async function refreshShopZips() {
+  try {
+    await seedShopAllowedZips([...SHOP_ALLOWED_ZIPS]);
+    shopZipSet = new Set((await listShopAllowedZips()).map((r) => r.zip));
+  } catch (err) { console.error("Shop ZIP list refresh failed:", err.message); }
+}
+setTimeout(refreshShopZips, 5 * 1000).unref?.();
+setInterval(refreshShopZips, 5 * 60 * 1000).unref?.();
 function shopZipAllowed(zip) {
-  return SHOP_ALLOWED_ZIPS.has(String(zip || "").trim().slice(0, 5));
+  return shopZipSet.has(String(zip || "").trim().slice(0, 5));
 }
 
 async function loadShopData() {
@@ -6209,6 +6227,18 @@ function shopMapRuleMatch(mapPolicy, brand, category) {
     String(rule.brand || "").trim().toUpperCase() === b &&
     (rule.categories || []).includes(category)
   );
+}
+
+// Brands that don't allow e-commerce (Andrew 9/24): the Sub-Zero Group lines
+// and Gaggenau never appear on the online shop — clearance or in-stock.
+// Matched on the ePASS brand code or the brand name. data/shop-map-policy.json
+// may carry "blockedBrands": [...] to replace this list without a deploy.
+const SHOP_BLOCKED_BRANDS_DEFAULT = ["SZ", "SUBZERO", "SUB-ZERO", "WOLF", "WG", "WOLF GOURMET", "COVE", "GAGGE", "GAGGENAU"];
+const brandKey = (v) => String(v || "").toUpperCase().replace(/[^0-9A-Z]/g, "");
+function shopBrandBlocker(mapPolicy) {
+  const list = Array.isArray(mapPolicy?.blockedBrands) && mapPolicy.blockedBrands.length ? mapPolicy.blockedBrands : SHOP_BLOCKED_BRANDS_DEFAULT;
+  const keys = new Set(list.map(brandKey).filter(Boolean));
+  return (...names) => names.some((n) => { const k = brandKey(n); return k && (keys.has(k) || [...keys].some((b) => b.length >= 4 && k.startsWith(b))); });
 }
 
 function normalizeModelKey(model) {
@@ -6281,6 +6311,7 @@ const SHOP_STOCK_LOW_MAX = 3; // 1–3 units = Low Stock, 4+ = In Stock
 //   brandNames            — brand CODE → name, learned from the clearance list
 //   clearanceUnitKeys     — model|serial keys the clearance list already prices
 function shopStockItems({ snapshot, settings, brandMap, brandNames, images, mapPolicy, mapFloor, statusById, clearanceUnitKeys }) {
+  const brandBlocked = shopBrandBlocker(mapPolicy);
   const byModel = new Map();
   for (const u of snapshot?.serialUnits || []) {
     if (String(u.serialType || "").toUpperCase() !== "ALL") continue;
@@ -6297,9 +6328,11 @@ function shopStockItems({ snapshot, settings, brandMap, brandNames, images, mapP
     const category = SHOP_STOCK_CATEGORY_BY_PRODUCT[prod];
     if (!category) continue; // accessories / unmapped product codes stay off the stock listings
     let g = byModel.get(key);
-    if (!g) { g = { key, model, category, prod, units: [], brandCode: String(u.brand || "").trim(), description: String(u.description || known.description || "").trim(), list: 0 }; byModel.set(key, g); }
+    if (!g) { g = { key, model, category, prod, units: [], brandCode: String(u.brand || "").trim(), description: String(u.description || known.description || "").trim(), list: 0, listCode: "", map: 0, mapCode: "", l1: 0 }; byModel.set(key, g); }
     g.units.push({ serial, id: `${model}|${serial}#S` });
-    if (!g.list && Number(u.list) > 0) g.list = Number(u.list);
+    if (!g.list && Number(u.list) > 0) { g.list = Number(u.list); g.listCode = u.listCode || ""; }
+    if (!g.map && Number(u.map) > 0) { g.map = Number(u.map); g.mapCode = u.mapCode || ""; }
+    if (!g.l1 && Number(u.l1) > 0) g.l1 = Number(u.l1);
     if (!g.description && u.description) g.description = String(u.description).trim();
   }
   const items = [];
@@ -6310,11 +6343,16 @@ function shopStockItems({ snapshot, settings, brandMap, brandNames, images, mapP
     const price = cfg.price != null && cfg.price > 0 ? cfg.price : (g.list > 0 ? g.list : 0);
     const brand = brandMap[g.model.toUpperCase()]?.brand || brandNames[g.brandCode.toUpperCase()]
       || (g.brandCode.length > 3 ? g.brandCode.charAt(0) + g.brandCode.slice(1).toLowerCase() : g.brandCode); // SAMSUNG → Samsung; FP stays FP
-    const listed = !cfg.hidden && available.length > 0 && (available.length > 1 || cfg.showSingle);
-    models.push({ model: g.model, key: g.key, brand, description: g.description, product: g.prod, category: g.category, inStock: g.units.length, available: available.length, listPrice: g.list || null, price: price || null, settings: { price: cfg.price ?? null, showSingle: !!cfg.showSingle, hidden: !!cfg.hidden, note: cfg.note || "" }, listed, reason: cfg.hidden ? "hidden" : !available.length ? "none available" : available.length === 1 && !cfg.showSingle ? "single unit (toggle to show)" : !price ? "no price — call for price" : "" });
+    const blocked = brandBlocked(brand, g.brandCode);
+    const listed = !blocked && !cfg.hidden && available.length > 0 && (available.length > 1 || cfg.showSingle);
+    models.push({ model: g.model, key: g.key, brand, description: g.description, product: g.prod, category: g.category, inStock: g.units.length, available: available.length, listPrice: g.list || null, listCode: g.listCode, map: g.map || null, mapCode: g.mapCode, l1: g.l1 || null, price: price || null, settings: { price: cfg.price ?? null, showSingle: !!cfg.showSingle, hidden: !!cfg.hidden, note: cfg.note || "" }, listed, blocked, reason: blocked ? "brand doesn't allow online sale" : cfg.hidden ? "hidden" : !available.length ? "none available" : available.length === 1 && !cfg.showSingle ? "single unit (toggle to show)" : !price ? "no price — call for price" : "" });
     if (!listed) continue;
-    const floor = mapFloor[g.key];
-    const mapPublic = Boolean(price && shopMapRuleMatch(mapPolicy, brand, g.category) && Number.isFinite(Number(floor)) && price >= Number(floor) - 0.005);
+    // The floor is ePASS's own MAP (RETAIL / brand UMRP) when it has one — at
+    // or above it the price is advertised on the card; below it (an override)
+    // it stays a cart reveal. Without an ePASS MAP, the old rule: published
+    // MAP feed + the brand/category whitelist.
+    const floor = g.map > 0 ? g.map : mapFloor[g.key];
+    const mapPublic = Boolean(price && Number.isFinite(Number(floor)) && Number(floor) > 0 && price >= Number(floor) - 0.005 && (g.map > 0 || shopMapRuleMatch(mapPolicy, brand, g.category)));
     for (const x of available) {
       items.push({
         id: x.id, model: g.model, brand, brandCode: g.brandCode, product: g.prod, category: g.category, description: g.description,
@@ -6378,9 +6416,11 @@ async function computeShopCatalog() {
   const serialWritten = snapshot?.serialWritten || {};
   const lookupKeyed = (map, composite, serial) => map[composite] ?? map[serial];
 
+  const brandBlocked = shopBrandBlocker(mapPolicy);
   const items = [];
   for (const item of clearance.items || []) {
     if (statusById.has(item.id)) continue; // sold, held, or web-locked
+    if (brandBlocked(item.brand, item.brandCode)) continue; // brand doesn't allow online sale
     const serial = String(item.serial || "").trim().toUpperCase();
     const composite = normalizeModelKey(item.model) + "|" + serial;
     if (snapshotKeys && !snapshotKeys.has(composite) && !snapshotKeys.has(serial)) continue; // no longer in ePASS
@@ -6982,6 +7022,10 @@ app.post("/api/shop/setup-intent", async (req, res) => {
   try {
     const shopper = await getShopperByToken(req.body?.token);
     if (!shopper) return res.status(401).json({ error: "Please register to check out." });
+    // The delivery-ZIP list can change after a profile was made (Shop Orders).
+    if (req.body?.fulfillment?.method !== "pickup" && !shopZipAllowed(shopper.address?.zip)) {
+      return res.status(403).json({ error: `We don't deliver online orders to ${String(shopper.address?.zip || "that ZIP").slice(0, 5)} right now — choose customer pickup, or call 512-894-0907.` });
+    }
 
     const catalog = await computeShopCatalog();
     if (catalog.paused) return res.status(503).json({ error: "Online checkout is briefly paused while we refresh inventory. Please try again soon or call the store." });
@@ -9058,6 +9102,9 @@ app.post("/api/shop/submit-order", async (req, res) => {
   try {
     const shopper = await getShopperByToken(req.body?.token);
     if (!shopper) return res.status(401).json({ error: "Please register to check out." });
+    if (req.body?.fulfillment?.method !== "pickup" && !shopZipAllowed(shopper.address?.zip)) {
+      return res.status(403).json({ error: `We don't deliver online orders to ${String(shopper.address?.zip || "that ZIP").slice(0, 5)} right now — choose customer pickup, or call 512-894-0907.` });
+    }
 
     const setupIntentId = String(req.body?.setupIntentId || "").trim();
     if (!/^seti_/.test(setupIntentId)) return res.status(400).json({ error: "Missing card setup reference." });
@@ -9208,7 +9255,7 @@ app.get("/api/shop-orders", requirePagePermission("/shop-orders.html"), async (r
         : null,
       mapFeedConfigured: Boolean(SHOP_MAP_PRICE_URL),
       mapFeedLastAttempt: shopMapLastAttempt,
-      allowedZips: [...SHOP_ALLOWED_ZIPS]
+      allowedZips: [...shopZipSet].sort()
     });
   } catch (err) {
     console.error("Shop orders load failed:", err.message);
@@ -9401,6 +9448,28 @@ app.post("/api/shop-orders/:id/cancel", requirePagePermission("/shop-orders.html
 
 // INTERNAL: refresh the availability snapshot from the latest ePASS
 // ExportModel export (parsed in the browser; serials only travel here).
+// Delivery ZIPs the online shop serves (Shop Orders).
+app.get("/api/shop/allowed-zips", requirePagePermission("/shop-orders.html"), async (req, res) => {
+  try { return res.json({ zips: await listShopAllowedZips() }); }
+  catch (err) { return res.status(500).json({ error: err.message || "Unable to load the ZIP list." }); }
+});
+app.post("/api/shop/allowed-zips", requirePagePermission("/shop-orders.html"), async (req, res) => {
+  try {
+    const added = await addShopAllowedZips({ zips: req.body?.zips, label: req.body?.label || "", by: req.authUser?.email || "" });
+    await refreshShopZips();
+    recordAudit({ ip: req.ip, actorUserId: req.authUser?.id || null, action: "shop_zips_added", targetUserId: null, detail: { added, label: String(req.body?.label || "").slice(0, 60) } }).catch(() => {});
+    return res.json({ ok: true, added, zips: await listShopAllowedZips() });
+  } catch (err) { return res.status(400).json({ error: err.message || "Unable to add those ZIPs." }); }
+});
+app.delete("/api/shop/allowed-zips/:zip", requirePagePermission("/shop-orders.html"), async (req, res) => {
+  try {
+    const removed = await removeShopAllowedZip(req.params.zip);
+    await refreshShopZips();
+    recordAudit({ ip: req.ip, actorUserId: req.authUser?.id || null, action: "shop_zip_removed", targetUserId: null, detail: { zip: String(req.params.zip).slice(0, 10), removed } }).catch(() => {});
+    return res.json({ ok: true, removed, zips: await listShopAllowedZips() });
+  } catch (err) { return res.status(400).json({ error: err.message || "Unable to remove that ZIP." }); }
+});
+
 // Rebuild the shop snapshot from the last ePASS feed now (Shop Orders button).
 app.post("/api/shop/inventory-snapshot/rebuild", requirePagePermission("/shop-orders.html"), async (req, res) => {
   try {
@@ -9556,7 +9625,37 @@ function extractSerialsFromWorkbook(buffer) {
 // shape as extractSerialsFromWorkbook, so the shop, the damage form and the
 // written-to history read it unchanged: unit identity is model|serial,
 // "written to" is Serial.InvoiceCode, type is SerialTypeCode.
-function serialSnapshotFromFeed(rows, modelRows = []) {
+// Which ePASS price level the shop sells at, and which one is the floor it may
+// advertise at (Andrew 9/24): RETAIL is the retail deck — MAP / PMAP; the
+// brand codes (SZ-UMRP, WOLF-UMRP, BESTMAP, SCOTMAP …) are makers' floors;
+// L1 is the everyday list. Model.ListPrice is the last resort.
+const SHOP_PRICE_CODE_ORDER = ["RETAIL"];
+const isMapCode = (c) => c === "RETAIL" || /UMRP$|MAP$|PMAP$/.test(c);
+function priceLevelsByModel(priceRows) {
+  const byModel = new Map();
+  for (const r of Array.isArray(priceRows) ? priceRows : []) {
+    const m = String(r.model ?? r.ModelCode ?? "").trim().toUpperCase();
+    const code = String(r.code ?? r.ListPriceCode ?? "").trim().toUpperCase();
+    const price = Number(r.price ?? r.ListPrice);
+    if (!m || !code || !Number.isFinite(price) || price <= 0) continue;
+    if (!byModel.has(m)) byModel.set(m, {});
+    byModel.get(m)[code] = Math.round(price * 100) / 100; // rows arrive seq-ascending — the latest wins
+  }
+  return byModel;
+}
+function shopPriceFromLevels(levels = {}, fallbackList = 0) {
+  const codes = Object.keys(levels);
+  const brandMap = codes.filter((c) => c !== "RETAIL" && isMapCode(c)).sort();
+  const mapCode = levels.RETAIL ? "RETAIL" : brandMap[0] || "";
+  const sellCode = SHOP_PRICE_CODE_ORDER.find((c) => levels[c]) || brandMap[0] || (levels.L1 ? "L1" : "");
+  return {
+    list: sellCode ? levels[sellCode] : (Number(fallbackList) || 0), listCode: sellCode || (Number(fallbackList) > 0 ? "Model.ListPrice" : ""),
+    map: mapCode ? levels[mapCode] : 0, mapCode, l1: levels.L1 || 0
+  };
+}
+
+function serialSnapshotFromFeed(rows, modelRows = [], priceRows = []) {
+  const levelsByModel = priceLevelsByModel(priceRows);
   const normModel = (v) => String(v ?? "").toUpperCase().replace(/[^0-9A-Z]/g, "");
   const pick = (r, ...names) => { for (const n of names) { const k = Object.keys(r || {}).find((x) => x.toLowerCase() === n.toLowerCase()); if (k != null && r[k] != null && String(r[k]).trim() !== "") return r[k]; } return ""; };
   const isoDate = (v) => { const str = String(v ?? "").trim(); let m = str.match(/^(\d{4})-(\d{2})-(\d{2})/); if (m) return m[0]; m = str.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/); return m ? `${m[3]}-${m[1].padStart(2, "0")}-${m[2].padStart(2, "0")}` : ""; };
@@ -9585,7 +9684,7 @@ function serialSnapshotFromFeed(rows, modelRows = []) {
         serialType: type, writtenTo,
         received: isoDate(pick(r, "DateReceived")),
         cost: Number(pick(r, "Cost")) || 0,
-        list: Number(pick(r, "Model_ListPrice") || pick(mm, "ListPrice")) || 0
+        ...shopPriceFromLevels(levelsByModel.get(model.toUpperCase()), Number(pick(r, "Model_ListPrice") || pick(mm, "ListPrice")) || 0)
       });
     }
     const keys = new Set();
@@ -9609,9 +9708,9 @@ async function rebuildShopSnapshotFromFeed({ why = "feed" } = {}) {
     if (sjSettings["feed.inventory_enabled"] === false) return { skipped: "feed.inventory_enabled is off — ExportModel uploads are the source" };
     const feed = await feedInventoryRows();
     if (!feed.onHand.length) return { skipped: "no on-hand serials stored from the ePASS feed yet" };
-    const snap = serialSnapshotFromFeed(feed.onHand, feed.models);
+    const snap = serialSnapshotFromFeed(feed.onHand, feed.models, feed.listPrices);
     const saved = await saveShopInventorySnapshot({ serials: snap.serials, types: snap.types, written: snap.written, units: snap.units, sourceFile: `ePASS feed ${feed.pulledAt || ""}`.trim(), uploadedBy: "epass-agent" });
-    const out = { why, rows: feed.onHand.length, units: snap.unitCount, withModel: snap.withModel, saved: saved?.count ?? null, typed: saved?.typedCount ?? null, written: saved?.writtenCount ?? null, feedPulledAt: feed.pulledAt, at: new Date().toISOString() };
+    const out = { why, rows: feed.onHand.length, units: snap.unitCount, withModel: snap.withModel, priceRows: (feed.listPrices || []).length, priced: snap.units.filter((u) => u.list > 0).length, withMap: snap.units.filter((u) => u.map > 0).length, saved: saved?.count ?? null, typed: saved?.typedCount ?? null, written: saved?.writtenCount ?? null, feedPulledAt: feed.pulledAt, at: new Date().toISOString() };
     lastShopSnapshotRebuild = out;
     return out;
   })().finally(() => { shopSnapshotRebuild = null; });

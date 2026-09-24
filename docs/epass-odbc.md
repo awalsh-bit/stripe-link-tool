@@ -316,6 +316,24 @@ show what ePASS actually stores for an ordered part. Column lists came from
 `odbc/PO.csv`, `odbc/POItem.csv`, `odbc/InvoiceItem.csv` (the `-Discover`
 output); `LaborRate`'s price column is `List`.
 
+### 8b3b. Shop prices from ePASS price levels (2026-09-24)
+
+`model-list-prices` (sales bundle) carries `ModelListPrice` for every model
+in stock — one row per model per `ListPriceCode`. Codes seen on open lines:
+L1, L2, L3, LOWES, **RETAIL** (the retail deck — MAP / PMAP) and brand
+floors SZ-UMRP, WOLF-UMRP, BESTMAP, SCOTMAP. Stored in
+`epass_model_list_prices`. The Express Assortment sells an in-stock model at
+its Shop Orders override, else **RETAIL**, else a brand UMRP/MAP code, else
+L1 (then `Model.ListPrice`). The advertise floor is RETAIL or the brand code:
+at or above it the price shows on the card; below it (an override) it shows
+in the cart only. No price level at all → "Call for price".
+
+**Brands never sold online** (they don't allow e-commerce): Sub-Zero (SZ),
+Wolf (WOLF), Wolf Gourmet (WG), Cove (COVE), Gaggenau (GAGGE) — kept off
+the shop entirely, clearance and in-stock; the Shop Orders stock table
+shows them as "brand doesn't allow online sale". The list can be replaced
+without a deploy with `"blockedBrands": [...]` in `data/shop-map-policy.json`.
+
 ### 8b4. Keeping the feed alive (2026-09-24)
 
 At 09:21 on 9/24 the Agility server fell over while it post-processed a

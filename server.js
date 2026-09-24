@@ -180,6 +180,8 @@ import {
   getShopInventorySnapshot,
   listWrittenUnitsForInvoice,
   getModelBrandMap,
+  listShopModelSettings,
+  saveShopModelSetting,
   importModelBrandCatalog,
   getModelBrandStats,
   saveShopMapPrices,
@@ -6251,6 +6253,76 @@ function shopConditionOf(serialType) {
   return null;
 }
 
+// Express Assortment (Andrew 9/24): the store posts EVERYTHING in stock, not
+// just the clearance list. In-stock units come from the ePASS feed snapshot
+// (on-hand serials + Model master); the appliance product codes map to the
+// clearance list's category keys so the menus, express rules and sort order
+// keep working. Accessory codes (ACC, PANEL, PED, TRIMK …) are left out of
+// the stock listings — the clearance list still carries any accessory deals.
+const SHOP_STOCK_CATEGORY_BY_PRODUCT = {
+  REALL: "Ref", REBFD: "Ref", REBIB: "Ref", REBIF: "Ref", REBIW: "Ref", REDRA: "Ref", REFRE: "Ref", REFWI: "Ref", RESXS: "Ref", RETOP: "Ref", REUC: "Ref",
+  IMUC: "IM", COFFE: "Coffee",
+  DW: "DW", DWDRA: "DW",
+  RADF: "Range", RAELE: "Range", RAGAS: "Range", RAIND: "Range", RAPRO: "Range",
+  CTELE: "CT", CTGAS: "CT", CTIND: "CT", CTPRO: "CT",
+  OVELE: "Oven", OVMW: "Oven", OVSPE: "Oven", OVSTE: "Steam Ov",
+  MW: "MW", MWBI: "MW", MWCON: "MW", MWDR: "MW", MWOTR: "MW",
+  VHDD: "Vent", VHINS: "Vent", VHISL: "Vent", VHOOD: "Vent",
+  WASHF: "Lau", WASHT: "Lau", DRELE: "Lau", DRGAS: "Lau",
+  GROUT: "Outdoor", PIZZA: "Outdoor"
+};
+const SHOP_STOCK_LOW_MAX = 3; // 1–3 units = Low Stock, 4+ = In Stock
+
+// One listing per in-stock ALL-type unit (grouped per model by the page).
+//   snapshot.serialUnits  — the feed's units (model, brand code, description, prod, list, writtenTo)
+//   settings              — shop_model_settings by model key
+//   brandMap              — model → { brand } (NetSuite catalog / snapshot)
+//   brandNames            — brand CODE → name, learned from the clearance list
+//   clearanceUnitKeys     — model|serial keys the clearance list already prices
+function shopStockItems({ snapshot, settings, brandMap, brandNames, images, mapPolicy, mapFloor, statusById, clearanceUnitKeys }) {
+  const byModel = new Map();
+  for (const u of snapshot?.serialUnits || []) {
+    if (String(u.serialType || "").toUpperCase() !== "ALL") continue;
+    if (String(u.writtenTo || "").trim()) continue; // someone owns this unit
+    const model = String(u.model || u.sku || "").trim();
+    const serial = String(u.serial || "").trim().toUpperCase();
+    if (!model || !serial) continue;
+    const key = normalizeModelKey(model);
+    if (clearanceUnitKeys.has(key + "|" + serial)) continue; // the clearance list prices this one
+    const category = SHOP_STOCK_CATEGORY_BY_PRODUCT[String(u.prod || "").toUpperCase()];
+    if (!category) continue; // accessories / unmapped product codes stay off the stock listings
+    let g = byModel.get(key);
+    if (!g) { g = { key, model, category, prod: String(u.prod || "").toUpperCase(), units: [], brandCode: String(u.brand || "").trim(), description: String(u.description || "").trim(), list: 0 }; byModel.set(key, g); }
+    g.units.push({ serial, id: `${model}|${serial}#S` });
+    if (!g.list && Number(u.list) > 0) g.list = Number(u.list);
+    if (!g.description && u.description) g.description = String(u.description).trim();
+  }
+  const items = [];
+  const models = [];
+  for (const g of byModel.values()) {
+    const cfg = settings[g.key] || {};
+    const available = g.units.filter((x) => !statusById.has(x.id)); // sold / held / web-locked
+    const price = cfg.price != null && cfg.price > 0 ? cfg.price : (g.list > 0 ? g.list : 0);
+    const brand = brandMap[g.model.toUpperCase()]?.brand || brandNames[g.brandCode.toUpperCase()]
+      || (g.brandCode.length > 3 ? g.brandCode.charAt(0) + g.brandCode.slice(1).toLowerCase() : g.brandCode); // SAMSUNG → Samsung; FP stays FP
+    const listed = !cfg.hidden && available.length > 0 && (available.length > 1 || cfg.showSingle);
+    models.push({ model: g.model, key: g.key, brand, description: g.description, product: g.prod, category: g.category, inStock: g.units.length, available: available.length, listPrice: g.list || null, price: price || null, settings: { price: cfg.price ?? null, showSingle: !!cfg.showSingle, hidden: !!cfg.hidden, note: cfg.note || "" }, listed, reason: cfg.hidden ? "hidden" : !available.length ? "none available" : available.length === 1 && !cfg.showSingle ? "single unit (toggle to show)" : !price ? "no price — call for price" : "" });
+    if (!listed) continue;
+    const floor = mapFloor[g.key];
+    const mapPublic = Boolean(price && shopMapRuleMatch(mapPolicy, brand, g.category) && Number.isFinite(Number(floor)) && price >= Number(floor) - 0.005);
+    for (const x of available) {
+      items.push({
+        id: x.id, model: g.model, brand, brandCode: g.brandCode, product: g.prod, category: g.category, description: g.description,
+        serial: x.serial, serialType: "ALL", condition: "new", source: "stock",
+        stock: available.length, stockLevel: available.length > SHOP_STOCK_LOW_MAX ? "in" : "low",
+        image: images[g.key] || "", price: Math.round(price * 100) / 100, noPrice: !price,
+        topDeal: Boolean(price) && price <= SHOP_TOP_DEAL_MAX, mapPublic, mapFloor: Number.isFinite(Number(floor)) ? Number(floor) : null
+      });
+    }
+  }
+  return { items, models: models.sort((a, b) => shopCategoryRank(a.category) - shopCategoryRank(b.category) || a.brand.localeCompare(b.brand) || a.model.localeCompare(b.model)) };
+}
+
 // The single source of truth for what the shop will sell right now and at
 // what price. Used by the catalog AND re-run at checkout so a stale cart
 // can't buy an unavailable unit or an outdated price.
@@ -6262,13 +6334,17 @@ async function computeShopCatalog() {
   let snapshot = null;
   let mapPrices = null;
   let expressSettings = null;
+  let modelSettings = {};
+  let brandMap = {};
   try {
-    [statuses, overrides, snapshot, mapPrices, expressSettings] = await Promise.all([
+    [statuses, overrides, snapshot, mapPrices, expressSettings, modelSettings, brandMap] = await Promise.all([
       listClearanceStatuses(),
       listPriceOverrides(),
       getShopInventorySnapshot(),
       getShopMapPrices().catch(() => null),
-      getShopExpressSettings()
+      getShopExpressSettings(),
+      listShopModelSettings().catch(() => ({})),
+      getModelBrandMap().catch(() => ({}))
     ]);
   } catch (err) {
     // If the DB is down, sell nothing rather than something already sold.
@@ -6333,9 +6409,18 @@ async function computeShopCatalog() {
       price: Math.round(price * 100) / 100,
       topDeal: price <= SHOP_TOP_DEAL_MAX,
       mapPublic,
-      mapFloor: itemMapFloor
+      mapFloor: itemMapFloor,
+      source: "clearance"
     });
   }
+  // Everything else in stock — one listing per ALL-type unit from the feed.
+  const clearanceUnitKeys = new Set((clearance.items || []).map((i) => normalizeModelKey(i.model) + "|" + String(i.serial || "").trim().toUpperCase()));
+  const brandNames = {};
+  for (const i of clearance.items || []) { if (i.brandCode && i.brand && !brandNames[String(i.brandCode).toUpperCase()]) brandNames[String(i.brandCode).toUpperCase()] = i.brand; }
+  const stock = snapshot
+    ? shopStockItems({ snapshot, settings: modelSettings, brandMap, brandNames, images, mapPolicy, mapFloor, statusById, clearanceUnitKeys })
+    : { items: [], models: [] };
+  items.push(...stock.items);
   shopSortItems(items);
 
   const categories = [...(clearance._meta?.categories || [])]
@@ -6348,6 +6433,7 @@ async function computeShopCatalog() {
     listDate: clearance._meta?.listDate || "",
     paused,
     express: { ...expressSettings, productSet: new Set(expressSettings.products) },
+    stockModels: stock.models,
     snapshotAgeHours,
     mapPriceCount: Object.keys(mapFloor).length,
     snapshot: snapshot
@@ -6372,7 +6458,7 @@ function priceShopCart(catalog, cart, fulfillment) {
   const items = [];
   for (const rawId of (Array.isArray(cart?.itemIds) ? cart.itemIds : [])) {
     const item = itemById.get(String(rawId));
-    if (!item) return { unavailable: String(rawId) };
+    if (!item || item.noPrice) return { unavailable: String(rawId) };
     items.push(item);
   }
   if (!items.length) return { empty: true };
@@ -6771,7 +6857,10 @@ app.get("/api/shop/catalog", async (req, res) => {
   try {
     const catalog = await computeShopCatalog();
     const shopper = await getShopperByToken(req.query.token).catch(() => null);
-    const withPrices = Boolean(shopper) && !catalog.paused;
+    // Andrew 9/24: prices are an IN-CART reveal, not a sign-in reveal — the
+    // listing shows a price only where the MAP policy allows advertising it;
+    // everything else prices itself once it's in the cart (/api/shop/cart-prices).
+    const withPrices = false;
 
     const items = catalog.items.map((i) => {
       const base = {
@@ -6784,6 +6873,10 @@ app.get("/api/shop/catalog", async (req, res) => {
         condition: i.condition,
         image: i.image,
         topDeal: i.topDeal,
+        source: i.source || "clearance",
+        stock: i.stock ?? null,
+        stockLevel: i.stockLevel || null,
+        noPrice: !!i.noPrice,
         expressEligible: shopItemExpressEligible(i, catalog.express)
       };
       if (withPrices || (i.mapPublic && !catalog.paused)) {
@@ -6800,7 +6893,7 @@ app.get("/api/shop/catalog", async (req, res) => {
     // Add-on parts/install/delivery pricing is Wilson's own service pricing
     // (not manufacturer MAP) — it travels whenever anything is purchasable,
     // so a no-profile MAP shopper can build a complete cart.
-    const canBuild = !catalog.paused && (withPrices || items.some((i) => i.mapPublic));
+    const canBuild = !catalog.paused;
 
     res.setHeader("Cache-Control", "no-store");
     return res.json({
@@ -6828,6 +6921,52 @@ app.get("/api/shop/catalog", async (req, res) => {
   } catch (err) {
     console.error("Shop catalog failed:", err.message);
     return res.status(500).json({ error: "The shop is temporarily unavailable." });
+  }
+});
+
+// PUBLIC: the in-cart price reveal. The cart is the shopper's private view,
+// so the real price of each carted unit comes back here — never on the
+// listing (MAP). No profile needed; checkout still requires one.
+app.post("/api/shop/cart-prices", async (req, res) => {
+  try {
+    const ids = Array.isArray(req.body?.itemIds) ? req.body.itemIds.map(String).slice(0, 40) : [];
+    if (!ids.length) return res.json({ prices: {} });
+    const catalog = await computeShopCatalog();
+    if (catalog.paused) return res.json({ prices: {}, paused: true });
+    const byId = new Map(catalog.items.map((i) => [i.id, i]));
+    const prices = {};
+    for (const id of ids) { const i = byId.get(id); if (i && !i.noPrice) prices[id] = i.price; }
+    res.setHeader("Cache-Control", "no-store");
+    return res.json({ prices });
+  } catch (err) {
+    console.error("Cart prices failed:", err.message);
+    return res.status(500).json({ error: "Unable to price the cart right now." });
+  }
+});
+
+// INTERNAL: Express Assortment stock models (shop-orders.html) — every model
+// the feed says is in stock, what the store does with it, and the per-model
+// switches: price override, show-when-single, hidden.
+app.get("/api/shop/stock-models", requirePagePermission("/shop-orders.html"), async (req, res) => {
+  try {
+    const catalog = await computeShopCatalog();
+    const { clearance } = await loadShopData();
+    const catLabels = Object.fromEntries((clearance._meta?.categories || []).map((c) => [c.key, c.label]));
+    return res.json({ models: (catalog.stockModels || []).map((m) => ({ ...m, categoryLabel: catLabels[m.category] || m.category })), snapshot: catalog.snapshot, paused: catalog.paused, lowMax: SHOP_STOCK_LOW_MAX });
+  } catch (err) {
+    console.error("Stock models failed:", err.message);
+    return res.status(500).json({ error: "Unable to load the stock models." });
+  }
+});
+app.post("/api/shop/stock-models/:model", requirePagePermission("/shop-orders.html"), async (req, res) => {
+  try {
+    const b = req.body || {};
+    const saved = await saveShopModelSetting({ model: req.params.model, price: b.price == null || b.price === "" ? null : Number(b.price), showSingle: !!b.showSingle, hidden: !!b.hidden, note: b.note || "", byEmail: req.authUser?.email || "" });
+    recordAudit({ ip: req.ip, actorUserId: req.authUser?.id || null, action: "shop_model_setting_saved", targetUserId: null,
+      detail: { model: String(req.params.model || "").slice(0, 40), price: b.price ?? null, showSingle: !!b.showSingle, hidden: !!b.hidden } }).catch(() => {});
+    return res.json({ ok: true, setting: saved });
+  } catch (err) {
+    return res.status(400).json({ error: err.message || "Unable to save." });
   }
 });
 
@@ -7010,10 +7149,12 @@ async function pushWebOrderFlags({ orderNumber, customerName, total, models, ful
 // same routing as new web orders).
 const estimatePdfUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
 
-// Send a Payment Link: scan the ePASS sales order / invoice print and hand
-// back what the form needs prefilled (order #, client, phone, amount due,
-// salesperson). Nothing is created or sent here — the team reviews the form.
-app.post("/api/payment-links/scan", requirePagePermission("/index.html"), (req, res) => {
+// Send a Payment Link / Send To Card Reader: scan the ePASS sales order /
+// invoice print and hand back what the form needs prefilled (order #,
+// client, phone, amount due, salesperson). Nothing is created, sent or
+// charged here — the team reviews the form. (Andrew 9/23: the terminal page
+// gets the same scanner, so the same grant covers both pages.)
+app.post("/api/payment-links/scan", requirePagePermission("/index.html", "/terminal.html"), (req, res) => {
   estimatePdfUpload.single("order")(req, res, async (err) => {
     if (err) {
       return res.status(400).json({ error: err.code === "LIMIT_FILE_SIZE" ? "That PDF is over the 10 MB limit." : "Upload failed — please try again." });
@@ -9367,6 +9508,46 @@ function extractSerialsFromWorkbook(buffer) {
   throw new Error("Couldn't find a Serial column — is this the ExportModel (Model Maintenance) export?");
 }
 
+// The same snapshot, built from the ODBC feed's on-hand-serials view instead
+// of the ExportModel workbook (Andrew 9/24: the export stopped, the shop
+// paused and the cosmetic-damage form lost its units). Same keys and unit
+// shape as extractSerialsFromWorkbook, so the shop, the damage form and the
+// written-to history read it unchanged: unit identity is model|serial,
+// "written to" is Serial.InvoiceCode, type is SerialTypeCode.
+function serialSnapshotFromFeed(rows) {
+  const normModel = (v) => String(v ?? "").toUpperCase().replace(/[^0-9A-Z]/g, "");
+  const pick = (r, ...names) => { for (const n of names) { const k = Object.keys(r || {}).find((x) => x.toLowerCase() === n.toLowerCase()); if (k != null && r[k] != null && String(r[k]).trim() !== "") return r[k]; } return ""; };
+  const isoDate = (v) => { const str = String(v ?? "").trim(); let m = str.match(/^(\d{4})-(\d{2})-(\d{2})/); if (m) return m[0]; m = str.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/); return m ? `${m[3]}-${m[1].padStart(2, "0")}-${m[2].padStart(2, "0")}` : ""; };
+  const serials = new Set(); const types = {}; const written = {}; const seen = new Set(); const units = [];
+  for (const r of Array.isArray(rows) ? rows : []) {
+    const serial = String(pick(r, "Code") ?? "").trim().toUpperCase();
+    if (!serial) continue;
+    const model = String(pick(r, "ModelCode") ?? "").trim();
+    const sku = String(pick(r, "Model_SKU") ?? "").trim();
+    const type = String(pick(r, "SerialTypeCode") ?? "").trim();
+    const writtenTo = String(pick(r, "InvoiceCode") ?? "").trim();
+    const unitKey = (normModel(model) || normModel(sku) || "?") + "|" + serial;
+    if (!seen.has(unitKey)) {
+      seen.add(unitKey);
+      units.push({
+        serial, model, sku,
+        brand: String(pick(r, "Model_BrandCode") ?? "").trim(),
+        description: String(pick(r, "Model_Description") ?? "").trim(),
+        prod: String(pick(r, "Model_ProductCode") ?? "").trim(),
+        serialType: type, writtenTo,
+        received: isoDate(pick(r, "DateReceived")),
+        cost: Number(pick(r, "Cost")) || 0,
+        list: Number(pick(r, "Model_ListPrice")) || 0
+      });
+    }
+    const keys = new Set();
+    for (const v of [model, sku]) { const mk = normModel(v); if (mk) keys.add(mk + "|" + serial); }
+    if (!keys.size) keys.add(serial);
+    for (const key of keys) { serials.add(key); if (type) types[key] = type; if (writtenTo) written[key] = writtenTo; }
+  }
+  return { serials: [...serials], types, written, units, unitCount: units.length, withModel: units.filter((u) => u.description || u.brand).length };
+}
+
 function snapshotKeyOk(provided) {
   if (!SHOP_SNAPSHOT_KEY || !provided) return false;
   const a = Buffer.from(String(provided));
@@ -9569,6 +9750,24 @@ app.post("/api/epass-agent/upload", express.raw({ type: () => true, limit: "60mb
         } catch (err) {
           console.error("Quote Follow-Up refresh from ePASS feed failed:", err.message);
           counts.quotes = { error: err.message };
+        }
+        // Serial inventory snapshot (shop availability, cosmetic-damage form,
+        // written-to history) from on-hand-serials — replaces the ExportModel
+        // upload (Andrew 9/24). Off switch: setting feed.inventory_enabled =
+        // false puts the ExportModel workbook back as the source.
+        try {
+          const onHand = bundle.datasets?.["on-hand-serials"];
+          const sjSettings = await getServiceSettings().catch(() => ({}));
+          if (sjSettings["feed.inventory_enabled"] === false) counts.inventory = { skipped: "feed.inventory_enabled is off — ExportModel uploads are the source" };
+          else if (!Array.isArray(onHand) || !onHand.length) counts.inventory = { skipped: "no on-hand-serials dataset in this bundle" };
+          else {
+            const snap = serialSnapshotFromFeed(onHand);
+            const saved = await saveShopInventorySnapshot({ serials: snap.serials, types: snap.types, written: snap.written, units: snap.units, sourceFile: `ePASS feed ${bundle.pulledAt || ""}`.trim(), uploadedBy: "epass-agent" });
+            counts.inventory = { rows: onHand.length, units: snap.unitCount, withModel: snap.withModel, saved: saved?.count ?? null, typed: saved?.typedCount ?? null, written: saved?.writtenCount ?? null };
+          }
+        } catch (err) {
+          console.error("Serial inventory snapshot from ePASS feed failed:", err.message);
+          counts.inventory = { error: err.message };
         }
         // Sales Order Health reads this feed now too (Andrew, 9/22) — the
         // Invoice Maintenance upload is the fallback, not the source.

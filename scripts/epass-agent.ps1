@@ -56,6 +56,11 @@ $KeepBundleDays = 2
 # ----------------------------------------------------------------------------
 
 $Kinds = @("inventory", "quotes", "open-orders", "dispatch", "invoices", "epass-open-orders", "epass-open-service", "epass-finished-orders", "epass-service-catalogue", "epass-tax")
+# Feeds that are a full SNAPSHOT of the moment — when several pile up, only
+# the newest matters. The catalogue and tax bundles are NOT snapshots: each
+# one is a distinct date slice (a backfill writes one per year / quarter in a
+# single run), so every one of them must go up, oldest first.
+$SnapshotKinds = @("epass-open-orders", "epass-open-service", "epass-finished-orders")
 $LogFile = Join-Path $Root "agent.log"
 
 function Log([string]$msg) {
@@ -79,10 +84,11 @@ foreach ($kind in $Kinds) {
            Where-Object { $_.Name -notlike "~$*" } |
            Where-Object { ((Get-Date) - $_.LastWriteTime).TotalSeconds -ge 30 } |   # still being written
            Sort-Object LastWriteTime
-  # The ODBC feed bundles are full snapshots — only the newest one matters.
-  # If earlier ones piled up (a slow VPN upload, the laptop asleep), park them
-  # in processed\ as superseded instead of pushing stale data ahead of fresh.
-  if ($kind -like "epass-*" -and $files.Count -gt 1) {
+  # The open/finished ODBC bundles are full snapshots — only the newest one
+  # matters. If earlier ones piled up (a slow VPN upload, the machine asleep),
+  # park them in processed\ as superseded instead of pushing stale data ahead
+  # of fresh. Slice bundles (catalogue, tax) skip this and all go up in order.
+  if ($SnapshotKinds -contains $kind -and $files.Count -gt 1) {
     $stale = $files | Select-Object -First ($files.Count - 1)
     foreach ($old in $stale) {
       $dest = Join-Path $Root (Join-Path "processed" (Join-Path $kind ("superseded-" + $old.Name)))

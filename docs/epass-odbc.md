@@ -316,6 +316,22 @@ show what ePASS actually stores for an ordered part. Column lists came from
 `odbc/PO.csv`, `odbc/POItem.csv`, `odbc/InvoiceItem.csv` (the `-Discover`
 output); `LaborRate`'s price column is `List`.
 
+### 8b3. Serial inventory from the feed (2026-09-24)
+
+The `on-hand-serials` view (every `Serial` with a blank Status, joined to
+`Model` for brand / description / product / SKU / list) now **replaces the
+ExportModel (Model Maintenance) upload**: each 15-minute sales bundle
+rebuilds the shop inventory snapshot (`saveShopInventorySnapshot`, the same
+keys and unit shape the workbook parser produced — unit = model|serial,
+"written to" = `Serial.InvoiceCode`, type = `SerialTypeCode`). The shop's
+availability, the cosmetic-damage form's "units on this ticket" lookup and
+the written-to history all read it unchanged. `postProcessing.inventory` on
+`/api/epass/open-orders/status` shows rows / units / withModel / saved. Off
+switch: service-journey setting `feed.inventory_enabled = false` makes the
+ExportModel upload the source again (the `inventory` agent kind still works
+either way — newest snapshot wins).
+
+
 ## 8c. The service catalogue (2026-09-23)
 
 A fourth bundle, `epass-service-catalogue` (own outbox), carries every
@@ -352,7 +368,11 @@ flags, `LineCode` / `LineDesc` / `Qty` / `SellingPrice` / `Total`).
 When it runs: by itself on the 6:00 pull (the last three posted months), or
 `-TaxBackfill` (one bundle per **quarter** from `-TaxBackfillFrom`, default
 2022 — the audit window; quarter-sized so each bundle stays well under the
-60 MB upload limit and each query is short enough to run during the day) or `-TaxSince yyyy-MM-dd [-TaxUntil yyyy-MM-dd]`. Agility
+60 MB upload limit and each query is short enough to run during the day). The agent pushes slice bundles **all, oldest first** — only the
+open-orders / open-service / finished-orders feeds are snapshots where a
+pile-up keeps just the newest (`$SnapshotKinds` in `epass-agent.ps1`;
+before 9/23 every `epass-*` kind superseded, which shelved 18 of 19 quarter
+bundles as `processed\epass-tax\superseded-…`) or `-TaxSince yyyy-MM-dd [-TaxUntil yyyy-MM-dd]`. Agility
 (`lib/tax-report-postgres.js`) upserts by invoice code, derives
 `gross` = Serial + Item + Labor + Misc + Wty totals (Crystal's GrossTotal —
 a $157 diagnostic carries $12.95, 8.25%), and the **taxable / exempt base**

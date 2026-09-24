@@ -21,6 +21,8 @@
 #   open-order-misc      InvoiceMisc for those invoices
 #   open-order-models    Model master (+ Supplier name) for every model on those lines
 #   on-hand-serials      Serial master, every unit in stock (Status blank) with the invoice it is promised to
+#                        + Model brand/description/product/list — replaces the ExportModel serial-inventory
+#                        upload (shop availability, cosmetic-damage form) since 9/24
 #   open-po-lines        POModel lines not yet received (+ PO supplier/dates/ETA) for models on open lines
 #   open-quotes          Invoice header, InvTypeCode Q, Status Open (Quote Follow-Up board)
 #   finished-orders      (third bundle, epass-finished-orders, first run of each hour or -FinishedSince)
@@ -369,15 +371,33 @@ ORDER BY m.Code
   #                   line, with the PO's supplier, dates and ETA, and the invoice
   #                   the line was special-ordered for (BackOrderInvoiceCode).
   $openModels = "SELECT im.ModelCode FROM InvoiceModel im INNER JOIN Invoice i ON im.InvoiceCode = i.Code WHERE $openWhere"
+  # Andrew 9/24: this view also REPLACES the ExportModel (Model Maintenance)
+  # serial-inventory upload — the shop's availability snapshot and the
+  # cosmetic-damage form's "units on this ticket" read it. ExportModel carried
+  # brand / description / product / list alongside the serial, so the Model
+  # master is joined in; if the join can't run, the plain view still goes.
+  $onHandCols = "s.Code, s.ModelCode, s.Status, s.InvoiceCode, s.OrderedForInvoiceCode, s.OrderedForInvoiceDateStamp, s.DateReserved, s.ReserveExclusive, s.Available,
+       s.POCode, s.PODateStamp, s.LocationCode, s.BinLocationCode, s.DateReceived, s.SerialTypeCode, s.SupplierCode, s.Cost, s.StandardCost, s.FloorPlan, s.FloorPlanDueDate"
   try {
     $bundle.datasets["on-hand-serials"] = Export-Query $conn @"
-SELECT s.Code, s.ModelCode, s.Status, s.InvoiceCode, s.OrderedForInvoiceCode, s.OrderedForInvoiceDateStamp, s.DateReserved, s.ReserveExclusive, s.Available,
-       s.POCode, s.PODateStamp, s.LocationCode, s.BinLocationCode, s.DateReceived, s.SerialTypeCode, s.SupplierCode, s.Cost, s.StandardCost, s.FloorPlan, s.FloorPlanDueDate
+SELECT $onHandCols,
+       m.Description AS Model_Description, m.BrandCode AS Model_BrandCode, m.ProductCode AS Model_ProductCode, m.SKU AS Model_SKU, m.ListPrice AS Model_ListPrice
+FROM Serial s
+LEFT JOIN Model m ON s.ModelCode = m.Code
+WHERE (s.Status IS NULL OR s.Status = '')
+ORDER BY s.ModelCode, s.DateReceived, s.Code
+"@ (Join-Path $LatestDir "on-hand-serials.csv") "on-hand-serials"
+  } catch {
+    Log ("on-hand-serials with Model join FAILED ({0}) — retrying without the join" -f $_.Exception.Message); if ($conn.State -ne [System.Data.ConnectionState]::Open) { $conn.Open() }
+    try {
+      $bundle.datasets["on-hand-serials"] = Export-Query $conn @"
+SELECT $onHandCols
 FROM Serial s
 WHERE (s.Status IS NULL OR s.Status = '')
 ORDER BY s.ModelCode, s.DateReceived, s.Code
 "@ (Join-Path $LatestDir "on-hand-serials.csv") "on-hand-serials"
-  } catch { Log ("on-hand-serials FAILED (bundle continues without it): {0}" -f $_.Exception.Message); if ($conn.State -ne [System.Data.ConnectionState]::Open) { $conn.Open() } }
+    } catch { Log ("on-hand-serials FAILED (bundle continues without it): {0}" -f $_.Exception.Message); if ($conn.State -ne [System.Data.ConnectionState]::Open) { $conn.Open() } }
+  }
 
   try {
     $bundle.datasets["open-po-lines"] = Export-Query $conn @"

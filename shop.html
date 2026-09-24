@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="robots" content="noindex, nofollow, noarchive, nosnippet, noimageindex">
-  <title>Wilson Clearance Shop</title>
+  <title>Wilson Express Assortment</title>
   <link rel="icon" href="favicon.svg" type="image/svg+xml">
   <script src="https://js.stripe.com/v3/"></script>
   <style>
@@ -229,6 +229,13 @@
     .cond-badge { position: absolute; top: 10px; right: 10px; z-index: 2; border-radius: 999px; padding: 3px 10px; font-size: 11.5px; font-weight: 700; letter-spacing: 0.03em; box-shadow: 0 1px 4px rgba(0,0,0,0.12); }
     .cond-badge.new { background: #dcfce7; color: #166534; }
     .cond-badge.open { background: #fef3c7; color: #92400e; }
+    .cond-badge.stock-in { background: #dcfce7; color: #166534; }
+    .cond-badge.stock-low { background: #fef3c7; color: #92400e; }
+    .item-price.incart { font-size: 12.5px; font-weight: 600; color: var(--muted); line-height: 1.25; }
+    .item-foot .btn { white-space: nowrap; }
+    .hero { text-align: center; padding: 26px 16px 18px; }
+    .hero h2 { margin: 0 0 6px; font-size: clamp(22px, 3.2vw, 30px); font-weight: 700; letter-spacing: -0.01em; }
+    .hero p { margin: 0 auto; max-width: 62ch; color: var(--muted); font-size: 15px; line-height: 1.5; }
     .item-brand { font-size: 12px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
     .item-model { font-weight: 600; font-size: 15.5px; }
     .item-model a { color: inherit; text-decoration: none; }
@@ -356,9 +363,10 @@
   <div class="gate" id="zipGate">
     <div class="gate-card">
       <img src="logo-black.png" alt="Wilson AC &amp; Appliance">
-      <h1>Local Clearance Shop</h1>
-      <p>Our online clearance offers are available for delivery in the Wilson AC &amp; Appliance
-      local area only. Enter your delivery ZIP code to come in.</p>
+      <h1>Express Assortment</h1>
+      <p><strong>Better choices, already made.</strong> Products selected through decades of sales and service
+      experience, in stock for quick delivery — available for delivery in the Wilson AC &amp; Appliance local
+      area only. Enter your delivery ZIP code to come in.</p>
       <div class="gate-row">
         <input id="gateZip" inputmode="numeric" maxlength="5" placeholder="ZIP code" autocomplete="postal-code">
         <button class="btn primary" id="gateBtn" type="button">Enter</button>
@@ -374,10 +382,10 @@
         <span class="menu-btn-label">Shop by Category</span>
       </button>
       <img src="logo-black.png" alt="Wilson AC &amp; Appliance">
-      <div class="head-title">Clearance Shop<span class="sub">Dripping Springs, Texas</span></div>
+      <div class="head-title">Express Assortment<span class="sub">Dripping Springs, Texas</span></div>
       <div class="head-spacer"></div>
       <button type="button" class="unlock-chip" id="unlockChip" style="display:none;" title="View and update your profile"></button>
-      <button class="btn ghost" id="unlockBtn" type="button" style="display:none;">See clearance pricing</button>
+      <button class="btn ghost" id="unlockBtn" type="button" style="display:none;">Sign in</button>
       <button class="btn ghost cart-btn" id="cartBtn" type="button">Cart<span class="cart-count" id="cartCount" style="display:none;">0</span></button>
     </div>
   </header>
@@ -425,8 +433,12 @@
     <div class="map-note" id="pausedNote" style="display:none; background:#fef3c7; border-color:#fde68a; color:#92400e;">
       Online ordering is briefly paused while we refresh our inventory. Everything you see is still at the store — call <a href="tel:512-894-0907" style="color:inherit; font-weight:700;">512-894-0907</a> for availability, or check back shortly.
     </div>
+    <div class="hero" id="heroStrip">
+      <h2>Better choices, already made.</h2>
+      <p>Products selected through decades of sales and service experience, in stock for quick delivery.</p>
+    </div>
     <div class="map-note" id="mapNote" style="display:none;">
-      Create a free shopping profile to see your clearance pricing — it takes 30 seconds.
+      Add anything to your cart to see its price — no sign-up needed. Nothing is charged online; a Wilson team member confirms every order before payment.
     </div>
 
     <div class="filters" id="filterBar" style="display:none;">
@@ -447,7 +459,7 @@
     </div>
 
     <div class="grid" id="itemGrid"></div>
-    <div class="empty-note" id="emptyNote" style="display:none;">No clearance units match those filters right now — check back soon, the list moves fast.</div>
+    <div class="empty-note" id="emptyNote" style="display:none;">Nothing in stock matches those filters right now — check back soon, the assortment moves fast.</div>
   </main>
 
   <div class="done-card" id="doneCard" style="display:none;">
@@ -465,7 +477,7 @@
   <!-- Registration modal -->
   <div class="overlay" id="registerOverlay">
     <div class="modal" id="registerModal">
-      <h2>Unlock clearance pricing</h2>
+      <h2>Create your free profile to check out</h2>
       <p class="lead" id="regLead" style="display:none;">Tell us where these deals would be headed and how to reach you.
       We only sell online within our local delivery area.
       <button type="button" class="linklike" id="haveCodeBtn">Shopped with us before? More sign-in options</button></p>
@@ -642,7 +654,7 @@
   <footer>
     <div class="foot-inner">
       Wilson AC &amp; Appliance · 4205 E Hwy 290, Dripping Springs, TX 78620 · 512-894-0907 · wilsonappliance.com<br>
-      All clearance units are sold as-is where noted, one of each — first come, first served.
+      Express Assortment — in-stock models for quick delivery. Open Box and Display units are sold as-is where noted, one of each — first come, first served.
       Nothing is charged online; a Wilson team member confirms every order before payment.
     </div>
   </footer>
@@ -666,6 +678,7 @@
     // Blind scheduling: delivery needs a chosen day; pickup skips it.
     fulfillment: { method: "delivery", date: null },
     cart: { itemIds: [], addons: new Map() },
+    cartPrices: {}, // id -> price, revealed once a unit is in the cart
     // selection: { label, cats: [category keys], products: [product codes] } | null
     filter: { search: "", brand: "", selection: null, topDeals: false, sort: "featured" },
     checkout: { open: false, stripe: null, elements: null, setupIntentId: "" },
@@ -714,7 +727,7 @@
     try {
       const allowed = await checkZip(zip);
       if (!allowed) {
-        err.innerHTML = "We're sorry — online clearance ordering isn't available for delivery to " + zip +
+        err.innerHTML = "We're sorry — online ordering isn't available for delivery to " + zip +
           " yet. Come see the deals in person at our Dripping Springs showroom, or call 512-894-0907.";
         err.classList.add("show");
         return;
@@ -772,6 +785,9 @@
     buildFilters();
     renderHeader();
     renderGrid();
+    // A reloaded catalog drops the prices we patched in — fetch them again.
+    state.cartPrices = {};
+    syncCartPrices().then(() => { if (state.cart.itemIds.length) renderCartCount(); });
   }
 
   function renderHeader() {
@@ -782,7 +798,8 @@
         (state.clientCode ? " · " + state.clientCode : "");
     }
     $("pausedNote").style.display = state.paused ? "block" : "none";
-    $("mapNote").style.display = state.unlocked || state.paused ? "none" : "block";
+    $("mapNote").style.display = state.paused ? "none" : "block";
+    $("heroStrip").style.display = "";
     $("cartBtn").style.display = state.paused ? "none" : "";
     $("filterBar").style.display = "";
   }
@@ -855,7 +872,9 @@
     const groups = [];
     const byKey = new Map();
     for (const item of visibleItems()) {
-      const key = [item.model, item.brand, item.condition || "", item.price ?? "", item.mapDisplayPrice ?? ""].join("\u0001");
+      // Price is part of the key only where the card can SHOW one (MAP-public);
+      // everything else prices in the cart, so identical units always merge.
+      const key = [item.model, item.brand, item.condition || "", item.source || "", item.mapPublic ? item.price : "", item.mapDisplayPrice ?? ""].join("\u0001");
       let group = byKey.get(key);
       if (!group) {
         group = { ...item, ids: [] };
@@ -908,22 +927,24 @@
         <div class="item-brand">${esc(group.brand)}</div>
         <div class="item-model"><a href="${esc(productPageUrl(group.model))}" target="_blank" rel="noopener" title="View ${esc(group.model)} on wilsonappliance.com">${esc(group.model)}</a></div>
         <div class="item-desc">${esc(group.description)}</div>
-        <div class="item-cat">${esc(categoryLabel(group.category))} · ${total} available${carted && !allInCart ? ` · ${carted} in cart` : ""}</div>
+        <div class="item-cat">${esc(categoryLabel(group.category))}${group.source === "stock" ? "" : ` · ${total} available`}${carted && !allInCart ? ` · ${carted} in cart` : ""}</div>
         <div class="item-foot">
           ${state.paused
             ? `<span></span>`
-            : group.price != null
-              ? `<span class="item-price">${money(group.price)}</span>`
-              : group.mapDisplayPrice != null
-                ? `<span class="item-price">${money(group.mapDisplayPrice)}<button type="button" class="info-dot" data-info="1" aria-label="About this price">i<span class="info-tip">This model is available to local customers at a price too low to display outside of a shopping cart — create your free profile to see it.</span></button></span>`
-                : `<span></span>`}
+            : group.noPrice
+              ? `<span class="item-price incart">Call for price</span>`
+              : group.mapPublic && group.price != null
+                ? `<span class="item-price">${money(group.price)}</span>`
+                : group.mapDisplayPrice != null
+                  ? `<span class="item-price">${money(group.mapDisplayPrice)}<button type="button" class="info-dot" data-info="1" aria-label="About this price">i<span class="info-tip">Our price on this model is too low to advertise — add it to your cart to see it.</span></button></span>`
+                  : `<span class="item-price incart">Price in cart</span>`}
           ${state.paused
             ? `<a class="btn ghost" href="tel:512-894-0907">Call for availability</a>`
-            : group.price != null
-              ? (allInCart
+            : group.noPrice
+              ? `<a class="btn ghost" href="tel:512-894-0907">Call 512-894-0907</a>`
+              : (allInCart
                   ? `<span class="in-cart">${total > 1 ? "All " + total + " in cart ✓" : "In cart ✓"}</span>`
-                  : `<button class="btn primary" data-add-group="${index}">Add to cart</button>`)
-              : `<button class="btn ghost" data-unlock="1">See price</button>`}
+                  : `<button class="btn primary" data-add-group="${index}">Add to cart</button>`)}
         </div>`;
       grid.appendChild(card);
     });
@@ -954,7 +975,15 @@
     document.querySelectorAll('.info-dot.open').forEach((d) => d.classList.remove('open'));
   });
 
+  // In-stock models: the badge is the STOCK LEVEL (Andrew 9/24 — 2–3 ALL
+  // units Low Stock in yellow, 4+ In Stock in green). Clearance units keep
+  // their condition badge.
   function conditionBadge(item) {
+    if (item.source === "stock") {
+      return item.stockLevel === "in"
+        ? `<span class="cond-badge stock-in">In Stock</span>`
+        : `<span class="cond-badge stock-low">Low Stock</span>`;
+    }
     if (item.condition === "new") return `<span class="cond-badge new">New in Box</span>`;
     if (item.condition === "open") return `<span class="cond-badge open">Open Box</span>`;
     return "";
@@ -1564,7 +1593,26 @@
     state.cart.itemIds.push(itemId);
     renderGrid();
     renderCartCount();
+    syncCartPrices().then(() => { if ($("cartDrawer").classList.contains("show")) renderCart(); });
     maybeOfferAddons(itemId);
+  }
+
+  // The in-cart price reveal: the listing never carries a price the MAP
+  // policy won't let us advertise, so once a unit is in the cart we ask for
+  // its real price and patch it onto the catalog item the cart math reads.
+  async function syncCartPrices() {
+    const need = state.cart.itemIds.filter((id) => state.cartPrices[id] == null);
+    if (!need.length) return;
+    try {
+      const res = await fetch("/api/shop/cart-prices", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ itemIds: need }) });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Unable to price the cart.");
+      for (const [id, price] of Object.entries(data.prices || {})) {
+        state.cartPrices[id] = price;
+        const item = (state.catalog?.items || []).find((i) => i.id === id);
+        if (item) item.price = price;
+      }
+    } catch (e) { console.warn(e.message); }
   }
 
   function maybeOfferAddons(itemId) {
@@ -1722,11 +1770,9 @@
     state.checkout.open = false;
     renderCart();
     $("cartDrawer").classList.add("show");
+    syncCartPrices().then(() => { if (!state.checkout.open) renderCart(); });
   }
   $("cartBtn").addEventListener("click", () => {
-    // MAP-cleared items can be carted without a profile — only an EMPTY
-    // anonymous cart routes to registration.
-    if (!state.unlocked && !state.cart.itemIds.length) { openRegister(); return; }
     openCart();
   });
   $("drawerClose").addEventListener("click", () => $("cartDrawer").classList.remove("show"));
@@ -1765,7 +1811,7 @@
           <div class="ds">${item.condition === "new" ? "New in Box · " : item.condition === "open" ? "Open Box · " : ""}${esc(item.description)}</div>
           <button class="rm-btn" data-rm-item="${esc(item.id)}">Remove</button>
         </div>
-        <div class="pr">${money(item.price)}</div>`;
+        <div class="pr">${item.price != null ? money(item.price) : '<span class="muted" style="font-size:12px;">pricing…</span>'}</div>`;
       body.appendChild(line);
     }
 
@@ -1870,7 +1916,7 @@
     }));
 
     $("drawerTotals").innerHTML = `
-      <div class="tot-row"><span>Clearance items</span><span>${money(t.itemsTotal)}</span></div>
+      <div class="tot-row"><span>Appliances</span><span>${money(t.itemsTotal)}</span></div>
       ${t.addonsTotal ? `<div class="tot-row"><span>Parts &amp; installation</span><span>${money(t.addonsTotal)}</span></div>` : ""}
       <div class="tot-row"><span>${state.fulfillment.method === "pickup" ? "Customer Pickup" : "White Glove Delivery"}</span><span>${state.fulfillment.method === "pickup" ? "FREE" : money(t.delivery)}</span></div>
       <div class="tot-row"><span>Sales tax (${(state.taxRate * 100).toFixed(2).replace(/\.?0+$/, "")}%)</span><span>${money(t.tax)}</span></div>

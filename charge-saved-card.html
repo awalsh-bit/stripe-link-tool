@@ -631,8 +631,27 @@ if (!applyCreatorLookup() || !payload.creatorCode || !payload.creatorName || !pa
       }
     });
 
+    // Ready-to-bill hand-off (Service Estimates, 9/24): the call's SV, amount,
+    // description and — when intake saved one — the Stripe customer and
+    // payment method arrive on the query string. Nothing is charged until
+    // the admin reads it over and clicks.
+    function loadBillingPrefillIfPresent(params) {
+      const sv = params.get("sv");
+      if (!sv) return false;
+      serviceOrderInput.value = sv;
+      const amount = params.get("amount"); if (amount && Number.isFinite(Number(amount))) document.getElementById("amount").value = Number(amount).toFixed(2);
+      const desc = params.get("description"); if (desc) document.getElementById("description").value = desc.slice(0, 120);
+      const name = params.get("customerName"); if (name) customerNameInput.value = name;
+      const cus = params.get("customerId"); if (cus) customerIdInput.value = cus;
+      const pm = params.get("paymentMethodId"); if (pm) paymentMethodIdInput.value = pm;
+      const seti = params.get("setupIntentId"); if (seti) document.getElementById("setupIntentId").value = seti;
+      showStatus("success", `Prefilled from Service Estimates for ${sv}${cus && pm ? " — card on file loaded" : seti ? " — click Lookup saved card" : " — no card on file; look one up or collect another way"}. Check the amount before charging.`);
+      return true;
+    }
+
     async function loadHvacPrefillIfPresent() {
       const params = new URLSearchParams(window.location.search);
+      if (loadBillingPrefillIfPresent(params)) return;
       const recordId = params.get("hvacRecordId");
 
       if (!recordId) return;

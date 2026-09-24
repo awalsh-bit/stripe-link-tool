@@ -220,11 +220,11 @@ import {
 } from "./lib/revenue-performance-postgres.js";
 import { finishedTicketsFromFeed, salespersonNamesFromFeed, ticketsByMonth, openOrderTicketsFromFeed, compareTickets } from "./lib/epass-feed-finished.js";
 import { loadWarrantyTerms, lookupWarranty, warrantyTermsSummary } from "./lib/warranty-terms.js";
-import { getFieldRoute, markEnroute, markArrived, submitOutcome, listVerifyQueue, verifyParts, getFindingsForSv, stopContext, addFieldNote, savePhoto as saveFieldPhoto, getPhoto as getFieldPhoto, flagModel, listModelFlags, reviewModelFlag, dayDollars, autoLaborLines } from "./lib/service-field-postgres.js";
+import { getFieldRoute, markEnroute, markArrived, submitOutcome, listVerifyQueue, verifyParts, getFindingsForSv, stopContext, addFieldNote, savePhoto as saveFieldPhoto, getPhoto as getFieldPhoto, flagModel, listModelFlags, reviewModelFlag, dayDollars, autoLaborLines, listReadyToBill, markBilled } from "./lib/service-field-postgres.js";
 import { ensureJourneyToken, resolveJourney, journeyTokenFor } from "./lib/journey-tracker-postgres.js";
 import { processTaxBundle, taxStatus, taxReport, taxInvoiceLines } from "./lib/tax-report-postgres.js";
 import { resolveRole, roleEmails, hasRole, listRoles as listServiceRoles, setRole as setServiceRole, ROLES as SERVICE_ROLES } from "./lib/service-roles.js";
-import { processCatalogueBundle, catalogueStatus, customerHistory as catalogueCustomerHistory, callDetail as catalogueCallDetail, modelInsight as catalogueModelInsight, laborRateOptions } from "./lib/epass-catalogue-postgres.js";
+import { processCatalogueBundle, catalogueStatus, customerHistory as catalogueCustomerHistory, callDetail as catalogueCallDetail, modelInsight as catalogueModelInsight, laborRateOptions, laborRateMeta } from "./lib/epass-catalogue-postgres.js";
 import {
   extractServiceEstimateFromPdf,
   assessPartsQuality,
@@ -460,7 +460,8 @@ import {
   importServiceDispatchTrack, importServiceInvoiceRows, serviceJourneyOverview, listServiceJobs, getServiceJob, setJobStatus, setIntakeReviewed, setOwnerTech,
   listStuckJobs, listStaleJobs, listSyncItems, markSyncKeyed, resolveSyncItem, listRecalls, reviewRecall, listImportBatches, serviceKpis, listTechs as listServiceTechs,
   listZones as listServiceZones, getSettings as getServiceSettings, setSetting as setServiceSetting, STATUS_DEFS as SERVICE_STATUS_DEFS, REASON_CODES as SERVICE_REASON_CODES,
-  importServiceFromEpassFeed, applySelfHoldForSv, onStatusSet as onServiceStatusSet, onPartsIn as onServicePartsIn
+  importServiceFromEpassFeed, applySelfHoldForSv, onStatusSet as onServiceStatusSet, onPartsIn as onServicePartsIn,
+  upsertRequestJob, placeRequestJob, attachRequestJobToSv
 } from "./lib/service-journey-postgres.js";
 import { getServiceBoard, moveServiceJob, unscheduleServiceJob, sequenceTechDay, setJobDispatchFlags, addRouteBlock, removeRouteBlock, saveTechSettings, setPartsLoaded, confirmRouteDay, cancelServiceJob, uncancelServiceJob, markShopRepaired, CANCEL_REASONS, diagnoseServiceBoard, getServiceHistory, moveSelfHold, searchBoardJobs } from "./lib/service-board-postgres.js";
 import {
@@ -7705,6 +7706,32 @@ function withLiveEta(estimate) {
   return { ...estimate, summary: { ...estimate.summary, eta: live, etaMessage: etaMessage(live) } };
 }
 
+// Ready to bill (Andrew 9/24): calls the tech finished in the field wait
+// here for an office admin to charge the card on file, make the ePASS
+// ticket match, and finish it. The card on file comes from the service
+// request card (Stripe customer + payment method saved at intake).
+app.get("/api/service-estimates/ready-to-bill", requirePagePermission("/service-estimates.html"), async (req, res) => {
+  try {
+    const rows = await listReadyToBill();
+    let cards = [];
+    try { cards = await readServiceCards(); } catch {}
+    const bySv = new Map(); const byId = new Map();
+    for (const c of cards) { if (c.erpOrderNumber) bySv.set(String(c.erpOrderNumber).toUpperCase(), c); byId.set(String(c.id || "").replace(/^svc_/, "").toUpperCase(), c); }
+    for (const r of rows) {
+      const c = bySv.get(r.sv) || (r.sv.startsWith("NEW-") ? byId.get(r.sv.slice(4)) : null);
+      r.card = c ? { id: c.id, setupIntentId: c.setupIntentId || "", customerId: c.customerId || "", paymentMethodId: c.paymentMethodId || "", last4: c.last4 || "", brand: c.cardBrand || "", onFile: !!(c.customerId && c.paymentMethodId) } : null;
+    }
+    return res.json({ rows });
+  } catch (err) { console.error("Ready to bill failed:", err.message); return res.status(500).json({ error: "Unable to load the ready-to-bill list." }); }
+});
+app.post("/api/service-estimates/ready-to-bill/:sv/billed", requirePagePermission("/service-estimates.html"), async (req, res) => {
+  try {
+    const me = sjMe(req);
+    const out = await markBilled({ sv: req.params.sv, amount: req.body?.amount, note: String(req.body?.note || ""), by: me.email, byName: me.name });
+    sjAudit(req, "service_call_billed", { sv: out.sv, amount: out.amount });
+    return res.json(out);
+  } catch (err) { return res.status(400).json({ error: err.message }); }
+});
 app.get("/api/service-estimates", requirePagePermission("/service-estimates.html"), async (req, res) => {
   try {
     return res.json({ estimates: (await listServiceEstimates()).map(withLiveEta), publicHost: SERVICE_PUBLIC_HOST });
@@ -10181,6 +10208,7 @@ app.post("/api/service/schedule/:token", async (req, res) => {
         selfSchedule: { ...(cards[index].selfSchedule || {}), token: hold.token, mode: hold.booking_mode, zone: hold.zone_code || "", kind: "picked", date: chosen.date, window: chosen.window, windowLabel: chosen.windowLabel, tech: chosen.tech, pickedAt: new Date().toISOString(), updatedAt: new Date().toISOString() }
       };
       await writeServiceCards(cards);
+      placeRequestJob(hold.card_id, { date: chosen.date, window: chosen.window, tech: chosen.tech, by: "client" }).catch((err) => console.error("Request placement → board failed:", err.message));
       recordAudit({ ip: req.ip, actorUserId: null, action: "service_request_self_scheduled", targetUserId: null, detail: { serviceCardId: hold.card_id, customerName: cards[index].customerName || "", date: chosen.date, window: chosen.window, tech: chosen.tech, recommended: chosen.recommended } }).catch(() => {});
     }
     return res.json({ ok: true, picked: { date: chosen.date, window: chosen.window, windowLabel: chosen.windowLabel, dayLabel: chosen.dayLabel } });
@@ -10211,7 +10239,10 @@ app.post("/api/service-cards/:id/self-schedule/release", requirePagePermission("
     const index = cards.findIndex((row) => row.id === req.params.id);
     if (index < 0) return res.status(404).json({ error: "Service request not found." });
     const released = await releaseSelfSchedule(req.params.id, { svNumber: String(req.body?.svNumber || ""), by: req.authUser?.email || "" });
-    if (req.body?.svNumber) applySelfHoldForSv(String(req.body.svNumber), req.authUser?.email || "").catch((err) => console.error("Self-hold → board failed:", err.message));
+    if (req.body?.svNumber) {
+      attachRequestJobToSv(req.params.id, String(req.body.svNumber), { byEmail: req.authUser?.email || "" }).catch((err) => console.error("Request → SV link failed:", err.message));
+      applySelfHoldForSv(String(req.body.svNumber), req.authUser?.email || "").catch((err) => console.error("Self-hold → board failed:", err.message));
+    }
     cards[index] = { ...cards[index], updatedAt: new Date().toISOString(), updatedBy: `${req.authUser?.displayName || req.authUser?.email || ""} · hold released`, selfSchedule: { ...(cards[index].selfSchedule || {}), released: true, releasedAt: new Date().toISOString(), releasedBy: req.authUser?.email || "", releasedFor: "office" } };
     await writeServiceCards(cards);
     sjAudit(req, "service_request_self_schedule_released", { serviceCardId: req.params.id, holds: released.length });
@@ -10417,7 +10448,16 @@ app.get("/api/service-field/photo/:id", requireServiceField, async (req, res) =>
 // The component labor picker: ePASS's LaborRate table, priced as ePASS
 // prices it (brand variant first).
 app.get("/api/service-field/labor-rates", requireServiceField, async (req, res) => {
-  try { return res.json({ rates: await laborRateOptions({ q: String(req.query.q || ""), brand: String(req.query.brand || ""), limit: Number(req.query.limit) || 30 }) }); } catch (err) { return res.status(400).json({ error: err.message }); }
+  try {
+    const q = String(req.query.q || ""), brand = String(req.query.brand || ""), limit = Number(req.query.limit) || 30;
+    let rates = await laborRateOptions({ q, brand, limit });
+    // Nothing among the active codes: try the whole list (an "Obsolete" flag
+    // ePASS books differently must not hide the rate book from the techs).
+    let fallback = false;
+    if (!rates.length && q.trim()) { rates = await laborRateOptions({ q, brand, limit, includeInactive: true }); fallback = rates.length > 0; }
+    const meta = await laborRateMeta().catch(() => null);
+    return res.json({ rates, fallback, meta });
+  } catch (err) { return res.status(400).json({ error: err.message }); }
 });
 // One past call from the catalogue, opened.
 app.get("/api/service-field/call/:code", requireServiceField, async (req, res) => {
@@ -15468,6 +15508,8 @@ app.post("/api/service/submit-request", async (req, res) => {
         await attachRequestPhotos(serviceCards[existingByIdIndex]);
         await attachSelfSchedule(serviceCards[existingByIdIndex]);
         await writeServiceCards(serviceCards);
+        // The request is a board card from this moment (Cayden 9/24).
+        upsertRequestJob(serviceCards[existingByIdIndex]).catch((err) => console.error("Request → board failed:", err.message));
 
         auditServiceSubmit("service_request_resubmitted", serviceCards[existingByIdIndex]);
 
@@ -15523,6 +15565,8 @@ app.post("/api/service/submit-request", async (req, res) => {
         await attachRequestPhotos(serviceCards[existingByIdIndex]);
         await attachSelfSchedule(serviceCards[existingByIdIndex]);
         await writeServiceCards(serviceCards);
+        // The request is a board card from this moment (Cayden 9/24).
+        upsertRequestJob(serviceCards[existingByIdIndex]).catch((err) => console.error("Request → board failed:", err.message));
 
         auditServiceSubmit("service_request_resubmitted", serviceCards[existingByIdIndex]);
 
@@ -15578,6 +15622,9 @@ app.post("/api/service/submit-request", async (req, res) => {
 
     await attachRequestPhotos(serviceCards[0]);
     await attachSelfSchedule(serviceCards[0]);
+    // The request is a board card from this moment: on the customer's picked
+    // day when self-scheduling placed it, else in Unscheduled (Cayden 9/24).
+    upsertRequestJob(serviceCards[0]).catch((err) => console.error("Request → board failed:", err.message));
     // The customer's journey link is minted the moment the request lands on
     // the queue; it follows the ticket once the office books it in ePASS.
     let journeyUrl = "";
@@ -16622,7 +16669,10 @@ app.post("/api/service-cards/:id/status", requirePagePermission("/appliance-serv
 
     // Booked in ePASS or cancelled: the self-schedule hold stops counting
     // against capacity (the ePASS mirror carries the real stop from here).
-    if (changes.erpOrderNumber && /^SV/i.test(String(erpOrderNumber || ""))) ensureJourneyToken({ cardId: id, sv: erpOrderNumber, by: req.authUser?.email || "" }).catch(() => {});
+    if (changes.erpOrderNumber && /^SV/i.test(String(erpOrderNumber || ""))) {
+      ensureJourneyToken({ cardId: id, sv: erpOrderNumber, by: req.authUser?.email || "" }).catch(() => {});
+      attachRequestJobToSv(id, erpOrderNumber, { byEmail: req.authUser?.email || "" }).catch((err) => console.error("Request → SV link failed:", err.message));
+    }
     if (changes.queueStatus && ["Call Scheduled", "Call Cancelled"].includes(queueStatus) && before.selfSchedule?.token && !before.selfSchedule.released) {
       try {
         await releaseSelfSchedule(id, { svNumber: erpOrderNumber || "", by: req.authUser?.email || "" });

@@ -213,6 +213,12 @@
       </div>
     </div>
 
+    <div class="surface" id="billSec" hidden>
+      <h2>Ready to bill <span class="pill unseen" id="billN">0</span></h2>
+      <p class="section-note">Calls the tech finished in the field — declined, fixed on the spot, or the install done. Charge the card on file, then make the ePASS ticket match (labor, parts, freight, payment) and finish it there; <b>Billed &amp; finished</b> closes the call here. Nothing is charged by this page.</p>
+      <div id="billRows"></div>
+    </div>
+
     <div class="surface">
       <h2>Estimates</h2>
       <p class="section-note">Newest first. Click a row for the client's response and the link.</p>
@@ -333,7 +339,7 @@
           <table>
             ${(s.parts || []).map((p) => `<tr><td>${p.qty > 1 ? p.qty + " × " : ""}${esc(p.description)}${p.model ? ` <span style="color:var(--muted); font-size:11px;">${esc(p.model)}</span>` : ""}</td><td class="se-amt">${p.ext == null ? "—" : money(p.ext)}</td></tr>`).join("")}
             ${(s.refrigerant || []).map((r) => `<tr class="se-refrig"><td>${Number(r.qty) > 1 ? Number(r.qty) + " × " : ""}${esc(r.description)}${r.unit != null && Number(r.qty) > 1 ? ` <span style="color:var(--muted); font-size:11px;">${money(r.unit)} each</span>` : ""} <span style="color:var(--muted); font-size:11px;">refrigerant</span></td><td class="se-amt">${r.ext == null ? "—" : money(r.ext)}</td></tr>`).join("")}
-            ${s.laborEntries ? `<tr><td>Labor (${s.laborEntries} ${s.laborEntries === 1 ? "entry" : "entries"})</td><td class="se-amt">${s.noLinePricing ? "—" : money(s.laborTotal)}</td></tr>` : ""}
+            ${(s.laborLines || []).length ? s.laborLines.map((l) => `<tr><td>${esc(l.description)}${l.code ? ` <span style="color:var(--muted); font-size:11px;">${esc(l.code)}</span>` : ""} <span style="color:var(--muted); font-size:11px;">labor</span></td><td class="se-amt">${money(l.ext)}</td></tr>`).join("") : s.laborEntries ? `<tr><td>Labor (${s.laborEntries} ${s.laborEntries === 1 ? "entry" : "entries"})</td><td class="se-amt">${s.noLinePricing ? "—" : money(s.laborTotal)}</td></tr>` : ""}
             ${s.shippingTotal ? `<tr><td>Shipping &amp; handling</td><td class="se-amt">${money(s.shippingTotal)}</td></tr>` : ""}
             ${(s.coreCharges || []).length ? `<tr><td>Core charge${s.coreTotal ? "" : " <span style=\"color:var(--muted); font-size:11px;\">(charged and returned — nets to zero, hidden from the client)</span>"}</td><td class="se-amt">${money(s.coreTotal || 0)}</td></tr>` : ""}
             <tr><td>Subtotal</td><td class="se-amt">${money(s.subTotal)}</td></tr>
@@ -542,6 +548,7 @@
       // Two statuses, side by side (Andrew, 2026-09-17): COMMUNICATION is
       // ours (unsent / sent / reminder sent ×N), CLIENT is theirs (unseen /
       // viewed / approved / shopping …). Both come precomputed from the API.
+      const sourcePill = (e) => e.summary?.source === "parts-verify" ? `<span class="pill unseen" title="Built automatically from the tech's findings and Parts Verify — check the lines, then send">${e.summary.warranty ? "Warranty · from Parts Verify" : "Ready to send · from Parts Verify"}</span>` : "";
       const commPill = (e) => { const c = e.communication || { state: "unsent", label: "Unsent" }; const cls = c.state === "sent" ? "sentc" : c.state; const tip = c.lastSentAt ? `Last ${c.lastChannel === "text" ? "texted" : "emailed"} ${when(c.lastSentAt)}` : "Nothing sent yet — email or text the link"; return `<span class="pill ${esc(cls)}" title="${esc(tip)}">${esc(c.label)}</span>`; };
       const clientPill = (e) => { const c = e.client || { state: e.status === "sent" ? "unseen" : e.status, label: PILL[e.status] || e.status }; const tip = c.respondedAt ? `Responded ${when(c.respondedAt)}${c.byStaff ? " (confirmed by staff)" : ""}` : c.viewedAt ? `Viewed ${when(c.viewedAt)}` : "Hasn't opened the link yet"; return `<span class="pill ${esc(c.state)}" title="${esc(tip)}">${esc(c.label)}</span>`; };
       const sendsHtml = (e) => { const sends = Array.isArray(e.sends) ? e.sends : []; if (!sends.length) return `<div class="se-hint">Nothing sent yet — copy the link, or email / text it below.</div>`; return `<ul class="se-sends">${sends.slice().reverse().map((x) => `<li>${when(x.at)} · ${x.variant === "reminder" ? "Reminder " : ""}${x.channel === "text" ? "texted" : "emailed"}${x.to ? " to " + esc(x.to) : ""}${x.by ? " · " + esc(x.by) : ""}</li>`).join("")}</ul>`; };
@@ -609,7 +616,7 @@
             <td>${esc(e.customerName)}</td>
             <td>${money(dueOf(e.summary || {}))}${paidOf(e.summary || {}) > 0 ? `<div class="se-hint">of ${money(e.summary?.invoiceTotal)} · ${money(paidOf(e.summary || {}))} paid</div>` : ""}</td>
             <td>${esc([e.contactPhone, e.contactEmail].filter(Boolean).join(" / ") || "—")}</td>
-            <td>${commPill(e)}</td>
+            <td>${sourcePill(e)}${commPill(e)}</td>
             <td>${clientPill(e)}</td>
             <td>${esc(e.createdByName || e.createdByEmail || "—")}</td>
             <td><button type="button" class="se-btn quiet se-row-close" data-tok="${esc(e.token)}" data-reopen="${isClosed ? "1" : ""}">${isClosed ? "Reopen" : "Close"}</button></td>
@@ -725,7 +732,45 @@
         sendEstimateText(state.open.token, $("soPhoneInput").value, $("soTextRemind"), $("soEmailNote"), "reminder");
       });
 
+      // ---- Ready to bill ----
+      const OUTCOME_LABEL = { onsite: "Fixed on the spot", declined: "Repair declined", replace: "Unit to be replaced", complete: "Install complete" };
+      async function loadBilling() {
+        try {
+          const data = await api("/api/service-estimates/ready-to-bill");
+          const rows = data.rows || [];
+          $("billSec").hidden = !rows.length; $("billN").textContent = rows.length;
+          $("billRows").innerHTML = rows.map((r) => {
+            const b = r.bill;
+            const lines = [...b.labor.map((l) => `<tr><td>${esc(l.desc)}${l.code ? ` <span style="color:var(--muted);font-size:11px;">${esc(l.code)}</span>` : ""}</td><td class="se-amt">${money(l.amount)}</td></tr>`), ...b.parts.map((l) => `<tr><td>${l.qty > 1 ? l.qty + " × " : ""}${esc(l.desc || l.part)}${l.part ? ` <span style="color:var(--muted);font-size:11px;">${esc(l.part)}</span>` : ""}</td><td class="se-amt">${l.ext == null ? "—" : money(l.ext)}</td></tr>`), b.freight ? `<tr><td>Freight</td><td class="se-amt">${money(b.freight)}</td></tr>` : "", `<tr><td style="color:var(--muted)">Tax${b.warranty ? " (warranty — none)" : ""}</td><td class="se-amt">${money(b.tax)}</td></tr>`, `<tr><td><b>Total to charge</b></td><td class="se-amt"><b>${money(b.total)}</b></td></tr>`].join("");
+            const params = new URLSearchParams({ sv: r.sv, amount: b.total.toFixed(2), customerName: r.cust || "", description: `${r.sv} ${OUTCOME_LABEL[r.outcome] || r.outcome} — ${r.unit || "service"}`.slice(0, 120), ...(r.card?.setupIntentId ? { setupIntentId: r.card.setupIntentId } : {}), ...(r.card?.customerId ? { customerId: r.card.customerId } : {}), ...(r.card?.paymentMethodId ? { paymentMethodId: r.card.paymentMethodId } : {}) });
+            const cardNote = r.wty ? "Warranty — bill the maker, no card charge" : r.card?.onFile ? `Card on file · ${esc(r.card.brand)} ${esc(r.card.last4)}` : r.card?.setupIntentId ? "Card capture started at intake — look it up on the charge page" : "No card on file — collect over the phone or in person";
+            return `<div class="se-card" style="border:1px solid var(--border);border-radius:12px;padding:12px 14px;margin-bottom:10px;">
+              <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;">
+                <b>${esc(r.cust || r.sv)}</b><span class="pill ${r.outcome === "declined" ? "shopping" : "approved"}">${esc(OUTCOME_LABEL[r.outcome] || r.outcome)}</span><span class="pill unseen">${esc(r.st)}</span>${r.wty ? '<span class="pill viewed">Warranty</span>' : ""}<span style="color:var(--muted);font-size:12px;">${esc(r.sv)} · ${esc(r.techName || r.tech || "")} · ${when(r.doneAt)}${r.minutes ? ` · ${r.minutes} min` : ""} · ePASS shows ${esc(r.epassSt || "—")}</span>
+              </div>
+              <div style="font-size:12.5px;color:var(--muted);margin:4px 0;">${esc(r.unit || "")}${r.addr ? " · " + esc(r.addr) : ""}${r.phone ? " · " + esc(r.phone) : ""} · basis: ${esc(b.basis)}${b.unpriced ? ' · <span style="color:#b45309">a part line has no price</span>' : ""}</div>
+              ${r.findings ? `<div style="font-size:12.5px;background:#f8fafc;border-radius:8px;padding:6px 10px;margin:6px 0;white-space:pre-wrap;">${esc(r.findings)}</div>` : ""}
+              <div class="se-summary" style="max-width:520px;"><table><tbody>${lines}</tbody></table></div>
+              <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:8px;">
+                <span style="font-size:12.5px;color:var(--muted);">${cardNote}</span><span style="flex:1"></span>
+                ${r.wty ? "" : `<a class="se-btn quiet" style="text-decoration:none;" href="charge-saved-card.html?${params.toString()}" target="_blank" rel="noopener">Charge card on file →</a>`}
+                <button type="button" class="se-btn primary" data-billed="${esc(r.sv)}" data-amount="${b.total.toFixed(2)}">Billed &amp; finished in ePASS</button>
+              </div>
+            </div>`;
+          }).join("");
+          $("billRows").querySelectorAll("[data-billed]").forEach((btn) => btn.addEventListener("click", async () => {
+            const sv = btn.dataset.billed; const suggested = btn.dataset.amount;
+            const amount = prompt(`${sv}: amount charged (the ePASS ticket should match and be finished).`, suggested);
+            if (amount == null) return;
+            btn.disabled = true;
+            try { await api(`/api/service-estimates/ready-to-bill/${encodeURIComponent(sv)}/billed`, { method: "POST", body: JSON.stringify({ amount, note: "" }) }); setStatus(`${sv} billed and closed.`, "ok"); await loadBilling(); }
+            catch (err) { setStatus(err.message, "error"); btn.disabled = false; }
+          }));
+        } catch (err) { setStatus(err.message, "error"); }
+      }
+
       async function load() {
+        loadBilling().catch(() => {});
         try {
           const data = await api("/api/service-estimates");
           state.estimates = data.estimates || [];

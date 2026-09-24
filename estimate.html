@@ -181,7 +181,7 @@
             ${s.noLinePricing
               ? `<tr class="sub"><td>Repair parts &amp; labor</td><td class="amt">${money(s.subTotal)}</td></tr>`
               : `
-            ${s.laborEntries ? `<tr><td>Labor${s.laborEntries > 1 ? ` <span class="model">(${s.laborEntries} entries)</span>` : ""}</td><td class="amt">${money(s.laborTotal)}</td></tr>` : ""}
+            ${(s.laborLines || []).length ? s.laborLines.map((l) => `<tr><td>${esc(l.description)} <span class="model">labor</span></td><td class="amt">${money(l.ext)}</td></tr>`).join("") : s.laborEntries ? `<tr><td>Labor${s.laborEntries > 1 ? ` <span class="model">(${s.laborEntries} entries)</span>` : ""}</td><td class="amt">${money(s.laborTotal)}</td></tr>` : ""}
             ${s.shippingTotal ? `<tr><td>Shipping &amp; handling</td><td class="amt">${money(s.shippingTotal)}</td></tr>` : ""}
             ${s.coreTotal ? `<tr><td>Core charge <span class="model">(refunded when the old part comes back)</span></td><td class="amt">${money(s.coreTotal)}</td></tr>` : ""}
             <tr class="sub"><td>Subtotal</td><td class="amt">${money(s.subTotal)}</td></tr>`}

@@ -248,6 +248,7 @@
           { href: "service-field.html", title: "Tech Field Tool" },
           { href: "service-order-health.html", title: "Service Order Health" },
           { href: "service-estimates.html", title: "Service Estimate Approvals" },
+          { href: "service-journey.html?view=settings", title: "Service Admin Settings" },
           { href: "closed-estimates.html", title: "Closed Service Estimates" },
           { href: "shopper-profiles.html", title: "Shopper Profiles" }
         ]
@@ -324,7 +325,6 @@
       {
         title: "Test Modules",
         children: [
-          { href: "service-journey.html", title: "Service Journey (ePASS mirror)" },
           { href: "satisfaction-survey.html", title: "Client Satisfaction Survey" },
           { href: "satisfaction-results.html", title: "Satisfaction Results" },
           { href: "case-visit-survey.html", title: "Case Visit Survey" },

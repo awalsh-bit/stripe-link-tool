@@ -58,7 +58,7 @@
     <div class="note" id="poFeed" style="font-size:.78rem;color:var(--muted);margin:.4rem 0 0"></div>
     <div class="tiles" id="tiles"></div>
     <div class="sec" id="flagsec" hidden><h3><span>Model flags — from the techs, for the service manager</span><span class="n" id="flagN">0</span><span class="hint">A tech flagged something every tech should know about a model. Publish it as a service bulletin (it shows in the field tool for every call on that model family) or dismiss it.</span></h3><div id="flags"></div></div>
-    <div class="sec" id="verifysec"><h3><span>Parts verify — tech quotes waiting (SO2)</span><span class="n" id="verifyN">0</span><span class="hint">The tech's parts and labor lines from the field tool: confirm each price and availability → SO2.1; the estimator builds the estimate from there.</span></h3><div id="verify"><div class="empty">Loading…</div></div></div>
+    <div class="sec" id="verifysec"><h3><span>Parts verify — tech quotes waiting (SO2)</span><span class="n" id="verifyN">0</span><span class="hint">The tech's parts and labor lines from the field tool: confirm each price and pick availability → SO2.1; the estimate is built and waits on Service Estimates for one click to send (warranty lands as approved).</span></h3><div id="verify"><div class="empty">Loading…</div></div></div>
     <div id="queues"><div class="empty">Loading…</div></div>
     <div id="internal-shell-footer"></div>
   </div>
@@ -72,7 +72,7 @@
       if (!res.ok) throw new Error(data.error || "Request failed.");
       return data;
     }
-    function setStatus(msg, kind) { const b = $("#pageStatus"); if (!msg) { b.className = "status"; b.textContent = ""; return; } b.className = "status show " + kind; b.textContent = msg; }
+    function setStatus(msg, kind, html = false) { const b = $("#pageStatus"); if (!msg) { b.className = "status"; b.textContent = ""; return; } b.className = "status show " + kind; if (html) b.innerHTML = msg; else b.textContent = msg; }
     const today = () => new Date().toLocaleDateString("en-CA", { timeZone: "America/Chicago" });
     const md = (d) => (d ? `${Number(d.slice(5, 7))}/${Number(d.slice(8, 10))}` : "");
     const days = (iso) => (iso ? Math.max(0, Math.round((new Date(today()) - new Date(String(iso).slice(0, 10))) / 864e5)) : 0);
@@ -121,6 +121,10 @@
       }));
     }
     let VROWS = [];
+    // Availability is a fixed set (Andrew 9/24) — each option is also the
+    // estimate's "what happens next" and the board's parts ETA.
+    const AVAIL = [["stock", "In stock"], ["d3", "1–3 days"], ["d5", "3–5 days"], ["w2", "1–2 weeks"], ["w3", "2+ weeks"], ["backorder", "Backordered — no date"]];
+    const availSelect = (v) => `<select data-v="availability">${AVAIL.map(([k, l]) => `<option value="${k}" ${String(v || "stock") === k ? "selected" : ""}>${l}</option>`).join("")}</select>`;
     function vrow(r) {
       const f = r.finding; const lines = f?.parts?.length ? f.parts : [{ part: "", desc: "", qty: 1 }];
       const age = days(r.since);
@@ -131,7 +135,7 @@
         <div class="form" style="display:block">
           <div class="vlines" data-vlines>
             <div class="vline"><span class="h">Part #</span><span class="h">Description</span><span class="h">Qty</span><span class="h">Price</span><span class="h">Availability</span><span></span></div>
-            ${lines.map((l) => `<div class="vline"><input data-v="part" value="${esc(l.part || "")}" placeholder="part #" /><input data-v="desc" value="${esc(l.desc || "")}" placeholder="description" /><input data-v="qty" type="number" min="1" value="${esc(l.qty || 1)}" /><input data-v="price" type="number" step="0.01" min="0" value="${l.price != null ? esc(l.price) : ""}" placeholder="0.00" /><input data-v="availability" value="${esc(l.availability || "")}" placeholder="in stock / 3 days / backorder" /><button type="button" data-vrm aria-label="Remove">✕</button></div>`).join("")}
+            ${lines.map((l) => `<div class="vline"><input data-v="part" value="${esc(l.part || "")}" placeholder="part #" /><input data-v="desc" value="${esc(l.desc || "")}" placeholder="description" /><input data-v="qty" type="number" min="1" value="${esc(l.qty || 1)}" /><input data-v="price" type="number" step="0.01" min="0" value="${l.price != null ? esc(l.price) : ""}" placeholder="0.00" />${availSelect(l.availability)}<button type="button" data-vrm aria-label="Remove">✕</button></div>`).join("")}
           </div>
           <button type="button" data-vadd>+ line</button>
           <div class="vlabor" data-vlabor style="margin-top:.5rem">
@@ -140,7 +144,7 @@
           </div>
           <input type="text" class="note" data-vnote placeholder="note for the estimator (supplier, lead time…)" style="width:100%;margin-top:.35rem" />
         </div>
-        <div class="acts"><button class="primary" data-verify="${esc(r.sv)}" title="Prices confirmed — the ticket goes to SO2.1 and the estimator builds the estimate">Verified → SO2.1</button></div>
+        <div class="acts"><button class="primary" data-verify="${esc(r.sv)}" title="Prices and availability confirmed — the ticket goes to SO2.1 and the estimate is built for the office to send">Verified → SO2.1</button></div>
       </div>`;
     }
     function renderVerify() {
@@ -148,7 +152,7 @@
       const vis = VROWS.filter((r) => !q || [r.sv, r.cust, r.unit, r.serial, r.techName, r.zip, ...((r.finding?.parts) || []).map((l) => l.part + " " + l.desc)].join(" ").toLowerCase().includes(q));
       $("#verifyN").textContent = VROWS.length; $("#verifysec").hidden = !VROWS.length && !q;
       $("#verify").innerHTML = vis.length ? vis.map(vrow).join("") : `<div class="empty">No tech quotes waiting.</div>`;
-      const lineHtml = () => `<div class="vline"><input data-v="part" placeholder="part #" /><input data-v="desc" placeholder="description" /><input data-v="qty" type="number" min="1" value="1" /><input data-v="price" type="number" step="0.01" min="0" placeholder="0.00" /><input data-v="availability" placeholder="in stock / 3 days / backorder" /><button type="button" data-vrm aria-label="Remove">✕</button></div>`;
+      const lineHtml = () => `<div class="vline"><input data-v="part" placeholder="part #" /><input data-v="desc" placeholder="description" /><input data-v="qty" type="number" min="1" value="1" /><input data-v="price" type="number" step="0.01" min="0" placeholder="0.00" />${availSelect("stock")}<button type="button" data-vrm aria-label="Remove">✕</button></div>`;
       $("#verify").querySelectorAll("[data-vadd]").forEach((b) => (b.onclick = () => { b.previousElementSibling.insertAdjacentHTML("beforeend", lineHtml()); wireRm(); }));
       const wireRm = () => $("#verify").querySelectorAll("[data-vrm], [data-lrm]").forEach((x) => (x.onclick = () => x.closest(".vline").remove()));
       wireRm();
@@ -158,11 +162,11 @@
         if (lines.some((l) => l.price === "")) { if (!confirm("Some lines have no price. Verify anyway?")) return; }
         if (!confirm(`${b.dataset.verify}: prices verified?
 
-The ticket goes to SO2.1 and a packet is queued for ePASS; the estimator builds the estimate next.`)) return;
+The ticket goes to SO2.1 and the estimate is built and waiting on Service Estimates — one click to send.`)) return;
         b.disabled = true;
         const row = VROWS.find((x) => x.sv === b.dataset.verify); const orig = row?.finding?.labor || [];
         const labor = [...rowEl.querySelectorAll("[data-vlabor] .vline.lab")].map((l, i) => ({ ...(orig[i] || {}), code: l.querySelector('[data-l="code"]').value, desc: l.querySelector('[data-l="desc"]').value, amount: l.querySelector('[data-l="amount"]').value }));
-        try { const out = await api(`/api/service-office/verify/${encodeURIComponent(b.dataset.verify)}`, { method: "POST", body: JSON.stringify({ lines, labor, note: rowEl.querySelector("[data-vnote]").value }) }); setStatus(`${b.dataset.verify} → SO2.1 · ${out.lines.length} line${out.lines.length === 1 ? "" : "s"}${out.partsTotal ? ` · parts $${out.partsTotal.toFixed(2)}` : ""}${out.laborTotal ? ` · labor $${out.laborTotal.toFixed(2)}` : ""} — over to the estimator.`, "ok"); await load(); }
+        try { const out = await api(`/api/service-office/verify/${encodeURIComponent(b.dataset.verify)}`, { method: "POST", body: JSON.stringify({ lines, labor, note: rowEl.querySelector("[data-vnote]").value }) }); setStatus(`${b.dataset.verify} → SO2.1 · ${out.lines.length} line${out.lines.length === 1 ? "" : "s"}${out.partsTotal ? ` · parts $${out.partsTotal.toFixed(2)}` : ""}${out.laborTotal ? ` · labor $${out.laborTotal.toFixed(2)}` : ""}${out.partsEta ? ` · parts ETA ${md(out.partsEta)}` : ""} — ${out.estimate ? (out.estimate.warranty ? "warranty: estimate filed as approved — make the ePASS ticket match and order parts" : `estimate built, waiting on <a href="service-estimates.html">Service Estimates</a> to send`) : "estimate could not be built — build it on Service Estimates"}.`, "ok", true); await load(); }
         catch (e) { setStatus(e.message, "error"); b.disabled = false; }
       }));
     }

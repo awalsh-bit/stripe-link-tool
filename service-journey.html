@@ -538,7 +538,20 @@
       finally { $("dtUpload").disabled = false; $("dtFile").value = ""; }
     });
 
+    // ?view=settings — Service Admin Settings (Cayden & Jack 9/24): the
+    // dispatch board and the shell link here. The ePASS mirror parts of this
+    // page fold away; only the settings, zones, feeds and roles stay.
+    const SETTINGS_VIEW = new URLSearchParams(location.search).get("view") === "settings";
+    if (SETTINGS_VIEW) {
+      document.title = "Wilson AC & Appliance - Service Admin Settings";
+      document.body.dataset.shellLabel = "Service Admin Settings";
+      const h = document.querySelector(".surface h2"); if (h) h.innerHTML = "Service Admin Settings";
+      const note = document.querySelector(".surface .section-note"); if (note) note.innerHTML = 'Zones, booking, notifications, labor pricing and <b>roles by job code</b> for the service journey. <a href="service-board.html">Back to the Dispatch Board</a>.';
+      for (const id of ["stats", "feeds", "tabs"]) { const el = $(id); if (el) el.hidden = true; }
+      document.querySelectorAll(".pane").forEach((p) => { p.hidden = p.id !== "pane-imports"; });
+    }
     (async function init() {
+      if (SETTINGS_VIEW) { try { await loadOverview(); showTab("imports"); $("tabs").hidden = true; } catch (e) { setStatus(e.message, "error"); } return; }
       try { await loadOverview(); await loadJobs(); } catch (e) { setStatus(e.message, "error"); $("jobRows").innerHTML = `<tr><td colspan="9" class="empty">${esc(e.message)}</td></tr>`; }
       const sv = new URLSearchParams(location.search).get("sv"); if (sv) openJob(sv);
     })();

@@ -679,6 +679,7 @@
     fulfillment: { method: "delivery", date: null },
     cart: { itemIds: [], addons: new Map() },
     cartPrices: {}, // id -> price, revealed once a unit is in the cart
+    cartPriceError: "",
     // selection: { label, cats: [category keys], products: [product codes] } | null
     filter: { search: "", brand: "", selection: null, topDeals: false, sort: "featured" },
     checkout: { open: false, stripe: null, elements: null, setupIntentId: "" },
@@ -1612,7 +1613,11 @@
         const item = (state.catalog?.items || []).find((i) => i.id === id);
         if (item) item.price = price;
       }
-    } catch (e) { console.warn(e.message); }
+      state.cartPriceError = "";
+    } catch (e) {
+      console.warn(e.message);
+      state.cartPriceError = e.message || "Unable to price the cart.";
+    }
   }
 
   function maybeOfferAddons(itemId) {
@@ -1811,7 +1816,7 @@
           <div class="ds">${item.condition === "new" ? "New in Box · " : item.condition === "open" ? "Open Box · " : ""}${esc(item.description)}</div>
           <button class="rm-btn" data-rm-item="${esc(item.id)}">Remove</button>
         </div>
-        <div class="pr">${item.price != null ? money(item.price) : '<span class="muted" style="font-size:12px;">pricing…</span>'}</div>`;
+        <div class="pr">${item.price != null ? money(item.price) : state.cartPriceError ? '<span class="muted" style="font-size:12px;">price unavailable — <a href="tel:512-894-0907">call us</a></span>' : '<span class="muted" style="font-size:12px;">pricing…</span>'}</div>`;
       body.appendChild(line);
     }
 

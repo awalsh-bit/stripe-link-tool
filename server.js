@@ -682,6 +682,7 @@ const SHOP_PUBLIC_API_PREFIXES = [
   "/api/shop/profile",
   "/api/shop/password",
   "/api/shop/catalog",
+  "/api/shop/cart-prices",
   "/api/shop/setup-intent",
   "/api/shop/submit-order",
   "/api/shop/setup-intent-result/"

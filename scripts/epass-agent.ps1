@@ -1,5 +1,5 @@
 # =============================================================================
-# Agility ePASS Agent — runs ON the showroom server (the machine that can see
+# Agility ePASS Agent - runs ON the showroom server (the machine that can see
 # the W: drive). Watches W:\Agility\outbox\<kind>\ and pushes new ePASS
 # exports to Agility over HTTPS. Outbound-only: nothing in the cloud ever
 # touches the drive or the VPN.
@@ -14,7 +14,7 @@
 #                                       Service Journey mirror in one step
 #   W:\Agility\outbox\epass-open-orders <- .json bundles written by epass-odbc-pull.ps1
 #                                       (open sales invoices + lines + serials + misc straight
-#                                       from ePASS via ODBC — no report export needed)
+#                                       from ePASS via ODBC - no report export needed)
 #   W:\Agility\outbox\epass-open-service <- same, for open SV/WTY tickets (+ labor, parts, comments, notes)
 #   W:\Agility\outbox\epass-finished-orders <- same, finished orders (OE-23 replacement), hourly
 #   W:\Agility\outbox\epass-service-catalogue <- same, finished service tickets + labor rates (history / Model Insight), daily + one-time backfill
@@ -31,7 +31,7 @@
 # SCHEDULE (Windows Task Scheduler, run every 10 minutes):
 #   Program:  powershell.exe
 #   Args:     -NoProfile -ExecutionPolicy Bypass -File "\\WILSON-FS02\SharedDrive\Agility\epass-agent.ps1"
-#   Run whether user is logged on or not. Use the UNC path, not W:\ — a
+#   Run whether user is logged on or not. Use the UNC path, not W:\ - a
 #   background task has no mapped drives, so a W:\ path silently never runs.
 # =============================================================================
 
@@ -51,12 +51,12 @@ $keyFile  = Join-Path $Root "epass-agent.key"
 if (Test-Path $keyFile) { $k = (Get-Content -Path $keyFile -Raw).Trim(); if ($k) { $AgentKey = $k } }
 $KeepProcessedDays = 60
 # The ODBC bundles arrive every 15 minutes (96 a day, the service one is big);
-# keeping two days of those is plenty — Agility holds the latest anyway.
+# keeping two days of those is plenty - Agility holds the latest anyway.
 $KeepBundleDays = 2
 # ----------------------------------------------------------------------------
 
 $Kinds = @("inventory", "quotes", "open-orders", "dispatch", "invoices", "epass-open-orders", "epass-open-service", "epass-finished-orders", "epass-service-catalogue", "epass-tax")
-# Feeds that are a full SNAPSHOT of the moment — when several pile up, only
+# Feeds that are a full SNAPSHOT of the moment - when several pile up, only
 # the newest matters. The catalogue and tax bundles are NOT snapshots: each
 # one is a distinct date slice (a backfill writes one per year / quarter in a
 # single run), so every one of them must go up, oldest first.
@@ -69,12 +69,12 @@ function Log([string]$msg) {
 }
 
 # One agent at a time (9/24): the pull script launches this after every pull
-# and it also has its own scheduled task — two runs pushing the same outbox
+# and it also has its own scheduled task - two runs pushing the same outbox
 # at once doubled the load on Agility. The second one simply steps aside.
 $agentMutex = New-Object System.Threading.Mutex($false, "Global\AgilityEpassAgent")
 $haveLock = $false
 try { $haveLock = $agentMutex.WaitOne(0) } catch [System.Threading.AbandonedMutexException] { $haveLock = $true }
-if (-not $haveLock) { Log "SKIP  another agent run is still active — this one exits"; exit 0 }
+if (-not $haveLock) { Log "SKIP  another agent run is still active - this one exits"; exit 0 }
 
 # Folder skeleton
 foreach ($kind in $Kinds) {
@@ -92,7 +92,7 @@ foreach ($kind in $Kinds) {
            Where-Object { $_.Name -notlike "~$*" } |
            Where-Object { ((Get-Date) - $_.LastWriteTime).TotalSeconds -ge 30 } |   # still being written
            Sort-Object LastWriteTime
-  # The open/finished ODBC bundles are full snapshots — only the newest one
+  # The open/finished ODBC bundles are full snapshots - only the newest one
   # matters. If earlier ones piled up (a slow VPN upload, the machine asleep),
   # park them in processed\ as superseded instead of pushing stale data ahead
   # of fresh. Slice bundles (catalogue, tax) skip this and all go up in order.
@@ -126,13 +126,13 @@ foreach ($kind in $Kinds) {
       $status = $null
       try { $status = [int]$_.Exception.Response.StatusCode } catch {}
       if ($status -ge 400 -and $status -lt 500 -and $status -ne 429) {
-        # Agility read the file and said no (wrong export, no rows) — park it
+        # Agility read the file and said no (wrong export, no rows) - park it
         # in failed\ so it doesn't retry forever.
         $dest = Join-Path $Root (Join-Path "failed" (Join-Path $kind ("$stamp-" + $file.Name)))
         Move-Item -Path $file.FullName -Destination $dest -Force
         Log "FAIL  [$kind] $($file.Name) HTTP $status $($_.ErrorDetails.Message)"
       } else {
-        # Network / server hiccup — leave in the outbox, retry next run.
+        # Network / server hiccup - leave in the outbox, retry next run.
         Log ("RETRY [{0}] {1} ({2:n0} KB, after {3:n0}s) {4}" -f $kind, $file.Name, ($file.Length / 1024), $sw.Elapsed.TotalSeconds, $_.Exception.Message)
       }
     }

@@ -1,9 +1,9 @@
 # =============================================================================
-# Agility ePASS ODBC pull — runs ON the showroom server (or any machine with
+# Agility ePASS ODBC pull - runs ON the showroom server (or any machine with
 # the 32-bit COMPANY1 DSN), on a schedule, in 32-BIT Windows PowerShell:
 #   C:\Windows\SysWOW64\WindowsPowerShell\v1.0\powershell.exe
 #
-# It reads ePASS (Caché) through the existing DSN — SELECT only — and writes:
+# It reads ePASS (Cache) through the existing DSN - SELECT only - and writes:
 #   W:\Agility\epass\<dataset>.csv                  latest copy, for Excel / anyone
 #   W:\Agility\epass\schema\*.csv                   (-Discover) table & column lists
 #   W:\Agility\outbox\epass-open-orders\*.json      one bundle per run (sales), which
@@ -21,31 +21,31 @@
 #   open-order-misc      InvoiceMisc for those invoices
 #   open-order-models    Model master (+ Supplier name) for every model on those lines
 #   on-hand-serials      Serial master, every unit in stock (Status blank) with the invoice it is promised to
-#                        + Model brand/description/product/list — replaces the ExportModel serial-inventory
+#                        + Model brand/description/product/list - replaces the ExportModel serial-inventory
 #                        upload (shop availability, cosmetic-damage form) since 9/24
 #   model-list-prices    ModelListPrice for every model in stock: L1 / RETAIL (MAP, PMAP) / brand UMRP codes
 #   open-po-lines        POModel lines not yet received (+ PO supplier/dates/ETA) for models on open lines
 #   open-quotes          Invoice header, InvTypeCode Q, Status Open (Quote Follow-Up board)
 #   finished-orders      (third bundle, epass-finished-orders, first run of each hour or -FinishedSince)
 #                        Invoice header, every type, Status FINISHED / NOT POSTED, finished since the
-#                        1st of last month — the OE-23 Salesperson Activity Report
+#                        1st of last month - the OE-23 Salesperson Activity Report
 #   finished-serials / finished-items / finished-labor / finished-misc / finished-warranty
 #                        the cost columns of those invoices' lines (OE-23's C: row)
 #   salespeople          Salesperson master (code -> name) so the feed prints the same names OE-23 did
 #   catalogue-history    (fourth bundle, epass-service-catalogue) every finished SV/WTY ticket in a date
-#                        slice: header + complaint + work performed + unit — the customer history and
+#                        slice: header + complaint + work performed + unit - the customer history and
 #                        Model Insight behind the tech field tool, the board and the office queues
 #   catalogue-parts / catalogue-labor   those tickets' part lines (price, cost) and labor lines (+ LaborRate description)
 #   tax-invoices         (fifth bundle, epass-tax) every posted invoice, any type, in a DatePosted slice:
 #                        sold-to / bill-to city-state-zip, tax codes, percentages, exempt flags, the five
-#                        pre-tax totals and Tax1/2/3 collected — the Crystal TAX REPORT, without Crystal
+#                        pre-tax totals and Tax1/2/3 collected - the Crystal TAX REPORT, without Crystal
 #   tax-models / tax-items / tax-misc / tax-labor   those invoices' lines with their Tax1/2/3 flags, so the
 #                        report can split taxable from exempt dollars per invoice and per city
-#                        Runs on the 6:00 pull (last 3 posted months) — or -TaxBackfill (one bundle per quarter
+#                        Runs on the 6:00 pull (last 3 posted months) - or -TaxBackfill (one bundle per quarter
 #                        from -TaxBackfillFrom, default 2022; fine to run during the day) / -TaxSince yyyy-MM-dd [-TaxUntil yyyy-MM-dd]
-#   labor-rates          the whole LaborRate table (the flat-rate book as ePASS holds it) — the field
+#   labor-rates          the whole LaborRate table (the flat-rate book as ePASS holds it) - the field
 #                        tool's component labor picker, priced as ePASS prices it
-#                        Runs daily on the 6:00 pull (tickets finished in the last 21 days) — or, once,
+#                        Runs daily on the 6:00 pull (tickets finished in the last 21 days) - or, once,
 #                        -CatalogueBackfill (one bundle per year since 2005) / -CatalogueSince yyyy-MM-dd
 #   open-service        Invoice header, InvTypeCode SV/WTY, Status not FINISHED, not void
 #   open-service-labor   InvoiceLabor (+ LaborRate description) for those tickets
@@ -93,7 +93,7 @@ param(
   [string]$CatalogueSince = "",
   [string]$CatalogueUntil = "",
   # Sales tax bundle (fifth): every POSTED invoice of every type in a
-  # posted-date slice, header + every line with its Tax1/2/3 flags — the
+  # posted-date slice, header + every line with its Tax1/2/3 flags - the
   # Tax Report page (Accounting, executives). -TaxBackfill writes one bundle
   # per quarter from -TaxBackfillFrom (default 2022, the audit window);
   # -TaxSince / -TaxUntil one slice. Otherwise the 6:00 run refreshes the
@@ -179,18 +179,26 @@ function Export-Query {
   return ,$rows
 }
 
+# Log BEFORE the DSN opens: a failed Open used to end the run with nothing in
+# odbc.log at all (9/25 - the task "completed" in the same second, silently).
+Log ("starting: PowerShell {0}, {1}-bit, as {2}\{3}, root {4}, discover={5}" -f $PSVersionTable.PSVersion, ([IntPtr]::Size * 8), $env:USERDOMAIN, $env:USERNAME, $Root, [bool]$Discover)
 $conn = New-Object System.Data.Odbc.OdbcConnection("DSN=$Dsn;")
-$conn.Open()
-Log ("connected to {0} (PowerShell {1}, {2}-bit, discover={3})" -f $Dsn, $PSVersionTable.PSVersion, ([IntPtr]::Size * 8), [bool]$Discover)
+try { $conn.Open() } catch {
+  Log ("DSN {0} FAILED to open: {1}" -f $Dsn, $_.Exception.Message)
+  if ([IntPtr]::Size -ne 4) { Log "  (64-bit PowerShell - the COMPANY1 DSN is 32-bit; the task must run C:\Windows\SysWOW64\WindowsPowerShell\v1.0\powershell.exe)" }
+  Log "  (a User DSN is only visible to the account that made it - the task's 'run as' account needs it as a System DSN, or the same user)"
+  exit 1
+}
+Log ("connected to {0}" -f $Dsn)
 
 try {
   if ($Discover) {
     # Each step is independent: one failing table must not stop the rest, so
-    # every step logs its own error and moves on. The status mix comes first —
+    # every step logs its own error and moves on. The status mix comes first -
     # it is the file that decides what "open" means.
     function Step([string]$name, [scriptblock]$body) {
       try { & $body; Log "discover ok: $name" } catch { Log ("discover FAILED: {0} -> {1}" -f $name, $_.Exception.Message) }
-      # A failed statement can leave the Caché ODBC connection unusable; reopen it so the next step still runs.
+      # A failed statement can leave the Cache ODBC connection unusable; reopen it so the next step still runs.
       if ($conn.State -ne [System.Data.ConnectionState]::Open) {
         try { $conn.Close() } catch {}
         try { $conn.Open(); Log "reconnected to $Dsn" } catch { Log ("reconnect FAILED: {0}" -f $_.Exception.Message) }
@@ -240,7 +248,7 @@ WHERE i.InvTypeCode IN ('R','S','AC','CAB','MOD') AND UPPER(i.Status) <> 'FINISH
         $rows | Export-Csv (Join-Path $SchemaDir "$t.csv") -NoTypeInformation
       }
     }
-    # Small lookup tables in full (no customer data in any of them) — the
+    # Small lookup tables in full (no customer data in any of them) - the
     # meanings behind the codes the invoices carry.
     foreach ($t in @("JobStatus", "JobStatusDepartment", "InvType", "Priority", "MapZone", "MapZoneDelivery", "Route", "RouteDepartment", "Brand", "Product", "ProductMajor", "ProductMinor", "Location", "Salesperson", "Technician", "SerialType", "ReturnReason", "ReturnOutcome", "ReturnInitiatedBy", "Symptom", "Repair", "ServicePerformed", "Qualification", "Branch", "LaborRate",
                      "RouteQualifications", "MapZoneCoordinates", "MapZoneVertices", "MapZoneDepartment")) {
@@ -261,7 +269,7 @@ FROM Serial GROUP BY Status ORDER BY Status
 SELECT TOP 300 pm.* FROM POModel pm ORDER BY pm.DateStamp DESC
 "@ (Join-Path $SchemaDir "probe-po-model.csv") "open PO lines") }
     # Units in stock that are already promised: on hand (Status blank) and
-    # pointing at an invoice through OrderedForInvoiceCode — the 9/18 OE-04's
+    # pointing at an invoice through OrderedForInvoiceCode - the 9/18 OE-04's
     # "Quantity Spoken For" rows all matched lines with a PO that had arrived.
     Step "serials on hand for open invoices" { [void](Export-Query $conn @"
 SELECT TOP 500 s.Code, s.ModelCode, s.Status, s.InvoiceCode, s.OrderedForInvoiceCode, s.OrderedForInvoiceDateStamp, s.DateReserved, s.ReserveExclusive, s.Available,
@@ -275,7 +283,7 @@ SELECT TOP 200 * FROM PO ORDER BY DateCreated DESC
     # ---- service / dispatch probes (2026-09-21, for the service journey) ----
     # Which of the fields the placement engine wants does ePASS actually fill
     # on open service tickets? (Invoice already carries SoldToLatitude /
-    # SoldToLongitude on 612 of 612 open sales orders — ePASS geocodes.)
+    # SoldToLongitude on 612 of 612 open sales orders - ePASS geocodes.)
     Step "service field population" { [void](Export-Query $conn @"
 SELECT InvTypeCode, JobStatusCode, COUNT(*) AS Tickets,
        SUM(CASE WHEN SvcScheduleDate IS NULL THEN 0 ELSE 1 END) AS WithSvcScheduleDate,
@@ -291,7 +299,7 @@ FROM Invoice
 WHERE InvTypeCode IN ('SV','WTY') AND UPPER(Status) <> 'FINISHED'
 GROUP BY InvTypeCode, JobStatusCode ORDER BY InvTypeCode, JobStatusCode
 "@ (Join-Path $SchemaDir "probe-service-fields.csv") "service field population") }
-    # Labor lines carry the tech, the trip number and the clock times — the
+    # Labor lines carry the tech, the trip number and the clock times - the
     # learned on-site durations the engine wants (duration.learn_after_days).
     Step "labor trips" { [void](Export-Query $conn @"
 SELECT TOP 500 l.InvoiceCode, l.TripNo, l.TechnicianCode, l.ServiceDate, l.TimeIn, l.TimeInAM, l.TimeOut, l.TimeOutAM, l.HdthsMin, l.TimeCharged, l.LaborRateCode, l.JobStatus, l.Warranty, l.TripCharge
@@ -349,7 +357,7 @@ ORDER BY x.InvoiceCode
 "@ (Join-Path $LatestDir "open-order-misc.csv") "open-order-misc"
 
   # Model master for every model on an open line: stock position (QOH / QOO /
-  # min / max), cost, and ePASS's own supplier — what the Ordering Report used
+  # min / max), cost, and ePASS's own supplier - what the Ordering Report used
   # to read off the OE-04 totals rows and the NetSuite items CSV.
   $bundle.datasets["open-order-models"] = Export-Query $conn @"
 SELECT m.Code, m.Description, m.BrandCode, m.ProductCode, m.SKU, m.SupplierCode, s.Description AS Supplier_Description,
@@ -364,7 +372,7 @@ ORDER BY m.Code
 
   # Two more views the Ordering Report needs (2026-09-21), each guarded so a
   # column ePASS doesn't have can't take the bundle down with it:
-  #  on-hand-serials  every unit in stock (Serial.Status blank) — with the invoice
+  #  on-hand-serials  every unit in stock (Serial.Status blank) - with the invoice
   #                   it was ordered for / reserved to, receive date, bin, cost.
   #                   This is the "Serial # for Model" screen and the OE-04's
   #                   "Quantity Spoken For" in one (4,391 units on 9/21).
@@ -373,7 +381,7 @@ ORDER BY m.Code
   #                   the line was special-ordered for (BackOrderInvoiceCode).
   $openModels = "SELECT im.ModelCode FROM InvoiceModel im INNER JOIN Invoice i ON im.InvoiceCode = i.Code WHERE $openWhere"
   # Andrew 9/24: this view also REPLACES the ExportModel (Model Maintenance)
-  # serial-inventory upload — the shop's availability snapshot and the
+  # serial-inventory upload - the shop's availability snapshot and the
   # cosmetic-damage form's "units on this ticket" read it. ExportModel carried
   # brand / description / product / list alongside the serial, so the Model
   # master is joined in; if the join can't run, the plain view still goes.
@@ -389,7 +397,7 @@ WHERE (s.Status IS NULL OR s.Status = '')
 ORDER BY s.ModelCode, s.DateReceived, s.Code
 "@ (Join-Path $LatestDir "on-hand-serials.csv") "on-hand-serials"
   } catch {
-    Log ("on-hand-serials with Model join FAILED ({0}) — retrying without the join" -f $_.Exception.Message); if ($conn.State -ne [System.Data.ConnectionState]::Open) { $conn.Open() }
+    Log ("on-hand-serials with Model join FAILED ({0}) - retrying without the join" -f $_.Exception.Message); if ($conn.State -ne [System.Data.ConnectionState]::Open) { $conn.Open() }
     try {
       $bundle.datasets["on-hand-serials"] = Export-Query $conn @"
 SELECT $onHandCols
@@ -400,9 +408,9 @@ ORDER BY s.ModelCode, s.DateReceived, s.Code
     } catch { Log ("on-hand-serials FAILED (bundle continues without it): {0}" -f $_.Exception.Message); if ($conn.State -ne [System.Data.ConnectionState]::Open) { $conn.Open() } }
   }
 
-  # Andrew 9/24: every price level ePASS holds for the models in stock —
+  # Andrew 9/24: every price level ePASS holds for the models in stock -
   # ModelListPrice, one row per model per ListPriceCode (L1, L2, L3, RETAIL,
-  # SZ-UMRP, WOLF-UMRP, BESTMAP, SCOTMAP, LOWES …). RETAIL is the retail deck
+  # SZ-UMRP, WOLF-UMRP, BESTMAP, SCOTMAP, LOWES ...). RETAIL is the retail deck
   # (MAP / PMAP); the brand *-UMRP / *MAP codes are the makers' floors. The
   # online shop prices in-stock models from these (Model.ListPrice is empty).
   try {
@@ -495,7 +503,7 @@ ORDER BY n.Code, n.CreateDate, n.CreateTime
 
   # Parts on order for open tickets (2026-09-22 late): the PO line each part
   # was back-ordered against, with the supplier and ePASS's ETA if the buyer
-  # keyed one — Service Office Queues shows PO + supplier so Kezia only types
+  # keyed one - Service Office Queues shows PO + supplier so Kezia only types
   # the ETA. Guarded.
   try {
     $svc.datasets["open-service-po-items"] = Export-Query $conn @"
@@ -541,7 +549,7 @@ WHERE p.ShipToCode IN ($svcCodes)
 ORDER BY p.ShipToCode, pi.POCode
 "@ (Join-Path $LatestDir "open-service-po-items-by-shipto.csv") "open-service-po-items-by-shipto"
     # Fifth path (2026-09-23, Andrew's PO 39390 screenshot: BO Invoice #
-    # filled, Received 0, ETA 10/1 — yet the first path found 21 lines): every
+    # filled, Received 0, ETA 10/1 - yet the first path found 21 lines): every
     # PO line with a BO invoice that is not received yet, with NO join back to
     # the Invoice table at all, so a subquery quirk cannot drop rows. Agility
     # dedupes on ticket|PO|item and only shows lines for tickets on the board.
@@ -556,7 +564,7 @@ ORDER BY pi.BackOrderInvoiceCode, pi.POCode
 "@ (Join-Path $LatestDir "open-service-po-items-unreceived.csv") "open-service-po-items-unreceived"
     # The probe: every part line on an open ticket that is still on order
     # (ordered more than shipped), with the columns that could carry its PO
-    # link — so "21 PO lines" can be judged against how many parts are
+    # link - so "21 PO lines" can be judged against how many parts are
     # actually pending, and the missing link path found from the data.
     $svc.datasets["open-service-parts-pending"] = Export-Query $conn @"
 SELECT ii.InvoiceCode, ii.ItemCode, ii.ItemDesc, ii.QtyOrdered, ii.QtyShipped, ii.QtyReserved, ii.Status, ii.SupplierCode, ii.OrderFromSupplierCode, ii.SupplierInvoice, ii.AutoBackorder, ii.Reference, ii.PODateStamp, ii.POLineTimeStamp, ii.DateCommitted, ii.DateCreated, ii.LocationCode, ii.Installed
@@ -568,7 +576,7 @@ ORDER BY ii.InvoiceCode
   } catch { Log ("open-service-po-items FAILED (bundle continues without it): {0}" -f $_.Exception.Message); if ($conn.State -ne [System.Data.ConnectionState]::Open) { $conn.Open() } }
 
   # Service history (2026-09-22): the finished SV/WTY invoices of the last
-  # three years for every customer who has an open ticket — what the board's
+  # three years for every customer who has an open ticket - what the board's
   # "Service history" drawer shows. Header columns only (no line detail);
   # guarded so the bundle survives without it.
   $histSince = (Get-Date).AddYears(-3).ToString("yyyy-MM-dd")
@@ -753,7 +761,7 @@ SELECT lr.* FROM LaborRate lr ORDER BY lr.Code
   if ($TaxBackfill) {
     # One bundle per QUARTER (not per year): every invoice type with all its
     # lines for a whole year could pass the server's 60 MB upload limit and
-    # ties up ePASS for a long query — a quarter stays small, each query is
+    # ties up ePASS for a long query - a quarter stays small, each query is
     # short, and a failure costs three months, so this can run during the day.
     $qStart = Get-Date -Year $TaxBackfillFrom -Month 1 -Day 1
     while ($qStart -le (Get-Date)) {
@@ -829,12 +837,12 @@ finally {
 
 # Hand the bundles to the agent right away instead of waiting for its own
 # 10-minute task (self-scheduling reads this data, so freshness matters:
-# pull every 15 minutes + push at once ≈ 2 minutes old, not 25). The agent
+# pull every 15 minutes + push at once ~ 2 minutes old, not 25). The agent
 # skips files younger than 30 s, so give the last write a moment to settle.
 #
 # 9/24: the agent runs as its OWN process with a time limit. Run in-process,
 # one hung upload kept this pull "running" in Task Scheduler, and Task
-# Scheduler skips every later trigger while an instance is running — the
+# Scheduler skips every later trigger while an instance is running - the
 # whole feed stopped at 09:15. Now a stuck agent is stopped after
 # $AgentTimeoutMinutes, the pull finishes, and the next quarter-hour runs.
 # Files still in the outbox are simply pushed next time.
@@ -850,7 +858,7 @@ if (-not $Discover -and (Test-Path $agent)) {
       Log ("epass-agent.ps1 ran (exit {0})" -f $proc.ExitCode)
     } else {
       try { $proc.Kill() } catch {}
-      Log ("epass-agent.ps1 STOPPED after {0} min (still running) — unsent files stay in the outbox for the next run" -f $AgentTimeoutMinutes)
+      Log ("epass-agent.ps1 STOPPED after {0} min (still running) - unsent files stay in the outbox for the next run" -f $AgentTimeoutMinutes)
     }
   } catch { Log ("epass-agent.ps1 FAILED to start (its own task will retry): {0}" -f $_.Exception.Message) }
 }

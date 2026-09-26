@@ -129,12 +129,16 @@
         </summary>
         <p class="section-note" style="margin-top:10px;">
           Carts made up entirely of checked products get the fast delivery schedule: <b>same day</b> when the
-          order lands before the cutoff, <b>next day or later</b> after it. Everything else keeps the standard
-          3-working-day schedule. Changes apply to the live shop immediately — no deploy.
+          order lands before the cutoff on a program day, <b>the next program day or later</b> after it. Everything else keeps the standard
+          3-working-day schedule. Turn program days off (e.g. Saturday) to offer neither same-day nor fast next-day
+          on them; with no days on, the program is off. Changes apply to the live shop immediately — no deploy.
         </p>
         <div class="exp-row">
           <label for="expCutoff"><b>Order-by cutoff</b></label>
           <select id="expCutoff"></select>
+          <span style="display:inline-flex; align-items:center; gap:10px; flex-wrap:wrap; margin-left:8px;"><b>Program days</b>
+            <span id="expDays" style="display:inline-flex; gap:4px; flex-wrap:wrap;"></span>
+          </span>
           <span style="flex:1;"></span>
           <button type="button" class="ws-btn" id="expSave">Save settings</button>
           <span class="ws-snap-meta" id="expStatus"></span>
@@ -349,7 +353,7 @@
           ...(order.items || []).map((i) =>
             `<div>${esc(i.brand)} ${esc(i.model)}${i.condition === "new" ? " · New in Box" : i.condition === "open" ? " · Open Box" : ""} <span class="ws-serial">SN ${esc(i.serial)}${i.serialType ? " · " + esc(i.serialType) : ""}</span> — ${money(i.price)}</div>`),
           ...(order.addons || []).map((a) =>
-            `<div>${esc(a.name)}${a.qty > 1 ? " × " + a.qty : ""} — ${money(a.price * a.qty)}</div>`),
+            `<div style="padding-left:14px;">↳ ${esc(a.name)}${a.qty > 1 ? " × " + a.qty : ""}${a.forModel ? ` <span class="ws-serial">for ${esc(a.forModel)}</span>` : ""} — ${money(a.price * a.qty)}${a.description ? `<div class="ws-serial" style="padding-left:14px;">${esc(a.description)}</div>` : ""}</div>`),
           order.delivery?.method === "pickup"
             ? `<div style="font-weight:700; color:#1d4ed8;">CUSTOMER PICKUP — ${order.delivery?.later
                 ? "client will schedule later (30-day pickup window on clearance/outlet units)"
@@ -679,6 +683,12 @@
             if (h === expData.settings.cutoffHour) o.selected = true;
             sel.appendChild(o);
           }
+          // Days of the week the program runs: same-day only on an enabled day,
+          // fast next-day slots only land on enabled days; none = program off.
+          const daysOn = new Set((expData.settings.days || [1, 2, 3, 4, 5, 6]).map(Number));
+          document.getElementById("expDays").innerHTML = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((n, i) =>
+            `<label class="ws-chip${daysOn.has(i) ? " active" : ""}" style="padding:4px 10px;"><input type="checkbox" data-exp-day="${i}" ${daysOn.has(i) ? "checked" : ""} style="display:none;">${n}</label>`).join("");
+          document.getElementById("expDays").querySelectorAll("input").forEach((cb) => cb.addEventListener("change", () => cb.closest("label").classList.toggle("active", cb.checked)));
           const chosen = new Set(expData.settings.products);
           const host = document.getElementById("expOptions");
           let lastCat = null;
@@ -689,7 +699,7 @@
               <span>${esc2(opt.product)}</span><span class="cnt">${opt.count} on the list</span></label>`;
           }).join("");
           document.getElementById("expSummaryLine").textContent =
-            `Order by ${hourLabel(expData.settings.cutoffHour)} for same-day · ${expData.settings.products.length} qualifying product code(s).`;
+            `Order by ${hourLabel(expData.settings.cutoffHour)} for same-day · ${daysOn.size ? ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].filter((n, i) => daysOn.has(i)).join(" ") : "no program days — OFF"} · ${expData.settings.products.length} qualifying product code(s).`;
           document.getElementById("expMeta").textContent = expData.settings.saved
             ? `Last saved ${new Date(expData.settings.updatedAt).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}${expData.settings.updatedBy ? " by " + expData.settings.updatedBy : ""}.`
             : "Using the built-in defaults — save once to take ownership of the list.";
@@ -794,7 +804,8 @@
               method: "POST",
               credentials: "same-origin",
               headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ cutoffHour: Number(document.getElementById("expCutoff").value), products })
+              body: JSON.stringify({ cutoffHour: Number(document.getElementById("expCutoff").value), products,
+                days: [...document.querySelectorAll("[data-exp-day]:checked")].map((c) => Number(c.getAttribute("data-exp-day"))) })
             });
             const body = await res.json();
             if (!res.ok) throw new Error(body.error || "Save failed.");

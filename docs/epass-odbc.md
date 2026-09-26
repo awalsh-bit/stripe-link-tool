@@ -337,6 +337,24 @@ disagrees with this rule (`falseButFree` / `trueButHeld`). If those two stay
 at zero across a few bundles, `Available` alone could carry the rule. A
 change in ePASS reaches the shop on the next sales bundle (15 min).
 
+### 8b3c. Cart add-ons belong to their appliance; program days (2026-09-26)
+
+Every install / hookup part in the online cart is tied to the appliance it
+was picked for (`addonLines: [{ id, itemId, qty }]` on the page; the order
+payload sends `itemId` and the stored order line carries `forItemId` /
+`forModel`). Removing the appliance removes its add-ons; removing a part an
+install can't happen without (`requires` groups in `data/shop-addons.json`)
+warns that the install goes too, then removes both. A delivered appliance
+with no installation gets a **$0 "Uncrate, set in place"** line (added
+server-side in `priceShopCart`, shown in the cart and on Shop Orders) so the
+order says what happens at the door; pickup orders get none.
+
+The same-day install program has **program days** (`shop_express_settings.days`,
+0 = Sunday … 6 = Saturday; default Mon–Sat) on Online Shop Orders: same-day is
+offered only on an enabled day before the cutoff, and the fast next-day slots
+land only on enabled days; with no days enabled the program is off and the
+standard 3-working-day schedule applies.
+
 ### 8b3b. Shop prices from ePASS price levels (2026-09-24)
 
 `model-list-prices` (sales bundle) carries `ModelListPrice` for every model

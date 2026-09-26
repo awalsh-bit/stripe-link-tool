@@ -308,6 +308,10 @@
     .cart-line .nm { font-size: 14px; font-weight: 600; }
     .cart-line .ds { font-size: 12.5px; color: var(--muted); }
     .cart-line .pr { font-weight: 600; font-size: 14px; white-space: nowrap; }
+    .cart-line.sub { padding: 8px 0 8px 18px; border-bottom-style: dashed; background: linear-gradient(90deg, var(--line) 0, var(--line) 2px, transparent 2px); }
+    .cart-line.sub .nm { font-size: 13px; font-weight: 500; }
+    .cart-line.sub .ds { font-size: 12px; }
+    .cart-line.sub .pr { font-size: 13px; font-weight: 500; }
     .rm-btn { background: none; border: none; color: var(--danger); font-size: 12.5px; cursor: pointer; padding: 2px 0; }
     .qty-ctl { display: inline-flex; align-items: center; gap: 8px; margin-top: 3px; }
     .qty-ctl button { width: 24px; height: 24px; border-radius: 7px; border: 1px solid #d1d5db; background: #fff; cursor: pointer; font-size: 15px; line-height: 1; }
@@ -677,7 +681,7 @@
     fulfillOptions: null,
     // Blind scheduling: delivery needs a chosen day; pickup skips it.
     fulfillment: { method: "delivery", date: null },
-    cart: { itemIds: [], addons: new Map() },
+    cart: { itemIds: [], addonLines: [] }, // addonLines: [{ id, itemId, qty }] - every add-on belongs to the appliance it was picked for
     cartPrices: {}, // id -> price, revealed once a unit is in the cart
     cartPriceError: "",
     // selection: { label, cats: [category keys], products: [product codes] } | null
@@ -1582,7 +1586,7 @@
     state.token = "";
     state.shopperName = "";
     state.clientCode = "";
-    state.cart = { itemIds: [], addons: new Map() };
+    state.cart = { itemIds: [], addonLines: [] };
     renderCartCount();
     $("profileOverlay").classList.remove("show");
     await loadCatalog();
@@ -1708,17 +1712,15 @@
     openCart();
   });
   $("addonAdd").addEventListener("click", () => {
-    $("addonList").querySelectorAll("input[type=checkbox]:checked").forEach((cb) => {
-      const id = cb.value;
-      state.cart.addons.set(id, (state.cart.addons.get(id) || 0) + 1);
-    });
+    const forItem = state.pendingAddonItem?.id || null;
+    $("addonList").querySelectorAll("input[type=checkbox]:checked").forEach((cb) => addAddonLine(cb.value, forItem));
     $("addonOverlay").classList.remove("show");
     renderCartCount();
     openCart();
   });
 
   function renderCartCount() {
-    const count = state.cart.itemIds.length + [...state.cart.addons.values()].reduce((s, q) => s + q, 0);
+    const count = state.cart.itemIds.length + state.cart.addonLines.reduce((s, l) => s + l.qty, 0);
     $("cartCount").style.display = count ? "" : "none";
     $("cartCount").textContent = count;
   }
@@ -1728,6 +1730,53 @@
     return pools.find((a) => a.id === id);
   }
 
+  // ---- Add-on lines: each one belongs to the appliance it was picked for
+  // (Andrew 9/26). Remove the appliance -> its install and parts go with it.
+  // Remove a part an install can't happen without -> warn, then the install
+  // goes too. Nothing on the order floats free of a product.
+  const UNCRATE = { id: "uncrate-set-in-place", name: "Uncrate, set in place", price: 0,
+    description: "Appliance's exterior packaging may be removed and the product inspected. No interior packaging removed and no installation included" };
+  function addAddonLine(id, itemId, qty = 1) {
+    const line = state.cart.addonLines.find((l) => l.id === id && l.itemId === itemId);
+    if (line) line.qty += qty; else state.cart.addonLines.push({ id, itemId, qty });
+  }
+  function itemHasInstall(itemId) {
+    return state.cart.addonLines.some((l) => l.itemId === itemId && addonInfo(l.id)?.type === "install");
+  }
+  // Installs on the same appliance that need this part and would be left
+  // without any alternative once one unit of it is gone.
+  function installsNeeding(line) {
+    const requires = state.addons?.requires || {};
+    const mine = state.cart.addonLines.filter((l) => l.itemId === line.itemId);
+    const qtyAfter = (id) => mine.filter((l) => l.id === id).reduce((s, l) => s + l.qty, 0) - (id === line.id ? 1 : 0);
+    const out = [];
+    for (const l of mine) {
+      if (addonInfo(l.id)?.type !== "install") continue;
+      for (const group of requires[l.id] || []) {
+        if (group.includes(line.id) && !group.some((id) => qtyAfter(id) > 0)) { out.push(l); break; }
+      }
+    }
+    return out;
+  }
+  function dropLine(line) { state.cart.addonLines = state.cart.addonLines.filter((l) => l !== line); }
+  // One unit less of an add-on line. Returns false when the shopper declined
+  // the cascade (a required part whose install would have to go too).
+  function decrementAddonLine(line) {
+    const needing = line.qty <= 1 ? installsNeeding(line) : [];
+    if (needing.length) {
+      const names = needing.map((l) => addonInfo(l.id)?.name || "the install").join(" and ");
+      if (!confirm(`${addonInfo(line.id)?.name || "This part"} is required for ${names}. Removing it will also remove ${needing.length > 1 ? "those installs" : "that installation"} from your order. Remove both?`)) return false;
+      needing.forEach(dropLine);
+    }
+    line.qty -= 1;
+    if (line.qty <= 0) dropLine(line);
+    return true;
+  }
+  function removeCartItem(itemId) {
+    state.cart.itemIds = state.cart.itemIds.filter((id) => id !== itemId);
+    state.cart.addonLines = state.cart.addonLines.filter((l) => l.itemId !== itemId && state.cart.itemIds.includes(l.itemId));
+  }
+
   function cartTotals() {
     const items = state.cart.itemIds
       .map((id) => (state.catalog.items || []).find((i) => i.id === id))
@@ -1735,13 +1784,13 @@
     const itemsTotal = items.reduce((s, i) => s + (i.price || 0), 0);
     let addonsTotal = 0;
     let taxableAddons = 0;
-    for (const [id, qty] of state.cart.addons) {
-      const a = addonInfo(id);
+    for (const l of state.cart.addonLines) {
+      const a = addonInfo(l.id);
       if (!a) continue;
-      addonsTotal += a.price * qty;
+      addonsTotal += a.price * l.qty;
       // Parts and freestanding-install labor are taxable; built-in install
       // labor is exempt (mirrors the server's math exactly).
-      if (a.taxable !== false) taxableAddons += a.price * qty;
+      if (a.taxable !== false) taxableAddons += a.price * l.qty;
     }
     const pickup = state.fulfillment.method === "pickup";
     const delivery = items.length && !pickup ? (state.delivery?.price || 0) : 0;
@@ -1751,24 +1800,6 @@
       items, itemsTotal, addonsTotal, delivery, tax,
       total: Math.round((itemsTotal + addonsTotal + delivery + tax) * 100) / 100
     };
-  }
-
-  // Would removing one unit of `connId` leave a checked install without a
-  // required connector? Returns the blocking install's name, or null.
-  function cartRemovalBlock(connId) {
-    const requires = state.addons?.requires || {};
-    const qtyAfter = new Map(state.cart.addons);
-    qtyAfter.set(connId, (qtyAfter.get(connId) || 0) - 1);
-    for (const [addonId] of state.cart.addons) {
-      const info = addonInfo(addonId);
-      if (info?.type !== "install") continue;
-      for (const group of requires[addonId] || []) {
-        if (!group.includes(connId)) continue;
-        const satisfied = group.some((id) => (qtyAfter.get(id) || 0) > 0);
-        if (!satisfied) return info.name;
-      }
-    }
-    return null;
   }
 
   function openCart() {
@@ -1807,6 +1838,24 @@
       return;
     }
 
+    const addonLineEl = (l, idx) => {
+      const a = addonInfo(l.id);
+      if (!a) return null;
+      const line = document.createElement("div");
+      line.className = "cart-line sub";
+      line.innerHTML = `
+        <div class="info">
+          <div class="nm">${esc(a.name)}</div>
+          <div class="ds">${a.type === "install" ? "Professional installation" : "Hookup part"}</div>
+          <div class="qty-ctl">
+            <button data-qm="${idx}" aria-label="One less">−</button><span>${l.qty}</span><button data-qp="${idx}" aria-label="One more">+</button>
+          </div>
+        </div>
+        <div class="pr">${money(a.price * l.qty)}</div>`;
+      return line;
+    };
+    // Orphan lines (their appliance left the cart some other way) are dropped.
+    state.cart.addonLines = state.cart.addonLines.filter((l) => state.cart.itemIds.includes(l.itemId));
     for (const item of t.items) {
       const line = document.createElement("div");
       line.className = "cart-line";
@@ -1818,23 +1867,15 @@
         </div>
         <div class="pr">${item.price != null ? money(item.price) : state.cartPriceError ? '<span class="muted" style="font-size:12px;">price unavailable — <a href="tel:512-894-0907">call us</a></span>' : '<span class="muted" style="font-size:12px;">pricing…</span>'}</div>`;
       body.appendChild(line);
-    }
-
-    for (const [id, qty] of state.cart.addons) {
-      const a = addonInfo(id);
-      if (!a) continue;
-      const line = document.createElement("div");
-      line.className = "cart-line";
-      line.innerHTML = `
-        <div class="info">
-          <div class="nm">${esc(a.name)}</div>
-          <div class="ds">${a.type === "install" ? "Professional installation" : "Hookup part"}</div>
-          <div class="qty-ctl">
-            <button data-qm="${esc(id)}">−</button><span>${qty}</span><button data-qp="${esc(id)}">+</button>
-          </div>
-        </div>
-        <div class="pr">${money(a.price * qty)}</div>`;
-      body.appendChild(line);
+      state.cart.addonLines.forEach((l, idx) => { if (l.itemId === item.id) { const el = addonLineEl(l, idx); if (el) body.appendChild(el); } });
+      // No installation on this appliance -> the delivery team uncrates and
+      // sets it in place (a $0 line so the order says so, Andrew 9/26).
+      if (state.fulfillment.method !== "pickup" && !itemHasInstall(item.id)) {
+        const u = document.createElement("div");
+        u.className = "cart-line sub";
+        u.innerHTML = `<div class="info"><div class="nm">${esc(UNCRATE.name)}</div><div class="ds">${esc(UNCRATE.description)}</div></div><div class="pr">${money(0)}</div>`;
+        body.appendChild(u);
+      }
     }
 
     if (state.delivery) {
@@ -1900,23 +1941,25 @@
     }
 
     body.querySelectorAll("[data-rm-item]").forEach((b) => b.addEventListener("click", () => {
-      state.cart.itemIds = state.cart.itemIds.filter((id) => id !== b.getAttribute("data-rm-item"));
+      const itemId = b.getAttribute("data-rm-item");
+      const tied = state.cart.addonLines.filter((l) => l.itemId === itemId);
+      removeCartItem(itemId);
       renderGrid(); renderCartCount(); renderCart();
+      if (tied.length) alertLine(`Removed ${tied.map((l) => addonInfo(l.id)?.name).filter(Boolean).join(", ")} along with it.`);
     }));
     body.querySelectorAll("[data-qm]").forEach((b) => b.addEventListener("click", () => {
-      const id = b.getAttribute("data-qm");
-      const blockedBy = cartRemovalBlock(id);
-      if (blockedBy) {
-        alertLine(`${addonInfo(id)?.name || "That part"} is required with ${blockedBy} — remove the install first.`);
-        return;
-      }
-      const q = (state.cart.addons.get(id) || 1) - 1;
-      if (q <= 0) state.cart.addons.delete(id); else state.cart.addons.set(id, q);
+      const line = state.cart.addonLines[Number(b.getAttribute("data-qm"))];
+      if (!line) return;
+      const installsBefore = state.cart.addonLines.filter((l) => addonInfo(l.id)?.type === "install").length;
+      if (!decrementAddonLine(line)) return;
       renderCartCount(); renderCart();
+      const installsAfter = state.cart.addonLines.filter((l) => addonInfo(l.id)?.type === "install").length;
+      if (installsAfter < installsBefore) alertLine("Installation removed — the appliance will be uncrated and set in place instead.");
     }));
     body.querySelectorAll("[data-qp]").forEach((b) => b.addEventListener("click", () => {
-      const id = b.getAttribute("data-qp");
-      state.cart.addons.set(id, (state.cart.addons.get(id) || 0) + 1);
+      const line = state.cart.addonLines[Number(b.getAttribute("data-qp"))];
+      if (!line) return;
+      line.qty += 1;
       renderCartCount(); renderCart();
     }));
 
@@ -1958,11 +2001,10 @@
       <div class="checkout-section">
         <h3>Order summary</h3>
         <div class="summary-box">
-          ${t.items.map((i) => `${esc(i.brand)} ${esc(i.model)} — ${money(i.price)}`).join("<br>")}
-          ${state.cart.addons.size ? "<br>" + [...state.cart.addons].map(([id, qty]) => {
-            const a = addonInfo(id);
-            return a ? `${esc(a.name)} × ${qty} — ${money(a.price * qty)}` : "";
-          }).filter(Boolean).join("<br>") : ""}
+          ${t.items.map((i) => [`${esc(i.brand)} ${esc(i.model)} — ${money(i.price)}`,
+            ...state.cart.addonLines.filter((l) => l.itemId === i.id).map((l) => { const a = addonInfo(l.id); return a ? `&nbsp;&nbsp;↳ ${esc(a.name)}${l.qty > 1 ? ` × ${l.qty}` : ""} — ${money(a.price * l.qty)}` : ""; }).filter(Boolean),
+            ...(state.fulfillment.method !== "pickup" && !itemHasInstall(i.id) ? [`&nbsp;&nbsp;↳ ${esc(UNCRATE.name)} — ${money(0)}`] : [])
+          ].join("<br>")).join("<br>")}
           <br>${state.fulfillment.method === "pickup"
             ? `Customer Pickup (${state.fulfillment.date === "later" ? "scheduling later" : esc(fulfillDayLabel() || "day TBD")}) — FREE`
             : `${esc(state.delivery?.name || "Delivery")} (${esc(fulfillDayLabel() || "day TBD")}) — ${money(t.delivery)}`}
@@ -2035,7 +2077,7 @@
   function cartPayload() {
     return {
       itemIds: [...state.cart.itemIds],
-      addons: [...state.cart.addons].map(([id, qty]) => ({ id, qty }))
+      addons: state.cart.addonLines.map((l) => ({ id: l.id, qty: l.qty, itemId: l.itemId }))
     };
   }
 
@@ -2103,7 +2145,7 @@
             ? `Customer pickup — you chose to schedule it later. We'll follow up using your preferred contact method to confirm your order is ready. ${state.fulfillOptions?.pickupLaterNote || "Clearance and outlet items must be picked up within 30 days."}`
             : `Customer pickup requested for ${fulfillDayLabel()}. We'll follow up using your preferred contact method to confirm your order is ready.`)
         : `Delivery requested for ${fulfillDayLabel()}. ${state.fulfillOptions?.scheduleNote || "You'll receive a 4-hour arrival window two business days before your selected day."}`;
-      state.cart = { itemIds: [], addons: new Map() };
+      state.cart = { itemIds: [], addonLines: [] };
       state.fulfillment = { method: "delivery", date: null };
       renderCartCount();
       $("cartDrawer").classList.remove("show");

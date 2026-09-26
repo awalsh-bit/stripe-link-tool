@@ -6162,27 +6162,50 @@ function shopHourLabel(hour) {
   return `${twelve} ${h < 12 ? "AM" : "PM"}`;
 }
 
+const SHOP_DAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+function shopExpressDaySet(express) {
+  const days = Array.isArray(express?.days) ? express.days.map(Number) : [1, 2, 3, 4, 5, 6];
+  return new Set(days.filter((d) => Number.isInteger(d) && d >= 0 && d <= 6));
+}
+function shopExpressDaysLabel(express) {
+  const set = shopExpressDaySet(express);
+  const on = SHOP_DAY_NAMES.map((n, i) => set.has(i) ? n : null).filter(Boolean);
+  if (on.length === 7) return "every day";
+  if (on.length === 6 && !set.has(0)) return "Monday–Saturday";
+  if (on.length === 5 && !set.has(0) && !set.has(6)) return "Monday–Friday";
+  return on.join(", ");
+}
 function shopExpressNote(express) {
-  return `These units qualify for same-day install — order by ${shopHourLabel(express.cutoffHour)} and our warehouse team can deliver and install today.`;
+  const set = shopExpressDaySet(express);
+  const todayDow = new Date(`${new Date().toLocaleDateString("en-CA", { timeZone: APP_TIMEZONE })}T00:00:00Z`).getUTCDay();
+  const when = set.has(todayDow) ? "today" : `on the next ${shopExpressDaysLabel(express)} program day`;
+  return `These units qualify for same-day install (${shopExpressDaysLabel(express)}) — order by ${shopHourLabel(express.cutoffHour)} and our warehouse team can deliver and install ${when}.`;
 }
 
 function shopItemExpressEligible(item, express) {
-  return Boolean(express?.productSet?.has(`${item.category}|${item.product}`));
+  return shopExpressDaySet(express).size > 0 && Boolean(express?.productSet?.has(`${item.category}|${item.product}`));
 }
 
 function shopExpressDateChoices(express) {
+  // Program days (Shop Orders -> Same-day install program): same-day only on
+  // an enabled day, and the fast next-day slots only land on enabled days.
+  // With no days enabled the program is off - the standard schedule applies.
+  const daySet = shopExpressDaySet(express);
+  if (!daySet.size) return shopDeliveryDateChoices();
   const now = new Date();
   const todayStr = now.toLocaleDateString("en-CA", { timeZone: APP_TIMEZONE });
   const hourNow = Number(now.toLocaleString("en-US", { timeZone: APP_TIMEZONE, hour12: false, hour: "2-digit" })) % 24;
   const d = new Date(`${todayStr}T00:00:00Z`);
   const choices = [];
-  if (hourNow < express.cutoffHour && d.getUTCDay() !== 0) {
+  if (hourNow < express.cutoffHour && daySet.has(d.getUTCDay())) {
     choices.push({ date: todayStr, label: "Today — same-day delivery & install", sameDay: true });
   }
   let future = 0;
-  while (future < 3) {
+  let scanned = 0;
+  while (future < 3 && scanned < 14) {
     d.setUTCDate(d.getUTCDate() + 1);
-    if (d.getUTCDay() === 0) continue; // closed Sundays
+    scanned++;
+    if (!daySet.has(d.getUTCDay())) continue; // not a program day
     future++;
     choices.push({
       date: d.toISOString().slice(0, 10),
@@ -6526,6 +6549,8 @@ function shopAddonById(addons) {
 }
 
 // Recompute the whole cart server-side. Returns null if any unit is gone.
+const SHOP_UNCRATE_LINE = { id: "uncrate-set-in-place", name: "Uncrate, set in place", type: "service", price: 0,
+  description: "Appliance's exterior packaging may be removed and the product inspected. No interior packaging removed and no installation included" };
 function priceShopCart(catalog, cart, fulfillment) {
   const itemById = new Map(catalog.items.map((i) => [i.id, i]));
   const addonMap = shopAddonById(catalog.addons);
@@ -6538,12 +6563,25 @@ function priceShopCart(catalog, cart, fulfillment) {
   }
   if (!items.length) return { empty: true };
 
+  // Every add-on belongs to the appliance it was picked for (itemId from the
+  // page, 9/26); older carts without ties price the same, just unattributed.
   const addons = [];
   for (const raw of (Array.isArray(cart?.addons) ? cart.addons : [])) {
     const addon = addonMap.get(String(raw?.id || ""));
     if (!addon) continue;
     const qty = Math.max(1, Math.min(20, Math.round(Number(raw?.qty) || 1)));
-    addons.push({ id: addon.id, name: addon.name, type: addon.type, price: addon.price, qty, taxable: addon.taxable !== false });
+    const forItem = raw?.itemId != null && itemById.has(String(raw.itemId)) && items.some((i) => i.id === String(raw.itemId)) ? itemById.get(String(raw.itemId)) : null;
+    addons.push({ id: addon.id, name: addon.name, type: addon.type, price: addon.price, qty, taxable: addon.taxable !== false,
+      ...(forItem ? { forItemId: forItem.id, forModel: forItem.model } : {}) });
+  }
+  // Delivered appliances with no installation get "Uncrate, set in place" at
+  // $0, so the order (and the warehouse) say what will happen at the door.
+  if (fulfillment?.method !== "pickup") {
+    const tied = addons.some((a) => a.forItemId);
+    for (const item of items) {
+      const hasInstall = tied ? addons.some((a) => a.type === "install" && a.forItemId === item.id) : addons.some((a) => a.type === "install");
+      if (!hasInstall) addons.push({ ...SHOP_UNCRATE_LINE, qty: 1, taxable: false, forItemId: item.id, forModel: item.model });
+    }
   }
 
   const itemsTotal = items.reduce((s, i) => s + i.price, 0);
@@ -9326,13 +9364,14 @@ app.post("/api/shop/express-settings", requirePagePermission("/shop-orders.html"
   try {
     const saved = await saveShopExpressSettings({
       cutoffHour: req.body?.cutoffHour,
+      days: req.body?.days,
       products: req.body?.products,
       byEmail: req.authUser?.email || ""
     });
     recordAudit({
       ip: req.ip, actorUserId: req.authUser?.id || null,
       action: "shop_express_settings_saved", targetUserId: null,
-      detail: { cutoffHour: saved.cutoffHour, products: saved.products }
+      detail: { cutoffHour: saved.cutoffHour, days: saved.days, products: saved.products }
     }).catch(() => {});
     return res.json({ ok: true, settings: saved });
   } catch (err) {

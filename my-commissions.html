@@ -164,7 +164,7 @@
             <td><span class="model">${esc(l.product || "—")}</span>${l.held ? '<span class="heldtag">HELD — unpaid</span>' : ""}${l.released ? '<span class="reltag">RELEASED</span>' : ""}<div class="cust">${esc(l.customer || "")}</div>${l.reason ? `<div class="cust">${esc(l.reason)}</div>` : ""}</td>
             <td>${esc(l.invoice || "")}</td>
             <td class="num">${Number(l.qty) || ""}</td>
-            <td class="num">${money(l.revenue)}</td>
+            <td class="num">${money(l.revenue)}${l.discount ? `<div class="cust" title="ePASS discount netted off the list price">list ${money(l.discount.listBefore)} · discount ${money(l.discount.amount)}</div>` : ""}</td>
             <td class="num">${opts.gm ? (l.gmPercent == null ? "—" : l.gmPercent.toFixed(1) + "%") : ""}</td>
             <td class="num">${opts.rate ? ((l.rate != null ? (l.rate * 100).toFixed(1) + "%" : "")) : ""}</td>
             <td class="num">${l.commission == null ? "—" : money(l.commission)}</td>
@@ -308,6 +308,7 @@
             <div class="tot"><div class="t-label">Protect bonus</div><div class="t-value">${money(t.protectBonus)}</div></div>
             ${t.releasedCount ? `<div class="tot"><div class="t-label">Released holds</div><div class="t-value" style="color:#166534;">${money(t.releasedCommission)}</div></div>` : ""}
             ${t.heldCount ? `<div class="tot" title="Held lines are not in any total on this page — this amount pays automatically once the invoice clears."><div class="t-label">Held — unpaid · not in total</div><div class="t-value" style="color:#991b1b;">${money(t.heldCommission)}</div></div>` : ""}
+            ${t.discountedCount ? `<div class="tot" title="Program / invoice discounts entered in ePASS are netted off the list price before margin and payout."><div class="t-label">Discounts netted · ${t.discountedCount} line${t.discountedCount === 1 ? "" : "s"}</div><div class="t-value" style="color:#92400e;">${money(t.discountsNetted)}</div></div>` : ""}
             <div class="tot grand"><div class="t-label">Total commission</div><div class="t-value">${money(t.commission)}</div></div>
           </div>
 

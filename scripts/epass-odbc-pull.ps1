@@ -31,6 +31,8 @@
 #                        1st of last month - the OE-23 Salesperson Activity Report
 #   finished-serials / finished-items / finished-labor / finished-misc / finished-warranty
 #                        the cost columns of those invoices' lines (OE-23's C: row)
+#   finished-models      InvoiceModel lines of those invoices (price per line; finished-misc carries the
+#                        InvoiceModel* link columns so a discount Misc nets against its model line)
 #   salespeople          Salesperson master (code -> name) so the feed prints the same names OE-23 did
 #   catalogue-history    (fourth bundle, epass-service-catalogue) every finished SV/WTY ticket in a date
 #                        slice: header + complaint + work performed + unit - the customer history and
@@ -656,13 +658,29 @@ WHERE $finWhere
 ORDER BY l.InvoiceCode
 "@ (Join-Path $LatestDir "finished-labor.csv") "finished-labor"
 
+    # 9/26: a discount in ePASS is a Misc line stamped with the model line it
+    # was applied to (InvoiceModelLineTimeStamp = InvoiceModel.LineTimeStamp;
+    # a 5% program discount writes one Misc per model line). Agility nets
+    # those onto the model for Sales Order Detail, Brand Sales and
+    # commissions, so the link columns ride along with every Misc line.
     $fin.datasets["finished-misc"] = Export-Query $conn @"
-SELECT x.InvoiceCode, x.MiscCode, x.Qty, x.SellingPrice, x.UnitCost, x.Total, x.Warranty
+SELECT x.InvoiceCode, x.LineTimeStamp, x.MiscCode, x.MiscDesc, x.Qty, x.SellingPrice, x.UnitCost, x.Total, x.Warranty,
+       x.InvoiceModelCode, x.InvoiceModelInvoiceCode, x.InvoiceModelLineTimeStamp, x.InvoiceModelDateStamp
 FROM InvoiceMisc x
 INNER JOIN Invoice i ON x.InvoiceCode = i.Code
 WHERE $finWhere
 ORDER BY x.InvoiceCode
 "@ (Join-Path $LatestDir "finished-misc.csv") "finished-misc"
+
+    # The model lines themselves (InvoiceModel) - price per line, so a linked
+    # discount can be netted against the line it belongs to.
+    $fin.datasets["finished-models"] = Export-Query $conn @"
+SELECT m.InvoiceCode, m.LineTimeStamp, m.DateStamp, m.ModelCode, m.ModelDesc, m.QtyOrdered, m.QtyShipped, m.SellingPrice, m.Total, m.ListPriceCode, m.CommissionCode, m.Status, m.NewUsed
+FROM InvoiceModel m
+INNER JOIN Invoice i ON m.InvoiceCode = i.Code
+WHERE $finWhere
+ORDER BY m.InvoiceCode, m.LineTimeStamp
+"@ (Join-Path $LatestDir "finished-models.csv") "finished-models"
 
     $fin.datasets["finished-warranty"] = Export-Query $conn @"
 SELECT w.InvoiceCode, w.ExtWarrantyCode, w.Model, w.SellingPrice, w.UnitCost

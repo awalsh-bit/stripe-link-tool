@@ -116,6 +116,7 @@
       white-space: nowrap;
     }
     .badge.plan { background: #dbeafe; color: #1e40af; }
+    .badge.discount { background: #fef3c7; color: #92400e; }
     .badge.noplan { background: #e5e7eb; color: #374151; }
     .badge.eligible { background: #dcfce7; color: #166534; border: 2px solid #111827; }
     .badge.ineligible { background: #fee2e2; color: #991b1b; border: 2px solid #111827; }
@@ -401,6 +402,11 @@
       return ` <span class="badge adjusted" title="${escapeHtml(title)}">adjusted: ${what}</span>`;
     }
 
+    function discBadge(l) {
+      if (!l.discount) return "";
+      const title = `ePASS discount ${l.discount.miscCodes?.length ? "(" + l.discount.miscCodes.join(", ") + ") " : ""}netted off list: was ${money(l.discount.listBefore)}, ${money(l.discount.amount)} -> pays on ${money(l.revenue)}`;
+      return ` <span class="badge discount" title="${escapeHtml(title)}">discount ${money(l.discount.amount)}</span>`;
+    }
     function editorHtml(l, kind) {
       const ov = l.override || {};
       const partners = String(l.splitPartners || "").split("+").filter(Boolean);
@@ -451,7 +457,7 @@
     function lineRows(lines, kind) {
       return lines.map((l) => `
         <tr class="${l.held ? "held-row" : ""}">
-          <td style="white-space: nowrap; font-weight: 600;">${escapeHtml(l.invoice)}${splitBadge(l)}${adjBadge(l)}${heldBadge(l)}${releasedBadge(l)}</td>
+          <td style="white-space: nowrap; font-weight: 600;">${escapeHtml(l.invoice)}${splitBadge(l)}${adjBadge(l)}${discBadge(l)}${heldBadge(l)}${releasedBadge(l)}</td>
           <td>${escapeHtml(l.customer)}</td>
           <td>${escapeHtml(l.product)}</td>
           <td class="mono">${escapeHtml(l.serialNumber || "—")}</td>
@@ -660,6 +666,7 @@
           <div class="tot"><div class="t-label">Protect bonus</div><div class="t-value">${money(t.protectBonus)}</div></div>
           ${t.releasedCount ? `<div class="tot"><div class="t-label">Released holds</div><div class="t-value" style="color: #166534;">${money(t.releasedCommission)}</div></div>` : ""}
           ${t.heldCount ? `<div class="tot" title="Held lines are already left OUT of every tile on this strip — this is what will pay once the invoice clears, not a deduction."><div class="t-label">Held — unpaid · not in total</div><div class="t-value" style="color: #991b1b;">${money(t.heldCommission)}</div></div>` : ""}
+          ${t.discountedCount ? `<div class="tot" title="ePASS Invoice Discounts (the Misc line stamped to each model line) netted off list before margin and payout — ${t.discountedCount} line(s). The Crystal report prints the full price; these statements pay on the discounted price."><div class="t-label">ePASS discounts netted · ${t.discountedCount} line${t.discountedCount === 1 ? "" : "s"}</div><div class="t-value" style="color: #92400e;">${money(t.discountsNetted)}</div></div>` : ""}
           <div class="tot grand"><div class="t-label">Total commission</div><div class="t-value">${money(t.commission)}</div></div>
         </div>
 

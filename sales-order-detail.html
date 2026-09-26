@@ -537,7 +537,7 @@
             <td style="font-weight: 600;">${escapeHtml(l.product)}</td>
             <td style="font-family: ui-monospace, monospace; font-size: 12px; white-space: nowrap;">${escapeHtml(l.serialNumber || "—")}</td>
             <td class="num">${l.qty}</td>
-            <td class="num">${fmtMoney(l.revenue)}</td>
+            <td class="num">${fmtMoney(l.revenue)}${l.discount ? `<div class="sp-code" style="display:block; margin:2px 0 0;" title="ePASS discount (${escapeHtml((l.discountCodes || []).join(", "))}) netted off the list price">list ${fmtMoney(l.grossRevenue)} · disc ${fmtMoney(l.discount)}</div>` : ""}</td>
             <td>${escapeHtml(l.serialType || "—")}</td>
             <td class="num">${l.serialCost == null ? "—" : fmtMoney(l.serialCost)}</td>
             <td class="num ${marginClass(margin)}">${Number.isFinite(margin) ? margin.toFixed(1) + "%" : "—"}</td>
@@ -559,7 +559,7 @@
                 <td style="font-weight: 600;">${escapeHtml(l.product)}</td>
                 <td style="font-family: ui-monospace, monospace; font-size: 11.5px;">${escapeHtml(l.serialNumber || "—")}</td>
                 <td class="num">${l.qty}</td>
-                <td class="num">${fmtMoney(l.revenue)}</td>
+                <td class="num">${fmtMoney(l.revenue)}${l.discount ? `<div style="font-size:11px; color:#92400e;">list ${fmtMoney(l.grossRevenue)} · disc ${fmtMoney(l.discount)}</div>` : ""}</td>
                 <td>${escapeHtml(l.serialType || "—")}</td>
                 <td class="num">${l.serialCost == null ? "—" : fmtMoney(l.serialCost)}</td>
                 <td>${escapeHtml(l.salespersonCode)}</td>
@@ -845,11 +845,11 @@
 
     function buildDetailXlsx(rows) {
       const header = ["Invoice", "Department", "Service Type", "Salesperson", "SP Code", "Finish Date", "Customer #", "Customer",
-        "Product", "Parts", "Labor", "Wty", "Misc", "Revenue (No Tax)", "Invoice Total", "Cost",
+        "Product (net)", "ePASS Discount", "Product (ePASS list)", "Parts", "Labor", "Wty", "Misc (excl. discount)", "Revenue (No Tax)", "Invoice Total", "Cost",
         "Profit", "Margin %", "Line Items", "Source Month"];
       const dataRows = rows.map((o) => [
         o.invoice, o.department, o.serviceType || "", o.salesperson, o.salespersonCode || "", o.finishDate, o.customerNumber, o.customerName,
-        o.listProduct, o.listParts, o.listLabor, o.listWty, o.listMisc, o.revenue, o.invoiceTotal,
+        o.listProductNet ?? o.listProduct, o.productDiscount || 0, o.listProduct, o.listParts, o.listLabor, o.listWty, o.listMiscNet ?? o.listMisc, o.revenue, o.invoiceTotal,
         o.cost, o.profit,
         o.revenue ? Math.round(o.profit / o.revenue * 1000) / 10 : "",
         o.lineCount || 0, o.sourceMonth
@@ -871,11 +871,11 @@
 
     function buildLineReportXlsx(rows) {
       const header = ["Invoice", "Order Invoice", "Department", "Salesperson", "SP Code", "Finish Date",
-        "Customer", "Type", "Product", "Serial Number", "Qty", "Revenue", "Serial Type", "Serial Cost", "Line Margin %",
+        "Customer", "Type", "Product", "Serial Number", "Qty", "Revenue", "List (before discount)", "ePASS Discount", "Serial Type", "Serial Cost", "Line Margin %",
         "Split", "Split Partners", "Source Month"];
       const dataRows = rows.map((l) => [
         l.invoice, l.orderInvoice, l.department, l.salesperson, l.salespersonCode || "", l.finishDate,
-        l.orderCustomerName, l.lineType, l.product, l.serialNumber || "", l.qty, l.revenue, l.serialType || "",
+        l.orderCustomerName, l.lineType, l.product, l.serialNumber || "", l.qty, l.revenue, l.discount ? l.grossRevenue : "", l.discount || "", l.serialType || "",
         l.serialCost == null ? "" : l.serialCost,
         l.serialCost != null && l.revenue ? Math.round((l.revenue - l.serialCost) / l.revenue * 1000) / 10 : "",
         l.split ? "Yes" : "", l.splitPartners || "",

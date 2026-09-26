@@ -355,6 +355,42 @@ offered only on an enabled day before the cutoff, and the fast next-day slots
 land only on enabled days; with no days enabled the program is off and the
 standard 3-working-day schedule applies.
 
+### 8b3d. ePASS discounts netted onto the model line (2026-09-26)
+
+ePASS's **Invoice Discount** never stores a discounted price. It writes one
+Misc line (the chosen discount code, e.g. `SZ-WOLF-REMODEL`, `SZ-FRESH-PRO`)
+**per selected model line**, and stamps each with the model line it belongs
+to: `InvoiceMisc.InvoiceModelInvoiceCode` + `InvoiceModelLineTimeStamp` =
+`InvoiceModel.InvoiceCode` + `LineTimeStamp` (plus `InvoiceModelCode` /
+`InvoiceModelDateStamp`). A 5% program discount on four models = four Misc
+lines (R00015288: 8,175 → −408.75, 2,235 → −111.75, 10,600 → −530, 2,520 →
+−126; accessories untouched). The model line keeps its full `SellingPrice`,
+so every report reading model prices overstated them.
+
+- **Pull:** `finished-misc` now carries the link columns and `MiscDesc`; a new
+  `finished-models` dataset carries the `InvoiceModel` lines (price per line).
+- **Feed:** `modelDiscountsFromFeed` matches each linked Misc to its model
+  line (by stamp; by `InvoiceModelCode` when the stamp is blank) →
+  `sales_line_discounts` (invoice, line, model, price, discount, net, codes)
+  and `sales_order_detail.product_discount` (the invoice's sum, negative — it
+  is already inside `list_misc`; nothing about the invoice total changes).
+  An OE-23 upload of the same invoice leaves the discount in place.
+- **Sales Order Detail:** line rows show the netted revenue with "list $X ·
+  disc $Y" under it; the XLSX carries List-before-discount / ePASS Discount
+  columns and Product (net) / Product (ePASS list) / Misc (excl. discount).
+- **Brand Sales:** brand and model revenue are net of the discounts.
+- **Commissions:** the Crystal commission report prints the full model
+  price; `listLineDiscountsForInvoices` feeds the engine, which nets
+  discount ÷ units off each of that model's lines on the invoice before
+  margin and payout (a list-price override still wins). Statements show a
+  "discount −$X" badge per line, an "ePASS discounts netted" tile / PDF
+  summary row, and the rep page shows "list $X · discount $Y" under the
+  revenue. Trailing-revenue eligibility is netted the same way. HVAC jobs
+  were already right (whole-invoice revenue includes the negative Misc).
+- Discounts exist only for invoices the finished-orders feed has processed
+  since this change (plus any `-FinishedSince` backfill); older months pay
+  on list until re-pulled.
+
 ### 8b3b. Shop prices from ePASS price levels (2026-09-24)
 
 `model-list-prices` (sales bundle) carries `ModelListPrice` for every model

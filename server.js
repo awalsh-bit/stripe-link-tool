@@ -400,6 +400,7 @@ import {
   listSourceVersions,
   listReturnLines,
   listCommissionLinesForMonths,
+  listLineDiscountsForInvoices,
   listCommissionMonths,
   listSalespersonNames,
   listCommissionOverrides,
@@ -5482,7 +5483,9 @@ app.get("/api/admin/employee-directory", requireExecutiveApi, async (req, res) =
     let trailingRevenue = {};
     try {
       const months = (await listCommissionMonths()).slice(0, 6);
-      trailingRevenue = serialRevenueByCode(await listCommissionLinesForMonths(months));
+      const lines = await listCommissionLinesForMonths(months);
+      const discounts = await listLineDiscountsForInvoices(lines.map((l) => l.baseInvoice || l.invoice)).catch(() => ({}));
+      trailingRevenue = serialRevenueByCode(lines, {}, discounts);
     } catch {
       trailingRevenue = {};
     }
@@ -11444,6 +11447,9 @@ async function computeFieldCommissionMonth(requestedMonth) {
     listCommissionBalanceChecks(windowMonths),
     listHvacJobsForMonths(windowMonths).catch(() => [])
   ]);
+  // Linked ePASS discounts on the window's invoices (from the finished-orders
+  // feed): netted off each model line's list before margin and payout.
+  const discounts = await listLineDiscountsForInvoices(windowLines.map((l) => l.baseInvoice || l.invoice)).catch(() => ({}));
 
   // The whole window feeds the engine: current-month rows make the
   // statement; prior-month rows drive the unpaid hold / release cycle.
@@ -11455,10 +11461,11 @@ async function computeFieldCommissionMonth(requestedMonth) {
     monthLines: windowLines,
     month,
     balanceChecks,
-    trailingByCode: serialRevenueByCode(windowLines, overrides),
+    trailingByCode: serialRevenueByCode(windowLines, overrides, discounts),
     directory: payDirectory,
     properNames,
-    overrides
+    overrides,
+    discounts
   });
   // HVAC Selling Techs (job code E25 / the HVAC pay plan): one statement per
   // tech from the month's finished AC jobs, whole-job margin tiers.
@@ -11830,17 +11837,21 @@ app.get("/api/brand-sales", requirePagePermission("/brand-sales.html"), async (r
       const info = brandMap[m.model];
       const raw = (info?.brand || "").trim();
       const brand = raw ? displayFor.get(canonKey(raw)) : UNMATCHED;
-      if (!brands.has(brand)) brands.set(brand, { brand, revenue: 0, units: 0, models: [] });
+      if (!brands.has(brand)) brands.set(brand, { brand, revenue: 0, discount: 0, units: 0, models: [] });
       const b = brands.get(brand);
-      b.revenue = Math.round((b.revenue + m.revenue) * 100) / 100;
+      // Brand revenue is NET of linked ePASS discounts (the commission report
+      // prints the full model price; the feed knows the discount per line).
+      b.revenue = Math.round((b.revenue + (m.netRevenue ?? m.revenue)) * 100) / 100;
+      b.discount = Math.round((b.discount + (m.discount || 0)) * 100) / 100;
       b.units = Math.round((b.units + m.units) * 100) / 100;
-      b.models.push({ model: m.model, description: info?.description || "", units: m.units, revenue: m.revenue, orders: m.orders });
+      b.models.push({ model: m.model, description: info?.description || "", units: m.units, revenue: m.netRevenue ?? m.revenue, listRevenue: m.revenue, discount: m.discount || 0, orders: m.orders });
     }
     const brandList = [...brands.values()].sort((a, b) => b.revenue - a.revenue);
     brandList.forEach((b) => b.models.sort((x, y) => y.revenue - x.revenue));
 
     const totals = {
       revenue: Math.round(brandList.reduce((s, b) => s + b.revenue, 0) * 100) / 100,
+      discount: Math.round(brandList.reduce((s, b) => s + (b.discount || 0), 0) * 100) / 100,
       units: Math.round(brandList.reduce((s, b) => s + b.units, 0) * 100) / 100,
       models: data.models.length,
       unmatchedModels: brands.get(UNMATCHED)?.models.length || 0

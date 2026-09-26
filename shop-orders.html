@@ -37,15 +37,6 @@
     .zip-chip span { color: var(--muted); font-size: 12px; }
     .zip-chip button { border: none; background: #f1f5f9; color: #475569; border-radius: 999px; width: 22px; height: 22px; cursor: pointer; font-size: 12px; line-height: 1; }
     .zip-chip button:hover { background: #fee2e2; color: #991b1b; }
-    .stock-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
-    .stock-table th, .stock-table td { padding: 7px 8px; border-bottom: 1px solid #edf1f7; text-align: left; vertical-align: middle; white-space: nowrap; }
-    .stock-table th { font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
-    .stock-table td.desc { white-space: normal; max-width: 340px; color: #374151; }
-    .stock-table input[type=number] { width: 96px; border: 1px solid var(--border); border-radius: 8px; padding: 5px 7px; font-size: 12.5px; }
-    .stock-table .pill { display: inline-block; border-radius: 999px; padding: 2px 9px; font-size: 11px; font-weight: 700; }
-    .stock-table .pill.in { background: #dcfce7; color: #166534; }
-    .stock-table .pill.low { background: #fef3c7; color: #92400e; }
-    .stock-table .pill.off { background: #f1f5f9; color: #475569; }
     .exp-options { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 4px 18px; }
     .exp-cat { grid-column: 1 / -1; font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.04em; color: #6b7280; margin-top: 10px; }
     .exp-opt { display: flex; align-items: center; gap: 8px; font-size: 13px; padding: 3px 0; cursor: pointer; }
@@ -152,26 +143,31 @@
         <div class="ws-snap-meta" id="expMeta"></div>
       </details>
 
-      <details class="surface" id="stockCard">
+      <div class="surface" style="display:flex; gap:14px; align-items:center; flex-wrap:wrap; padding:16px 22px;">
+        <div style="flex:1; min-width:240px;">
+          <strong>Express Assortment — in-stock catalog</strong>
+          <div class="exp-sub">Every model the ePASS feed says is in stock, what the store does with it, price overrides, show-when-single and hidden switches. Filter by brand and NetSuite merch class.</div>
+        </div>
+        <a class="ws-btn primary" href="shop-catalog.html" style="text-decoration:none;">Open the catalog →</a>
+      </div>
+
+      <details class="surface" id="brandCard">
         <summary class="exp-summary">
-          <strong>Express Assortment — in-stock models</strong>
-          <span class="exp-sub" id="stockSummaryLine">Every model the ePASS feed says is in stock, and what the store does with it.</span>
+          <strong>Brands not sold online</strong>
+          <span class="exp-sub" id="brandSummaryLine">Makers that don't allow e-commerce — never on the shop, clearance or in-stock.</span>
         </summary>
         <p class="section-note" style="margin-top:10px;">
-          The store posts every in-stock model automatically (new ALL-type units, from the feed's serial snapshot).
-          <b>2–3 units</b> show <b>Low Stock</b>, <b>4 or more</b> show <b>In Stock</b>; a model with a <b>single</b> unit stays
-          off until you turn on <i>Show when only one</i> for it. Price defaults to the model's
-          <b>RETAIL</b> price in ePASS (the retail deck — MAP/PMAP), then a brand UMRP/MAP code, then L1; at or above MAP the
-          price shows right on the card. Set an override to sharpen it (below MAP it shows in the cart only), or hide a model.
+          A brand name or an ePASS brand code (SZ, WOLF, GAGGE…) — every model whose brand matches is kept off the store and shows
+          as <i>brand doesn't allow online sale</i> on the catalog. Names 4+ letters also match longer names that start with them
+          (WOLF covers Wolf Gourmet). Add several at once with commas. Changes are live on the next shop page load — no deploy.
         </p>
         <div class="exp-row">
-          <input type="search" id="stockFind" placeholder="Find model, brand, description…" style="flex:1; min-width:220px; border:1px solid var(--border); border-radius:10px; padding:8px 10px; font-size:13px;">
-          <label style="font-size:12.5px; display:flex; align-items:center; gap:6px;"><input type="checkbox" id="stockOnlyOff"> Only models NOT on the store</label>
-          <span class="ws-snap-meta" id="stockStatus"></span>
+          <input type="text" id="brandAdd" placeholder="Sub-Zero, SZ, WOLF…" style="flex:1; min-width:160px; border:1px solid var(--border); border-radius:10px; padding:8px 10px; font-size:13px;">
+          <input type="text" id="brandLabel" placeholder="reason (optional)" maxlength="60" style="width:180px; border:1px solid var(--border); border-radius:10px; padding:8px 10px; font-size:13px;">
+          <button type="button" class="ws-btn" id="brandAddBtn">Block brand</button>
+          <span class="ws-snap-meta" id="brandStatus"></span>
         </div>
-        <div style="overflow:auto;">
-          <table class="stock-table" id="stockTable"></table>
-        </div>
+        <div id="brandList" class="zip-list">Loading…</div>
       </details>
 
       <details class="surface" id="zipCard">
@@ -751,66 +747,40 @@
           catch (err) { status.textContent = err.message; }
         });
 
-        // ---- Express Assortment: in-stock models ----
-        let stockLoaded = false;
-        let stockData = null;
-        const escS = (v) => String(v ?? "").replace(/[&<>"']/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch]));
-        const moneyS = (n) => n == null ? "—" : "$" + Number(n).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-        function renderStock() {
-          const table = document.getElementById("stockTable");
-          if (!stockData) return;
-          const q = document.getElementById("stockFind").value.trim().toUpperCase();
-          const onlyOff = document.getElementById("stockOnlyOff").checked;
-          const rows = (stockData.models || []).filter((m) => (!onlyOff || !m.listed) && (!q || `${m.model} ${m.brand} ${m.description} ${m.categoryLabel}`.toUpperCase().includes(q)));
-          const listed = (stockData.models || []).filter((m) => m.listed).length;
-          document.getElementById("stockSummaryLine").textContent = `${(stockData.models || []).length} models in stock · ${listed} on the store` + (stockData.snapshot?.uploadedAt ? ` · snapshot ${new Date(stockData.snapshot.uploadedAt).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}` : "");
-          table.innerHTML = `<thead><tr><th>Model</th><th>Brand</th><th>Description</th><th>Category</th><th>Units</th><th>Store</th><th title="The ePASS price level the shop sells at: RETAIL (retail deck — MAP/PMAP), a brand UMRP/MAP code, else L1">ePASS price</th><th title="Advertise floor from ePASS (RETAIL or brand UMRP/MAP). At or above it the price shows on the card; below it, in the cart only.">MAP</th><th>Override $</th><th>Show when only one</th><th>Hidden</th><th></th></tr></thead>
-            <tbody>${rows.map((m) => `<tr data-model="${escS(m.key)}">
-              <td><b>${escS(m.model)}</b></td><td>${escS(m.brand)}</td><td class="desc">${escS(m.description)}</td><td>${escS(m.categoryLabel)}</td>
-              <td>${m.available}${m.inStock !== m.available ? ` <span class="ws-snap-meta">of ${m.inStock}</span>` : ""}</td>
-              <td>${m.listed ? (m.available > stockData.lowMax ? '<span class="pill in">In Stock</span>' : '<span class="pill low">Low Stock</span>') : `<span class="pill off">off — ${escS(m.reason)}</span>`}</td>
-              <td>${moneyS(m.listPrice)}${m.listCode ? ` <span class="ws-snap-meta">${escS(m.listCode)}</span>` : ""}</td>
-              <td>${moneyS(m.map)}${m.mapCode && m.mapCode !== "RETAIL" ? ` <span class="ws-snap-meta">${escS(m.mapCode)}</span>` : ""}${m.settings.price != null && m.map && m.settings.price < m.map ? ' <span class="pill low" title="Override is below MAP — the price shows in the cart only">below MAP</span>' : ""}</td>
-              <td><input type="number" step="0.01" min="0" class="st-price" value="${m.settings.price ?? ""}" placeholder="${m.listPrice ?? "list"}"></td>
-              <td><input type="checkbox" class="st-single" ${m.settings.showSingle ? "checked" : ""}></td>
-              <td><input type="checkbox" class="st-hidden" ${m.settings.hidden ? "checked" : ""}></td>
-              <td><button type="button" class="ws-btn st-save" style="background:#fff; color:#374151; border:1px solid var(--border);">Save</button></td>
-            </tr>`).join("") || '<tr><td colspan="12" class="ws-snap-meta">Nothing matches.</td></tr>'}</tbody>`;
+        // ---- Brands not sold online ----
+        let brandLoaded = false;
+        function renderBrands(list) {
+          document.getElementById("brandSummaryLine").textContent = list.length ? `${list.length} entr${list.length === 1 ? "y" : "ies"} blocked: ${list.map((b) => b.entry).join(", ")}` : "Nothing blocked — every brand in stock can be sold online.";
+          document.getElementById("brandList").innerHTML = list.length
+            ? list.map((b) => `<span class="zip-chip" title="${escZ((b.label ? b.label + " · " : "") + (b.addedBy ? "added by " + b.addedBy : ""))}"><b>${escZ(b.entry)}</b>${b.label ? `<span>${escZ(b.label)}</span>` : ""}<button type="button" data-brand-rm="${escZ(b.entry)}" aria-label="Unblock ${escZ(b.entry)}">✕</button></span>`).join("")
+            : '<span class="ws-snap-meta">No brands blocked.</span>';
         }
-        async function loadStock() {
-          const status = document.getElementById("stockStatus");
-          status.textContent = "Loading…";
-          try {
-            const res = await fetch("/api/shop/stock-models", { credentials: "same-origin" });
-            const body = await res.json();
-            if (!res.ok) throw new Error(body.error || "Unable to load.");
-            stockData = body;
-            status.textContent = body.paused ? "Shop is paused — the snapshot is stale." : "";
-            renderStock();
-          } catch (err) { status.textContent = err.message; }
+        async function loadBrands() {
+          try { const out = await api("/api/shop/blocked-brands"); renderBrands(out.brands || []); }
+          catch (err) { document.getElementById("brandStatus").textContent = err.message; }
         }
-        document.getElementById("stockCard").addEventListener("toggle", (e) => {
-          if (e.target.open && !stockLoaded) { stockLoaded = true; loadStock(); }
-        });
-        document.getElementById("stockFind").addEventListener("input", renderStock);
-        document.getElementById("stockOnlyOff").addEventListener("change", renderStock);
-        document.getElementById("stockTable").addEventListener("click", async (e) => {
-          const btn = e.target.closest(".st-save");
-          if (!btn) return;
-          const tr = btn.closest("tr");
-          const status = document.getElementById("stockStatus");
+        document.getElementById("brandCard").addEventListener("toggle", (e) => { if (e.target.open && !brandLoaded) { brandLoaded = true; loadBrands(); } });
+        document.getElementById("brandAddBtn").addEventListener("click", async () => {
+          const status = document.getElementById("brandStatus"); const btn = document.getElementById("brandAddBtn");
+          const entries = document.getElementById("brandAdd").value.trim();
+          if (!entries) { status.textContent = "Enter a brand name or ePASS brand code first."; return; }
           btn.disabled = true; status.textContent = "Saving…";
           try {
-            const res = await fetch(`/api/shop/stock-models/${encodeURIComponent(tr.dataset.model)}`, {
-              method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ price: tr.querySelector(".st-price").value, showSingle: tr.querySelector(".st-single").checked, hidden: tr.querySelector(".st-hidden").checked })
-            });
-            const body = await res.json();
-            if (!res.ok) throw new Error(body.error || "Save failed.");
-            status.textContent = "Saved — live on the shop now.";
-            await loadStock();
-            setTimeout(() => { if (status.textContent.startsWith("Saved")) status.textContent = ""; }, 6000);
-          } catch (err) { status.textContent = err.message; } finally { btn.disabled = false; }
+            const out = await api("/api/shop/blocked-brands", { method: "POST", body: JSON.stringify({ entries, label: document.getElementById("brandLabel").value }) });
+            renderBrands(out.brands || []);
+            document.getElementById("brandAdd").value = ""; document.getElementById("brandLabel").value = "";
+            status.textContent = out.added.length ? `Blocked ${out.added.join(", ")} — off the shop now.` : "Already blocked — nothing changed.";
+          } catch (err) { status.textContent = err.message; }
+          finally { btn.disabled = false; }
+        });
+        document.getElementById("brandAdd").addEventListener("keydown", (e) => { if (e.key === "Enter") document.getElementById("brandAddBtn").click(); });
+        document.getElementById("brandList").addEventListener("click", async (e) => {
+          const b = e.target.closest("[data-brand-rm]"); if (!b) return;
+          const entry = b.dataset.brandRm;
+          if (!confirm(`Unblock ${entry}? Its in-stock models will be sold online again.`)) return;
+          const status = document.getElementById("brandStatus");
+          try { const out = await api(`/api/shop/blocked-brands/${encodeURIComponent(entry)}`, { method: "DELETE" }); renderBrands(out.brands || []); status.textContent = `Unblocked ${entry}.`; }
+          catch (err) { status.textContent = err.message; }
         });
 
         document.getElementById("expSave").addEventListener("click", async () => {

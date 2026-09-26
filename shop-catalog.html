@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="robots" content="noindex,nofollow,noarchive" />
+  <title>Wilson AC &amp; Appliance - Express Assortment Catalog</title>
+  <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+  <link rel="stylesheet" href="internal-shell.css" />
+  <style>
+    :root {
+      --bg: #f7f8fc;
+      --card: #ffffff;
+      --text: #1f2937;
+      --muted: #6b7280;
+      --border: #dbe1ea;
+      --shadow: 0 10px 35px rgba(0, 0, 0, 0.08);
+      --radius: 18px;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Roboto", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: linear-gradient(180deg, var(--primary-tint) 0%, var(--bg) 100%);
+      color: var(--text);
+      min-height: 100vh;
+      padding: 32px 16px;
+    }
+    .wrap { max-width: 1480px; margin: 0 auto; }
+    .surface {
+      background: var(--card);
+      border: 1px solid rgba(var(--primary-rgb), 0.12);
+      box-shadow: var(--shadow);
+      border-radius: var(--radius);
+      padding: 22px;
+      margin: 0 auto 20px;
+    }
+    h2 { margin: 0 0 6px; font-size: 20px; }
+    .page-head { margin-bottom: 12px; }
+    .section-note { margin: 0 0 14px; color: var(--muted); font-size: 13.5px; line-height: 1.5; }
+    .section-note a { color: var(--primary); font-weight: 600; }
+    .meta { font-size: 12px; color: var(--muted); line-height: 1.45; }
+    .filters { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 6px 0 14px; }
+    .filters input[type=search], .filters select {
+      border: 1.5px solid var(--border); border-radius: 10px; padding: 8px 10px; font-size: 13px; background: #fff; font-family: inherit;
+    }
+    .filters input[type=search] { flex: 1; min-width: 220px; }
+    .filters select { min-width: 170px; max-width: 280px; }
+    .filters label.chk { font-size: 12.5px; display: flex; align-items: center; gap: 6px; }
+    .filters .clear { border: none; background: transparent; color: var(--primary); font-weight: 600; font-size: 12.5px; cursor: pointer; font-family: inherit; padding: 4px 6px; }
+    .counts { display: flex; gap: 14px; flex-wrap: wrap; margin-bottom: 10px; }
+    .count { background: rgba(var(--primary-rgb), 0.06); border-radius: 12px; padding: 8px 12px; font-size: 12.5px; }
+    .count b { font-size: 16px; display: block; }
+    .stock-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+    .stock-table th, .stock-table td { padding: 7px 8px; border-bottom: 1px solid #edf1f7; text-align: left; vertical-align: middle; white-space: nowrap; }
+    .stock-table th { font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); position: sticky; top: 0; background: #fff; }
+    .stock-table td.desc { white-space: normal; max-width: 260px; min-width: 160px; color: #374151; }
+    .stock-table td.cls { white-space: normal; max-width: 160px; color: #374151; }
+    .stock-table td.store { white-space: normal; min-width: 150px; max-width: 200px; }
+    .stock-table td.store .pill.off { white-space: normal; line-height: 1.35; display: inline-block; }
+    .stock-table th:first-child, .stock-table td:first-child { position: sticky; left: 0; background: #fff; z-index: 1; box-shadow: 1px 0 0 #edf1f7; }
+    .stock-table th:first-child { z-index: 2; }
+    .stock-table th.ctr, .stock-table td.ctr { text-align: center; }
+    .stock-table input[type=number] { width: 84px; border: 1px solid var(--border); border-radius: 8px; padding: 5px 7px; font-size: 12.5px; }
+    .stock-table .pill { display: inline-block; border-radius: 999px; padding: 2px 9px; font-size: 11px; font-weight: 700; }
+    .stock-table .pill.in { background: #dcfce7; color: #166534; }
+    .stock-table .pill.low { background: #fef3c7; color: #92400e; }
+    .stock-table .pill.off { background: #f1f5f9; color: #475569; }
+    .ws-btn { border: none; border-radius: 10px; cursor: pointer; font-size: 12.5px; font-weight: 600; padding: 8px 13px; font-family: inherit; }
+    .ws-btn:disabled { opacity: 0.55; cursor: wait; }
+    .ws-btn.primary { background: var(--primary); color: #fff; }
+    .ws-btn.quiet { background: #fff; color: #374151; border: 1px solid var(--border); }
+    .table-wrap { overflow: auto; max-height: 72vh; border: 1px solid #edf1f7; border-radius: 12px; }
+    @media (max-width: 720px) { body { padding: 16px 10px; } .surface { padding: 14px; } .filters select { max-width: 100%; flex: 1; } }
+  </style>
+</head>
+<body data-shell-label="Express Assortment Catalog" data-shell-icon="sales">
+  <div class="wrap">
+    <div id="internal-shell-header"></div>
+
+    <div class="surface">
+      <div class="page-head">
+        <h2>Express Assortment — in-stock catalog</h2>
+        <p class="section-note">
+          Every model the ePASS feed says is in stock and what the store does with it. The store posts every in-stock model
+          automatically (new ALL-type units that nothing in ePASS has a claim on). <b>2–3 units</b> show <b>Low Stock</b>,
+          <b>4 or more</b> show <b>In Stock</b>; a model with a <b>single</b> unit stays off until you turn on <i>Show when only one</i>.
+          Price defaults to the model's <b>RETAIL</b> price in ePASS (the retail deck — MAP/PMAP), then a brand UMRP/MAP code, then L1;
+          at or above MAP the price shows right on the card. Set an override to sharpen it (below MAP it shows in the cart only), or hide a model.
+          Brands that don't allow e-commerce, delivery ZIPs and the same-day program live on <a href="shop-orders.html">Online Shop Orders</a>.
+        </p>
+      </div>
+      <div class="counts" id="counts"></div>
+      <div class="filters">
+        <input type="search" id="stockFind" placeholder="Find model, brand, description, class…">
+        <select id="fBrand"><option value="">All brands</option></select>
+        <select id="fClass" title="NetSuite Merch Class"><option value="">All merch classes</option></select>
+        <select id="fStore">
+          <option value="">On &amp; off the store</option>
+          <option value="on">On the store</option>
+          <option value="off">Off the store</option>
+          <option value="blocked">Blocked brands</option>
+          <option value="single">Single unit (toggle to show)</option>
+          <option value="noprice">No price</option>
+        </select>
+        <button type="button" class="clear" id="fClear">Clear filters</button>
+        <span class="meta" id="stockStatus"></span>
+      </div>
+      <div class="table-wrap">
+        <table class="stock-table" id="stockTable"></table>
+      </div>
+      <p class="meta" id="nsNote" style="margin:10px 0 0;"></p>
+    </div>
+    <div id="internal-shell-footer"></div>
+  </div>
+
+  <script src="internal-shell.js"></script>
+  <script>
+    // ------------------------------------------------------------------
+    // Express Assortment catalog — the in-stock models table, split out of
+    // Online Shop Orders (Andrew 9/25). Filters: free text, NetSuite Brand,
+    // NetSuite Merch Class, store status. Per-model switches save live.
+    // ------------------------------------------------------------------
+    (function () {
+      let data = null;
+      const $ = (id) => document.getElementById(id);
+      const esc = (v) => String(v ?? "").replace(/[&<>"']/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch]));
+      const money = (n) => n == null ? "—" : "$" + Number(n).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      const NO_CLASS = "__none__";
+
+      function fillSelect(sel, values, noneLabel) {
+        const cur = sel.value;
+        const first = sel.options[0].outerHTML;
+        sel.innerHTML = first + values.map((v) => `<option value="${esc(v)}">${esc(v)}</option>`).join("") + (noneLabel ? `<option value="${NO_CLASS}">${esc(noneLabel)}</option>` : "");
+        if ([...sel.options].some((o) => o.value === cur)) sel.value = cur;
+      }
+
+      function storeMatch(m, mode) {
+        if (!mode) return true;
+        if (mode === "on") return m.listed;
+        if (mode === "off") return !m.listed;
+        if (mode === "blocked") return m.blocked;
+        if (mode === "single") return !m.listed && /single unit/.test(m.reason || "");
+        if (mode === "noprice") return !m.price;
+        return true;
+      }
+
+      function render() {
+        if (!data) return;
+        const q = $("stockFind").value.trim().toUpperCase();
+        const brand = $("fBrand").value;
+        const cls = $("fClass").value;
+        const mode = $("fStore").value;
+        const all = data.models || [];
+        const rows = all.filter((m) =>
+          (!brand || m.brand === brand) &&
+          (!cls || (cls === NO_CLASS ? !m.merchClass : m.merchClass === cls)) &&
+          storeMatch(m, mode) &&
+          (!q || `${m.model} ${m.brand} ${m.description} ${m.categoryLabel} ${m.merchClass} ${m.merchCategory} ${m.merchSubclass}`.toUpperCase().includes(q)));
+        const listed = all.filter((m) => m.listed).length;
+        const units = all.reduce((s, m) => s + (m.available || 0), 0);
+        $("counts").innerHTML = `
+          <div class="count"><b>${all.length}</b>models in stock</div>
+          <div class="count"><b>${listed}</b>on the store</div>
+          <div class="count"><b>${units}</b>units for sale</div>
+          <div class="count"><b>${rows.length}</b>shown</div>
+          ${data.snapshot?.uploadedAt ? `<div class="count"><b>${esc(new Date(data.snapshot.uploadedAt).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }))}</b>feed snapshot</div>` : ""}`;
+        $("stockTable").innerHTML = `<thead><tr><th>Model</th><th>Brand</th><th>Description</th><th title="NetSuite Merch Class">Merch class</th><th>Category</th><th>Units</th><th>Store</th><th title="The ePASS price level the shop sells at: RETAIL (retail deck — MAP/PMAP), a brand UMRP/MAP code, else L1">ePASS price</th><th title="Advertise floor from ePASS (RETAIL or brand UMRP/MAP). At or above it the price shows on the card; below it, in the cart only.">MAP</th><th>Override $</th><th class="ctr" title="List the model even when only one unit is in stock">Show if 1</th><th class="ctr">Hidden</th><th></th></tr></thead>
+          <tbody>${rows.map((m) => `<tr data-model="${esc(m.key)}">
+            <td><b>${esc(m.model)}</b></td>
+            <td>${esc(m.brand)}${m.brandCode && m.brandCode.toUpperCase() !== String(m.brand).toUpperCase() ? ` <span class="meta">${esc(m.brandCode)}</span>` : ""}</td>
+            <td class="desc">${esc(m.description)}</td>
+            <td class="cls">${m.merchClass ? esc(m.merchClass) : `<span class="meta" title="This model isn't in the NetSuite item catalog import yet">—</span>`}</td>
+            <td>${esc(m.categoryLabel)}</td>
+            <td title="${m.held ? m.held + " more on hand but written / ordered for a ticket or reserved in ePASS" : ""}">${m.available}${m.inStock !== m.available ? ` <span class="meta">of ${m.inStock}</span>` : ""}${m.held ? ` <span class="meta">+${m.held} held</span>` : ""}</td>
+            <td class="store">${m.listed ? (m.available > data.lowMax ? '<span class="pill in">In Stock</span>' : '<span class="pill low">Low Stock</span>') : `<span class="pill off">off — ${esc(m.reason)}</span>`}</td>
+            <td>${money(m.listPrice)}${m.listCode ? ` <span class="meta">${esc(m.listCode)}</span>` : ""}</td>
+            <td>${money(m.map)}${m.mapCode && m.mapCode !== "RETAIL" ? ` <span class="meta">${esc(m.mapCode)}</span>` : ""}${m.settings.price != null && m.map && m.settings.price < m.map ? ' <span class="pill low" title="Override is below MAP — the price shows in the cart only">below MAP</span>' : ""}</td>
+            <td><input type="number" step="0.01" min="0" class="st-price" value="${m.settings.price ?? ""}" placeholder="${m.listPrice ?? "list"}"></td>
+            <td class="ctr"><input type="checkbox" class="st-single" ${m.settings.showSingle ? "checked" : ""}></td>
+            <td class="ctr"><input type="checkbox" class="st-hidden" ${m.settings.hidden ? "checked" : ""}></td>
+            <td><button type="button" class="ws-btn quiet st-save">Save</button></td>
+          </tr>`).join("") || '<tr><td colspan="13" class="meta">Nothing matches.</td></tr>'}</tbody>`;
+        const missing = all.length - (data.netsuiteModels || 0);
+        $("nsNote").textContent = data.netsuiteModels
+          ? `Brand and Merch Class come from the NetSuite item catalog import (ePASS Uploads). ${data.netsuiteModels} of ${all.length} in-stock models are in it${missing ? `; ${missing} fall back to the ePASS brand and have no merch class — re-import the NetSuite items export to fill them in` : ""}.`
+          : "No NetSuite item catalog has been imported yet — brands come from ePASS and Merch Class is empty. Import the NetSuite items export on ePASS Uploads to enable the Merch Class filter.";
+      }
+
+      async function load() {
+        const status = $("stockStatus");
+        status.textContent = "Loading…";
+        try {
+          const res = await fetch("/api/shop/stock-models", { credentials: "same-origin" });
+          const body = await res.json();
+          if (!res.ok) throw new Error(body.error || "Unable to load.");
+          data = body;
+          fillSelect($("fBrand"), body.brands || []);
+          fillSelect($("fClass"), body.merchClasses || [], "— no merch class (not in NetSuite) —");
+          status.textContent = body.paused ? "Shop is paused — the snapshot is stale." : "";
+          render();
+        } catch (err) { status.textContent = err.message; }
+      }
+
+      ["stockFind"].forEach((id) => $(id).addEventListener("input", render));
+      ["fBrand", "fClass", "fStore"].forEach((id) => $(id).addEventListener("change", render));
+      $("fClear").addEventListener("click", () => { $("stockFind").value = ""; $("fBrand").value = ""; $("fClass").value = ""; $("fStore").value = ""; render(); });
+      $("stockTable").addEventListener("click", async (e) => {
+        const btn = e.target.closest(".st-save");
+        if (!btn) return;
+        const tr = btn.closest("tr");
+        const status = $("stockStatus");
+        btn.disabled = true; status.textContent = "Saving…";
+        try {
+          const res = await fetch(`/api/shop/stock-models/${encodeURIComponent(tr.dataset.model)}`, {
+            method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ price: tr.querySelector(".st-price").value, showSingle: tr.querySelector(".st-single").checked, hidden: tr.querySelector(".st-hidden").checked })
+          });
+          const body = await res.json();
+          if (!res.ok) throw new Error(body.error || "Save failed.");
+          await load();
+          status.textContent = "Saved — live on the shop now.";
+          setTimeout(() => { if (status.textContent.startsWith("Saved")) status.textContent = ""; }, 6000);
+        } catch (err) { status.textContent = err.message; } finally { btn.disabled = false; }
+      });
+
+      load();
+    })();
+  </script>
+</body>
+</html>

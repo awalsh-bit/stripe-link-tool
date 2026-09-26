@@ -316,6 +316,27 @@ show what ePASS actually stores for an ordered part. Column lists came from
 `odbc/PO.csv`, `odbc/POItem.csv`, `odbc/InvoiceItem.csv` (the `-Discover`
 output); `LaborRate`'s price column is `List`.
 
+### 8b3a. Which units the shop may sell (2026-09-25)
+
+An ALL-type unit is offered online only when nothing in ePASS has a claim on
+it: `Serial.InvoiceCode` empty (not written on an invoice); **`OrderedForInvoiceCode`
+empty or pointing at an invoice that is no longer open** (the "Ordered for
+Inv" box — the same "spoken for" rule the ordering report uses; the open set is
+`epass_open_orders` + `epass_open_service`, so a unit ordered for a sale that
+finished, cancelled or was re-sourced and then unreserved rotates back into
+stock and the shop); **`DateReserved` empty and `ReserveExclusive` off** (a live
+reservation holds the unit whatever the ordered-for says). Held units stay in
+the snapshot with `writtenTo` (the invoice) or `reserved` (the date /
+`exclusive`) set — the cosmetic-damage form and the written-to history still
+see them; a released unit keeps its old invoice in `orderedFor`. The Shop
+Orders stock table shows "+N held" per model. `shop.lastRebuild` on
+`/api/epass/open-orders/status` reports `spokenFor`, `reservedOnly`,
+`orderedForClosed` (released units), `openInvoices` (size of the open set)
+and `availBit` — how often `Serial.Available` (ePASS's own free flag)
+disagrees with this rule (`falseButFree` / `trueButHeld`). If those two stay
+at zero across a few bundles, `Available` alone could carry the rule. A
+change in ePASS reaches the shop on the next sales bundle (15 min).
+
 ### 8b3b. Shop prices from ePASS price levels (2026-09-24)
 
 `model-list-prices` (sales bundle) carries `ModelListPrice` for every model
@@ -330,9 +351,22 @@ in the cart only. No price level at all → "Call for price".
 
 **Brands never sold online** (they don't allow e-commerce): Sub-Zero (SZ),
 Wolf (WOLF), Wolf Gourmet (WG), Cove (COVE), Gaggenau (GAGGE) — kept off
-the shop entirely, clearance and in-stock; the Shop Orders stock table
-shows them as "brand doesn't allow online sale". The list can be replaced
-without a deploy with `"blockedBrands": [...]` in `data/shop-map-policy.json`.
+the shop entirely, clearance and in-stock; the catalog shows them as "brand
+doesn't allow online sale". Since 9/25 the list lives in `shop_blocked_brands`
+and is edited on **Online Shop Orders → Brands not sold online** (entries are
+brand names or ePASS brand codes; 4+ letter entries also match longer names
+that start with them). It is seeded once from the code default (or
+`blockedBrands` in `data/shop-map-policy.json`, if present) and read from
+memory, refreshed on every change and every 5 minutes.
+
+**Express Assortment Catalog** (`shop-catalog.html`, Sales menu; anyone who
+can open Online Shop Orders can open it) is the in-stock models table, moved
+off Shop Orders. Filters: free text, **Brand** and **Merch Class** — both from
+the NetSuite item catalog import on ePASS Uploads (`model_brand_map` now
+keeps `merch_category` / `merch_class` / `merch_subclass` from the export's
+"Merch Category" / "Merch Class" / "Merch Subclass" columns, e.g. "120
+Dishwasher"). Models not in the import fall back to the ePASS brand and sit
+under "no merch class" until the next import.
 
 ### 8b4. Keeping the feed alive (2026-09-24)
 

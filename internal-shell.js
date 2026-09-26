@@ -270,6 +270,7 @@
           { href: "secret-menu.html", title: "Secret Menu" },
           { href: "clearance.html", title: "Clearance Hit List" },
           { href: "shop-orders.html", title: "Online Shop Orders" },
+          { href: "shop-catalog.html", title: "Express Assortment Catalog" },
           { href: "spec-packages.html", title: "Spec Packages" },
           { href: "terms-signatures.html", title: "Terms & Conditions Signatures" }
         ]

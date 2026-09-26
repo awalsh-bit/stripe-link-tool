@@ -186,6 +186,10 @@ import {
   listShopAllowedZips,
   addShopAllowedZips,
   removeShopAllowedZip,
+  seedShopBlockedBrands,
+  listShopBlockedBrands,
+  addShopBlockedBrands,
+  removeShopBlockedBrand,
   importModelBrandCatalog,
   getModelBrandStats,
   saveShopMapPrices,
@@ -778,6 +782,7 @@ const INTERNAL_PAGE_PATHS = new Set([
   "/flag-closures.html",
   "/target-builder.html",
   "/shop-orders.html",
+  "/shop-catalog.html",
   "/shopper-profiles.html",
   "/dispatch.html",
   "/driver.html",
@@ -887,6 +892,7 @@ const JOB_CODE_PRESETS = {
       "/secret-menu.html",
       "/clearance.html",
       "/shop-orders.html",
+      "/shop-catalog.html",
       "/spec-packages.html",
       "/event-rsvps.html",
       "/dashboard.html",
@@ -1029,6 +1035,7 @@ const PAGE_LABELS = {
   "/flag-closures.html": "Notification Closure Report",
   "/target-builder.html": "Target Builder",
   "/shop-orders.html": "Online Shop Orders",
+  "/shop-catalog.html": "Express Assortment Catalog",
   "/shopper-profiles.html": "Shopper Profiles",
   "/dispatch.html": "Delivery Dispatch",
   "/driver.html": "Driver Run Sheet",
@@ -1176,6 +1183,7 @@ const PAGE_CATEGORIES = [
     pages: [
       "/salesdashboard.html",
       "/shop-orders.html",
+      "/shop-catalog.html",
       "/sales-order-health.html",
       "/sales-order-detail.html",
       "/brand-sales.html",
@@ -1454,7 +1462,8 @@ function buildSessionUser(user) {
 // Pages that ride on another page's grant: anyone who can work the active
 // estimate list can see the closed ones (still grantable on its own).
 const PAGE_IMPLIED_BY = {
-  "/closed-estimates.html": "/service-estimates.html"
+  "/closed-estimates.html": "/service-estimates.html",
+  "/shop-catalog.html": "/shop-orders.html"
 };
 
 function canAccessPathForUser(user, pathname) {
@@ -6236,10 +6245,24 @@ function shopMapRuleMatch(mapPolicy, brand, category) {
 // may carry "blockedBrands": [...] to replace this list without a deploy.
 const SHOP_BLOCKED_BRANDS_DEFAULT = ["SZ", "SUBZERO", "SUB-ZERO", "WOLF", "WG", "WOLF GOURMET", "COVE", "GAGGE", "GAGGENAU"];
 const brandKey = (v) => String(v || "").toUpperCase().replace(/[^0-9A-Z]/g, "");
-function shopBrandBlocker(mapPolicy) {
-  const list = Array.isArray(mapPolicy?.blockedBrands) && mapPolicy.blockedBrands.length ? mapPolicy.blockedBrands : SHOP_BLOCKED_BRANDS_DEFAULT;
-  const keys = new Set(list.map(brandKey).filter(Boolean));
-  return (...names) => names.some((n) => { const k = brandKey(n); return k && (keys.has(k) || [...keys].some((b) => b.length >= 4 && k.startsWith(b))); });
+// The list lives in the database now (Shop Orders -> Brands not sold online),
+// seeded once from the default above (or data/shop-map-policy.json's
+// blockedBrands). Read from memory; refreshed on every change and every 5 min.
+let shopBlockedBrandEntries = [...SHOP_BLOCKED_BRANDS_DEFAULT];
+async function refreshShopBlockedBrands() {
+  try {
+    let seed = SHOP_BLOCKED_BRANDS_DEFAULT;
+    try { const { mapPolicy } = await loadShopData(); if (Array.isArray(mapPolicy?.blockedBrands) && mapPolicy.blockedBrands.length) seed = mapPolicy.blockedBrands; } catch {}
+    await seedShopBlockedBrands(seed, "no e-commerce");
+    shopBlockedBrandEntries = (await listShopBlockedBrands()).map((r) => r.entry);
+  } catch (err) { console.error("Blocked brand list refresh failed:", err.message); }
+}
+setTimeout(refreshShopBlockedBrands, 6 * 1000).unref?.();
+setInterval(refreshShopBlockedBrands, 5 * 60 * 1000).unref?.();
+function shopBrandBlocker() {
+  const keys = new Set(shopBlockedBrandEntries.map(brandKey).filter(Boolean));
+  const long = [...keys].filter((b) => b.length >= 4);
+  return (...names) => names.some((n) => { const k = brandKey(n); return k && (keys.has(k) || long.some((b) => k.startsWith(b))); });
 }
 
 function normalizeModelKey(model) {
@@ -6312,12 +6335,16 @@ const SHOP_STOCK_LOW_MAX = 3; // 1–3 units = Low Stock, 4+ = In Stock
 //   brandNames            — brand CODE → name, learned from the clearance list
 //   clearanceUnitKeys     — model|serial keys the clearance list already prices
 function shopStockItems({ snapshot, settings, brandMap, brandNames, images, mapPolicy, mapFloor, statusById, clearanceUnitKeys }) {
-  const brandBlocked = shopBrandBlocker(mapPolicy);
+  const brandBlocked = shopBrandBlocker();
   const byModel = new Map();
+  const heldByModel = new Map(); // ALL units spoken for / reserved, per model (for the stock table)
   for (const u of snapshot?.serialUnits || []) {
     if (String(u.serialType || "").toUpperCase() !== "ALL") continue;
-    if (String(u.writtenTo || "").trim()) continue; // someone owns this unit
     const model = String(u.model || u.sku || "").trim();
+    if (String(u.writtenTo || "").trim() || String(u.reserved || "").trim()) { // written on / ordered for an invoice, or reserved in ePASS
+      const hk = normalizeModelKey(model); if (hk) heldByModel.set(hk, (heldByModel.get(hk) || 0) + 1);
+      continue;
+    }
     const serial = String(u.serial || "").trim().toUpperCase();
     if (!model || !serial) continue;
     const key = normalizeModelKey(model);
@@ -6342,11 +6369,13 @@ function shopStockItems({ snapshot, settings, brandMap, brandNames, images, mapP
     const cfg = settings[g.key] || {};
     const available = g.units.filter((x) => !statusById.has(x.id)); // sold / held / web-locked
     const price = cfg.price != null && cfg.price > 0 ? cfg.price : (g.list > 0 ? g.list : 0);
-    const brand = brandMap[g.model.toUpperCase()]?.brand || brandNames[g.brandCode.toUpperCase()]
+    const ns = brandMap[g.model.toUpperCase()] || {};
+    const brand = ns.brand || brandNames[g.brandCode.toUpperCase()]
       || (g.brandCode.length > 3 ? g.brandCode.charAt(0) + g.brandCode.slice(1).toLowerCase() : g.brandCode); // SAMSUNG → Samsung; FP stays FP
     const blocked = brandBlocked(brand, g.brandCode);
     const listed = !blocked && !cfg.hidden && available.length > 0 && (available.length > 1 || cfg.showSingle);
-    models.push({ model: g.model, key: g.key, brand, description: g.description, product: g.prod, category: g.category, inStock: g.units.length, available: available.length, listPrice: g.list || null, listCode: g.listCode, map: g.map || null, mapCode: g.mapCode, l1: g.l1 || null, price: price || null, settings: { price: cfg.price ?? null, showSingle: !!cfg.showSingle, hidden: !!cfg.hidden, note: cfg.note || "" }, listed, blocked, reason: blocked ? "brand doesn't allow online sale" : cfg.hidden ? "hidden" : !available.length ? "none available" : available.length === 1 && !cfg.showSingle ? "single unit (toggle to show)" : !price ? "no price — call for price" : "" });
+    models.push({ model: g.model, key: g.key, brand, brandCode: g.brandCode, description: g.description, product: g.prod, category: g.category,
+      netsuite: ns.source === "netsuite", merchCategory: ns.merchCategory || "", merchClass: ns.merchClass || "", merchSubclass: ns.merchSubclass || "", inStock: g.units.length, held: heldByModel.get(g.key) || 0, available: available.length, listPrice: g.list || null, listCode: g.listCode, map: g.map || null, mapCode: g.mapCode, l1: g.l1 || null, price: price || null, settings: { price: cfg.price ?? null, showSingle: !!cfg.showSingle, hidden: !!cfg.hidden, note: cfg.note || "" }, listed, blocked, reason: blocked ? "brand doesn't allow online sale" : cfg.hidden ? "hidden" : !available.length ? "none available" + (heldByModel.get(g.key) ? ` (${heldByModel.get(g.key)} spoken for)` : "") : available.length === 1 && !cfg.showSingle ? "single unit (toggle to show)" : !price ? "no price — call for price" : "" });
     if (!listed) continue;
     // The floor is ePASS's own MAP (RETAIL / brand UMRP) when it has one — at
     // or above it the price is advertised on the card; below it (an override)
@@ -6417,7 +6446,7 @@ async function computeShopCatalog() {
   const serialWritten = snapshot?.serialWritten || {};
   const lookupKeyed = (map, composite, serial) => map[composite] ?? map[serial];
 
-  const brandBlocked = shopBrandBlocker(mapPolicy);
+  const brandBlocked = shopBrandBlocker();
   const items = [];
   for (const item of clearance.items || []) {
     if (statusById.has(item.id)) continue; // sold, held, or web-locked
@@ -6993,18 +7022,21 @@ app.post("/api/shop/cart-prices", async (req, res) => {
 // INTERNAL: Express Assortment stock models (shop-orders.html) — every model
 // the feed says is in stock, what the store does with it, and the per-model
 // switches: price override, show-when-single, hidden.
-app.get("/api/shop/stock-models", requirePagePermission("/shop-orders.html"), async (req, res) => {
+app.get("/api/shop/stock-models", requirePagePermission("/shop-orders.html", "/shop-catalog.html"), async (req, res) => {
   try {
     const catalog = await computeShopCatalog();
     const { clearance } = await loadShopData();
     const catLabels = Object.fromEntries((clearance._meta?.categories || []).map((c) => [c.key, c.label]));
-    return res.json({ models: (catalog.stockModels || []).map((m) => ({ ...m, categoryLabel: catLabels[m.category] || m.category })), snapshot: catalog.snapshot, paused: catalog.paused, lowMax: SHOP_STOCK_LOW_MAX });
+    const models = (catalog.stockModels || []).map((m) => ({ ...m, categoryLabel: catLabels[m.category] || m.category }));
+    const distinct = (f) => [...new Set(models.map(f).filter(Boolean))].sort((a, b) => a.localeCompare(b, "en", { numeric: true }));
+    return res.json({ models, brands: distinct((m) => m.brand), merchClasses: distinct((m) => m.merchClass), merchCategories: distinct((m) => m.merchCategory),
+      netsuiteModels: models.filter((m) => m.netsuite).length, snapshot: catalog.snapshot, paused: catalog.paused, lowMax: SHOP_STOCK_LOW_MAX, blockedBrands: shopBlockedBrandEntries });
   } catch (err) {
     console.error("Stock models failed:", err.message);
     return res.status(500).json({ error: "Unable to load the stock models." });
   }
 });
-app.post("/api/shop/stock-models/:model", requirePagePermission("/shop-orders.html"), async (req, res) => {
+app.post("/api/shop/stock-models/:model", requirePagePermission("/shop-orders.html", "/shop-catalog.html"), async (req, res) => {
   try {
     const b = req.body || {};
     const saved = await saveShopModelSetting({ model: req.params.model, price: b.price == null || b.price === "" ? null : Number(b.price), showSingle: !!b.showSingle, hidden: !!b.hidden, note: b.note || "", byEmail: req.authUser?.email || "" });
@@ -9471,6 +9503,28 @@ app.delete("/api/shop/allowed-zips/:zip", requirePagePermission("/shop-orders.ht
   } catch (err) { return res.status(400).json({ error: err.message || "Unable to remove that ZIP." }); }
 });
 
+// Brands never sold online (Shop Orders -> Brands not sold online).
+app.get("/api/shop/blocked-brands", requirePagePermission("/shop-orders.html"), async (req, res) => {
+  try { return res.json({ brands: await listShopBlockedBrands() }); }
+  catch (err) { return res.status(500).json({ error: err.message || "Unable to load the blocked brands." }); }
+});
+app.post("/api/shop/blocked-brands", requirePagePermission("/shop-orders.html"), async (req, res) => {
+  try {
+    const added = await addShopBlockedBrands({ entries: req.body?.entries, label: req.body?.label || "", by: req.authUser?.email || "" });
+    await refreshShopBlockedBrands();
+    recordAudit({ ip: req.ip, actorUserId: req.authUser?.id || null, action: "shop_blocked_brands_added", targetUserId: null, detail: { added, label: String(req.body?.label || "").slice(0, 60) } }).catch(() => {});
+    return res.json({ ok: true, added, brands: await listShopBlockedBrands() });
+  } catch (err) { return res.status(400).json({ error: err.message || "Unable to add that brand." }); }
+});
+app.delete("/api/shop/blocked-brands/:entry", requirePagePermission("/shop-orders.html"), async (req, res) => {
+  try {
+    const removed = await removeShopBlockedBrand(req.params.entry);
+    await refreshShopBlockedBrands();
+    recordAudit({ ip: req.ip, actorUserId: req.authUser?.id || null, action: "shop_blocked_brand_removed", targetUserId: null, detail: { entry: String(req.params.entry).slice(0, 40), removed } }).catch(() => {});
+    return res.json({ ok: true, removed, brands: await listShopBlockedBrands() });
+  } catch (err) { return res.status(400).json({ error: err.message || "Unable to remove that brand." }); }
+});
+
 // Rebuild the shop snapshot from the last ePASS feed now (Shop Orders button).
 app.post("/api/shop/inventory-snapshot/rebuild", requirePagePermission("/shop-orders.html"), async (req, res) => {
   try {
@@ -9655,7 +9709,9 @@ function shopPriceFromLevels(levels = {}, fallbackList = 0) {
   };
 }
 
-function serialSnapshotFromFeed(rows, modelRows = [], priceRows = []) {
+function serialSnapshotFromFeed(rows, modelRows = [], priceRows = [], openInvoices = null) {
+  const openInv = openInvoices instanceof Set && openInvoices.size ? openInvoices : null;
+  const diag = { orderedForClosed: 0, availBitFalseFree: 0, availBitTrueHeld: 0, availBitSeen: 0 };
   const levelsByModel = priceLevelsByModel(priceRows);
   const normModel = (v) => String(v ?? "").toUpperCase().replace(/[^0-9A-Z]/g, "");
   const pick = (r, ...names) => { for (const n of names) { const k = Object.keys(r || {}).find((x) => x.toLowerCase() === n.toLowerCase()); if (k != null && r[k] != null && String(r[k]).trim() !== "") return r[k]; } return ""; };
@@ -9673,7 +9729,31 @@ function serialSnapshotFromFeed(rows, modelRows = [], priceRows = []) {
     const mm = master.get(model.toUpperCase()) || {};
     const sku = String(pick(r, "Model_SKU") || pick(mm, "SKU") || "").trim();
     const type = String(pick(r, "SerialTypeCode") ?? "").trim();
-    const writtenTo = String(pick(r, "InvoiceCode") ?? "").trim();
+    // Spoken for = written on an invoice (InvoiceCode) OR ordered/promised for
+    // one (OrderedForInvoiceCode, the "Ordered for Inv" box) - the same rule
+    // the ordering report uses, and like the report the ordered-for invoice
+    // must still be OPEN: a unit ordered for a sale that finished, cancelled
+    // or was re-sourced keeps the code in ePASS but has been released to
+    // rotate (Andrew 9/25). A DateReserved / ReserveExclusive with no
+    // invoice still holds the unit back from the online shop.
+    const invoiceCode = String(pick(r, "InvoiceCode") ?? "").trim();
+    const orderedFor = String(pick(r, "OrderedForInvoiceCode") ?? "").trim();
+    const orderedForOpen = orderedFor && (!openInv || openInv.has(orderedFor.toUpperCase()));
+    if (orderedFor && !orderedForOpen) diag.orderedForClosed++;
+    const writtenTo = invoiceCode || (orderedForOpen ? orderedFor : "");
+    const reservedRaw = pick(r, "DateReserved");
+    const exclusive = /^(1|true|y|yes)$/i.test(String(pick(r, "ReserveExclusive") ?? "").trim());
+    const reserved = isoDate(reservedRaw) || (String(reservedRaw).trim() ? "yes" : "") || (exclusive ? "exclusive" : "");
+    // Serial.Available (BIT) - ePASS's own idea of "free"; counted against our
+    // rule so the status page shows whether the two agree.
+    const availRaw = String(pick(r, "Available") ?? "").trim().toLowerCase();
+    if (availRaw !== "") {
+      diag.availBitSeen++;
+      const availBit = /^(1|true|y|yes)$/.test(availRaw);
+      const heldByRule = Boolean(writtenTo || reserved);
+      if (!availBit && !heldByRule) diag.availBitFalseFree++;
+      if (availBit && heldByRule) diag.availBitTrueHeld++;
+    }
     const unitKey = (normModel(model) || normModel(sku) || "?") + "|" + serial;
     if (!seen.has(unitKey)) {
       seen.add(unitKey);
@@ -9682,7 +9762,7 @@ function serialSnapshotFromFeed(rows, modelRows = [], priceRows = []) {
         brand: String(pick(r, "Model_BrandCode") || pick(mm, "BrandCode") || "").trim(),
         description: String(pick(r, "Model_Description") || pick(mm, "Description") || "").trim(),
         prod: String(pick(r, "Model_ProductCode") || pick(mm, "ProductCode") || "").trim(),
-        serialType: type, writtenTo,
+        serialType: type, writtenTo, reserved, orderedFor: orderedFor && !orderedForOpen ? orderedFor : "",
         received: isoDate(pick(r, "DateReceived")),
         cost: Number(pick(r, "Cost")) || 0,
         ...shopPriceFromLevels(levelsByModel.get(model.toUpperCase()), Number(pick(r, "Model_ListPrice") || pick(mm, "ListPrice")) || 0)
@@ -9693,7 +9773,8 @@ function serialSnapshotFromFeed(rows, modelRows = [], priceRows = []) {
     if (!keys.size) keys.add(serial);
     for (const key of keys) { serials.add(key); if (type) types[key] = type; if (writtenTo) written[key] = writtenTo; }
   }
-  return { serials: [...serials], types, written, units, unitCount: units.length, withModel: units.filter((u) => u.description || u.brand).length };
+  return { serials: [...serials], types, written, units, unitCount: units.length, withModel: units.filter((u) => u.description || u.brand).length,
+    spokenFor: units.filter((u) => u.writtenTo).length, reservedOnly: units.filter((u) => !u.writtenTo && u.reserved).length, ...diag };
 }
 
 // Build and save the shop snapshot from what the last feed stored in the
@@ -9709,9 +9790,9 @@ async function rebuildShopSnapshotFromFeed({ why = "feed" } = {}) {
     if (sjSettings["feed.inventory_enabled"] === false) return { skipped: "feed.inventory_enabled is off — ExportModel uploads are the source" };
     const feed = await feedInventoryRows();
     if (!feed.onHand.length) return { skipped: "no on-hand serials stored from the ePASS feed yet" };
-    const snap = serialSnapshotFromFeed(feed.onHand, feed.models, feed.listPrices);
+    const snap = serialSnapshotFromFeed(feed.onHand, feed.models, feed.listPrices, feed.openInvoices);
     const saved = await saveShopInventorySnapshot({ serials: snap.serials, types: snap.types, written: snap.written, units: snap.units, sourceFile: `ePASS feed ${feed.pulledAt || ""}`.trim(), uploadedBy: "epass-agent" });
-    const out = { why, rows: feed.onHand.length, units: snap.unitCount, withModel: snap.withModel, priceRows: (feed.listPrices || []).length, priced: snap.units.filter((u) => u.list > 0).length, withMap: snap.units.filter((u) => u.map > 0).length, saved: saved?.count ?? null, typed: saved?.typedCount ?? null, written: saved?.writtenCount ?? null, feedPulledAt: feed.pulledAt, at: new Date().toISOString() };
+    const out = { why, rows: feed.onHand.length, units: snap.unitCount, withModel: snap.withModel, spokenFor: snap.spokenFor, reservedOnly: snap.reservedOnly, orderedForClosed: snap.orderedForClosed, openInvoices: feed.openInvoices?.size ?? null, availBit: { seen: snap.availBitSeen, falseButFree: snap.availBitFalseFree, trueButHeld: snap.availBitTrueHeld }, priceRows: (feed.listPrices || []).length, priced: snap.units.filter((u) => u.list > 0).length, withMap: snap.units.filter((u) => u.map > 0).length, saved: saved?.count ?? null, typed: saved?.typedCount ?? null, written: saved?.writtenCount ?? null, feedPulledAt: feed.pulledAt, at: new Date().toISOString() };
     lastShopSnapshotRebuild = out;
     return out;
   })().finally(() => { shopSnapshotRebuild = null; });
@@ -10878,6 +10959,10 @@ app.post("/api/epass-uploads/model-catalog", requirePagePermission("/epass-uploa
       const modelCol = findCol("model number", "model #", "model");
       const brandCol = findCol("brand");
       const descCol = findCol("short description", "display name", "description");
+      // NetSuite merchandising hierarchy (optional columns on the item export).
+      const merchCatCol = findCol("merch category");
+      const merchClassCol = findCol("merch class");
+      const merchSubCol = findCol("merch subclass");
       if (modelCol < 0 || brandCol < 0) {
         return res.status(400).json({ error: "Couldn't find Model and Brand columns — is this the NetSuite items export?" });
       }
@@ -10889,7 +10974,10 @@ app.post("/api/epass-uploads/model-catalog", requirePagePermission("/epass-uploa
         if (!model) continue;
         const brand = String(grid[r]?.[brandCol] ?? "").trim();
         if (!brand) { skippedNoBrand++; continue; }
-        rows.push({ model, brand, description: descCol >= 0 ? String(grid[r]?.[descCol] ?? "").trim() : "" });
+        rows.push({ model, brand, description: descCol >= 0 ? String(grid[r]?.[descCol] ?? "").trim() : "",
+          merchCategory: merchCatCol >= 0 ? String(grid[r]?.[merchCatCol] ?? "").trim() : "",
+          merchClass: merchClassCol >= 0 ? String(grid[r]?.[merchClassCol] ?? "").trim() : "",
+          merchSubclass: merchSubCol >= 0 ? String(grid[r]?.[merchSubCol] ?? "").trim() : "" });
       }
       if (!rows.length) {
         return res.status(400).json({ error: "No rows with both a model and a brand found in that file." });
@@ -10903,10 +10991,10 @@ app.post("/api/epass-uploads/model-catalog", requirePagePermission("/epass-uploa
       recordAudit({
         ip: req.ip, actorUserId: req.authUser?.id || null,
         action: "model_catalog_imported", targetUserId: null,
-        detail: { filename: req.file.originalname || "", imported: result.imported, added: result.added, updated: result.updated, skippedNoBrand }
+        detail: { filename: req.file.originalname || "", imported: result.imported, added: result.added, updated: result.updated, skippedNoBrand, merchClass: merchClassCol >= 0 }
       }).catch(() => {});
       const stats = await getModelBrandStats().catch(() => null);
-      return res.json({ ok: true, ...result, skippedNoBrand, totalModels: stats?.total || result.imported });
+      return res.json({ ok: true, ...result, skippedNoBrand, merchClassColumn: merchClassCol >= 0, totalModels: stats?.total || result.imported });
     } catch (parseErr) {
       console.error("Model catalog import failed:", parseErr.message);
       return res.status(400).json({ error: "Couldn't read that file — export it as .csv or .xlsx and try again." });

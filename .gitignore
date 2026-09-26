@@ -24,6 +24,9 @@ service_call_journey/phase0/**/__pycache__/
 # ePASS ODBC feed: schema listings in odbc/ are fine; real exports (customer data) never leave this machine.
 odbc/data/
 odbc/*.json
+# finance discovery (9/26): column lists + profiles are fine; the row samples are customer / supplier data.
+odbc/finance/samples/
+odbc/finance/sample-*.csv
 
 # ePASS agent key lives next to the agent on the ePASS server / W: drive, never here
 epass-agent.key

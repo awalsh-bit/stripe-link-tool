@@ -35,6 +35,8 @@
     .zip-chip { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--border); border-radius: 999px; padding: 5px 6px 5px 12px; font-size: 13px; background: #fff; }
     .zip-chip b { font-variant-numeric: tabular-nums; }
     .zip-chip span { color: var(--muted); font-size: 12px; }
+    .zip-chip .chip-label { cursor: text; border-bottom: 1px dashed transparent; padding: 0 2px; } .zip-chip .chip-label:hover { border-bottom-color: var(--muted); color: var(--text); }
+    .zip-chip .chip-label i { color: #9ca3af; font-style: normal; font-size: 11px; }
     .zip-chip button { border: none; background: #f1f5f9; color: #475569; border-radius: 999px; width: 22px; height: 22px; cursor: pointer; font-size: 12px; line-height: 1; }
     .zip-chip button:hover { background: #fee2e2; color: #991b1b; }
     .exp-options { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 4px 18px; }
@@ -726,7 +728,7 @@
         function renderZips(zips) {
           document.getElementById("zipSummaryLine").textContent = `${zips.length} ZIP${zips.length === 1 ? "" : "s"} can order online.`;
           document.getElementById("zipList").innerHTML = zips.length
-            ? zips.map((z) => `<span class="zip-chip" title="${escZ(z.addedBy ? "added by " + z.addedBy : "")}"><b>${escZ(z.zip)}</b>${z.label ? `<span>${escZ(z.label)}</span>` : ""}<button type="button" data-zip-rm="${escZ(z.zip)}" aria-label="Remove ${escZ(z.zip)}">✕</button></span>`).join("")
+            ? zips.map((z) => `<span class="zip-chip" title="${escZ(z.addedBy ? "added by " + z.addedBy + " · " : "")}click the label to edit it"><b>${escZ(z.zip)}</b><span class="chip-label" data-zip-label="${escZ(z.zip)}" role="button" tabindex="0" title="Edit label">${z.label ? escZ(z.label) : "<i>add label</i>"}</span><button type="button" data-zip-rm="${escZ(z.zip)}" aria-label="Remove ${escZ(z.zip)}">✕</button></span>`).join("")
             : '<span class="ws-snap-meta">No ZIPs — nobody can enter the shop right now.</span>';
         }
         async function loadZips() {
@@ -749,6 +751,17 @@
         });
         document.getElementById("zipAdd").addEventListener("keydown", (e) => { if (e.key === "Enter") document.getElementById("zipAddBtn").click(); });
         document.getElementById("zipList").addEventListener("click", async (e) => {
+          const lab = e.target.closest("[data-zip-label]");
+          if (lab) {
+            const zip = lab.dataset.zipLabel;
+            const cur = lab.querySelector("i") ? "" : lab.textContent;
+            const next = prompt(`Label for ${zip} (city, route…). Leave blank to clear.`, cur);
+            if (next === null) return;
+            const status = document.getElementById("zipStatus");
+            try { const out = await api(`/api/shop/allowed-zips/${encodeURIComponent(zip)}`, { method: "PATCH", body: JSON.stringify({ label: next }) }); renderZips(out.zips || []); status.textContent = next.trim() ? `${zip} labeled "${next.trim()}".` : `Label cleared on ${zip}.`; }
+            catch (err) { status.textContent = err.message; }
+            return;
+          }
           const b = e.target.closest("[data-zip-rm]"); if (!b) return;
           const zip = b.dataset.zipRm;
           if (!confirm(`Remove ${zip}? New visitors from ${zip} won't be able to enter the shop or check out.`)) return;
@@ -762,7 +775,7 @@
         function renderBrands(list) {
           document.getElementById("brandSummaryLine").textContent = list.length ? `${list.length} entr${list.length === 1 ? "y" : "ies"} blocked: ${list.map((b) => b.entry).join(", ")}` : "Nothing blocked — every brand in stock can be sold online.";
           document.getElementById("brandList").innerHTML = list.length
-            ? list.map((b) => `<span class="zip-chip" title="${escZ((b.label ? b.label + " · " : "") + (b.addedBy ? "added by " + b.addedBy : ""))}"><b>${escZ(b.entry)}</b>${b.label ? `<span>${escZ(b.label)}</span>` : ""}<button type="button" data-brand-rm="${escZ(b.entry)}" aria-label="Unblock ${escZ(b.entry)}">✕</button></span>`).join("")
+            ? list.map((b) => `<span class="zip-chip" title="${escZ((b.addedBy ? "added by " + b.addedBy + " · " : ""))}click the reason to edit it"><b>${escZ(b.entry)}</b><span class="chip-label" data-brand-label="${escZ(b.entry)}" role="button" tabindex="0" title="Edit reason">${b.label ? escZ(b.label) : "<i>add reason</i>"}</span><button type="button" data-brand-rm="${escZ(b.entry)}" aria-label="Unblock ${escZ(b.entry)}">✕</button></span>`).join("")
             : '<span class="ws-snap-meta">No brands blocked.</span>';
         }
         async function loadBrands() {
@@ -785,6 +798,17 @@
         });
         document.getElementById("brandAdd").addEventListener("keydown", (e) => { if (e.key === "Enter") document.getElementById("brandAddBtn").click(); });
         document.getElementById("brandList").addEventListener("click", async (e) => {
+          const lab = e.target.closest("[data-brand-label]");
+          if (lab) {
+            const entry = lab.dataset.brandLabel;
+            const cur = lab.querySelector("i") ? "" : lab.textContent;
+            const next = prompt(`Reason / note for ${entry}. Leave blank to clear.`, cur);
+            if (next === null) return;
+            const status = document.getElementById("brandStatus");
+            try { const out = await api(`/api/shop/blocked-brands/${encodeURIComponent(entry)}`, { method: "PATCH", body: JSON.stringify({ label: next }) }); renderBrands(out.brands || []); status.textContent = "Updated."; }
+            catch (err) { status.textContent = err.message; }
+            return;
+          }
           const b = e.target.closest("[data-brand-rm]"); if (!b) return;
           const entry = b.dataset.brandRm;
           if (!confirm(`Unblock ${entry}? Its in-stock models will be sold online again.`)) return;

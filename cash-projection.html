@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="robots" content="noindex,nofollow,noarchive" />
+  <title>Wilson AC &amp; Appliance - Cash Ops Projection</title>
+  <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+  <link rel="stylesheet" href="internal-shell.css" />
+  <style>
+    :root {
+      --bg: #f7f8fc; --card: #ffffff; --text: #1f2937; --muted: #6b7280; --border: #dbe1ea;
+      --success-bg: #ecfdf5; --success-text: #065f46; --warn-bg: #fffbeb; --warn-text: #92400e; --error-bg: #fef2f2; --error-text: #991b1b;
+      --shadow: 0 10px 35px rgba(0, 0, 0, 0.08); --radius: 18px;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: "Roboto", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: linear-gradient(180deg, var(--primary-tint) 0%, var(--bg) 100%); color: var(--text); min-height: 100vh; padding: 32px 16px; }
+    .wrap { max-width: 1480px; margin: 0 auto; }
+    .card { background: var(--card); border: 1px solid rgba(var(--primary-rgb), 0.12); box-shadow: var(--shadow); border-radius: var(--radius); padding: 22px; margin-bottom: 18px; overflow: hidden; }
+    .num { font-variant-numeric: tabular-nums; text-align: right; }
+    .intro h1 { margin: 0 0 6px; font-size: 22px; font-weight: 800; }
+    .intro p { margin: 0; color: var(--muted); font-size: 14px; max-width: 90ch; line-height: 1.5; }
+    .cover { font-size: 13px; color: var(--muted); margin: 10px 0 0; line-height: 1.5; }
+    .status { display: none; margin: 0 0 12px; padding: 12px 16px; border-radius: 12px; font-size: 14px; line-height: 1.5; }
+    .status.show { display: block; }
+    .status.ok { background: var(--success-bg); color: var(--success-text); }
+    .status.error { background: var(--error-bg); color: var(--error-text); }
+    .status.warn { background: var(--warn-bg); color: var(--warn-text); }
+    .tiles { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; margin-bottom: 18px; }
+    .tile { border: 1px solid var(--border); border-radius: 16px; padding: 16px; background: var(--primary-faint); min-width: 0; }
+    .tile span { display: block; font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); font-weight: 700; margin-bottom: 6px; }
+    .tile b { display: block; font-size: clamp(20px, 2.2vw, 28px); font-weight: 800; line-height: 1; font-variant-numeric: tabular-nums; }
+    .tile small { display: block; margin-top: 8px; color: var(--muted); font-size: 13px; line-height: 1.4; }
+    .tile.in b { color: #166534; } .tile.out b { color: #991b1b; }
+    .sec h3 { margin: 0; padding: 6px 0 10px; font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); font-weight: 700; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+    .sec h3 .hint { margin-left: auto; text-transform: none; letter-spacing: 0; font-weight: 500; }
+    .scroll { overflow-x: auto; max-width: 100%; -webkit-overflow-scrolling: touch; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { text-align: left; padding: 9px 10px; border-bottom: 1px solid #edf1f7; vertical-align: middle; font-size: 13.5px; white-space: nowrap; }
+    th { font-size: 11.5px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); }
+    th.num, td.num { text-align: right; }
+    table.proj th:first-child, table.proj td:first-child { position: sticky; left: 0; background: #fff; z-index: 1; min-width: 210px; box-shadow: 1px 0 0 #edf1f7; }
+    table.proj tr.group td { background: var(--primary-faint); font-weight: 800; font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--primary-deep); }
+    table.proj tr.sub td:first-child { padding-left: 22px; color: var(--muted); }
+    table.proj tr.tot td { font-weight: 800; border-top: 2px solid var(--border); }
+    table.proj tr.net td { font-weight: 800; background: #f8fafc; }
+    .neg { color: #991b1b; } .pos { color: #166534; }
+    .muted { color: var(--muted); }
+    .chip { display: inline-flex; align-items: center; border-radius: 999px; padding: 3px 9px; font-size: 11.5px; font-weight: 700; background: var(--primary-tint); color: var(--primary-deep); }
+    .chip.soft { background: #fef3c7; color: #92400e; } .chip.firm { background: #dcfce7; color: #166534; } .chip.deliv { background: #dbeafe; color: #1e40af; }
+    .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+    .grid2 > * { min-width: 0; }
+    details summary { cursor: pointer; font-weight: 700; font-size: 14px; padding: 6px 0; }
+    .terms-row { display: grid; grid-template-columns: 180px 1fr 1fr 2fr 1fr auto; gap: 8px; align-items: center; padding: 8px 0; border-bottom: 1px solid #edf1f7; font-size: 13px; }
+    .terms-row input { border: 1px solid var(--border); border-radius: 10px; padding: 7px 9px; font-size: 13px; font-family: inherit; width: 100%; }
+    .terms-row .k { font-weight: 700; }
+    .terms-head { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); font-weight: 700; }
+    .btn { border: none; border-radius: 10px; cursor: pointer; font-size: 12.5px; font-weight: 600; padding: 8px 13px; font-family: inherit; background: var(--primary); color: #fff; }
+    .btn.quiet { background: #fff; color: #374151; border: 1px solid var(--border); }
+    .btn.danger { background: #fff; color: #b91c1c; border: 1px solid #fca5a5; }
+    .btn:disabled { opacity: .55; cursor: wait; }
+    select.sel { border: 1px solid var(--border); border-radius: 10px; padding: 7px 9px; font-size: 13px; font-family: inherit; background: #fff; }
+    .bar { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-bottom: 12px; }
+    @media (max-width: 1100px) { .tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); } .grid2 { grid-template-columns: 1fr; } .terms-row { grid-template-columns: 1fr 1fr; } }
+    @media (max-width: 700px) { body { padding: 12px 8px; } .card { padding: 14px; } .tiles { gap: 10px; } .tile { padding: 12px; } .tile b { font-size: 20px; } th, td { padding: 8px 7px; font-size: 12.5px; } table.proj th:first-child, table.proj td:first-child { min-width: 150px; white-space: normal; } }
+  </style>
+</head>
+<body data-shell-label="Cash Ops Projection" data-shell-icon="accounting">
+  <div class="wrap">
+    <div id="internal-shell-header"></div>
+
+    <div class="card intro">
+      <h1>Cash Ops Projection</h1>
+      <p>The sales-and-purchasing cash picture straight from ePASS, by month: what the open book delivers and collects, what's already owed in AR, what's due in AP, what received stock and open purchase orders will cost on supplier terms, and the projected gross margin on everything scheduled. Expenses (payroll, rent, debt) aren't in here yet — this is operating cash from the book, not a full forecast.</p>
+      <div class="bar" style="margin-top:12px;">
+        <label style="font-size:12.5px; display:flex; align-items:center; gap:8px;">Months <select id="months" class="sel"><option>3</option><option selected>6</option><option>9</option><option>12</option></select></label>
+        <button type="button" class="btn quiet" id="reload">Refresh</button>
+        <span class="cover" id="feeds" style="margin:0;"></span>
+      </div>
+      <div class="status" id="status"></div>
+    </div>
+
+    <div class="tiles" id="tiles"></div>
+
+    <div class="card sec">
+      <h3>By month <span class="hint" id="horizonHint"></span></h3>
+      <div class="scroll"><table class="proj" id="proj"></table></div>
+      <p class="cover" id="buckets"></p>
+    </div>
+
+    <div class="grid2">
+      <div class="card sec">
+        <h3>Payments actually received <span class="hint">InvoicePayment, by month and type</span></h3>
+        <div class="scroll"><table id="payments"></table></div>
+      </div>
+      <div class="card sec">
+        <h3>Gross margin, finished months <span class="hint">Sales Order Detail (feed)</span></h3>
+        <div class="scroll"><table id="actualGm"></table></div>
+      </div>
+    </div>
+
+    <div class="card sec">
+      <h3>Supplier payment terms <span class="hint">how received-but-unbilled stock and open POs get scheduled — the default row applies to every supplier without its own</span></h3>
+      <p class="cover" style="margin:0 0 10px;">Invoices batch on the <b>billing-close days</b>; each installment is due on the first <b>due day</b> on or after close + its days. Default: close 5 &amp; 20, due 8 &amp; 23, 50% at 30 days and 50% at 60. Bills already in ePASS AP use their real due date regardless.</p>
+      <div class="terms-row terms-head"><span>Supplier</span><span>Close days</span><span>Due days</span><span>Installments (pct@days, comma-separated)</span><span>Note</span><span></span></div>
+      <div id="termsList"></div>
+      <div class="bar" style="margin-top:10px;">
+        <select id="termsAddSel" class="sel" style="min-width:260px;"><option value="">Add a supplier…</option></select>
+        <button type="button" class="btn quiet" id="termsAddBtn">Add row</button>
+        <span class="cover" id="termsStatus" style="margin:0;"></span>
+      </div>
+    </div>
+
+    <div class="grid2">
+      <div class="card sec">
+        <h3>Open payables by supplier <span class="hint" id="apHint"></span></h3>
+        <div class="scroll"><table id="apTable"></table></div>
+      </div>
+      <div class="card sec">
+        <h3>Open receivables by customer <span class="hint" id="arHint"></span></h3>
+        <div class="scroll"><table id="arTable"></table></div>
+      </div>
+    </div>
+
+    <div class="card sec">
+      <details>
+        <summary>Open book detail — every open invoice with its bucket</summary>
+        <div class="scroll" style="margin-top:8px;"><table id="bookTable"></table></div>
+      </details>
+    </div>
+    <div id="internal-shell-footer"></div>
+  </div>
+
+  <script src="internal-shell.js"></script>
+  <script>
+    (() => {
+      const $ = (id) => document.getElementById(id);
+      const esc = (v) => String(v ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+      const money = (n) => (n == null || !Number.isFinite(Number(n))) ? "—" : (Number(n) < 0 ? "−" : "") + "$" + Math.abs(Number(n)).toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+      const money2 = (n) => (n == null || !Number.isFinite(Number(n))) ? "—" : (Number(n) < 0 ? "−" : "") + "$" + Math.abs(Number(n)).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      const pct = (n) => n == null ? "—" : Number(n).toFixed(1) + "%";
+      const monthLabel = (ym) => new Date(ym + "-15T12:00:00Z").toLocaleDateString("en-US", { month: "short", year: "2-digit", timeZone: "UTC" });
+      const when = (iso) => iso ? new Date(iso).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) : "—";
+      const signed = (n, invert) => `<span class="${(invert ? -n : n) < 0 ? "neg" : (invert ? -n : n) > 0 ? "pos" : "muted"}">${money(n)}</span>`;
+      let data = null;
+
+      function setStatus(msg, kind) { const s = $("status"); if (!msg) { s.className = "status"; s.textContent = ""; return; } s.className = "status show " + (kind || "warn"); s.innerHTML = msg; }
+
+      async function api(path, opts) {
+        const res = await fetch(path, { credentials: "same-origin", headers: { "Content-Type": "application/json" }, ...opts });
+        const body = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(body.error || "Request failed.");
+        return body;
+      }
+
+      function render() {
+        const d = data;
+        const f = d.feeds || {};
+        $("feeds").innerHTML = `Sales book: ${f.sales?.pulledAt ? "ePASS " + esc(f.sales.pulledAt.replace("T", " ")) : "no feed yet"} · Ledgers: ${f.finance?.pulledAt ? "ePASS " + esc(f.finance.pulledAt.replace("T", " ")) : "<b>no finance bundle yet</b>"}`;
+        if (!f.finance) setStatus("The ePASS finance bundle hasn't arrived yet — AR, AP, payments, supplier terms and open POs are empty until the pull runs with the current script (first run of each hour, or <code>-Finance</code>). The open book and its margin below are live.", "warn");
+        else setStatus("");
+
+        const b = d.book, ar = d.ar, ap = d.ap;
+        $("tiles").innerHTML = `
+          <div class="tile"><span>Open sales book</span><b>${money(b.total)}</b><small>${b.orders} open orders · ${Object.entries(b.byType || {}).sort((x, y) => y[1] - x[1]).slice(0, 3).map(([t, v]) => esc(t) + " " + money(v)).join(" · ")}</small></div>
+          <div class="tile in"><span>Deposits already held</span><b>${money(b.deposits)}</b><small>${b.total ? Math.round(b.deposits / b.total * 100) : 0}% of the book</small></div>
+          <div class="tile in"><span>Cash due at delivery</span><b>${money(b.balance)}</b><small>collected as orders deliver</small></div>
+          <div class="tile"><span>Projected GM on the book</span><b>${pct(b.gmPercent)}</b><small>${money(b.revenue)} product net of ${money(-b.discounts)} discounts vs ${money(b.cost)} ePASS cost</small></div>
+          <div class="tile in"><span>Open receivables (AR)</span><b>${money(ar.open)}</b><small>${ar.count} invoices${ar.pastDue ? ` · <span class="neg">${money(ar.pastDue)} past due</span>` : ""}</small></div>
+          <div class="tile out"><span>Open payables (AP)</span><b>${money(ap.open)}</b><small>${ap.count} bills${ap.pastDue ? ` · ${money(ap.pastDue)} past due` : ""}${ap.onHold ? ` · ${money(ap.onHold)} on hold` : ""}</small></div>
+          <div class="tile out"><span>Received, not yet billed</span><b>${money(d.unbilled.amount)}</b><small>${d.unbilled.count} POs — scheduled on terms from receipt</small></div>
+          <div class="tile out"><span>Open purchase orders</span><b>${money(d.po.cost)}</b><small>${d.po.lines} lines still to receive${d.po.noEta ? ` · ${money(d.po.noEta)} with no ETA (not scheduled)` : ""}</small></div>`;
+
+        const T = d.table;
+        $("horizonHint").textContent = `${monthLabel(T[0].month)} → ${monthLabel(T[T.length - 1].month)} · today ${d.today}`;
+        const th = `<thead><tr><th></th>${T.map((t) => `<th class="num">${esc(monthLabel(t.month))}</th>`).join("")}<th class="num">Total</th></tr></thead>`;
+        const sum = (k) => T.reduce((s, t) => s + (Number(t[k]) || 0), 0);
+        const row = (label, k, opts = {}) => `<tr class="${opts.cls || ""}"><td>${label}</td>${T.map((t) => `<td class="num">${opts.fmt ? opts.fmt(t[k], t) : money(t[k])}</td>`).join("")}<td class="num">${opts.total === false ? "" : opts.fmt && opts.totalFmt ? opts.totalFmt() : opts.fmt && !opts.money ? "" : money(sum(k))}</td></tr>`;
+        const group = (label) => `<tr class="group"><td>${label}</td>${T.map(() => "<td></td>").join("")}<td></td></tr>`;
+        $("proj").innerHTML = th + `<tbody>
+          ${group("Money in")}
+          ${row("Deliveries scheduled", "deliveries", { fmt: (v) => v || "—", totalFmt: () => sum("deliveries") })}
+          ${row("Revenue (no tax)", "revenue")}
+          ${row("Projected GM", "gmPercent", { cls: "sub", fmt: (v) => pct(v), totalFmt: () => { const r = sum("revenueNet"), c = sum("cost"); return r ? pct((r - c) / r * 100) : "—"; } })}
+          ${row("Deposits already held", "deposits", { cls: "sub" })}
+          ${row("Cash at delivery", "cashAtDelivery")}
+          ${row("of which firm (D3/D4+)", "firm", { cls: "sub", fmt: (v, t) => `${money(v + t.delivering)}` , totalFmt: () => money(sum("firm") + sum("delivering")) })}
+          ${row("of which soft (D1/D2)", "soft", { cls: "sub" })}
+          ${row("AR due (delivered, unpaid)", "arDue")}
+          ${row("Total in", "cashIn", { cls: "tot" })}
+          ${group("Money out")}
+          ${row("AP bills due (ePASS)", "apDue")}
+          ${row("Received, not yet billed (terms)", "receivedUnbilled")}
+          ${row("Open POs (terms from ETA)", "poDue")}
+          ${row("Inventory arriving (PO cost)", "poArrivingCost", { cls: "sub" })}
+          ${row("Total out", "cashOut", { cls: "tot" })}
+          ${group("Net")}
+          <tr class="net"><td>Net operating cash</td>${T.map((t) => `<td class="num">${signed(t.net)}</td>`).join("")}<td class="num">${signed(sum("net"))}</td></tr>
+          <tr class="net"><td>Cumulative</td>${T.map((t) => `<td class="num">${signed(t.cumulative)}</td>`).join("")}<td></td></tr>
+        </tbody>`;
+        const bk = (x) => `<b>${x.deliveries}</b> orders · ${money(x.revenue)} revenue · ${money(x.cashAtDelivery)} still to collect`;
+        $("buckets").innerHTML = `Not in the months above — <b>${esc(d.past.label)}:</b> ${bk(d.past)} · <b>${esc(d.unscheduled.label)}:</b> ${bk(d.unscheduled)} · <b>${esc(d.later.label)}:</b> ${bk(d.later)}.`;
+
+        // payments
+        const pm = Object.entries(d.payments || {}).sort((a, b) => b[0].localeCompare(a[0])).slice(0, 13);
+        const types = [...new Set(pm.flatMap(([, v]) => Object.keys(v.byType)))].sort((a, b) => pm.reduce((s, [, v]) => s + (v.byType[b] || 0), 0) - pm.reduce((s, [, v]) => s + (v.byType[a] || 0), 0));
+        $("payments").innerHTML = pm.length ? `<thead><tr><th>Month</th><th class="num">Total</th>${types.map((t) => `<th class="num">${esc(t)}</th>`).join("")}</tr></thead><tbody>${pm.map(([ym, v]) => `<tr><td>${esc(monthLabel(ym))}</td><td class="num"><b>${money(v.total)}</b></td>${types.map((t) => `<td class="num">${v.byType[t] ? money(v.byType[t]) : '<span class="muted">—</span>'}</td>`).join("")}</tr>`).join("")}</tbody>` : '<tbody><tr><td class="muted">No payments in the feed yet.</td></tr></tbody>';
+        const gm = Object.entries(d.actualByMonth || {}).sort((a, b) => b[0].localeCompare(a[0])).slice(0, 8);
+        $("actualGm").innerHTML = gm.length ? `<thead><tr><th>Month</th><th class="num">Orders</th><th class="num">Revenue</th><th class="num">Cost</th><th class="num">GM</th></tr></thead><tbody>${gm.map(([ym, v]) => `<tr><td>${esc(monthLabel(ym))}</td><td class="num">${v.orders}</td><td class="num">${money(v.revenue)}</td><td class="num">${money(v.cost)}</td><td class="num"><b>${pct(v.gmPercent)}</b></td></tr>`).join("")}</tbody>` : '<tbody><tr><td class="muted">No finished orders in the last 200 days.</td></tr></tbody>';
+
+        // AP / AR tables
+        const names = d.supplierNames || {};
+        const apList = Object.entries(ap.bySupplier || {}).sort((a, b) => b[1] - a[1]).slice(0, 25);
+        $("apHint").textContent = `${ap.count} open bills · ${money(ap.open)}`;
+        $("apTable").innerHTML = apList.length ? `<thead><tr><th>Supplier</th><th class="num">Open AP</th><th class="num">Unbilled receipts</th><th class="num">Open POs</th></tr></thead><tbody>${apList.map(([c, v]) => `<tr><td>${esc(names[c] || c)} <span class="muted">${esc(c)}</span></td><td class="num">${money(v)}</td><td class="num">${money(d.unbilled.bySupplier?.[c] || 0)}</td><td class="num">${money(d.po.bySupplier?.[c] || 0)}</td></tr>`).join("")}</tbody>` : '<tbody><tr><td class="muted">Nothing open in AP.</td></tr></tbody>';
+        const arList = Object.entries(ar.byCustomer || {}).sort((a, b) => b[1] - a[1]).slice(0, 25);
+        $("arHint").textContent = `${ar.count} open invoices · ${money(ar.open)}`;
+        $("arTable").innerHTML = arList.length ? `<thead><tr><th>Customer</th><th class="num">Open AR</th></tr></thead><tbody>${arList.map(([c, v]) => `<tr><td>${esc(c)}</td><td class="num">${money(v)}</td></tr>`).join("")}</tbody>` : '<tbody><tr><td class="muted">Nothing open in AR.</td></tr></tbody>';
+
+        // book detail
+        const chip = (f) => f === "firm" ? '<span class="chip firm">firm</span>' : f === "delivering" ? '<span class="chip deliv">delivering</span>' : '<span class="chip soft">soft</span>';
+        $("bookTable").innerHTML = `<thead><tr><th>Invoice</th><th>Customer</th><th>SP</th><th>Type</th><th>Status</th><th>Schedule</th><th>Bucket</th><th class="num">Total</th><th class="num">Deposits</th><th class="num">Balance</th><th class="num">Product net</th><th class="num">Cost</th></tr></thead><tbody>${(d.detail?.book || []).map((o) => `<tr><td><b>${esc(o.invoice)}</b></td><td>${esc(o.customer)}</td><td>${esc(o.salesperson)}</td><td>${esc(o.invType)}</td><td>${esc(o.status)} ${chip(o.firmness)}</td><td>${esc(o.scheduleDate || "—")}</td><td>${/^\d{4}-\d{2}$/.test(o.bucket) ? esc(monthLabel(o.bucket)) : esc(o.bucket)}</td><td class="num">${money2(o.total)}</td><td class="num">${money2(o.deposits)}</td><td class="num">${money2(o.balance)}</td><td class="num">${money2(o.productRevenue)}</td><td class="num">${money2(o.productCost)}</td></tr>`).join("")}</tbody>`;
+
+        renderTerms(d.terms || []);
+        const sup = (d.supplierNames && Object.keys(d.supplierNames).length ? Object.entries(d.supplierNames) : []).sort((a, b) => (a[1] || a[0]).localeCompare(b[1] || b[0]));
+        $("termsAddSel").innerHTML = '<option value="">Add a supplier…</option>' + sup.map(([c, n]) => `<option value="${esc(c)}">${esc(n || c)} (${esc(c)})</option>`).join("");
+      }
+
+      function renderTerms(terms) {
+        const names = data?.supplierNames || {};
+        const rows = terms.length ? terms : [{ supplierCode: "*", closeDays: [5, 20], dueDays: [8, 23], installments: [{ pct: 50, days: 30 }, { pct: 50, days: 60 }], note: "", unsaved: true }];
+        $("termsList").innerHTML = rows.map((t) => `<div class="terms-row" data-code="${esc(t.supplierCode)}">
+            <span class="k">${t.supplierCode === "*" ? "Default (every supplier)" : esc(names[t.supplierCode] || t.supplierCode) + ` <span class="muted">${esc(t.supplierCode)}</span>`}</span>
+            <input class="t-close" value="${esc((t.closeDays || []).join(", "))}" placeholder="5, 20">
+            <input class="t-due" value="${esc((t.dueDays || []).join(", "))}" placeholder="8, 23">
+            <input class="t-inst" value="${esc((t.installments || []).map((i) => `${i.pct}@${i.days}`).join(", "))}" placeholder="50@30, 50@60">
+            <input class="t-note" value="${esc(t.note || "")}" placeholder="note">
+            <span style="display:flex; gap:6px;"><button type="button" class="btn t-save">Save</button>${t.supplierCode === "*" ? "" : '<button type="button" class="btn danger t-del" title="Back to the default">✕</button>'}</span>
+          </div>`).join("");
+      }
+
+      $("termsList").addEventListener("click", async (e) => {
+        const row = e.target.closest(".terms-row"); if (!row) return;
+        const status = $("termsStatus");
+        if (e.target.closest(".t-save")) {
+          const btn = e.target.closest(".t-save"); btn.disabled = true; status.textContent = "Saving…";
+          try {
+            const installments = row.querySelector(".t-inst").value.split(/[,;\s]+/).filter(Boolean).map((x) => { const m = x.match(/^(\d+(?:\.\d+)?)@(\d+)$/); if (!m) throw new Error(`"${x}" — use pct@days, e.g. 50@30`); return { pct: Number(m[1]), days: Number(m[2]) }; });
+            const out = await api("/api/cash-projection/terms", { method: "POST", body: JSON.stringify({ supplierCode: row.dataset.code, closeDays: row.querySelector(".t-close").value, dueDays: row.querySelector(".t-due").value, installments, note: row.querySelector(".t-note").value }) });
+            data.terms = out.terms; renderTerms(out.terms); status.textContent = "Saved — reloading the projection…"; await load();
+          } catch (err) { status.textContent = err.message; } finally { btn.disabled = false; }
+        }
+        if (e.target.closest(".t-del")) {
+          if (!confirm(`Remove the terms for ${row.dataset.code}? It goes back to the default.`)) return;
+          try { const out = await api(`/api/cash-projection/terms/${encodeURIComponent(row.dataset.code)}`, { method: "DELETE" }); data.terms = out.terms; renderTerms(out.terms); status.textContent = "Removed."; await load(); }
+          catch (err) { status.textContent = err.message; }
+        }
+      });
+      $("termsAddBtn").addEventListener("click", () => {
+        const code = $("termsAddSel").value; if (!code) return;
+        if (data.terms.some((t) => t.supplierCode === code)) { $("termsStatus").textContent = "Already has its own row."; return; }
+        const def = data.terms.find((t) => t.supplierCode === "*") || { closeDays: [5, 20], dueDays: [8, 23], installments: [{ pct: 50, days: 30 }, { pct: 50, days: 60 }] };
+        data.terms = [...data.terms, { supplierCode: code, closeDays: def.closeDays, dueDays: def.dueDays, installments: def.installments, note: "" }];
+        renderTerms(data.terms); $("termsStatus").textContent = "Edit the row and Save.";
+      });
+
+      async function load() {
+        try {
+          $("reload").disabled = true;
+          data = await api(`/api/cash-projection?months=${encodeURIComponent($("months").value)}`);
+          render();
+        } catch (err) { setStatus(esc(err.message), "error"); }
+        finally { $("reload").disabled = false; }
+      }
+      $("reload").addEventListener("click", load);
+      $("months").addEventListener("change", load);
+      load();
+    })();
+  </script>
+</body>
+</html>

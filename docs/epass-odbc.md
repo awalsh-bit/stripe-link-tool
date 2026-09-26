@@ -391,6 +391,64 @@ so every report reading model prices overstated them.
   since this change (plus any `-FinishedSince` backfill); older months pay
   on list until re-pulled.
 
+### 8b3e. Finance discovery for margin / cash projections (2026-09-26)
+
+`tables.csv` (9/21) shows ePASS carries full finance modules — `InvoicePayment`,
+AR (`ARCurrent`, `ARHistory`, `ARTransaction`, `ARDepositBatch`, Collections*),
+AP (`APCurrent`, `APCurrentPO`, `APHistory`, `APTransaction`, `APCheck`,
+`POSupplierInvoice*`), GL (`GLMaster`, `GLTransaction`, `GLFinancialData`,
+`GLBudget`), `ProjectForecast`, floor-plan fields (`Serial.FloorPlan` /
+`FloorPlanDueDate`, `PO.FloorPlan` / `Paid` / `DatePaid`, `Supplier.POFloorPlanDays`
+/ `DueDays` / `DueDateTerms` / `DiscountDays`). Whether Wilson *uses* them (or
+NetSuite is the book of record) is what `-DiscoverFinance` answers: for each
+table a column list, a profile (row count + min/max of its date columns) and a
+200-row sample, plus probes (on-hand units on floor plan and their due months,
+PO paid status, open PO cost by ETA month, invoice payments by type and
+month). Output: `C:\Agility\epass\schema\finance\` — the column lists and
+profiles can be copied to the repo's `odbc/finance/`; **`finance\samples\`
+stays on the server** (customer / supplier data). Extra deny rules for the
+run: EFT / bank / supplier-account identifiers, check numbers, card tokens,
+gateway request / response payloads; `CustomerCreditCards` and every
+`*RequestData` / `*Receipt` / `*Signature` table are never read.
+
+### 8b3f. Cash Ops Projection (2026-09-26)
+
+Executives only, Accounting menu (`cash-projection.html`). ePASS is the book
+of record for AR / AP (Andrew 9/26), so the page reads the ledgers rather than
+modeling them. Feed: the **`epass-finance`** bundle (sixth), pulled on the
+first run of each hour with finished-orders (or `-Finance`): `ar-current`
+(ARCurrent), `ap-current` (APCurrent) + `ap-current-po` / `ap-transaction-po`
+(bill ↔ PO links), `payments` (InvoicePayment, 13 months, explicit column
+list — never a card column), `payment-types`, `suppliers` (terms columns),
+`open-po-lines` (POModel still to receive + PO header, ordered in the last 18
+months, released), `po-received` (POs received / costed in 120 days),
+`supplier-invoices`. Stored by `lib/epass-finance-postgres.js`
+(`epass_ar_current`, `epass_ap_current`, `epass_ap_current_po`,
+`epass_payments`, `epass_payment_types`, `epass_suppliers`,
+`epass_po_open_lines`, `epass_po_received`, `epass_supplier_invoices`,
+`epass_finance_meta`); a dataset that failed on the pull leaves its previous
+rows in place.
+
+`lib/cash-projection.js` builds the months: **in** = open book by
+ScheduleDate (deposits already held vs cash at delivery, firm D3/D4+ vs soft
+D1/D2; past-schedule and unscheduled orders shown as separate buckets), AR
+netted per invoice by due month (overdue → this month); **out** = AP netted
+per bill by due month (overdue → this month), POs received in 120 days with
+no AP link scheduled on supplier terms from receipt, open PO lines (qty × cost)
+scheduled on terms from ETA (late ETA → now; no ETA → listed, not scheduled);
+**GM** = open-book model revenue net of linked discounts vs the line cost
+ePASS carries (landed → average → last → standard → original), plus the
+finished months' actual GM from Sales Order Detail. Actual payments by month
+and type sit beside it.
+
+**Supplier payment terms** (`supplier_payment_terms`, edited on the page):
+invoices batch on billing-close days; each installment is due on the first
+due day on/after close + N days. Default `*` row: close 5/20, due 8/23, 50% at
+30 days, 50% at 60 (Andrew 9/26). Per-supplier rows override it. Floor-plan
+fields (`FloorPlanDueDate`, `PO.Paid`) are not maintained in ePASS and are
+not read. Expenses are out of scope until the budget tool (GLBudget /
+GLFinancialData are there for it).
+
 ### 8b3b. Shop prices from ePASS price levels (2026-09-24)
 
 `model-list-prices` (sales bundle) carries `ModelListPrice` for every model

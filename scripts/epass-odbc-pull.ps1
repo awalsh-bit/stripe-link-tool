@@ -81,6 +81,16 @@
 # =============================================================================
 param(
   [switch]$Discover,
+  # Finance discovery (9/26): column lists, row counts / date ranges and a
+  # 200-row sample of ePASS's payment, AR, AP, GL, floor-plan and forecast
+  # tables -> epass\schema\finance\ (samples under ...\finance\samples\,
+  # which never go on GitHub). Read-only, deny-list applied, run once.
+  [switch]$DiscoverFinance,
+  # Cash Ops bundle (sixth, epass-finance): open AP and AR, payments received
+  # (13 months), payment types, supplier terms, open PO lines with cost and
+  # recently received POs. Runs on the first run of each hour with the
+  # finished-orders bundle; -Finance forces it on any run.
+  [switch]$Finance,
   [string]$Dsn  = "COMPANY1",
   [string]$Root = "W:\Agility",
   # Finished orders normally cover the current + previous month. Pass a date
@@ -116,10 +126,11 @@ $SvcOutbox = Join-Path $Root "outbox\epass-open-service"
 $FinOutbox = Join-Path $Root "outbox\epass-finished-orders"
 $CatOutbox = Join-Path $Root "outbox\epass-service-catalogue"
 $TaxOutbox = Join-Path $Root "outbox\epass-tax"
+$FncOutbox = Join-Path $Root "outbox\epass-finance"
 # Own log file: the agent's 10-minute task writes agent.log and Add-Content
 # fails when both hold it (seen 2026-09-21: "being used by another process").
 $LogFile   = Join-Path $Root "odbc.log"
-foreach ($d in @($LatestDir, $SchemaDir, $Outbox, $SvcOutbox, $FinOutbox, $CatOutbox, $TaxOutbox)) { if (-not (Test-Path $d)) { New-Item -ItemType Directory -Path $d -Force | Out-Null } }
+foreach ($d in @($LatestDir, $SchemaDir, $Outbox, $SvcOutbox, $FinOutbox, $CatOutbox, $TaxOutbox, $FncOutbox)) { if (-not (Test-Path $d)) { New-Item -ItemType Directory -Path $d -Force | Out-Null } }
 
 function Log([string]$msg) {
   $line = "{0}  [odbc] {1}" -f (Get-Date -Format "yyyy-MM-dd HH:mm:ss"), $msg
@@ -134,7 +145,9 @@ function Log([string]$msg) {
 # the column NAME (so WebPassword2, CreditCardNo, DriversLicense all match).
 # (Patterns are substrings: "EIN" would have caught InvoiceLabor.TimeIn, so
 # tax ids are matched as TaxId/FedId instead.)
-$DenyPatterns = @("SSN", "SocialSec", "BirthDate", "DOB", "Password", "CreditCard", "CardNumber", "CardNo", "CVV", "Routing", "BankAcc", "BankAccount", "DriversLic", "DLNumber", "TaxId", "FedId", "FederalId", "TINNumber", "EmpSalary", "EmpAltIncome")
+$DenyPatterns = @("SSN", "SocialSec", "BirthDate", "DOB", "Password", "CreditCard", "CardNumber", "CardNo", "CVV", "Routing", "BankAcc", "BankAccount", "DriversLic", "DLNumber", "TaxId", "FedId", "FederalId", "TINNumber", "EmpSalary", "EmpAltIncome",
+                  # finance tables (9/26): bank / EFT / account identifiers never leave ePASS
+                  "EFTBank", "SupplierAccount", "AcctNo", "IBAN", "SWIFT", "CheckNumber", "CheckNo", "CardToken", "AuthCode", "TxRequest", "TxResponse")
 function Is-Denied([string]$name) { foreach ($p in $DenyPatterns) { if ($name -imatch $p) { return $true } }; return $false }
 
 function Convert-ToCsvField($Value) {
@@ -314,6 +327,79 @@ FROM InvoiceLabor l ORDER BY l.ServiceDate DESC
     Step "DispatchMeJob sample" { [void](Export-Query $conn "SELECT TOP 300 * FROM DispatchMeJob" (Join-Path $SchemaDir "probe-dispatchmejob.csv") "DispatchMeJob sample") }
     Step "Scheduler sample" { [void](Export-Query $conn "SELECT TOP 200 * FROM Scheduler" (Join-Path $SchemaDir "probe-scheduler.csv") "Scheduler sample") }
     Log "discovery complete -> $SchemaDir"
+    return
+  }
+
+  if ($DiscoverFinance) {
+    $FinDir = Join-Path $SchemaDir "finance"; $FinSamples = Join-Path $FinDir "samples"
+    foreach ($d in @($FinDir, $FinSamples)) { if (-not (Test-Path $d)) { New-Item -ItemType Directory -Path $d -Force | Out-Null } }
+    function Step([string]$name, [scriptblock]$body) {
+      try { & $body; Log "finance ok: $name" } catch { Log ("finance FAILED: {0} -> {1}" -f $name, $_.Exception.Message) }
+      if ($conn.State -ne [System.Data.ConnectionState]::Open) { try { $conn.Close() } catch {}; try { $conn.Open(); Log "reconnected to $Dsn" } catch { Log ("reconnect FAILED: {0}" -f $_.Exception.Message) } }
+    }
+    Step "columns" { $script:columns = $conn.GetSchema("Columns") }
+    # Payments and deposits, AR, AP, supplier invoices, GL, floor plan, forecast.
+    # (CustomerCreditCards and every *RequestData / *Receipt / *Signature table
+    # are deliberately NOT in this list.)
+    # Columns a finance sample must leave out even though the global deny-list
+    # allows the name elsewhere (GLMaster uses AccountNumber for the GL code).
+    $finExtraDeny = @{ Supplier = @("AccountNumber", "EFTBankingInstitution", "EFTEmail", "EFTContactName", "EFTContactPhone", "EFTContactExtension", "EFTContactFax", "EFTBranch");
+                       PO = @("SupplierAccountNumber"); EFT = @("*") }
+    $finTables = @("InvoicePayment", "PaymentType", "PaymentTypeBranch", "InvTypeBranchMinDeposit", "InvoiceTax", "InvoiceTaxCode",
+                   "ARCurrent", "ARHistory", "ARTransaction", "ARDepositBatch", "CollectionsHeader", "CollectionsDetail",
+                   "APCurrent", "APCurrentPO", "APHistory", "APHistoryPO", "APTransaction", "APTransactionPO", "APTransactionDist", "APCheck",
+                   "POSupplierInvoice", "POSupplierInvoiceDetail", "POFreight", "POPriceChange",
+                   "GLMaster", "GLTransaction", "GLYtdTransaction", "GLFinancialData", "GLFinancialName", "GLBudget", "GLPostingHistory", "GLCostPostingDetail", "CostCenter",
+                   "ProjectForecast", "Project", "Contract", "ContractStatus", "EFT", "Supplier", "PO", "POModel")
+    foreach ($t in $finTables) {
+      Step "schema $t" {
+        $rows = @($script:columns | Where-Object { $_.TABLE_NAME -eq $t } | Sort-Object { [int]$_.ORDINAL_POSITION } |
+          Select-Object COLUMN_NAME, TYPE_NAME, COLUMN_SIZE, ORDINAL_POSITION, @{ n = "Denied"; e = { Is-Denied $_.COLUMN_NAME } })
+        if ($rows.Count -eq 0) { throw "no such table (or no columns visible)" }
+        $rows | Export-Csv (Join-Path $FinDir "$t.csv") -NoTypeInformation
+        # Profile: row count plus the range of every DATE / TIMESTAMP column (up to 6) -
+        # this is what says whether Wilson actually USES the module.
+        $dateCols = @($rows | Where-Object { $_.TYPE_NAME -imatch "DATE|TIME" -and -not $_.Denied } | Select-Object -First 6 | ForEach-Object { $_.COLUMN_NAME })
+        $sel = "COUNT(*) AS Rows"
+        foreach ($c in $dateCols) { $sel += ", MIN($c) AS Min_$c, MAX($c) AS Max_$c" }
+        [void](Export-Query $conn "SELECT $sel FROM $t" (Join-Path $FinDir "profile-$t.csv") "profile $t")
+        # Sample: newest 200 rows (by the first date column when there is one),
+        # explicit column list = not denied and not on the table's extra list.
+        $extra = if ($finExtraDeny.ContainsKey($t)) { $finExtraDeny[$t] } else { @() }
+        if ($extra -contains "*") { Log "sample $t skipped (identifiers only)"; return }
+        $cols = @($rows | Where-Object { -not $_.Denied -and ($extra -notcontains $_.COLUMN_NAME) } | ForEach-Object { $_.COLUMN_NAME })
+        $order = if ($dateCols.Count) { " ORDER BY " + $dateCols[0] + " DESC" } else { "" }
+        [void](Export-Query $conn ("SELECT TOP 200 " + ($cols -join ", ") + " FROM $t" + $order) (Join-Path $FinSamples "sample-$t.csv") "sample $t")
+      }
+    }
+    # Floor plan and PO payment probes: how many on-hand units sit on a floor
+    # plan and when their curtailments fall due; how PO Paid / DatePaid populate.
+    Step "serial floor plan" { [void](Export-Query $conn @"
+SELECT FloorPlan, COUNT(*) AS Units, SUM(Cost) AS Cost, MIN(FloorPlanDueDate) AS FirstDue, MAX(FloorPlanDueDate) AS LastDue,
+       SUM(CASE WHEN FloorPlanDueDate IS NULL THEN 0 ELSE 1 END) AS WithDueDate
+FROM Serial WHERE (Status IS NULL OR Status = '') GROUP BY FloorPlan
+"@ (Join-Path $FinDir "probe-serial-floorplan.csv") "serial floor plan") }
+    Step "floor plan due by month" { [void](Export-Query $conn @"
+SELECT SUBSTRING(CAST(FloorPlanDueDate AS VARCHAR(10)), 1, 7) AS DueMonth, COUNT(*) AS Units, SUM(Cost) AS Cost
+FROM Serial WHERE (Status IS NULL OR Status = '') AND FloorPlanDueDate IS NOT NULL GROUP BY SUBSTRING(CAST(FloorPlanDueDate AS VARCHAR(10)), 1, 7) ORDER BY 1
+"@ (Join-Path $FinDir "probe-floorplan-due-months.csv") "floor plan due by month") }
+    Step "PO paid status" { [void](Export-Query $conn @"
+SELECT Paid, Received, FloorPlan, COUNT(*) AS POs, SUM(TotalOrdered) AS Ordered, SUM(TotalReceived) AS ReceivedAmt, SUM(TotalCosted) AS Costed,
+       MIN(DateOrdered) AS FirstOrdered, MAX(DateOrdered) AS LastOrdered, MIN(DatePaid) AS FirstPaid, MAX(DatePaid) AS LastPaid
+FROM PO GROUP BY Paid, Received, FloorPlan
+"@ (Join-Path $FinDir "probe-po-paid.csv") "PO paid status") }
+    Step "open PO by ETA month" { [void](Export-Query $conn @"
+SELECT SUBSTRING(CAST(COALESCE(pm.ETADateMostUpdated, pm.ETADate, pm.RequestedDeliveryDate) AS VARCHAR(10)), 1, 7) AS EtaMonth,
+       COUNT(*) AS Lines, SUM(pm.QtyOrdered - pm.QtyReceived) AS QtyOpen, SUM((pm.QtyOrdered - pm.QtyReceived) * pm.UnitCost) AS OpenCost
+FROM POModel pm INNER JOIN PO p ON pm.POCode = p.Code
+WHERE pm.QtyOrdered > pm.QtyReceived
+GROUP BY SUBSTRING(CAST(COALESCE(pm.ETADateMostUpdated, pm.ETADate, pm.RequestedDeliveryDate) AS VARCHAR(10)), 1, 7) ORDER BY 1
+"@ (Join-Path $FinDir "probe-open-po-eta.csv") "open PO by ETA month") }
+    Step "invoice payments by type and month" { [void](Export-Query $conn @"
+SELECT TOP 500 PaymentTypeCode, SUBSTRING(CAST(DateStamp AS VARCHAR(10)), 1, 7) AS PayMonth, COUNT(*) AS Payments, SUM(Amount) AS Amount
+FROM InvoicePayment GROUP BY PaymentTypeCode, SUBSTRING(CAST(DateStamp AS VARCHAR(10)), 1, 7) ORDER BY 2 DESC, 1
+"@ (Join-Path $FinDir "probe-payments-by-month.csv") "invoice payments by type and month") }
+    Log "finance discovery complete -> $FinDir (samples in $FinSamples - keep them off GitHub)"
     return
   }
 
@@ -701,6 +787,76 @@ ORDER BY sp.Code
     Log ("bundle -> {0} ({1:n0} KB; finished since {2})" -f $path, ($json.Length / 1024), $finSince)
   } catch { Log ("finished-orders FAILED (the other bundles are unaffected): {0}" -f $_.Exception.Message); if ($conn.State -ne [System.Data.ConnectionState]::Open) { $conn.Open() } }
   } else { Log "finished-orders: skipped this run (first run of each hour only)" }
+
+  # ---- CASH OPS (sixth bundle, epass-finance) -----------------------------
+  # ePASS is the book of record for AR / AP (Andrew 9/26). The Cash Ops
+  # Projection reads: open receivables (ARCurrent), open payables (APCurrent
+  # + its PO links), every customer payment of the last 13 months
+  # (InvoicePayment - no card data: explicit column list), the payment type
+  # lookup, supplier terms, open PO lines with their cost and ETA, and POs
+  # received in the last 120 days (for received-but-not-yet-billed).
+  if ($Finance -or $doFinished) {
+    $fnc = [ordered]@{ pulledAt = (Get-Date).ToString("s"); source = $Dsn; machine = $env:COMPUTERNAME; datasets = [ordered]@{} }
+    $paySince = (Get-Date).AddMonths(-13).ToString("yyyy-MM-01")
+    $poSince = (Get-Date).AddMonths(-18).ToString("yyyy-MM-dd")
+    $rcvSince = (Get-Date).AddDays(-120).ToString("yyyy-MM-dd")
+    $steps = [ordered]@{
+      "ar-current" = @"
+SELECT ID, CustomerCode, PayeeCustomerCode, Invoice, Contract, RecordType, TransactionDate, DueDate, Amount, TotalPaymentAmount, PaymentTypeCode, PaymentLineNo, BranchCode, BalanceFwdPeriod, LastServiceCharge, Handling, Note, PostingBatch, CreateDateStamp
+FROM ARCurrent
+"@
+      "ap-current" = @"
+SELECT ID, SupplierCode, Invoice, RecordType, TransactionDate, OriginalTransactionDate, DueDate, Amount, InvoiceHold, DiscountTaken, DiscountGL, Note, PostingBatch, CreateDateStamp
+FROM APCurrent
+"@
+      "ap-current-po" = @"
+SELECT SupplierCode, Invoice, POCode, CreateDateStamp FROM APCurrentPO
+"@
+      "ap-transaction-po" = @"
+SELECT SupplierCode, Invoice, POCode, CreateDateStamp FROM APTransactionPO WHERE CreateDateStamp >= '$rcvSince'
+"@
+      "payments" = @"
+SELECT ID, InvoiceCode, BillToCode, PaymentTypeCode, DateStamp, PostDate, Amount, RespSettlementAmount, Status, AuthStatus, CashedOut, CashOutDateStamp, TerminalCode, TripNo, InvoicePaymentRef, Description, CardBrand, EntryMethod, BranchCode, UserCreated, DateCreated
+FROM InvoicePayment WHERE DateStamp >= '$paySince'
+ORDER BY DateStamp
+"@
+      "payment-types" = @"
+SELECT Code, Description, AR, COD, Finance, NetDays, DayInNextMonth, PaymentGroupCode, GLAccount, Obsolete, PaymentProcessingType FROM PaymentType
+"@
+      "suppliers" = @"
+SELECT Code, Description, SupplierTypeCode, InventorySupplier, Obsolete, DueDays, DueDateTerms, DiscountDays, DiscountDateTerms, DiscountPercentage, POFloorPlanDays, FloorPlanning, ETADays, AvgLeadTime, POCostFactor, DefaultPOCost, CRDueDays, CRDueDateTerms, UseDueDateForSplitPayments, AutoCreateAPInvoiceCosting, POUpdateAP, YTDPurchase, LastYearPurchase
+FROM Supplier
+"@
+      "open-po-lines" = @"
+SELECT pm.POCode, pm.LineTimeStamp, pm.ModelCode, pm.QtyOrdered, pm.QtyReceived, pm.QtyPrevReceived, pm.UnitCost, pm.ExtendedUnitCost, pm.QuotedCost, pm.StandardCost, pm.CostFactor, pm.Costed,
+       pm.ETADate, pm.ETADateMostUpdated, pm.RequestedDeliveryDate, pm.RSDConfirmed, pm.Received, pm.BackOrderInvoiceCode, pm.DateStamp,
+       p.SupplierCode, p.SupplierDescription, p.DateOrdered, p.DateConfirmed, p.DateReceived, p.Received AS PO_Received, p.Unreleased, p.FloorPlan, p.FloorPlanDays, p.TotalOrdered, p.TotalReceived, p.TotalCosted, p.Buyer
+FROM POModel pm INNER JOIN PO p ON pm.POCode = p.Code
+WHERE pm.QtyOrdered > pm.QtyReceived AND p.DateOrdered >= '$poSince' AND (p.Unreleased IS NULL OR p.Unreleased = 0)
+ORDER BY p.DateOrdered, pm.POCode
+"@
+      "po-received" = @"
+SELECT p.Code, p.SupplierCode, p.SupplierDescription, p.DateOrdered, p.DateReceived, p.DateCosted, p.DateConfirmedReceived, p.Received, p.TotalOrdered, p.TotalReceived, p.TotalCosted, p.FloorPlan, p.FloorPlanDays, p.Paid, p.DatePaid, p.Buyer
+FROM PO p
+WHERE p.DateReceived >= '$rcvSince' OR p.DateCosted >= '$rcvSince'
+ORDER BY p.DateReceived
+"@
+      "supplier-invoices" = @"
+SELECT si.SupplierCode, si.SupplierInvoice, si.InvoiceDate, si.ImportDate, si.CostedDate, si.ImportType, si.FreightInvoice
+FROM POSupplierInvoice si WHERE si.InvoiceDate >= '$rcvSince' OR si.ImportDate >= '$rcvSince'
+"@
+    }
+    foreach ($name in $steps.Keys) {
+      try { $fnc.datasets[$name] = Export-Query $conn $steps[$name] (Join-Path $LatestDir "finance-$name.csv") "finance $name" }
+      catch { Log ("finance {0} FAILED (bundle continues without it): {1}" -f $name, $_.Exception.Message); if ($conn.State -ne [System.Data.ConnectionState]::Open) { $conn.Open() } }
+    }
+    try {
+      $json = $fnc | ConvertTo-Json -Depth 6 -Compress
+      $path = Join-Path $FncOutbox "epass-finance-$stamp.json"
+      [System.IO.File]::WriteAllText($path, $json, (New-Object System.Text.UTF8Encoding($false)))
+      Log ("bundle -> {0} ({1:n0} KB; cash ops)" -f $path, ($json.Length / 1024))
+    } catch { Log ("finance bundle FAILED: {0}" -f $_.Exception.Message) }
+  } else { Log "finance: skipped this run (first run of each hour only, or -Finance)" }
 
   # ---- SERVICE CATALOGUE (fourth bundle) ---------------------------------
   # Every finished SV/WTY ticket with its complaint, work performed, unit,

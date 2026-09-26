@@ -55,12 +55,12 @@ $KeepProcessedDays = 60
 $KeepBundleDays = 2
 # ----------------------------------------------------------------------------
 
-$Kinds = @("inventory", "quotes", "open-orders", "dispatch", "invoices", "epass-open-orders", "epass-open-service", "epass-finished-orders", "epass-service-catalogue", "epass-tax")
+$Kinds = @("inventory", "quotes", "open-orders", "dispatch", "invoices", "epass-open-orders", "epass-open-service", "epass-finished-orders", "epass-service-catalogue", "epass-tax", "epass-finance")
 # Feeds that are a full SNAPSHOT of the moment - when several pile up, only
 # the newest matters. The catalogue and tax bundles are NOT snapshots: each
 # one is a distinct date slice (a backfill writes one per year / quarter in a
 # single run), so every one of them must go up, oldest first.
-$SnapshotKinds = @("epass-open-orders", "epass-open-service", "epass-finished-orders")
+$SnapshotKinds = @("epass-open-orders", "epass-open-service", "epass-finished-orders", "epass-finance")
 $LogFile = Join-Path $Root "agent.log"
 
 function Log([string]$msg) {

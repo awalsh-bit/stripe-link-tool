@@ -152,7 +152,25 @@
     .copy-model { cursor: copy; border-bottom: 1px dashed rgba(var(--primary-rgb), 0.5); }
     .copy-model:hover { color: var(--primary); }
     .copied { color: var(--primary); font-size: 10.5px; font-weight: 800; margin-left: 6px; }
-    @media (max-width: 720px) { body { padding: 14px 12px 40px; } .surface { padding: 16px; } }
+    /* Inventory-position sheet on a phone (Andrew 9/26): full-screen, the
+       header pinned with Close, every table scrolls sideways inside the
+       sheet instead of pushing the whole sheet off the screen. */
+    .pos-b .pos-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; max-width: 100%; margin-bottom: 4px; }
+    .pos-b .pos-scroll > table { min-width: max-content; }
+    body.pos-open { overflow: hidden; }
+    @media (max-width: 720px) {
+      body { padding: 14px 12px 40px; } .surface { padding: 16px; }
+      .pos-overlay { padding: 0; overscroll-behavior: contain; }
+      .pos { border-radius: 0; max-width: none; min-height: 100%; box-shadow: none; }
+      .pos-h { position: sticky; top: 0; background: #fff; z-index: 2; padding: 12px 14px; }
+      .pos-h h3 { font-size: 15.5px; line-height: 1.3; }
+      .pos-b { padding: 12px 14px 32px; }
+      .pos-line { gap: 8px 16px; font-size: 13px; }
+      .pos-line .sup-in { max-width: 100%; }
+      .pos-sum { display: table; }
+      .pos-sum th, .pos-sum td { padding: 6px 9px; }
+      table.pos-d { font-size: 12px; }
+    }
   </style>
 </head>
 <body>
@@ -471,7 +489,7 @@
       });
       // ---- inventory position (the ePASS "Serial # for Model" view) ----
       async function openPosition(key, lineId) {
-        $("posOverlay").classList.add("show");
+        $("posOverlay").classList.add("show"); document.body.classList.add("pos-open"); $("posOverlay").scrollTop = 0;
         const ui = lineId ? LINE_UI[lineId] : null;
         const lineBlock = ui ? `<div class="pos-line" id="posLine">
             <span><span class="k">Qty</span><b>${ui.qty}</b></span><span><span class="k">Written</span><b>${ui.m.written}</b></span>
@@ -480,7 +498,7 @@
             <span class="${ui.m.proposed > 0 ? "short" : ""}"><span class="k">Short</span><b>${ui.m.proposed}</b></span>
             <span>${ui.badges}</span>${ui.supIn ? `<span class="sup">${ui.supIn}</span>` : ""}</div>` : "";
         $("posTitle").textContent = "Inventory position"; $("posSub").textContent = ""; $("posBody").innerHTML = lineBlock + `<div class="empty">Loading…</div>`;
-        const wireSup = () => { const sel = $("posBody").querySelector("[data-model-sup]"); if (!sel) return; sel.addEventListener("change", async () => { try { const b = state.board; const modelSupplier = { ...(b.settings?.modelSupplier || {}) }; if (sel.value.trim()) modelSupplier[sel.dataset.modelSup] = sel.value.trim(); else delete modelSupplier[sel.dataset.modelSup]; await api("/api/written-models/settings", { method: "POST", body: JSON.stringify({ modelSupplier }) }); setStatus("Supplier saved for this model.", "ok"); await load(); $("posOverlay").classList.remove("show"); } catch (err) { setStatus(err.message, "error"); } }); };
+        const wireSup = () => { const sel = $("posBody").querySelector("[data-model-sup]"); if (!sel) return; sel.addEventListener("change", async () => { try { const b = state.board; const modelSupplier = { ...(b.settings?.modelSupplier || {}) }; if (sel.value.trim()) modelSupplier[sel.dataset.modelSup] = sel.value.trim(); else delete modelSupplier[sel.dataset.modelSup]; await api("/api/written-models/settings", { method: "POST", body: JSON.stringify({ modelSupplier }) }); setStatus("Supplier saved for this model.", "ok"); await load(); $("posOverlay").classList.remove("show"); document.body.classList.remove("pos-open"); } catch (err) { setStatus(err.message, "error"); } }); };
         wireSup();
         try {
           const p = await api(`/api/written-models/position?model=${encodeURIComponent(key)}`);
@@ -511,9 +529,14 @@
           $("posBody").innerHTML = lineBlock + summary + units + onOrder + written + note; wireSup();
         } catch (err) { $("posBody").innerHTML = lineBlock + `<div class="empty">${esc(err.message)}</div>`; wireSup(); }
       }
-      $("posClose").addEventListener("click", () => $("posOverlay").classList.remove("show"));
-      $("posOverlay").addEventListener("click", (ev) => { if (ev.target === $("posOverlay")) $("posOverlay").classList.remove("show"); });
-      document.addEventListener("keydown", (ev) => { if (ev.key === "Escape") { $("posOverlay").classList.remove("show"); $("rejOverlay").classList.remove("show"); } });
+      const closePosition = () => { $("posOverlay").classList.remove("show"); document.body.classList.remove("pos-open"); };
+      $("posClose").addEventListener("click", closePosition);
+      $("posOverlay").addEventListener("click", (ev) => { if (ev.target === $("posOverlay")) closePosition(); });
+      document.addEventListener("keydown", (ev) => { if (ev.key === "Escape") { closePosition(); $("rejOverlay").classList.remove("show"); } });
+      // Every table in the sheet scrolls sideways on its own (phones).
+      new MutationObserver(() => {
+        $("posBody").querySelectorAll("table").forEach((t) => { if (!t.parentElement.classList.contains("pos-scroll")) { const w = document.createElement("div"); w.className = "pos-scroll"; t.replaceWith(w); w.appendChild(t); } });
+      }).observe($("posBody"), { childList: true });
       $("codToggle").addEventListener("click", () => { state.hideCod = !state.hideCod; render(); });
       $("doneToggle").addEventListener("click", () => { state.showDone = !state.showDone; render(); });
       $("supplierSel").addEventListener("change", () => { state.supplier = $("supplierSel").value; render(); });

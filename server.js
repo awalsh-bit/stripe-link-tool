@@ -186,6 +186,8 @@ import {
   listShopAllowedZips,
   addShopAllowedZips,
   removeShopAllowedZip,
+  setShopAllowedZipLabel,
+  setShopBlockedBrandLabel,
   seedShopBlockedBrands,
   listShopBlockedBrands,
   addShopBlockedBrands,
@@ -231,6 +233,8 @@ import { loadWarrantyTerms, lookupWarranty, warrantyTermsSummary } from "./lib/w
 import { getFieldRoute, markEnroute, markArrived, submitOutcome, listVerifyQueue, verifyParts, getFindingsForSv, stopContext, addFieldNote, savePhoto as saveFieldPhoto, getPhoto as getFieldPhoto, flagModel, listModelFlags, reviewModelFlag, dayDollars, autoLaborLines, listReadyToBill, markBilled } from "./lib/service-field-postgres.js";
 import { ensureJourneyToken, resolveJourney, journeyTokenFor } from "./lib/journey-tracker-postgres.js";
 import { processTaxBundle, taxStatus, taxReport, taxInvoiceLines } from "./lib/tax-report-postgres.js";
+import { parseFinanceBundle, replaceEpassFinance, getEpassFinanceMeta, financeRows, listSupplierTerms, saveSupplierTerms, deleteSupplierTerms } from "./lib/epass-finance-postgres.js";
+import { computeCashProjection } from "./lib/cash-projection.js";
 import { resolveRole, roleEmails, hasRole, listRoles as listServiceRoles, setRole as setServiceRole, ROLES as SERVICE_ROLES } from "./lib/service-roles.js";
 import { processCatalogueBundle, catalogueStatus, customerHistory as catalogueCustomerHistory, callDetail as catalogueCallDetail, modelInsight as catalogueModelInsight, laborRateOptions, laborRateMeta } from "./lib/epass-catalogue-postgres.js";
 import {
@@ -474,7 +478,7 @@ import {
 } from "./lib/service-journey-postgres.js";
 import { getServiceBoard, moveServiceJob, unscheduleServiceJob, sequenceTechDay, setJobDispatchFlags, addRouteBlock, removeRouteBlock, saveTechSettings, setPartsLoaded, confirmRouteDay, cancelServiceJob, uncancelServiceJob, markShopRepaired, CANCEL_REASONS, diagnoseServiceBoard, getServiceHistory, moveSelfHold, searchBoardJobs } from "./lib/service-board-postgres.js";
 import {
-  parseOpenOrdersBundle, replaceEpassOpenOrders, getEpassOpenOrdersMeta, getEpassOpenOrder, listEpassOpenOrders, feedInventoryRows,
+  parseOpenOrdersBundle, replaceEpassOpenOrders, getEpassOpenOrdersMeta, getEpassOpenOrder, listEpassOpenOrders, feedInventoryRows, openBookRows,
   parseOpenServiceBundle, replaceEpassOpenService, getEpassOpenServiceMeta, getEpassOpenService, listEpassOpenService
 } from "./lib/epass-open-orders-postgres.js";
 import {
@@ -764,6 +768,7 @@ const INTERNAL_PAGE_PATHS = new Set([
   "/warranty-terms.html",
   "/service-field.html",
   "/tax-report.html",
+  "/cash-projection.html",
   "/satisfaction-results.html",
   "/case-visit-survey.html",
   "/case-visit-results.html",
@@ -869,6 +874,7 @@ const EVERYONE_PAGE_PATHS = new Set([
 // check) rides on the /commissions.html page grant; executives still pass.
 const EXECUTIVE_ONLY_PAGE_PATHS = new Set([
   "/tax-report.html", // sales tax audit report (Andrew 9/23: executives only)
+  "/cash-projection.html", // Cash Ops Projection (Andrew 9/26: executives only)
   "/user-admin.html",
   "/send-notification.html",
   "/audit-log.html",
@@ -1017,6 +1023,7 @@ const PAGE_LABELS = {
   "/warranty-terms.html": "Warranty Terms Reference",
   "/service-field.html": "Tech Field Tool",
   "/tax-report.html": "Sales Tax Report",
+  "/cash-projection.html": "Cash Ops Projection",
   "/satisfaction-results.html": "Satisfaction Results",
   "/case-visit-survey.html": "Case Visit Survey",
   "/case-visit-results.html": "Case Visit Results",
@@ -9536,6 +9543,13 @@ app.post("/api/shop/allowed-zips", requirePagePermission("/shop-orders.html"), a
     return res.json({ ok: true, added, zips: await listShopAllowedZips() });
   } catch (err) { return res.status(400).json({ error: err.message || "Unable to add those ZIPs." }); }
 });
+app.patch("/api/shop/allowed-zips/:zip", requirePagePermission("/shop-orders.html"), async (req, res) => {
+  try {
+    await setShopAllowedZipLabel({ zip: req.params.zip, label: req.body?.label || "", by: req.authUser?.email || "" });
+    recordAudit({ ip: req.ip, actorUserId: req.authUser?.id || null, action: "shop_zip_relabeled", targetUserId: null, detail: { zip: String(req.params.zip).slice(0, 10), label: String(req.body?.label || "").slice(0, 60) } }).catch(() => {});
+    return res.json({ ok: true, zips: await listShopAllowedZips() });
+  } catch (err) { return res.status(400).json({ error: err.message || "Unable to update that ZIP." }); }
+});
 app.delete("/api/shop/allowed-zips/:zip", requirePagePermission("/shop-orders.html"), async (req, res) => {
   try {
     const removed = await removeShopAllowedZip(req.params.zip);
@@ -9557,6 +9571,13 @@ app.post("/api/shop/blocked-brands", requirePagePermission("/shop-orders.html"),
     recordAudit({ ip: req.ip, actorUserId: req.authUser?.id || null, action: "shop_blocked_brands_added", targetUserId: null, detail: { added, label: String(req.body?.label || "").slice(0, 60) } }).catch(() => {});
     return res.json({ ok: true, added, brands: await listShopBlockedBrands() });
   } catch (err) { return res.status(400).json({ error: err.message || "Unable to add that brand." }); }
+});
+app.patch("/api/shop/blocked-brands/:entry", requirePagePermission("/shop-orders.html"), async (req, res) => {
+  try {
+    await setShopBlockedBrandLabel({ entry: req.params.entry, label: req.body?.label || "" });
+    recordAudit({ ip: req.ip, actorUserId: req.authUser?.id || null, action: "shop_blocked_brand_relabeled", targetUserId: null, detail: { entry: String(req.params.entry).slice(0, 40), label: String(req.body?.label || "").slice(0, 60) } }).catch(() => {});
+    return res.json({ ok: true, brands: await listShopBlockedBrands() });
+  } catch (err) { return res.status(400).json({ error: err.message || "Unable to update that brand." }); }
 });
 app.delete("/api/shop/blocked-brands/:entry", requirePagePermission("/shop-orders.html"), async (req, res) => {
   try {
@@ -9888,6 +9909,7 @@ let epassCatalogueChain = Promise.resolve();
 let lastCataloguePostProcessing = null;
 // epass-tax bundle (posted invoices + lines with tax flags; Tax Report)
 let epassTaxChain = Promise.resolve();
+let lastFinanceBundle = null;
 let lastTaxPostProcessing = null;
 // Finished orders (Andrew, 9/22: "replace the OE-23 warehouse too"): the
 // epass-finished-orders bundle (hourly, own outbox since the 16:30 timeout)
@@ -10150,6 +10172,15 @@ app.post("/api/epass-agent/upload", express.raw({ type: () => true, limit: "60mb
       return res.json({ ok: true, kind, rows, since: bundle.taxSince || "", until: bundle.taxUntil || "", postProcessing: "running", pulledAt });
     }
 
+    // Sixth bundle: open AR / AP, payments, supplier terms, open POs (Cash Ops Projection).
+    if (kind === "epass-finance") {
+      const bundle = parseFinanceBundle(req.body);
+      const counts = await replaceEpassFinance(bundle, { filename: sourceFile });
+      lastFinanceBundle = { finishedAt: new Date().toISOString(), pulledAt: bundle.pulledAt || "", filename: sourceFile.slice(0, 120), ...counts };
+      recordAudit({ ip: req.ip, actorUserId: null, action: "epass_finance_received", targetUserId: null, detail: { ...counts, pulledAt: bundle.pulledAt || "", machine: bundle.machine || "", filename: sourceFile.slice(0, 120), via: "epass-agent" } }).catch(() => {});
+      return res.json({ ok: true, kind, ...counts, pulledAt: bundle.pulledAt || "" });
+    }
+
     // Same feed, service side: open SV/WTY tickets + labor + parts + comments + notes.
     if (kind === "epass-open-service") {
       const bundle = parseOpenServiceBundle(req.body);
@@ -10182,7 +10213,7 @@ app.post("/api/epass-agent/upload", express.raw({ type: () => true, limit: "60mb
       return res.json({ ok: true, kind, ...counts, mirror: "running", pulledAt });
     }
 
-    return res.status(400).json({ error: `Unknown upload kind "${kind}" — expected inventory, quotes, open-orders, dispatch, invoices, epass-open-orders, epass-open-service, epass-finished-orders, epass-service-catalogue, or epass-tax.` });
+    return res.status(400).json({ error: `Unknown upload kind "${kind}" — expected inventory, quotes, open-orders, dispatch, invoices, epass-open-orders, epass-open-service, epass-finished-orders, epass-service-catalogue, epass-tax, or epass-finance.` });
   } catch (err) {
     console.error("ePASS agent upload failed:", err.message);
     return res.status(400).json({ error: err.message || "Unable to process that file." });
@@ -10617,6 +10648,48 @@ app.get("/api/warranty-terms/lookup", requireWarrantyTerms, (req, res) => {
 
 // ---- Sales Tax Report (Accounting, executives) — tax-report.html ----------
 // The Crystal TAX REPORT rebuilt on the epass-tax bundle (lib/tax-report-postgres.js).
+// ---------------------------------------------------------------------------
+// Cash Ops Projection (Accounting, executives only — Andrew 9/26): the
+// sales-and-purchasing cash picture from ePASS's own ledgers plus the open
+// book (lib/cash-projection.js), and the supplier payment terms it schedules
+// unbilled receipts and open POs on.
+// ---------------------------------------------------------------------------
+const requireCashOps = [requirePagePermission("/cash-projection.html"), requireExecutiveApi];
+app.get("/api/cash-projection", requireCashOps, async (req, res) => {
+  try {
+    const months = Math.min(12, Math.max(3, Number(req.query.months) || 6));
+    const [openBook, finance, actuals, salesMeta] = await Promise.all([
+      openBookRows(),
+      financeRows(),
+      listOrderDetail({ startDate: new Date(Date.now() - 200 * 86400000).toLocaleDateString("en-CA", { timeZone: APP_TIMEZONE }), endDate: new Date().toLocaleDateString("en-CA", { timeZone: APP_TIMEZONE }) }).catch(() => []),
+      getEpassOpenOrdersMeta().catch(() => null)
+    ]);
+    const today = new Date().toLocaleDateString("en-CA", { timeZone: APP_TIMEZONE });
+    const out = computeCashProjection({ openBook, finance, actuals, today, months });
+    const supplierNames = Object.fromEntries((finance.suppliers || []).map((x) => [x.code, x.description]));
+    sjAudit(req, "cash_projection_viewed", { months, book: out.book.total, ar: out.ar.open, ap: out.ap.open });
+    return res.json({ ...out, supplierNames, terms: await listSupplierTerms(), feeds: { sales: salesMeta?.meta ? { pulledAt: salesMeta.meta.pulled_at, receivedAt: salesMeta.meta.received_at } : null, finance: finance.meta, lastFinanceBundle } });
+  } catch (err) { console.error("Cash projection failed:", err.message); return res.status(400).json({ error: err.message }); }
+});
+app.get("/api/cash-projection/terms", requireCashOps, async (req, res) => {
+  try { return res.json({ terms: await listSupplierTerms() }); } catch (err) { return res.status(400).json({ error: err.message }); }
+});
+app.post("/api/cash-projection/terms", requireCashOps, async (req, res) => {
+  try {
+    const b = req.body || {};
+    const terms = await saveSupplierTerms({ supplierCode: b.supplierCode, closeDays: b.closeDays, dueDays: b.dueDays, installments: b.installments, note: b.note, byEmail: req.authUser?.email || "" });
+    sjAudit(req, "supplier_terms_saved", { supplierCode: String(b.supplierCode || "*").slice(0, 40) });
+    return res.json({ ok: true, terms });
+  } catch (err) { return res.status(400).json({ error: err.message }); }
+});
+app.delete("/api/cash-projection/terms/:code", requireCashOps, async (req, res) => {
+  try { const terms = await deleteSupplierTerms(req.params.code); sjAudit(req, "supplier_terms_removed", { supplierCode: String(req.params.code).slice(0, 40) }); return res.json({ ok: true, terms }); }
+  catch (err) { return res.status(400).json({ error: err.message }); }
+});
+app.get("/api/cash-projection/status", requireCashOps, async (req, res) => {
+  try { return res.json({ finance: await getEpassFinanceMeta(), last: lastFinanceBundle }); } catch (err) { return res.status(400).json({ error: err.message }); }
+});
+
 const requireTaxReport = [requirePagePermission("/tax-report.html"), requireExecutiveApi];
 app.get("/api/tax-report/status", requireTaxReport, async (req, res) => {
   try { return res.json({ ...(await taxStatus()), last: lastTaxPostProcessing }); } catch (err) { return res.status(400).json({ error: err.message }); }

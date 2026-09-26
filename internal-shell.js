@@ -235,7 +235,8 @@
           { href: "mileage-review.html", title: "Mileage Review" },
           { href: "receipts.html", title: "Card Receipts" },
           { href: "receipt-report.html", title: "Card Receipt Report" },
-          { href: "tax-report.html", title: "Sales Tax Report" }
+          { href: "tax-report.html", title: "Sales Tax Report" },
+          { href: "cash-projection.html", title: "Cash Ops Projection" }
         ]
       },
       {

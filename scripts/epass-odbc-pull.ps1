@@ -798,7 +798,6 @@ ORDER BY sp.Code
   if ($Finance -or $doFinished) {
     $fnc = [ordered]@{ pulledAt = (Get-Date).ToString("s"); source = $Dsn; machine = $env:COMPUTERNAME; datasets = [ordered]@{} }
     $paySince = (Get-Date).AddMonths(-13).ToString("yyyy-MM-01")
-    $poSince = (Get-Date).AddMonths(-18).ToString("yyyy-MM-dd")
     $rcvSince = (Get-Date).AddDays(-120).ToString("yyyy-MM-dd")
     $steps = [ordered]@{
       "ar-current" = @"
@@ -829,10 +828,11 @@ FROM Supplier
 "@
       "open-po-lines" = @"
 SELECT pm.POCode, pm.LineTimeStamp, pm.ModelCode, pm.QtyOrdered, pm.QtyReceived, pm.QtyPrevReceived, pm.UnitCost, pm.ExtendedUnitCost, pm.QuotedCost, pm.StandardCost, pm.CostFactor, pm.Costed,
-       pm.ETADate, pm.ETADateMostUpdated, pm.RequestedDeliveryDate, pm.RSDConfirmed, pm.Received, pm.BackOrderInvoiceCode, pm.DateStamp,
-       p.SupplierCode, p.SupplierDescription, p.DateOrdered, p.DateConfirmed, p.DateReceived, p.Received AS PO_Received, p.Unreleased, p.FloorPlan, p.FloorPlanDays, p.TotalOrdered, p.TotalReceived, p.TotalCosted, p.Buyer
+       pm.ETADate, pm.ETADateMostUpdated, pm.RequestedDeliveryDate, pm.RSDConfirmed, pm.RSDMostUpdated, pm.Received, pm.BackOrderInvoiceCode, pm.DateStamp,
+       p.SupplierCode, p.SupplierDescription, p.DateOrdered, p.DateConfirmed, p.Confirmed, p.UserConfirmed, p.DateReceived, p.Received AS PO_Received, p.Unreleased, p.Authorized, p.FloorPlan, p.FloorPlanDays,
+       p.TotalOrdered, p.TotalReceived, p.TotalCosted, p.Buyer, p.RequestedDeliveryDate AS PO_RequestedDeliveryDate, p.ShipToType, p.ShipToCode, p.ShipToName, p.ReceiveToLocationCode
 FROM POModel pm INNER JOIN PO p ON pm.POCode = p.Code
-WHERE pm.QtyOrdered > pm.QtyReceived AND p.DateOrdered >= '$poSince' AND (p.Unreleased IS NULL OR p.Unreleased = 0)
+WHERE pm.QtyOrdered > pm.QtyReceived
 ORDER BY p.DateOrdered, pm.POCode
 "@
       "po-received" = @"

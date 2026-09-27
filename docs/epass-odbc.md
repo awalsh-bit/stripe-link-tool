@@ -459,6 +459,22 @@ fields (`FloorPlanDueDate`, `PO.Paid`) are not maintained in ePASS and are
 not read. Expenses are out of scope until the budget tool (GLBudget /
 GLFinancialData are there for it).
 
+### 8b3g. Purchase Order Health (2026-09-27)
+
+`po-health.html` (Purchasing menu; anyone with Ordering Report access) —
+every open PO line in ePASS (`open-po-lines` in the finance bundle now
+carries ALL lines with `QtyOrdered > QtyReceived`, any age, released or not,
+plus the PO header's `Confirmed` / `DateConfirmed` / `Unreleased` /
+`RequestedDeliveryDate` / ship-to), rolled up per PO by `lib/po-health.js`
+with flags: **late** (requested delivery date in the past), **no date** (no
+requested date and no ETA), **ETA passed**, **unconfirmed** (no supplier
+confirmation), **ticket closed** (`BackOrderInvoiceCode` not on the open
+book), **stale** (open 180+ days), **partial**, **unreleased**. ePASS's
+`1899-12-30` dates read as blank. Tiles filter, PO rows expand to lines, CSV
+export. The Cash Ops Projection keeps only released POs ordered in the last
+18 months in its outflows (`po.skippedStale` / `skippedUnreleased` show what
+it left out); the health page shows everything.
+
 ### 8b3b. Shop prices from ePASS price levels (2026-09-24)
 
 `model-list-prices` (sales bundle) carries `ModelListPrice` for every model

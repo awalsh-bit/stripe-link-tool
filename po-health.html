@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="robots" content="noindex,nofollow,noarchive" />
+  <title>Wilson AC &amp; Appliance - Purchase Order Health</title>
+  <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+  <link rel="stylesheet" href="internal-shell.css" />
+  <style>
+    :root { --bg: #f7f8fc; --card: #ffffff; --text: #1f2937; --muted: #6b7280; --border: #dbe1ea; --shadow: 0 10px 35px rgba(0, 0, 0, 0.08); --radius: 18px; }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: "Roboto", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: linear-gradient(180deg, var(--primary-tint) 0%, var(--bg) 100%); color: var(--text); min-height: 100vh; padding: 32px 16px; }
+    .wrap { max-width: 1480px; margin: 0 auto; }
+    .card { background: var(--card); border: 1px solid rgba(var(--primary-rgb), 0.12); box-shadow: var(--shadow); border-radius: var(--radius); padding: 22px; margin-bottom: 18px; overflow: hidden; }
+    h1 { margin: 0 0 6px; font-size: 22px; font-weight: 800; }
+    .intro p { margin: 0; color: var(--muted); font-size: 14px; max-width: 90ch; line-height: 1.5; }
+    .cover { font-size: 13px; color: var(--muted); }
+    .num { font-variant-numeric: tabular-nums; text-align: right; }
+    .tiles { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px; margin: 14px 0; }
+    .tile { border: 1px solid var(--border); border-radius: 14px; padding: 12px 14px; background: var(--primary-faint); cursor: pointer; min-width: 0; }
+    .tile.on { outline: 2px solid var(--primary); }
+    .tile span { display: block; font-size: 11.5px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); font-weight: 700; margin-bottom: 4px; }
+    .tile b { display: block; font-size: 22px; font-weight: 800; line-height: 1.1; font-variant-numeric: tabular-nums; }
+    .tile small { display: block; margin-top: 4px; color: var(--muted); font-size: 12px; }
+    .bar { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-bottom: 12px; }
+    .bar input, .bar select { border: 1px solid var(--border); border-radius: 10px; padding: 8px 10px; font-size: 13px; font-family: inherit; background: #fff; }
+    .bar input[type=search] { flex: 1; min-width: 200px; }
+    .btn { border: none; border-radius: 10px; cursor: pointer; font-size: 12.5px; font-weight: 600; padding: 8px 13px; font-family: inherit; background: #fff; color: #374151; border: 1px solid var(--border); }
+    .scroll { overflow-x: auto; max-width: 100%; -webkit-overflow-scrolling: touch; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { text-align: left; padding: 9px 9px; border-bottom: 1px solid #edf1f7; vertical-align: top; font-size: 13.5px; white-space: nowrap; }
+    th { font-size: 11.5px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); position: sticky; top: 0; background: #fff; }
+    th.num, td.num { text-align: right; }
+    tr.po { cursor: pointer; } tr.po:hover td { background: var(--primary-faint); }
+    tr.po.sev3 td:first-child { box-shadow: inset 4px 0 0 #dc2626; } tr.po.sev2 td:first-child { box-shadow: inset 4px 0 0 #f59e0b; } tr.po.sev1 td:first-child { box-shadow: inset 4px 0 0 #94a3b8; }
+    tr.lines td { background: #f8fafc; padding: 6px 9px 10px 28px; white-space: normal; }
+    table.inner { width: 100%; } table.inner th, table.inner td { font-size: 12.5px; padding: 5px 8px; background: transparent; position: static; }
+    .flag { display: inline-block; border-radius: 999px; padding: 2px 9px; font-size: 11px; font-weight: 700; margin-right: 4px; background: #f1f5f9; color: #475569; }
+    .flag.s3 { background: #fee2e2; color: #991b1b; } .flag.s2 { background: #fef3c7; color: #92400e; } .flag.s1 { background: #e2e8f0; color: #334155; } .flag.s0 { background: #dbeafe; color: #1e40af; }
+    .muted { color: var(--muted); } .neg { color: #991b1b; }
+    .empty { color: var(--muted); padding: 18px 10px; }
+    @media (max-width: 1100px) { .tiles { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+    @media (max-width: 700px) { body { padding: 12px 8px; } .card { padding: 14px; } .tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; } .tile b { font-size: 18px; } th, td { padding: 8px 7px; font-size: 12.5px; } tr.lines td { padding-left: 10px; } }
+  </style>
+</head>
+<body data-shell-label="Purchase Order Health" data-shell-icon="purchasing">
+  <div class="wrap">
+    <div id="internal-shell-header"></div>
+    <div class="card intro">
+      <h1>Purchase Order Health</h1>
+      <p>Every open purchase-order line in ePASS, rolled up by PO and flagged: <b>late</b> (requested delivery date passed), <b>no date</b> (no requested date and no ETA), <b>ETA passed</b>, <b>unconfirmed</b> by the supplier, ordered for a <b>ticket that's closed</b>, <b>stale</b> (open 180+ days), <b>partial</b> receipts, and <b>unreleased</b> drafts. Click a tile to filter, click a PO to see its lines. Nothing here changes ePASS — fix the PO there and it clears on the next hourly feed.</p>
+      <div class="cover" id="feed" style="margin-top:8px;"></div>
+      <div class="tiles" id="tiles"></div>
+      <div class="bar">
+        <input type="search" id="q" placeholder="PO, model, supplier, customer, ticket…">
+        <select id="supplier"><option value="">All suppliers</option></select>
+        <select id="buyer"><option value="">All buyers</option></select>
+        <select id="sort"><option value="severity">Worst first</option><option value="date">Next date</option><option value="cost">Open cost</option><option value="age">Oldest</option></select>
+        <button type="button" class="btn" id="clear">Clear</button>
+        <button type="button" class="btn" id="csv">Download CSV</button>
+        <span class="cover" id="count"></span>
+      </div>
+      <div class="scroll"><table id="tbl"></table></div>
+    </div>
+    <div id="internal-shell-footer"></div>
+  </div>
+
+  <script src="internal-shell.js"></script>
+  <script>
+    (() => {
+      const $ = (id) => document.getElementById(id);
+      const esc = (v) => String(v ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+      const money = (n) => "$" + (Number(n) || 0).toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+      const money2 = (n) => "$" + (Number(n) || 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      const day = (d) => d ? new Date(d + "T12:00:00Z").toLocaleDateString("en-US", { month: "short", day: "numeric", year: "2-digit", timeZone: "UTC" }) : "—";
+      let data = null; const state = { flag: "", open: new Set() };
+      const flagHtml = (f) => { const m = data.flags[f]; return `<span class="flag s${m.severity}" title="${esc(m.note)}">${esc(m.label)}</span>`; };
+
+      function filtered() {
+        const q = $("q").value.trim().toUpperCase(), sup = $("supplier").value, buyer = $("buyer").value;
+        let rows = data.pos.filter((p) => (!state.flag || p.flags.includes(state.flag)) && (!sup || (p.supplier || p.supplierCode) === sup) && (!buyer || p.buyer === buyer)
+          && (!q || `${p.po} ${p.supplier} ${p.supplierCode} ${p.buyer} ${p.shipTo} ${p.lines.map((l) => l.model + " " + l.forInvoice + " " + l.ticketCustomer).join(" ")}`.toUpperCase().includes(q)));
+        const s = $("sort").value;
+        if (s === "date") rows = [...rows].sort((a, b) => (a.nextDate || "9999") < (b.nextDate || "9999") ? -1 : 1);
+        if (s === "cost") rows = [...rows].sort((a, b) => b.openCost - a.openCost);
+        if (s === "age") rows = [...rows].sort((a, b) => (b.ageDays || 0) - (a.ageDays || 0));
+        return rows;
+      }
+
+      function render() {
+        const t = data.totals;
+        $("feed").textContent = data.feed?.pulledAt ? `ePASS feed ${data.feed.pulledAt.replace("T", " ")} · ${t.pos} open POs · ${t.lines} lines · ${money(t.openCost)} still to receive · today ${data.today}` : "No finance feed yet — the list fills on the first hourly pull with the current script.";
+        const order = ["late", "no-date", "eta-passed", "unconfirmed", "ticket-closed", "stale", "partial", "unreleased"];
+        $("tiles").innerHTML = `<div class="tile${state.flag === "" ? " on" : ""}" data-flag=""><span>All open POs</span><b>${t.pos}</b><small>${t.flagged} flagged · ${t.clean} clean</small></div>` +
+          order.map((f) => `<div class="tile${state.flag === f ? " on" : ""}" data-flag="${f}"><span>${esc(data.flags[f].label)}</span><b>${data.counts[f].pos}</b><small>${money(data.counts[f].cost)} open</small></div>`).join("");
+        $("tiles").querySelectorAll(".tile").forEach((el) => el.addEventListener("click", () => { state.flag = el.dataset.flag; render(); }));
+        const rows = filtered();
+        $("count").textContent = `${rows.length} PO${rows.length === 1 ? "" : "s"} · ${money(rows.reduce((s, p) => s + p.openCost, 0))} open`;
+        $("tbl").innerHTML = `<thead><tr><th>PO</th><th>Supplier</th><th>Ordered</th><th>Confirmed</th><th>Req. delivery</th><th>Next ETA</th><th class="num">Lines</th><th class="num">Open cost</th><th>Buyer</th><th>Flags</th></tr></thead><tbody>${rows.map((p) => `
+          <tr class="po sev${p.severity}" data-po="${esc(p.po)}">
+            <td><b>${esc(p.po)}</b>${p.shipTo ? `<div class="muted" style="font-size:11.5px;">${esc(p.shipTo)}</div>` : ""}</td>
+            <td>${esc(p.supplier || p.supplierCode)}</td>
+            <td>${day(p.ordered)}${p.ageDays != null ? ` <span class="muted">${p.ageDays}d</span>` : ""}</td>
+            <td>${p.confirmed ? day(p.confirmed) : p.confirmation ? esc(p.confirmation) : '<span class="neg">—</span>'}</td>
+            <td>${p.rdd ? day(p.rdd) : (p.lines.some((l) => l.rdd) ? "per line" : '<span class="neg">blank</span>')}</td>
+            <td>${p.nextDate ? day(p.nextDate) : "—"}</td>
+            <td class="num">${p.lines.length}</td>
+            <td class="num">${money(p.openCost)}</td>
+            <td>${esc(p.buyer || "—")}</td>
+            <td>${p.flags.map(flagHtml).join("") || '<span class="muted">—</span>'}</td>
+          </tr>${state.open.has(p.po) ? `<tr class="lines"><td colspan="10"><table class="inner"><thead><tr><th>Model</th><th class="num">Ordered</th><th class="num">Received</th><th class="num">Open</th><th class="num">Unit cost</th><th class="num">Open cost</th><th>Req. delivery</th><th>ETA</th><th>For ticket</th><th>Flags</th></tr></thead><tbody>${p.lines.map((l) => `<tr><td><b>${esc(l.model)}</b></td><td class="num">${l.qtyOrdered}</td><td class="num">${l.qtyReceived}</td><td class="num">${l.qtyOpen}</td><td class="num">${money2(l.unitCost)}</td><td class="num">${money2(l.openCost)}</td><td>${l.rdd ? day(l.rdd) : '<span class="neg">blank</span>'}</td><td>${l.eta ? day(l.eta) : "—"}${l.rsdConfirmed && /^(1|true)$/i.test(l.rsdConfirmed) ? ' <span class="muted">confirmed</span>' : ""}</td><td>${l.forInvoice ? `${esc(l.forInvoice)}${l.ticketOpen ? ` <span class="muted">${esc(l.ticketCustomer)}${l.ticketStatus ? " · " + esc(l.ticketStatus) : ""}${l.ticketSchedule ? " · " + day(l.ticketSchedule) : ""}</span>` : ' <span class="neg">not open</span>'}` : '<span class="muted">stock</span>'}</td><td>${l.flags.map(flagHtml).join("") || '<span class="muted">—</span>'}</td></tr>`).join("")}</tbody></table></td></tr>` : ""}`).join("") || '<tr><td colspan="10" class="empty">No open POs match.</td></tr>'}</tbody>`;
+        $("tbl").querySelectorAll("tr.po").forEach((tr) => tr.addEventListener("click", () => { const k = tr.dataset.po; if (state.open.has(k)) state.open.delete(k); else state.open.add(k); render(); }));
+      }
+
+      function csv() {
+        const rows = filtered();
+        const q = (v) => `"${String(v ?? "").replace(/"/g, '""')}"`;
+        const lines = [["PO", "Supplier", "Ordered", "Confirmed", "PO req. delivery", "Buyer", "Model", "Ordered qty", "Received qty", "Open qty", "Unit cost", "Open cost", "Line req. delivery", "ETA", "For ticket", "Ticket open", "Ticket customer", "Flags"].join(",")];
+        for (const p of rows) for (const l of p.lines) lines.push([p.po, p.supplier || p.supplierCode, p.ordered, p.confirmed || p.confirmation, p.rdd, p.buyer, l.model, l.qtyOrdered, l.qtyReceived, l.qtyOpen, l.unitCost, l.openCost, l.rdd, l.eta, l.forInvoice, l.forInvoice ? (l.ticketOpen ? "yes" : "no") : "", l.ticketCustomer, [...new Set([...p.flags, ...l.flags])].join(" ")].map(q).join(","));
+        const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([lines.join("\n")], { type: "text/csv" })); a.download = `po-health-${data.today}.csv`; a.click();
+      }
+
+      async function load() {
+        const res = await fetch("/api/po-health", { credentials: "same-origin" });
+        const body = await res.json();
+        if (!res.ok) { $("feed").textContent = body.error || "Unable to load."; return; }
+        data = body;
+        $("supplier").innerHTML = '<option value="">All suppliers</option>' + data.suppliers.map((s) => `<option>${esc(s)}</option>`).join("");
+        $("buyer").innerHTML = '<option value="">All buyers</option>' + data.buyers.map((s) => `<option>${esc(s)}</option>`).join("");
+        render();
+      }
+      ["q"].forEach((id) => $(id).addEventListener("input", render));
+      ["supplier", "buyer", "sort"].forEach((id) => $(id).addEventListener("change", render));
+      $("clear").addEventListener("click", () => { $("q").value = ""; $("supplier").value = ""; $("buyer").value = ""; state.flag = ""; render(); });
+      $("csv").addEventListener("click", csv);
+      load();
+    })();
+  </script>
+</body>
+</html>

@@ -235,6 +235,7 @@ import { ensureJourneyToken, resolveJourney, journeyTokenFor } from "./lib/journ
 import { processTaxBundle, taxStatus, taxReport, taxInvoiceLines } from "./lib/tax-report-postgres.js";
 import { parseFinanceBundle, replaceEpassFinance, getEpassFinanceMeta, financeRows, listSupplierTerms, saveSupplierTerms, deleteSupplierTerms } from "./lib/epass-finance-postgres.js";
 import { computeCashProjection } from "./lib/cash-projection.js";
+import { computePoHealth } from "./lib/po-health.js";
 import { resolveRole, roleEmails, hasRole, listRoles as listServiceRoles, setRole as setServiceRole, ROLES as SERVICE_ROLES } from "./lib/service-roles.js";
 import { processCatalogueBundle, catalogueStatus, customerHistory as catalogueCustomerHistory, callDetail as catalogueCallDetail, modelInsight as catalogueModelInsight, laborRateOptions, laborRateMeta } from "./lib/epass-catalogue-postgres.js";
 import {
@@ -762,6 +763,7 @@ const INTERNAL_PAGE_PATHS = new Set([
   "/satisfaction-survey.html",
   "/speedqueen-truckload.html",
   "/written-models.html",
+  "/po-health.html",
   "/service-journey.html",
   "/service-board.html",
   "/service-office.html",
@@ -1052,6 +1054,7 @@ const PAGE_LABELS = {
   "/aging-inventory.html": "Aging Inventory",
   "/speedqueen-truckload.html": "Speed Queen Truckload Builder",
   "/written-models.html": "Ordering Report",
+  "/po-health.html": "Purchase Order Health",
   "/my-commissions.html": "My Commission Review",
   "/service-commissions.html": "Repair Service Commissions",
   "/my-service-commissions.html": "My Service Commission",
@@ -1080,7 +1083,7 @@ const PAGE_CATEGORIES = [
   {
     key: "purchasing",
     label: "Purchasing",
-    pages: ["/speedqueen-truckload.html", "/written-models.html"]
+    pages: ["/speedqueen-truckload.html", "/written-models.html", "/po-health.html"]
   },
   {
     key: "hr",
@@ -14440,6 +14443,17 @@ app.post("/api/sq-truckload/settings", requireSqTruckload, requireExecutiveApi, 
 // (brand → supplier map), filters by delivery month, and shows sell price,
 // ePASS standard cost and the surface margin. Page grant; settings exec-only.
 // ---------------------------------------------------------------------------
+// Purchase Order Health (Purchasing, 9/27): every open PO line from the ePASS
+// finance feed, flagged (late / no date / unconfirmed / stale / ticket closed).
+app.get("/api/po-health", requirePagePermission("/po-health.html", "/written-models.html"), async (req, res) => {
+  try {
+    const [finance, book] = await Promise.all([financeRows(), openBookRows()]);
+    const today = new Date().toLocaleDateString("en-CA", { timeZone: APP_TIMEZONE });
+    const out = computePoHealth({ lines: finance.poOpen, openOrders: book.orders, suppliers: finance.suppliers, today });
+    return res.json({ ...out, feed: finance.meta });
+  } catch (err) { console.error("PO health failed:", err.message); return res.status(400).json({ error: err.message }); }
+});
+
 const requireWrittenModels = requirePagePermission("/written-models.html");
 const wmUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 25 * 1024 * 1024, files: 1 } });
 const wmBy = (req) => String(req.authUser?.displayName || req.authUser?.email || req.authUser?.username || "").slice(0, 120);

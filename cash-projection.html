@@ -93,6 +93,11 @@
       <h3>By month <span class="hint" id="horizonHint"></span></h3>
       <div class="scroll"><table class="proj" id="proj"></table></div>
       <p class="cover" id="buckets"></p>
+      <details style="margin-top:10px;">
+        <summary>How "Received, not yet billed" is calculated</summary>
+        <p class="cover" id="unbilledNote" style="margin:8px 0;"></p>
+        <div class="scroll"><table id="unbilledTable"></table></div>
+      </details>
     </div>
 
     <div class="grid2">
@@ -185,7 +190,7 @@
           <div class="tile"><span>Projected GM on the book</span><b>${pct(b.gmPercent)}</b><small>${money(b.revenue)} product net of ${money(-b.discounts)} discounts vs ${money(b.cost)} ePASS cost</small></div>
           <div class="tile in"><span>Open receivables (AR)</span><b>${money(ar.open)}</b><small>${ar.families} customer order${ar.families === 1 ? "" : "s"} with a balance after deposits${ar.pastDue ? ` · <span class="neg">${money(ar.pastDue)} past due</span>` : ""}${ar.onOpenOrders ? `<br>${money(ar.onOpenOrders)} more sits on ${ar.onOpenOrdersCount} still-open orders — counted under cash at delivery, not here` : ""}${ar.credits ? `<br>deposits in AR ${money(ar.credits)}: ${money(ar.coveredByDeposit)} cover delivered invoices, ${money(ar.depositsOnOpenOrders)} apply to open orders${ar.unappliedCredits ? `, ${money(ar.unappliedCredits)} unapplied` : ""}` : ""}</small></div>
           <div class="tile out"><span>Open payables (AP)</span><b>${money(ap.open)}</b><small>${ap.count} bills${ap.pastDue ? ` · ${money(ap.pastDue)} past due` : ""}${ap.onHold ? ` · ${money(ap.onHold)} on hold` : ""}${ap.credits ? ` · ${money(ap.credits)} supplier credits (not netted)` : ""}</small></div>
-          <div class="tile out"><span>Received, not yet billed</span><b>${money(d.unbilled.amount)}</b><small>${d.unbilled.count} POs — scheduled on terms from receipt</small></div>
+          <div class="tile out"><span>Received, not yet billed</span><b>${money(d.unbilled.amount)}</b><small>${d.unbilled.count} POs received, not costed, no bill in AP — on terms from receipt${d.unbilled.overdueByTerms ? ` · ${money(d.unbilled.overdueByTerms)} already past its terms date` : ""}</small></div>
           <div class="tile out"><span>Open purchase orders</span><b>${money(d.po.cost)}</b><small>${d.po.lines} lines still to receive${d.po.noEta ? ` · ${money(d.po.noEta)} with no ETA (not scheduled)` : ""}</small></div>`;
 
         const T = d.table;
@@ -215,6 +220,10 @@
           <tr class="net"><td>Net operating cash</td>${T.map((t) => `<td class="num">${signed(t.net)}</td>`).join("")}<td class="num">${signed(sum("net"))}</td></tr>
           <tr class="net"><td>Cumulative</td>${T.map((t) => `<td class="num">${signed(t.cumulative)}</td>`).join("")}<td></td></tr>
         </tbody>`;
+        const u = d.unbilled, ex = u.excluded || { billed: {}, costed: {} };
+        $("unbilledNote").innerHTML = `Every PO ePASS shows received or costed in the last 120 days is checked. <b>Dropped</b>: ${ex.billed.count || 0} POs with a bill already linked in AP (${money(ex.billed.amount)}) and ${ex.costed.count || 0} POs already costed — the supplier invoice was matched, so the bill exists in AP (${money(ex.costed.amount)}). <b>Kept</b>: ${u.count} POs received but not yet costed, ${money(u.amount)} at the received value, scheduled by the supplier's terms from the receipt date${u.overdueByTerms ? ` — ${money(u.overdueByTerms)} of that is past its terms date and lands in this month` : ""}. If a kept PO below is really billed, ePASS hasn't costed it yet.`;
+        const supN = d.supplierNames || {};
+        $("unbilledTable").innerHTML = (d.detail?.unbilled || []).length ? `<thead><tr><th>PO</th><th>Supplier</th><th>Received</th><th class="num">Received value</th><th>Terms schedule</th><th class="num">Past terms</th></tr></thead><tbody>${d.detail.unbilled.slice(0, 60).map((r) => `<tr><td><b>${esc(r.po)}</b></td><td>${esc(supN[r.supplier] || r.supplier)}</td><td>${esc(r.received)}</td><td class="num">${money2(r.amount)}</td><td class="muted" style="font-size:12px;">${r.installments.map((i) => `${esc(i.due)} ${money(i.amount)}`).join(" · ")}</td><td class="num">${r.overdue ? `<span class="neg">${money2(r.overdue)}</span>` : '<span class="muted">—</span>'}</td></tr>`).join("")}</tbody>` : '<tbody><tr><td class="muted">Nothing received and unbilled.</td></tr></tbody>';
         const bk = (x) => `<b>${x.deliveries}</b> orders · ${money(x.revenue)} revenue · ${money(x.cashAtDelivery)} still to collect`;
         $("buckets").innerHTML = `Not in the months above — <b>${esc(d.past.label)}:</b> ${bk(d.past)} · <b>${esc(d.unscheduled.label)}:</b> ${bk(d.unscheduled)} · <b>${esc(d.later.label)}:</b> ${bk(d.later)}.`;
 

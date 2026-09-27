@@ -61,6 +61,13 @@
     .btn:disabled { opacity: .55; cursor: wait; }
     select.sel { border: 1px solid var(--border); border-radius: 10px; padding: 7px 9px; font-size: 13px; font-family: inherit; background: #fff; }
     .bar { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-bottom: 12px; }
+    tr[data-ar-cust] { cursor: pointer; } tr[data-ar-cust]:hover td { background: var(--primary-faint); }
+    .overlay { position: fixed; inset: 0; background: rgba(15, 23, 42, 0.45); display: flex; justify-content: flex-end; z-index: 50; }
+    .drawer { background: var(--card); width: min(760px, 100%); height: 100%; overflow: auto; padding: 22px; box-shadow: -8px 0 30px rgba(0, 0, 0, 0.2); }
+    .drawer h2 { margin: 0 0 4px; font-size: 19px; font-weight: 800; }
+    .drawer .sub { color: var(--muted); font-size: 13.5px; margin-bottom: 14px; }
+    .drawer h4 { margin: 16px 0 6px; font-size: 12px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
+    @media (max-width: 700px) { .drawer { padding: 14px; } }
     @media (max-width: 1100px) { .tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); } .grid2 { grid-template-columns: 1fr; } .terms-row { grid-template-columns: 1fr 1fr; } }
     @media (max-width: 700px) { body { padding: 12px 8px; } .card { padding: 14px; } .tiles { gap: 10px; } .tile { padding: 12px; } .tile b { font-size: 20px; } th, td { padding: 8px 7px; font-size: 12.5px; } table.proj th:first-child, table.proj td:first-child { min-width: 150px; white-space: normal; } }
   </style>
@@ -122,6 +129,16 @@
       </div>
     </div>
 
+    <div class="overlay" id="custOverlay" style="display:none;">
+      <div class="drawer">
+        <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:12px;">
+          <div><h2 id="custTitle"></h2><div class="sub" id="custSub"></div></div>
+          <button type="button" class="btn quiet" id="custClose">Close</button>
+        </div>
+        <div id="custBody"></div>
+      </div>
+    </div>
+
     <div class="card sec">
       <details>
         <summary>Open book detail — every open invoice with its bucket</summary>
@@ -166,7 +183,7 @@
           <div class="tile in"><span>Deposits already held</span><b>${money(b.deposits)}</b><small>${b.total ? Math.round(b.deposits / b.total * 100) : 0}% of the book</small></div>
           <div class="tile in"><span>Cash due at delivery</span><b>${money(b.balance)}</b><small>collected as orders deliver</small></div>
           <div class="tile"><span>Projected GM on the book</span><b>${pct(b.gmPercent)}</b><small>${money(b.revenue)} product net of ${money(-b.discounts)} discounts vs ${money(b.cost)} ePASS cost</small></div>
-          <div class="tile in"><span>Open receivables (AR)</span><b>${money(ar.open)}</b><small>${ar.count} invoices with a balance${ar.pastDue ? ` · <span class="neg">${money(ar.pastDue)} past due</span>` : ""}${ar.credits ? `<br>customer credits in AR ${money(ar.credits)}: ${money(ar.depositsOnOpenOrders)} deposits on open orders (already counted above)${ar.unappliedCredits ? `, ${money(ar.unappliedCredits)} unapplied` : ""}` : ""}</small></div>
+          <div class="tile in"><span>Open receivables (AR)</span><b>${money(ar.open)}</b><small>${ar.count} finished invoices with a balance${ar.pastDue ? ` · <span class="neg">${money(ar.pastDue)} past due</span>` : ""}${ar.onOpenOrders ? `<br>${money(ar.onOpenOrders)} more sits on ${ar.onOpenOrdersCount} still-open orders — counted under cash at delivery, not here` : ""}${ar.credits ? `<br>customer credits in AR ${money(ar.credits)}: ${money(ar.depositsOnOpenOrders)} deposits on open orders (already counted above)${ar.unappliedCredits ? `, ${money(ar.unappliedCredits)} unapplied` : ""}` : ""}</small></div>
           <div class="tile out"><span>Open payables (AP)</span><b>${money(ap.open)}</b><small>${ap.count} bills${ap.pastDue ? ` · ${money(ap.pastDue)} past due` : ""}${ap.onHold ? ` · ${money(ap.onHold)} on hold` : ""}${ap.credits ? ` · ${money(ap.credits)} supplier credits (not netted)` : ""}</small></div>
           <div class="tile out"><span>Received, not yet billed</span><b>${money(d.unbilled.amount)}</b><small>${d.unbilled.count} POs — scheduled on terms from receipt</small></div>
           <div class="tile out"><span>Open purchase orders</span><b>${money(d.po.cost)}</b><small>${d.po.lines} lines still to receive${d.po.noEta ? ` · ${money(d.po.noEta)} with no ETA (not scheduled)` : ""}</small></div>`;
@@ -215,11 +232,13 @@
         $("apTable").innerHTML = apList.length ? `<thead><tr><th>Supplier</th><th class="num">Open AP</th><th class="num">Unbilled receipts</th><th class="num">Open POs</th></tr></thead><tbody>${apList.map(([c, v]) => `<tr><td>${esc(names[c] || c)} <span class="muted">${esc(c)}</span></td><td class="num">${money(v)}</td><td class="num">${money(d.unbilled.bySupplier?.[c] || 0)}</td><td class="num">${money(d.po.bySupplier?.[c] || 0)}</td></tr>`).join("")}</tbody>` : '<tbody><tr><td class="muted">Nothing open in AP.</td></tr></tbody>';
         const arList = Object.entries(ar.byCustomer || {}).sort((a, b) => b[1] - a[1]).slice(0, 25);
         $("arHint").textContent = `${ar.count} open invoices · ${money(ar.open)}`;
-        $("arTable").innerHTML = arList.length ? `<thead><tr><th>Customer</th><th class="num">Open AR</th></tr></thead><tbody>${arList.map(([c, v]) => `<tr><td>${esc(c)}</td><td class="num">${money(v)}</td></tr>`).join("")}</tbody>` : '<tbody><tr><td class="muted">Nothing open in AR.</td></tr></tbody>';
+        const cn = ar.customerNames || {};
+        const openOrdersFor = (code) => (d.detail?.book || []).filter((o) => String(o.billToCode || "").toUpperCase() === String(code).toUpperCase());
+        $("arTable").innerHTML = arList.length ? `<thead><tr><th>Bill-to</th><th class="num">Open orders</th><th class="num">Open AR</th></tr></thead><tbody>${arList.map(([c, v]) => `<tr data-ar-cust="${esc(c)}" title="Open AR invoices and open sales orders"><td><b>${esc(cn[c.toUpperCase()] || c)}</b>${cn[c.toUpperCase()] ? ` <span class="muted">${esc(c)}</span>` : ""}</td><td class="num">${openOrdersFor(c).length || '<span class="muted">—</span>'}</td><td class="num">${money(v)}</td></tr>`).join("")}</tbody>` : '<tbody><tr><td class="muted">Nothing open in AR.</td></tr></tbody>';
 
         // book detail
         const chip = (f) => f === "firm" ? '<span class="chip firm">firm</span>' : f === "delivering" ? '<span class="chip deliv">delivering</span>' : '<span class="chip soft">soft</span>';
-        $("bookTable").innerHTML = `<thead><tr><th>Invoice</th><th>Customer</th><th>SP</th><th>Type</th><th>Status</th><th>Schedule</th><th>Bucket</th><th class="num">Total</th><th class="num">Deposits</th><th class="num">Balance</th><th class="num">Product net</th><th class="num">Cost</th></tr></thead><tbody>${(d.detail?.book || []).map((o) => `<tr><td><b>${esc(o.invoice)}</b></td><td>${esc(o.customer)}</td><td>${esc(o.salesperson)}</td><td>${esc(o.invType)}</td><td>${esc(o.status)} ${chip(o.firmness)}</td><td>${esc(o.scheduleDate || "—")}</td><td>${/^\d{4}-\d{2}$/.test(o.bucket) ? esc(monthLabel(o.bucket)) : esc(o.bucket)}</td><td class="num">${money2(o.total)}</td><td class="num">${money2(o.deposits)}</td><td class="num">${money2(o.balance)}</td><td class="num">${money2(o.productRevenue)}</td><td class="num">${money2(o.productCost)}</td></tr>`).join("")}</tbody>`;
+        $("bookTable").innerHTML = `<thead><tr><th>Invoice</th><th>Ship-to</th><th>Bill-to</th><th>SP</th><th>Type</th><th>Status</th><th>Schedule</th><th>Bucket</th><th class="num">Total</th><th class="num">Deposits</th><th class="num">Balance</th><th class="num">Product net</th><th class="num">Cost</th></tr></thead><tbody>${(d.detail?.book || []).map((o) => `<tr><td><b>${esc(o.invoice)}</b></td><td>${esc(o.shipTo || o.customer)}</td><td>${o.billTo && o.billTo !== o.shipTo ? esc(o.billTo) : '<span class="muted">same</span>'}</td><td>${esc(o.salesperson)}</td><td>${esc(o.invType)}</td><td>${esc(o.status)} ${chip(o.firmness)}</td><td>${esc(o.scheduleDate || "—")}</td><td>${/^\d{4}-\d{2}$/.test(o.bucket) ? esc(monthLabel(o.bucket)) : esc(o.bucket)}</td><td class="num">${money2(o.total)}</td><td class="num">${money2(o.deposits)}</td><td class="num">${money2(o.balance)}</td><td class="num">${money2(o.productRevenue)}</td><td class="num">${money2(o.productCost)}</td></tr>`).join("")}</tbody>`;
 
         renderTerms(d.terms || []);
         const sup = (d.supplierNames && Object.keys(d.supplierNames).length ? Object.entries(d.supplierNames) : []).sort((a, b) => (a[1] || a[0]).localeCompare(b[1] || b[0]));
@@ -272,6 +291,29 @@
         } catch (err) { setStatus(esc(err.message), "error"); }
         finally { $("reload").disabled = false; }
       }
+      // Bill-to drill-down: the customer's open AR invoices and every open
+      // sales order billed to them, with the ship-to (sold-to) name.
+      function openCustomer(code) {
+        const d = data; const cn = d.ar.customerNames || {};
+        const invoices = (d.detail?.ar || []).filter((a) => String(a.customer || "").toUpperCase() === code.toUpperCase());
+        const orders = (d.detail?.book || []).filter((o) => String(o.billToCode || "").toUpperCase() === code.toUpperCase());
+        const due = invoices.filter((a) => a.bucket !== "credit" && a.bucket !== "open-order"); const credits = invoices.filter((a) => a.bucket === "credit"); const onOpen = invoices.filter((a) => a.bucket === "open-order");
+        $("custTitle").textContent = cn[code.toUpperCase()] || code;
+        $("custSub").textContent = `${code} · ${money(due.reduce((s, a) => s + a.amount, 0))} open AR on ${due.length} finished invoice${due.length === 1 ? "" : "s"}${onOpen.length ? ` · ${money(onOpen.reduce((s, a) => s + a.amount, 0))} on ${onOpen.length} still-open order${onOpen.length === 1 ? "" : "s"}` : ""}${credits.length ? ` · ${money(credits.reduce((s, a) => s - a.amount, 0))} in credits / deposits` : ""} · ${orders.length} open sales order${orders.length === 1 ? "" : "s"}`;
+        const chip = (f) => f === "firm" ? '<span class="chip firm">firm</span>' : f === "delivering" ? '<span class="chip deliv">delivering</span>' : '<span class="chip soft">soft</span>';
+        $("custBody").innerHTML = `
+          <h4>Open AR — finished invoices (delivered, unpaid)</h4>
+          ${due.length ? `<div class="scroll"><table><thead><tr><th>Invoice</th><th>Due</th><th>Type</th><th class="num">Balance</th></tr></thead><tbody>${due.sort((a, b) => (a.due || "9999") < (b.due || "9999") ? -1 : 1).map((a) => `<tr><td><b>${esc(a.invoice || "—")}</b></td><td>${esc(a.due || "—")}${a.due && a.due < d.today ? ' <span class="chip soft">past due</span>' : ""}</td><td>${esc(a.paymentType || "")}</td><td class="num">${money2(a.amount)}</td></tr>`).join("")}</tbody></table></div>` : '<p class="muted">No open balance.</p>'}
+          ${credits.length ? `<h4>Credits / deposits on account</h4><div class="scroll"><table><thead><tr><th>Invoice</th><th class="num">Credit</th></tr></thead><tbody>${credits.map((a) => `<tr><td>${esc(a.invoice || "on account")}</td><td class="num">${money2(-a.amount)}</td></tr>`).join("")}</tbody></table></div>` : ""}
+          <h4>Open sales orders billed to this customer</h4>
+          ${orders.length ? `<div class="scroll"><table><thead><tr><th>Order</th><th>Ship-to</th><th>Status</th><th>Schedule</th><th class="num">Total</th><th class="num">Deposits</th><th class="num">Balance</th><th class="num">In AR</th></tr></thead><tbody>${orders.map((o) => `<tr><td><b>${esc(o.invoice)}</b> <span class="muted">${esc(o.invType)}</span></td><td>${esc(o.shipTo || o.customer || "—")}${o.shipToCity ? `<div class="muted" style="font-size:12px;">${esc(o.shipToCity)}</div>` : ""}</td><td>${esc(o.status)} ${chip(o.firmness)}</td><td>${esc(o.scheduleDate || "—")}</td><td class="num">${money2(o.total)}</td><td class="num">${money2(o.deposits)}</td><td class="num">${money2(o.balance)}</td><td class="num">${(() => { const a = onOpen.find((x) => String(x.invoice || "").toUpperCase() === o.invoice); return a ? money2(a.amount) : '<span class="muted">—</span>'; })()}</td></tr>`).join("")}</tbody></table></div>` : '<p class="muted">No open sales orders.</p>'}`;
+        $("custOverlay").style.display = "flex";
+      }
+      $("arTable").addEventListener("click", (e) => { const tr = e.target.closest("[data-ar-cust]"); if (tr) openCustomer(tr.dataset.arCust); });
+      $("custClose").addEventListener("click", () => { $("custOverlay").style.display = "none"; });
+      $("custOverlay").addEventListener("click", (e) => { if (e.target === $("custOverlay")) $("custOverlay").style.display = "none"; });
+      document.addEventListener("keydown", (e) => { if (e.key === "Escape") $("custOverlay").style.display = "none"; });
+
       $("reload").addEventListener("click", load);
       $("months").addEventListener("change", load);
       load();

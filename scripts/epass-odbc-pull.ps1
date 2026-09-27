@@ -841,6 +841,11 @@ FROM PO p
 WHERE p.DateReceived >= '$rcvSince' OR p.DateCosted >= '$rcvSince'
 ORDER BY p.DateReceived
 "@
+      "ar-customers" = @"
+SELECT c.Code, c.LastName, c.FirstName, c.MiddleName, c.AccountType, c.PaymentTypeCode, c.CreditLimit, c.CreditHold, c.Balance, c.City, c.SalespersonCode
+FROM Customer c
+WHERE c.Code IN (SELECT a.CustomerCode FROM ARCurrent a)
+"@
       "supplier-invoices" = @"
 SELECT si.SupplierCode, si.SupplierInvoice, si.InvoiceDate, si.ImportDate, si.CostedDate, si.ImportType, si.FreightInvoice
 FROM POSupplierInvoice si WHERE si.InvoiceDate >= '$rcvSince' OR si.ImportDate >= '$rcvSince'

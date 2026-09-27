@@ -422,7 +422,10 @@ first run of each hour with finished-orders (or `-Finance`): `ar-current`
 list — never a card column), `payment-types`, `suppliers` (terms columns),
 `open-po-lines` (POModel still to receive + PO header, ordered in the last 18
 months, released), `po-received` (POs received / costed in 120 days),
-`supplier-invoices`. Stored by `lib/epass-finance-postgres.js`
+`supplier-invoices`, `ar-customers` (Customer master names for every code in
+ARCurrent — the codes are phone numbers; the page shows the bill-to name and
+drills into that customer's open AR invoices and open sales orders with the
+ship-to name). Stored by `lib/epass-finance-postgres.js`
 (`epass_ar_current`, `epass_ap_current`, `epass_ap_current_po`,
 `epass_payments`, `epass_payment_types`, `epass_suppliers`,
 `epass_po_open_lines`, `epass_po_received`, `epass_supplier_invoices`,

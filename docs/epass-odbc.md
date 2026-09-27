@@ -435,7 +435,14 @@ rows in place.
 `lib/cash-projection.js` builds the months: **in** = open book by
 ScheduleDate (deposits already held vs cash at delivery, firm D3/D4+ vs soft
 D1/D2; past-schedule and unscheduled orders shown as separate buckets), AR
-netted per invoice by due month (overdue → this month); **out** = AP netted
+netted per **invoice family** by due month (overdue → this month) — ePASS
+splits a builder order into sub-invoices as it delivers (`S00063116-5`, `-6`,
+`-9` finished, `S00063116` still open) and keeps the deposit as a negative AR
+row on the base, so per family: AR due = max(0, delivered-unpaid − deposits),
+the deposit left = max(0, deposits − delivered) is what still offsets the
+open base (cash at delivery = order left − deposit left), and a family with
+nothing open carries any surplus as an unapplied credit. `PT` on an AR row is
+a payment transfer (deposit moving across), not a payment type owed; **out** = AP netted
 per bill by due month (overdue → this month), POs received in 120 days with
 no AP link scheduled on supplier terms from receipt, open PO lines (qty × cost)
 scheduled on terms from ETA (late ETA → now; no ETA → listed, not scheduled);

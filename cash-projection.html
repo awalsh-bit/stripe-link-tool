@@ -166,8 +166,8 @@
           <div class="tile in"><span>Deposits already held</span><b>${money(b.deposits)}</b><small>${b.total ? Math.round(b.deposits / b.total * 100) : 0}% of the book</small></div>
           <div class="tile in"><span>Cash due at delivery</span><b>${money(b.balance)}</b><small>collected as orders deliver</small></div>
           <div class="tile"><span>Projected GM on the book</span><b>${pct(b.gmPercent)}</b><small>${money(b.revenue)} product net of ${money(-b.discounts)} discounts vs ${money(b.cost)} ePASS cost</small></div>
-          <div class="tile in"><span>Open receivables (AR)</span><b>${money(ar.open)}</b><small>${ar.count} invoices${ar.pastDue ? ` · <span class="neg">${money(ar.pastDue)} past due</span>` : ""}</small></div>
-          <div class="tile out"><span>Open payables (AP)</span><b>${money(ap.open)}</b><small>${ap.count} bills${ap.pastDue ? ` · ${money(ap.pastDue)} past due` : ""}${ap.onHold ? ` · ${money(ap.onHold)} on hold` : ""}</small></div>
+          <div class="tile in"><span>Open receivables (AR)</span><b>${money(ar.open)}</b><small>${ar.count} invoices with a balance${ar.pastDue ? ` · <span class="neg">${money(ar.pastDue)} past due</span>` : ""}${ar.credits ? `<br>customer credits in AR ${money(ar.credits)}: ${money(ar.depositsOnOpenOrders)} deposits on open orders (already counted above)${ar.unappliedCredits ? `, ${money(ar.unappliedCredits)} unapplied` : ""}` : ""}</small></div>
+          <div class="tile out"><span>Open payables (AP)</span><b>${money(ap.open)}</b><small>${ap.count} bills${ap.pastDue ? ` · ${money(ap.pastDue)} past due` : ""}${ap.onHold ? ` · ${money(ap.onHold)} on hold` : ""}${ap.credits ? ` · ${money(ap.credits)} supplier credits (not netted)` : ""}</small></div>
           <div class="tile out"><span>Received, not yet billed</span><b>${money(d.unbilled.amount)}</b><small>${d.unbilled.count} POs — scheduled on terms from receipt</small></div>
           <div class="tile out"><span>Open purchase orders</span><b>${money(d.po.cost)}</b><small>${d.po.lines} lines still to receive${d.po.noEta ? ` · ${money(d.po.noEta)} with no ETA (not scheduled)` : ""}</small></div>`;
 

@@ -10190,6 +10190,9 @@ app.post("/api/epass-agent/upload", express.raw({ type: () => true, limit: "60mb
         try {
           if (wmError) throw wmError;
           orderingReport = await saveWrittenModelsSnapshot(wmParsed, { by: "epass-agent", sourceFile: `ePASS feed ${pulledAt}`.trim() });
+          // A sent-back line that changed in ePASS reverted to a normal row —
+          // the salesperson's red dashboard flag goes with it.
+          for (const r of orderingReport.reverted || []) retirePushedNotificationsByRef(`wmreject:${r.id}`).catch(() => {});
           wmParsed = null;
         } catch (err) {
           console.error("Ordering Report refresh from ePASS feed failed:", err.message);
@@ -14713,6 +14716,7 @@ app.post("/api/written-models/upload", requireWrittenModels, (req, res) => {
       if (!req.file?.buffer?.length) return res.status(400).json({ error: "Attach the Written Models Report export (.xls)." });
       const parsed = parseWrittenModelsWorkbook(req.file.buffer);
       const out = await saveWrittenModelsSnapshot(parsed, { by: wmBy(req), sourceFile: req.file.originalname || "" });
+      for (const r of out.reverted || []) retirePushedNotificationsByRef(`wmreject:${r.id}`).catch(() => {});
       wmAudit(req, "written_models_uploaded", { ...out, reportDate: parsed.reportDate, filename: req.file.originalname || "" });
       return res.json({ ok: true, ...out, reportDate: parsed.reportDate, startDate: parsed.startDate, endDate: parsed.endDate, warnings: parsed.warnings.slice(0, 20) });
     } catch (uploadErr) {
@@ -14744,6 +14748,7 @@ app.post("/api/written-models/lines/handled", requireWrittenModels, async (req, 
     if (kind === "rejected" && !note) return res.status(400).json({ error: "Tell the salesperson what has to change before this line can be ordered." });
     const out = await setWrittenLineHandled(req.body?.id, req.body?.handled !== false, wmBy(req), { kind, note });
     wmAudit(req, out.handled ? `written_line_${kind}` : "written_line_reopened", { id: out.id, note });
+    if (out.wasRejected && !(out.handled && kind === "rejected")) retirePushedNotificationsByRef(`wmreject:${out.id}`).catch(() => {});
 
     // Rejected: the salesperson gets a dashboard flag and an email saying an
     // order line came back and to log in — the note itself lives on the flag,
@@ -18559,7 +18564,7 @@ app.get("/api/events", eventPage, async (req, res) => {
     return res.json({ events: events.map((e) => ({ ...e, publicUrl: `${EVENT_SITE_BASE()}/events/${e.slug}` })), statuses: INVITEE_STATUSES, siteBase: EVENT_SITE_BASE() });
   } catch (err) {
     console.error("Events list failed:", err.message);
-    return res.status(500).json({ error: "Unable to load events." });
+    return res.status(500).json({ error: `Unable to load events — ${String(err.message || err).slice(0, 160)}` });
   }
 });
 app.post("/api/events", eventPage, async (req, res) => {

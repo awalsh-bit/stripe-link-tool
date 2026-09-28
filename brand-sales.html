@@ -61,6 +61,29 @@
     tr.model-row.show { display: table-row; }
     .warn-chip { display: inline-block; border-radius: 999px; font-size: 10.5px; font-weight: 700; padding: 3px 10px; background: #fef3c7; color: #92400e; }
     .empty { text-align: center; color: var(--muted); padding: 34px 10px; font-size: 13.5px; }
+    .m-link { color: var(--primary); cursor: pointer; text-decoration: underline dotted; }
+    .sub-chip { display: inline-block; border-radius: 999px; font-size: 10px; font-weight: 700; padding: 2px 7px; margin-left: 6px; background: #fee2e2; color: #991b1b; vertical-align: 1px; }
+    .sub-chip.soft { background: #eef2ff; color: #3730a3; }
+    th.wcol, td.wcol { background: rgba(37, 99, 235, 0.06); }
+    th.dcol, td.dcol { background: rgba(var(--primary-rgb), 0.07); }
+    td.wcol, td.dcol { font-weight: 700; }
+    .open-n { display: block; font-size: 10.5px; font-weight: 500; color: var(--muted); white-space: nowrap; }
+    td.delta { color: var(--muted); }
+    td.delta.up { color: #1d4ed8; }
+    td.delta.down { color: #b45309; }
+    td.pct { color: var(--muted); font-size: 12px; }
+    .drawer-back { position: fixed; inset: 0; background: rgba(15, 23, 42, 0.35); display: none; z-index: 40; }
+    .drawer-back.show { display: block; }
+    .drawer { position: fixed; top: 0; right: 0; bottom: 0; width: min(760px, 100vw); background: #fff; z-index: 41; box-shadow: -12px 0 40px rgba(0,0,0,0.18); transform: translateX(100%); transition: transform 0.18s ease; display: flex; flex-direction: column; }
+    .drawer.show { transform: translateX(0); }
+    .drawer-head { display: flex; align-items: center; gap: 10px; padding: 16px 18px; border-bottom: 1px solid var(--border); }
+    .drawer-head h3 { margin: 0; font-size: 16px; flex: 1; }
+    .drawer-head .d-sub { color: var(--muted); font-size: 12.5px; }
+    .drawer-body { flex: 1; overflow: auto; padding: 12px 18px 24px; }
+    .drawer-body table { font-size: 12.5px; }
+    .drawer-body td { padding: 7px 8px; }
+    .x-btn { border: 1px solid var(--border); background: #fff; border-radius: 10px; padding: 7px 12px; cursor: pointer; font-family: inherit; font-size: 13px; }
+    @media (max-width: 720px) { .hide-sm { display: none; } }
     @media print { .toolbar, button { display: none !important; } tr.model-row { display: table-row; } }
   </style>
 </head>
@@ -71,16 +94,21 @@
     <div class="surface">
       <h2>Brand Sales</h2>
       <p class="section-note">
-        Delivered appliance revenue and units by brand — Model lines from the commission report, counted on
-        the order's finish date, with brands attributed through the model catalog the nightly inventory feed
-        builds. Click a brand to see its models. Anything the catalog hasn't seen yet lands in its own bucket
-        at the bottom so nothing quietly disappears.
+        Appliance units by brand, straight from the ePASS serial feed, counted two ways side by side:
+        <strong>Written</strong> = units on tickets the sales team started in the window (invoice start date;
+        finished tickets plus what is still open on the book), which tracks selling behavior as the mix shifts;
+        <strong>Delivered</strong> = units on tickets finished in the window, with revenue net of linked ePASS
+        discounts, the unit's own cost and the margin. Brands come from the ePASS Model master; returned units
+        are shown apart and left out of both counts. Click a brand for its models, and a model for the units
+        behind it (delivered serials and open, undelivered lines). Anything the master hasn't covered lands in
+        its own bucket at the bottom so nothing quietly disappears.
       </p>
 
       <div class="toolbar">
         <div><span class="field-label">From</span><input type="date" id="fromDate" /></div>
         <div><span class="field-label">To</span><input type="date" id="toDate" /></div>
         <div><span class="field-label">Department</span><select id="deptFilter"><option value="">All departments</option></select></div>
+        <div><span class="field-label">Sort by</span><select id="sortSel"><option value="revenue">Delivered revenue</option><option value="written">Units written</option><option value="units">Units delivered</option><option value="margin">Margin</option></select></div>
         <button class="action" id="runBtn">Run report</button>
         <button class="action secondary" id="csvBtn">Export CSV</button>
         <button class="action secondary" id="foldAll">Expand all</button>
@@ -97,6 +125,15 @@
     <div id="internal-shell-footer"></div>
   </div>
 
+  <div class="drawer-back" id="drawerBack"></div>
+  <div class="drawer" id="drawer" role="dialog" aria-modal="true">
+    <div class="drawer-head">
+      <div style="flex:1;"><h3 id="drawerTitle">Units</h3><div class="d-sub" id="drawerSub"></div></div>
+      <button type="button" class="x-btn" id="drawerClose">Close</button>
+    </div>
+    <div class="drawer-body" id="drawerBody"></div>
+  </div>
+
   <script src="internal-shell.js"></script>
   <script>
     (function () {
@@ -104,50 +141,73 @@
       const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch]));
       const money = (n) => "$" + Number(n || 0).toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 });
       const num = (n) => Number(n || 0).toLocaleString("en-US");
+      const money2 = (n) => "$" + Number(n || 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      const pct = (part, whole) => (Number(whole) ? (Number(part) / Number(whole) * 100).toFixed(1) + "%" : "—");
+      const delta = (n) => (n > 0 ? "+" + num(n) : n < 0 ? "−" + num(-n) : "0");
+      const SORTS = { revenue: (x) => x.revenue, written: (x) => x.written, units: (x) => x.units, margin: (x) => x.margin };
+      function sortData() {
+        if (!data) return;
+        const key = SORTS[$("sortSel").value] || SORTS.revenue;
+        const tie = (a, b) => (b.revenue - a.revenue) || (b.written - a.written);
+        data.brands.sort((a, b) => (key(b) - key(a)) || tie(a, b));
+        data.brands.forEach((b) => b.models.sort((a, c) => (key(c) - key(a)) || tie(a, c)));
+      }
       let data = null;
       let expanded = new Set();
 
       function render() {
         if (!data) return;
+        sortData();
         const t = data.totals;
         $("tiles").innerHTML = `
-          <div class="tile"><div class="t-label">Delivered revenue</div><div class="t-value">${money(t.revenue)}</div><div class="t-sub">${esc(data.from)} → ${esc(data.to)}${data.department ? " · " + esc(data.department) : ""}</div></div>
-          <div class="tile"><div class="t-label">Units delivered</div><div class="t-value">${num(t.units)}</div><div class="t-sub">${num(t.models)} distinct models</div></div>
-          <div class="tile"><div class="t-label">Brands</div><div class="t-value">${num(data.brands.filter((b) => !b.brand.startsWith("—")).length)}</div><div class="t-sub">${t.unmatchedModels ? `<span class="warn-chip">${num(t.unmatchedModels)} model${t.unmatchedModels === 1 ? "" : "s"} not in the brand map</span>` : "every model attributed"}</div></div>
+          <div class="tile"><div class="t-label">Delivered revenue</div><div class="t-value">${money(t.revenue)}</div><div class="t-sub">${esc(data.from)} → ${esc(data.to)}${data.department ? " · " + esc(data.department) : ""}${t.discount ? ` · ${money(-t.discount)} of ePASS discounts netted` : ""}</div></div>
+          <div class="tile"><div class="t-label">Gross margin</div><div class="t-value">${money(t.margin)}</div><div class="t-sub">${pct(t.margin, t.revenue)} · cost ${money(t.cost)}</div></div>
+          <div class="tile"><div class="t-label">Units written</div><div class="t-value">${num(t.written)}</div><div class="t-sub">tickets started in the window · ${num(t.writtenOpen)} still open${t.writtenRevenue ? ` · ${money(t.writtenRevenue)} written` : ""}</div></div>
+          <div class="tile"><div class="t-label">Units delivered</div><div class="t-value">${num(t.units)}</div><div class="t-sub">tickets finished in the window · ${num(t.models)} models${t.returned ? ` · ${num(t.returned)} returned` : ""}</div></div>
+          <div class="tile"><div class="t-label">Brands</div><div class="t-value">${num(data.brands.filter((b) => !b.brand.startsWith("—")).length)}</div><div class="t-sub">${t.unmatchedModels ? `<span class="warn-chip">${num(t.unmatchedModels)} model${t.unmatchedModels === 1 ? "" : "s"} not in the ePASS model master</span>` : "every model attributed"}${t.unpriced ? ` <span class="warn-chip">${num(t.unpriced)} unit${t.unpriced === 1 ? "" : "s"} without a model line</span>` : ""}</div></div>
           <div class="tile"><div class="t-label">Avg revenue / unit</div><div class="t-value">${t.units ? money(t.revenue / t.units) : "—"}</div><div class="t-sub">across the whole window</div></div>`;
 
         if (!data.brands.length) {
-          $("tableHost").innerHTML = '<div class="empty">No delivered Model lines in that window — check the coverage note above (the data comes from the monthly commission import).</div>';
+          $("tableHost").innerHTML = '<div class="empty">No units delivered in that window — check the coverage note above (the data comes from the hourly ePASS finished-orders feed).</div>';
           return;
         }
         const totalRev = Math.max(t.revenue, 0.01);
         $("tableHost").innerHTML = `
         <table>
           <thead><tr>
-            <th>Brand</th><th class="share-cell">Share of revenue</th>
-            <th class="num">Revenue</th><th class="num">Units</th><th class="num">$ / unit</th><th class="num">Models</th>
+            <th>Brand</th><th class="share-cell hide-sm">Share of revenue</th>
+            <th class="num wcol" title="Units on tickets started in the window (finished + still open)">Written</th><th class="num dcol" title="Units on tickets finished in the window">Delivered</th><th class="num hide-sm" title="Written minus delivered">Δ</th>
+            <th class="num">Revenue</th><th class="num hide-sm">Cost</th><th class="num">Margin</th><th class="num">GM %</th><th class="num hide-sm">Models</th>
           </tr></thead>
           <tbody>
             ${data.brands.map((b, i) => {
-              const pct = Math.max(0, b.revenue / totalRev * 100);
+              const share = Math.max(0, b.revenue / totalRev * 100);
               const open = expanded.has(b.brand);
               return `
               <tr class="brand-row ${open ? "open" : ""}" data-brand="${esc(b.brand)}">
-                <td><span class="brand-name"><span class="caret">▶</span>${esc(b.brand)}</span></td>
-                <td class="share-cell"><div style="display:flex; align-items:center;"><div class="share-bar" style="flex:1;"><i style="width:${pct.toFixed(1)}%;"></i></div><span class="share-pct">${pct.toFixed(1)}%</span></div></td>
+                <td><span class="brand-name"><span class="caret">▶</span>${esc(b.brand)}${b.returned ? `<span class="sub-chip">${num(b.returned)} returned</span>` : ""}${b.unpriced ? `<span class="sub-chip soft">${num(b.unpriced)} unpriced</span>` : ""}</span></td>
+                <td class="share-cell hide-sm"><div style="display:flex; align-items:center;"><div class="share-bar" style="flex:1;"><i style="width:${share.toFixed(1)}%;"></i></div><span class="share-pct">${share.toFixed(1)}%</span></div></td>
+                <td class="num wcol">${num(b.written)}${b.writtenOpen ? `<span class="open-n" title="${num(b.writtenOpen)} still open on the book">(${num(b.writtenOpen)} open)</span>` : ""}</td>
+                <td class="num dcol">${num(b.units)}</td>
+                <td class="num hide-sm delta ${b.written - b.units > 0 ? "up" : b.written - b.units < 0 ? "down" : ""}">${delta(b.written - b.units)}</td>
                 <td class="num">${money(b.revenue)}</td>
-                <td class="num">${num(b.units)}</td>
-                <td class="num">${b.units ? money(b.revenue / b.units) : "—"}</td>
-                <td class="num">${num(b.models.length)}</td>
+                <td class="num hide-sm">${money(b.cost)}</td>
+                <td class="num">${money(b.margin)}</td>
+                <td class="num pct">${pct(b.margin, b.revenue)}</td>
+                <td class="num hide-sm">${num(b.models.length)}</td>
               </tr>
               ${b.models.map((m) => `
               <tr class="model-row ${open ? "show" : ""}" data-parent="${esc(b.brand)}">
-                <td>${esc(m.model)}<div class="m-desc">${esc(m.description || "")}</div></td>
-                <td></td>
+                <td><span class="m-link" data-model="${esc(m.model)}" title="Show the units behind this model">${esc(m.model)}</span>${m.returned ? `<span class="sub-chip">${num(m.returned)} returned</span>` : ""}${m.unpriced ? `<span class="sub-chip soft">${num(m.unpriced)} unpriced</span>` : ""}<div class="m-desc">${esc(m.description || "")}${m.discount ? ` · ${money(-m.discount)} discounts netted` : ""}</div></td>
+                <td class="hide-sm"></td>
+                <td class="num wcol">${num(m.written)}${m.writtenOpen ? `<span class="open-n">(${num(m.writtenOpen)} open)</span>` : ""}</td>
+                <td class="num dcol">${num(m.units)}</td>
+                <td class="num hide-sm delta ${m.written - m.units > 0 ? "up" : m.written - m.units < 0 ? "down" : ""}">${delta(m.written - m.units)}</td>
                 <td class="num">${money(m.revenue)}</td>
-                <td class="num">${num(m.units)}</td>
-                <td class="num">${m.units ? money(m.revenue / m.units) : "—"}</td>
-                <td class="num">${num(m.orders)} order${m.orders === 1 ? "" : "s"}</td>
+                <td class="num hide-sm">${money(m.cost)}</td>
+                <td class="num">${money(m.margin)}</td>
+                <td class="num pct">${pct(m.margin, m.revenue)}</td>
+                <td class="num hide-sm">${num(m.orders)} order${m.orders === 1 ? "" : "s"}</td>
               </tr>`).join("")}`;
             }).join("")}
           </tbody>
@@ -156,6 +216,8 @@
       }
 
       $("tableHost").addEventListener("click", (ev) => {
+        const link = ev.target.closest(".m-link");
+        if (link) { openModel(link.dataset.model); return; }
         const row = ev.target.closest("tr.brand-row");
         if (!row) return;
         const brand = row.dataset.brand;
@@ -170,10 +232,11 @@
       $("csvBtn").addEventListener("click", () => {
         if (!data) return;
         const q = (v) => '"' + String(v ?? "").replace(/"/g, '""') + '"';
-        const lines = [["Brand", "Model", "Description", "Units", "Revenue", "Orders"].map(q).join(",")];
+        const lines = [["Brand", "Model", "Description", "Written", "Written (finished)", "Written (open)", "Written orders", "Written revenue", "Delivered", "Returned", "Delivered orders", "List revenue", "Discounts", "Revenue", "Cost", "Margin", "GM %", "$ / unit"].map(q).join(",")];
+        const row = (brand, model, desc, x) => [brand, model, desc, x.written, x.writtenFinished, x.writtenOpen, x.writtenOrders, x.writtenRevenue, x.units, x.returned, x.orders, x.listRevenue, x.discount, x.revenue, x.cost, x.margin, pct(x.margin, x.revenue), x.units ? (x.revenue / x.units).toFixed(2) : ""].map(q).join(",");
         data.brands.forEach((b) => {
-          lines.push([b.brand, "", "ALL MODELS", b.units, b.revenue, ""].map(q).join(","));
-          b.models.forEach((m) => lines.push([b.brand, m.model, m.description || "", m.units, m.revenue, m.orders].map(q).join(",")));
+          lines.push(row(b.brand, "", "ALL MODELS", b));
+          b.models.forEach((m) => lines.push(row(b.brand, m.model, m.description || "", m)));
         });
         const blob = new Blob(["﻿" + lines.join("\r\n")], { type: "text/csv;charset=utf-8;" });
         const a = document.createElement("a");
@@ -196,15 +259,73 @@
           const current = $("deptFilter").value;
           $("deptFilter").innerHTML = '<option value="">All departments</option>' +
             (body.departments || []).map((d) => `<option ${d === (body.department || current) ? "selected" : ""}>${esc(d)}</option>`).join("");
+          const fed = body.feed?.pulled_at ? ` · feed last pulled ${String(body.feed.pulled_at).replace("T", " ").slice(0, 16)}` : "";
           $("coverageLine").textContent = body.coverage?.from
-            ? `Delivered data on file: ${body.coverage.from} → ${body.coverage.to} (loaded by the monthly commission import).`
-            : "No delivered order data on file yet — run a commission import first.";
+            ? `Delivered units on file: ${body.coverage.from} → ${body.coverage.to}${body.coverage.startFrom ? `; written from ${body.coverage.startFrom}` : ""} (ePASS finished-orders feed, hourly${fed}; open book ${num(body.coverage.openLines || 0)} lines). Run the pull with -FinishedSince to backfill earlier history.`
+            : "No sold units on file yet — the next hourly ePASS finished-orders pull fills this in (or run the pull with -FinishedSince to backfill).";
           render();
         } catch (err) {
           $("tableHost").innerHTML = `<div class="empty">${esc(err.message)}</div>`;
         }
       }
 
+      // One model's units: invoice, serial, price, discount, cost, margin.
+      async function openModel(model) {
+        if (!model || !data) return;
+        $("drawerTitle").textContent = model;
+        $("drawerSub").textContent = `${data.from} → ${data.to}${data.department ? " · " + data.department : ""}`;
+        $("drawerBody").innerHTML = '<div class="empty">Loading…</div>';
+        $("drawer").classList.add("show"); $("drawerBack").classList.add("show");
+        try {
+          const qs = new URLSearchParams({ model, from: data.from, to: data.to, department: data.department || "" });
+          const res = await fetch("/api/brand-sales/model?" + qs, { credentials: "same-origin" });
+          const body = await res.json();
+          if (!res.ok) throw new Error(body.error || "Unable to load the units.");
+          const units = body.units || [];
+          const open = body.open || [];
+          if (!units.length && !open.length) { $("drawerBody").innerHTML = '<div class="empty">No units in this window.</div>'; return; }
+          const live = units.filter((u) => !u.returned);
+          const tot = live.reduce((a, u) => ({ net: a.net + u.net, cost: a.cost + u.unitCost }), { net: 0, cost: 0 });
+          const openQty = open.reduce((a, o) => a + o.qty, 0);
+          $("drawerBody").innerHTML = `
+            ${open.length ? `
+            <h4 style="margin:6px 0 4px; font-size:13px;">Written, not yet delivered <span class="sub-chip soft">${num(openQty)} on ${num(open.length)} open ticket${open.length === 1 ? "" : "s"}</span></h4>
+            <table style="margin-bottom:16px;">
+              <thead><tr><th>Written</th><th>Invoice</th><th class="hide-sm">Customer</th><th class="hide-sm">Rep</th><th>Status</th><th class="hide-sm">Scheduled</th><th class="num">Qty</th><th class="num">Price</th></tr></thead>
+              <tbody>${open.map((o) => `
+                <tr><td>${esc(o.startDate)}</td><td>${esc(o.invoice)}</td><td class="hide-sm">${esc(o.customerName)}</td><td class="hide-sm">${esc(o.salespersonCode)}</td><td>${esc(o.jobStatus || o.status)}</td><td class="hide-sm">${esc(o.scheduleDate || "—")}</td><td class="num">${num(o.qty)}</td><td class="num">${money2(o.sellingPrice)}</td></tr>`).join("")}
+              </tbody>
+            </table>` : ""}
+            <h4 style="margin:6px 0 4px; font-size:13px;">Delivered</h4>
+            <p class="section-note" style="margin:0 0 10px;">${num(live.length)} unit${live.length === 1 ? "" : "s"} · revenue ${money2(tot.net)} · cost ${money2(tot.cost)} · margin ${money2(tot.net - tot.cost)} (${pct(tot.net - tot.cost, tot.net)})${units.length - live.length ? ` · ${num(units.length - live.length)} returned (excluded)` : ""}</p>
+            ${units.length ? `<table>
+              <thead><tr><th class="hide-sm">Written</th><th>Finished</th><th>Invoice</th><th>Serial</th><th class="hide-sm">Customer</th><th class="hide-sm">Rep</th><th class="num">Price</th><th class="num">Disc.</th><th class="num">Net</th><th class="num">Cost</th><th class="num">Margin</th></tr></thead>
+              <tbody>${units.map((u) => `
+                <tr style="${u.returned ? "opacity:0.55;" : ""}">
+                  <td class="hide-sm">${esc(u.startDate || "—")}</td>
+                  <td>${esc(u.finishDate)}</td>
+                  <td>${esc(u.invoice)}${u.returned ? '<span class="sub-chip">returned</span>' : ""}${u.lineFound ? "" : '<span class="sub-chip soft">no line</span>'}</td>
+                  <td>${esc(u.serial)}${u.newUsed && u.newUsed !== "NEW" ? ` <span class="sub-chip soft">${esc(u.newUsed)}</span>` : ""}</td>
+                  <td class="hide-sm">${esc(u.customerName)}</td>
+                  <td class="hide-sm">${esc(u.salespersonCode)}</td>
+                  <td class="num">${money2(u.sellingPrice)}</td>
+                  <td class="num">${u.discount ? money2(u.discount) : "—"}</td>
+                  <td class="num">${money2(u.net)}</td>
+                  <td class="num">${money2(u.unitCost)}</td>
+                  <td class="num">${money2(u.net - u.unitCost)}</td>
+                </tr>`).join("")}
+              </tbody>
+            </table>` : '<div class="empty" style="padding:14px;">Nothing delivered in this window.</div>'}`;
+        } catch (err) {
+          $("drawerBody").innerHTML = `<div class="empty">${esc(err.message)}</div>`;
+        }
+      }
+      function closeDrawer() { $("drawer").classList.remove("show"); $("drawerBack").classList.remove("show"); }
+      $("drawerClose").addEventListener("click", closeDrawer);
+      $("drawerBack").addEventListener("click", closeDrawer);
+      document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeDrawer(); });
+
+      $("sortSel").addEventListener("change", render);
       $("runBtn").addEventListener("click", () => load({
         from: $("fromDate").value || "",
         to: $("toDate").value || "",

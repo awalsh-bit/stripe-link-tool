@@ -31,6 +31,7 @@
 #                        1st of last month - the OE-23 Salesperson Activity Report
 #   finished-serials / finished-items / finished-labor / finished-misc / finished-warranty
 #                        the cost columns of those invoices' lines (OE-23's C: row)
+#   finished-model-master Model + Brand master rows for every model sold in the window (Brand Sales)
 #   finished-models      InvoiceModel lines of those invoices (price per line; finished-misc carries the
 #                        InvoiceModel* link columns so a discount Misc nets against its model line)
 #   salespeople          Salesperson master (code -> name) so the feed prints the same names OE-23 did
@@ -720,8 +721,12 @@ WHERE $finWhere
 ORDER BY i.InvFinishDate, i.Code
 "@ (Join-Path $LatestDir "finished-orders.csv") "finished-orders"
 
+    # 9/28: the serial carries the model line it was committed to
+    # (ModelLineTimeStamp = InvoiceModel.LineTimeStamp), so Brand Sales can
+    # price each unit from its own line and net the linked discount.
     $fin.datasets["finished-serials"] = Export-Query $conn @"
-SELECT s.InvoiceCode, s.ModelCode, s.SerialCode, s.UnitCost, s.Returned, s.Status
+SELECT s.InvoiceCode, s.ModelCode, s.SerialCode, s.UnitCost, s.Returned, s.Status,
+       s.ModelLineTimeStamp, s.ModelDateStamp, s.DateCommitted, s.LocationCode
 FROM InvoiceSerial s
 INNER JOIN Invoice i ON s.InvoiceCode = i.Code
 WHERE $finWhere
@@ -767,6 +772,30 @@ INNER JOIN Invoice i ON m.InvoiceCode = i.Code
 WHERE $finWhere
 ORDER BY m.InvoiceCode, m.LineTimeStamp
 "@ (Join-Path $LatestDir "finished-models.csv") "finished-models"
+
+    # 9/28: brand / product / description for every model sold in the window,
+    # straight from the Model master (and the Brand master's description), so
+    # Brand Sales attributes from ePASS instead of the inventory-snapshot map.
+    # Guarded: if the Brand join can't run the bundle still goes without it.
+    try {
+      $fin.datasets["finished-model-master"] = Export-Query $conn @"
+SELECT m.Code, m.BrandCode, m.Description, m.ProductCode, m.SKU, b.Description AS Brand_Description
+FROM Model m
+LEFT JOIN Brand b ON m.BrandCode = b.Code
+WHERE m.Code IN (SELECT s.ModelCode FROM InvoiceSerial s INNER JOIN Invoice i ON s.InvoiceCode = i.Code WHERE $finWhere)
+ORDER BY m.Code
+"@ (Join-Path $LatestDir "finished-model-master.csv") "finished-model-master"
+    } catch {
+      Log ("finished-model-master with Brand join FAILED ({0}) - retrying without the join" -f $_.Exception.Message); if ($conn.State -ne [System.Data.ConnectionState]::Open) { $conn.Open() }
+      try {
+        $fin.datasets["finished-model-master"] = Export-Query $conn @"
+SELECT m.Code, m.BrandCode, m.Description, m.ProductCode
+FROM Model m
+WHERE m.Code IN (SELECT s.ModelCode FROM InvoiceSerial s INNER JOIN Invoice i ON s.InvoiceCode = i.Code WHERE $finWhere)
+ORDER BY m.Code
+"@ (Join-Path $LatestDir "finished-model-master.csv") "finished-model-master"
+      } catch { Log ("finished-model-master FAILED (bundle continues without it): {0}" -f $_.Exception.Message); if ($conn.State -ne [System.Data.ConnectionState]::Open) { $conn.Open() } }
+    }
 
     $fin.datasets["finished-warranty"] = Export-Query $conn @"
 SELECT w.InvoiceCode, w.ExtWarrantyCode, w.Model, w.SellingPrice, w.UnitCost

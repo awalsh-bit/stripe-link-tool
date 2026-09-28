@@ -229,6 +229,7 @@ import {
   listRevenuePerformanceSources
 } from "./lib/revenue-performance-postgres.js";
 import { finishedTicketsFromFeed, salespersonNamesFromFeed, ticketsByMonth, openOrderTicketsFromFeed, compareTickets } from "./lib/epass-feed-finished.js";
+import { replaceEpassSoldSerials, listSoldSerialsByModel, listSoldSerialsForModel, getEpassSoldSerialsMeta } from "./lib/epass-sold-serials-postgres.js";
 import { loadWarrantyTerms, lookupWarranty, warrantyTermsSummary } from "./lib/warranty-terms.js";
 import { getFieldRoute, markEnroute, markArrived, submitOutcome, listVerifyQueue, verifyParts, getFindingsForSv, stopContext, addFieldNote, savePhoto as saveFieldPhoto, getPhoto as getFieldPhoto, flagModel, listModelFlags, reviewModelFlag, dayDollars, autoLaborLines, listReadyToBill, markBilled } from "./lib/service-field-postgres.js";
 import { ensureJourneyToken, resolveJourney, journeyTokenFor } from "./lib/journey-tracker-postgres.js";
@@ -6315,7 +6316,42 @@ const SHOP_CATEGORY_ORDER = [
   "Range", "MW", "CT", "Steam Ov", "Vent", "Coffee", "IM", "Outdoor",
   "Lau Acc", "Ref Acc", "DW Acc", "Cook Acc", "Vent Acc", "Out Acc"
 ];
-const SHOP_TOP_DEAL_MAX = 999;
+// Deal chips on the storefront (Andrew 9/27): one per category with its own
+// ceiling, instead of one "under $999" bucket. Laundry splits by product code
+// (washers vs dryers); the others match the shop category.
+const SHOP_DEAL_GROUPS = [
+  { key: "washers", label: "Washers", max: 999, products: ["WASHF", "WASHT"] },
+  { key: "dryers", label: "Dryers", max: 999, products: ["DRELE", "DRGAS"] },
+  { key: "dishwashers", label: "Dishwashers", max: 999, categories: ["DW"] },
+  { key: "refrigerators", label: "Refrigerators", max: 1999, categories: ["Ref"] }
+];
+function shopDealGroupFor({ product, category, price }) {
+  const p = Number(price);
+  if (!Number.isFinite(p) || p <= 0) return "";
+  const prod = String(product || "").toUpperCase();
+  const cat = String(category || "");
+  const g = SHOP_DEAL_GROUPS.find((d) => (d.products ? d.products.includes(prod) : d.categories.includes(cat)) && p <= d.max);
+  return g ? g.key : "";
+}
+
+// Best sellers: units sold per model over the trailing 12 months from the
+// ePASS serial feed (epass_sold_serials). Cached; the storefront's default
+// sort puts these first. Missing sales data just means nobody ranks.
+let shopSoldCache = { at: 0, byModel: {} };
+async function shopSoldByModel() {
+  if (Date.now() - shopSoldCache.at < 30 * 60 * 1000) return shopSoldCache.byModel;
+  try {
+    const from = new Date(Date.now() - 365 * 86400000).toISOString().slice(0, 10);
+    const { models } = await listSoldSerialsByModel({ from });
+    const byModel = {};
+    for (const m of models) { const k = normalizeModelKey(m.model); if (k) byModel[k] = (byModel[k] || 0) + (Number(m.units) || 0); }
+    shopSoldCache = { at: Date.now(), byModel };
+  } catch (err) {
+    console.warn("Shop best-seller ranking unavailable:", err.message);
+    shopSoldCache = { at: Date.now() - 25 * 60 * 1000, byModel: shopSoldCache.byModel }; // retry in 5 min
+  }
+  return shopSoldCache.byModel;
+}
 
 function shopCategoryRank(key) {
   const i = SHOP_CATEGORY_ORDER.indexOf(key);
@@ -6425,7 +6461,7 @@ function shopStockItems({ snapshot, settings, brandMap, brandNames, images, mapP
         serial: x.serial, serialType: "ALL", condition: "new", source: "stock",
         stock: available.length, stockLevel: available.length > SHOP_STOCK_LOW_MAX ? "in" : "low",
         image: images[g.key] || "", price: Math.round(price * 100) / 100, noPrice: !price,
-        topDeal: Boolean(price) && price <= SHOP_TOP_DEAL_MAX, mapPublic, mapFloor: Number.isFinite(Number(floor)) ? Number(floor) : null
+        deal: shopDealGroupFor({ product: g.prod, category: g.category, price }), mapPublic, mapFloor: Number.isFinite(Number(floor)) ? Number(floor) : null
       });
     }
   }
@@ -6518,7 +6554,7 @@ async function computeShopCatalog() {
       condition: shopConditionOf(serialType),
       image: images[normalizeModelKey(item.model)] || "",
       price: Math.round(price * 100) / 100,
-      topDeal: price <= SHOP_TOP_DEAL_MAX,
+      deal: shopDealGroupFor({ product: item.product, category: item.category, price }),
       mapPublic,
       mapFloor: itemMapFloor,
       source: "clearance"
@@ -6983,6 +7019,7 @@ app.get("/api/shop/catalog", async (req, res) => {
   try {
     const catalog = await computeShopCatalog();
     const shopper = await getShopperByToken(req.query.token).catch(() => null);
+    const sold = await shopSoldByModel();
     // Andrew 9/24: prices are an IN-CART reveal, not a sign-in reveal — the
     // listing shows a price only where the MAP policy allows advertising it;
     // everything else prices itself once it's in the cart (/api/shop/cart-prices).
@@ -6998,7 +7035,8 @@ app.get("/api/shop/catalog", async (req, res) => {
         description: i.description,
         condition: i.condition,
         image: i.image,
-        topDeal: i.topDeal,
+        deal: i.deal || "",
+        sold: sold[normalizeModelKey(i.model)] || 0,
         source: i.source || "clearance",
         stock: i.stock ?? null,
         stockLevel: i.stockLevel || null,
@@ -7042,7 +7080,7 @@ app.get("/api/shop/catalog", async (req, res) => {
         pickupLaterNote: SHOP_PICKUP_LATER_NOTE
       } : null,
       taxRate: canBuild ? SHOP_TAX_RATE : null,
-      topDealMax: SHOP_TOP_DEAL_MAX
+      dealGroups: SHOP_DEAL_GROUPS.map((d) => ({ key: d.key, label: d.label, max: d.max }))
     });
   } catch (err) {
     console.error("Shop catalog failed:", err.message);
@@ -9923,6 +9961,12 @@ let lastTaxPostProcessing = null;
 // source again). Returns the counts for the audit log / status endpoint.
 async function processFinishedOrdersBundle(bundle) {
   const counts = {};
+  // Sold serials (Brand Sales, 9/28): one row per unit on every finished
+  // invoice in the bundle — kept regardless of the OE-23 switch below.
+  if (Array.isArray(bundle.datasets?.["finished-serials"])) {
+    try { counts.soldSerials = await replaceEpassSoldSerials(bundle, { filename: `ePASS feed ${bundle.pulledAt || ""}`.trim() }); }
+    catch (err) { console.error("Sold serials from ePASS feed failed:", err.message); counts.soldSerials = { error: err.message }; }
+  }
   try {
     const fin = bundle.datasets?.["finished-orders"];
     const sjSettings = await getServiceSettings().catch(() => ({}));
@@ -11868,75 +11912,97 @@ app.post("/api/field-commissions/exceptions/:id/resolve", requireCommissionsPage
   }
 });
 
-// Brand Sales report: delivered appliance revenue + units by brand over a
-// period. Revenue/units = commission-report Model lines on the finish date
-// (OE-23 finished orders); brands come from the model→brand map the nightly
-// inventory snapshots accumulate (the commission report has no brand
-// column). Models the map hasn't seen land in an explicit unmatched bucket
-// rather than silently vanishing.
+// Brand Sales report (reworked 9/28 to read the ePASS serial feed): every
+// unit on every finished invoice in the window — InvoiceSerial rows from the
+// hourly finished-orders bundle, priced from the model line each serial was
+// committed to, net of the linked ePASS discount, with the unit's own cost —
+// rolled up by the brand ePASS holds on the Model master. Returned units are
+// counted apart. The commission-report Model lines are no longer involved.
+const BRAND_SALES_UNMATCHED = "— Model not in the ePASS model master —";
+function brandSalesWindow(req) {
+  const todayStr = new Date().toLocaleDateString("en-CA", { timeZone: APP_TIMEZONE });
+  // Default window: the first day of the month five months back → today
+  // (six months of delivered business).
+  const t = new Date(`${todayStr}T12:00:00Z`);
+  const defaultFrom = new Date(Date.UTC(t.getUTCFullYear(), t.getUTCMonth() - 5, 1)).toISOString().slice(0, 10);
+  const from = /^\d{4}-\d{2}-\d{2}$/.test(String(req.query.from || "")) ? String(req.query.from) : defaultFrom;
+  const to = /^\d{4}-\d{2}-\d{2}$/.test(String(req.query.to || "")) ? String(req.query.to) : todayStr;
+  const department = String(req.query.department || "").slice(0, 40);
+  return { from, to, department };
+}
 app.get("/api/brand-sales", requirePagePermission("/brand-sales.html"), async (req, res) => {
   try {
-    const todayStr = new Date().toLocaleDateString("en-CA", { timeZone: APP_TIMEZONE });
-    // Default window: the first day of the month five months back → today
-    // (six months of delivered business).
-    const t = new Date(`${todayStr}T12:00:00Z`);
-    const defaultFrom = new Date(Date.UTC(t.getUTCFullYear(), t.getUTCMonth() - 5, 1)).toISOString().slice(0, 10);
-    const from = /^\d{4}-\d{2}-\d{2}$/.test(String(req.query.from || "")) ? String(req.query.from) : defaultFrom;
-    const to = /^\d{4}-\d{2}-\d{2}$/.test(String(req.query.to || "")) ? String(req.query.to) : todayStr;
-    const department = String(req.query.department || "").slice(0, 40);
-
-    const [data, brandMap] = await Promise.all([
-      listBrandSalesByModel({ from, to, department }),
-      getModelBrandMap()
+    const { from, to, department } = brandSalesWindow(req);
+    const [data, brandMap, meta] = await Promise.all([
+      listSoldSerialsByModel({ from, to, department }),
+      getModelBrandMap().catch(() => ({})),
+      getEpassSoldSerialsMeta().catch(() => null)
     ]);
 
-    // Brand names arrive in two spellings — ePASS's CAPS ("WOLF", "GE
-    // PROFILE") from the inventory feed and NetSuite's proper case ("Wolf",
-    // "GE Profile") — so group on a case/punctuation-insensitive key and
-    // show the nicest spelling seen (proper case wins; CAPS-only gets
-    // title-cased, keeping 1–2 letter tokens like GE / LG upper).
-    const canonKey = (s) => String(s || "").trim().toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
-    const titleCase = (s) => String(s || "").trim().replace(/[A-Za-z0-9']+/g, (w) => (w.length <= 2 ? w.toUpperCase() : w[0].toUpperCase() + w.slice(1).toLowerCase()));
-    const UNMATCHED = "— Model not in brand map —";
+    // Brand display: the ePASS Brand master's description when the pull could
+    // join it, else the BrandCode (CAPS → title case, keeping GE / LG upper).
+    // Models the master hasn't covered yet fall back to the NetSuite /
+    // snapshot brand map, then to an explicit unmatched bucket.
+    const canonKey = (x) => String(x || "").trim().toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+    const titleCase = (x) => String(x || "").trim().replace(/[A-Za-z0-9']+/g, (w) => (w.length <= 2 ? w.toUpperCase() : w[0].toUpperCase() + w.slice(1).toLowerCase()));
     const displayFor = new Map();
+    const rawBrandOf = (m) => (m.brand || m.brandCode || brandMap[m.model]?.brand || "").trim();
     for (const m of data.models) {
-      const raw = (brandMap[m.model]?.brand || "").trim();
+      const raw = rawBrandOf(m);
       if (!raw) continue;
       const key = canonKey(raw);
       const cur = displayFor.get(key);
       const rawHasLower = /[a-z]/.test(raw);
       if (!cur || (!/[a-z]/.test(cur) && rawHasLower)) displayFor.set(key, rawHasLower ? raw : titleCase(raw));
     }
-
     const brands = new Map();
+    let fromMap = 0;
     for (const m of data.models) {
-      const info = brandMap[m.model];
-      const raw = (info?.brand || "").trim();
-      const brand = raw ? displayFor.get(canonKey(raw)) : UNMATCHED;
-      if (!brands.has(brand)) brands.set(brand, { brand, revenue: 0, discount: 0, units: 0, models: [] });
+      const raw = rawBrandOf(m);
+      if (raw && !m.brand && !m.brandCode) fromMap++;
+      const brand = raw ? displayFor.get(canonKey(raw)) : BRAND_SALES_UNMATCHED;
+      if (!brands.has(brand)) brands.set(brand, { brand, brandCode: m.brandCode || "", revenue: 0, listRevenue: 0, discount: 0, cost: 0, margin: 0, units: 0, returned: 0, orders: 0, unpriced: 0, written: 0, writtenFinished: 0, writtenOpen: 0, writtenOrders: 0, writtenRevenue: 0, models: [] });
       const b = brands.get(brand);
-      // Brand revenue is NET of linked ePASS discounts (the commission report
-      // prints the full model price; the feed knows the discount per line).
-      b.revenue = Math.round((b.revenue + (m.netRevenue ?? m.revenue)) * 100) / 100;
-      b.discount = Math.round((b.discount + (m.discount || 0)) * 100) / 100;
-      b.units = Math.round((b.units + m.units) * 100) / 100;
-      b.models.push({ model: m.model, description: info?.description || "", units: m.units, revenue: m.netRevenue ?? m.revenue, listRevenue: m.revenue, discount: m.discount || 0, orders: m.orders });
+      b.revenue = Math.round((b.revenue + m.revenue) * 100) / 100;
+      b.listRevenue = Math.round((b.listRevenue + m.listRevenue) * 100) / 100;
+      b.discount = Math.round((b.discount + m.discount) * 100) / 100;
+      b.cost = Math.round((b.cost + m.cost) * 100) / 100;
+      b.margin = Math.round((b.revenue - b.cost) * 100) / 100;
+      b.units += m.units; b.returned += m.returned; b.orders += m.orders; b.unpriced += m.unpriced;
+      b.written += m.written; b.writtenFinished += m.writtenFinished; b.writtenOpen += m.writtenOpen; b.writtenOrders += m.writtenOrders;
+      b.writtenRevenue = Math.round((b.writtenRevenue + m.writtenRevenue) * 100) / 100;
+      b.models.push({ model: m.model, description: m.description || brandMap[m.model]?.description || "", productCode: m.productCode, units: m.units, returned: m.returned,
+        revenue: m.revenue, listRevenue: m.listRevenue, discount: m.discount, cost: m.cost, margin: m.margin, orders: m.orders, unpriced: m.unpriced,
+        written: m.written, writtenFinished: m.writtenFinished, writtenOpen: m.writtenOpen, writtenOrders: m.writtenOrders, writtenRevenue: m.writtenRevenue });
     }
-    const brandList = [...brands.values()].sort((a, b) => b.revenue - a.revenue);
-    brandList.forEach((b) => b.models.sort((x, y) => y.revenue - x.revenue));
-
+    const brandList = [...brands.values()].sort((a, b) => b.revenue - a.revenue || b.written - a.written);
+    brandList.forEach((b) => b.models.sort((x, y) => y.revenue - x.revenue || y.written - x.written));
+    const sum = (k) => Math.round(brandList.reduce((acc, b) => acc + (b[k] || 0), 0) * 100) / 100;
     const totals = {
-      revenue: Math.round(brandList.reduce((s, b) => s + b.revenue, 0) * 100) / 100,
-      discount: Math.round(brandList.reduce((s, b) => s + (b.discount || 0), 0) * 100) / 100,
-      units: Math.round(brandList.reduce((s, b) => s + b.units, 0) * 100) / 100,
-      models: data.models.length,
-      unmatchedModels: brands.get(UNMATCHED)?.models.length || 0
+      revenue: sum("revenue"), listRevenue: sum("listRevenue"), discount: sum("discount"), cost: sum("cost"), margin: sum("margin"),
+      units: brandList.reduce((acc, b) => acc + b.units, 0), returned: brandList.reduce((acc, b) => acc + b.returned, 0),
+      written: brandList.reduce((acc, b) => acc + b.written, 0), writtenFinished: brandList.reduce((acc, b) => acc + b.writtenFinished, 0),
+      writtenOpen: brandList.reduce((acc, b) => acc + b.writtenOpen, 0), writtenRevenue: sum("writtenRevenue"),
+      unpriced: brandList.reduce((acc, b) => acc + b.unpriced, 0),
+      models: data.models.length, unmatchedModels: brands.get(BRAND_SALES_UNMATCHED)?.models.length || 0, brandFromMap: fromMap
     };
-
-    return res.json({ from, to, department, departments: data.departments, coverage: data.coverage, totals, brands: brandList });
+    return res.json({ from, to, department, departments: data.departments, coverage: data.coverage, feed: meta?.last || null, totals, brands: brandList, source: "epass-serials" });
   } catch (err) {
     console.error("Brand sales failed:", err.message);
     return res.status(500).json({ error: "Unable to build the brand sales report." });
+  }
+});
+// The units behind one model (invoice, serial, price, discount, cost).
+app.get("/api/brand-sales/model", requirePagePermission("/brand-sales.html"), async (req, res) => {
+  try {
+    const { from, to, department } = brandSalesWindow(req);
+    const model = String(req.query.model || "").trim().slice(0, 80);
+    if (!model) return res.status(400).json({ error: "model is required." });
+    const { units, open } = await listSoldSerialsForModel({ model, from, to, department });
+    return res.json({ model: model.toUpperCase(), from, to, department, units, open });
+  } catch (err) {
+    console.error("Brand sales model detail failed:", err.message);
+    return res.status(500).json({ error: "Unable to load the units for that model." });
   }
 });
 

@@ -190,6 +190,7 @@
           <input type="text" id="zipAdd" placeholder="78620, 78737…" inputmode="numeric" style="flex:1; min-width:160px; border:1px solid var(--border); border-radius:10px; padding:8px 10px; font-size:13px;">
           <input type="text" id="zipLabel" placeholder="label (optional)" maxlength="60" style="width:180px; border:1px solid var(--border); border-radius:10px; padding:8px 10px; font-size:13px;">
           <button type="button" class="ws-btn" id="zipAddBtn">Add ZIPs</button>
+          <button type="button" class="ws-btn" id="zipCsvBtn" title="Download the list with labels as a CSV (marketing)">Export CSV</button>
           <span class="ws-snap-meta" id="zipStatus"></span>
         </div>
         <div id="zipList" class="zip-list">Loading…</div>
@@ -724,8 +725,10 @@
 
         // ---- Delivery ZIP codes ----
         let zipLoaded = false;
+        let zipRows = [];
         const escZ = (v) => String(v ?? "").replace(/[&<>"']/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch]));
         function renderZips(zips) {
+          zipRows = zips;
           document.getElementById("zipSummaryLine").textContent = `${zips.length} ZIP${zips.length === 1 ? "" : "s"} can order online.`;
           document.getElementById("zipList").innerHTML = zips.length
             ? zips.map((z) => `<span class="zip-chip" title="${escZ(z.addedBy ? "added by " + z.addedBy + " · " : "")}click the label to edit it"><b>${escZ(z.zip)}</b><span class="chip-label" data-zip-label="${escZ(z.zip)}" role="button" tabindex="0" title="Edit label">${z.label ? escZ(z.label) : "<i>add label</i>"}</span><button type="button" data-zip-rm="${escZ(z.zip)}" aria-label="Remove ${escZ(z.zip)}">✕</button></span>`).join("")
@@ -736,6 +739,22 @@
           catch (err) { document.getElementById("zipStatus").textContent = err.message; }
         }
         document.getElementById("zipCard").addEventListener("toggle", (e) => { if (e.target.open && !zipLoaded) { zipLoaded = true; loadZips(); } });
+        // ZIP list → CSV (marketing lists): zip, label, added by, added on.
+        document.getElementById("zipCsvBtn").addEventListener("click", async () => {
+          const status = document.getElementById("zipStatus");
+          if (!zipRows.length) { try { const out = await api("/api/shop/allowed-zips"); renderZips(out.zips || []); } catch (err) { status.textContent = err.message; return; } }
+          if (!zipRows.length) { status.textContent = "No ZIPs to export."; return; }
+          const q = (v) => '"' + String(v ?? "").replace(/"/g, '""') + '"';
+          const lines = [["ZIP", "Label", "Added by", "Added on"].map(q).join(",")];
+          zipRows.forEach((z) => lines.push([z.zip, z.label || "", z.addedBy || "", z.addedAt ? String(z.addedAt).slice(0, 10) : ""].map(q).join(",")));
+          const blob = new Blob(["\ufeff" + lines.join("\r\n")], { type: "text/csv;charset=utf-8;" });
+          const a = document.createElement("a");
+          a.href = URL.createObjectURL(blob);
+          a.download = `shop-delivery-zips-${new Date().toISOString().slice(0, 10)}.csv`;
+          document.body.appendChild(a); a.click(); a.remove();
+          URL.revokeObjectURL(a.href);
+          status.textContent = `Exported ${zipRows.length} ZIP${zipRows.length === 1 ? "" : "s"}.`;
+        });
         document.getElementById("zipAddBtn").addEventListener("click", async () => {
           const status = document.getElementById("zipStatus"); const btn = document.getElementById("zipAddBtn");
           const zips = document.getElementById("zipAdd").value.trim();

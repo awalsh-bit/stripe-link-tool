@@ -216,12 +216,17 @@
     .chip-row { display: flex; flex-wrap: wrap; gap: 7px; }
     .chip { border: 1px solid #d1d5db; background: #fff; border-radius: 999px; padding: 6px 13px; font-size: 13px; cursor: pointer; }
     .chip.active { background: var(--primary); border-color: var(--primary); color: #fff; }
+    .deal-row { display: none; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 12px; }
+    .deal-row.show { display: flex; }
+    .deal-row .deal-lead { font-size: 12.5px; font-weight: 700; color: #92400e; letter-spacing: 0.05em; text-transform: uppercase; margin-right: 2px; }
     .deal-chip {
-      border: 2px solid #b45309; background: #fffbeb; color: #92400e;
-      border-radius: 999px; padding: 9px 20px; font-size: 15px; font-weight: 700;
+      border: 2px solid #b45309; background: #fffbeb; color: #92400e; font-family: inherit;
+      border-radius: 999px; padding: 8px 16px; font-size: 14px; font-weight: 700;
       cursor: pointer; letter-spacing: 0.01em;
     }
+    .deal-chip .dc-n { font-weight: 600; opacity: 0.8; margin-left: 4px; }
     .deal-chip.active { background: #b45309; color: #fff; }
+    .best-tag { display: inline-block; margin-left: 8px; vertical-align: 0; background: #fef3c7; color: #92400e; border-radius: 999px; padding: 1px 8px; font-size: 10.5px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; }
 
     .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(255px, 1fr)); gap: 14px; }
     .item-card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 16px; display: flex; flex-direction: column; gap: 6px; position: relative; }
@@ -459,11 +464,12 @@
       Add anything to your cart to see its price — no sign-up needed. Nothing is charged online; a Wilson team member confirms every order before payment.
     </div>
 
+    <div class="deal-row" id="dealRow"></div>
     <div class="filters" id="filterBar" style="display:none;">
-      <button type="button" class="deal-chip" id="dealChip"></button>
       <input type="search" id="searchInput" placeholder="Search model, brand, description...">
       <select id="brandSelect"><option value="">All brands</option></select>
       <select id="sortSelect" class="sort-select" title="Sort results">
+        <option value="best">Sort: Best Sellers</option>
         <option value="featured">Sort: Featured</option>
         <option value="price-asc">Price: Low to High</option>
         <option value="price-desc">Price: High to Low</option>
@@ -699,7 +705,10 @@
     cartPrices: {}, // id -> price, revealed once a unit is in the cart
     cartPriceError: "",
     // selection: { label, cats: [category keys], products: [product codes] } | null
-    filter: { search: "", brand: "", selection: null, topDeals: false, sort: "featured" },
+    // sort "best" = units sold in the last 12 months (server `sold`), ties in
+    // merchandised order; deal = one of the category deal chips or "".
+    filter: { search: "", brand: "", selection: null, deal: "", sort: "best" },
+    bestSellers: new Set(),
     checkout: { open: false, stripe: null, elements: null, setupIntentId: "" },
     pendingAddonItem: null
   };
@@ -824,12 +833,26 @@
   }
 
   function buildFilters() {
-    const dealCount = (state.catalog.items || []).filter((i) => i.topDeal).length;
-    const dealMax = Number(state.catalog.topDealMax || 999);
-    const chip = $("dealChip");
-    chip.textContent = `Top Deals under $${dealMax.toLocaleString()} (${dealCount})`;
-    chip.classList.toggle("active", state.filter.topDeals);
-    chip.style.display = dealCount ? "" : "none";
+    // One deal chip per category with its own ceiling (washers / dryers /
+    // dishwashers under $999, refrigerators under $1,999); empty ones hide.
+    const items = state.catalog.items || [];
+    const dealGroups = (state.catalog.dealGroups || []).map((g) => ({ ...g, count: items.filter((i) => i.deal === g.key).length })).filter((g) => g.count);
+    if (state.filter.deal && !dealGroups.some((g) => g.key === state.filter.deal)) state.filter.deal = "";
+    const row = $("dealRow");
+    row.innerHTML = dealGroups.length ? `<span class="deal-lead">Top deals</span>` + dealGroups.map((g) =>
+      `<button type="button" class="deal-chip${state.filter.deal === g.key ? " active" : ""}" data-deal="${esc(g.key)}">${esc(g.label)} under $${Number(g.max).toLocaleString()}<span class="dc-n">(${g.count})</span></button>`).join("") : "";
+    row.classList.toggle("show", dealGroups.length > 0);
+    row.querySelectorAll("[data-deal]").forEach((btn) => btn.addEventListener("click", () => {
+      const key = btn.getAttribute("data-deal");
+      state.filter.deal = state.filter.deal === key ? "" : key;
+      buildFilters();
+      renderGrid();
+    }));
+    // Best-seller tags: the top models by units sold (at least 2 sold) so the
+    // default sort is visibly "what people buy", not an arbitrary order.
+    const soldByModel = new Map();
+    for (const i of items) if (Number(i.sold) > 0 && !soldByModel.has(i.model)) soldByModel.set(i.model, Number(i.sold));
+    state.bestSellers = new Set([...soldByModel.entries()].filter(([, n]) => n >= 2).sort((a, b) => b[1] - a[1]).slice(0, 8).map(([m]) => m));
 
     const brands = [...new Set((state.catalog.items || []).map((i) => i.brand).filter(Boolean))].sort();
     const sel = $("brandSelect");
@@ -875,7 +898,7 @@
   function visibleItems() {
     const q = state.filter.search.trim().toUpperCase();
     return (state.catalog?.items || []).filter((i) => {
-      if (state.filter.topDeals && !i.topDeal) return false;
+      if (state.filter.deal && i.deal !== state.filter.deal) return false;
       if (state.filter.brand && i.brand !== state.filter.brand) return false;
       const sel = state.filter.selection;
       if (sel && !selectionMatches(sel, i)) return false;
@@ -917,7 +940,11 @@
     // unlocked/public, the MAP display price otherwise); unpriced tiles sink
     // to the end either way. Featured keeps the merchandised order.
     const sort = state.filter.sort;
-    if (sort === "price-asc" || sort === "price-desc") {
+    if (sort === "best") {
+      // Stable sort: models with sales float up by units sold, everything
+      // else keeps the merchandised (featured) order behind them.
+      groups.sort((a, b) => (Number(b.sold) || 0) - (Number(a.sold) || 0));
+    } else if (sort === "price-asc" || sort === "price-desc") {
       const priceOf = (g) => {
         const p = g.price ?? g.mapDisplayPrice;
         return Number.isFinite(Number(p)) ? Number(p) : null;
@@ -946,7 +973,7 @@
         <div class="item-brand">${esc(group.brand)}</div>
         <div class="item-model"><a href="${esc(productPageUrl(group.model))}" target="_blank" rel="noopener" title="View ${esc(group.model)} on wilsonappliance.com">${esc(group.model)}</a></div>
         <div class="item-desc">${esc(group.description)}</div>
-        <div class="item-cat">${esc(categoryLabel(group.category))}${group.source === "stock" ? "" : ` · ${total} available`}${carted && !allInCart ? ` · ${carted} in cart` : ""}</div>
+        <div class="item-cat">${esc(categoryLabel(group.category))}${group.source === "stock" ? "" : ` · ${total} available`}${carted && !allInCart ? ` · ${carted} in cart` : ""}${state.bestSellers.has(group.model) ? `<span class="best-tag">Best seller</span>` : ""}</div>
         <div class="item-foot">
           ${state.paused
             ? `<span></span>`
@@ -1013,11 +1040,6 @@
     return cat ? cat.label : key;
   }
 
-  $("dealChip").addEventListener("click", () => {
-    state.filter.topDeals = !state.filter.topDeals;
-    $("dealChip").classList.toggle("active", state.filter.topDeals);
-    renderGrid();
-  });
   $("searchInput").addEventListener("input", (e) => { state.filter.search = e.target.value; renderGrid(); });
   $("brandSelect").addEventListener("change", (e) => { state.filter.brand = e.target.value; renderGrid(); });
   $("sortSelect").addEventListener("change", (e) => { state.filter.sort = e.target.value; renderGrid(); });

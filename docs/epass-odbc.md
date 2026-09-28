@@ -475,6 +475,42 @@ export. The Cash Ops Projection keeps only released POs ordered in the last
 18 months in its outflows (`po.skippedStale` / `skippedUnreleased` show what
 it left out); the health page shows everything.
 
+### 8b3h. Brand Sales from the serial feed (2026-09-28)
+
+`brand-sales.html` no longer reads the commission-report Model lines. The
+finished-orders bundle's `finished-serials` (every `InvoiceSerial` row of
+every finished invoice in the window) now also carries `ModelLineTimeStamp`
+/ `ModelDateStamp` / `DateCommitted` / `LocationCode`, and a new guarded
+dataset `finished-model-master` brings `Model.Code / BrandCode /
+Description / ProductCode / SKU` plus `Brand.Description` for every model
+sold in the window. `lib/epass-sold-serials-postgres.js` keeps one row per
+unit in `epass_sold_serials` (invoice, serial, model, seq — pseudo serials
+like `00001` can repeat on a line), priced from the `InvoiceModel` line the
+serial was committed to (`SellingPrice`; stampless serials take the first
+line of that model on the invoice), the line's linked ePASS discount split
+evenly across its units (8b3d), and `InvoiceSerial.UnitCost`. Brands live in
+`epass_model_master`, which accumulates across bundles so history keeps its
+brand. Every bundle rewrites the invoices it carries and drops any invoice
+inside its window that no longer comes back (voided / reopened). Returned
+units stay in the table flagged `returned` and are excluded from units,
+revenue and cost. `/api/brand-sales` rolls this up per brand and model
+(revenue net of discounts, cost, margin, GM %, returned, orders,
+`unpriced` = serials with no model line); `/api/brand-sales/model` lists the
+units behind one model. The storefront's best-seller ranking reads the same
+table. Backfill history once with `-FinishedSince yyyy-mm-dd`.
+
+**Written vs delivered (same day):** each serial row also keeps the
+invoice's `InvStartDate` (else `DateCreated`) as `start_date`, and the
+report counts every model two ways side by side: *delivered* = finish date
+in the window (revenue / cost / margin), *written* = start date in the
+window — the serial table by `start_date` plus the `InvoiceModel` lines of
+invoices still open in ePASS (`epass_open_orders` / `epass_open_order_lines`,
+`QtyOrdered`, no serials yet), so a ticket written this month and not yet
+delivered still counts as written. Returned units are excluded from both.
+The model drawer lists the open, undelivered lines above the delivered
+serials. Sort by delivered revenue, units written, units delivered or
+margin; the CSV carries both sets of columns.
+
 ### 8b3b. Shop prices from ePASS price levels (2026-09-24)
 
 `model-list-prices` (sales bundle) carries `ModelListPrice` for every model

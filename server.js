@@ -1,6 +1,7 @@
 import "dotenv/config";
 import express from "express";
 import cors from "cors";
+import compression from "compression";
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
@@ -195,6 +196,9 @@ import {
   importModelBrandCatalog,
   getModelBrandStats,
   saveShopMapPrices,
+  saveShopModelImages,
+  getShopModelImages,
+  getShopModelImagesMeta,
   getShopMapPrices,
   getShopExpressSettings,
   saveShopExpressSettings
@@ -230,6 +234,8 @@ import {
 } from "./lib/revenue-performance-postgres.js";
 import { finishedTicketsFromFeed, salespersonNamesFromFeed, ticketsByMonth, openOrderTicketsFromFeed, compareTickets } from "./lib/epass-feed-finished.js";
 import { replaceEpassSoldSerials, listSoldSerialsByModel, listSoldSerialsForModel, getEpassSoldSerialsMeta } from "./lib/epass-sold-serials-postgres.js";
+import { createEvent, updateEvent, setEventStatus, deleteEvent, getEvent, listEvents, listInvitees, addInvitees, updateInvitee, deleteInvitee, inviteesFromGrid, listRsvps, listPublicEvents, getPublicEvent, submitRsvp, migrateLegacyEvents, INVITEE_STATUSES } from "./lib/events-postgres.js";
+import { upsertEpassCustomers, getEpassCustomersMeta, getEpassCustomers, searchEpassCustomers as searchEpassCustomerMaster, matchEpassCustomersForShoppers, setShopperEpassLink, epassCustomerHistory } from "./lib/epass-customers-postgres.js";
 import { loadWarrantyTerms, lookupWarranty, warrantyTermsSummary } from "./lib/warranty-terms.js";
 import { getFieldRoute, markEnroute, markArrived, submitOutcome, listVerifyQueue, verifyParts, getFindingsForSv, stopContext, addFieldNote, savePhoto as saveFieldPhoto, getPhoto as getFieldPhoto, flagModel, listModelFlags, reviewModelFlag, dayDollars, autoLaborLines, listReadyToBill, markBilled } from "./lib/service-field-postgres.js";
 import { ensureJourneyToken, resolveJourney, journeyTokenFor } from "./lib/journey-tracker-postgres.js";
@@ -591,6 +597,10 @@ const SESSION_TTL_SECONDS =
     ? Number(process.env.SESSION_TTL_SECONDS)
     : AUTH_COOKIE_TTL_SECONDS;
 const app = express();
+// gzip every text response (pages, scripts, JSON) — the storefront's catalog
+// and the ~110KB shop page were going out uncompressed (Andrew 9/28: "the
+// shop takes a few seconds to load").
+app.use(compression({ threshold: 1024 }));
 app.set("trust proxy", true);
 app.use(cors());
 
@@ -603,6 +613,8 @@ const SERVICE_PUBLIC_PATHS = new Set([
   "/builder-credit.html",
   "/builder-credit-terms.pdf",
   "/fireflavor.html",
+  "/events.html",
+  "/event.html",
   "/terms.html",
   "/terms-sign.html",
   "/card-saved.html",
@@ -655,6 +667,8 @@ const SERVICE_PUBLIC_API_PREFIXES = [
   // /api/credit-applications and must NOT match this public prefix.
   "/api/credit-application/",
   "/api/events/fire-flavor/rsvp",
+  "/events", // /events (listing) and /events/<slug> (one event) — the event pages a person sets up on Event RSVPs
+  "/api/public/events",
   "/api/terms/sign",
   "/api/service/setup-intent",
   "/api/service/submit-request",
@@ -1000,7 +1014,7 @@ const PAGE_LABELS = {
   "/archive-service-calls.html": "Archived Service Calls",
   "/salesdashboard.html": "Sales Dashboard",
   "/secret-menu.html": "Secret Menu",
-  "/event-rsvps.html": "Event RSVPs",
+  "/event-rsvps.html": "Events & RSVPs",
   "/spec-packages.html": "Spec Packages",
   "/commissions.html": "Sales Commissions",
   "/user-admin.html": "User Admin",
@@ -5859,6 +5873,9 @@ app.get("/subzero", (req, res) => {
 app.get("/fireflavor", (req, res) => {
   res.sendFile(path.join(__dirname, "fireflavor.html"));
 });
+// Events set up on Event RSVPs: the listing and each event's own page.
+app.get("/events", (req, res) => { res.sendFile(path.join(__dirname, "events.html")); });
+app.get("/events/:slug", (req, res) => { res.sendFile(path.join(__dirname, "event.html")); });
 
 app.get("/secret-menu", (req, res) => {
   res.sendFile(path.join(__dirname, "secret-menu.html"));
@@ -6003,6 +6020,7 @@ app.post("/api/clearance/release", requirePagePermission("/clearance.html"), asy
     }
 
     await clearClearanceStatus(itemId);
+    invalidateShopCatalog();
     recordAudit({
       ip: req.ip, actorUserId: req.authUser?.id || null,
       action: "clearance_released", targetUserId: null,
@@ -6029,6 +6047,7 @@ app.post("/api/clearance/price", requireExecutiveApi, async (req, res) => {
 
     if (rawPrice === null || rawPrice === undefined || String(rawPrice).trim() === "") {
       await clearPriceOverride(itemId);
+    invalidateShopCatalog();
       recordAudit({
         ip: req.ip, actorUserId: req.authUser?.id || null,
         action: "clearance_price_cleared", targetUserId: null,
@@ -6334,23 +6353,34 @@ function shopDealGroupFor({ product, category, price }) {
   return g ? g.key : "";
 }
 
-// Best sellers: units sold per model over the trailing 12 months from the
-// ePASS serial feed (epass_sold_serials). Cached; the storefront's default
-// sort puts these first. Missing sales data just means nobody ranks.
-let shopSoldCache = { at: 0, byModel: {} };
-async function shopSoldByModel() {
-  if (Date.now() - shopSoldCache.at < 30 * 60 * 1000) return shopSoldCache.byModel;
+// Best sellers (Andrew 9/28: "our best sellers in ePASS, using Brand Sales
+// data — Speed Queen at the top"): units delivered over the trailing 12
+// months from the ePASS serial feed (the Brand Sales table), rolled up per
+// BRAND and per model. The storefront's default sort ranks brands by units
+// first (so the house brand leads), then models within the brand. Cached
+// 30 minutes; an empty table just means nobody ranks until the feed lands.
+const shopBrandKey = (v) => String(v || "").trim().toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+let shopSoldCache = { at: 0, byModel: {}, byBrand: {} };
+async function shopSalesRank() {
+  if (Date.now() - shopSoldCache.at < 30 * 60 * 1000) return shopSoldCache;
   try {
     const from = new Date(Date.now() - 365 * 86400000).toISOString().slice(0, 10);
     const { models } = await listSoldSerialsByModel({ from });
-    const byModel = {};
-    for (const m of models) { const k = normalizeModelKey(m.model); if (k) byModel[k] = (byModel[k] || 0) + (Number(m.units) || 0); }
-    shopSoldCache = { at: Date.now(), byModel };
+    const byModel = {}, byBrand = {};
+    for (const m of models) {
+      const units = Number(m.units) || 0;
+      const k = normalizeModelKey(m.model); if (k) byModel[k] = (byModel[k] || 0) + units;
+      // Both spellings ePASS holds — the BrandCode (SPEEDQ) and the Brand
+      // master's description (Speed Queen) — so a clearance item's brand
+      // name and a stock item's brand code both find their total.
+      for (const b of new Set([shopBrandKey(m.brandCode), shopBrandKey(m.brand)].filter(Boolean))) byBrand[b] = (byBrand[b] || 0) + units;
+    }
+    shopSoldCache = { at: Date.now(), byModel, byBrand, from, models: models.length };
   } catch (err) {
     console.warn("Shop best-seller ranking unavailable:", err.message);
-    shopSoldCache = { at: Date.now() - 25 * 60 * 1000, byModel: shopSoldCache.byModel }; // retry in 5 min
+    shopSoldCache = { ...shopSoldCache, at: Date.now() - 25 * 60 * 1000 }; // retry in 5 min
   }
-  return shopSoldCache.byModel;
+  return shopSoldCache;
 }
 
 function shopCategoryRank(key) {
@@ -6471,7 +6501,22 @@ function shopStockItems({ snapshot, settings, brandMap, brandNames, images, mapP
 // The single source of truth for what the shop will sell right now and at
 // what price. Used by the catalog AND re-run at checkout so a stale cart
 // can't buy an unavailable unit or an outdated price.
-async function computeShopCatalog() {
+// Public reads (the catalog page, cart pricing) share one computed catalog
+// for a few seconds; anything that changes availability or pricing calls
+// invalidateShopCatalog(), and checkout always computes fresh.
+const SHOP_CATALOG_CACHE_MS = 20 * 1000;
+let shopCatalogCache = null; // { at, promise }
+function invalidateShopCatalog() { shopCatalogCache = null; }
+function computeShopCatalog({ maxAgeMs = 0 } = {}) {
+  if (maxAgeMs > 0 && shopCatalogCache && Date.now() - shopCatalogCache.at < maxAgeMs) return shopCatalogCache.promise;
+  const promise = computeShopCatalogFresh();
+  if (maxAgeMs > 0) {
+    shopCatalogCache = { at: Date.now(), promise };
+    promise.catch(() => { if (shopCatalogCache?.promise === promise) shopCatalogCache = null; });
+  }
+  return promise;
+}
+async function computeShopCatalogFresh() {
   const { clearance, addons, images, mapPolicy } = await loadShopData();
 
   let statuses = [];
@@ -6546,6 +6591,7 @@ async function computeShopCatalog() {
       id: item.id,
       model: item.model,
       brand: item.brand,
+      brandCode: item.brandCode || "",
       product: item.product,
       category: item.category,
       description: item.description,
@@ -6568,6 +6614,12 @@ async function computeShopCatalog() {
     ? shopStockItems({ snapshot, settings: modelSettings, brandMap, brandNames, images, mapPolicy, mapFloor, statusById, clearanceUnitKeys })
     : { items: [], models: [] };
   items.push(...stock.items);
+  // Pictures: the nightly RetailDeck thumbnails table first (every model in
+  // the feed), the static data/shop-images.json as the fallback.
+  try {
+    const dbImages = await getShopModelImages(items.map((i) => normalizeModelKey(i.model)));
+    for (const i of items) { const u = dbImages[normalizeModelKey(i.model)]; if (u) i.image = u; }
+  } catch (err) { console.warn("Shop thumbnails lookup failed:", err.message); }
   shopSortItems(items);
 
   const categories = [...(clearance._meta?.categories || [])]
@@ -7017,9 +7069,9 @@ app.post("/api/shop/password", async (req, res) => {
 // no prices, no carting, checkout closed.
 app.get("/api/shop/catalog", async (req, res) => {
   try {
-    const catalog = await computeShopCatalog();
+    const catalog = await computeShopCatalog({ maxAgeMs: SHOP_CATALOG_CACHE_MS });
     const shopper = await getShopperByToken(req.query.token).catch(() => null);
-    const sold = await shopSoldByModel();
+    const rank = await shopSalesRank();
     // Andrew 9/24: prices are an IN-CART reveal, not a sign-in reveal — the
     // listing shows a price only where the MAP policy allows advertising it;
     // everything else prices itself once it's in the cart (/api/shop/cart-prices).
@@ -7036,7 +7088,8 @@ app.get("/api/shop/catalog", async (req, res) => {
         condition: i.condition,
         image: i.image,
         deal: i.deal || "",
-        sold: sold[normalizeModelKey(i.model)] || 0,
+        sold: rank.byModel[normalizeModelKey(i.model)] || 0,
+        brandSold: rank.byBrand[shopBrandKey(i.brandCode)] || rank.byBrand[shopBrandKey(i.brand)] || 0,
         source: i.source || "clearance",
         stock: i.stock ?? null,
         stockLevel: i.stockLevel || null,
@@ -7059,9 +7112,20 @@ app.get("/api/shop/catalog", async (req, res) => {
     // so a no-profile MAP shopper can build a complete cart.
     const canBuild = !catalog.paused;
 
+    // Wire shape (9/28): identical units collapse to one entry with `ids`
+    // (a model with six sealed units is one record, not six) — the page
+    // expands them back. Cuts the catalog payload by roughly the average
+    // units-per-model.
+    const groups = new Map();
+    for (const it of items) {
+      const { id, serial, ...rest } = it;
+      const key = JSON.stringify(rest);
+      const g = groups.get(key);
+      if (g) g.ids.push(id); else groups.set(key, { ...rest, ids: [id] });
+    }
     res.setHeader("Cache-Control", "no-store");
     return res.json({
-      items,
+      items: [...groups.values()],
       categories: catalog.categories,
       listDate: catalog.listDate,
       unlocked: Boolean(shopper),
@@ -7095,7 +7159,7 @@ app.post("/api/shop/cart-prices", async (req, res) => {
   try {
     const ids = Array.isArray(req.body?.itemIds) ? req.body.itemIds.map(String).slice(0, 40) : [];
     if (!ids.length) return res.json({ prices: {} });
-    const catalog = await computeShopCatalog();
+    const catalog = await computeShopCatalog({ maxAgeMs: SHOP_CATALOG_CACHE_MS });
     if (catalog.paused) return res.json({ prices: {}, paused: true });
     const byId = new Map(catalog.items.map((i) => [i.id, i]));
     const prices = {};
@@ -7129,6 +7193,7 @@ app.post("/api/shop/stock-models/:model", requirePagePermission("/shop-orders.ht
   try {
     const b = req.body || {};
     const saved = await saveShopModelSetting({ model: req.params.model, price: b.price == null || b.price === "" ? null : Number(b.price), showSingle: !!b.showSingle, hidden: !!b.hidden, note: b.note || "", byEmail: req.authUser?.email || "" });
+    invalidateShopCatalog();
     recordAudit({ ip: req.ip, actorUserId: req.authUser?.id || null, action: "shop_model_setting_saved", targetUserId: null,
       detail: { model: String(req.params.model || "").slice(0, 40), price: b.price ?? null, showSingle: !!b.showSingle, hidden: !!b.hidden } }).catch(() => {});
     return res.json({ ok: true, setting: saved });
@@ -9377,6 +9442,7 @@ app.get("/api/shop-orders", requirePagePermission("/shop-orders.html"), async (r
         : null,
       mapFeedConfigured: Boolean(SHOP_MAP_PRICE_URL),
       mapFeedLastAttempt: shopMapLastAttempt,
+      modelImages: await getShopModelImagesMeta().catch(() => null),
       allowedZips: [...shopZipSet].sort()
     });
   } catch (err) {
@@ -9419,6 +9485,7 @@ app.post("/api/shop/express-settings", requirePagePermission("/shop-orders.html"
       products: req.body?.products,
       byEmail: req.authUser?.email || ""
     });
+    invalidateShopCatalog();
     recordAudit({
       ip: req.ip, actorUserId: req.authUser?.id || null,
       action: "shop_express_settings_saved", targetUserId: null,
@@ -9551,6 +9618,7 @@ app.post("/api/shop-orders/:id/cancel", requirePagePermission("/shop-orders.html
         const status = await getClearanceStatus(item.id);
         if (status && status.status === "web" && status.salesOrder === order.orderNumber) {
           await clearClearanceStatus(item.id);
+    invalidateShopCatalog();
         }
       } catch {}
     }
@@ -9608,6 +9676,7 @@ app.get("/api/shop/blocked-brands", requirePagePermission("/shop-orders.html"), 
 app.post("/api/shop/blocked-brands", requirePagePermission("/shop-orders.html"), async (req, res) => {
   try {
     const added = await addShopBlockedBrands({ entries: req.body?.entries, label: req.body?.label || "", by: req.authUser?.email || "" });
+    invalidateShopCatalog();
     await refreshShopBlockedBrands();
     recordAudit({ ip: req.ip, actorUserId: req.authUser?.id || null, action: "shop_blocked_brands_added", targetUserId: null, detail: { added, label: String(req.body?.label || "").slice(0, 60) } }).catch(() => {});
     return res.json({ ok: true, added, brands: await listShopBlockedBrands() });
@@ -9616,6 +9685,7 @@ app.post("/api/shop/blocked-brands", requirePagePermission("/shop-orders.html"),
 app.patch("/api/shop/blocked-brands/:entry", requirePagePermission("/shop-orders.html"), async (req, res) => {
   try {
     await setShopBlockedBrandLabel({ entry: req.params.entry, label: req.body?.label || "" });
+    invalidateShopCatalog();
     recordAudit({ ip: req.ip, actorUserId: req.authUser?.id || null, action: "shop_blocked_brand_relabeled", targetUserId: null, detail: { entry: String(req.params.entry).slice(0, 40), label: String(req.body?.label || "").slice(0, 60) } }).catch(() => {});
     return res.json({ ok: true, brands: await listShopBlockedBrands() });
   } catch (err) { return res.status(400).json({ error: err.message || "Unable to update that brand." }); }
@@ -9623,6 +9693,7 @@ app.patch("/api/shop/blocked-brands/:entry", requirePagePermission("/shop-orders
 app.delete("/api/shop/blocked-brands/:entry", requirePagePermission("/shop-orders.html"), async (req, res) => {
   try {
     const removed = await removeShopBlockedBrand(req.params.entry);
+    invalidateShopCatalog();
     await refreshShopBlockedBrands();
     recordAudit({ ip: req.ip, actorUserId: req.authUser?.id || null, action: "shop_blocked_brand_removed", targetUserId: null, detail: { entry: String(req.params.entry).slice(0, 40), removed } }).catch(() => {});
     return res.json({ ok: true, removed, brands: await listShopBlockedBrands() });
@@ -9661,6 +9732,7 @@ app.post("/api/shop/inventory-snapshot", requirePagePermission("/shop-orders.htm
       sourceFile: String(req.body?.sourceFile || "").slice(0, 200),
       uploadedBy: userEmail
     });
+    invalidateShopCatalog();
 
     recordAudit({
       ip: req.ip, actorUserId: req.authUser?.id || null,
@@ -9896,6 +9968,7 @@ async function rebuildShopSnapshotFromFeed({ why = "feed" } = {}) {
     if (!feed.onHand.length) return { skipped: "no on-hand serials stored from the ePASS feed yet" };
     const snap = serialSnapshotFromFeed(feed.onHand, feed.models, feed.listPrices, feed.openInvoices);
     const saved = await saveShopInventorySnapshot({ serials: snap.serials, types: snap.types, written: snap.written, units: snap.units, sourceFile: `ePASS feed ${feed.pulledAt || ""}`.trim(), uploadedBy: "epass-agent" });
+    invalidateShopCatalog();
     const out = { why, rows: feed.onHand.length, units: snap.unitCount, withModel: snap.withModel, spokenFor: snap.spokenFor, reservedOnly: snap.reservedOnly, orderedForClosed: snap.orderedForClosed, openInvoices: feed.openInvoices?.size ?? null, availBit: { seen: snap.availBitSeen, falseButFree: snap.availBitFalseFree, trueButHeld: snap.availBitTrueHeld }, priceRows: (feed.listPrices || []).length, priced: snap.units.filter((u) => u.list > 0).length, withMap: snap.units.filter((u) => u.map > 0).length, saved: saved?.count ?? null, typed: saved?.typedCount ?? null, written: saved?.writtenCount ?? null, feedPulledAt: feed.pulledAt, at: new Date().toISOString() };
     lastShopSnapshotRebuild = out;
     return out;
@@ -10029,6 +10102,7 @@ app.post("/api/epass-agent/upload", express.raw({ type: () => true, limit: "60mb
       const { serials, types, written, units } = extractSerialsFromWorkbook(req.body);
       if (!serials.length) return res.status(400).json({ error: "No serial numbers found in that file." });
       const saved = await saveShopInventorySnapshot({ serials, types, written, units, sourceFile, uploadedBy: "epass-agent" });
+    invalidateShopCatalog();
       recordAudit({ ip: req.ip, actorUserId: null, action: "shop_snapshot_uploaded", targetUserId: null,
         detail: { count: saved.count, sourceFile: sourceFile.slice(0, 120), via: "epass-agent" } }).catch(() => {});
       return res.json({ ok: true, kind, count: saved.count });
@@ -10223,6 +10297,12 @@ app.post("/api/epass-agent/upload", express.raw({ type: () => true, limit: "60mb
     if (kind === "epass-finance") {
       const bundle = parseFinanceBundle(req.body);
       const counts = await replaceEpassFinance(bundle, { filename: sourceFile });
+      // Daily Customer master (9/28) — upserted, so a missing dataset on the
+      // hourly runs leaves the last daily pull in place.
+      if (Array.isArray(bundle.datasets?.customers)) {
+        try { counts.customers = await upsertEpassCustomers(bundle, { filename: sourceFile }); }
+        catch (err) { console.error("ePASS customers upsert failed:", err.message); counts.customers = { error: err.message }; }
+      }
       lastFinanceBundle = { finishedAt: new Date().toISOString(), pulledAt: bundle.pulledAt || "", filename: sourceFile.slice(0, 120), ...counts };
       recordAudit({ ip: req.ip, actorUserId: null, action: "epass_finance_received", targetUserId: null, detail: { ...counts, pulledAt: bundle.pulledAt || "", machine: bundle.machine || "", filename: sourceFile.slice(0, 120), via: "epass-agent" } }).catch(() => {});
       return res.json({ ok: true, kind, ...counts, pulledAt: bundle.pulledAt || "" });
@@ -11220,6 +11300,7 @@ app.post("/api/epass-uploads/inventory", requirePagePermission("/epass-uploads.h
         sourceFile: String(req.file.originalname || "ExportModel").slice(0, 200),
         uploadedBy: String(req.authUser?.kind === "db" ? req.authUser.email : "").toLowerCase()
       });
+    invalidateShopCatalog();
       recordAudit({
         ip: req.ip, actorUserId: req.authUser?.id || null,
         action: "shop_snapshot_uploaded", targetUserId: null,
@@ -11248,6 +11329,7 @@ app.post("/api/shop/inventory-snapshot/file", express.raw({ type: () => true, li
       units, sourceFile,
       uploadedBy: "automation"
     });
+    invalidateShopCatalog();
 
     recordAudit({
       ip: req.ip, actorUserId: null,
@@ -11347,8 +11429,16 @@ async function refreshShopMapPricesNow() {
     const buffer = Buffer.from(await response.arrayBuffer());
     const parsed = await parseMapPriceWorkbook(buffer);
     await saveShopMapPrices({ prices: parsed.prices, sourceUrl: SHOP_MAP_PRICE_URL, sourceNote: parsed.note });
-    console.log(`MAP price feed refreshed: ${parsed.count} models (${parsed.note}).`);
-    return { count: parsed.count, note: parsed.note };
+    // Thumbnails ride along with the same parse (9/28) — the storefront's
+    // pictures for every model in the feed, not just the ones a hand-built
+    // data/shop-images.json happened to cover.
+    let images = { count: 0 };
+    if (parsed.images) {
+      try { images = await saveShopModelImages(parsed.images); }
+      catch (err) { console.error("Shop thumbnails save failed:", err.message); images = { count: 0, error: err.message }; }
+    }
+    console.log(`MAP price feed refreshed: ${parsed.count} models, ${images.count} thumbnails (${parsed.note}).`);
+    return { count: parsed.count, images: images.count, note: parsed.note };
   })().then(
     (result) => { shopMapLastAttempt = { at: new Date().toISOString(), ok: true, error: "" }; return result; },
     (err) => {
@@ -11399,8 +11489,14 @@ app.post("/api/shop/map-prices/refresh", requirePagePermission("/shop-orders.htm
 app.get("/api/shop-shoppers", requirePagePermission("/shopper-profiles.html"), async (req, res) => {
   try {
     const shoppers = await searchShopShoppers(req.query.search);
+    // ePASS customer for each profile (9/28): the confirmed link, or ranked
+    // suggestions (phone / email / name+ZIP) for a person to click and confirm.
+    const linked = await getEpassCustomers(shoppers.map((s) => s.epassCustomerCode).filter(Boolean)).catch(() => ({}));
+    const suggestions = await matchEpassCustomersForShoppers(shoppers.filter((s) => !s.epassCustomerCode)).catch(() => ({}));
+    const epassMeta = await getEpassCustomersMeta().catch(() => null);
     res.setHeader("Cache-Control", "no-store");
     return res.json({
+      epassCustomers: epassMeta,
       shoppers: shoppers.map((s) => ({
         id: s.id,
         clientCode: s.clientCode,
@@ -11412,12 +11508,51 @@ app.get("/api/shop-shoppers", requirePagePermission("/shopper-profiles.html"), a
         preferredContact: s.preferredContact,
         address: s.address,
         stripeLinked: Boolean(s.stripeCustomerId),
-        createdAt: s.createdAt
+        createdAt: s.createdAt,
+        epass: s.epassCustomerCode
+          ? { code: s.epassCustomerCode, name: linked[s.epassCustomerCode]?.name || "", accountType: linked[s.epassCustomerCode]?.accountType || "", by: s.epassLinkedBy, at: s.epassLinkedAt, onFile: Boolean(linked[s.epassCustomerCode]) }
+          : null,
+        epassCandidates: s.epassCustomerCode ? [] : (suggestions[s.id] || []).map((c) => ({ code: c.code, name: c.name, accountType: c.accountType, city: c.city, zip: c.zip, phones: c.phones, emails: c.emails, score: c.score, why: c.why, dateModified: c.dateModified }))
       }))
     });
   } catch (err) {
     console.error("Shopper search failed:", err.message);
     return res.status(500).json({ error: "Unable to search shopper profiles." });
+  }
+});
+
+// Confirm (or clear) the ePASS customer behind a shopper profile.
+app.post("/api/shop-shoppers/:id/epass-link", requirePagePermission("/shopper-profiles.html"), async (req, res) => {
+  try {
+    const shopperId = String(req.params.id || "").trim();
+    if (!/^[0-9a-f-]{8,64}$/i.test(shopperId)) return res.status(400).json({ error: "Bad shopper id." });
+    const code = String(req.body?.code || "").trim().toUpperCase().slice(0, 40);
+    const result = await setShopperEpassLink({ shopperId, code, by: req.authUser?.email || req.authUser?.username || "" });
+    recordAudit({ ip: req.ip, actorUserId: req.authUser?.id || null, action: code ? "shopper_epass_linked" : "shopper_epass_unlinked", targetUserId: null, detail: { shopperId, code } }).catch(() => {});
+    return res.json({ ok: true, ...result });
+  } catch (err) {
+    return res.status(400).json({ error: err.message });
+  }
+});
+// Manual pick: search the ePASS customer master.
+app.get("/api/epass-customers", requirePagePermission("/shopper-profiles.html"), async (req, res) => {
+  try {
+    const customers = await searchEpassCustomerMaster(String(req.query.q || ""), { limit: 25 });
+    return res.json({ customers: customers.map((c) => ({ code: c.code, name: c.name, accountType: c.accountType, city: c.city, zip: c.zip, phones: c.phones, emails: c.emails, dateModified: c.dateModified })) });
+  } catch (err) {
+    return res.status(500).json({ error: "Unable to search ePASS customers." });
+  }
+});
+// What Agility knows about that customer: finished invoices, the units on
+// them, and open tickets (child accounts included for builders).
+app.get("/api/epass-customers/:code/history", requirePagePermission("/shopper-profiles.html"), async (req, res) => {
+  try {
+    const history = await epassCustomerHistory(req.params.code);
+    if (!history) return res.status(400).json({ error: "Customer code is required." });
+    return res.json(history);
+  } catch (err) {
+    console.error("ePASS customer history failed:", err.message);
+    return res.status(500).json({ error: "Unable to load that customer's history." });
   }
 });
 
@@ -11919,6 +12054,19 @@ app.post("/api/field-commissions/exceptions/:id/resolve", requireCommissionsPage
 // rolled up by the brand ePASS holds on the Model master. Returned units are
 // counted apart. The commission-report Model lines are no longer involved.
 const BRAND_SALES_UNMATCHED = "— Model not in the ePASS model master —";
+// Last-resort names for ePASS brand codes (the master's 5-character codes)
+// when neither the NetSuite import nor the ePASS Brand master has a name
+// for a code. Data always wins over this table.
+const EPASS_BRAND_NAMES = {
+  SPEED: "Speed Queen", SQ: "Speed Queen", KA: "KitchenAid", KITCH: "KitchenAid", PROF: "GE Profile", CAFE: "Café", MONO: "Monogram",
+  SCOT: "Scotsman", SZ: "Sub-Zero", SUBZ: "Sub-Zero", WOLF: "Wolf", COVE: "Cove", THERM: "Thermador", JENN: "JennAir", JENNA: "JennAir",
+  WHIRL: "Whirlpool", MAYT: "Maytag", FRIG: "Frigidaire", ELECT: "Electrolux", SAMS: "Samsung", FP: "Fisher & Paykel", FISH: "Fisher & Paykel",
+  BLUE: "BlueStar", VIK: "Viking", GAGG: "Gaggenau", UL: "U-Line", ULINE: "U-Line", BERT: "Bertazzoni", LIEB: "Liebherr", ZEPH: "Zephyr",
+  VENT: "Vent-A-Hood", VAH: "Vent-A-Hood", INSIN: "InSinkErator", HEST: "Hestan", TWIN: "Twin Eagles", ALFRE: "Alfresco", MARV: "Marvel",
+  PERL: "Perlick", PANAS: "Panasonic", HISEN: "Hisense", HOTP: "Hotpoint", BLOMB: "Blomberg", AVANT: "Avanti", BROAN: "Broan", DACOR: "Dacor",
+  MIELE: "Miele", BOSCH: "Bosch", TRANE: "Trane", TRUE: "True", ASKO: "Asko", SMEG: "Smeg", LYNX: "Lynx", DCS: "DCS", GE: "GE", LG: "LG",
+  AMANA: "Amana", BEKO: "Beko", DANBY: "Danby", SHARP: "Sharp", HAIER: "Haier", ZLINE: "ZLINE", SUMM: "Summit", BLAZE: "Blaze", COYOT: "Coyote"
+};
 function brandSalesWindow(req) {
   const todayStr = new Date().toLocaleDateString("en-CA", { timeZone: APP_TIMEZONE });
   // Default window: the first day of the month five months back → today
@@ -11939,14 +12087,38 @@ app.get("/api/brand-sales", requirePagePermission("/brand-sales.html"), async (r
       getEpassSoldSerialsMeta().catch(() => null)
     ]);
 
-    // Brand display: the ePASS Brand master's description when the pull could
-    // join it, else the BrandCode (CAPS → title case, keeping GE / LG upper).
-    // Models the master hasn't covered yet fall back to the NetSuite /
-    // snapshot brand map, then to an explicit unmatched bucket.
+    // Brand display (Andrew 9/28: "use the actual brand, not the ePASS code
+    // that's limited to 5 characters"). Every model carries its ePASS
+    // BrandCode (SPEED, KA, PROF...); the NAME for that code is the best one
+    // seen anywhere for the code: the NetSuite item import's brand for any
+    // model with that code ("Speed Queen", "KitchenAid"), else the ePASS
+    // Brand master's description, else the known-code table, else the code
+    // title-cased. One name per code, so every model of a code lands in the
+    // same row and the NetSuite spelling and the ePASS spelling never split.
     const canonKey = (x) => String(x || "").trim().toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
     const titleCase = (x) => String(x || "").trim().replace(/[A-Za-z0-9']+/g, (w) => (w.length <= 2 ? w.toUpperCase() : w[0].toUpperCase() + w.slice(1).toLowerCase()));
-    const displayFor = new Map();
-    const rawBrandOf = (m) => (m.brand || m.brandCode || brandMap[m.model]?.brand || "").trim();
+    const nameByCode = new Map(); // brand code → { netsuite: Set, epass: Set }
+    for (const m of data.models) {
+      const code = String(m.brandCode || "").trim().toUpperCase();
+      if (!code) continue;
+      const e = nameByCode.get(code) || { netsuite: new Map(), epass: "" };
+      const ns = String(brandMap[m.model]?.brand || "").trim();
+      if (ns) e.netsuite.set(ns, (e.netsuite.get(ns) || 0) + 1);
+      if (!e.epass && m.brand) e.epass = String(m.brand).trim();
+      nameByCode.set(code, e);
+    }
+    const displayByCode = new Map();
+    for (const [code, e] of nameByCode) {
+      // The NetSuite name most models of this code agree on, proper case preferred.
+      const ns = [...e.netsuite.entries()].sort((a, b) => (/[a-z]/.test(b[0]) - /[a-z]/.test(a[0])) || (b[1] - a[1]) || (b[0].length - a[0].length))[0]?.[0] || "";
+      const name = ns || e.epass || EPASS_BRAND_NAMES[code] || titleCase(code);
+      displayByCode.set(code, /[a-z]/.test(name) ? name : titleCase(name));
+    }
+    const displayFor = new Map(); // canon(name) → display, so two codes with one name still merge
+    const rawBrandOf = (m) => {
+      const code = String(m.brandCode || "").trim().toUpperCase();
+      return (code ? displayByCode.get(code) : "") || String(brandMap[m.model]?.brand || m.brand || "").trim();
+    };
     for (const m of data.models) {
       const raw = rawBrandOf(m);
       if (!raw) continue;
@@ -18330,264 +18502,173 @@ app.get("/api/intent-lookup/:kind/:id", requirePagePermission("/intent-lookup.ht
   }
 });
 
+// ---------------------------------------------------------------------------
+// EVENTS (reworked 9/28, lib/events-postgres.js): an Agility user sets up an
+// event on Event RSVPs; publishing it posts a page on the service site at
+// /events/<slug> (and on the /events listing when visible). The roster
+// (invitees + online RSVPs) lives with the event. Legacy Fire & Flavor page
+// keeps its old endpoint, now writing to the same tables.
+// ---------------------------------------------------------------------------
+const EVENT_SITE_BASE = () => `https://${SERVICE_PUBLIC_HOST}`;
+
 app.post("/api/events/fire-flavor/rsvp", async (req, res) => {
   try {
-    const fullName = String(req.body?.fullName || "").trim();
-    const email = String(req.body?.email || "").trim().toLowerCase();
-    const phone = String(req.body?.phone || "").trim();
-    const phoneDigits = phone.replace(/\D/g, "");
-    const rawGuestCount = Number.parseInt(req.body?.guestCount, 10);
-    const guestCount = Number.isFinite(rawGuestCount)
-      ? Math.max(1, Math.min(12, rawGuestCount))
-      : null;
-    const attendeeType = String(req.body?.attendeeType || "").trim();
-    const wantsEmailUpdates = Boolean(req.body?.wantsEmailUpdates);
-    const wantsTextUpdates = Boolean(req.body?.wantsTextUpdates);
-    const allowedAttendeeTypes = new Set(["Homeowner", "Builder", "Designer", "Outdoor Cooking Fan", "Other"]);
-
-    if (!fullName) {
-      return res.status(400).json({
-        error: "Full name is required."
-      });
-    }
-
-    if (wantsEmailUpdates && (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))) {
-      return res.status(400).json({
-        error: "A valid email address is required for email updates."
-      });
-    }
-
-    if (wantsTextUpdates && !phone) {
-      return res.status(400).json({
-        error: "A phone number is required for text updates."
-      });
-    }
-
-    if (wantsTextUpdates && phoneDigits.length !== 10) {
-      return res.status(400).json({
-        error: "A valid 10-digit phone number is required for text updates."
-      });
-    }
-
-    if (!guestCount) {
-      return res.status(400).json({
-        error: "Please select how many people are attending."
-      });
-    }
-
-    if (!allowedAttendeeTypes.has(attendeeType)) {
-      return res.status(400).json({
-        error: "Please choose the attendee type that fits you best."
-      });
-    }
-
-    const rsvps = await readEventRsvps();
-    const nowIso = new Date().toISOString();
-    const existingIndex = rsvps.findIndex((entry) =>
-      entry.eventSlug === "fire-and-flavor" &&
-      (
-        (email && String(entry.email || "").toLowerCase() === email) ||
-        (!email && !String(entry.email || "").trim() && String(entry.fullName || "").trim().toLowerCase() === fullName.toLowerCase())
-      )
-    );
-
-    const nextRecord = {
-      id: existingIndex >= 0 ? rsvps[existingIndex].id : crypto.randomUUID(),
-      eventSlug: "fire-and-flavor",
-      eventName: "Fire & Flavor",
-      fullName,
-      email,
-      phone,
-      guestCount,
-      attendeeType,
-      wantsEmailUpdates,
-      wantsTextUpdates,
-      updatedAt: nowIso,
-      createdAt: existingIndex >= 0 ? rsvps[existingIndex].createdAt : nowIso
-    };
-
-    if (existingIndex >= 0) {
-      rsvps[existingIndex] = nextRecord;
-    } else {
-      rsvps.push(nextRecord);
-    }
-
-    await writeEventRsvps(rsvps);
-
-    res.json({
-      ok: true,
-      message: existingIndex >= 0
-        ? "Your RSVP has been updated. We look forward to seeing you."
-        : "Thanks for your RSVP. We look forward to seeing you at Fire & Flavor."
-    });
+    const out = await submitRsvp("fire-and-flavor", { ...req.body, guestType: req.body?.attendeeType }, { ip: req.ip });
+    return res.json({ ok: true, message: out.message });
   } catch (err) {
-    res.status(400).json({
-      error: err.message || "Unable to submit RSVP."
-    });
+    return res.status(400).json({ error: err.message || "Unable to submit RSVP." });
   }
 });
 
-app.get("/api/events/catalog", requirePagePermission("/event-rsvps.html"), async (req, res) => {
+// PUBLIC (service host)
+app.get("/api/public/events", async (req, res) => {
   try {
-    const status = String(req.query.status || "all").trim().toLowerCase();
-    const allowedStatuses = new Set(["all", "active", "archived"]);
-
-    if (!allowedStatuses.has(status)) {
-      return res.status(400).json({
-        error: "status must be all, active, or archived."
-      });
-    }
-
-    const [events, rsvps] = await Promise.all([
-      readEventCatalog(),
-      readEventRsvps()
-    ]);
-
-    const filteredEvents = status === "all"
-      ? events
-      : events.filter((event) => event.status === status);
-
-    const countsBySlug = rsvps.reduce((acc, rsvp) => {
-      const slug = String(rsvp.eventSlug || "").trim();
-      if (!slug) {
-        return acc;
-      }
-
-      if (!acc[slug]) {
-        acc[slug] = {
-          rsvpCount: 0,
-          totalAttendees: 0,
-          emailUpdatesCount: 0,
-          textUpdatesCount: 0,
-          latestRsvpAt: ""
-        };
-      }
-
-      acc[slug].rsvpCount += 1;
-      acc[slug].totalAttendees += Number(rsvp.guestCount || 0);
-      acc[slug].emailUpdatesCount += rsvp.wantsEmailUpdates ? 1 : 0;
-      acc[slug].textUpdatesCount += rsvp.wantsTextUpdates ? 1 : 0;
-
-      const updatedAt = String(rsvp.updatedAt || rsvp.createdAt || "");
-      if (updatedAt && updatedAt > acc[slug].latestRsvpAt) {
-        acc[slug].latestRsvpAt = updatedAt;
-      }
-
-      return acc;
-    }, {});
-
-    res.json({
-      events: filteredEvents.map((event) => ({
-        ...event,
-        stats: countsBySlug[event.slug] || {
-          rsvpCount: 0,
-          totalAttendees: 0,
-          emailUpdatesCount: 0,
-          textUpdatesCount: 0,
-          latestRsvpAt: ""
-        }
-      }))
-    });
+    res.setHeader("Cache-Control", "no-store");
+    return res.json({ events: await listPublicEvents() });
   } catch (err) {
-    res.status(400).json({
-      error: err.message || "Unable to load event catalog."
-    });
+    return res.status(500).json({ error: "Unable to load events right now." });
+  }
+});
+app.get("/api/public/events/:slug", async (req, res) => {
+  try {
+    const event = await getPublicEvent(req.params.slug);
+    if (!event) return res.status(404).json({ error: "That event isn't available." });
+    res.setHeader("Cache-Control", "no-store");
+    return res.json({ event });
+  } catch (err) {
+    return res.status(500).json({ error: "Unable to load that event right now." });
+  }
+});
+app.post("/api/public/events/:slug/rsvp", async (req, res) => {
+  try {
+    const out = await submitRsvp(req.params.slug, req.body || {}, { ip: req.ip });
+    recordAudit({ ip: req.ip, actorUserId: null, action: "event_rsvp", targetUserId: null, detail: { slug: req.params.slug, status: out.status, updated: out.updated } }).catch(() => {});
+    return res.json(out);
+  } catch (err) {
+    return res.status(400).json({ error: err.message || "Unable to submit RSVP." });
   }
 });
 
-app.get("/api/events/rsvps", requirePagePermission("/event-rsvps.html"), async (req, res) => {
+// INTERNAL (Event RSVPs page)
+const eventPage = requirePagePermission("/event-rsvps.html");
+const eventActor = (req) => String(req.authUser?.email || req.authUser?.username || "").toLowerCase();
+app.get("/api/events", eventPage, async (req, res) => {
   try {
-    const eventSlug = String(req.query.eventSlug || "").trim();
-    const status = String(req.query.status || "all").trim().toLowerCase();
-    const allowedStatuses = new Set(["all", "active", "archived"]);
-
-    if (!allowedStatuses.has(status)) {
-      return res.status(400).json({
-        error: "status must be all, active, or archived."
-      });
-    }
-
-    const [events, rsvps] = await Promise.all([
-      readEventCatalog(),
-      readEventRsvps()
-    ]);
-
-    const eventBySlug = new Map(events.map((event) => [event.slug, event]));
-    const rows = rsvps
-      .filter((rsvp) => {
-        const slug = String(rsvp.eventSlug || "").trim();
-        const event = eventBySlug.get(slug);
-        if (!event) {
-          return false;
-        }
-
-        if (status !== "all" && event.status !== status) {
-          return false;
-        }
-
-        if (eventSlug && slug !== eventSlug) {
-          return false;
-        }
-
-        return true;
-      })
-      .map((rsvp) => ({
-        ...rsvp,
-        eventName: eventBySlug.get(rsvp.eventSlug)?.name || rsvp.eventName || rsvp.eventSlug,
-        eventStatus: eventBySlug.get(rsvp.eventSlug)?.status || "active"
-      }))
-      .sort((a, b) => String(b.updatedAt || b.createdAt || "").localeCompare(String(a.updatedAt || a.createdAt || "")));
-
-    res.json({ rows });
+    const status = String(req.query.status || "all");
+    const events = await listEvents({ status: ["draft", "published", "archived"].includes(status) ? status : "all" });
+    return res.json({ events: events.map((e) => ({ ...e, publicUrl: `${EVENT_SITE_BASE()}/events/${e.slug}` })), statuses: INVITEE_STATUSES, siteBase: EVENT_SITE_BASE() });
   } catch (err) {
-    res.status(400).json({
-      error: err.message || "Unable to load event RSVPs."
-    });
+    console.error("Events list failed:", err.message);
+    return res.status(500).json({ error: "Unable to load events." });
   }
 });
-
-app.post("/api/events/:slug/status", requirePagePermission("/event-rsvps.html"), async (req, res) => {
+app.post("/api/events", eventPage, async (req, res) => {
   try {
-    const slug = String(req.params.slug || "").trim();
-    const nextStatus = String(req.body?.status || "").trim().toLowerCase();
-
-    if (!slug) {
-      return res.status(400).json({
-        error: "Event slug is required."
-      });
-    }
-
-    if (!["active", "archived"].includes(nextStatus)) {
-      return res.status(400).json({
-        error: "status must be active or archived."
-      });
-    }
-
-    const events = await readEventCatalog();
-    const eventIndex = events.findIndex((event) => event.slug === slug);
-
-    if (eventIndex < 0) {
-      return res.status(404).json({
-        error: "Event not found."
-      });
-    }
-
-    events[eventIndex] = {
-      ...events[eventIndex],
-      status: nextStatus,
-      updatedAt: new Date().toISOString()
-    };
-
-    await writeEventCatalog(events);
-
-    res.json({
-      ok: true,
-      event: events[eventIndex]
-    });
+    const event = await createEvent(req.body || {}, { by: eventActor(req) });
+    recordAudit({ ip: req.ip, actorUserId: req.authUser?.id || null, action: "event_created", targetUserId: null, detail: { id: event.id, slug: event.slug, name: event.name } }).catch(() => {});
+    return res.json({ ok: true, event });
   } catch (err) {
-    res.status(400).json({
-      error: err.message || "Unable to update event status."
-    });
+    return res.status(400).json({ error: err.message });
+  }
+});
+app.put("/api/events/:id", eventPage, async (req, res) => {
+  try {
+    const event = await updateEvent(req.params.id, req.body || {}, { by: eventActor(req) });
+    if (!event) return res.status(404).json({ error: "Event not found." });
+    return res.json({ ok: true, event });
+  } catch (err) {
+    return res.status(400).json({ error: err.message });
+  }
+});
+app.post("/api/events/:id/status", eventPage, async (req, res) => {
+  try {
+    const event = await setEventStatus(req.params.id, String(req.body?.status || ""), { by: eventActor(req) });
+    if (!event) return res.status(404).json({ error: "Event not found." });
+    recordAudit({ ip: req.ip, actorUserId: req.authUser?.id || null, action: "event_status", targetUserId: null, detail: { id: event.id, slug: event.slug, status: event.status } }).catch(() => {});
+    return res.json({ ok: true, event });
+  } catch (err) {
+    return res.status(400).json({ error: err.message });
+  }
+});
+app.delete("/api/events/:id", requireExecutiveApi, async (req, res) => {
+  try {
+    const event = await getEvent(req.params.id);
+    if (!event) return res.status(404).json({ error: "Event not found." });
+    if (event.status === "published") return res.status(400).json({ error: "Unpublish (archive) the event before deleting it." });
+    await deleteEvent(event.id);
+    recordAudit({ ip: req.ip, actorUserId: req.authUser?.id || null, action: "event_deleted", targetUserId: null, detail: { id: event.id, slug: event.slug } }).catch(() => {});
+    return res.json({ ok: true });
+  } catch (err) {
+    return res.status(400).json({ error: err.message });
+  }
+});
+app.get("/api/events/:id/roster", eventPage, async (req, res) => {
+  try {
+    const event = await getEvent(req.params.id);
+    if (!event) return res.status(404).json({ error: "Event not found." });
+    const [invitees, rsvps] = await Promise.all([listInvitees(event.id), listRsvps(event.id)]);
+    return res.json({ event: { ...event, publicUrl: `${EVENT_SITE_BASE()}/events/${event.slug}` }, invitees, rsvps });
+  } catch (err) {
+    return res.status(500).json({ error: "Unable to load the roster." });
+  }
+});
+app.post("/api/events/:id/invitees", eventPage, async (req, res) => {
+  try {
+    // rows: [{name, company, guestType, ...}] or `lines`: "Name, Company, Type" per line
+    let rows = Array.isArray(req.body?.rows) ? req.body.rows : [];
+    if (!rows.length && req.body?.lines) {
+      rows = String(req.body.lines).split(/\r?\n/).map((l) => l.trim()).filter(Boolean).map((l) => {
+        const [name, company, guestType, email] = l.split(/\s*[,\t|]\s*/);
+        return { name, company, guestType, email, status: req.body?.status || "Planned", invitedBy: req.body?.invitedBy || "" };
+      });
+    }
+    const out = await addInvitees(req.params.id, rows, { by: req.body?.invitedBy || eventActor(req).split("@")[0] });
+    return res.json({ ok: true, ...out });
+  } catch (err) {
+    return res.status(400).json({ error: err.message });
+  }
+});
+const eventRosterUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024, files: 1 } });
+app.post("/api/events/:id/invitees/import", eventPage, eventRosterUpload.single("file"), async (req, res) => {
+  try {
+    if (!req.file?.buffer) return res.status(400).json({ error: "Attach the RSVP tracker workbook (.xlsx) or a CSV." });
+    const workbook = readWorkbook(req.file.buffer, { type: "buffer", cellDates: true });
+    const grid = xlsxUtils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]], { header: 1, defval: null, raw: true });
+    const rows = inviteesFromGrid(grid);
+    const out = await addInvitees(req.params.id, rows, { by: eventActor(req).split("@")[0] });
+    return res.json({ ok: true, rows: rows.length, ...out });
+  } catch (err) {
+    return res.status(400).json({ error: err.message });
+  }
+});
+app.patch("/api/events/:id/invitees/:inviteeId", eventPage, async (req, res) => {
+  try {
+    const invitee = await updateInvitee(req.params.id, req.params.inviteeId, req.body || {});
+    return res.json({ ok: true, invitee });
+  } catch (err) {
+    return res.status(400).json({ error: err.message });
+  }
+});
+app.delete("/api/events/:id/invitees/:inviteeId", eventPage, async (req, res) => {
+  try {
+    return res.json({ ok: true, removed: await deleteInvitee(req.params.id, req.params.inviteeId) });
+  } catch (err) {
+    return res.status(400).json({ error: err.message });
+  }
+});
+app.get("/api/events/:id/roster.csv", eventPage, async (req, res) => {
+  try {
+    const event = await getEvent(req.params.id);
+    if (!event) return res.status(404).json({ error: "Event not found." });
+    const invitees = await listInvitees(event.id);
+    const q = (v) => '"' + String(v ?? "").replace(/"/g, '""') + '"';
+    const lines = [["Invitee", "Company", "Guest Type", "Email", "Phone", "Invited By", "Status", "Guests", "Date Invited", "Follow-Up", "Source", "Notes"].map(q).join(",")];
+    for (const i of invitees) lines.push([i.name, i.company, i.guestType, i.email, i.phone, i.invitedBy, i.status, i.guestCount, i.dateInvited, i.followUp, i.source, i.notes].map(q).join(","));
+    res.setHeader("Content-Type", "text/csv; charset=utf-8");
+    res.setHeader("Content-Disposition", `attachment; filename="${event.slug}-roster.csv"`);
+    return res.send("﻿" + lines.join("\r\n"));
+  } catch (err) {
+    return res.status(500).json({ error: "Unable to export the roster." });
   }
 });
 
@@ -21066,6 +21147,17 @@ if (isUserStoreConfigured()) {
   }, 6 * 60 * 60 * 1000).unref();
 } else {
   console.warn("DATABASE_URL is not set: individual user accounts are unavailable; only env logins will work.");
+}
+
+// One-time: pull data/events.json + data/event-rsvps.json into Postgres.
+if (process.env.DATABASE_URL) {
+  setTimeout(async () => {
+    try {
+      const [legacyEvents, legacyRsvps] = await Promise.all([readEventCatalog().catch(() => []), readEventRsvps().catch(() => [])]);
+      const out = await migrateLegacyEvents(legacyEvents, legacyRsvps);
+      if (!out.skipped) console.log(`Events migrated to Postgres: ${out.events} events, ${out.rsvps} RSVPs.`);
+    } catch (err) { console.error("Event migration failed:", err.message); }
+  }, 5000).unref?.();
 }
 
 const PORT = process.env.PORT || 3000;

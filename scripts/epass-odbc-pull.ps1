@@ -880,6 +880,20 @@ SELECT si.SupplierCode, si.SupplierInvoice, si.InvoiceDate, si.ImportDate, si.Co
 FROM POSupplierInvoice si WHERE si.InvoiceDate >= '$rcvSince' OR si.ImportDate >= '$rcvSince'
 "@
     }
+    # 9/28: the Customer master (contact + address columns only - no employer,
+    # credit or ID fields) once a day (the 5 o'clock run) or with -Finance, so
+    # Agility can match shop.wilsonappliance.com profiles to their ePASS
+    # customer and show them what they have bought.
+    if ($Finance -or (Get-Date).Hour -eq 5) {
+      $steps["customers"] = @"
+SELECT c.Code, c.LastName, c.FirstName, c.MiddleName, c.AccountType, c.InvTypeCode, c.SalespersonCode, c.BranchCode,
+       c.Phone1, c.Phone2, c.OtherPhone, c.BusinessPhone, c.MailingPhone, c.Email, c.BillingEmail, c.MailingEmail, c.DoNotEmail, c.DeclineEmail,
+       c.Address1, c.Address2, c.City, c.State, c.ZipCode, c.MailingAddress1, c.MailingAddress2, c.MailingCity, c.MailingState, c.MailingZipCode,
+       c.ParentCompanyCode, c.ProjectCode, c.DateCreated, c.DateModified
+FROM Customer c
+ORDER BY c.Code
+"@
+    }
     foreach ($name in $steps.Keys) {
       try { $fnc.datasets[$name] = Export-Query $conn $steps[$name] (Join-Path $LatestDir "finance-$name.csv") "finance $name" }
       catch { Log ("finance {0} FAILED (bundle continues without it): {1}" -f $name, $_.Exception.Message); if ($conn.State -ne [System.Data.ConnectionState]::Open) { $conn.Open() } }

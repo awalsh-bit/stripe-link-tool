@@ -313,7 +313,7 @@
         children: [
           { href: "epass-uploads.html", title: "ePASS Upload Center" },
           { href: "message-automations.html", title: "Text Automations" },
-          { href: "event-rsvps.html", title: "Event RSVPs" },
+          { href: "event-rsvps.html", title: "Events & RSVPs" },
           { href: "signature-builder.html", title: "Email Signature" }
         ]
       },
@@ -403,7 +403,7 @@
       { href: "dashboard.html", title: "Home" },
       { href: "paid-order-detail.html", title: "Accounting" },
       { href: "salesdashboard.html", title: "Sales Tools" },
-      { href: "event-rsvps.html", title: "Event RSVPs" }
+      { href: "event-rsvps.html", title: "Events & RSVPs" }
     ];
 
     const links = candidates

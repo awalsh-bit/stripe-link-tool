@@ -7,6 +7,7 @@
     "migrate:links:postgres": "node scripts/migrate-links-json-to-postgres.js"
   },
   "dependencies": {
+    "compression": "^1.7.5",
     "cors": "^2.8.5",
     "dotenv": "^17.3.1",
     "express": "^4.18.2",

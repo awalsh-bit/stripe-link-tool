@@ -1,793 +1,350 @@
 <!DOCTYPE html>
 <html lang="en">
-<meta name="robots" content="noindex,nofollow,noarchive">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Wilson AC & Appliance - Event RSVPs</title>
+  <meta name="robots" content="noindex,nofollow,noarchive" />
+  <title>Wilson AC &amp; Appliance - Events</title>
   <link rel="icon" type="image/svg+xml" href="favicon.svg" />
   <link rel="stylesheet" href="internal-shell.css" />
   <style>
-    :root {
-      --bg: #f7f8fc;
-      --card: #ffffff;
-      --text: #1f2937;
-      --muted: #6b7280;
-      --border: #dbe1ea;
-      --shadow: 0 10px 35px rgba(0, 0, 0, 0.08);
-      --radius: 18px;
-      --success: #166534;
-      --success-bg: #ecfdf5;
-      --warning: #92400e;
-      --warning-bg: #fff7ed;
-    }
-
+    :root { --bg: #f7f8fc; --card: #ffffff; --text: #1f2937; --muted: #6b7280; --border: #dbe1ea; --shadow: 0 10px 35px rgba(0, 0, 0, 0.08); --radius: 18px; }
     * { box-sizing: border-box; }
-
-    body {
-      margin: 0;
-      font-family: "Roboto", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-      background: linear-gradient(180deg, var(--primary-tint) 0%, var(--bg) 100%);
-      color: var(--text);
-      min-height: 100vh;
-      padding: 32px 16px;
-    }
-
-    .wrap {
-      max-width: 1480px;
-      margin: 0 auto;
-    }
-
-    .card {
-      background: var(--card);
-      border: 1px solid rgba(var(--primary-rgb), 0.12);
-      box-shadow: var(--shadow);
-      border-radius: var(--radius);
-      padding: 22px;
-    }
-
-    .controls {
-      display: grid;
-      grid-template-columns: 220px minmax(0, 1fr) auto;
-      gap: 12px;
-      align-items: end;
-      margin-bottom: 18px;
-    }
-
-    label {
-      display: block;
-      font-size: 12px;
-      text-transform: uppercase;
-      letter-spacing: 0.08em;
-      color: var(--muted);
-      font-weight: 700;
-      margin-bottom: 8px;
-    }
-
-    select,
-    button,
-    a {
-      font: inherit;
-    }
-
-    select {
-      width: 100%;
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      padding: 12px 14px;
-      background: #fff;
-      color: var(--text);
-      outline: none;
-    }
-
-    select:focus {
-      border-color: rgba(var(--primary-rgb), 0.75);
-      box-shadow: 0 0 0 4px rgba(var(--primary-rgb), 0.12);
-    }
-
-    .btn {
-      appearance: none;
-      border: 1px solid transparent;
-      border-radius: 12px;
-      padding: 12px 16px;
-      font-size: 14px;
-      font-weight: 700;
-      cursor: pointer;
-      text-decoration: none;
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      transition: background 0.2s ease, transform 0.12s ease, border-color 0.2s ease;
-    }
-
-    .btn:hover {
-      transform: translateY(-1px);
-    }
-
-    .btn-primary {
-      background: var(--primary);
-      color: #fff;
-    }
-
-    .btn-primary:hover {
-      background: var(--primary-hover);
-    }
-
-    .btn-secondary {
-      background: #fff;
-      color: var(--text);
-      border-color: var(--border);
-    }
-
-    .btn-secondary:hover {
-      background: var(--primary-wash-2);
-    }
-
-    .status {
-      min-height: 24px;
-      margin-bottom: 14px;
-      font-size: 14px;
-      color: var(--muted);
-    }
-
-    .status.error {
-      color: #b91c1c;
-    }
-
-    .status.success {
-      color: var(--success);
-    }
-
-    .metrics {
-      display: grid;
-      grid-template-columns: repeat(4, minmax(0, 1fr));
-      gap: 16px;
-      margin-bottom: 18px;
-    }
-
-    .metric {
-      border: 1px solid var(--border);
-      border-radius: 16px;
-      padding: 18px;
-      background: var(--primary-faint);
-    }
-
-    .metric-label {
-      font-size: 12px;
-      text-transform: uppercase;
-      letter-spacing: 0.08em;
-      color: var(--muted);
-      font-weight: 700;
-      margin-bottom: 10px;
-    }
-
-    .metric-value {
-      font-size: clamp(28px, 4vw, 42px);
-      line-height: 1;
-      font-weight: 900;
-      margin-bottom: 8px;
-    }
-
-    .metric-text {
-      color: var(--muted);
-      font-size: 14px;
-      line-height: 1.6;
-    }
-
-    .layout {
-      display: grid;
-      grid-template-columns: 400px minmax(0, 1fr);
-      gap: 18px;
-    }
-
-    .panel-title {
-      margin: 0 0 14px;
-      font-size: 20px;
-    }
-
-    .events-list {
-      display: grid;
-      gap: 12px;
-    }
-
-    .event-card {
-      border: 1px solid var(--border);
-      border-radius: 16px;
-      padding: 16px;
-      background: #fff;
-      transition: border-color 0.2s ease, box-shadow 0.2s ease;
-    }
-
-    .event-card.active-selection {
-      border-color: rgba(var(--primary-rgb), 0.38);
-      box-shadow: 0 10px 24px rgba(var(--primary-rgb), 0.1);
-    }
-
-    .event-top {
-      display: flex;
-      align-items: flex-start;
-      justify-content: space-between;
-      gap: 10px;
-      margin-bottom: 10px;
-    }
-
-    .event-name {
-      margin: 0 0 4px;
-      font-size: 18px;
-      font-weight: 800;
-    }
-
-    .event-subtitle {
-      margin: 0;
-      color: var(--muted);
-      font-size: 14px;
-      line-height: 1.5;
-    }
-
-    .badge {
-      display: inline-flex;
-      align-items: center;
-      min-height: 28px;
-      padding: 0 10px;
-      border-radius: 999px;
-      font-size: 12px;
-      font-weight: 800;
-      letter-spacing: 0.04em;
-      text-transform: uppercase;
-      white-space: nowrap;
-    }
-
-    .badge.active {
-      background: var(--success-bg);
-      color: var(--success);
-    }
-
-    .badge.archived {
-      background: var(--warning-bg);
-      color: var(--warning);
-    }
-
-    .event-meta {
-      display: grid;
-      gap: 8px;
-      margin-bottom: 12px;
-    }
-
-    .event-meta-row {
-      font-size: 14px;
-      color: var(--text);
-      line-height: 1.5;
-    }
-
-    .event-meta-label {
-      color: var(--muted);
-      font-weight: 700;
-      margin-right: 6px;
-    }
-
-    .event-stats {
-      display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 10px;
-      margin-bottom: 14px;
-    }
-
-    .event-stat {
-      padding: 12px;
-      border-radius: 14px;
-      background: var(--primary-wash-2);
-      border: 1px solid #edf1f7;
-    }
-
-    .event-stat-value {
-      font-size: 22px;
-      font-weight: 900;
-      line-height: 1;
-      margin-bottom: 6px;
-    }
-
-    .event-stat-label {
-      font-size: 12px;
-      color: var(--muted);
-      text-transform: uppercase;
-      letter-spacing: 0.08em;
-      font-weight: 700;
-    }
-
-    .event-actions {
-      display: flex;
-      gap: 10px;
-      flex-wrap: wrap;
-    }
-
-    .empty {
-      color: var(--muted);
-      font-size: 14px;
-      line-height: 1.6;
-      padding: 8px 0 2px;
-    }
-
-    table {
-      width: 100%;
-      border-collapse: collapse;
-    }
-
-    th, td {
-      text-align: left;
-      padding: 14px 10px;
-      border-bottom: 1px solid #edf1f7;
-      vertical-align: middle;
-      font-size: 14px;
-    }
-
-    th {
-      font-size: 12px;
-      text-transform: uppercase;
-      letter-spacing: 0.08em;
-      color: var(--muted);
-    }
-
-    .updates {
-      display: inline-flex;
-      flex-wrap: wrap;
-      gap: 6px;
-    }
-
-    .update-pill {
-      display: inline-flex;
-      align-items: center;
-      min-height: 24px;
-      padding: 0 8px;
-      border-radius: 999px;
-      background: rgba(var(--primary-rgb), 0.1);
-      color: var(--primary);
-      font-size: 12px;
-      font-weight: 700;
-    }
-
-    .contact-line {
-      display: block;
-      color: var(--muted);
-      font-size: 12px;
-      line-height: 1.5;
-      margin-top: 4px;
-      word-break: break-word;
-    }
-
-    @media (max-width: 1200px) {
-      .layout {
-        grid-template-columns: 1fr;
-      }
-    }
-
-    @media (max-width: 900px) {
-      .controls,
-      .metrics {
-        grid-template-columns: 1fr;
-      }
-    }
-
-    @media (max-width: 760px) {
-      table,
-      thead,
-      tbody,
-      tr,
-      th,
-      td {
-        display: block;
-        width: 100%;
-      }
-
-      thead {
-        display: none;
-      }
-
-      tbody {
-        display: grid;
-        gap: 12px;
-      }
-
-      tr {
-        border: 1px solid #e5e7eb;
-        border-radius: 16px;
-        padding: 6px 0;
-        background: #fff;
-      }
-
-      td {
-        border-bottom: 1px solid #edf1f7;
-        padding: 10px 14px;
-      }
-
-      td:last-child {
-        border-bottom: none;
-      }
-
-      td::before {
-        content: attr(data-label);
-        display: block;
-        margin-bottom: 4px;
-        font-size: 11px;
-        font-weight: 700;
-        letter-spacing: 0.08em;
-        text-transform: uppercase;
-        color: var(--muted);
-      }
-    }
+    body { margin: 0; font-family: "Roboto", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: linear-gradient(180deg, var(--primary-tint) 0%, var(--bg) 100%); color: var(--text); min-height: 100vh; padding: 32px 16px; }
+    .wrap { max-width: 1480px; margin: 0 auto; }
+    .surface { background: var(--card); border: 1px solid rgba(var(--primary-rgb), 0.12); box-shadow: var(--shadow); border-radius: var(--radius); padding: 22px; margin: 0 auto 20px; }
+    h2 { margin: 0 0 6px; font-size: 20px; }
+    h3 { margin: 0 0 8px; font-size: 16px; }
+    .note { margin: 0 0 14px; color: var(--muted); font-size: 13.5px; line-height: 1.5; }
+    .toolbar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-bottom: 14px; }
+    .spacer { flex: 1; }
+    .btn { border: none; border-radius: 10px; cursor: pointer; font-size: 12.5px; font-weight: 700; padding: 9px 14px; font-family: inherit; }
+    .btn:disabled { opacity: 0.55; cursor: wait; }
+    .btn.primary { background: var(--primary); color: #fff; }
+    .btn.quiet { background: #fff; color: #374151; border: 1px solid var(--border); }
+    .btn.warn { background: #fef3c7; color: #92400e; }
+    .btn.danger { background: #fee2e2; color: #991b1b; }
+    select, input[type="text"], input[type="search"], input[type="url"], input[type="email"], input[type="number"], input[type="date"], input[type="datetime-local"], textarea { border: 1px solid var(--border); border-radius: 10px; padding: 8px 11px; font-size: 13px; font-family: inherit; background: #fff; color: var(--text); }
+    textarea { resize: vertical; }
+    .status { display: none; border-radius: 12px; padding: 10px 13px; font-size: 13px; margin-bottom: 12px; line-height: 1.5; }
+    .status.show { display: block; }
+    .status.ok { background: rgba(var(--primary-rgb), 0.1); color: var(--primary); }
+    .status.error { background: #fee2e2; color: #991b1b; }
+    .layout { display: grid; grid-template-columns: 340px minmax(0, 1fr); gap: 20px; align-items: start; }
+    .ev-list { display: grid; gap: 8px; }
+    .ev-card { border: 1px solid var(--border); border-radius: 14px; padding: 12px 14px; cursor: pointer; background: #fff; }
+    .ev-card:hover { border-color: rgba(var(--primary-rgb), 0.5); }
+    .ev-card.on { border-color: var(--primary); background: var(--primary-faint, #fafdfa); box-shadow: 0 0 0 3px rgba(var(--primary-rgb), 0.1); }
+    .ev-card .n { font-weight: 800; font-size: 14.5px; }
+    .ev-card .d { color: var(--muted); font-size: 12.5px; margin-top: 2px; }
+    .ev-card .m { font-size: 12px; margin-top: 6px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+    .chip { display: inline-block; border-radius: 999px; padding: 2px 9px; font-size: 11px; font-weight: 700; }
+    .chip.draft { background: #f3f4f6; color: #374151; }
+    .chip.published { background: #dcfce7; color: #166534; }
+    .chip.archived { background: #fef3c7; color: #92400e; }
+    .chip.link { background: #eef2ff; color: #3730a3; }
+    .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; margin: 12px 0; }
+    .tile { border: 1px solid var(--border); border-radius: 14px; padding: 12px 14px; background: var(--primary-faint, #fafdfa); }
+    .tile .k { font-size: 10.5px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.03em; }
+    .tile .v { font-size: 24px; font-weight: 800; margin-top: 2px; font-variant-numeric: tabular-nums; }
+    .tile .s { font-size: 11.5px; color: var(--muted); }
+    .alloc { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 12px; }
+    .alloc > span { border: 1px solid var(--border); border-radius: 999px; padding: 4px 11px; font-size: 12.5px; background: #fff; }
+    .alloc b { font-variant-numeric: tabular-nums; }
+    .alloc > .low { border-color: #fde68a; background: #fffbeb; }
+    .alloc > .ok { border-color: #bbf7d0; background: #f0fdf4; }
+    .link-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; font-size: 13px; margin-bottom: 10px; }
+    .link-row code { background: #f3f4f6; border-radius: 8px; padding: 4px 8px; font-size: 12.5px; }
+    .tbl-wrap { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th, td { text-align: left; padding: 7px 8px; border-bottom: 1px solid #eef1f6; vertical-align: middle; white-space: nowrap; }
+    th { font-size: 11px; font-weight: 800; letter-spacing: 0.05em; text-transform: uppercase; color: #64748b; }
+    td input, td select { padding: 5px 8px; font-size: 12.5px; }
+    td input.w-name { width: 150px; } td input.w-co { width: 150px; } td input.w-by { width: 60px; text-transform: uppercase; } td input.w-notes { width: 200px; } td input.w-date { width: 130px; } td select.w-st { width: 110px; } td select.w-ty { width: 150px; } td input.w-n { width: 52px; }
+    tr.Confirmed td:first-child { border-left: 3px solid #16a34a; }
+    tr.Pending td:first-child { border-left: 3px solid #f59e0b; }
+    tr.Declined td { opacity: 0.6; }
+    tr.Waitlist td:first-child { border-left: 3px solid #6366f1; }
+    .x { border: none; background: none; color: #991b1b; cursor: pointer; font-size: 15px; }
+    .add-box { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; margin-top: 14px; align-items: start; }
+    .add-box textarea { width: 100%; min-height: 70px; }
+    .add-side { display: grid; gap: 8px; }
+    details summary { cursor: pointer; font-weight: 700; font-size: 13.5px; margin: 14px 0 8px; }
+    .small { color: var(--muted); font-size: 12px; }
+    /* Editor drawer */
+    .drawer-back { position: fixed; inset: 0; background: rgba(15, 23, 42, 0.35); display: none; z-index: 70; }
+    .drawer-back.show { display: block; }
+    .drawer { position: fixed; top: 0; right: 0; bottom: 0; width: min(760px, 100vw); background: #fff; z-index: 71; box-shadow: -12px 0 40px rgba(0,0,0,0.18); transform: translateX(100%); transition: transform 0.18s ease; display: flex; flex-direction: column; }
+    .drawer.show { transform: translateX(0); }
+    .drawer-head { display: flex; align-items: center; gap: 10px; padding: 16px 18px; border-bottom: 1px solid var(--border); }
+    .drawer-head h3 { margin: 0; flex: 1; }
+    .drawer-body { flex: 1; overflow: auto; padding: 14px 18px 24px; }
+    .drawer-foot { padding: 12px 18px; border-top: 1px solid var(--border); display: flex; gap: 8px; align-items: center; }
+    .f { display: grid; gap: 4px; margin-bottom: 12px; }
+    .f label { font-size: 11.5px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.03em; }
+    .f input, .f select, .f textarea { width: 100%; }
+    .f-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+    .f-row3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+    .gt-row { display: grid; grid-template-columns: minmax(0, 1fr) 70px 70px 80px 30px; gap: 8px; align-items: center; margin-bottom: 6px; }
+    .gt-row .small { text-align: center; }
+    .hint { color: var(--muted); font-size: 11.5px; }
+    @media (max-width: 960px) { .layout { grid-template-columns: 1fr; } .f-row, .f-row3 { grid-template-columns: 1fr; } .add-box { grid-template-columns: 1fr; } }
   </style>
 </head>
-<body data-shell-label="Event RSVPs" data-shell-icon="service">
+<body data-shell-label="Events" data-shell-icon="service">
   <div class="wrap">
     <div id="internal-shell-header"></div>
-
-    <div class="card">
-      <div class="controls">
-        <div>
-          <label for="statusFilter">Event Status</label>
-          <select id="statusFilter">
-            <option value="active">Active events</option>
-            <option value="archived">Archived events</option>
-            <option value="all">All events</option>
-          </select>
-        </div>
-
-        <div>
-          <label for="eventFilter">Event</label>
-          <select id="eventFilter">
-            <option value="">All visible events</option>
-          </select>
-        </div>
-
-        <button id="refreshBtn" class="btn btn-primary" type="button">Refresh</button>
-      </div>
-
+    <div class="surface">
+      <h2>Events</h2>
+      <p class="note">Set up an event here and publish it — it gets its own page on <strong>service.wilsonappliance.com/events/…</strong> with an RSVP form, and shows on the events listing when marked visible. The roster below each event is the RSVP tracker: add or import invitees, track Planned → Pending → Confirmed, and online RSVPs land on the same list automatically (matched by email, then name).</p>
       <div id="status" class="status"></div>
-
-      <div class="metrics">
-        <div class="metric">
-          <div class="metric-label">Visible Events</div>
-          <div class="metric-value" id="visibleEventsCount">0</div>
-          <div class="metric-text">Events in the current view</div>
-        </div>
-
-        <div class="metric">
-          <div class="metric-label">RSVPs</div>
-          <div class="metric-value" id="visibleRsvpCount">0</div>
-          <div class="metric-text">Total RSVP records shown</div>
-        </div>
-
-        <div class="metric">
-          <div class="metric-label">Attendees</div>
-          <div class="metric-value" id="visibleAttendeeCount">0</div>
-          <div class="metric-text">Combined guest count</div>
-        </div>
-
-        <div class="metric">
-          <div class="metric-label">Opted Into Updates</div>
-          <div class="metric-value" id="visibleUpdateCount">0</div>
-          <div class="metric-text">Email or text updates requested</div>
-        </div>
+      <div class="toolbar">
+        <select id="filter"><option value="all">All events</option><option value="published">Published</option><option value="draft">Drafts</option><option value="archived">Archived</option></select>
+        <span class="spacer"></span>
+        <button type="button" class="btn primary" id="newBtn">New event</button>
       </div>
-
       <div class="layout">
-        <div class="card">
-          <h2 class="panel-title">Events</h2>
-          <div id="eventsList" class="events-list"></div>
-        </div>
-
-        <div class="card">
-          <h2 class="panel-title">RSVPs</h2>
-          <table>
-            <thead>
-              <tr>
-                <th>Name</th>
-                <th>Attending</th>
-                <th>Best Description</th>
-                <th>Updates</th>
-                <th>Submitted</th>
-              </tr>
-            </thead>
-            <tbody id="rsvpTableBody">
-              <tr><td colspan="5" class="empty">Loading RSVPs...</td></tr>
-            </tbody>
-          </table>
-        </div>
+        <div class="ev-list" id="evList"><div class="small">Loading…</div></div>
+        <div id="detail"><div class="small">Pick an event on the left, or create one.</div></div>
       </div>
     </div>
-
     <div id="internal-shell-footer"></div>
+  </div>
+
+  <div class="drawer-back" id="drawerBack"></div>
+  <div class="drawer" id="drawer" role="dialog" aria-modal="true">
+    <div class="drawer-head"><h3 id="drawerTitle">New event</h3><button type="button" class="btn quiet" id="drawerClose">Close</button></div>
+    <div class="drawer-body">
+      <div class="f-row">
+        <div class="f"><label>Event name</label><input type="text" id="e_name" maxlength="120" placeholder="Flower Arranging Class"></div>
+        <div class="f"><label>Subtitle / eyebrow</label><input type="text" id="e_subtitle" maxlength="160" placeholder="Designer event before Thanksgiving"></div>
+      </div>
+      <div class="f-row3">
+        <div class="f"><label>Starts</label><input type="datetime-local" id="e_start"></div>
+        <div class="f"><label>Ends</label><input type="datetime-local" id="e_end"></div>
+        <div class="f"><label>Time note</label><input type="text" id="e_doors" maxlength="160" placeholder="stay up to 3:30 PM"></div>
+      </div>
+      <div class="f-row">
+        <div class="f"><label>Location</label><input type="text" id="e_location" maxlength="160" placeholder="Wilson Showroom"></div>
+        <div class="f"><label>Address</label><input type="text" id="e_address" maxlength="240" placeholder="street, city"></div>
+      </div>
+      <div class="f"><label>Description (blank line between paragraphs)</label><textarea id="e_desc" rows="6"></textarea></div>
+      <div class="f"><label>Highlights (one per line — shown as a checklist)</label><textarea id="e_high" rows="3" placeholder="Charcuterie board provided&#10;Take your arrangement home"></textarea></div>
+      <div class="f"><label>Hero image URL (optional)</label><input type="url" id="e_image" placeholder="https://…"></div>
+      <div class="f-row3">
+        <div class="f"><label>Total spots (blank = unlimited)</label><input type="number" id="e_capacity" min="0" placeholder="24"></div>
+        <div class="f"><label>Max people per RSVP</label><input type="number" id="e_maxGuests" min="1" max="12" value="1"></div>
+        <div class="f"><label>RSVP deadline</label><input type="datetime-local" id="e_deadline"></div>
+      </div>
+      <div class="f">
+        <label>Guest types &amp; target seats</label>
+        <div class="gt-row"><span class="hint">Type</span><span class="small">min</span><span class="small">max</span><span class="small">on form?</span><span></span></div>
+        <div id="gtRows"></div>
+        <button type="button" class="btn quiet" id="gtAdd">+ Add type</button>
+        <div class="hint">Types hidden from the form (e.g. SZ/Wolf Rep, Wilson Sales Associate) are for the roster only.</div>
+      </div>
+      <div class="f-row3">
+        <div class="f"><label>Ask for company / firm</label><select id="e_askCompany"><option value="true">Yes</option><option value="false">No</option></select></div>
+        <div class="f"><label>Visibility</label><select id="e_visibility"><option value="listed">Listed on /events</option><option value="link">Link only (invite)</option></select></div>
+        <div class="f"><label>Page link (slug)</label><input type="text" id="e_slug" placeholder="auto from name"></div>
+      </div>
+      <div class="f-row">
+        <div class="f"><label>Contact name (shown on page)</label><input type="text" id="e_contactName" maxlength="80"></div>
+        <div class="f"><label>Contact email</label><input type="email" id="e_contactEmail" maxlength="120"></div>
+      </div>
+    </div>
+    <div class="drawer-foot"><button type="button" class="btn primary" id="saveBtn">Save event</button><span class="small" id="saveNote"></span></div>
   </div>
 
   <script src="internal-shell.js"></script>
   <script>
-    const statusFilterEl = document.getElementById("statusFilter");
-    const eventFilterEl = document.getElementById("eventFilter");
-    const refreshBtn = document.getElementById("refreshBtn");
-    const statusEl = document.getElementById("status");
-    const eventsListEl = document.getElementById("eventsList");
-    const rsvpTableBodyEl = document.getElementById("rsvpTableBody");
-    const visibleEventsCountEl = document.getElementById("visibleEventsCount");
-    const visibleRsvpCountEl = document.getElementById("visibleRsvpCount");
-    const visibleAttendeeCountEl = document.getElementById("visibleAttendeeCount");
-    const visibleUpdateCountEl = document.getElementById("visibleUpdateCount");
-
-    let currentEvents = [];
-    let currentRsvps = [];
-
-    function showStatus(type, message) {
-      statusEl.className = `status ${type}`;
-      statusEl.textContent = message;
-    }
-
-    function clearStatus() {
-      statusEl.className = "status";
-      statusEl.textContent = "";
-    }
-
-    function formatDateTime(value) {
-      if (!value) return "-";
-      return new Date(value).toLocaleString("en-US", {
-        month: "2-digit",
-        day: "2-digit",
-        year: "2-digit",
-        hour: "numeric",
-        minute: "2-digit"
-      });
-    }
-
-    function formatEventDateRange(event) {
-      if (!event?.startsAt) return "-";
-      const start = new Date(event.startsAt);
-      const end = event.endsAt ? new Date(event.endsAt) : null;
-      const startText = start.toLocaleString("en-US", {
-        month: "2-digit",
-        day: "2-digit",
-        year: "2-digit",
-        hour: "numeric",
-        minute: "2-digit"
-      });
-
-      if (!end) return startText;
-
-      const endText = end.toLocaleString("en-US", {
-        month: "2-digit",
-        day: "2-digit",
-        year: "2-digit",
-        hour: "numeric",
-        minute: "2-digit"
-      });
-
-      return `${startText} - ${endText}`;
-    }
-
-    function escapeHtml(value) {
-      return String(value ?? "")
-        .replace(/&/g, "&amp;")
-        .replace(/</g, "&lt;")
-        .replace(/>/g, "&gt;")
-        .replace(/"/g, "&quot;")
-        .replace(/'/g, "&#39;");
-    }
-
-    function setMetrics(events, rsvps) {
-      const updateCount = rsvps.filter((row) => row.wantsEmailUpdates || row.wantsTextUpdates).length;
-      const attendeeCount = rsvps.reduce((sum, row) => sum + Number(row.guestCount || 0), 0);
-      visibleEventsCountEl.textContent = String(events.length);
-      visibleRsvpCountEl.textContent = String(rsvps.length);
-      visibleAttendeeCountEl.textContent = String(attendeeCount);
-      visibleUpdateCountEl.textContent = String(updateCount);
-    }
-
-    function renderEventFilter(events) {
-      const currentValue = eventFilterEl.value;
-      const options = [
-        '<option value="">All visible events</option>',
-        ...events.map((event) => `<option value="${escapeHtml(event.slug)}">${escapeHtml(event.name)}</option>`)
-      ];
-      eventFilterEl.innerHTML = options.join("");
-
-      if (events.some((event) => event.slug === currentValue)) {
-        eventFilterEl.value = currentValue;
-      } else {
-        eventFilterEl.value = "";
-      }
-    }
-
-    function renderEvents(events) {
-      const selectedSlug = eventFilterEl.value;
-
-      if (!events.length) {
-        eventsListEl.innerHTML = '<div class="empty">No events match the current filter.</div>';
-        return;
+    (function () {
+      const $ = (id) => document.getElementById(id);
+      const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch]));
+      const TZ = "America/Chicago";
+      const fmtDT = (iso) => iso ? new Date(iso).toLocaleString("en-US", { timeZone: TZ, weekday: "short", month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" }) : "no date";
+      const fmtT = (iso) => iso ? new Date(iso).toLocaleTimeString("en-US", { timeZone: TZ, hour: "numeric", minute: "2-digit" }) : "";
+      const state = { events: [], statuses: [], siteBase: "", selected: null, roster: null, editing: null };
+      function setStatus(msg, kind) { const b = $("status"); if (!msg) { b.className = "status"; b.textContent = ""; return; } b.className = "status " + kind + " show"; b.textContent = msg; }
+      async function api(path, options = {}) {
+        const res = await fetch(path, { credentials: "same-origin", headers: options.body instanceof FormData ? {} : { "Content-Type": "application/json" }, ...options });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error || "Request failed.");
+        return data;
       }
 
-      eventsListEl.innerHTML = events.map((event) => {
-        const stats = event.stats || {};
-        const isSelected = selectedSlug && selectedSlug === event.slug;
-        return `
-          <div class="event-card ${isSelected ? "active-selection" : ""}">
-            <div class="event-top">
-              <div>
-                <h3 class="event-name">${escapeHtml(event.name)}</h3>
-                <p class="event-subtitle">${escapeHtml(event.subtitle || "Event campaign")}</p>
-              </div>
-              <span class="badge ${escapeHtml(event.status)}">${escapeHtml(event.status)}</span>
-            </div>
+      // ---- list ----
+      async function loadEvents(keep = true) {
+        try {
+          const data = await api("/api/events?status=" + encodeURIComponent($("filter").value));
+          state.events = data.events || []; state.statuses = data.statuses || []; state.siteBase = data.siteBase || "";
+          if (!keep || !state.events.some((e) => e.id === state.selected)) state.selected = state.events[0]?.id || null;
+          renderList();
+          if (state.selected) await loadRoster(); else $("detail").innerHTML = '<div class="small">No events match this filter.</div>';
+        } catch (err) { setStatus(err.message, "error"); }
+      }
+      function renderList() {
+        $("evList").innerHTML = state.events.length ? state.events.map((e) => `
+          <div class="ev-card${e.id === state.selected ? " on" : ""}" data-id="${e.id}">
+            <div class="n">${esc(e.name)}</div>
+            <div class="d">${esc(fmtDT(e.startsAt))}${e.location ? " · " + esc(e.location) : ""}</div>
+            <div class="m"><span class="chip ${e.status}">${e.status}</span>${e.visibility === "link" ? '<span class="chip link">link only</span>' : ""}<span>${e.summary.confirmed}${e.capacity != null ? " / " + e.capacity : ""} confirmed</span>${e.rsvpCount ? `<span>· ${e.rsvpCount} online</span>` : ""}</div>
+          </div>`).join("") : '<div class="small">No events yet.</div>';
+      }
+      $("evList").addEventListener("click", (ev) => { const c = ev.target.closest(".ev-card"); if (!c) return; state.selected = c.dataset.id; renderList(); loadRoster(); });
+      $("filter").addEventListener("change", () => loadEvents(false));
 
-            <div class="event-meta">
-              <div class="event-meta-row"><span class="event-meta-label">When:</span>${escapeHtml(formatEventDateRange(event))}</div>
-              <div class="event-meta-row"><span class="event-meta-label">Where:</span>${escapeHtml(event.location || "-")}</div>
-              <div class="event-meta-row"><span class="event-meta-label">Public page:</span>${event.publicPath ? `<a href="${escapeHtml(event.publicPath)}" target="_blank" rel="noopener noreferrer">${escapeHtml(event.publicPath)}</a>` : "-"}</div>
-            </div>
-
-            <div class="event-stats">
-              <div class="event-stat">
-                <div class="event-stat-value">${Number(stats.rsvpCount || 0)}</div>
-                <div class="event-stat-label">RSVPs</div>
-              </div>
-              <div class="event-stat">
-                <div class="event-stat-value">${Number(stats.totalAttendees || 0)}</div>
-                <div class="event-stat-label">Attendees</div>
-              </div>
-            </div>
-
-            <div class="event-actions">
-              <button class="btn btn-secondary" type="button" data-select-event="${escapeHtml(event.slug)}">View RSVPs</button>
-              <button class="btn btn-secondary" type="button" data-toggle-status="${escapeHtml(event.slug)}" data-next-status="${event.status === "active" ? "archived" : "active"}">
-                ${event.status === "active" ? "Archive event" : "Restore event"}
-              </button>
+      // ---- detail / roster ----
+      async function loadRoster() {
+        if (!state.selected) return;
+        try { state.roster = await api(`/api/events/${state.selected}/roster`); renderDetail(); }
+        catch (err) { setStatus(err.message, "error"); }
+      }
+      function summarize(e, invitees) {
+        const seats = (i) => Math.max(1, Number(i.guestCount) || 1);
+        const sum = (st, type) => invitees.filter((i) => i.status === st && (!type || i.guestType === type)).reduce((a, i) => a + seats(i), 0);
+        return { confirmed: sum("Confirmed"), pending: sum("Pending"), planned: invitees.filter((i) => i.status === "Planned").length, declined: invitees.filter((i) => i.status === "Declined").length, waitlist: invitees.filter((i) => i.status === "Waitlist").length,
+          remaining: e.capacity == null ? null : Math.max(0, e.capacity - sum("Confirmed")), types: (e.guestTypes || []).map((t) => ({ ...t, confirmed: sum("Confirmed", t.name), pending: sum("Pending", t.name) })) };
+      }
+      function renderDetail() {
+        const { event: e, invitees, rsvps } = state.roster;
+        const s = summarize(e, invitees);
+        const canPublish = e.status !== "published";
+        $("detail").innerHTML = `
+          <div class="toolbar" style="margin-bottom:6px;">
+            <div><h3 style="margin:0;">${esc(e.name)} <span class="chip ${e.status}">${e.status}</span></h3><div class="small">${esc(fmtDT(e.startsAt))}${e.endsAt ? " – " + esc(fmtT(e.endsAt)) : ""}${e.location ? " · " + esc(e.location) : ""}${e.rsvpDeadline ? " · RSVP by " + esc(fmtDT(e.rsvpDeadline)) : ""}</div></div>
+            <span class="spacer"></span>
+            <button type="button" class="btn quiet" id="editBtn">Edit</button>
+            ${canPublish ? `<button type="button" class="btn primary" id="pubBtn">Publish</button>` : `<button type="button" class="btn warn" id="unpubBtn">Unpublish</button>`}
+            ${e.status !== "archived" ? `<button type="button" class="btn quiet" id="archBtn">Archive</button>` : `<button type="button" class="btn danger" id="delBtn" title="Executives only">Delete</button>`}
+          </div>
+          <div class="link-row"><code>${esc(e.publicUrl)}</code><button type="button" class="btn quiet" id="copyBtn">Copy link</button><a class="btn quiet" href="${esc(e.publicUrl)}" target="_blank" rel="noopener">Open page</a><a class="btn quiet" href="/api/events/${e.id}/roster.csv">Export roster CSV</a>${e.status !== "published" ? '<span class="small">The page only works once the event is published.</span>' : ""}</div>
+          <div class="tiles">
+            <div class="tile"><div class="k">Total spots</div><div class="v">${e.capacity == null ? "∞" : e.capacity}</div></div>
+            <div class="tile"><div class="k">Confirmed</div><div class="v">${s.confirmed}</div><div class="s">seats incl. guests</div></div>
+            <div class="tile"><div class="k">Pending</div><div class="v">${s.pending}</div><div class="s">${s.planned} planned</div></div>
+            <div class="tile"><div class="k">Spots remaining</div><div class="v">${s.remaining == null ? "—" : s.remaining}</div>${s.waitlist ? `<div class="s">${s.waitlist} on waitlist</div>` : ""}</div>
+            <div class="tile"><div class="k">Online RSVPs</div><div class="v">${rsvps.length}</div><div class="s">${s.declined} declined</div></div>
+          </div>
+          ${s.types.length ? `<div class="alloc">${s.types.map((t) => { const tgt = t.targetMin != null || t.targetMax != null ? `${t.targetMin ?? ""}${t.targetMin != null && t.targetMax != null && t.targetMin !== t.targetMax ? "–" + t.targetMax : t.targetMax != null && t.targetMin == null ? "≤" + t.targetMax : ""}` : ""; const cls = t.targetMin != null ? (t.confirmed >= t.targetMin ? "ok" : "low") : ""; return `<span class="${cls}">${esc(t.name)}: <b>${t.confirmed}</b>${tgt ? " / " + esc(tgt) : ""}${t.pending ? ` <span class="small">(+${t.pending} pending)</span>` : ""}${t.public === false ? ' <span class="small">· roster only</span>' : ""}</span>`; }).join("")}</div>` : ""}
+          <div class="tbl-wrap"><table>
+            <thead><tr><th>Invitee</th><th>Company</th><th>Type</th><th>Invited by</th><th>Status</th><th>Guests</th><th>Invited</th><th>Follow-up</th><th>Email / phone</th><th>Notes</th><th></th></tr></thead>
+            <tbody id="roster">${invitees.map((i) => rosterRow(i, e)).join("") || '<tr><td colspan="11" class="small">Nobody on the roster yet — add invitees below or import the tracker workbook.</td></tr>'}</tbody>
+          </table></div>
+          <div class="add-box">
+            <textarea id="addLines" placeholder="One per line:  Name, Company, Type, email&#10;Fern Santini, Fern Santini Design, Designer"></textarea>
+            <div class="add-side">
+              <select id="addStatus">${state.statuses.map((st) => `<option${st === "Planned" ? " selected" : ""}>${st}</option>`).join("")}</select>
+              <input type="text" id="addBy" placeholder="Invited by (initials)" maxlength="12" style="text-transform:uppercase;">
+              <button type="button" class="btn primary" id="addBtn">Add to roster</button>
+              <label class="btn quiet" style="text-align:center;">Import workbook / CSV<input type="file" id="importFile" accept=".xlsx,.xls,.csv" style="display:none;"></label>
             </div>
           </div>
-        `;
-      }).join("");
-    }
-
-    function renderRsvps(rsvps) {
-      if (!rsvps.length) {
-        rsvpTableBodyEl.innerHTML = '<tr><td colspan="5" class="empty">No RSVPs match the current event view.</td></tr>';
-        return;
+          <details><summary>Online RSVPs (${rsvps.length})</summary>
+            ${rsvps.length ? `<div class="tbl-wrap"><table><thead><tr><th>When</th><th>Name</th><th>Answer</th><th>Guests</th><th>Type</th><th>Company</th><th>Email</th><th>Phone</th><th>Notes</th></tr></thead><tbody>${rsvps.map((r) => `<tr><td>${esc(fmtDT(r.updatedAt))}</td><td>${esc(r.fullName)}</td><td>${r.attending ? "Yes" : "Can't make it"}</td><td>${r.attending ? r.guestCount : "—"}</td><td>${esc(r.guestType)}</td><td>${esc(r.company)}</td><td>${esc(r.email)}</td><td>${esc(r.phone)}</td><td style="white-space:normal;">${esc(r.notes)}</td></tr>`).join("")}</tbody></table></div>` : '<div class="small">None yet.</div>'}
+          </details>`;
+        $("editBtn").addEventListener("click", () => openEditor(e));
+        $("copyBtn").addEventListener("click", async () => { try { await navigator.clipboard.writeText(e.publicUrl); setStatus("Link copied.", "ok"); } catch { setStatus(e.publicUrl, "ok"); } });
+        $("pubBtn")?.addEventListener("click", () => setEventStatus(e, "published"));
+        $("unpubBtn")?.addEventListener("click", () => { if (confirm("Unpublish? The public page stops taking RSVPs and drops off the listing.")) setEventStatus(e, "draft"); });
+        $("archBtn")?.addEventListener("click", () => { if (confirm("Archive this event? It leaves the public site; the roster is kept.")) setEventStatus(e, "archived"); });
+        $("delBtn")?.addEventListener("click", async () => { if (!confirm(`Delete "${e.name}" and its roster? This can't be undone.`)) return; try { await api(`/api/events/${e.id}`, { method: "DELETE" }); setStatus("Event deleted.", "ok"); await loadEvents(false); } catch (err) { setStatus(err.message, "error"); } });
+        $("addBtn").addEventListener("click", addFromLines);
+        $("importFile").addEventListener("change", importWorkbook);
+        $("roster").addEventListener("change", onRosterChange);
+        $("roster").addEventListener("click", async (ev) => { const x = ev.target.closest("[data-rm]"); if (!x) return; if (!confirm("Remove this person from the roster?")) return; try { await api(`/api/events/${e.id}/invitees/${x.dataset.rm}`, { method: "DELETE" }); await refresh(); } catch (err) { setStatus(err.message, "error"); } });
+      }
+      function rosterRow(i, e) {
+        const types = [...new Set([...(e.guestTypes || []).map((t) => t.name), i.guestType].filter(Boolean))];
+        return `<tr class="${esc(i.status)}" data-id="${i.id}">
+          <td><input type="text" class="w-name" data-f="name" value="${esc(i.name)}">${i.source === "online" ? ' <span class="chip link" title="Came in through the public page">online</span>' : ""}</td>
+          <td><input type="text" class="w-co" data-f="company" value="${esc(i.company)}"></td>
+          <td><select class="w-ty" data-f="guestType"><option value="">—</option>${types.map((t) => `<option${t === i.guestType ? " selected" : ""}>${esc(t)}</option>`).join("")}</select></td>
+          <td><input type="text" class="w-by" data-f="invitedBy" value="${esc(i.invitedBy)}"></td>
+          <td><select class="w-st" data-f="status">${state.statuses.map((st) => `<option${st === i.status ? " selected" : ""}>${st}</option>`).join("")}</select></td>
+          <td><input type="number" class="w-n" data-f="guestCount" min="1" max="12" value="${i.guestCount || 1}"></td>
+          <td><input type="date" class="w-date" data-f="dateInvited" value="${esc(i.dateInvited)}"></td>
+          <td><input type="date" class="w-date" data-f="followUp" value="${esc(i.followUp)}"></td>
+          <td class="small">${esc(i.email)}${i.email && i.phone ? " · " : ""}${esc(i.phone)}</td>
+          <td><input type="text" class="w-notes" data-f="notes" value="${esc(i.notes)}"></td>
+          <td><button type="button" class="x" data-rm="${i.id}" title="Remove">✕</button></td>
+        </tr>`;
+      }
+      async function onRosterChange(ev) {
+        const input = ev.target.closest("[data-f]"); if (!input) return;
+        const tr = input.closest("tr"); const id = tr.dataset.id;
+        try {
+          const data = await api(`/api/events/${state.selected}/invitees/${id}`, { method: "PATCH", body: JSON.stringify({ [input.dataset.f]: input.value }) });
+          tr.className = data.invitee.status;
+          const idx = state.roster.invitees.findIndex((i) => i.id === id); if (idx >= 0) state.roster.invitees[idx] = data.invitee;
+          if (input.dataset.f === "status" || input.dataset.f === "guestCount" || input.dataset.f === "guestType") renderDetail();
+        } catch (err) { setStatus(err.message, "error"); }
+      }
+      async function refresh() { await loadRoster(); const data = await api("/api/events?status=" + encodeURIComponent($("filter").value)).catch(() => null); if (data) { state.events = data.events || []; renderList(); } }
+      async function addFromLines() {
+        const lines = $("addLines").value.trim(); if (!lines) { setStatus("Paste at least one name.", "error"); return; }
+        try {
+          const out = await api(`/api/events/${state.selected}/invitees`, { method: "POST", body: JSON.stringify({ lines, status: $("addStatus").value, invitedBy: $("addBy").value.trim() }) });
+          setStatus(`Roster: ${out.added} added, ${out.updated} updated.`, "ok"); await refresh();
+        } catch (err) { setStatus(err.message, "error"); }
+      }
+      async function importWorkbook(ev) {
+        const file = ev.target.files?.[0]; if (!file) return;
+        const fd = new FormData(); fd.append("file", file);
+        try {
+          const res = await fetch(`/api/events/${state.selected}/invitees/import`, { method: "POST", credentials: "same-origin", body: fd });
+          const out = await res.json().catch(() => ({})); if (!res.ok) throw new Error(out.error || "Import failed.");
+          setStatus(`Imported ${out.rows} rows: ${out.added} added, ${out.updated} updated.`, "ok"); await refresh();
+        } catch (err) { setStatus(err.message, "error"); } finally { ev.target.value = ""; }
+      }
+      async function setEventStatus(e, status) {
+        try { await api(`/api/events/${e.id}/status`, { method: "POST", body: JSON.stringify({ status }) }); setStatus(status === "published" ? `Published — live at ${e.publicUrl}` : `Event is now ${status}.`, "ok"); await loadEvents(); }
+        catch (err) { setStatus(err.message, "error"); }
       }
 
-      rsvpTableBodyEl.innerHTML = rsvps.map((row) => {
-        const updates = [];
-        if (row.wantsEmailUpdates) {
-          updates.push(`<span class="update-pill">Email</span>`);
-        }
-        if (row.wantsTextUpdates) {
-          updates.push(`<span class="update-pill">Text</span>`);
-        }
-
-        const contactLines = [
-          row.email ? `<span class="contact-line">${escapeHtml(row.email)}</span>` : "",
-          row.phone ? `<span class="contact-line">${escapeHtml(row.phone)}</span>` : ""
-        ].join("");
-
-        return `
-          <tr>
-            <td data-label="Name">
-              <strong>${escapeHtml(row.fullName || "-")}</strong>
-              <span class="contact-line">${escapeHtml(row.eventName || "-")}</span>
-            </td>
-            <td data-label="Attending">${Number(row.guestCount || 0)}</td>
-            <td data-label="Best Description">${escapeHtml(row.attendeeType || "-")}</td>
-            <td data-label="Updates">
-              <div class="updates">${updates.length ? updates.join("") : '<span class="contact-line">No updates requested</span>'}</div>
-              ${contactLines}
-            </td>
-            <td data-label="Submitted">${escapeHtml(formatDateTime(row.updatedAt || row.createdAt))}</td>
-          </tr>
-        `;
-      }).join("");
-    }
-
-    async function loadCatalog() {
-      const status = statusFilterEl.value;
-      const res = await fetch(`/api/events/catalog?status=${encodeURIComponent(status)}`);
-      const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data.error || "Unable to load event catalog.");
+      // ---- editor ----
+      const toLocal = (iso) => { if (!iso) return ""; const d = new Date(iso); if (Number.isNaN(d.getTime())) return ""; const p = (n) => String(n).padStart(2, "0"); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`; };
+      const fromLocal = (v) => (v ? new Date(v).toISOString() : "");
+      function gtRow(t = {}) {
+        const row = document.createElement("div"); row.className = "gt-row";
+        row.innerHTML = `<input type="text" data-g="name" placeholder="Designer" value="${esc(t.name || "")}"><input type="number" data-g="targetMin" min="0" value="${t.targetMin ?? ""}"><input type="number" data-g="targetMax" min="0" value="${t.targetMax ?? ""}"><select data-g="public"><option value="true"${t.public === false ? "" : " selected"}>shown</option><option value="false"${t.public === false ? " selected" : ""}>hidden</option></select><button type="button" class="x" title="Remove">✕</button>`;
+        row.querySelector(".x").addEventListener("click", () => row.remove());
+        return row;
       }
-      currentEvents = data.events || [];
-      renderEventFilter(currentEvents);
-      renderEvents(currentEvents);
-      return currentEvents;
-    }
-
-    async function loadRsvps() {
-      const status = statusFilterEl.value;
-      const eventSlug = eventFilterEl.value;
-      const query = new URLSearchParams({ status });
-      if (eventSlug) {
-        query.set("eventSlug", eventSlug);
+      $("gtAdd").addEventListener("click", () => $("gtRows").appendChild(gtRow()));
+      function openEditor(e) {
+        state.editing = e || null;
+        $("drawerTitle").textContent = e ? `Edit: ${e.name}` : "New event";
+        $("e_name").value = e?.name || ""; $("e_subtitle").value = e?.subtitle || ""; $("e_start").value = toLocal(e?.startsAt); $("e_end").value = toLocal(e?.endsAt); $("e_doors").value = e?.doorsNote || "";
+        $("e_location").value = e?.location || "Wilson Showroom"; $("e_address").value = e?.address || ""; $("e_desc").value = e?.description || ""; $("e_high").value = (e?.highlights || []).join("\n"); $("e_image").value = e?.heroImageUrl || "";
+        $("e_capacity").value = e?.capacity ?? ""; $("e_maxGuests").value = e?.maxGuests || 1; $("e_deadline").value = toLocal(e?.rsvpDeadline);
+        $("e_askCompany").value = e ? String(e.askCompany !== false) : "true"; $("e_visibility").value = e?.visibility || "listed"; $("e_slug").value = e?.slug || "";
+        $("e_contactName").value = e?.contactName || ""; $("e_contactEmail").value = e?.contactEmail || "";
+        $("gtRows").innerHTML = "";
+        const types = e ? e.guestTypes || [] : [{ name: "Designer", targetMin: 18, targetMax: 20, public: true }, { name: "SZ/Wolf Rep", targetMin: 2, targetMax: 2, public: false }, { name: "Wilson Sales Associate", targetMin: 2, targetMax: 4, public: false }];
+        types.forEach((t) => $("gtRows").appendChild(gtRow(t)));
+        $("saveNote").textContent = e ? "" : "Saved as a draft — publish from the event's page when it's ready.";
+        $("drawer").classList.add("show"); $("drawerBack").classList.add("show");
       }
-
-      const res = await fetch(`/api/events/rsvps?${query.toString()}`);
-      const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data.error || "Unable to load RSVP data.");
-      }
-
-      currentRsvps = data.rows || [];
-      renderRsvps(currentRsvps);
-      setMetrics(currentEvents, currentRsvps);
-    }
-
-    async function loadPage() {
-      clearStatus();
-      refreshBtn.disabled = true;
-      refreshBtn.textContent = "Loading...";
-
-      try {
-        await loadCatalog();
-        await loadRsvps();
-      } catch (err) {
-        showStatus("error", err.message || "Unable to load event RSVPs.");
-      } finally {
-        refreshBtn.disabled = false;
-        refreshBtn.textContent = "Refresh";
-      }
-    }
-
-    async function updateEventStatus(slug, nextStatus) {
-      const verb = nextStatus === "archived" ? "archive" : "restore";
-      const confirmed = window.confirm(`Are you sure you want to ${verb} this event?`);
-      if (!confirmed) {
-        return;
-      }
-
-      clearStatus();
-
-      try {
-        const res = await fetch(`/api/events/${encodeURIComponent(slug)}/status`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json"
-          },
-          body: JSON.stringify({ status: nextStatus })
-        });
-
-        const data = await res.json();
-        if (!res.ok) {
-          throw new Error(data.error || "Unable to update event status.");
-        }
-
-        showStatus("success", `Event ${nextStatus === "archived" ? "archived" : "restored"} successfully.`);
-        await loadPage();
-      } catch (err) {
-        showStatus("error", err.message || "Unable to update event status.");
-      }
-    }
-
-    eventsListEl.addEventListener("click", (event) => {
-      const selectTarget = event.target.closest("[data-select-event]");
-      if (selectTarget) {
-        eventFilterEl.value = selectTarget.getAttribute("data-select-event") || "";
-        renderEvents(currentEvents);
-        loadRsvps().catch((err) => showStatus("error", err.message || "Unable to load RSVP data."));
-        return;
-      }
-
-      const statusTarget = event.target.closest("[data-toggle-status]");
-      if (statusTarget) {
-        const slug = statusTarget.getAttribute("data-toggle-status") || "";
-        const nextStatus = statusTarget.getAttribute("data-next-status") || "";
-        updateEventStatus(slug, nextStatus);
-      }
-    });
-
-    statusFilterEl.addEventListener("change", loadPage);
-    eventFilterEl.addEventListener("change", async () => {
-      clearStatus();
-      renderEvents(currentEvents);
-      try {
-        await loadRsvps();
-      } catch (err) {
-        showStatus("error", err.message || "Unable to load RSVP data.");
-      }
-    });
-    refreshBtn.addEventListener("click", loadPage);
-
-    loadPage();
+      function closeEditor() { $("drawer").classList.remove("show"); $("drawerBack").classList.remove("show"); }
+      $("drawerClose").addEventListener("click", closeEditor); $("drawerBack").addEventListener("click", closeEditor);
+      $("newBtn").addEventListener("click", () => openEditor(null));
+      $("saveBtn").addEventListener("click", async () => {
+        const guestTypes = [...$("gtRows").querySelectorAll(".gt-row")].map((r) => ({ name: r.querySelector("[data-g=name]").value.trim(), targetMin: r.querySelector("[data-g=targetMin]").value, targetMax: r.querySelector("[data-g=targetMax]").value, public: r.querySelector("[data-g=public]").value === "true" })).filter((t) => t.name);
+        const body = { name: $("e_name").value.trim(), subtitle: $("e_subtitle").value.trim(), startsAt: fromLocal($("e_start").value), endsAt: fromLocal($("e_end").value), doorsNote: $("e_doors").value.trim(),
+          location: $("e_location").value.trim(), address: $("e_address").value.trim(), description: $("e_desc").value, highlights: $("e_high").value.split(/\r?\n/), heroImageUrl: $("e_image").value.trim(),
+          capacity: $("e_capacity").value === "" ? null : Number($("e_capacity").value), maxGuests: Number($("e_maxGuests").value || 1), rsvpDeadline: fromLocal($("e_deadline").value),
+          guestTypes, askCompany: $("e_askCompany").value === "true", visibility: $("e_visibility").value, slug: $("e_slug").value.trim(), contactName: $("e_contactName").value.trim(), contactEmail: $("e_contactEmail").value.trim() };
+        $("saveBtn").disabled = true;
+        try {
+          const out = state.editing ? await api(`/api/events/${state.editing.id}`, { method: "PUT", body: JSON.stringify(body) }) : await api("/api/events", { method: "POST", body: JSON.stringify(body) });
+          closeEditor(); setStatus(state.editing ? "Event saved." : `"${out.event.name}" created as a draft.`, "ok");
+          state.selected = out.event.id; $("filter").value = state.editing ? $("filter").value : "all"; await loadEvents();
+        } catch (err) { setStatus(err.message, "error"); } finally { $("saveBtn").disabled = false; }
+      });
+      document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeEditor(); });
+      loadEvents(false);
+    })();
   </script>
 </body>
 </html>

@@ -151,6 +151,43 @@
     .sp-temp-row td { white-space: normal; }
     .sp-temp-pass { background: #fffbeb; border: 1px solid #fde68a; color: #92400e; border-radius: 10px; padding: 8px 11px; font-size: 13px; line-height: 1.5; }
     .sp-temp-pass strong { font-size: 15px; letter-spacing: 0.08em; }
+    /* ePASS customer column: confirmed link, or suggestions to click-confirm */
+    .ep-link { display: inline-flex; align-items: center; gap: 6px; }
+    .ep-code { background: #dcfce7; color: #166534; border-radius: 999px; padding: 2px 9px; font-size: 11.5px; font-weight: 700; cursor: pointer; }
+    .ep-code.missing { background: #fef3c7; color: #92400e; }
+    .ep-name { font-size: 12.5px; }
+    .ep-sug { display: inline-flex; flex-wrap: wrap; gap: 5px; align-items: center; }
+    .ep-sug-btn { appearance: none; border: 1px dashed rgba(var(--primary-rgb), 0.6); background: var(--primary-tint); color: var(--primary); border-radius: 999px; padding: 3px 10px; font-size: 11.5px; font-weight: 700; cursor: pointer; font-family: inherit; }
+    .ep-sug-btn:hover { background: var(--primary); color: #fff; }
+    .ep-sug-btn .why { font-weight: 500; opacity: 0.8; }
+    .ep-find { appearance: none; border: 1px solid var(--border); background: #fff; color: #374151; border-radius: 999px; padding: 3px 9px; font-size: 11.5px; cursor: pointer; font-family: inherit; }
+    .ep-find:hover { border-color: var(--primary); color: var(--primary); }
+    .ep-none { color: var(--muted); font-size: 12px; }
+    .ep-pick-row td { background: var(--primary-faint-2, #f8fafc); white-space: normal; }
+    .ep-pick { display: flex; flex-direction: column; gap: 8px; }
+    .ep-pick input[type="search"] { border: 1px solid var(--border); border-radius: 9px; padding: 7px 10px; font-size: 12.5px; font-family: inherit; max-width: 420px; }
+    .ep-cand { display: grid; grid-template-columns: auto 1fr auto; gap: 10px; align-items: center; border: 1px solid var(--border); border-radius: 10px; padding: 7px 10px; background: #fff; font-size: 12.5px; }
+    .ep-cand .c-meta { color: var(--muted); font-size: 11.5px; }
+    .ep-cand .c-why { color: var(--primary); font-weight: 700; font-size: 11px; }
+    /* History drawer */
+    .drawer-back { position: fixed; inset: 0; background: rgba(15, 23, 42, 0.35); display: none; z-index: 70; }
+    .drawer-back.show { display: block; }
+    .drawer { position: fixed; top: 0; right: 0; bottom: 0; width: min(820px, 100vw); background: #fff; z-index: 71; box-shadow: -12px 0 40px rgba(0,0,0,0.18); transform: translateX(100%); transition: transform 0.18s ease; display: flex; flex-direction: column; }
+    .drawer.show { transform: translateX(0); }
+    .drawer-head { display: flex; align-items: center; gap: 10px; padding: 16px 18px; border-bottom: 1px solid var(--border); }
+    .drawer-head h3 { margin: 0; font-size: 16px; }
+    .drawer-head .d-sub { color: var(--muted); font-size: 12.5px; }
+    .drawer-body { flex: 1; overflow: auto; padding: 12px 18px 24px; }
+    .drawer-body h4 { margin: 14px 0 6px; font-size: 13px; }
+    .drawer-body table { font-size: 12.5px; }
+    .drawer-body th, .drawer-body td { padding: 6px 8px; white-space: normal; }
+    .drawer-body th { position: static; }
+    .d-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin: 8px 0 4px; }
+    .d-tile { border: 1px solid var(--border); border-radius: 12px; padding: 10px 12px; background: var(--primary-faint, #fafdfa); }
+    .d-tile .t-label { font-size: 10.5px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.03em; }
+    .d-tile .t-value { font-size: 20px; font-weight: 800; margin-top: 2px; font-variant-numeric: tabular-nums; }
+    .num { text-align: right; font-variant-numeric: tabular-nums; }
+    .x-btn { border: 1px solid var(--border); background: #fff; border-radius: 10px; padding: 7px 12px; cursor: pointer; font-family: inherit; font-size: 13px; }
   </style>
 </head>
 <body data-shell-label="Shopper Profiles" data-shell-icon="lookup">
@@ -160,7 +197,7 @@
     <div class="surface">
       <div class="page-head">
         <h2>Shopper Profiles</h2>
-        <p class="section-note">Every client with a profile on <a href="https://shop.wilsonappliance.com" target="_blank" rel="noopener" style="color:var(--primary); font-weight:600;">shop.wilsonappliance.com</a>. Fix contact details, hand out a temporary password (clients change it in their shop profile), or clean up test records — use the ⋮ menu on a row. Orders themselves live on <a href="shop-orders.html" style="color:var(--primary); font-weight:600;">Online Shop Orders</a>.</p>
+        <p class="section-note">Every client with a profile on <a href="https://shop.wilsonappliance.com" target="_blank" rel="noopener" style="color:var(--primary); font-weight:600;">shop.wilsonappliance.com</a>. Fix contact details, hand out a temporary password (clients change it in their shop profile), or clean up test records — use the ⋮ menu on a row. Orders themselves live on <a href="shop-orders.html" style="color:var(--primary); font-weight:600;">Online Shop Orders</a>. The <strong>ePASS customer</strong> column ties a profile to its ePASS account: click a suggestion (matched on phone, email, or name + ZIP) to confirm it, or find one by hand; click a confirmed code to see everything they've bought and what's open.</p>
       </div>
       <div id="spStatus" class="sp-status"></div>
       <div class="sp-toolbar">
@@ -179,6 +216,7 @@
               <th>Phone</th>
               <th>Contact</th>
               <th>Email</th>
+              <th>ePASS customer</th>
               <th>Address</th>
               <th>Password</th>
               <th>Stripe</th>
@@ -191,6 +229,14 @@
     </div>
     <div id="internal-shell-footer"></div>
   </div>
+  <div class="drawer-back" id="drawerBack"></div>
+  <div class="drawer" id="drawer" role="dialog" aria-modal="true">
+    <div class="drawer-head">
+      <div style="flex:1;"><h3 id="drawerTitle">Customer</h3><div class="d-sub" id="drawerSub"></div></div>
+      <button type="button" class="x-btn" id="drawerClose">Close</button>
+    </div>
+    <div class="drawer-body" id="drawerBody"></div>
+  </div>
 
   <script src="internal-shell.js"></script>
   <script>
@@ -201,7 +247,7 @@
     // queue is a separate page (shop-orders.html) — different function.
     // ------------------------------------------------------------------
     (function () {
-      const state = { rows: [], editing: null, tempFor: null, tempPass: "" };
+      const state = { rows: [], editing: null, tempFor: null, tempPass: "", picking: null, epassMeta: null };
 
       const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch]));
       const when = (iso) => iso ? new Date(iso).toLocaleDateString("en-US", { month: "2-digit", day: "2-digit", year: "2-digit" }) : "—";
@@ -228,6 +274,7 @@
         try {
           const data = await api("/api/shop-shoppers?search=" + encodeURIComponent(document.getElementById("spSearch").value.trim()));
           state.rows = data.shoppers || [];
+          state.epassMeta = data.epassCustomers || null;
           render();
         } catch (err) {
           setStatus(err.message, "error");
@@ -331,7 +378,7 @@
         if (!state.rows.length) {
           const tr = document.createElement("tr");
           const td = document.createElement("td");
-          td.colSpan = 10;
+          td.colSpan = 11;
           td.className = "sp-empty";
           td.textContent = "No matching shopper profiles.";
           tr.appendChild(td);
@@ -342,6 +389,7 @@
           body.appendChild(renderRow(s));
           if (state.tempFor === s.id && state.tempPass) body.appendChild(renderTempRow(s));
           if (state.editing === s.id) body.appendChild(renderEditorRow(s));
+          if (state.picking === String(s.id)) body.appendChild(renderPickRow(s));
         }
       }
 
@@ -398,6 +446,7 @@
           <td>${esc(s.phone || "—")}</td>
           <td>${esc(s.preferredContact || "—")}</td>
           <td>${s.email ? esc(s.email) : '<span style="color:var(--muted);">—</span>'}</td>
+          <td>${epassCell(s)}</td>
           <td class="sp-addr" title="${esc([addrText, cityText].filter(Boolean).join(" · "))}">${esc(addrText || "—")}${cityText ? `<br>${esc(cityText)}` : ""}</td>
           <td><span class="sp-chip ${s.hasPassword ? "yes" : "no"}">${s.hasPassword ? "set" : "none"}</span></td>
           <td>${s.stripeLinked ? '<span class="sp-chip stripe">linked</span>' : '<span style="color:var(--muted);">—</span>'}</td>
@@ -409,7 +458,7 @@
         const tr = document.createElement("tr");
         tr.className = "sp-temp-row";
         const td = document.createElement("td");
-        td.colSpan = 10;
+        td.colSpan = 11;
         td.innerHTML = `<div class="sp-temp-pass">Temporary password for ${esc(s.firstName)}: <strong>${esc(state.tempPass)}</strong> — read it to the client now; it won't be shown again. They sign in with their phone number and can change it in their shop profile.</div>`;
         tr.appendChild(td);
         return tr;
@@ -420,7 +469,7 @@
         const tr = document.createElement("tr");
         tr.className = "sp-editor-row";
         const td = document.createElement("td");
-        td.colSpan = 10;
+        td.colSpan = 11;
 
         const form = document.createElement("div");
         form.className = "sp-form";
@@ -477,6 +526,112 @@
         tr.appendChild(td);
         return tr;
       }
+
+      // ---- ePASS customer column ----
+      const fmtPhone = (p) => String(p || "").replace(/(\d{3})(\d{3})(\d{4})/, "$1-$2-$3");
+      function epassCell(s) {
+        if (s.epass) {
+          return `<span class="ep-link"><span class="ep-code${s.epass.onFile ? "" : " missing"}" data-ep-hist="${esc(s.epass.code)}" title="${esc(s.epass.onFile ? "See purchases and open tickets" : "Not in the current ePASS customer master")}">${esc(s.epass.code)}</span><span class="ep-name">${esc(s.epass.name || "")}</span><button type="button" class="ep-find" data-ep-unlink="${s.id}" title="Clear this link">✕</button></span>`;
+        }
+        const cands = s.epassCandidates || [];
+        if (!state.epassMeta?.count) return `<span class="ep-none">customer master not loaded yet</span>`;
+        return `<span class="ep-sug">${cands.slice(0, 2).map((c) => `<button type="button" class="ep-sug-btn" data-ep-link="${s.id}" data-code="${esc(c.code)}" title="${esc(c.name)} · ${esc(c.city || "")} ${esc(c.zip || "")} — confirm this is the same person">${esc(c.code)} ${esc(shortName(c.name))} <span class="why">· ${esc(c.why.join(" + "))}</span></button>`).join("")}${cands.length > 2 ? `<button type="button" class="ep-find" data-ep-pick="${s.id}">+${cands.length - 2} more</button>` : `<button type="button" class="ep-find" data-ep-pick="${s.id}">${cands.length ? "find another" : "find in ePASS"}</button>`}</span>`;
+      }
+      const shortName = (n) => String(n || "").length > 26 ? String(n).slice(0, 25) + "…" : String(n || "");
+      const money = (n) => "$" + Number(n || 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      async function linkEpass(shopperId, code) {
+        try {
+          await api(`/api/shop-shoppers/${shopperId}/epass-link`, { method: "POST", body: JSON.stringify({ code }) });
+          setStatus(code ? `Linked to ePASS customer ${code}.` : "ePASS link cleared.", "ok");
+          state.picking = null;
+          await load();
+        } catch (err) { setStatus(err.message, "error"); }
+      }
+      document.getElementById("spBody").addEventListener("click", (ev) => {
+        const link = ev.target.closest("[data-ep-link]");
+        if (link) { const s = state.rows.find((r) => String(r.id) === link.dataset.epLink); if (s && confirm(`Link ${s.firstName} ${s.lastName}'s shop profile to ePASS customer ${link.dataset.code}?`)) linkEpass(s.id, link.dataset.code); return; }
+        const unlink = ev.target.closest("[data-ep-unlink]");
+        if (unlink) { if (confirm("Clear the ePASS customer link on this profile?")) linkEpass(unlink.dataset.epUnlink, ""); return; }
+        const pick = ev.target.closest("[data-ep-pick]");
+        if (pick) { const id = pick.dataset.epPick; state.picking = state.picking === id ? null : id; render(); return; }
+        const hist = ev.target.closest("[data-ep-hist]");
+        if (hist) { openHistory(hist.dataset.epHist); }
+      });
+      function candidateRow(c, shopperId) {
+        return `<div class="ep-cand">
+          <button type="button" class="sp-btn primary" data-ep-link="${shopperId}" data-code="${esc(c.code)}" style="padding:6px 11px;">Link ${esc(c.code)}</button>
+          <div><strong>${esc(c.name)}</strong>${c.accountType ? ` <span class="c-meta">· ${esc(c.accountType)}</span>` : ""}<div class="c-meta">${esc([c.city, c.zip].filter(Boolean).join(" "))}${(c.phones || []).length ? " · " + c.phones.map(fmtPhone).join(", ") : ""}${(c.emails || []).length ? " · " + esc(c.emails.join(", ")) : ""}${c.dateModified ? " · updated " + esc(c.dateModified) : ""}</div></div>
+          <span class="c-why">${esc((c.why || []).join(" + "))}</span>
+        </div>`;
+      }
+      function renderPickRow(s) {
+        const tr = document.createElement("tr");
+        tr.className = "ep-pick-row";
+        const td = document.createElement("td");
+        td.colSpan = 11;
+        const box = document.createElement("div");
+        box.className = "ep-pick";
+        const cands = s.epassCandidates || [];
+        box.innerHTML = `
+          <div style="font-size:12.5px; color:var(--muted);">Suggested ePASS customers for <strong>${esc(s.firstName)} ${esc(s.lastName)}</strong> (${esc(s.phone || "no phone")}${s.email ? ", " + esc(s.email) : ""}) — click Link on the right one, or search below.</div>
+          <div id="epCands-${s.id}">${cands.length ? cands.map((c) => candidateRow(c, s.id)).join("") : '<span class="ep-none">No phone / email / name+ZIP match in the customer master.</span>'}</div>
+          <input type="search" id="epSearch-${s.id}" placeholder="Search ePASS customers by name, code, phone, or email…">
+          <div id="epResults-${s.id}"></div>
+          <div><button type="button" class="sp-btn quiet" id="epClose-${s.id}">Close</button></div>`;
+        td.appendChild(box); tr.appendChild(td);
+        setTimeout(() => {
+          const input = document.getElementById(`epSearch-${s.id}`); const out = document.getElementById(`epResults-${s.id}`);
+          let t = null;
+          input?.addEventListener("input", () => {
+            clearTimeout(t);
+            t = setTimeout(async () => {
+              const q = input.value.trim();
+              if (q.length < 2) { out.innerHTML = ""; return; }
+              try {
+                const data = await api("/api/epass-customers?q=" + encodeURIComponent(q));
+                out.innerHTML = (data.customers || []).length ? data.customers.map((c) => candidateRow({ ...c, why: ["search"] }, s.id)).join("") : '<span class="ep-none">Nothing matched.</span>';
+              } catch (err) { out.innerHTML = `<span class="ep-none">${esc(err.message)}</span>`; }
+            }, 250);
+          });
+          document.getElementById(`epClose-${s.id}`)?.addEventListener("click", () => { state.picking = null; render(); });
+        }, 0);
+        return tr;
+      }
+      // ---- History drawer: what that ePASS customer has bought, and what's open ----
+      async function openHistory(code) {
+        const dr = document.getElementById("drawer"), back = document.getElementById("drawerBack");
+        document.getElementById("drawerTitle").textContent = code;
+        document.getElementById("drawerSub").textContent = "Loading…";
+        document.getElementById("drawerBody").innerHTML = '<div class="sp-empty">Loading…</div>';
+        dr.classList.add("show"); back.classList.add("show");
+        try {
+          const h = await api(`/api/epass-customers/${encodeURIComponent(code)}/history`);
+          const c = h.customer;
+          document.getElementById("drawerTitle").textContent = c ? `${c.name} · ${h.code}` : h.code;
+          document.getElementById("drawerSub").textContent = c ? [c.accountType, [c.address1, c.city, c.state, c.zip].filter(Boolean).join(", "), (c.phones || []).map(fmtPhone).join(", "), (c.emails || []).join(", ")].filter(Boolean).join(" · ") + (h.familyCodes.length > 1 ? ` · includes ${h.familyCodes.length - 1} child account${h.familyCodes.length > 2 ? "s" : ""}` : "") : "Not in the current ePASS customer master";
+          const live = h.units.filter((u) => !u.returned);
+          const spent = h.finished.reduce((a, f) => a + (Number(f.total) || 0), 0);
+          const openTotal = h.open.reduce((a, o) => a + (Number(o.total) || 0), 0);
+          document.getElementById("drawerBody").innerHTML = `
+            <div class="d-tiles">
+              <div class="d-tile"><div class="t-label">Finished invoices</div><div class="t-value">${h.finished.length}</div></div>
+              <div class="d-tile"><div class="t-label">Invoiced</div><div class="t-value">${money(spent)}</div></div>
+              <div class="d-tile"><div class="t-label">Appliances delivered</div><div class="t-value">${live.length}</div></div>
+              <div class="d-tile"><div class="t-label">Open tickets</div><div class="t-value">${h.open.length}</div><div style="font-size:11.5px; color:var(--muted);">${money(openTotal)}</div></div>
+            </div>
+            ${h.open.length ? `<h4>Open tickets</h4><table><thead><tr><th>Ticket</th><th>Written</th><th>Dept</th><th>Rep</th><th>Name on ticket</th><th class="num">Total</th></tr></thead><tbody>${h.open.map((o) => `<tr><td>${esc(o.invoice)}</td><td>${esc(o.startDate || "—")}</td><td>${esc(o.department)}</td><td>${esc(o.salesperson)}</td><td>${esc(o.customerName)}</td><td class="num">${money(o.total)}</td></tr>`).join("")}</tbody></table>` : ""}
+            <h4>Appliances purchased</h4>
+            ${live.length ? `<table><thead><tr><th>Delivered</th><th>Brand</th><th>Model</th><th>Description</th><th>Serial</th><th>Invoice</th><th class="num">Price</th></tr></thead><tbody>${h.units.map((u) => `<tr style="${u.returned ? "opacity:0.55;" : ""}"><td>${esc(u.finishDate)}</td><td>${esc(u.brand)}</td><td>${esc(u.model)}${u.newUsed && u.newUsed !== "NEW" ? ` <span class="sp-chip no">${esc(u.newUsed)}</span>` : ""}${u.returned ? ' <span class="sp-chip no">returned</span>' : ""}</td><td>${esc(u.description)}</td><td>${esc(u.serial)}</td><td>${esc(u.invoice)}</td><td class="num">${money(u.net)}</td></tr>`).join("")}</tbody></table>` : '<div class="ep-none">No delivered units on file (the serial feed backfill decides how far back this goes).</div>'}
+            <h4>Finished invoices</h4>
+            ${h.finished.length ? `<table><thead><tr><th>Invoice</th><th>Finished</th><th>Dept</th><th>Rep</th><th>Name on invoice</th><th>Reference</th><th class="num">Total</th></tr></thead><tbody>${h.finished.map((f) => `<tr><td>${esc(f.invoice)}</td><td>${esc(f.finishDate)}</td><td>${esc(f.department)}</td><td>${esc(f.salesperson)}</td><td>${esc(f.customerName)}</td><td>${esc(f.reference)}</td><td class="num">${money(f.total)}</td></tr>`).join("")}</tbody></table>` : '<div class="ep-none">No finished invoices on file for this customer.</div>'}`;
+        } catch (err) {
+          document.getElementById("drawerBody").innerHTML = `<div class="sp-empty">${esc(err.message)}</div>`;
+        }
+      }
+      function closeDrawer() { document.getElementById("drawer").classList.remove("show"); document.getElementById("drawerBack").classList.remove("show"); }
+      document.getElementById("drawerClose").addEventListener("click", closeDrawer);
+      document.getElementById("drawerBack").addEventListener("click", closeDrawer);
+      document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeDrawer(); });
 
       load();
     })();

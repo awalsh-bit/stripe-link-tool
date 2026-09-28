@@ -460,9 +460,6 @@
       <h2>Better choices, already made.</h2>
       <p>Products selected through decades of sales and service experience, in stock for quick delivery.</p>
     </div>
-    <div class="map-note" id="mapNote" style="display:none;">
-      Add anything to your cart to see its price — no sign-up needed. Nothing is charged online; a Wilson team member confirms every order before payment.
-    </div>
 
     <div class="deal-row" id="dealRow"></div>
     <div class="filters" id="filterBar" style="display:none;">
@@ -705,8 +702,9 @@
     cartPrices: {}, // id -> price, revealed once a unit is in the cart
     cartPriceError: "",
     // selection: { label, cats: [category keys], products: [product codes] } | null
-    // sort "best" = units sold in the last 12 months (server `sold`), ties in
-    // merchandised order; deal = one of the category deal chips or "".
+    // sort "best" = brand units sold in the last 12 months (server `brandSold`),
+    // then the model's own `sold`, ties in merchandised order; deal = one of
+    // the category deal chips or "".
     filter: { search: "", brand: "", selection: null, deal: "", sort: "best" },
     bestSellers: new Set(),
     checkout: { open: false, stripe: null, elements: null, setupIntentId: "" },
@@ -789,6 +787,9 @@
       localStorage.removeItem(TOKEN_KEY);
       state.token = "";
     }
+    // The API sends one record per identical-unit group with `ids`; the page
+    // works per unit (cart lines are units), so expand them back here.
+    data.items = (data.items || []).flatMap((g) => (Array.isArray(g.ids) ? g.ids : [g.id]).map((id) => { const { ids, ...rest } = g; return { ...rest, id }; }));
     state.catalog = data;
     state.unlocked = data.unlocked;
     state.paused = Boolean(data.paused);
@@ -822,11 +823,11 @@
     $("unlockBtn").style.display = state.unlocked ? "none" : "";
     $("unlockChip").style.display = state.unlocked ? "" : "none";
     if (state.unlocked) {
-      $("unlockChip").textContent = "Pricing unlocked" + (state.shopperName ? " for " + state.shopperName : "") +
-        (state.clientCode ? " · " + state.clientCode : "");
+      // Andrew 9/28: just the person's profile — no "pricing unlocked" copy.
+      const nm = String(state.shopperName || "").trim();
+      $("unlockChip").textContent = nm ? `${nm}${/s$/i.test(nm) ? "'" : "'s"} Profile` : "My Profile";
     }
     $("pausedNote").style.display = state.paused ? "block" : "none";
-    $("mapNote").style.display = state.paused ? "none" : "block";
     $("heroStrip").style.display = "";
     $("cartBtn").style.display = state.paused ? "none" : "";
     $("filterBar").style.display = "";
@@ -941,9 +942,11 @@
     // to the end either way. Featured keeps the merchandised order.
     const sort = state.filter.sort;
     if (sort === "best") {
-      // Stable sort: models with sales float up by units sold, everything
-      // else keeps the merchandised (featured) order behind them.
-      groups.sort((a, b) => (Number(b.sold) || 0) - (Number(a.sold) || 0));
+      // Stable sort: brands by units delivered in ePASS over the last 12
+      // months (the house brand leads), then models within the brand by
+      // their own units; anything without sales keeps the merchandised
+      // (featured) order behind them.
+      groups.sort((a, b) => ((Number(b.brandSold) || 0) - (Number(a.brandSold) || 0)) || ((Number(b.sold) || 0) - (Number(a.sold) || 0)));
     } else if (sort === "price-asc" || sort === "price-desc") {
       const priceOf = (g) => {
         const p = g.price ?? g.mapDisplayPrice;
@@ -1668,7 +1671,7 @@
       return;
     }
     state.pendingAddonItem = item;
-    $("addonLead").textContent = `Professional installation and hookup parts for your ${item.brand} ${item.model}:`;
+    $("addonLead").textContent = `Installation and required accessories for your ${item.brand} ${item.model}:`;
     const list = $("addonList");
     list.innerHTML = "";
 
@@ -1684,7 +1687,7 @@
         row.className = "addon-row";
         row.innerHTML = `
           <input type="checkbox" value="${esc(addon.id)}" data-addon-type="${esc(addon.type)}">
-          <span class="addon-name">${esc(addon.name)}${addon.durationMin ? `<span class="muted">Professional install · ~${addon.durationMin} min</span>` : ""}<span class="req-note" style="display:none;"> Required with your install</span></span>
+          <span class="addon-name">${esc(addon.name)}<span class="req-note" style="display:none;"> Required with your install</span></span>
           <span class="addon-price">${money(addon.price)}</span>`;
         list.appendChild(row);
       }
@@ -1692,7 +1695,7 @@
     // Installs lead — picking one auto-selects (and locks) the connectors
     // that install can't happen without.
     renderGroup("Installation services", map.installs || [], state.addons.installs || []);
-    renderGroup("Hookup & connection parts", map.connectors || [], state.addons.connectors || []);
+    renderGroup("Required Install Accessories", map.connectors || [], state.addons.connectors || []);
     if (!list.dataset.reqWired) {
       list.addEventListener("change", syncAddonRequirements);
       list.dataset.reqWired = "1";
@@ -1891,7 +1894,7 @@
       line.innerHTML = `
         <div class="info">
           <div class="nm">${esc(a.name)}</div>
-          <div class="ds">${a.type === "install" ? "Professional installation" : "Hookup part"}</div>
+          <div class="ds">${a.type === "install" ? "Professional installation" : "Required install accessory"}</div>
           <div class="qty-ctl">
             <button data-qm="${idx}" aria-label="One less">−</button><span>${l.qty}</span><button data-qp="${idx}" aria-label="One more">+</button>
           </div>
@@ -1945,14 +1948,9 @@
             <span class="fo-nm"><span>${esc(state.delivery.name)}</span>
               <span class="fo-price"><span class="compare">${money(state.delivery.regularPrice)}</span>${money(state.delivery.price)}</span>
             </span>
-            <span class="fo-note">${esc(state.delivery.note)}</span>
             ${f.method === "delivery" ? `
               <span class="fo-note" style="font-weight:700; color: var(--text, #1f2937); display:block; margin-top:8px;">Pick your delivery day:</span>
               <span class="day-chips">${days.map((d) => `<button type="button" class="day-chip${f.date === d.date ? " on" : ""}${d.sameDay ? " sameday" : ""}" data-day="${esc(d.date)}">${esc(d.label)}</button>`).join("")}</span>
-              ${expressCart && opts.expressNote ? `<span class="sched-note" style="color: var(--green, #21692c); font-weight: 600;">${esc(opts.expressNote)}</span>` : ""}
-              <span class="sched-note">${days.some((d) => d.sameDay && f.date === d.date)
-                ? "Same-day: our warehouse team will call to coordinate arrival today."
-                : esc(opts.scheduleNote || "You'll receive a 4-hour arrival window two business days before your selected day.")}</span>
             ` : ""}
           </span>
         </label>
@@ -1962,14 +1960,13 @@
             <span class="fo-nm"><span>${esc(opts.pickup?.name || "Customer Pickup")}</span>
               <span class="fo-price" style="color: var(--green, #21692c);">FREE</span>
             </span>
-            <span class="fo-note">${esc(opts.pickup?.note || "Free — skip the delivery fee. We'll follow up through your preferred contact method to confirm your order is ready.")}</span>
             ${f.method === "pickup" ? `
               <span class="fo-note" style="font-weight:700; color: var(--text, #1f2937); display:block; margin-top:8px;">Pick your pickup day:</span>
               <span class="day-chips">
                 ${(opts.pickupDates || []).map((d) => `<button type="button" class="day-chip${f.date === d.date ? " on" : ""}" data-day="${esc(d.date)}">${esc(d.label)}</button>`).join("")}
                 <button type="button" class="day-chip${f.date === "later" ? " on" : ""}" data-day="later">I'd like to pick this up later</button>
               </span>
-              ${f.date === "later" ? `<span class="sched-note">${esc(opts.pickupLaterNote || "Clearance and outlet items must be picked up within 30 days.")}</span>` : ""}
+
             ` : ""}
           </span>
         </label>`;
@@ -2014,7 +2011,7 @@
       <div class="tot-row"><span>${state.fulfillment.method === "pickup" ? "Customer Pickup" : "White Glove Delivery"}</span><span>${state.fulfillment.method === "pickup" ? "FREE" : money(t.delivery)}</span></div>
       <div class="tot-row"><span>Sales tax (${(state.taxRate * 100).toFixed(2).replace(/\.?0+$/, "")}%)</span><span>${money(t.tax)}</span></div>
       <div class="tot-row grand"><span>Estimated total</span><span>${money(t.total)}</span></div>
-      <div class="tax-note">Built-in installation labor is tax-exempt. Your card is saved securely now and only charged after a Wilson team member confirms your order with you.</div>
+      <div class="tax-note">Nothing is charged until a Wilson team member confirms your order with you.</div>
       <button class="btn primary" id="checkoutBtn" style="width:100%;">Continue to secure checkout</button>`;
     document.getElementById("checkoutBtn").addEventListener("click", startCheckout);
   }
@@ -2055,11 +2052,6 @@
             : `${esc(state.delivery?.name || "Delivery")} (${esc(fulfillDayLabel() || "day TBD")}) — ${money(t.delivery)}`}
           <br>Sales tax — ${money(t.tax)}
           <br><strong>Estimated total — ${money(t.total)}</strong>
-          ${state.fulfillment.method === "delivery"
-            ? `<br><span class="muted" style="font-size:12px;">${esc(state.fulfillOptions?.scheduleNote || "You'll receive a 4-hour arrival window two business days before your selected day.")}</span>`
-            : state.fulfillment.date === "later"
-              ? `<br><span class="muted" style="font-size:12px;">${esc(state.fulfillOptions?.pickupLaterNote || "Clearance and outlet items must be picked up within 30 days.")}</span>`
-              : ""}
         </div>
       </div>
       <div class="checkout-section">
@@ -2187,9 +2179,9 @@
 
       const fulfillLine = state.fulfillment.method === "pickup"
         ? (state.fulfillment.date === "later"
-            ? `Customer pickup — you chose to schedule it later. We'll follow up using your preferred contact method to confirm your order is ready. ${state.fulfillOptions?.pickupLaterNote || "Clearance and outlet items must be picked up within 30 days."}`
-            : `Customer pickup requested for ${fulfillDayLabel()}. We'll follow up using your preferred contact method to confirm your order is ready.`)
-        : `Delivery requested for ${fulfillDayLabel()}. ${state.fulfillOptions?.scheduleNote || "You'll receive a 4-hour arrival window two business days before your selected day."}`;
+            ? "Customer pickup — we'll be in touch to schedule it."
+            : `Customer pickup requested for ${fulfillDayLabel()}.`)
+        : `Delivery requested for ${fulfillDayLabel()}.`;
       state.cart = { itemIds: [], addonLines: [] };
       state.fulfillment = { method: "delivery", date: null };
       renderCartCount();

@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="robots" content="noindex,nofollow,noarchive" />
+  <title>Wilson AC & Appliance - Event</title>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/public-shell.css" />
+  <style>
+    :root {
+      --bg: #f8f8f1; --card: #ffffff; --text: #1f2a1f; --muted: #5d6a5b; --border: #d9dfcf;
+      --primary: #2f6f4f; --primary-hover: #275d42; --primary-soft: rgba(47, 111, 79, 0.12);
+      --accent: #b45309; --accent-soft: rgba(180, 83, 9, 0.1);
+      --shadow: 0 10px 35px rgba(0, 0, 0, 0.08); --radius: 18px;
+      --success-bg: #ecfdf5; --success-text: #065f46; --error-bg: #fef2f2; --error-text: #991b1b;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; font-family: "Roboto", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: radial-gradient(circle at top left, rgba(47, 111, 79, 0.12), transparent 34%), linear-gradient(180deg, #f2f8ea 0%, var(--bg) 100%);
+      color: var(--text); min-height: 100vh; padding: 32px 16px;
+    }
+    .wrap { max-width: 1160px; margin: 0 auto; }
+    .public-shell-footer { margin-top: 22px; padding: 16px 18px; border-radius: 18px; border: 1px solid rgba(47, 111, 79, 0.12); background: rgba(255, 255, 255, 0.9); box-shadow: var(--shadow); }
+    .public-shell-footer-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+    .public-shell-footer-text { color: var(--muted); font-size: 13px; }
+    .public-shell-footer-link { color: var(--accent); text-decoration: none; font-weight: 700; }
+    body .public-shell-menu-trigger { border-color: rgba(47, 111, 79, 0.18); box-shadow: 0 8px 24px rgba(47, 111, 79, 0.12); }
+
+    .hero { display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(320px, 440px); gap: 24px; align-items: stretch; margin-bottom: 24px; }
+    .hero.no-image { grid-template-columns: 1fr; }
+    .card { background: var(--card); border: 1px solid rgba(47, 111, 79, 0.12); box-shadow: var(--shadow); border-radius: var(--radius); }
+    .hero-copy { padding: 28px; position: relative; overflow: hidden; }
+    .hero-copy::after { content: ""; position: absolute; inset: auto -70px -70px auto; width: 240px; height: 240px; background: radial-gradient(circle, rgba(180, 83, 9, 0.08), transparent 70%); pointer-events: none; }
+    .hero-image-card { padding: 0; overflow: hidden; background: #e9efe3; min-height: 100%; }
+    .hero-image { display: block; width: 100%; height: 100%; min-height: 360px; object-fit: cover; object-position: center; }
+    .eyebrow { margin: 0 0 10px; color: var(--accent); font-size: 14px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; }
+    h1 { margin: 0 0 8px; font-family: "Bebas Neue", "Roboto", system-ui, sans-serif; font-size: clamp(48px, 9vw, 92px); line-height: 0.92; letter-spacing: 0.01em; font-weight: 400; }
+    .subtitle { margin: 0 0 18px; color: var(--primary); font-size: 18px; font-weight: 700; }
+    .when-where { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin: 18px 0 4px; }
+    .ww { border: 1px solid rgba(47, 111, 79, 0.14); border-radius: 14px; padding: 14px 16px; background: #fbfcf8; }
+    .ww .k { margin: 0 0 4px; font-size: 11.5px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; color: var(--accent); }
+    .ww .v { margin: 0; font-size: 16px; font-weight: 700; line-height: 1.4; }
+    .ww .s { margin: 2px 0 0; font-size: 13.5px; color: var(--muted); }
+    .ww a { color: var(--primary); }
+    .hero-actions { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 20px; }
+    .btn { appearance: none; border: 1px solid transparent; border-radius: 14px; padding: 14px 18px; font: inherit; font-weight: 800; cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; justify-content: center; transition: background 0.2s ease, transform 0.12s ease; }
+    .btn:hover { transform: translateY(-1px); }
+    .btn-primary { background: var(--primary); color: #fff; }
+    .btn-primary:hover { background: var(--primary-hover); }
+    .btn-secondary { background: #fff; color: var(--text); border-color: var(--border); }
+    .btn-tertiary { background: var(--accent-soft); color: var(--accent); border-color: rgba(180, 83, 9, 0.18); }
+    .btn:disabled { opacity: 0.6; cursor: wait; transform: none; }
+
+    .body-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(320px, 440px); gap: 24px; align-items: start; }
+    .about { padding: 28px; }
+    h2 { margin: 0 0 14px; font-size: 26px; letter-spacing: -0.02em; }
+    .description p { margin: 0 0 14px; font-size: 16.5px; line-height: 1.75; color: var(--text); }
+    .highlights { list-style: none; margin: 18px 0 0; padding: 0; display: grid; gap: 10px; }
+    .highlights li { display: flex; gap: 10px; align-items: flex-start; font-size: 15.5px; line-height: 1.5; }
+    .highlights li::before { content: "✓"; color: var(--primary); font-weight: 900; flex: 0 0 auto; }
+    .rsvp { padding: 24px; position: sticky; top: 16px; }
+    .rsvp h2 { font-size: 22px; margin-bottom: 4px; }
+    .rsvp-sub { margin: 0 0 16px; color: var(--muted); font-size: 14px; line-height: 1.55; }
+    .spots { display: inline-block; margin: 0 0 14px; background: var(--primary-soft); color: var(--primary); border-radius: 999px; padding: 6px 12px; font-size: 13px; font-weight: 800; }
+    .spots.full { background: var(--accent-soft); color: var(--accent); }
+    .yesno { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 16px; }
+    .yesno button { border: 2px solid var(--border); background: #fff; border-radius: 14px; padding: 12px; font: inherit; font-weight: 800; cursor: pointer; color: var(--text); }
+    .yesno button.on { border-color: var(--primary); background: var(--primary-soft); color: var(--primary); }
+    .yesno button.on.no { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); }
+    .form { display: grid; gap: 14px; }
+    .field { display: flex; flex-direction: column; gap: 6px; }
+    .field-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+    label { font-size: 13.5px; font-weight: 700; }
+    input, select, textarea { width: 100%; border: 1px solid var(--border); border-radius: 12px; padding: 12px 14px; font: inherit; font-size: 15px; background: #fff; color: var(--text); }
+    input:focus, select:focus, textarea:focus { outline: none; border-color: rgba(47, 111, 79, 0.7); box-shadow: 0 0 0 4px rgba(47, 111, 79, 0.12); }
+    textarea { min-height: 80px; resize: vertical; }
+    .opt { display: flex; align-items: center; gap: 10px; font-size: 14px; font-weight: 600; }
+    .opt input { width: auto; margin: 0; accent-color: var(--primary); }
+    .form-submit { width: 100%; margin-top: 4px; }
+    .status { display: none; border-radius: 12px; padding: 12px 14px; font-size: 14.5px; line-height: 1.5; margin-top: 12px; }
+    .status.show { display: block; }
+    .status.ok { background: var(--success-bg); color: var(--success-text); }
+    .status.err { background: var(--error-bg); color: var(--error-text); }
+    .fine { margin: 12px 0 0; color: var(--muted); font-size: 12.5px; line-height: 1.5; }
+    .empty { padding: 40px 20px; text-align: center; color: var(--muted); }
+    @media (max-width: 900px) { .hero, .body-grid { grid-template-columns: 1fr; } .rsvp { position: static; } .hero-image { min-height: 240px; } }
+    @media (max-width: 560px) { body { padding: 16px 12px; } .hero-copy, .about, .rsvp { padding: 20px; } .field-row { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body data-public-shell-label="Events" data-public-shell-root="/" data-public-shell-footer-text="Wilson AC &amp; Appliance events." data-public-shell-footer-link-label="All events" data-public-shell-footer-link-href="/events">
+  <div class="wrap">
+    <div id="public-shell-header"></div>
+    <div id="page"><div class="card empty">Loading…</div></div>
+    <div id="public-shell-footer"></div>
+  </div>
+  <script src="/public-shell.js"></script>
+  <script>
+    (function () {
+      const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch]));
+      const TZ = "America/Chicago";
+      const slug = (location.pathname.match(/^\/events\/([^/?#]+)/) || [])[1] || new URLSearchParams(location.search).get("e") || "";
+      const fmtDate = (iso) => iso ? new Date(iso).toLocaleDateString("en-US", { timeZone: TZ, weekday: "long", month: "long", day: "numeric", year: "numeric" }) : "";
+      const fmtTime = (iso) => iso ? new Date(iso).toLocaleTimeString("en-US", { timeZone: TZ, hour: "numeric", minute: "2-digit" }) : "";
+      const sameDay = (a, b) => a && b && fmtDate(a) === fmtDate(b);
+      let ev = null, attending = true;
+
+      function icsHref(e) {
+        const stamp = (iso) => new Date(iso).toISOString().replace(/[-:]/g, "").replace(/\.\d{3}/, "");
+        const lines = ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//Wilson AC & Appliance//Events//EN", "BEGIN:VEVENT",
+          `UID:${e.slug}@wilsonappliance.com`, `DTSTAMP:${stamp(new Date().toISOString())}`, `DTSTART:${stamp(e.startsAt)}`,
+          e.endsAt ? `DTEND:${stamp(e.endsAt)}` : "", `SUMMARY:${e.name.replace(/[,;]/g, " ")}`,
+          `LOCATION:${[e.location, e.address].filter(Boolean).join(", ").replace(/[,;]/g, " ")}`, `URL:${location.href.split("#")[0]}`, "END:VEVENT", "END:VCALENDAR"].filter(Boolean);
+        return "data:text/calendar;charset=utf-8," + encodeURIComponent(lines.join("\r\n"));
+      }
+
+      function render() {
+        const e = ev;
+        document.title = `Wilson AC & Appliance - ${e.name}`;
+        const when = e.startsAt
+          ? `${fmtDate(e.startsAt)}`
+          : "Date to be announced";
+        const time = e.startsAt ? `${fmtTime(e.startsAt)}${e.endsAt ? ` – ${fmtTime(e.endsAt)}${sameDay(e.startsAt, e.endsAt) ? "" : " (" + fmtDate(e.endsAt) + ")"}` : ""}` : "";
+        const mapHref = e.address ? "https://maps.google.com/?q=" + encodeURIComponent([e.location, e.address].filter(Boolean).join(", ")) : "";
+        const paras = String(e.description || "").split(/\n\s*\n/).map((p) => p.trim()).filter(Boolean);
+        const spotsLine = e.capacity == null ? "" : e.full ? `<span class="spots full">This event is full — RSVPs go on the waitlist</span>` : e.spotsRemaining <= 5 ? `<span class="spots">${e.spotsRemaining} spot${e.spotsRemaining === 1 ? "" : "s"} left</span>` : "";
+        document.getElementById("page").innerHTML = `
+          <section class="hero${e.heroImageUrl ? "" : " no-image"}">
+            <div class="card hero-copy">
+              ${e.subtitle ? `<p class="eyebrow">${esc(e.subtitle)}</p>` : ""}
+              <h1>${esc(e.name)}</h1>
+              <div class="when-where">
+                <div class="ww"><p class="k">When</p><p class="v">${esc(when)}</p>${time ? `<p class="s">${esc(time)}${e.doorsNote ? " · " + esc(e.doorsNote) : ""}</p>` : ""}</div>
+                ${e.location || e.address ? `<div class="ww"><p class="k">Where</p><p class="v">${esc(e.location || e.address)}</p>${e.address && e.location ? `<p class="s">${mapHref ? `<a href="${esc(mapHref)}" target="_blank" rel="noopener">${esc(e.address)}</a>` : esc(e.address)}</p>` : ""}</div>` : ""}
+              </div>
+              <div class="hero-actions">
+                ${e.rsvpOpen ? `<a class="btn btn-primary" href="#rsvp">RSVP</a>` : ""}
+                ${e.startsAt ? `<a class="btn btn-secondary" href="${icsHref(e)}" download="${esc(e.slug)}.ics">Add to calendar</a>` : ""}
+                ${mapHref ? `<a class="btn btn-tertiary" href="${esc(mapHref)}" target="_blank" rel="noopener">Directions</a>` : ""}
+              </div>
+            </div>
+            ${e.heroImageUrl ? `<div class="card hero-image-card"><img class="hero-image" src="${esc(e.heroImageUrl)}" alt="${esc(e.name)}"></div>` : ""}
+          </section>
+          <section class="body-grid">
+            <div class="card about">
+              ${paras.length || e.highlights?.length ? `<h2>About the event</h2>` : ""}
+              <div class="description">${paras.map((p) => `<p>${esc(p)}</p>`).join("")}</div>
+              ${e.highlights?.length ? `<ul class="highlights">${e.highlights.map((h) => `<li>${esc(h)}</li>`).join("")}</ul>` : ""}
+              ${e.contactName || e.contactEmail ? `<p class="fine">Questions? ${esc(e.contactName || "")}${e.contactEmail ? ` · <a href="mailto:${esc(e.contactEmail)}">${esc(e.contactEmail)}</a>` : ""}</p>` : ""}
+            </div>
+            <div class="card rsvp" id="rsvp">
+              <h2>RSVP</h2>
+              ${e.rsvpOpen
+                ? `<p class="rsvp-sub">Let us know if you can make it.</p>${spotsLine}
+                  <div class="yesno"><button type="button" id="yesBtn" class="on">Yes, I'll be there</button><button type="button" id="noBtn" class="no">Can't make it</button></div>
+                  <form class="form" id="form" novalidate>
+                    <div class="field"><label for="fullName">Your name</label><input id="fullName" name="fullName" autocomplete="name" required></div>
+                    <div class="field-row">
+                      <div class="field"><label for="email">Email</label><input id="email" name="email" type="email" autocomplete="email" inputmode="email"></div>
+                      <div class="field"><label for="phone">Phone</label><input id="phone" name="phone" type="tel" autocomplete="tel" inputmode="tel"></div>
+                    </div>
+                    <div id="yesFields" style="display:grid; gap:14px;">
+                      ${e.askCompany ? `<div class="field"><label for="company">Company / design firm <span style="font-weight:500; color:var(--muted);">(optional)</span></label><input id="company" name="company" autocomplete="organization"></div>` : ""}
+                      ${e.guestTypes?.length ? `<div class="field"><label for="guestType">Which best describes you?</label><select id="guestType" name="guestType"><option value="">Choose one…</option>${e.guestTypes.map((t) => `<option>${esc(t)}</option>`).join("")}</select></div>` : ""}
+                      ${e.maxGuests > 1 ? `<div class="field"><label for="guestCount">How many attending (including you)?</label><select id="guestCount" name="guestCount">${Array.from({ length: e.maxGuests }, (_, i) => `<option value="${i + 1}">${i + 1}</option>`).join("")}</select></div>` : ""}
+                    </div>
+                    <div class="field"><label for="notes">Anything we should know? <span style="font-weight:500; color:var(--muted);">(optional)</span></label><textarea id="notes" name="notes"></textarea></div>
+                    <label class="opt"><input type="checkbox" id="wantsText"> Text me a reminder</label>
+                    <button type="submit" class="btn btn-primary form-submit" id="submitBtn">Send my RSVP</button>
+                  </form>
+                  <div class="status" id="status"></div>
+                  <p class="fine">We use this only to confirm your spot and reach you about this event.</p>`
+                : `<p class="rsvp-sub">${e.over ? "This event has already taken place." : e.deadlinePassed ? "The RSVP deadline has passed. Call the store and we'll do our best to fit you in." : "RSVPs aren't open yet — check back soon."}</p>`}
+            </div>
+          </section>`;
+        if (!e.rsvpOpen) return;
+        const yes = document.getElementById("yesBtn"), no = document.getElementById("noBtn");
+        const setAttending = (v) => { attending = v; yes.classList.toggle("on", v); no.classList.toggle("on", !v); document.getElementById("yesFields").style.display = v ? "grid" : "none"; document.getElementById("submitBtn").textContent = v ? "Send my RSVP" : "Send my regrets"; };
+        yes.addEventListener("click", () => setAttending(true));
+        no.addEventListener("click", () => setAttending(false));
+        document.getElementById("form").addEventListener("submit", submit);
+      }
+
+      async function submit(evt) {
+        evt.preventDefault();
+        const $ = (id) => document.getElementById(id);
+        const status = $("status"); const btn = $("submitBtn");
+        const body = {
+          fullName: $("fullName").value.trim(), email: $("email").value.trim(), phone: $("phone").value.trim(),
+          company: $("company")?.value.trim() || "", guestType: $("guestType")?.value || "", guestCount: Number($("guestCount")?.value || 1),
+          notes: $("notes").value.trim(), attending: attending ? "yes" : "no", wantsTextUpdates: $("wantsText").checked, wantsEmailUpdates: Boolean($("email").value.trim())
+        };
+        btn.disabled = true; status.className = "status";
+        try {
+          const res = await fetch(`/api/public/events/${encodeURIComponent(ev.slug)}/rsvp`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok) throw new Error(data.error || "We couldn't send that — please try again.");
+          status.textContent = data.message; status.className = "status ok show";
+          if (attending && data.status !== "Waitlist") $("form").style.display = "none";
+        } catch (err) {
+          status.textContent = err.message; status.className = "status err show";
+        } finally { btn.disabled = false; }
+      }
+
+      async function load() {
+        try {
+          if (!slug) throw new Error("No event was specified.");
+          const res = await fetch(`/api/public/events/${encodeURIComponent(slug)}`);
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok) throw new Error(data.error || "That event isn't available.");
+          ev = data.event; render();
+        } catch (err) {
+          document.getElementById("page").innerHTML = `<div class="card empty"><p style="font-size:18px; font-weight:700; margin:0 0 8px;">${esc(err.message)}</p><a class="btn btn-secondary" href="/events">See upcoming events</a></div>`;
+        }
+      }
+      load();
+    })();
+  </script>
+</body>
+</html>

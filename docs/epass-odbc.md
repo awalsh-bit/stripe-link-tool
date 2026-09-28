@@ -511,6 +511,60 @@ The model drawer lists the open, undelivered lines above the delivered
 serials. Sort by delivered revenue, units written, units delivered or
 margin; the CSV carries both sets of columns.
 
+### 8b3i. Storefront thumbnails from the RetailDeck feed (2026-09-28)
+
+The nightly MAP/UMRP fetch (`SHOP_MAP_PRICE_URL`, the RetailDeck
+`whse_inventory_and_prices.xlsx`) now also keeps each row's `thumbnail`
+(`url300`) keyed by `pn` / `manufacturer_pn` / `wf_pn` — the streaming
+scanner in `lib/retaildeck-prices.js` captures it alongside the floors, and
+`saveShopModelImages` replaces `shop_model_images` (every model in the feed,
+~100k rows) in one transaction. `computeShopCatalog` looks up just the
+listed models there and falls back to the hand-built `data/shop-images.json`
+(which only ever covered the clearance list — the reason in-stock models had
+no pictures). The Shop Orders MAP feed line shows the thumbnail count; the
+Refresh button reloads both.
+
+### 8b3j. Shopper profile ↔ ePASS customer (2026-09-28)
+
+The finance bundle carries a daily `customers` dataset (the 5 o'clock run,
+or `-Finance`): the Customer master's contact and address columns only —
+never employer, credit or ID fields. `lib/epass-customers-postgres.js`
+upserts it into `epass_customers` (phones as 10-digit strings, emails
+lower-cased, GIN-indexed) so a shop profile finds its customer by phone /
+email exactly, with last name + ZIP as the weak fallback. Nothing links
+itself: Shopper Profiles shows ranked suggestions in an "ePASS customer"
+column and a person clicks to confirm (or searches the master by hand);
+the link is `shop_shoppers.epass_customer_code` (+ who / when). A confirmed
+code opens a history drawer — finished invoices (`sales_order_detail`),
+the appliances on them (`epass_sold_serials` + model master) and open
+tickets (`open_sales_orders`), child accounts (`ParentCompanyCode`)
+included for builders. Routes: `/api/shop-shoppers` (suggestions ride
+along), `POST /api/shop-shoppers/:id/epass-link` `{code}` (empty clears),
+`GET /api/epass-customers?q=`, `GET /api/epass-customers/:code/history`.
+The same link is what a shop-side "my purchases" view and a builder
+invoice view will read next.
+
+### 8b3k. Events on the service site (2026-09-28)
+
+`event-rsvps.html` ("Events & RSVPs") lets anyone with the page set up an
+event — name, subtitle, when/where, description + highlights, hero image,
+total spots, max people per RSVP, RSVP deadline, guest types with target
+seats (e.g. Designer 18–20 / SZ-Wolf Rep 2 / Wilson Sales 2–4; types can be
+roster-only), listed or link-only — and publish it. Publishing posts
+`https://service.wilsonappliance.com/events/<slug>` (`event.html`, with the
+RSVP form and an add-to-calendar link) and, when listed, a card on
+`/events` (`events.html`). The roster under each event is the RSVP tracker
+in a table (Planned / Pending / Confirmed / Declined / Waitlist, invited
+by, follow-up, notes): paste names, or import the tracker workbook
+(`inviteesFromGrid` reads the Invitee / Company / Guest Type / Invited By /
+Status / Date Invited / Follow-Up / Notes columns). An online RSVP attaches
+to its roster row by email, then name, or adds a walk-in row; a full event
+puts new yeses on the waitlist. Storage is Postgres (`lib/events-postgres.js`:
+`events`, `event_invitees`, `event_rsvps`); the old `data/events.json` +
+`data/event-rsvps.json` are imported once at boot. Public API:
+`/api/public/events`, `/api/public/events/:slug`, `POST …/:slug/rsvp`;
+the legacy Fire & Flavor page's endpoint writes to the same tables.
+
 ### 8b3b. Shop prices from ePASS price levels (2026-09-24)
 
 `model-list-prices` (sales bundle) carries `ModelListPrice` for every model

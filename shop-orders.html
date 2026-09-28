@@ -240,6 +240,7 @@
           state.mapPrices = data.mapPrices;
           state.mapFeedConfigured = Boolean(data.mapFeedConfigured);
           state.mapFeedLastAttempt = data.mapFeedLastAttempt || null;
+          state.modelImages = data.modelImages || null;
           renderSnapshot();
           renderMapFeed();
           renderChips();
@@ -276,6 +277,11 @@
         meta.textContent = state.mapPrices
           ? `MAP/UMRP floor prices: ${Number(state.mapPrices.count).toLocaleString()} models · fetched ${when(state.mapPrices.fetchedAt)}${state.mapPrices.sourceNote ? " · " + state.mapPrices.sourceNote : ""}`
           : "MAP price feed configured — first overnight fetch pending (or use Refresh).";
+        if (state.modelImages) {
+          meta.textContent += state.modelImages.count
+            ? ` · thumbnails: ${Number(state.modelImages.count).toLocaleString()} models (same fetch)`
+            : " · thumbnails: none yet — the next fetch (or Refresh) fills them in";
+        }
         if (state.mapFeedLastAttempt && !state.mapFeedLastAttempt.ok) {
           meta.innerHTML += ` <span style="color:#b91c1c; font-weight:700;">⚠ Last fetch attempt failed (${esc(when(state.mapFeedLastAttempt.at))}): ${esc(state.mapFeedLastAttempt.error)}</span>`;
         }

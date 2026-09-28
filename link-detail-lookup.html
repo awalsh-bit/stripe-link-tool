@@ -356,8 +356,19 @@
       }).format(date);
     }
 
-    function statusLabel(status) {
-      if (status === "ach_pending") return "ACH Pending";
+    // Plain-English version of Stripe's payment_intent status.
+    function statusDetailText(record) {
+      const d = record.paymentStatusDetail || "";
+      const map = {
+        requires_action: "Bank payment started — the customer still has to verify the micro-deposits in their account before Stripe can pull the funds.",
+        processing: "Bank payment in transit — Stripe has started the ACH debit; it typically settles in 4–5 business days.",
+        requires_payment_method: "The payment attempt failed or was abandoned — the customer needs to try again.",
+        succeeded: "Paid."
+      };
+      return map[d] || d || record.deactivationReason || "";
+    }
+    function statusLabel(status, record) {
+      if (status === "ach_pending") return record?.paymentStatusDetail === "requires_action" ? "ACH — customer must verify" : "ACH Pending — in transit";
       if (status === "viewed") return "Viewed";
       if (status === "deactivated") return "Deactivated";
       if (status === "paid") return "Paid";
@@ -383,7 +394,7 @@
       stripeOnlyEl.classList.add("hidden");
 
       renderRows(linkSummaryEl, [
-        { label: "Status", value: `<span class="badge ${escapeHtml(record.status)}">${escapeHtml(statusLabel(record.status))}</span>` },
+        { label: "Status", value: `<span class="badge ${escapeHtml(record.status)}">${escapeHtml(statusLabel(record.status, record))}</span>` },
         { label: "Customer", value: valueOrDash(record.customerName) },
         { label: "Employee", value: valueOrDash(record.creatorName) },
         { label: "Department", value: valueOrDash(record.department) },
@@ -403,7 +414,7 @@
         { label: "Payment Method", value: valueOrDash(record.paymentMethodId) },
         { label: "Paid Date", value: formatDate(record.paidDate) },
         { label: "Deactivated", value: formatDate(record.deactivatedAt) },
-        { label: "Status Detail", value: valueOrDash(record.paymentStatusDetail || record.deactivationReason) }
+        { label: "Status Detail", value: valueOrDash(statusDetailText(record)) }
       ]);
 
       copyLinkEl.classList.toggle("hidden", !record.paymentLinkUrl);

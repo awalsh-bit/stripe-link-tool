@@ -1895,7 +1895,8 @@ app.post("/api/stripe/webhook", express.raw({ type: "application/json" }), async
 
     if (
       event.type === "payment_intent.succeeded" ||
-      event.type === "payment_intent.payment_failed"
+      event.type === "payment_intent.payment_failed" ||
+      event.type === "payment_intent.processing"
     ) {
       await processPaymentIntentWebhookEvent(event);
     }
@@ -20461,7 +20462,10 @@ app.post("/api/payment-links/:id/sync-from-stripe", requirePagePermission("/dash
         return s.payment_status === "unpaid" && pmTypes.includes("us_bank_account");
       });
 
-      if (achCandidate && record.status === "sent") {
+      // Andrew 9/28: a viewed or already-deactivated record (Stripe retires a
+      // single-use link the moment its checkout completes, even for an ACH
+      // that takes days to settle) must still come back as ACH pending.
+      if (achCandidate && record.status !== "paid") {
         const piId =
           typeof achCandidate.payment_intent === "string"
             ? achCandidate.payment_intent
@@ -20471,7 +20475,9 @@ app.post("/api/payment-links/:id/sync-from-stripe", requirePagePermission("/dash
           : null;
         if (paymentIntent && isAchPendingIntent(paymentIntent, record)) {
           applyAchPendingState(record, achCandidate, paymentIntent);
-          changes.push(`status: ${beforeStatus} -> ach_pending`);
+          record.deactivatedAt = "";
+          record.deactivationReason = "";
+          if (beforeStatus !== "ach_pending") changes.push(`status: ${beforeStatus} -> ach_pending (${paymentIntent.status})`);
         }
       } else if (sessions.data.length > 0 && record.status === "sent") {
         record.status = "viewed";
@@ -20485,6 +20491,7 @@ app.post("/api/payment-links/:id/sync-from-stripe", requirePagePermission("/dash
       try {
         const stripeLink = await stripe.paymentLinks.retrieve(record.paymentLinkId);
         if (!stripeLink.active && record.active && record.status !== "paid" && record.status !== "ach_pending") {
+          // (an ACH-pending record keeps active=true on purpose: the money is coming)
           record.status = "deactivated";
           record.active = false;
           record.deactivatedAt = record.deactivatedAt || new Date().toISOString();
@@ -20859,6 +20866,12 @@ async function processPaymentIntentWebhookEvent(event) {
     applyFailedPaymentIntentState(record, paymentIntent);
   }
 
+  // ACH moved from "verify your micro-deposits" to "debit in flight" — keep
+  // the record on ACH pending with the fresher detail.
+  if (event.type === "payment_intent.processing" && record.status !== "paid" && isAchPendingIntent(paymentIntent, record)) {
+    applyAchPendingState(record, null, paymentIntent);
+  }
+
   record.updatedAt = new Date().toISOString();
   await writeLinks(links);
 }
@@ -21033,9 +21046,12 @@ function inferPaymentMethodType(paymentIntent, session) {
   );
 }
 
+// ACH in flight: "processing" (the debit is on its way, 4–5 business days)
+// or "requires_action" (the customer still has to verify micro-deposits).
+// Both are "pending" to Agility — neither is paid, neither is dead.
 function isAchPendingIntent(paymentIntent, record = null) {
   return (
-    paymentIntent?.status === "processing" &&
+    (paymentIntent?.status === "processing" || paymentIntent?.status === "requires_action") &&
     (
       paymentIntent?.payment_method_types?.includes("us_bank_account") ||
       paymentIntent?.payment_method?.type === "us_bank_account" ||

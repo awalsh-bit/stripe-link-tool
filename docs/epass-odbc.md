@@ -565,6 +565,19 @@ puts new yeses on the waitlist. Storage is Postgres (`lib/events-postgres.js`:
 `/api/public/events`, `/api/public/events/:slug`, `POST …/:slug/rsvp`;
 the legacy Fire & Flavor page's endpoint writes to the same tables.
 
+### 8b3l. Ordering Report ship-to drawer (2026-09-29)
+
+The ☰ beside the customer name on an Ordering Report ticket opens a drawer
+with the invoice header's sold-to (ship-to) name, address, phones and email,
+the bill-to when it differs, the dispatch email, the ticket's comment lines
+and its model lines — each with a Copy button and a "Copy address block"
+(name / street / city ST zip, one per line) for vendor portals. It reads the
+15-minute open-orders feed (`epass_open_orders.raw` already carries the
+`SoldTo*` / `BillTo*` columns); the comment lines are a new guarded
+`open-order-comments` dataset (`InvoiceComment` for open invoices) stored in
+`epass_open_order_comments`, which only replaces itself when the bundle
+carries it. Route: `GET /api/written-models/ship-to?invoice=`.
+
 ### 8b3b. Shop prices from ePASS price levels (2026-09-24)
 
 `model-list-prices` (sales bundle) carries `ModelListPrice` for every model

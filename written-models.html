@@ -160,6 +160,31 @@
     .pos-b .pos-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; max-width: 100%; margin-bottom: 4px; }
     .pos-b .pos-scroll > table { min-width: max-content; }
     body.pos-open { overflow: hidden; }
+    /* Ship-to drawer (Andrew 9/29): header contact + comment lines to copy
+       into vendor portals, without opening ePASS over VPN. */
+    .st-btn { appearance: none; border: 1px solid var(--border); background: #fff; color: #374151; border-radius: 8px; width: 26px; height: 22px; padding: 0; margin-left: 6px; cursor: pointer; font-size: 13px; line-height: 1; vertical-align: 1px; font-family: inherit; }
+    .st-btn:hover { border-color: var(--primary); color: var(--primary); }
+    .st-back { display: none; position: fixed; inset: 0; background: rgba(15, 23, 42, 0.35); z-index: 62; }
+    .st-back.show { display: block; }
+    .st-drawer { position: fixed; top: 0; right: 0; bottom: 0; width: min(560px, 100vw); background: #fff; z-index: 63; box-shadow: -12px 0 40px rgba(0,0,0,0.18); transform: translateX(100%); transition: transform 0.18s ease; display: flex; flex-direction: column; }
+    .st-drawer.show { transform: translateX(0); }
+    .st-h { display: flex; align-items: flex-start; gap: 10px; padding: 14px 18px; border-bottom: 1px solid var(--border); }
+    .st-h h3 { margin: 0; font-size: 16px; flex: 1; }
+    .st-b { flex: 1; overflow: auto; padding: 12px 18px 24px; }
+    .st-sec { margin: 0 0 16px; }
+    .st-sec h4 { margin: 0 0 6px; font-size: 11.5px; font-weight: 800; letter-spacing: 0.05em; text-transform: uppercase; color: #64748b; display: flex; align-items: center; gap: 8px; }
+    .st-row { display: grid; grid-template-columns: 92px minmax(0, 1fr) auto; gap: 8px; align-items: center; padding: 5px 0; border-bottom: 1px solid #f1f5f9; font-size: 13.5px; }
+    .st-row .k { color: var(--muted); font-size: 12px; }
+    .st-row .v { word-break: break-word; user-select: all; }
+    .st-row .v:empty::before { content: "—"; color: #cbd5e1; }
+    .st-copy { appearance: none; border: 1px solid var(--border); background: #fff; border-radius: 8px; padding: 3px 9px; font-size: 11.5px; cursor: pointer; font-family: inherit; color: #374151; white-space: nowrap; }
+    .st-copy:hover { border-color: var(--primary); color: var(--primary); }
+    .st-copy.all { background: var(--primary); color: #fff; border-color: var(--primary); }
+    .st-comment { border-left: 3px solid #cbd5e1; padding: 6px 10px; margin: 0 0 8px; font-size: 13.5px; white-space: pre-wrap; background: #f8fafc; border-radius: 0 8px 8px 0; }
+    .st-comment .m { display: block; color: var(--muted); font-size: 11px; margin-top: 3px; white-space: normal; }
+    .st-line { display: flex; gap: 8px; font-size: 13px; padding: 4px 0; border-bottom: 1px solid #f1f5f9; }
+    .st-line b { min-width: 34px; }
+    @media (max-width: 720px) { .st-drawer { width: 100vw; } }
     @media (max-width: 720px) {
       body { padding: 14px 12px 40px; } .surface { padding: 16px; }
       .pos-overlay { padding: 0; overscroll-behavior: contain; }
@@ -232,6 +257,12 @@
       </details>
     </section>
     <div id="internal-shell-footer"></div>
+  </div>
+
+  <div class="st-back" id="stBack"></div>
+  <div class="st-drawer" id="stDrawer" role="dialog" aria-modal="true" aria-label="Ship-to details">
+    <div class="st-h"><div style="flex:1;"><h3 id="stTitle">Ship-to details</h3><div class="hint" id="stSub"></div></div><button type="button" class="quiet tiny" id="stClose">Close</button></div>
+    <div class="st-b" id="stBody"><div class="empty">Loading…</div></div>
   </div>
 
   <div class="rej-overlay" id="rejOverlay" role="dialog" aria-label="Send an order line back">
@@ -351,6 +382,7 @@
         $("board").querySelectorAll(".sup-h").forEach((h) => h.addEventListener("click", (ev) => { if (ev.target.closest("input,button,a")) return; const s = h.closest(".sup"); s.classList.toggle("closed"); const k = s.dataset.sup; if (s.classList.contains("closed")) state.closed.add(k); else state.closed.delete(k); }));
         $("board").querySelectorAll("[data-pos]").forEach((btn) => btn.addEventListener("click", () => openPosition(btn.dataset.pos, btn.dataset.line)));
         $("board").querySelectorAll(".copy-model").forEach((el) => el.addEventListener("click", () => copyText(el.dataset.copy, el)));
+        $("board").querySelectorAll("[data-shipto]").forEach((el) => el.addEventListener("click", (ev) => { ev.stopPropagation(); openShipTo(el.dataset.shipto); }));
         const lineById = (id) => { for (const g of state.board.suppliers) for (const m of g.models) for (const l of m.lines) if (l.id === id) return { l, m }; return null; };
         const markLine = async (id, handled, kind = "ordered", note = "") => {
           const hit = lineById(id); const l = hit?.l, m = hit?.m;
@@ -418,7 +450,7 @@
         const cost = o.items.reduce((a, it) => a + (it.line.stdCost || 0) * (it.line.qty || 1), 0);
         const mm = sell > 0 ? (sell - cost) / sell : null;
         const anyCod = o.items.some((it) => isUnpaidCod(it.line)), anyRet = o.items.some((it) => isReturn(it.line));
-        const head = `<tr class="model order"><td class="l"><strong class="copy-model" data-copy="${esc(o.invoice)}" title="Click to copy the sales order number">${esc(o.invoice)}</strong> ${esc(o.customer)}${anyRet ? ` <span class="badge ret">Return</span>` : ""}${anyCod ? ` <span class="badge cod" title="0% paid on COD terms">0% COD</span>` : ""}${o.billTo && !o.billTo.includes(o.customer) ? `<span class="hint">bill to ${esc(o.billTo)}</span>` : ""}</td>
+        const head = `<tr class="model order"><td class="l"><strong class="copy-model" data-copy="${esc(o.invoice)}" title="Click to copy the sales order number">${esc(o.invoice)}</strong> ${esc(o.customer)}<button type="button" class="st-btn" data-shipto="${esc(o.invoice)}" title="Ship-to details — name, address, phone, email and the ticket's comment lines, ready to copy">☰</button>${anyRet ? ` <span class="badge ret">Return</span>` : ""}${anyCod ? ` <span class="badge cod" title="0% paid on COD terms">0% COD</span>` : ""}${o.billTo && !o.billTo.includes(o.customer) ? `<span class="hint">bill to ${esc(o.billTo)}</span>` : ""}</td>
           <td class="l"><span class="hint">${esc(o.sp || "")}${o.status ? " · " + esc(o.status) : ""}${o.deposit ? ` · ${o.deposit.pct}% paid · ${esc(o.deposit.terms)}` : ""}${o.reference ? " · " + esc(o.reference) : ""}<br>${o.items.length} item${o.items.length === 1 ? "" : "s"} · ${qty} unit${qty === 1 ? "" : "s"} · written ${day(o.invoiceDate)}</span></td>
           <td>${day(o.delDate)}</td>
           <td>${money(sell)}</td><td>${money(cost)}</td><td class="${mcls(mm)}">${pct(mm)}</td><td></td></tr>`;
@@ -533,10 +565,43 @@
           $("posBody").innerHTML = lineBlock + summary + units + onOrder + written + note; wireSup();
         } catch (err) { $("posBody").innerHTML = lineBlock + `<div class="empty">${esc(err.message)}</div>`; wireSup(); }
       }
+      // ---- Ship-to drawer ----
+      const fmtPhone = (p) => { const d = String(p || "").replace(/\D/g, ""); return d.length === 10 ? `${d.slice(0, 3)}-${d.slice(3, 6)}-${d.slice(6)}` : String(p || ""); };
+      function partyHtml(label, p) {
+        const addr = [p.address1, p.address2].filter(Boolean).join(", ");
+        const city = [p.city, p.state].filter(Boolean).join(", ") + (p.zip ? " " + p.zip : "");
+        const block = [p.name || p.company, p.company && p.name ? p.company : "", p.address1, p.address2, city].filter(Boolean).join("\n");
+        const row = (k, v, copyVal) => `<div class="st-row"><span class="k">${k}</span><span class="v">${esc(v || "")}</span>${v ? `<button type="button" class="st-copy" data-copy="${esc(copyVal ?? v)}">Copy</button>` : "<span></span>"}</div>`;
+        return `<div class="st-sec"><h4>${label}${p.code ? ` <span class="hint">· ${esc(p.code)}</span>` : ""} <button type="button" class="st-copy all" data-copy="${esc(block)}" title="Name and address, one line each">Copy address block</button></h4>
+          ${row("Name", p.name)}${p.company ? row("Company", p.company) : ""}${row("Address", addr)}${p.address2 ? "" : ""}${row("City / ST", city)}${row("ZIP", p.zip)}
+          ${row("Phone", fmtPhone(p.phone1), String(p.phone1 || "").replace(/\D/g, ""))}${p.phone2 ? row("Phone 2", fmtPhone(p.phone2), String(p.phone2).replace(/\D/g, "")) : ""}${p.businessPhone ? row("Business", fmtPhone(p.businessPhone), String(p.businessPhone).replace(/\D/g, "")) : ""}
+          ${row("Email", p.email)}</div>`;
+      }
+      const closeShipTo = () => { $("stDrawer").classList.remove("show"); $("stBack").classList.remove("show"); };
+      async function openShipTo(invoice) {
+        $("stTitle").textContent = invoice; $("stSub").textContent = "Loading from the ePASS feed…"; $("stBody").innerHTML = '<div class="empty">Loading…</div>';
+        $("stDrawer").classList.add("show"); $("stBack").classList.add("show");
+        try {
+          const d = await api(`/api/written-models/ship-to?invoice=${encodeURIComponent(invoice)}`);
+          $("stSub").textContent = [d.salesperson ? `SP ${d.salesperson}` : "", d.jobStatus || d.status, d.scheduleDate ? `delivery ${day(d.scheduleDate)}` : "", d.reference ? `ref ${d.reference}` : "", d.poNumber ? `PO# ${d.poNumber}` : ""].filter(Boolean).join(" · ");
+          $("stBody").innerHTML = `
+            ${partyHtml("Ship-to (sold-to)", d.shipTo)}
+            ${d.billTo ? partyHtml("Bill-to (different)", d.billTo) : ""}
+            ${d.dispatchEmail ? `<div class="st-sec"><div class="st-row"><span class="k">Dispatch email</span><span class="v">${esc(d.dispatchEmail)}</span><button type="button" class="st-copy" data-copy="${esc(d.dispatchEmail)}">Copy</button></div></div>` : ""}
+            <div class="st-sec"><h4>Comment lines${d.comments.length ? ` <span class="hint">· ${d.comments.length}</span> <button type="button" class="st-copy" data-copy="${esc(d.comments.map((c) => c.text).join("\n"))}">Copy all</button>` : ""}</h4>
+              ${d.comments.length ? d.comments.map((c) => `<div class="st-comment">${esc(c.text)}${c.code || c.date ? `<span class="m">${esc([c.code, c.date, c.by].filter(Boolean).join(" · "))}</span>` : ""}</div>`).join("")
+                : `<div class="hint">${d.commentsAvailable ? "No comment lines on this ticket." : "Comment lines arrive with the next feed pull once the updated pull script is on the ePASS server."}</div>`}</div>
+            <div class="st-sec"><h4>Lines <span class="hint">· ${d.lines.length}</span></h4>${d.lines.map((l) => `<div class="st-line"><b>${l.qty}×</b><span class="copy-model" data-copy="${esc(l.model)}">${esc(l.model)}</span><span class="hint">${esc(l.desc)}${l.color ? " · " + esc(l.color) : ""}</span></div>`).join("")}</div>`;
+          $("stBody").querySelectorAll(".st-copy").forEach((b) => b.addEventListener("click", () => copyText(b.dataset.copy, b)));
+          $("stBody").querySelectorAll(".copy-model").forEach((el) => el.addEventListener("click", () => copyText(el.dataset.copy, el)));
+        } catch (err) { $("stBody").innerHTML = `<div class="empty">${esc(err.message)}</div>`; $("stSub").textContent = ""; }
+      }
+      $("stClose").addEventListener("click", closeShipTo);
+      $("stBack").addEventListener("click", closeShipTo);
       const closePosition = () => { $("posOverlay").classList.remove("show"); document.body.classList.remove("pos-open"); };
       $("posClose").addEventListener("click", closePosition);
       $("posOverlay").addEventListener("click", (ev) => { if (ev.target === $("posOverlay")) closePosition(); });
-      document.addEventListener("keydown", (ev) => { if (ev.key === "Escape") { closePosition(); $("rejOverlay").classList.remove("show"); } });
+      document.addEventListener("keydown", (ev) => { if (ev.key === "Escape") { closePosition(); closeShipTo(); $("rejOverlay").classList.remove("show"); } });
       // Every table in the sheet scrolls sideways on its own (phones).
       new MutationObserver(() => {
         $("posBody").querySelectorAll("table").forEach((t) => { if (!t.parentElement.classList.contains("pos-scroll")) { const w = document.createElement("div"); w.className = "pos-scroll"; t.replaceWith(w); w.appendChild(t); } });

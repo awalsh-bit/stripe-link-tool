@@ -14785,6 +14785,36 @@ app.post("/api/written-models/lines/handled", requireWrittenModels, async (req, 
   } catch (err) { return res.status(400).json({ error: err.message }); }
 });
 // Inventory position for one model (the ePASS "Serial # for Model" view).
+// Ship-to drawer (Andrew 9/29): the invoice header's customer contact plus
+// its comment lines, so purchasing can copy them into a vendor portal
+// without opening ePASS over VPN. Read from the 15-minute open-orders feed.
+app.get("/api/written-models/ship-to", requireWrittenModels, async (req, res) => {
+  try {
+    const code = String(req.query.invoice || "").trim().toUpperCase().slice(0, 40);
+    if (!code) return res.status(400).json({ error: "invoice is required." });
+    const order = await getEpassOpenOrder(code);
+    if (!order) return res.status(404).json({ error: `${code} isn't on the open-orders feed (finished, or not pulled yet).` });
+    const h = order.raw || {};
+    const g = (...names) => { for (const n of names) { const k = Object.keys(h).find((x) => x.toLowerCase() === n.toLowerCase()); if (k && h[k] != null && String(h[k]).trim() !== "") return String(h[k]).trim(); } return ""; };
+    const party = (p) => ({
+      code: g(`${p}Code`), name: [g(`${p}FirstName`), g(`${p}LastName`)].filter(Boolean).join(" "), company: g(`${p}Company`, `${p}Name`),
+      address1: g(`${p}Address1`), address2: g(`${p}Address2`), city: g(`${p}City`), state: g(`${p}State`), zip: g(`${p}ZipCode`),
+      phone1: g(`${p}Phone1`), phone2: g(`${p}Phone2`), businessPhone: g(`${p}BusinessPhone`), email: g(`${p}Email`)
+    });
+    const shipTo = party("SoldTo"), billTo = party("BillTo");
+    const sameBillTo = !billTo.code || (billTo.code === shipTo.code && billTo.address1 === shipTo.address1);
+    const cg = (r, n) => { const k = Object.keys(r || {}).find((x) => x.toLowerCase() === n.toLowerCase()); return k && r[k] != null ? String(r[k]).trim() : ""; };
+    const comments = (order.comments || []).map((r) => ({ code: cg(r, "CommentCode"), text: cg(r, "CommentDesc"), date: cg(r, "DateStamp").slice(0, 10), by: cg(r, "UserCreated") })).filter((c) => c.text || c.code);
+    const lines = (order.lines || []).map((r) => ({ model: cg(r, "ModelCode"), desc: cg(r, "ModelDesc"), qty: Number(cg(r, "QtyOrdered")) || 0, color: cg(r, "Color"), reference: cg(r, "Reference") }));
+    return res.json({
+      invoice: code, status: order.status, jobStatus: order.job_status, salesperson: order.salesperson, dateCreated: order.date_created,
+      scheduleDate: g("ScheduleDate").slice(0, 10), reference: g("Reference"), poNumber: g("PONumber"), dispatchEmail: g("DispatchEmail"),
+      shipTo, billTo: sameBillTo ? null : billTo, comments, lines, commentsAvailable: Array.isArray(order.comments)
+    });
+  } catch (err) {
+    return res.status(500).json({ error: err.message || "Unable to load that invoice." });
+  }
+});
 app.get("/api/written-models/position", requireWrittenModels, async (req, res) => {
   try { return res.json(await getInventoryPosition(String(req.query.model || ""))); }
   catch (err) { return res.status(400).json({ error: err.message || "Unable to load that model." }); }

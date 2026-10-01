@@ -445,6 +445,19 @@ WHERE $openWhere
 ORDER BY x.InvoiceCode
 "@ (Join-Path $LatestDir "open-order-misc.csv") "open-order-misc"
 
+  # 9/29: the invoice's comment lines (InvoiceComment - the free-text lines
+  # in the detail section) so purchasing can read them from the Ordering
+  # Report instead of opening ePASS over VPN. Guarded: no comments, no harm.
+  try {
+    $bundle.datasets["open-order-comments"] = Export-Query $conn @"
+SELECT c.InvoiceCode, c.LineTimeStamp, c.DateStamp, c.CommentCode, c.CommentDesc, c.InPackage, c.TripNo, c.DateCreated, c.UserCreated
+FROM InvoiceComment c
+INNER JOIN Invoice i ON c.InvoiceCode = i.Code
+WHERE $openWhere
+ORDER BY c.InvoiceCode, c.DateStamp, c.LineTimeStamp
+"@ (Join-Path $LatestDir "open-order-comments.csv") "open-order-comments"
+  } catch { Log ("open-order-comments FAILED (bundle continues without it): {0}" -f $_.Exception.Message); if ($conn.State -ne [System.Data.ConnectionState]::Open) { $conn.Open() } }
+
   # Model master for every model on an open line: stock position (QOH / QOO /
   # min / max), cost, and ePASS's own supplier - what the Ordering Report used
   # to read off the OE-04 totals rows and the NetSuite items CSV.

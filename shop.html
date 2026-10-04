@@ -6,7 +6,9 @@
   <meta name="robots" content="noindex, nofollow, noarchive, nosnippet, noimageindex">
   <title>Wilson Express Assortment</title>
   <link rel="icon" href="favicon.svg" type="image/svg+xml">
-  <script src="https://js.stripe.com/v3/"></script>
+  <!-- Stripe.js is loaded on demand when checkout opens (see loadStripeJs) so it
+       never blocks first paint of the storefront. -->
+  <link rel="preconnect" href="https://js.stripe.com" crossorigin />
   <style>
     :root {
       --primary: #21692c;
@@ -233,6 +235,16 @@
     .show-more .btn { min-width: 220px; }
     .show-more .muted { font-size: 12.5px; }
     .item-card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 16px; display: flex; flex-direction: column; gap: 6px; position: relative; }
+    /* Placeholder tiles shown while the catalog request is in flight. */
+    .skel-card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 16px; display: flex; flex-direction: column; gap: 10px; min-height: 300px; }
+    .skel { border-radius: 8px; background: linear-gradient(90deg, #eef0f3 25%, #f6f7f9 50%, #eef0f3 75%); background-size: 200% 100%; animation: skel-shimmer 1.2s ease-in-out infinite; }
+    .skel.img { height: 150px; }
+    .skel.line { height: 12px; width: 60%; }
+    .skel.line.w40 { width: 40%; }
+    .skel.line.w80 { width: 80%; }
+    .skel.price { height: 22px; width: 35%; margin-top: auto; }
+    @keyframes skel-shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+    @media (prefers-reduced-motion: reduce) { .skel { animation: none; } }
     .item-img { width: 100%; height: 150px; object-fit: contain; background: #fff; border-radius: 8px; margin-bottom: 4px; }
     .cond-badge { position: absolute; top: 10px; right: 10px; z-index: 2; border-radius: 999px; padding: 3px 10px; font-size: 11.5px; font-weight: 700; letter-spacing: 0.03em; box-shadow: 0 1px 4px rgba(0,0,0,0.12); }
     .cond-badge.new { background: #dcfce7; color: #166534; }
@@ -786,10 +798,33 @@
   $("gateZip").addEventListener("keydown", (e) => { if (e.key === "Enter") $("gateBtn").click(); });
 
   // ---------- Catalog ----------
-  async function loadCatalog() {
-    const url = "/api/shop/catalog" + (state.token ? "?token=" + encodeURIComponent(state.token) : "");
-    const res = await fetch(url);
-    const data = await res.json();
+  function catalogUrl() {
+    return "/api/shop/catalog" + (state.token ? "?token=" + encodeURIComponent(state.token) : "");
+  }
+  // Starts the catalog request without waiting on anything else; loadCatalog
+  // picks the response up. Lets boot run the ZIP check and the catalog fetch
+  // side by side instead of one after the other.
+  function fetchCatalog() {
+    return fetch(catalogUrl()).then(async (res) => ({ res, data: await res.json() }));
+  }
+  function showSkeleton() {
+    const grid = $("itemGrid");
+    if (grid.children.length) return;
+    const n = Math.min(GRID_PAGE, 8);
+    grid.innerHTML = Array.from({ length: n }, () =>
+      `<div class="skel-card" aria-hidden="true"><div class="skel img"></div><div class="skel line w40"></div><div class="skel line w80"></div><div class="skel line"></div><div class="skel price"></div></div>`).join("");
+  }
+  async function loadCatalog(pending) {
+    showSkeleton();
+    let res, data;
+    try {
+      ({ res, data } = await (pending || fetchCatalog()));
+    } catch (e) {
+      $("itemGrid").innerHTML = "";
+      $("emptyNote").style.display = "block";
+      $("emptyNote").textContent = "The shop is temporarily unavailable. Please try again in a moment.";
+      return;
+    }
     if (!res.ok) {
       $("itemGrid").innerHTML = "";
       $("emptyNote").style.display = "block";
@@ -2104,10 +2139,10 @@
     const errBox = $("checkoutError");
     try {
       if (!state.checkout.stripe) {
-        const cfgRes = await fetch("/api/config");
+        const [cfgRes] = await Promise.all([fetch("/api/config"), loadStripeJs()]);
         const cfg = await cfgRes.json();
         if (!cfgRes.ok) throw new Error(cfg.error || "Payment configuration unavailable.");
-        state.checkout.stripe = Stripe(cfg.publishableKey);
+        state.checkout.stripe = window.Stripe(cfg.publishableKey);
       }
 
       const res = await fetch("/api/shop/setup-intent", {
@@ -2238,10 +2273,33 @@
     }
   }
 
+  // ---------- Stripe.js (on demand) ----------
+  // Stripe.js used to be a blocking <script> in <head>; it now loads the first
+  // time checkout opens. Resolves once window.Stripe is available.
+  let stripeJsPromise = null;
+  function loadStripeJs() {
+    if (window.Stripe) return Promise.resolve();
+    if (stripeJsPromise) return stripeJsPromise;
+    stripeJsPromise = new Promise((resolve, reject) => {
+      const s = document.createElement("script");
+      s.src = "https://js.stripe.com/v3/";
+      s.async = true;
+      s.onload = () => (window.Stripe ? resolve() : reject(new Error("Secure payment library did not load.")));
+      s.onerror = () => { stripeJsPromise = null; reject(new Error("Secure payment library could not be loaded. Check your connection and try again.")); };
+      document.head.appendChild(s);
+    });
+    return stripeJsPromise;
+  }
+
   // ---------- Boot ----------
   (async () => {
+    // Returning visitor with a stored ZIP: kick off the catalog request at the
+    // same time as the ZIP re-check rather than after it. If the ZIP check
+    // fails the response is simply dropped.
+    const pending = state.zip ? fetchCatalog().catch(() => null) : null;
+    if (pending) showSkeleton();
     const passed = await initGate();
-    if (passed) loadCatalog();
+    if (passed) loadCatalog(pending ? pending.then((r) => r || fetchCatalog()) : undefined);
   })();
 })();
 </script>

@@ -6266,7 +6266,16 @@ function shopZipAllowed(zip) {
   return shopZipSet.has(String(zip || "").trim().slice(0, 5));
 }
 
+// The four data files only change on a deploy; read them once a minute at
+// most instead of on every catalog build.
+let shopDataCache = { at: 0, value: null };
 async function loadShopData() {
+  if (shopDataCache.value && Date.now() - shopDataCache.at < 60 * 1000) return shopDataCache.value;
+  const value = await loadShopDataFromDisk();
+  shopDataCache = { at: Date.now(), value };
+  return value;
+}
+async function loadShopDataFromDisk() {
   const fs = await import("fs/promises");
   const [clearanceRaw, addonsRaw] = await Promise.all([
     fs.readFile(path.join(__dirname, "data", "clearance.json"), "utf8"),
@@ -6506,17 +6515,41 @@ function shopStockItems({ snapshot, settings, brandMap, brandNames, images, mapP
 // Public reads (the catalog page, cart pricing) share one computed catalog
 // for a few seconds; anything that changes availability or pricing calls
 // invalidateShopCatalog(), and checkout always computes fresh.
+// Stale-while-revalidate (Andrew 10/4: "still a 2-second delay"): a public
+// read is answered from the cached catalog immediately when it is younger
+// than SHOP_CATALOG_STALE_MS; once it is older than SHOP_CATALOG_CACHE_MS a
+// recompute runs in the background for the next reader. A background timer
+// keeps it warm so the first visitor after a quiet spell never waits either.
 const SHOP_CATALOG_CACHE_MS = 20 * 1000;
+const SHOP_CATALOG_STALE_MS = 5 * 60 * 1000;
 let shopCatalogCache = null; // { at, promise }
+let shopCatalogRefreshing = null;
 function invalidateShopCatalog() { shopCatalogCache = null; }
+function refreshShopCatalogInBackground() {
+  if (shopCatalogRefreshing) return shopCatalogRefreshing;
+  shopCatalogRefreshing = computeShopCatalogFresh()
+    .then((cat) => { shopCatalogCache = { at: Date.now(), promise: Promise.resolve(cat) }; return cat; })
+    .catch((err) => { console.warn("Shop catalog background refresh failed:", err.message); })
+    .finally(() => { shopCatalogRefreshing = null; });
+  return shopCatalogRefreshing;
+}
 function computeShopCatalog({ maxAgeMs = 0 } = {}) {
-  if (maxAgeMs > 0 && shopCatalogCache && Date.now() - shopCatalogCache.at < maxAgeMs) return shopCatalogCache.promise;
+  if (maxAgeMs > 0 && shopCatalogCache) {
+    const age = Date.now() - shopCatalogCache.at;
+    if (age < maxAgeMs) return shopCatalogCache.promise;
+    if (age < SHOP_CATALOG_STALE_MS) { refreshShopCatalogInBackground(); return shopCatalogCache.promise; }
+  }
   const promise = computeShopCatalogFresh();
   if (maxAgeMs > 0) {
     shopCatalogCache = { at: Date.now(), promise };
     promise.catch(() => { if (shopCatalogCache?.promise === promise) shopCatalogCache = null; });
   }
   return promise;
+}
+// Keep it warm: first build shortly after boot, then once a minute.
+if (process.env.DATABASE_URL) {
+  setTimeout(() => refreshShopCatalogInBackground(), 8000).unref?.();
+  setInterval(() => refreshShopCatalogInBackground(), 60 * 1000).unref?.();
 }
 async function computeShopCatalogFresh() {
   const { clearance, addons, images, mapPolicy } = await loadShopData();

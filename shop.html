@@ -229,10 +229,18 @@
     .best-tag { display: inline-block; margin-left: 8px; vertical-align: 0; background: #fef3c7; color: #92400e; border-radius: 999px; padding: 1px 8px; font-size: 10.5px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; }
 
     .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(255px, 1fr)); gap: 14px; }
+    .show-more { display: flex; flex-direction: column; align-items: center; gap: 6px; margin: 22px 0 6px; }
+    .show-more .btn { min-width: 220px; }
+    .show-more .muted { font-size: 12.5px; }
     .item-card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 16px; display: flex; flex-direction: column; gap: 6px; position: relative; }
     .item-img { width: 100%; height: 150px; object-fit: contain; background: #fff; border-radius: 8px; margin-bottom: 4px; }
     .cond-badge { position: absolute; top: 10px; right: 10px; z-index: 2; border-radius: 999px; padding: 3px 10px; font-size: 11.5px; font-weight: 700; letter-spacing: 0.03em; box-shadow: 0 1px 4px rgba(0,0,0,0.12); }
     .cond-badge.new { background: #dcfce7; color: #166534; }
+    /* Eye-catcher chip set per model on the Express Assortment Catalog page. */
+    .eye-badge { position: absolute; top: 10px; left: 10px; z-index: 2; border-radius: 999px; padding: 4px 11px; font-size: 11.5px; font-weight: 800; letter-spacing: 0.04em; text-transform: uppercase; color: #fff; box-shadow: 0 2px 8px rgba(0,0,0,0.18); max-width: calc(100% - 20px); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .eye-badge.red { background: #dc2626; } .eye-badge.amber { background: #d97706; } .eye-badge.green { background: #15803d; } .eye-badge.blue { background: #1d4ed8; } .eye-badge.purple { background: #7e22ce; } .eye-badge.black { background: #111827; }
+    .item-card.has-eye .item-img { margin-top: 18px; }
+    .item-card.has-eye .eye-badge + .item-brand, .item-card.has-eye .eye-badge + .cond-badge + .item-brand { margin-top: 24px; }
     .cond-badge.open { background: #fef3c7; color: #92400e; }
     .cond-badge.stock-in { background: #dcfce7; color: #166534; }
     .cond-badge.stock-low { background: #fef3c7; color: #92400e; }
@@ -274,7 +282,10 @@
     .empty-note { text-align: center; color: var(--muted); padding: 60px 0; font-size: 15px; }
 
     /* ---- Modals / drawer ---- */
-    .overlay { position: fixed; inset: 0; z-index: 60; background: rgba(17,24,39,0.5); display: none; align-items: flex-start; justify-content: center; padding: 24px 14px; overflow-y: auto; }
+    /* Modals sit ABOVE the cart drawer (z 70): the profile / sign-in step that
+       "Continue to secure checkout" opens for a guest was landing behind the
+       full-width drawer on phones, so the tap looked like it did nothing. */
+    .overlay { position: fixed; inset: 0; z-index: 80; background: rgba(17,24,39,0.5); display: none; align-items: flex-start; justify-content: center; padding: 24px 14px; overflow-y: auto; }
     .overlay.show { display: flex; }
     .modal { background: #fff; border-radius: 16px; max-width: 520px; width: 100%; padding: 26px; box-shadow: 0 24px 60px rgba(0,0,0,0.25); margin: auto 0; }
     .modal h2 { font-size: 19px; margin-bottom: 4px; }
@@ -480,6 +491,7 @@
     </div>
 
     <div class="grid" id="itemGrid"></div>
+    <div class="show-more" id="showMore" style="display:none;"><button type="button" class="btn ghost" id="showMoreBtn">Show more</button><span class="muted" id="showMoreNote"></span></div>
     <div class="empty-note" id="emptyNote" style="display:none;">Nothing in stock matches those filters right now — check back soon, the assortment moves fast.</div>
   </main>
 
@@ -701,6 +713,7 @@
     cart: { itemIds: [], addonLines: [] }, // addonLines: [{ id, itemId, qty }] - every add-on belongs to the appliance it was picked for
     cartPrices: {}, // id -> price, revealed once a unit is in the cart
     cartPriceError: "",
+    shown: 20, gridSig: "", // tiles built so far (see renderGrid)
     // selection: { label, cats: [category keys], products: [product codes] } | null
     // sort "best" = brand units sold in the last 12 months (server `brandSold`),
     // then the model's own `sold`, ties in merchandised order; deal = one of
@@ -712,6 +725,7 @@
   };
 
   const $ = (id) => document.getElementById(id);
+  const GRID_PAGE = 20;
   const money = (n) => "$" + Number(n).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
   // ---------- ZIP gate ----------
@@ -964,13 +978,24 @@
     state.renderedGroups = groups;
     $("emptyNote").style.display = groups.length ? "none" : "block";
 
-    groups.forEach((group, index) => {
+    // Only the first page of tiles is built (Andrew 10/3: hundreds of tiles
+    // made the page slow); "Show more" adds the next page. A change of
+    // filter, search or sort starts over at the first page.
+    const sig = JSON.stringify([state.filter, state.unlocked]);
+    if (sig !== state.gridSig) { state.gridSig = sig; state.shown = GRID_PAGE; }
+    const visible = groups.slice(0, state.shown);
+    const left = groups.length - visible.length;
+    $("showMore").style.display = left > 0 ? "" : "none";
+    if (left > 0) { $("showMoreBtn").textContent = `Show ${Math.min(GRID_PAGE, left)} more`; $("showMoreNote").textContent = `Showing ${visible.length} of ${groups.length}`; }
+
+    visible.forEach((group, index) => {
       const card = document.createElement("div");
-      card.className = "item-card";
+      card.className = "item-card" + (group.badge ? " has-eye" : "");
       const total = group.ids.length;
       const carted = group.ids.filter((id) => state.cart.itemIds.includes(id)).length;
       const allInCart = carted >= total;
       card.innerHTML = `
+        ${group.badge ? `<span class="eye-badge ${esc(group.badgeStyle || "red")}">${esc(group.badge)}</span>` : ""}
         ${conditionBadge(group)}
         ${group.image ? `<img class="item-img" src="${esc(group.image)}" alt="${esc(group.model)}" loading="lazy" onerror="this.remove()">` : ""}
         <div class="item-brand">${esc(group.brand)}</div>
@@ -1028,6 +1053,7 @@
   // units Low Stock in yellow, 4+ In Stock in green). Clearance units keep
   // their condition badge.
   function conditionBadge(item) {
+    if (item.hideStockBadge) return "";
     if (item.source === "stock") {
       return item.stockLevel === "in"
         ? `<span class="cond-badge stock-in">In Stock</span>`
@@ -1046,6 +1072,14 @@
   $("searchInput").addEventListener("input", (e) => { state.filter.search = e.target.value; renderGrid(); });
   $("brandSelect").addEventListener("change", (e) => { state.filter.brand = e.target.value; renderGrid(); });
   $("sortSelect").addEventListener("change", (e) => { state.filter.sort = e.target.value; renderGrid(); });
+  $("showMoreBtn").addEventListener("click", () => {
+    const before = state.shown;
+    state.shown += GRID_PAGE;
+    renderGrid();
+    // Put the first new tile in view instead of leaving the reader at the button.
+    const first = $("itemGrid").children[before];
+    if (first) first.scrollIntoView({ behavior: "smooth", block: "start" });
+  });
 
   // ---------- Category drawer (Abt-style two tiers) ----------
   // Tier 1: broad departments with icons. Tapping one slides to tier 2:

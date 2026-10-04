@@ -6478,7 +6478,7 @@ function shopStockItems({ snapshot, settings, brandMap, brandNames, images, mapP
     const blocked = brandBlocked(brand, g.brandCode);
     const listed = !blocked && !cfg.hidden && available.length > 0 && (available.length > 1 || cfg.showSingle);
     models.push({ model: g.model, key: g.key, brand, brandCode: g.brandCode, description: g.description, product: g.prod, category: g.category,
-      netsuite: ns.source === "netsuite", merchCategory: ns.merchCategory || "", merchClass: ns.merchClass || "", merchSubclass: ns.merchSubclass || "", inStock: g.units.length, held: heldByModel.get(g.key) || 0, available: available.length, listPrice: g.list || null, listCode: g.listCode, map: g.map || null, mapCode: g.mapCode, l1: g.l1 || null, price: price || null, settings: { price: cfg.price ?? null, showSingle: !!cfg.showSingle, hidden: !!cfg.hidden, note: cfg.note || "" }, listed, blocked, reason: blocked ? "brand doesn't allow online sale" : cfg.hidden ? "hidden" : !available.length ? "none available" + (heldByModel.get(g.key) ? ` (${heldByModel.get(g.key)} spoken for)` : "") : available.length === 1 && !cfg.showSingle ? "single unit (toggle to show)" : !price ? "no price — call for price" : "" });
+      netsuite: ns.source === "netsuite", merchCategory: ns.merchCategory || "", merchClass: ns.merchClass || "", merchSubclass: ns.merchSubclass || "", inStock: g.units.length, held: heldByModel.get(g.key) || 0, available: available.length, listPrice: g.list || null, listCode: g.listCode, map: g.map || null, mapCode: g.mapCode, l1: g.l1 || null, price: price || null, settings: { price: cfg.price ?? null, showSingle: !!cfg.showSingle, hidden: !!cfg.hidden, note: cfg.note || "", badge: cfg.badge || "", badgeStyle: cfg.badgeStyle || "red", hideStockBadge: !!cfg.hideStockBadge }, listed, blocked, reason: blocked ? "brand doesn't allow online sale" : cfg.hidden ? "hidden" : !available.length ? "none available" + (heldByModel.get(g.key) ? ` (${heldByModel.get(g.key)} spoken for)` : "") : available.length === 1 && !cfg.showSingle ? "single unit (toggle to show)" : !price ? "no price — call for price" : "" });
     if (!listed) continue;
     // The floor is ePASS's own MAP (RETAIL / brand UMRP) when it has one — at
     // or above it the price is advertised on the card; below it (an override)
@@ -6492,7 +6492,8 @@ function shopStockItems({ snapshot, settings, brandMap, brandNames, images, mapP
         serial: x.serial, serialType: "ALL", condition: "new", source: "stock",
         stock: available.length, stockLevel: available.length > SHOP_STOCK_LOW_MAX ? "in" : "low",
         image: images[g.key] || "", price: Math.round(price * 100) / 100, noPrice: !price,
-        deal: shopDealGroupFor({ product: g.prod, category: g.category, price }), mapPublic, mapFloor: Number.isFinite(Number(floor)) ? Number(floor) : null
+        deal: shopDealGroupFor({ product: g.prod, category: g.category, price }), mapPublic, mapFloor: Number.isFinite(Number(floor)) ? Number(floor) : null,
+        badge: cfg.badge || "", badgeStyle: cfg.badgeStyle || "red", hideStockBadge: !!cfg.hideStockBadge
       });
     }
   }
@@ -7089,6 +7090,7 @@ app.get("/api/shop/catalog", async (req, res) => {
         condition: i.condition,
         image: i.image,
         deal: i.deal || "",
+        badge: i.badge || "", badgeStyle: i.badgeStyle || "red", hideStockBadge: !!i.hideStockBadge,
         sold: rank.byModel[normalizeModelKey(i.model)] || 0,
         brandSold: rank.byBrand[shopBrandKey(i.brandCode)] || rank.byBrand[shopBrandKey(i.brand)] || 0,
         source: i.source || "clearance",
@@ -7193,10 +7195,11 @@ app.get("/api/shop/stock-models", requirePagePermission("/shop-orders.html", "/s
 app.post("/api/shop/stock-models/:model", requirePagePermission("/shop-orders.html", "/shop-catalog.html"), async (req, res) => {
   try {
     const b = req.body || {};
-    const saved = await saveShopModelSetting({ model: req.params.model, price: b.price == null || b.price === "" ? null : Number(b.price), showSingle: !!b.showSingle, hidden: !!b.hidden, note: b.note || "", byEmail: req.authUser?.email || "" });
+    const saved = await saveShopModelSetting({ model: req.params.model, price: b.price == null || b.price === "" ? null : Number(b.price), showSingle: !!b.showSingle, hidden: !!b.hidden, note: b.note || "",
+      badge: b.badge || "", badgeStyle: b.badgeStyle || "red", hideStockBadge: !!b.hideStockBadge, byEmail: req.authUser?.email || "" });
     invalidateShopCatalog();
     recordAudit({ ip: req.ip, actorUserId: req.authUser?.id || null, action: "shop_model_setting_saved", targetUserId: null,
-      detail: { model: String(req.params.model || "").slice(0, 40), price: b.price ?? null, showSingle: !!b.showSingle, hidden: !!b.hidden } }).catch(() => {});
+      detail: { model: String(req.params.model || "").slice(0, 40), price: b.price ?? null, showSingle: !!b.showSingle, hidden: !!b.hidden, badge: String(b.badge || "").slice(0, 24), hideStockBadge: !!b.hideStockBadge } }).catch(() => {});
     return res.json({ ok: true, setting: saved });
   } catch (err) {
     return res.status(400).json({ error: err.message || "Unable to save." });

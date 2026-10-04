@@ -62,6 +62,11 @@
     .stock-table th:first-child { z-index: 2; }
     .stock-table th.ctr, .stock-table td.ctr { text-align: center; }
     .stock-table input[type=number] { width: 84px; border: 1px solid var(--border); border-radius: 8px; padding: 5px 7px; font-size: 12.5px; }
+    .stock-table .chipcell { white-space: nowrap; }
+    .stock-table .st-badge { width: 130px; border: 1px solid var(--border); border-radius: 8px; padding: 5px 7px; font-size: 12.5px; }
+    .stock-table .st-badge-style { border: 1px solid var(--border); border-radius: 8px; padding: 5px 6px; font-size: 12px; margin-left: 4px; }
+    .eye-prev { display: inline-block; margin-left: 6px; border-radius: 999px; padding: 2px 8px; font-size: 10px; font-weight: 800; letter-spacing: 0.04em; text-transform: uppercase; color: #fff; vertical-align: middle; }
+    .eye-prev.red { background: #dc2626; } .eye-prev.amber { background: #d97706; } .eye-prev.green { background: #15803d; } .eye-prev.blue { background: #1d4ed8; } .eye-prev.purple { background: #7e22ce; } .eye-prev.black { background: #111827; }
     .stock-table .pill { display: inline-block; border-radius: 999px; padding: 2px 9px; font-size: 11px; font-weight: 700; }
     .stock-table .pill.in { background: #dcfce7; color: #166534; }
     .stock-table .pill.low { background: #fef3c7; color: #92400e; }
@@ -165,7 +170,7 @@
           <div class="count"><b>${units}</b>units for sale</div>
           <div class="count"><b>${rows.length}</b>shown</div>
           ${data.snapshot?.uploadedAt ? `<div class="count"><b>${esc(new Date(data.snapshot.uploadedAt).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }))}</b>feed snapshot</div>` : ""}`;
-        $("stockTable").innerHTML = `<thead><tr><th>Model</th><th>Brand</th><th>Description</th><th title="NetSuite Merch Class">Merch class</th><th>Category</th><th>Units</th><th>Store</th><th title="The ePASS price level the shop sells at: RETAIL (retail deck — MAP/PMAP), a brand UMRP/MAP code, else L1">ePASS price</th><th title="Advertise floor from ePASS (RETAIL or brand UMRP/MAP). At or above it the price shows on the card; below it, in the cart only.">MAP</th><th>Override $</th><th class="ctr" title="List the model even when only one unit is in stock">Show if 1</th><th class="ctr">Hidden</th><th></th></tr></thead>
+        $("stockTable").innerHTML = `<thead><tr><th>Model</th><th>Brand</th><th>Description</th><th title="NetSuite Merch Class">Merch class</th><th>Category</th><th>Units</th><th>Store</th><th title="The ePASS price level the shop sells at: RETAIL (retail deck — MAP/PMAP), a brand UMRP/MAP code, else L1">ePASS price</th><th title="Advertise floor from ePASS (RETAIL or brand UMRP/MAP). At or above it the price shows on the card; below it, in the cart only.">MAP</th><th>Override $</th><th class="ctr" title="List the model even when only one unit is in stock">Show if 1</th><th class="ctr">Hidden</th><th title="Eye-catcher chip on the card — e.g. One of a Kind, 92% Off. Leave blank for none.">Chip</th><th class="ctr" title="Drop the automatic In Stock / Low Stock chip on this model's card">No stock chip</th><th></th></tr></thead>
           <tbody>${rows.map((m) => `<tr data-model="${esc(m.key)}">
             <td><b>${esc(m.model)}</b></td>
             <td>${esc(m.brand)}${m.brandCode && m.brandCode.toUpperCase() !== String(m.brand).toUpperCase() ? ` <span class="meta">${esc(m.brandCode)}</span>` : ""}</td>
@@ -179,8 +184,10 @@
             <td><input type="number" step="0.01" min="0" class="st-price" value="${m.settings.price ?? ""}" placeholder="${m.listPrice ?? "list"}"></td>
             <td class="ctr"><input type="checkbox" class="st-single" ${m.settings.showSingle ? "checked" : ""}></td>
             <td class="ctr"><input type="checkbox" class="st-hidden" ${m.settings.hidden ? "checked" : ""}></td>
+            <td class="chipcell"><input type="text" class="st-badge" maxlength="24" placeholder="e.g. One of a Kind" value="${esc(m.settings.badge || "")}"><select class="st-badge-style">${["red", "amber", "green", "blue", "purple", "black"].map((c) => `<option value="${c}"${(m.settings.badgeStyle || "red") === c ? " selected" : ""}>${c}</option>`).join("")}</select>${m.settings.badge ? `<span class="eye-prev ${esc(m.settings.badgeStyle || "red")}">${esc(m.settings.badge)}</span>` : ""}</td>
+            <td class="ctr"><input type="checkbox" class="st-nostock" ${m.settings.hideStockBadge ? "checked" : ""}></td>
             <td><button type="button" class="ws-btn quiet st-save">Save</button></td>
-          </tr>`).join("") || '<tr><td colspan="13" class="meta">Nothing matches.</td></tr>'}</tbody>`;
+          </tr>`).join("") || '<tr><td colspan="15" class="meta">Nothing matches.</td></tr>'}</tbody>`;
         const missing = all.length - (data.netsuiteModels || 0);
         $("nsNote").textContent = data.netsuiteModels
           ? `Brand and Merch Class come from the NetSuite item catalog import (ePASS Uploads). ${data.netsuiteModels} of ${all.length} in-stock models are in it${missing ? `; ${missing} fall back to the ePASS brand and have no merch class — re-import the NetSuite items export to fill them in` : ""}.`
@@ -214,7 +221,8 @@
         try {
           const res = await fetch(`/api/shop/stock-models/${encodeURIComponent(tr.dataset.model)}`, {
             method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ price: tr.querySelector(".st-price").value, showSingle: tr.querySelector(".st-single").checked, hidden: tr.querySelector(".st-hidden").checked })
+            body: JSON.stringify({ price: tr.querySelector(".st-price").value, showSingle: tr.querySelector(".st-single").checked, hidden: tr.querySelector(".st-hidden").checked,
+              badge: tr.querySelector(".st-badge").value, badgeStyle: tr.querySelector(".st-badge-style").value, hideStockBadge: tr.querySelector(".st-nostock").checked })
           });
           const body = await res.json();
           if (!res.ok) throw new Error(body.error || "Save failed.");

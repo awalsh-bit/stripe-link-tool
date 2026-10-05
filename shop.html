@@ -390,9 +390,21 @@
     footer { border-top: 1px solid var(--line); background: #fff; }
     .foot-inner { max-width: 1140px; margin: 0 auto; padding: 18px; font-size: 12.5px; color: var(--muted); line-height: 1.6; text-align: center; }
 
+    /* Header buttons never wrap or shrink; the title gives way instead. */
+    .head-inner .btn, .head-inner .unlock-chip { white-space: nowrap; flex: 0 0 auto; }
+    .head-inner .unlock-chip { max-width: 160px; overflow: hidden; text-overflow: ellipsis; }
     @media (max-width: 560px) {
       .form-grid { grid-template-columns: 1fr; }
+      .head-inner { padding: 10px 12px; gap: 8px; }
+      .head-inner img { height: 24px; }
+      .head-title { flex: 1 1 auto; min-width: 0; font-size: 13px; line-height: 1.15; overflow: hidden; }
       .head-title .sub { display: none; }
+      /* Signed in, the profile chip takes the title's room. */
+      body.unlocked .head-title { display: none; }
+      .head-spacer { display: none; }
+      .head-inner .btn { padding: 9px 11px; font-size: 14px; border-radius: 10px; }
+      .head-inner .unlock-chip { max-width: 130px; padding: 7px 10px; font-size: 12.5px; }
+      body.unlocked .head-spacer { display: block; }
       .drawer-head { padding: 12px 16px; }
       .drawer-body { padding: 10px 16px; }
       .totals { padding: 8px 16px; padding-bottom: calc(8px + env(safe-area-inset-bottom, 0px)); }
@@ -400,6 +412,15 @@
       .tot-row.grand { font-size: 16px; padding-top: 6px; }
       .tax-note { font-size: 11px; margin: 4px 0 8px; line-height: 1.35; }
       .totals .btn.primary { padding: 12px 14px; }
+    }
+    @media (max-width: 380px) {
+      .head-inner .unlock-chip { max-width: 96px; }
+      .head-title { font-size: 12px; }
+      .cart-count { right: -3px; }
+    }
+    /* Narrow Androids: the logo carries the brand; the title would only clip. */
+    @media (max-width: 368px) {
+      .head-title { display: none; }
     }
   </style>
 </head>
@@ -871,6 +892,7 @@
   function renderHeader() {
     $("unlockBtn").style.display = state.unlocked ? "none" : "";
     $("unlockChip").style.display = state.unlocked ? "" : "none";
+    document.body.classList.toggle("unlocked", Boolean(state.unlocked));
     if (state.unlocked) {
       // Andrew 9/28: just the person's profile — no "pricing unlocked" copy.
       const nm = String(state.shopperName || "").trim();

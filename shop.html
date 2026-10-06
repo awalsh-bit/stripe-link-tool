@@ -372,6 +372,22 @@
     .tot-row { display: flex; justify-content: space-between; font-size: 14px; padding: 3px 0; }
     .tot-row.grand { font-size: 17px; font-weight: 700; padding-top: 8px; }
     .tax-note { font-size: 12px; color: var(--muted); line-height: 1.5; margin: 8px 0 12px; }
+    /* Promo code entry + applied row in the cart totals. */
+    .promo-entry { padding: 4px 0 2px; }
+    .promo-entry .hidden, .promo-form.hidden { display: none; }
+    .promo-link { background: none; border: none; padding: 0; color: var(--primary); font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
+    .promo-form { display: flex; gap: 8px; }
+    .promo-form input { flex: 1; min-width: 0; border: 1px solid #d1d5db; border-radius: 10px; padding: 9px 12px; font: inherit; font-size: 14px; text-transform: uppercase; }
+    .promo-form .btn { padding: 9px 14px; font-size: 14px; }
+    .promo-err { color: #b91c1c; font-size: 12.5px; margin-top: 4px; }
+    .promo-err:empty { display: none; }
+    .promo-row > span:first-child { display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap; min-width: 0; }
+    .promo-tag { background: var(--wash); color: var(--primary-dark); border: 1px solid #cfe3d2; border-radius: 6px; padding: 1px 7px; font-size: 12px; font-weight: 700; letter-spacing: 0.04em; }
+    .promo-note { color: var(--muted); font-size: 12.5px; }
+    .promo-amt { color: var(--primary-dark); font-weight: 700; }
+    .promo-rm { background: none; border: none; color: var(--muted); cursor: pointer; font-size: 14px; padding: 0 4px; line-height: 1; }
+    .promo-rm:hover { color: #b91c1c; }
+    .promo-notice { background: #fef3c7; color: #92400e; border: 1px solid #fcd34d; border-radius: 10px; padding: 9px 12px; font-size: 13px; margin-bottom: 10px; }
 
     /* ---- Checkout ---- */
     .checkout-section { margin-top: 14px; }
@@ -729,6 +745,8 @@
 (() => {
   const TOKEN_KEY = "wilsonShopToken";
   const ZIP_KEY = "wilsonShopZip";
+  const PROMO_KEY = "wilsonShopPromo";
+  const readPromo = () => { try { const p = JSON.parse(sessionStorage.getItem(PROMO_KEY) || "null"); return p && p.code ? p : null; } catch { return null; } };
 
   const state = {
     token: localStorage.getItem(TOKEN_KEY) || "",
@@ -746,6 +764,11 @@
     cart: { itemIds: [], addonLines: [] }, // addonLines: [{ id, itemId, qty }] - every add-on belongs to the appliance it was picked for
     cartPrices: {}, // id -> price, revealed once a unit is in the cart
     cartPriceError: "",
+    // Applied promo code as the server described it: { code, description,
+    // kind, value, minSubtotal }. The discount is recomputed here as the cart
+    // changes (same math as the server) and re-checked at checkout.
+    promo: readPromo(),
+    promoNotice: "",
     shown: 20, gridSig: "", // tiles built so far (see renderGrid)
     // selection: { label, cats: [category keys], products: [product codes] } | null
     // sort "best" = brand units sold in the last 12 months (server `brandSold`),
@@ -1924,12 +1947,40 @@
     }
     const pickup = state.fulfillment.method === "pickup";
     const delivery = items.length && !pickup ? (state.delivery?.price || 0) : 0;
-    const taxableBase = itemsTotal + taxableAddons + delivery;
+    // Promo: percent / dollars off the appliances, or the delivery fee
+    // waived. Mirrors the server; it re-prices at checkout anyway.
+    let discount = 0, promoNote = "";
+    const p = state.promo;
+    if (p && items.length) {
+      if (p.minSubtotal > 0 && itemsTotal < p.minSubtotal) promoNote = `needs $${Number(p.minSubtotal).toLocaleString("en-US", { minimumFractionDigits: 2 })} in appliances`;
+      else if (p.kind === "free_delivery" && pickup) promoNote = "applies to delivery orders";
+      else if (p.kind === "percent") discount = Math.min(itemsTotal, itemsTotal * p.value / 100);
+      else if (p.kind === "amount") discount = Math.min(itemsTotal, p.value);
+      else if (p.kind === "free_delivery") discount = delivery;
+      discount = Math.round(discount * 100) / 100;
+    }
+    const taxableBase = itemsTotal + taxableAddons + delivery - discount;
     const tax = Math.round(taxableBase * state.taxRate * 100) / 100;
     return {
-      items, itemsTotal, addonsTotal, delivery, tax,
-      total: Math.round((itemsTotal + addonsTotal + delivery + tax) * 100) / 100
+      items, itemsTotal, addonsTotal, delivery, discount, promoNote, tax,
+      total: Math.round((itemsTotal + addonsTotal + delivery - discount + tax) * 100) / 100
     };
+  }
+
+  function setPromo(p) {
+    state.promo = p || null;
+    try { if (p) sessionStorage.setItem(PROMO_KEY, JSON.stringify(p)); else sessionStorage.removeItem(PROMO_KEY); } catch {}
+  }
+  function promoLabel(p) { return p.description || (p.kind === "percent" ? `${p.value}% off appliances` : p.kind === "amount" ? `${money(p.value)} off appliances` : "Free delivery"); }
+  async function applyPromo(code) {
+    const res = await fetch("/api/shop/promo-check", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ code, token: state.token || undefined, cart: cartPayload(), fulfillment: fulfillPayload() })
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || "That code didn't work.");
+    setPromo(data.promo);
+    return data;
   }
 
   // Freeze the page behind the drawer without losing its scroll position.
@@ -2096,15 +2147,43 @@
       renderCartCount(); renderCart();
     }));
 
+    const promoRow = state.promo
+      ? `<div class="tot-row promo-row"><span><span class="promo-tag">${esc(state.promo.code)}</span> ${esc(promoLabel(state.promo))}${t.promoNote ? ` <span class="promo-note">— ${esc(t.promoNote)}</span>` : ""}<button type="button" class="promo-rm" id="promoRm" aria-label="Remove promo code">✕</button></span><span class="${t.discount ? "promo-amt" : ""}">${t.discount ? "−" + money(t.discount) : "—"}</span></div>`
+      : `<div class="promo-entry" id="promoEntry">
+          <button type="button" class="promo-link" id="promoOpen">Have a promo code?</button>
+          <div class="promo-form hidden" id="promoForm">
+            <input type="text" id="promoInput" placeholder="Promo code" autocomplete="off" autocapitalize="characters" spellcheck="false" maxlength="32">
+            <button type="button" class="btn ghost" id="promoApply">Apply</button>
+          </div>
+          <div class="promo-err" id="promoErr"></div>
+        </div>`;
     $("drawerTotals").innerHTML = `
       <div class="tot-row"><span>Appliances</span><span>${money(t.itemsTotal)}</span></div>
       ${t.addonsTotal ? `<div class="tot-row"><span>Parts &amp; installation</span><span>${money(t.addonsTotal)}</span></div>` : ""}
       <div class="tot-row"><span>${state.fulfillment.method === "pickup" ? "Customer Pickup" : "White Glove Delivery"}</span><span>${state.fulfillment.method === "pickup" ? "FREE" : money(t.delivery)}</span></div>
+      ${promoRow}
       <div class="tot-row"><span>Sales tax (${(state.taxRate * 100).toFixed(2).replace(/\.?0+$/, "")}%)</span><span>${money(t.tax)}</span></div>
       <div class="tot-row grand"><span>Estimated total</span><span>${money(t.total)}</span></div>
       <div class="tax-note">Nothing is charged until a Wilson team member confirms your order with you.</div>
       <button class="btn primary" id="checkoutBtn" style="width:100%;">Continue to secure checkout</button>`;
     document.getElementById("checkoutBtn").addEventListener("click", startCheckout);
+    const rm = document.getElementById("promoRm");
+    if (rm) rm.addEventListener("click", () => { setPromo(null); renderCart(); });
+    const open = document.getElementById("promoOpen");
+    if (open) {
+      const form = document.getElementById("promoForm"), input = document.getElementById("promoInput"), err = document.getElementById("promoErr"), apply = document.getElementById("promoApply");
+      open.addEventListener("click", () => { open.classList.add("hidden"); form.classList.remove("hidden"); input.focus(); });
+      const go = async () => {
+        const code = input.value.trim();
+        err.textContent = "";
+        if (!code) { err.textContent = "Enter a promo code."; return; }
+        apply.disabled = true; apply.textContent = "Checking…";
+        try { await applyPromo(code); renderCart(); }
+        catch (e) { err.textContent = e.message; apply.disabled = false; apply.textContent = "Apply"; }
+      };
+      apply.addEventListener("click", go);
+      input.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); go(); } });
+    }
   }
 
   // ---------- Checkout ----------
@@ -2130,9 +2209,11 @@
     $("drawerTitle").textContent = "Secure checkout";
     const body = $("drawerBody");
     const t = cartTotals();
+    const notice = state.promoNotice; state.promoNotice = "";
     body.innerHTML = `
       <div class="checkout-section">
         <h3>Order summary</h3>
+        ${notice ? `<div class="promo-notice">${esc(notice)}</div>` : ""}
         <div class="summary-box">
           ${t.items.map((i) => [`${esc(i.brand)} ${esc(i.model)} — ${money(i.price)}`,
             ...state.cart.addonLines.filter((l) => l.itemId === i.id).map((l) => { const a = addonInfo(l.id); return a ? `&nbsp;&nbsp;↳ ${esc(a.name)}${l.qty > 1 ? ` × ${l.qty}` : ""} — ${money(a.price * l.qty)}` : ""; }).filter(Boolean),
@@ -2141,8 +2222,9 @@
           <br>${state.fulfillment.method === "pickup"
             ? `Customer Pickup (${state.fulfillment.date === "later" ? "scheduling later" : esc(fulfillDayLabel() || "day TBD")}) — FREE`
             : `${esc(state.delivery?.name || "Delivery")} (${esc(fulfillDayLabel() || "day TBD")}) — ${money(t.delivery)}`}
-          <br>Sales tax — ${money(t.tax)}
-          <br><strong>Estimated total — ${money(t.total)}</strong>
+          ${t.discount ? `<br><span id="sumPromo">Promo ${esc(state.promo.code)} (${esc(promoLabel(state.promo))}) — −${money(t.discount)}</span>` : ""}
+          <br>Sales tax — <span id="sumTax">${money(t.tax)}</span>
+          <br><strong>Estimated total — <span id="sumTotal">${money(t.total)}</span></strong>
         </div>
       </div>
       <div class="checkout-section">
@@ -2170,10 +2252,25 @@
       const res = await fetch("/api/shop/setup-intent", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ token: state.token, cart: cartPayload(), fulfillment: fulfillPayload() })
+        body: JSON.stringify({ token: state.token, cart: cartPayload(), fulfillment: fulfillPayload(), promo: state.promo?.code || "" })
       });
       const data = await res.json();
+      if (!res.ok && data.promoRejected) {
+        // The code stopped working between the cart and here (limit hit,
+        // expired...). Drop it, say why, and re-open checkout at the
+        // regular price so nothing changes under the shopper silently.
+        setPromo(null);
+        state.promoNotice = `${data.error} Your total below is without the code.`;
+        return startCheckout();
+      }
       if (!res.ok) throw new Error(data.error || "Unable to start checkout.");
+      // Server math is authoritative for what the shopper is agreeing to.
+      if (data.pricing?.totals) {
+        const st = data.pricing.totals;
+        const elTax = document.getElementById("sumTax"), elTot = document.getElementById("sumTotal");
+        if (elTax) elTax.textContent = money(st.tax);
+        if (elTot) elTot.textContent = money(st.total);
+      }
       state.checkout.setupIntentId = data.setupIntentId;
       state.checkout.billing = data.billing || null;
 
@@ -2262,11 +2359,21 @@
           token: state.token,
           setupIntentId: state.checkout.setupIntentId,
           cart: cartPayload(),
-          fulfillment: fulfillPayload()
+          fulfillment: fulfillPayload(),
+          promo: state.promo?.code || ""
         })
       });
       const data = await res.json();
+      if (!res.ok && data.promoRejected) {
+        // Last redemption went to someone else between the card step and
+        // filing. Drop the code and restart checkout at the regular price
+        // (a fresh card step — the saved intent was for the other total).
+        setPromo(null);
+        state.promoNotice = `${data.error} Your total below is without the code — please re-enter your card to place the order.`;
+        return startCheckout();
+      }
       if (!res.ok) throw new Error(data.error || "Unable to file your order.");
+      setPromo(null);
 
       const fulfillLine = state.fulfillment.method === "pickup"
         ? (state.fulfillment.date === "later"

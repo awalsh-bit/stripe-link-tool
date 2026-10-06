@@ -204,6 +204,22 @@ import {
   saveShopExpressSettings
 } from "./lib/shop-postgres.js";
 import {
+  PROMO_KIND_LABELS,
+  normalizePromoCode,
+  publicPromo,
+  listShopPromoCodes,
+  findShopPromoByCode,
+  createShopPromoCode,
+  updateShopPromoCode,
+  deleteShopPromoCode,
+  countShopperPromoRedemptions,
+  promoBlockReason,
+  promoDiscount,
+  recordShopPromoRedemption,
+  releaseShopPromoRedemptions,
+  listShopPromoRedemptions
+} from "./lib/shop-promos-postgres.js";
+import {
   normalizeCreditAppToken,
   getCreditApplication,
   saveCreditApplicationStep,
@@ -708,6 +724,7 @@ const SHOP_PUBLIC_API_PREFIXES = [
   "/api/shop/password",
   "/api/shop/catalog",
   "/api/shop/cart-prices",
+  "/api/shop/promo-check",
   "/api/shop/setup-intent",
   "/api/shop/submit-order",
   "/api/shop/setup-intent-result/"
@@ -6687,7 +6704,9 @@ function shopAddonById(addons) {
 // Recompute the whole cart server-side. Returns null if any unit is gone.
 const SHOP_UNCRATE_LINE = { id: "uncrate-set-in-place", name: "Uncrate, set in place", type: "service", price: 0,
   description: "Appliance's exterior packaging may be removed and the product inspected. No interior packaging removed and no installation included" };
-function priceShopCart(catalog, cart, fulfillment) {
+// `promo` is a resolved promo-code record (lib/shop-promos-postgres) that
+// has already passed promoBlockReason for this shopper, or null.
+function priceShopCart(catalog, cart, fulfillment, promo = null) {
   const itemById = new Map(catalog.items.map((i) => [i.id, i]));
   const addonMap = shopAddonById(catalog.addons);
 
@@ -6754,22 +6773,31 @@ function priceShopCart(catalog, cart, fulfillment) {
     };
   }
 
+  // Promo code: percent / dollars come off the appliances, free delivery
+  // zeroes the delivery fee. A retailer's own discount reduces the taxable
+  // sales price in Texas, so tax is figured on the discounted base.
+  const discount = promo ? promoDiscount(promo, { itemsTotal, deliveryPrice: delivery.price }) : 0;
+  const discountOnDelivery = promo?.kind === "free_delivery" ? discount : 0;
+  const discountOnItems = discount - discountOnDelivery;
+
   // Tax: items, parts, and delivery always; install labor only when the
   // addon is flagged taxable (freestanding product — built-ins are exempt).
-  const taxableBase = itemsTotal
+  const taxableBase = itemsTotal - discountOnItems
     + addons.reduce((s, a) => s + (a.taxable ? a.price * a.qty : 0), 0)
-    + delivery.price;
+    + delivery.price - discountOnDelivery;
   const tax = Math.round(taxableBase * SHOP_TAX_RATE * 100) / 100;
-  const total = Math.round((itemsTotal + addonsTotal + delivery.price + tax) * 100) / 100;
+  const total = Math.round((itemsTotal + addonsTotal + delivery.price - discount + tax) * 100) / 100;
 
   return {
     items,
     addons,
     delivery,
+    promo: promo ? { ...publicPromo(promo), id: promo.id, discount } : null,
     totals: {
       items: Math.round(itemsTotal * 100) / 100,
       addons: Math.round(addonsTotal * 100) / 100,
       delivery: delivery.price,
+      ...(promo ? { discount, promo: { code: promo.code, description: promo.description, kind: promo.kind, value: promo.value } } : {}),
       fulfillment: method,
       deliveryDate: delivery.date || null,
       taxRate: SHOP_TAX_RATE,
@@ -6779,6 +6807,56 @@ function priceShopCart(catalog, cart, fulfillment) {
     }
   };
 }
+
+// Resolve the promo code a checkout request carries against this shopper and
+// cart. Returns { promo } (null when no code was sent) or { error } with the
+// shopper-facing reason. `priced` is the cart priced WITHOUT the promo.
+async function resolveShopPromo({ code, priced, shopper }) {
+  const clean = normalizePromoCode(code);
+  if (!clean) return { promo: null };
+  const promo = await findShopPromoByCode(clean);
+  if (!promo) return { error: "That promo code isn't valid." };
+  const shopperUses = shopper ? await countShopperPromoRedemptions({ promoId: promo.id, shopperId: shopper.id }) : 0;
+  const reason = promoBlockReason(promo, {
+    subtotal: priced.totals.items,
+    shopperUses,
+    pickup: priced.totals.fulfillment === "pickup"
+  });
+  if (reason) return { error: reason };
+  return { promo };
+}
+
+// PUBLIC: "Apply" on a promo code in the cart. Prices the cart as sent and
+// answers with the code's label + math (so the page can keep the totals in
+// step as the cart changes) and the discount for this cart right now. The
+// same checks run again at setup-intent and at submit.
+app.post("/api/shop/promo-check", rateLimit("shop-promo-check", 30, 15 * 60 * 1000), async (req, res) => {
+  try {
+    const code = normalizePromoCode(req.body?.code);
+    if (!code) return res.status(400).json({ error: "Enter a promo code." });
+    const shopper = req.body?.token ? await getShopperByToken(req.body.token).catch(() => null) : null;
+    const catalog = await computeShopCatalog({ maxAgeMs: SHOP_CATALOG_CACHE_MS });
+    // Price without the schedule check: a shopper can apply a code before
+    // picking a day, so a missing/stale day shouldn't block the code.
+    const pickup = req.body?.fulfillment?.method === "pickup";
+    let priced = priceShopCart(catalog, req.body?.cart, { method: pickup ? "pickup" : "delivery", date: req.body?.fulfillment?.date });
+    if (priced.badSchedule) {
+      // "later" pickup always prices; put the delivery fee back for the
+      // delivery case so free-delivery codes show the right amount.
+      priced = priceShopCart(catalog, req.body?.cart, { method: "pickup", date: "later" });
+      if (!pickup && priced.totals) priced.totals = { ...priced.totals, fulfillment: "delivery", delivery: SHOP_DELIVERY_OFFER.price };
+    }
+    if (priced.empty) return res.status(400).json({ error: "Add an appliance to your cart first." });
+    if (priced.unavailable) return res.status(409).json({ error: "An item in your cart is no longer available. Refresh to see what's still in stock." });
+    const promoRes = await resolveShopPromo({ code, priced, shopper });
+    if (promoRes.error) return res.status(400).json({ error: promoRes.error });
+    const discount = promoDiscount(promoRes.promo, { itemsTotal: priced.totals.items, deliveryPrice: priced.totals.delivery });
+    return res.json({ ok: true, promo: publicPromo(promoRes.promo), discount });
+  } catch (err) {
+    console.error("Promo check failed:", err.message);
+    return res.status(500).json({ error: "Unable to check that code right now." });
+  }
+});
 
 // PUBLIC: the door check.
 app.post("/api/shop/zip-check", (req, res) => {
@@ -7253,7 +7331,7 @@ app.post("/api/shop/setup-intent", async (req, res) => {
 
     const catalog = await computeShopCatalog();
     if (catalog.paused) return res.status(503).json({ error: "Online checkout is briefly paused while we refresh inventory. Please try again soon or call the store." });
-    const priced = priceShopCart(catalog, req.body?.cart, req.body?.fulfillment);
+    let priced = priceShopCart(catalog, req.body?.cart, req.body?.fulfillment);
     if (priced.badSchedule) {
       return res.status(400).json({ error: "Please pick a day for your delivery or pickup — the option you selected is no longer available." });
     }
@@ -7261,6 +7339,12 @@ app.post("/api/shop/setup-intent", async (req, res) => {
     if (priced.unavailable) {
       return res.status(409).json({ error: "An item in your cart was just claimed by another buyer. Refresh to see what's still available." });
     }
+    // Promo code: resolved against this shopper; a code that stopped working
+    // since it was applied is an error here (the page shows why), never a
+    // silent drop that changes the total under the shopper.
+    const promoRes = await resolveShopPromo({ code: req.body?.promo, priced, shopper });
+    if (promoRes.error) return res.status(400).json({ error: promoRes.error, promoRejected: true });
+    if (promoRes.promo) priced = priceShopCart(catalog, req.body?.cart, req.body?.fulfillment, promoRes.promo);
 
     const customerConfig = {
       name: `${shopper.firstName} ${shopper.lastName}`,
@@ -9343,7 +9427,7 @@ app.post("/api/shop/submit-order", async (req, res) => {
 
     const catalog = await computeShopCatalog();
     if (catalog.paused) return res.status(503).json({ error: "Online checkout is briefly paused while we refresh inventory. Please try again soon or call the store." });
-    const priced = priceShopCart(catalog, req.body?.cart, req.body?.fulfillment);
+    let priced = priceShopCart(catalog, req.body?.cart, req.body?.fulfillment);
     if (priced.badSchedule) {
       return res.status(400).json({ error: "Please pick a day for your delivery or pickup — the option you selected is no longer available." });
     }
@@ -9351,6 +9435,11 @@ app.post("/api/shop/submit-order", async (req, res) => {
     if (priced.unavailable) {
       return res.status(409).json({ error: "An item in your cart was just claimed by another buyer. Refresh to see what's still available." });
     }
+    // Promo re-check at the moment of filing: the last redemption of a
+    // capped code goes to whoever files first.
+    const promoRes = await resolveShopPromo({ code: req.body?.promo, priced, shopper });
+    if (promoRes.error) return res.status(400).json({ error: promoRes.error, promoRejected: true });
+    if (promoRes.promo) priced = priceShopCart(catalog, req.body?.cart, req.body?.fulfillment, promoRes.promo);
 
     const card = setupIntent.payment_method?.card || {};
     const cardSummary = card.brand
@@ -9383,6 +9472,11 @@ app.post("/api/shop/submit-order", async (req, res) => {
       cardSummary
     });
 
+    if (priced.promo) {
+      await recordShopPromoRedemption({ promoId: priced.promo.id, orderId: order.id, orderNumber: order.orderNumber, shopperId: shopper.id, discount: priced.promo.discount })
+        .catch((err) => console.error("Promo redemption record failed:", err.message));
+    }
+
     for (const item of priced.items) {
       try {
         const lock = await markWebLock({ itemId: item.id, orderNumber: order.orderNumber });
@@ -9403,6 +9497,7 @@ app.post("/api/shop/submit-order", async (req, res) => {
         orderNumber: order.orderNumber,
         items: priced.items.length,
         total: priced.totals.total,
+        ...(priced.promo ? { promo: priced.promo.code, discount: priced.promo.discount } : {}),
         fulfillment: priced.totals.fulfillment,
         deliveryDate: priced.totals.deliveryDate,
         conflicts: lockConflicts.length
@@ -9494,17 +9589,39 @@ app.get("/api/shop-orders", requirePagePermission("/shop-orders.html"), async (r
 // clearance list so the checklist always matches what's actually for sale.
 app.get("/api/shop/express-settings", requirePagePermission("/shop-orders.html"), async (req, res) => {
   try {
-    const [settings, { clearance }] = await Promise.all([getShopExpressSettings(), loadShopData()]);
+    // Andrew 10/6: the qualifying-product list used to be built from the
+    // clearance list alone, so product codes that only exist in the stock
+    // feed (the bulk of the Express Assortment) could never be checked. Count
+    // from the full computed catalog - clearance units plus every stock unit -
+    // and fold in stock models that are in the feed but not listed right now,
+    // so a code can be enabled ahead of the units going live.
+    const [settings, catalog, { clearance }] = await Promise.all([
+      getShopExpressSettings(), computeShopCatalog({ maxAgeMs: SHOP_CATALOG_CACHE_MS }), loadShopData()
+    ]);
     const catLabels = new Map((clearance._meta?.categories || []).map((c) => [c.key, c.label]));
+    for (const c of catalog.categories || []) if (c?.key && c.label && !catLabels.has(c.key)) catLabels.set(c.key, c.label);
     const counts = new Map();
-    for (const item of clearance.items || []) {
-      const key = `${item.category}|${item.product}`;
-      counts.set(key, (counts.get(key) || 0) + 1);
+    const bump = (category, product, n) => {
+      if (!product) return;
+      const key = `${category || ""}|${product}`;
+      counts.set(key, (counts.get(key) || 0) + n);
+    };
+    for (const item of catalog.items || []) bump(item.category, item.product, 1);
+    const listedKeys = new Set(counts.keys());
+    const unlisted = new Map();
+    for (const m of catalog.stockModels || []) {
+      const key = `${m.category || ""}|${m.product || ""}`;
+      if (!m.product || listedKeys.has(key)) continue;
+      unlisted.set(key, (unlisted.get(key) || 0) + (Number(m.available) || Number(m.inStock) || 0));
     }
+    for (const [key, n] of unlisted) if (!counts.has(key)) counts.set(key, 0);
+    // Settings may still reference a code with nothing in stock today - keep
+    // it visible so it can be unchecked rather than silently dropped.
+    for (const key of settings.products || []) if (!counts.has(key)) counts.set(key, 0);
     const options = [...counts.entries()]
       .map(([key, count]) => {
         const [category, product] = key.split("|");
-        return { key, category, categoryLabel: catLabels.get(category) || category, product, count };
+        return { key, category, categoryLabel: catLabels.get(category) || category || "Other", product, count, unlisted: unlisted.get(key) || 0 };
       })
       .sort((a, b) => a.categoryLabel.localeCompare(b.categoryLabel) || a.product.localeCompare(b.product));
     return res.json({ settings, options });
@@ -9532,6 +9649,55 @@ app.post("/api/shop/express-settings", requirePagePermission("/shop-orders.html"
   } catch (err) {
     console.error("Express settings save failed:", err.message);
     return res.status(500).json({ error: "Unable to save express install settings." });
+  }
+});
+
+// ---- Promo codes (Online Shop Orders → Promo codes) ----
+app.get("/api/shop/promo-codes", requirePagePermission("/shop-orders.html"), async (req, res) => {
+  try {
+    return res.json({ promos: await listShopPromoCodes(), kinds: PROMO_KIND_LABELS });
+  } catch (err) {
+    console.error("Promo list failed:", err.message);
+    return res.status(500).json({ error: "Unable to load promo codes." });
+  }
+});
+app.get("/api/shop/promo-codes/:id/redemptions", requirePagePermission("/shop-orders.html"), async (req, res) => {
+  try {
+    if (!/^[0-9a-f-]{36}$/i.test(req.params.id)) return res.status(400).json({ error: "Bad id." });
+    return res.json({ redemptions: await listShopPromoRedemptions(req.params.id) });
+  } catch (err) {
+    return res.status(500).json({ error: "Unable to load redemptions." });
+  }
+});
+app.post("/api/shop/promo-codes", requirePagePermission("/shop-orders.html"), async (req, res) => {
+  try {
+    const promo = await createShopPromoCode(req.body || {}, req.authUser?.email || "");
+    recordAudit({ ip: req.ip, actorUserId: req.authUser?.id || null, action: "shop_promo_created", targetUserId: null,
+      detail: { code: promo.code, kind: promo.kind, value: promo.value, maxRedemptions: promo.maxRedemptions, perShopper: promo.perShopper, minSubtotal: promo.minSubtotal, startsAt: promo.startsAt, endsAt: promo.endsAt } }).catch(() => {});
+    return res.json({ ok: true, promo });
+  } catch (err) {
+    return res.status(400).json({ error: err.message || "Unable to create the promo code." });
+  }
+});
+app.patch("/api/shop/promo-codes/:id", requirePagePermission("/shop-orders.html"), async (req, res) => {
+  try {
+    if (!/^[0-9a-f-]{36}$/i.test(req.params.id)) return res.status(400).json({ error: "Bad id." });
+    const promo = await updateShopPromoCode(req.params.id, req.body || {}, req.authUser?.email || "");
+    recordAudit({ ip: req.ip, actorUserId: req.authUser?.id || null, action: "shop_promo_updated", targetUserId: null,
+      detail: { code: promo.code, changes: Object.keys(req.body || {}) } }).catch(() => {});
+    return res.json({ ok: true, promo });
+  } catch (err) {
+    return res.status(400).json({ error: err.message || "Unable to update the promo code." });
+  }
+});
+app.delete("/api/shop/promo-codes/:id", requirePagePermission("/shop-orders.html"), async (req, res) => {
+  try {
+    if (!/^[0-9a-f-]{36}$/i.test(req.params.id)) return res.status(400).json({ error: "Bad id." });
+    const removed = await deleteShopPromoCode(req.params.id);
+    recordAudit({ ip: req.ip, actorUserId: req.authUser?.id || null, action: "shop_promo_deleted", targetUserId: null, detail: { id: req.params.id } }).catch(() => {});
+    return res.json({ ok: true, removed });
+  } catch (err) {
+    return res.status(400).json({ error: err.message || "Unable to delete the promo code." });
   }
 });
 
@@ -9655,10 +9821,12 @@ app.post("/api/shop-orders/:id/cancel", requirePagePermission("/shop-orders.html
         const status = await getClearanceStatus(item.id);
         if (status && status.status === "web" && status.salesOrder === order.orderNumber) {
           await clearClearanceStatus(item.id);
-    invalidateShopCatalog();
+          invalidateShopCatalog();
         }
       } catch {}
     }
+    // A canceled order hands its promo redemption back to the pool.
+    releaseShopPromoRedemptions({ orderId: order.id }).catch((err) => console.error("Promo release failed:", err.message));
 
     recordAudit({
       ip: req.ip, actorUserId: req.authUser?.id || null,

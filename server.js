@@ -203,6 +203,7 @@ import {
   getShopExpressSettings,
   saveShopExpressSettings
 } from "./lib/shop-postgres.js";
+import { createBrandResolver } from "./lib/brand-names.js";
 import {
   PROMO_KIND_LABELS,
   normalizePromoCode,
@@ -395,6 +396,8 @@ import {
 import {
   parseInvoiceMaintenanceQuotes,
   replaceOpenQuotes,
+  replaceQuoteLines,
+  quoteLinesFromFeedRows,
   saveQuoteDisposition,
   listQuoteOwners,
   getQuoteFollowupBoard,
@@ -6540,9 +6543,10 @@ function shopStockItems({ snapshot, settings, brandMap, brandNames, images, mapP
 // recompute runs in the background for the next reader. A background timer
 // keeps it warm so the first visitor after a quiet spell never waits either.
 const SHOP_CATALOG_CACHE_MS = 20 * 1000;
-const SHOP_CATALOG_STALE_MS = 5 * 60 * 1000;
+const SHOP_CATALOG_STALE_MS = 10 * 60 * 1000;
 let shopCatalogCache = null; // { at, promise }
 let shopCatalogRefreshing = null;
+let shopCatalogLastAsked = 0; // last time a visitor actually asked for the catalog
 function invalidateShopCatalog() { shopCatalogCache = null; }
 function refreshShopCatalogInBackground() {
   if (shopCatalogRefreshing) return shopCatalogRefreshing;
@@ -6553,6 +6557,7 @@ function refreshShopCatalogInBackground() {
   return shopCatalogRefreshing;
 }
 function computeShopCatalog({ maxAgeMs = 0 } = {}) {
+  if (maxAgeMs > 0) shopCatalogLastAsked = Date.now();
   if (maxAgeMs > 0 && shopCatalogCache) {
     const age = Date.now() - shopCatalogCache.at;
     if (age < maxAgeMs) return shopCatalogCache.promise;
@@ -6565,10 +6570,23 @@ function computeShopCatalog({ maxAgeMs = 0 } = {}) {
   }
   return promise;
 }
-// Keep it warm: first build shortly after boot, then once a minute.
+// Keep it warm - but only as warm as the traffic needs (10/8: the flat
+// once-a-minute rebuild - full inventory snapshot + the whole NetSuite model
+// map every 60 s, visitors or not - dragged the whole server down on the
+// Render instance). While the shop is being used (a catalog request in the
+// last 10 minutes) the cache refreshes every minute; idle, every 10 minutes,
+// which is still inside the stale-while-revalidate window so the first
+// visitor after a quiet spell gets an instant answer and a background
+// refresh rather than a cold build.
+const SHOP_WARM_ACTIVE_MS = 10 * 60 * 1000;
+const SHOP_WARM_IDLE_MS = 10 * 60 * 1000;
 if (process.env.DATABASE_URL) {
   setTimeout(() => refreshShopCatalogInBackground(), 8000).unref?.();
-  setInterval(() => refreshShopCatalogInBackground(), 60 * 1000).unref?.();
+  setInterval(() => {
+    const age = shopCatalogCache ? Date.now() - shopCatalogCache.at : Infinity;
+    const active = Date.now() - shopCatalogLastAsked < SHOP_WARM_ACTIVE_MS;
+    if (active ? age >= 55 * 1000 : age >= SHOP_WARM_IDLE_MS) refreshShopCatalogInBackground();
+  }, 60 * 1000).unref?.();
 }
 async function computeShopCatalogFresh() {
   const { clearance, addons, images, mapPolicy } = await loadShopData();
@@ -10385,6 +10403,7 @@ app.post("/api/epass-agent/upload", express.raw({ type: () => true, limit: "60mb
       let wmParsed = null, wmError = null;
       try { wmParsed = parseWrittenModelsFromEpass(bundle); } catch (err) { wmError = err; }
       const quoteRowsAll = Array.isArray(bundle.datasets?.["open-quotes"]) ? bundle.datasets["open-quotes"] : [];
+      const quoteLineRowsAll = Array.isArray(bundle.datasets?.["open-quote-lines"]) ? bundle.datasets["open-quote-lines"] : [];
       bundle.datasets = null;
       epassSalesChain = epassSalesChain.catch(() => {}).then(async () => {
         try {
@@ -10421,6 +10440,11 @@ app.post("/api/epass-agent/upload", express.raw({ type: () => true, limit: "60mb
             const n = await replaceOpenQuotes(quotes, { filename: `ePASS feed ${pulledAt}`.trim(), byEmail: "epass-agent", byName: "ePASS feed" });
             counts.quotes = { rows: qrows.length, open: n, customerField: cal.field, calibrated: cal.compared };
           } else counts.quotes = { rows: 0, skipped: "no open-quotes dataset in this bundle (older pull script?)" };
+          // Quote lines (models + brands) for the Brands filter - guarded.
+          try {
+            if (quoteLineRowsAll.length) counts.quoteLines = await replaceQuoteLines(quoteLinesFromFeedRows(quoteLineRowsAll));
+            else counts.quoteLines = { skipped: "no open-quote-lines dataset (older pull script?)" };
+          } catch (err) { console.error("Quote lines refresh failed:", err.message); counts.quoteLines = { error: err.message }; }
         } catch (err) {
           console.error("Quote Follow-Up refresh from ePASS feed failed:", err.message);
           counts.quotes = { error: err.message };
@@ -11415,6 +11439,8 @@ app.post("/api/epass-uploads/model-catalog", requirePagePermission("/epass-uploa
       const merchCatCol = findCol("merch category");
       const merchClassCol = findCol("merch class");
       const merchSubCol = findCol("merch subclass");
+      // NetSuite's supplier for the item (the brand filter on Quote Follow-Up shows it).
+      const vendorCol = findCol("primary supplier", "preferred vendor", "primary vendor", "vendor", "supplier");
       if (modelCol < 0 || brandCol < 0) {
         return res.status(400).json({ error: "Couldn't find Model and Brand columns — is this the NetSuite items export?" });
       }
@@ -11429,7 +11455,8 @@ app.post("/api/epass-uploads/model-catalog", requirePagePermission("/epass-uploa
         rows.push({ model, brand, description: descCol >= 0 ? String(grid[r]?.[descCol] ?? "").trim() : "",
           merchCategory: merchCatCol >= 0 ? String(grid[r]?.[merchCatCol] ?? "").trim() : "",
           merchClass: merchClassCol >= 0 ? String(grid[r]?.[merchClassCol] ?? "").trim() : "",
-          merchSubclass: merchSubCol >= 0 ? String(grid[r]?.[merchSubCol] ?? "").trim() : "" });
+          merchSubclass: merchSubCol >= 0 ? String(grid[r]?.[merchSubCol] ?? "").trim() : "",
+          vendor: vendorCol >= 0 ? String(grid[r]?.[vendorCol] ?? "").trim() : "" });
       }
       if (!rows.length) {
         return res.status(400).json({ error: "No rows with both a model and a brand found in that file." });
@@ -11443,10 +11470,10 @@ app.post("/api/epass-uploads/model-catalog", requirePagePermission("/epass-uploa
       recordAudit({
         ip: req.ip, actorUserId: req.authUser?.id || null,
         action: "model_catalog_imported", targetUserId: null,
-        detail: { filename: req.file.originalname || "", imported: result.imported, added: result.added, updated: result.updated, skippedNoBrand, merchClass: merchClassCol >= 0 }
+        detail: { filename: req.file.originalname || "", imported: result.imported, added: result.added, updated: result.updated, skippedNoBrand, merchClass: merchClassCol >= 0, vendor: vendorCol >= 0 }
       }).catch(() => {});
       const stats = await getModelBrandStats().catch(() => null);
-      return res.json({ ok: true, ...result, skippedNoBrand, merchClassColumn: merchClassCol >= 0, totalModels: stats?.total || result.imported });
+      return res.json({ ok: true, ...result, skippedNoBrand, merchClassColumn: merchClassCol >= 0, vendorColumn: vendorCol >= 0, totalModels: stats?.total || result.imported });
     } catch (parseErr) {
       console.error("Model catalog import failed:", parseErr.message);
       return res.status(400).json({ error: "Couldn't read that file — export it as .csv or .xlsx and try again." });
@@ -12267,16 +12294,7 @@ const BRAND_SALES_UNMATCHED = "— Model not in the ePASS model master —";
 // Last-resort names for ePASS brand codes (the master's 5-character codes)
 // when neither the NetSuite import nor the ePASS Brand master has a name
 // for a code. Data always wins over this table.
-const EPASS_BRAND_NAMES = {
-  SPEED: "Speed Queen", SQ: "Speed Queen", KA: "KitchenAid", KITCH: "KitchenAid", PROF: "GE Profile", CAFE: "Café", MONO: "Monogram",
-  SCOT: "Scotsman", SZ: "Sub-Zero", SUBZ: "Sub-Zero", WOLF: "Wolf", COVE: "Cove", THERM: "Thermador", JENN: "JennAir", JENNA: "JennAir",
-  WHIRL: "Whirlpool", MAYT: "Maytag", FRIG: "Frigidaire", ELECT: "Electrolux", SAMS: "Samsung", FP: "Fisher & Paykel", FISH: "Fisher & Paykel",
-  BLUE: "BlueStar", VIK: "Viking", GAGG: "Gaggenau", UL: "U-Line", ULINE: "U-Line", BERT: "Bertazzoni", LIEB: "Liebherr", ZEPH: "Zephyr",
-  VENT: "Vent-A-Hood", VAH: "Vent-A-Hood", INSIN: "InSinkErator", HEST: "Hestan", TWIN: "Twin Eagles", ALFRE: "Alfresco", MARV: "Marvel",
-  PERL: "Perlick", PANAS: "Panasonic", HISEN: "Hisense", HOTP: "Hotpoint", BLOMB: "Blomberg", AVANT: "Avanti", BROAN: "Broan", DACOR: "Dacor",
-  MIELE: "Miele", BOSCH: "Bosch", TRANE: "Trane", TRUE: "True", ASKO: "Asko", SMEG: "Smeg", LYNX: "Lynx", DCS: "DCS", GE: "GE", LG: "LG",
-  AMANA: "Amana", BEKO: "Beko", DANBY: "Danby", SHARP: "Sharp", HAIER: "Haier", ZLINE: "ZLINE", SUMM: "Summit", BLAZE: "Blaze", COYOT: "Coyote"
-};
+// (The known-code table EPASS_BRAND_NAMES now lives in lib/brand-names.js.)
 function brandSalesWindow(req) {
   const todayStr = new Date().toLocaleDateString("en-CA", { timeZone: APP_TIMEZONE });
   // Default window: the first day of the month five months back → today
@@ -12305,44 +12323,16 @@ app.get("/api/brand-sales", requirePagePermission("/brand-sales.html"), async (r
     // Brand master's description, else the known-code table, else the code
     // title-cased. One name per code, so every model of a code lands in the
     // same row and the NetSuite spelling and the ePASS spelling never split.
-    const canonKey = (x) => String(x || "").trim().toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
-    const titleCase = (x) => String(x || "").trim().replace(/[A-Za-z0-9']+/g, (w) => (w.length <= 2 ? w.toUpperCase() : w[0].toUpperCase() + w.slice(1).toLowerCase()));
-    const nameByCode = new Map(); // brand code → { netsuite: Set, epass: Set }
-    for (const m of data.models) {
-      const code = String(m.brandCode || "").trim().toUpperCase();
-      if (!code) continue;
-      const e = nameByCode.get(code) || { netsuite: new Map(), epass: "" };
-      const ns = String(brandMap[m.model]?.brand || "").trim();
-      if (ns) e.netsuite.set(ns, (e.netsuite.get(ns) || 0) + 1);
-      if (!e.epass && m.brand) e.epass = String(m.brand).trim();
-      nameByCode.set(code, e);
-    }
-    const displayByCode = new Map();
-    for (const [code, e] of nameByCode) {
-      // The NetSuite name most models of this code agree on, proper case preferred.
-      const ns = [...e.netsuite.entries()].sort((a, b) => (/[a-z]/.test(b[0]) - /[a-z]/.test(a[0])) || (b[1] - a[1]) || (b[0].length - a[0].length))[0]?.[0] || "";
-      const name = ns || e.epass || EPASS_BRAND_NAMES[code] || titleCase(code);
-      displayByCode.set(code, /[a-z]/.test(name) ? name : titleCase(name));
-    }
-    const displayFor = new Map(); // canon(name) → display, so two codes with one name still merge
-    const rawBrandOf = (m) => {
-      const code = String(m.brandCode || "").trim().toUpperCase();
-      return (code ? displayByCode.get(code) : "") || String(brandMap[m.model]?.brand || m.brand || "").trim();
-    };
-    for (const m of data.models) {
-      const raw = rawBrandOf(m);
-      if (!raw) continue;
-      const key = canonKey(raw);
-      const cur = displayFor.get(key);
-      const rawHasLower = /[a-z]/.test(raw);
-      if (!cur || (!/[a-z]/.test(cur) && rawHasLower)) displayFor.set(key, rawHasLower ? raw : titleCase(raw));
-    }
+    // (The shared resolver in lib/brand-names.js - the Quote Follow-Up brand
+    // filter uses the same one, so both tools agree on every name.)
+    const resolver = createBrandResolver({ brandMap, samples: data.models });
+    for (const m of data.models) resolver.brandOf(m); // register every spelling first
     const brands = new Map();
     let fromMap = 0;
     for (const m of data.models) {
-      const raw = rawBrandOf(m);
+      const raw = resolver.brandOf(m);
       if (raw && !m.brand && !m.brandCode) fromMap++;
-      const brand = raw ? displayFor.get(canonKey(raw)) : BRAND_SALES_UNMATCHED;
+      const brand = raw ? resolver.displayOf(raw) : BRAND_SALES_UNMATCHED;
       if (!brands.has(brand)) brands.set(brand, { brand, brandCode: m.brandCode || "", revenue: 0, listRevenue: 0, discount: 0, cost: 0, margin: 0, units: 0, returned: 0, orders: 0, unpriced: 0, written: 0, writtenFinished: 0, writtenOpen: 0, writtenOrders: 0, writtenRevenue: 0, models: [] });
       const b = brands.get(brand);
       b.revenue = Math.round((b.revenue + m.revenue) * 100) / 100;

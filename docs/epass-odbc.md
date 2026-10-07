@@ -286,7 +286,15 @@ For service, the **invoice number remains SV00...**, while `InvTypeCode` disting
 
 ## 8b. Finished orders (OE-23 replacement) and open quotes (2026-09-22)
 
-The sales bundle also carries `open-quotes` (Quote Follow-Up). A third
+The sales bundle also carries `open-quotes` (Quote Follow-Up) and, since
+2026-10-07, `open-quote-lines`: `InvoiceModel` rows for those open quotes
+joined to `Model` (BrandCode, ProductCode, SupplierCode, Description), `Brand`
+(Description) and `Supplier` (Description). The server stores them in `quote_followup_lines` (replaced per
+quote on each pull; lines for quotes that have since closed are kept so
+converted/lost rows keep their brands) and the board's Brands drawer filters
+opportunity cards to those carrying at least one model of the chosen brands
+— e.g. a Sub-Zero/Wolf price increase: check every quote with the brand.
+Guarded like `open-quotes`: a failure logs and the bundle continues. A third
 bundle, `epass-finished-orders` (own outbox, first pull of each hour), carries
 `finished-orders` + `finished-serials/items/labor/misc/warranty` +
 `salespeople`: every invoice finished since the 1st of the previous month

@@ -168,6 +168,29 @@
     .qf-panel .err { display: none; background: #fee2e2; color: #991b1b; border-radius: 10px; padding: 8px 11px; font-size: 12.5px; margin-bottom: 12px; }
     .qf-panel .err.show { display: block; }
     .qf-panel-actions { display: flex; gap: 8px; justify-content: flex-end; }
+    /* Brands filter */
+    .qf-brand-btn .n { display: inline-block; min-width: 18px; padding: 0 6px; margin-left: 6px; border-radius: 999px; background: var(--primary); color: #fff; font-size: 11px; font-weight: 800; line-height: 18px; }
+    .qf-brand-chips { display: inline-flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
+    .qf-brand-chip { display: inline-block; border-radius: 6px; padding: 1px 7px; font-size: 10.5px; font-weight: 800; letter-spacing: .02em; background: #f1f5f9; color: #475569; }
+    .qf-brand-chip.hit { background: rgba(var(--primary-rgb), 0.14); color: var(--primary); }
+    .qf-filter-note { display: none; background: rgba(var(--primary-rgb), 0.08); color: var(--primary); border-radius: 10px; padding: 8px 12px; font-size: 13px; margin: 0 0 12px; }
+    .qf-filter-note.show { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+    .qf-filter-note button { margin-left: auto; }
+    .qf-dmask { position: fixed; inset: 0; background: rgba(15,23,42,.35); display: none; z-index: 60; }
+    .qf-dmask.show { display: block; }
+    .qf-drawer { position: fixed; top: 0; right: 0; bottom: 0; width: min(420px, 100vw); background: #fff; box-shadow: -12px 0 40px rgba(0,0,0,.18); transform: translateX(100%); transition: transform .2s ease; z-index: 61; display: flex; flex-direction: column; }
+    .qf-drawer.show { transform: none; }
+    .qf-drawer-head { display: flex; align-items: center; gap: 10px; padding: 16px 18px; border-bottom: 1px solid var(--border); }
+    .qf-drawer-head h3 { margin: 0; flex: 1; font-size: 16px; }
+    .qf-drawer-body { flex: 1; overflow: auto; padding: 6px 18px; }
+    .qf-drawer-foot { display: flex; gap: 8px; align-items: center; padding: 12px 18px; border-top: 1px solid var(--border); }
+    .qf-brand-row { display: flex; align-items: center; gap: 10px; padding: 9px 4px; border-bottom: 1px solid #eef1f6; font-size: 13.5px; cursor: pointer; }
+    .qf-brand-row input { width: 17px; height: 17px; }
+    .qf-brand-row .code { color: var(--muted); font-size: 11.5px; font-weight: 700; margin-left: 6px; }
+    .qf-brand-row .cnt { margin-left: auto; color: var(--muted); font-size: 12px; white-space: nowrap; text-align: right; line-height: 1.35; }
+    .qf-brand-row .cnt b { color: var(--text); }
+    .qf-brand-row .sup { display: block; color: var(--muted); font-size: 11.5px; font-weight: 500; }
+    .qf-drawer input[type="search"] { width: 100%; border: 1px solid var(--border); border-radius: 10px; padding: 9px 12px; font-size: 13.5px; font-family: inherit; margin: 10px 0 4px; }
     @media (max-width: 560px) {
       .qf-grid { grid-template-columns: 1fr; }
     }
@@ -210,11 +233,13 @@
         <button type="button" class="qf-btn quiet" id="qfScoreBtn">Scoreboard</button>
         <button type="button" class="qf-btn quiet" id="qfLeadsBtn" style="display:none;">Service Leads</button>
         <select id="qfSp" style="display:none;" title="Salesperson"></select>
+        <button type="button" class="qf-btn quiet qf-brand-btn" id="qfBrandsBtn" title="Show only opportunity cards with at least one model of the chosen brands">Brands</button>
         <span class="qf-spacer"></span>
         <input type="file" id="qfFile" accept=".xlsx,.xls" style="display:none;" />
         <button type="button" class="qf-btn quiet" id="qfUpload" style="display:none;">Upload quote export</button>
       </div>
       <div class="qf-meta" id="qfMeta"></div>
+      <div class="qf-filter-note" id="qfBrandNote"></div>
 
       <div id="paneScoreboard" style="display:none;"><div class="qf-score-grid" id="gridScore"></div></div>
       <div id="paneLeads" style="display:none;"><div id="leadsBody"><div class="qf-empty">Loading…</div></div></div>
@@ -226,6 +251,17 @@
 
     <div id="internal-shell-footer"></div>
   </div>
+
+  <!-- Brands filter drawer -->
+  <div class="qf-dmask" id="qfBrandMask"></div>
+  <aside class="qf-drawer" id="qfBrandDrawer" aria-label="Filter by brand">
+    <div class="qf-drawer-head"><h3>Filter by brand</h3><button type="button" class="qf-btn quiet" id="qfBrandClose">Close</button></div>
+    <p class="section-note" style="padding:10px 18px 0;margin:0;font-size:12.5px;">Check one or more brands to see every opportunity card — To Work, Follow-Up, Converted and Lost — that has at least one model of that brand on a quote. Brands are the NetSuite names, with every ePASS brand code that maps to them folded in (SZ and SUBZ are both Sub-Zero), each with its NetSuite supplier (ePASS's supplier only when NetSuite hasn't mapped the brand) and the dollars quoted in the current view — sorted by quoted dollars unless you choose brand or supplier order.</p>
+    <div style="padding:0 18px;display:flex;gap:8px;align-items:center;"><input type="search" id="qfBrandSearch" placeholder="Find a brand or supplier…" autocomplete="off" style="flex:1;" />
+      <select id="qfBrandSort" title="Sort" style="margin-top:6px;border:1px solid var(--border);border-radius:10px;padding:9px 10px;font-size:13px;font-family:inherit;background:#fff;"><option value="revenue">Top quoted $</option><option value="brand">Brand A–Z</option><option value="supplier">Supplier A–Z</option></select></div>
+    <div class="qf-drawer-body" id="qfBrandList"></div>
+    <div class="qf-drawer-foot"><span class="section-note" id="qfBrandCount" style="margin:0;font-size:12.5px;"></span><span class="qf-spacer"></span><button type="button" class="qf-btn quiet" id="qfBrandClear">Clear</button><button type="button" class="qf-btn primary" id="qfBrandApply">Apply</button></div>
+  </aside>
 
   <!-- Action overlay: missing conversion (sales order #) / opportunity lost (optional comment) -->
   <div class="qf-overlay" id="qfOverlay">
@@ -264,7 +300,10 @@
     // optional comment). Executives see everyone + the upload box.
     // ------------------------------------------------------------------
     (function () {
-      const state = { data: null, tab: "queue", lastQueueTab: "queue", overlay: null };
+      const state = { data: null, tab: "queue", lastQueueTab: "queue", overlay: null, brands: new Set() };
+      // Brand filter: a card / row passes when any of its quotes carries a chosen brand.
+      const brandHit = (brands) => !state.brands.size || (brands || []).some((b) => state.brands.has(b.code));
+      const brandChips = (brands) => (brands && brands.length) ? `<div class="qf-brand-chips">${brands.map((b) => `<span class="qf-brand-chip${state.brands.has(b.code) ? " hit" : ""}" title="${esc(b.name)}${b.codes && b.codes.length ? " · ePASS " + esc(b.codes.join(", ")) : ""}">${esc(b.name || b.code)}</span>`).join("")}</div>` : "";
 
       const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch]));
       const money = (n) => "$" + Number(n || 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -389,10 +428,26 @@
         }
         $("qfMeta").innerHTML = metaBits.join(" ");
 
-        renderCards("gridQueue", "emptyQueue", b.queue, exec, false);
-        renderCards("gridFollowup", "emptyFollowup", b.followup, exec, true);
-        renderConverted(b.converted, exec);
-        renderLost(b.lost, exec);
+        // Brands filter (drawer): drop any chosen brand no longer in the data.
+        const avail = new Set((b.brands || []).map((x) => x.code));
+        for (const c of [...state.brands]) if (!avail.has(c)) state.brands.delete(c);
+        const f = (list) => state.brands.size ? list.filter((x) => brandHit(x.brands)) : list;
+        const queue = f(b.queue), followup = f(b.followup), convertedRows = f(b.converted), lostRows = f(b.lost);
+        $("qfBrandsBtn").innerHTML = `Brands${state.brands.size ? `<span class="n">${state.brands.size}</span>` : ""}`;
+        $("qfBrandsBtn").style.display = (b.brands || []).length || state.brands.size ? "" : "none";
+        const note = $("qfBrandNote");
+        if (state.brands.size) {
+          const names = (b.brands || []).filter((x) => state.brands.has(x.code)).map((x) => x.name || x.code);
+          note.innerHTML = `<span>Showing opportunities with <strong>${esc(names.join(", "))}</strong> — ${queue.length} to work · ${followup.length} follow-up · ${convertedRows.length} converted · ${lostRows.length} lost.</span><button type="button" class="qf-btn quiet" id="qfBrandNoteClear">Clear brands</button>`;
+          note.classList.add("show");
+          $("qfBrandNoteClear").addEventListener("click", () => { state.brands.clear(); render(); });
+          labels.queue = `To Work (${queue.length} of ${b.queue.length})`; labels.followup = `Follow-Up Queue (${followup.length} of ${b.followup.length})`; labels.converted = `Converted (${convertedRows.length} of ${b.converted.length})`; labels.lost = `Lost (${lostRows.length} of ${b.lost.length})`;
+          for (const opt of $("qfView").options) opt.textContent = labels[opt.value];
+        } else { note.classList.remove("show"); note.innerHTML = ""; }
+        renderCards("gridQueue", "emptyQueue", queue, exec, false);
+        renderCards("gridFollowup", "emptyFollowup", followup, exec, true);
+        renderConverted(convertedRows, exec);
+        renderLost(lostRows, exec);
         renderScoreboard(b.scoreboard || []);
         showTab(state.tab);
       }
@@ -413,7 +468,7 @@
         if (!groups.length) {
           grid.innerHTML = "";
           empty.style.display = "";
-          empty.textContent = isFollowup ? "The follow-up queue is empty." : "Nothing to work — every open quote is converted, queued, or resolved.";
+          empty.textContent = state.brands.size ? "No opportunities with the chosen brands here." : isFollowup ? "The follow-up queue is empty." : "Nothing to work — every open quote is converted, queued, or resolved.";
           return;
         }
         const MAX_CARDS = 600;
@@ -437,6 +492,7 @@
             ${g.source === "service_lead" && g.leadNote ? `<div class="qf-note">${esc(g.leadNote)}${g.address ? " · " + esc(g.address) : ""}</div>` : ""}
             ${g.otherSpConversion ? `<div class="qf-other">Heads up — this customer bought from <strong>${esc(spLabel(g.otherSpConversion.spCode))}</strong> (${esc(g.otherSpConversion.invoice)}, ${day(g.otherSpConversion.finishDate)}) after this quote.</div>` : ""}
             ${isFollowup && g.followupBy ? `<div class="qf-note">Moved to follow-up by ${esc(g.followupBy)} on ${when(g.followupAt)}.</div>` : ""}
+            ${brandChips(g.brands)}
             <table class="qf-quotes"><tbody>${quoteRows(g)}</tbody></table>
             <div class="qf-total-row"><span class="lbl">${g.quotes.length === 1 ? "Quote total" : g.quotes.length + " quotes"}</span><span class="val">${money(g.total)}</span></div>
             <div class="qf-actions">
@@ -469,7 +525,7 @@
             <tbody>${rows.map((r, i) => `
               <tr data-idx="${i}">
                 <td class="qf-qnum">${esc(r.quoteNumber)}</td>
-                <td>${esc(r.customerName)}<span class="qf-cust"> #${esc(r.customerNumber)}</span></td>
+                <td>${esc(r.customerName)}<span class="qf-cust"> #${esc(r.customerNumber)}</span>${brandChips(r.brands)}</td>
                 ${exec ? `<td>${esc(spLabel(r.spCode))}</td>` : ""}
                 <td class="qf-amt">${money(r.total)}</td>
                 <td class="qf-qnum">${r.how === "flagged" ? "<span class='qf-cust'>—</span>" : esc(r.orderNumber)}${r.how === "auto" && r.orderDate ? `<span class="qf-cust"> · ${day(r.orderDate)}</span>` : ""}</td>
@@ -496,7 +552,7 @@
             <tbody>${rows.map((r) => `
               <tr>
                 <td class="qf-qnum">${esc(r.quoteNumber)}</td>
-                <td>${esc(r.customerName)}<span class="qf-cust"> #${esc(r.customerNumber)}</span></td>
+                <td>${esc(r.customerName)}<span class="qf-cust"> #${esc(r.customerNumber)}</span>${brandChips(r.brands)}</td>
                 ${exec ? `<td>${esc(spLabel(r.spCode))}</td>` : ""}
                 <td class="qf-amt">${money(r.total)}</td>
                 <td class="wrap-cell">${esc(r.comment) || "<span class='qf-cust'>—</span>"}</td>
@@ -779,6 +835,43 @@
       }
 
       // ---- overlay ----
+      // ---- Brands drawer ----
+      // NetSuite vendor names carry an id prefix ("0013 Sub-Zero Group") - sort on the words, show verbatim.
+      const supName = (v) => String(v || "").replace(/^\s*\d+\s*[-–]?\s*/, "");
+      function openBrands() {
+        const all = state.data?.board?.brands || [];
+        const draw = (q) => {
+          const needle = String(q || "").trim().toLowerCase();
+          const sortKey = $("qfBrandSort").value;
+          const sorted = all.slice().sort((a, b) => sortKey === "brand" ? (a.name || a.code).localeCompare(b.name || b.code)
+            : sortKey === "supplier" ? ((supName(a.supplier) || "\uffff").localeCompare(supName(b.supplier) || "\uffff") || (a.name || "").localeCompare(b.name || ""))
+            : ((b.revenue || 0) - (a.revenue || 0) || b.quotes - a.quotes || (a.name || "").localeCompare(b.name || "")));
+          const list = needle ? sorted.filter((b) => b.code.toLowerCase().includes(needle) || (b.name || "").toLowerCase().includes(needle) || (b.supplier || "").toLowerCase().includes(needle) || (b.codes || []).some((c) => c.toLowerCase().includes(needle))) : sorted;
+          $("qfBrandList").innerHTML = list.length ? list.map((b) => `<label class="qf-brand-row"><input type="checkbox" data-brand="${esc(b.code)}" ${state.brands.has(b.code) ? "checked" : ""} /><span>${esc(b.name || b.code)}${b.codes && b.codes.length ? `<span class="code" title="ePASS brand code${b.codes.length === 1 ? "" : "s"}">${esc(b.codes.join(", "))}</span>` : ""}${b.supplier ? `<span class="sup" title="${b.supplierSource === "netsuite" ? "Supplier from NetSuite" : "Supplier from the ePASS Supplier master — not mapped in NetSuite yet"}">${esc(b.supplier)}${b.supplierSource === "epass" ? " <span style=\"opacity:.7\">(ePASS)</span>" : ""}</span>` : ""}</span><span class="cnt"><b>${money(b.revenue || 0)}</b><br>${b.quotes} quote${b.quotes === 1 ? "" : "s"}</span></label>`).join("") : `<div class="qf-empty">${all.length ? "No brand or supplier matches that." : "No brands yet — the ePASS feed needs the open-quote-lines dataset (updated pull script)."}</div>`;
+          $("qfBrandList").querySelectorAll("input").forEach((c) => c.addEventListener("change", count));
+          count();
+        };
+        const count = () => { const visible = [...$("qfBrandList").querySelectorAll("input")]; const n = visible.filter((i) => i.checked).length + [...(state.brandsDraft || [])].filter((c) => !visible.some((i) => i.dataset.brand === c)).length; $("qfBrandCount").textContent = n ? `${n} brand${n === 1 ? "" : "s"} selected` : "No brands selected — all cards show"; };
+        $("qfBrandSearch").value = ""; draw("");
+        $("qfBrandSort").onchange = () => { $("qfBrandList").querySelectorAll("input").forEach((c) => { if (c.checked) state.brandsDraft.add(c.dataset.brand); else state.brandsDraft.delete(c.dataset.brand); }); draw($("qfBrandSearch").value); $("qfBrandList").querySelectorAll("input").forEach((c) => { c.checked = state.brandsDraft.has(c.dataset.brand); }); count(); };
+        $("qfBrandSearch").oninput = () => { // keep checks made before the search narrowed the list
+          $("qfBrandList").querySelectorAll("input").forEach((c) => { if (c.checked) state.brandsDraft.add(c.dataset.brand); else state.brandsDraft.delete(c.dataset.brand); });
+          draw($("qfBrandSearch").value);
+          $("qfBrandList").querySelectorAll("input").forEach((c) => { c.checked = state.brandsDraft.has(c.dataset.brand); }); count();
+        };
+        state.brandsDraft = new Set(state.brands);
+        $("qfBrandMask").classList.add("show"); $("qfBrandDrawer").classList.add("show");
+      }
+      function closeBrands() { $("qfBrandMask").classList.remove("show"); $("qfBrandDrawer").classList.remove("show"); }
+      $("qfBrandsBtn").addEventListener("click", openBrands);
+      ["qfBrandClose", "qfBrandMask"].forEach((id) => $(id).addEventListener("click", closeBrands));
+      $("qfBrandClear").addEventListener("click", () => { state.brandsDraft = new Set(); $("qfBrandList").querySelectorAll("input").forEach((c) => { c.checked = false; }); $("qfBrandCount").textContent = "No brands selected — all cards show"; });
+      $("qfBrandApply").addEventListener("click", () => {
+        $("qfBrandList").querySelectorAll("input").forEach((c) => { if (c.checked) state.brandsDraft.add(c.dataset.brand); else state.brandsDraft.delete(c.dataset.brand); });
+        state.brands = new Set(state.brandsDraft);
+        closeBrands(); render();
+      });
+
       function openOverlay(mode, g) {
         state.overlay = { mode, group: g };
         const qn = g.quotes.map((q) => q.quoteNumber).join(", ");

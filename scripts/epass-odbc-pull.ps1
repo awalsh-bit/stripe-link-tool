@@ -552,6 +552,25 @@ ORDER BY i.DateCreated DESC
 "@ (Join-Path $LatestDir "open-quotes.csv") "open-quotes"
   } catch { Log ("open-quotes FAILED (bundle continues without it): {0}" -f $_.Exception.Message); if ($conn.State -ne [System.Data.ConnectionState]::Open) { $conn.Open() } }
 
+  # Open quote LINES (2026-10-07): model + brand per quote so the Quote
+  # Follow-Up board can filter opportunity cards by brand (a Sub-Zero/Wolf
+  # price increase -> check every quote carrying the brand). Guarded.
+  try {
+    $bundle.datasets["open-quote-lines"] = Export-Query $conn @"
+SELECT im.InvoiceCode, im.LineTimeStamp, im.ModelCode, im.Qty, im.UnitPrice, im.Description,
+       m.BrandCode AS Model_BrandCode, m.ProductCode AS Model_ProductCode, m.Description AS Model_Description,
+       m.SupplierCode AS Model_SupplierCode, sp.Description AS Supplier_Description,
+       b.Description AS Brand_Description
+FROM InvoiceModel im
+INNER JOIN Invoice i ON im.InvoiceCode = i.Code
+LEFT JOIN Model m ON im.ModelCode = m.Code
+LEFT JOIN Brand b ON m.BrandCode = b.Code
+LEFT JOIN Supplier sp ON m.SupplierCode = sp.Code
+WHERE i.InvTypeCode IN ('Q','QUOTE') AND UPPER(i.Status) = 'OPEN' AND (i.Void IS NULL OR i.Void = 0)
+ORDER BY im.InvoiceCode, im.LineTimeStamp
+"@ (Join-Path $LatestDir "open-quote-lines.csv") "open-quote-lines"
+  } catch { Log ("open-quote-lines FAILED (bundle continues without it): {0}" -f $_.Exception.Message); if ($conn.State -ne [System.Data.ConnectionState]::Open) { $conn.Open() } }
+
   $json = $bundle | ConvertTo-Json -Depth 6 -Compress
   $path = Join-Path $Outbox "epass-open-orders-$stamp.json"
   [System.IO.File]::WriteAllText($path, $json, (New-Object System.Text.UTF8Encoding($false)))

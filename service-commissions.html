@@ -135,8 +135,9 @@
     <section class="surface">
       <h2>Repair Service Commissions</h2>
       <p class="section-note">
-        Every tech's weekly attainment — <strong>COD labor + COD parts margin + warranty labor</strong> (+ any quota credit) from finished SV tickets in the Sales Order Detail feed — against their weekly quota, and where the quarter's
+        Every tech's weekly attainment — <strong>COD labor + COD parts margin + warranty labor</strong> (+ any quota credit) from finished <strong>and paid</strong> SV tickets in the Sales Order Detail feed — against their weekly quota, and where the quarter's
         commission is trending: <strong>OTE × (weeks ÷ 52) × attainment% − base × (weeks ÷ 52)</strong>, never below $0. Quarters run 12 / 14 / 12 / 14 fiscal weeks; the commission lands on the paycheck 20 days after the quarter's last Saturday.
+        A finished ticket — COD or warranty — is <strong>held</strong> until ePASS shows a zero balance and counts in its finish week once paid; paid after the quarter's check has gone out, it releases into the week it was paid. A balance settled by a write-off is <strong>LOST</strong> and never counts.
       </p>
       <div id="pageStatus" class="status"></div>
       <div class="filters">
@@ -231,6 +232,7 @@
           <label>Q3 weeks <input id="calQ3" type="number" min="1" max="20" style="width:70px;" /></label>
           <label>Q4 weeks <input id="calQ4" type="number" min="1" max="20" style="width:70px;" /></label>
           <label>Pay lag (days) <input id="calLag" type="number" min="0" max="60" style="width:80px;" /></label>
+          <label title="Pattern matched against the ePASS payment type code or description; a payment of this type marks the ticket LOST">Lost (write-off) payment types <input id="calLost" type="text" style="width:260px;" placeholder="write.?off|bad.?debt" /></label>
           <button type="button" class="quiet" id="calSave">Save calendar</button>
         </div>
       </details>
@@ -280,7 +282,7 @@
         $("yearSel").innerHTML = years.map((y) => `<option value="${y}"${y === b.year ? " selected" : ""}>${y}</option>`).join("");
         $("qChips").innerHTML = b.quarters.map((x) => `<button type="button" class="chip${x.q === q.q ? " on" : ""}" data-q="${x.q}">Q${x.q} <small style="opacity:.75;margin-left:4px;">${md(x.start)}–${md(x.end)} · pays ${md(x.payDate)}</small></button>`).join("");
         $("qChips").querySelectorAll(".chip").forEach((c) => c.addEventListener("click", () => { state.quarter = c.dataset.q; load(); }));
-        $("dataThrough").textContent = b.dataThrough ? `SV tickets through ${day(b.dataThrough)} · ${b.ticketCount} tickets this quarter` : "No finished SV tickets in this quarter yet — upload the Sales Order Detail feed.";
+        $("dataThrough").textContent = b.dataThrough ? `SV tickets through ${day(b.dataThrough)} · ${b.ticketCount} tickets this quarter · ${b.paidCheck ? "paid-balance check: ePASS AR feed" : "no AR snapshot — nothing held yet"}` : "No finished SV tickets in this quarter yet — upload the Sales Order Detail feed.";
         const techs = b.techs;
         const tot = { att: 0, quota: 0, proj: 0, at100: 0, cod: 0, parts: 0, wty: 0 };
         for (const t of techs) { tot.att += t.summary.attainmentToDate; tot.quota += t.summary.quotaToDate; tot.proj += t.summary.projectedCommission || 0; tot.at100 += t.summary.commissionAt100; tot.cod += t.summary.codLabor; tot.parts += t.summary.codPartsMargin; tot.wty += t.summary.wtyLabor; }
@@ -292,13 +294,15 @@
           <div class="tile">COD parts margin<strong>${money(tot.parts)}</strong></div>
           <div class="tile">Warranty labor<strong>${money(tot.wty)}</strong></div>
           <div class="tile">Techs on plan<strong>${techs.length}</strong></div>
+          <div class="tile" title="Finished tickets with a balance still open in ePASS AR — they count the moment they're paid">Held until paid<strong class="${b.paid.held ? "mid" : ""}">${money(b.paid.held)}<small>${b.paid.heldTickets} ticket${b.paid.heldTickets === 1 ? "" : "s"}${b.paid.released ? ` · ${money(b.paid.released)} released in` : ""}${b.paid.deferred ? ` · ${money(b.paid.deferred)} paid late → later quarter` : ""}${b.paidCheck ? "" : " · no AR snapshot yet"}</small></strong></div>
+          <div class="tile" title="Balance settled by a write-off — never counts">Lost<strong class="${b.paid.lost ? "bad" : ""}">${money(b.paid.lost)}<small>${b.paid.lostTickets} written off</small></strong></div>
           ${b.dept ? `<div class="tile">Dept quota · Q${q.q}<strong>${money(b.dept.deptQuota)}<small>${money(b.dept.weekly)}/wk · techs assigned ${Math.round(b.dept.allocated * 100)}%${b.dept.allocated > 1.0005 ? " (cushion)" : ""}</small></strong></div>` : `<div class="tile">Dept quota · Q${q.q}<strong>${money(techs.reduce((a, t) => a + t.plan.weeklyQuota, 0) * q.weeks)}<small>sum of per-tech plans — set it below</small></strong></div>`}`;
         const weeks = techs[0]?.weeks || [];
         $("gHead").innerHTML = `<tr><th class="l">Tech</th><th>Quota / wk</th>${weeks.map((w) => `<th title="${day(w.start)} – ${day(w.end)}">W${w.n}<span class="mini">${md(w.start)}</span></th>`).join("")}<th>To date</th><th>Attain.</th><th>Trending</th><th>At 100%</th></tr>`;
         $("gBody").innerHTML = techs.length ? techs.map((t) => { const s = t.summary; return `<tr>
           <td class="l tech">${esc(t.plan.displayName || t.plan.techCode)}<span class="mini">${esc(t.plan.techCode)} · OTE ${money(t.plan.ote ?? t.plan.targetAnnual)} · base ${money(t.plan.baseAnnual)}${t.plan.basePct ? ` (${Math.round(t.plan.basePct)}%)` : ""}</span><a href="my-service-commissions.html?tech=${encodeURIComponent(t.plan.techCode)}&year=${b.year}&quarter=${q.q}">tech view →</a></td>
           <td>${money(t.plan.weeklyQuota)}<span class="mini">Q${q.q}${t.plan.share != null ? ` · ${Math.round(t.plan.share * 1000) / 10}%` : ""}</span></td>
-          ${t.weeks.map((w) => `<td class="wk ${w.status === "current" ? "cur" : w.status === "future" ? "fut" : ""}" title="COD labor ${money(w.codLabor)} · parts margin ${money(w.codPartsMargin)} · warranty ${money(w.wtyLabor)}${w.credit ? " · credit " + money(w.credit) : ""} · ${w.tickets} tickets">${w.status === "future" ? "" : `<span class="pct ${pcls(w.pct)}">${pct(w.pct)}</span><span class="mini">${money(w.attainment)}</span>`}</td>`).join("")}
+          ${t.weeks.map((w) => `<td class="wk ${w.status === "current" ? "cur" : w.status === "future" ? "fut" : ""}" title="COD labor ${money(w.codLabor)} · parts margin ${money(w.codPartsMargin)} · warranty ${money(w.wtyLabor)}${w.credit ? " · credit " + money(w.credit) : ""} · ${w.tickets} paid tickets${w.held ? ` · HELD ${money(w.held)} (${w.heldList.map((h) => h.invoice).join(", ")})` : ""}${w.lost ? ` · LOST ${money(w.lost)} (${w.lostList.map((h) => h.invoice).join(", ")})` : ""}${w.released ? ` · released ${money(w.released)} from earlier quarters` : ""}">${w.status === "future" ? "" : `<span class="pct ${pcls(w.pct)}">${pct(w.pct)}</span><span class="mini">${money(w.attainment)}</span>${w.held ? `<span class="mini mid">+${money(w.held)} held</span>` : ""}${w.lost ? `<span class="mini bad">${money(w.lost)} lost</span>` : ""}`}</td>`).join("")}
           <td>${money(s.attainmentToDate)}<span class="mini">of ${money(s.quotaToDate)}</span></td>
           <td><span class="pct ${pcls(s.pct)}">${pct(s.pct)}</span><div class="bar"><span style="width:${Math.min(100, Math.round((s.pct || 0) * 100))}%;background:${s.pct == null ? "#9ca3af" : s.pct >= 1 ? "var(--primary)" : s.pct >= 0.6 ? "#f59e0b" : "#dc2626"}"></span></div></td>
           <td><b>${s.projectedCommission == null ? "—" : money(s.projectedCommission)}</b>${s.neededPerWeek != null && s.pct != null && s.pct < 1 ? `<span class="mini">needs ${money(s.neededPerWeek)}/wk</span>` : ""}</td>
@@ -525,14 +529,14 @@
       function renderPlans() {
         const b = state.board;
         fillQuarterSelect();
-        $("calYear").textContent = b.year; $("calW1").value = b.settings.weekOneStart; [1, 2, 3, 4].forEach((i) => { $("calQ" + i).value = b.settings.quarterWeeks[i - 1]; }); $("calLag").value = b.settings.payLagDays;
+        $("calYear").textContent = b.year; $("calW1").value = b.settings.weekOneStart; [1, 2, 3, 4].forEach((i) => { $("calQ" + i).value = b.settings.quarterWeeks[i - 1]; }); $("calLag").value = b.settings.payLagDays; $("calLost").value = b.settings.lostPaymentTypes || "";
         $("calSave").disabled = !b.canEdit;
         loadQuarter();
       }
       $("calSave").addEventListener("click", async () => {
         try {
           const weekOne = {}; weekOne[state.board.year] = $("calW1").value;
-          await api("/api/service-commissions/settings", { method: "POST", body: JSON.stringify({ week_one_start: { ...(state.board.settings.weekOneStartAll || {}), ...weekOne }, quarter_weeks: [1, 2, 3, 4].map((i) => Number($("calQ" + i).value)), pay_lag_days: Number($("calLag").value) }) });
+          await api("/api/service-commissions/settings", { method: "POST", body: JSON.stringify({ week_one_start: { ...(state.board.settings.weekOneStartAll || {}), ...weekOne }, quarter_weeks: [1, 2, 3, 4].map((i) => Number($("calQ" + i).value)), pay_lag_days: Number($("calLag").value), lost_payment_types: $("calLost").value.trim() || undefined }) });
           setStatus("Calendar saved.", "ok"); await load();
         } catch (err) { setStatus(err.message, "error"); }
       });

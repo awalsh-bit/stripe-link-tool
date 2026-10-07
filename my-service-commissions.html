@@ -86,7 +86,7 @@
       <p class="sub">Each bar is a fiscal week's attainment — COD labor + COD parts margin + warranty labor (+ any quota credit). The dashed line is your weekly quota.</p>
       <div class="barwrap"><div class="bars" id="bars"></div><div class="xlab" id="xlab"></div></div>
       <div class="legend"><span><i style="background:var(--primary)"></i>At or over quota</span><span><i style="background:#f59e0b"></i>Under quota</span><span><i style="background:#dc2626"></i>Under half</span><span><i style="background:repeating-linear-gradient(135deg,var(--primary) 0 4px,rgba(0,0,0,0.15) 4px 8px)"></i>This week (in progress)</span><span><i style="background:#e5e7eb"></i>Coming up</span></div>
-      <div style="overflow-x:auto;"><table class="wk"><thead><tr><th class="l">Week</th><th>COD labor</th><th>COD parts margin</th><th>Warranty labor</th><th>Credit</th><th>Attainment</th><th>Quota</th><th>%</th></tr></thead><tbody id="wkBody"></tbody></table></div>
+      <div style="overflow-x:auto;"><table class="wk"><thead><tr><th class="l">Week</th><th>COD labor</th><th>COD parts margin</th><th>Warranty labor</th><th>Credit</th><th>Held / lost</th><th>Attainment</th><th>Quota</th><th>%</th></tr></thead><tbody id="wkBody"></tbody></table></div>
       <div class="note" id="note"></div>
     </section>
 
@@ -149,6 +149,8 @@
           <div class="tile">COD parts margin<strong>${money(s.codPartsMargin)}</strong></div>
           <div class="tile">Warranty labor<strong>${money(s.wtyLabor)}</strong></div>
           ${s.credit ? `<div class="tile">Quota credit<strong>${money(s.credit)}</strong></div>` : ""}
+          ${s.held ? `<div class="tile" title="Finished tickets whose balance is still open — they count the week they're paid">Held until paid<strong>${money(s.held)}<small>${s.heldTickets} ticket${s.heldTickets === 1 ? "" : "s"}</small></strong></div>` : ""}
+          ${s.lost ? `<div class="tile" title="Balance written off — doesn't count">Lost<strong class="pct bad" style="font-size:21px;">${money(s.lost)}<small>${s.lostTickets} written off</small></strong></div>` : ""}
           ${s.currentWeek ? `<div class="tile">This week so far<strong>${money(s.currentWeek.attainment)}<small>${pct(s.currentWeek.pct)}</small></strong></div>` : ""}`;
         // bars
         const max = Math.max(p.weeklyQuota * 1.25, ...t.weeks.map((w) => w.attainment), 1);
@@ -158,8 +160,9 @@
         $("xlab").innerHTML = t.weeks.map((w) => `<span><b>W${w.n}</b>${md(w.start)}</span>`).join("");
         $("wkBody").innerHTML = t.weeks.map((w) => `<tr class="${w.status}"><td class="l"><b>Week ${w.n}</b> <span style="color:var(--muted);font-size:12px;">${day(w.start)} – ${day(w.end)}${w.status === "current" ? " · in progress" : ""}</span>${w.credits.length ? `<div style="font-size:11.5px;color:var(--muted);">${w.credits.map((c) => `credit ${money(c.amount)}${c.note ? " — " + esc(c.note) : ""}`).join("; ")}</div>` : ""}</td>
           <td>${w.status === "future" ? "" : money(w.codLabor)}</td><td>${w.status === "future" ? "" : money(w.codPartsMargin)}</td><td>${w.status === "future" ? "" : money(w.wtyLabor)}</td><td>${w.credit ? money(w.credit) : ""}</td>
+          <td style="font-size:12px;">${w.held ? `<span style="color:#b45309;font-weight:700;" title="${esc(w.heldList.map((h) => `${h.invoice} ${money(h.value)} (balance ${money(h.balance)})`).join(", "))}">${money(w.held)} held</span>` : ""}${w.held && w.lost ? "<br>" : ""}${w.lost ? `<span style="color:#b91c1c;font-weight:700;" title="${esc(w.lostList.map((h) => `${h.invoice} ${money(h.value)}`).join(", "))}">${money(w.lost)} lost</span>` : ""}${w.released ? `<br><span style="color:var(--muted);" title="${esc(w.releasedList.map((h) => `${h.invoice} paid ${day(h.paidOn)}`).join(", "))}">incl. ${money(w.released)} released</span>` : ""}</td>
           <td><b>${w.status === "future" ? "" : money(w.attainment)}</b></td><td>${money(w.quota)}</td><td class="pct ${w.status === "future" ? "" : pcls(w.pct)}">${w.status === "future" ? "" : pct(w.pct)}</td></tr>`).join("");
-        $("note").textContent = `Numbers come from finished SV tickets in the Sales Order Detail feed${d.dataThrough ? ` (data through ${day(d.dataThrough)})` : ""}. COD tickets count labor plus parts margin; manufacturer and WACA warranty tickets count labor only. Only completed weeks count toward the attainment %; the current week shows separately until it closes.`;
+        $("note").textContent = `Numbers come from finished SV tickets in the Sales Order Detail feed${d.dataThrough ? ` (data through ${day(d.dataThrough)})` : ""}. COD tickets count labor plus parts margin; manufacturer and WACA warranty tickets count labor only. A ticket counts once ePASS shows its balance paid — until then it's held (shown in amber) and counts the week it was finished once paid, or the week it was paid if that's after the quarter's check went out. A balance written off is lost and doesn't count. Only completed weeks count toward the attainment %; the current week shows separately until it closes.`;
       }
       load();
     })();

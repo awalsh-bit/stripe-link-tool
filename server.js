@@ -15118,7 +15118,7 @@ app.post("/api/service-commissions/tech-settings", requireServiceComp, requireEx
 app.post("/api/service-commissions/settings", requireServiceComp, requireExecutiveApi, async (req, res) => {
   try {
     const out = {};
-    for (const key of ["week_one_start", "quarter_weeks", "pay_lag_days", "qualifying_titles", "payroll_burden_pct"]) if (req.body?.[key] != null) out[key] = await setServiceCompSetting(key, req.body[key]);
+    for (const key of ["week_one_start", "quarter_weeks", "pay_lag_days", "qualifying_titles", "payroll_burden_pct", "lost_payment_types"]) if (req.body?.[key] != null) out[key] = await setServiceCompSetting(key, req.body[key]);
     scAudit(req, "service_comp_settings_saved", { keys: Object.keys(out) });
     return res.json({ ok: true, settings: await getServiceCompSettings() });
   } catch (err) { return res.status(400).json({ error: err.message }); }

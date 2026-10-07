@@ -64,6 +64,38 @@
     details { margin-top: 8px; }
     summary { cursor: pointer; font-weight: 700; color: var(--primary); font-size: 13.5px; }
     .empty { padding: 30px; text-align: center; color: var(--muted); }
+    /* quarter plan editor */
+    .qp-head { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; margin-bottom: 12px; }
+    .qp-head select { font-weight: 700; font-size: 14px; }
+    .qp-dept { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; align-items: end; background: var(--primary-faint-2, #f6faf6); border: 1px solid var(--border); border-radius: 14px; padding: 14px 16px; margin-bottom: 14px; }
+    .qp-dept label { display: grid; gap: 4px; font-size: 11.5px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; }
+    .qp-dept input { font-size: 18px; font-weight: 800; padding: 8px 10px; width: 100%; }
+    .qp-dept .derived { font-size: 13px; color: var(--text); line-height: 1.5; }
+    .qp-dept .derived b { font-size: 17px; }
+    .titles { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 6px 0 14px; }
+    .titles .chip small { opacity: .75; margin-left: 5px; font-weight: 600; }
+    table.qp { width: 100%; border-collapse: collapse; font-size: 13px; }
+    table.qp th { text-align: right; font-size: 10.5px; letter-spacing: 0.06em; text-transform: uppercase; color: #64748b; padding: 6px; border-bottom: 2px solid var(--border); white-space: nowrap; }
+    table.qp th.l, table.qp td.l { text-align: left; }
+    table.qp td { padding: 6px; border-bottom: 1px solid #eef1f6; text-align: right; font-variant-numeric: tabular-nums; vertical-align: middle; white-space: nowrap; }
+    table.qp input[type="number"], table.qp input[type="text"] { width: 96px; padding: 5px 8px; font-size: 13px; text-align: right; }
+    table.qp input.pctin { width: 72px; }
+    table.qp input.otein { width: 104px; }
+    table.qp tr.off td { color: #9ca3af; } table.qp tr.off input { color: #9ca3af; }
+    table.qp tfoot td { font-weight: 800; border-top: 2px solid var(--border); border-bottom: none; }
+    .flag { display: inline-block; border-radius: 999px; padding: 1px 7px; font-size: 10.5px; font-weight: 700; margin-left: 6px; vertical-align: middle; }
+    .flag.warn { background: #fef3c7; color: #92400e; } .flag.info { background: #eef2ff; color: #3730a3; } .flag.bad { background: #fee2e2; color: #991b1b; }
+    .qp-actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-top: 12px; }
+    .remain.ok { color: var(--primary); } .remain.over { color: #b91c1c; } .remain.under { color: #b45309; }
+    .seeded { background: #fffbeb; border: 1px solid #fde68a; color: #92400e; border-radius: 10px; padding: 8px 12px; font-size: 13px; margin-bottom: 12px; }
+    /* profitability */
+    .pf-row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-bottom: 10px; }
+    table.pf { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+    table.pf th { text-align: right; font-size: 10.5px; letter-spacing: 0.06em; text-transform: uppercase; color: #64748b; padding: 7px 6px; border-bottom: 2px solid var(--border); white-space: nowrap; }
+    table.pf th.l, table.pf td.l { text-align: left; }
+    table.pf td { padding: 6px; border-bottom: 1px solid #eef1f6; text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+    table.pf tfoot td { font-weight: 800; border-top: 2px solid var(--border); border-bottom: none; }
+    .neg { color: #b91c1c; }
     @media (max-width: 720px) { body { padding: 14px 12px 40px; } .surface { padding: 16px; } }
   </style>
 </head>
@@ -75,7 +107,7 @@
       <h2>Repair Service Commissions</h2>
       <p class="section-note">
         Every tech's weekly attainment — <strong>COD labor + COD parts margin + warranty labor</strong> (+ any quota credit) from finished SV tickets in the Sales Order Detail feed — against their weekly quota, and where the quarter's
-        commission is trending: <strong>target × (weeks ÷ 52) × attainment% − base × (weeks ÷ 52)</strong>, never below $0. Quarters run 12 / 14 / 12 / 14 fiscal weeks; the commission lands on the paycheck 20 days after the quarter's last Saturday.
+        commission is trending: <strong>OTE × (weeks ÷ 52) × attainment% − base × (weeks ÷ 52)</strong>, never below $0. Quarters run 12 / 14 / 12 / 14 fiscal weeks; the commission lands on the paycheck 20 days after the quarter's last Saturday.
       </p>
       <div id="pageStatus" class="status"></div>
       <div class="filters">
@@ -87,6 +119,23 @@
       <div class="tiles" id="tiles"></div>
       <div class="scroll"><table class="g"><thead id="gHead"></thead><tbody id="gBody"></tbody></table></div>
       <div class="hint" id="unplanned" style="margin-top:10px;"></div>
+    </section>
+
+    <section class="surface" id="profitBox">
+      <h3>Profitability estimate <span class="hint" id="pfQLbl"></span></h3>
+      <p class="section-note" style="margin-bottom:10px;">
+        Managers only. What the quarter is on track to bring in — <strong>labor + parts margin</strong> from finished SV tickets (quota credits excluded) — against what it costs:
+        the <strong>base guarantee for the quarter</strong> (base × weeks ÷ 52), the <strong>trending commission</strong>, payroll burden on both, and <strong>fuel</strong> from each tech's card receipts.
+        Fuel is informational — it never changes a commission. Projections carry the attainment % so far through the rest of the quarter.
+      </p>
+      <div class="pf-row">
+        <label class="hint">Payroll burden <input id="pfBurden" type="number" min="0" max="60" step="0.5" style="width:70px;" /> % <span class="hint">(employer taxes, workers' comp, benefits load on pay)</span></label>
+        <button type="button" class="quiet tiny" id="pfBurdenSave">Save</button>
+        <span class="spacer"></span>
+        <span class="hint" id="pfFuelNote"></span>
+      </div>
+      <div class="tiles" id="pfTiles"></div>
+      <div class="scroll"><table class="pf"><thead><tr><th class="l">Tech</th><th>GP projected</th><th>Base (qtr)</th><th>Commission</th><th>Burden</th><th>Fuel to date</th><th>Fuel projected</th><th>Net</th><th>Profit %</th><th>At 100%</th></tr></thead><tbody id="pfBody"></tbody><tfoot id="pfFoot"></tfoot></table></div>
     </section>
 
     <section class="surface">
@@ -103,10 +152,34 @@
     </section>
 
     <section class="surface" id="planBox">
-      <h3>Plans <span class="hint" id="planYearLbl"></span></h3>
-      <p class="section-note" style="margin-bottom:8px;">One row per tech per year, straight from the Service Dept Quota tab: weekly quota $, target annual compensation, and the base-pay guarantee (blank = 60% of target). Tech code is the ePASS salesperson code on their SV tickets.</p>
-      <div class="scroll"><table class="p"><thead><tr><th>Code</th><th>Name</th><th>Weekly quota Q1</th><th>Q2</th><th>Q3</th><th>Q4</th><th>Target annual</th><th>Base (guarantee)</th><th>Active</th><th></th></tr></thead><tbody id="planBody"></tbody></table></div>
-      <div style="margin-top:8px;"><button type="button" class="quiet tiny" id="planAddRow">+ Add tech</button></div>
+      <div class="qp-head">
+        <h3 style="margin:0;">Quarter plan</h3>
+        <select id="qpSel" aria-label="Quarter"></select>
+        <span class="hint" id="qpRange"></span>
+        <span class="spacer"></span>
+        <span class="hint" id="qpSaved"></span>
+      </div>
+      <p class="section-note" style="margin-bottom:10px;">
+        Set the <strong>department's quota for the quarter</strong> first, then split it among the techs. Each tech's weekly quota is their share of the dept total ÷ the quarter's weeks,
+        so changing the dept number re-splits everyone on the spot. Techs populate from the employee directory by <strong>job title</strong> — add or remove titles below — and a tech can be
+        added by code or taken off for one quarter. <strong>OTE</strong> is on-target earnings (the full annual pay at 100% of quota); the base guarantee is a percent of OTE (default 60%).
+      </p>
+      <div id="qpSeeded" class="seeded" style="display:none;"></div>
+      <div class="qp-dept">
+        <label>Dept quota for the quarter <input id="qpDept" type="text" inputmode="decimal" placeholder="300,000" /></label>
+        <div class="derived" id="qpDerived"></div>
+        <label>Note <input id="qpNote" type="text" maxlength="300" placeholder="how it was set…" style="font-size:13px;font-weight:400;" /></label>
+      </div>
+      <div class="hint" style="font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.05em;font-size:10.5px;">Qualifying job titles <span style="font-weight:500;text-transform:none;letter-spacing:0;" id="qpTitlesNote"></span></div>
+      <div class="titles" id="qpTitles"></div>
+      <div class="scroll"><table class="qp"><thead><tr><th class="l">Tech</th><th>Share</th><th>Weekly quota</th><th>Quarter quota</th><th>OTE</th><th>Base %</th><th>Base $</th><th>On plan</th><th></th></tr></thead><tbody id="qpBody"></tbody><tfoot id="qpFoot"></tfoot></table></div>
+      <div class="qp-actions">
+        <button type="button" class="quiet tiny" id="qpEven">Split evenly</button>
+        <button type="button" class="quiet tiny" id="qpByOte">Split by OTE</button>
+        <button type="button" class="quiet tiny" id="qpAdd">+ Add tech by code</button>
+        <span class="spacer"></span>
+        <button type="button" id="qpSave">Save quarter</button>
+      </div>
       <details id="calBox">
         <summary>Fiscal calendar</summary>
         <p class="hint" style="margin:8px 0;">Week 1 starts the Sunday on or before Jan 1 unless overridden. Quarter lengths in weeks and the pay lag after the quarter's last Saturday.</p>
@@ -161,18 +234,20 @@
           <div class="tile">COD labor<strong>${money(tot.cod)}</strong></div>
           <div class="tile">COD parts margin<strong>${money(tot.parts)}</strong></div>
           <div class="tile">Warranty labor<strong>${money(tot.wty)}</strong></div>
-          <div class="tile">Techs on plan<strong>${techs.length}</strong></div>`;
+          <div class="tile">Techs on plan<strong>${techs.length}</strong></div>
+          ${b.dept ? `<div class="tile">Dept quota · Q${q.q}<strong>${money(b.dept.deptQuota)}<small>${money(b.dept.weekly)}/wk · ${Math.round(b.dept.allocated * 100)}% allocated</small></strong></div>` : `<div class="tile">Dept quota · Q${q.q}<strong>${money(techs.reduce((a, t) => a + t.plan.weeklyQuota, 0) * q.weeks)}<small>sum of per-tech plans — set it below</small></strong></div>`}`;
         const weeks = techs[0]?.weeks || [];
         $("gHead").innerHTML = `<tr><th class="l">Tech</th><th>Quota / wk</th>${weeks.map((w) => `<th title="${day(w.start)} – ${day(w.end)}">W${w.n}<span class="mini">${md(w.start)}</span></th>`).join("")}<th>To date</th><th>Attain.</th><th>Trending</th><th>At 100%</th></tr>`;
         $("gBody").innerHTML = techs.length ? techs.map((t) => { const s = t.summary; return `<tr>
-          <td class="l tech">${esc(t.plan.displayName || t.plan.techCode)}<span class="mini">${esc(t.plan.techCode)} · target ${money(t.plan.targetAnnual)} · base ${money(t.plan.baseAnnual)}</span><a href="my-service-commissions.html?tech=${encodeURIComponent(t.plan.techCode)}&year=${b.year}&quarter=${q.q}">tech view →</a></td>
-          <td>${money(t.plan.weeklyQuota)}<span class="mini">Q${q.q}</span></td>
+          <td class="l tech">${esc(t.plan.displayName || t.plan.techCode)}<span class="mini">${esc(t.plan.techCode)} · OTE ${money(t.plan.ote ?? t.plan.targetAnnual)} · base ${money(t.plan.baseAnnual)}${t.plan.basePct ? ` (${Math.round(t.plan.basePct)}%)` : ""}</span><a href="my-service-commissions.html?tech=${encodeURIComponent(t.plan.techCode)}&year=${b.year}&quarter=${q.q}">tech view →</a></td>
+          <td>${money(t.plan.weeklyQuota)}<span class="mini">Q${q.q}${t.plan.share != null ? ` · ${Math.round(t.plan.share * 1000) / 10}%` : ""}</span></td>
           ${t.weeks.map((w) => `<td class="wk ${w.status === "current" ? "cur" : w.status === "future" ? "fut" : ""}" title="COD labor ${money(w.codLabor)} · parts margin ${money(w.codPartsMargin)} · warranty ${money(w.wtyLabor)}${w.credit ? " · credit " + money(w.credit) : ""} · ${w.tickets} tickets">${w.status === "future" ? "" : `<span class="pct ${pcls(w.pct)}">${pct(w.pct)}</span><span class="mini">${money(w.attainment)}</span>`}</td>`).join("")}
           <td>${money(s.attainmentToDate)}<span class="mini">of ${money(s.quotaToDate)}</span></td>
           <td><span class="pct ${pcls(s.pct)}">${pct(s.pct)}</span><div class="bar"><span style="width:${Math.min(100, Math.round((s.pct || 0) * 100))}%;background:${s.pct == null ? "#9ca3af" : s.pct >= 1 ? "var(--primary)" : s.pct >= 0.6 ? "#f59e0b" : "#dc2626"}"></span></div></td>
           <td><b>${s.projectedCommission == null ? "—" : money(s.projectedCommission)}</b>${s.neededPerWeek != null && s.pct != null && s.pct < 1 ? `<span class="mini">needs ${money(s.neededPerWeek)}/wk</span>` : ""}</td>
-          <td>${money(s.commissionAt100)}</td></tr>`; }).join("") : `<tr><td colspan="${weeks.length + 6}" class="empty">No plans for ${b.year} yet — add the techs below.</td></tr>`;
+          <td>${money(s.commissionAt100)}</td></tr>`; }).join("") : `<tr><td colspan="${weeks.length + 6}" class="empty">No plan for Q${q.q} ${b.year} yet — set the department quota and split it in the Quarter plan section below.</td></tr>`;
         $("unplanned").innerHTML = b.unplanned.length ? `Techs with SV tickets this quarter but no plan: ${b.unplanned.map((u) => `<b>${esc(u.techCode)}</b> (${esc(u.techName || "?")}, ${u.tickets} tickets)`).join(", ")}.` : "";
+        renderProfit();
         // credits
         $("crTech").innerHTML = techs.map((t) => `<option value="${esc(t.plan.techCode)}">${esc(t.plan.displayName || t.plan.techCode)}</option>`).join("");
         $("crWeek").innerHTML = weeks.map((w) => `<option value="${w.start}"${w.status === "current" ? " selected" : ""}>W${w.n} · ${day(w.start)}</option>`).join("");
@@ -181,36 +256,134 @@
         $("crList").querySelectorAll("[data-cr-del]").forEach((btn) => btn.addEventListener("click", async () => { try { await api(`/api/service-commissions/credits/${btn.dataset.crDel}/delete`, { method: "POST" }); await load(); } catch (err) { setStatus(err.message, "error"); } }));
         renderPlans();
       }
-      function planRow(p) {
-        return `<tr data-plan>
-          <td><input class="code" name="techCode" value="${esc(p.techCode || "")}" ${p.techCode ? "readonly" : ""} placeholder="CODE" /></td>
-          <td><input class="name" name="displayName" value="${esc(p.displayName || "")}" placeholder="Name" /></td>
-          ${[1, 2, 3, 4].map((q) => `<td><input name="q${q}" type="number" step="1" value="${p.quarterQuotas?.[q] ?? ""}" placeholder="${p.weeklyQuota || 2600}" title="Weekly quota for Q${q} (blank = ${p.weeklyQuota ? money(p.weeklyQuota) + " year default" : "no quota"})" style="width:88px" /></td>`).join("")}
-          <td><input name="targetAnnual" type="number" step="100" value="${p.targetAnnual ?? ""}" placeholder="75000" /></td>
-          <td><input name="baseAnnual" type="number" step="100" value="${p.baseIsDefault || p.baseAnnual == null ? "" : p.baseAnnual}" placeholder="${p.targetAnnual ? Math.round(p.targetAnnual * 0.6) : "60% of target"}" /></td>
-          <td style="text-align:center;"><input name="active" type="checkbox" ${p.active !== false ? "checked" : ""} /></td>
-          <td><button type="button" class="secondary tiny" data-plan-save>Save</button></td></tr>`;
+      // ---------- Profitability (managers) ----------
+      const pctf = (r) => r == null ? "—" : (Math.round(r * 1000) / 10).toFixed(1) + "%";
+      const pfc = (r) => r == null ? "" : r >= 0.5 ? "good" : r >= 0.25 ? "mid" : "bad";
+      function renderProfit() {
+        const b = state.board; const q = b.quarter;
+        $("pfQLbl").textContent = `· Q${q.q} ${b.year} · ${q.weeks} weeks`;
+        $("pfBurden").value = b.settings.burdenPct ?? 0;
+        $("pfBurden").disabled = $("pfBurdenSave").disabled = !b.canEdit;
+        const P = b.profit.projected, A = b.profit.at100;
+        $("pfTiles").innerHTML = P ? `
+          <div class="tile">Projected gross profit<strong>${money(P.gp)}<small>labor + parts margin</small></strong></div>
+          <div class="tile">Expected payout<strong>${money(P.basePay + P.commission)}<small>${money(P.basePay)} base · ${money(P.commission)} comm.</small></strong></div>
+          <div class="tile">Payroll burden<strong>${money(P.burden)}<small>${b.settings.burdenPct || 0}% of pay</small></strong></div>
+          <div class="tile">Fuel<strong>${money(b.techs.reduce((x, t) => x + t.fuel.toDate, 0))}<small>to date · ${money(P.fuel)} projected</small></strong></div>
+          <div class="tile">Projected net<strong class="${P.net < 0 ? "bad" : ""}">${money(P.net)}</strong></div>
+          <div class="tile">Profitability<strong class="${pfc(P.pct)}">${pctf(P.pct)}<small>${A ? pctf(A.pct) + " at 100% of quota" : ""}</small></strong></div>`
+          : `<div class="tile">Profitability<strong>—<small>appears after the first completed week</small></strong></div>${A ? `<div class="tile">At 100% of quota<strong class="${pfc(A.pct)}">${pctf(A.pct)}<small>${money(A.gp)} GP · ${money(A.cost)} cost</small></strong></div>` : ""}`;
+        $("pfFuelNote").innerHTML = b.fuel.receipts ? `${b.fuel.receipts} fuel receipt${b.fuel.receipts === 1 ? "" : "s"} this quarter${b.fuel.unmatchedReceipts ? ` · <span title="${esc(b.fuel.unmatchedFilers.join(", "))}">${money(b.fuel.unmatched)} filed by people not on this plan</span>` : ""}${b.techs.some((t) => !t.fuel.hasEmail) ? ` · <span class="bad">some techs have no directory email — their fuel can't be matched</span>` : ""}` : "No fuel receipts this quarter yet (Receipts → category Fuel).";
+        $("pfBody").innerHTML = b.techs.map((t) => { const p = t.profit.projected, a = t.profit.at100; return `<tr>
+          <td class="l"><b>${esc(t.plan.displayName || t.plan.techCode)}</b>${!t.fuel.hasEmail ? `<span class="flag bad" title="No email on the directory entry">no email</span>` : ""}</td>
+          <td>${p ? money(p.gp) : "—"}</td><td>${money(a?.basePay)}</td><td>${p ? money(p.commission) : "—"}</td><td>${p ? money(p.burden) : "—"}</td>
+          <td>${money(t.fuel.toDate)}<span class="mini">${t.fuel.receipts} receipt${t.fuel.receipts === 1 ? "" : "s"}${t.fuel.keywordMatched ? ` · ${t.fuel.keywordMatched} by keyword` : ""}</span></td>
+          <td>${t.fuel.projected == null ? "—" : money(t.fuel.projected)}</td>
+          <td class="${p && p.net < 0 ? "neg" : ""}"><b>${p ? money(p.net) : "—"}</b></td>
+          <td class="pct ${p ? pfc(p.pct) : ""}">${p ? pctf(p.pct) : "—"}</td>
+          <td class="${a ? pfc(a.pct) : ""}">${a ? pctf(a.pct) : "—"}</td></tr>`; }).join("") || `<tr><td colspan="10" class="empty">No techs on plan.</td></tr>`;
+        $("pfFoot").innerHTML = P ? `<tr><td class="l">Department</td><td>${money(P.gp)}</td><td>${money(P.basePay)}</td><td>${money(P.commission)}</td><td>${money(P.burden)}</td><td>${money(b.techs.reduce((x, t) => x + t.fuel.toDate, 0))}</td><td>${money(P.fuel)}</td><td class="${P.net < 0 ? "neg" : ""}">${money(P.net)}</td><td class="pct ${pfc(P.pct)}">${pctf(P.pct)}</td><td class="${A ? pfc(A.pct) : ""}">${A ? pctf(A.pct) : "—"}</td></tr>` : "";
       }
+      $("pfBurdenSave").addEventListener("click", async () => {
+        try { await api("/api/service-commissions/settings", { method: "POST", body: JSON.stringify({ payroll_burden_pct: Number($("pfBurden").value) }) }); setStatus("Payroll burden saved.", "ok"); await load(); }
+        catch (err) { setStatus(err.message, "error"); }
+      });
+
+      // ---------- Quarter plan editor ----------
+      const qp = { data: null, techs: [], dept: 0, dirty: false };
+      const num = (v) => { const n = Number(String(v ?? "").replace(/[$,%\s]/g, "")); return Number.isFinite(n) ? n : 0; };
+      const fmtIn = (n) => n ? Math.round(n).toLocaleString("en-US") : "";
+      function fillQuarterSelect() {
+        const b = state.board; const y = b.year;
+        const opts = [];
+        for (const yy of [y - 1, y, y + 1]) for (const qq of [1, 2, 3, 4]) opts.push(`${yy}-Q${qq}`);
+        const cur = `${y}-Q${b.quarter.q}`;
+        $("qpSel").innerHTML = opts.map((o) => `<option value="${o}"${o === cur ? " selected" : ""}>${o}</option>`).join("");
+      }
+      async function loadQuarter() {
+        const b = state.board;
+        try {
+          qp.data = await api(`/api/service-commissions/quarter?year=${b.year}&quarter=${b.quarter.q}`);
+          qp.techs = qp.data.techs.map((t) => ({ ...t }));
+          qp.dept = qp.data.dept.deptQuota || 0;
+          qp.dirty = false;
+          renderQuarter();
+        } catch (err) { setStatus(err.message, "error"); }
+      }
+      function weeklyOf(t) { return qp.dept * (t.share || 0) / qp.data.weeks; }
+      function renderQuarter() {
+        const d = qp.data, canEdit = d.canEdit;
+        $("qpRange").textContent = `${day(d.quarter.start)} → ${day(d.quarter.end)} · ${d.weeks} weeks · pays ${day(d.quarter.payDate)}`;
+        $("qpSaved").textContent = d.dept.updatedAt ? `Saved ${new Date(d.dept.updatedAt).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}${d.dept.updatedBy ? " by " + d.dept.updatedBy : ""}` : "";
+        $("qpSeeded").style.display = d.seeded ? "" : "none";
+        $("qpSeeded").textContent = d.seeded ? `${d.year}-Q${d.quarter.q} hasn't been saved yet${d.seedFrom ? ` — pre-filled from ${d.seedFrom}` : ""}. Until it's saved, the board falls back to the ${d.year} year plans for this quarter (if there are any).` : "";
+        if (document.activeElement !== $("qpDept")) $("qpDept").value = fmtIn(qp.dept);
+        $("qpNote").value = d.dept.note || "";
+        const on = qp.techs.filter((t) => t.active);
+        const alloc = on.reduce((a, t) => a + (t.share || 0), 0);
+        $("qpDerived").innerHTML = `<b>${money(qp.dept / d.weeks)}</b> / week for the department<br><span class="hint">${money(qp.dept)} ÷ ${d.weeks} weeks · ${on.length} tech${on.length === 1 ? "" : "s"} on plan · avg ${money(on.length ? qp.dept / d.weeks / on.length : 0)}/wk each</span>`;
+        $("qpTitlesNote").textContent = d.qualifyingIsDefault ? "— using the built-in guess (anything that reads like “technician”); save once to take ownership" : "";
+        $("qpTitles").innerHTML = d.titles.map((t) => { const onT = d.qualifyingTitles.some((n) => n.toLowerCase() === t.name.toLowerCase()); return `<button type="button" class="chip${onT ? " on" : ""}" data-title="${esc(t.name)}" ${canEdit ? "" : "disabled"} title="${t.holders} in the directory">${esc(t.name)}${t.code ? `<small>${esc(t.code)}</small>` : ""}<small>· ${t.holders}</small></button>`; }).join("") + (canEdit ? `<button type="button" class="quiet tiny" id="qpTitlesSave">Save titles</button>` : "");
+        $("qpTitles").querySelectorAll("[data-title]").forEach((c) => c.addEventListener("click", () => { c.classList.toggle("on"); }));
+        const saveT = $("qpTitlesSave"); if (saveT) saveT.addEventListener("click", async () => {
+          const names = [...$("qpTitles").querySelectorAll("[data-title].on")].map((c) => c.dataset.title);
+          try { await api("/api/service-commissions/settings", { method: "POST", body: JSON.stringify({ qualifying_titles: names }) }); setStatus("Qualifying titles saved — techs refreshed from the directory.", "ok"); await loadQuarter(); }
+          catch (err) { setStatus(err.message, "error"); }
+        });
+        $("qpBody").innerHTML = qp.techs.map((t, i) => { const wk = weeklyOf(t); return `<tr data-i="${i}" class="${t.active ? "" : "off"}">
+          <td class="l"><b>${esc(t.name)}</b> <span class="mini" style="display:inline;">${esc(t.techCode)}${t.title ? " · " + esc(t.title) : ""}${t.jobCode ? " · " + esc(t.jobCode) : ""}</span>
+            ${!t.inDirectory ? `<span class="flag bad" title="No directory entry with this code">not in directory</span>` : t.archived ? `<span class="flag bad">archived</span>` : !t.qualifies ? `<span class="flag warn" title="Title isn't in the qualifying list — kept because they're on this quarter">${t.manual ? "added by hand" : "title not qualifying"}</span>` : ""}
+            ${t.inDirectory && !t.email ? `<span class="flag info" title="Fuel receipts are matched by directory email">no email</span>` : ""}</td>
+          <td><input class="pctin" name="share" type="number" step="0.1" min="0" max="100" value="${t.share ? Math.round(t.share * 1000) / 10 : ""}" ${canEdit ? "" : "disabled"} />%</td>
+          <td><input name="weekly" type="text" inputmode="decimal" value="${fmtIn(wk)}" ${canEdit ? "" : "disabled"} /></td>
+          <td>${money(wk * d.weeks)}</td>
+          <td><input class="otein" name="ote" type="text" inputmode="decimal" value="${fmtIn(t.ote)}" placeholder="92,000" ${canEdit ? "" : "disabled"} /></td>
+          <td><input class="pctin" name="basePct" type="number" step="1" min="0" max="100" value="${t.basePct ?? 60}" ${canEdit ? "" : "disabled"} />%</td>
+          <td>${money((t.ote || 0) * (t.basePct ?? 60) / 100)}</td>
+          <td style="text-align:center;"><input name="active" type="checkbox" ${t.active ? "checked" : ""} ${canEdit ? "" : "disabled"} /></td>
+          <td>${t.manual && canEdit ? `<button type="button" class="quiet tiny" data-rm="${i}">remove</button>` : ""}</td></tr>`; }).join("") || `<tr><td colspan="9" class="empty">No techs — pick qualifying job titles above or add one by code.</td></tr>`;
+        const left = 1 - alloc;
+        $("qpFoot").innerHTML = `<tr><td class="l">Allocated</td><td class="remain ${Math.abs(left) < 0.0005 ? "ok" : left < 0 ? "over" : "under"}">${Math.round(alloc * 1000) / 10}%</td><td>${money(qp.dept * alloc / d.weeks)}</td><td>${money(qp.dept * alloc)}</td><td colspan="5" class="l remain ${Math.abs(left) < 0.0005 ? "ok" : left < 0 ? "over" : "under"}" style="text-align:left;">${Math.abs(left) < 0.0005 ? "Fully allocated." : left < 0 ? `Over by ${Math.round(-left * 1000) / 10}% (${money(-left * qp.dept)}) — trim a share before saving.` : `${Math.round(left * 1000) / 10}% (${money(left * qp.dept)}) still unallocated.`}</td></tr>`;
+        ["qpEven", "qpByOte", "qpAdd", "qpSave"].forEach((id) => { $(id).disabled = !canEdit; });
+        $("qpNote").disabled = $("qpDept").disabled = !canEdit;
+        // wire inputs
+        $("qpBody").querySelectorAll("tr[data-i]").forEach((tr) => {
+          const t = qp.techs[Number(tr.dataset.i)];
+          tr.querySelector('[name="share"]').addEventListener("change", (e) => { t.share = Math.max(0, num(e.target.value)) / 100; qp.dirty = true; renderQuarter(); });
+          tr.querySelector('[name="weekly"]').addEventListener("change", (e) => { const w = num(e.target.value); t.share = qp.dept > 0 ? (w * qp.data.weeks) / qp.dept : 0; qp.dirty = true; renderQuarter(); });
+          tr.querySelector('[name="ote"]').addEventListener("change", (e) => { t.ote = num(e.target.value); qp.dirty = true; renderQuarter(); });
+          tr.querySelector('[name="basePct"]').addEventListener("change", (e) => { t.basePct = Math.min(100, Math.max(0, num(e.target.value))); qp.dirty = true; renderQuarter(); });
+          tr.querySelector('[name="active"]').addEventListener("change", (e) => { t.active = e.target.checked; qp.dirty = true; renderQuarter(); });
+          const rm = tr.querySelector("[data-rm]"); if (rm) rm.addEventListener("click", () => { qp.techs.splice(Number(rm.dataset.rm), 1); qp.dirty = true; renderQuarter(); });
+        });
+      }
+      $("qpDept").addEventListener("change", () => { qp.dept = Math.max(0, num($("qpDept").value)); qp.dirty = true; renderQuarter(); });
+      $("qpDept").addEventListener("input", () => { qp.dept = Math.max(0, num($("qpDept").value)); const d = qp.data; if (d) $("qpDerived").innerHTML = `<b>${money(qp.dept / d.weeks)}</b> / week for the department<br><span class="hint">${money(qp.dept)} ÷ ${d.weeks} weeks</span>`; });
+      $("qpEven").addEventListener("click", () => { const on = qp.techs.filter((t) => t.active); on.forEach((t) => { t.share = on.length ? 1 / on.length : 0; }); qp.dirty = true; renderQuarter(); });
+      $("qpByOte").addEventListener("click", () => { const on = qp.techs.filter((t) => t.active); const tot = on.reduce((a, t) => a + (t.ote || 0), 0); if (!tot) { setStatus("Enter OTE for the techs first.", "error"); return; } on.forEach((t) => { t.share = (t.ote || 0) / tot; }); qp.dirty = true; renderQuarter(); });
+      $("qpAdd").addEventListener("click", () => {
+        const code = (prompt("Tech code (the ePASS salesperson code on their SV tickets):") || "").trim().toUpperCase();
+        if (!code) return;
+        if (qp.techs.some((t) => t.techCode === code)) { setStatus(`${code} is already on the list.`, "error"); return; }
+        qp.techs.push({ techCode: code, name: code, email: "", title: "", jobCode: "", qualifies: false, inDirectory: false, archived: false, share: 0, ote: 0, basePct: 60, active: true, manual: true, saved: false });
+        qp.dirty = true; renderQuarter();
+      });
+      $("qpSave").addEventListener("click", async () => {
+        const d = qp.data;
+        try {
+          const out = await api("/api/service-commissions/quarter", { method: "POST", body: JSON.stringify({ year: d.year, quarter: d.quarter.q, deptQuota: qp.dept, note: $("qpNote").value, techs: qp.techs.map((t) => ({ techCode: t.techCode, displayName: t.name, share: t.share || 0, ote: t.ote || 0, basePct: t.basePct ?? 60, active: t.active, manual: t.manual })) }) });
+          setStatus(`${d.year}-Q${d.quarter.q} saved — ${money(out.deptQuota)} dept quota, ${Math.round(out.allocated * 1000) / 10}% allocated across ${out.techs} tech${out.techs === 1 ? "" : "s"}.`, "ok");
+          await load();
+        } catch (err) { setStatus(err.message, "error"); }
+      });
+      $("qpSel").addEventListener("change", () => { const [y, q] = $("qpSel").value.split("-Q"); state.year = y; state.quarter = q; load(); });
       function renderPlans() {
         const b = state.board;
-        $("planYearLbl").textContent = `· ${b.year}`;
-        if (!b.canEdit) { $("planBox").style.display = "none"; return; }
-        $("planBox").style.display = "";
-        const plans = b.techs.map((t) => t.plan);
-        $("planBody").innerHTML = plans.map(planRow).join("") + b.unplanned.map((u) => planRow({ techCode: u.techCode, displayName: u.techName || "" })).join("");
-        wirePlanRows();
+        fillQuarterSelect();
         $("calYear").textContent = b.year; $("calW1").value = b.settings.weekOneStart; [1, 2, 3, 4].forEach((i) => { $("calQ" + i).value = b.settings.quarterWeeks[i - 1]; }); $("calLag").value = b.settings.payLagDays;
+        $("calSave").disabled = !b.canEdit;
+        loadQuarter();
       }
-      function wirePlanRows() {
-        $("planBody").querySelectorAll("[data-plan-save]").forEach((btn) => btn.addEventListener("click", async () => {
-          const tr = btn.closest("tr"); const v = (n) => tr.querySelector(`[name="${n}"]`).value;
-          try {
-            await api("/api/service-commissions/plans", { method: "POST", body: JSON.stringify({ techCode: v("techCode"), year: state.board.year, displayName: v("displayName"), quarterQuotas: { 1: v("q1"), 2: v("q2"), 3: v("q3"), 4: v("q4") }, targetAnnual: v("targetAnnual"), baseAnnual: v("baseAnnual"), active: tr.querySelector('[name="active"]').checked }) });
-            setStatus(`Plan saved for ${v("techCode").toUpperCase()}.`, "ok"); await load();
-          } catch (err) { setStatus(err.message, "error"); }
-        }));
-      }
-      $("planAddRow").addEventListener("click", () => { $("planBody").insertAdjacentHTML("beforeend", planRow({})); wirePlanRows(); });
       $("calSave").addEventListener("click", async () => {
         try {
           const weekOne = {}; weekOne[state.board.year] = $("calW1").value;

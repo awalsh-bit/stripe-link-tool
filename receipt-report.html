@@ -210,7 +210,7 @@ const money = (n) => { const v = Number(n || 0); const s = "$" + Math.abs(v).toL
             <td class="c-photo">${attachmentCell(r)}</td>
             <td>${esc(fmtDate(r.spentOn))}</td>
             <td>${esc(r.filedByName || r.filedByEmail)}</td>
-            <td>${r.merchant ? `<div class="merchant">${esc(r.merchant)}</div>` : ""}<div>${esc(r.purpose)}</div></td>
+            <td>${r.merchant ? `<div class="merchant">${esc(r.merchant)}</div>` : ""}<div>${esc(r.purpose)}</div>${(r.category || r.effectiveCategory) ? `<div style="font-size:11px;color:#6b7280;">${esc(({ fuel: "Fuel", parts: "Parts & supplies", tools: "Tools & equipment", meals: "Meals & entertainment", travel: "Travel & lodging", office: "Office & software", other: "Other" })[r.category || r.effectiveCategory] || "")}${r.category ? "" : " (by keyword)"}</div>` : ""}</td>
             <td class="num${r.amount < 0 ? " neg" : ""}">${money(r.amount)}${r.amount < 0 ? `<span class="pill-return">RETURN</span>` : ""}</td>
             <td class="c-actions"><button type="button" class="tiny danger rc-del" data-id="${esc(r.id)}">Delete</button></td>
           </tr>`;

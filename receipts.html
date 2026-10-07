@@ -37,7 +37,11 @@
     .f-date { grid-column: span 3; }
     .f-amount { grid-column: span 3; }
     .f-merchant { grid-column: span 6; }
+    .f-category { grid-column: span 6; }
     .f-purpose { grid-column: span 12; }
+    .f-category select { width: 100%; border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; font-size: 15px; font-family: inherit; background: #fff; }
+    .pill-cat { display: inline-block; margin-left: 6px; border-radius: 999px; padding: 1px 8px; font-size: 10.5px; font-weight: 700; background: #eef2ff; color: #3730a3; vertical-align: middle; }
+    .pill-cat.fuel { background: #fef3c7; color: #92400e; }
     .hint { font-size: 12px; color: var(--muted); margin-top: 5px; line-height: 1.4; }
 
     /* photo picker: a big tap target with the preview inside once chosen */
@@ -89,7 +93,7 @@
       .surface { padding: 16px; }
       .internal-shell-header-top { flex-wrap: wrap !important; }
       .f-date, .f-amount { grid-column: span 6; }
-      .f-merchant { grid-column: span 12; }
+      .f-merchant, .f-category { grid-column: span 12; }
       .actions-row button { width: 100%; }
       .toolbar .field { flex: 1 1 40%; }
       .total-box { flex: 1 1 100%; }
@@ -133,6 +137,20 @@
           <div class="f-merchant">
             <label for="merchant">Where <span class="muted" style="font-weight:500;">(optional)</span></label>
             <input type="text" id="merchant" maxlength="120" placeholder="e.g. Home Depot, Shell, Amazon" autocomplete="off" />
+          </div>
+          <div class="f-category">
+            <label for="category">Category</label>
+            <select id="category">
+              <option value="">Choose…</option>
+              <option value="fuel">Fuel</option>
+              <option value="parts">Parts &amp; supplies</option>
+              <option value="tools">Tools &amp; equipment</option>
+              <option value="meals">Meals &amp; entertainment</option>
+              <option value="travel">Travel &amp; lodging</option>
+              <option value="office">Office &amp; software</option>
+              <option value="other">Other</option>
+            </select>
+            <div class="hint">Fuel is rolled up per tech on the service commission board — pick it for every fill-up.</div>
           </div>
           <div class="f-purpose">
             <label for="purpose">Business purpose</label>
@@ -182,6 +200,13 @@ const money = (n) => { const v = Number(n || 0); const s = "$" + Math.abs(v).toL
       ? `<a class="thumb thumb-pdf" href="/api/card-receipts/${esc(r.id)}/photo" target="_blank" rel="noopener" title="Open the PDF receipt">PDF</a>`
       : `<a href="/api/card-receipts/${esc(r.id)}/photo" target="_blank" rel="noopener"><img class="thumb" src="/api/card-receipts/${esc(r.id)}/photo" alt="Receipt" loading="lazy" /></a>`;
     const esc = (v) => String(v ?? "").replace(/[&<>"']/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch]));
+    const CAT_LABELS = { fuel: "Fuel", parts: "Parts & supplies", tools: "Tools & equipment", meals: "Meals & entertainment", travel: "Travel & lodging", office: "Office & software", other: "Other" };
+    const catPill = (r) => { const k = r.category || r.effectiveCategory; return k ? `<span class="pill-cat ${esc(k)}" title="${r.category ? "" : "by keyword — filed before categories"}">${esc(CAT_LABELS[k] || k)}${r.category ? "" : " ?"}</span>` : ""; };
+    // Pre-select Fuel when the merchant / purpose reads like a fill-up.
+    const FUEL_RE = /\b(fuel|gasoline|diesel|unleaded|gas station|fill[- ]?up|shell|exxon|mobil|chevron|texaco|valero|citgo|conoco|phillips 66|sunoco|murphy usa|racetrac|quiktrip|qt|circle k|7-eleven|buc-?ee'?s|stripes|love'?s|pilot|flying j|wawa)\b/i;
+    const guessCategory = () => { const sel = document.getElementById("category"); if (sel.value) return; if (FUEL_RE.test(document.getElementById("merchant").value + " " + document.getElementById("purpose").value)) sel.value = "fuel"; };
+    document.getElementById("merchant").addEventListener("change", guessCategory);
+    document.getElementById("purpose").addEventListener("change", guessCategory);
     function setStatus(id, message, kind) {
       const box = $(id);
       if (!message) { box.className = "status"; box.textContent = ""; return; }
@@ -292,6 +317,7 @@ const money = (n) => { const v = Number(n || 0); const s = "$" + Math.abs(v).toL
       if (!Number.isFinite(amount) || amount <= 0) { setStatus("formStatus", "Enter the receipt amount.", "error"); return; }
       if ($("isReturn").checked) amount = -amount;
       if (!$("purpose").value.trim()) { setStatus("formStatus", "Enter the business purpose.", "error"); return; }
+      if (!$("category").value) { setStatus("formStatus", "Pick a category (Fuel, Parts, Meals…).", "error"); return; }
       const btn = $("fileBtn"); btn.disabled = true; btn.textContent = "Filing…";
       try {
         const form = new FormData();
@@ -299,6 +325,7 @@ const money = (n) => { const v = Number(n || 0); const s = "$" + Math.abs(v).toL
         form.append("spentOn", $("spentOn").value);
         form.append("amount", amount.toFixed(2));
         form.append("merchant", $("merchant").value.trim());
+        form.append("category", $("category").value);
         form.append("purpose", $("purpose").value.trim());
         const res = await fetch("/api/card-receipts", { method: "POST", credentials: "same-origin", body: form });
         const data = await res.json().catch(() => ({}));
@@ -308,7 +335,7 @@ const money = (n) => { const v = Number(n || 0); const s = "$" + Math.abs(v).toL
         photoBlob = null; photoName = "receipt.jpg"; $("photoInput").value = "";
         $("photoBox").classList.remove("has-photo");
         $("photoCta").innerHTML = `Tap to take a photo, choose from your library, or pick a PDF<small>The whole receipt, flat, with the total readable — or the PDF a vendor emailed you.</small>`;
-        $("amount").value = ""; $("merchant").value = ""; $("purpose").value = ""; $("isReturn").checked = false;
+        $("amount").value = ""; $("merchant").value = ""; $("purpose").value = ""; $("isReturn").checked = false; $("category").value = "";
         // show the month it landed in
         const [y, m] = data.receipt.spentOn.split("-");
         ensureYearOption(Number(y)); $("yearSelect").value = String(Number(y)); $("monthSelect").value = String(Number(m));
@@ -353,7 +380,7 @@ const money = (n) => { const v = Number(n || 0); const s = "$" + Math.abs(v).toL
         <tr data-id="${esc(r.id)}">
           <td class="c-photo">${attachmentCell(r)}</td>
           <td class="c-date">${esc(fmtDate(r.spentOn))}</td>
-          <td class="c-what">${r.merchant ? `<div class="merchant">${esc(r.merchant)}${r.amount < 0 ? `<span class="pill-return">RETURN</span>` : ""}</div>` : (r.amount < 0 ? `<span class="pill-return">RETURN</span>` : "")}<div class="purpose">${esc(r.purpose)}</div></td>
+          <td class="c-what">${r.merchant ? `<div class="merchant">${esc(r.merchant)}${r.amount < 0 ? `<span class="pill-return">RETURN</span>` : ""}${catPill(r)}</div>` : `${r.amount < 0 ? `<span class="pill-return">RETURN</span>` : ""}${catPill(r)}`}<div class="purpose">${esc(r.purpose)}</div></td>
           <td class="num${r.amount < 0 ? " neg" : ""}">${money(r.amount)}</td>
           <td class="c-actions"><button type="button" class="tiny danger rc-del" data-id="${esc(r.id)}">Delete</button></td>
         </tr>`).join("");

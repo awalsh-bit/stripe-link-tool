@@ -464,7 +464,8 @@ import {
 } from "./lib/written-models.js";
 import {
   buildServiceCommissionBoard, listServiceCompPlans, upsertServiceCompPlan, addServiceCompCredit, deleteServiceCompCredit,
-  getServiceCompSettings, setServiceCompSetting, fiscalCalendar as serviceFiscalCalendar
+  getServiceCompSettings, setServiceCompSetting, fiscalCalendar as serviceFiscalCalendar, fiscalPeriodFor as serviceFiscalPeriodFor,
+  getQuarterPlanEditor, saveQuarterPlan
 } from "./lib/service-commissions-postgres.js";
 import {
   upsertCommissionPost,
@@ -4834,6 +4835,7 @@ app.post("/api/card-receipts", requirePagePermission("/receipts.html"), (req, re
       const amount = Math.round(Number(String(b.amount || "").replace(/[$,\s]/g, "")) * 100) / 100;
       const purpose = String(b.purpose || "").trim().slice(0, 600);
       const merchant = String(b.merchant || "").trim().slice(0, 120);
+      const category = String(b.category || "").trim().toLowerCase().slice(0, 20);
       const spentOn = /^\d{4}-\d{2}-\d{2}$/.test(String(b.spentOn || "")) ? String(b.spentOn) : centralDateToday();
       const file = req.file;
       if (!file || !file.buffer?.length) return res.status(400).json({ error: "Add a photo or PDF of the receipt." });
@@ -4848,12 +4850,12 @@ app.post("/api/card-receipts", requirePagePermission("/receipts.html"), (req, re
 
       const receipt = await createCardReceipt({
         userId: me.userId, email: me.email, name: me.name,
-        spentOn, amount, merchant, purpose,
+        spentOn, amount, merchant, purpose, category,
         photo: { buffer: file.buffer, contentType: isPdf ? "application/pdf" : (file.mimetype || "image/jpeg") }
       });
       recordAudit({
         ip: req.ip, actorUserId: me.userId, action: "card_receipt_filed", targetUserId: null,
-        detail: { receiptId: receipt.id, spentOn, amount, merchant, purpose: purpose.slice(0, 120) }
+        detail: { receiptId: receipt.id, spentOn, amount, merchant, category: receipt.category, purpose: purpose.slice(0, 120) }
       }).catch(() => {});
       return res.json({ ok: true, receipt });
     } catch (error) {
@@ -15085,10 +15087,30 @@ app.post("/api/service-commissions/credits/:id/delete", requireServiceComp, asyn
   try { await deleteServiceCompCredit(req.params.id); scAudit(req, "service_comp_credit_removed", { id: req.params.id }); return res.json({ ok: true }); }
   catch (err) { return res.status(500).json({ error: "Unable to remove the credit." }); }
 });
+// Quarter-first plan editor (Andrew 10/7): the dept's quarter quota, the
+// qualifying job titles, and the per-tech split / OTE / base %.
+app.get("/api/service-commissions/quarter", requireServiceComp, async (req, res) => {
+  try {
+    const today = new Date().toLocaleDateString("en-CA", { timeZone: APP_TIMEZONE });
+    const settings = await getServiceCompSettings();
+    const cur = serviceFiscalPeriodFor(today, settings);
+    const year = Number(req.query.year) || cur?.year || Number(today.slice(0, 4));
+    const quarter = Number(req.query.quarter) || (cur && cur.year === year ? cur.quarter : 1);
+    const editor = await getQuarterPlanEditor({ year, quarter, today });
+    return res.json({ ...editor, canEdit: isExecutiveUser(req.authUser) });
+  } catch (err) { console.error("Service comp quarter editor failed:", err.message); return res.status(500).json({ error: "Unable to load the quarter plan." }); }
+});
+app.post("/api/service-commissions/quarter", requireServiceComp, requireExecutiveApi, async (req, res) => {
+  try {
+    const out = await saveQuarterPlan({ ...(req.body || {}), by: scBy(req) });
+    scAudit(req, "service_comp_quarter_saved", { year: out.year, quarter: out.quarter, deptQuota: out.deptQuota, allocated: out.allocated, techs: out.techs });
+    return res.json({ ok: true, ...out });
+  } catch (err) { return res.status(400).json({ error: err.message }); }
+});
 app.post("/api/service-commissions/settings", requireServiceComp, requireExecutiveApi, async (req, res) => {
   try {
     const out = {};
-    for (const key of ["week_one_start", "quarter_weeks", "pay_lag_days"]) if (req.body?.[key] != null) out[key] = await setServiceCompSetting(key, req.body[key]);
+    for (const key of ["week_one_start", "quarter_weeks", "pay_lag_days", "qualifying_titles", "payroll_burden_pct"]) if (req.body?.[key] != null) out[key] = await setServiceCompSetting(key, req.body[key]);
     scAudit(req, "service_comp_settings_saved", { keys: Object.keys(out) });
     return res.json({ ok: true, settings: await getServiceCompSettings() });
   } catch (err) { return res.status(400).json({ error: err.message }); }

@@ -90,6 +90,14 @@
     table.qp select { padding: 4px 6px; font-size: 12px; border-radius: 8px; }
     table.qp td.wt { font-weight: 800; }
     table.qp td.anchor { color: var(--muted); white-space: nowrap; }
+    table.qp td.terr { white-space: nowrap; }
+    .gear { appearance: none; border: 1px solid var(--border); background: #fff; color: #475569; border-radius: 8px; width: 28px; height: 28px; padding: 0; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; vertical-align: middle; margin-right: 6px; }
+    .gear:hover { border-color: var(--primary); color: var(--primary); background: #fff; }
+    .gear:disabled { opacity: .5; cursor: default; }
+    .tchip { display: inline-block; border-radius: 999px; padding: 1px 7px; font-size: 11px; font-weight: 700; margin-right: 4px; background: #f1f5f9; color: #475569; vertical-align: middle; }
+    .tchip.down { background: #fef3c7; color: #92400e; } .tchip.up { background: rgba(var(--primary-rgb), 0.12); color: var(--primary); }
+    .terr-row { display: grid; gap: 4px; padding: 10px 0; border-bottom: 1px solid #eef1f6; font-size: 12px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: .05em; }
+    .terr-row select { font-size: 14px; font-weight: 500; text-transform: none; letter-spacing: 0; color: var(--text); padding: 9px 10px; }
     table.qp td.anchor .mini { white-space: nowrap; }
     .wt.down { color: #b45309; } .wt.up { color: var(--primary); }
     .titles-line { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin: 4px 0 14px; font-size: 13px; }
@@ -197,8 +205,8 @@
         <button type="button" class="quiet tiny" id="qpTitlesOpen">Edit titles</button>
         <span class="hint" id="qpTitlesNote"></span>
       </div>
-      <p class="hint" style="margin:0 0 8px;">Difficulty factors weight the split: each tech starts at an even share of the dept quota (1 ÷ techs on plan) and <b>Geo Mix</b>, <b>Geo Drive Time</b> and <b>Tenure</b> each take or add 10% of that even share — strictly for that tech, nobody else moves, so the total can run over 100% (the cushion). <b>Weighted split</b> sets everyone that way at once; changing a factor only re-sets that tech. Shares can still be nudged by hand afterward. <b>Trailing 52 wks</b> is the tech's average weekly quota and attainment over the last 52 completed fiscal weeks before this quarter (only weeks they had a plan) — the anchor for the new number, weighted to recency rather than season.</p>
-      <div class="scroll"><table class="qp"><thead><tr><th class="l">Tech</th><th>Geo Mix</th><th>Geo Drive Time</th><th>Tenure</th><th>Weight</th><th>Share</th><th>Weekly quota</th><th>Quarter quota</th><th class="anchor" id="anchorHead" title="Average weekly quota and attainment over the trailing 52 completed fiscal weeks before this quarter">Trailing 52 wks</th><th>Change</th><th>OTE</th><th>On plan</th><th></th></tr></thead><tbody id="qpBody"></tbody><tfoot id="qpFoot"></tfoot></table></div>
+      <p class="hint" style="margin:0 0 8px;">Difficulty factors weight the split: each tech starts at an even share of the dept quota (1 ÷ techs on plan) and the gear (<b>tech territory adjustments</b>) sets <b>Geo Mix</b>, <b>Geo Drive Time</b> and <b>Tenure</b>, each a 5–25% swing of that even share — strictly for that tech, nobody else moves, so the total can run over 100% (the cushion). <b>Weighted split</b> sets everyone that way at once; changing a factor only re-sets that tech. Shares can still be nudged by hand afterward. <b>Trailing 52 wks</b> is the tech's average weekly quota and attainment over the last 52 completed fiscal weeks before this quarter (only weeks they had a plan) — the anchor for the new number, weighted to recency rather than season.</p>
+      <div class="scroll"><table class="qp"><thead><tr><th class="l">Tech</th><th class="l">Territory</th><th>Weight</th><th>Share</th><th>Weekly quota</th><th>Quarter quota</th><th class="anchor" id="anchorHead" title="Average weekly quota and attainment over the trailing 52 completed fiscal weeks before this quarter">Trailing 52 wks</th><th>Change</th><th>OTE</th><th>On plan</th><th></th></tr></thead><tbody id="qpBody"></tbody><tfoot id="qpFoot"></tfoot></table></div>
       <div class="qp-actions">
         <button type="button" class="secondary tiny" id="qpWeighted">Weighted split</button>
         <button type="button" class="quiet tiny" id="qpEven">Even split (ignore factors)</button>
@@ -231,6 +239,14 @@
     <div id="internal-shell-footer"></div>
   </div>
 
+  <div class="drawer-mask" id="terrMask"></div>
+  <aside class="drawer" id="terrDrawer" aria-label="Tech territory adjustments">
+    <div class="drawer-head"><h3>Tech territory adjustments</h3><button type="button" class="quiet tiny" id="terrClose">Close</button></div>
+    <p class="hint" style="padding:10px 18px 0;margin:0;"><b id="terrName"></b><br>Each factor swings this tech's even share by 5–25% in either direction. Only this tech's share moves — the department total takes the difference as cushion (or slack).</p>
+    <div class="drawer-body" id="terrBody"></div>
+    <div class="hint" id="terrPreview" style="padding:0 18px 10px;"></div>
+    <div class="drawer-foot"><button type="button" class="quiet tiny" id="terrReset" style="margin-right:auto;">Reset to even</button><button type="button" class="quiet" id="terrCancel">Cancel</button><button type="button" id="terrApply">Apply</button></div>
+  </aside>
   <div class="drawer-mask" id="titlesMask"></div>
   <aside class="drawer" id="titlesDrawer" aria-label="Qualifying job titles">
     <div class="drawer-head"><h3>Qualifying job titles</h3><button type="button" class="quiet tiny" id="titlesClose">Close</button></div>
@@ -361,6 +377,13 @@
         } catch (err) { setStatus(err.message, "error"); }
       }
       function weeklyOf(t) { return qp.dept * (t.share || 0) / qp.data.weeks; }
+      const GEAR = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3h.1a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8v.1a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>';
+      const factorOpt = (f, key) => qp.data.factors[f].options.find((o) => o.key === key);
+      // "Core −10 · Short +5" or "even" - the compact read-out beside the gear.
+      function terrSummary(t) {
+        const bits = ["geoMix", "driveTime", "tenure"].map((f) => { const o = factorOpt(f, t[f]); return o && o.adj ? `<span class="tchip ${o.adj < 0 ? "down" : "up"}">${esc(o.side.split(" ")[0])} ${o.adj > 0 ? "+" : "−"}${Math.round(Math.abs(o.adj) * 100)}</span>` : ""; }).filter(Boolean);
+        return bits.length ? bits.join("") : `<span class="tchip">even</span>`;
+      }
       function weightOf(t) { let w = 1; for (const f of ["geoMix", "driveTime", "tenure"]) { const o = qp.data.factors[f].options.find((x) => x.key === t[f]); w += o ? o.adj : 0; } return Math.round(w * 1000) / 1000; }
       // Even share × weight, per tech. A factor change touches only that tech.
       function evenShare() { const n = qp.techs.filter((t) => t.active).length; return n ? 1 / n : 0; }
@@ -388,7 +411,7 @@
             ${!t.inDirectory ? `<span class="flag bad" title="No directory entry with this code">not in directory</span>` : t.archived ? `<span class="flag bad">archived</span>` : !t.qualifies ? `<span class="flag warn" title="Title isn't in the qualifying list — kept because they're on this quarter">${t.manual ? "added by hand" : "title not qualifying"}</span>` : ""}
             ${t.inDirectory && !t.email ? `<span class="flag info" title="Fuel receipts are matched by directory email">no email</span>` : ""}
             ${t.active && !(t.share > 0) ? `<span class="flag warn" title="On the plan with 0% — run Weighted split or type a share">no share</span>` : ""}</td>
-          ${["geoMix", "driveTime", "tenure"].map((f) => `<td><select name="${f}" ${canEdit ? "" : "disabled"}>${d.factors[f].options.map((o) => `<option value="${o.key}"${t[f] === o.key ? " selected" : ""}>${esc(o.label)}${o.adj ? ` (${o.adj > 0 ? "+" : ""}${Math.round(o.adj * 100)}%)` : ""}</option>`).join("")}</select></td>`).join("")}
+          <td class="l terr"><button type="button" class="gear" data-terr="${i}" title="Tech territory adjustments" aria-label="Tech territory adjustments for ${esc(t.name)}" ${canEdit ? "" : "disabled"}>${GEAR}</button>${terrSummary(t)}</td>
           <td class="wt ${weightOf(t) < 1 ? "down" : weightOf(t) > 1 ? "up" : ""}">${weightOf(t).toFixed(2)}</td>
           <td><input class="pctin" name="share" type="number" step="0.1" min="0" max="100" value="${t.share ? Math.round(t.share * 1000) / 10 : ""}" ${canEdit ? "" : "disabled"} />%</td>
           <td><input name="weekly" type="text" inputmode="decimal" value="${fmtIn(wk)}" ${canEdit ? "" : "disabled"} /></td>
@@ -397,12 +420,12 @@
           <td class="${t.anchor && t.anchor.weeklyQuota > 0 ? (wk >= t.anchor.weeklyQuota ? "good" : "bad") : ""}">${t.anchor && t.anchor.weeklyQuota > 0 ? `<b>${wk >= t.anchor.weeklyQuota ? "+" : ""}${Math.round((wk / t.anchor.weeklyQuota - 1) * 1000) / 10}%</b>` : "—"}</td>
           <td><input class="otein" name="ote" type="text" inputmode="decimal" value="${fmtIn(t.ote)}" placeholder="92,000" title="Base guarantee ${t.basePct}% = ${money((t.ote || 0) * t.basePct / 100)} (set per employee code below)" ${canEdit ? "" : "disabled"} /></td>
           <td style="text-align:center;"><input name="active" type="checkbox" ${t.active ? "checked" : ""} ${canEdit ? "" : "disabled"} /></td>
-          <td>${t.manual && canEdit ? `<button type="button" class="quiet tiny" data-rm="${i}">remove</button>` : ""}</td></tr>`; }).join("") || `<tr><td colspan="13" class="empty">No techs — pick qualifying job titles above or add one by code.</td></tr>`;
+          <td>${t.manual && canEdit ? `<button type="button" class="quiet tiny" data-rm="${i}">remove</button>` : ""}</td></tr>`; }).join("") || `<tr><td colspan="11" class="empty">No techs — pick qualifying job titles above or add one by code.</td></tr>`;
         const left = 1 - alloc;
         // Over 100% is allowed - and normal: techs are assigned a little above the
         // dept target so the dept still hits it when one tech misses.
         const cls = Math.abs(left) < 0.0005 ? "ok" : left < 0 ? "ok" : "under";
-        $("qpFoot").innerHTML = `<tr><td class="l">Assigned</td><td class="remain ${cls}">${Math.round(alloc * 1000) / 10}%</td><td>${money(qp.dept * alloc / d.weeks)}</td><td>${money(qp.dept * alloc)}</td><td colspan="9" class="l remain ${cls}" style="text-align:left;">${Math.abs(left) < 0.0005 ? "Exactly the department target." : left < 0 ? `${money(-left * qp.dept)} (${Math.round(-left * 1000) / 10}%) above the dept target — cushion if a tech misses.` : `${money(left * qp.dept)} (${Math.round(left * 1000) / 10}%) of the dept target not yet assigned.`}</td></tr>`;
+        $("qpFoot").innerHTML = `<tr><td class="l">Assigned</td><td class="remain ${cls}">${Math.round(alloc * 1000) / 10}%</td><td>${money(qp.dept * alloc / d.weeks)}</td><td>${money(qp.dept * alloc)}</td><td colspan="7" class="l remain ${cls}" style="text-align:left;">${Math.abs(left) < 0.0005 ? "Exactly the department target." : left < 0 ? `${money(-left * qp.dept)} (${Math.round(-left * 1000) / 10}%) above the dept target — cushion if a tech misses.` : `${money(left * qp.dept)} (${Math.round(left * 1000) / 10}%) of the dept target not yet assigned.`}</td></tr>`;
         ["qpWeighted", "qpEven", "qpByOte", "qpAdd", "qpSave"].forEach((id) => { $(id).disabled = !canEdit; });
         $("qpNote").disabled = $("qpDept").disabled = !canEdit;
         // wire inputs
@@ -412,7 +435,7 @@
           tr.querySelector('[name="weekly"]').addEventListener("change", (e) => { const w = num(e.target.value); t.share = qp.dept > 0 ? (w * qp.data.weeks) / qp.dept : 0; qp.dirty = true; renderQuarter(); });
           tr.querySelector('[name="ote"]').addEventListener("change", (e) => { t.ote = num(e.target.value); qp.dirty = true; renderQuarter(); });
           tr.querySelector('[name="active"]').addEventListener("change", (e) => { t.active = e.target.checked; qp.dirty = true; renderQuarter(); });
-          ["geoMix", "driveTime", "tenure"].forEach((f) => tr.querySelector(`[name="${f}"]`).addEventListener("change", (e) => { t[f] = e.target.value; qp.dirty = true; applyWeighted(t); renderQuarter(); }));
+          tr.querySelector("[data-terr]").addEventListener("click", () => openTerritory(t));
           const rm = tr.querySelector("[data-rm]"); if (rm) rm.addEventListener("click", () => { qp.techs.splice(Number(rm.dataset.rm), 1); qp.dirty = true; renderQuarter(); });
         });
       }
@@ -435,6 +458,25 @@
       $("qpDept").addEventListener("change", () => { qp.dept = Math.max(0, num($("qpDept").value)); qp.dirty = true; renderQuarter(); });
       $("qpDept").addEventListener("input", () => { qp.dept = Math.max(0, num($("qpDept").value)); const d = qp.data; if (d) $("qpDerived").innerHTML = `<b>${money(qp.dept / d.weeks)}</b> / week for the department<br><span class="hint">${money(qp.dept)} ÷ ${d.weeks} weeks</span>`; });
       $("qpWeighted").addEventListener("click", () => { applyWeighted(); qp.dirty = true; renderQuarter(); });
+      // Territory drawer: one tech's three factors, with the weight and share
+      // previewed as they change; Apply re-sets only that tech's share.
+      let terrTech = null;
+      function openTerritory(t) {
+        terrTech = t; const d = qp.data;
+        $("terrName").textContent = `${t.name} · ${t.techCode}`;
+        $("terrBody").innerHTML = ["geoMix", "driveTime", "tenure"].map((f) => `<label class="terr-row"><span>${esc(d.factors[f].label)}</span><select data-f="${f}">${d.factors[f].options.map((o) => `<option value="${o.key}"${t[f] === o.key ? " selected" : ""}>${esc(o.label)}</option>`).join("")}</select></label>`).join("");
+        const preview = () => { const tmp = { ...t }; $("terrBody").querySelectorAll("select").forEach((sel) => { tmp[sel.dataset.f] = sel.value; }); const w = weightOf(tmp); const share = evenShare() * w; $("terrPreview").innerHTML = `Weight <b class="${w < 1 ? "bad" : w > 1 ? "good" : ""}">${w.toFixed(2)}</b> → share <b>${Math.round(share * 1000) / 10}%</b> · <b>${money(qp.dept * share / d.weeks)}</b>/wk${t.anchor ? ` <span class="hint">(trailing avg ${money(t.anchor.weeklyQuota)}/wk)</span>` : ""}`; };
+        $("terrBody").querySelectorAll("select").forEach((sel) => sel.addEventListener("change", preview)); preview();
+        $("terrMask").classList.add("show"); $("terrDrawer").classList.add("show");
+      }
+      function closeTerritory() { $("terrMask").classList.remove("show"); $("terrDrawer").classList.remove("show"); terrTech = null; }
+      ["terrClose", "terrCancel", "terrMask"].forEach((id) => $(id).addEventListener("click", closeTerritory));
+      $("terrReset").addEventListener("click", () => { $("terrBody").querySelectorAll("select").forEach((sel) => { sel.value = qp.data.factors[sel.dataset.f].default; sel.dispatchEvent(new Event("change")); }); });
+      $("terrApply").addEventListener("click", () => {
+        const t = terrTech; if (!t) return;
+        $("terrBody").querySelectorAll("select").forEach((sel) => { t[sel.dataset.f] = sel.value; });
+        qp.dirty = true; applyWeighted(t); closeTerritory(); renderQuarter();
+      });
       // Titles drawer: checkboxes for every title in the directory.
       function openTitles() {
         const d = qp.data; const on = new Set(d.qualifyingTitles.map((n) => n.toLowerCase()));

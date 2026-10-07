@@ -465,7 +465,7 @@ import {
 import {
   buildServiceCommissionBoard, listServiceCompPlans, upsertServiceCompPlan, addServiceCompCredit, deleteServiceCompCredit,
   getServiceCompSettings, setServiceCompSetting, fiscalCalendar as serviceFiscalCalendar, fiscalPeriodFor as serviceFiscalPeriodFor,
-  getQuarterPlanEditor, saveQuarterPlan
+  getQuarterPlanEditor, saveQuarterPlan, saveTechSettings as saveServiceCompTechSettings
 } from "./lib/service-commissions-postgres.js";
 import {
   upsertCommissionPost,
@@ -15105,6 +15105,14 @@ app.post("/api/service-commissions/quarter", requireServiceComp, requireExecutiv
     const out = await saveQuarterPlan({ ...(req.body || {}), by: scBy(req) });
     scAudit(req, "service_comp_quarter_saved", { year: out.year, quarter: out.quarter, deptQuota: out.deptQuota, allocated: out.allocated, techs: out.techs });
     return res.json({ ok: true, ...out });
+  } catch (err) { return res.status(400).json({ error: err.message }); }
+});
+// Base guarantee % by employee code (not per quarter).
+app.post("/api/service-commissions/tech-settings", requireServiceComp, requireExecutiveApi, async (req, res) => {
+  try {
+    const n = await saveServiceCompTechSettings(req.body?.techs || [], scBy(req));
+    scAudit(req, "service_comp_tech_settings_saved", { techs: (req.body?.techs || []).map((t) => ({ code: t.techCode, basePct: t.basePct })) });
+    return res.json({ ok: true, saved: n });
   } catch (err) { return res.status(400).json({ error: err.message }); }
 });
 app.post("/api/service-commissions/settings", requireServiceComp, requireExecutiveApi, async (req, res) => {

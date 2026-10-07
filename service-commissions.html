@@ -282,7 +282,7 @@
         $("yearSel").innerHTML = years.map((y) => `<option value="${y}"${y === b.year ? " selected" : ""}>${y}</option>`).join("");
         $("qChips").innerHTML = b.quarters.map((x) => `<button type="button" class="chip${x.q === q.q ? " on" : ""}" data-q="${x.q}">Q${x.q} <small style="opacity:.75;margin-left:4px;">${md(x.start)}–${md(x.end)} · pays ${md(x.payDate)}</small></button>`).join("");
         $("qChips").querySelectorAll(".chip").forEach((c) => c.addEventListener("click", () => { state.quarter = c.dataset.q; load(); }));
-        $("dataThrough").textContent = b.dataThrough ? `SV tickets through ${day(b.dataThrough)} · ${b.ticketCount} tickets this quarter · ${b.paidCheck ? "paid-balance check: ePASS AR feed" : "no AR snapshot — nothing held yet"}` : "No finished SV tickets in this quarter yet — upload the Sales Order Detail feed.";
+        $("dataThrough").textContent = b.dataThrough ? `SV tickets through ${day(b.dataThrough)} · ${b.ticketCount} tickets this quarter · ${b.paidCheck ? `paid-balance check: ${b.paidSource === "feed" ? "ticket balances from the finished-orders feed" : b.paidSource === "feed+ar" ? "ticket balances from the feed, AR snapshot for older tickets" : "ePASS AR snapshot"}` : "no balance data yet — nothing held"}` : "No finished SV tickets in this quarter yet — upload the Sales Order Detail feed.";
         const techs = b.techs;
         const tot = { att: 0, quota: 0, proj: 0, at100: 0, cod: 0, parts: 0, wty: 0 };
         for (const t of techs) { tot.att += t.summary.attainmentToDate; tot.quota += t.summary.quotaToDate; tot.proj += t.summary.projectedCommission || 0; tot.at100 += t.summary.commissionAt100; tot.cod += t.summary.codLabor; tot.parts += t.summary.codPartsMargin; tot.wty += t.summary.wtyLabor; }

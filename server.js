@@ -6580,7 +6580,9 @@ function computeShopCatalog({ maxAgeMs = 0 } = {}) {
 // refresh rather than a cold build.
 const SHOP_WARM_ACTIVE_MS = 10 * 60 * 1000;
 const SHOP_WARM_IDLE_MS = 10 * 60 * 1000;
-if (process.env.DATABASE_URL) {
+// SHOP_CATALOG_WARM=off in the Render environment turns the warmer off
+// entirely (the catalog then builds only when a visitor asks for it).
+if (process.env.DATABASE_URL && String(process.env.SHOP_CATALOG_WARM || "").toLowerCase() !== "off") {
   setTimeout(() => refreshShopCatalogInBackground(), 8000).unref?.();
   setInterval(() => {
     const age = shopCatalogCache ? Date.now() - shopCatalogCache.at : Infinity;

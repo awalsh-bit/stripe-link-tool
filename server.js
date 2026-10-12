@@ -6554,7 +6554,7 @@ const SHOP_STOCK_LOW_MAX = 3; // 1–3 units = Low Stock, 4+ = In Stock
 //   brandMap              — model → { brand } (NetSuite catalog / snapshot)
 //   brandNames            — brand CODE → name, learned from the clearance list
 //   clearanceUnitKeys     — model|serial keys the clearance list already prices
-function shopStockItems({ snapshot, settings, brandMap, brandNames, images, mapPolicy, mapFloor, statusById, clearanceUnitKeys }) {
+function shopStockItems({ snapshot, settings, brandMap, brandNames, images, mapPolicy, mapFloor, statusById, clearanceUnitKeys, mapExemptFor = () => "" }) {
   const brandBlocked = shopBrandBlocker();
   const byModel = new Map();
   const heldByModel = new Map(); // ALL units spoken for / reserved, per model (for the stock table)
@@ -6595,21 +6595,22 @@ function shopStockItems({ snapshot, settings, brandMap, brandNames, images, mapP
     const blocked = brandBlocked(brand, g.brandCode);
     const listed = !blocked && !cfg.hidden && available.length > 0 && (available.length > 1 || cfg.showSingle);
     models.push({ model: g.model, key: g.key, brand, brandCode: g.brandCode, description: g.description, product: g.prod, category: g.category,
-      netsuite: ns.source === "netsuite", merchCategory: ns.merchCategory || "", merchClass: ns.merchClass || "", merchSubclass: ns.merchSubclass || "", inStock: g.units.length, held: heldByModel.get(g.key) || 0, available: available.length, listPrice: g.list || null, listCode: g.listCode, map: g.map || null, mapCode: g.mapCode, l1: g.l1 || null, price: price || null, settings: { price: cfg.price ?? null, showSingle: !!cfg.showSingle, hidden: !!cfg.hidden, note: cfg.note || "", badge: cfg.badge || "", badgeStyle: cfg.badgeStyle || "red", hideStockBadge: !!cfg.hideStockBadge }, listed, blocked, reason: blocked ? "brand doesn't allow online sale" : cfg.hidden ? "hidden" : !available.length ? "none available" + (heldByModel.get(g.key) ? ` (${heldByModel.get(g.key)} spoken for)` : "") : available.length === 1 && !cfg.showSingle ? "single unit (toggle to show)" : !price ? "no price — call for price" : "" });
+      netsuite: ns.source === "netsuite", merchCategory: ns.merchCategory || "", merchClass: ns.merchClass || "", merchSubclass: ns.merchSubclass || "", inStock: g.units.length, held: heldByModel.get(g.key) || 0, available: available.length, listPrice: g.list || null, listCode: g.listCode, map: g.map || null, mapCode: g.mapCode, l1: g.l1 || null, price: price || null, settings: { price: cfg.price ?? null, showSingle: !!cfg.showSingle, hidden: !!cfg.hidden, note: cfg.note || "", badge: cfg.badge || "", badgeStyle: cfg.badgeStyle || "red", hideStockBadge: !!cfg.hideStockBadge, mapExempt: !!cfg.mapExempt }, mapExempt: mapExemptFor(g.model), listed, blocked, reason: blocked ? "brand doesn't allow online sale" : cfg.hidden ? "hidden" : !available.length ? "none available" + (heldByModel.get(g.key) ? ` (${heldByModel.get(g.key)} spoken for)` : "") : available.length === 1 && !cfg.showSingle ? "single unit (toggle to show)" : !price ? "no price — call for price" : "" });
     if (!listed) continue;
     // The floor is ePASS's own MAP (RETAIL / brand UMRP) when it has one — at
     // or above it the price is advertised on the card; below it (an override)
     // it stays a cart reveal. Without an ePASS MAP, the old rule: published
     // MAP feed + the brand/category whitelist.
     const floor = g.map > 0 ? g.map : mapFloor[g.key];
-    const mapPublic = Boolean(price && Number.isFinite(Number(floor)) && Number(floor) > 0 && price >= Number(floor) - 0.005 && (g.map > 0 || shopMapRuleMatch(mapPolicy, brand, g.category)));
+    const mapExempt = mapExemptFor(g.model);
+    const mapPublic = Boolean(price) && (Boolean(mapExempt) || Boolean(Number.isFinite(Number(floor)) && Number(floor) > 0 && price >= Number(floor) - 0.005 && (g.map > 0 || shopMapRuleMatch(mapPolicy, brand, g.category))));
     for (const x of available) {
       items.push({
         id: x.id, model: g.model, brand, brandCode: g.brandCode, product: g.prod, category: g.category, description: g.description,
         serial: x.serial, serialType: "ALL", condition: "new", source: "stock",
         stock: available.length, stockLevel: available.length > SHOP_STOCK_LOW_MAX ? "in" : "low",
         image: images[g.key] || "", price: Math.round(price * 100) / 100, noPrice: !price,
-        deal: shopDealGroupFor({ product: g.prod, category: g.category, price }), mapPublic, mapFloor: Number.isFinite(Number(floor)) ? Number(floor) : null,
+        deal: shopDealGroupFor({ product: g.prod, category: g.category, price }), mapPublic, mapExempt, mapFloor: Number.isFinite(Number(floor)) ? Number(floor) : null,
         badge: cfg.badge || "", badgeStyle: cfg.badgeStyle || "red", hideStockBadge: !!cfg.hideStockBadge
       });
     }
@@ -6729,6 +6730,21 @@ async function computeShopCatalogFresh() {
   const lookupKeyed = (map, composite, serial) => map[composite] ?? map[serial];
 
   const brandBlocked = shopBrandBlocker();
+  // MAP exemption (Andrew 10/12): a discontinued model is no longer subject
+  // to MAP, so its price shows on the card right away. Three signals, any one
+  // is enough: the Store Catalog's per-model "MAP exempt" switch, NetSuite's
+  // discontinued flag (item catalog import), ePASS's Obsolete /
+  // BeingDiscontinued on the Model master (feed snapshot).
+  const feedDiscontinued = new Set();
+  for (const u of snapshot?.serialUnits || []) { if (u?.discontinued) { const k = normalizeModelKey(u.model || u.sku || ""); if (k) feedDiscontinued.add(k); } }
+  const mapExemptFor = (model) => {
+    const key = normalizeModelKey(model);
+    if (modelSettings[key]?.mapExempt) return "manual";
+    const ns = brandMap[String(model || "").trim()] || brandMap[String(model || "").trim().toUpperCase()];
+    if (ns?.discontinued) return "netsuite";
+    if (feedDiscontinued.has(key)) return "epass";
+    return "";
+  };
   const items = [];
   for (const item of clearance.items || []) {
     if (statusById.has(item.id)) continue; // sold, held, or web-locked
@@ -6746,7 +6762,8 @@ async function computeShopCatalogFresh() {
     // floor exists for the model AND our price is at or above it. No floor
     // entry → stays behind the gate; a penny below the floor → gate.
     const floor = mapFloor[normalizeModelKey(item.model)];
-    const mapPublic = Boolean(
+    const mapExempt = mapExemptFor(item.model);
+    const mapPublic = Boolean(mapExempt) || Boolean(
       shopMapRuleMatch(mapPolicy, item.brand, item.category) &&
       Number.isFinite(Number(floor)) &&
       price >= Number(floor) - 0.005
@@ -6767,6 +6784,7 @@ async function computeShopCatalogFresh() {
       price: Math.round(price * 100) / 100,
       deal: shopDealGroupFor({ product: item.product, category: item.category, price }),
       mapPublic,
+      mapExempt,
       mapFloor: itemMapFloor,
       source: "clearance"
     });
@@ -6778,7 +6796,7 @@ async function computeShopCatalogFresh() {
   const brandNames = {};
   for (const i of clearance.items || []) { if (i.brandCode && i.brand && !brandNames[String(i.brandCode).toUpperCase()]) brandNames[String(i.brandCode).toUpperCase()] = i.brand; }
   const stock = snapshot
-    ? shopStockItems({ snapshot, settings: modelSettings, brandMap, brandNames, images, mapPolicy, mapFloor, statusById, clearanceUnitKeys })
+    ? shopStockItems({ snapshot, settings: modelSettings, brandMap, brandNames, images, mapPolicy, mapFloor, statusById, clearanceUnitKeys, mapExemptFor })
     : { items: [], models: [] };
   items.push(...stock.items);
   // Pictures: the nightly RetailDeck thumbnails table first (every model in
@@ -7422,10 +7440,10 @@ app.post("/api/shop/stock-models/:model", requirePagePermission("/shop-orders.ht
   try {
     const b = req.body || {};
     const saved = await saveShopModelSetting({ model: req.params.model, price: b.price == null || b.price === "" ? null : Number(b.price), showSingle: !!b.showSingle, hidden: !!b.hidden, note: b.note || "",
-      badge: b.badge || "", badgeStyle: b.badgeStyle || "red", hideStockBadge: !!b.hideStockBadge, byEmail: req.authUser?.email || "" });
+      badge: b.badge || "", badgeStyle: b.badgeStyle || "red", hideStockBadge: !!b.hideStockBadge, mapExempt: !!b.mapExempt, byEmail: req.authUser?.email || "" });
     invalidateShopCatalog();
     recordAudit({ ip: req.ip, actorUserId: req.authUser?.id || null, action: "shop_model_setting_saved", targetUserId: null,
-      detail: { model: String(req.params.model || "").slice(0, 40), price: b.price ?? null, showSingle: !!b.showSingle, hidden: !!b.hidden, badge: String(b.badge || "").slice(0, 24), hideStockBadge: !!b.hideStockBadge } }).catch(() => {});
+      detail: { model: String(req.params.model || "").slice(0, 40), price: b.price ?? null, showSingle: !!b.showSingle, hidden: !!b.hidden, badge: String(b.badge || "").slice(0, 24), hideStockBadge: !!b.hideStockBadge, mapExempt: !!b.mapExempt } }).catch(() => {});
     return res.json({ ok: true, setting: saved });
   } catch (err) {
     return res.status(400).json({ error: err.message || "Unable to save." });
@@ -10266,6 +10284,10 @@ function serialSnapshotFromFeed(rows, modelRows = [], priceRows = [], openInvoic
         // the pull script sends them), where the unit sits.
         uniquePrice: Number(pick(r, "UniqueSellPrice")) || 0,
         tagPrice: Number(pick(r, "TagPrice")) || 0,
+        // ePASS Model master flags (Model_Obsolete / Model_BeingDiscontinued
+        // once the pull script joins them; the bundle's Model rows otherwise).
+        discontinued: ["Model_Obsolete", "Model_BeingDiscontinued"].some((c) => /^(1|true|t|y|yes)$/i.test(String(pick(r, c) ?? "").trim()))
+          || ["Obsolete", "BeingDiscontinued"].some((c) => /^(1|true|t|y|yes)$/i.test(String(pick(mm, c) ?? "").trim())),
         location: String(pick(r, "LocationCode") ?? "").trim(),
         bin: String(pick(r, "BinLocationCode") ?? "").trim(),
         ...shopPriceFromLevels(levelsByModel.get(model.toUpperCase()), Number(pick(r, "Model_ListPrice") || pick(mm, "ListPrice")) || 0)
@@ -11544,6 +11566,10 @@ app.post("/api/epass-uploads/model-catalog", requirePagePermission("/epass-uploa
       const merchSubCol = findCol("merch subclass");
       // NetSuite's supplier for the item (the brand filter on Quote Follow-Up shows it).
       const vendorCol = findCol("primary supplier", "preferred vendor", "primary vendor", "vendor", "supplier");
+      // Discontinued / inactive flag (Andrew 10/12: a discontinued model is no
+      // longer subject to MAP, so the shop may show its price on the card).
+      const discCol = findCol("is discontinued", "discontinued", "inactive");
+      const yes = (v) => /^(y|yes|true|t|1|discontinued|inactive)$/i.test(String(v ?? "").trim());
       if (modelCol < 0 || brandCol < 0) {
         return res.status(400).json({ error: "Couldn't find Model and Brand columns — is this the NetSuite items export?" });
       }
@@ -11559,7 +11585,8 @@ app.post("/api/epass-uploads/model-catalog", requirePagePermission("/epass-uploa
           merchCategory: merchCatCol >= 0 ? String(grid[r]?.[merchCatCol] ?? "").trim() : "",
           merchClass: merchClassCol >= 0 ? String(grid[r]?.[merchClassCol] ?? "").trim() : "",
           merchSubclass: merchSubCol >= 0 ? String(grid[r]?.[merchSubCol] ?? "").trim() : "",
-          vendor: vendorCol >= 0 ? String(grid[r]?.[vendorCol] ?? "").trim() : "" });
+          vendor: vendorCol >= 0 ? String(grid[r]?.[vendorCol] ?? "").trim() : "",
+          discontinued: discCol >= 0 ? (yes(grid[r]?.[discCol]) ? "yes" : "no") : "" });
       }
       if (!rows.length) {
         return res.status(400).json({ error: "No rows with both a model and a brand found in that file." });

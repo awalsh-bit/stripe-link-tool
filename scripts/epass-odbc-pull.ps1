@@ -495,8 +495,11 @@ ORDER BY m.Code
   $onHandCols = "s.Code, s.ModelCode, s.Status, s.InvoiceCode, s.OrderedForInvoiceCode, s.OrderedForInvoiceDateStamp, s.DateReserved, s.ReserveExclusive, s.Available,
        s.POCode, s.PODateStamp, s.LocationCode, s.BinLocationCode, s.DateReceived, s.SerialTypeCode, s.SupplierCode, s.Cost, s.StandardCost, s.FloorPlan, s.FloorPlanDueDate"
   $onHandPriceCols = ", s.UniqueSellPrice, s.TagPrice"
+  # Model_Obsolete / Model_BeingDiscontinued (Andrew 10/12): a discontinued
+  # model is no longer subject to MAP, so the shop may show its price.
   $onHandModelCols = ",
-       m.Description AS Model_Description, m.BrandCode AS Model_BrandCode, m.ProductCode AS Model_ProductCode, m.SKU AS Model_SKU, m.ListPrice AS Model_ListPrice"
+       m.Description AS Model_Description, m.BrandCode AS Model_BrandCode, m.ProductCode AS Model_ProductCode, m.SKU AS Model_SKU, m.ListPrice AS Model_ListPrice,
+       m.Obsolete AS Model_Obsolete, m.BeingDiscontinued AS Model_BeingDiscontinued"
   $onHandDone = $false
   foreach ($variant in @(
       @{ name = "Model join + unit prices"; cols = ($onHandCols + $onHandPriceCols + $onHandModelCols); join = $true },

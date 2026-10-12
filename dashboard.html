@@ -612,7 +612,7 @@
       height: 12px;
       flex: 0 0 auto;
     }
-    /* Long labels ("ACH — customer must verify") clip with an ellipsis
+    /* Long labels ("ACH — Verify Hold") clip with an ellipsis
        instead of widening the Status column and wrapping the actions —
        the same treatment Paid History gives long references. The full
        label is on the pill's title; the [?] drawer explains every state. */
@@ -638,9 +638,10 @@
     .help-drawer-body { flex: 1; overflow: auto; padding: 6px 18px 24px; font-size: 13.5px; line-height: 1.5; color: #374151; }
     .help-drawer-body p { margin: 12px 0; }
     .help-drawer-body h4 { margin: 20px 0 6px; font-size: 12px; letter-spacing: .06em; text-transform: uppercase; color: #6b7280; }
-    .help-item { display: grid; grid-template-columns: 150px 1fr; gap: 12px; padding: 12px 0; border-bottom: 1px solid #eef1f6; align-items: start; }
+    .help-item { display: grid; grid-template-columns: minmax(120px, 160px) 1fr; gap: 12px; padding: 12px 0; border-bottom: 1px solid #eef1f6; align-items: start; }
     .help-item .help-badge { display: flex; flex-direction: column; gap: 6px; align-items: flex-start; }
-    .help-item .help-badge .status-badge { max-width: none; }
+    .help-item .help-badge .status-badge { max-width: 100%; }
+    .help-item .help-badge .status-text { white-space: normal; }
     .help-item .help-badge button { pointer-events: none; }
     .help-item .help-swatch { display: inline-block; width: 100%; height: 22px; border-radius: 6px; border: 1px solid #e5e7eb; }
     .help-item strong { display: block; color: #111827; margin-bottom: 2px; }
@@ -1739,7 +1740,7 @@
   // ACH has two waits: the customer still has to verify micro-deposits
   // (Stripe: requires_action), or the debit is in transit (processing).
   function achDetailLabel(row) {
-    return row.paymentStatusDetail === "requires_action" ? "ACH — customer must verify" : "ACH Pending";
+    return row.paymentStatusDetail === "requires_action" ? "ACH — Verify Hold" : "ACH Pending";
   }
   function statusText(row) {
     if (row.status === "deactivated") return "Deactivated";
@@ -3546,7 +3547,7 @@
             <h4>Statuses</h4>
             ${item(badge("status-sent", SENT_ICON, "Sent"), "Sent", "The link exists and has gone out by email or text. The customer has not opened it yet — or opened it before we started recording views.", "Next: Viewed when they open it, Paid when they pay. Nudge with Text link; take it back with Deactivate.")}
             ${item(badge("status-viewed", VIEWED_ICON, "Viewed"), "Viewed", "The customer has opened the payment page at least once but has not paid. Sent and Viewed count toward the same aging colors.", "A link that sits at Viewed for days usually means a question, not a lost customer — call before you resend.")}
-            ${item(badge("status-ach-pending", ACH_ICON, "ACH — customer must verify"), "ACH — customer must verify", "The customer chose to pay from a bank account and Stripe could not confirm the account instantly, so it sent two micro-deposits. Nothing is collected until the customer enters those amounts on the link.", "Next: ACH Pending once they verify. The link stays open; Deactivate is withheld so the verification is not broken. If it stalls, text the link again — the same page finishes verification.")}
+            ${item(badge("status-ach-pending", ACH_ICON, "ACH — Verify Hold"), "ACH — Verify Hold", "The customer chose to pay from a bank account and Stripe could not confirm the account instantly, so it sent two micro-deposits. Nothing is collected until the customer enters those amounts on the link.", "Next: ACH Pending once they verify. The link stays open; Deactivate is withheld so the verification is not broken. If it stalls, text the link again — the same page finishes verification.")}
             ${item(badge("status-ach-pending", ACH_ICON, "ACH Pending"), "ACH Pending", "The bank debit has been submitted and is in transit. Banks take 3–5 business days to settle; the money is not ours until Stripe reports it paid. The row shows green.", "Next: Paid (moves to Paid History) — or back to the queue if the bank returns the debit. Copy intent gives the Stripe payment id for a lookup.")}
             ${item(badge("status-deactivated", "", "Deactivated"), "Deactivated", "Turned off by someone here (the reason shows under the pill). The customer sees that the link is no longer active and cannot pay on it.", "Deactivated links leave the default view. To find one, change the status dropdown (next to the search box) from Active queue only to Queue and deactivated or Deactivated only; Reactivate is on the row.")}
             ${item(badge("status-paid", "", "Paid"), "Paid", "Stripe confirmed the payment. The link leaves this list and appears in Paid History with the receipt tools.", "If Stripe shows paid and the row still says Sent or Viewed, the sync button (circular arrows) pulls the latest status in case a webhook was missed.")}

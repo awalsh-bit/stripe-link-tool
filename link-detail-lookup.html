@@ -368,7 +368,7 @@
       return map[d] || d || record.deactivationReason || "";
     }
     function statusLabel(status, record) {
-      if (status === "ach_pending") return record?.paymentStatusDetail === "requires_action" ? "ACH — customer must verify" : "ACH Pending — in transit";
+      if (status === "ach_pending") return record?.paymentStatusDetail === "requires_action" ? "ACH — Verify Hold" : "ACH Pending — in transit";
       if (status === "viewed") return "Viewed";
       if (status === "deactivated") return "Deactivated";
       if (status === "paid") return "Paid";

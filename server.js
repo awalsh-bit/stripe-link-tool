@@ -204,6 +204,7 @@ import {
   saveShopExpressSettings
 } from "./lib/shop-postgres.js";
 import { createBrandResolver } from "./lib/brand-names.js";
+import { buildLiveClearanceList } from "./lib/clearance-live.js";
 import {
   PROMO_KIND_LABELS,
   normalizePromoCode,
@@ -5923,24 +5924,72 @@ app.get("/api/secret-menu", requirePagePermission("/secret-menu.html"), async (r
   }
 });
 
+// The workbook file (data/clearance.json): categories, brand names and the
+// per-serial prices it still contributes to the live list.
+async function readClearanceWorkbook() {
+  const fs = await import("fs/promises");
+  const raw = await fs.readFile(path.join(__dirname, "data", "clearance.json"), "utf8");
+  return JSON.parse(raw);
+}
+// The Clearance Hit List as a query over the feed (lib/clearance-live.js):
+// OPEN units, ALL units over a year old, ALL units with a UniqueSellPrice.
+// Falls back to the workbook rows when the feed has no serial snapshot yet.
+// Memoized briefly - the hit list and the storefront both read it.
+let liveClearanceMemo = { at: 0, value: null };
+async function liveClearanceList() {
+  if (Date.now() - liveClearanceMemo.at < 30 * 1000 && liveClearanceMemo.value) return liveClearanceMemo.value;
+  const workbook = await readClearanceWorkbook();
+  const snapshot = await clearanceSnapshot();
+  let value;
+  if (Array.isArray(snapshot?.serialUnits) && snapshot.serialUnits.length) {
+    const brandMap = await getModelBrandMap().catch(() => ({}));
+    const live = buildLiveClearanceList({ snapshot, workbook, brandMap, categoryByProduct: SHOP_STOCK_CATEGORY_BY_PRODUCT });
+    value = { ...workbook, items: live.items, _meta: { ...(workbook._meta || {}), ...live._meta } };
+  } else {
+    value = { ...workbook, _meta: { ...(workbook._meta || {}), live: false } };
+  }
+  liveClearanceMemo = { at: Date.now(), value };
+  return value;
+}
+function invalidateLiveClearance() { liveClearanceMemo = { at: 0, value: null }; clearanceSnapMemo = { at: 0, value: null }; }
+
 app.get("/api/clearance", requirePagePermission("/clearance.html"), async (req, res) => {
   try {
-    const fs = await import("fs/promises");
-    const clearancePath = path.join(__dirname, "data", "clearance.json");
-    const raw = await fs.readFile(clearancePath, "utf8");
-    const data = JSON.parse(raw);
+    const base = await liveClearanceList();
+    // a fresh copy per request - marks and overrides are attached per item
+    const data = { ...base, items: (base.items || []).map((i) => ({ ...i })) };
 
     // Attach live sold marks (kept in Postgres so they survive list
     // refreshes). If the DB is unreachable the list still loads, read-only.
     try {
-      const [statuses, overrides] = await Promise.all([listClearanceStatuses(), listPriceOverrides()]);
+      const [statuses, overrides, snapshot] = await Promise.all([listClearanceStatuses(), listPriceOverrides(), clearanceSnapshot()]);
       const byId = new Map(statuses.map((s) => [s.itemId, s]));
       const overrideById = new Map(overrides.map((o) => [o.itemId, o]));
+      // ePASS truth (Andrew 10/8: "it doesn't appear to be live - a salesperson
+      // sold a unit twice"). The workbook list is a price sheet; whether a
+      // unit is still ours comes from the feed's on-hand serials - the same
+      // snapshot the storefront already checks: a serial written to a sales
+      // order in ePASS is taken even when nobody marked it here, and a serial
+      // that has left on-hand stock is gone. Keyed MODELKEY|SERIAL like the shop.
+      const snapKeys = snapshot && Array.isArray(snapshot.serials) && snapshot.serials.length ? new Set(snapshot.serials) : null;
+      const written = snapshot?.serialWritten || {};
+      const types = snapshot?.serialTypes || {};
       for (const item of data.items || []) {
         const status = byId.get(item.id);
         if (status) item.state = status;
         const override = overrideById.get(item.id);
         if (override) item.priceOverride = override;
+        if (snapKeys && !item.epass) {
+          const serial = String(item.serial || "").trim().toUpperCase();
+          const composite = normalizeModelKey(item.model) + "|" + serial;
+          const onHand = snapKeys.has(composite) || snapKeys.has(serial);
+          const writtenTo = written[composite] ?? written[serial] ?? "";
+          item.epass = { onHand, writtenTo: String(writtenTo || ""), serialType: types[composite] ?? types[serial] ?? "" };
+        }
+      }
+      if (snapshot?.uploadedAt) {
+        const ageHours = (Date.now() - Date.parse(snapshot.uploadedAt)) / 3600000;
+        data._meta = { ...(data._meta || {}), epass: { asOf: snapshot.uploadedAt, ageHours: Math.round(ageHours * 10) / 10, stale: ageHours > SHOP_SNAPSHOT_MAX_AGE_HOURS, source: snapshot.sourceFile || "", serials: snapshot.serials?.length || 0 } };
       }
     } catch (dbErr) {
       console.error("Clearance status load failed:", dbErr.message);
@@ -5956,6 +6005,30 @@ app.get("/api/clearance", requirePagePermission("/clearance.html"), async (req, 
     return res.status(500).json({ error: err.message || "Unable to load the clearance list." });
   }
 });
+
+// What the ePASS feed says about one clearance line (id = MODEL|SERIAL#loc):
+// still on hand, and which sales order it's written to. null when the feed
+// has no snapshot yet (pre-automation: marks are the only truth).
+// The snapshot row is one JSONB blob of every serial; the hit list re-reads
+// every minute per open tab, so it's memoized for 30s here.
+let clearanceSnapMemo = { at: 0, value: null };
+async function clearanceSnapshot() {
+  if (Date.now() - clearanceSnapMemo.at < 30 * 1000) return clearanceSnapMemo.value;
+  const value = await getShopInventorySnapshot().catch(() => null);
+  clearanceSnapMemo = { at: Date.now(), value };
+  return value;
+}
+async function clearanceEpassWord(itemId) {
+  const [model, rest] = String(itemId || "").split("|");
+  const serial = String(rest || "").split("#")[0].trim().toUpperCase();
+  if (!model || !serial) return null;
+  const snapshot = await clearanceSnapshot();
+  if (!snapshot || !Array.isArray(snapshot.serials) || !snapshot.serials.length) return null;
+  const composite = normalizeModelKey(model) + "|" + serial;
+  const keys = new Set(snapshot.serials);
+  const written = snapshot.serialWritten || {};
+  return { onHand: keys.has(composite) || keys.has(serial), writtenTo: String(written[composite] ?? written[serial] ?? ""), asOf: snapshot.uploadedAt || "" };
+}
 
 // Mark a clearance unit: 24-hour hold or sold. First writer wins — a second
 // attempt gets the existing mark back as a 409 so the race is visible. The
@@ -5983,6 +6056,19 @@ app.post("/api/clearance/status", requirePagePermission("/clearance.html"), asyn
     const describe = (s) => s.status === "hold"
       ? `On hold for ${s.byName || s.byEmail} until ${new Date(s.heldUntil).toLocaleString("en-US", { timeZone: APP_TIMEZONE, weekday: "short", hour: "numeric", minute: "2-digit" })}.`
       : `Already sold by ${s.byName || s.byEmail} on ${s.salesOrder || "another order"}.`;
+
+    // ePASS gets the last word before a hold or a sale (Andrew 10/8): if the
+    // feed shows the serial already written to a sales order, a hold is
+    // refused (someone owns it); if the serial has left on-hand stock, both
+    // are refused. Recording a sale on a written unit is allowed - that's the
+    // salesperson catching the list up with the ticket they just wrote.
+    const epassWord = await clearanceEpassWord(itemId).catch(() => null);
+    if (epassWord?.writtenTo && action === "hold") {
+      return res.status(409).json({ error: `ePASS shows this serial already written to ${epassWord.writtenTo}.`, epass: epassWord });
+    }
+    if (epassWord && !epassWord.onHand && !epassWord.writtenTo) {
+      return res.status(409).json({ error: "ePASS no longer has this serial in on-hand stock (sold or transferred).", epass: epassWord });
+    }
 
     const existing = await getClearanceStatus(itemId);
     if (existing) {
@@ -6591,7 +6677,12 @@ if (process.env.DATABASE_URL && String(process.env.SHOP_CATALOG_WARM || "").toLo
   }, 60 * 1000).unref?.();
 }
 async function computeShopCatalogFresh() {
-  const { clearance, addons, images, mapPolicy } = await loadShopData();
+  const { clearance: clearanceFile, addons, images, mapPolicy } = await loadShopData();
+  // The storefront sells the same clearance list the showroom sees (Andrew
+  // 10/8): the live feed-built list when there is one, the workbook otherwise.
+  // Units on the list without a price yet are not for sale anywhere.
+  const clearanceLive = await liveClearanceList().catch(() => null);
+  const clearance = clearanceLive?._meta?.live ? clearanceLive : clearanceFile;
 
   let statuses = [];
   let overrides = [];
@@ -6681,7 +6772,9 @@ async function computeShopCatalogFresh() {
     });
   }
   // Everything else in stock — one listing per ALL-type unit from the feed.
-  const clearanceUnitKeys = new Set((clearance.items || []).map((i) => normalizeModelKey(i.model) + "|" + String(i.serial || "").trim().toUpperCase()));
+  // only PRICED clearance units are the list's to sell; an unpriced one falls
+  // through to the regular stock listing at its ePASS price like any other
+  const clearanceUnitKeys = new Set((clearance.items || []).filter((i) => Number(overrideById.get(i.id)?.price ?? i.price) > 0).map((i) => normalizeModelKey(i.model) + "|" + String(i.serial || "").trim().toUpperCase()));
   const brandNames = {};
   for (const i of clearance.items || []) { if (i.brandCode && i.brand && !brandNames[String(i.brandCode).toUpperCase()]) brandNames[String(i.brandCode).toUpperCase()] = i.brand; }
   const stock = snapshot
@@ -10168,6 +10261,13 @@ function serialSnapshotFromFeed(rows, modelRows = [], priceRows = [], openInvoic
         serialType: type, writtenTo, reserved, orderedFor: orderedFor && !orderedForOpen ? orderedFor : "",
         received: isoDate(pick(r, "DateReceived")),
         cost: Number(pick(r, "Cost")) || 0,
+        // Clearance Hit List inputs (Andrew 10/8): ePASS's unit-specific price
+        // and tag price (Serial.UniqueSellPrice / TagPrice - in the feed once
+        // the pull script sends them), where the unit sits.
+        uniquePrice: Number(pick(r, "UniqueSellPrice")) || 0,
+        tagPrice: Number(pick(r, "TagPrice")) || 0,
+        location: String(pick(r, "LocationCode") ?? "").trim(),
+        bin: String(pick(r, "BinLocationCode") ?? "").trim(),
         ...shopPriceFromLevels(levelsByModel.get(model.toUpperCase()), Number(pick(r, "Model_ListPrice") || pick(mm, "ListPrice")) || 0)
       });
     }
@@ -10196,6 +10296,7 @@ async function rebuildShopSnapshotFromFeed({ why = "feed" } = {}) {
     const snap = serialSnapshotFromFeed(feed.onHand, feed.models, feed.listPrices, feed.openInvoices);
     const saved = await saveShopInventorySnapshot({ serials: snap.serials, types: snap.types, written: snap.written, units: snap.units, sourceFile: `ePASS feed ${feed.pulledAt || ""}`.trim(), uploadedBy: "epass-agent" });
     invalidateShopCatalog();
+    invalidateLiveClearance();
     const out = { why, rows: feed.onHand.length, units: snap.unitCount, withModel: snap.withModel, spokenFor: snap.spokenFor, reservedOnly: snap.reservedOnly, orderedForClosed: snap.orderedForClosed, openInvoices: feed.openInvoices?.size ?? null, availBit: { seen: snap.availBitSeen, falseButFree: snap.availBitFalseFree, trueButHeld: snap.availBitTrueHeld }, priceRows: (feed.listPrices || []).length, priced: snap.units.filter((u) => u.list > 0).length, withMap: snap.units.filter((u) => u.map > 0).length, saved: saved?.count ?? null, typed: saved?.typedCount ?? null, written: saved?.writtenCount ?? null, feedPulledAt: feed.pulledAt, at: new Date().toISOString() };
     lastShopSnapshotRebuild = out;
     return out;

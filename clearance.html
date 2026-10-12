@@ -144,6 +144,12 @@
     th.num { text-align: right; }
     td.serial, td.loc { color: var(--muted); font-size: 12.5px; white-space: nowrap; }
 
+    .rule-tag { display: inline-block; margin-left: 6px; padding: 1px 7px; border-radius: 6px; font-size: 10.5px; font-weight: 800; letter-spacing: .02em; background: #f1f5f9; color: #475569; white-space: nowrap; vertical-align: 1px; }
+    .rule-tag.open { background: #ecfeff; color: #155e75; }
+    .rule-tag.aged { background: #fff7ed; color: #9a3412; }
+    .rule-tag.unique { background: #f5f3ff; color: #5b21b6; }
+    .needs-price { color: #b91c1c; font-weight: 800; font-size: 12px; }
+    .price-src { display: block; color: var(--muted); font-size: 10.5px; font-weight: 600; margin-top: 2px; }
     .cat-pill {
       display: inline-block;
       background: var(--primary-tint);
@@ -229,6 +235,24 @@
     }
 
     .sold-meta { display: block; color: var(--muted); font-size: 11.5px; margin-top: 3px; white-space: nowrap; }
+
+    /* ePASS says the unit is taken (written to a sales order) or gone from
+       on-hand stock - shown even when nobody marked it here. */
+    .epass-pill {
+      display: inline-block;
+      background: #fef2f2;
+      color: #991b1b;
+      border: 1px solid rgba(153, 27, 27, 0.2);
+      border-radius: 999px;
+      padding: 3px 10px;
+      font-size: 11.5px;
+      font-weight: 800;
+      white-space: nowrap;
+    }
+    .live-line { color: var(--muted); font-size: 12px; margin: 6px 0 0; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+    .live-dot { width: 8px; height: 8px; border-radius: 999px; background: #16a34a; display: inline-block; }
+    .live-dot.stale { background: #dc2626; }
+    .live-line button { background: none; border: 0; color: var(--primary, #1d4ed8); font: inherit; font-size: 12px; cursor: pointer; padding: 0; text-decoration: underline; }
 
     .sold-btn, .reopen-link {
       appearance: none;
@@ -323,6 +347,7 @@
         <span class="page-intro-eyebrow">Sales Tools</span>
         <h1 class="page-intro-title">Clearance Hit List</h1>
         <p class="page-intro-sub" id="introSub">Every clearance unit on the floor — one row per serial number. Filter by category or search by model and description.</p>
+        <p class="live-line" id="liveLine" style="display:none"><span class="live-dot" id="liveDot"></span><span id="liveText"></span><button type="button" id="refreshNow">Refresh now</button></p>
       </div>
       <div class="page-intro-count" id="itemCount">&nbsp;</div>
     </div>
@@ -397,8 +422,9 @@
     function priceLabel(item) {
       const price = effectivePrice(item);
       if (typeof price === "number") return money.format(price);
-      return item.priceText || "—";
+      return item.priceText || (item.rule ? "Needs price" : "—");
     }
+    const ruleTag = (item) => item.rule ? `<span class="rule-tag ${escapeHtml(item.rule)}" title="${escapeHtml(item.rule === "open" ? "Serial type OPEN in ePASS" : item.rule === "aged" ? "New (ALL) unit received " + (item.received || "") + " - over a year in stock" : "ePASS carries a unique sell price on this serial")}">${escapeHtml(item.ruleLabel || item.rule)}</span>` : "";
 
     let priceEditId = null;
 
@@ -412,7 +438,8 @@
           `<button type="button" class="reopen-link cancel-price" data-id="${escapeHtml(item.id)}">cancel</button>
         </div>`;
       }
-      let html = escapeHtml(priceLabel(item));
+      let html = effectivePrice(item) == null && item.rule ? `<span class="needs-price">Needs price</span>` : escapeHtml(priceLabel(item));
+      if (!item.priceOverride && item.priceSource === "workbook" && typeof item.price === "number") html += `<span class="price-src" title="Carried over from the clearance workbook - ePASS has no unique sell price on this serial yet">workbook price</span>`;
       // Show the crossed-out original only on markdowns — a cut sells better
       // with the old price visible; a raise just shows the new price.
       if (item.priceOverride && typeof item.price === "number" && item.priceOverride.price < item.price) {
@@ -433,11 +460,22 @@
       return s;
     }
 
+    // ePASS's word on the unit when nobody marked it here: written to a
+    // sales order (taken), or no longer in on-hand stock (gone).
+    function epassTaken(item) {
+      const e = item.epass;
+      if (!e) return null;
+      if (e.writtenTo) return { kind: "written", invoice: e.writtenTo };
+      if (!e.onHand) return { kind: "gone" };
+      return null;
+    }
+    const isTaken = (item) => liveState(item)?.status === "sold" || Boolean(epassTaken(item));
+
     function matches(item) {
-      if (hideSold && liveState(item)?.status === "sold") return false;
+      if (hideSold && isTaken(item)) return false;
       if (activeCategory !== "All" && item.category !== activeCategory) return false;
       if (!searchTerm) return true;
-      return [item.model, item.description, item.brand]
+      return [item.model, item.description, item.brand, item.serial, item.ruleLabel || "", effectivePrice(item) == null && item.rule ? "needs price" : ""]
         .join(" ").toLowerCase().includes(searchTerm.toLowerCase());
     }
 
@@ -487,6 +525,17 @@
               ` · <button type="button" class="reopen-link release-line" data-id="${escapeHtml(item.id)}">release</button>`
             : "") +
           `</span>`;
+      }
+
+      const taken = epassTaken(item);
+      if (taken && editId !== item.id) {
+        if (taken.kind === "written") {
+          return `<span class="epass-pill">IN ePASS · ${escapeHtml(taken.invoice)}</span>` +
+            `<span class="sold-meta">Written to a sales order in ePASS — not marked here` +
+            ` · <button type="button" class="reopen-link open-sell" data-id="${escapeHtml(item.id)}">record sale</button></span>`;
+        }
+        return `<span class="epass-pill">NOT IN STOCK</span>` +
+          `<span class="sold-meta">No longer in ePASS on-hand inventory (sold or transferred)</span>`;
       }
 
       if (editId === item.id) {
@@ -541,11 +590,11 @@
       }
 
       body.innerHTML = filtered.map((item) => `
-        <tr class="${liveState(item)?.status === "sold" ? "sold-row" : ["hold", "web"].includes(liveState(item)?.status || "") ? "hold-row" : ""}">
+        <tr class="${isTaken(item) ? "sold-row" : ["hold", "web"].includes(liveState(item)?.status || "") ? "hold-row" : ""}">
           <td class="model">${highlight(item.model)}</td>
           <td>${highlight(item.brand)}</td>
           <td><span class="cat-pill">${escapeHtml(catLabel(item.category))}</span></td>
-          <td>${highlight(item.description)}</td>
+          <td>${highlight(item.description)}${ruleTag(item)}</td>
           <td class="serial">${escapeHtml(item.serial)}</td>
           <td class="loc">${escapeHtml(item.location || "—")}</td>
           <td class="num">${priceCellHtml(item)}</td>
@@ -703,7 +752,7 @@
 
     document.getElementById("hideSoldBtn").addEventListener("click", () => {
       hideSold = !hideSold;
-      const soldCount = items.filter((i) => liveState(i)?.status === "sold").length;
+      const soldCount = items.filter(isTaken).length;
       const btn = document.getElementById("hideSoldBtn");
       btn.classList.toggle("active", hideSold);
       btn.textContent = hideSold ? `Showing open only (${soldCount} sold hidden)` : "Hide sold";
@@ -715,30 +764,92 @@
       renderTable();
     });
 
-    (async function load() {
+    // ---- Live list (Andrew 10/8: the list wasn't live and a unit sold twice) ----
+    // The list re-reads itself every minute while the tab is visible, and
+    // again whenever the tab comes back into view - so a mark made at the
+    // other desk, or a sale written in ePASS, shows up without a reload.
+    // A refresh never interrupts an open hold / sold / price editor.
+    const REFRESH_MS = 60 * 1000;
+    let lastLoadedAt = null;
+    let loading = false;
+
+    function fmtTime(iso) {
+      const d = new Date(iso);
+      return Number.isNaN(d.getTime()) ? "" : d.toLocaleString("en-US", { weekday: "short", hour: "numeric", minute: "2-digit" });
+    }
+
+    function renderLiveLine(meta) {
+      const line = document.getElementById("liveLine");
+      const dot = document.getElementById("liveDot");
+      const text = document.getElementById("liveText");
+      line.style.display = "";
+      const e = meta?.epass;
+      const taken = items.filter((i) => epassTaken(i)).length;
+      if (e?.asOf) {
+        dot.classList.toggle("stale", Boolean(e.stale));
+        text.textContent = `Live — ePASS stock as of ${fmtTime(e.asOf)}` + (e.stale ? " (stale feed — availability may be off)" : "") +
+          (taken ? ` · ${taken} unit${taken === 1 ? "" : "s"} taken in ePASS but not marked here` : "") +
+          ` · list refreshed ${fmtTime(lastLoadedAt)}`;
+      } else {
+        dot.classList.add("stale");
+        text.textContent = `No ePASS stock feed yet — availability is marks only · list refreshed ${fmtTime(lastLoadedAt)}`;
+      }
+    }
+
+    async function loadList({ quiet = false } = {}) {
+      if (loading) return;
+      loading = true;
       try {
-        const sessionRes = await fetch("/api/auth/session", { credentials: "same-origin" });
-        if (sessionRes.ok) session = await sessionRes.json();
-      } catch {}
-      try {
-        const res = await fetch("/api/clearance", { credentials: "same-origin" });
+        const res = await fetch("/api/clearance", { credentials: "same-origin", cache: "no-store" });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || "Unable to load the clearance list.");
         items = data.items || [];
         categories = data._meta?.categories || [];
-        if (data._meta?.listDate) {
+        lastLoadedAt = new Date().toISOString();
+        if (data._meta?.live) {
+          const c = data._meta.counts || {};
           document.getElementById("introSub").textContent =
-            `Every clearance unit on the floor — one row per serial number. List updated ${data._meta.listDate}. Filter by category or search by model and description.`;
+            `Built from ePASS on every pull — open-box units, new units over a year in stock, and units with a unique sell price in ePASS. ` +
+            `${c.open || 0} open box · ${c.aged || 0} aged · ${c.unique || 0} unique-priced` + (c.needsPrice ? ` · ${c.needsPrice} need a price` : "") + `. Search "needs price" to find them.`;
+        } else if (data._meta?.listDate) {
+          document.getElementById("introSub").textContent =
+            `Every clearance unit on the floor — one row per serial number. Price list updated ${data._meta.listDate}; availability from ePASS. Filter by category or search by model and description.`;
         }
+        renderLiveLine(data._meta);
         renderChips();
         renderTable();
+        if (hideSold) {
+          const btn = document.getElementById("hideSoldBtn");
+          btn.textContent = `Showing open only (${items.filter(isTaken).length} sold hidden)`;
+        }
       } catch (err) {
+        if (quiet) return; // a background refresh that fails just waits for the next tick
         const banner = document.getElementById("errorBanner");
         banner.textContent = err.message;
         banner.style.display = "block";
         document.getElementById("tableBody").innerHTML =
-          '<tr><td colspan="7" class="empty">Could not load the clearance list.</td></tr>';
+          '<tr><td colspan="8" class="empty">Could not load the clearance list.</td></tr>';
+      } finally {
+        loading = false;
       }
+    }
+
+    const editorOpen = () => editId != null || priceEditId != null;
+    function refreshIfIdle() {
+      if (document.visibilityState !== "visible" || editorOpen()) return;
+      loadList({ quiet: true });
+    }
+    setInterval(refreshIfIdle, REFRESH_MS);
+    document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") refreshIfIdle(); });
+    window.addEventListener("focus", refreshIfIdle);
+    document.getElementById("refreshNow").addEventListener("click", () => loadList());
+
+    (async function boot() {
+      try {
+        const sessionRes = await fetch("/api/auth/session", { credentials: "same-origin" });
+        if (sessionRes.ok) session = await sessionRes.json();
+      } catch {}
+      await loadList();
     })();
   </script>
 </body>

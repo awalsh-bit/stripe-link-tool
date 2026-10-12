@@ -420,7 +420,7 @@
         const byInv = new Map();
         for (const m of g.models) for (const l of m.lines) {
           const k = l.invoice;
-          if (!byInv.has(k)) byInv.set(k, { invoice: l.invoice, customer: l.customerName, billTo: l.billTo, sp: l.sp, status: l.status, deposit: l.deposit, reference: l.reference, invoiceDate: l.invoiceDate, delDate: l.delDate, items: [] });
+          if (!byInv.has(k)) byInv.set(k, { invoice: l.invoice, customer: l.customerName, billTo: l.billTo, sp: l.sp, status: l.status, deposit: l.deposit, reference: l.reference, invoiceDate: l.invoiceDate, delDate: l.delDate, pickup: !!l.pickup, items: [] });
           const o = byInv.get(k);
           o.items.push({ line: l, model: m });
           if (l.delDate && (!o.delDate || l.delDate < o.delDate)) o.delDate = l.delDate;
@@ -452,7 +452,7 @@
         const anyCod = o.items.some((it) => isUnpaidCod(it.line)), anyRet = o.items.some((it) => isReturn(it.line));
         const head = `<tr class="model order"><td class="l"><strong class="copy-model" data-copy="${esc(o.invoice)}" title="Click to copy the sales order number">${esc(o.invoice)}</strong> ${esc(o.customer)}<button type="button" class="st-btn" data-shipto="${esc(o.invoice)}" title="Ship-to details — name, address, phone, email and the ticket's comment lines, ready to copy">☰</button>${anyRet ? ` <span class="badge ret">Return</span>` : ""}${anyCod ? ` <span class="badge cod" title="0% paid on COD terms">0% COD</span>` : ""}${o.billTo && !o.billTo.includes(o.customer) ? `<span class="hint">bill to ${esc(o.billTo)}</span>` : ""}</td>
           <td class="l"><span class="hint">${esc(o.sp || "")}${o.status ? " · " + esc(o.status) : ""}${o.deposit ? ` · ${o.deposit.pct}% paid · ${esc(o.deposit.terms)}` : ""}${o.reference ? " · " + esc(o.reference) : ""}<br>${o.items.length} item${o.items.length === 1 ? "" : "s"} · ${qty} unit${qty === 1 ? "" : "s"} · written ${day(o.invoiceDate)}</span></td>
-          <td>${day(o.delDate)}</td>
+          <td>${day(o.delDate)}${o.pickup ? ` <span class="hint" title="Customer pickup - ePASS PickUpDate (no delivery schedule date)">pickup</span>` : ""}</td>
           <td>${money(sell)}</td><td>${money(cost)}</td><td class="${mcls(mm)}">${pct(mm)}</td><td></td></tr>`;
         return head + o.items.map(itemHtml).join("");
       }
@@ -497,7 +497,7 @@
         return `<tr class="line${isReturn(l) ? " ret" : ""}${l.handled ? " done " + hk : ""}" data-line="${esc(l.id)}">
           <td class="l"><strong class="copy-model" data-copy="${esc(m.model)}" title="Click to copy the model number">${esc(m.model)}</strong>${m.item?.brand ? `<span class="brand">${esc(m.item.brand)}</span>` : ""} ${rowBadges}<span class="desc">${esc(m.item?.description || (m.item?.displayName && m.item.displayName !== m.model ? m.item.displayName : "") || "")}</span>${hk === "rejected" && l.handled.note ? `<span class="rejnote">→ ${esc(l.handled.note)}${l.handled.by ? ` <span class="hint" style="display:inline">(${esc(l.handled.by)}, ${when(l.handled.at)})</span>` : ""}</span>` : ""}${l.handled?.kind === "reverted" ? `<span class="revnote"><span class="tag">was sent back</span>${(l.handled.changes || []).map((c) => `${esc(c.label)} ${esc(c.from)} → ${esc(c.to)}`).join(" · ")}${l.handled.from?.note ? ` <span class="hint" style="display:inline">(was: "${esc(l.handled.from.note)}")</span>` : ""} <span class="hint" style="display:inline">${when(l.handled.at)}</span></span>` : ""}</td>
           <td class="l"><span class="hint">${esc(l.sp || "")}${l.status ? " · " + esc(l.status) : ""}${l.deposit ? ` · ${l.deposit.pct}% paid · ${esc(l.deposit.terms)}` : ""}${l.reference ? " · " + esc(l.reference) : ""}${l.qty !== 1 ? ` · qty ${l.qty}` : ""}</span></td>
-          <td>${day(l.delDate)}</td>
+          <td>${day(l.delDate)}${l.pickup ? ` <span class="hint" title="Customer pickup - ePASS PickUpDate (no delivery schedule date)">pickup</span>` : ""}</td>
           <td>${money2(l.sellPrice)}</td><td>${money2(l.stdCost)}</td><td class="${mcls(l.marginRate)}">${pct(l.marginRate)}${l.marginDollars != null ? `<span class="hint">${money2(l.marginDollars)}/unit</span>` : ""}</td>
           <td>${acts}</td></tr>`;
       }
@@ -560,7 +560,7 @@
           // "waiting to order".
           const need = p.writtenLines.filter((l) => l.qty > 0 && !l.ordered && (l.needed > 0 || (l.d1 && !l.covered)));
           const written = `<div class="pos-sec">Need to order</div><table class="pos-d"><thead><tr><th>Invoice</th><th>Customer</th><th>Qty</th><th>SP</th><th>Status</th><th>PO</th><th>Written</th><th>Delivery</th><th>To order</th></tr></thead>
-            <tbody>${need.map((l) => `<tr class="${l.qty < 0 ? "ret" : ""}"><td><strong>${esc(l.invoice)}</strong>${l.qty < 0 ? ` <span class="badge ret">Return</span>` : ""}</td><td>${esc(l.customer)}</td><td>${l.qty}</td><td>${esc(l.sp)}</td><td>${esc(l.status)}</td><td>${l.po ? `<strong>${esc(l.po)}</strong>${l.poDate ? ` <span class="hint">${day(l.poDate)}</span>` : ""}` : "—"}</td><td>${day(l.invoiceDate)}</td><td>${day(l.delDate)}</td><td>${lineNote(l)}</td></tr>`).join("") || `<tr><td colspan="9" class="hint">Nothing written.</td></tr>`}</tbody></table>`;
+            <tbody>${need.map((l) => `<tr class="${l.qty < 0 ? "ret" : ""}"><td><strong>${esc(l.invoice)}</strong>${l.qty < 0 ? ` <span class="badge ret">Return</span>` : ""}</td><td>${esc(l.customer)}</td><td>${l.qty}</td><td>${esc(l.sp)}</td><td>${esc(l.status)}</td><td>${l.po ? `<strong>${esc(l.po)}</strong>${l.poDate ? ` <span class="hint">${day(l.poDate)}</span>` : ""}` : "—"}</td><td>${day(l.invoiceDate)}</td><td>${day(l.delDate)}${l.pickup ? ` <span class="hint">pickup</span>` : ""}</td><td>${lineNote(l)}</td></tr>`).join("") || `<tr><td colspan="9" class="hint">Nothing written.</td></tr>`}</tbody></table>`;
           const note = `<div class="pos-note">Serial snapshot: ${p.sources.serials?.uploadedAt ? `${esc(p.sources.serials.sourceFile || "")} uploaded ${when(p.sources.serials.uploadedAt)}` : "none loaded"} · report uploaded ${when(p.sources.report?.uploadedAt)}${p.months.length ? " · month columns are delivered units from Sales Order Detail" : ""}</div>`;
           $("posBody").innerHTML = lineBlock + summary + units + onOrder + written + note; wireSup();
         } catch (err) { $("posBody").innerHTML = lineBlock + `<div class="empty">${esc(err.message)}</div>`; wireSup(); }

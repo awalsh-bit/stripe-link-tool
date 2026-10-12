@@ -487,28 +487,40 @@ ORDER BY m.Code
   # cosmetic-damage form's "units on this ticket" read it. ExportModel carried
   # brand / description / product / list alongside the serial, so the Model
   # master is joined in; if the join can't run, the plain view still goes.
+  # Andrew 10/8: the Clearance Hit List is now built from this view - OPEN
+  # units, ALL units over a year old, and ALL units carrying a unit-specific
+  # price - so Serial.UniqueSellPrice and Serial.TagPrice ride along. They are
+  # tried first and dropped if ePASS rejects them, so the view never fails
+  # because of them (the shop's availability depends on this dataset).
   $onHandCols = "s.Code, s.ModelCode, s.Status, s.InvoiceCode, s.OrderedForInvoiceCode, s.OrderedForInvoiceDateStamp, s.DateReserved, s.ReserveExclusive, s.Available,
        s.POCode, s.PODateStamp, s.LocationCode, s.BinLocationCode, s.DateReceived, s.SerialTypeCode, s.SupplierCode, s.Cost, s.StandardCost, s.FloorPlan, s.FloorPlanDueDate"
-  try {
-    $bundle.datasets["on-hand-serials"] = Export-Query $conn @"
-SELECT $onHandCols,
-       m.Description AS Model_Description, m.BrandCode AS Model_BrandCode, m.ProductCode AS Model_ProductCode, m.SKU AS Model_SKU, m.ListPrice AS Model_ListPrice
+  $onHandPriceCols = ", s.UniqueSellPrice, s.TagPrice"
+  $onHandModelCols = ",
+       m.Description AS Model_Description, m.BrandCode AS Model_BrandCode, m.ProductCode AS Model_ProductCode, m.SKU AS Model_SKU, m.ListPrice AS Model_ListPrice"
+  $onHandDone = $false
+  foreach ($variant in @(
+      @{ name = "Model join + unit prices"; cols = ($onHandCols + $onHandPriceCols + $onHandModelCols); join = $true },
+      @{ name = "Model join";               cols = ($onHandCols + $onHandModelCols);                    join = $true },
+      @{ name = "unit prices";              cols = ($onHandCols + $onHandPriceCols);                    join = $false },
+      @{ name = "plain";                    cols = $onHandCols;                                         join = $false })) {
+    if ($onHandDone) { break }
+    $joinSql = ""
+    if ($variant.join) { $joinSql = "LEFT JOIN Model m ON s.ModelCode = m.Code" }
+    $sql = "SELECT " + $variant.cols + "
 FROM Serial s
-LEFT JOIN Model m ON s.ModelCode = m.Code
+" + $joinSql + "
 WHERE (s.Status IS NULL OR s.Status = '')
-ORDER BY s.ModelCode, s.DateReceived, s.Code
-"@ (Join-Path $LatestDir "on-hand-serials.csv") "on-hand-serials"
-  } catch {
-    Log ("on-hand-serials with Model join FAILED ({0}) - retrying without the join" -f $_.Exception.Message); if ($conn.State -ne [System.Data.ConnectionState]::Open) { $conn.Open() }
+ORDER BY s.ModelCode, s.DateReceived, s.Code"
     try {
-      $bundle.datasets["on-hand-serials"] = Export-Query $conn @"
-SELECT $onHandCols
-FROM Serial s
-WHERE (s.Status IS NULL OR s.Status = '')
-ORDER BY s.ModelCode, s.DateReceived, s.Code
-"@ (Join-Path $LatestDir "on-hand-serials.csv") "on-hand-serials"
-    } catch { Log ("on-hand-serials FAILED (bundle continues without it): {0}" -f $_.Exception.Message); if ($conn.State -ne [System.Data.ConnectionState]::Open) { $conn.Open() } }
+      $bundle.datasets["on-hand-serials"] = Export-Query $conn $sql (Join-Path $LatestDir "on-hand-serials.csv") "on-hand-serials"
+      $onHandDone = $true
+      if ($variant.name -ne "Model join + unit prices") { Log ("on-hand-serials ran as '{0}' (a fuller variant was rejected by ePASS)" -f $variant.name) }
+    } catch {
+      Log ("on-hand-serials '{0}' FAILED ({1}) - trying the next variant" -f $variant.name, $_.Exception.Message)
+      if ($conn.State -ne [System.Data.ConnectionState]::Open) { $conn.Open() }
+    }
   }
+  if (-not $onHandDone) { Log "on-hand-serials FAILED in every form (bundle continues without it)" }
 
   # Andrew 9/24: every price level ePASS holds for the models in stock -
   # ModelListPrice, one row per model per ListPriceCode (L1, L2, L3, RETAIL,

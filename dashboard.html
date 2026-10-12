@@ -612,6 +612,41 @@
       height: 12px;
       flex: 0 0 auto;
     }
+    /* Long labels ("ACH — customer must verify") clip with an ellipsis
+       instead of widening the Status column and wrapping the actions —
+       the same treatment Paid History gives long references. The full
+       label is on the pill's title; the [?] drawer explains every state. */
+    .status-badge { max-width: 168px; }
+    .status-badge .status-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+    /* [?] explainer buttons (Andrew 10/12): a small round mark beside a
+       column header that opens a drawer defining every value the column can
+       show. HELP_TOPICS below holds the content; add a topic, add a button. */
+    .help-q {
+      display: inline-flex; align-items: center; justify-content: center;
+      width: 18px; height: 18px; margin-left: 6px; border-radius: 999px;
+      border: 1.5px solid currentColor; background: transparent; color: inherit;
+      font: 700 11px/1 inherit; font-family: inherit; cursor: pointer; opacity: .65; vertical-align: -2px; padding: 0;
+    }
+    .help-q:hover, .help-q:focus-visible { opacity: 1; outline: none; box-shadow: 0 0 0 3px rgba(var(--primary-rgb, 20, 83, 45), .18); }
+    .help-mask { position: fixed; inset: 0; background: rgba(15, 23, 42, .35); display: none; z-index: 60; }
+    .help-mask.show { display: block; }
+    .help-drawer { position: fixed; top: 0; right: 0; bottom: 0; width: min(440px, 100vw); background: #fff; box-shadow: -12px 0 40px rgba(0, 0, 0, .18); transform: translateX(100%); transition: transform .2s ease; z-index: 61; display: flex; flex-direction: column; }
+    .help-drawer.show { transform: none; }
+    .help-drawer-head { display: flex; align-items: center; gap: 10px; padding: 16px 18px; border-bottom: 1px solid #e5e7eb; }
+    .help-drawer-head h3 { margin: 0; flex: 1; font-size: 16px; }
+    .help-drawer-body { flex: 1; overflow: auto; padding: 6px 18px 24px; font-size: 13.5px; line-height: 1.5; color: #374151; }
+    .help-drawer-body p { margin: 12px 0; }
+    .help-drawer-body h4 { margin: 20px 0 6px; font-size: 12px; letter-spacing: .06em; text-transform: uppercase; color: #6b7280; }
+    .help-item { display: grid; grid-template-columns: 150px 1fr; gap: 12px; padding: 12px 0; border-bottom: 1px solid #eef1f6; align-items: start; }
+    .help-item .help-badge { display: flex; flex-direction: column; gap: 6px; align-items: flex-start; }
+    .help-item .help-badge .status-badge { max-width: none; }
+    .help-item .help-badge button { pointer-events: none; }
+    .help-item .help-swatch { display: inline-block; width: 100%; height: 22px; border-radius: 6px; border: 1px solid #e5e7eb; }
+    .help-item strong { display: block; color: #111827; margin-bottom: 2px; }
+    .help-item .help-then { color: #6b7280; font-size: 12.5px; margin-top: 4px; }
+    .help-close { background: none; border: 0; font-size: 22px; line-height: 1; cursor: pointer; color: #6b7280; padding: 4px 6px; }
+    @media (max-width: 700px) { .help-item { grid-template-columns: 1fr; gap: 6px; } }
 
     .status-paid {
       background: var(--success-bg);
@@ -894,6 +929,15 @@
       background: var(--primary-tint);
       border-color: rgba(var(--primary-rgb), 0.32);
     }
+
+    /* Deactivate (Andrew 10/12): an X in the same round shape as the sync
+       button; the Actions [?] drawer carries the explanation. Reads neutral
+       until hovered so the row doesn't shout. */
+    .btn-icon-danger { color: #6b7280; }
+    .btn-icon-danger:hover, .btn-icon-danger:focus-visible { color: #b91c1c; background: #fef2f2; border-color: rgba(185, 28, 28, 0.35); }
+    /* Reactivate: a light bulb that goes green on hover (deactivated rows only). */
+    .btn-icon-go { color: #6b7280; }
+    .btn-icon-go:hover, .btn-icon-go:focus-visible { color: #15803d; background: #ecfdf5; border-color: rgba(21, 128, 61, 0.35); }
 
     .btn-icon svg {
       width: 16px;
@@ -1246,11 +1290,11 @@
                 <th>Customer</th>
                 <th>Employee</th>
                 <th>Reference</th>
-                <th>Status</th>
+                <th>Status<button type="button" class="help-q" data-help="linkStatus" aria-label="What the link statuses mean" title="What the link statuses mean">?</button></th>
                 <th>Requested</th>
                 <th>Sent</th>
                 <th>Age</th>
-                <th>Actions</th>
+                <th>Actions<button type="button" class="help-q" data-help="linkActions" aria-label="What each action button does" title="What each action button does">?</button></th>
               </tr>
             </thead>
             <tbody id="queueTableBody">
@@ -1697,11 +1741,21 @@
   function achDetailLabel(row) {
     return row.paymentStatusDetail === "requires_action" ? "ACH — customer must verify" : "ACH Pending";
   }
-  function statusLabel(row) {
+  function statusText(row) {
     if (row.status === "deactivated") return "Deactivated";
-    if (row.status === "ach_pending") return ACH_ICON + " " + achDetailLabel(row);
-    if (row.status === "viewed") return VIEWED_ICON + " Viewed";
-    return SENT_ICON + " Sent";
+    if (row.status === "ach_pending") return achDetailLabel(row);
+    if (row.status === "viewed") return "Viewed";
+    return "Sent";
+  }
+  function statusIcon(row) {
+    if (row.status === "deactivated") return "";
+    if (row.status === "ach_pending") return ACH_ICON;
+    if (row.status === "viewed") return VIEWED_ICON;
+    return SENT_ICON;
+  }
+  function statusLabel(row) {
+    const icon = statusIcon(row);
+    return (icon ? icon + " " : "") + `<span class="status-text">${escapeHtml(statusText(row))}</span>`;
   }
 
   function badgeClass(status) {
@@ -2242,7 +2296,7 @@
           <td data-label="Employee">${row.creatorName || "-"}</td>
           <td data-label="Reference">${formatReference(row)}</td>
           <td data-label="Status">
-            <span class="status-badge ${badgeClass(row.status)}">${statusLabel(row)}</span>
+            <span class="status-badge ${badgeClass(row.status)}" title="${escapeHtml(statusText(row))}">${statusLabel(row)}</span>
             ${row.deactivationReason ? `<div class="helper-text">${escapeHtml(row.deactivationReason)}</div>` : ""}
           </td>
           <td data-label="Requested" class="amount">${formatMoney(row.requestedAmount)}</td>
@@ -2251,9 +2305,9 @@
           <td data-label="Actions" class="action-cell">
             <div class="button-row">
               ${["sent", "viewed"].includes(row.status)
-                ? `<button class="btn-secondary" data-action="deactivate" data-id="${row.id}">Deactivate</button>`
+                ? `<button class="btn-icon btn-icon-danger" data-action="deactivate" data-id="${row.id}" type="button" aria-label="Deactivate link" title="Deactivate — closes the link so the customer can no longer pay on it (see the Actions ? for details)."><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg></button>`
                 : row.status === "deactivated"
-                  ? `<button class="btn-primary" data-action="reactivate" data-id="${row.id}">Reactivate</button>`
+                  ? `<button class="btn-icon btn-icon-go" data-action="reactivate" data-id="${row.id}" type="button" aria-label="Reactivate link" title="Reactivate — turns the link back on at the same amount and URL (see the Actions ? for details)."><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18h6"></path><path d="M10 22h4"></path><path d="M12 2a7 7 0 00-4 12.7c.6.5 1 1.3 1 2.1V18h6v-1.2c0-.8.4-1.6 1-2.1A7 7 0 0012 2z"></path></svg></button>`
                   : ""
               }
               ${row.paymentLinkId
@@ -3473,5 +3527,69 @@
     })();
   </script>
 
+  <!-- [?] explainer drawer — content comes from HELP_TOPICS -->
+  <div class="help-mask" id="helpMask"></div>
+  <aside class="help-drawer" id="helpDrawer" aria-label="Explainer" role="dialog" aria-modal="true">
+    <div class="help-drawer-head"><h3 id="helpTitle">Help</h3><button type="button" class="help-close" id="helpClose" aria-label="Close">&times;</button></div>
+    <div class="help-drawer-body" id="helpBody"></div>
+  </aside>
+  <script>
+    (function () {
+      const badge = (cls, icon, text) => `<span class="status-badge ${cls}" title="${text}">${icon ? icon + " " : ""}<span class="status-text">${text}</span></span>`;
+      const item = (badgeHtml, title, body, then) => `<div class="help-item"><div class="help-badge">${badgeHtml}</div><div><strong>${title}</strong>${body}${then ? `<div class="help-then">${then}</div>` : ""}</div></div>`;
+      const swatch = (css, label) => `<span class="help-swatch" style="${css}"></span><span style="font-size:12px;color:#6b7280">${label}</span>`;
+      window.HELP_TOPICS = {
+        linkStatus: {
+          title: "Link status — what each state means",
+          html: () => `
+            <p>A link moves through these states on its own as the customer acts and Stripe reports back. Nothing here needs a click from us except Deactivate, Reactivate and the occasional sync.</p>
+            <h4>Statuses</h4>
+            ${item(badge("status-sent", SENT_ICON, "Sent"), "Sent", "The link exists and has gone out by email or text. The customer has not opened it yet — or opened it before we started recording views.", "Next: Viewed when they open it, Paid when they pay. Nudge with Text link; take it back with Deactivate.")}
+            ${item(badge("status-viewed", VIEWED_ICON, "Viewed"), "Viewed", "The customer has opened the payment page at least once but has not paid. Sent and Viewed count toward the same aging colors.", "A link that sits at Viewed for days usually means a question, not a lost customer — call before you resend.")}
+            ${item(badge("status-ach-pending", ACH_ICON, "ACH — customer must verify"), "ACH — customer must verify", "The customer chose to pay from a bank account and Stripe could not confirm the account instantly, so it sent two micro-deposits. Nothing is collected until the customer enters those amounts on the link.", "Next: ACH Pending once they verify. The link stays open; Deactivate is withheld so the verification is not broken. If it stalls, text the link again — the same page finishes verification.")}
+            ${item(badge("status-ach-pending", ACH_ICON, "ACH Pending"), "ACH Pending", "The bank debit has been submitted and is in transit. Banks take 3–5 business days to settle; the money is not ours until Stripe reports it paid. The row shows green.", "Next: Paid (moves to Paid History) — or back to the queue if the bank returns the debit. Copy intent gives the Stripe payment id for a lookup.")}
+            ${item(badge("status-deactivated", "", "Deactivated"), "Deactivated", "Turned off by someone here (the reason shows under the pill). The customer sees that the link is no longer active and cannot pay on it.", "Deactivated links leave the default view. To find one, change the status dropdown (next to the search box) from Active queue only to Queue and deactivated or Deactivated only; Reactivate is on the row.")}
+            ${item(badge("status-paid", "", "Paid"), "Paid", "Stripe confirmed the payment. The link leaves this list and appears in Paid History with the receipt tools.", "If Stripe shows paid and the row still says Sent or Viewed, the sync button (circular arrows) pulls the latest status in case a webhook was missed.")}
+            <h4>Row colors and age</h4>
+            ${item(swatch("background:#fffdf5;box-shadow:inset 4px 0 0 #facc15", "yellow bar"), "3–4 days open", "A Sent or Viewed link that has been open three or four days. Age counts from the day it was sent.")}
+            ${item(swatch("background:#fff7f7;box-shadow:inset 4px 0 0 #f87171", "red bar"), "5+ days open", "Five days or more without a payment. These are the follow-up calls for the day.")}
+            ${item(swatch("background:#fafefb;box-shadow:inset 4px 0 0 #22c55e", "green bar"), "ACH in progress", "The customer has done their part; the bank is working. Age is informational — nothing to chase until it is past 5 business days.")}
+          `
+        },
+        linkActions: {
+          title: "Actions — what each button does",
+          html: () => `
+            <p>The buttons on a row change with the link's status. None of them charge the customer; the only thing that moves money is the customer paying on the link.</p>
+            <h4>Buttons</h4>
+            ${item(`<button type="button" class="btn-icon btn-icon-danger" tabindex="-1" aria-label="Deactivate"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg></button>`, "Deactivate (X)", "Closes the link. The customer sees that it is no longer active and cannot pay on it. You are offered a reason to show them (pre-filled with the showroom number to call); it also shows under the status pill here. Available on Sent and Viewed links.", "Use it when the order changed, the amount is wrong, or the customer paid another way. The row leaves the default view; switch the status dropdown to Queue and deactivated or Deactivated only to see it again.")}
+            ${item(`<button type="button" class="btn-icon btn-icon-go" tabindex="-1" aria-label="Reactivate"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18h6"></path><path d="M10 22h4"></path><path d="M12 2a7 7 0 00-4 12.7c.6.5 1 1.3 1 2.1V18h6v-1.2c0-.8.4-1.6 1-2.1A7 7 0 0012 2z"></path></svg></button>`, "Reactivate (light bulb)", "Turns a deactivated link back on at the same amount and the same URL — anything the customer already has in their email or texts works again. Appears only on Deactivated rows, which show when the status dropdown is set to Queue and deactivated or Deactivated only.")}
+            ${item(`<button type="button" class="btn-icon" tabindex="-1" aria-label="Sync"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0114.85-3.36L23 10"></path><path d="M20.49 15a9 9 0 01-14.85 3.36L1 14"></path></svg></button>`, "Sync from Stripe", "Asks Stripe for the link's current status right now. Stripe normally tells us itself the moment something happens; this is the manual check for when a row looks behind — a customer says they paid but the row still says Viewed.", "Safe to click any time. It only reads; it never changes anything on Stripe's side.")}
+            ${item(`<button type="button" class="btn-secondary" tabindex="-1">Copy intent</button>`, "Copy intent", "Copies the Stripe payment id (pi_…) to the clipboard. It appears once a payment attempt exists — mainly ACH links — so you can look the payment up in Stripe or quote it to accounting.")}
+            ${item(`<button type="button" class="btn-secondary" tabindex="-1">Copy link</button>`, "Copy link", "Copies the customer's payment URL so you can paste it into an email, a Podium conversation, or a note. It is the same link that was sent; sharing it again never creates a second charge.")}
+            ${item(`<button type="button" class="btn-secondary" tabindex="-1">Text link</button>`, "Text link", "Opens a send row under the link. The customer's phone from the link is filled in and can be changed. <strong>Send Text</strong> sends the link from the showroom number; <strong>Send Reminder</strong> sends the gentler 'your payment link is still waiting' version for a link that has been sitting. Replies land in Podium, not on your phone. Available while the link is Sent, Viewed, or ACH in progress.", "On an ACH link that is waiting on micro-deposit verification, this is how you nudge the customer — the same page finishes the verification.")}
+            <h4>By status</h4>
+            <p><strong>Sent / Viewed:</strong> Deactivate, Sync, Copy link, Text link (Copy intent once a payment attempt exists). <strong>ACH:</strong> Sync, Copy intent, Copy link, Text link — Deactivate is withheld so a verification in progress is not broken. <strong>Deactivated:</strong> Reactivate, Sync, Copy link.</p>
+          `
+        }
+      };
+      const mask = document.getElementById("helpMask"), drawer = document.getElementById("helpDrawer");
+      let lastFocus = null;
+      function openHelp(key) {
+        const t = window.HELP_TOPICS[key];
+        if (!t) return;
+        lastFocus = document.activeElement;
+        document.getElementById("helpTitle").textContent = t.title;
+        document.getElementById("helpBody").innerHTML = typeof t.html === "function" ? t.html() : t.html;
+        mask.classList.add("show"); drawer.classList.add("show");
+        document.getElementById("helpClose").focus();
+      }
+      function closeHelp() { mask.classList.remove("show"); drawer.classList.remove("show"); if (lastFocus && lastFocus.focus) lastFocus.focus(); }
+      document.addEventListener("click", (e) => { const b = e.target.closest && e.target.closest(".help-q[data-help]"); if (b) { e.preventDefault(); openHelp(b.dataset.help); } });
+      mask.addEventListener("click", closeHelp);
+      document.getElementById("helpClose").addEventListener("click", closeHelp);
+      document.addEventListener("keydown", (e) => { if (e.key === "Escape" && drawer.classList.contains("show")) closeHelp(); });
+      window.openHelp = openHelp;
+    })();
+  </script>
 </body>
 </html>

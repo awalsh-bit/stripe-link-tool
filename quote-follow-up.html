@@ -169,6 +169,7 @@
     .qf-panel .err.show { display: block; }
     .qf-panel-actions { display: flex; gap: 8px; justify-content: flex-end; }
     /* Brands filter */
+    .qf-brand-btn.empty { opacity: .6; }
     .qf-brand-btn .n { display: inline-block; min-width: 18px; padding: 0 6px; margin-left: 6px; border-radius: 999px; background: var(--primary); color: #fff; font-size: 11px; font-weight: 800; line-height: 18px; }
     .qf-brand-chips { display: inline-flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
     .qf-brand-chip { display: inline-block; border-radius: 6px; padding: 1px 7px; font-size: 10.5px; font-weight: 800; letter-spacing: .02em; background: #f1f5f9; color: #475569; }
@@ -434,7 +435,9 @@
         const f = (list) => state.brands.size ? list.filter((x) => brandHit(x.brands)) : list;
         const queue = f(b.queue), followup = f(b.followup), convertedRows = f(b.converted), lostRows = f(b.lost);
         $("qfBrandsBtn").innerHTML = `Brands${state.brands.size ? `<span class="n">${state.brands.size}</span>` : ""}`;
-        $("qfBrandsBtn").style.display = (b.brands || []).length || state.brands.size ? "" : "none";
+        // Always shown - the drawer explains when there are no brands yet (Andrew 10/8: button flashed and vanished while loading).
+        $("qfBrandsBtn").style.display = "";
+        $("qfBrandsBtn").classList.toggle("empty", !(b.brands || []).length && !state.brands.size);
         const note = $("qfBrandNote");
         if (state.brands.size) {
           const names = (b.brands || []).filter((x) => state.brands.has(x.code)).map((x) => x.name || x.code);
@@ -847,7 +850,7 @@
             : sortKey === "supplier" ? ((supName(a.supplier) || "\uffff").localeCompare(supName(b.supplier) || "\uffff") || (a.name || "").localeCompare(b.name || ""))
             : ((b.revenue || 0) - (a.revenue || 0) || b.quotes - a.quotes || (a.name || "").localeCompare(b.name || "")));
           const list = needle ? sorted.filter((b) => b.code.toLowerCase().includes(needle) || (b.name || "").toLowerCase().includes(needle) || (b.supplier || "").toLowerCase().includes(needle) || (b.codes || []).some((c) => c.toLowerCase().includes(needle))) : sorted;
-          $("qfBrandList").innerHTML = list.length ? list.map((b) => `<label class="qf-brand-row"><input type="checkbox" data-brand="${esc(b.code)}" ${state.brands.has(b.code) ? "checked" : ""} /><span>${esc(b.name || b.code)}${b.codes && b.codes.length ? `<span class="code" title="ePASS brand code${b.codes.length === 1 ? "" : "s"}">${esc(b.codes.join(", "))}</span>` : ""}${b.supplier ? `<span class="sup" title="${b.supplierSource === "netsuite" ? "Supplier from NetSuite" : "Supplier from the ePASS Supplier master — not mapped in NetSuite yet"}">${esc(b.supplier)}${b.supplierSource === "epass" ? " <span style=\"opacity:.7\">(ePASS)</span>" : ""}</span>` : ""}</span><span class="cnt"><b>${money(b.revenue || 0)}</b><br>${b.quotes} quote${b.quotes === 1 ? "" : "s"}</span></label>`).join("") : `<div class="qf-empty">${all.length ? "No brand or supplier matches that." : "No brands yet — the ePASS feed needs the open-quote-lines dataset (updated pull script)."}</div>`;
+          $("qfBrandList").innerHTML = list.length ? list.map((b) => `<label class="qf-brand-row"><input type="checkbox" data-brand="${esc(b.code)}" ${state.brands.has(b.code) ? "checked" : ""} /><span>${esc(b.name || b.code)}${b.codes && b.codes.length ? `<span class="code" title="ePASS brand code${b.codes.length === 1 ? "" : "s"}">${esc(b.codes.join(", "))}</span>` : ""}${b.supplier ? `<span class="sup" title="${b.supplierSource === "netsuite" ? "Supplier from NetSuite" : "Supplier from the ePASS Supplier master — not mapped in NetSuite yet"}">${esc(b.supplier)}${b.supplierSource === "epass" ? " <span style=\"opacity:.7\">(ePASS)</span>" : ""}</span>` : ""}</span><span class="cnt"><b>${money(b.revenue || 0)}</b><br>${b.quotes} quote${b.quotes === 1 ? "" : "s"}</span></label>`).join("") : `<div class="qf-empty">${all.length ? "No brand or supplier matches that." : state.data?.board?.linesAny ? "No models on the quotes in this view - widen the date range or clear the salesperson filter." : "No brands yet - the ePASS feed hasn't sent quote lines. Copy the updated epass-odbc-pull.ps1 (open-quote-lines dataset) to C:\\Agility; brands appear after the next pull."}</div>`;
           $("qfBrandList").querySelectorAll("input").forEach((c) => c.addEventListener("change", count));
           count();
         };

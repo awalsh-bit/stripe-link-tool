@@ -653,6 +653,22 @@ switch: service-journey setting `feed.inventory_enabled = false` makes the
 ExportModel upload the source again (the `inventory` agent kind still works
 either way — newest snapshot wins).
 
+### 8b4. Clearance Hit List from the feed (2026-10-08)
+
+The hit list (`clearance.html`, `/api/clearance`) is no longer the August
+workbook; it is a query over `on-hand-serials` (`lib/clearance-live.js`):
+`SerialTypeCode = 'OPEN'` (never DISPLAY), `ALL` received more than 365
+days ago, and `ALL` with a `Serial.UniqueSellPrice`. For that the view now
+selects `s.UniqueSellPrice, s.TagPrice` too — tried first, dropped if ePASS
+rejects them, so the shop's availability never depends on the new columns.
+Price = `UniqueSellPrice`, else the workbook's price for that serial, else
+"needs price" (on the list, not for sale, until an executive override). The
+storefront sells the same list; unpriced units fall through to the regular
+stock listing. Ids stay `MODEL|SERIAL#1` so holds / sold marks / overrides
+re-attach. Until the updated pull script runs, rules 1 and 2 work from the
+columns already in the feed; rule 3 starts with the first pull that carries
+`UniqueSellPrice`.
+
 
 ## 8c. The service catalogue (2026-09-23)
 

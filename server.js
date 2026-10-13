@@ -5944,7 +5944,23 @@ async function liveClearanceList() {
   if (Array.isArray(snapshot?.serialUnits) && snapshot.serialUnits.length) {
     const brandMap = await getModelBrandMap().catch(() => ({}));
     const live = buildLiveClearanceList({ snapshot, workbook, brandMap, categoryByProduct: SHOP_STOCK_CATEGORY_BY_PRODUCT });
-    value = { ...workbook, items: live.items, _meta: { ...(workbook._meta || {}), ...live._meta } };
+    // Feed diagnostics for the page (Andrew 10/13: "still zero unique prices"):
+    // does the last pull's on-hand view carry UniqueSellPrice at all, and how
+    // many in-stock units of ANY type have one - so "0 unique-priced" can say
+    // whether that's the pull script or ePASS.
+    const feedMeta = await getEpassOpenOrdersMeta().catch(() => null);
+    const onHandCols = feedMeta?.meta?.columns?.["on-hand-serials"] || [];
+    const feed = {
+      uniqueColumn: onHandCols.some((c) => String(c).toLowerCase() === "uniquesellprice"),
+      tagColumn: onHandCols.some((c) => String(c).toLowerCase() === "tagprice"),
+      discontinuedColumn: onHandCols.some((c) => /^model_(obsolete|beingdiscontinued)$/i.test(String(c))),
+      columns: onHandCols.length,
+      unitsWithUniquePrice: (snapshot.serialUnits || []).filter((u) => Number(u.uniquePrice) > 0).length,
+      unitsWithTagPrice: (snapshot.serialUnits || []).filter((u) => Number(u.tagPrice) > 0).length,
+      pulledAt: feedMeta?.meta?.pulled_at || feedMeta?.meta?.pulledAt || "",
+      receivedAt: feedMeta?.meta?.received_at ? new Date(feedMeta.meta.received_at).toISOString() : ""
+    };
+    value = { ...workbook, items: live.items, _meta: { ...(workbook._meta || {}), ...live._meta, feed } };
   } else {
     value = { ...workbook, _meta: { ...(workbook._meta || {}), live: false } };
   }

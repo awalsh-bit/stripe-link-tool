@@ -808,9 +808,18 @@
         lastLoadedAt = new Date().toISOString();
         if (data._meta?.live) {
           const c = data._meta.counts || {};
+          const f = data._meta.feed || null;
+          // Why "0 unique-priced" when that's the case: the pull script, or ePASS itself.
+          const uniqueNote = f && !(c.unique || 0)
+            ? (!f.uniqueColumn
+                ? ` The last pull carried no UniqueSellPrice column — the ePASS server is running an older copy of epass-odbc-pull.ps1 (or ePASS rejected the column; the pull log says which).`
+                : !f.unitsWithUniquePrice
+                  ? ` The feed carries UniqueSellPrice but no unit in stock has one set in ePASS.` + (f.unitsWithTagPrice ? ` (${f.unitsWithTagPrice} units carry a TagPrice instead.)` : "")
+                  : ` ${f.unitsWithUniquePrice} units in stock carry a unique sell price, but none are serial type ALL.`)
+            : "";
           document.getElementById("introSub").textContent =
             `Built from ePASS on every pull — open-box units, new units over a year in stock, and units with a unique sell price in ePASS. ` +
-            `${c.open || 0} open box · ${c.aged || 0} aged · ${c.unique || 0} unique-priced` + (c.needsPrice ? ` · ${c.needsPrice} need a price` : "") + `. Search "needs price" to find them.`;
+            `${c.open || 0} open box · ${c.aged || 0} aged · ${c.unique || 0} unique-priced` + (c.needsPrice ? ` · ${c.needsPrice} need a price` : "") + `. Search "needs price" to find them.` + uniqueNote;
         } else if (data._meta?.listDate) {
           document.getElementById("introSub").textContent =
             `Every clearance unit on the floor — one row per serial number. Price list updated ${data._meta.listDate}; availability from ePASS. Filter by category or search by model and description.`;

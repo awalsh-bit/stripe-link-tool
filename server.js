@@ -206,7 +206,7 @@ import {
 } from "./lib/shop-postgres.js";
 import { createBrandResolver, EPASS_BRAND_NAMES as EPASS_BRAND_NAMES_TABLE } from "./lib/brand-names.js";
 import { buildLiveClearanceList } from "./lib/clearance-live.js";
-import { listPromoCards, getPromoCard, savePromoCard, deletePromoCard, setPromoCardStatus, savePromoPhoto, getPromoPhoto, deletePromoPhoto, listPromoPhotoModels, resolvePromoCards, normModelKey as promoModelKey } from "./lib/promo-cards-postgres.js";
+import { listPromoCards, getPromoCard, savePromoCard, deletePromoCard, setPromoCardStatus, reorderPromoCards, savePromoPhoto, getPromoPhoto, deletePromoPhoto, listPromoPhotoModels, resolvePromoCards, normModelKey as promoModelKey } from "./lib/promo-cards-postgres.js";
 import {
   PROMO_KIND_LABELS,
   normalizePromoCode,
@@ -6059,6 +6059,13 @@ app.post("/api/promo/cards", requirePromoBuilder, async (req, res) => {
       detail: { id: saved.id, title: saved.title, status: saved.status, items: saved.items.length, misc: saved.misc.length, channels: saved.channels } }).catch(() => {});
     return res.json({ card: (await resolvePromoCardsLive([saved]))[0] });
   } catch (err) { return res.status(400).json({ error: err.message || "Unable to save the card." }); }
+});
+app.post("/api/promo/cards/reorder", requirePromoBuilder, async (req, res) => {
+  try {
+    const ids = await reorderPromoCards(req.body?.ids, { byEmail: req.authUser?.email || "" });
+    invalidateShopCatalog();
+    return res.json({ ok: true, ids });
+  } catch (err) { return res.status(400).json({ error: err.message || "Unable to reorder." }); }
 });
 app.post("/api/promo/cards/:id/status", requirePromoBuilder, async (req, res) => {
   try {

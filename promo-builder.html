@@ -62,7 +62,12 @@
     .expand { background: none; border: 0; color: var(--primary); font: inherit; font-size: 12px; cursor: pointer; padding: 0; }
 
     /* ---- cards ---- */
-    .card-tabs { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 12px; }
+    .card-tabs { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 6px; }
+    .card-tab[draggable="true"] { cursor: grab; }
+    .card-tab.dragging { opacity: .45; }
+    .card-tab.drop-before { box-shadow: -3px 0 0 var(--primary); }
+    .card-tab.drop-after { box-shadow: 3px 0 0 var(--primary); }
+    .tabs-hint { font-size: 11.5px; color: var(--muted); margin: 0 0 10px; }
     .card-tab { border: 1px solid var(--border); background: #fff; border-radius: 10px; padding: 7px 11px; font-size: 12.5px; cursor: pointer; display: flex; gap: 6px; align-items: center; }
     .card-tab.on { border-color: var(--primary); box-shadow: 0 0 0 2px rgba(var(--primary-rgb), .18); }
     .card-tab .st { width: 8px; height: 8px; border-radius: 999px; background: #cbd5e1; }
@@ -264,7 +269,7 @@
 
       // ---------------- cards ----------------
       const modelByKey = (key) => (state.inv?.models || []).find((m) => m.key === key);
-      function blankCard() { return { id: 0, title: "", subtitle: "", note: "", channels: { shop: false, secret: true }, status: "draft", startsOn: "", endsOn: "", sort: 100, items: [], misc: [] }; }
+      function blankCard() { return { id: 0, title: "", subtitle: "", note: "", channels: { shop: false, secret: true }, status: "draft", startsOn: "", endsOn: "", sort: null, items: [], misc: [] }; }
       function addItem({ kind, key, serial }) {
         if (!state.current) { state.current = blankCard(); }
         const m = modelByKey(key); if (!m) return;
@@ -304,9 +309,9 @@
       }
 
       function renderTabs() {
-        const tabs = state.cards.map((c) => `<button type="button" class="card-tab${state.current && state.current.id === c.id ? " on" : ""}" data-card="${c.id}"><span class="st ${c.status === "published" ? (c.live ? "published" : "problem") : ""}"></span>${esc(c.title || "(untitled)")}<span style="color:var(--muted)">${c.channels.shop ? " · shop" : ""}${c.channels.secret ? " · secret" : ""}</span></button>`);
+        const tabs = state.cards.map((c) => `<button type="button" class="card-tab${state.current && state.current.id === c.id ? " on" : ""}" data-card="${c.id}" draggable="true" title="Drag to change where this card sits in the lineup"><span class="st ${c.status === "published" ? (c.live ? "published" : "problem") : ""}"></span>${esc(c.title || "(untitled)")}<span style="color:var(--muted)">${c.channels.shop ? " · shop" : ""}${c.channels.secret ? " · secret" : ""}</span></button>`);
         tabs.push(`<button type="button" class="card-tab${state.current && !state.current.id ? " on" : ""}" data-card="new">+ New card</button>`);
-        $("cardTabs").innerHTML = tabs.join("");
+        $("cardTabs").innerHTML = tabs.join("") + (state.cards.length > 1 ? `<div class="tabs-hint" style="flex-basis:100%">Cards show in this order on the Secret Menu and the shop — drag a card left or right to move it.</div>` : "");
       }
       $("cardTabs").addEventListener("click", async (e) => {
         const b = e.target.closest("[data-card]"); if (!b) return;
@@ -314,6 +319,37 @@
         if (b.dataset.card === "new") { state.current = blankCard(); state.resolved = null; }
         else { const c = state.cards.find((x) => x.id === Number(b.dataset.card)); state.current = JSON.parse(JSON.stringify({ id: c.id, title: c.title, subtitle: c.subtitle, note: c.note, channels: c.channels, status: c.status, startsOn: c.startsOn, endsOn: c.endsOn, sort: c.sort, items: c.items.map((i) => ({ kind: i.kind, model: i.model, serial: i.serial, qty: i.qty, price: i.price })), misc: c.misc.map((m) => ({ code: m.code, qty: m.qty, price: m.price, required: m.required })) })); state.resolved = c; }
         state.dirty = false; renderTabs(); renderEditor(); renderPreview();
+      });
+
+      // Drag a card tab to reorder the lineup (Andrew 10/14): the order is
+      // saved as soon as the card is dropped.
+      let dragCardId = null;
+      $("cardTabs").addEventListener("dragstart", (e) => {
+        const t = e.target.closest('.card-tab[draggable="true"]'); if (!t) { e.preventDefault(); return; }
+        dragCardId = Number(t.dataset.card); t.classList.add("dragging");
+        e.dataTransfer.effectAllowed = "move"; e.dataTransfer.setData("text/plain", "card:" + dragCardId);
+      });
+      $("cardTabs").addEventListener("dragover", (e) => {
+        const t = e.target.closest('.card-tab[draggable="true"]'); if (!t || dragCardId == null) return;
+        e.preventDefault(); e.dataTransfer.dropEffect = "move";
+        const r = t.getBoundingClientRect(); const before = e.clientX < r.left + r.width / 2;
+        $("cardTabs").querySelectorAll(".card-tab").forEach((x) => x.classList.remove("drop-before", "drop-after"));
+        if (Number(t.dataset.card) !== dragCardId) t.classList.add(before ? "drop-before" : "drop-after");
+      });
+      $("cardTabs").addEventListener("dragleave", (e) => { const t = e.target.closest(".card-tab"); if (t) t.classList.remove("drop-before", "drop-after"); });
+      $("cardTabs").addEventListener("dragend", () => { dragCardId = null; $("cardTabs").querySelectorAll(".card-tab").forEach((x) => x.classList.remove("dragging", "drop-before", "drop-after")); });
+      $("cardTabs").addEventListener("drop", async (e) => {
+        const t = e.target.closest('.card-tab[draggable="true"]'); if (!t || dragCardId == null) return;
+        e.preventDefault();
+        const targetId = Number(t.dataset.card); if (targetId === dragCardId) return;
+        const r = t.getBoundingClientRect(); const before = e.clientX < r.left + r.width / 2;
+        const ids = state.cards.map((c) => c.id).filter((id) => id !== dragCardId);
+        const at = ids.indexOf(targetId); ids.splice(before ? at : at + 1, 0, dragCardId);
+        const moved = dragCardId; dragCardId = null;
+        state.cards.sort((a, b) => ids.indexOf(a.id) - ids.indexOf(b.id)); renderTabs();
+        try { await api("/api/promo/cards/reorder", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ids }) }); setStatus("topStatus", "Card order saved."); await loadCards(true); }
+        catch (err) { setStatus("topStatus", err.message, true); await loadCards(true); }
+        void moved;
       });
 
       function renderEditor(keepInputs) {
@@ -331,7 +367,6 @@
           <div class="frow">
             <div><label>Starts</label><input type="date" data-field="startsOn" value="${esc(c.startsOn)}"></div>
             <div><label>Ends</label><input type="date" data-field="endsOn" value="${esc(c.endsOn)}"></div>
-            <div><label>Order</label><input type="number" data-field="sort" value="${esc(c.sort)}" min="0" step="1"></div>
             <div><label>Where</label><div class="checks"><label style="text-transform:none;letter-spacing:0;font-weight:500;color:var(--text)"><input type="checkbox" data-field="chSecret" ${c.channels.secret ? "checked" : ""}> Secret Menu</label><label style="text-transform:none;letter-spacing:0;font-weight:500;color:var(--text)"><input type="checkbox" data-field="chShop" ${c.channels.shop ? "checked" : ""}> Online Shop</label></div></div>
           </div>
           <div class="drop" id="dropItems">
@@ -389,7 +424,6 @@
         const f = el.dataset.field; if (!f || !state.current) return;
         const c = state.current; state.dirty = true;
         if (f === "title" || f === "subtitle" || f === "note" || f === "startsOn" || f === "endsOn") c[f] = el.value;
-        else if (f === "sort") c.sort = Number(el.value) || 0;
         else if (f === "price") { const it = c.items[Number(el.dataset.idx)]; if (it) it.price = el.value === "" ? null : Number(el.value); refreshResolved(); }
         else if (f === "qty") { const it = c.items[Number(el.dataset.idx)]; if (it) it.qty = Math.max(1, Math.min(20, Number(el.value) || 1)); refreshResolved(); }
         else if (f === "mprice") { const m = c.misc[Number(el.dataset.idx)]; if (m) m.price = el.value === "" ? null : Number(el.value); refreshResolved(); }

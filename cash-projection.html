@@ -115,8 +115,9 @@
       <h3>Supplier payment terms <span class="hint">how received-but-unbilled stock and open POs get scheduled — the default row applies to every supplier without its own</span></h3>
       <p class="cover" style="margin:0 0 10px;">Invoices batch on the <b>billing-close days</b>; each installment is due on the first <b>due day</b> on or after close + its days. Default: close 5 &amp; 20, due 8 &amp; 23, 50% at 30 days and 50% at 60. Bills already in ePASS AP use their real due date regardless.</p>
       <div class="terms-row terms-head"><span>Supplier</span><span>Close days</span><span>Due days</span><span>Installments (pct@days, comma-separated)</span><span>Note</span><span></span></div>
+      <p class="cover" id="termsReadOnly" style="display:none;margin:0 0 8px;color:#9a3412;">Payment terms are view-only for your account — an executive changes them.</p>
       <div id="termsList"></div>
-      <div class="bar" style="margin-top:10px;">
+      <div class="bar" style="margin-top:10px;" id="termsAddBar">
         <select id="termsAddSel" class="sel" style="min-width:260px;"><option value="">Add a supplier…</option></select>
         <button type="button" class="btn quiet" id="termsAddBtn">Add row</button>
         <span class="cover" id="termsStatus" style="margin:0;"></span>
@@ -258,6 +259,14 @@
 
       function renderTerms(terms) {
         const names = data?.supplierNames || {};
+        if (!canEditTerms) {
+          const rows = terms.length ? terms : [{ supplierCode: "*", closeDays: [5, 20], dueDays: [8, 23], installments: [{ pct: 50, days: 30 }, { pct: 50, days: 60 }], note: "" }];
+          $("termsList").innerHTML = rows.map((t) => `<div class="terms-row" data-code="${esc(t.supplierCode)}">
+            <span class="k">${t.supplierCode === "*" ? "Default (every supplier)" : esc(names[t.supplierCode] || t.supplierCode)}</span>
+            <span>${esc((t.closeDays || []).join(", "))}</span><span>${esc((t.dueDays || []).join(", "))}</span><span>${esc((t.installments || []).map((i) => `${i.pct}@${i.days}`).join(", "))}</span><span>${esc(t.note || "")}</span><span></span>
+          </div>`).join("");
+          return;
+        }
         const rows = terms.length ? terms : [{ supplierCode: "*", closeDays: [5, 20], dueDays: [8, 23], installments: [{ pct: 50, days: 30 }, { pct: 50, days: 60 }], note: "", unsaved: true }];
         $("termsList").innerHTML = rows.map((t) => `<div class="terms-row" data-code="${esc(t.supplierCode)}">
             <span class="k">${t.supplierCode === "*" ? "Default (every supplier)" : esc(names[t.supplierCode] || t.supplierCode) + ` <span class="muted">${esc(t.supplierCode)}</span>`}</span>
@@ -294,6 +303,18 @@
         renderTerms(data.terms); $("termsStatus").textContent = "Edit the row and Save.";
       });
 
+      // Terms editing is executive-only (Andrew 10/14: the page itself is now
+      // grantable, for the accounting analysts); everyone else sees the terms
+      // read-only instead of a Save that would be refused.
+      let canEditTerms = true;
+      async function checkEditor() {
+        try {
+          const res = await fetch("/api/auth/session", { credentials: "same-origin" });
+          if (res.ok) { const sess = await res.json(); canEditTerms = !!(sess.isExecutive || sess.canManageUsers || sess.user?.isExecutive); }
+        } catch {}
+        $("termsReadOnly").style.display = canEditTerms ? "none" : "";
+        $("termsAddBar").style.display = canEditTerms ? "" : "none";
+      }
       async function load() {
         try {
           $("reload").disabled = true;
@@ -329,7 +350,7 @@
 
       $("reload").addEventListener("click", load);
       $("months").addEventListener("change", load);
-      load();
+      checkEditor().then(load);
     })();
   </script>
 </body>

@@ -448,7 +448,7 @@
     }
 
     function heldBadge(l) {
-      return l.held ? ' <span class="badge unpaid" title="Invoice carries a balance on the uploaded balance check — held out of this month\'s payout until it clears">Unpaid</span>' : "";
+      return l.held ? ' <span class="badge unpaid" title="Invoice still carries a balance in ePASS (or was written off) — held out of this month\'s payout until it clears">Unpaid</span>' : "";
     }
     function releasedBadge(l) {
       return l.released ? ` <span class="badge released">released</span> <span class="badge heldmonth">held ${escapeHtml(monthLabel(l.heldFrom))}</span>` : "";
@@ -616,7 +616,7 @@
           <tr class="total-row"><td colspan="9">Total released</td><td class="num">${money(t.releasedCommission)}</td><td class="no-print"></td></tr></tbody></table>` : ""}
 
         ${st.stillHeldJobs.length ? `
-        <div class="sec-title" style="color: #991b1b;">Still Unpaid — Check Next Balance Upload<span class="sec-sub">held from earlier months; pays automatically once a balance check shows the invoice paid</span></div>
+        <div class="sec-title" style="color: #991b1b;">Still Unpaid — Waiting on Payment<span class="sec-sub">held from earlier months; pays automatically once ePASS shows the invoice paid</span></div>
         <table class="lines">${JOB_HEAD}<tbody>${jobRows(st.stillHeldJobs, "held")}</tbody></table>` : ""}
 
         ${st.excludedJobs.length ? `
@@ -718,7 +718,7 @@
         </table>` : ""}
 
         ${st.stillHeldLines.length ? `
-        <div class="sec-title" style="color: #991b1b;">Still Unpaid — Check Next Balance Upload<span class="sec-sub">held from earlier months; pays automatically once a balance check shows the invoice paid</span></div>
+        <div class="sec-title" style="color: #991b1b;">Still Unpaid — Waiting on Payment<span class="sec-sub">held from earlier months; pays automatically once ePASS shows the invoice paid</span></div>
         <table class="lines">
           <thead><tr><th>Invoice</th><th>Customer</th><th>Model</th><th class="num">Qty</th><th class="num">List</th><th class="num">Commission waiting</th></tr></thead>
           <tbody>${st.stillHeldLines.map((l) => `
@@ -758,13 +758,18 @@
       const check = (data.balanceChecks || {})[data.month];
       const stillHeld = visibleStatements().reduce((s, st) => s + st.totals.stillHeldCount, 0);
       const reminder = stillHeld ? ` · ${stillHeld} line(s) held from earlier months await payment — see the red sections below.` : "";
-      if (check) {
+      if (check && /ePASS feed/i.test(String(check.filename || ""))) {
+        // Automatic: balances come straight from the ePASS feed (10/14).
         const when = check.uploadedAt ? new Date(check.uploadedAt).toLocaleString("en-US", { timeZone: "America/Chicago", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) : "";
         bl.className = "balance-line ok";
-        bl.textContent = `Balance check for ${monthLabel(data.month)}: ${check.filename || "uploaded"} (${when}) — ${check.unpaidCount} unpaid invoice(s) held.${reminder}`;
+        bl.textContent = `Paid balances for ${monthLabel(data.month)} come from the ePASS feed automatically (as of ${when}) — ${check.unpaidCount} unpaid or written-off invoice(s) held. No upload needed; an uploaded balance check would override the feed for this month.${reminder}`;
+      } else if (check) {
+        const when = check.uploadedAt ? new Date(check.uploadedAt).toLocaleString("en-US", { timeZone: "America/Chicago", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) : "";
+        bl.className = "balance-line ok";
+        bl.textContent = `Balance check for ${monthLabel(data.month)}: ${check.filename || "uploaded"} (${when}) — ${check.unpaidCount} unpaid invoice(s) held (manual upload; it overrides the ePASS feed for this month).${reminder}`;
       } else {
         bl.className = "balance-line warn";
-        bl.textContent = `No balance check uploaded for ${monthLabel(data.month)} yet — unpaid invoices are NOT being held. Upload the latest finished Invoice Maintenance export.${reminder}`;
+        bl.textContent = `No paid-balance data for ${monthLabel(data.month)} yet — the ePASS feed hasn't delivered balances, so unpaid invoices are NOT being held. Upload a finished Invoice Maintenance export as a stopgap.${reminder}`;
       }
     }
 

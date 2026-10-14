@@ -1,0 +1,512 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="robots" content="noindex,nofollow,noarchive" />
+  <title>Wilson AC &amp; Appliance - Promo Item Builder</title>
+  <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+  <link rel="stylesheet" href="internal-shell.css" />
+  <style>
+    :root {
+      --bg: #f7f8fc; --card: #ffffff; --text: #1f2937; --muted: #6b7280; --border: #dbe1ea;
+      --shadow: 0 10px 35px rgba(0, 0, 0, 0.08); --radius: 18px;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: "Roboto", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: linear-gradient(180deg, var(--primary-tint) 0%, var(--bg) 100%); color: var(--text); min-height: 100vh; padding: 32px 16px; }
+    .wrap { max-width: 1600px; margin: 0 auto; }
+    .surface { background: var(--card); border-radius: var(--radius); box-shadow: var(--shadow); padding: 22px 24px; margin-bottom: 20px; }
+    .page-head h2 { margin: 0 0 6px; font-size: 20px; }
+    .section-note { color: var(--muted); font-size: 13.5px; line-height: 1.55; margin: 0; }
+    .ws-btn { border: none; border-radius: 10px; cursor: pointer; font-size: 12.5px; font-weight: 600; padding: 8px 13px; font-family: inherit; }
+    .ws-btn:disabled { opacity: 0.55; cursor: wait; }
+    .ws-btn.primary { background: var(--primary); color: #fff; }
+    .ws-btn.quiet { background: #fff; color: #374151; border: 1px solid var(--border); }
+    .ws-btn.danger { background: #fff; color: #b91c1c; border: 1px solid rgba(185, 28, 28, .3); }
+    .ws-btn.sm { padding: 5px 9px; font-size: 12px; }
+    .status { min-height: 18px; font-size: 13px; color: var(--muted); margin: 8px 0 0; }
+    .status.err { color: #b91c1c; }
+
+    .layout { display: grid; grid-template-columns: minmax(360px, 2fr) minmax(460px, 3fr); gap: 20px; align-items: start; }
+    @media (max-width: 1100px) { .layout { grid-template-columns: 1fr; } }
+
+    /* ---- inventory (drag source) ---- */
+    .inv-head { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 10px; }
+    .inv-head input[type="search"], .inv-head select { padding: 9px 11px; border: 1px solid var(--border); border-radius: 10px; font: inherit; font-size: 13.5px; }
+    .inv-head input[type="search"] { flex: 1 1 220px; }
+    .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+    .chip { border: 1px solid var(--border); background: #fff; border-radius: 999px; padding: 4px 10px; font-size: 12px; font-weight: 600; cursor: pointer; color: #374151; }
+    .chip.on { background: var(--primary); color: #fff; border-color: var(--primary); }
+    .inv-list { max-height: 72vh; overflow: auto; border: 1px solid var(--border); border-radius: 12px; }
+    .inv-row { display: grid; grid-template-columns: 56px 1fr auto; gap: 10px; align-items: center; padding: 8px 10px; border-bottom: 1px solid #eef1f6; cursor: grab; background: #fff; }
+    .inv-row:active { cursor: grabbing; }
+    .inv-row.dragging { opacity: .5; }
+    .inv-row img, .inv-row .noimg { width: 56px; height: 56px; object-fit: contain; border-radius: 8px; background: #f3f4f6; }
+    .inv-row .noimg { display: flex; align-items: center; justify-content: center; font-size: 10px; color: var(--muted); text-align: center; padding: 4px; }
+    .inv-row .t { min-width: 0; }
+    .inv-row .model { font-weight: 800; font-size: 14px; }
+    .inv-row .brand { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .04em; }
+    .inv-row .desc { font-size: 12.5px; color: #374151; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .inv-row .meta { font-size: 11.5px; color: var(--muted); }
+    .inv-row .r { text-align: right; font-size: 12px; white-space: nowrap; }
+    .inv-row .r b { display: block; font-size: 13px; }
+    .pill { display: inline-block; border-radius: 999px; padding: 1px 7px; font-size: 10.5px; font-weight: 800; letter-spacing: .02em; background: #f1f5f9; color: #475569; }
+    .pill.open { background: #ecfeff; color: #155e75; } .pill.disc { background: #fef2f2; color: #991b1b; } .pill.uniq { background: #f5f3ff; color: #5b21b6; }
+    .units { grid-column: 1 / -1; display: none; padding: 2px 0 4px 66px; }
+    .inv-row.expanded .units { display: block; }
+    .unit { display: flex; gap: 8px; align-items: center; font-size: 12px; padding: 4px 6px; border-radius: 8px; cursor: grab; }
+    .unit:hover { background: #f8fafc; }
+    .unit.taken { opacity: .5; cursor: not-allowed; }
+    .unit .serial { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-weight: 700; }
+    .unit .add { margin-left: auto; }
+    .expand { background: none; border: 0; color: var(--primary); font: inherit; font-size: 12px; cursor: pointer; padding: 0; }
+
+    /* ---- cards ---- */
+    .card-tabs { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 12px; }
+    .card-tab { border: 1px solid var(--border); background: #fff; border-radius: 10px; padding: 7px 11px; font-size: 12.5px; cursor: pointer; display: flex; gap: 6px; align-items: center; }
+    .card-tab.on { border-color: var(--primary); box-shadow: 0 0 0 2px rgba(var(--primary-rgb), .18); }
+    .card-tab .st { width: 8px; height: 8px; border-radius: 999px; background: #cbd5e1; }
+    .card-tab .st.published { background: #16a34a; } .card-tab .st.problem { background: #dc2626; }
+    .editor { border: 1px solid var(--border); border-radius: 14px; padding: 16px; }
+    .frow { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 10px; margin-bottom: 10px; }
+    .frow label { display: block; font-size: 11.5px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; margin-bottom: 4px; }
+    .frow input[type="text"], .frow input[type="date"], .frow input[type="number"], .frow select, .frow textarea { width: 100%; padding: 8px 10px; border: 1px solid var(--border); border-radius: 10px; font: inherit; font-size: 13.5px; }
+    .frow .checks { display: flex; gap: 14px; align-items: center; padding-top: 8px; font-size: 13.5px; }
+    .drop { border: 2px dashed var(--border); border-radius: 12px; padding: 10px; min-height: 72px; margin-bottom: 10px; transition: background .15s, border-color .15s; }
+    .drop.over { border-color: var(--primary); background: rgba(var(--primary-rgb), .06); }
+    .drop .hint { color: var(--muted); font-size: 13px; text-align: center; padding: 14px 0; }
+    .drop h4 { margin: 0 0 8px; font-size: 12px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
+    .citem { display: grid; grid-template-columns: 64px 1fr 150px auto; gap: 10px; align-items: center; padding: 8px; border: 1px solid #eef1f6; border-radius: 10px; margin-bottom: 6px; background: #fff; }
+    .citem.bad { border-color: rgba(185, 28, 28, .4); background: #fff7f7; }
+    .citem img, .citem .noimg { width: 64px; height: 64px; object-fit: contain; border-radius: 8px; background: #f3f4f6; }
+    .citem .noimg { display: flex; align-items: center; justify-content: center; font-size: 10px; color: var(--muted); text-align: center; }
+    .citem .t .model { font-weight: 800; }
+    .citem .t .desc { font-size: 12.5px; color: #374151; }
+    .citem .t .meta { font-size: 11.5px; color: var(--muted); }
+    .citem .t .meta b { color: var(--text); }
+    .citem .p { text-align: right; }
+    .citem .p input { width: 100%; text-align: right; padding: 7px 9px; border: 1px solid var(--border); border-radius: 10px; font: inherit; font-size: 14px; font-weight: 700; }
+    .citem .p .src { font-size: 10.5px; color: var(--muted); margin-top: 3px; }
+    .citem .acts { display: flex; flex-direction: column; gap: 4px; }
+    .citem .photo { font-size: 11px; color: var(--primary); cursor: pointer; background: none; border: 0; padding: 0; font-family: inherit; }
+    .citem .qty { width: 54px; text-align: center; padding: 5px; border: 1px solid var(--border); border-radius: 8px; font: inherit; }
+    .mrow { display: grid; grid-template-columns: 1fr 70px 130px auto; gap: 10px; align-items: center; padding: 8px; border: 1px solid #eef1f6; border-radius: 10px; margin-bottom: 6px; }
+    .mrow.bad { border-color: rgba(185, 28, 28, .4); background: #fff7f7; }
+    .mrow .code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-weight: 700; font-size: 12.5px; }
+    .mrow .desc { font-size: 12.5px; color: #374151; }
+    .mrow .meta { font-size: 11px; color: var(--muted); }
+    .mrow input[type="number"] { width: 100%; text-align: right; padding: 6px 8px; border: 1px solid var(--border); border-radius: 8px; font: inherit; }
+    .mrow input[readonly] { background: #f8fafc; color: var(--muted); }
+    .misc-pick { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; }
+    .misc-pick input { flex: 1; padding: 8px 10px; border: 1px solid var(--border); border-radius: 10px; font: inherit; font-size: 13.5px; }
+    .misc-results { border: 1px solid var(--border); border-radius: 10px; max-height: 220px; overflow: auto; display: none; margin-bottom: 8px; }
+    .misc-results.show { display: block; }
+    .misc-opt { padding: 7px 10px; font-size: 12.5px; cursor: pointer; border-bottom: 1px solid #eef1f6; display: flex; gap: 10px; align-items: baseline; }
+    .misc-opt:hover { background: #f8fafc; }
+    .misc-opt .code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-weight: 700; }
+    .misc-opt .price { margin-left: auto; font-weight: 700; white-space: nowrap; }
+    .totals { display: grid; grid-template-columns: 1fr auto; gap: 4px 16px; font-size: 13.5px; padding: 10px 12px; background: #f8fafc; border-radius: 12px; }
+    .totals .big { font-size: 18px; font-weight: 800; }
+    .problems { margin: 8px 0 0; padding: 8px 12px; border-radius: 10px; background: #fef2f2; color: #991b1b; font-size: 12.5px; }
+    .problems ul { margin: 4px 0 0; padding-left: 18px; }
+    .editor-foot { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-top: 12px; }
+    .editor-foot .grow { flex: 1; }
+    .preview { border: 1px solid var(--border); border-radius: 14px; padding: 14px; margin-top: 14px; background: #fff; }
+    .preview h4 { margin: 0 0 8px; font-size: 12px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
+    .pv-card { border-radius: 16px; overflow: hidden; border: 1px solid var(--border); max-width: 420px; }
+    .pv-head { padding: 12px 14px; background: linear-gradient(135deg, var(--primary-ink, #0f3d1d), var(--primary)); color: #fff; }
+    .pv-head .t { font-weight: 800; font-size: 16px; } .pv-head .s { font-size: 12.5px; opacity: .9; }
+    .pv-item { display: grid; grid-template-columns: 56px 1fr auto; gap: 10px; align-items: center; padding: 8px 14px; border-bottom: 1px solid #eef1f6; font-size: 13px; }
+    .pv-item img, .pv-item .noimg { width: 56px; height: 56px; object-fit: contain; background: #f3f4f6; border-radius: 8px; }
+    .pv-item .noimg { display: flex; align-items: center; justify-content: center; font-size: 10px; color: var(--muted); }
+    .pv-misc { display: flex; justify-content: space-between; padding: 6px 14px; font-size: 12.5px; color: #374151; }
+    .pv-total { display: flex; justify-content: space-between; padding: 10px 14px; background: #f8fafc; font-weight: 800; }
+    .pv-total small { display: block; font-weight: 500; color: var(--muted); font-size: 11.5px; }
+    .mask { position: fixed; inset: 0; background: rgba(15, 23, 42, .35); display: none; z-index: 60; }
+    .mask.show { display: block; }
+    .photo-drawer { position: fixed; top: 0; right: 0; bottom: 0; width: min(420px, 100vw); background: #fff; box-shadow: -12px 0 40px rgba(0,0,0,.18); transform: translateX(100%); transition: transform .2s ease; z-index: 61; display: flex; flex-direction: column; }
+    .photo-drawer.show { transform: none; }
+    .photo-drawer .hd { display: flex; align-items: center; gap: 10px; padding: 16px 18px; border-bottom: 1px solid var(--border); }
+    .photo-drawer .hd h3 { margin: 0; flex: 1; font-size: 16px; }
+    .photo-drawer .bd { padding: 16px 18px; overflow: auto; flex: 1; font-size: 13.5px; }
+    .photo-drawer img { max-width: 100%; max-height: 260px; object-fit: contain; display: block; margin: 10px auto; background: #f3f4f6; border-radius: 10px; }
+    .close { background: none; border: 0; font-size: 22px; cursor: pointer; color: var(--muted); }
+  </style>
+</head>
+<body data-shell-label="Promo Item Builder" data-shell-icon="sales">
+  <div class="wrap">
+    <div id="internal-shell-header"></div>
+
+    <div class="surface">
+      <div class="page-head">
+        <h2>Promo Item Builder</h2>
+        <p class="section-note">
+          Drag any unit in stock from the left onto a card. A <b>model</b> means any new unit of that model; a <b>serial</b> is one exact unit
+          (open box, unique price). Everything about an item is ePASS's and stays read-only — the only thing you set is the <b>price</b>.
+          Add the <b>misc charges</b> (delivery, install, recycle, promo installs) from the ePASS list so the total with tax is right.
+          A card goes to the <b>Secret Menu</b> and/or the <b>Online Shop</b> when you publish it. Photos default to the RetailDeck thumbnail; upload your own per model.
+        </p>
+      </div>
+      <div class="status" id="topStatus"></div>
+    </div>
+
+    <div class="layout">
+      <div class="surface">
+        <div class="inv-head">
+          <input type="search" id="invFind" placeholder="Find model, brand, description, serial…">
+          <select id="invBrand"><option value="">All brands</option></select>
+          <select id="invType">
+            <option value="">Any serial type</option>
+            <option value="ALL">New (ALL)</option>
+            <option value="OPEN">Open box</option>
+            <option value="other">Display / other</option>
+          </select>
+          <select id="invFlag">
+            <option value="">All models</option>
+            <option value="free">With a free unit</option>
+            <option value="unique">Unique sell price</option>
+            <option value="disc">Discontinued</option>
+          </select>
+        </div>
+        <div class="chips" id="invCats"></div>
+        <div class="inv-list" id="invList"><div class="status">Loading inventory…</div></div>
+        <div class="status" id="invStatus"></div>
+      </div>
+
+      <div class="surface">
+        <div class="card-tabs" id="cardTabs"></div>
+        <div class="editor" id="editor"></div>
+        <div class="preview" id="preview"></div>
+      </div>
+    </div>
+
+    <div id="internal-shell-footer"></div>
+  </div>
+
+  <div class="mask" id="photoMask"></div>
+  <aside class="photo-drawer" id="photoDrawer" aria-label="Item photo">
+    <div class="hd"><h3 id="photoTitle">Photo</h3><button type="button" class="close" id="photoClose" aria-label="Close">&times;</button></div>
+    <div class="bd" id="photoBody"></div>
+  </aside>
+
+  <script src="internal-shell.js"></script>
+  <script>
+    (function () {
+      const $ = (id) => document.getElementById(id);
+      const esc = (v) => String(v == null ? "" : v).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;", "'": "&#39;" })[c]);
+      const money = (n) => n == null || !Number.isFinite(Number(n)) ? "—" : Number(n).toLocaleString("en-US", { style: "currency", currency: "USD" });
+      const r2 = (n) => Math.round(Number(n) * 100) / 100;
+      const api = async (url, opts) => { const res = await fetch(url, { credentials: "same-origin", ...(opts || {}) }); const body = await res.json().catch(() => ({})); if (!res.ok) throw new Error(body.error || "Request failed."); return body; };
+
+      const state = { inv: null, misc: [], cards: [], current: null, cat: "", dirty: false, taxRate: 0.0825, catLabels: {} };
+      const setStatus = (id, msg, err) => { const el = $(id); el.textContent = msg || ""; el.classList.toggle("err", !!err); };
+
+      // ---------------- inventory ----------------
+      function invFiltered() {
+        const q = $("invFind").value.trim().toUpperCase();
+        const brand = $("invBrand").value; const type = $("invType").value; const flag = $("invFlag").value;
+        return (state.inv?.models || []).filter((m) =>
+          (!brand || m.brand === brand) &&
+          (!state.cat || m.category === state.cat) &&
+          (!type || m.units.some((u) => type === "other" ? !["ALL", "OPEN"].includes(u.serialType) : u.serialType === type)) &&
+          (!flag || (flag === "free" ? m.free > 0 : flag === "unique" ? m.units.some((u) => u.uniquePrice > 0) : m.discontinued)) &&
+          (!q || `${m.model} ${m.brand} ${m.description} ${m.units.map((u) => u.serial).join(" ")}`.toUpperCase().includes(q)));
+      }
+      const expanded = new Set();
+      function renderInv() {
+        const rows = invFiltered().slice(0, 400);
+        $("invList").innerHTML = rows.map((m) => `
+          <div class="inv-row${expanded.has(m.key) ? " expanded" : ""}" draggable="true" data-kind="model" data-key="${esc(m.key)}" title="Drag onto a card: any new unit of ${esc(m.model)}">
+            ${m.image ? `<img src="${esc(m.image)}" alt="" loading="lazy" onerror="this.replaceWith(Object.assign(document.createElement('div'),{className:'noimg',textContent:'no photo'}))">` : `<div class="noimg">no photo</div>`}
+            <div class="t">
+              <div class="brand">${esc(m.brand)}${m.discontinued ? ` <span class="pill disc">discontinued</span>` : ""}</div>
+              <div class="model">${esc(m.model)} ${m.open ? `<span class="pill open">${m.open} open box</span>` : ""}${m.units.some((u) => u.uniquePrice > 0) ? ` <span class="pill uniq">unique price</span>` : ""}</div>
+              <div class="desc" title="${esc(m.description)}">${esc(m.description)}</div>
+              <div class="meta">${esc(state.catLabels[m.category] || m.category || "—")} · ${m.free} free of ${m.onHand} on hand${m.cost ? ` · cost ${money(m.cost)}` : ""} · <button type="button" class="expand" data-expand="${esc(m.key)}">${expanded.has(m.key) ? "hide" : "show"} units</button></div>
+            </div>
+            <div class="r"><b>${money(m.list)}</b>${m.listCode ? esc(m.listCode) : ""}${m.map ? `<br>MAP ${money(m.map)}` : ""}<br><button type="button" class="ws-btn quiet sm" data-add-model="${esc(m.key)}">Add model</button></div>
+            <div class="units">${m.units.map((u) => `
+              <div class="unit${u.free ? "" : " taken"}" draggable="${u.free ? "true" : "false"}" data-kind="serial" data-key="${esc(m.key)}" data-serial="${esc(u.serial)}">
+                <span class="serial">${esc(u.serial)}</span>
+                <span class="pill${u.serialType === "ALL" ? "" : " open"}">${esc(u.serialType || "?")}</span>
+                <span>${u.received ? "received " + esc(u.received) : ""}${u.location ? " · loc " + esc(u.location) : ""}${u.bin ? "/" + esc(u.bin) : ""}</span>
+                ${u.uniquePrice ? `<span class="pill uniq">unique ${money(u.uniquePrice)}</span>` : ""}${u.tagPrice ? `<span class="pill">tag ${money(u.tagPrice)}</span>` : ""}
+                ${u.writtenTo ? `<span class="pill disc">written ${esc(u.writtenTo)}</span>` : u.reserved ? `<span class="pill disc">reserved</span>` : u.marked ? `<span class="pill disc">${esc(u.marked)} here</span>` : ""}
+                ${u.free ? `<button type="button" class="ws-btn quiet sm add" data-add-serial="${esc(m.key)}|${esc(u.serial)}">Add this unit</button>` : ""}
+              </div>`).join("")}</div>
+          </div>`).join("") || `<div class="status">Nothing matches.</div>`;
+        setStatus("invStatus", `${rows.length}${invFiltered().length > 400 ? " of " + invFiltered().length : ""} models · ${state.inv?.snapshot?.units || 0} units in ePASS stock as of ${state.inv?.snapshot?.uploadedAt ? new Date(state.inv.snapshot.uploadedAt).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) : "—"}`);
+      }
+      function renderCats() {
+        const counts = {};
+        for (const m of state.inv?.models || []) counts[m.category || ""] = (counts[m.category || ""] || 0) + 1;
+        const keys = Object.keys(counts).sort((a, b) => (state.catLabels[a] || a || "zz").localeCompare(state.catLabels[b] || b || "zz"));
+        $("invCats").innerHTML = [`<button type="button" class="chip${state.cat === "" ? " on" : ""}" data-cat="">All ${state.inv.models.length}</button>`]
+          .concat(keys.map((k) => `<button type="button" class="chip${state.cat === k ? " on" : ""}" data-cat="${esc(k)}">${esc(state.catLabels[k] || k || "Uncategorized")} ${counts[k]}</button>`)).join("");
+      }
+      $("invCats").addEventListener("click", (e) => { const b = e.target.closest("[data-cat]"); if (!b) return; state.cat = b.dataset.cat; renderCats(); renderInv(); });
+      ["invFind"].forEach((id) => $(id).addEventListener("input", renderInv));
+      ["invBrand", "invType", "invFlag"].forEach((id) => $(id).addEventListener("change", renderInv));
+      $("invList").addEventListener("click", (e) => {
+        const ex = e.target.closest("[data-expand]"); if (ex) { const k = ex.dataset.expand; if (expanded.has(k)) expanded.delete(k); else expanded.add(k); renderInv(); return; }
+        const am = e.target.closest("[data-add-model]"); if (am) { addItem({ kind: "model", key: am.dataset.addModel }); return; }
+        const as = e.target.closest("[data-add-serial]"); if (as) { const [key, serial] = as.dataset.addSerial.split("|"); addItem({ kind: "serial", key, serial }); }
+      });
+      // drag source
+      $("invList").addEventListener("dragstart", (e) => {
+        const el = e.target.closest("[data-kind]"); if (!el || el.getAttribute("draggable") === "false") { e.preventDefault(); return; }
+        e.stopPropagation();
+        const payload = { kind: el.dataset.kind, key: el.dataset.key, serial: el.dataset.serial || "" };
+        e.dataTransfer.setData("text/plain", JSON.stringify(payload)); e.dataTransfer.effectAllowed = "copy";
+        el.classList.add("dragging");
+      });
+      $("invList").addEventListener("dragend", (e) => { const el = e.target.closest("[data-kind]"); if (el) el.classList.remove("dragging"); });
+
+      // ---------------- cards ----------------
+      const modelByKey = (key) => (state.inv?.models || []).find((m) => m.key === key);
+      function blankCard() { return { id: 0, title: "", subtitle: "", note: "", channels: { shop: false, secret: true }, status: "draft", startsOn: "", endsOn: "", sort: 100, items: [], misc: [] }; }
+      function addItem({ kind, key, serial }) {
+        if (!state.current) { state.current = blankCard(); }
+        const m = modelByKey(key); if (!m) return;
+        const card = state.current;
+        if (kind === "serial") {
+          if (card.items.some((i) => i.kind === "serial" && i.serial === serial)) { setStatus("topStatus", `${serial} is already on this card.`); return; }
+          const u = m.units.find((x) => x.serial === serial);
+          card.items.push({ kind: "serial", model: m.model, serial, qty: 1, price: u?.uniquePrice || null });
+        } else {
+          const existing = card.items.find((i) => i.kind === "model" && i.model === m.model);
+          if (existing) { existing.qty = Math.min(20, existing.qty + 1); }
+          else card.items.push({ kind: "model", model: m.model, serial: "", qty: 1, price: null });
+        }
+        state.dirty = true; renderEditor(); refreshResolved();
+      }
+      function addMisc(code) {
+        if (!state.current) state.current = blankCard();
+        const def = state.misc.find((x) => x.code === code); if (!def) return;
+        if (state.current.misc.some((x) => x.code === code)) { setStatus("topStatus", `${code} is already on this card.`); return; }
+        state.current.misc.push({ code, qty: 1, price: null, required: true });
+        state.dirty = true; renderEditor(); refreshResolved();
+      }
+
+      // The editor keeps the stored shape (what we save) and a resolved copy
+      // from the server (ePASS facts + totals) that we refresh after changes.
+      let resolveTimer = null;
+      async function refreshResolved() {
+        if (!state.current) return;
+        clearTimeout(resolveTimer);
+        resolveTimer = setTimeout(async () => {
+          try {
+            // Resolve without saving: the server computes against ePASS data.
+            const res = await api("/api/promo/resolve", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(state.current) });
+            state.resolved = res.card; renderEditor(true); renderPreview();
+          } catch (err) { setStatus("topStatus", err.message, true); }
+        }, 120);
+      }
+
+      function renderTabs() {
+        const tabs = state.cards.map((c) => `<button type="button" class="card-tab${state.current && state.current.id === c.id ? " on" : ""}" data-card="${c.id}"><span class="st ${c.status === "published" ? (c.live ? "published" : "problem") : ""}"></span>${esc(c.title || "(untitled)")}<span style="color:var(--muted)">${c.channels.shop ? " · shop" : ""}${c.channels.secret ? " · secret" : ""}</span></button>`);
+        tabs.push(`<button type="button" class="card-tab${state.current && !state.current.id ? " on" : ""}" data-card="new">+ New card</button>`);
+        $("cardTabs").innerHTML = tabs.join("");
+      }
+      $("cardTabs").addEventListener("click", async (e) => {
+        const b = e.target.closest("[data-card]"); if (!b) return;
+        if (state.dirty && !window.confirm("Discard unsaved changes on this card?")) return;
+        if (b.dataset.card === "new") { state.current = blankCard(); state.resolved = null; }
+        else { const c = state.cards.find((x) => x.id === Number(b.dataset.card)); state.current = JSON.parse(JSON.stringify({ id: c.id, title: c.title, subtitle: c.subtitle, note: c.note, channels: c.channels, status: c.status, startsOn: c.startsOn, endsOn: c.endsOn, sort: c.sort, items: c.items.map((i) => ({ kind: i.kind, model: i.model, serial: i.serial, qty: i.qty, price: i.price })), misc: c.misc.map((m) => ({ code: m.code, qty: m.qty, price: m.price, required: m.required })) })); state.resolved = c; }
+        state.dirty = false; renderTabs(); renderEditor(); renderPreview();
+      });
+
+      function renderEditor(keepInputs) {
+        const c = state.current;
+        if (!c) { $("editor").innerHTML = `<div class="status">Pick a card above or drag an item from the left to start a new one.</div>`; $("preview").innerHTML = ""; return; }
+        const r = state.resolved || { items: [], misc: [], totals: null, problems: [] };
+        const rItem = (it) => r.items.find((x) => x.kind === it.kind && x.model === it.model && (it.kind !== "serial" || x.serial === it.serial)) || null;
+        const rMisc = (m) => r.misc.find((x) => x.code === m.code) || null;
+        const focused = document.activeElement && document.activeElement.dataset ? { f: document.activeElement.dataset.field, i: document.activeElement.dataset.idx, pos: document.activeElement.selectionStart } : null;
+        $("editor").innerHTML = `
+          <div class="frow">
+            <div style="grid-column: span 2"><label>Card title</label><input type="text" data-field="title" value="${esc(c.title)}" placeholder="e.g. Black Friday Laundry Pair"></div>
+            <div style="grid-column: span 2"><label>Subtitle</label><input type="text" data-field="subtitle" value="${esc(c.subtitle)}" placeholder="e.g. Delivered, installed, old pair hauled away"></div>
+          </div>
+          <div class="frow">
+            <div><label>Starts</label><input type="date" data-field="startsOn" value="${esc(c.startsOn)}"></div>
+            <div><label>Ends</label><input type="date" data-field="endsOn" value="${esc(c.endsOn)}"></div>
+            <div><label>Order</label><input type="number" data-field="sort" value="${esc(c.sort)}" min="0" step="1"></div>
+            <div><label>Where</label><div class="checks"><label style="text-transform:none;letter-spacing:0;font-weight:500;color:var(--text)"><input type="checkbox" data-field="chSecret" ${c.channels.secret ? "checked" : ""}> Secret Menu</label><label style="text-transform:none;letter-spacing:0;font-weight:500;color:var(--text)"><input type="checkbox" data-field="chShop" ${c.channels.shop ? "checked" : ""}> Online Shop</label></div></div>
+          </div>
+          <div class="drop" id="dropItems">
+            <h4>Items — drag from inventory</h4>
+            ${c.items.length ? c.items.map((it, i) => { const x = rItem(it); return `
+              <div class="citem${x && !x.ok ? " bad" : ""}" data-idx="${i}">
+                ${x?.image ? `<img src="${esc(x.image)}" alt="" onerror="this.replaceWith(Object.assign(document.createElement('div'),{className:'noimg',textContent:'no photo'}))">` : `<div class="noimg">no photo</div>`}
+                <div class="t">
+                  <div class="model">${esc(it.model)}${it.kind === "serial" ? ` <span class="pill open">${esc(it.serial)}</span>` : ` <span class="pill">any new unit</span>`}</div>
+                  <div class="desc">${esc(x?.brand || "")} ${esc(x?.description || "")}</div>
+                  <div class="meta">${x ? `${x.kind === "serial" ? `${esc(x.serialType)}${x.received ? " · received " + esc(x.received) : ""}` : `${x.available} free new unit${x.available === 1 ? "" : "s"}`} · list <b>${money(x.list)}</b>${x.map ? ` · MAP <b>${money(x.map)}</b>` : ""}${x.uniquePrice ? ` · ePASS unique <b>${money(x.uniquePrice)}</b>` : ""}${x.cost ? ` · cost ${money(x.cost)}` : ""}${!x.ok ? ` · <span style="color:#b91c1c;font-weight:700">${x.kind === "serial" ? (x.inStock ? "spoken for" : "no longer on hand") : "not enough free units"}</span>` : ""}` : "resolving…"}</div>
+                </div>
+                <div class="p"><input type="number" step="0.01" min="0" data-field="price" data-idx="${i}" value="${it.price == null ? "" : it.price}" placeholder="${x?.price != null ? x.price : "price"}"><div class="src">${it.price == null ? (x?.priceSource === "epass-unique" ? "ePASS unique price" : x?.priceSource === "epass-list" ? "ePASS list (set a card price)" : "set a price") : "card price"}</div></div>
+                <div class="acts">${it.kind === "model" ? `<input type="number" class="qty" min="1" max="20" data-field="qty" data-idx="${i}" value="${it.qty}" title="How many of this model the card includes">` : ""}<button type="button" class="photo" data-photo="${esc(it.model)}">photo</button><button type="button" class="ws-btn danger sm" data-remove-item="${i}">Remove</button></div>
+              </div>`; }).join("") : `<div class="hint">Drop a model or a serial here (or use the Add buttons on the left).</div>`}
+          </div>
+          <div class="drop" id="dropMisc">
+            <h4>Misc charges — from ePASS</h4>
+            <div class="misc-pick"><input type="search" id="miscFind" placeholder="Find a misc code or description (delivery, install, recycle, promo…)"></div>
+            <div class="misc-results" id="miscResults"></div>
+            ${c.misc.length ? c.misc.map((m, i) => { const x = rMisc(m); return `
+              <div class="mrow${x && (!x.known || x.obsolete) ? " bad" : ""}">
+                <div><div class="code">${esc(m.code)}</div><div class="desc">${esc(x?.description || "")}</div><div class="meta">${x ? `ePASS list ${money(x.list)} · ${x.taxable ? "taxable" : "not taxed"}${x.minutes ? ` · ${x.minutes} min` : ""}${x.typeName || x.type ? ` · ${esc(x.typeName || x.type)}` : ""}${!x.allowPriceChange ? " · price locked in ePASS" : ""}${!x.known ? " · <b style='color:#b91c1c'>not in the misc master</b>" : x.obsolete ? " · <b style='color:#b91c1c'>obsolete</b>" : ""}` : "resolving…"}</div></div>
+                <input type="number" class="qty" min="1" max="20" data-field="mqty" data-idx="${i}" value="${m.qty}">
+                <div><input type="number" step="0.01" min="0" data-field="mprice" data-idx="${i}" value="${m.price == null ? "" : m.price}" placeholder="${x?.list != null ? x.list : "price"}" ${x && !x.allowPriceChange ? "readonly title='ePASS does not allow a price change on this charge'" : ""}></div>
+                <button type="button" class="ws-btn danger sm" data-remove-misc="${i}">Remove</button>
+              </div>`; }).join("") : `<div class="hint">Add the delivery, install, recycle or promo charges the card includes.</div>`}
+          </div>
+          ${r.totals ? `<div class="totals">
+            <div>Items</div><div>${money(r.totals.items)}</div>
+            <div>Misc charges</div><div>${money(r.totals.misc)}</div>
+            <div>Tax (${(r.totals.taxRate * 100).toFixed(2)}% on ${money(r.totals.taxableBase)})</div><div>${money(r.totals.tax)}</div>
+            <div class="big">Total with tax</div><div class="big">${money(r.totals.total)}</div>
+          </div>` : ""}
+          ${r.problems && r.problems.length ? `<div class="problems"><b>Not ready:</b><ul>${r.problems.map((p) => `<li>${esc(p)}</li>`).join("")}</ul></div>` : ""}
+          <div class="frow" style="margin-top:10px"><div style="grid-column: 1 / -1"><label>Internal note (not shown to customers)</label><input type="text" data-field="note" value="${esc(c.note)}" placeholder="Why this card exists, who approved the price…"></div></div>
+          <div class="editor-foot">
+            <span class="pill">${esc(c.status)}</span>
+            <button type="button" class="ws-btn primary" id="saveCard">${c.id ? "Save changes" : "Save card"}</button>
+            ${c.id ? (c.status === "published" ? `<button type="button" class="ws-btn quiet" data-status="draft">Unpublish</button>` : `<button type="button" class="ws-btn quiet" data-status="published" ${r.problems && r.problems.length ? "title='Fix the problems above first'" : ""}>Publish</button>`) : ""}
+            ${c.id ? `<button type="button" class="ws-btn quiet" data-status="archived">Archive</button><button type="button" class="ws-btn danger" id="deleteCard">Delete</button>` : ""}
+            <span class="grow"></span>
+            <span class="status" id="edStatus"></span>
+          </div>`;
+        if (keepInputs && focused && focused.f) {
+          const el = $("editor").querySelector(`[data-field="${focused.f}"]${focused.i != null ? `[data-idx="${focused.i}"]` : ""}`);
+          if (el) { el.focus(); try { if (focused.pos != null && el.setSelectionRange) el.setSelectionRange(focused.pos, focused.pos); } catch {} }
+        }
+      }
+
+      // editor events
+      $("editor").addEventListener("input", (e) => {
+        const el = e.target;
+        if (el.id === "miscFind") { renderMiscResults(); return; }
+        const f = el.dataset.field; if (!f || !state.current) return;
+        const c = state.current; state.dirty = true;
+        if (f === "title" || f === "subtitle" || f === "note" || f === "startsOn" || f === "endsOn") c[f] = el.value;
+        else if (f === "sort") c.sort = Number(el.value) || 0;
+        else if (f === "price") { const it = c.items[Number(el.dataset.idx)]; if (it) it.price = el.value === "" ? null : Number(el.value); refreshResolved(); }
+        else if (f === "qty") { const it = c.items[Number(el.dataset.idx)]; if (it) it.qty = Math.max(1, Math.min(20, Number(el.value) || 1)); refreshResolved(); }
+        else if (f === "mprice") { const m = c.misc[Number(el.dataset.idx)]; if (m) m.price = el.value === "" ? null : Number(el.value); refreshResolved(); }
+        else if (f === "mqty") { const m = c.misc[Number(el.dataset.idx)]; if (m) m.qty = Math.max(1, Math.min(20, Number(el.value) || 1)); refreshResolved(); }
+        if (f === "title" || f === "subtitle") renderPreview();
+        if (f === "startsOn" || f === "endsOn") refreshResolved();
+      });
+      $("editor").addEventListener("change", (e) => {
+        const el = e.target; const f = el.dataset.field; if (!f || !state.current) return;
+        if (f === "chSecret") { state.current.channels.secret = el.checked; state.dirty = true; renderTabs(); }
+        if (f === "chShop") { state.current.channels.shop = el.checked; state.dirty = true; renderTabs(); }
+      });
+      $("editor").addEventListener("click", async (e) => {
+        const c = state.current; if (!c) return;
+        const ri = e.target.closest("[data-remove-item]"); if (ri) { c.items.splice(Number(ri.dataset.removeItem), 1); state.dirty = true; renderEditor(); refreshResolved(); return; }
+        const rm = e.target.closest("[data-remove-misc]"); if (rm) { c.misc.splice(Number(rm.dataset.removeMisc), 1); state.dirty = true; renderEditor(); refreshResolved(); return; }
+        const mo = e.target.closest("[data-misc-add]"); if (mo) { addMisc(mo.dataset.miscAdd); return; }
+        const ph = e.target.closest("[data-photo]"); if (ph) { openPhoto(ph.dataset.photo); return; }
+        if (e.target.id === "saveCard") { await saveCard(); return; }
+        if (e.target.id === "deleteCard") { if (!window.confirm(`Delete "${c.title || "this card"}"? This cannot be undone.`)) return; try { await api(`/api/promo/cards/${c.id}`, { method: "DELETE" }); state.current = null; state.dirty = false; await loadCards(); } catch (err) { setStatus("topStatus", err.message, true); } return; }
+        const st = e.target.closest("[data-status]"); if (st) {
+          if (state.dirty) { const ok = await saveCard(); if (!ok) return; }
+          try { const res = await api(`/api/promo/cards/${c.id}/status`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status: st.dataset.status }) }); c.status = res.card.status; state.resolved = res.card; await loadCards(true); renderEditor(); setStatus("edStatus", st.dataset.status === "published" ? (res.card.live ? "Published — live now." : "Published, but not live yet (see the problems above).") : `Card is now ${res.card.status}.`); }
+          catch (err) { setStatus("edStatus", err.message, true); }
+        }
+      });
+      async function saveCard() {
+        const c = state.current; if (!c) return false;
+        try {
+          setStatus("edStatus", "Saving…");
+          const res = await api("/api/promo/cards", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(c) });
+          c.id = res.card.id; c.status = res.card.status; state.resolved = res.card; state.dirty = false;
+          await loadCards(true); renderEditor(); renderPreview(); setStatus("edStatus", "Saved.");
+          return true;
+        } catch (err) { setStatus("edStatus", err.message, true); return false; }
+      }
+
+      // drop targets
+      function wireDrop(id, onDrop) {
+        const zone = $("editor");
+        zone.addEventListener("dragover", (e) => { const d = e.target.closest("#" + id); if (!d) return; e.preventDefault(); e.dataTransfer.dropEffect = "copy"; d.classList.add("over"); });
+        zone.addEventListener("dragleave", (e) => { const d = e.target.closest("#" + id); if (d && !d.contains(e.relatedTarget)) d.classList.remove("over"); });
+        zone.addEventListener("drop", (e) => { const d = e.target.closest("#" + id); if (!d) return; e.preventDefault(); d.classList.remove("over"); let p = null; try { p = JSON.parse(e.dataTransfer.getData("text/plain")); } catch {} if (p) onDrop(p); });
+      }
+      wireDrop("dropItems", (p) => { if (p.kind === "model" || p.kind === "serial") addItem(p); });
+      wireDrop("dropMisc", (p) => { if (p.kind === "model" || p.kind === "serial") addItem(p); });
+
+      // misc search
+      function renderMiscResults() {
+        const box = $("miscResults"); const q = ($("miscFind")?.value || "").trim().toUpperCase();
+        if (!box) return;
+        if (!q) { box.classList.remove("show"); box.innerHTML = ""; return; }
+        const hits = state.misc.filter((m) => !m.obsolete && `${m.code} ${m.description} ${m.type} ${m.typeName}`.toUpperCase().includes(q)).slice(0, 40);
+        box.innerHTML = hits.map((m) => `<div class="misc-opt" data-misc-add="${esc(m.code)}"><span class="code">${esc(m.code)}</span><span>${esc(m.description)}</span><span style="color:var(--muted);font-size:11px">${m.taxable ? "taxable" : "no tax"}${m.minutes ? ` · ${m.minutes} min` : ""}</span><span class="price">${money(m.list)}</span></div>`).join("") || `<div class="misc-opt">No misc charge matches.</div>`;
+        box.classList.add("show");
+      }
+
+      // preview (as the Secret Menu / shop will show it)
+      function renderPreview() {
+        const c = state.current; const r = state.resolved;
+        if (!c) { $("preview").innerHTML = ""; return; }
+        $("preview").innerHTML = `<h4>Preview</h4><div class="pv-card">
+          <div class="pv-head"><div class="t">${esc(c.title || "Untitled card")}</div><div class="s">${esc(c.subtitle || "")}</div></div>
+          ${(r?.items || []).map((x) => `<div class="pv-item">${x.image ? `<img src="${esc(x.image)}" alt="" onerror="this.replaceWith(Object.assign(document.createElement('div'),{className:'noimg',textContent:'no photo'}))">` : `<div class="noimg">no photo</div>`}<div><div style="font-weight:700">${esc(x.brand)} ${esc(x.model)}${x.qty > 1 ? ` ×${x.qty}` : ""}</div><div style="color:var(--muted);font-size:12px">${esc(x.description)}${x.condition === "open" ? " · Open box" : ""}</div></div><div style="font-weight:800">${money(x.lineTotal)}</div></div>`).join("")}
+          ${(r?.misc || []).map((m) => `<div class="pv-misc"><span>${esc(m.description)}${m.qty > 1 ? ` ×${m.qty}` : ""}</span><span>${money(m.lineTotal)}</span></div>`).join("")}
+          ${r?.totals ? `<div class="pv-total"><div>Total with tax<small>${money(r.totals.subtotal)} + ${money(r.totals.tax)} tax</small></div><div>${money(r.totals.total)}</div></div>` : ""}
+        </div>`;
+      }
+
+      // photo drawer
+      function openPhoto(model) {
+        const key = String(model).toUpperCase().replace(/[^0-9A-Z]/g, "");
+        const m = modelByKey(key);
+        $("photoTitle").textContent = `Photo — ${model}`;
+        $("photoBody").innerHTML = `
+          <p>${m?.imageSource === "upload" ? "Showing your uploaded photo." : m?.imageSource === "retaildeck" ? "Showing the RetailDeck thumbnail (the default)." : "No photo yet — RetailDeck has no thumbnail for this model."}</p>
+          ${m?.image ? `<img src="${esc(m.image)}${m.imageSource === "upload" ? "?v=" + Date.now() : ""}" alt="">` : ""}
+          <p><input type="file" id="photoFile" accept="image/jpeg,image/png,image/webp"> </p>
+          <p><button type="button" class="ws-btn primary" id="photoUpload">Upload photo</button> ${m?.imageSource === "upload" ? `<button type="button" class="ws-btn quiet" id="photoReset">Back to RetailDeck thumbnail</button>` : ""}</p>
+          <p class="status" id="photoStatus"></p>
+          <p style="color:var(--muted);font-size:12.5px">JPEG, PNG or WebP up to 6 MB. The photo is used everywhere this model appears on a card. Square-ish on a white background looks best.</p>`;
+        $("photoMask").classList.add("show"); $("photoDrawer").classList.add("show");
+        $("photoUpload").onclick = async () => {
+          const f = $("photoFile").files[0]; if (!f) { setStatus("photoStatus", "Choose an image first.", true); return; }
+          const fd = new FormData(); fd.append("photo", f);
+          try { setStatus("photoStatus", "Uploading…"); await api(`/api/promo/photo/${encodeURIComponent(key)}`, { method: "POST", body: fd }); await loadInventory(); refreshResolved(); openPhoto(model); setStatus("photoStatus", "Saved."); }
+          catch (err) { setStatus("photoStatus", err.message, true); }
+        };
+        const reset = $("photoReset"); if (reset) reset.onclick = async () => { try { await api(`/api/promo/photo/${encodeURIComponent(key)}`, { method: "DELETE" }); await loadInventory(); refreshResolved(); openPhoto(model); } catch (err) { setStatus("photoStatus", err.message, true); } };
+      }
+      const closePhoto = () => { $("photoMask").classList.remove("show"); $("photoDrawer").classList.remove("show"); };
+      $("photoMask").addEventListener("click", closePhoto); $("photoClose").addEventListener("click", closePhoto);
+      document.addEventListener("keydown", (e) => { if (e.key === "Escape") closePhoto(); });
+
+      // ---------------- load ----------------
+      async function loadInventory() {
+        const inv = await api("/api/promo/inventory");
+        state.inv = inv; state.catLabels = inv.categories || {}; state.taxRate = inv.taxRate || 0.0825;
+        const brands = [...new Set(inv.models.map((m) => m.brand).filter(Boolean))].sort();
+        const sel = $("invBrand"); const cur = sel.value; sel.innerHTML = `<option value="">All brands</option>` + brands.map((b) => `<option value="${esc(b)}"${b === cur ? " selected" : ""}>${esc(b)}</option>`).join("");
+        renderCats(); renderInv();
+      }
+      async function loadCards(quiet) {
+        const res = await api("/api/promo/cards"); state.cards = res.cards || []; renderTabs();
+        if (!quiet && !state.current && state.cards.length) { const c = state.cards[0]; $("cardTabs").querySelector(`[data-card="${c.id}"]`)?.click(); }
+      }
+      (async function boot() {
+        try {
+          const [, miscRes] = await Promise.all([loadInventory(), api("/api/promo/misc")]);
+          state.misc = miscRes.misc || [];
+          if (!state.misc.length) setStatus("topStatus", "No ePASS misc charges yet — the pull script needs the misc-charges dataset (copy the updated epass-odbc-pull.ps1 to the ePASS server). Cards can still be built; add charges after the next pull.");
+          await loadCards();
+          if (!state.current) { state.current = blankCard(); renderTabs(); renderEditor(); }
+        } catch (err) { setStatus("topStatus", err.message, true); }
+      })();
+      window.addEventListener("beforeunload", (e) => { if (state.dirty) { e.preventDefault(); e.returnValue = ""; } });
+    })();
+  </script>
+</body>
+</html>

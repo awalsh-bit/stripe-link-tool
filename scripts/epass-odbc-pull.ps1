@@ -251,7 +251,7 @@ WHERE i.InvTypeCode IN ('R','S','AC','CAB','MOD') AND UPPER(i.Status) <> 'FINISH
     # lookups, zones, routes, techs, returns.
     foreach ($t in @("Invoice", "InvoiceModel", "InvoiceSerial", "InvoiceMisc", "InvoiceItem", "InvoiceLabor", "InvoiceComment", "InvoiceNote", "InvoiceReturns", "InvoiceWarranty",
                      "Model", "ModelMinMax", "ModelSupplierQOH", "ModelListPrice", "Customer", "LaborRate", "Supplier", "Location", "Salesperson", "Technician",
-                     "Serial", "SerialType", "SerialSales", "PO", "POModel", "POSerial", "POItem", "POComment", "POCancelledOrders",
+                     "Serial", "SerialType", "SerialSales", "PO", "POModel", "POSerial", "POItem", "POComment", "POCancelledOrders", "Misc", "MiscType",
                      "JobStatus", "JobStatusDepartment", "InvType", "Priority", "MapZone", "MapZoneDelivery", "Route", "RouteDepartment", "Brand", "Product", "ProductMajor", "ProductMinor",
                      "Repair", "Symptom", "ServiceRequest", "ServicePerformed", "ReturnReason", "ReturnOutcome", "ReturnInitiatedBy", "Item", "ItemLocation", "Branch", "Qualification",
                      # Dispatch side (seen in tables.csv 2026-09-21, never described): ePASS's own
@@ -585,6 +585,23 @@ WHERE i.InvTypeCode IN ('Q','QUOTE') AND UPPER(i.Status) = 'OPEN' AND (i.Void IS
 ORDER BY im.InvoiceCode, im.LineTimeStamp
 "@ (Join-Path $LatestDir "open-quote-lines.csv") "open-quote-lines"
   } catch { Log ("open-quote-lines FAILED (bundle continues without it): {0}" -f $_.Exception.Message); if ($conn.State -ne [System.Data.ConnectionState]::Open) { $conn.Open() } }
+
+  # Andrew 10/14: the Misc charge master (delivery, install, recycle, promo
+  # installs ...) with list, tax flags, type, sale dates, time in minutes and
+  # the do-not-allow-price-change flag - the Promo Item Builder adds these to
+  # a card from ePASS data so the total with tax is right. No customer data.
+  try {
+    $bundle.datasets["misc-charges"] = Export-Query $conn @"
+SELECT mc.*, mt.Description AS MiscType_Description
+FROM Misc mc
+LEFT JOIN MiscType mt ON mc.MiscTypeCode = mt.Code
+ORDER BY mc.Code
+"@ (Join-Path $LatestDir "misc-charges.csv") "misc-charges"
+  } catch {
+    Log ("misc-charges with MiscType join FAILED ({0}) - retrying plain" -f $_.Exception.Message); if ($conn.State -ne [System.Data.ConnectionState]::Open) { $conn.Open() }
+    try { $bundle.datasets["misc-charges"] = Export-Query $conn "SELECT mc.* FROM Misc mc ORDER BY mc.Code" (Join-Path $LatestDir "misc-charges.csv") "misc-charges" }
+    catch { Log ("misc-charges FAILED (bundle continues without it): {0}" -f $_.Exception.Message); if ($conn.State -ne [System.Data.ConnectionState]::Open) { $conn.Open() } }
+  }
 
   $json = $bundle | ConvertTo-Json -Depth 6 -Compress
   $path = Join-Path $Outbox "epass-open-orders-$stamp.json"

@@ -24,6 +24,7 @@ import {
   readEventRsvps,
   writeEventRsvps
 } from "./lib/data.js";
+import { getPostgresPool } from "./lib/data-postgres.js";
 import {
   stripe,
   createStripeIdempotencyKey,
@@ -203,8 +204,9 @@ import {
   getShopExpressSettings,
   saveShopExpressSettings
 } from "./lib/shop-postgres.js";
-import { createBrandResolver } from "./lib/brand-names.js";
+import { createBrandResolver, EPASS_BRAND_NAMES as EPASS_BRAND_NAMES_TABLE } from "./lib/brand-names.js";
 import { buildLiveClearanceList } from "./lib/clearance-live.js";
+import { listPromoCards, getPromoCard, savePromoCard, deletePromoCard, setPromoCardStatus, savePromoPhoto, getPromoPhoto, deletePromoPhoto, listPromoPhotoModels, resolvePromoCards, normModelKey as promoModelKey } from "./lib/promo-cards-postgres.js";
 import {
   PROMO_KIND_LABELS,
   normalizePromoCode,
@@ -469,7 +471,7 @@ import {
 import {
   buildServiceCommissionBoard, listServiceCompPlans, upsertServiceCompPlan, addServiceCompCredit, deleteServiceCompCredit,
   getServiceCompSettings, setServiceCompSetting, fiscalCalendar as serviceFiscalCalendar, fiscalPeriodFor as serviceFiscalPeriodFor,
-  getQuarterPlanEditor, saveQuarterPlan, saveTechSettings as saveServiceCompTechSettings
+  getQuarterPlanEditor, saveQuarterPlan, saveTechSettings as saveServiceCompTechSettings, invoicePaidStatus as epassInvoicePaidStatus
 } from "./lib/service-commissions-postgres.js";
 import {
   upsertCommissionPost,
@@ -507,7 +509,7 @@ import {
 } from "./lib/service-journey-postgres.js";
 import { getServiceBoard, moveServiceJob, unscheduleServiceJob, sequenceTechDay, setJobDispatchFlags, addRouteBlock, removeRouteBlock, saveTechSettings, setPartsLoaded, confirmRouteDay, cancelServiceJob, uncancelServiceJob, markShopRepaired, CANCEL_REASONS, diagnoseServiceBoard, getServiceHistory, moveSelfHold, searchBoardJobs } from "./lib/service-board-postgres.js";
 import {
-  parseOpenOrdersBundle, replaceEpassOpenOrders, getEpassOpenOrdersMeta, getEpassOpenOrder, listEpassOpenOrders, feedInventoryRows, openBookRows,
+  parseOpenOrdersBundle, replaceEpassOpenOrders, getEpassOpenOrdersMeta, getEpassOpenOrder, listEpassOpenOrders, feedInventoryRows, openBookRows, listEpassMiscCharges,
   parseOpenServiceBundle, replaceEpassOpenService, getEpassOpenServiceMeta, getEpassOpenService, listEpassOpenService
 } from "./lib/epass-open-orders-postgres.js";
 import {
@@ -718,6 +720,7 @@ const SHOP_PUBLIC_PATHS = new Set([
 
 const SHOP_PUBLIC_API_PREFIXES = [
   "/api/config",
+  "/api/promo/photo/", // card photos (Promo Item Builder uploads) on storefront tiles
   "/api/shop/zip-check",
   "/api/shop/register",
   "/api/shop/lookup",
@@ -763,6 +766,7 @@ const INTERNAL_PAGE_PATHS = new Set([
   "/dashboard.html",
   "/salesdashboard.html",
   "/secret-menu.html",
+  "/promo-builder.html",
   "/event-rsvps.html",
   "/commissions.html",
   "/hvac-dashboard.html",
@@ -913,7 +917,9 @@ const EVERYONE_PAGE_PATHS = new Set([
 // check) rides on the /commissions.html page grant; executives still pass.
 const EXECUTIVE_ONLY_PAGE_PATHS = new Set([
   "/tax-report.html", // sales tax audit report (Andrew 9/23: executives only)
-  "/cash-projection.html", // Cash Ops Projection (Andrew 9/26: executives only)
+  // Cash Ops Projection left this list 2026-10-14 (Andrew, for Will's
+  // accounting analysts): grantable per user like any Accounting page.
+  // Editing supplier payment terms stays executive-only.
   "/user-admin.html",
   "/send-notification.html",
   "/audit-log.html",
@@ -1036,6 +1042,7 @@ const PAGE_LABELS = {
   "/archive-service-calls.html": "Archived Service Calls",
   "/salesdashboard.html": "Sales Dashboard",
   "/secret-menu.html": "Secret Menu",
+  "/promo-builder.html": "Promo Item Builder",
   "/event-rsvps.html": "Events & RSVPs",
   "/spec-packages.html": "Spec Packages",
   "/commissions.html": "Sales Commissions",
@@ -1183,7 +1190,8 @@ const PAGE_CATEGORIES = [
       "/bank-balancing.html",
       "/link-detail-lookup.html",
       "/credit-applications.html",
-      "/receipt-report.html"
+      "/receipt-report.html",
+      "/cash-projection.html"
     ]
   },
   {
@@ -1232,6 +1240,7 @@ const PAGE_CATEGORIES = [
       "/salesdashboard.html",
       "/shop-orders.html",
       "/shop-catalog.html",
+      "/promo-builder.html",
       "/sales-order-health.html",
       "/sales-order-detail.html",
       "/brand-sales.html",
@@ -5905,24 +5914,188 @@ app.get("/secret-menu", (req, res) => {
   res.sendFile(path.join(__dirname, "secret-menu.html"));
 });
 
+// Secret Menu (Andrew 10/14): cards from the Promo Item Builder, resolved
+// against live ePASS data. The old data/secret-menu.json is the fallback only
+// while no builder card has ever been published.
 app.get("/api/secret-menu", requirePagePermission("/secret-menu.html"), async (req, res) => {
   try {
-    // NOTE: page access is fully decided by requirePagePermission above.
-    // (An older ACCESS_GROUPS check here used to 403 individual accounts,
-    // whose accessGroup is "member" — do not reintroduce it.)
+    const cards = await listPromoCards({ channel: "secret" }).catch(() => []);
+    if (cards.length) {
+      const resolved = await resolvePromoCardsLive(cards.filter((c) => c.status === "published"));
+      res.setHeader("Cache-Control", "no-store");
+      return res.json({ _meta: { source: "builder", generatedAt: new Date().toISOString(), taxRate: SHOP_TAX_RATE }, cards: resolved.filter((c) => c.live || c.inWindow), items: [] });
+    }
     const fs = await import("fs/promises");
-    const secretMenuPath = path.join(__dirname, "data", "secret-menu.json");
-    const raw = await fs.readFile(secretMenuPath, "utf8");
+    const raw = await fs.readFile(path.join(__dirname, "data", "secret-menu.json"), "utf8");
     const data = JSON.parse(raw);
     res.setHeader("Cache-Control", "no-store");
-    return res.json(data);
+    return res.json({ ...data, cards: [] });
   } catch (err) {
-    if (err?.code === "ENOENT") {
-      return res.status(500).json({ error: "Secret Menu data file is missing." });
-    }
+    if (err?.code === "ENOENT") return res.status(500).json({ error: "Secret Menu data file is missing." });
     return res.status(500).json({ error: err.message || "Unable to load secret menu." });
   }
 });
+
+// ===========================================================================
+// PROMO ITEM BUILDER (Andrew 10/14) — drag-and-drop cards for the Online Shop
+// and the Secret Menu. Items and misc charges are ePASS truth read live from
+// the feed; the builder stores only which items, which charges, and the
+// card's prices. Photos: an upload per model, else the RetailDeck thumbnail.
+// ===========================================================================
+const requirePromoBuilder = requirePagePermission("/promo-builder.html");
+const promoPhotoUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 6 * 1024 * 1024, files: 1 } });
+
+// Everything a card needs from ePASS, gathered once per request.
+async function promoContext() {
+  const [snapshot, brandMap, miscCharges, photoModels, statuses] = await Promise.all([
+    clearanceSnapshot(), getModelBrandMap().catch(() => ({})), listEpassMiscCharges().catch(() => []), listPromoPhotoModels().catch(() => new Map()), listClearanceStatuses().catch(() => [])
+  ]);
+  const units = snapshot?.serialUnits || [];
+  const brandNames = {};
+  try { const wb = await readClearanceWorkbook(); Object.assign(brandNames, wb?._meta?.brandMap || {}); } catch {}
+  for (const [code, name] of Object.entries(EPASS_BRAND_NAMES_TABLE)) if (!brandNames[code]) brandNames[code] = name;
+  const keys = [...new Set(units.map((u) => promoModelKey(u.model || u.sku)).filter(Boolean))];
+  let images = {};
+  try { images = await getShopModelImages(keys); } catch {}
+  try { const file = (await loadShopData()).images || {}; for (const [k, v] of Object.entries(file)) if (!images[k]) images[k] = v; } catch {}
+  return { snapshot, units, brandMap, brandNames, miscCharges, photoModels, images, statusById: new Map(statuses.map((s) => [s.itemId, s])) };
+}
+async function resolvePromoCardsLive(cards) {
+  const ctx = await promoContext();
+  return resolvePromoCards(cards, { ...ctx, categoryByProduct: SHOP_STOCK_CATEGORY_BY_PRODUCT, taxRate: SHOP_TAX_RATE });
+}
+
+// Inventory for the builder's drag source: EVERY on-hand unit (any serial
+// type), grouped by model, with the facts that stay read-only on a card.
+app.get("/api/promo/inventory", requirePromoBuilder, async (req, res) => {
+  try {
+    const ctx = await promoContext();
+    const byModel = new Map();
+    for (const u of ctx.units) {
+      const model = String(u.model || u.sku || "").trim(); const key = promoModelKey(model);
+      if (!key) continue;
+      const ns = ctx.brandMap[model] || ctx.brandMap[model.toUpperCase()] || {};
+      const brandCode = String(u.brand || "").trim().toUpperCase();
+      let g = byModel.get(key);
+      if (!g) {
+        const brand = ns.brand || ctx.brandNames[brandCode] || (brandCode.length > 3 ? brandCode.charAt(0) + brandCode.slice(1).toLowerCase() : brandCode);
+        const prod = String(u.prod || ns.prod || "").toUpperCase();
+        g = { key, model, brand, brandCode, description: String(u.description || ns.description || "").trim(), product: prod, category: SHOP_STOCK_CATEGORY_BY_PRODUCT[prod] || "", merchClass: ns.merchClass || "",
+          list: Number(u.list) || null, listCode: u.listCode || "", map: Number(u.map) || null, mapCode: u.mapCode || "", l1: Number(u.l1) || null,
+          image: ctx.photoModels.has(key) ? `/api/promo/photo/${encodeURIComponent(key)}` : (ctx.images[key] || ""), imageSource: ctx.photoModels.has(key) ? "upload" : ctx.images[key] ? "retaildeck" : "",
+          discontinued: !!(ns.discontinued || u.discontinued), units: [] };
+        byModel.set(key, g);
+      }
+      const serial = String(u.serial || "").trim().toUpperCase();
+      const taken = ctx.statusById.get(`${model}|${serial}#1`) || ctx.statusById.get(`${model}|${serial}#S`) || null;
+      g.units.push({ serial, serialType: String(u.serialType || "").toUpperCase(), received: u.received || "", writtenTo: u.writtenTo || "", reserved: u.reserved || "",
+        uniquePrice: Number(u.uniquePrice) || null, tagPrice: Number(u.tagPrice) || null, cost: Number(u.cost) || null, location: u.location || "", bin: u.bin || "",
+        free: !String(u.writtenTo || "").trim() && !String(u.reserved || "").trim() && !taken, marked: taken ? taken.status : "" });
+      if (!g.list && Number(u.list) > 0) { g.list = Number(u.list); g.listCode = u.listCode || ""; }
+      if (!g.map && Number(u.map) > 0) { g.map = Number(u.map); g.mapCode = u.mapCode || ""; }
+      if (!g.description && u.description) g.description = String(u.description).trim();
+    }
+    const models = [...byModel.values()].map((g) => ({ ...g, onHand: g.units.length, free: g.units.filter((x) => x.free).length, freeNew: g.units.filter((x) => x.free && x.serialType === "ALL").length,
+      open: g.units.filter((x) => x.serialType !== "ALL").length, cost: g.units.find((x) => x.cost)?.cost || null }))
+      .sort((a, b) => a.brand.localeCompare(b.brand) || a.model.localeCompare(b.model));
+    const catLabels = Object.fromEntries(((await readClearanceWorkbook().catch(() => null))?._meta?.categories || []).map((c) => [c.key, c.label]));
+    res.setHeader("Cache-Control", "no-store");
+    return res.json({ models, categories: catLabels, snapshot: ctx.snapshot ? { uploadedAt: ctx.snapshot.uploadedAt, sourceFile: ctx.snapshot.sourceFile, units: ctx.units.length } : null, taxRate: SHOP_TAX_RATE, blockedBrands: shopBlockedBrandEntries });
+  } catch (err) {
+    console.error("Promo inventory failed:", err.message);
+    return res.status(500).json({ error: "Unable to load inventory." });
+  }
+});
+
+// ePASS misc charges for the builder (full list; the page filters).
+app.get("/api/promo/misc", requirePromoBuilder, async (req, res) => {
+  try {
+    const list = await listEpassMiscCharges();
+    const meta = await getEpassOpenOrdersMeta().catch(() => null);
+    return res.json({ misc: list, count: list.length, columns: meta?.meta?.columns?.["misc-charges"] || [], pulledAt: meta?.meta?.pulled_at || "" });
+  } catch (err) {
+    return res.status(500).json({ error: "Unable to load misc charges." });
+  }
+});
+
+// Resolve a card the builder is editing (not saved): ePASS facts + totals.
+app.post("/api/promo/resolve", requirePromoBuilder, async (req, res) => {
+  try {
+    const b = req.body || {};
+    const draft = { id: Number(b.id) || 0, title: String(b.title || ""), subtitle: String(b.subtitle || ""), note: "", channels: { shop: !!b.channels?.shop, secret: b.channels?.secret !== false }, status: String(b.status || "draft"),
+      startsOn: /^\d{4}-\d{2}-\d{2}$/.test(String(b.startsOn || "")) ? String(b.startsOn) : "", endsOn: /^\d{4}-\d{2}-\d{2}$/.test(String(b.endsOn || "")) ? String(b.endsOn) : "", sort: Number(b.sort) || 100,
+      items: (Array.isArray(b.items) ? b.items : []).slice(0, 40).map((it, i) => ({ id: i, kind: it?.kind === "serial" ? "serial" : "model", model: String(it?.model || "").trim().slice(0, 80), serial: String(it?.serial || "").trim().toUpperCase().slice(0, 60), qty: Math.max(1, Math.min(20, Math.round(Number(it?.qty) || 1))), price: it?.price == null || it?.price === "" || !Number.isFinite(Number(it?.price)) ? null : Math.round(Number(it.price) * 100) / 100 })),
+      misc: (Array.isArray(b.misc) ? b.misc : []).slice(0, 40).map((m, i) => ({ id: i, code: String(m?.code || "").trim().slice(0, 40), qty: Math.max(1, Math.min(20, Math.round(Number(m?.qty) || 1))), price: m?.price == null || m?.price === "" || !Number.isFinite(Number(m?.price)) ? null : Math.round(Number(m.price) * 100) / 100, required: m?.required !== false })) };
+    return res.json({ card: (await resolvePromoCardsLive([draft]))[0] });
+  } catch (err) { return res.status(400).json({ error: err.message || "Unable to resolve the card." }); }
+});
+
+app.get("/api/promo/cards", requirePromoBuilder, async (req, res) => {
+  try {
+    const cards = await listPromoCards({ includeArchived: req.query.archived === "1" });
+    return res.json({ cards: await resolvePromoCardsLive(cards) });
+  } catch (err) {
+    console.error("Promo cards failed:", err.message);
+    return res.status(500).json({ error: "Unable to load cards." });
+  }
+});
+app.get("/api/promo/cards/:id", requirePromoBuilder, async (req, res) => {
+  try {
+    const card = await getPromoCard(req.params.id);
+    if (!card) return res.status(404).json({ error: "Card not found." });
+    return res.json({ card: (await resolvePromoCardsLive([card]))[0] });
+  } catch (err) { return res.status(500).json({ error: "Unable to load the card." }); }
+});
+app.post("/api/promo/cards", requirePromoBuilder, async (req, res) => {
+  try {
+    const saved = await savePromoCard({ ...(req.body || {}), id: req.body?.id || 0 }, { byEmail: req.authUser?.email || "" });
+    invalidateShopCatalog();
+    recordAudit({ ip: req.ip, actorUserId: req.authUser?.id || null, action: req.body?.id ? "promo_card_saved" : "promo_card_created", targetUserId: null,
+      detail: { id: saved.id, title: saved.title, status: saved.status, items: saved.items.length, misc: saved.misc.length, channels: saved.channels } }).catch(() => {});
+    return res.json({ card: (await resolvePromoCardsLive([saved]))[0] });
+  } catch (err) { return res.status(400).json({ error: err.message || "Unable to save the card." }); }
+});
+app.post("/api/promo/cards/:id/status", requirePromoBuilder, async (req, res) => {
+  try {
+    const card = await setPromoCardStatus(req.params.id, String(req.body?.status || ""), { byEmail: req.authUser?.email || "" });
+    invalidateShopCatalog();
+    recordAudit({ ip: req.ip, actorUserId: req.authUser?.id || null, action: "promo_card_status", targetUserId: null, detail: { id: card.id, status: card.status } }).catch(() => {});
+    return res.json({ card: (await resolvePromoCardsLive([card]))[0] });
+  } catch (err) { return res.status(400).json({ error: err.message || "Unable to update the card." }); }
+});
+app.delete("/api/promo/cards/:id", requirePromoBuilder, async (req, res) => {
+  try {
+    const ok = await deletePromoCard(req.params.id);
+    invalidateShopCatalog();
+    recordAudit({ ip: req.ip, actorUserId: req.authUser?.id || null, action: "promo_card_deleted", targetUserId: null, detail: { id: Number(req.params.id) } }).catch(() => {});
+    return res.json({ ok });
+  } catch (err) { return res.status(400).json({ error: "Unable to delete the card." }); }
+});
+
+// Photos per model: upload overrides the RetailDeck thumbnail everywhere a
+// card shows the model. Served without a login so the storefront can use it.
+app.post("/api/promo/photo/:model", requirePromoBuilder, promoPhotoUpload.single("photo"), async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ error: "Choose an image." });
+    const saved = await savePromoPhoto({ model: req.params.model, contentType: req.file.mimetype, bytes: req.file.buffer, byEmail: req.authUser?.email || "" });
+    invalidateShopCatalog();
+    return res.json({ ok: true, ...saved, url: `/api/promo/photo/${encodeURIComponent(saved.model)}?v=${Date.now()}` });
+  } catch (err) { return res.status(400).json({ error: err.message || "Unable to save the photo." }); }
+});
+app.delete("/api/promo/photo/:model", requirePromoBuilder, async (req, res) => {
+  try { const ok = await deletePromoPhoto(req.params.model); invalidateShopCatalog(); return res.json({ ok }); }
+  catch (err) { return res.status(400).json({ error: "Unable to remove the photo." }); }
+});
+app.get("/api/promo/photo/:model", async (req, res) => {
+  try {
+    const photo = await getPromoPhoto(req.params.model);
+    if (!photo) return res.status(404).end();
+    res.setHeader("Content-Type", photo.contentType || "image/jpeg");
+    res.setHeader("Cache-Control", "public, max-age=3600");
+    return res.end(photo.bytes);
+  } catch { return res.status(404).end(); }
+});
+
 
 // The workbook file (data/clearance.json): categories, brand names and the
 // per-serial prices it still contributes to the live list.
@@ -11156,7 +11329,10 @@ app.get("/api/warranty-terms/lookup", requireWarrantyTerms, (req, res) => {
 // book (lib/cash-projection.js), and the supplier payment terms it schedules
 // unbilled receipts and open POs on.
 // ---------------------------------------------------------------------------
-const requireCashOps = [requirePagePermission("/cash-projection.html"), requireExecutiveApi];
+// Reading the projection rides on the page grant (executives always pass);
+// changing supplier payment terms is still executive-only.
+const requireCashOps = [requirePagePermission("/cash-projection.html")];
+const requireCashOpsEdit = [requirePagePermission("/cash-projection.html"), requireExecutiveApi];
 app.get("/api/cash-projection", requireCashOps, async (req, res) => {
   try {
     const months = Math.min(12, Math.max(3, Number(req.query.months) || 6));
@@ -11176,7 +11352,7 @@ app.get("/api/cash-projection", requireCashOps, async (req, res) => {
 app.get("/api/cash-projection/terms", requireCashOps, async (req, res) => {
   try { return res.json({ terms: await listSupplierTerms() }); } catch (err) { return res.status(400).json({ error: err.message }); }
 });
-app.post("/api/cash-projection/terms", requireCashOps, async (req, res) => {
+app.post("/api/cash-projection/terms", requireCashOpsEdit, async (req, res) => {
   try {
     const b = req.body || {};
     const terms = await saveSupplierTerms({ supplierCode: b.supplierCode, closeDays: b.closeDays, dueDays: b.dueDays, installments: b.installments, note: b.note, byEmail: req.authUser?.email || "" });
@@ -11184,7 +11360,7 @@ app.post("/api/cash-projection/terms", requireCashOps, async (req, res) => {
     return res.json({ ok: true, terms });
   } catch (err) { return res.status(400).json({ error: err.message }); }
 });
-app.delete("/api/cash-projection/terms/:code", requireCashOps, async (req, res) => {
+app.delete("/api/cash-projection/terms/:code", requireCashOpsEdit, async (req, res) => {
   try { const terms = await deleteSupplierTerms(req.params.code); sjAudit(req, "supplier_terms_removed", { supplierCode: String(req.params.code).slice(0, 40) }); return res.json({ ok: true, terms }); }
   catch (err) { return res.status(400).json({ error: err.message }); }
 });
@@ -12054,6 +12230,34 @@ const requireCommissionsPage = requirePagePermission("/commissions.html");
 // lib/field-sales-commissions.js; eligibility is trailing-6-month serial
 // revenue ending at the statement month.
 // Shared by the statements API and the PDF download/email routes.
+const AUTO_BALANCE_CHECK_NAME = "ePASS feed (automatic)";
+const AUTO_BALANCE_REFRESH_MS = 10 * 60 * 1000;
+async function autoCommissionBalanceChecks(balanceChecks, windowMonths, lines) {
+  const pool = await getPostgresPool();
+  if (!pool) return;
+  const nowMonth = new Date().toLocaleDateString("en-CA", { timeZone: APP_TIMEZONE }).slice(0, 7);
+  const isAuto = (c) => c && String(c.filename || "") === AUTO_BALANCE_CHECK_NAME;
+  const due = windowMonths.filter((m) => {
+    const c = balanceChecks[m];
+    if (c && !isAuto(c)) return false; // a manual upload wins for that month
+    if (c && m < nowMonth) return false; // a closed month's auto check stays as it last stood
+    if (c && Date.now() - new Date(c.uploadedAt || 0).getTime() < AUTO_BALANCE_REFRESH_MS) return false;
+    return true;
+  });
+  if (!due.length) return;
+  const invoices = [...new Set(lines.flatMap((l) => [l?.invoice, l?.baseInvoice]).map((v) => String(v || "").trim().toUpperCase()).filter(Boolean))];
+  if (!invoices.length) return;
+  const status = await epassInvoicePaidStatus(pool, invoices);
+  if (!status.enabled) return; // feed hasn't delivered balances yet: manual uploads still apply
+  // Unpaid = a balance in ePASS, or written off (a lost invoice never pays commission).
+  const rows = invoices.map((inv) => { const x = status.byInvoice[inv]; return x ? { invoice: inv, balance: x.lost ? Math.max(x.balance, 0.01) : x.balance } : null; }).filter(Boolean);
+  for (const m of due) {
+    const saved = await saveCommissionBalanceCheck({ month: m, rows, filename: AUTO_BALANCE_CHECK_NAME, byEmail: "epass-feed" });
+    balanceChecks[m] = { filename: AUTO_BALANCE_CHECK_NAME, uploadedBy: "epass-feed", uploadedAt: new Date().toISOString(), invoiceCount: saved.invoiceCount, unpaidCount: saved.unpaidCount, source: status.source,
+      balances: Object.fromEntries(rows.filter((r) => r.balance > 0.005).map((r) => [r.invoice, Math.round(r.balance * 100) / 100])) };
+  }
+}
+
 async function computeFieldCommissionMonth(requestedMonth) {
   // Statement months: Crystal-upload months (appliance lines) ∪ months with
   // HVAC jobs from the ePASS finished feed (Andrew 9/23: the HVAC plan pays
@@ -12085,6 +12289,13 @@ async function computeFieldCommissionMonth(requestedMonth) {
     listCommissionBalanceChecks(windowMonths),
     listHvacJobsForMonths(windowMonths).catch(() => [])
   ]);
+  // Automatic balance checks (Andrew 10/14: "does sales commission still need
+  // a manual balance check?" - no). The ePASS feed now carries every finished
+  // invoice's balance (and AR Current + write-offs as backup), so each month's
+  // check is captured from the feed instead of an Invoice Maintenance upload:
+  // the current month's check refreshes on every read; a past month's auto
+  // check stays as it last stood; a manual upload for a month always wins.
+  await autoCommissionBalanceChecks(balanceChecks, windowMonths, [...windowLines, ...hvacJobs]).catch((err) => console.warn("Auto balance check skipped:", err.message));
   // Linked ePASS discounts on the window's invoices (from the finished-orders
   // feed): netted off each model line's list before margin and payout.
   const discounts = await listLineDiscountsForInvoices(windowLines.map((l) => l.baseInvoice || l.invoice)).catch(() => ({}));

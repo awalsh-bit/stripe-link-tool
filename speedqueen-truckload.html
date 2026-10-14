@@ -102,7 +102,7 @@
         default; predecessor model numbers folded in). <strong>Stock plan</strong> is trailing sales × stock-plan months ÷ window months, rounded up;
         <strong>QOH</strong> is on-hand units from the serial inventory feed; <strong>QOO</strong> is units on order (the template's column L) — type it
         in the grid, or upload the ePASS Model Maintenance export to fill it; <strong>Forecast</strong> is plan − QOH − QOO. Type order quantities (or press
-        <em>Fill from forecast</em>) and the truck fills up below. Laundry centers count as two truck units.
+        <em>Fill from forecast</em>) and the truck fills up below. Laundry centers count as two truck units; pedestals ride free. Accessories stay in the catalog for tracking but can't be added to a truckload.
       </p>
       <div id="status" class="status"></div>
 
@@ -198,7 +198,7 @@
       // ---- board ----
       function calcRow(r, qty) {
         const q = Math.max(0, Math.round(Number(qty) || 0));
-        const units = r.kind === "stacked" ? q * 2 : q;
+        const units = r.kind === "stacked" ? q * 2 : (r.kind === "pedestal" || r.kind === "accessory") ? 0 : q; // pedestals ride free; accessories can't ship by truckload
         const lineCost = r.tlCost != null ? r.tlCost * q : null;
         const savings = r.tlCost != null && r.regularCost != null ? (r.regularCost - r.tlCost) * q : null;
         const regularLineCost = r.regularCost != null ? r.regularCost * q : null;
@@ -251,7 +251,7 @@
             <td>${r.qoh}${r.written ? `<span class="hint">${r.written} written</span>` : ""}</td>
             <td><input class="qoo" type="number" min="0" step="1" value="${r.qoo}" data-qoo="${esc(r.model)}" title="${esc(r.qooNote || "On order")}"></td>
             <td class="${fc}">${r.forecast}</td>
-            <td><input class="qty${c.qty ? " has" : ""}" type="number" min="0" step="1" value="${c.qty || ""}" data-qty="${esc(r.model)}" ${r.active ? "" : "disabled"}></td>
+            <td>${r.kind === "accessory" ? `<span class="hint" title="Accessories can't be ordered on a truckload">not by truck</span>` : `<input class="qty${c.qty ? " has" : ""}" type="number" min="0" step="1" value="${c.qty || ""}" data-qty="${esc(r.model)}" ${r.active ? "" : "disabled"}>`}</td>
             <td class="muted" title="${r.regularDerived ? "Derived from TL cost and the discount setting" : "Explicit regular cost from the catalog"}">${money(r.regularCost)}</td>
             <td class="${r.tlCost == null ? "muted" : ""}">${money(r.tlCost)}</td>
             <td data-line="${esc(r.model)}">${c.qty && r.tlCost != null ? money(c.lineCost) : ""}</td>
@@ -314,7 +314,7 @@
 
       // ---- tools ----
       $("fillForecast").addEventListener("click", () => {
-        for (const r of state.board.rows) { if (!r.active) continue; if (r.forecast > 0) state.lines[r.model] = r.forecast; else delete state.lines[r.model]; }
+        for (const r of state.board.rows) { if (!r.active || r.kind === "accessory") continue; if (r.forecast > 0) state.lines[r.model] = r.forecast; else delete state.lines[r.model]; }
         renderRows(); renderTiles(); scheduleSave();
         setStatus("Quantities set from the forecast — adjust anything, then submit.", "ok");
       });

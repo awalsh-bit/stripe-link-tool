@@ -269,6 +269,7 @@
           { href: "flag-closures.html", title: "Notification Closure Report" },
           { href: "target-builder.html", title: "Target Builder" },
           { href: "secret-menu.html", title: "Secret Menu" },
+          { href: "promo-builder.html", title: "Promo Item Builder" },
           { href: "clearance.html", title: "Clearance Hit List" },
           { href: "shop-orders.html", title: "Online Shop Orders" },
           { href: "shop-catalog.html", title: "Express Assortment Catalog" },

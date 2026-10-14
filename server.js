@@ -5988,9 +5988,14 @@ app.get("/api/promo/inventory", requirePromoBuilder, async (req, res) => {
       }
       const serial = String(u.serial || "").trim().toUpperCase();
       const taken = ctx.statusById.get(`${model}|${serial}#1`) || ctx.statusById.get(`${model}|${serial}#S`) || null;
-      g.units.push({ serial, serialType: String(u.serialType || "").toUpperCase(), received: u.received || "", writtenTo: u.writtenTo || "", reserved: u.reserved || "",
+      // reserved: a DateReserved (held for a customer) blocks the unit;
+      // ePASS's "Reserve Exclusive" flag (display / open-box units kept out of
+      // auto-allocation) does not - those are exactly what cards are made of.
+      const reservedRaw = String(u.reserved || "").trim();
+      const exclusive = reservedRaw === "exclusive";
+      g.units.push({ serial, serialType: String(u.serialType || "").toUpperCase(), received: u.received || "", writtenTo: u.writtenTo || "", reserved: exclusive ? "" : reservedRaw, exclusive,
         uniquePrice: Number(u.uniquePrice) || null, tagPrice: Number(u.tagPrice) || null, cost: Number(u.cost) || null, location: u.location || "", bin: u.bin || "",
-        free: !String(u.writtenTo || "").trim() && !String(u.reserved || "").trim() && !taken, marked: taken ? taken.status : "" });
+        free: !String(u.writtenTo || "").trim() && !(reservedRaw && !exclusive) && !taken, marked: taken ? taken.status : "" });
       if (!g.list && Number(u.list) > 0) { g.list = Number(u.list); g.listCode = u.listCode || ""; }
       if (!g.map && Number(u.map) > 0) { g.map = Number(u.map); g.mapCode = u.mapCode || ""; }
       if (!g.description && u.description) g.description = String(u.description).trim();

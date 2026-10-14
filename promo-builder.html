@@ -231,7 +231,7 @@
                 <span class="pill${u.serialType === "ALL" ? "" : " open"}">${esc(u.serialType || "?")}</span>
                 <span>${u.received ? "received " + esc(u.received) : ""}${u.location ? " · loc " + esc(u.location) : ""}${u.bin ? "/" + esc(u.bin) : ""}</span>
                 ${u.uniquePrice ? `<span class="pill uniq">unique ${money(u.uniquePrice)}</span>` : ""}${u.tagPrice ? `<span class="pill">tag ${money(u.tagPrice)}</span>` : ""}
-                ${u.writtenTo ? `<span class="pill disc">written ${esc(u.writtenTo)}</span>` : u.reserved ? `<span class="pill disc">reserved</span>` : u.marked ? `<span class="pill disc">${esc(u.marked)} here</span>` : ""}
+                ${u.writtenTo ? `<span class="pill disc">written ${esc(u.writtenTo)}</span>` : u.reserved ? `<span class="pill disc" title="Reserved for a customer in ePASS (DateReserved)">reserved</span>` : u.marked ? `<span class="pill disc">${esc(u.marked)} here</span>` : u.exclusive ? `<span class="pill" title="ePASS Reserve Exclusive: kept out of automatic allocation - sellable by choice, so it can go on a card">exclusive reserve</span>` : ""}
                 ${u.free ? `<button type="button" class="ws-btn quiet sm add" data-add-serial="${esc(m.key)}|${esc(u.serial)}">Add this unit</button>` : ""}
               </div>`).join("")}</div>
           </div>`).join("") || `<div class="status">Nothing matches.</div>`;

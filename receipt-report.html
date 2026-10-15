@@ -28,6 +28,17 @@
     button.tiny { padding: 6px 10px; font-size: 12px; border-radius: 8px; }
     button.danger { background: #fee2e2; color: #991b1b; }
     button.danger:hover { background: #fecaca; }
+    /* Reviewer correction row (Andrew 10/15: Tracy fixes mis-keyed amounts) */
+    tr.rc-editor td { background: #f8fafc; padding: 10px 12px; }
+    .rc-edit-grid { display: grid; grid-template-columns: 140px 130px 170px 1fr; gap: 8px; align-items: end; }
+    .rc-edit-grid label { font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); margin-bottom: 3px; }
+    .rc-edit-grid input, .rc-edit-grid select { width: 100%; border: 1px solid var(--border); border-radius: 8px; padding: 7px 9px; font: inherit; font-size: 13.5px; }
+    .rc-edit-grid .full { grid-column: 1 / -1; }
+    .rc-edit-acts { display: flex; gap: 8px; align-items: center; margin-top: 8px; }
+    .rc-edit-acts .msg { font-size: 12.5px; color: #b91c1c; }
+    .rc-edited { display: inline-block; margin-left: 6px; font-size: 10.5px; font-weight: 800; border-radius: 6px; padding: 1px 6px; background: #fff7ed; color: #9a3412; vertical-align: 1px; }
+    .rc-was { display: block; font-size: 11px; color: var(--muted); font-weight: 500; text-decoration: line-through; }
+    @media (max-width: 720px) { .rc-edit-grid { grid-template-columns: 1fr 1fr; } }
 
     .toolbar { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; }
     .toolbar .field { flex: 0 1 200px; }
@@ -191,7 +202,25 @@ const money = (n) => { const v = Number(n || 0); const s = "$" + Math.abs(v).toL
       $("summary").innerHTML = boxes.join("");
     }
 
+    // Inline correction editor under the receipt's row.
+    let editingId = null;
+    const CATS = [["", "— no category —"], ["fuel", "Fuel"], ["parts", "Parts & supplies"], ["tools", "Tools & equipment"], ["meals", "Meals & entertainment"], ["travel", "Travel & lodging"], ["office", "Office & software"], ["other", "Other"]];
+    function editorRow(r) {
+      return `<tr class="rc-editor" data-edit="${esc(r.id)}"><td colspan="6">
+        <div class="rc-edit-grid">
+          <div><label>Date</label><input type="date" class="e-date" value="${esc(r.spentOn)}"></div>
+          <div><label>Amount</label><input type="number" step="0.01" class="e-amount" value="${r.amount}" title="Negative for a return"></div>
+          <div><label>Category</label><select class="e-cat">${CATS.map(([k, l]) => `<option value="${k}"${(r.category || "") === k ? " selected" : ""}>${l}</option>`).join("")}</select></div>
+          <div><label>Merchant</label><input type="text" class="e-merchant" value="${esc(r.merchant || "")}" maxlength="120"></div>
+          <div class="full"><label>Purpose</label><input type="text" class="e-purpose" value="${esc(r.purpose || "")}" maxlength="400"></div>
+          <div class="full"><label>Why (optional — shows on hover)</label><input type="text" class="e-note" placeholder="e.g. keyed 1,250.00 as 125.00" maxlength="300"></div>
+        </div>
+        <div class="rc-edit-acts"><button type="button" class="tiny rc-save" data-id="${esc(r.id)}">Save correction</button><button type="button" class="tiny secondary rc-cancel">Cancel</button><span class="msg"></span></div>
+      </td></tr>`;
+    }
+    let lastData = null;
     function renderRows(data) {
+      lastData = data;
       const rows = data.receipts || [];
       if (!rows.length) { $("rows").innerHTML = `<tr><td colspan="6" class="empty">No receipts for this view.</td></tr>`; return; }
       // Group by month when the view spans months, by person when it spans people.
@@ -211,9 +240,9 @@ const money = (n) => { const v = Number(n || 0); const s = "$" + Math.abs(v).toL
             <td>${esc(fmtDate(r.spentOn))}</td>
             <td>${esc(r.filedByName || r.filedByEmail)}</td>
             <td>${r.merchant ? `<div class="merchant">${esc(r.merchant)}</div>` : ""}<div>${esc(r.purpose)}</div>${(r.category || r.effectiveCategory) ? `<div style="font-size:11px;color:#6b7280;">${esc(({ fuel: "Fuel", parts: "Parts & supplies", tools: "Tools & equipment", meals: "Meals & entertainment", travel: "Travel & lodging", office: "Office & software", other: "Other" })[r.category || r.effectiveCategory] || "")}${r.category ? "" : " (by keyword)"}</div>` : ""}</td>
-            <td class="num${r.amount < 0 ? " neg" : ""}">${money(r.amount)}${r.amount < 0 ? `<span class="pill-return">RETURN</span>` : ""}</td>
-            <td class="c-actions"><button type="button" class="tiny danger rc-del" data-id="${esc(r.id)}">Delete</button></td>
-          </tr>`;
+            <td class="num${r.amount < 0 ? " neg" : ""}">${money(r.amount)}${r.amount < 0 ? `<span class="pill-return">RETURN</span>` : ""}${r.editedAt ? `<span class="rc-edited" title="Corrected by ${esc(r.editedBy)} on ${esc(fmtDate(String(r.editedAt).slice(0, 10)))}${r.editNote ? " — " + esc(r.editNote) : ""}">edited</span>` : ""}${r.originalAmount != null && r.originalAmount !== r.amount ? `<span class="rc-was" title="As originally filed">was ${money(r.originalAmount)}</span>` : ""}</td>
+            <td class="c-actions"><button type="button" class="tiny secondary rc-edit" data-id="${esc(r.id)}">Edit</button> <button type="button" class="tiny danger rc-del" data-id="${esc(r.id)}">Delete</button></td>
+          </tr>${editingId === r.id ? editorRow(r) : ""}`;
       }
       flushGroup();
       html += `<tr class="totals-row"><td colspan="4">TOTAL — ${esc(viewLabel())}</td><td class="num">${money(data.total)}</td><td></td></tr>`;
@@ -227,6 +256,22 @@ const money = (n) => { const v = Number(n || 0); const s = "$" + Math.abs(v).toL
       load();
     });
     $("rows").addEventListener("click", async (ev) => {
+      const edit = ev.target.closest(".rc-edit");
+      if (edit) { editingId = editingId === edit.dataset.id ? null : edit.dataset.id; renderRows(lastData); $("rows").querySelector(".e-amount")?.focus(); return; }
+      if (ev.target.closest(".rc-cancel")) { editingId = null; renderRows(lastData); return; }
+      const save = ev.target.closest(".rc-save");
+      if (save) {
+        const row = save.closest("tr"); const msg = row.querySelector(".msg");
+        const body = { spentOn: row.querySelector(".e-date").value, amount: row.querySelector(".e-amount").value, category: row.querySelector(".e-cat").value, merchant: row.querySelector(".e-merchant").value, purpose: row.querySelector(".e-purpose").value, note: row.querySelector(".e-note").value };
+        save.disabled = true; msg.textContent = "";
+        try {
+          const res = await fetch(`/api/card-receipts/${encodeURIComponent(save.dataset.id)}/edit`, { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok) throw new Error(data.error || "Couldn't save the correction.");
+          editingId = null; await load(); setStatus("Correction saved.", "ok");
+        } catch (err) { msg.textContent = err.message; save.disabled = false; }
+        return;
+      }
       const btn = ev.target.closest(".rc-del"); if (!btn) return;
       if (!window.confirm("Delete this receipt? It leaves the report (the audit log keeps a record).")) return;
       btn.disabled = true;

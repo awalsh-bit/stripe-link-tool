@@ -299,8 +299,7 @@ import {
   listCardReceiptFilters,
   softDeleteCardReceipt,
   getCardReceiptPhoto,
-  cardReceiptsCsv
-} from "./lib/card-receipts-postgres.js";
+  cardReceiptsCsv, updateCardReceipt } from "./lib/card-receipts-postgres.js";
 import {
   ACCOUNT_STATUSES as BUILDER_STATUSES, TRADE_TYPES as BUILDER_TRADE_TYPES, STRENGTHS as BUILDER_STRENGTHS, PRIORITIES as BUILDER_PRIORITIES,
   SOURCES as BUILDER_SOURCES, ACTIVITY_TYPES as BUILDER_ACTIVITY_TYPES, OUTCOMES as BUILDER_OUTCOMES,
@@ -4917,6 +4916,27 @@ app.post("/api/card-receipts/:id/delete", async (req, res) => {
   } catch (err) {
     console.error("Card receipt delete failed:", err.message);
     return res.status(500).json({ error: "Unable to delete the receipt." });
+  }
+});
+
+// Reviewer correction (Andrew 10/15): anyone who can open the Card Receipt
+// Report can fix a mis-keyed amount, date, merchant, purpose or category.
+// The original amount stays on the row and the audit log records the change.
+app.post("/api/card-receipts/:id/edit", requirePagePermission("/receipt-report.html"), async (req, res) => {
+  try {
+    const receipt = await getCardReceipt(req.params.id);
+    if (!receipt || receipt.deletedAt) return res.status(404).json({ error: "Receipt not found." });
+    const me = receiptIdentity(req);
+    const b = req.body || {};
+    const updated = await updateCardReceipt(receipt.id, { amount: b.amount, spentOn: b.spentOn, merchant: b.merchant, purpose: b.purpose, category: b.category, note: b.note }, me.email);
+    recordAudit({
+      ip: req.ip, actorUserId: me.userId, action: "card_receipt_edited", targetUserId: receipt.userId || null,
+      detail: { receiptId: receipt.id, filedBy: receipt.filedByEmail, before: { spentOn: receipt.spentOn, amount: receipt.amount, merchant: receipt.merchant, purpose: receipt.purpose, category: receipt.category },
+        after: { spentOn: updated.spentOn, amount: updated.amount, merchant: updated.merchant, purpose: updated.purpose, category: updated.category }, note: String(b.note || "").slice(0, 300) }
+    }).catch(() => {});
+    return res.json({ ok: true, receipt: updated });
+  } catch (err) {
+    return res.status(400).json({ error: err.message || "Unable to update the receipt." });
   }
 });
 

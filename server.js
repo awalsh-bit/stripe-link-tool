@@ -257,7 +257,7 @@ import { replaceEpassSoldSerials, listSoldSerialsByModel, listSoldSerialsForMode
 import { createEvent, updateEvent, setEventStatus, deleteEvent, getEvent, listEvents, listInvitees, addInvitees, updateInvitee, deleteInvitee, inviteesFromGrid, listRsvps, listPublicEvents, getPublicEvent, submitRsvp, migrateLegacyEvents, INVITEE_STATUSES } from "./lib/events-postgres.js";
 import { upsertEpassCustomers, getEpassCustomersMeta, getEpassCustomers, searchEpassCustomers as searchEpassCustomerMaster, matchEpassCustomersForShoppers, setShopperEpassLink, epassCustomerHistory } from "./lib/epass-customers-postgres.js";
 import { loadWarrantyTerms, lookupWarranty, warrantyTermsSummary } from "./lib/warranty-terms.js";
-import { getFieldRoute, markEnroute, markArrived, submitOutcome, listVerifyQueue, verifyParts, getFindingsForSv, stopContext, addFieldNote, savePhoto as saveFieldPhoto, getPhoto as getFieldPhoto, flagModel, listModelFlags, reviewModelFlag, dayDollars, autoLaborLines, listReadyToBill, markBilled } from "./lib/service-field-postgres.js";
+import { getFieldRoute, markEnroute, markArrived, submitOutcome, listVerifyQueue, verifyParts, getFindingsForSv, stopContext, addFieldNote, savePhoto as saveFieldPhoto, getPhoto as getFieldPhoto, flagModel, listModelFlags, reviewModelFlag, dayDollars, autoLaborLines, listReadyToBill, markBilled, updateCallDetails, listOpenLookups } from "./lib/service-field-postgres.js";
 import { ensureJourneyToken, resolveJourney, journeyTokenFor } from "./lib/journey-tracker-postgres.js";
 import { processTaxBundle, taxStatus, taxReport, taxInvoiceLines } from "./lib/tax-report-postgres.js";
 import { parseFinanceBundle, replaceEpassFinance, getEpassFinanceMeta, financeRows, listSupplierTerms, saveSupplierTerms, deleteSupplierTerms } from "./lib/epass-finance-postgres.js";
@@ -299,7 +299,7 @@ import {
   listCardReceiptFilters,
   softDeleteCardReceipt,
   getCardReceiptPhoto,
-  cardReceiptsCsv, updateCardReceipt } from "./lib/card-receipts-postgres.js";
+  cardReceiptsCsv, updateCardReceipt, moveCardReceipt } from "./lib/card-receipts-postgres.js";
 import {
   ACCOUNT_STATUSES as BUILDER_STATUSES, TRADE_TYPES as BUILDER_TRADE_TYPES, STRENGTHS as BUILDER_STRENGTHS, PRIORITIES as BUILDER_PRIORITIES,
   SOURCES as BUILDER_SOURCES, ACTIVITY_TYPES as BUILDER_ACTIVITY_TYPES, OUTCOMES as BUILDER_OUTCOMES,
@@ -4825,7 +4825,8 @@ app.get("/api/card-receipts/mine", requirePagePermission("/receipts.html"), asyn
   try {
     const me = receiptIdentity(req);
     if (!me.email) return res.status(400).json({ error: "Sign in with your own account to file receipts." });
-    const receipts = await listCardReceipts({ email: me.email, ...receiptFilterQuery(req.query) });
+    // What I filed, plus anything a reviewer moved onto my card.
+    const receipts = await listCardReceipts({ mine: me.email, ...receiptFilterQuery(req.query) });
     return res.json({ receipts, me: { email: me.email, name: me.name } });
   } catch (err) {
     console.error("Card receipts (mine) failed:", err.message);
@@ -4884,7 +4885,7 @@ app.get("/api/card-receipts/:id/photo", async (req, res) => {
     const receipt = await getCardReceipt(req.params.id);
     if (!receipt) return res.status(404).json({ error: "Receipt not found." });
     const me = receiptIdentity(req);
-    if (receipt.filedByEmail !== me.email && !isReceiptReviewer(req.authUser)) return res.status(403).json({ error: "Not your receipt." });
+    if (receipt.filedByEmail !== me.email && receipt.cardholderEmail !== me.email && !isReceiptReviewer(req.authUser)) return res.status(403).json({ error: "Not your receipt." });
     const photo = await getCardReceiptPhoto(receipt);
     if (!photo) return res.status(404).json({ error: "No photo on this receipt." });
     res.setHeader("Content-Type", photo.contentType || "image/jpeg");
@@ -4940,6 +4941,51 @@ app.post("/api/card-receipts/:id/edit", requirePagePermission("/receipt-report.h
   }
 });
 
+// Reviewer move (Andrew 10/15): people borrow cards, so a charge keyed by
+// one person can belong on another person's card statement. Only the
+// cardholder changes; who filed it and where it came from stay on the row.
+app.post("/api/card-receipts/:id/move", requirePagePermission("/receipt-report.html"), async (req, res) => {
+  try {
+    const receipt = await getCardReceipt(req.params.id);
+    if (!receipt || receipt.deletedAt) return res.status(404).json({ error: "Receipt not found." });
+    const me = receiptIdentity(req);
+    const b = req.body || {};
+    const email = String(b.email || "").trim().toLowerCase().slice(0, 200);
+    if (!email) return res.status(400).json({ error: "Pick the cardholder to move this charge to." });
+    // Name from the user list when we have it, so the report shows a person, not an address.
+    const users = await listUsersWithAccess().catch(() => []);
+    const user = users.find((u) => String(u.email || "").toLowerCase() === email);
+    const name = user?.displayName || String(b.name || "").trim().slice(0, 120) || email;
+    const updated = await moveCardReceipt(receipt.id, { email, name }, me.email, b.note);
+    recordAudit({
+      ip: req.ip, actorUserId: me.userId, action: "card_receipt_moved", targetUserId: receipt.userId || null,
+      detail: { receiptId: receipt.id, filedBy: receipt.filedByEmail, from: receipt.cardholderEmail, to: email, spentOn: receipt.spentOn, amount: receipt.amount, note: String(b.note || "").slice(0, 300) }
+    }).catch(() => {});
+    return res.json({ ok: true, receipt: updated });
+  } catch (err) {
+    return res.status(400).json({ error: err.message || "Unable to move the receipt." });
+  }
+});
+
+// Cardholder picker for the move: every active login plus anyone who has
+// receipts already (so a former employee's card still shows).
+app.get("/api/card-receipts/people", requirePagePermission("/receipt-report.html"), async (req, res) => {
+  try {
+    const [users, menus] = await Promise.all([listUsersWithAccess().catch(() => []), listCardReceiptFilters()]);
+    const byEmail = new Map();
+    for (const u of users) {
+      if (u.status !== "active" || !u.email) continue;
+      const email = String(u.email).toLowerCase();
+      byEmail.set(email, { email, name: u.displayName || email });
+    }
+    for (const f of menus.filers || []) { if (!byEmail.has(f.email)) byEmail.set(f.email, { email: f.email, name: f.name || f.email }); }
+    return res.json({ people: [...byEmail.values()].sort((a, b) => a.name.localeCompare(b.name)) });
+  } catch (err) {
+    console.error("Card receipt people failed:", err.message);
+    return res.status(500).json({ error: "Unable to load the cardholder list." });
+  }
+});
+
 // Report: by person and/or month, with the filter menus and per-person /
 // per-month subtotals computed here so the page is one round trip.
 app.get("/api/card-receipts/report", requirePagePermission("/receipt-report.html"), async (req, res) => {
@@ -4951,7 +4997,8 @@ app.get("/api/card-receipts/report", requirePagePermission("/receipt-report.html
     let total = 0;
     for (const r of receipts) {
       total += r.amount;
-      const p = byPerson[r.filedByEmail] || (byPerson[r.filedByEmail] = { email: r.filedByEmail, name: r.filedByName, count: 0, total: 0 });
+      // per CARDHOLDER - the person whose statement the charge is on
+      const p = byPerson[r.cardholderEmail] || (byPerson[r.cardholderEmail] = { email: r.cardholderEmail, name: r.cardholderName, count: 0, total: 0 });
       p.count++; p.total = Math.round((p.total + r.amount) * 100) / 100;
       const m = byMonth[r.month] || (byMonth[r.month] = { month: r.month, count: 0, total: 0 });
       m.count++; m.total = Math.round((m.total + r.amount) * 100) / 100;
@@ -6198,7 +6245,9 @@ app.get("/api/clearance", requirePagePermission("/clearance.html"), async (req, 
       for (const item of data.items || []) {
         const status = byId.get(item.id);
         if (status) item.state = status;
-        const override = overrideById.get(item.id);
+        // Live list (Andrew 10/15): the price IS ePASS's Unique Sell Price -
+        // Agility never overrides it, so saved workbook overrides are ignored.
+        const override = data._meta?.live ? null : overrideById.get(item.id);
         if (override) item.priceOverride = override;
         if (snapKeys && !item.epass) {
           const serial = String(item.serial || "").trim().toUpperCase();
@@ -6371,6 +6420,9 @@ app.post("/api/clearance/price", requireExecutiveApi, async (req, res) => {
   try {
     const itemId = String(req.body?.itemId || "").trim();
     if (!itemId) return res.status(400).json({ error: "Missing item id." });
+    // Live list: the price is ePASS's Unique Sell Price and is edited there only.
+    const live = await liveClearanceList().catch(() => null);
+    if (live?._meta?.live) return res.status(409).json({ error: "The clearance price is the serial's Unique Sell Price in ePASS. Set it in ePASS; it shows here on the next pull." });
 
     const userEmail = String(req.authUser?.kind === "db" ? req.authUser.email : "").toLowerCase();
     const rawPrice = req.body?.price;
@@ -6939,7 +6991,9 @@ async function computeShopCatalogFresh() {
   const mapFloor = mapPrices?.prices || {};
 
   const statusById = new Map(statuses.map((s) => [s.itemId, s]));
-  const overrideById = new Map(overrides.map((o) => [o.itemId, o]));
+  // Live clearance (ePASS Unique Sell Price is the price): workbook-era price
+  // overrides saved in Agility are ignored - the price is edited in ePASS only.
+  const overrideById = new Map(clearance._meta?.live ? [] : overrides.map((o) => [o.itemId, o]));
   // Snapshot entries are "MODELKEY|SERIAL" composites (accessory pseudo-
   // serials like "00001" repeat across models). Legacy plain-serial
   // snapshots still work via the bare-serial fallback.
@@ -8970,6 +9024,17 @@ app.get("/api/podium/status", requireExecutiveApi, async (req, res) => {
 // The registry of triggers Agility can text on. Adding a new automation is
 // one entry here plus a resolveAutomationTemplate() call at the event site.
 const TEXT_AUTOMATION_TRIGGERS = [
+  {
+    // Andrew 9/29: "clicking the on my way button in field tool should fire a
+    // text out of podium to the customer". Off until an executive picks a
+    // template here (standing rule: no surprise automated customer contact).
+    // Sends once per stop per day, on the tech's first "On my way" tap.
+    key: "service_on_my_way",
+    label: "Service tech on the way",
+    description: "Fires when a tech taps On my way in the field tool. One text per stop per day; nothing is sent until a template is chosen and this is enabled.",
+    vars: ["first_name", "name", "tech", "sv"],
+    sampleVars: { first_name: "Taylor", name: "Taylor Client", tech: "Cayden", sv: "SV00123456" }
+  },
   {
     key: "payment_received",
     label: "Payment link paid",
@@ -11437,6 +11502,13 @@ app.get("/api/tax-report/export.xlsx", requireTaxReport, async (req, res) => {
 // The tech's own day from the board; outcomes move the ticket through
 // setJobStatus (packet queued) and feed the Parts Verify queue.
 const requireServiceField = requirePagePermission("/service-field.html", "/service-board.html", "/service-office.html", "/service-journey.html");
+// A tech code → the directory email that holds it (for notifications).
+async function techEmailFor(code) {
+  const want = String(code || "").trim().toUpperCase();
+  if (!want) return "";
+  const entry = (await listEmployeeDirectory().catch(() => [])).find((e) => !e.archived && String(e.code || "").trim().toUpperCase() === want && e.email);
+  return entry ? String(entry.email).toLowerCase() : "";
+}
 async function fieldTechFor(req, wanted) {
   const me = sjMe(req);
   let mine = "";
@@ -11460,7 +11532,29 @@ app.get("/api/service-field/route", requireServiceField, async (req, res) => {
   } catch (err) { return res.status(400).json({ error: err.message }); }
 });
 app.post("/api/service-field/:sv/enroute", requireServiceField, async (req, res) => {
-  try { return res.json(await markEnroute({ sv: req.params.sv, by: sjMe(req).email })); } catch (err) { return res.status(400).json({ error: err.message }); }
+  try {
+    const out = await markEnroute({ sv: req.params.sv, by: sjMe(req).email });
+    // the customer's "on my way" text - a Podium automation an executive turns on
+    let texted = false;
+    if (out.first && out.job?.phone) {
+      try {
+        const templateTitle = await resolveAutomationTemplate("service_on_my_way", "");
+        if (templateTitle && podiumOAuthConfigured() && (await podiumConnected())) {
+          const digits = String(out.job.phone).replace(/\D/g, "");
+          if (digits.length === 10 || (digits.length === 11 && digits.startsWith("1"))) {
+            const techs = await listServiceTechs().catch(() => []);
+            const techName = techs.find((t) => t.code === out.job.tech)?.name || out.job.tech || "Your technician";
+            const name = String(out.job.customer || "").trim();
+            const r = await sendPodiumTemplateText({ phone: digits, templateTitle, vars: { first_name: name.split(/\s+/)[0] || "there", name: name || "there", tech: String(techName).split(/\s+/)[0], sv: out.job.sv }, fallbackBody: `Wilson AC & Appliance: ${String(techName).split(/\s+/)[0]} is on the way to your service appointment now.` });
+            texted = !!r.ok;
+            if (!r.ok) console.error("On-my-way text skipped:", r.error);
+          }
+        }
+      } catch (err) { console.error("On-my-way text failed:", err.message); }
+    }
+    sjAudit(req, "service_field_enroute", { sv: req.params.sv, texted });
+    return res.json({ ...out, texted });
+  } catch (err) { return res.status(400).json({ error: err.message }); }
 });
 app.post("/api/service-field/:sv/arrived", requireServiceField, async (req, res) => {
   try { return res.json(await markArrived({ sv: req.params.sv, by: sjMe(req).email })); } catch (err) { return res.status(400).json({ error: err.message }); }
@@ -11468,8 +11562,18 @@ app.post("/api/service-field/:sv/arrived", requireServiceField, async (req, res)
 app.post("/api/service-field/:sv/outcome", requireServiceField, async (req, res) => {
   try {
     const me = sjMe(req); const b = req.body || {};
-    const out = await submitOutcome({ sv: req.params.sv, tech: String(b.tech || ""), outcome: String(b.outcome || ""), findings: String(b.findings || ""), parts: b.parts, labor: b.labor, laborNote: String(b.laborNote || ""), minutes: b.minutes, photos: b.photos, serialTagPhotoId: b.serialTagPhotoId || null, amend: !!b.amend, by: me.email, byName: me.name });
-    sjAudit(req, "service_field_outcome", { sv: req.params.sv, outcome: b.outcome, status: out.status, parts: Array.isArray(b.parts) ? b.parts.length : 0, labor: Array.isArray(b.labor) ? b.labor.length : 0, estMinutes: out.estMinutes, amend: !!b.amend });
+    const out = await submitOutcome({ sv: req.params.sv, tech: String(b.tech || ""), outcome: String(b.outcome || ""), findings: String(b.findings || ""), parts: b.parts, labor: b.labor, laborNote: String(b.laborNote || ""), minutes: b.minutes, photos: b.photos, serialTagPhotoId: b.serialTagPhotoId || null, amend: !!b.amend, partsLater: !!b.partsLater, by: me.email, byName: me.name });
+    sjAudit(req, "service_field_outcome", { sv: req.params.sv, outcome: b.outcome, status: out.status, parts: Array.isArray(b.parts) ? b.parts.length : 0, labor: Array.isArray(b.labor) ? b.labor.length : 0, estMinutes: out.estMinutes, amend: !!b.amend, partsLater: out.partsLater });
+    // "look the parts up later": the tech owes the lookup - My Notifications
+    // item to the tech (by tech code → directory email), and tomorrow's route
+    // won't start until it's done.
+    if (out.partsLater) {
+      try {
+        const email = await techEmailFor(out.tech) || me.email;
+        const sv = String(req.params.sv).toUpperCase();
+        await createPushedNotification({ severity: "amber", typeLabel: "Parts lookup owed", refId: `partslater:${sv}`, title: `Parts lookup owed: ${sv}`, body: `You chose "look the parts up later" on ${sv}. Add the part numbers, labor time and quote in the Field Tool (Parts lookups owed, top of your day) before your next route starts — the office can't quote it until you do.`, audienceEmail: email, byEmail: me.email, byName: me.name });
+      } catch (err) { console.error("Parts-later notification failed:", err.message); }
+    }
     return res.json(out);
   } catch (err) { return res.status(400).json({ error: err.message }); }
 });
@@ -11482,6 +11586,20 @@ app.post("/api/service-field/:sv/note", requireServiceField, async (req, res) =>
     sjAudit(req, "service_field_note", { sv: req.params.sv });
     return res.json(out);
   } catch (err) { return res.status(400).json({ error: err.message }); }
+});
+// Editable calls (Andrew 9/29): contact, address, unit, complaint, warranty ↔
+// COD - from the field tool or the board. Locked once billed.
+app.post("/api/service-field/:sv/details", requireServiceField, async (req, res) => {
+  try {
+    const me = sjMe(req); const b = req.body || {};
+    const out = await updateCallDetails({ sv: req.params.sv, patch: b, by: me.email, byName: me.name });
+    sjAudit(req, "service_call_edited", { sv: req.params.sv, changed: out.changed });
+    return res.json(out);
+  } catch (err) { return res.status(400).json({ error: err.message }); }
+});
+// Open "look the parts up later" items (the office's view; the tech's own ride on /route).
+app.get("/api/service-field/lookups", requireServiceField, async (req, res) => {
+  try { return res.json(await listOpenLookups({ tech: String(req.query.tech || "") })); } catch (err) { return res.status(400).json({ error: err.message }); }
 });
 app.get("/api/service-field/:sv/findings", requireServiceField, async (req, res) => {
   try { return res.json({ findings: await getFindingsForSv(req.params.sv) }); } catch (err) { return res.status(400).json({ error: err.message }); }

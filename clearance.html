@@ -302,6 +302,9 @@
     .toggle-chip.active { background: #1f2937; border-color: #1f2937; color: #fff; }
 
     .was-price { display: block; color: var(--muted); font-size: 11px; font-weight: 500; text-decoration: line-through; }
+    .margin-line { display: block; color: #475569; font-size: 11px; font-weight: 600; margin-top: 2px; white-space: nowrap; }
+    .margin-line.thin { color: #b45309; }
+    .margin-line.neg { color: #b91c1c; }
 
     .price-edit {
       appearance: none;
@@ -357,6 +360,7 @@
     <div class="filter-row">
       <input id="searchInput" class="search-input" type="search" placeholder="Search model, description, or brand..." aria-label="Search the clearance list" />
       <button id="hideSoldBtn" type="button" class="toggle-chip">Hide sold</button>
+      <button id="marginBtn" type="button" class="toggle-chip" style="display:none" title="Margin at the unique sell price (price minus ePASS cost). Hidden by default - do not show on a customer-facing screen.">Show margin</button>
     </div>
     <div class="cat-filter" id="catFilter"></div>
 
@@ -392,6 +396,8 @@
     let activeCategory = "All";
     let searchTerm = "";
     let hideSold = false;
+    let showMargin = false;  // margin at unique sell price - hidden by default (Andrew 10/15)
+    let isLive = false;      // list built from ePASS (price = Unique Sell Price, read-only here)
     let editId = null;       // row with an open action UI
     let editMode = null;     // "choose" (hold vs sold) or "sold" (sales-order box)
     let session = null;
@@ -415,7 +421,7 @@
     }
 
     function effectivePrice(item) {
-      if (item.priceOverride) return item.priceOverride.price;
+      if (item.priceOverride && !isLive) return item.priceOverride.price;
       return typeof item.price === "number" ? item.price : null;
     }
 
@@ -428,6 +434,14 @@
 
     let priceEditId = null;
 
+    function marginHtml(item) {
+      if (typeof item.margin !== "number" || typeof item.marginDollars !== "number") {
+        return `<span class="margin-line" title="ePASS carries no cost on this serial">margin —</span>`;
+      }
+      const cls = item.margin < 0 ? " neg" : item.margin < 10 ? " thin" : "";
+      return `<span class="margin-line${cls}" title="Margin at the unique sell price: price ${escapeHtml(money.format(effectivePrice(item)))} minus ePASS cost ${escapeHtml(money.format(item.cost))}">${escapeHtml(String(item.margin))}% · ${escapeHtml(money.format(item.marginDollars))}</span>`;
+    }
+
     function priceCellHtml(item) {
       if (priceEditId === item.id) {
         const current = effectivePrice(item);
@@ -438,7 +452,16 @@
           `<button type="button" class="reopen-link cancel-price" data-id="${escapeHtml(item.id)}">cancel</button>
         </div>`;
       }
-      let html = effectivePrice(item) == null && item.rule ? `<span class="needs-price">Needs price</span>` : escapeHtml(priceLabel(item));
+      let html = effectivePrice(item) == null && item.rule
+        ? `<span class="needs-price" title="${isLive ? "No Unique Sell Price on this serial - set it in ePASS and it shows here on the next pull" : "No price on the list yet"}">Needs price</span>`
+        : escapeHtml(priceLabel(item));
+      if (isLive) {
+        // Live list: the price IS ePASS's Unique Sell Price - nothing to edit
+        // here. Margin at that price (price - ePASS cost) rides under it only
+        // when the toolbar toggle is on.
+        if (showMargin && effectivePrice(item) != null) html += marginHtml(item);
+        return html;
+      }
       if (!item.priceOverride && item.priceSource === "workbook" && typeof item.price === "number") html += `<span class="price-src" title="Carried over from the clearance workbook - ePASS has no unique sell price on this serial yet">workbook price</span>`;
       // Show the crossed-out original only on markdowns — a cut sells better
       // with the old price visible; a raise just shows the new price.
@@ -759,6 +782,14 @@
       renderTable();
     });
 
+    document.getElementById("marginBtn").addEventListener("click", () => {
+      showMargin = !showMargin;
+      const btn = document.getElementById("marginBtn");
+      btn.classList.toggle("active", showMargin);
+      btn.textContent = showMargin ? "Hide margin" : "Show margin";
+      renderTable();
+    });
+
     document.getElementById("searchInput").addEventListener("input", () => {
       searchTerm = document.getElementById("searchInput").value.trim();
       renderTable();
@@ -806,6 +837,8 @@
         items = data.items || [];
         categories = data._meta?.categories || [];
         lastLoadedAt = new Date().toISOString();
+        isLive = Boolean(data._meta?.live);
+        document.getElementById("marginBtn").style.display = isLive ? "" : "none";
         if (data._meta?.live) {
           const c = data._meta.counts || {};
           const f = data._meta.feed || null;
@@ -818,8 +851,8 @@
                   : ` ${f.unitsWithUniquePrice} units in stock carry a unique sell price, but none are serial type ALL.`)
             : "";
           document.getElementById("introSub").textContent =
-            `Built from ePASS on every pull — open-box units, new units over a year in stock, and units with a unique sell price in ePASS. ` +
-            `${c.open || 0} open box · ${c.aged || 0} aged · ${c.unique || 0} unique-priced` + (c.needsPrice ? ` · ${c.needsPrice} need a price` : "") + `. Search "needs price" to find them.` + uniqueNote;
+            `Built from ePASS on every pull — open-box units, new units over a year in stock, and units with a unique sell price in ePASS. The price shown is the serial's Unique Sell Price in ePASS (edit it there, not here). ` +
+            `${c.open || 0} open box · ${c.aged || 0} aged · ${c.unique || 0} unique-priced` + (c.needsPrice ? ` · ${c.needsPrice} need a unique sell price set in ePASS` : "") + `. Search "needs price" to find them.` + uniqueNote;
         } else if (data._meta?.listDate) {
           document.getElementById("introSub").textContent =
             `Every clearance unit on the floor — one row per serial number. Price list updated ${data._meta.listDate}; availability from ePASS. Filter by category or search by model and description.`;

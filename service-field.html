@@ -64,7 +64,16 @@
     .hint{font-size:.82rem;color:var(--muted)}
     .banner{background:var(--info-bg);color:#1f4f85;border-radius:10px;padding:.5rem .8rem;font-size:.9rem;margin:.4rem 0}
     .donebox{background:var(--good-bg);border-radius:10px;padding:.6rem .8rem;margin:.5rem 0;font-size:.92rem}
-    @media (max-width:480px){.parts .line{grid-template-columns:1fr 1fr}.labor .line{grid-template-columns:1fr 80px auto}}
+    .labor .line.locked input{background:var(--surface2);color:var(--muted)}
+    .fold{border:1px solid var(--line);border-radius:12px;margin:.5rem 0;background:#fbfdfb}.fold>button.fh{width:100%;text-align:left;border:0;background:transparent;display:flex;justify-content:space-between;align-items:center;font-weight:600;min-height:44px}.fold>button.fh::after{content:"▸";color:var(--muted)}.fold.open>button.fh::after{content:"▾"}.fold>.fb{display:none;padding:0 .7rem .6rem}.fold.open>.fb{display:block}
+    .owed{background:var(--bad-bg);border:1px solid #e7b2ad;border-radius:14px;padding:.7rem .9rem;margin:.4rem 0 .8rem}.owed b{display:block;color:#7a1f1a}.owed .it{display:flex;justify-content:space-between;gap:.5rem;align-items:center;padding:.35rem 0;border-top:1px solid #f0cfcc}.owed .it:first-of-type{border-top:0}.owed .it button{min-height:38px;padding:.3rem .7rem}
+    .owed.soft{background:var(--wait-bg);border-color:#efd9a3}.owed.soft b{color:#6b4500}.owed.soft .it{border-color:#f1e2bd}
+    .flat{background:#efe8f8;border:1px solid #cdb9e8;border-radius:10px;padding:.6rem .8rem;margin:.4rem 0;font-size:.92rem}.flat b{display:block;font-size:.78rem;text-transform:uppercase;letter-spacing:.04em;color:#7a4fb3}.flat .amt{font-size:1.3rem;font-weight:700}
+    .edit .g{display:grid;grid-template-columns:1fr 1fr;gap:.4rem}.edit .g .full{grid-column:1/-1}.edit label{display:block;font-size:.74rem;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);margin:.35rem 0 .15rem}.edit input,.edit textarea{min-height:42px}
+    .seg{display:flex;gap:.3rem}.seg button{flex:1;min-height:42px}.seg button[aria-pressed="true"]{background:var(--accent);color:#fff;border-color:var(--accent)}
+    .req-strip{font-size:.84rem;color:#7a1f1a;background:var(--bad-bg);border-radius:8px;padding:.4rem .6rem;margin:.3rem 0}
+    .later{display:flex;align-items:center;gap:.5rem;margin:.4rem 0;font-size:.92rem}.later input{width:22px;height:22px;min-height:0}
+    @media (max-width:480px){.parts .line{grid-template-columns:1fr 1fr}.labor .line{grid-template-columns:1fr 80px auto}.edit .g{grid-template-columns:1fr}}
   </style>
 </head>
 <body data-shell-label="Tech Field Tool" data-shell-icon="service">
@@ -79,6 +88,7 @@
     <div class="status" id="pageStatus"></div>
     <div class="dollars" id="dollars" hidden></div>
     <div id="banner"></div>
+    <div id="owed"></div>
     <div id="stops"><div class="empty">Loading…</div></div>
     <div id="internal-shell-footer"></div>
   </div>
@@ -104,7 +114,9 @@
     const LABEL = Object.fromEntries([...OUT.diagnostic, ...OUT.install].map(([k, l]) => [k, l]));
     let R = null, day = today(), tech = new URLSearchParams(location.search).get("tech") || "", openSv = new URLSearchParams(location.search).get("sv") || "", picked = {}, CTX = {};
     const defaultOutcome = (s) => (s.kind === "install" ? "complete" : "parts");
-    const pkFor = (sv) => picked[sv] || (picked[sv] = { tab: "before", parts: [{ part: "", desc: "", qty: 1 }], labor: null, photos: [], minutes: null });
+    const pkFor = (sv) => picked[sv] || (picked[sv] = { tab: "", parts: [{ part: "", desc: "", qty: 1 }], labor: null, photos: [], minutes: null, histScope: "house" });
+    const isFlat = (ctx) => ctx?.warranty === "flat";
+    const diagOnly = (o) => o === "onsite" || o === "declined" || o === "replace";
 
     // ---------- delivered dollars ----------
     function renderDollars() {
@@ -124,16 +136,25 @@
       const dl = (ctx?.insight?.tiers || []).flatMap((t) => t.parts || []).map((p) => `<option value="${esc(p.desc || p.part)}">${esc(p.part)} · seen ${p.n}×</option>`).join("");
       return `<datalist id="dl-parts">${dl}</datalist>` + lines.map((l, i) => `<div class="line"><input data-p="part" placeholder="part #" value="${esc(l.part || "")}" /><input data-p="desc" list="dl-parts" placeholder="description (component that failed)" value="${esc(l.desc || "")}" /><input data-p="qty" type="number" min="1" value="${esc(l.qty || 1)}" aria-label="qty" /><button type="button" data-rm="${i}" aria-label="Remove">✕</button></div>`).join("");
     }
+    function timeRow(pk, ctx, why) {
+      return `<div class="kv"><b>How long will the repair take?</b><div class="picks">${timePicks().map((p) => `<button type="button" data-min="${p.minutes}" aria-pressed="${pk.minutes === p.minutes}">${esc(p.label)}</button>`).join("")}</div><div class="hint">${esc(why)}</div></div>`;
+    }
     function laborRows(pk, ctx) {
       const rate = ctx?.hourlyRate || 130; const lines = pk.labor || [];
       const total = lines.filter((l) => l.kind !== "freight").reduce((a, l) => a + (Number(l.amount) || 0), 0);
       const picks = timePicks();
+      if (isFlat(ctx)) {
+        // Warranty on a flat-rate brand: the manufacturer's claim rate, locked.
+        // No component line, no modifiers - just how long it will take.
+        return `<div class="flat"><b>Warranty flat rate · manufacturer pays</b><span class="amt">$${money2(ctx.flatRate)}</span><div class="hint">${esc(ctx.warrantyNote || "")}</div></div>
+        ${timeRow(pk, ctx, "Sizes the return trip on the board. Required on a warranty repair.")}`;
+      }
       return `${ctx?.warrantyNote ? `<div class="banner">${esc(ctx.warrantyNote)}</div>` : ""}
         <div data-labor-lines>${lines.map((l, i) => `<div class="line ${l.auto ? "auto" : ""}"><div class="d">${esc(l.desc || l.code)}<small>${esc(l.code || "")}${l.hours != null ? ` · ${l.hours}h × $${rate}` : ""}${l.book != null ? ` · ePASS book $${money2(l.book)}` : ""}${l.office ? " · office sets" : ""}</small></div><input data-l="amount" type="number" step="0.01" min="0" value="${esc(money2(l.amount))}" ${l.office ? "readonly" : ""} aria-label="amount" /><button type="button" data-lrm="${i}" ${l.kind === "zone" || l.office ? "disabled" : ""} aria-label="Remove">✕</button></div>`).join("")}</div>
         <div class="kv"><b>Component change-out (from ePASS's labor list)</b><input data-lq placeholder="type the component — drain pump, control board, compressor…" value="${esc(pk.laborQ || "")}" autocomplete="off" /></div>
         ${pk.laborResults?.length ? `<div class="results">${pk.laborResults.map((r, i) => `<button type="button" data-lpick="${i}"><span style="color:inherit;white-space:normal">${esc(r.desc)}</span><span>${r.price != null ? "$" + money2(r.price) + (r.brandPrice ? " · brand" : "") : "no price"}</span></button>`).join("")}</div>` : pk.laborQ && pk.laborSearched ? `<div class="hint">${pk.laborError ? `Search failed: ${esc(pk.laborError)} — ` : `Nothing in the ePASS labor list matches${pk.laborMeta ? ` (${pk.laborMeta.active} of ${pk.laborMeta.total} codes searchable, ${pk.laborMeta.withDesc} with a description)` : ""} — `}<button type="button" class="mini" data-lmanual>add "${esc(pk.laborQ)}" as your own line</button></div>` : ""}
         <div class="picks">${(ctx?.laborMods || []).map(([n, h]) => `<button type="button" data-mod="${esc(n)}" data-modh="${h}" aria-pressed="${(pk.labor || []).some((l) => l.desc === n)}">${esc(n)} · ${h}h</button>`).join("")}</div>
-        <div class="kv"><b>How long will the repair take?</b><div class="picks">${picks.map((p) => `<button type="button" data-min="${p.minutes}" aria-pressed="${pk.minutes === p.minutes}">${esc(p.label)}</button>`).join("")}</div><div class="hint">Prices the component line at ${money(rate)}/h and sizes the return trip on the board. Edit any amount before you send it — the office sees your numbers.</div></div>
+        ${timeRow(pk, ctx, `Prices the component line at ${money(rate)}/h and sizes the return trip on the board. Edit any amount before you send it — the office sees your numbers.`)}
         <div class="total"><span>Labor total${lines.some((l) => l.kind === "freight") ? " (freight separate)" : ""}</span><span>$${money2(total)}</span></div>`;
     }
     function callRow(c, i) {
@@ -141,12 +162,18 @@
       return `<div class="call" data-call="${i}"><div class="h"><span><b>${esc(when)}</b> · ${esc(c.unit || "")}${c.sameUnit ? ' <span class="chip good">same unit</span>' : c.why ? ` <span class="chip">${esc(c.why)}</span>` : ""}${c.warranty ? ' <span class="chip wty">wty</span>' : ""}</span><span class="mono" style="font-size:.78rem">${esc(c.sv)}${c.tech ? " · " + esc(c.tech) : ""}${c.total ? " · " + money(c.total) : ""}${src}</span></div>
         <div class="d">${c.complaint ? `<b>Said:</b> ${esc(c.complaint)}\n` : ""}${c.performed ? `<b>Done:</b> ${esc(c.performed)}` : "<i>no work-performed text</i>"}${(c.partsLines || []).length ? `<div class="lines">Parts: ${c.partsLines.map((p) => esc([p.part, p.desc].filter(Boolean).join(" ") + (p.qty > 1 ? ` ×${p.qty}` : "") + (p.price ? ` $${money2(p.price)}` : ""))).join(" · ")}</div>` : ""}${(c.laborLines || []).length ? `<div class="lines">Labor: ${c.laborLines.map((l) => esc([l.code, l.desc].filter(Boolean).join(" ") + (l.total ? ` $${money2(l.total)}` : ""))).join(" · ")}</div>` : ""}</div></div>`;
     }
+    // History: THIS HOUSE first (same address / same unit), the whole account
+    // behind a tap (Andrew 9/29: "history should pull from address instead of
+    // account. both should be accessible, but the default should be at the
+    // same house").
+    const atHouse = (c) => c.sameUnit || c.why === "same unit" || c.why === "same address";
     function beforePanel(s, ctx, pk) {
       if (!ctx) return `<div class="panel show"><div class="hint">Loading history and Model Insight…</div></div>`;
-      const calls = ctx.history?.calls || []; const tiers = ctx.insight?.tiers || []; const tier = tiers.find((t) => t.key === (pk.tier || "")) || tiers.find((t) => t.calls) || tiers[0];
+      const all = ctx.history?.calls || []; const house = all.filter(atHouse); const scope = pk.histScope || "house";
+      const calls = scope === "house" ? house : all;
+      const tiers = ctx.insight?.tiers || []; const tier = tiers.find((t) => t.key === (pk.tier || "")) || tiers.find((t) => t.calls) || tiers[0];
       return `<div class="panel show">
-        ${(ctx.bulletins || []).map((b) => `<div class="bulletin"><b>Service bulletin · ${esc(b.familyStem || b.brand)}</b>${esc(b.bulletin || b.why)}<div class="hint">${esc(b.techName || b.tech)} · published ${esc((b.reviewedAt || "").slice(0, 10))}</div></div>`).join("")}
-        <div class="kv"><b>History here (${calls.length})</b>${ctx.history?.error ? `<div class="hint">${esc(ctx.history.error)}</div>` : ""}${calls.length ? calls.slice(0, pk.moreHistory ? 60 : 6).map(callRow).join("") + (calls.length > 6 && !pk.moreHistory ? `<button type="button" class="mini" data-more-history>Show all ${calls.length}</button>` : "") : `<div class="hint">No past calls for this customer, address or serial${ctx.history?.calls && !ctx.insight?.tiers?.length ? "" : " in the catalogue"}.</div>`}</div>
+        <div class="kv"><b>History</b><div class="seg" style="margin:.3rem 0"><button type="button" data-hist="house" aria-pressed="${scope === "house"}">This house · ${house.length}</button><button type="button" data-hist="account" aria-pressed="${scope === "account"}">Account &amp; phone · ${all.length}</button></div>${ctx.history?.error ? `<div class="hint">${esc(ctx.history.error)}</div>` : ""}${calls.length ? calls.slice(0, pk.moreHistory ? 60 : 6).map(callRow).join("") + (calls.length > 6 && !pk.moreHistory ? `<button type="button" class="mini" data-more-history>Show all ${calls.length}</button>` : "") : `<div class="hint">${scope === "house" ? `No past calls at this address${all.length ? ` — ${all.length} on the account / phone` : ""}.` : "No past calls for this customer, address or serial."}</div>`}</div>
         <div class="kv"><b>Model Insight</b>${tiers.length ? `<div>${tiers.map((t) => `<span class="tier" data-tier="${t.key}" aria-pressed="${tier && tier.key === t.key}">${esc(t.label)} · ${t.calls}</span>`).join("")}</div>${tier && tier.calls ? `<div class="hint" style="margin:.3rem 0">Parts that actually went in (${tier.calls} calls):</div><div>${(tier.parts || []).map((p) => `<span class="chip" style="text-transform:none">${esc(p.desc || p.part)} ×${p.n}${p.price ? " · $" + money2(p.price) : ""}</span>`).join("") || "<span class=hint>no part lines</span>"}</div>${(tier.labor || []).length ? `<div class="hint" style="margin:.3rem 0">Labor billed: ${tier.labor.map((l) => esc((l.desc || l.code) + " ×" + l.n + (l.avg ? " · avg $" + money2(l.avg) : ""))).join(" · ")}</div>` : ""}<div class="hint" style="margin:.3rem 0">Recent calls on ${esc(tier.label)}:</div>${(tier.recent || []).map((c, i) => callRow(c, "t" + i)).join("")}` : `<div class="hint">Nothing on record for this model yet.</div>`}` : `<div class="hint">${esc(ctx.insight?.error || "The ePASS catalogue hasn't been loaded yet — history and Model Insight fill in once the pull runs.")}</div>`}</div>
         <div class="kv"><b>Something every tech should know about this model?</b><textarea data-flag placeholder="what you found and why it matters — this goes to the service manager, who can publish it as a bulletin for everyone on this family">${esc(pk.flagWhy || "")}</textarea><div class="row"><button type="button" class="mini" data-flag-send="${esc(s.sv)}">Send to the service manager</button></div></div>
       </div>`;
@@ -162,26 +189,83 @@
         <div class="photos">${mine.map((id) => `<img src="/api/service-field/photo/${id}" alt="" />`).join("")}${onFile.map((p) => `<img src="/api/service-field/photo/${p.id}" alt="" title="${esc(p.kind)} · ${esc(p.at.slice(0, 10))}" style="opacity:.7" />`).join("")}</div>
       </div>`;
     }
+    // The stop's form, top to bottom: serial tag photo → outcome → parts
+    // (or "look them up later") → labor (flat rate on warranty) → time →
+    // notes. Diagnostic-only outcomes carry no labor list: the diagnostic
+    // fee is the bill, and the server never stacks a zone fee on it.
     function outcomeForm(s, ctx, pk, amend) {
       const outs = OUT[amend && s.lastFinding?.kind && OUT[s.lastFinding.kind] ? s.lastFinding.kind : s.kind]; const o = outs.some((x) => x[0] === pk.outcome) ? pk.outcome : defaultOutcome(s);
       const quoting = o === "parts" || o === "moreparts";
       const st = ctx?.serialTag; const tagBlock = s.kind === "diagnostic" && o !== "access" && st && !st.onFile && !pk.serialTagPhotoId;
+      const later = quoting && !!pk.partsLater;
+      const partsFilled = (pk.parts || []).some((l) => (l.part || "").trim() || (l.desc || "").trim());
+      const missing = [];
+      if (tagBlock) missing.push("serial tag photo");
+      if (quoting && !later && !partsFilled) missing.push("part number(s)");
+      if (quoting && !later && !pk.minutes) missing.push("how long the repair takes");
+      if (quoting && !later && ctx && !isFlat(ctx) && ctx.warranty !== "cod" && !(pk.labor || []).some((l) => l.kind === "component" || l.kind === "manual")) missing.push("the labor line");
+      if (quoting && !later && ctx?.warranty === "cod" && !(pk.labor || []).some((l) => l.kind === "component" || l.kind === "manual")) missing.push("the labor line");
+      const fee = ctx ? (ctx.warranty ? (isFlat(ctx) ? `warranty flat rate $${money2(ctx.flatRate)}` : "warranty — labor at our rate") : `diagnostic fee $${money2(ctx.diagFee)} — nothing else is billed`) : "";
       return `<div class="form show" data-form="${esc(s.sv)}">
         ${amend ? photosPanel(s, ctx, pk) : ""}
-        <div class="kv"><b>Outcome</b><select data-outcome>${outs.map(([k, l]) => `<option value="${k}" ${o === k ? "selected" : ""}>${esc(l)}</option>`).join("")}</select><div class="hint">${esc((outs.find((x) => x[0] === o) || [])[2] || "")}</div></div>
-        ${quoting ? `<div class="parts"><div class="kv"><b>Parts needed</b></div><div data-lines>${partsRows(pk.parts && pk.parts.length ? pk.parts : [{ part: "", desc: "", qty: 1 }], ctx)}</div><button type="button" class="mini" data-addline>+ another part</button></div>
-        <div class="labor"><div class="kv"><b>Labor lines</b></div>${laborRows(pk, ctx)}</div>` : ""}
-        <div class="kv"><b>Service performed / notes</b><textarea data-findings placeholder="what you found, what you need, or the final outcome — in your own words">${esc(pk.findings || "")}</textarea></div>
-        ${tagBlock ? `<div class="hint" style="color:#7a1f1a">Serial tag photo needed first (Photos, above).</div>` : ""}
-        <div class="row"><button class="primary" data-submit="${esc(s.sv)}" ${tagBlock ? "disabled" : ""}>${amend ? "Save the change — " : ""}${esc(quoting ? "Send to the office to be quoted" : (outs.find((x) => x[0] === o) || [])[1] || "Submit")}</button></div>
+        <div class="kv"><b>Outcome</b><select data-outcome>${outs.map(([k, l]) => `<option value="${k}" ${o === k ? "selected" : ""}>${esc(l)}</option>`).join("")}</select><div class="hint">${esc((outs.find((x) => x[0] === o) || [])[2] || "")}${diagOnly(o) && fee ? ` · bills the ${esc(fee)}` : ""}</div></div>
+        ${quoting ? `<div class="parts"><div class="kv"><b>Parts needed</b></div>
+          <label class="later"><input type="checkbox" data-later ${later ? "checked" : ""} /> I need to look the parts up later (at a computer)</label>
+          ${later ? `<div class="hint">The call waits for you. You'll get a notification, it sits at the top of your day under <b>Parts lookups owed</b>, and tomorrow's route won't start until the parts are in. The office can't quote it until then.</div>` : `<div data-lines>${partsRows(pk.parts && pk.parts.length ? pk.parts : [{ part: "", desc: "", qty: 1 }], ctx)}</div><button type="button" class="mini" data-addline>+ another part</button>`}</div>
+        ${later ? "" : `<div class="labor"><div class="kv"><b>${isFlat(ctx) ? "Labor" : "Labor lines"}</b></div>${laborRows(pk, ctx)}</div>`}` : ""}
+        <div class="kv"><b>Service performed / notes</b><textarea data-findings placeholder="what you found, what's wrong, what you need — in your own words">${esc(pk.findings || "")}</textarea></div>
+        ${missing.length ? `<div class="req-strip">Still needed: ${esc(missing.join(" · "))}</div>` : ""}
+        <div class="row"><button class="primary" data-submit="${esc(s.sv)}" ${tagBlock ? "disabled" : ""}>${amend ? "Save the change — " : ""}${esc(later ? "Save — I'll add the parts later" : quoting ? "Send to the office to be quoted" : (outs.find((x) => x[0] === o) || [])[1] || "Submit")}</button></div>
       </div>`;
+    }
+    // Edit the call itself (Andrew 9/29): contact, address, unit, complaint,
+    // warranty ↔ COD. Pricing never lives here. Locked once billed.
+    function editForm(s, pk) {
+      const e = pk.edit || {};
+      const v = (k, d) => esc(e[k] ?? d ?? "");
+      return `<div class="form show edit" data-editform="${esc(s.sv)}">
+        <div class="g">
+          <div class="full"><label>Customer</label><input data-e="customerName" value="${v("customerName", s.customer)}" /></div>
+          <div><label>Phone</label><input data-e="phone" inputmode="tel" value="${v("phone", s.phone)}" /></div><div><label>Alt phone</label><input data-e="phoneAlt" inputmode="tel" value="${v("phoneAlt", s.phoneAlt)}" /></div>
+          <div class="full"><label>Email</label><input data-e="email" inputmode="email" value="${v("email", s.email)}" /></div>
+          <div class="full"><label>Address</label><input data-e="address1" value="${v("address1", s.address1)}" /></div>
+          <div><label>City</label><input data-e="city" value="${v("city", s.city)}" /></div><div><label>ZIP</label><input data-e="zip" inputmode="numeric" value="${v("zip", s.zip)}" /></div>
+          <div><label>Brand</label><input data-e="brand" value="${v("brand", s.unit.brand)}" /></div><div><label>Model</label><input data-e="model" value="${v("model", s.unit.model)}" /></div>
+          <div class="full"><label>Serial</label><input data-e="serial" class="mono" value="${v("serial", s.unit.serial)}" /></div>
+          <div class="full"><label>Problem (what the customer said)</label><textarea data-e="problem">${v("problem", s.problem)}</textarea></div>
+          <div class="full"><label>Access / directions</label><input data-e="accessNotes" value="${v("accessNotes", s.access)}" /></div>
+          <div class="full"><label>Who pays</label><div class="seg"><button type="button" data-wty="cod" aria-pressed="${(e.warranty ?? (s.warranty ? "warranty" : "cod")) === "cod"}">COD — out of warranty</button><button type="button" data-wty="warranty" aria-pressed="${(e.warranty ?? (s.warranty ? "warranty" : "cod")) === "warranty"}">Warranty</button></div><div class="hint">Changing this re-prices the labor on the open outcome (flat rate vs. zone + labor). ePASS still needs to be keyed to match.</div></div>
+        </div>
+        ${s.pricingLocked ? `<div class="hint" style="margin-top:.4rem">The quote has gone out — labor and parts pricing are locked; these details still save.</div>` : ""}
+        <div class="row"><button class="primary" data-saveedit="${esc(s.sv)}">Save call details</button><button type="button" data-canceledit="${esc(s.sv)}">Cancel</button></div>
+      </div>`;
+    }
+    // "Parts lookups owed": every call where this tech chose "look the parts up
+    // later". One from an earlier day blocks today's route until it's resolved.
+    const blocked = () => (R?.research?.blocking || 0) > 0 && (CTX._blockOn !== false);
+    function renderOwed() {
+      const r = R?.research; const box = $("#owed");
+      if (!r || !r.items?.length) { box.innerHTML = ""; return; }
+      const hard = r.blocking > 0;
+      box.innerHTML = `<div class="owed ${hard ? "" : "soft"}"><b>Parts lookups owed · ${r.items.length}</b><div class="hint">${hard ? "A lookup from an earlier day is open — On my way and Arrived stay off until the parts are in. Open each one, add the part numbers, the time, and send it to the office." : "Add the part numbers before your next route — tomorrow won't start until these are done."}</div>
+        ${r.items.map((i) => `<div class="it"><span><b style="display:inline;color:inherit">${esc(i.customer || i.sv)}</b> · ${esc(i.unit || "")} <span class="mono" style="font-size:.78rem">${esc(i.sv)}</span><div class="hint">${esc(i.note || "")}${i.routeDate ? ` · visit ${esc(fmtDay(i.routeDate))}` : ""}${i.blocking ? ' · <span class="chip bad">blocking</span>' : ""}</div></span><button type="button" class="primary" data-owed="${esc(i.sv)}" data-owedday="${esc(i.routeDate || "")}">Add parts</button></div>`).join("")}</div>`;
+      box.querySelectorAll("[data-owed]").forEach((b) => (b.onclick = () => openForParts(b.dataset.owed, b.dataset.owedday)));
+    }
+    // Open a stop on its own day in "change the outcome" mode with the parts quote up.
+    async function openForParts(sv, routeDate) {
+      if (routeDate && routeDate !== day) { day = routeDate; openSv = sv; await load(); }
+      openSv = sv; const pk = pkFor(sv); const s = R?.stops?.find((x) => x.sv === sv);
+      if (!s) { setStatus(`${sv} is not on ${fmtDay(day)}'s route — open it from the board.`, "error"); return; }
+      const lf = s.lastFinding; pk.mode = "amend"; pk.outcome = "parts"; pk.partsLater = false; pk.findings = lf?.findings || ""; if (lf?.parts?.length) pk.parts = lf.parts.map((l) => ({ ...l })); if (lf?.labor?.length) pk.labor = lf.labor.map((l) => ({ ...l })); if (lf?.estMinutes) pk.minutes = lf.estMinutes;
+      render(); await ensureContext(sv); document.querySelector(`.stop[data-sv="${sv}"]`)?.scrollIntoView({ behavior: "smooth", block: "start" });
     }
     function render() {
       const list = R?.stops || [];
       $("#title").textContent = `${R?.techName || R?.tech || "My day"} · ${fmtDay(day)}${day === today() ? " (today)" : ""}`;
       if (R?.canPick) { const sel = $("#techPick"); sel.hidden = false; sel.innerHTML = (R.techs || []).map((t) => `<option value="${esc(t.code)}" ${t.code === R.tech ? "selected" : ""}>${esc(t.name || t.code)}</option>`).join(""); }
       renderDollars();
-      $("#banner").innerHTML = day > today() ? `<div class="banner">Looking ahead — this is the board's plan for ${esc(fmtDay(day))}, read only. Stop order is provisional; if a date needs to change, message the office.</div>` : day < today() ? `<div class="banner">An earlier day — you can still open a stop to add a note.</div>` : "";
+      $("#banner").innerHTML = day > today() ? `<div class="banner">Looking ahead — this is the board's plan for ${esc(fmtDay(day))}, read only. Stop order is provisional; if a date needs to change, message the office.</div>` : day < today() ? `<div class="banner">An earlier day — open a stop to add a note, change the outcome or fix the call's details.</div>` : "";
+      renderOwed();
       if (R?.note) { $("#stops").innerHTML = `<div class="empty">${esc(R.note)}</div>`; return; }
       if (!list.length) { $("#stops").innerHTML = `<div class="empty">Nothing on the board for ${esc(R?.techName || R?.tech || "you")} on ${esc(fmtDay(day))}.</div>`; return; }
       const isToday = day === today();
@@ -201,14 +285,18 @@
             ${s.shopReturn && s.lastOutcome !== "shop" ? `<div class="banner">The ${esc([s.unit.brand, s.unit.category].filter(Boolean).join(" ") || "unit")} is coming back from the shop — it goes out on this trip.</div>` : ""}
             ${s.kind !== "diagnostic" && (s.parts.length || s.bin) ? `<div class="kv"><b>Parts on this truck for this job${s.bin ? ` · bin ${esc(s.bin)}` : ""}</b>${s.parts.length ? s.parts.map((p) => `<div>${esc([p.part, p.desc].filter(Boolean).join(" "))}${p.qty > 1 ? ` ×${p.qty}` : ""}</div>`).join("") : "<span class=hint>no part lines on the ticket in ePASS</span>"}</div>` : ""}
             <div class="kv"><b>Directions</b><a target="_blank" rel="noopener" href="https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent([s.address, s.city, s.zip].filter(Boolean).join(", "))}">Open in Maps</a>${s.phone ? ` · <a href="tel:${esc(s.phone)}">${esc(s.phone)}</a>` : ""}${s.phoneAlt ? ` · <a href="tel:${esc(s.phoneAlt)}">${esc(s.phoneAlt)}</a>` : ""} · <span class="mono">${esc(s.sv)}</span></div>
-            <div class="tabs"><button type="button" data-tab="before" aria-pressed="${pk.tab === "before"}">Before you knock${ctx ? ` · ${(ctx.history?.calls || []).length} past` : ""}</button>${done ? `<button type="button" data-tab="done" aria-pressed="${pk.tab === "done"}">This visit</button>` : ""}</div>
-            ${pk.tab === "before" ? beforePanel(s, ctx, pk) : ""}
+            ${s.researchPending ? `<div class="owed soft" style="margin:.4rem 0"><b>Parts lookup owed on this call</b><div class="hint">You chose "look the parts up later". Add the part numbers and the time, then send it to the office.</div><div class="row"><button type="button" class="primary" data-owed-here="${esc(s.sv)}">Add the parts now</button></div></div>` : ""}
+            ${(ctx?.bulletins || []).map((b) => `<div class="bulletin"><b>Service bulletin · ${esc(b.familyStem || b.brand)}</b>${esc(b.bulletin || b.why)}<div class="hint">${esc(b.techName || b.tech)} · published ${esc((b.reviewedAt || "").slice(0, 10))}</div></div>`).join("")}
+            <div class="fold ${pk.tab === "before" ? "open" : ""}"><button type="button" class="fh" data-tab="before">History &amp; Model Insight${ctx ? ` · ${(ctx.history?.calls || []).filter(atHouse).length} here, ${(ctx.history?.calls || []).length} on the account` : ""}</button><div class="fb">${pk.tab === "before" ? beforePanel(s, ctx, pk) : ""}</div></div>
+            ${s.arrivedAt && !done ? "" : `<div class="fold ${pk.tab === "photos" ? "open" : ""}"><button type="button" class="fh" data-tab="photos">Photos${ctx ? ` · ${(ctx.photos || []).length + (pk.photos || []).length + (pk.serialTagPhotoId ? 1 : 0)}` : ""}</button><div class="fb">${pk.tab === "photos" ? photosPanel(s, ctx, pk) : ""}</div></div>`}
+            <div class="fold ${pk.mode === "edit" ? "open" : ""}"><button type="button" class="fh" data-edit="${esc(s.sv)}">Call details — edit${s.billed ? " (billed · locked)" : ""}</button><div class="fb">${pk.mode === "edit" && !s.billed ? editForm(s, pk) : ""}</div></div>
             ${done ? `<div class="donebox"><b>${esc(LABEL[s.lastOutcome] || s.lastOutcome || s.status)}</b>${s.doneAt ? " · " + tm(s.doneAt) : ""}${lf?.minutes ? ` · ${lf.minutes} min on site` : ""}${d?.total ? ` · ${money(d.total)} (${esc(d.basis)})` : d?.pipeline ? ` · ${money(d.pipeline)} quoted` : ""}${lf?.findings ? `<div class="hint" style="margin-top:.3rem;white-space:pre-wrap">${esc(lf.findings)}</div>` : ""}${lf?.labor?.length ? `<div class="hint">Labor: ${lf.labor.map((l) => esc(`${l.desc || l.code} $${money2(l.amount)}`)).join(" · ")}</div>` : ""}${lf?.parts?.length ? `<div class="hint">Parts: ${lf.parts.map((l) => esc([l.part, l.desc].filter(Boolean).join(" ") + (l.qty > 1 ? ` ×${l.qty}` : ""))).join(" · ")}</div>` : ""}</div>
-              <div class="row">${pk.mode === "note" ? "" : `<button type="button" data-note="${esc(s.sv)}">Add a note</button>`}${pk.mode === "amend" || s.closed && !isToday ? "" : `<button type="button" data-amend="${esc(s.sv)}">Change the outcome</button>`}</div>
+              <div class="row">${pk.mode === "note" ? "" : `<button type="button" data-note="${esc(s.sv)}">Add a note</button>`}${pk.mode === "amend" || s.billed || (s.closed && !isToday) ? "" : `<button type="button" data-amend="${esc(s.sv)}">${s.researchPending ? "Add the parts" : "Change the outcome"}</button>`}</div>
               ${pk.mode === "note" ? `<div class="form show" data-noteform="${esc(s.sv)}">${photosPanel(s, ctx, pk)}<div class="kv"><b>Note to add</b><textarea data-notetext placeholder="anything you forgot, or found later">${esc(pk.noteText || "")}</textarea></div><div class="row"><button class="primary" data-savenote="${esc(s.sv)}">Save note</button><button type="button" data-cancelmode="${esc(s.sv)}">Cancel</button></div></div>` : ""}
               ${pk.mode === "amend" ? outcomeForm(s, ctx, pk, true) + `<div class="row"><button type="button" data-cancelmode="${esc(s.sv)}">Cancel the change</button></div>` : ""}` : !isToday ? `<div class="row">${day < today() ? `<button type="button" data-note="${esc(s.sv)}">Add a note</button>` : ""}</div>${pk.mode === "note" ? `<div class="form show" data-noteform="${esc(s.sv)}"><div class="kv"><b>Note to add</b><textarea data-notetext>${esc(pk.noteText || "")}</textarea></div><div class="row"><button class="primary" data-savenote="${esc(s.sv)}">Save note</button><button type="button" data-cancelmode="${esc(s.sv)}">Cancel</button></div></div>` : ""}` : `
-            <div class="row">${s.enrouteAt ? "" : `<button data-enroute="${esc(s.sv)}">On my way</button>`}${s.arrivedAt ? "" : `<button class="primary" data-arrived="${esc(s.sv)}">Arrived</button>`}${s.arrivedAt ? `<button class="primary" data-finish="${esc(s.sv)}">${pk.show ? "Hide outcome" : "Finish this stop"}</button>` : ""}</div>
-            ${s.arrivedAt ? `<div class="visit"><div class="kv"><b>📷 Photos for this visit${(pk.photos || []).length ? ` · ${(pk.photos || []).length} added` : ""}</b></div>${photosPanel(s, ctx, pk)}</div>` : ""}
+            ${blocked() && !s.researchPending ? `<div class="req-strip">Parts lookups owed from an earlier day — finish them (top of the page) before starting this stop.</div>` : ""}
+            <div class="row">${s.enrouteAt ? "" : `<button data-enroute="${esc(s.sv)}" ${blocked() ? "disabled" : ""}>On my way</button>`}${s.arrivedAt ? "" : `<button class="primary" data-arrived="${esc(s.sv)}" ${blocked() ? "disabled" : ""}>Arrived</button>`}${s.arrivedAt ? `<button class="primary" data-finish="${esc(s.sv)}">${pk.show ? "Hide outcome" : "Finish this stop"}</button>` : ""}</div>
+            ${s.arrivedAt ? `<div class="visit"><div class="kv"><b>📷 Serial tag &amp; photos${(pk.photos || []).length ? ` · ${(pk.photos || []).length} added` : ""}</b></div>${photosPanel(s, ctx, pk)}</div>` : ""}
             ${pk.show ? outcomeForm(s, ctx, pk, false) : ""}`}
           </div></div>`;
       }).join("");
@@ -226,12 +314,14 @@
         const ec = f.querySelector("[data-errcode]"); if (ec) pk.errCode = ec.value;
         [...f.querySelectorAll("[data-labor-lines] .line")].forEach((row, i) => { const v = Number(row.querySelector('[data-l="amount"]').value); if (pk.labor && pk.labor[i] && Number.isFinite(v) && v !== Number(pk.labor[i].amount)) { pk.labor[i].amount = v; pk.labor[i].edited = true; } });
       }
+      if (f) { const lt = f.querySelector("[data-later]"); if (lt) pk.partsLater = lt.checked; }
+      const ef = document.querySelector(`[data-editform="${sv}"]`); if (ef) { pk.edit = pk.edit || {}; ef.querySelectorAll("[data-e]").forEach((i) => { pk.edit[i.dataset.e] = i.value; }); }
       const nf = document.querySelector(`[data-noteform="${sv}"]`); if (nf) pk.noteText = nf.querySelector("[data-notetext]")?.value || "";
       const fl = document.querySelector(`.stop[data-sv="${sv}"] [data-flag]`); if (fl) pk.flagWhy = fl.value;
     }
     async function ensureContext(sv, force) {
       if (CTX[sv] && !force) return CTX[sv];
-      try { const c = await api(`/api/service-field/${sv}/context`); CTX[sv] = c; CTX._picks = c.timePicks || CTX._picks; const pk = pkFor(sv); if (!pk.labor) pk.labor = (c.lines || []).map((l) => ({ ...l })); if (openSv === sv) render(); return c; }
+      try { const c = await api(`/api/service-field/${sv}/context`); CTX[sv] = c; CTX._picks = c.timePicks || CTX._picks; if (c.blockOnResearch === false) CTX._blockOn = false; const pk = pkFor(sv); if (!pk.labor) pk.labor = (c.lines || []).map((l) => ({ ...l })); if (openSv === sv) render(); return c; }
       catch (e) { CTX[sv] = { history: { calls: [], error: e.message }, insight: { tiers: [] }, lines: [], bulletins: [] }; if (openSv === sv) render(); }
     }
     async function shrink(file) {
@@ -263,11 +353,29 @@
     }
     function wire() {
       document.querySelectorAll("[data-toggle]").forEach((h) => (h.onclick = () => { const sv = h.dataset.toggle; readForm(openSv); openSv = openSv === sv ? "" : sv; render(); if (openSv) ensureContext(openSv); }));
-      document.querySelectorAll("[data-tab]").forEach((b) => (b.onclick = () => { const sv = b.closest(".stop").dataset.sv; readForm(sv); pkFor(sv).tab = b.dataset.tab; render(); }));
+      document.querySelectorAll("[data-tab]").forEach((b) => (b.onclick = () => { const sv = b.closest(".stop").dataset.sv; readForm(sv); const pk = pkFor(sv); pk.tab = pk.tab === b.dataset.tab ? "" : b.dataset.tab; render(); }));
+      document.querySelectorAll("[data-hist]").forEach((b) => (b.onclick = () => { const sv = b.closest(".stop").dataset.sv; readForm(sv); pkFor(sv).histScope = b.dataset.hist; render(); }));
+      document.querySelectorAll("[data-later]").forEach((c) => (c.onchange = () => { const sv = c.closest(".stop").dataset.sv; readForm(sv); render(); }));
+      document.querySelectorAll("[data-owed-here]").forEach((b) => (b.onclick = () => openForParts(b.dataset.owedHere, day)));
+      document.querySelectorAll("[data-edit]").forEach((b) => (b.onclick = () => { const sv = b.dataset.edit; readForm(sv); const pk = pkFor(sv); pk.mode = pk.mode === "edit" ? "" : "edit"; if (pk.mode === "edit") pk.edit = {}; render(); }));
+      document.querySelectorAll("[data-canceledit]").forEach((b) => (b.onclick = () => { const sv = b.dataset.canceledit; pkFor(sv).mode = ""; pkFor(sv).edit = {}; render(); }));
+      document.querySelectorAll("[data-wty]").forEach((b) => (b.onclick = () => { const sv = b.closest(".stop").dataset.sv; readForm(sv); const pk = pkFor(sv); pk.edit = pk.edit || {}; pk.edit.warranty = b.dataset.wty; render(); }));
+      document.querySelectorAll("[data-saveedit]").forEach((b) => (b.onclick = async () => {
+        const sv = b.dataset.saveedit; readForm(sv); const pk = pkFor(sv); const s = R.stops.find((x) => x.sv === sv);
+        const e = pk.edit || {}; const flip = e.warranty && e.warranty !== (s.warranty ? "warranty" : "cod");
+        if (flip && !confirm(`${e.warranty === "warranty" ? "Mark this call WARRANTY" : "Mark this call OUT OF WARRANTY (COD)"} for ${s.customer || sv}?\n\nThe labor on the open outcome is re-priced to match. ePASS still has to be keyed.`)) return;
+        b.disabled = true;
+        try {
+          const body = { ...e }; if (body.warranty) body.warranty = body.warranty === "warranty";
+          const out = await api(`/api/service-field/${sv}/details`, { method: "POST", body: JSON.stringify(body) });
+          pk.mode = ""; pk.edit = {}; delete CTX[sv]; pk.labor = null;
+          setStatus(out.changed?.length ? `${sv} updated: ${out.changed.join("; ")}` : "Nothing changed.", "ok"); await load(); ensureContext(sv, true);
+        } catch (err) { setStatus(err.message, "error"); b.disabled = false; }
+      }));
       document.querySelectorAll("[data-tier]").forEach((b) => (b.onclick = () => { const sv = b.closest(".stop").dataset.sv; readForm(sv); pkFor(sv).tier = b.dataset.tier; render(); }));
       document.querySelectorAll("[data-more-history]").forEach((b) => (b.onclick = () => { const sv = b.closest(".stop").dataset.sv; readForm(sv); pkFor(sv).moreHistory = true; render(); }));
       document.querySelectorAll(".call .h").forEach((h) => (h.onclick = () => h.parentElement.classList.toggle("open")));
-      document.querySelectorAll("[data-enroute]").forEach((b) => (b.onclick = async () => { b.disabled = true; try { await api(`/api/service-field/${b.dataset.enroute}/enroute`, { method: "POST", body: "{}" }); await load(); } catch (e) { setStatus(e.message, "error"); } }));
+      document.querySelectorAll("[data-enroute]").forEach((b) => (b.onclick = async () => { b.disabled = true; try { const r = await api(`/api/service-field/${b.dataset.enroute}/enroute`, { method: "POST", body: "{}" }); if (r.texted) setStatus("On my way — the customer got a text.", "ok"); await load(); } catch (e) { setStatus(e.message, "error"); b.disabled = false; } }));
       document.querySelectorAll("[data-arrived]").forEach((b) => (b.onclick = async () => { b.disabled = true; try { await api(`/api/service-field/${b.dataset.arrived}/arrived`, { method: "POST", body: "{}" }); openSv = b.dataset.arrived; pkFor(openSv).show = true; await load(); ensureContext(openSv); } catch (e) { setStatus(e.message, "error"); } }));
       document.querySelectorAll("[data-finish]").forEach((b) => (b.onclick = () => { const sv = b.dataset.finish; readForm(sv); const pk = pkFor(sv); pk.show = !pk.show; if (pk.show && !pk.outcome) pk.outcome = defaultOutcome(R.stops.find((s) => s.sv === sv)); render(); }));
       document.querySelectorAll("[data-outcome]").forEach((sel) => (sel.onchange = () => { const sv = sel.closest(".stop").dataset.sv; readForm(sv); render(); }));
@@ -284,18 +392,20 @@
       document.querySelectorAll("[data-photo]").forEach((inp) => (inp.onchange = async () => { const sv = inp.closest(".stop").dataset.sv; readForm(sv); const pk = pkFor(sv); const files = [...inp.files]; if (!files.length) return; pk.uploading = true; render(); try { for (const f of files) { const r = await uploadPhoto(sv, inp.dataset.photo, f); if (inp.dataset.photo === "serial_tag") pk.serialTagPhotoId = r.id; else pk.photos.push(r.id); } } catch (e) { setStatus(e.message, "error"); } pk.uploading = false; render(); }));
       document.querySelectorAll("[data-flag-send]").forEach((b) => (b.onclick = async () => { const sv = b.dataset.flagSend; readForm(sv); const pk = pkFor(sv); const s = R.stops.find((x) => x.sv === sv); if (!(pk.flagWhy || "").trim()) { setStatus("Say why — a flag with no reason is noise.", "error"); return; } b.disabled = true; try { await api(`/api/service-field/${sv}/flag-model`, { method: "POST", body: JSON.stringify({ brand: s.unit.brand, model: s.unit.model, productCode: s.unit.category, why: pk.flagWhy, tech: R.tech }) }); pk.flagWhy = ""; setStatus("Sent to the service manager — once published, every tech on this model family sees it before they knock.", "ok"); render(); } catch (e) { setStatus(e.message, "error"); b.disabled = false; } }));
       document.querySelectorAll("[data-note]").forEach((b) => (b.onclick = () => { const sv = b.dataset.note; readForm(sv); pkFor(sv).mode = "note"; render(); }));
-      document.querySelectorAll("[data-amend]").forEach((b) => (b.onclick = () => { const sv = b.dataset.amend; readForm(sv); const pk = pkFor(sv); const s = R.stops.find((x) => x.sv === sv); const lf = s?.lastFinding; pk.mode = "amend"; pk.outcome = lf?.outcome || defaultOutcome(s); pk.findings = lf?.findings || ""; if (lf?.parts?.length) pk.parts = lf.parts.map((l) => ({ ...l })); if (lf?.labor?.length) pk.labor = lf.labor.map((l) => ({ ...l })); if (lf?.estMinutes) pk.minutes = lf.estMinutes; render(); ensureContext(sv); }));
+      document.querySelectorAll("[data-amend]").forEach((b) => (b.onclick = () => { const sv = b.dataset.amend; readForm(sv); const pk = pkFor(sv); const s = R.stops.find((x) => x.sv === sv); const lf = s?.lastFinding; pk.mode = "amend"; pk.outcome = lf?.outcome || defaultOutcome(s); pk.partsLater = false; pk.findings = lf?.findings || ""; if (lf?.parts?.length) pk.parts = lf.parts.map((l) => ({ ...l })); if (lf?.labor?.length) pk.labor = lf.labor.map((l) => ({ ...l })); if (lf?.estMinutes) pk.minutes = lf.estMinutes; render(); ensureContext(sv); }));
       document.querySelectorAll("[data-cancelmode]").forEach((b) => (b.onclick = () => { const sv = b.dataset.cancelmode; pkFor(sv).mode = ""; render(); }));
       document.querySelectorAll("[data-savenote]").forEach((b) => (b.onclick = async () => { const sv = b.dataset.savenote; readForm(sv); const pk = pkFor(sv); b.disabled = true; try { await api(`/api/service-field/${sv}/note`, { method: "POST", body: JSON.stringify({ tech: R.tech, note: pk.noteText || "", photos: pk.photos || [] }) }); pk.mode = ""; pk.noteText = ""; pk.photos = []; setStatus(`Note added to ${sv}.`, "ok"); await load(); ensureContext(sv, true); } catch (e) { setStatus(e.message, "error"); b.disabled = false; } }));
       document.querySelectorAll("[data-submit]").forEach((b) => (b.onclick = async () => {
         const sv = b.dataset.submit; readForm(sv); const pk = pkFor(sv); const s = R.stops.find((x) => x.sv === sv); const amend = pk.mode === "amend";
-        const label = LABEL[pk.outcome] || pk.outcome;
-        if (!confirm(`${label} for ${s?.customer || sv}?\n\n${amend ? "This replaces your earlier outcome. " : ""}The ticket's status changes and the office gets the packet for ePASS.`)) return;
+        const label = LABEL[pk.outcome] || pk.outcome; const quoting = pk.outcome === "parts" || pk.outcome === "moreparts"; const later = quoting && !!pk.partsLater;
+        if (!confirm(`${later ? "Save and look the parts up later" : label} for ${s?.customer || sv}?\n\n${amend ? "This replaces your earlier outcome. " : ""}${later ? "You'll get a notification; tomorrow's route won't start until the parts are in." : "The ticket's status changes and the office gets the packet for ePASS."}`)) return;
         b.disabled = true;
         try {
-          const out = await api(`/api/service-field/${sv}/outcome`, { method: "POST", body: JSON.stringify({ tech: R.tech, outcome: pk.outcome, findings: pk.findings || "", parts: (pk.parts || []).filter((l) => l.part || l.desc), labor: pk.labor || [], minutes: pk.minutes, photos: pk.photos || [], serialTagPhotoId: pk.serialTagPhotoId || null, amend }) });
+          // diagnostic-only outcomes carry no labor list - the diag fee is the bill
+          const labor = quoting && !later ? (pk.labor || []) : (pk.outcome === "complete" ? (pk.labor || []).filter((l) => l.kind === "component" || l.kind === "manual") : []);
+          const out = await api(`/api/service-field/${sv}/outcome`, { method: "POST", body: JSON.stringify({ tech: R.tech, outcome: pk.outcome, findings: pk.findings || "", parts: later ? [] : (pk.parts || []).filter((l) => l.part || l.desc), labor, minutes: pk.minutes, photos: pk.photos || [], serialTagPhotoId: pk.serialTagPhotoId || null, amend, partsLater: later }) });
           delete picked[sv]; delete CTX[sv]; openSv = "";
-          setStatus(`${sv} → ${out.status}${out.minutesOnSite ? ` · ${out.minutesOnSite} min on site` : ""}${out.estMinutes ? ` · return trip ${out.estMinutes} min` : ""}${pk.outcome === "parts" || pk.outcome === "moreparts" ? " · parts + labor sent to the office to verify and quote" : ""}${out.dollars?.total ? ` · ${money(out.dollars.total)} delivered` : ""}.`, "ok");
+          setStatus(later ? `${sv} saved — parts lookup owed. It's at the top of your day until the parts are in.` : `${sv} → ${out.status}${out.minutesOnSite ? ` · ${out.minutesOnSite} min on site` : ""}${out.estMinutes ? ` · return trip ${out.estMinutes} min` : ""}${quoting ? " · parts + labor sent to the office to verify and quote" : ""}${out.researchResolved ? " · parts lookup resolved" : ""}${out.dollars?.total ? ` · ${money(out.dollars.total)} delivered` : ""}.`, "ok");
           await load();
         } catch (e) { setStatus(e.message, "error"); b.disabled = false; }
       }));

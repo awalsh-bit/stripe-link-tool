@@ -366,11 +366,22 @@ const money = (n) => { const v = Number(n || 0); const s = "$" + Math.abs(v).toL
         const data = await res.json().catch(() => ({}));
         if (!res.ok) throw new Error(data.error || "Couldn't load your receipts.");
         if (data.me?.name) $("meName").textContent = data.me.name;
+        meEmail = String(data.me?.email || "").toLowerCase();
         renderRows(data.receipts || []);
       } catch (err) {
         setStatus("listStatus", err.message, "error");
         $("receiptRows").innerHTML = "";
       }
+    }
+    let meEmail = "";
+    // Borrowed cards: accounting can move a charge onto another person's
+    // card. A receipt I filed that now sits on someone else's card says so;
+    // one that was moved onto MY card shows who keyed it (only they or
+    // accounting can delete it).
+    function cardNote(r) {
+      if (!r.borrowed) return "";
+      if (r.filedByEmail === meEmail) return `<div class="purpose" style="color:#1d4ed8;">on ${esc(r.cardholderName || r.cardholderEmail)}'s card (moved by accounting)</div>`;
+      return `<div class="purpose" style="color:#1d4ed8;">filed by ${esc(r.filedByName || r.filedByEmail)} — moved to your card by accounting</div>`;
     }
     function renderRows(rows) {
       const total = rows.reduce((s, r) => s + (Number(r.amount) || 0), 0);
@@ -380,9 +391,9 @@ const money = (n) => { const v = Number(n || 0); const s = "$" + Math.abs(v).toL
         <tr data-id="${esc(r.id)}">
           <td class="c-photo">${attachmentCell(r)}</td>
           <td class="c-date">${esc(fmtDate(r.spentOn))}</td>
-          <td class="c-what">${r.merchant ? `<div class="merchant">${esc(r.merchant)}${r.amount < 0 ? `<span class="pill-return">RETURN</span>` : ""}${catPill(r)}</div>` : `${r.amount < 0 ? `<span class="pill-return">RETURN</span>` : ""}${catPill(r)}`}<div class="purpose">${esc(r.purpose)}</div></td>
+          <td class="c-what">${r.merchant ? `<div class="merchant">${esc(r.merchant)}${r.amount < 0 ? `<span class="pill-return">RETURN</span>` : ""}${catPill(r)}</div>` : `${r.amount < 0 ? `<span class="pill-return">RETURN</span>` : ""}${catPill(r)}`}<div class="purpose">${esc(r.purpose)}</div>${cardNote(r)}</td>
           <td class="num${r.amount < 0 ? " neg" : ""}">${money(r.amount)}</td>
-          <td class="c-actions"><button type="button" class="tiny danger rc-del" data-id="${esc(r.id)}">Delete</button></td>
+          <td class="c-actions">${!meEmail || r.filedByEmail === meEmail ? `<button type="button" class="tiny danger rc-del" data-id="${esc(r.id)}">Delete</button>` : ""}</td>
         </tr>`).join("");
     }
     $("receiptRows").addEventListener("click", async (ev) => {

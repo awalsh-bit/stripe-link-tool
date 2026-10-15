@@ -38,6 +38,8 @@
     .rc-edit-acts .msg { font-size: 12.5px; color: #b91c1c; }
     .rc-edited { display: inline-block; margin-left: 6px; font-size: 10.5px; font-weight: 800; border-radius: 6px; padding: 1px 6px; background: #fff7ed; color: #9a3412; vertical-align: 1px; }
     .rc-was { display: block; font-size: 11px; color: var(--muted); font-weight: 500; text-decoration: line-through; }
+    .rc-filer { display: block; font-size: 11px; color: var(--muted); font-weight: 500; }
+    .rc-moved { display: inline-block; margin-left: 6px; font-size: 10.5px; font-weight: 800; border-radius: 6px; padding: 1px 6px; background: #eff6ff; color: #1d4ed8; vertical-align: 1px; }
     @media (max-width: 720px) { .rc-edit-grid { grid-template-columns: 1fr 1fr; } }
 
     .toolbar { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; }
@@ -94,10 +96,10 @@
 
     <div class="surface">
       <h2>Card receipts</h2>
-      <p class="section-note">Pull receipts for one person, one month, or both. Tap a photo to open it full size; export the current view as CSV for the books.</p>
+      <p class="section-note">Pull receipts for one cardholder, one month, or both. Tap a photo to open it full size; export the current view as CSV for the books. A borrowed card? Edit the receipt and change the cardholder — who filed it stays on the row.</p>
       <div class="toolbar">
         <div class="field person">
-          <label for="personSelect">Person</label>
+          <label for="personSelect">Cardholder</label>
           <select id="personSelect"><option value="">Everyone</option></select>
         </div>
         <div class="field">
@@ -118,7 +120,7 @@
     <div class="surface">
       <div class="table-scroll">
         <table class="rc-table">
-          <thead><tr><th>Photo</th><th>Date</th><th>Filed by</th><th>Where / purpose</th><th class="num">Amount</th><th></th></tr></thead>
+          <thead><tr><th>Photo</th><th>Date</th><th>Cardholder</th><th>Where / purpose</th><th class="num">Amount</th><th></th></tr></thead>
           <tbody id="rows"><tr><td colspan="6" class="empty">Loading…</td></tr></tbody>
         </table>
       </div>
@@ -204,6 +206,21 @@ const money = (n) => { const v = Number(n || 0); const s = "$" + Math.abs(v).toL
 
     // Inline correction editor under the receipt's row.
     let editingId = null;
+    let people = null; // cardholder picker (loaded once, on first edit)
+    async function loadPeople() {
+      if (people) return people;
+      try {
+        const res = await fetch("/api/card-receipts/people", { credentials: "same-origin" });
+        const data = await res.json().catch(() => ({}));
+        people = res.ok ? (data.people || []) : [];
+      } catch { people = []; }
+      return people;
+    }
+    function cardholderOptions(r) {
+      const list = [...(people || [])];
+      if (!list.some((p) => p.email === r.cardholderEmail)) list.unshift({ email: r.cardholderEmail, name: r.cardholderName || r.cardholderEmail });
+      return list.map((p) => `<option value="${esc(p.email)}"${p.email === r.cardholderEmail ? " selected" : ""}>${esc(p.name)}${p.email === r.filedByEmail ? " (filed it)" : ""}</option>`).join("");
+    }
     const CATS = [["", "— no category —"], ["fuel", "Fuel"], ["parts", "Parts & supplies"], ["tools", "Tools & equipment"], ["meals", "Meals & entertainment"], ["travel", "Travel & lodging"], ["office", "Office & software"], ["other", "Other"]];
     function editorRow(r) {
       return `<tr class="rc-editor" data-edit="${esc(r.id)}"><td colspan="6">
@@ -212,6 +229,7 @@ const money = (n) => { const v = Number(n || 0); const s = "$" + Math.abs(v).toL
           <div><label>Amount</label><input type="number" step="0.01" class="e-amount" value="${r.amount}" title="Negative for a return"></div>
           <div><label>Category</label><select class="e-cat">${CATS.map(([k, l]) => `<option value="${k}"${(r.category || "") === k ? " selected" : ""}>${l}</option>`).join("")}</select></div>
           <div><label>Merchant</label><input type="text" class="e-merchant" value="${esc(r.merchant || "")}" maxlength="120"></div>
+          <div class="full"><label>Cardholder — whose card was charged (filed by ${esc(r.filedByName || r.filedByEmail)})</label><select class="e-holder" data-was="${esc(r.cardholderEmail)}">${cardholderOptions(r)}</select></div>
           <div class="full"><label>Purpose</label><input type="text" class="e-purpose" value="${esc(r.purpose || "")}" maxlength="400"></div>
           <div class="full"><label>Why (optional — shows on hover)</label><input type="text" class="e-note" placeholder="e.g. keyed 1,250.00 as 125.00" maxlength="300"></div>
         </div>
@@ -226,8 +244,9 @@ const money = (n) => { const v = Number(n || 0); const s = "$" + Math.abs(v).toL
       // Group by month when the view spans months, by person when it spans people.
       const spansMonths = !$("monthSelect").value || !$("yearSelect").value;
       const spansPeople = !$("personSelect").value;
-      const groupKey = spansMonths ? (r) => fmtMonth(r.month) : spansPeople ? (r) => r.filedByName || r.filedByEmail : () => "";
-      const sorted = spansMonths ? rows : [...rows].sort((a, b) => (a.filedByName || a.filedByEmail).localeCompare(b.filedByName || b.filedByEmail) || (a.spentOn < b.spentOn ? 1 : -1));
+      const holder = (r) => r.cardholderName || r.cardholderEmail || "";
+      const groupKey = spansMonths ? (r) => fmtMonth(r.month) : spansPeople ? holder : () => "";
+      const sorted = spansMonths ? rows : [...rows].sort((a, b) => holder(a).localeCompare(holder(b)) || (a.spentOn < b.spentOn ? 1 : -1));
       let html = "", lastGroup = null, groupTotal = 0;
       const flushGroup = () => { if (lastGroup !== null && lastGroup !== "") html += `<tr class="group"><td colspan="4">${esc(lastGroup)} subtotal</td><td class="num">${money(groupTotal)}</td><td></td></tr>`; groupTotal = 0; };
       for (const r of sorted) {
@@ -238,7 +257,7 @@ const money = (n) => { const v = Number(n || 0); const s = "$" + Math.abs(v).toL
           <tr data-id="${esc(r.id)}">
             <td class="c-photo">${attachmentCell(r)}</td>
             <td>${esc(fmtDate(r.spentOn))}</td>
-            <td>${esc(r.filedByName || r.filedByEmail)}</td>
+            <td>${esc(r.cardholderName || r.cardholderEmail)}${r.movedAt ? `<span class="rc-moved" title="Moved from ${esc(r.movedFromName || r.movedFromEmail)}'s card by ${esc(r.movedBy)} on ${esc(fmtDate(String(r.movedAt).slice(0, 10)))}${r.moveNote ? " — " + esc(r.moveNote) : ""}">moved</span>` : ""}${r.borrowed ? `<span class="rc-filer" title="Keyed by ${esc(r.filedByEmail)}">filed by ${esc(r.filedByName || r.filedByEmail)}</span>` : ""}</td>
             <td>${r.merchant ? `<div class="merchant">${esc(r.merchant)}</div>` : ""}<div>${esc(r.purpose)}</div>${(r.category || r.effectiveCategory) ? `<div style="font-size:11px;color:#6b7280;">${esc(({ fuel: "Fuel", parts: "Parts & supplies", tools: "Tools & equipment", meals: "Meals & entertainment", travel: "Travel & lodging", office: "Office & software", other: "Other" })[r.category || r.effectiveCategory] || "")}${r.category ? "" : " (by keyword)"}</div>` : ""}</td>
             <td class="num${r.amount < 0 ? " neg" : ""}">${money(r.amount)}${r.amount < 0 ? `<span class="pill-return">RETURN</span>` : ""}${r.editedAt ? `<span class="rc-edited" title="Corrected by ${esc(r.editedBy)} on ${esc(fmtDate(String(r.editedAt).slice(0, 10)))}${r.editNote ? " — " + esc(r.editNote) : ""}">edited</span>` : ""}${r.originalAmount != null && r.originalAmount !== r.amount ? `<span class="rc-was" title="As originally filed">was ${money(r.originalAmount)}</span>` : ""}</td>
             <td class="c-actions"><button type="button" class="tiny secondary rc-edit" data-id="${esc(r.id)}">Edit</button> <button type="button" class="tiny danger rc-del" data-id="${esc(r.id)}">Delete</button></td>
@@ -257,7 +276,7 @@ const money = (n) => { const v = Number(n || 0); const s = "$" + Math.abs(v).toL
     });
     $("rows").addEventListener("click", async (ev) => {
       const edit = ev.target.closest(".rc-edit");
-      if (edit) { editingId = editingId === edit.dataset.id ? null : edit.dataset.id; renderRows(lastData); $("rows").querySelector(".e-amount")?.focus(); return; }
+      if (edit) { editingId = editingId === edit.dataset.id ? null : edit.dataset.id; if (editingId) await loadPeople(); renderRows(lastData); $("rows").querySelector(".e-amount")?.focus(); return; }
       if (ev.target.closest(".rc-cancel")) { editingId = null; renderRows(lastData); return; }
       const save = ev.target.closest(".rc-save");
       if (save) {
@@ -268,7 +287,17 @@ const money = (n) => { const v = Number(n || 0); const s = "$" + Math.abs(v).toL
           const res = await fetch(`/api/card-receipts/${encodeURIComponent(save.dataset.id)}/edit`, { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
           const data = await res.json().catch(() => ({}));
           if (!res.ok) throw new Error(data.error || "Couldn't save the correction.");
-          editingId = null; await load(); setStatus("Correction saved.", "ok");
+          // Cardholder changed? Move the charge onto that card (separate call,
+          // separate audit entry - "who filed it" is never touched).
+          const holderSel = row.querySelector(".e-holder");
+          let moved = false;
+          if (holderSel && holderSel.value && holderSel.value !== holderSel.dataset.was) {
+            const mv = await fetch(`/api/card-receipts/${encodeURIComponent(save.dataset.id)}/move`, { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email: holderSel.value, name: holderSel.selectedOptions[0]?.textContent.replace(/ \(filed it\)$/, "") || "", note: body.note }) });
+            const mvData = await mv.json().catch(() => ({}));
+            if (!mv.ok) throw new Error(mvData.error || "Saved the correction, but couldn't move the charge.");
+            moved = true;
+          }
+          editingId = null; filersLoaded = !moved; await load(); setStatus(moved ? "Correction saved and charge moved to " + (holderSel.selectedOptions[0]?.textContent || "the new cardholder") + "." : "Correction saved.", "ok");
         } catch (err) { msg.textContent = err.message; save.disabled = false; }
         return;
       }

@@ -10,6 +10,10 @@
        never blocks first paint of the storefront. -->
   <link rel="preconnect" href="https://js.stripe.com" crossorigin />
   <style>
+    .fulfill-opt.need-day { outline: 2px solid #dc2626; outline-offset: 2px; box-shadow: 0 0 0 4px rgba(220, 38, 38, .12); }
+    .need-day-tag { display:inline-block; margin-left:6px; font-size:12px; font-weight:700; color:#991b1b; background:#fef2f2; border:1px solid #fecaca; border-radius:999px; padding:1px 8px; vertical-align:1px; }
+    @keyframes cart-shake { 0%,100%{transform:translateX(0)} 20%{transform:translateX(-5px)} 40%{transform:translateX(5px)} 60%{transform:translateX(-4px)} 80%{transform:translateX(4px)} }
+    #checkoutBtn.shake { animation: cart-shake .45s ease; }
     :root {
       --primary: #21692c;
       --primary-dark: #17501f;
@@ -2009,13 +2013,27 @@
   });
   $("drawerClose").addEventListener("click", closeCart);
 
-  function alertLine(message) {
-    const box = document.getElementById("cartNotice");
-    if (!box) return;
-    box.textContent = message;
-    box.style.display = "block";
+  // Cart notices live in state so a re-render (the price sync after openCart,
+  // a day pick) can't wipe one before the shopper reads it (Andrew 10/15: the
+  // "pick a day" message was dying silently). Painted at the top of the cart
+  // AND right above the checkout button, where the thumb is.
+  function alertLine(message, { sticky = false } = {}) {
+    state.cartNotice = message ? { message, until: sticky ? Infinity : Date.now() + 6000 } : null;
+    paintNotice();
     clearTimeout(alertLine._t);
-    alertLine._t = setTimeout(() => { box.style.display = "none"; }, 4200);
+    if (message && !sticky) alertLine._t = setTimeout(() => { state.cartNotice = null; paintNotice(); }, 6000);
+  }
+  function activeNotice() { const n = state.cartNotice; return n && n.until > Date.now() ? n.message : ""; }
+  function paintNotice() {
+    const msg = activeNotice();
+    for (const id of ["cartNotice", "checkoutNotice"]) {
+      const box = document.getElementById(id);
+      if (!box) continue;
+      box.textContent = msg;
+      box.style.display = msg ? "block" : "none";
+    }
+    const btn = document.getElementById("checkoutBtn");
+    if (btn) btn.classList.toggle("shake", !!msg && !!state.needDay);
   }
 
   function renderCart() {
@@ -2027,6 +2045,8 @@
     notice.style.cssText = "display:none; background:#fffbeb; border:1px solid #fde68a; color:#92400e; border-radius:10px; padding:9px 12px; font-size:13px; line-height:1.5; margin-bottom:8px;";
     body.appendChild(notice);
     const t = cartTotals();
+    // a day was picked (or pickup chosen) since the nag: clear it
+    if (state.needDay && (state.fulfillment.date || !state.delivery)) { state.needDay = false; state.cartNotice = null; }
 
     if (!t.items.length) {
       body.innerHTML = "<p class='muted' style='padding: 30px 0; text-align:center;'>Your cart is empty.</p>";
@@ -2090,26 +2110,26 @@
       if (f.method === "delivery" && f.date && !days.some((d) => d.date === f.date)) f.date = null;
       const chooser = document.createElement("div");
       chooser.innerHTML = `
-        <label class="fulfill-opt${f.method === "delivery" ? " on" : ""}">
+        <label class="fulfill-opt${f.method === "delivery" ? " on" : ""}${state.needDay && f.method === "delivery" ? " need-day" : ""}">
           <input type="radio" name="fulfillMethod" value="delivery"${f.method === "delivery" ? " checked" : ""}>
           <span class="fo-body">
             <span class="fo-nm"><span>${esc(state.delivery.name)}</span>
               <span class="fo-price"><span class="compare">${money(state.delivery.regularPrice)}</span>${money(state.delivery.price)}</span>
             </span>
             ${f.method === "delivery" ? `
-              <span class="fo-note" style="font-weight:700; color: var(--text, #1f2937); display:block; margin-top:8px;">Pick your delivery day:</span>
+              <span class="fo-note" style="font-weight:700; color: var(--text, #1f2937); display:block; margin-top:8px;">Pick your delivery day:${state.needDay ? ` <span class="need-day-tag">Choose a day to continue</span>` : ""}</span>
               <span class="day-chips">${days.map((d) => `<button type="button" class="day-chip${f.date === d.date ? " on" : ""}${d.sameDay ? " sameday" : ""}" data-day="${esc(d.date)}">${esc(d.label)}</button>`).join("")}</span>
             ` : ""}
           </span>
         </label>
-        <label class="fulfill-opt${f.method === "pickup" ? " on" : ""}">
+        <label class="fulfill-opt${f.method === "pickup" ? " on" : ""}${state.needDay && f.method === "pickup" ? " need-day" : ""}">
           <input type="radio" name="fulfillMethod" value="pickup"${f.method === "pickup" ? " checked" : ""}>
           <span class="fo-body">
             <span class="fo-nm"><span>${esc(opts.pickup?.name || "Customer Pickup")}</span>
               <span class="fo-price" style="color: var(--green, #21692c);">FREE</span>
             </span>
             ${f.method === "pickup" ? `
-              <span class="fo-note" style="font-weight:700; color: var(--text, #1f2937); display:block; margin-top:8px;">Pick your pickup day:</span>
+              <span class="fo-note" style="font-weight:700; color: var(--text, #1f2937); display:block; margin-top:8px;">Pick your pickup day:${state.needDay ? ` <span class="need-day-tag">Choose one to continue</span>` : ""}</span>
               <span class="day-chips">
                 ${(opts.pickupDates || []).map((d) => `<button type="button" class="day-chip${f.date === d.date ? " on" : ""}" data-day="${esc(d.date)}">${esc(d.label)}</button>`).join("")}
                 <button type="button" class="day-chip${f.date === "later" ? " on" : ""}" data-day="later">I'd like to pick this up later</button>
@@ -2171,8 +2191,10 @@
       <div class="tot-row"><span>Sales tax (${(state.taxRate * 100).toFixed(2).replace(/\.?0+$/, "")}%)</span><span>${money(t.tax)}</span></div>
       <div class="tot-row grand"><span>Estimated total</span><span>${money(t.total)}</span></div>
       <div class="tax-note">Nothing is charged until a Wilson team member confirms your order with you.</div>
+      <div id="checkoutNotice" role="alert" style="display:none; background:#fef2f2; border:1px solid #fecaca; color:#991b1b; border-radius:10px; padding:9px 12px; font-size:13px; line-height:1.5; margin-bottom:8px; font-weight:600;"></div>
       <button class="btn primary" id="checkoutBtn" style="width:100%;">Continue to secure checkout</button>`;
     document.getElementById("checkoutBtn").addEventListener("click", startCheckout);
+    paintNotice();
     const rm = document.getElementById("promoRm");
     if (rm) rm.addEventListener("click", () => { setPromo(null); renderCart(); });
     const open = document.getElementById("promoOpen");
@@ -2198,10 +2220,13 @@
     // catches the post-registration resume — it lands back on the cart with
     // the chooser highlighted rather than dead-ending.)
     if (state.delivery && !state.fulfillment.date) {
-      openCart();
+      state.needDay = true;
+      if (!$("cartDrawer").classList.contains("show")) openCart(); else renderCart();
       alertLine(state.fulfillment.method === "pickup"
         ? "Pick your pickup day — or choose \u201cI'd like to pick this up later\u201d — to continue to checkout."
-        : "Pick your delivery day (or choose free customer pickup) to continue to checkout.");
+        : "Pick your delivery day (or choose free customer pickup) to continue to checkout.", { sticky: true });
+      const chooser = document.querySelector("#drawerBody .fulfill-opt.need-day") || document.querySelector("#drawerBody .day-chips");
+      if (chooser) chooser.scrollIntoView({ behavior: "smooth", block: "center" });
       return;
     }
     // Card capture needs a shopper profile (name, address, contact) — an

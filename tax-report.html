@@ -181,7 +181,26 @@
       try { R = await api(`/api/tax-report?${params()}`); render(); } catch (e) { setStatus(e.message, "error"); } finally { $("#run").disabled = false; }
     }
     $("#run").onclick = run;
-    $("#export").onclick = () => { window.location.href = `/api/tax-report/export.xlsx?${params()}`; };
+    // Export through fetch, not a page navigation (Will 10/16: "won't export"
+    // with nothing on screen). This way a slow build shows progress, a server
+    // error shows its message here, and the file is handed to the browser as
+    // a blob download - which works even where a navigation-download is
+    // blocked by a browser or policy setting.
+    $("#export").onclick = async () => {
+      const btn = $("#export"); btn.disabled = true; const label = btn.textContent;
+      btn.textContent = "Building…"; setStatus(`Building the workbook for ${(R?.rows?.length || 0).toLocaleString()} invoices — a full year takes a little while.`, "ok");
+      try {
+        const res = await fetch(`/api/tax-report/export.xlsx?${params()}`, { credentials: "same-origin", cache: "no-store" });
+        if (!res.ok) { let msg = `Export failed (${res.status}).`; try { const j = await res.json(); if (j.error) msg = j.error; } catch {} throw new Error(msg); }
+        const blob = await res.blob();
+        if (!blob.size) throw new Error("The server returned an empty file.");
+        const name = (res.headers.get("Content-Disposition") || "").match(/filename="([^"]+)"/)?.[1] || `tax-report_${$("#from").value}_${$("#to").value}.xlsx`;
+        const url = URL.createObjectURL(blob); const a = document.createElement("a"); a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 60000);
+        setStatus(`Exported ${name} (${(blob.size / 1024).toFixed(0)} KB). If no file appeared, your browser blocked the download — look for a download icon in the address bar.`, "ok");
+      } catch (e) { setStatus(`Export failed: ${e.message}`, "error"); }
+      finally { btn.disabled = !R?.rows?.length; btn.textContent = label; }
+    };
     ["#from", "#to", "#type", "#taxCode", "#city", "#state", "#q"].forEach((s) => $(s).addEventListener("keydown", (e) => { if (e.key === "Enter") run(); }));
     (function init() { const [a, b] = monthRange(-1); $("#from").value = a; $("#to").value = b; renderQuick(); renderCoverage(); run(); })();
   </script>

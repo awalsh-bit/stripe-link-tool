@@ -37,6 +37,9 @@
     }
     button.action.secondary { background: rgba(var(--primary-rgb), 0.1); color: var(--primary); }
     .coverage-line { color: var(--muted); font-size: 12px; margin-top: 8px; }
+    .gap-banner { background: #fef2f2; border: 1px solid #fecaca; color: #991b1b; border-radius: 10px; padding: 10px 14px; font-size: 13.5px; line-height: 1.5; margin: 10px 0 4px; font-weight: 600; }
+    .gap-banner code { font-weight: 700; background: #fff; border: 1px solid #fecaca; border-radius: 6px; padding: 1px 6px; }
+    .tile.nodata .t-value { color: #9ca3af; }
     .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin: 14px 0 4px; }
     .tile { border: 1px solid var(--border); border-radius: 14px; padding: 14px 16px; background: var(--primary-faint, #fafdfa); }
     .tile .t-label { font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.03em; }
@@ -159,16 +162,24 @@
         if (!data) return;
         sortData();
         const t = data.totals;
+        // The delivered side exists only for the dates the finished-orders feed
+        // has pulled (Andrew 10/16: a Q1 run showed $0 delivered and looked
+        // broken). Say so loudly instead of printing zeros.
+        const cov = data.coverage || {};
+        const before = cov.from && data.from < cov.from, after = cov.to && data.to > cov.to;
+        const gap = !!(before || after) && !t.units;
+        const partial = !!(before || after) && !!t.units;
         $("tiles").innerHTML = `
-          <div class="tile"><div class="t-label">Delivered revenue</div><div class="t-value">${money(t.revenue)}</div><div class="t-sub">${esc(data.from)} → ${esc(data.to)}${data.department ? " · " + esc(data.department) : ""}${t.discount ? ` · ${money(-t.discount)} of ePASS discounts netted` : ""}</div></div>
-          <div class="tile"><div class="t-label">Gross margin</div><div class="t-value">${money(t.margin)}</div><div class="t-sub">${pct(t.margin, t.revenue)} · cost ${money(t.cost)}</div></div>
+          ${before || after ? `<div class="gap-banner" style="grid-column:1/-1">${gap ? "No delivered data for this window." : "Delivered numbers are PARTIAL for this window."} The ePASS feed has delivered units on file from <b>${esc(cov.from)}</b> to <b>${esc(cov.to)}</b>${before ? ` — nothing before ${esc(cov.from)} has been pulled yet` : ""}. Units written still counts (it comes from the open book and ticket start dates). To fill in earlier history, run the pull once on the ePASS server with <code>-FinishedSince ${esc(data.from)}</code>.</div>` : ""}
+          <div class="tile${gap ? " nodata" : ""}"><div class="t-label">Delivered revenue</div><div class="t-value">${money(t.revenue)}</div><div class="t-sub">${esc(data.from)} → ${esc(data.to)}${data.department ? " · " + esc(data.department) : ""}${t.discount ? ` · ${money(-t.discount)} of ePASS discounts netted` : ""}</div></div>
+          <div class="tile${gap ? " nodata" : ""}"><div class="t-label">Gross margin</div><div class="t-value">${money(t.margin)}</div><div class="t-sub">${pct(t.margin, t.revenue)} · cost ${money(t.cost)}</div></div>
           <div class="tile"><div class="t-label">Units written</div><div class="t-value">${num(t.written)}</div><div class="t-sub">tickets started in the window · ${num(t.writtenOpen)} still open${t.writtenRevenue ? ` · ${money(t.writtenRevenue)} written` : ""}</div></div>
-          <div class="tile"><div class="t-label">Units delivered</div><div class="t-value">${num(t.units)}</div><div class="t-sub">tickets finished in the window · ${num(t.models)} models${t.returned ? ` · ${num(t.returned)} returned` : ""}</div></div>
+          <div class="tile${gap ? " nodata" : ""}"><div class="t-label">Units delivered</div><div class="t-value">${num(t.units)}</div><div class="t-sub">${gap ? `no feed data before ${esc(cov.from || "")}` : "tickets finished in the window"} · ${num(t.models)} models${t.returned ? ` · ${num(t.returned)} returned` : ""}</div></div>
           <div class="tile"><div class="t-label">Brands</div><div class="t-value">${num(data.brands.filter((b) => !b.brand.startsWith("—")).length)}</div><div class="t-sub">${t.unmatchedModels ? `<span class="warn-chip">${num(t.unmatchedModels)} model${t.unmatchedModels === 1 ? "" : "s"} not in the ePASS model master</span>` : "every model attributed"}${t.unpriced ? ` <span class="warn-chip">${num(t.unpriced)} unit${t.unpriced === 1 ? "" : "s"} without a model line</span>` : ""}</div></div>
           <div class="tile"><div class="t-label">Avg revenue / unit</div><div class="t-value">${t.units ? money(t.revenue / t.units) : "—"}</div><div class="t-sub">across the whole window</div></div>`;
 
         if (!data.brands.length) {
-          $("tableHost").innerHTML = '<div class="empty">No units delivered in that window — check the coverage note above (the data comes from the hourly ePASS finished-orders feed).</div>';
+          $("tableHost").innerHTML = `<div class="empty">No units delivered in that window${before ? ` — the feed has no delivered history before ${esc(cov.from)} yet (see the note above)` : " — the data comes from the hourly ePASS finished-orders feed"}.</div>`;
           return;
         }
         const totalRev = Math.max(t.revenue, 0.01);

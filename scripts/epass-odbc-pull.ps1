@@ -788,14 +788,28 @@ ORDER BY i.InvFinishDate, i.Code
     # 9/28: the serial carries the model line it was committed to
     # (ModelLineTimeStamp = InvoiceModel.LineTimeStamp), so Brand Sales can
     # price each unit from its own line and net the linked discount.
-    $fin.datasets["finished-serials"] = Export-Query $conn @"
-SELECT s.InvoiceCode, s.ModelCode, s.SerialCode, s.UnitCost, s.Returned, s.Status,
-       s.ModelLineTimeStamp, s.ModelDateStamp, s.DateCommitted, s.LocationCode
+    # 10/15: the serial's type (ALL / OPEN / DISPLAY / RTV / SVC) rides along
+    # from the Serial master so Sales Commissions can be built from the feed
+    # instead of the Crystal commission report (new serial vs closeout vs
+    # excluded). Tried with the join first; the plain view still goes if
+    # ePASS rejects it.
+    $finSerialCols = "s.InvoiceCode, s.ModelCode, s.SerialCode, s.UnitCost, s.Returned, s.Status,
+       s.ModelLineTimeStamp, s.ModelDateStamp, s.DateCommitted, s.LocationCode"
+    try {
+      $fin.datasets["finished-serials"] = Export-Query $conn ("SELECT " + $finSerialCols + ", ser.SerialTypeCode
+FROM InvoiceSerial s
+INNER JOIN Invoice i ON s.InvoiceCode = i.Code
+LEFT JOIN Serial ser ON ser.Code = s.SerialCode AND ser.ModelCode = s.ModelCode
+WHERE $finWhere
+ORDER BY s.InvoiceCode") (Join-Path $LatestDir "finished-serials.csv") "finished-serials"
+    } catch {
+      Log ("finished-serials with Serial join FAILED ({0}) - retrying without SerialTypeCode" -f $_.Exception.Message); if ($conn.State -ne [System.Data.ConnectionState]::Open) { $conn.Open() }
+      $fin.datasets["finished-serials"] = Export-Query $conn ("SELECT " + $finSerialCols + "
 FROM InvoiceSerial s
 INNER JOIN Invoice i ON s.InvoiceCode = i.Code
 WHERE $finWhere
-ORDER BY s.InvoiceCode
-"@ (Join-Path $LatestDir "finished-serials.csv") "finished-serials"
+ORDER BY s.InvoiceCode") (Join-Path $LatestDir "finished-serials.csv") "finished-serials"
+    }
 
     $fin.datasets["finished-items"] = Export-Query $conn @"
 SELECT p.InvoiceCode, p.ItemCode, p.QtyOrdered, p.QtyShipped, p.SellingPrice, p.UnitCost, p.Total, p.Warranty, p.Status

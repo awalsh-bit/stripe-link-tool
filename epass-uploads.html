@@ -140,9 +140,9 @@
           endpoint: "/api/epass-uploads/open-orders", field: "report", fresh: [30, 72]
         },
         {
-          key: "commissions", title: "Commission Report (unfiltered)", cadence: "MONTHLY",
+          key: "commissions", title: "Commission Report (unfiltered)", cadence: "OPTIONAL — automated",
           src: "ePASS → Commissions → unfiltered report (.xlsx)",
-          desc: "Model-level commission lines for one statement month. Feeds Sales Order Detail line items, Field Sales Commissions, and the Returns report. Pick the month it covers, then upload — each upload replaces that month.",
+          desc: "No longer needed: Sales Commissions builds each month's model and Epic Protect lines from the ePASS feed automatically. Upload a Crystal report only to OVERRIDE a month — the upload wins over the feed for that month (an executive can put the month back on the feed from Sales Commissions).",
           endpoint: "/api/commission-report", field: "report", month: true
         },
         {

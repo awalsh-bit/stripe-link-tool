@@ -251,9 +251,10 @@
       <p class="section-note">
         Live statements computed from the <a href="sales-order-detail.html">Sales Order Detail</a> warehouse —
         no import runs, no locks. Each rep computes under their directory commission plan (Field Sales,
-        Showroom, or HVAC Selling Tech — job code E25, paid on whole-job margin straight from the ePASS feed);
-        re-uploading a month's Crystal report refreshes the appliance statements. Split sales are credited half
-        to each partner and badged.
+        Showroom, or HVAC Selling Tech — job code E25, paid on whole-job margin straight from the ePASS feed).
+        Appliance lines come from the ePASS feed too — every serial and Epic Protect plan on the month's finished
+        tickets, nothing to upload (a Crystal commission report uploaded for a month overrides the feed for that
+        month). Split sales are credited half to each partner and badged.
       </p>
       <div class="toolbar">
         <select id="monthSelect"></select>
@@ -265,6 +266,7 @@
         <button type="button" class="ghost-btn" id="csvBtn">Export summary CSV</button>
         <span class="asof" id="countLine"></span>
       </div>
+      <div class="balance-line" id="linesLine"></div>
       <div class="balance-line" id="balanceLine"></div>
       <div class="banner" id="errorBanner"></div>
 
@@ -678,7 +680,7 @@
           <tbody>${lineRows(st.newLines, "new")}
             <tr class="total-row"><td colspan="5">Total</td><td class="num">${money(t.newRevenue)}</td><td></td><td></td><td class="num">${money(t.newCommission)}</td><td class="no-print"></td></tr>
           </tbody>
-        </table>` : '<div class="empty-sec">No serial inventory this month.</div>'}
+        </table>` : '<div class="empty-sec">No serial inventory this month (nothing finished under this code in ePASS yet).</div>'}
 
         <div class="sec-title">Closeout Serial Inventory<span class="sec-sub">Open Box &amp; Display — flat rate</span></div>
         ${st.closeoutLines.length ? `
@@ -752,7 +754,22 @@
       return showAll ? all : all.filter((s) => pagePlans.includes(s.commissionPlan));
     }
 
+    function renderLinesLine() {
+      const ll = el("linesLine");
+      if (!data?.month) { ll.textContent = ""; return; }
+      const src = data.lineSource;
+      const fmt = (iso) => iso ? new Date(iso).toLocaleString("en-US", { timeZone: "America/Chicago", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) : "";
+      if (src && src.auto) { ll.className = "balance-line ok"; ll.textContent = `Appliance lines for ${monthLabel(data.month)} come from the ePASS feed automatically — ${src.lines} serial / Protect line(s) as of ${fmt(src.at)}. The current month fills in as tickets finish; no upload needed.`; }
+      else if (src) {
+        ll.className = "balance-line ok"; ll.textContent = `Appliance lines for ${monthLabel(data.month)}: ${src.filename || "uploaded report"} (${fmt(src.at)}, ${src.lines} lines) — a manual Crystal upload; it overrides the ePASS feed for this month. `;
+        const b = document.createElement("button"); b.type = "button"; b.className = "ghost-btn"; b.textContent = "Use the ePASS feed instead"; b.style.marginLeft = "6px";
+        b.onclick = async () => { if (!confirm(`Replace the uploaded ${monthLabel(data.month)} lines with the ePASS feed's? Overrides stay attached where the lines match.`)) return; b.disabled = true; try { const r = await fetch("/api/field-commissions/lines-from-feed", { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ month: data.month }) }); const j = await r.json().catch(() => ({})); if (!r.ok) throw new Error(j.error || "Failed."); await load(data.month); } catch (e) { alert(e.message); b.disabled = false; } };
+        ll.appendChild(b);
+      }
+      else { ll.className = "balance-line warn"; ll.textContent = `No appliance lines for ${monthLabel(data.month)} yet — the ePASS feed hasn't delivered any finished tickets for it (only HVAC jobs show). They appear on the next pull.`; }
+    }
     function renderBalanceLine() {
+      renderLinesLine();
       const bl = el("balanceLine");
       if (!data?.month) { bl.textContent = ""; return; }
       const check = (data.balanceChecks || {})[data.month];

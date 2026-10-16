@@ -253,7 +253,7 @@ import {
   listRevenuePerformanceSources
 } from "./lib/revenue-performance-postgres.js";
 import { finishedTicketsFromFeed, salespersonNamesFromFeed, ticketsByMonth, openOrderTicketsFromFeed, compareTickets } from "./lib/epass-feed-finished.js";
-import { replaceEpassSoldSerials, listSoldSerialsByModel, listSoldSerialsForModel, getEpassSoldSerialsMeta } from "./lib/epass-sold-serials-postgres.js";
+import { replaceEpassSoldSerials, listSoldSerialsByModel, listSoldSerialsForModel, getEpassSoldSerialsMeta, listSoldSerialMonths, commissionLinesFromFeed } from "./lib/epass-sold-serials-postgres.js";
 import { createEvent, updateEvent, setEventStatus, deleteEvent, getEvent, listEvents, listInvitees, addInvitees, updateInvitee, deleteInvitee, inviteesFromGrid, listRsvps, listPublicEvents, getPublicEvent, submitRsvp, migrateLegacyEvents, INVITEE_STATUSES } from "./lib/events-postgres.js";
 import { upsertEpassCustomers, getEpassCustomersMeta, getEpassCustomers, searchEpassCustomers as searchEpassCustomerMaster, matchEpassCustomersForShoppers, setShopperEpassLink, epassCustomerHistory } from "./lib/epass-customers-postgres.js";
 import { loadWarrantyTerms, lookupWarranty, warrantyTermsSummary } from "./lib/warranty-terms.js";
@@ -5859,6 +5859,9 @@ const STATIC_DENY_EXACT = new Set(["/server.js", "/employee-directory.js"]); // 
 app.use((req, res, next) => {
   const requestPath = decodeURIComponent(req.path);
   if (requestPath === "/robots.txt") return next();
+  // API routes are code, not files on disk - the extension guard must not
+  // catch them (10/16: /api/tax-report/export.xlsx was answering "Not found.").
+  if (requestPath.startsWith("/api/")) return next();
   if (
     STATIC_DENY_DIRS.test(requestPath) ||
     STATIC_DENY_FILES.test(requestPath) ||
@@ -10675,6 +10678,14 @@ async function processFinishedOrdersBundle(bundle) {
   if (Array.isArray(bundle.datasets?.["finished-serials"])) {
     try { counts.soldSerials = await replaceEpassSoldSerials(bundle, { filename: `ePASS feed ${bundle.pulledAt || ""}`.trim() }); }
     catch (err) { console.error("Sold serials from ePASS feed failed:", err.message); counts.soldSerials = { error: err.message }; }
+    // Sales Commissions lines for every month the bundle's window touches
+    // (Andrew 10/15: no more Crystal upload) - a month someone uploaded by
+    // hand is left alone.
+    try {
+      const since = /^\d{4}-\d{2}-\d{2}$/.test(String(bundle.finishedSince || "")) ? String(bundle.finishedSince).slice(0, 7) : new Date().toLocaleDateString("en-CA", { timeZone: APP_TIMEZONE }).slice(0, 7);
+      const months = (await listSoldSerialMonths()).filter((m) => m >= since);
+      counts.commissionLines = await syncCommissionLinesFromFeed(months, { force: true });
+    } catch (err) { console.error("Commission lines from ePASS feed failed:", err.message); counts.commissionLines = { error: err.message }; }
   }
   try {
     const fin = bundle.datasets?.["finished-orders"];
@@ -11491,11 +11502,13 @@ app.get("/api/tax-report/export.xlsx", requireTaxReport, async (req, res) => {
     xlsxUtils.book_append_sheet(wb, xlsxUtils.json_to_sheet(out.byCity.map((c) => ({ City: c.key, Invoices: c.invoices, GrossTotal: c.gross, TaxableBase: c.taxableBase, Tax2Total: c.tax2, TaxTotal: c.taxTotal }))), "By city");
     xlsxUtils.book_append_sheet(wb, xlsxUtils.json_to_sheet([{ From: out.from, To: out.to, Invoices: out.totals.invoices, GrossTotal: out.totals.gross, TaxableBase: out.totals.taxableBase, ExemptBase: out.totals.exemptBase, Tax1Total: out.totals.tax1, Tax2Total: out.totals.tax2, Tax3Total: out.totals.tax3, TaxTotal: out.totals.taxTotal, EffectiveRatePct: out.totals.effectiveRate, RateOnTaxablePct: out.totals.rateOnTaxable, RunAt: new Date().toISOString(), RunBy: sjMe(req).email }]), "Totals");
     const buf = writeWorkbook(wb, { type: "buffer", bookType: "xlsx" });
-    sjAudit(req, "tax_report_exported", { from: out.from, to: out.to, invoices: out.totals.invoices });
+    sjAudit(req, "tax_report_exported", { from: out.from, to: out.to, invoices: out.totals.invoices, bytes: buf.length });
     res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
     res.setHeader("Content-Disposition", `attachment; filename="tax-report_${out.from}_${out.to}.xlsx"`);
+    res.setHeader("Content-Length", String(buf.length));
+    res.setHeader("Cache-Control", "no-store");
     return res.end(buf);
-  } catch (err) { return res.status(400).json({ error: err.message }); }
+  } catch (err) { console.error("Tax report export failed:", err.stack || err.message); return res.status(400).json({ error: `Export failed: ${err.message}` }); }
 });
 
 // ---- Tech field tool (Client Care) — service-field.html -------------------
@@ -12408,10 +12421,47 @@ async function autoCommissionBalanceChecks(balanceChecks, windowMonths, lines) {
   }
 }
 
+// Commission lines from the ePASS feed (Andrew 10/15: "stop the need to
+// upload anything for the commission reports"). For each month: a month
+// someone uploaded a Crystal report for keeps that upload (it wins); any
+// other month is (re)built from epass_sold_serials / epass_sold_warranties
+// as "ePASS feed (automatic)". The bundle processor calls this for its
+// window on every pull; the statements page calls it for months that have
+// feed data but no lines yet (and refreshes an auto month at most every 10
+// minutes), so nothing depends on a person remembering to upload.
+const AUTO_COMMISSION_LINES_NAME = "ePASS feed (automatic)";
+const autoCommissionLinesAt = new Map(); // month -> last rebuild ms
+async function syncCommissionLinesFromFeed(months, { force = false, replaceManual = false } = {}) {
+  const pool = await getPostgresPool();
+  if (!pool) return { skipped: "no database" };
+  const out = { rebuilt: [], kept: [], empty: [] };
+  const names = await listSalespersonNames().catch(() => ({}));
+  for (const month of months) {
+    if (!/^\d{4}-\d{2}$/.test(String(month || ""))) continue;
+    const cur = (await pool.query(`SELECT MAX(source_filename) AS filename, COUNT(*)::int AS n FROM sales_order_lines WHERE source_month = $1`, [month])).rows[0];
+    const manual = cur && cur.n > 0 && String(cur.filename || "") !== AUTO_COMMISSION_LINES_NAME;
+    if (manual && !replaceManual) { out.kept.push(month); continue; }
+    if (!force && cur?.n > 0 && Date.now() - (autoCommissionLinesAt.get(month) || 0) < AUTO_BALANCE_REFRESH_MS) { out.kept.push(month); continue; }
+    const lines = await commissionLinesFromFeed(month, { names });
+    if (!lines.length) { out.empty.push(month); continue; }
+    await replaceCommissionLines(month, lines, { filename: AUTO_COMMISSION_LINES_NAME });
+    autoCommissionLinesAt.set(month, Date.now());
+    out.rebuilt.push({ month, lines: lines.length });
+  }
+  return out;
+}
+
 async function computeFieldCommissionMonth(requestedMonth) {
-  // Statement months: Crystal-upload months (appliance lines) ∪ months with
-  // HVAC jobs from the ePASS finished feed (Andrew 9/23: the HVAC plan pays
-  // on the job straight from the feed — no upload).
+  // Statement months: months with appliance lines (from the ePASS feed, or a
+  // Crystal upload that overrides it) ∪ months with HVAC jobs from the feed.
+  // A month the feed knows but nobody built yet is built here, on read.
+  try {
+    const soldMonths = await listSoldSerialMonths();
+    const have = new Set(await listCommissionMonths());
+    const missing = soldMonths.filter((m) => !have.has(m));
+    const nowMonth = new Date().toLocaleDateString("en-CA", { timeZone: APP_TIMEZONE }).slice(0, 7);
+    await syncCommissionLinesFromFeed([...new Set([...missing, nowMonth])]);
+  } catch (err) { console.warn("Commission lines auto-build skipped:", err.message); }
   const [lineMonths, hvacMonths] = await Promise.all([listCommissionMonths(), listHvacJobMonths().catch(() => [])]);
   const months = [...new Set([...lineMonths, ...hvacMonths])].sort().reverse();
   if (!months.length) {
@@ -12491,8 +12541,14 @@ app.get("/api/field-commissions", requireCommissionsPage, async (req, res) => {
         invoiceCount: check.invoiceCount, unpaidCount: check.unpaidCount
       };
     }
+    let lineSource = null;
+    try {
+      const pool = await getPostgresPool();
+      const r = pool ? (await pool.query(`SELECT MAX(source_filename) AS filename, MAX(uploaded_at) AS at, COUNT(*)::int AS n FROM sales_order_lines WHERE source_month = $1`, [month])).rows[0] : null;
+      if (r && r.n > 0) lineSource = { auto: String(r.filename || "") === AUTO_COMMISSION_LINES_NAME, filename: r.filename || "", at: r.at ? new Date(r.at).toISOString() : null, lines: r.n };
+    } catch {}
     return res.json({
-      months, month, windowMonths, statements, balanceChecks: balanceMeta,
+      months, month, windowMonths, statements, balanceChecks: balanceMeta, lineSource,
       hvacUnassigned: hvacUnassigned || [],
       plan: FIELD_SALES_PLAN,
       plans: [FIELD_SALES_PLAN, SHOWROOM_PLAN, HVAC_PLAN],
@@ -12528,6 +12584,18 @@ async function buildStatementPdfFor(month, code) {
   const fileLabel = `commission-statement-${statement.code}-${month}`.replace(/[^A-Za-z0-9_-]+/g, "-");
   return { pdfBytes, fileLabel, statement };
 }
+
+// Put a month back on the feed after someone uploaded a Crystal report for it.
+app.post("/api/field-commissions/lines-from-feed", requireCommissionsPage, requireExecutiveApi, async (req, res) => {
+  try {
+    const month = String(req.body?.month || "");
+    if (!/^\d{4}-\d{2}$/.test(month)) return res.status(400).json({ error: "Pick a month." });
+    const out = await syncCommissionLinesFromFeed([month], { force: true, replaceManual: true });
+    recordAudit({ ip: req.ip, actorUserId: req.authUser?.id || null, action: "commission_lines_rebuilt_from_feed", targetUserId: null, detail: { month, result: out } }).catch(() => {});
+    if (out.empty.includes(month)) return res.status(400).json({ error: `The ePASS feed has no finished tickets for ${month} — the uploaded lines were kept.` });
+    return res.json({ ok: true, ...out });
+  } catch (err) { return res.status(400).json({ error: err.message }); }
+});
 
 app.get("/api/field-commissions/statement-pdf", requireCommissionsPage, async (req, res) => {
   try {

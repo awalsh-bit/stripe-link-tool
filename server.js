@@ -12542,6 +12542,16 @@ function commissionMonthLabel(month) {
   return `${["January","February","March","April","May","June","July","August","September","October","November","December"][m - 1]} ${y}`;
 }
 
+// Month list only (cheap) - the page shows the picker and waits for Run
+// (Andrew 10/19: "nothing loads by default, I'll select a month and click run").
+app.get("/api/field-commissions/months", requireCommissionsPage, async (req, res) => {
+  try {
+    const [lineMonths, hvacMonths, soldMonths] = await Promise.all([listCommissionMonths(), listHvacJobMonths().catch(() => []), listSoldSerialMonths().catch(() => [])]);
+    const months = [...new Set([...lineMonths, ...hvacMonths, ...soldMonths])].sort().reverse();
+    return res.json({ months, plans: [FIELD_SALES_PLAN, SHOWROOM_PLAN, HVAC_PLAN], pagePlans: COMMISSION_PAGE_PLANS });
+  } catch (err) { return res.status(500).json({ error: `Unable to list statement months — ${err.message}` }); }
+});
+
 app.get("/api/field-commissions", requireCommissionsPage, async (req, res) => {
   try {
     const { months, month, windowMonths, statements, balanceChecks, hvacUnassigned } = await computeFieldCommissionMonth(req.query.month);

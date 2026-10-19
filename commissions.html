@@ -62,6 +62,8 @@
 
     .check-inline { display: inline-flex; align-items: center; gap: 7px; font-size: 13px; font-weight: 600; }
 
+    .primary-btn { background: #2f6b3a; color: #fff; border: 1px solid #2f6b3a; border-radius: 10px; padding: 8px 18px; font: inherit; font-weight: 800; cursor: pointer; }
+    .primary-btn[disabled] { opacity: .6; cursor: wait; }
     .ghost-btn {
       appearance: none;
       border: 1px solid rgba(var(--primary-rgb), 0.25);
@@ -258,6 +260,7 @@
       </p>
       <div class="toolbar">
         <select id="monthSelect"></select>
+        <button type="button" class="primary-btn" id="runBtn">Run</button>
         <label class="check-inline"><input type="checkbox" id="showAll" /> Show all salespeople (including unassigned plans)</label>
         <button type="button" class="ghost-btn" id="foldAll">Expand all</button>
         <span style="flex: 1;"></span>
@@ -796,8 +799,9 @@
         ? `${rows.length} statement(s) — ${monthLabel(data.month)}`
         : "";
       renderBalanceLine();
+      if (!data) { el("statements").innerHTML = `<div class="empty-sec" style="padding:28px 16px;font-size:15px">Pick a month and click <b>Run</b> to compute the statements.</div>`; return; }
       if (!data?.months?.length) {
-        el("statements").innerHTML = '<div class="surface"><div class="empty">No commission data yet — appliance statements need a Crystal Commissions report on the Sales Order Detail page; HVAC statements appear once the ePASS feed has finished AC jobs.</div></div>';
+        el("statements").innerHTML = '<div class="surface"><div class="empty">No commission data yet — the ePASS feed has not delivered any finished tickets (appliance lines and HVAC jobs both come from it).</div></div>';
         return;
       }
       const un = data?.hvacUnassigned || [];
@@ -811,7 +815,22 @@
       el("foldAll").textContent = rows.length && rows.every((s) => expandedCodes.has(s.code)) ? "Collapse all" : "Expand all";
     }
 
+    // Nothing computes until Run (Andrew 10/19): the picker comes from a
+    // cheap month list; the statements - six months of lines, balance checks
+    // from the feed, every plan - only when asked for.
+    async function loadMonths() {
+      try {
+        const res = await fetch("/api/field-commissions/months", { credentials: "same-origin" });
+        const body = await res.json();
+        if (!res.ok) throw new Error(body.error || "Unable to list months.");
+        el("monthSelect").innerHTML = (body.months || []).map((m, i) => `<option value="${m}" ${i === 0 ? "selected" : ""}>${monthLabel(m)}</option>`).join("");
+        renderPlan(body.plans || []);
+        el("statements").innerHTML = `<div class="empty-sec" style="padding:28px 16px;font-size:15px">Pick a month and click <b>Run</b> to compute the statements.</div>`;
+      } catch (err) { el("errorBanner").textContent = err.message; el("errorBanner").className = "banner error show"; }
+    }
     async function load(month) {
+      const run = el("runBtn"); const label = run.textContent; run.disabled = true; run.textContent = "Computing…";
+      el("errorBanner").className = "banner";
       try {
         const res = await fetch("/api/field-commissions" + (month ? `?month=${month}` : ""), { credentials: "same-origin" });
         const body = await res.json();
@@ -826,10 +845,11 @@
       } catch (err) {
         el("errorBanner").textContent = err.message;
         el("errorBanner").className = "banner error show";
-      }
+      } finally { run.disabled = false; run.textContent = label; }
     }
 
-    el("monthSelect").addEventListener("change", () => { editorKey = null; load(el("monthSelect").value); });
+    el("monthSelect").addEventListener("change", () => { editorKey = null; });
+    el("runBtn").addEventListener("click", () => { editorKey = null; load(el("monthSelect").value); });
     el("showAll").addEventListener("change", () => { showAll = el("showAll").checked; render(); });
 
     // ---- Fold / unfold statements ----
@@ -1195,7 +1215,7 @@
       URL.revokeObjectURL(a.href);
     });
 
-    load();
+    loadMonths();
   </script>
 </body>
 </html>

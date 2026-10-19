@@ -252,7 +252,7 @@ import {
   getRevenueUploadCopy,
   listRevenuePerformanceSources
 } from "./lib/revenue-performance-postgres.js";
-import { finishedTicketsFromFeed, salespersonNamesFromFeed, ticketsByMonth, openOrderTicketsFromFeed, compareTickets } from "./lib/epass-feed-finished.js";
+import { finishedTicketsFromFeed, salespersonNamesFromFeed, ticketsByMonth, openOrderTicketsFromFeed, compareTickets, modelDiscountsFromFeed } from "./lib/epass-feed-finished.js";
 import { replaceEpassSoldSerials, listSoldSerialsByModel, listSoldSerialsForModel, getEpassSoldSerialsMeta, listSoldSerialMonths, commissionLinesFromFeed } from "./lib/epass-sold-serials-postgres.js";
 import { createEvent, updateEvent, setEventStatus, deleteEvent, getEvent, listEvents, listInvitees, addInvitees, updateInvitee, deleteInvitee, inviteesFromGrid, listRsvps, listPublicEvents, getPublicEvent, submitRsvp, migrateLegacyEvents, INVITEE_STATUSES } from "./lib/events-postgres.js";
 import { upsertEpassCustomers, getEpassCustomersMeta, getEpassCustomers, searchEpassCustomers as searchEpassCustomerMaster, matchEpassCustomersForShoppers, setShopperEpassLink, epassCustomerHistory } from "./lib/epass-customers-postgres.js";
@@ -10652,6 +10652,10 @@ function epassAgentKeyOk(provided) {
 }
 
 let lastFinishedOrdersSig = "";
+// The last finished-orders bundle's Misc and model rows, kept in memory so an
+// executive can see exactly what ePASS sent for one invoice (discount
+// attribution questions, Andrew 10/19). Replaced on every bundle.
+let lastFinishedBundleRaw = { pulledAt: "", since: "", misc: [], models: [], discounts: null };
 let lastQuotesSig = "";
 let epassSalesChain = Promise.resolve(); // sales-bundle extras run one after another, off the request
 let lastSalesPostProcessing = null; // what the last sales bundle's extras produced (/api/epass/open-orders/status)
@@ -10699,6 +10703,10 @@ async function processFinishedOrdersBundle(bundle) {
       const since = /^\d{4}-\d{2}-\d{2}$/.test(String(bundle.finishedSince || "")) ? String(bundle.finishedSince) : "";
       const tickets = finishedTicketsFromFeed(bundle.datasets, { names, since });
       const label = `ePASS feed ${bundle.pulledAt || ""}`.trim();
+      try {
+        const disc = modelDiscountsFromFeed(bundle.datasets);
+        lastFinishedBundleRaw = { pulledAt: String(bundle.pulledAt || ""), since, misc: (bundle.datasets["finished-misc"] || []).slice(0, 20000), models: (bundle.datasets["finished-models"] || []).slice(0, 20000), discounts: { unmatched: disc._unmatched || 0, inferred: disc._inferred || 0, invoices: Object.keys(disc).filter((k) => !k.startsWith("_")).length } };
+      } catch {}
       // Finished orders barely move between pulls — skip the rewrite when
       // nothing changed (a restart simply reprocesses once).
       const sig = crypto.createHash("sha1").update(JSON.stringify(tickets)).digest("hex");
@@ -15259,6 +15267,26 @@ app.get("/api/sales-order-detail/sources", requirePagePermission("/sales-order-d
 });
 
 // Feed vs the last OE-23 upload of a month, invoice by invoice (executives).
+// What the feed holds for one invoice family: the model lines and Misc lines
+// from the last finished-orders bundle, and the discounts Agility recorded.
+app.get("/api/epass/discounts/:invoice", requireExecutiveApi, async (req, res) => {
+  try {
+    const inv = String(req.params.invoice || "").trim().toUpperCase();
+    const base = inv.replace(/-\d+$/, "");
+    const fam = (x) => String(x || "").toUpperCase().replace(/-\d+$/, "") === base;
+    const pool = await getPostgresPool();
+    const recorded = pool ? (await pool.query(`SELECT * FROM sales_line_discounts WHERE regexp_replace(invoice, '-\\d+$', '') = $1 ORDER BY invoice, model`, [base]).catch(() => ({ rows: [] }))).rows : [];
+    const orders = pool ? (await pool.query(`SELECT invoice, finish_date, source_month, source_filename, list_product, list_misc, product_discount, updated_at FROM sales_order_detail WHERE regexp_replace(invoice, '-\\d+$', '') = $1 ORDER BY invoice`, [base]).catch(() => ({ rows: [] }))).rows : [];
+    const pick = (r, k) => { const key = Object.keys(r || {}).find((x) => x.toLowerCase() === k.toLowerCase()); return key ? r[key] : null; };
+    const inBundle = { pulledAt: lastFinishedBundleRaw.pulledAt, since: lastFinishedBundleRaw.since, stats: lastFinishedBundleRaw.discounts,
+      models: lastFinishedBundleRaw.models.filter((r) => fam(pick(r, "InvoiceCode"))),
+      misc: lastFinishedBundleRaw.misc.filter((r) => fam(pick(r, "InvoiceCode")) || fam(pick(r, "InvoiceModelInvoiceCode"))) };
+    const lines = pool ? (await pool.query(`SELECT source_month, invoice, product, serial_number, revenue, serial_cost, salesperson_code, source_filename FROM sales_order_lines WHERE regexp_replace(invoice, '-\\d+$', '') = $1 ORDER BY invoice, product`, [base]).catch(() => ({ rows: [] }))).rows : [];
+    return res.json({ invoice: inv, base, recordedDiscounts: recorded, orders, commissionLines: lines, lastBundle: inBundle,
+      note: inBundle.models.length ? "" : `The last bundle (${inBundle.pulledAt || "none yet"}, finished since ${inBundle.since || "?"}) does not carry this invoice - it finished before the window; run the pull with -FinishedSince to re-read it.` });
+  } catch (err) { return res.status(400).json({ error: err.message }); }
+});
+
 app.get("/api/epass/feed-vs-oe23", requireExecutiveApi, async (req, res) => {
   try {
     const month = String(req.query.month || "").trim() || new Date().toLocaleDateString("en-CA", { timeZone: APP_TIMEZONE }).slice(0, 7);

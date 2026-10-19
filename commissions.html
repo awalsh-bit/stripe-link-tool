@@ -779,7 +779,7 @@
         // Automatic: balances come straight from the ePASS feed (10/14).
         const when = check.uploadedAt ? new Date(check.uploadedAt).toLocaleString("en-US", { timeZone: "America/Chicago", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) : "";
         bl.className = "balance-line ok";
-        bl.textContent = `Paid balances for ${monthLabel(data.month)} come from the ePASS feed automatically (as of ${when}) — ${check.unpaidCount} unpaid or written-off invoice(s) held. No upload needed; an uploaded balance check would override the feed for this month.${reminder}`;
+        bl.textContent = `Paid balances for ${monthLabel(data.month)} come from the ePASS feed automatically (as of ${when}) — ${check.unpaidCount} unpaid or written-off invoice(s) held. They keep following ePASS (refreshed every 10 minutes) until this month's statements are posted to rep review, then freeze. An uploaded balance check would override the feed for this month.${reminder}`;
       } else if (check) {
         const when = check.uploadedAt ? new Date(check.uploadedAt).toLocaleString("en-US", { timeZone: "America/Chicago", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) : "";
         bl.className = "balance-line ok";

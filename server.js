@@ -12400,13 +12400,24 @@ async function autoCommissionBalanceChecks(balanceChecks, windowMonths, lines) {
   if (!pool) return;
   const nowMonth = new Date().toLocaleDateString("en-CA", { timeZone: APP_TIMEZONE }).slice(0, 7);
   const isAuto = (c) => c && String(c.filename || "") === AUTO_BALANCE_CHECK_NAME;
-  const due = windowMonths.filter((m) => {
+  // Which months refresh (Andrew 10/19: S00064145 still owed $267 in ePASS
+  // but showed "released" - September's auto check had been frozen with a
+  // bad reading). A month's auto check keeps following ePASS until that
+  // month's statements have been POSTED to rep review; a posted month is
+  // frozen as it stood (the reps' snapshot and the live page agree). A
+  // manual upload for a month always wins.
+  const due = [];
+  for (const m of windowMonths) {
     const c = balanceChecks[m];
-    if (c && !isAuto(c)) return false; // a manual upload wins for that month
-    if (c && m < nowMonth) return false; // a closed month's auto check stays as it last stood
-    if (c && Date.now() - new Date(c.uploadedAt || 0).getTime() < AUTO_BALANCE_REFRESH_MS) return false;
-    return true;
-  });
+    if (c && !isAuto(c)) continue; // a manual upload wins for that month
+    if (c && Date.now() - new Date(c.uploadedAt || 0).getTime() < AUTO_BALANCE_REFRESH_MS) continue;
+    if (c && m < nowMonth) {
+      const posts = await listCommissionPostsForMonth(m).catch(() => []);
+      const posted = Array.isArray(posts) ? posts.length : Object.keys(posts || {}).length;
+      if (posted) continue; // finalized - stays as it stood
+    }
+    due.push(m);
+  }
   if (!due.length) return;
   const invoices = [...new Set(lines.flatMap((l) => [l?.invoice, l?.baseInvoice]).map((v) => String(v || "").trim().toUpperCase()).filter(Boolean))];
   if (!invoices.length) return;

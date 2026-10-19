@@ -401,9 +401,9 @@
     }
     function adjBadge(l) {
       if (!l.overridden) return "";
-      const what = [l.overridden.list && "list", l.overridden.cost && "cost", l.overridden.rate && "rate"].filter(Boolean).join("+");
+      const what = [l.overridden.list && "list", l.overridden.cost && "cost", l.overridden.vendorCredit && "credit", l.overridden.rate && "rate"].filter(Boolean).join("+");
       if (!what) return "";
-      const title = `Original list ${money(l.original.revenue)}${l.original.serialCost != null ? ", cost " + money(l.original.serialCost) : ""}${l.overrideNote ? " — " + l.overrideNote : ""}`;
+      const title = `Original list ${money(l.original.revenue)}${l.original.serialCost != null ? ", cost " + money(l.original.serialCost) : ""}${l.vendorCredit ? `, vendor credit ${money(l.vendorCredit)} → net cost ${money(l.netCost)}` : ""}${l.override?.note ? " — " + l.override.note : ""}`;
       return ` <span class="badge adjusted" title="${escapeHtml(title)}">adjusted: ${what}</span>`;
     }
 
@@ -424,7 +424,9 @@
                 <input type="number" step="0.01" class="ov-list" value="${ov.listPrice ?? ""}" placeholder="${l.original.revenue}"></div>
               ${kind === "protect" ? "" : `
               <div class="ef"><label>Cost $ override</label>
-                <input type="number" step="0.01" class="ov-cost" value="${ov.serialCost ?? ""}" placeholder="${l.original.serialCost ?? "n/a"}"></div>`}
+                <input type="number" step="0.01" class="ov-cost" value="${ov.serialCost ?? ""}" placeholder="${l.original.serialCost ?? "n/a"}"></div>
+              <div class="ef"><label>Vendor credit $ (trailing / damage)</label>
+                <input type="number" step="0.01" class="ov-vcredit" value="${ov.credit ?? ""}" placeholder="0.00" title="Jenn-Air trailing credit, damage allowance… — comes off the cost before margin"></div>`}
               ${canRate ? `
               <div class="ef"><label>Payout % override</label>
                 <input type="number" step="0.1" min="0" max="100" class="ov-rate" value="${ov.rate != null ? Math.round(ov.rate * 10000) / 100 : ""}" placeholder="tier"></div>` : ""}
@@ -446,7 +448,7 @@
                 <input type="text" class="ov-note" maxlength="300" value="${escapeHtml(ov.note || "")}" placeholder="why (shows on the statement)"></div>
               <button type="button" class="save-ov" data-save-ov="${escapeHtml(l.lineKey)}">Save</button>
               ${l.override ? `<button type="button" class="clear-ov" data-clear-ov="${escapeHtml(l.lineKey)}">Clear override</button>` : ""}
-              <div class="editor-hint">Blank fields keep the report's values (shown as placeholders). A payout % on an RTV/SVC line forces it back into pay. <strong>Omit</strong> removes the line entirely — no pay, no charge-back, no revenue counted — and lists it under excluded lines with your note (for return lines not charged back, or artifacts that landed in the wrong name). Overrides stick to this line across re-uploads.</div>
+              <div class="editor-hint">Blank fields keep the report's values (shown as placeholders). <strong>Vendor credit</strong> (Jenn-Air trailing credit, a damage allowance — nothing ePASS knows about) comes off the unit's cost before the margin is figured: margin = (list − discounts − (cost − credit)) ÷ (list − discounts). A payout % on an RTV/SVC line forces it back into pay. <strong>Omit</strong> removes the line entirely — no pay, no charge-back, no revenue counted — and lists it under excluded lines with your note (for return lines not charged back, or artifacts that landed in the wrong name). Overrides stick to this line across re-uploads.</div>
             </div>
           </td>
         </tr>`;
@@ -469,7 +471,7 @@
           <td class="num">${l.qty}</td>
           <td class="num">${money(l.revenue)}</td>
           ${kind === "new" ? `
-            <td class="num">${l.gmPercent == null ? '<span class="badge floor">no cost data</span>' : l.gmPercent.toFixed(1) + "%"}</td>
+            <td class="num">${l.gmPercent == null ? '<span class="badge floor">no cost data</span>' : l.gmPercent.toFixed(1) + "%"}${l.vendorCredit ? ` <span class="badge discount" title="Vendor credit ${money(l.vendorCredit)} taken off the cost (net cost ${money(l.netCost)})">credit ${money(l.vendorCredit)}</span>` : ""}</td>
             <td class="num">${l.notSelect ? '<span class="badge neutralish" style="background:#e5e7eb;color:#374151;">spiff brand</span>' : l.belowFloor ? '<span class="badge floor">below 18%</span>' : pctText(l.rate, 0)}</td>` : ""}
           ${kind === "closeout" ? `<td class="num">${pctText(l.rate, 0)}</td>` : ""}
           <td class="num" style="font-weight: 700;">${kind === "protect" ? "—" : (l.held ? `<span class="held-commission">${money(l.commission)}</span>` : money(l.commission))}</td>
@@ -782,7 +784,10 @@
         // Automatic: balances come straight from the ePASS feed (10/14).
         const when = check.uploadedAt ? new Date(check.uploadedAt).toLocaleString("en-US", { timeZone: "America/Chicago", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) : "";
         bl.className = "balance-line ok";
-        bl.textContent = `Paid balances for ${monthLabel(data.month)} come from the ePASS feed automatically (as of ${when}) — ${check.unpaidCount} unpaid or written-off invoice(s) held. They keep following ePASS (refreshed every 10 minutes) until this month's statements are posted to rep review, then freeze. An uploaded balance check would override the feed for this month.${reminder}`;
+        bl.textContent = `Paid balances for ${monthLabel(data.month)} come from the ePASS feed automatically (as of ${when}) — ${check.unpaidCount} unpaid or written-off invoice(s) held. They keep following ePASS (refreshed every 10 minutes) until this month's statements are posted to rep review, then freeze. An uploaded balance check would override the feed for this month.${reminder} `;
+        const rb = document.createElement("button"); rb.type = "button"; rb.className = "ghost-btn"; rb.textContent = "Re-read balances from ePASS now"; rb.style.marginLeft = "6px";
+        rb.onclick = async () => { rb.disabled = true; rb.textContent = "Re-reading…"; try { const r = await fetch("/api/field-commissions/balance-check/refresh", { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ month: data.month }) }); const j = await r.json().catch(() => ({})); if (!r.ok) throw new Error(j.error || "Failed."); await load(data.month); } catch (e) { alert(e.message); rb.disabled = false; rb.textContent = "Re-read balances from ePASS now"; } };
+        bl.appendChild(rb);
       } else if (check) {
         const when = check.uploadedAt ? new Date(check.uploadedAt).toLocaleString("en-US", { timeZone: "America/Chicago", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) : "";
         bl.className = "balance-line ok";
@@ -998,6 +1003,7 @@
             sourceMonth: data.month,
             listPrice: val(".ov-list") || null,
             serialCost: val(".ov-cost") || null,
+            credit: val(".ov-vcredit") || null,
             ratePercent: val(".ov-rate") || null,
             fullCreditTo: row.querySelector(".ov-credit-on")?.checked ? val(".ov-credit-to") : "",
             omit: !!row.querySelector(".ov-omit")?.checked,

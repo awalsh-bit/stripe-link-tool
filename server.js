@@ -12394,6 +12394,7 @@ const requireCommissionsPage = requirePagePermission("/commissions.html");
 // revenue ending at the statement month.
 // Shared by the statements API and the PDF download/email routes.
 const AUTO_BALANCE_CHECK_NAME = "ePASS feed (automatic)";
+const forceBalanceRefresh = new Set(); // months an executive asked to re-read from ePASS right now
 const AUTO_BALANCE_REFRESH_MS = 10 * 60 * 1000;
 async function autoCommissionBalanceChecks(balanceChecks, windowMonths, lines) {
   const pool = await getPostgresPool();
@@ -12410,6 +12411,7 @@ async function autoCommissionBalanceChecks(balanceChecks, windowMonths, lines) {
   for (const m of windowMonths) {
     const c = balanceChecks[m];
     if (c && !isAuto(c)) continue; // a manual upload wins for that month
+    if (forceBalanceRefresh.has(m)) { due.push(m); continue; } // an executive asked for it now
     if (c && Date.now() - new Date(c.uploadedAt || 0).getTime() < AUTO_BALANCE_REFRESH_MS) continue;
     if (c && m < nowMonth) {
       const posts = await listCommissionPostsForMonth(m).catch(() => []);
@@ -12605,6 +12607,26 @@ async function buildStatementPdfFor(month, code) {
   const fileLabel = `commission-statement-${statement.code}-${month}`.replace(/[^A-Za-z0-9_-]+/g, "-");
   return { pdfBytes, fileLabel, statement };
 }
+
+// Re-read a month's paid balances from ePASS right now (Andrew 10/19) -
+// skips the 10-minute throttle and the posted-month freeze. The window's
+// other auto months come along. Posted rep snapshots don't change until
+// re-posted.
+app.post("/api/field-commissions/balance-check/refresh", requireCommissionsPage, requireExecutiveApi, async (req, res) => {
+  try {
+    const month = String(req.body?.month || "");
+    if (!/^\d{4}-\d{2}$/.test(month)) return res.status(400).json({ error: "Pick a month." });
+    const pool = await getPostgresPool();
+    const cur = pool ? (await pool.query(`SELECT filename FROM commission_balance_uploads WHERE month = $1`, [month]).catch(() => ({ rows: [] }))).rows[0] : null;
+    if (cur && String(cur.filename || "") !== AUTO_BALANCE_CHECK_NAME) return res.status(400).json({ error: `${month} has a manually uploaded balance check (${cur.filename}) — it overrides the feed. Delete or replace that upload to go back to the feed.` });
+    // every month in this statement's window re-reads (holds from earlier months resolve against them too)
+    const { windowMonths } = await computeFieldCommissionMonth(month);
+    for (const m of windowMonths) forceBalanceRefresh.add(m);
+    try { await computeFieldCommissionMonth(month); } finally { for (const m of windowMonths) forceBalanceRefresh.delete(m); }
+    recordAudit({ ip: req.ip, actorUserId: req.authUser?.id || null, action: "commission_balance_check_refreshed", targetUserId: null, detail: { month, months: windowMonths } }).catch(() => {});
+    return res.json({ ok: true, months: windowMonths });
+  } catch (err) { return res.status(400).json({ error: err.message }); }
+});
 
 // Put a month back on the feed after someone uploaded a Crystal report for it.
 app.post("/api/field-commissions/lines-from-feed", requireCommissionsPage, requireExecutiveApi, async (req, res) => {
@@ -13182,6 +13204,7 @@ app.post("/api/field-commissions/override", requireCommissionsPage, async (req, 
     };
     const listPrice = num(b.listPrice, "list price");
     const serialCost = num(b.serialCost, "cost");
+    const credit = num(b.credit, "vendor credit", { min: -100000, max: 100000 });
     let rate = null;
     if (b.ratePercent != null && b.ratePercent !== "") {
       const p = Number(b.ratePercent);
@@ -13201,7 +13224,7 @@ app.post("/api/field-commissions/override", requireCommissionsPage, async (req, 
     }
 
     const saved = await saveCommissionOverride({
-      lineKey, sourceMonth, listPrice, serialCost, rate, fullCreditTo, omit,
+      lineKey, sourceMonth, listPrice, serialCost, credit, rate, fullCreditTo, omit,
       note: b.note, byEmail: req.authUser?.email || req.authUser?.username || ""
     });
 
@@ -13209,7 +13232,7 @@ app.post("/api/field-commissions/override", requireCommissionsPage, async (req, 
       ip: req.ip, actorUserId: req.authUser?.id || null,
       action: saved ? "commission_override_saved" : "commission_override_cleared",
       targetUserId: null,
-      detail: { lineKey: lineKey.slice(0, 120), sourceMonth, listPrice, serialCost, rate, fullCreditTo, omit, note: String(b.note || "").slice(0, 200) }
+      detail: { lineKey: lineKey.slice(0, 120), sourceMonth, listPrice, serialCost, credit, rate, fullCreditTo, omit, note: String(b.note || "").slice(0, 200) }
     }).catch(() => {});
 
     return res.json({ ok: true, cleared: !saved });

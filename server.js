@@ -263,6 +263,8 @@ import { processTaxBundle, taxStatus, taxReport, taxInvoiceLines } from "./lib/t
 import { parseFinanceBundle, replaceEpassFinance, getEpassFinanceMeta, financeRows, listSupplierTerms, saveSupplierTerms, deleteSupplierTerms } from "./lib/epass-finance-postgres.js";
 import { computeCashProjection } from "./lib/cash-projection.js";
 import { computePoHealth } from "./lib/po-health.js";
+import { VENDORS as PO_ETA_VENDORS, FIELDS as PO_ETA_FIELDS, readVendorWorkbook, guessMapping as guessPoEtaMapping, applySavedMapping as applyPoEtaSavedMapping, headerSignature as poEtaHeaderSignature, extractRows as extractPoEtaRows, matchRows as matchPoEtaRows, buildImportWorkbook as buildPoEtaWorkbook, vendorByKey as poEtaVendorByKey } from "./lib/po-eta-import.js";
+import { listVendorMaps as listPoEtaVendorMaps, saveVendorMap as savePoEtaVendorMap, recordImportRun as recordPoEtaRun, listImportRuns as listPoEtaRuns, getImportRun as getPoEtaRun, recentExportedLines as recentPoEtaExports } from "./lib/po-eta-import-postgres.js";
 import { resolveRole, roleEmails, hasRole, listRoles as listServiceRoles, setRole as setServiceRole, ROLES as SERVICE_ROLES } from "./lib/service-roles.js";
 import { processCatalogueBundle, catalogueStatus, customerHistory as catalogueCustomerHistory, callDetail as catalogueCallDetail, modelInsight as catalogueModelInsight, laborRateOptions, laborRateMeta } from "./lib/epass-catalogue-postgres.js";
 import {
@@ -804,6 +806,7 @@ const INTERNAL_PAGE_PATHS = new Set([
   "/speedqueen-truckload.html",
   "/written-models.html",
   "/po-health.html",
+  "/po-eta-import.html",
   "/service-journey.html",
   "/service-board.html",
   "/service-office.html",
@@ -1098,6 +1101,7 @@ const PAGE_LABELS = {
   "/speedqueen-truckload.html": "Speed Queen Truckload Builder",
   "/written-models.html": "Ordering Report",
   "/po-health.html": "Purchase Order Health",
+  "/po-eta-import.html": "PO ETA Import Builder",
   "/my-commissions.html": "My Commission Review",
   "/service-commissions.html": "Repair Service Commissions",
   "/my-service-commissions.html": "My Service Commission",
@@ -1126,7 +1130,7 @@ const PAGE_CATEGORIES = [
   {
     key: "purchasing",
     label: "Purchasing",
-    pages: ["/speedqueen-truckload.html", "/written-models.html", "/po-health.html"]
+    pages: ["/speedqueen-truckload.html", "/written-models.html", "/po-health.html", "/po-eta-import.html"]
   },
   {
     key: "hr",
@@ -15564,6 +15568,141 @@ app.get("/api/po-health", requirePagePermission("/po-health.html", "/written-mod
     const out = computePoHealth({ lines: finance.poOpen, openOrders: book.orders, suppliers: finance.suppliers, today });
     return res.json({ ...out, feed: finance.meta });
   } catch (err) { console.error("PO health failed:", err.message); return res.status(400).json({ error: err.message }); }
+});
+
+// ---------------------------------------------------------------------------
+// PO ETA Import Builder (Purchasing, Andrew 2026-10-20): turn a vendor
+// portal's order-status export into the four-column workbook ePASS's "ETA
+// Date Import" utility takes (PO #, model code, ETA, requested delivery), only
+// for lines whose dates actually moved against the open PO lines in the
+// finance feed. lib/po-eta-import.js does the parsing / matching; the page
+// confirms the column map (remembered per vendor) and reviews before the
+// file is built. Reference and serial type are never written.
+// ---------------------------------------------------------------------------
+const requirePoEta = requirePagePermission("/po-eta-import.html");
+const poEtaUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 25 * 1024 * 1024, files: 1 } });
+const poEtaFile = (req, res, next) => poEtaUpload.single("file")(req, res, (err) => {
+  if (err) return res.status(400).json({ error: err.code === "LIMIT_FILE_SIZE" ? "That export is larger than 25 MB." : "Upload failed — please try again." });
+  if (!req.file?.buffer?.length) return res.status(400).json({ error: "Attach the vendor portal export (.xlsx, .xls or .csv)." });
+  return next();
+});
+const poEtaMappingFrom = (raw) => {
+  let m = raw; if (typeof raw === "string") { try { m = JSON.parse(raw); } catch { m = {}; } }
+  const out = {}; for (const f of PO_ETA_FIELDS) { const v = m?.[f]; out[f] = v == null || v === "" ? null : Number(v); if (out[f] != null && !Number.isInteger(out[f])) out[f] = null; }
+  return out;
+};
+const poEtaToday = () => new Date().toLocaleDateString("en-CA", { timeZone: APP_TIMEZONE });
+async function poEtaOpenLines() {
+  const finance = await financeRows();
+  return { lines: finance.poOpen || [], suppliers: finance.suppliers || [], meta: finance.meta || null };
+}
+
+app.get("/api/po-eta-import/context", requirePoEta, async (req, res) => {
+  try {
+    const [maps, runs, open] = await Promise.all([listPoEtaVendorMaps().catch(() => ({})), listPoEtaRuns({ limit: 25 }).catch(() => []), poEtaOpenLines()]);
+    const bySupplier = {};
+    for (const l of open.lines) { const k = l.supplier_code || "?"; bySupplier[k] = (bySupplier[k] || 0) + 1; }
+    return res.json({
+      vendors: PO_ETA_VENDORS.map((v) => ({ key: v.key, label: v.label })), fields: PO_ETA_FIELDS,
+      maps: Object.fromEntries(Object.entries(maps).map(([k, m]) => [k, { headerNames: m.headerNames, sheetName: m.sheetName, updatedBy: m.updatedBy, updatedAt: m.updatedAt }])),
+      feed: { pulledAt: open.meta?.pulledAt || null, receivedAt: open.meta?.receivedAt || null, openLines: open.lines.length, openPos: new Set(open.lines.map((l) => l.po_code)).size, bySupplier },
+      suppliers: open.suppliers.map((s) => ({ code: s.code, description: s.description })),
+      runs, today: poEtaToday()
+    });
+  } catch (err) { console.error("PO ETA context failed:", err.message); return res.status(500).json({ error: "Unable to load the import builder." }); }
+});
+
+// Step 1: read the export, find the header row, propose the column map.
+app.post("/api/po-eta-import/inspect", requirePoEta, poEtaFile, async (req, res) => {
+  try {
+    const vendor = poEtaVendorByKey(req.body?.vendor);
+    const parsed = readVendorWorkbook(req.file.buffer, req.file.originalname || "");
+    const maps = await listPoEtaVendorMaps().catch(() => ({}));
+    const saved = maps[vendor.key] || null;
+    let sheetIndex = 0;
+    if (saved?.sheetName) { const i = parsed.sheets.findIndex((s) => s.name === saved.sheetName); if (i >= 0) sheetIndex = i; }
+    if (!saved?.sheetName && parsed.sheets.length > 1) sheetIndex = parsed.sheets.reduce((bi, s, i, arr) => s.rowCount > arr[bi].rowCount ? i : bi, 0);
+    const sheet = parsed.sheets[sheetIndex];
+    const savedMap = applyPoEtaSavedMapping(sheet.headers, saved);
+    const mapping = savedMap || guessPoEtaMapping(sheet.headers, vendor.key, sheet.rows);
+    return res.json({
+      filename: parsed.filename, vendor: vendor.key, sheetIndex, mapping, mappingSource: savedMap ? "saved" : "guessed",
+      sheets: parsed.sheets.map((s) => ({ name: s.name, headers: s.headers, letters: s.letters, rowCount: s.rowCount, headerRow: s.headerRow + 1, sample: s.rows.slice(0, 8).map((r) => r.map((c) => c instanceof Date ? `${String(c.getUTCMonth() + 1).padStart(2, "0")}/${String(c.getUTCDate()).padStart(2, "0")}/${c.getUTCFullYear()}` : c)) }))
+    });
+  } catch (err) { console.error("PO ETA inspect failed:", err.message); return res.status(400).json({ error: err.message || "Unable to read that export." }); }
+});
+
+// Step 2: apply the confirmed map, match against ePASS open PO lines.
+app.post("/api/po-eta-import/match", requirePoEta, poEtaFile, async (req, res) => {
+  try {
+    const vendor = poEtaVendorByKey(req.body?.vendor);
+    const parsed = readVendorWorkbook(req.file.buffer, req.file.originalname || "");
+    const sheetIndex = Math.max(0, Math.min(parsed.sheets.length - 1, Number(req.body?.sheet) || 0));
+    const sheet = parsed.sheets[sheetIndex];
+    const mapping = poEtaMappingFrom(req.body?.mapping);
+    for (const f of PO_ETA_FIELDS) if (mapping[f] != null && (mapping[f] < 0 || mapping[f] >= sheet.headers.length)) mapping[f] = null;
+    const rows = extractPoEtaRows(sheet, mapping, vendor.key);
+    const open = await poEtaOpenLines();
+    const result = matchPoEtaRows({ rows, openLines: open.lines, vendorKey: vendor.key, today: poEtaToday() });
+    const recent = await recentPoEtaExports({ days: 21 }).catch(() => new Map());
+    for (const r of result.rows) {
+      const prev = recent.get(`${r.epassPo || r.po}|${r.epassModel || r.model}`.toUpperCase());
+      if (prev) r.lastSent = { runId: prev.runId, at: prev.at, eta: prev.eta, rdd: prev.rdd, same: prev.eta === r.newEta && (prev.rdd || "") === (r.newRdd || "") };
+    }
+    if (String(req.body?.saveMap || "") === "1") {
+      const headerNames = Object.fromEntries(PO_ETA_FIELDS.map((f) => [f, mapping[f] == null ? "" : sheet.headers[mapping[f]]]));
+      await savePoEtaVendorMap({ vendorKey: vendor.key, headersSig: poEtaHeaderSignature(sheet.headers), headerNames, mapping, sheetName: sheet.name, by: sjMe(req).email }).catch((e) => console.error("PO ETA map save failed:", e.message));
+    }
+    return res.json({ ...result, filename: parsed.filename, sheet: sheet.name, parsedRows: rows.length, feed: { pulledAt: open.meta?.pulledAt || null, openLines: open.lines.length }, today: poEtaToday() });
+  } catch (err) { console.error("PO ETA match failed:", err.message); return res.status(400).json({ error: err.message || "Unable to match that export." }); }
+});
+
+// Step 3: build the ePASS import workbook from the rows the buyer kept.
+app.post("/api/po-eta-import/build", requirePoEta, async (req, res) => {
+  try {
+    const vendor = poEtaVendorByKey(req.body?.vendor);
+    const datesAsText = !!req.body?.datesAsText;
+    const rows = (Array.isArray(req.body?.rows) ? req.body.rows : []).slice(0, 5000).map((r) => ({
+      po: String(r?.po || "").trim().slice(0, 40), model: String(r?.model || "").trim().toUpperCase().slice(0, 60),
+      eta: /^\d{4}-\d{2}-\d{2}$/.test(String(r?.eta || "")) ? String(r.eta) : "", rdd: /^\d{4}-\d{2}-\d{2}$/.test(String(r?.rdd || "")) ? String(r.rdd) : ""
+    })).filter((r) => r.po && r.model && r.eta);
+    if (!rows.length) return res.status(400).json({ error: "No rows to import — keep at least one changed line." });
+    const built = buildPoEtaWorkbook(rows, { datesAsText });
+    const me = sjMe(req);
+    const run = await recordPoEtaRun({ vendorKey: vendor.key, sourceFile: String(req.body?.sourceFile || "").slice(0, 200), byEmail: me.email, byName: me.name, rowsTotal: Number(req.body?.rowsTotal) || rows.length, rowsExported: built.rows, summary: req.body?.summary && typeof req.body.summary === "object" ? req.body.summary : {}, lines: rows, datesAsText, file: built.buffer }).catch((e) => { console.error("PO ETA run record failed:", e.message); return null; });
+    sjAudit(req, "po_eta_import_built", { vendor: vendor.key, rows: built.rows, runId: run?.id || null, sourceFile: String(req.body?.sourceFile || "").slice(0, 200) });
+    const stamp = poEtaToday().replace(/-/g, "");
+    res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+    res.setHeader("Content-Disposition", `attachment; filename="epass-eta-import_${vendor.key}_${stamp}.xlsx"`);
+    res.setHeader("Content-Length", String(built.buffer.length));
+    res.setHeader("Cache-Control", "no-store");
+    if (run?.id) res.setHeader("X-Run-Id", String(run.id));
+    return res.end(built.buffer);
+  } catch (err) { console.error("PO ETA build failed:", err.message); return res.status(400).json({ error: err.message || "Unable to build the import file." }); }
+});
+
+app.get("/api/po-eta-import/runs", requirePoEta, async (req, res) => {
+  try { return res.json({ runs: await listPoEtaRuns({ limit: Number(req.query.limit) || 40 }) }); }
+  catch (err) { return res.status(500).json({ error: "Unable to list import runs." }); }
+});
+app.get("/api/po-eta-import/runs/:id", requirePoEta, async (req, res) => {
+  try {
+    const run = await getPoEtaRun(req.params.id);
+    if (!run) return res.status(404).json({ error: "That import run was not found." });
+    const { file, ...rest } = run;
+    return res.json({ run: { ...rest, hasFile: !!file } });
+  } catch (err) { return res.status(500).json({ error: "Unable to load that run." }); }
+});
+app.get("/api/po-eta-import/runs/:id/file.xlsx", requirePoEta, async (req, res) => {
+  try {
+    const run = await getPoEtaRun(req.params.id);
+    if (!run?.file) return res.status(404).json({ error: "No file is stored for that run." });
+    const stamp = new Date(run.createdAt).toLocaleDateString("en-CA", { timeZone: APP_TIMEZONE }).replace(/-/g, "");
+    res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+    res.setHeader("Content-Disposition", `attachment; filename="epass-eta-import_${run.vendorKey}_${stamp}_run${run.id}.xlsx"`);
+    res.setHeader("Cache-Control", "no-store");
+    return res.end(run.file);
+  } catch (err) { return res.status(500).json({ error: "Unable to download that file." }); }
 });
 
 const requireWrittenModels = requirePagePermission("/written-models.html");

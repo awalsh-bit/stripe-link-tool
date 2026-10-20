@@ -291,7 +291,8 @@
         children: [
           { href: "speedqueen-truckload.html", title: "Speed Queen Truckload Builder" },
           { href: "written-models.html", title: "Ordering Report" },
-          { href: "po-health.html", title: "Purchase Order Health" }
+          { href: "po-health.html", title: "Purchase Order Health" },
+          { href: "po-eta-import.html", title: "PO ETA Import Builder" }
         ]
       },
       {

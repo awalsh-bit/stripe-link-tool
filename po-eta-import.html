@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="robots" content="noindex,nofollow,noarchive" />
+  <title>Wilson AC & Appliance - PO ETA Import Builder</title>
+  <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+  <link rel="stylesheet" href="internal-shell.css" />
+  <style>
+    :root {
+      --bg: #f7f8fc; --card: #ffffff; --text: #1f2937; --muted: #6b7280; --border: #dbe1ea;
+      --error-bg: #fef2f2; --error-text: #991b1b; --shadow: 0 10px 35px rgba(0, 0, 0, 0.08); --radius: 18px;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: "Roboto", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: linear-gradient(180deg, var(--primary-tint) 0%, var(--bg) 100%); color: var(--text); min-height: 100vh; padding: 24px 24px 60px; }
+    .wrap { max-width: 1520px; margin: 0 auto; }
+    .surface { background: var(--card); border: 1px solid rgba(var(--primary-rgb), 0.12); box-shadow: var(--shadow); border-radius: var(--radius); padding: 24px; margin-bottom: 18px; }
+    h2 { margin: 0 0 6px; font-size: 20px; }
+    h3 { margin: 0 0 4px; font-size: 15px; }
+    .section-note { margin: 0 0 16px; color: var(--muted); font-size: 14px; line-height: 1.5; }
+    .section-note b { color: var(--text); }
+    button { appearance: none; border: none; background: var(--primary, #2f6b3a); color: #fff; padding: 10px 16px; border-radius: 10px; font-size: 14px; font-weight: 700; cursor: pointer; font-family: inherit; }
+    button:hover { background: var(--primary-hover, #255a2f); }
+    button:disabled { opacity: 0.55; cursor: not-allowed; }
+    button.secondary { background: var(--primary-tint, #eaf3ec); color: var(--primary, #2f6b3a); }
+    button.quiet { background: #fff; color: #374151; border: 1px solid var(--border); }
+    button.tiny { padding: 5px 10px; font-size: 12px; border-radius: 8px; }
+    input[type="text"], input[type="date"], select { border: 1px solid var(--border); border-radius: 10px; padding: 9px 11px; font-size: 14px; font-family: inherit; background: #fff; }
+    input[type="file"] { font-size: 13px; }
+    label.chk { display: inline-flex; align-items: center; gap: 6px; font-size: 13.5px; color: #374151; }
+    .status { display: none; margin: 0 0 14px; padding: 10px 14px; border-radius: 10px; font-size: 13.5px; white-space: pre-line; }
+    .status.show { display: block; }
+    .status.error { background: var(--error-bg); color: var(--error-text); }
+    .status.ok { background: rgba(var(--primary-rgb, 47, 107, 58), 0.1); color: var(--primary, #2f6b3a); }
+    .row { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+    .step { display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; border-radius: 50%; background: var(--primary, #2f6b3a); color: #fff; font-size: 12.5px; font-weight: 800; margin-right: 8px; vertical-align: middle; }
+    .feed { font-size: 12.5px; color: var(--muted); margin-top: 8px; }
+    .feed b { color: var(--text); }
+    .hidden { display: none !important; }
+
+    .mapgrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 12px; margin: 14px 0; }
+    .mapf { border: 1px solid var(--border); border-radius: 12px; padding: 10px 12px; display: flex; flex-direction: column; gap: 6px; }
+    .mapf .lbl { font-size: 11px; font-weight: 800; letter-spacing: 0.05em; text-transform: uppercase; color: #64748b; }
+    .mapf .lbl .col { color: var(--primary, #2f6b3a); }
+    .mapf select { width: 100%; }
+    .mapf .ex { font-size: 12px; color: var(--muted); min-height: 16px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .mapf.req .lbl::after { content: " · required"; color: #b45309; text-transform: none; letter-spacing: 0; font-weight: 600; }
+    .src { font-size: 12.5px; color: var(--muted); }
+    .src b { color: var(--text); }
+
+    .chips { display: flex; gap: 8px; flex-wrap: wrap; margin: 10px 0 14px; }
+    .chip { border: 1px solid var(--border); border-radius: 999px; padding: 5px 12px; font-size: 12.5px; font-weight: 700; color: #374151; background: #fff; cursor: pointer; }
+    .chip.on { border-color: var(--primary, #2f6b3a); color: var(--primary, #2f6b3a); background: var(--primary-tint, #eaf3ec); }
+    .chip .n { font-weight: 800; }
+    .chip.changed.on { background: #dcfce7; border-color: #16a34a; color: #166534; }
+
+    table.lines { width: 100%; border-collapse: collapse; font-size: 13px; }
+    table.lines th { text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: #64748b; padding: 8px 8px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+    table.lines td { padding: 8px 8px; border-bottom: 1px solid #eef2f7; vertical-align: top; }
+    table.lines td.num, table.lines th.num { text-align: right; }
+    table.lines tr.off td { color: #9ca3af; }
+    table.lines tr.off td .badge { opacity: 0.6; }
+    .badge { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 800; letter-spacing: 0.03em; text-transform: uppercase; white-space: nowrap; }
+    .badge.changed { background: #dcfce7; color: #166534; }
+    .badge.same { background: #f1f5f9; color: #475569; }
+    .badge.no-po, .badge.no-model { background: #fee2e2; color: #991b1b; }
+    .badge.no-eta { background: #fef3c7; color: #92400e; }
+    .badge.cancelled { background: #e5e7eb; color: #4b5563; }
+    .badge.delivered { background: #e5e7eb; color: #4b5563; }
+    .badge.sent { background: #dbeafe; color: #1e40af; }
+    .arrow { color: #9ca3af; padding: 0 4px; }
+    .old { color: var(--muted); text-decoration: line-through; }
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12.5px; }
+    .note { font-size: 11.5px; color: var(--muted); margin-top: 3px; line-height: 1.35; }
+    .note.warn { color: #92400e; }
+    .sub { font-size: 11.5px; color: var(--muted); }
+    td input[type="date"] { padding: 4px 6px; font-size: 12.5px; border-radius: 8px; }
+    td input[type="date"]:disabled { background: #f8fafc; color: #9ca3af; }
+    .pastdue { color: #b91c1c; font-weight: 700; }
+
+    .buildbar { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--border); }
+    .buildbar .count { font-weight: 800; }
+    .epass-howto { border: 1px dashed var(--border); border-radius: 12px; padding: 10px 14px; font-size: 12.5px; color: var(--muted); line-height: 1.5; margin-top: 12px; }
+    .epass-howto b { color: var(--text); }
+
+    table.runs { width: 100%; border-collapse: collapse; font-size: 13px; }
+    table.runs th { text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: #64748b; padding: 8px; border-bottom: 1px solid var(--border); }
+    table.runs td { padding: 8px; border-bottom: 1px solid #eef2f7; }
+    table.runs a { color: var(--primary, #2f6b3a); font-weight: 700; text-decoration: none; }
+
+    @media (max-width: 760px) {
+      body { padding: 12px 12px 48px; }
+      .surface { padding: 16px; }
+      #vendor, #file { max-width: 100%; width: 100%; }
+      .row > span, .row > label.chk { max-width: 100%; }
+      table.lines thead { display: none; }
+      table.lines tbody tr { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 10px; border: 1px solid var(--border); border-radius: 12px; padding: 10px 12px; margin-bottom: 10px; }
+      table.lines tbody td { display: block; border: none; padding: 2px 0; }
+      table.lines tbody td.num { text-align: left; }
+      table.lines tbody td[data-label]::before { content: attr(data-label); display: block; font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.05em; color: #64748b; }
+      table.lines tbody td.wide { grid-column: 1 / -1; }
+      table.runs thead { display: none; }
+      table.runs tbody tr { display: grid; grid-template-columns: 1fr 1fr; gap: 2px 10px; border: 1px solid var(--border); border-radius: 12px; padding: 10px 12px; margin-bottom: 10px; }
+      table.runs tbody td { display: block; border: none; padding: 2px 0; }
+      table.runs tbody td[data-label]::before { content: attr(data-label); display: block; font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.05em; color: #64748b; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div id="internal-shell-header"></div>
+
+    <section class="surface">
+      <h2>PO ETA Import Builder</h2>
+      <p class="section-note">
+        Drop a vendor portal's order-status export here and get back the workbook ePASS's <b>ETA Date Import</b> utility takes —
+        <b>A</b> PO #, <b>B</b> model code, <b>C</b> ETA, <b>D</b> requested delivery — for only the lines whose dates actually moved
+        against the open PO lines in the ePASS feed. Reference and serial type are never written. Each vendor's columns are remembered once you confirm them.
+      </p>
+      <div id="pageStatus" class="status"></div>
+      <div class="row">
+        <span><span class="step">1</span><b>Vendor and export</b></span>
+        <select id="vendor"></select>
+        <input type="file" id="file" accept=".xlsx,.xls,.xlsm,.csv,.txt" />
+        <button type="button" id="readBtn" disabled>Read export</button>
+      </div>
+      <div class="feed" id="feedLine">Loading the ePASS feed…</div>
+    </section>
+
+    <section class="surface hidden" id="mapCard">
+      <h3><span class="step">2</span>Confirm the columns</h3>
+      <p class="section-note" id="mapNote"></p>
+      <div class="row">
+        <label class="chk">Sheet <select id="sheet"></select></label>
+        <span class="src" id="sheetInfo"></span>
+      </div>
+      <div class="mapgrid" id="mapGrid"></div>
+      <div class="row">
+        <button type="button" id="matchBtn">Match against ePASS</button>
+        <label class="chk"><input type="checkbox" id="saveMap" checked /> Remember these columns for <span id="saveMapVendor"></span></label>
+      </div>
+    </section>
+
+    <section class="surface hidden" id="reviewCard">
+      <h3><span class="step">3</span>Review what moved</h3>
+      <p class="section-note" id="reviewNote"></p>
+      <div class="chips" id="chips"></div>
+      <div id="reviewTable"></div>
+      <div class="buildbar">
+        <button type="button" id="buildBtn">Build ePASS import file</button>
+        <span class="count" id="buildCount"></span>
+        <label class="chk"><input type="checkbox" id="datesAsText" /> write dates as plain text (only if the utility rejects real dates)</label>
+      </div>
+      <div class="epass-howto">
+        In ePASS: <b>Tools → ETA Date Import</b> → pick the downloaded file · Import Type <b>Models</b> · PO # Column <b>A</b> · Item/Model <b>Code</b>, Column <b>B</b> ·
+        ETA Date Column <b>C</b> · Req Delivery Column <b>D</b> · leave <b>Reference</b> and <b>Serial Type</b> blank · OK. The next feed pull shows the new dates here and in Cash Ops.
+      </div>
+    </section>
+
+    <section class="surface">
+      <h3>Import files built</h3>
+      <p class="section-note">Every file built here is kept so it can be downloaded again and so Cash Ops can see what was pushed into ePASS and when.</p>
+      <div id="runs"><span class="sub">Loading…</span></div>
+    </section>
+
+    <div id="internal-shell-footer"></div>
+  </div>
+
+  <script src="internal-shell.js"></script>
+  <script>
+    (() => {
+      const $ = (id) => document.getElementById(id);
+      const esc = (v) => String(v == null ? "" : v).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+      const mdy = (iso) => /^\d{4}-\d{2}-\d{2}/.test(iso || "") ? `${iso.slice(5, 7)}/${iso.slice(8, 10)}/${iso.slice(0, 4)}` : "";
+      const when = (iso) => iso ? new Date(iso).toLocaleString("en-US", { month: "2-digit", day: "2-digit", year: "numeric", hour: "numeric", minute: "2-digit" }) : "";
+      const FIELD_LABELS = { po: "PO #", model: "Model code", model2: "Alt. model / item #", eta: "ETA date", rdd: "Requested delivery", qty: "Quantity", status: "Line status" };
+      const FIELD_HELP = { po: "your PO number as the portal shows it", model: "the model / material / SKU", model2: "optional — a second column tried when the model does not match an open line (vendor item #)", eta: "the vendor's current ETA or ship date", rdd: "the requested / wanted date you asked for", qty: "optional — shown for reference", status: "optional — cancelled lines are skipped" };
+      const STATE_LABELS = { changed: "Changed", same: "Same as ePASS", "no-po": "PO not open", "no-model": "Model not on PO", "no-eta": "No vendor ETA", cancelled: "Cancelled", delivered: "Delivered" };
+      const STATE_HELP = { changed: "ETA or requested date differs from ePASS — goes into the file", same: "already matches ePASS — nothing to import", "no-po": "not an open PO in the feed (received, closed, or a different number on the portal)", "no-model": "the PO is open but this model is not an open line on it", "no-eta": "the vendor gave no usable date for this line", cancelled: "the portal marks the line cancelled", delivered: "the portal says this line already shipped / delivered — nothing to date" };
+
+      function setStatus(msg, kind) { const b = $("pageStatus"); if (!msg) { b.className = "status"; b.textContent = ""; return; } b.className = "status show " + kind; b.textContent = msg; }
+      async function api(path, options = {}) {
+        const res = await fetch(path, { credentials: "same-origin", headers: options.body && !(options.body instanceof FormData) ? { "Content-Type": "application/json" } : {}, ...options });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error || "Request failed.");
+        return data;
+      }
+
+      const state = { ctx: null, file: null, inspect: null, sheetIndex: 0, mapping: {}, result: null, filter: new Set(["changed", "no-eta", "no-model", "no-po"]), building: false };
+
+      // ---- 1. context ----
+      async function loadContext() {
+        try {
+          state.ctx = await api("/api/po-eta-import/context");
+          const sel = $("vendor"); sel.innerHTML = state.ctx.vendors.map((v) => `<option value="${esc(v.key)}">${esc(v.label)}</option>`).join("");
+          let remembered = ""; try { remembered = localStorage.getItem("poEtaVendor") || ""; } catch { /* private mode */ }
+          if (remembered && state.ctx.vendors.some((v) => v.key === remembered)) sel.value = remembered;
+          const f = state.ctx.feed;
+          $("feedLine").innerHTML = f.openLines
+            ? `ePASS feed: <b>${f.openLines.toLocaleString()}</b> open PO lines on <b>${f.openPos.toLocaleString()}</b> POs, as of <b>${esc(when(f.pulledAt || f.receivedAt))}</b>. Rows are matched against this snapshot — dates already keyed into ePASS since the last pull will still show as "changed" until the next pull.`
+            : `The ePASS finance feed has no open PO lines yet — nothing can be matched until the next pull lands.`;
+          renderRuns(state.ctx.runs || []);
+          vendorChanged();
+        } catch (err) { setStatus(err.message, "error"); }
+      }
+      function vendorChanged() {
+        const key = $("vendor").value; try { localStorage.setItem("poEtaVendor", key); } catch { /* private mode */ }
+        $("saveMapVendor").textContent = state.ctx?.vendors.find((v) => v.key === key)?.label || key;
+      }
+      $("vendor").addEventListener("change", vendorChanged);
+      $("file").addEventListener("change", () => { state.file = $("file").files[0] || null; $("readBtn").disabled = !state.file; });
+
+      // ---- 2. inspect + map ----
+      $("readBtn").addEventListener("click", async () => {
+        if (!state.file) return;
+        const btn = $("readBtn"); btn.disabled = true; btn.textContent = "Reading…"; setStatus("");
+        $("reviewCard").classList.add("hidden"); state.result = null;
+        try {
+          const form = new FormData(); form.append("file", state.file); form.append("vendor", $("vendor").value);
+          state.inspect = await api("/api/po-eta-import/inspect", { method: "POST", body: form });
+          state.sheetIndex = state.inspect.sheetIndex; state.mapping = { ...state.inspect.mapping };
+          renderMap();
+          $("mapCard").classList.remove("hidden");
+          $("mapCard").scrollIntoView({ behavior: "smooth", block: "start" });
+        } catch (err) { setStatus(err.message, "error"); }
+        finally { btn.disabled = !state.file; btn.textContent = "Read export"; }
+      });
+      function renderMap() {
+        const ins = state.inspect; const sh = ins.sheets[state.sheetIndex];
+        $("sheet").innerHTML = ins.sheets.map((s, i) => `<option value="${i}" ${i === state.sheetIndex ? "selected" : ""}>${esc(s.name)} (${s.rowCount} rows)</option>`).join("");
+        $("sheetInfo").innerHTML = `<b>${esc(ins.filename)}</b> · header on row ${sh.headerRow} · ${sh.rowCount} data rows`;
+        $("mapNote").innerHTML = ins.mappingSource === "saved"
+          ? `Columns applied from the map saved for this vendor. Check them once and match.`
+          : `Best guess from the column headings — <b>check each one</b> before matching; the choice is remembered for this vendor.`;
+        const opts = (sel) => `<option value="">— not in this export —</option>` + sh.headers.map((h, i) => `<option value="${i}" ${sel === i ? "selected" : ""}>${esc(sh.letters?.[i] || colLetter(i))} · ${esc(h)}</option>`).join("");
+        $("mapGrid").innerHTML = Object.keys(FIELD_LABELS).map((f) => `
+          <div class="mapf ${f === "po" || f === "model" || f === "eta" ? "req" : ""}">
+            <div class="lbl">${esc(FIELD_LABELS[f])}${state.mapping[f] != null ? ` <span class="col">→ ePASS col ${({ po: "A", model: "B", eta: "C", rdd: "D" })[f] || "—"}</span>` : ""}</div>
+            <select data-field="${f}">${opts(state.mapping[f])}</select>
+            <div class="ex" title="${esc(FIELD_HELP[f])}">${state.mapping[f] == null ? esc(FIELD_HELP[f]) : "e.g. " + esc(sample(sh, state.mapping[f]))}</div>
+          </div>`).join("");
+        $("mapGrid").querySelectorAll("select").forEach((s) => s.addEventListener("change", () => { state.mapping[s.dataset.field] = s.value === "" ? null : Number(s.value); renderMap(); }));
+      }
+      const colLetter = (i) => { let s = ""; let n = i; do { s = String.fromCharCode(65 + (n % 26)) + s; n = Math.floor(n / 26) - 1; } while (n >= 0); return s; };
+      const sample = (sh, i) => sh.sample.map((r) => r[i]).filter((v) => v != null && String(v).trim() !== "").slice(0, 3).join(" · ") || "(blank in the first rows)";
+      $("sheet").addEventListener("change", () => { state.sheetIndex = Number($("sheet").value); const sh = state.inspect.sheets[state.sheetIndex]; state.mapping = {}; for (const f of Object.keys(FIELD_LABELS)) state.mapping[f] = null; renderMap(); });
+
+      // ---- 3. match + review ----
+      $("matchBtn").addEventListener("click", async () => {
+        const m = state.mapping;
+        if (m.po == null || m.model == null) return setStatus("Pick the PO # column and the model column.", "error");
+        if (m.eta == null) return setStatus("Pick the vendor's ETA column.", "error");
+        const btn = $("matchBtn"); btn.disabled = true; btn.textContent = "Matching…"; setStatus("");
+        try {
+          const form = new FormData(); form.append("file", state.file); form.append("vendor", $("vendor").value); form.append("sheet", String(state.sheetIndex)); form.append("mapping", JSON.stringify(m)); form.append("saveMap", $("saveMap").checked ? "1" : "0");
+          state.result = await api("/api/po-eta-import/match", { method: "POST", body: form });
+          for (const r of state.result.rows) { r.include = r.state === "changed"; r.editEta = r.newEta; r.editRdd = r.newRdd; }
+          renderReview();
+          $("reviewCard").classList.remove("hidden");
+          $("reviewCard").scrollIntoView({ behavior: "smooth", block: "start" });
+        } catch (err) { setStatus(err.message, "error"); }
+        finally { btn.disabled = false; btn.textContent = "Match against ePASS"; }
+      });
+      const matchable = (r) => r.state === "changed" || r.state === "same" || r.state === "no-eta";
+      function renderReview() {
+        const res = state.result; const s = res.summary;
+        $("reviewNote").innerHTML = `<b>${res.parsedRows}</b> portal rows → <b>${s.total}</b> PO + model lines, matched against ${res.feed.openLines.toLocaleString()} open ePASS lines (feed ${esc(when(res.feed.pulledAt))}). ` +
+          (s.changed ? `<b>${s.changed}</b> moved and are ticked for the file.` : `Nothing moved — ePASS already has what the vendor shows.`) +
+          (s["no-po"] || s["no-model"] ? ` <b>${(s["no-po"] || 0) + (s["no-model"] || 0)}</b> could not be matched — fix those on the PO by hand or check the portal's PO number.` : "");
+        $("chips").innerHTML = Object.keys(STATE_LABELS).filter((k) => s[k]).map((k) => `<button type="button" class="chip ${k} ${state.filter.has(k) ? "on" : ""}" data-state="${k}" title="${esc(STATE_HELP[k])}">${esc(STATE_LABELS[k])} <span class="n">${s[k]}</span></button>`).join("");
+        $("chips").querySelectorAll(".chip").forEach((c) => c.addEventListener("click", () => { const k = c.dataset.state; if (state.filter.has(k)) state.filter.delete(k); else state.filter.add(k); renderReview(); }));
+        const rows = res.rows.filter((r) => state.filter.has(r.state));
+        $("reviewTable").innerHTML = rows.length ? `<table class="lines"><thead><tr>
+            <th></th><th>PO</th><th>Model</th><th class="num">Open qty</th><th>ETA</th><th>Requested</th><th>Result</th><th>Notes</th></tr></thead><tbody>${rows.map(rowHtml).join("")}</tbody></table>`
+          : `<p class="sub">No lines in the selected groups — click a group above to show it.</p>`;
+        $("reviewTable").querySelectorAll("input[data-inc]").forEach((i) => i.addEventListener("change", () => { res.rows[Number(i.dataset.inc)].include = i.checked; renderReview(); }));
+        $("reviewTable").querySelectorAll("input[data-eta]").forEach((i) => i.addEventListener("change", () => { res.rows[Number(i.dataset.eta)].editEta = i.value; updateCount(); }));
+        $("reviewTable").querySelectorAll("input[data-rdd]").forEach((i) => i.addEventListener("change", () => { res.rows[Number(i.dataset.rdd)].editRdd = i.value; updateCount(); }));
+        updateCount();
+      }
+      function rowHtml(r) {
+        const idx = state.result.rows.indexOf(r);
+        const can = matchable(r);
+        const past = r.editEta && state.result.today && r.editEta < state.result.today;
+        const etaCell = can
+          ? `${r.epassEta && r.epassEta !== r.editEta ? `<span class="old">${esc(mdy(r.epassEta))}</span><span class="arrow">→</span>` : (r.epassEta ? "" : `<span class="sub">none</span><span class="arrow">→</span>`)}<input type="date" value="${esc(r.editEta || "")}" data-eta="${idx}" ${r.include ? "" : "disabled"} /> ${past ? `<span class="pastdue" title="This ETA is already in the past">past</span>` : ""}`
+          : `${esc(mdy(r.vendorEta)) || "—"}`;
+        const rddCell = can
+          ? `${r.epassRdd && r.epassRdd !== r.editRdd ? `<span class="old">${esc(mdy(r.epassRdd))}</span><span class="arrow">→</span>` : ""}<input type="date" value="${esc(r.editRdd || "")}" data-rdd="${idx}" ${r.include ? "" : "disabled"} />`
+          : `${esc(mdy(r.vendorRdd)) || "—"}`;
+        const sent = r.lastSent ? `<div class="note"><span class="badge sent">sent ${esc(new Date(r.lastSent.at).toLocaleDateString("en-US", { month: "numeric", day: "numeric" }))}</span> ${r.lastSent.same ? "same dates already in a built file — ePASS may not have been imported yet" : `earlier file had ETA ${esc(mdy(r.lastSent.eta))}`}</div>` : "";
+        return `<tr class="${r.include ? "" : "off"}">
+          <td>${can ? `<input type="checkbox" data-inc="${idx}" ${r.include ? "checked" : ""} title="Include in the import file" />` : ""}</td>
+          <td data-label="PO"><span class="mono">${esc(r.epassPo || r.po)}</span>${r.epassPo && r.epassPo !== String(r.po).trim().toUpperCase() ? `<div class="sub">portal: ${esc(r.po)}</div>` : ""}${r.supplier ? `<div class="sub">${esc(r.supplier)}</div>` : ""}</td>
+          <td data-label="Model"><span class="mono">${esc(r.epassModel || r.model)}</span>${r.epassModel && r.epassModel !== String(r.model).trim().toUpperCase() ? `<div class="sub">portal: ${esc(r.model)}</div>` : ""}<div class="sub">rows ${esc(r.rows.join(", "))}${r.status ? ` · ${esc(r.status)}` : ""}</div></td>
+          <td class="num" data-label="Open qty">${r.qtyOpen == null ? "—" : esc(r.qtyOpen)}${r.qty != null && r.qtyOpen != null && Number(r.qty) !== Number(r.qtyOpen) ? `<div class="sub">vendor ${esc(r.qty)}</div>` : ""}</td>
+          <td data-label="ETA">${etaCell}</td>
+          <td data-label="Requested">${rddCell}</td>
+          <td data-label="Result"><span class="badge ${esc(r.state)}" title="${esc(STATE_HELP[r.state] || "")}">${esc(STATE_LABELS[r.state] || r.state)}</span></td>
+          <td class="wide" data-label="Notes">${r.notes.length ? `<div class="note ${r.state === "no-po" || r.state === "no-model" ? "warn" : ""}">${r.notes.map(esc).join("<br>")}</div>` : ""}${sent}</td>
+        </tr>`;
+      }
+      const exportRows = () => (state.result?.rows || []).filter((r) => r.include && matchable(r) && r.editEta).map((r) => ({ po: r.epassPo || r.po, model: r.epassModel || r.model, eta: r.editEta, rdd: r.editRdd || "" }));
+      function updateCount() { const n = exportRows().length; $("buildCount").textContent = n ? `${n} line${n === 1 ? "" : "s"} will be in the file` : "no lines ticked"; $("buildBtn").disabled = !n || state.building; }
+
+      // ---- 4. build + download ----
+      $("buildBtn").addEventListener("click", async () => {
+        const rows = exportRows(); if (!rows.length) return;
+        state.building = true; const btn = $("buildBtn"); btn.disabled = true; btn.textContent = "Building…"; setStatus("");
+        try {
+          const res = await fetch("/api/po-eta-import/build", { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ vendor: $("vendor").value, sourceFile: state.result.filename, rows, rowsTotal: state.result.summary.total, summary: state.result.summary, datesAsText: $("datesAsText").checked }) });
+          if (!res.ok) { const data = await res.json().catch(() => ({})); throw new Error(data.error || "Unable to build the file."); }
+          const blob = await res.blob();
+          const name = (res.headers.get("Content-Disposition") || "").match(/filename="([^"]+)"/)?.[1] || "epass-eta-import.xlsx";
+          const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = name; document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 2000);
+          const runId = res.headers.get("X-Run-Id");
+          setStatus(`Built ${name} with ${rows.length} line${rows.length === 1 ? "" : "s"}${runId ? ` (run #${runId})` : ""}. Import it in ePASS with the settings below, then the next feed pull will show the new dates.`, "ok");
+          try { renderRuns((await api("/api/po-eta-import/runs")).runs || []); } catch { /* list refresh is best-effort */ }
+        } catch (err) { setStatus(err.message, "error"); }
+        finally { state.building = false; btn.textContent = "Build ePASS import file"; updateCount(); }
+      });
+
+      // ---- history ----
+      function renderRuns(runs) {
+        const label = (k) => state.ctx?.vendors.find((v) => v.key === k)?.label || k;
+        $("runs").innerHTML = runs.length ? `<table class="runs"><thead><tr><th>Built</th><th>Vendor</th><th>Portal file</th><th>By</th><th>Lines</th><th>Result</th><th></th></tr></thead><tbody>${runs.map((r) => `<tr>
+            <td data-label="Built">${esc(when(r.createdAt))}</td>
+            <td data-label="Vendor">${esc(label(r.vendorKey))}</td>
+            <td data-label="Portal file">${esc(r.sourceFile || "—")}</td>
+            <td data-label="By">${esc(r.byName || r.byEmail || "—")}</td>
+            <td data-label="Lines">${esc(r.rowsExported)} of ${esc(r.rowsTotal)}</td>
+            <td data-label="Result"><span class="sub">${esc(["changed", "same", "no-po", "no-model", "no-eta", "cancelled", "delivered"].filter((k) => r.summary?.[k]).map((k) => `${STATE_LABELS[k].toLowerCase()} ${r.summary[k]}`).join(" · "))}</span></td>
+            <td>${r.hasFile ? `<a href="/api/po-eta-import/runs/${esc(r.id)}/file.xlsx">Download again</a>` : ""}</td>
+          </tr>`).join("")}</tbody></table>` : `<span class="sub">No import files built yet.</span>`;
+      }
+
+      loadContext();
+    })();
+  </script>
+</body>
+</html>

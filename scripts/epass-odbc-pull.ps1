@@ -929,6 +929,16 @@ ORDER BY DateStamp
       "payment-types" = @"
 SELECT Code, Description, AR, COD, Finance, NetDays, DayInNextMonth, PaymentGroupCode, GLAccount, Obsolete, PaymentProcessingType FROM PaymentType
 "@
+      # 10/20: settled AR activity (invoice rows, A/R payments, adjustments and
+      # write-offs) so Agility can reproduce ePASS's own invoice Balance
+      # (Total - Payments - A/R Payments - A/R Adjustments) for the commission
+      # hold - a 3-cent rounding write-off on A/R must not hold a ticket.
+      # Amount / type / date only; no card or payer identifiers.
+      "ar-history" = @"
+SELECT ID, CustomerCode, Invoice, RecordType, TransactionDate, Amount, TotalPaymentAmount, PaymentTypeCode, PostingBatch, CreateDateStamp
+FROM ARHistory WHERE TransactionDate >= '$paySince'
+ORDER BY TransactionDate
+"@
       "suppliers" = @"
 SELECT Code, Description, SupplierTypeCode, InventorySupplier, Obsolete, DueDays, DueDateTerms, DiscountDays, DiscountDateTerms, DiscountPercentage, POFloorPlanDays, FloorPlanning, ETADays, AvgLeadTime, POCostFactor, DefaultPOCost, CRDueDays, CRDueDateTerms, UseDueDateForSplitPayments, AutoCreateAPInvoiceCosting, POUpdateAP, YTDPurchase, LastYearPurchase
 FROM Supplier

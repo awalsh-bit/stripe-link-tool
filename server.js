@@ -15306,10 +15306,11 @@ app.get("/api/epass/paid-status/:invoice", requireExecutiveApi, async (req, res)
       q(`SELECT invoice, payment_type, paid_on, post_date, amount::float AS amount, status FROM epass_payments WHERE split_part(invoice, '-', 1) = $1 ORDER BY paid_on`, [base]),
       q(`SELECT invoice, finish_date, source_month, detail->>'balance' AS feed_balance, detail->>'paid' AS feed_paid, detail->>'paymentType' AS payment_type, updated_at FROM sales_order_detail WHERE split_part(invoice, '-', 1) = $1 ORDER BY invoice`, [base])
     ]);
+    const customerAr = await q(`SELECT customer_code, invoice, record_type, transaction_date, amount::float AS amount, payment_type FROM epass_ar_current WHERE customer_code <> '' AND customer_code IN (SELECT DISTINCT customer_code FROM epass_ar_current WHERE split_part(invoice, '-', 1) = $1) ORDER BY customer_code, transaction_date, id`, [base]);
     const family = [...new Set([inv, ...orders.map((o) => o.invoice).filter(Boolean)])];
     const verdict = await epassInvoicePaidStatus(pool, family);
     const meta = await getEpassFinanceMeta().catch(() => null);
-    return res.json({ invoice: inv, base, verdict: verdict.byInvoice, source: verdict.source, enabled: verdict.enabled, arCurrent, arHistory, payments, orders, financeFeed: meta });
+    return res.json({ invoice: inv, base, verdict: verdict.byInvoice, source: verdict.source, enabled: verdict.enabled, arCurrent, customerArCurrent: customerAr, arHistory, payments, orders, financeFeed: meta });
   } catch (err) { return res.status(400).json({ error: err.message }); }
 });
 

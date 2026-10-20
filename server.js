@@ -13213,6 +13213,10 @@ app.post("/api/field-commissions/override", requireCommissionsPage, async (req, 
     const listPrice = num(b.listPrice, "list price");
     const serialCost = num(b.serialCost, "cost");
     const credit = num(b.credit, "vendor credit", { min: -100000, max: 100000 });
+    const discount1 = num(b.discount1, "discount 1", { min: 0, max: 1000000 });
+    const discount2 = num(b.discount2, "discount 2", { min: 0, max: 1000000 });
+    const discount1Label = String(b.discount1Label || "").trim().slice(0, 80);
+    const discount2Label = String(b.discount2Label || "").trim().slice(0, 80);
     let rate = null;
     if (b.ratePercent != null && b.ratePercent !== "") {
       const p = Number(b.ratePercent);
@@ -13232,7 +13236,7 @@ app.post("/api/field-commissions/override", requireCommissionsPage, async (req, 
     }
 
     const saved = await saveCommissionOverride({
-      lineKey, sourceMonth, listPrice, serialCost, credit, rate, fullCreditTo, omit,
+      lineKey, sourceMonth, listPrice, serialCost, credit, discount1, discount1Label, discount2, discount2Label, rate, fullCreditTo, omit,
       note: b.note, byEmail: req.authUser?.email || req.authUser?.username || ""
     });
 
@@ -13240,7 +13244,7 @@ app.post("/api/field-commissions/override", requireCommissionsPage, async (req, 
       ip: req.ip, actorUserId: req.authUser?.id || null,
       action: saved ? "commission_override_saved" : "commission_override_cleared",
       targetUserId: null,
-      detail: { lineKey: lineKey.slice(0, 120), sourceMonth, listPrice, serialCost, credit, rate, fullCreditTo, omit, note: String(b.note || "").slice(0, 200) }
+      detail: { lineKey: lineKey.slice(0, 120), sourceMonth, listPrice, serialCost, credit, discount1, discount1Label, discount2, discount2Label, rate, fullCreditTo, omit, note: String(b.note || "").slice(0, 200) }
     }).catch(() => {});
 
     return res.json({ ok: true, cleared: !saved });

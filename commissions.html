@@ -438,9 +438,9 @@
 
     function discBadge(l) {
       if (!l.discount) return "";
-      const parts = (l.discount.parts || []).map((p) => `${p.code || "misc"}${p.desc ? " " + p.desc : ""}: ${money(p.amount)}${p.how ? " (" + p.how + ")" : ""}`).join("\n");
-      const title = `ePASS discount${l.discount.miscCodes?.length ? " (" + l.discount.miscCodes.join(", ") + ")" : ""} netted off list: was ${money(l.discount.listBefore)}, ${money(l.discount.amount)} -> pays on ${money(l.revenue)}${parts ? "\n\nMade up of:\n" + parts : ""}`;
-      return ` <span class="badge discount" title="${escapeHtml(title)}">discount ${money(l.discount.amount)}</span>`;
+      const items = (l.discount.items || []).map((it) => `${it.label}: ${money(it.amount)}${it.how ? " (" + it.how + ")" : ""}`).join("\n");
+      const title = `${l.discount.overridden ? "Discounts (exec override)" : "ePASS discount" + (l.discount.miscCodes?.length ? " (" + l.discount.miscCodes.join(", ") + ")" : "")} netted off list: was ${money(l.discount.listBefore)}, ${money(l.discount.amount)} -> pays on ${money(l.revenue)}${items ? "\n\n" + items : ""}`;
+      return (l.discount.items || []).map((it) => ` <span class="badge discount" title="${escapeHtml(title)}">${escapeHtml(it.label.length > 26 ? it.label.slice(0, 24) + "…" : it.label)} ${money(it.amount)}</span>`).join("") || ` <span class="badge discount" title="${escapeHtml(title)}">discount ${money(l.discount.amount)}</span>`;
     }
     function editorHtml(l, kind) {
       const ov = l.override || {};
@@ -456,7 +456,15 @@
               <div class="ef"><label>Cost $ override</label>
                 <input type="number" step="0.01" class="ov-cost" value="${ov.serialCost ?? ""}" placeholder="${l.original.serialCost ?? "n/a"}"></div>
               <div class="ef"><label>Vendor credit $ (trailing / damage)</label>
-                <input type="number" step="0.01" class="ov-vcredit" value="${ov.credit ?? ""}" placeholder="0.00" title="Jenn-Air trailing credit, damage allowance… — comes off the cost before margin"></div>`}
+                <input type="number" step="0.01" class="ov-vcredit" value="${ov.credit ?? ""}" placeholder="0.00" title="Jenn-Air trailing credit, damage allowance… — comes off the cost before margin"></div>
+              <div class="ef"><label>Discount 1 $ off</label>
+                <input type="number" step="0.01" min="0" class="ov-d1" value="${ov.discount1 ?? ""}" placeholder="${l.feedDiscounts?.[0] ? Math.abs(l.feedDiscounts[0].amount).toFixed(2) : "0.00"}"></div>
+              <div class="ef"><label>Discount 1 label</label>
+                <input type="text" class="ov-d1l" maxlength="80" value="${escapeHtml(ov.discount1Label || "")}" placeholder="${escapeHtml(l.feedDiscounts?.[0]?.label || "ePASS misc description")}"></div>
+              <div class="ef"><label>Discount 2 $ off</label>
+                <input type="number" step="0.01" min="0" class="ov-d2" value="${ov.discount2 ?? ""}" placeholder="${l.feedDiscounts?.[1] ? Math.abs(l.feedDiscounts[1].amount).toFixed(2) : "0.00"}"></div>
+              <div class="ef"><label>Discount 2 label</label>
+                <input type="text" class="ov-d2l" maxlength="80" value="${escapeHtml(ov.discount2Label || "")}" placeholder="${escapeHtml(l.feedDiscounts?.[1]?.label || "ePASS misc description")}"></div>`}
               ${canRate ? `
               <div class="ef"><label>Payout % override</label>
                 <input type="number" step="0.1" min="0" max="100" class="ov-rate" value="${ov.rate != null ? Math.round(ov.rate * 10000) / 100 : ""}" placeholder="tier"></div>` : ""}
@@ -478,7 +486,7 @@
                 <input type="text" class="ov-note" maxlength="300" value="${escapeHtml(ov.note || "")}" placeholder="why (shows on the statement)"></div>
               <button type="button" class="save-ov" data-save-ov="${escapeHtml(l.lineKey)}">Save</button>
               ${l.override ? `<button type="button" class="clear-ov" data-clear-ov="${escapeHtml(l.lineKey)}">Clear override</button>` : ""}
-              <div class="editor-hint">Blank fields keep the report's values (shown as placeholders). <strong>Vendor credit</strong> (Jenn-Air trailing credit, a damage allowance — nothing ePASS knows about) comes off the unit's cost before the margin is figured: margin = (list − discounts − (cost − credit)) ÷ (list − discounts). A payout % on an RTV/SVC line forces it back into pay. <strong>Omit</strong> removes the line entirely — no pay, no charge-back, no revenue counted — and lists it under excluded lines with your note (for return lines not charged back, or artifacts that landed in the wrong name). Overrides stick to this line across re-uploads.</div>
+              <div class="editor-hint">Blank fields keep the report's values (shown as placeholders). <strong>Discount 1 / 2</strong> are dollars off list, each with the ePASS Misc short description as its label (shown on the PDF); the placeholders are what the feed attributed — type in either box to replace both. <strong>Vendor credit</strong> (Jenn-Air trailing credit, a damage allowance — nothing ePASS knows about) comes off the unit's cost before the margin is figured: margin = (list − discounts − (cost − credit)) ÷ (list − discounts). A payout % on an RTV/SVC line forces it back into pay. <strong>Omit</strong> removes the line entirely — no pay, no charge-back, no revenue counted — and lists it under excluded lines with your note (for return lines not charged back, or artifacts that landed in the wrong name). Overrides stick to this line across re-uploads.</div>
             </div>
           </td>
         </tr>`;
@@ -1052,6 +1060,8 @@
             listPrice: val(".ov-list") || null,
             serialCost: val(".ov-cost") || null,
             credit: val(".ov-vcredit") || null,
+            discount1: val(".ov-d1") || null, discount1Label: val(".ov-d1l"),
+            discount2: val(".ov-d2") || null, discount2Label: val(".ov-d2l"),
             ratePercent: val(".ov-rate") || null,
             fullCreditTo: row.querySelector(".ov-credit-on")?.checked ? val(".ov-credit-to") : "",
             omit: !!row.querySelector(".ov-omit")?.checked,

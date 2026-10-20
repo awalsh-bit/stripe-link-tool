@@ -8078,7 +8078,7 @@ app.post("/api/service-estimates/send-email", requirePagePermission("/service-es
           "A friendly reminder from Wilson",
           [
             `Just a quick reminder — your ${estPhrase} from Wilson AC & Appliance is still waiting for your review.`,
-            "It takes about a minute: see the breakdown, then approve the repair — or let us know you'd rather shop for a replacement. If anything's unclear, we're happy to talk it through."
+            "It takes about a minute: see the breakdown, then approve the repair — or skip it and put $100 of your diagnostic fee toward a new appliance. If anything's unclear, we're happy to talk it through."
           ],
           "Review Your Estimate",
           url,
@@ -8088,7 +8088,7 @@ app.post("/api/service-estimates/send-email", requirePagePermission("/service-es
           appl ? `Your ${appl} estimate is ready` : "Your Wilson service estimate is ready",
           [
             `Your ${estPhrase} from Wilson AC & Appliance is ready to review.`,
-            "It takes about a minute: see the parts, labor, and tax breakdown, then approve the repair — or let us know you'd rather shop for a replacement."
+            "It takes about a minute: see the parts, labor, and tax breakdown, then approve the repair — or skip it and put $100 of your diagnostic fee toward a new appliance."
           ],
           "Review Your Estimate",
           url,
@@ -8665,17 +8665,18 @@ app.post("/api/estimate/respond", async (req, res) => {
     }).catch(() => {});
 
     if (choice === "elsewhere") {
-      // The client is starting their search elsewhere. No sales fan-out —
-      // they asked not to be shopped — but the Client Care rep who sent the
+      // The client declined: pay the diagnostic fee, close the work order
+      // (the red "Decline" button, Andrew 10/20). No sales fan-out — they
+      // asked not to be shopped — but the Client Care rep who sent the
       // estimate gets the experience feedback (and knows the $100-over-$999
       // service-client discount was offered on the way out).
       const feedback = String(estimate.response?.notes || "").trim();
       if (estimate.createdByEmail) {
         createPushedNotification({
           severity: "yellow",
-          typeLabel: "Estimate — Went Elsewhere",
+          typeLabel: "Estimate — Declined",
           refId: `svelse:${estimate.token}`,
-          title: `${estimate.customerName} is starting their search elsewhere (${estimate.svNumber || "service"})`,
+          title: `${estimate.customerName} declined the repair on ${estimate.svNumber || "their estimate"} — close the work order, diagnostic fee only`,
           body: `${feedback ? `Their feedback: “${feedback}”` : "No feedback left."} They were reminded of the $100 service-client discount toward a purchase over $999.`,
           audienceEmail: estimate.createdByEmail,
           byEmail: "service-estimates",
@@ -8688,9 +8689,9 @@ app.post("/api/estimate/respond", async (req, res) => {
             body: JSON.stringify({
               from: AGILITY_ALERTS_FROM,
               to: [estimate.createdByEmail],
-              subject: `Estimate feedback — ${estimate.customerName} is shopping elsewhere (${estimate.svNumber || "service"})`,
+              subject: `Estimate declined — ${estimate.customerName} (${estimate.svNumber || "service"}) — close the work order`,
               text: [
-                `${estimate.customerName} declined service estimate ${estimate.svNumber || ""} ($${Number(estimate.summary?.invoiceTotal || 0).toFixed(2)}) and chose to start their replacement search elsewhere.`,
+                `${estimate.customerName} declined service estimate ${estimate.svNumber || ""} ($${Number(estimate.summary?.invoiceTotal || 0).toFixed(2)}): they chose to pay the diagnostic fee only and close the work order.`,
                 feedback ? `Their feedback: "${feedback}"` : "They didn't leave feedback.",
                 "They were reminded of the $100 service-client discount toward a purchase over $999.",
                 `Contact: ${[estimate.contactPhone, estimate.contactEmail].filter(Boolean).join(" / ") || "on the estimate record"}`

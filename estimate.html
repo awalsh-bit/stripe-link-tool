@@ -55,6 +55,15 @@
     }
     .btn.approve { background: var(--green); color: #fff; }
     .btn.shop { background: #fff; color: var(--text); border: 1.5px solid var(--border); }
+    /* The two ways out of a repair (Andrew 10/20): skip it and put the $100
+       diagnostic credit toward a new appliance, or decline and close out.
+       Coloured and spelled out — the old grey "shop for a replacement" button
+       was where clients bailed. */
+    .btn.skip { background: #1d4ed8; color: #fff; font-size: 14.5px; padding: 13px 15px; line-height: 1.35; }
+    .btn.decline { background: #fff; color: #b91c1c; border: 1.5px solid #dc2626; font-size: 14.5px; padding: 13px 15px; line-height: 1.35; }
+    .btn.skip b, .btn.decline b { display: block; font-size: 15.5px; margin-bottom: 2px; }
+    .btn.skip span, .btn.decline span { font-weight: 600; opacity: 0.95; }
+    .credit { background: #eff6ff; border: 1.5px solid #1d4ed8; border-radius: 12px; padding: 12px 14px; font-size: 13.5px; line-height: 1.5; margin-bottom: 4px; color: #1e3a8a; }
     .btn:disabled { opacity: 0.6; cursor: wait; }
     .fine { font-size: 12px; color: var(--muted); line-height: 1.5; margin-top: 14px; }
     .fine a { color: var(--green); font-weight: 700; text-decoration: none; }
@@ -161,7 +170,7 @@
           return doneCard("Thanks for having us out", "This estimate is closed — you chose the diagnostic visit only. If you decide to move forward with the repair, give us a call and we'll pick it right back up.");
         }
         if (est.status === "elsewhere") {
-          return doneCard("Thanks for letting us know","We appreciate the feedback. If you change your mind, your <strong>$100 discount toward any purchase over $999</strong> is waiting for you at Wilson — in the showroom or online.");
+          return doneCard("Thanks for letting us know", "We'll close this work order — only the diagnostic fee applies, nothing else is owed. If you change your mind, your <strong>$100 discount toward any purchase over $999</strong> is waiting for you at Wilson — in the showroom or online.");
         }
         // What the estimate is FOR — the team's free-text appliance label
         // when present, else the appliance details the work-order scan found.
@@ -202,11 +211,13 @@
             <button type="button" class="btn approve" id="approveAnyway">Yes — proceed with the repair</button>
             <button type="button" class="btn plain" id="approveShopInstead">Show me replacement options instead</button>
           </div>
-          <button type="button" class="btn shop" id="shopBtn">I'd rather shop for a replacement</button>
+          <button type="button" class="btn skip" id="shopBtn"><b>Skip repair</b><span>I'd like to put $100 of my diagnostic fee toward a new appliance</span></button>
+          <button type="button" class="btn decline" id="declineBtn"><b>Decline</b><span>I'll just pay the diagnostic fee and close this work order</span></button>
 
           <div class="shop-form" id="shopForm">
             <div id="shopMain">
-            <div class="q">No problem — what are you thinking?</div>
+            <div class="credit">Good call — your <strong>$100 diagnostic credit</strong> goes toward your new appliance (any purchase over $999, in the showroom or online). Tell us a little about what you're after and a Wilson consultant will take it from here.</div>
+            <div class="q">What are you thinking?</div>
             <label class="opt"><input type="radio" name="direction" value="similar"><span>Something <strong>similar</strong> to what I have now</span></label>
             <label class="opt"><input type="radio" name="direction" value="new"><span>I'd like to <strong>try something new</strong></span></label>
             <label class="opt"><input type="radio" name="direction" value="unsure"><span>Not sure yet — <strong>help me decide</strong></span></label>
@@ -219,23 +230,25 @@
             <div class="q">Anything else we should know? <span style="font-weight:400; color:var(--muted);">(optional)</span></div>
             <textarea id="shopNotes" placeholder="Brand or color preferences, sizes, budget, timing…"></textarea>
 
-            <button type="button" class="btn approve" id="shopSubmit" style="background:#3730a3;">Send to the Wilson team</button>
-
-            <div style="text-align:center; margin-top:14px;">
-              <button type="button" id="elseBtn" style="background:none; border:none; cursor:pointer; font-family:inherit; font-size:12.5px; color:var(--muted); text-decoration:underline; padding:6px;">I'd prefer to start my search elsewhere</button>
+            <button type="button" class="btn approve" id="shopSubmit" style="background:#1d4ed8;">Send to the Wilson team</button>
+            <div style="text-align:center; margin-top:8px;">
+              <button type="button" id="shopBack" style="background:none; border:none; cursor:pointer; font-family:inherit; font-size:12px; color:var(--muted); text-decoration:underline; padding:4px;">← Back</button>
             </div>
             </div>
 
-            <div id="elseForm" style="display:none; margin-top:14px; border-top:1px solid var(--border); padding-top:16px;">
+            <div id="elseForm" style="display:none;">
+              <div style="font-size:13.5px; line-height:1.5; margin-bottom:12px; color:#374151;">
+                Understood — we'll close this work order and only the diagnostic fee applies. Nothing else is owed.
+              </div>
               <div style="background:#f2f8f2; border:1.5px solid var(--green); border-radius:12px; padding:12px 14px; font-size:13.5px; line-height:1.5; margin-bottom:14px;">
                 Before you go — as a Wilson service client you have a <strong>$100 discount toward any purchase
                 over $999</strong>, in the showroom or online. It's yours whenever you're ready.
               </div>
-              <div class="q">Is there anything else we should know about your Wilson repair or sales experience?</div>
+              <div class="q">Is there anything we should know about your Wilson repair or sales experience? <span style="font-weight:400; color:var(--muted);">(optional)</span></div>
               <textarea id="elseNotes" placeholder="Anything at all — pricing, timing, selection, how the repair went…"></textarea>
-              <button type="button" class="btn shop" id="elseSubmit" style="margin-top:12px;">Send &amp; finish</button>
+              <button type="button" class="btn decline" id="elseSubmit" style="margin-top:12px;"><b>Close my work order</b></button>
               <div style="text-align:center; margin-top:8px;">
-                <button type="button" id="elseBack" style="background:none; border:none; cursor:pointer; font-family:inherit; font-size:12px; color:var(--muted); text-decoration:underline; padding:4px;">← Back to shopping with Wilson</button>
+                <button type="button" id="elseBack" style="background:none; border:none; cursor:pointer; font-family:inherit; font-size:12px; color:var(--muted); text-decoration:underline; padding:4px;">← Back</button>
               </div>
             </div>
           </div>
@@ -249,10 +262,28 @@
         document.querySelectorAll(".opt input").forEach((r) => r.addEventListener("change", () => {
           document.querySelectorAll(`.opt input[name='${r.name}']`).forEach((o) => o.closest(".opt").classList.toggle("on", o.checked));
         }));
+        const hideChoices = () => { $("shopBtn").style.display = "none"; $("declineBtn").style.display = "none"; $("approveConfirm").classList.remove("show"); };
+        const showChoices = () => {
+          $("shopForm").classList.remove("show"); $("shopMain").style.display = ""; $("elseForm").style.display = "none";
+          $("shopBtn").style.display = ""; $("declineBtn").style.display = "";
+          $("approveBtn").style.display = ""; // a not-recommended estimate re-asks on the next tap
+          $("approveBtn").scrollIntoView({ behavior: "smooth", block: "center" });
+        };
+        // Blue: skip the repair, $100 of the diagnostic fee toward a new
+        // appliance — the existing shopping workflow (consultant lead).
         const openShop = () => {
+          hideChoices();
+          $("shopMain").style.display = ""; $("elseForm").style.display = "none";
           $("shopForm").classList.add("show");
-          $("shopBtn").style.display = "none";
-          $("approveConfirm").classList.remove("show");
+          $("shopForm").scrollIntoView({ behavior: "smooth", block: "start" });
+        };
+        // Red: decline — pay the diagnostic fee, close the work order — the
+        // existing "elsewhere" workflow (discount reminder + feedback, no
+        // sales fan-out).
+        const openDecline = () => {
+          hideChoices();
+          $("shopMain").style.display = "none"; $("elseForm").style.display = "block";
+          $("shopForm").classList.add("show");
           $("shopForm").scrollIntoView({ behavior: "smooth", block: "start" });
         };
         // "Not recommended" estimates approve in two taps: the tech's note
@@ -271,17 +302,9 @@
           const visit = document.querySelector(".opt input[name='visit']:checked")?.value || "";
           respond({ choice: "shop", productDirection: direction, visit, notes: $("shopNotes").value.trim() }, $("shopSubmit"));
         });
-        // Escape hatch: the client would rather look elsewhere — remind them
-        // of the service-client discount and ask for experience feedback.
-        $("elseBtn").addEventListener("click", () => {
-          $("shopMain").style.display = "none";
-          $("elseForm").style.display = "block";
-          $("elseForm").scrollIntoView({ behavior: "smooth", block: "start" });
-        });
-        $("elseBack").addEventListener("click", () => {
-          $("elseForm").style.display = "none";
-          $("shopMain").style.display = "";
-        });
+        $("declineBtn").addEventListener("click", openDecline);
+        $("shopBack").addEventListener("click", showChoices);
+        $("elseBack").addEventListener("click", showChoices);
         $("elseSubmit").addEventListener("click", () => {
           respond({ choice: "elsewhere", notes: $("elseNotes").value.trim() }, $("elseSubmit"));
         });

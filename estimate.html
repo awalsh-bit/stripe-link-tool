@@ -59,11 +59,15 @@
        diagnostic credit toward a new appliance, or decline and close out.
        Coloured and spelled out — the old grey "shop for a replacement" button
        was where clients bailed. */
-    .btn.skip { background: #1d4ed8; color: #fff; font-size: 14.5px; padding: 13px 15px; line-height: 1.35; }
-    .btn.decline { background: #fff; color: #b91c1c; border: 1.5px solid #dc2626; font-size: 14.5px; padding: 13px 15px; line-height: 1.35; }
-    .btn.skip b, .btn.decline b { display: block; font-size: 15.5px; margin-bottom: 2px; }
-    .btn.skip span, .btn.decline span { font-weight: 600; opacity: 0.95; }
-    .credit { background: #eff6ff; border: 1.5px solid #1d4ed8; border-radius: 12px; padding: 12px 14px; font-size: 13.5px; line-height: 1.5; margin-bottom: 4px; color: #1e3a8a; }
+    .btn.choice { padding: 12px 15px; line-height: 1.3; min-height: 64px; display: flex; flex-direction: column; justify-content: center; align-items: center; }
+    @media (max-width: 480px) { .btn.choice { min-height: 78px; } }
+    .btn.choice b { display: block; font-size: 15px; }
+    .btn.choice span { display: block; font-size: 12.5px; font-weight: 500; margin-top: 2px; opacity: 0.85; }
+    .btn.choice { box-sizing: border-box; }
+    .btn.skip { background: #4a7fc1; color: #fff; }
+    .btn.decline { background: #fff; color: #9f3a3a; border: 1.5px solid #e4b4b4; }
+    .btn.decline.choice { padding-top: 10.5px; padding-bottom: 10.5px; } /* border counted, so all three measure the same */
+    .credit { background: #eef4fb; border: 1.5px solid #4a7fc1; border-radius: 12px; padding: 12px 14px; font-size: 13.5px; line-height: 1.5; margin-bottom: 4px; color: #1e3a8a; }
     .btn:disabled { opacity: 0.6; cursor: wait; }
     .fine { font-size: 12px; color: var(--muted); line-height: 1.5; margin-top: 14px; }
     .fine a { color: var(--green); font-weight: 700; text-decoration: none; }
@@ -205,14 +209,14 @@
           ${s.etaMessage ? `<div class="next"><strong>What happens next</strong>${esc(s.etaMessage)}</div>` : ""}
           ${s.notRecommended ? `<div class="warn"><strong>A note from your technician</strong>This repair is <b>not recommended</b>. Based on what they found, your technician suggests shopping for a replacement rather than repairing this unit.${s.notRecommendedNote ? ` <i>“${esc(s.notRecommendedNote)}”</i>` : ""}</div>` : ""}
 
-          <button type="button" class="btn approve" id="approveBtn">Approve this estimate</button>
+          <button type="button" class="btn approve choice" id="approveBtn"><b>Approve this estimate</b></button>
           <div class="confirm" id="approveConfirm">
             <p>Your technician notes that this repair is not recommended and to proceed with shopping for a replacement. Proceed with repair anyway?</p>
             <button type="button" class="btn approve" id="approveAnyway">Yes — proceed with the repair</button>
             <button type="button" class="btn plain" id="approveShopInstead">Show me replacement options instead</button>
           </div>
-          <button type="button" class="btn skip" id="shopBtn"><b>Skip repair</b><span>I'd like to put $100 of my diagnostic fee toward a new appliance</span></button>
-          <button type="button" class="btn decline" id="declineBtn"><b>Decline</b><span>I'll just pay the diagnostic fee and close this work order</span></button>
+          <button type="button" class="btn skip choice" id="shopBtn"><b>Skip repair</b><span>I'd like to put $100 of my diagnostic fee toward a new appliance</span></button>
+          <button type="button" class="btn decline choice" id="declineBtn"><b>Decline</b><span>I'll just pay the diagnostic fee and close this work order</span></button>
 
           <div class="shop-form" id="shopForm">
             <div id="shopMain">
@@ -230,7 +234,7 @@
             <div class="q">Anything else we should know? <span style="font-weight:400; color:var(--muted);">(optional)</span></div>
             <textarea id="shopNotes" placeholder="Brand or color preferences, sizes, budget, timing…"></textarea>
 
-            <button type="button" class="btn approve" id="shopSubmit" style="background:#1d4ed8;">Send to the Wilson team</button>
+            <button type="button" class="btn skip" id="shopSubmit">Send to the Wilson team</button>
             <div style="text-align:center; margin-top:8px;">
               <button type="button" id="shopBack" style="background:none; border:none; cursor:pointer; font-family:inherit; font-size:12px; color:var(--muted); text-decoration:underline; padding:4px;">← Back</button>
             </div>
@@ -246,7 +250,7 @@
               </div>
               <div class="q">Is there anything we should know about your Wilson repair or sales experience? <span style="font-weight:400; color:var(--muted);">(optional)</span></div>
               <textarea id="elseNotes" placeholder="Anything at all — pricing, timing, selection, how the repair went…"></textarea>
-              <button type="button" class="btn decline" id="elseSubmit" style="margin-top:12px;"><b>Close my work order</b></button>
+              <button type="button" class="btn decline" id="elseSubmit" style="margin-top:12px;">Close my work order</button>
               <div style="text-align:center; margin-top:8px;">
                 <button type="button" id="elseBack" style="background:none; border:none; cursor:pointer; font-family:inherit; font-size:12px; color:var(--muted); text-decoration:underline; padding:4px;">← Back</button>
               </div>

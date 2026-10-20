@@ -20,7 +20,7 @@ Tools → ETA Date Import:
 | Reference Column | blank (not written) |
 | Serial Type Column | blank (not written) |
 
-The file has no header row. Dates are real Excel dates formatted `mm/dd/yyyy`; the "write dates as plain text" box on the page switches to text strings if the utility ever rejects date cells.
+The file has no header row by default (the utility is driven by column letters; a header row can be ticked on). **CSV is the default** — the utility came up blank on an .xlsx (Andrew 10/20) — with dates as `mm/dd/yyyy` text. Excel 97-2003 (.xls) and .xlsx are still offered from the same dropdown, with real date cells formatted `mm/dd/yyyy` or, with "dates as text" ticked, text strings. Each run remembers which format it was built in, so "Download again" gives back the same kind of file.
 
 ## Flow
 
@@ -33,7 +33,7 @@ The file has no header row. Dates are real Excel dates formatted `mm/dd/yyyy`; t
    - Results: **Changed** (ETA or requested date differs from ePASS — ticked for the file), **Same as ePASS**, **PO not open**, **Model not on PO**, **No vendor ETA** (blank / "TBD"), **Cancelled** (status column). Only matched lines can be ticked; dates can be edited inline before building.
    - A requested date the portal does not give is filled from ePASS's current RDD so the import never blanks it. An ETA is never invented.
    - "sent m/d" badge: this PO + model was already in a file built in the last 21 days — ePASS may just not have been imported yet, or the feed has not re-pulled.
-4. **Build ePASS import file** — downloads `epass-eta-import_<vendor>_<date>.xlsx` and records the run (`po_eta_import_runs`: who, vendor, portal file, counts, the lines and the file bytes). Runs can be re-downloaded from the page.
+4. **Build ePASS import file** — downloads `epass-eta-import_<vendor>_<date>.csv` (or .xls / .xlsx) and records the run (`po_eta_import_runs`: who, vendor, portal file, counts, the lines and the file bytes). Runs can be re-downloaded from the page.
 
 ## Vendor parsers
 
@@ -86,4 +86,4 @@ Every adjustment is spelled out in the line's notes.
 
 ## Routes
 
-`GET /api/po-eta-import/context` · `POST /api/po-eta-import/inspect` (multipart) · `POST /api/po-eta-import/match` (multipart) · `POST /api/po-eta-import/build` (JSON → xlsx) · `GET /api/po-eta-import/runs` · `GET /api/po-eta-import/runs/:id` · `GET /api/po-eta-import/runs/:id/file.xlsx`. All behind the `/po-eta-import.html` page grant (Purchasing category in User Admin).
+`GET /api/po-eta-import/context` · `POST /api/po-eta-import/inspect` (multipart) · `POST /api/po-eta-import/match` (multipart) · `POST /api/po-eta-import/build` (JSON → xlsx) · `GET /api/po-eta-import/runs` · `GET /api/po-eta-import/runs/:id` · `GET /api/po-eta-import/runs/:id/file`. All behind the `/po-eta-import.html` page grant (Purchasing category in User Admin).

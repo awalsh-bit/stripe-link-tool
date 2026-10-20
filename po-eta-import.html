@@ -150,10 +150,12 @@
       <div class="buildbar">
         <button type="button" id="buildBtn">Build ePASS import file</button>
         <span class="count" id="buildCount"></span>
-        <label class="chk"><input type="checkbox" id="datesAsText" /> write dates as plain text (only if the utility rejects real dates)</label>
+        <label class="chk">File <select id="fileFormat"><option value="csv">CSV (dates as mm/dd/yyyy)</option><option value="xls">Excel 97-2003 (.xls)</option><option value="xlsx">Excel (.xlsx)</option></select></label>
+        <label class="chk"><input type="checkbox" id="headerRow" /> include a header row</label>
+        <label class="chk" id="datesAsTextWrap" style="display:none;"><input type="checkbox" id="datesAsText" /> dates as text</label>
       </div>
       <div class="epass-howto">
-        In ePASS: <b>Tools → ETA Date Import</b> → pick the downloaded file · Import Type <b>Models</b> · PO # Column <b>A</b> · Item/Model <b>Code</b>, Column <b>B</b> ·
+        In ePASS: <b>Tools → ETA Date Import</b> → pick the downloaded file (CSV first; if the form comes up blank, try the .xls) · Import Type <b>Models</b> · PO # Column <b>A</b> · Item/Model <b>Code</b>, Column <b>B</b> ·
         ETA Date Column <b>C</b> · Req Delivery Column <b>D</b> · leave <b>Reference</b> and <b>Serial Type</b> blank · OK. The next feed pull shows the new dates here and in Cash Ops.
       </div>
     </section>
@@ -305,15 +307,18 @@
       function updateCount() { const n = exportRows().length; $("buildCount").textContent = n ? `${n} line${n === 1 ? "" : "s"} will be in the file` : "no lines ticked"; $("buildBtn").disabled = !n || state.building; }
 
       // ---- 4. build + download ----
+      try { const f = localStorage.getItem("poEtaFormat"); if (f && $("fileFormat").querySelector(`option[value="${f}"]`)) $("fileFormat").value = f; } catch { /* private mode */ }
+      const syncFormat = () => { $("datesAsTextWrap").style.display = $("fileFormat").value === "csv" ? "none" : ""; try { localStorage.setItem("poEtaFormat", $("fileFormat").value); } catch { /* private mode */ } };
+      $("fileFormat").addEventListener("change", syncFormat); syncFormat();
       $("buildBtn").addEventListener("click", async () => {
         const rows = exportRows(); if (!rows.length) return;
         state.building = true; const btn = $("buildBtn"); btn.disabled = true; btn.textContent = "Building…"; setStatus("");
         try {
           const res = await fetch("/api/po-eta-import/build", { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ vendor: $("vendor").value, sourceFile: state.result.filename, rows, rowsTotal: state.result.summary.total, summary: state.result.summary, datesAsText: $("datesAsText").checked }) });
+            body: JSON.stringify({ vendor: $("vendor").value, sourceFile: state.result.filename, rows, rowsTotal: state.result.summary.total, summary: state.result.summary, format: $("fileFormat").value, header: $("headerRow").checked, datesAsText: $("datesAsText").checked }) });
           if (!res.ok) { const data = await res.json().catch(() => ({})); throw new Error(data.error || "Unable to build the file."); }
           const blob = await res.blob();
-          const name = (res.headers.get("Content-Disposition") || "").match(/filename="([^"]+)"/)?.[1] || "epass-eta-import.xlsx";
+          const name = (res.headers.get("Content-Disposition") || "").match(/filename="([^"]+)"/)?.[1] || "epass-eta-import.csv";
           const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = name; document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 2000);
           const runId = res.headers.get("X-Run-Id");
           setStatus(`Built ${name} with ${rows.length} line${rows.length === 1 ? "" : "s"}${runId ? ` (run #${runId})` : ""}. Import it in ePASS with the settings below, then the next feed pull will show the new dates.`, "ok");
@@ -332,7 +337,7 @@
             <td data-label="By">${esc(r.byName || r.byEmail || "—")}</td>
             <td data-label="Lines">${esc(r.rowsExported)} of ${esc(r.rowsTotal)}</td>
             <td data-label="Result"><span class="sub">${esc(["changed", "same", "no-po", "no-model", "no-eta", "cancelled", "delivered"].filter((k) => r.summary?.[k]).map((k) => `${STATE_LABELS[k].toLowerCase()} ${r.summary[k]}`).join(" · "))}</span></td>
-            <td>${r.hasFile ? `<a href="/api/po-eta-import/runs/${esc(r.id)}/file.xlsx">Download again</a>` : ""}</td>
+            <td>${r.hasFile ? `<a href="/api/po-eta-import/runs/${esc(r.id)}/file">Download again${r.format ? ` (.${esc(r.format)})` : ""}</a>` : ""}</td>
           </tr>`).join("")}</tbody></table>` : `<span class="sub">No import files built yet.</span>`;
       }
 

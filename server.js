@@ -263,7 +263,7 @@ import { processTaxBundle, taxStatus, taxReport, taxInvoiceLines } from "./lib/t
 import { parseFinanceBundle, replaceEpassFinance, getEpassFinanceMeta, financeRows, listSupplierTerms, saveSupplierTerms, deleteSupplierTerms } from "./lib/epass-finance-postgres.js";
 import { computeCashProjection } from "./lib/cash-projection.js";
 import { computePoHealth } from "./lib/po-health.js";
-import { VENDORS as PO_ETA_VENDORS, FIELDS as PO_ETA_FIELDS, readVendorWorkbook, guessMapping as guessPoEtaMapping, applySavedMapping as applyPoEtaSavedMapping, headerSignature as poEtaHeaderSignature, extractRows as extractPoEtaRows, matchRows as matchPoEtaRows, buildImportWorkbook as buildPoEtaWorkbook, vendorByKey as poEtaVendorByKey } from "./lib/po-eta-import.js";
+import { VENDORS as PO_ETA_VENDORS, FIELDS as PO_ETA_FIELDS, readVendorWorkbook, guessMapping as guessPoEtaMapping, applySavedMapping as applyPoEtaSavedMapping, headerSignature as poEtaHeaderSignature, extractRows as extractPoEtaRows, matchRows as matchPoEtaRows, buildImportFile as buildPoEtaFile, IMPORT_FORMATS as PO_ETA_FORMATS, vendorByKey as poEtaVendorByKey } from "./lib/po-eta-import.js";
 import { listVendorMaps as listPoEtaVendorMaps, saveVendorMap as savePoEtaVendorMap, recordImportRun as recordPoEtaRun, listImportRuns as listPoEtaRuns, getImportRun as getPoEtaRun, recentExportedLines as recentPoEtaExports } from "./lib/po-eta-import-postgres.js";
 import { resolveRole, roleEmails, hasRole, listRoles as listServiceRoles, setRole as setServiceRole, ROLES as SERVICE_ROLES } from "./lib/service-roles.js";
 import { processCatalogueBundle, catalogueStatus, customerHistory as catalogueCustomerHistory, callDetail as catalogueCallDetail, modelInsight as catalogueModelInsight, laborRateOptions, laborRateMeta } from "./lib/epass-catalogue-postgres.js";
@@ -15663,18 +15663,20 @@ app.post("/api/po-eta-import/build", requirePoEta, async (req, res) => {
   try {
     const vendor = poEtaVendorByKey(req.body?.vendor);
     const datesAsText = !!req.body?.datesAsText;
+    const format = PO_ETA_FORMATS[String(req.body?.format || "")] ? String(req.body.format) : "csv";
+    const header = !!req.body?.header;
     const rows = (Array.isArray(req.body?.rows) ? req.body.rows : []).slice(0, 5000).map((r) => ({
       po: String(r?.po || "").trim().slice(0, 40), model: String(r?.model || "").trim().toUpperCase().slice(0, 60),
       eta: /^\d{4}-\d{2}-\d{2}$/.test(String(r?.eta || "")) ? String(r.eta) : "", rdd: /^\d{4}-\d{2}-\d{2}$/.test(String(r?.rdd || "")) ? String(r.rdd) : ""
     })).filter((r) => r.po && r.model && r.eta);
     if (!rows.length) return res.status(400).json({ error: "No rows to import — keep at least one changed line." });
-    const built = buildPoEtaWorkbook(rows, { datesAsText });
+    const built = buildPoEtaFile(rows, { format, header, datesAsText });
     const me = sjMe(req);
-    const run = await recordPoEtaRun({ vendorKey: vendor.key, sourceFile: String(req.body?.sourceFile || "").slice(0, 200), byEmail: me.email, byName: me.name, rowsTotal: Number(req.body?.rowsTotal) || rows.length, rowsExported: built.rows, summary: req.body?.summary && typeof req.body.summary === "object" ? req.body.summary : {}, lines: rows, datesAsText, file: built.buffer }).catch((e) => { console.error("PO ETA run record failed:", e.message); return null; });
-    sjAudit(req, "po_eta_import_built", { vendor: vendor.key, rows: built.rows, runId: run?.id || null, sourceFile: String(req.body?.sourceFile || "").slice(0, 200) });
+    const run = await recordPoEtaRun({ vendorKey: vendor.key, sourceFile: String(req.body?.sourceFile || "").slice(0, 200), byEmail: me.email, byName: me.name, rowsTotal: Number(req.body?.rowsTotal) || rows.length, rowsExported: built.rows, summary: req.body?.summary && typeof req.body.summary === "object" ? req.body.summary : {}, lines: rows, datesAsText, format, file: built.buffer }).catch((e) => { console.error("PO ETA run record failed:", e.message); return null; });
+    sjAudit(req, "po_eta_import_built", { vendor: vendor.key, rows: built.rows, format, runId: run?.id || null, sourceFile: String(req.body?.sourceFile || "").slice(0, 200) });
     const stamp = poEtaToday().replace(/-/g, "");
-    res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
-    res.setHeader("Content-Disposition", `attachment; filename="epass-eta-import_${vendor.key}_${stamp}.xlsx"`);
+    res.setHeader("Content-Type", built.mime);
+    res.setHeader("Content-Disposition", `attachment; filename="epass-eta-import_${vendor.key}_${stamp}.${built.ext}"`);
     res.setHeader("Content-Length", String(built.buffer.length));
     res.setHeader("Cache-Control", "no-store");
     if (run?.id) res.setHeader("X-Run-Id", String(run.id));
@@ -15694,13 +15696,14 @@ app.get("/api/po-eta-import/runs/:id", requirePoEta, async (req, res) => {
     return res.json({ run: { ...rest, hasFile: !!file } });
   } catch (err) { return res.status(500).json({ error: "Unable to load that run." }); }
 });
-app.get("/api/po-eta-import/runs/:id/file.xlsx", requirePoEta, async (req, res) => {
+app.get("/api/po-eta-import/runs/:id/file", requirePoEta, async (req, res) => {
   try {
     const run = await getPoEtaRun(req.params.id);
     if (!run?.file) return res.status(404).json({ error: "No file is stored for that run." });
+    const f = PO_ETA_FORMATS[run.format] || PO_ETA_FORMATS.xlsx;
     const stamp = new Date(run.createdAt).toLocaleDateString("en-CA", { timeZone: APP_TIMEZONE }).replace(/-/g, "");
-    res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
-    res.setHeader("Content-Disposition", `attachment; filename="epass-eta-import_${run.vendorKey}_${stamp}_run${run.id}.xlsx"`);
+    res.setHeader("Content-Type", f.mime);
+    res.setHeader("Content-Disposition", `attachment; filename="epass-eta-import_${run.vendorKey}_${stamp}_run${run.id}.${f.ext}"`);
     res.setHeader("Cache-Control", "no-store");
     return res.end(run.file);
   } catch (err) { return res.status(500).json({ error: "Unable to download that file." }); }

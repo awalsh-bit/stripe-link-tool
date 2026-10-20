@@ -164,7 +164,7 @@
     .editor-grid input[type="number"] { width: 110px; }
     .editor-grid input[type="text"] { width: 200px; }
     .editor-grid .save-ov {
-      appearance: none; border: none; background: var(--primary); color: #fff;
+      appearance: none; border: none; background: var(--primary, #2f6b3a); color: #fff;
       border-radius: 8px; padding: 8px 14px; font-size: 12.5px; font-weight: 700; cursor: pointer; font-family: inherit;
     }
     .editor-grid .save-ov:hover { background: var(--primary-hover); }
@@ -241,6 +241,35 @@
     @media (max-width: 760px) {
       body { padding: 14px 8px; }
       .surface { padding: 14px; }
+      /* Line detail as cards (Andrew 10/20: "a real mess in the line detail
+         on mobile"). Each row becomes a card; every cell carries its column
+         name (data-label, set after render) as a small caption. */
+      table.lines, table.lines tbody, table.lines tr, table.lines td { display: block; }
+      table.lines thead { display: none; }
+      table.lines tbody tr { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 12px; padding: 10px 12px; margin: 8px 0; border: 1px solid var(--border); border-radius: 12px; background: #fff; }
+      table.lines tbody tr.held-row, table.lines tbody tr.unpaid { background: #fff5f5; }
+      table.lines tbody td { padding: 0; border: 0; text-align: left !important; font-size: 13.5px; min-width: 0; overflow-wrap: anywhere; }
+      table.lines tbody td[data-label]::before { content: attr(data-label); display: block; font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); margin-bottom: 1px; }
+      table.lines tbody td:first-child, table.lines tbody td[data-label="Customer"], table.lines tbody td[data-label="Description"] { grid-column: 1 / -1; }
+      table.lines tbody td[data-label="Commission"] { font-weight: 800; font-size: 15px; }
+      table.lines tbody td:empty, table.lines tbody td.no-print:empty { display: none; }
+      table.lines tbody td.no-print { grid-column: 1 / -1; text-align: right !important; }
+      table.lines tbody tr.total-row { display: flex; justify-content: space-between; align-items: center; gap: 10px; border-radius: 10px; }
+      table.lines tbody tr.total-row td[data-label]::before { display: none; }
+      table.lines tbody tr.total-row td { font-size: 14px; }
+      table.lines tbody tr.editor-row { display: block; padding: 0; border: 0; background: transparent; }
+      table.lines tbody tr.editor-row td { padding: 0; }
+      .editor-grid { gap: 8px; }
+      .editor-grid .ef { flex: 1 1 100%; }
+      .editor-grid .ef input, .editor-grid .ef select { width: 100%; box-sizing: border-box; }
+      .editor-grid .editor-hint { font-size: 12px; }
+      .editor-grid .save-ov, .editor-grid .clear-ov { flex: 1 1 45%; min-height: 44px; font-size: 14px; }
+      .editor-grid .ef.credit { flex-direction: row; }
+      .editor-grid .ef.credit label { white-space: nowrap; }
+      .editor-grid .ef.credit select { width: auto; }
+      .st-head { gap: 8px; }
+      .st-head .ghost-btn, .st-head button { font-size: 12.5px; padding: 8px 10px; }
+      .protect-summary { gap: 10px; }
     }
   </style>
 </head>
@@ -409,7 +438,8 @@
 
     function discBadge(l) {
       if (!l.discount) return "";
-      const title = `ePASS discount ${l.discount.miscCodes?.length ? "(" + l.discount.miscCodes.join(", ") + ") " : ""}netted off list: was ${money(l.discount.listBefore)}, ${money(l.discount.amount)} -> pays on ${money(l.revenue)}`;
+      const parts = (l.discount.parts || []).map((p) => `${p.code || "misc"}${p.desc ? " " + p.desc : ""}: ${money(p.amount)}${p.how ? " (" + p.how + ")" : ""}`).join("\n");
+      const title = `ePASS discount${l.discount.miscCodes?.length ? " (" + l.discount.miscCodes.join(", ") + ")" : ""} netted off list: was ${money(l.discount.listBefore)}, ${money(l.discount.amount)} -> pays on ${money(l.revenue)}${parts ? "\n\nMade up of:\n" + parts : ""}`;
       return ` <span class="badge discount" title="${escapeHtml(title)}">discount ${money(l.discount.amount)}</span>`;
     }
     function editorHtml(l, kind) {
@@ -798,6 +828,23 @@
       }
     }
 
+    // Give every detail cell its column name so the mobile card layout can
+    // caption it (the markup is built per row without labels).
+    function labelCells(root) {
+      root.querySelectorAll("table.lines").forEach((table) => {
+        const heads = [...table.querySelectorAll("thead th")].map((th) => th.textContent.trim());
+        table.querySelectorAll("tbody tr").forEach((tr) => {
+          if (tr.classList.contains("editor-row")) return;
+          let col = 0;
+          [...tr.children].forEach((td) => {
+            const span = Number(td.getAttribute("colspan")) || 1;
+            const label = heads[col] || "";
+            if (label && span === 1 && !td.classList.contains("no-print") && td.textContent.trim()) td.setAttribute("data-label", label);
+            col += span;
+          });
+        });
+      });
+    }
     function render() {
       const rows = visibleStatements();
       el("countLine").textContent = data?.month
@@ -817,6 +864,7 @@
         ? rows.map(statementHtml).join("")
         : '<div class="surface"><div class="empty">No commissioned statements this month. Assign commission plans in User Admin (HVAC Selling Techs: job code E25), or check "Show all salespeople".</div></div>');
       el("excPanel").innerHTML = excPanelHtml();
+      labelCells(el("statements"));
       el("foldAll").textContent = rows.length && rows.every((s) => expandedCodes.has(s.code)) ? "Collapse all" : "Expand all";
     }
 

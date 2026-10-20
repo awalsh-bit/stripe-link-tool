@@ -15291,6 +15291,28 @@ app.get("/api/epass/discounts/:invoice", requireExecutiveApi, async (req, res) =
   } catch (err) { return res.status(400).json({ error: err.message }); }
 });
 
+// Why is this invoice held / released? Every input the paid-status check
+// reads for it, plus the verdict (Andrew 10/20).
+app.get("/api/epass/paid-status/:invoice", requireExecutiveApi, async (req, res) => {
+  try {
+    const inv = String(req.params.invoice || "").trim().toUpperCase();
+    const base = inv.replace(/-\d+$/, "");
+    const pool = await getPostgresPool();
+    if (!pool) return res.status(503).json({ error: "No database." });
+    const q = async (sql, params) => (await pool.query(sql, params).catch((e) => ({ rows: [{ error: e.message }] }))).rows;
+    const [arCurrent, arHistory, payments, orders] = await Promise.all([
+      q(`SELECT invoice, record_type, transaction_date, due_date, amount::float AS amount, payment_type, raw->>'TotalPaymentAmount' AS total_payment_amount, raw->>'PaymentLineNo' AS payment_line, raw->>'Note' AS note FROM epass_ar_current WHERE split_part(invoice, '-', 1) = $1 ORDER BY transaction_date, id`, [base]),
+      q(`SELECT invoice, record_type, transaction_date, amount::float AS amount, payment_type FROM epass_ar_history WHERE split_part(invoice, '-', 1) = $1 ORDER BY transaction_date, id`, [base]),
+      q(`SELECT invoice, payment_type, paid_on, post_date, amount::float AS amount, status FROM epass_payments WHERE split_part(invoice, '-', 1) = $1 ORDER BY paid_on`, [base]),
+      q(`SELECT invoice, finish_date, source_month, detail->>'balance' AS feed_balance, detail->>'paid' AS feed_paid, detail->>'paymentType' AS payment_type, updated_at FROM sales_order_detail WHERE split_part(invoice, '-', 1) = $1 ORDER BY invoice`, [base])
+    ]);
+    const family = [...new Set([inv, ...orders.map((o) => o.invoice).filter(Boolean)])];
+    const verdict = await epassInvoicePaidStatus(pool, family);
+    const meta = await getEpassFinanceMeta().catch(() => null);
+    return res.json({ invoice: inv, base, verdict: verdict.byInvoice, source: verdict.source, enabled: verdict.enabled, arCurrent, arHistory, payments, orders, financeFeed: meta });
+  } catch (err) { return res.status(400).json({ error: err.message }); }
+});
+
 app.get("/api/epass/feed-vs-oe23", requireExecutiveApi, async (req, res) => {
   try {
     const month = String(req.query.month || "").trim() || new Date().toLocaleDateString("en-CA", { timeZone: APP_TIMEZONE }).slice(0, 7);

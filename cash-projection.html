@@ -48,6 +48,13 @@
     .muted { color: var(--muted); }
     .chip { display: inline-flex; align-items: center; border-radius: 999px; padding: 3px 9px; font-size: 11.5px; font-weight: 700; background: var(--primary-tint); color: var(--primary-deep); }
     .chip.soft { background: #fef3c7; color: #92400e; } .chip.firm { background: #dcfce7; color: #166534; } .chip.deliv { background: #dbeafe; color: #1e40af; }
+    table.proj tr.click td { cursor: pointer; }
+    table.proj tr.click td:first-child { text-decoration: underline dotted; text-underline-offset: 3px; }
+    table.proj tr.click:hover td { background: var(--primary-faint); }
+    #apTable tbody tr[data-ap-sup] { cursor: pointer; } #apTable tbody tr[data-ap-sup]:hover td { background: var(--primary-faint); }
+    .pick { display: flex; gap: 6px; flex-wrap: wrap; margin: 0 0 12px; }
+    .pick button { appearance: none; border: 1px solid var(--border); background: #fff; border-radius: 999px; padding: 5px 11px; font-size: 12.5px; font-weight: 700; cursor: pointer; font-family: inherit; color: #374151; }
+    .pick button.on { background: var(--primary-tint); border-color: var(--primary); color: var(--primary-deep); }
     .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
     .grid2 > * { min-width: 0; }
     details summary { cursor: pointer; font-weight: 700; font-size: 14px; padding: 6px 0; }
@@ -115,9 +122,8 @@
       <h3>Supplier payment terms <span class="hint">how received-but-unbilled stock and open POs get scheduled — the default row applies to every supplier without its own</span></h3>
       <p class="cover" style="margin:0 0 10px;">Invoices batch on the <b>billing-close days</b>; each installment is due on the first <b>due day</b> on or after close + its days. Default: close 5 &amp; 20, due 8 &amp; 23, 50% at 30 days and 50% at 60. Bills already in ePASS AP use their real due date regardless.</p>
       <div class="terms-row terms-head"><span>Supplier</span><span>Close days</span><span>Due days</span><span>Installments (pct@days, comma-separated)</span><span>Note</span><span></span></div>
-      <p class="cover" id="termsReadOnly" style="display:none;margin:0 0 8px;color:#9a3412;">Payment terms are view-only for your account — an executive changes them.</p>
       <div id="termsList"></div>
-      <div class="bar" style="margin-top:10px;" id="termsAddBar">
+      <div class="bar" style="margin-top:10px;">
         <select id="termsAddSel" class="sel" style="min-width:260px;"><option value="">Add a supplier…</option></select>
         <button type="button" class="btn quiet" id="termsAddBtn">Add row</button>
         <span class="cover" id="termsStatus" style="margin:0;"></span>
@@ -198,7 +204,7 @@
         $("horizonHint").textContent = `${monthLabel(T[0].month)} → ${monthLabel(T[T.length - 1].month)} · today ${d.today}`;
         const th = `<thead><tr><th></th>${T.map((t) => `<th class="num">${esc(monthLabel(t.month))}</th>`).join("")}<th class="num">Total</th></tr></thead>`;
         const sum = (k) => T.reduce((s, t) => s + (Number(t[k]) || 0), 0);
-        const row = (label, k, opts = {}) => `<tr class="${opts.cls || ""}"><td>${label}</td>${T.map((t) => `<td class="num">${opts.fmt ? opts.fmt(t[k], t) : money(t[k])}</td>`).join("")}<td class="num">${opts.total === false ? "" : opts.fmt && opts.totalFmt ? opts.totalFmt() : opts.fmt && !opts.money ? "" : money(sum(k))}</td></tr>`;
+        const row = (label, k, opts = {}) => `<tr class="${opts.cls || ""}${opts.drill ? " click" : ""}" ${opts.drill ? `data-drill="${opts.drill}" title="Click a month for the bills counted in it"` : ""}><td ${opts.drill ? `data-month="all"` : ""}>${label}</td>${T.map((t) => `<td class="num" ${opts.drill ? `data-month="${t.month}"` : ""}>${opts.fmt ? opts.fmt(t[k], t) : money(t[k])}</td>`).join("")}<td class="num" ${opts.drill ? `data-month="all"` : ""}>${opts.total === false ? "" : opts.fmt && opts.totalFmt ? opts.totalFmt() : opts.fmt && !opts.money ? "" : money(sum(k))}</td></tr>`;
         const group = (label) => `<tr class="group"><td>${label}</td>${T.map(() => "<td></td>").join("")}<td></td></tr>`;
         $("proj").innerHTML = th + `<tbody>
           ${group("Money in")}
@@ -212,7 +218,7 @@
           ${row("AR due (delivered, unpaid)", "arDue")}
           ${row("Total in", "cashIn", { cls: "tot" })}
           ${group("Money out")}
-          ${row("AP bills due (ePASS)", "apDue")}
+          ${row("AP bills due (ePASS)", "apDue", { drill: "ap" })}
           ${row("Received, not yet billed (terms)", "receivedUnbilled")}
           ${row("Open POs (terms from ETA)", "poDue")}
           ${row("Inventory arriving (PO cost)", "poArrivingCost", { cls: "sub" })}
@@ -239,7 +245,7 @@
         const names = d.supplierNames || {};
         const apList = Object.entries(ap.bySupplier || {}).sort((a, b) => b[1] - a[1]).slice(0, 25);
         $("apHint").textContent = `${ap.count} open bills · ${money(ap.open)}`;
-        $("apTable").innerHTML = apList.length ? `<thead><tr><th>Supplier</th><th class="num">Open AP</th><th class="num">Unbilled receipts</th><th class="num">Open POs</th></tr></thead><tbody>${apList.map(([c, v]) => `<tr><td>${esc(names[c] || c)} <span class="muted">${esc(c)}</span></td><td class="num">${money(v)}</td><td class="num">${money(d.unbilled.bySupplier?.[c] || 0)}</td><td class="num">${money(d.po.bySupplier?.[c] || 0)}</td></tr>`).join("")}</tbody>` : '<tbody><tr><td class="muted">Nothing open in AP.</td></tr></tbody>';
+        $("apTable").innerHTML = apList.length ? `<thead><tr><th>Supplier</th><th class="num">Open AP</th><th class="num">Unbilled receipts</th><th class="num">Open POs</th></tr></thead><tbody>${apList.map(([c, v]) => `<tr data-ap-sup="${esc(c)}" title="Click for this supplier's bills"><td>${esc(names[c] || c)} <span class="muted">${esc(c)}</span></td><td class="num">${money(v)}</td><td class="num">${money(d.unbilled.bySupplier?.[c] || 0)}</td><td class="num">${money(d.po.bySupplier?.[c] || 0)}</td></tr>`).join("")}</tbody>` : '<tbody><tr><td class="muted">Nothing open in AP.</td></tr></tbody>';
         const cn = ar.customerNames || {};
         const openOrdersFor = (code) => (d.detail?.book || []).filter((o) => String(o.billToCode || "").toUpperCase() === String(code).toUpperCase());
         const byCust = new Map();
@@ -259,14 +265,6 @@
 
       function renderTerms(terms) {
         const names = data?.supplierNames || {};
-        if (!canEditTerms) {
-          const rows = terms.length ? terms : [{ supplierCode: "*", closeDays: [5, 20], dueDays: [8, 23], installments: [{ pct: 50, days: 30 }, { pct: 50, days: 60 }], note: "" }];
-          $("termsList").innerHTML = rows.map((t) => `<div class="terms-row" data-code="${esc(t.supplierCode)}">
-            <span class="k">${t.supplierCode === "*" ? "Default (every supplier)" : esc(names[t.supplierCode] || t.supplierCode)}</span>
-            <span>${esc((t.closeDays || []).join(", "))}</span><span>${esc((t.dueDays || []).join(", "))}</span><span>${esc((t.installments || []).map((i) => `${i.pct}@${i.days}`).join(", "))}</span><span>${esc(t.note || "")}</span><span></span>
-          </div>`).join("");
-          return;
-        }
         const rows = terms.length ? terms : [{ supplierCode: "*", closeDays: [5, 20], dueDays: [8, 23], installments: [{ pct: 50, days: 30 }, { pct: 50, days: 60 }], note: "", unsaved: true }];
         $("termsList").innerHTML = rows.map((t) => `<div class="terms-row" data-code="${esc(t.supplierCode)}">
             <span class="k">${t.supplierCode === "*" ? "Default (every supplier)" : esc(names[t.supplierCode] || t.supplierCode) + ` <span class="muted">${esc(t.supplierCode)}</span>`}</span>
@@ -303,18 +301,6 @@
         renderTerms(data.terms); $("termsStatus").textContent = "Edit the row and Save.";
       });
 
-      // Terms editing is executive-only (Andrew 10/14: the page itself is now
-      // grantable, for the accounting analysts); everyone else sees the terms
-      // read-only instead of a Save that would be refused.
-      let canEditTerms = true;
-      async function checkEditor() {
-        try {
-          const res = await fetch("/api/auth/session", { credentials: "same-origin" });
-          if (res.ok) { const sess = await res.json(); canEditTerms = !!(sess.isExecutive || sess.canManageUsers || sess.user?.isExecutive); }
-        } catch {}
-        $("termsReadOnly").style.display = canEditTerms ? "none" : "";
-        $("termsAddBar").style.display = canEditTerms ? "" : "none";
-      }
       async function load() {
         try {
           $("reload").disabled = true;
@@ -344,13 +330,48 @@
         $("custOverlay").style.display = "flex";
       }
       $("arTable").addEventListener("click", (e) => { const tr = e.target.closest("[data-ar-cust]"); if (tr) openCustomer(tr.dataset.arCust); });
+
+      // AP bills drill-down (Andrew 10/20): every open supplier bill behind
+      // the "AP bills due" row — pick a month (overdue and undated bills are
+      // counted in this month, as the projection does) or a supplier.
+      function openApBills({ month = "all", supplier = "" } = {}) {
+        const d = data; const names = d.supplierNames || {};
+        const all = (d.detail?.ap || []).filter((a) => a.bucket !== "credit");
+        const credits = (d.detail?.ap || []).filter((a) => a.bucket === "credit");
+        const months = d.horizon || [];
+        const pickHtml = `<div class="pick" id="apPick">
+          <button type="button" data-m="all" class="${month === "all" ? "on" : ""}">All open · ${money(all.reduce((s, a) => s + a.amount, 0))}</button>
+          ${months.map((m) => { const v = all.filter((a) => a.bucket === m).reduce((s, a) => s + a.amount, 0); return v ? `<button type="button" data-m="${m}" class="${month === m ? "on" : ""}">${esc(monthLabel(m))} · ${money(v)}</button>` : ""; }).join("")}
+          ${(() => { const v = all.filter((a) => a.bucket === "later").reduce((s, a) => s + a.amount, 0); return v ? `<button type="button" data-m="later" class="${month === "later" ? "on" : ""}">Later · ${money(v)}</button>` : ""; })()}
+          ${credits.length ? `<button type="button" data-m="credit" class="${month === "credit" ? "on" : ""}">Supplier credits · ${money(credits.reduce((s, a) => s - a.amount, 0))}</button>` : ""}
+        </div>`;
+        let rows = month === "credit" ? credits : month === "all" ? all : all.filter((a) => a.bucket === month);
+        if (supplier) rows = rows.filter((a) => String(a.supplier).toUpperCase() === supplier.toUpperCase());
+        rows = rows.slice().sort((x, y) => (x.due || "9999") < (y.due || "9999") ? -1 : (x.due || "9999") > (y.due || "9999") ? 1 : y.amount - x.amount);
+        const total = rows.reduce((s, a) => s + a.amount, 0);
+        const past = rows.filter((a) => a.pastDue).reduce((s, a) => s + a.amount, 0);
+        $("custTitle").textContent = supplier ? `${names[supplier.toUpperCase()] || supplier} — open bills` : "AP bills due (ePASS)";
+        $("custSub").innerHTML = `${rows.length} bill${rows.length === 1 ? "" : "s"} · ${money2(total)}${past ? ` · <span class="neg">${money2(past)} past due</span>` : ""}${month !== "all" && month !== "credit" ? ` · ${month === "later" ? "due beyond the horizon" : `counted in ${esc(monthLabel(month))}${month === d.thisMonth ? " (includes overdue and undated bills — pay now)" : ""}`}` : ""}${supplier ? ` · <a href="#" id="apAllSup" style="color:var(--primary); font-weight:700;">all suppliers</a>` : ""}`;
+        $("custBody").innerHTML = pickHtml + (rows.length ? `<div class="scroll"><table><thead><tr><th>Due</th><th>Supplier</th><th>Invoice</th><th>Billed</th><th>POs</th><th class="num">Amount</th></tr></thead><tbody>${rows.map((a) => `<tr>
+            <td>${esc(a.due || "—")}${a.pastDue ? ' <span class="chip soft">past due</span>' : !a.due ? ' <span class="chip soft">no due date</span>' : ""}${a.hold ? ' <span class="chip">on hold</span>' : ""}</td>
+            <td>${esc(names[a.supplier] || a.supplier)} <span class="muted">${esc(a.supplier)}</span></td>
+            <td><b>${esc(a.invoice)}</b>${(a.parts || []).length > 1 ? `<div class="muted" style="font-size:11.5px;">${a.parts.map((pt) => `${esc(pt.type || "row")} ${money2(pt.amount)}`).join(" · ")}</div>` : ""}</td>
+            <td>${esc(a.billed || "—")}</td>
+            <td class="muted" style="font-size:12px;">${(a.pos || []).map(esc).join(", ") || "—"}</td>
+            <td class="num">${money2(a.amount)}</td></tr>`).join("")}</tbody><tfoot><tr><td colspan="5" style="font-weight:800;">Total</td><td class="num" style="font-weight:800;">${money2(total)}</td></tr></tfoot></table></div>` : '<p class="muted">No bills in this group.</p>');
+        $("apPick").addEventListener("click", (e) => { const b = e.target.closest("button[data-m]"); if (b) openApBills({ month: b.dataset.m, supplier }); });
+        const allSup = document.getElementById("apAllSup"); if (allSup) allSup.addEventListener("click", (e) => { e.preventDefault(); openApBills({ month }); });
+        $("custOverlay").style.display = "flex";
+      }
+      $("proj").addEventListener("click", (e) => { const tr = e.target.closest("tr[data-drill='ap']"); if (!tr) return; const td = e.target.closest("td[data-month]"); openApBills({ month: td?.dataset.month || "all" }); });
+      $("apTable").addEventListener("click", (e) => { const tr = e.target.closest("[data-ap-sup]"); if (tr) openApBills({ supplier: tr.dataset.apSup }); });
       $("custClose").addEventListener("click", () => { $("custOverlay").style.display = "none"; });
       $("custOverlay").addEventListener("click", (e) => { if (e.target === $("custOverlay")) $("custOverlay").style.display = "none"; });
       document.addEventListener("keydown", (e) => { if (e.key === "Escape") $("custOverlay").style.display = "none"; });
 
       $("reload").addEventListener("click", load);
       $("months").addEventListener("change", load);
-      checkEditor().then(load);
+      load();
     })();
   </script>
 </body>

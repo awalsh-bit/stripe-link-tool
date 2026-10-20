@@ -150,12 +150,12 @@
       <div class="buildbar">
         <button type="button" id="buildBtn">Build ePASS import file</button>
         <span class="count" id="buildCount"></span>
-        <label class="chk">File <select id="fileFormat"><option value="csv">CSV (dates as mm/dd/yyyy)</option><option value="xls">Excel 97-2003 (.xls)</option><option value="xlsx">Excel (.xlsx)</option></select></label>
+        <label class="chk">File <select id="fileFormat"><option value="csv">CSV (dates as mm/dd/yyyy)</option><option value="xlsx">Excel (.xlsx)</option></select></label>
         <label class="chk"><input type="checkbox" id="headerRow" /> include a header row</label>
         <label class="chk" id="datesAsTextWrap" style="display:none;"><input type="checkbox" id="datesAsText" /> dates as text</label>
       </div>
       <div class="epass-howto">
-        In ePASS: <b>Tools → ETA Date Import</b> → pick the downloaded file (CSV first; if the form comes up blank, try the .xls) · Import Type <b>Models</b> · PO # Column <b>A</b> · Item/Model <b>Code</b>, Column <b>B</b> ·
+        In ePASS: <b>Tools → ETA Date Import</b> → pick the downloaded CSV · Import Type <b>Models</b> · PO # Column <b>A</b> · Item/Model <b>Code</b>, Column <b>B</b> ·
         ETA Date Column <b>C</b> · Req Delivery Column <b>D</b> · leave <b>Reference</b> and <b>Serial Type</b> blank · OK. The next feed pull shows the new dates here and in Cash Ops.
       </div>
     </section>

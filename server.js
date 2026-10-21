@@ -10692,7 +10692,8 @@ async function processFinishedOrdersBundle(bundle) {
     // hand is left alone.
     try {
       const since = /^\d{4}-\d{2}-\d{2}$/.test(String(bundle.finishedSince || "")) ? String(bundle.finishedSince).slice(0, 7) : new Date().toLocaleDateString("en-CA", { timeZone: APP_TIMEZONE }).slice(0, 7);
-      const months = (await listSoldSerialMonths()).filter((m) => m >= since);
+      const untilM = /^\d{4}-\d{2}-\d{2}$/.test(String(bundle.finishedUntil || "")) ? String(bundle.finishedUntil).slice(0, 7) : "";
+      const months = (await listSoldSerialMonths()).filter((m) => m >= since && (!untilM || m <= untilM));
       counts.commissionLines = await syncCommissionLinesFromFeed(months, { force: true });
     } catch (err) { console.error("Commission lines from ePASS feed failed:", err.message); counts.commissionLines = { error: err.message }; }
   }
@@ -10706,7 +10707,8 @@ async function processFinishedOrdersBundle(bundle) {
     } else {
       const names = salespersonNamesFromFeed(bundle.datasets?.salespeople);
       const since = /^\d{4}-\d{2}-\d{2}$/.test(String(bundle.finishedSince || "")) ? String(bundle.finishedSince) : "";
-      const tickets = finishedTicketsFromFeed(bundle.datasets, { names, since });
+      const until = /^\d{4}-\d{2}-\d{2}$/.test(String(bundle.finishedUntil || "")) ? String(bundle.finishedUntil) : ""; // monthly backfill bundle: exclusive end
+      const tickets = finishedTicketsFromFeed(bundle.datasets, { names, since, until });
       const label = `ePASS feed ${bundle.pulledAt || ""}`.trim();
       try {
         const disc = modelDiscountsFromFeed(bundle.datasets);
@@ -10731,7 +10733,7 @@ async function processFinishedOrdersBundle(bundle) {
         });
         months[month] = { tickets: list.length, upserted: await upsertOrdersFromActivity(list, { sourceMonth: month, filename: label }) };
       }
-      const pruned = since ? await pruneFeedOrders({ since, keepInvoices: tickets.map((t) => t.invoice) }) : 0;
+      const pruned = since ? await pruneFeedOrders({ since, until, keepInvoices: tickets.map((t) => t.invoice) }) : 0;
       if (tickets.length) refreshQuoteConversions("all").catch((e) => console.error("Quote conversion refresh failed:", e.message));
       let openOrders = null;
       try {
@@ -10739,7 +10741,7 @@ async function processFinishedOrdersBundle(bundle) {
         const saved = await replaceOpenOrders(oo.tickets, { filename: label, byEmail: "epass-agent", periodFrom: oo.periodFrom, periodTo: oo.periodTo });
         openOrders = saved.count;
       } catch (err) { console.error("Open orders from ePASS feed failed:", err.message); openOrders = { error: err.message }; }
-      counts.finishedOrders = { rows: fin.length, tickets: tickets.length, since, months, pruned, salespeople: Object.keys(names).length, openOrders };
+      counts.finishedOrders = { rows: fin.length, tickets: tickets.length, since, until, months, pruned, salespeople: Object.keys(names).length, openOrders };
     }
   } catch (err) {
     console.error("Finished orders from ePASS feed failed:", err.message);

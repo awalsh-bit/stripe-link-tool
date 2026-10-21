@@ -570,9 +570,12 @@ ORDER BY i.DateCreated DESC
   # Open quote LINES (2026-10-07): model + brand per quote so the Quote
   # Follow-Up board can filter opportunity cards by brand (a Sub-Zero/Wolf
   # price increase -> check every quote carrying the brand). Guarded.
+  # 10/21: InvoiceModel has no Qty / UnitPrice / Description columns (the
+  # query failed every run: "Field 'IM.QTY' not found") - it is QtyOrdered,
+  # SellingPrice and ModelDesc, aliased to the names Agility reads.
   try {
     $bundle.datasets["open-quote-lines"] = Export-Query $conn @"
-SELECT im.InvoiceCode, im.LineTimeStamp, im.ModelCode, im.Qty, im.UnitPrice, im.Description,
+SELECT im.InvoiceCode, im.LineTimeStamp, im.ModelCode, im.QtyOrdered AS Qty, im.SellingPrice AS UnitPrice, im.ModelDesc AS Description,
        m.BrandCode AS Model_BrandCode, m.ProductCode AS Model_ProductCode, m.Description AS Model_Description,
        m.SupplierCode AS Model_SupplierCode, sp.Description AS Supplier_Description,
        b.Description AS Brand_Description
@@ -764,13 +767,36 @@ ORDER BY h.SoldToCode, h.DateCreated DESC
   # backfill with -FinishedSince 2025-01-01).
   $finSince = if ($FinishedSince -match '^\d{4}-\d{2}-\d{2}$') { $FinishedSince } else { (Get-Date -Day 1).AddMonths(-1).ToString("yyyy-MM-dd") }
   $doFinished = ($FinishedSince -ne "") -or ((Get-Date).Minute -lt 15)
+  if ($FinishedSince -ne "" -and $FinishedSince -notmatch '^\d{4}-\d{2}-\d{2}$') { Log ("-FinishedSince '{0}' is not yyyy-MM-dd - using the normal window ({1}) instead" -f $FinishedSince, $finSince) }
+  # 10/21: a backfill (-FinishedSince) goes out as ONE BUNDLE PER CALENDAR
+  # MONTH. A 16-month bundle in one file blew past Agility's 60 MB upload
+  # cap (HTTP 413 -> failed\) and nothing landed. Each month's bundle
+  # carries finishedSince / finishedUntil (exclusive) so Agility replaces
+  # only that window; the last window is open-ended like the hourly run.
+  $finWindows = @()
+  if ($FinishedSince -match '^\d{4}-\d{2}-\d{2}$') {
+    $cur = [datetime]::ParseExact($FinishedSince, 'yyyy-MM-dd', $null); $now = Get-Date
+    while ($cur -le $now) {
+      $next = (Get-Date -Year $cur.Year -Month $cur.Month -Day 1 -Hour 0 -Minute 0 -Second 0).AddMonths(1)
+      $until = if ($next -le $now) { $next.ToString('yyyy-MM-dd') } else { "" }
+      $finWindows += ,@($cur.ToString('yyyy-MM-dd'), $until)
+      $cur = $next
+    }
+    Log ("finished-orders backfill: {0} monthly bundle(s) from {1}" -f $finWindows.Count, $FinishedSince)
+  } else { $finWindows = ,@($finSince, "") }
   if ($doFinished) {
+  $finSeq = 0
+  foreach ($finWin in $finWindows) {
+  $finSeq++
+  $finSince = $finWin[0]; $finUntil = $finWin[1]
   $finWhere = "UPPER(i.Status) IN ('FINISHED','NOT POSTED') AND (i.Void IS NULL OR i.Void = 0) AND (i.InvFinishDate >= '$finSince' OR i.DateFinished >= '$finSince')"
+  if ($finUntil -ne "") { $finWhere += " AND (i.InvFinishDate < '$finUntil' OR (i.InvFinishDate IS NULL AND i.DateFinished < '$finUntil'))" }
   $fin = [ordered]@{
     pulledAt      = (Get-Date).ToString("s")
     source        = $Dsn
     machine       = $env:COMPUTERNAME
     finishedSince = $finSince
+    finishedUntil = $finUntil
     datasets      = [ordered]@{}
   }
   try {
@@ -889,10 +915,13 @@ FROM Salesperson sp
 ORDER BY sp.Code
 "@ (Join-Path $LatestDir "salespeople.csv") "salespeople"
     $json = $fin | ConvertTo-Json -Depth 6 -Compress
-    $path = Join-Path $FinOutbox "epass-finished-orders-$stamp.json"
+    $suffix = if ($finWindows.Count -gt 1) { "-" + $finSince.Substring(0, 7).Replace("-", "") } else { "" }
+    $path = Join-Path $FinOutbox "epass-finished-orders-$stamp$suffix.json"
     [System.IO.File]::WriteAllText($path, $json, (New-Object System.Text.UTF8Encoding($false)))
-    Log ("bundle -> {0} ({1:n0} KB; finished since {2})" -f $path, ($json.Length / 1024), $finSince)
+    if (($json.Length / 1024) -gt 55000) { Log ("WARNING: bundle is {0:n0} KB - Agility accepts 60 MB per upload; split the window further" -f ($json.Length / 1024)) }
+    Log ("bundle -> {0} ({1:n0} KB; finished since {2}{3})" -f $path, ($json.Length / 1024), $finSince, $(if ($finUntil -ne "") { " until $finUntil" } else { "" }))
   } catch { Log ("finished-orders FAILED (the other bundles are unaffected): {0}" -f $_.Exception.Message); if ($conn.State -ne [System.Data.ConnectionState]::Open) { $conn.Open() } }
+  } # foreach window
   } else { Log "finished-orders: skipped this run (first run of each hour only)" }
 
   # ---- CASH OPS (sixth bundle, epass-finance) -----------------------------

@@ -579,27 +579,10 @@ ORDER BY i.DateCreated DESC
 "@ (Join-Path $LatestDir "open-quotes.csv") "open-quotes"
   } catch { Log ("open-quotes FAILED (bundle continues without it): {0}" -f $_.Exception.Message); if ($conn.State -ne [System.Data.ConnectionState]::Open) { $conn.Open() } }
 
-  # Open quote LINES (2026-10-07): model + brand per quote so the Quote
-  # Follow-Up board can filter opportunity cards by brand (a Sub-Zero/Wolf
-  # price increase -> check every quote carrying the brand). Guarded.
-  # 10/21: InvoiceModel has no Qty / UnitPrice / Description columns (the
-  # query failed every run: "Field 'IM.QTY' not found") - it is QtyOrdered,
-  # SellingPrice and ModelDesc, aliased to the names Agility reads.
-  try {
-    $bundle.datasets["open-quote-lines"] = Export-Query $conn @"
-SELECT im.InvoiceCode, im.LineTimeStamp, im.ModelCode, im.QtyOrdered AS Qty, im.SellingPrice AS UnitPrice, im.ModelDesc AS Description,
-       m.BrandCode AS Model_BrandCode, m.ProductCode AS Model_ProductCode, m.Description AS Model_Description,
-       m.SupplierCode AS Model_SupplierCode, sp.Description AS Supplier_Description,
-       b.Description AS Brand_Description
-FROM InvoiceModel im
-INNER JOIN Invoice i ON im.InvoiceCode = i.Code
-LEFT JOIN Model m ON im.ModelCode = m.Code
-LEFT JOIN Brand b ON m.BrandCode = b.Code
-LEFT JOIN Supplier sp ON m.SupplierCode = sp.Code
-WHERE i.InvTypeCode IN ('Q','QUOTE') AND UPPER(i.Status) = 'OPEN' AND (i.Void IS NULL OR i.Void = 0)
-ORDER BY im.InvoiceCode, im.LineTimeStamp
-"@ (Join-Path $LatestDir "open-quote-lines.csv") "open-quote-lines"
-  } catch { Log ("open-quote-lines FAILED (bundle continues without it): {0}" -f $_.Exception.Message); if ($conn.State -ne [System.Data.ConnectionState]::Open) { $conn.Open() } }
+  # Open quote LINES moved to the hourly finished-orders bundle (10/21) - see
+  # below. With the InvoiceModel columns fixed the lines came back at 204k
+  # rows and pushed this 15-minute bundle to 128 MB, past Agility's 60 MB
+  # upload cap, which would have stalled the whole sales feed.
 
   # Andrew 10/14: the Misc charge master (delivery, install, recycle, promo
   # installs ...) with list, tax flags, type, sale dates, time in minutes and
@@ -920,6 +903,33 @@ INNER JOIN Invoice i ON w.InvoiceCode = i.Code
 WHERE $finWhere
 ORDER BY w.InvoiceCode
 "@ (Join-Path $LatestDir "finished-warranty.csv") "finished-warranty"
+
+    # Open quote LINES (2026-10-07, moved here 10/21): model + brand per quote
+    # so the Quote Follow-Up board can filter opportunity cards by brand (a
+    # Sub-Zero/Wolf price increase -> check every quote carrying the brand).
+    # Hourly is plenty; only quotes created in the last 12 months (the board
+    # looks at live opportunities, not years-old open quotes) so the bundle
+    # stays small. InvoiceModel has no Qty / UnitPrice / Description columns -
+    # it is QtyOrdered, SellingPrice and ModelDesc, aliased to the names
+    # Agility reads. Guarded; backfill windows skip it.
+    if ($finUntil -eq "") {
+      $qlSince = (Get-Date).AddMonths(-12).ToString("yyyy-MM-dd")
+      try {
+        $fin.datasets["open-quote-lines"] = Export-Query $conn @"
+SELECT im.InvoiceCode, im.LineTimeStamp, im.ModelCode, im.QtyOrdered AS Qty, im.SellingPrice AS UnitPrice, im.ModelDesc AS Description,
+       m.BrandCode AS Model_BrandCode, m.ProductCode AS Model_ProductCode, m.Description AS Model_Description,
+       m.SupplierCode AS Model_SupplierCode, sp.Description AS Supplier_Description,
+       b.Description AS Brand_Description
+FROM InvoiceModel im
+INNER JOIN Invoice i ON im.InvoiceCode = i.Code
+LEFT JOIN Model m ON im.ModelCode = m.Code
+LEFT JOIN Brand b ON m.BrandCode = b.Code
+LEFT JOIN Supplier sp ON m.SupplierCode = sp.Code
+WHERE i.InvTypeCode IN ('Q','QUOTE') AND UPPER(i.Status) = 'OPEN' AND (i.Void IS NULL OR i.Void = 0) AND i.DateCreated >= '$qlSince'
+ORDER BY im.InvoiceCode, im.LineTimeStamp
+"@ (Join-Path $LatestDir "open-quote-lines.csv") "open-quote-lines"
+      } catch { Log ("open-quote-lines FAILED (bundle continues without it): {0}" -f $_.Exception.Message); if ($conn.State -ne [System.Data.ConnectionState]::Open) { $conn.Open() } }
+    }
 
     $fin.datasets["salespeople"] = Export-Query $conn @"
 SELECT sp.Code, sp.Description, sp.Obsolete, sp.SalesGroup, sp.BranchCode, sp.CurrentSales

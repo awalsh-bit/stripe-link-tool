@@ -10747,6 +10747,13 @@ async function processFinishedOrdersBundle(bundle) {
     console.error("Finished orders from ePASS feed failed:", err.message);
     counts.finishedOrders = { error: err.message };
   }
+  // Quote lines (models + brands for the Quote Follow-Up brand filter) ride
+  // in this hourly bundle since 10/21 - they outgrew the 15-minute sales
+  // bundle. Guarded like everything else.
+  try {
+    const ql = bundle.datasets?.["open-quote-lines"];
+    if (Array.isArray(ql) && ql.length) counts.quoteLines = await replaceQuoteLines(quoteLinesFromFeedRows(ql));
+  } catch (err) { console.error("Quote lines from finished bundle failed:", err.message); counts.quoteLines = { error: err.message }; }
   return counts;
 }
 

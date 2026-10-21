@@ -167,13 +167,25 @@ function Export-Query {
   $cmd = $Connection.CreateCommand(); $cmd.CommandText = $Sql; $cmd.CommandTimeout = 0
   $sw = [System.Diagnostics.Stopwatch]::StartNew()
   $reader = $cmd.ExecuteReader()
-  $writer = [System.IO.StreamWriter]::new($CsvPath, $false, (New-Object System.Text.UTF8Encoding($true)))
+  # The CSV under epass\ is a courtesy copy for Excel; the bundle is built
+  # from $rows. 10/21: a manual run under a different Windows account than
+  # the scheduled task could not overwrite the task's files ("Access to the
+  # path is denied") and every dataset - the whole backfill - was lost over a
+  # file nobody needed. Now: try the normal path, then a per-user copy next
+  # to it, and if neither opens, keep the rows and skip the CSV.
+  $writer = $null
+  try { $writer = [System.IO.StreamWriter]::new($CsvPath, $false, (New-Object System.Text.UTF8Encoding($true))) }
+  catch {
+    $alt = [System.IO.Path]::ChangeExtension($CsvPath, ("." + ($env:USERNAME -replace '[^A-Za-z0-9]', '') + ".csv"))
+    try { $writer = [System.IO.StreamWriter]::new($alt, $false, (New-Object System.Text.UTF8Encoding($true))); Log ("{0}: cannot write {1} ({2}) - CSV copy goes to {3}" -f $Name, $CsvPath, $_.Exception.Message, $alt); $CsvPath = $alt }
+    catch { Log ("{0}: cannot write a CSV copy ({1}) - rows still go into the bundle" -f $Name, $_.Exception.Message); $writer = $null; $CsvPath = "(no CSV copy)" }
+  }
   $rows = New-Object System.Collections.ArrayList
   $script:badCols = New-Object System.Collections.ArrayList
   $keep = @(); $names = @()
   try {
     for ($i = 0; $i -lt $reader.FieldCount; $i++) { $n = $reader.GetName($i); if (-not (Is-Denied $n)) { $keep += $i; $names += $n } }
-    $writer.WriteLine((($names | ForEach-Object { Convert-ToCsvField $_ }) -join ","))
+    if ($writer) { $writer.WriteLine((($names | ForEach-Object { Convert-ToCsvField $_ }) -join ",")) }
     while ($reader.Read()) {
       $cells = New-Object System.Collections.ArrayList; $obj = [ordered]@{}
       for ($k = 0; $k -lt $keep.Count; $k++) {
@@ -186,10 +198,10 @@ function Export-Query {
           $obj[$n] = $v
         }
       }
-      $writer.WriteLine(($cells -join ","))
+      if ($writer) { $writer.WriteLine(($cells -join ",")) }
       [void]$rows.Add($obj)
     }
-  } finally { $writer.Close(); $reader.Close(); $cmd.Dispose() }
+  } finally { if ($writer) { $writer.Close() }; $reader.Close(); $cmd.Dispose() }
   Log ("{0}: {1} rows in {2:n0}s -> {3}" -f $Name, $rows.Count, $sw.Elapsed.TotalSeconds, $CsvPath)
   if ($script:badCols.Count) { Log ("{0}: could not read column(s) {1} (left blank)" -f $Name, ($script:badCols -join ", ")) }
   return ,$rows

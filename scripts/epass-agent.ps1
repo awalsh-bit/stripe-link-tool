@@ -96,15 +96,23 @@ foreach ($kind in $Kinds) {
   # matters. If earlier ones piled up (a slow VPN upload, the machine asleep),
   # park them in processed\ as superseded instead of pushing stale data ahead
   # of fresh. Slice bundles (catalogue, tax) skip this and all go up in order.
-  if ($SnapshotKinds -contains $kind -and $files.Count -gt 1) {
-    $stale = $files | Select-Object -First ($files.Count - 1)
+  # 10/21: a finished-orders BACKFILL goes out as one bundle per month, named
+  # ...-<stamp>-<yyyymm>.json (-FinishedSince). Each one is its own window, so
+  # none supersedes another and none is superseded by the hourly snapshot -
+  # they all go up, oldest month first, before the snapshot. (The first
+  # backfill was lost to this exact rule: 16 of 17 months "superseded".)
+  $windows = @($files | Where-Object { $_.Name -match '-\d{6}\.json$' } | Sort-Object Name)
+  $snaps   = @($files | Where-Object { $_.Name -notmatch '-\d{6}\.json$' })
+  if ($SnapshotKinds -contains $kind -and $snaps.Count -gt 1) {
+    $stale = $snaps | Select-Object -First ($snaps.Count - 1)
     foreach ($old in $stale) {
       $dest = Join-Path $Root (Join-Path "processed" (Join-Path $kind ("superseded-" + $old.Name)))
       Move-Item -Path $old.FullName -Destination $dest -Force
       Log "SKIP  [$kind] $($old.Name) superseded by a newer bundle"
     }
-    $files = $files | Select-Object -Last 1
+    $snaps = @($snaps | Select-Object -Last 1)
   }
+  $files = @($windows) + @($snaps)
   # A service bundle can run to several MB and Agility mirrors every ticket
   # before answering; over the VPN that can take well past three minutes.
   # Agility acknowledges a bundle as soon as it is stored (processing runs

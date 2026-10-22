@@ -204,7 +204,7 @@ import {
   getShopExpressSettings,
   saveShopExpressSettings
 } from "./lib/shop-postgres.js";
-import { createBrandResolver, EPASS_BRAND_NAMES as EPASS_BRAND_NAMES_TABLE } from "./lib/brand-names.js";
+import { createBrandResolver, EPASS_BRAND_NAMES as EPASS_BRAND_NAMES_TABLE, loadNetsuiteBrandSuppliers, canonBrandKey } from "./lib/brand-names.js";
 import { buildLiveClearanceList } from "./lib/clearance-live.js";
 import { listPromoCards, getPromoCard, savePromoCard, deletePromoCard, setPromoCardStatus, reorderPromoCards, savePromoPhoto, getPromoPhoto, deletePromoPhoto, listPromoPhotoModels, resolvePromoCards, normModelKey as promoModelKey } from "./lib/promo-cards-postgres.js";
 import {
@@ -253,7 +253,7 @@ import {
   listRevenuePerformanceSources
 } from "./lib/revenue-performance-postgres.js";
 import { finishedTicketsFromFeed, salespersonNamesFromFeed, ticketsByMonth, openOrderTicketsFromFeed, compareTickets, modelDiscountsFromFeed } from "./lib/epass-feed-finished.js";
-import { replaceEpassSoldSerials, listSoldSerialsByModel, listSoldSerialsForModel, getEpassSoldSerialsMeta, listSoldSerialMonths, commissionLinesFromFeed } from "./lib/epass-sold-serials-postgres.js";
+import { replaceEpassSoldSerials, listSoldSerialsByModel, listSoldSerialsForModel, getEpassSoldSerialsMeta, listSoldSerialMonths, commissionLinesFromFeed, listSoldSerialOptions } from "./lib/epass-sold-serials-postgres.js";
 import { createEvent, updateEvent, setEventStatus, deleteEvent, getEvent, listEvents, listInvitees, addInvitees, updateInvitee, deleteInvitee, inviteesFromGrid, listRsvps, listPublicEvents, getPublicEvent, submitRsvp, migrateLegacyEvents, INVITEE_STATUSES } from "./lib/events-postgres.js";
 import { upsertEpassCustomers, getEpassCustomersMeta, getEpassCustomers, searchEpassCustomers as searchEpassCustomerMaster, matchEpassCustomersForShoppers, setShopperEpassLink, epassCustomerHistory } from "./lib/epass-customers-postgres.js";
 import { loadWarrantyTerms, lookupWarranty, warrantyTermsSummary } from "./lib/warranty-terms.js";
@@ -467,8 +467,7 @@ import {
 } from "./lib/speedqueen-truckload-postgres.js";
 import {
   parseWrittenModelsWorkbook, parseWrittenModelsFromEpass, parseNetsuiteItemsCsv, saveWrittenModelsSnapshot, replaceNetsuiteItems,
-  buildWrittenModelsBoard, getWrittenModelsSettings, setWrittenModelsSetting, getInventoryPosition, setWrittenLineHandled
-} from "./lib/written-models.js";
+  buildWrittenModelsBoard, getWrittenModelsSettings, setWrittenModelsSetting, getInventoryPosition, setWrittenLineHandled, DEFAULT_SUPPLIER_MAP as BRAND_SUPPLIER_DEFAULTS } from "./lib/written-models.js";
 import {
   buildServiceCommissionBoard, listServiceCompPlans, upsertServiceCompPlan, addServiceCompCredit, deleteServiceCompCredit,
   getServiceCompSettings, setServiceCompSetting, fiscalCalendar as serviceFiscalCalendar, fiscalPeriodFor as serviceFiscalPeriodFor,
@@ -12966,9 +12965,38 @@ function brandSalesWindow(req) {
   const department = String(req.query.department || "").slice(0, 40);
   return { from, to, department };
 }
+// Brand display name -> supplier group, for the Brand Sales supplier filter
+// (Andrew 10/22): NetSuite's primary supplier for the brand when the items
+// import has one, else the Ordering Report's brand -> supplier defaults.
+async function brandSupplierLookup() {
+  let ns = {};
+  try { const pool = await getPostgresPool(); if (pool) ns = await loadNetsuiteBrandSuppliers(pool); } catch {}
+  const defaults = {}; for (const [b, sup] of Object.entries(BRAND_SUPPLIER_DEFAULTS)) defaults[canonBrandKey(b)] = sup;
+  return (brand) => { const k = canonBrandKey(brand); return ns[k] || defaults[k] || ""; };
+}
+const BRAND_SALES_OTHER_SUPPLIER = "Other / not mapped";
+
+// The filter lists before anything is run - the page loads nothing until Run.
+app.get("/api/brand-sales/options", requirePagePermission("/brand-sales.html"), async (req, res) => {
+  try {
+    const { from, to } = brandSalesWindow(req);
+    const [opts, brandMap, meta, supplierOf] = await Promise.all([listSoldSerialOptions(), getModelBrandMap().catch(() => ({})), getEpassSoldSerialsMeta().catch(() => null), brandSupplierLookup()]);
+    const resolver = createBrandResolver({ brandMap, samples: opts.brandSamples });
+    for (const s of opts.brandSamples) resolver.brandOf(s);
+    const brands = new Map();
+    for (const s of opts.brandSamples) { const raw = resolver.brandOf(s); if (!raw) continue; const name = resolver.displayOf(raw); brands.set(name, (brands.get(name) || 0) + (s.models || 0)); }
+    const brandList = [...brands.keys()].sort((a, b) => a.localeCompare(b));
+    const suppliers = new Set(brandList.map((b) => supplierOf(b) || BRAND_SALES_OTHER_SUPPLIER));
+    return res.json({ defaultFrom: from, defaultTo: to, departments: opts.departments, brands: brandList, suppliers: [...suppliers].sort((a, b) => a.localeCompare(b)), coverage: { ...opts.coverage }, feed: meta?.last || null });
+  } catch (err) { console.error("Brand sales options failed:", err.message); return res.status(500).json({ error: "Unable to load the report filters." }); }
+});
+
 app.get("/api/brand-sales", requirePagePermission("/brand-sales.html"), async (req, res) => {
   try {
     const { from, to, department } = brandSalesWindow(req);
+    const brandFilter = String(req.query.brand || "").trim().slice(0, 80);
+    const supplierFilter = String(req.query.supplier || "").trim().slice(0, 120);
+    const supplierOf = await brandSupplierLookup();
     const [data, brandMap, meta] = await Promise.all([
       listSoldSerialsByModel({ from, to, department }),
       getModelBrandMap().catch(() => ({})),
@@ -13007,7 +13035,11 @@ app.get("/api/brand-sales", requirePagePermission("/brand-sales.html"), async (r
         revenue: m.revenue, listRevenue: m.listRevenue, discount: m.discount, cost: m.cost, margin: m.margin, orders: m.orders, unpriced: m.unpriced,
         written: m.written, writtenFinished: m.writtenFinished, writtenOpen: m.writtenOpen, writtenOrders: m.writtenOrders, writtenRevenue: m.writtenRevenue });
     }
-    const brandList = [...brands.values()].sort((a, b) => b.revenue - a.revenue || b.written - a.written);
+    for (const b of brands.values()) b.supplier = b.brand === BRAND_SALES_UNMATCHED ? "" : (supplierOf(b.brand) || BRAND_SALES_OTHER_SUPPLIER);
+    const brandList = [...brands.values()]
+      .filter((b) => !brandFilter || b.brand === brandFilter)
+      .filter((b) => !supplierFilter || b.supplier === supplierFilter)
+      .sort((a, b) => b.revenue - a.revenue || b.written - a.written);
     brandList.forEach((b) => b.models.sort((x, y) => y.revenue - x.revenue || y.written - x.written));
     const sum = (k) => Math.round(brandList.reduce((acc, b) => acc + (b[k] || 0), 0) * 100) / 100;
     const totals = {
@@ -13016,9 +13048,9 @@ app.get("/api/brand-sales", requirePagePermission("/brand-sales.html"), async (r
       written: brandList.reduce((acc, b) => acc + b.written, 0), writtenFinished: brandList.reduce((acc, b) => acc + b.writtenFinished, 0),
       writtenOpen: brandList.reduce((acc, b) => acc + b.writtenOpen, 0), writtenRevenue: sum("writtenRevenue"),
       unpriced: brandList.reduce((acc, b) => acc + b.unpriced, 0),
-      models: data.models.length, unmatchedModels: brands.get(BRAND_SALES_UNMATCHED)?.models.length || 0, brandFromMap: fromMap
+      models: brandList.reduce((acc, b) => acc + b.models.length, 0), unmatchedModels: brandList.find((b) => b.brand === BRAND_SALES_UNMATCHED)?.models.length || 0, brandFromMap: fromMap
     };
-    return res.json({ from, to, department, departments: data.departments, coverage: data.coverage, feed: meta?.last || null, totals, brands: brandList, source: "epass-serials" });
+    return res.json({ from, to, department, brand: brandFilter, supplier: supplierFilter, departments: data.departments, coverage: data.coverage, feed: meta?.last || null, totals, brands: brandList, source: "epass-serials" });
   } catch (err) {
     console.error("Brand sales failed:", err.message);
     return res.status(500).json({ error: "Unable to build the brand sales report." });

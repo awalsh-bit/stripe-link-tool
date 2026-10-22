@@ -111,6 +111,8 @@
         <div><span class="field-label">From</span><input type="date" id="fromDate" /></div>
         <div><span class="field-label">To</span><input type="date" id="toDate" /></div>
         <div><span class="field-label">Department</span><select id="deptFilter"><option value="">All departments</option></select></div>
+        <div><span class="field-label">Brand</span><select id="brandFilter"><option value="">All brands</option></select></div>
+        <div><span class="field-label">Supplier</span><select id="supplierFilter"><option value="">All suppliers</option></select></div>
         <div><span class="field-label">Sort by</span><select id="sortSel"><option value="revenue">Delivered revenue</option><option value="written">Units written</option><option value="units">Units delivered</option><option value="margin">Margin</option></select></div>
         <button class="action" id="runBtn">Run report</button>
         <button class="action secondary" id="csvBtn">Export CSV</button>
@@ -122,7 +124,7 @@
     </div>
 
     <div class="surface">
-      <div id="tableHost"><div class="empty">Loading…</div></div>
+      <div id="tableHost"><div class="empty">Pick a window — and a brand or supplier if you want one — then click <b>Run report</b>.</div></div>
     </div>
 
     <div id="internal-shell-footer"></div>
@@ -171,7 +173,7 @@
         const partial = !!(before || after) && !!t.units;
         $("tiles").innerHTML = `
           ${before || after ? `<div class="gap-banner" style="grid-column:1/-1">${gap ? "No delivered data for this window." : "Delivered numbers are PARTIAL for this window."} The ePASS feed has delivered units on file from <b>${esc(cov.from)}</b> to <b>${esc(cov.to)}</b>${before ? ` — nothing before ${esc(cov.from)} has been pulled yet` : ""}. Units written still counts (it comes from the open book and ticket start dates). To fill in earlier history, run the pull once on the ePASS server with <code>-FinishedSince ${esc(data.from)}</code>.</div>` : ""}
-          <div class="tile${gap ? " nodata" : ""}"><div class="t-label">Delivered revenue</div><div class="t-value">${money(t.revenue)}</div><div class="t-sub">${esc(data.from)} → ${esc(data.to)}${data.department ? " · " + esc(data.department) : ""}${t.discount ? ` · ${money(-t.discount)} of ePASS discounts netted` : ""}</div></div>
+          <div class="tile${gap ? " nodata" : ""}"><div class="t-label">Delivered revenue</div><div class="t-value">${money(t.revenue)}</div><div class="t-sub">${esc(data.from)} → ${esc(data.to)}${data.department ? " · " + esc(data.department) : ""}${data.brand ? " · " + esc(data.brand) : ""}${data.supplier ? " · " + esc(data.supplier) : ""}${t.discount ? ` · ${money(-t.discount)} of ePASS discounts netted` : ""}</div></div>
           <div class="tile${gap ? " nodata" : ""}"><div class="t-label">Gross margin</div><div class="t-value">${money(t.margin)}</div><div class="t-sub">${pct(t.margin, t.revenue)} · cost ${money(t.cost)}</div></div>
           <div class="tile"><div class="t-label">Units written</div><div class="t-value">${num(t.written)}</div><div class="t-sub">tickets started in the window · ${num(t.writtenOpen)} still open${t.writtenRevenue ? ` · ${money(t.writtenRevenue)} written` : ""}</div></div>
           <div class="tile${gap ? " nodata" : ""}"><div class="t-label">Units delivered</div><div class="t-value">${num(t.units)}</div><div class="t-sub">${gap ? `no feed data before ${esc(cov.from || "")}` : "tickets finished in the window"} · ${num(t.models)} models${t.returned ? ` · ${num(t.returned)} returned` : ""}</div></div>
@@ -196,7 +198,7 @@
               const open = expanded.has(b.brand);
               return `
               <tr class="brand-row ${open ? "open" : ""}" data-brand="${esc(b.brand)}">
-                <td><span class="brand-name"><span class="caret">▶</span>${esc(b.brand)}${b.returned ? `<span class="sub-chip">${num(b.returned)} returned</span>` : ""}${b.unpriced ? `<span class="sub-chip soft">${num(b.unpriced)} unpriced</span>` : ""}</span></td>
+                <td><span class="brand-name"><span class="caret">▶</span>${esc(b.brand)}${b.supplier && b.supplier !== "Other / not mapped" ? `<span class="sub-chip" title="Supplier">${esc(b.supplier.replace(/^\d{4}\s+/, ""))}</span>` : ""}${b.returned ? `<span class="sub-chip">${num(b.returned)} returned</span>` : ""}${b.unpriced ? `<span class="sub-chip soft">${num(b.unpriced)} unpriced</span>` : ""}</span></td>
                 <td class="share-cell hide-sm"><div style="display:flex; align-items:center;"><div class="share-bar" style="flex:1;"><i style="width:${share.toFixed(1)}%;"></i></div><span class="share-pct">${share.toFixed(1)}%</span></div></td>
                 <td class="num wcol">${num(b.written)}${b.writtenOpen ? `<span class="open-n" title="${num(b.writtenOpen)} still open on the book">(${num(b.writtenOpen)} open)</span>` : ""}</td>
                 <td class="num dcol">${num(b.units)}</td>
@@ -236,6 +238,7 @@
         render();
       });
       $("foldAll").addEventListener("click", () => {
+        if (!data) return;
         expanded = expanded.size === data.brands.length ? new Set() : new Set(data.brands.map((b) => b.brand));
         render();
       });
@@ -257,7 +260,31 @@
         URL.revokeObjectURL(a.href);
       });
 
+      // Nothing runs until the Run button (Andrew 10/22) - the page only
+      // loads its filter lists and the coverage line on open.
+      async function loadOptions() {
+        try {
+          const res = await fetch("/api/brand-sales/options", { credentials: "same-origin" });
+          const body = await res.json();
+          if (!res.ok) throw new Error(body.error || "Unable to load the filters.");
+          if (!$("fromDate").value) $("fromDate").value = body.defaultFrom || "";
+          if (!$("toDate").value) $("toDate").value = body.defaultTo || "";
+          $("deptFilter").innerHTML = '<option value="">All departments</option>' + (body.departments || []).map((d) => `<option>${esc(d)}</option>`).join("");
+          $("brandFilter").innerHTML = '<option value="">All brands</option>' + (body.brands || []).map((b) => `<option>${esc(b)}</option>`).join("");
+          $("supplierFilter").innerHTML = '<option value="">All suppliers</option>' + (body.suppliers || []).map((b) => `<option>${esc(b)}</option>`).join("");
+          const fed = body.feed?.pulled_at ? ` · feed last pulled ${String(body.feed.pulled_at).replace("T", " ").slice(0, 16)}` : "";
+          $("coverageLine").textContent = body.coverage?.from
+            ? `Delivered units on file: ${body.coverage.from} → ${body.coverage.to}${body.coverage.startFrom ? `; written from ${body.coverage.startFrom}` : ""} (ePASS finished-orders feed, hourly${fed}). Run the pull with -FinishedSince to backfill earlier history.`
+            : "No sold units on file yet — the next hourly ePASS finished-orders pull fills this in (or run the pull with -FinishedSince to backfill).";
+        } catch (err) { $("coverageLine").textContent = err.message; }
+      }
+      // Brand and supplier narrow the same list - picking one clears the other.
+      $("brandFilter").addEventListener("change", () => { if ($("brandFilter").value) $("supplierFilter").value = ""; });
+      $("supplierFilter").addEventListener("change", () => { if ($("supplierFilter").value) $("brandFilter").value = ""; });
+
       async function load(params) {
+        $("tableHost").innerHTML = '<div class="empty">Running…</div>';
+        $("runBtn").disabled = true;
         try {
           const qs = new URLSearchParams(params || {});
           const res = await fetch("/api/brand-sales?" + qs, { credentials: "same-origin" });
@@ -277,7 +304,7 @@
           render();
         } catch (err) {
           $("tableHost").innerHTML = `<div class="empty">${esc(err.message)}</div>`;
-        }
+        } finally { $("runBtn").disabled = false; }
       }
 
       // One model's units: invoice, serial, price, discount, cost, margin.
@@ -336,13 +363,15 @@
       $("drawerBack").addEventListener("click", closeDrawer);
       document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeDrawer(); });
 
-      $("sortSel").addEventListener("change", render);
+      $("sortSel").addEventListener("change", () => { if (data) render(); });
       $("runBtn").addEventListener("click", () => load({
         from: $("fromDate").value || "",
         to: $("toDate").value || "",
-        department: $("deptFilter").value || ""
+        department: $("deptFilter").value || "",
+        brand: $("brandFilter").value || "",
+        supplier: $("supplierFilter").value || ""
       }));
-      load();
+      loadOptions();
     })();
   </script>
 </body>

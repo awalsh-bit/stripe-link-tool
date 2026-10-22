@@ -10925,12 +10925,32 @@ app.post("/api/epass-agent/upload", express.raw({ type: () => true, limit: "60mb
       if (!bundle || typeof bundle !== "object" || !bundle.datasets) return res.status(400).json({ error: "Bundle has no datasets." });
       const rows = Array.isArray(bundle.datasets["finished-orders"]) ? bundle.datasets["finished-orders"].length : 0;
       const ip = req.ip, pulledAt = bundle.pulledAt || "", machine = bundle.machine || "";
-      epassFinishedChain = epassFinishedChain.catch(() => {}).then(async () => {
+      const work = epassFinishedChain.catch(() => {}).then(async () => {
         const counts = await processFinishedOrdersBundle(bundle);
         lastFinishedPostProcessing = { finishedAt: new Date().toISOString(), pulledAt, filename: sourceFile.slice(0, 120), ...counts };
         await recordAudit({ ip, actorUserId: null, action: "epass_finished_orders_received", targetUserId: null,
           detail: { ...counts, pulledAt, machine, filename: sourceFile.slice(0, 120), via: "epass-agent" } }).catch(() => {});
+        return counts;
       });
+      epassFinishedChain = work;
+      // A backfill window (finishedUntil set) is answered only once it is in
+      // the database (10/22): the first backfill was acknowledged by an
+      // instance that was replaced by a deploy seconds later, and the queued
+      // work vanished with it while the agent had already filed the bundles
+      // as sent. Waiting keeps the agent's retry honest - a failure here
+      // comes back as a 5xx, the file stays in the outbox, next run resends.
+      // The hourly bundle keeps the quick acknowledgement.
+      if (/^\d{4}-\d{2}-\d{2}$/.test(String(bundle.finishedUntil || ""))) {
+        try {
+          const counts = await work;
+          const bad = ["soldSerials", "finishedOrders", "commissionLines"].filter((k) => counts?.[k]?.error).map((k) => `${k}: ${counts[k].error}`);
+          if (bad.length) return res.status(500).json({ error: `Backfill window ${bundle.finishedSince} → ${bundle.finishedUntil} did not fully land — ${bad.join("; ")}` });
+          return res.json({ ok: true, kind, rows, finishedSince: bundle.finishedSince || "", finishedUntil: bundle.finishedUntil, postProcessing: "done", soldSerials: counts?.soldSerials, tickets: counts?.finishedOrders?.tickets ?? null, pulledAt });
+        } catch (err) {
+          console.error("Finished-orders backfill window failed:", err.message);
+          return res.status(500).json({ error: `Backfill window ${bundle.finishedSince} → ${bundle.finishedUntil} failed: ${err.message}` });
+        }
+      }
       return res.json({ ok: true, kind, rows, finishedSince: bundle.finishedSince || "", postProcessing: "running", pulledAt });
     }
 

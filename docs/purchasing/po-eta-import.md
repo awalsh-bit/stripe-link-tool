@@ -6,6 +6,10 @@ Purchasing → **PO ETA Import Builder** (`po-eta-import.html`). Added 2026-10-2
 
 When a PO is pushed out to match a job, the vendor's new ETA and acknowledged requested date have to be keyed back into ePASS PO by PO. That never keeps up, so Cash Ops Projection sees a wall of ETAs in the past. ePASS has an **ETA Date Import** utility that takes a workbook with four columns; this tool builds that workbook from whatever the vendor portal exports.
 
+## ePASS date fields (learned 10/21)
+
+`ETADateMostUpdated` and `RSDMostUpdated` on `POModel` are **"as of" stamps** — the day the ETA / requested date was last changed (ePASS shows them in red under the field) — not dates themselves. The ETA is `ETADate`, the requested date `RequestedDeliveryDate`. Agility used to prefer `ETADateMostUpdated` as the ETA, which made every line updated by this import look like it was due "yesterday" in PO Health and Cash Ops; fixed in the finance feed, the open-orders feed, PO Health and the Ordering Report.
+
 ## ePASS utility settings
 
 Tools → ETA Date Import:
@@ -64,7 +68,8 @@ ETA rule: Delivery Appointment, else Expected Available Date, else Target Arriva
 Model matching tries Item Description first (so `CL4850UFD/O` also matches an ePASS code written `CL4850UFDO`), then the Sub-Zero item number — that is how accessory lines whose description is not a model still match when ePASS carries them by item number. Sub-Zero delivers to Wilson on **Thursdays**, so two date rules apply (Andrew 10/20):
 
 - **Request Date → +2 business days.** Their Request Date is the day the warehouse picks; the truck arrives two business days later (Tuesday pick → Thursday truck; a Monday pick in a holiday week → Wednesday; Thursday → Monday). ePASS gets the truck day.
-- **Month-only estimates → third Thursday.** Far-out lines carry a month-only estimate (`02/2027`, 171 of 683 lines in the sample); the third Thursday of that month is used. A full Estimated Available Date is written as given.
+- **Estimated Available Date → +2 business days** as well — it is the day their warehouse has it; ePASS gets the day it lands at Wilson (10/21).
+- **Month-only estimates → third Thursday.** Far-out lines carry a month-only estimate (`02/2027`, 171 of 683 lines in the sample); the third Thursday of that month is used.
 
 Every adjustment is spelled out in the line's notes.
 

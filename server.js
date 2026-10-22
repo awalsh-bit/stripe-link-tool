@@ -253,7 +253,7 @@ import {
   listRevenuePerformanceSources
 } from "./lib/revenue-performance-postgres.js";
 import { finishedTicketsFromFeed, salespersonNamesFromFeed, ticketsByMonth, openOrderTicketsFromFeed, compareTickets, modelDiscountsFromFeed } from "./lib/epass-feed-finished.js";
-import { replaceEpassSoldSerials, listSoldSerialsByModel, listSoldSerialsForModel, getEpassSoldSerialsMeta, listSoldSerialMonths, commissionLinesFromFeed, listSoldSerialOptions } from "./lib/epass-sold-serials-postgres.js";
+import { replaceEpassSoldSerials, listSoldSerialsByModel, listSoldSerialsForModel, getEpassSoldSerialsMeta, listSoldSerialMonths, commissionLinesFromFeed, listSoldSerialOptions, listSoldSerialDetail } from "./lib/epass-sold-serials-postgres.js";
 import { createEvent, updateEvent, setEventStatus, deleteEvent, getEvent, listEvents, listInvitees, addInvitees, updateInvitee, deleteInvitee, inviteesFromGrid, listRsvps, listPublicEvents, getPublicEvent, submitRsvp, migrateLegacyEvents, INVITEE_STATUSES } from "./lib/events-postgres.js";
 import { upsertEpassCustomers, getEpassCustomersMeta, getEpassCustomers, searchEpassCustomers as searchEpassCustomerMaster, matchEpassCustomersForShoppers, setShopperEpassLink, epassCustomerHistory } from "./lib/epass-customers-postgres.js";
 import { loadWarrantyTerms, lookupWarranty, warrantyTermsSummary } from "./lib/warranty-terms.js";
@@ -13068,6 +13068,50 @@ app.get("/api/brand-sales/model", requirePagePermission("/brand-sales.html"), as
     console.error("Brand sales model detail failed:", err.message);
     return res.status(500).json({ error: "Unable to load the units for that model." });
   }
+});
+
+// Brand Sales detail CSV (Andrew 10/22): every delivered unit and every open
+// (written, undelivered) line behind the report - what the model drawers
+// show - as one flat file, with brand and supplier resolved exactly as the
+// report does. The reports go to suppliers; columns get trimmed in Excel.
+app.get("/api/brand-sales/detail.csv", requirePagePermission("/brand-sales.html"), async (req, res) => {
+  try {
+    const { from, to, department } = brandSalesWindow(req);
+    const brandFilter = String(req.query.brand || "").trim().slice(0, 80);
+    const supplierFilter = String(req.query.supplier || "").trim().slice(0, 120);
+    const [detail, brandMap, supplierOf] = await Promise.all([listSoldSerialDetail({ from, to, department }), getModelBrandMap().catch(() => ({})), brandSupplierLookup()]);
+    const samples = Object.entries(detail.master).map(([model, m]) => ({ model, brandCode: m.brandCode, brand: m.brand }));
+    const resolver = createBrandResolver({ brandMap, samples });
+    for (const sm of samples) resolver.brandOf(sm);
+    const brandFor = (model) => { const m = detail.master[model]; const raw = resolver.brandOf({ model, brandCode: m?.brandCode || "", brand: m?.brand || "" }); return raw ? resolver.displayOf(raw) : BRAND_SALES_UNMATCHED; };
+    const supplierFor = (brand) => brand === BRAND_SALES_UNMATCHED ? "" : (supplierOf(brand) || BRAND_SALES_OTHER_SUPPLIER);
+    const keep = (brand, supplier) => (!brandFilter || brand === brandFilter) && (!supplierFilter || supplier === supplierFilter);
+    const q = (v) => { const t = v == null ? "" : String(v); return /[",\r\n]/.test(t) ? `"${t.replace(/"/g, '""')}"` : t; };
+    const money = (n) => n == null || !Number.isFinite(Number(n)) ? "" : Number(n).toFixed(2);
+    const head = ["Record", "Brand", "Supplier", "Model", "Description", "Product code", "Invoice", "Invoice type", "Department", "Serial", "Written", "Finished", "Scheduled", "Status", "Job status", "Rep", "Customer", "Qty", "Price", "Discount", "Net revenue", "Unit cost", "Margin", "GM %", "Returned", "Price code", "New/Used", "Serial type", "Priced from line"];
+    const lines = [head.map(q).join(",")];
+    let delivered = 0, open = 0;
+    for (const u of detail.units) {
+      const brand = brandFor(u.model), supplier = supplierFor(brand); if (!keep(brand, supplier)) continue;
+      const m = detail.master[u.model] || {}; const margin = Math.round((u.net - u.unitCost) * 100) / 100;
+      lines.push([u.returned ? "Returned" : "Delivered", brand, supplier.replace(/^\d{4}\s+/, ""), u.model, m.description || brandMap[u.model]?.description || "", m.productCode || "", u.invoice, u.invType, u.department, u.serial, u.startDate, u.finishDate, "", u.status, "", u.salespersonCode, u.customerName, 1, money(u.sellingPrice), money(u.discount), money(u.net), money(u.unitCost), money(margin), u.net ? (margin / u.net * 100).toFixed(1) : "", u.returned ? "Y" : "", u.listPriceCode, u.newUsed, u.serialType, u.lineFound ? "Y" : "N"].map(q).join(","));
+      delivered++;
+    }
+    for (const o of detail.open) {
+      const brand = brandFor(o.model), supplier = supplierFor(brand); if (!keep(brand, supplier)) continue;
+      const m = detail.master[o.model] || {};
+      lines.push(["Open (written, not delivered)", brand, supplier.replace(/^\d{4}\s+/, ""), o.model, m.description || brandMap[o.model]?.description || "", m.productCode || "", o.invoice, o.invType, o.department, "", o.startDate, "", o.scheduleDate, o.status, o.jobStatus, o.salespersonCode, o.customerName, o.qty, money(o.sellingPrice), "", "", "", "", "", "", "", "", "", ""].map(q).join(","));
+      open++;
+    }
+    sjAudit(req, "brand_sales_detail_exported", { from, to, department, brand: brandFilter, supplier: supplierFilter, delivered, open });
+    const buf = Buffer.from("\uFEFF" + lines.join("\r\n") + "\r\n", "utf8");
+    const tag = [brandFilter, supplierFilter.replace(/^\d{4}\s+/, "")].filter(Boolean).join("-").replace(/[^A-Za-z0-9-]+/g, "_");
+    res.setHeader("Content-Type", "text/csv; charset=utf-8");
+    res.setHeader("Content-Disposition", `attachment; filename="brand-sales-detail_${from}_${to}${tag ? "_" + tag : ""}.csv"`);
+    res.setHeader("Content-Length", String(buf.length));
+    res.setHeader("Cache-Control", "no-store");
+    return res.end(buf);
+  } catch (err) { console.error("Brand sales detail export failed:", err.message); return res.status(400).json({ error: `Export failed: ${err.message}` }); }
 });
 
 // Uniform ordering (HR): the active roster with sizes, for the order

@@ -12976,6 +12976,37 @@ async function brandSupplierLookup() {
 }
 const BRAND_SALES_OTHER_SUPPLIER = "Other / not mapped";
 
+// Where each brand's supplier comes from (Andrew 10/22: "fix NetSuite, not
+// Agility"). Per brand: every Primary Supplier its NetSuite items carry with
+// counts, items with no supplier, and what the report ends up using.
+app.get("/api/brand-sales/supplier-map", requirePagePermission("/brand-sales.html"), async (req, res) => {
+  try {
+    const pool = await getPostgresPool();
+    const [ns, opts, brandMap] = await Promise.all([
+      pool ? pool.query(`SELECT brand, primary_supplier, COUNT(*)::int AS n FROM netsuite_items WHERE brand <> '' GROUP BY 1, 2 ORDER BY 1, 3 DESC`).then((r) => r.rows).catch(() => []) : [],
+      listSoldSerialOptions(), getModelBrandMap().catch(() => ({}))
+    ]);
+    const resolver = createBrandResolver({ brandMap, samples: opts.brandSamples });
+    for (const sm of opts.brandSamples) resolver.brandOf(sm);
+    const supplierOf = await brandSupplierLookup();
+    const byBrand = new Map();
+    for (const r of ns) {
+      const key = canonBrandKey(r.brand); if (!key) continue;
+      const row = byBrand.get(key) || { brand: r.brand, netsuite: {}, noSupplier: 0, items: 0 };
+      if (r.primary_supplier) row.netsuite[r.primary_supplier] = (row.netsuite[r.primary_supplier] || 0) + r.n; else row.noSupplier += r.n;
+      row.items += r.n; byBrand.set(key, row);
+    }
+    for (const sm of opts.brandSamples) { const raw = resolver.brandOf(sm); if (!raw) continue; const name = resolver.displayOf(raw); const key = canonBrandKey(name); if (!byBrand.has(key)) byBrand.set(key, { brand: name, netsuite: {}, noSupplier: 0, items: 0, epassOnly: true }); }
+    const defaults = {}; for (const [b, sup] of Object.entries(BRAND_SUPPLIER_DEFAULTS)) defaults[canonBrandKey(b)] = sup;
+    const rows = [...byBrand.entries()].map(([key, r]) => {
+      const used = supplierOf(r.brand) || BRAND_SALES_OTHER_SUPPLIER;
+      const nsTop = Object.entries(r.netsuite).sort((a, b) => b[1] - a[1])[0]?.[0] || "";
+      return { brand: r.brand, used, source: nsTop && used === nsTop ? "netsuite" : defaults[key] && used === defaults[key] ? "agility default" : "none", netsuite: r.netsuite, itemsWithoutSupplier: r.noSupplier, netsuiteItems: r.items, inNetsuite: !r.epassOnly };
+    }).sort((a, b) => a.brand.localeCompare(b.brand));
+    return res.json({ note: "used = the supplier Brand Sales groups this brand under. netsuite = Primary Supplier counts across the brand's NetSuite items (the most common wins); the Agility default table only applies when NetSuite has nothing for the brand.", brands: rows });
+  } catch (err) { console.error("Supplier map failed:", err.message); return res.status(500).json({ error: "Unable to build the supplier map." }); }
+});
+
 // The filter lists before anything is run - the page loads nothing until Run.
 app.get("/api/brand-sales/options", requirePagePermission("/brand-sales.html"), async (req, res) => {
   try {
@@ -13047,11 +13078,17 @@ function shiftYear(iso, years) {
 // Written-side comparison of two aggregates: per brand and per model, this
 // window vs the prior window - units, revenue, margin, GM% and share of the
 // written revenue - with deltas. Brands only in one year still show.
-function compareBrandSales(cur, old) {
+// `basis`: "written" (tickets started - the sales team's execution) or
+// "delivered" (tickets finished - real revenue, real serial cost, so the
+// margin is reliable; Andrew 10/22). Either way the output shape is the
+// same: written = the unit count on that basis.
+function compareBrandSales(cur, old, basis = "written") {
   const r2 = (n) => Math.round(n * 100) / 100;
-  const side = (x) => x ? { written: x.written, writtenOpen: x.writtenOpen || 0, revenue: x.writtenRevenue, cost: x.writtenCost || 0, margin: x.writtenMargin || 0, gm: x.writtenRevenue ? r2((x.writtenMargin || 0) / x.writtenRevenue * 100) : null, orders: x.writtenOrders || 0 } : { written: 0, writtenOpen: 0, revenue: 0, cost: 0, margin: 0, gm: null, orders: 0 };
+  const side = basis === "delivered"
+    ? (x) => x ? { written: x.units, writtenOpen: 0, revenue: x.revenue, cost: x.cost || 0, margin: x.margin || 0, gm: x.revenue ? r2((x.margin || 0) / x.revenue * 100) : null, orders: x.orders || 0, returned: x.returned || 0 } : { written: 0, writtenOpen: 0, revenue: 0, cost: 0, margin: 0, gm: null, orders: 0, returned: 0 }
+    : (x) => x ? { written: x.written, writtenOpen: x.writtenOpen || 0, revenue: x.writtenRevenue, cost: x.writtenCost || 0, margin: x.writtenMargin || 0, gm: x.writtenRevenue ? r2((x.writtenMargin || 0) / x.writtenRevenue * 100) : null, orders: x.writtenOrders || 0 } : { written: 0, writtenOpen: 0, revenue: 0, cost: 0, margin: 0, gm: null, orders: 0 };
   const pctChange = (a, b) => b ? r2((a - b) / Math.abs(b) * 100) : (a ? null : 0);
-  const totalCur = cur.totals.writtenRevenue || 0, totalOld = old.totals.writtenRevenue || 0;
+  const totalCur = (basis === "delivered" ? cur.totals.revenue : cur.totals.writtenRevenue) || 0, totalOld = (basis === "delivered" ? old.totals.revenue : old.totals.writtenRevenue) || 0;
   const oldBy = new Map(old.brandList.map((b) => [b.brand, b]));
   const names = [...new Set([...cur.brandList.map((b) => b.brand), ...old.brandList.map((b) => b.brand)])];
   const brands = names.map((name) => {
@@ -13071,9 +13108,11 @@ function compareBrandSales(cur, old) {
       models
     };
   }).sort((a, b) => b.now.revenue - a.now.revenue || b.prior.revenue - a.prior.revenue);
-  const t = (x) => ({ written: x.totals.written, writtenOpen: x.totals.writtenOpen, revenue: x.totals.writtenRevenue, cost: x.totals.writtenCost || 0, margin: x.totals.writtenMargin || 0, gm: x.totals.writtenRevenue ? r2((x.totals.writtenMargin || 0) / x.totals.writtenRevenue * 100) : null });
+  const t = basis === "delivered"
+    ? (x) => ({ written: x.totals.units, writtenOpen: 0, revenue: x.totals.revenue, cost: x.totals.cost || 0, margin: x.totals.margin || 0, gm: x.totals.revenue ? r2((x.totals.margin || 0) / x.totals.revenue * 100) : null, returned: x.totals.returned || 0 })
+    : (x) => ({ written: x.totals.written, writtenOpen: x.totals.writtenOpen, revenue: x.totals.writtenRevenue, cost: x.totals.writtenCost || 0, margin: x.totals.writtenMargin || 0, gm: x.totals.writtenRevenue ? r2((x.totals.writtenMargin || 0) / x.totals.writtenRevenue * 100) : null });
   const now = t(cur), prior = t(old);
-  return { brands, totals: { now, prior, deltaUnits: now.written - prior.written, deltaRevenue: r2(now.revenue - prior.revenue), deltaRevenuePct: pctChange(now.revenue, prior.revenue), deltaMargin: r2(now.margin - prior.margin), brands: brands.length } };
+  return { basis, brands, totals: { now, prior, deltaUnits: now.written - prior.written, deltaRevenue: r2(now.revenue - prior.revenue), deltaRevenuePct: pctChange(now.revenue, prior.revenue), deltaMargin: r2(now.margin - prior.margin), brands: brands.length } };
 }
 
 app.get("/api/brand-sales", requirePagePermission("/brand-sales.html"), async (req, res) => {
@@ -13088,7 +13127,9 @@ app.get("/api/brand-sales", requirePagePermission("/brand-sales.html"), async (r
       getEpassSoldSerialsMeta().catch(() => null)
     ]);
 
-    const view = String(req.query.view || "current").toLowerCase() === "yoy" ? "yoy" : "current";
+    const viewRaw = String(req.query.view || "current").toLowerCase();
+    const view = viewRaw === "yoy" || viewRaw === "yoy-delivered" ? "yoy" : "current";
+    const basis = viewRaw === "yoy-delivered" ? "delivered" : "written";
     if (view === "yoy") {
       // YoY compare (Andrew 10/22): the same window one year earlier, on the
       // WRITTEN side (tickets started in the window), so a brand-share push
@@ -13099,8 +13140,8 @@ app.get("/api/brand-sales", requirePagePermission("/brand-sales.html"), async (r
       for (const m of [...data.models, ...prior.models]) resolver.brandOf(m);
       const cur = aggregateBrandSales(data.models, { resolver, brandMap, supplierOf, brandFilter, supplierFilter });
       const old = aggregateBrandSales(prior.models, { resolver, brandMap, supplierOf, brandFilter, supplierFilter });
-      const yoy = compareBrandSales(cur, old);
-      return res.json({ view, from, to, priorFrom, priorTo, department, brand: brandFilter, supplier: supplierFilter, departments: data.departments, coverage: data.coverage, feed: meta?.last || null, totals: yoy.totals, brands: yoy.brands, source: "epass-serials" });
+      const yoy = compareBrandSales(cur, old, basis);
+      return res.json({ view, basis, from, to, priorFrom, priorTo, department, brand: brandFilter, supplier: supplierFilter, departments: data.departments, coverage: data.coverage, feed: meta?.last || null, totals: yoy.totals, brands: yoy.brands, source: "epass-serials" });
     }
     const resolver = createBrandResolver({ brandMap, samples: data.models });
     for (const m of data.models) resolver.brandOf(m); // register every spelling first

@@ -92,7 +92,35 @@
     .drawer-body table { font-size: 12.5px; }
     .drawer-body td { padding: 7px 8px; }
     .x-btn { border: 1px solid var(--border); background: #fff; border-radius: 10px; padding: 7px 12px; cursor: pointer; font-family: inherit; font-size: 13px; }
-    @media (max-width: 720px) { .hide-sm { display: none; } }
+    /* The brand table scrolls inside its card instead of stretching the page
+       (Andrew 10/22: on a phone the whole page went wider than the screen). */
+    #tableHost { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+    #tableHost table { min-width: 640px; }
+    @media (max-width: 720px) {
+      .hide-sm { display: none; }
+      body { padding: 12px 8px; }
+      .surface { padding: 14px; }
+      h2 { font-size: 18px; }
+      .section-note { font-size: 12.5px; }
+      .toolbar { gap: 8px; }
+      .toolbar > div { flex: 1 1 46%; min-width: 0; }
+      .toolbar select, .toolbar input[type="date"] { width: 100%; }
+      .toolbar button.action { flex: 1 1 auto; }
+      .tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+      .tile { padding: 10px 12px; }
+      .tile .t-value { font-size: 20px; }
+      #tableHost table { font-size: 12.5px; }
+      th, td { padding: 7px 6px; }
+      /* First column (brand / model) stays put while the numbers scroll. */
+      #tableHost th:first-child, #tableHost td:first-child { position: sticky; left: 0; z-index: 1; background: #fff; box-shadow: 2px 0 0 #eef1f5; max-width: 170px; }
+      #tableHost tr.model-row td:first-child { background: var(--primary-faint, #fafdfa); }
+      tr.model-row td { padding-left: 12px; }
+      tr.model-row .m-desc { white-space: normal; }
+      .brand-name { flex-wrap: wrap; gap: 4px 6px; }
+      .sub-chip { margin-left: 0; }
+      .brand-name .sub-chip[title="Supplier"] { display: none; } /* the supplier filter says it already */
+      .chg { min-width: 0; }
+    }
     @media print { .toolbar, button { display: none !important; } tr.model-row { display: table-row; } }
   </style>
 </head>
@@ -114,7 +142,7 @@
       </p>
 
       <div class="toolbar">
-        <div><span class="field-label">View</span><select id="viewSel"><option value="current">Current</option><option value="yoy">YoY compare (written)</option></select></div>
+        <div><span class="field-label">View</span><select id="viewSel"><option value="current">Current</option><option value="yoy">YoY compare (written)</option><option value="yoy-delivered">YoY compare (delivered)</option></select></div>
         <div><span class="field-label">From</span><input type="date" id="fromDate" /></div>
         <div><span class="field-label">To</span><input type="date" id="toDate" /></div>
         <div><span class="field-label">Department</span><select id="deptFilter"><option value="">All departments</option></select></div>
@@ -272,11 +300,12 @@
         if (!data) return;
         const q = (v) => '"' + String(v ?? "").replace(/"/g, '""') + '"';
         if (data.view === "yoy") {
-          const lines = [["Brand", "Supplier", "Model", "Description", "Written now", "Written prior", "Δ units", "Revenue now", "Revenue prior", "Δ revenue", "Δ revenue %", "Margin now", "Margin prior", "Δ margin", "GM % now", "GM % prior", "Share now %", "Share prior %"].map(q).join(",")];
+          const U = data.basis === "delivered" ? "Delivered" : "Written";
+          const lines = [["Brand", "Supplier", "Model", "Description", `${U} now`, `${U} prior`, "Δ units", "Revenue now", "Revenue prior", "Δ revenue", "Δ revenue %", "Margin now", "Margin prior", "Δ margin", "GM % now", "GM % prior", "Share now %", "Share prior %"].map(q).join(",")];
           const row = (b, m) => [b.brand, (b.supplier || "").replace(/^\d{4}\s+/, ""), m ? m.model : "", m ? m.description : "", (m || b).now.written, (m || b).prior.written, (m || b).deltaUnits, (m || b).now.revenue, (m || b).prior.revenue, (m || b).deltaRevenue, (m || b).deltaRevenuePct ?? "", (m || b).now.margin, (m || b).prior.margin, (m || b).deltaMargin, (m || b).now.gm ?? "", (m || b).prior.gm ?? "", m ? "" : b.shareNow, m ? "" : b.sharePrior].map(q).join(",");
           data.brands.forEach((b) => { lines.push(row(b)); b.models.forEach((m) => lines.push(row(b, m))); });
           const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([lines.join("\n")], { type: "text/csv" }));
-          a.download = `brand-sales-yoy-${data.from}-to-${data.to}.csv`; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(a.href);
+          a.download = `brand-sales-yoy-${data.basis === "delivered" ? "delivered" : "written"}-${data.from}-to-${data.to}.csv`; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(a.href);
           return;
         }
         const lines = [["Brand", "Model", "Description", "Written", "Written (finished)", "Written (open)", "Written orders", "Written revenue", "Delivered", "Returned", "Delivered orders", "List revenue", "Discounts", "Revenue", "Cost", "Margin", "GM %", "$ / unit"].map(q).join(",")];
@@ -312,8 +341,8 @@
         } catch (err) { $("coverageLine").textContent = err.message; }
       }
       // Sort labels follow the view (the compare is written-based).
-      const SORT_LABELS = { current: { revenue: "Delivered revenue", written: "Units written", units: "Units delivered", margin: "Margin" }, yoy: { revenue: "Written revenue", written: "Units written", units: "Units written", margin: "Written margin" } };
-      const syncView = () => { const v = $("viewSel").value === "yoy" ? "yoy" : "current"; for (const o of $("sortSel").options) o.textContent = SORT_LABELS[v][o.value] || o.textContent; };
+      const SORT_LABELS = { current: { revenue: "Delivered revenue", written: "Units written", units: "Units delivered", margin: "Margin" }, yoy: { revenue: "Written revenue", written: "Units written", units: "Units written", margin: "Written margin" }, "yoy-delivered": { revenue: "Delivered revenue", written: "Units delivered", units: "Units delivered", margin: "Margin" } };
+      const syncView = () => { const v = SORT_LABELS[$("viewSel").value] ? $("viewSel").value : "current"; for (const o of $("sortSel").options) o.textContent = SORT_LABELS[v][o.value] || o.textContent; };
       $("viewSel").addEventListener("change", syncView); syncView();
       // Brand and supplier narrow the same list - picking one clears the other.
       $("brandFilter").addEventListener("change", () => { if ($("brandFilter").value) $("supplierFilter").value = ""; });
@@ -358,22 +387,31 @@
       const gmTxt = (g) => g == null ? "—" : g.toFixed(1) + "%";
       function renderYoy() {
         const t = data.totals;
+        const dlv = data.basis === "delivered";
+        const L = dlv
+          ? { unit: "Units delivered", rev: "Delivered revenue", margin: "Margin", gm: "GM % on delivered", avg: "Avg revenue / unit", basisNote: "tickets finished in the window · real serial cost", marginNote: "serial cost, net of discounts" }
+          : { unit: "Units written", rev: "Written revenue", margin: "Written margin", gm: "GM % on written", avg: "Avg written / unit", basisNote: "tickets started in the window", marginNote: "open lines at ePASS line cost" };
         const yoySort = { revenue: (x) => x.now.revenue, written: (x) => x.now.written, units: (x) => x.now.written, margin: (x) => x.now.margin }[$("sortSel").value] || ((x) => x.now.revenue);
         data.brands.sort((a, b) => yoySort(b) - yoySort(a) || b.prior.revenue - a.prior.revenue);
         data.brands.forEach((b) => b.models.sort((a, c) => yoySort(c) - yoySort(a) || c.prior.revenue - a.prior.revenue));
         const cov = data.coverage || {};
-        const priorGap = cov.startFrom && data.priorFrom < cov.startFrom;
+        // Written history is only complete for tickets started on/after the
+        // first FINISHED date on file: a ticket written and delivered before
+        // the backfill window never reached the feed (that is how last
+        // year's KUIX535HPS went missing, Andrew 10/22).
+        const priorGap = cov.from && data.priorFrom < cov.from;
+        const curGap = cov.from && data.from < cov.from;
         $("tiles").innerHTML = `
-          ${priorGap ? `<div class="gap-banner" style="grid-column:1/-1">Prior-year numbers may be PARTIAL: written history on file starts <b>${esc(cov.startFrom)}</b>, and the comparison window is ${esc(data.priorFrom)} → ${esc(data.priorTo)}. Run the pull with <code>-FinishedSince ${esc(data.priorFrom)}</code> to fill it in.</div>` : ""}
-          <div class="tile"><div class="t-label">Written revenue</div><div class="t-value">${money(t.now.revenue)}</div><div class="t-sub">${chg(t.now.revenue, t.prior.revenue, money)} vs ${money(t.prior.revenue)} · ${esc(data.priorFrom)} → ${esc(data.priorTo)}</div></div>
-          <div class="tile"><div class="t-label">Units written</div><div class="t-value">${num(t.now.written)}</div><div class="t-sub">${chg(t.now.written, t.prior.written, num)} vs ${num(t.prior.written)} · ${num(t.now.writtenOpen)} still open now</div></div>
-          <div class="tile"><div class="t-label">Written margin</div><div class="t-value">${money(t.now.margin)}</div><div class="t-sub">${chg(t.now.margin, t.prior.margin, money)} vs ${money(t.prior.margin)} · open lines at ePASS line cost</div></div>
-          <div class="tile"><div class="t-label">GM % on written</div><div class="t-value">${gmTxt(t.now.gm)}</div><div class="t-sub">prior year ${gmTxt(t.prior.gm)}${t.now.gm != null && t.prior.gm != null ? ` · ${(t.now.gm - t.prior.gm) > 0 ? "+" : ""}${(t.now.gm - t.prior.gm).toFixed(1)} pts` : ""}</div></div>
+          ${priorGap || curGap ? `<div class="gap-banner" style="grid-column:1/-1">${priorGap ? "Prior-year" : "This window's"} ${dlv ? "delivered" : "written"} numbers are PARTIAL. The ePASS feed holds finished tickets from <b>${esc(cov.from)}</b>, so anything written <i>and</i> delivered before that date never reached Agility — models sold only back then will not show at all. Comparison window: ${esc(data.priorFrom)} → ${esc(data.priorTo)}. Run the pull once on the ePASS server with <code>-FinishedSince ${esc(priorGap ? data.priorFrom : data.from)}</code> to fill it in (one small bundle per month).</div>` : ""}
+          <div class="tile"><div class="t-label">${L.rev}</div><div class="t-value">${money(t.now.revenue)}</div><div class="t-sub">${chg(t.now.revenue, t.prior.revenue, money)} vs ${money(t.prior.revenue)} · ${esc(data.priorFrom)} → ${esc(data.priorTo)}</div></div>
+          <div class="tile"><div class="t-label">${L.unit}</div><div class="t-value">${num(t.now.written)}</div><div class="t-sub">${chg(t.now.written, t.prior.written, num)} vs ${num(t.prior.written)} · ${dlv ? `${L.basisNote}${t.now.returned ? ` · ${num(t.now.returned)} returned excluded` : ""}` : `${num(t.now.writtenOpen)} still open now`}</div></div>
+          <div class="tile"><div class="t-label">${L.margin}</div><div class="t-value">${money(t.now.margin)}</div><div class="t-sub">${chg(t.now.margin, t.prior.margin, money)} vs ${money(t.prior.margin)} · ${L.marginNote}</div></div>
+          <div class="tile"><div class="t-label">${L.gm}</div><div class="t-value">${gmTxt(t.now.gm)}</div><div class="t-sub">prior year ${gmTxt(t.prior.gm)}${t.now.gm != null && t.prior.gm != null ? ` · ${(t.now.gm - t.prior.gm) > 0 ? "+" : ""}${(t.now.gm - t.prior.gm).toFixed(1)} pts` : ""}</div></div>
           <div class="tile"><div class="t-label">Brands</div><div class="t-value">${num(data.brands.filter((b) => !b.brand.startsWith("—")).length)}</div><div class="t-sub">${esc(data.from)} → ${esc(data.to)}${data.department ? " · " + esc(data.department) : ""}${data.brand ? " · " + esc(data.brand) : ""}${data.supplier ? " · " + esc(data.supplier) : ""}</div></div>
-          <div class="tile"><div class="t-label">Avg written / unit</div><div class="t-value">${t.now.written ? money(t.now.revenue / t.now.written) : "—"}</div><div class="t-sub">prior year ${t.prior.written ? money(t.prior.revenue / t.prior.written) : "—"}</div></div>`;
-        if (!data.brands.length) { $("tableHost").innerHTML = '<div class="empty">Nothing written in either window.</div>'; return; }
+          <div class="tile"><div class="t-label">${L.avg}</div><div class="t-value">${t.now.written ? money(t.now.revenue / t.now.written) : "—"}</div><div class="t-sub">prior year ${t.prior.written ? money(t.prior.revenue / t.prior.written) : "—"}</div></div>`;
+        if (!data.brands.length) { $("tableHost").innerHTML = `<div class="empty">Nothing ${dlv ? "delivered" : "written"} in either window.</div>`; return; }
         const rowCells = (x, isModel) => `
-                <td class="num wcol">${pair(x.now.written, x.prior.written, num)}</td>
+                <td class="num ${dlv ? "dcol" : "wcol"}">${pair(x.now.written, x.prior.written, num)}</td>
                 <td class="num">${chg(x.now.written, x.prior.written, num)}</td>
                 <td class="num">${pair(x.now.revenue, x.prior.revenue, money)}</td>
                 <td class="num">${chg(x.now.revenue, x.prior.revenue, money)}</td>
@@ -383,10 +421,10 @@
         $("tableHost").innerHTML = `
         <table>
           <thead><tr>
-            <th>Brand</th><th class="share-cell hide-sm" title="Share of written revenue: this window / prior year">Share · now / prior</th>
-            <th class="num wcol" title="Units on tickets started in the window: now / prior year">Written · now / prior</th><th class="num">Δ units</th>
-            <th class="num" title="Written revenue net of linked discounts: now / prior year">Revenue · now / prior</th><th class="num">Δ</th>
-            <th class="num hide-sm" title="Written revenue less ePASS cost (open lines at line cost)">Margin · now / prior</th><th class="num hide-sm">Δ</th>
+            <th>Brand</th><th class="share-cell hide-sm" title="Share of ${dlv ? "delivered" : "written"} revenue: this window / prior year">Share · now / prior</th>
+            <th class="num ${dlv ? "dcol" : "wcol"}" title="${dlv ? "Units on tickets finished in the window" : "Units on tickets started in the window"}: now / prior year">${dlv ? "Delivered" : "Written"} · now / prior</th><th class="num">Δ units</th>
+            <th class="num" title="${dlv ? "Delivered" : "Written"} revenue net of linked discounts: now / prior year">Revenue · now / prior</th><th class="num">Δ</th>
+            <th class="num hide-sm" title="${dlv ? "Revenue less serial cost" : "Written revenue less ePASS cost (open lines at line cost)"}">Margin · now / prior</th><th class="num hide-sm">Δ</th>
             <th class="num">GM % · now / prior</th>
           </tr></thead>
           <tbody>

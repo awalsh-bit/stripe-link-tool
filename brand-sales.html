@@ -74,6 +74,12 @@
     td.delta { color: var(--muted); }
     td.delta.up { color: #1d4ed8; }
     td.delta.down { color: #b45309; }
+    .yoy-pair { white-space: nowrap; }
+    .yoy-pair .prior { color: var(--muted); font-size: 12px; }
+    .yoy-pair .prior::before { content: " / "; }
+    .yoy-share { font-size: 12px; color: var(--muted); }
+    .chg { display: inline-block; min-width: 52px; font-weight: 700; }
+    .chg.up { color: #166534; } .chg.down { color: #b91c1c; } .chg.flat { color: var(--muted); }
     td.pct { color: var(--muted); font-size: 12px; }
     .drawer-back { position: fixed; inset: 0; background: rgba(15, 23, 42, 0.35); display: none; z-index: 40; }
     .drawer-back.show { display: block; }
@@ -108,6 +114,7 @@
       </p>
 
       <div class="toolbar">
+        <div><span class="field-label">View</span><select id="viewSel"><option value="current">Current</option><option value="yoy">YoY compare (written)</option></select></div>
         <div><span class="field-label">From</span><input type="date" id="fromDate" /></div>
         <div><span class="field-label">To</span><input type="date" id="toDate" /></div>
         <div><span class="field-label">Department</span><select id="deptFilter"><option value="">All departments</option></select></div>
@@ -152,7 +159,7 @@
       const delta = (n) => (n > 0 ? "+" + num(n) : n < 0 ? "−" + num(-n) : "0");
       const SORTS = { revenue: (x) => x.revenue, written: (x) => x.written, units: (x) => x.units, margin: (x) => x.margin };
       function sortData() {
-        if (!data) return;
+        if (!data || data.view === "yoy") return;
         const key = SORTS[$("sortSel").value] || SORTS.revenue;
         const tie = (a, b) => (b.revenue - a.revenue) || (b.written - a.written);
         data.brands.sort((a, b) => (key(b) - key(a)) || tie(a, b));
@@ -163,6 +170,7 @@
 
       function render() {
         if (!data) return;
+        if (data.view === "yoy") return renderYoy();
         sortData();
         const t = data.totals;
         // The delivered side exists only for the dates the finished-orders feed
@@ -263,6 +271,14 @@
       $("csvBtn").addEventListener("click", () => {
         if (!data) return;
         const q = (v) => '"' + String(v ?? "").replace(/"/g, '""') + '"';
+        if (data.view === "yoy") {
+          const lines = [["Brand", "Supplier", "Model", "Description", "Written now", "Written prior", "Δ units", "Revenue now", "Revenue prior", "Δ revenue", "Δ revenue %", "Margin now", "Margin prior", "Δ margin", "GM % now", "GM % prior", "Share now %", "Share prior %"].map(q).join(",")];
+          const row = (b, m) => [b.brand, (b.supplier || "").replace(/^\d{4}\s+/, ""), m ? m.model : "", m ? m.description : "", (m || b).now.written, (m || b).prior.written, (m || b).deltaUnits, (m || b).now.revenue, (m || b).prior.revenue, (m || b).deltaRevenue, (m || b).deltaRevenuePct ?? "", (m || b).now.margin, (m || b).prior.margin, (m || b).deltaMargin, (m || b).now.gm ?? "", (m || b).prior.gm ?? "", m ? "" : b.shareNow, m ? "" : b.sharePrior].map(q).join(",");
+          data.brands.forEach((b) => { lines.push(row(b)); b.models.forEach((m) => lines.push(row(b, m))); });
+          const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([lines.join("\n")], { type: "text/csv" }));
+          a.download = `brand-sales-yoy-${data.from}-to-${data.to}.csv`; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(a.href);
+          return;
+        }
         const lines = [["Brand", "Model", "Description", "Written", "Written (finished)", "Written (open)", "Written orders", "Written revenue", "Delivered", "Returned", "Delivered orders", "List revenue", "Discounts", "Revenue", "Cost", "Margin", "GM %", "$ / unit"].map(q).join(",")];
         const row = (brand, model, desc, x) => [brand, model, desc, x.written, x.writtenFinished, x.writtenOpen, x.writtenOrders, x.writtenRevenue, x.units, x.returned, x.orders, x.listRevenue, x.discount, x.revenue, x.cost, x.margin, pct(x.margin, x.revenue), x.units ? (x.revenue / x.units).toFixed(2) : ""].map(q).join(",");
         data.brands.forEach((b) => {
@@ -295,6 +311,10 @@
             : "No sold units on file yet — the next hourly ePASS finished-orders pull fills this in (or run the pull with -FinishedSince to backfill).";
         } catch (err) { $("coverageLine").textContent = err.message; }
       }
+      // Sort labels follow the view (the compare is written-based).
+      const SORT_LABELS = { current: { revenue: "Delivered revenue", written: "Units written", units: "Units delivered", margin: "Margin" }, yoy: { revenue: "Written revenue", written: "Units written", units: "Units written", margin: "Written margin" } };
+      const syncView = () => { const v = $("viewSel").value === "yoy" ? "yoy" : "current"; for (const o of $("sortSel").options) o.textContent = SORT_LABELS[v][o.value] || o.textContent; };
+      $("viewSel").addEventListener("change", syncView); syncView();
       // Brand and supplier narrow the same list - picking one clears the other.
       $("brandFilter").addEventListener("change", () => { if ($("brandFilter").value) $("supplierFilter").value = ""; });
       $("supplierFilter").addEventListener("change", () => { if ($("supplierFilter").value) $("brandFilter").value = ""; });
@@ -322,6 +342,72 @@
         } catch (err) {
           $("tableHost").innerHTML = `<div class="empty">${esc(err.message)}</div>`;
         } finally { $("runBtn").disabled = false; }
+      }
+
+      // ---- YoY compare (written) ----
+      // This window vs the same window a year earlier, on tickets STARTED in
+      // the window: the earliest signal that the floor is shifting brand share.
+      const chg = (now, prior, fmt) => {
+        const d = now - prior;
+        if (!prior && !now) return '<span class="chg flat">—</span>';
+        const p = prior ? (d / Math.abs(prior) * 100) : null;
+        const cls = d > 0 ? "up" : d < 0 ? "down" : "flat";
+        return `<span class="chg ${cls}" title="${esc(fmt(prior))} → ${esc(fmt(now))}">${d > 0 ? "+" : ""}${p == null ? fmt(d) : p.toFixed(0) + "%"}</span>`;
+      };
+      const pair = (now, prior, fmt) => `<span class="yoy-pair">${fmt(now)}<span class="prior">${fmt(prior)}</span></span>`;
+      const gmTxt = (g) => g == null ? "—" : g.toFixed(1) + "%";
+      function renderYoy() {
+        const t = data.totals;
+        const yoySort = { revenue: (x) => x.now.revenue, written: (x) => x.now.written, units: (x) => x.now.written, margin: (x) => x.now.margin }[$("sortSel").value] || ((x) => x.now.revenue);
+        data.brands.sort((a, b) => yoySort(b) - yoySort(a) || b.prior.revenue - a.prior.revenue);
+        data.brands.forEach((b) => b.models.sort((a, c) => yoySort(c) - yoySort(a) || c.prior.revenue - a.prior.revenue));
+        const cov = data.coverage || {};
+        const priorGap = cov.startFrom && data.priorFrom < cov.startFrom;
+        $("tiles").innerHTML = `
+          ${priorGap ? `<div class="gap-banner" style="grid-column:1/-1">Prior-year numbers may be PARTIAL: written history on file starts <b>${esc(cov.startFrom)}</b>, and the comparison window is ${esc(data.priorFrom)} → ${esc(data.priorTo)}. Run the pull with <code>-FinishedSince ${esc(data.priorFrom)}</code> to fill it in.</div>` : ""}
+          <div class="tile"><div class="t-label">Written revenue</div><div class="t-value">${money(t.now.revenue)}</div><div class="t-sub">${chg(t.now.revenue, t.prior.revenue, money)} vs ${money(t.prior.revenue)} · ${esc(data.priorFrom)} → ${esc(data.priorTo)}</div></div>
+          <div class="tile"><div class="t-label">Units written</div><div class="t-value">${num(t.now.written)}</div><div class="t-sub">${chg(t.now.written, t.prior.written, num)} vs ${num(t.prior.written)} · ${num(t.now.writtenOpen)} still open now</div></div>
+          <div class="tile"><div class="t-label">Written margin</div><div class="t-value">${money(t.now.margin)}</div><div class="t-sub">${chg(t.now.margin, t.prior.margin, money)} vs ${money(t.prior.margin)} · open lines at ePASS line cost</div></div>
+          <div class="tile"><div class="t-label">GM % on written</div><div class="t-value">${gmTxt(t.now.gm)}</div><div class="t-sub">prior year ${gmTxt(t.prior.gm)}${t.now.gm != null && t.prior.gm != null ? ` · ${(t.now.gm - t.prior.gm) > 0 ? "+" : ""}${(t.now.gm - t.prior.gm).toFixed(1)} pts` : ""}</div></div>
+          <div class="tile"><div class="t-label">Brands</div><div class="t-value">${num(data.brands.filter((b) => !b.brand.startsWith("—")).length)}</div><div class="t-sub">${esc(data.from)} → ${esc(data.to)}${data.department ? " · " + esc(data.department) : ""}${data.brand ? " · " + esc(data.brand) : ""}${data.supplier ? " · " + esc(data.supplier) : ""}</div></div>
+          <div class="tile"><div class="t-label">Avg written / unit</div><div class="t-value">${t.now.written ? money(t.now.revenue / t.now.written) : "—"}</div><div class="t-sub">prior year ${t.prior.written ? money(t.prior.revenue / t.prior.written) : "—"}</div></div>`;
+        if (!data.brands.length) { $("tableHost").innerHTML = '<div class="empty">Nothing written in either window.</div>'; return; }
+        const rowCells = (x, isModel) => `
+                <td class="num wcol">${pair(x.now.written, x.prior.written, num)}</td>
+                <td class="num">${chg(x.now.written, x.prior.written, num)}</td>
+                <td class="num">${pair(x.now.revenue, x.prior.revenue, money)}</td>
+                <td class="num">${chg(x.now.revenue, x.prior.revenue, money)}</td>
+                <td class="num hide-sm">${pair(x.now.margin, x.prior.margin, money)}</td>
+                <td class="num hide-sm">${chg(x.now.margin, x.prior.margin, money)}</td>
+                <td class="num">${pair(x.now.gm, x.prior.gm, gmTxt)}</td>`;
+        $("tableHost").innerHTML = `
+        <table>
+          <thead><tr>
+            <th>Brand</th><th class="share-cell hide-sm" title="Share of written revenue: this window / prior year">Share · now / prior</th>
+            <th class="num wcol" title="Units on tickets started in the window: now / prior year">Written · now / prior</th><th class="num">Δ units</th>
+            <th class="num" title="Written revenue net of linked discounts: now / prior year">Revenue · now / prior</th><th class="num">Δ</th>
+            <th class="num hide-sm" title="Written revenue less ePASS cost (open lines at line cost)">Margin · now / prior</th><th class="num hide-sm">Δ</th>
+            <th class="num">GM % · now / prior</th>
+          </tr></thead>
+          <tbody>
+            ${data.brands.map((b) => {
+              const open = expanded.has(b.brand);
+              const shareD = b.shareNow - b.sharePrior;
+              return `
+              <tr class="brand-row ${open ? "open" : ""}" data-brand="${esc(b.brand)}">
+                <td><span class="brand-name"><span class="caret">▶</span>${esc(b.brand)}${b.supplier && b.supplier !== "Other / not mapped" ? `<span class="sub-chip" title="Supplier">${esc(b.supplier.replace(/^\d{4}\s+/, ""))}</span>` : ""}</span></td>
+                <td class="share-cell hide-sm"><div style="display:flex; align-items:center; gap:8px;"><div class="share-bar" style="flex:1;"><i style="width:${Math.min(100, b.shareNow).toFixed(1)}%;"></i></div><span class="yoy-share">${b.shareNow.toFixed(1)}% / ${b.sharePrior.toFixed(1)}% <span class="chg ${shareD > 0.05 ? "up" : shareD < -0.05 ? "down" : "flat"}" style="min-width:0;">${shareD > 0 ? "+" : ""}${shareD.toFixed(1)} pts</span></span></div></td>
+                ${rowCells(b)}
+              </tr>
+              ${open ? b.models.map((m) => `
+              <tr class="model-row show">
+                <td colspan="2"><span class="m-link" data-model="${esc(m.model)}" title="Show the units behind this model (current window)">${esc(m.model)}</span><div class="m-desc">${esc(m.description || "")}</div></td>
+                ${rowCells(m, true)}
+              </tr>`).join("") : ""}`;
+            }).join("")}
+          </tbody>
+        </table>`;
+        $("foldAll").textContent = expanded.size === data.brands.length ? "Collapse all" : "Expand all";
       }
 
       // One model's units: invoice, serial, price, discount, cost, margin.
@@ -382,6 +468,7 @@
 
       $("sortSel").addEventListener("change", () => { if (data) render(); });
       $("runBtn").addEventListener("click", () => load({
+        view: $("viewSel").value || "current",
         from: $("fromDate").value || "",
         to: $("toDate").value || "",
         department: $("deptFilter").value || "",

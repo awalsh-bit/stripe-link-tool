@@ -12991,6 +12991,91 @@ app.get("/api/brand-sales/options", requirePagePermission("/brand-sales.html"), 
   } catch (err) { console.error("Brand sales options failed:", err.message); return res.status(500).json({ error: "Unable to load the report filters." }); }
 });
 
+// Brand display (Andrew 9/28: "use the actual brand, not the ePASS code
+// that's limited to 5 characters"). Every model carries its ePASS BrandCode
+// (SPEED, KA, PROF...); the NAME for that code is the best one seen anywhere
+// for the code: the NetSuite item import's brand for any model with that
+// code ("Speed Queen", "KitchenAid"), else the ePASS Brand master's
+// description, else the known-code table, else the code title-cased. One
+// name per code, so every model of a code lands in the same row and the
+// NetSuite spelling and the ePASS spelling never split. (The shared resolver
+// in lib/brand-names.js - the Quote Follow-Up brand filter uses the same
+// one, so both tools agree on every name.) Pulled out of the route 10/22 so
+// the YoY compare can roll up two windows through ONE resolver.
+function aggregateBrandSales(models, { resolver, brandMap, supplierOf, brandFilter = "", supplierFilter = "" }) {
+  const brands = new Map();
+  let fromMap = 0;
+  const r2 = (n) => Math.round(n * 100) / 100;
+  for (const m of models) {
+    const raw = resolver.brandOf(m);
+    if (raw && !m.brand && !m.brandCode) fromMap++;
+    const brand = raw ? resolver.displayOf(raw) : BRAND_SALES_UNMATCHED;
+    if (!brands.has(brand)) brands.set(brand, { brand, brandCode: m.brandCode || "", revenue: 0, listRevenue: 0, discount: 0, cost: 0, margin: 0, units: 0, returned: 0, orders: 0, unpriced: 0, written: 0, writtenFinished: 0, writtenOpen: 0, writtenOrders: 0, writtenRevenue: 0, writtenCost: 0, writtenMargin: 0, models: [] });
+    const b = brands.get(brand);
+    b.revenue = r2(b.revenue + m.revenue); b.listRevenue = r2(b.listRevenue + m.listRevenue); b.discount = r2(b.discount + m.discount);
+    b.cost = r2(b.cost + m.cost); b.margin = r2(b.revenue - b.cost);
+    b.units += m.units; b.returned += m.returned; b.orders += m.orders; b.unpriced += m.unpriced;
+    b.written += m.written; b.writtenFinished += m.writtenFinished; b.writtenOpen += m.writtenOpen; b.writtenOrders += m.writtenOrders;
+    b.writtenRevenue = r2(b.writtenRevenue + m.writtenRevenue); b.writtenCost = r2(b.writtenCost + (m.writtenCost || 0)); b.writtenMargin = r2(b.writtenRevenue - b.writtenCost);
+    b.models.push({ model: m.model, description: m.description || brandMap[m.model]?.description || "", productCode: m.productCode, units: m.units, returned: m.returned,
+      revenue: m.revenue, listRevenue: m.listRevenue, discount: m.discount, cost: m.cost, margin: m.margin, orders: m.orders, unpriced: m.unpriced,
+      written: m.written, writtenFinished: m.writtenFinished, writtenOpen: m.writtenOpen, writtenOrders: m.writtenOrders, writtenRevenue: m.writtenRevenue, writtenCost: m.writtenCost || 0, writtenMargin: m.writtenMargin || 0 });
+  }
+  for (const b of brands.values()) b.supplier = b.brand === BRAND_SALES_UNMATCHED ? "" : (supplierOf(b.brand) || BRAND_SALES_OTHER_SUPPLIER);
+  const brandList = [...brands.values()]
+    .filter((b) => !brandFilter || b.brand === brandFilter)
+    .filter((b) => !supplierFilter || b.supplier === supplierFilter)
+    .sort((a, b) => b.revenue - a.revenue || b.written - a.written);
+  brandList.forEach((b) => b.models.sort((x, y) => y.revenue - x.revenue || y.written - x.written));
+  const sum = (k) => r2(brandList.reduce((acc, b) => acc + (b[k] || 0), 0));
+  const totals = {
+    revenue: sum("revenue"), listRevenue: sum("listRevenue"), discount: sum("discount"), cost: sum("cost"), margin: sum("margin"),
+    units: brandList.reduce((acc, b) => acc + b.units, 0), returned: brandList.reduce((acc, b) => acc + b.returned, 0),
+    written: brandList.reduce((acc, b) => acc + b.written, 0), writtenFinished: brandList.reduce((acc, b) => acc + b.writtenFinished, 0),
+    writtenOpen: brandList.reduce((acc, b) => acc + b.writtenOpen, 0), writtenRevenue: sum("writtenRevenue"), writtenCost: sum("writtenCost"), writtenMargin: sum("writtenMargin"),
+    unpriced: brandList.reduce((acc, b) => acc + b.unpriced, 0),
+    models: brandList.reduce((acc, b) => acc + b.models.length, 0), unmatchedModels: brandList.find((b) => b.brand === BRAND_SALES_UNMATCHED)?.models.length || 0, brandFromMap: fromMap
+  };
+  return { brandList, totals };
+}
+// Same calendar window a year earlier (Feb 29 -> Feb 28).
+function shiftYear(iso, years) {
+  const [y, m, d] = iso.split("-").map(Number);
+  const last = new Date(Date.UTC(y + years, m, 0)).getUTCDate();
+  return `${y + years}-${String(m).padStart(2, "0")}-${String(Math.min(d, last)).padStart(2, "0")}`;
+}
+// Written-side comparison of two aggregates: per brand and per model, this
+// window vs the prior window - units, revenue, margin, GM% and share of the
+// written revenue - with deltas. Brands only in one year still show.
+function compareBrandSales(cur, old) {
+  const r2 = (n) => Math.round(n * 100) / 100;
+  const side = (x) => x ? { written: x.written, writtenOpen: x.writtenOpen || 0, revenue: x.writtenRevenue, cost: x.writtenCost || 0, margin: x.writtenMargin || 0, gm: x.writtenRevenue ? r2((x.writtenMargin || 0) / x.writtenRevenue * 100) : null, orders: x.writtenOrders || 0 } : { written: 0, writtenOpen: 0, revenue: 0, cost: 0, margin: 0, gm: null, orders: 0 };
+  const pctChange = (a, b) => b ? r2((a - b) / Math.abs(b) * 100) : (a ? null : 0);
+  const totalCur = cur.totals.writtenRevenue || 0, totalOld = old.totals.writtenRevenue || 0;
+  const oldBy = new Map(old.brandList.map((b) => [b.brand, b]));
+  const names = [...new Set([...cur.brandList.map((b) => b.brand), ...old.brandList.map((b) => b.brand)])];
+  const brands = names.map((name) => {
+    const c = cur.brandList.find((b) => b.brand === name) || null, o = oldBy.get(name) || null;
+    const now = side(c), prior = side(o);
+    const oldModels = new Map((o?.models || []).map((m) => [m.model, m]));
+    const modelNames = [...new Set([...(c?.models || []).map((m) => m.model), ...(o?.models || []).map((m) => m.model)])];
+    const models = modelNames.map((mn) => {
+      const cm = (c?.models || []).find((m) => m.model === mn) || null, om = oldModels.get(mn) || null;
+      const n = side(cm), p = side(om);
+      return { model: mn, description: cm?.description || om?.description || "", now: n, prior: p, deltaUnits: n.written - p.written, deltaRevenue: r2(n.revenue - p.revenue), deltaRevenuePct: pctChange(n.revenue, p.revenue), deltaMargin: r2(n.margin - p.margin) };
+    }).sort((a, b) => b.now.revenue - a.now.revenue || b.prior.revenue - a.prior.revenue);
+    return {
+      brand: name, supplier: c?.supplier || o?.supplier || "", now, prior,
+      shareNow: totalCur ? r2(now.revenue / totalCur * 100) : 0, sharePrior: totalOld ? r2(prior.revenue / totalOld * 100) : 0,
+      deltaUnits: now.written - prior.written, deltaRevenue: r2(now.revenue - prior.revenue), deltaRevenuePct: pctChange(now.revenue, prior.revenue), deltaMargin: r2(now.margin - prior.margin),
+      models
+    };
+  }).sort((a, b) => b.now.revenue - a.now.revenue || b.prior.revenue - a.prior.revenue);
+  const t = (x) => ({ written: x.totals.written, writtenOpen: x.totals.writtenOpen, revenue: x.totals.writtenRevenue, cost: x.totals.writtenCost || 0, margin: x.totals.writtenMargin || 0, gm: x.totals.writtenRevenue ? r2((x.totals.writtenMargin || 0) / x.totals.writtenRevenue * 100) : null });
+  const now = t(cur), prior = t(old);
+  return { brands, totals: { now, prior, deltaUnits: now.written - prior.written, deltaRevenue: r2(now.revenue - prior.revenue), deltaRevenuePct: pctChange(now.revenue, prior.revenue), deltaMargin: r2(now.margin - prior.margin), brands: brands.length } };
+}
+
 app.get("/api/brand-sales", requirePagePermission("/brand-sales.html"), async (req, res) => {
   try {
     const { from, to, department } = brandSalesWindow(req);
@@ -13003,54 +13088,24 @@ app.get("/api/brand-sales", requirePagePermission("/brand-sales.html"), async (r
       getEpassSoldSerialsMeta().catch(() => null)
     ]);
 
-    // Brand display (Andrew 9/28: "use the actual brand, not the ePASS code
-    // that's limited to 5 characters"). Every model carries its ePASS
-    // BrandCode (SPEED, KA, PROF...); the NAME for that code is the best one
-    // seen anywhere for the code: the NetSuite item import's brand for any
-    // model with that code ("Speed Queen", "KitchenAid"), else the ePASS
-    // Brand master's description, else the known-code table, else the code
-    // title-cased. One name per code, so every model of a code lands in the
-    // same row and the NetSuite spelling and the ePASS spelling never split.
-    // (The shared resolver in lib/brand-names.js - the Quote Follow-Up brand
-    // filter uses the same one, so both tools agree on every name.)
+    const view = String(req.query.view || "current").toLowerCase() === "yoy" ? "yoy" : "current";
+    if (view === "yoy") {
+      // YoY compare (Andrew 10/22): the same window one year earlier, on the
+      // WRITTEN side (tickets started in the window), so a brand-share push
+      // by the sales team shows the day it starts, not when it delivers.
+      const priorFrom = shiftYear(from, -1), priorTo = shiftYear(to, -1);
+      const prior = await listSoldSerialsByModel({ from: priorFrom, to: priorTo, department });
+      const resolver = createBrandResolver({ brandMap, samples: [...data.models, ...prior.models] });
+      for (const m of [...data.models, ...prior.models]) resolver.brandOf(m);
+      const cur = aggregateBrandSales(data.models, { resolver, brandMap, supplierOf, brandFilter, supplierFilter });
+      const old = aggregateBrandSales(prior.models, { resolver, brandMap, supplierOf, brandFilter, supplierFilter });
+      const yoy = compareBrandSales(cur, old);
+      return res.json({ view, from, to, priorFrom, priorTo, department, brand: brandFilter, supplier: supplierFilter, departments: data.departments, coverage: data.coverage, feed: meta?.last || null, totals: yoy.totals, brands: yoy.brands, source: "epass-serials" });
+    }
     const resolver = createBrandResolver({ brandMap, samples: data.models });
     for (const m of data.models) resolver.brandOf(m); // register every spelling first
-    const brands = new Map();
-    let fromMap = 0;
-    for (const m of data.models) {
-      const raw = resolver.brandOf(m);
-      if (raw && !m.brand && !m.brandCode) fromMap++;
-      const brand = raw ? resolver.displayOf(raw) : BRAND_SALES_UNMATCHED;
-      if (!brands.has(brand)) brands.set(brand, { brand, brandCode: m.brandCode || "", revenue: 0, listRevenue: 0, discount: 0, cost: 0, margin: 0, units: 0, returned: 0, orders: 0, unpriced: 0, written: 0, writtenFinished: 0, writtenOpen: 0, writtenOrders: 0, writtenRevenue: 0, models: [] });
-      const b = brands.get(brand);
-      b.revenue = Math.round((b.revenue + m.revenue) * 100) / 100;
-      b.listRevenue = Math.round((b.listRevenue + m.listRevenue) * 100) / 100;
-      b.discount = Math.round((b.discount + m.discount) * 100) / 100;
-      b.cost = Math.round((b.cost + m.cost) * 100) / 100;
-      b.margin = Math.round((b.revenue - b.cost) * 100) / 100;
-      b.units += m.units; b.returned += m.returned; b.orders += m.orders; b.unpriced += m.unpriced;
-      b.written += m.written; b.writtenFinished += m.writtenFinished; b.writtenOpen += m.writtenOpen; b.writtenOrders += m.writtenOrders;
-      b.writtenRevenue = Math.round((b.writtenRevenue + m.writtenRevenue) * 100) / 100;
-      b.models.push({ model: m.model, description: m.description || brandMap[m.model]?.description || "", productCode: m.productCode, units: m.units, returned: m.returned,
-        revenue: m.revenue, listRevenue: m.listRevenue, discount: m.discount, cost: m.cost, margin: m.margin, orders: m.orders, unpriced: m.unpriced,
-        written: m.written, writtenFinished: m.writtenFinished, writtenOpen: m.writtenOpen, writtenOrders: m.writtenOrders, writtenRevenue: m.writtenRevenue });
-    }
-    for (const b of brands.values()) b.supplier = b.brand === BRAND_SALES_UNMATCHED ? "" : (supplierOf(b.brand) || BRAND_SALES_OTHER_SUPPLIER);
-    const brandList = [...brands.values()]
-      .filter((b) => !brandFilter || b.brand === brandFilter)
-      .filter((b) => !supplierFilter || b.supplier === supplierFilter)
-      .sort((a, b) => b.revenue - a.revenue || b.written - a.written);
-    brandList.forEach((b) => b.models.sort((x, y) => y.revenue - x.revenue || y.written - x.written));
-    const sum = (k) => Math.round(brandList.reduce((acc, b) => acc + (b[k] || 0), 0) * 100) / 100;
-    const totals = {
-      revenue: sum("revenue"), listRevenue: sum("listRevenue"), discount: sum("discount"), cost: sum("cost"), margin: sum("margin"),
-      units: brandList.reduce((acc, b) => acc + b.units, 0), returned: brandList.reduce((acc, b) => acc + b.returned, 0),
-      written: brandList.reduce((acc, b) => acc + b.written, 0), writtenFinished: brandList.reduce((acc, b) => acc + b.writtenFinished, 0),
-      writtenOpen: brandList.reduce((acc, b) => acc + b.writtenOpen, 0), writtenRevenue: sum("writtenRevenue"),
-      unpriced: brandList.reduce((acc, b) => acc + b.unpriced, 0),
-      models: brandList.reduce((acc, b) => acc + b.models.length, 0), unmatchedModels: brandList.find((b) => b.brand === BRAND_SALES_UNMATCHED)?.models.length || 0, brandFromMap: fromMap
-    };
-    return res.json({ from, to, department, brand: brandFilter, supplier: supplierFilter, departments: data.departments, coverage: data.coverage, feed: meta?.last || null, totals, brands: brandList, source: "epass-serials" });
+    const { brandList, totals } = aggregateBrandSales(data.models, { resolver, brandMap, supplierOf, brandFilter, supplierFilter });
+    return res.json({ view, from, to, department, brand: brandFilter, supplier: supplierFilter, departments: data.departments, coverage: data.coverage, feed: meta?.last || null, totals, brands: brandList, source: "epass-serials" });
   } catch (err) {
     console.error("Brand sales failed:", err.message);
     return res.status(500).json({ error: "Unable to build the brand sales report." });

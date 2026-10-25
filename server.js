@@ -4107,31 +4107,33 @@ function specPackageAttachmentNames({ salesOrder, navId, contents, variant }) {
   if (contents?.epassOnly) names.push(`${base}-sales-order.pdf`);
   return names;
 }
-function specPackageEmailTemplate({ salesOrder, filenames, salespersonName }) {
+// Templates (Andrew 10/25): short and personal. "Hi <client first name>,
+// this is <user first name> with Wilson AC & Appliance. Here are the spec
+// sheets for your project at <street number street name>." The text adds the
+// Steel Cod link; the email carries the PDFs and signs off with the user's
+// name. The project address is the first line of the form's address field
+// (up to the first comma) — never the quote or sales-order number.
+function specPackageStreet(address) {
+  return String(address || "").split(/[\n,]/)[0].replace(/\s+/g, " ").trim().slice(0, 80);
+}
+function specPackageOpening({ customerName, customerAddress, salespersonName }) {
+  const first = String(customerName || "").trim().split(/\s+/)[0] || "";
+  const userFirst = String(salespersonName || "").trim().split(/\s+/)[0] || "";
+  const street = specPackageStreet(customerAddress);
+  const who = userFirst ? `${userFirst} with Wilson AC & Appliance` : "Wilson AC & Appliance";
+  return `${first ? `Hi ${first}, this` : "Hi, this"} is ${who}. Here are the spec sheets for your project${street ? ` at ${street}` : ""}.`;
+}
+function specPackageEmailTemplate({ customerName, customerAddress, salespersonName }) {
   return [
-    "Hello,",
-    "",
-    "Attached are the documents for your order" + (salesOrder ? ` ${salesOrder}` : "") + ":",
-    ...filenames.map((f) => `• ${f}`),
-    "",
-    "Questions? Call or text Wilson AC & Appliance at 512-894-0907.",
+    specPackageOpening({ customerName, customerAddress, salespersonName }),
     "",
     ...(salespersonName ? [salespersonName] : []),
-    "Wilson AC & Appliance",
-    "4205 E Hwy 290",
-    "Dripping Springs, TX 78620"
+    "Wilson AC & Appliance · 512-894-0907"
   ].join("\n");
 }
 const SPEC_TEXT_LINKS = { open: "View package", slim: "Slim package", ask: "Customer Q&A page" };
-function specPackageTextTemplate({ customerName, salesOrder, salespersonName, linkKind, url }) {
-  const first = String(customerName || "").trim().split(/\s+/)[0] || "";
-  const who = salespersonName ? `${salespersonName} with Wilson AC & Appliance` : "Wilson AC & Appliance";
-  const ref = salesOrder ? ` for your order ${salesOrder}` : "";
-  const what = linkKind === "ask"
-    ? `Here's a page where you can view the spec sheets${ref} and ask us questions`
-    : `Here are the spec sheets${ref}`;
-  const tail = linkKind === "ask" ? "You can also just reply to this text." : "Questions? Just reply to this text.";
-  return `${first ? `Hi ${first}, this` : "This"} is ${who}. ${what}: ${url} ${tail}`;
+function specPackageTextTemplate({ customerName, customerAddress, salespersonName, url }) {
+  return `${specPackageOpening({ customerName, customerAddress, salespersonName })} ${url}`;
 }
 async function resolveSalespersonName(salespersonEmail) {
   const email = String(salespersonEmail || "").trim();
@@ -4179,12 +4181,12 @@ app.post("/api/spec-packages/:navId/message-templates", requirePagePermission("/
     try {
       const urls = await specPackagePublicUrls({ userEmail, navId });
       const url = specTextUrlFor(urls, linkKind);
-      text = { body: specPackageTextTemplate({ customerName: req.body?.customerName, salesOrder, salespersonName, linkKind, url }), url, link: linkKind };
+      text = { body: specPackageTextTemplate({ customerName: req.body?.customerName, customerAddress: req.body?.customerAddress, salespersonName, url }), url, link: linkKind };
     } catch (err) {
       textError = err.userFacing ? err.message : "Unable to get the package link from Steel Cod.";
     }
     return res.json({
-      email: { subject: SPEC_EMAIL_SUBJECT, body: specPackageEmailTemplate({ salesOrder, filenames, salespersonName }), attachments: filenames },
+      email: { subject: SPEC_EMAIL_SUBJECT, body: specPackageEmailTemplate({ customerName: req.body?.customerName, customerAddress: req.body?.customerAddress, salespersonName }), attachments: filenames },
       text, textError,
       limits: { email: SPEC_EMAIL_BODY_MAX, text: SPEC_TEXT_BODY_MAX }
     });
@@ -4225,7 +4227,7 @@ app.post("/api/spec-packages/:navId/text", requirePagePermission("/spec-packages
       body = custom.includes(url) ? custom : `${custom} ${url}`;
     } else {
       const salespersonName = await resolveSalespersonName(req.body?.salespersonEmail);
-      body = specPackageTextTemplate({ customerName: req.body?.customerName, salesOrder, salespersonName, linkKind, url });
+      body = specPackageTextTemplate({ customerName: req.body?.customerName, customerAddress: req.body?.customerAddress, salespersonName, url });
     }
 
     const result = await sendCustomerText({ phone, body });
@@ -4322,8 +4324,8 @@ app.post("/api/spec-packages/:navId/email", requirePagePermission("/spec-package
     const salespersonName = await resolveSalespersonName(req.body?.salespersonEmail);
     const subject = SPEC_EMAIL_SUBJECT;
     const bodyText = customBody || specPackageEmailTemplate({
-      salesOrder: String(req.body?.salesOrder || "").trim(),
-      filenames: attachments.map((a) => a.filename),
+      customerName: req.body?.customerName,
+      customerAddress: req.body?.customerAddress,
       salespersonName
     });
 

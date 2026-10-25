@@ -278,6 +278,14 @@
     }
     .mode-row { display: flex; flex-wrap: wrap; gap: 18px; margin: 4px 0 10px; }
     .mode-row .content-check { font-weight: 600; }
+    /* Quick Send keeps the template folded away (Andrew 10/25) — one link
+       to peek at it; Custom message always shows the box because that is
+       what they edit. */
+    .see-template {
+      background: none; border: none; padding: 0 0 10px; color: var(--primary); font-weight: 600; font-size: 13px;
+      cursor: pointer; text-decoration: underline; text-underline-offset: 3px; white-space: normal;
+    }
+    .see-template:hover { background: none; color: var(--primary-hover); }
     .message-box {
       border: 1px solid var(--border);
       border-radius: 12px;
@@ -741,14 +749,15 @@
             <label class="content-check"><input type="radio" name="emailMode" value="quick" checked /> Quick Send (template)</label>
             <label class="content-check"><input type="radio" name="emailMode" value="custom" /> Custom message</label>
           </div>
-          <div class="message-box">
+          <button type="button" class="see-template" id="emailSeeTemplate" aria-expanded="false">See template</button>
+          <div class="message-box" id="emailMessageBox" style="display: none;">
             <div class="message-meta">
               <span><strong>Subject:</strong> Specification Documents from Wilson AC &amp; Appliance</span>
               <span><strong>Attachments:</strong> <span id="emailAttachList">—</span></span>
             </div>
             <textarea id="emailBody" readonly aria-label="Email message" spellcheck="true"></textarea>
             <div class="message-foot">
-              <span id="emailBodyHint" class="hint-text">This is the template that Quick Send will send. Choose Custom message to edit it.</span>
+              <span id="emailBodyHint" class="hint-text">This is what Quick Send sends. Choose Custom message to edit it.</span>
               <span id="emailBodyCount" class="hint-text"></span>
             </div>
           </div>
@@ -780,10 +789,11 @@
             <label class="content-check"><input type="radio" name="textMode" value="quick" checked /> Quick Send (template)</label>
             <label class="content-check"><input type="radio" name="textMode" value="custom" /> Custom message</label>
           </div>
-          <div class="message-box">
+          <button type="button" class="see-template" id="textSeeTemplate" aria-expanded="false">See template</button>
+          <div class="message-box" id="textMessageBox" style="display: none;">
             <textarea id="textBody" readonly aria-label="Text message" spellcheck="true" style="min-height: 96px;"></textarea>
             <div class="message-foot">
-              <span id="textBodyHint" class="hint-text">This is the template that Quick Send will send. Choose Custom message to edit it. The link always stays in the text.</span>
+              <span id="textBodyHint" class="hint-text">This is what Quick Send sends. Choose Custom message to edit it. The link always stays in the text.</span>
               <span id="textBodyCount" class="hint-text"></span>
             </div>
           </div>
@@ -1913,6 +1923,7 @@
       const reset = document.getElementById(channel === "email" ? "emailResetBtn" : "textResetBtn");
       box.readOnly = !isCustom;
       reset.style.display = isCustom ? "" : "none";
+      setTemplateVisible(channel, isCustom ? true : templateOpen[channel], !isCustom);
       if (isCustom) {
         hint.textContent = channel === "email"
           ? "Edit the message as you like — the subject and attachments stay as shown above."
@@ -1920,14 +1931,27 @@
         box.focus();
       } else {
         hint.textContent = channel === "email"
-          ? "This is the template that Quick Send will send. Choose Custom message to edit it."
-          : "This is the template that Quick Send will send. Choose Custom message to edit it. The link always stays in the text.";
+          ? "This is what Quick Send sends. Choose Custom message to edit it."
+          : "This is what Quick Send sends. Choose Custom message to edit it. The link always stays in the text.";
         // Back to Quick Send: show the template again (edits are dropped on purpose).
         dirty[channel] = false;
         fillTemplate(channel);
       }
       updateCount(channel);
     }
+
+    // Template visibility per channel while in Quick Send (Custom always shows it).
+    const templateOpen = { email: false, text: false };
+    function setTemplateVisible(channel, visible, showToggle) {
+      const box = document.getElementById(channel === "email" ? "emailMessageBox" : "textMessageBox");
+      const link = document.getElementById(channel === "email" ? "emailSeeTemplate" : "textSeeTemplate");
+      box.style.display = visible ? "" : "none";
+      link.style.display = showToggle ? "" : "none";
+      link.textContent = visible ? "Hide template" : "See template";
+      link.setAttribute("aria-expanded", visible ? "true" : "false");
+    }
+    document.getElementById("emailSeeTemplate").addEventListener("click", () => { templateOpen.email = !templateOpen.email; setTemplateVisible("email", templateOpen.email, true); });
+    document.getElementById("textSeeTemplate").addEventListener("click", () => { templateOpen.text = !templateOpen.text; setTemplateVisible("text", templateOpen.text, true); });
 
     function fillTemplate(channel) {
       const t = templates[channel];
@@ -1965,6 +1989,7 @@
             variant: lastCreated.variant,
             link: document.getElementById("textLink").value,
             customerName: document.getElementById("customerName").value.trim(),
+            customerAddress: document.getElementById("customerAddress").value.trim(),
             salespersonEmail: document.getElementById("salespersonEmail").value.trim()
           })
         });
@@ -2008,6 +2033,8 @@
       document.getElementById("textBody").readOnly = true;
       document.getElementById("emailResetBtn").style.display = "none";
       document.getElementById("textResetBtn").style.display = "none";
+      templateOpen.email = false; templateOpen.text = false;
+      setTemplateVisible("email", false, true); setTemplateVisible("text", false, true);
       document.getElementById("textPhone").value = "";
       document.getElementById("emailPanel").style.display = "none";
       document.getElementById("textPanel").style.display = "none";
@@ -2049,6 +2076,8 @@
             quotePosition: lastCreated.position,
             quoteId: scannedQuoteId || "",
             salesOrder: lastCreated.salesOrder,
+            customerName: document.getElementById("customerName").value.trim(),
+            customerAddress: document.getElementById("customerAddress").value.trim(),
             salespersonEmail: document.getElementById("salespersonEmail").value.trim(),
             customBody: isCustom ? body : ""
           })
@@ -2095,6 +2124,7 @@
             link: document.getElementById("textLink").value,
             salesOrder: lastCreated.salesOrder,
             customerName: document.getElementById("customerName").value.trim(),
+            customerAddress: document.getElementById("customerAddress").value.trim(),
             salespersonEmail: document.getElementById("salespersonEmail").value.trim(),
             customBody: isCustom ? body : ""
           })

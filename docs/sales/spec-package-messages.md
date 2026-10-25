@@ -2,12 +2,20 @@
 
 Added 2026-10-23 for the sales team (Andrew): after a spec package is created, **Review & send** now starts with two buttons, **Email** and **Text**. Each opens its own panel with two modes:
 
-- **Quick Send (template)** — sends the standard message, shown read-only in the box so you can see exactly what goes out.
+- **Quick Send (template)** — sends the standard message. The box is folded away by default (Andrew 10/25: keep Quick Send uncluttered); **See template** unfolds it read-only.
 - **Custom message** — unlocks the box, pre-filled with that same template, so you can rewrite it before sending. **Reset to template** puts the standard wording back. Switching back to Quick Send drops the edits.
 
 ## Email
 
-Recipient (myself / client / both / other) and the attachment checkboxes work as before. The subject stays `Specification Documents from Wilson AC & Appliance` and the attachments are whatever is ticked — only the body is editable (up to 5,000 characters, sent as plain text). The template lists the attached file names and signs with the salesperson's name from the form.
+Recipient (myself / client / both / other) and the attachment checkboxes work as before. The subject stays `Specification Documents from Wilson AC & Appliance` and the attachments are whatever is ticked — only the body is editable (up to 5,000 characters, sent as plain text).
+
+## The templates (Andrew 10/25)
+
+Short and personal, same opening for both channels:
+
+> Hi *client first name*, this is *user first name* with Wilson AC & Appliance. Here are the spec sheets for your project at *street number street name*.
+
+The text adds the Steel Cod link after it; the email signs off with the user's full name and `Wilson AC & Appliance · 512-894-0907`. The project address is the first line of the form's address field (up to the first comma) — the quote / sales-order number is never used. The user's first name comes from the salesperson email on the form (matched to Users); the client's from the client / project name.
 
 ## Text
 

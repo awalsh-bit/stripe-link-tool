@@ -302,6 +302,9 @@
       statusEl.className = "status";
       statusEl.textContent = "";
     }
+    // Audit 10/25: server values are escaped before being placed in HTML.
+    function esc(v) { return String(v == null ? "" : v).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])); }
+
 
     function formatMoney(amount, currency = "usd") {
       return new Intl.NumberFormat("en-US", {
@@ -337,15 +340,15 @@
         const tr = document.createElement("tr");
         tr.innerHTML = `
           <td>
-            <div>${row.customerName || "-"}</div>
-            <div class="muted">${row.customerEmail || ""}</div>
+            <div>${esc(row.customerName || "-")}</div>
+            <div class="muted">${esc(row.customerEmail || "")}</div>
           </td>
-          <td>${row.creatorName || row.creatorCode || "-"}</td>
+          <td>${esc(row.creatorName || row.creatorCode || "-")}</td>
           <td>
-            <div>${row.salesOrder || "-"}</div>
-            <div class="muted">${row.description || ""}</div>
-            <div class="muted">Agreement: ${row.depositAgreementId || "-"}</div>
-            <div class="muted">Status: ${row.agreementStatus || "open_balance"}</div>
+            <div>${esc(row.salesOrder || "-")}</div>
+            <div class="muted">${esc(row.description || "")}</div>
+            <div class="muted">Agreement: ${esc(row.depositAgreementId || "-")}</div>
+            <div class="muted">Status: ${esc(row.agreementStatus || "open_balance")}</div>
           </td>
           <td class="money">${formatMoney(row.requestedTotalAmount, row.currency)}</td>
           <td class="money">${formatMoney(row.depositAmount, row.currency)}</td>

@@ -395,7 +395,9 @@ import {
   listPodiumAutomations,
   upsertPodiumAutomation,
   resolveAutomationTemplate,
-  claimPodiumPaymentNoteOnce
+  claimPodiumPaymentNoteOnce,
+  claimPodiumPaymentTextOnce,
+  releasePodiumPaymentTextClaim
 } from "./lib/podium-automations-postgres.js";
 import {
   parseInvoiceMaintenanceQuotes,
@@ -610,6 +612,9 @@ const AUTH_COOKIE_TTL_SECONDS = 60 * 60 * 12;
 // executive fallback used when Postgres itself is unreachable.
 const EXECUTIVE_USERNAME = String(process.env.EXECUTIVE_USERNAME || "awalsh@wilsonappliance.com").trim();
 const EXECUTIVE_PASSWORD = String(process.env.EXECUTIVE_PASSWORD || "").trim();
+// Name shown for the break-glass account when it has to be created (Andrew
+// 10/25: a dedicated recovery account, separate from his everyday login).
+const EXECUTIVE_DISPLAY_NAME = String(process.env.EXECUTIVE_DISPLAY_NAME || "Break-glass Executive").trim();
 // Security audit 10/24: the signed-cookie secret used to fall back to
 // "<username>:<password>" (literally "wilson:wilson" with nothing set), which
 // would let anyone forge a never-expiring executive cookie. Now: use
@@ -1994,7 +1999,13 @@ app.post("/api/stripe/webhook", express.raw({ type: "application/json" }), async
   }
 });
 
-app.use(express.json({ limit: "10mb" }));
+app.use(express.json({
+  limit: "10mb",
+  // Keep the exact bytes for routes that verify an HMAC over the body
+  // (Samsara webhook, audit 10/25). Only for that path, so no extra memory
+  // is held for ordinary requests.
+  verify: (req, res, buf) => { if (req.path.startsWith("/api/samsara/webhook/")) req.rawBody = buf; }
+}));
 
 // ---------------------------------------------------------------------------
 // Auth email delivery (Resend — same env vars as payment notifications)
@@ -2161,7 +2172,7 @@ async function ensureBreakGlassExecutiveUser() {
   if (!userRow) {
     userRow = await createUser({
       email: normalized,
-      displayName: "Andrew Walsh",
+      displayName: EXECUTIVE_DISPLAY_NAME,
       status: "active",
       isExecutive: true
     });
@@ -2267,7 +2278,7 @@ app.post("/api/login", rateLimit("login", 10, 15 * 60 * 1000), async (req, res) 
     // legacy flag so the break-glass can never be locked out).
     const user = buildSessionUser({
       username: EXECUTIVE_USERNAME,
-      displayName: "Andrew Walsh",
+      displayName: EXECUTIVE_DISPLAY_NAME,
       role: "executive",
       accessGroup: "executive"
     });
@@ -6117,9 +6128,12 @@ app.delete("/api/admin/users/:id", requireExecutiveApi, async (req, res) => {
 // authenticated user (including zero-permission accounts) could download the
 // data ledgers (customer PII), the server source, SQL, and internal docs.
 // Explicitly deny everything that is not a front-end asset.
-const STATIC_DENY_DIRS = /^\/(data|sql|docs|lib|scripts|items|node_modules|_to_delete|tmp_[^/]+|odbc|deliver|service_call_journey|\.[^/]+)\//i;
+const STATIC_DENY_DIRS = /^\/(data|sql|docs|lib|scripts|items|node_modules|_to_delete|tmp_[^/]+|odbc|deliver|service_call_journey|maint-plans|samples|screenshots|API Docs|Claude outputs|spec sheets|shop accessories and installs|\.[^/]+)\//i;
 const STATIC_DENY_FILES = /\.(json|sql|md|xlsx|xlsm|xls|csv|log|txt|env|lock|mjs|cjs|ps1|sh|bat|cmd|ya?ml|toml|bak|pem|key|crt|map|zip|gz|db|sqlite)$/i;
 const STATIC_DENY_EXACT = new Set(["/server.js", "/employee-directory.js", "/package.json", "/package-lock.json", "/render.yaml", "/Dockerfile", "/Procfile"]); // employee-directory.js is served by its DB route above
+// Stale working copies (server-1.js, estimate-1.html, …) and any root-level
+// server*.js are never assets (audit 10/25).
+const STATIC_DENY_PATTERN = /^\/(server[^/]*\.js|[^/]+-\d+\.(?:js|html))$/i;
 
 app.use((req, res, next) => {
   const requestPath = decodeURIComponent(req.path);
@@ -6130,7 +6144,8 @@ app.use((req, res, next) => {
   if (
     STATIC_DENY_DIRS.test(requestPath) ||
     STATIC_DENY_FILES.test(requestPath) ||
-    STATIC_DENY_EXACT.has(requestPath)
+    STATIC_DENY_EXACT.has(requestPath) ||
+    STATIC_DENY_PATTERN.test(requestPath)
   ) {
     return res.status(404).send("Not found.");
   }
@@ -8841,7 +8856,7 @@ app.get("/api/service-estimates/closed.csv", requirePagePermission("/closed-esti
 });
 
 // PUBLIC: the client's view of one estimate (marks it viewed).
-app.post("/api/estimate/view", async (req, res) => {
+app.post("/api/estimate/view", rateLimit("estimate-view", 120, 15 * 60 * 1000), async (req, res) => {
   try {
     const token = String(req.body?.token || "").slice(0, 60);
     const estimate = withLiveEta(await getServiceEstimateByToken(token));
@@ -8869,7 +8884,7 @@ app.post("/api/estimate/view", async (req, res) => {
 // PUBLIC (service host): the original technician work-order PDF behind an
 // estimate token — same access rules as the estimate page itself, so a
 // closed estimate's document goes dark with its link.
-app.get("/estimate-doc.pdf", async (req, res) => {
+app.get("/estimate-doc.pdf", rateLimit("estimate-doc", 60, 15 * 60 * 1000), async (req, res) => {
   try {
     const token = String(req.query.e || "").slice(0, 60);
     const estimate = await getServiceEstimateByToken(token);
@@ -9611,7 +9626,7 @@ app.post("/api/deliveries/runs/:id/start", requireDispatch, async (req, res) => 
             formattedAddress: stop.address,
             lat: stop.lat, lng: stop.lng
           });
-          if (geofenceId) await updateDeliveryStop(stop.id, { geofenceId });
+          if (geofenceId) await updateDeliveryStop(stop.id, { geofenceId }, { internal: true });
         } catch (err) {
           warnings.push(`Geofence failed for stop ${stop.seq} (${stop.customerName}).`);
           console.error("Geofence create failed:", err.message);
@@ -9848,10 +9863,35 @@ app.post("/api/track", rateLimit("track", 120, 15 * 60 * 1000), async (req, res)
 
 // ---- Samsara webhook: geofence entry/exit auto-advances the day -----------
 
-app.post("/api/samsara/webhook/:key", async (req, res) => {
+// Optional second lock (audit 10/25): when SAMSARA_WEBHOOK_SECRET holds the
+// webhook's Secret Key from Samsara's configuration page, every delivery
+// must carry a valid X-Samsara-Signature — HMAC-SHA256 over
+// "v1:<X-Samsara-Timestamp>:<raw body>" keyed with the base64-decoded secret,
+// sent as "v1=<hex>" — and be less than 5 minutes old. The URL key alone
+// (which shows up in logs) then no longer suffices to advance stops or
+// trigger the next-customer text.
+const SAMSARA_WEBHOOK_SECRET = String(process.env.SAMSARA_WEBHOOK_SECRET || "").trim();
+function samsaraSignatureOk(req) {
+  if (!SAMSARA_WEBHOOK_SECRET) return true; // not configured → path key only
+  try {
+    const ts = String(req.headers["x-samsara-timestamp"] || "").trim();
+    const sig = String(req.headers["x-samsara-signature"] || "").trim();
+    if (!/^\d{9,11}$/.test(ts) || !sig.startsWith("v1=") || !Buffer.isBuffer(req.rawBody)) return false;
+    if (Math.abs(Date.now() / 1000 - Number(ts)) > 5 * 60) return false;
+    const key = Buffer.from(SAMSARA_WEBHOOK_SECRET, "base64");
+    const expected = "v1=" + crypto.createHmac("sha256", key).update(Buffer.concat([Buffer.from(`v1:${ts}:`), req.rawBody])).digest("hex");
+    return timingSafeStringEqual(sig, expected);
+  } catch { return false; }
+}
+
+app.post("/api/samsara/webhook/:key", rateLimit("samsara-webhook", 600, 15 * 60 * 1000), async (req, res) => {
   try {
     if (!SAMSARA_WEBHOOK_KEY || !timingSafeStringEqual(String(req.params.key || ""), SAMSARA_WEBHOOK_KEY)) {
       return res.status(403).json({ error: "Bad key." });
+    }
+    if (!samsaraSignatureOk(req)) {
+      console.error("Samsara webhook rejected: signature missing or invalid from", req.ip);
+      return res.status(403).json({ error: "Bad signature." });
     }
     const event = parseGeofenceEvent(req.body || {});
     if (!event || !event.addressId) return res.json({ ok: true, ignored: true });
@@ -13981,7 +14021,7 @@ async function findCardConfirmRecord(token) {
 }
 
 // PUBLIC (service host): the client's view of a card-on-file confirmation.
-app.post("/api/card-confirm/view", async (req, res) => {
+app.post("/api/card-confirm/view", rateLimit("card-confirm", 60, 15 * 60 * 1000), async (req, res) => {
   try {
     const { links, record, cc } = await findCardConfirmRecord(req.body?.token);
     if (!record) return res.status(404).json({ error: "This link isn't valid — call us at 512-894-0907." });
@@ -14008,7 +14048,7 @@ app.post("/api/card-confirm/view", async (req, res) => {
 });
 
 // PUBLIC: client approves reusing the card on file.
-app.post("/api/card-confirm/use", async (req, res) => {
+app.post("/api/card-confirm/use", rateLimit("card-confirm", 60, 15 * 60 * 1000), async (req, res) => {
   try {
     const { links, record, cc } = await findCardConfirmRecord(req.body?.token);
     if (!record) return res.status(404).json({ error: "This link isn't valid." });
@@ -14050,7 +14090,7 @@ app.post("/api/card-confirm/use", async (req, res) => {
 
 // PUBLIC: client wants to enter a different card — create the real Stripe
 // Checkout session now and hand back its URL.
-app.post("/api/card-confirm/other", async (req, res) => {
+app.post("/api/card-confirm/other", rateLimit("card-confirm", 60, 15 * 60 * 1000), async (req, res) => {
   try {
     const { links, record, cc } = await findCardConfirmRecord(req.body?.token);
     if (!record) return res.status(404).json({ error: "This link isn't valid." });
@@ -14973,6 +15013,13 @@ app.get("/api/credit-application/resume/:token", rateLimit("credit-application-r
     const application = await getCreditApplication(token);
     if (!application || application.status !== "in_progress") {
       return res.status(404).json({ error: "We couldn't find an in-progress application with that code." });
+    }
+    // Audit 10/25: a saved application is resumable for 45 days after the
+    // last save; after that the code stops working rather than sitting open
+    // (with the EIN and bank details behind it) forever.
+    const lastTouched = Date.parse(application.updatedAt || application.createdAt || "") || 0;
+    if (lastTouched && Date.now() - lastTouched > 45 * 24 * 60 * 60 * 1000) {
+      return res.status(410).json({ error: "That saved application has expired (it's been more than 45 days). Please start a new one — it only takes a few minutes." });
     }
     // Step 3 (affirmations/signature) never goes back out.
     const { step3, ...resumableData } = application.data || {};
@@ -19490,7 +19537,7 @@ app.post("/api/receipts/text", requirePagePermission("/dashboard.html"), async (
 // The token is 24 random bytes, one per payment, expiring per
 // RECEIPT_LINK_DAYS (365 default). The PDF regenerates from Stripe on each
 // open; nothing is stored server-side.
-app.get("/receipt.pdf", async (req, res) => {
+app.get("/receipt.pdf", rateLimit("receipt-pdf", 30, 15 * 60 * 1000), async (req, res) => {
   try {
     const share = await getReceiptTokenRecord(req.query.r);
     if (!share) {
@@ -22451,6 +22498,9 @@ async function sendPaymentReceivedTemplateText(record) {
     if (!podiumOAuthConfigured() || !(await podiumConnected())) return;
     const digits = String(record.customerPhone || "").replace(/\D/g, "");
     if (!(digits.length === 10 || (digits.length === 11 && digits.startsWith("1")))) return;
+    // Atomic one-per-link claim (audit 10/25): two Stripe events for the same
+    // payment can arrive together, and the in-memory flag alone let both text.
+    if (!(await claimPodiumPaymentTextOnce(record.id))) return;
     const name = String(record.customerName || "").trim();
     const result = await sendPodiumTemplateText({
       phone: digits,
@@ -22468,6 +22518,7 @@ async function sendPaymentReceivedTemplateText(record) {
       if (!result.usedTemplate) console.warn(`Podium template "${templateTitle}" not found — sent the built-in fallback text.`);
     } else {
       console.error("Payment-received text skipped:", result.error);
+      await releasePodiumPaymentTextClaim(record.id); // let a later retry send it
     }
   } catch (err) {
     console.error("Payment-received text failed:", err.message);

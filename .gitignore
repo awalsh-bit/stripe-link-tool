@@ -34,3 +34,21 @@ epass-agent.key
 
 # retired pages parked here until git rm
 _to_delete/
+
+# Security review 10/25: working files that are not part of the app and must
+# not ride along to GitHub / the Render image. Workbooks at the repo root are
+# business data (inventory with cost, prospects, pay calculators); the "-1"
+# files are stale backup copies; Claude outputs/ are review artifacts.
+/*.xlsx
+/*.xlsm
+/*.csv
+/*-1.js
+/*-1.html
+lib/*-1.js
+lib/pilot-seed.js
+/Claude outputs/
+service_call_journey/service_call_journey/Claude outputs/
+/screenshots/
+/samples/
+/API Docs/
+/spec sheets/

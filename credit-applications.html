@@ -580,7 +580,7 @@
           const sigRow = sig.mode === "typed"
             ? kv("Signature (typed)", sig.signatureText)
             : (sig.imageData
-                ? kv("Signature", `<img class="sig-img" src="${escapeHtml(sig.imageData)}" alt="Drawn signature" />`, true)
+                ? kv("Signature", `<img class="sig-img" src="${String(sig.imageData || "").startsWith("data:image/png;base64,") ? escapeHtml(sig.imageData) : ""}" alt="Drawn signature" />`, true)
                 : kv("Signature", "Drawn"));
           signatureRows = [
             sec("Authorized Signature"),

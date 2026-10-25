@@ -2293,8 +2293,8 @@
           }
         }
         tr.innerHTML = `
-          <td data-label="Customer">${row.customerName || "-"}</td>
-          <td data-label="Employee">${row.creatorName || "-"}</td>
+          <td data-label="Customer">${escapeHtml(row.customerName || "-")}</td>
+          <td data-label="Employee">${escapeHtml(row.creatorName || "-")}</td>
           <td data-label="Reference">${formatReference(row)}</td>
           <td data-label="Status">
             <span class="status-badge ${badgeClass(row.status)}" title="${escapeHtml(statusText(row))}">${statusLabel(row)}</span>
@@ -2356,8 +2356,8 @@
         }
         const isRefund = row.type === "refund";
         tr.innerHTML = `
-          <td data-label="Customer">${row.customerName || "-"}</td>
-          <td data-label="Employee">${row.creatorName || "-"}</td>
+          <td data-label="Customer">${escapeHtml(row.customerName || "-")}</td>
+          <td data-label="Employee">${escapeHtml(row.creatorName || "-")}</td>
           <td data-label="Reference">${formatReference(row)}</td>
           <td data-label="Type"><span class="${paidTypeClass(row)}">${paidTypeLabel(row)}</span></td>
           <td data-label="Paid Amount" class="amount${isRefund ? " amount-refund" : ""}">${formatMoney(row.paidAmount)}</td>

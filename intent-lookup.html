@@ -619,8 +619,8 @@
     function renderSummaryRows(target, rows) {
       target.innerHTML = rows.map((row) => `
         <div class="summary-row">
-          <div class="summary-label">${row.label}</div>
-          <div class="summary-value">${row.value}</div>
+          <div class="summary-label">${escapeText(row.label)}</div>
+          <div class="summary-value">${escapeText(row.value)}</div>
         </div>
       `).join("");
     }
@@ -710,9 +710,9 @@
       eventsTableBody.innerHTML = events.map((event) => `
         <tr>
           <td data-label="Date">${formatDate(event.date)}</td>
-          <td data-label="Event">${event.label || "-"}</td>
+          <td data-label="Event">${escapeText(event.label || "-")}</td>
           <td data-label="Amount" class="amount">${event.amount ? formatMoney(event.amount) : "-"}</td>
-          <td data-label="Reason">${event.reason || "-"}</td>
+          <td data-label="Reason">${escapeText(event.reason || "-")}</td>
         </tr>
       `).join("");
     }
@@ -861,8 +861,11 @@
     const finderBtn = document.getElementById("finderBtn");
     const finderResultsEl = document.getElementById("finderResults");
 
+    // Audit 10/25: this used to return the value unchanged, which left every
+    // summary row (customer name/email/phone from the public service form)
+    // as live HTML on the page that holds the Refund button.
     function escapeText(value) {
-      return String(value == null ? "" : value);
+      return String(value == null ? "" : value).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
     }
 
     async function runFinder() {

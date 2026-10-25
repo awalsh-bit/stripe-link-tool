@@ -487,6 +487,10 @@
       const now = new Date();
       return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
     }
+    // Audit 10/25: every value from the server goes through esc() before it is
+    // placed in HTML — cardholder names come from what the customer typed into Stripe.
+    function esc(v) { return String(v == null ? "" : v).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])); }
+
 
     function formatMoney(value) {
       return new Intl.NumberFormat("en-US", {
@@ -558,17 +562,17 @@
         return `
           <tr class="${rowClass}">
             <td data-label="Arrival Date">${formatDate(row.arrivalDateKey)}</td>
-            <td data-label="Payout ID" class="mono">${row.payoutId || "-"}</td>
+            <td data-label="Payout ID" class="mono">${esc(row.payoutId || "-")}</td>
             <td data-label="Type">
               <span class="type-badge ${badgeClass}">${typeLabel(t)}</span>
             </td>
-            <td data-label="Sales Order">${row.salesOrder || "-"}</td>
-            <td data-label="Customer Name">${row.customerName || "-"}</td>
-            <td data-label="Description">${row.description || row.balanceTransactionDescription || "-"}</td>
+            <td data-label="Sales Order">${esc(row.salesOrder || "-")}</td>
+            <td data-label="Customer Name">${esc(row.customerName || "-")}</td>
+            <td data-label="Description">${esc(row.description || row.balanceTransactionDescription || "-")}</td>
             <td data-label="Gross Amount" class="amount">${formatMoney(row.grossAmount)}</td>
             <td data-label="Fee" class="amount">${formatMoney(row.feeAmount)}</td>
             <td data-label="Bank Payout" class="amount">${formatMoney(row.bankPayoutAmount)}</td>
-            <td data-label="Payment Intent" class="mono">${row.paymentIntentId || "-"}</td>
+            <td data-label="Payment Intent" class="mono">${esc(row.paymentIntentId || "-")}</td>
           </tr>
         `;
       }).join("");

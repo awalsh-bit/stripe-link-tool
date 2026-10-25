@@ -269,7 +269,6 @@
           { href: "flag-closures.html", title: "Notification Closure Report" },
           { href: "target-builder.html", title: "Target Builder" },
           { href: "secret-menu.html", title: "Secret Menu" },
-          { href: "promo-builder.html", title: "Promo Item Builder" },
           { href: "clearance.html", title: "Clearance Hit List" },
           { href: "shop-orders.html", title: "Online Shop Orders" },
           { href: "shop-catalog.html", title: "Express Assortment Catalog" },
@@ -291,8 +290,7 @@
         children: [
           { href: "speedqueen-truckload.html", title: "Speed Queen Truckload Builder" },
           { href: "written-models.html", title: "Ordering Report" },
-          { href: "po-health.html", title: "Purchase Order Health" },
-          { href: "po-eta-import.html", title: "PO ETA Import Builder" }
+          { href: "po-health.html", title: "Purchase Order Health" }
         ]
       },
       {
@@ -483,8 +481,8 @@
           <div class="internal-shell-personal-who">
             ${avatar}
             <div>
-              <div class="internal-shell-personal-name">${name || "Signed in"}</div>
-              ${email ? `<div class="internal-shell-personal-email">${email}</div>` : ""}
+              <div class="internal-shell-personal-name">${escHtml(name || "Signed in")}</div>
+              ${email ? `<div class="internal-shell-personal-email">${escHtml(email)}</div>` : ""}
             </div>
           </div>
           <button type="button" class="internal-shell-personal-item" data-open-profile>

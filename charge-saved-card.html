@@ -378,6 +378,8 @@
   <script src="employee-directory.js"></script>
   <script src="name-format.js"></script>
   <script>
+    // Audit 10/25: server values are escaped before being placed in HTML.
+    function esc(v) { return String(v == null ? "" : v).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])); }
     const form = document.getElementById("chargeForm");
     const chargeBtn = document.getElementById("chargeBtn");
     const resetBtn = document.getElementById("resetBtn");
@@ -488,10 +490,10 @@
 
       lookupClient.textContent = data.clientName || data.customerName || "Not provided";
       lookupCustomerId.innerHTML = data.customerId
-        ? `<span class="mono">${data.customerId}</span>`
+        ? `<span class="mono">${esc(data.customerId)}</span>`
         : "Not found";
       lookupPaymentMethodId.innerHTML = data.paymentMethodId
-        ? `<span class="mono">${data.paymentMethodId}</span>`
+        ? `<span class="mono">${esc(data.paymentMethodId)}</span>`
         : "Not found";
       lookupCard.textContent = cardText;
 
@@ -593,8 +595,8 @@ if (!applyCreatorLookup() || !payload.creatorCode || !payload.creatorName || !pa
         latestCopyText = copyText;
 
         resultStatus.textContent = data.status || "succeeded";
-        resultPaymentIntent.innerHTML = `<span class="mono">${data.paymentIntentId}</span>`;
-        resultCopyText.innerHTML = `<span class="mono">${copyText}</span>`;
+        resultPaymentIntent.innerHTML = `<span class="mono">${esc(data.paymentIntentId)}</span>`;
+        resultCopyText.innerHTML = `<span class="mono">${esc(copyText)}</span>`;
         resultBox.classList.add("show");
 
         try {

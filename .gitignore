@@ -52,3 +52,8 @@ service_call_journey/service_call_journey/Claude outputs/
 /samples/
 /API Docs/
 /spec sheets/
+# The nested service_call_journey/service_call_journey/ copy had slipped past
+# the rules above (10/25) — cover the data folders at any depth.
+service_call_journey/**/reference/data/
+service_call_journey/**/reference/*.xlsx
+service_call_journey/**/reference/*.zip

@@ -81,7 +81,7 @@
 
     label { display: block; margin-bottom: 6px; font-size: 13px; font-weight: 700; }
 
-    input[type="text"], input[type="email"], textarea, select {
+    input[type="text"], input[type="email"], input[type="tel"], textarea, select {
       width: 100%;
       border: 1px solid var(--border);
       border-radius: 10px;
@@ -265,6 +265,44 @@
     }
 
     .contents-label { font-size: 13px; font-weight: 700; }
+
+    /* Send by Email / Text, each with Quick Send (template) or Custom message */
+    .channel-row { align-items: center; margin-top: 4px; }
+    .channel-btn.active { outline: 3px solid var(--primary-tint-2); outline-offset: 2px; }
+    .send-panel {
+      margin-top: 14px;
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 16px;
+      background: #fff;
+    }
+    .mode-row { display: flex; flex-wrap: wrap; gap: 18px; margin: 4px 0 10px; }
+    .mode-row .content-check { font-weight: 600; }
+    .message-box {
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: var(--primary-faint);
+      padding: 12px 14px;
+    }
+    .message-meta { display: flex; flex-wrap: wrap; gap: 6px 22px; font-size: 13px; color: #475569; margin-bottom: 8px; }
+    .message-box textarea {
+      width: 100%;
+      min-height: 230px;
+      resize: vertical;
+      font: inherit;
+      font-size: 14px;
+      line-height: 1.5;
+      border: 1px solid transparent;
+      border-radius: 10px;
+      padding: 10px 12px;
+      background: rgba(255, 255, 255, 0.6);
+      color: #334155;
+    }
+    .message-box textarea:not([readonly]) { background: #fff; color: var(--text, #0f172a); border-color: var(--border); }
+    .message-box textarea:not([readonly]):focus { outline: 2px solid var(--primary); outline-offset: 1px; }
+    .message-foot { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-top: 6px; }
+    .hint-text { font-size: 12px; color: #64748b; }
+    .hint-text.over { color: var(--error-text); font-weight: 700; }
 
     .content-check {
       display: inline-flex;
@@ -670,31 +708,91 @@
 
         <h3 class="finish-header">Review &amp; send</h3>
         <div id="mergedLinks" class="result-links" style="display: none;"></div>
-        <div class="finish-row">
-          <div class="field">
-            <label for="emailRecipient">Recipient</label>
-            <select id="emailRecipient">
-              <option value="myself" selected>Myself</option>
-              <option value="client">Client</option>
-              <option value="both">Both</option>
-              <option value="other">Other</option>
-            </select>
+        <div class="actions-row channel-row" id="channelRow">
+          <span class="contents-label">Send by:</span>
+          <button id="chooseEmailBtn" type="button" class="channel-btn" data-channel="email">Email</button>
+          <button id="chooseTextBtn" type="button" class="channel-btn secondary" data-channel="text">Text</button>
+        </div>
+
+        <!-- EMAIL: attachments + Quick Send / Custom message -->
+        <div id="emailPanel" class="send-panel" style="display: none;">
+          <div class="finish-row">
+            <div class="field">
+              <label for="emailRecipient">Recipient</label>
+              <select id="emailRecipient">
+                <option value="myself" selected>Myself</option>
+                <option value="client">Client</option>
+                <option value="both">Both</option>
+                <option value="other">Other</option>
+              </select>
+            </div>
+            <div class="field grow" id="emailOtherField" style="display: none;">
+              <label for="emailOther">Addresses (separate with semicolons)</label>
+              <input id="emailOther" type="text" placeholder="name@one.com; name@two.com" />
+            </div>
           </div>
-          <div class="field grow" id="emailOtherField" style="display: none;">
-            <label for="emailOther">Addresses (separate with semicolons)</label>
-            <input id="emailOther" type="text" placeholder="name@one.com; name@two.com" />
+          <div class="finish-row contents-row" id="emailContentsRow">
+            <span class="contents-label">Contents to be sent:</span>
+            <label class="content-check"><input id="sendComplete" type="checkbox" checked /> Complete spec package</label>
+            <label class="content-check"><input id="sendSpecs" type="checkbox" /> Specs only</label>
+            <label class="content-check"><input id="sendEpass" type="checkbox" /> ePASS file only</label>
           </div>
+          <div class="mode-row">
+            <label class="content-check"><input type="radio" name="emailMode" value="quick" checked /> Quick Send (template)</label>
+            <label class="content-check"><input type="radio" name="emailMode" value="custom" /> Custom message</label>
+          </div>
+          <div class="message-box">
+            <div class="message-meta">
+              <span><strong>Subject:</strong> Specification Documents from Wilson AC &amp; Appliance</span>
+              <span><strong>Attachments:</strong> <span id="emailAttachList">—</span></span>
+            </div>
+            <textarea id="emailBody" readonly aria-label="Email message" spellcheck="true"></textarea>
+            <div class="message-foot">
+              <span id="emailBodyHint" class="hint-text">This is the template that Quick Send will send. Choose Custom message to edit it.</span>
+              <span id="emailBodyCount" class="hint-text"></span>
+            </div>
+          </div>
+          <div class="actions-row">
+            <button id="sendEmailBtn" type="button">Send email</button>
+            <button id="emailResetBtn" type="button" class="secondary" style="display: none;">Reset to template</button>
+          </div>
+          <div id="emailStatus" class="status"></div>
         </div>
-        <div class="finish-row contents-row" id="emailContentsRow">
-          <span class="contents-label">Contents to be sent:</span>
-          <label class="content-check"><input id="sendComplete" type="checkbox" checked /> Complete spec package</label>
-          <label class="content-check"><input id="sendSpecs" type="checkbox" /> Specs only</label>
-          <label class="content-check"><input id="sendEpass" type="checkbox" /> ePASS file only</label>
+
+        <!-- TEXT: public package link by Podium, Quick Send / Custom message -->
+        <div id="textPanel" class="send-panel" style="display: none;">
+          <div class="finish-row">
+            <div class="field">
+              <label for="textPhone">Client mobile</label>
+              <input id="textPhone" type="tel" placeholder="512-555-1234" />
+            </div>
+            <div class="field">
+              <label for="textLink">Link to send</label>
+              <select id="textLink">
+                <option value="open" selected>View package (full)</option>
+                <option value="slim">Slim package</option>
+                <option value="ask">Customer Q&amp;A page</option>
+              </select>
+            </div>
+          </div>
+          <p class="section-note" style="margin: -4px 0 12px;">A text carries the public Steel Cod link, sent from the showroom number (replies land in Podium). The merged quote + specs PDF can't ride on a text — email that one.</p>
+          <div class="mode-row">
+            <label class="content-check"><input type="radio" name="textMode" value="quick" checked /> Quick Send (template)</label>
+            <label class="content-check"><input type="radio" name="textMode" value="custom" /> Custom message</label>
+          </div>
+          <div class="message-box">
+            <textarea id="textBody" readonly aria-label="Text message" spellcheck="true" style="min-height: 96px;"></textarea>
+            <div class="message-foot">
+              <span id="textBodyHint" class="hint-text">This is the template that Quick Send will send. Choose Custom message to edit it. The link always stays in the text.</span>
+              <span id="textBodyCount" class="hint-text"></span>
+            </div>
+          </div>
+          <div class="actions-row">
+            <button id="sendTextBtn" type="button">Send text</button>
+            <button id="textResetBtn" type="button" class="secondary" style="display: none;">Reset to template</button>
+          </div>
+          <div id="textStatus" class="status"></div>
         </div>
-        <div class="actions-row">
-          <button id="sendEmailBtn" type="button">Send email</button>
-        </div>
-        <div id="emailStatus" class="status"></div>
       </div>
     </div>
 
@@ -1637,6 +1735,7 @@
       document.getElementById("curateList").textContent = "";
       setStatus("emailStatus", "", "");
       setStatus("curateStatus", "", "");
+      resetSendPanels();
     }
 
     function mergedPdfUrl(download) {
@@ -1763,7 +1862,159 @@
       }
     });
 
-    // ---- Post-create email ----
+    // ---- Post-create send: Email or Text, Quick Send (template) or Custom ----
+    //
+    // Clicking Email / Text opens that channel's panel. Each panel previews
+    // the server's template (fetched from /message-templates so Custom starts
+    // from exactly what Quick Send would send); Custom message unlocks the
+    // box for editing. Quick Send sends no body — the server uses its
+    // template; Custom sends the edited body.
+
+    let activeChannel = "";
+    const templates = { email: null, text: null }; // last previews from the server
+    const custom = { email: false, text: false };    // mode per channel
+    const dirty = { email: false, text: false };     // edited since last template load
+    let templateFetchSeq = 0;
+
+    function emailMode() { return document.querySelector('input[name="emailMode"]:checked')?.value || "quick"; }
+    function textMode() { return document.querySelector('input[name="textMode"]:checked')?.value || "quick"; }
+
+    function showChannel(channel) {
+      activeChannel = channel;
+      document.getElementById("emailPanel").style.display = channel === "email" ? "" : "none";
+      document.getElementById("textPanel").style.display = channel === "text" ? "" : "none";
+      for (const btn of document.querySelectorAll(".channel-btn")) {
+        const on = btn.dataset.channel === channel;
+        btn.classList.toggle("active", on);
+        btn.classList.toggle("secondary", !on);
+      }
+      if (channel === "text" && !document.getElementById("textPhone").value.trim()) {
+        document.getElementById("textPhone").value = document.getElementById("customerPhone").value.trim();
+      }
+      refreshTemplates();
+    }
+
+    document.getElementById("chooseEmailBtn").addEventListener("click", () => showChannel("email"));
+    document.getElementById("chooseTextBtn").addEventListener("click", () => showChannel("text"));
+
+    function currentContents() {
+      return {
+        complete: document.getElementById("sendComplete").checked,
+        specsOnly: document.getElementById("sendSpecs").checked,
+        epassOnly: document.getElementById("sendEpass").checked
+      };
+    }
+
+    function applyMode(channel) {
+      const isCustom = channel === "email" ? emailMode() === "custom" : textMode() === "custom";
+      custom[channel] = isCustom;
+      const box = document.getElementById(channel === "email" ? "emailBody" : "textBody");
+      const hint = document.getElementById(channel === "email" ? "emailBodyHint" : "textBodyHint");
+      const reset = document.getElementById(channel === "email" ? "emailResetBtn" : "textResetBtn");
+      box.readOnly = !isCustom;
+      reset.style.display = isCustom ? "" : "none";
+      if (isCustom) {
+        hint.textContent = channel === "email"
+          ? "Edit the message as you like — the subject and attachments stay as shown above."
+          : "Edit the message as you like — the package link always stays in the text.";
+        box.focus();
+      } else {
+        hint.textContent = channel === "email"
+          ? "This is the template that Quick Send will send. Choose Custom message to edit it."
+          : "This is the template that Quick Send will send. Choose Custom message to edit it. The link always stays in the text.";
+        // Back to Quick Send: show the template again (edits are dropped on purpose).
+        dirty[channel] = false;
+        fillTemplate(channel);
+      }
+      updateCount(channel);
+    }
+
+    function fillTemplate(channel) {
+      const t = templates[channel];
+      const box = document.getElementById(channel === "email" ? "emailBody" : "textBody");
+      if (channel === "email") {
+        document.getElementById("emailAttachList").textContent = t?.attachments?.length ? t.attachments.join(", ") : "none selected";
+      }
+      if (!dirty[channel]) box.value = t?.body || "";
+      updateCount(channel);
+    }
+
+    function updateCount(channel) {
+      const box = document.getElementById(channel === "email" ? "emailBody" : "textBody");
+      const out = document.getElementById(channel === "email" ? "emailBodyCount" : "textBodyCount");
+      const max = channel === "email" ? 5000 : 1000;
+      const n = box.value.length;
+      if (channel === "text") {
+        const segs = n <= 160 ? 1 : Math.ceil(n / 153);
+        out.textContent = `${n} characters · ${segs} text segment${segs === 1 ? "" : "s"}`;
+      } else {
+        out.textContent = `${n} characters`;
+      }
+      out.classList.toggle("over", n > max);
+    }
+
+    async function refreshTemplates() {
+      if (!lastCreated?.navId || !activeChannel) return;
+      const seq = ++templateFetchSeq;
+      try {
+        const data = await api("/api/spec-packages/" + encodeURIComponent(lastCreated.navId) + "/message-templates", {
+          method: "POST",
+          body: JSON.stringify({
+            salesOrder: lastCreated.salesOrder,
+            contents: currentContents(),
+            variant: lastCreated.variant,
+            link: document.getElementById("textLink").value,
+            customerName: document.getElementById("customerName").value.trim(),
+            salespersonEmail: document.getElementById("salespersonEmail").value.trim()
+          })
+        });
+        if (seq !== templateFetchSeq) return; // a newer request superseded this one
+        templates.email = data.email || null;
+        templates.text = data.text || null;
+        fillTemplate("email");
+        fillTemplate("text");
+        if (activeChannel === "text" && !data.text) {
+          setStatus("textStatus", data.textError || "Unable to get the package link from Steel Cod.", "warn");
+        } else if (activeChannel === "text") {
+          setStatus("textStatus", "", "");
+        }
+      } catch (err) {
+        if (seq !== templateFetchSeq) return;
+        setStatus(activeChannel === "text" ? "textStatus" : "emailStatus", "Couldn't load the message template: " + err.message, "warn");
+      }
+    }
+
+    // Template inputs: attachments / link choice / recipient change the preview.
+    for (const id of ["sendComplete", "sendSpecs", "sendEpass"]) {
+      document.getElementById(id).addEventListener("change", () => { if (!custom.email) dirty.email = false; refreshTemplates(); });
+    }
+    document.getElementById("textLink").addEventListener("change", () => { if (!custom.text) dirty.text = false; refreshTemplates(); });
+    for (const r of document.querySelectorAll('input[name="emailMode"]')) r.addEventListener("change", () => applyMode("email"));
+    for (const r of document.querySelectorAll('input[name="textMode"]')) r.addEventListener("change", () => applyMode("text"));
+    document.getElementById("emailBody").addEventListener("input", () => { dirty.email = true; updateCount("email"); });
+    document.getElementById("textBody").addEventListener("input", () => { dirty.text = true; updateCount("text"); });
+    document.getElementById("emailResetBtn").addEventListener("click", () => { dirty.email = false; fillTemplate("email"); });
+    document.getElementById("textResetBtn").addEventListener("click", () => { dirty.text = false; fillTemplate("text"); });
+
+    function resetSendPanels() {
+      activeChannel = "";
+      templates.email = null; templates.text = null;
+      dirty.email = false; dirty.text = false;
+      for (const r of document.querySelectorAll('input[name="emailMode"], input[name="textMode"]')) r.checked = r.value === "quick";
+      custom.email = false; custom.text = false;
+      document.getElementById("emailBody").value = "";
+      document.getElementById("textBody").value = "";
+      document.getElementById("emailBody").readOnly = true;
+      document.getElementById("textBody").readOnly = true;
+      document.getElementById("emailResetBtn").style.display = "none";
+      document.getElementById("textResetBtn").style.display = "none";
+      document.getElementById("textPhone").value = "";
+      document.getElementById("emailPanel").style.display = "none";
+      document.getElementById("textPanel").style.display = "none";
+      for (const btn of document.querySelectorAll(".channel-btn")) { btn.classList.remove("active"); btn.classList.add("secondary"); }
+      document.getElementById("chooseEmailBtn").classList.remove("secondary");
+      setStatus("textStatus", "", "");
+    }
 
     document.getElementById("sendEmailBtn").addEventListener("click", async () => {
       if (!lastCreated) return;
@@ -1772,11 +2023,21 @@
         setStatus("emailStatus", plan.error, "error");
         return;
       }
+      const isCustom = emailMode() === "custom";
+      const body = document.getElementById("emailBody").value.trim();
+      if (isCustom && !body) {
+        setStatus("emailStatus", "The custom message is empty — write something or switch back to Quick Send.", "error");
+        return;
+      }
+      if (isCustom && body.length > 5000) {
+        setStatus("emailStatus", "Keep the message under 5,000 characters.", "error");
+        return;
+      }
 
       const btn = document.getElementById("sendEmailBtn");
       btn.disabled = true;
       btn.textContent = "Sending...";
-      setStatus("emailStatus", "Sending the documents\u2026", "ok");
+      setStatus("emailStatus", "Sending the documents…", "ok");
 
       try {
         const sent = await api("/api/spec-packages/" + encodeURIComponent(lastCreated.navId) + "/email", {
@@ -1788,14 +2049,62 @@
             quotePosition: lastCreated.position,
             quoteId: scannedQuoteId || "",
             salesOrder: lastCreated.salesOrder,
-            salespersonEmail: document.getElementById("salespersonEmail").value.trim()
+            salespersonEmail: document.getElementById("salespersonEmail").value.trim(),
+            customBody: isCustom ? body : ""
           })
         });
-        setStatus("emailStatus", `Sent to ${sent.sent} recipient${sent.sent === 1 ? "" : "s"}: ${(sent.files || []).join(", ")}.`, "ok");
+        setStatus("emailStatus", `Sent ${isCustom ? "your custom message" : "the template"} to ${sent.sent} recipient${sent.sent === 1 ? "" : "s"}: ${(sent.files || []).join(", ")}.`, "ok");
       } catch (err) {
         setStatus("emailStatus", err.message, "error");
       } finally {
         startCooldown(btn, "Send email", 10);
+      }
+    });
+
+    document.getElementById("sendTextBtn").addEventListener("click", async () => {
+      if (!lastCreated) return;
+      const phone = document.getElementById("textPhone").value.replace(/\D/g, "");
+      if (phone.length !== 10 && !(phone.length === 11 && phone.startsWith("1"))) {
+        setStatus("textStatus", "Enter the client's 10-digit mobile number.", "error");
+        return;
+      }
+      if (!templates.text) {
+        setStatus("textStatus", "The package link isn't available yet — try again in a moment.", "error");
+        return;
+      }
+      const isCustom = textMode() === "custom";
+      const body = document.getElementById("textBody").value.trim();
+      if (isCustom && !body) {
+        setStatus("textStatus", "The custom message is empty — write something or switch back to Quick Send.", "error");
+        return;
+      }
+      if (isCustom && body.length > 1000) {
+        setStatus("textStatus", "Keep the text under 1,000 characters.", "error");
+        return;
+      }
+
+      const btn = document.getElementById("sendTextBtn");
+      btn.disabled = true;
+      btn.textContent = "Sending...";
+      setStatus("textStatus", "Sending the text…", "ok");
+      try {
+        const sent = await api("/api/spec-packages/" + encodeURIComponent(lastCreated.navId) + "/text", {
+          method: "POST",
+          body: JSON.stringify({
+            phone,
+            link: document.getElementById("textLink").value,
+            salesOrder: lastCreated.salesOrder,
+            customerName: document.getElementById("customerName").value.trim(),
+            salespersonEmail: document.getElementById("salespersonEmail").value.trim(),
+            customBody: isCustom ? body : ""
+          })
+        });
+        const pretty = sent.to.length === 11 ? sent.to.slice(1) : sent.to;
+        setStatus("textStatus", `Texted ${isCustom ? "your custom message" : "the template"} with the ${document.getElementById("textLink").selectedOptions[0].textContent.toLowerCase()} link to ${pretty.replace(/(\d{3})(\d{3})(\d{4})/, "$1-$2-$3")}. Replies land in Podium.`, "ok");
+      } catch (err) {
+        setStatus("textStatus", err.message, "error");
+      } finally {
+        startCooldown(btn, "Send text", 10);
       }
     });
 

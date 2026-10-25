@@ -603,17 +603,26 @@ const SHOP_ALLOWED_ZIPS = new Set(
 );
 const AUTH_COOKIE_NAME = "wilson_dashboard_session";
 const AUTH_COOKIE_TTL_SECONDS = 60 * 60 * 12;
-const LEADER_USERNAME = String(process.env.APP_USERNAME || "wilson").trim();
-const LEADER_PASSWORD = String(process.env.APP_PASSWORD || "");
+// The shared "wilson" store login was removed 2026-10-24 (Andrew: "we are
+// good to delete the shared login"). Everyone signs in with an individual
+// account; APP_USERNAME / APP_PASSWORD / LEGACY_SHARED_LOGIN_ENABLED are no
+// longer read. The only signed (non-database) cookie left is the break-glass
+// executive fallback used when Postgres itself is unreachable.
 const EXECUTIVE_USERNAME = String(process.env.EXECUTIVE_USERNAME || "awalsh@wilsonappliance.com").trim();
 const EXECUTIVE_PASSWORD = String(process.env.EXECUTIVE_PASSWORD || "").trim();
-const AUTH_COOKIE_SECRET =
-  process.env.SESSION_SECRET ||
-  `${LEADER_USERNAME}:${LEADER_PASSWORD || "wilson"}`;
-// Feature flag for the legacy shared "wilson" login. Default true during the
-// migration; set LEGACY_SHARED_LOGIN_ENABLED=false to fully deactivate it.
-const LEGACY_SHARED_LOGIN_ENABLED =
-  String(process.env.LEGACY_SHARED_LOGIN_ENABLED ?? "true").trim().toLowerCase() !== "false";
+// Security audit 10/24: the signed-cookie secret used to fall back to
+// "<username>:<password>" (literally "wilson:wilson" with nothing set), which
+// would let anyone forge a never-expiring executive cookie. Now: use
+// SESSION_SECRET when it is set; otherwise generate a random secret for this
+// boot and shout about it. Database sessions never depend on this secret —
+// only the DB-down break-glass cookie does.
+const SESSION_SECRET_ENV = String(process.env.SESSION_SECRET || "").trim();
+const AUTH_COOKIE_SECRET = SESSION_SECRET_ENV || crypto.randomBytes(32).toString("hex");
+if (!SESSION_SECRET_ENV) {
+  console.error("SECURITY: SESSION_SECRET is not set. Using a random per-boot secret — a break-glass fallback cookie will not survive a restart. Set SESSION_SECRET (32+ random characters) in the Render environment.");
+} else if (SESSION_SECRET_ENV.length < 32) {
+  console.error("SECURITY: SESSION_SECRET is shorter than 32 characters. Replace it with a long random value.");
+}
 // Server-side session lifetime (defaults to the previous cookie TTL of 12h).
 const SESSION_TTL_SECONDS =
   Number(process.env.SESSION_TTL_SECONDS) > 0
@@ -625,7 +634,57 @@ const app = express();
 // shop takes a few seconds to load").
 app.use(compression({ threshold: 1024 }));
 app.set("trust proxy", true);
-app.use(cors());
+
+// Real client address (security audit 10/24). With `trust proxy: true`
+// Express reports the LEFT-most X-Forwarded-For entry — the one the client
+// itself can write — so a bot could pick a fresh "IP" per request and walk
+// straight past every per-IP rate limit, or spend the office's IP on bad
+// logins to lock the showroom out. Render's proxy appends the real peer
+// address on the right; take the right-most entry that is not a private /
+// loopback address (so one or two internal hops both work), falling back to
+// the socket. Overrides req.ip for every later middleware and route.
+const PRIVATE_IP_RE = /^(?:::1$|::ffff:(?:10\.|127\.|192\.168\.|172\.(?:1[6-9]|2\d|3[01])\.)|10\.|127\.|192\.168\.|172\.(?:1[6-9]|2\d|3[01])\.|169\.254\.|fc|fd|fe80:)/i;
+function clientIpFromRequest(req) {
+  const chain = String(req.headers["x-forwarded-for"] || "").split(",").map((s) => s.trim()).filter(Boolean);
+  for (let i = chain.length - 1; i >= 0; i -= 1) {
+    if (!PRIVATE_IP_RE.test(chain[i])) return chain[i].replace(/^::ffff:/, "");
+  }
+  return String(req.socket?.remoteAddress || "").replace(/^::ffff:/, "") || "unknown";
+}
+app.use((req, res, next) => {
+  try { Object.defineProperty(req, "ip", { value: clientIpFromRequest(req), configurable: true, enumerable: true }); } catch {}
+  next();
+});
+
+// Path hygiene (security audit 10/24). The public-path allow-lists and the
+// static deny-list compare the path as sent, while the static file server
+// normalizes it — so "/events/../server.js" could slip past both. No real
+// URL in this app contains "..", a backslash, or a bad % escape; refuse them
+// before anything else looks at the path.
+app.use((req, res, next) => {
+  let decoded;
+  try { decoded = decodeURIComponent(req.path); } catch { return res.status(400).send("Bad request."); }
+  if (/(^|\/)\.\.(\/|$)/.test(decoded) || decoded.includes("\\") || decoded.includes("\0")) {
+    return res.status(400).send("Bad request.");
+  }
+  next();
+});
+
+// Browsers only: the three first-party hosts (plus localhost for dev). The
+// blanket cors() used to answer "*" for every route, which let any website
+// read public JSON endpoints and fire cross-site POSTs from visitors'
+// browsers. Server-to-server callers (the website feed, the ePASS agent)
+// don't send an Origin header and are unaffected.
+const FIRST_PARTY_HOSTS = new Set([DASHBOARD_HOST, ...DASHBOARD_HOST_ALIASES, SERVICE_PUBLIC_HOST, SHOP_PUBLIC_HOST]);
+app.use(cors({
+  origin(origin, cb) {
+    if (!origin) return cb(null, true); // same-origin / non-browser
+    try {
+      const h = new URL(origin).hostname.toLowerCase();
+      return cb(null, FIRST_PARTY_HOSTS.has(h) || isLocalHost(h));
+    } catch { return cb(null, false); }
+  }
+}));
 
 const SERVICE_PUBLIC_PATHS = new Set([
   "/",
@@ -743,6 +802,11 @@ const ALWAYS_PUBLIC_PATHS = new Set([
   // Machine-to-machine: the store PC's nightly ExportModel upload. Guarded
   // by its own shared key (SHOP_SNAPSHOT_KEY), not a session.
   "/api/shop/inventory-snapshot/file",
+  // Machine-to-machine: the outside website's read-only inventory pull.
+  // Guarded by INVENTORY_FEED_KEY (plus an optional IP allow-list), not a
+  // session. Model / serial / serial type only — never cost or price.
+  "/api/feeds/inventory.csv",
+  "/api/feeds/inventory.json",
   // Machine-to-machine: the showroom server's ePASS agent (W: drive watcher,
   // scripts/epass-agent.ps1). Guarded by EPASS_AGENT_KEY, not a session.
   "/api/epass-agent/upload"
@@ -867,17 +931,10 @@ const UNAUTHENTICATED_INTERNAL_PATHS = new Set([
   "/set-password.html"
 ]);
 
-// ACCESS_GROUPS serve ONE purpose now: authorization for the LEGACY
-// shared/env logins (unchanged behavior). Quick-assign presets in
-// user-admin.html come from JOB_CODE_PRESETS below — do not add UI preset
-// roles here, since every key in this map must remain a valid legacy login
-// access group.
+// ACCESS_GROUPS serve ONE purpose now: authorization for the env break-glass
+// executive login (the shared "leader" login was removed 2026-10-24).
+// Quick-assign presets in user-admin.html come from JOB_CODE_PRESETS below.
 const ACCESS_GROUPS = {
-  leader: {
-    label: "Leader",
-    pages: ["*"],
-    excludedPages: ["/commissions.html", "/user-admin.html", "/send-notification.html"]
-  },
   executive: {
     label: "Executive",
     pages: ["*"]
@@ -1282,40 +1339,6 @@ function normalizeUsernameValue(username) {
   return String(username || "").trim().toLowerCase();
 }
 
-function getConfiguredUsers() {
-  const users = [
-    {
-      username: LEADER_USERNAME,
-      normalizedUsername: normalizeUsernameValue(LEADER_USERNAME),
-      password: LEADER_PASSWORD,
-      displayName: "Wilson",
-      role: "leader",
-      accessGroup: "leader"
-    }
-  ];
-
-  if (EXECUTIVE_USERNAME && EXECUTIVE_PASSWORD) {
-    users.push({
-      username: EXECUTIVE_USERNAME,
-      normalizedUsername: normalizeUsernameValue(EXECUTIVE_USERNAME),
-      password: EXECUTIVE_PASSWORD,
-      displayName: "Andrew Walsh",
-      role: "executive",
-      accessGroup: "executive"
-    });
-  }
-
-  return users;
-}
-
-function findConfiguredUser(username, password) {
-  const normalizedUsername = normalizeUsernameValue(username);
-  return getConfiguredUsers().find((user) =>
-    user.normalizedUsername === normalizedUsername &&
-    String(password || "") === user.password
-  ) || null;
-}
-
 function getRequestHost(req) {
   return String(req.hostname || req.get("host") || "")
     .split(":")[0]
@@ -1326,17 +1349,25 @@ function isLocalHost(host) {
   return ["localhost", "127.0.0.1"].includes(host);
 }
 
+// A prefix ending in "/" matches anything beneath it; otherwise the path
+// must equal it or sit directly beneath it ("/events" matches "/events" and
+// "/events/x", not "/eventsanything"). Audit 10/24.
+function publicPrefixMatches(pathname, prefix) {
+  if (prefix.endsWith("/")) return pathname.startsWith(prefix);
+  return pathname === prefix || pathname.startsWith(prefix + "/");
+}
+
 function isServicePublicPath(pathname) {
   return (
     SERVICE_PUBLIC_PATHS.has(pathname) ||
-    SERVICE_PUBLIC_API_PREFIXES.some((prefix) => pathname === prefix || pathname.startsWith(prefix))
+    SERVICE_PUBLIC_API_PREFIXES.some((prefix) => publicPrefixMatches(pathname, prefix))
   );
 }
 
 function isShopPublicPath(pathname) {
   return (
     SHOP_PUBLIC_PATHS.has(pathname) ||
-    SHOP_PUBLIC_API_PREFIXES.some((prefix) => pathname === prefix || pathname.startsWith(prefix))
+    SHOP_PUBLIC_API_PREFIXES.some((prefix) => publicPrefixMatches(pathname, prefix))
   );
 }
 
@@ -1438,11 +1469,17 @@ function readAuthenticatedUser(req) {
     if (!payload?.expiresAt || payload.expiresAt < Date.now()) {
       return null;
     }
-
-    if (payload.accessGroup === "super_user" || payload.role === "super_user") {
-      payload.accessGroup = "leader";
-      payload.role = "leader";
-      payload.displayName = payload.displayName || "Wilson";
+    // The lifetime is capped here, not trusted from the payload (audit 10/24).
+    const issuedAt = Number(payload.issuedAt) || 0;
+    if (!issuedAt || issuedAt > Date.now() + 60 * 1000 || payload.expiresAt - issuedAt > AUTH_COOKIE_TTL_SECONDS * 1000 + 1000) {
+      return null;
+    }
+    // The only signed cookie still issued is the break-glass executive
+    // fallback (database unreachable). Anything else — including old shared
+    // "wilson" / leader cookies — is simply not a login any more.
+    if (payload.accessGroup !== "executive" || payload.role !== "executive") return null;
+    if (!EXECUTIVE_PASSWORD || normalizeUsernameValue(payload.username) !== normalizeUsernameValue(EXECUTIVE_USERNAME)) {
+      return null;
     }
 
     return payload;
@@ -1546,7 +1583,12 @@ function canAccessPathForUser(user, pathname) {
     if (user.kind === "db") {
       return user.isExecutive === true;
     }
-    // Legacy logins fall through to group logic (leader excludes these pages).
+    // Audit 10/24: legacy logins used to fall through to group logic, and
+    // the shared "leader" login only excluded three of these pages — so the
+    // shared store password could open the Returns Report and the Audit Log.
+    // Executive-only means executive-only: the env break-glass executive
+    // cookie passes, the shared login never does.
+    return user.isExecutive === true;
   }
 
   if (user.kind === "db") {
@@ -1680,6 +1722,16 @@ setInterval(() => {
   }
 }, 10 * 60 * 1000).unref();
 
+// CSV cell for exports (audit 10/24). Besides quoting, a cell that starts
+// with = + - @ (or a tab/CR) gets a leading apostrophe so Excel shows it as
+// text instead of running it as a formula — exports carry customer-typed
+// text (names, notes) and are opened in Excel by staff and suppliers.
+function csvSafeCell(v) {
+  let t = v == null ? "" : String(v);
+  if (/^[=+\-@\t\r]/.test(t) && !/^-?\d+(\.\d+)?$/.test(t)) t = "'" + t;
+  return /[",\r\n]/.test(t) ? `"${t.replace(/"/g, '""')}"` : t;
+}
+
 function rateLimit(name, maxAttempts, windowMs) {
   return (req, res, next) => {
     const key = `${name}|${req.ip || "unknown"}`;
@@ -1708,6 +1760,10 @@ app.use((req, res, next) => {
   res.setHeader("X-Content-Type-Options", "nosniff");
   res.setHeader("X-Frame-Options", "DENY");
   res.setHeader("Referrer-Policy", "same-origin");
+  // Audit 10/24: pin browsers to HTTPS for a year and switch off device
+  // features no page uses.
+  if (isSecureRequest(req)) res.setHeader("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
+  res.setHeader("Permissions-Policy", "camera=(), microphone=(), geolocation=()");
   next();
 });
 
@@ -1746,9 +1802,8 @@ app.use((req, res, next) => {
 // Resolve the auth cookie to a user.
 // - DB sessions: opaque random token (no "."), looked up server-side, so a
 //   disabled user or deleted session is revoked on the very next request.
-// - Legacy signed cookies: contain a "." (payload.signature). Leader cookies
-//   are honored only while LEGACY_SHARED_LOGIN_ENABLED; the env break-glass
-//   executive cookie is always honored so the DB can never lock you out.
+// - Signed cookies: contain a "." (payload.signature). Only the env
+//   break-glass executive cookie is honored, so the DB can never lock you out.
 async function resolveAuthUser(req) {
   const cookies = parseCookies(req);
   const rawValue = cookies[AUTH_COOKIE_NAME];
@@ -1795,19 +1850,13 @@ async function resolveAuthUser(req) {
     return null;
   }
 
-  const isLegacyExecutive = legacyUser.accessGroup === "executive";
-
-  if (!LEGACY_SHARED_LOGIN_ENABLED && !isLegacyExecutive) {
-    return null;
-  }
-
   return {
     kind: "legacy",
     id: null,
     email: legacyUser.username || "",
     username: legacyUser.username || "",
     displayName: legacyUser.displayName || legacyUser.username || "",
-    isExecutive: isLegacyExecutive,
+    isExecutive: true,
     accessGroup: legacyUser.accessGroup,
     role: legacyUser.role,
     grantedPages: null
@@ -1845,9 +1894,14 @@ app.use(async (req, res, next) => {
   if (authUser) {
     req.authUser = authUser;
 
-    if (isDashboardHost(host) || isLocalHost(host)) {
+    // Audit 10/24: the page grant check used to run only on the dashboard
+    // hostname, so the same page fetched through any other hostname this
+    // server answers (the raw Render name, or a forged Host header) skipped
+    // it. The check is host-independent now; "/" on the public hosts is
+    // still their own landing page, not a dashboard alias.
+    {
       const effectivePath =
-        isDashboardHost(host) || req.path !== "/"
+        isDashboardHost(host) || isLocalHost(host) || req.path !== "/"
           ? resolveDashboardPagePath(req.path)
           : req.path;
 
@@ -2120,6 +2174,19 @@ async function ensureBreakGlassExecutiveUser() {
   return userRow;
 }
 
+// Last-executive guard (security audit 10/24): a compromised executive
+// session must not be able to disable or demote every other executive and
+// leave only itself. Counts active, verified executives other than `userId`.
+async function countOtherActiveExecutives(userId) {
+  try {
+    const users = await listUsersWithAccess();
+    return users.filter((u) => u.isExecutive && u.status === "active" && String(u.id) !== String(userId)).length;
+  } catch (err) {
+    console.error("Executive count failed:", err.message);
+    return 1; // can't tell — don't block the admin action on a read error
+  }
+}
+
 function isBreakGlassCredentials(identifier, password) {
   return Boolean(
     EXECUTIVE_USERNAME &&
@@ -2129,6 +2196,33 @@ function isBreakGlassCredentials(identifier, password) {
   );
 }
 
+// Per-account failure lock (security audit 10/24): the per-IP limiter alone
+// can be dodged by rotating addresses, so each sign-in name also gets its
+// own budget — 10 wrong passwords locks that name for 15 minutes. Failures
+// are audited (login_failed) so a guessing run is visible in the Audit Log.
+const LOGIN_FAIL_MAX = 10;
+const LOGIN_FAIL_WINDOW_MS = 15 * 60 * 1000;
+const loginFailures = new Map(); // normalized identifier -> { count, resetAt }
+setInterval(() => {
+  const now = Date.now();
+  for (const [k, v] of loginFailures) if (now > v.resetAt) loginFailures.delete(k);
+}, 5 * 60 * 1000).unref?.();
+function loginFailureKey(identifier) { return normalizeUsernameValue(identifier).slice(0, 200); }
+function loginLocked(identifier) {
+  const e = loginFailures.get(loginFailureKey(identifier));
+  return Boolean(e && e.count >= LOGIN_FAIL_MAX && Date.now() <= e.resetAt);
+}
+function noteLoginFailure(req, identifier, reason) {
+  const key = loginFailureKey(identifier);
+  const now = Date.now();
+  const e = loginFailures.get(key);
+  if (!e || now > e.resetAt) loginFailures.set(key, { count: 1, resetAt: now + LOGIN_FAIL_WINDOW_MS });
+  else e.count += 1;
+  recordAudit({ ip: req.ip, actorUserId: null, action: "login_failed", targetUserId: null,
+    detail: { identifier: key, reason, ip: req.ip, ua: String(req.get("user-agent") || "").slice(0, 120) } }).catch(() => {});
+}
+function clearLoginFailures(identifier) { loginFailures.delete(loginFailureKey(identifier)); }
+
 app.post("/api/login", rateLimit("login", 10, 15 * 60 * 1000), async (req, res) => {
   const { username = "", email = "", password = "" } = req.body || {};
   const identifier = String(email || username || "").trim();
@@ -2136,29 +2230,14 @@ app.post("/api/login", rateLimit("login", 10, 15 * 60 * 1000), async (req, res) 
   if (!identifier || !password) {
     return res.status(401).json({ error: GENERIC_LOGIN_ERROR });
   }
-
-  // 1. Legacy shared leader login — only while the feature flag is on.
-  if (
-    LEGACY_SHARED_LOGIN_ENABLED &&
-    normalizeUsernameValue(identifier) === normalizeUsernameValue(LEADER_USERNAME) &&
-    LEADER_PASSWORD &&
-    timingSafeStringEqual(password, LEADER_PASSWORD)
-  ) {
-    const user = buildSessionUser({
-      username: LEADER_USERNAME,
-      displayName: "Wilson",
-      role: "leader",
-      accessGroup: "leader"
-    });
-    setAuthCookie(req, res, user);
-
-    return res.json({
-      success: true,
-      user: { ...user, isExecutive: false, kind: "legacy" }
-    });
+  // The lock never applies to a CORRECT break-glass password — otherwise a
+  // guesser could lock the recovery login itself by hammering that name.
+  if (!isBreakGlassCredentials(identifier, password) && loginLocked(identifier)) {
+    // Same wording as a wrong password — a guesser learns nothing from the lock.
+    return res.status(401).json({ error: GENERIC_LOGIN_ERROR });
   }
 
-  // 2. Env break-glass executive — always available.
+  // 1. Env break-glass executive — always available.
   if (isBreakGlassCredentials(identifier, password)) {
     if (isUserStoreConfigured()) {
       try {
@@ -2169,6 +2248,7 @@ app.post("/api/login", rateLimit("login", 10, 15 * 60 * 1000), async (req, res) 
           ttlSeconds: SESSION_TTL_SECONDS
         });
         setDbSessionCookie(req, res, token);
+        clearLoginFailures(identifier);
         recordAudit({
       ip: req.ip,
           actorUserId: userRow.id,
@@ -2192,10 +2272,12 @@ app.post("/api/login", rateLimit("login", 10, 15 * 60 * 1000), async (req, res) 
       accessGroup: "executive"
     });
     setAuthCookie(req, res, user);
+    clearLoginFailures(identifier);
+    console.error("Break-glass login used with the database unreachable (signed-cookie fallback) from", req.ip);
     return res.json({ success: true, user: { ...user, isExecutive: true, kind: "legacy" } });
   }
 
-  // 3. Database-backed individual accounts.
+  // 2. Database-backed individual accounts.
   if (!isUserStoreConfigured()) {
     return res.status(401).json({ error: GENERIC_LOGIN_ERROR });
   }
@@ -2211,9 +2293,11 @@ app.post("/api/login", rateLimit("login", 10, 15 * 60 * 1000), async (req, res) 
       userRow.status !== "active" ||
       !userRow.email_verified_at
     ) {
+      noteLoginFailure(req, identifier, !userRow ? "no_such_user" : !passwordOk ? "bad_password" : userRow.status !== "active" ? "inactive" : "unverified");
       return res.status(401).json({ error: GENERIC_LOGIN_ERROR });
     }
 
+    clearLoginFailures(identifier);
     const token = await createSession(userRow.id, {
       ip: req.ip,
       userAgent: req.get("user-agent"),
@@ -2243,6 +2327,9 @@ app.post("/api/logout", async (req, res) => {
 
     if (rawValue && !rawValue.includes(".") && isUserStoreConfigured()) {
       await deleteSessionByToken(rawValue);
+      if (req.authUser?.id) {
+        recordAudit({ ip: req.ip, actorUserId: req.authUser.id, action: "logout", targetUserId: req.authUser.id, detail: { ip: req.ip } }).catch(() => {});
+      }
     }
   } catch (err) {
     console.error("Logout session cleanup failed:", err.message);
@@ -2268,7 +2355,7 @@ app.get("/api/auth/session", async (req, res) => {
     avatar,
     grantedPages: getEffectivePagesForUser(req.authUser),
     canManageUsers: isExecutiveUser(req.authUser),
-    legacyLoginEnabled: LEGACY_SHARED_LOGIN_ENABLED,
+    legacyLoginEnabled: false, // shared login removed 2026-10-24
     availableAccessGroups: ACCESS_GROUPS,
     pageLabels: PAGE_LABELS,
     pageCategories: buildCategoriesPayload(),
@@ -2380,7 +2467,7 @@ app.get("/api/me/avatar", async (req, res) => {
     const meta = email.includes("@") ? await getSignaturePhotoByEmail(email) : null;
     const photo = meta ? await getSignaturePhoto(meta.id) : null;
     if (!photo) return res.status(404).json({ error: "No photo on file." });
-    res.setHeader("Content-Type", photo.contentType || "image/jpeg");
+    sendStoredBlobHeaders(res, photo.contentType, "image/jpeg");
     res.setHeader("Cache-Control", "private, max-age=3600");
     return res.send(Buffer.from(photo.bytes));
   } catch (err) {
@@ -2682,9 +2769,13 @@ app.post("/api/auth/register", rateLimit("register", 5, 15 * 60 * 1000), async (
         targetUserId: userRow.id,
         detail: { ip: req.ip }
       }).catch(() => {});
-    } else if (existing.status === "pending_verification" || existing.status === "invited") {
+    } else if (existing.status === "pending_verification") {
       // Not yet verified: whoever controls the mailbox wins. Update the
-      // password and send a fresh single-use verification link.
+      // password and send a fresh single-use verification link. (Audit 10/24:
+      // INVITED accounts are no longer touched here — their password is set
+      // through the invite link only, so a stranger registering with a
+      // colleague's address can't pre-load a password that the colleague's
+      // own invite click would then activate.)
       const passwordHash = await hashPassword(password);
       await updateUserPassword(existing.id, passwordHash);
       if (resolvedDisplayName) {
@@ -2939,7 +3030,7 @@ app.get("/api/admin/users", requireExecutiveApi, async (req, res) => {
       commissionPlans: COMMISSION_PLANS,
       departments: await listDepartments(),
       allowedDomain: getAllowedSignupDomain(),
-      legacyLoginEnabled: LEGACY_SHARED_LOGIN_ENABLED
+      legacyLoginEnabled: false // shared login removed 2026-10-24
     });
   } catch (err) {
     console.error("List users failed:", err.message);
@@ -3283,6 +3374,9 @@ app.post("/api/admin/users/:userId/status", requireExecutiveApi, async (req, res
     if (req.authUser.id && req.authUser.id === userRow.id && status === "disabled") {
       return res.status(400).json({ error: "You cannot disable your own account." });
     }
+    if (status === "disabled" && userRow.is_executive && await countOtherActiveExecutives(userRow.id) === 0) {
+      return res.status(400).json({ error: "That is the last active executive account — make someone else an executive first." });
+    }
 
     // Disabling deletes the user's sessions inside the same transaction, so
     // their access is revoked on the next request.
@@ -3305,6 +3399,9 @@ app.post("/api/admin/users/:userId/executive", requireExecutiveApi, async (req, 
 
     if (req.authUser.id && req.authUser.id === userRow.id && !isExecutive) {
       return res.status(400).json({ error: "You cannot remove your own executive access." });
+    }
+    if (!isExecutive && userRow.is_executive && await countOtherActiveExecutives(userRow.id) === 0) {
+      return res.status(400).json({ error: "That is the last active executive account — make someone else an executive first." });
     }
 
     await setUserExecutive(userRow.id, isExecutive, req.authUser.id || null, req.ip);
@@ -3977,6 +4074,166 @@ app.post(
 
 // Email the finished documents (complete merged package / specs only / ePASS
 // file only) to the chosen recipients via Resend with attachments.
+// ---------------------------------------------------------------------------
+// Spec package messages — Quick Send (template) or Custom (edited by the
+// salesperson before sending; Andrew 10/23). The templates below are the
+// single source: the page previews them through /message-templates, and the
+// send routes fall back to them when no custom body is given.
+// ---------------------------------------------------------------------------
+const SPEC_EMAIL_SUBJECT = "Specification Documents from Wilson AC & Appliance";
+const SPEC_EMAIL_BODY_MAX = 5000;
+const SPEC_TEXT_BODY_MAX = 1000;
+
+function specPackageFileBase(salesOrder, navId) {
+  return String(salesOrder || navId || "").replace(/[^A-Za-z0-9 ._-]+/g, "").trim().slice(0, 60) || "spec-package";
+}
+function specPackageAttachmentNames({ salesOrder, navId, contents, variant }) {
+  const base = specPackageFileBase(salesOrder, navId);
+  const v = String(variant || "slim").toLowerCase() === "full" ? "full" : "slim";
+  const names = [];
+  if (contents?.complete) names.push(`${base}-complete.pdf`);
+  if (contents?.specsOnly) names.push(`${base}-specs-${v}.pdf`);
+  if (contents?.epassOnly) names.push(`${base}-sales-order.pdf`);
+  return names;
+}
+function specPackageEmailTemplate({ salesOrder, filenames, salespersonName }) {
+  return [
+    "Hello,",
+    "",
+    "Attached are the documents for your order" + (salesOrder ? ` ${salesOrder}` : "") + ":",
+    ...filenames.map((f) => `• ${f}`),
+    "",
+    "Questions? Call or text Wilson AC & Appliance at 512-894-0907.",
+    "",
+    ...(salespersonName ? [salespersonName] : []),
+    "Wilson AC & Appliance",
+    "4205 E Hwy 290",
+    "Dripping Springs, TX 78620"
+  ].join("\n");
+}
+const SPEC_TEXT_LINKS = { open: "View package", slim: "Slim package", ask: "Customer Q&A page" };
+function specPackageTextTemplate({ customerName, salesOrder, salespersonName, linkKind, url }) {
+  const first = String(customerName || "").trim().split(/\s+/)[0] || "";
+  const who = salespersonName ? `${salespersonName} with Wilson AC & Appliance` : "Wilson AC & Appliance";
+  const ref = salesOrder ? ` for your order ${salesOrder}` : "";
+  const what = linkKind === "ask"
+    ? `Here's a page where you can view the spec sheets${ref} and ask us questions`
+    : `Here are the spec sheets${ref}`;
+  const tail = linkKind === "ask" ? "You can also just reply to this text." : "Questions? Just reply to this text.";
+  return `${first ? `Hi ${first}, this` : "This"} is ${who}. ${what}: ${url} ${tail}`;
+}
+async function resolveSalespersonName(salespersonEmail) {
+  const email = String(salespersonEmail || "").trim();
+  if (!email || !email.includes("@")) return "";
+  try {
+    const row = await findUserByEmail(email);
+    return row?.display_name || "";
+  } catch (lookupErr) {
+    console.error("Salesperson lookup failed:", lookupErr.message);
+    return "";
+  }
+}
+// Public Steel Cod URLs for a package, resolved as the acting user. Cached
+// briefly so previewing the text template doesn't hit Steel Cod on every
+// dropdown change.
+const specPackageUrlMemo = new Map();
+async function specPackagePublicUrls({ userEmail, navId }) {
+  const key = `${userEmail}|${navId}`;
+  const hit = specPackageUrlMemo.get(key);
+  if (hit && Date.now() - hit.at < 10 * 60 * 1000) return hit.urls;
+  const pkg = await retrieveSpecPackage({ userEmail, navId });
+  const publicUrl = findSpecPackageUrl(pkg, navId);
+  const urls = publicUrl ? buildSpecPackageUrls(publicUrl) : null;
+  if (!urls) throw specUserError("Steel Cod did not return a link for that spec package.");
+  specPackageUrlMemo.set(key, { at: Date.now(), urls });
+  return urls;
+}
+function specTextUrlFor(urls, linkKind) {
+  return linkKind === "slim" ? urls.slimOpen : linkKind === "ask" ? urls.ask : urls.open;
+}
+
+// Preview both templates for the page (so Custom starts from exactly what
+// Quick Send would have sent).
+app.post("/api/spec-packages/:navId/message-templates", requirePagePermission("/spec-packages.html"), async (req, res) => {
+  const userEmail = resolveSteelCodUserEmail(req, res);
+  if (!userEmail) return;
+  try {
+    const navId = req.params.navId;
+    const salesOrder = String(req.body?.salesOrder || "").trim();
+    const salespersonName = await resolveSalespersonName(req.body?.salespersonEmail);
+    const filenames = specPackageAttachmentNames({ salesOrder, navId, contents: req.body?.contents || {}, variant: req.body?.variant });
+    const linkKind = SPEC_TEXT_LINKS[req.body?.link] ? req.body.link : "open";
+    let text = null;
+    let textError = "";
+    try {
+      const urls = await specPackagePublicUrls({ userEmail, navId });
+      const url = specTextUrlFor(urls, linkKind);
+      text = { body: specPackageTextTemplate({ customerName: req.body?.customerName, salesOrder, salespersonName, linkKind, url }), url, link: linkKind };
+    } catch (err) {
+      textError = err.userFacing ? err.message : "Unable to get the package link from Steel Cod.";
+    }
+    return res.json({
+      email: { subject: SPEC_EMAIL_SUBJECT, body: specPackageEmailTemplate({ salesOrder, filenames, salespersonName }), attachments: filenames },
+      text, textError,
+      limits: { email: SPEC_EMAIL_BODY_MAX, text: SPEC_TEXT_BODY_MAX }
+    });
+  } catch (err) {
+    return sendSteelCodError(res, err, "Unable to build the message preview.");
+  }
+});
+
+// Explicit, on-click TEXT of the public package link (Podium, showroom
+// number). PDFs can't ride on a text, so this sends the Steel Cod link —
+// View / Slim / Q&A page. The merged quote+specs PDF stays email-only.
+app.post("/api/spec-packages/:navId/text", requirePagePermission("/spec-packages.html"), async (req, res) => {
+  const userEmail = resolveSteelCodUserEmail(req, res);
+  if (!userEmail) return;
+  try {
+    if (!podiumSendConfigured()) {
+      return res.status(503).json({ error: "Texting isn't connected — connect Podium in Text Automations first." });
+    }
+    const phone = String(req.body?.phone || "").replace(/\D/g, "");
+    if (phone.length !== 10 && !(phone.length === 11 && phone.startsWith("1"))) {
+      return res.status(400).json({ error: "Enter the client's 10-digit mobile number." });
+    }
+    const navId = req.params.navId;
+    const salesOrder = String(req.body?.salesOrder || "").trim();
+    const linkKind = SPEC_TEXT_LINKS[req.body?.link] ? req.body.link : "open";
+    const urls = await specPackagePublicUrls({ userEmail, navId });
+    const url = specTextUrlFor(urls, linkKind);
+
+    const custom = String(req.body?.customBody || "").replace(/\r\n/g, "\n").trim();
+    if (custom.length > SPEC_TEXT_BODY_MAX) {
+      return res.status(400).json({ error: `Keep the text under ${SPEC_TEXT_BODY_MAX} characters.` });
+    }
+    let body;
+    let mode = "template";
+    if (custom) {
+      mode = "custom";
+      // The whole point of the text is the link: if it was edited out, put it back.
+      body = custom.includes(url) ? custom : `${custom} ${url}`;
+    } else {
+      const salespersonName = await resolveSalespersonName(req.body?.salespersonEmail);
+      body = specPackageTextTemplate({ customerName: req.body?.customerName, salesOrder, salespersonName, linkKind, url });
+    }
+
+    const result = await sendCustomerText({ phone, body });
+    if (!result.ok) {
+      return res.status(502).json({ error: "The text didn't go through — try again or copy the link instead." });
+    }
+    recordAudit({
+      ip: req.ip, actorUserId: req.authUser?.id || null,
+      action: "spec_package_texted", targetUserId: null,
+      detail: { navId, salesOrder, to: phone, link: linkKind, mode, chars: body.length, transport: result.transport }
+    }).catch(() => {});
+    return res.json({ ok: true, to: phone, link: linkKind, mode });
+  } catch (err) {
+    console.error("Spec package text failed:", err.message);
+    const message = (err.userFacing || err instanceof SteelCodError) ? err.message : "Unable to send the text right now.";
+    return res.status(400).json({ error: message });
+  }
+});
+
 app.post("/api/spec-packages/:navId/email", requirePagePermission("/spec-packages.html"), async (req, res) => {
   try {
     if (!isSteelCodConfigured()) return res.status(503).json({ error: "Steel Cod is not configured yet." });
@@ -4025,8 +4282,12 @@ app.post("/api/spec-packages/:navId/email", requirePagePermission("/spec-package
       quoteBytes = quote.bytes;
     }
 
-    const base = String(req.body?.salesOrder || req.params.navId)
-      .replace(/[^A-Za-z0-9 ._-]+/g, "").trim().slice(0, 60) || "spec-package";
+    const customBody = String(req.body?.customBody || "").replace(/\r\n/g, "\n").trim();
+    if (customBody.length > SPEC_EMAIL_BODY_MAX) {
+      return res.status(400).json({ error: `Keep the message under ${SPEC_EMAIL_BODY_MAX} characters.` });
+    }
+
+    const base = specPackageFileBase(req.body?.salesOrder, req.params.navId);
 
     const attachments = [];
     if (wantComplete) {
@@ -4045,31 +4306,15 @@ app.post("/api/spec-packages/:navId/email", requirePagePermission("/spec-package
 
     // Sign with the salesperson's name (matched from Users by the form's
     // salesperson email) so the email reads like it came from a person.
-    let salespersonName = "";
-    const salespersonEmail = String(req.body?.salespersonEmail || "").trim();
-    if (salespersonEmail && salespersonEmail.includes("@")) {
-      try {
-        const salespersonRow = await findUserByEmail(salespersonEmail);
-        salespersonName = salespersonRow?.display_name || "";
-      } catch (lookupErr) {
-        console.error("Salesperson lookup failed:", lookupErr.message);
-      }
-    }
-
-    const subject = "Specification Documents from Wilson AC & Appliance";
-    const bodyText = [
-      "Hello,",
-      "",
-      "Attached are the documents for your order" + (req.body?.salesOrder ? ` ${req.body.salesOrder}` : "") + ":",
-      ...attachments.map((a) => `• ${a.filename}`),
-      "",
-      "Questions? Call or text Wilson AC & Appliance at 512-894-0907.",
-      "",
-      ...(salespersonName ? [salespersonName] : []),
-      "Wilson AC & Appliance",
-      "4205 E Hwy 290",
-      "Dripping Springs, TX 78620"
-    ].join("\n");
+    // Custom Message: the salesperson's edited body is sent as-is (plain
+    // text); the subject and attachments are unchanged.
+    const salespersonName = await resolveSalespersonName(req.body?.salespersonEmail);
+    const subject = SPEC_EMAIL_SUBJECT;
+    const bodyText = customBody || specPackageEmailTemplate({
+      salesOrder: String(req.body?.salesOrder || "").trim(),
+      filenames: attachments.map((a) => a.filename),
+      salespersonName
+    });
 
     const response = await fetch("https://api.resend.com/emails", {
       method: "POST",
@@ -4098,7 +4343,7 @@ app.post("/api/spec-packages/:navId/email", requirePagePermission("/spec-package
       actorUserId: req.authUser?.id || null,
       action: "spec_package_emailed",
       targetUserId: null,
-      detail: { navId: req.params.navId, salesOrder: req.body?.salesOrder || "", to: uniqueRecipients, files: attachments.map((a) => a.filename) }
+      detail: { navId: req.params.navId, salesOrder: req.body?.salesOrder || "", to: uniqueRecipients, files: attachments.map((a) => a.filename), mode: customBody ? "custom" : "template" }
     }).catch(() => {});
 
     return res.json({ success: true, sent: uniqueRecipients.length, files: attachments.map((a) => a.filename) });
@@ -4148,6 +4393,23 @@ function detectImageType(bytes) {
   if (bytes[0] === 0xff && bytes[1] === 0xd8) return "image/jpeg";
   if (bytes[0] === 0x89 && bytes.subarray(1, 4).toString("latin1") === "PNG") return "image/png";
   return null;
+}
+
+// Audit 10/24: uploaded "images" used to be accepted on the browser's say-so
+// (any image/* MIME) and served back with that same type. An SVG is an
+// image/* that can carry <script>, so a planted file opened from the
+// dashboard would run as the signed-in reviewer. Two layers: uploads must be
+// a raster type, and every stored blob is served with a CSP that forbids
+// scripts and forces anything non-raster to download instead of render.
+const SAFE_IMAGE_MIME_RE = /^image\/(?:jpe?g|png|gif|webp|heic|heif|bmp|tiff?|avif)$/i;
+function isSafeImageMime(mime) { return SAFE_IMAGE_MIME_RE.test(String(mime || "").split(";")[0].trim()); }
+function sendStoredBlobHeaders(res, contentType, fallback = "application/octet-stream") {
+  const type = String(contentType || fallback).split(";")[0].trim().toLowerCase() || fallback;
+  const inlineOk = isSafeImageMime(type) || type === "application/pdf";
+  res.setHeader("Content-Type", inlineOk ? type : "application/octet-stream");
+  res.setHeader("Content-Security-Policy", "default-src 'none'; style-src 'unsafe-inline'; sandbox");
+  if (!inlineOk) res.setHeader("Content-Disposition", "attachment");
+  return type;
 }
 
 function buildSignaturePhotoUrl(req, id) {
@@ -4205,7 +4467,7 @@ app.get("/public/signature-photos/:id", async (req, res) => {
     if (!photo) {
       return res.status(404).send("Photo not found.");
     }
-    res.setHeader("Content-Type", photo.contentType);
+    sendStoredBlobHeaders(res, photo.contentType, "image/jpeg");
     res.setHeader("Cache-Control", "public, max-age=86400");
     res.setHeader("X-Content-Type-Options", "nosniff");
     return res.send(Buffer.from(photo.bytes));
@@ -4858,7 +5120,7 @@ app.post("/api/card-receipts", requirePagePermission("/receipts.html"), (req, re
       // Photos from a phone, or a PDF from the desktop (emailed receipts,
       // vendor portals). A PDF is recognised by its bytes, not just its type.
       const isPdf = String(file.mimetype || "").toLowerCase() === "application/pdf" || file.buffer.subarray(0, 5).toString("latin1") === "%PDF-";
-      if (!isPdf && !String(file.mimetype || "").startsWith("image/")) return res.status(415).json({ error: "The receipt must be a photo or a PDF." });
+      if (!isPdf && !isSafeImageMime(file.mimetype)) return res.status(415).json({ error: "The receipt must be a photo (JPEG, PNG, HEIC) or a PDF." });
       // Negative = a return / credit back to the card; zero is never a receipt.
       if (!Number.isFinite(amount) || amount === 0 || Math.abs(amount) > 100000) return res.status(400).json({ error: "Enter the receipt amount (negative for a return or credit)." });
       if (!purpose) return res.status(400).json({ error: "Enter the business purpose." });
@@ -4891,7 +5153,7 @@ app.get("/api/card-receipts/:id/photo", async (req, res) => {
     if (receipt.filedByEmail !== me.email && receipt.cardholderEmail !== me.email && !isReceiptReviewer(req.authUser)) return res.status(403).json({ error: "Not your receipt." });
     const photo = await getCardReceiptPhoto(receipt);
     if (!photo) return res.status(404).json({ error: "No photo on this receipt." });
-    res.setHeader("Content-Type", photo.contentType || "image/jpeg");
+    sendStoredBlobHeaders(res, photo.contentType, "image/jpeg");
     if (String(photo.contentType || "").toLowerCase() === "application/pdf") res.setHeader("Content-Disposition", `inline; filename="receipt-${receipt.spentOn || "file"}.pdf"`);
     res.setHeader("Cache-Control", "private, max-age=86400");
     return res.send(photo.bytes);
@@ -5501,7 +5763,7 @@ app.post("/api/fleet/vehicles/:id/service", requireFleet, (req, res) => {
   fleetInvoiceUpload.single("invoice")(req, res, async (err) => {
     if (err) return res.status(400).json({ error: err.code === "LIMIT_FILE_SIZE" ? "That invoice image is larger than 12 MB." : "Couldn't read the upload." });
     try {
-      const file = req.file && String(req.file.mimetype || "").startsWith("image/") ? { buffer: req.file.buffer, contentType: req.file.mimetype } : null;
+      const file = req.file && isSafeImageMime(req.file.mimetype) ? { buffer: req.file.buffer, contentType: req.file.mimetype } : null;
       if (req.file && !file) return res.status(415).json({ error: "The invoice must be an image (photo or screenshot)." });
       const v = await addServiceEntry(req.params.id, req.body || {}, { byEmail: fleetMe(req), invoice: file });
       fleetAudit(req, "fleet_service_logged", { vehicleId: req.params.id, task: req.body?.task, cost: req.body?.cost, paidVia: req.body?.paidVia, receiptId: req.body?.receiptId || "" });
@@ -5517,7 +5779,7 @@ app.get("/api/fleet/service/:entryId/invoice", requireFleet, async (req, res) =>
   try {
     const photo = await getServiceInvoicePhoto(req.params.entryId);
     if (!photo) return res.status(404).json({ error: "No invoice on this entry." });
-    res.setHeader("Content-Type", photo.contentType || "image/jpeg");
+    sendStoredBlobHeaders(res, photo.contentType, "image/jpeg");
     res.setHeader("Cache-Control", "private, max-age=86400");
     return res.send(photo.bytes);
   } catch (err) { return res.status(500).json({ error: "Unable to load the invoice." }); }
@@ -5567,7 +5829,7 @@ app.get("/api/fleet/renewals/:rid/document", requireFleet, async (req, res) => {
   try {
     const doc = await getRenewalDocument(req.params.rid);
     if (!doc) return res.status(404).json({ error: "No document on this renewal." });
-    res.setHeader("Content-Type", doc.contentType || "application/octet-stream");
+    sendStoredBlobHeaders(res, doc.contentType);
     res.setHeader("Content-Disposition", `inline; filename="${String(doc.name || "document").replace(/["\r\n]/g, "")}"`);
     res.setHeader("Cache-Control", "private, max-age=86400");
     return res.send(doc.bytes);
@@ -5855,9 +6117,9 @@ app.delete("/api/admin/users/:id", requireExecutiveApi, async (req, res) => {
 // authenticated user (including zero-permission accounts) could download the
 // data ledgers (customer PII), the server source, SQL, and internal docs.
 // Explicitly deny everything that is not a front-end asset.
-const STATIC_DENY_DIRS = /^\/(data|sql|docs|lib|scripts|items|node_modules|_to_delete|tmp_[^/]+)\//i;
-const STATIC_DENY_FILES = /\.(json|sql|md|xlsx|xlsm|csv|log|txt|env|lock)$/i;
-const STATIC_DENY_EXACT = new Set(["/server.js", "/employee-directory.js"]); // employee-directory.js is served by its DB route above
+const STATIC_DENY_DIRS = /^\/(data|sql|docs|lib|scripts|items|node_modules|_to_delete|tmp_[^/]+|odbc|deliver|service_call_journey|\.[^/]+)\//i;
+const STATIC_DENY_FILES = /\.(json|sql|md|xlsx|xlsm|xls|csv|log|txt|env|lock|mjs|cjs|ps1|sh|bat|cmd|ya?ml|toml|bak|pem|key|crt|map|zip|gz|db|sqlite)$/i;
+const STATIC_DENY_EXACT = new Set(["/server.js", "/employee-directory.js", "/package.json", "/package-lock.json", "/render.yaml", "/Dockerfile", "/Procfile"]); // employee-directory.js is served by its DB route above
 
 app.use((req, res, next) => {
   const requestPath = decodeURIComponent(req.path);
@@ -6175,7 +6437,7 @@ app.get("/api/promo/photo/:model", async (req, res) => {
   try {
     const photo = await getPromoPhoto(req.params.model);
     if (!photo) return res.status(404).end();
-    res.setHeader("Content-Type", photo.contentType || "image/jpeg");
+    sendStoredBlobHeaders(res, photo.contentType, "image/jpeg");
     res.setHeader("Cache-Control", "public, max-age=3600");
     return res.end(photo.bytes);
   } catch { return res.status(404).end(); }
@@ -7324,7 +7586,7 @@ function shopperProfilePayload(shopper) {
 
 // PUBLIC: the pricing wall. Registration requires the contact details the
 // sales team needs to finish the order, and the shipping ZIP must be in zone.
-app.post("/api/shop/register", async (req, res) => {
+app.post("/api/shop/register", rateLimit("shop-register", 20, 60 * 60 * 1000), async (req, res) => {
   try {
     const checked = validateShopperFields(req.body);
     if (checked.error) return res.status(400).json({ error: checked.error });
@@ -7451,6 +7713,12 @@ app.post("/api/shop/signin", async (req, res) => {
     });
     if (!shopper) {
       return res.status(401).json({ error: "That last name doesn't match what we have for this number. Double-check the spelling, or use one of the other sign-in options below." });
+    }
+    // Audit 10/24: once a shopper has set a password, phone + last name (both
+    // public facts) must not hand out their session — the password is the
+    // whole point. Profiles without a password keep the easy path.
+    if (shopper.hasPassword) {
+      return res.status(403).json({ hasPassword: true, error: "This profile has a password — sign in above with your phone number and password (or restore with your client code)." });
     }
     recordAudit({
       ip: req.ip, actorUserId: null,
@@ -7734,7 +8002,7 @@ app.post("/api/shop/stock-models/:model", requirePagePermission("/shop-orders.ht
 // PUBLIC: begin checkout — validates the cart against live availability and
 // opens a SetupIntent (card saved for the order, charged only by the sales
 // team when the order is finalized).
-app.post("/api/shop/setup-intent", async (req, res) => {
+app.post("/api/shop/setup-intent", rateLimit("shop-setup-intent", 30, 60 * 60 * 1000), async (req, res) => {
   try {
     const shopper = await getShopperByToken(req.body?.token);
     if (!shopper) return res.status(401).json({ error: "Please register to check out." });
@@ -8522,7 +8790,7 @@ function closedEstimateRow(estimate) {
   return { ...estimate, ...o, invoiceTotal: s.invoiceTotal ?? null, paid: sm.paid != null ? Number(sm.paid) : (s.paid || 0), amountDue: sm.amountDue != null ? Number(sm.amountDue) : (s.amountDue ?? null) };
 }
 function closedEstimatesCsv(rows) {
-  const cell = (v) => { const t = v == null ? "" : String(v); return /[",\r\n]/.test(t) ? `"${t.replace(/"/g, '""')}"` : t; };
+  const cell = csvSafeCell;
   const local = (iso) => iso ? new Date(iso).toLocaleString("en-US", { timeZone: APP_TIMEZONE, year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false }) : "";
   const monthOf = (iso) => iso ? new Date(iso).toLocaleDateString("en-CA", { timeZone: APP_TIMEZONE }).slice(0, 7) : "";
   const days = (a, b) => a && b ? Math.round((new Date(b) - new Date(a)) / 864e5 * 10) / 10 : "";
@@ -8627,7 +8895,7 @@ app.get("/estimate-doc.pdf", async (req, res) => {
 });
 
 // PUBLIC: the client's decision. First response wins.
-app.post("/api/estimate/respond", async (req, res) => {
+app.post("/api/estimate/respond", rateLimit("estimate-respond", 30, 60 * 60 * 1000), async (req, res) => {
   try {
     const token = String(req.body?.token || "").slice(0, 60);
     const choice = String(req.body?.choice || "");
@@ -9512,7 +9780,7 @@ app.post("/api/deliveries/stops/:id/signature", requireDriver, async (req, res) 
 // their estimate link. Minted on the Service Request Queue; "Copy journey
 // link" on the queue card and the board.
 const journeyUrl = (token) => `https://${SERVICE_PUBLIC_HOST}/journey.html?j=${token}`;
-app.post("/api/journey", async (req, res) => {
+app.post("/api/journey", rateLimit("journey", 120, 15 * 60 * 1000), async (req, res) => {
   try {
     const data = await resolveJourney(String(req.body?.token || ""), {
       cardById: async (id) => (await readServiceCards()).find((c) => c.id === id) || null,
@@ -9538,7 +9806,7 @@ app.post("/api/service-cards/:id/journey-link", requirePagePermission("/applianc
 
 // ---- PUBLIC: customer tracking page ---------------------------------------
 
-app.post("/api/track", async (req, res) => {
+app.post("/api/track", rateLimit("track", 120, 15 * 60 * 1000), async (req, res) => {
   try {
     const stop = await getDeliveryStopByToken(String(req.body?.token || "").slice(0, 80));
     if (!stop) return res.status(404).json({ error: "This tracking link isn't valid." });
@@ -9582,7 +9850,7 @@ app.post("/api/track", async (req, res) => {
 
 app.post("/api/samsara/webhook/:key", async (req, res) => {
   try {
-    if (!SAMSARA_WEBHOOK_KEY || req.params.key !== SAMSARA_WEBHOOK_KEY) {
+    if (!SAMSARA_WEBHOOK_KEY || !timingSafeStringEqual(String(req.params.key || ""), SAMSARA_WEBHOOK_KEY)) {
       return res.status(403).json({ error: "Bad key." });
     }
     const event = parseGeofenceEvent(req.body || {});
@@ -9680,7 +9948,26 @@ app.get("/api/subzero/slots", async (req, res) => {
 // an email to every consultant whose job title receives web-order alerts.
 // With a slot picked, the flag becomes a specific DIBS-able appointment.
 const subzeroInquiryAttempts = new Map(); // ip -> [timestamps]
-app.post("/api/subzero/inquiry", async (req, res) => {
+// Audit 10/24: the confirmation text goes to whatever number the form gives,
+// so beyond the per-IP throttle each phone number gets at most 2 confirmation
+// texts a day and the showroom number sends at most 30 of these an hour in
+// total — the form can't be turned into a texting relay.
+const subzeroTextByPhone = new Map(); // last10 -> [timestamps]
+let subzeroTextHour = { at: 0, count: 0 };
+setInterval(() => {
+  const now = Date.now();
+  for (const [k, v] of subzeroInquiryAttempts) if (!v.some((t) => now - t < 60 * 60 * 1000)) subzeroInquiryAttempts.delete(k);
+  for (const [k, v] of subzeroTextByPhone) if (!v.some((t) => now - t < 24 * 60 * 60 * 1000)) subzeroTextByPhone.delete(k);
+}, 10 * 60 * 1000).unref?.();
+function subzeroTextAllowed(last10) {
+  const now = Date.now();
+  if (now - subzeroTextHour.at > 60 * 60 * 1000) subzeroTextHour = { at: now, count: 0 };
+  const perPhone = (subzeroTextByPhone.get(last10) || []).filter((t) => now - t < 24 * 60 * 60 * 1000);
+  if (perPhone.length >= 2 || subzeroTextHour.count >= 30) return false;
+  perPhone.push(now); subzeroTextByPhone.set(last10, perPhone); subzeroTextHour.count += 1;
+  return true;
+}
+app.post("/api/subzero/inquiry", rateLimit("subzero-inquiry", 10, 60 * 60 * 1000), async (req, res) => {
   try {
     const now = Date.now();
     const hits = (subzeroInquiryAttempts.get(req.ip) || []).filter((t) => now - t < 60 * 60 * 1000);
@@ -9755,8 +10042,9 @@ app.post("/api/subzero/inquiry", async (req, res) => {
     // Customer asked to be reached by phone — send a brief confirmation text
     // through the Podium showroom number so the thread starts on their terms.
     // Best-effort: a texting hiccup never blocks the request itself.
-    if ((contactPref === "text" || contactPref === "call") && phoneOk && podiumSendConfigured()) {
-      const first = name.split(/\s+/)[0];
+    if ((contactPref === "text" || contactPref === "call") && phoneOk && podiumSendConfigured() && subzeroTextAllowed(phoneDigits.slice(-10))) {
+      // Only letters/apostrophes/hyphens from the first name reach the text.
+      const first = (name.split(/\s+/)[0] || "").replace(/[^A-Za-z'\-]/g, "").slice(0, 30) || "there";
       const confirmBody = hasSlot
         ? `Hi ${first}, this is Wilson AC & Appliance — we received your design consultation request for ${slotLabel.replace(" · ", " at ")} at our Dripping Springs showroom. A consultant will reach out shortly to confirm. Questions? Just reply to this text.`
         : `Hi ${first}, this is Wilson AC & Appliance — we received your design consultation request. A consultant will reach out within one business day. Questions? Just reply to this text.`;
@@ -9832,7 +10120,7 @@ app.post("/api/subzero/inquiry", async (req, res) => {
 // PUBLIC: finish checkout after the card is saved client-side. Verifies the
 // SetupIntent actually succeeded, re-prices the cart, web-locks the units on
 // the hit list, and files the order for the sales team.
-app.post("/api/shop/submit-order", async (req, res) => {
+app.post("/api/shop/submit-order", rateLimit("shop-submit-order", 20, 60 * 60 * 1000), async (req, res) => {
   try {
     const shopper = await getShopperByToken(req.body?.token);
     if (!shopper) return res.status(401).json({ error: "Please register to check out." });
@@ -10757,7 +11045,11 @@ async function processFinishedOrdersBundle(bundle) {
 }
 
 let epassServiceMirrorChain = Promise.resolve(); // feed mirrors run one after another, off the request
-app.post("/api/epass-agent/upload", express.raw({ type: () => true, limit: "60mb" }), async (req, res) => {
+// Audit 10/24: check the key BEFORE buffering a 60 MB body, so anonymous
+// posts can't tie up memory — a bad key is refused on the headers alone.
+const requireEpassAgentKeyHeader = (req, res, next) => epassAgentKeyOk(req.headers["x-agent-key"]) ? next() : res.status(401).json({ error: "Bad agent key." });
+const requireSnapshotKeyHeader = (req, res, next) => snapshotKeyOk(req.headers["x-snapshot-key"]) ? next() : res.status(401).json({ error: "Bad snapshot key." });
+app.post("/api/epass-agent/upload", requireEpassAgentKeyHeader, express.raw({ type: () => true, limit: "60mb" }), async (req, res) => {
   try {
     if (!EPASS_AGENT_KEY) return res.status(503).json({ error: "Agent uploads are not configured (EPASS_AGENT_KEY)." });
     if (!epassAgentKeyOk(req.headers["x-agent-key"])) return res.status(401).json({ error: "Bad agent key." });
@@ -11673,7 +11965,7 @@ app.post("/api/service-field/photo", requireServiceField, fieldPhotoUpload.singl
   try {
     const file = req.file;
     if (!file || !file.buffer?.length) return res.status(400).json({ error: "No photo received." });
-    if (!/^image\//.test(String(file.mimetype || ""))) return res.status(400).json({ error: "Photos only." });
+    if (!isSafeImageMime(file.mimetype)) return res.status(400).json({ error: "Photos only (JPEG, PNG, HEIC)." });
     const me = sjMe(req);
     const saved = await saveFieldPhoto({ sv: String(req.body?.sv || ""), serial: String(req.body?.serial || ""), kind: String(req.body?.kind || "photo"), contentType: file.mimetype, buffer: file.buffer, tech: String(req.body?.tech || ""), by: me.email });
     return res.json({ ok: true, ...saved });
@@ -11683,7 +11975,7 @@ app.get("/api/service-field/photo/:id", requireServiceField, async (req, res) =>
   try {
     const ph = await getFieldPhoto(req.params.id);
     if (!ph) return res.status(404).json({ error: "No photo." });
-    res.setHeader("Content-Type", ph.contentType || "image/jpeg"); res.setHeader("Cache-Control", "private, max-age=3600");
+    sendStoredBlobHeaders(res, ph.contentType, "image/jpeg"); res.setHeader("Cache-Control", "private, max-age=3600");
     return res.end(ph.bytes);
   } catch (err) { return res.status(400).json({ error: err.message }); }
 });
@@ -12077,7 +12369,7 @@ app.post("/api/epass-uploads/inventory", requirePagePermission("/epass-uploads.h
   });
 });
 
-app.post("/api/shop/inventory-snapshot/file", express.raw({ type: () => true, limit: "60mb" }), async (req, res) => {
+app.post("/api/shop/inventory-snapshot/file", requireSnapshotKeyHeader, express.raw({ type: () => true, limit: "60mb" }), async (req, res) => {
   try {
     if (!SHOP_SNAPSHOT_KEY) return res.status(503).json({ error: "Automated snapshot uploads are not configured (SHOP_SNAPSHOT_KEY)." });
     if (!snapshotKeyOk(req.headers["x-snapshot-key"])) return res.status(401).json({ error: "Bad snapshot key." });
@@ -12106,6 +12398,141 @@ app.post("/api/shop/inventory-snapshot/file", express.raw({ type: () => true, li
     return res.status(400).json({ error: err.message || "Unable to parse that file." });
   }
 });
+
+// ---------------------------------------------------------------------------
+// INVENTORY FEED for an outside website (Andrew 10/22). Read-only, keyed.
+//
+//   GET /api/feeds/inventory.csv   GET /api/feeds/inventory.json
+//
+// Auth: INVENTORY_FEED_KEY (Render env only, never in the repo) presented as
+//   Authorization: Bearer <key>   or   X-Feed-Key: <key>   or   ?key=<key>
+// (the query form is for site builders that can only take a URL; it is the
+// weakest of the three because URLs end up in logs). Compared timing-safe.
+// Optional INVENTORY_FEED_ALLOW_IPS (comma list) pins the pull to the other
+// site's servers. Every pull — good or bad — is rate-limited per IP and
+// audited. Wrong key, missing key, and feed-not-configured all answer the
+// same way so an outsider learns nothing from the difference.
+//
+// Data: the shop inventory snapshot (the ePASS feed's on-hand serials — the
+// same source the online clearance shop sells from), one row per unit.
+// Default = units a customer could actually buy: not written to an invoice,
+// not reserved for someone, not already sold/held on the online shop, and
+// not a brand on the "not sold online" list (Sub-Zero / Wolf / Cove /
+// Gaggenau — the list in Shop Orders). ?all=1 includes every on-hand unit
+// with a Status column saying why it is held. Columns are model, serial,
+// serial type, brand, description, product code, received date, status:
+// nothing about cost or price ever leaves on this feed.
+// ---------------------------------------------------------------------------
+const INVENTORY_FEED_KEY = String(process.env.INVENTORY_FEED_KEY || "");
+const INVENTORY_FEED_ALLOW_IPS = String(process.env.INVENTORY_FEED_ALLOW_IPS || "").split(/[\s,]+/).map((s) => s.trim()).filter(Boolean);
+function inventoryFeedKeyOk(provided) {
+  if (!INVENTORY_FEED_KEY || !provided) return false;
+  const a = Buffer.from(String(provided));
+  const b = Buffer.from(INVENTORY_FEED_KEY);
+  return a.length === b.length && crypto.timingSafeEqual(a, b);
+}
+function inventoryFeedKeyFrom(req) {
+  const auth = String(req.headers.authorization || "");
+  const m = auth.match(/^Bearer\s+(.+)$/i);
+  if (m) return m[1].trim();
+  if (req.headers["x-feed-key"]) return String(req.headers["x-feed-key"]).trim();
+  if (req.query?.key) return String(req.query.key).trim();
+  return "";
+}
+function inventoryFeedIpOk(ip) {
+  if (!INVENTORY_FEED_ALLOW_IPS.length) return true;
+  const bare = String(ip || "").replace(/^::ffff:/, "");
+  return INVENTORY_FEED_ALLOW_IPS.includes(bare) || INVENTORY_FEED_ALLOW_IPS.includes(String(ip || ""));
+}
+const INVENTORY_FEED_COLUMNS = ["model", "serial", "serialType", "brand", "description", "productCode", "received", "status"];
+const INVENTORY_FEED_HEADERS = ["Model", "Serial", "SerialType", "Brand", "Description", "ProductCode", "Received", "Status"];
+
+// Rows for the feed. `all` keeps held units (with their status) instead of
+// dropping them; blocked brands are never included unless `all` is set, and
+// even then they carry status "not sold online".
+async function inventoryFeedRows({ all = false } = {}) {
+  const [snapshot, brandMap, statuses] = await Promise.all([
+    clearanceSnapshot(), getModelBrandMap().catch(() => ({})), listClearanceStatuses().catch(() => [])
+  ]);
+  const brandNames = {};
+  try { const wb = await readClearanceWorkbook(); Object.assign(brandNames, wb?._meta?.brandMap || {}); } catch {}
+  for (const [code, name] of Object.entries(EPASS_BRAND_NAMES_TABLE)) if (!brandNames[code]) brandNames[code] = name;
+  const statusById = new Map(statuses.map((s) => [s.itemId, s]));
+  const brandBlocked = shopBrandBlocker();
+  const rows = [];
+  for (const u of snapshot?.serialUnits || []) {
+    const model = String(u.model || u.sku || "").trim();
+    const serial = String(u.serial || "").trim().toUpperCase();
+    if (!model || !serial) continue;
+    const ns = brandMap[model] || brandMap[model.toUpperCase()] || {};
+    const brandCode = String(u.brand || "").trim().toUpperCase();
+    const brand = ns.brand || brandNames[brandCode] || (brandCode.length > 3 ? brandCode.charAt(0) + brandCode.slice(1).toLowerCase() : brandCode);
+    const taken = statusById.get(`${model}|${serial}#1`) || statusById.get(`${model}|${serial}#S`) || null;
+    const reservedRaw = String(u.reserved || "").trim();
+    let status = "";
+    if (brandBlocked(brand, brandCode)) status = "not sold online";
+    else if (String(u.writtenTo || "").trim()) status = "written to " + String(u.writtenTo).trim();
+    else if (reservedRaw && reservedRaw !== "exclusive") status = "reserved";
+    else if (taken) status = "online " + String(taken.status || "held");
+    if (status && !all) continue;
+    rows.push({
+      model, serial,
+      serialType: String(u.serialType || "").toUpperCase(),
+      brand,
+      description: String(u.description || ns.description || "").trim(),
+      productCode: String(u.prod || ns.prod || "").toUpperCase(),
+      received: String(u.received || "").slice(0, 10),
+      status: status || "available"
+    });
+  }
+  rows.sort((a, b) => a.brand.localeCompare(b.brand) || a.model.localeCompare(b.model) || a.serial.localeCompare(b.serial));
+  return { rows, asOf: snapshot?.uploadedAt || "", source: snapshot?.sourceFile || "" };
+}
+
+const inventoryFeedLimiter = rateLimit("inventory-feed", 60, 10 * 60 * 1000);
+const inventoryFeedAuditStamps = new Map();
+async function serveInventoryFeed(req, res, format) {
+  try {
+    const ip = req.ip || "";
+    const key = inventoryFeedKeyFrom(req);
+    const ok = inventoryFeedIpOk(ip) && inventoryFeedKeyOk(key);
+    if (!ok) {
+      recordAudit({ ip, actorUserId: null, action: "inventory_feed_denied", targetUserId: null,
+        detail: { format, via: req.query?.key ? "query" : req.headers["x-feed-key"] ? "header" : req.headers.authorization ? "bearer" : "none", configured: Boolean(INVENTORY_FEED_KEY), ipAllowed: inventoryFeedIpOk(ip), ua: String(req.headers["user-agent"] || "").slice(0, 120) } }).catch(() => {});
+      res.setHeader("Cache-Control", "no-store");
+      return res.status(401).json({ error: "Unauthorized." });
+    }
+    const all = /^(1|true|yes)$/i.test(String(req.query?.all || ""));
+    const { rows, asOf, source } = await inventoryFeedRows({ all });
+    // A site that polls every few minutes would flood the audit log; one
+    // audit row per IP per 15 minutes carries the pull count instead.
+    const stamp = inventoryFeedAuditStamps.get(ip) || { at: 0, pulls: 0 };
+    stamp.pulls += 1;
+    if (Date.now() - stamp.at > 15 * 60 * 1000) {
+      recordAudit({ ip, actorUserId: null, action: "inventory_feed_pulled", targetUserId: null,
+        detail: { format, all, rows: rows.length, asOf, pullsSinceLast: stamp.pulls, via: req.query?.key ? "query" : req.headers["x-feed-key"] ? "header" : "bearer", ua: String(req.headers["user-agent"] || "").slice(0, 120) } }).catch(() => {});
+      stamp.at = Date.now(); stamp.pulls = 0;
+    }
+    inventoryFeedAuditStamps.set(ip, stamp);
+    res.setHeader("Cache-Control", "no-store");
+    res.setHeader("X-Inventory-As-Of", asOf || "");
+    if (format === "json") {
+      return res.json({ asOf, source, count: rows.length, units: rows });
+    }
+    const csvCell = csvSafeCell;
+    const lines = [INVENTORY_FEED_HEADERS.join(",")];
+    for (const r of rows) lines.push(INVENTORY_FEED_COLUMNS.map((c) => csvCell(r[c])).join(","));
+    res.setHeader("Content-Type", "text/csv; charset=utf-8");
+    res.setHeader("Content-Disposition", `attachment; filename="wilson-inventory_${(asOf || new Date().toISOString()).slice(0, 10)}.csv"`);
+    return res.send(lines.join("\r\n") + "\r\n");
+  } catch (err) {
+    console.error("Inventory feed failed:", err.message);
+    res.setHeader("Cache-Control", "no-store");
+    return res.status(503).json({ error: "Inventory is temporarily unavailable." });
+  }
+}
+app.get("/api/feeds/inventory.csv", inventoryFeedLimiter, (req, res) => serveInventoryFeed(req, res, "csv"));
+app.get("/api/feeds/inventory.json", inventoryFeedLimiter, (req, res) => serveInventoryFeed(req, res, "json"));
 
 // ---------------------------------------------------------------------------
 // MAP/UMRP price feed — fetches the published price spreadsheet
@@ -13182,7 +13609,7 @@ app.get("/api/brand-sales/detail.csv", requirePagePermission("/brand-sales.html"
     const brandFor = (model) => { const m = detail.master[model]; const raw = resolver.brandOf({ model, brandCode: m?.brandCode || "", brand: m?.brand || "" }); return raw ? resolver.displayOf(raw) : BRAND_SALES_UNMATCHED; };
     const supplierFor = (brand) => brand === BRAND_SALES_UNMATCHED ? "" : (supplierOf(brand) || BRAND_SALES_OTHER_SUPPLIER);
     const keep = (brand, supplier) => (!brandFilter || brand === brandFilter) && (!supplierFilter || supplier === supplierFilter);
-    const q = (v) => { const t = v == null ? "" : String(v); return /[",\r\n]/.test(t) ? `"${t.replace(/"/g, '""')}"` : t; };
+    const q = csvSafeCell;
     const money = (n) => n == null || !Number.isFinite(Number(n)) ? "" : Number(n).toFixed(2);
     const head = ["Record", "Brand", "Supplier", "Model", "Description", "Product code", "Invoice", "Invoice type", "Department", "Serial", "Written", "Finished", "Scheduled", "Status", "Job status", "Rep", "Customer", "Qty", "Price", "Discount", "Net revenue", "Unit cost", "Margin", "GM %", "Returned", "Price code", "New/Used", "Serial type", "Priced from line"];
     const lines = [head.map(q).join(",")];
@@ -13713,6 +14140,40 @@ app.post("/api/create-payment-link", requirePagePermission("/index.html"), async
       });
     }
 
+    // Double-create guard (Andrew 10/23: the same order appeared twice on the
+    // dashboard — once as two records sharing one Stripe link, once as two
+    // separate links). If this same order + phone + amount + link type was
+    // created in the last 10 minutes and that link is still live, hand the
+    // existing link back instead of making another. Nothing is charged or
+    // sent by a create, so answering with the same link is always safe.
+    {
+      const DUP_WINDOW_MS = 10 * 60 * 1000;
+      const soKey = String(salesOrder || "").trim().toUpperCase();
+      const phoneKey = String(customerPhoneDigits || customerPhone || "").replace(/\D/g, "");
+      const amountKey = Math.round((Number(amount) || 0) * 100);
+      const recent = (await readLinks()).find((l) =>
+        l && l.active !== false &&
+        ["sent", "viewed"].includes(String(l.status || "")) &&
+        String(l.workflowType || "appliance") === normalizedLinkType &&
+        String(l.salesOrder || "").trim().toUpperCase() === soKey &&
+        String(l.customerPhone || "").replace(/\D/g, "") === phoneKey &&
+        Math.round((Number(l.requestedAmount) || 0) * 100) === amountKey &&
+        l.paymentLinkUrl &&
+        Date.now() - Date.parse(l.createdAt || 0) < DUP_WINDOW_MS
+      );
+      if (recent) {
+        return res.json({
+          url: recent.paymentLinkUrl,
+          id: recent.id,
+          paymentLinkId: recent.paymentLinkId || "",
+          workflowType: normalizedLinkType,
+          depositAgreementId: recent.depositAgreementId || "",
+          duplicate: true,
+          message: `A link for ${recent.salesOrder || "this order"} at this amount was already created ${Math.max(1, Math.round((Date.now() - Date.parse(recent.createdAt)) / 60000))} minute(s) ago — this is that same link, not a new one. Text, email, or copy it below.`
+        });
+      }
+    }
+
 // ---- SetupIntent capture: save a card, charge NOTHING ----
 // Stripe Payment Links can't run in setup mode, so this uses a Checkout
 // Session (mode:"setup") pinned to a pre-created customer — the card
@@ -14148,7 +14609,7 @@ app.get("/api/config", (req, res) => {
   });
 });
 
-app.post("/api/service/setup-intent", async (req, res) => {
+app.post("/api/service/setup-intent", rateLimit("service-setup-intent", 30, 60 * 60 * 1000), async (req, res) => {
   try {
     const {
       customerName,
@@ -15698,7 +16159,7 @@ app.get("/api/sq-truckload/orders/:id/csv", requireSqTruckload, async (req, res)
     let rows;
     if (order.snapshot?.rows) rows = order.snapshot.rows;
     else { const board = await buildSqBoard(); rows = board.rows.filter((r) => r.qty > 0); }
-    const cell = (v) => { const t = v == null ? "" : String(v); return /[",\r\n]/.test(t) ? `"${t.replace(/"/g, '""')}"` : t; };
+    const cell = csvSafeCell;
     const lines = [["family", "note", "model", "qty", "regular_cost", "tl_cost", "line_cost", "savings", "ttm_sales", "qoh", "qoo", "stock_plan", "forecast"].join(",")];
     for (const r of rows) lines.push([r.family, r.note, r.model, r.qty, r.regularCost ?? "", r.tlCost ?? "", r.lineCost ?? "", r.savings ?? "", r.ttm, r.qoh, r.qoo, r.stockPlan, r.forecast].map(cell).join(","));
     res.setHeader("Content-Type", "text/csv; charset=utf-8");
@@ -16050,7 +16511,7 @@ app.get("/api/written-models/csv", requireWrittenModels, async (req, res) => {
   try {
     const board = await buildWrittenModelsBoard({ month: String(req.query.month || ""), through: String(req.query.through || "") });
     const only = String(req.query.supplier || "");
-    const cell = (v) => { const t = v == null ? "" : String(v); return /[",\r\n]/.test(t) ? `"${t.replace(/"/g, '""')}"` : t; };
+    const cell = csvSafeCell;
     const lines = [["supplier", "brand", "model", "description", "stock_class", "written", "qoh", "qoo", "proposed", "invoice", "invoice_date", "customer", "salesperson", "status", "delivery_date", "qty", "sell_price", "std_cost", "margin_rate", "deposit_paid", "deposit_total", "terms"].join(",")];
     for (const g of board.suppliers) {
       if (only && g.supplier !== only) continue;
@@ -17209,7 +17670,7 @@ function sanitizeOnBehalfContact(raw, fields) {
 // here; authed submissions record as internal captures with the staff email.
 // Replaces the FormSite terms form.
 // ---------------------------------------------------------------------------
-app.post("/api/terms/sign", async (req, res) => {
+app.post("/api/terms/sign", rateLimit("terms-sign", 30, 60 * 60 * 1000), async (req, res) => {
   try {
     const record = await saveTermsSignature({
       name: req.body?.name,
@@ -17249,7 +17710,7 @@ app.get("/api/terms-signatures", requirePagePermission("/terms-signatures.html")
 // only, 8MB cap (the form compresses client-side first).
 const customerPhotoUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 8 * 1024 * 1024, files: 1 } });
 
-app.post("/api/service/request-photo", customerPhotoUpload.single("photo"), async (req, res) => {
+app.post("/api/service/request-photo", rateLimit("service-photo", 60, 60 * 60 * 1000), customerPhotoUpload.single("photo"), async (req, res) => {
   try {
     const now = Date.now();
     const key = "svcphoto:" + String(req.ip || "");
@@ -17262,7 +17723,7 @@ app.post("/api/service/request-photo", customerPhotoUpload.single("photo"), asyn
 
     const file = req.file;
     if (!file || !file.buffer?.length) return res.status(400).json({ error: "No photo received." });
-    if (!/^image\//.test(String(file.mimetype || ""))) return res.status(400).json({ error: "Photos only, please." });
+    if (!isSafeImageMime(file.mimetype)) return res.status(400).json({ error: "Photos only, please (JPEG, PNG, HEIC)." });
     const kind = String(req.body?.kind || "") === "signature" ? "signature" : "customer";
     const saved = await saveCustomerRequestPhoto({ contentType: file.mimetype, buffer: file.buffer, kind });
     return res.json({ ok: true, id: saved.id, token: saved.token });
@@ -17272,7 +17733,7 @@ app.post("/api/service/request-photo", customerPhotoUpload.single("photo"), asyn
   }
 });
 
-app.post("/api/service/submit-request", async (req, res) => {
+app.post("/api/service/submit-request", rateLimit("service-request", 20, 60 * 60 * 1000), async (req, res) => {
   try {
     const { serviceRequest, setupIntentId, existingServiceCardId } = req.body;
 
@@ -17566,7 +18027,7 @@ const HVAC_QUOTE_NOTIFY_EMAILS = String(process.env.HVAC_QUOTE_NOTIFY_EMAILS || 
 // Photos are downsized in the browser; short videos come through as-is.
 const customerMediaUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 25 * 1024 * 1024, files: 1 } });
 
-app.post("/api/quote/request-media", (req, res) => {
+app.post("/api/quote/request-media", rateLimit("quote-media", 60, 60 * 60 * 1000), (req, res) => {
   customerMediaUpload.single("media")(req, res, async (err) => {
     if (err) return res.status(400).json({ error: err.code === "LIMIT_FILE_SIZE" ? "That file is over the 25 MB limit — a shorter clip works best." : "Upload failed — please try again." });
     try {
@@ -17579,7 +18040,7 @@ app.post("/api/quote/request-media", (req, res) => {
       const file = req.file;
       if (!file || !file.buffer?.length) return res.status(400).json({ error: "No file received." });
       const mime = String(file.mimetype || "");
-      const isImage = /^image\//.test(mime);
+      const isImage = isSafeImageMime(mime);
       const isVideo = /^video\//.test(mime);
       if (!isImage && !isVideo) return res.status(400).json({ error: "Photos and videos only, please." });
       const saved = await saveCustomerRequestPhoto({ contentType: mime, buffer: file.buffer, kind: isVideo ? "video" : "customer" });
@@ -17591,7 +18052,7 @@ app.post("/api/quote/request-media", (req, res) => {
   });
 });
 
-app.post("/api/quote/submit-request", async (req, res) => {
+app.post("/api/quote/submit-request", rateLimit("quote-request", 20, 60 * 60 * 1000), async (req, res) => {
   try {
     const now = Date.now();
     const key = "quotesubmit:" + String(req.ip || "");
@@ -17972,7 +18433,7 @@ app.get("/api/install-damage/photo/:id", requirePagePermission("/appliance-servi
     const photo = await getInstallDamagePhoto(req.params.id);
     // Maintenance field photos share the table but have their own route/permission.
     if (!photo || String(photo.reportRef || "").startsWith("maint:")) return res.status(404).json({ error: "Photo not found." });
-    res.setHeader("Content-Type", photo.contentType || "image/jpeg");
+    sendStoredBlobHeaders(res, photo.contentType, "image/jpeg");
     res.setHeader("Cache-Control", "private, max-age=86400");
     return res.send(photo.bytes);
   } catch (err) {
@@ -17999,8 +18460,8 @@ app.post("/api/maintenance/photos", requirePagePermission("/maintenance/tech-mai
       return res.status(tooBig ? 413 : 400).json({ ok: false, error: tooBig ? "Photo is larger than 12 MB." : "Unreadable photo upload." });
     }
     const contentType = String(req.headers["content-type"] || "").split(";")[0].trim().toLowerCase();
-    if (!contentType.startsWith("image/")) {
-      return res.status(415).json({ ok: false, error: "Only image uploads are accepted." });
+    if (!isSafeImageMime(contentType)) {
+      return res.status(415).json({ ok: false, error: "Only photo uploads (JPEG, PNG, HEIC) are accepted." });
     }
     if (!Buffer.isBuffer(req.body) || !req.body.length) {
       return res.status(400).json({ ok: false, error: "Empty photo." });
@@ -18036,7 +18497,7 @@ app.get("/api/maintenance/photo/:id", requirePagePermission("/maintenance/tech-m
     if (!photo || !String(photo.reportRef || "").startsWith("maint:")) {
       return res.status(404).json({ error: "Photo not found." });
     }
-    res.setHeader("Content-Type", photo.contentType || "image/jpeg");
+    sendStoredBlobHeaders(res, photo.contentType, "image/jpeg");
     res.setHeader("Cache-Control", "private, max-age=86400");
     return res.send(photo.bytes);
   } catch (err) {
@@ -19789,7 +20250,7 @@ app.get("/api/intent-lookup/:kind/:id", requirePagePermission("/intent-lookup.ht
 // ---------------------------------------------------------------------------
 const EVENT_SITE_BASE = () => `https://${SERVICE_PUBLIC_HOST}`;
 
-app.post("/api/events/fire-flavor/rsvp", async (req, res) => {
+app.post("/api/events/fire-flavor/rsvp", rateLimit("rsvp", 30, 60 * 60 * 1000), async (req, res) => {
   try {
     const out = await submitRsvp("fire-and-flavor", { ...req.body, guestType: req.body?.attendeeType }, { ip: req.ip });
     return res.json({ ok: true, message: out.message });
@@ -19817,7 +20278,7 @@ app.get("/api/public/events/:slug", async (req, res) => {
     return res.status(500).json({ error: "Unable to load that event right now." });
   }
 });
-app.post("/api/public/events/:slug/rsvp", async (req, res) => {
+app.post("/api/public/events/:slug/rsvp", rateLimit("rsvp", 30, 60 * 60 * 1000), async (req, res) => {
   try {
     const out = await submitRsvp(req.params.slug, req.body || {}, { ip: req.ip });
     recordAudit({ ip: req.ip, actorUserId: null, action: "event_rsvp", targetUserId: null, detail: { slug: req.params.slug, status: out.status, updated: out.updated } }).catch(() => {});
@@ -19939,7 +20400,7 @@ app.get("/api/events/:id/roster.csv", eventPage, async (req, res) => {
     const event = await getEvent(req.params.id);
     if (!event) return res.status(404).json({ error: "Event not found." });
     const invitees = await listInvitees(event.id);
-    const q = (v) => '"' + String(v ?? "").replace(/"/g, '""') + '"';
+    const q = (v) => { const c = csvSafeCell(v); return c.startsWith('"') ? c : `"${c}"`; };
     const lines = [["Invitee", "Company", "Guest Type", "Email", "Phone", "Invited By", "Status", "Guests", "Date Invited", "Follow-Up", "Source", "Notes"].map(q).join(",")];
     for (const i of invitees) lines.push([i.name, i.company, i.guestType, i.email, i.phone, i.invitedBy, i.status, i.guestCount, i.dateInvited, i.followUp, i.source, i.notes].map(q).join(","));
     res.setHeader("Content-Type", "text/csv; charset=utf-8");
@@ -22452,6 +22913,31 @@ if (process.env.DATABASE_URL) {
     } catch (err) { console.error("Event migration failed:", err.message); }
   }, 5000).unref?.();
 }
+
+// ---------------------------------------------------------------------------
+// Safety nets (security audit 10/24). A thrown error inside a route used to
+// fall through to Express's default page (stack trace included); a rejected
+// promise nobody awaited — a database hiccup in an off-request processing
+// chain — would take the whole process down on modern Node, logging every
+// signed-in employee out mid-click until Render restarted it. Log and keep
+// serving instead.
+// ---------------------------------------------------------------------------
+app.use((err, req, res, next) => {
+  if (res.headersSent) return next(err);
+  const status = Number(err?.status || err?.statusCode) || (err?.type === "entity.too.large" ? 413 : err?.type === "entity.parse.failed" ? 400 : 500);
+  if (status >= 500) console.error("Unhandled route error:", req.method, req.path, err?.stack || err?.message || err);
+  const message = status === 413 ? "That upload is too large." : status === 400 ? "That request couldn't be read." : status >= 500 ? "Something went wrong on our side. Please try again." : (err?.message || "Request failed.");
+  if (req.path.startsWith("/api/") || String(req.get("accept") || "").includes("application/json")) {
+    return res.status(status).json({ error: message });
+  }
+  return res.status(status).type("text/plain").send(message);
+});
+process.on("unhandledRejection", (reason) => {
+  console.error("Unhandled promise rejection (kept running):", reason?.stack || reason);
+});
+process.on("uncaughtException", (err) => {
+  console.error("Uncaught exception (kept running):", err?.stack || err);
+});
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {

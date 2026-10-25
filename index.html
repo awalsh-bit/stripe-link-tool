@@ -181,6 +181,30 @@
       color: var(--error-text);
     }
 
+    /* Link is being generated: Stripe takes a few seconds, so say so
+       loudly enough that nobody clicks Create a second time. */
+    .status.working {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      background: var(--primary-tint);
+      color: var(--primary-hover);
+      font-weight: 600;
+    }
+    .spinner {
+      width: 18px;
+      height: 18px;
+      flex: 0 0 18px;
+      border: 3px solid rgba(255, 255, 255, 0.45);
+      border-top-color: currentColor;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+    .status.working .spinner { border-color: rgba(46, 125, 59, 0.2); border-top-color: currentColor; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    #submitBtn { display: inline-flex; align-items: center; justify-content: center; gap: 10px; }
+    form.busy input, form.busy select, form.busy textarea { pointer-events: none; opacity: 0.7; }
+
     .result {
       margin-top: 22px;
       border: 1px solid var(--border);
@@ -477,6 +501,12 @@
     let latestLinkId = '';
     let latestClientPhone = '';
     let latestClientEmail = '';
+    // Double-create guard (Andrew 10/23: the same order showed up twice on
+    // the dashboard). One request in flight at a time, and once a link has
+    // been created for exactly these form values the Create button stays
+    // off until something on the form changes.
+    let createInFlight = false;
+    let createdPayloadKey = '';
     const TEAM_DIRECTORY = window.WILSON_EMPLOYEE_DIRECTORY || {};
 
     function showStatus(type, message) {
@@ -484,10 +514,45 @@
       statusEl.textContent = message;
     }
 
+    function showWorking(message) {
+      statusEl.className = 'status working';
+      statusEl.innerHTML = '<span class="spinner" aria-hidden="true"></span><span></span>';
+      statusEl.lastChild.textContent = message;
+    }
+
     function clearStatus() {
       statusEl.className = 'status';
       statusEl.textContent = '';
     }
+
+    function setSubmitState(state) {
+      submitBtn.classList.remove('working');
+      if (state === 'working') {
+        submitBtn.disabled = true;
+        submitBtn.classList.add('working');
+        submitBtn.innerHTML = '<span class="spinner" aria-hidden="true"></span>Generating link…';
+        form.classList.add('busy');
+        return;
+      }
+      form.classList.remove('busy');
+      if (state === 'created') {
+        submitBtn.disabled = true;
+        submitBtn.textContent = 'Link created ✓';
+        submitBtn.title = 'Change something on the form to create a different link.';
+        return;
+      }
+      submitBtn.disabled = false;
+      submitBtn.textContent = 'Create payment link';
+      submitBtn.title = '';
+    }
+
+    // Any edit after a successful create re-arms the button.
+    form.addEventListener('input', () => {
+      if (!createInFlight && submitBtn.disabled) setSubmitState('ready');
+    });
+    form.addEventListener('change', () => {
+      if (!createInFlight && submitBtn.disabled) setSubmitState('ready');
+    });
 
     function applyCreatorLookup() {
       const code = creatorCodeInput.value.trim().toUpperCase();
@@ -739,15 +804,8 @@
 
     form.addEventListener('submit', async (event) => {
       event.preventDefault();
+      if (createInFlight) return; // a second Enter/click while Stripe is still working
       clearStatus();
-      resultEl.classList.remove('show');
-      resultAgreementRow.style.display = 'none';
-      resultAgreement.textContent = '';
-      copyBtn.disabled = true;
-      textLinkBtn.disabled = true;
-      emailLinkBtn.disabled = true;
-      latestLink = '';
-      latestLinkId = '';
 
       const creatorLookupValid = applyCreatorLookup();
 
@@ -808,11 +866,28 @@ if (linkType === 'hvac_deposit' && !payload.customerEmail) {
   return;
 }
 
-      submitBtn.disabled = true;
-      submitBtn.textContent = 'Creating...';
+      const payloadKey = JSON.stringify(payload);
+      if (latestLink && payloadKey === createdPayloadKey) {
+        // Nothing changed since the last create — the link below IS this link.
+        setSubmitState('created');
+        showStatus('success', 'This link is already created — it is the one shown below. Text, email, or copy it. To make a different link, change the amount, order, or description first.');
+        return;
+      }
+
+      resultEl.classList.remove('show');
+      resultAgreementRow.style.display = 'none';
+      resultAgreement.textContent = '';
+      copyBtn.disabled = true;
+      textLinkBtn.disabled = true;
+      emailLinkBtn.disabled = true;
+      latestLink = '';
+      latestLinkId = '';
+
+      createInFlight = true;
+      setSubmitState('working');
+      showWorking('Generating the secure payment link with Stripe — this usually takes a few seconds. No need to click again.');
 
       try {
-        // Replace this URL with your backend endpoint.
         const response = await fetch('/api/create-payment-link', {
           method: 'POST',
           headers: {
@@ -828,6 +903,7 @@ if (linkType === 'hvac_deposit' && !payload.customerEmail) {
         }
 
         latestLink = data.url;
+        createdPayloadKey = payloadKey;
         copyBtn.disabled = false;
         latestLinkId = data.id || '';
         latestClientPhone = payload.customerPhone || '';
@@ -861,13 +937,10 @@ if (linkType === 'hvac_deposit' && !payload.customerEmail) {
                 : `Payment link created. Text or email it to the client, or copy the link to send it your own way — you'll be emailed when it's paid.`)
         );
       } catch (error) {
-        showStatus(
-          'error',
-          `${error.message}\n\nIf this is your first test, make sure your backend endpoint exists and has a Stripe secret key configured.`
-        );
+        showStatus('error', `${error.message}\n\nThe link was not created. Check the form and try again.`);
       } finally {
-        submitBtn.disabled = false;
-        submitBtn.textContent = 'Create payment link';
+        createInFlight = false;
+        setSubmitState(latestLink ? 'created' : 'ready');
       }
     });
 

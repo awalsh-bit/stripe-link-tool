@@ -62,12 +62,13 @@
 </head>
 <body>
   <div class="wrap">
+    <div id="internal-shell-header"></div>
     <div class="surface">
       <h2>Catalog Check — NetSuite vs ePASS</h2>
       <p class="section-note">
         NetSuite is the source of truth for <b>brand</b>, <b>supplier</b> and the <b>merchandise hierarchy</b>; ePASS is where the models are sold and stocked.
-        This compares the two for every model ePASS knows (model master, open orders, on-hand stock) against the NetSuite item export last imported on
-        <b>Shop Orders → NetSuite items</b> and <b>Ordering Report → NetSuite items</b>. Nothing is changed here — fix the item in NetSuite, re-export, re-import, refresh.
+        This compares the two for every model ePASS knows (model master, open orders, on-hand stock) against the NetSuite item export last uploaded on the
+        <b>Ordering Report → NetSuite items &amp; suppliers</b> (or ePASS Uploads → NetSuite Item Catalog — either one fills both tables). Nothing is changed here — fix the item in NetSuite, re-export, re-import, refresh.
         Agility already speaks NetSuite wherever it can: brand, supplier and merch class come from NetSuite for every model it has, and a model in the
         <b>“In ePASS, not in NetSuite”</b> tile is exactly one that is still being described with ePASS's own words. Supplier aliases for ePASS codes are learned
         from the models and can be overridden on the <b>Ordering Report → Settings</b> page.
@@ -112,6 +113,7 @@
         <div class="scroll" style="max-height: 300px;"><table class="t"><thead><tr><th>ePASS supplier</th><th>NetSuite supplier on its models</th></tr></thead><tbody id="suppliers"></tbody></table></div>
       </div>
     </div>
+    <div id="internal-shell-footer"></div>
   </div>
 
   <script src="internal-shell.js"></script>

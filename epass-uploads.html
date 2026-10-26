@@ -146,9 +146,9 @@
           endpoint: "/api/commission-report", field: "report", month: true
         },
         {
-          key: "catalog", title: "NetSuite Item Catalog (model → brand)", cadence: "AS NEEDED",
-          src: "NetSuite → Items export (.csv or .xlsx) — needs a Model and a Brand column, extra columns are fine",
-          desc: "Brand + description for every catalog model. Feeds the Brand Sales report's model→brand attribution. Columns are matched by header name, so NetSuite can gain fields without breaking this — and catalog rows outrank whatever the nightly inventory feed guessed.",
+          key: "catalog", title: "NetSuite Item Catalog (brand, supplier, merch hierarchy)", cadence: "AS NEEDED",
+          src: "NetSuite → Items export (.csv or .xlsx) — the full saved search with Brand, Supplier, Base Price and Merch Category / Class / Subclass; extra columns are fine",
+          desc: "Brand, supplier, merch category / class / subclass and discontinued flag for every catalog model — the shop buckets, Inventory Lookup filters, Catalog Check and Brand Sales attribution. When the file also has item type, base price or supplier it refreshes the Ordering Report's NetSuite items too, so this and Ordering Report → NetSuite items & suppliers are the same upload: use whichever page you're on. Columns are matched by header name, so NetSuite can gain fields without breaking this.",
           endpoint: "/api/epass-uploads/model-catalog", field: "report", accept: ".csv,.xlsx,.xls"
         }
       ];

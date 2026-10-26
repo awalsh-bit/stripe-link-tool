@@ -5,9 +5,9 @@ Purchasing → **Catalog Check (NetSuite vs ePASS)** (`catalog-check.html`). Add
 ## How to use it
 
 1. Export items from NetSuite (the saved search that produces `Items436.csv`: Brand, Display Name, Model Number, Type, Base Price, Supplier, Merch Category / Class / Subclass …).
-2. Import that same file in two places — both already existed:
-   - **Shop Orders → NetSuite items** (fills `model_brand_map`: brand, supplier, merch hierarchy, discontinued — what the shop, Quote Follow-Up and this page read). Rows with no Brand are skipped (rebates, shipping charges).
-   - **Ordering Report → NetSuite items** (fills `netsuite_items`: item type, base price, supplier — what Brand Sales uses for brand → supplier).
+2. Upload that file **once**, on **Ordering Report → step 2, NetSuite items & suppliers** (or ePASS Uploads → NetSuite Item Catalog — same thing). Since 10/26 either upload fills both tables: `netsuite_items` (item type, base price, short description, supplier — Ordering Report, Brand Sales, Inventory Lookup prices) and `model_brand_map` (brand, supplier, merch hierarchy, discontinued — the shop buckets, Quote Follow-Up, Inventory Lookup filters and this page). Rows with no Brand are skipped for the brand map (rebates, shipping charges — 299 in the 10/25 export). The upload's confirmation line says how many models got a hierarchy.
+
+   Before 10/26 these were two separate imports and the doc pointed at "Shop Orders → NetSuite items", which never existed as a card — the model→brand import has always lived on ePASS Uploads. That detour is gone.
 3. Open Catalog Check. Click a tile to filter, type in the box to narrow, **Download CSV** for the full list. **Refresh** re-runs the comparison (otherwise it's cached five minutes).
 
 Nothing on this page writes anywhere. Fix the item in NetSuite → re-export → re-import → Refresh.
@@ -45,7 +45,7 @@ NetSuite's merchandise hierarchy is **versions → levels → nodes**; items att
 
 **2. Attach the 9,000 items by CSV** — Setup → Import/Export → **Import CSV Records**: Import Type **Items**, Record Type **Inventory Item**, data handling **Update**, and in the field mapping match on **Item Name/Number** (the Model Number column) and map your node column to the item's **Merchandise Hierarchy → Hierarchy Node**. The CSV needs just two columns: `Model Number`, `Hierarchy Node` (the node name, or its internal ID). Oracle's help confirms the Items import can "update existing items to assign them to a merchandise hierarchy" but doesn't print the exact field label, so expect the mapping screen to word it slightly differently — your implementation team will recognise it. The Service / Other Charge / Discount items are separate record types and would be separate imports — leave them for later; the parts are the bulk. Agility can produce that two-column CSV from the export as soon as the nodes exist: every un-classified inventory item with a brand → `9020 Appliance Parts`, Trane → `9022 HVAC Parts` (or whatever names you pick).
 
-**3. Re-export, re-import on both Agility pages, Refresh Catalog Check** — the "No merch hierarchy" tile should drop to near zero and the "No hierarchy by product code" table should empty out.
+**3. Re-export, re-upload on the Ordering Report, Refresh Catalog Check** — the "No merch hierarchy" tile should drop to near zero and the "No hierarchy by product code" table should empty out.
 
 Supplier is the other half: the 9,332 parts have no Supplier in NetSuite. If parts purchasing will run from NetSuite, that is a second CSV update (`Model Number`, `Supplier`) — the ePASS supplier on each part is visible on this page's CSV once the import is done, so the mapping can be lifted from there rather than keyed by hand.
 

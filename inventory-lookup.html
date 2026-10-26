@@ -107,6 +107,7 @@
 </head>
 <body>
   <div class="wrap">
+    <div id="internal-shell-header"></div>
     <div class="surface">
       <h2>Inventory Lookup</h2>
       <p class="section-note">Live ePASS on-hand inventory, organized by NetSuite's merchandise hierarchy. Tap a model to see every unit and whether it can be sold.</p>
@@ -144,6 +145,7 @@
       </div>
       <div id="cards" class="cards"></div>
     </div>
+    <div id="internal-shell-footer"></div>
   </div>
 
   <div class="overlay" id="overlay">
@@ -194,8 +196,8 @@
         if (!o.hierarchyLoaded) {
           $("banner").style.display = "";
           $("banner").textContent = o.netsuiteModels
-            ? "The NetSuite items on file have no merchandise hierarchy yet — re-import the current NetSuite export (with Merch Category / Class / Subclass columns) on Shop Orders → NetSuite items, and these three filters will fill in."
-            : "No NetSuite items have been imported yet — import the NetSuite export on Shop Orders → NetSuite items to get the category / class / subclass filters and base prices.";
+            ? "The NetSuite items on file have no merchandise hierarchy yet — upload the current NetSuite items export (the one with Merch Category / Class / Subclass columns) on the Ordering Report, step 2 “NetSuite items & suppliers”, and these three filters will fill in."
+            : "No NetSuite items have been imported yet — upload the NetSuite items export on the Ordering Report, step 2 “NetSuite items & suppliers”, to get the category / class / subclass filters and base prices.";
         } else { $("banner").style.display = "none"; }
         restore();
         search();

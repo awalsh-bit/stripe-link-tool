@@ -12345,8 +12345,20 @@ app.post("/api/epass-uploads/model-catalog", requirePagePermission("/epass-uploa
         action: "model_catalog_imported", targetUserId: null,
         detail: { filename: req.file.originalname || "", imported: result.imported, added: result.added, updated: result.updated, skippedNoBrand, merchClass: merchClassCol >= 0, vendor: vendorCol >= 0 }
       }).catch(() => {});
+      // Same export, other table: when the file also carries item type, base
+      // price or supplier, refresh netsuite_items (Ordering Report, Brand
+      // Sales, Inventory Lookup prices) so one upload is enough anywhere.
+      let netsuiteItems = null;
+      try {
+        const items = parseNetsuiteItemsCsv(req.file.buffer);
+        if (items.hasPriceOrSupplierColumns && items.length >= 100) {
+          const r = await replaceNetsuiteItems(items, { by: req.authUser?.email || "", sourceFile: req.file.originalname || "" });
+          netsuiteItems = { items: r.items, withSupplier: r.withSupplier };
+          invalidateCatalog(); invalidateInventoryIndex();
+        }
+      } catch (nsErr) { console.error("Model catalog → netsuite_items failed:", nsErr.message); netsuiteItems = { error: nsErr.message }; }
       const stats = await getModelBrandStats().catch(() => null);
-      return res.json({ ok: true, ...result, skippedNoBrand, merchClassColumn: merchClassCol >= 0, vendorColumn: vendorCol >= 0, totalModels: stats?.total || result.imported });
+      return res.json({ ok: true, ...result, skippedNoBrand, merchClassColumn: merchClassCol >= 0, vendorColumn: vendorCol >= 0, totalModels: stats?.total || result.imported, netsuiteItems });
     } catch (parseErr) {
       console.error("Model catalog import failed:", parseErr.message);
       return res.status(400).json({ error: "Couldn't read that file — export it as .csv or .xlsx and try again." });
@@ -16542,9 +16554,25 @@ app.post("/api/written-models/items", requireWrittenModels, (req, res) => {
       if (!req.file?.buffer?.length) return res.status(400).json({ error: "Attach the NetSuite items export (.csv)." });
       const items = parseNetsuiteItemsCsv(req.file.buffer);
       const out = await replaceNetsuiteItems(items, { by: wmBy(req), sourceFile: req.file.originalname || "" });
-      wmAudit(req, "netsuite_items_uploaded", { ...out, filename: req.file.originalname || "" });
-      invalidateCatalog(); catalogCheckMemo = { at: 0, value: null, promise: null };
-      return res.json({ ok: true, ...out });
+      // The same export also carries brand, supplier and the merch hierarchy
+      // — write those to model_brand_map too, so one upload feeds the shop
+      // buckets, Inventory Lookup filters and Catalog Check (Andrew 10/26:
+      // no more "import it over there as well").
+      let catalog = null;
+      const catalogRows = items.filter((i) => i.brand && (i.modelNumber || i.displayName)).map((i) => ({
+        model: i.modelNumber || i.displayName, brand: i.brand, description: i.shortDescription || i.displayName || "",
+        merchCategory: i.merchCategory || "", merchClass: i.merchClass || "", merchSubclass: i.merchSubclass || "",
+        vendor: i.primarySupplier || "", discontinued: i.discontinued || ""
+      }));
+      if (catalogRows.length) {
+        try {
+          const r = await importModelBrandCatalog({ rows: catalogRows, filename: req.file.originalname || "", byEmail: req.authUser?.email || "" });
+          catalog = { imported: r.imported, added: r.added, updated: r.updated, skippedNoBrand: items.length - catalogRows.length, withHierarchy: items.withHierarchy || 0, hierarchyColumns: Boolean(items.hasHierarchyColumns) };
+        } catch (catErr) { console.error("NetSuite items → model_brand_map failed:", catErr.message); catalog = { error: catErr.message }; }
+      }
+      wmAudit(req, "netsuite_items_uploaded", { ...out, catalog, filename: req.file.originalname || "" });
+      invalidateCatalog(); invalidateInventoryIndex(); catalogCheckMemo = { at: 0, value: null, promise: null };
+      return res.json({ ok: true, ...out, withHierarchy: items.withHierarchy || 0, hierarchyColumns: Boolean(items.hasHierarchyColumns), catalog });
     } catch (uploadErr) {
       console.error("NetSuite items upload failed:", uploadErr.message);
       return res.status(400).json({ error: uploadErr.message || "Unable to read that CSV." });
@@ -18645,6 +18673,101 @@ app.get("/api/maintenance/photo/:id", requirePagePermission("/maintenance/tech-m
   }
 });
 
+// Card-on-file declines: Stripe's API message is terse ("Your card does not
+// support this type of purchase.") while its dashboard is useful ("The bank
+// returned the decline code `transaction_not_allowed` …"). Rebuild the
+// dashboard wording for the salesperson, plus what it usually means for an
+// off-session (customer-not-present) charge and what to do next.
+const CARD_DECLINE_HINTS = {
+  transaction_not_allowed: "The bank doesn't allow this card to be charged by the merchant without the cardholder present. Common with debit, prepaid, HSA/FSA and business cards; the same card often works when the customer enters it on a payment link.",
+  card_not_supported: "The card isn't enabled for this kind of charge (customer not present). Common with prepaid, HSA/FSA and some debit cards.",
+  authentication_required: "The bank wants the cardholder to verify the charge, which a saved-card charge can't do. A payment link lets them verify.",
+  do_not_honor: "The bank declined without giving a reason. Only the cardholder can find out why, by calling the bank.",
+  generic_decline: "The bank declined without giving a reason. Only the cardholder can find out why, by calling the bank.",
+  insufficient_funds: "Not enough available balance or credit for this amount.",
+  card_velocity_exceeded: "The card has hit the bank's limit on number or value of charges for the period.",
+  withdrawal_count_limit_exceeded: "The card has hit the bank's limit on number or value of charges for the period.",
+  invalid_amount: "The amount is over what the bank allows on this card.",
+  expired_card: "The card on file has expired; the customer needs to give us the new one.",
+  incorrect_cvc: "The bank rejected the security code it has on file for this saved card. The customer needs to re-enter the card.",
+  incorrect_number: "The card number on file is no longer valid. The customer needs to re-enter the card.",
+  invalid_account: "The account behind this card is closed or invalid.",
+  new_account_information_available: "The bank has reissued this card; the customer needs to give us the new one.",
+  restricted_card: "The bank has restricted this card.",
+  lost_card: "The bank reports this card as lost. Do not retry.",
+  stolen_card: "The bank reports this card as stolen. Do not retry.",
+  pickup_card: "The bank has blocked this card. Do not retry.",
+  fraudulent: "The bank flagged this charge as suspected fraud. Do not retry.",
+  stop_payment_order: "The cardholder told the bank to stop payments to us.",
+  revocation_of_authorization: "The cardholder told the bank to stop payments to us.",
+  revocation_of_all_authorizations: "The cardholder told the bank to stop payments to us.",
+  duplicate_transaction: "The bank saw an identical charge moments ago. Check Stripe before trying again.",
+  processing_error: "A temporary error at the bank or network. Safe to try once more in a few minutes.",
+  try_again_later: "A temporary decline at the bank. Safe to try once more in a few minutes.",
+  issuer_not_available: "The bank couldn't be reached. Safe to try once more in a few minutes.",
+  reenter_transaction: "A temporary decline at the bank. Safe to try once more.",
+  call_issuer: "The bank wants the cardholder to call them before it will approve the charge.",
+  currency_not_supported: "The card can't be charged in US dollars.",
+  testmode_decline: "A test card was used."
+};
+const CARD_DECLINE_RETRYABLE = new Set(["processing_error", "try_again_later", "issuer_not_available", "reenter_transaction"]);
+
+function describeCardBrand(brand) {
+  const b = String(brand || "").toLowerCase();
+  const names = { visa: "Visa", mastercard: "Mastercard", amex: "American Express", discover: "Discover", diners: "Diners Club", jcb: "JCB", unionpay: "UnionPay" };
+  return names[b] || (b ? b.charAt(0).toUpperCase() + b.slice(1) : "card");
+}
+
+async function describeCardDecline(err) {
+  const isCardError = err?.type === "StripeCardError" || err?.code === "card_declined" || Boolean(err?.decline_code);
+  if (!isCardError) return null;
+  const raw = err.raw || {};
+  const lastError = err.payment_intent?.last_payment_error || raw.payment_intent?.last_payment_error || {};
+  const pm = err.payment_method || raw.payment_method || lastError.payment_method || {};
+  const card = pm.card || {};
+  let issuer = card.issuer || "";
+  const chargeId = err.charge || raw.charge || "";
+  if (!issuer && chargeId) {
+    try {
+      const charge = await stripe.charges.retrieve(chargeId);
+      issuer = charge?.payment_method_details?.card?.issuer || "";
+    } catch { /* issuer name is a nice-to-have */ }
+  }
+  const declineCode = err.decline_code || raw.decline_code || lastError.decline_code || "";
+  const stripeMessage = String(err.message || raw.message || "").trim();
+  const brand = describeCardBrand(card.brand);
+  const last4 = card.last4 ? ` •••• ${card.last4}` : "";
+  const when = new Date().toLocaleString("en-US", { timeZone: "America/Chicago", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+  const headline = `Payment attempt with ${brand}${last4} was declined (${when}).`;
+  const codePart = declineCode
+    ? `The bank returned the decline code \`${declineCode}\`${stripeMessage ? ` ("${stripeMessage.replace(/\.$/, "")}")` : ", and did not provide any other information"}.`
+    : (stripeMessage || "The bank declined the charge and did not provide a reason.");
+  const issuerPart = issuer ? `, ${issuer},` : "";
+  const recommend = `We recommend that the customer contact their card issuer${issuerPart} for more information, or use another payment method.`;
+  const hint = CARD_DECLINE_HINTS[declineCode] || "";
+  const nextStep = CARD_DECLINE_RETRYABLE.has(declineCode)
+    ? "Wait a few minutes and try once more. If it declines again, send a payment link or take another card."
+    : "Retrying will decline the same way. Send the customer a payment link from the home page so they enter the card themselves, or take another card.";
+  return {
+    error: `${headline} ${codePart} ${recommend}`,
+    decline: {
+      code: err.code || raw.code || "card_declined",
+      declineCode,
+      adviceCode: raw.advice_code || "",
+      networkDeclineCode: raw.network_decline_code || "",
+      brand,
+      last4: card.last4 || "",
+      issuer,
+      stripeMessage,
+      paymentIntentId: err.payment_intent?.id || raw.payment_intent?.id || "",
+      chargeId,
+      hint,
+      nextStep,
+      retryable: CARD_DECLINE_RETRYABLE.has(declineCode)
+    }
+  };
+}
+
 app.post("/api/card-on-file/charge", requirePagePermission("/charge-saved-card.html"), async (req, res) => {
   try {
     const {
@@ -18792,6 +18915,23 @@ app.post("/api/card-on-file/charge", requirePagePermission("/charge-saved-card.h
       paymentIntentId: paymentIntent.id
     });
   } catch (err) {
+    const declined = await describeCardDecline(err);
+    if (declined) {
+      try {
+        sjAudit(req, "card_on_file_declined", {
+          salesOrder: String(req.body?.salesOrder || ""),
+          amount: Number(req.body?.amount || 0),
+          customerId: String(req.body?.customerId || ""),
+          declineCode: declined.decline.declineCode,
+          code: declined.decline.code,
+          last4: declined.decline.last4,
+          issuer: declined.decline.issuer,
+          paymentIntentId: declined.decline.paymentIntentId
+        });
+      } catch { /* audit is best-effort */ }
+      return res.status(402).json(declined);
+    }
+    console.error("Card-on-file charge failed:", err?.message || err);
     return res.status(500).json({
       error: err.message || "Unable to charge saved card."
     });

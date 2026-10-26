@@ -22,7 +22,7 @@ Written and on-order quantities are deliberately not on this screen (Andrew: "th
 
 **Prices**: NetSuite **Base Price** on the card and in the drawer; ePASS price levels **L1 / L2 / Retail** in the drawer (from `epass_model_list_prices`, the same feed the online shop prices from). No cost anywhere on this screen.
 
-If the three merch selects are empty, the banner at the top says why: the NetSuite items on file have no hierarchy columns (import the current export on Shop Orders → NetSuite items — that is also where base prices and short descriptions come from).
+If the three merch selects are empty, the banner at the top says why: the NetSuite items on file have no hierarchy columns. Upload the current NetSuite items export (the full saved search with Merch Category / Class / Subclass) on **Ordering Report → step 2, NetSuite items & suppliers**. Since 10/26 that one upload fills both tables — `netsuite_items` (type, base price, short description, supplier) and `model_brand_map` (brand, supplier, hierarchy, discontinued) — so there is no second place to import it; ePASS Uploads → NetSuite Item Catalog accepts the same file and does the same thing.
 
 ## The drawer
 

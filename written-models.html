@@ -224,6 +224,7 @@
         <div class="upload">
           <span class="lbl">2 · NetSuite items &amp; suppliers (.csv)</span>
           <div class="src" id="srcItems">No items uploaded yet.</div>
+          <div class="src" style="margin-top:4px;">The full NetSuite items export (brand, type, base price, supplier, merch category / class / subclass). One upload here feeds everything: this report, Brand Sales, the shop buckets, Inventory Lookup and Catalog Check.</div>
           <div class="row">
             <span class="file"><button type="button" class="secondary">Choose CSV…</button><input type="file" id="fileItems" accept=".csv,.txt" /></span>
             <span class="fname" id="nameItems"></span>
@@ -322,7 +323,9 @@
             const data = await api(url, { method: "POST", body: form });
             setStatus(label === "report"
               ? `Report loaded: ${data.lines} written lines across ${data.models} models (report date ${day(data.reportDate)}, window ${day(data.startDate)} → ${day(data.endDate)}).${data.warnings?.length ? "\n" + data.warnings.join("\n") : ""}`
-              : `Items loaded: ${data.items} NetSuite models, ${data.withSupplier ?? 0} with a Primary Supplier.`, "ok");
+              : `Items loaded: ${data.items} NetSuite models, ${data.withSupplier ?? 0} with a Primary Supplier.`
+                + (data.catalog && !data.catalog.error ? ` Brand map updated for ${data.catalog.imported} models` + (data.hierarchyColumns ? ` (${data.withHierarchy ?? 0} with a merch category / class / subclass — Inventory Lookup, the shop and Catalog Check pick these up now).` : ` — this file has no Merch Category / Class / Subclass columns, so the hierarchy filters elsewhere stay as they were.`) : "")
+                + (data.catalog?.error ? ` Brand map not updated: ${data.catalog.error}` : ""), "ok");
             $(fileId).value = ""; $(nameId).textContent = "";
             await load();
           } catch (err) { setStatus(err.message, "error"); }

@@ -419,6 +419,21 @@
       statusBox.textContent = message;
     }
 
+    // A bank decline: Stripe's dashboard-style explanation, then what it
+    // usually means and what to do next, as separate lines.
+    function showDecline(data) {
+      const d = data.decline || {};
+      const parts = [`<div><strong>${esc(data.error || "The card was declined.")}</strong></div>`];
+      if (d.hint) parts.push(`<div style="margin-top:8px">What this usually means: ${esc(d.hint)}</div>`);
+      if (d.nextStep) parts.push(`<div style="margin-top:8px">Next step: ${esc(d.nextStep)}</div>`);
+      const refs = [];
+      if (d.paymentIntentId) refs.push(`<span class="mono">${esc(d.paymentIntentId)}</span>`);
+      if (d.adviceCode) refs.push(`advice ${esc(d.adviceCode)}`);
+      if (refs.length) parts.push(`<div style="margin-top:8px;font-size:12px;opacity:.8">Stripe reference: ${refs.join(" · ")}</div>`);
+      statusBox.className = "status error";
+      statusBox.innerHTML = parts.join("");
+    }
+
     function clearStatus() {
       statusBox.className = "status";
       statusBox.textContent = "";
@@ -586,6 +601,11 @@ if (!applyCreatorLookup() || !payload.creatorCode || !payload.creatorName || !pa
         });
 
         const data = await res.json();
+
+        if (res.status === 402 && data.decline) {
+          showDecline(data);
+          return;
+        }
 
         if (!res.ok) {
           throw new Error(data.error || "Unable to charge saved card.");

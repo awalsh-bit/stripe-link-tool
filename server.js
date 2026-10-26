@@ -264,6 +264,9 @@ import { parseFinanceBundle, replaceEpassFinance, getEpassFinanceMeta, financeRo
 import { computeCashProjection } from "./lib/cash-projection.js";
 import { computePoHealth } from "./lib/po-health.js";
 import { VENDORS as PO_ETA_VENDORS, FIELDS as PO_ETA_FIELDS, readVendorWorkbook, guessMapping as guessPoEtaMapping, applySavedMapping as applyPoEtaSavedMapping, headerSignature as poEtaHeaderSignature, extractRows as extractPoEtaRows, matchRows as matchPoEtaRows, buildImportFile as buildPoEtaFile, IMPORT_FORMATS as PO_ETA_FORMATS, vendorByKey as poEtaVendorByKey } from "./lib/po-eta-import.js";
+import { buildCatalogCheck, catalogCheckCsv, CATALOG_ISSUES } from "./lib/catalog-check.js";
+import { getCatalog, resolveModel, supplierLabel, shopBucketFor, invalidateCatalog } from "./lib/catalog-resolver.js";
+import { getInventoryIndex, searchInventory, inventoryModelDetail, invalidateInventoryIndex, UNIT_STATUS as INVENTORY_UNIT_STATUS, LIKELY_AVAILABLE_DAYS } from "./lib/inventory-lookup.js";
 import { listVendorMaps as listPoEtaVendorMaps, saveVendorMap as savePoEtaVendorMap, recordImportRun as recordPoEtaRun, listImportRuns as listPoEtaRuns, getImportRun as getPoEtaRun, recentExportedLines as recentPoEtaExports } from "./lib/po-eta-import-postgres.js";
 import { resolveRole, roleEmails, hasRole, listRoles as listServiceRoles, setRole as setServiceRole, ROLES as SERVICE_ROLES } from "./lib/service-roles.js";
 import { processCatalogueBundle, catalogueStatus, customerHistory as catalogueCustomerHistory, callDetail as catalogueCallDetail, modelInsight as catalogueModelInsight, laborRateOptions, laborRateMeta } from "./lib/epass-catalogue-postgres.js";
@@ -875,6 +878,8 @@ const INTERNAL_PAGE_PATHS = new Set([
   "/written-models.html",
   "/po-health.html",
   "/po-eta-import.html",
+  "/catalog-check.html",
+  "/inventory-lookup.html",
   "/service-journey.html",
   "/service-board.html",
   "/service-office.html",
@@ -1163,6 +1168,8 @@ const PAGE_LABELS = {
   "/written-models.html": "Ordering Report",
   "/po-health.html": "Purchase Order Health",
   "/po-eta-import.html": "PO ETA Import Builder",
+  "/catalog-check.html": "Catalog Check (NetSuite vs ePASS)",
+  "/inventory-lookup.html": "Inventory Lookup",
   "/my-commissions.html": "My Commission Review",
   "/service-commissions.html": "Repair Service Commissions",
   "/my-service-commissions.html": "My Service Commission",
@@ -1191,7 +1198,7 @@ const PAGE_CATEGORIES = [
   {
     key: "purchasing",
     label: "Purchasing",
-    pages: ["/speedqueen-truckload.html", "/written-models.html", "/po-health.html", "/po-eta-import.html"]
+    pages: ["/speedqueen-truckload.html", "/written-models.html", "/po-health.html", "/po-eta-import.html", "/catalog-check.html"]
   },
   {
     key: "hr",
@@ -1302,6 +1309,7 @@ const PAGE_CATEGORIES = [
     label: "Sales",
     pages: [
       "/salesdashboard.html",
+      "/inventory-lookup.html",
       "/shop-orders.html",
       "/shop-catalog.html",
       "/promo-builder.html",
@@ -6332,7 +6340,7 @@ app.get("/api/promo/inventory", requirePromoBuilder, async (req, res) => {
       if (!g) {
         const brand = ns.brand || ctx.brandNames[brandCode] || (brandCode.length > 3 ? brandCode.charAt(0) + brandCode.slice(1).toLowerCase() : brandCode);
         const prod = String(u.prod || ns.prod || "").toUpperCase();
-        g = { key, model, brand, brandCode, description: String(u.description || ns.description || "").trim(), product: prod, category: SHOP_STOCK_CATEGORY_BY_PRODUCT[prod] || "", merchClass: ns.merchClass || "",
+        g = { key, model, brand, brandCode, description: String(u.description || ns.description || "").trim(), product: prod, category: shopBucketFor(ns, prod), merchClass: ns.merchClass || "",
           list: Number(u.list) || null, listCode: u.listCode || "", map: Number(u.map) || null, mapCode: u.mapCode || "", l1: Number(u.l1) || null,
           image: ctx.photoModels.has(key) ? `/api/promo/photo/${encodeURIComponent(key)}` : (ctx.images[key] || ""), imageSource: ctx.photoModels.has(key) ? "upload" : ctx.images[key] ? "retaildeck" : "",
           discontinued: !!(ns.discontinued || u.discontinued), units: [] };
@@ -7131,7 +7139,8 @@ function shopStockItems({ snapshot, settings, brandMap, brandNames, images, mapP
     // uploads and the NetSuite catalog built up (covers nearly every model)
     const known = brandMap[model.toUpperCase()] || {};
     const prod = String(u.prod || known.prod || "").toUpperCase();
-    const category = SHOP_STOCK_CATEGORY_BY_PRODUCT[prod];
+    // NetSuite merch class → storefront bucket; ePASS product code only when NetSuite has not classified the model (10/26).
+    const category = shopBucketFor(known, prod);
     if (!category) continue; // accessories / unmapped product codes stay off the stock listings
     let g = byModel.get(key);
     if (!g) { g = { key, model, category, prod, units: [], brandCode: String(u.brand || "").trim(), description: String(u.description || known.description || "").trim(), list: 0, listCode: "", map: 0, mapCode: "", l1: 0 }; byModel.set(key, g); }
@@ -10942,6 +10951,7 @@ async function rebuildShopSnapshotFromFeed({ why = "feed" } = {}) {
     const saved = await saveShopInventorySnapshot({ serials: snap.serials, types: snap.types, written: snap.written, units: snap.units, sourceFile: `ePASS feed ${feed.pulledAt || ""}`.trim(), uploadedBy: "epass-agent" });
     invalidateShopCatalog();
     invalidateLiveClearance();
+    invalidateInventoryIndex(); // Inventory Lookup follows every feed pull
     const out = { why, rows: feed.onHand.length, units: snap.unitCount, withModel: snap.withModel, spokenFor: snap.spokenFor, reservedOnly: snap.reservedOnly, orderedForClosed: snap.orderedForClosed, openInvoices: feed.openInvoices?.size ?? null, availBit: { seen: snap.availBitSeen, falseButFree: snap.availBitFalseFree, trueButHeld: snap.availBitTrueHeld }, priceRows: (feed.listPrices || []).length, priced: snap.units.filter((u) => u.list > 0).length, withMap: snap.units.filter((u) => u.map > 0).length, saved: saved?.count ?? null, typed: saved?.typedCount ?? null, written: saved?.writtenCount ?? null, feedPulledAt: feed.pulledAt, at: new Date().toISOString() };
     lastShopSnapshotRebuild = out;
     return out;
@@ -11827,7 +11837,9 @@ app.get("/api/cash-projection", requireCashOps, async (req, res) => {
     ]);
     const today = new Date().toLocaleDateString("en-CA", { timeZone: APP_TIMEZONE });
     const out = computeCashProjection({ openBook, finance, actuals, today, months });
-    const supplierNames = Object.fromEntries((finance.suppliers || []).map((x) => [x.code, x.description]));
+    // Supplier names are NetSuite's (10/26); the ePASS code stays beside them on the page.
+    const cat = await getCatalog().catch(() => null);
+    const supplierNames = Object.fromEntries((finance.suppliers || []).map((x) => [x.code, (cat ? supplierLabel(cat, x.code, x.description).name : "") || x.description]));
     sjAudit(req, "cash_projection_viewed", { months, book: out.book.total, ar: out.ar.open, ap: out.ap.open });
     return res.json({ ...out, supplierNames, terms: await listSupplierTerms(), feeds: { sales: salesMeta?.meta ? { pulledAt: salesMeta.meta.pulled_at, receivedAt: salesMeta.meta.received_at } : null, finance: finance.meta, lastFinanceBundle } });
   } catch (err) { console.error("Cash projection failed:", err.message); return res.status(400).json({ error: err.message }); }
@@ -12322,6 +12334,7 @@ app.post("/api/epass-uploads/model-catalog", requirePagePermission("/epass-uploa
         return res.status(400).json({ error: "No rows with both a model and a brand found in that file." });
       }
 
+      invalidateCatalog(); invalidateInventoryIndex(); catalogCheckMemo = { at: 0, value: null, promise: null };
       const result = await importModelBrandCatalog({
         rows,
         filename: req.file.originalname || "",
@@ -16278,6 +16291,12 @@ app.get("/api/po-health", requirePagePermission("/po-health.html", "/written-mod
     const [finance, book] = await Promise.all([financeRows(), openBookRows()]);
     const today = new Date().toLocaleDateString("en-CA", { timeZone: APP_TIMEZONE });
     const out = computePoHealth({ lines: finance.poOpen, openOrders: book.orders, suppliers: finance.suppliers, today });
+    // Supplier names are NetSuite's (10/26); ePASS's code and name ride along.
+    const cat = await getCatalog().catch(() => null);
+    if (cat) {
+      for (const p of out.pos) { const l = supplierLabel(cat, p.supplierCode, p.supplier); p.supplierEpass = p.supplier; p.supplier = l.name || p.supplier; p.supplierSource = l.source; }
+      out.suppliers = [...new Set(out.pos.map((p) => p.supplier || p.supplierCode))].sort();
+    }
     return res.json({ ...out, feed: finance.meta });
   } catch (err) { console.error("PO health failed:", err.message); return res.status(400).json({ error: err.message }); }
 });
@@ -16291,6 +16310,72 @@ app.get("/api/po-health", requirePagePermission("/po-health.html", "/written-mod
 // confirms the column map (remembered per vendor) and reviews before the
 // file is built. Reference and serial type are never written.
 // ---------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
+// Catalog Check — NetSuite vs ePASS (Andrew 10/25). Read-only comparison of
+// the NetSuite item master (as last imported on Shop Orders / Ordering
+// Report) with the ePASS model master, open-order models and on-hand stock.
+// Cached for five minutes; "Refresh" on the page busts it.
+// ---------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
+// Inventory Lookup (Andrew 10/26) — NetSuite merch filters over the live
+// ePASS on-hand feed; per-model drawer with plain-language unit status.
+// ---------------------------------------------------------------------------
+const requireInventoryLookup = requirePagePermission("/inventory-lookup.html");
+app.get("/api/inventory-lookup/options", requireInventoryLookup, async (req, res) => {
+  try {
+    const index = await getInventoryIndex(req.query.refresh === "1");
+    return res.json({ tree: index.tree, totals: index.totals, snapshotAt: index.snapshotAt, snapshotSource: index.snapshotSource, builtAt: index.builtAt, statuses: INVENTORY_UNIT_STATUS, likelyDays: LIKELY_AVAILABLE_DAYS });
+  } catch (err) { console.error("Inventory lookup options failed:", err.message); return res.status(500).json({ error: "Unable to load inventory right now." }); }
+});
+app.get("/api/inventory-lookup", requireInventoryLookup, async (req, res) => {
+  try {
+    const index = await getInventoryIndex(false);
+    return res.json({ ...searchInventory(index, req.query), snapshotAt: index.snapshotAt, builtAt: index.builtAt });
+  } catch (err) { console.error("Inventory lookup failed:", err.message); return res.status(500).json({ error: "Unable to search inventory right now." }); }
+});
+app.get("/api/inventory-lookup/model/:model", requireInventoryLookup, async (req, res) => {
+  try {
+    const index = await getInventoryIndex(false);
+    const detail = await inventoryModelDetail(index, req.params.model);
+    if (!detail) return res.status(404).json({ error: "That model isn't in NetSuite or the ePASS feed." });
+    sjAudit(req, "inventory_lookup_model_viewed", { model: detail.model, onHand: detail.counts.onHand });
+    return res.json(detail);
+  } catch (err) { console.error("Inventory lookup model failed:", err.message); return res.status(500).json({ error: "Unable to load that model right now." }); }
+});
+
+const requireCatalogCheck = requirePagePermission("/catalog-check.html");
+let catalogCheckMemo = { at: 0, value: null, promise: null };
+async function catalogCheckCached(force = false) {
+  if (!force && catalogCheckMemo.value && Date.now() - catalogCheckMemo.at < 5 * 60 * 1000) return catalogCheckMemo.value;
+  if (!catalogCheckMemo.promise) {
+    catalogCheckMemo.promise = buildCatalogCheck().then((v) => { catalogCheckMemo = { at: Date.now(), value: v, promise: null }; return v; }).catch((err) => { catalogCheckMemo.promise = null; throw err; });
+  }
+  return catalogCheckMemo.promise;
+}
+app.get("/api/catalog-check", requireCatalogCheck, async (req, res) => {
+  try {
+    const result = await catalogCheckCached(req.query.refresh === "1");
+    const issue = String(req.query.issue || "");
+    const rows = issue ? result.rows.filter((r) => r.issues.includes(issue)) : result.rows;
+    return res.json({ ...result, rows: rows.slice(0, 2000), rowsTotal: rows.length, issues: CATALOG_ISSUES });
+  } catch (err) {
+    console.error("Catalog check failed:", err.message);
+    return res.status(500).json({ error: "Unable to build the catalog comparison right now." });
+  }
+});
+app.get("/api/catalog-check.csv", requireCatalogCheck, async (req, res) => {
+  try {
+    const result = await catalogCheckCached(false);
+    const issue = String(req.query.issue || "");
+    res.setHeader("Content-Type", "text/csv; charset=utf-8");
+    res.setHeader("Content-Disposition", `attachment; filename="catalog-check${issue ? "_" + issue : ""}_${new Date().toISOString().slice(0, 10)}.csv"`);
+    return res.send(catalogCheckCsv(result, { issue }));
+  } catch (err) {
+    console.error("Catalog check CSV failed:", err.message);
+    return res.status(500).json({ error: "Unable to build the CSV right now." });
+  }
+});
+
 const requirePoEta = requirePagePermission("/po-eta-import.html");
 const poEtaUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 25 * 1024 * 1024, files: 1 } });
 const poEtaFile = (req, res, next) => poEtaUpload.single("file")(req, res, (err) => {
@@ -16458,6 +16543,7 @@ app.post("/api/written-models/items", requireWrittenModels, (req, res) => {
       const items = parseNetsuiteItemsCsv(req.file.buffer);
       const out = await replaceNetsuiteItems(items, { by: wmBy(req), sourceFile: req.file.originalname || "" });
       wmAudit(req, "netsuite_items_uploaded", { ...out, filename: req.file.originalname || "" });
+      invalidateCatalog(); catalogCheckMemo = { at: 0, value: null, promise: null };
       return res.json({ ok: true, ...out });
     } catch (uploadErr) {
       console.error("NetSuite items upload failed:", uploadErr.message);
@@ -16551,7 +16637,7 @@ app.post("/api/written-models/settings", requireWrittenModels, requireExecutiveA
     const out = {};
     if (req.body?.supplierMap) out.supplierMap = await setWrittenModelsSetting("supplier_map", req.body.supplierMap);
     if (req.body?.modelSupplier) out.modelSupplier = await setWrittenModelsSetting("model_supplier", req.body.modelSupplier);
-    if (req.body?.epassSupplierMap) out.epassSupplierMap = await setWrittenModelsSetting("epass_supplier_map", req.body.epassSupplierMap);
+    if (req.body?.epassSupplierMap) { out.epassSupplierMap = await setWrittenModelsSetting("epass_supplier_map", req.body.epassSupplierMap); invalidateCatalog(); }
     wmAudit(req, "written_models_settings_saved", { keys: Object.keys(out) });
     return res.json({ ok: true, ...(await getWrittenModelsSettings()) });
   } catch (err) { return res.status(400).json({ error: err.message }); }
@@ -16945,10 +17031,11 @@ app.get("/api/aging-inventory", requirePagePermission("/aging-inventory.html"), 
     const today = new Date().toLocaleDateString("en-CA", { timeZone: APP_TIMEZONE });
     const todayMs = new Date(today + "T00:00:00Z").getTime();
     const tickets = snapshot.serialUnits.map((u) => u.writtenTo).filter(Boolean);
-    const [openOrders, finishedOrders, openMeta] = await Promise.all([
+    const [openOrders, finishedOrders, openMeta, cat] = await Promise.all([
       getOpenOrdersByInvoices(tickets).catch(() => ({})),
       getOrdersByInvoices(tickets),
-      getOpenOrdersMeta().catch(() => null)
+      getOpenOrdersMeta().catch(() => null),
+      getCatalog().catch(() => null)
     ]);
     const units = snapshot.serialUnits.map((u) => {
       const key = String(u.writtenTo || "").toUpperCase();
@@ -16956,8 +17043,11 @@ app.get("/api/aging-inventory", requirePagePermission("/aging-inventory.html"), 
       const ageDays = /^\d{4}-\d{2}-\d{2}$/.test(u.received)
         ? Math.max(0, Math.round((todayMs - new Date(u.received + "T00:00:00Z").getTime()) / 86400000))
         : null;
+      // NetSuite names first (10/26): brand, supplier, merch class; ePASS fills the gaps.
+      const c = cat ? resolveModel(cat, u.model || u.sku, { brandCode: u.brand, prod: u.prod, description: u.description }) : null;
       return {
-        serial: u.serial, model: u.model || u.sku, brand: u.brand, description: u.description,
+        serial: u.serial, model: u.model || u.sku, brand: c?.brand || u.brand, brandCode: u.brand, description: c?.description || u.description,
+        supplier: c?.supplier || "", merchClass: c?.merchClass || "", merchSubclass: c?.merchSubclass || "", catalogSource: c?.source || "epass",
         prod: u.prod, serialType: u.serialType, received: u.received, ageDays,
         cost: u.cost, list: u.list,
         writtenTo: u.writtenTo || "",

@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="robots" content="noindex,nofollow,noarchive" />
+  <title>Wilson AC & Appliance - Inventory Lookup</title>
+  <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+  <link rel="stylesheet" href="internal-shell.css" />
+  <style>
+    :root { --bg: #f7f8fc; --card: #ffffff; --text: #1f2937; --muted: #6b7280; --border: #dbe1ea; --error-bg: #fef2f2; --error-text: #991b1b; --shadow: 0 10px 35px rgba(0, 0, 0, 0.08); --radius: 18px; }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: "Roboto", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: linear-gradient(180deg, var(--primary-tint) 0%, var(--bg) 100%); color: var(--text); min-height: 100vh; padding: 24px 24px 60px; }
+    .wrap { max-width: 1520px; margin: 0 auto; }
+    .surface { background: var(--card); border: 1px solid rgba(var(--primary-rgb), 0.12); box-shadow: var(--shadow); border-radius: var(--radius); padding: 22px 24px; margin-bottom: 18px; }
+    h2 { margin: 0 0 4px; font-size: 20px; }
+    .section-note { margin: 0 0 14px; color: var(--muted); font-size: 13.5px; line-height: 1.5; }
+    button { appearance: none; border: none; background: var(--primary, #2f6b3a); color: #fff; padding: 10px 16px; border-radius: 10px; font-size: 14px; font-weight: 700; cursor: pointer; font-family: inherit; }
+    button:hover { background: var(--primary-hover, #255a2f); }
+    button.quiet { background: #fff; color: #374151; border: 1px solid var(--border); }
+    select, input[type="text"] { border: 1px solid var(--border); border-radius: 10px; padding: 9px 11px; font-size: 14px; font-family: inherit; background: #fff; }
+    .lbl { font-size: 11px; font-weight: 800; letter-spacing: 0.05em; text-transform: uppercase; color: #64748b; margin-bottom: 4px; display: block; }
+    .merch { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-bottom: 12px; }
+    .merch select { width: 100%; }
+    .finds { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-bottom: 12px; }
+    .find { display: flex; gap: 6px; }
+    .find input { flex: 1 1 auto; min-width: 0; }
+    .find select { flex: 0 0 128px; }
+    .opts { display: flex; gap: 18px; align-items: center; flex-wrap: wrap; }
+    .opts label { display: inline-flex; align-items: center; gap: 6px; font-size: 13.5px; }
+    .feed { font-size: 12.5px; color: var(--muted); margin-left: auto; }
+    .status { display: none; margin: 10px 0 0; padding: 10px 14px; border-radius: 10px; font-size: 13.5px; }
+    .status.show { display: block; }
+    .status.error { background: var(--error-bg); color: var(--error-text); }
+    .status.ok { background: rgba(var(--primary-rgb, 47, 107, 58), 0.1); color: var(--primary, #2f6b3a); }
+    table.t { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+    table.t th { text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: #64748b; padding: 8px; border-bottom: 1px solid var(--border); white-space: nowrap; position: sticky; top: 0; background: #fff; }
+    table.t td { padding: 8px; border-bottom: 1px solid #eef2f7; vertical-align: top; }
+    table.t td.n { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+    table.t tr.row { cursor: pointer; }
+    table.t tr.row:hover td { background: var(--primary-faint, #f3f8f4); }
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12.5px; }
+    .mut { color: var(--muted); font-size: 12px; }
+    .scroll { max-height: 70vh; overflow: auto; border: 1px solid var(--border); border-radius: 12px; }
+    .pill { display: inline-block; border-radius: 999px; padding: 2px 8px; font-size: 11.5px; font-weight: 700; white-space: nowrap; }
+    .pill.avail { background: #dcfce7; color: #166534; }
+    .pill.likely { background: #fef3c7; color: #92400e; }
+    .pill.spoken { background: #e5e7eb; color: #374151; }
+    .pill.reserved { background: #fee2e2; color: #991b1b; }
+    .pill.exclusive { background: #ede9fe; color: #5b21b6; }
+    .pill.disc { background: #f1f5f9; color: #475569; }
+    .num-avail { color: #166534; font-weight: 800; }
+    .num-likely { color: #92400e; font-weight: 700; }
+    /* drawer */
+    .overlay { position: fixed; inset: 0; background: rgba(15, 23, 42, 0.45); display: none; align-items: flex-start; justify-content: center; padding: 24px; overflow: auto; z-index: 50; }
+    .overlay.show { display: flex; }
+    .drawer { background: #fff; border-radius: 16px; width: min(1480px, 100%); box-shadow: 0 30px 80px rgba(0, 0, 0, 0.3); padding: 20px 22px 26px; }
+    .d-head { display: flex; justify-content: space-between; gap: 16px; align-items: flex-start; border-bottom: 1px solid var(--border); padding-bottom: 12px; margin-bottom: 14px; }
+    .d-head h3 { margin: 0; font-size: 20px; }
+    .d-sub { color: var(--muted); font-size: 13px; margin-top: 2px; }
+    .tiles { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }
+    .tile { border: 1px solid var(--border); border-radius: 12px; padding: 10px 14px; min-width: 130px; background: #fbfcfe; }
+    .tile .v { font-size: 22px; font-weight: 800; }
+    .tile .l { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
+    .tile.avail .v { color: #166534; } .tile.likely .v { color: #92400e; }
+    .sec { font-size: 11px; font-weight: 800; letter-spacing: 0.05em; text-transform: uppercase; color: #64748b; margin: 16px 0 6px; }
+    tr.u-available td { background: #f0fdf4; } tr.u-likely td { background: #fffbeb; } tr.u-exclusive td { background: #faf5ff; }
+    .note { font-size: 12px; color: #92400e; margin-top: 2px; }
+    .months { display: inline-flex; gap: 14px; font-size: 13px; color: var(--muted); }
+    .months b { color: var(--text); }
+    .copy { cursor: pointer; border-bottom: 1px dashed #94a3b8; }
+    @media (max-width: 900px) { body { padding: 14px 12px 40px; } .surface { padding: 16px; } .merch, .finds { grid-template-columns: 1fr; } .find select { flex-basis: 112px; } .overlay { padding: 8px; } }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="surface">
+      <h2>Inventory Lookup</h2>
+      <p class="section-note">Live ePASS on-hand inventory, organized by NetSuite's merchandise hierarchy. Tap a model to see every unit and whether it can be sold.</p>
+      <div class="merch">
+        <div><span class="lbl">Merch category</span><select id="cat"><option value="">All categories</option></select></div>
+        <div><span class="lbl">Merch class</span><select id="cls"><option value="">All classes</option></select></div>
+        <div><span class="lbl">Merch subclass</span><select id="sub"><option value="">All subclasses</option></select></div>
+      </div>
+      <div class="finds">
+        <div><span class="lbl">Model</span><div class="find"><input id="qModel" type="text" placeholder="e.g. CL4850" autocomplete="off" /><select id="mModel"><option value="contains">contains</option><option value="starts">starts with</option><option value="ends">ends with</option></select></div></div>
+        <div><span class="lbl">Brand</span><div class="find"><input id="qBrand" type="text" placeholder="e.g. Sub-Zero" autocomplete="off" /><select id="mBrand"><option value="contains">contains</option><option value="starts">starts with</option><option value="ends">ends with</option></select></div></div>
+        <div><span class="lbl">Description</span><div class="find"><input id="qDesc" type="text" placeholder="e.g. french door" autocomplete="off" /><select id="mDesc"><option value="contains">contains</option><option value="starts">starts with</option><option value="ends">ends with</option></select></div></div>
+      </div>
+      <div class="opts">
+        <label><input type="checkbox" id="onHand" /> On hand only</label>
+        <label><input type="checkbox" id="active" checked /> Active or in-stock only <span class="mut">(off = include discontinued / archive)</span></label>
+        <button id="clearBtn" type="button" class="quiet">Clear</button>
+        <span id="feed" class="feed"></span>
+      </div>
+      <div id="status" class="status"></div>
+    </div>
+
+    <div class="surface">
+      <div style="display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap; margin-bottom:8px;">
+        <div id="count" class="mut"></div>
+        <div class="mut">Status colors: <span class="pill avail">available</span> <span class="pill likely">likely available</span> <span class="pill spoken">spoken for</span> <span class="pill reserved">reserved</span> <span class="pill exclusive">exclusive</span></div>
+      </div>
+      <div class="scroll">
+        <table class="t">
+          <thead><tr><th>Brand</th><th>Model</th><th>Description</th><th>Class · subclass</th><th class="n">On hand</th><th class="n">Available</th><th class="n">Likely</th><th class="n">Spoken for</th><th class="n">Reserved</th></tr></thead>
+          <tbody id="rows"><tr><td colspan="9" class="mut">Loading…</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="overlay" id="overlay">
+    <div class="drawer" role="dialog" aria-modal="true">
+      <div class="d-head">
+        <div><h3 id="dTitle"></h3><div class="d-sub" id="dSub"></div></div>
+        <button type="button" class="quiet" id="dClose">Close</button>
+      </div>
+      <div id="dBody"></div>
+    </div>
+  </div>
+
+  <script src="internal-shell.js"></script>
+  <script>
+    const $ = (id) => document.getElementById(id);
+    const esc = (v) => String(v == null ? "" : v).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+    const day = (iso) => iso && /^\d{4}-\d{2}-\d{2}/.test(iso) ? new Date(iso.slice(0, 10) + "T12:00:00Z").toLocaleDateString("en-US", { month: "2-digit", day: "2-digit", year: "numeric", timeZone: "UTC" }) : (iso || "—");
+    const fmt = (n) => Number(n || 0).toLocaleString("en-US");
+    let tree = [];
+    let timer = null;
+
+    function setStatus(msg, kind) { const b = $("status"); b.className = "status" + (msg ? " show " + kind : ""); b.textContent = msg || ""; }
+    async function api(path) { const r = await fetch(path, { credentials: "same-origin" }); const j = await r.json().catch(() => ({})); if (!r.ok) throw new Error(j.error || "Request failed."); return j; }
+
+    // ---- cascading merch filters ----
+    function fillSelect(sel, items, allLabel, keep) {
+      const cur = keep ? sel.value : "";
+      sel.innerHTML = `<option value="">${esc(allLabel)}</option>` + items.map((i) => `<option value="${esc(i.label)}">${esc(i.label)}${i.models ? ` (${fmt(i.models)})` : ""}</option>`).join("");
+      if (cur && items.some((i) => i.label === cur)) sel.value = cur;
+    }
+    function cascade(level) {
+      const cat = tree.find((c) => c.label === $("cat").value);
+      if (level <= 0) fillSelect($("cls"), cat ? cat.classes : tree.flatMap((c) => c.classes), "All classes", level === 0 ? false : true);
+      const cls = (cat ? cat.classes : tree.flatMap((c) => c.classes)).find((c) => c.label === $("cls").value);
+      fillSelect($("sub"), cls ? cls.subclasses : (cat ? cat.classes : tree.flatMap((c) => c.classes)).flatMap((c) => c.subclasses), "All subclasses", level >= 2);
+    }
+
+    async function loadOptions() {
+      try {
+        const o = await api("/api/inventory-lookup/options");
+        tree = o.tree || [];
+        fillSelect($("cat"), tree, "All categories", false);
+        cascade(-1);
+        const at = o.snapshotAt ? new Date(o.snapshotAt).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) : "—";
+        $("feed").textContent = `${fmt(o.totals.units)} units on hand across ${fmt(o.totals.stocked)} models · ePASS feed ${at}`;
+        restore();
+        search();
+      } catch (err) { setStatus(err.message, "error"); }
+    }
+
+    // ---- search ----
+    function params() {
+      return {
+        category: $("cat").value, cls: $("cls").value, subclass: $("sub").value,
+        model: $("qModel").value.trim(), modelMode: $("mModel").value,
+        brand: $("qBrand").value.trim(), brandMode: $("mBrand").value,
+        description: $("qDesc").value.trim(), descMode: $("mDesc").value,
+        onHand: $("onHand").checked ? "1" : "0", active: $("active").checked ? "1" : "0", limit: "400"
+      };
+    }
+    function remember() { try { localStorage.setItem("inventoryLookup.filters", JSON.stringify(params())); } catch {} }
+    function restore() {
+      try {
+        const p = JSON.parse(localStorage.getItem("inventoryLookup.filters") || "null"); if (!p) return;
+        $("cat").value = p.category || ""; cascade(0); $("cls").value = p.cls || ""; cascade(1); $("sub").value = p.subclass || "";
+        $("qModel").value = p.model || ""; $("mModel").value = p.modelMode || "contains";
+        $("qBrand").value = p.brand || ""; $("mBrand").value = p.brandMode || "contains";
+        $("qDesc").value = p.description || ""; $("mDesc").value = p.descMode || "contains";
+        $("onHand").checked = p.onHand === "1"; $("active").checked = p.active !== "0";
+      } catch {}
+    }
+    async function search() {
+      remember();
+      const p = params();
+      const hasFilter = p.category || p.cls || p.subclass || p.model || p.brand || p.description || p.onHand === "1";
+      try {
+        const d = await api("/api/inventory-lookup?" + new URLSearchParams(p));
+        setStatus("", "");
+        $("count").textContent = `${fmt(d.total)} model${d.total === 1 ? "" : "s"}${d.total > d.shown ? ` — showing the first ${fmt(d.shown)}, narrow the search to see the rest` : ""}${hasFilter ? "" : " · stocked models first"}`;
+        $("rows").innerHTML = d.rows.map((r) => `<tr class="row" data-model="${esc(r.model)}">
+            <td>${esc(r.brand || "—")}</td>
+            <td class="mono"><b>${esc(r.model)}</b>${r.discontinued ? ` <span class="pill disc">discontinued</span>` : ""}${r.source !== "netsuite" ? ` <span class="mut" title="Not in NetSuite yet — described from ePASS">ePASS</span>` : ""}</td>
+            <td>${esc(r.description)}</td>
+            <td>${r.cls ? esc(r.cls) + `<div class="mut">${esc(r.subclass || "")}</div>` : `<span class="mut">${esc(r.prod || "—")}</span>`}</td>
+            <td class="n">${r.onHand || "<span class=mut>0</span>"}</td>
+            <td class="n">${r.available ? `<span class="num-avail">${r.available}</span>` : "<span class=mut>—</span>"}</td>
+            <td class="n">${r.likely ? `<span class="num-likely">${r.likely}</span>` : "<span class=mut>—</span>"}</td>
+            <td class="n">${r.spoken || "<span class=mut>—</span>"}</td>
+            <td class="n">${(r.reserved || 0) + (r.exclusive || 0) ? `${r.reserved || 0}${r.exclusive ? ` <span class="mut">+${r.exclusive} excl</span>` : ""}` : "<span class=mut>—</span>"}</td>
+          </tr>`).join("") || `<tr><td colspan="9" class="mut">No models match. Try "contains" instead of "starts with", or turn off "Active or in-stock only" for archive units.</td></tr>`;
+        for (const tr of $("rows").querySelectorAll("tr.row")) tr.addEventListener("click", () => openModel(tr.dataset.model));
+      } catch (err) { setStatus(err.message, "error"); }
+    }
+    const debounced = () => { clearTimeout(timer); timer = setTimeout(search, 220); };
+    $("cat").addEventListener("change", () => { cascade(0); search(); });
+    $("cls").addEventListener("change", () => { cascade(1); search(); });
+    $("sub").addEventListener("change", search);
+    for (const id of ["qModel", "qBrand", "qDesc"]) { $(id).addEventListener("input", debounced); $(id).addEventListener("keydown", (e) => { if (e.key === "Enter") { clearTimeout(timer); search(); } }); }
+    for (const id of ["mModel", "mBrand", "mDesc", "onHand", "active"]) $(id).addEventListener("change", search);
+    $("clearBtn").addEventListener("click", () => { for (const id of ["qModel", "qBrand", "qDesc"]) $(id).value = ""; for (const id of ["mModel", "mBrand", "mDesc"]) $(id).value = "contains"; $("cat").value = ""; cascade(0); $("cls").value = ""; cascade(1); $("sub").value = ""; $("onHand").checked = false; $("active").checked = true; search(); });
+
+    // ---- drawer ----
+    async function openModel(model) {
+      $("overlay").classList.add("show"); $("overlay").scrollTop = 0;
+      $("dTitle").textContent = model; $("dSub").textContent = ""; $("dBody").innerHTML = `<div class="mut">Loading…</div>`;
+      try {
+        const p = await api("/api/inventory-lookup/model/" + encodeURIComponent(model));
+        $("dTitle").innerHTML = `<span class="copy" title="Click to copy">${esc(p.model)}</span>${p.description ? " — " + esc(p.description) : ""}`;
+        $("dTitle").querySelector(".copy").addEventListener("click", () => { navigator.clipboard?.writeText(p.model).catch(() => {}); });
+        $("dSub").textContent = [p.brand, p.supplier, [p.category, p.cls, p.subclass].filter(Boolean).join(" › ") || (p.prod ? "ePASS " + p.prod : "")].filter(Boolean).join(" · ") + (p.discontinued ? " · discontinued" : "") + (p.source !== "netsuite" ? " · not in NetSuite yet" : "");
+        const c = p.counts;
+        const tiles = `<div class="tiles">
+            <div class="tile"><div class="v">${c.onHand}</div><div class="l">On hand</div></div>
+            <div class="tile avail"><div class="v">${c.available}</div><div class="l">Available to sell</div></div>
+            <div class="tile likely"><div class="v">${c.likely}</div><div class="l">Likely available</div></div>
+            <div class="tile"><div class="v">${c.spoken}</div><div class="l">Spoken for</div></div>
+            <div class="tile"><div class="v">${c.reserved}${c.exclusive ? `<span class="mut" style="font-size:13px;"> +${c.exclusive} excl</span>` : ""}</div><div class="l">Reserved</div></div>
+            ${p.months?.length ? `<div class="tile"><div class="months">${p.months.map((m) => `<span>${esc(new Date(m.month + "-15T12:00:00Z").toLocaleDateString("en-US", { month: "short", timeZone: "UTC" }))} <b>${m.units}</b></span>`).join("")}</div><div class="l">Delivered by month</div></div>` : ""}
+          </div>`;
+        const units = p.units.length ? `<div class="sec">Inventory on hand <span class="mut" style="text-transform:none; letter-spacing:0; font-weight:500;">(ePASS feed)</span></div>
+          <table class="t"><thead><tr><th>Status</th><th>Order</th><th>Customer</th><th>Schedule / pickup</th><th>Job status</th><th>Received</th><th>Age</th><th>Loc / bin</th><th>Serial type</th><th>Serial #</th></tr></thead>
+          <tbody>${p.units.map((u) => `<tr class="u-${u.status}">
+              <td><span class="pill ${u.status === "available" ? "avail" : u.status}">${esc(u.statusLabel)}</span>${u.note ? `<div class="note">${esc(u.note)}</div>` : ""}${u.reservedOn ? `<div class="mut">since ${day(u.reservedOn)}</div>` : ""}</td>
+              <td class="mono">${esc(u.writtenTo || "—")}</td>
+              <td>${esc(u.customer || "—")}${u.salesperson ? `<div class="mut">${esc(u.salesperson)}</div>` : ""}</td>
+              <td>${u.scheduleDate ? day(u.scheduleDate) : u.pickupDate ? day(u.pickupDate) + ` <span class="mut">pickup</span>` : "—"}</td>
+              <td>${esc(u.jobStatus || "—")}</td>
+              <td>${day(u.received)}</td>
+              <td>${u.ageDays == null ? "—" : u.ageDays + " d"}</td>
+              <td class="mut">${esc([u.location, u.bin].filter(Boolean).join(" / ") || "—")}</td>
+              <td>${esc(u.serialType)}</td>
+              <td class="mono">${esc(u.serial)}</td>
+            </tr>`).join("")}</tbody></table>` : `<div class="sec">Inventory on hand</div><div class="mut">Nothing on hand for this model.</div>`;
+        const foot = `<div class="mut" style="margin-top:12px;">"Likely available" = written to an order whose delivery or pickup is more than ${p.likelyDays} days out. Snapshot: ${esc(p.snapshotSource || "ePASS feed")}${p.snapshotAt ? " · " + esc(new Date(p.snapshotAt).toLocaleString("en-US", { month: "numeric", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" })) : ""}.</div>`;
+        $("dBody").innerHTML = tiles + units + foot;
+      } catch (err) { $("dBody").innerHTML = `<div class="status show error">${esc(err.message)}</div>`; }
+    }
+    $("dClose").addEventListener("click", () => $("overlay").classList.remove("show"));
+    $("overlay").addEventListener("click", (e) => { if (e.target === $("overlay")) $("overlay").classList.remove("show"); });
+    document.addEventListener("keydown", (e) => { if (e.key === "Escape") $("overlay").classList.remove("show"); });
+
+    loadOptions();
+  </script>
+</body>
+</html>

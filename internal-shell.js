@@ -258,6 +258,7 @@
         title: "Sales Tools",
         children: [
           { href: "salesdashboard.html", title: "Sales Dashboard" },
+          { href: "inventory-lookup.html", title: "Inventory Lookup" },
           { href: "sales-order-health.html", title: "Sales Order Health Report" },
           { href: "sales-order-detail.html", title: "Sales Order Detail" },
           { href: "brand-sales.html", title: "Brand Sales" },
@@ -290,7 +291,9 @@
         children: [
           { href: "speedqueen-truckload.html", title: "Speed Queen Truckload Builder" },
           { href: "written-models.html", title: "Ordering Report" },
-          { href: "po-health.html", title: "Purchase Order Health" }
+          { href: "po-health.html", title: "Purchase Order Health" },
+          { href: "po-eta-import.html", title: "PO ETA Import Builder" },
+          { href: "catalog-check.html", title: "Catalog Check (NetSuite vs ePASS)" }
         ]
       },
       {

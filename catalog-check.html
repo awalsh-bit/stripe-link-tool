@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="robots" content="noindex,nofollow,noarchive" />
+  <title>Wilson AC & Appliance - Catalog Check</title>
+  <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+  <link rel="stylesheet" href="internal-shell.css" />
+  <style>
+    :root { --bg: #f7f8fc; --card: #ffffff; --text: #1f2937; --muted: #6b7280; --border: #dbe1ea; --error-bg: #fef2f2; --error-text: #991b1b; --shadow: 0 10px 35px rgba(0, 0, 0, 0.08); --radius: 18px; }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: "Roboto", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: linear-gradient(180deg, var(--primary-tint) 0%, var(--bg) 100%); color: var(--text); min-height: 100vh; padding: 24px 24px 60px; }
+    .wrap { max-width: 1520px; margin: 0 auto; }
+    .surface { background: var(--card); border: 1px solid rgba(var(--primary-rgb), 0.12); box-shadow: var(--shadow); border-radius: var(--radius); padding: 24px; margin-bottom: 18px; }
+    h2 { margin: 0 0 6px; font-size: 20px; }
+    h3 { margin: 0 0 8px; font-size: 15px; }
+    .section-note { margin: 0 0 16px; color: var(--muted); font-size: 14px; line-height: 1.5; }
+    .section-note b { color: var(--text); }
+    button { appearance: none; border: none; background: var(--primary, #2f6b3a); color: #fff; padding: 10px 16px; border-radius: 10px; font-size: 14px; font-weight: 700; cursor: pointer; font-family: inherit; }
+    button:hover { background: var(--primary-hover, #255a2f); }
+    button:disabled { opacity: 0.55; cursor: not-allowed; }
+    button.secondary { background: var(--primary-tint, #eaf3ec); color: var(--primary, #2f6b3a); }
+    button.quiet { background: #fff; color: #374151; border: 1px solid var(--border); }
+    select, input[type="text"] { border: 1px solid var(--border); border-radius: 10px; padding: 9px 11px; font-size: 14px; font-family: inherit; background: #fff; }
+    .status { display: none; margin: 0 0 14px; padding: 10px 14px; border-radius: 10px; font-size: 13.5px; white-space: pre-line; }
+    .status.show { display: block; }
+    .status.error { background: var(--error-bg); color: var(--error-text); }
+    .status.ok { background: rgba(var(--primary-rgb, 47, 107, 58), 0.1); color: var(--primary, #2f6b3a); }
+    .row { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+    .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; margin: 14px 0 18px; }
+    .tile { border: 1px solid var(--border); border-radius: 12px; padding: 12px 14px; background: #fbfcfe; cursor: pointer; }
+    .tile.on { border-color: var(--primary, #2f6b3a); background: var(--primary-tint, #eaf3ec); }
+    .tile.static { cursor: default; }
+    .tile .v { font-size: 24px; font-weight: 800; letter-spacing: -0.01em; }
+    .tile .l { font-size: 12px; color: var(--muted); margin-top: 2px; line-height: 1.3; }
+    .tile.warn .v { color: #b45309; }
+    .tile.bad .v { color: #991b1b; }
+    .feed { font-size: 12.5px; color: var(--muted); margin-top: 8px; }
+    .feed b { color: var(--text); }
+    table.t { width: 100%; border-collapse: collapse; font-size: 13px; }
+    table.t th { text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: #64748b; padding: 8px; border-bottom: 1px solid var(--border); white-space: nowrap; position: sticky; top: 0; background: #fff; }
+    table.t td { padding: 7px 8px; border-bottom: 1px solid #eef2f7; vertical-align: top; }
+    table.t td.n { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12.5px; }
+    .mut { color: var(--muted); font-size: 12px; }
+    .tag { display: inline-block; border-radius: 999px; padding: 2px 8px; font-size: 11px; font-weight: 700; margin: 1px 4px 1px 0; white-space: nowrap; }
+    .tag.missing_in_netsuite { background: #fee2e2; color: #991b1b; }
+    .tag.no_hierarchy { background: #fef3c7; color: #92400e; }
+    .tag.brand_mismatch { background: #ede9fe; color: #5b21b6; }
+    .tag.supplier_mismatch { background: #dbeafe; color: #1e40af; }
+    .tag.supplier_blank { background: #e5e7eb; color: #374151; }
+    .scroll { max-height: 640px; overflow: auto; border: 1px solid var(--border); border-radius: 12px; }
+    .two { display: grid; grid-template-columns: repeat(auto-fit, minmax(420px, 1fr)); gap: 18px; }
+    .bar { height: 6px; border-radius: 3px; background: #e5e7eb; overflow: hidden; margin-top: 4px; }
+    .bar > span { display: block; height: 100%; background: var(--primary, #2f6b3a); }
+    .bar.low > span { background: #b45309; }
+    .diff { color: #991b1b; font-weight: 700; }
+    .same { color: var(--primary, #2f6b3a); }
+    @media (max-width: 720px) { body { padding: 14px 12px 40px; } .surface { padding: 16px; } .two { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="surface">
+      <h2>Catalog Check — NetSuite vs ePASS</h2>
+      <p class="section-note">
+        NetSuite is the source of truth for <b>brand</b>, <b>supplier</b> and the <b>merchandise hierarchy</b>; ePASS is where the models are sold and stocked.
+        This compares the two for every model ePASS knows (model master, open orders, on-hand stock) against the NetSuite item export last imported on
+        <b>Shop Orders → NetSuite items</b> and <b>Ordering Report → NetSuite items</b>. Nothing is changed here — fix the item in NetSuite, re-export, re-import, refresh.
+        Agility already speaks NetSuite wherever it can: brand, supplier and merch class come from NetSuite for every model it has, and a model in the
+        <b>“In ePASS, not in NetSuite”</b> tile is exactly one that is still being described with ePASS's own words. Supplier aliases for ePASS codes are learned
+        from the models and can be overridden on the <b>Ordering Report → Settings</b> page.
+      </p>
+      <div class="row">
+        <button id="refreshBtn" type="button" class="quiet">Refresh</button>
+        <label>Show <select id="issueSel"><option value="">every model with an issue</option></select></label>
+        <input id="q" type="text" placeholder="Filter by model, brand, supplier…" style="min-width: 260px;" />
+        <button id="csvBtn" type="button" class="secondary">Download CSV</button>
+        <span id="feed" class="feed"></span>
+      </div>
+      <div id="status" class="status"></div>
+      <div id="tiles" class="tiles"></div>
+    </div>
+
+    <div class="surface">
+      <h3 id="rowsTitle">Models with issues</h3>
+      <div class="scroll">
+        <table class="t">
+          <thead><tr>
+            <th>Model</th><th>Issues</th><th>ePASS brand</th><th>ePASS prod</th><th>ePASS supplier</th><th>On hand</th>
+            <th>NetSuite brand</th><th>NetSuite supplier</th><th>Merch class / subclass</th><th>Type</th><th>Description</th>
+          </tr></thead>
+          <tbody id="rows"></tbody>
+        </table>
+      </div>
+      <div id="more" class="mut" style="margin-top: 8px;"></div>
+    </div>
+
+    <div class="two">
+      <div class="surface">
+        <h3>ePASS product code → NetSuite merch class</h3>
+        <p class="section-note">For models that have a hierarchy. A clean mapping is one product code landing almost entirely in one class; a low share means either ePASS product codes are loose or NetSuite classes are inconsistent.</p>
+        <div class="scroll" style="max-height: 480px;"><table class="t"><thead><tr><th>ePASS prod</th><th>Models</th><th>Dominant NetSuite class</th><th>Share</th><th>Others</th></tr></thead><tbody id="xtab"></tbody></table></div>
+      </div>
+      <div class="surface">
+        <h3>No hierarchy in NetSuite — by ePASS product code</h3>
+        <p class="section-note">Which ePASS product codes the un-classified NetSuite items carry. These are the groups that need a merch category (repair parts, charges, services) — the counts tell you how big each bucket is.</p>
+        <div class="scroll" style="max-height: 220px;"><table class="t"><thead><tr><th>ePASS prod</th><th>Models</th></tr></thead><tbody id="nohier"></tbody></table></div>
+        <h3 style="margin-top: 18px;">Supplier agreement</h3>
+        <p class="section-note">Each ePASS supplier and which NetSuite supplier its models carry. Anything in red is a disagreement to resolve in NetSuite (or an alias to teach this page).</p>
+        <div class="scroll" style="max-height: 300px;"><table class="t"><thead><tr><th>ePASS supplier</th><th>NetSuite supplier on its models</th></tr></thead><tbody id="suppliers"></tbody></table></div>
+      </div>
+    </div>
+  </div>
+
+  <script src="internal-shell.js"></script>
+  <script>
+    const $ = (id) => document.getElementById(id);
+    const esc = (v) => String(v == null ? "" : v).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+    const fmt = (n) => Number(n || 0).toLocaleString("en-US");
+    let data = null;
+    let issue = "";
+
+    function setStatus(msg, kind) { const b = $("status"); b.className = "status" + (msg ? " show " + kind : ""); b.textContent = msg || ""; }
+
+    async function load(force) {
+      setStatus("Comparing NetSuite with ePASS…", "ok");
+      $("refreshBtn").disabled = true;
+      try {
+        const res = await fetch("/api/catalog-check?" + new URLSearchParams({ issue, ...(force ? { refresh: "1" } : {}) }), { credentials: "same-origin" });
+        const json = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(json.error || "Request failed.");
+        data = json;
+        setStatus("", "");
+        render();
+      } catch (err) {
+        setStatus(err.message, "error");
+      } finally {
+        $("refreshBtn").disabled = false;
+      }
+    }
+
+    function render() {
+      const d = data;
+      const sel = $("issueSel");
+      if (sel.options.length === 1) for (const [k, label] of Object.entries(d.issues)) { const o = document.createElement("option"); o.value = k; o.textContent = label; sel.appendChild(o); }
+      sel.value = issue;
+      const up = d.netsuite.uploadedAt ? new Date(d.netsuite.uploadedAt).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) : "never";
+      $("feed").innerHTML = `NetSuite items: <b>${fmt(d.netsuite.models)}</b> models (uploaded ${esc(up)}${d.netsuite.sourceFile ? " · " + esc(d.netsuite.sourceFile) : ""}) · ePASS models seen: <b>${fmt(d.epass.models)}</b> (${fmt(d.epass.stockedModels)} stocked, ${fmt(d.epass.onOpenOrders)} on open orders)`;
+      const tiles = [
+        { k: "", v: d.epass.models, l: "ePASS models compared", cls: "static" },
+        { k: "missing_in_netsuite", v: d.counts.missing_in_netsuite, l: "In ePASS, not in NetSuite", cls: d.counts.missing_in_netsuite ? "bad" : "" },
+        { k: "no_hierarchy", v: d.counts.no_hierarchy, l: "No merch hierarchy", cls: d.counts.no_hierarchy ? "warn" : "" },
+        { k: "brand_mismatch", v: d.counts.brand_mismatch, l: "Brand differs", cls: d.counts.brand_mismatch ? "warn" : "" },
+        { k: "supplier_mismatch", v: d.counts.supplier_mismatch, l: "Supplier differs", cls: d.counts.supplier_mismatch ? "warn" : "" },
+        { k: "supplier_blank", v: d.counts.supplier_blank, l: "No supplier in NetSuite (ePASS has one)", cls: "" },
+        { k: "", v: d.netsuite.notSeenInEpass, l: "NetSuite items ePASS has never sold or stocked (parts, charges — informational)", cls: "static" }
+      ];
+      $("tiles").innerHTML = tiles.map((t) => `<div class="tile ${t.cls} ${t.k && t.k === issue ? "on" : ""}" ${t.cls === "static" ? "" : `data-issue="${t.k}"`}><div class="v">${fmt(t.v)}</div><div class="l">${esc(t.l)}</div></div>`).join("");
+      for (const el of $("tiles").querySelectorAll(".tile[data-issue]")) el.addEventListener("click", () => { issue = issue === el.dataset.issue ? "" : el.dataset.issue; load(false); });
+      renderRows();
+      $("xtab").innerHTML = d.crosstab.map((x) => `<tr><td class="mono">${esc(x.productCode)}</td><td class="n">${fmt(x.total)}</td><td>${esc(x.dominant)}</td><td class="n" style="min-width:90px;">${x.dominantShare}%<div class="bar ${x.dominantShare < 80 ? "low" : ""}"><span style="width:${x.dominantShare}%"></span></div></td><td class="mut">${x.classes.slice(1, 4).map((c) => esc(c.cls) + " (" + c.n + ")").join(", ")}${x.classes.length > 4 ? " …" : ""}</td></tr>`).join("") || `<tr><td colspan="5" class="mut">No models with both an ePASS product code and a NetSuite class yet.</td></tr>`;
+      $("nohier").innerHTML = d.noHierarchyByProductCode.map((x) => `<tr><td class="mono">${esc(x.productCode) || "<span class=mut>(blank)</span>"}</td><td class="n">${fmt(x.n)}</td></tr>`).join("") || `<tr><td colspan="2" class="mut">Every ePASS model that NetSuite knows has a hierarchy.</td></tr>`;
+      $("suppliers").innerHTML = d.supplierMap.map((s) => `<tr><td>${esc(s.epassSupplier)} <span class="mut">(${fmt(s.total)})</span></td><td>${s.vendors.map((v) => `<span class="${v.agrees ? "same" : "diff"}">${esc(v.vendor)}</span> <span class="mut">${v.n}</span>`).join("<br>")}</td></tr>`).join("") || `<tr><td colspan="2" class="mut">No overlapping supplier data yet (the ePASS supplier comes from models on open orders).</td></tr>`;
+    }
+
+    function renderRows() {
+      const q = $("q").value.trim().toLowerCase();
+      const rows = (data.rows || []).filter((r) => !q || [r.model, r.epass.brand, r.epass.supplier, r.epass.productCode, r.netsuite?.brand, r.netsuite?.vendor, r.netsuite?.cls, r.epass.description].some((v) => String(v || "").toLowerCase().includes(q)));
+      $("rowsTitle").textContent = (issue ? data.issues[issue] : "Models with issues") + ` — ${fmt(rows.length)}${data.rowsTotal > data.rows.length ? ` of ${fmt(data.rowsTotal)} (first ${fmt(data.rows.length)} shown; the CSV has them all)` : ""}`;
+      $("rows").innerHTML = rows.slice(0, 600).map((r) => {
+        const n = r.netsuite || {};
+        const brandDiff = r.issues.includes("brand_mismatch"); const supDiff = r.issues.includes("supplier_mismatch");
+        return `<tr>
+          <td class="mono">${esc(r.model)}</td>
+          <td>${r.issues.map((i) => `<span class="tag ${i}">${esc(data.issues[i] || i)}</span>`).join("")}</td>
+          <td class="${brandDiff ? "diff" : ""}">${esc(r.epass.brand)}</td>
+          <td class="mono">${esc(r.epass.productCode)}</td>
+          <td class="${supDiff ? "diff" : ""}">${esc(r.epass.supplier)}</td>
+          <td class="n">${r.epass.onHand || ""}${r.epass.openOrder ? `<div class="mut">on order</div>` : ""}</td>
+          <td class="${brandDiff ? "diff" : ""}">${esc(n.brand || "")}</td>
+          <td class="${supDiff ? "diff" : ""}">${esc(n.vendor || "")}</td>
+          <td>${n.cls ? esc(n.cls) + `<div class="mut">${esc(n.subclass || "")}</div>` : `<span class="mut">—</span>`}</td>
+          <td class="mut">${esc(n.type || "")}${n.discontinued ? "<div>discontinued</div>" : ""}</td>
+          <td class="mut">${esc(r.epass.description || n.description || "")}</td>
+        </tr>`;
+      }).join("") || `<tr><td colspan="11" class="mut">Nothing to show.</td></tr>`;
+      $("more").textContent = rows.length > 600 ? `Showing the first 600 of ${fmt(rows.length)} — narrow the filter or download the CSV.` : "";
+    }
+
+    $("refreshBtn").addEventListener("click", () => load(true));
+    $("issueSel").addEventListener("change", () => { issue = $("issueSel").value; load(false); });
+    $("q").addEventListener("input", () => { if (data) renderRows(); });
+    $("csvBtn").addEventListener("click", () => { window.location.href = "/api/catalog-check.csv?" + new URLSearchParams({ issue }); });
+    load(false);
+  </script>
+</body>
+</html>

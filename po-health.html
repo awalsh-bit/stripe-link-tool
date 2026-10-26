@@ -100,7 +100,7 @@
         $("tbl").innerHTML = `<thead><tr><th>PO</th><th>Supplier</th><th>Ordered</th><th>Confirmed</th><th>Req. delivery</th><th>Next ETA</th><th class="num">Lines</th><th class="num">Open cost</th><th>Buyer</th><th>Flags</th></tr></thead><tbody>${rows.map((p) => `
           <tr class="po sev${p.severity}" data-po="${esc(p.po)}">
             <td><b>${esc(p.po)}</b>${p.shipTo ? `<div class="muted" style="font-size:11.5px;">${esc(p.shipTo)}</div>` : ""}</td>
-            <td>${esc(p.supplier || p.supplierCode)}</td>
+            <td>${esc(p.supplier || p.supplierCode)}${p.supplierCode && p.supplier !== p.supplierCode ? `<div class="muted" style="font-size:11.5px;">ePASS ${esc(p.supplierCode)}</div>` : ""}</td>
             <td>${day(p.ordered)}${p.ageDays != null ? ` <span class="muted">${p.ageDays}d</span>` : ""}</td>
             <td>${p.confirmed ? day(p.confirmed) : p.confirmation ? esc(p.confirmation) : '<span class="neg">—</span>'}</td>
             <td>${p.rdd ? day(p.rdd) : (p.lines.some((l) => l.rdd) ? "per line" : '<span class="neg">blank</span>')}</td>

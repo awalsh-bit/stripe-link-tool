@@ -16324,7 +16324,7 @@ const requireInventoryLookup = requirePagePermission("/inventory-lookup.html");
 app.get("/api/inventory-lookup/options", requireInventoryLookup, async (req, res) => {
   try {
     const index = await getInventoryIndex(req.query.refresh === "1");
-    return res.json({ tree: index.tree, totals: index.totals, snapshotAt: index.snapshotAt, snapshotSource: index.snapshotSource, builtAt: index.builtAt, statuses: INVENTORY_UNIT_STATUS, likelyDays: LIKELY_AVAILABLE_DAYS });
+    return res.json({ tree: index.tree, totals: index.totals, snapshotAt: index.snapshotAt, snapshotSource: index.snapshotSource, builtAt: index.builtAt, statuses: INVENTORY_UNIT_STATUS, likelyDays: LIKELY_AVAILABLE_DAYS, hierarchyLoaded: index.hierarchyLoaded, netsuiteModels: index.netsuiteModels });
   } catch (err) { console.error("Inventory lookup options failed:", err.message); return res.status(500).json({ error: "Unable to load inventory right now." }); }
 });
 app.get("/api/inventory-lookup", requireInventoryLookup, async (req, res) => {

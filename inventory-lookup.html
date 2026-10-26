@@ -69,7 +69,40 @@
     .months { display: inline-flex; gap: 14px; font-size: 13px; color: var(--muted); }
     .months b { color: var(--text); }
     .copy { cursor: pointer; border-bottom: 1px dashed #94a3b8; }
-    @media (max-width: 900px) { body { padding: 14px 12px 40px; } .surface { padding: 16px; } .merch, .finds { grid-template-columns: 1fr; } .find select { flex-basis: 112px; } .overlay { padding: 8px; } }
+    .price { font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .price.base { font-weight: 800; }
+    .chip { display: inline-flex; align-items: center; gap: 4px; border-radius: 999px; padding: 3px 10px; font-size: 12px; font-weight: 800; white-space: nowrap; }
+    .chip.ats { background: #dcfce7; color: #166534; }
+    .chip.ats0 { background: #f1f5f9; color: #64748b; font-weight: 700; }
+    .chip.likely { background: #fef3c7; color: #92400e; }
+    .chip.disc { background: #f1f5f9; color: #475569; font-weight: 700; }
+    .chip.close, .pill.close { background: #ffe4e6; color: #9f1239; }
+    /* mobile cards (the showroom view) */
+    .cards { display: none; }
+    .card { border: 1px solid var(--border); border-radius: 14px; padding: 12px 14px; margin-bottom: 10px; background: #fff; cursor: pointer; }
+    .card:active { background: var(--primary-faint, #f3f8f4); }
+    .card .top { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }
+    .card .model { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-weight: 800; font-size: 16px; letter-spacing: 0.01em; }
+    .card .brand { font-size: 12px; color: var(--muted); margin-top: 1px; }
+    .card .desc { font-size: 14px; color: #334155; margin: 6px 0 8px; line-height: 1.35; }
+    .card .bottom { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
+    .card .base { font-size: 18px; font-weight: 800; }
+    .card .base small { font-size: 11px; font-weight: 600; color: var(--muted); margin-left: 4px; }
+    .card .chips { display: flex; gap: 6px; flex-wrap: wrap; }
+    .u-cards { display: none; }
+    .u-card { border: 1px solid var(--border); border-radius: 12px; padding: 10px 12px; margin-bottom: 8px; }
+    .u-card .l1 { display: flex; justify-content: space-between; gap: 8px; align-items: center; }
+    .u-card .meta { font-size: 12.5px; color: #475569; margin-top: 6px; line-height: 1.5; }
+    .u-card .meta b { color: var(--text); font-weight: 600; }
+    .banner { background: #fef3c7; color: #92400e; border-radius: 12px; padding: 10px 14px; font-size: 13.5px; margin: 0 0 12px; }
+    @media (max-width: 900px) {
+      body { padding: 14px 12px 40px; } .surface { padding: 16px; } .merch, .finds { grid-template-columns: 1fr; } .find select { flex-basis: 112px; } .overlay { padding: 8px; }
+      .scroll { display: none; } .cards { display: block; }
+      .drawer { padding: 14px 14px 20px; } .d-head h3 { font-size: 17px; }
+      .tiles { gap: 8px; } .tile { min-width: calc(50% - 4px); flex: 1 1 calc(50% - 4px); padding: 8px 12px; } .tile .v { font-size: 19px; }
+      .u-table { display: none; } .u-cards { display: block; }
+      .legend { display: none; }
+    }
   </style>
 </head>
 <body>
@@ -89,6 +122,7 @@
       </div>
       <div class="opts">
         <label><input type="checkbox" id="onHand" /> On hand only</label>
+        <label><input type="checkbox" id="closeout" /> Closeout units only <span class="mut">(open box, aged, or unique-priced)</span></label>
         <label><input type="checkbox" id="active" checked /> Active or in-stock only <span class="mut">(off = include discontinued / archive)</span></label>
         <button id="clearBtn" type="button" class="quiet">Clear</button>
         <span id="feed" class="feed"></span>
@@ -97,16 +131,18 @@
     </div>
 
     <div class="surface">
+      <div id="banner" class="banner" style="display:none;"></div>
       <div style="display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap; margin-bottom:8px;">
         <div id="count" class="mut"></div>
-        <div class="mut">Status colors: <span class="pill avail">available</span> <span class="pill likely">likely available</span> <span class="pill spoken">spoken for</span> <span class="pill reserved">reserved</span> <span class="pill exclusive">exclusive</span></div>
+        <div class="mut legend">Status colors: <span class="pill avail">available</span> <span class="pill likely">likely available</span> <span class="pill spoken">spoken for</span> <span class="pill reserved">reserved</span> <span class="pill exclusive">exclusive</span></div>
       </div>
       <div class="scroll">
         <table class="t">
-          <thead><tr><th>Brand</th><th>Model</th><th>Description</th><th>Class · subclass</th><th class="n">On hand</th><th class="n">Available</th><th class="n">Likely</th><th class="n">Spoken for</th><th class="n">Reserved</th></tr></thead>
-          <tbody id="rows"><tr><td colspan="9" class="mut">Loading…</td></tr></tbody>
+          <thead><tr><th>Brand</th><th>Model</th><th>Description</th><th>Class · subclass</th><th class="n">Base price</th><th class="n">ATS</th><th class="n">Closeout</th><th class="n">On hand</th><th class="n">Likely</th><th class="n">Spoken for</th><th class="n">Reserved</th></tr></thead>
+          <tbody id="rows"><tr><td colspan="11" class="mut">Loading…</td></tr></tbody>
         </table>
       </div>
+      <div id="cards" class="cards"></div>
     </div>
   </div>
 
@@ -126,6 +162,8 @@
     const esc = (v) => String(v == null ? "" : v).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
     const day = (iso) => iso && /^\d{4}-\d{2}-\d{2}/.test(iso) ? new Date(iso.slice(0, 10) + "T12:00:00Z").toLocaleDateString("en-US", { month: "2-digit", day: "2-digit", year: "numeric", timeZone: "UTC" }) : (iso || "—");
     const fmt = (n) => Number(n || 0).toLocaleString("en-US");
+    const money = (n) => n == null || !(Number(n) > 0) ? "" : "$" + Number(n).toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+    const atsChip = (r) => r.ats ? `<span class="chip ats">${r.ats} ATS</span>` : `<span class="chip ats0">0 ATS</span>`;
     let tree = [];
     let timer = null;
 
@@ -153,6 +191,12 @@
         cascade(-1);
         const at = o.snapshotAt ? new Date(o.snapshotAt).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) : "—";
         $("feed").textContent = `${fmt(o.totals.units)} units on hand across ${fmt(o.totals.stocked)} models · ePASS feed ${at}`;
+        if (!o.hierarchyLoaded) {
+          $("banner").style.display = "";
+          $("banner").textContent = o.netsuiteModels
+            ? "The NetSuite items on file have no merchandise hierarchy yet — re-import the current NetSuite export (with Merch Category / Class / Subclass columns) on Shop Orders → NetSuite items, and these three filters will fill in."
+            : "No NetSuite items have been imported yet — import the NetSuite export on Shop Orders → NetSuite items to get the category / class / subclass filters and base prices.";
+        } else { $("banner").style.display = "none"; }
         restore();
         search();
       } catch (err) { setStatus(err.message, "error"); }
@@ -165,7 +209,7 @@
         model: $("qModel").value.trim(), modelMode: $("mModel").value,
         brand: $("qBrand").value.trim(), brandMode: $("mBrand").value,
         description: $("qDesc").value.trim(), descMode: $("mDesc").value,
-        onHand: $("onHand").checked ? "1" : "0", active: $("active").checked ? "1" : "0", limit: "400"
+        onHand: $("onHand").checked ? "1" : "0", closeout: $("closeout").checked ? "1" : "0", active: $("active").checked ? "1" : "0", limit: "400"
       };
     }
     function remember() { try { localStorage.setItem("inventoryLookup.filters", JSON.stringify(params())); } catch {} }
@@ -176,29 +220,40 @@
         $("qModel").value = p.model || ""; $("mModel").value = p.modelMode || "contains";
         $("qBrand").value = p.brand || ""; $("mBrand").value = p.brandMode || "contains";
         $("qDesc").value = p.description || ""; $("mDesc").value = p.descMode || "contains";
-        $("onHand").checked = p.onHand === "1"; $("active").checked = p.active !== "0";
+        $("onHand").checked = p.onHand === "1"; $("closeout").checked = p.closeout === "1"; $("active").checked = p.active !== "0";
       } catch {}
     }
     async function search() {
       remember();
       const p = params();
-      const hasFilter = p.category || p.cls || p.subclass || p.model || p.brand || p.description || p.onHand === "1";
+      const hasFilter = p.category || p.cls || p.subclass || p.model || p.brand || p.description || p.onHand === "1" || p.closeout === "1";
       try {
         const d = await api("/api/inventory-lookup?" + new URLSearchParams(p));
         setStatus("", "");
         $("count").textContent = `${fmt(d.total)} model${d.total === 1 ? "" : "s"}${d.total > d.shown ? ` — showing the first ${fmt(d.shown)}, narrow the search to see the rest` : ""}${hasFilter ? "" : " · stocked models first"}`;
+        const empty = `No models match. Try "contains" instead of "starts with", or turn off "Active or in-stock only" for archive units.`;
         $("rows").innerHTML = d.rows.map((r) => `<tr class="row" data-model="${esc(r.model)}">
             <td>${esc(r.brand || "—")}</td>
             <td class="mono"><b>${esc(r.model)}</b>${r.discontinued ? ` <span class="pill disc">discontinued</span>` : ""}${r.source !== "netsuite" ? ` <span class="mut" title="Not in NetSuite yet — described from ePASS">ePASS</span>` : ""}</td>
             <td>${esc(r.description)}</td>
             <td>${r.cls ? esc(r.cls) + `<div class="mut">${esc(r.subclass || "")}</div>` : `<span class="mut">${esc(r.prod || "—")}</span>`}</td>
+            <td class="n price base">${money(r.basePrice) || "<span class=mut>—</span>"}</td>
+            <td class="n">${r.ats ? `<span class="num-avail">${r.ats}</span>` : "<span class=mut>0</span>"}</td>
+            <td class="n">${r.closeout ? `<span class="pill close">${r.closeout}</span>` : "<span class=mut>—</span>"}</td>
             <td class="n">${r.onHand || "<span class=mut>0</span>"}</td>
-            <td class="n">${r.available ? `<span class="num-avail">${r.available}</span>` : "<span class=mut>—</span>"}</td>
             <td class="n">${r.likely ? `<span class="num-likely">${r.likely}</span>` : "<span class=mut>—</span>"}</td>
             <td class="n">${r.spoken || "<span class=mut>—</span>"}</td>
             <td class="n">${(r.reserved || 0) + (r.exclusive || 0) ? `${r.reserved || 0}${r.exclusive ? ` <span class="mut">+${r.exclusive} excl</span>` : ""}` : "<span class=mut>—</span>"}</td>
-          </tr>`).join("") || `<tr><td colspan="9" class="mut">No models match. Try "contains" instead of "starts with", or turn off "Active or in-stock only" for archive units.</td></tr>`;
+          </tr>`).join("") || `<tr><td colspan="11" class="mut">${empty}</td></tr>`;
         for (const tr of $("rows").querySelectorAll("tr.row")) tr.addEventListener("click", () => openModel(tr.dataset.model));
+        // Showroom cards (phone): model, short description, base price, ATS.
+        $("cards").innerHTML = d.rows.map((r) => `<div class="card" data-model="${esc(r.model)}">
+            <div class="top"><div><div class="model">${esc(r.model)}</div><div class="brand">${esc(r.brand || "")}${r.cls ? " · " + esc(r.subclass || r.cls) : ""}</div></div>${atsChip(r)}</div>
+            <div class="desc">${esc(r.description || "—")}</div>
+            <div class="bottom"><div class="base">${money(r.basePrice) ? money(r.basePrice) + "<small>base</small>" : `<span class="mut" style="font-size:13px;font-weight:600;">no base price</span>`}</div>
+              <div class="chips">${r.closeout ? `<span class="chip close">${r.closeout} closeout</span>` : ""}${r.likely ? `<span class="chip likely">+${r.likely} likely</span>` : ""}${r.discontinued ? `<span class="chip disc">discontinued</span>` : ""}</div></div>
+          </div>`).join("") || `<div class="mut">${empty}</div>`;
+        for (const c of $("cards").querySelectorAll(".card")) c.addEventListener("click", () => openModel(c.dataset.model));
       } catch (err) { setStatus(err.message, "error"); }
     }
     const debounced = () => { clearTimeout(timer); timer = setTimeout(search, 220); };
@@ -206,8 +261,8 @@
     $("cls").addEventListener("change", () => { cascade(1); search(); });
     $("sub").addEventListener("change", search);
     for (const id of ["qModel", "qBrand", "qDesc"]) { $(id).addEventListener("input", debounced); $(id).addEventListener("keydown", (e) => { if (e.key === "Enter") { clearTimeout(timer); search(); } }); }
-    for (const id of ["mModel", "mBrand", "mDesc", "onHand", "active"]) $(id).addEventListener("change", search);
-    $("clearBtn").addEventListener("click", () => { for (const id of ["qModel", "qBrand", "qDesc"]) $(id).value = ""; for (const id of ["mModel", "mBrand", "mDesc"]) $(id).value = "contains"; $("cat").value = ""; cascade(0); $("cls").value = ""; cascade(1); $("sub").value = ""; $("onHand").checked = false; $("active").checked = true; search(); });
+    for (const id of ["mModel", "mBrand", "mDesc", "onHand", "closeout", "active"]) $(id).addEventListener("change", search);
+    $("clearBtn").addEventListener("click", () => { for (const id of ["qModel", "qBrand", "qDesc"]) $(id).value = ""; for (const id of ["mModel", "mBrand", "mDesc"]) $(id).value = "contains"; $("cat").value = ""; cascade(0); $("cls").value = ""; cascade(1); $("sub").value = ""; $("onHand").checked = false; $("closeout").checked = false; $("active").checked = true; search(); });
 
     // ---- drawer ----
     async function openModel(model) {
@@ -218,8 +273,16 @@
         $("dTitle").innerHTML = `<span class="copy" title="Click to copy">${esc(p.model)}</span>${p.description ? " — " + esc(p.description) : ""}`;
         $("dTitle").querySelector(".copy").addEventListener("click", () => { navigator.clipboard?.writeText(p.model).catch(() => {}); });
         $("dSub").textContent = [p.brand, p.supplier, [p.category, p.cls, p.subclass].filter(Boolean).join(" › ") || (p.prod ? "ePASS " + p.prod : "")].filter(Boolean).join(" · ") + (p.discontinued ? " · discontinued" : "") + (p.source !== "netsuite" ? " · not in NetSuite yet" : "");
-        const c = p.counts;
-        const tiles = `<div class="tiles">
+        const c = p.counts, pr = p.prices || {};
+        const priceTiles = `<div class="tiles">
+            <div class="tile"><div class="v">${money(pr.base) || "—"}</div><div class="l">Base price</div></div>
+            <div class="tile"><div class="v">${money(pr.l1) || "—"}</div><div class="l">L1</div></div>
+            <div class="tile"><div class="v">${money(pr.l2) || "—"}</div><div class="l">L2</div></div>
+            <div class="tile"><div class="v">${money(pr.retail) || "—"}</div><div class="l">Retail</div></div>
+          </div>`;
+        const tiles = priceTiles + `<div class="tiles">
+            <div class="tile avail"><div class="v">${c.ats}</div><div class="l">ATS (ALL, unreserved)</div></div>
+            ${c.closeout ? `<div class="tile"><div class="v" style="color:#9f1239;">${c.closeout}</div><div class="l">Closeout</div></div>` : ""}
             <div class="tile"><div class="v">${c.onHand}</div><div class="l">On hand</div></div>
             <div class="tile avail"><div class="v">${c.available}</div><div class="l">Available to sell</div></div>
             <div class="tile likely"><div class="v">${c.likely}</div><div class="l">Likely available</div></div>
@@ -227,10 +290,15 @@
             <div class="tile"><div class="v">${c.reserved}${c.exclusive ? `<span class="mut" style="font-size:13px;"> +${c.exclusive} excl</span>` : ""}</div><div class="l">Reserved</div></div>
             ${p.months?.length ? `<div class="tile"><div class="months">${p.months.map((m) => `<span>${esc(new Date(m.month + "-15T12:00:00Z").toLocaleDateString("en-US", { month: "short", timeZone: "UTC" }))} <b>${m.units}</b></span>`).join("")}</div><div class="l">Delivered by month</div></div>` : ""}
           </div>`;
-        const units = p.units.length ? `<div class="sec">Inventory on hand <span class="mut" style="text-transform:none; letter-spacing:0; font-weight:500;">(ePASS feed)</span></div>
-          <table class="t"><thead><tr><th>Status</th><th>Order</th><th>Customer</th><th>Schedule / pickup</th><th>Job status</th><th>Received</th><th>Age</th><th>Loc / bin</th><th>Serial type</th><th>Serial #</th></tr></thead>
+        const unitCards = `<div class="u-cards">${p.units.map((u) => `<div class="u-card u-${u.status}">
+            <div class="l1"><span><span class="pill ${u.status === "available" ? "avail" : u.status}">${esc(u.statusLabel)}</span>${u.closeout ? ` <span class="pill close">closeout · ${esc(u.closeout)}${u.uniquePrice ? " · " + money(u.uniquePrice) : ""}</span>` : ""}</span><span class="mono">${esc(u.serial)}</span></div>
+            ${u.note ? `<div class="note">${esc(u.note)}</div>` : ""}
+            <div class="meta">${u.writtenTo ? `<b>${esc(u.writtenTo)}</b> · ${esc(u.customer || "—")}${u.salesperson ? " · " + esc(u.salesperson) : ""}${u.scheduleDate || u.pickupDate ? " · " + (u.scheduleDate ? day(u.scheduleDate) : day(u.pickupDate) + " pickup") : ""}<br>` : ""}${esc(u.serialType)} · received ${day(u.received)}${u.ageDays == null ? "" : ` (${u.ageDays} d)`}${u.location || u.bin ? ` · ${esc([u.location, u.bin].filter(Boolean).join(" / "))}` : ""}${u.reservedOn ? ` · reserved ${day(u.reservedOn)}` : ""}</div>
+          </div>`).join("")}</div>`;
+        const units = p.units.length ? `<div class="sec">Inventory on hand <span class="mut" style="text-transform:none; letter-spacing:0; font-weight:500;">(ePASS feed)</span></div>` + unitCards + `
+          <table class="t u-table"><thead><tr><th>Status</th><th>Order</th><th>Customer</th><th>Schedule / pickup</th><th>Job status</th><th>Received</th><th>Age</th><th>Loc / bin</th><th>Serial type</th><th>Serial #</th></tr></thead>
           <tbody>${p.units.map((u) => `<tr class="u-${u.status}">
-              <td><span class="pill ${u.status === "available" ? "avail" : u.status}">${esc(u.statusLabel)}</span>${u.note ? `<div class="note">${esc(u.note)}</div>` : ""}${u.reservedOn ? `<div class="mut">since ${day(u.reservedOn)}</div>` : ""}</td>
+              <td><span class="pill ${u.status === "available" ? "avail" : u.status}">${esc(u.statusLabel)}</span>${u.closeout ? ` <span class="pill close" title="Qualifies for the Clearance Hit List">closeout · ${esc(u.closeout)}${u.uniquePrice ? " · " + money(u.uniquePrice) : ""}</span>` : ""}${u.note ? `<div class="note">${esc(u.note)}</div>` : ""}${u.reservedOn ? `<div class="mut">since ${day(u.reservedOn)}</div>` : ""}</td>
               <td class="mono">${esc(u.writtenTo || "—")}</td>
               <td>${esc(u.customer || "—")}${u.salesperson ? `<div class="mut">${esc(u.salesperson)}</div>` : ""}</td>
               <td>${u.scheduleDate ? day(u.scheduleDate) : u.pickupDate ? day(u.pickupDate) + ` <span class="mut">pickup</span>` : "—"}</td>

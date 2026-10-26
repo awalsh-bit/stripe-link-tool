@@ -7,13 +7,22 @@ Sales Tools → **Inventory Lookup** (`inventory-lookup.html`, grant under Sales
 - **Merch category → class → subclass** — NetSuite's hierarchy, cascading: pick a category and the class list shrinks to its classes, pick a class and the subclass list follows. Counts in brackets are models.
 - **Model / Brand / Description** — three searches, each `contains` (default), `starts with` or `ends with`; combined with AND. Model matching ignores punctuation (`CL4850UFD/O` finds `CL4850UFDO`). Brand matches the NetSuite brand name or the ePASS brand code.
 - **On hand only** — models with at least one unit in stock.
+- **Closeout units only** — models with at least one unit that qualifies for the Clearance Hit List, by that list's own rule (`clearanceRuleFor`): serial type OPEN, or ALL received more than 365 days ago, or ALL with a UniqueSellPrice in ePASS. DISPLAY never qualifies. Cards show an "N closeout" chip; the drawer tags each qualifying unit with why (open box / days in stock / unique price) and the unique price when ePASS has one.
 - **Active or in-stock only** (on by default) — a model shows when it has stock, or NetSuite has it and it isn't discontinued. Turn it off to find archive units: discontinued models and ePASS models NetSuite never carried.
 
 Written and on-order quantities are deliberately not on this screen (Andrew: "that's really not important for inventory lookup" — the Ordering Report has them). Filters are remembered per browser.
 
 ## Results
 
-One row per model, stocked models first: brand, model, description, NetSuite class · subclass (ePASS product code when NetSuite has no class), then the counts — **On hand**, **Available** (green), **Likely** (amber), **Spoken for**, **Reserved** (+ exclusive). A model NetSuite doesn't have yet carries a small "ePASS" tag.
+**On a phone** (the showroom view, under 900 px) the results are cards: model, brand · subclass, NetSuite short description, **base price**, and an **ATS** chip — plus "+N likely" in amber when units are written to far-out orders, and "discontinued" when NetSuite says so. Tap a card for the drawer.
+
+**On a computer** it's a table, ATS first: brand, model, description, class · subclass (ePASS product code when NetSuite has no class), base price, ATS, on hand, likely, spoken for, reserved (+ exclusive). A model NetSuite doesn't have yet carries a small "ePASS" tag.
+
+**ATS** (Andrew 10/26) = units of serial type **ALL** that are not reserved to an order and not on hold — the number a salesperson can promise today. Display / open-box units (other serial types) and "likely available" units are shown but not counted.
+
+**Prices**: NetSuite **Base Price** on the card and in the drawer; ePASS price levels **L1 / L2 / Retail** in the drawer (from `epass_model_list_prices`, the same feed the online shop prices from). No cost anywhere on this screen.
+
+If the three merch selects are empty, the banner at the top says why: the NetSuite items on file have no hierarchy columns (import the current export on Shop Orders → NetSuite items — that is also where base prices and short descriptions come from).
 
 ## The drawer
 

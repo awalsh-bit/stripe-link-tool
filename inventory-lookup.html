@@ -27,6 +27,7 @@
     .find input { flex: 1 1 auto; min-width: 0; }
     .find select { flex: 0 0 128px; }
     .opts { display: flex; gap: 18px; align-items: center; flex-wrap: wrap; }
+    .sortlbl { display: inline-flex; align-items: center; gap: 8px; font-weight: 600; } .sortlbl select { padding: 7px 10px; }
     .opts label { display: inline-flex; align-items: center; gap: 6px; font-size: 13.5px; }
     .feed { font-size: 12.5px; color: var(--muted); margin-left: auto; }
     .status { display: none; margin: 10px 0 0; padding: 10px 14px; border-radius: 10px; font-size: 13.5px; }
@@ -104,6 +105,9 @@
     .banner { background: #fef3c7; color: #92400e; border-radius: 12px; padding: 10px 14px; font-size: 13.5px; margin: 0 0 12px; }
     @media (max-width: 900px) {
       body { padding: 14px 12px 40px; } .surface { padding: 16px; } .merch, .finds { grid-template-columns: 1fr; } .find select { flex-basis: 112px; } .overlay { padding: 8px; }
+      /* iOS Safari zooms the page when a field under 16px takes focus, and
+         doesn't zoom back (Andrew 10/27). 16px keeps the layout still. */
+      select, input[type="text"], .ask textarea { font-size: 16px; }
       .scroll { display: none; } .cards { display: block; }
       .drawer { padding: 14px 14px 20px; } .d-head h3 { font-size: 17px; }
       .tiles { gap: 8px; } .tile { min-width: calc(50% - 4px); flex: 1 1 calc(50% - 4px); padding: 8px 12px; } .tile .v { font-size: 19px; }
@@ -130,8 +134,10 @@
       </div>
       <div class="opts">
         <label><input type="checkbox" id="onHand" /> On hand only</label>
+        <label><input type="checkbox" id="atsOnly" /> ATS only <span class="mut">(at least one available to sell)</span></label>
         <label><input type="checkbox" id="closeout" /> Closeout units only <span class="mut">(open box, aged, or unique-priced)</span></label>
         <label><input type="checkbox" id="active" checked /> Active or in-stock only <span class="mut">(off = include discontinued / archive)</span></label>
+        <label class="sortlbl">Sort <select id="sort"><option value="">Stocked first</option><option value="price_asc">Price: low → high</option><option value="price_desc">Price: high → low</option></select></label>
         <button id="clearBtn" type="button" class="quiet">Clear</button>
         <span id="feed" class="feed"></span>
       </div>
@@ -218,7 +224,7 @@
         model: $("qModel").value.trim(), modelMode: $("mModel").value,
         brand: $("qBrand").value.trim(), brandMode: $("mBrand").value,
         description: $("qDesc").value.trim(), descMode: $("mDesc").value,
-        onHand: $("onHand").checked ? "1" : "0", closeout: $("closeout").checked ? "1" : "0", active: $("active").checked ? "1" : "0", limit: "400"
+        onHand: $("onHand").checked ? "1" : "0", ats: $("atsOnly").checked ? "1" : "0", closeout: $("closeout").checked ? "1" : "0", active: $("active").checked ? "1" : "0", sort: $("sort").value, limit: "400"
       };
     }
     function remember() { try { localStorage.setItem("inventoryLookup.filters", JSON.stringify(params())); } catch {} }
@@ -229,17 +235,17 @@
         $("qModel").value = p.model || ""; $("mModel").value = p.modelMode || "contains";
         $("qBrand").value = p.brand || ""; $("mBrand").value = p.brandMode || "contains";
         $("qDesc").value = p.description || ""; $("mDesc").value = p.descMode || "contains";
-        $("onHand").checked = p.onHand === "1"; $("closeout").checked = p.closeout === "1"; $("active").checked = p.active !== "0";
+        $("onHand").checked = p.onHand === "1"; $("atsOnly").checked = p.ats === "1"; $("closeout").checked = p.closeout === "1"; $("active").checked = p.active !== "0"; $("sort").value = ["price_asc", "price_desc"].includes(p.sort) ? p.sort : "";
       } catch {}
     }
     async function search() {
       remember();
       const p = params();
-      const hasFilter = p.category || p.cls || p.subclass || p.model || p.brand || p.description || p.onHand === "1" || p.closeout === "1";
+      const hasFilter = p.category || p.cls || p.subclass || p.model || p.brand || p.description || p.onHand === "1" || p.ats === "1" || p.closeout === "1";
       try {
         const d = await api("/api/inventory-lookup?" + new URLSearchParams(p));
         setStatus("", "");
-        $("count").textContent = `${fmt(d.total)} model${d.total === 1 ? "" : "s"}${d.total > d.shown ? ` — showing the first ${fmt(d.shown)}, narrow the search to see the rest` : ""}${hasFilter ? "" : " · stocked models first"}`;
+        $("count").textContent = `${fmt(d.total)} model${d.total === 1 ? "" : "s"}${d.total > d.shown ? ` — showing the first ${fmt(d.shown)}, narrow the search to see the rest` : ""}${p.sort ? (p.sort === "price_asc" ? " · price low → high (L1, else UMRP/MAP)" : " · price high → low (L1, else UMRP/MAP)") : hasFilter ? "" : " · stocked models first"}`;
         const empty = `No models match. Try "contains" instead of "starts with", or turn off "Active or in-stock only" for archive units.`;
         $("rows").innerHTML = d.rows.map((r) => `<tr class="row" data-model="${esc(r.model)}">
             <td>${esc(r.brand || "—")}</td>
@@ -272,8 +278,8 @@
     $("cls").addEventListener("change", () => { cascade(1); search(); });
     $("sub").addEventListener("change", search);
     for (const id of ["qModel", "qBrand", "qDesc"]) { $(id).addEventListener("input", debounced); $(id).addEventListener("keydown", (e) => { if (e.key === "Enter") { clearTimeout(timer); search(); } }); }
-    for (const id of ["mModel", "mBrand", "mDesc", "onHand", "closeout", "active"]) $(id).addEventListener("change", search);
-    $("clearBtn").addEventListener("click", () => { for (const id of ["qModel", "qBrand", "qDesc"]) $(id).value = ""; for (const id of ["mModel", "mBrand", "mDesc"]) $(id).value = "contains"; $("cat").value = ""; cascade(0); $("cls").value = ""; cascade(1); $("sub").value = ""; $("onHand").checked = false; $("closeout").checked = false; $("active").checked = true; search(); });
+    for (const id of ["mModel", "mBrand", "mDesc", "onHand", "atsOnly", "closeout", "active", "sort"]) $(id).addEventListener("change", search);
+    $("clearBtn").addEventListener("click", () => { for (const id of ["qModel", "qBrand", "qDesc"]) $(id).value = ""; for (const id of ["mModel", "mBrand", "mDesc"]) $(id).value = "contains"; $("cat").value = ""; cascade(0); $("cls").value = ""; cascade(1); $("sub").value = ""; $("onHand").checked = false; $("atsOnly").checked = false; $("closeout").checked = false; $("active").checked = true; $("sort").value = ""; search(); });
 
     // "Ask the GM to sell" on a free display unit: one click, optional note,
     // the GM (E80) gets a dashboard flag + email with the requester's name.

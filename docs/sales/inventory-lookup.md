@@ -7,10 +7,12 @@ Sales Tools → **Inventory Lookup** (`inventory-lookup.html`, grant under Sales
 - **Merch category → class → subclass** — NetSuite's hierarchy, cascading: pick a category and the class list shrinks to its classes, pick a class and the subclass list follows. Counts in brackets are models.
 - **Model / Brand / Description** — three searches, each `contains` (default), `starts with` or `ends with`; combined with AND. Model matching ignores punctuation (`CL4850UFD/O` finds `CL4850UFDO`). Brand matches the NetSuite brand name or the ePASS brand code.
 - **On hand only** — models with at least one unit in stock.
+- **ATS only** — models with at least one unit available to sell (ALL serial type, free). Added 10/27.
+- **Sort** — *Stocked first* (default: ATS, then on hand, then brand/model), or **Price low → high / high → low**. The sort price is **L1**, else the maker's UMRP/MAP code (Sub-Zero and Wolf carry no L1 — SZ-UMRP, WOLF-UMRP …), else Retail; models with no price at all go last either way. Rows carry it as `sortPrice`.
 - **Closeout units only** — models with at least one unit that qualifies for the Clearance Hit List, by that list's own rule (`clearanceRuleFor`): serial type OPEN, or ALL received more than 365 days ago, or ALL with a UniqueSellPrice in ePASS. DISPLAY never qualifies. Cards show an "N closeout" chip; the drawer tags each qualifying unit with why (open box / days in stock / unique price) and the unique price when ePASS has one.
 - **Active or in-stock only** (on by default) — a model shows when it has stock, or NetSuite has it and it isn't discontinued. Turn it off to find archive units: discontinued models and ePASS models NetSuite never carried.
 
-Written and on-order quantities are deliberately not on this screen (Andrew: "that's really not important for inventory lookup" — the Ordering Report has them). Filters are remembered per browser.
+Written and on-order quantities are deliberately not on this screen (Andrew: "that's really not important for inventory lookup" — the Ordering Report has them). Filters and sort are remembered per browser. On phones the fields are 16px so iOS Safari doesn't zoom the page when one is tapped (Andrew 10/27).
 
 ## Results
 
@@ -45,4 +47,4 @@ The shop inventory snapshot (every on-hand serial from the ePASS feed, rebuilt a
 
 ## Routes
 
-`GET /api/inventory-lookup/options` (tree, totals, feed time) · `GET /api/inventory-lookup` (`category, cls, subclass, model, modelMode, brand, brandMode, description, descMode, onHand, closeout, active, limit`; rows carry `l1, l2, retail, umrp, umrpCode, basePrice`) · `GET /api/inventory-lookup/model/:model` (`prices.all` has every ePASS price code on the model; `sold12`, `written12`, `soldWindow`, `soldSource` for the trailing-12 tile) · `POST /api/inventory-lookup/display-request` (`model, serial, note`). Opening a model is audited (`inventory_lookup_model_viewed`).
+`GET /api/inventory-lookup/options` (tree, totals, feed time) · `GET /api/inventory-lookup` (`category, cls, subclass, model, modelMode, brand, brandMode, description, descMode, onHand, ats, closeout, active, sort, limit`; rows carry `l1, l2, retail, umrp, umrpCode, basePrice`) · `GET /api/inventory-lookup/model/:model` (`prices.all` has every ePASS price code on the model; `sold12`, `written12`, `soldWindow`, `soldSource` for the trailing-12 tile) · `POST /api/inventory-lookup/display-request` (`model, serial, note`). Opening a model is audited (`inventory_lookup_model_viewed`).

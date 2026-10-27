@@ -116,7 +116,7 @@
     }
   </style>
 </head>
-<body>
+<body data-shell-label="Inventory Lookup" data-shell-icon="sales">
   <div class="wrap">
     <div id="internal-shell-header"></div>
     <div class="surface">
@@ -212,7 +212,6 @@
             ? "The NetSuite items on file have no merchandise hierarchy yet — upload the current NetSuite items export (the one with Merch Category / Class / Subclass columns) on the Ordering Report, step 2 “NetSuite items & suppliers”, and these three filters will fill in."
             : "No NetSuite items have been imported yet — upload the NetSuite items export on the Ordering Report, step 2 “NetSuite items & suppliers”, to get the category / class / subclass filters and base prices.";
         } else { $("banner").style.display = "none"; }
-        restore();
         search();
       } catch (err) { setStatus(err.message, "error"); }
     }
@@ -227,19 +226,7 @@
         onHand: $("onHand").checked ? "1" : "0", ats: $("atsOnly").checked ? "1" : "0", closeout: $("closeout").checked ? "1" : "0", active: $("active").checked ? "1" : "0", sort: $("sort").value, limit: "400"
       };
     }
-    function remember() { try { localStorage.setItem("inventoryLookup.filters", JSON.stringify(params())); } catch {} }
-    function restore() {
-      try {
-        const p = JSON.parse(localStorage.getItem("inventoryLookup.filters") || "null"); if (!p) return;
-        $("cat").value = p.category || ""; cascade(0); $("cls").value = p.cls || ""; cascade(1); $("sub").value = p.subclass || "";
-        $("qModel").value = p.model || ""; $("mModel").value = p.modelMode || "contains";
-        $("qBrand").value = p.brand || ""; $("mBrand").value = p.brandMode || "contains";
-        $("qDesc").value = p.description || ""; $("mDesc").value = p.descMode || "contains";
-        $("onHand").checked = p.onHand === "1"; $("atsOnly").checked = p.ats === "1"; $("closeout").checked = p.closeout === "1"; $("active").checked = p.active !== "0"; $("sort").value = ["price_asc", "price_desc"].includes(p.sort) ? p.sort : "";
-      } catch {}
-    }
     async function search() {
-      remember();
       const p = params();
       const hasFilter = p.category || p.cls || p.subclass || p.model || p.brand || p.description || p.onHand === "1" || p.ats === "1" || p.closeout === "1";
       try {

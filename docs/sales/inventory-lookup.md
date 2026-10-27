@@ -12,7 +12,7 @@ Sales Tools → **Inventory Lookup** (`inventory-lookup.html`, grant under Sales
 - **Closeout units only** — models with at least one unit that qualifies for the Clearance Hit List, by that list's own rule (`clearanceRuleFor`): serial type OPEN, or ALL received more than 365 days ago, or ALL with a UniqueSellPrice in ePASS. DISPLAY never qualifies. Cards show an "N closeout" chip; the drawer tags each qualifying unit with why (open box / days in stock / unique price) and the unique price when ePASS has one.
 - **Active or in-stock only** (on by default) — a model shows when it has stock, or NetSuite has it and it isn't discontinued. Turn it off to find archive units: discontinued models and ePASS models NetSuite never carried.
 
-Written and on-order quantities are deliberately not on this screen (Andrew: "that's really not important for inventory lookup" — the Ordering Report has them). Filters and sort are remembered per browser. On phones the fields are 16px so iOS Safari doesn't zoom the page when one is tapped (Andrew 10/27).
+Written and on-order quantities are deliberately not on this screen (Andrew: "that's really not important for inventory lookup" — the Ordering Report has them). Filters and sort start fresh on every visit — Andrew 10/27: "most inventory searches are from scratch and you find the item and the journey is over" (the per-browser memory from 10/26 is gone). On phones the fields are 16px so iOS Safari doesn't zoom the page when one is tapped (Andrew 10/27).
 
 ## Results
 

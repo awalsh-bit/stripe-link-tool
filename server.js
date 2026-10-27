@@ -6348,9 +6348,10 @@ app.get("/api/promo/inventory", requirePromoBuilder, async (req, res) => {
       }
       const serial = String(u.serial || "").trim().toUpperCase();
       const taken = ctx.statusById.get(`${model}|${serial}#1`) || ctx.statusById.get(`${model}|${serial}#S`) || null;
-      // reserved: a DateReserved (held for a customer) blocks the unit;
-      // ePASS's "Reserve Exclusive" flag (display / open-box units kept out of
-      // auto-allocation) does not - those are exactly what cards are made of.
+      // reserved: since 10/27 the feed only sets this to "exclusive" (ePASS's
+      // Reserve Exclusive flag — display / open-box units kept out of
+      // auto-allocation, exactly what cards are made of); a DateReserved
+      // without an invoice no longer holds a unit anywhere in Agility.
       const reservedRaw = String(u.reserved || "").trim();
       const exclusive = reservedRaw === "exclusive";
       g.units.push({ serial, serialType: String(u.serialType || "").toUpperCase(), received: u.received || "", writtenTo: u.writtenTo || "", reserved: exclusive ? "" : reservedRaw, exclusive,
@@ -10880,8 +10881,10 @@ function serialSnapshotFromFeed(rows, modelRows = [], priceRows = [], openInvoic
     // the ordering report uses, and like the report the ordered-for invoice
     // must still be OPEN: a unit ordered for a sale that finished, cancelled
     // or was re-sourced keeps the code in ePASS but has been released to
-    // rotate (Andrew 9/25). A DateReserved / ReserveExclusive with no
-    // invoice still holds the unit back from the online shop.
+    // rotate (Andrew 9/25). A DateReserved with no invoice does NOT hold the
+    // unit (Andrew 10/27: "DateReserved doesn't work without an order") — it
+    // is kept on the unit as reservedDate for information only. ReserveExclusive
+    // still marks display / open-box units that are sold only by choice.
     const invoiceCode = String(pick(r, "InvoiceCode") ?? "").trim();
     const orderedFor = String(pick(r, "OrderedForInvoiceCode") ?? "").trim();
     const orderedForOpen = orderedFor && (!openInv || openInv.has(orderedFor.toUpperCase()));
@@ -10889,13 +10892,19 @@ function serialSnapshotFromFeed(rows, modelRows = [], priceRows = [], openInvoic
     const writtenTo = invoiceCode || (orderedForOpen ? orderedFor : "");
     const reservedRaw = pick(r, "DateReserved");
     const exclusive = /^(1|true|y|yes)$/i.test(String(pick(r, "ReserveExclusive") ?? "").trim());
-    const reserved = isoDate(reservedRaw) || (String(reservedRaw).trim() ? "yes" : "") || (exclusive ? "exclusive" : "");
+    const reservedDate = isoDate(reservedRaw) || "";
+    const reserved = exclusive ? "exclusive" : "";
     // Serial.Available (BIT) - ePASS's own idea of "free"; counted against our
     // rule so the status page shows whether the two agree.
     const availRaw = String(pick(r, "Available") ?? "").trim().toLowerCase();
+    // Kept on the unit (epassAvailable) so Inventory Lookup can tell a live
+    // reservation from a stale DateReserved (Andrew 10/27: B36CL80SNS
+    // 0050900662 carried a June date but ePASS showed it Available).
+    let epassAvailable = null;
     if (availRaw !== "") {
       diag.availBitSeen++;
       const availBit = /^(1|true|y|yes)$/.test(availRaw);
+      epassAvailable = availBit;
       const heldByRule = Boolean(writtenTo || reserved);
       if (!availBit && !heldByRule) diag.availBitFalseFree++;
       if (availBit && heldByRule) diag.availBitTrueHeld++;
@@ -10908,7 +10917,8 @@ function serialSnapshotFromFeed(rows, modelRows = [], priceRows = [], openInvoic
         brand: String(pick(r, "Model_BrandCode") || pick(mm, "BrandCode") || "").trim(),
         description: String(pick(r, "Model_Description") || pick(mm, "Description") || "").trim(),
         prod: String(pick(r, "Model_ProductCode") || pick(mm, "ProductCode") || "").trim(),
-        serialType: type, writtenTo, reserved, orderedFor: orderedFor && !orderedForOpen ? orderedFor : "",
+        serialType: type, writtenTo, reserved, reservedDate, orderedFor: orderedFor && !orderedForOpen ? orderedFor : "",
+        epassAvailable,
         received: isoDate(pick(r, "DateReceived")),
         cost: Number(pick(r, "Cost")) || 0,
         // Clearance Hit List inputs (Andrew 10/8): ePASS's unit-specific price
@@ -10931,7 +10941,7 @@ function serialSnapshotFromFeed(rows, modelRows = [], priceRows = [], openInvoic
     for (const key of keys) { serials.add(key); if (type) types[key] = type; if (writtenTo) written[key] = writtenTo; }
   }
   return { serials: [...serials], types, written, units, unitCount: units.length, withModel: units.filter((u) => u.description || u.brand).length,
-    spokenFor: units.filter((u) => u.writtenTo).length, reservedOnly: units.filter((u) => !u.writtenTo && u.reserved).length, ...diag };
+    spokenFor: units.filter((u) => u.writtenTo).length, reservedOnly: units.filter((u) => !u.writtenTo && u.reserved).length, dateReservedNoInvoice: units.filter((u) => !u.writtenTo && u.reservedDate).length, ...diag };
 }
 
 // Build and save the shop snapshot from what the last feed stored in the
@@ -16353,6 +16363,59 @@ app.get("/api/inventory-lookup/model/:model", requireInventoryLookup, async (req
     sjAudit(req, "inventory_lookup_model_viewed", { model: detail.model, onHand: detail.counts.onHand });
     return res.json(detail);
   } catch (err) { console.error("Inventory lookup model failed:", err.message); return res.status(500).json({ error: "Unable to load that model right now." }); }
+});
+
+// "Ask the GM to sell this display" (Andrew 10/27): a free DISPLAY unit is
+// never "available to sell" on the lookup; the salesperson sends the GM a
+// request instead. The GM is an employee code in the directory (E80 unless
+// INVENTORY_DISPLAY_APPROVER_CODE says otherwise): dashboard flag + email,
+// with the requester's name so the answer comes back to the right person.
+// Internal only — nothing here reaches a customer.
+const DISPLAY_APPROVER_CODE = String(process.env.INVENTORY_DISPLAY_APPROVER_CODE || "E80").trim().toUpperCase();
+const displayRequestRecent = new Map(); // `${email}|${serial}` → ts (10-minute double-send guard)
+app.post("/api/inventory-lookup/display-request", requireInventoryLookup, async (req, res) => {
+  try {
+    const model = String(req.body?.model || "").trim().slice(0, 80);
+    const serial = String(req.body?.serial || "").trim().toUpperCase().slice(0, 60);
+    const customer = String(req.body?.customer || "").trim().slice(0, 120);
+    const note = String(req.body?.note || "").trim().slice(0, 600);
+    if (!model || !serial) return res.status(400).json({ error: "Model and serial are required." });
+    const me = sjMe(req);
+    const guardKey = `${me.email}|${serial}`;
+    const last = displayRequestRecent.get(guardKey) || 0;
+    if (Date.now() - last < 10 * 60 * 1000) return res.status(429).json({ error: "You already asked about this unit a few minutes ago — give the GM a moment to answer." });
+
+    const index = await getInventoryIndex(false);
+    const detail = await inventoryModelDetail(index, model);
+    const unit = detail?.units?.find((u) => String(u.serial || "").toUpperCase() === serial) || null;
+    if (!unit) return res.status(404).json({ error: "That serial isn't on hand for this model in the latest ePASS feed." });
+    if (unit.status !== "display" && unit.status !== "exclusive") return res.status(400).json({ error: `Serial ${serial} is ${String(unit.statusLabel || unit.status).toLowerCase()} — no GM request needed.` });
+
+    const directory = await getEmployeeDirectoryObject().catch(() => ({}));
+    const gm = directory[DISPLAY_APPROVER_CODE] || null;
+    const gmEmail = String(gm?.email || "").trim().toLowerCase();
+    if (!gmEmail) return res.status(500).json({ error: `No email on file for employee code ${DISPLAY_APPROVER_CODE} — ask Andrew to check the directory.` });
+
+    const where = [unit.location, unit.bin].filter(Boolean).join(" / ");
+    const title = `Display sale request: ${detail.model} · ${serial}`;
+    const facts = [`${detail.brand ? detail.brand + " " : ""}${detail.model}${detail.description ? " — " + detail.description : ""}`, `Serial ${serial}${where ? ` · ${where}` : ""}${unit.received ? ` · received ${unit.received}` : ""}${unit.ageDays != null ? ` (${unit.ageDays} days)` : ""}`];
+    const body = `${me.name || me.email} is asking to sell this display unit${customer ? ` to ${customer}` : ""}.${note ? ` Note: ${note}` : ""}`;
+    let flagged = false, emailed = false;
+    try {
+      await createPushedNotification({ severity: "yellow", typeLabel: "Display sale request", refId: `displayreq:${serial}:${Date.now()}`, title, body: `${facts.join(" · ")}. ${body}`, audienceEmail: gmEmail, byEmail: me.email, byName: me.name });
+      flagged = true;
+    } catch (err) { console.error("Display request flag failed:", err.message); }
+    try {
+      const url = `${buildDashboardBaseUrl(req)}/inventory-lookup.html`;
+      const lines = [body, ...facts, `Reply to ${me.name || "the salesperson"} directly${me.email ? ` (${me.email})` : ""} — this request doesn't move the unit in ePASS.`];
+      await sendAuthEmail(gmEmail, title, [...lines, "", `Inventory Lookup: ${url}`].join("\n"), buildAuthEmailHtml("A salesperson wants to sell a display", lines, "Open Inventory Lookup", url, "Sent by Inventory Lookup in Wilson internal tools."));
+      emailed = true;
+    } catch (err) { console.error("Display request email failed:", err.message); }
+    if (!flagged && !emailed) return res.status(500).json({ error: "Couldn't reach the GM right now — try again in a minute or call them." });
+    displayRequestRecent.set(guardKey, Date.now());
+    sjAudit(req, "inventory_display_sale_requested", { model: detail.model, serial, customer, note, approver: DISPLAY_APPROVER_CODE, gmEmail, flagged, emailed });
+    return res.json({ ok: true, approver: { code: DISPLAY_APPROVER_CODE, name: gm?.name || "", email: gmEmail }, flagged, emailed });
+  } catch (err) { console.error("Display request failed:", err.message); return res.status(500).json({ error: "Unable to send that request right now." }); }
 });
 
 const requireCatalogCheck = requirePagePermission("/catalog-check.html");

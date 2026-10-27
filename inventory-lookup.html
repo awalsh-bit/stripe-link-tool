@@ -48,6 +48,10 @@
     .pill.spoken { background: #e5e7eb; color: #374151; }
     .pill.reserved { background: #fee2e2; color: #991b1b; }
     .pill.exclusive { background: #ede9fe; color: #5b21b6; }
+    .pill.display { background: #e0f2fe; color: #075985; }
+    .ask { margin-top: 6px; } .ask button { font-size: 12px; padding: 5px 10px; border-radius: 8px; border: 1px solid #0ea5e9; background: #f0f9ff; color: #075985; font-weight: 700; cursor: pointer; }
+    .ask button:disabled { opacity: .6; cursor: default; } .ask .sent { font-size: 12px; color: #166534; font-weight: 600; } .ask .err { font-size: 12px; color: #991b1b; }
+    .ask textarea { display: block; width: 100%; max-width: 420px; margin: 6px 0; font: inherit; font-size: 13px; padding: 6px 8px; border: 1px solid var(--border); border-radius: 8px; }
     .pill.disc { background: #f1f5f9; color: #475569; }
     .num-avail { color: #166534; font-weight: 800; }
     .num-likely { color: #92400e; font-weight: 700; }
@@ -64,7 +68,7 @@
     .tile .l { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
     .tile.avail .v { color: #166534; } .tile.likely .v { color: #92400e; }
     .sec { font-size: 11px; font-weight: 800; letter-spacing: 0.05em; text-transform: uppercase; color: #64748b; margin: 16px 0 6px; }
-    tr.u-available td { background: #f0fdf4; } tr.u-likely td { background: #fffbeb; } tr.u-exclusive td { background: #faf5ff; }
+    tr.u-available td { background: #f0fdf4; } tr.u-likely td { background: #fffbeb; } tr.u-exclusive td { background: #faf5ff; } tr.u-display td { background: #f0f9ff; }
     .note { font-size: 12px; color: #92400e; margin-top: 2px; }
     .months { display: inline-flex; gap: 14px; font-size: 13px; color: var(--muted); }
     .months b { color: var(--text); }
@@ -86,8 +90,11 @@
     .card .brand { font-size: 12px; color: var(--muted); margin-top: 1px; }
     .card .desc { font-size: 14px; color: #334155; margin: 6px 0 8px; line-height: 1.35; }
     .card .bottom { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
-    .card .base { font-size: 18px; font-weight: 800; }
-    .card .base small { font-size: 11px; font-weight: 600; color: var(--muted); margin-left: 4px; }
+    .card .prices { display: flex; gap: 14px; }
+    .card .prices .p { font-size: 18px; font-weight: 800; }
+    .card .prices .p small { display: block; font-size: 10px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
+    .info { display: inline-flex; align-items: center; justify-content: center; width: 15px; height: 15px; border-radius: 50%; border: 1px solid currentColor; font-size: 10px; font-weight: 700; margin-left: 5px; cursor: help; text-transform: none; vertical-align: -2px; }
+    .tile .sub { font-size: 11px; color: var(--muted); font-weight: 600; }
     .card .chips { display: flex; gap: 6px; flex-wrap: wrap; }
     .u-cards { display: none; }
     .u-card { border: 1px solid var(--border); border-radius: 12px; padding: 10px 12px; margin-bottom: 8px; }
@@ -135,12 +142,12 @@
       <div id="banner" class="banner" style="display:none;"></div>
       <div style="display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap; margin-bottom:8px;">
         <div id="count" class="mut"></div>
-        <div class="mut legend">Status colors: <span class="pill avail">available</span> <span class="pill likely">likely available</span> <span class="pill spoken">spoken for</span> <span class="pill reserved">reserved</span> <span class="pill exclusive">exclusive</span></div>
+        <div class="mut legend">Status colors: <span class="pill avail">available</span> <span class="pill likely">likely available</span> <span class="pill spoken">spoken for</span> <span class="pill display">display · ask GM</span> <span class="pill reserved">reserved</span> <span class="pill exclusive">exclusive</span></div>
       </div>
       <div class="scroll">
         <table class="t">
-          <thead><tr><th>Brand</th><th>Model</th><th>Description</th><th>Class · subclass</th><th class="n">Base price</th><th class="n">ATS</th><th class="n">Closeout</th><th class="n">On hand</th><th class="n">Likely</th><th class="n">Spoken for</th><th class="n">Reserved</th></tr></thead>
-          <tbody id="rows"><tr><td colspan="11" class="mut">Loading…</td></tr></tbody>
+          <thead><tr><th>Brand</th><th>Model</th><th>Description</th><th>Class · subclass</th><th class="n">ATS</th><th class="n">L1</th><th class="n">Retail</th><th class="n">UMRP / MAP</th><th class="n">Closeout</th><th class="n">On hand</th><th class="n">Likely</th><th class="n">Spoken for</th><th class="n">Reserved</th></tr></thead>
+          <tbody id="rows"><tr><td colspan="13" class="mut">Loading…</td></tr></tbody>
         </table>
       </div>
       <div id="cards" class="cards"></div>
@@ -170,7 +177,7 @@
     let timer = null;
 
     function setStatus(msg, kind) { const b = $("status"); b.className = "status" + (msg ? " show " + kind : ""); b.textContent = msg || ""; }
-    async function api(path) { const r = await fetch(path, { credentials: "same-origin" }); const j = await r.json().catch(() => ({})); if (!r.ok) throw new Error(j.error || "Request failed."); return j; }
+    async function api(path, init) { const r = await fetch(path, { credentials: "same-origin", ...(init || {}) }); const j = await r.json().catch(() => ({})); if (!r.ok) throw new Error(j.error || "Request failed."); return j; }
 
     // ---- cascading merch filters ----
     function fillSelect(sel, items, allLabel, keep) {
@@ -239,20 +246,22 @@
             <td class="mono"><b>${esc(r.model)}</b>${r.discontinued ? ` <span class="pill disc">discontinued</span>` : ""}${r.source !== "netsuite" ? ` <span class="mut" title="Not in NetSuite yet — described from ePASS">ePASS</span>` : ""}</td>
             <td>${esc(r.description)}</td>
             <td>${r.cls ? esc(r.cls) + `<div class="mut">${esc(r.subclass || "")}</div>` : `<span class="mut">${esc(r.prod || "—")}</span>`}</td>
-            <td class="n price base">${money(r.basePrice) || "<span class=mut>—</span>"}</td>
             <td class="n">${r.ats ? `<span class="num-avail">${r.ats}</span>` : "<span class=mut>0</span>"}</td>
+            <td class="n price">${money(r.l1) || "<span class=mut>—</span>"}</td>
+            <td class="n price">${money(r.retail) || "<span class=mut>—</span>"}</td>
+            <td class="n price">${money(r.umrp) ? `${money(r.umrp)}<div class="mut" style="font-size:10px;">${esc(r.umrpCode)}</div>` : "<span class=mut>—</span>"}</td>
             <td class="n">${r.closeout ? `<span class="pill close">${r.closeout}</span>` : "<span class=mut>—</span>"}</td>
             <td class="n">${r.onHand || "<span class=mut>0</span>"}</td>
             <td class="n">${r.likely ? `<span class="num-likely">${r.likely}</span>` : "<span class=mut>—</span>"}</td>
             <td class="n">${r.spoken || "<span class=mut>—</span>"}</td>
             <td class="n">${(r.reserved || 0) + (r.exclusive || 0) ? `${r.reserved || 0}${r.exclusive ? ` <span class="mut">+${r.exclusive} excl</span>` : ""}` : "<span class=mut>—</span>"}</td>
-          </tr>`).join("") || `<tr><td colspan="11" class="mut">${empty}</td></tr>`;
+          </tr>`).join("") || `<tr><td colspan="13" class="mut">${empty}</td></tr>`;
         for (const tr of $("rows").querySelectorAll("tr.row")) tr.addEventListener("click", () => openModel(tr.dataset.model));
-        // Showroom cards (phone): model, short description, base price, ATS.
+        // Showroom cards (phone): model, short description, L1 / Retail, ATS.
         $("cards").innerHTML = d.rows.map((r) => `<div class="card" data-model="${esc(r.model)}">
             <div class="top"><div><div class="model">${esc(r.model)}</div><div class="brand">${esc(r.brand || "")}${r.cls ? " · " + esc(r.subclass || r.cls) : ""}</div></div>${atsChip(r)}</div>
             <div class="desc">${esc(r.description || "—")}</div>
-            <div class="bottom"><div class="base">${money(r.basePrice) ? money(r.basePrice) + "<small>base</small>" : `<span class="mut" style="font-size:13px;font-weight:600;">no base price</span>`}</div>
+            <div class="bottom"><div class="prices"><div class="p">${money(r.l1) || "<span class=mut>—</span>"}<small>L1</small></div><div class="p">${money(r.retail) || "<span class=mut>—</span>"}<small>Retail</small></div>${money(r.umrp) ? `<div class="p">${money(r.umrp)}<small>${esc(r.umrpCode)}</small></div>` : ""}</div>
               <div class="chips">${r.closeout ? `<span class="chip close">${r.closeout} closeout</span>` : ""}${r.likely ? `<span class="chip likely">+${r.likely} likely</span>` : ""}${r.discontinued ? `<span class="chip disc">discontinued</span>` : ""}</div></div>
           </div>`).join("") || `<div class="mut">${empty}</div>`;
         for (const c of $("cards").querySelectorAll(".card")) c.addEventListener("click", () => openModel(c.dataset.model));
@@ -266,6 +275,29 @@
     for (const id of ["mModel", "mBrand", "mDesc", "onHand", "closeout", "active"]) $(id).addEventListener("change", search);
     $("clearBtn").addEventListener("click", () => { for (const id of ["qModel", "qBrand", "qDesc"]) $(id).value = ""; for (const id of ["mModel", "mBrand", "mDesc"]) $(id).value = "contains"; $("cat").value = ""; cascade(0); $("cls").value = ""; cascade(1); $("sub").value = ""; $("onHand").checked = false; $("closeout").checked = false; $("active").checked = true; search(); });
 
+    // "Ask the GM to sell" on a free display unit: one click, optional note,
+    // the GM (E80) gets a dashboard flag + email with the requester's name.
+    const askHtml = (p, u) => (u.status === "display" || u.status === "exclusive")
+      ? `<div class="ask" data-serial="${esc(u.serial)}"><button type="button" class="ask-btn">Ask the GM to sell</button></div>` : "";
+    function wireAsk(p) {
+      for (const box of $("dBody").querySelectorAll(".ask")) {
+        const btn = box.querySelector(".ask-btn"); if (!btn) continue;
+        btn.addEventListener("click", async (e) => {
+          e.stopPropagation();
+          let ta = box.querySelector("textarea");
+          if (!ta) {
+            ta = document.createElement("textarea"); ta.rows = 2; ta.placeholder = "Optional: customer name, price you need, when it would leave the floor";
+            box.insertBefore(ta, btn); btn.textContent = "Send request to the GM"; ta.focus(); return;
+          }
+          btn.disabled = true; btn.textContent = "Sending…";
+          try {
+            const r = await api("/api/inventory-lookup/display-request", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ model: p.model, serial: box.dataset.serial, note: ta.value.trim() }) });
+            box.innerHTML = `<span class="sent">Request sent to ${esc(r.approver?.name || r.approver?.code || "the GM")}${r.emailed ? " (email + dashboard flag)" : " (dashboard flag)"} — they'll come back to you.</span>`;
+          } catch (err) { btn.disabled = false; btn.textContent = "Send request to the GM"; let er = box.querySelector(".err"); if (!er) { er = document.createElement("div"); er.className = "err"; box.appendChild(er); } er.textContent = err.message; }
+        });
+      }
+    }
+
     // ---- drawer ----
     async function openModel(model) {
       $("overlay").classList.add("show"); $("overlay").scrollTop = 0;
@@ -277,30 +309,31 @@
         $("dSub").textContent = [p.brand, p.supplier, [p.category, p.cls, p.subclass].filter(Boolean).join(" › ") || (p.prod ? "ePASS " + p.prod : "")].filter(Boolean).join(" · ") + (p.discontinued ? " · discontinued" : "") + (p.source !== "netsuite" ? " · not in NetSuite yet" : "");
         const c = p.counts, pr = p.prices || {};
         const priceTiles = `<div class="tiles">
-            <div class="tile"><div class="v">${money(pr.base) || "—"}</div><div class="l">Base price</div></div>
             <div class="tile"><div class="v">${money(pr.l1) || "—"}</div><div class="l">L1</div></div>
             <div class="tile"><div class="v">${money(pr.l2) || "—"}</div><div class="l">L2</div></div>
             <div class="tile"><div class="v">${money(pr.retail) || "—"}</div><div class="l">Retail</div></div>
+            ${money(pr.umrp) ? `<div class="tile"><div class="v">${money(pr.umrp)}</div><div class="l">${esc(pr.umrpCode)}</div></div>` : ""}
           </div>`;
         const tiles = priceTiles + `<div class="tiles">
-            <div class="tile avail"><div class="v">${c.ats}</div><div class="l">ATS (ALL, unreserved)</div></div>
+            <div class="tile avail"><div class="v">${c.ats}</div><div class="l">Available to sell<span class="info" title="Units of serial type ALL that are not written to an order, not reserved and not on hold — what can be promised today. Display / open-box units that are free show as +N below and in the list, but aren't counted.">i</span></div>${c.available > c.ats ? `<div class="sub">+${c.available - c.ats} open box, also free</div>` : ""}</div>
+            ${c.display ? `<div class="tile"><div class="v" style="color:#075985;">${c.display}</div><div class="l">Display<span class="info" title="A free display unit. It isn't the salesperson's to promise — use “Ask the GM to sell” on the unit and the GM gets a dashboard flag and an email.">i</span></div></div>` : ""}
             ${c.closeout ? `<div class="tile"><div class="v" style="color:#9f1239;">${c.closeout}</div><div class="l">Closeout</div></div>` : ""}
             <div class="tile"><div class="v">${c.onHand}</div><div class="l">On hand</div></div>
-            <div class="tile avail"><div class="v">${c.available}</div><div class="l">Available to sell</div></div>
-            <div class="tile likely"><div class="v">${c.likely}</div><div class="l">Likely available</div></div>
+            <div class="tile likely"><div class="v">${c.likely}</div><div class="l">Likely available<span class="info" title="Written to an order whose delivery or pickup is more than ${p.likelyDays} days out. Check with the salesperson on the order before promising it.">i</span></div></div>
             <div class="tile"><div class="v">${c.spoken}</div><div class="l">Spoken for</div></div>
             <div class="tile"><div class="v">${c.reserved}${c.exclusive ? `<span class="mut" style="font-size:13px;"> +${c.exclusive} excl</span>` : ""}</div><div class="l">Reserved</div></div>
-            ${p.months?.length ? `<div class="tile"><div class="months">${p.months.map((m) => `<span>${esc(new Date(m.month + "-15T12:00:00Z").toLocaleDateString("en-US", { month: "short", timeZone: "UTC" }))} <b>${m.units}</b></span>`).join("")}</div><div class="l">Delivered by month</div></div>` : ""}
+            ${p.sold12 != null ? `<div class="tile"><div class="v">${p.written12 != null ? `${fmt(p.written12)} <span class="mut" style="font-size:12px;font-weight:600;">written</span> · ` : ""}${fmt(p.sold12)} <span class="mut" style="font-size:12px;font-weight:600;">delivered</span></div><div class="l">Last 12 months<span class="info" title="${esc(day(p.soldWindow?.from))} – ${esc(day(p.soldWindow?.to))}, the same definitions as Brand Sales. Written = units on tickets started in the window (delivered or still open). Delivered = units on invoices finished in the window. Returns excluded. ${p.soldSource === "epass" ? "Live from the ePASS feed." : "From the OE-23 warehouse."} Units only — no dollars on this screen.">i</span></div></div>` : ""}
           </div>`;
         const unitCards = `<div class="u-cards">${p.units.map((u) => `<div class="u-card u-${u.status}">
             <div class="l1"><span><span class="pill ${u.status === "available" ? "avail" : u.status}">${esc(u.statusLabel)}</span>${u.closeout ? ` <span class="pill close">closeout · ${esc(u.closeout)}${u.uniquePrice ? " · " + money(u.uniquePrice) : ""}</span>` : ""}</span><span class="mono">${esc(u.serial)}</span></div>
             ${u.note ? `<div class="note">${esc(u.note)}</div>` : ""}
+            ${askHtml(p, u)}
             <div class="meta">${u.writtenTo ? `<b>${esc(u.writtenTo)}</b> · ${esc(u.customer || "—")}${u.salesperson ? " · " + esc(u.salesperson) : ""}${u.scheduleDate || u.pickupDate ? " · " + (u.scheduleDate ? day(u.scheduleDate) : day(u.pickupDate) + " pickup") : ""}<br>` : ""}${esc(u.serialType)} · received ${day(u.received)}${u.ageDays == null ? "" : ` (${u.ageDays} d)`}${u.location || u.bin ? ` · ${esc([u.location, u.bin].filter(Boolean).join(" / "))}` : ""}${u.reservedOn ? ` · reserved ${day(u.reservedOn)}` : ""}</div>
           </div>`).join("")}</div>`;
         const units = p.units.length ? `<div class="sec">Inventory on hand <span class="mut" style="text-transform:none; letter-spacing:0; font-weight:500;">(ePASS feed)</span></div>` + unitCards + `
           <table class="t u-table"><thead><tr><th>Status</th><th>Order</th><th>Customer</th><th>Schedule / pickup</th><th>Job status</th><th>Received</th><th>Age</th><th>Loc / bin</th><th>Serial type</th><th>Serial #</th></tr></thead>
           <tbody>${p.units.map((u) => `<tr class="u-${u.status}">
-              <td><span class="pill ${u.status === "available" ? "avail" : u.status}">${esc(u.statusLabel)}</span>${u.closeout ? ` <span class="pill close" title="Qualifies for the Clearance Hit List">closeout · ${esc(u.closeout)}${u.uniquePrice ? " · " + money(u.uniquePrice) : ""}</span>` : ""}${u.note ? `<div class="note">${esc(u.note)}</div>` : ""}${u.reservedOn ? `<div class="mut">since ${day(u.reservedOn)}</div>` : ""}</td>
+              <td><span class="pill ${u.status === "available" ? "avail" : u.status}">${esc(u.statusLabel)}</span>${u.closeout ? ` <span class="pill close" title="Qualifies for the Clearance Hit List">closeout · ${esc(u.closeout)}${u.uniquePrice ? " · " + money(u.uniquePrice) : ""}</span>` : ""}${u.note ? `<div class="note">${esc(u.note)}</div>` : ""}${u.reservedOn ? `<div class="mut">since ${day(u.reservedOn)}</div>` : ""}${askHtml(p, u)}</td>
               <td class="mono">${esc(u.writtenTo || "—")}</td>
               <td>${esc(u.customer || "—")}${u.salesperson ? `<div class="mut">${esc(u.salesperson)}</div>` : ""}</td>
               <td>${u.scheduleDate ? day(u.scheduleDate) : u.pickupDate ? day(u.pickupDate) + ` <span class="mut">pickup</span>` : "—"}</td>
@@ -311,8 +344,15 @@
               <td>${esc(u.serialType)}</td>
               <td class="mono">${esc(u.serial)}</td>
             </tr>`).join("")}</tbody></table>` : `<div class="sec">Inventory on hand</div><div class="mut">Nothing on hand for this model.</div>`;
-        const foot = `<div class="mut" style="margin-top:12px;">"Likely available" = written to an order whose delivery or pickup is more than ${p.likelyDays} days out. Snapshot: ${esc(p.snapshotSource || "ePASS feed")}${p.snapshotAt ? " · " + esc(new Date(p.snapshotAt).toLocaleString("en-US", { month: "numeric", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" })) : ""}.</div>`;
+        const foot = `<div class="mut" style="margin-top:12px;">Snapshot: ${esc(p.snapshotSource || "ePASS feed")}${p.snapshotAt ? " · " + esc(new Date(p.snapshotAt).toLocaleString("en-US", { month: "numeric", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" })) : ""}.</div>`;
         $("dBody").innerHTML = tiles + units + foot;
+        wireAsk(p);
+        // [i] on a tile: hover shows the title; a tap (phones) toggles it under the tile.
+        for (const el of $("dBody").querySelectorAll(".info")) el.addEventListener("click", (e) => {
+          e.stopPropagation();
+          const tile = el.closest(".tile"); const open = tile.querySelector(".info-note");
+          if (open) open.remove(); else { const n = document.createElement("div"); n.className = "note info-note"; n.textContent = el.title; tile.appendChild(n); }
+        });
       } catch (err) { $("dBody").innerHTML = `<div class="status show error">${esc(err.message)}</div>`; }
     }
     $("dClose").addEventListener("click", () => $("overlay").classList.remove("show"));

@@ -16410,8 +16410,8 @@ app.post("/api/inventory-lookup/display-request", requireInventoryLookup, async 
     if (!gmEmail) return res.status(500).json({ error: `No email on file for employee code ${DISPLAY_APPROVER_CODE} — ask Andrew to check the directory.` });
 
     const where = [unit.location, unit.bin].filter(Boolean).join(" / ");
-    const title = `Display sale request: ${detail.model} · ${serial}`;
-    const facts = [`${detail.brand ? detail.brand + " " : ""}${detail.model}${detail.description ? " — " + detail.description : ""}`, `Serial ${serial}${where ? ` · ${where}` : ""}${unit.received ? ` · received ${unit.received}` : ""}${unit.ageDays != null ? ` (${unit.ageDays} days)` : ""}`];
+    const title = `Display sale request: ${detail.displayName || detail.model} · ${serial}`;
+    const facts = [`${detail.brand ? detail.brand + " " : ""}${detail.displayName ? `${detail.displayName} (${detail.model})` : detail.model}${detail.description ? " — " + detail.description : ""}`, `Serial ${serial}${where ? ` · ${where}` : ""}${unit.received ? ` · received ${unit.received}` : ""}${unit.ageDays != null ? ` (${unit.ageDays} days)` : ""}`];
     const body = `${me.name || me.email} is asking to sell this display unit${customer ? ` to ${customer}` : ""}.${note ? ` Note: ${note}` : ""}`;
     let flagged = false, emailed = false;
     try {

@@ -148,12 +148,12 @@
       <div id="banner" class="banner" style="display:none;"></div>
       <div style="display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap; margin-bottom:8px;">
         <div id="count" class="mut"></div>
-        <div class="mut legend">Status colors: <span class="pill avail">available</span> <span class="pill likely">likely available</span> <span class="pill spoken">spoken for</span> <span class="pill display">display · ask GM</span> <span class="pill reserved">reserved</span> <span class="pill exclusive">exclusive</span></div>
+        <div class="mut legend">Unit colors in the drawer: <span class="pill avail">available</span> <span class="pill likely">likely available</span> <span class="pill spoken">spoken for</span> <span class="pill display">display · ask GM</span> <span class="pill reserved">reserved</span> <span class="pill exclusive">exclusive</span></div>
       </div>
       <div class="scroll">
         <table class="t">
-          <thead><tr><th>Brand</th><th>Model</th><th>Description</th><th>Class · subclass</th><th class="n">ATS</th><th class="n">L1</th><th class="n">Retail</th><th class="n">UMRP / MAP</th><th class="n">Closeout</th><th class="n">On hand</th><th class="n">Likely</th><th class="n">Spoken for</th><th class="n">Reserved</th></tr></thead>
-          <tbody id="rows"><tr><td colspan="13" class="mut">Loading…</td></tr></tbody>
+          <thead><tr><th>Brand</th><th>Model</th><th>Description</th><th>Class · subclass</th><th class="n">ATS</th><th class="n">L1</th><th class="n">Retail</th><th class="n">UMRP / MAP</th></tr></thead>
+          <tbody id="rows"><tr><td colspan="8" class="mut">Loading…</td></tr></tbody>
         </table>
       </div>
       <div id="cards" class="cards"></div>
@@ -236,26 +236,21 @@
         const empty = `No models match. Try "contains" instead of "starts with", or turn off "Active or in-stock only" for archive units.`;
         $("rows").innerHTML = d.rows.map((r) => `<tr class="row" data-model="${esc(r.model)}">
             <td>${esc(r.brand || "—")}</td>
-            <td class="mono"><b>${esc(r.model)}</b>${r.discontinued ? ` <span class="pill disc">discontinued</span>` : ""}${r.source !== "netsuite" ? ` <span class="mut" title="Not in NetSuite yet — described from ePASS">ePASS</span>` : ""}</td>
+            <td class="mono"><b>${esc(r.displayName || r.model)}</b>${r.displayName ? `<div class="mut" style="font-size:11px;">${esc(r.model)}</div>` : ""}${r.discontinued ? ` <span class="pill disc">discontinued</span>` : ""}${r.source !== "netsuite" ? ` <span class="mut" title="Not in NetSuite yet — described from ePASS">ePASS</span>` : ""}</td>
             <td>${esc(r.description)}</td>
             <td>${r.cls ? esc(r.cls) + `<div class="mut">${esc(r.subclass || "")}</div>` : `<span class="mut">${esc(r.prod || "—")}</span>`}</td>
             <td class="n">${r.ats ? `<span class="num-avail">${r.ats}</span>` : "<span class=mut>0</span>"}</td>
             <td class="n price">${money(r.l1) || "<span class=mut>—</span>"}</td>
             <td class="n price">${money(r.retail) || "<span class=mut>—</span>"}</td>
             <td class="n price">${money(r.umrp) ? `${money(r.umrp)}<div class="mut" style="font-size:10px;">${esc(r.umrpCode)}</div>` : "<span class=mut>—</span>"}</td>
-            <td class="n">${r.closeout ? `<span class="pill close">${r.closeout}</span>` : "<span class=mut>—</span>"}</td>
-            <td class="n">${r.onHand || "<span class=mut>0</span>"}</td>
-            <td class="n">${r.likely ? `<span class="num-likely">${r.likely}</span>` : "<span class=mut>—</span>"}</td>
-            <td class="n">${r.spoken || "<span class=mut>—</span>"}</td>
-            <td class="n">${(r.reserved || 0) + (r.exclusive || 0) ? `${r.reserved || 0}${r.exclusive ? ` <span class="mut">+${r.exclusive} excl</span>` : ""}` : "<span class=mut>—</span>"}</td>
-          </tr>`).join("") || `<tr><td colspan="13" class="mut">${empty}</td></tr>`;
+          </tr>`).join("") || `<tr><td colspan="8" class="mut">${empty}</td></tr>`;
         for (const tr of $("rows").querySelectorAll("tr.row")) tr.addEventListener("click", () => openModel(tr.dataset.model));
         // Showroom cards (phone): model, short description, L1 / Retail, ATS.
         $("cards").innerHTML = d.rows.map((r) => `<div class="card" data-model="${esc(r.model)}">
-            <div class="top"><div><div class="model">${esc(r.model)}</div><div class="brand">${esc(r.brand || "")}${r.cls ? " · " + esc(r.subclass || r.cls) : ""}</div></div>${atsChip(r)}</div>
+            <div class="top"><div><div class="model">${esc(r.displayName || r.model)}${r.displayName ? ` <span class="mut" style="font-size:11px;font-weight:500;">${esc(r.model)}</span>` : ""}</div><div class="brand">${esc(r.brand || "")}${r.cls ? " · " + esc(r.subclass || r.cls) : ""}</div></div>${atsChip(r)}</div>
             <div class="desc">${esc(r.description || "—")}</div>
             <div class="bottom"><div class="prices"><div class="p">${money(r.l1) || "<span class=mut>—</span>"}<small>L1</small></div><div class="p">${money(r.retail) || "<span class=mut>—</span>"}<small>Retail</small></div>${money(r.umrp) ? `<div class="p">${money(r.umrp)}<small>${esc(r.umrpCode)}</small></div>` : ""}</div>
-              <div class="chips">${r.closeout ? `<span class="chip close">${r.closeout} closeout</span>` : ""}${r.likely ? `<span class="chip likely">+${r.likely} likely</span>` : ""}${r.discontinued ? `<span class="chip disc">discontinued</span>` : ""}</div></div>
+              <div class="chips">${r.discontinued ? `<span class="chip disc">discontinued</span>` : ""}</div></div>
           </div>`).join("") || `<div class="mut">${empty}</div>`;
         for (const c of $("cards").querySelectorAll(".card")) c.addEventListener("click", () => openModel(c.dataset.model));
       } catch (err) { setStatus(err.message, "error"); }
@@ -297,8 +292,8 @@
       $("dTitle").textContent = model; $("dSub").textContent = ""; $("dBody").innerHTML = `<div class="mut">Loading…</div>`;
       try {
         const p = await api("/api/inventory-lookup/model/" + encodeURIComponent(model));
-        $("dTitle").innerHTML = `<span class="copy" title="Click to copy">${esc(p.model)}</span>${p.description ? " — " + esc(p.description) : ""}`;
-        $("dTitle").querySelector(".copy").addEventListener("click", () => { navigator.clipboard?.writeText(p.model).catch(() => {}); });
+        $("dTitle").innerHTML = `<span class="copy" title="Click to copy">${esc(p.displayName || p.model)}</span>${p.displayName ? ` <span class="mut" style="font-size:14px;font-weight:500;">${esc(p.model)}</span>` : ""}${p.description ? " — " + esc(p.description) : ""}`;
+        $("dTitle").querySelector(".copy").addEventListener("click", () => { navigator.clipboard?.writeText(p.displayName || p.model).catch(() => {}); });
         $("dSub").textContent = [p.brand, p.supplier, [p.category, p.cls, p.subclass].filter(Boolean).join(" › ") || (p.prod ? "ePASS " + p.prod : "")].filter(Boolean).join(" · ") + (p.discontinued ? " · discontinued" : "") + (p.source !== "netsuite" ? " · not in NetSuite yet" : "");
         const c = p.counts, pr = p.prices || {};
         const priceTiles = `<div class="tiles">

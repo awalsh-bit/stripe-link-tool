@@ -5,6 +5,7 @@ Sales Tools → **Inventory Lookup** (`inventory-lookup.html`, grant under Sales
 ## Filters
 
 - **Merch category → class → subclass** — NetSuite's hierarchy, cascading: pick a category and the class list shrinks to its classes, pick a class and the subclass list follows. Counts in brackets are models.
+- **Display name** — when NetSuite's *Display Name* differs from the item number, the page shows the display name as the model with the item number in small print, in the table, the cards, the drawer title and the GM request (Andrew 10/28: Miele items are the material number — `10116800` — and the model the floor knows — `HBFP 27-1` — is the display name; 415 of Miele's 419 classified items). The model search matches either.
 - **Model / Brand / Description** — three searches, each `contains` (default), `starts with` or `ends with`; combined with AND. Model matching ignores punctuation (`CL4850UFD/O` finds `CL4850UFDO`). Brand matches the NetSuite brand name or the ePASS brand code.
 - **On hand only** — models with at least one unit in stock.
 - **ATS only** — models with at least one unit available to sell (ALL serial type, free). Added 10/27.
@@ -16,9 +17,9 @@ Written and on-order quantities are deliberately not on this screen (Andrew: "th
 
 ## Results
 
-**On a phone** (the showroom view, under 900 px) the results are cards: model, brand · subclass, NetSuite short description, **L1 and Retail** side by side, and an **ATS** chip — plus "+N likely" in amber when units are written to far-out orders, and "discontinued" when NetSuite says so. Tap a card for the drawer.
+**On a phone** (the showroom view, under 900 px) the results are cards: model, brand · subclass, NetSuite short description, **L1 and Retail** side by side, and an **ATS** chip — and "discontinued" when NetSuite says so. Tap a card for the drawer.
 
-**On a computer** it's a table: brand, model, description, class · subclass (ePASS product code when NetSuite has no class), then **ATS, L1, Retail**, closeout, on hand, likely, spoken for, reserved (+ exclusive). A model NetSuite doesn't have yet carries a small "ePASS" tag.
+**On a computer** it's a table: brand, model, description, class · subclass (ePASS product code when NetSuite has no class), then **ATS, L1, Retail, UMRP/MAP** — nothing else (Andrew 10/28: "simply ATS and pricing"; the closeout / on hand / likely / spoken-for / reserved columns are gone — all of that is in the drawer). Cards likewise carry only the ATS chip, the prices and a *discontinued* flag. A model NetSuite doesn't have yet carries a small "ePASS" tag.
 
 **ATS** (Andrew 10/26) = units of serial type **ALL** that are not reserved to an order and not on hold — the number a salesperson can promise today. Display / open-box units (other serial types) and "likely available" units are shown but not counted.
 

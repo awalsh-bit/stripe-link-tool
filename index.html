@@ -143,6 +143,13 @@
 
     .scan-bar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 16px; }
     .scan-bar .hint { flex: 1 1 260px; margin: 0; }
+    .switch { display: inline-flex; align-items: center; gap: 10px; cursor: pointer; user-select: none; font-weight: 600; margin-top: 6px; }
+    .switch input { position: absolute; opacity: 0; width: 0; height: 0; }
+    .switch .track { width: 44px; height: 24px; border-radius: 999px; background: #cbd5e1; position: relative; transition: background .15s; flex: 0 0 auto; }
+    .switch .track::after { content: ""; position: absolute; top: 3px; left: 3px; width: 18px; height: 18px; border-radius: 50%; background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,.25); transition: left .15s; }
+    .switch input:checked + .track { background: var(--primary); }
+    .switch input:checked + .track::after { left: 23px; }
+    .switch input:focus-visible + .track { outline: 2px solid var(--primary); outline-offset: 2px; }
     .collect-toggle { display: inline-flex; border: 1px solid var(--border); border-radius: 999px; overflow: hidden; background: #fff; }
     .collect-toggle label { position: relative; padding: 8px 14px; font-size: 13px; font-weight: 600; color: var(--muted); cursor: pointer; user-select: none; }
     .collect-toggle input { position: absolute; opacity: 0; pointer-events: none; }
@@ -386,6 +393,11 @@
           <div class="field" id="amountField">
             <label for="amount" id="amountLabel">Amount</label>
             <input id="amount" name="amount" type="number" min="1" step="0.01" placeholder="125.00" required />
+          </div>
+
+          <div class="field" id="paymentMethodsField">
+            <label class="switch"><input type="checkbox" id="achOnly" name="achOnly" /><span class="track" aria-hidden="true"></span><span class="switch-text">ACH Only Link</span></label>
+            <div class="hint">On: the client sees only the bank-account option, no card. Bank payments take 3–5 business days to clear; the link reads "processing" until then. Off: everything exactly as today.</div>
           </div>
 
           <div class="field full">
@@ -635,6 +647,12 @@
       customerEmailInput.required = linkType === 'hvac_deposit';
       // Card capture takes no money — the amount field disappears entirely.
       document.getElementById('amountField').style.display = linkType === 'card_capture' ? 'none' : '';
+      // ACH-only is for one-time payments: a card-capture link saves a card by
+      // definition, and a deposit agreement's balance is charged to the saved
+      // card later (that charge is card-only today).
+      const pmField = document.getElementById('paymentMethodsField');
+      pmField.style.display = linkType === 'appliance' ? '' : 'none';
+      if (linkType !== 'appliance') document.getElementById('achOnly').checked = false;
       amountInput.required = linkType !== 'card_capture';
       document.getElementById('capturePanel').classList.toggle('show', linkType === 'card_capture');
 
@@ -839,6 +857,7 @@ const payload = {
   currency: 'usd',
   description: formData.get('description')?.toString().trim() || '',
   agreementText: agreementCopy,
+  paymentMethods: linkType === 'appliance' && document.getElementById('achOnly').checked ? 'ach' : 'any',
 };
 
 if (!creatorLookupValid || !payload.creatorCode || !payload.creatorName || !payload.creatorEmail) {

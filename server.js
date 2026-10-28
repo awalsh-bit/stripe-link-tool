@@ -14175,7 +14175,8 @@ app.post("/api/create-payment-link", requirePagePermission("/index.html"), async
       balanceAmount,
       description,
       notes,
-      agreementText
+      agreementText,
+      paymentMethods
     } = req.body;
 
     const normalizedLinkType =
@@ -14235,6 +14236,7 @@ app.post("/api/create-payment-link", requirePagePermission("/index.html"), async
         String(l.salesOrder || "").trim().toUpperCase() === soKey &&
         String(l.customerPhone || "").replace(/\D/g, "") === phoneKey &&
         Math.round((Number(l.requestedAmount) || 0) * 100) === amountKey &&
+        String(l.paymentMethods || "any") === (normalizedLinkType === "appliance" && String(paymentMethods || "").toLowerCase() === "ach" ? "ach" : "any") &&
         l.paymentLinkUrl &&
         Date.now() - Date.parse(l.createdAt || 0) < DUP_WINDOW_MS
       );
@@ -14381,8 +14383,17 @@ const product = await stripe.products.create(productConfig, {
       idempotencyKey: createStripeIdempotencyKeyFromPayload("payment-link-price", priceConfig)
     });
 
+// ACH-only (Andrew 10/28): the salesperson can take the card option off a
+// one-time link so the client has to pay by bank account. Stripe Payment
+// Links honour payment_method_types; left unset, the link offers whatever
+// the Stripe dashboard has enabled (card + ACH). Not offered on deposit
+// agreements (their balance is charged to the saved card later) or card
+// capture links (which exist to save a card).
+const achOnly = normalizedLinkType === "appliance" && String(paymentMethods || "").toLowerCase() === "ach";
+
 const sharedMetadata = {
   workflow_type: normalizedLinkType,
+  payment_methods: achOnly ? "ach" : "any",
   sales_order: salesOrder || "",
   customer_name: customerName || "",
   customer_phone: customerPhoneDigits || customerPhone || "",
@@ -14432,6 +14443,7 @@ if (normalizedLinkType === "hvac_deposit") {
   paymentLinkConfig.customer_creation = "always";
   paymentLinkConfig.payment_intent_data.setup_future_usage = "off_session";
 }
+if (achOnly) paymentLinkConfig.payment_method_types = ["us_bank_account"];
 
 const paymentLink = await stripe.paymentLinks.create(paymentLinkConfig, {
   idempotencyKey: createStripeIdempotencyKeyFromPayload("payment-link-link", paymentLinkConfig)
@@ -14460,6 +14472,7 @@ const paymentLink = await stripe.paymentLinks.create(paymentLinkConfig, {
       currency: normalizedCurrency,
       paymentLinkId: paymentLink.id,
       paymentLinkUrl: paymentLink.url,
+      paymentMethods: achOnly ? "ach" : "any",
       status: "sent",
       active: true,
       deactivatedAt: "",

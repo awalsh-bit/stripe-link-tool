@@ -297,6 +297,13 @@
         ]
       },
       {
+        title: "Project Management",
+        children: [
+          { href: "pm-dashboard.html", title: "Project Manager Dashboard" },
+          { href: "pm-route.html", title: "Route Planner" }
+        ]
+      },
+      {
         title: "Delivery",
         children: [
           { href: "dispatch.html", title: "Delivery Dispatch" },
@@ -325,7 +332,8 @@
         children: [
           { href: "hr-phone-screen.html", title: "Phone Screen" },
           { href: "hr-candidates.html", title: "Candidates" },
-          { href: "uniform-orders.html", title: "Uniform Ordering" }
+          { href: "uniform-orders.html", title: "Uniform Ordering" },
+          { href: "party-planning.html", title: "Christmas Party Planning" }
         ]
       },
       {

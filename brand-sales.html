@@ -151,7 +151,8 @@
         <div><span class="field-label">Sort by</span><select id="sortSel"><option value="revenue">Delivered revenue</option><option value="written">Units written</option><option value="units">Units delivered</option><option value="margin">Margin</option></select></div>
         <button class="action" id="runBtn">Run report</button>
         <button class="action secondary" id="csvBtn">Export CSV</button>
-        <button class="action secondary" id="detailBtn" title="Every delivered unit and open line behind this report — what the model drawers show — as one CSV">Export detail CSV</button>
+        <button class="action secondary" id="detailBtn" title="Every delivered unit behind this report (and, if chosen, the open written lines) as one CSV">Export detail CSV</button>
+        <select id="detailRecords" title="Which rows the detail CSV carries"><option value="delivered">Delivered only</option><option value="all">Delivered + written (not delivered)</option></select>
         <button class="action secondary" id="foldAll">Expand all</button>
       </div>
       <div class="coverage-line" id="coverageLine"></div>
@@ -284,7 +285,7 @@
       // from the server with the filters as run (Andrew 10/22 - shared with
       // suppliers, columns trimmed in Excel).
       $("detailBtn").addEventListener("click", async () => {
-        const qs = new URLSearchParams({ from: $("fromDate").value || "", to: $("toDate").value || "", department: $("deptFilter").value || "", brand: $("brandFilter").value || "", supplier: $("supplierFilter").value || "" });
+        const qs = new URLSearchParams({ from: $("fromDate").value || "", to: $("toDate").value || "", department: $("deptFilter").value || "", brand: $("brandFilter").value || "", supplier: $("supplierFilter").value || "", records: $("detailRecords").value || "delivered" });
         const btn = $("detailBtn"); btn.disabled = true; btn.textContent = "Building…";
         try {
           const res = await fetch("/api/brand-sales/detail.csv?" + qs, { credentials: "same-origin" });

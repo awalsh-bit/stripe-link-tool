@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="robots" content="noindex, nofollow" />
+  <title>Wilson AC & Appliance - Christmas Party Planning</title>
+  <link rel="icon" href="favicon.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="internal-shell.css" />
+  <style>
+    :root { --primary: #21692c; --primary-hover: #1b5a25; --border: #dbe1ea; --text: #1f2937; --muted: #6b7280; --bg: #f3f6f4; }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--bg); color: var(--text); font-family: "Inter", "Segoe UI", system-ui, sans-serif; padding: 20px 20px 48px; }
+    .wrap { max-width: 1100px; margin: 0 auto; }
+    .surface { background: #fff; border-radius: 18px; padding: 22px; box-shadow: 0 10px 28px rgba(15, 23, 42, 0.06); margin-bottom: 16px; }
+    h2 { margin: 0 0 6px; font-size: 22px; } h3 { margin: 0 0 8px; font-size: 15px; }
+    .section-note { margin: 0 0 14px; color: var(--muted); font-size: 14px; }
+    .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+    button { border: none; border-radius: 10px; padding: 9px 16px; font-size: 13.5px; font-weight: 700; background: var(--primary); color: #fff; cursor: pointer; font-family: inherit; }
+    button.quiet { background: #eef2f7; color: var(--text); } button:disabled { opacity: .6; cursor: default; }
+    .tiles { display: flex; gap: 10px; flex-wrap: wrap; margin: 12px 0; }
+    .tile { border: 1px solid var(--border); border-radius: 12px; padding: 10px 14px; min-width: 150px; background: #fbfcfe; }
+    .tile .v { font-size: 22px; font-weight: 800; } .tile .l { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px; }
+    .bar { display: grid; grid-template-columns: 1fr 70px; gap: 8px; align-items: center; padding: 6px 0; border-bottom: 1px solid #f1f5f9; font-size: 13.5px; }
+    .bar .track { height: 10px; border-radius: 999px; background: #eef2f7; overflow: hidden; margin-top: 4px; }
+    .bar .fill { height: 100%; background: #9ccfa6; } .bar.win .fill { background: var(--primary); }
+    .bar .n { text-align: right; font-variant-numeric: tabular-nums; } .bar.win .name { font-weight: 800; }
+    .pill { display: inline-block; font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 999px; background: #dcfce7; color: #166534; margin-left: 6px; }
+    .pill.tie { background: #fef3c7; color: #92400e; }
+    .mut { color: var(--muted); font-size: 12.5px; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; } th { text-align: left; font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; padding: 6px 8px; border-bottom: 1px solid var(--border); } td { padding: 7px 8px; border-bottom: 1px solid #f1f5f9; vertical-align: top; }
+    .status { display: none; margin: 10px 0; padding: 10px 14px; border-radius: 10px; font-size: 13.5px; } .status.show { display: block; } .status.ok { background: #dcfce7; color: #166534; } .status.error { background: #fee2e2; color: #991b1b; }
+    .chips span { display: inline-block; background: #f1f5f9; border-radius: 999px; padding: 2px 8px; font-size: 12px; margin: 2px 4px 2px 0; }
+    @media (max-width: 700px) { body { padding: 14px 12px 40px; } .surface { padding: 16px; } }
+  </style>
+</head>
+<body data-shell-label="Christmas Party Planning" data-shell-icon="person">
+  <div class="wrap">
+    <div id="internal-shell-header"></div>
+
+    <div class="surface">
+      <h2>Christmas Party Planning</h2>
+      <p class="section-note">The catered buffet: everyone picks their top 3 meats, top 3 sides and one dessert from their dashboard. The winners below are what we order — the caterer wants a minimum of three meats and three sides.</p>
+      <div class="row">
+        <button id="sendBtn">Send the survey to everyone</button>
+        <button id="remindBtn" class="quiet">Remind the people who haven't answered</button>
+        <button id="closeBtn" class="quiet">Close the survey</button>
+        <button id="csvBtn" class="quiet">Download responses (CSV)</button>
+        <button id="refreshBtn" class="quiet">Refresh</button>
+      </div>
+      <div id="status" class="status"></div>
+      <div class="tiles">
+        <div class="tile"><div class="v" id="tAnswered">—</div><div class="l">Answered</div></div>
+        <div class="tile"><div class="v" id="tPeople">—</div><div class="l">People with an Agility login</div></div>
+        <div class="tile"><div class="v" id="tPct">—</div><div class="l">Response rate</div></div>
+        <div class="tile"><div class="v" id="tState" style="font-size: 16px;">—</div><div class="l">Survey</div></div>
+      </div>
+      <div class="mut" id="metaLine"></div>
+    </div>
+
+    <div class="grid">
+      <div class="surface"><h3>Craft meats <span class="mut">— top 3 win</span></h3><div id="meats"></div></div>
+      <div class="surface"><h3>Scratch-made sides <span class="mut">— top 3 win</span></h3><div id="sides"></div></div>
+      <div class="surface"><h3>Dessert <span class="mut">— one wins</span></h3><div id="desserts"></div></div>
+    </div>
+
+    <div class="surface">
+      <h3>Haven't answered yet <span class="mut" id="missingCount"></span></h3>
+      <div class="chips" id="missing"></div>
+    </div>
+
+    <div class="surface">
+      <h3>Every answer</h3>
+      <div style="overflow: auto;"><table><thead><tr><th>Name</th><th>Meats</th><th>Sides</th><th>Dessert</th><th>Note</th><th>Answered</th></tr></thead><tbody id="rows"></tbody></table></div>
+    </div>
+
+    <div id="internal-shell-footer"></div>
+  </div>
+
+  <script src="internal-shell.js"></script>
+  <script>
+    const $ = (id) => document.getElementById(id);
+    const esc = (v) => String(v == null ? "" : v).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+    const when = (iso) => iso ? new Date(iso).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) : "";
+    function setStatus(text, kind) { const el = $("status"); el.className = "status" + (text ? " show " + (kind || "ok") : ""); el.textContent = text || ""; }
+    async function api(path, init) { const r = await fetch(path, { credentials: "same-origin", ...(init || {}) }); const j = await r.json().catch(() => ({})); if (!r.ok) throw new Error(j.error || "Request failed."); return j; }
+
+    function bars(el, rows, winners) {
+      // A tie across the cut line (Nth and N+1th equal, both > 0) is flagged so
+      // the decision is a human one, not alphabetical.
+      const cut = rows[winners - 1]?.votes, next = rows[winners]?.votes;
+      const tie = cut != null && next != null && cut === next && cut > 0;
+      const max = Math.max(1, ...rows.map((r) => r.votes));
+      el.innerHTML = rows.map((r, i) => {
+        const inTie = tie && r.votes === cut;
+        return `<div class="bar ${r.winner && !inTie ? "win" : ""}"><div><span class="name">${esc(r.item)}</span>${r.tag ? ` <span class="mut">(${esc(r.tag)})</span>` : ""}${r.winner && !inTie ? `<span class="pill">ordering</span>` : ""}${inTie ? `<span class="pill tie">tie — you decide</span>` : ""}<div class="track"><div class="fill" style="width:${Math.round(r.votes / max * 100)}%"></div></div></div><div class="n">${r.votes} <span class="mut">${r.share}%</span></div></div>`;
+      }).join("") || `<div class="mut">No answers yet.</div>`;
+    }
+
+    let meta = null;
+    async function load() {
+      try {
+        const d = await api("/api/party-survey/results");
+        meta = d.meta;
+        $("tAnswered").textContent = d.tally.responses; $("tPeople").textContent = d.people;
+        $("tPct").textContent = d.people ? Math.round(d.tally.responses / d.people * 100) + "%" : "—";
+        $("tState").textContent = !meta.sentAt ? "Not sent yet" : meta.closedAt ? "Closed" : "Open";
+        $("metaLine").textContent = [meta.sentAt ? `Sent ${when(meta.sentAt)}${meta.sentBy ? " by " + meta.sentBy : ""}` : "", meta.remindedAt ? `last reminder ${when(meta.remindedAt)}` : "", meta.closedAt ? `closed ${when(meta.closedAt)}` : ""].filter(Boolean).join(" · ");
+        $("sendBtn").textContent = meta.sentAt ? "Survey already sent" : "Send the survey to everyone"; $("sendBtn").disabled = Boolean(meta.sentAt);
+        $("remindBtn").disabled = !meta.sentAt || Boolean(meta.closedAt) || !d.missing.length;
+        $("closeBtn").textContent = meta.closedAt ? "Reopen the survey" : "Close the survey"; $("closeBtn").disabled = !meta.sentAt;
+        bars($("meats"), d.tally.meats, d.menu.picks.meats); bars($("sides"), d.tally.sides, d.menu.picks.sides); bars($("desserts"), d.tally.desserts, d.menu.picks.desserts);
+        $("missingCount").textContent = `— ${d.missing.length}`;
+        $("missing").innerHTML = d.missing.map((p) => `<span title="${esc(p.email)}">${esc(p.name)}</span>`).join("") || `<span class="mut">Everyone has answered.</span>`;
+        $("rows").innerHTML = d.responses.map((r) => `<tr><td>${esc(r.name)}<div class="mut">${esc(r.email)}</div></td><td>${r.meats.map(esc).join(", ")}</td><td>${r.sides.map(esc).join(", ")}</td><td>${esc(r.dessert)}</td><td>${esc(r.note)}</td><td>${esc(when(r.updatedAt))}</td></tr>`).join("") || `<tr><td colspan="6" class="mut">No answers yet.</td></tr>`;
+      } catch (err) { setStatus(err.message, "error"); }
+    }
+
+    async function act(mode, confirmText) {
+      if (confirmText && !window.confirm(confirmText)) return;
+      setStatus("Working…");
+      try {
+        const r = await api("/api/party-survey/send", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ mode }) });
+        setStatus(mode === "send" ? "Sent — it's on everyone's dashboard now." : mode === "remind" ? `Reminder sent to ${r.count} ${r.count === 1 ? "person" : "people"}.` : mode === "close" ? "Closed — no more answers will be taken." : "Reopened.");
+        await load();
+      } catch (err) { setStatus(err.message, "error"); }
+    }
+    $("sendBtn").addEventListener("click", () => act("send", "Send the menu survey to every Agility dashboard? This goes once."));
+    $("remindBtn").addEventListener("click", () => act("remind", "Send a reminder to everyone who hasn't answered?"));
+    $("closeBtn").addEventListener("click", () => act(meta?.closedAt ? "reopen" : "close", meta?.closedAt ? null : "Close the survey? People can no longer change their picks."));
+    $("refreshBtn").addEventListener("click", load);
+    $("csvBtn").addEventListener("click", () => { window.location.href = "/api/party-survey/results.csv"; });
+    load();
+  </script>
+</body>
+</html>

@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="robots" content="noindex, nofollow" />
+  <title>Wilson AC & Appliance - Project Manager Route Planner</title>
+  <link rel="icon" href="favicon.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="internal-shell.css" />
+  <link href="https://api.mapbox.com/mapbox-gl-js/v3.8.0/mapbox-gl.css" rel="stylesheet" />
+  <style>
+    :root { --primary: #21692c; --border: #dbe1ea; --text: #1f2937; --muted: #6b7280; --bg: #f3f6f4; }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--bg); color: var(--text); font-family: "Inter", "Segoe UI", system-ui, sans-serif; padding: 20px 20px 48px; }
+    .wrap { max-width: 1240px; margin: 0 auto; }
+    .surface { background: #fff; border-radius: 18px; padding: 22px; box-shadow: 0 10px 28px rgba(15, 23, 42, 0.06); margin-bottom: 16px; }
+    h2 { margin: 0 0 6px; font-size: 22px; } h3 { margin: 0 0 8px; font-size: 15px; }
+    .section-note { margin: 0 0 14px; color: var(--muted); font-size: 14px; }
+    .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+    button { border: none; border-radius: 10px; padding: 9px 16px; font-size: 13.5px; font-weight: 700; background: var(--primary); color: #fff; cursor: pointer; font-family: inherit; }
+    button.quiet { background: #eef2f7; color: var(--text); } button:disabled { opacity: .6; cursor: default; }
+    a.btn { display: inline-block; border-radius: 10px; padding: 9px 16px; font-size: 13.5px; font-weight: 700; background: #eef2f7; color: var(--text); text-decoration: none; }
+    select, input[type="text"], input[type="date"] { border: 1px solid var(--border); border-radius: 10px; padding: 9px 11px; font-size: 14px; font-family: inherit; }
+    .grid { display: grid; grid-template-columns: 420px 1fr; gap: 16px; }
+    .list { max-height: 560px; overflow: auto; }
+    .item { display: flex; gap: 10px; align-items: flex-start; padding: 8px 6px; border-bottom: 1px solid #f1f5f9; font-size: 13.5px; }
+    .item input { margin-top: 4px; } .item .cust { font-weight: 700; } .item .addr { color: var(--muted); font-size: 12.5px; }
+    .item.unmapped { opacity: .6; }
+    #map { width: 100%; height: 560px; border-radius: 14px; border: 1px solid var(--border); background: #e5e7eb; }
+    .stops { margin-top: 12px; }
+    .stop { display: grid; grid-template-columns: 34px 1fr auto; gap: 10px; align-items: center; padding: 8px 6px; border-bottom: 1px solid #f1f5f9; font-size: 13.5px; }
+    .stop .n { width: 28px; height: 28px; border-radius: 50%; background: var(--primary); color: #fff; font-weight: 800; display: flex; align-items: center; justify-content: center; }
+    .stop .n.home { background: #475569; }
+    .stop .leg { color: var(--muted); font-size: 12.5px; white-space: nowrap; }
+    .pill { display: inline-block; font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 999px; background: #eef2f7; color: #374151; margin-left: 6px; }
+    .due.over { color: #991b1b; font-weight: 800; } .due.week { color: #92400e; font-weight: 800; }
+    .mut { color: var(--muted); font-size: 12.5px; }
+    .status { display: none; margin: 10px 0; padding: 10px 14px; border-radius: 10px; font-size: 13.5px; } .status.show { display: block; } .status.ok { background: #dcfce7; color: #166534; } .status.error { background: #fee2e2; color: #991b1b; } .status.warn { background: #fef3c7; color: #92400e; }
+    .marker { width: 26px; height: 26px; border-radius: 50%; background: var(--primary); color: #fff; font-weight: 800; font-size: 12px; display: flex; align-items: center; justify-content: center; border: 2px solid #fff; box-shadow: 0 2px 6px rgba(0,0,0,.3); }
+    .marker.home { background: #475569; } .marker.idle { background: #94a3b8; }
+    @media (max-width: 900px) { body { padding: 14px 12px 40px; } .surface { padding: 16px; } .grid { grid-template-columns: 1fr; } #map { height: 380px; } select, input { font-size: 16px; } }
+  </style>
+</head>
+<body data-shell-label="Project Manager Route Planner" data-shell-icon="home">
+  <div class="wrap">
+    <div id="internal-shell-header"></div>
+    <div class="surface">
+      <h2>Route Planner</h2>
+      <p class="section-note">Tick the projects you want to visit today, and Mapbox orders the stops from the showroom and back. One tap sends the whole route to Google Maps on your phone.</p>
+      <div class="row">
+        <label><span class="mut">Show</span> <select id="fWhen"><option value="open">Open projects</option><option value="week">Needed within 14 days</option><option value="visit">Visit scheduled</option><option value="mine">Mine</option></select></label>
+        <button id="optimize">Optimize today's route</button>
+        <button id="clear" class="quiet">Clear</button>
+        <a id="gmaps" class="btn" href="#" target="_blank" rel="noopener" style="display:none;">Open in Google Maps</a>
+        <a id="amaps" class="btn" href="#" style="display:none;">Apple Maps (first stop)</a>
+      </div>
+      <div id="status" class="status"></div>
+    </div>
+    <div class="grid">
+      <div class="surface">
+        <h3>Projects <span class="mut" id="picked"></span></h3>
+        <div class="list" id="list"></div>
+      </div>
+      <div class="surface">
+        <div id="map"></div>
+        <div class="stops" id="stops"></div>
+      </div>
+    </div>
+    <div id="internal-shell-footer"></div>
+  </div>
+
+  <script src="internal-shell.js"></script>
+  <script src="https://api.mapbox.com/mapbox-gl-js/v3.8.0/mapbox-gl.js"></script>
+  <script>
+    const $ = (id) => document.getElementById(id);
+    const esc = (v) => String(v == null ? "" : v).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+    const day = (iso) => iso && /^\d{4}-\d{2}-\d{2}/.test(iso) ? new Date(iso.slice(0, 10) + "T12:00:00Z").toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" }) : "";
+    const mins = (s) => s == null ? "" : `${Math.round(s / 60)} min`;
+    const miles = (m) => m == null ? "" : `${(m / 1609.344).toFixed(1)} mi`;
+    const setStatus = (t, k) => { const el = $("status"); el.className = "status" + (t ? " show " + (k || "ok") : ""); el.textContent = t || ""; };
+    async function api(path, init) { const r = await fetch(path, { credentials: "same-origin", ...(init || {}) }); const j = await r.json().catch(() => ({})); if (!r.ok) throw new Error(j.error || "Request failed."); return j; }
+
+    let cfg = null, projects = [], today = "", picked = new Set(), map = null, markers = [], route = null;
+    const daysUntil = (iso) => iso ? Math.round((Date.parse(iso + "T00:00:00Z") - Date.parse(today + "T00:00:00Z")) / 86400000) : null;
+
+    function initMap() {
+      if (!cfg.mapboxPublicToken || typeof mapboxgl === "undefined") { $("map").innerHTML = `<div class="mut" style="padding:20px;">No map yet — add MAPBOX_PUBLIC_TOKEN (a pk. token) in Render to see the pins and the route here. Routing itself needs MAPBOX_TOKEN.</div>`; return; }
+      mapboxgl.accessToken = cfg.mapboxPublicToken;
+      const s = cfg.settings;
+      map = new mapboxgl.Map({ container: "map", style: "mapbox://styles/mapbox/streets-v12", center: [s.routeStartLng ?? -98.08, s.routeStartLat ?? 30.19], zoom: 9.5 });
+      map.addControl(new mapboxgl.NavigationControl(), "top-right");
+      map.on("load", drawPins);
+    }
+    function clearMarkers() { for (const m of markers) m.remove(); markers = []; }
+    function drawPins() {
+      if (!map) return; clearMarkers();
+      const s = cfg.settings;
+      if (s.routeStartLat != null) { const el = document.createElement("div"); el.className = "marker home"; el.textContent = "W"; markers.push(new mapboxgl.Marker({ element: el }).setLngLat([s.routeStartLng, s.routeStartLat]).setPopup(new mapboxgl.Popup().setText("Showroom")).addTo(map)); }
+      const order = new Map((route?.stops || []).map((p, i) => [p.id, i + 1]));
+      for (const p of visible()) {
+        if (p.lat == null) continue;
+        const el = document.createElement("div"); el.className = "marker " + (order.has(p.id) ? "" : picked.has(p.id) ? "" : "idle"); el.textContent = order.get(p.id) || "•";
+        el.addEventListener("click", () => { toggle(p.id); });
+        markers.push(new mapboxgl.Marker({ element: el }).setLngLat([p.lng, p.lat]).setPopup(new mapboxgl.Popup({ offset: 18 }).setHTML(`<b>${esc(p.customerName)}</b><br>${esc(p.siteAddress)}<br>${esc(day(p.neededBy))}`)).addTo(map));
+      }
+      if (map.getSource("route")) { map.removeLayer("route-line"); map.removeSource("route"); }
+      if (route?.geometry) {
+        map.addSource("route", { type: "geojson", data: { type: "Feature", geometry: route.geometry } });
+        map.addLayer({ id: "route-line", type: "line", source: "route", paint: { "line-color": "#21692c", "line-width": 4, "line-opacity": .8 } });
+        const b = new mapboxgl.LngLatBounds(); for (const c of route.geometry.coordinates) b.extend(c); map.fitBounds(b, { padding: 50 });
+      }
+    }
+    function visible() {
+      const f = $("fWhen").value;
+      return projects.filter((p) => {
+        if (["delivered", "closed"].includes(p.status)) return false;
+        if (f === "week") { const d = daysUntil(p.neededBy); return d != null && d <= 14; }
+        if (f === "visit") return p.status === "visit_scheduled" || p.visitAt;
+        if (f === "mine") return p.pmEmail === cfg.me.email;
+        return true;
+      });
+    }
+    function toggle(id) { if (picked.has(id)) picked.delete(id); else { if (picked.size >= 11) { setStatus("Mapbox optimizes up to 11 stops per trip — split the day if you need more.", "warn"); return; } picked.add(id); } route = null; renderList(); renderStops(); drawPins(); }
+    function renderList() {
+      const rows = visible();
+      $("picked").textContent = picked.size ? `— ${picked.size} picked` : "";
+      $("list").innerHTML = rows.map((p) => { const d = daysUntil(p.neededBy); const cls = d == null ? "" : d < 0 ? "over" : d <= 7 ? "week" : ""; return `<label class="item ${p.lat == null ? "unmapped" : ""}"><input type="checkbox" data-id="${p.id}" ${picked.has(p.id) ? "checked" : ""} /><div><div class="cust">${esc(p.customerName)} <span class="pill">${esc(p.statusLabel)}</span></div><div class="addr">${esc(p.siteAddress || "no address")}${p.lat == null ? " · not mapped" : ""}</div><div class="addr"><span class="due ${cls}">${esc(day(p.neededBy)) || "no date"}</span>${p.visitAt ? ` · visit ${esc(p.visitAt.replace("T", " "))}` : ""}</div></div></label>`; }).join("") || `<div class="mut">No projects match.</div>`;
+      for (const cb of $("list").querySelectorAll("input[type=checkbox]")) cb.addEventListener("change", () => toggle(Number(cb.dataset.id)));
+    }
+    function renderStops() {
+      if (!route) { $("stops").innerHTML = picked.size ? `<div class="mut">${picked.size} stop${picked.size === 1 ? "" : "s"} picked — press Optimize.</div>` : ""; $("gmaps").style.display = "none"; $("amaps").style.display = "none"; return; }
+      const s = cfg.settings; let cum = 0;
+      const rows = [`<div class="stop"><div class="n home">W</div><div><b>Showroom</b><div class="mut">${esc(route.start)}</div></div><div class="leg">${route.optimized ? "start" : ""}</div></div>`];
+      route.stops.forEach((p, i) => { cum += p.legSeconds || 0; rows.push(`<div class="stop"><div class="n">${i + 1}</div><div><b>${esc(p.customerName)}</b> <span class="pill">${esc(p.statusLabel)}</span><div class="mut">${esc(p.siteAddress)} · needed ${esc(day(p.neededBy)) || "—"}${p.siteContactName ? " · " + esc(p.siteContactName) + (p.siteContactPhone ? " " + esc(p.siteContactPhone) : "") : ""}</div></div><div class="leg">${p.legSeconds != null ? `${mins(p.legSeconds)} · ${miles(p.legMeters)}<br><span class="mut">${mins(cum)} in</span>` : ""}</div></div>`); });
+      if (route.returnSeconds != null) rows.push(`<div class="stop"><div class="n home">W</div><div><b>Back to the showroom</b></div><div class="leg">${mins(route.returnSeconds)} · ${miles(route.returnMeters)}</div></div>`);
+      const total = route.totalSeconds != null ? `<div class="mut" style="margin-top:8px;"><b>${mins(route.totalSeconds)}</b> driving · ${miles(route.totalMeters)} round trip${route.unmapped?.length ? ` · not routed (no map pin): ${route.unmapped.map(esc).join(", ")}` : ""}</div>` : (route.note ? `<div class="mut" style="margin-top:8px;">${esc(route.note)}</div>` : "");
+      $("stops").innerHTML = rows.join("") + total;
+      const origin = s.routeStartLat != null ? `${s.routeStartLat},${s.routeStartLng}` : encodeURIComponent(s.routeStart || "");
+      const pts = route.stops.map((p) => `${p.lat},${p.lng}`);
+      const g = `https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${origin}&travelmode=driving&waypoints=${encodeURIComponent(pts.join("|"))}`;
+      $("gmaps").href = g; $("gmaps").style.display = "";
+      if (route.stops[0]) { $("amaps").href = `https://maps.apple.com/?daddr=${route.stops[0].lat},${route.stops[0].lng}&dirflg=d`; $("amaps").style.display = ""; }
+    }
+    $("optimize").addEventListener("click", async () => {
+      if (!picked.size) { setStatus("Tick at least one project first.", "warn"); return; }
+      $("optimize").disabled = true; setStatus("Building the route…");
+      try { route = await api("/api/pm/route/optimize", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ids: [...picked] }) }); setStatus(route.optimized ? `Route built — ${route.stops.length} stops.` : route.note, route.optimized ? "ok" : "warn"); renderStops(); drawPins(); }
+      catch (err) { setStatus(err.message, "error"); } finally { $("optimize").disabled = false; }
+    });
+    $("clear").addEventListener("click", () => { picked = new Set(); route = null; setStatus(""); renderList(); renderStops(); drawPins(); });
+    $("fWhen").addEventListener("change", () => { renderList(); drawPins(); });
+
+    (async () => {
+      try {
+        cfg = await api("/api/pm/config");
+        const d = await api("/api/pm/projects"); projects = d.projects; today = d.today;
+        initMap(); renderList(); renderStops();
+        if (!cfg.mapboxConfigured) setStatus("Mapbox isn't connected yet (MAPBOX_TOKEN in Render). You can still pick stops; drive times and ordering come once it is.", "warn");
+      } catch (err) { setStatus(err.message, "error"); }
+    })();
+  </script>
+</body>
+</html>

@@ -1233,6 +1233,22 @@
         </div>
       </div>
 
+      <!-- Christmas party menu survey (Andrew 10/28): shows while the survey
+           is open and the signed-in user hasn't answered, or when they tap
+           "Pick my menu" on the notification. Saves via /api/party-survey/me. -->
+      <div class="card" id="partyCard" hidden style="border-left: 4px solid #166534;">
+        <div class="module-header" style="margin-bottom: 6px;">
+          <div class="module-title" id="partyTitle">Christmas party — pick your menu</div>
+          <p class="module-desc" id="partyDesc">Top 3 meats, top 3 sides and one dessert from the caterer's buffet. You can change your answer any time until the survey closes.</p>
+        </div>
+        <div id="partyBody" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px;"></div>
+        <div style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-top: 12px;">
+          <input id="partyNote" type="text" maxlength="400" placeholder="Anything we should know? (allergies, a plus-one, requests)" style="flex: 1 1 260px; border: 1.5px solid #dbe1ea; border-radius: 10px; padding: 8px 12px; font-size: 13.5px; font-family: inherit;" />
+          <button id="partySave" type="button" style="border: none; border-radius: 10px; padding: 9px 16px; font-size: 13.5px; font-weight: 700; background: var(--primary, #166534); color: #fff; cursor: pointer; font-family: inherit;">Save my picks</button>
+          <span id="partyMsg" style="font-size: 12.5px; color: #6b7280;"></span>
+        </div>
+      </div>
+
       <div class="card pinned-module" id="orderFlagsCard">
         <div class="module-header">
           <div class="module-title">My Notifications</div>
@@ -3316,7 +3332,9 @@
           // the matching card; finishing the task closes the notification.
           const actionButton = item.kind === "pushed" && item.actionKey === "sizes"
             ? `<button type="button" class="oflag-claim" data-action="sizes" data-index="${index}">Update my sizes</button>`
-            : "";
+            : item.kind === "pushed" && item.actionKey === "party_survey"
+              ? `<button type="button" class="oflag-claim" data-action="party_survey" data-index="${index}">Pick my menu</button>`
+              : "";
           return `
           <tr class="oflag-${item.severity}">
             <td>${badges}</td>
@@ -3329,6 +3347,9 @@
 
         body.querySelectorAll("[data-action='sizes']").forEach((button) => {
           button.addEventListener("click", () => { if (window.showSizesCard) window.showSizesCard(); });
+        });
+        body.querySelectorAll("[data-action='party_survey']").forEach((button) => {
+          button.addEventListener("click", () => { if (window.showPartyCard) window.showPartyCard(); });
         });
         body.querySelectorAll(".oflag-claim[data-claim]").forEach((button) => {
           button.addEventListener("click", async () => {
@@ -3415,6 +3436,11 @@
       window.addEventListener("sizes-saved", () => {
         const before = items.length;
         items = items.filter((it) => !(it.kind === "pushed" && it.actionKey === "sizes"));
+        if (items.length !== before) { if (!items.length) emptyMessage = "No notifications — all clear."; renderOrderFlags(); }
+      });
+      window.addEventListener("party-survey-saved", () => {
+        const before = items.length;
+        items = items.filter((it) => !(it.kind === "pushed" && it.actionKey === "party_survey"));
         if (items.length !== before) { if (!items.length) emptyMessage = "No notifications — all clear."; renderOrderFlags(); }
       });
 
@@ -3524,6 +3550,80 @@
         } catch (err) {
           msg.textContent = err.message;
         }
+      });
+    })();
+
+    // Christmas party menu survey card. Independent of the dashboard app:
+    // loads the menu + my answer, enforces the pick counts in the browser
+    // (the server enforces them again), saves, and drops the notification.
+    (function () {
+      const card = document.getElementById("partyCard");
+      if (!card) return;
+      const body = document.getElementById("partyBody");
+      const msg = document.getElementById("partyMsg");
+      const note = document.getElementById("partyNote");
+      const esc = (v) => String(v == null ? "" : v).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+      let menu = null;
+      function group(key, title, items, max, picked, type) {
+        return `<div><div style="font-size: 12px; font-weight: 700; color: #6b7280; text-transform: uppercase; letter-spacing: .04em; margin-bottom: 6px;">${esc(title)} <span style="font-weight: 600; text-transform: none; letter-spacing: 0;">— pick ${max}</span></div>
+          ${items.map((it) => `<label style="display: flex; gap: 8px; align-items: flex-start; padding: 4px 0; font-size: 13.5px; cursor: pointer;"><input type="${type}" name="party_${key}" value="${esc(it)}" ${picked.includes(it) ? "checked" : ""} style="margin-top: 3px;" /><span>${esc(it)}${menu.tags[it] ? ` <span style="font-size: 11px; color: #6b7280;">(${esc(menu.tags[it])})</span>` : ""}</span></label>`).join("")}</div>`;
+      }
+      function render(resp) {
+        const r = resp || { meats: [], sides: [], dessert: "", note: "" };
+        body.innerHTML = group("meats", "Craft meats", menu.meats, menu.picks.meats, r.meats, "checkbox")
+          + group("sides", "Scratch-made sides", menu.sides, menu.picks.sides, r.sides, "checkbox")
+          + group("dessert", "Dessert", menu.desserts, menu.picks.desserts, r.dessert ? [r.dessert] : [], "radio");
+        note.value = r.note || "";
+        // Cap the checkboxes at the pick count: the (max+1)th click is refused with a hint.
+        for (const key of ["meats", "sides"]) {
+          const max = menu.picks[key];
+          body.querySelectorAll(`input[name="party_${key}"]`).forEach((cb) => cb.addEventListener("change", () => {
+            const on = body.querySelectorAll(`input[name="party_${key}"]:checked`);
+            if (on.length > max) { cb.checked = false; msg.textContent = `Only ${max} ${key} — untick one first.`; }
+            else msg.textContent = "";
+          }));
+        }
+      }
+      const picks = (key) => [...body.querySelectorAll(`input[name="party_${key}"]:checked`)].map((i) => i.value);
+      async function load() {
+        const r = await fetch("/api/party-survey/me", { credentials: "same-origin" });
+        if (!r.ok) return null;
+        return r.json();
+      }
+      load().then((d) => {
+        if (!d || !d.menu) return;
+        menu = d.menu;
+        document.getElementById("partyTitle").textContent = `${d.menu.title} — pick your menu`;
+        // Auto-show while open and unanswered; otherwise wait for the button.
+        if (d.open && !d.response) { render(null); card.hidden = false; }
+      }).catch(() => {});
+      window.showPartyCard = async function () {
+        try {
+          const d = await load();
+          if (!d || !d.menu) { msg.textContent = "Couldn't load the survey — try again in a moment."; return; }
+          menu = d.menu;
+          document.getElementById("partyTitle").textContent = `${d.menu.title} — pick your menu`;
+          render(d.response);
+          msg.textContent = d.closedAt ? "The survey is closed." : d.response ? `You answered ${new Date(d.response.updatedAt).toLocaleDateString("en-US")} — change anything and save again.` : "";
+        } catch { msg.textContent = "Couldn't load the survey — try again in a moment."; }
+        card.hidden = false;
+        card.scrollIntoView({ behavior: "smooth", block: "center" });
+      };
+      document.getElementById("partySave").addEventListener("click", async () => {
+        if (!menu) return;
+        const payload = { meats: picks("meats"), sides: picks("sides"), dessert: picks("dessert")[0] || "", note: note.value.trim() };
+        if (payload.meats.length !== menu.picks.meats) { msg.textContent = `Pick ${menu.picks.meats} meats.`; return; }
+        if (payload.sides.length !== menu.picks.sides) { msg.textContent = `Pick ${menu.picks.sides} sides.`; return; }
+        if (!payload.dessert) { msg.textContent = "Pick a dessert."; return; }
+        msg.textContent = "Saving…";
+        try {
+          const res = await fetch("/api/party-survey/me", { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "same-origin", body: JSON.stringify(payload) });
+          const out = await res.json();
+          if (!res.ok) throw new Error(out.error || "Unable to save.");
+          msg.textContent = "Saved — thanks! See you at the party.";
+          window.dispatchEvent(new CustomEvent("party-survey-saved"));
+          setTimeout(() => { card.hidden = true; }, 1800);
+        } catch (err) { msg.textContent = err.message; }
       });
     })();
   </script>

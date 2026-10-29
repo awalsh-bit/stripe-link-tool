@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="robots" content="noindex, nofollow" />
+  <title>Wilson AC & Appliance - Project Manager Dashboard</title>
+  <link rel="icon" href="favicon.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="internal-shell.css" />
+  <style>
+    :root { --primary: #21692c; --primary-hover: #1b5a25; --border: #dbe1ea; --text: #1f2937; --muted: #6b7280; --bg: #f3f6f4; }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--bg); color: var(--text); font-family: "Inter", "Segoe UI", system-ui, sans-serif; padding: 20px 20px 48px; }
+    .wrap { max-width: 1240px; margin: 0 auto; }
+    .surface { background: #fff; border-radius: 18px; padding: 22px; box-shadow: 0 10px 28px rgba(15, 23, 42, 0.06); margin-bottom: 16px; }
+    h2 { margin: 0 0 6px; font-size: 22px; } h3 { margin: 0 0 8px; font-size: 15px; }
+    .section-note { margin: 0 0 14px; color: var(--muted); font-size: 14px; }
+    .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+    button { border: none; border-radius: 10px; padding: 9px 16px; font-size: 13.5px; font-weight: 700; background: var(--primary); color: #fff; cursor: pointer; font-family: inherit; }
+    button.quiet { background: #eef2f7; color: var(--text); } button:disabled { opacity: .6; cursor: default; } button.small { padding: 6px 10px; font-size: 12.5px; }
+    input[type="text"], input[type="number"], input[type="date"], input[type="datetime-local"], select, textarea { border: 1px solid var(--border); border-radius: 10px; padding: 9px 11px; font-size: 14px; font-family: inherit; background: #fff; }
+    .lbl { display: block; font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; margin-bottom: 4px; }
+    .tiles { display: flex; gap: 10px; flex-wrap: wrap; margin: 12px 0; }
+    .tile { border: 1px solid var(--border); border-radius: 12px; padding: 10px 14px; min-width: 130px; background: #fbfcfe; cursor: pointer; }
+    .tile.on { border-color: var(--primary); background: #eef6ef; }
+    .tile .v { font-size: 22px; font-weight: 800; } .tile .l { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+    .tile.over .v { color: #991b1b; } .tile.week .v { color: #92400e; }
+    details.params { border: 1px solid var(--border); border-radius: 12px; padding: 10px 14px; background: #fbfcfe; } details.params summary { cursor: pointer; font-weight: 700; }
+    .pgrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; margin-top: 12px; }
+    .pgrid textarea { width: 100%; min-height: 64px; }
+    .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 12px; }
+    .card { border: 1px solid var(--border); border-radius: 14px; padding: 12px 14px; background: #fff; cursor: pointer; }
+    .card:hover { border-color: var(--primary); }
+    .card .top { display: flex; justify-content: space-between; gap: 8px; align-items: flex-start; }
+    .card .cust { font-weight: 800; font-size: 15px; } .card .addr { color: var(--muted); font-size: 12.5px; margin-top: 2px; }
+    .card .facts { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 8px; font-size: 13px; }
+    .card .facts b { font-weight: 800; }
+    .pill { display: inline-block; font-size: 11px; font-weight: 700; padding: 3px 9px; border-radius: 999px; background: #eef2f7; color: #374151; white-space: nowrap; }
+    .pill.new { background: #dbeafe; color: #1e40af; } .pill.contacted { background: #fef3c7; color: #92400e; } .pill.visit_scheduled { background: #ede9fe; color: #5b21b6; } .pill.visited { background: #e0f2fe; color: #075985; } .pill.ready { background: #dcfce7; color: #166534; } .pill.delivered { background: #f1f5f9; color: #475569; } .pill.closed { background: #f1f5f9; color: #94a3b8; }
+    .due { font-weight: 800; } .due.over { color: #991b1b; } .due.week { color: #92400e; }
+    .card .note { margin-top: 8px; font-size: 12.5px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .mut { color: var(--muted); font-size: 12.5px; }
+    .status { display: none; margin: 10px 0; padding: 10px 14px; border-radius: 10px; font-size: 13.5px; } .status.show { display: block; } .status.ok { background: #dcfce7; color: #166534; } .status.error { background: #fee2e2; color: #991b1b; }
+    /* drawer */
+    .overlay { display: none; position: fixed; inset: 0; background: rgba(15, 23, 42, .45); z-index: 50; padding: 20px; overflow: auto; }
+    .overlay.show { display: block; }
+    .drawer { max-width: 980px; margin: 0 auto; background: #fff; border-radius: 18px; padding: 20px 22px; }
+    .d-head { display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; border-bottom: 1px solid var(--border); padding-bottom: 12px; margin-bottom: 14px; }
+    .d-head h3 { font-size: 19px; margin: 0; } .d-sub { color: var(--muted); font-size: 13px; margin-top: 4px; }
+    .d-grid { display: grid; grid-template-columns: 1.1fr .9fr; gap: 18px; }
+    .sec { font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; margin: 14px 0 6px; }
+    table.t { width: 100%; border-collapse: collapse; font-size: 13px; } .t td { padding: 5px 6px; border-bottom: 1px solid #f1f5f9; vertical-align: top; } .t td.n { text-align: right; }
+    .mono { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 12.5px; }
+    .steps { display: flex; gap: 6px; flex-wrap: wrap; } .steps button { font-size: 12px; padding: 6px 10px; background: #eef2f7; color: var(--text); } .steps button.on { background: var(--primary); color: #fff; }
+    .notes { max-height: 320px; overflow: auto; } .note-row { padding: 8px 0; border-bottom: 1px solid #f1f5f9; font-size: 13px; } .note-row .who { color: var(--muted); font-size: 11.5px; }
+    .kind { display: inline-block; font-size: 10.5px; font-weight: 700; padding: 1px 7px; border-radius: 999px; background: #eef2f7; margin-right: 6px; text-transform: uppercase; letter-spacing: .03em; }
+    .kind.site { background: #dcfce7; color: #166534; } .kind.visit { background: #ede9fe; color: #5b21b6; } .kind.call { background: #fef3c7; color: #92400e; } .kind.text { background: #e0f2fe; color: #075985; }
+    .ready-list { font-size: 13px; } .ready-list div { padding: 3px 0; } .ok::before { content: "✓ "; color: #166534; font-weight: 800; } .no::before { content: "– "; color: #991b1b; font-weight: 800; }
+    .field { margin-bottom: 8px; } .field input, .field textarea, .field select { width: 100%; }
+    @media (max-width: 900px) { body { padding: 14px 12px 40px; } .surface { padding: 16px; } .d-grid { grid-template-columns: 1fr; } .overlay { padding: 8px; } select, input, textarea { font-size: 16px; } }
+  </style>
+</head>
+<body data-shell-label="Project Manager Dashboard" data-shell-icon="home">
+  <div class="wrap">
+    <div id="internal-shell-header"></div>
+
+    <div class="surface">
+      <h2>Project Manager Dashboard</h2>
+      <p class="section-note">A project is a job site: every open sales ticket shipping to the same address, added together, that clears the Project Parameters. Cards arrive on their own from the ePASS feed; the date is the earliest schedule date a salesperson put on a ticket for that site. Work the card: contact the site, visit, note what you find, get it ready for delivery.</p>
+      <details class="params" id="params">
+        <summary>Project Parameters</summary>
+        <div class="pgrid">
+          <div><span class="lbl">Minimum order total ($)</span><input type="number" id="pMinTotal" min="0" step="500" /></div>
+          <div><span class="lbl">Minimum major appliances</span><input type="number" id="pMinAppliances" min="0" step="1" /><div class="mut">Counts model lines in an appliance class (ranges, fridges, dishwashers, laundry…) — not accessories or parts.</div></div>
+          <div><span class="lbl">Qualify when</span><select id="pMode"><option value="any">Either threshold is met</option><option value="all">Both thresholds are met</option></select></div>
+          <div><span class="lbl">Always a project (customer names, one per line)</span><textarea id="pAlways" placeholder="Smith Custom Homes&#10;Jane Designer"></textarea></div>
+          <div><span class="lbl">Never a project (customer names, one per line)</span><textarea id="pNever"></textarea></div>
+          <div><span class="lbl">Route start (showroom)</span><input type="text" id="pRouteStart" /><div class="mut" id="pRouteGeo"></div></div>
+          <div><span class="lbl">PM phone shown on the job-site page</span><input type="text" id="pPmPhone" /></div>
+        </div>
+        <div class="row" style="margin-top: 10px;">
+          <button id="pSave">Save parameters</button>
+          <button id="pRescan" class="quiet">Re-scan the open book now</button>
+          <span class="mut" id="pMeta"></span>
+        </div>
+      </details>
+      <div id="status" class="status"></div>
+      <div class="tiles" id="tiles"></div>
+      <div class="row">
+        <label><span class="lbl">Status</span><select id="fStatus"><option value="">All open</option></select></label>
+        <label><span class="lbl">PM</span><select id="fPm"><option value="">Everyone</option><option value="me">Mine</option><option value="none">Unassigned</option></select></label>
+        <label><span class="lbl">Search</span><input type="text" id="fQ" placeholder="customer, address, model, order #" /></label>
+        <label><input type="checkbox" id="fClosed" /> show closed</label>
+      </div>
+    </div>
+
+    <div class="surface">
+      <div class="mut" id="count" style="margin-bottom: 10px;"></div>
+      <div class="cards" id="cards"></div>
+    </div>
+
+    <div id="internal-shell-footer"></div>
+  </div>
+
+  <div class="overlay" id="overlay">
+    <div class="drawer" role="dialog" aria-modal="true">
+      <div class="d-head"><div><h3 id="dTitle"></h3><div class="d-sub" id="dSub"></div></div><button type="button" class="quiet" id="dClose">Close</button></div>
+      <div id="dBody"></div>
+    </div>
+  </div>
+
+  <script src="internal-shell.js"></script>
+  <script>
+    const $ = (id) => document.getElementById(id);
+    const esc = (v) => String(v == null ? "" : v).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+    const money = (n) => n == null ? "—" : Number(n).toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 });
+    const day = (iso) => iso && /^\d{4}-\d{2}-\d{2}/.test(iso) ? new Date(iso.slice(0, 10) + "T12:00:00Z").toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" }) : "";
+    const when = (iso) => iso ? new Date(iso).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) : "";
+    const setStatus = (t, k) => { const el = $("status"); el.className = "status" + (t ? " show " + (k || "ok") : ""); el.textContent = t || ""; };
+    async function api(path, init) { const r = await fetch(path, { credentials: "same-origin", ...(init || {}) }); const j = await r.json().catch(() => ({})); if (!r.ok) throw new Error(j.error || "Request failed."); return j; }
+    const post = (path, body) => api(path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body || {}) });
+
+    let cfg = null, projects = [], today = "", bucketFilter = "";
+    const daysUntil = (iso) => iso ? Math.round((Date.parse(iso + "T00:00:00Z") - Date.parse(today + "T00:00:00Z")) / 86400000) : null;
+    const bucketOf = (p) => { if (["delivered", "closed"].includes(p.status)) return p.status; const d = daysUntil(p.neededBy); if (d == null) return "undated"; if (d < 0) return "overdue"; if (d <= 7) return "week"; if (d <= 21) return "soon"; return "later"; };
+    const dueHtml = (p) => { const d = daysUntil(p.neededBy); if (d == null) return `<span class="mut">no date yet</span>`; const cls = d < 0 ? "over" : d <= 7 ? "week" : ""; return `<span class="due ${cls}">${day(p.neededBy)}</span> <span class="mut">${d < 0 ? `${-d} d overdue` : d === 0 ? "today" : `in ${d} d`}</span>`; };
+    const spName = (code) => (cfg?.spNames?.[code] || code || "—");
+    const pmName = (email) => (cfg?.pms?.find((p) => p.email === email)?.name || email || "unassigned");
+
+    function fillSettings(s) {
+      $("pMinTotal").value = s.minTotal; $("pMinAppliances").value = s.minAppliances; $("pMode").value = s.mode;
+      $("pAlways").value = (s.alwaysCustomers || []).join("\n"); $("pNever").value = (s.neverCustomers || []).join("\n");
+      $("pRouteStart").value = s.routeStart || ""; $("pPmPhone").value = s.pmPhone || "";
+      $("pRouteGeo").textContent = s.routeStartLat != null ? `mapped (${Number(s.routeStartLat).toFixed(4)}, ${Number(s.routeStartLng).toFixed(4)})` : (cfg?.geocoderConfigured ? "will be mapped when saved" : "no geocoder configured yet (MAPBOX_TOKEN)");
+      $("pMeta").textContent = s.updatedAt ? `Saved ${when(s.updatedAt)}${s.updatedBy ? " by " + s.updatedBy : ""}` : "";
+    }
+    async function loadConfig() {
+      cfg = await api("/api/pm/config");
+      fillSettings(cfg.settings);
+      $("fStatus").innerHTML = `<option value="">All open</option>` + cfg.statuses.map((s) => `<option value="${s.key}">${esc(s.label)}</option>`).join("");
+    }
+    async function load() {
+      try {
+        const d = await api("/api/pm/projects?closed=" + ($("fClosed").checked ? "1" : "0"));
+        projects = d.projects; today = d.today;
+        render();
+      } catch (err) { setStatus(err.message, "error"); }
+    }
+    function render() {
+      const counts = { overdue: 0, week: 0, soon: 0, later: 0, undated: 0, delivered: 0 };
+      for (const p of projects) { const b = bucketOf(p); if (counts[b] != null) counts[b]++; }
+      const tiles = [["overdue", "Overdue", "over"], ["week", "Next 7 days", "week"], ["soon", "8–21 days", ""], ["later", "Later", ""], ["undated", "No date yet", ""], ["delivered", "Delivered", ""]];
+      $("tiles").innerHTML = tiles.map(([k, l, c]) => `<div class="tile ${c} ${bucketFilter === k ? "on" : ""}" data-b="${k}"><div class="v">${counts[k]}</div><div class="l">${l}</div></div>`).join("");
+      for (const t of $("tiles").querySelectorAll(".tile")) t.addEventListener("click", () => { bucketFilter = bucketFilter === t.dataset.b ? "" : t.dataset.b; render(); });
+      const q = $("fQ").value.trim().toLowerCase(), st = $("fStatus").value, pm = $("fPm").value;
+      const rows = projects.filter((p) => {
+        if (bucketFilter && bucketOf(p) !== bucketFilter) return false;
+        if (st && p.status !== st) return false;
+        if (!st && !bucketFilter && !$("fClosed").checked && ["delivered"].includes(p.status) && false) return false;
+        if (pm === "me" && p.pmEmail !== cfg.me.email) return false;
+        if (pm === "none" && p.pmEmail) return false;
+        if (q) { const hay = [p.customerName, p.siteAddress, p.baseInvoice, p.salesperson, ...(p.models || []).map((m) => m.model + " " + m.description)].join(" ").toLowerCase(); if (!hay.includes(q)) return false; }
+        return true;
+      });
+      $("count").textContent = `${rows.length} project${rows.length === 1 ? "" : "s"}${bucketFilter ? " · " + bucketFilter : ""}`;
+      $("cards").innerHTML = rows.map((p) => `<div class="card" data-id="${p.id}">
+          <div class="top"><div><div class="cust">${esc(p.customerName || p.baseInvoice)}</div><div class="addr">${esc(p.siteAddress || "no address on the ticket")}</div></div><span class="pill ${p.status}">${esc(p.statusLabel)}</span></div>
+          <div class="facts"><span>${dueHtml(p)}</span><span><b>${money(p.total)}</b></span><span><b>${p.applianceCount}</b> appliances</span><span class="mono">${esc(p.baseInvoice)}${(p.orders || []).length > 1 ? ` <span class="mut">+${p.orders.length - 1} more</span>` : ""}</span></div>
+          <div class="facts mut"><span>Sales: ${esc(spName(p.salesperson))}</span><span>PM: ${esc(pmName(p.pmEmail))}</span>${p.siteUpdatedAt ? `<span style="color:#166534;font-weight:700;">site replied ${esc(when(p.siteUpdatedAt))}</span>` : ""}</div>
+          ${p.lastNote ? `<div class="note"><span class="kind ${esc(p.lastNote.kind)}">${esc(p.lastNote.kind)}</span>${esc(p.lastNote.body)}</div>` : ""}
+        </div>`).join("") || `<div class="mut">Nothing here. ${projects.length ? "Try another tile or filter." : "No projects yet — check the parameters and re-scan, or wait for the next ePASS pull."}</div>`;
+      for (const c of $("cards").querySelectorAll(".card")) c.addEventListener("click", () => openProject(Number(c.dataset.id)));
+    }
+    for (const id of ["fStatus", "fPm", "fQ"]) $(id).addEventListener("input", render);
+    $("fClosed").addEventListener("change", load);
+    $("pSave").addEventListener("click", async () => {
+      try {
+        const r = await post("/api/pm/settings", { minTotal: $("pMinTotal").value, minAppliances: $("pMinAppliances").value, mode: $("pMode").value, alwaysCustomers: $("pAlways").value, neverCustomers: $("pNever").value, routeStart: $("pRouteStart").value, pmPhone: $("pPmPhone").value });
+        cfg.settings = r.settings; fillSettings(r.settings); setStatus("Parameters saved. Re-scan to apply them to the open book now, or they apply on the next ePASS pull.");
+      } catch (err) { setStatus(err.message, "error"); }
+    });
+    $("pRescan").addEventListener("click", async () => {
+      $("pRescan").disabled = true; setStatus("Scanning the open book…");
+      try { const r = await post("/api/pm/rescan"); setStatus(`Scanned ${r.candidates} open sales orders — ${r.created} new project${r.created === 1 ? "" : "s"}, ${r.refreshed} refreshed, ${r.delivered} marked delivered, ${r.geocoded} mapped.`); await load(); }
+      catch (err) { setStatus(err.message, "error"); } finally { $("pRescan").disabled = false; }
+    });
+
+    // ---- drawer ----
+    let cur = null;
+    async function openProject(id) {
+      $("overlay").classList.add("show"); $("overlay").scrollTop = 0; $("dBody").innerHTML = `<div class="mut">Loading…</div>`;
+      try { cur = await api("/api/pm/projects/" + id); renderDrawer(); } catch (err) { $("dBody").innerHTML = `<div class="status show error">${esc(err.message)}</div>`; }
+    }
+    function renderDrawer() {
+      const p = cur; const r = p.readiness || {};
+      $("dTitle").textContent = p.customerName || p.baseInvoice;
+      $("dSub").innerHTML = `${esc(p.siteAddress || "no address")} · ${(p.orders || []).length || 1} sales order${(p.orders || []).length === 1 ? "" : "s"} · ${p.invoices.length} ticket${p.invoices.length === 1 ? "" : "s"}${p.customerPhone ? " · " + esc(p.customerPhone) : ""}`;
+      const mapsUrl = p.lat != null ? `https://www.google.com/maps/dir/?api=1&destination=${p.lat},${p.lng}` : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(p.siteAddress || "")}`;
+      $("dBody").innerHTML = `
+        <div class="row" style="margin-bottom: 10px;">
+          <span>${dueHtml(p)}</span><span><b>${money(p.total)}</b></span><span><b>${p.applianceCount}</b> appliances</span><span class="mut">qualified by ${esc(p.qualifiedBy || "—")}</span>
+          <a class="pill" href="${mapsUrl}" target="_blank" rel="noopener">Open in Maps</a>
+        </div>
+        <div class="sec">Status</div>
+        <div class="steps">${cfg.statuses.map((s) => `<button type="button" data-st="${s.key}" class="${p.status === s.key ? "on" : ""}">${esc(s.label)}</button>`).join("")}</div>
+        <div class="d-grid">
+          <div>
+            <div class="sec">Sales orders at this site</div>
+            <table class="t">${(p.orders || []).map((o) => `<tr><td class="mono">${esc(o.baseInvoice)}${o.invoices.length > 1 ? ` <span class="mut">(${o.invoices.length})</span>` : ""}</td><td>${esc(o.customerName || "")}<div class="mut">Sales ${esc(spName(o.salesperson))}</div></td><td>${o.scheduleDate ? esc(day(o.scheduleDate)) : `<span class="mut">no date</span>`}</td><td class="n">${money(o.total)}</td></tr>`).join("") || `<tr><td class="mono">${esc(p.baseInvoice)}</td><td></td><td></td><td class="n">${money(p.total)}</td></tr>`}</table>
+            <div class="sec">Models across those orders</div>
+            <table class="t">${p.models.map((m) => `<tr><td class="mono">${esc(m.model)}</td><td>${esc(m.description || "")}${m.bucket ? "" : ` <span class="mut">(accessory / part)</span>`}</td><td class="n">× ${m.qty}</td></tr>`).join("")}</table>
+            <div class="sec">Job site</div>
+            <div class="field"><span class="lbl">Site contact</span><input type="text" id="eName" value="${esc(p.siteContactName)}" placeholder="name" /></div>
+            <div class="row"><div class="field" style="flex:1"><span class="lbl">Mobile</span><input type="text" id="ePhone" value="${esc(p.siteContactPhone)}" placeholder="512-555-1234" /></div><div class="field" style="flex:1"><span class="lbl">Email</span><input type="text" id="eEmail" value="${esc(p.siteContactEmail)}" /></div></div>
+            <div class="field"><span class="lbl">Job-site address (if different from the ticket)</span><input type="text" id="eAddr" value="${esc(p.addressOverride)}" placeholder="${esc(p.address)}" /></div>
+            <div class="field"><span class="lbl">Site visit</span><input type="datetime-local" id="eVisit" value="${esc(p.visitAt)}" /></div>
+            <div class="row"><button id="eSave" class="small">Save job-site details</button><button id="eCopy" class="small quiet">Copy site link</button><button id="eText" class="small quiet">Text site link</button><span class="mut" id="eMsg"></span></div>
+            <div class="mut" style="margin-top:6px;">Site link: <span class="mono">${esc(p.siteUrl)}</span></div>
+            <div class="sec">Readiness from the site ${r.submittedAt ? `<span class="mut" style="text-transform:none;letter-spacing:0;">— ${esc(when(r.submittedAt))}</span>` : ""}</div>
+            ${r.submittedAt ? `<div class="ready-list">${cfg.readinessItems.map((it) => `<div class="${r[it.key] ? "ok" : "no"}">${esc(it.label)}</div>`).join("")}${r.requestedDate ? `<div><b>Asked for:</b> ${esc(day(r.requestedDate))}</div>` : ""}${r.notes ? `<div><b>Notes:</b> ${esc(r.notes)}</div>` : ""}</div>` : `<div class="mut">Nothing from the site yet — send them the link.</div>`}
+          </div>
+          <div>
+            <div class="sec">Project manager</div>
+            <select id="ePm" style="width:100%"><option value="">Unassigned</option>${cfg.pms.map((m) => `<option value="${esc(m.email)}" ${p.pmEmail === m.email ? "selected" : ""}>${esc(m.name)}</option>`).join("")}</select>
+            <div class="sec">Add a note</div>
+            <div class="row"><select id="nKind"><option value="note">Note</option><option value="call">Call</option><option value="visit">Site visit</option><option value="schedule">Scheduling</option></select></div>
+            <textarea id="nBody" rows="3" style="width:100%;margin-top:6px;" placeholder="What did you find / agree?"></textarea>
+            <div class="row" style="margin-top:6px;"><button id="nAdd" class="small">Add note</button><span class="mut" id="nMsg"></span></div>
+            <div class="sec">Timeline</div>
+            <div class="notes" id="notes">${(p.notes || []).map((n) => `<div class="note-row"><span class="kind ${esc(n.kind)}">${esc(n.kind)}</span>${esc(n.body)}<div class="who">${esc(n.byName || n.byEmail || "")} · ${esc(when(n.at))}</div></div>`).join("") || `<div class="mut">No notes yet.</div>`}</div>
+          </div>
+        </div>`;
+      for (const b of $("dBody").querySelectorAll("[data-st]")) b.addEventListener("click", async () => { try { cur = await post(`/api/pm/projects/${p.id}`, { status: b.dataset.st }); renderDrawer(); await load(); } catch (err) { alertMsg(err.message); } });
+      $("ePm").addEventListener("change", async () => { try { cur = await post(`/api/pm/projects/${p.id}`, { pmEmail: $("ePm").value }); await load(); } catch (err) { alertMsg(err.message); } });
+      $("eSave").addEventListener("click", async () => { $("eMsg").textContent = "Saving…"; try { cur = await post(`/api/pm/projects/${p.id}`, { siteContactName: $("eName").value, siteContactPhone: $("ePhone").value, siteContactEmail: $("eEmail").value, addressOverride: $("eAddr").value, visitAt: $("eVisit").value }); $("eMsg").textContent = "Saved."; await load(); } catch (err) { $("eMsg").textContent = err.message; } });
+      $("eCopy").addEventListener("click", () => { navigator.clipboard?.writeText(p.siteUrl).then(() => { $("eMsg").textContent = "Link copied."; }).catch(() => { $("eMsg").textContent = p.siteUrl; }); });
+      $("eText").addEventListener("click", async () => {
+        const phone = $("ePhone").value.trim(); if (!phone) { $("eMsg").textContent = "Enter the site contact's mobile first."; return; }
+        if (!window.confirm(`Text the job-site link to ${phone}?`)) return;
+        $("eMsg").textContent = "Sending…";
+        try { await post(`/api/pm/projects/${p.id}`, { siteContactName: $("eName").value, siteContactPhone: phone }); await post(`/api/pm/projects/${p.id}/text-link`, { phone }); $("eMsg").textContent = "Text sent through Podium."; cur = await api("/api/pm/projects/" + p.id); renderDrawer(); }
+        catch (err) { $("eMsg").textContent = err.message; }
+      });
+      $("nAdd").addEventListener("click", async () => { const body = $("nBody").value.trim(); if (!body) return; $("nMsg").textContent = "Saving…"; try { await post(`/api/pm/projects/${p.id}/notes`, { kind: $("nKind").value, body }); cur = await api("/api/pm/projects/" + p.id); renderDrawer(); await load(); } catch (err) { $("nMsg").textContent = err.message; } });
+    }
+    const alertMsg = (m) => { setStatus(m, "error"); };
+    $("dClose").addEventListener("click", () => $("overlay").classList.remove("show"));
+    $("overlay").addEventListener("click", (e) => { if (e.target === $("overlay")) $("overlay").classList.remove("show"); });
+
+    loadConfig().then(load).catch((err) => setStatus(err.message, "error"));
+  </script>
+</body>
+</html>

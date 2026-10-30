@@ -98,6 +98,79 @@ html[data-theme="red"] {
 }
 
 /* ---------------------------------------------------------------------------
+   Dark (Andrew 10/29). Two layers: (1) the brand variables, lifted so green
+   reads on slate; (2) the page vocabulary — nearly every internal page
+   declares --bg / --text / --muted / --border on its own :root and paints
+   .surface / .card / .tile / inputs / tables white. html[data-theme] outranks
+   a page :root, so redefining those variables here flips most pages at once,
+   and the element rules below catch the raw white hexes. Semantic status
+   pills keep their own colors (they are readable on dark as they are).
+--------------------------------------------------------------------------- */
+html[data-theme="dark"] {
+  color-scheme: dark;
+  --primary: #3ea35a;
+  --primary-hover: #4db46a;
+  --primary-deep: #2f8a48;
+  --primary-alt: #37964f;
+  --primary-ink: #bfe7c8;
+  --primary-bright: #5cc277;
+  --primary-soft: #2c5a39;
+  --primary-soft-2: #244a30;
+  --primary-tint: #16301d;
+  --primary-tint-2: #1a3a23;
+  --primary-tint-3: #183521;
+  --primary-faint: #111b14;
+  --primary-faint-2: #10190f;
+  --primary-wash: #0f1a12;
+  --primary-wash-2: #101b13;
+  --primary-wash-3: #0f1912;
+  --primary-wash-4: #101a13;
+  --primary-rgb: 62, 163, 90;
+  /* page vocabulary */
+  --bg: #0b1220;
+  --text: #e5e7eb;
+  --muted: #9aa3b2;
+  --border: #273246;
+  --surface: #131c2e;
+  --surface-2: #182338;
+  --dark-input: #0f172a;
+}
+html[data-theme="dark"] body { background: #0b1220 !important; color: #e5e7eb !important; }
+html[data-theme="dark"] .surface, html[data-theme="dark"] .card, html[data-theme="dark"] .drawer, html[data-theme="dark"] .modal, html[data-theme="dark"] .u-card,
+html[data-theme="dark"] .internal-shell-header, html[data-theme="dark"] .internal-shell-footer, html[data-theme="dark"] .internal-shell-menu-panel, html[data-theme="dark"] .internal-shell-personal-panel, html[data-theme="dark"] .internal-shell-profile,
+html[data-theme="dark"] .help-drawer, html[data-theme="dark"] .st-panel { background: #131c2e !important; color: #e5e7eb !important; border-color: #273246 !important; box-shadow: 0 10px 28px rgba(0, 0, 0, 0.45) !important; }
+html[data-theme="dark"] .tile, html[data-theme="dark"] .stat, html[data-theme="dark"] .kpi, html[data-theme="dark"] .result, html[data-theme="dark"] .lookup-result, html[data-theme="dark"] details.params, html[data-theme="dark"] .internal-shell-profile-ro, html[data-theme="dark"] .internal-shell-theme-btn { background: #182338 !important; color: #e5e7eb !important; border-color: #273246 !important; }
+html[data-theme="dark"] h1, html[data-theme="dark"] h2, html[data-theme="dark"] h3, html[data-theme="dark"] h4, html[data-theme="dark"] label, html[data-theme="dark"] .module-title, html[data-theme="dark"] .internal-shell-personal-label, html[data-theme="dark"] .internal-shell-menu-link, html[data-theme="dark"] .internal-shell-profile-close { color: #e5e7eb !important; }
+html[data-theme="dark"] .mut, html[data-theme="dark"] .muted, html[data-theme="dark"] .hint, html[data-theme="dark"] .section-note, html[data-theme="dark"] .module-desc, html[data-theme="dark"] .lbl, html[data-theme="dark"] .d-sub, html[data-theme="dark"] .sec, html[data-theme="dark"] th, html[data-theme="dark"] .internal-shell-footer-text { color: #9aa3b2 !important; }
+html[data-theme="dark"] input:not([type="checkbox"]):not([type="radio"]):not([type="range"]), html[data-theme="dark"] select, html[data-theme="dark"] textarea { background: #0f172a !important; color: #e5e7eb !important; border-color: #334155 !important; }
+html[data-theme="dark"] input::placeholder, html[data-theme="dark"] textarea::placeholder { color: #64748b !important; }
+html[data-theme="dark"] table, html[data-theme="dark"] td, html[data-theme="dark"] th { border-color: #273246 !important; }
+html[data-theme="dark"] thead th, html[data-theme="dark"] tr:nth-child(even) td { background: transparent !important; }
+html[data-theme="dark"] tr.row:hover td, html[data-theme="dark"] tbody tr:hover td { background: #182338 !important; }
+html[data-theme="dark"] button.quiet, html[data-theme="dark"] .quiet, html[data-theme="dark"] button.secondary, html[data-theme="dark"] .secondary, html[data-theme="dark"] .steps button:not(.on) { background: #1e293b !important; color: #e5e7eb !important; border-color: #334155 !important; }
+html[data-theme="dark"] .pill:not(.avail):not(.likely):not(.spoken):not(.reserved):not(.exclusive):not(.display):not(.close):not(.disc):not(.new):not(.contacted):not(.visit_scheduled):not(.visited):not(.ready) { background: #1e293b !important; color: #cbd5e1 !important; }
+html[data-theme="dark"] .mono, html[data-theme="dark"] code { color: #cbd5e1; }
+html[data-theme="dark"] .banner { background: #3b2f0a !important; color: #fcd34d !important; }
+html[data-theme="dark"] .status.ok { background: #14321d !important; color: #86efac !important; }
+html[data-theme="dark"] .status.error { background: #3b1111 !important; color: #fca5a5 !important; }
+html[data-theme="dark"] .status.warn { background: #3b2f0a !important; color: #fcd34d !important; }
+html[data-theme="dark"] .overlay { background: rgba(2, 6, 23, 0.7) !important; }
+/* status-tinted rows and cards (Inventory Lookup, Ordering Report …): same hue, dark lightness */
+html[data-theme="dark"] tr.u-available td, html[data-theme="dark"] .u-card.u-available, html[data-theme="dark"] tr.oflag-green td { background: #10291a !important; }
+html[data-theme="dark"] tr.u-likely td, html[data-theme="dark"] .u-card.u-likely, html[data-theme="dark"] tr.oflag-yellow td { background: #2e2608 !important; }
+html[data-theme="dark"] tr.u-display td, html[data-theme="dark"] .u-card.u-display { background: #0d2634 !important; }
+html[data-theme="dark"] tr.u-exclusive td, html[data-theme="dark"] .u-card.u-exclusive { background: #241b3a !important; }
+html[data-theme="dark"] tr.u-reserved td, html[data-theme="dark"] .u-card.u-reserved, html[data-theme="dark"] tr.oflag-red td { background: #341212 !important; }
+html[data-theme="dark"] tr.u-spoken td, html[data-theme="dark"] .u-card.u-spoken { background: #1a2130 !important; }
+html[data-theme="dark"] .note { color: #fcd34d !important; }
+html[data-theme="dark"] .collect-toggle { background: #0f172a !important; border-color: #334155 !important; } html[data-theme="dark"] .collect-toggle label { color: #9aa3b2 !important; } html[data-theme="dark"] .collect-toggle label:has(input:checked) { background: #16301d !important; color: #86efac !important; }
+html[data-theme="dark"] .ask button { background: #0f2a3a !important; color: #7dd3fc !important; border-color: #0ea5e9 !important; }
+html[data-theme="dark"] a:not(.btn):not(.pill):not(.internal-shell-footer-link):not(.internal-shell-menu-link) { color: #7cc48f; }
+html[data-theme="dark"] img.internal-shell-logo, html[data-theme="dark"] .internal-shell-brand img { filter: invert(1) hue-rotate(180deg) brightness(1.1); }
+html[data-theme="dark"] .internal-shell-badge { background: #16301d !important; color: #86efac !important; }
+html[data-theme="dark"] ::-webkit-scrollbar { width: 10px; height: 10px; } html[data-theme="dark"] ::-webkit-scrollbar-thumb { background: #334155; border-radius: 6px; } html[data-theme="dark"] ::-webkit-scrollbar-track { background: #0b1220; }
+
+/* ---------------------------------------------------------------------------
    One page width for every internal tool.
    Desktop: the content column (and the shell header inside it) is at most
    1480px, centred, with 16px gutters. Phone: 8px gutters, full width. Pages

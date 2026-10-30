@@ -4,16 +4,17 @@ Sales Tools → **Inventory Lookup** (`inventory-lookup.html`, grant under Sales
 
 ## Filters
 
-- **Merch category → class → subclass** — NetSuite's hierarchy, cascading: pick a category and the class list shrinks to its classes, pick a class and the subclass list follows. Counts in brackets are models.
-- **Display name** — when NetSuite's *Display Name* differs from the item number, the page shows the display name as the model with the item number in small print, in the table, the cards, the drawer title and the GM request (Andrew 10/28: Miele items are the material number — `10116800` — and the model the floor knows — `HBFP 27-1` — is the display name; 415 of Miele's 419 classified items). The model search matches either.
-- **Model / Brand / Description** — three searches, each `contains` (default), `starts with` or `ends with`; combined with AND. Model matching ignores punctuation (`CL4850UFD/O` finds `CL4850UFDO`). Brand matches the NetSuite brand name or the ePASS brand code.
-- **On hand only** — models with at least one unit in stock.
-- **ATS only** — models with at least one unit available to sell (ALL serial type, free). Added 10/27.
-- **Sort** — *Stocked first* (default: ATS, then on hand, then brand/model), or **Price low → high / high → low**. The sort price is **L1**, else the maker's UMRP/MAP code (Sub-Zero and Wolf carry no L1 — SZ-UMRP, WOLF-UMRP …), else Retail; models with no price at all go last either way. Rows carry it as `sortPrice`.
-- **Closeout units only** — models with at least one unit that qualifies for the Clearance Hit List, by that list's own rule (`clearanceRuleFor`): serial type OPEN, or ALL received more than 365 days ago, or ALL with a UniqueSellPrice in ePASS. DISPLAY never qualifies. Cards show an "N closeout" chip; the drawer tags each qualifying unit with why (open box / days in stock / unique price) and the unique price when ePASS has one.
-- **Active or in-stock only** (on by default) — a model shows when it has stock, or NetSuite has it and it isn't discontinued. Turn it off to find archive units: discontinued models and ePASS models NetSuite never carried.
+Left: the merch cascade and the three searches. Right (Andrew 10/30: "to the right of the boxes, bold, no helper text"): the on/off controls.
 
-Written and on-order quantities are deliberately not on this screen (Andrew: "that's really not important for inventory lookup" — the Ordering Report has them). Filters and sort start fresh on every visit — Andrew 10/27: "most inventory searches are from scratch and you find the item and the journey is over" (the per-browser memory from 10/26 is gone). On phones the fields are 16px so iOS Safari doesn't zoom the page when one is tapped (Andrew 10/27).
+- **Merch category → class → subclass** — NetSuite's hierarchy, cascading. Counts in brackets are models.
+- **Model / Brand / Description** — three searches, each `contains` (default), `starts with` or `ends with`; combined with AND. Model matching ignores punctuation and also matches NetSuite's Display Name (Miele). Brand matches the NetSuite brand name or the ePASS brand code.
+- **ATS Only** (checkbox) — models with at least one unit in the ATS number as shown.
+- **Include Likely Available** (sub-option of ATS Only — indented, greyed and cleared unless ATS Only is on; Andrew 10/30) — the ATS number shown on cards and in the table also counts units written to orders more than 60 days out. When it widens the count, the table shows the strict count underneath in small print, a **Likely** column (amber) appears in the table, and the cards get an amber "+N likely" chip beside ATS (grey when zero).
+- **Include Displays** (sub-option of ATS Only, same behaviour) — the ATS number also counts free display units (which otherwise need the GM's say-so); a blue **Display** column and a blue "+N display" chip appear the same way.
+- **Closeouts** (toggle) — only models with a unit that qualifies for the Clearance Hit List (OPEN, or ALL over 365 days, or ALL with a UniqueSellPrice).
+- **Displays** (toggle) — only models with a display unit on the floor.
+
+Gone (10/30): "On hand only", the "Active or in-stock only" checkbox (always on now — discontinued models with nothing on hand don't show), and the parenthetical hints. Written and on-order quantities are deliberately not on this screen. Filters and sort start fresh on every visit. On phones the fields are 16px so iOS Safari doesn't zoom when one is tapped.
 
 ## Results
 
@@ -48,4 +49,4 @@ The shop inventory snapshot (every on-hand serial from the ePASS feed, rebuilt a
 
 ## Routes
 
-`GET /api/inventory-lookup/options` (tree, totals, feed time) · `GET /api/inventory-lookup` (`category, cls, subclass, model, modelMode, brand, brandMode, description, descMode, onHand, ats, closeout, active, sort, limit`; rows carry `l1, l2, retail, umrp, umrpCode, basePrice`) · `GET /api/inventory-lookup/model/:model` (`prices.all` has every ePASS price code on the model; `sold12`, `written12`, `soldWindow`, `soldSource` for the trailing-12 tile) · `POST /api/inventory-lookup/display-request` (`model, serial, note`). Opening a model is audited (`inventory_lookup_model_viewed`).
+`GET /api/inventory-lookup/options` (tree, totals, feed time) · `GET /api/inventory-lookup` (`category, cls, subclass, model, modelMode, brand, brandMode, description, descMode, ats, includeLikely, includeDisplay, closeout, displays, active, sort, limit`; rows carry `atsShown` (the number displayed) beside the strict `ats`, plus `l1, l2, retail, umrp, umrpCode, basePrice`) · `GET /api/inventory-lookup/model/:model` (`prices.all` has every ePASS price code on the model; `sold12`, `written12`, `soldWindow`, `soldSource` for the trailing-12 tile) · `POST /api/inventory-lookup/display-request` (`model, serial, note`). Opening a model is audited (`inventory_lookup_model_viewed`).

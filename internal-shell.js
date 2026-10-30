@@ -17,7 +17,7 @@
   }
 
   // ------------------------------------------------------------------
-  // Color scheme. Green is the default; red and purple are per-user
+  // Color scheme. Green is the default; red, purple and dark are per-user
   // choices saved on the profile. Applied as data-theme on <html>, which
   // the shared variable blocks in internal-shell.css pick up. The last
   // choice is cached locally so pages paint in the right scheme before
@@ -26,7 +26,8 @@
   const THEMES = [
     { key: "green", label: "Green", swatch: "#21692c" },
     { key: "red", label: "Red", swatch: "#a32222" },
-    { key: "purple", label: "Purple", swatch: "#635bff" }
+    { key: "purple", label: "Purple", swatch: "#635bff" },
+    { key: "dark", label: "Dark", swatch: "#0f172a" }
   ];
 
   function applyTheme(theme) {

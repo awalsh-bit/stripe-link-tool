@@ -652,9 +652,17 @@
     }
 
     function isNewRow(row) {
-      return row.queueStatus === "Call Status Pending"
-        && !row.queueStatusNotes
-        && !row.erpOrderNumber;
+      if (row.queueStatus !== "Call Status Pending" || row.queueStatusNotes) return false;
+      // An installer's cosmetic-damage report arrives with the SALES invoice
+      // already in the order field (Jack 10/30: they never lit up green). It
+      // is still untouched until someone replaces that with the service
+      // ticket or writes a note.
+      if (row.source === "install_damage") {
+        const prefilled = String(row.installDamage?.invoice || "").trim().toUpperCase();
+        const current = String(row.erpOrderNumber || "").trim().toUpperCase();
+        return !current || current === prefilled;
+      }
+      return !row.erpOrderNumber;
     }
 
     function formatUnits(units = []) {

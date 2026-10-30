@@ -2425,7 +2425,7 @@ app.post("/api/me/theme", async (req, res) => {
     return res.status(401).json({ error: "Authentication required." });
   }
   const theme = String(req.body?.theme || "").trim();
-  if (!["green", "red", "purple"].includes(theme)) {
+  if (!["green", "red", "purple", "dark"].includes(theme)) {
     return res.status(400).json({ error: "Unknown color scheme." });
   }
   if (req.authUser.kind !== "db") {
@@ -11625,6 +11625,23 @@ app.get("/api/service-journey/imports", requireServiceJourney, async (req, res) 
   catch (err) { return res.status(500).json({ error: "Unable to load imports." }); }
 });
 // Manual DispatchTrack drop (the agent normally does this every 15 minutes).
+// Dispatch board → "Pull ePASS now" (Andrew 10/30): re-run the service
+// mirror from the open-service feed already stored by the last agent pull —
+// route / tech / schedule dates land on the board without waiting for the
+// next 15-minute cycle. Nothing is fetched from ePASS here (the agent on
+// WILSON-EPASS01 is the only thing that talks to ePASS).
+app.post("/api/service-journey/import/epass-feed", requireServiceJourney, async (req, res) => {
+  try {
+    const info = await getEpassOpenServiceMeta().catch(() => null);
+    const meta = info?.meta || null;
+    if (!meta?.pulled_at && !meta?.received_at) return res.status(400).json({ error: "No ePASS service feed on file yet — the agent hasn't pushed one." });
+    const me = sjMe(req);
+    const pulledAt = String(meta.pulled_at || "");
+    const m = await importServiceFromEpassFeed({ byEmail: me.email || "dispatch", pulledAt, force: true });
+    sjAudit(req, "service_mirror_pulled_from_feed", { pulledAt, created: m.created, updated: m.updated, unchanged: m.unchanged, attached: m.attached, dropped: m.droppedFromFeed, stale: m.stale, skipped: !!m.skipped });
+    return res.json({ ok: true, pulledAt, receivedAt: meta.received_at ? new Date(meta.received_at).toISOString() : null, tickets: info?.byStatus?.reduce((a, r) => a + (r.n || 0), 0) || 0, created: m.created, updated: m.updated, unchanged: m.unchanged, attached: m.attached, dropped: m.droppedFromFeed, stale: m.stale, skipped: !!m.skipped });
+  } catch (err) { console.error("Manual service mirror failed:", err.message); return res.status(500).json({ error: err.message || "Unable to pull the feed into the board." }); }
+});
 app.post("/api/service-journey/import/dispatch", requireServiceJourney, (req, res) => {
   serviceCsvUpload.single("export")(req, res, async (err) => {
     if (err) return res.status(400).json({ error: "Couldn't read that upload." });

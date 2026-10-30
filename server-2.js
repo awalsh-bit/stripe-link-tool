@@ -267,6 +267,8 @@ import { VENDORS as PO_ETA_VENDORS, FIELDS as PO_ETA_FIELDS, readVendorWorkbook,
 import { buildCatalogCheck, catalogCheckCsv, CATALOG_ISSUES } from "./lib/catalog-check.js";
 import { getCatalog, resolveModel, supplierLabel, shopBucketFor, invalidateCatalog } from "./lib/catalog-resolver.js";
 import { getInventoryIndex, searchInventory, inventoryModelDetail, invalidateInventoryIndex, UNIT_STATUS as INVENTORY_UNIT_STATUS, LIKELY_AVAILABLE_DAYS } from "./lib/inventory-lookup.js";
+import { PROJECT_STATUSES, PROJECT_STATUS_LABELS, READINESS_ITEMS, getProjectSettings, saveProjectSettings, syncProjectsFromFeed, listProjects, getProject, getProjectByToken, updateProject, addProjectNote, saveProjectReadiness, setProjectGeo } from "./lib/projects-postgres.js";
+import { mapboxConfigured, mapboxPublicToken, geocodeAddress as mapboxGeocode, optimizeRoundTrip } from "./lib/mapbox.js";
 import { PARTY_MENU, PARTY_SURVEY_KEY, getPartySurveyMeta, setPartySurveyMeta, getPartySurveyResponse, savePartySurveyResponse, listPartySurveyResponses, tallyPartySurvey } from "./lib/party-survey-postgres.js";
 import { listVendorMaps as listPoEtaVendorMaps, saveVendorMap as savePoEtaVendorMap, recordImportRun as recordPoEtaRun, listImportRuns as listPoEtaRuns, getImportRun as getPoEtaRun, recentExportedLines as recentPoEtaExports } from "./lib/po-eta-import-postgres.js";
 import { resolveRole, roleEmails, hasRole, listRoles as listServiceRoles, setRole as setServiceRole, ROLES as SERVICE_ROLES } from "./lib/service-roles.js";
@@ -735,6 +737,9 @@ const SERVICE_PUBLIC_PATHS = new Set([
   "/api/track",
   "/journey.html",
   "/api/journey",
+  "/project.html",
+  "/api/project/view",
+  "/api/project/readiness",
   "/card-confirm.html",
   "/receipt.pdf",
   "/api/card-confirm/view",
@@ -874,6 +879,8 @@ const INTERNAL_PAGE_PATHS = new Set([
   "/hr-candidates.html",
   "/uniform-orders.html",
   "/party-planning.html",
+  "/pm-dashboard.html",
+  "/pm-route.html",
   "/spec-packages.html",
   "/satisfaction-survey.html",
   "/speedqueen-truckload.html",
@@ -1133,6 +1140,8 @@ const PAGE_LABELS = {
   "/hr-candidates.html": "Candidates",
   "/uniform-orders.html": "Uniform Ordering",
   "/party-planning.html": "Christmas Party Planning",
+  "/pm-dashboard.html": "Project Manager Dashboard",
+  "/pm-route.html": "Project Manager Route Planner",
   "/satisfaction-survey.html": "Client Satisfaction Survey",
   "/service-journey.html": "Service Journey (ePASS mirror)",
   "/service-board.html": "Service Dispatch Board",
@@ -1207,6 +1216,11 @@ const PAGE_CATEGORIES = [
     key: "hr",
     label: "HR",
     pages: ["/hr-phone-screen.html", "/hr-candidates.html", "/uniform-orders.html", "/party-planning.html"]
+  },
+  {
+    key: "project_management",
+    label: "Project Management",
+    pages: ["/pm-dashboard.html", "/pm-route.html"]
   },
   {
     key: "test_modules",
@@ -2411,7 +2425,7 @@ app.post("/api/me/theme", async (req, res) => {
     return res.status(401).json({ error: "Authentication required." });
   }
   const theme = String(req.body?.theme || "").trim();
-  if (!["green", "red", "purple"].includes(theme)) {
+  if (!["green", "red", "purple", "dark"].includes(theme)) {
     return res.status(400).json({ error: "Unknown color scheme." });
   }
   if (req.authUser.kind !== "db") {
@@ -11262,6 +11276,10 @@ app.post("/api/epass-agent/upload", requireEpassAgentKeyHeader, express.raw({ ty
           console.error("Sales Order Health refresh from ePASS feed failed:", err.message);
           counts.salesOrderHealth = { error: err.message };
         }
+        // Project Manager book (Andrew 10/29): qualifying open sales orders
+        // become project cards; tracked ones pick up the feed's latest facts.
+        try { counts.projects = await syncProjectsNow({ why: "bundle" }); }
+        catch (err) { console.error("Project sync from ePASS feed failed:", err.message); counts.projects = { error: err.message }; }
         } catch (err) {
           console.error("Sales bundle post-processing failed:", err.message);
           counts.postProcessing = { error: err.message };
@@ -16437,6 +16455,159 @@ app.post("/api/inventory-lookup/display-request", requireInventoryLookup, async 
     sjAudit(req, "inventory_display_sale_requested", { model: detail.model, serial, customer, note, approver: DISPLAY_APPROVER_CODE, gmEmail, flagged, emailed });
     return res.json({ ok: true, approver: { code: DISPLAY_APPROVER_CODE, name: gm?.name || "", email: gmEmail }, flagged, emailed });
   } catch (err) { console.error("Display request failed:", err.message); return res.status(500).json({ error: "Unable to send that request right now." }); }
+});
+
+// ---------------------------------------------------------------------------
+// PROJECT MANAGER (Andrew 10/29): dashboard + route planner + job-site page.
+// ---------------------------------------------------------------------------
+const requirePM = requirePagePermission("/pm-dashboard.html", "/pm-route.html");
+async function projectGeocode(address) {
+  if (mapboxConfigured()) return mapboxGeocode(address);
+  return googleGeocodeAddress(address); // the existing key, when Mapbox isn't set up yet
+}
+async function syncProjectsNow({ why = "manual" } = {}) {
+  const cat = await getCatalog();
+  const describeModel = (model) => { const r = resolveModel(cat, model, {}); return { description: r.description || "", bucket: r.bucket || "" }; };
+  const out = await syncProjectsFromFeed({ describeModel, geocode: projectGeocode });
+  return { ...out, why };
+}
+const projectPublicUrl = (req, token) => `${getServiceBaseUrl(req)}/project.html?t=${encodeURIComponent(token)}`;
+const projectMeOnly = (req, p) => ({ ...p, siteUrl: projectPublicUrl(req, p.token) });
+
+app.get("/api/pm/config", requirePM, async (req, res) => {
+  try {
+    const settings = await getProjectSettings();
+    const directory = await listEmployeeDirectory().catch(() => []);
+    const users = await listUsersWithAccess().catch(() => []);
+    // People who can be assigned as PM: anyone granted the PM dashboard.
+    const pms = users.filter((u) => u.status === "active" && u.email && (u.isExecutive || (u.grantedPages || []).includes("/pm-dashboard.html"))).map((u) => ({ email: String(u.email).toLowerCase(), name: u.displayName || u.email }));
+    const spNames = Object.fromEntries(directory.map((d) => [String(d.code || "").toUpperCase(), d.name || ""]));
+    return res.json({ mapboxPublicToken: mapboxPublicToken(), mapboxConfigured: mapboxConfigured(), geocoderConfigured: mapboxConfigured() || Boolean(GOOGLE_MAPS_API_KEY), settings, pms, spNames, statuses: PROJECT_STATUSES.map((k) => ({ key: k, label: PROJECT_STATUS_LABELS[k] })), readinessItems: READINESS_ITEMS, me: { email: String(req.authUser?.email || "").toLowerCase(), name: req.authUser?.displayName || "" } });
+  } catch (err) { console.error("PM config failed:", err.message); return res.status(500).json({ error: "Unable to load settings." }); }
+});
+app.post("/api/pm/settings", requirePM, async (req, res) => {
+  try {
+    let settings = await saveProjectSettings(req.body || {}, { byEmail: req.authUser?.email || "" });
+    if (settings.routeStart && (settings.routeStartLat == null || settings.routeStartLng == null)) {
+      const g = await projectGeocode(settings.routeStart).catch(() => null);
+      if (g) settings = await saveProjectSettings({ routeStartLat: g.lat, routeStartLng: g.lng }, { byEmail: req.authUser?.email || "" });
+    }
+    sjAudit(req, "project_settings_saved", { minTotal: settings.minTotal, minAppliances: settings.minAppliances, mode: settings.mode, always: settings.alwaysCustomers.length, never: settings.neverCustomers.length });
+    return res.json({ ok: true, settings });
+  } catch (err) { return res.status(400).json({ error: err.message || "Unable to save." }); }
+});
+app.post("/api/pm/rescan", requirePM, async (req, res) => {
+  try { const out = await syncProjectsNow({ why: "manual" }); sjAudit(req, "projects_rescanned", out); return res.json({ ok: true, ...out }); }
+  catch (err) { console.error("Project rescan failed:", err.message); return res.status(500).json({ error: "Rescan failed — is the ePASS feed loaded?" }); }
+});
+app.get("/api/pm/projects", requirePM, async (req, res) => {
+  try {
+    const rows = await listProjects({ status: String(req.query.status || ""), pmEmail: String(req.query.pm || ""), includeClosed: req.query.closed === "1" });
+    return res.json({ projects: rows.map((p) => projectMeOnly(req, p)), today: new Date().toISOString().slice(0, 10) });
+  } catch (err) { console.error("PM projects failed:", err.message); return res.status(500).json({ error: "Unable to load projects." }); }
+});
+app.get("/api/pm/projects/:id", requirePM, async (req, res) => {
+  try { const p = await getProject(req.params.id); if (!p) return res.status(404).json({ error: "No such project." }); return res.json(projectMeOnly(req, p)); }
+  catch (err) { return res.status(500).json({ error: "Unable to load that project." }); }
+});
+app.post("/api/pm/projects/:id", requirePM, async (req, res) => {
+  try {
+    const me = sjMe(req);
+    const before = await getProject(req.params.id);
+    if (!before) return res.status(404).json({ error: "No such project." });
+    const p = await updateProject(req.params.id, req.body || {}, { byEmail: me.email, byName: me.name });
+    if (req.body?.addressOverride != null && (req.body.addressOverride || "") !== (before.addressOverride || "")) {
+      const addr = p.addressOverride || p.address;
+      const g = addr ? await projectGeocode(addr).catch(() => null) : null;
+      if (g) await setProjectGeo(p.id, { lat: g.lat, lng: g.lng, from: addr });
+    }
+    sjAudit(req, "project_updated", { id: p.id, baseInvoice: p.baseInvoice, fields: Object.keys(req.body || {}) });
+    return res.json(projectMeOnly(req, await getProject(p.id)));
+  } catch (err) { return res.status(400).json({ error: err.message || "Unable to update." }); }
+});
+app.post("/api/pm/projects/:id/notes", requirePM, async (req, res) => {
+  try {
+    const me = sjMe(req);
+    const body = String(req.body?.body || "").trim();
+    if (!body) return res.status(400).json({ error: "Write something first." });
+    const note = await addProjectNote(req.params.id, { kind: String(req.body?.kind || "note"), body, byEmail: me.email, byName: me.name });
+    sjAudit(req, "project_note_added", { id: Number(req.params.id), kind: note.kind });
+    return res.json({ ok: true, note });
+  } catch (err) { return res.status(400).json({ error: err.message || "Unable to add the note." }); }
+});
+// Text the job-site link to the site contact — user-initiated, through
+// Podium like every other Agility text (replies land in Podium).
+app.post("/api/pm/projects/:id/text-link", requirePM, async (req, res) => {
+  try {
+    if (!podiumSendConfigured()) return res.status(503).json({ error: "Texting isn't connected — connect Podium in Text Automations first." });
+    const p = await getProject(req.params.id);
+    if (!p) return res.status(404).json({ error: "No such project." });
+    const phone = String(req.body?.phone || p.siteContactPhone || "").replace(/\D/g, "");
+    if (phone.length < 10) return res.status(400).json({ error: "Enter the site contact's mobile number first." });
+    const me = sjMe(req);
+    const first = (me.name || "").split(/\s+/)[0] || "the project manager";
+    const url = projectPublicUrl(req, p.token);
+    let body = String(req.body?.body || "").trim().slice(0, 900) || `Hi${p.siteContactName ? " " + p.siteContactName.split(/\s+/)[0] : ""}, this is ${first} with Wilson AC & Appliance. I'm the project manager for the appliances going to ${p.siteAddress || p.customerName}. Could you take a minute to tell me where the site stands? ${url}`;
+    if (!body.includes(url)) body += ` ${url}`;
+    const result = await sendCustomerText({ phone, body });
+    await addProjectNote(p.id, { kind: "text", body: `Texted the site link to ${phone}.`, byEmail: me.email, byName: me.name });
+    sjAudit(req, "project_site_link_texted", { id: p.id, phone });
+    return res.json({ ok: true, result });
+  } catch (err) { console.error("Project text failed:", err.message); return res.status(400).json({ error: err.message || "Unable to send the text." }); }
+});
+// Day plan: optimized round trip from the route start through the chosen projects.
+app.post("/api/pm/route/optimize", requirePM, async (req, res) => {
+  try {
+    const ids = (Array.isArray(req.body?.ids) ? req.body.ids : []).map((n) => Number(n)).filter(Number.isFinite).slice(0, 11);
+    if (!ids.length) return res.status(400).json({ error: "Pick at least one project." });
+    const settings = await getProjectSettings();
+    let origin = settings.routeStartLat != null && settings.routeStartLng != null ? { lat: settings.routeStartLat, lng: settings.routeStartLng } : null;
+    if (!origin && settings.routeStart) { const g = await projectGeocode(settings.routeStart).catch(() => null); if (g) { origin = { lat: g.lat, lng: g.lng }; await saveProjectSettings({ routeStartLat: g.lat, routeStartLng: g.lng }); } }
+    const all = await listProjects({ includeClosed: true });
+    const chosen = ids.map((id) => all.find((p) => p.id === id)).filter(Boolean);
+    const unmapped = chosen.filter((p) => p.lat == null || p.lng == null).map((p) => p.customerName);
+    const stops = chosen.filter((p) => p.lat != null && p.lng != null);
+    if (!mapboxConfigured()) {
+      // No Mapbox yet: keep the user's order, no drive times.
+      return res.json({ ok: true, optimized: false, origin, start: settings.routeStart, stops: stops.map((p) => ({ ...projectMeOnly(req, p), legSeconds: null, legMeters: null })), unmapped, totalSeconds: null, totalMeters: null, geometry: null, note: "Mapbox isn't configured yet — stops are in the order you picked them." });
+    }
+    const r = await optimizeRoundTrip(origin, stops.map((p) => ({ lat: p.lat, lng: p.lng })));
+    const ordered = r.order.map((i, k) => ({ ...projectMeOnly(req, stops[i]), legSeconds: r.legs[k]?.seconds ?? null, legMeters: r.legs[k]?.meters ?? null }));
+    const back = r.legs[ordered.length] || null;
+    sjAudit(req, "project_route_built", { stops: ordered.length, totalSeconds: r.totalSeconds });
+    return res.json({ ok: true, optimized: true, origin, start: settings.routeStart, stops: ordered, returnSeconds: back?.seconds ?? null, returnMeters: back?.meters ?? null, unmapped, totalSeconds: r.totalSeconds, totalMeters: r.totalMeters, geometry: r.geometry });
+  } catch (err) { console.error("Route optimize failed:", err.message); return res.status(400).json({ error: err.message || "Unable to build the route." }); }
+});
+// Public (service.wilsonappliance.com): the job-site readiness page.
+app.get("/api/project/view", rateLimit("project-view", 120, 15 * 60 * 1000), async (req, res) => {
+  try {
+    const p = await getProjectByToken(String(req.query.t || "").slice(0, 60));
+    if (!p) return res.status(404).json({ error: "This project link isn't valid — call us at 512-894-0907 and we'll send a fresh one." });
+    if (p.status === "closed") return res.status(410).json({ error: "This project is closed — call us at 512-894-0907 if something's still open." });
+    const [users, settings] = await Promise.all([listUsersWithAccess().catch(() => []), getProjectSettings()]);
+    const pm = p.pmEmail ? users.find((u) => String(u.email || "").toLowerCase() === p.pmEmail) : null;
+    return res.json({
+      customerName: p.customerName, siteAddress: p.siteAddress, neededBy: p.neededBy, status: p.status, statusLabel: p.statusLabel,
+      // Appliances only — install / misc codes mean nothing to a site manager.
+      models: p.models.filter((m) => m.bucket).map((m) => ({ model: m.model, qty: m.qty, description: m.description })),
+      pm: { name: pm ? (pm.displayName || pm.email) : "Wilson AC & Appliance", phone: settings.pmPhone || "512-894-0907", email: p.pmEmail || "" },
+      readinessItems: READINESS_ITEMS, readiness: p.readiness || {}, siteContactName: p.siteContactName, siteContactPhone: p.siteContactPhone
+    });
+  } catch (err) { console.error("Project view failed:", err.message); return res.status(500).json({ error: "Unable to load this project right now." }); }
+});
+app.post("/api/project/readiness", rateLimit("project-readiness", 30, 15 * 60 * 1000), async (req, res) => {
+  try {
+    const token = String(req.body?.token || "").slice(0, 60);
+    const p = await getProjectByToken(token);
+    if (!p) return res.status(404).json({ error: "This project link isn't valid." });
+    if (["closed", "delivered"].includes(p.status)) return res.status(410).json({ error: "This project is no longer taking updates — call us at 512-894-0907." });
+    const saved = await saveProjectReadiness(token, { checklist: req.body?.checklist || {}, notes: req.body?.notes, requestedDate: req.body?.requestedDate, contactName: req.body?.contactName, contactPhone: req.body?.contactPhone });
+    // The PM gets a dashboard flag: a site update is worth a look.
+    if (saved?.pmEmail) {
+      createPushedNotification({ severity: "green", typeLabel: "Project site update", refId: `project-site:${saved.id}:${Date.now()}`, title: `Site update — ${saved.customerName}`, body: `The job site answered the readiness check${saved.readiness?.requestedDate ? ` and asked for ${saved.readiness.requestedDate}` : ""}. Open the Project Manager Dashboard.`, audienceEmail: saved.pmEmail, byEmail: "", byName: "Job site" }).catch(() => {});
+    }
+    return res.json({ ok: true, readiness: saved?.readiness || {} });
+  } catch (err) { console.error("Project readiness failed:", err.message); return res.status(400).json({ error: err.message || "Unable to save." }); }
 });
 
 // ---------------------------------------------------------------------------

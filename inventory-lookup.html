@@ -24,9 +24,23 @@
     .merch select { width: 100%; }
     .finds { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-bottom: 12px; }
     .find { display: flex; gap: 6px; }
-    .find input { flex: 1 1 auto; min-width: 0; }
+    .find input { flex: 1 1 0; min-width: 0; width: 0; }
+    .finds > div, .merch > div { min-width: 0; }
     .find select { flex: 0 0 128px; }
     .opts { display: flex; gap: 18px; align-items: center; flex-wrap: wrap; }
+    .filters { display: grid; grid-template-columns: minmax(0, 1fr) 250px; gap: 18px; align-items: start; margin-top: 12px; }
+    .filters-main { min-width: 0; }
+    .filters-side { border-left: 1px solid var(--border); padding: 2px 0 0 18px; display: flex; flex-direction: column; gap: 10px; }
+    .opt { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 14px; cursor: pointer; user-select: none; }
+    .opt input[type="checkbox"]:not(.switch input) { width: 18px; height: 18px; accent-color: var(--primary); }
+    .opt.sub { margin-left: 28px; font-weight: 600; font-size: 13.5px; }
+    .opt.sub.off { opacity: .4; cursor: default; }
+    .switch { position: relative; display: inline-block; width: 40px; height: 22px; flex: 0 0 auto; }
+    .switch input { position: absolute; opacity: 0; width: 0; height: 0; }
+    .switch .track { position: absolute; inset: 0; border-radius: 999px; background: #cbd5e1; transition: background .15s; }
+    .switch .track::after { content: ""; position: absolute; top: 3px; left: 3px; width: 16px; height: 16px; border-radius: 50%; background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,.25); transition: left .15s; }
+    .switch input:checked + .track { background: var(--primary); } .switch input:checked + .track::after { left: 21px; }
+    .switch input:focus-visible + .track { outline: 2px solid var(--primary); outline-offset: 2px; }
     .sortlbl { display: inline-flex; align-items: center; gap: 8px; font-weight: 600; } .sortlbl select { padding: 7px 10px; }
     .opts label { display: inline-flex; align-items: center; gap: 6px; font-size: 13.5px; }
     .feed { font-size: 12.5px; color: var(--muted); margin-left: auto; }
@@ -56,6 +70,7 @@
     .pill.disc { background: #f1f5f9; color: #475569; }
     .num-avail { color: #166534; font-weight: 800; }
     .num-likely { color: #92400e; font-weight: 700; }
+    .num-display { color: #075985; font-weight: 700; }
     /* drawer */
     .overlay { position: fixed; inset: 0; background: rgba(15, 23, 42, 0.45); display: none; align-items: flex-start; justify-content: center; padding: 24px; overflow: auto; z-index: 50; }
     .overlay.show { display: flex; }
@@ -80,6 +95,8 @@
     .chip.ats { background: #dcfce7; color: #166534; }
     .chip.ats0 { background: #f1f5f9; color: #64748b; font-weight: 700; }
     .chip.likely { background: #fef3c7; color: #92400e; }
+    .chip.display { background: #e0f2fe; color: #075985; }
+    .card .top .chips-r { display: flex; gap: 5px; flex-wrap: wrap; justify-content: flex-end; align-items: flex-start; }
     .chip.disc { background: #f1f5f9; color: #475569; font-weight: 700; }
     .chip.close, .pill.close { background: #ffe4e6; color: #9f1239; }
     /* mobile cards (the showroom view) */
@@ -105,6 +122,7 @@
     .banner { background: #fef3c7; color: #92400e; border-radius: 12px; padding: 10px 14px; font-size: 13.5px; margin: 0 0 12px; }
     @media (max-width: 900px) {
       body { padding: 14px 12px 40px; } .surface { padding: 16px; } .merch, .finds { grid-template-columns: 1fr; } .find select { flex-basis: 112px; } .overlay { padding: 8px; }
+      .filters { grid-template-columns: 1fr; } .filters-side { border-left: none; border-top: 1px solid var(--border); padding: 12px 0 0; flex-direction: row; flex-wrap: wrap; gap: 10px 18px; }
       /* iOS Safari zooms the page when a field under 16px takes focus, and
          doesn't zoom back (Andrew 10/27). 16px keeps the layout still. */
       select, input[type="text"], .ask textarea { font-size: 16px; }
@@ -121,7 +139,8 @@
     <div id="internal-shell-header"></div>
     <div class="surface">
       <h2>Inventory Lookup</h2>
-      <p class="section-note">Live ePASS on-hand inventory, organized by NetSuite's merchandise hierarchy. Tap a model to see every unit and whether it can be sold.</p>
+      <div class="filters">
+      <div class="filters-main">
       <div class="merch">
         <div><span class="lbl">Merch category</span><select id="cat"><option value="">All categories</option></select></div>
         <div><span class="lbl">Merch class</span><select id="cls"><option value="">All classes</option></select></div>
@@ -133,13 +152,19 @@
         <div><span class="lbl">Description</span><div class="find"><input id="qDesc" type="text" placeholder="e.g. french door" autocomplete="off" /><select id="mDesc"><option value="contains">contains</option><option value="starts">starts with</option><option value="ends">ends with</option></select></div></div>
       </div>
       <div class="opts">
-        <label><input type="checkbox" id="onHand" /> On hand only</label>
-        <label><input type="checkbox" id="atsOnly" /> ATS only <span class="mut">(at least one available to sell)</span></label>
-        <label><input type="checkbox" id="closeout" /> Closeout units only <span class="mut">(open box, aged, or unique-priced)</span></label>
-        <label><input type="checkbox" id="active" checked /> Active or in-stock only <span class="mut">(off = include discontinued / archive)</span></label>
         <label class="sortlbl">Sort <select id="sort"><option value="">Stocked first</option><option value="price_asc">Price: low → high</option><option value="price_desc">Price: high → low</option></select></label>
         <button id="clearBtn" type="button" class="quiet">Clear</button>
         <span id="feed" class="feed"></span>
+      </div>
+      </div>
+      <div class="filters-side">
+        <label class="opt"><input type="checkbox" id="atsOnly" /> ATS Only</label>
+        <label class="opt sub off" id="incLikelyRow"><input type="checkbox" id="incLikely" disabled /> Include Likely Available</label>
+        <label class="opt sub off" id="incDisplayRow"><input type="checkbox" id="incDisplay" disabled /> Include Displays</label>
+        <label class="opt sw"><span class="switch"><input type="checkbox" id="closeout" /><span class="track"></span></span> Closeouts</label>
+        <label class="opt sw"><span class="switch"><input type="checkbox" id="displays" /><span class="track"></span></span> Displays</label>
+        <input type="checkbox" id="active" checked hidden />
+      </div>
       </div>
       <div id="status" class="status"></div>
     </div>
@@ -152,7 +177,7 @@
       </div>
       <div class="scroll">
         <table class="t">
-          <thead><tr><th>Brand</th><th>Model</th><th>Description</th><th>Class · subclass</th><th class="n">ATS</th><th class="n">L1</th><th class="n">Retail</th><th class="n">UMRP / MAP</th></tr></thead>
+          <thead id="thead"><tr><th>Brand</th><th>Model</th><th>Description</th><th>Class · subclass</th><th class="n">ATS</th><th class="n">L1</th><th class="n">Retail</th><th class="n">UMRP / MAP</th></tr></thead>
           <tbody id="rows"><tr><td colspan="8" class="mut">Loading…</td></tr></tbody>
         </table>
       </div>
@@ -178,7 +203,7 @@
     const day = (iso) => iso && /^\d{4}-\d{2}-\d{2}/.test(iso) ? new Date(iso.slice(0, 10) + "T12:00:00Z").toLocaleDateString("en-US", { month: "2-digit", day: "2-digit", year: "numeric", timeZone: "UTC" }) : (iso || "—");
     const fmt = (n) => Number(n || 0).toLocaleString("en-US");
     const money = (n) => n == null || !(Number(n) > 0) ? "" : "$" + Number(n).toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 });
-    const atsChip = (r) => r.ats ? `<span class="chip ats">${r.ats} ATS</span>` : `<span class="chip ats0">0 ATS</span>`;
+    const atsChip = (r) => r.atsShown ? `<span class="chip ats">${r.atsShown} ATS</span>` : `<span class="chip ats0">0 ATS</span>`;
     let tree = [];
     let timer = null;
 
@@ -223,31 +248,38 @@
         model: $("qModel").value.trim(), modelMode: $("mModel").value,
         brand: $("qBrand").value.trim(), brandMode: $("mBrand").value,
         description: $("qDesc").value.trim(), descMode: $("mDesc").value,
-        onHand: $("onHand").checked ? "1" : "0", ats: $("atsOnly").checked ? "1" : "0", closeout: $("closeout").checked ? "1" : "0", active: $("active").checked ? "1" : "0", sort: $("sort").value, limit: "400"
+        ats: $("atsOnly").checked ? "1" : "0", includeLikely: $("atsOnly").checked && $("incLikely").checked ? "1" : "0", includeDisplay: $("atsOnly").checked && $("incDisplay").checked ? "1" : "0", closeout: $("closeout").checked ? "1" : "0", displays: $("displays").checked ? "1" : "0", active: "1", sort: $("sort").value, limit: "400"
       };
     }
     async function search() {
       const p = params();
-      const hasFilter = p.category || p.cls || p.subclass || p.model || p.brand || p.description || p.onHand === "1" || p.ats === "1" || p.closeout === "1";
+      const hasFilter = p.category || p.cls || p.subclass || p.model || p.brand || p.description || p.ats === "1" || p.closeout === "1" || p.displays === "1";
       try {
         const d = await api("/api/inventory-lookup?" + new URLSearchParams(p));
         setStatus("", "");
         $("count").textContent = `${fmt(d.total)} model${d.total === 1 ? "" : "s"}${d.total > d.shown ? ` — showing the first ${fmt(d.shown)}, narrow the search to see the rest` : ""}${p.sort ? (p.sort === "price_asc" ? " · price low → high (L1, else UMRP/MAP)" : " · price high → low (L1, else UMRP/MAP)") : hasFilter ? "" : " · stocked models first"}`;
-        const empty = `No models match. Try "contains" instead of "starts with", or turn off "Active or in-stock only" for archive units.`;
+        const empty = `No models match. Try "contains" instead of "starts with".`;
+        // Extra columns appear with the Include boxes (Andrew 10/30): Likely
+        // (amber) and Display (blue), the same colors the drawer uses.
+        const showLikely = p.includeLikely === "1", showDisplay = p.includeDisplay === "1";
+        const cols = 8 + (showLikely ? 1 : 0) + (showDisplay ? 1 : 0);
+        $("thead").innerHTML = `<tr><th>Brand</th><th>Model</th><th>Description</th><th>Class · subclass</th><th class="n">ATS</th>${showLikely ? `<th class="n">Likely</th>` : ""}${showDisplay ? `<th class="n">Display</th>` : ""}<th class="n">L1</th><th class="n">Retail</th><th class="n">UMRP / MAP</th></tr>`;
         $("rows").innerHTML = d.rows.map((r) => `<tr class="row" data-model="${esc(r.model)}">
             <td>${esc(r.brand || "—")}</td>
             <td class="mono"><b>${esc(r.displayName || r.model)}</b>${r.displayName ? `<div class="mut" style="font-size:11px;">${esc(r.model)}</div>` : ""}${r.discontinued ? ` <span class="pill disc">discontinued</span>` : ""}${r.source !== "netsuite" ? ` <span class="mut" title="Not in NetSuite yet — described from ePASS">ePASS</span>` : ""}</td>
             <td>${esc(r.description)}</td>
             <td>${r.cls ? esc(r.cls) + `<div class="mut">${esc(r.subclass || "")}</div>` : `<span class="mut">${esc(r.prod || "—")}</span>`}</td>
-            <td class="n">${r.ats ? `<span class="num-avail">${r.ats}</span>` : "<span class=mut>0</span>"}</td>
+            <td class="n">${r.atsShown ? `<span class="num-avail">${r.atsShown}</span>${r.atsShown !== r.ats ? `<div class="mut" style="font-size:10px;">${r.ats} strict</div>` : ""}` : "<span class=mut>0</span>"}</td>
+            ${showLikely ? `<td class="n">${r.likely ? `<span class="num-likely">${r.likely}</span>` : "<span class=mut>—</span>"}</td>` : ""}
+            ${showDisplay ? `<td class="n">${r.display ? `<span class="num-display">${r.display}</span>` : "<span class=mut>—</span>"}</td>` : ""}
             <td class="n price">${money(r.l1) || "<span class=mut>—</span>"}</td>
             <td class="n price">${money(r.retail) || "<span class=mut>—</span>"}</td>
             <td class="n price">${money(r.umrp) ? `${money(r.umrp)}<div class="mut" style="font-size:10px;">${esc(r.umrpCode)}</div>` : "<span class=mut>—</span>"}</td>
-          </tr>`).join("") || `<tr><td colspan="8" class="mut">${empty}</td></tr>`;
+          </tr>`).join("") || `<tr><td colspan="${cols}" class="mut">${empty}</td></tr>`;
         for (const tr of $("rows").querySelectorAll("tr.row")) tr.addEventListener("click", () => openModel(tr.dataset.model));
         // Showroom cards (phone): model, short description, L1 / Retail, ATS.
         $("cards").innerHTML = d.rows.map((r) => `<div class="card" data-model="${esc(r.model)}">
-            <div class="top"><div><div class="model">${esc(r.displayName || r.model)}${r.displayName ? ` <span class="mut" style="font-size:11px;font-weight:500;">${esc(r.model)}</span>` : ""}</div><div class="brand">${esc(r.brand || "")}${r.cls ? " · " + esc(r.subclass || r.cls) : ""}</div></div>${atsChip(r)}</div>
+            <div class="top"><div><div class="model">${esc(r.displayName || r.model)}${r.displayName ? ` <span class="mut" style="font-size:11px;font-weight:500;">${esc(r.model)}</span>` : ""}</div><div class="brand">${esc(r.brand || "")}${r.cls ? " · " + esc(r.subclass || r.cls) : ""}</div></div><div class="chips-r">${atsChip(r)}${showLikely ? `<span class="chip ${r.likely ? "likely" : "ats0"}" title="Likely available — written to an order more than 60 days out">${r.likely ? "+" + r.likely : "0"} likely</span>` : ""}${showDisplay ? `<span class="chip ${r.display ? "display" : "ats0"}" title="Display units — ask the GM to sell">${r.display ? "+" + r.display : "0"} display</span>` : ""}</div></div>
             <div class="desc">${esc(r.description || "—")}</div>
             <div class="bottom"><div class="prices"><div class="p">${money(r.l1) || "<span class=mut>—</span>"}<small>L1</small></div><div class="p">${money(r.retail) || "<span class=mut>—</span>"}<small>Retail</small></div>${money(r.umrp) ? `<div class="p">${money(r.umrp)}<small>${esc(r.umrpCode)}</small></div>` : ""}</div>
               <div class="chips">${r.discontinued ? `<span class="chip disc">discontinued</span>` : ""}</div></div>
@@ -260,8 +292,15 @@
     $("cls").addEventListener("change", () => { cascade(1); search(); });
     $("sub").addEventListener("change", search);
     for (const id of ["qModel", "qBrand", "qDesc"]) { $(id).addEventListener("input", debounced); $(id).addEventListener("keydown", (e) => { if (e.key === "Enter") { clearTimeout(timer); search(); } }); }
-    for (const id of ["mModel", "mBrand", "mDesc", "onHand", "atsOnly", "closeout", "active", "sort"]) $(id).addEventListener("change", search);
-    $("clearBtn").addEventListener("click", () => { for (const id of ["qModel", "qBrand", "qDesc"]) $(id).value = ""; for (const id of ["mModel", "mBrand", "mDesc"]) $(id).value = "contains"; $("cat").value = ""; cascade(0); $("cls").value = ""; cascade(1); $("sub").value = ""; $("onHand").checked = false; $("atsOnly").checked = false; $("closeout").checked = false; $("active").checked = true; $("sort").value = ""; search(); });
+    // Include Likely / Include Displays are sub-options of ATS Only (Andrew
+    // 10/30): greyed and cleared unless ATS Only is on.
+    function syncSubs() {
+      const on = $("atsOnly").checked;
+      for (const id of ["incLikely", "incDisplay"]) { $(id).disabled = !on; if (!on) $(id).checked = false; $(id + "Row").classList.toggle("off", !on); }
+    }
+    $("atsOnly").addEventListener("change", syncSubs);
+    for (const id of ["mModel", "mBrand", "mDesc", "atsOnly", "incLikely", "incDisplay", "closeout", "displays", "sort"]) $(id).addEventListener("change", search);
+    $("clearBtn").addEventListener("click", () => { for (const id of ["qModel", "qBrand", "qDesc"]) $(id).value = ""; for (const id of ["mModel", "mBrand", "mDesc"]) $(id).value = "contains"; $("cat").value = ""; cascade(0); $("cls").value = ""; cascade(1); $("sub").value = ""; $("atsOnly").checked = false; $("incLikely").checked = false; $("incDisplay").checked = false; syncSubs(); $("closeout").checked = false; $("displays").checked = false; $("sort").value = ""; search(); });
 
     // "Ask the GM to sell" on a free display unit: one click, optional note,
     // the GM (E80) gets a dashboard flag + email with the requester's name.

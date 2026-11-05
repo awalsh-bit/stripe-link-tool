@@ -789,6 +789,7 @@ const SHOP_PUBLIC_PATHS = new Set([
   "/fonts/cormorant-garamond-latin-500-normal.woff2", // landing-page display face (OFL, self-hosted)
   "/fonts/cormorant-garamond-latin-500-italic.woff2",
   "/logo-black.png",
+  "/logo-white.png", // landing-page header/footer (same mark, ivory)
   "/favicon.svg",
   "/robots.txt",
   "/favicon.ico"
@@ -7407,6 +7408,9 @@ async function computeShopCatalogFresh() {
     addons,
     categories,
     listDate: clearance._meta?.listDate || "",
+    // When the list is feed-built, when ePASS last pushed it (the workbook's
+    // listDate above is the August upload date and is NOT the inventory age).
+    feedAt: clearance._meta?.feed?.receivedAt || clearance._meta?.asOf || "",
     paused,
     express: { ...expressSettings, productSet: new Set(expressSettings.products) },
     stockModels: stock.models,
@@ -7931,7 +7935,7 @@ app.get("/api/shop/home-stats", async (req, res) => {
     const featured = [...models.values()].filter((m) => m.image && m.price != null).sort((a, b) => b.sold - a.sold || b.units - a.units).slice(0, 4)
       .map((m) => ({ model: m.model, brand: m.brand, description: m.description, image: m.image, price: m.price, units: m.units }));
     res.setHeader("Cache-Control", "public, max-age=120");
-    return res.json({ models: models.size, units: (catalog.items || []).length, byCategory, featured, paused: Boolean(catalog.paused), listDate: catalog.listDate || null });
+    return res.json({ models: models.size, units: (catalog.items || []).length, byCategory, featured, paused: Boolean(catalog.paused), asOf: catalog.feedAt || null });
   } catch (err) { console.error("Shop home stats failed:", err.message); return res.status(200).json({ models: null, units: null, byCategory: {}, featured: [], paused: false }); }
 });
 

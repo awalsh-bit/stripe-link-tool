@@ -11,8 +11,8 @@ The catalog page carries the whole assortment, so it is slow to first paint. The
 | Section | Where it goes |
 |---|---|
 | Hero ("Shop what's in stock" / "Schedule service") | /shop.html · service.wilsonappliance.com/applianceservice.html |
-| Live stat strip (models, units, inventory date) | `/api/shop/home-stats` |
-| Six one-click journeys: Shop in stock · Outlet · Schedule service · Sub-Zero & Wolf · Visit the showroom · Call or text | /shop.html · /shop.html?outlet=1 · service host · service host /subzero · Google Maps · tel: |
+| Stat strip (live model count · "days, not weeks") | `/api/shop/home-stats` |
+| Five one-click journeys: Outlet · Schedule service · Sub-Zero & Wolf · Visit the showroom · Call or text | /shop.html?outlet=1 · service host · service host /subzero · Google Maps · tel: |
 | Shop by department (6 photo tiles with live model counts) | /shop.html?dept=Refrigeration … Outdoor |
 | "What our neighbors take home" (top 4 sellers in stock, MAP-advertisable price only) | /shop.html?q=MODEL |
 | Showroom (copy, address, photo mosaic) | /subzero and department sub-links |
@@ -36,21 +36,26 @@ These can be texted or put in ads: `shop.wilsonappliance.com/shop.html?dept=Laun
 
 ## Data
 
-`GET /api/shop/home-stats` (public on the shop host, cached 2 minutes) returns `{ models, units, byCategory, featured[4], paused, listDate }` from the same `computeShopCatalog()` the shop uses. Featured = the four most-sold in-stock models that have a photo and a MAP-advertisable price. If the call fails the page still renders; the stat tiles show "—" and the featured row hides.
+`GET /api/shop/home-stats` (public on the shop host, cached 2 minutes) returns `{ models, units, byCategory, featured[4], paused, asOf }` (`asOf` = when ePASS last pushed the on-hand feed, not the clearance workbook's upload date) from the same `computeShopCatalog()` the shop uses. Featured = the four most-sold in-stock models that have a photo and a MAP-advertisable price. If the call fails the page still renders; the stat tiles show "—" and the featured row hides.
 
 ## Photos and fonts
 
 - `showroom/*.jpg` — 15 web-sized showroom photos (1400–2200 px wide, 77–308 KB). Served on the shop host via the `/showroom` public prefix.
 - `showroom-photos/` — the 60 originals (5–9 MB each). **Denied** by the static server (`STATIC_DENY_DIRS`) so nothing ever links to a 9 MB file. Safe to keep in the repo or move out; the site doesn't read them.
+- `logo-white.png` — the Wilson mark in ivory for the dark header/footer (made from logo-black.png, alpha kept).
 - `fonts/cormorant-garamond-latin-500-{normal,italic}.woff2` — the serif display face (SIL Open Font License, self-hosted, 21 KB each). Roboto stays for UI text.
 
 ## Server changes (server.js)
 
 - `/` on the shop host → `shop-home.html` (was shop.html).
-- `SHOP_PUBLIC_PATHS` += `/shop-home.html`, the two Cormorant fonts.
+- `SHOP_PUBLIC_PATHS` += `/shop-home.html`, `/logo-white.png`, the two Cormorant fonts.
 - `SHOP_PUBLIC_API_PREFIXES` += `/showroom`, `/api/shop/home-stats`.
 - `STATIC_DENY_DIRS` += `showroom-photos`.
 
 ## Not changed
 
 shop.html's functionality (ZIP gate, profile unlock, cart, checkout, fulfillment, pricing rules) is untouched; it gained only the deep-link reader and the logo link. Restyling the catalog page itself to match is a separate step.
+
+## Inventory freshness
+
+The storefront's stock comes from the ePASS ODBC pull on WILSON-EPASS01 (Task Scheduler "Agility ePASS pull": 6:00 AM, repeat every 15 minutes for 14 hours, pushed by the agent as soon as each pull finishes). The shop catalog cache rebuilds within a minute of a push while the shop is being used. The Dispatch Board header shows the age of the last push ("ePASS feed … min ago"), which is the quickest way to confirm the schedule is running.

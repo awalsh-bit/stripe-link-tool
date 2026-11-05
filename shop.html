@@ -444,6 +444,175 @@
       .head-title { display: none; }
     }
   </style>
+  <!-- Luxe theme (Andrew 11/5): the storefront restyled to match shop-home.html.
+       This block only overrides looks — colors, type, radii. No layout or
+       behavior rule above is removed, so the page works exactly as before. -->
+  <style id="luxe-theme">
+    @font-face { font-family: "Cormorant"; font-style: normal; font-weight: 500; font-display: swap; src: url("fonts/cormorant-garamond-latin-500-normal.woff2") format("woff2"); }
+    @font-face { font-family: "Cormorant"; font-style: italic; font-weight: 500; font-display: swap; src: url("fonts/cormorant-garamond-latin-500-italic.woff2") format("woff2"); }
+    :root {
+      --primary: #121412;
+      --primary-dark: #000000;
+      --primary-tint: #ebe6db;
+      --green: #121412;
+      --ink: #121412;
+      --muted: #6b6f68;
+      --line: rgba(18, 20, 18, .14);
+      --bg: #f5f2eb;
+      --card: #ffffff;
+      --wash: #ebe6db;
+      --ivory: #f5f2eb;
+      --paper: #fffdf8;
+      --brass: #b7955f;
+      --brass-2: #d8bd8a;
+      --ok: #2f5a37;
+      --ok-bg: #e7efe6;
+      --warn: #7a5a1e;
+      --warn-bg: #f3e9d6;
+      --serif: "Cormorant", Georgia, "Times New Roman", serif;
+    }
+    body { background: var(--bg); color: var(--ink); -webkit-font-smoothing: antialiased; }
+    input, select { border-radius: 2px; border-color: var(--line); background: #fff; }
+    input:focus, select:focus { border-color: var(--ink); box-shadow: 0 0 0 3px rgba(18,20,18,.08); }
+    label { color: #3a3d38; }
+    .btn { border-radius: 2px; font-size: 13px; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; padding: 12px 18px; }
+    .btn.primary { background: var(--ink); color: var(--ivory); }
+    .btn.primary:hover { background: #000; }
+    .btn.ghost { background: transparent; color: var(--ink); border: 1px solid rgba(18,20,18,.35); }
+    .btn.ghost:hover { border-color: var(--ink); color: var(--ink); background: rgba(18,20,18,.04); }
+
+    /* Gate */
+    .gate { background: rgba(10,12,10,.7); }
+    .gate-card { border-radius: 4px; background: var(--paper); box-shadow: 0 30px 80px rgba(0,0,0,.4); }
+    .gate-card h1 { font-family: var(--serif); font-weight: 500; font-size: 30px; letter-spacing: -.005em; }
+    .gate-row input { border-radius: 2px; }
+
+    /* Header — dark bar with the ivory mark, like the landing page */
+    header { background: var(--ink); border-bottom: 1px solid rgba(255,255,255,.08); color: var(--ivory); }
+    .head-inner { padding: 14px 18px; }
+    .head-inner img { height: 32px; }
+    .head-title { font-family: var(--serif); font-weight: 500; font-size: 22px; letter-spacing: .005em; color: var(--ivory); line-height: 1; }
+    .head-title .sub { font-family: "Roboto", system-ui, sans-serif; color: var(--brass-2); font-size: 10.5px; letter-spacing: .22em; margin-top: 5px; }
+    .menu-btn { background: transparent; border-color: rgba(255,255,255,.3); border-radius: 2px; }
+    .menu-btn:hover { border-color: var(--ivory); }
+    .menu-btn svg { stroke: var(--ivory); }
+    .menu-btn-label { color: var(--ivory); font-weight: 600; font-size: 12.5px; letter-spacing: .08em; text-transform: uppercase; }
+    .head-inner .btn.ghost { color: var(--ivory); border-color: rgba(255,255,255,.45); }
+    .head-inner .btn.ghost:hover { border-color: var(--ivory); background: rgba(255,255,255,.08); color: var(--ivory); }
+    .head-inner .btn.ghost.cart-btn { background: var(--ivory); color: var(--ink); border-color: var(--ivory); }
+    .head-inner .btn.ghost.cart-btn:hover { background: #fff; }
+    .cart-count { background: var(--brass); color: var(--ink); }
+    .unlock-chip { background: transparent; border: 1px solid rgba(255,255,255,.45); color: var(--ivory); border-radius: 2px; letter-spacing: .04em; }
+    .unlock-chip:hover { border-color: var(--ivory); }
+
+    /* Department ribbon + mega panel */
+    .dept-ribbon { background: var(--paper); border-bottom: 1px solid var(--line); }
+    .dept-link { font-size: 12.5px; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; color: var(--ink); padding: 14px 2px; border-bottom-width: 2px; }
+    .dept-link:hover, .dept-link.open { border-bottom-color: var(--brass); color: var(--ink); }
+    .dept-link.outlet { color: var(--brass); }
+    .dept-link.outlet:hover { border-bottom-color: var(--brass); color: var(--brass); }
+    .mega-panel { background: var(--paper); box-shadow: 0 30px 60px rgba(0,0,0,.18); }
+    .mega-head h2 { font-family: var(--serif); font-weight: 500; font-size: 30px; }
+    .mega-shopall, .menu-shopall { background: var(--ink); color: var(--ivory); border-radius: 2px; letter-spacing: .1em; text-transform: uppercase; font-size: 11.5px; }
+    .mega-col h4 { font-family: var(--serif); font-weight: 500; font-size: 20px; }
+    .mega-col h4:hover, .mega-link:hover { color: var(--brass); text-decoration: none; }
+    .mega-link { color: #3a3d38; }
+    .mega-backdrop { background: rgba(10,12,10,.35); }
+
+    /* Category drawer */
+    .menu-backdrop { background: rgba(10,12,10,.5); }
+    .menu-drawer { background: var(--paper); }
+    .menu-head-row, .menu-sub-head { border-bottom-color: var(--line); }
+    .menu-head-row strong { font-family: var(--serif); font-weight: 500; font-size: 22px; letter-spacing: 0; }
+    .menu-sub-head h3 { font-family: var(--serif); font-weight: 500; font-size: 26px; }
+    .menu-row, .menu-sub-row { border-bottom-color: var(--line); color: var(--ink); }
+    .menu-row { font-weight: 500; }
+    .menu-row:hover, .menu-sub-row:hover { background: var(--wash); }
+    .menu-row .mi svg { stroke: var(--ink); stroke-width: 1.4; }
+    .menu-back { color: var(--brass); letter-spacing: .06em; text-transform: uppercase; font-size: 12px; }
+
+    /* Hero strip + filters */
+    .hero { padding: 38px 16px 22px; }
+    .hero h2 { font-family: var(--serif); font-weight: 500; font-size: clamp(32px, 4.2vw, 46px); letter-spacing: -.005em; line-height: 1.05; }
+    .hero p { font-size: 15px; }
+    .map-note { background: var(--wash); border-color: var(--line); color: var(--ink); border-radius: 2px; }
+    .crumb-bar { border-radius: 2px; border-color: var(--ink); background: #fff; }
+    .crumb-bar .cb-label { font-family: var(--serif); font-weight: 500; font-size: 18px; }
+    .crumb-bar .cb-clear { border-radius: 2px; background: var(--wash); }
+    .crumb-bar .cb-clear:hover { background: var(--ink); color: var(--ivory); }
+    .sort-select { border-radius: 2px; background: #fff; }
+    .filters input[type="search"] { background: #fff; }
+    .chip { border-radius: 2px; }
+    .chip.active { background: var(--ink); border-color: var(--ink); }
+    .deal-row .deal-lead { color: var(--brass); font-size: 11px; letter-spacing: .2em; }
+    .deal-chip { border: 1px solid rgba(18,20,18,.35); background: transparent; color: var(--ink); border-radius: 2px; font-weight: 500; font-size: 13.5px; padding: 8px 14px; }
+    .deal-chip .dc-n { color: var(--brass); opacity: 1; font-weight: 600; }
+    .deal-chip:hover { border-color: var(--ink); }
+    .deal-chip.active { background: var(--ink); border-color: var(--ink); color: var(--ivory); }
+    .deal-chip.active .dc-n { color: var(--brass-2); }
+    .best-tag { background: var(--warn-bg); color: var(--warn); border-radius: 2px; }
+
+    /* Product cards */
+    .item-card, .skel-card { border-radius: 3px; border-color: var(--line); transition: box-shadow .2s ease, transform .2s ease; }
+    .item-card:hover { box-shadow: 0 18px 40px -24px rgba(0,0,0,.35); transform: translateY(-2px); }
+    .item-img { border-radius: 0; }
+    .skel { border-radius: 2px; background: linear-gradient(90deg, #ebe6db 25%, #f5f2eb 50%, #ebe6db 75%); background-size: 200% 100%; }
+    .cond-badge { border-radius: 2px; box-shadow: none; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; font-size: 10.5px; padding: 4px 9px; }
+    .cond-badge.new, .cond-badge.stock-in { background: var(--ok-bg); color: var(--ok); }
+    .cond-badge.open, .cond-badge.stock-low { background: var(--warn-bg); color: var(--warn); }
+    .eye-badge { border-radius: 2px; box-shadow: none; font-weight: 700; }
+    .item-brand { color: var(--brass); font-size: 11px; letter-spacing: .2em; }
+    .item-model { font-size: 16px; font-weight: 600; letter-spacing: .01em; }
+    .item-model a:hover { color: var(--brass); }
+    .item-desc { color: #3a3d38; }
+    .item-price { color: var(--ink); font-weight: 600; font-size: 19px; }
+    .in-cart, .req-note, .promo-amt, .order-no, .linklike, .promo-link, .pf-ok, .menu-back { color: var(--ink); }
+    .in-cart, .promo-amt, .order-no { color: var(--ok); }
+    .info-dot:hover { color: var(--ink); }
+    .info-tip { border-radius: 2px; background: var(--ink); }
+    .info-tip::after { border-top-color: var(--ink); }
+    .show-more .btn { background: transparent; }
+
+    /* Modals, cart drawer, checkout */
+    .overlay { background: rgba(10,12,10,.6); }
+    .modal { border-radius: 4px; background: var(--paper); }
+    .modal h2, .drawer-head h2, .done-card h2 { font-family: var(--serif); font-weight: 500; font-size: 28px; letter-spacing: -.005em; }
+    .drawer-head h2 { font-size: 26px; }
+    .drawer { background: var(--paper); }
+    .drawer-head, .totals, .cart-line, .addon-row, .or-rule { border-color: var(--line); }
+    .pf-ok { background: var(--ok-bg); color: var(--ok); border-radius: 2px; }
+    .client-code { background: var(--wash); border: 1px dashed var(--brass); color: var(--ink); border-radius: 2px; font-family: var(--serif); font-weight: 500; font-size: 30px; letter-spacing: .12em; }
+    .addon-row input[type="checkbox"], .fulfill-opt input[type="radio"], .consent input { accent-color: var(--ink); }
+    .qty-ctl button { border-radius: 2px; border-color: var(--line); }
+    .deal { background: var(--wash); border-color: var(--line); border-radius: 2px; }
+    .deal .note { color: var(--ok); }
+    .fulfill-opt { border: 1px solid var(--line); border-radius: 2px; background: #fff; }
+    .fulfill-opt.on { border-color: var(--ink); background: var(--wash); box-shadow: 0 0 0 1px var(--ink) inset; }
+    .day-chip { border: 1px solid var(--line); border-radius: 2px; font-weight: 600; }
+    .day-chip.on { background: var(--ink); border-color: var(--ink); color: var(--ivory); }
+    .day-chip.sameday { border-color: var(--brass); box-shadow: 0 0 0 1px var(--brass) inset; }
+    .day-chip.sameday.on { background: var(--ink); border-color: var(--ink); box-shadow: none; }
+    .tot-row.grand { font-family: var(--serif); font-weight: 500; font-size: 22px; }
+    .promo-form input { border-radius: 2px; border-color: var(--line); }
+    .promo-tag { background: var(--wash); border-color: var(--brass); color: var(--ink); border-radius: 2px; }
+    .promo-notice { background: var(--warn-bg); color: var(--warn); border-color: #e2d3b3; border-radius: 2px; }
+    .checkout-section h3 { font-family: var(--serif); font-weight: 500; font-size: 22px; }
+    .summary-box { background: var(--wash); border-color: var(--line); border-radius: 2px; }
+    .done-card { border-radius: 4px; background: var(--paper); }
+    .done-card .big-check { background: var(--ok-bg); color: var(--ok); }
+
+    /* Footer */
+    footer { background: var(--ink); border-top: 0; }
+    .foot-inner { color: rgba(245,242,235,.7); }
+    .foot-inner a { color: var(--ivory); }
+
+    @media (max-width: 560px) {
+      .head-inner img { height: 24px; }
+      .head-title { font-size: 15px; line-height: 1.1; }
+      .head-inner .btn { border-radius: 2px; font-size: 12px; }
+      .menu-btn { border-radius: 2px; }
+    }
+  </style>
 </head>
 <body>
 
@@ -474,7 +643,7 @@
         <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
         <span class="menu-btn-label">Shop by Category</span>
       </button>
-      <a href="/" title="Wilson home" style="display:flex; align-items:center;"><img src="logo-black.png" alt="Wilson AC &amp; Appliance"></a>
+      <a href="/" title="Wilson home" style="display:flex; align-items:center;"><img src="logo-white.png" alt="Wilson AC &amp; Appliance"></a>
       <div class="head-title">Express Assortment<span class="sub">Dripping Springs, Texas</span></div>
       <div class="head-spacer"></div>
       <button type="button" class="unlock-chip" id="unlockChip" style="display:none;" title="View and update your profile"></button>

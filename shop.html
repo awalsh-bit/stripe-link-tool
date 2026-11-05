@@ -474,7 +474,7 @@
         <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
         <span class="menu-btn-label">Shop by Category</span>
       </button>
-      <img src="logo-black.png" alt="Wilson AC &amp; Appliance">
+      <a href="/" title="Wilson home" style="display:flex; align-items:center;"><img src="logo-black.png" alt="Wilson AC &amp; Appliance"></a>
       <div class="head-title">Express Assortment<span class="sub">Dripping Springs, Texas</span></div>
       <div class="head-spacer"></div>
       <button type="button" class="unlock-chip" id="unlockChip" style="display:none;" title="View and update your profile"></button>
@@ -917,6 +917,7 @@
     buildFilters();
     renderHeader();
     renderGrid();
+    applyDeepLink();
     // A reloaded catalog drops the prices we patched in — fetch them again.
     state.cartPrices = {};
     syncCartPrices().then(() => { if (state.cart.itemIds.length) renderCartCount(); });
@@ -1319,6 +1320,47 @@
   $("deptOutlet").addEventListener("click", () => {
     applySelection({ label: "Outlet — Open Box & Display", condition: "open" });
   });
+
+  // ---------- Deep links from the landing page (Andrew 11/5) ----------
+  // shop-home.html is a one-click front door: every tile lands here with the
+  // slice already chosen so the shopper never has to open the menu.
+  //   ?dept=Cooking                      -> a department (MENU_TREE label)
+  //   ?dept=Cooking&sub=Gas+Ranges       -> one of its sub-options
+  //   ?outlet=1                          -> open box & display
+  //   ?brand=Bosch                       -> brand filter (catalog spelling, case-insensitive)
+  //   ?q=WM4000HWA                       -> search box prefilled
+  // Applied once, after the first catalog render; the URL is left as-is so a
+  // texted link ("shop.wilsonappliance.com/shop.html?dept=Laundry") stays shareable.
+  let deepLinkApplied = false;
+  function applyDeepLink() {
+    if (deepLinkApplied) return;
+    deepLinkApplied = true;
+    const p = new URLSearchParams(location.search);
+    const low = (s) => String(s || "").trim().toLowerCase();
+    const dept = low(p.get("dept")), sub = low(p.get("sub")), brand = low(p.get("brand")), q = String(p.get("q") || "").trim();
+    let sel = null;
+    if (p.get("outlet")) {
+      sel = { label: "Outlet — Open Box & Display", condition: "open" };
+    } else if (dept) {
+      const tier = MENU_TREE.find((t) => low(t.label) === dept);
+      if (tier) {
+        const s = sub ? tier.subs.find((x) => low(x.label) === sub) : null;
+        sel = s ? { label: `${tier.label} › ${s.label}`, cats: s.cats, products: s.products } : { label: tier.label, cats: tier.cats };
+      }
+    }
+    if (brand) {
+      const match = (state.catalog?.items || []).map((i) => i.brand).find((b) => low(b) === brand);
+      if (match) state.filter.brand = match;
+    }
+    if (q) { state.filter.search = q; $("searchInput").value = q; }
+    if (!sel && !brand && !q) return;
+    if (sel) applySelection(sel); else { buildFilters(); renderGrid(); }
+    // Land the shopper on the results, not the hero strip.
+    const target = $("crumbBar").classList.contains("show") ? $("crumbBar") : $("filterBar");
+    const header = document.querySelector("header");
+    target.style.scrollMarginTop = `${(header ? header.offsetHeight : 0) + 12}px`;
+    requestAnimationFrame(() => target.scrollIntoView({ block: "start", behavior: "auto" }));
+  }
 
   function buildMega() {
     const cols = $("megaCols");

@@ -1,0 +1,512 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="robots" content="noindex, nofollow, noarchive, nosnippet, noimageindex">
+  <title>Wilson AC &amp; Appliance — In Stock Today</title>
+  <meta name="description" content="Wilson AC &amp; Appliance, Dripping Springs. Shop appliances that are in stock today, schedule service, or visit the showroom with its live Sub-Zero, Wolf and Cove kitchen.">
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="preload" as="image" href="showroom/hero-kitchen.jpg" fetchpriority="high">
+  <link rel="preload" as="font" type="font/woff2" href="fonts/cormorant-garamond-latin-500-normal.woff2" crossorigin>
+  <!--
+    Express shop landing (Andrew 11/5). This page is deliberately static and
+    tiny: the catalog itself (shop.html) is heavy because it carries the whole
+    assortment, so the front door loads instantly and every tile is a single
+    click into the right slice of it. The only network call is
+    /api/shop/home-stats (cached 2 min) which fills the live counts and the
+    "featured" row; the page reads fine without it.
+  -->
+  <style>
+    @font-face { font-family: "Cormorant"; font-style: normal; font-weight: 500; font-display: swap; src: url("fonts/cormorant-garamond-latin-500-normal.woff2") format("woff2"); }
+    @font-face { font-family: "Cormorant"; font-style: italic; font-weight: 500; font-display: swap; src: url("fonts/cormorant-garamond-latin-500-italic.woff2") format("woff2"); }
+    @font-face { font-family: "Roboto"; font-style: normal; font-weight: 100 900; font-display: swap; src: url("fonts/roboto-latin-wght-normal.woff2") format("woff2-variations"); }
+
+    :root {
+      --ink: #121412;
+      --ink-2: #2a2d29;
+      --ivory: #f5f2eb;
+      --ivory-2: #ebe6db;
+      --paper: #fffdf8;
+      --brass: #b7955f;
+      --brass-2: #d8bd8a;
+      --green: #21692c;
+      --muted: #6b6f68;
+      --line: rgba(18, 20, 18, .12);
+      --serif: "Cormorant", Georgia, "Times New Roman", serif;
+      --sans: "Roboto", system-ui, -apple-system, "Segoe UI", sans-serif;
+      --max: 1240px;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+    body { font-family: var(--sans); color: var(--ink); background: var(--ivory); -webkit-font-smoothing: antialiased; line-height: 1.5; }
+    a { color: inherit; text-decoration: none; }
+    img { display: block; max-width: 100%; }
+    button { font: inherit; }
+    .wrap { width: min(var(--max), 100% - 40px); margin: 0 auto; }
+    .serif { font-family: var(--serif); font-weight: 500; letter-spacing: -.005em; }
+    .eyebrow { font-size: 11px; letter-spacing: .22em; text-transform: uppercase; color: var(--brass); font-weight: 600; }
+    .section { padding: 84px 0; }
+    .section-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; margin-bottom: 36px; }
+    .section-head h2 { font-size: clamp(32px, 4vw, 46px); line-height: 1.05; margin-top: 10px; }
+    .section-head p { color: var(--muted); max-width: 520px; margin-top: 10px; font-size: 15px; }
+    .link-arrow { white-space: nowrap; font-size: 13px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; border-bottom: 1px solid currentColor; padding-bottom: 3px; }
+    .link-arrow::after { content: " →"; }
+
+    /* ---------- top bar ---------- */
+    .top { position: fixed; inset: 0 0 auto 0; z-index: 50; transition: background .25s ease, box-shadow .25s ease; color: #fff; }
+    .top.solid { background: rgba(18, 20, 18, .92); backdrop-filter: blur(10px); box-shadow: 0 1px 0 rgba(255,255,255,.06); }
+    .top .wrap { display: flex; align-items: center; justify-content: space-between; height: 72px; gap: 20px; }
+    .wordmark { display: flex; flex-direction: column; line-height: 1; }
+    .wordmark b { font-family: var(--serif); font-weight: 500; font-size: 26px; letter-spacing: .18em; text-transform: uppercase; }
+    .wordmark span { font-size: 10px; letter-spacing: .3em; text-transform: uppercase; opacity: .78; margin-top: 4px; }
+    .top nav { display: flex; gap: 28px; font-size: 13px; letter-spacing: .08em; text-transform: uppercase; font-weight: 500; }
+    .top nav a { opacity: .86; } .top nav a:hover { opacity: 1; }
+    .top .right { display: flex; align-items: center; gap: 16px; }
+    .top .phone { font-size: 13px; letter-spacing: .04em; opacity: .9; }
+    .btn { display: inline-flex; align-items: center; justify-content: center; gap: 10px; padding: 14px 24px; border-radius: 2px; font-weight: 600; font-size: 13px; letter-spacing: .12em; text-transform: uppercase; border: 1px solid transparent; cursor: pointer; transition: transform .15s ease, background .15s ease, color .15s ease; }
+    .btn:hover { transform: translateY(-1px); }
+    .btn.light { background: var(--ivory); color: var(--ink); }
+    .btn.light:hover { background: #fff; }
+    .btn.ghost { border-color: rgba(255,255,255,.55); color: #fff; }
+    .btn.ghost:hover { background: rgba(255,255,255,.1); }
+    .btn.dark { background: var(--ink); color: var(--ivory); }
+    .btn.dark:hover { background: #000; }
+    .btn.sm { padding: 10px 16px; font-size: 12px; white-space: nowrap; }
+
+    /* ---------- hero ---------- */
+    .hero { position: relative; min-height: 92vh; display: flex; align-items: flex-end; color: #fff; overflow: hidden; background: #1a1c1a; }
+    .hero img.bg { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: 55% 60%; filter: saturate(.92) contrast(1.04); }
+    .hero::before { content: ""; position: absolute; inset: 0; z-index: 1; background:
+      linear-gradient(90deg, rgba(10,12,10,.5) 0%, rgba(10,12,10,.22) 45%, rgba(10,12,10,0) 72%),
+      linear-gradient(180deg, rgba(10,12,10,.45) 0%, rgba(10,12,10,.08) 30%, rgba(10,12,10,.18) 60%, rgba(10,12,10,.86) 100%); }
+    .hero .wrap { position: relative; z-index: 2; padding: 140px 0 0; }
+    .hero h1 { font-size: clamp(44px, 6.4vw, 84px); line-height: .98; max-width: 11ch; margin-top: 18px; text-wrap: balance; text-shadow: 0 2px 24px rgba(0,0,0,.35); }
+    .hero .eyebrow, .hero p.lede { text-shadow: 0 1px 12px rgba(0,0,0,.45); }
+    .hero h1 em { font-style: italic; color: var(--brass-2); }
+    .hero p.lede { max-width: 560px; margin-top: 22px; font-size: 17px; line-height: 1.6; color: rgba(255,255,255,.86); }
+    .hero .ctas { display: flex; flex-wrap: wrap; gap: 14px; margin-top: 34px; }
+    .stats { display: grid; grid-template-columns: repeat(4, 1fr); border-top: 1px solid rgba(255,255,255,.2); margin-top: 64px; }
+    .stat { padding: 22px 24px 28px 0; border-right: 1px solid rgba(255,255,255,.14); margin-right: 24px; }
+    .stat:last-child { border-right: 0; margin-right: 0; }
+    .stat b { display: block; font-family: var(--serif); font-weight: 500; font-size: 40px; line-height: 1; letter-spacing: -.01em; min-height: 40px; }
+    .stat b.sk { width: 80px; height: 32px; border-radius: 3px; background: rgba(255,255,255,.14); margin-bottom: 8px; animation: pulse 1.2s ease-in-out infinite; }
+    .stat span { display: block; font-size: 12px; letter-spacing: .14em; text-transform: uppercase; color: rgba(255,255,255,.72); margin-top: 8px; }
+    @keyframes pulse { 50% { opacity: .5; } }
+
+    /* ---------- journeys ---------- */
+    .journeys { background: var(--paper); border-bottom: 1px solid var(--line); }
+    .journeys .wrap { padding: 0; width: min(var(--max), 100%); }
+    .jgrid { display: grid; grid-template-columns: repeat(6, 1fr); }
+    .journey { position: relative; padding: 30px 22px 30px; border-right: 1px solid var(--line); transition: background .15s ease; }
+    .journey:last-child { border-right: 0; }
+    .journey:hover { background: var(--ivory); }
+    .journey .ico { width: 34px; height: 34px; color: var(--ink); margin-bottom: 18px; }
+    .journey .ico svg { width: 100%; height: 100%; stroke: currentColor; fill: none; stroke-width: 1.25; stroke-linecap: round; stroke-linejoin: round; }
+    .journey h3 { font-family: var(--serif); font-weight: 500; font-size: 23px; line-height: 1.1; }
+    .journey p { font-size: 13px; color: var(--muted); margin-top: 8px; min-height: 40px; }
+    .journey .go { position: absolute; right: 20px; top: 28px; color: var(--brass); font-size: 20px; opacity: 0; transform: translateX(-6px); transition: all .15s ease; }
+    .journey:hover .go { opacity: 1; transform: none; }
+    .journey.primary { background: var(--ink); color: var(--ivory); }
+    .journey.primary .ico, .journey.primary p { color: var(--ivory); } .journey.primary p { opacity: .72; }
+    .journey.primary:hover { background: #000; }
+
+    /* ---------- departments ---------- */
+    .dgrid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+    .dept { position: relative; aspect-ratio: 4 / 3; overflow: hidden; border-radius: 3px; background: #222; color: #fff; isolation: isolate; }
+    .dept img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; transition: transform .8s cubic-bezier(.2,.7,.2,1), filter .4s ease; filter: saturate(.9); }
+    .dept:hover img { transform: scale(1.04); filter: saturate(1); }
+    .dept::after { content: ""; position: absolute; inset: 0; background: linear-gradient(180deg, rgba(0,0,0,.08) 30%, rgba(0,0,0,.72) 100%); }
+    .dept .cap { position: absolute; left: 24px; right: 24px; bottom: 22px; z-index: 1; display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; }
+    .dept .cap h3 { font-family: var(--serif); font-weight: 500; font-size: 30px; line-height: 1; }
+    .dept .cap small { display: block; font-size: 12px; letter-spacing: .14em; text-transform: uppercase; opacity: .82; margin-top: 8px; min-height: 14px; }
+    .dept .cap .arrow { width: 40px; height: 40px; border: 1px solid rgba(255,255,255,.6); border-radius: 50%; display: grid; place-items: center; font-size: 18px; transition: background .15s ease; flex: none; }
+    .dept:hover .cap .arrow { background: rgba(255,255,255,.18); }
+    .dept.tall { grid-row: span 2; aspect-ratio: auto; }
+
+    /* ---------- featured ---------- */
+    .featured { background: var(--paper); border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+    .fgrid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
+    .fcard { background: #fff; border: 1px solid var(--line); border-radius: 3px; padding: 18px 18px 20px; display: flex; flex-direction: column; min-height: 360px; transition: box-shadow .2s ease, transform .2s ease; }
+    .fcard:hover { box-shadow: 0 18px 40px -24px rgba(0,0,0,.35); transform: translateY(-2px); }
+    .fcard .img { height: 190px; display: grid; place-items: center; margin-bottom: 14px; }
+    .fcard .img img { max-height: 100%; max-width: 100%; object-fit: contain; mix-blend-mode: multiply; }
+    .fcard .brand { font-size: 11px; letter-spacing: .2em; text-transform: uppercase; color: var(--brass); font-weight: 600; }
+    .fcard .model { font-family: var(--serif); font-weight: 500; font-size: 22px; margin-top: 4px; }
+    .fcard .desc { font-size: 13px; color: var(--muted); margin-top: 4px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+    .fcard .foot { margin-top: auto; padding-top: 14px; display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+    .fcard .price { font-size: 18px; font-weight: 600; }
+    .fcard .price small { font-size: 11px; font-weight: 500; color: var(--muted); letter-spacing: .08em; text-transform: uppercase; margin-right: 6px; }
+    .fcard .stock { font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--green); font-weight: 600; }
+    .fcard.sk .img, .fcard.sk .line { background: var(--ivory-2); border-radius: 3px; animation: pulse 1.2s ease-in-out infinite; }
+    .fcard.sk .line { height: 12px; margin-top: 10px; } .fcard.sk .line.w { width: 40%; }
+
+    /* ---------- showroom ---------- */
+    .showroom { background: var(--ink); color: var(--ivory); }
+    .showroom .wrap { display: grid; grid-template-columns: 5fr 7fr; gap: 64px; align-items: center; }
+    .showroom h2 { font-size: clamp(36px, 4.4vw, 54px); line-height: 1.02; margin-top: 12px; }
+    .showroom h2 em { font-style: italic; color: var(--brass-2); }
+    .showroom p { color: rgba(245,242,235,.78); margin-top: 18px; font-size: 16px; line-height: 1.65; max-width: 46ch; }
+    .showroom .addr { margin-top: 28px; padding-top: 24px; border-top: 1px solid rgba(255,255,255,.14); display: grid; gap: 10px; font-size: 14px; }
+    .showroom .addr b { font-weight: 600; letter-spacing: .04em; }
+    .showroom .ctas { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 26px; }
+    .mosaic { display: grid; grid-template-columns: repeat(3, 1fr); grid-auto-rows: 150px; gap: 10px; }
+    .mosaic a { position: relative; overflow: hidden; border-radius: 3px; background: #222; }
+    .mosaic img { width: 100%; height: 100%; object-fit: cover; transition: transform .8s cubic-bezier(.2,.7,.2,1); filter: saturate(.92); }
+    .mosaic a:hover img { transform: scale(1.05); }
+    .mosaic .big { grid-column: span 2; grid-row: span 2; }
+    .mosaic .wide { grid-column: span 2; }
+    .mosaic .tag { position: absolute; left: 12px; bottom: 10px; font-size: 11px; letter-spacing: .14em; text-transform: uppercase; color: #fff; text-shadow: 0 1px 10px rgba(0,0,0,.7); }
+
+    /* ---------- pillars ---------- */
+    .pillars .pgrid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+    .pillar { background: var(--paper); border: 1px solid var(--line); border-radius: 3px; padding: 30px 28px 32px; }
+    .pillar h3 { font-family: var(--serif); font-weight: 500; font-size: 28px; line-height: 1.05; margin-top: 12px; }
+    .pillar p { color: var(--muted); font-size: 14px; margin-top: 12px; min-height: 66px; }
+    .pillar .link-arrow { display: inline-block; margin-top: 18px; }
+
+    /* ---------- footer ---------- */
+    footer { background: #0c0d0c; color: rgba(245,242,235,.72); padding: 56px 0 40px; font-size: 13px; }
+    footer .wrap { display: grid; grid-template-columns: 2fr 1fr 1fr 1fr; gap: 32px; }
+    footer .wordmark { color: #fff; }
+    footer h4 { color: #fff; font-size: 11px; letter-spacing: .2em; text-transform: uppercase; margin-bottom: 14px; }
+    footer ul { list-style: none; display: grid; gap: 9px; }
+    footer a:hover { color: #fff; }
+    footer .fine { grid-column: 1 / -1; border-top: 1px solid rgba(255,255,255,.1); margin-top: 24px; padding-top: 20px; font-size: 12px; color: rgba(245,242,235,.5); display: flex; flex-wrap: wrap; justify-content: space-between; gap: 10px; }
+
+    /* ---------- mobile ---------- */
+    .menu-btn { display: none; }
+    @media (max-width: 1040px) {
+      .top nav { display: none; }
+      .top .phone { display: none; }
+      .jgrid { grid-template-columns: repeat(3, 1fr); }
+      .journey:nth-child(3n) { border-right: 0; }
+      .journey { border-bottom: 1px solid var(--line); }
+      .fgrid { grid-template-columns: repeat(2, 1fr); }
+      .showroom .wrap { grid-template-columns: 1fr; gap: 40px; }
+      footer .wrap { grid-template-columns: 1fr 1fr; }
+    }
+    @media (max-width: 720px) {
+      .section { padding: 56px 0; }
+      .wrap { width: min(var(--max), 100% - 32px); }
+      .top .wrap { height: 64px; }
+      .wordmark b { font-size: 21px; }
+      .top .wordmark span { display: none; }
+      .hero::before { background: linear-gradient(180deg, rgba(10,12,10,.62) 0%, rgba(10,12,10,.4) 35%, rgba(10,12,10,.55) 60%, rgba(10,12,10,.94) 100%); }
+      .hero img.bg { object-position: 70% 50%; }
+      .hero { min-height: 100svh; align-items: flex-end; }
+      .hero .wrap { padding-top: 110px; }
+      .hero p.lede { font-size: 15px; }
+      .hero .ctas .btn { flex: 1 1 100%; }
+      .stats { grid-template-columns: 1fr 1fr; margin-top: 40px; }
+      .stat { padding: 16px 12px 20px 0; margin-right: 12px; }
+      .stat:nth-child(2) { border-right: 0; } .stat:nth-child(3) { border-top: 1px solid rgba(255,255,255,.14); } .stat:nth-child(4) { border-top: 1px solid rgba(255,255,255,.14); }
+      .stat b { font-size: 30px; min-height: 30px; }
+      .jgrid { grid-template-columns: 1fr 1fr; }
+      .journey { padding: 22px 18px; border-right: 1px solid var(--line); }
+      .journey:nth-child(3n) { border-right: 1px solid var(--line); }
+      .journey:nth-child(2n) { border-right: 0; }
+      .journey h3 { font-size: 20px; } .journey p { min-height: 0; }
+      .journey .go { display: none; }
+      .section-head { flex-direction: column; align-items: flex-start; gap: 12px; }
+      .dgrid { grid-template-columns: 1fr 1fr; gap: 10px; }
+      .dept .cap { left: 14px; right: 14px; bottom: 14px; }
+      .dept .cap h3 { font-size: 22px; } .dept .cap small { font-size: 10px; } .dept .cap .arrow { display: none; }
+      .fgrid { grid-template-columns: 1fr 1fr; gap: 10px; }
+      .fcard { padding: 12px; min-height: 0; } .fcard .img { height: 130px; } .fcard .model { font-size: 18px; } .fcard .desc { display: none; }
+      .mosaic { grid-auto-rows: 110px; gap: 8px; }
+      .pillars .pgrid { grid-template-columns: 1fr; }
+      .pillar p { min-height: 0; }
+      footer .wrap { grid-template-columns: 1fr; gap: 26px; }
+    }
+    @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } * { transition: none !important; animation: none !important; } }
+  </style>
+</head>
+<body>
+
+  <header class="top" id="top">
+    <div class="wrap">
+      <a class="wordmark" href="/" aria-label="Wilson AC &amp; Appliance">
+        <b>Wilson</b>
+        <span>AC &amp; Appliance · Dripping Springs</span>
+      </a>
+      <nav aria-label="Primary">
+        <a href="/shop.html">In Stock</a>
+        <a href="#departments">Departments</a>
+        <a href="#showroom">Showroom</a>
+        <a href="https://service.wilsonappliance.com/applianceservice.html">Service</a>
+        <a href="#builders">Builders</a>
+      </nav>
+      <div class="right">
+        <a class="phone" href="tel:5128940907">512-894-0907</a>
+        <a class="btn light sm" href="/shop.html">Shop in stock</a>
+      </div>
+    </div>
+  </header>
+
+  <!-- ============ HERO ============ -->
+  <section class="hero">
+    <img class="bg" src="showroom/hero-kitchen.jpg" alt="" fetchpriority="high" decoding="async">
+    <div class="wrap">
+      <div class="eyebrow">In stock now · Dripping Springs, Texas</div>
+      <h1 class="serif">The appliance you want, <em>already here.</em></h1>
+      <p class="lede">Wilson's Express Assortment is the part of our inventory that's on the floor and ready to go — delivered or picked up in days, not weeks, and installed by our own team.</p>
+      <div class="ctas">
+        <a class="btn light" href="/shop.html">Shop what's in stock</a>
+        <a class="btn ghost" href="https://service.wilsonappliance.com/applianceservice.html">Schedule service</a>
+      </div>
+      <div class="stats" id="stats">
+        <div class="stat"><b class="sk" id="stModels"></b><span>Models in stock</span></div>
+        <div class="stat"><b class="sk" id="stUnits"></b><span>Units ready now</span></div>
+        <div class="stat"><b class="serif">Days</b><span>Not weeks, to deliver</span></div>
+        <div class="stat"><b class="serif" id="stUpdated">Live</b><span id="stUpdatedLabel">Inventory updated</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ ONE-CLICK JOURNEYS ============ -->
+  <section class="journeys" aria-label="Quick actions">
+    <div class="wrap">
+      <div class="jgrid">
+        <a class="journey primary" href="/shop.html">
+          <div class="ico"><svg viewBox="0 0 24 24"><path d="M4 7h16l-1.5 12h-13z"/><path d="M9 7V5a3 3 0 0 1 6 0v2"/></svg></div>
+          <h3>Shop in stock</h3>
+          <p>The full Express Assortment, on the floor today.</p>
+          <span class="go">→</span>
+        </a>
+        <a class="journey" href="/shop.html?outlet=1">
+          <div class="ico"><svg viewBox="0 0 24 24"><path d="M3 9l1.5-4h15L21 9"/><path d="M3 9h18v11H3z"/><path d="M9 13h6"/></svg></div>
+          <h3>Outlet</h3>
+          <p>Open-box and display units at a real discount.</p>
+          <span class="go">→</span>
+        </a>
+        <a class="journey" href="https://service.wilsonappliance.com/applianceservice.html">
+          <div class="ico"><svg viewBox="0 0 24 24"><path d="M14.5 6.5a4 4 0 0 0-5 5L4 17l3 3 5.5-5.5a4 4 0 0 0 5-5l-2.5 2.5-2-2z"/></svg></div>
+          <h3>Schedule service</h3>
+          <p>Factory-trained techs for the brands we sell.</p>
+          <span class="go">→</span>
+        </a>
+        <a class="journey" href="https://service.wilsonappliance.com/subzero">
+          <div class="ico"><svg viewBox="0 0 24 24"><path d="M5 10h14v9H5z"/><path d="M8 10V6h8v4"/><path d="M8 14h.01M12 14h.01M16 14h.01"/></svg></div>
+          <h3>Sub-Zero &amp; Wolf</h3>
+          <p>Cook in our live kitchen. Book a private visit.</p>
+          <span class="go">→</span>
+        </a>
+        <a class="journey" href="https://maps.google.com/?q=Wilson+AC+%26+Appliance,+4205+E+Hwy+290,+Dripping+Springs,+TX+78620" target="_blank" rel="noopener">
+          <div class="ico"><svg viewBox="0 0 24 24"><path d="M12 21s-6-5.5-6-11a6 6 0 0 1 12 0c0 5.5-6 11-6 11z"/><circle cx="12" cy="10" r="2.2"/></svg></div>
+          <h3>Visit the showroom</h3>
+          <p>4205 E Hwy 290, Dripping Springs. Get directions.</p>
+          <span class="go">→</span>
+        </a>
+        <a class="journey" href="tel:5128940907">
+          <div class="ico"><svg viewBox="0 0 24 24"><path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2z"/></svg></div>
+          <h3>Call or text</h3>
+          <p>512-894-0907 — a person, during business hours.</p>
+          <span class="go">→</span>
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ DEPARTMENTS ============ -->
+  <section class="section" id="departments">
+    <div class="wrap">
+      <div class="section-head">
+        <div>
+          <div class="eyebrow">Shop by department</div>
+          <h2 class="serif">One tap to the right aisle.</h2>
+          <p>Every tile opens the Express Assortment already filtered, so you're looking at the right products and nothing else.</p>
+        </div>
+        <a class="link-arrow" href="/shop.html">See everything</a>
+      </div>
+      <div class="dgrid" id="deptGrid">
+        <a class="dept" href="/shop.html?dept=Refrigeration" data-dept="Refrigeration"><img src="showroom/refrigeration.jpg" alt="" loading="lazy" decoding="async"><div class="cap"><div><h3 class="serif">Refrigeration</h3><small></small></div><span class="arrow">→</span></div></a>
+        <a class="dept" href="/shop.html?dept=Cooking" data-dept="Cooking"><img src="showroom/ranges.jpg" alt="" loading="lazy" decoding="async"><div class="cap"><div><h3 class="serif">Cooking</h3><small></small></div><span class="arrow">→</span></div></a>
+        <a class="dept" href="/shop.html?dept=Dishwashers" data-dept="Dishwashers"><img src="showroom/dishwashers.jpg" alt="" loading="lazy" decoding="async"><div class="cap"><div><h3 class="serif">Dishwashers</h3><small></small></div><span class="arrow">→</span></div></a>
+        <a class="dept" href="/shop.html?dept=Laundry" data-dept="Laundry"><img src="showroom/laundry.jpg" alt="" loading="lazy" decoding="async"><div class="cap"><div><h3 class="serif">Laundry</h3><small></small></div><span class="arrow">→</span></div></a>
+        <a class="dept" href="/shop.html?dept=Ventilation" data-dept="Ventilation"><img src="showroom/ventilation.jpg" alt="" loading="lazy" decoding="async"><div class="cap"><div><h3 class="serif">Ventilation</h3><small></small></div><span class="arrow">→</span></div></a>
+        <a class="dept" href="/shop.html?dept=Outdoor" data-dept="Outdoor"><img src="showroom/outdoor.jpg" alt="" loading="lazy" decoding="async"><div class="cap"><div><h3 class="serif">Outdoor</h3><small></small></div><span class="arrow">→</span></div></a>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ FEATURED (live) ============ -->
+  <section class="section featured" id="featuredSection">
+    <div class="wrap">
+      <div class="section-head">
+        <div>
+          <div class="eyebrow">Most-bought this year</div>
+          <h2 class="serif">What our neighbors take home.</h2>
+          <p>The models we sell the most of, in stock right now. Prices shown are the manufacturers' advertised prices; many more price in the cart.</p>
+        </div>
+        <a class="link-arrow" href="/shop.html">Shop best sellers</a>
+      </div>
+      <div class="fgrid" id="featured">
+        <div class="fcard sk"><div class="img"></div><div class="line w"></div><div class="line"></div><div class="line"></div></div>
+        <div class="fcard sk"><div class="img"></div><div class="line w"></div><div class="line"></div><div class="line"></div></div>
+        <div class="fcard sk"><div class="img"></div><div class="line w"></div><div class="line"></div><div class="line"></div></div>
+        <div class="fcard sk"><div class="img"></div><div class="line w"></div><div class="line"></div><div class="line"></div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ SHOWROOM ============ -->
+  <section class="section showroom" id="showroom">
+    <div class="wrap">
+      <div>
+        <div class="eyebrow">The showroom</div>
+        <h2 class="serif">Stand in the kitchen <em>before you buy it.</em></h2>
+        <p>Our Dripping Springs showroom has a fully working Sub-Zero, Wolf and Cove kitchen, a design center for finishes and panels, and working displays from Thermador, Miele, Bosch, Monogram, Café, Fisher &amp; Paykel, Speed Queen, Lynx and more. Family-owned, and the same people sell, deliver, install and service what you buy.</p>
+        <div class="addr">
+          <div><b>4205 E Hwy 290</b> · Dripping Springs, TX 78620</div>
+          <div><b>512-894-0907</b> · call or text</div>
+          <div>Serving the Hill Country and west Austin</div>
+        </div>
+        <div class="ctas">
+          <a class="btn light" href="https://maps.google.com/?q=Wilson+AC+%26+Appliance,+4205+E+Hwy+290,+Dripping+Springs,+TX+78620" target="_blank" rel="noopener">Get directions</a>
+          <a class="btn ghost" href="https://service.wilsonappliance.com/subzero">Book the live kitchen</a>
+        </div>
+      </div>
+      <div class="mosaic" aria-label="Showroom photos">
+        <a class="big" href="https://service.wilsonappliance.com/subzero"><img src="showroom/live-kitchen.jpg" alt="The live Sub-Zero, Wolf and Cove kitchen" loading="lazy" decoding="async"><span class="tag">Live kitchen</span></a>
+        <a href="/shop.html?dept=Cooking&sub=Gas+Ranges"><img src="showroom/wolf-range.jpg" alt="Wolf range" loading="lazy" decoding="async"><span class="tag">Ranges</span></a>
+        <a href="/shop.html?dept=Refrigeration&sub=Built-In+%26+Columns"><img src="showroom/columns.jpg" alt="Built-in refrigeration columns" loading="lazy" decoding="async"><span class="tag">Columns</span></a>
+        <a class="wide" href="/shop.html?dept=Cooking&sub=Wall+Ovens"><img src="showroom/wolf-wall.jpg" alt="Wall ovens and range wall" loading="lazy" decoding="async"><span class="tag">Wall ovens</span></a>
+        <a href="/shop.html?dept=Refrigeration&sub=Wine+%26+Beverage"><img src="showroom/wine.jpg" alt="Wine storage" loading="lazy" decoding="async"><span class="tag">Wine</span></a>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ PILLARS ============ -->
+  <section class="section pillars" id="builders">
+    <div class="wrap">
+      <div class="pgrid">
+        <div class="pillar">
+          <div class="eyebrow">Delivery &amp; installation</div>
+          <h3>Our trucks, our installers.</h3>
+          <p>In-stock models deliver in days across Dripping Springs, Austin and the Hill Country. Standard installation hooks up to your existing connections; same-day is available when the schedule allows.</p>
+          <a class="link-arrow" href="/shop.html">Shop in stock</a>
+        </div>
+        <div class="pillar">
+          <div class="eyebrow">Service &amp; repair</div>
+          <h3>Factory-trained, including Sub-Zero and Wolf.</h3>
+          <p>We service what we sell. Request a visit online and you'll get a text with a link to pick a time; warranty work on the brands we carry is handled here, not through a call center.</p>
+          <a class="link-arrow" href="https://service.wilsonappliance.com/applianceservice.html">Schedule service</a>
+        </div>
+        <div class="pillar">
+          <div class="eyebrow">Builders &amp; designers</div>
+          <h3>A project manager on your job site.</h3>
+          <p>Spec packages from the quote, project pricing, and one person who walks the site before delivery so the openings, utilities and panels are right the first time.</p>
+          <a class="link-arrow" href="tel:5128940907">Call the builder team</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    <div class="wrap">
+      <div>
+        <div class="wordmark"><b>Wilson</b><span>AC &amp; Appliance</span></div>
+        <p style="margin-top:16px; max-width:38ch;">Family-owned in Dripping Springs, Texas. We sell, deliver, install and service what we sell.</p>
+      </div>
+      <div>
+        <h4>Shop</h4>
+        <ul>
+          <li><a href="/shop.html">Everything in stock</a></li>
+          <li><a href="/shop.html?outlet=1">Outlet — open box &amp; display</a></li>
+          <li><a href="/shop.html?dept=Refrigeration">Refrigeration</a></li>
+          <li><a href="/shop.html?dept=Cooking">Cooking</a></li>
+          <li><a href="/shop.html?dept=Laundry">Laundry</a></li>
+        </ul>
+      </div>
+      <div>
+        <h4>Visit</h4>
+        <ul>
+          <li><a href="https://maps.google.com/?q=Wilson+AC+%26+Appliance,+4205+E+Hwy+290,+Dripping+Springs,+TX+78620" target="_blank" rel="noopener">4205 E Hwy 290, Dripping Springs</a></li>
+          <li><a href="tel:5128940907">512-894-0907</a></li>
+          <li><a href="https://service.wilsonappliance.com/subzero">Sub-Zero, Wolf &amp; Cove live kitchen</a></li>
+          <li><a href="https://www.wilsonappliance.com" target="_blank" rel="noopener">wilsonappliance.com</a></li>
+        </ul>
+      </div>
+      <div>
+        <h4>Service</h4>
+        <ul>
+          <li><a href="https://service.wilsonappliance.com/applianceservice.html">Appliance service</a></li>
+          <li><a href="https://service.wilsonappliance.com/hvacservice.html">HVAC service</a></li>
+          <li><a href="https://service.wilsonappliance.com/terms.html">Terms</a></li>
+        </ul>
+      </div>
+      <div class="fine">
+        <span>© <span id="yr"></span> Wilson AC &amp; Appliance. Prices follow each manufacturer's advertising policy; Sub-Zero, Wolf, Cove and Gaggenau are quoted in person.</span>
+        <span>Express Assortment · in-stock inventory, updated continuously</span>
+      </div>
+    </div>
+  </footer>
+
+  <script>
+    (() => {
+      document.getElementById("yr").textContent = new Date().getFullYear();
+
+      // Top bar: transparent over the hero, solid once you scroll past it.
+      const top = document.getElementById("top");
+      const onScroll = () => top.classList.toggle("solid", window.scrollY > 40);
+      onScroll();
+      addEventListener("scroll", onScroll, { passive: true });
+
+      // Department tiles count models by the same category codes shop.html
+      // uses for its menu (MENU_TREE), so the tile and the page it opens agree.
+      const DEPT_CATS = {
+        Refrigeration: ["Ref", "IM", "Ref Acc"],
+        Cooking: ["Range", "Oven", "CT", "Steam Ov", "MW", "Coffee", "Cook Acc"],
+        Dishwashers: ["DW", "DW Acc"],
+        Laundry: ["Lau", "Lau Acc"],
+        Ventilation: ["Vent", "Vent Acc"],
+        Outdoor: ["Outdoor", "Out Acc"]
+      };
+      const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+      const money = (n) => "$" + Math.round(Number(n)).toLocaleString();
+      const num = (n) => Number(n).toLocaleString();
+
+      function fillStats(d) {
+        const m = document.getElementById("stModels"), u = document.getElementById("stUnits");
+        m.classList.remove("sk"); u.classList.remove("sk"); m.classList.add("serif"); u.classList.add("serif");
+        m.textContent = Number.isFinite(d.models) ? num(d.models) : "—";
+        u.textContent = Number.isFinite(d.units) ? num(d.units) : "—";
+        if (d.listDate) {
+          const dt = new Date(d.listDate);
+          if (!Number.isNaN(dt.getTime())) {
+            document.getElementById("stUpdated").textContent = dt.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+            document.getElementById("stUpdatedLabel").textContent = "Inventory as of";
+          }
+        }
+        for (const a of document.querySelectorAll("#deptGrid .dept")) {
+          const cats = DEPT_CATS[a.dataset.dept] || [];
+          const n = cats.reduce((s, c) => s + (d.byCategory?.[c] || 0), 0);
+          a.querySelector("small").textContent = n ? `${num(n)} model${n === 1 ? "" : "s"} in stock` : "";
+        }
+      }
+
+      function fillFeatured(list) {
+        const grid = document.getElementById("featured");
+        if (!Array.isArray(list) || !list.length) { document.getElementById("featuredSection").style.display = "none"; return; }
+        grid.innerHTML = list.slice(0, 4).map((m) => `
+          <a class="fcard" href="/shop.html?q=${encodeURIComponent(m.model)}">
+            <div class="img"><img src="${esc(m.image)}" alt="${esc(m.brand)} ${esc(m.model)}" loading="lazy" decoding="async"></div>
+            <div class="brand">${esc(m.brand)}</div>
+            <div class="model">${esc(m.model)}</div>
+            <div class="desc">${esc(m.description)}</div>
+            <div class="foot">
+              <div class="price">${Number.isFinite(Number(m.price)) ? `<small>From</small>${money(m.price)}` : `<small>Price in cart</small>`}</div>
+              <div class="stock">${m.units > 1 ? `${num(m.units)} in stock` : "In stock"}</div>
+            </div>
+          </a>`).join("");
+      }
+
+      fetch("/api/shop/home-stats", { cache: "default" })
+        .then((r) => (r.ok ? r.json() : Promise.reject(new Error(r.status))))
+        .then((d) => { fillStats(d || {}); fillFeatured(d?.featured); })
+        .catch(() => { fillStats({}); fillFeatured([]); });
+    })();
+  </script>
+</body>
+</html>

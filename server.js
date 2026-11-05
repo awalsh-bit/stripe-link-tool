@@ -782,9 +782,12 @@ const SERVICE_PUBLIC_API_PREFIXES = [
 const SHOP_PUBLIC_PATHS = new Set([
   "/",
   "/shop.html",
+  "/shop-home.html",
   "/public-shell.css",
   "/fonts/roboto-latin-wght-normal.woff2",
   "/fonts/roboto-latin-wght-italic.woff2",
+  "/fonts/cormorant-garamond-latin-500-normal.woff2", // landing-page display face (OFL, self-hosted)
+  "/fonts/cormorant-garamond-latin-500-italic.woff2",
   "/logo-black.png",
   "/favicon.svg",
   "/robots.txt",
@@ -792,6 +795,8 @@ const SHOP_PUBLIC_PATHS = new Set([
 ]);
 
 const SHOP_PUBLIC_API_PREFIXES = [
+  "/showroom", // web-sized showroom photos for the landing page (originals live in showroom-photos/, which is denied)
+  "/api/shop/home-stats",
   "/api/config",
   "/api/promo/photo/", // card photos (Promo Item Builder uploads) on storefront tiles
   "/api/shop/zip-check",
@@ -6155,7 +6160,7 @@ app.delete("/api/admin/users/:id", requireExecutiveApi, async (req, res) => {
 // authenticated user (including zero-permission accounts) could download the
 // data ledgers (customer PII), the server source, SQL, and internal docs.
 // Explicitly deny everything that is not a front-end asset.
-const STATIC_DENY_DIRS = /^\/(data|sql|docs|lib|scripts|items|node_modules|_to_delete|tmp_[^/]+|odbc|deliver|service_call_journey|maint-plans|samples|screenshots|API Docs|Claude outputs|spec sheets|shop accessories and installs|\.[^/]+)\//i;
+const STATIC_DENY_DIRS = /^\/(data|sql|docs|lib|scripts|items|node_modules|_to_delete|tmp_[^/]+|odbc|deliver|service_call_journey|maint-plans|samples|screenshots|showroom-photos|API Docs|Claude outputs|spec sheets|shop accessories and installs|\.[^/]+)\//i;
 const STATIC_DENY_FILES = /\.(json|sql|md|xlsx|xlsm|xls|csv|log|txt|env|lock|mjs|cjs|ps1|sh|bat|cmd|ya?ml|toml|bak|pem|key|crt|map|zip|gz|db|sqlite)$/i;
 const STATIC_DENY_EXACT = new Set(["/server.js", "/employee-directory.js", "/package.json", "/package-lock.json", "/render.yaml", "/Dockerfile", "/Procfile"]); // employee-directory.js is served by its DB route above
 // Stale working copies (server-1.js, estimate-1.html, …) and any root-level
@@ -6271,7 +6276,7 @@ app.get("/", (req, res) => {
     host === SERVICE_PUBLIC_HOST
       ? "applianceservice.html"
       : host === SHOP_PUBLIC_HOST
-        ? "shop.html"
+        ? "shop-home.html" // the landing (Andrew 11/5); the catalog itself stays at /shop.html
         : "dashboard.html";
   res.sendFile(path.join(__dirname, landingPage));
 });
@@ -7906,6 +7911,30 @@ app.post("/api/shop/password", async (req, res) => {
 // everyone. The rest of the anonymous view is model/brand/description with
 // no advertised price (MAP). A stale automated feed pauses the whole store:
 // no prices, no carting, checkout closed.
+// Landing-page numbers (Andrew 11/5): a few counts and a handful of
+// best-selling, MAP-cleared models from the cached catalog — one tiny call
+// instead of the whole assortment, so the landing paints instantly.
+app.get("/api/shop/home-stats", async (req, res) => {
+  try {
+    const catalog = await computeShopCatalog({ maxAgeMs: SHOP_CATALOG_CACHE_MS });
+    const rank = await shopSalesRank().catch(() => ({ byModel: {}, byBrand: {} }));
+    const models = new Map();
+    for (const i of catalog.items || []) {
+      const k = normalizeModelKey(i.model); if (!k) continue;
+      const m = models.get(k) || { model: i.model, brand: i.brand, description: i.description, category: i.category, image: i.image || "", units: 0, price: null, sold: rank.byModel[k] || 0 };
+      m.units += 1;
+      if (i.mapPublic && !catalog.paused && Number.isFinite(i.price)) m.price = m.price == null ? i.price : Math.min(m.price, i.price);
+      models.set(k, m);
+    }
+    const byCategory = {};
+    for (const m of models.values()) byCategory[m.category] = (byCategory[m.category] || 0) + 1;
+    const featured = [...models.values()].filter((m) => m.image && m.price != null).sort((a, b) => b.sold - a.sold || b.units - a.units).slice(0, 4)
+      .map((m) => ({ model: m.model, brand: m.brand, description: m.description, image: m.image, price: m.price, units: m.units }));
+    res.setHeader("Cache-Control", "public, max-age=120");
+    return res.json({ models: models.size, units: (catalog.items || []).length, byCategory, featured, paused: Boolean(catalog.paused), listDate: catalog.listDate || null });
+  } catch (err) { console.error("Shop home stats failed:", err.message); return res.status(200).json({ models: null, units: null, byCategory: {}, featured: [], paused: false }); }
+});
+
 app.get("/api/shop/catalog", async (req, res) => {
   try {
     const catalog = await computeShopCatalog({ maxAgeMs: SHOP_CATALOG_CACHE_MS });

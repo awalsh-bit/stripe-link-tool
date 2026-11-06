@@ -789,6 +789,9 @@
       </div>
 
       <div id="lookupPanel" style="display:none;">
+        <div id="lookupNote" style="display:none; background:#dcfce7; color:#166534; border-radius:12px; padding:11px 14px; font-size:14.5px; line-height:1.5; margin-bottom:14px;">
+          <strong>Welcome back.</strong> This profile has a password — enter it to sign in, or restore with your client code below.
+        </div>
         <div class="form-grid">
           <div class="full"><label for="lookPhone">Phone number</label><input id="lookPhone" type="tel" autocomplete="tel"></div>
           <div><label for="lookPassword">Password</label><input id="lookPassword" type="password" autocomplete="current-password"></div>
@@ -1682,7 +1685,14 @@
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Unable to check that right now.");
-      if (data.exists) {
+      if (data.exists && data.hasPassword) {
+        // A password was set on this profile, so phone + last name isn't
+        // enough (10/24 audit rule) — go straight to the password step.
+        $("lookPhone").value = $("idPhone").value.trim();
+        $("lookupNote").style.display = "";
+        showAuthPanel("lookup");
+        setTimeout(() => $("lookPassword").focus(), 50);
+      } else if (data.exists) {
         showAuthPanel("lastName");
         setTimeout(() => $("lnName").focus(), 50);
       } else {
@@ -1730,6 +1740,7 @@
   $("lnBack").addEventListener("click", () => showAuthPanel("phone"));
   $("moreSignin").addEventListener("click", () => {
     $("lookPhone").value = $("idPhone").value.trim();
+    $("lookupNote").style.display = "none";
     showAuthPanel("lookup");
   });
 

@@ -165,7 +165,7 @@ import {
   cancelShopOrder,
   findShopperByCodeAndPhone,
   findShopperByPhoneAndLastName,
-  shopperExistsByPhone,
+  shopperExistsByPhone, shopperAuthHintByPhone,
   setShopperPassword,
   verifyShopperLogin,
   updateShopperProfile,
@@ -7797,8 +7797,8 @@ app.post("/api/shop/identify", async (req, res) => {
     if (digits.length !== 10 && !(digits.length === 11 && digits.startsWith("1"))) {
       return res.status(400).json({ error: "Please enter a 10-digit phone number." });
     }
-    const exists = await shopperExistsByPhone(digits);
-    return res.json({ exists });
+    const hint = await shopperAuthHintByPhone(digits);
+    return res.json({ exists: hint.exists, hasPassword: hint.hasPassword });
   } catch (err) {
     console.error("Shop identify failed:", err.message);
     return res.status(500).json({ error: "Unable to check that right now." });
@@ -8053,22 +8053,19 @@ app.get("/api/shop/stock", shopStockLimiter, async (req, res) => {
     const asked = [...new Set(raw.split(/[,\s]+/).map((m) => m.trim()).filter(Boolean))].slice(0, 50);
     if (!asked.length) return res.status(400).json({ error: "Pass ?models=MODEL1,MODEL2 (up to 50)." });
     const catalog = await computeShopCatalog({ maxAgeMs: SHOP_CATALOG_CACHE_MS });
-    const blocked = shopBrandBlocker();
-    const cat = await getCatalog().catch(() => null);
-    const byKey = new Map();
-    for (const i of catalog.items || []) {
-      const k = normalizeModelKey(i.model); if (!k) continue;
-      const m = byKey.get(k) || { items: [] };
-      m.items.push(i); byKey.set(k, m);
-    }
+    // Brand, description, product code and servicesKey come from the shared
+    // describer for EVERY model Agility knows — in stock or not — so the
+    // website's quote cart can offer the right installs and connectors for a
+    // special-order washer (Gavin 11/9). Only a model Agility has never heard
+    // of comes back blank.
+    const described = await shopDescribeModels(asked, catalog);
     const shopBase = `https://${SHOP_PUBLIC_HOST}`;
-    const models = asked.map((model) => {
-      const key = normalizeModelKey(model);
-      const hit = byKey.get(key);
-      const resolved = cat ? resolveModel(cat, model, {}) : null;
-      const brand = hit?.items[0]?.brand || resolved?.brand || "";
-      const inquireOnly = blocked(brand, hit?.items[0]?.brandCode, resolved?.supplier);
-      const base = { model, brand, description: hit?.items[0]?.description || resolved?.description || "", inquireOnly };
+    const models = asked.map((model, idx) => {
+      const d = described[idx];
+      const hit = d.units.length ? { items: d.units } : null;
+      const brand = d.brand;
+      const inquireOnly = d.inquireOnly;
+      const base = { model, brand, description: d.description, product: d.product, servicesKey: d.servicesKey, inquireOnly };
       if (inquireOnly) return { ...base, inStock: false, available: 0, price: null, priceInCart: false, addUrl: null, note: "Quoted in person — ask for a specialist." };
       if (!hit) return { ...base, inStock: false, available: 0, newUnits: 0, outletUnits: 0, price: null, priceInCart: false, addUrl: null };
       const units = hit.items;

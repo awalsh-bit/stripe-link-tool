@@ -348,6 +348,28 @@
     }
 
     .table-scroll { overflow-x: auto; }
+    .view-toggle { display: inline-flex; border: 1px solid var(--border); border-radius: 999px; padding: 3px; background: #fff; }
+    .view-toggle button { border: none; background: none; color: var(--muted); border-radius: 999px; padding: 6px 14px; font-size: 13px; font-weight: 700; cursor: pointer; font-family: inherit; }
+    .view-toggle button.on { background: var(--primary); color: #fff; }
+    .bp-wrap { display: grid; grid-template-columns: 300px 1fr; gap: 18px; align-items: start; }
+    .bp-pages input, #bpPeopleSearch { width: 100%; }
+    .bp-list { max-height: 560px; margin-top: 8px; padding: 4px 8px 8px; }
+    .bp-page { display: flex; align-items: center; gap: 8px; width: 100%; border: none; background: none; text-align: left; padding: 6px 8px; border-radius: 8px; font-size: 13px; font-weight: 500; color: var(--text); cursor: pointer; font-family: inherit; }
+    .bp-page:hover { background: #f1f5f9; }
+    .bp-page.on { background: var(--primary-tint, #eef5ef); color: var(--primary); font-weight: 700; }
+    .bp-page .n { margin-left: auto; font-size: 11.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
+    .bp-head { display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; flex-wrap: wrap; }
+    .bp-title { font-size: 17px; font-weight: 800; }
+    .bp-tools { display: flex; gap: 6px; flex-wrap: wrap; }
+    .bp-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 4px 14px; }
+    .bp-person { display: flex; gap: 9px; align-items: center; padding: 6px 8px; border-radius: 8px; font-size: 13.5px; cursor: pointer; }
+    .bp-person:hover { background: #f8fafc; }
+    .bp-person input { accent-color: var(--primary); width: 16px; height: 16px; }
+    .bp-person .who { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .bp-person .meta { font-size: 11.5px; color: var(--muted); }
+    .bp-person.changed { background: var(--warn-bg); }
+    .bp-person.exec { opacity: .6; cursor: default; }
+    @media (max-width: 800px) { .bp-wrap { grid-template-columns: 1fr; } .bp-list { max-height: 240px; } }
 
     @media (max-width: 720px) {
       body { padding: 18px 8px; }
@@ -402,6 +424,10 @@
         <div class="small-text muted" style="flex: 1 1 260px;">
           Codes are what the payment and sales tools link on — set one for everyone who rings sales or takes payments.
         </div>
+        <div class="view-toggle" role="group" aria-label="Grant view">
+          <button type="button" id="viewByPerson" class="on">By person</button>
+          <button type="button" id="viewByPage">By page</button>
+        </div>
         <button id="upAddBtn" type="button">+ Add teammate</button>
       </div>
       <div id="dirStatus" class="status"></div>
@@ -424,6 +450,42 @@
             <tr><td colspan="8" class="muted">Loading…</td></tr>
           </tbody>
         </table>
+      </div>
+    </div>
+
+    <!-- Grant by page (Andrew 11/6): the reverse view — pick a page, tick
+         the people, apply once. Same permission rows as the per-person card. -->
+    <div class="surface" id="byPageSurface" style="display: none;">
+      <h2>Grant by page</h2>
+      <p class="section-note">Pick a page on the left, then tick everyone who should have it and apply. Executives already see every page, so they're listed but can't be changed here. Each person's change is written and audited exactly like a save on their own card.</p>
+      <div class="bp-wrap">
+        <div class="bp-pages">
+          <input type="search" id="bpSearch" placeholder="Find a page…" />
+          <div class="jt-pagebox bp-list" id="bpList"></div>
+        </div>
+        <div class="bp-people">
+          <div id="bpEmpty" class="muted" style="padding: 20px 0;">Choose a page to see who has it.</div>
+          <div id="bpPanel" style="display: none;">
+            <div class="bp-head">
+              <div>
+                <div class="bp-title" id="bpTitle"></div>
+                <div class="small-text muted" id="bpSub"></div>
+              </div>
+              <div class="bp-tools">
+                <button type="button" class="tiny secondary" id="bpAll">Everyone</button>
+                <button type="button" class="tiny secondary" id="bpNone">No one</button>
+                <button type="button" class="tiny secondary" id="bpReset">Reset</button>
+              </div>
+            </div>
+            <input type="search" id="bpPeopleSearch" placeholder="Find a person…" style="margin: 8px 0;" />
+            <div class="bp-grid" id="bpGrid"></div>
+            <div class="toolbar" style="align-items: center; margin-top: 12px;">
+              <button type="button" id="bpApply" disabled>Apply</button>
+              <span class="small-text muted" id="bpPending">No changes.</span>
+            </div>
+            <div id="bpStatus" class="status"></div>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -625,6 +687,7 @@
         renderUsers();
         renderDirectory(); // account-action buttons on directory rows depend on users
         renderJobConfig();
+        if (bp.view === "page") renderByPage();
       } catch (err) {
         setStatus("usersStatus", err.message, "error");
       }
@@ -1607,9 +1670,110 @@
       }
     });
 
+    // ---- Grant by page ----
+    // The reverse of the per-person card: one page, every account, apply once.
+    // Reads the same state.users / state.categories the Team view uses, so the
+    // counts here match the cards; after Apply it reloads so both agree.
+    const bp = { path: "", staged: new Map(), view: "person" };
+    const bpEls = () => ({
+      list: document.getElementById("bpList"), grid: document.getElementById("bpGrid"), panel: document.getElementById("bpPanel"),
+      empty: document.getElementById("bpEmpty"), title: document.getElementById("bpTitle"), sub: document.getElementById("bpSub"),
+      apply: document.getElementById("bpApply"), pending: document.getElementById("bpPending")
+    });
+    function setView(view) {
+      bp.view = view;
+      document.getElementById("viewByPerson").classList.toggle("on", view === "person");
+      document.getElementById("viewByPage").classList.toggle("on", view === "page");
+      document.getElementById("usersTable").parentElement.style.display = view === "person" ? "" : "none";
+      document.getElementById("byPageSurface").style.display = view === "page" ? "" : "none";
+      if (view === "page") renderByPage();
+    }
+    const bpAccounts = () => state.users.filter((u) => u.status !== "disabled")
+      .sort((a, b) => (a.displayName || a.email).localeCompare(b.displayName || b.email));
+    const bpHas = (u, path) => u.isExecutive || (Array.isArray(u.grantedPages) && u.grantedPages.includes(path));
+    const bpLabel = (path) => (state.manageablePages.find((p) => p.path === path) || {}).label || path;
+    function renderByPage() {
+      const { list } = bpEls();
+      const q = document.getElementById("bpSearch").value.trim().toLowerCase();
+      const accounts = bpAccounts();
+      list.textContent = "";
+      for (const category of state.categories) {
+        const pages = category.pages.filter((p) => !q || bpLabel(p).toLowerCase().includes(q) || p.toLowerCase().includes(q));
+        if (!pages.length) continue;
+        list.appendChild(el("div", { class: "cat", text: category.label }));
+        for (const path of pages) {
+          const n = accounts.filter((u) => bpHas(u, path)).length;
+          list.appendChild(el("button", { type: "button", class: "bp-page" + (bp.path === path ? " on" : ""), onclick: () => selectPage(path) }, [
+            el("span", { text: bpLabel(path) }), el("span", { class: "n", text: `${n}/${accounts.length}` })
+          ]));
+        }
+      }
+      renderPeople();
+    }
+    function selectPage(path) {
+      if (bp.staged.size && bp.path && bp.path !== path && !window.confirm("Discard the unsaved ticks on this page?")) return;
+      bp.path = path; bp.staged.clear();
+      renderByPage();
+    }
+    function renderPeople() {
+      const { grid, panel, empty, title, sub, apply, pending } = bpEls();
+      if (!bp.path) { panel.style.display = "none"; empty.style.display = ""; return; }
+      panel.style.display = ""; empty.style.display = "none";
+      const q = document.getElementById("bpPeopleSearch").value.trim().toLowerCase();
+      const accounts = bpAccounts();
+      title.textContent = bpLabel(bp.path);
+      const have = accounts.filter((u) => bpHas(u, bp.path)).length;
+      sub.textContent = `${bp.path} · ${have} of ${accounts.length} accounts have it today`;
+      grid.textContent = "";
+      for (const u of accounts) {
+        const name = u.displayName || u.email;
+        if (q && !name.toLowerCase().includes(q) && !String(u.email).toLowerCase().includes(q)) continue;
+        const current = bpHas(u, bp.path);
+        const checked = bp.staged.has(u.id) ? bp.staged.get(u.id) : current;
+        const changed = bp.staged.has(u.id) && bp.staged.get(u.id) !== current;
+        const box = el("input", { type: "checkbox" });
+        box.checked = checked; box.disabled = Boolean(u.isExecutive);
+        box.addEventListener("change", () => {
+          if (box.checked === current) bp.staged.delete(u.id); else bp.staged.set(u.id, box.checked);
+          renderPeople();
+        });
+        const meta = u.isExecutive ? "executive — always" : u.status === "active" ? "" : u.status;
+        grid.appendChild(el("label", { class: "bp-person" + (changed ? " changed" : "") + (u.isExecutive ? " exec" : "") }, [
+          box,
+          el("span", { class: "who", text: name, title: u.email }),
+          ...(meta ? [el("span", { class: "meta", text: meta })] : [])
+        ]));
+      }
+      const changes = [...bp.staged.entries()].filter(([id, g]) => { const u = accounts.find((x) => x.id === id); return u && g !== bpHas(u, bp.path); });
+      const adds = changes.filter(([, g]) => g).length, drops = changes.length - adds;
+      apply.disabled = !changes.length;
+      pending.textContent = changes.length ? `${adds ? `grant ${adds}` : ""}${adds && drops ? " · " : ""}${drops ? `remove ${drops}` : ""} — nothing is saved until you apply` : "No changes.";
+    }
+    document.getElementById("viewByPerson").addEventListener("click", () => setView("person"));
+    document.getElementById("viewByPage").addEventListener("click", () => setView("page"));
+    document.getElementById("bpSearch").addEventListener("input", renderByPage);
+    document.getElementById("bpPeopleSearch").addEventListener("input", renderPeople);
+    document.getElementById("bpAll").addEventListener("click", () => { for (const u of bpAccounts()) if (!u.isExecutive) bp.staged.set(u.id, true); renderPeople(); });
+    document.getElementById("bpNone").addEventListener("click", () => { for (const u of bpAccounts()) if (!u.isExecutive) bp.staged.set(u.id, false); renderPeople(); });
+    document.getElementById("bpReset").addEventListener("click", () => { bp.staged.clear(); renderPeople(); });
+    document.getElementById("bpApply").addEventListener("click", async () => {
+      const accounts = bpAccounts();
+      const grants = [...bp.staged.entries()].filter(([id, g]) => { const u = accounts.find((x) => x.id === id); return u && !u.isExecutive && g !== bpHas(u, bp.path); }).map(([userId, granted]) => ({ userId, granted }));
+      if (!grants.length) return;
+      const btn = document.getElementById("bpApply");
+      btn.disabled = true; setStatus("bpStatus", "Applying…", "ok");
+      try {
+        const r = await api("/api/admin/permissions/by-page", { method: "POST", body: JSON.stringify({ pagePath: bp.path, grants }) });
+        bp.staged.clear();
+        await loadUsers();
+        setStatus("bpStatus", `${bpLabel(bp.path)}: granted to ${r.granted.length}, removed from ${r.revoked.length}.`, "ok");
+        renderByPage();
+      } catch (err) { setStatus("bpStatus", err.message, "error"); btn.disabled = false; }
+    });
+
     // Don't let unsaved permission edits vanish silently on navigation/close.
     window.addEventListener("beforeunload", (event) => {
-      const hasPending = [...state.pending.values()].some((staged) => staged.size > 0);
+      const hasPending = [...state.pending.values()].some((staged) => staged.size > 0) || bp.staged.size > 0;
       if (hasPending) {
         event.preventDefault();
         event.returnValue = "";

@@ -274,6 +274,7 @@
           { href: "clearance.html", title: "Clearance Hit List" },
           { href: "shop-orders.html", title: "Online Shop Orders" },
           { href: "shop-catalog.html", title: "Express Assortment Catalog" },
+          { href: "promo-builder.html", title: "Promo Item Builder" },
           { href: "spec-packages.html", title: "Spec Packages" },
           { href: "terms-signatures.html", title: "Terms & Conditions Signatures" }
         ]
@@ -334,7 +335,8 @@
           { href: "hr-phone-screen.html", title: "Phone Screen" },
           { href: "hr-candidates.html", title: "Candidates" },
           { href: "uniform-orders.html", title: "Uniform Ordering" },
-          { href: "party-planning.html", title: "Christmas Party Planning" }
+          { href: "party-planning.html", title: "Christmas Party Planning" },
+          { href: "important-dates.html", title: "Important Dates" }
         ]
       },
       {

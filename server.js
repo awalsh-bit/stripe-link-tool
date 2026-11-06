@@ -270,6 +270,7 @@ import { getInventoryIndex, searchInventory, inventoryModelDetail, invalidateInv
 import { PROJECT_STATUSES, PROJECT_STATUS_LABELS, READINESS_ITEMS, getProjectSettings, saveProjectSettings, syncProjectsFromFeed, listProjects, getProject, getProjectByToken, updateProject, addProjectNote, saveProjectReadiness, setProjectGeo } from "./lib/projects-postgres.js";
 import { mapboxConfigured, mapboxPublicToken, geocodeAddress as mapboxGeocode, optimizeRoundTrip } from "./lib/mapbox.js";
 import { PARTY_MENU, PARTY_SURVEY_KEY, getPartySurveyMeta, setPartySurveyMeta, getPartySurveyResponse, savePartySurveyResponse, listPartySurveyResponses, tallyPartySurvey } from "./lib/party-survey-postgres.js";
+import { IMPORTANT_DATE_KINDS, UPCOMING_WINDOW_DAYS, listUpcomingImportantDates, listImportantDates, getImportantDate, createImportantDate, updateImportantDate, archiveImportantDate, listImportantDateSignups, addImportantDateSignup, removeImportantDateSignup } from "./lib/important-dates-postgres.js";
 import { listVendorMaps as listPoEtaVendorMaps, saveVendorMap as savePoEtaVendorMap, recordImportRun as recordPoEtaRun, listImportRuns as listPoEtaRuns, getImportRun as getPoEtaRun, recentExportedLines as recentPoEtaExports } from "./lib/po-eta-import-postgres.js";
 import { resolveRole, roleEmails, hasRole, listRoles as listServiceRoles, setRole as setServiceRole, ROLES as SERVICE_ROLES } from "./lib/service-roles.js";
 import { processCatalogueBundle, catalogueStatus, customerHistory as catalogueCustomerHistory, callDetail as catalogueCallDetail, modelInsight as catalogueModelInsight, laborRateOptions, laborRateMeta } from "./lib/epass-catalogue-postgres.js";
@@ -885,6 +886,7 @@ const INTERNAL_PAGE_PATHS = new Set([
   "/hr-candidates.html",
   "/uniform-orders.html",
   "/party-planning.html",
+  "/important-dates.html",
   "/pm-dashboard.html",
   "/pm-route.html",
   "/spec-packages.html",
@@ -1146,6 +1148,7 @@ const PAGE_LABELS = {
   "/hr-candidates.html": "Candidates",
   "/uniform-orders.html": "Uniform Ordering",
   "/party-planning.html": "Christmas Party Planning",
+  "/important-dates.html": "Important Dates",
   "/pm-dashboard.html": "Project Manager Dashboard",
   "/pm-route.html": "Project Manager Route Planner",
   "/satisfaction-survey.html": "Client Satisfaction Survey",
@@ -1221,7 +1224,7 @@ const PAGE_CATEGORIES = [
   {
     key: "hr",
     label: "HR",
-    pages: ["/hr-phone-screen.html", "/hr-candidates.html", "/uniform-orders.html", "/party-planning.html"]
+    pages: ["/hr-phone-screen.html", "/hr-candidates.html", "/uniform-orders.html", "/party-planning.html", "/important-dates.html"]
   },
   {
     key: "project_management",
@@ -3188,6 +3191,41 @@ app.post("/api/admin/users/:userId/permissions", requireExecutiveApi, async (req
     return res.json({ success: true, grantedPages });
   } catch (err) {
     console.error("Permission update failed:", err.message);
+    return res.status(500).json({ error: "Unable to update permissions." });
+  }
+});
+
+// Grant by page (Andrew 11/6): the reverse of the per-person card — pick one
+// page, tick the people who should have it, apply once. Body:
+//   { pagePath, grants: [{ userId, granted }] }
+// Each person still gets their own permissions_updated audit row (same
+// writer as the per-person save), plus one bulk row naming the page.
+// Executives are skipped (they already see every page).
+app.post("/api/admin/permissions/by-page", requireExecutiveApi, async (req, res) => {
+  try {
+    const pagePath = String(req.body?.pagePath || "");
+    if (!MANAGEABLE_PAGE_PATHS.includes(pagePath)) return res.status(400).json({ error: "Unknown page." });
+    const grants = (Array.isArray(req.body?.grants) ? req.body.grants : [])
+      .map((g) => ({ userId: Number(g?.userId), granted: Boolean(g?.granted) }))
+      .filter((g) => Number.isInteger(g.userId) && g.userId > 0);
+    if (!grants.length) return res.status(400).json({ error: "Nothing to change." });
+    const results = { granted: [], revoked: [], skipped: [] };
+    for (const g of grants) {
+      const userRow = await getUserById(g.userId);
+      if (!userRow || userRow.is_executive) { results.skipped.push(g.userId); continue; }
+      await setUserPagePermissions(userRow.id, [{ pagePath, granted: g.granted }], req.authUser.id || null, req.ip);
+      (g.granted ? results.granted : results.revoked).push(userRow.id);
+    }
+    recordAudit({
+      ip: req.ip,
+      actorUserId: req.authUser.id || null,
+      action: "permissions_updated_by_page",
+      targetUserId: null,
+      detail: { pagePath, granted: results.granted.length, revoked: results.revoked.length, skipped: results.skipped.length }
+    }).catch(() => {});
+    return res.json({ success: true, ...results });
+  } catch (err) {
+    console.error("Grant by page failed:", err.message);
     return res.status(500).json({ error: "Unable to update permissions." });
   }
 });
@@ -16751,6 +16789,79 @@ app.post("/api/party-survey/send", requirePartyPlanning, async (req, res) => {
     }
     return res.status(400).json({ error: "Unknown mode." });
   } catch (err) { console.error("Party survey send failed:", err.message); return res.status(500).json({ error: "Unable to send right now." }); }
+});
+
+// Important Dates (Andrew 11/6): the compact "Upcoming" card on every
+// dashboard (next 60 days) and the sign-up sheet a date can carry ("what are
+// you bringing?"). Anyone signed in can read the list, add their own line
+// and remove it; the builder page (grant /important-dates.html) manages the
+// dates themselves and can remove anyone's line.
+const requireImportantDates = requirePagePermission("/important-dates.html");
+const importantDateActor = (req) => ({ email: String(req.authUser?.email || "").trim().toLowerCase(), name: req.authUser?.displayName || "" });
+const canManageImportantDates = (req) => canAccessPathForUser(req.authUser, "/important-dates.html");
+app.get("/api/important-dates/upcoming", async (req, res) => {
+  if (!req.authUser) return res.status(401).json({ error: "Authentication required." });
+  try {
+    const dates = await listUpcomingImportantDates();
+    return res.json({ days: UPCOMING_WINDOW_DAYS, kinds: IMPORTANT_DATE_KINDS, dates });
+  } catch (err) { console.error("Important dates upcoming failed:", err.message); return res.status(500).json({ error: "Unable to load important dates." }); }
+});
+app.get("/api/important-dates/:id/signups", async (req, res) => {
+  if (!req.authUser) return res.status(401).json({ error: "Authentication required." });
+  try {
+    const date = await getImportantDate(req.params.id);
+    if (!date || date.archived) return res.status(404).json({ error: "That date no longer exists." });
+    const signups = await listImportantDateSignups(date.id);
+    const me = importantDateActor(req).email;
+    return res.json({ date, signups: signups.map((s) => ({ ...s, mine: s.email === me })), canManage: canManageImportantDates(req) });
+  } catch (err) { console.error("Important date signups failed:", err.message); return res.status(500).json({ error: "Unable to load the sign-up sheet." }); }
+});
+app.post("/api/important-dates/:id/signups", async (req, res) => {
+  if (!req.authUser) return res.status(401).json({ error: "Authentication required." });
+  try {
+    const who = importantDateActor(req);
+    const id = await addImportantDateSignup(req.params.id, { ...who, item: req.body?.item });
+    recordAudit({ ip: req.ip, actorUserId: req.authUser.id || null, action: "important_date_signup_added", targetUserId: null, detail: { dateId: Number(req.params.id), signupId: id, item: String(req.body?.item || "").slice(0, 140) } }).catch(() => {});
+    return res.json({ ok: true, id, signups: await listImportantDateSignups(req.params.id) });
+  } catch (err) { return res.status(400).json({ error: err.message || "Unable to add that." }); }
+});
+app.delete("/api/important-dates/:id/signups/:signupId", async (req, res) => {
+  if (!req.authUser) return res.status(401).json({ error: "Authentication required." });
+  try {
+    const who = importantDateActor(req);
+    const any = canManageImportantDates(req);
+    const removed = await removeImportantDateSignup(req.params.signupId, { email: who.email, any });
+    if (!removed) return res.status(403).json({ error: "You can only remove your own line." });
+    recordAudit({ ip: req.ip, actorUserId: req.authUser.id || null, action: "important_date_signup_removed", targetUserId: null, detail: { dateId: Number(req.params.id), signupId: Number(req.params.signupId) } }).catch(() => {});
+    return res.json({ ok: true, signups: await listImportantDateSignups(req.params.id) });
+  } catch (err) { return res.status(400).json({ error: err.message || "Unable to remove that." }); }
+});
+app.get("/api/important-dates", requireImportantDates, async (req, res) => {
+  try {
+    const dates = await listImportantDates({ includeArchived: String(req.query.archived || "") === "1" });
+    return res.json({ kinds: IMPORTANT_DATE_KINDS, days: UPCOMING_WINDOW_DAYS, dates });
+  } catch (err) { console.error("Important dates list failed:", err.message); return res.status(500).json({ error: "Unable to load important dates." }); }
+});
+app.post("/api/important-dates", requireImportantDates, async (req, res) => {
+  try {
+    const date = await createImportantDate(req.body || {}, importantDateActor(req).name || importantDateActor(req).email);
+    recordAudit({ ip: req.ip, actorUserId: req.authUser?.id || null, action: "important_date_created", targetUserId: null, detail: { id: date.id, title: date.title, date: date.date, kind: date.kind } }).catch(() => {});
+    return res.json({ ok: true, date });
+  } catch (err) { return res.status(400).json({ error: err.message || "Unable to save." }); }
+});
+app.put("/api/important-dates/:id", requireImportantDates, async (req, res) => {
+  try {
+    const date = await updateImportantDate(req.params.id, req.body || {}, importantDateActor(req).name || importantDateActor(req).email);
+    recordAudit({ ip: req.ip, actorUserId: req.authUser?.id || null, action: "important_date_updated", targetUserId: null, detail: { id: date.id, title: date.title, date: date.date, kind: date.kind } }).catch(() => {});
+    return res.json({ ok: true, date });
+  } catch (err) { return res.status(400).json({ error: err.message || "Unable to save." }); }
+});
+app.post("/api/important-dates/:id/archive", requireImportantDates, async (req, res) => {
+  try {
+    const date = await archiveImportantDate(req.params.id, req.body?.archived !== false, importantDateActor(req).name || importantDateActor(req).email);
+    recordAudit({ ip: req.ip, actorUserId: req.authUser?.id || null, action: date.archived ? "important_date_archived" : "important_date_restored", targetUserId: null, detail: { id: date.id, title: date.title } }).catch(() => {});
+    return res.json({ ok: true, date });
+  } catch (err) { return res.status(400).json({ error: err.message || "Unable to save." }); }
 });
 
 const requireCatalogCheck = requirePagePermission("/catalog-check.html");

@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="robots" content="noindex, nofollow" />
+  <title>Wilson AC & Appliance - Important Dates</title>
+  <link rel="icon" href="favicon.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="internal-shell.css" />
+  <style>
+    :root { --primary: #21692c; --primary-hover: #1b5a25; --border: #dbe1ea; --text: #1f2937; --muted: #6b7280; --bg: #f3f6f4; }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--bg); color: var(--text); font-family: "Inter", "Segoe UI", system-ui, sans-serif; padding: 20px 20px 48px; }
+    .wrap { max-width: 1100px; margin: 0 auto; }
+    .surface { background: #fff; border-radius: 18px; padding: 22px; box-shadow: 0 10px 28px rgba(15, 23, 42, 0.06); margin-bottom: 16px; }
+    h2 { margin: 0 0 6px; font-size: 22px; } h3 { margin: 0 0 10px; font-size: 15px; }
+    .section-note { margin: 0 0 14px; color: var(--muted); font-size: 14px; }
+    .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+    button { border: none; border-radius: 10px; padding: 9px 16px; font-size: 13.5px; font-weight: 700; background: var(--primary); color: #fff; cursor: pointer; font-family: inherit; }
+    button.quiet { background: #eef2f7; color: var(--text); } button.danger { background: #fee2e2; color: #991b1b; } button:disabled { opacity: .6; cursor: default; }
+    button.link { background: none; color: var(--primary); padding: 0; font-size: 13px; text-decoration: underline; }
+    label { display: block; font-size: 12px; font-weight: 700; color: var(--muted); }
+    input[type="text"], input[type="date"], select, textarea { width: 100%; margin-top: 4px; border: 1.5px solid var(--border); border-radius: 10px; padding: 9px 12px; font-size: 14px; font-family: inherit; background: #fff; }
+    textarea { min-height: 64px; resize: vertical; }
+    .form { display: grid; grid-template-columns: repeat(12, 1fr); gap: 12px; }
+    .c3 { grid-column: span 3; } .c4 { grid-column: span 4; } .c6 { grid-column: span 6; } .c12 { grid-column: span 12; }
+    .check { display: flex; gap: 8px; align-items: center; font-size: 13.5px; font-weight: 600; color: var(--text); margin-top: 24px; }
+    .check input { width: 17px; height: 17px; accent-color: var(--primary); }
+    .status { display: none; margin: 10px 0; padding: 10px 14px; border-radius: 10px; font-size: 13.5px; } .status.show { display: block; } .status.ok { background: #dcfce7; color: #166534; } .status.error { background: #fee2e2; color: #991b1b; }
+    table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+    th { text-align: left; font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; padding: 6px 8px; border-bottom: 1px solid var(--border); }
+    td { padding: 9px 8px; border-bottom: 1px solid #f1f5f9; vertical-align: top; }
+    tr.past td { color: var(--muted); } tr.archived td { opacity: .55; }
+    .kind { display: inline-block; font-size: 10.5px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; color: #fff; border-radius: 999px; padding: 2px 8px; white-space: nowrap; }
+    .mut { color: var(--muted); font-size: 12.5px; }
+    .soon { display: inline-block; font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 999px; background: #dcfce7; color: #166534; margin-left: 6px; }
+    .sheet { margin-top: 6px; }
+    .sheet div { display: flex; gap: 8px; align-items: center; padding: 3px 0; font-size: 13px; }
+    .sheet div span { flex: 1; }
+    @media (max-width: 760px) { body { padding: 14px 12px 40px; } .surface { padding: 16px; } .c3, .c4, .c6 { grid-column: span 12; } .check { margin-top: 0; } .hide-sm { display: none; } }
+  </style>
+</head>
+<body data-shell-label="Important Dates" data-shell-icon="home">
+  <div class="wrap">
+    <div id="internal-shell-header"></div>
+
+    <div class="surface">
+      <h2 id="formTitle">Add an important date</h2>
+      <p class="section-note">Anything the whole company should see coming: paid holidays, early closings, all-store meetings, potlucks. Everyone's dashboard shows the next <span id="windowDays">60</span> days in a small card above their notifications. Tick the sign-up sheet to let people add what they're bringing.</p>
+      <form id="form" class="form" autocomplete="off">
+        <input type="hidden" id="fId" />
+        <div class="c6"><label>Title<input id="fTitle" type="text" maxlength="140" placeholder="Thanksgiving Potluck" required /></label></div>
+        <div class="c3"><label>Kind<select id="fKind"></select></label></div>
+        <div class="c3"><label>Time (optional)<input id="fTime" type="text" maxlength="60" placeholder="12:00 pm · closing at 3" /></label></div>
+        <div class="c3"><label>Date<input id="fDate" type="date" required /></label></div>
+        <div class="c3"><label>Through (optional)<input id="fEnd" type="date" /></label></div>
+        <div class="c6"><label>Details (optional)<input id="fDetails" type="text" maxlength="600" placeholder="Showroom closes at 3 pm; delivery runs as normal" /></label></div>
+        <div class="c4"><label class="check" style="margin-top: 4px;"><input id="fSignup" type="checkbox" /> Sign-up sheet (what are you bringing?)</label></div>
+        <div class="c6"><label>Sign-up link text (optional)<input id="fPrompt" type="text" maxlength="140" placeholder="What's everyone bringing?" /></label></div>
+        <div class="c12 row">
+          <button type="submit" id="saveBtn">Add date</button>
+          <button type="button" class="quiet" id="cancelBtn" hidden>Cancel edit</button>
+          <span class="mut" id="formNote"></span>
+        </div>
+      </form>
+      <div id="status" class="status"></div>
+    </div>
+
+    <div class="surface">
+      <div class="row" style="justify-content: space-between;">
+        <h3 style="margin: 0;">All dates</h3>
+        <label class="check" style="margin: 0; font-weight: 600;"><input id="showArchived" type="checkbox" /> Show archived</label>
+      </div>
+      <div style="overflow: auto; margin-top: 10px;">
+        <table>
+          <thead><tr><th>When</th><th>Kind</th><th>What</th><th class="hide-sm">Sign-up sheet</th><th class="hide-sm">Added by</th><th></th></tr></thead>
+          <tbody id="rows"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div id="internal-shell-footer"></div>
+  </div>
+
+  <script src="internal-shell.js"></script>
+  <script>
+    const $ = (id) => document.getElementById(id);
+    const esc = (v) => String(v == null ? "" : v).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+    function setStatus(text, kind) { const el = $("status"); el.className = "status" + (text ? " show " + (kind || "ok") : ""); el.textContent = text || ""; }
+    async function api(path, init) { const r = await fetch(path, { credentials: "same-origin", ...(init || {}) }); const j = await r.json().catch(() => ({})); if (!r.ok) throw new Error(j.error || "Request failed."); return j; }
+    const parse = (d) => { const [y, m, day] = String(d).split("-").map(Number); return new Date(y, m - 1, day); };
+    const fmt = (d) => parse(d).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", year: "numeric" });
+    const todayIso = () => { const t = new Date(); return `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, "0")}-${String(t.getDate()).padStart(2, "0")}`; };
+
+    let KINDS = [], DAYS = 60, dates = [];
+    const kindOf = (k) => KINDS.find((x) => x.key === k) || { label: k, color: "#374151" };
+
+    function fillForm(d) {
+      $("fId").value = d ? d.id : "";
+      $("fTitle").value = d ? d.title : "";
+      $("fKind").value = d ? d.kind : "event";
+      $("fTime").value = d ? d.time : "";
+      $("fDate").value = d ? d.date : "";
+      $("fEnd").value = d ? d.endDate : "";
+      $("fDetails").value = d ? d.details : "";
+      $("fSignup").checked = d ? d.signupEnabled : false;
+      $("fPrompt").value = d ? d.signupPrompt : "";
+      $("formTitle").textContent = d ? `Edit — ${d.title}` : "Add an important date";
+      $("saveBtn").textContent = d ? "Save changes" : "Add date";
+      $("cancelBtn").hidden = !d;
+      if (d) window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+
+    function render() {
+      const today = todayIso();
+      const horizon = new Date(parse(today).getTime() + DAYS * 86400000);
+      $("rows").innerHTML = dates.map((d) => {
+        const k = kindOf(d.kind);
+        const last = d.endDate || d.date;
+        const past = last < today;
+        const soon = !past && parse(d.date) <= horizon;
+        const when = d.endDate && d.endDate !== d.date ? `${fmt(d.date)}<br><span class="mut">through ${fmt(d.endDate)}</span>` : fmt(d.date);
+        return `<tr class="${past ? "past" : ""} ${d.archived ? "archived" : ""}">
+          <td style="white-space: nowrap;">${when}${d.time ? `<div class="mut">${esc(d.time)}</div>` : ""}</td>
+          <td><span class="kind" style="background:${k.color}">${esc(k.label)}</span></td>
+          <td><strong>${esc(d.title)}</strong>${soon && !d.archived ? `<span class="soon">on dashboards</span>` : ""}${d.archived ? `<span class="soon" style="background:#f1f5f9;color:#6b7280;">archived</span>` : ""}${d.details ? `<div class="mut">${esc(d.details)}</div>` : ""}</td>
+          <td class="hide-sm">${d.signupEnabled ? `${d.signupCount} signed up <button type="button" class="link" data-sheet="${d.id}">view</button><div class="sheet" id="sheet-${d.id}"></div>` : `<span class="mut">—</span>`}</td>
+          <td class="hide-sm mut">${esc(d.createdBy)}</td>
+          <td style="white-space: nowrap; text-align: right;">
+            <button type="button" class="quiet" data-edit="${d.id}" style="padding: 6px 10px; font-size: 12.5px;">Edit</button>
+            <button type="button" class="${d.archived ? "quiet" : "danger"}" data-arch="${d.id}" style="padding: 6px 10px; font-size: 12.5px;">${d.archived ? "Restore" : "Archive"}</button>
+          </td>
+        </tr>`;
+      }).join("") || `<tr><td colspan="6" class="mut">No dates yet — add the first one above.</td></tr>`;
+      $("rows").querySelectorAll("[data-edit]").forEach((b) => b.addEventListener("click", () => fillForm(dates.find((d) => d.id === Number(b.dataset.edit)))));
+      $("rows").querySelectorAll("[data-arch]").forEach((b) => b.addEventListener("click", async () => {
+        const d = dates.find((x) => x.id === Number(b.dataset.arch));
+        if (!d.archived && !window.confirm(`Archive "${d.title}"? It comes off everyone's dashboard. You can restore it later.`)) return;
+        try { await api(`/api/important-dates/${d.id}/archive`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ archived: !d.archived }) }); setStatus(d.archived ? "Restored." : "Archived."); await load(); }
+        catch (err) { setStatus(err.message, "error"); }
+      }));
+      $("rows").querySelectorAll("[data-sheet]").forEach((b) => b.addEventListener("click", () => showSheet(Number(b.dataset.sheet))));
+    }
+
+    async function showSheet(id) {
+      const el = $(`sheet-${id}`);
+      try {
+        const d = await api(`/api/important-dates/${id}/signups`);
+        el.innerHTML = d.signups.map((s) => `<div><span><strong>${esc(s.item)}</strong> — ${esc(s.name || s.email)}</span><button type="button" class="link" style="color:#b91c1c" data-rm="${s.id}">remove</button></div>`).join("") || `<div class="mut">Nobody yet.</div>`;
+        el.querySelectorAll("[data-rm]").forEach((b) => b.addEventListener("click", async () => {
+          if (!window.confirm("Remove this line from the sheet?")) return;
+          try { await api(`/api/important-dates/${id}/signups/${b.dataset.rm}`, { method: "DELETE" }); await load(); showSheet(id); } catch (err) { setStatus(err.message, "error"); }
+        }));
+      } catch (err) { setStatus(err.message, "error"); }
+    }
+
+    async function load() {
+      try {
+        const d = await api(`/api/important-dates${$("showArchived").checked ? "?archived=1" : ""}`);
+        KINDS = d.kinds; DAYS = d.days || 60; dates = d.dates;
+        $("windowDays").textContent = DAYS;
+        if (!$("fKind").options.length) $("fKind").innerHTML = KINDS.map((k) => `<option value="${k.key}">${esc(k.label)}</option>`).join("");
+        render();
+      } catch (err) { setStatus(err.message, "error"); }
+    }
+
+    $("form").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const id = $("fId").value;
+      const body = { title: $("fTitle").value, kind: $("fKind").value, time: $("fTime").value, date: $("fDate").value, endDate: $("fEnd").value, details: $("fDetails").value, signupEnabled: $("fSignup").checked, signupPrompt: $("fPrompt").value };
+      try {
+        $("saveBtn").disabled = true;
+        await api(id ? `/api/important-dates/${id}` : "/api/important-dates", { method: id ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+        setStatus(id ? "Saved." : "Added — it's on the dashboards now if it's within the window.");
+        fillForm(null); await load();
+      } catch (err) { setStatus(err.message, "error"); }
+      finally { $("saveBtn").disabled = false; }
+    });
+    $("cancelBtn").addEventListener("click", () => fillForm(null));
+    $("showArchived").addEventListener("change", load);
+    $("fSignup").addEventListener("change", () => { $("formNote").textContent = $("fSignup").checked ? "Everyone will see a link on the dashboard to add what they're bringing." : ""; });
+    load();
+  </script>
+</body>
+</html>

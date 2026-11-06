@@ -1249,6 +1249,38 @@
         </div>
       </div>
 
+      <!-- Important Dates (Andrew 11/6): the company calendar for the next
+           60 days — holidays, early closings, all-store meetings, potlucks —
+           built on Company Tools → Important Dates. Hidden when there's
+           nothing coming up. A date with a sign-up sheet gets a link that
+           opens "what's everyone bringing?" right here. -->
+      <style>@media (max-width: 600px) { #datesList .date-out { display: none; } }</style>
+      <div class="card" id="datesCard" hidden style="padding-bottom: 10px;">
+        <div class="module-header" style="margin-bottom: 4px;">
+          <div class="module-title">Upcoming Important Dates</div>
+          <p class="module-desc" id="datesDesc">Company events, holidays and closings in the next 60 days.</p>
+        </div>
+        <div id="datesList" style="display: grid; gap: 0;"></div>
+      </div>
+      <div id="datesSheet" hidden style="position: fixed; inset: 0; z-index: 120; background: rgba(15, 23, 42, .45); display: flex; align-items: flex-start; justify-content: center; padding: 60px 14px 24px; overflow-y: auto;">
+        <div style="background: #fff; border-radius: 16px; width: 100%; max-width: 520px; padding: 22px 22px 18px; box-shadow: 0 24px 60px rgba(0,0,0,.25);">
+          <div style="display: flex; align-items: flex-start; gap: 12px;">
+            <div style="flex: 1;">
+              <div style="font-size: 17px; font-weight: 800;" id="sheetTitle"></div>
+              <div style="font-size: 12.5px; color: #6b7280; margin-top: 2px;" id="sheetWhen"></div>
+            </div>
+            <button type="button" id="sheetClose" aria-label="Close" style="border: none; background: #f1f5f9; border-radius: 999px; width: 30px; height: 30px; font-size: 16px; cursor: pointer;">✕</button>
+          </div>
+          <p style="font-size: 13.5px; color: #374151; margin: 12px 0 8px;" id="sheetPrompt"></p>
+          <div id="sheetRows" style="border-top: 1px solid #eef1f6;"></div>
+          <form id="sheetForm" style="display: flex; gap: 8px; margin-top: 12px;">
+            <input id="sheetItem" type="text" maxlength="140" placeholder="I'm bringing…" style="flex: 1; border: 1.5px solid #dbe1ea; border-radius: 10px; padding: 9px 12px; font-size: 14px; font-family: inherit;" />
+            <button type="submit" style="border: none; border-radius: 10px; padding: 9px 16px; font-size: 13.5px; font-weight: 700; background: var(--primary, #166534); color: #fff; cursor: pointer; font-family: inherit; white-space: nowrap;">Add</button>
+          </form>
+          <div id="sheetMsg" style="font-size: 12.5px; color: #6b7280; margin-top: 8px; min-height: 16px;"></div>
+        </div>
+      </div>
+
       <div class="card pinned-module" id="orderFlagsCard">
         <div class="module-header">
           <div class="module-title">My Notifications</div>
@@ -3551,6 +3583,105 @@
           msg.textContent = err.message;
         }
       });
+    })();
+
+    // Upcoming Important Dates card + the sign-up sheet modal. Independent of
+    // the dashboard app: one fetch, hidden when nothing is coming up.
+    (function () {
+      const card = document.getElementById("datesCard");
+      if (!card) return;
+      const list = document.getElementById("datesList");
+      const sheet = document.getElementById("datesSheet");
+      const esc = (v) => String(v == null ? "" : v).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+      const KIND = {};
+      const parse = (d) => { const [y, m, day] = String(d).split("-").map(Number); return new Date(y, m - 1, day); };
+      const today = () => { const t = new Date(); return new Date(t.getFullYear(), t.getMonth(), t.getDate()); };
+      function whenText(d) {
+        const start = parse(d.date);
+        const fmt = (x) => x.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
+        let s = fmt(start);
+        if (d.endDate && d.endDate !== d.date) s += " – " + fmt(parse(d.endDate));
+        if (d.time) s += " · " + d.time;
+        return s;
+      }
+      function daysOut(d) {
+        const n = Math.round((parse(d.date) - today()) / 86400000);
+        if (n < 0) return "now";
+        if (n === 0) return "today";
+        if (n === 1) return "tomorrow";
+        return `in ${n} days`;
+      }
+      function render(dates) {
+        if (!dates.length) { card.hidden = true; return; }
+        list.innerHTML = dates.map((d) => {
+          const k = KIND[d.kind] || { label: d.kind, color: "#374151" };
+          const sheetLink = d.signupEnabled ? `<button type="button" class="date-sheet-link" data-id="${d.id}" style="border: none; background: none; padding: 0; color: var(--primary, #166534); font-weight: 700; font-size: 12.5px; cursor: pointer; text-decoration: underline; font-family: inherit;">${esc(d.signupPrompt || "What's everyone bringing?")} <span style="font-weight: 600; color: #6b7280;">(${d.signupCount})</span></button>` : "";
+          return `<div style="display: flex; gap: 12px; align-items: baseline; padding: 7px 0; border-top: 1px solid #f1f5f9; font-size: 13.5px; flex-wrap: wrap;">
+            <div style="flex: 0 0 150px; font-weight: 700; white-space: nowrap;">${esc(whenText(d))}</div>
+            <div style="flex: 1 1 240px; min-width: 0;">
+              <span style="display: inline-block; font-size: 10.5px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; color: #fff; background: ${k.color}; border-radius: 999px; padding: 2px 8px; margin-right: 8px; vertical-align: 1px;">${esc(k.label)}</span><strong>${esc(d.title)}</strong>${d.details ? ` <span style="color: #6b7280;">— ${esc(d.details)}</span>` : ""}
+              ${sheetLink ? `<div style="margin-top: 2px;">${sheetLink}</div>` : ""}
+            </div>
+            <div class="date-out" style="flex: 0 0 auto; font-size: 12px; color: #6b7280;">${daysOut(d)}</div>
+          </div>`;
+        }).join("");
+        list.querySelectorAll(".date-sheet-link").forEach((b) => b.addEventListener("click", () => openSheet(Number(b.dataset.id))));
+        card.hidden = false;
+      }
+      async function load() {
+        try {
+          const r = await fetch("/api/important-dates/upcoming", { credentials: "same-origin" });
+          if (!r.ok) return;
+          const d = await r.json();
+          for (const k of d.kinds || []) KIND[k.key] = k;
+          document.getElementById("datesDesc").textContent = `Company events, holidays and closings in the next ${d.days || 60} days.`;
+          render(d.dates || []);
+        } catch {}
+      }
+      // ---- sign-up sheet ----
+      let sheetId = null;
+      const rows = document.getElementById("sheetRows"), msg = document.getElementById("sheetMsg"), input = document.getElementById("sheetItem");
+      function renderSheet(d) {
+        document.getElementById("sheetTitle").textContent = d.date.title;
+        document.getElementById("sheetWhen").textContent = whenText(d.date);
+        document.getElementById("sheetPrompt").textContent = d.date.signupPrompt || "What's everyone bringing? Add your line below — you can remove it any time.";
+        rows.innerHTML = d.signups.map((s) => `<div style="display: flex; gap: 10px; align-items: center; padding: 7px 0; border-bottom: 1px solid #eef1f6; font-size: 13.5px;">
+            <div style="flex: 1;"><strong>${esc(s.item)}</strong><span style="color: #6b7280;"> — ${esc(s.name || s.email)}</span></div>
+            ${s.mine || d.canManage ? `<button type="button" data-rm="${s.id}" style="border: none; background: none; color: #b91c1c; font-size: 12px; cursor: pointer; font-family: inherit;">Remove</button>` : ""}
+          </div>`).join("") || `<div style="padding: 10px 0; color: #6b7280; font-size: 13px;">Nobody has signed up yet — be the first.</div>`;
+        rows.querySelectorAll("[data-rm]").forEach((b) => b.addEventListener("click", async () => {
+          msg.textContent = "";
+          const r = await fetch(`/api/important-dates/${sheetId}/signups/${b.dataset.rm}`, { method: "DELETE", credentials: "same-origin" });
+          const j = await r.json().catch(() => ({}));
+          if (!r.ok) { msg.textContent = j.error || "Couldn't remove that."; return; }
+          await openSheet(sheetId, true); load();
+        }));
+      }
+      async function openSheet(id, keep) {
+        sheetId = id;
+        if (!keep) { input.value = ""; msg.textContent = ""; }
+        const r = await fetch(`/api/important-dates/${id}/signups`, { credentials: "same-origin" });
+        const d = await r.json().catch(() => ({}));
+        if (!r.ok) { alert(d.error || "Couldn't open the sign-up sheet."); return; }
+        renderSheet(d);
+        sheet.hidden = false;
+        if (!keep) setTimeout(() => input.focus(), 50);
+      }
+      document.getElementById("sheetForm").addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const item = input.value.trim();
+        if (!item) { input.focus(); return; }
+        msg.textContent = "Adding…";
+        const r = await fetch(`/api/important-dates/${sheetId}/signups`, { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ item }) });
+        const j = await r.json().catch(() => ({}));
+        if (!r.ok) { msg.textContent = j.error || "Couldn't add that."; return; }
+        input.value = ""; msg.textContent = "Added — thank you!";
+        await openSheet(sheetId, true); load();
+      });
+      document.getElementById("sheetClose").addEventListener("click", () => { sheet.hidden = true; });
+      sheet.addEventListener("click", (e) => { if (e.target === sheet) sheet.hidden = true; });
+      document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !sheet.hidden) sheet.hidden = true; });
+      load();
     })();
 
     // Christmas party menu survey card. Independent of the dashboard app:

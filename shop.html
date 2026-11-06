@@ -579,8 +579,13 @@
     .info-dot:hover, .info-dot.open { background: var(--ink); color: var(--brass-2); animation: none; }
     @keyframes info-nudge { 0%, 78%, 100% { transform: rotate(0) scale(1); } 82% { transform: rotate(-14deg) scale(1.15); } 86% { transform: rotate(12deg) scale(1.15); } 90% { transform: rotate(-8deg) scale(1.1); } 94% { transform: rotate(4deg) scale(1.05); } }
     @media (prefers-reduced-motion: reduce) { .info-dot { animation: none; } }
-    .info-tip { left: 12px; right: 12px; width: auto; bottom: 72px; border-radius: 2px; background: var(--ink); color: var(--ivory); font-family: "Roboto", system-ui, -apple-system, "Segoe UI", sans-serif; font-weight: 600; font-size: 13.5px; line-height: 1.5; padding: 12px 14px; box-shadow: 0 14px 30px rgba(0,0,0,.3); }
-    .info-tip::after { left: 96px; right: auto; border-top-color: var(--ink); }
+    /* Price + marker never wrap; when the row is too tight for the button
+       beside them, the button drops to its own full-width line instead. */
+    .item-price { display: inline-flex; align-items: center; white-space: nowrap; }
+    .item-foot { flex-wrap: wrap; position: relative; }
+    .item-foot .btn { flex: 1 1 auto; }
+    .info-tip { left: 0; right: 0; width: auto; bottom: calc(100% + 8px); white-space: normal; text-align: left; border-radius: 2px; background: var(--ink); color: var(--ivory); font-family: "Roboto", system-ui, -apple-system, "Segoe UI", sans-serif; font-weight: 600; font-size: 13.5px; line-height: 1.5; padding: 12px 14px; box-shadow: 0 14px 30px rgba(0,0,0,.3); }
+    .info-tip::after { left: 84px; right: auto; border-top-color: var(--ink); }
     .show-more .btn { background: transparent; }
 
     /* Modals, cart drawer, checkout */

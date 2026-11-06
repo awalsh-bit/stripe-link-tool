@@ -36,7 +36,7 @@ These can be texted or put in ads: `shop.wilsonappliance.com/shop.html?dept=Laun
 
 ## Data
 
-`GET /api/shop/home-stats` (public on the shop host, cached 2 minutes) returns `{ models, units, byCategory, featured[4], paused, asOf }` (`asOf` = when ePASS last pushed the on-hand feed, not the clearance workbook's upload date) from the same `computeShopCatalog()` the shop uses. Featured = the four most-sold in-stock models that have a photo and a MAP-advertisable price. If the call fails the page still renders; the stat tiles show "—" and the featured row hides.
+`GET /api/shop/home-stats` (public on the shop host, cached 2 minutes) **never builds anything while a visitor waits**: the numbers are computed after every catalog build (the warmer runs one every minute while the shop is in use, every 5 minutes idle), kept in memory and written to `shop_home_stats` in Postgres so a fresh deploy answers instantly with the last known numbers. The shop catalog itself is also served stale-while-revalidate up to 2 hours old rather than going cold at 10 minutes. It returns `{ models, units, byCategory, featured[4], paused, asOf }` (`asOf` = when ePASS last pushed the on-hand feed, not the clearance workbook's upload date) from the same `computeShopCatalog()` the shop uses. Featured = the four most-sold in-stock models that have a photo and a MAP-advertisable price. If the call fails the page still renders; the stat tiles show "—" and the featured row hides.
 
 ## Photos and fonts
 

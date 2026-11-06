@@ -201,7 +201,7 @@ import {
   getShopModelImages,
   getShopModelImagesMeta,
   getShopMapPrices,
-  getShopExpressSettings,
+  getShopExpressSettings, saveShopHomeStats, getShopHomeStats, createShopHandoff, getShopHandoff, markShopHandoffConverted,
   saveShopExpressSettings
 } from "./lib/shop-postgres.js";
 import { createBrandResolver, EPASS_BRAND_NAMES as EPASS_BRAND_NAMES_TABLE, loadNetsuiteBrandSuppliers, canonBrandKey } from "./lib/brand-names.js";
@@ -688,14 +688,20 @@ app.use((req, res, next) => {
 // browsers. Server-to-server callers (the website feed, the ePASS agent)
 // don't send an Origin header and are unaffected.
 const FIRST_PARTY_HOSTS = new Set([DASHBOARD_HOST, ...DASHBOARD_HOST_ALIASES, SERVICE_PUBLIC_HOST, SHOP_PUBLIC_HOST]);
-app.use(cors({
-  origin(origin, cb) {
-    if (!origin) return cb(null, true); // same-origin / non-browser
-    try {
-      const h = new URL(origin).hostname.toLowerCase();
-      return cb(null, FIRST_PARTY_HOSTS.has(h) || isLocalHost(h));
-    } catch { return cb(null, false); }
-  }
+// The public website (wilsonappliance.com; Andrew 11/9) may call exactly two
+// things cross-origin: the stock lookup and the cart handoff. Nothing else.
+const SHOP_PARTNER_ORIGINS = new Set(String(process.env.SHOP_PARTNER_ORIGINS || "wilsonappliance.com,www.wilsonappliance.com,wilsonappliancetestsite.netlify.app")
+  .split(",").map((h) => h.trim().toLowerCase()).filter(Boolean));
+const SHOP_PARTNER_PATH = /^\/api\/shop\/(stock|handoff)(\/|$)/;
+app.use(cors((req, cb) => {
+  const origin = req.headers.origin;
+  if (!origin) return cb(null, { origin: true }); // same-origin / non-browser
+  try {
+    const h = new URL(origin).hostname.toLowerCase();
+    if (FIRST_PARTY_HOSTS.has(h) || isLocalHost(h)) return cb(null, { origin: true });
+    if (SHOP_PARTNER_ORIGINS.has(h) && SHOP_PARTNER_PATH.test(req.path)) return cb(null, { origin: true, methods: ["GET", "POST"], maxAge: 600 });
+    return cb(null, { origin: false });
+  } catch { return cb(null, { origin: false }); }
 }));
 
 const SERVICE_PUBLIC_PATHS = new Set([
@@ -799,6 +805,8 @@ const SHOP_PUBLIC_PATHS = new Set([
 const SHOP_PUBLIC_API_PREFIXES = [
   "/showroom", // web-sized showroom photos for the landing page (originals live in showroom-photos/, which is denied)
   "/api/shop/home-stats",
+  "/api/shop/stock", // the public website's "in stock at Wilson?" lookup (CORS-allowed partner origins)
+  "/api/shop/handoff", // website -> shop cart handoff (POST makes a token, GET reads it)
   "/api/config",
   "/api/promo/photo/", // card photos (Promo Item Builder uploads) on storefront tiles
   "/api/shop/zip-check",
@@ -7259,19 +7267,26 @@ function shopStockItems({ snapshot, settings, brandMap, brandNames, images, mapP
 // recompute runs in the background for the next reader. A background timer
 // keeps it warm so the first visitor after a quiet spell never waits either.
 const SHOP_CATALOG_CACHE_MS = 20 * 1000;
-const SHOP_CATALOG_STALE_MS = 10 * 60 * 1000;
+const SHOP_CATALOG_STALE_MS = 2 * 60 * 60 * 1000; // serve-stale ceiling; the warmer keeps it minutes old
 let shopCatalogCache = null; // { at, promise }
 let shopCatalogRefreshing = null;
 let shopCatalogLastAsked = 0; // last time a visitor actually asked for the catalog
+let shopHomeStatsMemo = null; // landing-page numbers from the last catalog build (see /api/shop/home-stats)
 function invalidateShopCatalog() { shopCatalogCache = null; }
 function refreshShopCatalogInBackground() {
   if (shopCatalogRefreshing) return shopCatalogRefreshing;
   shopCatalogRefreshing = computeShopCatalogFresh()
-    .then((cat) => { shopCatalogCache = { at: Date.now(), promise: Promise.resolve(cat) }; return cat; })
+    .then((cat) => { shopCatalogCache = { at: Date.now(), promise: Promise.resolve(cat) }; rememberShopHomeStats(cat); return cat; })
     .catch((err) => { console.warn("Shop catalog background refresh failed:", err.message); })
     .finally(() => { shopCatalogRefreshing = null; });
   return shopCatalogRefreshing;
 }
+// Andrew 11/9: a public read never waits on a rebuild while ANY cached
+// catalog exists (it used to go cold at 10 minutes, which is exactly when the
+// idle warmer runs - so the first visitor after a quiet spell sat through a
+// 15-second build). The cache is served up to SHOP_CATALOG_STALE_MS old with
+// a refresh running behind it; only a truly empty cache (first minute after
+// a deploy) or one older than that builds in the foreground.
 function computeShopCatalog({ maxAgeMs = 0 } = {}) {
   if (maxAgeMs > 0) shopCatalogLastAsked = Date.now();
   if (maxAgeMs > 0 && shopCatalogCache) {
@@ -7282,7 +7297,7 @@ function computeShopCatalog({ maxAgeMs = 0 } = {}) {
   const promise = computeShopCatalogFresh();
   if (maxAgeMs > 0) {
     shopCatalogCache = { at: Date.now(), promise };
-    promise.catch(() => { if (shopCatalogCache?.promise === promise) shopCatalogCache = null; });
+    promise.then((cat) => rememberShopHomeStats(cat)).catch(() => { if (shopCatalogCache?.promise === promise) shopCatalogCache = null; });
   }
   return promise;
 }
@@ -7295,11 +7310,14 @@ function computeShopCatalog({ maxAgeMs = 0 } = {}) {
 // visitor after a quiet spell gets an instant answer and a background
 // refresh rather than a cold build.
 const SHOP_WARM_ACTIVE_MS = 10 * 60 * 1000;
-const SHOP_WARM_IDLE_MS = 10 * 60 * 1000;
+const SHOP_WARM_IDLE_MS = 5 * 60 * 1000;
 // SHOP_CATALOG_WARM=off in the Render environment turns the warmer off
 // entirely (the catalog then builds only when a visitor asks for it).
 if (process.env.DATABASE_URL && String(process.env.SHOP_CATALOG_WARM || "").toLowerCase() !== "off") {
   setTimeout(() => refreshShopCatalogInBackground(), 8000).unref?.();
+  // Landing-page numbers come back the instant the process starts, from the
+  // last build this (or the previous) process wrote to Postgres.
+  getShopHomeStats().then((saved) => { if (saved && !shopHomeStatsMemo) shopHomeStatsMemo = saved; }).catch(() => {});
   setInterval(() => {
     const age = shopCatalogCache ? Date.now() - shopCatalogCache.at : Infinity;
     const active = Date.now() - shopCatalogLastAsked < SHOP_WARM_ACTIVE_MS;
@@ -7956,24 +7974,166 @@ app.post("/api/shop/password", async (req, res) => {
 // Landing-page numbers (Andrew 11/5): a few counts and a handful of
 // best-selling, MAP-cleared models from the cached catalog — one tiny call
 // instead of the whole assortment, so the landing paints instantly.
-app.get("/api/shop/home-stats", async (req, res) => {
+// ---------------------------------------------------------------------------
+// Website stock lookup (Andrew 11/9, for Gavin's wilsonappliance.com build).
+// The public site shows ~24,000 orderable models; this answers, for up to 50
+// model numbers at a time, "is it in stock at Wilson right now, and what may
+// we advertise it at?" so a product page can show "In stock — buy online"
+// and hand the shopper into shop.html?add=MODEL. Every rule is applied here:
+// stock = the shop's own sellable units (ATS: on hand, not written, not held),
+// price only where MAP lets us advertise it, below-floor units advertise at
+// the floor, blocked brands (Sub-Zero, Wolf, Cove, Gaggenau) come back as
+// inquireOnly. No unit ids, serials, costs or customer data ever leave.
+//   GET /api/shop/stock?models=SRT486G,DEC2450R
+// CORS: SHOP_PARTNER_ORIGINS (set with the global cors delegate near the top).
+const shopStockLimiter = rateLimit("shop-stock", 120, 10 * 60 * 1000);
+app.get("/api/shop/stock", shopStockLimiter, async (req, res) => {
   try {
+    const raw = String(req.query.models || req.query.model || "");
+    const asked = [...new Set(raw.split(/[,\s]+/).map((m) => m.trim()).filter(Boolean))].slice(0, 50);
+    if (!asked.length) return res.status(400).json({ error: "Pass ?models=MODEL1,MODEL2 (up to 50)." });
     const catalog = await computeShopCatalog({ maxAgeMs: SHOP_CATALOG_CACHE_MS });
-    const rank = await shopSalesRank().catch(() => ({ byModel: {}, byBrand: {} }));
-    const models = new Map();
+    const blocked = shopBrandBlocker();
+    const cat = await getCatalog().catch(() => null);
+    const byKey = new Map();
     for (const i of catalog.items || []) {
       const k = normalizeModelKey(i.model); if (!k) continue;
-      const m = models.get(k) || { model: i.model, brand: i.brand, description: i.description, category: i.category, image: i.image || "", units: 0, price: null, sold: rank.byModel[k] || 0 };
-      m.units += 1;
-      if (i.mapPublic && !catalog.paused && Number.isFinite(i.price)) m.price = m.price == null ? i.price : Math.min(m.price, i.price);
-      models.set(k, m);
+      const m = byKey.get(k) || { items: [] };
+      m.items.push(i); byKey.set(k, m);
     }
-    const byCategory = {};
-    for (const m of models.values()) byCategory[m.category] = (byCategory[m.category] || 0) + 1;
-    const featured = [...models.values()].filter((m) => m.image && m.price != null).sort((a, b) => b.sold - a.sold || b.units - a.units).slice(0, 4)
-      .map((m) => ({ model: m.model, brand: m.brand, description: m.description, image: m.image, price: m.price, units: m.units }));
+    const shopBase = `https://${SHOP_PUBLIC_HOST}`;
+    const models = asked.map((model) => {
+      const key = normalizeModelKey(model);
+      const hit = byKey.get(key);
+      const resolved = cat ? resolveModel(cat, model, {}) : null;
+      const brand = hit?.items[0]?.brand || resolved?.brand || "";
+      const inquireOnly = blocked(brand, hit?.items[0]?.brandCode, resolved?.supplier);
+      const base = { model, brand, description: hit?.items[0]?.description || resolved?.description || "", inquireOnly };
+      if (inquireOnly) return { ...base, inStock: false, available: 0, price: null, priceInCart: false, addUrl: null, note: "Quoted in person — ask for a specialist." };
+      if (!hit) return { ...base, inStock: false, available: 0, newUnits: 0, outletUnits: 0, price: null, priceInCart: false, addUrl: null };
+      const units = hit.items;
+      // ATS is sealed stock only (Andrew 11/9): open-box and display units
+      // sell in the outlet but never count as "available".
+      const newUnits = units.filter((i) => i.condition === "new").length;
+      const priced = units.filter((i) => Number.isFinite(i.price));
+      const advertisable = catalog.paused ? [] : priced.filter((i) => i.mapPublic);
+      const floorOnly = catalog.paused ? [] : priced.filter((i) => !i.mapPublic && Number.isFinite(i.mapFloor) && i.price < i.mapFloor);
+      let price = null, belowMap = false, priceInCart = true;
+      if (advertisable.length) { price = Math.min(...advertisable.map((i) => i.price)); priceInCart = false; }
+      else if (floorOnly.length) { price = Math.round(Math.min(...floorOnly.map((i) => i.mapFloor)) * 100) / 100; belowMap = true; priceInCart = true; }
+      return {
+        ...base,
+        brand: units[0].brand || brand,
+        category: units[0].category || "",
+        image: units[0].image || "",
+        inStock: newUnits > 0,
+        available: newUnits,
+        newUnits,
+        outletUnits: units.filter((i) => i.condition === "open").length,
+        outletOnly: newUnits === 0,
+        price,
+        belowMap,
+        priceInCart,
+        expressEligible: units.some((i) => shopItemExpressEligible(i, catalog.express)),
+        addUrl: `${shopBase}/shop.html?add=${encodeURIComponent(model)}`
+      };
+    });
+    res.setHeader("Cache-Control", "public, max-age=60");
+    return res.json({ asOf: catalog.feedAt || null, paused: Boolean(catalog.paused), shop: shopBase, models });
+  } catch (err) { console.error("Shop stock lookup failed:", err.message); return res.status(500).json({ error: "Stock lookup unavailable." }); }
+});
+
+// ---------------------------------------------------------------------------
+// Cart handoff (Andrew 11/9: "the POST-token idea is more durable"). The
+// website POSTs the shopping list, gets back a short token and a URL; the
+// shopper lands on shop.html?cart=TOKEN and the shop fills the cart from the
+// token. Durable because the website never has to know how the shop names
+// things, long lists and options don't live in a URL, the link can't be
+// edited to add items, and the token row records where the cart came from
+// and whether it converted (order number written back at submit).
+//   POST /api/shop/handoff  { items: [{ model, qty }], zip?, source?, ref? }
+//   -> { token, url, expiresAt, items: [{ model, qty, inStock, available, inquireOnly }] }
+//   GET  /api/shop/handoff/:token -> { items, source, zip }   (shop.html uses this)
+const shopHandoffLimiter = rateLimit("shop-handoff", 60, 10 * 60 * 1000);
+app.post("/api/shop/handoff", shopHandoffLimiter, async (req, res) => {
+  try {
+    const raw = Array.isArray(req.body?.items) ? req.body.items : [];
+    const items = [];
+    for (const it of raw.slice(0, 20)) {
+      const model = String(it?.model || "").trim().slice(0, 40);
+      const qty = Math.max(1, Math.min(10, Math.round(Number(it?.qty) || 1)));
+      if (model) items.push({ model, qty });
+    }
+    if (!items.length) return res.status(400).json({ error: "Send items: [{ model, qty }]." });
+    const catalog = await computeShopCatalog({ maxAgeMs: SHOP_CATALOG_CACHE_MS });
+    const blocked = shopBrandBlocker();
+    const cat = await getCatalog().catch(() => null);
+    const byKey = new Map();
+    for (const i of catalog.items || []) { const k = normalizeModelKey(i.model); if (k && i.condition === "new") byKey.set(k, (byKey.get(k) || 0) + 1); }
+    const preview = items.map((it) => {
+      const r = cat ? resolveModel(cat, it.model, {}) : null;
+      const inquireOnly = blocked(r?.brand, r?.supplier);
+      const available = inquireOnly ? 0 : (byKey.get(normalizeModelKey(it.model)) || 0);
+      return { ...it, inStock: available > 0, available, inquireOnly };
+    });
+    const sellable = preview.filter((p) => !p.inquireOnly);
+    if (!sellable.length) return res.status(400).json({ error: "None of these can be sold online — a specialist quotes them.", items: preview });
+    const zip = String(req.body?.zip || "").trim().slice(0, 10);
+    const source = String(req.body?.source || "website").trim().slice(0, 40);
+    const ref = String(req.body?.ref || "").trim().slice(0, 120);
+    const { token, expiresAt } = await createShopHandoff({ items: sellable.map(({ model, qty }) => ({ model, qty })), zip, source, ref, ip: req.ip });
+    const url = `https://${SHOP_PUBLIC_HOST}/shop.html?cart=${encodeURIComponent(token)}`;
+    res.setHeader("Cache-Control", "no-store");
+    return res.json({ token, url, expiresAt, items: preview });
+  } catch (err) { console.error("Shop handoff create failed:", err.message); return res.status(500).json({ error: "Handoff unavailable." }); }
+});
+app.get("/api/shop/handoff/:token", async (req, res) => {
+  try {
+    const h = await getShopHandoff(req.params.token, { markOpened: true });
+    res.setHeader("Cache-Control", "no-store");
+    if (!h) return res.status(404).json({ error: "That cart link has expired. Pick the items again on the website." });
+    return res.json({ items: h.items, source: h.source, zip: h.zip, createdAt: h.createdAt });
+  } catch (err) { console.error("Shop handoff read failed:", err.message); return res.status(500).json({ error: "Handoff unavailable." }); }
+});
+
+// The landing page's headline numbers. Built from the catalog every time it
+// is rebuilt (never while a visitor waits), kept in memory and in Postgres
+// so a fresh deploy answers instantly with the last known numbers.
+async function buildShopHomeStats(catalog) {
+  const rank = await shopSalesRank().catch(() => ({ byModel: {}, byBrand: {} }));
+  // "Models in stock" is the ATS definition (Andrew 11/9): sealed units only.
+  // Open-box and display units are for sale in the outlet but don't count.
+  const models = new Map();
+  for (const i of catalog.items || []) {
+    if (i.condition !== "new") continue;
+    const k = normalizeModelKey(i.model); if (!k) continue;
+    const m = models.get(k) || { model: i.model, brand: i.brand, description: i.description, category: i.category, image: i.image || "", units: 0, price: null, sold: rank.byModel[k] || 0 };
+    m.units += 1;
+    if (i.mapPublic && !catalog.paused && Number.isFinite(i.price)) m.price = m.price == null ? i.price : Math.min(m.price, i.price);
+    models.set(k, m);
+  }
+  const byCategory = {};
+  for (const m of models.values()) byCategory[m.category] = (byCategory[m.category] || 0) + 1;
+  const featured = [...models.values()].filter((m) => m.image && m.price != null).sort((a, b) => b.sold - a.sold || b.units - a.units).slice(0, 4)
+    .map((m) => ({ model: m.model, brand: m.brand, description: m.description, image: m.image, price: m.price, units: m.units }));
+  const units = [...models.values()].reduce((n, m) => n + m.units, 0);
+  return { models: models.size, units, byCategory, featured, paused: Boolean(catalog.paused), asOf: catalog.feedAt || null, computedAt: new Date().toISOString() };
+}
+function rememberShopHomeStats(catalog) {
+  if (!catalog) return;
+  buildShopHomeStats(catalog)
+    .then((stats) => { shopHomeStatsMemo = stats; return saveShopHomeStats(stats); })
+    .catch((err) => console.warn("Shop home stats build failed:", err.message));
+}
+app.get("/api/shop/home-stats", async (req, res) => {
+  try {
     res.setHeader("Cache-Control", "public, max-age=120");
-    return res.json({ models: models.size, units: (catalog.items || []).length, byCategory, featured, paused: Boolean(catalog.paused), asOf: catalog.feedAt || null });
+    if (shopHomeStatsMemo) return res.json(shopHomeStatsMemo);
+    const saved = await getShopHomeStats().catch(() => null);
+    if (saved) { shopHomeStatsMemo = saved; return res.json(saved); }
+    // Nothing on file yet (first deploy): start a build for next time, answer now.
+    if (!shopCatalogCache) refreshShopCatalogInBackground();
+    return res.json({ models: null, units: null, byCategory: {}, featured: [], paused: false, asOf: null });
   } catch (err) { console.error("Shop home stats failed:", err.message); return res.status(200).json({ models: null, units: null, byCategory: {}, featured: [], paused: false }); }
 });
 
@@ -10326,6 +10486,10 @@ app.post("/api/shop/submit-order", rateLimit("shop-submit-order", 20, 60 * 60 * 
       cardSummary
     });
 
+    if (req.body?.handoff) {
+      markShopHandoffConverted(String(req.body.handoff).slice(0, 80), { orderId: order.id, orderNumber: order.orderNumber })
+        .catch((err) => console.error("Handoff conversion record failed:", err.message));
+    }
     if (priced.promo) {
       await recordShopPromoRedemption({ promoId: priced.promo.id, orderId: order.id, orderNumber: order.orderNumber, shopperId: shopper.id, discount: priced.promo.discount })
         .catch((err) => console.error("Promo redemption record failed:", err.message));

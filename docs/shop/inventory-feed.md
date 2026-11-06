@@ -47,7 +47,7 @@ The rows come from the shop inventory snapshot — the ePASS feed's on-hand seri
 | --- | --- |
 | Model | ePASS model code |
 | Serial | serial number (upper-cased) |
-| SerialType | ePASS serial type — `ALL` is new/boxed; others (`OB`, `DSP`, …) are open-box, display, etc. |
+| SerialType | ePASS serial type — `ALL` is new/boxed; `OPEN` and `DISPLAY` are open-box and display units (sold as Outlet online, never counted as ATS). |
 | Brand | brand name (from the NetSuite catalog when it has the model, else the ePASS brand table) |
 | Description | model description |
 | ProductCode | ePASS product code (`REF`, `DW`, `RNG` …) |

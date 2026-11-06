@@ -1513,6 +1513,12 @@
   //   ?outlet=1                          -> open box & display
   //   ?brand=Bosch                       -> brand filter (catalog spelling, case-insensitive)
   //   ?q=WM4000HWA                       -> search box prefilled
+  //   ?cart=TOKEN                        -> start a cart from the website (11/9): the
+  //      site POSTed its list to /api/shop/handoff and got this token; we read
+  //      the list back, fill the cart (new before open box) and open it.
+  //      Anything not in stock is named in the cart. The token rides along to
+  //      submit-order so the handoff row records the order it became.
+  //   ?add=SRT486G,DEC2450R*2            -> same thing from a plain link (texts, ads).
   // Applied once, after the first catalog render; the URL is left as-is so a
   // texted link ("shop.wilsonappliance.com/shop.html?dept=Laundry") stays shareable.
   let deepLinkApplied = false;
@@ -1522,6 +1528,8 @@
     const p = new URLSearchParams(location.search);
     const low = (s) => String(s || "").trim().toLowerCase();
     const dept = low(p.get("dept")), sub = low(p.get("sub")), brand = low(p.get("brand")), q = String(p.get("q") || "").trim();
+    if (p.get("cart")) { addFromHandoff(p.get("cart")); return; }
+    if (p.get("add")) { addFromLink(p.get("add")); return; }
     let sel = null;
     if (p.get("outlet")) {
       sel = { label: "Outlet — Open Box & Display", condition: "open" };
@@ -1544,6 +1552,45 @@
     const header = document.querySelector("header");
     target.style.scrollMarginTop = `${(header ? header.offsetHeight : 0) + 12}px`;
     requestAnimationFrame(() => target.scrollIntoView({ block: "start", behavior: "auto" }));
+  }
+
+  async function addFromHandoff(token) {
+    try {
+      const r = await fetch(`/api/shop/handoff/${encodeURIComponent(token)}`, { credentials: "same-origin" });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) { pageNotice(d.error || "That cart link has expired — pick the items again on the website."); return; }
+      state.handoffToken = token;
+      addFromLink((d.items || []).map((it) => `${it.model}${Number(it.qty) > 1 ? "*" + Number(it.qty) : ""}`).join(","));
+    } catch { pageNotice("We couldn't read that cart link. Pick the items again on the website or call 512-894-0907."); }
+  }
+  // A notice above the storefront (the cart's own notice line only exists
+  // while the cart has something in it).
+  function pageNotice(message) {
+    let el = $("linkNotice");
+    if (!el) { el = document.createElement("div"); el.id = "linkNotice"; el.className = "map-note"; el.style.cssText = "background:#fffbeb; border-color:#fde68a; color:#92400e;"; $("heroStrip").before(el); }
+    el.textContent = message;
+    el.scrollIntoView({ block: "start" });
+  }
+  // The website's "In stock, buy online" button lands here with model numbers.
+  function addFromLink(spec) {
+    const norm = (m) => String(m || "").toUpperCase().replace(/[^0-9A-Z]/g, "");
+    const wanted = String(spec).split(",").map((t) => t.trim()).filter(Boolean).map((t) => {
+      const m = t.match(/^(.*?)(?:\*(\d{1,2}))?$/); return { model: m[1].trim(), qty: Math.max(1, Math.min(10, Number(m[2] || 1))) };
+    }).filter((w) => w.model);
+    if (!wanted.length) return;
+    const items = state.catalog?.items || [];
+    const missing = [];
+    for (const w of wanted) {
+      const key = norm(w.model);
+      const units = items.filter((i) => norm(i.model) === key && !state.cart.itemIds.includes(i.id))
+        .sort((a, b) => (a.condition === "open") - (b.condition === "open"));
+      if (!units.length) { missing.push(w.model); continue; }
+      for (const u of units.slice(0, w.qty)) addToCart(u.id);
+      if (units.length < w.qty) missing.push(`${w.model} (only ${units.length} in stock)`);
+    }
+    const msg = missing.length ? `${missing.length === 1 ? "This one isn't" : "These aren't"} in stock right now — ${missing.join(", ")}. Call 512-894-0907 and we'll order it.` : "";
+    if (state.cart.itemIds.length) { openCart(); if (msg) alertLine(msg, { sticky: true }); }
+    else if (msg) pageNotice(msg);
   }
 
   function buildMega() {
@@ -2617,7 +2664,8 @@
           setupIntentId: state.checkout.setupIntentId,
           cart: cartPayload(),
           fulfillment: fulfillPayload(),
-          promo: state.promo?.code || ""
+          promo: state.promo?.code || "",
+          handoff: state.handoffToken || ""
         })
       });
       const data = await res.json();

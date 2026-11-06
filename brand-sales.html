@@ -151,8 +151,11 @@
         <div><span class="field-label">Sort by</span><select id="sortSel"><option value="revenue">Delivered revenue</option><option value="written">Units written</option><option value="units">Units delivered</option><option value="margin">Margin</option></select></div>
         <button class="action" id="runBtn">Run report</button>
         <button class="action secondary" id="csvBtn">Export CSV</button>
-        <button class="action secondary" id="detailBtn" title="Every delivered unit behind this report (and, if chosen, the open written lines) as one CSV">Export detail CSV</button>
-        <select id="detailRecords" title="Which rows the detail CSV carries"><option value="delivered">Delivered only</option><option value="all">Delivered + written (not delivered)</option></select>
+        <span style="display: inline-flex; align-items: center; gap: 6px; border: 1px dashed #c7d2cb; border-radius: 12px; padding: 4px 6px 4px 4px;" title="This only controls the rows in the detail CSV you export for suppliers. It does not filter the report above.">
+          <button class="action secondary" id="detailBtn" style="margin: 0;" title="Every delivered unit behind this report (and, if chosen, the open written lines) as one CSV">Export detail CSV</button>
+          <span style="font-size: 11.5px; font-weight: 700; color: #6b7280; text-transform: uppercase; letter-spacing: .04em; white-space: nowrap;">rows:</span>
+          <select id="detailRecords" title="Which rows the detail CSV carries — export only, not a report filter"><option value="delivered">Delivered units only</option><option value="all">Delivered + open written lines</option></select>
+        </span>
         <button class="action secondary" id="foldAll">Expand all</button>
       </div>
       <div class="coverage-line" id="coverageLine"></div>

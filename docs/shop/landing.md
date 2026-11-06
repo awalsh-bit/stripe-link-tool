@@ -13,7 +13,7 @@ The catalog page carries the whole assortment, so it is slow to first paint. The
 | Hero ("Shop what's in stock" / "Schedule service") | /shop.html · service.wilsonappliance.com/applianceservice.html |
 | Stat strip (live model count · "days, not weeks") | `/api/shop/home-stats` |
 | Five one-click journeys: Outlet · Schedule service · Sub-Zero & Wolf · Visit the showroom · Call or text | /shop.html?outlet=1 · service host · service host /subzero · Google Maps · tel: |
-| Shop by department (6 photo tiles with live model counts) | /shop.html?dept=Refrigeration … Outdoor |
+| Shop by department (6 photo tiles with live model counts, website order: Cooking, Coffee, Refrigeration, Kitchen Cleanup, Laundry, Outdoor) | /shop.html?dept=Cooking … Outdoor |
 | "What our neighbors take home" (top 4 sellers in stock, MAP-advertisable price only) | /shop.html?q=MODEL |
 | Showroom (copy, address, photo mosaic) | /subzero and department sub-links |
 | Delivery / Service / Builders pillars | /shop.html · service · tel: |
@@ -27,7 +27,7 @@ shop.html now reads the query string once, after the first catalog render:
 | Parameter | Example | Effect |
 |---|---|---|
 | `dept` | `?dept=Cooking` | Department (same labels as the shop menu) |
-| `dept` + `sub` | `?dept=Cooking&sub=Gas+Ranges` | One of that department's sub-options |
+| `dept` + `sub` | `?dept=Cooking&sub=Ranges` | One of that department's categories (website wording: Ranges, Cooktops, Wall Ovens, Built-in Refrigerators, Wine Storage, Dishwashers, Washers…) |
 | `outlet` | `?outlet=1` | Open box & display |
 | `brand` | `?brand=Bosch` | Brand filter (case-insensitive, catalog spelling) |
 | `q` | `?q=SHX78CM5N` | Search box prefilled |

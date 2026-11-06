@@ -732,6 +732,7 @@
       <span class="cb-count" id="crumbCount"></span>
       <button type="button" class="cb-clear" id="crumbClear" aria-label="Clear category">✕</button>
     </div>
+    <div class="deal-row" id="typeRow" style="margin: -6px 0 14px;"></div>
 
     <div class="grid" id="itemGrid"></div>
     <div class="show-more" id="showMore" style="display:none;"><button type="button" class="btn ghost" id="showMoreBtn">Show more</button><span class="muted" id="showMoreNote"></span></div>
@@ -971,7 +972,7 @@
     // sort "best" = brand units sold in the last 12 months (server `brandSold`),
     // then the model's own `sold`, ties in merchandised order; deal = one of
     // the category deal chips or "".
-    filter: { search: "", brand: "", selection: null, deal: "", sort: "best" },
+    filter: { search: "", brand: "", selection: null, types: new Set(), deal: "", sort: "best" },
     bestSellers: new Set(),
     checkout: { open: false, stripe: null, elements: null, setupIntentId: "" },
     pendingAddonItem: null
@@ -1155,10 +1156,15 @@
   }
 
   // Does an item satisfy a selection? cats / products / condition compose.
-  function selectionMatches(sel, i) {
+  function selectionMatches(sel, i, { ignoreTypes = false } = {}) {
     if (sel.cats?.length && !sel.cats.includes(i.category)) return false;
     if (sel.products?.length && !sel.products.includes(i.product)) return false;
     if (sel.condition && i.condition !== sel.condition) return false;
+    // Type chips (website convention): several checked = any of them.
+    if (!ignoreTypes && sel.types?.length && state.filter.types?.size) {
+      const on = sel.types.filter((t) => state.filter.types.has(t.label));
+      if (on.length && !on.some((t) => t.products.includes(i.product))) return false;
+    }
     return true;
   }
 
@@ -1166,6 +1172,7 @@
   // drawer tiers). Renders the breadcrumb pill and closes any open surface.
   function applySelection(sel) {
     state.filter.selection = sel;
+    state.filter.types = new Set();
     buildFilters();
     renderGrid();
     renderCrumb();
@@ -1176,11 +1183,23 @@
   function renderCrumb() {
     const sel = state.filter.selection;
     const bar = $("crumbBar");
-    if (!sel) { bar.classList.remove("show"); return; }
+    const typeRow = $("typeRow");
+    if (!sel) { bar.classList.remove("show"); typeRow.classList.remove("show"); typeRow.innerHTML = ""; return; }
     $("crumbLabel").textContent = sel.label;
-    const n = visibleItems().length;
-    $("crumbCount").textContent = `${n} item${n === 1 ? "" : "s"}`;
+    $("crumbCount").textContent = ""; // never show counts (website convention)
     bar.classList.add("show");
+    // Type filter: the website's per-category Types, as chips, in its order.
+    // Only shown when two or more Types have stock; checking several = any of them.
+    const items = state.catalog?.items || [];
+    const live = (sel.types || []).filter((t) => items.some((i) => selectionMatches(sel, i, { ignoreTypes: true }) && t.products.includes(i.product)));
+    if (live.length < 2) { typeRow.classList.remove("show"); typeRow.innerHTML = ""; return; }
+    typeRow.innerHTML = `<span class="deal-lead">Type</span>` + live.map((t) => `<button type="button" class="deal-chip${state.filter.types.has(t.label) ? " active" : ""}" data-type="${esc(t.label)}">${esc(t.label)}</button>`).join("");
+    typeRow.classList.add("show");
+    typeRow.querySelectorAll("[data-type]").forEach((b) => b.addEventListener("click", () => {
+      const l = b.getAttribute("data-type");
+      if (state.filter.types.has(l)) state.filter.types.delete(l); else state.filter.types.add(l);
+      renderGrid(); renderCrumb();
+    }));
   }
   $("crumbClear").addEventListener("click", () => applySelection(null));
 
@@ -1373,62 +1392,85 @@
     grill: '<svg viewBox="0 0 24 24"><path d="M5 8h14a7 7 0 01-14 0z"/><path d="M12 15v3M8 21l2.5-4M16 21l-2.5-4"/></svg>'
   };
 
+  // Departments, categories and Types in the SAME order and wording as
+  // wilsonappliance.com (Andrew 11/10, docs/shop/catalog-conventions.md) so
+  // coffee is in the same place on both sides. Each sub is a website
+  // category; `types` are that category's Type filter (chips over the grid,
+  // any-of, shown only when two or more have stock). Codes are ePASS product
+  // codes; a category or type with nothing in stock simply doesn't appear.
   const MENU_TREE = [
-    { label: "Laundry", icon: "laundry", cats: ["Lau", "Lau Acc"], subs: [
-      { label: "All Laundry", cats: ["Lau"] },
-      { label: "Front Load Washers", products: ["WASHF"] },
-      { label: "Top Load Washers", products: ["WASHT"] },
-      { label: "Electric Dryers", products: ["DRELE"] },
-      { label: "Gas Dryers", products: ["DRGAS"] },
-      { label: "Laundry Accessories", cats: ["Lau Acc"] }
+    { label: "Cooking", icon: "range", cats: ["Range", "Oven", "CT", "Steam Ov", "MW", "Vent", "Cook Acc"], subs: [
+      { label: "All Cooking", cats: ["Range", "Oven", "CT", "Steam Ov", "MW", "Vent"] },
+      { label: "Ranges", cats: ["Range"], types: [
+        { label: "Gas", products: ["RAGAS", "RAPRO"] }, { label: "Dual Fuel", products: ["RADF"] }, { label: "Electric", products: ["RAELE"] }, { label: "Induction", products: ["RAIND"] }
+      ] },
+      { label: "Rangetops", products: ["RTGAS", "RTPRO", "RTIND", "RTELE"], types: [
+        { label: "Gas", products: ["RTGAS", "RTPRO"] }, { label: "Induction", products: ["RTIND"] }, { label: "Electric", products: ["RTELE"] }
+      ] },
+      { label: "Cooktops", cats: ["CT"], types: [
+        { label: "Gas", products: ["CTGAS", "CTPRO"] }, { label: "Induction", products: ["CTIND"] }, { label: "Electric", products: ["CTELE"] }
+      ] },
+      { label: "Wall Ovens", cats: ["Oven", "Steam Ov"], types: [
+        { label: "Steam", products: ["OVSTE"] }, { label: "Speed", products: ["OVSPE"] }
+      ] },
+      { label: "Microwaves", cats: ["MW"], types: [
+        { label: "Over-the-Range", products: ["MWOTR"] }, { label: "Countertop", products: ["MW"] }, { label: "Built-In", products: ["MWBI"] }, { label: "Drawer", products: ["MWDR"] }, { label: "Convection", products: ["MWCON"] }
+      ] },
+      { label: "Ventilation", cats: ["Vent"], types: [
+        { label: "Wall Hood", products: ["VHOOD"] }, { label: "Hood Liner / Insert", products: ["VHINS"] }, { label: "Island Hood", products: ["VHISL"] }, { label: "Downdraft", products: ["VHDD"] }
+      ] },
+      { label: "Warming Drawers", products: ["WDRAW", "WARM"] },
+      { label: "Cooking Accessories", cats: ["Cook Acc"] }
+    ]},
+    { label: "Coffee", icon: "range", cats: ["Coffee"], subs: [
+      { label: "Coffee", cats: ["Coffee"] }
     ]},
     { label: "Refrigeration", icon: "fridge", cats: ["Ref", "IM", "Ref Acc"], subs: [
-      { label: "All Refrigeration", cats: ["Ref"] },
-      { label: "French Door", products: ["REFRE", "REBFD"] },
-      { label: "Side-by-Side", products: ["RESXS"] },
-      { label: "Top Freezer", products: ["RETOP"] },
-      { label: "Built-In & Columns", products: ["REBIF", "REBIW", "REBIB", "REALL"] },
-      { label: "Undercounter & Drawers", products: ["REUC", "REDRA"] },
-      { label: "Wine & Beverage", products: ["REFWI"] },
+      { label: "All Refrigeration", cats: ["Ref", "IM"] },
+      { label: "Freestanding Refrigerators", products: ["REFRE", "REBFD", "RESXS", "RETOP", "REALL"], types: [
+        { label: "French Door", products: ["REFRE"] }, { label: "Side-by-Side", products: ["RESXS"] }, { label: "Bottom Freezer", products: ["REBFD"] }, { label: "Top Freezer", products: ["RETOP"] }, { label: "All Refrigerator", products: ["REALL"] }
+      ] },
+      { label: "Built-in Refrigerators", products: ["REBIF", "REBIW", "REBIB"] },
+      { label: "Freezers", products: ["FRZUP", "FRZCH", "FRZBI", "FRZUC"] },
+      { label: "Refrigerator & Freezer Drawers", products: ["REDRA"] },
+      { label: "Undercounter Refrigerators", products: ["REUC"] },
+      { label: "Beer Tappers", products: ["KEG", "REKEG"] },
+      { label: "Wine Storage", products: ["REFWI"] },
       { label: "Ice Makers", cats: ["IM"] },
       { label: "Refrigeration Accessories", cats: ["Ref Acc"] }
     ]},
-    { label: "Dishwashers", icon: "dish", cats: ["DW", "DW Acc"], subs: [
-      { label: "All Dishwashers", cats: ["DW"] },
-      { label: "Dishwasher Drawers", products: ["DWDRA"] },
+    { label: "Kitchen Cleanup", icon: "dish", cats: ["DW", "DW Acc"], subs: [
+      { label: "All Kitchen Cleanup", cats: ["DW"] },
+      { label: "Dishwashers", products: ["DW"] },
+      { label: "Drawer Dishwashers", products: ["DWDRA"] },
+      { label: "Trash Compactors", products: ["COMPA", "TRASH"] },
+      { label: "Disposals", products: ["DISP", "DISPO"] },
       { label: "Dishwasher Accessories", cats: ["DW Acc"] }
     ]},
-    { label: "Cooking", icon: "range", cats: ["Range", "Oven", "CT", "Steam Ov", "MW", "Coffee", "Cook Acc"], subs: [
-      { label: "All Cooking", cats: ["Range", "Oven", "CT", "Steam Ov", "MW", "Coffee"] },
-      { label: "Gas Ranges", products: ["RAGAS", "RAPRO"] },
-      { label: "Induction Ranges", products: ["RAIND"] },
-      { label: "Dual Fuel Ranges", products: ["RADF"] },
-      { label: "Electric Ranges", products: ["RAELE"] },
-      { label: "Wall Ovens", cats: ["Oven"] },
-      { label: "Steam Ovens", cats: ["Steam Ov"] },
-      { label: "Cooktops", cats: ["CT"] },
-      { label: "Microwaves", cats: ["MW"] },
-      { label: "Coffee Systems", cats: ["Coffee"] },
-      { label: "Cooking Accessories", cats: ["Cook Acc"] }
-    ]},
-    { label: "Ventilation", icon: "vent", cats: ["Vent", "Vent Acc"], subs: [
-      { label: "All Ventilation", cats: ["Vent"] },
-      { label: "Wall & Chimney Hoods", products: ["VHOOD"] },
-      { label: "Hood Inserts", products: ["VHINS"] },
-      { label: "Island Hoods", products: ["VHISL"] },
-      { label: "Downdrafts", products: ["VHDD"] },
-      { label: "Ventilation Accessories", cats: ["Vent Acc"] }
+    { label: "Laundry", icon: "laundry", cats: ["Lau", "Lau Acc"], subs: [
+      { label: "All Laundry", cats: ["Lau"] },
+      { label: "Washers", products: ["WASHT", "WASHF"], types: [
+        { label: "Top Load", products: ["WASHT"] }, { label: "Front Load", products: ["WASHF"] }
+      ] },
+      { label: "Dryers", products: ["DRELE", "DRGAS"], types: [
+        { label: "Electric", products: ["DRELE"] }, { label: "Gas", products: ["DRGAS"] }
+      ] },
+      { label: "Stacked", products: ["LAUST", "STACK"] },
+      { label: "All-in-One", products: ["LAUAI", "WDCOM"] },
+      { label: "Laundry Accessories", cats: ["Lau Acc"] }
     ]},
     { label: "Outdoor", icon: "grill", cats: ["Outdoor", "Out Acc"], subs: [
       { label: "All Outdoor", cats: ["Outdoor"] },
-      { label: "Pizza Ovens", products: ["PIZZA"] },
-      { label: "Grills", products: ["GROUT"] },
+      { label: "Outdoor Cooking", products: ["GROUT", "PIZZA", "GRSID", "GRGRI", "GRSMO"], types: [
+        { label: "Grills", products: ["GROUT"] }, { label: "Side Burners & Modules", products: ["GRSID"] }, { label: "Griddles", products: ["GRGRI"] }, { label: "Pizza Ovens", products: ["PIZZA"] }, { label: "Smokers", products: ["GRSMO"] }
+      ] },
+      { label: "Outdoor Refrigeration", products: ["REOUT"] },
       { label: "Outdoor Accessories", cats: ["Out Acc"] }
     ]}
   ];
 
   function countForSelection(sel) {
-    return (state.catalog?.items || []).filter((i) => selectionMatches(sel, i)).length;
+    return (state.catalog?.items || []).filter((i) => selectionMatches(sel, i, { ignoreTypes: true })).length;
   }
 
   function openMenu() {
@@ -1474,8 +1516,8 @@
       const row = document.createElement("button");
       row.type = "button";
       row.className = "menu-sub-row";
-      row.innerHTML = `<span>${esc(sub.label)}</span><span class="cnt">${count}</span>`;
-      row.addEventListener("click", () => applySelection({ label: `${tier.label} › ${sub.label}`, cats: sub.cats, products: sub.products }));
+      row.innerHTML = `<span>${esc(sub.label)}</span>`; // no counts anywhere (website convention)
+      row.addEventListener("click", () => applySelection({ label: `${tier.label} › ${sub.label}`, cats: sub.cats, products: sub.products, types: sub.types }));
       list.appendChild(row);
     }
     $("menuTrack").classList.add("sub");
@@ -1540,7 +1582,7 @@
       const tier = MENU_TREE.find((t) => low(t.label) === dept);
       if (tier) {
         const s = sub ? tier.subs.find((x) => low(x.label) === sub) : null;
-        sel = s ? { label: `${tier.label} › ${s.label}`, cats: s.cats, products: s.products } : { label: tier.label, cats: tier.cats };
+        sel = s ? { label: `${tier.label} › ${s.label}`, cats: s.cats, products: s.products, types: s.types } : { label: tier.label, cats: tier.cats };
       }
     }
     if (brand) {
@@ -1637,7 +1679,7 @@
         link.type = "button";
         link.className = "mega-link";
         link.textContent = sub.label;
-        link.addEventListener("click", () => applySelection({ label: `${tier.label} › ${sub.label}`, cats: sub.cats, products: sub.products }));
+        link.addEventListener("click", () => applySelection({ label: `${tier.label} › ${sub.label}`, cats: sub.cats, products: sub.products, types: sub.types }));
         col.appendChild(link);
       }
       cols.appendChild(col);

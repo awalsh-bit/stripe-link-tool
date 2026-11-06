@@ -305,11 +305,12 @@
         <a class="link-arrow" href="/shop.html">See everything</a>
       </div>
       <div class="dgrid" id="deptGrid">
-        <a class="dept" href="/shop.html?dept=Refrigeration" data-dept="Refrigeration"><img src="showroom/refrigeration.jpg" alt="" loading="lazy" decoding="async"><div class="cap"><div><h3 class="serif">Refrigeration</h3><small></small></div><span class="arrow">→</span></div></a>
+        <!-- Same departments, same order as wilsonappliance.com (11/10). -->
         <a class="dept" href="/shop.html?dept=Cooking" data-dept="Cooking"><img src="showroom/ranges.jpg" alt="" loading="lazy" decoding="async"><div class="cap"><div><h3 class="serif">Cooking</h3><small></small></div><span class="arrow">→</span></div></a>
-        <a class="dept" href="/shop.html?dept=Dishwashers" data-dept="Dishwashers"><img src="showroom/dishwashers.jpg" alt="" loading="lazy" decoding="async"><div class="cap"><div><h3 class="serif">Dishwashers</h3><small></small></div><span class="arrow">→</span></div></a>
+        <a class="dept" href="/shop.html?dept=Coffee" data-dept="Coffee"><img src="showroom/wall-ovens.jpg" alt="" loading="lazy" decoding="async"><div class="cap"><div><h3 class="serif">Coffee</h3><small></small></div><span class="arrow">→</span></div></a>
+        <a class="dept" href="/shop.html?dept=Refrigeration" data-dept="Refrigeration"><img src="showroom/refrigeration.jpg" alt="" loading="lazy" decoding="async"><div class="cap"><div><h3 class="serif">Refrigeration</h3><small></small></div><span class="arrow">→</span></div></a>
+        <a class="dept" href="/shop.html?dept=Kitchen+Cleanup" data-dept="Kitchen Cleanup"><img src="showroom/dishwashers.jpg" alt="" loading="lazy" decoding="async"><div class="cap"><div><h3 class="serif">Kitchen Cleanup</h3><small></small></div><span class="arrow">→</span></div></a>
         <a class="dept" href="/shop.html?dept=Laundry" data-dept="Laundry"><img src="showroom/laundry.jpg" alt="" loading="lazy" decoding="async"><div class="cap"><div><h3 class="serif">Laundry</h3><small></small></div><span class="arrow">→</span></div></a>
-        <a class="dept" href="/shop.html?dept=Ventilation" data-dept="Ventilation"><img src="showroom/ventilation.jpg" alt="" loading="lazy" decoding="async"><div class="cap"><div><h3 class="serif">Ventilation</h3><small></small></div><span class="arrow">→</span></div></a>
         <a class="dept" href="/shop.html?dept=Outdoor" data-dept="Outdoor"><img src="showroom/outdoor.jpg" alt="" loading="lazy" decoding="async"><div class="cap"><div><h3 class="serif">Outdoor</h3><small></small></div><span class="arrow">→</span></div></a>
       </div>
     </div>
@@ -354,10 +355,10 @@
       </div>
       <div class="mosaic" aria-label="Showroom photos">
         <a class="big" href="https://service.wilsonappliance.com/subzero"><img src="showroom/live-kitchen.jpg" alt="The live Sub-Zero, Wolf and Cove kitchen" loading="lazy" decoding="async"><span class="tag">Live kitchen</span></a>
-        <a href="/shop.html?dept=Cooking&sub=Gas+Ranges"><img src="showroom/wolf-range.jpg" alt="Wolf range" loading="lazy" decoding="async"><span class="tag">Ranges</span></a>
-        <a href="/shop.html?dept=Refrigeration&sub=Built-In+%26+Columns"><img src="showroom/columns.jpg" alt="Two Sub-Zero PRO refrigerators side by side" loading="lazy" decoding="async"><span class="tag">Pro refrigeration</span></a>
+        <a href="/shop.html?dept=Cooking&sub=Ranges"><img src="showroom/wolf-range.jpg" alt="Wolf range" loading="lazy" decoding="async"><span class="tag">Ranges</span></a>
+        <a href="/shop.html?dept=Refrigeration&sub=Built-in+Refrigerators"><img src="showroom/columns.jpg" alt="Two Sub-Zero PRO refrigerators side by side" loading="lazy" decoding="async"><span class="tag">Pro refrigeration</span></a>
         <a class="wide" href="/shop.html?dept=Cooking&sub=Wall+Ovens"><img src="showroom/wolf-wall.jpg" alt="Wall ovens and range wall" loading="lazy" decoding="async"><span class="tag">Wall ovens</span></a>
-        <a href="/shop.html?dept=Refrigeration&sub=Wine+%26+Beverage"><img src="showroom/wine.jpg" alt="Wine storage" loading="lazy" decoding="async"><span class="tag">Wine</span></a>
+        <a href="/shop.html?dept=Refrigeration&sub=Wine+Storage"><img src="showroom/wine.jpg" alt="Wine storage" loading="lazy" decoding="async"><span class="tag">Wine</span></a>
       </div>
     </div>
   </section>
@@ -399,8 +400,9 @@
         <ul>
           <li><a href="/shop.html">Everything in stock</a></li>
           <li><a href="/shop.html?outlet=1">Outlet — open box &amp; display</a></li>
-          <li><a href="/shop.html?dept=Refrigeration">Refrigeration</a></li>
           <li><a href="/shop.html?dept=Cooking">Cooking</a></li>
+          <li><a href="/shop.html?dept=Refrigeration">Refrigeration</a></li>
+          <li><a href="/shop.html?dept=Kitchen+Cleanup">Kitchen Cleanup</a></li>
           <li><a href="/shop.html?dept=Laundry">Laundry</a></li>
         </ul>
       </div>
@@ -441,12 +443,12 @@
       // Department tiles count models by the same category codes shop.html
       // uses for its menu (MENU_TREE), so the tile and the page it opens agree.
       const DEPT_CATS = {
-        Refrigeration: ["Ref", "IM", "Ref Acc"],
-        Cooking: ["Range", "Oven", "CT", "Steam Ov", "MW", "Coffee", "Cook Acc"],
-        Dishwashers: ["DW", "DW Acc"],
-        Laundry: ["Lau", "Lau Acc"],
-        Ventilation: ["Vent", "Vent Acc"],
-        Outdoor: ["Outdoor", "Out Acc"]
+        Cooking: ["Range", "Oven", "CT", "Steam Ov", "MW", "Vent"],
+        Coffee: ["Coffee"],
+        Refrigeration: ["Ref", "IM"],
+        "Kitchen Cleanup": ["DW"],
+        Laundry: ["Lau"],
+        Outdoor: ["Outdoor"]
       };
       const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
       const money = (n) => "$" + Math.round(Number(n)).toLocaleString();

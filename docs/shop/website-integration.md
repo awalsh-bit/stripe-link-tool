@@ -44,6 +44,10 @@ How to read each model — three states, all with stock:
 
 Never in this response: unit ids, serials, cost, location, or anything about a customer.
 
+### 1b. Everything in stock, in one call — `GET /api/shop/stock/in-stock`
+
+For an "Availability → In Stock" filter the site needs the whole list, not 50 at a time. This returns every model number with sealed stock sellable online right now — no prices, no counts — as `{ asOf, count, models: ["WM4000HWA", …] }`. Same origins as the stock lookup, no rate limit (it's served from a precomputed snapshot), cacheable for two minutes; the list changes at most every 15 minutes with the ePASS feed. Match on the model number with spacing, dashes and case removed. `warming: true` with an empty list means the server just restarted and hasn't built its first snapshot yet (under a minute); treat it as "unknown," not "nothing in stock."
+
 ## 2. Hand a cart to the shop — `POST https://shop.wilsonappliance.com/api/shop/handoff`
 
 This is the way to do it from the website's own cart. POST the shopping list, get a token and a URL, send the shopper there:
@@ -67,6 +71,30 @@ Why a token rather than a long URL: the list and its options never live in an ad
 **Also fine for texts and ads:** `shop.html?add=MODEL,MODEL*2` builds a cart straight from a plain link (the `addUrl` in the stock lookup). Same behaviour, no record.
 
 Also available from earlier: `?dept=`, `?sub=`, `?brand=`, `?q=` deep links (see landing.md).
+
+## 3. Quote request → DIBS — `POST https://shop.wilsonappliance.com/api/shop/quote-request`
+
+For the website's own quote cart: models that aren't in stock (ordered), special orders, or a shopper whose ZIP is outside the delivery area. Same CORS/origins as above; 20 requests per hour per address.
+
+```
+POST /api/shop/quote-request        Content-Type: application/json
+{ "customer": { "firstName": "Pat", "lastName": "Lee", "email": "pat@example.com", "phone": "512-555-1212",
+                "zip": "78666", "city": "San Marcos", "address": "", "contactMethod": "Text" },
+  "items": [ { "model": "PRD364WDHU", "qty": 1, "color": "Stainless", "notes": "" } ],
+  "notes": "Kitchen remodel, need it by January",
+  "reason": "out_of_area",            // out_of_stock · out_of_area · special_order · other
+  "source": "website", "ref": "quote-91c" }
+
+200 → { "ok": true, "reference": "5bzDrClUXXYQvgIU", "inArea": false,
+        "items": [ { "model": "PRD364WDHU", "qty": 1, "brand": "Thermador", "description": "…",
+                     "inStock": false, "available": 0, "inquireOnly": false } ] }
+```
+
+Required: first and last name, a 10-digit phone, a valid email, a 5-digit ZIP, at least one model (up to 25 lines, 20 each). `contactMethod` is `Text`, `Email` or `Phone Call`. Field errors come back as `400 { error }` in plain words the site can show.
+
+What happens in Agility: the request is recorded; every sales consultant gets a claimable **Website Quote Request** flag on their dashboard (first DIBS wins, the rest disappear — the same lead mechanics as a service client lead); an unclaimed **WEBSITE QUOTE** row appears on the Quote Follow-Up board with the items, reason and ZIP, and it becomes the claimer's when they take DIBS; the floor gets one email with reply-to set to the customer. It shows on the DIBS Lead Report like any other lead. **Nothing automated goes to the customer** — the consultant who claims it makes the contact — so the website should show its own thank-you ("a Wilson consultant will reach out within one business day") and may show the `reference`.
+
+The response tells the site what Agility knows about each line (brand, description, whether it's in stock after all, `inquireOnly` for Sub-Zero/Wolf/Cove/Gaggenau) in case it wants to say "good news — this one's in stock" before the consultant calls.
 
 ## What the website should not do
 

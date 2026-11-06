@@ -422,8 +422,10 @@ import {
   calibrateQuoteCustomerField,
   upsertServiceLeadQuote,
   setServiceLeadQuoteOwner,
-  listOpenQuotesForCustomer
+  listOpenQuotesForCustomer,
+  upsertWebsiteQuoteLead
 } from "./lib/quote-followup-postgres.js";
+import { createWebsiteQuoteRequest, getWebsiteQuoteRequest, listWebsiteQuoteRequests, setWebsiteQuoteClaim, WEBSITE_QUOTE_REASONS } from "./lib/website-quotes-postgres.js";
 import { parseCommissionGrid } from "./lib/commission-report.js";
 import {
   getBonusRules,
@@ -692,7 +694,7 @@ const FIRST_PARTY_HOSTS = new Set([DASHBOARD_HOST, ...DASHBOARD_HOST_ALIASES, SE
 // things cross-origin: the stock lookup and the cart handoff. Nothing else.
 const SHOP_PARTNER_ORIGINS = new Set(String(process.env.SHOP_PARTNER_ORIGINS || "wilsonappliance.com,www.wilsonappliance.com,wilsonappliancetestsite.netlify.app")
   .split(",").map((h) => h.trim().toLowerCase()).filter(Boolean));
-const SHOP_PARTNER_PATH = /^\/api\/shop\/(stock|handoff)(\/|$)/;
+const SHOP_PARTNER_PATH = /^\/api\/shop\/(stock|handoff|quote-request)(\/|$)/;
 app.use(cors((req, cb) => {
   const origin = req.headers.origin;
   if (!origin) return cb(null, { origin: true }); // same-origin / non-browser
@@ -807,6 +809,7 @@ const SHOP_PUBLIC_API_PREFIXES = [
   "/api/shop/home-stats",
   "/api/shop/stock", // the public website's "in stock at Wilson?" lookup (CORS-allowed partner origins)
   "/api/shop/handoff", // website -> shop cart handoff (POST makes a token, GET reads it)
+  "/api/shop/quote-request", // website quote cart -> DIBS lead
   "/api/config",
   "/api/promo/photo/", // card photos (Promo Item Builder uploads) on storefront tiles
   "/api/shop/zip-check",
@@ -7987,6 +7990,22 @@ app.post("/api/shop/password", async (req, res) => {
 //   GET /api/shop/stock?models=SRT486G,DEC2450R
 // CORS: SHOP_PARTNER_ORIGINS (set with the global cors delegate near the top).
 const shopStockLimiter = rateLimit("shop-stock", 120, 10 * 60 * 1000);
+// The whole in-stock list in one call (Gavin, 11/9: an "In Stock" filter
+// has to know every model in a category, not the 50 on screen). Model
+// numbers only — sealed ATS units, sellable online — no prices, no counts.
+// Served from the same precomputed landing-page stats, so it costs nothing
+// per call; cache two minutes.
+app.get("/api/shop/stock/in-stock", async (req, res) => {
+  try {
+    res.setHeader("Cache-Control", "public, max-age=120");
+    const stats = shopHomeStatsMemo || await getShopHomeStats().catch(() => null);
+    if (!stats || !Array.isArray(stats.inStockModels)) {
+      if (!shopCatalogCache) refreshShopCatalogInBackground();
+      return res.json({ asOf: null, count: 0, models: [], warming: true });
+    }
+    return res.json({ asOf: stats.asOf || null, count: stats.inStockModels.length, models: stats.inStockModels });
+  } catch (err) { console.error("In-stock list failed:", err.message); return res.status(500).json({ error: "Stock list unavailable." }); }
+});
 app.get("/api/shop/stock", shopStockLimiter, async (req, res) => {
   try {
     const raw = String(req.query.models || req.query.model || "");
@@ -8096,6 +8115,103 @@ app.get("/api/shop/handoff/:token", async (req, res) => {
   } catch (err) { console.error("Shop handoff read failed:", err.message); return res.status(500).json({ error: "Handoff unavailable." }); }
 });
 
+// ---------------------------------------------------------------------------
+// Website quote request → DIBS (Andrew 11/9). The website's quote cart —
+// models that must be ordered, or a shopper outside the delivery area —
+// posts the list and the customer's details. Agility records it, puts a
+// claimable "Website Quote Request" flag on every sales consultant's
+// dashboard (first DIBS wins, the rest vanish), adds an unclaimed row to the
+// Quote Follow-Up board, and emails the floor. The customer gets nothing
+// automated from here — the consultant who claims it makes the contact.
+//   POST /api/shop/quote-request
+//   { customer: { firstName, lastName, email, phone, zip, city?, address?, contactMethod? },
+//     items: [{ model, qty, notes? }], notes?, reason?, source?, ref? }
+//   -> { ok, reference, inArea, items: [{ model, brand, description, inStock, available, inquireOnly }] }
+const shopQuoteLimiter = rateLimit("shop-quote", 20, 60 * 60 * 1000);
+app.post("/api/shop/quote-request", shopQuoteLimiter, async (req, res) => {
+  try {
+    const str = (v, n = 200) => String(v ?? "").trim().slice(0, n);
+    const c = req.body?.customer && typeof req.body.customer === "object" ? req.body.customer : {};
+    const firstName = str(c.firstName, 80), lastName = str(c.lastName, 80);
+    const email = str(c.email, 160).toLowerCase(), phone = str(c.phone, 40), zip = str(c.zip, 10);
+    if (!firstName || !lastName) return res.status(400).json({ error: "Please enter your first and last name." });
+    if (phone.replace(/\D/g, "").length < 10) return res.status(400).json({ error: "Please enter a phone number we can reach you at." });
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return res.status(400).json({ error: "Please enter a valid email address." });
+    if (!/^\d{5}/.test(zip)) return res.status(400).json({ error: "Please enter your 5-digit ZIP code." });
+    const contactMethod = ["Text", "Email", "Phone Call"].includes(c.contactMethod) ? c.contactMethod : "";
+    const customer = { firstName, lastName, email, phone, zip, city: str(c.city, 80), address: str(c.address, 200), contactMethod };
+    const raw = Array.isArray(req.body?.items) ? req.body.items : [];
+    const wanted = [];
+    for (const it of raw.slice(0, 25)) {
+      const model = str(it?.model, 40);
+      if (!model) continue;
+      wanted.push({ model, qty: Math.max(1, Math.min(20, Math.round(Number(it?.qty) || 1))), notes: str(it?.notes, 200), color: str(it?.color, 60) });
+    }
+    if (!wanted.length) return res.status(400).json({ error: "Add at least one model to the quote." });
+    const notes = str(req.body?.notes, 2000);
+    const reason = WEBSITE_QUOTE_REASONS.has(String(req.body?.reason || "")) ? String(req.body.reason) : "other";
+    const source = str(req.body?.source, 40) || "website", ref = str(req.body?.ref, 120);
+    const inArea = shopZipAllowed(zip);
+
+    // What we know about each line, so the consultant isn't starting cold.
+    const catalog = await computeShopCatalog({ maxAgeMs: SHOP_CATALOG_CACHE_MS }).catch(() => ({ items: [] }));
+    const cat = await getCatalog().catch(() => null);
+    const blocked = shopBrandBlocker();
+    const byKey = new Map();
+    for (const i of catalog.items || []) { const k = normalizeModelKey(i.model); if (!k) continue; const m = byKey.get(k) || { n: 0, price: null, item: i }; if (i.condition === "new") m.n += 1; if (i.mapPublic && Number.isFinite(i.price)) m.price = m.price == null ? i.price : Math.min(m.price, i.price); byKey.set(k, m); }
+    const items = wanted.map((w) => {
+      const hit = byKey.get(normalizeModelKey(w.model));
+      const r = cat ? resolveModel(cat, w.model, {}) : null;
+      const brand = hit?.item?.brand || r?.brand || "";
+      return { ...w, brand, description: hit?.item?.description || r?.description || "", category: hit?.item?.category || r?.merchClass || "", inStock: (hit?.n || 0) > 0, available: hit?.n || 0, inquireOnly: blocked(brand, hit?.item?.brandCode, r?.supplier), listPrice: hit?.price ?? null };
+    });
+    const estimateTotal = items.reduce((t, i) => t + (Number.isFinite(i.listPrice) ? i.listPrice * i.qty : 0), 0);
+    const request = await createWebsiteQuoteRequest({ customer, items, notes, reason, zip, inArea, source, ref, ip: req.ip, estimateTotal });
+    const customerName = `${firstName} ${lastName}`.trim();
+    const reasonText = { out_of_stock: "not in stock — must be ordered", out_of_area: "outside the delivery area", special_order: "special order", other: "quote request" }[reason];
+    const itemsText = items.map((i) => `${i.qty}× ${i.model}${i.brand ? ` (${i.brand})` : ""}${i.color ? ` ${i.color}` : ""}${i.inquireOnly ? " — specialist" : i.inStock ? ` — ${i.available} in stock` : " — order"}`).join("; ");
+    const contactLine = `${phone} · ${email}${contactMethod ? ` · prefers ${contactMethod}` : ""} · ZIP ${zip}${inArea ? "" : " (outside delivery area)"}`;
+    recordAudit({ ip: req.ip, actorUserId: null, action: "website_quote_requested", targetUserId: null, detail: { token: request.token, customerName, phone, zip, inArea, reason, items: items.length, source } }).catch(() => {});
+
+    upsertWebsiteQuoteLead({ token: request.token, customerName, phone, itemsText: `${reasonText}: ${itemsText}${notes ? ` · "${notes.slice(0, 80)}"` : ""}`, estimateTotal, zip })
+      .catch((err) => console.error("Website quote → follow-up board failed:", err.message));
+
+    // DIBS fan-out to the sales floor: same audience as a service client lead.
+    (async () => {
+      try {
+        const [directory, notifyNames] = await Promise.all([listEmployeeDirectory(), listNotifyTitleNames()]);
+        const notifySet = new Set(notifyNames.map((n) => n.trim().toLowerCase()));
+        const consultants = directory.filter((e) => !e.archived && notifySet.has(String(e.commissionPlan || "").trim().toLowerCase()) && String(e.email || "").trim());
+        const title = `Website quote — ${customerName} (${items.length} item${items.length === 1 ? "" : "s"}${estimateTotal ? ` · ~$${Math.round(estimateTotal).toLocaleString()}` : ""})`;
+        const body = [`${reasonText[0].toUpperCase()}${reasonText.slice(1)}.`, `Wants: ${itemsText}.`, notes ? `Notes: "${notes}"` : "", `Contact: ${contactLine}. It's on the Quote Follow-Up board — first DIBS takes it.`].filter(Boolean).join(" ");
+        for (const consultant of consultants) {
+          await createPushedNotification({ severity: "green", typeLabel: "Website Quote Request", refId: `webquote:${request.token}`, claimable: true, title, body, audienceEmail: consultant.email, byEmail: "wilsonappliance.com", byName: "Website Quote" }).catch(() => {});
+        }
+        if (RESEND_API_KEY && consultants.length) {
+          const notifyAddr = (AGILITY_ALERTS_FROM.match(/<([^>]+)>/) || [null, AGILITY_ALERTS_FROM])[1];
+          const text = ["Sales Team,", "", "A website shopper has asked for a quote. View the details below and claim the lead on your Dash.", "", `Client: ${customerName}`, `Why a quote: ${reasonText}`, `Items: ${itemsText}`, notes ? `Notes: ${notes}` : null, `Contact: ${contactLine}`, "", `Claim the lead: https://${DASHBOARD_HOST}/dashboard.html`, `Board: https://${DASHBOARD_HOST}/quote-follow-up.html`].filter((l) => l !== null).join("\n");
+          Promise.allSettled(consultants.map((consultant) => fetch("https://api.resend.com/emails", {
+            method: "POST", headers: { "Authorization": `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" },
+            body: JSON.stringify({ from: `New Lead Available on Your Dash <${notifyAddr}>`, to: [consultant.email], reply_to: email, subject: `Website quote request — ${customerName}`, text })
+          }))).catch(() => {});
+        }
+      } catch (err) { console.error("Website quote fan-out failed:", err.message); }
+    })();
+
+    res.setHeader("Cache-Control", "no-store");
+    return res.json({ ok: true, reference: request.token, inArea, items: items.map(({ model, qty, brand, description, inStock, available, inquireOnly }) => ({ model, qty, brand, description, inStock, available, inquireOnly })) });
+  } catch (err) { console.error("Website quote request failed:", err.message); return res.status(500).json({ error: "We couldn't take that request — please call 512-894-0907." }); }
+});
+// Internal: the full request for whoever claimed it (and the board).
+app.get("/api/website-quotes", requirePagePermission("/quote-follow-up.html"), async (req, res) => {
+  try { return res.json({ requests: await listWebsiteQuoteRequests({ limit: Number(req.query.limit) || 200 }) }); }
+  catch (err) { return res.status(500).json({ error: "Unable to load website quotes." }); }
+});
+app.get("/api/website-quotes/:token", requirePagePermission("/quote-follow-up.html"), async (req, res) => {
+  try { const r = await getWebsiteQuoteRequest(req.params.token); if (!r) return res.status(404).json({ error: "Not found." }); return res.json(r); }
+  catch (err) { return res.status(500).json({ error: "Unable to load that request." }); }
+});
+
 // The landing page's headline numbers. Built from the catalog every time it
 // is rebuilt (never while a visitor waits), kept in memory and in Postgres
 // so a fresh deploy answers instantly with the last known numbers.
@@ -8117,7 +8233,10 @@ async function buildShopHomeStats(catalog) {
   const featured = [...models.values()].filter((m) => m.image && m.price != null).sort((a, b) => b.sold - a.sold || b.units - a.units).slice(0, 4)
     .map((m) => ({ model: m.model, brand: m.brand, description: m.description, image: m.image, price: m.price, units: m.units }));
   const units = [...models.values()].reduce((n, m) => n + m.units, 0);
-  return { models: models.size, units, byCategory, featured, paused: Boolean(catalog.paused), asOf: catalog.feedAt || null, computedAt: new Date().toISOString() };
+  // Every sealed-stock model number the website may sell (blocked brands
+  // never reach the catalog, so this is already "sellable online").
+  const inStockModels = [...models.values()].map((m) => String(m.model || "").trim()).filter(Boolean).sort();
+  return { models: models.size, units, byCategory, featured, inStockModels, paused: Boolean(catalog.paused), asOf: catalog.feedAt || null, computedAt: new Date().toISOString() };
 }
 function rememberShopHomeStats(catalog) {
   if (!catalog) return;
@@ -8128,9 +8247,10 @@ function rememberShopHomeStats(catalog) {
 app.get("/api/shop/home-stats", async (req, res) => {
   try {
     res.setHeader("Cache-Control", "public, max-age=120");
-    if (shopHomeStatsMemo) return res.json(shopHomeStatsMemo);
+    const slim = ({ inStockModels, ...rest }) => rest; // the model list has its own route
+    if (shopHomeStatsMemo) return res.json(slim(shopHomeStatsMemo));
     const saved = await getShopHomeStats().catch(() => null);
-    if (saved) { shopHomeStatsMemo = saved; return res.json(saved); }
+    if (saved) { shopHomeStatsMemo = saved; return res.json(slim(saved)); }
     // Nothing on file yet (first deploy): start a build for next time, answer now.
     if (!shopCatalogCache) refreshShopCatalogInBackground();
     return res.json({ models: null, units: null, byCategory: {}, featured: [], paused: false, asOf: null });
@@ -18087,6 +18207,18 @@ app.post("/api/notifications/:id/claim", requirePagePermission("/dashboard.html"
       })();
     }
 
+    // Website quote request claimed → board row + request row become the claimer's.
+    if (notification.refId.startsWith("webquote:")) {
+      const token = notification.refId.slice("webquote:".length);
+      (async () => {
+        try {
+          const entry = await findEmployeeDirectoryEntryByEmail(email);
+          if (entry?.code) await setServiceLeadQuoteOwner(token, entry.code);
+          await setWebsiteQuoteClaim(token, { email, name: req.authUser?.displayName || "" });
+        } catch (err) { console.error("Website quote owner stamp failed:", err.message); }
+      })();
+    }
+
     // Service client lead claimed → the follow-up board row becomes the
     // claimer's (their directory salesperson code).
     if (notification.refId.startsWith("svlead:")) {
@@ -18155,6 +18287,11 @@ app.post("/api/notifications/:id/unclaim", requirePagePermission("/dashboard.htm
       // Released back to the pool → the board row goes unassigned again.
       setServiceLeadQuoteOwner(notification.refId.slice("svlead:".length), "")
         .catch((err) => console.error("Service lead owner clear failed:", err.message));
+    }
+    if (notification.refId.startsWith("webquote:")) {
+      const token = notification.refId.slice("webquote:".length);
+      setServiceLeadQuoteOwner(token, "").catch((err) => console.error("Website quote owner clear failed:", err.message));
+      setWebsiteQuoteClaim(token, {}).catch(() => {});
     }
     recordAudit({
       ip: req.ip, actorUserId: req.authUser?.id || null,

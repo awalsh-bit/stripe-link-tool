@@ -488,11 +488,13 @@
               <span class="qf-client">${esc(g.customerName || "Unknown client")}</span>
               ${g.source === "service_lead"
                 ? `<span class="qf-lead-chip">SERVICE LEAD${g.spCode ? "" : " — unclaimed"}</span>`
-                : `<span class="qf-cust">#${esc(g.customerNumber || "—")}${g.zip ? " · " + esc(g.zip) : ""}</span>`}
+                : g.source === "website_quote"
+                  ? `<span class="qf-lead-chip">WEBSITE QUOTE${g.spCode ? "" : " — unclaimed"}${g.zip ? " · " + esc(g.zip) : ""}</span>`
+                  : `<span class="qf-cust">#${esc(g.customerNumber || "—")}${g.zip ? " · " + esc(g.zip) : ""}</span>`}
               ${g.projectKey ? `<span class="qf-proj-chip" title="Split off as its own project${g.projectBy ? " by " + esc(g.projectBy) : ""}">${esc(g.projectLabel || "Separate project")}</span>` : ""}
-              ${exec ? `<span class="qf-sp-chip">${esc(spLabel(g.spCode) || (g.source === "service_lead" ? "Unclaimed" : ""))}</span>` : ""}
+              ${exec ? `<span class="qf-sp-chip">${esc(spLabel(g.spCode) || (g.source === "service_lead" || g.source === "website_quote" ? "Unclaimed" : ""))}</span>` : ""}
             </div>
-            ${g.source === "service_lead" && g.leadNote ? `<div class="qf-note">${esc(g.leadNote)}${g.address ? " · " + esc(g.address) : ""}</div>` : ""}
+            ${(g.source === "service_lead" || g.source === "website_quote") && g.leadNote ? `<div class="qf-note">${esc(g.leadNote)}${g.address ? " · " + esc(g.address) : ""}</div>` : ""}
             ${g.otherSpConversion ? `<div class="qf-other">Heads up — this customer bought from <strong>${esc(spLabel(g.otherSpConversion.spCode))}</strong> (${esc(g.otherSpConversion.invoice)}, ${day(g.otherSpConversion.finishDate)}) after this quote.</div>` : ""}
             ${isFollowup && g.followupBy ? `<div class="qf-note">Moved to follow-up by ${esc(g.followupBy)} on ${when(g.followupAt)}.</div>` : ""}
             ${brandChips(g.brands)}

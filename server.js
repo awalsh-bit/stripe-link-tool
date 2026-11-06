@@ -8185,6 +8185,52 @@ const shopQuoteLimiter = rateLimit("shop-quote", 20, 60 * 60 * 1000);
 function shopServicesIndex(addons) {
   return addons?.byProduct || {};
 }
+// Website category / Type → servicesKey (Gavin 11/10): most of the site's
+// 24,000 models aren't in the ePASS model master, so a quote line often has
+// no key of its own. The site uses the model's key when there is one and
+// falls back to this table by "Category|Type" (names exactly as the site's
+// catalog-conventions.md spells them), then "Category" alone. Values are
+// ePASS product codes that have an entry in data/shop-addons.json; anything
+// that doesn't is dropped at response time so the site never gets a dead key.
+const SHOP_SERVICES_BY_CATEGORY = {
+  // Cooking
+  "Ranges": "RAGAS", "Ranges|Gas": "RAGAS", "Ranges|Dual Fuel": "RADF", "Ranges|Electric": "RAELE", "Ranges|Induction": "RAIND",
+  "Rangetops": "CTPRO", "Rangetops|Gas": "CTPRO", "Rangetops|Induction": "CTIND", "Rangetops|Electric": "CTELE",
+  "Cooktops": "CTGAS", "Cooktops|Gas": "CTGAS", "Cooktops|Induction": "CTIND", "Cooktops|Electric": "CTELE", "Cooktops|Downdraft Cooktop": "CTELE", "Cooktops|Module": "GRIND",
+  "Wall Ovens": "OVELE", "Wall Ovens|Single": "OVELE", "Wall Ovens|Double": "OVELE", "Wall Ovens|Steam": "OVSTE", "Wall Ovens|Speed": "OVSPE", "Wall Ovens|Combination": "OVMW", "Wall Ovens|Rotisserie": "OVELE",
+  "Microwaves": "MW", "Microwaves|Over-the-Range": "MWOTR", "Microwaves|Countertop": "MW", "Microwaves|Built-In": "MWBI", "Microwaves|Drawer": "MWDR", "Microwaves|Drop-Down Door": "MWBI", "Microwaves|Convection": "MWCON", "Microwaves|Standard": "MW",
+  "Ventilation": "VHOOD", "Ventilation|Wall Hood": "VHOOD", "Ventilation|Hood Liner / Insert": "VHINS", "Ventilation|Under-Cabinet": "VHOOD", "Ventilation|Island Hood": "VHISL", "Ventilation|Downdraft": "VHDD", "Ventilation|Ceiling Hood": "VHISL", "Ventilation|Remote Blower": "VHINS",
+  "Warming Drawers": "WD", "Warming Drawers|Warming Drawer": "WD", "Warming Drawers|Vacuum Seal Drawer": "VACSE",
+  // Coffee
+  "Coffee": "COFFE", "Coffee|Plumbed": "COFFE", "Coffee|Non-plumbed": "COFFE",
+  // Refrigeration
+  "Freestanding Refrigerators": "REFRE", "Freestanding Refrigerators|French Door": "REFRE", "Freestanding Refrigerators|Side-by-Side": "RESXS", "Freestanding Refrigerators|Bottom Freezer": "REFRE", "Freestanding Refrigerators|Top Freezer": "RETOP", "Freestanding Refrigerators|All Refrigerator": "REFRE", "Freestanding Refrigerators|Counter Depth": "REFRE",
+  "Built-in Refrigerators": "REBIF", "Built-in Refrigerators|Refrigerator": "REBIF", "Built-in Refrigerators|Beverage Column": "REALL",
+  "Built-in Refrigeration": "REBIF", "Built-in Refrigeration|Refrigerator": "REBIF", "Built-in Refrigeration|Beverage Column": "REALL",
+  "Freezers": "REFRE", "Freezers|All Freezer (Built-in)": "REALL", "Freezers|Upright": "REFRE", "Freezers|Chest": "REFRE", "Freezers|Undercounter": "REUC",
+  "Refrigerator & Freezer Drawers": "REDRA", "Refrigerator & Freezer Drawers|Refrigerator": "REDRA", "Refrigerator & Freezer Drawers|Freezer": "REDRA", "Refrigerator & Freezer Drawers|Combo Ref/Freezer": "REDRA",
+  "Undercounter Refrigerators": "REUC", "Undercounter Refrigerators|Refrigerator": "REUC", "Undercounter Refrigerators|Beverage Center": "REUC", "Undercounter Refrigerators|Combo Ref/Freezer": "REUC",
+  "Beer Tappers": "REUC", "Beer Tappers|Indoor": "REUC",
+  "Wine Storage": "REFWI", "Wine Storage|Undercounter": "REUC", "Wine Storage|Tall (built-in)": "REBIW", "Wine Storage|Tall (freestanding)": "REFWI", "Wine Storage|Wine & Refrigerator Combo": "REFWI",
+  "Ice Makers": "IMUC", "Ice Makers|Residential": "IMUC",
+  // Kitchen Cleanup (trash compactors and disposals have no install on file yet)
+  "Dishwashers": "DW", "Drawer Dishwashers": "DWDRA", "Professional Dishwashers": "DW",
+  // Laundry
+  "Washers": "WASHF", "Washers|Top Load": "WASHT", "Washers|Front Load": "WASHF", "Washers|All-in-One Combo": "WASHF",
+  "Dryers": "DRELE", "Dryers|Front Load Electric": "DRELE", "Dryers|Front Load Gas": "DRGAS", "Dryers|Top Load Electric": "DRELE", "Dryers|Top Load Gas": "DRGAS", "Dryers|Drying Cabinet": "DRELE", "Dryers|All-in-One Combo": "WASHF", "Dryers|Heat Pump": "DRELE",
+  "Stacked": "WASHF", "Stacked|Electric": "WASHF", "Stacked|Gas": "DRGAS", "Stacked|Heat Pump": "WASHF",
+  "All-in-One": "WASHF", "All-in-One|Heat Pump": "WASHF",
+  // Outdoor
+  "Outdoor Cooking": "GROUT", "Outdoor Cooking|Grills": "GROUT", "Outdoor Cooking|Side Burners & Modules": "GROUT", "Outdoor Cooking|Griddles": "GROUT", "Outdoor Cooking|Pizza Ovens": "PIZZA", "Outdoor Cooking|Kamado": "GROUT", "Outdoor Cooking|Smokers": "GROUT", "Outdoor Cooking|Warming Drawers": "WD",
+  "Outdoor Refrigeration": "REUC",
+  "Outdoor Storage": "CABSS"
+};
+function shopServicesByCategory(addons) {
+  const index = shopServicesIndex(addons);
+  const out = {};
+  for (const [name, key] of Object.entries(SHOP_SERVICES_BY_CATEGORY)) if (index[key]) out[name] = key;
+  return out;
+}
 app.get("/api/shop/services", async (req, res) => {
   try {
     const { addons } = await loadShopData();
@@ -8195,6 +8241,7 @@ app.get("/api/shop/services", async (req, res) => {
         connectors: (addons.connectors || []).map(pick),
         installs: (addons.installs || []).map(pick),
         byKey: shopServicesIndex(addons), // keyed by each model's servicesKey from the stock lookup
+        byCategory: shopServicesByCategory(addons), // "Category|Type" or "Category" (website names) -> servicesKey, for models with no key of their own
         requires: addons.requires || {}
       },
       delivery: { id: SHOP_DELIVERY_OFFER.id, name: SHOP_DELIVERY_OFFER.name, price: SHOP_DELIVERY_OFFER.price, regularPrice: SHOP_DELIVERY_OFFER.regularPrice, note: SHOP_DELIVERY_OFFER.note, scheduleNote: SHOP_SCHEDULE_NOTE },

@@ -1419,7 +1419,9 @@
       { label: "Ventilation", cats: ["Vent"], types: [
         { label: "Wall Hood", products: ["VHOOD"] }, { label: "Hood Liner / Insert", products: ["VHINS"] }, { label: "Island Hood", products: ["VHISL"] }, { label: "Downdraft", products: ["VHDD"] }
       ] },
-      { label: "Warming Drawers", products: ["WDRAW", "WARM"] },
+      { label: "Warming Drawers", products: ["WD", "VACSE"], types: [
+        { label: "Warming Drawer", products: ["WD"] }, { label: "Vacuum Seal Drawer", products: ["VACSE"] }
+      ] },
       { label: "Cooking Accessories", cats: ["Cook Acc"] }
     ]},
     { label: "Coffee", icon: "range", cats: ["Coffee"], subs: [
@@ -1427,10 +1429,12 @@
     ]},
     { label: "Refrigeration", icon: "fridge", cats: ["Ref", "IM", "Ref Acc"], subs: [
       { label: "All Refrigeration", cats: ["Ref", "IM"] },
-      { label: "Freestanding Refrigerators", products: ["REFRE", "REBFD", "RESXS", "RETOP", "REALL"], types: [
-        { label: "French Door", products: ["REFRE"] }, { label: "Side-by-Side", products: ["RESXS"] }, { label: "Bottom Freezer", products: ["REBFD"] }, { label: "Top Freezer", products: ["RETOP"] }, { label: "All Refrigerator", products: ["REALL"] }
+      { label: "Freestanding Refrigerators", products: ["REFRE", "RESXS", "RETOP"], types: [
+        { label: "French Door", products: ["REFRE"] }, { label: "Side-by-Side", products: ["RESXS"] }, { label: "Top Freezer", products: ["RETOP"] }
       ] },
-      { label: "Built-in Refrigerators", products: ["REBIF", "REBIW", "REBIB"] },
+      { label: "Built-in Refrigerators", products: ["REBIF", "REBFD", "REBIB", "REBIW", "REALL"], types: [
+        { label: "Refrigerator", products: ["REBIF", "REBFD", "REBIB", "REBIW"] }, { label: "Beverage Column", products: ["REALL"] }
+      ] },
       { label: "Freezers", products: ["FRZUP", "FRZCH", "FRZBI", "FRZUC"] },
       { label: "Refrigerator & Freezer Drawers", products: ["REDRA"] },
       { label: "Undercounter Refrigerators", products: ["REUC"] },
@@ -1461,8 +1465,8 @@
     ]},
     { label: "Outdoor", icon: "grill", cats: ["Outdoor", "Out Acc"], subs: [
       { label: "All Outdoor", cats: ["Outdoor"] },
-      { label: "Outdoor Cooking", products: ["GROUT", "PIZZA", "GRSID", "GRGRI", "GRSMO"], types: [
-        { label: "Grills", products: ["GROUT"] }, { label: "Side Burners & Modules", products: ["GRSID"] }, { label: "Griddles", products: ["GRGRI"] }, { label: "Pizza Ovens", products: ["PIZZA"] }, { label: "Smokers", products: ["GRSMO"] }
+      { label: "Outdoor Cooking", products: ["GROUT", "PIZZA", "GRSID", "GRIND", "GRGRI", "GRSMO"], types: [
+        { label: "Grills", products: ["GROUT"] }, { label: "Side Burners & Modules", products: ["GRSID", "GRIND"] }, { label: "Griddles", products: ["GRGRI"] }, { label: "Pizza Ovens", products: ["PIZZA"] }, { label: "Smokers", products: ["GRSMO"] }
       ] },
       { label: "Outdoor Refrigeration", products: ["REOUT"] },
       { label: "Outdoor Accessories", cats: ["Out Acc"] }

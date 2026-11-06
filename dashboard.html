@@ -1262,7 +1262,10 @@
         </div>
         <div id="datesList" style="display: grid; gap: 0;"></div>
       </div>
-      <div id="datesSheet" hidden style="position: fixed; inset: 0; z-index: 120; background: rgba(15, 23, 42, .45); display: flex; align-items: flex-start; justify-content: center; padding: 60px 14px 24px; overflow-y: auto;">
+      <!-- Shown/hidden by toggling display in JS: an inline display:flex
+           beats the hidden attribute, which is how this once popped up blank
+           on everyone's dashboard. -->
+      <div id="datesSheet" style="display: none; position: fixed; inset: 0; z-index: 120; background: rgba(15, 23, 42, .45); align-items: flex-start; justify-content: center; padding: 60px 14px 24px; overflow-y: auto;">
         <div style="background: #fff; border-radius: 16px; width: 100%; max-width: 520px; padding: 22px 22px 18px; box-shadow: 0 24px 60px rgba(0,0,0,.25);">
           <div style="display: flex; align-items: flex-start; gap: 12px;">
             <div style="flex: 1;">
@@ -3664,7 +3667,7 @@
         const d = await r.json().catch(() => ({}));
         if (!r.ok) { alert(d.error || "Couldn't open the sign-up sheet."); return; }
         renderSheet(d);
-        sheet.hidden = false;
+        sheet.style.display = "flex";
         if (!keep) setTimeout(() => input.focus(), 50);
       }
       document.getElementById("sheetForm").addEventListener("submit", async (e) => {
@@ -3678,9 +3681,10 @@
         input.value = ""; msg.textContent = "Added — thank you!";
         await openSheet(sheetId, true); load();
       });
-      document.getElementById("sheetClose").addEventListener("click", () => { sheet.hidden = true; });
-      sheet.addEventListener("click", (e) => { if (e.target === sheet) sheet.hidden = true; });
-      document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !sheet.hidden) sheet.hidden = true; });
+      const closeSheet = () => { sheet.style.display = "none"; };
+      document.getElementById("sheetClose").addEventListener("click", closeSheet);
+      sheet.addEventListener("click", (e) => { if (e.target === sheet) closeSheet(); });
+      document.addEventListener("keydown", (e) => { if (e.key === "Escape" && sheet.style.display !== "none") closeSheet(); });
       load();
     })();
 

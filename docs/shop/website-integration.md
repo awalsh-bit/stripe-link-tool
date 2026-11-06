@@ -62,15 +62,44 @@ POST /api/shop/handoff          Content-Type: application/json
         "items": [ { "model": "WM4000HWA", "qty": 1, "inStock": true, "available": 5, "inquireOnly": false }, … ] }
 ```
 
-Up to 20 lines, 10 of each; `zip`, `source` and `ref` are optional (`ref` is whatever the site wants to find the cart by later). Lines that can only be quoted (`inquireOnly`) are returned in `items` so the site can say so, but aren't put in the token; if nothing is sellable the call answers 400. Tokens last 7 days, can be opened more than once (a shopper may reload), and nothing in them is personal. CORS, rate limit and origins are the same as the stock lookup; 60 handoffs per 10 minutes per address.
+Up to 20 lines, 10 of each; `zip`, `source` and `ref` are optional (`ref` is whatever the site wants to find the cart by later). Tokens last 7 days, can be opened more than once (a shopper may reload), and nothing in them is personal. CORS, rate limit and origins are the same as the stock lookup; 60 handoffs per 10 minutes per address. Send `msrp` if you like; the shop ignores it — special-order lines never show a price.
 
-shop.html reads the token back, picks real sellable units for each model (new before open box), fills the cart and opens it. The shopper does ZIP, add-ons, delivery day, account and card there, and the order lands in Online Shop Orders like any other. If a model sold between the website and the click, the cart still opens with a notice naming it and the phone number. When the order is filed, the handoff row records the order number, so "did the website cart convert?" is a query, not a guess.
+**Send every cart line, in stock or not (11/9).** Each line in the response carries `inStock`, `available`, `inquireOnly` and `special: true` when it isn't on the floor. In the shop:
+
+- In-stock lines are picked as real units and sold exactly as before.
+- Lines that aren't in stock — and inquire-only brands (Sub-Zero, Wolf, Cove, Gaggenau) — go in the cart as **Special order** with "Request pricing" where the price would be. They get the same installation and connector prompts (when the product has them) and the same delivery-or-pickup choice as in-stock lines. Nothing about them is charged.
+- If the cart holds both kinds, checkout runs as today for the in-stock lines (card on file, team confirms) and the special-order lines leave as **one quote request that names the order number**. If the cart is special-order only, the button reads **Request pricing**: the shopper still signs in or registers (that profile is the customer on the quote), no card step, and the request is filed on its own.
+- Either way the quote goes to DIBS: a claimable flag on every consultant's dashboard and an unclaimed row on the Quote Follow-Up board, with the add-ons, delivery choice and the shopper's profile attached. The customer gets nothing automated; the consultant who claims it calls.
+
+One boundary stays: the shop's ZIP gate. A shopper outside the delivery area can't enter the shop at all, so **out-of-area quotes should still go through the quote request below**, not the handoff. Inside the area, send everything to the handoff.
+
+If a model sold between the website and the click, it simply arrives as a special-order line and the cart says so. When the order (or the quote) is filed, the handoff row records what it became, so "did the website cart convert?" is a query, not a guess.
 
 Why a token rather than a long URL: the list and its options never live in an address, the link can't be edited to add items, the website doesn't have to know how the shop names anything, and every cart that came from the website is on record with its source.
 
 **Also fine for texts and ads:** `shop.html?add=MODEL,MODEL*2` builds a cart straight from a plain link (the `addUrl` in the stock lookup). Same behaviour, no record.
 
 Also available from earlier: `?dept=`, `?sub=`, `?brand=`, `?q=` deep links (see landing.md).
+
+## 2b. Services & delivery prices for the website's own cart — `GET /api/shop/services`
+
+The website's cart (the quote path, and any address the Express shop won't sell to) should show the same installation, connector and delivery prices the shop does, regardless of ZIP. This returns them — Wilson's own prices, so they're public — from the same file the shop checkout uses:
+
+```json
+{ "addons": {
+    "connectors": [ { "id": "dryer-vent-kit", "name": "Dryer Vent Kit", "price": 27.95, "taxable": true }, … ],
+    "installs":   [ { "id": "washer-standard-install", "name": "Washer - Standard Install", "price": 99.95, "taxable": false, "durationMin": 60 }, … ],
+    "byKey":      { "WASHF": { "installs": ["washer-standard-install"], "connectors": ["washer-fill-hoses-5ft-stainless", "washer-fill-hoses-10ft-stainless"] }, … },
+    "requires":   { "washer-standard-install": [ ["washer-fill-hoses-5ft-stainless", "washer-fill-hoses-10ft-stainless"] ] } },
+  "delivery": { "name": "White Glove Delivery + Haul Away", "price": 49.95, "regularPrice": 89.95, "note": "…", "scheduleNote": "…" },
+  "pickup":   { "name": "Customer Pickup", "price": 0 },
+  "uncrate":  { "name": "Uncrate, set in place", "price": 0, "description": "…" },
+  "taxRate": 0.0825, "taxNote": "…", "areaNote": "…" }
+```
+
+How to use it: take a model's `servicesKey` from the stock lookup (also on every handoff line) and show `byKey[servicesKey].installs` and `.connectors` as the choices for that line. **Treat `servicesKey` as an opaque string** — don't parse it or assume it's a product code; Wilson will re-key the map (to NetSuite merchandise class/subclass) without the website changing. `requires[installId]` lists groups where exactly one connector must accompany that install (the shop pre-ticks the first and locks it). A line with no install gets the free "Uncrate, set in place." Add delivery or pickup once per cart. Cache it for ten minutes. Send the chosen add-ons on the quote request as `items[].addons: [{ id, name, qty, price }]` so the consultant sees exactly what was picked at what price, and `fulfillment: { "method": "delivery" | "pickup" }` for the cart's choice.
+
+Outside the delivery area the prices still show; the quote is simply flagged "outside delivery area" on your side and a consultant sorts the delivery out with the customer. (A sell-but-schedule-manually zone is a later round.)
 
 ## 3. Quote request → DIBS — `POST https://shop.wilsonappliance.com/api/shop/quote-request`
 

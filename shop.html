@@ -955,7 +955,7 @@
     fulfillOptions: null,
     // Blind scheduling: delivery needs a chosen day; pickup skips it.
     fulfillment: { method: "delivery", date: null },
-    cart: { itemIds: [], addonLines: [] }, // addonLines: [{ id, itemId, qty }] - every add-on belongs to the appliance it was picked for
+    cart: { itemIds: [], addonLines: [], special: [] }, // addonLines: [{ id, itemId, qty }] - every add-on belongs to the appliance it was picked for; special: [{ key, model, qty, brand, description, product, inquireOnly }] - lines that aren't in stock (website handoff, 11/9): not charged, quoted
     cartPrices: {}, // id -> price, revealed once a unit is in the cart
     cartPriceError: "",
     // Applied promo code as the server described it: { code, description,
@@ -1560,7 +1560,7 @@
       const d = await r.json().catch(() => ({}));
       if (!r.ok) { pageNotice(d.error || "That cart link has expired — pick the items again on the website."); return; }
       state.handoffToken = token;
-      addFromLink((d.items || []).map((it) => `${it.model}${Number(it.qty) > 1 ? "*" + Number(it.qty) : ""}`).join(","));
+      addFromLink((d.items || []).map((it) => `${it.model}${Number(it.qty) > 1 ? "*" + Number(it.qty) : ""}`).join(","), d.items || []);
     } catch { pageNotice("We couldn't read that cart link. Pick the items again on the website or call 512-894-0907."); }
   }
   // A notice above the storefront (the cart's own notice line only exists
@@ -1572,25 +1572,46 @@
     el.scrollIntoView({ block: "start" });
   }
   // The website's "In stock, buy online" button lands here with model numbers.
-  function addFromLink(spec) {
+  // `known`: per-model details from the handoff token (brand, description,
+  // product code, inquireOnly) so a line that isn't in stock can still be a
+  // proper special-order line; a plain ?add= link looks them up instead.
+  async function addFromLink(spec, known = []) {
     const norm = (m) => String(m || "").toUpperCase().replace(/[^0-9A-Z]/g, "");
     const wanted = String(spec).split(",").map((t) => t.trim()).filter(Boolean).map((t) => {
       const m = t.match(/^(.*?)(?:\*(\d{1,2}))?$/); return { model: m[1].trim(), qty: Math.max(1, Math.min(10, Number(m[2] || 1))) };
     }).filter((w) => w.model);
     if (!wanted.length) return;
     const items = state.catalog?.items || [];
-    const missing = [];
+    const info = new Map(known.map((k) => [norm(k.model), k]));
+    const special = [];
     for (const w of wanted) {
       const key = norm(w.model);
       const units = items.filter((i) => norm(i.model) === key && !state.cart.itemIds.includes(i.id))
         .sort((a, b) => (a.condition === "open") - (b.condition === "open"));
-      if (!units.length) { missing.push(w.model); continue; }
       for (const u of units.slice(0, w.qty)) addToCart(u.id);
-      if (units.length < w.qty) missing.push(`${w.model} (only ${units.length} in stock)`);
+      const short = w.qty - Math.min(units.length, w.qty);
+      if (short > 0) special.push({ model: w.model, qty: short, known: info.get(key) || null });
     }
-    const msg = missing.length ? `${missing.length === 1 ? "This one isn't" : "These aren't"} in stock right now — ${missing.join(", ")}. Call 512-894-0907 and we'll order it.` : "";
-    if (state.cart.itemIds.length) { openCart(); if (msg) alertLine(msg, { sticky: true }); }
-    else if (msg) pageNotice(msg);
+    // Lines we couldn't fill from stock: look up what the shop knows (a
+    // plain link carries only model numbers) and add them as special orders.
+    if (special.length) {
+      const need = special.filter((sp) => !sp.known).map((sp) => sp.model);
+      if (need.length) {
+        try {
+          const r = await fetch(`/api/shop/stock?models=${encodeURIComponent(need.join(","))}`);
+          const d = await r.json().catch(() => ({}));
+          for (const m of d.models || []) info.set(norm(m.model), m);
+        } catch {}
+      }
+      for (const sp of special) {
+        const k = sp.known || info.get(norm(sp.model)) || {};
+        addSpecialLine({ model: sp.model, qty: sp.qty, brand: k.brand || "", description: k.description || "", product: k.product || "", inquireOnly: !!k.inquireOnly });
+      }
+    }
+    if (state.cart.itemIds.length || state.cart.special.length) {
+      openCart();
+      if (special.length) alertLine(`${special.length === 1 ? "One item isn't" : `${special.length} items aren't`} on the floor today — ${special.map((sp) => sp.model).join(", ")} — so ${special.length === 1 ? "it's" : "they're"} in your cart as a special order. We'll price ${special.length === 1 ? "it" : "them"} and confirm with you; nothing is charged.`, { sticky: true });
+    }
   }
 
   function buildMega() {
@@ -1910,7 +1931,7 @@
   function resumePendingCheckout() {
     if (!state.pendingCheckout || !state.unlocked) return;
     state.pendingCheckout = false;
-    if (!state.cart.itemIds.length) return;
+    if (!state.cart.itemIds.length && !state.cart.special.length) return;
     openCart();
     startCheckout();
   }
@@ -2022,7 +2043,7 @@
     state.token = "";
     state.shopperName = "";
     state.clientCode = "";
-    state.cart = { itemIds: [], addonLines: [] };
+    state.cart = { itemIds: [], addonLines: [], special: [] };
     renderCartCount();
     $("profileOverlay").classList.remove("show");
     await loadCatalog();
@@ -2061,7 +2082,7 @@
   }
 
   function maybeOfferAddons(itemId) {
-    const item = (state.catalog.items || []).find((i) => i.id === itemId);
+    const item = (state.catalog.items || []).find((i) => i.id === itemId) || state.cart.special.find((l) => l.key === itemId);
     const map = state.addons?.byProduct?.[item?.product];
     if (!item || !map || (!map.connectors?.length && !map.installs?.length)) {
       openCart();
@@ -2156,7 +2177,7 @@
   });
 
   function renderCartCount() {
-    const count = state.cart.itemIds.length + state.cart.addonLines.reduce((s, l) => s + l.qty, 0);
+    const count = state.cart.itemIds.length + state.cart.special.reduce((s, l) => s + l.qty, 0) + state.cart.addonLines.reduce((s, l) => s + l.qty, 0);
     $("cartCount").style.display = count ? "" : "none";
     $("cartCount").textContent = count;
   }
@@ -2210,8 +2231,25 @@
   }
   function removeCartItem(itemId) {
     state.cart.itemIds = state.cart.itemIds.filter((id) => id !== itemId);
-    state.cart.addonLines = state.cart.addonLines.filter((l) => l.itemId !== itemId && state.cart.itemIds.includes(l.itemId));
+    state.cart.addonLines = state.cart.addonLines.filter((l) => l.itemId !== itemId && cartHasLine(l.itemId));
   }
+  // ---- Special-order lines (11/9): models the website sent that aren't in
+  // stock. They sit in the cart like an appliance (add-ons and all) but carry
+  // no price — "Request pricing" — and leave as a quote request, never a charge.
+  const cartHasLine = (id) => state.cart.itemIds.includes(id) || state.cart.special.some((l) => l.key === id);
+  const isSpecialKey = (id) => String(id || "").startsWith("so:");
+  function addSpecialLine(line) {
+    const key = `so:${normKey(line.model)}:${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+    const special = { key, id: key, model: line.model, qty: Math.max(1, Math.min(20, Number(line.qty) || 1)), brand: line.brand || "", description: line.description || "", product: String(line.product || "").toUpperCase(), inquireOnly: !!line.inquireOnly };
+    state.cart.special.push(special);
+    renderCartCount();
+    return special;
+  }
+  function removeSpecialLine(key) {
+    state.cart.special = state.cart.special.filter((l) => l.key !== key);
+    state.cart.addonLines = state.cart.addonLines.filter((l) => l.itemId !== key);
+  }
+  const normKey = (m) => String(m || "").toUpperCase().replace(/[^0-9A-Z]/g, "");
 
   function cartTotals() {
     const items = state.cart.itemIds
@@ -2222,7 +2260,7 @@
     let taxableAddons = 0;
     for (const l of state.cart.addonLines) {
       const a = addonInfo(l.id);
-      if (!a) continue;
+      if (!a || isSpecialKey(l.itemId)) continue; // special-order add-ons are quoted, not charged
       addonsTotal += a.price * l.qty;
       // Parts and freestanding-install labor are taxable; built-in install
       // labor is exempt (mirrors the server's math exactly).
@@ -2246,6 +2284,7 @@
     const tax = Math.round(taxableBase * state.taxRate * 100) / 100;
     return {
       items, itemsTotal, addonsTotal, delivery, discount, promoNote, tax,
+      special: state.cart.special,
       total: Math.round((itemsTotal + addonsTotal + delivery - discount + tax) * 100) / 100
     };
   }
@@ -2321,7 +2360,7 @@
     // a day was picked (or pickup chosen) since the nag: clear it
     if (state.needDay && (state.fulfillment.date || !state.delivery)) { state.needDay = false; state.cartNotice = null; }
 
-    if (!t.items.length) {
+    if (!t.items.length && !t.special.length) {
       body.innerHTML = "<p class='muted' style='padding: 30px 0; text-align:center;'>Your cart is empty.</p>";
       $("drawerTotals").innerHTML = "";
       return;
@@ -2344,7 +2383,7 @@
       return line;
     };
     // Orphan lines (their appliance left the cart some other way) are dropped.
-    state.cart.addonLines = state.cart.addonLines.filter((l) => state.cart.itemIds.includes(l.itemId));
+    state.cart.addonLines = state.cart.addonLines.filter((l) => cartHasLine(l.itemId));
     for (const item of t.items) {
       const line = document.createElement("div");
       line.className = "cart-line";
@@ -2364,6 +2403,33 @@
         u.className = "cart-line sub";
         u.innerHTML = `<div class="info"><div class="nm">${esc(UNCRATE.name)}</div><div class="ds">${esc(UNCRATE.description)}</div></div><div class="pr">${money(0)}</div>`;
         body.appendChild(u);
+      }
+    }
+
+    if (t.special.length) {
+      const head = document.createElement("div");
+      head.className = "addon-head";
+      head.style.cssText = "margin-top: 14px;";
+      head.textContent = t.items.length ? "Special order — priced with your quote" : "Special order — request pricing";
+      body.appendChild(head);
+      const note = document.createElement("div");
+      note.className = "ds";
+      note.style.cssText = "font-size: 12.5px; color: var(--muted); margin: 2px 0 6px; line-height: 1.45;";
+      note.textContent = "These aren't on the floor today. Nothing below is charged — a Wilson consultant will price them (with any installation you pick) and confirm with you.";
+      body.appendChild(note);
+      for (const sp of t.special) {
+        const line = document.createElement("div");
+        line.className = "cart-line";
+        line.innerHTML = `
+          <div class="info">
+            <div class="nm">${esc(sp.brand)} ${esc(sp.model)}${sp.qty > 1 ? ` <span class="muted">× ${sp.qty}</span>` : ""}</div>
+            <div class="ds">${sp.inquireOnly ? "Specialist quote · " : "Special order · "}${esc(sp.description)}</div>
+            <button class="rm-btn" data-rm-special="${esc(sp.key)}">Remove</button>
+            ${state.addons?.byProduct?.[sp.product] ? `<button class="rm-btn" style="color: var(--primary-dark); margin-left: 10px;" data-addons-special="${esc(sp.key)}">Add installation</button>` : ""}
+          </div>
+          <div class="pr"><span class="muted" style="font-size:12px; font-weight:600;">Request pricing</span></div>`;
+        body.appendChild(line);
+        state.cart.addonLines.forEach((l, idx) => { if (l.itemId === sp.key) { const el = addonLineEl(l, idx); if (el) { el.querySelector(".pr").innerHTML = `<span class="muted" style="font-size:12px;">${money((addonInfo(l.id)?.price || 0) * l.qty)} · quoted</span>`; body.appendChild(el); } } });
       }
     }
 
@@ -2423,6 +2489,13 @@
       }));
     }
 
+    body.querySelectorAll("[data-rm-special]").forEach((b) => b.addEventListener("click", () => {
+      removeSpecialLine(b.getAttribute("data-rm-special"));
+      renderCartCount(); renderCart();
+    }));
+    body.querySelectorAll("[data-addons-special]").forEach((b) => b.addEventListener("click", () => {
+      maybeOfferAddons(b.getAttribute("data-addons-special"));
+    }));
     body.querySelectorAll("[data-rm-item]").forEach((b) => b.addEventListener("click", () => {
       const itemId = b.getAttribute("data-rm-item");
       const tied = state.cart.addonLines.filter((l) => l.itemId === itemId);
@@ -2456,14 +2529,27 @@
           </div>
           <div class="promo-err" id="promoErr"></div>
         </div>`;
+    if (!t.items.length) {
+      // Only special-order lines: nothing to pay for, just the request.
+      $("drawerTotals").innerHTML = `
+        <div class="tot-row"><span>Special-order items</span><span class="muted">quoted</span></div>
+        <div class="tot-row"><span>${state.fulfillment.method === "pickup" ? "Customer Pickup" : "White Glove Delivery"}</span><span class="muted">quoted</span></div>
+        <div class="tax-note">A Wilson consultant will price everything above and confirm with you before anything is ordered. Nothing is charged.</div>
+        <div id="checkoutNotice" role="alert" style="display:none; background:#fef2f2; border:1px solid #fecaca; color:#991b1b; border-radius:10px; padding:9px 12px; font-size:13px; line-height:1.5; margin-bottom:8px; font-weight:600;"></div>
+        <button class="btn primary" id="checkoutBtn" style="width:100%;">Request pricing</button>`;
+      document.getElementById("checkoutBtn").addEventListener("click", startCheckout);
+      paintNotice();
+      return;
+    }
     $("drawerTotals").innerHTML = `
       <div class="tot-row"><span>Appliances</span><span>${money(t.itemsTotal)}</span></div>
       ${t.addonsTotal ? `<div class="tot-row"><span>Parts &amp; installation</span><span>${money(t.addonsTotal)}</span></div>` : ""}
       <div class="tot-row"><span>${state.fulfillment.method === "pickup" ? "Customer Pickup" : "White Glove Delivery"}</span><span>${state.fulfillment.method === "pickup" ? "FREE" : money(t.delivery)}</span></div>
       ${promoRow}
       <div class="tot-row"><span>Sales tax (${(state.taxRate * 100).toFixed(2).replace(/\.?0+$/, "")}%)</span><span>${money(t.tax)}</span></div>
+      ${t.special.length ? `<div class="tot-row"><span>Special-order items (${t.special.length})</span><span class="muted">quoted separately</span></div>` : ""}
       <div class="tot-row grand"><span>Estimated total</span><span>${money(t.total)}</span></div>
-      <div class="tax-note">Nothing is charged until a Wilson team member confirms your order with you.</div>
+      <div class="tax-note">Nothing is charged until a Wilson team member confirms your order with you.${t.special.length ? " Special-order items are priced by a consultant and never charged without your approval." : ""}</div>
       <div id="checkoutNotice" role="alert" style="display:none; background:#fef2f2; border:1px solid #fecaca; color:#991b1b; border-radius:10px; padding:9px 12px; font-size:13px; line-height:1.5; margin-bottom:8px; font-weight:600;"></div>
       <button class="btn primary" id="checkoutBtn" style="width:100%;">Continue to secure checkout</button>`;
     document.getElementById("checkoutBtn").addEventListener("click", startCheckout);
@@ -2489,10 +2575,12 @@
 
   // ---------- Checkout ----------
   async function startCheckout() {
+    const quoteOnly = !state.cart.itemIds.length && state.cart.special.length > 0;
     // Blind scheduling: a delivery order needs its day picked first. (Also
     // catches the post-registration resume — it lands back on the cart with
-    // the chooser highlighted rather than dead-ending.)
-    if (state.delivery && !state.fulfillment.date) {
+    // the chooser highlighted rather than dead-ending.) A quote-only cart
+    // has nothing to schedule yet; the consultant sets the date.
+    if (!quoteOnly && state.delivery && !state.fulfillment.date) {
       state.needDay = true;
       if (!$("cartDrawer").classList.contains("show")) openCart(); else renderCart();
       alertLine(state.fulfillment.method === "pickup"
@@ -2509,6 +2597,7 @@
       openRegister();
       return;
     }
+    if (quoteOnly) return submitQuoteOnly();
     state.checkout.open = true;
     $("drawerTitle").textContent = "Secure checkout";
     const body = $("drawerBody");
@@ -2529,6 +2618,7 @@
           ${t.discount ? `<br><span id="sumPromo">Promo ${esc(state.promo.code)} (${esc(promoLabel(state.promo))}) — −${money(t.discount)}</span>` : ""}
           <br>Sales tax — <span id="sumTax">${money(t.tax)}</span>
           <br><strong>Estimated total — <span id="sumTotal">${money(t.total)}</span></strong>
+          ${t.special.length ? `<br><br><strong>Special order — priced by a consultant, not charged today:</strong><br>${t.special.map((sp) => `${esc(sp.brand)} ${esc(sp.model)}${sp.qty > 1 ? ` × ${sp.qty}` : ""}${state.cart.addonLines.filter((l) => l.itemId === sp.key).map((l) => { const a = addonInfo(l.id); return a ? ` + ${esc(a.name)}${l.qty > 1 ? ` × ${l.qty}` : ""}` : ""; }).join("")}`).join("<br>")}` : ""}
         </div>
       </div>
       <div class="checkout-section">
@@ -2606,8 +2696,43 @@
   function cartPayload() {
     return {
       itemIds: [...state.cart.itemIds],
-      addons: state.cart.addonLines.map((l) => ({ id: l.id, qty: l.qty, itemId: l.itemId }))
+      addons: state.cart.addonLines.filter((l) => !isSpecialKey(l.itemId)).map((l) => ({ id: l.id, qty: l.qty, itemId: l.itemId }))
     };
+  }
+  function specialPayload() {
+    return state.cart.special.map((sp) => ({
+      model: sp.model, qty: sp.qty,
+      addons: state.cart.addonLines.filter((l) => l.itemId === sp.key).map((l) => { const a = addonInfo(l.id); return { id: l.id, name: a?.name || l.id, qty: l.qty, price: a?.price ?? null }; })
+    }));
+  }
+  // Quote-only cart: the shopper's profile is the customer; one request, no card.
+  async function submitQuoteOnly() {
+    const btn = document.getElementById("checkoutBtn");
+    if (btn) { btn.disabled = true; btn.textContent = "Sending…"; }
+    try {
+      const res = await fetch("/api/shop/submit-quote", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ token: state.token, special: specialPayload(), fulfillment: { ...fulfillPayload(), deliveryName: state.delivery?.name || "" }, handoff: state.handoffToken || "" })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || "We couldn't send that request.");
+      state.cart = { itemIds: [], addonLines: [], special: [] };
+      state.fulfillment = { method: "delivery", date: null };
+      renderCartCount();
+      closeCart();
+      $("mainArea").style.display = "none";
+      $("doneCard").querySelector("h2").textContent = "Pricing request received!";
+      $("doneOrderNo").textContent = data.reference || "";
+      $("doneOrderNo").previousSibling.textContent = "Your reference is ";
+      $("doneFulfill").style.display = "none";
+      $("doneDetail").innerHTML = "Nothing is charged. A Wilson consultant will price the items (and any installation you chose) and reach out using your preferred contact method — usually within one business day.";
+      if (state.clientCode) { $("doneCodeVal").textContent = state.clientCode; $("doneCode").style.display = "block"; }
+      $("doneCard").style.display = "block";
+      window.scrollTo({ top: 0 });
+    } catch (e) {
+      if (btn) { btn.disabled = false; btn.textContent = "Request pricing"; }
+      alertLine(e.message, { sticky: true });
+    }
   }
 
   function fulfillPayload() {
@@ -2665,7 +2790,8 @@
           cart: cartPayload(),
           fulfillment: fulfillPayload(),
           promo: state.promo?.code || "",
-          handoff: state.handoffToken || ""
+          handoff: state.handoffToken || "",
+          special: specialPayload()
         })
       });
       const data = await res.json();
@@ -2685,12 +2811,14 @@
             ? "Customer pickup — we'll be in touch to schedule it."
             : `Customer pickup requested for ${fulfillDayLabel()}.`)
         : `Delivery requested for ${fulfillDayLabel()}.`;
-      state.cart = { itemIds: [], addonLines: [] };
+      const hadSpecial = state.cart.special.length;
+      state.cart = { itemIds: [], addonLines: [], special: [] };
       state.fulfillment = { method: "delivery", date: null };
       renderCartCount();
       closeCart();
       $("mainArea").style.display = "none";
       $("doneOrderNo").textContent = data.orderNumber;
+      if (hadSpecial) $("doneDetail").innerHTML = `Your card is securely on file but has <strong>not been charged</strong>. The special-order items in your cart were sent to our sales team as a quote request${data.quoteReference ? ` (reference ${esc(data.quoteReference)})` : ""} — nothing for those is charged until you approve the pricing. A Wilson team member will reach out using your preferred contact method to confirm availability, delivery scheduling, and your final total.`;
       $("doneFulfill").textContent = fulfillLine;
       $("doneFulfill").style.display = "block";
       if (state.clientCode) {

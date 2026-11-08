@@ -444,188 +444,193 @@
       .head-title { display: none; }
     }
   </style>
-  <!-- Luxe theme (Andrew 11/5): the storefront restyled to match shop-home.html.
-       This block only overrides looks — colors, type, radii. No layout or
-       behavior rule above is removed, so the page works exactly as before. -->
-  <style id="luxe-theme">
-    @font-face { font-family: "Cormorant"; font-style: normal; font-weight: 500; font-display: swap; src: url("fonts/cormorant-garamond-latin-500-normal.woff2") format("woff2"); }
-    @font-face { font-family: "Cormorant"; font-style: italic; font-weight: 500; font-display: swap; src: url("fonts/cormorant-garamond-latin-500-italic.woff2") format("woff2"); }
+  <!-- Website theme (Andrew 11/10): the storefront styled to wilsonappliance.com's
+       own tokens — docs/shop/catalog-conventions.md §9 (Gavin's site.css):
+       Familjen Grotesk / Public Sans / IBM Plex Mono, warm stone background,
+       brown accent, copper highlights, in-stock green, 6px radius. This block
+       only overrides looks; no layout or behavior rule above is removed. -->
+  <style id="site-theme">
+    @font-face { font-family: "Familjen Grotesk"; font-style: normal; font-weight: 400 700; font-display: swap; src: url("fonts/familjen-grotesk-latin-wght-normal.woff2") format("woff2-variations"); }
+    @font-face { font-family: "Public Sans"; font-style: normal; font-weight: 100 900; font-display: swap; src: url("fonts/public-sans-latin-wght-normal.woff2") format("woff2-variations"); }
+    @font-face { font-family: "IBM Plex Mono"; font-style: normal; font-weight: 500; font-display: swap; src: url("fonts/ibm-plex-mono-latin-500-normal.woff2") format("woff2"); }
     :root {
-      --primary: #121412;
-      --primary-dark: #000000;
-      --primary-tint: #ebe6db;
-      --green: #121412;
-      --ink: #121412;
-      --muted: #6b6f68;
-      --line: rgba(18, 20, 18, .14);
-      --bg: #f5f2eb;
-      --card: #ffffff;
-      --wash: #ebe6db;
-      --ivory: #f5f2eb;
-      --paper: #fffdf8;
-      --brass: #b7955f;
-      --brass-2: #d8bd8a;
-      --ok: #2f5a37;
-      --ok-bg: #e7efe6;
+      --f-display: "Familjen Grotesk", "Public Sans", system-ui, sans-serif;
+      --f-body: "Public Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+      --f-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+      --bg: #F2F1EE;
+      --surface: #FFFFFF;
+      --sunk: #EDEAE4;
+      --ink: #24211E;
+      --muted: #655E56;
+      --line: #DDD8D0;
+      --accent: #67533E;
+      --accent-dark: #52412F;
+      --accent-soft: #F1ECE5;
+      --copper: #BE7D3C;
+      --copper-soft: #F6EBDD;
+      --ok: #21692C;
+      --ok-text: #1D5E27;
+      --ok-bg: #E3F1E5;
+      --ok-line: #BFD9C3;
       --warn: #7a5a1e;
-      --warn-bg: #f3e9d6;
-      --serif: "Cormorant", Georgia, "Times New Roman", serif;
+      --warn-bg: #F6EBDD;
+      --r: 6px;
+      /* the page's original tokens, pointed at the site's */
+      --primary: #67533E;
+      --primary-dark: #52412F;
+      --primary-tint: #F1ECE5;
+      --green: #21692C;
+      --card: #FFFFFF;
+      --wash: #F1ECE5;
+      --danger: #b91c1c;
     }
-    body { background: var(--bg); color: var(--ink); -webkit-font-smoothing: antialiased; }
-    input, select { border-radius: 2px; border-color: var(--line); background: #fff; }
-    input:focus, select:focus { border-color: var(--ink); box-shadow: 0 0 0 3px rgba(18,20,18,.08); }
-    label { color: #3a3d38; }
-    .btn { border-radius: 2px; font-size: 13px; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; padding: 12px 18px; }
-    .btn.primary { background: var(--ink); color: var(--ivory); }
-    .btn.primary:hover { background: #000; }
-    .btn.ghost { background: transparent; color: var(--ink); border: 1px solid rgba(18,20,18,.35); }
-    .btn.ghost:hover { border-color: var(--ink); color: var(--ink); background: rgba(18,20,18,.04); }
+    body { font-family: var(--f-body); font-size: 15px; line-height: 1.55; background: var(--bg); color: var(--ink); -webkit-font-smoothing: antialiased; }
+    h1, h2, h3, h4 { font-family: var(--f-display); font-weight: 600; letter-spacing: -.005em; }
+    input, select { border-radius: var(--r); border-color: var(--line); background: var(--surface); font-size: 15px; }
+    input:focus, select:focus { border-color: var(--copper); box-shadow: 0 0 0 3px rgba(190,125,60,.18); }
+    label { color: var(--muted); }
+    .btn { border-radius: var(--r); font-size: 15px; font-weight: 600; letter-spacing: 0; text-transform: none; padding: 12px 18px; border: 1px solid transparent; }
+    .btn.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+    .btn.primary:hover { background: var(--accent-dark); border-color: var(--accent-dark); }
+    .btn.ghost { background: var(--surface); color: var(--ink); border: 1px solid var(--line); }
+    .btn.ghost:hover { border-color: var(--ink); color: var(--ink); background: var(--surface); }
 
     /* Gate */
-    .gate { background: rgba(10,12,10,.7); }
-    .gate-card { border-radius: 4px; background: var(--paper); box-shadow: 0 30px 80px rgba(0,0,0,.4); }
-    .gate-card h1 { font-family: var(--serif); font-weight: 500; font-size: 30px; letter-spacing: -.005em; }
-    .gate-row input { border-radius: 2px; }
+    .gate { background: rgba(36,33,30,.6); }
+    .gate-card { border-radius: var(--r); background: var(--surface); box-shadow: 0 30px 80px rgba(0,0,0,.3); }
+    .gate-card h1 { font-size: 26px; }
+    .gate-row input { border-radius: var(--r); }
 
-    /* Header — dark bar with the ivory mark, like the landing page */
-    header { background: var(--ink); border-bottom: 1px solid rgba(255,255,255,.08); color: var(--ivory); }
-    .head-inner { padding: 14px 18px; }
-    .head-inner img { height: 32px; }
-    .head-title { font-family: var(--serif); font-weight: 500; font-size: 22px; letter-spacing: .005em; color: var(--ivory); line-height: 1; }
-    .head-title .sub { font-family: "Roboto", system-ui, sans-serif; color: var(--brass-2); font-size: 10.5px; letter-spacing: .22em; margin-top: 5px; }
-    .menu-btn { background: transparent; border-color: rgba(255,255,255,.3); border-radius: 2px; }
-    .menu-btn:hover { border-color: var(--ivory); }
-    .menu-btn svg { stroke: var(--ivory); }
-    .menu-btn-label { color: var(--ivory); font-weight: 600; font-size: 12.5px; letter-spacing: .08em; text-transform: uppercase; }
-    .head-inner .btn.ghost { color: var(--ivory); border-color: rgba(255,255,255,.45); }
-    .head-inner .btn.ghost:hover { border-color: var(--ivory); background: rgba(255,255,255,.08); color: var(--ivory); }
-    .head-inner .btn.ghost.cart-btn { background: var(--ivory); color: var(--ink); border-color: var(--ivory); }
-    .head-inner .btn.ghost.cart-btn:hover { background: #fff; }
-    .cart-count { background: var(--brass); color: var(--ink); }
-    .unlock-chip { background: transparent; border: 1px solid rgba(255,255,255,.45); color: var(--ivory); border-radius: 2px; letter-spacing: .04em; }
-    .unlock-chip:hover { border-color: var(--ivory); }
+    /* Header — white, like the site's */
+    header { background: var(--surface); border-bottom: 1px solid var(--line); color: var(--ink); z-index: 42; }
+    .head-inner { padding: 14px 20px; max-width: 1180px; }
+    .head-inner img { height: 34px; }
+    .head-title { font-family: var(--f-display); font-weight: 600; font-size: 19px; color: var(--ink); line-height: 1; }
+    .head-title .sub { font-family: var(--f-body); color: var(--muted); font-size: 11px; letter-spacing: .09em; margin-top: 4px; }
+    .menu-btn { background: var(--surface); border-color: var(--line); border-radius: var(--r); }
+    .menu-btn:hover { border-color: var(--ink); }
+    .menu-btn svg { stroke: var(--ink); }
+    .menu-btn-label { color: var(--ink); font-weight: 600; font-size: 13px; letter-spacing: .02em; text-transform: none; }
+    .head-inner .btn.ghost { color: var(--ink); border-color: var(--line); }
+    .head-inner .btn.ghost:hover { border-color: var(--ink); }
+    .head-inner .btn.ghost.cart-btn { background: var(--accent); color: #fff; border-color: var(--accent); }
+    .head-inner .btn.ghost.cart-btn:hover { background: var(--accent-dark); }
+    .cart-count { background: var(--copper); color: #fff; }
+    .unlock-chip { background: var(--accent-soft); border: 1px solid var(--line); color: var(--accent); border-radius: var(--r); }
+    .unlock-chip:hover { border-color: var(--accent); }
 
-    /* Department ribbon + mega panel */
-    .dept-ribbon { background: var(--paper); border-bottom: 1px solid var(--line); }
-    .dept-link { font-size: 12.5px; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; color: var(--ink); padding: 14px 2px; border-bottom-width: 2px; }
-    .dept-link:hover, .dept-link.open { border-bottom-color: var(--brass); color: var(--ink); }
-    .dept-link.outlet { color: var(--brass); }
-    .dept-link.outlet:hover { border-bottom-color: var(--brass); color: var(--brass); }
-    .mega-panel { background: var(--paper); box-shadow: 0 30px 60px rgba(0,0,0,.18); }
-    .mega-head h2 { font-family: var(--serif); font-weight: 500; font-size: 30px; }
-    .mega-shopall, .menu-shopall { background: var(--ink); color: var(--ivory); border-radius: 2px; letter-spacing: .1em; text-transform: uppercase; font-size: 11.5px; }
-    .mega-col h4 { font-family: var(--serif); font-weight: 500; font-size: 20px; }
-    .mega-col h4:hover, .mega-link:hover { color: var(--brass); text-decoration: none; }
-    .mega-link { color: #3a3d38; }
-    .mega-backdrop { background: rgba(10,12,10,.35); }
+    /* Department ribbon + mega panel: uppercase letter-spaced Familjen Grotesk, like the site nav */
+    .dept-ribbon { background: var(--surface); border-bottom: 1px solid var(--line); }
+    .dept-inner { max-width: 1180px; padding: 0 20px; }
+    .dept-link { font-family: var(--f-display); font-size: 13px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--ink); padding: 14px 2px; border-bottom-width: 2px; }
+    .dept-link:hover, .dept-link.open { border-bottom-color: var(--accent); color: var(--accent); }
+    .dept-link.outlet { color: var(--copper); }
+    .dept-link.outlet:hover { border-bottom-color: var(--copper); color: var(--copper); }
+    .mega-panel { background: var(--surface); box-shadow: 0 24px 50px rgba(36,33,30,.16); }
+    .mega-inner { max-width: 1180px; padding: 22px 20px 30px; }
+    .mega-head h2 { font-size: 22px; }
+    .mega-shopall, .menu-shopall { background: var(--accent); color: #fff; border-radius: var(--r); font-size: 13px; font-weight: 600; }
+    .mega-col h4 { font-family: var(--f-display); font-weight: 600; font-size: 16px; }
+    .mega-col h4:hover, .mega-link:hover { color: var(--accent); text-decoration: underline; }
+    .mega-link { color: var(--ink); }
+    .mega-backdrop { background: rgba(36,33,30,.3); }
 
     /* Category drawer */
-    .menu-backdrop { background: rgba(10,12,10,.5); }
-    .menu-drawer { background: var(--paper); }
+    .menu-backdrop { background: rgba(36,33,30,.45); }
+    .menu-drawer { background: var(--surface); }
     .menu-head-row, .menu-sub-head { border-bottom-color: var(--line); }
-    .menu-head-row strong { font-family: var(--serif); font-weight: 500; font-size: 22px; letter-spacing: 0; }
-    .menu-sub-head h3 { font-family: var(--serif); font-weight: 500; font-size: 26px; }
+    .menu-head-row strong { font-family: var(--f-display); font-weight: 600; font-size: 17px; }
+    .menu-sub-head h3 { font-family: var(--f-display); font-weight: 600; font-size: 19px; }
     .menu-row, .menu-sub-row { border-bottom-color: var(--line); color: var(--ink); }
-    .menu-row { font-weight: 500; }
-    .menu-row:hover, .menu-sub-row:hover { background: var(--wash); }
-    .menu-row .mi svg { stroke: var(--ink); stroke-width: 1.4; }
-    .menu-back { color: var(--brass); letter-spacing: .06em; text-transform: uppercase; font-size: 12px; }
+    .menu-row:hover, .menu-sub-row:hover { background: var(--accent-soft); }
+    .menu-row .mi svg { stroke: var(--ink); stroke-width: 1.5; }
+    .menu-back { color: var(--accent); }
 
     /* Hero strip + filters */
-    .hero { padding: 38px 16px 22px; }
-    .hero h2 { font-family: var(--serif); font-weight: 500; font-size: clamp(32px, 4.2vw, 46px); letter-spacing: -.005em; line-height: 1.05; }
-    .hero p { font-size: 15px; }
-    .map-note { background: var(--wash); border-color: var(--line); color: var(--ink); border-radius: 2px; }
-    .crumb-bar { border-radius: 2px; border-color: var(--ink); background: #fff; }
-    .crumb-bar .cb-label { font-family: var(--serif); font-weight: 500; font-size: 18px; }
-    .crumb-bar .cb-clear { border-radius: 2px; background: var(--wash); }
-    .crumb-bar .cb-clear:hover { background: var(--ink); color: var(--ivory); }
-    .sort-select { border-radius: 2px; background: #fff; }
-    .filters input[type="search"] { background: #fff; }
-    .chip { border-radius: 2px; }
-    .chip.active { background: var(--ink); border-color: var(--ink); }
-    .deal-row .deal-lead { color: var(--brass); font-size: 11px; letter-spacing: .2em; }
-    .deal-chip { border: 1px solid rgba(18,20,18,.35); background: transparent; color: var(--ink); border-radius: 2px; font-weight: 500; font-size: 13.5px; padding: 8px 14px; }
-    .deal-chip .dc-n { color: var(--brass); opacity: 1; font-weight: 600; }
+    main { max-width: 1180px; padding: 20px 20px 80px; }
+    .hero { padding: 34px 16px 20px; }
+    .hero h2 { font-family: var(--f-display); font-weight: 600; font-size: clamp(26px, 3.4vw, 36px); letter-spacing: -.01em; }
+    .hero p { font-size: 15px; color: var(--muted); }
+    .map-note { background: var(--accent-soft); border-color: var(--line); color: var(--ink); border-radius: var(--r); }
+    .crumb-bar { border-radius: var(--r); border-color: var(--line); background: var(--surface); }
+    .crumb-bar .cb-label { font-family: var(--f-display); font-weight: 600; font-size: 16px; }
+    .crumb-bar .cb-clear { border-radius: var(--r); background: var(--sunk); }
+    .crumb-bar .cb-clear:hover { background: var(--ink); color: #fff; }
+    .sort-select { border-radius: var(--r); background: var(--surface); font-size: 14px; }
+    .chip { border-radius: var(--r); }
+    .chip.active { background: var(--accent); border-color: var(--accent); }
+    .deal-row .deal-lead { color: var(--muted); font-size: 11px; letter-spacing: .09em; }
+    .deal-chip { border: 1px solid var(--line); background: var(--surface); color: var(--ink); border-radius: var(--r); font-weight: 500; font-size: 14px; padding: 8px 14px; }
+    .deal-chip .dc-n { color: var(--muted); opacity: 1; font-weight: 500; }
     .deal-chip:hover { border-color: var(--ink); }
-    .deal-chip.active { background: var(--ink); border-color: var(--ink); color: var(--ivory); }
-    .deal-chip.active .dc-n { color: var(--brass-2); }
-    .best-tag { background: var(--warn-bg); color: var(--warn); border-radius: 2px; }
+    .deal-chip.active { background: var(--ink); border-color: var(--ink); color: #fff; }
+    .deal-chip.active .dc-n { color: rgba(255,255,255,.75); }
+    .best-tag { background: var(--copper-soft); color: var(--copper); border-radius: 3px; }
 
-    /* Product cards */
-    .item-card, .skel-card { border-radius: 3px; border-color: var(--line); transition: box-shadow .2s ease, transform .2s ease; }
-    .item-card:hover { box-shadow: 0 18px 40px -24px rgba(0,0,0,.35); transform: translateY(-2px); }
+    /* Product cards — the site's card */
+    .item-card, .skel-card { border-radius: var(--r); border-color: var(--line); background: var(--surface); transition: box-shadow .2s ease; }
+    .item-card:hover { box-shadow: 0 10px 28px rgba(36,33,30,.10); }
     .item-img { border-radius: 0; }
-    .skel { border-radius: 2px; background: linear-gradient(90deg, #ebe6db 25%, #f5f2eb 50%, #ebe6db 75%); background-size: 200% 100%; }
-    .cond-badge { border-radius: 2px; box-shadow: none; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; font-size: 10.5px; padding: 4px 9px; }
-    .cond-badge.new, .cond-badge.stock-in { background: var(--ok-bg); color: var(--ok); }
-    .cond-badge.open, .cond-badge.stock-low { background: var(--warn-bg); color: var(--warn); }
-    .eye-badge { border-radius: 2px; box-shadow: none; font-weight: 700; }
-    .item-brand { color: var(--brass); font-size: 11px; letter-spacing: .2em; }
-    .item-model { font-size: 16px; font-weight: 600; letter-spacing: .01em; }
-    .item-model a:hover { color: var(--brass); }
-    .item-desc { color: #3a3d38; }
+    .skel { border-radius: 3px; background: linear-gradient(90deg, #EDEAE4 25%, #F2F1EE 50%, #EDEAE4 75%); background-size: 200% 100%; }
+    .cond-badge { left: 10px; right: auto; border-radius: 3px; box-shadow: none; font-weight: 700; letter-spacing: .02em; text-transform: none; font-size: 11px; padding: 4px 8px; }
+    .cond-badge.new, .cond-badge.stock-in { background: var(--ok); color: #fff; }
+    .cond-badge.open, .cond-badge.stock-low { background: var(--copper); color: #fff; }
+    .item-card.has-eye .eye-badge { left: auto; right: 10px; }
+    .eye-badge { border-radius: 3px; box-shadow: none; font-weight: 700; }
+    .item-brand { color: var(--muted); font-size: 11px; letter-spacing: .09em; font-weight: 600; }
+    .item-model { font-family: var(--f-mono); font-variant-numeric: tabular-nums; font-size: 14px; font-weight: 500; letter-spacing: 0; }
+    .item-model a:hover { color: var(--accent); }
+    .item-desc { font-family: var(--f-display); font-weight: 600; font-size: 15px; color: var(--ink); line-height: 1.3; flex: 0 0 auto; }
+    .item-model { flex: 1; }
     .item-price { color: var(--ink); font-weight: 600; font-size: 19px; }
-    .in-cart, .req-note, .promo-amt, .order-no, .linklike, .promo-link, .pf-ok, .menu-back { color: var(--ink); }
-    .in-cart, .promo-amt, .order-no { color: var(--ok); }
-    /* Header stays above the department ribbon as the page scrolls (the
-       ribbon used to slide over the logo on phones). */
-    header { z-index: 42; }
-    /* Below-MAP price marker (Andrew 11/5): bold, brass, and it nudges every
-       few seconds so the shopper notices there's a better price in the cart.
-       The tip is anchored to the CARD, not the dot, so it never hangs off the
-       left edge of a phone. */
-    .info-dot { position: static; width: 20px; height: 20px; border: 0; background: var(--brass); color: var(--ink); font-weight: 800; font-size: 12.5px; font-style: italic; font-family: Georgia, serif; vertical-align: 2px; margin-left: 8px; animation: info-nudge 4s ease-in-out infinite; }
-    .info-dot:hover, .info-dot.open { background: var(--ink); color: var(--brass-2); animation: none; }
-    @keyframes info-nudge { 0%, 78%, 100% { transform: rotate(0) scale(1); } 82% { transform: rotate(-14deg) scale(1.15); } 86% { transform: rotate(12deg) scale(1.15); } 90% { transform: rotate(-8deg) scale(1.1); } 94% { transform: rotate(4deg) scale(1.05); } }
-    @media (prefers-reduced-motion: reduce) { .info-dot { animation: none; } }
-    /* Price + marker never wrap; when the row is too tight for the button
-       beside them, the button drops to its own full-width line instead. */
-    .item-price { display: inline-flex; align-items: center; white-space: nowrap; }
-    .item-foot { flex-wrap: wrap; position: relative; }
-    .item-foot .btn { flex: 1 1 auto; }
-    .info-tip { left: 0; right: 0; width: auto; bottom: calc(100% + 8px); white-space: normal; text-align: left; border-radius: 2px; background: var(--ink); color: var(--ivory); font-family: "Roboto", system-ui, -apple-system, "Segoe UI", sans-serif; font-weight: 600; font-size: 13.5px; line-height: 1.5; padding: 12px 14px; box-shadow: 0 14px 30px rgba(0,0,0,.3); }
-    .info-tip::after { left: 84px; right: auto; border-top-color: var(--ink); }
-    .show-more .btn { background: transparent; }
+    .in-cart, .promo-amt, .order-no { color: var(--ok-text); }
+    .req-note, .linklike, .promo-link, .menu-back { color: var(--accent); }
+    .info-dot { background: var(--copper); color: #fff; font-family: var(--f-mono); font-style: normal; }
+    .info-dot:hover, .info-dot.open { background: var(--ink); color: #fff; }
+    .info-tip { border-radius: var(--r); background: var(--ink); color: #fff; font-family: var(--f-body); font-weight: 600; }
+    .info-tip::after { border-top-color: var(--ink); }
+    .show-more .btn { background: var(--surface); }
 
     /* Modals, cart drawer, checkout */
-    .overlay { background: rgba(10,12,10,.6); }
-    .modal { border-radius: 4px; background: var(--paper); }
-    .modal h2, .drawer-head h2, .done-card h2 { font-family: var(--serif); font-weight: 500; font-size: 28px; letter-spacing: -.005em; }
-    .drawer-head h2 { font-size: 26px; }
-    .drawer { background: var(--paper); }
+    .overlay { background: rgba(36,33,30,.55); }
+    .modal { border-radius: var(--r); background: var(--surface); }
+    .modal h2, .drawer-head h2, .done-card h2 { font-family: var(--f-display); font-weight: 600; font-size: 22px; }
+    .drawer { background: var(--surface); }
     .drawer-head, .totals, .cart-line, .addon-row, .or-rule { border-color: var(--line); }
-    .pf-ok { background: var(--ok-bg); color: var(--ok); border-radius: 2px; }
-    .client-code { background: var(--wash); border: 1px dashed var(--brass); color: var(--ink); border-radius: 2px; font-family: var(--serif); font-weight: 500; font-size: 30px; letter-spacing: .12em; }
-    .addon-row input[type="checkbox"], .fulfill-opt input[type="radio"], .consent input { accent-color: var(--ink); }
-    .qty-ctl button { border-radius: 2px; border-color: var(--line); }
-    .deal { background: var(--wash); border-color: var(--line); border-radius: 2px; }
-    .deal .note { color: var(--ok); }
-    .fulfill-opt { border: 1px solid var(--line); border-radius: 2px; background: #fff; }
-    .fulfill-opt.on { border-color: var(--ink); background: var(--wash); box-shadow: 0 0 0 1px var(--ink) inset; }
-    .day-chip { border: 1px solid var(--line); border-radius: 2px; font-weight: 600; }
-    .day-chip.on { background: var(--ink); border-color: var(--ink); color: var(--ivory); }
-    .day-chip.sameday { border-color: var(--brass); box-shadow: 0 0 0 1px var(--brass) inset; }
-    .day-chip.sameday.on { background: var(--ink); border-color: var(--ink); box-shadow: none; }
-    .tot-row.grand { font-family: var(--serif); font-weight: 500; font-size: 22px; }
-    .promo-form input { border-radius: 2px; border-color: var(--line); }
-    .promo-tag { background: var(--wash); border-color: var(--brass); color: var(--ink); border-radius: 2px; }
-    .promo-notice { background: var(--warn-bg); color: var(--warn); border-color: #e2d3b3; border-radius: 2px; }
-    .checkout-section h3 { font-family: var(--serif); font-weight: 500; font-size: 22px; }
-    .summary-box { background: var(--wash); border-color: var(--line); border-radius: 2px; }
-    .done-card { border-radius: 4px; background: var(--paper); }
+    .pf-ok { background: var(--ok-bg); color: var(--ok-text); border-radius: var(--r); }
+    .client-code { background: var(--sunk); border: 1px dashed var(--copper); color: var(--ink); border-radius: var(--r); font-family: var(--f-mono); font-weight: 500; font-size: 24px; letter-spacing: .1em; }
+    .cart-line .nm { font-family: var(--f-display); font-weight: 600; }
+    .addon-row input[type="checkbox"], .fulfill-opt input[type="radio"], .consent input { accent-color: var(--accent); }
+    .qty-ctl button { border-radius: var(--r); border-color: var(--line); }
+    .deal { background: var(--ok-bg); border-color: var(--ok-line); border-radius: var(--r); }
+    .deal .note { color: var(--ok-text); }
+    .fulfill-opt { border: 1px solid var(--line); border-radius: var(--r); background: var(--surface); }
+    .fulfill-opt.on { border-color: var(--accent); background: var(--accent-soft); box-shadow: 0 0 0 1px var(--accent) inset; }
+    .day-chip { border: 1px solid var(--line); border-radius: var(--r); font-weight: 600; }
+    .day-chip.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+    .day-chip.sameday { border-color: var(--ok); box-shadow: 0 0 0 1px var(--ok) inset; }
+    .day-chip.sameday.on { background: var(--ok); border-color: var(--ok); box-shadow: none; }
+    .tot-row.grand { font-family: var(--f-display); font-weight: 600; font-size: 18px; }
+    .totals .btn.primary { background: var(--ok); border-color: var(--ok); } /* checkout = the site's Buy now green */
+    .totals .btn.primary:hover { background: var(--ok-text); }
+    .promo-form input { border-radius: var(--r); border-color: var(--line); }
+    .promo-tag { background: var(--accent-soft); border-color: var(--line); color: var(--accent); border-radius: 3px; }
+    .promo-notice { background: var(--copper-soft); color: var(--warn); border-color: #E8D4BC; border-radius: var(--r); }
+    .checkout-section h3 { font-family: var(--f-display); font-weight: 600; font-size: 17px; }
+    .summary-box { background: var(--sunk); border-color: var(--line); border-radius: var(--r); }
+    .done-card { border-radius: var(--r); background: var(--surface); }
     .done-card .big-check { background: var(--ok-bg); color: var(--ok); }
 
     /* Footer */
     footer { background: var(--ink); border-top: 0; }
-    .foot-inner { color: rgba(245,242,235,.7); }
-    .foot-inner a { color: var(--ivory); }
+    .foot-inner { color: rgba(255,255,255,.72); max-width: 1180px; padding: 20px; }
+    .foot-inner a { color: #fff; }
 
     @media (max-width: 560px) {
       .head-inner img { height: 24px; }
       .head-title { font-size: 15px; line-height: 1.1; }
-      .head-inner .btn { border-radius: 2px; font-size: 12px; }
-      .menu-btn { border-radius: 2px; }
+      .head-inner .btn { border-radius: var(--r); font-size: 14px; }
+      .menu-btn { border-radius: var(--r); }
     }
   </style>
 </head>
@@ -658,7 +663,7 @@
         <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
         <span class="menu-btn-label">Shop by Category</span>
       </button>
-      <a href="/" title="Wilson home" style="display:flex; align-items:center;"><img src="logo-white.png" alt="Wilson AC &amp; Appliance"></a>
+      <a href="/" title="Wilson home" style="display:flex; align-items:center;"><img src="logo-black.png" alt="Wilson AC &amp; Appliance"></a>
       <div class="head-title">Express Assortment<span class="sub">Dripping Springs, Texas</span></div>
       <div class="head-spacer"></div>
       <button type="button" class="unlock-chip" id="unlockChip" style="display:none;" title="View and update your profile"></button>
@@ -1156,14 +1161,15 @@
   }
 
   // Does an item satisfy a selection? cats / products / condition compose.
+  const kindMatch = (sel, i) => (sel.subclasses?.length ? sel.subclasses.includes(String(i.subclass || "")) : true) && (sel.products?.length ? sel.products.includes(i.product) : true);
   function selectionMatches(sel, i, { ignoreTypes = false } = {}) {
     if (sel.cats?.length && !sel.cats.includes(i.category)) return false;
-    if (sel.products?.length && !sel.products.includes(i.product)) return false;
+    if (!kindMatch(sel, i)) return false;
     if (sel.condition && i.condition !== sel.condition) return false;
     // Type chips (website convention): several checked = any of them.
     if (!ignoreTypes && sel.types?.length && state.filter.types?.size) {
       const on = sel.types.filter((t) => state.filter.types.has(t.label));
-      if (on.length && !on.some((t) => t.products.includes(i.product))) return false;
+      if (on.length && !on.some((t) => kindMatch(t, i))) return false;
     }
     return true;
   }
@@ -1191,7 +1197,7 @@
     // Type filter: the website's per-category Types, as chips, in its order.
     // Only shown when two or more Types have stock; checking several = any of them.
     const items = state.catalog?.items || [];
-    const live = (sel.types || []).filter((t) => items.some((i) => selectionMatches(sel, i, { ignoreTypes: true }) && t.products.includes(i.product)));
+    const live = (sel.types || []).filter((t) => items.some((i) => selectionMatches(sel, i, { ignoreTypes: true }) && kindMatch(t, i)));
     if (live.length < 2) { typeRow.classList.remove("show"); typeRow.innerHTML = ""; return; }
     typeRow.innerHTML = `<span class="deal-lead">Type</span>` + live.map((t) => `<button type="button" class="deal-chip${state.filter.types.has(t.label) ? " active" : ""}" data-type="${esc(t.label)}">${esc(t.label)}</button>`).join("");
     typeRow.classList.add("show");
@@ -1296,8 +1302,8 @@
         ${conditionBadge(group)}
         ${group.image ? `<img class="item-img" src="${esc(group.image)}" alt="${esc(group.model)}" loading="lazy" onerror="this.remove()">` : ""}
         <div class="item-brand">${esc(group.brand)}</div>
-        <div class="item-model"><a href="${esc(productPageUrl(group.model))}" target="_blank" rel="noopener" title="View ${esc(group.model)} on wilsonappliance.com">${esc(group.model)}</a></div>
         <div class="item-desc">${esc(group.description)}</div>
+        <div class="item-model"><a href="${esc(productPageUrl(group.model))}" target="_blank" rel="noopener" title="View ${esc(group.model)} on wilsonappliance.com">${esc(group.model)}</a></div>
         <div class="item-cat">${esc(categoryLabel(group.category))}${group.source === "stock" ? "" : ` · ${total} available`}${carted && !allInCart ? ` · ${carted} in cart` : ""}${state.bestSellers.has(group.model) ? `<span class="best-tag">Best seller</span>` : ""}</div>
         <div class="item-foot">
           ${state.paused
@@ -1393,82 +1399,94 @@
   };
 
   // Departments, categories and Types in the SAME order and wording as
-  // wilsonappliance.com (Andrew 11/10, docs/shop/catalog-conventions.md) so
-  // coffee is in the same place on both sides. Each sub is a website
-  // category; `types` are that category's Type filter (chips over the grid,
-  // any-of, shown only when two or more have stock). Codes are ePASS product
-  // codes; a category or type with nothing in stock simply doesn't appear.
+  // wilsonappliance.com (docs/shop/catalog-conventions.md). Each sub is a
+  // website category; `types` are that category's Type filter (chips over
+  // the grid, any-of, shown only when two or more have stock). Keyed by
+  // NetSuite merchandise subclass codes (11/10) — every unit carries its
+  // subclass; a category or type with nothing in stock simply doesn't appear.
   const MENU_TREE = [
     { label: "Cooking", icon: "range", cats: ["Range", "Oven", "CT", "Steam Ov", "MW", "Vent", "Cook Acc"], subs: [
       { label: "All Cooking", cats: ["Range", "Oven", "CT", "Steam Ov", "MW", "Vent"] },
-      { label: "Ranges", cats: ["Range"], types: [
-        { label: "Gas", products: ["RAGAS", "RAPRO"] }, { label: "Dual Fuel", products: ["RADF"] }, { label: "Electric", products: ["RAELE"] }, { label: "Induction", products: ["RAIND"] }
+      { label: "Ranges", subclasses: ["1340", "1342", "1344", "1346", "1348", "1350", "1352", "1354"], types: [
+        { label: "Gas", subclasses: ["1344", "1352"] }, { label: "Dual Fuel", subclasses: ["1340", "1348"] }, { label: "Electric", subclasses: ["1354"] }, { label: "Induction", subclasses: ["1342", "1350"] }
       ] },
-      { label: "Rangetops", products: ["RTGAS", "RTPRO", "RTIND", "RTELE"], types: [
-        { label: "Gas", products: ["RTGAS", "RTPRO"] }, { label: "Induction", products: ["RTIND"] }, { label: "Electric", products: ["RTELE"] }
+      { label: "Rangetops", subclasses: ["1370", "1371", "1372"], types: [
+        { label: "Gas", subclasses: ["1371"] }, { label: "Induction", subclasses: ["1370"] }, { label: "Electric", subclasses: ["1372"] }
       ] },
-      { label: "Cooktops", cats: ["CT"], types: [
-        { label: "Gas", products: ["CTGAS", "CTPRO"] }, { label: "Induction", products: ["CTIND"] }, { label: "Electric", products: ["CTELE"] }
+      { label: "Cooktops", subclasses: ["1356", "1358", "1360", "1362", "1364", "1366", "1368"], types: [
+        { label: "Gas", subclasses: ["1356", "1358"] }, { label: "Induction", subclasses: ["1360", "1362"] }, { label: "Electric", subclasses: ["1366", "1368"] }, { label: "Downdraft Cooktop", subclasses: ["1358", "1362", "1368"] }, { label: "Module", subclasses: ["1364"] }
       ] },
-      { label: "Wall Ovens", cats: ["Oven", "Steam Ov"], types: [
-        { label: "Steam", products: ["OVSTE"] }, { label: "Speed", products: ["OVSPE"] }
+      { label: "Wall Ovens", subclasses: ["1376", "1380", "1382", "1384", "1386", "1388"], types: [
+        { label: "Single", subclasses: ["1376"] }, { label: "Double", subclasses: ["1380"] }, { label: "Steam", subclasses: ["1386", "1384"] }, { label: "Speed", subclasses: ["1388"] }, { label: "Combination", subclasses: ["1382", "1384"] }
       ] },
-      { label: "Microwaves", cats: ["MW"], types: [
-        { label: "Over-the-Range", products: ["MWOTR"] }, { label: "Countertop", products: ["MW"] }, { label: "Built-In", products: ["MWBI"] }, { label: "Drawer", products: ["MWDR"] }, { label: "Convection", products: ["MWCON"] }
+      { label: "Microwaves", subclasses: ["1394", "1396", "1398", "1404"], types: [
+        { label: "Over-the-Range", subclasses: ["1398"] }, { label: "Countertop", subclasses: ["1404"] }, { label: "Drawer", subclasses: ["1396"] }, { label: "Drop-Down Door", subclasses: ["1394"] }
       ] },
-      { label: "Ventilation", cats: ["Vent"], types: [
-        { label: "Wall Hood", products: ["VHOOD"] }, { label: "Hood Liner / Insert", products: ["VHINS"] }, { label: "Island Hood", products: ["VHISL"] }, { label: "Downdraft", products: ["VHDD"] }
+      { label: "Ventilation", subclasses: ["1426", "1428", "1430", "1432", "1434", "1436", "1450"], types: [
+        { label: "Wall Hood", subclasses: ["1428"] }, { label: "Hood Liner / Insert", subclasses: ["1450"] }, { label: "Under-Cabinet", subclasses: ["1426"] }, { label: "Island Hood", subclasses: ["1430"] }, { label: "Downdraft", subclasses: ["1434", "1436"] }, { label: "Ceiling Hood", subclasses: ["1432"] }
       ] },
-      { label: "Warming Drawers", products: ["WD", "VACSE"], types: [
-        { label: "Warming Drawer", products: ["WD"] }, { label: "Vacuum Seal Drawer", products: ["VACSE"] }
+      { label: "Warming Drawers", subclasses: ["1408", "1412", "1440"], types: [
+        { label: "Warming Drawer", subclasses: ["1408"] }, { label: "Vacuum Seal Drawer", subclasses: ["1412", "1440"] }
       ] },
       { label: "Cooking Accessories", cats: ["Cook Acc"] }
     ]},
     { label: "Coffee", icon: "range", cats: ["Coffee"], subs: [
-      { label: "Coffee", cats: ["Coffee"] }
+      { label: "Coffee", cats: ["Coffee"], types: [
+        { label: "Plumbed", subclasses: ["1512"] }, { label: "Non-plumbed", subclasses: ["1510"] }
+      ] }
     ]},
     { label: "Refrigeration", icon: "fridge", cats: ["Ref", "IM", "Ref Acc"], subs: [
       { label: "All Refrigeration", cats: ["Ref", "IM"] },
-      { label: "Freestanding Refrigerators", products: ["REFRE", "RESXS", "RETOP"], types: [
-        { label: "French Door", products: ["REFRE"] }, { label: "Side-by-Side", products: ["RESXS"] }, { label: "Top Freezer", products: ["RETOP"] }
+      { label: "Freestanding Refrigerators", subclasses: ["1022", "1024", "1026", "1028", "1030", "1032"], types: [
+        { label: "French Door", subclasses: ["1022", "1024"] }, { label: "Side-by-Side", subclasses: ["1026"] }, { label: "Bottom Freezer", subclasses: ["1028"] }, { label: "Top Freezer", subclasses: ["1032"] }
       ] },
-      { label: "Built-in Refrigerators", products: ["REBIF", "REBFD", "REBIB", "REBIW", "REALL"], types: [
-        { label: "Refrigerator", products: ["REBIF", "REBFD", "REBIB", "REBIW"] }, { label: "Beverage Column", products: ["REALL"] }
+      { label: "Built-in Refrigerators", subclasses: ["1110", "1118", "1119", "1120", "1124", "1126", "1128"], types: [
+        { label: "Refrigerator", subclasses: ["1118", "1119", "1120", "1124", "1126", "1128"] }, { label: "Beverage Column", subclasses: ["1110"] }
       ] },
-      { label: "Freezers", products: ["FRZUP", "FRZCH", "FRZBI", "FRZUC"] },
-      { label: "Refrigerator & Freezer Drawers", products: ["REDRA"] },
-      { label: "Undercounter Refrigerators", products: ["REUC"] },
-      { label: "Beer Tappers", products: ["KEG", "REKEG"] },
-      { label: "Wine Storage", products: ["REFWI"] },
+      { label: "Freezers", subclasses: ["1036", "1038", "1116", "1322"], types: [
+        { label: "All Freezer (Built-in)", subclasses: ["1116"] }, { label: "Upright", subclasses: ["1036"] }, { label: "Chest", subclasses: ["1038"] }, { label: "Undercounter", subclasses: ["1322"] }
+      ] },
+      { label: "Refrigerator & Freezer Drawers", subclasses: ["1318", "1320", "1322"], types: [
+        { label: "Refrigerator", subclasses: ["1318"] }, { label: "Freezer", subclasses: ["1322"] }, { label: "Combo Ref/Freezer", subclasses: ["1320"] }
+      ] },
+      { label: "Undercounter Refrigerators", subclasses: ["1312", "1316", "1320"], types: [
+        { label: "Refrigerator", subclasses: ["1312"] }, { label: "Beverage Center", subclasses: ["1316"] }, { label: "Combo Ref/Freezer", subclasses: ["1320"] }
+      ] },
+      { label: "Wine Storage", subclasses: ["1114", "1122", "1324"], types: [
+        { label: "Undercounter", subclasses: ["1324"] }, { label: "Tall (built-in)", subclasses: ["1114"] }, { label: "Wine & Refrigerator Combo", subclasses: ["1122"] }
+      ] },
       { label: "Ice Makers", cats: ["IM"] },
       { label: "Refrigeration Accessories", cats: ["Ref Acc"] }
     ]},
     { label: "Kitchen Cleanup", icon: "dish", cats: ["DW", "DW Acc"], subs: [
       { label: "All Kitchen Cleanup", cats: ["DW"] },
-      { label: "Dishwashers", products: ["DW"] },
-      { label: "Drawer Dishwashers", products: ["DWDRA"] },
-      { label: "Trash Compactors", products: ["COMPA", "TRASH"] },
-      { label: "Disposals", products: ["DISP", "DISPO"] },
+      { label: "Dishwashers", subclasses: ["1330", "1332"] },
+      { label: "Trash Compactors", subclasses: ["1329"] },
+      { label: "Disposals", subclasses: ["3136"] },
       { label: "Dishwasher Accessories", cats: ["DW Acc"] }
     ]},
     { label: "Laundry", icon: "laundry", cats: ["Lau", "Lau Acc"], subs: [
       { label: "All Laundry", cats: ["Lau"] },
-      { label: "Washers", products: ["WASHT", "WASHF"], types: [
-        { label: "Top Load", products: ["WASHT"] }, { label: "Front Load", products: ["WASHF"] }
+      { label: "Washers", subclasses: ["2110", "2112", "2114", "2116"], types: [
+        { label: "Top Load", subclasses: ["2110", "2114"] }, { label: "Front Load", subclasses: ["2112", "2116"] }
       ] },
-      { label: "Dryers", products: ["DRELE", "DRGAS"], types: [
-        { label: "Electric", products: ["DRELE"] }, { label: "Gas", products: ["DRGAS"] }
+      { label: "Dryers", subclasses: ["2040", "2042", "2044", "2046"], types: [
+        { label: "Electric", subclasses: ["2040", "2044"] }, { label: "Gas", subclasses: ["2042"] }, { label: "Drying Cabinet", subclasses: ["2046"] }, { label: "Heat Pump", subclasses: ["2044"] }
       ] },
-      { label: "Stacked", products: ["LAUST", "STACK"] },
-      { label: "All-in-One", products: ["LAUAI", "WDCOM"] },
+      { label: "Stacked", subclasses: ["2140"] },
+      { label: "All-in-One", subclasses: ["2142"] },
+      { label: "Steam Closets", subclasses: ["2082"] },
+      { label: "Irons", subclasses: ["2080"] },
       { label: "Laundry Accessories", cats: ["Lau Acc"] }
     ]},
     { label: "Outdoor", icon: "grill", cats: ["Outdoor", "Out Acc"], subs: [
       { label: "All Outdoor", cats: ["Outdoor"] },
-      { label: "Outdoor Cooking", products: ["GROUT", "PIZZA", "GRSID", "GRIND", "GRGRI", "GRSMO"], types: [
-        { label: "Grills", products: ["GROUT"] }, { label: "Side Burners & Modules", products: ["GRSID", "GRIND"] }, { label: "Griddles", products: ["GRGRI"] }, { label: "Pizza Ovens", products: ["PIZZA"] }, { label: "Smokers", products: ["GRSMO"] }
+      { label: "Outdoor Cooking", subclasses: ["8010", "8011", "8013", "8014", "8019", "8040", "8042", "8056"], types: [
+        { label: "Grills", subclasses: ["8010", "8011", "8013", "8014"] }, { label: "Side Burners & Modules", subclasses: ["8019"] }, { label: "Griddles", subclasses: ["8056"] }, { label: "Pizza Ovens", subclasses: ["8040"] }, { label: "Smokers", subclasses: ["8042"] }
       ] },
-      { label: "Outdoor Refrigeration", products: ["REOUT"] },
+      { label: "Outdoor Refrigeration", subclasses: ["8210"] },
+      { label: "Outdoor Ventilation", subclasses: ["8218"] },
+      { label: "Outdoor Storage", subclasses: ["8110", "8112", "8114", "8116"] },
       { label: "Outdoor Accessories", cats: ["Out Acc"] }
     ]}
   ];
@@ -1521,7 +1539,7 @@
       row.type = "button";
       row.className = "menu-sub-row";
       row.innerHTML = `<span>${esc(sub.label)}</span>`; // no counts anywhere (website convention)
-      row.addEventListener("click", () => applySelection({ label: `${tier.label} › ${sub.label}`, cats: sub.cats, products: sub.products, types: sub.types }));
+      row.addEventListener("click", () => applySelection({ label: `${tier.label} › ${sub.label}`, cats: sub.cats, products: sub.products, subclasses: sub.subclasses, types: sub.types }));
       list.appendChild(row);
     }
     $("menuTrack").classList.add("sub");
@@ -1586,7 +1604,7 @@
       const tier = MENU_TREE.find((t) => low(t.label) === dept);
       if (tier) {
         const s = sub ? tier.subs.find((x) => low(x.label) === sub) : null;
-        sel = s ? { label: `${tier.label} › ${s.label}`, cats: s.cats, products: s.products, types: s.types } : { label: tier.label, cats: tier.cats };
+        sel = s ? { label: `${tier.label} › ${s.label}`, cats: s.cats, products: s.products, subclasses: s.subclasses, types: s.types } : { label: tier.label, cats: tier.cats };
       }
     }
     if (brand) {
@@ -1654,7 +1672,7 @@
       }
       for (const sp of special) {
         const k = sp.known || info.get(norm(sp.model)) || {};
-        addSpecialLine({ model: sp.model, qty: sp.qty, brand: k.brand || "", description: k.description || "", product: k.product || "", inquireOnly: !!k.inquireOnly });
+        addSpecialLine({ model: sp.model, qty: sp.qty, brand: k.brand || "", description: k.description || "", product: k.product || "", servicesKey: k.servicesKey || "", inquireOnly: !!k.inquireOnly });
       }
     }
     if (state.cart.itemIds.length || state.cart.special.length) {
@@ -1683,7 +1701,7 @@
         link.type = "button";
         link.className = "mega-link";
         link.textContent = sub.label;
-        link.addEventListener("click", () => applySelection({ label: `${tier.label} › ${sub.label}`, cats: sub.cats, products: sub.products, types: sub.types }));
+        link.addEventListener("click", () => applySelection({ label: `${tier.label} › ${sub.label}`, cats: sub.cats, products: sub.products, subclasses: sub.subclasses, types: sub.types }));
         col.appendChild(link);
       }
       cols.appendChild(col);
@@ -2140,7 +2158,7 @@
 
   function maybeOfferAddons(itemId) {
     const item = (state.catalog.items || []).find((i) => i.id === itemId) || state.cart.special.find((l) => l.key === itemId);
-    const map = state.addons?.byProduct?.[item?.product];
+    const map = addonMapFor(item);
     if (!item || !map || (!map.connectors?.length && !map.installs?.length)) {
       openCart();
       return;
@@ -2179,6 +2197,13 @@
     $("addonOverlay").classList.add("show");
   }
 
+  // Installs & connectors for a unit: by NetSuite subclass (11/10), with the
+  // ePASS product code as the fallback for a unit NetSuite hasn't classified.
+  function addonMapFor(item) {
+    if (!item) return null;
+    const a = state.addons || {};
+    return a.byKey?.[String(item.servicesKey || item.subclass || "")] || a.byProduct?.[item.product] || null;
+  }
   // Requirement groups for every checked install: each group needs exactly
   // one of its (displayed) alternatives checked; that one is locked until
   // the install is deselected. Picking a different alternative in the group
@@ -2297,7 +2322,7 @@
   const isSpecialKey = (id) => String(id || "").startsWith("so:");
   function addSpecialLine(line) {
     const key = `so:${normKey(line.model)}:${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
-    const special = { key, id: key, model: line.model, qty: Math.max(1, Math.min(20, Number(line.qty) || 1)), brand: line.brand || "", description: line.description || "", product: String(line.product || "").toUpperCase(), inquireOnly: !!line.inquireOnly };
+    const special = { key, id: key, model: line.model, qty: Math.max(1, Math.min(20, Number(line.qty) || 1)), brand: line.brand || "", description: line.description || "", product: String(line.product || "").toUpperCase(), servicesKey: String(line.servicesKey || ""), inquireOnly: !!line.inquireOnly };
     state.cart.special.push(special);
     renderCartCount();
     return special;
@@ -2482,7 +2507,7 @@
             <div class="nm">${esc(sp.brand)} ${esc(sp.model)}${sp.qty > 1 ? ` <span class="muted">× ${sp.qty}</span>` : ""}</div>
             <div class="ds">${sp.inquireOnly ? "Specialist quote · " : "Special order · "}${esc(sp.description)}</div>
             <button class="rm-btn" data-rm-special="${esc(sp.key)}">Remove</button>
-            ${state.addons?.byProduct?.[sp.product] ? `<button class="rm-btn" style="color: var(--primary-dark); margin-left: 10px;" data-addons-special="${esc(sp.key)}">Add installation</button>` : ""}
+            ${addonMapFor(sp) ? `<button class="rm-btn" style="color: var(--primary-dark); margin-left: 10px;" data-addons-special="${esc(sp.key)}">Add installation</button>` : ""}
           </div>
           <div class="pr"><span class="muted" style="font-size:12px; font-weight:600;">Request pricing</span></div>`;
         body.appendChild(line);

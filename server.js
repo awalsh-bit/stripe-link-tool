@@ -266,6 +266,7 @@ import { computePoHealth } from "./lib/po-health.js";
 import { VENDORS as PO_ETA_VENDORS, FIELDS as PO_ETA_FIELDS, readVendorWorkbook, guessMapping as guessPoEtaMapping, applySavedMapping as applyPoEtaSavedMapping, headerSignature as poEtaHeaderSignature, extractRows as extractPoEtaRows, matchRows as matchPoEtaRows, buildImportFile as buildPoEtaFile, IMPORT_FORMATS as PO_ETA_FORMATS, vendorByKey as poEtaVendorByKey } from "./lib/po-eta-import.js";
 import { buildCatalogCheck, catalogCheckCsv, CATALOG_ISSUES } from "./lib/catalog-check.js";
 import { getCatalog, resolveModel, supplierLabel, shopBucketFor, invalidateCatalog } from "./lib/catalog-resolver.js";
+import { MERCH_SUBCLASSES, SUBCLASS_BY_EPASS_PROD, merchSubclassFor, merchClassFor, merchSubclassLabel, merchClassName, merchSubclassName, addonsBySubclass } from "./lib/merch-classes.js";
 import { getInventoryIndex, searchInventory, inventoryModelDetail, invalidateInventoryIndex, UNIT_STATUS as INVENTORY_UNIT_STATUS, LIKELY_AVAILABLE_DAYS } from "./lib/inventory-lookup.js";
 import { PROJECT_STATUSES, PROJECT_STATUS_LABELS, READINESS_ITEMS, getProjectSettings, saveProjectSettings, syncProjectsFromFeed, listProjects, getProject, getProjectByToken, updateProject, addProjectNote, saveProjectReadiness, setProjectGeo } from "./lib/projects-postgres.js";
 import { mapboxConfigured, mapboxPublicToken, geocodeAddress as mapboxGeocode, optimizeRoundTrip } from "./lib/mapbox.js";
@@ -795,8 +796,11 @@ const SHOP_PUBLIC_PATHS = new Set([
   "/public-shell.css",
   "/fonts/roboto-latin-wght-normal.woff2",
   "/fonts/roboto-latin-wght-italic.woff2",
-  "/fonts/cormorant-garamond-latin-500-normal.woff2", // landing-page display face (OFL, self-hosted)
+  "/fonts/cormorant-garamond-latin-500-normal.woff2", // (no longer used by the landing; kept so old cached pages don't 404)
   "/fonts/cormorant-garamond-latin-500-italic.woff2",
+  "/fonts/familjen-grotesk-latin-wght-normal.woff2", // wilsonappliance.com's faces (OFL, self-hosted) — landing + shop
+  "/fonts/public-sans-latin-wght-normal.woff2",
+  "/fonts/ibm-plex-mono-latin-500-normal.woff2",
   "/logo-black.png",
   "/logo-white.png", // landing-page header/footer (same mark, ivory)
   "/favicon.svg",
@@ -6965,7 +6969,21 @@ function shopExpressNote(express) {
 }
 
 function shopItemExpressEligible(item, express) {
-  return shopExpressDaySet(express).size > 0 && Boolean(express?.productSet?.has(`${item.category}|${item.product}`));
+  if (!(shopExpressDaySet(express).size > 0) || !express?.productSet) return false;
+  return express.productSet.has(`${item.category}|${item.subclass || ""}`) || express.productSet.has(`${item.category}|${item.product}`);
+}
+// Express settings were saved as "bucket|PRODUCTCODE" before 11/10; read
+// them as "bucket|subclass" so nothing already ticked falls out.
+function expressKeysToSubclass(keys) {
+  const out = new Set();
+  for (const k of keys || []) {
+    const [cat, code] = String(k).split("|");
+    if (!code) continue;
+    if (MERCH_SUBCLASSES[code]) out.add(`${cat}|${code}`);
+    else if (SUBCLASS_BY_EPASS_PROD[code.toUpperCase()]) { out.add(`${cat}|${SUBCLASS_BY_EPASS_PROD[code.toUpperCase()]}`); out.add(k); }
+    else out.add(k);
+  }
+  return out;
 }
 
 function shopExpressDateChoices(express) {
@@ -7096,18 +7114,21 @@ const SHOP_CATEGORY_ORDER = [
 // Deal chips on the storefront (Andrew 9/27): one per category with its own
 // ceiling, instead of one "under $999" bucket. Laundry splits by product code
 // (washers vs dryers); the others match the shop category.
+// Keyed by NetSuite subclass (11/10); the ePASS product codes stay only for
+// a unit NetSuite hasn't classified.
 const SHOP_DEAL_GROUPS = [
-  { key: "washers", label: "Washers", max: 999, products: ["WASHF", "WASHT"] },
-  { key: "dryers", label: "Dryers", max: 999, products: ["DRELE", "DRGAS"] },
+  { key: "washers", label: "Washers", max: 999, subclasses: ["2110", "2112", "2114", "2116"], products: ["WASHF", "WASHT"] },
+  { key: "dryers", label: "Dryers", max: 999, subclasses: ["2040", "2042", "2044"], products: ["DRELE", "DRGAS"] },
   { key: "dishwashers", label: "Dishwashers", max: 999, categories: ["DW"] },
   { key: "refrigerators", label: "Refrigerators", max: 1999, categories: ["Ref"] }
 ];
-function shopDealGroupFor({ product, category, price }) {
+function shopDealGroupFor({ product, subclass, category, price }) {
   const p = Number(price);
   if (!Number.isFinite(p) || p <= 0) return "";
   const prod = String(product || "").toUpperCase();
+  const sub = String(subclass || "");
   const cat = String(category || "");
-  const g = SHOP_DEAL_GROUPS.find((d) => (d.products ? d.products.includes(prod) : d.categories.includes(cat)) && p <= d.max);
+  const g = SHOP_DEAL_GROUPS.find((d) => (d.subclasses ? (sub ? d.subclasses.includes(sub) : d.products.includes(prod)) : d.categories.includes(cat)) && p <= d.max);
   return g ? g.key : "";
 }
 
@@ -7217,7 +7238,7 @@ function shopStockItems({ snapshot, settings, brandMap, brandNames, images, mapP
     const category = shopBucketFor(known, prod);
     if (!category) continue; // accessories / unmapped product codes stay off the stock listings
     let g = byModel.get(key);
-    if (!g) { g = { key, model, category, prod, units: [], brandCode: String(u.brand || "").trim(), description: String(u.description || known.description || "").trim(), list: 0, listCode: "", map: 0, mapCode: "", l1: 0 }; byModel.set(key, g); }
+    if (!g) { g = { key, model, category, prod, subclass: merchSubclassFor(known, prod), merchClass: merchClassFor(known, prod), units: [], brandCode: String(u.brand || "").trim(), description: String(u.description || known.description || "").trim(), list: 0, listCode: "", map: 0, mapCode: "", l1: 0 }; byModel.set(key, g); }
     g.units.push({ serial, id: `${model}|${serial}#S` });
     if (!g.list && Number(u.list) > 0) { g.list = Number(u.list); g.listCode = u.listCode || ""; }
     if (!g.map && Number(u.map) > 0) { g.map = Number(u.map); g.mapCode = u.mapCode || ""; }
@@ -7235,7 +7256,7 @@ function shopStockItems({ snapshot, settings, brandMap, brandNames, images, mapP
       || (g.brandCode.length > 3 ? g.brandCode.charAt(0) + g.brandCode.slice(1).toLowerCase() : g.brandCode); // SAMSUNG → Samsung; FP stays FP
     const blocked = brandBlocked(brand, g.brandCode);
     const listed = !blocked && !cfg.hidden && available.length > 0 && (available.length > 1 || cfg.showSingle);
-    models.push({ model: g.model, key: g.key, brand, brandCode: g.brandCode, description: g.description, product: g.prod, category: g.category,
+    models.push({ model: g.model, key: g.key, brand, brandCode: g.brandCode, description: g.description, product: g.prod, subclass: g.subclass, merchClass: g.merchClass, category: g.category,
       netsuite: ns.source === "netsuite", merchCategory: ns.merchCategory || "", merchClass: ns.merchClass || "", merchSubclass: ns.merchSubclass || "", inStock: g.units.length, held: heldByModel.get(g.key) || 0, available: available.length, listPrice: g.list || null, listCode: g.listCode, map: g.map || null, mapCode: g.mapCode, l1: g.l1 || null, price: price || null, settings: { price: cfg.price ?? null, showSingle: !!cfg.showSingle, hidden: !!cfg.hidden, note: cfg.note || "", badge: cfg.badge || "", badgeStyle: cfg.badgeStyle || "red", hideStockBadge: !!cfg.hideStockBadge, mapExempt: !!cfg.mapExempt }, mapExempt: mapExemptFor(g.model), listed, blocked, reason: blocked ? "brand doesn't allow online sale" : cfg.hidden ? "hidden" : !available.length ? "none available" + (heldByModel.get(g.key) ? ` (${heldByModel.get(g.key)} spoken for)` : "") : available.length === 1 && !cfg.showSingle ? "single unit (toggle to show)" : !price ? "no price — call for price" : "" });
     if (!listed) continue;
     // The floor is ePASS's own MAP (RETAIL / brand UMRP) when it has one — at
@@ -7247,11 +7268,11 @@ function shopStockItems({ snapshot, settings, brandMap, brandNames, images, mapP
     const mapPublic = Boolean(price) && (Boolean(mapExempt) || Boolean(Number.isFinite(Number(floor)) && Number(floor) > 0 && price >= Number(floor) - 0.005 && (g.map > 0 || shopMapRuleMatch(mapPolicy, brand, g.category))));
     for (const x of available) {
       items.push({
-        id: x.id, model: g.model, brand, brandCode: g.brandCode, product: g.prod, category: g.category, description: g.description,
+        id: x.id, model: g.model, brand, brandCode: g.brandCode, product: g.prod, subclass: g.subclass, merchClass: g.merchClass, category: g.category, description: g.description,
         serial: x.serial, serialType: "ALL", condition: "new", source: "stock",
         stock: available.length, stockLevel: available.length > SHOP_STOCK_LOW_MAX ? "in" : "low",
         image: images[g.key] || "", price: Math.round(price * 100) / 100, noPrice: !price,
-        deal: shopDealGroupFor({ product: g.prod, category: g.category, price }), mapPublic, mapExempt, mapFloor: Number.isFinite(Number(floor)) ? Number(floor) : null,
+        deal: shopDealGroupFor({ product: g.prod, subclass: g.subclass, category: g.category, price }), mapPublic, mapExempt, mapFloor: Number.isFinite(Number(floor)) ? Number(floor) : null,
         badge: cfg.badge || "", badgeStyle: cfg.badgeStyle || "red", hideStockBadge: !!cfg.hideStockBadge
       });
     }
@@ -7329,7 +7350,10 @@ if (process.env.DATABASE_URL && String(process.env.SHOP_CATALOG_WARM || "").toLo
   }, 60 * 1000).unref?.();
 }
 async function computeShopCatalogFresh() {
-  const { clearance: clearanceFile, addons, images, mapPolicy } = await loadShopData();
+  const { clearance: clearanceFile, addons: addonsFile, images, mapPolicy } = await loadShopData();
+  // Install/connector map keyed by NetSuite subclass (11/10); byProduct stays
+  // for a unit NetSuite hasn't classified.
+  const addons = { ...addonsFile, byKey: addonsBySubclass(addonsFile?.byProduct) };
   // The storefront sells the same clearance list the showroom sees (Andrew
   // 10/8): the live feed-built list when there is one, the workbook otherwise.
   // Units on the list without a price yet are not for sale anywhere.
@@ -7422,12 +7446,16 @@ async function computeShopCatalogFresh() {
       price >= Number(floor) - 0.005
     );
     const itemMapFloor = Number.isFinite(Number(floor)) ? Number(floor) : null;
+    const itemNs = brandMap[String(item.model || "").toUpperCase()] || {};
+    const itemSubclass = merchSubclassFor(itemNs, item.product);
     items.push({
       id: item.id,
       model: item.model,
       brand: item.brand,
       brandCode: item.brandCode || "",
       product: item.product,
+      subclass: itemSubclass,
+      merchClass: merchClassFor(itemNs, item.product),
       category: item.category,
       description: item.description,
       serial,
@@ -7435,7 +7463,7 @@ async function computeShopCatalogFresh() {
       condition: shopConditionOf(serialType),
       image: images[normalizeModelKey(item.model)] || "",
       price: Math.round(price * 100) / 100,
-      deal: shopDealGroupFor({ product: item.product, category: item.category, price }),
+      deal: shopDealGroupFor({ product: item.product, subclass: itemSubclass, category: item.category, price }),
       mapPublic,
       mapExempt,
       mapFloor: itemMapFloor,
@@ -7472,7 +7500,7 @@ async function computeShopCatalogFresh() {
     // listDate above is the August upload date and is NOT the inventory age).
     feedAt: clearance._meta?.feed?.receivedAt || clearance._meta?.asOf || "",
     paused,
-    express: { ...expressSettings, productSet: new Set(expressSettings.products) },
+    express: { ...expressSettings, productSet: expressKeysToSubclass(expressSettings.products) },
     stockModels: stock.models,
     snapshotAgeHours,
     mapPriceCount: Object.keys(mapFloor).length,
@@ -8017,10 +8045,11 @@ async function shopDescribeModels(models, catalog) {
       description: first?.description || known.description || r?.description || "",
       product: String(first?.product || known.prod || "").toUpperCase(),
       // What the website uses to find this model's installs & connectors in
-      // /api/shop/services. Opaque on purpose (Andrew 11/9): today it's the
-      // ePASS product code; when the add-on map moves to NetSuite merch
-      // class/subclass only this line and shopServicesIndex() change.
-      servicesKey: String(first?.product || known.prod || "").toUpperCase(),
+      // /api/shop/services: the NetSuite subclass code (11/10), falling back
+      // to the ePASS product code's subclass for an unclassified model.
+      servicesKey: first?.subclass || merchSubclassFor(known, first?.product || known.prod) || "",
+      merchClass: merchClassName(first?.merchClass || merchClassFor(known, first?.product || known.prod)),
+      merchSubclass: merchSubclassName(first?.subclass || merchSubclassFor(known, first?.product || known.prod)),
       category: first?.category || "",
       image: first?.image || "",
       inquireOnly: blocked(brand, first?.brandCode, r?.supplier, known.vendor),
@@ -8065,7 +8094,7 @@ app.get("/api/shop/stock", shopStockLimiter, async (req, res) => {
       const hit = d.units.length ? { items: d.units } : null;
       const brand = d.brand;
       const inquireOnly = d.inquireOnly;
-      const base = { model, brand, description: d.description, product: d.product, servicesKey: d.servicesKey, inquireOnly };
+      const base = { model, brand, description: d.description, product: d.product, servicesKey: d.servicesKey, merchClass: d.merchClass, merchSubclass: d.merchSubclass, inquireOnly };
       if (inquireOnly) return { ...base, inStock: false, available: 0, price: null, priceInCart: false, addUrl: null, note: "Quoted in person — ask for a specialist." };
       if (!hit) return { ...base, inStock: false, available: 0, newUnits: 0, outletUnits: 0, price: null, priceInCart: false, addUrl: null };
       const units = hit.items;
@@ -8083,7 +8112,6 @@ app.get("/api/shop/stock", shopStockLimiter, async (req, res) => {
         brand: units[0].brand || brand,
         category: units[0].category || "",
         product: String(units[0].product || "").toUpperCase(),
-        servicesKey: String(units[0].product || "").toUpperCase(),
         image: units[0].image || "",
         inStock: newUnits > 0,
         available: newUnits,
@@ -8132,13 +8160,13 @@ app.post("/api/shop/handoff", shopHandoffLimiter, async (req, res) => {
     const described = await shopDescribeModels(items.map((i) => i.model), catalog);
     const preview = items.map((it, i) => {
       const d = described[i];
-      return { model: it.model, qty: it.qty, brand: d.brand, description: d.description, product: d.product, servicesKey: d.servicesKey, inStock: d.inStock, available: d.available, inquireOnly: d.inquireOnly, special: !d.inStock };
+      return { model: it.model, qty: it.qty, brand: d.brand, description: d.description, product: d.product, servicesKey: d.servicesKey, merchSubclass: d.merchSubclass, inStock: d.inStock, available: d.available, inquireOnly: d.inquireOnly, special: !d.inStock };
     });
     const sellable = preview;
     const zip = String(req.body?.zip || "").trim().slice(0, 10);
     const source = String(req.body?.source || "website").trim().slice(0, 40);
     const ref = String(req.body?.ref || "").trim().slice(0, 120);
-    const { token, expiresAt } = await createShopHandoff({ items: sellable.map(({ model, qty, brand, description, product, inquireOnly, inStock }) => ({ model, qty, brand, description, product, inquireOnly, inStock })), zip, source, ref, ip: req.ip });
+    const { token, expiresAt } = await createShopHandoff({ items: sellable.map(({ model, qty, brand, description, product, servicesKey, inquireOnly, inStock }) => ({ model, qty, brand, description, product, servicesKey, inquireOnly, inStock })), zip, source, ref, ip: req.ip });
     const url = `https://${SHOP_PUBLIC_HOST}/shop.html?cart=${encodeURIComponent(token)}`;
     res.setHeader("Cache-Control", "no-store");
     return res.json({ token, url, expiresAt, items: preview });
@@ -8183,47 +8211,128 @@ const shopQuoteLimiter = rateLimit("shop-quote", 20, 60 * 60 * 1000);
 // re-keyed to NetSuite merch class/subclass, build it from that here and
 // make servicesKey in shopDescribeModels match — nothing on the website moves.
 function shopServicesIndex(addons) {
-  return addons?.byProduct || {};
+  // NetSuite subclass codes (11/10) plus the legacy ePASS product codes, so a
+  // site still holding an old key keeps working through the changeover.
+  return { ...(addons?.byProduct || {}), ...addonsBySubclass(addons?.byProduct) };
 }
 // Website category / Type → servicesKey (Gavin 11/10): most of the site's
 // 24,000 models aren't in the ePASS model master, so a quote line often has
 // no key of its own. The site uses the model's key when there is one and
 // falls back to this table by "Category|Type" (names exactly as the site's
 // catalog-conventions.md spells them), then "Category" alone. Values are
-// ePASS product codes that have an entry in data/shop-addons.json; anything
-// that doesn't is dropped at response time so the site never gets a dead key.
+// NetSuite subclass codes (11/10) with an install set on file; anything
+// without one is dropped at response time so the site never gets a dead key.
 const SHOP_SERVICES_BY_CATEGORY = {
-  // Cooking
-  "Ranges": "RAGAS", "Ranges|Gas": "RAGAS", "Ranges|Dual Fuel": "RADF", "Ranges|Electric": "RAELE", "Ranges|Induction": "RAIND",
-  "Rangetops": "CTPRO", "Rangetops|Gas": "CTPRO", "Rangetops|Induction": "CTIND", "Rangetops|Electric": "CTELE",
-  "Cooktops": "CTGAS", "Cooktops|Gas": "CTGAS", "Cooktops|Induction": "CTIND", "Cooktops|Electric": "CTELE", "Cooktops|Downdraft Cooktop": "CTELE", "Cooktops|Module": "GRIND",
-  "Wall Ovens": "OVELE", "Wall Ovens|Single": "OVELE", "Wall Ovens|Double": "OVELE", "Wall Ovens|Steam": "OVSTE", "Wall Ovens|Speed": "OVSPE", "Wall Ovens|Combination": "OVMW", "Wall Ovens|Rotisserie": "OVELE",
-  "Microwaves": "MW", "Microwaves|Over-the-Range": "MWOTR", "Microwaves|Countertop": "MW", "Microwaves|Built-In": "MWBI", "Microwaves|Drawer": "MWDR", "Microwaves|Drop-Down Door": "MWBI", "Microwaves|Convection": "MWCON", "Microwaves|Standard": "MW",
-  "Ventilation": "VHOOD", "Ventilation|Wall Hood": "VHOOD", "Ventilation|Hood Liner / Insert": "VHINS", "Ventilation|Under-Cabinet": "VHOOD", "Ventilation|Island Hood": "VHISL", "Ventilation|Downdraft": "VHDD", "Ventilation|Ceiling Hood": "VHISL", "Ventilation|Remote Blower": "VHINS",
-  "Warming Drawers": "WD", "Warming Drawers|Warming Drawer": "WD", "Warming Drawers|Vacuum Seal Drawer": "VACSE",
-  // Coffee
-  "Coffee": "COFFE", "Coffee|Plumbed": "COFFE", "Coffee|Non-plumbed": "COFFE",
-  // Refrigeration
-  "Freestanding Refrigerators": "REFRE", "Freestanding Refrigerators|French Door": "REFRE", "Freestanding Refrigerators|Side-by-Side": "RESXS", "Freestanding Refrigerators|Bottom Freezer": "REFRE", "Freestanding Refrigerators|Top Freezer": "RETOP", "Freestanding Refrigerators|All Refrigerator": "REFRE", "Freestanding Refrigerators|Counter Depth": "REFRE",
-  "Built-in Refrigerators": "REBIF", "Built-in Refrigerators|Refrigerator": "REBIF", "Built-in Refrigerators|Beverage Column": "REALL",
-  "Built-in Refrigeration": "REBIF", "Built-in Refrigeration|Refrigerator": "REBIF", "Built-in Refrigeration|Beverage Column": "REALL",
-  "Freezers": "REFRE", "Freezers|All Freezer (Built-in)": "REALL", "Freezers|Upright": "REFRE", "Freezers|Chest": "REFRE", "Freezers|Undercounter": "REUC",
-  "Refrigerator & Freezer Drawers": "REDRA", "Refrigerator & Freezer Drawers|Refrigerator": "REDRA", "Refrigerator & Freezer Drawers|Freezer": "REDRA", "Refrigerator & Freezer Drawers|Combo Ref/Freezer": "REDRA",
-  "Undercounter Refrigerators": "REUC", "Undercounter Refrigerators|Refrigerator": "REUC", "Undercounter Refrigerators|Beverage Center": "REUC", "Undercounter Refrigerators|Combo Ref/Freezer": "REUC",
-  "Beer Tappers": "REUC", "Beer Tappers|Indoor": "REUC",
-  "Wine Storage": "REFWI", "Wine Storage|Undercounter": "REUC", "Wine Storage|Tall (built-in)": "REBIW", "Wine Storage|Tall (freestanding)": "REFWI", "Wine Storage|Wine & Refrigerator Combo": "REFWI",
-  "Ice Makers": "IMUC", "Ice Makers|Residential": "IMUC",
-  // Kitchen Cleanup (trash compactors and disposals have no install on file yet)
-  "Dishwashers": "DW", "Drawer Dishwashers": "DWDRA", "Professional Dishwashers": "DW",
-  // Laundry
-  "Washers": "WASHF", "Washers|Top Load": "WASHT", "Washers|Front Load": "WASHF", "Washers|All-in-One Combo": "WASHF",
-  "Dryers": "DRELE", "Dryers|Front Load Electric": "DRELE", "Dryers|Front Load Gas": "DRGAS", "Dryers|Top Load Electric": "DRELE", "Dryers|Top Load Gas": "DRGAS", "Dryers|Drying Cabinet": "DRELE", "Dryers|All-in-One Combo": "WASHF", "Dryers|Heat Pump": "DRELE",
-  "Stacked": "WASHF", "Stacked|Electric": "WASHF", "Stacked|Gas": "DRGAS", "Stacked|Heat Pump": "WASHF",
-  "All-in-One": "WASHF", "All-in-One|Heat Pump": "WASHF",
-  // Outdoor
-  "Outdoor Cooking": "GROUT", "Outdoor Cooking|Grills": "GROUT", "Outdoor Cooking|Side Burners & Modules": "GROUT", "Outdoor Cooking|Griddles": "GROUT", "Outdoor Cooking|Pizza Ovens": "PIZZA", "Outdoor Cooking|Kamado": "GROUT", "Outdoor Cooking|Smokers": "GROUT", "Outdoor Cooking|Warming Drawers": "WD",
-  "Outdoor Refrigeration": "REUC",
-  "Outdoor Storage": "CABSS"
+  "Ranges": "1352",
+  "Ranges|Gas": "1352",
+  "Ranges|Dual Fuel": "1348",
+  "Ranges|Electric": "1354",
+  "Ranges|Induction": "1350",
+  "Rangetops": "1371",
+  "Rangetops|Gas": "1371",
+  "Rangetops|Induction": "1370",
+  "Rangetops|Electric": "1372",
+  "Cooktops": "1356",
+  "Cooktops|Gas": "1356",
+  "Cooktops|Induction": "1360",
+  "Cooktops|Electric": "1366",
+  "Cooktops|Downdraft Cooktop": "1368",
+  "Cooktops|Module": "1364",
+  "Wall Ovens": "1376",
+  "Wall Ovens|Single": "1376",
+  "Wall Ovens|Double": "1380",
+  "Wall Ovens|Steam": "1386",
+  "Wall Ovens|Speed": "1388",
+  "Wall Ovens|Combination": "1382",
+  "Wall Ovens|Rotisserie": "1376",
+  "Microwaves": "1404",
+  "Microwaves|Over-the-Range": "1398",
+  "Microwaves|Countertop": "1404",
+  "Microwaves|Built-In": "1404",
+  "Microwaves|Drawer": "1396",
+  "Microwaves|Drop-Down Door": "1394",
+  "Microwaves|Convection": "1404",
+  "Microwaves|Standard": "1404",
+  "Ventilation": "1428",
+  "Ventilation|Wall Hood": "1428",
+  "Ventilation|Hood Liner / Insert": "1450",
+  "Ventilation|Under-Cabinet": "1426",
+  "Ventilation|Island Hood": "1430",
+  "Ventilation|Downdraft": "1434",
+  "Ventilation|Ceiling Hood": "1432",
+  "Ventilation|Remote Blower": "1450",
+  "Warming Drawers": "1408",
+  "Warming Drawers|Warming Drawer": "1408",
+  "Warming Drawers|Vacuum Seal Drawer": "1440",
+  "Coffee": "1600",
+  "Coffee|Plumbed": "1512",
+  "Coffee|Non-plumbed": "1510",
+  "Freestanding Refrigerators": "1022",
+  "Freestanding Refrigerators|French Door": "1022",
+  "Freestanding Refrigerators|Side-by-Side": "1026",
+  "Freestanding Refrigerators|Bottom Freezer": "1028",
+  "Freestanding Refrigerators|Top Freezer": "1032",
+  "Freestanding Refrigerators|All Refrigerator": "1022",
+  "Freestanding Refrigerators|Counter Depth": "1022",
+  "Built-in Refrigerators": "1124",
+  "Built-in Refrigerators|Refrigerator": "1124",
+  "Built-in Refrigerators|Beverage Column": "1110",
+  "Built-in Refrigeration": "1124",
+  "Built-in Refrigeration|Refrigerator": "1124",
+  "Built-in Refrigeration|Beverage Column": "1110",
+  "Freezers": "1036",
+  "Freezers|All Freezer (Built-in)": "1116",
+  "Freezers|Upright": "1036",
+  "Freezers|Chest": "1038",
+  "Freezers|Undercounter": "1322",
+  "Refrigerator & Freezer Drawers": "1318",
+  "Refrigerator & Freezer Drawers|Refrigerator": "1318",
+  "Refrigerator & Freezer Drawers|Freezer": "1322",
+  "Refrigerator & Freezer Drawers|Combo Ref/Freezer": "1320",
+  "Undercounter Refrigerators": "1312",
+  "Undercounter Refrigerators|Refrigerator": "1312",
+  "Undercounter Refrigerators|Beverage Center": "1316",
+  "Undercounter Refrigerators|Combo Ref/Freezer": "1320",
+  "Beer Tappers": "1312",
+  "Beer Tappers|Indoor": "1312",
+  "Wine Storage": "1324",
+  "Wine Storage|Undercounter": "1324",
+  "Wine Storage|Tall (built-in)": "1114",
+  "Wine Storage|Tall (freestanding)": "1324",
+  "Wine Storage|Wine & Refrigerator Combo": "1122",
+  "Ice Makers": "1104",
+  "Ice Makers|Residential": "1104",
+  "Dishwashers": "1330",
+  "Drawer Dishwashers": "1330",
+  "Professional Dishwashers": "1330",
+  "Washers": "2112",
+  "Washers|Top Load": "2110",
+  "Washers|Front Load": "2112",
+  "Washers|All-in-One Combo": "2142",
+  "Dryers": "2040",
+  "Dryers|Front Load Electric": "2040",
+  "Dryers|Front Load Gas": "2042",
+  "Dryers|Top Load Electric": "2040",
+  "Dryers|Top Load Gas": "2042",
+  "Dryers|Drying Cabinet": "2046",
+  "Dryers|All-in-One Combo": "2142",
+  "Dryers|Heat Pump": "2044",
+  "Stacked": "2140",
+  "Stacked|Electric": "2140",
+  "Stacked|Gas": "2140",
+  "Stacked|Heat Pump": "2140",
+  "All-in-One": "2142",
+  "All-in-One|Heat Pump": "2142",
+  "Outdoor Cooking": "8010",
+  "Outdoor Cooking|Grills": "8010",
+  "Outdoor Cooking|Side Burners & Modules": "8019",
+  "Outdoor Cooking|Griddles": "8056",
+  "Outdoor Cooking|Pizza Ovens": "8040",
+  "Outdoor Cooking|Kamado": "8019",
+  "Outdoor Cooking|Smokers": "8042",
+  "Outdoor Cooking|Warming Drawers": "8214",
+  "Outdoor Refrigeration": "8210",
+  "Outdoor Storage": "8112"
 };
 function shopServicesByCategory(addons) {
   const index = shopServicesIndex(addons);
@@ -8430,6 +8539,7 @@ app.get("/api/shop/catalog", async (req, res) => {
         model: i.model,
         brand: i.brand,
         product: i.product,
+        subclass: i.subclass || "",
         category: i.category,
         description: i.description,
         condition: i.condition,
@@ -10909,30 +11019,35 @@ app.get("/api/shop/express-settings", requirePagePermission("/shop-orders.html")
     const catLabels = new Map((clearance._meta?.categories || []).map((c) => [c.key, c.label]));
     for (const c of catalog.categories || []) if (c?.key && c.label && !catLabels.has(c.key)) catLabels.set(c.key, c.label);
     const counts = new Map();
-    const bump = (category, product, n) => {
-      if (!product) return;
-      const key = `${category || ""}|${product}`;
+    // Options are NetSuite subclasses (11/10) — "bucket|subclass code".
+    const kindOf = (x) => x.subclass || SUBCLASS_BY_EPASS_PROD[String(x.product || "").toUpperCase()] || "";
+    const bump = (category, kind, n) => {
+      if (!kind) return;
+      const key = `${category || ""}|${kind}`;
       counts.set(key, (counts.get(key) || 0) + n);
     };
-    for (const item of catalog.items || []) bump(item.category, item.product, 1);
+    for (const item of catalog.items || []) bump(item.category, kindOf(item), 1);
     const listedKeys = new Set(counts.keys());
     const unlisted = new Map();
     for (const m of catalog.stockModels || []) {
-      const key = `${m.category || ""}|${m.product || ""}`;
-      if (!m.product || listedKeys.has(key)) continue;
+      const kind = kindOf(m);
+      const key = `${m.category || ""}|${kind}`;
+      if (!kind || listedKeys.has(key)) continue;
       unlisted.set(key, (unlisted.get(key) || 0) + (Number(m.available) || Number(m.inStock) || 0));
     }
     for (const [key, n] of unlisted) if (!counts.has(key)) counts.set(key, 0);
     // Settings may still reference a code with nothing in stock today - keep
-    // it visible so it can be unchecked rather than silently dropped.
-    for (const key of settings.products || []) if (!counts.has(key)) counts.set(key, 0);
+    // it visible so it can be unchecked rather than silently dropped. Old
+    // product-code keys are shown under their subclass.
+    const savedKeys = [...expressKeysToSubclass(settings.products)].filter((k) => MERCH_SUBCLASSES[k.split("|")[1]]);
+    for (const key of savedKeys) if (!counts.has(key)) counts.set(key, 0);
     const options = [...counts.entries()]
       .map(([key, count]) => {
-        const [category, product] = key.split("|");
-        return { key, category, categoryLabel: catLabels.get(category) || category || "Other", product, count, unlisted: unlisted.get(key) || 0 };
+        const [category, sub] = key.split("|");
+        return { key, category, categoryLabel: catLabels.get(category) || category || "Other", product: merchSubclassLabel(sub), subclass: sub, count, unlisted: unlisted.get(key) || 0 };
       })
-      .sort((a, b) => a.categoryLabel.localeCompare(b.categoryLabel) || a.product.localeCompare(b.product));
-    return res.json({ settings, options });
+      .sort((a, b) => a.categoryLabel.localeCompare(b.categoryLabel) || a.subclass.localeCompare(b.subclass));
+    return res.json({ settings: { ...settings, products: savedKeys }, options });
   } catch (err) {
     console.error("Express settings load failed:", err.message);
     return res.status(500).json({ error: "Unable to load express install settings." });

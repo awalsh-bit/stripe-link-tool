@@ -148,7 +148,7 @@
       <details class="surface" id="expressCard">
         <summary class="exp-summary">
           <strong>Same-day install program</strong>
-          <span class="exp-sub" id="expSummaryLine">Cutoff and qualifying products for warehouse-team installs.</span>
+          <span class="exp-sub" id="expSummaryLine">Cutoff and qualifying NetSuite subclasses for warehouse-team installs.</span>
         </summary>
         <p class="section-note" style="margin-top:10px;">
           Carts made up entirely of checked products get the fast delivery schedule: <b>same day</b> when the
@@ -758,7 +758,7 @@
               <span>${esc2(opt.product)}</span><span class="cnt">${opt.count ? `${opt.count} listed online` : opt.unlisted ? `${opt.unlisted} in stock, none listed` : "none in stock"}</span></label>`;
           }).join("");
           document.getElementById("expSummaryLine").textContent =
-            `Order by ${hourLabel(expData.settings.cutoffHour)} for same-day · ${daysOn.size ? ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].filter((n, i) => daysOn.has(i)).join(" ") : "no program days — OFF"} · ${expData.settings.products.length} qualifying product code(s).`;
+            `Order by ${hourLabel(expData.settings.cutoffHour)} for same-day · ${daysOn.size ? ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].filter((n, i) => daysOn.has(i)).join(" ") : "no program days — OFF"} · ${expData.settings.products.length} qualifying NetSuite subclass(es).`;
           document.getElementById("expMeta").textContent = expData.settings.saved
             ? `Last saved ${new Date(expData.settings.updatedAt).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}${expData.settings.updatedBy ? " by " + expData.settings.updatedBy : ""}.`
             : "Using the built-in defaults — save once to take ownership of the list.";

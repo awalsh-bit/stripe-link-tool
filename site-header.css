@@ -1,0 +1,145 @@
+/* ------------------------------------------------------------------------
+   Wilson site header, shared by the Express shop pages (shop.html,
+   shop-home.html) so they match wilsonappliance.com (Andrew 11/10): a dark
+   translucent utility bar (Schedule Service … More, phone, directions,
+   account, cart) over a photo band with the white logo linking to the main
+   site, the site's uppercase nav on a frosted panel, and search.
+   Fixed to the viewport; the page reserves --site-head-h below it. Once the
+   page scrolls the utility bar folds away and the band tightens.
+   Modes (class on the header):
+     .photo    the band carries its own photo (shop.html)
+     .overlay  the band is transparent over the page's hero (shop-home.html)
+   ------------------------------------------------------------------------ */
+:root {
+  --util-h: 46px;
+  --band-h: 118px;
+  --ribbon-h: 0px;
+  --site-head-h: calc(var(--util-h) + var(--band-h) + var(--ribbon-h));
+  --sh-ink: #24211E;
+  --sh-copper: #BE7D3C;
+  --sh-gold: #E9B77E;
+  --sh-display: "Familjen Grotesk", "Public Sans", system-ui, sans-serif;
+  --sh-body: "Public Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+.site-head { position: fixed; top: 0; left: 0; right: 0; z-index: 42; color: #fff; font-family: var(--sh-body); border-bottom: 0; }
+.site-head a { color: inherit; text-decoration: none; }
+.site-head.photo { background: #1d1a17; }
+
+/* utility bar */
+.site-head .util { position: relative; z-index: 3; background: rgba(20, 17, 14, .6); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); color: rgba(255,255,255,.9); font-size: 14px; max-height: 48px; transition: max-height .25s ease, opacity .2s ease; }
+.site-head.photo .util { background: rgba(24, 21, 18, .94); }
+.site-head.scrolled .util { max-height: 0; opacity: 0; overflow: hidden; pointer-events: none; }
+.site-head .util-inner { max-width: 1560px; margin: 0 auto; padding: 0 28px; height: var(--util-h); display: flex; align-items: center; gap: 24px; }
+.site-head .util-links { display: flex; align-items: center; gap: 26px; }
+.site-head .util-links a, .site-head .util-more > button { color: inherit; font-weight: 500; white-space: nowrap; opacity: .92; }
+.site-head .util-links a:hover { opacity: 1; color: #fff; }
+.site-head .util-links a.strong { font-weight: 700; color: #fff; opacity: 1; }
+.site-head .util-links a.current { color: #fff; opacity: 1; position: relative; }
+.site-head .util-links a.current::after { content: ""; position: absolute; left: 0; right: 0; bottom: -9px; height: 2px; background: var(--sh-copper); }
+.site-head .util-more { position: relative; }
+.site-head .util-more > button { appearance: none; background: none; border: 0; cursor: pointer; font: inherit; display: inline-flex; align-items: center; gap: 5px; padding: 0; }
+.site-head .util-more > button svg { width: 14px; height: 14px; transition: transform .2s; }
+.site-head .util-more.open > button svg { transform: rotate(180deg); }
+.site-head .util-menu { display: none; position: absolute; top: calc(100% + 13px); left: -14px; min-width: 230px; background: #fff; color: var(--sh-ink); border-radius: 6px; box-shadow: 0 18px 40px rgba(0,0,0,.28); padding: 8px 0; }
+.site-head .util-more.open .util-menu { display: block; }
+.site-head .util-menu a { display: block; padding: 9px 16px; color: var(--sh-ink); opacity: 1; font-weight: 500; font-size: 14px; }
+.site-head .util-menu a:hover { background: #F1ECE5; color: #67533E; }
+.site-head .util-menu .nav-dup { display: none; border-top: 1px solid #DDD8D0; margin-top: 6px; padding-top: 6px; }
+.site-head .util-menu .nav-dup a { font-family: var(--sh-display); font-weight: 600; letter-spacing: .06em; text-transform: uppercase; font-size: 12.5px; }
+.site-head .util-menu .nav-dup a.plain { font-family: var(--sh-body); font-weight: 500; letter-spacing: 0; text-transform: none; font-size: 14px; }
+.site-head .util-right { margin-left: auto; display: flex; align-items: center; gap: 22px; }
+.site-head .util-ic { display: inline-flex; align-items: center; gap: 8px; color: #fff; font-weight: 500; white-space: nowrap; }
+.site-head .util-ic:hover { color: var(--sh-gold); }
+.site-head .util-ic svg { width: 18px; height: 18px; }
+.site-head .util-sep { width: 1px; height: 22px; background: rgba(255,255,255,.25); }
+.site-head .acct-cluster { display: flex; align-items: center; gap: 22px; }
+.site-head .band-inner > .acct-cluster { margin-left: 8px; gap: 14px; }
+.site-head .util-btn { appearance: none; background: none; border: 0; color: #fff; cursor: pointer; padding: 6px; display: inline-flex; position: relative; border-radius: 6px; font: inherit; }
+.site-head .util-btn:hover { background: rgba(255,255,255,.12); }
+.site-head .util-btn svg { width: 21px; height: 21px; }
+.site-head .util-chip { appearance: none; border: 1px solid rgba(255,255,255,.35); background: rgba(255,255,255,.08); color: #fff; border-radius: 6px; padding: 5px 12px; font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.site-head .util-chip:hover { border-color: #fff; }
+.site-head .cart-btn { position: relative; }
+.site-head .cart-count { position: absolute; top: -2px; right: -4px; background: var(--sh-copper); color: #fff; min-width: 18px; height: 18px; border-radius: 9px; font-size: 11px; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; padding: 0 4px; line-height: 1; }
+
+/* band */
+.site-head .band { position: relative; color: #fff; }
+.site-head.photo .band { background: #2a2622 url("showroom/hero-kitchen.jpg") center 42% / cover no-repeat; }
+.site-head.photo .band::before { content: ""; position: absolute; inset: 0; background: linear-gradient(90deg, rgba(20,17,14,.55) 0%, rgba(20,17,14,.25) 30%, rgba(20,17,14,.2) 60%, rgba(20,17,14,.5) 100%); }
+.site-head.overlay .band { background: transparent; transition: background .25s ease; }
+.site-head.overlay.scrolled .band { background: rgba(24,21,18,.94); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); }
+.site-head .band-inner { position: relative; max-width: 1560px; margin: 0 auto; padding: 0 28px; height: var(--band-h); display: flex; align-items: center; gap: 28px; transition: height .25s ease; }
+.site-head.scrolled .band-inner { height: 66px; }
+.site-head .band-logo { display: flex; align-items: center; flex: 0 0 auto; }
+.site-head .band-logo img { height: 62px; width: auto; transition: height .25s ease; filter: drop-shadow(0 2px 6px rgba(0,0,0,.35)); }
+.site-head.scrolled .band-logo img { height: 38px; }
+/* the site's frosted panel behind the nav — runs up behind the utility bar too */
+.site-head .nav-wrap { position: relative; margin: 0 auto; height: 100%; display: flex; align-items: center; padding: 0 44px; }
+.site-head .nav-wrap::before { content: ""; position: absolute; left: 0; right: 0; top: calc(-1 * var(--util-h)); bottom: 0; background: rgba(255,255,255,.2); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); transition: top .25s ease; }
+.site-head.scrolled .nav-wrap::before { top: 0; }
+.site-head .site-nav { position: relative; display: flex; align-items: center; gap: 38px; }
+.site-head .site-nav a { font-family: var(--sh-display); font-size: 15.5px; font-weight: 600; letter-spacing: .14em; text-transform: uppercase; color: #fff; white-space: nowrap; padding: 10px 0; border-bottom: 2px solid transparent; text-shadow: 0 1px 2px rgba(0,0,0,.5), 0 0 12px rgba(0,0,0,.3); transition: font-size .25s ease; }
+.site-head .site-nav a:hover { border-bottom-color: #fff; }
+.site-head.scrolled .site-nav a { font-size: 13.5px; letter-spacing: .12em; }
+.site-head .band-search { display: flex; align-items: center; gap: 8px; border-bottom: 1px solid rgba(255,255,255,.6); padding: 4px 0; flex: 0 1 190px; min-width: 110px; }
+.site-head .band-search input { background: none; border: 0; color: #fff; font: inherit; font-size: 15px; width: 100%; padding: 4px 0; outline: none; box-shadow: none; border-radius: 0; }
+.site-head .band-search input::placeholder { color: rgba(255,255,255,.85); }
+.site-head .band-search input::-webkit-search-cancel-button { filter: invert(1); }
+.site-head .band-search button { appearance: none; background: none; border: 0; color: #fff; cursor: pointer; padding: 2px; display: inline-flex; }
+.site-head .band-search button svg { width: 20px; height: 20px; }
+.site-head .menu-btn { display: none; appearance: none; background: transparent; border: 1px solid rgba(255,255,255,.4); border-radius: 6px; color: #fff; cursor: pointer; height: 42px; align-items: center; gap: 9px; justify-content: center; padding: 0 14px; font: inherit; flex: 0 0 auto; }
+.site-head .menu-btn:hover { border-color: #fff; }
+.site-head .menu-btn svg { width: 22px; height: 22px; stroke: #fff; }
+.site-head .menu-btn-label { color: #fff; font-weight: 600; font-size: 13px; letter-spacing: .02em; }
+
+/* optional third row the shop adds (departments) */
+.site-head .ribbon { position: relative; background: #fff; color: var(--sh-ink); border-bottom: 1px solid #DDD8D0; }
+.site-head .ribbon-inner { max-width: 1560px; margin: 0 auto; padding: 0 28px; height: var(--ribbon-h); display: flex; align-items: center; gap: 28px; overflow-x: auto; scrollbar-width: none; }
+.site-head .ribbon-inner::-webkit-scrollbar { display: none; }
+
+@media (max-width: 1440px) {
+  .site-head .band-inner { gap: 20px; }
+  .site-head .site-nav { gap: 26px; }
+  .site-head .site-nav a, .site-head.scrolled .site-nav a { font-size: 13.5px; letter-spacing: .1em; }
+  .site-head .nav-wrap { padding: 0 30px; }
+  .site-head .band-search { flex-basis: 140px; min-width: 100px; }
+  .site-head .band-logo img { height: 54px; }
+  .site-head .util-links { gap: 18px; }
+}
+@media (max-width: 1200px) {
+  .site-head .site-nav { gap: 18px; }
+  .site-head .site-nav a, .site-head.scrolled .site-nav a { font-size: 12.5px; letter-spacing: .08em; }
+  .site-head .nav-wrap { padding: 0 22px; }
+}
+@media (max-width: 1024px) {
+  :root { --band-h: 92px; }
+  .site-head .nav-wrap { display: none; }
+  .site-head .menu-btn { display: inline-flex; }
+  .site-head .band-inner, .site-head.scrolled .band-inner { height: var(--band-h); gap: 16px; }
+  .site-head .band-logo { margin-right: auto; }
+  .site-head .band-logo img, .site-head.scrolled .band-logo img { height: 46px; }
+  .site-head .util-inner { gap: 16px; }
+  .site-head .util-links > a:not(.strong):not(.current) { display: none; }
+  .site-head .util-menu .nav-dup { display: block; }
+  .site-head .util-menu { left: auto; right: -40px; }
+  .site-head .util-ic span { display: none; }
+  .site-head .util-right { gap: 14px; }
+}
+@media (max-width: 640px) {
+  :root { --util-h: 40px; --band-h: 70px; }
+  .site-head .util-inner { padding: 0 12px; height: var(--util-h); gap: 12px; }
+  .site-head .util-links { gap: 14px; font-size: 13px; }
+  .site-head .util-links > a.current { display: none; }
+  .site-head .util-right, .site-head .acct-cluster { gap: 12px; }
+  .site-head .util-ic svg { width: 20px; height: 20px; }
+  .site-head .util-btn { padding: 4px; }
+  .site-head .band-inner, .site-head.scrolled .band-inner { height: var(--band-h); padding: 0 12px; gap: 10px; }
+  .site-head .band-logo img, .site-head.scrolled .band-logo img { height: 44px; }
+  .site-head .band-logo { margin-left: 4px; }
+  .site-head .band-search { flex: 0 0 auto; width: auto; min-width: 0; border-bottom: 0; padding: 0; }
+  .site-head .band-search input { display: none; }
+  .site-head .menu-btn { width: 40px; height: 40px; padding: 0; }
+  .site-head .menu-btn-label { display: none; }
+  .site-head .util-chip { max-width: 110px; padding: 4px 8px; font-size: 12px; }
+  .site-head .ribbon-inner { padding: 0 12px; gap: 18px; }
+}

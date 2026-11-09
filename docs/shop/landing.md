@@ -52,11 +52,13 @@ These can be texted or put in ads: `shop.wilsonappliance.com/shop.html?dept=Laun
 - `SHOP_PUBLIC_API_PREFIXES` += `/showroom`, `/api/shop/home-stats`.
 - `STATIC_DENY_DIRS` += `showroom-photos`.
 
-## Catalog page header (11/10)
+## Site header (11/10)
 
-shop.html's top now mirrors wilsonappliance.com: a dark utility bar (Schedule Service · Financing · Rebates · Showroom · **Express Shop** · More ▾ · phone · Directions · account · cart) over a showroom-photo band with the white logo, the uppercase department nav (Cooking · Coffee · Refrigeration · Kitchen Cleanup · Laundry · Outdoor · Outlet) and a search box. Hovering a department opens the mega panel with that department lit; clicking it goes straight to that department. The header search feeds the catalog's search box. Once the page scrolls, the utility bar folds away and the band tightens to ~70 px with the account and cart icons riding along, so the catalog keeps the screen. Under 1024 px the department nav gives way to the Shop by Category drawer button.
+Both shop pages carry the wilsonappliance.com header, built by the shared `site-header.js` + `site-header.css` so they can't drift apart: a dark translucent utility bar (Schedule Service · Financing · Rebates · Showroom · **Express Shop** · More ▾ · phone · Directions, plus account and cart on the shop), the white logo linking to **wilsonappliance.com**, the site's nav on its frosted panel (Luxury Appliances · Appliances · HVAC · Cabinetry · Sinks & Faucets) and a search box that feeds the catalog search (on the landing page it opens `/shop.html?q=`). The header is fixed; once the page scrolls the utility bar folds away and the band tightens, the account/cart icons riding into the band. On the landing page it sits transparent over the hero photo (`overlay` mode, going dark on scroll); on the catalog page the band carries the showroom photo (`photo` mode). Under 1024 px the site nav and the hidden utility links move into the **More** menu.
 
-The Financing, Rebates and "More" links point at `https://www.wilsonappliance.com/<page>` paths that Gavin needs to confirm (they carry a `data-site` attribute so they are easy to find).
+`shop.html` adds its own third row inside the header — **Express Shop** · Cooking · Coffee · Refrigeration · Kitchen Cleanup · Laundry · Outdoor · Outlet — hovering opens the mega panel with that department lit, clicking goes straight to it; on a phone the row scrolls sideways and the Shop by Category button sits beside the logo.
+
+**Links.** Every main-site destination lives in one table at the top of `site-header.js` (`WILSON_SITE`: base URL + a path per link). The paths — `/financing`, `/rebates`, `/showroom`, `/luxury-appliances`, `/appliances`, `/hvac`, `/cabinetry`, `/sinks-faucets`, and the More items — are placeholders for Gavin to confirm; changing one there changes both pages.
 
 ## Not changed
 

@@ -17,6 +17,7 @@
     /api/shop/home-stats (cached 2 min) which fills the live counts and the
     "featured" row; the page reads fine without it.
   -->
+  <link rel="stylesheet" href="site-header.css">
   <style>
     /* wilsonappliance.com's own tokens (docs/shop/catalog-conventions.md §9) so
        the landing, the shop and the main site read as one place. */
@@ -59,18 +60,9 @@
     .link-arrow { white-space: nowrap; font-size: 14px; font-weight: 600; color: var(--accent); border-bottom: 1px solid currentColor; padding-bottom: 2px; }
     .link-arrow::after { content: " →"; }
 
-    /* ---------- top bar ---------- */
-    .top { position: fixed; inset: 0 0 auto 0; z-index: 50; transition: background .25s ease, box-shadow .25s ease; color: #fff; }
-    .top.solid { background: rgba(255, 255, 255, .96); color: var(--ink); backdrop-filter: blur(10px); box-shadow: 0 1px 0 var(--line); }
-    .top.solid .logo img.light { display: none; } .top .logo img.dark { display: none; } .top.solid .logo img.dark { display: block; }
-    .top.solid .btn.light { background: var(--accent); color: #fff; }
-    .top .wrap { display: flex; align-items: center; justify-content: space-between; height: 72px; gap: 20px; }
+    /* ---------- top bar: site-header.css (shared with the shop) ---------- */
     .logo { display: flex; align-items: center; }
     .logo img { height: 44px; width: auto; }
-    .top nav { display: flex; gap: 28px; font-family: var(--serif); font-size: 13px; letter-spacing: .08em; text-transform: uppercase; font-weight: 600; }
-    .top nav a { opacity: .86; } .top nav a:hover { opacity: 1; }
-    .top .right { display: flex; align-items: center; gap: 16px; }
-    .top .phone { font-size: 13px; letter-spacing: .04em; opacity: .9; }
     .btn { display: inline-flex; align-items: center; justify-content: center; gap: 10px; padding: 12px 18px; border-radius: var(--r); font-weight: 600; font-size: 15px; letter-spacing: 0; border: 1px solid transparent; cursor: pointer; transition: transform .15s ease, background .15s ease, color .15s ease; }
     .btn:hover { transform: translateY(-1px); }
     .btn.light { background: var(--ivory); color: var(--ink); }
@@ -181,8 +173,6 @@
     /* ---------- mobile ---------- */
     .menu-btn { display: none; }
     @media (max-width: 1040px) {
-      .top nav { display: none; }
-      .top .phone { display: none; }
       .jgrid { grid-template-columns: repeat(3, 1fr); }
       .journey:nth-child(3n) { border-right: 0; }
       .journey { border-bottom: 1px solid var(--line); }
@@ -194,7 +184,6 @@
     @media (max-width: 720px) {
       .section { padding: 56px 0; }
       .wrap { width: min(var(--max), 100% - 32px); }
-      .top .wrap { height: 64px; }
       .logo img { height: 34px; }
       .hero::before { background: linear-gradient(180deg, rgba(10,12,10,.62) 0%, rgba(10,12,10,.4) 35%, rgba(10,12,10,.55) 60%, rgba(10,12,10,.94) 100%); }
       .hero img.bg { object-position: 70% 50%; }
@@ -228,22 +217,17 @@
 </head>
 <body>
 
-  <header class="top" id="top">
-    <div class="wrap">
-      <a class="logo" href="/" aria-label="Wilson AC &amp; Appliance"><img class="light" src="logo-white.png" alt="Wilson AC &amp; Appliance" width="921" height="304"><img class="dark" src="logo-black.png" alt="" width="921" height="304"></a>
-      <nav aria-label="Primary">
-        <a href="/shop.html">In Stock</a>
-        <a href="#departments">Departments</a>
-        <a href="#showroom">Showroom</a>
-        <a href="https://service.wilsonappliance.com/applianceservice.html">Service</a>
-        <a href="#builders">Builders</a>
-      </nav>
-      <div class="right">
-        <a class="phone" href="tel:5128940907">512-894-0907</a>
-        <a class="btn light sm" href="/shop.html">Shop in stock</a>
-      </div>
-    </div>
-  </header>
+  <!-- Site header (Andrew 11/10): identical to wilsonappliance.com, built by
+       site-header.js over the hero photo; search goes to the shop. -->
+  <header id="siteTop"></header>
+  <script src="site-header.js"></script>
+  <script>
+    mountSiteHeader("siteTop", {
+      mode: "overlay",
+      current: "express",
+      search: { placeholder: "Search", onSubmit(v) { location.href = "/shop.html" + (v.trim() ? "?q=" + encodeURIComponent(v.trim()) : ""); } }
+    });
+  </script>
 
   <!-- ============ HERO ============ -->
   <section class="hero">
@@ -441,12 +425,6 @@
   <script>
     (() => {
       document.getElementById("yr").textContent = new Date().getFullYear();
-
-      // Top bar: transparent over the hero, solid once you scroll past it.
-      const top = document.getElementById("top");
-      const onScroll = () => top.classList.toggle("solid", window.scrollY > 40);
-      onScroll();
-      addEventListener("scroll", onScroll, { passive: true });
 
       // Department tiles count models by the same category codes shop.html
       // uses for its menu (MENU_TREE), so the tile and the page it opens agree.

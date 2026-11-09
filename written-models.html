@@ -463,7 +463,7 @@
       function itemHtml({ line: l, model: m }) {
         const canEdit = !!state.board.canEdit;
         const badges = [
-          `<button type="button" class="pos-btn" data-pos="${esc(m.key)}" title="Current inventory position — on hand, on order, written, and every unit with its receive date and ticket">Inventory position${m.qoh ? ` · ${m.qoh} on hand` : ""}${m.spokenFor?.length ? ` · ${m.spokenFor.reduce((a, s) => a + (s.qty || 0), 0)} spoken for` : ""}</button>`,
+          `<button type="button" class="pos-btn" data-pos="${esc(m.key)}" title="Current inventory position — on hand (floor models not counted), on order, written, and every unit with its receive date and ticket">Inventory position${m.qoh ? ` · ${m.qoh} on hand` : ""}${m.displayQoh ? ` · ${m.displayQoh} floor model${m.displayQoh === 1 ? "" : "s"}` : ""}${m.spokenFor?.length ? ` · ${m.spokenFor.reduce((a, s) => a + (s.qty || 0), 0)} spoken for` : ""}</button>`,
           m.proposed > 0 ? `<span class="badge short">Short ${m.proposed}</span>` : "",
           m.stockClass && m.stockClass !== "Non-Stock" ? `<span class="badge stock">${esc(m.stockClass)}</span>` : "",
           isReturn(l) ? `<span class="badge ret">Return</span>` : "",
@@ -486,7 +486,7 @@
         // the ⚙ so the page fits half a screen next to the vendor portal.
         const spoken = m.spokenFor?.length ? m.spokenFor.reduce((a, s) => a + (s.qty || 0), 0) : 0;
         const rowBadges = [
-          `<button type="button" class="pos-btn${m.proposed > 0 ? " short" : ""}" data-pos="${esc(m.key)}" data-line="${esc(l.id)}" title="${esc(cogTitle)}">⚙ ${m.qoh ? `${m.qoh} on hand` : "none on hand"}${spoken ? ` · ${spoken} spoken for` : ""}${m.proposed > 0 ? ` · short ${m.proposed}` : ""}</button>`,
+          `<button type="button" class="pos-btn${m.proposed > 0 ? " short" : ""}" data-pos="${esc(m.key)}" data-line="${esc(l.id)}" title="${esc(cogTitle)}">⚙ ${m.qoh ? `${m.qoh} on hand` : "none on hand"}${m.displayQoh ? ` · ${m.displayQoh} floor model${m.displayQoh === 1 ? "" : "s"}` : ""}${spoken ? ` · ${spoken} spoken for` : ""}${m.proposed > 0 ? ` · short ${m.proposed}` : ""}</button>`,
           isReturn(l) ? `<span class="badge ret">Return</span>` : "",
           isUnpaidCod(l) ? `<span class="badge cod" title="0% paid on COD terms">0% COD</span>` : ""
         ].filter(Boolean).join(" ");
@@ -532,7 +532,7 @@
         const ui = lineId ? LINE_UI[lineId] : null;
         const lineBlock = ui ? `<div class="pos-line" id="posLine">
             <span><span class="k">Qty</span><b>${ui.qty}</b></span><span><span class="k">Written</span><b>${ui.m.written}</b></span>
-            <span><span class="k">On hand</span><b>${ui.m.qoh ?? "—"}</b>${ui.m.freeQoh != null && ui.m.freeQoh !== ui.m.qoh ? `<span class="hint">free ${ui.m.freeQoh}</span>` : ""}</span>
+            <span><span class="k">On hand</span><b>${ui.m.qoh ?? "—"}</b>${ui.m.freeQoh != null && ui.m.freeQoh !== ui.m.qoh ? `<span class="hint">free ${ui.m.freeQoh}</span>` : ""}${ui.m.displayQoh ? `<span class="hint" title="DISPLAY serials — the showroom, not counted as on hand">+${ui.m.displayQoh} floor</span>` : ""}</span>
             <span><span class="k">On order</span><b>${ui.m.qoo ?? "—"}</b>${ui.m.stockQoo != null && ui.m.stockQoo !== ui.m.qoo ? `<span class="hint">stock ${ui.m.stockQoo}</span>` : ""}</span>
             <span class="${ui.m.proposed > 0 ? "short" : ""}"><span class="k">Short</span><b>${ui.m.proposed}</b></span>
             <span>${ui.badges}</span>${ui.supIn ? `<span class="sup">${ui.supIn}</span>` : ""}</div>` : "";
@@ -547,7 +547,7 @@
           $("posSub").textContent = [p.brand, p.supplier, s.stockClass].filter(Boolean).join(" · ");
           const monthName = (m) => new Date(m + "-15T12:00:00Z").toLocaleDateString("en-US", { month: "short", timeZone: "UTC" });
           const summary = `<table class="pos-sum"><thead><tr><th>Loc</th><th>QOH</th><th>QOO</th><th>WRI</th><th>Spoken for</th><th>Free</th>${p.months.map((m) => `<th>${esc(monthName(m.month))}</th>`).join("")}</tr></thead>
-            <tbody><tr><td class="dim">${esc(s.locations || "—")}</td><td>${s.qoh ?? "—"}</td><td>${s.qoo ?? "—"}${s.stockQoo ? `<span class="hint">stock ${s.stockQoo}</span>` : ""}</td><td>${s.written ?? "—"}</td><td>${s.spokenFor}</td><td>${s.free ?? "—"}${s.exclusive ? `<span class="hint" title="Showroom / open-box / special / service units not promised to an order — sellable by choice, not counted as free">+${s.exclusive} exclusive</span>` : ""}</td>${p.months.map((m) => `<td>${m.units}</td>`).join("")}</tr></tbody></table>`;
+            <tbody><tr><td class="dim">${esc(s.locations || "—")}</td><td>${s.qoh ?? "—"}${s.displayQoh ? `<span class="hint" title="DISPLAY serials — the showroom, not counted as on hand">+${s.displayQoh} floor</span>` : ""}</td><td>${s.qoo ?? "—"}${s.stockQoo ? `<span class="hint">stock ${s.stockQoo}</span>` : ""}</td><td>${s.written ?? "—"}</td><td>${s.spokenFor}</td><td>${s.free ?? "—"}${s.exclusive ? `<span class="hint" title="Showroom / open-box / special / service units not promised to an order — sellable by choice, not counted as free">+${s.exclusive} exclusive</span>` : ""}</td>${p.months.map((m) => `<td>${m.units}</td>`).join("")}</tr></tbody></table>`;
           const units = p.units.length
             ? `<div class="pos-sec">Inventory on hand <span class="hint" style="display:inline;font-weight:500;text-transform:none;letter-spacing:0">(${p.sources.serials?.feed ? "ePASS feed" : "serial inventory snapshot"})</span></div><table class="pos-d"><thead><tr><th>Ordered for invoice</th><th>Customer</th><th>Schedule / pickup</th><th>Status</th><th>Received</th><th>Age</th><th>Loc / bin</th><th>Serial type</th><th>Serial #</th><th>Cost</th></tr></thead>
                <tbody>${p.units.map((u) => `<tr class="${u.writtenTo ? "" : u.exclusive ? "excl" : "free"}"><td>${u.writtenTo ? `<strong>${esc(u.writtenTo)}</strong>` : u.exclusive ? `Exclusive Reserve Available` : `<span class="hint">free to rotate</span>`}</td><td>${esc(u.customer)}</td><td>${day(u.scheduleDate)}</td><td>${esc(u.status)}</td><td>${day(u.received)}</td><td>${u.ageDays == null ? "—" : u.ageDays + " d"}</td><td class="dim">${esc([u.location, u.bin].filter(Boolean).join(" / ") || "—")}</td><td>${esc(u.serialType)}</td><td>${esc(u.serial)}</td><td>${u.cost ? money2(u.cost) : "—"}</td></tr>`).join("")}</tbody></table>`

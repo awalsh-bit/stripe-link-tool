@@ -198,7 +198,7 @@ import {
   getModelBrandStats,
   saveShopMapPrices,
   saveShopModelImages,
-  getShopModelImages, getNetsuiteFinishMap,
+  getShopModelImages, getNetsuiteFinishMap, saveShopUnitPhoto, getShopUnitPhoto, deleteShopUnitPhoto, listShopUnitPhotos,
   getShopModelImagesMeta,
   getShopMapPrices,
   getShopExpressSettings, saveShopHomeStats, getShopHomeStats, createShopHandoff, getShopHandoff, markShopHandoffConverted,
@@ -790,6 +790,7 @@ const SERVICE_PUBLIC_API_PREFIXES = [
 // the shop host's root; these assets/APIs are reachable without a login on
 // that host only.
 const SHOP_PUBLIC_PATHS = new Set([
+  "/site-header.css", "/site-header.js", // the wilsonappliance.com header shared by the shop pages (11/10)
   "/",
   "/shop.html",
   "/shop-home.html",
@@ -817,6 +818,7 @@ const SHOP_PUBLIC_API_PREFIXES = [
   "/api/shop/services", // installation, connectors, delivery prices for the website's cart (Wilson's own prices, no ZIP needed)
   "/api/config",
   "/api/promo/photo/", // card photos (Promo Item Builder uploads) on storefront tiles
+  "/api/shop/unit-photo/", // phone photos of outlet units (Express Assortment Catalog page)
   "/api/shop/zip-check",
   "/api/shop/register",
   "/api/shop/lookup",
@@ -6546,6 +6548,38 @@ app.get("/api/promo/photo/:model", async (req, res) => {
   } catch { return res.status(404).end(); }
 });
 
+// Photo of one outlet unit (Andrew 11/10): taken on a phone from the Express
+// Assortment Catalog page, shown on that unit's storefront card as the
+// "Actual product photo". Public read on the shop host; save/remove behind
+// the catalog page's permission. The page shrinks the picture before upload.
+const unitPhotoUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 8 * 1024 * 1024, files: 1 } });
+app.get("/api/shop/unit-photo/:model/:serial", async (req, res) => {
+  try {
+    const photo = await getShopUnitPhoto(req.params.model, req.params.serial);
+    if (!photo) return res.status(404).end();
+    sendStoredBlobHeaders(res, photo.contentType, "image/jpeg");
+    res.setHeader("Cache-Control", "public, max-age=86400");
+    return res.end(photo.bytes);
+  } catch { return res.status(404).end(); }
+});
+app.post("/api/shop/unit-photo/:model/:serial", requirePagePermission("/shop-orders.html", "/shop-catalog.html"), unitPhotoUpload.single("photo"), async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ error: "Choose or take a picture." });
+    const saved = await saveShopUnitPhoto({ model: req.params.model, serial: req.params.serial, contentType: req.file.mimetype, bytes: req.file.buffer, byEmail: req.authUser?.email || "" });
+    invalidateShopCatalog();
+    recordAudit({ ip: req.ip, actorUserId: req.authUser?.id || null, action: "shop_unit_photo_saved", targetUserId: null, detail: { model: saved.model, serial: saved.serial, bytes: saved.bytes } }).catch(() => {});
+    return res.json({ ok: true, ...saved, url: `/api/shop/unit-photo/${encodeURIComponent(saved.model)}/${encodeURIComponent(saved.serial)}?v=${Date.now()}` });
+  } catch (err) { return res.status(400).json({ error: err.message || "Unable to save the photo." }); }
+});
+app.delete("/api/shop/unit-photo/:model/:serial", requirePagePermission("/shop-orders.html", "/shop-catalog.html"), async (req, res) => {
+  try {
+    const ok = await deleteShopUnitPhoto(req.params.model, req.params.serial);
+    invalidateShopCatalog();
+    recordAudit({ ip: req.ip, actorUserId: req.authUser?.id || null, action: "shop_unit_photo_removed", targetUserId: null, detail: { model: String(req.params.model || "").slice(0, 40), serial: String(req.params.serial || "").slice(0, 60) } }).catch(() => {});
+    return res.json({ ok });
+  } catch { return res.status(400).json({ error: "Unable to remove the photo." }); }
+});
+
 
 // The workbook file (data/clearance.json): categories, brand names and the
 // per-serial prices it still contributes to the live list.
@@ -7357,6 +7391,7 @@ async function computeShopCatalogFresh() {
   const addonIndex = buildAddonIndex(addonsFile);
   const addons = { ...addonsFile, byKey: addonIndex };
   const finishMap = await getNetsuiteFinishMap().catch(() => ({}));
+  const unitPhotos = await listShopUnitPhotos().catch(() => ({}));
   // The storefront sells the same clearance list the showroom sees (Andrew
   // 10/8): the live feed-built list when there is one, the workbook otherwise.
   // Units on the list without a price yet are not for sale anywhere.
@@ -7480,6 +7515,7 @@ async function computeShopCatalogFresh() {
       serialType,
       condition: shopConditionOf(serialType),
       image: images[normalizeModelKey(item.model)] || "",
+      photoActual: false,
       price: Math.round(price * 100) / 100,
       deal: shopDealGroupFor({ product: item.product, subclass: itemSubclass, category: item.category, price }),
       mapPublic,
@@ -7504,6 +7540,12 @@ async function computeShopCatalogFresh() {
     const dbImages = await getShopModelImages(items.map((i) => normalizeModelKey(i.model)));
     for (const i of items) { const u = dbImages[normalizeModelKey(i.model)]; if (u) i.image = u; }
   } catch (err) { console.warn("Shop thumbnails lookup failed:", err.message); }
+  // A phone photo of the actual unit (Andrew 11/10) beats any render: it
+  // becomes the card's picture, flagged "Actual product photo".
+  for (const i of items) {
+    const ph = i.serial ? unitPhotos[`${normalizeModelKey(i.model)}|${String(i.serial).toUpperCase()}`] : null;
+    if (ph) { i.image = `/api/shop/unit-photo/${encodeURIComponent(i.model)}/${encodeURIComponent(i.serial)}?v=${encodeURIComponent(ph.takenAt || "")}`; i.photoActual = true; i.photoTakenAt = ph.takenAt; }
+  }
   // Which install set each unit gets (11/10): subclass, refined by brand/model
   // rules and by NetSuite's finish (panel-ready → "with panel" installs only).
   for (const i of items) {
@@ -8581,6 +8623,7 @@ app.get("/api/shop/catalog", async (req, res) => {
         condition: i.condition,
         serialType: i.serialType || "",
         image: i.image,
+        photoActual: !!i.photoActual,
         deal: i.deal || "",
         badge: i.badge || "", badgeStyle: i.badgeStyle || "red", hideStockBadge: !!i.hideStockBadge,
         sold: rank.byModel[normalizeModelKey(i.model)] || 0,
@@ -8677,7 +8720,14 @@ app.get("/api/shop/stock-models", requirePagePermission("/shop-orders.html", "/s
     const catLabels = Object.fromEntries((clearance._meta?.categories || []).map((c) => [c.key, c.label]));
     const models = (catalog.stockModels || []).map((m) => ({ ...m, categoryLabel: catLabels[m.category] || m.category }));
     const distinct = (f) => [...new Set(models.map(f).filter(Boolean))].sort((a, b) => a.localeCompare(b, "en", { numeric: true }));
-    return res.json({ models, brands: distinct((m) => m.brand), merchClasses: distinct((m) => m.merchClass), merchCategories: distinct((m) => m.merchCategory),
+    // Outlet units (open box / floor models / unique-priced) on the store, one
+    // row per serial — the catalog page photographs these.
+    const outlet = (catalog.items || []).filter((i) => i.source !== "stock").map((i) => ({
+      id: i.id, model: i.model, serial: i.serial, serialType: i.serialType || "", condition: i.condition, brand: i.brand, description: i.description,
+      category: i.category, categoryLabel: catLabels[i.category] || i.category, price: i.price, mapPublic: !!i.mapPublic, mapExempt: i.mapExempt || "",
+      image: i.image || "", photoActual: !!i.photoActual, photoTakenAt: i.photoTakenAt || ""
+    }));
+    return res.json({ models, outlet, brands: distinct((m) => m.brand), merchClasses: distinct((m) => m.merchClass), merchCategories: distinct((m) => m.merchCategory),
       netsuiteModels: models.filter((m) => m.netsuite).length, snapshot: catalog.snapshot, paused: catalog.paused, lowMax: SHOP_STOCK_LOW_MAX, blockedBrands: shopBlockedBrandEntries,
       mapExempt: catalog.mapExemptStats || null });
   } catch (err) {

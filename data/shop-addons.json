@@ -1,6 +1,6 @@
 {
   "_meta": {
-    "note": "Generated from the NS shop accessories and installs folder. Connectors from ePASS Connectors Price Levels; installs from Service Item for Sale Import v2. byProduct maps clearance product codes to suggested add-on ids.",
+    "note": "Generated from the NS shop accessories and installs folder. Connectors from ePASS Connectors Price Levels; installs from Service Item for Sale Import v2. byProduct maps clearance product codes to suggested add-on ids. bySubclass (11/10) is the authoritative map keyed by NetSuite merch subclass; byProduct is the legacy ePASS-product-code map kept as the fallback. variants are brand/model rules inside a subclass; panelPairs are the no-panel/with-panel install pairs chosen by NetSuite's Primary Finish.",
     "sourceFolder": "shop accessories and installs",
     "taxRate": 0.0825,
     "taxNote": "Items, parts, and delivery are taxed at 8.25%. Install labor is taxed only for freestanding product; built-in installs are exempt."
@@ -10,7 +10,7 @@
     "name": "White Glove Delivery + Haul Away",
     "price": 49.95,
     "regularPrice": 89.95,
-    "note": "Special online offer — includes delivery and haul off of the appliance being replaced (if applicable)."
+    "note": "Special online offer \u2014 includes delivery and haul off of the appliance being replaced (if applicable)."
   },
   "connectors": [
     {
@@ -1143,5 +1143,883 @@
         "universal-gas-install-kit"
       ]
     ]
-  }
+  },
+  "bySubclass": {
+    "1022": {
+      "installs": [
+        "refrigerator-freestanding-install"
+      ],
+      "connectors": [
+        "refrigerator-water-supply-stainless"
+      ]
+    },
+    "1024": {
+      "installs": [
+        "refrigerator-freestanding-install"
+      ],
+      "connectors": [
+        "refrigerator-water-supply-stainless"
+      ]
+    },
+    "1026": {
+      "installs": [
+        "refrigerator-freestanding-install"
+      ],
+      "connectors": [
+        "refrigerator-water-supply-stainless"
+      ]
+    },
+    "1028": {
+      "installs": [
+        "refrigerator-freestanding-install",
+        "door-reversal-freestanding-refrigerator"
+      ],
+      "connectors": [
+        "refrigerator-water-supply-stainless"
+      ]
+    },
+    "1030": {
+      "installs": [
+        "refrigerator-freestanding-install",
+        "door-reversal-freestanding-refrigerator"
+      ],
+      "connectors": []
+    },
+    "1032": {
+      "installs": [
+        "refrigerator-freestanding-install",
+        "door-reversal-freestanding-refrigerator"
+      ],
+      "connectors": [
+        "refrigerator-water-supply-stainless"
+      ]
+    },
+    "1036": {
+      "installs": [
+        "refrigerator-freestanding-install",
+        "door-reversal-freestanding-refrigerator"
+      ],
+      "connectors": []
+    },
+    "1038": {
+      "installs": [
+        "refrigerator-freestanding-install"
+      ],
+      "connectors": []
+    },
+    "1104": {
+      "installs": [
+        "built-in-ice-machine-install",
+        "built-in-ice-machine-install-with-panel"
+      ],
+      "connectors": [
+        "refrigerator-water-supply-stainless"
+      ]
+    },
+    "1110": {
+      "installs": [
+        "refrigerator-built-in-column-stainless-install",
+        "refrigerator-built-in-column-with-panel-install"
+      ],
+      "connectors": [
+        "refrigerator-water-supply-stainless"
+      ]
+    },
+    "1114": {
+      "installs": [
+        "refrigerator-built-in-column-stainless-install",
+        "refrigerator-built-in-column-with-panel-install"
+      ],
+      "connectors": []
+    },
+    "1116": {
+      "installs": [
+        "refrigerator-built-in-column-stainless-install",
+        "refrigerator-built-in-column-with-panel-install"
+      ],
+      "connectors": [
+        "refrigerator-water-supply-stainless"
+      ]
+    },
+    "1118": {
+      "installs": [
+        "refrigerator-built-in-no-panels-install",
+        "refrigerator-built-in-with-panel-install"
+      ],
+      "connectors": [
+        "refrigerator-water-supply-stainless"
+      ]
+    },
+    "1119": {
+      "installs": [
+        "refrigerator-built-in-no-panels-install",
+        "refrigerator-built-in-with-panel-install"
+      ],
+      "connectors": [
+        "refrigerator-water-supply-stainless"
+      ]
+    },
+    "1120": {
+      "installs": [
+        "refrigerator-built-in-no-panels-install",
+        "refrigerator-built-in-with-panel-install"
+      ],
+      "connectors": [
+        "refrigerator-water-supply-stainless"
+      ]
+    },
+    "1122": {
+      "installs": [
+        "refrigerator-built-in-column-stainless-install",
+        "refrigerator-built-in-column-with-panel-install"
+      ],
+      "connectors": []
+    },
+    "1124": {
+      "installs": [
+        "refrigerator-built-in-no-panels-install",
+        "refrigerator-built-in-with-panel-install"
+      ],
+      "connectors": [
+        "refrigerator-water-supply-stainless"
+      ]
+    },
+    "1126": {
+      "installs": [
+        "refrigerator-built-in-no-panels-install",
+        "refrigerator-built-in-with-panel-install"
+      ],
+      "connectors": [
+        "refrigerator-water-supply-stainless"
+      ]
+    },
+    "1128": {
+      "installs": [
+        "refrigerator-built-in-no-panels-install",
+        "refrigerator-built-in-with-panel-install"
+      ],
+      "connectors": [
+        "refrigerator-water-supply-stainless"
+      ]
+    },
+    "1312": {
+      "installs": [
+        "refrigerator-undercounter-built-in-no-panel-install",
+        "refrigerator-undercounter-built-in-with-panel-install"
+      ],
+      "connectors": [
+        "refrigerator-water-supply-stainless"
+      ]
+    },
+    "1316": {
+      "installs": [
+        "refrigerator-undercounter-built-in-no-panel-install",
+        "refrigerator-undercounter-built-in-with-panel-install"
+      ],
+      "connectors": []
+    },
+    "1318": {
+      "installs": [
+        "refrigerator-undercounter-drawers-install"
+      ],
+      "connectors": []
+    },
+    "1320": {
+      "installs": [
+        "refrigerator-undercounter-drawers-install"
+      ],
+      "connectors": []
+    },
+    "1322": {
+      "installs": [
+        "refrigerator-undercounter-drawers-install"
+      ],
+      "connectors": []
+    },
+    "1324": {
+      "installs": [
+        "refrigerator-undercounter-built-in-no-panel-install",
+        "refrigerator-undercounter-built-in-with-panel-install"
+      ],
+      "connectors": []
+    },
+    "1330": {
+      "installs": [
+        "dishwasher-standard-install",
+        "dishwasher-with-panel-install"
+      ],
+      "connectors": [
+        "dishwasher-install-kit",
+        "universal-nema-5-15-cord"
+      ]
+    },
+    "1332": {
+      "installs": [],
+      "connectors": []
+    },
+    "1340": {
+      "installs": [
+        "range-pro-install",
+        "gas-conversion-dual-fuel-range"
+      ],
+      "connectors": [
+        "universal-gas-install-kit",
+        "range-cord"
+      ]
+    },
+    "1342": {
+      "installs": [
+        "range-pro-install"
+      ],
+      "connectors": [
+        "range-cord"
+      ]
+    },
+    "1344": {
+      "installs": [
+        "range-pro-install",
+        "gas-conversion-all-gas-range"
+      ],
+      "connectors": [
+        "universal-gas-install-kit"
+      ]
+    },
+    "1346": {
+      "installs": [
+        "range-pro-install"
+      ],
+      "connectors": []
+    },
+    "1348": {
+      "installs": [
+        "range-standard-gas-install",
+        "gas-conversion-dual-fuel-range"
+      ],
+      "connectors": [
+        "universal-gas-install-kit",
+        "range-cord"
+      ]
+    },
+    "1350": {
+      "installs": [
+        "range-standard-electric-install"
+      ],
+      "connectors": [
+        "range-cord"
+      ]
+    },
+    "1352": {
+      "installs": [
+        "range-standard-gas-install",
+        "gas-conversion-all-gas-range"
+      ],
+      "connectors": [
+        "universal-gas-install-kit"
+      ]
+    },
+    "1354": {
+      "installs": [
+        "range-standard-electric-install"
+      ],
+      "connectors": [
+        "range-cord"
+      ]
+    },
+    "1356": {
+      "installs": [
+        "cooktop-standard-install",
+        "gas-conversion-cooktop"
+      ],
+      "connectors": [
+        "universal-gas-install-kit"
+      ]
+    },
+    "1358": {
+      "installs": [
+        "cooktop-standard-install",
+        "gas-conversion-cooktop"
+      ],
+      "connectors": [
+        "universal-gas-install-kit"
+      ]
+    },
+    "1360": {
+      "installs": [
+        "cooktop-standard-install"
+      ],
+      "connectors": []
+    },
+    "1362": {
+      "installs": [
+        "cooktop-standard-install"
+      ],
+      "connectors": []
+    },
+    "1364": {
+      "installs": [
+        "cooktop-modular-standard-install"
+      ],
+      "connectors": []
+    },
+    "1366": {
+      "installs": [
+        "cooktop-standard-install"
+      ],
+      "connectors": []
+    },
+    "1368": {
+      "installs": [
+        "cooktop-standard-install"
+      ],
+      "connectors": []
+    },
+    "1370": {
+      "installs": [
+        "pro-rangetop-install"
+      ],
+      "connectors": []
+    },
+    "1371": {
+      "installs": [
+        "pro-rangetop-install",
+        "gas-conversion-rangetop"
+      ],
+      "connectors": [
+        "universal-gas-install-kit"
+      ]
+    },
+    "1372": {
+      "installs": [
+        "pro-rangetop-install"
+      ],
+      "connectors": []
+    },
+    "1376": {
+      "installs": [
+        "oven-single-install"
+      ],
+      "connectors": []
+    },
+    "1380": {
+      "installs": [
+        "oven-double-install"
+      ],
+      "connectors": []
+    },
+    "1382": {
+      "installs": [
+        "oven-double-install"
+      ],
+      "connectors": []
+    },
+    "1384": {
+      "installs": [
+        "oven-steam-non-plumbed-install",
+        "oven-steam-plumbed-install"
+      ],
+      "connectors": []
+    },
+    "1386": {
+      "installs": [
+        "oven-steam-non-plumbed-install",
+        "oven-steam-plumbed-install"
+      ],
+      "connectors": []
+    },
+    "1388": {
+      "installs": [
+        "oven-speed-install"
+      ],
+      "connectors": []
+    },
+    "1394": {
+      "installs": [
+        "microwave-built-in-install"
+      ],
+      "connectors": []
+    },
+    "1396": {
+      "installs": [
+        "microwave-drawer-install"
+      ],
+      "connectors": []
+    },
+    "1398": {
+      "installs": [
+        "over-the-range-microwave-install"
+      ],
+      "connectors": []
+    },
+    "1404": {
+      "installs": [
+        "microwave-countertop-no-trim-kit",
+        "microwave-with-trim-kit-install"
+      ],
+      "connectors": []
+    },
+    "1406": {
+      "installs": [
+        "microwave-with-trim-kit-install"
+      ],
+      "connectors": []
+    },
+    "1408": {
+      "installs": [
+        "warming-drawer-no-panel-install",
+        "warming-drawer-with-panel-install"
+      ],
+      "connectors": []
+    },
+    "1412": {
+      "installs": [
+        "built-in-vacuum-seal-drawer-install"
+      ],
+      "connectors": []
+    },
+    "1426": {
+      "installs": [
+        "hood-under-cabinet-install"
+      ],
+      "connectors": [
+        "universal-nema-5-15-cord"
+      ]
+    },
+    "1428": {
+      "installs": [
+        "hood-wall-install"
+      ],
+      "connectors": [
+        "universal-nema-5-15-cord"
+      ]
+    },
+    "1430": {
+      "installs": [
+        "hood-island-install"
+      ],
+      "connectors": [
+        "universal-nema-5-15-cord"
+      ]
+    },
+    "1432": {
+      "installs": [
+        "hood-island-install"
+      ],
+      "connectors": [
+        "universal-nema-5-15-cord"
+      ]
+    },
+    "1434": {
+      "installs": [
+        "cattura-downdraft-install"
+      ],
+      "connectors": [
+        "universal-nema-5-15-cord"
+      ]
+    },
+    "1436": {
+      "installs": [
+        "cattura-downdraft-install"
+      ],
+      "connectors": [
+        "universal-nema-5-15-cord"
+      ]
+    },
+    "1440": {
+      "installs": [
+        "built-in-vacuum-seal-drawer-install"
+      ],
+      "connectors": []
+    },
+    "1450": {
+      "installs": [
+        "hood-liner-insert-install"
+      ],
+      "connectors": [
+        "universal-nema-5-15-cord"
+      ]
+    },
+    "1510": {
+      "installs": [
+        "coffee-system-non-plumbed-install"
+      ],
+      "connectors": []
+    },
+    "1512": {
+      "installs": [
+        "coffee-system-plumbed-install"
+      ],
+      "connectors": []
+    },
+    "1600": {
+      "installs": [
+        "coffee-system-non-plumbed-install",
+        "coffee-system-plumbed-install"
+      ],
+      "connectors": []
+    },
+    "1850": {
+      "installs": [
+        "grill-access-door-drawer-install",
+        "kalamazoo-cabinet-installation"
+      ],
+      "connectors": []
+    },
+    "2040": {
+      "installs": [
+        "dryer-standard-install",
+        "dryer-condo-install",
+        "side-vent-dryer-add-on-install",
+        "dryer-door-reversal",
+        "stacking-kit-add-on-install"
+      ],
+      "connectors": [
+        "dryer-cord",
+        "dryer-vent-kit",
+        "dryer-steam-kit"
+      ]
+    },
+    "2042": {
+      "installs": [
+        "dryer-standard-install",
+        "dryer-condo-install",
+        "gas-conversion-dryer",
+        "side-vent-dryer-add-on-install",
+        "stacking-kit-add-on-install"
+      ],
+      "connectors": [
+        "universal-gas-install-kit",
+        "dryer-vent-kit",
+        "dryer-steam-kit"
+      ]
+    },
+    "2044": {
+      "installs": [
+        "dryer-standard-install",
+        "dryer-condo-install",
+        "stacking-kit-add-on-install"
+      ],
+      "connectors": [
+        "dryer-cord"
+      ]
+    },
+    "2046": {
+      "installs": [
+        "dryer-standard-install"
+      ],
+      "connectors": [
+        "dryer-cord"
+      ]
+    },
+    "2110": {
+      "installs": [
+        "washer-standard-install",
+        "washer-condo-install"
+      ],
+      "connectors": [
+        "washer-fill-hoses-5ft-rubber",
+        "washer-fill-hoses-5ft-stainless",
+        "washer-fill-hoses-10ft-stainless"
+      ]
+    },
+    "2112": {
+      "installs": [
+        "washer-standard-install",
+        "washer-condo-install",
+        "stacking-kit-add-on-install"
+      ],
+      "connectors": [
+        "washer-fill-hoses-5ft-rubber",
+        "washer-fill-hoses-5ft-stainless",
+        "washer-fill-hoses-10ft-stainless"
+      ]
+    },
+    "2114": {
+      "installs": [
+        "washer-standard-install",
+        "washer-condo-install"
+      ],
+      "connectors": [
+        "washer-fill-hoses-5ft-rubber",
+        "washer-fill-hoses-5ft-stainless",
+        "washer-fill-hoses-10ft-stainless"
+      ]
+    },
+    "2116": {
+      "installs": [
+        "washer-standard-install",
+        "washer-condo-install",
+        "stacking-kit-add-on-install"
+      ],
+      "connectors": [
+        "washer-fill-hoses-5ft-rubber",
+        "washer-fill-hoses-5ft-stainless",
+        "washer-fill-hoses-10ft-stainless"
+      ]
+    },
+    "2140": {
+      "installs": [
+        "washer-standard-install"
+      ],
+      "connectors": [
+        "washer-fill-hoses-5ft-stainless",
+        "washer-fill-hoses-10ft-stainless",
+        "dryer-cord",
+        "dryer-vent-kit"
+      ]
+    },
+    "2142": {
+      "installs": [
+        "washer-standard-install"
+      ],
+      "connectors": [
+        "washer-fill-hoses-5ft-stainless",
+        "washer-fill-hoses-10ft-stainless"
+      ]
+    },
+    "2214": {
+      "installs": [
+        "pedestal-basic-add-on-install",
+        "pedestal-washer-add-on-install"
+      ],
+      "connectors": []
+    },
+    "2216": {
+      "installs": [
+        "stacking-kit-add-on-install"
+      ],
+      "connectors": []
+    },
+    "8010": {
+      "installs": [
+        "outdoor-grill-standard-install",
+        "outdoor-grill-kalamazoo-install",
+        "outdoor-sideburner-install"
+      ],
+      "connectors": []
+    },
+    "8011": {
+      "installs": [
+        "outdoor-grill-standard-install",
+        "outdoor-grill-kalamazoo-install",
+        "outdoor-sideburner-install"
+      ],
+      "connectors": []
+    },
+    "8013": {
+      "installs": [
+        "outdoor-grill-standard-install",
+        "outdoor-grill-kalamazoo-install",
+        "outdoor-sideburner-install"
+      ],
+      "connectors": []
+    },
+    "8014": {
+      "installs": [
+        "outdoor-grill-standard-install",
+        "outdoor-grill-kalamazoo-install",
+        "outdoor-sideburner-install"
+      ],
+      "connectors": []
+    },
+    "8019": {
+      "installs": [
+        "outdoor-grill-standard-install",
+        "outdoor-grill-kalamazoo-install"
+      ],
+      "connectors": []
+    },
+    "8040": {
+      "installs": [
+        "oven-pizza-countertop-install",
+        "oven-pizza-built-in-install"
+      ],
+      "connectors": []
+    },
+    "8042": {
+      "installs": [
+        "outdoor-grill-standard-install",
+        "outdoor-grill-kalamazoo-install"
+      ],
+      "connectors": []
+    },
+    "8056": {
+      "installs": [
+        "outdoor-grill-standard-install"
+      ],
+      "connectors": []
+    },
+    "8110": {
+      "installs": [
+        "grill-access-door-drawer-install"
+      ],
+      "connectors": []
+    },
+    "8112": {
+      "installs": [
+        "grill-access-door-drawer-install"
+      ],
+      "connectors": []
+    },
+    "8114": {
+      "installs": [
+        "grill-access-door-drawer-install"
+      ],
+      "connectors": []
+    },
+    "8116": {
+      "installs": [
+        "grill-access-door-drawer-install"
+      ],
+      "connectors": []
+    },
+    "8210": {
+      "installs": [
+        "refrigerator-undercounter-built-in-no-panel-install"
+      ],
+      "connectors": []
+    },
+    "8214": {
+      "installs": [
+        "warming-drawer-no-panel-install"
+      ],
+      "connectors": []
+    },
+    "8218": {
+      "installs": [
+        "hood-wall-install"
+      ],
+      "connectors": [
+        "universal-nema-5-15-cord"
+      ]
+    },
+    "8224": {
+      "installs": [
+        "dishwasher-standard-install"
+      ],
+      "connectors": [
+        "dishwasher-install-kit",
+        "universal-nema-5-15-cord"
+      ]
+    }
+  },
+  "bySubclassNotes": {
+    "1022": "French door: no door reversal",
+    "1024": "Quad door: no door reversal",
+    "1030": "Compact: no water line",
+    "1036": "Upright freezer: no water line",
+    "1038": "Chest freezer: set in place only",
+    "1114": "Wine column: no water line",
+    "1122": "Wine + drawers column: no water line",
+    "1316": "Beverage center: no water line",
+    "1324": "Wine reserve: no water line",
+    "1330": "Pro install only for the pro brands (variants); panel install only for panel-ready finish",
+    "1332": "Portable dishwasher: plugs in, nothing to install",
+    "1340": "Pro dual fuel: gas kit and cord",
+    "1342": "Pro induction: no gas",
+    "1344": "Pro all gas",
+    "1346": "Specialty pro range",
+    "1364": "Specialty cooktop = modules",
+    "1370": "Induction rangetop: pro rangetop install, no gas",
+    "1372": "Specialty rangetop",
+    "1376": "Single oven only",
+    "1380": "Double oven only",
+    "1382": "Microwave combo installs as a double",
+    "1426": "Under-cabinet only",
+    "1428": "Wall mount only",
+    "1432": "In-ceiling hood: island install is the closest service \u2014 review",
+    "1436": "Downdraft module",
+    "1510": "Non-plumbed only",
+    "1512": "Plumbed only",
+    "2044": "Ventless dryer: no vent kit, no gas, no side vent",
+    "2046": "Drying cabinet \u2014 review",
+    "2140": "Unitized laundry center: hoses + dryer cord + vent",
+    "2142": "Ventless all-in-one: hoses only",
+    "2216": "Stacking kit sold alone",
+    "8019": "Specialty grill",
+    "8042": "Smoker cabinet",
+    "8056": "Flattop griddle",
+    "8210": "Outdoor refrigerator: stainless, no water line",
+    "8214": "Outdoor warming drawer: stainless",
+    "8218": "Outdoor ventilation",
+    "8224": "Outdoor dishwasher"
+  },
+  "panelPairs": [
+    [
+      "dishwasher-standard-install",
+      "dishwasher-with-panel-install"
+    ],
+    [
+      "refrigerator-built-in-no-panels-install",
+      "refrigerator-built-in-with-panel-install"
+    ],
+    [
+      "refrigerator-built-in-column-stainless-install",
+      "refrigerator-built-in-column-with-panel-install"
+    ],
+    [
+      "refrigerator-undercounter-built-in-no-panel-install",
+      "refrigerator-undercounter-built-in-with-panel-install"
+    ],
+    [
+      "built-in-ice-machine-install",
+      "built-in-ice-machine-install-with-panel"
+    ],
+    [
+      "warming-drawer-no-panel-install",
+      "warming-drawer-with-panel-install"
+    ]
+  ],
+  "variants": [
+    {
+      "key": "1330-panel",
+      "label": "Bosch panel-ready (SHV/SGV)",
+      "subclass": "1330",
+      "brands": [
+        "Bosch"
+      ],
+      "modelPattern": "^S[HG]V",
+      "installs": [
+        "dishwasher-with-panel-install"
+      ],
+      "connectors": [
+        "dishwasher-install-kit",
+        "universal-nema-5-15-cord"
+      ]
+    },
+    {
+      "key": "1330-drawer",
+      "label": "DishDrawer",
+      "subclass": "1330",
+      "brands": [
+        "Fisher & Paykel"
+      ],
+      "modelPattern": "^DD",
+      "installs": [
+        "dish-drawer-install"
+      ],
+      "connectors": [
+        "dishwasher-install-kit",
+        "universal-nema-5-15-cord"
+      ]
+    },
+    {
+      "key": "1330-pro",
+      "label": "Pro dishwasher",
+      "subclass": "1330",
+      "brands": [
+        "Cove",
+        "Miele",
+        "Gaggenau",
+        "Thermador"
+      ],
+      "installs": [
+        "pro-dishwasher-install"
+      ],
+      "connectors": [
+        "dishwasher-install-kit",
+        "universal-nema-5-15-cord"
+      ]
+    }
+  ],
+  "variantsNote": "Checked in order, first match wins, before the finish rule. A variant may reuse a generated key (1330-panel) or define its own (1330-pro, 1330-drawer). Pro-dishwasher brand list is a first cut for Cayden's team to confirm."
 }

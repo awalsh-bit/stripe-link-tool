@@ -52,9 +52,15 @@ These can be texted or put in ads: `shop.wilsonappliance.com/shop.html?dept=Laun
 - `SHOP_PUBLIC_API_PREFIXES` += `/showroom`, `/api/shop/home-stats`.
 - `STATIC_DENY_DIRS` += `showroom-photos`.
 
+## Catalog page header (11/10)
+
+shop.html's top now mirrors wilsonappliance.com: a dark utility bar (Schedule Service · Financing · Rebates · Showroom · **Express Shop** · More ▾ · phone · Directions · account · cart) over a showroom-photo band with the white logo, the uppercase department nav (Cooking · Coffee · Refrigeration · Kitchen Cleanup · Laundry · Outdoor · Outlet) and a search box. Hovering a department opens the mega panel with that department lit; clicking it goes straight to that department. The header search feeds the catalog's search box. Once the page scrolls, the utility bar folds away and the band tightens to ~70 px with the account and cart icons riding along, so the catalog keeps the screen. Under 1024 px the department nav gives way to the Shop by Category drawer button.
+
+The Financing, Rebates and "More" links point at `https://www.wilsonappliance.com/<page>` paths that Gavin needs to confirm (they carry a `data-site` attribute so they are easy to find).
+
 ## Not changed
 
-shop.html's functionality (ZIP gate, profile unlock, cart, checkout, fulfillment, pricing rules) is untouched; it gained only the deep-link reader and the logo link. Restyling the catalog page itself to match is a separate step.
+shop.html's functionality (ZIP gate, profile unlock, cart, checkout, fulfillment, pricing rules) is untouched by any of this.
 
 ## Inventory freshness
 

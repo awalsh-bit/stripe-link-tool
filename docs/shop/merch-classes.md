@@ -9,7 +9,7 @@ What kind of thing a model is comes from **NetSuite's merchandise subclass** (`1
 `lib/merch-classes.js` is the one place that knows the vocabulary (34 classes, 135 subclasses, generated from the NetSuite item catalog export) and the two cross-references:
 
 - `SUBCLASS_BY_EPASS_PROD` — legacy product code → subclass, for unclassified models.
-- `ADDON_PRODUCT_BY_SUBCLASS` — subclass → the product code whose install/connector set applies. This is how `data/shop-addons.json` (62 installs written per product code) is re-keyed by subclass without re-entering it: `addonsBySubclass()` builds the subclass-keyed map at load. A subclass with no entry (trash compactors, disposals, steam closets, accessories) has no installation on file and gets no prompt.
+- `ADDON_PRODUCT_BY_SUBCLASS` — subclass → the product code whose install/connector set applies; the seed the first `bySubclass` table was generated from, and still the fallback for a subclass the file doesn't list. A subclass with no entry (trash compactors, disposals, steam closets, accessories) has no installation on file and gets no prompt.
 
 ## What now keys on subclass
 
@@ -27,7 +27,11 @@ What kind of thing a model is comes from **NetSuite's merchandise subclass** (`1
 ## Where product codes still appear, on purpose
 
 - `BUCKET_BY_EPASS_PROD` / `SHOP_STOCK_CATEGORY_BY_PRODUCT` — bucket fallback for an unclassified model.
-- `data/shop-addons.json` `byProduct` — the source the subclass map is generated from. Edit installs there; the subclass view follows.
+- `data/shop-addons.json` `bySubclass` — since 11/10 the authoritative install/connector set per subclass (98 subclasses), written out so the taxonomy can say more than the product codes could: a single wall oven offers only the single install, a double only the double, a wine column or beverage center skips the water line, a chest freezer is set in place, a ventless dryer gets no vent kit or gas kit, a pro range gets the pro install, an induction rangetop the pro rangetop install without gas, a unitized laundry center hoses plus dryer cord and vent. `bySubclassNotes` says why each refined row differs; `byProduct` is kept only as the fallback for a unit NetSuite hasn't classified.
+- `variants` — brand/model rules inside a subclass, checked first: Bosch SHV/SGV dishwashers are panel-ready (their NetSuite finish is the placeholder "Appl"), Fisher & Paykel `DD…` models take the DishDrawer install, and Cove / Miele / Gaggenau / Thermador dishwashers take the pro install (that brand list is a first cut for Cayden's team).
+- `panelPairs` + NetSuite's Primary Finish — for a subclass whose set has both a no-panel and a with-panel install, the model's finish decides: "Panel Ready" (or Integrated / Panel Required) → only the with-panel install (`…-panel`), any real finish → only the no-panel install (`…-std`), no finish or a placeholder like "Appl" → both, as before. The finish comes from `netsuite_items` (the item catalog upload on the Upload Center), so a fresh item export is what tightens the prompts.
+
+The result is one `servicesKey` per unit (`1330`, `1330-std`, `1330-panel`, `1330-pro`, `1330-drawer`) computed once per catalog build (`servicesKeyFor()` in `lib/merch-classes.js`); the shop cart, the stock lookup, the handoff lines and `/api/shop/services` `byKey` all read the same key, so the website never needs the rules.
 - The ePASS feed and Inventory Lookup still carry `prod` as a fact about the ePASS record (display only).
 - Service / warranty records have a `product` field that is the appliance *type as typed by the customer* ("dishwasher") — a different thing, untouched.
 

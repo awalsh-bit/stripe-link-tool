@@ -198,7 +198,7 @@ import {
   getModelBrandStats,
   saveShopMapPrices,
   saveShopModelImages,
-  getShopModelImages,
+  getShopModelImages, getNetsuiteFinishMap,
   getShopModelImagesMeta,
   getShopMapPrices,
   getShopExpressSettings, saveShopHomeStats, getShopHomeStats, createShopHandoff, getShopHandoff, markShopHandoffConverted,
@@ -266,7 +266,7 @@ import { computePoHealth } from "./lib/po-health.js";
 import { VENDORS as PO_ETA_VENDORS, FIELDS as PO_ETA_FIELDS, readVendorWorkbook, guessMapping as guessPoEtaMapping, applySavedMapping as applyPoEtaSavedMapping, headerSignature as poEtaHeaderSignature, extractRows as extractPoEtaRows, matchRows as matchPoEtaRows, buildImportFile as buildPoEtaFile, IMPORT_FORMATS as PO_ETA_FORMATS, vendorByKey as poEtaVendorByKey } from "./lib/po-eta-import.js";
 import { buildCatalogCheck, catalogCheckCsv, CATALOG_ISSUES } from "./lib/catalog-check.js";
 import { getCatalog, resolveModel, supplierLabel, shopBucketFor, invalidateCatalog } from "./lib/catalog-resolver.js";
-import { MERCH_SUBCLASSES, SUBCLASS_BY_EPASS_PROD, merchSubclassFor, merchClassFor, merchSubclassLabel, merchClassName, merchSubclassName, addonsBySubclass } from "./lib/merch-classes.js";
+import { MERCH_SUBCLASSES, SUBCLASS_BY_EPASS_PROD, merchSubclassFor, merchClassFor, merchSubclassLabel, merchClassName, merchSubclassName, addonsBySubclass, buildAddonIndex, servicesKeyFor, panelReadyFor } from "./lib/merch-classes.js";
 import { getInventoryIndex, searchInventory, inventoryModelDetail, invalidateInventoryIndex, UNIT_STATUS as INVENTORY_UNIT_STATUS, LIKELY_AVAILABLE_DAYS } from "./lib/inventory-lookup.js";
 import { PROJECT_STATUSES, PROJECT_STATUS_LABELS, READINESS_ITEMS, getProjectSettings, saveProjectSettings, syncProjectsFromFeed, listProjects, getProject, getProjectByToken, updateProject, addProjectNote, saveProjectReadiness, setProjectGeo } from "./lib/projects-postgres.js";
 import { mapboxConfigured, mapboxPublicToken, geocodeAddress as mapboxGeocode, optimizeRoundTrip } from "./lib/mapbox.js";
@@ -7351,9 +7351,12 @@ if (process.env.DATABASE_URL && String(process.env.SHOP_CATALOG_WARM || "").toLo
 }
 async function computeShopCatalogFresh() {
   const { clearance: clearanceFile, addons: addonsFile, images, mapPolicy } = await loadShopData();
-  // Install/connector map keyed by NetSuite subclass (11/10); byProduct stays
-  // for a unit NetSuite hasn't classified.
-  const addons = { ...addonsFile, byKey: addonsBySubclass(addonsFile?.byProduct) };
+  // Install/connector map keyed by NetSuite subclass (11/10) with the
+  // panel / pro / DishDrawer variants; byProduct stays for a unit NetSuite
+  // hasn't classified. Each item below gets the servicesKey that picks its row.
+  const addonIndex = buildAddonIndex(addonsFile);
+  const addons = { ...addonsFile, byKey: addonIndex };
+  const finishMap = await getNetsuiteFinishMap().catch(() => ({}));
   // The storefront sells the same clearance list the showroom sees (Andrew
   // 10/8): the live feed-built list when there is one, the workbook otherwise.
   // Units on the list without a price yet are not for sale anywhere.
@@ -7486,6 +7489,13 @@ async function computeShopCatalogFresh() {
     const dbImages = await getShopModelImages(items.map((i) => normalizeModelKey(i.model)));
     for (const i of items) { const u = dbImages[normalizeModelKey(i.model)]; if (u) i.image = u; }
   } catch (err) { console.warn("Shop thumbnails lookup failed:", err.message); }
+  // Which install set each unit gets (11/10): subclass, refined by brand/model
+  // rules and by NetSuite's finish (panel-ready → "with panel" installs only).
+  for (const i of items) {
+    i.finish = finishMap[normalizeModelKey(i.model)] || "";
+    i.servicesKey = servicesKeyFor({ subclass: i.subclass, finish: i.finish, brand: i.brand, model: i.model, description: i.description }, addonsFile, addonIndex) || i.subclass || "";
+    i.panelReady = i.servicesKey.endsWith("-panel") ? true : panelReadyFor(i.finish);
+  }
   shopSortItems(items);
 
   const categories = [...(clearance._meta?.categories || [])]
@@ -8023,7 +8033,9 @@ app.post("/api/shop/password", async (req, res) => {
 // a blocked brand, sealed stock on hand). Used by the stock lookup, the
 // handoff and the quote request so they can never disagree.
 async function shopDescribeModels(models, catalog) {
-  const [cat, brandMap] = await Promise.all([getCatalog().catch(() => null), getModelBrandMap().catch(() => ({}))]);
+  const [cat, brandMap, finishMap, shopData] = await Promise.all([getCatalog().catch(() => null), getModelBrandMap().catch(() => ({})), getNetsuiteFinishMap().catch(() => ({})), loadShopData().catch(() => ({}))]);
+  const addonsFile = shopData?.addons || {};
+  const addonIndex = buildAddonIndex(addonsFile);
   const blocked = shopBrandBlocker();
   const byKey = new Map();
   for (const i of catalog?.items || []) {
@@ -8039,15 +8051,21 @@ async function shopDescribeModels(models, catalog) {
     const r = cat ? resolveModel(cat, model, {}) : null;
     const first = hit?.items[0];
     const brand = first?.brand || known.brand || r?.brand || "";
+    const description = first?.description || known.description || r?.description || "";
+    const subclass = first?.subclass || merchSubclassFor(known, first?.product || known.prod) || "";
+    const finish = first?.finish || finishMap[key] || "";
+    const servicesKey = first?.servicesKey || servicesKeyFor({ subclass, finish, brand, model, description }, addonsFile, addonIndex) || subclass;
     return {
       model: String(model || "").trim(),
       brand,
-      description: first?.description || known.description || r?.description || "",
+      description,
       product: String(first?.product || known.prod || "").toUpperCase(),
       // What the website uses to find this model's installs & connectors in
-      // /api/shop/services: the NetSuite subclass code (11/10), falling back
-      // to the ePASS product code's subclass for an unclassified model.
-      servicesKey: first?.subclass || merchSubclassFor(known, first?.product || known.prod) || "",
+      // /api/shop/services: the NetSuite subclass code (11/10), refined to a
+      // variant ("1330-panel", "1330-pro", "1330-drawer") by finish and brand
+      // rules; the ePASS product code's subclass for an unclassified model.
+      servicesKey,
+      panelReady: first?.panelReady ?? (servicesKey.endsWith("-panel") ? true : panelReadyFor(finish)),
       merchClass: merchClassName(first?.merchClass || merchClassFor(known, first?.product || known.prod)),
       merchSubclass: merchSubclassName(first?.subclass || merchSubclassFor(known, first?.product || known.prod)),
       category: first?.category || "",
@@ -8094,7 +8112,7 @@ app.get("/api/shop/stock", shopStockLimiter, async (req, res) => {
       const hit = d.units.length ? { items: d.units } : null;
       const brand = d.brand;
       const inquireOnly = d.inquireOnly;
-      const base = { model, brand, description: d.description, product: d.product, servicesKey: d.servicesKey, merchClass: d.merchClass, merchSubclass: d.merchSubclass, inquireOnly };
+      const base = { model, brand, description: d.description, product: d.product, servicesKey: d.servicesKey, panelReady: d.panelReady ?? null, merchClass: d.merchClass, merchSubclass: d.merchSubclass, inquireOnly };
       if (inquireOnly) return { ...base, inStock: false, available: 0, price: null, priceInCart: false, addUrl: null, note: "Quoted in person — ask for a specialist." };
       if (!hit) return { ...base, inStock: false, available: 0, newUnits: 0, outletUnits: 0, price: null, priceInCart: false, addUrl: null };
       const units = hit.items;
@@ -8213,7 +8231,7 @@ const shopQuoteLimiter = rateLimit("shop-quote", 20, 60 * 60 * 1000);
 function shopServicesIndex(addons) {
   // NetSuite subclass codes (11/10) plus the legacy ePASS product codes, so a
   // site still holding an old key keeps working through the changeover.
-  return { ...(addons?.byProduct || {}), ...addonsBySubclass(addons?.byProduct) };
+  return { ...(addons?.byProduct || {}), ...buildAddonIndex(addons) };
 }
 // Website category / Type → servicesKey (Gavin 11/10): most of the site's
 // 24,000 models aren't in the ePASS model master, so a quote line often has
@@ -8540,6 +8558,8 @@ app.get("/api/shop/catalog", async (req, res) => {
         brand: i.brand,
         product: i.product,
         subclass: i.subclass || "",
+        servicesKey: i.servicesKey || i.subclass || "",
+        panelReady: i.panelReady ?? null,
         category: i.category,
         description: i.description,
         condition: i.condition,

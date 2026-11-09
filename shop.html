@@ -501,33 +501,109 @@
     .gate-card h1 { font-size: 26px; }
     .gate-row input { border-radius: var(--r); }
 
-    /* Header — white, like the site's */
-    header { background: var(--surface); border-bottom: 1px solid var(--line); color: var(--ink); z-index: 42; }
-    .head-inner { padding: 14px 20px; max-width: 1180px; }
-    .head-inner img { height: 34px; }
-    .head-title { font-family: var(--f-display); font-weight: 600; font-size: 19px; color: var(--ink); line-height: 1; }
-    .head-title .sub { font-family: var(--f-body); color: var(--muted); font-size: 11px; letter-spacing: .09em; margin-top: 4px; }
-    .menu-btn { background: var(--surface); border-color: var(--line); border-radius: var(--r); }
-    .menu-btn:hover { border-color: var(--ink); }
-    .menu-btn svg { stroke: var(--ink); }
-    .menu-btn-label { color: var(--ink); font-weight: 600; font-size: 13px; letter-spacing: .02em; text-transform: none; }
-    .head-inner .btn.ghost { color: var(--ink); border-color: var(--line); }
-    .head-inner .btn.ghost:hover { border-color: var(--ink); }
-    .head-inner .btn.ghost.cart-btn { background: var(--accent); color: #fff; border-color: var(--accent); }
-    .head-inner .btn.ghost.cart-btn:hover { background: var(--accent-dark); }
-    .cart-count { background: var(--copper); color: #fff; }
-    .unlock-chip { background: var(--accent-soft); border: 1px solid var(--line); color: var(--accent); border-radius: var(--r); }
-    .unlock-chip:hover { border-color: var(--accent); }
+    /* Site header — the wilsonappliance.com top: dark utility bar over a
+       photo band with the logo, uppercase department nav and search. */
+    header { background: #1d1a17; border-bottom: 0; color: #fff; z-index: 42; }
+    .util { background: rgba(24,21,18,.94); color: rgba(255,255,255,.88); font-size: 14px; position: relative; z-index: 3; max-height: 48px; transition: max-height .25s ease, opacity .2s ease; }
+    header.scrolled .util { max-height: 0; opacity: 0; overflow: hidden; pointer-events: none; }
+    .util-inner { max-width: 1400px; margin: 0 auto; padding: 0 28px; height: 46px; display: flex; align-items: center; gap: 24px; }
+    .util-links { display: flex; align-items: center; gap: 28px; }
+    .util-links a, .util-more > button { color: inherit; text-decoration: none; font-weight: 500; white-space: nowrap; opacity: .9; }
+    .util-links a:hover { opacity: 1; color: #fff; }
+    .util-links a.strong { font-weight: 700; color: #fff; opacity: 1; }
+    .util-links a.current { color: #fff; opacity: 1; position: relative; }
+    .util-links a.current::after { content: ""; position: absolute; left: 0; right: 0; bottom: -9px; height: 2px; background: var(--copper); }
+    .util-more { position: relative; }
+    .util-more > button { appearance: none; background: none; border: 0; cursor: pointer; font: inherit; display: inline-flex; align-items: center; gap: 5px; padding: 0; }
+    .util-more > button svg { width: 14px; height: 14px; transition: transform .2s; }
+    .util-more.open > button svg { transform: rotate(180deg); }
+    .util-menu { display: none; position: absolute; top: calc(100% + 13px); left: -14px; min-width: 230px; background: var(--surface); color: var(--ink); border-radius: var(--r); box-shadow: 0 18px 40px rgba(0,0,0,.28); padding: 8px 0; }
+    .util-more.open .util-menu { display: block; }
+    .util-menu a { display: block; padding: 9px 16px; color: var(--ink); opacity: 1; font-weight: 500; font-size: 14px; }
+    .util-menu a:hover { background: var(--accent-soft); color: var(--accent); }
+    .util-right { margin-left: auto; display: flex; align-items: center; gap: 22px; }
+    .util-ic { display: inline-flex; align-items: center; gap: 8px; color: #fff; text-decoration: none; font-weight: 500; white-space: nowrap; }
+    .util-ic:hover { color: #E9B77E; }
+    .util-ic svg { width: 18px; height: 18px; }
+    .util-sep { width: 1px; height: 22px; background: rgba(255,255,255,.22); }
+    .acct-cluster { display: flex; align-items: center; gap: 22px; }
+    .band-inner > .acct-cluster { margin-left: 8px; gap: 14px; }
+    .util-btn { appearance: none; background: none; border: 0; color: #fff; cursor: pointer; padding: 6px; display: inline-flex; position: relative; border-radius: var(--r); }
+    .util-btn:hover { background: rgba(255,255,255,.12); }
+    .util-btn svg { width: 21px; height: 21px; }
+    .util-chip { appearance: none; border: 1px solid rgba(255,255,255,.35); background: rgba(255,255,255,.08); color: #fff; border-radius: var(--r); padding: 5px 12px; font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .util-chip:hover { border-color: #fff; }
+    .cart-btn { position: relative; }
+    .cart-count { position: absolute; top: -2px; right: -4px; background: var(--copper); color: #fff; min-width: 18px; height: 18px; border-radius: 9px; font-size: 11px; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; padding: 0 4px; line-height: 1; }
 
-    /* Department ribbon + mega panel: uppercase letter-spaced Familjen Grotesk, like the site nav */
-    .dept-ribbon { background: var(--surface); border-bottom: 1px solid var(--line); }
-    .dept-inner { max-width: 1180px; padding: 0 20px; }
-    .dept-link { font-family: var(--f-display); font-size: 13px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--ink); padding: 14px 2px; border-bottom-width: 2px; }
-    .dept-link:hover, .dept-link.open { border-bottom-color: var(--accent); color: var(--accent); }
-    .dept-link.outlet { color: var(--copper); }
-    .dept-link.outlet:hover { border-bottom-color: var(--copper); color: var(--copper); }
-    .mega-panel { background: var(--surface); box-shadow: 0 24px 50px rgba(36,33,30,.16); }
-    .mega-inner { max-width: 1180px; padding: 22px 20px 30px; }
+    .band { position: relative; background: #2a2622 url("showroom/hero-kitchen.jpg") center 42% / cover no-repeat; color: #fff; }
+    .band::before { content: ""; position: absolute; inset: 0; background: linear-gradient(90deg, rgba(20,17,14,.86) 0%, rgba(20,17,14,.62) 30%, rgba(20,17,14,.5) 60%, rgba(20,17,14,.7) 100%); }
+    .band-inner { position: relative; max-width: 1400px; margin: 0 auto; padding: 0 28px; height: 150px; display: flex; align-items: center; gap: 36px; transition: height .25s ease; }
+    header.scrolled .band-inner { height: 70px; }
+    .band-logo { display: flex; align-items: center; gap: 18px; flex: 0 0 auto; text-decoration: none; color: #fff; }
+    .band-logo img { height: 76px; width: auto; transition: height .25s ease; filter: drop-shadow(0 2px 6px rgba(0,0,0,.35)); }
+    header.scrolled .band-logo img { height: 40px; }
+    .band-tag { font-family: var(--f-display); font-size: 11px; font-weight: 600; letter-spacing: .16em; text-transform: uppercase; line-height: 1.4; color: rgba(255,255,255,.82); border-left: 1px solid rgba(255,255,255,.3); padding-left: 18px; }
+    header.scrolled .band-tag { font-size: 10px; }
+    .dept-nav { display: flex; align-items: center; gap: 32px; margin: 0 auto; }
+    .dept-link { font-family: var(--f-display); font-size: 15px; font-weight: 600; letter-spacing: .14em; text-transform: uppercase; color: #fff; padding: 10px 0; margin: 0; border: 0; border-bottom: 2px solid transparent; background: none; cursor: pointer; white-space: nowrap; opacity: .94; text-shadow: 0 1px 3px rgba(0,0,0,.35); transition: font-size .25s ease; }
+    header.scrolled .dept-link { font-size: 13px; letter-spacing: .12em; }
+    .dept-link:hover, .dept-link.open { border-bottom-color: #fff; color: #fff; opacity: 1; }
+    .dept-link.outlet { color: #E9B77E; }
+    .dept-link.outlet:hover { border-bottom-color: #E9B77E; color: #E9B77E; }
+    .band-search { display: flex; align-items: center; gap: 8px; border-bottom: 1px solid rgba(255,255,255,.6); padding: 4px 0; flex: 0 0 auto; width: 190px; }
+    .band-search input { background: none; border: 0; color: #fff; font: inherit; font-size: 15px; width: 100%; padding: 4px 0; outline: none; box-shadow: none; border-radius: 0; }
+    .band-search input::placeholder { color: rgba(255,255,255,.85); }
+    .band-search input:focus { box-shadow: none; border: 0; }
+    .band-search input::-webkit-search-cancel-button { filter: invert(1); }
+    .band-search button { appearance: none; background: none; border: 0; color: #fff; cursor: pointer; padding: 2px; display: inline-flex; }
+    .band-search button svg { width: 20px; height: 20px; }
+    .menu-btn { display: none; background: transparent; border-color: rgba(255,255,255,.4); border-radius: var(--r); }
+    .menu-btn:hover { border-color: #fff; }
+    .menu-btn svg { stroke: #fff; }
+    .menu-btn-label { color: #fff; font-weight: 600; font-size: 13px; letter-spacing: .02em; text-transform: none; }
+    #crumbBar, #filterBar, #heroStrip { scroll-margin-top: 84px; }
+
+    .band-search { flex: 0 1 190px; min-width: 110px; }
+    @media (max-width: 1440px) {
+      .band-inner { gap: 24px; }
+      .dept-nav { gap: 20px; }
+      .dept-link, header.scrolled .dept-link { font-size: 12.5px; letter-spacing: .1em; }
+      .band-search { flex-basis: 150px; }
+      .util-links { gap: 18px; }
+      .band-logo img, header.scrolled .band-logo img { height: 54px; }
+      .band-tag { display: none; }
+    }
+    @media (max-width: 1024px) {
+      .dept-nav { display: none; }
+      .menu-btn { display: inline-flex; }
+      .band-inner, header.scrolled .band-inner { height: 92px; gap: 16px; }
+      .band-logo { margin-right: auto; }
+      .band-logo img, header.scrolled .band-logo img { height: 46px; }
+      .band-tag { display: none; }
+      .util-inner { gap: 16px; }
+      .util-links a:not(.strong):not(.current), .util-more { display: none; }
+      .util-ic span { display: none; }
+      .util-right { gap: 14px; }
+    }
+    @media (max-width: 640px) {
+      .util-inner { padding: 0 12px; height: 40px; gap: 12px; }
+      .util-links { gap: 14px; font-size: 13px; }
+      .util-links a.current { display: none; }
+      .util-right, .acct-cluster { gap: 12px; }
+      .util-ic svg { width: 20px; height: 20px; }
+      .util-btn { padding: 4px; }
+      .band-inner, header.scrolled .band-inner { height: 70px; padding: 0 12px; gap: 10px; }
+      .band-logo img, header.scrolled .band-logo img { height: 44px; }
+      .band-logo { margin-right: auto; margin-left: 4px; }
+      .band-search { flex: 0 0 auto; width: auto; min-width: 0; border-bottom: 0; padding: 0; }
+      .band-search input { display: none; }
+      .menu-btn { width: 40px; height: 40px; padding: 0; }
+      .util-chip { max-width: 110px; padding: 4px 8px; font-size: 12px; }
+    }
+    .mega-panel { background: var(--surface); box-shadow: 0 24px 50px rgba(36,33,30,.16); color: var(--ink); }
+    .mega-inner { max-width: 1400px; padding: 22px 28px 30px; }
+    .mega-col.hot h4 { color: var(--accent); text-decoration: underline; }
     .mega-head h2 { font-size: 22px; }
     .mega-shopall, .menu-shopall { background: var(--accent); color: #fff; border-radius: var(--r); font-size: 13px; font-weight: 600; }
     .mega-col h4 { font-family: var(--f-display); font-weight: 600; font-size: 16px; }
@@ -626,12 +702,6 @@
     .foot-inner { color: rgba(255,255,255,.72); max-width: 1180px; padding: 20px; }
     .foot-inner a { color: #fff; }
 
-    @media (max-width: 560px) {
-      .head-inner img { height: 24px; }
-      .head-title { font-size: 15px; line-height: 1.1; }
-      .head-inner .btn { border-radius: var(--r); font-size: 14px; }
-      .menu-btn { border-radius: var(--r); }
-    }
   </style>
 </head>
 <body>
@@ -657,25 +727,66 @@
     </div>
   </div>
 
-  <header>
-    <div class="head-inner">
-      <button type="button" class="menu-btn" id="menuBtn" aria-label="Shop by category">
-        <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
-        <span class="menu-btn-label">Shop by Category</span>
-      </button>
-      <a href="/" title="Wilson home" style="display:flex; align-items:center;"><img src="logo-black.png" alt="Wilson AC &amp; Appliance"></a>
-      <div class="head-title">Express Assortment<span class="sub">Dripping Springs, Texas</span></div>
-      <div class="head-spacer"></div>
-      <button type="button" class="unlock-chip" id="unlockChip" style="display:none;" title="View and update your profile"></button>
-      <button class="btn ghost" id="unlockBtn" type="button" style="display:none;">Sign in</button>
-      <button class="btn ghost cart-btn" id="cartBtn" type="button">Cart<span class="cart-count" id="cartCount" style="display:none;">0</span></button>
+  <!-- Site header (Andrew 11/10): the same top as wilsonappliance.com — a dark
+       utility bar (the other Wilson doors, phone, directions, account, cart)
+       over a photo band with the logo, the uppercase department nav and
+       search. Department names open the mega panel on hover and jump straight
+       to that department on click; the whole header shrinks once the page
+       scrolls so the catalog keeps the screen. -->
+  <header id="siteTop">
+    <div class="util">
+      <div class="util-inner">
+        <nav class="util-links" aria-label="Wilson sites">
+          <a class="strong" href="https://service.wilsonappliance.com/applianceservice.html">Schedule Service</a>
+          <a href="https://www.wilsonappliance.com/financing" data-site="/financing">Financing</a>
+          <a href="https://www.wilsonappliance.com/rebates" data-site="/rebates">Rebates</a>
+          <a href="/">Showroom</a>
+          <a class="current" href="/shop.html" aria-current="page">Express Shop</a>
+          <div class="util-more">
+            <button type="button" id="utilMoreBtn" aria-haspopup="true" aria-expanded="false">More <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg></button>
+            <div class="util-menu" id="utilMenu">
+              <a href="https://www.wilsonappliance.com/luxury-appliances" data-site="/luxury-appliances">Luxury Appliances</a>
+              <a href="https://www.wilsonappliance.com/appliances" data-site="/appliances">Appliances</a>
+              <a href="https://www.wilsonappliance.com/hvac" data-site="/hvac">HVAC</a>
+              <a href="https://www.wilsonappliance.com/cabinetry" data-site="/cabinetry">Cabinetry</a>
+              <a href="https://www.wilsonappliance.com/sinks-faucets" data-site="/sinks-faucets">Sinks &amp; Faucets</a>
+              <a href="https://service.wilsonappliance.com/subzero">Sub-Zero, Wolf &amp; Cove</a>
+            </div>
+          </div>
+        </nav>
+        <div class="util-right">
+          <a class="util-ic" href="tel:5128940907"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1.9.4 1.8.7 2.7a2 2 0 0 1-.5 2.1L8 9.8a16 16 0 0 0 6.2 6.2l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.7.7a2 2 0 0 1 1.7 2z"/></svg><span>(512) 894-0907</span></a>
+          <a class="util-ic" href="https://maps.google.com/?q=Wilson+AC+%26+Appliance,+4205+E+Hwy+290,+Dripping+Springs,+TX+78620" target="_blank" rel="noopener"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0z"/><circle cx="12" cy="10" r="3"/></svg><span>Directions</span></a>
+          <div class="acct-cluster" id="acctCluster">
+          <span class="util-sep" aria-hidden="true"></span>
+          <button type="button" class="util-btn" id="unlockBtn" style="display:none;" title="Sign in or create your profile" aria-label="Sign in"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></button>
+          <button type="button" class="util-chip" id="unlockChip" style="display:none;" title="View and update your profile"></button>
+          <button type="button" class="util-btn cart-btn" id="cartBtn" aria-label="Cart"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="21" r="1"/><circle cx="19" cy="21" r="1"/><path d="M2.05 2.05h2l2.66 12.42a2 2 0 0 0 2 1.58h9.78a2 2 0 0 0 1.95-1.57l1.65-7.43H5.12"/></svg><span class="cart-count" id="cartCount" style="display:none;">0</span></button>
+          </div>
+        </div>
+      </div>
     </div>
-  </header>
-
-  <nav class="dept-ribbon" id="deptRibbon">
-    <div class="dept-inner">
-      <button type="button" class="dept-link" id="deptAppliances">Appliances</button>
-      <button type="button" class="dept-link outlet" id="deptOutlet">Outlet</button>
+    <div class="band">
+      <div class="band-inner">
+        <button type="button" class="menu-btn" id="menuBtn" aria-label="Shop by category">
+          <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
+          <span class="menu-btn-label">Shop by Category</span>
+        </button>
+        <a class="band-logo" href="/" title="Wilson home"><img src="logo-white.png" alt="Wilson AC &amp; Appliance" width="921" height="304"><span class="band-tag">Express<br>Assortment</span></a>
+        <nav class="dept-nav" id="deptNav" aria-label="Departments">
+          <button type="button" class="dept-link" data-dept="Cooking">Cooking</button>
+          <button type="button" class="dept-link" data-dept="Coffee">Coffee</button>
+          <button type="button" class="dept-link" data-dept="Refrigeration">Refrigeration</button>
+          <button type="button" class="dept-link" data-dept="Kitchen Cleanup">Kitchen Cleanup</button>
+          <button type="button" class="dept-link" data-dept="Laundry">Laundry</button>
+          <button type="button" class="dept-link" data-dept="Outdoor">Outdoor</button>
+          <button type="button" class="dept-link outlet" id="deptOutlet">Outlet</button>
+        </nav>
+        <form class="band-search" id="topSearchForm" role="search">
+          <input type="search" id="topSearch" placeholder="Search" aria-label="Search the Express Assortment" autocomplete="off">
+          <button type="submit" aria-label="Search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg></button>
+        </form>
+      </div>
     </div>
     <div class="mega-panel" id="megaPanel">
       <div class="mega-inner">
@@ -687,7 +798,7 @@
         <div class="mega-cols" id="megaCols"></div>
       </div>
     </div>
-  </nav>
+  </header>
   <div class="mega-backdrop" id="megaBackdrop"></div>
 
   <div class="menu-backdrop" id="menuBackdrop"></div>
@@ -1551,26 +1662,98 @@
   // guided sub-options underneath — built from the same MENU_TREE as the
   // drawer, so the two can never disagree. "Outlet" jumps straight to the
   // open-box & display units.
-  function openMega() {
+  let megaHoverTimer = null, megaLeaveTimer = null;
+  function openMega(dept) {
     buildMega();
     $("megaPanel").classList.add("show");
     $("megaBackdrop").classList.add("show");
-    $("deptAppliances").classList.add("open");
+    for (const el of document.querySelectorAll("#deptNav .dept-link")) el.classList.toggle("open", !!dept && el.dataset.dept === dept);
+    for (const col of document.querySelectorAll("#megaCols .mega-col")) col.classList.toggle("hot", !!dept && col.dataset.dept === dept);
   }
   function closeMega() {
+    clearTimeout(megaHoverTimer); clearTimeout(megaLeaveTimer);
     $("megaPanel").classList.remove("show");
     $("megaBackdrop").classList.remove("show");
-    $("deptAppliances").classList.remove("open");
+    for (const el of document.querySelectorAll("#deptNav .dept-link.open")) el.classList.remove("open");
   }
-  $("deptAppliances").addEventListener("click", () => {
-    $("megaPanel").classList.contains("show") ? closeMega() : openMega();
-  });
+  function deptTier(label) { return MENU_TREE.find((t) => t.label === label) || null; }
+  const finePointer = window.matchMedia("(hover: hover) and (pointer: fine)").matches;
+  for (const el of document.querySelectorAll("#deptNav .dept-link[data-dept]")) {
+    const tier = deptTier(el.dataset.dept);
+    if (!tier) { el.style.display = "none"; continue; }
+    // Click = straight into that department (one click, like the landing page).
+    el.addEventListener("click", () => {
+      applySelection({ label: tier.label, cats: tier.cats });
+      const target = $("crumbBar");
+      if (target) target.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+    // Hover (mouse only) = the see-everything mega panel with this department lit.
+    if (finePointer) {
+      el.addEventListener("mouseenter", () => { clearTimeout(megaLeaveTimer); clearTimeout(megaHoverTimer); megaHoverTimer = setTimeout(() => openMega(tier.label), 140); });
+      el.addEventListener("mouseleave", () => { clearTimeout(megaHoverTimer); });
+    }
+  }
+  if (finePointer) {
+    $("siteTop").addEventListener("mouseleave", () => { clearTimeout(megaHoverTimer); megaLeaveTimer = setTimeout(closeMega, 260); });
+    $("siteTop").addEventListener("mouseenter", () => { clearTimeout(megaLeaveTimer); });
+  }
   $("megaClose").addEventListener("click", closeMega);
   $("megaBackdrop").addEventListener("click", closeMega);
   $("megaShopAll").addEventListener("click", () => applySelection(null));
   $("deptOutlet").addEventListener("click", () => {
     applySelection({ label: "Outlet — Open Box & Display", condition: "open" });
+    const target = $("crumbBar"); if (target) target.scrollIntoView({ behavior: "smooth", block: "start" });
   });
+
+  // Utility bar "More" menu (the other Wilson sites).
+  $("utilMoreBtn").addEventListener("click", (e) => {
+    e.stopPropagation();
+    const open = $("utilMoreBtn").parentElement.classList.toggle("open");
+    $("utilMoreBtn").setAttribute("aria-expanded", open ? "true" : "false");
+  });
+  document.addEventListener("click", (e) => {
+    if (!e.target.closest(".util-more")) { $("utilMoreBtn").parentElement.classList.remove("open"); $("utilMoreBtn").setAttribute("aria-expanded", "false"); }
+  });
+
+  // Header search feeds the catalog search box (same filter, same results).
+  $("topSearch").addEventListener("input", (e) => {
+    const si = $("searchInput");
+    si.value = e.target.value;
+    si.dispatchEvent(new Event("input", { bubbles: true }));
+  });
+  $("topSearchForm").addEventListener("submit", (e) => {
+    e.preventDefault();
+    const si = $("searchInput");
+    if (getComputedStyle($("topSearch")).display === "none") { si.scrollIntoView({ behavior: "smooth", block: "start" }); si.focus({ preventScroll: true }); return; }
+    const target = $("crumbBar").classList.contains("show") ? $("crumbBar") : $("filterBar");
+    if (target) target.scrollIntoView({ behavior: "smooth", block: "start" });
+  });
+  $("searchInput").addEventListener("input", (e) => { if ($("topSearch").value !== e.target.value) $("topSearch").value = e.target.value; });
+
+  // Shrink the header once the page scrolls (utility bar folds away, band
+  // tightens) so the catalog keeps the screen; a little hysteresis so it
+  // never flickers at the threshold.
+  (function headerShrink() {
+    const head = $("siteTop");
+    let ticking = false;
+    // Account + cart ride along: in the utility bar at rest, in the band once
+    // that bar has folded away, so the cart is never out of reach.
+    function placeCluster() {
+      const cluster = $("acctCluster");
+      const shrunk = head.classList.contains("scrolled") && window.innerWidth > 1024;
+      const home = shrunk ? head.querySelector(".band-inner") : head.querySelector(".util-right");
+      if (cluster.parentElement !== home) home.appendChild(cluster);
+    }
+    window.addEventListener("resize", placeCluster);
+    function check() {
+      ticking = false;
+      const y = window.scrollY || 0;
+      if (y > 120 && !head.classList.contains("scrolled")) { head.classList.add("scrolled"); placeCluster(); }
+      else if (y < 24 && head.classList.contains("scrolled")) { head.classList.remove("scrolled"); placeCluster(); }
+    }
+    window.addEventListener("scroll", () => { if (!ticking) { ticking = true; requestAnimationFrame(check); } }, { passive: true });
+    check();
+  })();
 
   // ---------- Deep links from the landing page (Andrew 11/5) ----------
   // shop-home.html is a one-click front door: every tile lands here with the
@@ -1689,6 +1872,7 @@
       if (!count) continue;
       const col = document.createElement("div");
       col.className = "mega-col";
+      col.dataset.dept = tier.label;
       const head = document.createElement("h4");
       head.textContent = tier.label;
       head.title = `Shop all ${tier.label}`;
@@ -2164,7 +2348,7 @@
       return;
     }
     state.pendingAddonItem = item;
-    $("addonLead").textContent = `Installation and required accessories for your ${item.brand} ${item.model}:`;
+    $("addonLead").textContent = `Installation and required accessories for your ${item.brand} ${item.model}${item.panelReady ? " (panel-ready)" : ""}:`;
     const list = $("addonList");
     list.innerHTML = "";
 

@@ -7425,6 +7425,18 @@ async function computeShopCatalogFresh() {
     if (feedDiscontinued.has(key)) return "epass";
     return "";
   };
+  // Where the end-of-line signal is coming from (Store Catalog page): does the
+  // feed carry ePASS's Obsolete / BeingDiscontinued columns at all, did the
+  // last NetSuite item export carry a discontinued column, how many models
+  // each source flags.
+  const nsValues = Object.values(brandMap);
+  const mapExemptStats = {
+    feedColumn: !!clearance?._meta?.feed?.discontinuedColumn,
+    feedFlagged: feedDiscontinued.size,
+    netsuiteColumn: nsValues.some((n) => n.discontinuedKnown),
+    netsuiteFlagged: nsValues.filter((n) => n.discontinued).length,
+    manual: Object.values(modelSettings).filter((c) => c?.mapExempt).length
+  };
   const items = [];
   for (const item of clearance.items || []) {
     if (statusById.has(item.id)) continue; // sold, held, or web-locked
@@ -7442,7 +7454,10 @@ async function computeShopCatalogFresh() {
     // floor exists for the model AND our price is at or above it. No floor
     // entry → stays behind the gate; a penny below the floor → gate.
     const floor = mapFloor[normalizeModelKey(item.model)];
-    const mapExempt = mapExemptFor(item.model);
+    // Open-box units (ePASS serial type OPEN) are outside MAP (Andrew 11/10):
+    // their price shows on the card. DISPLAY units are not — floor models
+    // keep the in-cart reveal so the showroom isn't sold off a chip at a time.
+    const mapExempt = mapExemptFor(item.model) || (String(serialType).toUpperCase() === "OPEN" ? "open" : "");
     const mapPublic = Boolean(mapExempt) || Boolean(
       shopMapRuleMatch(mapPolicy, item.brand, item.category) &&
       Number.isFinite(Number(floor)) &&
@@ -7512,6 +7527,7 @@ async function computeShopCatalogFresh() {
     paused,
     express: { ...expressSettings, productSet: expressKeysToSubclass(expressSettings.products) },
     stockModels: stock.models,
+    mapExemptStats,
     snapshotAgeHours,
     mapPriceCount: Object.keys(mapFloor).length,
     snapshot: snapshot
@@ -8563,6 +8579,7 @@ app.get("/api/shop/catalog", async (req, res) => {
         category: i.category,
         description: i.description,
         condition: i.condition,
+        serialType: i.serialType || "",
         image: i.image,
         deal: i.deal || "",
         badge: i.badge || "", badgeStyle: i.badgeStyle || "red", hideStockBadge: !!i.hideStockBadge,
@@ -8661,7 +8678,8 @@ app.get("/api/shop/stock-models", requirePagePermission("/shop-orders.html", "/s
     const models = (catalog.stockModels || []).map((m) => ({ ...m, categoryLabel: catLabels[m.category] || m.category }));
     const distinct = (f) => [...new Set(models.map(f).filter(Boolean))].sort((a, b) => a.localeCompare(b, "en", { numeric: true }));
     return res.json({ models, brands: distinct((m) => m.brand), merchClasses: distinct((m) => m.merchClass), merchCategories: distinct((m) => m.merchCategory),
-      netsuiteModels: models.filter((m) => m.netsuite).length, snapshot: catalog.snapshot, paused: catalog.paused, lowMax: SHOP_STOCK_LOW_MAX, blockedBrands: shopBlockedBrandEntries });
+      netsuiteModels: models.filter((m) => m.netsuite).length, snapshot: catalog.snapshot, paused: catalog.paused, lowMax: SHOP_STOCK_LOW_MAX, blockedBrands: shopBlockedBrandEntries,
+      mapExempt: catalog.mapExemptStats || null });
   } catch (err) {
     console.error("Stock models failed:", err.message);
     return res.status(500).json({ error: "Unable to load the stock models." });

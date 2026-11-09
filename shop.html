@@ -506,7 +506,7 @@
     header { background: #1d1a17; border-bottom: 0; color: #fff; z-index: 42; }
     .util { background: rgba(24,21,18,.94); color: rgba(255,255,255,.88); font-size: 14px; position: relative; z-index: 3; max-height: 48px; transition: max-height .25s ease, opacity .2s ease; }
     header.scrolled .util { max-height: 0; opacity: 0; overflow: hidden; pointer-events: none; }
-    .util-inner { max-width: 1400px; margin: 0 auto; padding: 0 28px; height: 46px; display: flex; align-items: center; gap: 24px; }
+    .util-inner { max-width: 1480px; margin: 0 auto; padding: 0 28px; height: 46px; display: flex; align-items: center; gap: 24px; }
     .util-links { display: flex; align-items: center; gap: 28px; }
     .util-links a, .util-more > button { color: inherit; text-decoration: none; font-weight: 500; white-space: nowrap; opacity: .9; }
     .util-links a:hover { opacity: 1; color: #fff; }
@@ -537,8 +537,8 @@
     .cart-count { position: absolute; top: -2px; right: -4px; background: var(--copper); color: #fff; min-width: 18px; height: 18px; border-radius: 9px; font-size: 11px; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; padding: 0 4px; line-height: 1; }
 
     .band { position: relative; background: #2a2622 url("showroom/hero-kitchen.jpg") center 42% / cover no-repeat; color: #fff; }
-    .band::before { content: ""; position: absolute; inset: 0; background: linear-gradient(90deg, rgba(20,17,14,.86) 0%, rgba(20,17,14,.62) 30%, rgba(20,17,14,.5) 60%, rgba(20,17,14,.7) 100%); }
-    .band-inner { position: relative; max-width: 1400px; margin: 0 auto; padding: 0 28px; height: 150px; display: flex; align-items: center; gap: 36px; transition: height .25s ease; }
+    .band::before { content: ""; position: absolute; inset: 0; background: linear-gradient(90deg, rgba(20,17,14,.88) 0%, rgba(20,17,14,.7) 30%, rgba(20,17,14,.62) 60%, rgba(20,17,14,.76) 100%); }
+    .band-inner { position: relative; max-width: 1480px; margin: 0 auto; padding: 0 28px; height: 150px; display: flex; align-items: center; gap: 36px; transition: height .25s ease; }
     header.scrolled .band-inner { height: 70px; }
     .band-logo { display: flex; align-items: center; gap: 18px; flex: 0 0 auto; text-decoration: none; color: #fff; }
     .band-logo img { height: 76px; width: auto; transition: height .25s ease; filter: drop-shadow(0 2px 6px rgba(0,0,0,.35)); }
@@ -546,8 +546,8 @@
     .band-tag { font-family: var(--f-display); font-size: 11px; font-weight: 600; letter-spacing: .16em; text-transform: uppercase; line-height: 1.4; color: rgba(255,255,255,.82); border-left: 1px solid rgba(255,255,255,.3); padding-left: 18px; }
     header.scrolled .band-tag { font-size: 10px; }
     .dept-nav { display: flex; align-items: center; gap: 32px; margin: 0 auto; }
-    .dept-link { font-family: var(--f-display); font-size: 15px; font-weight: 600; letter-spacing: .14em; text-transform: uppercase; color: #fff; padding: 10px 0; margin: 0; border: 0; border-bottom: 2px solid transparent; background: none; cursor: pointer; white-space: nowrap; opacity: .94; text-shadow: 0 1px 3px rgba(0,0,0,.35); transition: font-size .25s ease; }
-    header.scrolled .dept-link { font-size: 13px; letter-spacing: .12em; }
+    .dept-link { font-family: var(--f-display); font-size: 16.5px; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; color: #fff; padding: 10px 0; margin: 0; border: 0; border-bottom: 2px solid transparent; background: none; cursor: pointer; white-space: nowrap; text-shadow: 0 1px 2px rgba(0,0,0,.6), 0 0 14px rgba(0,0,0,.45); transition: font-size .25s ease; }
+    header.scrolled .dept-link { font-size: 14.5px; letter-spacing: .11em; }
     .dept-link:hover, .dept-link.open { border-bottom-color: #fff; color: #fff; opacity: 1; }
     .dept-link.outlet { color: #E9B77E; }
     .dept-link.outlet:hover { border-bottom-color: #E9B77E; color: #E9B77E; }
@@ -565,14 +565,26 @@
     #crumbBar, #filterBar, #heroStrip { scroll-margin-top: 84px; }
 
     .band-search { flex: 0 1 190px; min-width: 110px; }
+    @media (max-width: 1700px) {
+      .band-inner { gap: 26px; }
+      .dept-nav { gap: 26px; }
+      .dept-link, header.scrolled .dept-link { font-size: 15.5px; letter-spacing: .11em; }
+      .band-tag { display: none; }
+      .band-logo img { height: 64px; }
+    }
     @media (max-width: 1440px) {
-      .band-inner { gap: 24px; }
-      .dept-nav { gap: 20px; }
-      .dept-link, header.scrolled .dept-link { font-size: 12.5px; letter-spacing: .1em; }
-      .band-search { flex-basis: 150px; }
+      .band-inner { gap: 22px; }
+      .dept-nav { gap: 22px; }
+      .dept-link, header.scrolled .dept-link { font-size: 14.5px; letter-spacing: .1em; }
+      .band-search { flex-basis: 130px; min-width: 96px; }
       .util-links { gap: 18px; }
       .band-logo img, header.scrolled .band-logo img { height: 54px; }
       .band-tag { display: none; }
+    }
+    @media (max-width: 1300px) {
+      .dept-nav { gap: 18px; }
+      .dept-link, header.scrolled .dept-link { font-size: 13.5px; letter-spacing: .08em; }
+      .band-logo img, header.scrolled .band-logo img { height: 48px; }
     }
     @media (max-width: 1024px) {
       .dept-nav { display: none; }
@@ -602,7 +614,7 @@
       .util-chip { max-width: 110px; padding: 4px 8px; font-size: 12px; }
     }
     .mega-panel { background: var(--surface); box-shadow: 0 24px 50px rgba(36,33,30,.16); color: var(--ink); }
-    .mega-inner { max-width: 1400px; padding: 22px 28px 30px; }
+    .mega-inner { max-width: 1480px; padding: 22px 28px 30px; }
     .mega-col.hot h4 { color: var(--accent); text-decoration: underline; }
     .mega-head h2 { font-size: 22px; }
     .mega-shopall, .menu-shopall { background: var(--accent); color: #fff; border-radius: var(--r); font-size: 13px; font-weight: 600; }
@@ -1345,7 +1357,7 @@
     for (const item of visibleItems()) {
       // Price is part of the key only where the card can SHOW one (MAP-public);
       // everything else prices in the cart, so identical units always merge.
-      const key = [item.model, item.brand, item.condition || "", item.source || "", item.mapPublic ? item.price : "", item.mapDisplayPrice ?? ""].join("\u0001");
+      const key = [item.model, item.brand, item.condition || "", item.serialType || "", item.source || "", item.mapPublic ? item.price : "", item.mapDisplayPrice ?? ""].join("\u0001");
       let group = byKey.get(key);
       if (!group) {
         group = { ...item, ids: [] };
@@ -1474,7 +1486,7 @@
         : `<span class="cond-badge stock-low">Low Stock</span>`;
     }
     if (item.condition === "new") return `<span class="cond-badge new">New in Box</span>`;
-    if (item.condition === "open") return `<span class="cond-badge open">Open Box</span>`;
+    if (item.condition === "open") return `<span class="cond-badge open">${item.serialType === "DISPLAY" ? "Floor Model" : "Open Box"}</span>`;
     return "";
   }
 
@@ -2656,7 +2668,7 @@
       line.innerHTML = `
         <div class="info">
           <div class="nm">${esc(item.brand)} ${esc(item.model)}</div>
-          <div class="ds">${item.condition === "new" ? "New in Box · " : item.condition === "open" ? "Open Box · " : ""}${esc(item.description)}</div>
+          <div class="ds">${item.condition === "new" ? "New in Box · " : item.condition === "open" ? (item.serialType === "DISPLAY" ? "Floor Model · " : "Open Box · ") : ""}${esc(item.description)}</div>
           <button class="rm-btn" data-rm-item="${esc(item.id)}">Remove</button>
         </div>
         <div class="pr">${item.price != null ? money(item.price) : state.cartPriceError ? '<span class="muted" style="font-size:12px;">price unavailable — <a href="tel:512-894-0907">call us</a></span>' : '<span class="muted" style="font-size:12px;">pricing…</span>'}</div>`;

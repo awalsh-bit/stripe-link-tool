@@ -73,6 +73,11 @@
 .site-head .band-logo { display: flex; align-items: center; flex: 0 0 auto; }
 .site-head .band-logo img { height: 62px; width: auto; transition: height .25s ease; filter: drop-shadow(0 2px 6px rgba(0,0,0,.35)); }
 .site-head.scrolled .band-logo img { height: 38px; }
+/* The shop's own mark beside the logo (Andrew 11/10): everything else matches
+   the website; this says you're on the shopping side. Links to the shop home. */
+.site-head .band-tag { flex: 0 0 auto; margin-left: -10px; padding-left: 18px; border-left: 1px solid rgba(255,255,255,.35); font-family: var(--sh-display); font-size: 11px; font-weight: 600; letter-spacing: .16em; text-transform: uppercase; line-height: 1.4; color: rgba(255,255,255,.86); text-shadow: 0 1px 3px rgba(0,0,0,.45); transition: color .15s ease; }
+.site-head .band-tag:hover { color: var(--sh-gold); }
+.site-head.scrolled .band-tag { font-size: 10px; padding-left: 14px; }
 /* the site's frosted panel behind the nav — runs up behind the utility bar too */
 .site-head .nav-wrap { position: relative; margin: 0 auto; height: 100%; display: flex; align-items: center; padding: 0 44px; }
 .site-head .nav-wrap::before { content: ""; position: absolute; left: 0; right: 0; top: calc(-1 * var(--util-h)); bottom: 0; background: rgba(255,255,255,.2); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); transition: top .25s ease; }
@@ -104,6 +109,7 @@
   .site-head .nav-wrap { padding: 0 30px; }
   .site-head .band-search { flex-basis: 140px; min-width: 100px; }
   .site-head .band-logo img { height: 54px; }
+  .site-head .band-tag { margin-left: -4px; padding-left: 14px; font-size: 10px; letter-spacing: .14em; }
   .site-head .util-links { gap: 18px; }
 }
 @media (max-width: 1200px) {
@@ -117,6 +123,8 @@
   .site-head .menu-btn { display: inline-flex; }
   .site-head .band-inner, .site-head.scrolled .band-inner { height: var(--band-h); gap: 16px; }
   .site-head .band-logo { margin-right: auto; }
+  .site-head.has-tag .band-logo { margin-right: 0; }
+  .site-head .band-tag { margin-right: auto; margin-left: 0; }
   .site-head .band-logo img, .site-head.scrolled .band-logo img { height: 46px; }
   .site-head .util-inner { gap: 16px; }
   .site-head .util-links > a:not(.strong):not(.current) { display: none; }
@@ -136,6 +144,7 @@
   .site-head .band-inner, .site-head.scrolled .band-inner { height: var(--band-h); padding: 0 12px; gap: 10px; }
   .site-head .band-logo img, .site-head.scrolled .band-logo img { height: 44px; }
   .site-head .band-logo { margin-left: 4px; }
+  .site-head .band-tag, .site-head.scrolled .band-tag { font-size: 9px; letter-spacing: .12em; padding-left: 10px; }
   .site-head .band-search { flex: 0 0 auto; width: auto; min-width: 0; border-bottom: 0; padding: 0; }
   .site-head .band-search input { display: none; }
   .site-head .menu-btn { width: 40px; height: 40px; padding: 0; }

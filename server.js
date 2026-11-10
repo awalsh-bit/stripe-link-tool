@@ -266,6 +266,7 @@ import { computePoHealth } from "./lib/po-health.js";
 import { VENDORS as PO_ETA_VENDORS, FIELDS as PO_ETA_FIELDS, readVendorWorkbook, guessMapping as guessPoEtaMapping, applySavedMapping as applyPoEtaSavedMapping, headerSignature as poEtaHeaderSignature, extractRows as extractPoEtaRows, matchRows as matchPoEtaRows, buildImportFile as buildPoEtaFile, IMPORT_FORMATS as PO_ETA_FORMATS, vendorByKey as poEtaVendorByKey } from "./lib/po-eta-import.js";
 import { buildCatalogCheck, catalogCheckCsv, CATALOG_ISSUES } from "./lib/catalog-check.js";
 import { getCatalog, resolveModel, supplierLabel, shopBucketFor, invalidateCatalog } from "./lib/catalog-resolver.js";
+import { listServiceMapRows, isSeeded as serviceMapSeeded, isMiscId, overlayAddons, serviceMapView, applyServiceMapOp, resetServiceMap } from "./lib/shop-service-map.js";
 import { MERCH_SUBCLASSES, SUBCLASS_BY_EPASS_PROD, merchSubclassFor, merchClassFor, merchSubclassLabel, merchClassName, merchSubclassName, addonsBySubclass, buildAddonIndex, servicesKeyFor, panelReadyFor } from "./lib/merch-classes.js";
 import { getInventoryIndex, searchInventory, inventoryModelDetail, invalidateInventoryIndex, UNIT_STATUS as INVENTORY_UNIT_STATUS, LIKELY_AVAILABLE_DAYS } from "./lib/inventory-lookup.js";
 import { PROJECT_STATUSES, PROJECT_STATUS_LABELS, READINESS_ITEMS, getProjectSettings, saveProjectSettings, syncProjectsFromFeed, listProjects, getProject, getProjectByToken, updateProject, addProjectNote, saveProjectReadiness, setProjectGeo } from "./lib/projects-postgres.js";
@@ -7072,6 +7073,19 @@ let shopDataCache = { at: 0, value: null };
 async function loadShopData() {
   if (shopDataCache.value && Date.now() - shopDataCache.at < 60 * 1000) return shopDataCache.value;
   const value = await loadShopDataFromDisk();
+  // Services & accessories by merch class (Shop Orders, 11/10): once someone
+  // has edited the map there, the table replaces the file's bySubclass (and
+  // mapped ePASS misc charges join the add-on catalog). `addonsFile` keeps
+  // the file as written for the editor. A database hiccup falls back to the
+  // file rather than leaving the shop with no installs.
+  value.addonsFile = value.addons;
+  try {
+    const rows = await listServiceMapRows();
+    if (serviceMapSeeded(rows)) {
+      const misc = rows.some((r) => isMiscId(r.itemId)) ? await listEpassMiscCharges().catch(() => []) : [];
+      value.addons = overlayAddons(value.addonsFile, rows, misc);
+    }
+  } catch (err) { console.warn("Services map unreadable — using data/shop-addons.json:", err.message); }
   shopDataCache = { at: Date.now(), value };
   return value;
 }
@@ -8413,7 +8427,7 @@ const SHOP_SERVICES_BY_CATEGORY = {
 function shopServicesByCategory(addons) {
   const index = shopServicesIndex(addons);
   const out = {};
-  for (const [name, key] of Object.entries(SHOP_SERVICES_BY_CATEGORY)) if (index[key]) out[name] = key;
+  for (const [name, key] of Object.entries(SHOP_SERVICES_BY_CATEGORY)) if (index[key] && ((index[key].installs || []).length || (index[key].connectors || []).length)) out[name] = key;
   return out;
 }
 app.get("/api/shop/services", async (req, res) => {
@@ -8713,6 +8727,40 @@ app.post("/api/shop/cart-prices", async (req, res) => {
 // INTERNAL: Express Assortment stock models (shop-orders.html) — every model
 // the feed says is in stock, what the store does with it, and the per-model
 // switches: price override, show-when-single, hidden.
+// Services & accessories by merch class (Andrew 11/10): the editor on Online
+// Shop Orders. GET = every class and subclass with what is assigned at each
+// level, the assignable items (NetSuite service items, accessories, live
+// ePASS misc charges). POST = one change (assign / remove at class or
+// subclass); it is live on the shop and the website's services list at once.
+async function shopServiceMapPayload() {
+  shopDataCache = { at: 0, value: null };
+  const [{ addonsFile }, rows, misc] = await Promise.all([loadShopData(), listServiceMapRows().catch(() => []), listEpassMiscCharges().catch(() => [])]);
+  return serviceMapView(addonsFile, rows, misc);
+}
+app.get("/api/shop/service-map", requirePagePermission("/shop-orders.html"), async (req, res) => {
+  try { res.setHeader("Cache-Control", "no-store"); return res.json(await shopServiceMapPayload()); }
+  catch (err) { console.error("Service map failed:", err.message); return res.status(500).json({ error: "Unable to load the services map." }); }
+});
+app.post("/api/shop/service-map", requirePagePermission("/shop-orders.html"), async (req, res) => {
+  try {
+    const b = req.body || {};
+    const { addonsFile } = await loadShopData();
+    await applyServiceMapOp({ scope: b.scope, code: b.code, itemId: b.itemId, action: b.action, kind: b.kind, by: req.authUser?.email || "" }, addonsFile);
+    invalidateShopCatalog();
+    recordAudit({ ip: req.ip, actorUserId: req.authUser?.id || null, action: "shop_service_map_changed", targetUserId: null,
+      detail: { scope: String(b.scope || "").slice(0, 10), code: String(b.code || "").slice(0, 10), itemId: String(b.itemId || "").slice(0, 120), change: String(b.action || "").slice(0, 10) } }).catch(() => {});
+    return res.json({ ok: true, ...(await shopServiceMapPayload()) });
+  } catch (err) { return res.status(400).json({ error: err.message || "Unable to save." }); }
+});
+app.post("/api/shop/service-map/reset", requirePagePermission("/shop-orders.html"), async (req, res) => {
+  try {
+    const removed = await resetServiceMap();
+    invalidateShopCatalog();
+    recordAudit({ ip: req.ip, actorUserId: req.authUser?.id || null, action: "shop_service_map_reset", targetUserId: null, detail: { removed } }).catch(() => {});
+    return res.json({ ok: true, ...(await shopServiceMapPayload()) });
+  } catch (err) { return res.status(400).json({ error: "Unable to reset." }); }
+});
+
 app.get("/api/shop/stock-models", requirePagePermission("/shop-orders.html", "/shop-catalog.html"), async (req, res) => {
   try {
     const catalog = await computeShopCatalog();

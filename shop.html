@@ -547,6 +547,17 @@
     .crumb-bar .cb-clear { border-radius: var(--r); background: var(--sunk); }
     .crumb-bar .cb-clear:hover { background: var(--ink); color: #fff; }
     .sort-select { border-radius: var(--r); background: var(--surface); font-size: 14px; }
+    /* Search / brand / sort sit on the same columns as the product tiles
+       (Andrew 11/10): each control is exactly one tile wide. Where the grid
+       drops to two columns or one, search takes the row and the two selects
+       share the next. */
+    .filters { display: grid; grid-template-columns: repeat(auto-fill, minmax(255px, 1fr)); gap: 14px; align-items: stretch; }
+    .filters input[type="search"] { max-width: none; width: 100%; }
+    .filters select, .filters .sort-select { width: 100%; min-width: 0; }
+    @media (max-width: 860px) {
+      .filters { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+      .filters input[type="search"] { grid-column: 1 / -1; }
+    }
     .chip { border-radius: var(--r); }
     .chip.active { background: var(--accent); border-color: var(--accent); }
     .deal-row .deal-lead { color: var(--muted); font-size: 11px; letter-spacing: .09em; }
@@ -680,7 +691,6 @@
   <template id="shopRibbonTpl">
     <div class="ribbon-inner">
       <nav class="dept-nav" id="deptNav" aria-label="Departments">
-        <span class="ribbon-lead">Express Shop</span>
         <button type="button" class="dept-link" data-dept="Cooking">Cooking</button>
         <button type="button" class="dept-link" data-dept="Coffee">Coffee</button>
         <button type="button" class="dept-link" data-dept="Refrigeration">Refrigeration</button>
@@ -706,6 +716,7 @@
     mountSiteHeader("siteTop", {
       mode: "photo",
       current: "express",
+      tag: "Express<br>Assortment",
       leftHtml: `<button type="button" class="menu-btn" id="menuBtn" aria-label="Shop by category"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h16"/></svg><span class="menu-btn-label">Shop by Category</span></button>`,
       rightHtml: `<button type="button" class="util-btn" id="unlockBtn" style="display:none;" title="Sign in or create your profile" aria-label="Sign in"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></button>
         <button type="button" class="util-chip" id="unlockChip" style="display:none;" title="View and update your profile"></button>

@@ -5,6 +5,8 @@
 //
 //   mountSiteHeader(container, {
 //     mode: "photo" | "overlay",   photo = band carries the showroom photo
+//     tag: "Express<br>Assortment", the small mark beside the logo that says this is
+//                                  the shopping side of the site; links to the shop home
 //     current: "express",          which utility link is the current page
 //     rightHtml: "…",              extra controls after Directions (account, cart)
 //     leftHtml: "…",               control before the logo (shop's menu button)
@@ -38,11 +40,11 @@
       { label: "Contact", path: "/contact" }
     ],
     nav: [
-      { label: "Luxury Appliances", path: "/luxury-appliances" },
+      { label: "Luxury Appliances", path: "/appliances" }, // the luxury page is only on the test site for now (Andrew 11/10) — same place as Appliances until it launches
       { label: "Appliances", path: "/appliances" },
       { label: "HVAC", path: "/hvac" },
       { label: "Cabinetry", path: "/cabinetry" },
-      { label: "Sinks & Faucets", path: "/sinks-faucets" }
+      { label: "Sinks & Faucets", href: "https://dealers.thegalley.com/wilson-ac-appliance/" } // Wilson's Galley dealer page, for now (Andrew 11/10)
     ]
   };
   window.WILSON_SITE = SITE;
@@ -62,7 +64,7 @@
     if (!el) return null;
     const mode = opts.mode === "overlay" ? "overlay" : "photo";
     const current = opts.current || "";
-    el.className = `site-head ${mode}`;
+    el.className = `site-head ${mode}${opts.tag ? " has-tag" : ""}`;
     el.id = el.id || "siteTop";
     el.innerHTML = `
       <div class="util">
@@ -85,6 +87,7 @@
         <div class="band-inner">
           ${opts.leftHtml || ""}
           <a class="band-logo" href="${esc(SITE.base)}" title="Wilson AC &amp; Appliance"><img src="logo-white.png" alt="Wilson AC &amp; Appliance" width="921" height="304"></a>
+          ${opts.tag ? `<a class="band-tag" href="${esc(SITE.shop)}" title="Express Assortment — shop what's in stock">${opts.tag}</a>` : ""}
           <div class="nav-wrap"><nav class="site-nav" aria-label="Wilson">${SITE.nav.map((l) => `<a href="${esc(hrefOf(l))}"${l.path ? ` data-site="${esc(l.path)}"` : ""}>${esc(l.label)}</a>`).join("")}</nav></div>
           ${opts.search ? `<form class="band-search" id="topSearchForm" role="search"><input type="search" id="topSearch" placeholder="${esc(opts.search.placeholder || "Search")}" aria-label="Search" autocomplete="off"><button type="submit" aria-label="Search">${ICON.search}</button></form>` : ""}
         </div>

@@ -19,3 +19,12 @@ Fields: title, kind (Company event · Paid holiday · Closing / early close · A
 Tables `important_dates` and `important_date_signups` (created on first use). Routes: `/api/important-dates/upcoming` and `/api/important-dates/:id/signups` (GET/POST/DELETE) for every signed-in user; `/api/important-dates` (GET/POST), `/api/important-dates/:id` (PUT) and `/api/important-dates/:id/archive` (POST) behind the page grant. The window is `UPCOMING_WINDOW_DAYS` in `lib/important-dates-postgres.js` (60), measured in Central time.
 
 Audit actions: `important_date_created / updated / archived / restored`, `important_date_signup_added / removed`.
+
+## RSVP mode (11/10)
+
+A date's sign-up is one of two kinds, chosen in the builder's **Sign-up** menu:
+
+- **Sign-up sheet — what are you bringing?** Free lines; a person can add several ("Smoked turkey", "Pecan pie"). The original potluck sheet.
+- **RSVP — coming or not, with guests.** One answer per person: *I'll be there* or *Can't make it*, how many guests (Just me … +5), and an optional note (dietary needs, arriving late). Answering again replaces the earlier answer; *Clear* removes it. The sheet shows the tally — "4 coming (9 people with guests) · 1 can't make it" — and each person's line; the dashboard link reads "RSVP — are you coming? (4 coming)" unless the link text is overridden. The builder's table shows the same counts and the list.
+
+Storage: `important_dates.signup_mode` (`bring` | `rsvp`); `important_date_signups.response` (`yes` | `no`) and `guests`, with the note in `item`. Existing sheets are `bring` and behave exactly as before.

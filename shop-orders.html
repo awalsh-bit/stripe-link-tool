@@ -108,6 +108,11 @@
     .svc-chip.inherited.install { border-left: 3px solid #22c55e; } .svc-chip.inherited.connector { border-left: 3px solid #f59e0b; }
     .svc-chip.excluded { background: #f8fafc; border: 1px dashed #cbd5e1; color: #94a3b8; } .svc-chip.excluded .t { text-decoration: line-through; }
     .svc-chip.bad { outline: 2px solid #fca5a5; }
+    .svc-chip.product { background: #dbeafe; color: #1e3a8a; } .svc-chip.product.out { background: #f1f5f9; color: #475569; }
+    .svc-chip.inherited.product { border-left: 3px solid #3b82f6; background: #fff; color: #374151; }
+    .svc-chip .mdl { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-weight: 700; font-size: 11.5px; }
+    .svc-chip .stk { font-size: 10.5px; opacity: .8; }
+    .br-brands { display: flex; flex-wrap: wrap; gap: 7px; margin: 4px 0 12px; }
     .svc-chip .p { opacity: .75; font-variant-numeric: tabular-nums; } .svc-chip .src { font-size: 9.5px; font-weight: 800; letter-spacing: .05em; background: rgba(0,0,0,.12); border-radius: 4px; padding: 1px 4px; }
     .svc-chip button { appearance: none; border: 0; background: rgba(0,0,0,.08); color: inherit; width: 20px; height: 20px; border-radius: 50%; cursor: pointer; font-size: 12px; line-height: 1; padding: 0; font-family: inherit; }
     .svc-chip button:hover { background: rgba(0,0,0,.2); }
@@ -232,6 +237,37 @@
         </div>
         <div id="svcBody">Loading…</div>
         <div class="ws-snap-meta" id="svcMeta" style="max-width:none;"></div>
+      </details>
+
+      <details class="surface" id="brCard">
+        <summary class="exp-summary">
+          <strong>Installs &amp; accessories by brand</strong>
+          <span class="exp-sub" id="brSummaryLine">What a particular brand adds for a class or subclass — its pedestals, stacking kits, detergents.</span>
+        </summary>
+        <p class="section-note" style="margin-top:10px;">
+          A second layer on top of the class map above, and independent of it: pick a <b>brand</b>, then assign to one of its <b>Merch Classes</b> or a single
+          <b>Subclass</b>. Besides service items and ePASS misc charges you can assign an <b>accessory product by model number</b> — the LG pedestal and
+          stacking kit with LG front-load washers, a maker's detergent with its dishwashers. This layer only <i>adds</i>; it never removes what the class map offers.
+          On the shop an accessory product shows in the setup prompt only while a sealed unit is in stock; the website's services list carries it either way,
+          marked in or out of stock, so its cart can send it down the purchase or the quote path. Changes are live at once.
+        </p>
+        <div class="exp-row">
+          <label for="brBrand"><b>Brand</b></label>
+          <select id="brBrand" style="min-width:190px;"><option value="">Pick a brand…</option></select>
+          <label for="brCategory"><b>Merch Category</b></label>
+          <select id="brCategory"><option value="">All categories</option></select>
+          <input type="search" id="brFind" placeholder="Find a class, subclass or item…" style="flex:1; min-width:160px; border:1.5px solid var(--border); border-radius:10px; padding:7px 10px; font-size:13px; font-family:inherit;">
+          <label style="font-size:12.5px; display:inline-flex; gap:6px; align-items:center;"><input type="checkbox" id="brOwnOnly" checked> Only what this brand makes</label>
+          <span class="ws-snap-meta" id="brStatus"></span>
+        </div>
+        <div class="svc-legend">
+          <span><span class="svc-chip product" style="padding:3px 10px;">Accessory product</span></span>
+          <span><span class="svc-chip install" style="padding:3px 10px;">Install service</span></span>
+          <span><span class="svc-chip connector" style="padding:3px 10px;">Accessory</span></span>
+          <span><span class="svc-chip inherited product" style="padding:3px 10px;">From the brand's class row</span></span>
+        </div>
+        <div id="brBody">Loading…</div>
+        <div class="ws-snap-meta" id="brMeta" style="max-width:none;"></div>
       </details>
 
       <div class="surface" style="display:flex; gap:14px; align-items:center; flex-wrap:wrap; padding:16px 22px;">
@@ -1228,6 +1264,169 @@
       async function load() { try { setView(await call("/api/shop/service-map")); } catch (err) { $("svcBody").innerHTML = `<div class="ws-empty">${esc(err.message)}</div>`; } }
       $("svcCard").addEventListener("toggle", (e) => { if (e.target.open && !loaded) { loaded = true; load(); } });
       if (location.hash === "#services") { $("svcCard").open = true; }
+    })();
+  </script>
+
+  <div class="svc-pick" id="brPick" role="dialog" aria-modal="true" aria-labelledby="brPickTitle">
+    <div class="box">
+      <div class="hd">
+        <h3 id="brPickTitle">Assign</h3>
+        <p id="brPickSub"></p>
+        <input type="search" id="brPickFind" placeholder="Model number, description or ePASS misc code…" autocomplete="off">
+        <div class="tabs ws-chips" id="brPickTabs"></div>
+      </div>
+      <div class="list" id="brPickList"></div>
+      <div class="ft"><span class="ws-snap-meta" id="brPickStatus"></span><button type="button" class="ws-btn primary" id="brPickDone">Done</button></div>
+    </div>
+  </div>
+  <script>
+    // ------------------------------------------------------------------
+    // Installs & accessories by brand (Andrew 11/10) — layer two. A brand's
+    // own additions for one of its merch classes or a single subclass:
+    // accessory products by model number, service items, ePASS misc
+    // charges. Additive to the class map; every change posts on its own.
+    // ------------------------------------------------------------------
+    (function () {
+      const $ = (id) => document.getElementById(id);
+      const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch]));
+      const money = (n) => n == null ? "" : "$" + Number(n).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      let view = null, loaded = false, pick = null, pickTab = "products", products = null, searchTimer = null, searchSeq = 0;
+
+      async function call(url, body) {
+        const res = await fetch(url, body ? { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) } : { credentials: "same-origin" });
+        const out = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(out.error || "Unable to save.");
+        return out;
+      }
+      const brand = () => view.brands.find((b) => b.key === $("brBrand").value) || null;
+      const item = (id) => view.items[id] || { id, name: id, price: null, type: "connector", missing: true };
+      function chip(id, { scope, code, inherited }) {
+        const it = item(id);
+        const bad = it.unavailable || it.missing;
+        if (it.type === "product") {
+          const out = !it.available;
+          return `<span class="svc-chip product${inherited ? " inherited" : ""}${out && !inherited ? " out" : ""}" title="${esc(out ? "No sealed unit in stock — hidden on the shop until there is; the website still gets it, marked out of stock" : `${it.available} sealed in stock — offered in the shop's setup prompt`)}${inherited ? " · assigned on the brand's class row" : ""}"><span class="mdl">${esc(it.model)}</span><span class="t">${esc(it.name !== it.model ? it.name : "")}</span>${it.price != null ? `<span class="p">${money(it.price)}</span>` : ""}<span class="stk">${out ? "not in stock" : it.available + " in stock"}</span>${inherited ? "" : `<button type="button" data-br-op="remove" data-scope="${scope}" data-code="${esc(code)}" data-item="${esc(id)}" aria-label="Remove ${esc(it.model)}">✕</button>`}</span>`;
+        }
+        return `<span class="svc-chip ${esc(it.type)}${inherited ? " inherited" : ""}${bad ? " bad" : ""}" title="${esc(bad ? `Not offered — ${it.unavailable || "no longer in the service list"}` : inherited ? "Assigned on the brand's class row" : "✕ removes it")}"><span class="t">${esc(it.name)}</span>${it.price != null ? `<span class="p">${money(it.price)}</span>` : ""}${it.source === "epass-misc" ? `<span class="src">ePASS</span>` : ""}${inherited ? "" : `<button type="button" data-br-op="remove" data-scope="${scope}" data-code="${esc(code)}" data-item="${esc(id)}" aria-label="Remove ${esc(it.name)}">✕</button>`}</span>`;
+      }
+      function render() {
+        if (!view) return;
+        const b = brand();
+        const withRows = view.brands.filter((x) => x.assigned);
+        $("brSummaryLine").textContent = withRows.length ? `${withRows.length} brand${withRows.length === 1 ? "" : "s"} with additions: ${withRows.map((x) => `${x.name} (${x.assigned})`).join(", ")}` : "Nothing assigned by brand yet — the class map above is all the shop offers.";
+        if (!b) {
+          $("brBody").innerHTML = (withRows.length ? `<div class="br-brands">${withRows.map((x) => `<button type="button" class="ws-chip" data-br-brand="${esc(x.key)}">${esc(x.name)} · ${x.assigned}</button>`).join("")}</div>` : "") + '<div class="ws-empty">Pick a brand to see its classes and what it adds.</div>';
+          $("brMeta").textContent = ""; return;
+        }
+        const mine = view.assigned[b.key] || { class: {}, subclass: {} };
+        const makes = new Set(b.subclasses);
+        const cat = $("brCategory").value, q = $("brFind").value.trim().toLowerCase(), ownOnly = $("brOwnOnly").checked;
+        const text = (ids) => ids.map((id) => `${item(id).name} ${item(id).model || ""}`).join(" ").toLowerCase();
+        let shown = 0;
+        const html = view.classes.filter((c) => !cat || c.category === cat).map((c) => {
+          const cItems = mine.class[c.code] || [];
+          const classHit = !q || `${c.code} ${c.name}`.toLowerCase().includes(q) || text(cItems).includes(q);
+          const subs = c.subclasses.filter((s) => {
+            const own = mine.subclass[s.code] || [];
+            if (ownOnly && !makes.has(s.code) && !own.length && !cItems.length) return false;
+            return classHit || `${s.code} ${s.name}`.toLowerCase().includes(q) || text(own).includes(q);
+          });
+          if (!subs.length) return "";
+          shown += subs.length;
+          return `<div class="svc-class">
+            <div class="svc-class-head"><span class="nm">${esc(c.code)} ${esc(c.name)}<small>${esc(b.name)}</small></span>
+              <div class="svc-items">${cItems.map((id) => chip(id, { scope: "class", code: c.code })).join("") || `<span class="svc-none">nothing added for every ${esc(b.name)} ${esc(c.name.toLowerCase())}</span>`}</div>
+              <button type="button" class="svc-add" data-br-pick="class" data-code="${esc(c.code)}">+ Add for the whole class</button></div>
+            ${subs.map((s) => { const own = mine.subclass[s.code] || []; return `<div class="svc-sub"><span class="nm"><b>${esc(s.code)}</b>${esc(s.name)}</span>
+              <div class="svc-items">${cItems.map((id) => chip(id, { scope: "subclass", code: s.code, inherited: true })).join("")}${own.map((id) => chip(id, { scope: "subclass", code: s.code })).join("")}${!own.length && !cItems.length ? `<span class="svc-none">nothing added — the class map only</span>` : ""}</div>
+              <button type="button" class="svc-add" data-br-pick="subclass" data-code="${esc(s.code)}">+ Add</button></div>`; }).join("")}
+          </div>`;
+        }).join("");
+        $("brBody").innerHTML = html || `<div class="ws-empty">Nothing matches${ownOnly ? " — untick “Only what this brand makes” to see every class" : ""}.</div>`;
+        $("brMeta").textContent = `${shown} subclass${shown === 1 ? "" : "es"} shown for ${b.name}.` + (view.lastChange ? ` Last change ${new Date(view.lastChange.at).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}${view.lastChange.by ? " by " + view.lastChange.by : ""}.` : "");
+      }
+      function setView(v, note) {
+        const keep = $("brBrand").value;
+        view = v;
+        const withRows = v.brands.filter((x) => x.assigned), rest = v.brands.filter((x) => !x.assigned);
+        $("brBrand").innerHTML = `<option value="">Pick a brand…</option>` + (withRows.length ? `<optgroup label="With additions">${withRows.map((x) => `<option value="${esc(x.key)}">${esc(x.name)} (${x.assigned})</option>`).join("")}</optgroup>` : "") + `<optgroup label="All brands">${rest.map((x) => `<option value="${esc(x.key)}">${esc(x.name)}</option>`).join("")}</optgroup>`;
+        if ([...$("brBrand").options].some((o) => o.value === keep)) $("brBrand").value = keep;
+        if ($("brCategory").options.length <= 1) $("brCategory").innerHTML = `<option value="">All categories</option>` + v.categories.map((c) => `<option value="${esc(c.code)}">${esc(c.code)} ${esc(c.name)}</option>`).join("");
+        render(); if (pick) renderPick();
+        if (note) { const st = $("brStatus"); st.textContent = note; setTimeout(() => { if (st.textContent === note) st.textContent = ""; }, 5000); }
+      }
+      async function op(body) {
+        const b = brand(); if (!b) return;
+        const st = $("brStatus"); st.textContent = "Saving…";
+        try { setView(await call("/api/shop/brand-map", { brand: b.key, brandName: b.name, ...body }), "Saved — live on the shop now."); }
+        catch (err) { st.textContent = err.message; if (pick) $("brPickStatus").textContent = err.message; }
+      }
+
+      // ---- picker ----
+      function target() {
+        const b = brand(); if (!pick || !b) return null;
+        const mine = view.assigned[b.key] || { class: {}, subclass: {} };
+        if (pick.scope === "class") { const c = view.classes.find((x) => x.code === pick.code); return c && { label: `${b.name} · ${c.code} ${c.name}`, has: new Set(mine.class[c.code] || []), whole: true }; }
+        for (const c of view.classes) { const s = c.subclasses.find((x) => x.code === pick.code); if (s) return { label: `${b.name} · ${s.code} ${s.name}`, has: new Set([...(mine.class[c.code] || []), ...(mine.subclass[s.code] || [])]), whole: false }; }
+        return null;
+      }
+      async function searchProducts() {
+        const b = brand(); if (!b) return;
+        const seq = ++searchSeq; products = null; if (pickTab === "products") renderPick();
+        try { const out = await call(`/api/shop/brand-map/products?brand=${encodeURIComponent(b.key)}&q=${encodeURIComponent($("brPickFind").value.trim())}`); if (seq === searchSeq) { products = out; if (pick && pickTab === "products") renderPick(); } }
+        catch (err) { if (seq === searchSeq) { products = { products: [], error: err.message }; if (pick) renderPick(); } }
+      }
+      function renderPick() {
+        const t = target(); if (!t) return closePick();
+        $("brPickTitle").textContent = `Add for ${t.label}`;
+        $("brPickSub").textContent = t.whole ? "Every subclass of this class, for this brand only." : "This brand and this subclass only.";
+        const q = $("brPickFind").value.trim().toLowerCase();
+        const tabs = [["products", "Products"], ["install", "Install services"], ["accessory", "Accessories"], ["misc", `ePASS misc (${view.misc.length})`]];
+        $("brPickTabs").innerHTML = tabs.map(([k, l]) => `<button type="button" class="ws-chip${pickTab === k ? " active" : ""}" data-tab="${k}">${esc(l)}</button>`).join("");
+        let rows = [], foot = "";
+        if (pickTab === "products") {
+          if (!products) { $("brPickList").innerHTML = '<div class="ws-empty">Searching…</div>'; return; }
+          rows = products.products.map((p) => ({ id: "model:" + p.key, label: p.model, name: p.description || p.model, price: p.price, sub: `${p.brand ? p.brand + " · " : ""}${p.model}${p.subclass ? " · " + p.subclass : ""} · ${p.available ? p.available + " sealed in stock" : "not in stock — hidden on the shop until it is"}` }));
+          foot = products.error ? `<div class="ws-empty">${esc(products.error)}</div>` : !rows.length ? `<div class="ws-empty">${q ? "No model matches." : "This brand has no accessory-class models in the NetSuite catalog — search by model number to add any product."}</div>` : products.more ? `<div class="ws-empty">${products.more} more — type more of the model number to narrow.</div>` : !q ? `<div class="ws-empty">These are this brand's accessory models. Search to add any other product, including another maker's.</div>` : "";
+        } else {
+          const base = Object.values(view.items).filter((i) => i.source === "netsuite" || i.source === "accessory").map((i) => ({ id: i.id, name: i.name, price: i.price, group: i.type === "install" ? "install" : "accessory", sub: i.type === "install" ? "NetSuite service item" : "Install accessory" }));
+          const misc = view.misc.map((m) => ({ id: "misc:" + m.code, name: m.description || m.code, price: m.list, kind: (view.items["misc:" + m.code] || {}).type || m.suggestedKind, group: "misc", misc: true, sub: `ePASS misc ${m.code}${m.typeName ? " · " + m.typeName : ""}${m.taxable ? "" : " · non-taxable"}` }));
+          const all = [...base, ...misc].filter((r) => r.group === pickTab && (!q || `${r.name} ${r.sub}`.toLowerCase().includes(q)));
+          rows = all.slice(0, 80); foot = all.length > 80 ? `<div class="ws-empty">Showing 80 of ${all.length} — type to narrow.</div>` : !all.length ? '<div class="ws-empty">Nothing matches.</div>' : "";
+        }
+        $("brPickList").innerHTML = rows.map((r) => `<div class="row${t.has.has(r.id) ? " on" : ""}">
+            <span class="n">${esc(r.name)}<small>${esc(r.sub)}</small></span>
+            ${r.misc && !t.has.has(r.id) ? `<select data-kind-for="${esc(r.id)}" title="How the shop offers it"><option value="connector"${r.kind === "connector" ? " selected" : ""}>as accessory</option><option value="install"${r.kind === "install" ? " selected" : ""}>as install service</option></select>` : ""}
+            <span class="pr">${money(r.price)}</span>
+            ${t.has.has(r.id) ? `<span class="ws-snap-meta">added</span>` : `<button type="button" class="ws-btn primary" data-assign="${esc(r.id)}" data-label="${esc(r.label || "")}">Add</button>`}
+          </div>`).join("") + foot;
+      }
+      function openPick(scope, code) { pick = { scope, code }; pickTab = "products"; $("brPickFind").value = ""; $("brPickStatus").textContent = ""; $("brPick").classList.add("show"); searchProducts(); renderPick(); $("brPickFind").focus(); }
+      function closePick() { pick = null; $("brPick").classList.remove("show"); }
+      $("brPickDone").addEventListener("click", closePick);
+      $("brPick").addEventListener("click", (e) => { if (e.target === $("brPick")) closePick(); });
+      document.addEventListener("keydown", (e) => { if (e.key === "Escape" && pick) closePick(); });
+      $("brPickFind").addEventListener("input", () => { if (pickTab === "products") { clearTimeout(searchTimer); searchTimer = setTimeout(searchProducts, 250); } else renderPick(); });
+      $("brPickTabs").addEventListener("click", (e) => { const b = e.target.closest("[data-tab]"); if (!b) return; pickTab = b.dataset.tab; if (pickTab === "products" && !products) searchProducts(); renderPick(); });
+      $("brPickList").addEventListener("click", (e) => {
+        const b = e.target.closest("[data-assign]"); if (!b || !pick) return;
+        const id = b.dataset.assign; const kindSel = $("brPickList").querySelector(`[data-kind-for="${CSS.escape(id)}"]`);
+        b.disabled = true;
+        op({ scope: pick.scope, code: pick.code, itemId: id, action: "add", kind: kindSel ? kindSel.value : "", label: b.dataset.label || "" });
+      });
+
+      // ---- page events ----
+      $("brBody").addEventListener("click", (e) => {
+        const bb = e.target.closest("[data-br-brand]"); if (bb) { $("brBrand").value = bb.dataset.brBrand; return render(); }
+        const p = e.target.closest("[data-br-pick]"); if (p) return openPick(p.dataset.brPick, p.dataset.code);
+        const b = e.target.closest("[data-br-op]"); if (!b) return;
+        op({ scope: b.dataset.scope, code: b.dataset.code, itemId: b.dataset.item, action: "remove" });
+      });
+      ["brBrand", "brCategory", "brOwnOnly"].forEach((id) => $(id).addEventListener("change", render));
+      $("brFind").addEventListener("input", render);
+      async function load() { try { setView(await call("/api/shop/brand-map")); } catch (err) { $("brBody").innerHTML = `<div class="ws-empty">${esc(err.message)}</div>`; } }
+      $("brCard").addEventListener("toggle", (e) => { if (e.target.open && !loaded) { loaded = true; load(); } });
+      if (location.hash === "#brands") { $("brCard").open = true; }
     })();
   </script>
 </body>

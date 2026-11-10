@@ -1182,7 +1182,7 @@
   function buildFilters() {
     // One deal chip per category with its own ceiling (washers / dryers /
     // dishwashers under $999, refrigerators under $1,999); empty ones hide.
-    const items = state.catalog.items || [];
+    const items = gridItems();
     const dealGroups = (state.catalog.dealGroups || []).map((g) => ({ ...g, count: items.filter((i) => i.deal === g.key).length })).filter((g) => g.count);
     if (state.filter.deal && !dealGroups.some((g) => g.key === state.filter.deal)) state.filter.deal = "";
     const row = $("dealRow");
@@ -1223,7 +1223,7 @@
     for (const i of items) if (Number(i.sold) > 0 && !soldByModel.has(i.model)) soldByModel.set(i.model, Number(i.sold));
     state.bestSellers = new Set([...soldByModel.entries()].filter(([, n]) => n >= 2).sort((a, b) => b[1] - a[1]).slice(0, 8).map(([m]) => m));
 
-    const brands = [...new Set((state.catalog.items || []).map((i) => i.brand).filter(Boolean))].sort();
+    const brands = [...new Set(gridItems().map((i) => i.brand).filter(Boolean))].sort();
     const sel = $("brandSelect");
     const current = state.filter.brand;
     sel.innerHTML = "<option value=''>All brands</option>" + brands.map((b) => `<option${b === current ? " selected" : ""}>${esc(b)}</option>`).join("");
@@ -1266,7 +1266,7 @@
     bar.classList.add("show");
     // Type filter: the website's per-category Types, as chips, in its order.
     // Only shown when two or more Types have stock; checking several = any of them.
-    const items = state.catalog?.items || [];
+    const items = gridItems();
     const live = (sel.types || []).filter((t) => items.some((i) => selectionMatches(sel, i, { ignoreTypes: true }) && kindMatch(t, i)));
     if (live.length < 2) { typeRow.classList.remove("show"); typeRow.innerHTML = ""; return; }
     typeRow.innerHTML = `<span class="deal-lead">Type</span>` + live.map((t) => `<button type="button" class="deal-chip${state.filter.types.has(t.label) ? " active" : ""}" data-type="${esc(t.label)}">${esc(t.label)}</button>`).join("");
@@ -1283,9 +1283,14 @@
     return String(s ?? "").replace(/[&<>"']/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch]));
   }
 
+  // Everything the storefront grid, menus and filters work from. Accessory
+  // products a brand adds to the setup prompt are in the catalog (so a cart
+  // can hold and price them) but never on the grid.
+  function gridItems() { return (state.catalog?.items || []).filter((i) => !i.gridHidden); }
+
   function visibleItems() {
     const q = state.filter.search.trim().toUpperCase();
-    return (state.catalog?.items || []).filter((i) => {
+    return gridItems().filter((i) => {
       if (state.filter.deal && i.deal !== state.filter.deal) return false;
       if (state.filter.brand && i.brand !== state.filter.brand) return false;
       const sel = state.filter.selection;
@@ -1562,7 +1567,7 @@
   ];
 
   function countForSelection(sel) {
-    return (state.catalog?.items || []).filter((i) => selectionMatches(sel, i, { ignoreTypes: true })).length;
+    return gridItems().filter((i) => selectionMatches(sel, i, { ignoreTypes: true })).length;
   }
 
   function openMenu() {
@@ -1703,7 +1708,7 @@
       }
     }
     if (brand) {
-      const match = (state.catalog?.items || []).map((i) => i.brand).find((b) => low(b) === brand);
+      const match = gridItems().map((i) => i.brand).find((b) => low(b) === brand);
       if (match) state.filter.brand = match;
     }
     if (q) { state.filter.search = q; $("searchInput").value = q; }
@@ -1767,7 +1772,7 @@
       }
       for (const sp of special) {
         const k = sp.known || info.get(norm(sp.model)) || {};
-        addSpecialLine({ model: sp.model, qty: sp.qty, brand: k.brand || "", description: k.description || "", product: k.product || "", servicesKey: k.servicesKey || "", inquireOnly: !!k.inquireOnly });
+        addSpecialLine({ model: sp.model, qty: sp.qty, brand: k.brand || "", description: k.description || "", product: k.product || "", servicesKey: k.servicesKey || "", brandServicesKey: k.brandServicesKey || "", inquireOnly: !!k.inquireOnly });
       }
     }
     if (state.cart.itemIds.length || state.cart.special.length) {
@@ -2255,7 +2260,8 @@
   function maybeOfferAddons(itemId) {
     const item = (state.catalog.items || []).find((i) => i.id === itemId) || state.cart.special.find((l) => l.key === itemId);
     const map = addonMapFor(item);
-    if (!item || !map || (!map.connectors?.length && !map.installs?.length)) {
+    const accessories = item && !isSpecialKey(item.id) ? accessoryUnitsFor(map, item) : [];
+    if (!item || !map || (!map.connectors?.length && !map.installs?.length && !map.brandConnectors?.length && !accessories.length)) {
       openCart();
       return;
     }
@@ -2285,6 +2291,32 @@
     // that install can't happen without.
     renderGroup("Installation services", map.installs || [], state.addons.installs || []);
     renderGroup("Required Install Accessories", map.connectors || [], state.addons.connectors || []);
+    // Matching accessory products — real units, added to the cart as their own
+    // lines. Their prices are an in-cart reveal like any other unit's, so they
+    // are fetched now that the appliance is in the cart.
+    if (map.brandConnectors?.length) renderGroup(`Made for your ${item.brand}`, map.brandConnectors, state.addons.connectors || []);
+    if (accessories.length) {
+      if (!map.brandConnectors?.length) {
+        const head = document.createElement("div");
+        head.className = "addon-head";
+        head.textContent = `Made for your ${item.brand}`;
+        list.appendChild(head);
+      }
+      for (const unit of accessories) {
+        const row = document.createElement("label");
+        row.className = "addon-row";
+        row.innerHTML = `
+          <input type="checkbox" value="${esc(unit.id)}" data-addon-type="product">
+          <span class="addon-name">${esc(unit.description || unit.model)}<span class="muted">${esc(unit.brand)} ${esc(unit.model)} · in stock</span><span class="req-note" style="display:none;"></span></span>
+          <span class="addon-price" data-price-for="${esc(unit.id)}">${unit.price != null && unit.mapPublic ? money(unit.price) : "…"}</span>`;
+        list.appendChild(row);
+      }
+      fetch("/api/shop/cart-prices", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ itemIds: accessories.map((u) => u.id) }) })
+        .then((r) => r.json()).then((data) => {
+          for (const [id, price] of Object.entries(data.prices || {})) { const el = list.querySelector(`[data-price-for="${CSS.escape(id)}"]`); if (el) el.textContent = money(price); }
+          for (const el of list.querySelectorAll("[data-price-for]")) if (el.textContent === "…") el.textContent = "Price in cart";
+        }).catch(() => { for (const el of list.querySelectorAll("[data-price-for]")) if (el.textContent === "…") el.textContent = "Price in cart"; });
+    }
     if (!list.dataset.reqWired) {
       list.addEventListener("change", syncAddonRequirements);
       list.dataset.reqWired = "1";
@@ -2298,7 +2330,27 @@
   function addonMapFor(item) {
     if (!item) return null;
     const a = state.addons || {};
-    return a.byKey?.[String(item.servicesKey || item.subclass || "")] || a.byProduct?.[item.product] || null;
+    const base = a.byKey?.[String(item.servicesKey || item.subclass || "")] || a.byProduct?.[item.product] || null;
+    // Layer two (11/10): what this BRAND adds for the subclass — its pedestal,
+    // stacking kit, detergent. Adds to the class set, never replaces it.
+    const extra = a.byBrand?.[item.brandServicesKey];
+    if (!extra) return base;
+    const merge = (x, y) => [...new Set([...(x || []), ...(y || [])])];
+    // Brand installs join the install list; brand accessories and products get
+    // their own "Made for your …" group — a detergent isn't a required install part.
+    return { installs: merge(base?.installs, extra.installs), connectors: base?.connectors || [], brandConnectors: (extra.connectors || []).filter((id) => !(base?.connectors || []).includes(id)), products: extra.products || [] };
+  }
+  // A brand's accessory products that can leave with the order: one sealed,
+  // in-stock unit per model that isn't already in the cart (and isn't the
+  // appliance itself). Out-of-stock ones simply aren't offered here.
+  function accessoryUnitsFor(map, forItem) {
+    const out = [];
+    for (const p of map?.products || []) {
+      if (forItem && normKey(forItem.model) === p.key) continue;
+      const unit = (state.catalog?.items || []).find((i) => normKey(i.model) === p.key && i.condition === "new" && !i.noPrice && !state.cart.itemIds.includes(i.id));
+      if (unit) out.push(unit);
+    }
+    return out;
   }
   // Requirement groups for every checked install: each group needs exactly
   // one of its (displayed) alternatives checked; that one is locked until
@@ -2348,9 +2400,15 @@
   });
   $("addonAdd").addEventListener("click", () => {
     const forItem = state.pendingAddonItem?.id || null;
-    $("addonList").querySelectorAll("input[type=checkbox]:checked").forEach((cb) => addAddonLine(cb.value, forItem));
+    let addedUnits = false;
+    $("addonList").querySelectorAll("input[type=checkbox]:checked").forEach((cb) => {
+      // an accessory product is a unit of its own in the cart, not an add-on line
+      if (cb.dataset.addonType === "product") { if (!state.cart.itemIds.includes(cb.value)) { state.cart.itemIds.push(cb.value); addedUnits = true; } }
+      else addAddonLine(cb.value, forItem);
+    });
     $("addonOverlay").classList.remove("show");
     renderCartCount();
+    if (addedUnits) { renderGrid(); syncCartPrices().then(() => { if ($("cartDrawer").classList.contains("show")) renderCart(); }); }
     openCart();
   });
 
@@ -2418,7 +2476,7 @@
   const isSpecialKey = (id) => String(id || "").startsWith("so:");
   function addSpecialLine(line) {
     const key = `so:${normKey(line.model)}:${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
-    const special = { key, id: key, model: line.model, qty: Math.max(1, Math.min(20, Number(line.qty) || 1)), brand: line.brand || "", description: line.description || "", product: String(line.product || "").toUpperCase(), servicesKey: String(line.servicesKey || ""), inquireOnly: !!line.inquireOnly };
+    const special = { key, id: key, model: line.model, qty: Math.max(1, Math.min(20, Number(line.qty) || 1)), brand: line.brand || "", description: line.description || "", product: String(line.product || "").toUpperCase(), servicesKey: String(line.servicesKey || ""), brandServicesKey: String(line.brandServicesKey || ""), inquireOnly: !!line.inquireOnly };
     state.cart.special.push(special);
     renderCartCount();
     return special;
@@ -2552,7 +2610,7 @@
       line.innerHTML = `
         <div class="info">
           <div class="nm">${esc(a.name)}</div>
-          <div class="ds">${a.type === "install" ? "Professional installation" : "Required install accessory"}</div>
+          <div class="ds">${a.type === "install" ? "Professional installation" : Object.values(state.addons?.requires || {}).some((groups) => groups.some((g) => g.includes(a.id))) ? "Required install accessory" : "Accessory"}</div>
           <div class="qty-ctl">
             <button data-qm="${idx}" aria-label="One less">−</button><span>${l.qty}</span><button data-qp="${idx}" aria-label="One more">+</button>
           </div>
@@ -2576,7 +2634,7 @@
       state.cart.addonLines.forEach((l, idx) => { if (l.itemId === item.id) { const el = addonLineEl(l, idx); if (el) body.appendChild(el); } });
       // No installation on this appliance -> the delivery team uncrates and
       // sets it in place (a $0 line so the order says so, Andrew 9/26).
-      if (state.fulfillment.method !== "pickup" && !itemHasInstall(item.id)) {
+      if (state.fulfillment.method !== "pickup" && !item.gridHidden && !itemHasInstall(item.id)) {
         const u = document.createElement("div");
         u.className = "cart-line sub";
         u.innerHTML = `<div class="info"><div class="nm">${esc(UNCRATE.name)}</div><div class="ds">${esc(UNCRATE.description)}</div></div><div class="pr">${money(0)}</div>`;
@@ -2788,7 +2846,7 @@
         <div class="summary-box">
           ${t.items.map((i) => [`${esc(i.brand)} ${esc(i.model)} — ${money(i.price)}`,
             ...state.cart.addonLines.filter((l) => l.itemId === i.id).map((l) => { const a = addonInfo(l.id); return a ? `&nbsp;&nbsp;↳ ${esc(a.name)}${l.qty > 1 ? ` × ${l.qty}` : ""} — ${money(a.price * l.qty)}` : ""; }).filter(Boolean),
-            ...(state.fulfillment.method !== "pickup" && !itemHasInstall(i.id) ? [`&nbsp;&nbsp;↳ ${esc(UNCRATE.name)} — ${money(0)}`] : [])
+            ...(state.fulfillment.method !== "pickup" && !i.gridHidden && !itemHasInstall(i.id) ? [`&nbsp;&nbsp;↳ ${esc(UNCRATE.name)} — ${money(0)}`] : [])
           ].join("<br>")).join("<br>")}
           <br>${state.fulfillment.method === "pickup"
             ? `Customer Pickup (${state.fulfillment.date === "later" ? "scheduling later" : esc(fulfillDayLabel() || "day TBD")}) — FREE`

@@ -266,7 +266,8 @@ import { computePoHealth } from "./lib/po-health.js";
 import { VENDORS as PO_ETA_VENDORS, FIELDS as PO_ETA_FIELDS, readVendorWorkbook, guessMapping as guessPoEtaMapping, applySavedMapping as applyPoEtaSavedMapping, headerSignature as poEtaHeaderSignature, extractRows as extractPoEtaRows, matchRows as matchPoEtaRows, buildImportFile as buildPoEtaFile, IMPORT_FORMATS as PO_ETA_FORMATS, vendorByKey as poEtaVendorByKey } from "./lib/po-eta-import.js";
 import { buildCatalogCheck, catalogCheckCsv, CATALOG_ISSUES } from "./lib/catalog-check.js";
 import { getCatalog, resolveModel, supplierLabel, shopBucketFor, invalidateCatalog } from "./lib/catalog-resolver.js";
-import { listServiceMapRows, isSeeded as serviceMapSeeded, isMiscId, overlayAddons, serviceMapView, applyServiceMapOp, resetServiceMap } from "./lib/shop-service-map.js";
+import { listServiceMapRows, isSeeded as serviceMapSeeded, isMiscId, overlayAddons, serviceMapView, applyServiceMapOp, resetServiceMap,
+  listBrandMapRows, overlayBrandLayer, brandMapView, applyBrandMapOp, brandServicesKey, brandKeyOf } from "./lib/shop-service-map.js";
 import { MERCH_SUBCLASSES, SUBCLASS_BY_EPASS_PROD, merchSubclassFor, merchClassFor, merchSubclassLabel, merchClassName, merchSubclassName, addonsBySubclass, buildAddonIndex, servicesKeyFor, panelReadyFor } from "./lib/merch-classes.js";
 import { getInventoryIndex, searchInventory, inventoryModelDetail, invalidateInventoryIndex, UNIT_STATUS as INVENTORY_UNIT_STATUS, LIKELY_AVAILABLE_DAYS } from "./lib/inventory-lookup.js";
 import { PROJECT_STATUSES, PROJECT_STATUS_LABELS, READINESS_ITEMS, getProjectSettings, saveProjectSettings, syncProjectsFromFeed, listProjects, getProject, getProjectByToken, updateProject, addProjectNote, saveProjectReadiness, setProjectGeo } from "./lib/projects-postgres.js";
@@ -7086,6 +7087,15 @@ async function loadShopData() {
       value.addons = overlayAddons(value.addonsFile, rows, misc);
     }
   } catch (err) { console.warn("Services map unreadable — using data/shop-addons.json:", err.message); }
+  // Layer two: installs & accessories by brand, down to the subclass. Adds to
+  // the class layer; products it names ride along as addons.accessoryModels.
+  try {
+    const brandRows = await listBrandMapRows();
+    if (brandRows.length) {
+      const misc = brandRows.some((r) => isMiscId(r.itemId)) ? await listEpassMiscCharges().catch(() => []) : [];
+      value.addons = overlayBrandLayer(value.addons, brandRows, misc);
+    }
+  } catch (err) { console.warn("Brand services map unreadable — brand layer skipped:", err.message); }
   shopDataCache = { at: Date.now(), value };
   return value;
 }
@@ -7263,7 +7273,7 @@ const SHOP_STOCK_LOW_MAX = 3; // 1–3 units = Low Stock, 4+ = In Stock
 //   brandMap              — model → { brand } (NetSuite catalog / snapshot)
 //   brandNames            — brand CODE → name, learned from the clearance list
 //   clearanceUnitKeys     — model|serial keys the clearance list already prices
-function shopStockItems({ snapshot, settings, brandMap, brandNames, images, mapPolicy, mapFloor, statusById, clearanceUnitKeys, mapExemptFor = () => "" }) {
+function shopStockItems({ snapshot, settings, brandMap, brandNames, images, mapPolicy, mapFloor, statusById, clearanceUnitKeys, mapExemptFor = () => "", accessoryKeys = new Set() }) {
   const brandBlocked = shopBrandBlocker();
   const byModel = new Map();
   const heldByModel = new Map(); // ALL units spoken for / reserved, per model (for the stock table)
@@ -7283,10 +7293,15 @@ function shopStockItems({ snapshot, settings, brandMap, brandNames, images, mapP
     const known = brandMap[model.toUpperCase()] || {};
     const prod = String(u.prod || known.prod || "").toUpperCase();
     // NetSuite merch class → storefront bucket; ePASS product code only when NetSuite has not classified the model (10/26).
-    const category = shopBucketFor(known, prod);
-    if (!category) continue; // accessories / unmapped product codes stay off the stock listings
+    // Accessories / unmapped product codes stay off the stock listings — unless
+    // the brand layer names the model as an accessory (11/10): then its sealed
+    // stock is carried so the setup prompt and the website's cart can sell it,
+    // still off the storefront grid.
+    const bucket = shopBucketFor(known, prod);
+    const category = bucket || (accessoryKeys.has(key) ? "Accessory" : "");
+    if (!category) continue;
     let g = byModel.get(key);
-    if (!g) { g = { key, model, category, prod, subclass: merchSubclassFor(known, prod), merchClass: merchClassFor(known, prod), units: [], brandCode: String(u.brand || "").trim(), description: String(u.description || known.description || "").trim(), list: 0, listCode: "", map: 0, mapCode: "", l1: 0 }; byModel.set(key, g); }
+    if (!g) { g = { key, model, category, accessoryOnly: !bucket, prod, subclass: merchSubclassFor(known, prod), merchClass: merchClassFor(known, prod), units: [], brandCode: String(u.brand || "").trim(), description: String(u.description || known.description || "").trim(), list: 0, listCode: "", map: 0, mapCode: "", l1: 0 }; byModel.set(key, g); }
     g.units.push({ serial, id: `${model}|${serial}#S` });
     if (!g.list && Number(u.list) > 0) { g.list = Number(u.list); g.listCode = u.listCode || ""; }
     if (!g.map && Number(u.map) > 0) { g.map = Number(u.map); g.mapCode = u.mapCode || ""; }
@@ -7303,10 +7318,14 @@ function shopStockItems({ snapshot, settings, brandMap, brandNames, images, mapP
     const brand = ns.brand || brandNames[g.brandCode.toUpperCase()]
       || (g.brandCode.length > 3 ? g.brandCode.charAt(0) + g.brandCode.slice(1).toLowerCase() : g.brandCode); // SAMSUNG → Samsung; FP stays FP
     const blocked = brandBlocked(brand, g.brandCode);
-    const listed = !blocked && !cfg.hidden && available.length > 0 && (available.length > 1 || cfg.showSingle);
+    const listed = !g.accessoryOnly && !blocked && !cfg.hidden && available.length > 0 && (available.length > 1 || cfg.showSingle);
+    // A product the brand layer names is sellable from the setup prompt whenever
+    // a sealed unit is free and priced, even when the grid wouldn't list it
+    // (an accessory class, or a single unit).
+    const accessorySell = !listed && accessoryKeys.has(g.key) && !blocked && !cfg.hidden && available.length > 0 && price > 0;
     models.push({ model: g.model, key: g.key, brand, brandCode: g.brandCode, description: g.description, product: g.prod, subclass: g.subclass, merchClass: g.merchClass, category: g.category,
-      netsuite: ns.source === "netsuite", merchCategory: ns.merchCategory || "", merchClass: ns.merchClass || "", merchSubclass: ns.merchSubclass || "", inStock: g.units.length, held: heldByModel.get(g.key) || 0, available: available.length, listPrice: g.list || null, listCode: g.listCode, map: g.map || null, mapCode: g.mapCode, l1: g.l1 || null, price: price || null, settings: { price: cfg.price ?? null, showSingle: !!cfg.showSingle, hidden: !!cfg.hidden, note: cfg.note || "", badge: cfg.badge || "", badgeStyle: cfg.badgeStyle || "red", hideStockBadge: !!cfg.hideStockBadge, mapExempt: !!cfg.mapExempt }, mapExempt: mapExemptFor(g.model), listed, blocked, reason: blocked ? "brand doesn't allow online sale" : cfg.hidden ? "hidden" : !available.length ? "none available" + (heldByModel.get(g.key) ? ` (${heldByModel.get(g.key)} spoken for)` : "") : available.length === 1 && !cfg.showSingle ? "single unit (toggle to show)" : !price ? "no price — call for price" : "" });
-    if (!listed) continue;
+      netsuite: ns.source === "netsuite", merchCategory: ns.merchCategory || "", merchClass: ns.merchClass || "", merchSubclass: ns.merchSubclass || "", inStock: g.units.length, held: heldByModel.get(g.key) || 0, available: available.length, listPrice: g.list || null, listCode: g.listCode, map: g.map || null, mapCode: g.mapCode, l1: g.l1 || null, price: price || null, settings: { price: cfg.price ?? null, showSingle: !!cfg.showSingle, hidden: !!cfg.hidden, note: cfg.note || "", badge: cfg.badge || "", badgeStyle: cfg.badgeStyle || "red", hideStockBadge: !!cfg.hideStockBadge, mapExempt: !!cfg.mapExempt }, mapExempt: mapExemptFor(g.model), listed, blocked, reason: blocked ? "brand doesn't allow online sale" : cfg.hidden ? "hidden" : g.accessoryOnly ? (accessorySell ? "accessory — sold from the setup prompt, not the grid" : !available.length ? "accessory — none available" : "accessory — no price") : !available.length ? "none available" + (heldByModel.get(g.key) ? ` (${heldByModel.get(g.key)} spoken for)` : "") : available.length === 1 && !cfg.showSingle ? "single unit (toggle to show)" : !price ? "no price — call for price" : "" });
+    if (!listed && !accessorySell) continue;
     // The floor is ePASS's own MAP (RETAIL / brand UMRP) when it has one — at
     // or above it the price is advertised on the card; below it (an override)
     // it stays a cart reveal. Without an ePASS MAP, the old rule: published
@@ -7321,7 +7340,8 @@ function shopStockItems({ snapshot, settings, brandMap, brandNames, images, mapP
         stock: available.length, stockLevel: available.length > SHOP_STOCK_LOW_MAX ? "in" : "low",
         image: images[g.key] || "", price: Math.round(price * 100) / 100, noPrice: !price,
         deal: shopDealGroupFor({ product: g.prod, subclass: g.subclass, category: g.category, price }), mapPublic, mapExempt, mapFloor: Number.isFinite(Number(floor)) ? Number(floor) : null,
-        badge: cfg.badge || "", badgeStyle: cfg.badgeStyle || "red", hideStockBadge: !!cfg.hideStockBadge
+        badge: cfg.badge || "", badgeStyle: cfg.badgeStyle || "red", hideStockBadge: !!cfg.hideStockBadge,
+        ...(accessorySell ? { gridHidden: true } : {})
       });
     }
   }
@@ -7545,7 +7565,7 @@ async function computeShopCatalogFresh() {
   const brandNames = {};
   for (const i of clearance.items || []) { if (i.brandCode && i.brand && !brandNames[String(i.brandCode).toUpperCase()]) brandNames[String(i.brandCode).toUpperCase()] = i.brand; }
   const stock = snapshot
-    ? shopStockItems({ snapshot, settings: modelSettings, brandMap, brandNames, images, mapPolicy, mapFloor, statusById, clearanceUnitKeys, mapExemptFor })
+    ? shopStockItems({ snapshot, settings: modelSettings, brandMap, brandNames, images, mapPolicy, mapFloor, statusById, clearanceUnitKeys, mapExemptFor, accessoryKeys: new Set(Object.keys(addonsFile?.accessoryModels || {})) })
     : { items: [], models: [] };
   items.push(...stock.items);
   // Pictures: the nightly RetailDeck thumbnails table first (every model in
@@ -7566,6 +7586,8 @@ async function computeShopCatalogFresh() {
     i.finish = finishMap[normalizeModelKey(i.model)] || "";
     i.servicesKey = servicesKeyFor({ subclass: i.subclass, finish: i.finish, brand: i.brand, model: i.model, description: i.description }, addonsFile, addonIndex) || i.subclass || "";
     i.panelReady = i.servicesKey.endsWith("-panel") ? true : panelReadyFor(i.finish);
+    const bsk = brandServicesKey(i.brand, i.subclass);
+    i.brandServicesKey = bsk && addonsFile?.byBrand?.[bsk] ? bsk : "";
   }
   shopSortItems(items);
 
@@ -7634,7 +7656,7 @@ function priceShopCart(catalog, cart, fulfillment, promo = null) {
     const tied = addons.some((a) => a.forItemId);
     for (const item of items) {
       const hasInstall = tied ? addons.some((a) => a.type === "install" && a.forItemId === item.id) : addons.some((a) => a.type === "install");
-      if (!hasInstall) addons.push({ ...SHOP_UNCRATE_LINE, qty: 1, taxable: false, forItemId: item.id, forModel: item.model });
+      if (!hasInstall && !item.gridHidden) addons.push({ ...SHOP_UNCRATE_LINE, qty: 1, taxable: false, forItemId: item.id, forModel: item.model }); // an accessory product (pedestal, kit, detergent) isn't uncrated and set in place
     }
   }
 
@@ -8137,6 +8159,7 @@ async function shopDescribeModels(models, catalog) {
       // variant ("1330-panel", "1330-pro", "1330-drawer") by finish and brand
       // rules; the ePASS product code's subclass for an unclassified model.
       servicesKey,
+      brandServicesKey: addonsFile?.byBrand?.[brandServicesKey(brand, subclass)] ? brandServicesKey(brand, subclass) : "",
       panelReady: first?.panelReady ?? (servicesKey.endsWith("-panel") ? true : panelReadyFor(finish)),
       merchClass: merchClassName(first?.merchClass || merchClassFor(known, first?.product || known.prod)),
       merchSubclass: merchSubclassName(first?.subclass || merchSubclassFor(known, first?.product || known.prod)),
@@ -8184,7 +8207,7 @@ app.get("/api/shop/stock", shopStockLimiter, async (req, res) => {
       const hit = d.units.length ? { items: d.units } : null;
       const brand = d.brand;
       const inquireOnly = d.inquireOnly;
-      const base = { model, brand, description: d.description, product: d.product, servicesKey: d.servicesKey, panelReady: d.panelReady ?? null, merchClass: d.merchClass, merchSubclass: d.merchSubclass, inquireOnly };
+      const base = { model, brand, description: d.description, product: d.product, servicesKey: d.servicesKey, brandServicesKey: d.brandServicesKey || "", panelReady: d.panelReady ?? null, merchClass: d.merchClass, merchSubclass: d.merchSubclass, inquireOnly };
       if (inquireOnly) return { ...base, inStock: false, available: 0, price: null, priceInCart: false, addUrl: null, note: "Quoted in person — ask for a specialist." };
       if (!hit) return { ...base, inStock: false, available: 0, newUnits: 0, outletUnits: 0, price: null, priceInCart: false, addUrl: null };
       const units = hit.items;
@@ -8250,13 +8273,13 @@ app.post("/api/shop/handoff", shopHandoffLimiter, async (req, res) => {
     const described = await shopDescribeModels(items.map((i) => i.model), catalog);
     const preview = items.map((it, i) => {
       const d = described[i];
-      return { model: it.model, qty: it.qty, brand: d.brand, description: d.description, product: d.product, servicesKey: d.servicesKey, merchSubclass: d.merchSubclass, inStock: d.inStock, available: d.available, inquireOnly: d.inquireOnly, special: !d.inStock };
+      return { model: it.model, qty: it.qty, brand: d.brand, description: d.description, product: d.product, servicesKey: d.servicesKey, brandServicesKey: d.brandServicesKey || "", merchSubclass: d.merchSubclass, inStock: d.inStock, available: d.available, inquireOnly: d.inquireOnly, special: !d.inStock };
     });
     const sellable = preview;
     const zip = String(req.body?.zip || "").trim().slice(0, 10);
     const source = String(req.body?.source || "website").trim().slice(0, 40);
     const ref = String(req.body?.ref || "").trim().slice(0, 120);
-    const { token, expiresAt } = await createShopHandoff({ items: sellable.map(({ model, qty, brand, description, product, servicesKey, inquireOnly, inStock }) => ({ model, qty, brand, description, product, servicesKey, inquireOnly, inStock })), zip, source, ref, ip: req.ip });
+    const { token, expiresAt } = await createShopHandoff({ items: sellable.map(({ model, qty, brand, description, product, servicesKey, brandServicesKey: bsk, inquireOnly, inStock }) => ({ model, qty, brand, description, product, servicesKey, brandServicesKey: bsk, inquireOnly, inStock })), zip, source, ref, ip: req.ip });
     const url = `https://${SHOP_PUBLIC_HOST}/shop.html?cart=${encodeURIComponent(token)}`;
     res.setHeader("Cache-Control", "no-store");
     return res.json({ token, url, expiresAt, items: preview });
@@ -8434,6 +8457,17 @@ app.get("/api/shop/services", async (req, res) => {
   try {
     const { addons } = await loadShopData();
     const pick = (a) => ({ id: a.id, name: a.name, price: a.price, taxable: a.taxable !== false, description: a.description || "", durationMin: a.durationMin || null });
+    // Brand layer (11/10): what a brand adds for a subclass, keyed by each
+    // model's brandServicesKey. Products are listed whether or not they can be
+    // bought today — inStock says which path the website's cart takes
+    // (purchase vs quote); price and addUrl come from the stock lookup.
+    const accessoryModels = Object.values(addons.accessoryModels || {});
+    let products = {};
+    if (accessoryModels.length) {
+      const catalog = await computeShopCatalog({ maxAgeMs: SHOP_CATALOG_STALE_MS }).catch(() => ({ items: [] }));
+      const described = await shopDescribeModels(accessoryModels, catalog).catch(() => []);
+      products = Object.fromEntries(described.map((d) => [d.model, { model: d.model, brand: d.brand, description: d.description, merchSubclass: d.merchSubclass, inStock: d.inStock, available: d.available, inquireOnly: d.inquireOnly }]));
+    }
     res.setHeader("Cache-Control", "public, max-age=600");
     return res.json({
       addons: {
@@ -8441,7 +8475,9 @@ app.get("/api/shop/services", async (req, res) => {
         installs: (addons.installs || []).map(pick),
         byKey: shopServicesIndex(addons), // keyed by each model's servicesKey from the stock lookup
         byCategory: shopServicesByCategory(addons), // "Category|Type" or "Category" (website names) -> servicesKey, for models with no key of their own
-        requires: addons.requires || {}
+        requires: addons.requires || {},
+        byBrand: Object.fromEntries(Object.entries(addons.byBrand || {}).map(([k, e]) => [k, { installs: e.installs, connectors: e.connectors, products: e.products.map((p) => p.model) }])), // keyed by brandServicesKey; add to byKey's set, never replaces it
+        products // model -> { brand, description, inStock, available } for every product byBrand names
       },
       delivery: { id: SHOP_DELIVERY_OFFER.id, name: SHOP_DELIVERY_OFFER.name, price: SHOP_DELIVERY_OFFER.price, regularPrice: SHOP_DELIVERY_OFFER.regularPrice, note: SHOP_DELIVERY_OFFER.note, scheduleNote: SHOP_SCHEDULE_NOTE },
       pickup: { id: SHOP_PICKUP_OFFER.id, name: SHOP_PICKUP_OFFER.name, price: 0 },
@@ -8576,9 +8612,11 @@ async function buildShopHomeStats(catalog) {
   // "Models in stock" is the ATS definition (Andrew 11/9): sealed units only.
   // Open-box and display units are for sale in the outlet but don't count.
   const models = new Map();
+  const offGrid = new Set(); // accessory products sold from the setup prompt only: sellable, not counted
   for (const i of catalog.items || []) {
     if (i.condition !== "new") continue;
     const k = normalizeModelKey(i.model); if (!k) continue;
+    if (i.gridHidden) { offGrid.add(String(i.model || "").trim()); continue; }
     const m = models.get(k) || { model: i.model, brand: i.brand, description: i.description, category: i.category, image: i.image || "", units: 0, price: null, sold: rank.byModel[k] || 0 };
     m.units += 1;
     if (i.mapPublic && !catalog.paused && Number.isFinite(i.price)) m.price = m.price == null ? i.price : Math.min(m.price, i.price);
@@ -8591,7 +8629,7 @@ async function buildShopHomeStats(catalog) {
   const units = [...models.values()].reduce((n, m) => n + m.units, 0);
   // Every sealed-stock model number the website may sell (blocked brands
   // never reach the catalog, so this is already "sellable online").
-  const inStockModels = [...models.values()].map((m) => String(m.model || "").trim()).filter(Boolean).sort();
+  const inStockModels = [...new Set([...[...models.values()].map((m) => String(m.model || "").trim()), ...offGrid])].filter(Boolean).sort();
   return { models: models.size, units, byCategory, featured, inStockModels, paused: Boolean(catalog.paused), asOf: catalog.feedAt || null, computedAt: new Date().toISOString() };
 }
 function rememberShopHomeStats(catalog) {
@@ -8631,6 +8669,8 @@ app.get("/api/shop/catalog", async (req, res) => {
         product: i.product,
         subclass: i.subclass || "",
         servicesKey: i.servicesKey || i.subclass || "",
+        brandServicesKey: i.brandServicesKey || "",
+        ...(i.gridHidden ? { gridHidden: true } : {}),
         panelReady: i.panelReady ?? null,
         category: i.category,
         description: i.description,
@@ -8759,6 +8799,81 @@ app.post("/api/shop/service-map/reset", requirePagePermission("/shop-orders.html
     recordAudit({ ip: req.ip, actorUserId: req.authUser?.id || null, action: "shop_service_map_reset", targetUserId: null, detail: { removed } }).catch(() => {});
     return res.json({ ok: true, ...(await shopServiceMapPayload()) });
   } catch (err) { return res.status(400).json({ error: "Unable to reset." }); }
+});
+
+// Layer two — installs & accessories by BRAND, down to the subclass (Andrew
+// 11/10). Same editor pattern as the class map; items may also be accessory
+// products by model number. Additive: it never removes what the class layer
+// offers.
+const SHOP_ACCESSORY_CLASS_CODES = new Set(["107", "149", "154", "220", "222", "816"]);
+const SHOP_ACCESSORY_SUBCLASS_CODES = new Set(["1130", "1132", "1328", "1334", "1335", "1336", "1406", "1409", "1413"]);
+async function shopBrandMapContext() {
+  const [brandMap, catalog] = await Promise.all([getModelBrandMap().catch(() => ({})), computeShopCatalog({ maxAgeMs: SHOP_CATALOG_STALE_MS }).catch(() => ({ items: [] }))]);
+  const stock = new Map(); // model key -> { available (sealed), price }
+  for (const i of catalog.items || []) {
+    if (i.condition !== "new") continue;
+    const k = normalizeModelKey(i.model); const e = stock.get(k) || { available: 0, price: null };
+    e.available += 1; if (!i.noPrice && Number.isFinite(i.price)) e.price = i.price; stock.set(k, e);
+  }
+  const byKey = new Map(); // normalized model key -> { model, ns }
+  for (const [model, ns] of Object.entries(brandMap)) { const k = normalizeModelKey(model); if (k && !byKey.has(k)) byKey.set(k, { model, ns }); }
+  return { brandMap, stock, byKey };
+}
+async function shopBrandMapPayload() {
+  shopDataCache = { at: 0, value: null };
+  const [{ addons }, rows, misc, ctx] = await Promise.all([loadShopData(), listBrandMapRows().catch(() => []), listEpassMiscCharges().catch(() => []), shopBrandMapContext()]);
+  const brands = new Map();
+  for (const ns of Object.values(ctx.brandMap)) {
+    if (ns.source !== "netsuite" || !ns.brand) continue;
+    const k = brandKeyOf(ns.brand); if (!k) continue;
+    const b = brands.get(k) || { key: k, name: ns.brand, subclasses: new Set() };
+    const sub = merchSubclassFor(ns, ns.prod); if (sub) b.subclasses.add(sub);
+    brands.set(k, b);
+  }
+  const productInfo = (key) => { const hit = ctx.byKey.get(key); const st = ctx.stock.get(key); return hit || st ? { model: hit?.model || key, brand: hit?.ns?.brand || "", description: hit?.ns?.description || "", available: st?.available || 0, price: st?.price ?? null } : null; };
+  return brandMapView(addons, rows, misc, [...brands.values()].map((b) => ({ ...b, subclasses: [...b.subclasses] })), productInfo);
+}
+app.get("/api/shop/brand-map", requirePagePermission("/shop-orders.html"), async (req, res) => {
+  try { res.setHeader("Cache-Control", "no-store"); return res.json(await shopBrandMapPayload()); }
+  catch (err) { console.error("Brand map failed:", err.message); return res.status(500).json({ error: "Unable to load the brand map." }); }
+});
+app.post("/api/shop/brand-map", requirePagePermission("/shop-orders.html"), async (req, res) => {
+  try {
+    const b = req.body || {};
+    const { addons } = await loadShopData();
+    await applyBrandMapOp({ brand: b.brand, brandName: b.brandName, scope: b.scope, code: b.code, itemId: b.itemId, action: b.action, kind: b.kind, label: b.label, by: req.authUser?.email || "" }, addons);
+    invalidateShopCatalog();
+    recordAudit({ ip: req.ip, actorUserId: req.authUser?.id || null, action: "shop_brand_map_changed", targetUserId: null,
+      detail: { brand: String(b.brandName || b.brand || "").slice(0, 60), scope: String(b.scope || "").slice(0, 10), code: String(b.code || "").slice(0, 10), itemId: String(b.itemId || "").slice(0, 120), change: String(b.action || "").slice(0, 10) } }).catch(() => {});
+    return res.json({ ok: true, ...(await shopBrandMapPayload()) });
+  } catch (err) { return res.status(400).json({ error: err.message || "Unable to save." }); }
+});
+// Product picker: with a search, any model in the NetSuite catalog (so a
+// third-party detergent can go with a maker's washers); with none, the
+// chosen brand's own accessory-class models. In-stock ones first.
+app.get("/api/shop/brand-map/products", requirePagePermission("/shop-orders.html"), async (req, res) => {
+  try {
+    const bk = brandKeyOf(req.query.brand);
+    const q = String(req.query.q || "").trim().toUpperCase().slice(0, 60);
+    const qk = normalizeModelKey(q);
+    const words = q.split(/\s+/).filter(Boolean);
+    const ctx = await shopBrandMapContext();
+    const out = [];
+    for (const [key, { model, ns }] of ctx.byKey) {
+      const mine = brandKeyOf(ns.brand) === bk;
+      const sub = merchSubclassFor(ns, ns.prod); const cls = merchClassFor(ns, ns.prod);
+      const accessory = SHOP_ACCESSORY_CLASS_CODES.has(cls) || SHOP_ACCESSORY_SUBCLASS_CODES.has(sub);
+      if (q) { const hay = `${model} ${ns.brand || ""} ${ns.description || ""}`.toUpperCase(); if (!(qk && key.includes(qk)) && !words.every((w) => hay.includes(w))) continue; }
+      else if (!mine || !accessory) continue;
+      const st = ctx.stock.get(key);
+      out.push({ key, model, brand: ns.brand || "", description: ns.description || "", subclass: sub ? merchSubclassLabel(sub) : "", available: st?.available || 0, price: st?.price ?? null,
+        rank: (st?.available ? 0 : 4) + (mine ? 0 : 2) + (accessory ? 0 : 1) + (qk && key.startsWith(qk) ? -8 : 0) });
+      if (out.length > 4000) break;
+    }
+    out.sort((a, b) => a.rank - b.rank || a.model.localeCompare(b.model));
+    res.setHeader("Cache-Control", "no-store");
+    return res.json({ products: out.slice(0, 60).map(({ rank, ...p }) => p), more: Math.max(0, out.length - 60) });
+  } catch (err) { console.error("Brand map products failed:", err.message); return res.status(500).json({ error: "Unable to search products." }); }
 });
 
 app.get("/api/shop/stock-models", requirePagePermission("/shop-orders.html", "/shop-catalog.html"), async (req, res) => {
@@ -17525,8 +17640,8 @@ app.post("/api/important-dates/:id/signups", async (req, res) => {
   if (!req.authUser) return res.status(401).json({ error: "Authentication required." });
   try {
     const who = importantDateActor(req);
-    const id = await addImportantDateSignup(req.params.id, { ...who, item: req.body?.item });
-    recordAudit({ ip: req.ip, actorUserId: req.authUser.id || null, action: "important_date_signup_added", targetUserId: null, detail: { dateId: Number(req.params.id), signupId: id, item: String(req.body?.item || "").slice(0, 140) } }).catch(() => {});
+    const id = await addImportantDateSignup(req.params.id, { ...who, item: req.body?.item, response: req.body?.response, guests: req.body?.guests });
+    recordAudit({ ip: req.ip, actorUserId: req.authUser.id || null, action: "important_date_signup_added", targetUserId: null, detail: { dateId: Number(req.params.id), signupId: id, item: String(req.body?.item || "").slice(0, 140), ...(req.body?.response ? { response: String(req.body.response).slice(0, 5), guests: Number(req.body?.guests) || 0 } : {}) } }).catch(() => {});
     return res.json({ ok: true, id, signups: await listImportantDateSignups(req.params.id) });
   } catch (err) { return res.status(400).json({ error: err.message || "Unable to add that." }); }
 });

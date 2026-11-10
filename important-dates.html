@@ -46,7 +46,7 @@
 
     <div class="surface">
       <h2 id="formTitle">Add an important date</h2>
-      <p class="section-note">Anything the whole company should see coming: paid holidays, early closings, all-store meetings, potlucks. Everyone's dashboard shows the next <span id="windowDays">60</span> days in a small card above their notifications. Tick the sign-up sheet to let people add what they're bringing.</p>
+      <p class="section-note">Anything the whole company should see coming: paid holidays, early closings, all-store meetings, potlucks, parties. Everyone's dashboard shows the next <span id="windowDays">60</span> days in a small card above their notifications. Add a sign-up to let people list what they're bringing, or an RSVP to count who's coming.</p>
       <form id="form" class="form" autocomplete="off">
         <input type="hidden" id="fId" />
         <div class="c6"><label>Title<input id="fTitle" type="text" maxlength="140" placeholder="Thanksgiving Potluck" required /></label></div>
@@ -55,7 +55,11 @@
         <div class="c3"><label>Date<input id="fDate" type="date" required /></label></div>
         <div class="c3"><label>Through (optional)<input id="fEnd" type="date" /></label></div>
         <div class="c6"><label>Details (optional)<input id="fDetails" type="text" maxlength="600" placeholder="Showroom closes at 3 pm; delivery runs as normal" /></label></div>
-        <div class="c4"><label class="check" style="margin-top: 4px;"><input id="fSignup" type="checkbox" /> Sign-up sheet (what are you bringing?)</label></div>
+        <div class="c4"><label>Sign-up<select id="fSignup">
+          <option value="">None</option>
+          <option value="bring">Sign-up sheet — what are you bringing?</option>
+          <option value="rsvp">RSVP — coming or not, with guests</option>
+        </select></label></div>
         <div class="c6"><label>Sign-up link text (optional)<input id="fPrompt" type="text" maxlength="140" placeholder="What's everyone bringing?" /></label></div>
         <div class="c12 row">
           <button type="submit" id="saveBtn">Add date</button>
@@ -103,7 +107,8 @@
       $("fDate").value = d ? d.date : "";
       $("fEnd").value = d ? d.endDate : "";
       $("fDetails").value = d ? d.details : "";
-      $("fSignup").checked = d ? d.signupEnabled : false;
+      $("fSignup").value = d && d.signupEnabled ? (d.signupMode === "rsvp" ? "rsvp" : "bring") : "";
+      syncSignup();
       $("fPrompt").value = d ? d.signupPrompt : "";
       $("formTitle").textContent = d ? `Edit — ${d.title}` : "Add an important date";
       $("saveBtn").textContent = d ? "Save changes" : "Add date";
@@ -124,7 +129,7 @@
           <td style="white-space: nowrap;">${when}${d.time ? `<div class="mut">${esc(d.time)}</div>` : ""}</td>
           <td><span class="kind" style="background:${k.color}">${esc(k.label)}</span></td>
           <td><strong>${esc(d.title)}</strong>${soon && !d.archived ? `<span class="soon">on dashboards</span>` : ""}${d.archived ? `<span class="soon" style="background:#f1f5f9;color:#6b7280;">archived</span>` : ""}${d.details ? `<div class="mut">${esc(d.details)}</div>` : ""}</td>
-          <td class="hide-sm">${d.signupEnabled ? `${d.signupCount} signed up <button type="button" class="link" data-sheet="${d.id}">view</button><div class="sheet" id="sheet-${d.id}"></div>` : `<span class="mut">—</span>`}</td>
+          <td class="hide-sm">${d.signupEnabled ? `${d.signupMode === "rsvp" ? `RSVP · <strong>${d.rsvp.yes} coming</strong>${d.rsvp.people > d.rsvp.yes ? ` (${d.rsvp.people} people)` : ""} · ${d.rsvp.no} no` : `${d.signupCount} signed up`} <button type="button" class="link" data-sheet="${d.id}">view</button><div class="sheet" id="sheet-${d.id}"></div>` : `<span class="mut">—</span>`}</td>
           <td class="hide-sm mut">${esc(d.createdBy)}</td>
           <td style="white-space: nowrap; text-align: right;">
             <button type="button" class="quiet" data-edit="${d.id}" style="padding: 6px 10px; font-size: 12.5px;">Edit</button>
@@ -146,7 +151,7 @@
       const el = $(`sheet-${id}`);
       try {
         const d = await api(`/api/important-dates/${id}/signups`);
-        el.innerHTML = d.signups.map((s) => `<div><span><strong>${esc(s.item)}</strong> — ${esc(s.name || s.email)}</span><button type="button" class="link" style="color:#b91c1c" data-rm="${s.id}">remove</button></div>`).join("") || `<div class="mut">Nobody yet.</div>`;
+        el.innerHTML = d.signups.map((s) => `<div><span>${d.date.signupMode === "rsvp" ? `<strong>${esc(s.name || s.email)}</strong> — ${s.response === "yes" ? "coming" + (s.guests ? " +" + s.guests : "") : "can't make it"}${s.item ? " · " + esc(s.item) : ""}` : `<strong>${esc(s.item)}</strong> — ${esc(s.name || s.email)}`}</span><button type="button" class="link" style="color:#b91c1c" data-rm="${s.id}">remove</button></div>`).join("") || `<div class="mut">Nobody yet.</div>`;
         el.querySelectorAll("[data-rm]").forEach((b) => b.addEventListener("click", async () => {
           if (!window.confirm("Remove this line from the sheet?")) return;
           try { await api(`/api/important-dates/${id}/signups/${b.dataset.rm}`, { method: "DELETE" }); await load(); showSheet(id); } catch (err) { setStatus(err.message, "error"); }
@@ -167,7 +172,7 @@
     $("form").addEventListener("submit", async (e) => {
       e.preventDefault();
       const id = $("fId").value;
-      const body = { title: $("fTitle").value, kind: $("fKind").value, time: $("fTime").value, date: $("fDate").value, endDate: $("fEnd").value, details: $("fDetails").value, signupEnabled: $("fSignup").checked, signupPrompt: $("fPrompt").value };
+      const body = { title: $("fTitle").value, kind: $("fKind").value, time: $("fTime").value, date: $("fDate").value, endDate: $("fEnd").value, details: $("fDetails").value, signupEnabled: !!$("fSignup").value, signupMode: $("fSignup").value === "rsvp" ? "rsvp" : "bring", signupPrompt: $("fPrompt").value };
       try {
         $("saveBtn").disabled = true;
         await api(id ? `/api/important-dates/${id}` : "/api/important-dates", { method: id ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
@@ -178,7 +183,14 @@
     });
     $("cancelBtn").addEventListener("click", () => fillForm(null));
     $("showArchived").addEventListener("change", load);
-    $("fSignup").addEventListener("change", () => { $("formNote").textContent = $("fSignup").checked ? "Everyone will see a link on the dashboard to add what they're bringing." : ""; });
+    // The note and the link-text hint follow the kind of sign-up chosen.
+    function syncSignup() {
+      const m = $("fSignup").value;
+      $("formNote").textContent = m === "rsvp" ? "Everyone will see an RSVP link on the dashboard: coming or not, how many guests, an optional note. One answer each — they can change it." : m === "bring" ? "Everyone will see a link on the dashboard to add what they're bringing." : "";
+      $("fPrompt").placeholder = m === "rsvp" ? "RSVP — are you coming?" : "What's everyone bringing?";
+      $("fPrompt").disabled = !m;
+    }
+    $("fSignup").addEventListener("change", syncSignup);
     load();
   </script>
 </body>

@@ -1254,7 +1254,33 @@
            built on Company Tools → Important Dates. Hidden when there's
            nothing coming up. A date with a sign-up sheet gets a link that
            opens "what's everyone bringing?" right here. -->
-      <style>@media (max-width: 600px) { #datesList .date-out { display: none; } }</style>
+      <style>
+        /* Desktop: one line per date. Phone: a card per date (the Inventory
+           Lookup pattern) with the sign-up as a full-width button — a real
+           tap target instead of a text link (Andrew 11/10). */
+        #datesList .date-row { display: flex; gap: 12px; align-items: baseline; padding: 7px 0; border-top: 1px solid #f1f5f9; font-size: 13.5px; flex-wrap: wrap; }
+        #datesList .date-when { flex: 0 0 270px; font-weight: 700; white-space: nowrap; }
+        #datesList .date-when .out { font-weight: 500; color: #6b7280; }
+        #datesList .date-main { flex: 1 1 240px; min-width: 0; }
+        #datesList .date-chip { display: inline-block; font-size: 10.5px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; color: #fff; border-radius: 999px; padding: 2px 8px; margin-right: 8px; vertical-align: 1px; }
+        #datesList .date-details { color: #6b7280; }
+        #datesList .date-link { flex: 0 0 auto; margin-left: auto; text-align: right; }
+        #datesList .date-sheet-link { border: none; background: none; padding: 0; color: var(--primary, #166534); font-weight: 700; font-size: 12.5px; cursor: pointer; text-decoration: underline; font-family: inherit; }
+        #datesList .date-sheet-link .n { font-weight: 600; color: #6b7280; }
+        @media (max-width: 600px) {
+          #datesList { gap: 10px !important; margin-top: 8px; }
+          #datesList .date-row { flex-direction: column; align-items: stretch; flex-wrap: nowrap; gap: 6px; border: 1px solid #dbe1ea; border-radius: 14px; padding: 12px 14px; background: #fff; font-size: 14px; }
+          #datesList .date-main { order: -1; flex: 0 0 auto; display: flex; flex-wrap: wrap; align-items: flex-start; gap: 4px 10px; }
+          #datesList .date-title { order: 1; flex: 1 1 0; min-width: 0; font-size: 16px; line-height: 1.25; }
+          #datesList .date-chip { order: 2; margin: 2px 0 0; flex: 0 0 auto; }
+          #datesList .date-details { order: 3; flex: 0 0 100%; font-size: 13.5px; line-height: 1.4; }
+          #datesList .date-details .dash { display: none; }
+          #datesList .date-when { flex: 0 0 auto; white-space: normal; font-size: 13.5px; }
+          #datesList .date-link { margin: 4px 0 0; text-align: left; }
+          #datesList .date-sheet-link { display: flex; width: 100%; min-height: 46px; align-items: center; justify-content: center; gap: 6px; box-sizing: border-box; padding: 11px 14px; border: 1.5px solid var(--primary, #166534); border-radius: 11px; background: rgba(22, 101, 52, 0.07); font-size: 14.5px; text-decoration: none; }
+          #datesList .date-sheet-link:active { background: rgba(22, 101, 52, 0.16); }
+        }
+      </style>
       <div class="card" id="datesCard" hidden style="padding-bottom: 10px;">
         <div class="module-header" style="margin-bottom: 4px;">
           <div class="module-title">Upcoming Important Dates</div>
@@ -1279,6 +1305,21 @@
           <form id="sheetForm" style="display: flex; gap: 8px; margin-top: 12px;">
             <input id="sheetItem" type="text" maxlength="140" placeholder="I'm bringing…" style="flex: 1; border: 1.5px solid #dbe1ea; border-radius: 10px; padding: 9px 12px; font-size: 14px; font-family: inherit;" />
             <button type="submit" style="border: none; border-radius: 10px; padding: 9px 16px; font-size: 13.5px; font-weight: 700; background: var(--primary, #166534); color: #fff; cursor: pointer; font-family: inherit; white-space: nowrap;">Add</button>
+          </form>
+          <!-- RSVP mode: one answer per person — coming or not, guests, an optional note. -->
+          <form id="sheetRsvp" style="display: none; margin-top: 12px;">
+            <div style="display: flex; gap: 8px; flex-wrap: wrap; align-items: center;">
+              <label style="font-size: 13px; color: #374151;">Bringing guests?
+                <select id="rsvpGuests" style="margin-left: 6px; border: 1.5px solid #dbe1ea; border-radius: 10px; padding: 8px 10px; font-size: 14px; font-family: inherit; background: #fff;">
+                  <option value="0">Just me</option><option value="1">+1</option><option value="2">+2</option><option value="3">+3</option><option value="4">+4</option><option value="5">+5</option>
+                </select>
+              </label>
+              <input id="rsvpNote" type="text" maxlength="140" placeholder="Note (optional) — arriving late, dietary needs…" style="flex: 1; min-width: 180px; border: 1.5px solid #dbe1ea; border-radius: 10px; padding: 9px 12px; font-size: 14px; font-family: inherit;" />
+            </div>
+            <div style="display: flex; gap: 8px; margin-top: 10px;">
+              <button type="button" data-rsvp="yes" style="flex: 1; border: 2px solid var(--primary, #166534); border-radius: 10px; padding: 10px 14px; font-size: 14px; font-weight: 700; background: var(--primary, #166534); color: #fff; cursor: pointer; font-family: inherit;">I'll be there</button>
+              <button type="button" data-rsvp="no" style="flex: 1; border: 2px solid #dbe1ea; border-radius: 10px; padding: 10px 14px; font-size: 14px; font-weight: 700; background: #fff; color: #374151; cursor: pointer; font-family: inherit;">Can't make it</button>
+            </div>
           </form>
           <div id="sheetMsg" style="font-size: 12.5px; color: #6b7280; margin-top: 8px; min-height: 16px;"></div>
         </div>
@@ -3607,6 +3648,15 @@
         if (d.time) s += " · " + d.time;
         return s;
       }
+      // The row's "when": the day, how far off it is in parentheses, then the
+      // time — "Wed, Nov 25 (in 15 days) · 2:00 pm" (Andrew 11/10).
+      function whenHtml(d) {
+        const start = parse(d.date);
+        const fmt = (x) => x.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
+        let day = fmt(start);
+        if (d.endDate && d.endDate !== d.date) day += " – " + fmt(parse(d.endDate));
+        return `${esc(day)} <span class="out">(${esc(daysOut(d))})</span>${d.time ? " · " + esc(d.time) : ""}`;
+      }
       function daysOut(d) {
         const n = Math.round((parse(d.date) - today()) / 86400000);
         if (n < 0) return "now";
@@ -3618,14 +3668,13 @@
         if (!dates.length) { card.hidden = true; return; }
         list.innerHTML = dates.map((d) => {
           const k = KIND[d.kind] || { label: d.kind, color: "#374151" };
-          const sheetLink = d.signupEnabled ? `<button type="button" class="date-sheet-link" data-id="${d.id}" style="border: none; background: none; padding: 0; color: var(--primary, #166534); font-weight: 700; font-size: 12.5px; cursor: pointer; text-decoration: underline; font-family: inherit;">${esc(d.signupPrompt || "What's everyone bringing?")} <span style="font-weight: 600; color: #6b7280;">(${d.signupCount})</span></button>` : "";
-          return `<div style="display: flex; gap: 12px; align-items: baseline; padding: 7px 0; border-top: 1px solid #f1f5f9; font-size: 13.5px; flex-wrap: wrap;">
-            <div style="flex: 0 0 150px; font-weight: 700; white-space: nowrap;">${esc(whenText(d))}</div>
-            <div style="flex: 1 1 240px; min-width: 0;">
-              <span style="display: inline-block; font-size: 10.5px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; color: #fff; background: ${k.color}; border-radius: 999px; padding: 2px 8px; margin-right: 8px; vertical-align: 1px;">${esc(k.label)}</span><strong>${esc(d.title)}</strong>${d.details ? ` <span style="color: #6b7280;">— ${esc(d.details)}</span>` : ""}
-              ${sheetLink ? `<div style="margin-top: 2px;">${sheetLink}</div>` : ""}
+          const sheetLink = d.signupEnabled ? `<button type="button" class="date-sheet-link" data-id="${d.id}">${esc(d.signupPrompt || (d.signupMode === "rsvp" ? "RSVP — are you coming?" : "What's everyone bringing?"))} <span class="n">(${d.signupMode === "rsvp" ? `${d.rsvp?.yes || 0} coming` : d.signupCount})</span></button>` : "";
+          return `<div class="date-row">
+            <div class="date-when">${whenHtml(d)}</div>
+            <div class="date-main">
+              <span class="date-chip" style="background: ${k.color};">${esc(k.label)}</span><strong class="date-title">${esc(d.title)}</strong>${d.details ? ` <span class="date-details"><span class="dash">— </span>${esc(d.details)}</span>` : ""}
             </div>
-            <div class="date-out" style="flex: 0 0 auto; font-size: 12px; color: #6b7280;">${daysOut(d)}</div>
+            ${sheetLink ? `<div class="date-link">${sheetLink}</div>` : ""}
           </div>`;
         }).join("");
         list.querySelectorAll(".date-sheet-link").forEach((b) => b.addEventListener("click", () => openSheet(Number(b.dataset.id))));
@@ -3642,16 +3691,47 @@
         } catch {}
       }
       // ---- sign-up sheet ----
-      let sheetId = null;
+      let sheetId = null, sheetMode = "bring", rsvpTouched = false;
       const rows = document.getElementById("sheetRows"), msg = document.getElementById("sheetMsg"), input = document.getElementById("sheetItem");
+      const rsvpForm = document.getElementById("sheetRsvp"), rsvpGuests = document.getElementById("rsvpGuests"), rsvpNote = document.getElementById("rsvpNote");
+      [rsvpGuests, rsvpNote].forEach((el) => el.addEventListener("input", () => { rsvpTouched = true; }));
+      rsvpForm.addEventListener("submit", (e) => e.preventDefault());
+      rsvpForm.addEventListener("click", async (e) => {
+        const b = e.target.closest("[data-rsvp]"); if (!b) return;
+        msg.textContent = "Saving…";
+        const r = await fetch(`/api/important-dates/${sheetId}/signups`, { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ response: b.dataset.rsvp, guests: Number(rsvpGuests.value) || 0, item: rsvpNote.value.trim() }) });
+        const j = await r.json().catch(() => ({}));
+        if (!r.ok) { msg.textContent = j.error || "Couldn't save that."; return; }
+        rsvpTouched = false; msg.textContent = b.dataset.rsvp === "yes" ? "Got it — see you there!" : "Got it — thanks for letting us know.";
+        await openSheet(sheetId, true); load();
+      });
       function renderSheet(d) {
         document.getElementById("sheetTitle").textContent = d.date.title;
         document.getElementById("sheetWhen").textContent = whenText(d.date);
+        const rsvp = d.date.signupMode === "rsvp";
+        sheetMode = rsvp ? "rsvp" : "bring";
+        document.getElementById("sheetForm").style.display = rsvp ? "none" : "flex";
+        rsvpForm.style.display = rsvp ? "block" : "none";
+        if (rsvp) {
+          // One answer each: coming or not, guests, a note. Show the tally and
+          // put this person's current answer back in the form.
+          const mine = d.signups.find((s) => s.mine);
+          const yes = d.signups.filter((s) => s.response === "yes"), no = d.signups.filter((s) => s.response === "no");
+          const people = yes.reduce((n, s) => n + 1 + (s.guests || 0), 0);
+          document.getElementById("sheetPrompt").innerHTML = `${esc(d.date.signupPrompt || "Are you coming? Let us know either way — you can change your answer any time.")}<br><strong>${yes.length} coming</strong>${people > yes.length ? ` (${people} people with guests)` : ""} · ${no.length} can't make it${mine ? ` · <span style="color: var(--primary, #166534); font-weight: 700;">you: ${mine.response === "yes" ? "coming" + (mine.guests ? " +" + mine.guests : "") : "can't make it"}</span>` : ""}`;
+          rsvpForm.querySelectorAll("[data-rsvp]").forEach((b) => { const on = mine && mine.response === b.dataset.rsvp; b.style.background = on || (!mine && b.dataset.rsvp === "yes") ? "var(--primary, #166534)" : "#fff"; b.style.color = on || (!mine && b.dataset.rsvp === "yes") ? "#fff" : "#374151"; b.style.borderColor = on || (!mine && b.dataset.rsvp === "yes") ? "var(--primary, #166534)" : "#dbe1ea"; b.textContent = (b.dataset.rsvp === "yes" ? "I'll be there" : "Can't make it") + (on ? " ✓" : ""); });
+          if (!rsvpTouched) { rsvpGuests.value = String(Math.min(5, mine?.guests || 0)); rsvpNote.value = mine?.item || ""; }
+          rows.innerHTML = [...yes, ...no].map((s) => `<div style="display: flex; gap: 10px; align-items: center; padding: 7px 0; border-bottom: 1px solid #eef1f6; font-size: 13.5px;">
+              <div style="flex: 1;"><strong>${esc(s.name || s.email)}</strong><span style="color: ${s.response === "yes" ? "#166534" : "#6b7280"};"> — ${s.response === "yes" ? "coming" + (s.guests ? ` +${s.guests} guest${s.guests === 1 ? "" : "s"}` : "") : "can't make it"}</span>${s.item ? `<span style="color: #6b7280;"> · ${esc(s.item)}</span>` : ""}</div>
+              ${s.mine || d.canManage ? `<button type="button" data-rm="${s.id}" style="border: none; background: none; color: #b91c1c; font-size: 12px; cursor: pointer; font-family: inherit;">${s.mine ? "Clear" : "Remove"}</button>` : ""}
+            </div>`).join("") || `<div style="padding: 10px 0; color: #6b7280; font-size: 13px;">No answers yet — be the first.</div>`;
+        } else {
         document.getElementById("sheetPrompt").textContent = d.date.signupPrompt || "What's everyone bringing? Add your line below — you can remove it any time.";
         rows.innerHTML = d.signups.map((s) => `<div style="display: flex; gap: 10px; align-items: center; padding: 7px 0; border-bottom: 1px solid #eef1f6; font-size: 13.5px;">
             <div style="flex: 1;"><strong>${esc(s.item)}</strong><span style="color: #6b7280;"> — ${esc(s.name || s.email)}</span></div>
             ${s.mine || d.canManage ? `<button type="button" data-rm="${s.id}" style="border: none; background: none; color: #b91c1c; font-size: 12px; cursor: pointer; font-family: inherit;">Remove</button>` : ""}
           </div>`).join("") || `<div style="padding: 10px 0; color: #6b7280; font-size: 13px;">Nobody has signed up yet — be the first.</div>`;
+        }
         rows.querySelectorAll("[data-rm]").forEach((b) => b.addEventListener("click", async () => {
           msg.textContent = "";
           const r = await fetch(`/api/important-dates/${sheetId}/signups/${b.dataset.rm}`, { method: "DELETE", credentials: "same-origin" });
@@ -3662,13 +3742,13 @@
       }
       async function openSheet(id, keep) {
         sheetId = id;
-        if (!keep) { input.value = ""; msg.textContent = ""; }
+        if (!keep) { input.value = ""; msg.textContent = ""; rsvpTouched = false; }
         const r = await fetch(`/api/important-dates/${id}/signups`, { credentials: "same-origin" });
         const d = await r.json().catch(() => ({}));
         if (!r.ok) { alert(d.error || "Couldn't open the sign-up sheet."); return; }
         renderSheet(d);
         sheet.style.display = "flex";
-        if (!keep) setTimeout(() => input.focus(), 50);
+        if (!keep && sheetMode !== "rsvp") setTimeout(() => input.focus(), 50);
       }
       document.getElementById("sheetForm").addEventListener("submit", async (e) => {
         e.preventDefault();

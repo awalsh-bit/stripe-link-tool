@@ -126,6 +126,7 @@
     let ticking = false;
     function check() {
       ticking = false;
+      if (document.documentElement.classList.contains("scroll-locked")) return; // the page is pinned behind a pop-up — not a real scroll
       const y = window.scrollY || 0;
       if (y > 120 && !el.classList.contains("scrolled")) { el.classList.add("scrolled"); placeCluster(); }
       else if (y < 24 && el.classList.contains("scrolled")) { el.classList.remove("scrolled"); placeCluster(); }

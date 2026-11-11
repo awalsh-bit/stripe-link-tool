@@ -626,6 +626,14 @@
     /* Modals, cart drawer, checkout */
     .overlay { background: rgba(36,33,30,.55); }
     .modal { border-radius: var(--r); background: var(--surface); }
+    /* A pop-up taller than the screen scrolls INSIDE itself, and the page
+       behind is held still while it's open (Andrew 11/11: on a phone the
+       profile card ran off the bottom and a swipe moved the shop underneath
+       instead). The lock itself is the scrollLock() script. */
+    .overlay { overscroll-behavior: contain; padding: 16px 12px; }
+    .modal { max-height: calc(100vh - 32px); max-height: calc(100dvh - 32px); overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; margin: auto 0; }
+    .drawer, .drawer * { overscroll-behavior: contain; }
+    @media (max-width: 560px) { .modal { padding: 20px 18px; } }
     .modal h2, .drawer-head h2, .done-card h2 { font-family: var(--f-display); font-weight: 600; font-size: 22px; }
     .drawer { background: var(--surface); }
     .drawer-head, .totals, .cart-line, .addon-row, .or-rule { border-color: var(--line); }
@@ -1672,6 +1680,32 @@
   // Keep the header search box in step when the catalog search is typed into directly.
   $("searchInput").addEventListener("input", (e) => { const ts = $("topSearch"); if (ts && ts.value !== e.target.value) ts.value = e.target.value; });
 
+  // ---------- Hold the page still behind pop-ups and the cart ----------
+  // While any .overlay or the cart drawer is showing, the page is pinned in
+  // place (position: fixed at its current scroll offset — the one method
+  // every phone browser honours) and put back exactly where it was on close.
+  // html.scroll-locked tells the header not to treat the pin as a scroll to
+  // the top.
+  (function scrollLock() {
+    const root = document.documentElement, body = document.body;
+    let locked = false, y = 0;
+    function sync() {
+      const open = !!document.querySelector(".overlay.show, .drawer.show");
+      if (open && !locked) {
+        locked = true; y = window.scrollY || 0;
+        root.classList.add("scroll-locked");
+        body.style.position = "fixed"; body.style.top = `-${y}px`; body.style.left = "0"; body.style.right = "0"; body.style.width = "100%";
+      } else if (!open && locked) {
+        locked = false;
+        body.style.position = ""; body.style.top = ""; body.style.left = ""; body.style.right = ""; body.style.width = "";
+        window.scrollTo({ top: y, left: 0, behavior: "instant" });
+        requestAnimationFrame(() => requestAnimationFrame(() => root.classList.remove("scroll-locked")));
+      }
+    }
+    new MutationObserver(sync).observe(body, { subtree: true, attributes: true, attributeFilter: ["class"] });
+    sync();
+  })();
+
   // ---------- Deep links from the landing page (Andrew 11/5) ----------
   // shop-home.html is a one-click front door: every tile lands here with the
   // slice already chosen so the shopper never has to open the menu.
@@ -2543,10 +2577,9 @@
 
   // Freeze the page behind the drawer without losing its scroll position.
   let pageScrollY = 0;
-  function lockPage(on) {
-    if (on) { if (document.body.classList.contains("cart-open")) return; pageScrollY = window.scrollY; document.body.style.top = `-${pageScrollY}px`; document.body.classList.add("cart-open"); }
-    else { if (!document.body.classList.contains("cart-open")) return; document.body.classList.remove("cart-open"); document.body.style.top = ""; window.scrollTo(0, pageScrollY); }
-  }
+  // The cart used to pin the page itself (body.cart-open); one lock now covers
+  // the cart and every pop-up — scrollLock() below watches for either showing.
+  function lockPage() {}
   function openCart() {
     state.checkout.open = false;
     renderCart();

@@ -1309,7 +1309,7 @@
           <!-- RSVP mode: one answer per person — coming or not, guests, an optional note. -->
           <form id="sheetRsvp" style="display: none; margin-top: 12px;">
             <div style="display: flex; gap: 8px; flex-wrap: wrap; align-items: center;">
-              <label style="font-size: 13px; color: #374151;">Bringing guests?
+              <label id="rsvpGuestsWrap" style="font-size: 13px; color: #374151;">Bringing guests?
                 <select id="rsvpGuests" style="margin-left: 6px; border: 1.5px solid #dbe1ea; border-radius: 10px; padding: 8px 10px; font-size: 14px; font-family: inherit; background: #fff;">
                   <option value="0">Just me</option><option value="1">+1</option><option value="2">+2</option><option value="3">+3</option><option value="4">+4</option><option value="5">+5</option>
                 </select>
@@ -3720,7 +3720,13 @@
           const people = yes.reduce((n, s) => n + 1 + (s.guests || 0), 0);
           document.getElementById("sheetPrompt").innerHTML = `${esc(d.date.signupPrompt || "Are you coming? Let us know either way — you can change your answer any time.")}<br><strong>${yes.length} coming</strong>${people > yes.length ? ` (${people} people with guests)` : ""} · ${no.length} can't make it${mine ? ` · <span style="color: var(--primary, #166534); font-weight: 700;">you: ${mine.response === "yes" ? "coming" + (mine.guests ? " +" + mine.guests : "") : "can't make it"}</span>` : ""}`;
           rsvpForm.querySelectorAll("[data-rsvp]").forEach((b) => { const on = mine && mine.response === b.dataset.rsvp; b.style.background = on || (!mine && b.dataset.rsvp === "yes") ? "var(--primary, #166534)" : "#fff"; b.style.color = on || (!mine && b.dataset.rsvp === "yes") ? "#fff" : "#374151"; b.style.borderColor = on || (!mine && b.dataset.rsvp === "yes") ? "var(--primary, #166534)" : "#dbe1ea"; b.textContent = (b.dataset.rsvp === "yes" ? "I'll be there" : "Can't make it") + (on ? " ✓" : ""); });
-          if (!rsvpTouched) { rsvpGuests.value = String(Math.min(5, mine?.guests || 0)); rsvpNote.value = mine?.item || ""; }
+          // Guests: only as many as this date allows (set in the builder); none = the picker goes away.
+          const gmax = Math.max(0, Number(d.date.signupGuestMax ?? 5));
+          const keepGuests = rsvpTouched ? Number(rsvpGuests.value) || 0 : mine?.guests || 0;
+          rsvpGuests.innerHTML = Array.from({ length: gmax + 1 }, (_, n) => `<option value="${n}">${n === 0 ? "Just me" : "+" + n}</option>`).join("");
+          rsvpGuests.value = String(Math.min(gmax, keepGuests));
+          document.getElementById("rsvpGuestsWrap").style.display = gmax === 0 ? "none" : "";
+          if (!rsvpTouched) rsvpNote.value = mine?.item || "";
           rows.innerHTML = [...yes, ...no].map((s) => `<div style="display: flex; gap: 10px; align-items: center; padding: 7px 0; border-bottom: 1px solid #eef1f6; font-size: 13.5px;">
               <div style="flex: 1;"><strong>${esc(s.name || s.email)}</strong><span style="color: ${s.response === "yes" ? "#166534" : "#6b7280"};"> — ${s.response === "yes" ? "coming" + (s.guests ? ` +${s.guests} guest${s.guests === 1 ? "" : "s"}` : "") : "can't make it"}</span>${s.item ? `<span style="color: #6b7280;"> · ${esc(s.item)}</span>` : ""}</div>
               ${s.mine || d.canManage ? `<button type="button" data-rm="${s.id}" style="border: none; background: none; color: #b91c1c; font-size: 12px; cursor: pointer; font-family: inherit;">${s.mine ? "Clear" : "Remove"}</button>` : ""}

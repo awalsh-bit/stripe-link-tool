@@ -6,23 +6,25 @@
   <!-- EDIT ME: remove noindex when you're ready for Google to find this page -->
   <meta name="robots" content="noindex,nofollow,noarchive" />
   <title>Sub-Zero, Wolf &amp; Cove at Wilson AC &amp; Appliance — Designer Inspiration &amp; Showroom</title>
-  <meta name="description" content="Explore Sub-Zero, Wolf, and Cove at Wilson AC & Appliance in Dripping Springs, Texas. Designer inspiration, current promotions, and a working showroom worth the drive." />
+  <meta name="description" content="Explore Sub-Zero, Wolf, and Cove at Wilson AC & Appliance in Dripping Springs, Texas. Designer inspiration, a working showroom worth the drive, and consultants who plan and install these kitchens every week." />
   <!-- Rich link previews (texts, iMessage, social). PLAYBOOK: every future
        brand landing page replicates this block — og:title carries the live
-       promotion, og:image is a 1200x630 JPEG under ~300KB served from the
-       page's own public photo folder, og:url is the page's short path.
-       Update og:title when the promo changes. -->
+       promotion when one is running and the evergreen headline when not,
+       og:image is a 1200x630 JPEG under ~300KB served from the page's own
+       public photo folder, og:url is the page's short path.
+       No promotion is running right now (the Sept 2026 offer came down
+       11/11/2026) — update og:title + twitter:title when the next one starts. -->
   <meta property="og:type" content="website" />
   <meta property="og:site_name" content="Wilson AC &amp; Appliance" />
-  <meta property="og:title" content="Save up to $1,500 on Sub-Zero Classic &amp; Pro Series refrigeration" />
-  <meta property="og:description" content="Now through September 30, 2026 at Wilson AC & Appliance — Sub-Zero, Wolf & Cove in a working showroom, twenty minutes from Austin. Book a design consultation." />
+  <meta property="og:title" content="Sub-Zero, Wolf &amp; Cove — on display in the Texas Hill Country" />
+  <meta property="og:description" content="See Sub-Zero, Wolf & Cove in a working showroom at Wilson AC & Appliance, twenty minutes from Austin. Book a design consultation." />
   <meta property="og:url" content="https://service.wilsonappliance.com/subzero" />
   <meta property="og:image" content="https://service.wilsonappliance.com/subzero-photos/og-card.jpg" />
   <meta property="og:image:width" content="1200" />
   <meta property="og:image:height" content="630" />
   <meta property="og:image:alt" content="The Sub-Zero, Wolf & Cove living kitchen display at the Wilson showroom" />
   <meta name="twitter:card" content="summary_large_image" />
-  <meta name="twitter:title" content="Save up to $1,500 on Sub-Zero Classic &amp; Pro Series refrigeration" />
+  <meta name="twitter:title" content="Sub-Zero, Wolf &amp; Cove — on display in the Texas Hill Country" />
   <meta name="twitter:image" content="https://service.wilsonappliance.com/subzero-photos/og-card.jpg" />
   <link rel="icon" type="image/svg+xml" href="favicon.svg" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -31,11 +33,17 @@
   <style>
     /* =====================================================================
        SUB-ZERO LANDING — SKELETON
-       Luxury palette: charcoal, ivory, brushed brass. Every image is a
-       styled placeholder — swap each .ph block for an <img> when you have
-       photography (instructions beside each one). Sections are in the order
-       a designer-lead page usually converts: hero → promotion → inspiration
-       → showroom → trade program → consultation.
+       Luxury palette: charcoal, ivory, brushed brass. Sections are in the
+       order a designer-lead page usually converts: hero → (promotion, when
+       one is running) → inspiration → showroom → trade program → consultation.
+
+       PHOTOS — two kinds, kept honest (Andrew 11/11/2026):
+         · Sub-Zero / Wolf / Cove design photography (subzero-photos/hero-kitchen
+           and insp-*.jpg, web-sized from supplier-digital-assets/szwc).
+         · Our own showroom (everything else in subzero-photos/). Each of ours
+           carries the small "i" mark — <span class="ours"> — whose note says
+           it is the actual Wilson showroom. Never put that mark on a supplier
+           photo.
        ===================================================================== */
     :root {
       --ink: #14171a;          /* near-black charcoal */
@@ -79,13 +87,50 @@
       font-weight: 500; padding: 14px; line-height: 1.8;
     }
     .photo { width: 100%; height: 100%; object-fit: cover; display: block; }
-    .hero-media .photo { opacity: 0.55; }
+    .hero-media .photo { opacity: 0.9; object-position: 70% 50%; }
+    .hero-media::after {
+      content: ""; position: absolute; inset: 0; pointer-events: none;
+      background: linear-gradient(90deg, rgba(20, 23, 26, 0.93) 0%, rgba(20, 23, 26, 0.84) 34%, rgba(20, 23, 26, 0.42) 62%, rgba(20, 23, 26, 0.12) 100%);
+    }
+    @media (max-width: 760px) {
+      .hero-media .photo { opacity: 0.9; object-position: 82% 50%; }
+      .hero-media::after { background: linear-gradient(180deg, rgba(20, 23, 26, 0.5) 0%, rgba(20, 23, 26, 0.74) 45%, rgba(20, 23, 26, 0.66) 100%); }
+    }
     .g-tile .photo, .show-media .photo { position: absolute; inset: 0; }
     .g-tile::after {
       content: ""; position: absolute; inset: 0; z-index: 1; pointer-events: none;
-      background: linear-gradient(to top, rgba(10, 12, 14, 0.55), rgba(10, 12, 14, 0) 48%);
+      background: linear-gradient(to top, rgba(10, 12, 14, 0.82), rgba(10, 12, 14, 0.38) 30%, rgba(10, 12, 14, 0) 58%);
     }
     .show-thumbs .photo { height: 120px; }
+
+    /* ---- "this is our actual showroom" mark on our own photos ----
+       A quiet serif "i" in the corner; the note opens on hover, keyboard
+       focus, or a tap. Only for photos taken on the Wilson floor. */
+    .ours { position: absolute; top: 12px; right: 12px; z-index: 3; }
+    .ours-btn {
+      position: relative; display: grid; place-items: center; width: 26px; height: 26px; padding: 0;
+      border-radius: 50%; border: 1px solid rgba(247, 245, 240, 0.7); background: rgba(20, 23, 26, 0.42);
+      -webkit-backdrop-filter: blur(4px); backdrop-filter: blur(4px);
+      color: var(--ivory); font-family: var(--serif); font-style: italic; font-weight: 500; font-size: 17px; line-height: 1;
+      cursor: help; transition: background 0.2s ease, border-color 0.2s ease;
+    }
+    .ours-btn::before { content: ""; position: absolute; inset: -10px; }   /* finger-sized tap area */
+    .ours:hover .ours-btn, .ours.open .ours-btn, .ours-btn:focus-visible { background: var(--brass); border-color: var(--brass); outline: none; }
+    .ours-tip {
+      position: absolute; top: 36px; right: 0; width: max-content; max-width: min(240px, 70vw);
+      background: rgba(20, 23, 26, 0.95); border: 1px solid rgba(168, 132, 92, 0.55); color: rgba(247, 245, 240, 0.9);
+      font-family: var(--sans); font-size: 12.5px; font-weight: 300; line-height: 1.5; letter-spacing: normal;
+      text-transform: none; text-align: left; padding: 11px 14px 12px;
+      opacity: 0; visibility: hidden; transform: translateY(-4px); pointer-events: none;
+      transition: opacity 0.2s ease, transform 0.2s ease, visibility 0.2s;
+    }
+    .ours-tip b { display: block; font-size: 10px; font-weight: 600; letter-spacing: 0.24em; text-transform: uppercase; color: var(--brass); margin-bottom: 4px; }
+    .ours:hover .ours-tip, .ours:focus-within .ours-tip, .ours.open .ours-tip { opacity: 1; visibility: visible; transform: none; }
+    .ours.inline { position: relative; top: auto; right: auto; display: inline-block; vertical-align: middle; margin-right: 10px; }
+    .ours.inline .ours-btn { border-color: rgba(247, 245, 240, 0.45); background: transparent; }
+    .ours.inline .ours-tip { top: auto; bottom: 36px; right: auto; left: 0; transform: translateY(4px); }
+    .ours.inline:hover .ours-tip, .ours.inline:focus-within .ours-tip, .ours.inline.open .ours-tip { transform: none; }
+    .ours-line { margin: 16px 0 0; font-size: 12px; letter-spacing: 0.06em; color: rgba(247, 245, 240, 0.6); }
 
     /* ---- top bar ---- */
     .topbar {
@@ -114,7 +159,8 @@
     .hero p { font-size: 17px; font-weight: 300; color: rgba(247, 245, 240, 0.85); max-width: 540px; margin: 22px 0 34px; }
     .hero-ctas { display: flex; gap: 14px; flex-wrap: wrap; }
 
-    /* ---- promo strip ---- */
+    /* ---- promo strip (not on the page right now — styles kept for the next
+       promotion; the markup to paste back is in a comment under the hero) ---- */
     .promo { background: var(--paper); border-bottom: 1px solid var(--line); }
     .promo .wrap { display: flex; gap: 30px; align-items: center; padding-top: 46px; padding-bottom: 46px; flex-wrap: wrap; }
     .promo-badge {
@@ -137,7 +183,7 @@
 
     /* ---- inspiration gallery ---- */
     .gallery { display: grid; grid-template-columns: repeat(6, 1fr); gap: 14px; }
-    .g-tile { position: relative; overflow: hidden; min-height: 260px; }
+    .g-tile { position: relative; overflow: hidden; min-height: 290px; }
     .g-tile.wide { grid-column: span 4; }
     .g-tile.tall { grid-column: span 2; grid-row: span 2; min-height: 0; }
     .g-tile.std { grid-column: span 2; }
@@ -146,10 +192,11 @@
       position: absolute; left: 18px; bottom: 16px; z-index: 2; color: var(--ivory);
       font-family: var(--serif); font-size: 21px; text-shadow: 0 2px 14px rgba(0,0,0,0.55);
     }
-    .g-label small { display: block; font-family: var(--sans); font-size: 10px; letter-spacing: 0.24em; text-transform: uppercase; color: var(--brass); margin-bottom: 3px; }
+    .g-label small { display: block; font-family: var(--sans); font-size: 10px; font-weight: 500; letter-spacing: 0.24em; text-transform: uppercase; color: #d9bb93; margin-bottom: 3px; }
     @media (max-width: 860px) {
       .gallery { grid-template-columns: 1fr 1fr; }
-      .g-tile.wide, .g-tile.tall, .g-tile.std { grid-column: span 2; grid-row: auto; min-height: 230px; }
+      .g-tile.wide, .g-tile.tall, .g-tile.std { grid-column: span 2; grid-row: auto; min-height: 240px; }
+      .g-tile.tall { min-height: 420px; }
     }
 
     /* ---- showroom ---- */
@@ -162,9 +209,13 @@
     .show-info p { color: rgba(247, 245, 240, 0.82); margin: 0 0 18px; }
     .show-fact { display: flex; gap: 14px; padding: 14px 0; border-top: 1px solid rgba(247, 245, 240, 0.14); font-size: 14px; }
     .show-fact .k { width: 110px; flex-shrink: 0; font-family: var(--sans); font-size: 10.5px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--brass); padding-top: 3px; }
-    .show-thumbs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-top: 14px; }
+    .show-thumbs { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 14px; margin-top: 14px; }
     .show-thumbs .ph { height: 120px; }
-    @media (max-width: 860px) { .show-grid { grid-template-columns: 1fr; } .show-media { min-height: 280px; } }
+    @media (max-width: 860px) {
+      .show-grid { grid-template-columns: 1fr; } .show-media { min-height: 280px; }
+      .show-thumbs { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+      .show-thumbs .photo { height: 96px; }
+    }
 
     /* ---- trade ---- */
     .trade .wrap { display: grid; grid-template-columns: 1fr 1fr; gap: 44px; align-items: start; }
@@ -196,8 +247,8 @@
     .slot-note b { color: #6d5433; font-weight: 600; }
     .slot-clear { background: none; border: none; color: var(--brass); cursor: pointer; font-size: 12.5px; padding: 0; text-decoration: underline; }
     .pref-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
-    .pref-chip { display: block; cursor: pointer; margin: 0; }
-    .pref-chip input { position: absolute; opacity: 0; pointer-events: none; }
+    .pref-chip { display: block; position: relative; cursor: pointer; margin: 0; }
+    .pref-chip input { position: absolute; left: 0; top: 0; width: 1px; height: 1px; padding: 0; border: 0; opacity: 0; pointer-events: none; }
     .pref-chip span {
       display: block; text-align: center; border: 1px solid var(--line); background: var(--ivory);
       color: var(--ink); font-family: var(--sans); font-size: 13px; font-weight: 500; padding: 10px 4px;
@@ -227,7 +278,6 @@
         <small>Authorized Sub-Zero, Wolf &amp; Cove Dealer</small>
       </div>
       <nav class="topnav">
-        <a href="#promotions">Promotions</a>
         <a href="#inspiration">Inspiration</a>
         <a href="#showroom">Showroom</a>
         <a href="#consult">Consultation</a>
@@ -238,7 +288,7 @@
 
   <!-- ============ HERO ============ -->
   <header class="hero">
-    <div class="hero-media"><img class="photo" src="subzero-photos/hero.jpg" alt="The SZWC living kitchen display at the Wilson showroom — Sub-Zero refrigeration, Wolf ovens, and island seating" /></div>
+    <div class="hero-media"><img class="photo" src="subzero-photos/hero-kitchen.jpg" alt="A kitchen built around Sub-Zero PRO refrigeration, Wolf cooking, and a waterfall stone island" /></div>
     <div class="wrap">
       <div class="hero-inner">
         <div class="eyebrow">Dripping Springs · Texas Hill Country</div>
@@ -256,49 +306,51 @@
     </div>
   </header>
 
-  <!-- ============ CURRENT PROMOTION ============ -->
-  <!-- Live offer (Andrew, 2026-08-27). Duplicate the strip if running more
-       than one promotion at a time. -->
+  <!-- ============ PROMOTION (none running) ============ -->
+  <!-- The Sept 2026 refrigeration offer ended and came down 11/11/2026.
+       To run the next one, paste this strip back here, fill in the offer,
+       add <a href="#promotions">Promotions</a> to the top nav, and put the
+       offer in og:title + twitter:title at the top of the file:
+
   <div class="promo" id="promotions">
     <div class="wrap">
-      <div class="promo-badge">
-        <div class="big">$1,500</div>
-        <div class="sm">Save<br>up to</div>
-      </div>
+      <div class="promo-badge"><div class="big">AMOUNT</div><div class="sm">Save<br>up to</div></div>
       <div class="promo-copy">
         <div class="eyebrow" style="margin-bottom: 6px;">Limited-Time Promotion</div>
-        <h2>Save up to $1,500 on Classic and Pro Series refrigeration</h2>
-        <p>
-          Now through September 30th, 2026 — save up to $1,500 on Sub-Zero
-          Classic and Pro Series refrigeration.
-        </p>
-        <p class="promo-fine">Offer valid through September 30, 2026.</p>
+        <h2>HEADLINE</h2>
+        <p>DETAILS</p>
+        <p class="promo-fine">Offer valid through END DATE.</p>
       </div>
       <a class="btn" href="#consult">Ask About This Offer</a>
     </div>
   </div>
+  -->
 
   <!-- ============ DESIGNER INSPIRATION ============ -->
-  <!-- Photos are the SZWC living-kitchen display (showroom-photos 216-244).
-       To change a look, swap the img src and retitle the label. -->
+  <!-- Six of these are Sub-Zero / Wolf / Cove design photography (insp-*.jpg,
+       from supplier-digital-assets/szwc); the two Sub-Zero tiles are our
+       own showroom and carry the "i" mark. To change a look, swap the img src
+       and retitle the label. -->
   <section id="inspiration">
     <div class="wrap">
       <div class="sec-head">
         <div class="eyebrow">Designer Inspiration</div>
         <h2>Start with a look you love.</h2>
         <p>
-          Six directions to steal from. Every one is built around appliances we
-          stock, spec, deliver, and install ourselves — bring your designer, or
+          Eight directions to borrow from. Every one is built around appliances
+          we spec, deliver, and install ourselves — bring your designer, or
           borrow ours.
         </p>
       </div>
       <div class="gallery">
-        <div class="g-tile wide"><img class="photo" src="subzero-photos/g1-integrated.jpg" alt="White panel-ready kitchen with island rangetop and mosaic backsplash" /><div class="g-label"><small>The Integrated Kitchen</small>Sub-Zero, invisible until it opens</div></div>
-        <div class="g-tile tall"><img class="photo" src="subzero-photos/g2-morning.jpg" alt="Built-in Wolf coffee system and convection column" /><div class="g-label"><small>The Morning Station</small>Built-in coffee &amp; refreshment</div></div>
-        <div class="g-tile std"><img class="photo" src="subzero-photos/g3-range.jpg" alt="Wolf 48-inch dual-fuel range with signature red knobs" /><div class="g-label"><small>The Range Wall</small>Wolf red knobs, front and center</div></div>
-        <div class="g-tile std"><img class="photo" src="subzero-photos/g4-pro.jpg" alt="Sub-Zero PRO refrigerators, one with a glass door" /><div class="g-label"><small>The Pro Statement</small>Sub-Zero PRO, glass door and all</div></div>
-        <div class="g-tile std"><img class="photo" src="subzero-photos/g5-family.jpg" alt="French-door Sub-Zero beside a sunny breakfast nook" /><div class="g-label"><small>The Gathering Kitchen</small>French-door Sub-Zero at the heart</div></div>
-        <div class="g-tile wide"><img class="photo" src="subzero-photos/g6-columns.jpg" alt="A full wall of stainless Sub-Zero refrigeration columns" /><div class="g-label"><small>The Column Wall</small>Refrigeration floor to ceiling, sized to you</div></div>
+        <div class="g-tile wide"><img class="photo" src="subzero-photos/insp-range-white.jpg" style="object-position: 50% 62%;" alt="Wolf dual fuel range with white doors and red knobs in a warm oak kitchen, Sub-Zero refrigeration beyond" /><div class="g-label"><small>The Range Wall</small>Wolf dual fuel, white doors and red knobs</div></div>
+        <div class="g-tile tall"><img class="photo" src="subzero-photos/insp-range-black.jpg" style="object-position: 50% 70%;" alt="Wolf induction range with a black door and black knobs, dinner on the cooktop" /><div class="g-label"><small>The Dark Finish</small>Wolf induction in black</div></div>
+        <div class="g-tile std"><img class="photo" src="subzero-photos/insp-cove-panel.jpg" alt="Panel-ready Cove dishwasher open in a dark island, cabinet front and brass pull matching the drawers beside it" /><div class="g-label"><small>The Integrated Kitchen</small>Cove, hidden until it opens</div></div>
+        <div class="g-tile std"><img class="photo" src="subzero-photos/insp-brass-knobs.jpg" style="object-position: 50% 78%;" alt="Wolf induction range in stainless with brass knobs, a pan on the cooktop" /><div class="g-label"><small>The Brass Detail</small>Wolf induction, brass knobs</div></div>
+        <div class="g-tile tall"><img class="photo" src="subzero-photos/insp-cove-stainless.jpg" style="object-position: 50% 45%;" alt="Stainless Cove dishwasher with a pro handle, open and loaded, in a furniture-style island" /><div class="g-label"><small>The Working Island</small>Cove in stainless, pro handle</div></div>
+        <div class="g-tile wide"><img class="photo" src="subzero-photos/hero.jpg" style="object-position: 50% 58%;" alt="The Sub-Zero, Wolf and Cove living kitchen at the Wilson showroom — French-door Sub-Zero, Wolf wall ovens, and island seating" /><span class="ours"><button type="button" class="ours-btn" aria-label="About this photo" aria-describedby="oursTip1">i</button><span class="ours-tip" id="oursTip1" role="tooltip"><b>Our showroom</b>Photographed on our floor in Dripping Springs. This is the display you can open and compare in person.</span></span><div class="g-label"><small>The Gathering Kitchen</small>French-door Sub-Zero at the heart</div></div>
+        <div class="g-tile std"><img class="photo" src="subzero-photos/insp-light-kitchen.jpg" style="object-position: 50% 60%;" alt="White kitchen with a Wolf induction range, built-in coffee system and speed oven, and a wide window over the sink" /><div class="g-label"><small>The Light Kitchen</small>Wolf induction, coffee built in</div></div>
+        <div class="g-tile std"><img class="photo" src="subzero-photos/g4-pro.jpg" alt="Sub-Zero PRO refrigerators on the Wilson showroom floor, one with a glass door" /><span class="ours"><button type="button" class="ours-btn" aria-label="About this photo" aria-describedby="oursTip2">i</button><span class="ours-tip" id="oursTip2" role="tooltip"><b>Our showroom</b>Photographed on our floor in Dripping Springs. This is the display you can open and compare in person.</span></span><div class="g-label"><small>The Pro Statement</small>Sub-Zero PRO, glass door and all</div></div>
       </div>
     </div>
   </section>
@@ -315,7 +367,7 @@
         </p>
       </div>
       <div class="show-grid">
-        <div class="show-media"><img class="photo" src="subzero-photos/show-main.jpg" alt="Live displays across the Wilson showroom floor — hoods, wine storage, and refrigeration you can open and run" /></div>
+        <div class="show-media"><img class="photo" src="subzero-photos/show-main.jpg" alt="Live displays across the Wilson showroom floor — hoods, wine storage, and refrigeration you can open and run" /><span class="ours"><button type="button" class="ours-btn" aria-label="About this photo" aria-describedby="oursTip3">i</button><span class="ours-tip" id="oursTip3" role="tooltip"><b>Our showroom</b>Photographed on our floor in Dripping Springs. This is the display you can open and compare in person.</span></span></div>
         <div class="show-info">
           <h3>Wilson AC &amp; Appliance Showroom</h3>
           <p>
@@ -333,10 +385,14 @@
         </div>
       </div>
       <div class="show-thumbs">
+        <img class="photo" src="subzero-photos/g6-columns.jpg" alt="A full wall of stainless Sub-Zero refrigeration columns" />
+        <img class="photo" src="subzero-photos/g1-integrated.jpg" alt="White panel-ready kitchen display with an island rangetop and mosaic backsplash" />
+        <img class="photo" src="subzero-photos/g3-range.jpg" alt="Wolf 48-inch dual-fuel range with signature red knobs" />
         <img class="photo" src="subzero-photos/thumb-1.jpg" alt="Wolf range in a warm wood-paneled vignette" />
         <img class="photo" src="subzero-photos/thumb-2.jpg" alt="Range with brass knobs against navy and white" />
         <img class="photo" src="subzero-photos/thumb-3.jpg" alt="The design center with tile samples and a backlit onyx worktable" />
       </div>
+      <p class="ours-line"><span class="ours inline"><button type="button" class="ours-btn" aria-label="About these photos" aria-describedby="oursTip4">i</button><span class="ours-tip" id="oursTip4" role="tooltip"><b>Our showroom</b>Every photo in this section was taken on our floor in Dripping Springs. What you see here is what you will walk into.</span></span>Our showroom, as it stands today.</p>
     </div>
   </section>
 
@@ -372,7 +428,7 @@
         <p style="color: var(--muted); margin-top: 14px;">
           A Wilson consultant will reach out within one business day — no
           pressure, no spam, just a real person who can talk models, panels,
-          promotions, and timelines.
+          ventilation, and timelines.
         </p>
         <p style="color: var(--muted);">
           Prefer to talk now? Call <a href="tel:512-894-0907" style="color: var(--brass);">512-894-0907</a>
@@ -433,6 +489,22 @@
       <div>Authorized Sub-Zero, Wolf &amp; Cove Dealer · <a href="tel:512-894-0907">512-894-0907</a></div>
     </div>
   </footer>
+
+  <script>
+    // "Our showroom" notes: hover and keyboard focus are pure CSS; this adds
+    // tap-to-open for phones (tap the mark again, or anywhere else, to close).
+    (function () {
+      const marks = Array.from(document.querySelectorAll(".ours"));
+      const closeAll = (except) => marks.forEach((m) => { if (m !== except) m.classList.remove("open"); });
+      marks.forEach((m) => m.querySelector(".ours-btn").addEventListener("click", (e) => {
+        e.stopPropagation();
+        closeAll(m);
+        m.classList.toggle("open");
+      }));
+      document.addEventListener("click", () => closeAll(null));
+      document.addEventListener("keydown", (e) => { if (e.key === "Escape") { closeAll(null); if (document.activeElement && document.activeElement.classList.contains("ours-btn")) document.activeElement.blur(); } });
+    })();
+  </script>
 
   <script>
     // Consultation form → the sales team (same routing as web orders: a

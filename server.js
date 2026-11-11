@@ -745,6 +745,15 @@ const SERVICE_PUBLIC_PATHS = new Set([
   "/subzero-photos/thumb-1.jpg",
   "/subzero-photos/thumb-2.jpg",
   "/subzero-photos/thumb-3.jpg",
+  // Sub-Zero / Wolf / Cove design photography, web-sized from
+  // supplier-digital-assets/szwc (Andrew 11/11) — the originals stay private.
+  "/subzero-photos/hero-kitchen.jpg",
+  "/subzero-photos/insp-range-white.jpg",
+  "/subzero-photos/insp-range-black.jpg",
+  "/subzero-photos/insp-cove-panel.jpg",
+  "/subzero-photos/insp-brass-knobs.jpg",
+  "/subzero-photos/insp-cove-stainless.jpg",
+  "/subzero-photos/insp-light-kitchen.jpg",
   "/track.html",
   "/api/track",
   "/journey.html",

@@ -1044,8 +1044,12 @@ const EXECUTIVE_ONLY_PAGE_PATHS = new Set([
 
 // Canonical list of pages an executive can grant/deny per user. Derived from
 // INTERNAL_PAGE_PATHS so the admin UI and enforcement share one source.
+// Retired pages (Andrew 11/11: the Clearance Hit List — the shop's Outlet
+// units and Inventory Lookup's Closeouts cover it). The address stays known
+// so old bookmarks forward instead of 404ing, but there is nothing to grant.
+const RETIRED_PAGE_PATHS = new Set(["/clearance.html"]);
 const MANAGEABLE_PAGE_PATHS = [...INTERNAL_PAGE_PATHS]
-  .filter((p) => !AUTH_PAGE_PATHS.has(p) && !EXECUTIVE_ONLY_PAGE_PATHS.has(p) && !EVERYONE_PAGE_PATHS.has(p))
+  .filter((p) => !AUTH_PAGE_PATHS.has(p) && !EXECUTIVE_ONLY_PAGE_PATHS.has(p) && !EVERYONE_PAGE_PATHS.has(p) && !RETIRED_PAGE_PATHS.has(p))
   .sort();
 
 // Job-code presets for the User Admin UI. Clicking one CHECKS the included
@@ -1058,7 +1062,6 @@ const JOB_CODE_PRESETS = {
     pages: [
       "/salesdashboard.html",
       "/secret-menu.html",
-      "/clearance.html",
       "/shop-orders.html",
       "/shop-catalog.html",
       "/spec-packages.html",
@@ -1195,7 +1198,7 @@ const PAGE_LABELS = {
   "/case-visit-results.html": "Case Visit Results",
   "/refund-dashboard.html": "Refund Dashboard",
   "/signature-builder.html": "Email Signature",
-  "/clearance.html": "Clearance Hit List",
+  "/clearance.html": "Clearance Hit List (retired)",
   "/credit-applications.html": "Builder Credit Applications",
   "/sales-order-health.html": "Sales Order Health Report",
   "/lead-report.html": "DIBS Lead Report",
@@ -1629,7 +1632,8 @@ function buildSessionUser(user) {
 // estimate list can see the closed ones (still grantable on its own).
 const PAGE_IMPLIED_BY = {
   "/closed-estimates.html": "/service-estimates.html",
-  "/shop-catalog.html": "/shop-orders.html"
+  "/shop-catalog.html": "/shop-orders.html",
+  "/clearance.html": "/inventory-lookup.html" // retired 11/11 — the address forwards to Inventory Lookup, so that grant is what it takes to follow it
 };
 
 function canAccessPathForUser(user, pathname) {
@@ -1694,7 +1698,7 @@ function getEffectivePagesForUser(user) {
   if (!user) return [];
 
   return [...INTERNAL_PAGE_PATHS]
-    .filter((p) => !AUTH_PAGE_PATHS.has(p))
+    .filter((p) => !AUTH_PAGE_PATHS.has(p) && !RETIRED_PAGE_PATHS.has(p))
     .filter((p) => canAccessPathForUser(user, p))
     .sort();
 }
@@ -5955,6 +5959,13 @@ app.get("/api/fleet/receipts", requireFleet, async (req, res) => {
   try { return res.json({ receipts: await searchReceiptsForFleet(String(req.query.q || "").slice(0, 80)) }); } catch (err) { return res.status(500).json({ error: "Unable to search receipts." }); }
 });
 
+// The Clearance Hit List page is retired (Andrew 11/11): the same units are
+// Inventory Lookup's Closeouts and the shop's Outlet units, and the "needs a
+// price" worklist moved to the Express Assortment Catalog. Old bookmarks and
+// links land on Inventory Lookup with Closeouts switched on. Registered
+// before express.static so the old file is never served.
+app.get("/clearance.html", (req, res) => res.redirect(302, "/inventory-lookup.html?closeout=1"));
+
 // Serve the employee directory from Postgres (editable in User Admin).
 // Registered BEFORE express.static so it shadows the legacy static file,
 // which remains the fallback when the database is unreachable.
@@ -6699,11 +6710,16 @@ async function liveClearanceList() {
 }
 function invalidateLiveClearance() { liveClearanceMemo = { at: 0, value: null }; clearanceSnapMemo = { at: 0, value: null }; }
 
-app.get("/api/clearance", requirePagePermission("/clearance.html"), async (req, res) => {
+// (The page is retired 11/11. These routes stay for the marks already on
+// file and now ride on the Shop Orders / Catalog grant — not on the retired
+// page's, which every Inventory Lookup user holds for the redirect.)
+app.get("/api/clearance", requirePagePermission("/shop-orders.html", "/shop-catalog.html"), async (req, res) => {
   try {
     const base = await liveClearanceList();
-    // a fresh copy per request - marks and overrides are attached per item
-    const data = { ...base, items: (base.items || []).map((i) => ({ ...i })) };
+    // a fresh copy per request - marks and overrides are attached per item.
+    // Cost and margin leave the server for executives only.
+    const exec = isExecutiveUser(req.authUser);
+    const data = { ...base, items: (base.items || []).map((i) => (exec ? { ...i } : { ...i, cost: null, margin: null, marginDollars: null })) };
 
     // Attach live sold marks (kept in Postgres so they survive list
     // refreshes). If the DB is unreachable the list still loads, read-only.
@@ -6781,7 +6797,7 @@ async function clearanceEpassWord(itemId) {
 // Mark a clearance unit: 24-hour hold or sold. First writer wins — a second
 // attempt gets the existing mark back as a 409 so the race is visible. The
 // holder (or an executive) can complete their own hold as a sale.
-app.post("/api/clearance/status", requirePagePermission("/clearance.html"), async (req, res) => {
+app.post("/api/clearance/status", requirePagePermission("/shop-orders.html", "/shop-catalog.html"), async (req, res) => {
   try {
     const itemId = String(req.body?.itemId || "").trim();
     const action = String(req.body?.action || "").trim();
@@ -6862,7 +6878,7 @@ app.post("/api/clearance/status", requirePagePermission("/clearance.html"), asyn
 
 // Release a hold or reopen a sold line — the person who marked it, or an
 // executive.
-app.post("/api/clearance/release", requirePagePermission("/clearance.html"), async (req, res) => {
+app.post("/api/clearance/release", requirePagePermission("/shop-orders.html", "/shop-catalog.html"), async (req, res) => {
   try {
     const itemId = String(req.body?.itemId || "").trim();
     if (!itemId) return res.status(400).json({ error: "Missing item id." });
@@ -7267,23 +7283,33 @@ function shopDealGroupFor({ product, subclass, category, price }) {
 // BRAND and per model. The storefront's default sort ranks brands by units
 // first (so the house brand leads), then models within the brand. Cached
 // 30 minutes; an empty table just means nobody ranks until the feed lands.
+// 11/11: also rolled up per brand WITHIN a shop category (byBrandCat,
+// "brand|Ref"). Inside a deal card or a department the storefront ranks by
+// the model's own units, and a model with no sales yet falls back to how its
+// brand sells in that same category — KitchenAid's dishwasher volume no
+// longer lifts a KitchenAid undercounter to the top of Refrigerators.
 const shopBrandKey = (v) => String(v || "").trim().toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
-let shopSoldCache = { at: 0, byModel: {}, byBrand: {} };
+let shopSoldCache = { at: 0, byModel: {}, byBrand: {}, byBrandCat: {} };
 async function shopSalesRank() {
   if (Date.now() - shopSoldCache.at < 30 * 60 * 1000) return shopSoldCache;
   try {
     const from = new Date(Date.now() - 365 * 86400000).toISOString().slice(0, 10);
     const { models } = await listSoldSerialsByModel({ from });
-    const byModel = {}, byBrand = {};
+    const nsMap = await getModelBrandMap().catch(() => ({}));
+    const byModel = {}, byBrand = {}, byBrandCat = {};
     for (const m of models) {
       const units = Number(m.units) || 0;
       const k = normalizeModelKey(m.model); if (k) byModel[k] = (byModel[k] || 0) + units;
+      // the same bucket the storefront files the model under (NetSuite merch class, else the ePASS product code)
+      const known = nsMap[String(m.model || "").trim().toUpperCase()] || {};
+      const cat = shopBucketFor(known, String(m.productCode || known.prod || "").toUpperCase()) || "";
+      if (cat) for (const b of new Set([shopBrandKey(m.brandCode), shopBrandKey(m.brand), shopBrandKey(known.brand)].filter(Boolean))) byBrandCat[b + "|" + cat] = (byBrandCat[b + "|" + cat] || 0) + units;
       // Both spellings ePASS holds — the BrandCode (SPEEDQ) and the Brand
       // master's description (Speed Queen) — so a clearance item's brand
       // name and a stock item's brand code both find their total.
       for (const b of new Set([shopBrandKey(m.brandCode), shopBrandKey(m.brand)].filter(Boolean))) byBrand[b] = (byBrand[b] || 0) + units;
     }
-    shopSoldCache = { at: Date.now(), byModel, byBrand, from, models: models.length };
+    shopSoldCache = { at: Date.now(), byModel, byBrand, byBrandCat, from, models: models.length };
   } catch (err) {
     console.warn("Shop best-seller ranking unavailable:", err.message);
     shopSoldCache = { ...shopSoldCache, at: Date.now() - 25 * 60 * 1000 }; // retry in 5 min
@@ -8785,6 +8811,7 @@ app.get("/api/shop/catalog", async (req, res) => {
         badge: i.badge || "", badgeStyle: i.badgeStyle || "red", hideStockBadge: !!i.hideStockBadge,
         sold: rank.byModel[normalizeModelKey(i.model)] || 0,
         brandSold: rank.byBrand[shopBrandKey(i.brandCode)] || rank.byBrand[shopBrandKey(i.brand)] || 0,
+        brandCatSold: rank.byBrandCat?.[shopBrandKey(i.brandCode) + "|" + i.category] || rank.byBrandCat?.[shopBrandKey(i.brand) + "|" + i.category] || 0, // the brand's units in this item's own category
         source: i.source || "clearance",
         stock: i.stock ?? null,
         stockLevel: i.stockLevel || null,
@@ -8986,16 +9013,67 @@ app.get("/api/shop/stock-models", requirePagePermission("/shop-orders.html", "/s
     const catLabels = Object.fromEntries((clearance._meta?.categories || []).map((c) => [c.key, c.label]));
     const models = (catalog.stockModels || []).map((m) => ({ ...m, categoryLabel: catLabels[m.category] || m.category }));
     const distinct = (f) => [...new Set(models.map(f).filter(Boolean))].sort((a, b) => a.localeCompare(b, "en", { numeric: true }));
-    // Outlet units (open box / floor models / unique-priced) on the store, one
-    // row per serial — the catalog page photographs these.
+    // Cost and margin (Andrew 11/11): executives only, and only ever added
+    // here — never to the shared catalog object the storefront reads.
+    const exec = isExecutiveUser(req.authUser);
+    const r2 = (n) => Math.round(n * 100) / 100;
+    const marginAt = (price, cost) => (Number(price) > 0 && Number(cost) > 0 ? { margin: Math.round(((price - cost) / price) * 1000) / 10, marginDollars: r2(price - cost) } : { margin: null, marginDollars: null });
+    const liveList = await liveClearanceList().catch(() => null);
+    const liveById = new Map((liveList?.items || []).map((i) => [i.id, i]));
+    if (exec) {
+      // a model's cost: the sealed (ALL) serials on hand, averaged; low–high when they differ
+      const snapshot = await clearanceSnapshot().catch(() => null);
+      const costs = new Map();
+      for (const u of snapshot?.serialUnits || []) {
+        if (String(u.serialType || "").toUpperCase() !== "ALL" || !(Number(u.cost) > 0)) continue;
+        const k = normalizeModelKey(u.model || u.sku || ""); if (!k) continue;
+        (costs.get(k) || costs.set(k, []).get(k)).push(Number(u.cost));
+      }
+      for (const m of models) {
+        const list = costs.get(m.key) || [];
+        if (!list.length) { m.cost = null; continue; }
+        const avg = r2(list.reduce((a, c) => a + c, 0) / list.length);
+        m.cost = { avg, min: r2(Math.min(...list)), max: r2(Math.max(...list)), units: list.length };
+        Object.assign(m, marginAt(m.price, avg));
+      }
+    }
+    // Outlet units (open box / unique-priced sealed) on the store, one row per
+    // serial — the catalog page photographs these.
     const outlet = (catalog.items || []).filter((i) => i.source !== "stock").map((i) => ({
       id: i.id, model: i.model, serial: i.serial, serialType: i.serialType || "", condition: i.condition, brand: i.brand, description: i.description,
       category: i.category, categoryLabel: catLabels[i.category] || i.category, price: i.price, mapPublic: !!i.mapPublic, mapExempt: i.mapExempt || "",
       image: i.image || "", photoActual: !!i.photoActual, photoTakenAt: i.photoTakenAt || "",
       // where the picture comes from: "unit" (this serial's own photo), "actual" / "supplier" (set for the model), "" (catalog thumbnail)
-      photoSource: i.photoSource || "", catalogImage: i.catalogImage || "", modelKey: normalizeModelKey(i.model), photoCount: (i.images || []).length
+      photoSource: i.photoSource || "", catalogImage: i.catalogImage || "", modelKey: normalizeModelKey(i.model), photoCount: (i.images || []).length,
+      ruleLabel: liveById.get(i.id)?.ruleLabel || "",
+      ...(exec ? { cost: liveById.get(i.id)?.cost ?? null, ...marginAt(i.price, liveById.get(i.id)?.cost) } : {})
     }));
-    return res.json({ models, outlet, modelPhotos: catalog.modelPhotos || {}, modelPhotoMax: MODEL_PHOTO_MAX, brands: distinct((m) => m.brand), merchClasses: distinct((m) => m.merchClass), merchCategories: distinct((m) => m.merchCategory),
+    // The rest of the old Clearance Hit List (retired 11/11) that is NOT on
+    // the store, as a worklist: units that qualify (open box, sealed over a
+    // year old) but have no Unique Sell Price in ePASS yet, and units someone
+    // marked held / sold on the old page. A unit already written to an order
+    // in ePASS needs nothing and is left out.
+    const onStore = new Set(outlet.map((u) => u.id));
+    const statuses = await listClearanceStatuses().catch(() => []);
+    const statusById = new Map(statuses.map((st) => [st.itemId, st]));
+    const blocked = shopBrandBlocker();
+    const me = String(req.authUser?.kind === "db" ? req.authUser.email : "").toLowerCase();
+    const outletOff = [];
+    for (const i of liveList?._meta?.live ? liveList.items : []) {
+      if (onStore.has(i.id) || i.epass?.writtenTo) continue;
+      const st = statusById.get(i.id);
+      const why = st ? "marked" : i.price == null ? "needsPrice" : "";
+      if (!why) continue; // priced and unmarked but off the store: a blocked brand, sold online, or the shop is paused — nothing to do here
+      outletOff.push({
+        id: i.id, model: i.model, serial: i.serial, serialType: i.serialType || "", brand: i.brand, description: i.description, categoryLabel: catLabels[i.category] || i.category,
+        why, rule: i.rule, ruleLabel: i.ruleLabel || "", days: i.days ?? null, received: i.received || "", location: i.location || "", bin: i.bin || "",
+        list: i.list ?? null, tagPrice: i.tagPrice ?? null, price: i.price ?? null,
+        notOnline: blocked(i.brand, i.brandCode), // a brand that is never sold online still wants a price for the floor
+        ...(st ? { mark: { status: st.status, byName: st.byName || st.byEmail || "", salesOrder: st.salesOrder || "", heldUntil: st.heldUntil || "", at: st.at || "", canRelease: st.status !== "web" && Boolean(exec || (me && st.byEmail === me)) } } : {}), // a web-order lock is released by its order, never from here
+        ...(exec ? { cost: i.cost ?? null } : {})
+      });
+    }
+    return res.json({ models, outlet, outletOff, exec, modelPhotos: catalog.modelPhotos || {}, modelPhotoMax: MODEL_PHOTO_MAX, brands: distinct((m) => m.brand), merchClasses: distinct((m) => m.merchClass), merchCategories: distinct((m) => m.merchCategory),
       netsuiteModels: models.filter((m) => m.netsuite).length, snapshot: catalog.snapshot, paused: catalog.paused, lowMax: SHOP_STOCK_LOW_MAX, blockedBrands: shopBlockedBrandEntries,
       mapExempt: catalog.mapExemptStats || null });
   } catch (err) {

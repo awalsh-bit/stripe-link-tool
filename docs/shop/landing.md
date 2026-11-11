@@ -69,3 +69,15 @@ shop.html's functionality (ZIP gate, profile unlock, cart, checkout, fulfillment
 ## Inventory freshness
 
 The storefront's stock comes from the ePASS ODBC pull on WILSON-EPASS01 (Task Scheduler "Agility ePASS pull": 6:00 AM, repeat every 15 minutes for 14 hours, pushed by the agent as soon as each pull finishes). The shop catalog cache rebuilds within a minute of a push while the shop is being used. The Dispatch Board header shows the age of the last push ("ePASS feed … min ago"), which is the quickest way to confirm the schedule is running.
+
+## shop.html: no headline, and what "Best Sellers" means (11/11)
+
+The "Better choices, already made" headline above the Top Deals cards on `shop.html` is gone — shoppers arriving from an ad land straight on the cards. (The same line still greets people on the ZIP gate.)
+
+**Sort: Best Sellers** now depends on what is on screen:
+
+- **The whole store** (nothing picked): brands by units delivered over the last 12 months, the house brand first, then each brand's models by their own units. Unchanged from 9/28.
+- **Inside a Top Deals card, a department or a type**: models by their own units delivered over the last 12 months. A model with no sales yet follows, ordered by how its brand sells *in that same category* (`brandCatSold`), then by the brand overall.
+
+The reason: brand-first ranking inside a card put a brand's only qualifying item on top — a panel-ready KitchenAid undercounter led Refrigerators because KitchenAid sells a lot of dishwashers. `shopSalesRank()` in `server.js` now also rolls sales up per brand and shop category (`byBrandCat`), and `/api/shop/catalog` sends it per item as `brandCatSold`.
+

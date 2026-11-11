@@ -127,6 +127,19 @@
     .ucard .serial { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; color: var(--muted); }
     .ucard .when { font-size: 11.5px; color: var(--muted); }
     .ucard.busy { opacity: .6; pointer-events: none; }
+    /* executives only: cost and margin (the server sends these to executives alone) */
+    .exec { color: #6d28d9; }
+    .stock-table .sub.exec, .card .exec { font-size: 12px; font-weight: 600; }
+    .exec.thin { color: #b91c1c; }
+    .tile.exec { background: #f5f3ff; color: inherit; } .tile.exec .v { color: #5b21b6; } .tile.exec .v.thin { color: #b91c1c; }
+    .count.go { cursor: pointer; border: 0; font: inherit; text-align: left; color: inherit; }
+    .count.go:hover { background: rgba(var(--primary-rgb), 0.14); }
+    .count.need { background: #fef3c7; } .count.need:hover { background: #fde68a; }
+    /* needs-a-price / held units: no picture, just what to do */
+    .ocard .why { font-size: 13px; line-height: 1.45; background: #fffbeb; border: 1px solid #fde68a; border-radius: 10px; padding: 8px 10px; color: #78350f; }
+    .ocard .why.mark { background: #f1f5f9; border-color: #e2e8f0; color: #334155; }
+    .ocard .facts { display: flex; gap: 6px 14px; flex-wrap: wrap; font-size: 12.5px; color: #475569; }
+    .ocard .facts b { color: var(--text); }
     .shoot { position: relative; overflow: hidden; display: inline-block; }
     .shoot input[type=file] { position: absolute; inset: 0; opacity: 0; cursor: pointer; font-size: 0; }
     #modelCards { display: none; }
@@ -169,7 +182,7 @@
     .d-photo-actions .wide { grid-column: 1 / -1; }
     .d-hint { font-size: 12px; color: var(--muted); line-height: 1.5; margin: 10px 0 0; }
     .d-photo.busy { opacity: 0.6; pointer-events: none; }
-    .tiles { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin-bottom: 16px; }
+    .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(118px, 1fr)); gap: 8px; margin-bottom: 16px; }
     .tile { background: rgba(var(--primary-rgb), 0.06); border-radius: 10px; padding: 9px 10px; }
     .tile .v { font-size: 16px; font-weight: 800; line-height: 1.25; }
     .tile .l { font-size: 10.5px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; margin-top: 2px; }
@@ -223,8 +236,8 @@
           The store posts in-stock models automatically: <b>2–3 units</b> show <b>Low Stock</b>, <b>4 or more</b> show <b>In Stock</b>,
           a <b>single</b> unit stays off until you turn on <i>Show when only one</i>. Price defaults to the model's <b>RETAIL</b> price in ePASS.
           Pictures you add replace the catalog thumbnail — <b>Actual photos</b> (ours; the shop marks them <i>Actual product photo</i>)
-          and <b>Supplier assets</b> (the maker's own images), as many of either as you like; the first is the card picture. <b>Outlet units</b> are the open-box and floor serials; a phone picture of one
-          becomes that unit's card. Brands that don't allow e-commerce, delivery ZIPs and the same-day program live on <a href="shop-orders.html">Online Shop Orders</a>.
+          and <b>Supplier assets</b> (the maker's own images), as many of either as you like; the first is the card picture. <b>Outlet units</b> are the open-box serials and any sealed unit with its own
+          Unique Sell Price in ePASS; a phone picture of one becomes that unit's card, and <i>Needs a price</i> lists the ones ePASS hasn't priced yet. Brands that don't allow e-commerce, delivery ZIPs and the same-day program live on <a href="shop-orders.html">Online Shop Orders</a>.
         </p>
       </div>
       <div class="counts" id="counts"></div>
@@ -257,7 +270,9 @@
           <option value="nophoto">Needs a photo</option>
           <option value="photo">Has a photo</option>
           <option value="open">Open box</option>
-          <option value="display">Floor models</option>
+          <option value="sealed">Sealed, unique price</option>
+          <option value="needs">Needs a price</option>
+          <option value="marked">Held / marked sold</option>
         </select>
         <button type="button" class="clear" id="fClear">Clear filters</button>
         <span class="meta" id="stockStatus"></span>
@@ -307,6 +322,10 @@
     // opens to edit it — the Inventory Lookup pattern. The drawer also sets
     // the model's pictures by hand: any number of Actual photos and Supplier
     // assets; the first one is the card picture.
+    // 11/11 (later): the Clearance Hit List page is retired. Its worklist
+    // lives on the Outlet tab — "Needs a price" (no Unique Sell Price in ePASS)
+    // and "Held / marked sold" — and executives see cost and margin here
+    // (the server only sends those figures to an executive).
     // ------------------------------------------------------------------
     (function () {
       let data = null;
@@ -341,6 +360,12 @@
       const picSource = (m) => m.photo ? m.photo.kind : m.image ? "catalog" : "none";
       const isCustom = (m) => m.settings.price != null || m.settings.showSingle || m.settings.hidden || m.settings.badge || m.settings.hideStockBadge || m.settings.mapExempt || !!m.photo;
       const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
+      // Cost and margin: only present when the server recognised an executive.
+      const THIN_MARGIN = 10; // percent — below this the figure turns red
+      const marginText = (pct, dollars) => pct == null ? "" : `${pct.toFixed(1)}% margin${dollars != null ? ` (${money(dollars)})` : ""}`;
+      const marginAt = (price, cost) => Number(price) > 0 && Number(cost) > 0 ? { pct: Math.round(((price - cost) / price) * 1000) / 10, dollars: Math.round((price - cost) * 100) / 100 } : null;
+      const costText = (c) => !c ? "" : c.min !== c.max ? `cost ${money(c.avg)} avg (${money(c.min)}–${money(c.max)})` : `cost ${money(c.avg)}`;
+      const execLine = (m) => !data.exec ? "" : m.cost ? `${m.margin != null ? `<div class="sub exec${m.margin < THIN_MARGIN ? " thin" : ""}" title="Executives only. Margin at the price the shop sells it for.">${esc(m.margin.toFixed(1))}% margin</div>` : ""}<div class="sub exec" title="Executives only. Average cost of the sealed units on hand.">${esc(costText(m.cost))}</div>` : `<div class="sub exec" title="Executives only. The feed has no cost for this model's units.">no cost in ePASS</div>`;
       const kindCount = (list, kind) => (list || []).filter((p) => p.kind === kind).length;
 
       function storePill(m) {
@@ -369,7 +394,7 @@
         if (ns) t.push(`<span class="tag asset">${plural(ns, "supplier asset", "supplier assets")}</span>`);
         return t.length ? t.join("") : '<span class="std">Standard</span>';
       }
-      const priceLine = (m) => `<b>${money(m.settings.price ?? m.listPrice)}</b>${m.settings.price != null ? `<div class="sub">ePASS ${money(m.listPrice)}</div>` : m.listCode ? `<div class="sub">${esc(m.listCode)}</div>` : ""}${m.map && m.map !== (m.settings.price ?? m.listPrice) ? `<div class="sub">MAP ${money(m.map)}</div>` : ""}`;
+      const priceLine = (m) => `<b>${money(m.settings.price ?? m.listPrice)}</b>${m.settings.price != null ? `<div class="sub">ePASS ${money(m.listPrice)}</div>` : m.listCode ? `<div class="sub">${esc(m.listCode)}</div>` : ""}${m.map && m.map !== (m.settings.price ?? m.listPrice) ? `<div class="sub">MAP ${money(m.map)}</div>` : ""}${execLine(m)}`;
       const unitsLine = (m) => `${m.available}${m.inStock !== m.available ? ` <span class="sub" style="display:inline;">of ${m.inStock}</span>` : ""}${m.held ? `<div class="sub">+${m.held} held</div>` : ""}`;
 
       function renderModels(rows) {
@@ -395,6 +420,7 @@
             <div class="head">${thumb(m.image, picSource(m), m.model, (m.photos || []).length)}<div class="who"><div class="model">${esc(m.model)}</div><div class="brand">${esc(m.brand)}${m.merchClass ? ` · ${esc(m.merchClass)}` : ""}</div></div><div class="chips">${storePill(m)}</div></div>
             <div class="desc">${esc(m.description)}</div>
             <div class="row"><span class="price">${money(m.settings.price ?? m.listPrice)}<small>${m.settings.price != null ? "override" : "ePASS " + esc(m.listCode || "price")}</small></span><span class="meta">${m.available} available${m.held ? ` · ${m.held} held` : ""}</span></div>
+            ${execLine(m).split('class="sub exec').join('class="exec')}
             <div class="foot"><div class="setup">${setupTags(m)}</div><span class="go">Edit ›</span></div>
           </div>`).join("") + (rows.length > 200 ? `<p class="meta">Showing the first 200 of ${rows.length} — narrow the search to see the rest.</p>` : "") || '<p class="meta">Nothing matches.</p>';
         const missing = all.length - (data.netsuiteModels || 0);
@@ -408,8 +434,22 @@
         if (mode === "nophoto") return !u.photoActual;
         if (mode === "photo") return u.photoActual;
         if (mode === "open") return u.serialType === "OPEN";
-        if (mode === "display") return u.serialType === "DISPLAY";
+        if (mode === "sealed") return u.serialType === "ALL";
         return true;
+      }
+      // Off-store units from the retired Clearance Hit List: no Unique Sell
+      // Price in ePASS yet, or held / marked sold on the old page.
+      const offMode = () => ["needs", "marked"].includes($("fPhoto").value) ? $("fPhoto").value : "";
+      function renderOutletOff(units, mode) {
+        $("outletCards").innerHTML = units.map((u) => { const m = u.mark; return `<div class="card ocard" data-id="${esc(u.id)}" data-model="${esc(u.model)}" data-serial="${esc(u.serial)}">
+            <div class="top"><div><div class="model">${esc(u.model)}</div><div class="brand">${esc(u.brand)} · ${esc(u.categoryLabel)}</div></div><div class="chips"><span class="pill open">${u.rule === "open" ? "Open box" : u.rule === "aged" ? esc(u.ruleLabel) : "Unique price"}</span>${u.notOnline ? '<span class="pill off" title="This brand is never sold online — the price is for the floor">not sold online</span>' : ""}</div></div>
+            <div class="desc">${esc(u.description)}</div>
+            <div class="facts"><span class="serial">S/N ${esc(u.serial)}</span>${u.location || u.bin ? `<span>Loc <b>${esc([u.location, u.bin].filter(Boolean).join(" / "))}</b></span>` : ""}${u.received ? `<span>Received <b>${esc(u.received)}</b></span>` : ""}</div>
+            <div class="facts">${u.list != null ? `<span>ePASS price <b>${money(u.list)}</b></span>` : ""}${u.tagPrice != null ? `<span>Tag <b>${money(u.tagPrice)}</b></span>` : ""}${u.price != null ? `<span>Unique sell price <b>${money(u.price)}</b></span>` : ""}${data.exec ? `<span class="exec" title="Executives only">${u.cost != null ? `Cost <b class="exec">${money(u.cost)}</b>${marginAt(u.price, u.cost) ? ` · ${marginText(marginAt(u.price, u.cost).pct, marginAt(u.price, u.cost).dollars)}` : ""}` : "no cost in ePASS"}</span>` : ""}</div>
+            ${m ? `<div class="why mark">${m.status === "web" ? `<b>On online order ${esc(m.salesOrder || "")}</b> — it comes back by itself if that order is cancelled.` : m.status === "hold" ? `<b>On hold for ${esc(m.byName)}</b>${m.heldUntil ? ` until ${esc(whenText(m.heldUntil))}` : ""} — holds lapse on their own after 24 hours.` : `<b>Marked sold by ${esc(m.byName)}</b>${m.salesOrder ? ` on ${esc(m.salesOrder)}` : ""}${m.at ? `, ${esc(whenText(m.at))}` : ""}. It stays off the shop until the serial leaves ePASS or the mark is released.`}</div>
+              ${m.canRelease ? `<div class="actions"><button type="button" class="ws-btn quiet off-release">Release — put it back on the list</button></div>` : ""}`
+              : `<div class="why">${u.rule === "aged" ? `<b>No Unique Sell Price.</b> It sells as regular stock at the ePASS price until you set one on this serial in ePASS.` : `<b>No Unique Sell Price — not for sale online yet.</b> Set it on this serial in ePASS and it appears on the shop after the next pull.`}</div>`}
+          </div>`; }).join("") || `<p class="meta">${mode === "needs" ? "Every open-box and aged unit has a Unique Sell Price. Nothing to do." : "Nothing is on hold or marked sold."}</p>`;
       }
       function renderOutlet(units) {
         $("outletCards").innerHTML = units.map((u) => { const own = u.photoSource === "unit"; return `<div class="card ucard" data-model="${esc(u.model)}" data-serial="${esc(u.serial)}" data-key="${esc(u.modelKey)}">
@@ -421,6 +461,7 @@
             <div class="top"><div><div class="model">${esc(u.model)}</div><div class="brand">${esc(u.brand)} · ${esc(u.categoryLabel)}</div></div><div class="chips">${u.mapPublic ? '<span class="pill in">price on card</span>' : '<span class="pill off">price in cart</span>'}</div></div>
             <div class="desc">${esc(u.description)}</div>
             <div class="row"><span class="price">${money(u.price)}<small>unit price</small></span><span class="serial">S/N ${esc(u.serial)}</span></div>
+            ${data.exec ? `<div class="exec${u.margin != null && u.margin < THIN_MARGIN ? " thin" : ""}" title="Executives only. This serial's own cost in ePASS.">${u.cost != null ? `${marginText(u.margin, u.marginDollars)} · cost ${money(u.cost)}` : "no cost in ePASS"}</div>` : ""}
             <div class="when">${own ? `This unit's own photo, taken ${esc(whenText(u.photoTakenAt))}` : u.photoSource === "actual" ? "Showing the model's actual photo" : u.photoSource === "supplier" ? "Showing the model's supplier asset" : u.image ? "Showing the catalog thumbnail" : ""}</div>
             <div class="actions">
               <button type="button" class="ws-btn quiet up-model" title="Set the pictures for every card of this model — actual photos and supplier assets">Model pictures…</button>
@@ -445,7 +486,10 @@
           (!pic || picSource(m) === pic) &&
           (!q || `${m.model} ${m.brand} ${m.description} ${m.categoryLabel} ${m.merchClass} ${m.merchCategory} ${m.merchSubclass}`.toUpperCase().includes(q)));
         const outletAll = data.outlet || [];
-        const units = outletAll.filter((u) => (!brand || u.brand === brand) && photoMatch(u, $("fPhoto").value) && (!q || `${u.model} ${u.serial} ${u.brand} ${u.description} ${u.categoryLabel}`.toUpperCase().includes(q)));
+        const off = offMode();
+        const offAll = data.outletOff || [];
+        const needs = offAll.filter((u) => u.why === "needsPrice"), marked = offAll.filter((u) => u.why === "marked");
+        const units = (off === "needs" ? needs : off === "marked" ? marked : outletAll).filter((u) => (!brand || u.brand === brand) && (off || photoMatch(u, $("fPhoto").value)) && (!q || `${u.model} ${u.serial} ${u.brand} ${u.description} ${u.categoryLabel}`.toUpperCase().includes(q)));
         const listed = all.filter((m) => m.listed).length;
         const unitCount = all.reduce((s, m) => s + (m.available || 0), 0);
         const photographed = outletAll.filter((u) => u.photoSource === "unit").length;
@@ -456,6 +500,8 @@
           <div class="count"><b>${listed}</b>on the store</div>
           <div class="count"><b>${unitCount}</b>units for sale</div>
           <div class="count"><b>${outletAll.length}</b>outlet units${photographed ? ` · ${photographed} photographed` : ""}</div>
+          ${needs.length ? `<button type="button" class="count go need" data-go="needs" title="Open-box and aged units with no Unique Sell Price in ePASS — click to list them"><b>${needs.length}</b>need a price ›</button>` : ""}
+          ${marked.length ? `<button type="button" class="count go" data-go="marked" title="Units held, marked sold or on an online order — click to list them"><b>${marked.length}</b>held / marked sold ›</button>` : ""}
           <div class="count" title="Models whose pictures were set by hand on this page"><b>${handPicked.length}</b>models with hand-picked pictures${handPics.length ? ` · ${kindCount(handPics, "actual")} actual, ${kindCount(handPics, "supplier")} supplier` : ""}</div>
           <div class="count"><b>${view === "models" ? rows.length : units.length}</b>shown</div>
           ${data.snapshot?.uploadedAt ? `<div class="count"><b>${esc(whenText(data.snapshot.uploadedAt))}</b>feed snapshot</div>` : ""}
@@ -468,7 +514,7 @@
         $("outletView").style.display = view === "outlet" ? "" : "none";
         for (const id of ["fClass", "fStore", "fPic"]) $(id).style.display = view === "models" ? "" : "none";
         $("fPhoto").style.display = view === "outlet" ? "" : "none";
-        if (view === "models") renderModels(rows); else renderOutlet(units);
+        if (view === "models") renderModels(rows); else if (off) renderOutletOff(units, off); else renderOutlet(units);
       }
 
       async function load() {
@@ -492,6 +538,8 @@
       $("tabModels").addEventListener("click", () => { view = "models"; $("tabModels").classList.add("on"); $("tabOutlet").classList.remove("on"); render(); });
       $("tabOutlet").addEventListener("click", () => { view = "outlet"; $("tabOutlet").classList.add("on"); $("tabModels").classList.remove("on"); render(); });
       if (location.hash === "#outlet") $("tabOutlet").click();
+      if (location.hash === "#needs-price") { $("fPhoto").value = "needs"; $("tabOutlet").click(); }
+      $("counts").addEventListener("click", (e) => { const go = e.target.closest("[data-go]"); if (!go) return; $("fPhoto").value = go.dataset.go; $("tabOutlet").click(); });
 
       // ---- Pictures: shrink in the browser before upload ----
       // Phones and supplier portals hand us 3–9 MB; 1600 px JPEG is a few
@@ -573,6 +621,8 @@
             <div class="tile"><div class="v">${r.available}${r.inStock !== r.available ? ` <span class="meta">of ${r.inStock}</span>` : ""}</div><div class="l">Units for sale</div>${r.held ? `<div class="x">+${r.held} held for tickets</div>` : ""}</div>
             <div class="tile"><div class="v">${money(r.listPrice)}</div><div class="l">ePASS ${esc(r.listCode || "price")}</div></div>
             <div class="tile"><div class="v">${money(r.map)}</div><div class="l">MAP${r.mapCode && r.mapCode !== "RETAIL" ? " · " + esc(r.mapCode) : ""}</div>${r.mapExempt ? `<div class="x">${r.mapExempt === "manual" ? "exempt by hand" : "discontinued — no longer applies"}</div>` : ""}</div>
+            ${data.exec ? `<div class="tile exec" title="Executives only. Average cost of the sealed units on hand."><div class="v">${r.cost ? money(r.cost.avg) : "—"}</div><div class="l">Cost${r.cost && r.cost.units > 1 ? ` · avg of ${r.cost.units}` : ""}</div>${r.cost && r.cost.min !== r.cost.max ? `<div class="x">${money(r.cost.min)} – ${money(r.cost.max)}</div>` : !r.cost ? '<div class="x">none in ePASS</div>' : ""}</div>
+            <div class="tile exec" title="Executives only. Margin at the price in the box below — it follows what you type."><div class="v" id="stMargin">—</div><div class="l">Margin</div><div class="x" id="stMarginAt"></div></div>` : ""}
           </div>
           <form id="dForm" autocomplete="off">
             <div class="field">
@@ -602,6 +652,13 @@
         const p = f.querySelector(".st-price").value;
         const exempt = f.querySelector(".st-exempt").checked || (r.mapExempt && r.mapExempt !== "manual");
         $("stPriceNote").textContent = p === "" ? "" : r.map && Number(p) < r.map && !exempt ? `Below MAP ${money(r.map)} — shows in the cart only.` : "Shows on the card.";
+        if (data.exec && $("stMargin")) { // margin at the price being typed (or the ePASS price when the box is blank)
+          const at = p === "" ? r.listPrice : Number(p);
+          const mg = r.cost ? marginAt(at, r.cost.avg) : null;
+          $("stMargin").textContent = mg ? `${mg.pct.toFixed(1)}%` : "—";
+          $("stMargin").classList.toggle("thin", !!mg && mg.pct < THIN_MARGIN);
+          $("stMarginAt").textContent = mg ? `${money(mg.dollars)} at ${money(at)}` : "";
+        }
       }
       const formValues = (f) => ({ price: f.querySelector(".st-price").value.trim(), showSingle: f.querySelector(".st-single").checked, hidden: f.querySelector(".st-hidden").checked,
         badge: f.querySelector(".st-badge").value.trim(), badgeStyle: f.querySelector(".st-badge-style").value, hideStockBadge: f.querySelector(".st-nostock").checked, mapExempt: f.querySelector(".st-exempt").checked });
@@ -731,6 +788,19 @@
         uploadUnitPhoto(input.closest(".ucard"), input.files[0]);
       });
       $("outletCards").addEventListener("click", async (e) => {
+        const rel = e.target.closest(".off-release");
+        if (rel) {
+          const oc = rel.closest(".ocard");
+          if (!confirm(`Release ${oc.dataset.model} S/N ${oc.dataset.serial}? If it has a Unique Sell Price it goes back on the shop.`)) return;
+          rel.disabled = true;
+          try {
+            const res = await fetch("/api/clearance/release", { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ itemId: oc.dataset.id }) });
+            const body = await res.json().catch(() => ({}));
+            if (!res.ok) throw new Error(body.error || "Unable to release that unit.");
+            await load(); flash("Released.", 5000);
+          } catch (err) { $("stockStatus").textContent = err.message; rel.disabled = false; }
+          return;
+        }
         const card = e.target.closest(".ucard");
         if (!card) return;
         if (e.target.closest(".up-model")) { openDrawer(card.dataset.key); return; }

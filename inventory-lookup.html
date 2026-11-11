@@ -299,6 +299,9 @@
       for (const id of ["incLikely", "incDisplay"]) { $(id).disabled = !on; if (!on) $(id).checked = false; $(id + "Row").classList.toggle("off", !on); }
     }
     $("atsOnly").addEventListener("change", syncSubs);
+    // The retired Clearance Hit List forwards here as ?closeout=1 (11/11):
+    // arrive with Closeouts already switched on.
+    if (/^(1|true|yes)$/i.test(new URLSearchParams(location.search).get("closeout") || "")) $("closeout").checked = true;
     for (const id of ["mModel", "mBrand", "mDesc", "atsOnly", "incLikely", "incDisplay", "closeout", "displays", "sort"]) $(id).addEventListener("change", search);
     $("clearBtn").addEventListener("click", () => { for (const id of ["qModel", "qBrand", "qDesc"]) $(id).value = ""; for (const id of ["mModel", "mBrand", "mDesc"]) $(id).value = "contains"; $("cat").value = ""; cascade(0); $("cls").value = ""; cascade(1); $("sub").value = ""; $("atsOnly").checked = false; $("incLikely").checked = false; $("incDisplay").checked = false; syncSubs(); $("closeout").checked = false; $("displays").checked = false; $("sort").value = ""; search(); });
 
@@ -360,7 +363,7 @@
         const units = p.units.length ? `<div class="sec">Inventory on hand <span class="mut" style="text-transform:none; letter-spacing:0; font-weight:500;">(ePASS feed)</span></div>` + unitCards + `
           <table class="t u-table"><thead><tr><th>Status</th><th>Order</th><th>Customer</th><th>Schedule / pickup</th><th>Job status</th><th>Received</th><th>Age</th><th>Loc / bin</th><th>Serial type</th><th>Serial #</th></tr></thead>
           <tbody>${p.units.map((u) => `<tr class="u-${u.status}">
-              <td><span class="pill ${u.status === "available" ? "avail" : u.status}">${esc(u.statusLabel)}</span>${u.closeout ? ` <span class="pill close" title="Qualifies for the Clearance Hit List">closeout · ${esc(u.closeout)}${u.uniquePrice ? " · " + money(u.uniquePrice) : ""}</span>` : ""}${u.note ? `<div class="note">${esc(u.note)}</div>` : ""}${u.reservedOn ? `<div class="mut">since ${day(u.reservedOn)}</div>` : ""}${askHtml(p, u)}</td>
+              <td><span class="pill ${u.status === "available" ? "avail" : u.status}">${esc(u.statusLabel)}</span>${u.closeout ? ` <span class="pill close" title="Closeout unit: open box, sealed over a year old, or sealed with its own Unique Sell Price">closeout · ${esc(u.closeout)}${u.uniquePrice ? " · " + money(u.uniquePrice) : ""}</span>` : ""}${u.note ? `<div class="note">${esc(u.note)}</div>` : ""}${u.reservedOn ? `<div class="mut">since ${day(u.reservedOn)}</div>` : ""}${askHtml(p, u)}</td>
               <td class="mono">${esc(u.writtenTo || "—")}</td>
               <td>${esc(u.customer || "—")}${u.salesperson ? `<div class="mut">${esc(u.salesperson)}</div>` : ""}</td>
               <td>${u.scheduleDate ? day(u.scheduleDate) : u.pickupDate ? day(u.pickupDate) + ` <span class="mut">pickup</span>` : "—"}</td>

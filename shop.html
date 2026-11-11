@@ -778,10 +778,10 @@
     <div class="map-note" id="pausedNote" style="display:none; background:#fef3c7; border-color:#fde68a; color:#92400e;">
       Online ordering is briefly paused while we refresh our inventory. Everything you see is still at the store — call <a href="tel:512-894-0907" style="color:inherit; font-weight:700;">512-894-0907</a> for availability, or check back shortly.
     </div>
-    <div class="hero" id="heroStrip">
-      <h2>Better choices, already made.</h2>
-      <p>Products selected through decades of sales and service experience, in stock for quick delivery.</p>
-    </div>
+    <!-- The headline that sat here ("Better choices, already made…") came off
+         11/11 (Andrew): shoppers arriving from an ad go straight to the Top
+         Deals cards. The empty anchor stays — notices are placed before it. -->
+    <div id="heroStrip"></div>
 
     <section class="deal-grid" id="dealRow" aria-label="Top deals"></section>
     <div class="filters" id="filterBar" style="display:none;">
@@ -1037,9 +1037,11 @@
     promoNotice: "",
     shown: 20, gridSig: "", // tiles built so far (see renderGrid)
     // selection: { label, cats: [category keys], products: [product codes] } | null
-    // sort "best" = brand units sold in the last 12 months (server `brandSold`),
-    // then the model's own `sold`, ties in merchandised order; deal = one of
-    // the category deal chips or "".
+    // sort "best": the whole store = brand units sold in the last 12 months
+    // (server `brandSold`), then the model's own `sold`; inside a deal card
+    // or a department = the model's own `sold` first, then its brand's units
+    // in that category (`brandCatSold`). Ties in merchandised order. deal =
+    // one of the category deal chips or "".
     filter: { search: "", brand: "", selection: null, types: new Set(), deal: "", sort: "best" },
     bestSellers: new Set(),
     checkout: { open: false, stripe: null, elements: null, setupIntentId: "" },
@@ -1372,11 +1374,22 @@
     // to the end either way. Featured keeps the merchandised order.
     const sort = state.filter.sort;
     if (sort === "best") {
-      // Stable sort: brands by units delivered in ePASS over the last 12
-      // months (the house brand leads), then models within the brand by
-      // their own units; anything without sales keeps the merchandised
-      // (featured) order behind them.
-      groups.sort((a, b) => ((Number(b.brandSold) || 0) - (Number(a.brandSold) || 0)) || ((Number(b.sold) || 0) - (Number(a.sold) || 0)));
+      const n = (v) => Number(v) || 0;
+      if (state.filter.deal || state.filter.selection || state.filter.types.size) {
+        // Inside a deal card or a department (11/11): the best sellers of
+        // THAT slice — each model by its own units delivered over the last 12
+        // months. Models with no sales yet follow, by how their brand sells in
+        // the same category, then overall; ties keep the merchandised order.
+        // (Brand-first put a brand's only cheap fridge on top of
+        // Refrigerators because the brand sells a lot of dishwashers.)
+        groups.sort((a, b) => (n(b.sold) - n(a.sold)) || (n(b.brandCatSold) - n(a.brandCatSold)) || (n(b.brandSold) - n(a.brandSold)));
+      } else {
+        // The whole store: brands by units delivered in ePASS over the last
+        // 12 months (the house brand leads), then models within the brand by
+        // their own units; anything without sales keeps the merchandised
+        // (featured) order behind them.
+        groups.sort((a, b) => (n(b.brandSold) - n(a.brandSold)) || (n(b.sold) - n(a.sold)));
+      }
     } else if (sort === "price-asc" || sort === "price-desc") {
       const priceOf = (g) => {
         const p = g.price ?? g.mapDisplayPrice;

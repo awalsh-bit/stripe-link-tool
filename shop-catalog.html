@@ -52,6 +52,9 @@
     .filters input[type=search] { flex: 1; min-width: 220px; }
     .filters select { min-width: 170px; max-width: 280px; }
     .filters .clear { border: none; background: transparent; color: var(--primary); font-weight: 600; font-size: 12.5px; cursor: pointer; font-family: inherit; padding: 4px 6px; }
+    .filters .export { display: inline-flex; align-items: center; gap: 8px; }
+    .filters .export label { display: inline-flex; align-items: center; gap: 5px; font-size: 12.5px; font-weight: 600; cursor: pointer; }
+    .filters .export input { width: 16px; height: 16px; accent-color: #6d28d9; }
     .counts { display: flex; gap: 14px; flex-wrap: wrap; margin-bottom: 10px; }
     .count { background: rgba(var(--primary-rgb), 0.06); border-radius: 12px; padding: 8px 12px; font-size: 12.5px; }
     .count b { font-size: 16px; display: block; }
@@ -275,6 +278,10 @@
           <option value="marked">Held / marked sold</option>
         </select>
         <button type="button" class="clear" id="fClear">Clear filters</button>
+        <span class="export">
+          <button type="button" class="ws-btn quiet" id="exportBtn" title="Download what is listed below as a spreadsheet (CSV)">Export CSV</button>
+          <label class="exec" id="exportCostWrap" style="display:none;" title="Executives only. Leave this off for any file that will leave the building."><input type="checkbox" id="exportCost"> with cost &amp; margin</label>
+        </span>
         <span class="meta" id="stockStatus"></span>
       </div>
       <div id="modelsView">
@@ -515,7 +522,70 @@
         for (const id of ["fClass", "fStore", "fPic"]) $(id).style.display = view === "models" ? "" : "none";
         $("fPhoto").style.display = view === "outlet" ? "" : "none";
         if (view === "models") renderModels(rows); else if (off) renderOutletOff(units, off); else renderOutlet(units);
+        // what Export CSV will write: exactly the list on screen
+        exportSet = view === "models" ? { kind: "models", rows } : { kind: off === "needs" ? "needs-a-price" : off === "marked" ? "held" : "outlet", rows: units };
+        $("exportBtn").textContent = `Export CSV (${exportSet.rows.length})`;
+        $("exportBtn").disabled = !exportSet.rows.length;
+        $("exportCostWrap").style.display = data.exec ? "" : "none";
       }
+
+      // ---- Export CSV (11/11) ----
+      // Writes the list on screen — whichever tab and filters are in force —
+      // as a spreadsheet. Built in the browser from what the page already
+      // holds, so cost and margin can only ever appear for an executive, and
+      // only when they tick the box (a file like this tends to get forwarded).
+      let exportSet = { kind: "models", rows: [] };
+      const yn = (v) => (v ? "Yes" : "No");
+      const picLabel = { none: "None", catalog: "Catalog thumbnail", supplier: "Supplier asset", actual: "Actual photo", unit: "This unit's own photo", "": "Catalog thumbnail" };
+      function exportColumns(kind, withCost) {
+        if (kind === "models") return [
+          ["Model", (m) => m.model], ["Brand", (m) => m.brand], ["Brand code", (m) => m.brandCode], ["Description", (m) => m.description],
+          ["Merch category", (m) => m.merchCategory], ["Merch class", (m) => m.merchClass], ["Merch subclass", (m) => m.merchSubclass], ["Shop department", (m) => m.categoryLabel],
+          ["On the store", (m) => yn(m.listed)], ["Store status", (m) => m.listed ? (m.available > data.lowMax ? "In Stock" : "Low Stock") : "Off"], ["Off because", (m) => m.listed ? "" : m.reason],
+          ["Units for sale", (m) => m.available], ["Sealed units on hand", (m) => m.inStock], ["Held for tickets", (m) => m.held || 0],
+          ["Selling price", (m) => m.settings.price ?? m.listPrice], ["ePASS price", (m) => m.listPrice], ["ePASS price code", (m) => m.listCode], ["MAP", (m) => m.map], ["MAP code", (m) => m.mapCode],
+          ["Override price", (m) => m.settings.price], ["Override below MAP", (m) => m.settings.price != null && m.map ? yn(m.settings.price < m.map) : ""],
+          ["MAP exempt", (m) => m.mapExempt === "manual" ? "By hand" : m.mapExempt === "netsuite" ? "Discontinued (NetSuite)" : m.mapExempt ? "Discontinued (ePASS)" : "No"],
+          ["Show when only one", (m) => yn(m.settings.showSingle)], ["Hidden", (m) => yn(m.settings.hidden)], ["Chip", (m) => m.settings.badge], ["Chip color", (m) => m.settings.badge ? m.settings.badgeStyle || "red" : ""], ["No stock chip", (m) => yn(m.settings.hideStockBadge)],
+          ["Card picture", (m) => picLabel[picSource(m)]], ["Actual photos", (m) => kindCount(m.photos, "actual")], ["Supplier assets", (m) => kindCount(m.photos, "supplier")],
+          ...(withCost ? [["Cost (avg)", (m) => m.cost?.avg], ["Cost low", (m) => m.cost?.min], ["Cost high", (m) => m.cost?.max], ["Units costed", (m) => m.cost?.units], ["Margin %", (m) => m.margin], ["Margin $", (m) => m.marginDollars]] : [])
+        ];
+        const unitBase = [["Model", (u) => u.model], ["Serial", (u) => u.serial], ["Serial type", (u) => u.serialType], ["Brand", (u) => u.brand], ["Description", (u) => u.description], ["Shop department", (u) => u.categoryLabel], ["Why it is an outlet unit", (u) => u.ruleLabel]];
+        if (kind === "outlet") return [...unitBase,
+          ["Unit price", (u) => u.price], ["Price shows", (u) => u.mapPublic ? "On the card" : "In the cart"], ["Card picture", (u) => picLabel[u.photoSource || (u.image ? "" : "none")]],
+          ...(withCost ? [["Cost", (u) => u.cost], ["Margin %", (u) => u.margin], ["Margin $", (u) => u.marginDollars]] : [])];
+        return [...unitBase, // needs-a-price / held
+          ["Status", (u) => u.mark ? (u.mark.status === "web" ? "On an online order" : u.mark.status === "hold" ? "On hold" : "Marked sold") : "Needs a Unique Sell Price"],
+          ["Marked by", (u) => u.mark?.byName], ["Order", (u) => u.mark?.salesOrder], ["Marked at", (u) => u.mark?.at ? whenText(u.mark.at) : ""],
+          ["Sold online", (u) => yn(!u.notOnline)], ["Location", (u) => u.location], ["Bin", (u) => u.bin], ["Received", (u) => u.received],
+          ["ePASS price", (u) => u.list], ["Tag price", (u) => u.tagPrice], ["Unique sell price", (u) => u.price],
+          ...(withCost ? [["Cost", (u) => u.cost]] : [])];
+      }
+      // One CSV cell: numbers bare, text quoted; a text cell that a
+      // spreadsheet would run as a formula (= + @, or - that isn't a number)
+      // gets a leading apostrophe.
+      function csvCell(v) {
+        if (v == null || v === "") return "";
+        if (typeof v === "number") return Number.isFinite(v) ? String(v) : "";
+        let t = String(v).replace(/\r?\n/g, " ");
+        if (/^[=+@]/.test(t) || (/^-/.test(t) && !/^-\d+(\.\d+)?$/.test(t))) t = "'" + t;
+        return /[",]/.test(t) || /^\s|\s$/.test(t) ? `"${t.replace(/"/g, '""')}"` : t;
+      }
+      function exportCsv() {
+        if (!exportSet.rows.length) return;
+        const withCost = Boolean(data.exec && $("exportCost").checked);
+        const cols = exportColumns(exportSet.kind, withCost);
+        const lines = [cols.map(([h]) => csvCell(h)).join(","), ...exportSet.rows.map((r) => cols.map(([, f]) => csvCell(f(r))).join(","))];
+        const blob = new Blob(["\ufeff" + lines.join("\r\n") + "\r\n"], { type: "text/csv;charset=utf-8" }); // BOM so Excel reads accents and dashes
+        const day = new Date().toLocaleDateString("en-CA"); // YYYY-MM-DD, local
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(blob);
+        a.download = `express-assortment-${exportSet.kind}-${day}${withCost ? "-with-cost" : ""}.csv`;
+        document.body.appendChild(a); a.click(); a.remove();
+        setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+        flash(`Exported ${plural(exportSet.rows.length, "row", "rows")}${withCost ? " with cost and margin — keep that file in-house" : ""}.`);
+      }
+      $("exportBtn").addEventListener("click", exportCsv);
 
       async function load() {
         const status = $("stockStatus");

@@ -57,3 +57,11 @@ What was only on that page now lives on the Outlet tab's filter:
 
 For an executive, `GET /api/shop/stock-models` adds `exec: true`, a `cost` per model (average of the sealed serials on hand, with low and high when they differ) with `margin` / `marginDollars` at the price the shop sells it for, and each outlet serial's own cost and margin. The figures are added in that route only — never to the shared catalog the storefront reads — and `/api/clearance` blanks them for everyone else. On the page they show in purple: under the price in each row, as two tiles in the drawer (the margin tile follows the override as it is typed and turns red under 10%), and on outlet and needs-a-price cards. Nobody else is sent the numbers.
 
+## Export CSV (11/11)
+
+**Export CSV (N)** beside the filters downloads exactly the list on screen — the Models tab with whatever search and filters are in force, or the Outlet tab's current view (on the store, Needs a price, Held / marked sold). The count on the button is the number of rows it will write. The file is built in the browser from what the page already holds (`exportColumns()` in `shop-catalog.html` is the column list), with a byte-order mark so Excel opens it cleanly, named `express-assortment-<list>-<date>.csv`.
+
+Models columns: model, brand, description, the three merch levels, shop department, on the store / status / why off, units for sale / on hand / held, selling price, ePASS price and code, MAP and code, override, below MAP, MAP exempt, the switches, chip, card picture, and counts of actual photos and supplier assets.
+
+Cost and margin are left out unless an executive ticks **with cost & margin** (the box only exists for executives, and nobody else's page holds the numbers). That file's name ends in `-with-cost`; it should not be forwarded outside the company.
+

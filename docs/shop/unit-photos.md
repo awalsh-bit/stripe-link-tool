@@ -4,7 +4,7 @@
 
 ## Where
 
-Express Assortment Catalog (`shop-catalog.html`) → **Outlet units** tab. One card per open-box / floor-model / unique-priced serial that is on the store, with its current picture, serial, unit price and whether the price shows on the card. **Take photo** opens the phone camera (`<input type="file" accept="image/*" capture="environment">`); the page shrinks the picture to 1600 px JPEG in the browser (a 6 MB phone shot becomes ~100–300 KB) and posts it. **Retake** replaces it, **Remove photo** goes back to the catalog render. Filter: needs a photo / has a photo / open box / floor models. The page is also card-based on a phone for the Models tab (same switches as the desktop table: override price, show if 1, hidden, chip, no stock chip, MAP exempt).
+Express Assortment Catalog (`shop-catalog.html`) → **Outlet units** tab. One card per open-box / floor-model / unique-priced serial that is on the store, with its current picture, serial, unit price and whether the price shows on the card. **Take photo** opens the phone camera (`<input type="file" accept="image/*" capture="environment">`); the page shrinks the picture to 1600 px JPEG in the browser (a 6 MB phone shot becomes ~100–300 KB) and posts it. **Retake** replaces it, **Remove photo** goes back to the catalog render. Filter: needs a photo / has a photo / open box / floor models. **Model pictures…** on a card sets pictures for the whole model instead (see `model-photos.md`); a unit's own photo still leads on that unit's card, with the model's pictures after it.
 
 ## What the shop does with it
 

@@ -55,21 +55,34 @@
     .counts { display: flex; gap: 14px; flex-wrap: wrap; margin-bottom: 10px; }
     .count { background: rgba(var(--primary-rgb), 0.06); border-radius: 12px; padding: 8px 12px; font-size: 12.5px; }
     .count b { font-size: 16px; display: block; }
-    .stock-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
-    .stock-table th, .stock-table td { padding: 7px 8px; border-bottom: 1px solid #edf1f7; text-align: left; vertical-align: middle; white-space: nowrap; }
-    .stock-table th { font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); position: sticky; top: 0; background: #fff; }
-    .stock-table td.desc { white-space: normal; max-width: 260px; min-width: 160px; color: #374151; }
-    .stock-table td.cls { white-space: normal; max-width: 160px; color: #374151; }
-    .stock-table td.store { white-space: normal; min-width: 150px; max-width: 200px; }
-    .stock-table td.store .pill.off { white-space: normal; line-height: 1.35; display: inline-block; }
-    .stock-table th:first-child, .stock-table td:first-child { position: sticky; left: 0; background: #fff; z-index: 1; box-shadow: 1px 0 0 #edf1f7; }
-    .stock-table th:first-child { z-index: 2; }
-    .stock-table th.ctr, .stock-table td.ctr { text-align: center; }
-    .stock-table input[type=number] { width: 84px; border: 1px solid var(--border); border-radius: 8px; padding: 5px 7px; font-size: 12.5px; }
-    .stock-table .chipcell { white-space: nowrap; }
-    .stock-table .st-badge { width: 130px; border: 1px solid var(--border); border-radius: 8px; padding: 5px 7px; font-size: 12.5px; }
-    .stock-table .st-badge-style { border: 1px solid var(--border); border-radius: 8px; padding: 5px 6px; font-size: 12px; margin-left: 4px; }
-    .eye-prev { display: inline-block; margin-left: 6px; border-radius: 999px; padding: 2px 8px; font-size: 10px; font-weight: 800; letter-spacing: 0.04em; text-transform: uppercase; color: #fff; vertical-align: middle; }
+    /* Models list — read-only rows that show each model's current setup;
+       click one to edit it in the drawer (the Inventory Lookup pattern).
+       Nothing in a row is wider than the page, so it never scrolls sideways. */
+    .stock-table { width: 100%; border-collapse: collapse; font-size: 13px; table-layout: fixed; }
+    .stock-table th, .stock-table td { padding: 9px 10px; border-bottom: 1px solid #edf1f7; text-align: left; vertical-align: middle; overflow-wrap: anywhere; }
+    .stock-table th { font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); position: sticky; top: 0; background: #fff; z-index: 1; }
+    .stock-table col.c-pic { width: 76px; } .stock-table col.c-model { width: 16%; } .stock-table col.c-desc { width: 26%; }
+    .stock-table col.c-units { width: 84px; } .stock-table col.c-store { width: 132px; } .stock-table col.c-price { width: 128px; } .stock-table col.c-edit { width: 62px; }
+    .stock-table tbody tr { cursor: pointer; }
+    .stock-table tbody tr:hover, .stock-table tbody tr:focus-visible { background: rgba(var(--primary-rgb), 0.05); outline: none; }
+    .stock-table tbody tr:focus-visible td:first-child { box-shadow: inset 3px 0 0 var(--primary); }
+    .stock-table .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-weight: 800; font-size: 13.5px; }
+    .stock-table .sub { font-size: 12px; color: var(--muted); margin-top: 2px; }
+    .stock-table td.desc { color: #374151; line-height: 1.35; }
+    .stock-table td.price b { font-size: 14px; }
+    .stock-table td.edit { text-align: right; color: var(--primary); font-weight: 700; font-size: 12.5px; white-space: nowrap; }
+    .thumb { width: 56px; height: 56px; border-radius: 10px; background: #f3f4f6; border: 1px solid #edf1f7; display: flex; align-items: center; justify-content: center; overflow: hidden; position: relative; flex: none; }
+    .thumb img { width: 100%; height: 100%; object-fit: contain; display: block; background: #fff; }
+    .thumb.actual img { object-fit: cover; }
+    .thumb .none { font-size: 9.5px; color: var(--muted); text-align: center; line-height: 1.2; padding: 2px; }
+    .thumb .src { position: absolute; left: 0; right: 0; bottom: 0; font-size: 8.5px; font-weight: 800; letter-spacing: 0.04em; text-transform: uppercase; text-align: center; color: #fff; padding: 1px 0; }
+    .thumb .src.actual { background: rgba(17, 24, 39, 0.86); } .thumb .src.supplier { background: rgba(29, 78, 216, 0.88); }
+    .setup { display: flex; gap: 5px; flex-wrap: wrap; align-items: center; }
+    .setup .std { color: var(--muted); font-size: 12px; }
+    .tag { display: inline-block; border-radius: 7px; padding: 2px 8px; font-size: 11.5px; font-weight: 600; background: #f1f5f9; color: #334155; white-space: nowrap; }
+    .tag.price { background: #ecfdf5; color: #065f46; } .tag.warn { background: #fef3c7; color: #92400e; } .tag.off { background: #fee2e2; color: #991b1b; }
+    .tag.photo { background: #111827; color: #fff; } .tag.asset { background: #dbeafe; color: #1e40af; }
+    .eye-prev { display: inline-block; border-radius: 999px; padding: 2px 8px; font-size: 10px; font-weight: 800; letter-spacing: 0.04em; text-transform: uppercase; color: #fff; vertical-align: middle; }
     .eye-prev.red { background: #dc2626; } .eye-prev.amber { background: #d97706; } .eye-prev.green { background: #15803d; } .eye-prev.blue { background: #1d4ed8; } .eye-prev.purple { background: #7e22ce; } .eye-prev.black { background: #111827; }
     .pill { display: inline-block; border-radius: 999px; padding: 2px 9px; font-size: 11px; font-weight: 700; }
     .pill.in { background: #dcfce7; color: #166534; }
@@ -82,28 +95,28 @@
     .ws-btn.primary { background: var(--primary); color: #fff; }
     .ws-btn.quiet { background: #fff; color: #374151; border: 1px solid var(--border); }
     .ws-btn.danger { background: #fff; color: #b91c1c; border: 1px solid #fecaca; }
-    .table-wrap { overflow: auto; max-height: 72vh; border: 1px solid #edf1f7; border-radius: 12px; }
+    .table-wrap { overflow-y: auto; overflow-x: hidden; max-height: 72vh; border: 1px solid #edf1f7; border-radius: 12px; }
 
     /* Cards — the Inventory Lookup pattern. Models use cards on a phone;
        outlet units use cards everywhere (the picture is the point). */
     .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 12px; }
     .card { border: 1px solid var(--border); border-radius: 14px; padding: 12px 14px; background: #fff; display: flex; flex-direction: column; gap: 8px; }
     .card .top { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }
-    .card .model { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-weight: 800; font-size: 16px; letter-spacing: 0.01em; }
+    .card .model { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-weight: 800; font-size: 16px; letter-spacing: 0.01em; overflow-wrap: anywhere; }
     .card .brand { font-size: 12px; color: var(--muted); margin-top: 1px; }
     .card .desc { font-size: 14px; color: #334155; line-height: 1.35; }
     .card .chips { display: flex; gap: 5px; flex-wrap: wrap; justify-content: flex-end; }
     .card .row { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; font-size: 13px; }
     .card .price { font-size: 18px; font-weight: 800; }
     .card .price small { display: block; font-size: 10px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
-    .card .ctl { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 12px; font-size: 13px; border-top: 1px solid #edf1f7; padding-top: 10px; }
-    .card .ctl label { display: flex; align-items: center; gap: 7px; }
-    .card .ctl label.full { grid-column: 1 / -1; }
-    .card .ctl input[type=number], .card .ctl input[type=text], .card .ctl select { border: 1px solid var(--border); border-radius: 8px; padding: 7px 8px; font-size: 14px; font-family: inherit; }
-    .card .ctl input[type=number] { width: 110px; }
-    .card .ctl input[type=text] { flex: 1; min-width: 0; }
-    .card .ctl input[type=checkbox] { width: 18px; height: 18px; accent-color: var(--primary); }
     .card .actions { display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; }
+    /* model card (phone): a summary you tap to edit */
+    .mcard { cursor: pointer; -webkit-tap-highlight-color: transparent; }
+    .mcard:active { background: rgba(var(--primary-rgb), 0.05); }
+    .mcard .head { display: flex; gap: 12px; align-items: flex-start; }
+    .mcard .head .who { flex: 1; min-width: 0; }
+    .mcard .foot { display: flex; justify-content: space-between; align-items: center; gap: 10px; border-top: 1px solid #edf1f7; padding-top: 9px; }
+    .mcard .foot .go { color: var(--primary); font-weight: 700; font-size: 13px; white-space: nowrap; }
     /* outlet unit card */
     .ucard .pic { position: relative; border-radius: 10px; overflow: hidden; background: #f3f4f6; aspect-ratio: 4 / 3; display: flex; align-items: center; justify-content: center; }
     .ucard .pic img { width: 100%; height: 100%; object-fit: contain; display: block; }
@@ -113,13 +126,86 @@
     .ucard .pic .pill.open { position: absolute; left: 8px; top: 8px; }
     .ucard .serial { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; color: var(--muted); }
     .ucard .when { font-size: 11.5px; color: var(--muted); }
-    .ucard .shoot { position: relative; overflow: hidden; }
-    .ucard .shoot input[type=file] { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
     .ucard.busy { opacity: .6; pointer-events: none; }
+    .shoot { position: relative; overflow: hidden; display: inline-block; }
+    .shoot input[type=file] { position: absolute; inset: 0; opacity: 0; cursor: pointer; font-size: 0; }
     #modelCards { display: none; }
-    @media (max-width: 900px) {
+
+    /* Edit drawer */
+    .overlay { position: fixed; inset: 0; background: rgba(15, 23, 42, 0.5); z-index: 300; display: none; overflow-y: auto; padding: 28px 16px; overscroll-behavior: contain; }
+    .overlay.show { display: block; }
+    body.drawer-open { overflow: hidden; }
+    .drawer { background: #fff; border-radius: 16px; width: min(980px, 100%); margin: 0 auto; box-shadow: 0 30px 80px rgba(0, 0, 0, 0.3); padding: 20px 22px 22px; }
+    .d-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; margin-bottom: 14px; }
+    .d-head h3 { margin: 0; font-size: 20px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; overflow-wrap: anywhere; }
+    .d-sub { font-size: 13px; color: var(--muted); margin-top: 3px; line-height: 1.4; }
+    .d-nav { display: flex; gap: 6px; flex: none; }
+    .d-nav .ws-btn { padding: 8px 12px; }
+    .d-grid { display: grid; grid-template-columns: minmax(0, 340px) minmax(0, 1fr); gap: 22px; }
+    .d-grid.photo-only { grid-template-columns: minmax(0, 420px); justify-content: center; }
+    .d-sec { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.07em; color: var(--muted); margin: 0 0 8px; }
+    .d-pic { position: relative; border-radius: 12px; overflow: hidden; background: #f3f4f6; border: 1px solid #edf1f7; aspect-ratio: 4 / 3; display: flex; align-items: center; justify-content: center; }
+    .d-pic img { width: 100%; height: 100%; object-fit: contain; background: #fff; display: block; }
+    .d-pic.actual img { object-fit: cover; }
+    .d-pic .nopic { color: var(--muted); font-size: 13px; }
+    .d-pic .pill.photo { position: absolute; left: 8px; bottom: 8px; }
+    .d-src { font-size: 13px; margin: 10px 0 4px; line-height: 1.45; }
+    .d-src b { font-weight: 700; }
+    .d-gallery { display: grid; gap: 8px; margin-top: 10px; }
+    .g-item { display: flex; gap: 10px; align-items: flex-start; border: 1px solid #edf1f7; border-radius: 12px; padding: 8px; }
+    .g-item.sel { border-color: var(--primary); box-shadow: 0 0 0 1px var(--primary); }
+    .g-thumb { width: 66px; height: 66px; flex: none; padding: 0; border: 1px solid #edf1f7; border-radius: 9px; overflow: hidden; background: #fff; cursor: pointer; }
+    .g-thumb img { width: 100%; height: 100%; object-fit: contain; display: block; }
+    .g-thumb.actual img { object-fit: cover; }
+    .g-body { flex: 1; min-width: 0; }
+    .g-tags { display: flex; gap: 5px; flex-wrap: wrap; }
+    .g-meta { font-size: 11.5px; color: var(--muted); margin: 3px 0 4px; }
+    .g-actions { display: flex; gap: 4px 12px; flex-wrap: wrap; }
+    .link { appearance: none; border: 0; background: none; padding: 3px 0; font: inherit; font-size: 12.5px; font-weight: 600; color: var(--primary); cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
+    .link.danger { color: #b91c1c; }
+    .shoot.disabled { opacity: 0.5; pointer-events: none; }
+    .d-photo-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px; }
+    .d-photo-actions .ws-btn { text-align: center; padding: 10px 8px; }
+    .d-photo-actions .wide { grid-column: 1 / -1; }
+    .d-hint { font-size: 12px; color: var(--muted); line-height: 1.5; margin: 10px 0 0; }
+    .d-photo.busy { opacity: 0.6; pointer-events: none; }
+    .tiles { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin-bottom: 16px; }
+    .tile { background: rgba(var(--primary-rgb), 0.06); border-radius: 10px; padding: 9px 10px; }
+    .tile .v { font-size: 16px; font-weight: 800; line-height: 1.25; }
+    .tile .l { font-size: 10.5px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; margin-top: 2px; }
+    .tile .v .pill { font-size: 11px; }
+    .tile .x { font-size: 11.5px; color: var(--muted); margin-top: 3px; line-height: 1.35; }
+    .field { margin-bottom: 14px; }
+    .field > label.lbl { display: block; font-size: 13px; font-weight: 700; margin-bottom: 5px; }
+    .field .help { font-size: 12px; color: var(--muted); line-height: 1.45; margin-top: 4px; }
+    .field input[type=number], .field input[type=text], .field select { border: 1.5px solid var(--border); border-radius: 10px; padding: 9px 10px; font-size: 15px; font-family: inherit; background: #fff; }
+    .field input[type=number] { width: 150px; }
+    .field .money { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    .field .money .cur { font-weight: 700; color: var(--muted); }
+    .field .chiprow { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+    .field .chiprow input[type=text] { flex: 1; min-width: 150px; }
+    .switches { border: 1px solid #edf1f7; border-radius: 12px; margin-bottom: 14px; }
+    .switches label { display: flex; gap: 12px; align-items: flex-start; padding: 11px 12px; cursor: pointer; border-bottom: 1px solid #edf1f7; }
+    .switches label:last-child { border-bottom: 0; }
+    .switches input[type=checkbox] { width: 20px; height: 20px; accent-color: var(--primary); margin: 1px 0 0; flex: none; }
+    .switches .t { font-size: 14px; font-weight: 600; }
+    .switches .h { font-size: 12px; color: var(--muted); line-height: 1.4; margin-top: 1px; }
+    .d-foot { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: flex-end; border-top: 1px solid #edf1f7; padding-top: 14px; margin-top: 4px; }
+    .d-foot .msg { flex: 1; min-width: 160px; font-size: 13px; color: var(--muted); }
+    .d-foot .msg.ok { color: #166534; font-weight: 600; } .d-foot .msg.err { color: #b91c1c; font-weight: 600; }
+    .d-foot .ws-btn { padding: 10px 16px; font-size: 13.5px; }
+
+    @media (max-width: 1040px) {   /* below this the rows would squeeze — cards instead */
       .table-wrap { display: none; }
       #modelCards { display: grid; }
+    }
+    @media (max-width: 760px) {
+      .overlay { padding: 0; }
+      .drawer { border-radius: 0; min-height: 100%; padding: 14px 14px 18px; }
+      .d-grid { grid-template-columns: minmax(0, 1fr); gap: 18px; }
+      .tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .d-foot .ws-btn { flex: 1; }
+      .d-foot .msg { flex-basis: 100%; }
     }
     @media (max-width: 720px) { body { padding: 16px 10px; } .surface { padding: 14px; } .filters select { max-width: 100%; flex: 1; } .cards { grid-template-columns: 1fr; } }
   </style>
@@ -132,14 +218,13 @@
       <div class="page-head">
         <h2>Express Assortment — in-stock catalog</h2>
         <p class="section-note">
-          Every model the ePASS feed says is in stock and what the store does with it. The store posts every in-stock model
-          automatically (new ALL-type units that nothing in ePASS has a claim on). <b>2–3 units</b> show <b>Low Stock</b>,
-          <b>4 or more</b> show <b>In Stock</b>; a model with a <b>single</b> unit stays off until you turn on <i>Show when only one</i>.
-          Price defaults to the model's <b>RETAIL</b> price in ePASS (the retail deck — MAP/PMAP), then a brand UMRP/MAP code, then L1;
-          at or above MAP the price shows right on the card. Set an override to sharpen it (below MAP it shows in the cart only), or hide a model.
-          <b>Outlet units</b> are the open-box and floor serials on the store — take a picture of one with your phone and that picture becomes
-          its card on the shop, marked <i>Actual product photo</i>.
-          Brands that don't allow e-commerce, delivery ZIPs and the same-day program live on <a href="shop-orders.html">Online Shop Orders</a>.
+          Every model the ePASS feed says is in stock and what the store does with it. Each row shows the model's current setup —
+          <b>click a row to edit it</b>: price override, show when only one, hide, chip, MAP exempt, and its pictures.
+          The store posts in-stock models automatically: <b>2–3 units</b> show <b>Low Stock</b>, <b>4 or more</b> show <b>In Stock</b>,
+          a <b>single</b> unit stays off until you turn on <i>Show when only one</i>. Price defaults to the model's <b>RETAIL</b> price in ePASS.
+          Pictures you add replace the catalog thumbnail — <b>Actual photos</b> (ours; the shop marks them <i>Actual product photo</i>)
+          and <b>Supplier assets</b> (the maker's own images), as many of either as you like; the first is the card picture. <b>Outlet units</b> are the open-box and floor serials; a phone picture of one
+          becomes that unit's card. Brands that don't allow e-commerce, delivery ZIPs and the same-day program live on <a href="shop-orders.html">Online Shop Orders</a>.
         </p>
       </div>
       <div class="counts" id="counts"></div>
@@ -158,6 +243,14 @@
           <option value="blocked">Blocked brands</option>
           <option value="single">Single unit (toggle to show)</option>
           <option value="noprice">No price</option>
+          <option value="custom">Anything set by hand</option>
+        </select>
+        <select id="fPic" title="Where the model's picture comes from">
+          <option value="">Any picture</option>
+          <option value="none">No picture</option>
+          <option value="catalog">Catalog thumbnail</option>
+          <option value="supplier">Supplier asset</option>
+          <option value="actual">Actual photo</option>
         </select>
         <select id="fPhoto" style="display:none;">
           <option value="">All outlet units</option>
@@ -183,24 +276,50 @@
     <div id="internal-shell-footer"></div>
   </div>
 
+  <!-- Edit drawer: one model's picture and store setup -->
+  <div class="overlay" id="overlay">
+    <div class="drawer" role="dialog" aria-modal="true" aria-labelledby="dTitle">
+      <div class="d-head">
+        <div><h3 id="dTitle"></h3><div class="d-sub" id="dSub"></div></div>
+        <div class="d-nav">
+          <button type="button" class="ws-btn quiet" id="dPrev" title="Previous model in the list" aria-label="Previous model">‹</button>
+          <button type="button" class="ws-btn quiet" id="dNext" title="Next model in the list" aria-label="Next model">›</button>
+          <button type="button" class="ws-btn quiet" id="dClose">Close</button>
+        </div>
+      </div>
+      <div class="d-grid" id="dGrid">
+        <div class="d-photo" id="dPhoto"></div>
+        <div id="dSettings"></div>
+      </div>
+    </div>
+  </div>
+
   <script src="internal-shell.js"></script>
   <script>
     // ------------------------------------------------------------------
-    // Express Assortment catalog — the in-stock models table, split out of
-    // Online Shop Orders (Andrew 9/25). Filters: free text, NetSuite Brand,
-    // NetSuite Merch Class, store status. Per-model switches save live.
-    // 11/10: cards on a phone (Inventory Lookup style) and an Outlet units
-    // tab where a unit's photo is taken on the phone and becomes its card
-    // picture on the shop.
+    // Express Assortment catalog — the in-stock models, split out of Online
+    // Shop Orders (Andrew 9/25). Filters: free text, NetSuite Brand, NetSuite
+    // Merch Class, store status, picture source.
+    // 11/10: cards on a phone and an Outlet units tab where a unit's photo is
+    // taken on the phone and becomes its card picture on the shop.
+    // 11/11: the wide table of inputs is gone. Every model is a read-only row
+    // (a card on a phone) that shows its current setup; click it and a drawer
+    // opens to edit it — the Inventory Lookup pattern. The drawer also sets
+    // the model's pictures by hand: any number of Actual photos and Supplier
+    // assets; the first one is the card picture.
     // ------------------------------------------------------------------
     (function () {
       let data = null;
       let view = "models";
+      let shown = [];          // the models currently listed, in order (drawer prev / next)
+      let open = null;         // { key, model, stock: bool } — what the drawer is editing
       const $ = (id) => document.getElementById(id);
       const esc = (v) => String(v ?? "").replace(/[&<>"']/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch]));
       const money = (n) => n == null ? "—" : "$" + Number(n).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      const whenText = (iso) => iso ? new Date(iso).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) : "";
       const NO_CLASS = "__none__";
       const BADGE_STYLES = ["red", "amber", "green", "blue", "purple", "black"];
+      const flash = (text, ms = 6000) => { const el = $("stockStatus"); el.textContent = text; if (ms) setTimeout(() => { if (el.textContent === text) el.textContent = ""; }, ms); };
 
       function fillSelect(sel, values, noneLabel) {
         const cur = sel.value;
@@ -216,63 +335,68 @@
         if (mode === "blocked") return m.blocked;
         if (mode === "single") return !m.listed && /single unit/.test(m.reason || "");
         if (mode === "noprice") return !m.price;
+        if (mode === "custom") return isCustom(m);
         return true;
       }
+      const picSource = (m) => m.photo ? m.photo.kind : m.image ? "catalog" : "none";
+      const isCustom = (m) => m.settings.price != null || m.settings.showSingle || m.settings.hidden || m.settings.badge || m.settings.hideStockBadge || m.settings.mapExempt || !!m.photo;
+      const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
+      const kindCount = (list, kind) => (list || []).filter((p) => p.kind === kind).length;
 
-      function mapCell(m) {
-        return `${money(m.map)}${m.mapCode && m.mapCode !== "RETAIL" ? ` <span class="meta">${esc(m.mapCode)}</span>` : ""}${m.mapExempt ? ` <span class="pill in" title="${m.mapExempt === "manual" ? "MAP exempt — set by hand on this page" : m.mapExempt === "netsuite" ? "Discontinued in NetSuite — MAP no longer applies; the price shows on the card" : "Obsolete / being discontinued in ePASS — MAP no longer applies; the price shows on the card"}">${m.mapExempt === "manual" ? "exempt" : "discontinued"}</span>` : m.settings.price != null && m.map && m.settings.price < m.map ? ' <span class="pill low" title="Override is below MAP — the price shows in the cart only">below MAP</span>' : ""}`;
-      }
       function storePill(m) {
         return m.listed ? (m.available > data.lowMax ? '<span class="pill in">In Stock</span>' : '<span class="pill low">Low Stock</span>') : `<span class="pill off">off — ${esc(m.reason)}</span>`;
       }
-      // The same per-model switches, as inputs with the same class names, so
-      // one save routine reads a table row or a card alike.
-      function controls(m) {
-        return { price: `<input type="number" step="0.01" min="0" class="st-price" value="${m.settings.price ?? ""}" placeholder="${m.listPrice ?? "list"}">`,
-          single: `<input type="checkbox" class="st-single" ${m.settings.showSingle ? "checked" : ""}>`,
-          hidden: `<input type="checkbox" class="st-hidden" ${m.settings.hidden ? "checked" : ""}>`,
-          badge: `<input type="text" class="st-badge" maxlength="24" placeholder="e.g. One of a Kind" value="${esc(m.settings.badge || "")}">`,
-          badgeStyle: `<select class="st-badge-style">${BADGE_STYLES.map((c) => `<option value="${c}"${(m.settings.badgeStyle || "red") === c ? " selected" : ""}>${c}</option>`).join("")}</select>`,
-          nostock: `<input type="checkbox" class="st-nostock" ${m.settings.hideStockBadge ? "checked" : ""}>`,
-          exempt: `<input type="checkbox" class="st-exempt" ${m.settings.mapExempt ? "checked" : ""}${m.mapExempt && m.mapExempt !== "manual" ? ` title="Already exempt — flagged discontinued by ${m.mapExempt === "netsuite" ? "NetSuite" : "ePASS"}"` : ""}>` };
+      function thumb(image, source, alt, count = 0) {
+        const more = count > 1 ? ` +${count - 1}` : "";
+        const label = source === "actual" || source === "unit" ? `<span class="src actual">Actual${more}</span>` : source === "supplier" ? `<span class="src supplier">Supplier${more}</span>` : "";
+        return `<div class="thumb${source === "actual" || source === "unit" ? " actual" : ""}">${image
+          ? `<img src="${esc(image)}" alt="${esc(alt)}" loading="lazy" onerror="this.replaceWith(Object.assign(document.createElement('span'),{className:'none',textContent:'no picture'}))">`
+          : '<span class="none">no picture</span>'}${label}</div>`;
       }
+      // The model's current setup, as tags — what the row / card shows.
+      function setupTags(m) {
+        const t = [];
+        const s = m.settings;
+        if (s.price != null) t.push(`<span class="tag price" title="Override price — replaces the ePASS price on the shop">Override ${money(s.price)}</span>`);
+        if (s.price != null && m.map && s.price < m.map && !m.mapExempt) t.push('<span class="tag warn" title="Override is below MAP — the price shows in the cart only">below MAP</span>');
+        if (s.hidden) t.push('<span class="tag off">Hidden</span>');
+        if (s.showSingle) t.push('<span class="tag" title="Listed even when only one unit is in stock">Shows when only one</span>');
+        if (m.mapExempt) t.push(`<span class="tag" title="${m.mapExempt === "manual" ? "MAP exempt — set by hand" : m.mapExempt === "netsuite" ? "Discontinued in NetSuite — MAP no longer applies" : "Obsolete / being discontinued in ePASS — MAP no longer applies"}">${m.mapExempt === "manual" ? "MAP exempt" : "Discontinued"}</span>`);
+        if (s.badge) t.push(`<span class="eye-prev ${esc(s.badgeStyle || "red")}" title="Chip on the card">${esc(s.badge)}</span>`);
+        if (s.hideStockBadge) t.push('<span class="tag" title="The In Stock / Low Stock chip is dropped from this card">No stock chip</span>');
+        const na = kindCount(m.photos, "actual"), ns = kindCount(m.photos, "supplier");
+        if (na) t.push(`<span class="tag photo">${plural(na, "actual photo", "actual photos")}</span>`);
+        if (ns) t.push(`<span class="tag asset">${plural(ns, "supplier asset", "supplier assets")}</span>`);
+        return t.length ? t.join("") : '<span class="std">Standard</span>';
+      }
+      const priceLine = (m) => `<b>${money(m.settings.price ?? m.listPrice)}</b>${m.settings.price != null ? `<div class="sub">ePASS ${money(m.listPrice)}</div>` : m.listCode ? `<div class="sub">${esc(m.listCode)}</div>` : ""}${m.map && m.map !== (m.settings.price ?? m.listPrice) ? `<div class="sub">MAP ${money(m.map)}</div>` : ""}`;
+      const unitsLine = (m) => `${m.available}${m.inStock !== m.available ? ` <span class="sub" style="display:inline;">of ${m.inStock}</span>` : ""}${m.held ? `<div class="sub">+${m.held} held</div>` : ""}`;
 
       function renderModels(rows) {
         const all = data.models || [];
-        $("stockTable").innerHTML = `<thead><tr><th>Model</th><th>Brand</th><th>Description</th><th title="NetSuite Merch Class">Merch class</th><th>Category</th><th>Units</th><th>Store</th><th title="The ePASS price level the shop sells at: RETAIL (retail deck — MAP/PMAP), a brand UMRP/MAP code, else L1">ePASS price</th><th title="Advertise floor from ePASS (RETAIL or brand UMRP/MAP). At or above it the price shows on the card; below it, in the cart only.">MAP</th><th>Override $</th><th class="ctr" title="List the model even when only one unit is in stock">Show if 1</th><th class="ctr">Hidden</th><th title="Eye-catcher chip on the card — e.g. One of a Kind, 92% Off. Leave blank for none.">Chip</th><th class="ctr" title="Drop the automatic In Stock / Low Stock chip on this model's card">No stock chip</th><th class="ctr" title="Discontinued models are no longer subject to MAP: the price shows on the card right away. Checked by hand here, or automatic when NetSuite or ePASS flags the model discontinued.">MAP exempt</th><th></th></tr></thead>
-          <tbody>${rows.map((m) => { const c = controls(m); return `<tr data-model="${esc(m.key)}">
-            <td><b>${esc(m.model)}</b></td>
-            <td>${esc(m.brand)}${m.brandCode && m.brandCode.toUpperCase() !== String(m.brand).toUpperCase() ? ` <span class="meta">${esc(m.brandCode)}</span>` : ""}</td>
-            <td class="desc">${esc(m.description)}</td>
-            <td class="cls">${m.merchClass ? esc(m.merchClass) : `<span class="meta" title="This model isn't in the NetSuite item catalog import yet">—</span>`}</td>
-            <td>${esc(m.categoryLabel)}</td>
-            <td title="${m.held ? m.held + " more on hand but written / ordered for a ticket or reserved in ePASS" : ""}">${m.available}${m.inStock !== m.available ? ` <span class="meta">of ${m.inStock}</span>` : ""}${m.held ? ` <span class="meta">+${m.held} held</span>` : ""}</td>
-            <td class="store">${storePill(m)}</td>
-            <td>${money(m.listPrice)}${m.listCode ? ` <span class="meta">${esc(m.listCode)}</span>` : ""}</td>
-            <td>${mapCell(m)}</td>
-            <td>${c.price}</td>
-            <td class="ctr">${c.single}</td>
-            <td class="ctr">${c.hidden}</td>
-            <td class="chipcell">${c.badge}${c.badgeStyle}${m.settings.badge ? `<span class="eye-prev ${esc(m.settings.badgeStyle || "red")}">${esc(m.settings.badge)}</span>` : ""}</td>
-            <td class="ctr">${c.nostock}</td>
-            <td class="ctr">${c.exempt}</td>
-            <td><button type="button" class="ws-btn quiet st-save">Save</button></td>
-          </tr>`; }).join("") || '<tr><td colspan="16" class="meta">Nothing matches.</td></tr>'}</tbody>`;
-        // Phone: one card per model with the same switches.
-        $("modelCards").innerHTML = rows.slice(0, 200).map((m) => { const c = controls(m); return `<div class="card" data-model="${esc(m.key)}">
-            <div class="top"><div><div class="model">${esc(m.model)}</div><div class="brand">${esc(m.brand)}${m.merchClass ? ` · ${esc(m.merchClass)}` : ""}</div></div><div class="chips">${storePill(m)}</div></div>
+        shown = rows;
+        const wrap = document.querySelector("#modelsView .table-wrap");
+        const keepScroll = wrap.scrollTop;
+        $("stockTable").innerHTML = `<colgroup><col class="c-pic"><col class="c-model"><col class="c-desc"><col class="c-units"><col class="c-store"><col class="c-price"><col><col class="c-edit"></colgroup>
+          <thead><tr><th></th><th>Model</th><th>Description</th><th>Units</th><th>Store</th><th title="What the shop sells it for: your override when there is one, else the ePASS price (RETAIL, a brand UMRP/MAP code, else L1)">Price</th><th title="Anything set by hand on this model">Setup</th><th></th></tr></thead>
+          <tbody>${rows.map((m) => `<tr data-model="${esc(m.key)}" tabindex="0" title="Click to edit ${esc(m.model)}">
+            <td>${thumb(m.image, picSource(m), m.model, (m.photos || []).length)}</td>
+            <td><div class="mono">${esc(m.model)}</div><div class="sub">${esc(m.brand)}${m.brandCode && m.brandCode.toUpperCase() !== String(m.brand).toUpperCase() ? ` · ${esc(m.brandCode)}` : ""}</div></td>
+            <td class="desc">${esc(m.description)}<div class="sub">${m.merchClass ? esc(m.merchClass) : esc(m.categoryLabel)}</div></td>
+            <td title="${m.held ? m.held + " more on hand but written / ordered for a ticket or reserved in ePASS" : ""}">${unitsLine(m)}</td>
+            <td>${storePill(m)}</td>
+            <td class="price">${priceLine(m)}</td>
+            <td><div class="setup">${setupTags(m)}</div></td>
+            <td class="edit">Edit ›</td>
+          </tr>`).join("") || '<tr><td colspan="8" class="meta" style="cursor:default;">Nothing matches.</td></tr>'}</tbody>`;
+        wrap.scrollTop = keepScroll;
+        // Phone: one summary card per model — tap to edit.
+        $("modelCards").innerHTML = rows.slice(0, 200).map((m) => `<div class="card mcard" data-model="${esc(m.key)}" role="button" tabindex="0">
+            <div class="head">${thumb(m.image, picSource(m), m.model, (m.photos || []).length)}<div class="who"><div class="model">${esc(m.model)}</div><div class="brand">${esc(m.brand)}${m.merchClass ? ` · ${esc(m.merchClass)}` : ""}</div></div><div class="chips">${storePill(m)}</div></div>
             <div class="desc">${esc(m.description)}</div>
-            <div class="row"><span class="price">${money(m.listPrice)}<small>ePASS ${esc(m.listCode || "price")}</small></span><span class="price">${mapCell(m)}<small>MAP floor</small></span><span class="meta">${m.available} available${m.held ? ` · ${m.held} held` : ""}</span></div>
-            <div class="ctl">
-              <label class="full">Override $ ${c.price}</label>
-              <label>${c.single} Show if only 1</label>
-              <label>${c.hidden} Hidden</label>
-              <label>${c.nostock} No stock chip</label>
-              <label>${c.exempt} MAP exempt</label>
-              <label class="full">Chip ${c.badge}${c.badgeStyle}</label>
-            </div>
-            <div class="actions"><button type="button" class="ws-btn primary st-save">Save</button></div>
-          </div>`; }).join("") + (rows.length > 200 ? `<p class="meta">Showing the first 200 of ${rows.length} — narrow the search to see the rest.</p>` : "") || '<p class="meta">Nothing matches.</p>';
+            <div class="row"><span class="price">${money(m.settings.price ?? m.listPrice)}<small>${m.settings.price != null ? "override" : "ePASS " + esc(m.listCode || "price")}</small></span><span class="meta">${m.available} available${m.held ? ` · ${m.held} held` : ""}</span></div>
+            <div class="foot"><div class="setup">${setupTags(m)}</div><span class="go">Edit ›</span></div>
+          </div>`).join("") + (rows.length > 200 ? `<p class="meta">Showing the first 200 of ${rows.length} — narrow the search to see the rest.</p>` : "") || '<p class="meta">Nothing matches.</p>';
         const missing = all.length - (data.netsuiteModels || 0);
         $("nsNote").textContent = data.netsuiteModels
           ? `Brand and Merch Class come from the NetSuite item catalog import (ePASS Uploads). ${data.netsuiteModels} of ${all.length} in-stock models are in it${missing ? `; ${missing} fall back to the ePASS brand and have no merch class — re-import the NetSuite items export to fill them in` : ""}.`
@@ -287,9 +411,8 @@
         if (mode === "display") return u.serialType === "DISPLAY";
         return true;
       }
-      const whenText = (iso) => iso ? new Date(iso).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) : "";
       function renderOutlet(units) {
-        $("outletCards").innerHTML = units.map((u) => `<div class="card ucard" data-model="${esc(u.model)}" data-serial="${esc(u.serial)}">
+        $("outletCards").innerHTML = units.map((u) => { const own = u.photoSource === "unit"; return `<div class="card ucard" data-model="${esc(u.model)}" data-serial="${esc(u.serial)}" data-key="${esc(u.modelKey)}">
             <div class="pic${u.photoActual ? " actual" : ""}">
               ${u.image ? `<img src="${esc(u.image)}" alt="${esc(u.model)}" loading="lazy" onerror="this.replaceWith(Object.assign(document.createElement('span'),{className:'nopic',textContent:'No picture yet'}))">` : `<span class="nopic">No picture yet</span>`}
               <span class="pill open">${u.serialType === "DISPLAY" ? "Floor model" : u.serialType === "OPEN" ? "Open box" : "Outlet"}</span>
@@ -298,12 +421,13 @@
             <div class="top"><div><div class="model">${esc(u.model)}</div><div class="brand">${esc(u.brand)} · ${esc(u.categoryLabel)}</div></div><div class="chips">${u.mapPublic ? '<span class="pill in">price on card</span>' : '<span class="pill off">price in cart</span>'}</div></div>
             <div class="desc">${esc(u.description)}</div>
             <div class="row"><span class="price">${money(u.price)}<small>unit price</small></span><span class="serial">S/N ${esc(u.serial)}</span></div>
-            ${u.photoActual ? `<div class="when">Photo taken ${esc(whenText(u.photoTakenAt))}</div>` : ""}
+            <div class="when">${own ? `This unit's own photo, taken ${esc(whenText(u.photoTakenAt))}` : u.photoSource === "actual" ? "Showing the model's actual photo" : u.photoSource === "supplier" ? "Showing the model's supplier asset" : u.image ? "Showing the catalog thumbnail" : ""}</div>
             <div class="actions">
-              ${u.photoActual ? `<button type="button" class="ws-btn danger up-remove">Remove photo</button>` : ""}
-              <span class="ws-btn primary shoot">${u.photoActual ? "Retake photo" : "Take photo"}<input type="file" accept="image/*" capture="environment" class="up-file" aria-label="Take a photo of this unit"></span>
+              <button type="button" class="ws-btn quiet up-model" title="Set the pictures for every card of this model — actual photos and supplier assets">Model pictures…</button>
+              ${own ? `<button type="button" class="ws-btn danger up-remove">Remove photo</button>` : ""}
+              <span class="ws-btn primary shoot">${own ? "Retake photo" : "Take photo"}<input type="file" accept="image/*" capture="environment" class="up-file" aria-label="Take a photo of this unit"></span>
             </div>
-          </div>`).join("") || '<p class="meta">No outlet units on the store right now.</p>';
+          </div>`; }).join("") || '<p class="meta">No outlet units on the store right now.</p>';
       }
 
       function render() {
@@ -312,24 +436,29 @@
         const brand = $("fBrand").value;
         const cls = $("fClass").value;
         const mode = $("fStore").value;
+        const pic = $("fPic").value;
         const all = data.models || [];
         const rows = all.filter((m) =>
           (!brand || m.brand === brand) &&
           (!cls || (cls === NO_CLASS ? !m.merchClass : m.merchClass === cls)) &&
           storeMatch(m, mode) &&
+          (!pic || picSource(m) === pic) &&
           (!q || `${m.model} ${m.brand} ${m.description} ${m.categoryLabel} ${m.merchClass} ${m.merchCategory} ${m.merchSubclass}`.toUpperCase().includes(q)));
         const outletAll = data.outlet || [];
         const units = outletAll.filter((u) => (!brand || u.brand === brand) && photoMatch(u, $("fPhoto").value) && (!q || `${u.model} ${u.serial} ${u.brand} ${u.description} ${u.categoryLabel}`.toUpperCase().includes(q)));
         const listed = all.filter((m) => m.listed).length;
         const unitCount = all.reduce((s, m) => s + (m.available || 0), 0);
-        const photographed = outletAll.filter((u) => u.photoActual).length;
+        const photographed = outletAll.filter((u) => u.photoSource === "unit").length;
+        const handPicked = Object.values(data.modelPhotos || {}).filter((list) => list.length);
+        const handPics = handPicked.flat();
         $("counts").innerHTML = `
           <div class="count"><b>${all.length}</b>models in stock</div>
           <div class="count"><b>${listed}</b>on the store</div>
           <div class="count"><b>${unitCount}</b>units for sale</div>
           <div class="count"><b>${outletAll.length}</b>outlet units${photographed ? ` · ${photographed} photographed` : ""}</div>
+          <div class="count" title="Models whose pictures were set by hand on this page"><b>${handPicked.length}</b>models with hand-picked pictures${handPics.length ? ` · ${kindCount(handPics, "actual")} actual, ${kindCount(handPics, "supplier")} supplier` : ""}</div>
           <div class="count"><b>${view === "models" ? rows.length : units.length}</b>shown</div>
-          ${data.snapshot?.uploadedAt ? `<div class="count"><b>${esc(new Date(data.snapshot.uploadedAt).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }))}</b>feed snapshot</div>` : ""}
+          ${data.snapshot?.uploadedAt ? `<div class="count"><b>${esc(whenText(data.snapshot.uploadedAt))}</b>feed snapshot</div>` : ""}
           ${data.mapExempt ? `<div class="count" title="${data.mapExempt.feedColumn ? "The ePASS feed carries the Model Obsolete / Being Discontinued flags; this many in-feed models are flagged." : "The last ePASS pull did NOT carry the Model_Obsolete / Model_BeingDiscontinued columns — the pull script's Model join fell back, so ePASS can't mark anything end-of-line until it does."}"><b>${data.mapExempt.feedColumn ? data.mapExempt.feedFlagged : "—"}</b>ePASS discontinued${data.mapExempt.feedColumn ? "" : " (feed lacks flags)"}</div>
           <div class="count" title="${data.mapExempt.netsuiteColumn ? "Models the NetSuite item export marks discontinued / inactive." : "The last NetSuite item export had no Is Inactive / Discontinued column — add it to the saved search and re-upload on the Upload Center to light this source up."}"><b>${data.mapExempt.netsuiteColumn ? data.mapExempt.netsuiteFlagged : "—"}</b>NetSuite discontinued${data.mapExempt.netsuiteColumn ? "" : " (no column)"}</div>
           <div class="count" title="Ticked MAP exempt by hand on this page"><b>${data.mapExempt.manual}</b>exempt by hand</div>` : ""}`;
@@ -337,15 +466,14 @@
         $("nOutlet").textContent = outletAll.length ? ` ${outletAll.length}` : "";
         $("modelsView").style.display = view === "models" ? "" : "none";
         $("outletView").style.display = view === "outlet" ? "" : "none";
-        $("fClass").style.display = view === "models" ? "" : "none";
-        $("fStore").style.display = view === "models" ? "" : "none";
+        for (const id of ["fClass", "fStore", "fPic"]) $(id).style.display = view === "models" ? "" : "none";
         $("fPhoto").style.display = view === "outlet" ? "" : "none";
         if (view === "models") renderModels(rows); else renderOutlet(units);
       }
 
       async function load() {
         const status = $("stockStatus");
-        status.textContent = "Loading…";
+        if (!data) status.textContent = "Loading…";
         try {
           const res = await fetch("/api/shop/stock-models", { credentials: "same-origin" });
           const body = await res.json();
@@ -353,60 +481,237 @@
           data = body;
           fillSelect($("fBrand"), body.brands || []);
           fillSelect($("fClass"), body.merchClasses || [], "— no merch class (not in NetSuite) —");
-          status.textContent = body.paused ? "Shop is paused — the snapshot is stale." : "";
+          status.textContent = body.paused ? "Shop is paused — the snapshot is stale." : (status.textContent === "Loading…" ? "" : status.textContent);
           render();
-        } catch (err) { status.textContent = err.message; }
+        } catch (err) { status.textContent = err.message; throw err; }
       }
 
       ["stockFind"].forEach((id) => $(id).addEventListener("input", render));
-      ["fBrand", "fClass", "fStore", "fPhoto"].forEach((id) => $(id).addEventListener("change", render));
-      $("fClear").addEventListener("click", () => { $("stockFind").value = ""; $("fBrand").value = ""; $("fClass").value = ""; $("fStore").value = ""; $("fPhoto").value = ""; render(); });
+      ["fBrand", "fClass", "fStore", "fPic", "fPhoto"].forEach((id) => $(id).addEventListener("change", render));
+      $("fClear").addEventListener("click", () => { for (const id of ["stockFind", "fBrand", "fClass", "fStore", "fPic", "fPhoto"]) $(id).value = ""; render(); });
       $("tabModels").addEventListener("click", () => { view = "models"; $("tabModels").classList.add("on"); $("tabOutlet").classList.remove("on"); render(); });
       $("tabOutlet").addEventListener("click", () => { view = "outlet"; $("tabOutlet").classList.add("on"); $("tabModels").classList.remove("on"); render(); });
       if (location.hash === "#outlet") $("tabOutlet").click();
 
-      // Save a model's switches — from the table row or the phone card.
-      async function saveModel(root, btn) {
-        const status = $("stockStatus");
-        btn.disabled = true; status.textContent = "Saving…";
-        try {
-          const res = await fetch(`/api/shop/stock-models/${encodeURIComponent(root.dataset.model)}`, {
-            method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ price: root.querySelector(".st-price").value, showSingle: root.querySelector(".st-single").checked, hidden: root.querySelector(".st-hidden").checked,
-              badge: root.querySelector(".st-badge").value, badgeStyle: root.querySelector(".st-badge-style").value, hideStockBadge: root.querySelector(".st-nostock").checked, mapExempt: root.querySelector(".st-exempt").checked })
-          });
-          const body = await res.json();
-          if (!res.ok) throw new Error(body.error || "Save failed.");
-          await load();
-          status.textContent = "Saved — live on the shop now.";
-          setTimeout(() => { if (status.textContent.startsWith("Saved")) status.textContent = ""; }, 6000);
-        } catch (err) { status.textContent = err.message; } finally { btn.disabled = false; }
-      }
-      $("modelsView").addEventListener("click", (e) => {
-        const btn = e.target.closest(".st-save");
-        if (!btn) return;
-        saveModel(btn.closest("[data-model]"), btn);
-      });
-
-      // ---- Outlet unit photos ----
-      // Phones hand us 3–9 MB; shrink to 1600 px JPEG in the browser first so
-      // the upload is a few hundred KB and the shop card loads fast.
+      // ---- Pictures: shrink in the browser before upload ----
+      // Phones and supplier portals hand us 3–9 MB; 1600 px JPEG is a few
+      // hundred KB and loads fast on a card. A see-through background (a
+      // supplier cut-out PNG) is laid on white, the same as the shop's cards.
       async function shrinkImage(file, maxEdge = 1600, quality = 0.85) {
         const bitmap = await new Promise((resolve, reject) => {
           const url = URL.createObjectURL(file);
           const img = new Image();
           img.onload = () => { URL.revokeObjectURL(url); resolve(img); };
-          img.onerror = () => { URL.revokeObjectURL(url); reject(new Error("That file isn't a picture this phone can read.")); };
+          img.onerror = () => { URL.revokeObjectURL(url); reject(new Error("That file isn't a picture this browser can read — save it as a JPG or PNG first (a .psd or .tif won't work).")); };
           img.src = url;
         });
         const scale = Math.min(1, maxEdge / Math.max(bitmap.naturalWidth, bitmap.naturalHeight));
         const w = Math.round(bitmap.naturalWidth * scale), h = Math.round(bitmap.naturalHeight * scale);
         const canvas = document.createElement("canvas"); canvas.width = w; canvas.height = h;
-        canvas.getContext("2d").drawImage(bitmap, 0, 0, w, h);
+        const ctx = canvas.getContext("2d");
+        ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, w, h);
+        ctx.drawImage(bitmap, 0, 0, w, h);
         const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/jpeg", quality));
         if (!blob) throw new Error("Couldn't process the picture.");
         return blob;
       }
+
+      // ---- Edit drawer ----
+      const stockModel = (key) => (data.models || []).find((m) => m.key === key) || null;
+      // A model that only exists as outlet units (no sealed stock) still gets
+      // the picture half of the drawer.
+      function drawerRecord() {
+        if (!open) return null;
+        const m = stockModel(open.key);
+        if (m) return { ...m, photos: m.photos || [], stock: true };
+        const u = (data.outlet || []).find((x) => x.modelKey === open.key);
+        if (!u) return null;
+        const photos = ((data.modelPhotos || {})[open.key] || []).map((p) => ({ ...p, url: `/api/shop/model-photo/${p.id}` }));
+        return { stock: false, key: open.key, model: u.model, brand: u.brand, description: u.description, categoryLabel: u.categoryLabel, merchClass: "",
+          photos, photo: photos[0] || null, catalogImage: u.catalogImage, image: photos[0]?.url || u.catalogImage };
+      }
+      function renderDrawerPhoto(r) {
+        const photos = r.photos;
+        const max = data.modelPhotoMax || 12, full = photos.length >= max;
+        const sel = photos.find((p) => p.id === open.sel) || photos[0] || null; // the one in the big frame
+        const big = sel ? sel.url : r.image;
+        const kind = sel ? sel.kind : "";
+        $("dPhoto").innerHTML = `<p class="d-sec">Pictures</p>
+          <div class="d-pic${kind === "actual" ? " actual" : ""}">
+            ${big ? `<img src="${esc(big)}" alt="${esc(r.model)}" onerror="this.replaceWith(Object.assign(document.createElement('span'),{className:'nopic',textContent:'The picture did not load'}))">` : '<span class="nopic">No picture yet</span>'}
+            ${kind === "actual" ? '<span class="pill photo">Actual product photo</span>' : ""}
+          </div>
+          <div class="d-src">${photos.length
+            ? `<b>${plural(photos.length, "hand-picked picture", "hand-picked pictures")}</b>${photos.length > 1 ? " — the first is the card picture; shoppers flip through the rest with the arrows on the card." : " — it replaces the catalog thumbnail on the card."}`
+            : r.image ? `<b>Catalog thumbnail</b> — the automatic picture. Add your own below to replace it.`
+            : `<b>No picture.</b> The shop card shows no image until you add one.`}</div>
+          ${photos.length ? `<div class="d-gallery">${photos.map((p, i) => `<div class="g-item${sel && p.id === sel.id ? " sel" : ""}" data-id="${p.id}">
+              <button type="button" class="g-thumb${p.kind === "actual" ? " actual" : ""}" title="Show this picture in the frame above"><img src="${esc(p.url)}" alt="" loading="lazy"></button>
+              <div class="g-body">
+                <div class="g-tags">${p.kind === "actual" ? '<span class="tag photo">Actual photo</span>' : '<span class="tag asset">Supplier asset</span>'}${i === 0 ? '<span class="tag price">Card picture</span>' : ""}</div>
+                <div class="g-meta">${esc(whenText(p.setAt))}${p.setBy ? ` · ${esc(p.setBy.split("@")[0])}` : ""}</div>
+                <div class="g-actions">
+                  ${i > 0 ? `<button type="button" class="link mp-first">Make card picture</button>` : ""}
+                  <button type="button" class="link mp-kind" data-kind="${p.kind === "actual" ? "supplier" : "actual"}">Mark as ${p.kind === "actual" ? "supplier asset" : "actual photo"}</button>
+                  <button type="button" class="link danger mp-remove">Remove</button>
+                </div>
+              </div>
+            </div>`).join("")}</div>` : ""}
+          <div class="d-photo-actions">
+            <span class="ws-btn ${photos.length ? "quiet" : "primary"} shoot${full ? " disabled" : ""}">Add supplier assets<input type="file" accept="image/*" multiple class="mp-file" data-kind="supplier" ${full ? "disabled" : ""} aria-label="Add supplier assets for this model"></span>
+            <span class="ws-btn ${photos.length ? "quiet" : "primary"} shoot${full ? " disabled" : ""}">Add actual photos<input type="file" accept="image/*" multiple class="mp-file" data-kind="actual" ${full ? "disabled" : ""} aria-label="Add or take actual photos of this model"></span>
+          </div>
+          <p class="d-hint">${full ? `This model has the most pictures it can carry (${max}) — remove one to add another. ` : `Pick several files at once if you like — up to ${max} pictures per model, of either kind. `}<b>Actual photos</b> are ours: the card fills the frame and says <i>Actual product photo</i>. <b>Supplier assets</b> are the maker's images, shown like any catalog picture. JPG or PNG; sized down for the web automatically.${photos.length ? ` Remove them all to go back to ${r.catalogImage ? "the catalog thumbnail" : "no picture"}.` : ""}${r.stock ? "" : " A photo taken of one specific outlet unit still leads on that unit's card."}</p>`;
+      }
+      function renderDrawerSettings(r) {
+        if (!r.stock) { $("dSettings").innerHTML = ""; $("dSettings").style.display = "none"; $("dGrid").classList.add("photo-only"); return; }
+        $("dSettings").style.display = ""; $("dGrid").classList.remove("photo-only");
+        const s = r.settings;
+        $("dSettings").innerHTML = `<p class="d-sec">On the store</p>
+          <div class="tiles">
+            <div class="tile"><div class="v">${storePill(r)}</div><div class="l">Store</div></div>
+            <div class="tile"><div class="v">${r.available}${r.inStock !== r.available ? ` <span class="meta">of ${r.inStock}</span>` : ""}</div><div class="l">Units for sale</div>${r.held ? `<div class="x">+${r.held} held for tickets</div>` : ""}</div>
+            <div class="tile"><div class="v">${money(r.listPrice)}</div><div class="l">ePASS ${esc(r.listCode || "price")}</div></div>
+            <div class="tile"><div class="v">${money(r.map)}</div><div class="l">MAP${r.mapCode && r.mapCode !== "RETAIL" ? " · " + esc(r.mapCode) : ""}</div>${r.mapExempt ? `<div class="x">${r.mapExempt === "manual" ? "exempt by hand" : "discontinued — no longer applies"}</div>` : ""}</div>
+          </div>
+          <form id="dForm" autocomplete="off">
+            <div class="field">
+              <label class="lbl" for="stPrice">Override price</label>
+              <div class="money"><span class="cur">$</span><input type="number" step="0.01" min="0" id="stPrice" class="st-price" value="${s.price ?? ""}" placeholder="${r.listPrice ?? "list"}" inputmode="decimal"><span class="meta" id="stPriceNote"></span></div>
+              <div class="help">Leave blank to sell at the ePASS price. At or above MAP the price shows on the card; below MAP it shows in the cart only.</div>
+            </div>
+            <div class="switches">
+              <label><input type="checkbox" class="st-single" ${s.showSingle ? "checked" : ""}><span><div class="t">Show when only one</div><div class="h">List this model even when a single unit is in stock.</div></span></label>
+              <label><input type="checkbox" class="st-hidden" ${s.hidden ? "checked" : ""}><span><div class="t">Hidden</div><div class="h">Keep this model off the store no matter how many are in stock.</div></span></label>
+              <label><input type="checkbox" class="st-exempt" ${s.mapExempt ? "checked" : ""}><span><div class="t">MAP exempt</div><div class="h">${r.mapExempt && r.mapExempt !== "manual" ? `Already exempt — flagged discontinued by ${r.mapExempt === "netsuite" ? "NetSuite" : "ePASS"}.` : "Discontinued models are no longer subject to MAP: the price shows on the card right away."}</div></span></label>
+              <label><input type="checkbox" class="st-nostock" ${s.hideStockBadge ? "checked" : ""}><span><div class="t">No stock chip</div><div class="h">Drop the automatic In Stock / Low Stock chip from this model's card.</div></span></label>
+            </div>
+            <div class="field">
+              <label class="lbl" for="stBadge">Chip on the card</label>
+              <div class="chiprow"><input type="text" id="stBadge" class="st-badge" maxlength="24" placeholder="e.g. One of a Kind" value="${esc(s.badge || "")}"><select class="st-badge-style" aria-label="Chip color">${BADGE_STYLES.map((c) => `<option value="${c}"${(s.badgeStyle || "red") === c ? " selected" : ""}>${c}</option>`).join("")}</select><span id="stBadgePrev"></span></div>
+              <div class="help">A short eye-catcher. Leave blank for none.</div>
+            </div>
+            <div class="d-foot"><span class="msg" id="dMsg"></span><button type="submit" class="ws-btn primary" id="dSave">Save</button><button type="button" class="ws-btn quiet" id="dSaveNext">Save &amp; next ›</button></div>
+          </form>`;
+        livePreview();
+      }
+      function livePreview() {
+        const r = drawerRecord(); const f = $("dForm"); if (!r || !f) return;
+        const badge = f.querySelector(".st-badge").value.trim();
+        $("stBadgePrev").innerHTML = badge ? `<span class="eye-prev ${esc(f.querySelector(".st-badge-style").value)}">${esc(badge)}</span>` : "";
+        const p = f.querySelector(".st-price").value;
+        const exempt = f.querySelector(".st-exempt").checked || (r.mapExempt && r.mapExempt !== "manual");
+        $("stPriceNote").textContent = p === "" ? "" : r.map && Number(p) < r.map && !exempt ? `Below MAP ${money(r.map)} — shows in the cart only.` : "Shows on the card.";
+      }
+      const formValues = (f) => ({ price: f.querySelector(".st-price").value.trim(), showSingle: f.querySelector(".st-single").checked, hidden: f.querySelector(".st-hidden").checked,
+        badge: f.querySelector(".st-badge").value.trim(), badgeStyle: f.querySelector(".st-badge-style").value, hideStockBadge: f.querySelector(".st-nostock").checked, mapExempt: f.querySelector(".st-exempt").checked });
+      function dirty() {
+        const r = drawerRecord(); const f = $("dForm"); if (!r || !r.stock || !f) return false;
+        const v = formValues(f), s = r.settings;
+        return (v.price === "" ? null : Number(v.price)) !== (s.price ?? null) || v.showSingle !== !!s.showSingle || v.hidden !== !!s.hidden || v.badge !== (s.badge || "")
+          || (v.badge && v.badgeStyle !== (s.badgeStyle || "red")) || v.hideStockBadge !== !!s.hideStockBadge || v.mapExempt !== !!s.mapExempt;
+      }
+      function renderDrawer({ keepForm = false } = {}) {
+        const r = drawerRecord();
+        if (!r) { closeDrawer(true); return; }
+        $("dTitle").textContent = r.model;
+        $("dSub").textContent = [r.brand, r.merchClass || r.categoryLabel, r.description].filter(Boolean).join(" · ");
+        renderDrawerPhoto(r);
+        if (!keepForm) renderDrawerSettings(r);
+        const idx = shown.findIndex((m) => m.key === open.key);
+        const nav = r.stock && view === "models" && idx >= 0;
+        $("dPrev").style.display = $("dNext").style.display = nav ? "" : "none";
+        $("dPrev").disabled = !nav || idx <= 0; $("dNext").disabled = !nav || idx >= shown.length - 1;
+        if ($("dSaveNext")) $("dSaveNext").style.display = nav && idx < shown.length - 1 ? "" : "none";
+      }
+      function openDrawer(key) {
+        open = { key };
+        if (!drawerRecord()) { open = null; return; }
+        $("overlay").classList.add("show"); $("overlay").scrollTop = 0; document.body.classList.add("drawer-open");
+        renderDrawer();
+      }
+      function closeDrawer(force) {
+        if (!force && dirty() && !confirm("Close without saving the changes to this model?")) return;
+        open = null; $("overlay").classList.remove("show"); document.body.classList.remove("drawer-open");
+      }
+      function step(delta) {
+        const idx = shown.findIndex((m) => m.key === open?.key);
+        const next = shown[idx + delta];
+        if (!next) return;
+        if (dirty() && !confirm("Move on without saving the changes to this model?")) return;
+        open = { key: next.key }; $("overlay").scrollTop = 0; renderDrawer();
+      }
+      async function saveDrawer(thenNext) {
+        const r = drawerRecord(); const f = $("dForm"); if (!r || !f) return;
+        const msg = $("dMsg"); const btns = [$("dSave"), $("dSaveNext")];
+        btns.forEach((b) => b && (b.disabled = true)); msg.className = "msg"; msg.textContent = "Saving…";
+        try {
+          const res = await fetch(`/api/shop/stock-models/${encodeURIComponent(r.key)}`, { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify(formValues(f)) });
+          const body = await res.json().catch(() => ({}));
+          if (!res.ok) throw new Error(body.error || "Save failed.");
+          const nextKey = thenNext ? shown[shown.findIndex((m) => m.key === r.key) + 1]?.key : null; // before the list re-filters
+          await load();
+          if (nextKey && stockModel(nextKey)) { open = { key: nextKey }; $("overlay").scrollTop = 0; renderDrawer(); $("dMsg").className = "msg ok"; $("dMsg").textContent = `${r.model} saved — live on the shop now.`; }
+          else { renderDrawer(); $("dMsg").className = "msg ok"; $("dMsg").textContent = "Saved — live on the shop now."; }
+        } catch (err) { msg.className = "msg err"; msg.textContent = err.message; btns.forEach((b) => b && (b.disabled = false)); }
+      }
+      async function photoCall(run, doneText) {
+        const panel = $("dPhoto");
+        panel.classList.add("busy"); flash("Saving…", 0);
+        try {
+          const res = await run();
+          const body = await res.json().catch(() => ({}));
+          if (!res.ok) throw new Error(body.error || "That didn't save.");
+          await load();
+          renderDrawer({ keepForm: true }); // unsaved switches stay as typed
+          flash(doneText);
+        } catch (err) { flash(err.message, 9000); alert(err.message); renderDrawer({ keepForm: true }); } finally { panel.classList.remove("busy"); }
+      }
+
+      const rowKey = (e) => e.target.closest("[data-model]")?.dataset.model;
+      $("stockTable").addEventListener("click", (e) => { const k = rowKey(e); if (k) openDrawer(k); });
+      $("modelCards").addEventListener("click", (e) => { const k = rowKey(e); if (k) openDrawer(k); });
+      for (const id of ["stockTable", "modelCards"]) $(id).addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { const k = rowKey(e); if (k) { e.preventDefault(); openDrawer(k); } } });
+      $("dClose").addEventListener("click", () => closeDrawer());
+      $("dPrev").addEventListener("click", () => step(-1));
+      $("dNext").addEventListener("click", () => step(1));
+      $("overlay").addEventListener("mousedown", (e) => { if (e.target === $("overlay")) closeDrawer(); });
+      document.addEventListener("keydown", (e) => { if (e.key === "Escape" && open) closeDrawer(); });
+      $("dSettings").addEventListener("input", livePreview);
+      $("dSettings").addEventListener("change", livePreview);
+      $("dSettings").addEventListener("submit", (e) => { e.preventDefault(); saveDrawer(false); });
+      $("dSettings").addEventListener("click", (e) => { if (e.target.closest("#dSaveNext")) saveDrawer(true); });
+      $("dPhoto").addEventListener("change", (e) => {
+        const input = e.target.closest(".mp-file");
+        if (!input || !input.files || !input.files.length || !open) return;
+        const r = drawerRecord(), kind = input.dataset.kind;
+        const room = (data.modelPhotoMax || 12) - r.photos.length;
+        const files = [...input.files].slice(0, Math.max(0, room));
+        const left = input.files.length - files.length;
+        const many = files.length > 1;
+        photoCall(async () => {
+          const fd = new FormData(); fd.append("kind", kind);
+          for (const f of files) fd.append("photos", await shrinkImage(f, 1600, kind === "supplier" ? 0.9 : 0.85), "model.jpg");
+          return fetch(`/api/shop/model-photo/${encodeURIComponent(r.model)}`, { method: "POST", credentials: "same-origin", body: fd });
+        }, `${kind === "actual" ? plural(files.length, "actual photo", "actual photos") : plural(files.length, "supplier asset", "supplier assets")} saved — ${many ? "they're" : "it's"} on every card of this model now.${left ? ` ${plural(left, "file was", "files were")} left out: a model carries up to ${data.modelPhotoMax || 12}.` : ""}`);
+      });
+      const photoJson = (id, body) => fetch(`/api/shop/model-photo/item/${id}`, { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+      $("dPhoto").addEventListener("click", (e) => {
+        const r = drawerRecord(); const item = e.target.closest(".g-item"); if (!r || !item) return;
+        const id = Number(item.dataset.id);
+        if (e.target.closest(".g-thumb")) { open.sel = id; renderDrawerPhoto(r); return; }
+        const kindBtn = e.target.closest(".mp-kind");
+        if (kindBtn) { open.sel = id; photoCall(() => photoJson(id, { kind: kindBtn.dataset.kind }), kindBtn.dataset.kind === "actual" ? "Marked as an actual photo." : "Marked as a supplier asset."); }
+        else if (e.target.closest(".mp-first")) { open.sel = id; photoCall(() => photoJson(id, { first: true }), "That's the card picture now."); }
+        else if (e.target.closest(".mp-remove")) {
+          const last = r.photos.length === 1;
+          if (!confirm(`Remove this picture from ${r.model}?${last ? ` Its cards go back to ${r.catalogImage ? "the catalog thumbnail" : "no picture"}.` : ""}`)) return;
+          if (open.sel === id) open.sel = null;
+          photoCall(() => fetch(`/api/shop/model-photo/item/${id}`, { method: "DELETE", credentials: "same-origin" }), "Picture removed.");
+        }
+      });
+
+      // ---- Outlet unit photos ----
       async function uploadUnitPhoto(card, file) {
         const status = $("stockStatus");
         card.classList.add("busy"); status.textContent = "Saving photo…";
@@ -417,8 +722,7 @@
           const body = await res.json().catch(() => ({}));
           if (!res.ok) throw new Error(body.error || "Upload failed.");
           await load();
-          status.textContent = "Photo saved — it's the card picture on the shop now.";
-          setTimeout(() => { if (status.textContent.startsWith("Photo saved")) status.textContent = ""; }, 6000);
+          flash("Photo saved — it's the card picture on the shop now.");
         } catch (err) { status.textContent = err.message; } finally { card.classList.remove("busy"); }
       }
       $("outletCards").addEventListener("change", (e) => {
@@ -427,21 +731,21 @@
         uploadUnitPhoto(input.closest(".ucard"), input.files[0]);
       });
       $("outletCards").addEventListener("click", async (e) => {
-        const btn = e.target.closest(".up-remove");
-        if (!btn) return;
-        const card = btn.closest(".ucard");
-        if (!confirm(`Remove the photo of ${card.dataset.model} S/N ${card.dataset.serial}? The card goes back to the catalog picture.`)) return;
+        const card = e.target.closest(".ucard");
+        if (!card) return;
+        if (e.target.closest(".up-model")) { openDrawer(card.dataset.key); return; }
+        if (!e.target.closest(".up-remove")) return;
+        if (!confirm(`Remove the photo of ${card.dataset.model} S/N ${card.dataset.serial}? The card goes back to the model's picture.`)) return;
         const status = $("stockStatus");
         card.classList.add("busy"); status.textContent = "Removing…";
         try {
           const res = await fetch(`/api/shop/unit-photo/${encodeURIComponent(card.dataset.model)}/${encodeURIComponent(card.dataset.serial)}`, { method: "DELETE", credentials: "same-origin" });
           if (!res.ok) throw new Error("Unable to remove the photo.");
-          await load(); status.textContent = "Photo removed.";
-          setTimeout(() => { if (status.textContent === "Photo removed.") status.textContent = ""; }, 5000);
+          await load(); flash("Photo removed.", 5000);
         } catch (err) { status.textContent = err.message; } finally { card.classList.remove("busy"); }
       });
 
-      load();
+      load().catch(() => {});
     })();
   </script>
 </body>

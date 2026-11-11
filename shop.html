@@ -603,6 +603,13 @@
     .item-pic .item-img { margin-bottom: 0; }
     .item-pic.actual .item-img { object-fit: cover; border-radius: var(--r); background: var(--sunk); }
     .photo-chip { position: absolute; left: 8px; bottom: 8px; background: rgba(36,33,30,.88); color: #fff; border-radius: 3px; padding: 3px 8px; font-size: 10.5px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; backdrop-filter: blur(4px); }
+    .photo-chip[hidden] { display: none; }
+    /* several pictures on one model: flip through them on the card */
+    .pic-nav { position: absolute; top: 50%; transform: translateY(-50%); width: 30px; height: 30px; padding: 0; border-radius: 50%; border: 1px solid var(--line); background: rgba(255,255,255,.94); color: var(--ink); font-size: 17px; line-height: 1; cursor: pointer; display: grid; place-items: center; opacity: 0; transition: opacity .15s ease; }
+    .pic-nav.prev { left: 6px; } .pic-nav.next { right: 6px; }
+    .item-pic:hover .pic-nav, .pic-nav:focus-visible { opacity: 1; }
+    @media (hover: none) { .pic-nav { opacity: 1; } }
+    .pic-count { position: absolute; right: 8px; bottom: 8px; background: rgba(36,33,30,.72); color: #fff; border-radius: 3px; padding: 2px 7px; font-size: 10.5px; font-weight: 700; letter-spacing: .02em; }
     .skel { border-radius: 3px; background: linear-gradient(90deg, #EDEAE4 25%, #F2F1EE 50%, #EDEAE4 75%); background-size: 200% 100%; }
     .cond-badge { left: 10px; right: auto; border-radius: 3px; box-shadow: none; font-weight: 700; letter-spacing: .02em; text-transform: none; font-size: 11px; padding: 4px 8px; }
     .cond-badge.new, .cond-badge.stock-in { background: var(--ok); color: #fff; }
@@ -1311,6 +1318,29 @@
   // Identical units (same model, brand, condition, and price) collapse into
   // one tile showing how many are available — six of the same cooktop is one
   // card that says "6 available", not six duplicate cards.
+  // A model with more than one hand-picked picture (Express Assortment
+  // Catalog page, 11/11): the card flips through them with ‹ ›. Each picture
+  // says whether it is our own photo, so the "Actual product photo" chip and
+  // the fill-the-frame crop follow the picture on screen.
+  const morePics = (g) => Array.isArray(g.images) && g.images.length > 1;
+  function flipPic(pic, step) {
+    let list = [];
+    try { list = JSON.parse(pic.dataset.pics || "[]"); } catch { return; }
+    if (list.length < 2) return;
+    const i = ((Number(pic.dataset.i) || 0) + step + list.length) % list.length;
+    pic.dataset.i = i;
+    pic.querySelector(".item-img").src = list[i].url;
+    pic.classList.toggle("actual", !!list[i].actual);
+    const chip = pic.querySelector(".photo-chip"); if (chip) chip.hidden = !list[i].actual;
+    const count = pic.querySelector(".pic-count"); if (count) count.textContent = `${i + 1} / ${list.length}`;
+  }
+  document.addEventListener("click", (e) => {
+    const nav = e.target.closest(".pic-nav");
+    if (!nav) return;
+    e.preventDefault(); e.stopPropagation();
+    flipPic(nav.closest(".item-pic"), nav.classList.contains("next") ? 1 : -1);
+  });
+
   function groupedItems() {
     const groups = [];
     const byKey = new Map();
@@ -1383,7 +1413,7 @@
       card.innerHTML = `
         ${group.badge ? `<span class="eye-badge ${esc(group.badgeStyle || "red")}">${esc(group.badge)}</span>` : ""}
         ${conditionBadge(group)}
-        ${group.image ? `<div class="item-pic${group.photoActual ? " actual" : ""}"><img class="item-img" src="${esc(group.image)}" alt="${esc(group.model)}" loading="lazy" onerror="this.parentElement.remove()">${group.photoActual ? `<span class="photo-chip">Actual product photo</span>` : ""}</div>` : ""}
+        ${group.image ? `<div class="item-pic${group.photoActual ? " actual" : ""}"${morePics(group) ? ` data-pics="${esc(JSON.stringify(group.images))}" data-i="0"` : ""}><img class="item-img" src="${esc(group.image)}" alt="${esc(group.model)}" loading="lazy" onerror="this.parentElement.remove()">${group.photoActual || morePics(group) ? `<span class="photo-chip"${group.photoActual ? "" : " hidden"}>Actual product photo</span>` : ""}${morePics(group) ? `<button type="button" class="pic-nav prev" aria-label="Previous photo">‹</button><button type="button" class="pic-nav next" aria-label="Next photo">›</button><span class="pic-count">1 / ${group.images.length}</span>` : ""}</div>` : ""}
         <div class="item-brand">${esc(group.brand)}</div>
         <div class="item-desc">${esc(group.description)}</div>
         <div class="item-model"><a href="${esc(productPageUrl(group.model))}" target="_blank" rel="noopener" title="View ${esc(group.model)} on wilsonappliance.com">${esc(group.model)}</a></div>

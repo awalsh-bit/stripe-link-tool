@@ -7206,7 +7206,15 @@ async function loadShopDataFromDisk() {
   try {
     mapPolicy = JSON.parse(await fs.readFile(path.join(__dirname, "data", "shop-map-policy.json"), "utf8"));
   } catch {}
-  return { clearance: JSON.parse(clearanceRaw), addons: JSON.parse(addonsRaw), images, mapPolicy };
+  // Product details per model (Andrew 11/12) — optional. A one-time mapping
+  // of the NetSuite item export's Long Description: headline (its first
+  // part), three picked features, and the remaining parts. The storefront
+  // card shows them when the shopper taps the tile.
+  let productDetails = {};
+  try {
+    productDetails = JSON.parse(await fs.readFile(path.join(__dirname, "data", "shop-product-details.json"), "utf8")).models || {};
+  } catch {}
+  return { clearance: JSON.parse(clearanceRaw), addons: JSON.parse(addonsRaw), images, mapPolicy, productDetails };
 }
 
 // Does this brand+category match a public-pricing rule? Brand matching is
@@ -8848,9 +8856,19 @@ app.get("/api/shop/catalog", async (req, res) => {
       const g = groups.get(key);
       if (g) g.ids.push(id); else groups.set(key, { ...rest, ids: [id] });
     }
+    // Product details (11/12): sent once per model beside the items, not on
+    // every unit — the card shows them when its tile is tapped.
+    const { productDetails = {} } = await loadShopData();
+    const details = {};
+    for (const it of items) {
+      const k = normalizeModelKey(it.model);
+      const d = !details[k] && productDetails[k];
+      if (d && (d.description || (d.features || []).length)) details[k] = { headline: d.headline || "", description: d.description || "", features: (d.features || []).slice(0, 3), more: d.more || [] };
+    }
     res.setHeader("Cache-Control", "no-store");
     return res.json({
       items: [...groups.values()],
+      details,
       categories: catalog.categories,
       listDate: catalog.listDate,
       unlocked: Boolean(shopper),

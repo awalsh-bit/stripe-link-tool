@@ -235,7 +235,7 @@
     .deal-chip.active { background: #b45309; color: #fff; }
     .best-tag { display: inline-block; margin-left: 8px; vertical-align: 0; background: #fef3c7; color: #92400e; border-radius: 999px; padding: 1px 8px; font-size: 10.5px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; }
 
-    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(255px, 1fr)); gap: 14px; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(255px, 1fr)); gap: 14px; grid-auto-flow: row dense; } /* dense: when a tile opens to double width, the next tile fills the gap it leaves */
     .show-more { display: flex; flex-direction: column; align-items: center; gap: 6px; margin: 22px 0 6px; }
     .show-more .btn { min-width: 220px; }
     .show-more .muted { font-size: 12.5px; }
@@ -604,6 +604,30 @@
     .item-pic.actual .item-img { object-fit: cover; border-radius: var(--r); background: var(--sunk); }
     .photo-chip { position: absolute; left: 8px; bottom: 8px; background: rgba(36,33,30,.88); color: #fff; border-radius: 3px; padding: 3px 8px; font-size: 10.5px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; backdrop-filter: blur(4px); }
     .photo-chip[hidden] { display: none; }
+    /* Product details (11/12): tap a tile and it opens to double size with
+       the model's top features and full description. No separate pages. */
+    .item-card.has-details { cursor: pointer; }
+    .item-more { align-self: flex-start; appearance: none; border: 0; background: none; padding: 2px 0; font: inherit; font-size: 12.5px; font-weight: 600; color: var(--accent, #67533E); cursor: pointer; display: inline-flex; align-items: center; gap: 5px; }
+    .item-more::after { content: ""; width: 7px; height: 7px; border-right: 1.6px solid currentColor; border-bottom: 1.6px solid currentColor; transform: translateY(-2px) rotate(45deg); transition: transform .18s ease; }
+    .item-card.expanded .item-more::after { transform: translateY(2px) rotate(-135deg); }
+    .item-more:focus-visible { outline: 2px solid var(--accent, #67533E); outline-offset: 3px; border-radius: 3px; }
+    .item-details { display: none; border-top: 1px solid var(--line); margin-top: 6px; padding-top: 12px; cursor: auto; }
+    .item-card.expanded .item-details { display: block; }
+    .item-card.expanded { border-color: var(--ink); box-shadow: 0 14px 34px rgba(36,33,30,.14); }
+    .idt-kicker { font-size: 10.5px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: var(--copper, #BE7D3C); margin-bottom: 4px; }
+    .idt-head { font-family: var(--f-display, inherit); font-size: 18px; font-weight: 600; line-height: 1.2; margin-bottom: 10px; }
+    .idt-feats { list-style: none; margin: 0 0 12px; padding: 0; display: grid; gap: 7px; }
+    .idt-feats li { position: relative; padding-left: 18px; font-size: 14.5px; font-weight: 600; line-height: 1.35; }
+    .idt-feats li::before { content: ""; position: absolute; left: 2px; top: .5em; width: 7px; height: 7px; border-radius: 50%; background: var(--copper, #BE7D3C); }
+    .idt-sub { font-size: 10.5px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); margin: 0 0 4px; }
+    .idt-desc { margin: 0; font-size: 13.5px; line-height: 1.55; color: var(--muted); }
+    @media (min-width: 620px) {
+      /* double width: the tile's own content on the left, the details on the right */
+      .item-card.expanded { grid-column: span 2; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); column-gap: 20px; align-content: start; }
+      .item-card.expanded > * { grid-column: 1; }
+      .item-card.expanded > .item-details { grid-column: 2; grid-row: 1 / span 12; border-top: 0; border-left: 1px solid var(--line); margin-top: 0; padding: 4px 0 0 20px; }
+      .item-card.expanded > .eye-badge, .item-card.expanded > .cond-badge { grid-column: auto; }
+    }
     /* several pictures on one model: flip through them on the card */
     .pic-nav { position: absolute; top: 50%; transform: translateY(-50%); width: 30px; height: 30px; padding: 0; border-radius: 50%; border: 1px solid var(--line); background: rgba(255,255,255,.94); color: var(--ink); font-size: 17px; line-height: 1; cursor: pointer; display: grid; place-items: center; opacity: 0; transition: opacity .15s ease; }
     .pic-nav.prev { left: 6px; } .pic-nav.next { right: 6px; }
@@ -1343,6 +1367,29 @@
     flipPic(nav.closest(".item-pic"), nav.classList.contains("next") ? 1 : -1);
   });
 
+  // Product details: one tile open at a time. A tap anywhere on the tile that
+  // is not a button, link or field toggles it; the "Details" control does the
+  // same for keyboards. The open tile is remembered across re-renders (adding
+  // to the cart redraws the grid).
+  const detailNorm = (m) => String(m || "").toUpperCase().replace(/[^0-9A-Z]/g, "");
+  function toggleDetails(card) {
+    const opening = !card.classList.contains("expanded");
+    for (const el of document.querySelectorAll("#itemGrid .item-card.expanded")) { el.classList.remove("expanded"); const b = el.querySelector(".item-more"); if (b) { b.textContent = "Details"; b.setAttribute("aria-expanded", "false"); } }
+    state.expandedKey = opening ? card.dataset.detailKey : "";
+    if (!opening) return;
+    card.classList.add("expanded");
+    const btn = card.querySelector(".item-more"); if (btn) { btn.textContent = "Hide details"; btn.setAttribute("aria-expanded", "true"); }
+    // the tile may have moved to a new row to fit its double width — keep it in view
+    requestAnimationFrame(() => { const r = card.getBoundingClientRect(); const top = (document.getElementById("siteTop")?.getBoundingClientRect().bottom || 0) + 12; if (r.top < top || r.bottom > window.innerHeight) window.scrollBy({ top: r.top - top, behavior: "smooth" }); });
+  }
+  document.addEventListener("click", (e) => {
+    const card = e.target.closest("#itemGrid .item-card.has-details");
+    if (!card) return;
+    const more = e.target.closest(".item-more");
+    if (!more && (e.target.closest("a, button, input, select, textarea, label, .info-dot, .item-details") || String(window.getSelection?.() || ""))) return; // other controls keep their job; selecting text is not a tap
+    toggleDetails(card);
+  });
+
   function groupedItems() {
     const groups = [];
     const byKey = new Map();
@@ -1420,6 +1467,10 @@
     visible.forEach((group, index) => {
       const card = document.createElement("div");
       card.className = "item-card" + (group.badge ? " has-eye" : "");
+      // product details for this model, when we have them (tap the tile to open)
+      const det = (state.catalog.details || {})[detailNorm(group.model)] || null;
+      const dkey = [group.model, group.condition || "", group.serialType || "", group.photoActual ? group.image : ""].join("|");
+      const open = !!det && state.expandedKey === dkey;
       const total = group.ids.length;
       const carted = group.ids.filter((id) => state.cart.itemIds.includes(id)).length;
       const allInCart = carted >= total;
@@ -1428,7 +1479,8 @@
         ${conditionBadge(group)}
         ${group.image ? `<div class="item-pic${group.photoActual ? " actual" : ""}"${morePics(group) ? ` data-pics="${esc(JSON.stringify(group.images))}" data-i="0"` : ""}><img class="item-img" src="${esc(group.image)}" alt="${esc(group.model)}" loading="lazy" onerror="this.parentElement.remove()">${group.photoActual || morePics(group) ? `<span class="photo-chip"${group.photoActual ? "" : " hidden"}>Actual product photo</span>` : ""}${morePics(group) ? `<button type="button" class="pic-nav prev" aria-label="Previous photo">‹</button><button type="button" class="pic-nav next" aria-label="Next photo">›</button><span class="pic-count">1 / ${group.images.length}</span>` : ""}</div>` : ""}
         <div class="item-brand">${esc(group.brand)}</div>
-        <div class="item-desc">${esc(group.description)}</div>
+        <div class="item-desc">${esc(det?.headline || group.description)}</div>
+        ${det ? `<button type="button" class="item-more" aria-expanded="${open ? "true" : "false"}">${open ? "Hide details" : "Details"}</button>` : ""}
         <div class="item-model"><a href="${esc(productPageUrl(group.model))}" target="_blank" rel="noopener" title="View ${esc(group.model)} on wilsonappliance.com">${esc(group.model)}</a></div>
         <div class="item-cat">${esc(categoryLabel(group.category))}${group.source === "stock" ? "" : ` · ${total} available`}${carted && !allInCart ? ` · ${carted} in cart` : ""}${state.bestSellers.has(group.model) ? `<span class="best-tag">Best seller</span>` : ""}</div>
         <div class="item-foot">
@@ -1448,7 +1500,14 @@
               : (allInCart
                   ? `<span class="in-cart">${total > 1 ? "All " + total + " in cart ✓" : "In cart ✓"}</span>`
                   : `<button class="btn primary" data-add-group="${index}">Add to cart</button>`)}
-        </div>`;
+        </div>
+        ${det ? `<div class="item-details">
+          <div class="idt-kicker">${esc(group.brand)} ${esc(group.model)}</div>
+          <div class="idt-head">${esc(det.headline || group.description)}</div>
+          ${det.features && det.features.length ? `<ul class="idt-feats">${det.features.map((f) => `<li>${esc(f)}</li>`).join("")}</ul>` : ""}
+          ${det.description ? `<p class="idt-sub">Full description</p><p class="idt-desc">${esc(det.description)}</p>` : ""}
+        </div>` : ""}`;
+      if (det) { card.classList.add("has-details"); card.dataset.detailKey = dkey; if (open) card.classList.add("expanded"); }
       grid.appendChild(card);
     });
 

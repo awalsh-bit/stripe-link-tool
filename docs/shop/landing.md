@@ -81,3 +81,12 @@ The "Better choices, already made" headline above the Top Deals cards on `shop.h
 
 The reason: brand-first ranking inside a card put a brand's only qualifying item on top — a panel-ready KitchenAid undercounter led Refrigerators because KitchenAid sells a lot of dishwashers. `shopSalesRank()` in `server.js` now also rolls sales up per brand and shop category (`byBrandCat`), and `/api/shop/catalog` sends it per item as `brandCatSold`.
 
+## Product details on the tile (11/12)
+
+Tapping a product tile on `shop.html` opens it to double width (taller, in place, on a phone) with the model's three top features as bullets and its full description. One tile is open at a time; buttons and the model link inside a tile keep their own jobs. There are no separate product pages.
+
+- **Data:** `data/shop-product-details.json`, a one-time mapping (11/12) of the *Long Description* column in the NetSuite item export `items/Items413.csv`. Per model: `headline` (the first part of the long description — also shown on the closed tile in place of ePASS's 50-character description), `features` (three picked from the rest), `more` (the remaining parts) and `description` (the whole text, tidied). 161 of the 201 Express models had a long description; the rest simply have no Details control.
+- **How the three were picked:** the long description is a comma-separated list. Named technologies, capacity, quietness, cleaning and cooking modes, warranty and the like rank above attributes every model has (control type, handle, counts of temperatures or options, ADA, Energy Star); ties go to whatever the item record lists first. Burner BTU lists and "2-Speed, 300 CFM" pairs are kept together as one feature. To change a model, edit its entry in the JSON.
+- **Wire:** `loadShopData()` reads the file (optional — no file, no details); `/api/shop/catalog` sends `details` keyed by normalized model for the models in the response.
+- **Not done yet:** benefit wording, an editor on the catalog page, and re-running the mapping when NetSuite changes.
+

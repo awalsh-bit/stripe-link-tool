@@ -202,6 +202,7 @@ import {
   addShopModelPhoto, setShopModelPhotoKind, makeShopModelPhotoFirst, getShopModelPhoto, deleteShopModelPhoto, listShopModelPhotos, MODEL_PHOTO_MAX,
   getShopModelImagesMeta,
   getShopMapPrices,
+  getShopMapFloorsFor,
   getShopExpressSettings, saveShopHomeStats, getShopHomeStats, createShopHandoff, getShopHandoff, markShopHandoffConverted,
   saveShopExpressSettings
 } from "./lib/shop-postgres.js";
@@ -7473,7 +7474,8 @@ let shopCatalogCache = null; // { at, promise }
 let shopCatalogRefreshing = null;
 let shopCatalogLastAsked = 0; // last time a visitor actually asked for the catalog
 let shopHomeStatsMemo = null; // landing-page numbers from the last catalog build (see /api/shop/home-stats)
-function invalidateShopCatalog() { shopCatalogCache = null; }
+let shopDescribeMemo = { at: 0, ttl: 0, promise: null }; // the stock lookup's NetSuite tables (see shopDescribeSources)
+function invalidateShopCatalog() { shopCatalogCache = null; shopDescribeMemo = { at: 0, ttl: 0, promise: null }; }
 function refreshShopCatalogInBackground() {
   if (shopCatalogRefreshing) return shopCatalogRefreshing;
   shopCatalogRefreshing = computeShopCatalogFresh()
@@ -8308,18 +8310,45 @@ app.post("/api/shop/password", async (req, res) => {
 // (brand, description, ePASS product code for the add-on map, whether it's
 // a blocked brand, sealed stock on hand). Used by the stock lookup, the
 // handoff and the quote request so they can never disagree.
-async function shopDescribeModels(models, catalog) {
-  const [cat, brandMap, finishMap, shopData] = await Promise.all([getCatalog().catch(() => null), getModelBrandMap().catch(() => ({})), getNetsuiteFinishMap().catch(() => ({})), loadShopData().catch(() => ({}))]);
-  const addonsFile = shopData?.addons || {};
-  const addonIndex = buildAddonIndex(addonsFile);
-  const blocked = shopBrandBlocker();
-  const byKey = new Map();
-  for (const i of catalog?.items || []) {
+// Speed (Andrew 11/12 — the website calls the stock lookup from every
+// category page, ~10,000 models listed): this used to read the WHOLE NetSuite
+// model map and finish table from Postgres, and re-index every unit in the
+// catalog, on every single call. Now the two tables are held for two minutes
+// and the unit index is built once per catalog build, so a call is a handful
+// of in-memory lookups plus one small price query.
+function shopDescribeSources() {
+  if (shopDescribeMemo.promise && Date.now() - shopDescribeMemo.at < shopDescribeMemo.ttl) return shopDescribeMemo.promise;
+  const memo = { at: Date.now(), ttl: 2 * 60 * 1000, promise: null };
+  memo.promise = Promise.all([getModelBrandMap().catch(() => ({})), getNetsuiteFinishMap().catch(() => ({}))]).then(([brandMap, finishMap]) => {
+    // An empty map is a database hiccup (or a brand-new database): try again soon rather than serve blanks for two minutes.
+    if (!Object.keys(brandMap || {}).length) memo.ttl = 10 * 1000;
+    return { brandMap: brandMap || {}, finishMap: finishMap || {} };
+  });
+  shopDescribeMemo = memo;
+  return memo.promise;
+}
+const shopCatalogUnitIndex = new WeakMap(); // catalog build -> Map(model key -> { items, newUnits })
+function shopUnitsByModel(catalog) {
+  if (!catalog || typeof catalog !== "object") return new Map();
+  let byKey = shopCatalogUnitIndex.get(catalog);
+  if (byKey) return byKey;
+  byKey = new Map();
+  for (const i of catalog.items || []) {
     const k = normalizeModelKey(i.model); if (!k) continue;
     const m = byKey.get(k) || { items: [], newUnits: 0 };
     m.items.push(i); if (i.condition === "new") m.newUnits += 1;
     byKey.set(k, m);
   }
+  shopCatalogUnitIndex.set(catalog, byKey);
+  return byKey;
+}
+async function shopDescribeModels(models, catalog) {
+  const [cat, sources, shopData] = await Promise.all([getCatalog().catch(() => null), shopDescribeSources(), loadShopData().catch(() => ({}))]);
+  const { brandMap, finishMap } = sources;
+  const addonsFile = shopData?.addons || {};
+  const addonIndex = buildAddonIndex(addonsFile);
+  const blocked = shopBrandBlocker();
+  const byKey = shopUnitsByModel(catalog);
   return models.map((model) => {
     const key = normalizeModelKey(model);
     const hit = byKey.get(key);
@@ -8383,6 +8412,14 @@ app.get("/api/shop/stock", shopStockLimiter, async (req, res) => {
     // special-order washer (Gavin 11/9). Only a model Agility has never heard
     // of comes back blank.
     const described = await shopDescribeModels(asked, catalog);
+    // A price for every model, in stock or not (Andrew 11/12 — the website
+    // had nothing to show for special-order models). The number comes from
+    // the RetailDeck floor table: the manufacturer's minimum advertised
+    // price (UMRP / MAP), which a dealer may always advertise. `mapPrice`
+    // rides on every sellable model; a model with no stock gets it as its
+    // `price` with priceSource "map". In-stock pricing is unchanged.
+    const mapLookup = await getShopMapFloorsFor(asked).catch((err) => { console.error("Stock lookup MAP floors failed:", err.message); return { floors: {}, fetchedAt: null }; });
+    const mapPriceOf = (model) => mapLookup.floors[normalizeModelKey(model)] ?? null;
     const shopBase = `https://${SHOP_PUBLIC_HOST}`;
     // pictures stored in Agility (unit / model photos) are site-relative — the website needs the full address
     const absImage = (u) => (u && String(u).startsWith("/") ? shopBase + u : u || "");
@@ -8392,8 +8429,10 @@ app.get("/api/shop/stock", shopStockLimiter, async (req, res) => {
       const brand = d.brand;
       const inquireOnly = d.inquireOnly;
       const base = { model, brand, description: d.description, product: d.product, servicesKey: d.servicesKey, brandServicesKey: d.brandServicesKey || "", panelReady: d.panelReady ?? null, merchClass: d.merchClass, merchSubclass: d.merchSubclass, inquireOnly };
-      if (inquireOnly) return { ...base, inStock: false, available: 0, price: null, priceInCart: false, addUrl: null, note: "Quoted in person — ask for a specialist." };
-      if (!hit) return { ...base, inStock: false, available: 0, newUnits: 0, outletUnits: 0, price: null, priceInCart: false, addUrl: null };
+      // Brands not sold online are quoted in person — no number at all.
+      if (inquireOnly) return { ...base, inStock: false, available: 0, price: null, mapPrice: null, priceSource: null, priceInCart: false, addUrl: null, note: "Quoted in person — ask for a specialist." };
+      const mapPrice = mapPriceOf(model);
+      if (!hit) return { ...base, inStock: false, available: 0, newUnits: 0, outletUnits: 0, price: mapPrice, mapPrice, priceSource: mapPrice != null ? "map" : null, belowMap: false, priceInCart: false, addUrl: null };
       const units = hit.items;
       // ATS is sealed stock only (Andrew 11/9): open-box and display units
       // sell in the outlet but never count as "available".
@@ -8416,6 +8455,10 @@ app.get("/api/shop/stock", shopStockLimiter, async (req, res) => {
         outletUnits: units.filter((i) => i.condition === "open").length,
         outletOnly: newUnits === 0,
         price,
+        // "shop" = Wilson's own price, advertisable; "map" = the advertised
+        // floor (our price is lower in the cart); null = price in cart only.
+        priceSource: price == null ? null : belowMap ? "map" : "shop",
+        mapPrice,
         belowMap,
         priceInCart,
         expressEligible: units.some((i) => shopItemExpressEligible(i, catalog.express)),
@@ -8423,7 +8466,7 @@ app.get("/api/shop/stock", shopStockLimiter, async (req, res) => {
       };
     });
     res.setHeader("Cache-Control", "public, max-age=60");
-    return res.json({ asOf: catalog.feedAt || null, paused: Boolean(catalog.paused), shop: shopBase, models });
+    return res.json({ asOf: catalog.feedAt || null, mapAsOf: mapLookup.fetchedAt || null, paused: Boolean(catalog.paused), shop: shopBase, models });
   } catch (err) { console.error("Shop stock lookup failed:", err.message); return res.status(500).json({ error: "Stock lookup unavailable." }); }
 });
 

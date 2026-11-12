@@ -9,28 +9,33 @@ Up to 50 model numbers per call (comma-separated; spacing, dashes and case don't
 ```json
 {
   "asOf": "2026-11-09T14:02:11.000Z",
+  "mapAsOf": "2026-11-12T08:14:03.000Z",
   "paused": false,
   "shop": "https://shop.wilsonappliance.com",
   "models": [
     { "model": "WM4000HWA", "brand": "LG", "description": "4.5 cu. ft. Front Load Washer",
       "category": "Lau", "image": "https://shop.wilsonappliance.com/api/promo/photo/…",
       "inStock": true, "available": 5, "newUnits": 5, "outletUnits": 1, "outletOnly": false,
-      "price": 899, "belowMap": false, "priceInCart": false, "expressEligible": true,
+      "price": 899, "priceSource": "shop", "mapPrice": 899, "belowMap": false, "priceInCart": false, "expressEligible": true,
       "inquireOnly": false, "addUrl": "https://shop.wilsonappliance.com/shop.html?add=WM4000HWA" },
     { "model": "KDTM404KPS", "brand": "KitchenAid", "description": "44 dBA Dishwasher",
       "inStock": true, "available": 2, "newUnits": 2, "outletUnits": 0, "outletOnly": false,
-      "price": null, "belowMap": false, "priceInCart": true, "inquireOnly": false,
+      "price": null, "priceSource": null, "mapPrice": 1199, "belowMap": false, "priceInCart": true, "inquireOnly": false,
       "addUrl": "https://shop.wilsonappliance.com/shop.html?add=KDTM404KPS" },
+    { "model": "KFDD948SSS", "brand": "KitchenAid", "description": "48\" Dual Fuel Range",
+      "inStock": false, "available": 0, "newUnits": 0, "outletUnits": 0,
+      "price": 9999, "priceSource": "map", "mapPrice": 9999, "belowMap": false, "priceInCart": false,
+      "inquireOnly": false, "addUrl": null },
     { "model": "SRT486G", "brand": "Sub-Zero", "description": "…",
-      "inquireOnly": true, "inStock": false, "available": 0, "price": null, "priceInCart": false,
+      "inquireOnly": true, "inStock": false, "available": 0, "price": null, "mapPrice": null, "priceSource": null, "priceInCart": false,
       "addUrl": null, "note": "Quoted in person — ask for a specialist." },
     { "model": "ZZZ123", "brand": "", "description": "", "inStock": false, "available": 0,
-      "price": null, "priceInCart": false, "inquireOnly": false, "addUrl": null }
+      "price": null, "mapPrice": null, "priceSource": null, "priceInCart": false, "inquireOnly": false, "addUrl": null }
   ]
 }
 ```
 
-How to read each model — three states, all with stock:
+How to read each model:
 
 | Field | Meaning |
 |---|---|
@@ -38,11 +43,18 @@ How to read each model — three states, all with stock:
 | `price` with `priceInCart: false` | The manufacturer lets us advertise this price. Show it. |
 | `price: null`, `priceInCart: true` | We sell it online but may not advertise the number. Show "See price in cart" and the button; the shop reveals it once it's in the cart. |
 | `price` with `belowMap: true` | Our price is below the advertised floor; the number given *is* the floor. Show it with "our price is even lower in the cart." |
+| `inStock: false` with a `price` and `priceSource: "map"` (**added 11/12**) | Not in stock — a special-order model. The number is the manufacturer's minimum advertised price (UMRP / MAP) from the RetailDeck floor table, which a dealer may always advertise. Show it as the price; there is no `addUrl`, so it goes through the site's own quote cart. Before 11/12 this came back `price: null`. |
+| `inStock: false`, `price: null` | RetailDeck has no floor for that model number (or Agility has never heard of it). Show "Call for price" / request a quote. |
+| `priceSource` | Where `price` came from: `"shop"` = Wilson's own selling price; `"map"` = the manufacturer's advertised floor; `null` = no advertised price. |
+| `mapPrice` | The RetailDeck floor for the model whenever there is one, in stock or not — for a "list price" line or a strike-through. It never replaces the rules above: an in-stock model that is "see price in cart" still has `price: null`. Always `null` for inquire-only brands. |
+| `mapAsOf` (top level) | When the floor table was last refreshed from RetailDeck (nightly). |
 | `inquireOnly: true` | Sub-Zero, Wolf, Cove, Gaggenau (the Shop Orders "brands not sold online" list). No cart button; route to a specialist. |
 | `paused: true` (top level) | Online ordering is briefly paused; prices come back null. Show stock, hide buy buttons, point to the phone. |
 | `expressEligible` | Qualifies for the same-day install program. |
 
 Never in this response: unit ids, serials, cost, location, or anything about a customer.
+
+**Why there is no "all prices" download.** The floor table is RetailDeck's data (about 108,000 models) and reaches Agility through a private link; this lookup answers for the models a page actually shows, 50 at a time, and is rate-limited. Republishing the whole table from a public address would hand RetailDeck's file to anyone who found it.
 
 ### 1b. Everything in stock, in one call — `GET /api/shop/stock/in-stock`
 

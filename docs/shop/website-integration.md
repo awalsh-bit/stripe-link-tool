@@ -48,6 +48,20 @@ How to read each model:
 | `priceSource` | Where `price` came from: `"shop"` = Wilson's own selling price; `"map"` = the manufacturer's advertised floor; `null` = no advertised price. |
 | `mapPrice` | The RetailDeck floor for the model whenever there is one, in stock or not — for a "list price" line or a strike-through. It never replaces the rules above: an in-stock model that is "see price in cart" still has `price: null`. Always `null` for inquire-only brands. |
 | `mapAsOf` (top level) | When the floor table was last refreshed from RetailDeck (nightly). |
+| `itemModel`, `displayModel` (**added 11/12**) | The model number swap — see below. `model` is always exactly what the site sent. |
+
+### The model number swap (Miele)
+
+A Miele is a material number in ePASS and NetSuite (`12496980`) and a model name everywhere a person sees it (`G 5892 SCVi SL`). Agility uses the same rule as Inventory Lookup: when NetSuite's *Display Name* for an item is different from its item number, that name is the model people know.
+
+- **Ask by either one.** `?models=G 5892 SCVi SL` and `?models=12496980` return the same stock, price and services. Spacing, dashes and case don't matter (`g5892scvisl` works).
+- **`model`** comes back exactly as sent, so the site can match the answer to its own row. **`itemModel`** is the number ePASS knows (`12496980`); **`displayModel`** is the name to show (`G 5892 SCVi SL`), blank for a model that has no swap.
+- **`addUrl` and the cart handoff use the item number**, so an in-stock Miele goes into the shop cart as in stock whichever way the site named it.
+- **MAP price** is looked up under the name the site sent, the item number and the display name — RetailDeck lists some under one, some under the other.
+- If two items share one display name (colour variants), the one with stock answers.
+- A name is only swapped when it is not a real item number of its own, so an ordinary model is never redirected.
+
+**Separating models:** use commas. A piece with spaces in it is read as one model when it is a name Agility knows; otherwise it is split on the spaces, as before.
 | `inquireOnly: true` | Sub-Zero, Wolf, Cove, Gaggenau (the Shop Orders "brands not sold online" list). No cart button; route to a specialist. |
 | `paused: true` (top level) | Online ordering is briefly paused; prices come back null. Show stock, hide buy buttons, point to the phone. |
 | `expressEligible` | Qualifies for the same-day install program. |

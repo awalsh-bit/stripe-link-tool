@@ -203,6 +203,7 @@ import {
   getShopModelImagesMeta,
   getShopMapPrices,
   getShopMapFloorsFor,
+  getNetsuiteDisplayNames,
   getShopExpressSettings, saveShopHomeStats, getShopHomeStats, createShopHandoff, getShopHandoff, markShopHandoffConverted,
   saveShopExpressSettings
 } from "./lib/shop-postgres.js";
@@ -8319,10 +8320,18 @@ app.post("/api/shop/password", async (req, res) => {
 function shopDescribeSources() {
   if (shopDescribeMemo.promise && Date.now() - shopDescribeMemo.at < shopDescribeMemo.ttl) return shopDescribeMemo.promise;
   const memo = { at: Date.now(), ttl: 2 * 60 * 1000, promise: null };
-  memo.promise = Promise.all([getModelBrandMap().catch(() => ({})), getNetsuiteFinishMap().catch(() => ({}))]).then(([brandMap, finishMap]) => {
+  memo.promise = Promise.all([getModelBrandMap().catch(() => ({})), getNetsuiteFinishMap().catch(() => ({})), getNetsuiteDisplayNames().catch(() => [])]).then(([brandMap, finishMap, names]) => {
     // An empty map is a database hiccup (or a brand-new database): try again soon rather than serve blanks for two minutes.
     if (!Object.keys(brandMap || {}).length) memo.ttl = 10 * 1000;
-    return { brandMap: brandMap || {}, finishMap: finishMap || {} };
+    // The Miele swap (11/12), both directions: item number -> the model
+    // name people know, and that name -> the item(s) carrying it.
+    const displayByItem = new Map(), itemsByName = new Map();
+    for (const n of names || []) {
+      if (!displayByItem.has(n.key)) displayByItem.set(n.key, n.name);
+      if (!itemsByName.has(n.nameKey)) itemsByName.set(n.nameKey, []);
+      itemsByName.get(n.nameKey).push(n);
+    }
+    return { brandMap: brandMap || {}, finishMap: finishMap || {}, displayByItem, itemsByName };
   });
   shopDescribeMemo = memo;
   return memo.promise;
@@ -8342,15 +8351,36 @@ function shopUnitsByModel(catalog) {
   shopCatalogUnitIndex.set(catalog, byKey);
   return byKey;
 }
+// Is this text a model Agility knows — an item number, or a NetSuite display name (the Miele swap)?
+async function shopKnownModelName(catalog) {
+  const [cat, sources] = await Promise.all([getCatalog().catch(() => null), shopDescribeSources()]);
+  const byKey = shopUnitsByModel(catalog);
+  return (name) => { const k = normalizeModelKey(name); return !!k && (byKey.has(k) || !!sources.brandMap[k] || !!sources.brandMap[String(name || "").trim().toUpperCase()] || sources.displayByItem.has(k) || sources.itemsByName.has(k) || !!cat?.byModel?.has?.(k)); };
+}
 async function shopDescribeModels(models, catalog) {
   const [cat, sources, shopData] = await Promise.all([getCatalog().catch(() => null), shopDescribeSources(), loadShopData().catch(() => ({}))]);
-  const { brandMap, finishMap } = sources;
+  const { brandMap, finishMap, displayByItem, itemsByName } = sources;
   const addonsFile = shopData?.addons || {};
   const addonIndex = buildAddonIndex(addonsFile);
   const blocked = shopBrandBlocker();
   const byKey = shopUnitsByModel(catalog);
-  return models.map((model) => {
+  return models.map((asked) => {
+    // The model number swap (Andrew 11/12, the Inventory Lookup rule): a
+    // Miele is the material number (10116800) in ePASS and NetSuite, and
+    // the model name (HBFP 27-1) everywhere a person sees it. Asked by
+    // name, answer for the item that carries that name — the one with
+    // stock first — but only when the name isn't a real item number of its
+    // own. `model` stays exactly what was asked; `itemModel` is the number
+    // ePASS knows, `displayModel` the name.
+    const askedKey = normalizeModelKey(asked);
+    let model = String(asked || "").trim();
+    const knownAsIs = byKey.has(askedKey) || brandMap[model.toUpperCase()] || brandMap[askedKey] || displayByItem.has(askedKey) || cat?.byModel?.has?.(askedKey);
+    if (!knownAsIs && itemsByName.has(askedKey)) {
+      const carrying = itemsByName.get(askedKey);
+      model = (carrying.find((c) => byKey.get(c.key)?.newUnits > 0) || carrying.find((c) => byKey.has(c.key)) || carrying[0]).item;
+    }
     const key = normalizeModelKey(model);
+    const displayModel = displayByItem.get(key) || "";
     const hit = byKey.get(key);
     const known = brandMap[String(model || "").toUpperCase()] || brandMap[key] || {};
     const r = cat ? resolveModel(cat, model, {}) : null;
@@ -8361,7 +8391,9 @@ async function shopDescribeModels(models, catalog) {
     const finish = first?.finish || finishMap[key] || "";
     const servicesKey = first?.servicesKey || servicesKeyFor({ subclass, finish, brand, model, description }, addonsFile, addonIndex) || subclass;
     return {
-      model: String(model || "").trim(),
+      model: String(asked || "").trim(),
+      itemModel: model,
+      displayModel,
       brand,
       description,
       product: String(first?.product || known.prod || "").toUpperCase(),
@@ -8403,9 +8435,14 @@ app.get("/api/shop/stock/in-stock", async (req, res) => {
 app.get("/api/shop/stock", shopStockLimiter, async (req, res) => {
   try {
     const raw = String(req.query.models || req.query.model || "");
-    const asked = [...new Set(raw.split(/[,\s]+/).map((m) => m.trim()).filter(Boolean))].slice(0, 50);
-    if (!asked.length) return res.status(400).json({ error: "Pass ?models=MODEL1,MODEL2 (up to 50)." });
+    if (!raw.trim()) return res.status(400).json({ error: "Pass ?models=MODEL1,MODEL2 (up to 50)." });
     const catalog = await computeShopCatalog({ maxAgeMs: SHOP_CATALOG_CACHE_MS });
+    // Commas separate models. A piece with spaces in it is ONE model when it
+    // is a name Agility knows ("G 5892 SCVi SL" — Miele names have spaces);
+    // otherwise it is split on the spaces, as a space-separated list always was.
+    const isKnownName = await shopKnownModelName(catalog);
+    const asked = [...new Set(raw.split(/[,;\r\n]+/).flatMap((piece) => { const p = piece.trim(); return !p ? [] : (/\s/.test(p) && !isKnownName(p) ? p.split(/\s+/) : [p]); }).filter(Boolean))].slice(0, 50);
+    if (!asked.length) return res.status(400).json({ error: "Pass ?models=MODEL1,MODEL2 (up to 50)." });
     // Brand, description, product code and servicesKey come from the shared
     // describer for EVERY model Agility knows — in stock or not — so the
     // website's quote cart can offer the right installs and connectors for a
@@ -8418,8 +8455,9 @@ app.get("/api/shop/stock", shopStockLimiter, async (req, res) => {
     // price (UMRP / MAP), which a dealer may always advertise. `mapPrice`
     // rides on every sellable model; a model with no stock gets it as its
     // `price` with priceSource "map". In-stock pricing is unchanged.
-    const mapLookup = await getShopMapFloorsFor(asked).catch((err) => { console.error("Stock lookup MAP floors failed:", err.message); return { floors: {}, fetchedAt: null }; });
-    const mapPriceOf = (model) => mapLookup.floors[normalizeModelKey(model)] ?? null;
+    // RetailDeck may list a swapped model under either number, so all three are tried.
+    const mapLookup = await getShopMapFloorsFor([...asked, ...described.map((d) => d.itemModel), ...described.map((d) => d.displayModel)]).catch((err) => { console.error("Stock lookup MAP floors failed:", err.message); return { floors: {}, fetchedAt: null }; });
+    const mapPriceOf = (...names) => { for (const n of names) { const v = n ? mapLookup.floors[normalizeModelKey(n)] : null; if (v != null) return v; } return null; };
     const shopBase = `https://${SHOP_PUBLIC_HOST}`;
     // pictures stored in Agility (unit / model photos) are site-relative — the website needs the full address
     const absImage = (u) => (u && String(u).startsWith("/") ? shopBase + u : u || "");
@@ -8428,10 +8466,11 @@ app.get("/api/shop/stock", shopStockLimiter, async (req, res) => {
       const hit = d.units.length ? { items: d.units } : null;
       const brand = d.brand;
       const inquireOnly = d.inquireOnly;
-      const base = { model, brand, description: d.description, product: d.product, servicesKey: d.servicesKey, brandServicesKey: d.brandServicesKey || "", panelReady: d.panelReady ?? null, merchClass: d.merchClass, merchSubclass: d.merchSubclass, inquireOnly };
+      // itemModel / displayModel: the model number swap (Miele). `model` is what the site asked for.
+      const base = { model, itemModel: d.itemModel, displayModel: d.displayModel, brand, description: d.description, product: d.product, servicesKey: d.servicesKey, brandServicesKey: d.brandServicesKey || "", panelReady: d.panelReady ?? null, merchClass: d.merchClass, merchSubclass: d.merchSubclass, inquireOnly };
       // Brands not sold online are quoted in person — no number at all.
       if (inquireOnly) return { ...base, inStock: false, available: 0, price: null, mapPrice: null, priceSource: null, priceInCart: false, addUrl: null, note: "Quoted in person — ask for a specialist." };
-      const mapPrice = mapPriceOf(model);
+      const mapPrice = mapPriceOf(model, d.itemModel, d.displayModel);
       if (!hit) return { ...base, inStock: false, available: 0, newUnits: 0, outletUnits: 0, price: mapPrice, mapPrice, priceSource: mapPrice != null ? "map" : null, belowMap: false, priceInCart: false, addUrl: null };
       const units = hit.items;
       // ATS is sealed stock only (Andrew 11/9): open-box and display units
@@ -8462,7 +8501,7 @@ app.get("/api/shop/stock", shopStockLimiter, async (req, res) => {
         belowMap,
         priceInCart,
         expressEligible: units.some((i) => shopItemExpressEligible(i, catalog.express)),
-        addUrl: `${shopBase}/shop.html?add=${encodeURIComponent(model)}`
+        addUrl: `${shopBase}/shop.html?add=${encodeURIComponent(d.itemModel || model)}`
       };
     });
     res.setHeader("Cache-Control", "public, max-age=60");
@@ -8500,13 +8539,14 @@ app.post("/api/shop/handoff", shopHandoffLimiter, async (req, res) => {
     const described = await shopDescribeModels(items.map((i) => i.model), catalog);
     const preview = items.map((it, i) => {
       const d = described[i];
-      return { model: it.model, qty: it.qty, brand: d.brand, description: d.description, product: d.product, servicesKey: d.servicesKey, brandServicesKey: d.brandServicesKey || "", merchSubclass: d.merchSubclass, inStock: d.inStock, available: d.available, inquireOnly: d.inquireOnly, special: !d.inStock };
+      // itemModel: the number ePASS knows (the Miele swap) — what the shop is handed, so an in-stock unit is found.
+      return { model: it.model, itemModel: d.itemModel || it.model, displayModel: d.displayModel || "", qty: it.qty, brand: d.brand, description: d.description, product: d.product, servicesKey: d.servicesKey, brandServicesKey: d.brandServicesKey || "", merchSubclass: d.merchSubclass, inStock: d.inStock, available: d.available, inquireOnly: d.inquireOnly, special: !d.inStock };
     });
     const sellable = preview;
     const zip = String(req.body?.zip || "").trim().slice(0, 10);
     const source = String(req.body?.source || "website").trim().slice(0, 40);
     const ref = String(req.body?.ref || "").trim().slice(0, 120);
-    const { token, expiresAt } = await createShopHandoff({ items: sellable.map(({ model, qty, brand, description, product, servicesKey, brandServicesKey: bsk, inquireOnly, inStock }) => ({ model, qty, brand, description, product, servicesKey, brandServicesKey: bsk, inquireOnly, inStock })), zip, source, ref, ip: req.ip });
+    const { token, expiresAt } = await createShopHandoff({ items: sellable.map(({ model, itemModel, qty, brand, description, product, servicesKey, brandServicesKey: bsk, inquireOnly, inStock }) => ({ model: itemModel || model, qty, brand, description, product, servicesKey, brandServicesKey: bsk, inquireOnly, inStock })), zip, source, ref, ip: req.ip });
     const url = `https://${SHOP_PUBLIC_HOST}/shop.html?cart=${encodeURIComponent(token)}`;
     res.setHeader("Cache-Control", "no-store");
     return res.json({ token, url, expiresAt, items: preview });

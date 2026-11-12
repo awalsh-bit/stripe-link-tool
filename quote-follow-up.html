@@ -114,6 +114,41 @@
     .qf-how.auto { background: rgba(var(--primary-rgb), 0.12); color: var(--primary); }
     .qf-how.manual { background: #eef2ff; color: #3730a3; }
 
+    /* Recently modified quotes (executives): each quote with its lines */
+    .rq-on #qfRangeBar, .rq-on #qfView, .rq-on #qfSp, .rq-on #qfBrandsBtn, .rq-on #qfUpload, .rq-on #qfMeta, .rq-on #qfBrandNote { display: none !important; }
+    .rq-bar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin: 4px 0 10px; }
+    .rq-bar select, .rq-bar input[type=search] { border: 1px solid var(--border); border-radius: 10px; padding: 9px 10px; font-size: 13px; font-family: inherit; background: #fff; }
+    .rq-bar input[type=search] { flex: 1; min-width: 200px; }
+    .rq-sum { font-size: 12.5px; color: var(--muted); margin-bottom: 12px; line-height: 1.6; }
+    .rq-sum b { color: var(--text); }
+    .rq-card { border: 1px solid var(--border); border-radius: 14px; background: #fff; margin-bottom: 12px; overflow: hidden; }
+    .rq-head { display: flex; flex-wrap: wrap; gap: 6px 18px; align-items: baseline; padding: 12px 14px 10px; border-bottom: 1px solid #edf1f7; }
+    .rq-num { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-weight: 800; font-size: 15px; }
+    .rq-cust { font-weight: 700; font-size: 14.5px; }
+    .rq-where { color: var(--muted); font-size: 12.5px; }
+    .rq-total { margin-left: auto; font-weight: 800; font-size: 16px; white-space: nowrap; }
+    .rq-facts { display: flex; flex-wrap: wrap; gap: 4px 16px; padding: 8px 14px; font-size: 12.5px; color: #475569; background: #fafbfd; border-bottom: 1px solid #edf1f7; }
+    .rq-facts b { color: var(--text); font-weight: 600; }
+    .rq-tag { display: inline-block; border-radius: 999px; padding: 2px 9px; font-size: 11px; font-weight: 700; white-space: nowrap; }
+    .rq-tag.new { background: #dcfce7; color: #166534; } .rq-tag.old { background: #e0e7ff; color: #3730a3; } .rq-tag.js { background: #f1f5f9; color: #475569; }
+    .rq-lines { width: 100%; border-collapse: collapse; font-size: 13px; table-layout: fixed; } /* fixed columns so every quote's lines line up */
+    .rq-lines th, .rq-lines td { padding: 7px 10px; text-align: left; vertical-align: top; border-bottom: 1px solid #f1f4f9; }
+    .rq-lines th { font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); background: #fff; white-space: nowrap; }
+    .rq-lines th.n, .rq-lines td.n { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+    .rq-lines td.code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-weight: 700; overflow-wrap: anywhere; }
+    .rq-lines .sub { font-size: 11.5px; color: var(--muted); margin-top: 1px; }
+    .rq-lines tr.adj td { padding-top: 2px; padding-bottom: 6px; color: #92400e; font-size: 12.5px; border-top: 0; }
+    .rq-lines tr.adj td.code { font-weight: 600; padding-left: 22px; }
+    .rq-lines tr.other td { color: #475569; }
+    .rq-kind { display: inline-block; min-width: 42px; font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); }
+    .rq-exec { color: #6d28d9; } .rq-exec.thin { color: #b91c1c; font-weight: 700; }
+    .rq-foot { display: flex; flex-wrap: wrap; gap: 4px 20px; justify-content: flex-end; padding: 9px 14px; font-size: 12.5px; color: #475569; background: #fafbfd; }
+    .rq-foot b { color: var(--text); }
+    .rq-foot .warn { color: #b45309; font-weight: 600; margin-right: auto; }
+    .rq-nolines { padding: 12px 14px; font-size: 13px; color: var(--muted); }
+    .rq-scroll { overflow-x: auto; }
+    @media (max-width: 900px) { .rq-lines { min-width: 860px; } }
+    @media (max-width: 640px) { .rq-total { margin-left: 0; width: 100%; } }
     .qf-empty { color: var(--muted); font-size: 13.5px; padding: 22px 4px; text-align: center; }
 
     /* POD-style date range: dates hug the left, Run hugs the right */
@@ -215,7 +250,7 @@
         </p>
       </div>
       <div id="qfStatus" class="qf-status"></div>
-      <div class="qf-bar">
+      <div class="qf-bar" id="qfRangeBar">
         <div class="qf-range">
           <input type="date" id="qfFrom" title="Quotes created from" />
           <span class="qf-range-sep">to</span>
@@ -233,6 +268,7 @@
         </select>
         <button type="button" class="qf-btn quiet" id="qfScoreBtn">Scoreboard</button>
         <button type="button" class="qf-btn quiet" id="qfLeadsBtn" style="display:none;">Service Leads</button>
+        <button type="button" class="qf-btn quiet" id="qfRecentBtn" style="display:none;" title="Executives: every quote created or modified lately, with its individual lines">Recently Modified</button>
         <select id="qfSp" style="display:none;" title="Salesperson"></select>
         <button type="button" class="qf-btn quiet qf-brand-btn" id="qfBrandsBtn" title="Show only opportunity cards with at least one model of the chosen brands">Brands</button>
         <span class="qf-spacer"></span>
@@ -244,6 +280,27 @@
 
       <div id="paneScoreboard" style="display:none;"><div class="qf-score-grid" id="gridScore"></div></div>
       <div id="paneLeads" style="display:none;"><div id="leadsBody"><div class="qf-empty">Loading…</div></div></div>
+      <div id="paneRecent" style="display:none;">
+        <div class="rq-bar">
+          <select id="rqDays" title="How far back to look at the quote's created / modified date">
+            <option value="1">Today and yesterday</option>
+            <option value="3">Last 3 days</option>
+            <option value="7" selected>Last 7 days</option>
+            <option value="14">Last 14 days</option>
+            <option value="30">Last 30 days</option>
+            <option value="90">Last 90 days</option>
+          </select>
+          <select id="rqSp" title="Salesperson on the quote"><option value="">All salespeople</option></select>
+          <select id="rqKind" title="New quotes, or older quotes someone reworked">
+            <option value="">New and reworked</option>
+            <option value="new">New quotes</option>
+            <option value="old">Older quotes reworked</option>
+          </select>
+          <input type="search" id="rqFind" placeholder="Find a quote #, client, model or brand…" autocomplete="off">
+        </div>
+        <div class="rq-sum" id="rqSum"></div>
+        <div id="rqBody"><div class="qf-empty">Loading…</div></div>
+      </div>
       <div id="paneQueue"><div class="qf-grid" id="gridQueue"></div><div class="qf-empty" id="emptyQueue" style="display:none;"></div></div>
       <div id="paneFollowup" style="display:none;"><div class="qf-grid" id="gridFollowup"></div><div class="qf-empty" id="emptyFollowup" style="display:none;"></div></div>
       <div id="paneConverted" style="display:none;"><div class="qf-table-wrap" id="tblConverted"></div></div>
@@ -391,6 +448,9 @@
         // Exec controls
         $("qfUpload").style.display = exec ? "" : "none";
         $("qfLeadsBtn").style.display = exec ? "" : "none";
+        $("qfRecentBtn").style.display = exec ? "" : "none";
+        // quote-follow-up.html#recent opens straight on the review (executives)
+        if (exec && location.hash === "#recent" && !state.hashDone) { state.hashDone = true; setTimeout(() => showTab("recent"), 0); }
         const sel = $("qfSp");
         if (exec) {
           const current = sel.value || d.filter || "ALL";
@@ -673,7 +733,7 @@
       // toggle button so it can't get lost inside the dropdown ----
       function showTab(tab) {
         state.tab = tab;
-        if (tab !== "scoreboard" && tab !== "leads") {
+        if (tab !== "scoreboard" && tab !== "leads" && tab !== "recent") {
           state.lastQueueTab = tab;
           if ($("qfView").value !== tab) $("qfView").value = tab;
         }
@@ -689,13 +749,112 @@
         $("paneLost").style.display = tab === "lost" ? "" : "none";
         $("paneScoreboard").style.display = tab === "scoreboard" ? "" : "none";
         $("paneLeads").style.display = tab === "leads" ? "" : "none";
+        const recentBtn = $("qfRecentBtn");
+        recentBtn.classList.toggle("primary", tab === "recent");
+        recentBtn.classList.toggle("quiet", tab !== "recent");
+        $("paneRecent").style.display = tab === "recent" ? "" : "none";
+        document.querySelector(".surface").classList.toggle("rq-on", tab === "recent"); // the board's own filters step aside
         if (tab === "leads") loadLeads();
+        if (tab === "recent") loadRecent();
       }
       $("qfView").addEventListener("change", () => showTab($("qfView").value));
       $("qfScoreBtn").addEventListener("click", () =>
         showTab(state.tab === "scoreboard" ? (state.lastQueueTab || "queue") : "scoreboard"));
       $("qfLeadsBtn").addEventListener("click", () =>
         showTab(state.tab === "leads" ? (state.lastQueueTab || "queue") : "leads"));
+      $("qfRecentBtn").addEventListener("click", () =>
+        showTab(state.tab === "recent" ? (state.lastQueueTab || "queue") : "recent"));
+
+      // ---- Recently modified quotes (executives; Andrew 11/12 for Cayden) ----
+      // Quotes are never closed in ePASS, so the only honest "what is live"
+      // signal is the header's modified date (any line edit stamps it). The
+      // feed sends every quote created or modified lately with its model,
+      // item and misc lines and the model line's cost; this pane lists them,
+      // newest first. A discount ePASS tied to a model line shows under that
+      // line and is netted before margin. The route is executives-only.
+      const rq = { data: null, days: 7, loading: false };
+      const THIN_MARGIN = 10; // percent — below this the margin turns red
+      const pct = (n) => n == null ? "—" : `${Number(n).toFixed(1)}%`;
+      const smoney = (n) => (Number(n) < 0 ? "−" : "") + money(Math.abs(Number(n) || 0)); // −$530.00, not $-530.00
+      const clock = (t) => { const m = /^(\d{2}):(\d{2})$/.exec(t || ""); if (!m) return ""; const h = Number(m[1]); return `${h % 12 || 12}:${m[2]} ${h < 12 ? "AM" : "PM"}`; };
+      const stampText = (d, t, who) => d ? `${day(d)}${clock(t) ? " " + clock(t) : ""}${who ? " · " + esc(who) : ""}` : "—";
+      async function loadRecent(force) {
+        const days = Number($("rqDays").value) || 7;
+        if (rq.loading || (!force && rq.data && rq.days === days)) { renderRecent(); return; }
+        rq.loading = true; rq.days = days;
+        if (!rq.data) $("rqBody").innerHTML = '<div class="qf-empty">Loading…</div>';
+        try {
+          rq.data = await api(`/api/quote-followup/recent?days=${days}`);
+          const sps = [...new Map(rq.data.quotes.filter((q) => q.spCode).map((q) => [q.spCode, q.spName || q.spCode])).entries()].sort((a, b) => a[1].localeCompare(b[1]));
+          const cur = $("rqSp").value;
+          $("rqSp").innerHTML = '<option value="">All salespeople</option>' + sps.map(([c, n]) => `<option value="${esc(c)}">${esc(n)}${n !== c ? " (" + esc(c) + ")" : ""}</option>`).join("");
+          if (sps.some(([c]) => c === cur)) $("rqSp").value = cur;
+        } catch (err) { rq.data = null; $("rqSum").textContent = ""; $("rqBody").innerHTML = `<div class="qf-empty">${esc(err.message)}</div>`; rq.loading = false; return; }
+        rq.loading = false;
+        renderRecent();
+      }
+      function lineRows(l) {
+        const isModel = l.kind === "model";
+        const hasAdj = isModel && l.adjustments && l.adjustments.length;
+        const touched = l.dateModified ? `changed ${day(l.dateModified)}${l.userModified ? " · " + esc(l.userModified) : ""}` : l.dateCreated ? `added ${day(l.dateCreated)}${l.userCreated ? " · " + esc(l.userCreated) : ""}` : "";
+        const cost = l.unitCost == null ? '<span class="rq-exec" title="ePASS has no cost on this line">—</span>' : `<span class="rq-exec">${money(isModel ? l.cost : l.unitCost * l.qty)}</span>`;
+        const margin = !isModel ? "" : l.margin == null ? '<span class="rq-exec">—</span>' : `<span class="rq-exec${l.margin < THIN_MARGIN ? " thin" : ""}" title="${smoney(l.marginDollars)} on ${smoney(l.net)}">${pct(l.margin)}</span>`;
+        let html = `<tr class="${isModel ? "model" : "other"}">
+            <td><span class="rq-kind">${isModel ? "Model" : l.kind === "item" ? "Item" : "Misc"}</span></td>
+            <td class="code">${esc(l.code)}</td>
+            <td>${esc(l.description)}${l.brand || l.color || touched ? `<div class="sub">${[esc(l.brand), esc(l.color), touched].filter(Boolean).join(" · ")}</div>` : ""}</td>
+            <td class="n">${l.qty}</td>
+            <td class="n">${smoney(l.unitPrice)}</td>
+            <td class="n"><b>${smoney(isModel ? l.net : l.total)}</b>${hasAdj ? `<div class="sub">${money(l.total)} before discount</div>` : ""}</td>
+            <td class="n">${cost}</td>
+            <td class="n">${margin}</td>
+          </tr>`;
+        if (hasAdj) html += l.adjustments.map((a) => `<tr class="adj"><td></td><td class="code">↳ ${esc(a.code)}</td><td>${esc(a.description)}</td><td></td><td></td><td class="n">${smoney(a.total)}</td><td></td><td></td></tr>`).join("");
+        return html;
+      }
+      function renderRecent() {
+        const d = rq.data; if (!d) return;
+        const sp = $("rqSp").value, kind = $("rqKind").value, find = $("rqFind").value.trim().toUpperCase();
+        const list = d.quotes.filter((q) => (!sp || q.spCode === sp) && (!kind || (kind === "new") === q.isNew)
+          && (!find || `${q.quoteNumber} ${q.customerName} ${q.customerNumber} ${q.reference} ${q.poNumber} ${q.lines.map((l) => `${l.code} ${l.description} ${l.brand}`).join(" ")}`.toUpperCase().includes(find)));
+        const total = list.reduce((s, q) => s + q.summary.preTax, 0);
+        const fresh = d.feed.pulledAt ? new Date(d.feed.pulledAt).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) : "";
+        $("rqSum").innerHTML = d.feed.kept
+          ? `<b>${list.length}</b> quote${list.length === 1 ? "" : "s"}${list.length !== d.quotes.length ? ` of ${d.quotes.length}` : ""} created or modified since <b>${day(d.since)}</b> · <b>${money(total)}</b> before tax · ${list.filter((q) => q.isNew).length} new, ${list.filter((q) => !q.isNew).length} reworked${fresh ? ` · ePASS feed ${esc(fresh)}` : ""}${d.feed.earliest && d.feed.earliest > d.since ? ` · <span style="color:#b45309;font-weight:600;">Agility has only been receiving these since ${day(d.feed.earliest)}</span>` : ""}`
+          : "";
+        $("rqBody").innerHTML = !d.feed.kept
+          ? '<div class="qf-empty">Nothing has arrived yet. This view fills once the updated ePASS pull script is running on the showroom server — the first run sends the last seven days.</div>'
+          : list.map((q) => `<div class="rq-card">
+            <div class="rq-head">
+              <span class="rq-num">${esc(q.quoteNumber)}</span>
+              <span class="rq-cust">${esc(q.customerName || "—")}</span>
+              <span class="rq-where">${esc([q.city, q.zip].filter(Boolean).join(" "))}${q.customerNumber ? ` · #${esc(q.customerNumber)}` : ""}</span>
+              <span class="rq-total">${money(q.summary.total)}</span>
+            </div>
+            <div class="rq-facts">
+              <span>${q.isNew ? '<span class="rq-tag new">New quote</span>' : '<span class="rq-tag old">Reworked</span>'}</span>
+              <span>Salesperson <b>${esc(q.spName || q.spCode || "—")}</b>${q.sp2Code ? ` + ${esc(q.sp2Code)}` : ""}</span>
+              <span>Modified <b>${stampText(q.dateModified, q.timeModified, q.userModified)}</b></span>
+              <span>Created <b>${stampText(q.dateCreated, q.timeCreated, q.userCreated)}</b></span>
+              ${q.jobStatus ? `<span><span class="rq-tag js">${esc(q.jobStatus)}</span></span>` : ""}
+              ${q.reference ? `<span>Ref <b>${esc(q.reference)}</b></span>` : ""}${q.poNumber ? `<span>PO <b>${esc(q.poNumber)}</b></span>` : ""}
+            </div>
+            ${q.lines.length ? `<div class="rq-scroll"><table class="rq-lines">
+              <colgroup><col style="width:70px"><col style="width:200px"><col><col style="width:56px"><col style="width:112px"><col style="width:150px"><col style="width:112px"><col style="width:86px"></colgroup>
+              <thead><tr><th></th><th>Model / code</th><th>Description</th><th class="n">Qty</th><th class="n">Price</th><th class="n">Line total</th><th class="n rq-exec" title="Executives only">Cost</th><th class="n rq-exec" title="Executives only. Model lines, after any discount tied to the line.">Margin</th></tr></thead>
+              <tbody>${q.lines.map(lineRows).join("")}</tbody></table></div>` : '<div class="rq-nolines">No model, item or misc lines on this quote.</div>'}
+            <div class="rq-foot">
+              ${Math.abs(q.summary.unitemised) >= 0.01 ? `<span class="warn" title="The quote's header totals include this amount that isn't on a model, item or misc line — usually labor or a warranty line, which this view doesn't list.">${smoney(q.summary.unitemised)} not itemised here (labor / warranty)</span>` : ""}
+              <span>Before tax <b>${money(q.summary.preTax)}</b></span><span>Tax <b>${money(q.summary.tax)}</b></span>
+              ${q.summary.modelMargin != null ? `<span class="rq-exec${q.summary.modelMargin < THIN_MARGIN ? " thin" : ""}" title="Executives only. Model lines net of their discounts: ${money(q.summary.modelRevenue)} less ${money(q.summary.modelCost)} cost.">Model margin <b class="rq-exec${q.summary.modelMargin < THIN_MARGIN ? " thin" : ""}">${pct(q.summary.modelMargin)}</b> (${smoney(q.summary.modelMarginDollars)})${q.summary.uncostedModels ? ` · ${q.summary.uncostedModels} line${q.summary.uncostedModels === 1 ? "" : "s"} without a cost left out` : ""}</span>` : q.summary.uncostedModels ? '<span class="rq-exec">No cost on the model lines</span>' : ""}
+            </div>
+          </div>`).join("") || '<div class="qf-empty">No quotes match.</div>';
+      }
+      $("rqDays").addEventListener("change", () => loadRecent(true));
+      for (const id of ["rqSp", "rqKind"]) $(id).addEventListener("change", renderRecent);
+      $("rqFind").addEventListener("input", renderRecent);
+      window.addEventListener("hashchange", () => { if (location.hash === "#recent" && state.data?.viewer?.exec && state.tab !== "recent") showTab("recent"); });
+
 
       // ---- Service → Sales lead conversions (exec) ----
       async function loadLeads() {

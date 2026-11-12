@@ -670,6 +670,82 @@ columns already in the feed; rule 3 starts with the first pull that carries
 `UniqueSellPrice`.
 
 
+### 8b5. Recently modified quotes for the executive review (2026-11-12)
+
+Quotes are never closed or archived in ePASS, so a quote's status and created
+date say nothing about whether it is live. What does: the header's
+`Invoice.DateModified` (a date; the time is text in `TimeModified`, the user
+in `UserModified`). **Any edit to a line stamps the header** (Andrew, 11/12),
+so the header alone identifies a touched quote. A brand-new quote can have no
+modified stamp yet, so `DateCreated` counts as activity too.
+
+The 15-minute sales bundle carries four more datasets, all read-only SELECTs
+joined to `Invoice` on `InvTypeCode IN ('Q','QUOTE')`, not void, and
+`DateModified >= since OR DateCreated >= since` — **any status**:
+
+| Dataset | Table | What it adds |
+| --- | --- | --- |
+| `recent-quotes` | `Invoice` | created / modified date, time and user; both salespeople; customer; the header totals |
+| `recent-quote-lines` | `InvoiceModel` (+ `Model`, `Brand`) | model, description, qty, price, total, color, the line's own stamps, and its cost columns (`StandardCost` = "Std. Cost" on the line screen, then `LandedCost`, `AverageCost`, `LastCost`, `ReplacementCost`) |
+| `recent-quote-items` | `InvoiceItem` | item lines with `UnitCost` |
+| `recent-quote-misc` | `InvoiceMisc` | misc lines with the `InvoiceModel*` link columns, so an Invoice Discount shows under its model line (8b3d) |
+
+**Window.** Agility keeps what it receives, so a pull only reaches back to the
+day *before* the last successful pull — "yesterday and today" in normal
+running, because the column has no time. The date of the last good pull is
+kept in `epass\recent-quotes-last-pull.txt`; if the server was off for days the
+next pull stretches to cover the gap by itself. The first run (no file) sends
+seven days. `-RecentQuoteDays N` overrides for one run (seed a month of
+history, or re-pull a window); the cap is 31 days. Each dataset is guarded: a
+failure logs and the bundle goes without it, and the stamp only advances when
+both the headers and the model lines arrived.
+
+**Server.** `recentQuotesFromFeed` / `saveRecentQuotes` (`lib/quote-followup-postgres.js`)
+write `quote_review_quotes` and `quote_review_lines`: each quote's lines are
+replaced as a set per pull (only the kinds that arrived), an older bundle that
+lands late never overwrites a newer one, and about 400 days are kept. These
+tables are separate from the board's `quote_followup_*` tables — nothing about
+the salespeople's board, its matching or dispositions changed.
+
+**Page.** Quote Follow-Up → **Recently Modified** (executives only; also
+`quote-follow-up.html#recent`): quotes newest first for the last 1–90 days,
+each with its model, item and misc lines. A discount tied to a model line is
+folded under it and netted before margin. Margin is per model line and for
+the quote's model lines together, counting only lines that carry a cost; a
+margin under 10% shows red. Header amounts that no listed line carries (labor,
+warranty) are flagged as not itemised. `GET /api/quote-followup/recent?days=N`
+is behind `requireExecutiveApi` because it carries cost.
+
+**Install.** Push Agility, then copy `scripts/epass-odbc-pull.ps1` over the
+copy on the showroom server (Andrew only). No task or key changes. An older
+Agility simply ignores the new datasets; an older script simply leaves the
+view empty.
+
+### 8b6. Finance bundle "timed out" in the agent log (2026-11-12)
+
+`RETRY [epass-finance] … (after 300s) The operation has timed out` is not the
+ODBC pull failing — the pull had already written the file. It is the agent's
+upload waiting more than its 300 seconds (`epass-agent.ps1`, `-TimeoutSec`)
+for Agility to answer, and Agility only answers the finance bundle after it
+has stored it. `replaceEpassFinance` used to write the hourly ~47,000 rows
+mostly one INSERT at a time (~17,600 round trips to Postgres): about 100
+seconds on a quiet server, 180–300 during the business day while the other
+bundles' post-processing shares the server. Nothing was lost — the agent
+leaves the file in the outbox and the next run delivered it 20–27 minutes
+later — but the server did the same work twice.
+
+Fix: `insertMany` in `lib/epass-finance-postgres.js` writes 400 rows per
+statement (~125 statements). Same rows, same order, same single transaction;
+checked byte-for-byte against the old code on a production-sized sample.
+
+How to read the log: the seconds in `(… KB, 204s)` are upload + parse + store
+for the bundles that store before answering (finance, open-service), and
+upload + parse only for the ones that answer first and process afterwards
+(open-orders, finished-orders — their replies say `"postProcessing":"running"`).
+Finished-orders moving 11 MB in 14 seconds shows the line itself is not the
+bottleneck. Open-service stores ~24,000 rows the old way before answering and
+runs 205–236 seconds in business hours: the next one to watch.
+
 ## 8c. The service catalogue (2026-09-23)
 
 A fourth bundle, `epass-service-catalogue` (own outbox), carries every

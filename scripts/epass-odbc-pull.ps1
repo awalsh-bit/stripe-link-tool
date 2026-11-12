@@ -26,6 +26,11 @@
 #   model-list-prices    ModelListPrice for every model in stock: L1 / RETAIL (MAP, PMAP) / brand UMRP codes
 #   open-po-lines        POModel lines not yet received (+ PO supplier/dates/ETA) for models on open lines
 #   open-quotes          Invoice header, InvTypeCode Q, Status Open (Quote Follow-Up board)
+#   recent-quotes        Invoice header, InvTypeCode Q, created or modified since the day before the last
+#                        pull (any status) - the executive "Recently modified" review on Quote Follow-Up
+#   recent-quote-lines   InvoiceModel lines of those quotes, with the line's cost columns (+ Model brand/product)
+#   recent-quote-items   InvoiceItem lines of those quotes
+#   recent-quote-misc    InvoiceMisc lines of those quotes, with the InvoiceModel* link columns (discounts)
 #   finished-orders      (third bundle, epass-finished-orders, first run of each hour or -FinishedSince)
 #                        Invoice header, every type, Status FINISHED / NOT POSTED, finished since the
 #                        1st of last month - the OE-23 Salesperson Activity Report
@@ -111,6 +116,12 @@ param(
   # per quarter from -TaxBackfillFrom (default 2022, the audit window);
   # -TaxSince / -TaxUntil one slice. Otherwise the 6:00 run refreshes the
   # last three posted months by itself.
+  # Recently modified quotes (11/12): normally the pull looks back to the day
+  # before its own last successful run - "yesterday and today" when it runs
+  # every 15 minutes, automatically wider after the server was off. Pass a
+  # number of days once to seed history or to re-pull a window by hand,
+  # e.g. -RecentQuoteDays 30 (capped at 31).
+  [int]$RecentQuoteDays = 0,
   [switch]$TaxBackfill,
   [int]$TaxBackfillFrom = 2022,
   [string]$TaxSince = "",
@@ -578,6 +589,113 @@ WHERE i.InvTypeCode IN ('Q','QUOTE') AND UPPER(i.Status) = 'OPEN' AND (i.Void IS
 ORDER BY i.DateCreated DESC
 "@ (Join-Path $LatestDir "open-quotes.csv") "open-quotes"
   } catch { Log ("open-quotes FAILED (bundle continues without it): {0}" -f $_.Exception.Message); if ($conn.State -ne [System.Data.ConnectionState]::Open) { $conn.Open() } }
+
+  # Recently modified quotes (11/12, Andrew for Cayden): the executive review
+  # on the Quote Follow-Up page reads quotes with their individual lines.
+  # Quotes are never closed in ePASS, so status and created date say nothing
+  # about what is live - the header's DateModified does (any line edit stamps
+  # the header; confirmed by Andrew). A brand-new quote may have no modified
+  # stamp yet, so DateCreated counts too.
+  # Window: Agility keeps what it receives, so each pull only has to reach
+  # back to the day BEFORE the last successful pull (DateModified is a date,
+  # no time - "yesterday and today" in normal running). The date of the last
+  # good pull is kept in epass\recent-quotes-last-pull.txt; after an outage the
+  # window stretches by itself, first run seeds 7 days, -RecentQuoteDays
+  # overrides, 31 days at most. Read-only SELECTs; each dataset is guarded.
+  $rqStampFile = Join-Path $LatestDir "recent-quotes-last-pull.txt"
+  $rqDays = 1
+  if ($RecentQuoteDays -gt 0) { $rqDays = $RecentQuoteDays }
+  else {
+    try {
+      if (Test-Path $rqStampFile) {
+        $rqLast = [DateTime]::ParseExact(((Get-Content $rqStampFile -TotalCount 1) -as [string]).Trim(), "yyyy-MM-dd", [System.Globalization.CultureInfo]::InvariantCulture)
+        $rqGap = [int]((Get-Date).Date - $rqLast.Date).TotalDays + 1
+        if ($rqGap -gt $rqDays) { $rqDays = $rqGap }
+      } else { $rqDays = 7 }
+    } catch { $rqDays = 2; Log ("recent-quotes: could not read {0} ({1}) - looking back 2 days" -f $rqStampFile, $_.Exception.Message) }
+  }
+  if ($rqDays -gt 31) { $rqDays = 31 }
+  $rqSince = (Get-Date).Date.AddDays(-$rqDays).ToString("yyyy-MM-dd")
+  $rqWhere = "i.InvTypeCode IN ('Q','QUOTE') AND (i.Void IS NULL OR i.Void = 0) AND (i.DateModified >= '$rqSince' OR i.DateCreated >= '$rqSince')"
+  $rqOk = $false
+  try {
+    $bundle.datasets["recent-quotes"] = Export-Query $conn @"
+SELECT i.Code, i.InvTypeCode, i.Status, i.JobStatusCode,
+       i.DateCreated, i.TimeCreated, i.UserCreated, i.DateModified, i.TimeModified, i.UserModified,
+       i.Salesperson1Code, i.Salesperson2Code, i.SoldToCode, i.BillToCode, i.SoldToLastName, i.SoldToFirstName, i.SoldToCity, i.SoldToZipCode,
+       i.PaymentTypeCode, i.Reference, i.PONumber,
+       i.SerialTotal, i.ItemTotal, i.LaborTotal, i.MiscTotal, i.WtyTotal, i.Tax1Total, i.Tax2Total, i.Tax3Total
+FROM Invoice i
+WHERE $rqWhere
+ORDER BY i.Code
+"@ (Join-Path $LatestDir "recent-quotes.csv") "recent-quotes"
+    $bundle["recentQuotesSince"] = $rqSince
+    $rqOk = $true
+  } catch { Log ("recent-quotes FAILED (bundle continues without it): {0}" -f $_.Exception.Message); if ($conn.State -ne [System.Data.ConnectionState]::Open) { $conn.Open() } }
+  if ($rqOk) {
+    # Model lines. The cost columns ride along for the executives' margin
+    # view (Std. Cost on the line screen = StandardCost). If the Brand join
+    # cannot run, the lines still go without the brand's description.
+    $rqLineCols = "im.InvoiceCode, im.LineTimeStamp, im.DateStamp, im.ModelCode, im.ModelDesc, im.QtyOrdered, im.SellingPrice, im.Total, im.Status, im.Color, im.InPackage,
+       im.StandardCost, im.LandedCost, im.AverageCost, im.LastCost, im.ReplacementCost, im.CostSelected,
+       im.DateCreated, im.UserCreated, im.DateModified, im.UserModified,
+       m.BrandCode AS Model_BrandCode, m.ProductCode AS Model_ProductCode, m.Description AS Model_Description"
+    try {
+      $bundle.datasets["recent-quote-lines"] = Export-Query $conn @"
+SELECT $rqLineCols, b.Description AS Brand_Description
+FROM InvoiceModel im
+INNER JOIN Invoice i ON im.InvoiceCode = i.Code
+LEFT JOIN Model m ON im.ModelCode = m.Code
+LEFT JOIN Brand b ON m.BrandCode = b.Code
+WHERE $rqWhere
+ORDER BY im.InvoiceCode, im.DateStamp, im.LineTimeStamp
+"@ (Join-Path $LatestDir "recent-quote-lines.csv") "recent-quote-lines"
+    } catch {
+      Log ("recent-quote-lines with Brand join FAILED ({0}) - retrying without it" -f $_.Exception.Message); if ($conn.State -ne [System.Data.ConnectionState]::Open) { $conn.Open() }
+      try {
+        $bundle.datasets["recent-quote-lines"] = Export-Query $conn @"
+SELECT $rqLineCols
+FROM InvoiceModel im
+INNER JOIN Invoice i ON im.InvoiceCode = i.Code
+LEFT JOIN Model m ON im.ModelCode = m.Code
+WHERE $rqWhere
+ORDER BY im.InvoiceCode, im.DateStamp, im.LineTimeStamp
+"@ (Join-Path $LatestDir "recent-quote-lines.csv") "recent-quote-lines"
+      } catch { $rqOk = $false; Log ("recent-quote-lines FAILED (bundle continues without it): {0}" -f $_.Exception.Message); if ($conn.State -ne [System.Data.ConnectionState]::Open) { $conn.Open() } }
+    }
+    # Item (parts / accessory) lines.
+    try {
+      $bundle.datasets["recent-quote-items"] = Export-Query $conn @"
+SELECT p.InvoiceCode, p.LineTimeStamp, p.DateStamp, p.ItemCode, p.ItemDesc, p.QtyOrdered, p.SellingPrice, p.UnitCost, p.Total, p.Status,
+       p.DateCreated, p.UserCreated, p.DateModified, p.UserModified
+FROM InvoiceItem p
+INNER JOIN Invoice i ON p.InvoiceCode = i.Code
+WHERE $rqWhere
+ORDER BY p.InvoiceCode, p.DateStamp, p.LineTimeStamp
+"@ (Join-Path $LatestDir "recent-quote-items.csv") "recent-quote-items"
+    } catch { Log ("recent-quote-items FAILED (bundle continues without it): {0}" -f $_.Exception.Message); if ($conn.State -ne [System.Data.ConnectionState]::Open) { $conn.Open() } }
+    # Misc lines (delivery, install, discounts). An Invoice Discount is a Misc
+    # line stamped with the model line it belongs to - the InvoiceModel*
+    # columns - so Agility can show the discount under its model.
+    try {
+      $bundle.datasets["recent-quote-misc"] = Export-Query $conn @"
+SELECT x.InvoiceCode, x.LineTimeStamp, x.DateStamp, x.MiscCode, x.MiscDesc, x.Qty, x.SellingPrice, x.UnitCost, x.Total,
+       x.InvoiceModelCode, x.InvoiceModelInvoiceCode, x.InvoiceModelLineTimeStamp, x.InvoiceModelDateStamp,
+       x.DateCreated, x.UserCreated, x.DateModified, x.UserModified
+FROM InvoiceMisc x
+INNER JOIN Invoice i ON x.InvoiceCode = i.Code
+WHERE $rqWhere
+ORDER BY x.InvoiceCode, x.DateStamp, x.LineTimeStamp
+"@ (Join-Path $LatestDir "recent-quote-misc.csv") "recent-quote-misc"
+    } catch { Log ("recent-quote-misc FAILED (bundle continues without it): {0}" -f $_.Exception.Message); if ($conn.State -ne [System.Data.ConnectionState]::Open) { $conn.Open() } }
+  }
+  # Headers and model lines both arrived: the next pull can start from today.
+  # (A manual -RecentQuoteDays run does not move the stamp backwards either.)
+  if ($rqOk) {
+    try { [System.IO.File]::WriteAllText($rqStampFile, (Get-Date).ToString("yyyy-MM-dd")) }
+    catch { Log ("recent-quotes: could not write {0} ({1}) - the next pull looks back 2 days" -f $rqStampFile, $_.Exception.Message) }
+    Log ("recent-quotes: quotes created or modified since {0} ({1} day lookback)" -f $rqSince, $rqDays)
+  }
 
   # Open quote LINES moved to the hourly finished-orders bundle (10/21) - see
   # below. With the InvoiceModel columns fixed the lines came back at 204k

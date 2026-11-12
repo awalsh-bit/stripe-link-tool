@@ -415,6 +415,9 @@ import {
   replaceOpenQuotes,
   replaceQuoteLines,
   quoteLinesFromFeedRows,
+  recentQuotesFromFeed,
+  saveRecentQuotes,
+  listRecentQuotes,
   saveQuoteDisposition,
   listQuoteOwners,
   getQuoteFollowupBoard,
@@ -12102,6 +12105,7 @@ let lastFinishedOrdersSig = "";
 // attribution questions, Andrew 10/19). Replaced on every bundle.
 let lastFinishedBundleRaw = { pulledAt: "", since: "", misc: [], models: [], discounts: null };
 let lastQuotesSig = "";
+let lastRecentQuotesSig = ""; // same idea for the recently-modified-quotes datasets
 let epassSalesChain = Promise.resolve(); // sales-bundle extras run one after another, off the request
 let lastSalesPostProcessing = null; // what the last sales bundle's extras produced (/api/epass/open-orders/status)
 let epassFinishedChain = Promise.resolve();
@@ -12292,6 +12296,10 @@ app.post("/api/epass-agent/upload", requireEpassAgentKeyHeader, express.raw({ ty
       try { wmParsed = parseWrittenModelsFromEpass(bundle); } catch (err) { wmError = err; }
       const quoteRowsAll = Array.isArray(bundle.datasets?.["open-quotes"]) ? bundle.datasets["open-quotes"] : [];
       const quoteLineRowsAll = Array.isArray(bundle.datasets?.["open-quote-lines"]) ? bundle.datasets["open-quote-lines"] : [];
+      // Recently modified quotes with their lines (11/12) — small; kept for the queue below.
+      const rqSets = Array.isArray(bundle.datasets?.["recent-quotes"])
+        ? { quotes: bundle.datasets["recent-quotes"], models: bundle.datasets["recent-quote-lines"], items: bundle.datasets["recent-quote-items"], misc: bundle.datasets["recent-quote-misc"] }
+        : null;
       bundle.datasets = null;
       epassSalesChain = epassSalesChain.catch(() => {}).then(async () => {
         try {
@@ -12337,6 +12345,22 @@ app.post("/api/epass-agent/upload", requireEpassAgentKeyHeader, express.raw({ ty
           console.error("Quote Follow-Up refresh from ePASS feed failed:", err.message);
           counts.quotes = { error: err.message };
         }
+        // Recently modified quotes for the executive review (Andrew 11/12).
+        // Its own try: nothing here can disturb the board above. The line
+        // datasets are guarded separately on the ePASS side, so only the
+        // kinds that arrived replace what is on file.
+        try {
+          if (!rqSets) counts.recentQuotes = { skipped: "no recent-quotes dataset in this bundle (older pull script?)" };
+          else {
+            const kinds = [["model", rqSets.models], ["item", rqSets.items], ["misc", rqSets.misc]].filter(([, rows]) => Array.isArray(rows)).map(([k]) => k);
+            const sig = crypto.createHash("sha1").update(JSON.stringify(rqSets)).digest("hex");
+            if (sig === lastRecentQuotesSig) counts.recentQuotes = { rows: rqSets.quotes.length, unchanged: true };
+            else {
+              counts.recentQuotes = { rows: rqSets.quotes.length, kinds, ...(await saveRecentQuotes(recentQuotesFromFeed(rqSets), { pulledAt, kinds })) };
+              lastRecentQuotesSig = sig;
+            }
+          }
+        } catch (err) { console.error("Recent quotes refresh from ePASS feed failed:", err.message); counts.recentQuotes = { error: err.message }; }
         // Sales Order Health reads this feed now too (Andrew, 9/22) — the
         // Invoice Maintenance upload is the fallback, not the source.
         try {
@@ -16623,6 +16647,24 @@ app.get("/api/quote-followup", requirePagePermission("/quote-follow-up.html"), a
   } catch (err) {
     console.error("Quote follow-up load failed:", err.message);
     return res.status(500).json({ error: "Unable to load the quote follow-up board." });
+  }
+});
+
+// Recently modified quotes with their individual lines (Andrew 11/12, for
+// Cayden): an executive review. Quotes are never closed in ePASS, so "what
+// did anyone touch lately" is the header's modified date — any line edit
+// stamps it. Carries cost and margin per model line, so the whole route is
+// executives only; nothing on the salespeople's board reads it.
+app.get("/api/quote-followup/recent", requireExecutiveApi, async (req, res) => {
+  try {
+    const days = Math.min(90, Math.max(1, Math.round(Number(req.query.days)) || 7));
+    const today = new Date().toLocaleDateString("en-CA", { timeZone: APP_TIMEZONE });
+    const since = new Date(Date.parse(today + "T12:00:00Z") - days * 86400000).toISOString().slice(0, 10); // the trailing N days plus today
+    res.setHeader("Cache-Control", "no-store");
+    return res.json({ days, today, ...(await listRecentQuotes({ since, withCost: true })) });
+  } catch (err) {
+    console.error("Recent quotes load failed:", err.message);
+    return res.status(500).json({ error: "Unable to load the recently modified quotes." });
   }
 });
 

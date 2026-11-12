@@ -42,9 +42,20 @@ _to_delete/
 /*.xlsx
 /*.xlsm
 /*.csv
-/*-1.js
-/*-1.html
-lib/*-1.js
+# 11/12: widened from "-1" only. Saving a file from a Claude file card into a
+# folder that already has that name makes "name-1.ext", then "-2", "-3" ...
+# (server-4.js, scripts/epass-odbc-pull-1.ps1). They are duplicates of the
+# real file and never belong on GitHub. One digit after the last hyphen, so
+# names like docs/security/audit-2026-10.md are untouched.
+/*-[0-9].js
+/*-[0-9].html
+/*-[0-9].css
+/*-[0-9].md
+lib/*-[0-9].js
+scripts/*-[0-9].ps1
+scripts/*-[0-9].js
+scripts/*-[0-9].mjs
+docs/**/*-[0-9].md
 lib/pilot-seed.js
 /Claude outputs/
 service_call_journey/service_call_journey/Claude outputs/

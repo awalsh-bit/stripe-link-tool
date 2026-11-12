@@ -19835,10 +19835,29 @@ app.post("/api/service/submit-request", rateLimit("service-request", 20, 60 * 60
 // Service Request Queue as an "HVAC QUOTE" card (no card step, no units)
 // so every inbound request has one home. On submit the HVAC sales team is
 // told two ways: a green flag on their dashboards and a plain email
-// (HVAC_QUOTE_NOTIFY_EMAILS, env-overridable). Recipients are decided
-// HERE — the browser never picks who gets notified.
-const HVAC_QUOTE_NOTIFY_EMAILS = String(process.env.HVAC_QUOTE_NOTIFY_EMAILS || "cmayfield@wilsonappliance.com,vjones@wilsonappliance.com")
-  .split(/[,;\s]+/).map((e) => e.trim().toLowerCase()).filter((e) => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(e));
+// to everyone holding the HVAC Selling Technician job code. Recipients are
+// decided HERE — the browser never picks who gets notified.
+//
+// Who (Andrew 11/12): job code E25 in the employee directory, so the list
+// follows User Admin instead of names typed into this file (it used to be
+// cmayfield@ and vjones@, hard-coded). HVAC_QUOTE_NOTIFY_EMAILS in Render,
+// if set, ADDS addresses on top of the E25 holders. Only when nobody holds
+// E25 and nothing is set does the old pair get it, so a lead is never
+// dropped on the floor.
+const HVAC_QUOTE_JOB_CODE = String(process.env.HVAC_QUOTE_JOB_CODE || "E25").trim().toUpperCase();
+const hvacQuoteEmailList = (text) => String(text || "").split(/[,;\s]+/).map((e) => e.trim().toLowerCase()).filter((e) => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(e));
+const HVAC_QUOTE_EXTRA_EMAILS = hvacQuoteEmailList(process.env.HVAC_QUOTE_NOTIFY_EMAILS);
+const HVAC_QUOTE_FALLBACK_EMAILS = ["cmayfield@wilsonappliance.com", "vjones@wilsonappliance.com"];
+async function hvacQuoteRecipients() {
+  let holders = [];
+  try {
+    holders = hvacQuoteEmailList((await jobCodeHolders(HVAC_QUOTE_JOB_CODE)).map((entry) => entry.email).join(","));
+  } catch (err) { console.error("HVAC quote recipients lookup failed:", err.message); }
+  const emails = [...new Set([...holders, ...HVAC_QUOTE_EXTRA_EMAILS])];
+  if (emails.length) return { emails, via: holders.length ? `job code ${HVAC_QUOTE_JOB_CODE}` : "HVAC_QUOTE_NOTIFY_EMAILS", fallback: false };
+  console.error(`HVAC quote: nobody holds job code ${HVAC_QUOTE_JOB_CODE} — notifying the fallback list.`);
+  return { emails: [...HVAC_QUOTE_FALLBACK_EMAILS], via: "fallback list", fallback: true };
+}
 // Photos are downsized in the browser; short videos come through as-is.
 const customerMediaUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 25 * 1024 * 1024, files: 1 } });
 
@@ -19944,7 +19963,8 @@ app.post("/api/quote/submit-request", rateLimit("quote-request", 20, 60 * 60 * 1
     const videoCount = row.photos.filter((p) => p.kind === "video").length;
     const photoCount = row.photos.length - videoCount;
     const mediaText = row.photos.length ? `${photoCount} photo${photoCount === 1 ? "" : "s"}${videoCount ? `, ${videoCount} video${videoCount === 1 ? "" : "s"}` : ""} — on the queue card` : "none";
-    for (const email of HVAC_QUOTE_NOTIFY_EMAILS) {
+    const hvacNotify = await hvacQuoteRecipients();
+    for (const email of hvacNotify.emails) {
       createPushedNotification({
         severity: "green",
         typeLabel: "HVAC Quote Request",
@@ -19956,13 +19976,13 @@ app.post("/api/quote/submit-request", rateLimit("quote-request", 20, 60 * 60 * 1
         byName: "HVAC Quote Request"
       }).catch((e) => console.error("HVAC quote flag failed:", e.message));
     }
-    if (RESEND_API_KEY && HVAC_QUOTE_NOTIFY_EMAILS.length) {
+    if (RESEND_API_KEY && hvacNotify.emails.length) {
       fetch("https://api.resend.com/emails", {
         method: "POST",
         headers: { "Authorization": `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" },
         body: JSON.stringify({
           from: AGILITY_ALERTS_FROM,
-          to: HVAC_QUOTE_NOTIFY_EMAILS,
+          to: hvacNotify.emails,
           reply_to: customerEmail,
           subject: `New HVAC Quote Request — ${firstName} ${lastName}`,
           text: [
@@ -19984,6 +20004,7 @@ app.post("/api/quote/submit-request", rateLimit("quote-request", 20, 60 * 60 * 1
         })
       }).catch((e) => console.error("HVAC quote email failed:", e.message));
     }
+    recordAudit({ ip: req.ip, actorUserId: null, action: "hvac_quote_request_notified", targetUserId: null, detail: { serviceCardId: row.id, via: hvacNotify.via, recipients: hvacNotify.emails } }).catch(() => {});
 
     return res.json({ success: true, requestId: row.id });
   } catch (err) {
@@ -22025,19 +22046,29 @@ app.post("/api/link-detail-lookup/repair", requirePagePermission("/link-detail-l
   }
 });
 
-// Find recent payments by customer phone, email, or name — for issuing a
-// refund when the PaymentIntent ID isn't handy. Searches the app's own
-// ledgers (payment links + terminal/card-on-file charges).
+// Find recent payments by customer phone, email, or name — or by sales /
+// service order number (11/12) — for issuing a refund when the
+// PaymentIntent ID isn't handy. Searches the app's own ledgers (payment
+// links + terminal/card-on-file charges).
+//   "SV00124379", "so-45210", "Q0045121"  -> order number (letters + digits)
+//   "124379" (5+ digits, no letters)      -> order number OR phone digits
+//   "9793" (4 digits)                     -> phone, as before
 app.get("/api/intent-lookup/find", requirePagePermission("/intent-lookup.html"), async (req, res) => {
   try {
     const query = String(req.query.q || "").trim();
     if (query.length < 3) {
-      return res.status(400).json({ error: "Enter at least 3 characters of a phone, email, or name." });
+      return res.status(400).json({ error: "Enter at least 3 characters of a phone, email, name, or sales order number." });
     }
 
     const digits = query.replace(/\D/g, "");
-    const searchByPhone = digits.length >= 4;
-    const searchByEmail = !searchByPhone && query.includes("@");
+    const orderKey = (v) => String(v || "").toUpperCase().replace(/[^0-9A-Z]/g, "");
+    const orderNeedle = orderKey(query);
+    // An order number as typed: a short letter prefix, then digits (SV…, SO…, Q…).
+    const searchByOrder = !query.includes("@") && /^[A-Z]{1,4}\d{3,}[A-Z0-9]*$/.test(orderNeedle);
+    const searchByPhone = !searchByOrder && digits.length >= 4;
+    // Digits alone could be either; five or more also try the order number.
+    const alsoOrderDigits = searchByPhone && /^\d+$/.test(orderNeedle) && digits.length >= 5;
+    const searchByEmail = !searchByOrder && !searchByPhone && query.includes("@");
     const needle = query.toLowerCase();
 
     const [rawLinks, rawCharges] = await Promise.all([readLinks(), readTerminalPayments()]);
@@ -22078,8 +22109,12 @@ app.get("/api/intent-lookup/find", requirePagePermission("/intent-lookup.html"),
     const matches = candidates
       .filter((c) => c.paymentIntentId)
       .filter((c) => {
+        if (searchByOrder) {
+          return orderKey(c.salesOrder).includes(orderNeedle);
+        }
         if (searchByPhone) {
-          return String(c.customerPhone || "").replace(/\D/g, "").includes(digits);
+          return String(c.customerPhone || "").replace(/\D/g, "").includes(digits) ||
+            (alsoOrderDigits && orderKey(c.salesOrder).replace(/\D/g, "").includes(digits));
         }
         if (searchByEmail) {
           return String(c.customerEmail || "").toLowerCase().includes(needle);
@@ -22089,7 +22124,7 @@ app.get("/api/intent-lookup/find", requirePagePermission("/intent-lookup.html"),
       .sort((a, b) => new Date(b.when || 0) - new Date(a.when || 0))
       .slice(0, 15);
 
-    return res.json({ matches, searchedBy: searchByPhone ? "phone" : searchByEmail ? "email" : "name" });
+    return res.json({ matches, searchedBy: searchByOrder ? "order number" : alsoOrderDigits ? "phone or order number" : searchByPhone ? "phone" : searchByEmail ? "email" : "name" });
   } catch (err) {
     console.error("Intent finder failed:", err.message);
     return res.status(500).json({ error: "Unable to search payments." });

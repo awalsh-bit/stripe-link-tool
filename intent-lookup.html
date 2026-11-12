@@ -454,8 +454,8 @@
       <div class="finder">
         <div class="finder-row">
           <div class="finder-field">
-            <label for="finderQuery">Don't have the ID? Find by customer</label>
-            <input id="finderQuery" placeholder="Phone number, email, or name" />
+            <label for="finderQuery">Don't have the ID? Find by customer or sales order</label>
+            <input id="finderQuery" placeholder="Phone number, email, name, or sales order # (e.g. SV00124379)" />
           </div>
           <button id="finderBtn" class="btn btn-secondary" type="button">Find payments</button>
         </div>
@@ -871,7 +871,7 @@
     async function runFinder() {
       const query = finderQueryEl.value.trim();
       if (query.length < 3) {
-        showStatus("error", "Enter at least 3 characters of a phone, email, or name.");
+        showStatus("error", "Enter at least 3 characters of a phone, email, name, or sales order number.");
         return;
       }
 

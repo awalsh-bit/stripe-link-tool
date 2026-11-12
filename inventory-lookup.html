@@ -71,6 +71,9 @@
     .num-avail { color: #166534; font-weight: 800; }
     .num-likely { color: #92400e; font-weight: 700; }
     .num-display { color: #075985; font-weight: 700; }
+    .num-order { color: #374151; font-weight: 800; }
+    .chip.order { background: #e5e7eb; color: #374151; }
+    .sec-note { font-size: 12px; color: var(--muted, #6b7280); margin: -2px 0 8px; }
     /* drawer */
     .overlay { position: fixed; inset: 0; background: rgba(15, 23, 42, 0.45); display: none; align-items: flex-start; justify-content: center; padding: 24px; overflow: auto; z-index: 50; }
     .overlay.show { display: flex; }
@@ -163,6 +166,7 @@
         <label class="opt sub off" id="incDisplayRow"><input type="checkbox" id="incDisplay" disabled /> Include Displays</label>
         <label class="opt sw"><span class="switch"><input type="checkbox" id="closeout" /><span class="track"></span></span> Closeouts</label>
         <label class="opt sw"><span class="switch"><input type="checkbox" id="displays" /><span class="track"></span></span> Displays</label>
+        <label class="opt sw" title="Only models with a unit written to an order — every reserved unit, whatever its delivery or pickup date"><span class="switch"><input type="checkbox" id="onOrder" /><span class="track"></span></span> Reserved to Orders</label>
         <input type="checkbox" id="active" checked hidden />
       </div>
       </div>
@@ -248,28 +252,32 @@
         model: $("qModel").value.trim(), modelMode: $("mModel").value,
         brand: $("qBrand").value.trim(), brandMode: $("mBrand").value,
         description: $("qDesc").value.trim(), descMode: $("mDesc").value,
-        ats: $("atsOnly").checked ? "1" : "0", includeLikely: $("atsOnly").checked && $("incLikely").checked ? "1" : "0", includeDisplay: $("atsOnly").checked && $("incDisplay").checked ? "1" : "0", closeout: $("closeout").checked ? "1" : "0", displays: $("displays").checked ? "1" : "0", active: "1", sort: $("sort").value, limit: "400"
+        ats: $("atsOnly").checked ? "1" : "0", includeLikely: $("atsOnly").checked && $("incLikely").checked ? "1" : "0", includeDisplay: $("atsOnly").checked && $("incDisplay").checked ? "1" : "0", closeout: $("closeout").checked ? "1" : "0", displays: $("displays").checked ? "1" : "0", onOrder: $("onOrder").checked ? "1" : "0", active: "1", sort: $("sort").value, limit: "400"
       };
     }
     async function search() {
       const p = params();
-      const hasFilter = p.category || p.cls || p.subclass || p.model || p.brand || p.description || p.ats === "1" || p.closeout === "1" || p.displays === "1";
+      const hasFilter = p.category || p.cls || p.subclass || p.model || p.brand || p.description || p.ats === "1" || p.closeout === "1" || p.displays === "1" || p.onOrder === "1";
       try {
         const d = await api("/api/inventory-lookup?" + new URLSearchParams(p));
         setStatus("", "");
-        $("count").textContent = `${fmt(d.total)} model${d.total === 1 ? "" : "s"}${d.total > d.shown ? ` — showing the first ${fmt(d.shown)}, narrow the search to see the rest` : ""}${p.sort ? (p.sort === "price_asc" ? " · price low → high (L1, else UMRP/MAP)" : " · price high → low (L1, else UMRP/MAP)") : hasFilter ? "" : " · stocked models first"}`;
+        $("count").textContent = `${fmt(d.total)} model${d.total === 1 ? "" : "s"}${p.onOrder === "1" ? ` · ${fmt(d.onOrderUnits || 0)} unit${d.onOrderUnits === 1 ? "" : "s"} reserved to orders` : ""}${d.total > d.shown ? ` — showing the first ${fmt(d.shown)}, narrow the search to see the rest` : ""}${p.sort ? (p.sort === "price_asc" ? " · price low → high (L1, else UMRP/MAP)" : " · price high → low (L1, else UMRP/MAP)") : hasFilter ? "" : " · stocked models first"}`;
         const empty = `No models match. Try "contains" instead of "starts with".`;
         // Extra columns appear with the Include boxes (Andrew 10/30): Likely
         // (amber) and Display (blue), the same colors the drawer uses.
         const showLikely = p.includeLikely === "1", showDisplay = p.includeDisplay === "1";
-        const cols = 8 + (showLikely ? 1 : 0) + (showDisplay ? 1 : 0);
-        $("thead").innerHTML = `<tr><th>Brand</th><th>Model</th><th>Description</th><th>Class · subclass</th><th class="n">ATS</th>${showLikely ? `<th class="n">Likely</th>` : ""}${showDisplay ? `<th class="n">Display</th>` : ""}<th class="n">L1</th><th class="n">Retail</th><th class="n">UMRP / MAP</th></tr>`;
+        // Reserved to Orders (11/12): a Reserved column with every unit
+        // written to an order, and how many of those deliver over 60 days out.
+        const showOrder = p.onOrder === "1";
+        const cols = 8 + (showLikely ? 1 : 0) + (showDisplay ? 1 : 0) + (showOrder ? 1 : 0);
+        $("thead").innerHTML = `<tr><th>Brand</th><th>Model</th><th>Description</th><th>Class · subclass</th><th class="n">ATS</th>${showOrder ? `<th class="n" title="Units written to an order — any delivery or pickup date">Reserved</th>` : ""}${showLikely ? `<th class="n">Likely</th>` : ""}${showDisplay ? `<th class="n">Display</th>` : ""}<th class="n">L1</th><th class="n">Retail</th><th class="n">UMRP / MAP</th></tr>`;
         $("rows").innerHTML = d.rows.map((r) => `<tr class="row" data-model="${esc(r.model)}">
             <td>${esc(r.brand || "—")}</td>
             <td class="mono"><b>${esc(r.displayName || r.model)}</b>${r.displayName ? `<div class="mut" style="font-size:11px;">${esc(r.model)}</div>` : ""}${r.discontinued ? ` <span class="pill disc">discontinued</span>` : ""}${r.source !== "netsuite" ? ` <span class="mut" title="Not in NetSuite yet — described from ePASS">ePASS</span>` : ""}</td>
             <td>${esc(r.description)}</td>
             <td>${r.cls ? esc(r.cls) + `<div class="mut">${esc(r.subclass || "")}</div>` : `<span class="mut">${esc(r.prod || "—")}</span>`}</td>
             <td class="n">${r.atsShown ? `<span class="num-avail">${r.atsShown}</span>${r.atsShown !== r.ats ? `<div class="mut" style="font-size:10px;">${r.ats} strict</div>` : ""}` : "<span class=mut>0</span>"}</td>
+            ${showOrder ? `<td class="n"><span class="num-order">${r.onOrder}</span>${r.likely ? `<div class="mut" style="font-size:10px;">${r.likely} over 60 days out</div>` : ""}</td>` : ""}
             ${showLikely ? `<td class="n">${r.likely ? `<span class="num-likely">${r.likely}</span>` : "<span class=mut>—</span>"}</td>` : ""}
             ${showDisplay ? `<td class="n">${r.display ? `<span class="num-display">${r.display}</span>` : "<span class=mut>—</span>"}</td>` : ""}
             <td class="n price">${money(r.l1) || "<span class=mut>—</span>"}</td>
@@ -279,7 +287,7 @@
         for (const tr of $("rows").querySelectorAll("tr.row")) tr.addEventListener("click", () => openModel(tr.dataset.model));
         // Showroom cards (phone): model, short description, L1 / Retail, ATS.
         $("cards").innerHTML = d.rows.map((r) => `<div class="card" data-model="${esc(r.model)}">
-            <div class="top"><div><div class="model">${esc(r.displayName || r.model)}${r.displayName ? ` <span class="mut" style="font-size:11px;font-weight:500;">${esc(r.model)}</span>` : ""}</div><div class="brand">${esc(r.brand || "")}${r.cls ? " · " + esc(r.subclass || r.cls) : ""}</div></div><div class="chips-r">${atsChip(r)}${showLikely ? `<span class="chip ${r.likely ? "likely" : "ats0"}" title="Likely available — written to an order more than 60 days out">${r.likely ? "+" + r.likely : "0"} likely</span>` : ""}${showDisplay ? `<span class="chip ${r.display ? "display" : "ats0"}" title="Display units — ask the GM to sell">${r.display ? "+" + r.display : "0"} display</span>` : ""}</div></div>
+            <div class="top"><div><div class="model">${esc(r.displayName || r.model)}${r.displayName ? ` <span class="mut" style="font-size:11px;font-weight:500;">${esc(r.model)}</span>` : ""}</div><div class="brand">${esc(r.brand || "")}${r.cls ? " · " + esc(r.subclass || r.cls) : ""}</div></div><div class="chips-r">${atsChip(r)}${showOrder ? `<span class="chip order" title="Units written to an order — any delivery or pickup date">${r.onOrder} reserved</span>` : ""}${showLikely ? `<span class="chip ${r.likely ? "likely" : "ats0"}" title="Likely available — written to an order more than 60 days out">${r.likely ? "+" + r.likely : "0"} likely</span>` : ""}${showDisplay ? `<span class="chip ${r.display ? "display" : "ats0"}" title="Display units — ask the GM to sell">${r.display ? "+" + r.display : "0"} display</span>` : ""}</div></div>
             <div class="desc">${esc(r.description || "—")}</div>
             <div class="bottom"><div class="prices"><div class="p">${money(r.l1) || "<span class=mut>—</span>"}<small>L1</small></div><div class="p">${money(r.retail) || "<span class=mut>—</span>"}<small>Retail</small></div>${money(r.umrp) ? `<div class="p">${money(r.umrp)}<small>${esc(r.umrpCode)}</small></div>` : ""}</div>
               <div class="chips">${r.discontinued ? `<span class="chip disc">discontinued</span>` : ""}</div></div>
@@ -302,8 +310,8 @@
     // The retired Clearance Hit List forwards here as ?closeout=1 (11/11):
     // arrive with Closeouts already switched on.
     if (/^(1|true|yes)$/i.test(new URLSearchParams(location.search).get("closeout") || "")) $("closeout").checked = true;
-    for (const id of ["mModel", "mBrand", "mDesc", "atsOnly", "incLikely", "incDisplay", "closeout", "displays", "sort"]) $(id).addEventListener("change", search);
-    $("clearBtn").addEventListener("click", () => { for (const id of ["qModel", "qBrand", "qDesc"]) $(id).value = ""; for (const id of ["mModel", "mBrand", "mDesc"]) $(id).value = "contains"; $("cat").value = ""; cascade(0); $("cls").value = ""; cascade(1); $("sub").value = ""; $("atsOnly").checked = false; $("incLikely").checked = false; $("incDisplay").checked = false; syncSubs(); $("closeout").checked = false; $("displays").checked = false; $("sort").value = ""; search(); });
+    for (const id of ["mModel", "mBrand", "mDesc", "atsOnly", "incLikely", "incDisplay", "closeout", "displays", "onOrder", "sort"]) $(id).addEventListener("change", search);
+    $("clearBtn").addEventListener("click", () => { for (const id of ["qModel", "qBrand", "qDesc"]) $(id).value = ""; for (const id of ["mModel", "mBrand", "mDesc"]) $(id).value = "contains"; $("cat").value = ""; cascade(0); $("cls").value = ""; cascade(1); $("sub").value = ""; $("atsOnly").checked = false; $("incLikely").checked = false; $("incDisplay").checked = false; syncSubs(); $("closeout").checked = false; $("displays").checked = false; $("onOrder").checked = false; $("sort").value = ""; search(); });
 
     // "Ask the GM to sell" on a free display unit: one click, optional note,
     // the GM (E80) gets a dashboard flag + email with the requester's name.
@@ -337,6 +345,14 @@
         $("dTitle").innerHTML = `<span class="copy" title="Click to copy">${esc(p.displayName || p.model)}</span>${p.displayName ? ` <span class="mut" style="font-size:14px;font-weight:500;">${esc(p.model)}</span>` : ""}${p.description ? " — " + esc(p.description) : ""}`;
         $("dTitle").querySelector(".copy").addEventListener("click", () => { navigator.clipboard?.writeText(p.displayName || p.model).catch(() => {}); });
         $("dSub").textContent = [p.brand, p.supplier, [p.category, p.cls, p.subclass].filter(Boolean).join(" › ") || (p.prod ? "ePASS " + p.prod : "")].filter(Boolean).join(" · ") + (p.discontinued ? " · discontinued" : "") + (p.source !== "netsuite" ? " · not in NetSuite yet" : "");
+        // With Reserved to Orders on, the units written to an order lead the
+        // list (soonest delivery first, undated last); the rest follow.
+        const orderView = $("onOrder").checked;
+        if (orderView) {
+          const isRes = (u) => (u.writtenTo ? 0 : 1), due = (u) => u.scheduleDate || u.pickupDate || "9999";
+          p.units = p.units.map((u, i) => ({ u, i })).sort((a, b) => isRes(a.u) - isRes(b.u) || (isRes(a.u) ? a.i - b.i : due(a.u).localeCompare(due(b.u)) || a.i - b.i)).map((x) => x.u);
+        }
+        const resCount = p.units.filter((u) => u.writtenTo).length;
         const c = p.counts, pr = p.prices || {};
         const priceTiles = `<div class="tiles">
             <div class="tile"><div class="v">${money(pr.l1) || "—"}</div><div class="l">L1</div></div>
@@ -360,7 +376,7 @@
             ${askHtml(p, u)}
             <div class="meta">${u.writtenTo ? `<b>${esc(u.writtenTo)}</b> · ${esc(u.customer || "—")}${u.salesperson ? " · " + esc(u.salesperson) : ""}${u.scheduleDate || u.pickupDate ? " · " + (u.scheduleDate ? day(u.scheduleDate) : day(u.pickupDate) + " pickup") : ""}<br>` : ""}${esc(u.serialType)} · received ${day(u.received)}${u.ageDays == null ? "" : ` (${u.ageDays} d)`}${u.location || u.bin ? ` · ${esc([u.location, u.bin].filter(Boolean).join(" / "))}` : ""}${u.reservedOn ? ` · reserved ${day(u.reservedOn)}` : ""}</div>
           </div>`).join("")}</div>`;
-        const units = p.units.length ? `<div class="sec">Inventory on hand <span class="mut" style="text-transform:none; letter-spacing:0; font-weight:500;">(ePASS feed)</span></div>` + unitCards + `
+        const units = p.units.length ? `<div class="sec">Inventory on hand <span class="mut" style="text-transform:none; letter-spacing:0; font-weight:500;">(ePASS feed)</span></div>${orderView ? `<div class="sec-note">${resCount} of ${p.units.length} unit${p.units.length === 1 ? "" : "s"} reserved to orders — listed first, soonest delivery at the top.</div>` : ""}` + unitCards + `
           <table class="t u-table"><thead><tr><th>Status</th><th>Order</th><th>Customer</th><th>Schedule / pickup</th><th>Job status</th><th>Received</th><th>Age</th><th>Loc / bin</th><th>Serial type</th><th>Serial #</th></tr></thead>
           <tbody>${p.units.map((u) => `<tr class="u-${u.status}">
               <td><span class="pill ${u.status === "available" ? "avail" : u.status}">${esc(u.statusLabel)}</span>${u.closeout ? ` <span class="pill close" title="Closeout unit: open box, sealed over a year old, or sealed with its own Unique Sell Price">closeout · ${esc(u.closeout)}${u.uniquePrice ? " · " + money(u.uniquePrice) : ""}</span>` : ""}${u.note ? `<div class="note">${esc(u.note)}</div>` : ""}${u.reservedOn ? `<div class="mut">since ${day(u.reservedOn)}</div>` : ""}${askHtml(p, u)}</td>

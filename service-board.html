@@ -165,7 +165,7 @@
     <div class="top">
       <div><h2>Service Dispatch Board</h2><div class="note">Drag a call onto a tech's day. This board is the source of truth for a call from request to finish — tech, day, stop order, windows, pins, blocks and status live here. ePASS is read only for the parts chain (SO3 ordering → SO4 ordered → SO5 received) and for a ticket finished or cancelled there; its schedule date never moves a card.</div>
         <div class="pagenav"><a class="btn cur" href="service-board.html">Dispatch Board</a><a class="btn" href="service-office.html">Service Office Queues</a><a class="btn" href="appliance-service-calls.html">Service Request Queue</a><a class="btn" href="service-estimates.html">Service Estimates</a><a class="btn" href="service-field.html">Field Tool</a><a class="btn" href="service-journey.html?view=settings" title="Zones, booking, notifications, labor pricing, roles by job code">⚙ Admin settings</a></div></div>
-      <div class="weeknav"><span class="gsearch"><input id="gsearch" placeholder="search every open call — name, SV, phone, address, model…" aria-label="Search all open calls" autocomplete="off" /><div class="gresults" id="gresults" hidden></div></span><span class="feed" id="feed"></span><span id="mobnav" style="display:contents"><button id="prevWeek" title="Previous day">‹</button><button id="thisWeek">Today</button><button id="nextWeek" title="Next day">›</button></span><button id="reload" title="Reload from the mirror">↻</button><button id="pullEpass" title="Pull the latest ePASS route board / schedule dates into the board now (re-applies the last feed the agent pushed)">⇣ ePASS</button></div>
+      <div class="weeknav"><span class="gsearch"><input id="gsearch" placeholder="search every open call — name, SV, phone, address, model…" aria-label="Search all open calls" autocomplete="off" /><div class="gresults" id="gresults" hidden></div></span><span class="feed" id="feed"></span><span id="mobnav" style="display:contents"><button id="prevWeek" title="Previous day">‹</button><button id="thisWeek">Today</button><button id="nextWeek" title="Next day">›</button></span><button id="reload" title="Reload from the mirror">↻</button><button id="pullEpass" title="Re-apply the last ePASS feed now: statuses, balances, new and finished tickets. It records ePASS's tech and date on each card but never moves a card — use Match ePASS for that.">⇣ ePASS</button><button id="matchEpass" title="Put every open ticket where ePASS has it right now (tech, date, AM/PM, stop order) so a test starts from ePASS's routes. Shows what will change first.">⇄ Match ePASS</button></div>
     </div>
     <div class="status" id="pageStatus"></div>
     <div class="strip" id="strip"></div>
@@ -904,6 +904,51 @@
         const stamp = r.receivedAt ? new Date(r.receivedAt).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }) : (r.pulledAt || "");
         toast(`ePASS feed ${stamp ? "from " + stamp + " " : ""}applied — ${r.created} new, ${r.updated} updated, ${r.unchanged} unchanged${r.dropped ? `, ${r.dropped} left the feed` : ""}${r.attached ? `, ${r.attached} attached` : ""}`, "ok");
       } finally { b.disabled = false; b.textContent = was; }
+    });
+    // Match the board to ePASS (Andrew 11/12): routing is still built in
+    // ePASS while the board is tested, so a test has to start from ePASS's
+    // routes. Preview first (nothing written), then one confirm.
+    async function matchPreview(keep) { return api("/api/service-board/match-epass", { method: "POST", body: JSON.stringify({ apply: false, keepPartsWaiting: keep }) }); }
+    function openMatch(p) {
+      let keep = p.keepPartsWaiting !== false;
+      const ov = document.createElement("div"); ov.className = "overlay";
+      const place = (t) => { if (t === "Unscheduled") return "Unscheduled"; const [tech, day] = t.split(" "); return `${esc(p.techNames?.[tech] || tech)} ${day ? dayObj(day).s + " " + md(day) : ""}`; };
+      const draw = () => {
+        const f = p.feed || {}; const age = f.receivedAt ? Math.round((Date.now() - new Date(f.receivedAt)) / 60000) : null;
+        const when = f.receivedAt ? new Date(f.receivedAt).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }) : (f.pulledAt || "unknown");
+        const u = p.unscheduledWhy || {};
+        ov.innerHTML = `<div class="drawer settings" role="dialog" aria-label="Match the board to ePASS" style="width:min(600px,100%)">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start"><div><h2>Match the board to ePASS</h2><div class="sub">As of the ePASS feed from <b>${esc(when)}</b>${age == null ? "" : ` (${age < 1 ? "just now" : age + " min ago"})`} · ${p.total} open tickets. Changes made in ePASS since then aren't in it yet.</div></div><button data-x>Close</button></div>
+          <div class="stat"><div><b>${p.same}</b>already match</div><div><b>${p.placed + p.moved}</b>go onto ePASS's day &amp; tech${p.placed && p.moved ? `<br>${p.placed} from Unscheduled · ${p.moved} moved` : ""}</div><div><b>${p.unscheduled}</b>${p.unscheduled === 1 ? "comes" : "come"} off a day</div></div>
+          ${p.changes ? "" : `<div class="lanenote">The board already matches ePASS — there is nothing to change.</div>`}
+          ${p.unscheduled ? `<div class="lbl">Why ${p.unscheduled === 1 ? "it comes" : "they come"} off</div><div style="font-size:.82rem">${[u.noDate ? `${u.noDate} with no schedule date in ePASS` : "", u.partsWaiting ? `${u.partsWaiting} waiting on parts (see the box below)` : "", u.noTech ? `${u.noTech} with a date in ePASS but no tech` : ""].filter(Boolean).join(" · ")}</div>` : ""}
+          ${(p.days || []).length ? `<div class="lbl">What the board will show</div><div style="font-size:.82rem">${p.days.map((d) => `${dayObj(d.date).s} ${md(d.date)} — <b>${d.n}</b>`).join(" · ")}${p.pastDated ? ` · <span class="hint">${p.pastDated} past-dated</span>` : ""}</div>` : ""}
+          <div class="lbl">Also</div><div style="font-size:.82rem;line-height:1.5">
+            Stop order: ePASS's sequence on <b>${p.withSeq}</b> of ${p.dated} routed tickets${p.withSeq < p.dated ? " — the rest keep the board's order" : ""}${p.windows ? ` · ${p.windows} AM/PM windows updated` : ""}.<br>
+            ${p.pendingPackets ? `${p.pendingPackets} pending "key this move into ePASS" packet${p.pendingPackets === 1 ? "" : "s"} will be cleared — the board will equal ePASS.<br>` : ""}
+            ${p.boardOnly ? `${p.boardOnly} board-only card${p.boardOnly === 1 ? "" : "s"} (requests and holds not in ePASS yet) stay where they are.<br>` : ""}
+            ${(p.unknownTechs || []).length ? `<span style="color:var(--bad)">ePASS tech codes nobody on the board uses: ${p.unknownTechs.map((x) => `${esc(x.code)} (${x.n})`).join(", ")} — those cards will carry the code and a warning chip.</span><br>` : ""}
+          </div>
+          <label style="display:flex;gap:.5rem;align-items:flex-start;font-size:.82rem;margin:.7rem 0"><input type="checkbox" data-keep ${keep ? "checked" : ""} style="margin:.15rem 0 0;width:auto;flex:none" /><span>Leave parts-wait tickets (SO3 / SO4) in Unscheduled — their ePASS dates are placeholders. Untick to put them on those dates too.</span></label>
+          ${(p.samples || []).length ? `<div class="lbl">First ${p.samples.length} of ${p.changes} changes</div><div style="font-size:.8rem;line-height:1.55">${p.samples.map((x) => `<div><span class="mono">${esc(x.sv)}</span> ${esc(x.cust)} · ${place(x.from)} → <b>${place(x.to)}</b></div>`).join("")}</div>` : ""}
+          <div class="acts"><button data-go ${p.changes ? "" : "disabled"}>Match the board to ePASS now</button><button data-not>Not now</button></div>
+          <div style="font-size:.75rem;color:var(--muted)">Nothing is sent to ePASS or to customers. This is a one-time reset: the board owns routing again as soon as it finishes, and the next feed won't move anything back. It can't be undone from here — each card's history records where it was.</div></div>`;
+        const close = () => ov.remove(); ov.querySelector("[data-x]").onclick = close; ov.querySelector("[data-not]").onclick = close;
+        ov.querySelector("[data-keep]").onchange = guard(async (e) => { keep = e.target.checked; e.target.disabled = true; p = await matchPreview(keep); draw(); });
+        ov.querySelector("[data-go]").onclick = guard(async () => {
+          const go = ov.querySelector("[data-go]"); go.disabled = true; go.textContent = "Matching…";
+          try {
+            const r = await api("/api/service-board/match-epass", { method: "POST", body: JSON.stringify({ apply: true, keepPartsWaiting: keep }) });
+            close(); await load();
+            toast(`Board matched to ePASS — ${r.placed + r.moved} placed or moved, ${r.unscheduled} to Unscheduled, ${r.same} already matched${r.packetsCleared ? `, ${r.packetsCleared} packets cleared` : ""}`, "ok");
+          } catch (err) { go.disabled = false; go.textContent = "Match the board to ePASS now"; throw err; }
+        });
+      };
+      draw(); document.body.append(ov); ov.onclick = (e) => { if (e.target === ov) ov.remove(); };
+    }
+    $("#matchEpass").onclick = guard(async () => {
+      const b = $("#matchEpass"); b.disabled = true; const was = b.textContent; b.textContent = "checking…";
+      try { openMatch(await matchPreview(true)); } finally { b.disabled = false; b.textContent = was; }
     });
     $("#unQ").addEventListener("input", () => { unFilter = $("#unQ").value; renderUnsched(); });
     $("#shopQ").addEventListener("input", () => { shopFilter = $("#shopQ").value; renderShop(); });

@@ -525,7 +525,7 @@ import {
   importServiceFromEpassFeed, applySelfHoldForSv, onStatusSet as onServiceStatusSet, onPartsIn as onServicePartsIn,
   upsertRequestJob, placeRequestJob, attachRequestJobToSv
 } from "./lib/service-journey-postgres.js";
-import { getServiceBoard, moveServiceJob, unscheduleServiceJob, sequenceTechDay, setJobDispatchFlags, addRouteBlock, removeRouteBlock, saveTechSettings, setPartsLoaded, confirmRouteDay, cancelServiceJob, uncancelServiceJob, markShopRepaired, CANCEL_REASONS, diagnoseServiceBoard, getServiceHistory, moveSelfHold, searchBoardJobs } from "./lib/service-board-postgres.js";
+import { matchBoardToEpass, getServiceBoard, moveServiceJob, unscheduleServiceJob, sequenceTechDay, setJobDispatchFlags, addRouteBlock, removeRouteBlock, saveTechSettings, setPartsLoaded, confirmRouteDay, cancelServiceJob, uncancelServiceJob, markShopRepaired, CANCEL_REASONS, diagnoseServiceBoard, getServiceHistory, moveSelfHold, searchBoardJobs } from "./lib/service-board-postgres.js";
 import {
   parseOpenOrdersBundle, replaceEpassOpenOrders, getEpassOpenOrdersMeta, getEpassOpenOrder, listEpassOpenOrders, feedInventoryRows, openBookRows, listEpassMiscCharges,
   parseOpenServiceBundle, replaceEpassOpenService, getEpassOpenServiceMeta, getEpassOpenService, listEpassOpenService
@@ -13361,6 +13361,16 @@ app.get("/api/service-board/search", requireServiceBoard, async (req, res) => {
 app.get("/api/service-board/diagnose", requireServiceBoard, async (req, res) => {
   try { return res.json(await diagnoseServiceBoard()); }
   catch (err) { console.error("Service board diagnose failed:", err.message); return res.status(500).json({ error: err.message }); }
+});
+// "Match ePASS" (Andrew 11/12): put every open ticket where ePASS has it now
+// so a board test starts from ePASS's routes. apply:false is a preview.
+app.post("/api/service-board/match-epass", requireServiceBoard, async (req, res) => {
+  try {
+    const apply = req.body?.apply === true;
+    const out = await matchBoardToEpass({ apply, keepPartsWaiting: req.body?.keepPartsWaiting !== false, by: sjMe(req).email });
+    if (apply) sjAudit(req, "service_board_matched_to_epass", { total: out.total, placed: out.placed, moved: out.moved, unscheduled: out.unscheduled, same: out.same, packetsCleared: out.packetsCleared, confirmationsCleared: out.confirmationsCleared, keepPartsWaiting: out.keepPartsWaiting, feedPulledAt: out.feed?.pulledAt || "" });
+    return res.json({ ok: true, ...out });
+  } catch (err) { console.error("Match board to ePASS failed:", err.message); return res.status(400).json({ error: err.message || "Unable to match the board to ePASS." }); }
 });
 app.post("/api/service-board/move", requireServiceBoard, async (req, res) => {
   try {

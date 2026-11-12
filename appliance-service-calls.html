@@ -206,6 +206,11 @@
       color: #3730a3;
     }
 
+    /* Card arrived on a request that was parked as Awaiting SetupIntent —
+       the server put it back to Call Status Pending (11/12). */
+    .badge-card-in { background: var(--primary); color: #fff; }
+    .card-in-note { font-size: 12px; line-height: 1.4; margin-top: 4px; color: var(--primary-hover, #14532d); font-weight: 600; }
+
     .badge-hvac { background: #e0f2fe; color: #075985; margin-left: 6px; }
     .badge-quote { background: #fef3c7; color: #92400e; margin-left: 6px; }
     /* Client self-scheduling (schedule.html step 2) */
@@ -651,7 +656,16 @@
       return `<span class="badge badge-pending">Call Status Pending</span>`;
     }
 
+    // The card came in while the request sat in "Awaiting SetupIntent": the
+    // server reset it to Call Status Pending and stamped cardReturnedAt. It
+    // is pinned to the top and lit like a new request until someone saves a
+    // change on it.
+    function isCardReturned(row) {
+      return Boolean(row.cardReturnedAt) && (row.queueStatus || "Call Status Pending") === "Call Status Pending";
+    }
+
     function isNewRow(row) {
+      if (isCardReturned(row)) return true;
       if (row.queueStatus !== "Call Status Pending" || row.queueStatusNotes) return false;
       // An installer's cosmetic-damage report arrives with the SALES invoice
       // already in the order field (Jack 10/30: they never lit up green). It
@@ -933,6 +947,7 @@ function attachPrefillActions() {
             erpOrderNumber: data.row.erpOrderNumber,
             updatedAt: data.row.updatedAt,
             updatedBy: data.row.updatedBy || allRows[rowIndex].updatedBy || "",
+            cardReturnedAt: data.row.cardReturnedAt || "",
             selfSchedule: data.row.selfSchedule || allRows[rowIndex].selfSchedule
           };
         }
@@ -982,6 +997,7 @@ function attachPrefillActions() {
           <td class="status-cell">
             <div class="status-stack">
               <div>${queueBadge(queueStatus)}</div>
+              ${isCardReturned(row) ? `<div><span class="badge badge-card-in">Card received — back in queue</span><div class="card-in-note">Was Awaiting SetupIntent. Card saved ${formatDate(row.cardReturnedAt)} — ready to schedule.</div></div>` : ""}
               ${renderSelfSchedule(row)}
 
               <select class="status-select" data-status-id="${escapeHtml(row.id)}">
@@ -1086,7 +1102,11 @@ function attachPrefillActions() {
         return matchesSearch && matchesStatus && matchesCard;
       });
 
-      const activeRows = filtered.filter((row) => !isRecentlyWorkedRow(row));
+      // Requests whose card just arrived lead the queue, most recent first.
+      const activeRows = filtered.filter((row) => !isRecentlyWorkedRow(row))
+        .map((row, i) => ({ row, i }))
+        .sort((a, b) => (isCardReturned(b.row) - isCardReturned(a.row)) || (isCardReturned(a.row) ? String(b.row.cardReturnedAt).localeCompare(String(a.row.cardReturnedAt)) : a.i - b.i))
+        .map((x) => x.row);
       const archivedRows = filtered.filter((row) => isRecentlyWorkedRow(row));
       archiveToggle.textContent = showArchive
         ? `Hide Recently Worked (${archivedRows.length})`

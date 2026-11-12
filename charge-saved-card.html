@@ -304,6 +304,18 @@
   </div>
 
   <div class="field full">
+    <label for="department">Department</label>
+    <select id="department">
+      <option value="">Choose a department…</option>
+      <option value="Appliance">Appliance</option>
+      <option value="Repair Service">Repair Service</option>
+      <option value="Kitchen Design">Kitchen Design</option>
+      <option value="HVAC Sales">HVAC Sales</option>
+    </select>
+    <div id="departmentHint" class="helper-text">Department will auto-fill from employee code. Client Care and executives can choose the department that owns this charge.</div>
+  </div>
+
+  <div class="field full">
     <label for="description">Description</label>
     <input id="description" required placeholder="Service repair after diagnosis" />
   </div>
@@ -414,6 +426,42 @@
     let depositAgreementId = "";
     const TEAM_DIRECTORY = window.WILSON_EMPLOYEE_DIRECTORY || {};
 
+    // Department that owns the charge (11/12) — same four as payment links
+    // and the terminal. A department employee's code decides it. Client Care
+    // and executives belong to no payment department, so they choose: the
+    // list starts on whatever the page already knows (the employee code's
+    // department, the deposit agreement's, Repair Service for a Service
+    // Estimates hand-off) and otherwise has to be picked before charging.
+    const departmentInput = document.getElementById("department");
+    const departmentHint = document.getElementById("departmentHint");
+    const PAYMENT_DEPARTMENTS = ["Appliance", "Repair Service", "Kitchen Design", "HVAC Sales"];
+    const paymentDepartment = (value) => PAYMENT_DEPARTMENTS.find((d) => d.toLowerCase() === String(value || "").trim().toLowerCase()) || "";
+    let viewerCanChooseDepartment = false; // signed-in user is an executive or Client Care
+    let departmentChosenByHand = false;
+    let contextDepartment = "";            // from a deposit agreement or Service Estimates hand-off
+
+    function applyDepartment() {
+      const match = TEAM_DIRECTORY[creatorCodeInput.value.trim().toUpperCase()];
+      const matched = String(match?.department || "").trim();
+      const fromCode = paymentDepartment(matched);
+      const isClientCare = matched.toLowerCase() === "client care";
+      if (match && fromCode && !viewerCanChooseDepartment) {
+        departmentInput.value = fromCode;
+        departmentInput.disabled = true;
+        departmentChosenByHand = false;
+        departmentHint.textContent = "Department was assigned from the employee code.";
+        return;
+      }
+      departmentInput.disabled = false;
+      if (!departmentChosenByHand) departmentInput.value = contextDepartment || fromCode || "";
+      departmentHint.textContent = !match
+        ? "Department will auto-fill from employee code. Client Care and executives can choose the department that owns this charge."
+        : viewerCanChooseDepartment || isClientCare
+          ? "Client Care and executives choose which department owns this charge."
+          : "No payment department on file for this code — choose the department that owns this charge.";
+    }
+    departmentInput.addEventListener("change", () => { departmentChosenByHand = Boolean(departmentInput.value); });
+
     function showStatus(type, message) {
       statusBox.className = `status ${type}`;
       statusBox.textContent = message;
@@ -474,17 +522,20 @@
       if (!code) {
         creatorNameInput.value = "";
         creatorEmailInput.value = "";
+        applyDepartment();
         return true;
       }
 
       if (!match) {
         creatorNameInput.value = "";
         creatorEmailInput.value = "";
+        applyDepartment();
         return false;
       }
 
       creatorNameInput.value = match.name;
       creatorEmailInput.value = match.email;
+      applyDepartment();
       return true;
     }
 
@@ -572,6 +623,7 @@ const payload = {
   creatorCode: creatorCodeInput.value.trim(),
   creatorName: creatorNameInput.value.trim(),
   creatorEmail: creatorEmailInput.value.trim(),
+  department: departmentInput.value.trim(),
   internalNotes: internalNotesInput.value.trim(),
   setupIntentId: setupIntentInput.value.trim(),
   hvacDepositRecordId,
@@ -585,6 +637,12 @@ if (!payload.customerId || !payload.paymentMethodId || !payload.amount || !paylo
 
 if (!applyCreatorLookup() || !payload.creatorCode || !payload.creatorName || !payload.creatorEmail) {
   showStatus("error", "Please enter a valid employee code before charging the saved card.");
+  return;
+}
+
+if (!payload.department) {
+  showStatus("error", "Please choose the department that owns this charge.");
+  departmentInput.focus();
   return;
 }
 
@@ -640,6 +698,9 @@ if (!applyCreatorLookup() || !payload.creatorCode || !payload.creatorName || !pa
       clearLookupResult();
       hvacDepositRecordId = "";
       depositAgreementId = "";
+      departmentChosenByHand = false;
+      contextDepartment = "";
+      applyDepartment();
     });
 
     copyBtn.addEventListener("click", async () => {
@@ -667,6 +728,8 @@ if (!applyCreatorLookup() || !payload.creatorCode || !payload.creatorName || !pa
       const cus = params.get("customerId"); if (cus) customerIdInput.value = cus;
       const pm = params.get("paymentMethodId"); if (pm) paymentMethodIdInput.value = pm;
       const seti = params.get("setupIntentId"); if (seti) document.getElementById("setupIntentId").value = seti;
+      // A Service Estimates hand-off is a repair charge unless whoever is choosing says otherwise.
+      contextDepartment = "Repair Service"; applyDepartment();
       showStatus("success", `Prefilled from Service Estimates for ${sv}${cus && pm ? " — card on file loaded" : seti ? " — click Lookup saved card" : " — no card on file; look one up or collect another way"}. Check the amount before charging.`);
       return true;
     }
@@ -708,9 +771,13 @@ if (!applyCreatorLookup() || !payload.creatorCode || !payload.creatorName || !pa
           : "Deposit agreement remaining balance";
         setupIntentInput.value = "";
 
+        // The balance follows the department the deposit link was made for.
+        contextDepartment = paymentDepartment(data.department);
         if (data.creatorCode) {
           creatorCodeInput.value = data.creatorCode;
           applyCreatorLookup();
+        } else {
+          applyDepartment();
         }
 
         setLookupResult({
@@ -744,11 +811,15 @@ if (!applyCreatorLookup() || !payload.creatorCode || !payload.creatorName || !pa
         if (!res.ok) return;
         const session = await res.json();
         const email = String(session?.user?.email || "").trim().toLowerCase();
-        if (!email) return;
         const directory = window.WILSON_EMPLOYEE_DIRECTORY || {};
-        const myCode = Object.keys(directory).find(
+        const myCode = email ? Object.keys(directory).find(
           (code) => String(directory[code].email || "").trim().toLowerCase() === email
-        );
+        ) : "";
+        // Executives and Client Care may choose the department whichever
+        // employee code ends up on the charge (e.g. a deposit agreement's).
+        viewerCanChooseDepartment = session?.canManageUsers === true || session?.user?.isExecutive === true ||
+          String(directory[myCode]?.department || "").trim().toLowerCase() === "client care";
+        applyDepartment();
         if (!myCode || codeInput.value.trim()) return;
         codeInput.value = myCode;
         codeInput.dispatchEvent(new Event("input", { bubbles: true }));

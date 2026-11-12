@@ -90,6 +90,7 @@
     .se-kv .k { width: 130px; flex-shrink: 0; font-size: 11px; font-weight: 800; letter-spacing: 0.05em; text-transform: uppercase; color: #64748b; padding-top: 2px; }
     .se-resp { background: #eef2ff; border-radius: 10px; padding: 10px 12px; font-size: 13px; line-height: 1.5; margin-top: 10px; }
     .se-chip { display: inline-block; border-radius: 999px; font-size: 10.5px; font-weight: 800; letter-spacing: 0.05em; padding: 3px 10px; background: #fef3c7; color: #92400e; }
+    .se-chip.reopened { background: #e0e7ff; color: #3730a3; }
     .se-hint { font-size: 11.5px; color: var(--muted); margin-top: 5px; line-height: 1.4; }
     .se-eta { margin: 14px 0 4px; padding: 14px 16px; border: 1px solid var(--border); border-radius: 14px; background: #fbfcfe; }
     .se-eta-label { display: block; font-size: 11.5px; font-weight: 800; letter-spacing: 0.05em; text-transform: uppercase; color: #64748b; margin-bottom: 10px; }
@@ -118,12 +119,20 @@
     .se-send-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
     .se-send-row input { flex: 1 1 220px; border: 1px solid var(--border); border-radius: 10px; padding: 9px 12px; font-size: 13px; font-family: inherit; min-width: 0; }
     .se-field select { width: 100%; border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; font-size: 13.5px; font-family: inherit; background: #fff; }
+    /* Find + sort above the open-estimates list (11/12) */
+    .se-tools { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin: 4px 0 12px; }
+    .se-tools input[type="search"] { flex: 1 1 260px; min-width: 0; max-width: 420px; border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; font-size: 13.5px; font-family: inherit; background: #fff; }
+    .se-tools select { border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; font-size: 13.5px; font-family: inherit; background: #fff; }
+    .se-tools input[type="search"]:focus, .se-tools select:focus { outline: none; border-color: rgba(var(--primary-rgb), 0.75); box-shadow: 0 0 0 4px rgba(var(--primary-rgb), 0.12); }
+    .se-tools .se-count { font-size: 12.5px; color: var(--muted, #6b7280); }
+    .se-list th.se-sortable { cursor: pointer; user-select: none; white-space: nowrap; }
+    .se-list th.se-sortable:hover { color: var(--primary); }
+    .se-list th.se-sortable .arr { display: inline-block; width: 1em; opacity: .9; }
   </style>
 </head>
 <body data-shell-label="Service Estimate Approvals" data-shell-icon="service">
   <div class="wrap">
     <div id="internal-shell-header"></div>
-    <style>.pagenav{display:flex;gap:.35rem;flex-wrap:wrap;margin:.5rem 0 .6rem}.pagenav a{font-size:.74rem;padding:.2rem .55rem;border:1px solid #d7dfd8;border-radius:999px;background:#fff;color:#1b241f;text-decoration:none}.pagenav a.cur{background:#1f6b35;color:#fff;border-color:#1f6b35}</style><div class="pagenav"><a href="service-board.html">Dispatch Board</a><a href="service-office.html">Service Office Queues</a><a href="appliance-service-calls.html">Service Request Queue</a><a href="service-estimates.html" class="cur">Service Estimates</a><a href="service-field.html">Field Tool</a></div>
 
     <div class="surface">
       <div class="page-head">
@@ -215,10 +224,20 @@
 
     <div class="surface">
       <h2>Estimates</h2>
-      <p class="section-note">Newest first. Click a row for the client's response and the link.</p>
+      <p class="section-note">Click a row for the client's response and the link.</p>
+      <div class="se-tools">
+        <input type="search" id="seFind" placeholder="Search ticket # or client" aria-label="Search estimates by ticket number or client" autocomplete="off" />
+        <select id="seSort" aria-label="Sort estimates">
+          <option value="date-desc">Newest first</option>
+          <option value="date-asc">Oldest first</option>
+          <option value="sender-asc">Sent by (A–Z)</option>
+          <option value="sender-desc">Sent by (Z–A)</option>
+        </select>
+        <span class="se-count" id="seCount"></span>
+      </div>
       <div style="overflow-x:auto;">
         <table class="se-list">
-          <thead><tr><th>Created</th><th>SV #</th><th>Client</th><th>Due</th><th>Contact</th><th title="What we've done: unsent, sent, reminder sent">Communication</th><th title="What the client has done: unseen, viewed, approved, shopping">Client</th><th>Sent by</th><th></th></tr></thead>
+          <thead><tr><th class="se-sortable" data-sort="date" title="Sort by date">Created<span class="arr"></span></th><th>SV #</th><th>Client</th><th>Due</th><th>Contact</th><th title="What we've done: unsent, sent, reminder sent">Communication</th><th title="What the client has done: unseen, viewed, approved, shopping">Client</th><th class="se-sortable" data-sort="sender" title="Sort by who sent it">Sent by<span class="arr"></span></th><th></th></tr></thead>
           <tbody id="seBody"><tr><td colspan="8" class="section-note">Loading…</td></tr></tbody>
         </table>
       </div>
@@ -546,6 +565,11 @@
       const commPill = (e) => { const c = e.communication || { state: "unsent", label: "Unsent" }; const cls = c.state === "sent" ? "sentc" : c.state; const tip = c.lastSentAt ? `Last ${c.lastChannel === "text" ? "texted" : "emailed"} ${when(c.lastSentAt)}` : "Nothing sent yet — email or text the link"; return `<span class="pill ${esc(cls)}" title="${esc(tip)}">${esc(c.label)}</span>`; };
       const clientPill = (e) => { const c = e.client || { state: e.status === "sent" ? "unseen" : e.status, label: PILL[e.status] || e.status }; const tip = c.respondedAt ? `Responded ${when(c.respondedAt)}${c.byStaff ? " (confirmed by staff)" : ""}` : c.viewedAt ? `Viewed ${when(c.viewedAt)}` : "Hasn't opened the link yet"; return `<span class="pill ${esc(c.state)}" title="${esc(tip)}">${esc(c.label)}</span>`; };
       const sendsHtml = (e) => { const sends = Array.isArray(e.sends) ? e.sends : []; if (!sends.length) return `<div class="se-hint">Nothing sent yet — copy the link, or email / text it below.</div>`; return `<ul class="se-sends">${sends.slice().reverse().map((x) => `<li>${when(x.at)} · ${x.variant === "reminder" ? "Reminder " : ""}${x.channel === "text" ? "texted" : "emailed"}${x.to ? " to " + esc(x.to) : ""}${x.by ? " · " + esc(x.by) : ""}</li>`).join("")}</ul>`; };
+      // Reopened (11/12): a closed estimate that was put back on this list
+      // from Closed Service Estimates carries a chip saying so.
+      const lastReopen = (e) => (Array.isArray(e.reopens) && e.reopens.length ? e.reopens[e.reopens.length - 1] : null);
+      const reopenLine = (x) => `Reopened ${when(x.at)} by ${x.byName || x.byEmail || "—"}${x.closedAt ? ` — had been closed ${when(x.closedAt)}${x.outcomeLabel ? " as " + x.outcomeLabel : ""}` : ""}`;
+      const reopenChip = (e) => { const x = lastReopen(e); return x ? ` <span class="se-chip reopened" title="${esc(reopenLine(x))}">REOPENED${e.reopens.length > 1 ? " ×" + e.reopens.length : ""}</span>` : ""; };
       const needsResolution = (e) => !e.closedAt && ["sent", "viewed"].includes(e.status);
 
       // ---- close / resolve ----
@@ -606,7 +630,7 @@
         return `
           <tr data-idx="${i}"${isClosed ? ` style="opacity:0.55;"` : ""}>
             <td>${when(e.createdAt)}</td>
-            <td><strong>${esc(e.svNumber || "—")}</strong>${e.summary?.notRecommended ? ` <span class="se-chip warn" title="Technician does not recommend this repair">NOT REC</span>` : ""}</td>
+            <td><strong>${esc(e.svNumber || "—")}</strong>${e.summary?.notRecommended ? ` <span class="se-chip warn" title="Technician does not recommend this repair">NOT REC</span>` : ""}${reopenChip(e)}</td>
             <td>${esc(e.customerName)}</td>
             <td>${money(dueOf(e.summary || {}))}${paidOf(e.summary || {}) > 0 ? `<div class="se-hint">of ${money(e.summary?.invoiceTotal)} · ${money(paidOf(e.summary || {}))} paid</div>` : ""}</td>
             <td>${esc([e.contactPhone, e.contactEmail].filter(Boolean).join(" / ") || "—")}</td>
@@ -620,9 +644,42 @@
       function render() {
         const body = $("seBody");
         // The list route only returns open estimates; closed ones have their own page.
-        const active = state.estimates.filter((e) => !e.closedAt);
-        if (!active.length) {
+        const open = state.estimates.filter((e) => !e.closedAt);
+        if (!open.length) {
+          $("seCount").textContent = "";
           body.innerHTML = `<tr><td colspan="9" class="section-note">No open estimates — scan a quote above to send one, or see <a href="closed-estimates.html">closed estimates</a>.</td></tr>`;
+          return;
+        }
+        // Find by ticket or client (11/12): every word typed has to appear
+        // somewhere in the SV number, client name, phone, email or estimate
+        // name. Digits alone also match inside the SV ("124468") or phone.
+        const words = $("seFind").value.trim().toLowerCase().split(/\s+/).filter(Boolean);
+        const hay = (e) => {
+          const text = [e.svNumber, e.customerName, e.contactPhone, e.contactEmail, e.label].filter(Boolean).join(" ").toLowerCase();
+          return text + " " + text.replace(/[^0-9a-z]/g, "");
+        };
+        const found = words.length ? open.filter((e) => { const h = hay(e); return words.every((w) => h.includes(w) || h.includes(w.replace(/[^0-9a-z]/g, "") || w)); }) : open;
+        // Sort by date or by sender; within one sender, newest first.
+        const [key, dir] = $("seSort").value.split("-");
+        const time = (e) => Date.parse(e.createdAt) || 0;
+        const sender = (e) => String(e.createdByName || e.createdByEmail || "").trim().toLowerCase();
+        const active = [...found].sort((a, b) => {
+          if (key === "sender") {
+            // No sender on file sorts last either way.
+            const sa = sender(a), sb = sender(b);
+            if (sa !== sb) { if (!sa) return 1; if (!sb) return -1; return dir === "desc" ? sb.localeCompare(sa) : sa.localeCompare(sb); }
+            return time(b) - time(a);
+          }
+          return dir === "asc" ? time(a) - time(b) : time(b) - time(a);
+        });
+        document.querySelectorAll(".se-list th.se-sortable").forEach((th) => {
+          const on = th.dataset.sort === key;
+          th.querySelector(".arr").textContent = on ? (dir === "asc" ? " ▲" : " ▼") : "";
+          th.setAttribute("aria-sort", on ? (dir === "asc" ? "ascending" : "descending") : "none");
+        });
+        $("seCount").textContent = words.length ? `${found.length} of ${open.length} open estimates` : `${open.length} open estimate${open.length === 1 ? "" : "s"}`;
+        if (!active.length) {
+          body.innerHTML = `<tr><td colspan="9" class="section-note">No open estimate matches “${esc($("seFind").value.trim())}”. It may be closed — check <a href="closed-estimates.html">Closed Service Estimates</a>.</td></tr>`;
           return;
         }
         body.innerHTML = active.map((e) => rowHtml(e, state.estimates.indexOf(e), false)).join("");
@@ -646,6 +703,16 @@
         });
       }
 
+      $("seFind").addEventListener("input", render);
+      $("seSort").addEventListener("change", render);
+      // Clicking the Created / Sent by heading sorts by it; clicking again flips it.
+      document.querySelectorAll(".se-list th.se-sortable").forEach((th) => th.addEventListener("click", () => {
+        const [key, dir] = $("seSort").value.split("-");
+        const k = th.dataset.sort;
+        $("seSort").value = k === key ? `${k}-${dir === "asc" ? "desc" : "asc"}` : (k === "date" ? "date-desc" : "sender-asc");
+        render();
+      }));
+
       function renderDetailBody(e) {
         const r = e.response || {};
         const directionText = { similar: "Something similar to the current unit", new: "Open to trying something new", unsure: "Not sure — wants help deciding" }[r.productDirection] || "";
@@ -657,6 +724,7 @@
           <div class="se-kv"><div class="k">Contact</div><div>${esc([e.contactPhone, e.contactEmail].filter(Boolean).join(" · ") || "—")}${prefChip ? ` <span class="se-chip">${prefChip}</span>` : ""}${String(e.contactPhone || "").replace(/\D/g, "").length >= 10 ? `<br><button type="button" class="podium-convo-btn" data-podium-phone="${esc(e.contactPhone)}" title="Open this client's Podium thread (opens the Podium app on a phone)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg> Transition to Podium Conversation</button>` : ""}</div></div>
           <div class="se-kv"><div class="k">Created</div><div>${when(e.createdAt)} by ${esc(e.createdByName || e.createdByEmail || "—")}</div></div>
           ${e.summary?.eta ? `<div class="se-kv"><div class="k">Parts ETA</div><div>${({ stock: "In stock", backorder: "Backorder", date: "Specific date" })[e.summary.eta.mode] || esc(e.summary.eta.mode)}${e.summary.eta.from ? " · " + fmtEta(e.summary.eta.from) + (e.summary.eta.to && e.summary.eta.to !== e.summary.eta.from ? " – " + fmtEta(e.summary.eta.to) : "") : ""}<div class="se-hint">${esc(e.summary.etaMessage || "")}</div></div></div>` : ""}
+          ${lastReopen(e) ? `<div class="se-kv"><div class="k">Reopened</div><div><span class="se-chip reopened">REOPENED</span>${e.reopens.slice().reverse().map((x) => `<div style="margin-top:4px;">${esc(reopenLine(x).replace(/^Reopened /, ""))}</div>`).join("")}</div></div>` : ""}
           ${e.closedAt ? `<div class="se-kv"><div class="k">Closed</div><div>${when(e.closedAt)} — hidden from the active list; the client link is inactive.</div></div>` : ""}
           <div class="se-summary" style="margin-top:12px;">${summaryHtml(e.summary || {})}</div>
           ${e.status === "shopping" ? `<div class="se-resp"><strong>Shopping for a replacement.</strong><br>${[directionText, visitText].filter(Boolean).map(esc).join("<br>")}${r.notes ? `<br>“${esc(r.notes)}”` : ""}<br><span style="color:var(--muted); font-size:12px;">Showroom team was notified — lead is up for grabs.</span></div>` : ""}

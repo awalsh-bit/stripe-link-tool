@@ -669,6 +669,25 @@
     .drawer { background: var(--surface); }
     .drawer-head, .totals, .cart-line, .addon-row, .or-rule { border-color: var(--line); }
     .pf-ok { background: var(--ok-bg); color: var(--ok-text); border-radius: var(--r); }
+    /* Contact step (guest checkout, 11/12): Call / Text choice, and the
+       deliver-or-pick-up step that follows for a new shopper. */
+    .field-label { font-size: 13px; font-weight: 500; color: var(--muted); display: block; margin-bottom: 5px; }
+    .choice-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .choice { position: relative; margin: 0; cursor: pointer; }
+    .choice input { position: absolute; left: 50%; top: 50%; width: 1px; height: 1px; padding: 0; margin: 0; border: 0; opacity: 0; pointer-events: none; }
+    .choice span { display: flex; align-items: center; justify-content: center; min-height: 46px; border: 1px solid var(--line); border-radius: var(--r); background: var(--surface); color: var(--ink); font-size: 15px; font-weight: 600; transition: border-color .15s, background .15s; }
+    .choice:hover span { border-color: var(--accent); }
+    .choice input:checked + span { border-color: var(--accent); background: var(--sunk); box-shadow: inset 0 0 0 1px var(--accent); }
+    .choice input:focus-visible + span { outline: 2px solid var(--copper); outline-offset: 2px; }
+    .reg-actions { flex-wrap: wrap; }
+    .reg-actions .grow { flex: 1; }
+    #regLead .linklike { display: inline; margin: 0; font-size: inherit; }
+    @media (max-width: 560px) {
+      .reg-actions { flex-direction: column-reverse; align-items: stretch; }
+      .reg-actions .grow { display: none; }
+      /* First and last name stay side by side so the form is a row shorter. */
+      .form-grid.reg-name { grid-template-columns: 1fr 1fr; }
+    }
     .client-code { background: var(--sunk); border: 1px dashed var(--copper); color: var(--ink); border-radius: var(--r); font-family: var(--f-mono); font-weight: 500; font-size: 24px; letter-spacing: .1em; }
     .cart-line .nm { font-family: var(--f-display); font-weight: 600; }
     .addon-row input[type="checkbox"], .fulfill-opt input[type="radio"], .consent input { accent-color: var(--accent); }
@@ -730,13 +749,15 @@
   <template id="shopRibbonTpl">
     <div class="ribbon-inner">
       <nav class="dept-nav" id="deptNav" aria-label="Departments">
+        <!-- Outlet leads (Andrew 11/12): on a phone the bar scrolls sideways
+             and the last link sat off-screen. -->
+        <button type="button" class="dept-link outlet" id="deptOutlet">Outlet</button>
         <button type="button" class="dept-link" data-dept="Cooking">Cooking</button>
         <button type="button" class="dept-link" data-dept="Coffee">Coffee</button>
         <button type="button" class="dept-link" data-dept="Refrigeration">Refrigeration</button>
         <button type="button" class="dept-link" data-dept="Kitchen Cleanup">Kitchen Cleanup</button>
         <button type="button" class="dept-link" data-dept="Laundry">Laundry</button>
         <button type="button" class="dept-link" data-dept="Outdoor">Outdoor</button>
-        <button type="button" class="dept-link outlet" id="deptOutlet">Outlet</button>
       </nav>
     </div>
     <div class="mega-panel" id="megaPanel">
@@ -757,7 +778,7 @@
       current: "express",
       tag: "Express<br>Assortment",
       leftHtml: `<button type="button" class="menu-btn" id="menuBtn" aria-label="Shop by category"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h16"/></svg><span class="menu-btn-label">Shop by Category</span></button>`,
-      rightHtml: `<button type="button" class="util-btn" id="unlockBtn" style="display:none;" title="Sign in or create your profile" aria-label="Sign in"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></button>
+      rightHtml: `<button type="button" class="util-btn" id="unlockBtn" style="display:none;" title="Sign in" aria-label="Sign in"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></button>
         <button type="button" class="util-chip" id="unlockChip" style="display:none;" title="View and update your profile"></button>
         <button type="button" class="util-btn cart-btn" id="cartBtn" aria-label="Cart"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="21" r="1"/><circle cx="19" cy="21" r="1"/><path d="M2.05 2.05h2l2.66 12.42a2 2 0 0 0 2 1.58h9.78a2 2 0 0 0 1.95-1.57l1.65-7.43H5.12"/></svg><span class="cart-count" id="cartCount" style="display:none;">0</span></button>`,
       below: document.getElementById("shopRibbonTpl").content.cloneNode(true),
@@ -840,28 +861,33 @@
     A Wilson team member will reach out using your preferred contact method to confirm
     availability, delivery scheduling, and your final total before anything is charged.</p>
     <p id="doneCode" style="display:none;">Your client code is <span class="order-no" id="doneCodeVal"></span> —
-    enter it with your phone number next visit to skip the sign-up form.</p>
+    next visit, your phone number brings your details right back.</p>
   </div>
 
   <!-- Registration modal -->
   <div class="overlay" id="registerOverlay">
     <div class="modal" id="registerModal">
-      <h2>Create your free profile to check out</h2>
-      <p class="lead" id="regLead" style="display:none;">Tell us where these deals would be headed and how to reach you.
-      We only sell online within our local delivery area.
-      <button type="button" class="linklike" id="haveCodeBtn">Shopped with us before? More sign-in options</button></p>
+      <h2 id="authTitle">Let's start with how to contact you</h2>
 
-      <!-- Step 1: phone only. One field, one button (feedback 2026-08-27:
-           the old three-way sign-in was too complicated). -->
+      <!-- Step 1: phone + how to reach them. Guest checkout is the default
+           (Andrew 11/12): no "create a profile" framing, just the contact
+           details the sales team needs to finish the order. -->
       <div id="phonePanel">
-        <p class="lead">Enter your phone number and we'll see if you already have a profile with us.</p>
+        <p class="lead">One of our appliance specialists will use this number to confirm your order. If you've shopped with us before, we'll recognize you.</p>
         <div class="form-grid">
-          <div class="full"><label for="idPhone">Phone number</label><input id="idPhone" type="tel" autocomplete="tel" placeholder="512-555-0100"></div>
+          <div class="full"><label for="idPhone">Phone number</label><input id="idPhone" type="tel" inputmode="tel" autocomplete="tel" placeholder="512-555-0100"></div>
+          <div class="full">
+            <span class="field-label" id="idContactLabel">How would you like us to reach you?</span>
+            <div class="choice-row" role="radiogroup" aria-labelledby="idContactLabel">
+              <label class="choice"><input type="radio" name="idContact" value="Call"><span>Call me</span></label>
+              <label class="choice"><input type="radio" name="idContact" value="Text"><span>Text me</span></label>
+            </div>
+          </div>
         </div>
         <div class="form-error" id="idError"></div>
         <div class="modal-actions">
           <button class="btn ghost" type="button" data-close="registerOverlay">Not now</button>
-          <button class="btn primary" id="idNext" type="button">Next</button>
+          <button class="btn primary" id="idNext" type="button">Continue</button>
         </div>
       </div>
 
@@ -907,50 +933,36 @@
         </div>
       </div>
 
-      <div id="regPanel">
-      <div id="newHereNote" style="display:none; background:#fffbeb; color:#92400e; border-radius:12px; padding:11px 14px; font-size:14.5px; line-height:1.5; margin-bottom:14px;">
-        We didn't find a profile for that number — let's get you set up. It takes about a minute.
-      </div>
-      <div class="form-grid">
-        <div><label for="regFirst">First name</label><input id="regFirst" autocomplete="given-name"></div>
-        <div><label for="regLast">Last name</label><input id="regLast" autocomplete="family-name"></div>
-        <div class="full"><label for="regLine1">Shipping address</label><input id="regLine1" autocomplete="address-line1" placeholder="Street address"></div>
-        <div class="full"><label for="regLine2">Apt / suite (optional)</label><input id="regLine2" autocomplete="address-line2"></div>
-        <div><label for="regCity">City</label><input id="regCity" autocomplete="address-level2"></div>
-        <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 12px;">
-          <div><label for="regState">State</label><input id="regState" value="TX"></div>
-          <div><label for="regZip">ZIP</label><input id="regZip" inputmode="numeric" maxlength="5" autocomplete="postal-code"></div>
+      <!-- Step 2b: no profile for that number — where should it go? The
+           address is optional: "Skip" files the order as Customer Pickup.
+           The same panel, address only, serves a pickup shopper who later
+           switches a cart to delivery (regMode "address"). -->
+      <div id="regPanel" style="display:none;">
+        <p class="lead" id="regLead"></p>
+        <div class="form-grid reg-name">
+          <div><label for="regFirst">First name</label><input id="regFirst" autocomplete="given-name"></div>
+          <div><label for="regLast">Last name</label><input id="regLast" autocomplete="family-name"></div>
         </div>
-        <div><label for="regPhone">Best contact phone</label><input id="regPhone" type="tel" autocomplete="tel"></div>
-        <div><label for="regContact">Preferred contact method</label>
-          <select id="regContact">
-            <option value="">Choose...</option>
-            <option>Call</option>
-            <option>Text</option>
-            <option>Email</option>
-          </select>
+        <div class="form-grid" id="regAddress" style="margin-top:12px;">
+          <div class="full"><label for="regLine1">Delivery address</label><input id="regLine1" autocomplete="address-line1" placeholder="Street address"></div>
+          <div class="full"><label for="regLine2">Apt / suite (optional)</label><input id="regLine2" autocomplete="address-line2"></div>
+          <div><label for="regCity">City</label><input id="regCity" autocomplete="address-level2"></div>
+          <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+            <div><label for="regState">State</label><input id="regState" value="TX"></div>
+            <div><label for="regZip">ZIP</label><input id="regZip" inputmode="numeric" maxlength="5" autocomplete="postal-code"></div>
+          </div>
         </div>
-        <div class="full"><label for="regEmail">Email <span class="muted" id="emailOptional">(optional)</span></label><input id="regEmail" type="email" autocomplete="email"></div>
-      </div>
-      <div class="form-error" id="regError"></div>
-      <div class="modal-actions">
-        <button class="btn ghost" type="button" data-close="registerOverlay">Not now</button>
-        <button class="btn primary" id="regSubmit" type="button">Unlock pricing</button>
-      </div>
-      </div>
-
-      <div id="codePanel" style="display:none; text-align:center; padding: 10px 0 4px;">
-        <p style="font-size:15px; margin-bottom:10px;">You're in, <span id="codeName"></span>! Here's your client code:</p>
-        <div class="client-code" id="clientCodeBox"></div>
-        <p class="muted" style="font-size:13.5px; line-height:1.55; margin: 12px 0 16px;">
-          Save it — next visit, enter it with your phone number and we'll fill everything in for you.
-        </p>
-        <div style="text-align:left; max-width: 320px; margin: 0 auto 14px;">
-          <label for="newPassBox">Prefer a password? Create one (optional)</label>
-          <input id="newPassBox" type="password" autocomplete="new-password" placeholder="At least 8 characters">
-          <div class="form-error" id="newPassError"></div>
+        <div class="form-grid reg-name" style="margin-top:12px;">
+          <div class="full"><label for="regEmail">Email <span class="muted">(optional)</span></label><input id="regEmail" type="email" autocomplete="email"></div>
         </div>
-        <button class="btn primary" type="button" id="codeContinue">Start shopping</button>
+        <div class="form-error" id="regError"></div>
+        <div class="modal-actions reg-actions">
+          <button class="btn ghost" type="button" id="regBack">Back</button>
+          <span class="grow"></span>
+          <button class="btn ghost" type="button" id="regPickup">Skip — I'll pick it up</button>
+          <button class="btn primary" id="regSubmit" type="button">Continue</button>
+        </div>
+        <button type="button" class="linklike" id="haveCodeBtn">Have a client code or password? Sign in instead</button>
       </div>
     </div>
   </div>
@@ -977,7 +989,7 @@
       <div class="form-grid">
         <div><label for="pfFirst">First name</label><input id="pfFirst" autocomplete="given-name"></div>
         <div><label for="pfLast">Last name</label><input id="pfLast" autocomplete="family-name"></div>
-        <div class="full"><label for="pfLine1">Shipping address</label><input id="pfLine1" autocomplete="address-line1"></div>
+        <div class="full"><label for="pfLine1">Delivery address <span class="muted">(leave blank for Customer Pickup)</span></label><input id="pfLine1" autocomplete="address-line1"></div>
         <div class="full"><label for="pfLine2">Apt / suite (optional)</label><input id="pfLine2" autocomplete="address-line2"></div>
         <div><label for="pfCity">City</label><input id="pfCity" autocomplete="address-level2"></div>
         <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 12px;">
@@ -1179,6 +1191,7 @@
     state.unlocked = data.unlocked;
     state.paused = Boolean(data.paused);
     state.shopperName = data.shopperName || "";
+    state.hasAddress = Boolean(data.shopperHasAddress);
     state.clientCode = data.clientCode || state.clientCode || "";
     state.addons = data.addons;
     state.delivery = data.delivery;
@@ -1945,17 +1958,59 @@
     }
   }
 
-  // ---------- Registration / sign-in ----------
-  // Phone-first flow: one field, then either "enter your last name" (profile
-  // found) or the sign-up form (not found). The old password/client-code
-  // panel survives behind "More sign-in options".
+  // ---------- Contact step / sign-in ----------
+  // Guest checkout is the default: phone + "call or text?", then either
+  // "enter your last name" (profile found) or "where should we deliver?"
+  // with a skip for Customer Pickup (not found). The old password /
+  // client-code panel survives behind "More sign-in options".
+  const AUTH_TITLES = {
+    phone: "Let's start with how to contact you",
+    lastName: "Welcome back",
+    lookup: "Sign in"
+  };
+  // The deliver-or-pick-up panel has three faces. "delivery" and "pickup"
+  // are a new shopper's two answers; "address" is a signed-in pickup
+  // shopper adding an address because this cart is set to delivery.
+  const REG_MODES = {
+    delivery: {
+      title: "Where should we deliver?",
+      lead: `Tell us who the order is for and where it's headed. Collecting it yourself? <button type="button" class="linklike" data-reg-skip>Skip the address</button> — Customer Pickup is complimentary.`,
+      skip: "Skip — I'll pick it up", back: "Back"
+    },
+    pickup: {
+      title: "Who's picking up?",
+      lead: "Customer Pickup is complimentary. A name for the order is all we need.",
+      skip: "Deliver it instead", back: "Back"
+    },
+    address: {
+      title: "Where should we deliver?",
+      lead: `Add the delivery address for this order — or <button type="button" class="linklike" data-reg-skip>switch to Customer Pickup</button>, which is complimentary.`,
+      skip: "Use Customer Pickup", back: "Not now"
+    }
+  };
   function showAuthPanel(name) {
-    for (const id of ["phonePanel", "lastNamePanel", "lookupPanel", "regPanel", "codePanel"]) {
+    for (const id of ["phonePanel", "lastNamePanel", "lookupPanel", "regPanel"]) {
       $(id).style.display = id === name + "Panel" ? "" : "none";
     }
-    $("regLead").style.display = name === "reg" ? "" : "none";
-    $("haveCodeBtn").style.display = name === "reg" ? "" : "none";
-    if (name !== "reg") $("newHereNote").style.display = "none";
+    if (name !== "reg") $("authTitle").textContent = AUTH_TITLES[name] || AUTH_TITLES.phone;
+  }
+  function setRegMode(mode) {
+    const m = REG_MODES[mode] || REG_MODES.delivery;
+    state.regMode = REG_MODES[mode] ? mode : "delivery";
+    $("authTitle").textContent = m.title;
+    $("regLead").innerHTML = m.lead; // fixed copy above, no shopper input
+    $("regAddress").style.display = state.regMode === "pickup" ? "none" : "";
+    document.querySelectorAll("#regPanel .reg-name").forEach((el) => { el.style.display = state.regMode === "address" ? "none" : ""; });
+    $("regPickup").textContent = m.skip;
+    $("regBack").textContent = m.back;
+    $("haveCodeBtn").style.display = state.regMode === "address" ? "none" : "";
+    $("regError").classList.remove("show");
+  }
+  function contactChoice() {
+    return document.querySelector("input[name='idContact']:checked")?.value || "";
+  }
+  function hasDeliveryAddress(profile) {
+    return Boolean(String(profile?.address?.line1 || "").trim() && String(profile?.address?.zip || "").trim());
   }
 
   function openRegister() {
@@ -1967,12 +2022,41 @@
     setTimeout(() => $("idPhone").focus(), 50);
   }
 
+  // A signed-in shopper with no address on file (they chose Customer Pickup
+  // the first time) who now wants this cart delivered.
+  async function openAddressStep() {
+    try {
+      const res = await fetch("/api/shop/profile?token=" + encodeURIComponent(state.token));
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Unable to load your details.");
+      state.addrProfile = data.profile;
+    } catch (e) {
+      // Stale token — start again at the contact step.
+      localStorage.removeItem(TOKEN_KEY);
+      state.token = "";
+      await loadCatalog();
+      state.pendingCheckout = true;
+      openRegister();
+      return;
+    }
+    $("regZip").value = $("regZip").value || state.zip;
+    showAuthPanel("reg");
+    setRegMode("address");
+    $("registerOverlay").classList.add("show");
+    setTimeout(() => $("regLine1").focus(), 50);
+  }
+
   $("idNext").addEventListener("click", async () => {
     const err = $("idError");
     err.classList.remove("show");
     const digits = $("idPhone").value.replace(/\D/g, "");
     if (digits.length !== 10 && !(digits.length === 11 && digits.startsWith("1"))) {
       err.textContent = "Please enter a 10-digit phone number.";
+      err.classList.add("show");
+      return;
+    }
+    if (!contactChoice()) {
+      err.textContent = "Let us know whether you'd prefer a call or a text.";
       err.classList.add("show");
       return;
     }
@@ -1997,9 +2081,10 @@
         showAuthPanel("lastName");
         setTimeout(() => $("lnName").focus(), 50);
       } else {
-        $("regPhone").value = $("idPhone").value.trim();
+        // New here: straight to "where should we deliver?". A cart already
+        // set to Customer Pickup skips the address question.
         showAuthPanel("reg");
-        $("newHereNote").style.display = "";
+        setRegMode(state.fulfillment.method === "pickup" ? "pickup" : "delivery");
         setTimeout(() => $("regFirst").focus(), 50);
       }
     } catch (e) {
@@ -2007,10 +2092,11 @@
       err.classList.add("show");
     } finally {
       $("idNext").disabled = false;
-      $("idNext").textContent = "Next";
+      $("idNext").textContent = "Continue";
     }
   });
   $("idPhone").addEventListener("keydown", (e) => { if (e.key === "Enter") $("idNext").click(); });
+  document.querySelectorAll("input[name='idContact']").forEach((r) => r.addEventListener("change", () => $("idError").classList.remove("show")));
 
   $("lnSubmit").addEventListener("click", async () => {
     const err = $("lnError");
@@ -2020,7 +2106,7 @@
       const res = await fetch("/api/shop/signin", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ phone: $("idPhone").value.trim(), lastName: $("lnName").value.trim() })
+        body: JSON.stringify({ phone: $("idPhone").value.trim(), lastName: $("lnName").value.trim(), preferredContact: contactChoice() })
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Unable to sign in.");
@@ -2046,6 +2132,8 @@
   });
 
   $("haveCodeBtn").addEventListener("click", () => {
+    $("lookPhone").value = $("lookPhone").value || $("idPhone").value.trim();
+    $("lookupNote").style.display = "none";
     showAuthPanel("lookup");
   });
   $("backToRegBtn").addEventListener("click", () => {
@@ -2060,7 +2148,7 @@
       const res = await fetch("/api/shop/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ phone: $("lookPhone").value.trim(), password: $("lookPassword").value })
+        body: JSON.stringify({ phone: $("lookPhone").value.trim(), password: $("lookPassword").value, preferredContact: contactChoice() })
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Unable to sign in.");
@@ -2087,7 +2175,7 @@
       const res = await fetch("/api/shop/lookup", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ phone: $("lookPhone").value.trim(), clientCode: $("lookCode").value.trim() })
+        body: JSON.stringify({ phone: $("lookPhone").value.trim(), clientCode: $("lookCode").value.trim(), preferredContact: contactChoice() })
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Unable to look that up.");
@@ -2107,10 +2195,6 @@
   $("unlockBtn").addEventListener("click", openRegister);
   document.querySelectorAll("[data-close]").forEach((btn) => {
     btn.addEventListener("click", () => $(btn.getAttribute("data-close")).classList.remove("show"));
-  });
-
-  $("regContact").addEventListener("change", () => {
-    $("emailOptional").textContent = $("regContact").value === "Email" ? "(required for email contact)" : "(optional)";
   });
 
   // "Forgot your code?" — last name + the phone number above. A match either
@@ -2147,23 +2231,105 @@
     }
   });
 
-  $("regSubmit").addEventListener("click", async () => {
+  function regFail(message, focusId) {
     const err = $("regError");
-    err.classList.remove("show");
+    err.textContent = message;
+    err.classList.add("show");
+    if (focusId) $(focusId).focus();
+  }
+  function regAddress() {
+    return {
+      line1: $("regLine1").value.trim(),
+      line2: $("regLine2").value.trim(),
+      city: $("regCity").value.trim(),
+      state: $("regState").value.trim() || "TX",
+      zip: $("regZip").value.trim()
+    };
+  }
+
+  // "Skip — I'll pick it up" / "Deliver it instead" / "Use Customer Pickup".
+  $("regPickup").addEventListener("click", () => {
+    if (state.regMode === "address") {
+      // Signed in already: flip this cart to pickup and carry on.
+      state.fulfillment = { method: "pickup", date: null };
+      $("registerOverlay").classList.remove("show");
+      startCheckout();
+      return;
+    }
+    if (state.regMode === "pickup") {
+      setRegMode("delivery");
+      setTimeout(() => $("regLine1").focus(), 50);
+      return;
+    }
+    setRegMode("pickup");
+    // Name already filled in: the skip is one tap. Otherwise ask for it.
+    if ($("regFirst").value.trim() && $("regLast").value.trim()) $("regSubmit").click();
+    else setTimeout(() => $($("regFirst").value.trim() ? "regLast" : "regFirst").focus(), 50);
+  });
+  $("regLead").addEventListener("click", (e) => { if (e.target.closest("[data-reg-skip]")) $("regPickup").click(); });
+  $("regBack").addEventListener("click", () => {
+    if (state.regMode === "address") {
+      state.pendingCheckout = false;
+      $("registerOverlay").classList.remove("show");
+      return;
+    }
+    showAuthPanel("phone");
+  });
+
+  $("regSubmit").addEventListener("click", async () => {
+    $("regError").classList.remove("show");
+    const mode = state.regMode || "delivery";
+    const address = mode === "pickup" ? { line1: "", line2: "", city: "", state: "TX", zip: "" } : regAddress();
+    if (mode !== "pickup" && (!address.line1 || !address.city || !address.zip)) {
+      regFail(mode === "address"
+        ? "Add the street, city and ZIP — or switch to Customer Pickup."
+        : "Add the street, city and ZIP — or skip the address and pick it up.",
+        !address.line1 ? "regLine1" : !address.city ? "regCity" : "regZip");
+      return;
+    }
+
+    // Signed-in pickup shopper adding an address for a delivery order.
+    if (mode === "address") {
+      const p = state.addrProfile || {};
+      $("regSubmit").disabled = true;
+      try {
+        const res = await fetch("/api/shop/profile", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            token: state.token,
+            firstName: p.firstName || "", lastName: p.lastName || "",
+            phone: p.phone || "", email: p.email || "",
+            preferredContact: p.preferredContact || "Call",
+            address
+          })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Unable to save that address.");
+        state.hasAddress = hasDeliveryAddress(data.profile);
+        $("registerOverlay").classList.remove("show");
+        startCheckout();
+      } catch (e) {
+        regFail(e.message);
+      } finally {
+        $("regSubmit").disabled = false;
+      }
+      return;
+    }
+
     const payload = {
       firstName: $("regFirst").value.trim(),
       lastName: $("regLast").value.trim(),
-      phone: $("regPhone").value.trim(),
+      phone: $("idPhone").value.trim(),
       email: $("regEmail").value.trim(),
-      preferredContact: $("regContact").value,
-      address: {
-        line1: $("regLine1").value.trim(),
-        line2: $("regLine2").value.trim(),
-        city: $("regCity").value.trim(),
-        state: $("regState").value.trim() || "TX",
-        zip: $("regZip").value.trim()
-      }
+      preferredContact: contactChoice(),
+      address
     };
+    if (!payload.firstName || !payload.lastName) {
+      regFail(mode === "pickup" ? "Add a first and last name so we know who's picking up." : "Add a first and last name for the order.",
+        payload.firstName ? "regLast" : "regFirst");
+      return;
+    }
     $("regSubmit").disabled = true;
     try {
       const res = await fetch("/api/shop/register", {
@@ -2176,9 +2342,8 @@
         // Existing profile for this phone + last name: steer to recovery
         // (or password sign-in) instead of creating a duplicate.
         if (data.duplicate) {
-          $("regPanel").style.display = "none";
-          $("haveCodeBtn").style.display = "none";
-          $("lookupPanel").style.display = "";
+          showAuthPanel("lookup");
+          $("lookupNote").style.display = "none";
           $("lookPhone").value = payload.phone;
           $("recLast").value = payload.lastName;
           $("recResult").innerHTML = esc(data.error || "You already have a profile — recover your code below.");
@@ -2187,55 +2352,29 @@
           else $("recSubmit").focus();
           return;
         }
-        throw new Error(data.error || "Unable to register.");
+        throw new Error(data.error || "Unable to save your details.");
       }
       state.token = data.token;
       state.clientCode = data.clientCode || "";
       localStorage.setItem(TOKEN_KEY, data.token);
-      // Show the client code before closing — it's how they skip this form
-      // next time.
-      showAuthPanel("code");
-      $("codeName").textContent = data.firstName || "";
-      $("clientCodeBox").textContent = data.clientCode || "";
+      // The answer here is also the cart's answer: skipping the address
+      // means Customer Pickup, giving one means delivery.
+      const want = mode === "pickup" ? "pickup" : "delivery";
+      if (state.fulfillment.method !== want) state.fulfillment = { method: want, date: null };
+      // Guest checkout: no "here's your client code" stop — straight back
+      // to the cart. The code still shows on the order-received screen and
+      // in the profile panel, where a password can be added too.
+      $("registerOverlay").classList.remove("show");
       await loadCatalog();
+      resumePendingCheckout();
     } catch (e) {
-      err.textContent = e.message;
-      err.classList.add("show");
+      regFail(e.message);
     } finally {
       $("regSubmit").disabled = false;
     }
   });
-
-  $("codeContinue").addEventListener("click", async () => {
-    const pass = $("newPassBox").value;
-    const err = $("newPassError");
-    err.classList.remove("show");
-    if (pass) {
-      if (pass.length < 8) {
-        err.textContent = "Passwords need at least 8 characters — or clear the box to continue as a guest.";
-        err.classList.add("show");
-        return;
-      }
-      $("codeContinue").disabled = true;
-      try {
-        const res = await fetch("/api/shop/password", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ token: state.token, password: pass })
-        });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error || "Unable to save that password.");
-        $("newPassBox").value = "";
-      } catch (e) {
-        err.textContent = e.message;
-        err.classList.add("show");
-        $("codeContinue").disabled = false;
-        return;
-      }
-      $("codeContinue").disabled = false;
-    }
-    $("registerOverlay").classList.remove("show");
-    resumePendingCheckout();
+  ["regFirst", "regLast", "regLine1", "regLine2", "regCity", "regState", "regZip", "regEmail"].forEach((id) => {
+    $(id).addEventListener("keydown", (e) => { if (e.key === "Enter") $("regSubmit").click(); });
   });
 
   // An anonymous MAP cart that hit "Continue to secure checkout" lands right
@@ -2318,8 +2457,9 @@
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Unable to save your profile.");
       state.shopperName = data.firstName || state.shopperName;
+      state.hasAddress = hasDeliveryAddress(data.profile);
       renderHeader();
-      pfStatus("Saved — your delivery details are up to date.", true);
+      pfStatus(state.hasAddress ? "Saved — your delivery details are up to date." : "Saved — your contact details are up to date.", true);
     } catch (e) {
       pfStatus(e.message, false);
     } finally {
@@ -2354,6 +2494,7 @@
     localStorage.removeItem(TOKEN_KEY);
     state.token = "";
     state.shopperName = "";
+    state.hasAddress = false;
     state.clientCode = "";
     state.cart = { itemIds: [], addonLines: [], special: [] };
     renderCartCount();
@@ -2961,14 +3102,21 @@
       if (chooser) chooser.scrollIntoView({ behavior: "smooth", block: "center" });
       return;
     }
-    // Card capture needs a shopper profile (name, address, contact) — an
-    // anonymous MAP cart registers here, then lands right back in checkout.
+    // Card capture needs to know who the order is for and how to reach
+    // them — an anonymous cart gives its contact details here, then lands
+    // right back in checkout.
     if (!state.unlocked) {
       state.pendingCheckout = true;
       openRegister();
       return;
     }
     if (quoteOnly) return submitQuoteOnly();
+    // A delivery order needs somewhere to go. A shopper who skipped the
+    // address (Customer Pickup) adds one here, or switches back to pickup.
+    if (state.fulfillment.method !== "pickup" && !state.hasAddress) {
+      openAddressStep();
+      return;
+    }
     state.checkout.open = true;
     $("drawerTitle").textContent = "Secure checkout";
     const body = $("drawerBody");
@@ -3028,6 +3176,14 @@
         state.promoNotice = `${data.error} Your total below is without the code.`;
         return startCheckout();
       }
+      if (!res.ok && data.needAddress) {
+        // The server has no delivery address for this shopper (this page's
+        // copy was stale): back to the cart and ask for one.
+        state.hasAddress = false;
+        state.checkout.open = false;
+        renderCart();
+        return openAddressStep();
+      }
       if (!res.ok) throw new Error(data.error || "Unable to start checkout.");
       // Server math is authoritative for what the shopper is agreeing to.
       if (data.pricing?.totals) {
@@ -3043,13 +3199,16 @@
         clientSecret: data.clientSecret,
         appearance: { theme: "stripe", variables: { colorPrimary: "#21692c", borderRadius: "10px" } }
       });
-      // Fields we already have from the shopping profile are suppressed and
-      // passed back verbatim at confirmSetup (Stripe requires every "never"
-      // field to be supplied there). No email on file → let Stripe collect it.
+      // Fields we already have from the shopper are suppressed and passed
+      // back verbatim at confirmSetup (Stripe requires every "never" field
+      // to be supplied there). No email on file → let Stripe collect it;
+      // no address on file (Customer Pickup guest) → the card form asks
+      // for the billing ZIP itself.
       const hasEmail = Boolean(state.checkout.billing?.email);
+      const hasBillAddr = Boolean(state.checkout.billing?.address?.line1 && state.checkout.billing?.address?.postal_code);
       const paymentElement = state.checkout.elements.create("payment", {
         layout: "tabs",
-        fields: { billingDetails: { name: "never", email: hasEmail ? "never" : "auto", phone: "never", address: "never" } }
+        fields: { billingDetails: { name: "never", email: hasEmail ? "never" : "auto", phone: "never", address: hasBillAddr ? "never" : "auto" } }
       });
       document.getElementById("payment-element").innerHTML = "";
       paymentElement.mount("#payment-element");
@@ -3128,16 +3287,20 @@
       const b = state.checkout.billing || {};
       const billingDetails = {
         name: b.name || state.shopperName || "Shop customer",
-        phone: b.phone || undefined,
-        address: {
-          line1: b.address?.line1 || undefined,
-          line2: b.address?.line2 || undefined,
-          city: b.address?.city || undefined,
-          state: b.address?.state || undefined,
-          postal_code: b.address?.postal_code || undefined,
-          country: b.address?.country || "US"
-        }
+        phone: b.phone || undefined
       };
+      // Only when it was suppressed in the card form (address on file);
+      // otherwise the form collected the billing ZIP and sends it itself.
+      if (b.address?.line1 && b.address?.postal_code) {
+        billingDetails.address = {
+          line1: b.address.line1,
+          line2: b.address.line2 || undefined,
+          city: b.address.city || undefined,
+          state: b.address.state || undefined,
+          postal_code: b.address.postal_code,
+          country: b.address.country || "US"
+        };
+      }
       if (b.email) billingDetails.email = b.email; // collected by the element otherwise
       const { error, setupIntent } = await state.checkout.stripe.confirmSetup({
         elements: state.checkout.elements,

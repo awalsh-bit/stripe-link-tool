@@ -65,6 +65,48 @@
     .pill.elsewhere { background: #fef3c7; color: #92400e; }
     .pill.diagnostic { background: #f3f4f6; color: #374151; }
     .pill.none { background: #f1f5f9; color: #64748b; }
+    /* Review-before-reopen panel (11/12) — the same detail the Service
+       Estimate Approvals page shows, plus the story of how it closed. */
+    .pill.sent, .pill.unseen { background: #f1f5f9; color: #64748b; }
+    .pill.viewed { background: #fffbeb; color: #92400e; }
+    .pill.unsent { background: #fee2e2; color: #991b1b; }
+    .pill.sentc { background: #dbeafe; color: #1e40af; }
+    .pill.reminded { background: #ffedd5; color: #9a3412; }
+    .pill.reopened { background: #e0e7ff; color: #3730a3; }
+    .ce-table tbody tr[data-tok] { cursor: pointer; }
+    .ce-table tbody tr[data-tok]:hover td { background: var(--primary-faint-2, #f8fafc); }
+    .se-overlay { display: none; position: fixed; inset: 0; background: rgba(15,23,42,0.45); z-index: 60; align-items: center; justify-content: center; padding: 18px; }
+    .se-overlay.show { display: flex; }
+    /* The estimate scrolls; the two buttons sit below it, always in view. */
+    .se-panel { background: #fff; border-radius: 16px; box-shadow: 0 24px 60px rgba(0,0,0,0.25); width: 100%; max-width: 620px; max-height: 90vh; display: flex; flex-direction: column; overflow: hidden; }
+    .se-scroll { overflow: auto; padding: 22px 22px 16px; overscroll-behavior: contain; }
+    .se-panel h3 { margin: 0 0 4px; font-size: 17px; }
+    .se-panel h4 { margin: 16px 0 6px; font-size: 11.5px; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; color: #64748b; }
+    .se-kv { display: flex; gap: 10px; font-size: 13px; padding: 6px 0; border-bottom: 1px dashed #eef1f6; }
+    .se-kv .k { width: 130px; flex-shrink: 0; font-size: 11px; font-weight: 800; letter-spacing: 0.05em; text-transform: uppercase; color: #64748b; padding-top: 2px; }
+    .se-resp { background: #eef2ff; border-radius: 10px; padding: 10px 12px; font-size: 13px; line-height: 1.5; margin-top: 10px; }
+    .se-chip { display: inline-block; border-radius: 999px; font-size: 10.5px; font-weight: 800; letter-spacing: 0.05em; padding: 3px 10px; background: #fef3c7; color: #92400e; }
+    .se-hint { font-size: 11.5px; color: var(--muted); margin-top: 5px; line-height: 1.4; }
+    .se-sends { margin: 4px 0 0; padding: 0; list-style: none; font-size: 12px; color: var(--muted); }
+    .se-sends li { padding: 1px 0; }
+    .se-summary { border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px; margin: 6px 0 14px; background: #fbfcfe; }
+    .se-summary table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    .se-summary td { padding: 5px 4px; border-bottom: 1px dashed #eef1f6; }
+    .se-summary tr:last-child td { border-bottom: none; }
+    .se-amt { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .se-tot td { font-weight: 800; border-top: 2px solid var(--border); }
+    .se-parts-ok { font-size: 11.5px; color: #166534; margin-top: 6px; }
+    .se-refrig td:first-child { color: #0f766e; }
+    .ce-story { list-style: none; margin: 0; padding: 0; border-left: 2px solid #e2e8f0; }
+    .ce-story li { position: relative; padding: 0 0 10px 16px; font-size: 13px; line-height: 1.45; }
+    .ce-story li::before { content: ""; position: absolute; left: -6px; top: 5px; width: 10px; height: 10px; border-radius: 50%; background: #cbd5e1; border: 2px solid #fff; }
+    .ce-story li.end::before { background: var(--primary); }
+    .ce-story li.re::before { background: #6366f1; }
+    .ce-story .t { color: var(--muted); font-size: 12px; white-space: nowrap; }
+    .ce-story .q { display: block; color: #374151; }
+    .ce-confirm { margin-top: 10px; padding: 10px 14px; border-radius: 12px; background: #f8fafc; border: 1px solid #e2e8f0; font-size: 13px; line-height: 1.5; }
+    .ce-actions { display: flex; gap: 10px; flex-wrap: wrap; flex: none; padding: 12px 22px 16px; border-top: 1px solid #eef1f6; background: #fff; }
+    .ce-actions .grow { flex: 1; }
 
     @media (max-width: 720px) {
       body { padding: 14px 8px; }
@@ -80,6 +122,14 @@
       .ce-table td.num { text-align: left; }
       .ce-table td.notes { max-width: none; }
       .ce-table td[data-l]::before { content: attr(data-l) " "; font-size: 11px; font-weight: 800; letter-spacing: 0.05em; text-transform: uppercase; color: #64748b; }
+      .se-overlay { padding: 8px; align-items: flex-end; }
+      .se-panel { max-height: 94vh; }
+      .se-scroll { padding: 16px 16px 12px; }
+      .se-kv { flex-direction: column; gap: 2px; }
+      .se-kv .k { width: auto; }
+      .ce-actions { padding: 10px 16px 14px; }
+      .ce-actions button { flex: 1 1 100%; }
+      .ce-actions .grow { display: none; }
     }
   </style>
 </head>
@@ -112,6 +162,23 @@
     </div>
 
     <div id="internal-shell-footer"></div>
+  </div>
+
+  <!-- Review before reopening: nothing changes until "Confirm" is clicked. -->
+  <div class="se-overlay" id="ceOverlay">
+    <div class="se-panel" role="dialog" aria-modal="true" aria-labelledby="ceTitle">
+      <div class="se-scroll" id="ceScroll">
+        <h3 id="ceTitle"></h3>
+        <div class="ce-confirm" id="ceConfirmNote"></div>
+        <div id="ceBody"></div>
+      </div>
+      <div class="status" id="ceStatus" style="margin: 0 22px 10px;"></div>
+      <div class="ce-actions">
+        <button type="button" class="quiet" id="ceCancel">Keep it closed</button>
+        <span class="grow"></span>
+        <button type="button" id="ceConfirm">Confirm — reopen this estimate</button>
+      </div>
+    </div>
   </div>
 
   <script src="internal-shell.js"></script>
@@ -195,7 +262,7 @@
         return `
           <tr data-tok="${esc(r.token)}">
             <td class="nw" data-l="Closed">${esc(when(r.closedAt))}</td>
-            <td class="nw" data-l="SV #"><strong>${esc(r.svNumber || "—")}</strong></td>
+            <td class="nw" data-l="SV #"><strong>${esc(r.svNumber || "—")}</strong>${(r.reopens || []).length ? ` <span class="pill reopened" title="Reopened ${(r.reopens || []).length === 1 ? "once" : (r.reopens || []).length + " times"} before this close">Reopened${(r.reopens || []).length > 1 ? " ×" + r.reopens.length : ""}</span>` : ""}</td>
             <td data-l="Client">${esc(r.customerName)}<div class="who">${esc([r.contactPhone, r.contactEmail].filter(Boolean).join(" · "))}</div></td>
             <td class="num" data-l="Estimate">${r.invoiceTotal == null ? "—" : money(r.invoiceTotal)}${r.paid > 0 ? `<div class="who">${money(r.paid)} paid · ${money(r.amountDue)} due</div>` : ""}</td>
             <td data-l="Outcome"><span class="pill ${esc(r.outcome)}">${esc(r.outcomeLabel)}</span></td>
@@ -203,7 +270,7 @@
             <td class="notes" data-l="Notes">${r.notes ? esc(r.notes) : `<span class="muted">—</span>`}</td>
             <td data-l="Sent by">${esc(r.createdByName || r.createdByEmail || "—")}<div class="who">${esc(when(r.createdAt))}</div></td>
             <td class="num" data-l="Days open">${days === "" ? "—" : days}</td>
-            <td><button type="button" class="tiny quiet ce-reopen" data-tok="${esc(r.token)}" title="Put it back on the active list — the client link works again">Reopen</button></td>
+            <td><button type="button" class="tiny quiet ce-reopen" data-tok="${esc(r.token)}" title="See the whole estimate and how it ended — reopening is confirmed there">Review &amp; reopen</button></td>
           </tr>`;
       }).join("");
     }
@@ -213,16 +280,125 @@
       state.filter = box.dataset.outcome || "";
       renderSummary(); renderRows();
     });
-    $("rows").addEventListener("click", async (ev) => {
-      const btn = ev.target.closest(".ce-reopen"); if (!btn) return;
-      btn.disabled = true;
+    // ---- Review before reopening (11/12) ----
+    // "Reopen" used to act on the click. Now the row (or its button) opens
+    // the estimate the way Service Estimate Approvals shows it, with the
+    // story of how it closed; nothing changes until Confirm.
+    const whenT = (iso) => iso ? new Date(iso).toLocaleString("en-US", { timeZone: "America/Chicago", month: "2-digit", day: "2-digit", year: "2-digit", hour: "numeric", minute: "2-digit" }) : "—";
+    function applianceLine(s) {
+        const bits = [[s.brand, s.product].filter(Boolean).join(" "), s.model ? "Model " + s.model : "", s.serial ? "Serial " + s.serial : ""].filter(Boolean);
+        return bits.length ? `<div style="font-size:12px; font-weight:700; color:#475569; margin-bottom:8px;">${esc(bits.join(" · "))}</div>` : "";
+      }
+    function paidOf(s) { return Number(s.paid != null ? s.paid : (s.deposits || 0)) || 0; }
+    function dueOf(s) { return s.amountDue != null ? Number(s.amountDue) : (s.balance != null ? Number(s.balance) : Math.max(0, Number(s.invoiceTotal || 0) - paidOf(s))); }
+    function summaryHtml(s) {
+        return `
+          ${applianceLine(s)}
+          <table>
+            ${(s.parts || []).map((p) => `<tr><td>${p.qty > 1 ? p.qty + " × " : ""}${esc(p.description)}${p.model ? ` <span style="color:var(--muted); font-size:11px;">${esc(p.model)}</span>` : ""}</td><td class="se-amt">${p.ext == null ? "—" : money(p.ext)}</td></tr>`).join("")}
+            ${(s.refrigerant || []).map((r) => `<tr class="se-refrig"><td>${Number(r.qty) > 1 ? Number(r.qty) + " × " : ""}${esc(r.description)}${r.unit != null && Number(r.qty) > 1 ? ` <span style="color:var(--muted); font-size:11px;">${money(r.unit)} each</span>` : ""} <span style="color:var(--muted); font-size:11px;">refrigerant</span></td><td class="se-amt">${r.ext == null ? "—" : money(r.ext)}</td></tr>`).join("")}
+            ${(s.laborLines || []).length ? s.laborLines.map((l) => `<tr><td>${esc(l.description)}${l.code ? ` <span style="color:var(--muted); font-size:11px;">${esc(l.code)}</span>` : ""} <span style="color:var(--muted); font-size:11px;">labor</span></td><td class="se-amt">${money(l.ext)}</td></tr>`).join("") : s.laborEntries ? `<tr><td>Labor (${s.laborEntries} ${s.laborEntries === 1 ? "entry" : "entries"})</td><td class="se-amt">${s.noLinePricing ? "—" : money(s.laborTotal)}</td></tr>` : ""}
+            ${s.shippingTotal ? `<tr><td>Shipping &amp; handling</td><td class="se-amt">${money(s.shippingTotal)}</td></tr>` : ""}
+            ${(s.coreCharges || []).length ? `<tr><td>Core charge${s.coreTotal ? "" : " <span style=\"color:var(--muted); font-size:11px;\">(charged and returned — nets to zero, hidden from the client)</span>"}</td><td class="se-amt">${money(s.coreTotal || 0)}</td></tr>` : ""}
+            <tr><td>Subtotal</td><td class="se-amt">${money(s.subTotal)}</td></tr>
+            <tr><td>Sales tax</td><td class="se-amt">${money(s.tax)}</td></tr>
+            ${paidOf(s) > 0 ? `
+            <tr><td>Estimate total</td><td class="se-amt">${money(s.invoiceTotal)}</td></tr>
+            <tr><td>Already paid (diag fee / deposit)</td><td class="se-amt">− ${money(paidOf(s))}</td></tr>
+            <tr class="se-tot"><td>Remaining — what the client is charged</td><td class="se-amt">${money(dueOf(s))}</td></tr>`
+              : `<tr class="se-tot"><td>Estimate total</td><td class="se-amt">${money(s.invoiceTotal)}</td></tr>`}
+          </table>
+          ${s.noLinePricing ? `<div class="se-hint">This print doesn't itemize prices — the client sees each part with its number and description, and one "Repair parts &amp; labor" line for the subtotal.</div>` : ""}
+          <div class="se-parts-ok">${(s.parts || []).length ? `✓ ${(s.parts || []).length} part${(s.parts || []).length === 1 ? "" : "s"} with part number and description — these show on the client's page.` : (s.refrigerant || []).length ? "Refrigerant and labor — no parts on this quote; the client's page shows the refrigerant charge in its own section." : "Labor only — no parts on this quote; the client's page says so."}${(s.refrigerant || []).length && (s.parts || []).length ? ` Plus ${(s.refrigerant || []).length} refrigerant line${(s.refrigerant || []).length === 1 ? "" : "s"} in its own section.` : ""}</div>
+          ${s.notRecommended ? `<div class="se-hint" style="color:#92400e; font-weight:700; margin-top:8px;">⚠ Repair not recommended — the client reads the technician's note${s.notRecommendedNote ? `: “${esc(s.notRecommendedNote)}”` : ""} and Approve asks them to confirm.</div>` : ""}`;
+      }
+    function fmtEta(iso) {
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(iso || "")) return "";
+        return new Intl.DateTimeFormat("en-US", { weekday: "long", month: "long", day: "numeric", timeZone: "UTC" }).format(new Date(iso + "T12:00:00Z"));
+      }
+    const commPill = (e) => { const c = e.communication || { state: "unsent", label: "Unsent" }; return `<span class="pill ${esc(c.state === "sent" ? "sentc" : c.state)}">${esc(c.label)}</span>`; };
+    const clientPill = (e) => { const c = e.client || { state: e.status === "sent" ? "unseen" : e.status, label: e.status }; return `<span class="pill ${esc(c.state)}">${esc(c.label)}</span>`; };
+    const sendsHtml = (e) => { const sends = Array.isArray(e.sends) ? e.sends : []; if (!sends.length) return `<div class="se-hint">Nothing was ever emailed or texted from Agility.</div>`; return `<ul class="se-sends">${sends.slice().reverse().map((x) => `<li>${whenT(x.at)} · ${x.variant === "reminder" ? "Reminder " : ""}${x.channel === "text" ? "texted" : "emailed"}${x.to ? " to " + esc(x.to) : ""}${x.by ? " · " + esc(x.by) : ""}</li>`).join("")}</ul>`; };
+
+    // Everything that happened to it, oldest first.
+    function storyHtml(e) {
+      const r = e.response || {}; const ev = [];
+      const add = (at, html, cls = "") => { if (at) ev.push({ at, html, cls }); };
+      add(e.createdAt, `<strong>Created</strong> by ${esc(e.createdByName || e.createdByEmail || "—")}`);
+      for (const x of e.sends || []) add(x.at, `<strong>${x.variant === "reminder" ? "Reminder " : ""}${x.channel === "text" ? "texted" : "emailed"}</strong>${x.to ? " to " + esc(x.to) : ""}${x.by ? " by " + esc(x.by) : ""}`);
+      add(e.viewedAt, r.resolvedByStaff && e.viewedAt === e.respondedAt ? "" : `<strong>Client opened the link</strong>`);
+      if (r.resolvedByStaff) add(r.resolvedAt || e.respondedAt, `<strong>${esc(r.staffName || r.staffEmail || "Staff")} recorded: ${esc(e.outcomeLabel)}</strong>${r.staffNotes ? `<span class="q">“${esc(r.staffNotes)}”</span>` : ""}`);
+      else if (e.resolvedBy === "client") add(e.respondedAt, `<strong>Client answered through the link: ${esc(e.outcomeLabel)}</strong>${r.notes ? `<span class="q">“${esc(r.notes)}”</span>` : ""}`);
+      for (const x of e.reopens || []) {
+        add(x.closedAt, `<strong>Closed</strong>${x.outcomeLabel ? " as " + esc(x.outcomeLabel) : ""}${x.closedByEmail ? " by " + esc(x.closedByEmail) : ""}`);
+        add(x.at, `<strong>Reopened</strong> by ${esc(x.byName || x.byEmail || "—")}`, "re");
+      }
+      const days = e.createdAt && e.closedAt ? Math.round((new Date(e.closedAt) - new Date(e.createdAt)) / 864e5) : null;
+      add(e.closedAt, `<strong>Closed</strong> as ${esc(e.outcomeLabel)}${e.closedByEmail ? " by " + esc(e.closedByEmail) : ""}${days == null ? "" : ` · ${days === 0 ? "same day" : days + " day" + (days === 1 ? "" : "s") + " after it was created"}`}`, "end");
+      return `<ul class="ce-story">${ev.filter((x) => x.html).sort((a, b) => String(a.at).localeCompare(String(b.at))).map((x) => `<li class="${x.cls}"><span class="t">${whenT(x.at)}</span> — ${x.html}</li>`).join("")}</ul>`;
+    }
+
+    let reviewing = null;
+    function openReview(token) {
+      const e = (state.data?.estimates || []).find((x) => x.token === token); if (!e) return;
+      reviewing = e;
+      const r = e.response || {};
+      const directionText = { similar: "Something similar to the current unit", new: "Open to trying something new", unsure: "Not sure — wants help deciding" }[r.productDirection] || "";
+      const visitText = { visit: "Wants to schedule a showroom visit", contact: "Wants a call/text first", info: "Just send information" }[r.visit] || "";
+      const prefChip = { call: "CALL PREF", text: "TEXT PREF", email: "EMAIL PREF" }[e.contactPref] || "";
+      $("ceTitle").innerHTML = `${esc(e.customerName)} — ${esc(e.svNumber || "service estimate")} <span class="pill ${esc(e.outcome)}">${esc(e.outcomeLabel)}</span>`;
+      $("ceBody").innerHTML = `
+        <h4>What happened</h4>
+        ${storyHtml(e)}
+        <h4>The estimate</h4>
+        <div class="se-kv"><div class="k">Communication</div><div>${commPill(e)}${sendsHtml(e)}</div></div>
+        <div class="se-kv"><div class="k">Client</div><div>${clientPill(e)}${e.respondedAt ? " · responded " + whenT(e.respondedAt) + (e.client?.byStaff ? " (confirmed by staff)" : "") : e.viewedAt ? " · viewed " + whenT(e.viewedAt) : " · never opened the link"}</div></div>
+        <div class="se-kv"><div class="k">Contact</div><div>${esc([e.contactPhone, e.contactEmail].filter(Boolean).join(" · ") || "—")}${prefChip ? ` <span class="se-chip">${prefChip}</span>` : ""}</div></div>
+        <div class="se-kv"><div class="k">Created</div><div>${whenT(e.createdAt)} by ${esc(e.createdByName || e.createdByEmail || "—")}</div></div>
+          ${e.summary?.eta ? `<div class="se-kv"><div class="k">Parts ETA</div><div>${({ stock: "In stock", backorder: "Backorder", date: "Specific date" })[e.summary.eta.mode] || esc(e.summary.eta.mode)}${e.summary.eta.from ? " · " + fmtEta(e.summary.eta.from) + (e.summary.eta.to && e.summary.eta.to !== e.summary.eta.from ? " – " + fmtEta(e.summary.eta.to) : "") : ""}<div class="se-hint">${esc(e.summary.etaMessage || "")}</div></div></div>` : ""}
+        <div class="se-kv"><div class="k">Closed</div><div>${whenT(e.closedAt)}${e.closedByEmail ? " by " + esc(e.closedByEmail) : ""} — off the active list.</div></div>
+        <div class="se-summary" style="margin-top:12px;">${summaryHtml(e.summary || {})}</div>
+          ${e.status === "shopping" ? `<div class="se-resp"><strong>Shopping for a replacement.</strong><br>${[directionText, visitText].filter(Boolean).map(esc).join("<br>")}${r.notes ? `<br>“${esc(r.notes)}”` : ""}<br><span style="color:var(--muted); font-size:12px;">Showroom team was notified — lead is up for grabs.</span></div>` : ""}
+          ${e.status === "approved" ? `<div class="se-resp" style="background: rgba(var(--primary-rgb), 0.1);"><strong>Approved.</strong> Schedule the repair.${r.proceededAnyway ? `<br><span style="color:#92400e;">⚠ The client saw the technician's <strong>not recommended</strong> note and chose the repair anyway.</span>` : ""}</div>` : ""}
+          ${e.status === "diagnostic" ? `<div class="se-resp" style="background:#f3f4f6;"><strong>Diagnostic only.</strong> Client stopped at the diagnostic visit — no repair.</div>` : ""}
+          ${e.status === "comped" ? `<div class="se-resp" style="background:#fce7f3;"><strong>Comped.</strong> Wilson covered this one — no charge to the client.</div>` : ""}
+          ${r.resolvedByStaff ? `<div class="se-resp" style="background:#f8fafc; border:1px solid #e2e8f0;"><strong>Resolved by ${esc(r.staffName || r.staffEmail || "the team")}</strong>${r.resolvedAt ? " · " + whenT(r.resolvedAt) : ""}<br>“${esc(r.staffNotes || "")}”</div>` : ""}
+          ${e.status === "elsewhere" ? `<div class="se-resp" style="background:#fef3c7;"><strong>Starting their search elsewhere.</strong>${r.notes ? `<br>Their feedback: “${esc(r.notes)}”` : "<br>No feedback left."}<br><span style="color:var(--muted); font-size:12px;">They were reminded of the $100 service-client discount toward a purchase over $999.</span></div>` : ""}`;
+      const answered = e.outcome !== "none";
+      $("ceConfirmNote").innerHTML = `<strong>Reopening puts this estimate back on Service Estimate Approvals</strong>, marked <span class="pill reopened">Reopened</span> with your name and today's date. ${answered
+        ? `The answer already on file — <strong>${esc(e.outcomeLabel)}</strong> — stays with it, and the client can't answer a second time through the link.`
+        : `It never got an answer, so the client's link works again and they can still approve or shop.`} Nothing is sent to the client.`;
+      $("ceStatus").className = "status"; $("ceStatus").textContent = "";
+      $("ceConfirm").disabled = false; $("ceConfirm").textContent = "Confirm — reopen this estimate";
+      $("ceOverlay").classList.add("show");
+      $("ceScroll").scrollTop = 0;
+    }
+    function closeReview() { $("ceOverlay").classList.remove("show"); reviewing = null; }
+    $("rows").addEventListener("click", (ev) => {
+      const tr = ev.target.closest("tr[data-tok]"); if (!tr) return;
+      if (ev.target.closest("a")) return;
+      openReview(tr.dataset.tok);
+    });
+    $("ceCancel").addEventListener("click", closeReview);
+    $("ceOverlay").addEventListener("click", (ev) => { if (ev.target === $("ceOverlay")) closeReview(); });
+    document.addEventListener("keydown", (ev) => { if (ev.key === "Escape" && $("ceOverlay").classList.contains("show")) closeReview(); });
+    $("ceConfirm").addEventListener("click", async () => {
+      if (!reviewing) return;
+      const e = reviewing, btn = $("ceConfirm");
+      btn.disabled = true; btn.textContent = "Reopening…";
       try {
-        const res = await fetch("/api/service-estimates/close", { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ token: btn.dataset.tok, closed: false }) });
+        const res = await fetch("/api/service-estimates/close", { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ token: e.token, closed: false }) });
         const data = await res.json().catch(() => ({}));
         if (!res.ok) throw new Error(data.error || "Couldn't reopen that estimate.");
+        closeReview();
         await load();
-        setStatus("Reopened — it's back on Service Estimate Approvals.", "ok");
-      } catch (err) { setStatus(err.message, "error"); btn.disabled = false; }
+        const box = $("pageStatus");
+        box.className = "status ok show";
+        box.innerHTML = `Reopened — ${esc(e.svNumber || e.customerName)} is back on <a href="service-estimates.html" style="color:inherit; font-weight:800;">Service Estimate Approvals</a>, marked Reopened.`;
+      } catch (err) {
+        $("ceStatus").className = "status error show"; $("ceStatus").textContent = err.message;
+        btn.disabled = false; btn.textContent = "Confirm — reopen this estimate";
+      }
     });
     $("csvBtn").addEventListener("click", () => { window.location.href = `/api/service-estimates/closed.csv?month=${encodeURIComponent(state.month)}`; });
     $("monthSelect").addEventListener("change", () => {

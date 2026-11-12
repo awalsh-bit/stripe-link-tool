@@ -90,3 +90,21 @@ Tapping a product tile on `shop.html` opens it to double width (taller, in place
 - **Wire:** `loadShopData()` reads the file (optional — no file, no details); `/api/shop/catalog` sends `details` keyed by normalized model for the models in the response.
 - **Not done yet:** benefit wording, an editor on the catalog page, and re-running the mapping when NetSuite changes.
 
+
+## Guest checkout is the default (11/12)
+
+The sign-up pop-up on `shop.html` no longer talks about creating a profile. It asks only what the sales team needs to finish an order, in this order:
+
+1. **"Let's start with how to contact you"** — phone number plus **Call me / Text me** (one is required).
+2. **Number already on file** — unchanged: last name logs in (password profiles still go to the password step). The Call/Text answer replaces the contact preference on file (`applyShopContactChoice` in `server.js`, called by `/api/shop/signin`, `/login`, `/lookup`).
+3. **Number not on file — "Where should we deliver?"** — name, delivery address, optional email. **"Skip — I'll pick it up"** (also a link at the top of the step, so a phone shows it without scrolling) saves the shopper with no address and sets the cart to Customer Pickup. If the cart was already set to pickup, the step opens as **"Who's picking up?"** with no address fields.
+4. Straight back to the cart / secure checkout. The old "here's your client code, create a password" stop is gone; the code still shows on the order-received screen and in the profile panel (name chip), where a password can also be added.
+
+Rules that changed on the server:
+
+- `validateShopperFields`: a **blank address is valid** (pickup-only shopper). A started address must be complete and in a delivery ZIP. This also lets staff save a Stripe-imported shopper that has no address from Shopper Profiles.
+- `shopDeliveryBlock` (used by `/api/shop/setup-intent` and `/api/shop/submit-order`): a **delivery** order with no address on file is refused with `needAddress: true`; the page then opens the address-only version of step 3 ("Where should we deliver?" / "Use Customer Pickup"). Pickup orders need no address. The out-of-area ZIP refusal is unchanged.
+- `/api/shop/catalog` sends `shopperHasAddress` so the page asks for the address before opening the card form.
+- Card form: when there is no address on file, the Stripe payment element collects the billing ZIP itself (`address: "auto"`) instead of being handed one. **This path could only be tested against a stand-in for Stripe — place one real pickup order with no address before advertising.**
+
+Email as a contact preference is no longer offered at sign-up (Call or Text only); it is still selectable in the profile panel and in Shopper Profiles.

@@ -7942,15 +7942,56 @@ function validateShopperFields(b) {
   };
 
   if (!firstName || !lastName) return { error: "First and last name are required." };
-  if (!address.line1 || !address.city || !address.zip) return { error: "A complete shipping address is required." };
+  // Guest checkout (11/12): a shopper who picks up their own order never
+  // has to give an address, so a blank one is a valid "pickup" profile.
+  // A started address still has to be complete and inside the delivery
+  // area; checkout re-checks before any delivery order goes through.
+  const hasAddress = Boolean(address.line1 || address.line2 || address.city || address.zip);
+  if (hasAddress && (!address.line1 || !address.city || !address.zip)) {
+    return { error: "Please complete the delivery address — street, city and ZIP — or leave it blank for Customer Pickup." };
+  }
   if (!phone) return { error: "A contact phone number is required." };
   if (!["Call", "Text", "Email"].includes(preferredContact)) return { error: "Choose a preferred contact method." };
   if (preferredContact === "Email" && !email) return { error: "Add an email address so we can reach you by email." };
   if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return { error: "That email address doesn't look right." };
-  if (!shopZipAllowed(address.zip)) {
-    return { error: "We can only deliver online clearance orders inside our local delivery area right now." };
+  if (hasAddress && !shopZipAllowed(address.zip)) {
+    return { error: "We deliver online orders within our local delivery area only — choose Customer Pickup, or call 512-894-0907." };
   }
+  if (!hasAddress) address.state = "TX";
   return { fields: { firstName, lastName, email, phone, preferredContact, address } };
+}
+
+function shopperHasDeliveryAddress(shopper) {
+  const a = shopper?.address || {};
+  return Boolean(String(a.line1 || "").trim() && String(a.zip || "").trim());
+}
+
+// A delivery order needs somewhere to go: a pickup-only profile is sent
+// back to add an address (the page opens that step on `needAddress`), and
+// the ZIP list can change after a profile was made (Shop Orders).
+function shopDeliveryBlock(shopper, fulfillment) {
+  if (fulfillment?.method === "pickup") return null;
+  if (!shopperHasDeliveryAddress(shopper)) {
+    return { status: 400, body: { needAddress: true, error: "Add a delivery address to continue — or choose Customer Pickup." } };
+  }
+  if (!shopZipAllowed(shopper.address?.zip)) {
+    return { status: 403, body: { error: `We don't deliver online orders to ${String(shopper.address?.zip || "that ZIP").slice(0, 5)} right now — choose customer pickup, or call 512-894-0907.` } };
+  }
+  return null;
+}
+
+// The contact step asks "call or text?" before we know whether the number
+// already has a profile, so a returning shopper's answer replaces what is
+// on file. Never blocks the sign-in.
+async function applyShopContactChoice(shopper, choice) {
+  const pick = String(choice || "").trim();
+  if (!shopper || !["Call", "Text"].includes(pick) || shopper.preferredContact === pick) return;
+  try {
+    await updateShopperProfile({
+      token: shopper.token, firstName: shopper.firstName, lastName: shopper.lastName,
+      email: shopper.email, phone: shopper.phone, preferredContact: pick, address: shopper.address
+    });
+  } catch (err) { console.error("Shop contact preference update failed:", err.message); }
 }
 
 function shopperProfilePayload(shopper) {
@@ -7966,8 +8007,9 @@ function shopperProfilePayload(shopper) {
   };
 }
 
-// PUBLIC: the pricing wall. Registration requires the contact details the
-// sales team needs to finish the order, and the shipping ZIP must be in zone.
+// PUBLIC: guest checkout's contact step. Needs the contact details the
+// sales team uses to finish the order; a delivery address is optional
+// (blank = Customer Pickup) and, when given, must be in zone.
 app.post("/api/shop/register", rateLimit("shop-register", 20, 60 * 60 * 1000), async (req, res) => {
   try {
     const checked = validateShopperFields(req.body);
@@ -7993,7 +8035,7 @@ app.post("/api/shop/register", rateLimit("shop-register", 20, 60 * 60 * 1000), a
     recordAudit({
       ip: req.ip, actorUserId: null,
       action: "shop_shopper_registered", targetUserId: null,
-      detail: { name: `${firstName} ${lastName}`, zip: address.zip }
+      detail: { name: `${firstName} ${lastName}`, zip: address.zip, pickupOnly: !address.line1 }
     }).catch(() => {});
 
     return res.json({ token: shopper.token, firstName: shopper.firstName, clientCode: shopper.clientCode });
@@ -8107,6 +8149,7 @@ app.post("/api/shop/signin", async (req, res) => {
       action: "shop_shopper_login", targetUserId: null,
       detail: { clientCode: shopper.clientCode, method: "phone_lastname" }
     }).catch(() => {});
+    await applyShopContactChoice(shopper, req.body?.preferredContact);
     return res.json({ token: shopper.token, firstName: shopper.firstName, clientCode: shopper.clientCode });
   } catch (err) {
     console.error("Shop signin failed:", err.message);
@@ -8140,6 +8183,7 @@ app.post("/api/shop/lookup", async (req, res) => {
       detail: { clientCode: shopper.clientCode }
     }).catch(() => {});
 
+    await applyShopContactChoice(shopper, req.body?.preferredContact);
     return res.json({ token: shopper.token, firstName: shopper.firstName, clientCode: shopper.clientCode });
   } catch (err) {
     console.error("Shop lookup failed:", err.message);
@@ -8171,6 +8215,7 @@ app.post("/api/shop/login", async (req, res) => {
       detail: { clientCode: shopper.clientCode }
     }).catch(() => {});
 
+    await applyShopContactChoice(shopper, req.body?.preferredContact);
     return res.json({ token: shopper.token, firstName: shopper.firstName, clientCode: shopper.clientCode });
   } catch (err) {
     console.error("Shop login failed:", err.message);
@@ -8184,7 +8229,7 @@ app.post("/api/shop/login", async (req, res) => {
 app.get("/api/shop/profile", async (req, res) => {
   try {
     const shopper = await getShopperByToken(req.query.token);
-    if (!shopper) return res.status(401).json({ error: "Please register or sign in first." });
+    if (!shopper) return res.status(401).json({ error: "Please sign in again to continue." });
     res.setHeader("Cache-Control", "no-store");
     return res.json({ profile: shopperProfilePayload(shopper) });
   } catch (err) {
@@ -8196,13 +8241,13 @@ app.get("/api/shop/profile", async (req, res) => {
 app.post("/api/shop/profile", async (req, res) => {
   try {
     const shopper = await getShopperByToken(req.body?.token);
-    if (!shopper) return res.status(401).json({ error: "Please register or sign in first." });
+    if (!shopper) return res.status(401).json({ error: "Please sign in again to continue." });
 
     const checked = validateShopperFields(req.body);
     if (checked.error) return res.status(400).json({ error: checked.error });
 
     const updated = await updateShopperProfile({ token: shopper.token, ...checked.fields });
-    if (!updated) return res.status(401).json({ error: "Please register or sign in first." });
+    if (!updated) return res.status(401).json({ error: "Please sign in again to continue." });
 
     recordAudit({
       ip: req.ip, actorUserId: null,
@@ -8224,7 +8269,7 @@ app.post("/api/shop/password", async (req, res) => {
     if (password.length < 8) return res.status(400).json({ error: "Passwords need at least 8 characters." });
 
     const updated = await setShopperPassword({ token: req.body?.token, password });
-    if (!updated) return res.status(401).json({ error: "Please register or sign in first." });
+    if (!updated) return res.status(401).json({ error: "Please sign in again to continue." });
 
     recordAudit({
       ip: req.ip, actorUserId: null,
@@ -8721,7 +8766,7 @@ app.post("/api/shop/quote-request", shopQuoteLimiter, async (req, res) => {
 app.post("/api/shop/submit-quote", rateLimit("shop-submit-quote", 20, 60 * 60 * 1000), async (req, res) => {
   try {
     const shopper = await getShopperByToken(req.body?.token);
-    if (!shopper) return res.status(401).json({ error: "Please register to request pricing." });
+    if (!shopper) return res.status(401).json({ error: "Please add your contact details to request pricing." });
     const wanted = shopQuoteLinesFromBody(req.body?.special, { max: 20 });
     if (!wanted.length) return res.status(400).json({ error: "Nothing to quote." });
     const f = req.body?.fulfillment && typeof req.body.fulfillment === "object" ? req.body.fulfillment : null;
@@ -8874,6 +8919,7 @@ app.get("/api/shop/catalog", async (req, res) => {
       unlocked: Boolean(shopper),
       paused: catalog.paused,
       shopperName: shopper?.firstName || "",
+      shopperHasAddress: shopperHasDeliveryAddress(shopper),
       clientCode: shopper?.clientCode || "",
       addons: canBuild ? catalog.addons : null,
       delivery: canBuild ? SHOP_DELIVERY_OFFER : null,
@@ -9122,11 +9168,9 @@ app.post("/api/shop/stock-models/:model", requirePagePermission("/shop-orders.ht
 app.post("/api/shop/setup-intent", rateLimit("shop-setup-intent", 30, 60 * 60 * 1000), async (req, res) => {
   try {
     const shopper = await getShopperByToken(req.body?.token);
-    if (!shopper) return res.status(401).json({ error: "Please register to check out." });
-    // The delivery-ZIP list can change after a profile was made (Shop Orders).
-    if (req.body?.fulfillment?.method !== "pickup" && !shopZipAllowed(shopper.address?.zip)) {
-      return res.status(403).json({ error: `We don't deliver online orders to ${String(shopper.address?.zip || "that ZIP").slice(0, 5)} right now — choose customer pickup, or call 512-894-0907.` });
-    }
+    if (!shopper) return res.status(401).json({ error: "Please add your contact details to check out." });
+    const blocked = shopDeliveryBlock(shopper, req.body?.fulfillment);
+    if (blocked) return res.status(blocked.status).json(blocked.body);
 
     const catalog = await computeShopCatalog();
     if (catalog.paused) return res.status(503).json({ error: "Online checkout is briefly paused while we refresh inventory. Please try again soon or call the store." });
@@ -9149,14 +9193,15 @@ app.post("/api/shop/setup-intent", rateLimit("shop-setup-intent", 30, 60 * 60 * 
       name: `${shopper.firstName} ${shopper.lastName}`,
       email: shopper.email || undefined,
       phone: shopper.phone || undefined,
-      address: {
+      // A pickup-only profile has no address; leave Stripe's untouched.
+      address: shopperHasDeliveryAddress(shopper) ? {
         line1: shopper.address.line1 || undefined,
         line2: shopper.address.line2 || undefined,
         city: shopper.address.city || undefined,
         state: shopper.address.state === "Texas" ? "TX" : (shopper.address.state || undefined),
         postal_code: shopper.address.zip || undefined,
         country: "US"
-      },
+      } : undefined,
       metadata: {
         shop_shopper_id: shopper.id,
         shop_client_code: shopper.clientCode || "",
@@ -9205,21 +9250,22 @@ app.post("/api/shop/setup-intent", rateLimit("shop-setup-intent", 30, 60 * 60 * 
       setupIntentId: setupIntent.id,
       customerId: customer.id,
       pricing: { totals: priced.totals, delivery: priced.delivery },
-      // The payment element suppresses billing-detail collection (the
-      // shopper already gave us everything), so the client must hand these
-      // back to stripe.confirmSetup verbatim.
+      // The payment element suppresses billing-detail collection for what
+      // the shopper already gave us, so the client must hand these back to
+      // stripe.confirmSetup verbatim. A pickup-only profile has no address:
+      // `address` is null and the card form asks for the billing ZIP itself.
       billing: {
         name: `${shopper.firstName} ${shopper.lastName}`.trim(),
         email: shopper.email || "",
         phone: shopper.phone || "",
-        address: {
+        address: shopperHasDeliveryAddress(shopper) ? {
           line1: shopper.address.line1 || "",
           line2: shopper.address.line2 || "",
           city: shopper.address.city || "",
           state: shopper.address.state === "Texas" ? "TX" : (shopper.address.state || "TX"),
           postal_code: shopper.address.zip || "",
           country: "US"
-        }
+        } : null
       }
     });
   } catch (err) {
@@ -9780,13 +9826,13 @@ app.post("/api/service-estimates/close", requirePagePermission("/service-estimat
   try {
     const token = String(req.body?.token || "").slice(0, 60);
     const closed = req.body?.closed !== false;
-    const estimate = await setServiceEstimateClosed(token, closed, req.authUser?.email || req.authUser?.username || "");
+    const estimate = await setServiceEstimateClosed(token, closed, req.authUser?.email || req.authUser?.username || "", req.authUser?.displayName || "");
     if (!estimate) return res.status(404).json({ error: "Estimate not found." });
     if (closed) retireEstimateFlags(token);
     recordAudit({
       ip: req.ip, actorUserId: req.authUser?.id || null,
       action: closed ? "service_estimate_closed" : "service_estimate_reopened", targetUserId: null,
-      detail: { svNumber: estimate.svNumber, customerName: estimate.customerName, flagsRetired: closed }
+      detail: { svNumber: estimate.svNumber, customerName: estimate.customerName, flagsRetired: closed, ...(closed ? {} : { reopenCount: (estimate.reopens || []).length, wasClosedAs: estimate.reopens?.[estimate.reopens.length - 1]?.outcomeLabel || "" }) }
     }).catch(() => {});
     return res.json({ ok: true, estimate });
   } catch (err) {
@@ -11265,10 +11311,9 @@ app.post("/api/subzero/inquiry", rateLimit("subzero-inquiry", 10, 60 * 60 * 1000
 app.post("/api/shop/submit-order", rateLimit("shop-submit-order", 20, 60 * 60 * 1000), async (req, res) => {
   try {
     const shopper = await getShopperByToken(req.body?.token);
-    if (!shopper) return res.status(401).json({ error: "Please register to check out." });
-    if (req.body?.fulfillment?.method !== "pickup" && !shopZipAllowed(shopper.address?.zip)) {
-      return res.status(403).json({ error: `We don't deliver online orders to ${String(shopper.address?.zip || "that ZIP").slice(0, 5)} right now — choose customer pickup, or call 512-894-0907.` });
-    }
+    if (!shopper) return res.status(401).json({ error: "Please add your contact details to check out." });
+    const blocked = shopDeliveryBlock(shopper, req.body?.fulfillment);
+    if (blocked) return res.status(blocked.status).json(blocked.body);
 
     const setupIntentId = String(req.body?.setupIntentId || "").trim();
     if (!/^seti_/.test(setupIntentId)) return res.status(400).json({ error: "Missing card setup reference." });
@@ -16028,6 +16073,7 @@ app.get("/api/service/setup-intent-result/:setupIntentId", async (req, res) => {
     // "Updated") when the Stripe result actually changed something.
     let cardResultChanged = true;
     let cardAuditRowId = "";
+    let cardReturnedToQueue = false;
     if (existingCardIdIndex >= 0) {
       const beforeRow = serviceCards[existingCardIdIndex];
       cardResultChanged =
@@ -16043,6 +16089,19 @@ app.get("/api/service/setup-intent-result/:setupIntentId", async (req, res) => {
           updatedBy: `card saved (${brand ? brand + " " : ""}${last4 ? "•••• " + last4 : "Stripe"})`
         };
         cardAuditRowId = beforeRow.id;
+        // The office parked this request as "Awaiting SetupIntent" and the
+        // card has now arrived (Andrew 11/12: a couple came in a day later
+        // and nothing said so until the client called). Put it back to
+        // Call Status Pending so it returns to the main queue, stamped so
+        // the page can pin and flag it until someone works it.
+        if (beforeRow.queueStatus === "Awaiting SetupIntent") {
+          Object.assign(serviceCards[existingCardIdIndex], {
+            queueStatus: "Call Status Pending",
+            cardReturnedAt: stripeFields.updatedAt,
+            cardReturnedFrom: "Awaiting SetupIntent"
+          });
+          cardReturnedToQueue = true;
+        }
       }
     } else {
       serviceCards.unshift({
@@ -16120,7 +16179,7 @@ app.get("/api/service/setup-intent-result/:setupIntentId", async (req, res) => {
         actorUserId: null,
         action: "service_request_card_saved",
         targetUserId: null,
-        detail: { serviceCardId: cardAuditRowId, cardBrand: brand, last4 }
+        detail: { serviceCardId: cardAuditRowId, cardBrand: brand, last4, ...(cardReturnedToQueue ? { returnedToQueue: true, from: "Awaiting SetupIntent", to: "Call Status Pending" } : {}) }
       }).catch(() => {});
     }
 
@@ -20357,6 +20416,7 @@ async function describeCardDecline(err) {
   };
 }
 
+const SAVED_CARD_DEPARTMENTS = ["Appliance", "Repair Service", "Kitchen Design", "HVAC Sales"];
 app.post("/api/card-on-file/charge", requirePagePermission("/charge-saved-card.html"), async (req, res) => {
   try {
     const {
@@ -20375,6 +20435,12 @@ app.post("/api/card-on-file/charge", requirePagePermission("/charge-saved-card.h
       depositAgreementId
     } = req.body;
     const resolvedDepositAgreementId = String(depositAgreementId || hvacDepositRecordId || "").trim();
+    // Department that owns this charge (11/12): same four as payment links
+    // and the terminal. Client Care and executives pick it on the page;
+    // everyone else's comes from their employee code. Blank (an old copy of
+    // the page) leaves the dashboard to fall back on the employee's own
+    // department, as before.
+    const department = SAVED_CARD_DEPARTMENTS.find((d) => d.toLowerCase() === String(req.body?.department || "").trim().toLowerCase()) || "";
 
     if (!customerId || !paymentMethodId || !amount || !salesOrder) {
       return res.status(400).json({
@@ -20406,6 +20472,7 @@ app.post("/api/card-on-file/charge", requirePagePermission("/charge-saved-card.h
         creator_code: creatorCode || "",
         creator_name: creatorName || "",
         creator_email: creatorEmail || "",
+        department,
         notes: internalNotes || "",
         hvac_deposit_record_id: hvacDepositRecordId || "",
         deposit_agreement_id: resolvedDepositAgreementId
@@ -20431,6 +20498,7 @@ app.post("/api/card-on-file/charge", requirePagePermission("/charge-saved-card.h
         creatorCode: creatorCode || "",
         creatorName: creatorName || "",
         creatorEmail: creatorEmail || "",
+        department,
         reference: salesOrder || description || "Card on file charge",
         description: description || "Service charge",
         status: "paid",
@@ -20742,6 +20810,7 @@ app.get("/api/hvac-deposits/:id", requirePagePermission("/hvac-dashboard.html", 
       creatorCode: row.creatorCode || "",
       creatorName: row.creatorName || "",
       creatorEmail: row.creatorEmail || "",
+      department: row.department || "", // the deposit link's department, so the balance charge can follow it
       salesOrder: row.salesOrder || "",
       description: row.description || "",
       customerId: row.customerId || "",
@@ -20900,6 +20969,12 @@ app.post("/api/service-cards/:id/status", requirePagePermission("/appliance-serv
       updatedBy: req.authUser?.displayName || req.authUser?.email || "",
       updatedByEmail: req.authUser?.email || ""
     };
+    // Someone has picked it up: the "card received — back in queue" flag
+    // has done its job.
+    if (before.cardReturnedAt) {
+      serviceCards[index].cardReturnedAt = "";
+      serviceCards[index].cardReturnHandledAt = serviceCards[index].updatedAt;
+    }
 
     // Booked in ePASS or cancelled: the self-schedule hold stops counting
     // against capacity (the ePASS mirror carries the real stop from here).

@@ -240,7 +240,7 @@
       <div class="page-head">
         <h2>Quote Follow-Up</h2>
         <p class="section-note">
-          Open ePASS quotes that haven't turned into a sale yet, for Showroom and Field Sales Consultants.
+          Open ePASS quotes that haven't turned into a sale yet, for Showroom and Field Sales Consultants and the Showroom Sales Manager.
           Quotes for the same client written within 30 days share one opportunity card — if a builder or designer has several projects going, <strong>Split card</strong> gives each project its own. A finished order for the
           same customer number and salesperson (from the OE-23 feed) automatically moves the card to
           <strong>Converted</strong>; QUOTE 2s resolve themselves (converted with an order, lost without one) and
@@ -425,7 +425,7 @@
             return;
           }
           if (data.notSalesRole) {
-            setStatus("Quote Follow-Up covers Showroom and Field Sales Consultants — your directory job title isn't one of those, so there's no queue for you here.", "error");
+            setStatus("Quote Follow-Up covers Showroom and Field Sales Consultants and the Showroom Sales Manager — your directory job title isn't one of those, so there's no queue for you here.", "error");
             render();
             return;
           }

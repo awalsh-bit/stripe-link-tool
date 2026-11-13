@@ -29,7 +29,7 @@ shop.html now reads the query string once, after the first catalog render:
 | `dept` | `?dept=Cooking` | Department (same labels as the shop menu) |
 | `dept` + `sub` | `?dept=Cooking&sub=Ranges` | One of that department's categories (website wording: Ranges, Cooktops, Wall Ovens, Built-in Refrigerators, Wine Storage, Dishwashers, Washers…) |
 | `outlet` | `?outlet=1` | Open box & display |
-| `brand` | `?brand=Bosch` | Brand filter (case-insensitive, catalog spelling) |
+| `brand` | `?brand=Speed+Queen` | Brand filter — the link the brand ads use (11/13). Spelling is forgiving: `speed-queen`, `SpeedQueen` and `speed queen` all match. A brand with nothing in stock today shows a short notice above the full assortment. Combines with `dept` (`?brand=Bosch&dept=Kitchen+Cleanup`); `utm_…` tags can be added and are ignored by the shop. |
 | `q` | `?q=SHX78CM5N` | Search box prefilled |
 
 These can be texted or put in ads: `shop.wilsonappliance.com/shop.html?dept=Laundry`. The URL is left in place so it stays shareable; the page scrolls to the results. The shop logo now links back to the landing page.
@@ -81,6 +81,16 @@ The "Better choices, already made" headline above the Top Deals cards on `shop.h
 
 The reason: brand-first ranking inside a card put a brand's only qualifying item on top — a panel-ready KitchenAid undercounter led Refrigerators because KitchenAid sells a lot of dishwashers. `shopSalesRank()` in `server.js` now also rolls sales up per brand and shop category (`byBrandCat`), and `/api/shop/catalog` sends it per item as `brandCatSold`.
 
+
+## Lead kinds in a deal or department (11/13)
+
+On the Best Sellers sort, inside a Top Deals tile or a department, the merch subclasses in `LEAD_SUBCLASSES` (`shop.html`) come first — best sellers first among themselves — and everything else follows in the usual best-seller order. Today: `1022` Freestanding French Door, `1024` Freestanding Quad Door, `1026` Freestanding Side-by-side, so the Refrigerators deal opens on those instead of the upright freezer and top-freezer that move the most units. The whole-store view and the price sorts are not affected. To promote another kind, add its subclass code to the set.
+
+## Opening the far-right tile (11/13)
+
+A tile opens to double width. In the far-right column there is no room to its right, so the grid used to drop it to the next row and the shopper lost the tile they had just tapped. Now it stays in its own row across the last two columns, and the tile that was beside it steps down to the start of the next row (`placeExpanded()` in `shop.html`; re-run when the grid is redrawn or the window is resized). Tiles in other columns open to the right as before; on a phone tiles open in place.
+
+The search box on the filter row takes every column that the brand and sort menus don't, so on a four-column screen it is two tiles wide and the row lines up edge to edge with the tiles.
 
 ## One slice at a time: top deals and departments (11/13)
 

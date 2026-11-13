@@ -548,11 +548,13 @@
     .crumb-bar .cb-clear:hover { background: var(--ink); color: #fff; }
     .sort-select { border-radius: var(--r); background: var(--surface); font-size: 14px; }
     /* Search / brand / sort sit on the same columns as the product tiles
-       (Andrew 11/10): each control is exactly one tile wide. Where the grid
-       drops to two columns or one, search takes the row and the two selects
-       share the next. */
+       (Andrew 11/10): brand and sort are each exactly one tile wide and search
+       takes the rest. Where the grid drops to two columns or one, search takes
+       the row and the two selects share the next. */
     .filters { display: grid; grid-template-columns: repeat(auto-fill, minmax(255px, 1fr)); gap: 14px; align-items: stretch; }
-    .filters input[type="search"] { max-width: none; width: 100%; }
+    /* The search box takes every column the brand and sort menus don't need, so the
+       row is exactly as wide as the tiles under it: two columns of four (11/13). */
+    .filters input[type="search"] { max-width: none; width: 100%; grid-column: 1 / -3; }
     .filters select, .filters .sort-select { width: 100%; min-width: 0; }
     @media (max-width: 860px) {
       .filters { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
@@ -1467,12 +1469,37 @@
     state.detailTab = tab.dataset.idt === "specs" ? "specs" : "features";
     showDetailTab(tab.closest(".item-card"), state.detailTab);
   });
+  // A tile opened in the far-right column has no room to double, so the grid
+  // dropped it to the next row and the shopper lost it (Andrew 11/13). Pin it
+  // to the last two columns of ITS OWN row instead: the tile to its left steps
+  // down, the opened one stays where it was tapped. Every other column opens
+  // to the right as before; on a phone the tile opens in place and none of
+  // this applies. Runs after a tile opens or closes, after the grid is redrawn
+  // and when the window is resized (the column count changes).
+  let pinnedCard = null;
+  function placeExpanded() {
+    if (pinnedCard) { pinnedCard.style.gridColumn = ""; pinnedCard.style.gridRow = ""; pinnedCard = null; }
+    const grid = $("itemGrid");
+    const card = grid.querySelector(".item-card.expanded");
+    if (!card) return;
+    const cs = getComputedStyle(card);
+    if (!`${cs.gridColumnStart} ${cs.gridColumnEnd}`.includes("span")) return; // not doubled at this width (phone)
+    const cols = getComputedStyle(grid).gridTemplateColumns.split(" ").filter(Boolean).length;
+    const i = [...grid.children].indexOf(card);
+    if (cols < 2 || i < 0 || i % cols !== cols - 1) return; // only the far-right column needs it
+    card.style.gridColumn = `${cols - 1} / span 2`;
+    card.style.gridRow = String(Math.floor(i / cols) + 1);
+    pinnedCard = card;
+  }
+  let placeTimer = null;
+  window.addEventListener("resize", () => { clearTimeout(placeTimer); placeTimer = setTimeout(placeExpanded, 120); });
   function toggleDetails(card) {
     const opening = !card.classList.contains("expanded");
     for (const el of document.querySelectorAll("#itemGrid .item-card.expanded")) { el.classList.remove("expanded"); const b = el.querySelector(".item-more"); if (b) { b.textContent = "Details"; b.setAttribute("aria-expanded", "false"); } }
     state.expandedKey = opening ? card.dataset.detailKey : "";
-    if (!opening) return;
+    if (!opening) { placeExpanded(); return; }
     card.classList.add("expanded");
+    placeExpanded();
     showDetailTab(card, state.detailTab); // the side the shopper last chose, on whichever tile they open next
     const btn = card.querySelector(".item-more"); if (btn) { btn.textContent = "Hide details"; btn.setAttribute("aria-expanded", "true"); }
     // the tile may have moved to a new row to fit its double width — keep it in view
@@ -1504,6 +1531,11 @@
     return groups;
   }
 
+  // Merch subclasses that lead their deal or department on the Best Sellers
+  // sort. To promote another kind, add its NetSuite subclass code here.
+  //   1022 Freestanding French Door · 1024 Freestanding Quad Door · 1026 Freestanding Side-by-side
+  const LEAD_SUBCLASSES = new Set(["1022", "1024", "1026"]);
+
   function productPageUrl(model) {
     return "https://www.wilsonappliance.com/search?search=" + encodeURIComponent(String(model || "").trim());
   }
@@ -1525,7 +1557,12 @@
         // the same category, then overall; ties keep the merchandised order.
         // (Brand-first put a brand's only cheap fridge on top of
         // Refrigerators because the brand sells a lot of dishwashers.)
-        groups.sort((a, b) => (n(b.sold) - n(a.sold)) || (n(b.brandCatSold) - n(a.brandCatSold)) || (n(b.brandSold) - n(a.brandSold)));
+        // Lead kinds first (Andrew 11/13): the Refrigerators deal opened on an
+        // upright freezer and a top-freezer because they sell the most units.
+        // Subclasses in LEAD_SUBCLASSES go to the front of their slice, best
+        // sellers first among themselves; everything else follows as before.
+        const lead = (g) => (LEAD_SUBCLASSES.has(String(g.subclass || "")) ? 1 : 0);
+        groups.sort((a, b) => (lead(b) - lead(a)) || (n(b.sold) - n(a.sold)) || (n(b.brandCatSold) - n(a.brandCatSold)) || (n(b.brandSold) - n(a.brandSold)));
       } else {
         // The whole store: brands by units delivered in ePASS over the last
         // 12 months (the house brand leads), then models within the brand by
@@ -1624,6 +1661,8 @@
       if (canOpen) { card.classList.add("has-details"); card.dataset.detailKey = dkey; if (open) card.classList.add("expanded"); }
       grid.appendChild(card);
     });
+
+    placeExpanded(); // the open tile is redrawn with the grid (adding to the cart, Show more)
 
     grid.querySelectorAll("[data-add-group]").forEach((btn) => {
       btn.addEventListener("click", () => {
@@ -1957,13 +1996,24 @@
         sel = s ? { label: `${tier.label} › ${s.label}`, cats: s.cats, products: s.products, subclasses: s.subclasses, types: s.types } : { label: tier.label, cats: tier.cats };
       }
     }
+    // Brand links are what the ads point at (11/13): shop.html?brand=Speed+Queen.
+    // Spelling is forgiving - "speed-queen", "SpeedQueen" and "speed queen" are
+    // the same brand - and a brand with nothing in stock today says so above
+    // the full assortment instead of quietly showing everything.
+    let brandMiss = "";
     if (brand) {
-      const match = gridItems().map((i) => i.brand).find((b) => low(b) === brand);
+      const key = (v) => low(v).replace(/[^a-z0-9]/g, "");
+      const match = [...new Set(gridItems().map((i) => i.brand).filter(Boolean))].find((b) => key(b) === key(brand));
       if (match) state.filter.brand = match;
+      else brandMiss = String(p.get("brand")).replace(/[-_+]+/g, " ").replace(/[^\w &'.]/g, "").trim().slice(0, 40);
     }
     if (q) { state.filter.search = q; $("searchInput").value = q; }
     if (!sel && !brand && !q) return;
     if (sel) applySelection(sel); else { buildFilters(); renderGrid(); }
+    if (brandMiss) {
+      pageNotice(`No ${brandMiss} models are in the Express assortment today. Everything below is in stock now — or call 512-894-0907 and we'll help you with ${brandMiss}.`);
+      if (!sel && !q) return; // stay at the notice; there is no brand slice to land on
+    }
     // Land the shopper on the results, not the hero strip.
     const target = $("crumbBar").classList.contains("show") ? $("crumbBar") : $("filterBar");
     const header = document.querySelector("header");

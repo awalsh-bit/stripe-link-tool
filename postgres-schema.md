@@ -341,13 +341,14 @@ Test Module: internal pilot of the eventual public NPS survey
 results + CSV export at `/satisfaction-results.html` (both under Test Modules,
 permission-managed). Managed by `lib/satisfaction-postgres.js`.
 
-### Case visit survey (live — created by `sql/015_case_visit.sql`)
+### Case visit survey (removed 2026-11-12)
 
-Test Module, temporary/external pilot (security check-in experience
-sad/neutral/happy + case manager meeting progress). `case_visit_responses`;
-survey at `/case-visit-survey.html`, results + CSV at
-`/case-visit-results.html`. Fully self-contained — drop the table and the two
-pages to remove it. Managed by `lib/case-visit-postgres.js`.
+The temporary external pilot (security check-in experience + case manager
+meeting progress) is over. Its two pages, `lib/case-visit-postgres.js`,
+`sql/015_case_visit.sql`, the `/api/case-visit/*` routes and the menu entries
+are gone. The table `case_visit_responses` may still exist in the database with
+the pilot's answers — nothing reads or writes it; `DROP TABLE
+case_visit_responses;` removes it for good.
 
 ### Commissions (live — managed by `lib/commissions-postgres.js`)
 

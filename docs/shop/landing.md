@@ -81,6 +81,11 @@ The "Better choices, already made" headline above the Top Deals cards on `shop.h
 
 The reason: brand-first ranking inside a card put a brand's only qualifying item on top — a panel-ready KitchenAid undercounter led Refrigerators because KitchenAid sells a lot of dishwashers. `shopSalesRank()` in `server.js` now also rolls sales up per brand and shop category (`byBrandCat`), and `/api/shop/catalog` sends it per item as `brandCatSold`.
 
+
+## One slice at a time: top deals and departments (11/13)
+
+A Top Deals tile and a department pick (the ribbon, the mega panel, the phone drawer, Outlet, Shop all, a `?dept=` link) each choose a slice of the assortment, and they used to stack — "Dishwashers under $999" inside Refrigeration showed an empty page. Now each clears the other: tapping a deal drops the department pill and its Type chips; picking a department drops the deal. Search, brand and sort are untouched and still combine with either.
+
 ## Product details on the tile (11/12)
 
 Tapping a product tile on `shop.html` opens it to double width (taller, in place, on a phone) with the model's three top features as bullets and its full description. The open panel does not repeat the brand, model or headline — the tile above it already shows them — and the full description starts after the headline it would otherwise repeat (11/12). One tile is open at a time; buttons and the model link inside a tile keep their own jobs. There are no separate product pages.

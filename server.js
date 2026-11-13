@@ -575,12 +575,6 @@ import {
   SATISFACTION_PRIORITIES
 } from "./lib/satisfaction-postgres.js";
 import {
-  saveCaseVisitResponse,
-  updateCaseVisitResponse,
-  listCaseVisitResponses,
-  CASE_VISIT_PROGRESS_OPTIONS
-} from "./lib/case-visit-postgres.js";
-import {
   computeReimbursedMiles,
   computeReportTotals,
   listRatePeriods,
@@ -942,8 +936,6 @@ const INTERNAL_PAGE_PATHS = new Set([
   "/tax-report.html",
   "/cash-projection.html",
   "/satisfaction-results.html",
-  "/case-visit-survey.html",
-  "/case-visit-results.html",
   "/refund-dashboard.html",
   "/signature-builder.html",
   "/clearance.html",
@@ -1200,8 +1192,6 @@ const PAGE_LABELS = {
   "/tax-report.html": "Sales Tax Report",
   "/cash-projection.html": "Cash Ops Projection",
   "/satisfaction-results.html": "Satisfaction Results",
-  "/case-visit-survey.html": "Case Visit Survey",
-  "/case-visit-results.html": "Case Visit Results",
   "/refund-dashboard.html": "Refund Dashboard",
   "/signature-builder.html": "Email Signature",
   "/clearance.html": "Clearance Hit List (retired)",
@@ -1277,9 +1267,7 @@ const PAGE_CATEGORIES = [
     pages: [
       "/service-journey.html",
       "/satisfaction-survey.html",
-      "/satisfaction-results.html",
-      "/case-visit-survey.html",
-      "/case-visit-results.html"
+      "/satisfaction-results.html"
     ]
   },
   {
@@ -21863,65 +21851,6 @@ app.get("/api/satisfaction/responses", requirePagePermission("/satisfaction-resu
     return res.json({ responses, priorities: SATISFACTION_PRIORITIES });
   } catch (err) {
     console.error("Satisfaction list failed:", err.message);
-    return res.status(500).json({ error: "Unable to load survey results." });
-  }
-});
-
-// Case visit survey (Test Modules — temporary/external pilot).
-// Each window asks ONE question and saves on the first tap; passing the id
-// back updates the same record when the visitor changes their answer.
-app.post("/api/case-visit/responses", requirePagePermission("/case-visit-survey.html"), async (req, res) => {
-  try {
-    const staffRating = String(req.body?.staffRating || "").trim();
-    const progress = String(req.body?.progress || "").trim();
-    const id = String(req.body?.id || "").trim();
-
-    if (staffRating && !["sad", "neutral", "happy"].includes(staffRating)) {
-      return res.status(400).json({ error: "Pick a face for the security experience." });
-    }
-    if (progress && !CASE_VISIT_PROGRESS_OPTIONS.includes(progress)) {
-      return res.status(400).json({ error: "Pick one of the progress options." });
-    }
-    if (!staffRating && !progress) {
-      return res.status(400).json({ error: "Pick an answer first." });
-    }
-
-    let saved;
-    if (id) {
-      if (!/^[0-9a-fA-F-]{36}$/.test(id)) {
-        return res.status(400).json({ error: "Bad response id." });
-      }
-      saved = await updateCaseVisitResponse(id, { staffRating: staffRating || null, progress });
-      if (!saved) {
-        return res.status(404).json({ error: "That response was not found." });
-      }
-    } else {
-      saved = await saveCaseVisitResponse({
-        staffRating: staffRating || null,
-        progress,
-        recordedByEmail: req.authUser?.email || ""
-      });
-    }
-
-    return res.json({ success: true, response: saved });
-  } catch (err) {
-    console.error("Case visit save failed:", err.message);
-    return res.status(500).json({ error: "Unable to save the response — try again." });
-  }
-});
-
-app.get("/api/case-visit/responses", requirePagePermission("/case-visit-results.html"), async (req, res) => {
-  try {
-    const start = String(req.query.start || "").trim();
-    const end = String(req.query.end || "").trim();
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(start) || !/^\d{4}-\d{2}-\d{2}$/.test(end)) {
-      return res.status(400).json({ error: "start and end dates are required (YYYY-MM-DD)." });
-    }
-
-    const responses = await listCaseVisitResponses(start, end, APP_TIMEZONE);
-    return res.json({ responses });
-  } catch (err) {
-    console.error("Case visit list failed:", err.message);
     return res.status(500).json({ error: "Unable to load survey results." });
   }
 });

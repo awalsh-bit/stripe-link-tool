@@ -423,6 +423,7 @@
 
     const COLS = { new: 10, closeout: 10, protect: 8, excluded: 8, jobs: 11, jobsx: 9 };
     let editorKey = null; // lineKey of the open editor
+    let editorCode = null; // ...and the statement (salesperson code) whose pencil opened it - a split line sits on both partners' statements
 
     function splitBadge(l) {
       if (l.overridden?.credit) return ` <span class="badge adjusted" title="Split overridden — 100% credit">100% credit${l.splitPartners ? " (was " + escapeHtml(l.splitPartners) + ")" : ""}</span>`;
@@ -875,6 +876,15 @@
         ? rows.map(statementHtml).join("")
         : '<div class="surface"><div class="empty">No commissioned statements this month. Assign commission plans in User Admin (HVAC Selling Techs: job code E25), or check "Show all salespeople".</div></div>');
       el("excPanel").innerHTML = excPanelHtml();
+      // A split line is on both partners' statements, so its editor was drawn
+      // twice - and Save read the FIRST copy on the page, often the one inside
+      // the other partner's folded statement, posting blanks (11/12). Keep only
+      // the editor under the pencil that was clicked.
+      if (editorKey) {
+        const editors = [...document.querySelectorAll(`[data-editor="${CSS.escape(editorKey)}"]`)];
+        const keep = editors.find((r) => r.closest(".statement")?.dataset.code === editorCode) || editors[0];
+        for (const r of editors) if (r !== keep) r.remove();
+      }
       labelCells(el("statements"));
       el("foldAll").textContent = rows.length && rows.every((s) => expandedCodes.has(s.code)) ? "Collapse all" : "Expand all";
     }
@@ -1041,7 +1051,10 @@
     document.addEventListener("click", async (event) => {
       const editBtn = event.target.closest?.("[data-edit]");
       if (editBtn) {
-        editorKey = editorKey === editBtn.dataset.edit ? null : editBtn.dataset.edit;
+        const code = editBtn.closest(".statement")?.dataset.code || null;
+        // the same pencil closes it; the pencil on the partner's statement moves it there
+        editorKey = editorKey === editBtn.dataset.edit && editorCode === code ? null : editBtn.dataset.edit;
+        editorCode = editorKey ? code : null;
         render();
         document.querySelector(`[data-editor="${CSS.escape(editorKey || "")}"]`)?.scrollIntoView({ block: "center", behavior: "smooth" });
         return;
@@ -1051,7 +1064,8 @@
       const clearBtn = event.target.closest?.("[data-clear-ov]");
       if (!saveBtn && !clearBtn) return;
       const key = (saveBtn || clearBtn).dataset.saveOv || (saveBtn || clearBtn).dataset.clearOv;
-      const row = document.querySelector(`[data-editor="${CSS.escape(key)}"]`);
+      // read the editor the button is IN, never "the first one on the page"
+      const row = (saveBtn || clearBtn).closest("[data-editor]");
       if (!row) return;
 
       const val = (sel) => row.querySelector(sel)?.value?.trim() ?? "";
@@ -1087,6 +1101,10 @@
         el("errorBanner").textContent = err.message;
         el("errorBanner").className = "banner error show";
         (saveBtn || clearBtn).disabled = false;
+        // the banner is at the top of the page, usually off screen from here - say it beside the button too
+        let msg = row.querySelector(".ov-error");
+        if (!msg) { msg = document.createElement("div"); msg.className = "ov-error"; msg.setAttribute("role", "alert"); msg.style.cssText = "width:100%; color:#991b1b; font-weight:700; font-size:12.5px;"; row.querySelector(".editor-hint")?.before(msg); }
+        msg.textContent = err.message;
       }
     });
 

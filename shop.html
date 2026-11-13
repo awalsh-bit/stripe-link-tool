@@ -1290,6 +1290,14 @@
       const key = btn.getAttribute("data-deal");
       const turningOn = state.filter.deal !== key;
       state.filter.deal = turningOn ? key : "";
+      // A top deal and a department are two ways of choosing a slice — one at
+      // a time (11/13: "Dishwashers under $999" inside Refrigeration showed
+      // nothing). Picking a deal lets go of the department and its Type chips.
+      if (turningOn && (state.filter.selection || state.filter.types.size)) {
+        state.filter.selection = null;
+        state.filter.types = new Set();
+        renderCrumb();
+      }
       buildFilters();
       renderGrid();
       // On a phone the banners fill the screen — bring the results up.
@@ -1327,6 +1335,7 @@
   function applySelection(sel) {
     state.filter.selection = sel;
     state.filter.types = new Set();
+    state.filter.deal = ""; // ...and picking a department (or Outlet, or Shop all) lets go of the top deal
     buildFilters();
     renderGrid();
     renderCrumb();

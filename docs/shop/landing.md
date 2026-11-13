@@ -90,6 +90,25 @@ Tapping a product tile on `shop.html` opens it to double width (taller, in place
 - **Wire:** `loadShopData()` reads the file (optional — no file, no details); `/api/shop/catalog` sends `details` keyed by normalized model for the models in the response.
 - **Not done yet:** benefit wording, an editor on the catalog page, and re-running the mapping when NetSuite changes.
 
+### Features | Specs (11/12)
+
+The open tile now has two sides. **Features** is the panel above, unchanged. **Specs** is a short table from NetSuite: Type (the merch subclass), Nominal width / height / depth, Capacity, Finish, Panel ready, ADA compliant — only the rows a model has.
+
+- **Data:** the item export's *Nominal Width*, *Nominal Height*, *Nominal Depth*, *Nominal Capacity (cu ft)* and *ADA Compliant* columns (first seen in `items/Items761.csv`). They are read by the same upload as the rest of the item export — Written Models → NetSuite items, or the model catalog import — into `netsuite_items` (`nominal_width`, `nominal_height`, `nominal_depth`, `nominal_capacity`, `ada`). **Nothing shows until that export has been uploaded once.** Values are cleaned on the way in (`30"` → `30`; anything that is not a sensible number is dropped). An export that does not carry these columns leaves the stored dimensions alone; one that does replaces them.
+- **What Items761 actually holds:** width for 10,213 items, capacity for 2,793, ADA for 385, and height and depth for only four (the Cove DW2451 dishwashers). All 161 models with a Features panel have at least a width or a capacity. Height and depth rows appear on their own as NetSuite is filled in.
+- **Which tiles open:** a tile opens when it has features *or* specs. With both, the Features | Specs switch shows and the tile opens on whichever side the shopper last chose (Features to start). With only one, there is no switch.
+- **Reading:** inches are written as a tape measure reads (`32.125` → `32 1/8 in.`); a laundry center's `3.5/7` is labelled washer / dryer; a placeholder finish (Bosch's "Appl") is left out. Under any nominal dimension the tile says that nominal sizes name the size class, not exact measurements, and points to the installation guide or the phone — these numbers are not cut-out dimensions.
+- **Wire:** `computeShopCatalog` attaches `specs` to each unit (`getNetsuiteSpecsMap()`); `/api/shop/catalog` sends `specs` keyed by normalized model, once per model, beside `details` (`shopSpecsFor()` in `server.js`). A model with no dimension, capacity or ADA value has no entry.
+
+### Sell sheets and spec sheets (11/12)
+
+Under either side of an open tile, a model can carry a link to the manufacturer's PDF — first used for Speed Queen's four sell sheets (top load washers, dryers, front load washers & matching dryers, stacked washer-dryers), which give the exact dimensions the nominal Specs do not.
+
+- **Files:** the PDFs live in the repo's `spec sheets` folder. That folder is tracked in git since 11/12 (it was ignored before, so nothing in it reached Render) and is still denied as a static folder.
+- **Mapping:** `data/shop-spec-sheets.json` — one entry per PDF: `id`, `file`, `label`, and `models`, the model numbers printed on the sheet. A model gets the link only when it is listed; the earlier Speed Queen generation (SF7007, FF7009 / FF7010, TR3003 / TR5003 / TR7003) is not on these sheets and has none. To add a sheet: drop the PDF in `spec sheets`, add an entry, push.
+- **Serving:** `GET /api/shop/spec-sheet/<id>.pdf`, public on the shop host. Only an id from the mapping answers, the file name never comes from the request, and a listed file that is missing from the folder is left off the tiles rather than linked.
+- **Wire:** `/api/shop/catalog` sends `sheets` keyed by normalized model: `[{ label, url }]`. A tile opens when it has features, specs or a sheet.
+
 
 ## Guest checkout is the default (11/12)
 

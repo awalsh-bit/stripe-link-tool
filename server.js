@@ -198,7 +198,7 @@ import {
   getModelBrandStats,
   saveShopMapPrices,
   saveShopModelImages,
-  getShopModelImages, getNetsuiteFinishMap, saveShopUnitPhoto, getShopUnitPhoto, deleteShopUnitPhoto, listShopUnitPhotos,
+  getShopModelImages, getNetsuiteFinishMap, getNetsuiteSpecsMap, saveShopUnitPhoto, getShopUnitPhoto, deleteShopUnitPhoto, listShopUnitPhotos,
   addShopModelPhoto, setShopModelPhotoKind, makeShopModelPhotoFirst, getShopModelPhoto, deleteShopModelPhoto, listShopModelPhotos, MODEL_PHOTO_MAX,
   getShopModelImagesMeta,
   getShopMapPrices,
@@ -271,7 +271,7 @@ import { buildCatalogCheck, catalogCheckCsv, CATALOG_ISSUES } from "./lib/catalo
 import { getCatalog, resolveModel, supplierLabel, shopBucketFor, invalidateCatalog } from "./lib/catalog-resolver.js";
 import { listServiceMapRows, isSeeded as serviceMapSeeded, isMiscId, overlayAddons, serviceMapView, applyServiceMapOp, resetServiceMap,
   listBrandMapRows, overlayBrandLayer, brandMapView, applyBrandMapOp, brandServicesKey, brandKeyOf } from "./lib/shop-service-map.js";
-import { MERCH_SUBCLASSES, SUBCLASS_BY_EPASS_PROD, merchSubclassFor, merchClassFor, merchSubclassLabel, merchClassName, merchSubclassName, addonsBySubclass, buildAddonIndex, servicesKeyFor, panelReadyFor } from "./lib/merch-classes.js";
+import { MERCH_SUBCLASSES, SUBCLASS_BY_EPASS_PROD, merchSubclassFor, merchClassFor, merchSubclassLabel, merchClassName, merchSubclassName, addonsBySubclass, buildAddonIndex, servicesKeyFor, panelReadyFor, isUnknownFinish } from "./lib/merch-classes.js";
 import { getInventoryIndex, searchInventory, inventoryModelDetail, invalidateInventoryIndex, UNIT_STATUS as INVENTORY_UNIT_STATUS, LIKELY_AVAILABLE_DAYS } from "./lib/inventory-lookup.js";
 import { PROJECT_STATUSES, PROJECT_STATUS_LABELS, READINESS_ITEMS, getProjectSettings, saveProjectSettings, syncProjectsFromFeed, listProjects, getProject, getProjectByToken, updateProject, addProjectNote, saveProjectReadiness, setProjectGeo } from "./lib/projects-postgres.js";
 import { mapboxConfigured, mapboxPublicToken, geocodeAddress as mapboxGeocode, optimizeRoundTrip } from "./lib/mapbox.js";
@@ -836,6 +836,7 @@ const SHOP_PUBLIC_API_PREFIXES = [
   "/api/config",
   "/api/promo/photo/", // card photos (Promo Item Builder uploads) on storefront tiles
   "/api/shop/unit-photo/", // phone photos of outlet units (Express Assortment Catalog page)
+  "/api/shop/spec-sheet/", // manufacturer sell sheets / spec sheets linked from an open tile — only files named in data/shop-spec-sheets.json
   "/api/shop/model-photo/", // hand-picked model pictures — actual photos and supplier assets (Express Assortment Catalog page); only GET answers without a login
   "/api/shop/zip-check",
   "/api/shop/register",
@@ -7191,6 +7192,7 @@ async function loadShopData() {
   shopDataCache = { at: Date.now(), value };
   return value;
 }
+const SHOP_SPEC_SHEET_DIR = path.join(__dirname, "spec sheets"); // manufacturer PDFs the shop links (data/shop-spec-sheets.json); denied as a static folder
 async function loadShopDataFromDisk() {
   const fs = await import("fs/promises");
   const [clearanceRaw, addonsRaw] = await Promise.all([
@@ -7216,8 +7218,44 @@ async function loadShopDataFromDisk() {
   try {
     productDetails = JSON.parse(await fs.readFile(path.join(__dirname, "data", "shop-product-details.json"), "utf8")).models || {};
   } catch {}
-  return { clearance: JSON.parse(clearanceRaw), addons: JSON.parse(addonsRaw), images, mapPolicy, productDetails };
+  // Sell sheets / spec sheets per model (Andrew 11/12) — optional. The PDFs
+  // sit in the repo's "spec sheets" folder (never served as static files);
+  // data/shop-spec-sheets.json names each one and the models printed on it.
+  // A listed file that isn't on disk is dropped here, so a tile never
+  // carries a link that would 404.
+  const specSheets = { byId: {}, byModel: {} };
+  try {
+    const listed = JSON.parse(await fs.readFile(path.join(__dirname, "data", "shop-spec-sheets.json"), "utf8")).sheets || [];
+    for (const s of listed) {
+      const id = String(s?.id || "").trim().toLowerCase(), file = String(s?.file || "").trim();
+      if (!/^[a-z0-9][a-z0-9-]{0,79}$/.test(id) || !/^[A-Za-z0-9][A-Za-z0-9 ._-]{0,119}\.pdf$/i.test(file) || specSheets.byId[id]) continue;
+      const stat = await fs.stat(path.join(SHOP_SPEC_SHEET_DIR, file)).catch(() => null);
+      if (!stat?.isFile()) { console.warn(`Shop spec sheet "${file}" is listed but not in the "spec sheets" folder — not linked.`); continue; }
+      const label = String(s.label || file).trim().slice(0, 140);
+      specSheets.byId[id] = { id, file, label, bytes: stat.size };
+      for (const m of Array.isArray(s.models) ? s.models : []) {
+        const k = normalizeModelKey(m);
+        if (k) (specSheets.byModel[k] ||= []).push({ label, url: `/api/shop/spec-sheet/${id}.pdf` });
+      }
+    }
+  } catch {}
+  return { clearance: JSON.parse(clearanceRaw), addons: JSON.parse(addonsRaw), images, mapPolicy, productDetails, specSheets };
 }
+// PUBLIC: one listed sell sheet / spec sheet, opened from a shop tile. Only an
+// id from data/shop-spec-sheets.json answers; the file name never comes from
+// the request.
+app.get("/api/shop/spec-sheet/:id", async (req, res) => {
+  try {
+    const id = String(req.params.id || "").toLowerCase().replace(/\.pdf$/, "");
+    const sheet = (await loadShopData()).specSheets?.byId?.[id];
+    if (!sheet) return res.status(404).json({ error: "Not found." });
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", `inline; filename="${id}.pdf"`);
+    res.setHeader("X-Content-Type-Options", "nosniff");
+    res.setHeader("Cache-Control", "public, max-age=86400");
+    return res.sendFile(sheet.file, { root: SHOP_SPEC_SHEET_DIR, headers: { "Content-Type": "application/pdf" } }, (err) => { if (err && !res.headersSent) res.status(404).json({ error: "Not found." }); });
+  } catch (err) { console.error("Shop spec sheet failed:", err.message); return res.status(404).json({ error: "Not found." }); }
+});
 
 // Does this brand+category match a public-pricing rule? Brand matching is
 // case-insensitive; categories are the clearance list's category keys.
@@ -7536,6 +7574,7 @@ async function computeShopCatalogFresh() {
   const addonIndex = buildAddonIndex(addonsFile);
   const addons = { ...addonsFile, byKey: addonIndex };
   const finishMap = await getNetsuiteFinishMap().catch(() => ({}));
+  const specsMap = await getNetsuiteSpecsMap().catch(() => ({})); // nominal width / height / depth / capacity / ADA from the item export (11/12)
   const unitPhotos = await listShopUnitPhotos().catch(() => ({}));
   const modelPhotos = await listShopModelPhotos().catch(() => ({}));
   // The storefront sells the same clearance list the showroom sees (Andrew
@@ -7723,6 +7762,7 @@ async function computeShopCatalogFresh() {
   // rules and by NetSuite's finish (panel-ready → "with panel" installs only).
   for (const i of items) {
     i.finish = finishMap[normalizeModelKey(i.model)] || "";
+    i.specs = specsMap[normalizeModelKey(i.model)] || null;
     i.servicesKey = servicesKeyFor({ subclass: i.subclass, finish: i.finish, brand: i.brand, model: i.model, description: i.description }, addonsFile, addonIndex) || i.subclass || "";
     i.panelReady = i.servicesKey.endsWith("-panel") ? true : panelReadyFor(i.finish);
     const bsk = brandServicesKey(i.brand, i.subclass);
@@ -7760,6 +7800,23 @@ function shopAddonById(addons) {
     map.set(a.id, a);
   }
   return map;
+}
+
+// The Specs side of a shop tile (11/12): the model's nominal dimensions from
+// NetSuite's item export, with the type, finish and panel-ready facts the
+// catalog already knows. A model with no dimension, capacity or ADA value on
+// file has no specs — type and finish alone aren't worth a tab.
+function shopSpecsFor(item) {
+  const s = item?.specs;
+  if (!s || !(s.width || s.height || s.depth || s.capacity || s.ada)) return null;
+  const out = {};
+  const type = merchSubclassName(item.subclass);
+  if (type) out.type = type;
+  for (const k of ["width", "height", "depth", "capacity"]) if (s[k]) out[k] = s[k];
+  if (item.finish && !isUnknownFinish(item.finish)) out.finish = item.finish;
+  if (item.panelReady === true && !/panel/i.test(out.finish || "")) out.panelReady = true; // not twice when the finish already reads "Panel Ready"
+  if (s.ada) out.ada = s.ada;
+  return out;
 }
 
 // Recompute the whole cart server-side. Returns null if any unit is gone.
@@ -8986,17 +9043,33 @@ app.get("/api/shop/catalog", async (req, res) => {
     }
     // Product details (11/12): sent once per model beside the items, not on
     // every unit — the card shows them when its tile is tapped.
-    const { productDetails = {} } = await loadShopData();
+    const { productDetails = {}, specSheets = { byModel: {} } } = await loadShopData();
     const details = {};
     for (const it of items) {
       const k = normalizeModelKey(it.model);
       const d = !details[k] && productDetails[k];
       if (d && (d.description || (d.features || []).length)) details[k] = { headline: d.headline || "", description: d.description || "", features: (d.features || []).slice(0, 3), more: d.more || [] };
     }
+    // Specs (11/12): the same once-per-model shape, for the tile's Specs tab.
+    const specs = {};
+    for (const it of catalog.items) {
+      const k = normalizeModelKey(it.model);
+      if (specs[k] || it.gridHidden) continue;
+      const sp = shopSpecsFor(it);
+      if (sp) specs[k] = sp;
+    }
+    // Sell sheets / spec sheets (11/12): links for the open tile, per model.
+    const sheets = {};
+    for (const it of catalog.items) {
+      const k = normalizeModelKey(it.model);
+      if (!sheets[k] && !it.gridHidden && specSheets.byModel?.[k]) sheets[k] = specSheets.byModel[k];
+    }
     res.setHeader("Cache-Control", "no-store");
     return res.json({
       items: [...groups.values()],
       details,
+      specs,
+      sheets,
       categories: catalog.categories,
       listDate: catalog.listDate,
       unlocked: Boolean(shopper),

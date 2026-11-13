@@ -1,0 +1,37 @@
+{
+  "_meta": {
+    "note": "Manufacturer sell sheets and spec sheets the Express shop links from an open tile. Each file lives in the repo's \"spec sheets\" folder and is served only through /api/shop/spec-sheet/<id>; a file that is not listed here is never served. `models` are the model numbers printed on the sheet. To add one: drop the PDF in \"spec sheets\", add an entry, push.",
+    "folder": "spec sheets",
+    "added": "2026-11-12"
+  },
+  "sheets": [
+    {
+      "id": "speed-queen-top-load-washers",
+      "file": "sq_wash_sell_sheet.pdf",
+      "brand": "Speed Queen",
+      "label": "Speed Queen top load washers — sell sheet",
+      "models": ["TR7006WN", "TR7006BN", "TR5006WN", "TR3006WN", "TC5003WN", "TC5003BN"]
+    },
+    {
+      "id": "speed-queen-dryers",
+      "file": "sq_dryers_sell_sheet.pdf",
+      "brand": "Speed Queen",
+      "label": "Speed Queen dryers — sell sheet",
+      "models": ["DR7004WG", "DR7004BG", "DR7004WE", "DR7004BE", "DR5004WG", "DR5004WE", "DR3004WG", "DR3004WE", "DC5004WG", "DC5004BG", "DC5004WE", "DC5004BE"]
+    },
+    {
+      "id": "speed-queen-front-load",
+      "file": "sq_fl_sell_sheet.pdf",
+      "brand": "Speed Queen",
+      "label": "Speed Queen front load washers & matching dryers — sell sheet",
+      "models": ["FF7011WN", "FF7011BN", "FF7012WN", "FF7012BN", "DF7004WG", "DF7004BG", "DF7004WE", "DF7004BE"]
+    },
+    {
+      "id": "speed-queen-stacked",
+      "file": "sq_stack_sell_sheet.pdf",
+      "brand": "Speed Queen",
+      "label": "Speed Queen stacked washer-dryers — sell sheet",
+      "models": ["SF7008WG", "SF7008BG", "SF7008WE", "SF7008BE"]
+    }
+  ]
+}

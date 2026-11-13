@@ -621,6 +621,30 @@
     .idt-feats li::before { content: ""; position: absolute; left: 2px; top: .5em; width: 7px; height: 7px; border-radius: 50%; background: var(--copper, #BE7D3C); }
     .idt-sub { font-size: 10.5px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); margin: 0 0 4px; }
     .idt-desc { margin: 0; font-size: 13.5px; line-height: 1.55; color: var(--muted); }
+    /* Features | Specs (11/12): the open tile switches between the selling
+       points and the model's nominal dimensions from NetSuite. */
+    .idt-tabs { display: inline-flex; border: 1px solid var(--line); border-radius: var(--r); overflow: hidden; margin: 0 0 12px; }
+    .idt-tab { appearance: none; border: 0; background: var(--surface); color: var(--muted); font: inherit; font-size: 12.5px; font-weight: 600; letter-spacing: .02em; padding: 0 18px; min-height: 40px; cursor: pointer; }
+    .idt-tab + .idt-tab { border-left: 1px solid var(--line); }
+    .idt-tab[aria-pressed="true"] { background: var(--ink); color: #fff; }
+    .idt-tab:focus-visible { outline: 2px solid var(--accent, #67533E); outline-offset: -3px; }
+    .idt-pane[hidden] { display: none; }
+    .idt-specs { margin: 0 0 10px; }
+    .idt-specs > div { display: flex; justify-content: space-between; align-items: baseline; gap: 16px; padding: 8px 0; border-bottom: 1px solid var(--line); font-size: 14px; line-height: 1.35; }
+    .idt-specs > div:first-child { border-top: 1px solid var(--line); }
+    .idt-specs dt { color: var(--muted); }
+    .idt-specs dd { margin: 0; font-weight: 600; text-align: right; }
+    .idt-note { margin: 0; font-size: 12px; line-height: 1.5; color: var(--muted); }
+    .idt-note a { color: var(--accent, #67533E); font-weight: 600; white-space: nowrap; }
+    /* Sell sheet / spec sheet links (11/12): the manufacturer's PDF, under
+       whichever side of the tile is showing. */
+    .idt-docs { display: grid; gap: 8px; margin-top: 14px; }
+    .idt-doc { display: flex; align-items: center; gap: 12px; min-height: 48px; padding: 9px 12px; border: 1px solid var(--line); border-radius: var(--r); background: var(--surface); color: var(--ink); text-decoration: none; }
+    .idt-doc:hover { border-color: var(--ink); }
+    .idt-doc:focus-visible { outline: 2px solid var(--accent, #67533E); outline-offset: 2px; }
+    .idt-doc-ic { flex: 0 0 auto; font-family: var(--f-mono, monospace); font-size: 10.5px; font-weight: 700; letter-spacing: .06em; color: #fff; background: var(--copper, #BE7D3C); border-radius: 3px; padding: 4px 6px; }
+    .idt-doc-tx { min-width: 0; font-size: 13.5px; font-weight: 600; line-height: 1.3; }
+    .idt-doc-tx small { display: block; font-size: 12px; font-weight: 400; color: var(--muted); margin-top: 2px; }
     @media (min-width: 620px) {
       /* double width: the tile's own content on the left, the details on the right */
       .item-card.expanded { grid-column: span 2; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); column-gap: 20px; align-content: start; }
@@ -1081,7 +1105,8 @@
     filter: { search: "", brand: "", selection: null, types: new Set(), deal: "", sort: "best" },
     bestSellers: new Set(),
     checkout: { open: false, stripe: null, elements: null, setupIntentId: "" },
-    pendingAddonItem: null
+    pendingAddonItem: null,
+    detailTab: "features" // which side of an open tile shows: "features" or "specs" (kept as the shopper moves between tiles)
   };
 
   const $ = (id) => document.getElementById(id);
@@ -1385,12 +1410,54 @@
   // same for keyboards. The open tile is remembered across re-renders (adding
   // to the cart redraws the grid).
   const detailNorm = (m) => String(m || "").toUpperCase().replace(/[^0-9A-Z]/g, "");
+  // Specs (11/12): nominal dimensions from NetSuite's item export, sent once
+  // per model as catalog.specs. Inches read the way a tape measure does
+  // (34.5 -> 34 1/2 in.); a laundry center's capacity is a washer / dryer pair.
+  const inchText = (v) => {
+    const n = Number(v);
+    if (!Number.isFinite(n) || n <= 0) return "";
+    const whole = Math.floor(n), six = (n - whole) * 16;
+    if (Math.abs(six - Math.round(six)) > 1e-6) return `${n} in.`;
+    let num = Math.round(six), den = 16;
+    if (!num) return `${whole} in.`;
+    while (num % 2 === 0) { num /= 2; den /= 2; }
+    return `${whole ? whole + " " : ""}${num}/${den} in.`;
+  };
+  function specRows(model) {
+    const sp = (state.catalog?.specs || {})[detailNorm(model)];
+    if (!sp) return [];
+    const rows = [];
+    if (sp.type) rows.push(["Type", sp.type]);
+    if (sp.width) rows.push(["Nominal width", inchText(sp.width)]);
+    if (sp.height) rows.push(["Nominal height", inchText(sp.height)]);
+    if (sp.depth) rows.push(["Nominal depth", inchText(sp.depth)]);
+    if (sp.capacity) { const parts = String(sp.capacity).split("/"); rows.push([parts.length > 1 ? "Capacity (washer / dryer)" : "Capacity", `${parts.join(" / ")} cu. ft.`]); }
+    if (sp.finish) rows.push(["Finish", sp.finish]);
+    if (sp.panelReady) rows.push(["Panel ready", "Yes"]);
+    if (sp.ada) rows.push(["ADA compliant", sp.ada === "yes" ? "Yes" : "No"]);
+    return rows.filter((r) => r[1]);
+  }
+  // Show one side of an open tile. A tile with only one side has no switch
+  // and nothing to do.
+  function showDetailTab(card, which) {
+    const tabs = card.querySelectorAll(".idt-tab");
+    if (!tabs.length) return;
+    for (const b of tabs) b.setAttribute("aria-pressed", String(b.dataset.idt === which));
+    for (const pane of card.querySelectorAll(".idt-pane")) pane.hidden = pane.dataset.pane !== which;
+  }
+  document.addEventListener("click", (e) => {
+    const tab = e.target.closest("#itemGrid .idt-tab");
+    if (!tab) return;
+    state.detailTab = tab.dataset.idt === "specs" ? "specs" : "features";
+    showDetailTab(tab.closest(".item-card"), state.detailTab);
+  });
   function toggleDetails(card) {
     const opening = !card.classList.contains("expanded");
     for (const el of document.querySelectorAll("#itemGrid .item-card.expanded")) { el.classList.remove("expanded"); const b = el.querySelector(".item-more"); if (b) { b.textContent = "Details"; b.setAttribute("aria-expanded", "false"); } }
     state.expandedKey = opening ? card.dataset.detailKey : "";
     if (!opening) return;
     card.classList.add("expanded");
+    showDetailTab(card, state.detailTab); // the side the shopper last chose, on whichever tile they open next
     const btn = card.querySelector(".item-more"); if (btn) { btn.textContent = "Hide details"; btn.setAttribute("aria-expanded", "true"); }
     // the tile may have moved to a new row to fit its double width — keep it in view
     requestAnimationFrame(() => { const r = card.getBoundingClientRect(); const top = (document.getElementById("siteTop")?.getBoundingClientRect().bottom || 0) + 12; if (r.top < top || r.bottom > window.innerHeight) window.scrollBy({ top: r.top - top, behavior: "smooth" }); });
@@ -1482,8 +1549,16 @@
       card.className = "item-card" + (group.badge ? " has-eye" : "");
       // product details for this model, when we have them (tap the tile to open)
       const det = (state.catalog.details || {})[detailNorm(group.model)] || null;
+      // ...and its specs (11/12). A tile opens when it has either; the
+      // Features | Specs switch shows only when it has both.
+      const specs = specRows(group.model);
+      // ...and the manufacturer's sell sheet / spec sheet, when one is on file
+      const docs = (state.catalog.sheets || {})[detailNorm(group.model)] || [];
+      const canOpen = !!det || specs.length > 0 || docs.length > 0;
+      const both = !!det && specs.length > 0;
+      const tab = both ? (state.detailTab === "specs" ? "specs" : "features") : specs.length ? "specs" : "features";
       const dkey = [group.model, group.condition || "", group.serialType || "", group.photoActual ? group.image : ""].join("|");
-      const open = !!det && state.expandedKey === dkey;
+      const open = canOpen && state.expandedKey === dkey;
       const total = group.ids.length;
       const carted = group.ids.filter((id) => state.cart.itemIds.includes(id)).length;
       const allInCart = carted >= total;
@@ -1493,7 +1568,7 @@
         ${group.image ? `<div class="item-pic${group.photoActual ? " actual" : ""}"${morePics(group) ? ` data-pics="${esc(JSON.stringify(group.images))}" data-i="0"` : ""}><img class="item-img" src="${esc(group.image)}" alt="${esc(group.model)}" loading="lazy" onerror="this.parentElement.remove()">${group.photoActual || morePics(group) ? `<span class="photo-chip"${group.photoActual ? "" : " hidden"}>Actual product photo</span>` : ""}${morePics(group) ? `<button type="button" class="pic-nav prev" aria-label="Previous photo">‹</button><button type="button" class="pic-nav next" aria-label="Next photo">›</button><span class="pic-count">1 / ${group.images.length}</span>` : ""}</div>` : ""}
         <div class="item-brand">${esc(group.brand)}</div>
         <div class="item-desc">${esc(det?.headline || group.description)}</div>
-        ${det ? `<button type="button" class="item-more" aria-expanded="${open ? "true" : "false"}">${open ? "Hide details" : "Details"}</button>` : ""}
+        ${canOpen ? `<button type="button" class="item-more" aria-expanded="${open ? "true" : "false"}">${open ? "Hide details" : "Details"}</button>` : ""}
         <div class="item-model"><a href="${esc(productPageUrl(group.model))}" target="_blank" rel="noopener" title="View ${esc(group.model)} on wilsonappliance.com">${esc(group.model)}</a></div>
         <div class="item-cat">${esc(categoryLabel(group.category))}${group.source === "stock" ? "" : ` · ${total} available`}${carted && !allInCart ? ` · ${carted} in cart` : ""}${state.bestSellers.has(group.model) ? `<span class="best-tag">Best seller</span>` : ""}</div>
         <div class="item-foot">
@@ -1514,13 +1589,25 @@
                   ? `<span class="in-cart">${total > 1 ? "All " + total + " in cart ✓" : "In cart ✓"}</span>`
                   : `<button class="btn primary" data-add-group="${index}">Add to cart</button>`)}
         </div>
-        ${det ? `<div class="item-details">
+        ${canOpen ? `<div class="item-details">
           <div class="idt-kicker">${esc(group.brand)} ${esc(group.model)}</div>
-          <div class="idt-head">${esc(det.headline || group.description)}</div>
-          ${det.features && det.features.length ? `<ul class="idt-feats">${det.features.map((f) => `<li>${esc(f)}</li>`).join("")}</ul>` : ""}
-          ${det.description ? `<p class="idt-sub">Full description</p><p class="idt-desc">${esc(det.description)}</p>` : ""}
+          <div class="idt-head">${esc(det?.headline || group.description)}</div>
+          ${both ? `<div class="idt-tabs" role="group" aria-label="Details for ${esc(group.model)}">
+            <button type="button" class="idt-tab" data-idt="features" aria-pressed="${tab === "features"}">Features</button>
+            <button type="button" class="idt-tab" data-idt="specs" aria-pressed="${tab === "specs"}">Specs</button>
+          </div>` : ""}
+          ${det ? `<div class="idt-pane" data-pane="features"${tab === "features" ? "" : " hidden"}>
+            ${det.features && det.features.length ? `<ul class="idt-feats">${det.features.map((f) => `<li>${esc(f)}</li>`).join("")}</ul>` : ""}
+            ${det.description ? `<p class="idt-sub">Full description</p><p class="idt-desc">${esc(det.description)}</p>` : ""}
+          </div>` : ""}
+          ${specs.length ? `<div class="idt-pane" data-pane="specs"${tab === "specs" ? "" : " hidden"}>
+            ${both ? "" : `<p class="idt-sub">Specs</p>`}
+            <dl class="idt-specs">${specs.map(([k, v]) => `<div><dt>${esc(k)}</dt><dd>${esc(v)}</dd></div>`).join("")}</dl>
+            ${specs.some(([k]) => k.startsWith("Nominal")) ? `<p class="idt-note">Nominal sizes name the size class an appliance is built for, not its exact measurements. For cut-out dimensions, see the manufacturer's installation guide or call <a href="tel:512-894-0907">512-894-0907</a>.</p>` : ""}
+          </div>` : ""}
+          ${docs.length ? `<div class="idt-docs">${docs.map((d) => `<a class="idt-doc" href="${esc(d.url)}" target="_blank" rel="noopener"><span class="idt-doc-ic" aria-hidden="true">PDF</span><span class="idt-doc-tx">${esc(d.label)}<small>Exact dimensions, features and warranty by model</small></span></a>`).join("")}</div>` : ""}
         </div>` : ""}`;
-      if (det) { card.classList.add("has-details"); card.dataset.detailKey = dkey; if (open) card.classList.add("expanded"); }
+      if (canOpen) { card.classList.add("has-details"); card.dataset.detailKey = dkey; if (open) card.classList.add("expanded"); }
       grid.appendChild(card);
     });
 

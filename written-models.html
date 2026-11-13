@@ -325,7 +325,8 @@
               ? `Report loaded: ${data.lines} written lines across ${data.models} models (report date ${day(data.reportDate)}, window ${day(data.startDate)} → ${day(data.endDate)}).${data.warnings?.length ? "\n" + data.warnings.join("\n") : ""}`
               : `Items loaded: ${data.items} NetSuite models, ${data.withSupplier ?? 0} with a Primary Supplier.`
                 + (data.catalog && !data.catalog.error ? ` Brand map updated for ${data.catalog.imported} models` + (data.hierarchyColumns ? ` (${data.withHierarchy ?? 0} with a merch category / class / subclass — Inventory Lookup, the shop and Catalog Check pick these up now).` : ` — this file has no Merch Category / Class / Subclass columns, so the hierarchy filters elsewhere stay as they were.`) : "")
-                + (data.catalog?.error ? ` Brand map not updated: ${data.catalog.error}` : ""), "ok");
+                + (data.catalog?.error ? ` Brand map not updated: ${data.catalog.error}` : "")
+                + (data.withSpecs != null ? ` Nominal dimensions read for ${data.withSpecs} models — the shop's Specs tab shows them.` : data.specsKept ? ` This file has no Nominal Width / Height / Depth / Capacity columns, so the dimensions already on file for ${data.specsKept} models were kept.` : ""), "ok");
             $(fileId).value = ""; $(nameId).textContent = "";
             await load();
           } catch (err) { setStatus(err.message, "error"); }

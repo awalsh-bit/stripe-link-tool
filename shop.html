@@ -614,8 +614,6 @@
     .item-details { display: none; border-top: 1px solid var(--line); margin-top: 6px; padding-top: 12px; cursor: auto; }
     .item-card.expanded .item-details { display: block; }
     .item-card.expanded { border-color: var(--ink); box-shadow: 0 14px 34px rgba(36,33,30,.14); }
-    .idt-kicker { font-size: 10.5px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: var(--copper, #BE7D3C); margin-bottom: 4px; }
-    .idt-head { font-family: var(--f-display, inherit); font-size: 18px; font-weight: 600; line-height: 1.2; margin-bottom: 10px; }
     .idt-feats { list-style: none; margin: 0 0 12px; padding: 0; display: grid; gap: 7px; }
     .idt-feats li { position: relative; padding-left: 18px; font-size: 14.5px; font-weight: 600; line-height: 1.35; }
     .idt-feats li::before { content: ""; position: absolute; left: 2px; top: .5em; width: 7px; height: 7px; border-radius: 50%; background: var(--copper, #BE7D3C); }
@@ -639,6 +637,7 @@
     /* Sell sheet / spec sheet links (11/12): the manufacturer's PDF, under
        whichever side of the tile is showing. */
     .idt-docs { display: grid; gap: 8px; margin-top: 14px; }
+    .item-details > .idt-docs:first-child { margin-top: 0; }
     .idt-doc { display: flex; align-items: center; gap: 12px; min-height: 48px; padding: 9px 12px; border: 1px solid var(--line); border-radius: var(--r); background: var(--surface); color: var(--ink); text-decoration: none; }
     .idt-doc:hover { border-color: var(--ink); }
     .idt-doc:focus-visible { outline: 2px solid var(--accent, #67533E); outline-offset: 2px; }
@@ -1410,6 +1409,14 @@
   // same for keyboards. The open tile is remembered across re-renders (adding
   // to the cart redraws the grid).
   const detailNorm = (m) => String(m || "").toUpperCase().replace(/[^0-9A-Z]/g, "");
+  // The long description opens with the same words as the tile's title
+  // ("7 Cu. Ft. Electric Dryer, Knob Controls, …"). The title is already on
+  // the tile, so the open panel starts at what follows it (11/12).
+  function descBody(det) {
+    const full = String(det?.description || "").trim(), head = String(det?.headline || "").trim();
+    if (!head || !full.toLowerCase().startsWith(head.toLowerCase())) return full;
+    return full.slice(head.length).replace(/^[\s,;:.–—-]+/, "");
+  }
   // Specs (11/12): nominal dimensions from NetSuite's item export, sent once
   // per model as catalog.specs. Inches read the way a tape measure does
   // (34.5 -> 34 1/2 in.); a laundry center's capacity is a washer / dryer pair.
@@ -1590,15 +1597,13 @@
                   : `<button class="btn primary" data-add-group="${index}">Add to cart</button>`)}
         </div>
         ${canOpen ? `<div class="item-details">
-          <div class="idt-kicker">${esc(group.brand)} ${esc(group.model)}</div>
-          <div class="idt-head">${esc(det?.headline || group.description)}</div>
           ${both ? `<div class="idt-tabs" role="group" aria-label="Details for ${esc(group.model)}">
             <button type="button" class="idt-tab" data-idt="features" aria-pressed="${tab === "features"}">Features</button>
             <button type="button" class="idt-tab" data-idt="specs" aria-pressed="${tab === "specs"}">Specs</button>
           </div>` : ""}
           ${det ? `<div class="idt-pane" data-pane="features"${tab === "features" ? "" : " hidden"}>
             ${det.features && det.features.length ? `<ul class="idt-feats">${det.features.map((f) => `<li>${esc(f)}</li>`).join("")}</ul>` : ""}
-            ${det.description ? `<p class="idt-sub">Full description</p><p class="idt-desc">${esc(det.description)}</p>` : ""}
+            ${descBody(det) ? `<p class="idt-sub">Full description</p><p class="idt-desc">${esc(descBody(det))}</p>` : ""}
           </div>` : ""}
           ${specs.length ? `<div class="idt-pane" data-pane="specs"${tab === "specs" ? "" : " hidden"}>
             ${both ? "" : `<p class="idt-sub">Specs</p>`}

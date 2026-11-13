@@ -642,7 +642,7 @@
           <div class="tot"><div class="t-label">Margin $</div><div class="t-value">${money(t.margin)}</div></div>
           <div class="tot"><div class="t-label">HVAC job commission</div><div class="t-value">${money(t.jobCommission)}</div></div>
           ${t.releasedCount ? `<div class="tot"><div class="t-label">Released holds</div><div class="t-value" style="color: #166534;">${money(t.releasedCommission)}</div></div>` : ""}
-          ${t.heldCount ? `<div class="tot" title="Held jobs are left OUT of every tile on this strip — this is what will pay once the invoice clears."><div class="t-label">Held — unpaid · not in total</div><div class="t-value" style="color: #991b1b;">${money(t.heldCommission)}</div></div>` : ""}
+          ${t.heldBackCount ? `<div class="tot" title="${escapeHtml(heldBackTitle(t, "job"))}"><div class="t-label">Held back — unpaid · not in total</div><div class="t-value" style="color: #991b1b;">${money(t.heldBackCommission)}</div></div>` : ""}
           <div class="tot grand"><div class="t-label">Total commission</div><div class="t-value">${money(t.commission)}</div></div>
         </div>
 
@@ -663,7 +663,8 @@
 
         ${st.stillHeldJobs.length ? `
         <div class="sec-title" style="color: #991b1b;">Still Unpaid — Waiting on Payment<span class="sec-sub">held from earlier months; pays automatically once ePASS shows the invoice paid</span></div>
-        <table class="lines">${JOB_HEAD}<tbody>${jobRows(st.stillHeldJobs, "held")}</tbody></table>` : ""}
+        <table class="lines">${JOB_HEAD}<tbody>${jobRows(st.stillHeldJobs, "held")}
+          <tr class="total-row"><td colspan="9">Total still held — waiting on payment</td><td class="num">${money(t.stillHeldCommission)}</td><td class="no-print"></td></tr></tbody></table>` : ""}
 
         ${st.excludedJobs.length ? `
         <details class="excluded no-print" ${st.excludedJobs.some((j) => editorKey === j.lineKey) ? "open" : ""}>
@@ -711,8 +712,7 @@
           <div class="tot"><div class="t-label">EPIC Protect</div><div class="t-value">${money(t.protectCommission)}</div></div>
           <div class="tot"><div class="t-label">Protect bonus</div><div class="t-value">${money(t.protectBonus)}</div></div>
           ${t.releasedCount ? `<div class="tot"><div class="t-label">Released holds</div><div class="t-value" style="color: #166534;">${money(t.releasedCommission)}</div></div>` : ""}
-          ${t.heldCount ? `<div class="tot" title="Held lines are already left OUT of every tile on this strip — this is what will pay once the invoice clears, not a deduction."><div class="t-label">Held — unpaid · not in total</div><div class="t-value" style="color: #991b1b;">${money(t.heldCommission)}</div></div>` : ""}
-          ${t.discountedCount ? `<div class="tot" title="ePASS Invoice Discounts (the Misc line stamped to each model line) netted off list before margin and payout — ${t.discountedCount} line(s). The Crystal report prints the full price; these statements pay on the discounted price."><div class="t-label">ePASS discounts netted · ${t.discountedCount} line${t.discountedCount === 1 ? "" : "s"}</div><div class="t-value" style="color: #92400e;">${money(t.discountsNetted)}</div></div>` : ""}
+          ${t.heldBackCount ? `<div class="tot" title="${escapeHtml(heldBackTitle(t, "line"))}"><div class="t-label">Held back — unpaid · not in total</div><div class="t-value" style="color: #991b1b;">${money(t.heldBackCommission)}</div></div>` : ""}
           ${t.marginPct != null ? `<div class="tot no-print" title="Overall delivered margin for this statement: total delivered margin (net price less serial cost less vendor credit) divided by total actual revenue, across every new and closeout line with a cost on file. Screen only — not on the PDF or printout.${t.uncostedLines ? ` ${t.uncostedLines} line(s) have no serial cost in the feed and are left out.` : ""}"><div class="t-label">Overall margin · screen only</div><div class="t-value" style="color: #1e40af;">${t.marginPct.toFixed(1)}%</div><div class="t-sub">${money(t.marginDollars)} on ${money(t.marginRevenue)}${t.commissionOfMargin != null ? ` · pays ${t.commissionOfMargin.toFixed(0)}% of margin` : ""}${t.uncostedLines ? ` · ${t.uncostedLines} no-cost line${t.uncostedLines === 1 ? "" : "s"}` : ""}</div></div>` : ""}
           <div class="tot grand"><div class="t-label">Total commission</div><div class="t-value">${money(t.commission)}</div></div>
         </div>
@@ -772,7 +772,8 @@
             <tr class="held-row"><td style="white-space: nowrap; font-weight: 600;">${escapeHtml(l.invoice)} <span class="badge unpaid">Unpaid</span> <span class="badge heldmonth">held ${escapeHtml(monthLabel(l.heldFrom))}</span></td>
             <td>${escapeHtml(l.customer)}</td><td>${escapeHtml(l.product)}</td><td class="num">${l.qty}</td>
             <td class="num">${money(l.revenue)}</td>
-            <td class="num">${l.commission == null ? "with protect pool" : money(l.commission)}</td></tr>`).join("")}</tbody>
+            <td class="num">${l.commission == null ? "with protect pool" : money(l.commission)}</td></tr>`).join("")}
+            <tr class="total-row"><td colspan="5">Total still held — waiting on payment</td><td class="num">${money(t.stillHeldCommission)}</td></tr></tbody>
         </table>` : ""}
 
         ${st.excludedLines.length ? `
@@ -1259,11 +1260,19 @@
       }
     });
 
+    // What the "Held back" tile adds up (11/12): this month's held lines plus
+    // the ones still held from earlier months. Shown as the tile's hover text.
+    function heldBackTitle(t, unit) {
+      const parts = [];
+      if (t.heldCount) parts.push(`${money(t.heldCommission)} on ${t.heldCount} ${unit}(s) held this month`);
+      if (t.stillHeldCount) parts.push(`${money(t.stillHeldCommission)} on ${t.stillHeldCount} ${unit}(s) still held from earlier months`);
+      return `Commission waiting on unpaid invoices: ${parts.join(" + ")}. Left OUT of every other tile on this strip — it pays once the invoice clears, it is not a deduction.${t.heldBackProtectCount ? ` ${t.heldBackProtectCount} held protection plan(s) carry no amount until they release.` : ""}`;
+    }
     el("csvBtn").addEventListener("click", () => {
       const rows = visibleStatements();
       const esc = (v) => `"${String(v == null ? "" : v).replace(/"/g, '""')}"`;
       const csv = [
-        ["Month", "Code", "Name", "Plan", "Eligible", "Trailing 6mo Serial Rev", "New List", "New Commission", "Closeout List", "Closeout Commission", "Protect Sell", "Attach %", "Protect Rate %", "Protect Commission", "Protect Bonus", "Released Holds", "Held Unpaid", "Still Held (count)", "Total Commission"].map(esc).join(","),
+        ["Month", "Code", "Name", "Plan", "Eligible", "Trailing 6mo Serial Rev", "New List", "New Commission", "Closeout List", "Closeout Commission", "Protect Sell", "Attach %", "Protect Rate %", "Protect Commission", "Protect Bonus", "Released Holds", "Held Unpaid", "Still Held (count)", "Total Commission", "Still Held Commission", "Total Held Back"].map(esc).join(","),
         ...rows.map((s) => [
           data.month, s.code, s.name, s.commissionPlan, s.eligibility.eligible ? "Yes" : "No",
           s.eligibility.trailingSerialRevenue, s.totals.newRevenue, s.totals.newCommission,
@@ -1271,7 +1280,8 @@
           (s.totals.attachRate * 100).toFixed(2), (s.totals.protectRate * 100).toFixed(0),
           s.totals.protectCommission, s.totals.protectBonus,
           s.totals.releasedCommission, s.totals.heldCommission, s.totals.stillHeldCount,
-          s.totals.commission
+          s.totals.commission,
+          s.totals.stillHeldCommission ?? 0, s.totals.heldBackCommission ?? 0
         ].map(esc).join(","))
       ].join("\r\n");
       const a = document.createElement("a");

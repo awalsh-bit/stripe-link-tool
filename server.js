@@ -14591,8 +14591,12 @@ app.post("/api/field-commissions/statement-email", requireCommissionsPage, async
     const firstName = statement.name.split(/\s+/)[0] || statement.name;
     const totalText = `$${statement.totals.commission.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
     const subject = `Your ${label} commission statement — ${totalText}`;
-    const stillHeldNote = statement.totals.stillHeldCount
-      ? `${statement.totals.stillHeldCount} line(s) are held on unpaid invoices and will pay automatically once the invoice clears.`
+    // Commission waiting on unpaid invoices, as a dollar figure (11/12): this
+    // month's held lines plus anything still held from earlier months.
+    const heldBackText = `$${(Number(statement.totals.heldBackCommission) || 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    const heldUnit = statement.planKey === "hvac" ? "job(s)" : "line(s)";
+    const stillHeldNote = statement.totals.heldBackCount
+      ? `${heldBackText} in commission on ${statement.totals.heldBackCount} ${heldUnit} is being held on unpaid invoices. It is not in the total above and will pay automatically once the invoice clears.`
       : "";
     const bodyLines = [
       `Hi ${firstName},`,

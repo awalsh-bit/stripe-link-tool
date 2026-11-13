@@ -38,11 +38,16 @@
     .window-chip { border-radius: 999px; font-size: 11px; font-weight: 700; padding: 4px 12px; }
     .window-chip.open { background: rgba(22, 101, 52, 0.12); color: #166534; }
     .window-chip.closed { background: #f1f5f9; color: #64748b; }
-    .totals-strip { display: flex; gap: 12px; flex-wrap: wrap; margin: 14px 0 4px; }
+    .totals-strip { display: flex; gap: 12px; flex-wrap: wrap; align-items: flex-start; margin: 14px 0 4px; }
     .tot { background: #f8fafc; border: 1px solid var(--border); border-radius: 12px; padding: 10px 16px; min-width: 150px; }
     .tot.grand { background: rgba(var(--primary-rgb), 0.08); border-color: rgba(var(--primary-rgb), 0.35); }
     .t-label { font-size: 11px; color: var(--muted); font-weight: 700; letter-spacing: 0.03em; text-transform: uppercase; }
     .t-value { font-size: 18px; font-weight: 800; margin-top: 2px; }
+    /* commission waiting on unpaid invoices — its own red tile, with what it adds up */
+    .tot.held-back { background: #fff7f7; border-color: #fecaca; max-width: 300px; }
+    .tot.held-back .t-label, .tot.held-back .t-value { color: #991b1b; }
+    .t-note { font-size: 11.5px; color: var(--muted); line-height: 1.4; margin-top: 3px; }
+    table.lines tr.total-row td { font-weight: 800; border-bottom: none; background: #f8fafc; }
     .sec-title { font-weight: 800; font-size: 14px; margin: 22px 0 8px; display: flex; align-items: baseline; gap: 10px; }
     .spiff-fold { margin: 10px 0 4px; }
     .spiff-fold summary { cursor: pointer; font-size: 12.5px; color: #5f6b63; padding: 8px 10px; background: #f4f7f4; border-radius: 8px; }
@@ -182,8 +187,36 @@
               <th>Model</th><th>Invoice</th><th class="num">Qty</th><th class="num">Your revenue</th>
               <th class="num">${opts.gm ? "GM%" : ""}</th><th class="num">${opts.rate ? "Rate" : ""}</th><th class="num">Commission</th>
             </tr></thead>
-            <tbody>${lineRows(lines, section, opts)}</tbody>
+            <tbody>${lineRows(lines, section, opts)}${opts.totalLabel ? `
+              <tr class="total-row"><td colspan="${excMode ? 7 : 6}">${esc(opts.totalLabel)}</td><td class="num">${money(opts.total)}</td></tr>` : ""}</tbody>
           </table>`;
+      }
+      // Commission waiting on unpaid invoices (11/12): this month's held lines
+      // plus anything still held from earlier months, as one clear number.
+      // Figured from the statement's own rows, so a statement posted before
+      // the totals carried these fields shows it too.
+      function heldBackOf(st, t) {
+        const hvac = st.planKey === "hvac";
+        const still = (hvac ? st.stillHeldJobs : st.stillHeldLines) || [];
+        const now = (hvac ? (st.jobs || []) : [...(st.newLines || []), ...(st.closeoutLines || []), ...(st.protectLines || [])]).filter((l) => l.held);
+        const cents = (rows) => Math.round(rows.reduce((sum, l) => sum + (Number(l.commission) || 0), 0) * 100) / 100;
+        const held = Number(t.heldCommission) || 0, stillHeld = cents(still);
+        return {
+          held, stillHeld, heldCount: now.length, stillHeldCount: still.length,
+          total: Math.round((held + stillHeld) * 100) / 100, count: now.length + still.length,
+          invoices: new Set(now.concat(still).map((l) => String(l.invoice || ""))).size,
+          // protection plans get their amount from the attach-rate tier of the month they release
+          protect: hvac ? 0 : (st.protectLines || []).filter((l) => l.held).length + still.filter((l) => l.commission == null).length
+        };
+      }
+      function heldBackTile(st, t, unit) {
+        const h = heldBackOf(st, t);
+        if (!h.count) return "";
+        const parts = [];
+        if (h.heldCount) parts.push(`${money(h.held)} held this month`);
+        if (h.stillHeldCount) parts.push(`${money(h.stillHeld)} still held from earlier months`);
+        return `<div class="tot held-back"><div class="t-label">Held back — unpaid invoices</div><div class="t-value">${money(h.total)}</div>
+          <div class="t-note">${h.count} ${unit}${h.count === 1 ? "" : "s"} on ${h.invoices} invoice${h.invoices === 1 ? "" : "s"} · not in your total · pays when the invoice is paid${parts.length > 1 ? `<br>${parts.join(" + ")}` : ""}${h.protect ? `<br>${h.protect} held protection plan${h.protect === 1 ? "" : "s"} get an amount when released` : ""}</div></div>`;
       }
 
       // HVAC Selling Tech statements: one row per finished AC job, paid on
@@ -208,7 +241,7 @@
           </tr>`;
         }).join("");
       }
-      function jobTable(title, sub, jobs, section) {
+      function jobTable(title, sub, jobs, section, opts = {}) {
         if (!jobs || !jobs.length) return "";
         return `
           <div class="sec-title">${esc(title)}<span class="sec-sub">${esc(sub || "")}</span></div>
@@ -217,7 +250,8 @@
               ${excMode ? '<th class="exc-col"></th>' : ""}
               <th>Invoice</th><th>Finished</th><th class="num">Gross</th><th class="num">Cost</th><th class="num">Margin $</th><th class="num">GM · tier</th><th class="num">Rate</th><th class="num">Commission</th>
             </tr></thead>
-            <tbody>${jobRows(jobs, section)}</tbody>
+            <tbody>${jobRows(jobs, section)}${opts.totalLabel ? `
+              <tr class="total-row"><td colspan="${excMode ? 8 : 7}">${esc(opts.totalLabel)}</td><td class="num">${money(opts.total)}</td></tr>` : ""}</tbody>
           </table>`;
       }
       function hvacBody(st, t) {
@@ -227,7 +261,7 @@
             <div class="tot"><div class="t-label">Margin $</div><div class="t-value">${money(t.margin)}${t.gmPercent != null ? ` <span style="font-size:12px; color:#6b7280;">${t.gmPercent.toFixed(1)}% GM</span>` : ""}</div></div>
             <div class="tot"><div class="t-label">HVAC job commission</div><div class="t-value">${money(t.jobCommission)}</div></div>
             ${t.releasedCount ? `<div class="tot"><div class="t-label">Released holds</div><div class="t-value" style="color:#166534;">${money(t.releasedCommission)}</div></div>` : ""}
-            ${t.heldCount ? `<div class="tot" title="Held jobs are not in any total on this page — this amount pays automatically once the invoice clears."><div class="t-label">Held — unpaid · not in total</div><div class="t-value" style="color:#991b1b;">${money(t.heldCommission)}</div></div>` : ""}
+            ${heldBackTile(st, t, "job")}
             <div class="tot grand"><div class="t-label">Total commission</div><div class="t-value">${money(t.commission)}</div></div>
           </div>
 
@@ -241,7 +275,7 @@
 
           ${jobTable("HVAC jobs", "finished this month — % of the job's margin $ by whole-job GM", st.jobs, "jobs")}
           ${jobTable("Released holds", "paid this month after their invoice cleared", st.releasedJobs, "released")}
-          ${jobTable("Still held", "unpaid invoices — pays when the balance clears", st.stillHeldJobs, "held")}
+          ${jobTable("Still held", "unpaid invoices — pays when the balance clears", st.stillHeldJobs, "held", { totalLabel: "Total still held — waiting on payment", total: heldBackOf(st, t).stillHeld })}
           ${jobTable("Omitted jobs", "left out by your manager — the note says why", st.excludedJobs, "excluded")}
           <div class="cust" style="margin-top:12px;">Tiers by whole-job GM: below 22% base only · 22–30.99% 6% · 31–37.99% 8% · 38–44.99% 10% · 45%+ 12% — of the margin dollars, not the list.</div>`;
       }
@@ -307,8 +341,7 @@
             <div class="tot"><div class="t-label">EPIC Protect</div><div class="t-value">${money(t.protectCommission)}</div></div>
             <div class="tot"><div class="t-label">Protect bonus</div><div class="t-value">${money(t.protectBonus)}</div></div>
             ${t.releasedCount ? `<div class="tot"><div class="t-label">Released holds</div><div class="t-value" style="color:#166534;">${money(t.releasedCommission)}</div></div>` : ""}
-            ${t.heldCount ? `<div class="tot" title="Held lines are not in any total on this page — this amount pays automatically once the invoice clears."><div class="t-label">Held — unpaid · not in total</div><div class="t-value" style="color:#991b1b;">${money(t.heldCommission)}</div></div>` : ""}
-            ${t.discountedCount ? `<div class="tot" title="Program / invoice discounts entered in ePASS are netted off the list price before margin and payout."><div class="t-label">Discounts netted · ${t.discountedCount} line${t.discountedCount === 1 ? "" : "s"}</div><div class="t-value" style="color:#92400e;">${money(t.discountsNetted)}</div></div>` : ""}
+            ${heldBackTile(st, t, "line")}
             <div class="tot grand"><div class="t-label">Total commission</div><div class="t-value">${money(t.commission)}</div></div>
           </div>
 
@@ -329,7 +362,7 @@
           ${sectionTable("Closeouts / Open Box", money(t.closeoutRevenue) + " delivered", st.closeoutLines, "closeout", { rate: true })}
           ${sectionTable("EPIC Protect", money(t.protectSell) + " sold — paid at the monthly attach-rate tier", st.protectLines, "protect", {})}
           ${sectionTable("Released holds", "paid this month after their invoice cleared", st.releasedLines, "released", { gm: true, rate: true })}
-          ${sectionTable("Still held", "unpaid invoices — pays when the balance clears", st.stillHeldLines, "held", {})}
+          ${sectionTable("Still held", "unpaid invoices — pays when the balance clears", st.stillHeldLines, "held", { totalLabel: "Total still held — waiting on payment", total: heldBackOf(st, t).stillHeld })}
           ${sectionTable("Excluded lines", excludedSub, st.excludedLines, "excluded", {})}
 
           ${excMode ? excBarHtml() : ""}

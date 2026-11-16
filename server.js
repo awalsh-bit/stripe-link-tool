@@ -277,7 +277,7 @@ import { PROJECT_STATUSES, PROJECT_STATUS_LABELS, READINESS_ITEMS, getProjectSet
 import { mapboxConfigured, mapboxPublicToken, geocodeAddress as mapboxGeocode, optimizeRoundTrip } from "./lib/mapbox.js";
 import { PARTY_MENU, PARTY_SURVEY_KEY, getPartySurveyMeta, setPartySurveyMeta, getPartySurveyResponse, savePartySurveyResponse, listPartySurveyResponses, tallyPartySurvey } from "./lib/party-survey-postgres.js";
 import {
-  EMPLOYMENT_TYPES, WEEK_DAYS, DOCUMENT_CATEGORIES, COUNSELING_KINDS, COUNSELING_ACKNOWLEDGMENTS, PTO_TYPES, DOCUMENT_MAX_BYTES as HR_DOCUMENT_MAX_BYTES,
+  EMPLOYMENT_TYPES, WEEK_DAYS, DOCUMENT_CATEGORIES, COUNSELING_KINDS, COUNSELING_ACKNOWLEDGMENTS, PTO_TYPES, PTO_PAID_TYPES, PTO_TYPE_GROUPS, PARENTAL_PAID, PARENTAL_PAID_MAX_DAYS, paidParentalDaysUsed, DOCUMENT_MAX_BYTES as HR_DOCUMENT_MAX_BYTES,
   normalizeSchedule, listProfileDetails, getProfileDetails, saveProfileDetails, reportsToWouldLoop,
   addEmployeeDocument, listEmployeeDocuments, countEmployeeDocuments, getEmployeeDocument, removeEmployeeDocument,
   listCounselingRecords, getCounselingRecord, countCounselingRecords, listCounselingOverview, addCounselingRecord, addCounselingAddendum, setCounselingFollowUpDone, voidCounselingRecord,
@@ -18762,7 +18762,7 @@ app.get("/api/pto/mine", async (req, res) => {
     const mine = waiting.filter((r) => canDecidePto(req, me, r));
     let people = [];
     if (hr) people = [...(await hrDirectory()).values()].filter((e) => !e.archived).map((e) => ({ code: e.code, name: e.name }));
-    return res.json({ today: centralDateToday(), profile, requests, types: PTO_TYPES, isHr: hr, toDecide: mine.length, kronosToDo: hr ? (await listKronosQueue()).length : 0, people });
+    return res.json({ today: centralDateToday(), profile, requests, types: PTO_TYPES, ptoTypes: PTO_PAID_TYPES, typeGroups: PTO_TYPE_GROUPS, parentalPaid: { type: PARENTAL_PAID, maxDays: PARENTAL_PAID_MAX_DAYS }, isHr: hr, toDecide: mine.length, kronosToDo: hr ? (await listKronosQueue()).length : 0, people });
   } catch (err) { console.error("Time off load failed:", err.message); return res.status(500).json({ error: "Unable to load your time off." }); }
 });
 
@@ -18885,19 +18885,25 @@ app.get("/api/pto/approvals", async (req, res) => {
       hr ? listRecentPtoDecisions({ all: true }) : listRecentPtoDecisions({ approverEmail: me.email }),
       hr ? listKronosQueue() : Promise.resolve([])
     ]);
-    return res.json({ isHr: hr, pending: pending.map((r) => ({ ...r, canDecide: canDecidePto(req, me, r) })), recent, kronos });
+    // whoever decides a paid parental request sees what the person has already had this year
+    const withUsage = await Promise.all(pending.map(async (r) => ({
+      ...r, canDecide: canDecidePto(req, me, r),
+      ...(r.type === PARENTAL_PAID ? { parentalPaid: { used: await paidParentalDaysUsed(r.employeeCode, r.startDate, { excludeId: r.id }), max: PARENTAL_PAID_MAX_DAYS } } : {})
+    })));
+    return res.json({ isHr: hr, pending: withUsage, recent, kronos });
   } catch (err) { console.error("Time off approvals failed:", err.message); return res.status(500).json({ error: "Unable to load requests." }); }
 });
 
-// Who's out. Everyone signed in gets names and dates - never the kind of
-// time off or the note.
+// Who's out. Everyone signed in gets names, departments and dates - never
+// the kind of time off or the note.
 app.get("/api/pto/calendar", async (req, res) => {
   if (!req.authUser) return res.status(401).json({ error: "Authentication required." });
   try {
     const from = String(req.query.from || ""), to = String(req.query.to || "");
     if (!/^\d{4}-\d{2}-\d{2}$/.test(from) || !/^\d{4}-\d{2}-\d{2}$/.test(to) || (Date.parse(to) - Date.parse(from)) / 86400000 > 100) return res.status(400).json({ error: "Pick a range of up to three months." });
-    const rows = await listApprovedPtoBetween(from, to);
-    return res.json({ from, to, out: rows.map(publicPto) });
+    const [rows, names, departments] = await Promise.all([listApprovedPtoBetween(from, to), hrDirectory(), listDepartments()]);
+    // department rides along so the calendar can be filtered; still no kind and no note
+    return res.json({ from, to, departments: departments.map((d) => d.name), out: rows.map((r) => ({ ...publicPto(r), department: names.get(r.employeeCode)?.department || "" })) });
   } catch (err) { return res.status(400).json({ error: err.message || "Unable to load the calendar." }); }
 });
 

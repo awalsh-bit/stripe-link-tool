@@ -40,9 +40,17 @@ The yellow box on that tab is the rule: **no medical records or doctor's notes, 
 
 ### Asking
 
-Kind (Vacation, Sick, Personal, Bereavement, Jury duty, Unpaid, Other), first and last day, or **Only part of one day** with the hours. An optional note is seen only by the approver and HR. Before sending, the page says who it goes to and how many working days and hours it covers on the person's regular schedule (Monday to Friday is assumed when HR hasn't entered one).
+Kind, first and last day, or **Only part of one day** with the hours. An optional note is seen only by the approver and HR. Before sending, the page says who it goes to and how many working days and hours it covers on the person's regular schedule (Monday to Friday is assumed when HR hasn't entered one).
 
-Limits: up to 60 days per request, start no more than 60 days back or 18 months out, and no overlap with another of the person's pending or approved requests.
+The Kind menu is in three groups:
+
+- **PTO**: Vacation, Sick, Personal.
+- **Parental leave**: *Parental leave (paid)* is the company-paid time, up to 10 working days on top of a person's PTO. A single request can't be longer than that, and whoever decides it sees how many paid parental days that person has already had approved in the previous 12 months (shown in red if this one would take them past 10; it is a warning, not a block). *Parental leave (unpaid)* is for the rest of the time away (in practice this is FMLA leave; the menu uses the neutral name) and can run up to 26 weeks in one request. Someone taking both sends two requests, back to back.
+- **Other leave (not PTO)**: Bereavement, Jury duty, Unpaid, Other.
+
+All of them are asked for, approved and tracked the same way. Unpaid parental leave and the other-leave kinds are tagged "not PTO" on the approver's card and on the Enter in Kronos list.
+
+Limits: up to 60 days per request (26 weeks for unpaid parental leave, 10 working days for paid parental leave), start no more than 60 days back or 18 months out, and no overlap with another of the person's pending or approved requests.
 
 ### Who decides
 
@@ -67,7 +75,12 @@ The employee can cancel a pending request, or an approved one that hasn't finish
 
 ### Who's out
 
-A month calendar at the bottom of the Time Off page, open to everyone. It shows **approved** time off as a name on each day, and "(part day)" for a partial day. It never shows the kind of time off or the note; those go only to the approver and HR. On a phone it becomes a list of just the days someone is out.
+A calendar at the bottom of the Time Off page, open to everyone. It shows **approved** time off as a name on each day, and "(part day)" for a partial day. It never shows the kind of time off or the note; those go only to the approver and HR.
+
+- **Month or Week.** Month is the usual grid. Week shows one Monday-to-Sunday week with room for every name; the arrows move a week at a time and *This week* comes back to today. Switching to Week from the current month lands on this week; from any other month, on that month's first week.
+- **Department filter.** Pick a department to see only its people. The choice stays as you move between weeks and months.
+
+On a phone either view becomes a list of just the days someone is out.
 
 ### HR entering time off for someone
 

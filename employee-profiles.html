@@ -1,0 +1,582 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="robots" content="noindex, nofollow" />
+  <title>Wilson AC & Appliance - Employee Profiles</title>
+  <link rel="icon" href="favicon.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="internal-shell.css" />
+  <style>
+    :root { --primary: #21692c; --primary-hover: #1b5a25; --border: #dbe1ea; --text: #1f2937; --muted: #6b7280; --bg: #f3f6f4; }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--bg); color: var(--text); font-family: "Inter", "Segoe UI", system-ui, sans-serif; padding: 20px 20px 48px; }
+    .wrap { max-width: 1280px; margin: 0 auto; }
+    .surface { background: #fff; border-radius: 18px; padding: 22px; box-shadow: 0 10px 28px rgba(15, 23, 42, 0.06); margin-bottom: 16px; }
+    h2 { margin: 0 0 4px; font-size: 22px; } h3 { margin: 0 0 10px; font-size: 15px; }
+    .mut { color: var(--muted); font-size: 12.5px; }
+    a { color: var(--primary); font-weight: 600; }
+    .note { margin: 0 0 14px; color: var(--muted); font-size: 13.5px; }
+    button { border: none; border-radius: 10px; padding: 9px 16px; font-size: 13.5px; font-weight: 700; background: var(--primary); color: #fff; cursor: pointer; font-family: inherit; }
+    button:hover { background: var(--primary-hover); }
+    button.quiet { background: #eef2f7; color: var(--text); } button.quiet:hover { background: #e2e8f0; }
+    button.danger { background: #fee2e2; color: #991b1b; } button.danger:hover { background: #fecaca; }
+    button.link { background: none; color: var(--primary); padding: 0; font-size: 13px; text-decoration: underline; font-weight: 600; }
+    button:disabled { opacity: .6; cursor: default; }
+    label { display: block; font-size: 12px; font-weight: 700; color: var(--muted); }
+    input[type="text"], input[type="search"], input[type="date"], input[type="time"], input[type="number"], input[type="tel"], select, textarea { width: 100%; margin-top: 4px; border: 1.5px solid var(--border); border-radius: 10px; padding: 9px 12px; font-size: 14px; font-family: inherit; background: #fff; color: var(--text); }
+    input:disabled, select:disabled { background: #f8fafc; color: var(--muted); }
+    textarea { min-height: 76px; resize: vertical; }
+    .form { display: grid; grid-template-columns: repeat(12, 1fr); gap: 12px; }
+    .c2 { grid-column: span 2; } .c3 { grid-column: span 3; } .c4 { grid-column: span 4; } .c5 { grid-column: span 5; } .c6 { grid-column: span 6; } .c8 { grid-column: span 8; } .c12 { grid-column: span 12; }
+    .form h3 { grid-column: span 12; margin: 10px 0 -2px; padding-top: 12px; border-top: 1px solid #eef2f7; }
+    .status { display: none; margin: 10px 0 0; padding: 10px 14px; border-radius: 10px; font-size: 13.5px; } .status.show { display: block; } .status.ok { background: #dcfce7; color: #166534; } .status.error { background: #fee2e2; color: #991b1b; }
+    .caution { background: #fffbeb; border: 1px solid #fde68a; color: #78350f; border-radius: 12px; padding: 10px 14px; font-size: 13px; margin: 0 0 14px; }
+    .lock { background: #f1f5f9; border: 1px solid #e2e8f0; color: #334155; border-radius: 12px; padding: 10px 14px; font-size: 13px; margin: 0 0 14px; }
+
+    .layout { display: grid; grid-template-columns: 340px minmax(0, 1fr); gap: 16px; align-items: start; }
+    .list { padding: 16px; position: sticky; top: 12px; max-height: calc(100vh - 24px); display: flex; flex-direction: column; }
+    .list .filters { display: grid; gap: 8px; margin-bottom: 10px; }
+    .list .filters .two { display: flex; gap: 8px; align-items: center; }
+    .list .filters label.check { display: flex; gap: 6px; align-items: center; font-weight: 600; white-space: nowrap; color: var(--text); }
+    .list .filters label.check input { accent-color: var(--primary); width: 16px; height: 16px; }
+    .people { overflow-y: auto; margin: 0 -8px; padding: 0 8px; flex: 1; }
+    .person { display: block; width: 100%; text-align: left; background: none; color: var(--text); border-radius: 12px; padding: 9px 10px; font-weight: 400; border: 1.5px solid transparent; }
+    .person:hover { background: #f4f7f5; } .person.on { background: #eef7f0; border-color: #b7dcbf; }
+    .person b { display: block; font-size: 14px; } .person span.sub { display: block; font-size: 12px; color: var(--muted); margin-top: 1px; }
+    .person.gone b { color: var(--muted); }
+    .tag { display: inline-block; font-size: 10.5px; font-weight: 700; padding: 2px 7px; border-radius: 999px; margin: 4px 4px 0 0; background: #eef2f7; color: #475569; }
+    .tag.amber { background: #fef3c7; color: #92400e; } .tag.green { background: #dcfce7; color: #166534; } .tag.red { background: #fee2e2; color: #991b1b; } .tag.blue { background: #dbeafe; color: #1e40af; } .tag.violet { background: #ede9fe; color: #5b21b6; }
+    .count { font-size: 12px; color: var(--muted); margin: 0 0 6px; }
+
+    .head { display: flex; gap: 14px; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; }
+    .head .facts { font-size: 13.5px; color: var(--muted); margin-top: 2px; }
+    .tabs { display: flex; gap: 4px; flex-wrap: wrap; margin: 16px 0 18px; border-bottom: 1.5px solid #eef2f7; }
+    .tabs button { -webkit-tap-highlight-color: transparent; background: none; color: var(--muted); border-radius: 10px 10px 0 0; padding: 9px 14px; border-bottom: 2.5px solid transparent; margin-bottom: -1.5px; }
+    .tabs button:hover { background: #f4f7f5; } .tabs button.on { color: var(--primary); border-bottom-color: var(--primary); }
+    .pane[hidden] { display: none; }
+    .back { display: none; margin-bottom: 10px; }
+
+    table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+    th { text-align: left; font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; padding: 6px 8px; border-bottom: 1px solid var(--border); }
+    td { padding: 9px 8px; border-bottom: 1px solid #f1f5f9; vertical-align: top; }
+    tr.removed td { color: var(--muted); } tr.removed td.name { text-decoration: line-through; }
+    .sched td { vertical-align: middle; } .sched input[type="time"] { margin-top: 0; max-width: 150px; } .sched td.day { font-weight: 700; width: 120px; } .sched td.hrs { color: var(--muted); width: 90px; }
+    label.lunch { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; color: var(--text); font-size: 13.5px; font-weight: 600; } label.lunch input { accent-color: var(--primary); width: 17px; height: 17px; } label.lunch .mut { font-weight: 400; }
+    .sched label.check { display: flex; gap: 6px; align-items: center; color: var(--text); font-weight: 600; } .sched label.check input { accent-color: var(--primary); width: 16px; height: 16px; }
+
+    .rec { border: 1.5px solid var(--border); border-radius: 14px; padding: 14px 16px; margin-bottom: 12px; }
+    .rec.void { background: #f8fafc; } .rec.void .body { text-decoration: line-through; color: var(--muted); }
+    .rec .top { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 8px; }
+    .rec .body p { margin: 0 0 8px; font-size: 14px; white-space: pre-wrap; } .rec .body p b { display: block; font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); margin-bottom: 2px; }
+    .rec .add { border-left: 3px solid #cbd5e1; padding: 4px 0 4px 10px; margin: 8px 0; font-size: 13.5px; white-space: pre-wrap; }
+    .rec .acts { display: flex; gap: 14px; flex-wrap: wrap; align-items: center; margin-top: 10px; padding-top: 10px; border-top: 1px solid #f1f5f9; }
+    .rec .inline { display: none; margin-top: 10px; } .rec .inline.show { display: block; }
+    .rec .inline .row { display: flex; gap: 8px; margin-top: 8px; }
+    .empty { color: var(--muted); font-size: 14px; padding: 18px 0; }
+
+    @media (max-width: 900px) {
+      body { padding: 14px 12px 40px; } .surface { padding: 16px; }
+      .layout { grid-template-columns: 1fr; }
+      .list { position: static; max-height: none; } .people { max-height: none; overflow: visible; }
+      body.viewing .list { display: none; } body:not(.viewing) #detail { display: none; }
+      .back { display: inline-block; }
+      .c2, .c3, .c4, .c5, .c6, .c8 { grid-column: span 12; }
+      .hide-sm { display: none; }
+      .sched td.day { width: auto; } .sched input[type="time"] { max-width: none; }
+    }
+  </style>
+</head>
+<body data-shell-label="Employee Profiles" data-shell-icon="home">
+  <div class="wrap">
+    <div id="internal-shell-header"></div>
+
+    <div class="layout">
+      <div class="surface list">
+        <div class="filters">
+          <input id="q" type="search" placeholder="Search name, title, department, code" autocomplete="off" aria-label="Search employees" />
+          <div class="two">
+            <select id="fDept" aria-label="Department"><option value="">All departments</option></select>
+            <label class="check"><input id="fArchived" type="checkbox" /> Former</label>
+          </div>
+        </div>
+        <p class="count" id="count"></p>
+        <div class="people" id="people"></div>
+      </div>
+
+      <div id="detail">
+        <div class="surface" id="blank">
+          <h2>Pick a person</h2>
+          <p class="note" style="margin-bottom:0">Search on the left, then open someone to edit their details, set their regular schedule, keep their HR documents and see their time off. New hires are added, and email addresses and sign-ins are managed, in User Admin.</p>
+        </div>
+
+        <div class="surface" id="card" hidden>
+          <button class="quiet back" id="backBtn" type="button">&larr; All employees</button>
+          <div class="head">
+            <div>
+              <h2 id="hName"></h2>
+              <div class="facts" id="hFacts"></div>
+              <div id="hTags"></div>
+            </div>
+          </div>
+          <div class="tabs" id="tabs" role="tablist">
+            <button type="button" data-tab="profile" class="on">Profile</button>
+            <button type="button" data-tab="schedule">Schedule</button>
+            <button type="button" data-tab="documents">Documents <span id="docN"></span></button>
+            <button type="button" data-tab="timeoff">Time off</button>
+            <button type="button" data-tab="counseling" id="counselTab" hidden>Counseling</button>
+          </div>
+
+          <!-- Profile -->
+          <div class="pane" data-pane="profile">
+            <form id="profileForm" class="form" autocomplete="off">
+              <div class="c6"><label>Name<input id="pName" type="text" maxlength="120" required /></label></div>
+              <div class="c6"><label>Email (changed in User Admin)<input id="pEmail" type="text" disabled /></label></div>
+              <div class="c4"><label><span id="pTitleLabel">Job title</span><select id="pTitle"></select></label></div>
+              <div class="c4"><label>Department<select id="pDept"></select></label></div>
+              <div class="c4"><label>Employment type<select id="pType"></select></label></div>
+              <div class="c6"><label>Reports to (approves their time off)<select id="pManager"></select></label><div class="mut" id="pManagerNote" style="margin-top:6px"></div></div>
+              <div class="c3"><label>Hire date<input id="pHire" type="date" /></label></div>
+              <div class="c3"><label>Birthday<input id="pBirthday" type="date" /></label></div>
+              <div class="c4" id="payPlanBox" hidden><label>Pay plan (from the job title)<input id="pPayPlan" type="text" disabled /></label></div>
+
+              <h3>Contact</h3>
+              <div class="c4"><label>Work phone<input id="pWork" type="tel" maxlength="30" /></label></div>
+              <div class="c4"><label>Mobile phone<input id="pMobile" type="tel" maxlength="30" /></label></div>
+              <div class="c4"><label>Commute miles (one way)<input id="pCommute" type="number" min="0" max="500" step="0.1" /></label></div>
+              <div class="c4"><label>Emergency contact<input id="pEName" type="text" maxlength="120" placeholder="Name" /></label></div>
+              <div class="c4"><label>Relationship<input id="pERel" type="text" maxlength="60" placeholder="Spouse, parent…" /></label></div>
+              <div class="c4"><label>Emergency phone<input id="pEPhone" type="tel" maxlength="30" /></label></div>
+
+              <h3>Uniform</h3>
+              <div class="c3"><label>Shirt size<select id="pShirt"></select></label></div>
+              <div class="c3"><label>Shoe size<input id="pShoe" type="text" maxlength="20" /></label></div>
+
+              <h3>HR note</h3>
+              <div class="c12"><label>Anything HR should remember about this person's record. No medical details.<textarea id="pNote" maxlength="2000"></textarea></label></div>
+              <div class="c12"><button type="submit" id="pSave">Save profile</button> <span class="mut" id="pStamp"></span>
+                <div class="status" id="pStatus"></div></div>
+            </form>
+          </div>
+
+          <!-- Schedule -->
+          <div class="pane" data-pane="schedule" hidden>
+            <p class="note">The hours this person normally works. Time off counts working days and hours from this, and it is the schedule people see when they ask for time off. It doesn't change anything in Kronos.</p>
+            <form id="schedForm" autocomplete="off">
+              <table class="sched">
+                <thead><tr><th>Day</th><th>Off</th><th>Starts</th><th>Ends</th><th>Hours</th></tr></thead>
+                <tbody id="schedRows"></tbody>
+                <tfoot><tr><td colspan="4" style="text-align:right;font-weight:700">Regular week</td><td id="schedTotal" style="font-weight:700"></td></tr></tfoot>
+              </table>
+              <p style="margin:10px 0"><button type="button" class="link" id="copyMon">Copy Monday to Tuesday through Friday</button></p>
+              <label class="lunch"><input id="sLunch" type="checkbox" /> Takes an unpaid hour for lunch <span class="mut">(comes off every day scheduled for more than 5 hours)</span></label>
+              <label style="margin-top:12px">Schedule note<input id="sNote" type="text" maxlength="300" placeholder="Every other Saturday; on call the first week of the month" /></label>
+              <p style="margin:14px 0 0"><button type="submit" id="sSave">Save schedule</button></p>
+              <div class="status" id="sStatus"></div>
+            </form>
+          </div>
+
+          <!-- Documents -->
+          <div class="pane" data-pane="documents" hidden>
+            <div class="caution"><b>Keep these out of Agility:</b> medical records and doctor's notes, I-9 forms, and anything that shows a Social Security or driver's license number. Those belong in their own locked files.</div>
+            <form id="docForm" class="form" autocomplete="off">
+              <div class="c3"><label>Category<select id="dCat"></select></label></div>
+              <div class="c4"><label>Title (optional)<input id="dTitle" type="text" maxlength="160" placeholder="Signed handbook acknowledgment" /></label></div>
+              <div class="c5"><label>File (PDF, picture, Word, Excel; up to 15 MB)<input id="dFile" type="file" accept=".pdf,.png,.jpg,.jpeg,.webp,.heic,.doc,.docx,.xls,.xlsx,.txt,.csv" style="margin-top:8px" required /></label></div>
+              <div class="c12"><button type="submit" id="dSave">Upload document</button><div class="status" id="dStatus"></div></div>
+            </form>
+            <div id="docList" style="margin-top:18px"></div>
+          </div>
+
+          <!-- Time off -->
+          <div class="pane" data-pane="timeoff" hidden>
+            <p class="note">Requests are made and approved on the <a href="time-off.html">Time Off</a> page. <a id="ptoFor" href="time-off.html">Enter time off for this person</a> if they don't use Agility.</p>
+            <div id="ptoList"></div>
+          </div>
+
+          <!-- Counseling -->
+          <div class="pane" data-pane="counseling" hidden>
+            <div class="lock"><b>Restricted.</b> Only executives and people granted Counseling Records can see this section, and every view and change is logged with your name. Write what happened and what was said, plainly and factually. Leave out medical details and anything you wouldn't be comfortable reading aloud to the employee. Records are never edited or deleted: add an addendum to correct one, or void it if it was entered by mistake.</div>
+            <details id="cNew">
+              <summary style="cursor:pointer;font-weight:700;font-size:14px;margin-bottom:12px">Add a record</summary>
+              <form id="cForm" class="form" autocomplete="off">
+                <div class="c3"><label>Date of the conversation<input id="cDate" type="date" required /></label></div>
+                <div class="c4"><label>Kind<select id="cKind"></select></label></div>
+                <div class="c5"><label>Who held it<input id="cBy" type="text" maxlength="120" /></label></div>
+                <div class="c12"><label>What happened and what was said<textarea id="cSummary" maxlength="6000" required style="min-height:110px"></textarea></label></div>
+                <div class="c12"><label>What is expected going forward (optional)<textarea id="cExpect" maxlength="4000"></textarea></label></div>
+                <div class="c4"><label>Employee acknowledgment<select id="cAck"></select></label></div>
+                <div class="c3"><label>Follow up on (optional)<input id="cFollow" type="date" /></label></div>
+                <div class="c12"><button type="submit" id="cSave">Save record</button> <span class="mut">It can't be edited after it's saved.</span><div class="status" id="cStatus"></div></div>
+              </form>
+            </details>
+            <div id="cList" style="margin-top:14px"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="internal-shell.js"></script>
+  <script>
+    const $ = (id) => document.getElementById(id);
+    const esc = (v) => String(v == null ? "" : v).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+    function setStatus(id, text, kind) { const el = $(id); el.className = "status" + (text ? " show " + (kind || "ok") : ""); el.textContent = text || ""; }
+    async function api(path, init) { const r = await fetch(path, { credentials: "same-origin", ...(init || {}) }); const j = await r.json().catch(() => ({})); if (!r.ok) throw new Error(j.error || "Request failed."); return j; }
+    const send = (path, method, body) => api(path, { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body || {}) });
+    const parse = (d) => { const [y, m, day] = String(d).slice(0, 10).split("-").map(Number); return new Date(y, m - 1, day); };
+    const fmtDay = (d) => (d ? parse(d).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "");
+    const fmtShort = (d) => (d ? parse(d).toLocaleDateString("en-US", { month: "short", day: "numeric" }) : "");
+    const fmtStamp = (d) => (d ? new Date(d).toLocaleString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" }) : "");
+    const fmtRange = (a, b) => (a === b ? fmtDay(a) : `${fmtShort(a)} – ${fmtDay(b)}`);
+    const todayIso = () => { const t = new Date(); return `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, "0")}-${String(t.getDate()).padStart(2, "0")}`; };
+    const sizeText = (n) => (n >= 1048576 ? (n / 1048576).toFixed(1) + " MB" : Math.max(1, Math.round(n / 1024)) + " KB");
+    const DAY_NAMES = { mon: "Monday", tue: "Tuesday", wed: "Wednesday", thu: "Thursday", fri: "Friday", sat: "Saturday", sun: "Sunday" };
+    const options = (list, value, blank) => (blank != null ? `<option value="">${esc(blank)}</option>` : "") + list.map((x) => `<option value="${esc(x)}"${x === value ? " selected" : ""}>${esc(x)}</option>`).join("");
+
+    let employees = [], vocab = {}, can = {}, current = null, tab = "profile", counselingLoadedFor = "";
+
+    // ---------- the list ----------
+    function matches(e) {
+      if (!$("fArchived").checked && e.archived) return false;
+      const dept = $("fDept").value;
+      if (dept && e.department !== dept) return false;
+      const words = $("q").value.toLowerCase().split(/\s+/).filter(Boolean);
+      if (!words.length) return true;
+      const hay = [e.name, e.title, e.department, e.code, e.email, e.reportsToName, e.employmentType].join(" ").toLowerCase();
+      return words.every((w) => hay.includes(w));
+    }
+    function personTags(e) {
+      const t = [];
+      if (e.archived) t.push(`<span class="tag">Former</span>`);
+      if (e.reportsToSource === "needs-pick" && !e.archived) t.push(`<span class="tag red">Needs a manager pick</span>`);
+      if (e.pto?.pending) t.push(`<span class="tag amber">Time off waiting</span>`);
+      if (e.pto?.nextOut) t.push(`<span class="tag blue">Out ${esc(fmtShort(e.pto.nextOut))}</span>`);
+      if (e.counseling?.openFollowUps) t.push(`<span class="tag red">Follow-up due</span>`);
+      return t.join("");
+    }
+    function renderList() {
+      const shown = employees.filter(matches);
+      $("count").textContent = `${shown.length} ${shown.length === 1 ? "person" : "people"}`;
+      $("people").innerHTML = shown.map((e) => `<button type="button" class="person${current && current.code === e.code ? " on" : ""}${e.archived ? " gone" : ""}" data-code="${esc(e.code)}">
+          <b>${esc(e.name)}</b><span class="sub">${esc([e.title, e.department].filter(Boolean).join(" · ") || "No title yet")}</span>${personTags(e)}</button>`).join("") || `<p class="empty">Nobody matches that search.</p>`;
+    }
+
+    // ---------- the open profile ----------
+    function showTab(next) {
+      tab = next;
+      document.querySelectorAll("#tabs button").forEach((b) => b.classList.toggle("on", b.dataset.tab === tab));
+      document.querySelectorAll(".pane").forEach((p) => { p.hidden = p.dataset.pane !== tab; });
+      if (tab === "counseling" && current && counselingLoadedFor !== current.code) loadCounseling();
+    }
+    function renderHead() {
+      const e = current;
+      $("hName").textContent = e.name;
+      $("hFacts").textContent = [e.title, e.department, e.employmentType, `Code ${e.code}`].filter(Boolean).join(" · ");
+      const tags = [];
+      if (e.archived) tags.push(`<span class="tag">Former employee</span>`);
+      if (e.reportsToName) tags.push(`<span class="tag">Reports to ${esc(e.reportsToName)}</span>`);
+      for (const d of e.dottedTo || []) tags.push(`<span class="tag violet">Dotted line to ${esc(d.people.length ? d.people.map((p) => p.name).join(", ") : d.title + " (vacant)")}</span>`);
+      if (e.weeklyHours) tags.push(`<span class="tag">${e.weeklyHours} hrs a week</span>`);
+      if (e.hireDate) tags.push(`<span class="tag">Hired ${esc(fmtDay(e.hireDate))}</span>`);
+      $("hTags").innerHTML = tags.join("");
+    }
+    // Where the Reports to value came from: the Org Chart, HR's pick, or an override.
+    function managerNote(e) {
+      const seat = e.reportsToVia ? `${esc(e.reportsToVia.title)} (${esc(e.reportsToVia.jobCode)})` : "";
+      const names = (e.reportsToCandidates || []).map((p) => esc(p.name)).join(" and ");
+      const skipped = (e.reportsToSkipped || []).map((x) => esc(x.title));
+      switch (e.reportsToSource) {
+        case "auto": return `Filled in by the <a href="org-chart.html">Org Chart</a>: ${seat}.${skipped.length ? ` ${skipped.join(" and ")} ${skipped.length === 1 ? "is" : "are"} vacant, so the line climbed past.` : ""} Choosing someone else here overrides the chart for this person.`;
+        case "top": return `Top of the <a href="org-chart.html">Org Chart</a>, so nobody is filled in.`;
+        case "override": return `<span class="tag amber">Set by hand</span> The Org Chart says ${e.reportsToChart ? esc(e.reportsToChart.name) : names ? "pick between " + names : "nobody"}. <button type="button" class="link" id="pAuto">Put back to automatic</button>`;
+        case "pick": return `<span class="tag">Picked by HR</span> ${seat} is held by ${names}. This goes back to automatic once one person holds that job.`;
+        case "needs-pick": return `<span class="tag red">Needs a pick</span> ${seat} is held by ${names}, so the Org Chart won't guess. Choose which one.`;
+        case "unplaced": return `${esc(e.title)} (${esc(e.jobCode)}) isn't on the <a href="org-chart.html">Org Chart</a> yet, so this is set here.`;
+        case "nocode": return e.title ? `${esc(e.title)} has no job code, so it can't go on the Org Chart. This is set here.` : `No job title yet, so this is set here.`;
+        default: return "";
+      }
+    }
+    function fillProfile() {
+      const e = current;
+      $("pName").value = e.name; $("pEmail").value = e.email || "No email on file";
+      $("pTitle").innerHTML = options(vocab.titles.includes(e.title) || !e.title ? vocab.titles : [e.title, ...vocab.titles], e.title, "No title");
+      $("pTitle").disabled = !can.editTitle;
+      $("pTitleLabel").textContent = can.editTitle ? "Job title (sets the pay plan)" : "Job title (an executive changes this)";
+      $("pDept").innerHTML = options(vocab.departments.includes(e.department) || !e.department ? vocab.departments : [e.department, ...vocab.departments], e.department, "No department");
+      $("pType").innerHTML = options(vocab.employmentTypes, e.employmentType, "Not set");
+      const managers = employees.filter((x) => !x.archived && x.code !== e.code).sort((a, b) => a.name.localeCompare(b.name));
+      $("pManager").innerHTML = `<option value="">Nobody set (HR approves)</option>` + managers.map((m) => `<option value="${esc(m.code)}"${m.code === e.reportsToCode ? " selected" : ""}>${esc(m.name)}${m.email ? "" : " (no sign-in)"}</option>`).join("");
+      $("pManagerNote").innerHTML = managerNote(e);
+      $("pHire").value = e.hireDate || ""; $("pBirthday").value = e.birthday || "";
+      $("payPlanBox").hidden = !("payPlan" in e); $("pPayPlan").value = e.payPlan || "None";
+      $("pWork").value = e.workPhone; $("pMobile").value = e.mobilePhone; $("pCommute").value = e.commuteMiles || "";
+      $("pEName").value = e.emergencyName; $("pERel").value = e.emergencyRelation; $("pEPhone").value = e.emergencyPhone;
+      $("pShirt").innerHTML = options(vocab.shirtSizes, e.shirtSize, "Not set"); $("pShoe").value = e.shoeSize || "";
+      $("pNote").value = e.hrNote;
+      $("pStamp").textContent = e.detailsUpdatedAt ? `Last saved ${fmtStamp(e.detailsUpdatedAt)}${e.detailsUpdatedBy ? " by " + e.detailsUpdatedBy : ""}` : "";
+    }
+
+    // schedule
+    const hoursBetween = (a, b, lunch) => { if (!a || !b) return 0; const m = (t) => Number(t.slice(0, 2)) * 60 + Number(t.slice(3, 5)); const span = (m(b) - m(a)) / 60; return Math.max(0, Math.round((span - (span > 5 ? (lunch || 0) / 60 : 0)) * 100) / 100); };
+    const lunchMinutes = () => ($("sLunch").checked ? 60 : 0);
+    function fillSchedule() {
+      const s = current.schedule || {};
+      $("schedRows").innerHTML = vocab.weekDays.map((d) => {
+        const v = s[d] || {};
+        return `<tr data-day="${d}"><td class="day">${DAY_NAMES[d]}</td>
+          <td><label class="check"><input type="checkbox" data-off ${v.off ? "checked" : ""} aria-label="${DAY_NAMES[d]} off" /> Off</label></td>
+          <td><input type="time" data-start value="${esc(v.start || "")}" aria-label="${DAY_NAMES[d]} start" ${v.off ? "disabled" : ""} /></td>
+          <td><input type="time" data-end value="${esc(v.end || "")}" aria-label="${DAY_NAMES[d]} end" ${v.off ? "disabled" : ""} /></td>
+          <td class="hrs" data-hrs></td></tr>`;
+      }).join("");
+      $("sNote").value = current.scheduleNote || "";
+      $("sLunch").checked = Number(s.lunch) > 0;
+      totalSchedule();
+    }
+    function readSchedule() {
+      const out = {};
+      document.querySelectorAll("#schedRows tr").forEach((tr) => {
+        const off = tr.querySelector("[data-off]").checked, start = tr.querySelector("[data-start]").value, end = tr.querySelector("[data-end]").value;
+        if (off) out[tr.dataset.day] = { off: true };
+        else if (start || end) out[tr.dataset.day] = { start, end };
+      });
+      out.lunch = lunchMinutes();
+      return out;
+    }
+    function totalSchedule() {
+      let total = 0;
+      document.querySelectorAll("#schedRows tr").forEach((tr) => {
+        const off = tr.querySelector("[data-off]").checked;
+        tr.querySelector("[data-start]").disabled = off; tr.querySelector("[data-end]").disabled = off;
+        const h = off ? 0 : hoursBetween(tr.querySelector("[data-start]").value, tr.querySelector("[data-end]").value, lunchMinutes());
+        total += h;
+        tr.querySelector("[data-hrs]").textContent = off ? "Off" : h ? h + " hrs" : "";
+      });
+      $("schedTotal").textContent = total ? Math.round(total * 100) / 100 + " hrs" : "Not set";
+    }
+
+    // documents
+    let documents = [], showRemoved = false;
+    function renderDocuments() {
+      const live = documents.filter((d) => !d.removedAt), gone = documents.filter((d) => d.removedAt);
+      $("docN").textContent = live.length ? `(${live.length})` : "";
+      const row = (d) => `<tr class="${d.removedAt ? "removed" : ""}">
+          <td class="name">${d.removedAt ? esc(d.title) : `<a href="/api/employee-documents/${esc(d.id)}" target="_blank" rel="noopener">${esc(d.title)}</a>`}${d.title !== d.filename ? `<div class="mut">${esc(d.filename)}</div>` : ""}${d.removedAt ? `<div class="mut">Removed ${esc(fmtStamp(d.removedAt))}: ${esc(d.removedReason)}</div>` : ""}</td>
+          <td>${esc(d.category)}</td>
+          <td class="hide-sm">${esc(d.uploadedBy)}<div class="mut">${esc(fmtStamp(d.uploadedAt))} · ${sizeText(d.byteSize)}</div></td>
+          <td style="text-align:right">${d.removedAt ? "" : `<button type="button" class="link" data-remove-doc="${esc(d.id)}">Remove</button>`}</td></tr>
+          <tr class="reason" data-reason-for="${esc(d.id)}" hidden><td colspan="4"><label>Why is it being removed?<input type="text" maxlength="300" data-reason-text /></label>
+            <p style="margin:8px 0 0"><button type="button" class="danger" data-confirm-remove="${esc(d.id)}">Remove document</button> <button type="button" class="quiet" data-cancel-remove="${esc(d.id)}">Keep it</button></p></td></tr>`;
+      $("docList").innerHTML = (live.length ? `<table><thead><tr><th>Document</th><th>Category</th><th class="hide-sm">Uploaded</th><th></th></tr></thead><tbody>${live.map(row).join("")}</tbody></table>` : `<p class="empty">No documents on file yet.</p>`)
+        + (gone.length ? `<p style="margin:14px 0 6px"><button type="button" class="link" id="toggleRemoved">${showRemoved ? "Hide" : "Show"} ${gone.length} removed</button></p>${showRemoved ? `<table><tbody>${gone.map(row).join("")}</tbody></table>` : ""}` : "");
+    }
+
+    // time off
+    const STATUS_TAG = { pending: ["amber", "Waiting"], approved: ["green", "Approved"], denied: ["red", "Declined"], cancelled: ["", "Cancelled"] };
+    function renderTimeOff(list) {
+      $("ptoFor").href = `time-off.html?for=${encodeURIComponent(current.code)}`;
+      $("ptoList").innerHTML = list.length ? `<table><thead><tr><th>Dates</th><th>Kind</th><th>Length</th><th>Status</th><th class="hide-sm">Kronos</th></tr></thead><tbody>${list.map((r) => {
+        const [cls, label] = STATUS_TAG[r.status] || ["", r.status];
+        const who = r.status === "pending" ? `with ${r.approverName || "HR"}` : r.status === "cancelled" ? (r.cancelledBy ? `by ${r.cancelledBy}` : "") : (r.decidedBy ? `by ${r.decidedBy}` : "");
+        const kronos = r.kronosTask === "enter" ? `<span class="tag amber">Not entered yet</span>` : r.kronosTask === "remove" ? `<span class="tag red">Needs removing</span>` : r.kronosEnteredAt && r.status === "approved" ? `Entered ${esc(fmtShort(r.kronosEnteredAt.slice(0, 10)))}` : "";
+        return `<tr><td>${esc(fmtRange(r.startDate, r.endDate))}</td><td>${esc(r.type)}</td><td>${r.hours != null ? r.hours + " hrs" : r.workDays + (r.workDays === 1 ? " day" : " days") + (r.scheduledHours ? ` <span class="mut">${r.scheduledHours} hrs</span>` : "")}</td>
+          <td><span class="tag ${cls}">${label}</span> <span class="mut">${esc(who)}</span>${r.decisionNote ? `<div class="mut">${esc(r.decisionNote)}</div>` : ""}</td><td class="hide-sm">${kronos}</td></tr>`;
+      }).join("")}</tbody></table>` : `<p class="empty">No time off on record.</p>`;
+    }
+
+    // counseling
+    async function loadCounseling() {
+      const code = current.code;
+      $("cList").innerHTML = `<p class="empty">Loading…</p>`;
+      try { const j = await api(`/api/employee-profiles/${encodeURIComponent(code)}/counseling`); if (current && current.code === code) { counselingLoadedFor = code; renderCounseling(j.records); } }
+      catch (err) { $("cList").innerHTML = `<p class="empty">${esc(err.message)}</p>`; }
+    }
+    function renderCounseling(records) {
+      const today = todayIso();
+      $("cList").innerHTML = records.length ? records.map((r) => {
+        const due = r.followUpOn && !r.followUpDoneAt && !r.voidedAt;
+        return `<div class="rec${r.voidedAt ? " void" : ""}" data-rec="${esc(r.id)}">
+          <div class="top"><span class="tag ${r.kind === "Recognition" ? "green" : /warning|Suspension/.test(r.kind) ? "red" : "blue"}">${esc(r.kind)}</span><b>${esc(fmtDay(r.occurredOn))}</b>
+            <span class="mut">${r.issuedBy ? "held by " + esc(r.issuedBy) + " · " : ""}entered ${esc(fmtStamp(r.createdAt))}${r.createdBy ? " by " + esc(r.createdBy) : ""}</span>
+            ${r.voidedAt ? `<span class="tag">Void</span>` : ""}${due ? `<span class="tag ${r.followUpOn <= today ? "red" : "amber"}">Follow up ${esc(fmtShort(r.followUpOn))}</span>` : ""}</div>
+          ${r.voidedAt ? `<p class="mut" style="margin:0 0 8px">Voided ${esc(fmtStamp(r.voidedAt))} by ${esc(r.voidedBy)}: ${esc(r.voidReason)}</p>` : ""}
+          <div class="body"><p><b>What happened</b>${esc(r.summary)}</p>${r.expectations ? `<p><b>Expected going forward</b>${esc(r.expectations)}</p>` : ""}
+            <p class="mut" style="margin:0">${esc(r.acknowledgmentLabel)}${r.followUpDoneAt ? ` · Followed up ${esc(fmtStamp(r.followUpDoneAt))} by ${esc(r.followUpDoneBy)}` : ""}</p></div>
+          ${r.addenda.map((a) => `<div class="add"><span class="mut">Addendum · ${esc(fmtStamp(a.at))} · ${esc(a.byName || a.byEmail)}</span><br>${esc(a.text)}</div>`).join("")}
+          ${r.attachments.length ? `<p style="margin:8px 0 0;font-size:13.5px">${r.attachments.map((d) => `<a href="/api/employee-documents/${esc(d.id)}" target="_blank" rel="noopener">${esc(d.title)}</a>`).join(" · ")}</p>` : ""}
+          ${r.voidedAt ? "" : `<div class="acts">
+            <button type="button" class="link" data-open="addendum">Add an addendum</button>
+            <button type="button" class="link" data-open="attach">Attach a file</button>
+            ${r.followUpOn ? `<button type="button" class="link" data-follow="${r.followUpDoneAt ? "0" : "1"}">${r.followUpDoneAt ? "Reopen follow-up" : "Mark followed up"}</button>` : ""}
+            <button type="button" class="link" data-open="void" style="color:#991b1b">Void</button></div>
+          <div class="inline" data-inline="addendum"><label>Addendum (a correction or a later note)<textarea maxlength="3000" data-text></textarea></label><div class="row"><button type="button" data-do="addendum">Add addendum</button><button type="button" class="quiet" data-close>Cancel</button></div></div>
+          <div class="inline" data-inline="attach"><label>The signed form or a supporting document. No medical records.<input type="file" data-file accept=".pdf,.png,.jpg,.jpeg,.webp,.heic,.doc,.docx,.xls,.xlsx,.txt,.csv" style="margin-top:8px" /></label><div class="row"><button type="button" data-do="attach">Attach</button><button type="button" class="quiet" data-close>Cancel</button></div></div>
+          <div class="inline" data-inline="void"><label>Why is this record void? It stays on file, crossed out.<input type="text" maxlength="400" data-text /></label><div class="row"><button type="button" class="danger" data-do="void">Void record</button><button type="button" class="quiet" data-close>Cancel</button></div></div>
+          <div class="status" data-status></div>`}
+        </div>`;
+      }).join("") : `<p class="empty">No counseling records for ${esc(current.name)}.</p>`;
+    }
+
+    async function openPerson(code, wantTab) {
+      const e = employees.find((x) => x.code === code);
+      if (!e) return;
+      current = e; counselingLoadedFor = "";
+      document.body.classList.add("viewing");
+      $("blank").hidden = true; $("card").hidden = false;
+      ["pStatus", "sStatus", "dStatus", "cStatus"].forEach((id) => setStatus(id, ""));
+      $("counselTab").hidden = !can.counseling;
+      renderHead(); fillProfile(); fillSchedule(); renderList();
+      documents = []; showRemoved = false; renderDocuments(); $("ptoList").innerHTML = ""; $("cList").innerHTML = "";
+      $("docForm").reset(); $("cForm").reset(); $("cNew").open = false; $("cDate").value = todayIso(); $("cBy").value = window.__me || "";
+      showTab(wantTab && (wantTab !== "counseling" || can.counseling) ? wantTab : (tab === "counseling" && !can.counseling ? "profile" : tab));
+      history.replaceState(null, "", `?code=${encodeURIComponent(code)}${tab !== "profile" ? "&tab=" + tab : ""}`);
+      try {
+        const j = await api(`/api/employee-profiles/${encodeURIComponent(code)}`);
+        if (!current || current.code !== code) return;
+        documents = j.documents; renderDocuments(); renderTimeOff(j.timeOff);
+      } catch (err) { $("docList").innerHTML = `<p class="empty">${esc(err.message)}</p>`; }
+      if (window.matchMedia("(max-width: 900px)").matches) window.scrollTo({ top: 0 });
+    }
+    function mergeSaved(saved) {
+      const i = employees.findIndex((x) => x.code === saved.code);
+      const keep = employees[i] || {};
+      employees[i] = { ...keep, ...saved };
+      current = employees[i];
+      // anyone who reports to this person shows the new name
+      employees.forEach((x) => { if (x.reportsToCode === saved.code) x.reportsToName = saved.name; });
+      renderHead(); renderList();
+    }
+
+    async function refreshPeople() {
+      const j = await api("/api/employee-profiles");
+      employees = j.employees;
+      if (current) current = employees.find((x) => x.code === current.code) || current;
+      renderHead(); renderList();
+    }
+
+    // ---------- events ----------
+    $("q").addEventListener("input", renderList); $("fDept").addEventListener("change", renderList); $("fArchived").addEventListener("change", renderList);
+    $("people").addEventListener("click", (ev) => { const b = ev.target.closest("[data-code]"); if (b) openPerson(b.dataset.code); });
+    $("tabs").addEventListener("click", (ev) => { const b = ev.target.closest("[data-tab]"); if (!b) return; showTab(b.dataset.tab); history.replaceState(null, "", `?code=${encodeURIComponent(current.code)}${tab !== "profile" ? "&tab=" + tab : ""}`); });
+    $("backBtn").addEventListener("click", () => { document.body.classList.remove("viewing"); history.replaceState(null, "", location.pathname); });
+
+    $("profileForm").addEventListener("submit", async (ev) => {
+      ev.preventDefault();
+      const body = {
+        name: $("pName").value, department: $("pDept").value, employmentType: $("pType").value,
+        hireDate: $("pHire").value, birthday: $("pBirthday").value, workPhone: $("pWork").value, mobilePhone: $("pMobile").value,
+        commuteMiles: Number($("pCommute").value) || 0, emergencyName: $("pEName").value, emergencyRelation: $("pERel").value, emergencyPhone: $("pEPhone").value,
+        shirtSize: $("pShirt").value, shoeSize: $("pShoe").value, hrNote: $("pNote").value
+      };
+      if (can.editTitle) body.title = $("pTitle").value;
+      // only when it was actually changed here: an untouched box keeps following the Org Chart
+      if ($("pManager").value !== (current.reportsToCode || "")) body.reportsToCode = $("pManager").value;
+      $("pSave").disabled = true;
+      try {
+        const j = await send(`/api/employee-profiles/${encodeURIComponent(current.code)}`, "PUT", body); mergeSaved(j.employee);
+        if (j.rerouted) await refreshPeople(); // a new title moved people on the Org Chart
+        fillProfile(); setStatus("pStatus", j.rerouted ? `Saved. The Org Chart updated Reports to for ${j.rerouted} ${j.rerouted === 1 ? "person" : "people"}.` : "Saved.");
+      }
+      catch (err) { setStatus("pStatus", err.message, "error"); }
+      $("pSave").disabled = false;
+    });
+
+    $("pManagerNote").addEventListener("click", async (ev) => {
+      if (ev.target.id !== "pAuto") return;
+      ev.target.disabled = true;
+      try { const j = await send(`/api/employee-profiles/${encodeURIComponent(current.code)}/reports-to-auto`, "POST", {}); mergeSaved(j.employee); fillProfile(); setStatus("pStatus", "Back to automatic. The Org Chart decides again."); }
+      catch (err) { setStatus("pStatus", err.message, "error"); }
+    });
+    $("schedRows").addEventListener("input", totalSchedule); $("sLunch").addEventListener("change", totalSchedule);
+    $("copyMon").addEventListener("click", () => {
+      const mon = document.querySelector('#schedRows tr[data-day="mon"]');
+      ["tue", "wed", "thu", "fri"].forEach((d) => { const tr = document.querySelector(`#schedRows tr[data-day="${d}"]`); ["[data-start]", "[data-end]"].forEach((s) => { tr.querySelector(s).value = mon.querySelector(s).value; }); tr.querySelector("[data-off]").checked = mon.querySelector("[data-off]").checked; });
+      totalSchedule();
+    });
+    $("schedForm").addEventListener("submit", async (ev) => {
+      ev.preventDefault();
+      $("sSave").disabled = true;
+      try { const j = await send(`/api/employee-profiles/${encodeURIComponent(current.code)}`, "PUT", { schedule: readSchedule(), scheduleNote: $("sNote").value }); mergeSaved(j.employee); fillSchedule(); setStatus("sStatus", "Schedule saved."); }
+      catch (err) { setStatus("sStatus", err.message, "error"); }
+      $("sSave").disabled = false;
+    });
+
+    $("docForm").addEventListener("submit", async (ev) => {
+      ev.preventDefault();
+      const file = $("dFile").files[0];
+      if (!file) return;
+      if (file.size > 15 * 1024 * 1024) return setStatus("dStatus", "That file is larger than 15 MB.", "error");
+      const fd = new FormData(); fd.append("category", $("dCat").value); fd.append("title", $("dTitle").value); fd.append("file", file);
+      $("dSave").disabled = true; setStatus("dStatus", "Uploading…");
+      try {
+        const j = await api(`/api/employee-profiles/${encodeURIComponent(current.code)}/documents`, { method: "POST", body: fd });
+        documents = j.documents; current.documentCount = documents.filter((d) => !d.removedAt).length; renderDocuments();
+        $("dTitle").value = ""; $("dFile").value = ""; setStatus("dStatus", "Uploaded.");
+      } catch (err) { setStatus("dStatus", err.message, "error"); }
+      $("dSave").disabled = false;
+    });
+    $("docList").addEventListener("click", async (ev) => {
+      const t = ev.target;
+      if (t.id === "toggleRemoved") { showRemoved = !showRemoved; return renderDocuments(); }
+      const reasonRow = (id) => $("docList").querySelector(`[data-reason-for="${id}"]`);
+      if (t.dataset.removeDoc) { const r = reasonRow(t.dataset.removeDoc); r.hidden = false; r.querySelector("[data-reason-text]").focus(); }
+      if (t.dataset.cancelRemove) reasonRow(t.dataset.cancelRemove).hidden = true;
+      if (t.dataset.confirmRemove) {
+        const r = reasonRow(t.dataset.confirmRemove);
+        t.disabled = true;
+        try { const j = await send(`/api/employee-documents/${t.dataset.confirmRemove}/remove`, "POST", { reason: r.querySelector("[data-reason-text]").value }); documents = j.documents; renderDocuments(); setStatus("dStatus", "Removed. It stays on file under “removed”."); }
+        catch (err) { setStatus("dStatus", err.message, "error"); t.disabled = false; }
+      }
+    });
+
+    $("cForm").addEventListener("submit", async (ev) => {
+      ev.preventDefault();
+      $("cSave").disabled = true;
+      try {
+        const j = await send(`/api/employee-profiles/${encodeURIComponent(current.code)}/counseling`, "POST", { occurredOn: $("cDate").value, kind: $("cKind").value, issuedBy: $("cBy").value, summary: $("cSummary").value, expectations: $("cExpect").value, acknowledgment: $("cAck").value, followUpOn: $("cFollow").value });
+        renderCounseling(j.records); $("cForm").reset(); $("cDate").value = todayIso(); $("cBy").value = window.__me || ""; $("cNew").open = false; setStatus("cStatus", "");
+      } catch (err) { setStatus("cStatus", err.message, "error"); }
+      $("cSave").disabled = false;
+    });
+    $("cList").addEventListener("click", async (ev) => {
+      const t = ev.target, rec = t.closest("[data-rec]");
+      if (!rec) return;
+      const id = rec.dataset.rec, status = rec.querySelector("[data-status]");
+      const say = (text, kind) => { status.className = "status" + (text ? " show " + (kind || "ok") : ""); status.textContent = text || ""; };
+      if (t.dataset.open) { rec.querySelectorAll(".inline").forEach((x) => x.classList.toggle("show", x.dataset.inline === t.dataset.open)); return; }
+      if (t.hasAttribute("data-close")) { t.closest(".inline").classList.remove("show"); return; }
+      try {
+        let j = null;
+        if (t.dataset.follow) j = await send(`/api/employee-counseling/${id}/follow-up`, "POST", { done: t.dataset.follow === "1" });
+        else if (t.dataset.do === "addendum") j = await send(`/api/employee-counseling/${id}/addendum`, "POST", { text: t.closest(".inline").querySelector("[data-text]").value });
+        else if (t.dataset.do === "void") j = await send(`/api/employee-counseling/${id}/void`, "POST", { reason: t.closest(".inline").querySelector("[data-text]").value });
+        else if (t.dataset.do === "attach") {
+          const file = t.closest(".inline").querySelector("[data-file]").files[0];
+          if (!file) return say("Choose a file first.", "error");
+          const fd = new FormData(); fd.append("file", file);
+          j = await api(`/api/employee-counseling/${id}/attachments`, { method: "POST", body: fd });
+        }
+        if (j) renderCounseling(j.records);
+      } catch (err) { say(err.message, "error"); }
+    });
+
+    async function load() {
+      try {
+        const [j, session] = await Promise.all([api("/api/employee-profiles"), api("/api/auth/session").catch(() => null)]);
+        employees = j.employees; vocab = j.vocab; can = j.can;
+        window.__me = session?.user?.displayName || "";
+        $("fDept").innerHTML = `<option value="">All departments</option>` + [...new Set(employees.map((e) => e.department).filter(Boolean))].sort().map((d) => `<option>${esc(d)}</option>`).join("");
+        $("dCat").innerHTML = options(vocab.documentCategories, vocab.documentCategories[0]);
+        $("cKind").innerHTML = options(vocab.counselingKinds, vocab.counselingKinds[0]);
+        $("cAck").innerHTML = Object.entries(vocab.acknowledgments).map(([k, v]) => `<option value="${esc(k)}">${esc(v)}</option>`).join("");
+        renderList();
+        const p = new URLSearchParams(location.search);
+        const want = (p.get("code") || "").toUpperCase();
+        if (want && employees.some((e) => e.code === want)) { if (employees.find((e) => e.code === want).archived) { $("fArchived").checked = true; } openPerson(want, p.get("tab") || ""); }
+      } catch (err) { $("people").innerHTML = `<p class="empty">${esc(err.message)}</p>`; }
+    }
+    load();
+  </script>
+</body>
+</html>

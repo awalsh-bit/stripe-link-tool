@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="robots" content="noindex, nofollow" />
+  <title>Wilson AC & Appliance - Org Chart</title>
+  <link rel="icon" href="favicon.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="internal-shell.css" />
+  <style>
+    :root { --primary: #21692c; --primary-hover: #1b5a25; --border: #dbe1ea; --text: #1f2937; --muted: #6b7280; --bg: #f3f6f4; --line: #94a3b8; --dotted: #7c3aed; }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--bg); color: var(--text); font-family: "Inter", "Segoe UI", system-ui, sans-serif; padding: 20px 20px 48px; }
+    .wrap { max-width: 1500px; margin: 0 auto; }
+    .surface { background: #fff; border-radius: 18px; padding: 22px; box-shadow: 0 10px 28px rgba(15, 23, 42, 0.06); margin-bottom: 16px; }
+    .surface[hidden] { display: none; }
+    h2 { margin: 0 0 6px; font-size: 22px; } h3 { margin: 0 0 8px; font-size: 15px; }
+    .note { margin: 0 0 14px; color: var(--muted); font-size: 14px; max-width: 900px; }
+    .mut { color: var(--muted); font-size: 12.5px; }
+    a { color: var(--primary); font-weight: 600; }
+    button { border: none; border-radius: 10px; padding: 9px 16px; font-size: 13.5px; font-weight: 700; background: var(--primary); color: #fff; cursor: pointer; font-family: inherit; }
+    button:hover { background: var(--primary-hover); }
+    button.quiet { background: #eef2f7; color: var(--text); } button.quiet:hover { background: #e2e8f0; }
+    button.danger { background: #fee2e2; color: #991b1b; } button.danger:hover { background: #fecaca; }
+    button.link { background: none; color: var(--primary); padding: 0; font-size: 13px; text-decoration: underline; font-weight: 600; }
+    button:disabled { opacity: .6; cursor: default; }
+    label { display: block; font-size: 12px; font-weight: 700; color: var(--muted); }
+    select { width: 100%; margin-top: 4px; border: 1.5px solid var(--border); border-radius: 10px; padding: 9px 12px; font-size: 14px; font-family: inherit; background: #fff; color: var(--text); }
+    .status { display: none; margin: 12px 0 0; padding: 10px 14px; border-radius: 10px; font-size: 13.5px; } .status.show { display: block; } .status.ok { background: #dcfce7; color: #166534; } .status.error { background: #fee2e2; color: #991b1b; }
+    .tag { display: inline-block; font-size: 10.5px; font-weight: 700; padding: 2px 7px; border-radius: 999px; background: #eef2f7; color: #475569; white-space: nowrap; }
+    .tag.amber { background: #fef3c7; color: #92400e; } .tag.red { background: #fee2e2; color: #991b1b; } .tag.violet { background: #ede9fe; color: #5b21b6; }
+
+    .bar { display: flex; gap: 14px 22px; flex-wrap: wrap; align-items: center; }
+    .seg { display: inline-flex; background: #eef2f7; border-radius: 12px; padding: 3px; }
+    .seg button { background: none; color: var(--muted); padding: 7px 14px; border-radius: 9px; }
+    .seg button.on { background: #fff; color: var(--text); box-shadow: 0 1px 3px rgba(15, 23, 42, .12); }
+    .seg button[data-mode="dotted"].on { color: var(--dotted); }
+    .legend { display: flex; gap: 16px; flex-wrap: wrap; font-size: 12.5px; color: var(--muted); align-items: center; }
+    .legend i { display: inline-block; width: 30px; border-top: 2px solid var(--line); vertical-align: middle; margin-right: 6px; } .legend i.d { border-top: 2px dashed var(--dotted); }
+
+    .zones { display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 12px; margin-top: 16px; }
+    .zone { border: 2px dashed #cbd5e1; border-radius: 14px; padding: 12px 14px; min-height: 62px; }
+    .zone h3 { font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); margin-bottom: 8px; }
+    .zone.drop { border-color: var(--primary); background: #eef7f0; }
+    #topZone { display: flex; flex-direction: column; justify-content: center; }
+    .chips { display: flex; gap: 8px; flex-wrap: wrap; }
+    .chip { border: 1.5px solid var(--border); background: #fff; border-radius: 10px; padding: 6px 10px; font-size: 13px; cursor: grab; color: var(--text); font-weight: 600; text-align: left; }
+    .chip:hover { background: #f8fafc; border-color: #b7c2d0; } .chip b { color: var(--muted); font-size: 11px; margin-right: 6px; } .chip span { font-weight: 400; color: var(--muted); }
+
+    .scroll { overflow: auto; border: 1px solid #eef2f7; border-radius: 14px; background: #fbfcfd; margin-top: 16px; max-height: 76vh; }
+    .scroll.tall { max-height: none; } /* outline view: let the page scroll, not a box inside it */
+    .canvas { position: relative; margin: 24px; }
+    .canvas svg { position: absolute; left: 0; top: 0; pointer-events: none; overflow: visible; }
+    .canvas path.solid { fill: none; stroke: var(--line); stroke-width: 2; }
+    .canvas path.dot { fill: none; stroke: var(--dotted); stroke-width: 2; stroke-dasharray: 6 5; }
+    .canvas circle.dotend { fill: var(--dotted); }
+    .box:focus-visible, .chip:focus-visible { outline: 3px solid rgba(33, 105, 44, .45); outline-offset: 2px; }
+    .box { position: absolute; width: 204px; background: #fff; border: 1.5px solid #cbd5e1; border-radius: 12px; padding: 9px 11px 10px; cursor: grab; text-align: left; font-weight: 400; color: var(--text); box-shadow: 0 2px 6px rgba(15, 23, 42, .05); }
+    .box:hover { background: #fff; border-color: #94a3b8; }
+    .box.vacant { border-style: dashed; background: #f8fafc; }
+    .box.sel { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(33, 105, 44, .18); }
+    .box.drop { border-color: var(--primary); background: #eef7f0; } .box.drop.dotdrop { border-color: var(--dotted); background: #f5f3ff; }
+    .box.dragging { opacity: .45; }
+    .box .jc { font-size: 10.5px; font-weight: 800; letter-spacing: .05em; color: var(--muted); }
+    .box .ti { font-size: 13.5px; font-weight: 700; line-height: 1.25; margin: 1px 0 5px; }
+    .box .p { font-size: 12.5px; line-height: 1.35; padding-top: 3px; border-top: 1px solid #f1f5f9; margin-top: 3px; }
+    .box .p .tag { margin-left: 4px; }
+    .box .vac { font-size: 12px; color: var(--muted); font-style: italic; }
+    .empty { color: var(--muted); font-size: 14px; margin: 0; padding: 28px; text-align: center; }
+
+    .panel { position: fixed; right: 18px; top: 86px; width: 350px; max-height: calc(100vh - 110px); overflow-y: auto; background: #fff; border-radius: 16px; padding: 18px; box-shadow: 0 18px 50px rgba(15, 23, 42, .22); z-index: 40; }
+    .panel[hidden] { display: none; }
+    .panel .x { position: absolute; right: 10px; top: 10px; background: #eef2f7; color: var(--text); padding: 4px 10px; }
+    .panel h3 { font-size: 17px; margin: 0 28px 2px 0; }
+    .panel section { margin-top: 14px; padding-top: 12px; border-top: 1px solid #eef2f7; }
+    .panel .who { font-size: 13.5px; margin: 0 0 8px; } .panel .who b { display: block; }
+    .panel .dl { display: flex; gap: 6px; flex-wrap: wrap; margin: 6px 0 8px; }
+    .panel .dl span { background: #f5f3ff; color: #5b21b6; border-radius: 999px; padding: 3px 4px 3px 10px; font-size: 12.5px; font-weight: 600; display: inline-flex; gap: 4px; align-items: center; }
+    .panel .dl span button { background: none; color: #5b21b6; padding: 0 6px; font-size: 15px; line-height: 1; }
+    .panel .row { display: flex; gap: 8px; align-items: flex-end; } .panel .row label { flex: 1; }
+
+    table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+    td { padding: 9px 8px; border-bottom: 1px solid #f1f5f9; vertical-align: top; }
+    .todo h3 { margin-top: 16px; } .todo h3:first-child { margin-top: 0; }
+
+    @media (max-width: 760px) {
+      body { padding: 14px 12px 40px; } .surface { padding: 16px; }
+      .zones { grid-template-columns: 1fr; }
+      .canvas { margin: 14px; }
+      .panel { left: 0; right: 0; top: auto; bottom: 0; width: auto; max-height: 72vh; border-radius: 18px 18px 0 0; }
+    }
+  </style>
+</head>
+<body data-shell-label="Org Chart" data-shell-icon="home">
+  <div class="wrap">
+    <div id="internal-shell-header"></div>
+
+    <div class="surface">
+      <p class="note">The chart is drawn between <b>job codes</b>, not people. Drag a box onto the job it reports to. Everyone holding that job code then reports to whoever holds the box above, and their Reports to fills in by itself. An empty seat is skipped: the line climbs to the next filled one. On a phone, tap a box to change it.</p>
+      <div class="bar">
+        <div class="seg" role="group" aria-label="What dragging draws">
+          <button type="button" data-mode="solid" class="on">Solid line</button>
+          <button type="button" data-mode="dotted">Dotted line</button>
+        </div>
+        <div class="legend"><span><i></i>Solid: reports to, approves time off</span><span><i class="d"></i>Dotted: told about time off</span></div>
+        <button type="button" class="quiet" id="outlineBtn" aria-pressed="false">Outline view</button>
+      </div>
+      <div class="status" id="status"></div>
+
+      <div class="zones">
+        <div class="zone" id="topZone" data-drop="top"><h3>Top of the chart</h3><span class="mut">Drop a job here if it reports to nobody.</span></div>
+        <div class="zone" id="tray" data-drop="off"><h3>Not on the chart yet</h3><div class="chips" id="trayChips"></div></div>
+      </div>
+
+      <div class="scroll" id="scroll"><div class="canvas" id="canvas"><svg id="lines" aria-hidden="true"></svg></div><p class="empty" id="emptyChart" hidden>Nothing is on the chart yet. Drag the top job from “Not on the chart yet” onto “Top of the chart”, then drag the others onto the job they report to.</p></div>
+    </div>
+
+    <div class="surface todo" id="todo" hidden></div>
+  </div>
+
+  <aside class="panel" id="panel" hidden aria-label="Selected job"></aside>
+
+  <script src="internal-shell.js"></script>
+  <script>
+    const $ = (id) => document.getElementById(id);
+    const esc = (v) => String(v == null ? "" : v).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+    function setStatus(text, kind) { const el = $("status"); el.className = "status" + (text ? " show " + (kind || "ok") : ""); el.textContent = text || ""; }
+    async function api(path, method, body) { const r = await fetch(path, { credentials: "same-origin", method: method || "GET", headers: body ? { "Content-Type": "application/json" } : {}, body: body ? JSON.stringify(body) : undefined }); const j = await r.json().catch(() => ({})); if (!r.ok) throw new Error(j.error || "Request failed."); return j; }
+
+    let data = { nodes: [], uncodedTitles: [], noTitle: [] }, byCode = new Map(), mode = "solid", selected = "", dragging = "";
+    let outline = window.matchMedia("(max-width: 760px)").matches;
+    const W = 204, GAP = 22, LEVEL = 46, VGAP = 12, INDENT = 34, RAIL = 16, SWING = 90;
+    const codeKey = (c) => { const m = /^([A-Z]+)(\d+)$/.exec(c) || [0, c, "0"]; return [m[1], Number(m[2])]; };
+    const byJobCode = (a, b) => { const [al, an] = codeKey(a.code), [bl, bn] = codeKey(b.code); return an - bn || al.localeCompare(bl); };
+    const node = (c) => byCode.get(c);
+    const label = (c) => (node(c) ? `${node(c).title} (${c})` : c);
+    const kidsOf = (c) => data.nodes.filter((n) => n.placed && n.parent === c).sort(byJobCode);
+    function isUnder(code, ancestor) { for (let cur = node(code)?.parent, i = 0; cur && i < 200; cur = node(cur)?.parent, i++) if (cur === ancestor) return true; return false; }
+
+    // ---------- drawing ----------
+    const FLAG = { "needs-pick": ["red", "needs a pick"], override: ["amber", "set by hand"], pick: ["", "picked by HR"] };
+    function boxHtml(n) {
+      const people = n.people.length ? n.people.map((p) => `<div class="p">${esc(p.name)}${FLAG[p.source] ? `<span class="tag ${FLAG[p.source][0]}">${FLAG[p.source][1]}</span>` : ""}</div>`).join("") : `<div class="vac">Vacant</div>`;
+      return `<div class="jc">${esc(n.code)}${n.dotted.length ? ` <span class="tag violet">${n.dotted.length} dotted</span>` : ""}</div><div class="ti">${esc(n.title)}</div>${people}`;
+    }
+    // keepPanel: only the drawing is redone (a resize, the font arriving), so a
+    // choice someone has made in the open panel but not saved yet isn't reset.
+    function render(keepPanel) {
+      byCode = new Map(data.nodes.map((n) => [n.code, n]));
+      const canvas = $("canvas");
+      canvas.querySelectorAll(".box").forEach((b) => b.remove());
+      const placed = data.nodes.filter((n) => n.placed);
+      $("emptyChart").hidden = placed.length > 0; canvas.style.display = placed.length ? "" : "none";
+      // boxes first, so their real heights can be measured
+      const tree = new Map();
+      for (const n of placed) {
+        const el = document.createElement("div"); // not a <button>: Firefox won't drag those
+        el.setAttribute("role", "button"); el.tabIndex = 0; el.className = "box" + (n.people.length ? "" : " vacant") + (n.code === selected ? " sel" : "");
+        el.draggable = true; el.dataset.code = n.code; el.innerHTML = boxHtml(n);
+        el.setAttribute("aria-label", `${n.title}, ${n.code}. ${n.people.length ? n.people.map((p) => p.name).join(", ") : "Vacant"}`);
+        canvas.appendChild(el);
+        tree.set(n.code, { code: n.code, el, h: 0, kids: [] });
+      }
+      for (const t of tree.values()) t.h = t.el.offsetHeight;
+      for (const t of tree.values()) t.kids = kidsOf(t.code).map((k) => tree.get(k.code));
+      const roots = placed.filter((n) => !n.parent || !tree.has(n.parent)).sort(byJobCode).map((n) => tree.get(n.code));
+      // sizes: a subtree either fans out sideways or hangs down a rail
+      const measure = (t) => {
+        t.kids.forEach(measure);
+        if (!t.kids.length) { t.w = W; t.bx = 0; t.sh = t.h; return; }
+        t.stack = outline || (t.kids.length >= 3 && t.kids.every((k) => !k.kids.length));
+        if (t.stack) {
+          let y = t.h + VGAP;
+          for (const k of t.kids) { k.rx = INDENT; k.ry = y; y += k.sh + VGAP; }
+          t.bx = 0; t.w = Math.max(W, INDENT + Math.max(...t.kids.map((k) => k.w))); t.sh = y - VGAP;
+        } else {
+          let x = 0;
+          for (const k of t.kids) { k.rx = x; k.ry = t.h + LEVEL; x += k.w + GAP; }
+          const first = t.kids[0], last = t.kids[t.kids.length - 1];
+          const mid = (first.rx + first.bx + last.rx + last.bx + W) / 2;
+          t.bx = Math.max(0, mid - W / 2);
+          t.w = Math.max(x - GAP, t.bx + W); t.sh = t.h + LEVEL + Math.max(...t.kids.map((k) => k.sh));
+        }
+      };
+      const place = (t, x, y) => { t.x = x + t.bx; t.y = y; t.el.style.left = t.x + "px"; t.el.style.top = t.y + "px"; t.kids.forEach((k) => place(k, x + k.rx, y + k.ry)); };
+      let x = 0, height = 0;
+      for (const r of roots) { measure(r); place(r, x, 0); x += r.w + GAP * 2; height = Math.max(height, r.sh); }
+      const width = Math.max(0, x - GAP * 2);
+      canvas.style.width = width + "px"; canvas.style.height = height + "px";
+      // lines
+      let svg = "", swung = false;
+      for (const t of tree.values()) for (const k of t.kids) {
+        if (t.stack) svg += `<path class="solid" d="M${t.x + RAIL} ${t.y + t.h} V${k.y + Math.min(22, k.h / 2)} H${k.x}"/>`;
+        else { const px = t.x + W / 2, cx = k.x + W / 2, my = t.y + t.h + LEVEL / 2; svg += `<path class="solid" d="M${px} ${t.y + t.h} V${my} H${cx} V${k.y}"/>`; }
+      }
+      for (const n of placed) for (const to of n.dotted) {
+        const a = tree.get(n.code), b = tree.get(to); if (!a || !b) continue;
+        const up = b.y + b.h <= a.y, down = a.y + a.h <= b.y;
+        let sx, sy, tx, ty, c1, c2;
+        if (outline || Math.abs(a.x - b.x) < W / 2) {
+          // one above the other: swing out to the right so the line isn't hidden behind the boxes between
+          sx = a.x + W; sy = a.y + a.h / 2; tx = b.x + W; ty = b.y + b.h / 2;
+          const out = Math.max(sx, tx) + Math.min(SWING, 34 + Math.abs(ty - sy) / 6);
+          c1 = `${out} ${sy}`; c2 = `${out} ${ty}`; swung = true;
+        } else if (up || down) {
+          sx = a.x + W - 30; sy = up ? a.y : a.y + a.h; tx = b.x + W - 30; ty = up ? b.y + b.h : b.y;
+          const bend = Math.max(30, Math.abs(ty - sy) / 2) * (up ? -1 : 1);
+          c1 = `${sx} ${sy + bend}`; c2 = `${tx} ${ty - bend}`;
+        } else {
+          const right = b.x > a.x; sx = right ? a.x + W : a.x; sy = a.y + 14; tx = right ? b.x : b.x + W; ty = b.y + 14;
+          const bend = Math.max(30, Math.abs(tx - sx) / 2) * (right ? 1 : -1);
+          c1 = `${sx + bend} ${sy - 26}`; c2 = `${tx - bend} ${ty - 26}`;
+        }
+        svg += `<path class="dot" d="M${sx} ${sy} C${c1}, ${c2}, ${tx} ${ty}"/><circle class="dotend" cx="${tx}" cy="${ty}" r="4"/>`;
+      }
+      if (swung) canvas.style.width = width + SWING + "px"; // room for dotted lines that swing out to the right
+      const s = $("lines"); s.setAttribute("width", width + (swung ? SWING : 0)); s.setAttribute("height", height); s.innerHTML = svg;
+      $("scroll").classList.toggle("tall", outline);
+      renderTray(); renderTodo();
+      if (keepPanel === true) document.querySelectorAll(".box").forEach((b) => b.classList.toggle("sel", b.dataset.code === selected)); else renderPanel();
+    }
+    function renderTray() {
+      const off = data.nodes.filter((n) => !n.placed).sort(byJobCode);
+      $("trayChips").innerHTML = off.map((n) => `<div role="button" tabindex="0" class="chip" draggable="true" data-code="${esc(n.code)}"><b>${esc(n.code)}</b>${esc(n.title)} <span>${n.people.length ? "· " + n.people.length : "· vacant"}</span></div>`).join("")
+        || `<span class="mut">Every job code is on the chart. Drop a box here to take it off.</span>`;
+    }
+    function renderTodo() {
+      const people = data.nodes.flatMap((n) => n.people.map((p) => ({ ...p, job: n })));
+      const need = people.filter((p) => p.source === "needs-pick"), hand = people.filter((p) => p.source === "override");
+      const open = (p, text) => (data.canOpenProfiles ? `<a href="employee-profiles.html?code=${encodeURIComponent(p.code)}">${text}</a>` : `<span class="mut">Ask HR to choose on their profile</span>`);
+      const parts = [];
+      if (need.length) parts.push(`<h3>Needs a pick (${need.length})</h3><p class="note">The job above theirs is held by more than one person, so the chart won't guess. Choose who they report to on their profile.</p><table><tbody>${need.map((p) => `<tr><td><b>${esc(p.name)}</b><div class="mut">${esc(p.job.title)}</div></td><td>Between ${esc(p.candidates.join(" and "))}${p.reportsToName ? `<div class="mut">Stays with ${esc(p.reportsToName)} until someone picks</div>` : `<div class="mut">Nobody set, so their time off goes to HR until someone picks</div>`}</td><td style="text-align:right">${open(p, "Pick on profile")}</td></tr>`).join("")}</tbody></table>`);
+      if (hand.length) parts.push(`<h3>Set by hand (${hand.length})</h3><p class="note">Someone chose a different manager for these people on their profile, so the chart leaves them alone.</p><table><tbody>${hand.map((p) => `<tr><td><b>${esc(p.name)}</b><div class="mut">${esc(p.job.title)}</div></td><td>Reports to ${esc(p.reportsToName || "nobody")}<div class="mut">The chart says ${esc(p.chartSays || (p.candidates.length ? "pick between " + p.candidates.join(" and ") : "nobody"))}</div></td><td style="text-align:right"><button type="button" class="link" data-auto="${esc(p.code)}">Put back to automatic</button></td></tr>`).join("")}</tbody></table>`);
+      if (data.uncodedTitles.length) parts.push(`<h3>Job titles with no job code (${data.uncodedTitles.length})</h3><p class="note">A title needs a job code before it can go on the chart. ${data.canManageTitles ? `Add one under Job Titles in <a href="user-admin.html">User Admin</a>.` : "An executive adds it in User Admin."}</p><table><tbody>${data.uncodedTitles.map((t) => `<tr><td><b>${esc(t.title)}</b></td><td>${t.people.length ? esc(t.people.map((p) => p.name).join(", ")) : `<span class="mut">Nobody holds it</span>`}</td></tr>`).join("")}</tbody></table>`);
+      if (data.noTitle.length) parts.push(`<h3>People with no job title (${data.noTitle.length})</h3><p class="note">They aren't on the chart, so their Reports to is whatever was set on their profile.</p><p style="margin:0;font-size:13.5px">${data.noTitle.map((p) => (data.canOpenProfiles ? `<a href="employee-profiles.html?code=${encodeURIComponent(p.code)}">${esc(p.name)}</a>` : esc(p.name))).join(", ")}</p>`);
+      $("todo").hidden = !parts.length; $("todo").innerHTML = parts.join("");
+    }
+    function renderPanel() {
+      const n = node(selected), el = $("panel");
+      if (!n) { el.hidden = true; return; }
+      el.hidden = false;
+      const others = data.nodes.filter((o) => o.placed && o.code !== n.code && !isUnder(o.code, n.code)).sort(byJobCode);
+      const dotChoices = data.nodes.filter((o) => o.placed && o.code !== n.code && o.code !== n.parent && !n.dotted.includes(o.code)).sort(byJobCode);
+      const under = kidsOf(n.code).length;
+      el.innerHTML = `<button type="button" class="x" data-close aria-label="Close">×</button>
+        <h3>${esc(n.title)}</h3><div class="mut">Job code ${esc(n.code)}${n.placed ? "" : " · not on the chart yet"}</div>
+        <section>${n.people.length ? n.people.map((p) => `<p class="who"><b>${data.canOpenProfiles ? `<a href="employee-profiles.html?code=${encodeURIComponent(p.code)}">${esc(p.name)}</a>` : esc(p.name)}</b>${
+            p.source === "needs-pick" ? `<span class="tag red">needs a pick</span> between ${esc(p.candidates.join(" and "))}`
+            : p.source === "override" ? `Reports to ${esc(p.reportsToName || "nobody")} <span class="tag amber">set by hand</span><br><span class="mut">The chart says ${esc(p.chartSays || "nobody")}.</span> <button type="button" class="link" data-auto="${esc(p.code)}">Put back to automatic</button>`
+            : p.source === "pick" ? `Reports to ${esc(p.reportsToName)} <span class="tag">picked by HR</span>`
+            : p.source === "unplaced" ? `<span class="mut">${p.reportsToName ? "Reports to " + esc(p.reportsToName) + ", set on their profile" : "Nobody set"}</span>`
+            : p.reportsToName ? `Reports to ${esc(p.reportsToName)}` : `<span class="mut">Reports to nobody (top of the chart)</span>`}</p>`).join("") : `<p class="who mut">Nobody holds this job right now. The jobs under it report past it to the next filled seat up.</p>`}</section>
+        <section><div class="row"><label>Reports to (solid line)<select id="pParent"><option value="">Top of the chart</option>${others.map((o) => `<option value="${esc(o.code)}"${n.placed && o.code === n.parent ? " selected" : ""}>${esc(o.title)} (${esc(o.code)})</option>`).join("")}</select></label><button type="button" id="pSet">${n.placed ? "Move" : "Put on chart"}</button></div></section>
+        ${n.placed ? `<section><label>Dotted lines to</label><div class="dl">${n.dotted.map((d) => `<span>${esc(label(d))}<button type="button" data-undot="${esc(d)}" aria-label="Remove dotted line to ${esc(label(d))}">×</button></span>`).join("") || `<span style="background:none;color:var(--muted);padding-left:0;font-weight:400">None</span>`}</div>
+          ${dotChoices.length ? `<div class="row"><label><select id="pDot" aria-label="Add a dotted line to">${dotChoices.map((o) => `<option value="${esc(o.code)}">${esc(o.title)} (${esc(o.code)})</option>`).join("")}</select></label><button type="button" class="quiet" id="pDotAdd">Add dotted line</button></div>` : ""}</section>
+        <section><button type="button" class="danger" id="pOff">Take off the chart</button>${under ? `<p class="mut" style="margin:8px 0 0">The ${under === 1 ? "job" : under + " jobs"} under it will move up to ${n.parent ? esc(label(n.parent)) : "the top of the chart"}.</p>` : ""}</section>` : ""}`;
+      document.querySelectorAll(".box").forEach((b) => b.classList.toggle("sel", b.dataset.code === selected));
+    }
+
+    // ---------- changing ----------
+    function describe(what, changes) {
+      if (!changes || !changes.length) return what + " Nobody's Reports to changed.";
+      const shown = changes.slice(0, 5).map((c) => `${c.name} (${c.from || "nobody"} → ${c.to || "nobody"})`).join(", ");
+      return `${what} Reports to changed for ${changes.length} ${changes.length === 1 ? "person" : "people"}: ${shown}${changes.length > 5 ? `, and ${changes.length - 5} more` : ""}.`;
+    }
+    async function change(run, what) {
+      try { const j = await run(); data = j; render(); setStatus(describe(what, j.changes)); }
+      catch (err) { setStatus(err.message, "error"); }
+    }
+    const setSolid = (code, parent) => change(() => api(`/api/org-chart/nodes/${encodeURIComponent(code)}`, "PUT", { parent }), parent ? `${label(code)} now reports to ${label(parent)}.` : `${label(code)} is at the top of the chart.`);
+    const takeOff = (code) => { if (selected === code) selected = ""; return change(() => api(`/api/org-chart/nodes/${encodeURIComponent(code)}`, "PUT", { onChart: false }), `${label(code)} is off the chart.`); };
+    const addDot = (code, to) => change(() => api(`/api/org-chart/nodes/${encodeURIComponent(code)}/dotted`, "POST", { to }), `Dotted line added from ${label(code)} to ${label(to)}.`);
+    const removeDot = (code, to) => change(() => api(`/api/org-chart/nodes/${encodeURIComponent(code)}/dotted/${encodeURIComponent(to)}`, "DELETE"), `Dotted line from ${label(code)} to ${label(to)} removed.`);
+    async function putBack(code) {
+      try { await api(`/api/employee-profiles/${encodeURIComponent(code)}/reports-to-auto`, "POST", {}); data = await api("/api/org-chart"); render(); setStatus("Back to automatic. The chart decides who they report to again."); }
+      catch (err) { setStatus(err.message, "error"); }
+    }
+    // may `code` be dropped on `target`?
+    function canDrop(code, target) {
+      if (!code || code === target) return false;
+      if (target === "top") return mode === "solid";
+      if (target === "off") return Boolean(node(code)?.placed);
+      const t = node(target), s = node(code);
+      if (!t || !t.placed || !s) return false;
+      if (mode === "dotted") return s.placed && s.parent !== target && !s.dotted.includes(target);
+      return !isUnder(target, code) && !(s.placed && s.parent === target);
+    }
+    function dropOn(code, target) {
+      if (!canDrop(code, target)) return;
+      if (target === "off") return takeOff(code);
+      if (target === "top") return setSolid(code, "");
+      return mode === "dotted" ? addDot(code, target) : setSolid(code, target);
+    }
+
+    // ---------- events ----------
+    document.querySelectorAll(".seg button").forEach((b) => b.addEventListener("click", () => { mode = b.dataset.mode; document.querySelectorAll(".seg button").forEach((x) => x.classList.toggle("on", x === b)); setStatus(mode === "dotted" ? "Dotted line: drag a box onto the job it has a dotted line to. The solid lines stay as they are." : ""); }));
+    $("outlineBtn").addEventListener("click", () => { outline = !outline; $("outlineBtn").setAttribute("aria-pressed", String(outline)); $("outlineBtn").textContent = outline ? "Tree view" : "Outline view"; render(true); });
+    document.addEventListener("dragstart", (ev) => { const el = ev.target.closest?.("[data-code][draggable]"); if (!el) return; dragging = el.dataset.code; el.classList.add("dragging"); ev.dataTransfer.effectAllowed = "move"; ev.dataTransfer.setData("text/plain", dragging); });
+    document.addEventListener("dragend", () => { dragging = ""; document.querySelectorAll(".dragging, .drop").forEach((x) => x.classList.remove("dragging", "drop", "dotdrop")); });
+    const targetOf = (ev) => { const box = ev.target.closest?.(".box"); if (box) return { el: box, key: box.dataset.code }; const zone = ev.target.closest?.("[data-drop]"); return zone ? { el: zone, key: zone.dataset.drop } : null; };
+    document.addEventListener("dragover", (ev) => { const t = targetOf(ev); document.querySelectorAll(".drop").forEach((x) => { if (!t || x !== t.el) x.classList.remove("drop", "dotdrop"); }); if (!t || !canDrop(dragging, t.key)) return; ev.preventDefault(); t.el.classList.add("drop"); t.el.classList.toggle("dotdrop", mode === "dotted" && t.el.classList.contains("box")); });
+    document.addEventListener("drop", (ev) => { const t = targetOf(ev); if (!t || !dragging) return; ev.preventDefault(); const code = dragging; dragging = ""; dropOn(code, t.key); });
+    document.addEventListener("click", (ev) => {
+      const t = ev.target;
+      const auto = t.closest("[data-auto]"); if (auto) return putBack(auto.dataset.auto);
+      const pick = t.closest(".box, .chip"); if (pick) { selected = selected === pick.dataset.code ? "" : pick.dataset.code; return renderPanel(); }
+      if (!t.closest("#panel")) return;
+      if (t.closest("[data-close]")) { selected = ""; return renderPanel(); }
+      if (t.id === "pSet") return setSolid(selected, $("pParent").value);
+      if (t.id === "pDotAdd") return addDot(selected, $("pDot").value);
+      if (t.dataset.undot) return removeDot(selected, t.dataset.undot);
+      if (t.id === "pOff") return takeOff(selected);
+    });
+    document.addEventListener("keydown", (ev) => {
+      if (ev.key === "Escape" && selected) { selected = ""; return renderPanel(); }
+      const pick = (ev.key === "Enter" || ev.key === " ") && ev.target.closest?.(".box, .chip");
+      if (pick) { ev.preventDefault(); selected = selected === pick.dataset.code ? "" : pick.dataset.code; renderPanel(); }
+    });
+    let lastWidth = window.innerWidth; // phones fire resize when the address bar hides; only a width change needs a redraw
+    window.addEventListener("resize", () => { if (window.innerWidth === lastWidth) return; lastWidth = window.innerWidth; clearTimeout(window.__rz); window.__rz = setTimeout(() => render(true), 150); });
+
+    (async () => {
+      $("outlineBtn").setAttribute("aria-pressed", String(outline)); $("outlineBtn").textContent = outline ? "Tree view" : "Outline view";
+      try { data = await api("/api/org-chart"); render(); }
+      catch (err) { setStatus(err.message, "error"); }
+      if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => render(true)); // box heights change once the font is in
+    })();
+  </script>
+</body>
+</html>

@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="robots" content="noindex, nofollow" />
+  <title>Wilson AC & Appliance - Time Off</title>
+  <link rel="icon" href="favicon.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="internal-shell.css" />
+  <style>
+    :root { --primary: #21692c; --primary-hover: #1b5a25; --border: #dbe1ea; --text: #1f2937; --muted: #6b7280; --bg: #f3f6f4; }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--bg); color: var(--text); font-family: "Inter", "Segoe UI", system-ui, sans-serif; padding: 20px 20px 48px; }
+    .wrap { max-width: 1100px; margin: 0 auto; }
+    .surface { background: #fff; border-radius: 18px; padding: 22px; box-shadow: 0 10px 28px rgba(15, 23, 42, 0.06); margin-bottom: 16px; }
+    .surface[hidden] { display: none; }
+    h2 { margin: 0 0 6px; font-size: 22px; } h3 { margin: 0 0 10px; font-size: 15px; }
+    .note { margin: 0 0 14px; color: var(--muted); font-size: 14px; }
+    .mut { color: var(--muted); font-size: 12.5px; }
+    button { border: none; border-radius: 10px; padding: 9px 16px; font-size: 13.5px; font-weight: 700; background: var(--primary); color: #fff; cursor: pointer; font-family: inherit; }
+    button:hover { background: var(--primary-hover); }
+    button.quiet { background: #eef2f7; color: var(--text); } button.quiet:hover { background: #e2e8f0; }
+    button.danger { background: #fee2e2; color: #991b1b; } button.danger:hover { background: #fecaca; }
+    button.link { background: none; color: var(--primary); padding: 0; font-size: 13px; text-decoration: underline; font-weight: 600; }
+    button:disabled { opacity: .6; cursor: default; }
+    label { display: block; font-size: 12px; font-weight: 700; color: var(--muted); }
+    input[type="text"], input[type="date"], input[type="number"], select, textarea { width: 100%; margin-top: 4px; border: 1.5px solid var(--border); border-radius: 10px; padding: 9px 12px; font-size: 14px; font-family: inherit; background: #fff; color: var(--text); }
+    .form { display: grid; grid-template-columns: repeat(12, 1fr); gap: 12px; }
+    .c3 { grid-column: span 3; } .c4 { grid-column: span 4; } .c6 { grid-column: span 6; } .c9 { grid-column: span 9; } .c12 { grid-column: span 12; }
+    .check { display: flex; gap: 8px; align-items: center; font-size: 13.5px; font-weight: 600; color: var(--text); margin-top: 26px; }
+    .check input { width: 17px; height: 17px; accent-color: var(--primary); }
+    .status { display: none; margin: 10px 0 0; padding: 10px 14px; border-radius: 10px; font-size: 13.5px; } .status.show { display: block; } .status.ok { background: #dcfce7; color: #166534; } .status.error { background: #fee2e2; color: #991b1b; }
+    .tag { display: inline-block; font-size: 10.5px; font-weight: 700; padding: 2px 8px; border-radius: 999px; background: #eef2f7; color: #475569; white-space: nowrap; }
+    .tag.amber { background: #fef3c7; color: #92400e; } .tag.green { background: #dcfce7; color: #166534; } .tag.red { background: #fee2e2; color: #991b1b; } .tag.blue { background: #dbeafe; color: #1e40af; }
+    table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+    th { text-align: left; font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; padding: 6px 8px; border-bottom: 1px solid var(--border); }
+    td { padding: 10px 8px; border-bottom: 1px solid #f1f5f9; vertical-align: top; }
+    .empty { color: var(--muted); font-size: 14px; margin: 0; }
+    .preview { font-size: 13.5px; color: var(--text); background: #f4f7f5; border-radius: 10px; padding: 9px 12px; }
+
+    .req { border: 1.5px solid var(--border); border-radius: 14px; padding: 14px 16px; margin-bottom: 10px; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px 16px; align-items: start; }
+    .req h4 { margin: 0 0 2px; font-size: 15px; } .req p { margin: 2px 0; font-size: 13.5px; }
+    .req .acts { display: flex; gap: 8px; flex-wrap: wrap; }
+    .req .decline { grid-column: 1 / -1; display: none; } .req .decline.show { display: block; }
+    .req .decline .row { display: flex; gap: 8px; margin-top: 8px; }
+
+    .calhead { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 12px; }
+    .calhead h3 { margin: 0; font-size: 17px; min-width: 170px; }
+    .dow { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; margin-bottom: 4px; }
+    .dow span { padding: 0 6px; }
+    .cal { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+    .day { min-height: 86px; border: 1px solid #eef2f7; border-radius: 10px; padding: 5px 6px; background: #fff; overflow: hidden; }
+    .day.other { background: #fafbfc; } .day.other .n { color: #cbd5e1; }
+    .day.weekend { background: #f8fafc; }
+    .day.today { border-color: var(--primary); box-shadow: inset 0 0 0 1px var(--primary); }
+    .day .n { font-size: 12px; font-weight: 700; color: var(--muted); } .day .n .wd { display: none; }
+    .day .who { display: block; font-size: 12px; background: #dbeafe; color: #1e3a8a; border-radius: 6px; padding: 2px 6px; margin-top: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .day .who.me { background: #dcfce7; color: #14532d; }
+    .day .who.part { background: #eef2f7; color: #334155; }
+
+    @media (max-width: 760px) {
+      body { padding: 14px 12px 40px; } .surface { padding: 16px; }
+      .c3, .c4, .c6, .c9 { grid-column: span 12; } .check { margin-top: 0; }
+      .hide-sm { display: none; }
+      .req { grid-template-columns: 1fr; }
+      .dow { display: none; } .cal { display: block; }
+      .day { min-height: 0; margin-bottom: 4px; display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; }
+      .day.none, .day.other { display: none; }
+      .day .n { min-width: 92px; } .day .n .wd { display: inline; }
+      .day .who { display: inline-block; margin-top: 0; }
+    }
+    #calEmpty { margin-top: 10px; } #calEmpty[hidden] { display: none; }
+  </style>
+</head>
+<body data-shell-label="Time Off" data-shell-icon="home">
+  <div class="wrap">
+    <div id="internal-shell-header"></div>
+
+    <div class="surface" id="decideBox" hidden>
+      <h2>Waiting on a decision</h2>
+      <p class="note" id="decideNote"></p>
+      <div id="decideList"></div>
+      <div class="status" id="decideStatus"></div>
+    </div>
+
+    <div class="surface" id="kronosBox" hidden>
+      <h2>Enter in Kronos</h2>
+      <p class="note">Agility doesn't send anything to Kronos. Key each of these in there, then tick it off here so nothing gets missed.</p>
+      <div id="kronosList"></div>
+      <div class="status" id="kronosStatus"></div>
+    </div>
+
+    <div class="surface">
+      <h2>Ask for time off</h2>
+      <p class="note" id="askNote"></p>
+      <p class="note" id="mySched" hidden></p>
+      <form id="form" class="form" autocomplete="off">
+        <div class="c6" id="forBox" hidden><label>Who is it for<select id="fFor"></select></label></div>
+        <div class="c3"><label>Kind<select id="fType"></select></label></div>
+        <div class="c3"><label>First day out<input id="fStart" type="date" required /></label></div>
+        <div class="c3"><label>Last day out<input id="fEnd" type="date" required /></label></div>
+        <div class="c3"><label class="check"><input id="fPartial" type="checkbox" /> Only part of one day</label></div>
+        <div class="c3" id="hoursBox" hidden><label>Hours off<input id="fHours" type="number" min="0.25" max="24" step="0.25" placeholder="4" /></label></div>
+        <div class="c9" id="noteBox"><label>Note (optional; only your approver and HR see it)<input id="fNote" type="text" maxlength="600" /></label></div>
+        <div class="c12 preview" id="preview" hidden></div>
+        <div class="c12"><button type="submit" id="saveBtn">Send request</button><div class="status" id="status"></div></div>
+      </form>
+    </div>
+
+    <div class="surface" id="mineBox">
+      <h2 id="mineTitle">Your requests</h2>
+      <div id="mineList"></div>
+      <div class="status" id="mineStatus"></div>
+    </div>
+
+    <div class="surface">
+      <h2>Who's out</h2>
+      <p class="note">Approved time off for everyone at Wilson. Names and dates only.</p>
+      <div class="calhead">
+        <button type="button" class="quiet" id="calPrev" aria-label="Previous month">&larr;</button>
+        <h3 id="calTitle"></h3>
+        <button type="button" class="quiet" id="calNext" aria-label="Next month">&rarr;</button>
+        <button type="button" class="link" id="calToday">This month</button>
+      </div>
+      <div class="dow"><span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span><span>Sun</span></div>
+      <div class="cal" id="cal"></div>
+      <p class="empty" id="calEmpty" hidden>Nobody is out this month.</p>
+    </div>
+
+    <div class="surface" id="recentBox" hidden>
+      <details>
+        <summary style="cursor:pointer;font-weight:700;font-size:15px">Decided in the last 45 days</summary>
+        <div id="recentList" style="margin-top:12px"></div>
+        <div class="status" id="recentStatus"></div>
+      </details>
+    </div>
+  </div>
+
+  <script src="internal-shell.js"></script>
+  <script>
+    const $ = (id) => document.getElementById(id);
+    const esc = (v) => String(v == null ? "" : v).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+    function setStatus(id, text, kind) { const el = $(id); el.className = "status" + (text ? " show " + (kind || "ok") : ""); el.textContent = text || ""; }
+    async function api(path, init) { const r = await fetch(path, { credentials: "same-origin", ...(init || {}) }); const j = await r.json().catch(() => ({})); if (!r.ok) throw new Error(j.error || "Request failed."); return j; }
+    const post = (path, body) => api(path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body || {}) });
+    const parse = (d) => { const [y, m, day] = String(d).slice(0, 10).split("-").map(Number); return new Date(y, m - 1, day); };
+    const isoOf = (t) => `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, "0")}-${String(t.getDate()).padStart(2, "0")}`;
+    const addDays = (iso, n) => { const t = parse(iso); t.setDate(t.getDate() + n); return isoOf(t); };
+    const fmtDay = (d) => parse(d).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
+    const fmtRange = (a, b) => (a === b ? fmtDay(a) : `${fmtDay(a)} – ${fmtDay(b)}`);
+    const fmtStamp = (d) => (d ? new Date(d).toLocaleDateString("en-US", { month: "short", day: "numeric" }) : "");
+    const lengthText = (r) => (r.hours != null ? `${r.hours} ${r.hours === 1 ? "hour" : "hours"}` : `${r.workDays} working ${r.workDays === 1 ? "day" : "days"}${r.scheduledHours ? ` (${r.scheduledHours} hours)` : ""}`);
+    const WEEK = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
+
+    let me = null, today = isoOf(new Date()), month = null, outRows = [];
+
+    // ---------- asking ----------
+    function schedHours(s, day) { const d = s && s[day]; if (!d || d.off || !d.start || !d.end) return 0; const m = (t) => Number(t.slice(0, 2)) * 60 + Number(t.slice(3, 5)); const span = (m(d.end) - m(d.start)) / 60; return Math.max(0, span - (span > 5 ? (Number(s.lunch) || 0) / 60 : 0)); }
+    function preview() {
+      const el = $("preview");
+      const a = $("fStart").value, b = $("fPartial").checked ? a : ($("fEnd").value || a);
+      const forOther = me.isHr && $("fFor").value && (!me.profile || $("fFor").value !== me.profile.code);
+      if (!a || b < a || forOther || !me.profile) { el.hidden = true; return; }
+      if ($("fPartial").checked) { el.hidden = false; el.textContent = `Part of ${fmtDay(a)}.`; return; }
+      const s = me.profile.schedule || {}, known = WEEK.some((d) => s[d]);
+      let days = 0, hours = 0, n = 0;
+      for (let d = a; d <= b && n < 70; d = addDays(d, 1), n++) {
+        const key = WEEK[(parse(d).getDay() + 6) % 7];
+        if (known) { const h = schedHours(s, key); if (h > 0) { days++; hours += h; } } else if (key !== "sat" && key !== "sun") days++;
+      }
+      el.hidden = false;
+      el.textContent = known ? `${days} working ${days === 1 ? "day" : "days"} (${Math.round(hours * 100) / 100} hours) on your regular schedule.` : `${days} ${days === 1 ? "weekday" : "weekdays"}. HR hasn't entered your regular schedule yet, so this counts Monday to Friday.`;
+    }
+    // "Mon to Thu 8:00 AM to 5:00 PM, Fri 8:00 AM to 12:00 PM"
+    function scheduleText(s) {
+      const NAMES = { mon: "Mon", tue: "Tue", wed: "Wed", thu: "Thu", fri: "Fri", sat: "Sat", sun: "Sun" };
+      const clock = (t) => { const h = Number(t.slice(0, 2)), m = t.slice(3, 5); return `${h % 12 || 12}${m === "00" ? "" : ":" + m} ${h < 12 ? "AM" : "PM"}`; };
+      const runs = [];
+      for (const d of WEEK) {
+        const v = s && s[d]; if (!v || v.off || !v.start || !v.end) continue;
+        const hours = `${clock(v.start)} to ${clock(v.end)}`, last = runs[runs.length - 1];
+        if (last && last.hours === hours && WEEK.indexOf(last.to) === WEEK.indexOf(d) - 1) last.to = d; else runs.push({ from: d, to: d, hours });
+      }
+      return runs.map((r) => `${r.from === r.to ? NAMES[r.from] : NAMES[r.from] + " to " + NAMES[r.to]} ${r.hours}`).join(", ");
+    }
+    function syncPartial() {
+      const part = $("fPartial").checked;
+      $("hoursBox").hidden = !part; $("fEnd").disabled = part; if (part) $("fEnd").value = $("fStart").value;
+      $("noteBox").className = part ? "c6" : "c9";
+      preview();
+    }
+    function renderAsk() {
+      $("fType").innerHTML = me.types.map((t) => `<option>${esc(t)}</option>`).join("");
+      if (me.isHr) {
+        $("forBox").hidden = false;
+        const want = (new URLSearchParams(location.search).get("for") || "").toUpperCase();
+        const mine = me.profile ? me.profile.code : "";
+        $("fFor").innerHTML = (mine ? `<option value="${esc(mine)}">Me (${esc(me.profile.name)})</option>` : `<option value="">Choose a person</option>`) + me.people.filter((p) => p.code !== mine).sort((a, b) => a.name.localeCompare(b.name)).map((p) => `<option value="${esc(p.code)}"${p.code === want ? " selected" : ""}>${esc(p.name)}</option>`).join("");
+      }
+      if (!me.profile && !me.isHr) {
+        $("askNote").textContent = "Your sign-in isn't linked to an employee profile yet, so a request can't be sent from here. Ask HR to check the email on your profile.";
+        $("form").hidden = true; $("mineBox").hidden = true;
+      } else if (me.profile) {
+        $("askNote").innerHTML = `Your request goes to <b>${esc(me.profile.approverName || "HR")}</b> to approve. You'll get a notice on your dashboard when it's decided. Coworkers only ever see your name and the dates on the calendar below.`;
+        const st = scheduleText(me.profile.schedule);
+        if (st) { $("mySched").hidden = false; $("mySched").textContent = `Your regular schedule: ${st}${me.profile.weeklyHours ? ` (${me.profile.weeklyHours} hours a week)` : ""}.${me.profile.scheduleNote ? " " + me.profile.scheduleNote + "." : ""} If that's wrong, tell HR.`; }
+      } else {
+        $("askNote").textContent = "Your own sign-in isn't linked to an employee profile, but you can enter time off for someone else. It goes to their manager to approve.";
+        $("mineBox").hidden = true;
+      }
+    }
+    $("form").addEventListener("submit", async (ev) => {
+      ev.preventDefault();
+      const part = $("fPartial").checked;
+      const body = { type: $("fType").value, startDate: $("fStart").value, endDate: part ? $("fStart").value : $("fEnd").value, note: $("fNote").value };
+      if (part) body.hours = $("fHours").value;
+      if (me.isHr && $("fFor").value) body.forCode = $("fFor").value;
+      if (part && !body.hours) return setStatus("status", "Enter how many hours you'll be out.", "error");
+      $("saveBtn").disabled = true;
+      try {
+        const j = await post("/api/pto/requests", body);
+        setStatus("status", `Sent to ${j.routedTo} for approval.`);
+        $("fStart").value = ""; $("fEnd").value = ""; $("fNote").value = ""; $("fHours").value = ""; $("fPartial").checked = false; syncPartial();
+        await load(true);
+      } catch (err) { setStatus("status", err.message, "error"); }
+      $("saveBtn").disabled = false;
+    });
+    $("fStart").addEventListener("change", () => { if (!$("fEnd").value || $("fEnd").value < $("fStart").value || $("fPartial").checked) $("fEnd").value = $("fStart").value; $("fEnd").min = $("fStart").value; preview(); });
+    $("fEnd").addEventListener("change", preview); $("fPartial").addEventListener("change", syncPartial); $("fFor").addEventListener("change", preview);
+
+    // ---------- my requests ----------
+    const STATUS = { pending: ["amber", "Waiting"], approved: ["green", "Approved"], denied: ["red", "Declined"], cancelled: ["", "Cancelled"] };
+    function renderMine() {
+      const list = me.requests || [];
+      $("mineList").innerHTML = list.length ? `<table><thead><tr><th>Dates</th><th>Kind</th><th class="hide-sm">Length</th><th>Status</th><th></th></tr></thead><tbody>${list.map((r) => {
+        const [cls, label] = STATUS[r.status] || ["", r.status];
+        const detail = r.status === "pending" ? `with ${esc(r.approverName || "HR")}` : r.status === "cancelled" ? "" : `by ${esc(r.decidedBy)}`;
+        const canCancel = r.status === "pending" || (r.status === "approved" && r.endDate >= today);
+        return `<tr data-id="${esc(r.id)}"><td>${esc(fmtRange(r.startDate, r.endDate))}</td><td>${esc(r.type)}</td><td class="hide-sm">${esc(lengthText(r))}</td>
+          <td><span class="tag ${cls}">${label}</span> <span class="mut">${detail}</span>${r.decisionNote ? `<div class="mut">“${esc(r.decisionNote)}”</div>` : ""}</td>
+          <td style="text-align:right">${canCancel ? `<button type="button" class="link" data-cancel>Cancel</button>` : ""}</td></tr>`;
+      }).join("")}</tbody></table>` : `<p class="empty">You haven't asked for any time off yet.</p>`;
+    }
+    async function cancelRequest(id, btn, statusId) {
+      if (btn.dataset.sure !== "1") { btn.dataset.sure = "1"; btn.textContent = "Tap again to cancel it"; btn.style.color = "#991b1b"; setTimeout(() => { if (btn.isConnected) { btn.dataset.sure = ""; btn.textContent = "Cancel"; btn.style.color = ""; } }, 5000); return; }
+      btn.disabled = true;
+      try { const j = await post(`/api/pto/requests/${id}/cancel`, {}); setStatus(statusId, j.request.kronosTask === "remove" ? "Cancelled. HR has been asked to take it back out of Kronos." : "Cancelled."); await load(true); }
+      catch (err) { setStatus(statusId, err.message, "error"); btn.disabled = false; }
+    }
+    $("mineList").addEventListener("click", (ev) => { const b = ev.target.closest("[data-cancel]"); if (b) cancelRequest(b.closest("tr").dataset.id, b, "mineStatus"); });
+
+    // ---------- deciding ----------
+    let approvals = { pending: [], recent: [], kronos: [], isHr: false }, overlap = [];
+    const alsoOut = (r) => [...new Set(overlap.filter((o) => o.employeeCode !== r.employeeCode && o.startDate <= r.endDate && o.endDate >= r.startDate).map((o) => o.employeeName))];
+    function renderDecide() {
+      const list = approvals.pending;
+      $("decideBox").hidden = !list.length;
+      $("decideNote").textContent = approvals.isHr ? "Every open request. A person's manager normally decides; you can decide any of them, and the ones with no manager on file are yours." : "Requests from the people who report to you.";
+      $("decideList").innerHTML = list.map((r) => {
+        const others = alsoOut(r);
+        return `<div class="req" data-id="${esc(r.id)}"><div>
+            <h4>${esc(r.employeeName)} <span class="tag blue">${esc(r.type)}</span></h4>
+            <p><b>${esc(fmtRange(r.startDate, r.endDate))}</b> · ${esc(lengthText(r))}</p>
+            ${r.note ? `<p>“${esc(r.note)}”</p>` : ""}
+            <p class="mut">Asked ${esc(fmtStamp(r.createdAt))}${r.requestedByEmail && r.requestedByEmail !== r.employeeEmail ? ` (entered by ${esc(r.requestedBy)})` : ""} · ${r.approverName ? "goes to " + esc(r.approverName) : "no manager on file, so it goes to HR"}</p>
+            <p class="mut">${others.length ? "Also out then: " + esc(others.join(", ")) : "Nobody else is approved out on those days."}</p></div>
+          <div class="acts">${r.canDecide ? `<button type="button" data-approve>Approve</button><button type="button" class="quiet" data-decline>Decline</button>` : `<span class="mut">Your own request. Someone else decides it.</span>`}</div>
+          <div class="decline"><label>Why is it declined? ${esc(r.employeeName.split(" ")[0])} will see this.<input type="text" maxlength="600" data-why /></label>
+            <div class="row"><button type="button" class="danger" data-confirm-decline>Decline request</button><button type="button" class="quiet" data-keep>Never mind</button></div></div></div>`;
+      }).join("");
+    }
+    $("decideList").addEventListener("click", async (ev) => {
+      const t = ev.target, box = t.closest("[data-id]");
+      if (!box) return;
+      if (t.hasAttribute("data-decline")) { box.querySelector(".decline").classList.add("show"); box.querySelector("[data-why]").focus(); return; }
+      if (t.hasAttribute("data-keep")) { box.querySelector(".decline").classList.remove("show"); return; }
+      const approve = t.hasAttribute("data-approve");
+      if (!approve && !t.hasAttribute("data-confirm-decline")) return;
+      t.disabled = true;
+      try { await post(`/api/pto/requests/${box.dataset.id}/decide`, { approve, note: approve ? "" : box.querySelector("[data-why]").value }); setStatus("decideStatus", ""); await load(true); }
+      catch (err) { setStatus("decideStatus", err.message, "error"); t.disabled = false; }
+    });
+
+    // ---------- Kronos ----------
+    function renderKronos() {
+      const list = approvals.kronos || [];
+      $("kronosBox").hidden = !approvals.isHr || !list.length;
+      $("kronosList").innerHTML = list.map((r) => `<div class="req" data-id="${esc(r.id)}"><div>
+          <h4>${esc(r.employeeName)} ${r.kronosTask === "remove" ? `<span class="tag red">Cancelled, take it out</span>` : `<span class="tag blue">${esc(r.type)}</span>`}</h4>
+          <p><b>${esc(fmtRange(r.startDate, r.endDate))}</b> · ${esc(lengthText(r))}</p>
+          <p class="mut">${r.kronosTask === "remove" ? `${esc(r.type)} · cancelled ${esc(fmtStamp(r.cancelledAt))}${r.cancelledBy ? " by " + esc(r.cancelledBy) : ""}` : `approved by ${esc(r.decidedBy)} ${esc(fmtStamp(r.decidedAt))}${r.scheduledHours == null && r.hours == null ? " · no regular schedule on file, so check the hours" : ""}`}</p></div>
+        <div class="acts"><button type="button" data-kronos="${r.kronosTask === "remove" ? "removed" : "entered"}">${r.kronosTask === "remove" ? "Removed from Kronos" : "Entered in Kronos"}</button></div></div>`).join("");
+    }
+    $("kronosList").addEventListener("click", async (ev) => {
+      const b = ev.target.closest("[data-kronos]"); if (!b) return;
+      b.disabled = true;
+      try { await post(`/api/pto/requests/${b.closest("[data-id]").dataset.id}/kronos`, { action: b.dataset.kronos }); setStatus("kronosStatus", ""); await load(true); }
+      catch (err) { setStatus("kronosStatus", err.message, "error"); b.disabled = false; }
+    });
+
+    function renderRecent() {
+      const list = approvals.recent || [];
+      $("recentBox").hidden = !list.length;
+      $("recentList").innerHTML = `<table><thead><tr><th>Person</th><th>Dates</th><th class="hide-sm">Kind</th><th>Outcome</th><th></th></tr></thead><tbody>${list.map((r) => {
+        const [cls, label] = STATUS[r.status] || ["", r.status];
+        const kronos = r.status === "approved" ? (r.kronosEnteredAt ? `In Kronos ${esc(fmtStamp(r.kronosEnteredAt))}` : "Not in Kronos yet") : "";
+        const acts = [];
+        if (approvals.isHr && r.status === "approved" && r.kronosEnteredAt) acts.push(`<button type="button" class="link" data-kronos="not_entered">Not entered after all</button>`);
+        if (approvals.isHr && r.status === "approved") acts.push(`<button type="button" class="link" data-cancel>Cancel</button>`);
+        return `<tr data-id="${esc(r.id)}"><td><b>${esc(r.employeeName)}</b></td><td>${esc(fmtRange(r.startDate, r.endDate))}</td><td class="hide-sm">${esc(r.type)}</td>
+          <td><span class="tag ${cls}">${label}</span> <span class="mut">${r.status === "cancelled" ? esc(r.cancelledBy ? "by " + r.cancelledBy : "") : esc(r.decidedBy ? "by " + r.decidedBy : "")}</span><div class="mut">${kronos}</div></td>
+          <td style="text-align:right;white-space:nowrap">${acts.join(" &nbsp; ")}</td></tr>`;
+      }).join("")}</tbody></table>`;
+    }
+    $("recentList").addEventListener("click", async (ev) => {
+      const t = ev.target, tr = t.closest("tr[data-id]"); if (!tr) return;
+      if (t.hasAttribute("data-cancel")) return cancelRequest(tr.dataset.id, t, "recentStatus");
+      if (t.dataset.kronos) { t.disabled = true; try { await post(`/api/pto/requests/${tr.dataset.id}/kronos`, { action: t.dataset.kronos }); await load(true); } catch (err) { setStatus("recentStatus", err.message, "error"); t.disabled = false; } }
+    });
+
+    // ---------- who's out ----------
+    async function loadCalendar() {
+      const first = new Date(month.getFullYear(), month.getMonth(), 1), last = new Date(month.getFullYear(), month.getMonth() + 1, 0);
+      const gridStart = new Date(first); gridStart.setDate(first.getDate() - ((first.getDay() + 6) % 7));
+      const gridEnd = new Date(last); gridEnd.setDate(last.getDate() + (6 - ((last.getDay() + 6) % 7)));
+      $("calTitle").textContent = first.toLocaleDateString("en-US", { month: "long", year: "numeric" });
+      let rows = [];
+      try { rows = (await api(`/api/pto/calendar?from=${isoOf(gridStart)}&to=${isoOf(gridEnd)}`)).out; } catch (err) { $("cal").innerHTML = `<p class="empty">${esc(err.message)}</p>`; return; }
+      const myCode = me && me.profile ? me.profile.code : "";
+      let html = "", any = false;
+      for (let d = new Date(gridStart); d <= gridEnd; d.setDate(d.getDate() + 1)) {
+        const iso = isoOf(d), inMonth = d.getMonth() === month.getMonth();
+        const who = rows.filter((r) => r.startDate <= iso && r.endDate >= iso);
+        if (who.length && inMonth) any = true;
+        const dow = (d.getDay() + 6) % 7;
+        html += `<div class="day${inMonth ? "" : " other"}${dow > 4 ? " weekend" : ""}${iso === today ? " today" : ""}${who.length ? "" : " none"}"><div class="n"><span class="wd">${d.toLocaleDateString("en-US", { weekday: "short" })} </span>${d.getDate()}</div>${who.map((r) => `<span class="who${r.employeeCode === myCode ? " me" : ""}${r.partialDay ? " part" : ""}" title="${esc(r.employeeName)}${r.partialDay ? " (part of the day)" : ""}">${esc(r.employeeName)}${r.partialDay ? " (part day)" : ""}</span>`).join("")}</div>`;
+      }
+      $("cal").innerHTML = html;
+      $("calEmpty").hidden = any;
+    }
+    $("calPrev").addEventListener("click", () => { month = new Date(month.getFullYear(), month.getMonth() - 1, 1); loadCalendar(); });
+    $("calNext").addEventListener("click", () => { month = new Date(month.getFullYear(), month.getMonth() + 1, 1); loadCalendar(); });
+    $("calToday").addEventListener("click", () => { const t = parse(today); month = new Date(t.getFullYear(), t.getMonth(), 1); loadCalendar(); });
+
+    async function load(again) {
+      try {
+        const [mine, appr] = await Promise.all([api("/api/pto/mine"), api("/api/pto/approvals")]);
+        me = mine; approvals = appr; today = mine.today || today;
+        if (!month) { const t = parse(today); month = new Date(t.getFullYear(), t.getMonth(), 1); }
+        // who else is out across the open requests (for the approver)
+        overlap = [];
+        if (approvals.pending.length) {
+          const a = approvals.pending.map((r) => r.startDate).sort()[0], b = approvals.pending.map((r) => r.endDate).sort().pop();
+          const to = addDays(a, 99) < b ? addDays(a, 99) : b;
+          overlap = (await api(`/api/pto/calendar?from=${a}&to=${to}`).catch(() => ({ out: [] }))).out;
+        }
+        if (!again) { renderAsk(); $("fStart").min = addDays(today, -60); syncPartial(); }
+        renderMine(); renderDecide(); renderKronos(); renderRecent();
+        await loadCalendar();
+      } catch (err) { setStatus("status", err.message, "error"); }
+    }
+    load();
+  </script>
+</body>
+</html>

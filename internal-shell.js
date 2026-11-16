@@ -331,6 +331,10 @@
       {
         title: "HR",
         children: [
+          { href: "time-off.html", title: "Time Off" },
+          { href: "employee-profiles.html", title: "Employee Profiles" },
+          { href: "employee-counseling.html", title: "Counseling Records" },
+          { href: "org-chart.html", title: "Org Chart" },
           { href: "hr-phone-screen.html", title: "Phone Screen" },
           { href: "hr-candidates.html", title: "Candidates" },
           { href: "uniform-orders.html", title: "Uniform Ordering" },

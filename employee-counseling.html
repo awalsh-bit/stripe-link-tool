@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="robots" content="noindex, nofollow" />
+  <title>Wilson AC & Appliance - Counseling Records</title>
+  <link rel="icon" href="favicon.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="internal-shell.css" />
+  <style>
+    :root { --primary: #21692c; --border: #dbe1ea; --text: #1f2937; --muted: #6b7280; --bg: #f3f6f4; }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--bg); color: var(--text); font-family: "Inter", "Segoe UI", system-ui, sans-serif; padding: 20px 20px 48px; }
+    .wrap { max-width: 1100px; margin: 0 auto; }
+    .surface { background: #fff; border-radius: 18px; padding: 22px; box-shadow: 0 10px 28px rgba(15, 23, 42, 0.06); margin-bottom: 16px; }
+    h2 { margin: 0 0 6px; font-size: 22px; }
+    .note { margin: 0 0 14px; color: var(--muted); font-size: 14px; }
+    .mut { color: var(--muted); font-size: 12.5px; }
+    .lock { background: #f1f5f9; border: 1px solid #e2e8f0; color: #334155; border-radius: 12px; padding: 12px 16px; font-size: 13.5px; }
+    .lock ul { margin: 8px 0 0; padding-left: 18px; } .lock li { margin: 3px 0; }
+    table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+    th { text-align: left; font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; padding: 6px 8px; border-bottom: 1px solid var(--border); }
+    td { padding: 10px 8px; border-bottom: 1px solid #f1f5f9; vertical-align: top; }
+    td.sum { max-width: 420px; color: #374151; }
+    .tag { display: inline-block; font-size: 10.5px; font-weight: 700; padding: 2px 8px; border-radius: 999px; background: #eef2f7; color: #475569; white-space: nowrap; }
+    .tag.amber { background: #fef3c7; color: #92400e; } .tag.green { background: #dcfce7; color: #166534; } .tag.red { background: #fee2e2; color: #991b1b; } .tag.blue { background: #dbeafe; color: #1e40af; }
+    .empty { color: var(--muted); font-size: 14px; margin: 0; }
+    a { color: var(--primary); font-weight: 600; }
+    @media (max-width: 760px) { body { padding: 14px 12px 40px; } .surface { padding: 16px; } .hide-sm { display: none; } }
+  </style>
+</head>
+<body data-shell-label="Counseling Records" data-shell-icon="home">
+  <div class="wrap">
+    <div id="internal-shell-header"></div>
+
+    <div class="surface">
+      <div class="lock"><b>Restricted.</b> This page and the Counseling section of each employee profile are open only to executives and the people granted Counseling Records. Opening it is logged with your name.
+        <ul>
+          <li>Records are written on the person's profile, under the Counseling tab.</li>
+          <li>Write what happened and what was said, plainly and factually. These records can be requested in a legal dispute.</li>
+          <li>No medical details, ever. Those are kept in separate files outside Agility.</li>
+          <li>A record is never edited or deleted. Correct it with an addendum, or void it if it was entered by mistake.</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="surface">
+      <h2>Follow-ups to do</h2>
+      <p class="note">Records that named a date to check back in and haven't been marked followed up.</p>
+      <div id="due"></div>
+    </div>
+
+    <div class="surface">
+      <h2>Written in the last 90 days</h2>
+      <div id="recent"></div>
+    </div>
+  </div>
+
+  <script src="internal-shell.js"></script>
+  <script>
+    const $ = (id) => document.getElementById(id);
+    const esc = (v) => String(v == null ? "" : v).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+    const parse = (d) => { const [y, m, day] = String(d).slice(0, 10).split("-").map(Number); return new Date(y, m - 1, day); };
+    const fmtDay = (d) => (d ? parse(d).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "");
+    const kindTag = (k) => `<span class="tag ${k === "Recognition" ? "green" : /warning|Suspension/.test(k) ? "red" : "blue"}">${esc(k)}</span>`;
+    const link = (r) => `<a href="employee-profiles.html?code=${encodeURIComponent(r.employeeCode)}&tab=counseling">${esc(r.employeeName)}</a>${r.employeeArchived ? ` <span class="mut">(former)</span>` : ""}`;
+    const brief = (s) => (s.length > 160 ? s.slice(0, 157).trimEnd() + "…" : s);
+
+    async function load() {
+      try {
+        const r = await fetch("/api/employee-counseling/overview", { credentials: "same-origin" });
+        const j = await r.json().catch(() => ({}));
+        if (!r.ok) throw new Error(j.error || "Unable to load counseling records.");
+        const due = j.records.filter((x) => x.followUpOn && !x.followUpDoneAt).sort((a, b) => a.followUpOn.localeCompare(b.followUpOn));
+        $("due").innerHTML = due.length ? `<table><thead><tr><th>Person</th><th>Follow up</th><th>Record</th><th class="hide-sm">What happened</th></tr></thead><tbody>${due.map((x) => `<tr>
+            <td>${link(x)}</td><td><span class="tag ${x.followUpOn <= j.today ? "red" : "amber"}">${esc(fmtDay(x.followUpOn))}${x.followUpOn < j.today ? " · overdue" : x.followUpOn === j.today ? " · today" : ""}</span></td>
+            <td>${kindTag(x.kind)}<div class="mut">${esc(fmtDay(x.occurredOn))}</div></td><td class="sum hide-sm">${esc(brief(x.summary))}</td></tr>`).join("")}</tbody></table>` : `<p class="empty">No follow-ups are waiting.</p>`;
+        const cutoff = new Date(Date.now() - 90 * 86400000).toISOString();
+        const recent = j.records.filter((x) => x.createdAt >= cutoff);
+        $("recent").innerHTML = recent.length ? `<table><thead><tr><th>Person</th><th>Record</th><th class="hide-sm">Held by</th><th class="hide-sm">What happened</th></tr></thead><tbody>${recent.map((x) => `<tr>
+            <td>${link(x)}</td><td>${kindTag(x.kind)}<div class="mut">${esc(fmtDay(x.occurredOn))}</div></td><td class="hide-sm">${esc(x.issuedBy)}</td><td class="sum hide-sm">${esc(brief(x.summary))}</td></tr>`).join("")}</tbody></table>` : `<p class="empty">Nothing has been written in the last 90 days.</p>`;
+      } catch (err) { $("due").innerHTML = `<p class="empty">${esc(err.message)}</p>`; $("recent").innerHTML = ""; }
+    }
+    load();
+  </script>
+</body>
+</html>

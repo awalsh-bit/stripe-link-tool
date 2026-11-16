@@ -376,3 +376,39 @@ snapshot keep the legacy department-based behavior.
   (draft→locked→final_paid, 48h auto-finalize) and `fs_qualified`.
 - `commission_salesperson_adjustments`: BONUS/DEDUCT/ADVANCE/MISC.
 - `commission_hvac_order_settings`: labor/discounts/COGS/overhead per order.
+
+### Employee profiles, HR documents, counseling and time off (live — managed by `lib/employee-profiles-postgres.js`)
+
+Created on first use (2026-11-15); all four key on `employee_directory.code`
+and nothing in them is deleted when a person is archived. See
+`docs/company/employee-profiles.md`.
+
+- `employee_profile_details`: `reports_to_code`, `employment_type`, phones,
+  emergency contact, `schedule` (jsonb: `{start,end}` or `{off:true}` per
+  weekday plus `lunch` minutes), `schedule_note`, `hr_note`.
+- `employee_documents`: uploaded HR files as `bytea` with category, title and
+  uploader; `counseling_id` marks a counseling attachment; removal is a soft
+  mark (`removed_at`, `removed_by_email`, `removed_reason`). No medical
+  records, I-9s, SSNs or license numbers.
+- `employee_counseling_records`: dated record with `kind`, `summary`,
+  `expectations`, `acknowledgment`, follow-up fields, `addenda` (jsonb,
+  append-only) and `voided_at` / `void_reason`. Never updated in place, never
+  deleted. Gated by `/employee-counseling.html` on top of
+  `/employee-profiles.html`; every read is audited.
+- `pto_requests`: `type`, `start_date`, `end_date`, optional `hours`,
+  `work_days`, `scheduled_hours`, `status` (pending, approved, denied,
+  cancelled), the approver stamped at request time, decision fields,
+  `kronos_entered_at` / `kronos_removed_at` for the hand-keyed Kronos step.
+
+### Org Chart (live — managed by `lib/org-chart-postgres.js`)
+
+Created on first use (2026-11-16). The reporting structure between job
+codes; see `docs/company/org-chart.md`.
+
+- `org_chart_nodes`: `job_code` (PK, = `job_titles.code`), `parent_code`
+  (the one solid line; `''` = top of the chart), `updated_at`, `updated_by`.
+  A row means the job code is on the chart.
+- `org_chart_dotted`: (`job_code`, `to_code`) pairs, any number per job code.
+- `employee_profile_details.reports_to_mode`: `''` = `reports_to_code` follows
+  the chart, `pick` = HR chose between several holders of the job above,
+  `override` = set by hand and left alone by the chart.

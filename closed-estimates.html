@@ -102,6 +102,17 @@
     .ce-story li::before { content: ""; position: absolute; left: -6px; top: 5px; width: 10px; height: 10px; border-radius: 50%; background: #cbd5e1; border: 2px solid #fff; }
     .ce-story li.end::before { background: var(--primary); }
     .ce-story li.re::before { background: #6366f1; }
+    /* the ticket around the estimate (11/13): the client's request, then money */
+    .ce-story li.req::before { background: #0ea5e9; }
+    .ce-story li.paid::before { background: #b45309; }
+    .ce-story li.refund::before { background: #b91c1c; }
+    .ce-story li.off { color: var(--muted); }
+    .ce-story .sub { color: var(--muted); }
+    .ce-bill { display: inline-block; border-radius: 999px; padding: 2px 10px; font-size: 12px; font-weight: 800; }
+    .ce-bill.yes { background: #fef3c7; color: #92400e; }
+    .ce-bill.open { background: #e0f2fe; color: #075985; }
+    .ce-bill.no { background: #f1f5f9; color: #475569; }
+    .ce-bill.back { background: #fee2e2; color: #991b1b; }
     .ce-story .t { color: var(--muted); font-size: 12px; white-space: nowrap; }
     .ce-story .q { display: block; color: #374151; }
     .ce-confirm { margin-top: 10px; padding: 10px 14px; border-radius: 12px; background: #f8fafc; border: 1px solid #e2e8f0; font-size: 13px; line-height: 1.5; }
@@ -321,9 +332,51 @@
     const sendsHtml = (e) => { const sends = Array.isArray(e.sends) ? e.sends : []; if (!sends.length) return `<div class="se-hint">Nothing was ever emailed or texted from Agility.</div>`; return `<ul class="se-sends">${sends.slice().reverse().map((x) => `<li>${whenT(x.at)} · ${x.variant === "reminder" ? "Reminder " : ""}${x.channel === "text" ? "texted" : "emailed"}${x.to ? " to " + esc(x.to) : ""}${x.by ? " · " + esc(x.by) : ""}</li>`).join("")}</ul>`; };
 
     // Everything that happened to it, oldest first.
+    // The ticket around the estimate (11/13): the service request the client
+    // filed, the ticket number going onto it, and every payment link, saved-card
+    // charge and card-reader payment made against the SV number - so the story
+    // reads request -> estimate -> closed -> billed. From e.ticket (server).
+    const cardText = (c) => (c ? `${c.brand ? c.brand.charAt(0).toUpperCase() + c.brand.slice(1) + " " : ""}•••• ${c.last4 || "on file"}` : "");
+    function ticketEventHtml(x, e) {
+      const by = x.by ? ` by ${esc(x.by)}` : "";
+      if (x.kind === "request") {
+        const what = { hvac: "HVAC service request", "hvac-quote": "HVAC quote request", install_damage: "Install damage report" }[x.requestType] || "Service request";
+        return { cls: "req", html: `<strong>${what} submitted</strong> by the client${x.card ? ` <span class="sub">· card saved on file: ${esc(cardText(x.card))}</span>` : x.cardRequired ? ` <span class="sub">· no card on file</span>` : ""}` };
+      }
+      if (x.kind === "ticket") return { cls: "req", html: `<strong>Ticket ${esc(x.ticket || e.svNumber || "")} entered</strong> on the request${by}` };
+      if (x.kind === "card_request") return { cls: x.state === "cancelled" ? "off" : "", html: `<strong>Card request link sent</strong>${by}${x.state === "waiting" ? ` <span class="sub">· not completed</span>` : x.state === "cancelled" ? ` <span class="sub">· cancelled</span>` : ""}` };
+      if (x.kind === "card_saved") return { cls: "", html: `<strong>Card saved on file</strong>${x.detail ? ` <span class="sub">· ${esc(x.detail)}</span>` : ""}` };
+      if (x.kind === "link_sent") return { cls: x.state === "cancelled" ? "off" : "", html: `<strong>${x.deposit ? "Deposit link" : "Payment link"} sent</strong> for ${money(x.amount)}${by}${{ sent: ` <span class="sub">· not paid yet</span>`, viewed: ` <span class="sub">· opened, not paid</span>`, ach_pending: ` <span class="sub">· bank payment pending</span>` }[x.state] || ""}` };
+      if (x.kind === "link_cancelled") return { cls: "off", html: `<strong>Payment link cancelled</strong> (${money(x.amount)})${x.reason ? ` <span class="sub">· ${esc(x.reason)}</span>` : ""}` };
+      if (x.kind === "paid") {
+        const html = x.how === "saved_card" ? `<strong>Saved card charged ${money(x.amount)}</strong>${by}${x.method && x.method !== "card" ? ` <span class="sub">· ${esc(x.method)}</span>` : ""}`
+          : x.how === "reader" ? `<strong>Paid ${money(x.amount)}</strong> at the card reader${by}${x.method && x.method !== "card" ? ` <span class="sub">· ${esc(x.method)}</span>` : ""}`
+          : x.how === "balance" ? `<strong>Balance charged ${money(x.amount)}</strong> to the card on file`
+          : `<strong>Paid ${money(x.amount)}</strong> through the payment link <span class="sub">· ${esc(x.method || "card")}</span>`;
+        return { cls: "paid", html };
+      }
+      if (x.kind === "refund") return { cls: "refund", html: `<strong>Refunded ${money(x.amount)}</strong>${by}${x.method ? ` <span class="sub">· ${esc(x.method)}</span>` : ""}${x.reason ? ` <span class="sub">· ${esc(x.reason)}</span>` : ""}${x.note ? `<span class="q">“${esc(x.note)}”</span>` : ""}` };
+      return null;
+    }
+    // One line for the Billing row: what was collected on this ticket, if anything.
+    function billingHtml(e) {
+      const t = e.ticket;
+      if (!e.svNumber) return `<span class="ce-bill no">No ticket number</span> — payments are matched by SV number.`;
+      const refunded = t?.refundCount ? `${money(t.refundedTotal)} refunded${t.refundCount > 1 ? ` in ${t.refundCount} refunds` : ""}, last ${whenT(t.lastRefundAt)}` : "";
+      if (!t || (!t.paidCount && !t.openLinks)) return `<span class="ce-bill no">Nothing collected in Agility</span>${t?.cardOnFile ? ` — card on file (${esc(cardText(t.cardOnFile))}) was not charged.` : ` — no payment link or saved-card charge names ${esc(e.svNumber)}.`}${refunded ? ` A refund is on file: ${refunded}.` : ""}`;
+      const open = t.openLinks ? ` · ${t.openLinks} payment link${t.openLinks === 1 ? "" : "s"} still out for ${money(t.openAmount)}` : "";
+      if (!t.paidCount) return `<span class="ce-bill open">Link sent — not paid</span>${open.replace(/^ · /, " — ")}${refunded ? `. A refund is on file: ${refunded}.` : ""}`;
+      const after = e.closedAt && t.lastPaidAt ? (new Date(t.lastPaidAt) >= new Date(e.closedAt) ? " (after the estimate was closed)" : " (before the estimate was closed)") : "";
+      const billed = `${t.paidCount} payment${t.paidCount === 1 ? "" : "s"}, last ${whenT(t.lastPaidAt)}${after}`;
+      // refunds: what went back, and what Wilson kept
+      if (t.refundCount && t.netTotal <= 0.004) return `<span class="ce-bill back">Refunded in full</span> — billed ${money(t.paidTotal)} (${billed}); ${refunded}${open}`;
+      if (t.refundCount) return `<span class="ce-bill yes">Net ${money(t.netTotal)}</span> — billed ${money(t.paidTotal)} (${billed}); ${refunded}${open}`;
+      return `<span class="ce-bill yes">Billed ${money(t.paidTotal)}</span> — ${billed}${open}`;
+    }
     function storyHtml(e) {
       const r = e.response || {}; const ev = [];
       const add = (at, html, cls = "") => { if (at) ev.push({ at, html, cls }); };
+      for (const x of e.ticket?.events || []) { const row = ticketEventHtml(x, e); if (row) add(x.at, row.html, row.cls); }
       add(e.createdAt, `<strong>Created</strong> by ${esc(e.createdByName || e.createdByEmail || "—")}`);
       for (const x of e.sends || []) add(x.at, `<strong>${x.variant === "reminder" ? "Reminder " : ""}${x.channel === "text" ? "texted" : "emailed"}</strong>${x.to ? " to " + esc(x.to) : ""}${x.by ? " by " + esc(x.by) : ""}`);
       add(e.viewedAt, r.resolvedByStaff && e.viewedAt === e.respondedAt ? "" : `<strong>Client opened the link</strong>`);
@@ -335,7 +388,8 @@
       }
       const days = e.createdAt && e.closedAt ? Math.round((new Date(e.closedAt) - new Date(e.createdAt)) / 864e5) : null;
       add(e.closedAt, `<strong>Closed</strong> as ${esc(e.outcomeLabel)}${e.closedByEmail ? " by " + esc(e.closedByEmail) : ""}${days == null ? "" : ` · ${days === 0 ? "same day" : days + " day" + (days === 1 ? "" : "s") + " after it was created"}`}`, "end");
-      return `<ul class="ce-story">${ev.filter((x) => x.html).sort((a, b) => String(a.at).localeCompare(String(b.at))).map((x) => `<li class="${x.cls}"><span class="t">${whenT(x.at)}</span> — ${x.html}</li>`).join("")}</ul>`;
+      const ms = (v) => { const n = new Date(v).getTime(); return Number.isFinite(n) ? n : 0; };
+      return `<ul class="ce-story">${ev.filter((x) => x.html).sort((a, b) => ms(a.at) - ms(b.at)).map((x) => `<li class="${x.cls}"><span class="t">${whenT(x.at)}</span> — ${x.html}</li>`).join("")}</ul>`;
     }
 
     let reviewing = null;
@@ -357,6 +411,7 @@
         <div class="se-kv"><div class="k">Created</div><div>${whenT(e.createdAt)} by ${esc(e.createdByName || e.createdByEmail || "—")}</div></div>
           ${e.summary?.eta ? `<div class="se-kv"><div class="k">Parts ETA</div><div>${({ stock: "In stock", backorder: "Backorder", date: "Specific date" })[e.summary.eta.mode] || esc(e.summary.eta.mode)}${e.summary.eta.from ? " · " + fmtEta(e.summary.eta.from) + (e.summary.eta.to && e.summary.eta.to !== e.summary.eta.from ? " – " + fmtEta(e.summary.eta.to) : "") : ""}<div class="se-hint">${esc(e.summary.etaMessage || "")}</div></div></div>` : ""}
         <div class="se-kv"><div class="k">Closed</div><div>${whenT(e.closedAt)}${e.closedByEmail ? " by " + esc(e.closedByEmail) : ""} — off the active list.</div></div>
+        <div class="se-kv"><div class="k">Billing</div><div>${billingHtml(e)}</div></div>
         <div class="se-summary" style="margin-top:12px;">${summaryHtml(e.summary || {})}</div>
           ${e.status === "shopping" ? `<div class="se-resp"><strong>Shopping for a replacement.</strong><br>${[directionText, visitText].filter(Boolean).map(esc).join("<br>")}${r.notes ? `<br>“${esc(r.notes)}”` : ""}<br><span style="color:var(--muted); font-size:12px;">Showroom team was notified — lead is up for grabs.</span></div>` : ""}
           ${e.status === "approved" ? `<div class="se-resp" style="background: rgba(var(--primary-rgb), 0.1);"><strong>Approved.</strong> Schedule the repair.${r.proceededAnyway ? `<br><span style="color:#92400e;">⚠ The client saw the technician's <strong>not recommended</strong> note and chose the repair anyway.</span>` : ""}</div>` : ""}
